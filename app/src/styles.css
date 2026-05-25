@@ -3938,6 +3938,47 @@ body {
 	display: none;
 }
 
+/* Update available pill */
+.update-pill {
+	display: flex;
+	align-items: center;
+	background: #3c3c38;
+	border-radius: 4px;
+	overflow: hidden;
+	opacity: 0.85;
+	transition: opacity 0.15s;
+}
+.update-pill:hover {
+	opacity: 1;
+}
+.update-pill__label {
+	background: none;
+	border: none;
+	color: #cda24a;
+	font-size: 12px;
+	padding: 4px 8px;
+	cursor: pointer;
+	white-space: nowrap;
+}
+.update-pill__label:hover {
+	text-decoration: underline;
+}
+.update-pill__dismiss {
+	background: none;
+	border: none;
+	color: #999;
+	cursor: pointer;
+	padding: 4px 4px 4px 0;
+	display: flex;
+	align-items: center;
+}
+.update-pill__dismiss:hover {
+	color: #ccc;
+}
+:fullscreen .update-pill {
+	display: none;
+}
+
 /* Settings page dialog */
 .settings-page {
 	width: 800px;

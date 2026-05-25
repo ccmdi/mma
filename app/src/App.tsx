@@ -10,8 +10,9 @@ import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys.add";
 import { useSetting } from "@/store/settings.add";
 import { Icon } from "@/components/primitives/Icon";
-import { mdiCog, mdiPuzzle } from "@mdi/js";
+import { mdiCog, mdiPuzzle, mdiClose } from "@mdi/js";
 import { ToastContainer } from "@/components/primitives/Toast.add";
+import { useUpdateAvailable, dismissUpdate } from "@/lib/util/updateCheck";
 import "@/plugins";
 
 const isEditorWindow = getCurrentWindow().label.startsWith("map-");
@@ -22,6 +23,7 @@ export default function App() {
 	const [showSettings, setShowSettings] = useState(false);
 	const [showPlugins, setShowPlugins] = useState(false);
 	const customCss = useSetting("customCss");
+	const updateInfo = useUpdateAvailable();
 
 	useHotkey(useBinding("toggleStats"), () => setShowStats((s) => !s));
 
@@ -66,6 +68,23 @@ export default function App() {
 					className="bottom-bar"
 					style={{ position: "fixed", bottom: 12, right: 12, zIndex: 5, display: "flex", gap: 4 }}
 				>
+					{updateInfo && !updateInfo.dismissed && (
+						<div className="update-pill">
+							<button
+								className="update-pill__label"
+								onClick={() => setShowSettings(true)}
+							>
+								v{updateInfo.version} available
+							</button>
+							<button
+								className="update-pill__dismiss"
+								onClick={dismissUpdate}
+								title="Dismiss"
+							>
+								<Icon path={mdiClose} size={14} />
+							</button>
+						</div>
+					)}
 					{!map && <BulkActions />}
 					<button className="settings-gear" onClick={() => setShowPlugins(true)} title="Plugins">
 						<Icon path={mdiPuzzle} />
