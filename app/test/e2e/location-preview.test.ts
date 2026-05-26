@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
 	waitForReady,
 	createAndOpenMap,
@@ -7,7 +8,7 @@ import {
 	getAllLocs,
 	getLocCount,
 	createTag,
-	makeLoc,
+	createLocation,
 	openLocation,
 	closeLocation,
 	withApi,
@@ -35,7 +36,7 @@ const LoadAsPanoId = 1;
 const PANO_TIMEOUT = 30_000;
 
 function loc(overrides: Partial<Location> = {}): Location {
-	return makeLoc({ lat: 0, lng: 0, heading: 0, pitch: 0, zoom: 0, ...overrides });
+	return createLocation({ lat: 0, lng: 0, ...overrides });
 }
 
 /** Wait for the date count badge to show a positive number. */
@@ -638,8 +639,6 @@ describe("LocationPreview — location with tags", () => {
 		tagBlueId = tagBlue.id;
 		await withApi(
 			async (api, trId, tbId) => {
-				await api.addTag({ id: trId, name: "Red", color: "#ff0000", visible: true });
-				await api.addTag({ id: tbId, name: "Blue", color: "#0000ff", visible: true });
 				return "ok";
 			},
 			tagRedId,
@@ -1055,13 +1054,15 @@ describe("LocationPreview — tag management in preview", () => {
 		mgmtTagBId = tagB.id;
 		await withApi(
 			async (api, aId, bId) => {
-				await api.addTag({ id: aId, name: "Alpha", color: "#ff6600", visible: true });
-				await api.addTag({ id: bId, name: "Beta", color: "#0066ff", visible: true });
 				return "ok";
 			},
 			mgmtTagAId,
 			mgmtTagBId,
 		);
+		await addLocs([
+			loc({ lat: COORD_ONLY.lat + 1, lng: COORD_ONLY.lng + 1, tags: [mgmtTagAId] }),
+			loc({ lat: COORD_ONLY.lat + 2, lng: COORD_ONLY.lng + 2, tags: [mgmtTagBId] }),
+		]);
 		const ids = await addLocs([loc({ lat: COORD_ONLY.lat, lng: COORD_ONLY.lng, tags: [] })]);
 		tagmgmt1Id = ids[0];
 	});

@@ -27,6 +27,52 @@ function Compass({ heading }: { heading: number }) {
 	);
 }
 
+const TAPE_DIRECTIONS: [number, string][] = [
+	[0, "N"], [45, "NE"], [90, "E"], [135, "SE"],
+	[180, "S"], [225, "SW"], [270, "W"], [315, "NW"],
+];
+
+const TAPE_DEG_WIDTH = 180;
+const TAPE_PX_PER_DEG = 1.5;
+const TAPE_WIDTH_PX = TAPE_DEG_WIDTH * TAPE_PX_PER_DEG;
+
+function CompassTape({ heading }: { heading: number }) {
+	const ticks: { deg: number; label?: string }[] = [];
+	for (let d = 0; d < 360; d += 5) {
+		const dir = TAPE_DIRECTIONS.find(([a]) => a === d);
+		ticks.push({ deg: d, label: dir?.[1] });
+	}
+
+	return (
+		<div className="compass-tape">
+			<div className="compass-tape__center-mark" />
+			<div className="compass-tape__strip" style={{ width: TAPE_WIDTH_PX }}>
+				<div
+					className="compass-tape__inner"
+					style={{ transform: `translateX(${(-heading * TAPE_PX_PER_DEG).toFixed(1)}px)` }}
+				>
+					{[-360, 0, 360].map((offset) =>
+						ticks.map((t) => {
+							const deg = t.deg + offset;
+							const isCardinal = t.label && t.label.length === 1;
+							return (
+								<div
+									key={deg}
+									className="compass-tape__tick"
+									style={{ left: deg * TAPE_PX_PER_DEG }}
+								>
+									<div className={`compass-tape__mark${isCardinal ? " compass-tape__mark--cardinal" : t.label ? " compass-tape__mark--inter" : ""}`} />
+									{t.label && <span className={`compass-tape__label${isCardinal ? " compass-tape__label--cardinal" : ""}`}>{t.label}</span>}
+								</div>
+							);
+						}),
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 // --- Crosshair overlay ---
 
 export class CrosshairOverlay {
@@ -281,6 +327,7 @@ export function PanoControls({
 			try {
 				const loc = await lookupStreetView(target.lat(), target.lng(), 0, {
 					onlyOfficial: true,
+					radius: 100,
 				});
 				if (!loc?.panoId) return;
 				if (loc.flags & LocationFlag.LoadAsPanoId) {
@@ -399,6 +446,10 @@ export function PanoControls({
 						</div>
 					</div>
 				</div>
+			)}
+
+			{vis.showCompassTape && (
+				<CompassTape heading={heading} />
 			)}
 
 			{vis.showZoom && (

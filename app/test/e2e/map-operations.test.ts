@@ -7,7 +7,7 @@ import {
 	openMap,
 	addLocs,
 	getLocCount,
-	makeLoc,
+	createLocation,
 	withApi,
 } from "./helpers";
 
@@ -44,7 +44,7 @@ describe("Map rename", () => {
 
 	it("rename shows in map list", async () => {
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 		const ourMap = maps.find((m) => m.id === mapId);
 		expect(ourMap).toBeTruthy();
@@ -76,7 +76,7 @@ describe("Folder operations", () => {
 		}, id);
 
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 		const ourMap = maps.find((m) => m.id === id);
 		expect(ourMap!.folder).toBe("MyFolder");
@@ -88,7 +88,7 @@ describe("Folder operations", () => {
 		}, mapIds[0]);
 
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 		const ourMap = maps.find((m) => m.id === mapIds[0]);
 		expect(ourMap!.folder).toBeNull();
@@ -113,7 +113,7 @@ describe("Folder operations", () => {
 		);
 
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 		const m1 = maps.find((m) => m.id === id1);
 		const m2 = maps.find((m) => m.id === id2);
@@ -127,7 +127,7 @@ describe("Folder operations", () => {
 		});
 
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 
 		// Maps still exist but in root
@@ -197,6 +197,7 @@ describe("Map metadata updates", () => {
 
 // bulkImportMaps was removed in the Rust migration — bulk import now requires files on disk
 // via bulk_import_preview + bulk_import_confirm. Covered by bulk-import-rust.test.ts.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 describe.skip("Bulk import", () => {
 	const importedIds: string[] = [];
 
@@ -211,7 +212,7 @@ describe.skip("Bulk import", () => {
 
 	it("bulk import creates multiple maps", async () => {
 		await withApi(async (api) => {
-			const maps = await api.listMaps();
+			const maps = await api.cmd.storeListMaps();
 			return maps.length;
 		});
 
@@ -220,47 +221,15 @@ describe.skip("Bulk import", () => {
 				{
 					name: "Bulk Map 1",
 					folder: "Imported",
-					locations: [
-						{
-							lat: 10,
-							lng: 20,
-							heading: 0,
-							pitch: 0,
-							zoom: 1,
-							panoId: null,
-							flags: 0,
-							tags: [],
-							createdAt: new Date().toISOString(),
-						},
-					],
+					locations: [api.createLocation({ lat: 10, lng: 20, zoom: 1 })],
 					tags: [],
 				},
 				{
 					name: "Bulk Map 2",
 					folder: "Imported",
 					locations: [
-						{
-							lat: 30,
-							lng: 40,
-							heading: 0,
-							pitch: 0,
-							zoom: 1,
-							panoId: null,
-							flags: 0,
-							tags: [],
-							createdAt: new Date().toISOString(),
-						},
-						{
-							lat: 50,
-							lng: 60,
-							heading: 0,
-							pitch: 0,
-							zoom: 1,
-							panoId: null,
-							flags: 0,
-							tags: [],
-							createdAt: new Date().toISOString(),
-						},
+						api.createLocation({ lat: 30, lng: 40, zoom: 1 }),
+						api.createLocation({ lat: 50, lng: 60, zoom: 1 }),
 					],
 					tags: [{ name: "Imported", color: "#ff0000", visible: true }],
 				},
@@ -268,7 +237,7 @@ describe.skip("Bulk import", () => {
 		});
 
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 
 		const bulkMaps = maps.filter((m: any) => m.name.startsWith("Bulk Map"));
@@ -308,8 +277,8 @@ describe("Active location and work area", () => {
 		await waitForReady();
 		mapId = await createAndOpenMap("E2E Active Loc");
 		const locs = [
-			makeLoc({ lat: 10, lng: 20, heading: 90, pitch: 5, zoom: 2, panoId: "P1", flags: 1 }),
-			makeLoc({ lat: 30, lng: 40, heading: 180, pitch: 0, zoom: 1 }),
+			createLocation({ lat: 10, lng: 20, heading: 90, pitch: 5, zoom: 2, panoId: "P1", flags: 1 }),
+			createLocation({ lat: 30, lng: 40, heading: 180, pitch: 0, zoom: 1 }),
 		];
 		locIds = await addLocs(locs);
 	});
@@ -386,11 +355,8 @@ describe("Extra field definitions", () => {
 
 	it("set extra field definitions on map", async () => {
 		await withApi(async (api) => {
-			await api.registerFieldDefs({
-				altitude: { type: "number", label: "Altitude (m)" },
-				country: { type: "string", label: "Country" },
-				region: { type: "enum", label: "Region", values: ["NA", "EU", "AS"] },
-			});
+			const cur = api.getCurrentMap()!.meta.extra?.fields ?? {};
+			await api.updateMapMeta({ extra: { ...api.getCurrentMap()!.meta.extra, fields: { ...cur, altitude: { type: "number", label: "Altitude (m)" }, country: { type: "string", label: "Country" }, region: { type: "enum", label: "Region", values: ["NA", "EU", "AS"] } } } });
 		});
 
 		const extra = await withApi(async (api) => api.getCurrentMap()?.meta.extra);
@@ -412,7 +378,7 @@ describe("Extra field definitions", () => {
 	it("auto-registers field defs when adding locations with extras", async () => {
 		await withApi(async (api) => {
 			await api.addLocations([
-				makeLoc({ extra: { plumbus: 1, captured: "2024-03", note: "hello" } }),
+				api.createLocation({ lat: 0, lng: 0, extra: { plumbus: 1, captured: "2024-03", note: "hello" } }),
 			]);
 		});
 
@@ -425,7 +391,7 @@ describe("Extra field definitions", () => {
 	it("auto-registered field defs use known labels for enrichment keys", async () => {
 		await withApi(async (api) => {
 			await api.addLocations([
-				makeLoc({ extra: { countryCode: "US", imageDate: "2023-05" } }),
+				api.createLocation({ lat: 0, lng: 0, extra: { countryCode: "US", imageDate: "2023-05" } }),
 			]);
 		});
 
@@ -438,7 +404,7 @@ describe("Extra field definitions", () => {
 	it("auto-registered field defs persist across map close/reopen", async () => {
 		await withApi(async (api) => {
 			await api.addLocations([
-				makeLoc({ extra: { fleeb: 99 } }),
+				api.createLocation({ lat: 0, lng: 0, extra: { fleeb: 99 } }),
 			]);
 		});
 
@@ -454,15 +420,14 @@ describe("Extra field definitions", () => {
 	it("does not re-register already known keys", async () => {
 		// Explicitly register with a custom label
 		await withApi(async (api) => {
-			await api.registerFieldDefs({
-				score: { type: "number", label: "My Score" },
-			});
+			const cur = api.getCurrentMap()!.meta.extra?.fields ?? {};
+			await api.updateMapMeta({ extra: { ...api.getCurrentMap()!.meta.extra, fields: { ...cur, score: { type: "number", label: "My Score" } } } });
 		});
 
 		// Add a location with the same key — should not overwrite the custom def
 		await withApi(async (api) => {
 			await api.addLocations([
-				makeLoc({ extra: { score: 42 } }),
+				api.createLocation({ lat: 0, lng: 0, extra: { score: 42 } }),
 			]);
 		});
 

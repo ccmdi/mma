@@ -7,7 +7,7 @@ import { RegionSelector } from "./RegionSelector";
 import { SettingsPanel } from "./SettingsPanel";
 import { ProgressDisplay } from "./ProgressDisplay";
 import { google } from "@/lib/sv/opensv";
-import { getSelections, getCurrentMap, resolveTagsByName } from "@/store/useMapStore";
+import { getSelections, getCurrentMap, createTags } from "@/store/useMapStore";
 import type { Selection } from "@/store/selections";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiArrowLeft } from "@mdi/js";
@@ -45,7 +45,7 @@ function generatedToLocation(loc: GeneratedLocation, tagId: number | null) {
 async function resolveGeneratedLocationTag(): Promise<number | null> {
 	const tagName = getCurrentMap()?.meta.settings?.generatedLocationTag;
 	if (!tagName) return null;
-	const [tag] = await resolveTagsByName([tagName]);
+	const [tag] = await createTags([tagName]);
 	return tag.id;
 }
 

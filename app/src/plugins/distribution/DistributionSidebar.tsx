@@ -48,7 +48,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	const [total, setTotal] = useState(0);
 
 	const refresh = useCallback(async () => {
-		const map = MMA.getMap();
+		const map = MMA.getCurrentMap();
 		if (!map) return;
 		const { fetchAllLocations } = await import("@/store/useMapStore");
 		const locs = await fetchAllLocations();

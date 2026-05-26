@@ -20,6 +20,7 @@ export interface AppSettings {
 	showCar: boolean;
 	showCrosshair: boolean;
 	showCompass: boolean;
+	showCompassTape: boolean;
 	showZoom: boolean;
 	showReturnToSpawn: boolean;
 	showJumpButtons: boolean;
@@ -41,7 +42,6 @@ export interface AppSettings {
 	enableSeenThumbnails: boolean;
 	seenResolution: SeenResolution;
 	mapPanSpeed: number;
-	mapZoomSpeed: number;
 	panoLookSpeed: number;
 	slowModifier: number;
 	showFps: boolean;
@@ -61,6 +61,7 @@ const DEFAULTS: AppSettings = {
 	showCar: true,
 	showCrosshair: false,
 	showCompass: true,
+	showCompassTape: false,
 	showZoom: true,
 	showReturnToSpawn: true,
 	showJumpButtons: true,
@@ -82,7 +83,6 @@ const DEFAULTS: AppSettings = {
 	enableSeenThumbnails: true,
 	seenResolution: "medium" as SeenResolution,
 	mapPanSpeed: 6,
-	mapZoomSpeed: 1,
 	panoLookSpeed: 3,
 	slowModifier: 4,
 	showFps: false,

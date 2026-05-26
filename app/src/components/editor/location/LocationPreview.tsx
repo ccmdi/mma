@@ -21,12 +21,13 @@ import {
 	removeLocations,
 	duplicateLocation,
 	addLocations,
-	resolveTagsByName,
+	createTags,
 	setActiveLocation,
 	cancelReview,
 	reviewNext,
 	reviewPrev,
 	reviewDelete,
+	getVisibleTags,
 } from "@/store/useMapStore";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { fetchSvMetadata } from "@/lib/sv/svMeta";
@@ -455,12 +456,13 @@ function FullscreenTagBar({
 }) {
 	const [input, setInput] = useState("");
 	const [focused, setFocused] = useState(false);
+	const [hovered, setHovered] = useState(false);
 
 	const handleAdd = async (e: React.FormEvent) => {
 		e.preventDefault();
 		const name = input.trim();
 		if (!name) return;
-		const [resolved] = await resolveTagsByName([name]);
+		const [resolved] = await createTags([name]);
 		if (!pendingTags.includes(resolved.id)) {
 			onChangeTags([...pendingTags, resolved.id]);
 		}
@@ -474,14 +476,27 @@ function FullscreenTagBar({
 		setInput("");
 	};
 
+	const toggleTag = (t: Tag) => {
+		if (pendingTags.includes(t.id)) {
+			onChangeTags(pendingTags.filter((id) => id !== t.id));
+		} else {
+			onChangeTags([...pendingTags, t.id]);
+		}
+	};
+
 	const locTags = pendingTags.map((id) => tags.find((t) => t.id === id)).filter(Boolean) as Tag[];
-	const available = tags.filter((t) => !pendingTags.includes(t.id));
+	const sorted = [...tags].sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
+	const available = sorted.filter((t) => !pendingTags.includes(t.id));
 	const suggestions = input.trim()
 		? available.filter((t) => t.name.toLowerCase().includes(input.toLowerCase())).slice(0, 15)
 		: available.slice(0, 15);
 
 	return (
-		<div className="fullscreen-tagbar">
+		<div
+			className="fullscreen-tagbar"
+			onMouseEnter={() => setHovered(true)}
+			onMouseLeave={() => setHovered(false)}
+		>
 			<ul className="tag-list">
 				{locTags.map((t) => (
 					<li
@@ -536,6 +551,21 @@ function FullscreenTagBar({
 					</ul>
 				)}
 			</div>
+			{hovered && available.length > 0 && (
+				<div className="fullscreen-tagbar__palette">
+					{available.map((t) => (
+						<button
+							key={t.id}
+							className="tag is-small fullscreen-tagbar__palette-tag"
+							style={{ backgroundColor: t.color, color: textColorFor(t.color) }}
+							onClick={() => toggleTag(t)}
+							type="button"
+						>
+							<span className="tag__text">{t.name}</span>
+						</button>
+					))}
+				</div>
+			)}
 		</div>
 	);
 }
@@ -670,6 +700,7 @@ export function LocationPreview() {
 	const [panoReady, setPanoReady] = useState(false);
 	const [altitude, setAltitude] = useState(0);
 	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0);
+	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const geoRef = useRef(geoResult);
 	geoRef.current = geoResult;
 	useEffect(() => {
@@ -987,18 +1018,20 @@ export function LocationPreview() {
 	});
 	useHotkey(useBinding("pointNorth"), () => {
 		if (singletonPano) {
+			cancelTweenRef.current?.();
 			const h = singletonPano.getPov().heading;
 			if (Math.abs(h) < 1 && Math.abs(singletonPano.getPov().pitch) < 1) {
-				tweenPov(singletonPano, { heading: 0, pitch: -90 });
+				cancelTweenRef.current = tweenPov(singletonPano, { heading: 0, pitch: -90 });
 			} else {
-				tweenPov(singletonPano, { heading: 0, pitch: 0 });
+				cancelTweenRef.current = tweenPov(singletonPano, { heading: 0, pitch: 0 });
 			}
 		}
 	});
 	useHotkey(useBinding("spin180"), () => {
 		if (singletonPano) {
+			cancelTweenRef.current?.();
 			const pov = singletonPano.getPov();
-			tweenPov(singletonPano, { heading: (pov.heading + 180) % 360, pitch: pov.pitch });
+			cancelTweenRef.current = tweenPov(singletonPano, { heading: (pov.heading + 180) % 360, pitch: pov.pitch });
 		}
 	});
 	useHotkey(useBinding("zoomIn"), () => {
@@ -1094,7 +1127,7 @@ export function LocationPreview() {
 	useHotkey("1,2,3,4,5,6,7,8,9", (e) => {
 		if (!location || !map) return;
 		const idx = parseInt(e.key) - 1;
-		const tags = Object.values(map.meta.tags);
+		const tags = getVisibleTags();
 		if (idx >= tags.length) return;
 		const tag = tags[idx];
 		const cur = pendingTagsRef.current;
@@ -1240,7 +1273,7 @@ export function LocationPreview() {
 	if (!location || !map) return null;
 
 	const locTags = pendingTags.map((id) => map.meta.tags[id]).filter(Boolean);
-	const allTags = Object.values(map.meta.tags).sort(
+	const allTags = getVisibleTags().sort(
 		(a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name),
 	);
 	const suggestions = (() => {
@@ -1256,7 +1289,7 @@ export function LocationPreview() {
 		e.preventDefault();
 		const name = tagInput.trim();
 		if (!name) return;
-		const [resolved] = await resolveTagsByName([name]);
+		const [resolved] = await createTags([name]);
 		if (!pendingTags.includes(resolved.id)) {
 			setPendingTags([...pendingTags, resolved.id]);
 		}
@@ -1326,7 +1359,7 @@ export function LocationPreview() {
 						<FullscreenTagBar
 							pendingTags={pendingTags}
 							onChangeTags={setPendingTags}
-							tags={Object.values(map.meta.tags)}
+							tags={getVisibleTags()}
 						/>
 					)}
 				</div>

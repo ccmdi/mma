@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use rusqlite::params;
+use crate::fast_io;
+use crate::location_store::StoreState;
 use crate::types::Tag;
 use crate::util::now_iso;
 
@@ -164,7 +166,27 @@ pub fn auto_register_field_defs(
     if new_defs.is_empty() { None } else { Some(new_defs) }
 }
 
-/// Persist new field defs into the map's `extra` column in SQLite (read-modify-write).
+/// Upsert field defs — overwrites existing entries. Used for explicit user edits.
+fn upsert_field_defs(
+    conn: &rusqlite::Connection,
+    map_id: &str,
+    new_defs: &HashMap<String, ExtraFieldDef>,
+) -> Result<(), String> {
+    let extra_str: String = conn.query_row(
+        "SELECT extra FROM maps WHERE id = ?1", params![map_id], |row| row.get(0),
+    ).map_err(|e| e.to_string())?;
+    let mut extra: MapExtra = serde_json::from_str(&extra_str).unwrap_or_default();
+    let fields = extra.fields.get_or_insert_with(HashMap::new);
+    for (k, v) in new_defs {
+        fields.insert(k.clone(), v.clone());
+    }
+    let json = serde_json::to_string(&extra).unwrap_or_default();
+    conn.execute("UPDATE maps SET extra = ?1 WHERE id = ?2", params![json, map_id])
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Persist new field defs — skips keys that already exist. Used for auto-registration.
 pub fn persist_field_defs(
     conn: &rusqlite::Connection,
     map_id: &str,
@@ -260,7 +282,7 @@ fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> 
 #[tauri::command]
 #[specta::specta]
 pub fn store_list_maps(app: tauri::AppHandle) -> Result<Vec<MapMeta>, String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let mut stmt = conn
         .prepare("SELECT * FROM maps")
         .map_err(|e| e.to_string())?;
@@ -277,7 +299,7 @@ pub fn store_list_maps(app: tauri::AppHandle) -> Result<Vec<MapMeta>, String> {
 #[tauri::command]
 #[specta::specta]
 pub fn store_get_map(app: tauri::AppHandle, id: String) -> Result<Option<MapData>, String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let result = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
         row_to_map_meta(row)
     });
@@ -297,7 +319,7 @@ pub fn store_create_map(
     name: String,
     folder: Option<String>,
 ) -> Result<MapData, String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = now_iso();
     conn.execute(
@@ -317,7 +339,7 @@ pub fn store_create_map(
 #[tauri::command]
 #[specta::specta]
 pub fn store_delete_map(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     conn.execute("DELETE FROM maps WHERE id = ?1", params![id])
         .map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM edit_history WHERE map_id = ?1", params![id])
@@ -330,10 +352,10 @@ pub fn store_delete_map(app: tauri::AppHandle, id: String) -> Result<(), String>
     )
     .map_err(|e| e.to_string())?;
 
-    if let Ok(path) = crate::fast_io::arrow_path(&app, &id) {
+    if let Ok(path) = fast_io::arrow_path(&app, &id) {
         let _ = std::fs::remove_file(path);
     }
-    if let Ok(path) = crate::fast_io::arrow_delta_path(&app, &id) {
+    if let Ok(path) = fast_io::arrow_delta_path(&app, &id) {
         let _ = std::fs::remove_file(path);
     }
     Ok(())
@@ -343,6 +365,7 @@ pub fn store_delete_map(app: tauri::AppHandle, id: String) -> Result<(), String>
 #[specta::specta]
 pub fn store_update_map_meta(
     app: tauri::AppHandle,
+    state: tauri::State<'_, StoreState>,
     id: String,
     patch: MapMetaPatch,
 ) -> Result<(), String> {
@@ -396,34 +419,23 @@ pub fn store_update_map_meta(
         sets.join(", ")
     );
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|b| b.as_ref()).collect();
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     conn.execute(&sql, param_refs.as_slice())
         .map_err(|e| e.to_string())?;
+    if let Some(ref extra) = patch.extra {
+        let mut store = state.lock().map_err(|e| e.to_string())?;
+        store.known_field_keys = extra.fields.as_ref()
+            .map(|f| f.keys().cloned().collect())
+            .unwrap_or_default();
+    }
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
-pub fn store_save_tags(
-    app: tauri::AppHandle,
-    map_id: String,
-    tags: HashMap<String, Tag>,
-) -> Result<(), String> {
-    let conn = crate::fast_io::open_db(&app)?;
-    let now = now_iso();
-    let json = serde_json::to_string(&tags).unwrap_or_default();
-    conn.execute(
-        "UPDATE maps SET tags = ?1, updated_at = ?2 WHERE id = ?3",
-        params![json, now, map_id],
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(())
-}
 
 #[tauri::command]
 #[specta::specta]
 pub fn store_touch_map_opened(app: tauri::AppHandle, map_id: String) -> Result<(), String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let now = now_iso();
     conn.execute(
         "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
@@ -436,7 +448,7 @@ pub fn store_touch_map_opened(app: tauri::AppHandle, map_id: String) -> Result<(
 #[tauri::command]
 #[specta::specta]
 pub fn store_rename_folder(app: tauri::AppHandle, from: String, to: String) -> Result<(), String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     conn.execute(
         "UPDATE maps SET folder = ?1 WHERE folder = ?2",
         params![to, from],
@@ -448,7 +460,7 @@ pub fn store_rename_folder(app: tauri::AppHandle, from: String, to: String) -> R
 #[tauri::command]
 #[specta::specta]
 pub fn store_delete_folder(app: tauri::AppHandle, name: String) -> Result<(), String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     conn.execute(
         "UPDATE maps SET folder = NULL WHERE folder = ?1",
         params![name],
@@ -464,7 +476,7 @@ pub fn store_move_map_to_folder(
     map_id: String,
     folder: Option<String>,
 ) -> Result<(), String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     conn.execute(
         "UPDATE maps SET folder = ?1 WHERE id = ?2",
         params![folder, map_id],
@@ -480,7 +492,7 @@ pub fn store_update_map_labels(
     map_id: String,
     labels: Vec<String>,
 ) -> Result<(), String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let now = now_iso();
     let json = serde_json::to_string(&labels).unwrap_or_default();
     conn.execute(
@@ -494,7 +506,7 @@ pub fn store_update_map_labels(
 #[tauri::command]
 #[specta::specta]
 pub fn store_get_pano_date(app: tauri::AppHandle, pano_id: String) -> Result<Option<i64>, String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let result = conn.query_row(
         "SELECT timestamp FROM pano_date_cache WHERE pano_id = ?1",
         params![pano_id],
@@ -514,7 +526,7 @@ pub fn store_set_pano_date(
     pano_id: String,
     timestamp: i64,
 ) -> Result<(), String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     conn.execute(
         "INSERT OR REPLACE INTO pano_date_cache (pano_id, timestamp) VALUES (?1, ?2)",
         params![pano_id, timestamp],
@@ -523,22 +535,6 @@ pub fn store_set_pano_date(
     Ok(())
 }
 
-#[tauri::command]
-#[specta::specta]
-pub fn store_register_field_defs(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, crate::location_store::StoreState>,
-    defs: HashMap<String, ExtraFieldDef>,
-) -> Result<(), String> {
-    let mut store = state.lock().map_err(|e| e.to_string())?;
-    let map_id = store.map_id.as_ref().ok_or("no map open")?.clone();
-    let conn = crate::fast_io::open_db(&app)?;
-    persist_field_defs(&conn, &map_id, &defs)?;
-    for key in defs.keys() {
-        store.known_field_keys.insert(key.clone());
-    }
-    Ok(())
-}
 
 // ---------------------------------------------------------------------------
 // Debug / diagnostics
@@ -566,7 +562,7 @@ pub struct DbStats {
 #[tauri::command]
 #[specta::specta]
 pub fn store_db_table_info(app: tauri::AppHandle) -> Result<Vec<DbTableInfo>, String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let mut stmt = conn.prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_sqlx_%' AND name NOT LIKE '_mma_%' ORDER BY name"
     ).map_err(|e| e.to_string())?;
@@ -589,7 +585,7 @@ pub fn store_db_table_info(app: tauri::AppHandle) -> Result<Vec<DbTableInfo>, St
 #[specta::specta]
 pub fn store_db_clear_table(app: tauri::AppHandle, table: String) -> Result<i64, String> {
     let safe = table.replace('"', "");
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let deleted = conn.execute(&format!("DELETE FROM \"{}\"", safe), [])
         .map_err(|e| e.to_string())?;
     Ok(deleted as i64)
@@ -598,7 +594,7 @@ pub fn store_db_clear_table(app: tauri::AppHandle, table: String) -> Result<i64,
 #[tauri::command]
 #[specta::specta]
 pub fn store_db_stats(app: tauri::AppHandle) -> Result<DbStats, String> {
-    let conn = crate::fast_io::open_db(&app)?;
+    let conn = fast_io::open_db(&app)?;
     let maps: i64 = conn.query_row("SELECT COUNT(*) FROM maps", [], |r| r.get(0)).unwrap_or(0);
     let locations: i64 = conn.query_row("SELECT COALESCE(SUM(location_count), 0) FROM maps", [], |r| r.get(0)).unwrap_or(0);
     let tags: i64 = {

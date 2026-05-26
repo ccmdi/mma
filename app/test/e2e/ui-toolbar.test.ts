@@ -4,7 +4,7 @@ import {
 	closeMap,
 	deleteMap,
 	addLocs,
-	makeLoc,
+	createLocation,
 	getLocCount,
 } from "./helpers";
 
@@ -46,7 +46,7 @@ describe("UI: Toolbar buttons", () => {
 	});
 
 	it("undo becomes enabled after adding locations", async () => {
-		await addLocs([makeLoc({ lat: 10, lng: 20, heading: 0, pitch: 0, zoom: 1 })]);
+		await addLocs([createLocation({ lat: 10, lng: 20, heading: 0, pitch: 0, zoom: 1 })]);
 
 		const undoBtn = await browser.$('[aria-label="Undo"]');
 		await browser.waitUntil(async () => (await undoBtn.getAttribute("disabled")) === null, {
@@ -123,7 +123,7 @@ describe("UI: Export dialog", () => {
 		const locs = [];
 		for (let i = 0; i < 10; i++) {
 			locs.push(
-				makeLoc({
+				createLocation({
 					lat: i * 10,
 					lng: i * 10,
 					heading: i * 36,

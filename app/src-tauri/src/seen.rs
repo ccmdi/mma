@@ -1,4 +1,5 @@
 use rusqlite::params_from_iter;
+use crate::fast_io;
 
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -88,7 +89,7 @@ const MAX_SEEN: i64 = 10_000;
 #[tauri::command]
 #[specta::specta]
 pub fn store_seen_write(app: tauri::AppHandle, entry: SeenWriteEntry) -> Result<(), String> {
-    let db = crate::fast_io::open_db(&app)?;
+    let db = fast_io::open_db(&app)?;
 
     db.execute(
         "INSERT INTO seen (pano_id, lat, lng, heading, pitch, zoom, entered_at, map_id, location_id, country_code, address, thumbnail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -121,7 +122,7 @@ pub fn store_seen_list(
     offset: u32,
     filter: Option<SeenFilter>,
 ) -> Result<Vec<SeenEntry>, String> {
-    let db = crate::fast_io::open_db(&app)?;
+    let db = fast_io::open_db(&app)?;
     let (where_clause, mut params) = build_where_clause(&filter);
 
     let sql = format!(
@@ -163,7 +164,7 @@ pub fn store_seen_list(
 #[tauri::command]
 #[specta::specta]
 pub fn store_seen_count(app: tauri::AppHandle, filter: Option<SeenFilter>) -> Result<u32, String> {
-    let db = crate::fast_io::open_db(&app)?;
+    let db = fast_io::open_db(&app)?;
     let (where_clause, params) = build_where_clause(&filter);
 
     let sql = format!("SELECT COUNT(*) FROM seen{}", where_clause);
@@ -179,7 +180,7 @@ pub fn store_seen_count(app: tauri::AppHandle, filter: Option<SeenFilter>) -> Re
 #[tauri::command]
 #[specta::specta]
 pub fn store_seen_countries(app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    let db = crate::fast_io::open_db(&app)?;
+    let db = fast_io::open_db(&app)?;
     let mut stmt = db
         .prepare("SELECT DISTINCT country_code FROM seen WHERE country_code IS NOT NULL ORDER BY country_code")
         .map_err(|e| e.to_string())?;
@@ -198,7 +199,7 @@ pub fn store_seen_countries(app: tauri::AppHandle) -> Result<Vec<String>, String
 #[tauri::command]
 #[specta::specta]
 pub fn store_seen_maps(app: tauri::AppHandle) -> Result<Vec<SeenMapInfo>, String> {
-    let db = crate::fast_io::open_db(&app)?;
+    let db = fast_io::open_db(&app)?;
     let mut stmt = db
         .prepare(
             "SELECT DISTINCT s.map_id AS id, COALESCE(m.name, s.map_id) AS name \
@@ -226,7 +227,7 @@ pub fn store_seen_maps(app: tauri::AppHandle) -> Result<Vec<SeenMapInfo>, String
 #[tauri::command]
 #[specta::specta]
 pub fn store_seen_clear(app: tauri::AppHandle) -> Result<(), String> {
-    let db = crate::fast_io::open_db(&app)?;
+    let db = fast_io::open_db(&app)?;
     db.execute("DELETE FROM seen", []).map_err(|e| e.to_string())?;
     Ok(())
 }

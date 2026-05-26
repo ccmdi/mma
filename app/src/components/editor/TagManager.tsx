@@ -10,10 +10,10 @@ import {
 	updateTags,
 	deleteTags,
 	reorderTags,
-	removeTagFromAll,
-	removeTagFromSelection,
-	renameTagInSelection,
+	removeTagFromAllLocations,
 	getSelectedLocationIds,
+	getVisibleTags,
+    removeTagFromLocations,
 } from "@/store/useMapStore";
 import type { TagSortMode } from "@/types";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
@@ -41,7 +41,7 @@ export function TagManager() {
 		null,
 	);
 
-	const tags = map ? Object.values(map.meta.tags).filter((t) => t.visible !== false) : [];
+	const tags = getVisibleTags();
 	const lastShiftClickRef = useRef<number | null>(null);
 
 	const sortedTags = useMemo(() => {
@@ -288,13 +288,13 @@ function TagContextMenuContent({
 
 	return (
 		<ContextMenu.Content className="context-menu">
-			<ContextMenu.Item className="context-menu__item" onSelect={() => removeTagFromAll(tagId)}>
+			<ContextMenu.Item className="context-menu__item" onSelect={() => removeTagFromAllLocations(tagId)}>
 				Remove from all ({fmt.format(totalCount)} locations)
 			</ContextMenu.Item>
 			<ContextMenu.Item
 				className="context-menu__item"
 				disabled={inSel === 0}
-				onSelect={() => removeTagFromSelection(tagId)}
+				onSelect={() => removeTagFromLocations(tagId, [...getSelectedLocationIds()])}
 			>
 				Remove from selection ({fmt.format(inSel)} locations)
 			</ContextMenu.Item>
@@ -316,7 +316,7 @@ function RenameInSelectionDialog({
 
 	const handleSubmit = () => {
 		const trimmed = name.trim();
-		if (trimmed && trimmed !== tag.name) renameTagInSelection(tag.id, trimmed);
+		if (trimmed && trimmed !== tag.name) updateTags([{ id: tag.id, patch: { name: trimmed } }]);
 		onClose();
 	};
 

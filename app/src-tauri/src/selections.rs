@@ -478,6 +478,26 @@ pub(crate) fn haversine_m(lat1: f64, lng1: f64, lat2: f64, lng2: f64) -> f64 {
 
 // --- Filter ---
 
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719468;
+    let era = z.div_euclid(146097);
+    let doe = z.rem_euclid(146097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m as u32, d as u32)
+}
+
+fn unix_to_month_day(ts: f64) -> (u32, u32) {
+    let days = (ts / 86400.0).floor() as i64;
+    let (_, m, d) = civil_from_days(days);
+    (m, d)
+}
+
 fn iso_to_unix(s: &str) -> Option<f64> {
     let s = s.trim_end_matches('Z');
     let (date_part, time_part) = s.split_once('T')?;
@@ -593,6 +613,27 @@ fn compare_filter(field_val: &serde_json::Value, op: &str, value: &serde_json::V
                         _ => false,
                     }
                 }
+            }
+        }
+        "between_anyyear" => {
+            let lo = value.as_str().unwrap_or("");
+            let hi = value2.and_then(|v| v.as_str()).unwrap_or("12-31");
+            let fv_md = if let Some(ts) = as_f64(field_val) {
+                let (m, d) = unix_to_month_day(ts);
+                format!("{:02}-{:02}", m, d)
+            } else if let Some(s) = field_val.as_str() {
+                if s.len() >= 7 && s.as_bytes()[4] == b'-' {
+                    if s.len() >= 10 { s[5..10].to_string() } else { format!("{}-01", &s[5..7]) }
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            };
+            if lo <= hi {
+                fv_md.as_str() >= lo && fv_md.as_str() <= hi
+            } else {
+                fv_md.as_str() >= lo || fv_md.as_str() <= hi
             }
         }
         _ => false,

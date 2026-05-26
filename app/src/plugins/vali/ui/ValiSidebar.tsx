@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { Command, type Child } from "@tauri-apps/plugin-shell";
 import { cmd } from "@/lib/commands";
 import { createLocation } from "@/types";
-import { getCurrentMap, resolveTagsByName } from "@/store/useMapStore";
+import { getCurrentMap, createTags } from "@/store/useMapStore";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiArrowLeft } from "@mdi/js";
 import "./vali.css";
@@ -64,7 +64,7 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 				let tagId: number | null = null;
 				const tagName = getCurrentMap()?.meta.settings?.generatedLocationTag;
 				if (tagName) {
-					tagId = (await resolveTagsByName([tagName]))[0].id;
+					tagId = (await createTags([tagName]))[0].id;
 				}
 				const locations = valiLocs.map((v) =>
 					createLocation({

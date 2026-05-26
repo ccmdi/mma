@@ -6,13 +6,13 @@ import {
 	fetchLocationsByIds,
 	batchUpdateLocations,
 	patchLocationExtra,
+	setMapExtraFields,
 } from "@/store/useMapStore";
 import {
 	filterEnrichPatch,
 	isFieldEnabled,
 	getEnrichmentProviders,
 } from "@/lib/data/fieldDefs.add";
-import { cmd } from "@/lib/commands";
 import { resolvePanoIds } from "@/lib/sv/lookup.add";
 import { log } from "@/lib/util/log";
 import type { Location } from "@/types";
@@ -205,7 +205,8 @@ export async function enrichAll(
 					return { id, patch: { extra: { ...loc?.extra, ...patch } } };
 				});
 				batchUpdateLocations(updates);
-				await cmd.storeRegisterFieldDefs(provider.fieldDefs);
+				const currentFields = getCurrentMap()?.meta.extra?.fields ?? {};
+				await setMapExtraFields({ ...currentFields, ...provider.fieldDefs });
 			}
 		}
 	}

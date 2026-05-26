@@ -4,7 +4,7 @@ import {
 	closeMap,
 	deleteMap,
 	addLocs,
-	makeLoc,
+	createLocation,
 	createTag,
 	withApi,
 } from "./helpers";
@@ -25,7 +25,7 @@ describe("JSON import/export round-trip", () => {
 
 	it("export JSON and re-import produces same locations", async () => {
 		const locs = [
-			makeLoc({
+			createLocation({
 				lat: 40.7,
 				lng: -74.0,
 				heading: 90,
@@ -34,7 +34,7 @@ describe("JSON import/export round-trip", () => {
 				panoId: "ABC123",
 				flags: 1,
 			}),
-			makeLoc({
+			createLocation({
 				lat: -33.8,
 				lng: 151.2,
 				heading: 180,
@@ -43,13 +43,13 @@ describe("JSON import/export round-trip", () => {
 				panoId: null,
 				flags: 0,
 			}),
-			makeLoc({ lat: 51.5, lng: -0.1, heading: 0, pitch: 0, zoom: 1, panoId: "XYZ789", flags: 0 }),
+			createLocation({ lat: 51.5, lng: -0.1, heading: 0, pitch: 0, zoom: 1, panoId: "XYZ789", flags: 0 }),
 		];
 		locIds = await addLocs(locs);
 
 		const result = await withApi(async (api) => {
 			const map = api.getCurrentMap()!;
-			const path = await api.exportJson({
+			const path = await api.cmd.storeExportJson({
 				exportZoom: true,
 				exportUnpanned: true,
 				exportExtras: true,
@@ -63,7 +63,7 @@ describe("JSON import/export round-trip", () => {
 
 			const parsed = JSON.parse(json);
 			const coords = parsed.customCoordinates || [];
-			const locCount = await api.getLocationCount();
+			const locCount = await api.cmd.storeLocationCount();
 
 			return {
 				exportedCount: locCount,
@@ -88,7 +88,6 @@ describe("JSON import/export round-trip", () => {
 
 		await withApi(
 			async (api, locId: number, tag: any) => {
-				await api.addTag({ id: tag.id, name: tag.name, color: tag.color, visible: true });
 				await api.updateLocation(locId, { tags: [tag.id] });
 			},
 			locIds[0],
@@ -97,7 +96,7 @@ describe("JSON import/export round-trip", () => {
 
 		const result = await withApi(async (api) => {
 			const map = api.getCurrentMap()!;
-			const path = await api.exportJson({
+			const path = await api.cmd.storeExportJson({
 				exportZoom: true,
 				exportUnpanned: true,
 				exportExtras: true,
@@ -125,7 +124,7 @@ describe("JSON import/export round-trip", () => {
 	it("export without zoom sets zoom to 0", async () => {
 		const result = await withApi(async (api) => {
 			const map = api.getCurrentMap()!;
-			const path = await api.exportJson({
+			const path = await api.cmd.storeExportJson({
 				exportZoom: false,
 				exportUnpanned: true,
 				exportExtras: true,
@@ -149,7 +148,7 @@ describe("JSON import/export round-trip", () => {
 
 		const result = await withApi(async (api) => {
 			const map = api.getCurrentMap()!;
-			const path = await api.exportJson({
+			const path = await api.cmd.storeExportJson({
 				exportZoom: true,
 				exportUnpanned: true,
 				exportExtras: true,
@@ -183,12 +182,12 @@ describe("CSV import/export", () => {
 
 	it("CSV export produces valid format", async () => {
 		await addLocs([
-			makeLoc({ lat: 40.7, lng: -74.0, heading: 90, pitch: 0, zoom: 1, panoId: "P1", flags: 1 }),
-			makeLoc({ lat: 51.5, lng: -0.1, heading: 180, pitch: 5, zoom: 2, panoId: null, flags: 0 }),
+			createLocation({ lat: 40.7, lng: -74.0, heading: 90, pitch: 0, zoom: 1, panoId: "P1", flags: 1 }),
+			createLocation({ lat: 51.5, lng: -0.1, heading: 180, pitch: 5, zoom: 2, panoId: null, flags: 0 }),
 		]);
 
 		const result = await withApi(async (api) => {
-			const path = await api.exportCsv(null);
+			const path = await api.cmd.storeExportCsv(null);
 			const res = await fetch("http://mma-buf.localhost/" + path.replace(/\\/g, "/"));
 			const csv = await res.text();
 			const lines = csv.trim().split("\n");
@@ -201,7 +200,7 @@ describe("CSV import/export", () => {
 
 	it("CSV round-trip preserves coordinates", async () => {
 		const result = await withApi(async (api) => {
-			const path = await api.exportCsv(null);
+			const path = await api.cmd.storeExportCsv(null);
 			const res = await fetch("http://mma-buf.localhost/" + path.replace(/\\/g, "/"));
 			const csv = await res.text();
 			const lines = csv.trim().split("\n").slice(1);
@@ -229,8 +228,8 @@ describe("GeoJSON export", () => {
 		mapId = await createAndOpenMap("E2E GeoJSON");
 
 		await addLocs([
-			makeLoc({ lat: 40.7, lng: -74.0, heading: 90, panoId: "GJ1" }),
-			makeLoc({ lat: 51.5, lng: -0.1, heading: 0, panoId: null }),
+			createLocation({ lat: 40.7, lng: -74.0, heading: 90, panoId: "GJ1" }),
+			createLocation({ lat: 51.5, lng: -0.1, heading: 0, panoId: null }),
 		]);
 	});
 
@@ -242,7 +241,7 @@ describe("GeoJSON export", () => {
 	it("GeoJSON export produces valid FeatureCollection", async () => {
 		const result = await withApi(async (api) => {
 			const map = api.getCurrentMap()!;
-			const path = await api.exportGeoJson(null, JSON.stringify(map.meta.tags));
+			const path = await api.cmd.storeExportGeojson(null, JSON.stringify(map.meta.tags));
 			const res = await fetch("http://mma-buf.localhost/" + path.replace(/\\/g, "/"));
 			const geojson = await res.text();
 			const parsed = JSON.parse(geojson);
@@ -289,8 +288,8 @@ describe("JSON import edge cases", () => {
 					},
 				],
 			});
-			const path = await api.writeTempFile("test_import.json", json);
-			const preview = await api.importPreview(path);
+			const path = await api.cmd.writeTempFile("test_import.json", json);
+			const preview = await api.cmd.storeImportPreview(path);
 			await api.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const imported = locs.find((l: any) => l.extra?.altitude === 500);
@@ -314,8 +313,8 @@ describe("JSON import edge cases", () => {
 				],
 				name: "Test Map",
 			});
-			const path = await api.writeTempFile("test_mma_fmt.json", json);
-			const preview = await api.importPreview(path);
+			const path = await api.cmd.writeTempFile("test_mma_fmt.json", json);
+			const preview = await api.cmd.storeImportPreview(path);
 			return { count: preview.locationCount };
 		});
 		expect(result.count).toBe(2);
@@ -336,8 +335,8 @@ describe("JSON import edge cases", () => {
 					{ lat: 30, lng: 40, heading: 0, pitch: 0, zoom: 1, extra: { tags: ["Mountain"] } },
 				],
 			});
-			const path = await api.writeTempFile("test_tags_import.json", json);
-			const preview = await api.importPreview(path);
+			const path = await api.cmd.writeTempFile("test_tags_import.json", json);
+			const preview = await api.cmd.storeImportPreview(path);
 			return {
 				count: preview.locationCount,
 				tagCount: preview.tags.length,
@@ -352,8 +351,8 @@ describe("JSON import edge cases", () => {
 	it("import empty customCoordinates returns zero locations", async () => {
 		const result = await withApi(async (api) => {
 			const json = JSON.stringify({ customCoordinates: [] });
-			const path = await api.writeTempFile("test_empty.json", json);
-			const preview = await api.importPreview(path);
+			const path = await api.cmd.writeTempFile("test_empty.json", json);
+			const preview = await api.cmd.storeImportPreview(path);
 			return preview.locationCount;
 		});
 		expect(result).toBe(0);

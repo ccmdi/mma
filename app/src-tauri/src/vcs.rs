@@ -3,7 +3,7 @@ use sha2::{Digest, Sha256};
 use tauri::State;
 
 use crate::fast_io;
-use crate::location_store::{CommitBlobEntry, StoreState};
+use crate::location_store::{self, CommitBlobEntry, StoreState};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,7 +80,7 @@ pub fn store_create_commit(
         .ok();
 
     // 2. Snapshot blobs via the store
-    let entries = crate::location_store::snapshot_inner(&app, &state)?;
+    let entries = location_store::snapshot_inner(&app, &state)?;
 
     // 3. Compute tree hash
     let mut sorted = entries.clone();
@@ -210,7 +210,7 @@ pub fn store_checkout_commit(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    crate::location_store::restore_inner(&app, &map_id, blobs)?;
+    location_store::restore_inner(&app, &map_id, blobs)?;
 
     log::info!("[vcs] checkout {} on map {}", &commit_id[..7.min(commit_id.len())], map_id);
     Ok(())

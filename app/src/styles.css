@@ -2918,6 +2918,110 @@ summary.button {
 	min-width: 6rem;
 	height: 36px;
 }
+.date-picker__trigger {
+	font: inherit;
+	cursor: pointer;
+	background: #fff;
+	border: 1px solid #ccc;
+	border-radius: 2px;
+	padding: 0 0.5rem;
+	height: 36px;
+	min-width: 6rem;
+	text-align: left;
+	white-space: nowrap;
+}
+.date-picker__trigger:hover {
+	border-color: #999;
+}
+.date-picker__popover {
+	background: #fff;
+	color: #000;
+	box-shadow: var(--shadow-2);
+	border-radius: 4px;
+	padding: 0.5rem;
+	z-index: 100;
+}
+.date-picker__popover .rdp-root {
+	--rdp-accent-color: #3b82f6;
+	--rdp-accent-background-color: #dbeafe;
+	--rdp-day-height: 32px;
+	--rdp-day-width: 32px;
+	--rdp-day_button-height: 30px;
+	--rdp-day_button-width: 30px;
+	--rdp-nav-height: 2.25rem;
+	font-size: 0.85rem;
+	width: 280px;
+}
+.date-picker__popover .rdp-months {
+	max-width: none;
+	width: 100%;
+}
+.date-picker__popover .rdp-month {
+	width: 100%;
+}
+.date-picker__popover .rdp-month_grid {
+	width: 100%;
+}
+.date-picker__popover .rdp-month_caption {
+	justify-content: center;
+}
+.date-picker__any-year {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.35rem 0.25rem 0;
+	font-size: 0.85rem;
+	cursor: pointer;
+	user-select: none;
+	border-top: 1px solid #eee;
+	margin-top: 0.25rem;
+}
+.month-grid {
+	width: 280px;
+}
+.month-grid__nav {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.25rem 0;
+	font-weight: 600;
+}
+.month-grid__nav button {
+	background: none;
+	border: none;
+	cursor: pointer;
+	font: inherit;
+	padding: 0.25rem 0.5rem;
+	border-radius: 2px;
+}
+.month-grid__nav button:hover {
+	background: #f0f0f0;
+}
+.month-grid__months {
+	display: grid;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 2px;
+}
+.month-grid__cell {
+	background: none;
+	border: 1px solid transparent;
+	border-radius: 2px;
+	cursor: pointer;
+	font: inherit;
+	padding: 0.4rem 0;
+	font-size: 0.85rem;
+}
+.month-grid__cell:hover {
+	background: #f0f0f0;
+}
+.month-grid__cell--selected {
+	background: #3b82f6;
+	color: #fff;
+	border-color: #3b82f6;
+}
+.month-grid__cell--selected:hover {
+	background: #2563eb;
+}
 .location-preview {
 	grid-gap: 1rem;
 	grid-template-rows: min-content min-content;
@@ -3917,6 +4021,81 @@ body {
 	position: relative;
 }
 
+/* Compass tape (heading indicator strip) */
+.compass-tape {
+	position: absolute;
+	top: 12px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 4;
+	pointer-events: none;
+}
+.compass-tape__strip {
+	height: 28px;
+	overflow: hidden;
+	position: relative;
+	background: rgba(55, 55, 75, 0.7);
+	border-radius: 14px;
+	backdrop-filter: blur(4px);
+}
+.compass-tape__inner {
+	position: absolute;
+	left: 50%;
+	top: 0;
+	height: 100%;
+}
+.compass-tape__tick {
+	position: absolute;
+	top: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-end;
+	transform: translateX(-0.5px);
+}
+.compass-tape__mark {
+	width: 1px;
+	height: 6px;
+	background: rgba(255, 255, 255, 0.35);
+}
+.compass-tape__mark--inter {
+	height: 9px;
+	background: rgba(255, 255, 255, 0.55);
+}
+.compass-tape__mark--cardinal {
+	height: 10px;
+	background: #fff;
+}
+.compass-tape__label {
+	position: absolute;
+	top: 2px;
+	font-size: 9px;
+	font-weight: 600;
+	color: rgba(255, 255, 255, 0.65);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	white-space: nowrap;
+	user-select: none;
+}
+.compass-tape__label--cardinal {
+	font-size: 11px;
+	font-weight: 700;
+	color: #fff;
+}
+.compass-tape__center-mark {
+	position: absolute;
+	top: 4px;
+	left: 50%;
+	transform: translateX(-50%);
+	width: 0;
+	height: 0;
+	border-left: 4px solid transparent;
+	border-right: 4px solid transparent;
+	border-top: 5px solid #fff;
+	z-index: 1;
+}
+
 /* Settings gear button */
 .settings-gear {
 	color: #999;
@@ -4111,6 +4290,12 @@ body {
 	font-weight: 700;
 	margin-left: 0.25rem;
 	cursor: help;
+}
+.hotkey-blocked {
+	display: block;
+	color: #e53e3e;
+	font-size: 0.7rem;
+	margin-top: 2px;
 }
 .hotkey-reset {
 	font-size: 0.7rem;
@@ -4337,8 +4522,8 @@ body {
 	overflow: hidden;
 }
 .fullscreen-minimap:hover {
-	width: 400px;
-	height: 300px;
+	width: 800px;
+	height: 600px;
 }
 .fullscreen-minimap__marker {
 	position: absolute;
@@ -4411,6 +4596,25 @@ body {
 }
 .fullscreen-tagbar__suggestion {
 	cursor: pointer;
+}
+.fullscreen-tagbar__palette {
+	position: absolute;
+	bottom: 100%;
+	left: 0;
+	right: 0;
+	max-height: 240px;
+	overflow-y: auto;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	padding: 8px 12px;
+	background: rgba(0, 0, 0, 0.85);
+	border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+.fullscreen-tagbar__palette-tag {
+	cursor: pointer;
+	border: none;
+	font: inherit;
 }
 
 /* Hide Google logo in Street View panorama */

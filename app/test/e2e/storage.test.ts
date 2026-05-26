@@ -8,7 +8,9 @@ import {
 	addLocs,
 	getAllLocs,
 	getLocCount,
-	makeLoc,
+	createLocation,
+	randomLatLng,
+	randomHeading,
 } from "./helpers";
 
 describe("Storage round-trip", () => {
@@ -28,7 +30,9 @@ describe("Storage round-trip", () => {
 		const locs = [];
 		for (let i = 0; i < 200; i++) {
 			locs.push(
-				makeLoc({
+				createLocation({
+					...randomLatLng(),
+					...randomHeading(),
 					panoId: i % 5 === 0 ? `pano_${i}` : null,
 					flags: i % 3 === 0 ? 1 : 0,
 				}),
@@ -64,7 +68,7 @@ describe("Storage round-trip", () => {
 	it("should handle add + save correctly", async () => {
 		const locs = [];
 		for (let i = 0; i < 50; i++) {
-			locs.push(makeLoc());
+			locs.push(createLocation({ ...randomLatLng(), ...randomHeading() }));
 		}
 		await addLocs(locs);
 

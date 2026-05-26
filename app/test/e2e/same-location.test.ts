@@ -4,7 +4,7 @@ import {
 	closeMap,
 	deleteMap,
 	addLocs,
-	makeLoc,
+	createLocation,
 	flushAndWait,
 	openMap,
 	getLocCount,
@@ -27,13 +27,13 @@ describe("SameLocation — duplicate picker", () => {
 
 	it("findNearby returns co-located locations", async () => {
 		await addLocs([
-			makeLoc({ lat: 10.0, lng: 20.0, heading: 0 }),
-			makeLoc({ lat: 10.0, lng: 20.0, heading: 90 }),
-			makeLoc({ lat: 10.0, lng: 20.0, heading: 180 }),
+			createLocation({ lat: 10.0, lng: 20.0, heading: 0 }),
+			createLocation({ lat: 10.0, lng: 20.0, heading: 90 }),
+			createLocation({ lat: 10.0, lng: 20.0, heading: 180 }),
 		]);
 
 		const nearby = await withApi(async (api) => {
-			return await api.findNearby(10.0, 20.0, 2.0);
+			return await api.cmd.storeFindNearby(10.0, 20.0, 2.0);
 		});
 		expect(nearby.length).toBe(3);
 	});
@@ -41,12 +41,12 @@ describe("SameLocation — duplicate picker", () => {
 	it("deleting one co-located location reduces count", async () => {
 		const before = await getLocCount();
 		const nearby = await withApi(async (api) => {
-			return await api.findNearby(10.0, 20.0, 2.0);
+			return await api.cmd.storeFindNearby(10.0, 20.0, 2.0);
 		});
 		const toDelete = nearby[0].id;
 
 		await withApi(async (api, id) => {
-			api.removeLocations([id]);
+			api.removeLocations(new Set([id]));
 			await new Promise((r) => setTimeout(r, 300));
 		}, toDelete);
 
@@ -54,7 +54,7 @@ describe("SameLocation — duplicate picker", () => {
 		expect(after).toBe(before - 1);
 
 		const remaining = await withApi(async (api) => {
-			return await api.findNearby(10.0, 20.0, 2.0);
+			return await api.cmd.storeFindNearby(10.0, 20.0, 2.0);
 		});
 		expect(remaining.length).toBe(2);
 		expect(remaining.every((l: any) => l.id !== toDelete)).toBe(true);
@@ -77,9 +77,9 @@ describe("Close map persistence", () => {
 
 	it("locations survive close/reopen", async () => {
 		await addLocs([
-			makeLoc({ lat: 1, lng: 1, heading: 0 }),
-			makeLoc({ lat: 2, lng: 2, heading: 90 }),
-			makeLoc({ lat: 3, lng: 3, heading: 180 }),
+			createLocation({ lat: 1, lng: 1, heading: 0 }),
+			createLocation({ lat: 2, lng: 2, heading: 90 }),
+			createLocation({ lat: 3, lng: 3, heading: 180 }),
 		]);
 		await flushAndWait();
 		await closeMap();
@@ -91,7 +91,7 @@ describe("Close map persistence", () => {
 
 	it("undo history survives close/reopen", async () => {
 		const before = await getLocCount();
-		await addLocs([makeLoc({ lat: 50, lng: 50 })]);
+		await addLocs([createLocation({ lat: 50, lng: 50 })]);
 		expect(await getLocCount()).toBe(before + 1);
 
 		await flushAndWait();
@@ -113,7 +113,7 @@ describe("Close map persistence", () => {
 	});
 
 	it("dirty changes are saved before close", async () => {
-		await addLocs([makeLoc({ lat: 99, lng: 99 })]);
+		await addLocs([createLocation({ lat: 99, lng: 99 })]);
 		// Don't flush — let closeMap handle it
 		await closeMap();
 		await openMap(mapId);

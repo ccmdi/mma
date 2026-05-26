@@ -13,7 +13,7 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"bench": "vitest bench --run",
-		"build:e2e": "set VITE_E2E=1&& cargo tauri build --debug --features e2e",
+		"build:e2e": "cargo tauri build --debug --features e2e",
 		"test:e2e": "set MMA_TEST_DB=1&& wdio run wdio.conf.ts",
 		"prepare": "husky || true"
 	},
@@ -27,6 +27,7 @@
 		"@radix-ui/react-context-menu": "^2.2.16",
 		"@radix-ui/react-dialog": "^1.1.15",
 		"@radix-ui/react-dropdown-menu": "^2.1.16",
+		"@radix-ui/react-popover": "^1.1.15",
 		"@radix-ui/react-select": "^2.2.6",
 		"@radix-ui/react-toggle": "^1.1.10",
 		"@radix-ui/react-toggle-group": "^1.1.11",
@@ -42,6 +43,7 @@
 		"measuretool-googlemaps-v3": "^1.0.2",
 		"react": "^19.2.5",
 		"react-colorful": "^5.6.1",
+		"react-day-picker": "^10.0.1",
 		"react-dom": "^19.2.5"
 	},
 	"devDependencies": {

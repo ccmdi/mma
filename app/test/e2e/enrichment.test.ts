@@ -1,12 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
 	waitForReady,
 	createAndOpenMap,
 	closeMap,
 	deleteMap,
 	addLocs,
-	makeLoc,
+	createLocation,
 	openLocation,
 	closeLocation,
+	refreshSelections,
 	withApi,
 } from "./helpers";
 import type { Location } from "@/types";
@@ -18,15 +20,7 @@ const LoadAsPanoId = 1;
 const PANO_TIMEOUT = 10_000;
 
 function loc(overrides: Partial<Location> = {}): Location {
-	return makeLoc({
-		lat: 0,
-		lng: 0,
-		heading: 0,
-		pitch: 0,
-		zoom: 0,
-		modifiedAt: new Date().toISOString(),
-		...overrides,
-	});
+	return createLocation({ lat: 0, lng: 0, modifiedAt: new Date().toISOString(), ...overrides });
 }
 
 async function readLocation(id: number): Promise<any> {
@@ -331,9 +325,8 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("does not clobber user-customized field defs", async () => {
 		// Manually set countryCode to a custom type
 		await withApi(async (api) => {
-			await api.registerFieldDefs({
-				countryCode: { type: "enum", label: "My Custom Country", values: ["US", "RU"] },
-			});
+			const cur = api.getCurrentMap()!.meta.extra?.fields ?? {};
+			await api.updateMapMeta({ extra: { ...api.getCurrentMap()!.meta.extra, fields: { ...cur, countryCode: { type: "enum", label: "My Custom Country", values: ["US", "RU"] } } } });
 			return "ok";
 		});
 
@@ -368,6 +361,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			return "ok";
 		}, defsAutoId);
 
+		await new Promise((r) => setTimeout(r, 500));
 		const meta = await getMapMeta();
 		const fields = meta?.extra?.fields ?? {};
 		expect(fields.datetime).toBeTruthy();
@@ -508,11 +502,8 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 		filterCId = ids[2];
 		// Register field defs
 		await withApi(async (api) => {
-			await api.registerFieldDefs({
-				altitude: { type: "number", label: "Altitude" },
-				countryCode: { type: "string", label: "Country code" },
-				imageDate: { type: "month", label: "Image date" },
-			});
+			const cur = api.getCurrentMap()!.meta.extra?.fields ?? {};
+			await api.updateMapMeta({ extra: { ...api.getCurrentMap()!.meta.extra, fields: { ...cur, altitude: { type: "number", label: "Altitude" }, countryCode: { type: "string", label: "Country code" }, imageDate: { type: "month", label: "Image date" } } } });
 			return "ok";
 		});
 	});
@@ -527,9 +518,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 			await api.selectFilter("altitude", "gt", 75);
 			return "ok";
 		});
-		const ids = await withApi(async (api) => {
-			return api.getSelectedLocationIds();
-		});
+		const ids = await refreshSelections();
 		expect(ids).toContain(filterAId);
 		expect(ids).toContain(filterBId);
 		expect(ids).not.toContain(filterCId);
@@ -541,9 +530,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 			await api.selectFilter("countryCode", "eq", "US");
 			return "ok";
 		});
-		const ids = await withApi(async (api) => {
-			return api.getSelectedLocationIds();
-		});
+		const ids = await refreshSelections();
 		expect(ids).toContain(filterAId);
 		expect(ids).not.toContain(filterBId);
 		expect(ids).not.toContain(filterCId);
@@ -555,9 +542,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 			await api.selectFilter("altitude", "between", 60, 150);
 			return "ok";
 		});
-		const ids = await withApi(async (api) => {
-			return api.getSelectedLocationIds();
-		});
+		const ids = await refreshSelections();
 		expect(ids).toContain(filterAId);
 		expect(ids).not.toContain(filterBId);
 		expect(ids).not.toContain(filterCId);
@@ -569,9 +554,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 			await api.selectFilter("countryCode", "neq", "US");
 			return "ok";
 		});
-		const ids = await withApi(async (api) => {
-			return api.getSelectedLocationIds();
-		});
+		const ids = await refreshSelections();
 		expect(ids).toContain(filterBId);
 		expect(ids).not.toContain(filterAId);
 		// filter-c has no countryCode, so it's excluded (null != "US" is truthy but field is missing)
@@ -583,9 +566,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 			await api.selectFilter("imageDate", "gte", "2024-01");
 			return "ok";
 		});
-		const ids = await withApi(async (api) => {
-			return api.getSelectedLocationIds();
-		});
+		const ids = await refreshSelections();
 		expect(ids).toContain(filterBId);
 		expect(ids).not.toContain(filterAId);
 	});
@@ -596,9 +577,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 			await api.selectFilter("imageDate", "eq", "2023-06");
 			return "ok";
 		});
-		const ids = await withApi(async (api) => {
-			return api.getSelectedLocationIds();
-		});
+		const ids = await refreshSelections();
 		expect(ids).toContain(filterAId);
 		expect(ids).not.toContain(filterCId);
 	});

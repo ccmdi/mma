@@ -8,7 +8,9 @@ import {
 	addLocs,
 	getLoc,
 	getLocCount,
-	makeLoc,
+	createLocation,
+	randomLatLng,
+	randomHeading,
 	withApi,
 } from "./helpers";
 
@@ -30,7 +32,7 @@ describe("Location CRUD", () => {
 	// --- Add ---
 
 	it("add single location", async () => {
-		const ids = await addLocs([makeLoc({ lat: 40.7, lng: -74.0, heading: 90, pitch: 5, zoom: 2 })]);
+		const ids = await addLocs([createLocation({ lat: 40.7, lng: -74.0, heading: 90, pitch: 5, zoom: 2 })]);
 		singleLocId = ids[0];
 		const count = await getLocCount();
 		expect(count).toBe(1);
@@ -39,7 +41,7 @@ describe("Location CRUD", () => {
 	it("add bulk locations (500)", async () => {
 		const locs = [];
 		for (let i = 0; i < 500; i++) {
-			locs.push(makeLoc());
+			locs.push(createLocation({ ...randomLatLng(), ...randomHeading() }));
 		}
 		bulkLocIds = await addLocs(locs);
 		const count = await getLocCount();
@@ -162,7 +164,7 @@ describe("Location CRUD", () => {
 			const newId = await api.duplicateLocation(id);
 			const original = await api.fetchLocation(id);
 			const dup = await api.fetchLocation(newId!);
-			const count = await api.getLocationCount();
+			const count = await api.cmd.storeLocationCount();
 			return { newId, originalLat: original?.lat, dupLat: dup?.lat, count };
 		}, singleLocId);
 		expect(result.newId).not.toBeNull();
@@ -174,7 +176,7 @@ describe("Location CRUD", () => {
 
 	it("remove single location", async () => {
 		await withApi(async (api, id) => {
-			api.removeLocations([id]);
+			api.removeLocations(new Set([id]));
 		}, singleLocId);
 		const count = await getLocCount();
 		expect(count).toBe(501);
@@ -183,7 +185,7 @@ describe("Location CRUD", () => {
 	it("remove bulk locations", async () => {
 		const idsToRemove = bulkLocIds.slice(0, 100);
 		await withApi(async (api, ids) => {
-			api.removeLocations(ids);
+			api.removeLocations(new Set(ids));
 		}, idsToRemove);
 		const count = await getLocCount();
 		expect(count).toBe(401);
@@ -191,7 +193,7 @@ describe("Location CRUD", () => {
 
 	it("remove nonexistent id is a no-op", async () => {
 		await withApi(async (api) => {
-			api.removeLocations([999999999]);
+			api.removeLocations(new Set([999999999]));
 		});
 		const count = await getLocCount();
 		expect(count).toBe(401);
@@ -216,7 +218,7 @@ describe("Location persistence", () => {
 		const locs = [];
 		for (let i = 0; i < 100; i++) {
 			locs.push(
-				makeLoc({
+				createLocation({
 					lat: i,
 					lng: -i,
 					heading: i * 3.6,
@@ -235,7 +237,7 @@ describe("Location persistence", () => {
 
 		const result = await withApi(
 			async (api, id0, id50) => {
-				const count = await api.getLocationCount();
+				const count = await api.cmd.storeLocationCount();
 				const loc0 = await api.fetchLocation(id0);
 				const loc50 = await api.fetchLocation(id50);
 				const allLocs = await api.fetchAllLocations();
@@ -287,7 +289,7 @@ describe("Location persistence", () => {
 
 	it("tags on locations survive save/load", async () => {
 		const tagIds = await withApi(async (api) => {
-			const resolved = await api.resolveTagNames(["tag-x", "tag-y"]);
+			const resolved = await api.createTags(["tag-x", "tag-y"]);
 			return resolved.map((t) => t.id);
 		});
 

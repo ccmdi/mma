@@ -55,7 +55,7 @@ export function GuideDialog({
 					<ul>
 						<li>
 							<strong>Plugin system</strong> -- extensible via plugins (generator, validator, JSON
-							editor, country select, and more coming).
+							editor, and more coming).
 						</li>
 						<li>
 							<strong>Customizable hotkeys</strong> -- rebind any keyboard shortcut in Settings.

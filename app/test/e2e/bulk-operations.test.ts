@@ -5,23 +5,17 @@ import {
 	deleteMap,
 	addLocs,
 	getLoc,
-	makeLoc,
+	createLocation,
 	withApi,
 } from "./helpers";
+import type { Location } from "@/types";
 
 const OFFICIAL_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };
 const LoadAsPanoId = 1;
 
-function loc(overrides: Record<string, any> = {}) {
-	return makeLoc({
-		lat: 0,
-		lng: 0,
-		heading: 0,
-		pitch: 0,
-		zoom: 0,
-		...overrides,
-	});
+function loc(overrides: Partial<Location> = {}): Location {
+	return createLocation({ lat: 0, lng: 0, ...overrides });
 }
 
 // ============================================================================
@@ -216,7 +210,7 @@ describe("Bulk operations -- cancel preserves progress", () => {
 		const locs = [];
 		for (let i = 0; i < 500; i++) {
 			locs.push(
-				makeLoc({
+				createLocation({
 					lat: 52.109 + i * 0.0001,
 					lng: 34.901 + i * 0.0001,
 				}),

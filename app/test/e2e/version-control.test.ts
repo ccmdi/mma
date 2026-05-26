@@ -5,7 +5,7 @@ import {
 	deleteMap,
 	flushAndWait,
 	addLocs,
-	makeLoc,
+	createLocation,
 	getAllLocs,
 	getLocCount,
 	withApi,
@@ -27,8 +27,8 @@ describe("Version control - commits", () => {
 
 	it("commitMap returns a commit ID", async () => {
 		locIds = await addLocs([
-			makeLoc({ lat: 10, lng: 20, heading: 0, panoId: null, flags: 0 }),
-			makeLoc({ lat: 30, lng: 40, heading: 90, panoId: "P1", flags: 1 }),
+			createLocation({ lat: 10, lng: 20, heading: 0, panoId: null, flags: 0 }),
+			createLocation({ lat: 30, lng: 40, heading: 90, panoId: "P1", flags: 1 }),
 		]);
 
 		const commitId = await withApi(async (api) => api.commitMap("initial commit"));
@@ -44,7 +44,7 @@ describe("Version control - commits", () => {
 	});
 
 	it("listCommits returns commit history", async () => {
-		const commits = await withApi(async (api, id) => api.listCommits(id), mapId);
+		const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), mapId);
 		expect(Array.isArray(commits)).toBe(true);
 		expect(commits.length).toBeGreaterThanOrEqual(1);
 		expect(commits[0].message).toBe("initial commit");
@@ -52,14 +52,14 @@ describe("Version control - commits", () => {
 	});
 
 	it("second commit records diff stats", async () => {
-		const newLocs = [makeLoc({ lat: 50, lng: 60, heading: 0, panoId: null, flags: 0 })];
+		const newLocs = [createLocation({ lat: 50, lng: 60, heading: 0, panoId: null, flags: 0 })];
 		await addLocs(newLocs);
 
-		await withApi(async (api, removeId) => api.removeLocations([removeId]), locIds[0]);
+		await withApi(async (api, removeId) => api.removeLocations(new Set([removeId])), locIds[0]);
 
 		await withApi(async (api) => api.commitMap("add one remove one"));
 
-		const commits = await withApi(async (api, id) => api.listCommits(id), mapId);
+		const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), mapId);
 
 		expect(commits.length).toBe(2);
 		expect(commits[0].message).toBe("add one remove one");
@@ -77,8 +77,8 @@ describe("Version control - checkout", () => {
 		mapId = await createAndOpenMap("E2E VCS Checkout");
 
 		locIds = await addLocs([
-			makeLoc({ lat: 10, lng: 20, heading: 0, panoId: null, flags: 0 }),
-			makeLoc({ lat: 30, lng: 40, heading: 0, panoId: null, flags: 0 }),
+			createLocation({ lat: 10, lng: 20, heading: 0, panoId: null, flags: 0 }),
+			createLocation({ lat: 30, lng: 40, heading: 0, panoId: null, flags: 0 }),
 		]);
 
 		firstCommitId = await withApi(async (api) => api.commitMap("v1: two locations"));
@@ -91,9 +91,9 @@ describe("Version control - checkout", () => {
 
 	it("checkout reverts to committed state", async () => {
 		// Make changes after commit
-		await addLocs([makeLoc({ lat: 50, lng: 60, heading: 0, panoId: null, flags: 0 })]);
+		await addLocs([createLocation({ lat: 50, lng: 60, heading: 0, panoId: null, flags: 0 })]);
 
-		await withApi(async (api, removeId) => api.removeLocations([removeId]), locIds[0]);
+		await withApi(async (api, removeId) => api.removeLocations(new Set([removeId])), locIds[0]);
 
 		let count = await getLocCount();
 		expect(count).toBe(2); // locIds[1] + new one
@@ -107,7 +107,7 @@ describe("Version control - checkout", () => {
 
 	it("checkout restores original location data", async () => {
 		const allLocs = await getAllLocs();
-		const allLocIds = allLocs.map((l: any) => l.id);
+		const allLocIds = allLocs.map((l) => l.id);
 		expect(allLocIds).toContain(locIds[0]);
 		expect(allLocIds).toContain(locIds[1]);
 		// The third loc added after commit should not be present
@@ -122,7 +122,7 @@ describe("Version control - checkout", () => {
 	});
 
 	it("checkout creates a revert commit", async () => {
-		const commits = await withApi(async (api, id) => api.listCommits(id), mapId);
+		const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), mapId);
 		expect(commits.length).toBeGreaterThanOrEqual(2);
 		const revertCommit = commits[0];
 		expect(revertCommit.message).toContain("Revert");

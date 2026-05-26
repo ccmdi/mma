@@ -2,7 +2,7 @@ use super::*;
 use crate::location_store::Store;
 
 fn tag(id: u32, name: &str) -> Tag {
-    Tag { id, name: name.into(), color: "#000".into(), visible: true, order: None }
+    Tag { id, name: name.into(), color: "#000".into(), visible: true, order: None, count: 0 }
 }
 
 fn make_parsed(tags: Vec<Tag>, locations: Vec<Location>) -> ParsedMap {

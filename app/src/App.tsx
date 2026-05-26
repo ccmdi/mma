@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useCurrentMap, openMap, closeMap, getCurrentMapId } from "@/store/useMapStore";
 import { MapList, BulkActions } from "@/components/map-list/MapList";
 import { MapEditor } from "@/components/editor/MapEditor";
@@ -29,7 +30,12 @@ export default function App() {
 
 	useEffect(() => {
 		if (isEditorWindow && !map) {
-			getCurrentWindow().destroy();
+			WebviewWindow.getByLabel("main").then(async (main) => {
+				await main?.unminimize();
+				await main?.setFocus();
+			}).finally(() => {
+				getCurrentWindow().destroy();
+			});
 			return;
 		}
 	}, [map]);

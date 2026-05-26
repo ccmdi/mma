@@ -5,7 +5,7 @@ import {
 	deleteMap,
 	addLocs,
 	getLocCount,
-	makeLoc,
+	createLocation,
 	withApi,
 } from "./helpers";
 
@@ -20,7 +20,7 @@ describe("Review mode", () => {
 		mapId = await createAndOpenMap("E2E Review");
 		const locs = [];
 		for (let i = 0; i < 10; i++) {
-			locs.push(makeLoc({ lat: i * 10, lng: i * 10, heading: i * 36 }));
+			locs.push(createLocation({ lat: i * 10, lng: i * 10, heading: i * 36 }));
 		}
 		locIds = await addLocs(locs);
 	});
@@ -176,7 +176,7 @@ describe("Review mode - delete", () => {
 		mapId = await createAndOpenMap("E2E Review Delete");
 		const locs = [];
 		for (let i = 0; i < 5; i++) {
-			locs.push(makeLoc({ lat: i, lng: i }));
+			locs.push(createLocation({ lat: i, lng: i }));
 		}
 		locIds = await addLocs(locs);
 	});
@@ -204,7 +204,7 @@ describe("Review mode - delete", () => {
 			async (api, did, _nid, settle) => {
 				await api.reviewDelete();
 				await new Promise((r) => setTimeout(r, settle));
-				const count = await api.getLocationCount();
+				const count = await api.cmd.storeLocationCount();
 				const deleted = await api.fetchLocation(did).catch(() => null);
 				return {
 					activeId: api.getActiveLocation()?.id ?? null,
@@ -258,9 +258,9 @@ describe("Review mode - skips deleted locations", () => {
 		await waitForReady();
 		mapId = await createAndOpenMap("E2E Review Skip");
 		const locs = [
-			makeLoc({ lat: 0, lng: 0 }),
-			makeLoc({ lat: 1, lng: 1 }),
-			makeLoc({ lat: 2, lng: 2 }),
+			createLocation({ lat: 0, lng: 0 }),
+			createLocation({ lat: 1, lng: 1 }),
+			createLocation({ lat: 2, lng: 2 }),
 		];
 		locIds = await addLocs(locs);
 	});
@@ -276,7 +276,7 @@ describe("Review mode - skips deleted locations", () => {
 		const result = await withApi(
 			async (api, ids, delId, settle) => {
 				await api.beginReview(ids);
-				await api.removeLocations([delId]);
+				await api.removeLocations(new Set([delId]));
 				await api.reviewNext(); // should skip locIds[1], land on locIds[2]
 				await new Promise((r) => setTimeout(r, settle));
 				return { activeId: api.getActiveLocation()?.id ?? null };

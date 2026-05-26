@@ -121,8 +121,8 @@ fn tag_counts_after_add() {
     let l1 = loc_with_tags(1, 0.0, 0.0, vec![10, 20]);
     let l2 = loc_with_tags(2, 1.0, 1.0, vec![10]);
     let store = setup_store_with(&[l1, l2]);
-    assert_eq!(store.tag_counts.get(&10), Some(&2));
-    assert_eq!(store.tag_counts.get(&20), Some(&1));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(2));
+    assert_eq!(store.tags.get(&20).map(|t| t.count), Some(1));
 }
 
 #[test]
@@ -131,8 +131,8 @@ fn tag_counts_after_remove() {
     let l2 = loc_with_tags(2, 1.0, 1.0, vec![10]);
     let mut store = setup_store_with(&[l1.clone(), l2]);
     store.remove_tag_counts(&[l1]);
-    assert_eq!(store.tag_counts.get(&10), Some(&1));
-    assert_eq!(store.tag_counts.get(&20), Some(&0));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(1));
+    assert_eq!(store.tags.get(&20).map(|t| t.count), Some(0));
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn tag_counts_saturate_at_zero() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
     store.remove_tag_counts(&[l]);
-    assert_eq!(store.tag_counts.get(&10), None);
+    assert_eq!(store.tags.get(&10).map(|t| t.count), None);
 }
 
 // -----------------------------------------------------------------------
@@ -225,22 +225,22 @@ fn redo_stack_cleared_on_new_edit() {
 fn tag_counts_correct_after_undo_add() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10, 20]);
     let mut store = setup_store_with(&[l.clone()]);
-    assert_eq!(store.tag_counts.get(&10), Some(&1));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(1));
 
     let entry = EditEntry { created: vec![l], removed: vec![] };
     apply_edit_reverse(&mut store, &entry);
-    assert_eq!(store.tag_counts.get(&10), Some(&0));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(0));
 }
 
 #[test]
 fn tag_counts_correct_after_undo_remove() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
-    assert_eq!(store.tag_counts.get(&10), None);
+    assert_eq!(store.tags.get(&10).map(|t| t.count), None);
 
     let entry = EditEntry { created: vec![], removed: vec![l] };
     apply_edit_reverse(&mut store, &entry);
-    assert_eq!(store.tag_counts.get(&10), Some(&1));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(1));
 }
 
 #[test]
@@ -248,16 +248,16 @@ fn tag_counts_correct_after_undo_tag_change() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![20]);
     let mut store = setup_store_with(&[new.clone()]);
-    store.tag_counts.clear();
+    for tag in store.tags.values_mut() { tag.count = 0; };
     store.add_tag_counts(&[new.clone()]);
-    assert_eq!(store.tag_counts.get(&20), Some(&1));
-    assert_eq!(store.tag_counts.get(&10), None);
+    assert_eq!(store.tags.get(&20).map(|t| t.count), Some(1));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), None);
 
     let entry = EditEntry { created: vec![new], removed: vec![old] };
     apply_edit_reverse(&mut store, &entry);
 
-    assert_eq!(store.tag_counts.get(&10), Some(&1));
-    assert_eq!(store.tag_counts.get(&20), Some(&0));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(1));
+    assert_eq!(store.tags.get(&20).map(|t| t.count), Some(0));
 }
 
 #[test]
@@ -267,10 +267,10 @@ fn tag_counts_survive_undo_redo_cycle() {
     let entry = EditEntry { created: vec![l.clone()], removed: vec![] };
 
     apply_edit_reverse(&mut store, &entry);
-    assert_eq!(store.tag_counts.get(&10), Some(&0));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(0));
 
     apply_edit_forward(&mut store, &entry);
-    assert_eq!(store.tag_counts.get(&10), Some(&1));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(1));
 }
 
 // -----------------------------------------------------------------------
@@ -702,11 +702,11 @@ fn multiple_undo_redo_cycles_consistent() {
     for _ in 0..5 {
         apply_edit_forward(&mut store, &entry);
         assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![20]);
-        assert_eq!(store.tag_counts.get(&20), Some(&1));
+        assert_eq!(store.tags.get(&20).map(|t| t.count), Some(1));
 
         apply_edit_reverse(&mut store, &entry);
         assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![10]);
-        assert_eq!(store.tag_counts.get(&10), Some(&1));
+        assert_eq!(store.tags.get(&10).map(|t| t.count), Some(1));
     }
 }
 
@@ -1208,15 +1208,15 @@ fn tag_counts_correct_after_bulk_add_then_undo() {
         .map(|i| loc_with_tags(i, i as f64, 0.0, vec![5]))
         .collect();
     let mut store = setup_store_with(&locs);
-    assert_eq!(store.tag_counts.get(&5), Some(&10));
+    assert_eq!(store.tags.get(&5).map(|t| t.count), Some(10));
 
     let entry = EditEntry { created: locs.clone(), removed: vec![] };
     apply_edit_reverse(&mut store, &entry);
-    assert_eq!(store.tag_counts.get(&5), Some(&0));
+    assert_eq!(store.tags.get(&5).map(|t| t.count), Some(0));
     assert_eq!(store.alive_count, 0);
 
     apply_edit_forward(&mut store, &entry);
-    assert_eq!(store.tag_counts.get(&5), Some(&10));
+    assert_eq!(store.tags.get(&5).map(|t| t.count), Some(10));
     assert_eq!(store.alive_count, 10);
 }
 
@@ -1226,15 +1226,15 @@ fn tag_counts_correct_after_tag_reassignment_undo() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![5]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![5, 10]);
     let mut store = setup_store_with(&[new.clone()]);
-    store.tag_counts.clear();
+    for tag in store.tags.values_mut() { tag.count = 0; };
     store.add_tag_counts(&[new.clone()]);
-    assert_eq!(store.tag_counts.get(&5), Some(&1));
-    assert_eq!(store.tag_counts.get(&10), Some(&1));
+    assert_eq!(store.tags.get(&5).map(|t| t.count), Some(1));
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(1));
 
     let entry = EditEntry { created: vec![new], removed: vec![old] };
     apply_edit_reverse(&mut store, &entry);
-    assert_eq!(store.tag_counts.get(&5), Some(&1), "tag 5 should still be 1");
-    assert_eq!(store.tag_counts.get(&10), Some(&0), "tag 10 should be 0 after undo");
+    assert_eq!(store.tags.get(&5).map(|t| t.count), Some(1), "tag 5 should still be 1");
+    assert_eq!(store.tags.get(&10).map(|t| t.count), Some(0), "tag 10 should be 0 after undo");
 }
 
 // -----------------------------------------------------------------------

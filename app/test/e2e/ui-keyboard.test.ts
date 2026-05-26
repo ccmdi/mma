@@ -4,7 +4,7 @@ import {
 	closeMap,
 	deleteMap,
 	addLocs,
-	makeLoc,
+	createLocation,
 	getLocCount,
 	withApi,
 } from "./helpers";
@@ -17,7 +17,7 @@ describe("UI: Keyboard shortcuts", () => {
 		mapId = await createAndOpenMap("UI Keyboard Test");
 		await browser.$(".page-map-editor").waitForDisplayed({ timeout: 5000 });
 
-		await addLocs([makeLoc({ lat: 10, lng: 20, heading: 0, pitch: 0, zoom: 1 })]);
+		await addLocs([createLocation({ lat: 10, lng: 20, heading: 0, pitch: 0, zoom: 1 })]);
 	});
 
 	after(async () => {
@@ -69,7 +69,7 @@ describe("UI: Review keyboard navigation", () => {
 
 		const locs = [];
 		for (let i = 0; i < 5; i++) {
-			locs.push(makeLoc({ lat: i * 10, lng: i * 10 }));
+			locs.push(createLocation({ lat: i * 10, lng: i * 10 }));
 		}
 		locIds = await addLocs(locs);
 

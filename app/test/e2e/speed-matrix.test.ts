@@ -1,3 +1,4 @@
+/* eslint-disable no-console, @typescript-eslint/no-explicit-any */
 import {
 	waitForReady,
 	createAndOpenMap,
@@ -6,6 +7,7 @@ import {
 	flushAndWait,
 	withApi,
 } from "./helpers";
+import type { Location } from "@/types";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
@@ -45,23 +47,18 @@ function record(op: string, scale: number, times: number[]) {
 function seedLocs(n: number, tagId?: number, panoFrac = 0, flagsFrac = 0): Promise<string> {
 	return withApi(
 		async (api, count: number, tid: number, pf: number, ff: number) => {
-			const locs: any[] = [];
-			const ts = new Date().toISOString();
+			const locs: Location[] = [];
 			for (let i = 0; i < count; i++) {
-				locs.push({
+				locs.push(api.createLocation({
 					lat: Math.random() * 170 - 85,
 					lng: Math.random() * 360 - 180,
 					heading: Math.random() * 360,
-					pitch: 0,
 					zoom: 1,
 					panoId: pf > 0 && i < Math.floor(count * pf) ? "pano_" + i : null,
 					flags: ff > 0 && i < Math.floor(count * ff) ? 1 : 0,
 					tags: tid > 0 && i < Math.floor(count * 0.5) ? [tid] : [],
-					createdAt: ts,
-				});
+				}));
 			}
-			// Use import-paste path for bulk: Rust parses JSON directly and returns
-			// full_reset (tiny response), avoiding the slow per-entry IPC delta.
 			const json = JSON.stringify({ customCoordinates: locs });
 			await api.importPaste(json);
 			return "ok";
@@ -108,37 +105,21 @@ function timeOp(fnName: string, ...args: any[]): Promise<number> {
 function addOneLoc(): Promise<void> {
 	return withApi(async (api) => {
 		await api.addLocations([
-			{
-				lat: 0,
-				lng: 0,
-				heading: 0,
-				pitch: 0,
-				zoom: 1,
-				panoId: null, id: 0,
-				flags: 0,
-				tags: [],
-				createdAt: new Date().toISOString(),
-			},
+			api.createLocation({ lat: 0, lng: 0, zoom: 1 }),
 		]);
 	});
 }
 
 function timeAddLocs(n: number): Promise<number> {
 	return withApi(async (api, count: number) => {
-		const locs: any[] = [];
-		const ts = new Date().toISOString();
+		const locs: Location[] = [];
 		for (let i = 0; i < count; i++) {
-			locs.push({
+			locs.push(api.createLocation({
 				lat: Math.random() * 170 - 85,
 				lng: Math.random() * 360 - 180,
 				heading: Math.random() * 360,
-				pitch: 0,
 				zoom: 1,
-				panoId: null, id: 0,
-				flags: 0,
-				tags: [],
-				createdAt: ts,
-			});
+			}));
 		}
 		const t0 = performance.now();
 		await api.addLocations(locs);
@@ -195,19 +176,19 @@ function timeComposite(setup: string, measure: string, tagId: number): Promise<n
 
 function timeRemoveAll(): Promise<number> {
 	return withApi(async (api) => {
-		const ids: number[] = await api.resolveSelection({ type: "Everything" });
+		const ids: number[] = await api.cmd.storeResolveSelection({ type: "Everything" });
 		const t0 = performance.now();
-		await api.removeLocations(ids);
+		await api.removeLocations(new Set(ids));
 		return performance.now() - t0;
 	});
 }
 
 function timeRemoveOne(): Promise<number> {
 	return withApi(async (api) => {
-		const ids: number[] = await api.resolveSelection({ type: "Everything" });
+		const ids: number[] = await api.cmd.storeResolveSelection({ type: "Everything" });
 		if (ids.length === 0) return -1;
 		const t0 = performance.now();
-		await api.removeLocations([ids[0]]);
+		await api.removeLocations(new Set([ids[0]]));
 		return performance.now() - t0;
 	});
 }
@@ -215,7 +196,7 @@ function timeRemoveOne(): Promise<number> {
 function timeBatchUpdate(count: number, iter: number): Promise<number> {
 	return withApi(
 		async (api, n: number, it: number) => {
-			const ids: number[] = await api.resolveSelection({ type: "Everything" });
+			const ids: number[] = await api.cmd.storeResolveSelection({ type: "Everything" });
 			const updates = ids.slice(0, n).map((id: number) => ({ id, patch: { heading: it * 10 } }));
 			const t0 = performance.now();
 			await api.batchUpdateLocations(updates);
@@ -229,7 +210,7 @@ function timeBatchUpdate(count: number, iter: number): Promise<number> {
 function timeTagCounts(): Promise<number> {
 	return withApi(async (api) => {
 		const t0 = performance.now();
-		await api.getTagCounts();
+		await api.cmd.storeTagCounts();
 		return performance.now() - t0;
 	});
 }
@@ -393,7 +374,7 @@ describe("Speed Matrix", () => {
 			before(async () => {
 				mapId = await createAndOpenMap(`speed-sel-${n}`);
 				const resolved: any = await withApi(async (api) => {
-					return api.resolveTagNames(["bench-tag"]);
+					return api.createTags(["bench-tag"]);
 				});
 				tagId = resolved?.[0]?.id ?? 0;
 				await seedLocs(n, tagId, 0.4, 0.3);

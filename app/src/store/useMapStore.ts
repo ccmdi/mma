@@ -49,6 +49,7 @@ import {
 	composeSiblings as composeSiblingsSel,
 } from "./selections";
 
+
 const storeBus = createBus<() => void>();
 const subscribe = storeBus.on;
 const notify = storeBus.emit;
@@ -91,9 +92,14 @@ let workArea: WorkArea = "overview";
 let activePluginId: string | null = null;
 let mapVersion = 0;
 let tagCounts: Record<number, number> = {};
+let undoRedoState = { canUndo: false, canRedo: false };
 
 export function useTagCounts(): Record<number, number> {
 	useSyncExternalStore(subscribe, getMapSnapshot);
+	return tagCounts;
+}
+
+export function getTagCounts() {
 	return tagCounts;
 }
 
@@ -122,6 +128,11 @@ export function refreshAfterMutation() {
 export function useCurrentMap() {
 	useSyncExternalStore(subscribe, getMapSnapshot);
 	return currentMap;
+}
+
+export function getVisibleTags(): Tag[] {
+	if (!currentMap) return [];
+	return Object.values(currentMap.meta.tags).filter((t) => t.visible !== false);
 }
 
 /** Reactive map version counter. Bumps on every mutation. Use as a
@@ -339,6 +350,17 @@ export function getSelectedLocationIds() {
 	return selectedLocationIds;
 }
 
+/** @internal Test-only. Forces a full selection re-resolve in Rust and returns
+ *  the raw selected IDs. App code should use getSelectedLocationIds() instead —
+ *  mutations already sync selections via MutationResult. */
+export async function syncSelections(): Promise<{ ids: number[] }> {
+	const sels = selections.map((s) => ({ props: s.props, color: s.color }));
+	if (sels.length === 0) return { ids: [] };
+	await cmd.storeSyncSelections(sels);
+	const ids = await cmd.storeGetSelectedIdsList();
+	return { ids };
+}
+
 export async function createMap(name: string, folder: string | null = null) {
 	await cmd.storeCreateMap(name, folder);
 	await invalidateMapList();
@@ -408,18 +430,6 @@ export async function updateMapMeta(patch: MapMetaPatch) {
 	await invalidateMapList();
 }
 
-export function mergeNewFieldDefs(newDefs: Record<string, ExtraFieldDef> | null) {
-	if (!newDefs || !currentMap) return;
-	const current = currentMap.meta.extra ?? {};
-	currentMap = {
-		...currentMap,
-		meta: {
-			...currentMap.meta,
-			extra: { ...current, fields: { ...current.fields, ...newDefs } },
-		},
-	};
-}
-
 export async function setMapExtraFields(fields: Record<string, ExtraFieldDef>) {
 	if (!currentMapId || !currentMap) return;
 	const current = currentMap.meta.extra ?? {};
@@ -430,32 +440,22 @@ export async function setMapExtraFields(fields: Record<string, ExtraFieldDef>) {
 	await cmd.storeUpdateMapMeta(currentMapId, { extra: replaced } as Partial<MapMeta>);
 }
 
-export function addLocationCount(delta: number) {
-	if (!currentMap) return;
-	currentMap = {
-		...currentMap,
-		meta: { ...currentMap.meta, locationCount: currentMap.meta.locationCount + delta },
-	};
-}
-
-export function setTagCounts(counts: Record<number, number>) {
-	tagCounts = counts;
-}
-
-export function setUndoRedoState(canUndo: boolean, canRedo: boolean) {
-	undoRedoState = { canUndo, canRedo };
-}
-
 /** Sync JS-side state (location count, undo/redo, tag counts, selections) from a Rust MutationResult. */
 function syncMutationResult(r: MutationResult) {
 	if (!currentMap) return;
 	const needsNotify =
 		currentMap.meta.locationCount !== r.locationCount ||
 		undoRedoState.canUndo !== r.canUndo ||
-		undoRedoState.canRedo !== r.canRedo;
+		undoRedoState.canRedo !== r.canRedo ||
+		r.newFieldDefs != null ||
+		r.tags != null;
 	currentMap = {
 		...currentMap,
-		meta: { ...currentMap.meta, locationCount: r.locationCount },
+		meta: {
+			...currentMap.meta,
+			locationCount: r.locationCount,
+			extra: { ...currentMap.meta.extra, fields: { ...currentMap.meta.extra.fields, ...r.newFieldDefs } },
+		},
 	};
 	undoRedoState = { canUndo: r.canUndo, canRedo: r.canRedo };
 	tagCounts = r.tagCounts;
@@ -463,10 +463,21 @@ function syncMutationResult(r: MutationResult) {
 		mapVersion++;
 		notify();
 	}
+	if (r.tags) {
+		const oldTags = currentMap.meta.tags;
+		currentMap = { ...currentMap, meta: { ...currentMap.meta, tags: r.tags } };
+		for (const idStr of Object.keys(oldTags)) {
+			const id = Number(idStr);
+			const was = oldTags[id];
+			const now = r.tags[id];
+			if (was && was.visible !== false && (!now || now.visible === false)) {
+				removeSelection(`tag:${id}`);
+			}
+		}
+	}
 	if (r.selectionSync) {
 		applySelectionSync(r.selectionSync);
 	}
-	mergeNewFieldDefs(r.newFieldDefs);
 }
 
 /** Parse a binary bitmask file from Rust and emit to selBitmaskBus. */
@@ -512,7 +523,7 @@ async function applySelectionSync(sync: { counts: number[]; patchFile: string | 
 }
 
 /** Await a mutation IPC, emit its render delta, sync JS state, and schedule a save. */
-async function mutate(p: Promise<MutationResult>): Promise<MutationResult> {
+export async function mutate(p: Promise<MutationResult>): Promise<MutationResult> {
 	const r = await p;
 	renderDeltaBus.emit(r.delta);
 	syncMutationResult(r);
@@ -545,12 +556,29 @@ export async function duplicateLocation(locId: number): Promise<number | null> {
 	return clone.id;
 }
 
+export function updateLocationNoUndo(id: number, patch: Partial<Location>) {
+	const p: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(patch)) {
+		if (k !== "id") p[k] = v;
+	}
+	return cmd.storeUpdateLocations([[id, p as LocationPatch]], false);
+}
+
 export function removeLocations(ids: Set<number>) {
 	if (!currentMap || ids.size === 0) return;
 	if (activeLocationId && ids.has(activeLocationId)) {
 		activeLocationId = null;
 		cachedActiveLocation = null;
 		workArea = "overview";
+	}
+	if (review) {
+		const remaining = review.locations.filter((id) => !ids.has(id));
+		if (remaining.length === 0) {
+			review = null;
+		} else {
+			const newIndex = Math.min(review.index, remaining.length - 1);
+			review = { locations: remaining, index: newIndex };
+		}
 	}
 	mapVersion++;
 	notify();
@@ -911,111 +939,45 @@ export function exitPluginMode() {
 
 // --- Tag CRUD ---
 
-function persistTags() {
-	if (currentMapId && currentMap) cmd.storeSaveTags(currentMapId, currentMap.meta.tags);
-}
-
-// TODO: likely dead code - Rust reconcile_tags now handles import dedup, and no known path creates orphaned tag IDs
-function reconcileTags() {
-	if (!currentMap) return;
-	const tags = currentMap.meta.tags;
-	let patched = false;
-	const newTags = { ...tags };
-	for (const idStr of Object.keys(tagCounts)) {
-		const id = Number(idStr);
-		if (tagCounts[id] > 0) {
-			if (!tags[id]) {
-				newTags[id] = {
-					id,
-					name: `Tag ${id}`,
-					color: `hsl(${(id * 137) % 360}, 60%, 50%)`,
-					visible: true,
-				};
-				patched = true;
-			} else if (!tags[id].visible) {
-				newTags[id] = { ...tags[id], visible: true };
-				patched = true;
-			}
-		}
-	}
-	if (patched) {
-		currentMap = { ...currentMap, meta: { ...currentMap.meta, tags: newTags } };
-		persistTags();
-	}
-}
-
-export async function resolveTagsByName(names: string[]): Promise<Tag[]> {
+/** Get-or-create tags by name. Returns the tag objects for use
+ *  in subsequent location updates. Idempotent — existing tags are returned
+ *  as-is, new names get auto-generated colors. */
+export async function createTags(names: string[]): Promise<Tag[]> {
 	if (names.length === 0) return [];
-	const tags = await cmd.storeResolveTagNames(names);
-	addTags(tags);
-	return tags;
+	await mutate(cmd.storeCreateTags(names));
+	const lower = new Set(names.map(n => n.toLowerCase()));
+	return Object.values(currentMap!.meta.tags).filter(t => lower.has(t.name.toLowerCase()));
 }
 
-export function addTags(tags: Tag[]) {
-	if (!currentMapId || !currentMap || tags.length === 0) return;
-	const newTags = { ...currentMap.meta.tags };
-	for (const tag of tags) {
-		if (!newTags[tag.id]) newTags[tag.id] = tag;
-	}
-	currentMap = { ...currentMap, meta: { ...currentMap.meta, tags: newTags } };
-	mapVersion++;
-	notify();
-	persistTags();
-}
-
-export function updateTags(patches: { id: number; patch: Partial<Tag> }[]) {
+/** Rename or recolor tags. If a rename collides with an existing tag name
+ *  (case-insensitive), the two tags are merged — all locations are remapped
+ *  to the survivor. */
+export async function updateTags(patches: { id: number; patch: Partial<Tag> }[]) {
 	if (!currentMapId || !currentMap || patches.length === 0) return;
-	const newTags = { ...currentMap.meta.tags };
 	for (const { id, patch } of patches) {
-		const existing = newTags[id];
-		if (existing) newTags[id] = { ...existing, ...patch };
+		await mutate(cmd.storeUpdateTag(id, patch.name ?? null, patch.color ?? null));
 	}
-	currentMap = { ...currentMap, meta: { ...currentMap.meta, tags: newTags } };
-	mapVersion++;
-	notify();
-	persistTags();
-	// If color changes while selected... update it visually
 	if (selections.some((s) => { const p = s.props; return p.type === "Tag" && patches.some((q) => q.id === p.tagId); })) {
 		applySelectionUpdate((_, sels) => sels);
 	}
 }
 
+/** Delete tags and strip them from all locations. Undoable (the location
+ *  changes are in the undo stack; visibility auto-restores on undo). */
 export async function deleteTags(tagIds: number[]) {
 	if (!currentMapId || !currentMap || tagIds.length === 0) return;
-	await mutate(cmd.storeStripTags(tagIds));
-	const newTags = { ...currentMap.meta.tags };
-	for (const tagId of tagIds) {
-		const existing = newTags[tagId];
-		if (existing) newTags[tagId] = { ...existing, visible: false };
-		removeSelection(`tag:${tagId}`);
-	}
-	currentMap = { ...currentMap, meta: { ...currentMap.meta, tags: newTags } };
-	persistTags();
+	await mutate(cmd.storeDeleteTags(tagIds));
 }
 
-export async function deleteSelectedTags() {
-	if (!currentMapId || !currentMap) return;
-	const tagIds = selections.filter((s) => s.props.type === "Tag").map((s) => (s.props as { type: "Tag"; tagId: number }).tagId);
-	await deleteTags(tagIds);
-}
-
+/** Persist a new tag display order. */
 export async function reorderTags(orderedIds: number[]) {
 	if (!currentMapId || !currentMap) return;
-	const newTags = { ...currentMap.meta.tags };
-	for (let i = 0; i < orderedIds.length; i++) {
-		const id = orderedIds[i];
-		if (newTags[id]) newTags[id] = { ...newTags[id], order: i };
-	}
-	currentMap = { ...currentMap, meta: { ...currentMap.meta, tags: newTags } };
-	mapVersion++;
-	notify();
-	persistTags();
+	await mutate(cmd.storeReorderTags(orderedIds));
 }
 
-export async function bulkAddTag(tagId: number) {
-	if (!currentMap || selectedLocationIds.size === 0) return;
-	const ids = [...selectedLocationIds];
-	const locs = await cmd.storeGetLocationsByIds(ids);
+export async function addTagToLocations(tagId: number, locationIds: number[]) {
+	if (!currentMap || locationIds.length === 0) return;
+	const locs = await cmd.storeGetLocationsByIds(locationIds);
 	const updates: [number, LocationPatch][] = locs
 		.filter((l) => !l.tags.includes(tagId))
 		.map((l) => [l.id, { tags: [...l.tags, tagId] }]);
@@ -1023,7 +985,7 @@ export async function bulkAddTag(tagId: number) {
 	await mutate(cmd.storeUpdateLocations(updates, true));
 }
 
-export async function bulkRemoveTag(tagId: number, locationIds: number[]) {
+export async function removeTagFromLocations(tagId: number, locationIds: number[]) {
 	if (!currentMap || locationIds.length === 0) return;
 	const locs = await cmd.storeGetLocationsByIds(locationIds);
 	const updates: [number, LocationPatch][] = locs
@@ -1033,44 +995,28 @@ export async function bulkRemoveTag(tagId: number, locationIds: number[]) {
 	await mutate(cmd.storeUpdateLocations(updates, true));
 }
 
-export async function removeTagFromAll(tagId: number) {
+export async function removeTagFromAllLocations(tagId: number) {
 	if (!currentMap) return;
 	const allWithTag = await cmd.storeResolveSelection({ type: "Tag", tagId });
-	if (allWithTag.length > 0) await bulkRemoveTag(tagId, allWithTag);
+	if (allWithTag.length > 0) await removeTagFromLocations(tagId, allWithTag);
 }
 
-export async function removeTagFromSelection(tagId: number) {
-	if (!currentMap || selectedLocationIds.size === 0) return;
-	const ids = [...selectedLocationIds];
-	await bulkRemoveTag(tagId, ids);
+// --- Import ---
+
+/** Import a file (previously previewed via storeImportPreview). Syncs all
+ *  state (tags, counts, render) via mutate. */
+export async function importFile(droppedFields: string[]) {
+	const r = await cmd.storeImportFile(droppedFields);
+	await mutate(Promise.resolve(r));
+	return r;
 }
 
-export async function renameTagInSelection(tagId: number, newName: string) {
-	if (!currentMap || selectedLocationIds.size === 0) return;
-	const oldTag = currentMap.meta.tags[tagId];
-	if (!oldTag) return;
-
-	const existingTag = Object.values(currentMap.meta.tags).find(
-		(t) => t.name.toLowerCase() === newName.toLowerCase() && t.id !== tagId,
-	);
-	const newTagId = existingTag?.id ?? (await cmd.storeAllocTagId());
-	if (!existingTag) {
-		addTags([{
-			id: newTagId,
-			name: newName,
-			color: oldTag.color,
-			visible: true,
-			order: oldTag.order,
-		}]);
-	}
-
-	const locs = await cmd.storeGetLocationsByIds([...selectedLocationIds]);
-	const updates: [number, LocationPatch][] = locs
-		.filter((l) => l.tags.includes(tagId))
-		.map((l) => [l.id, { tags: [...l.tags.filter((t: number) => t !== tagId), newTagId] }]);
-	if (updates.length > 0) {
-		await mutate(cmd.storeUpdateLocations(updates, true));
-	}
+/** Import locations from pasted text (JSON or CSV). Returns the import
+ *  result and the single location ID if exactly one was pasted. */
+export async function importPaste(text: string) {
+	const [r, singleId] = await cmd.storeImportPaste(text);
+	await mutate(Promise.resolve(r));
+	return [r, singleId] as const;
 }
 
 // --- Review ---
@@ -1136,12 +1082,11 @@ export async function reviewDelete() {
 
 // --- Undo/redo ---
 
-/** Shared undo/redo handler: call the IPC, reconcile orphaned tags, clear active if removed. */
+/** Shared undo/redo handler: call the IPC, clear active if removed. */
 async function undoRedo(which: () => Promise<MutationResult>) {
 	if (!currentMap) return;
 	try {
 		const r = await mutate(which());
-		reconcileTags();
 		if (activeLocationId && r.delta.removed.some((e) => e.id === activeLocationId)) {
 			activeLocationId = null;
 			cachedActiveLocation = null;
@@ -1158,8 +1103,6 @@ export function undo() {
 export function redo() {
 	return undoRedo(cmd.storeRedo);
 }
-
-let undoRedoState = { canUndo: false, canRedo: false };
 
 export function getUndoRedoState() {
 	return undoRedoState;

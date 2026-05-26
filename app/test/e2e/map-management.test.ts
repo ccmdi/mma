@@ -6,7 +6,7 @@ import {
 	openMap,
 	addLocs,
 	getLocCount,
-	makeLoc,
+	createLocation,
 	withApi,
 } from "./helpers";
 
@@ -29,8 +29,8 @@ describe("Map management", () => {
 
 	it("create a map", async () => {
 		const result = await withApi(async (api) => {
-			const map = await api.createMap("Test Map 1", null);
-			const count = await api.getLocationCount();
+			const map = await api.cmd.storeCreateMap("Test Map 1", null);
+			const count = await api.cmd.storeLocationCount();
 			return { id: map.meta.id, name: map.meta.name, locCount: count };
 		});
 		expect(result.name).toBe("Test Map 1");
@@ -41,7 +41,7 @@ describe("Map management", () => {
 	it("create multiple maps", async () => {
 		for (let i = 2; i <= 5; i++) {
 			const id = await withApi(async (api, name) => {
-				const map = await api.createMap(name, null);
+				const map = await api.cmd.storeCreateMap(name, null);
 				return map.meta.id;
 			}, `Test Map ${i}`);
 			expect(id).not.toContain("ERROR");
@@ -49,7 +49,7 @@ describe("Map management", () => {
 		}
 
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 		// At least our 5 maps exist (might be more from other test suites running)
 		const ourMaps = maps.filter((m: any) => m.name.startsWith("Test Map"));
@@ -58,7 +58,7 @@ describe("Map management", () => {
 
 	it("list maps returns all created maps", async () => {
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 		expect(Array.isArray(maps)).toBe(true);
 		expect(maps.length).toBeGreaterThanOrEqual(4);
@@ -86,14 +86,14 @@ describe("Map management", () => {
 		const idToDelete = createdMapIds.pop()!;
 
 		const beforeCount = await withApi(async (api) => {
-			const maps = await api.listMaps();
+			const maps = await api.cmd.storeListMaps();
 			return maps.length;
 		});
 
 		await deleteMap(idToDelete);
 
 		const afterCount = await withApi(async (api) => {
-			const maps = await api.listMaps();
+			const maps = await api.cmd.storeListMaps();
 			return maps.length;
 		});
 
@@ -105,7 +105,7 @@ describe("Map management", () => {
 
 		const locs = [];
 		for (let i = 0; i < 25; i++) {
-			locs.push(makeLoc({ lat: i, lng: i }));
+			locs.push(createLocation({ lat: i, lng: i }));
 		}
 		await addLocs(locs);
 
@@ -124,7 +124,7 @@ describe("Map metadata", () => {
 	before(async () => {
 		await waitForReady();
 		mapId = await withApi(async (api) => {
-			const map = await api.createMap("Meta Test Map", null);
+			const map = await api.cmd.storeCreateMap("Meta Test Map", null);
 			return map.meta.id;
 		});
 	});
@@ -147,7 +147,7 @@ describe("Map metadata", () => {
 	});
 
 	it("location count updates in meta after adding locations", async () => {
-		await addLocs([makeLoc({ lat: 10, lng: 20 })]);
+		await addLocs([createLocation({ lat: 10, lng: 20 })]);
 
 		const count = await getLocCount();
 		expect(count).toBe(1);
@@ -160,7 +160,7 @@ describe("Empty map edge cases", () => {
 	before(async () => {
 		await waitForReady();
 		mapId = await withApi(async (api) => {
-			const map = await api.createMap("Empty Map", null);
+			const map = await api.cmd.storeCreateMap("Empty Map", null);
 			return map.meta.id;
 		});
 	});
@@ -179,7 +179,7 @@ describe("Empty map edge cases", () => {
 	it("selectEverything on empty map selects nothing", async () => {
 		const count = await withApi(async (api) => {
 			await api.selectEverything();
-			return api.getSelectedLocationIds().length;
+			return api.getSelectedLocationIds().size;
 		});
 		expect(count).toBe(0);
 	});
@@ -198,7 +198,7 @@ describe("Empty map edge cases", () => {
 
 	it("remove from empty map is a no-op", async () => {
 		await withApi(async (api) => {
-			await api.removeLocations([999999]);
+			await api.removeLocations(new Set([999999]));
 		});
 		const count = await getLocCount();
 		expect(count).toBe(0);

@@ -10,7 +10,7 @@ execSync(
 );
 
 let content = fs.readFileSync(out, "utf-8");
-content += `\ndeclare global {\n\tconst MMA: typeof mmaApi;\n}\n`;
+content += `\ndeclare global {\n\tconst MMA: typeof mma;\n}\n`;
 fs.writeFileSync(out, content);
 
 console.log("Generated plugins/types/mma.d.ts");

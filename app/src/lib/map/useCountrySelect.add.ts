@@ -1,8 +1,9 @@
-const { registerPlugin } = window.MMA;
+import { useEffect } from "react";
 import { setClickInterceptor } from "@/lib/map/mapState";
 import { selectPolygon } from "@/store/useMapStore";
 import { pointInPolygon } from "@/lib/geo/geo";
-import { mdiMapSearchOutline } from "@mdi/js";
+import { getBinding } from "@/lib/util/hotkeys.add";
+import { parseHotkey, matchesKey, isEditableElement } from "@/lib/hooks/useHotkey";
 
 interface BorderFeature {
 	type: "Feature";
@@ -54,26 +55,40 @@ function selectCountry(country: BorderFeature) {
 	}
 }
 
-const HOLD_KEY = "q";
-
-registerPlugin({
-	id: "country-select",
-	name: "Country templates",
-	description: "Hotkey and click the map to select all locations in a country",
-	icon: mdiMapSearchOutline,
-
-	activate() {
+export function useCountrySelect() {
+	useEffect(() => {
 		let held = false;
 
 		const onKeyDown = (e: KeyboardEvent) => {
-			if (e.key.toLowerCase() === HOLD_KEY && !e.repeat && !isEditable(e.target)) {
-				held = true;
-				document.body.style.cursor = "crosshair";
+			if (e.repeat || isEditableElement(e.target)) return;
+			const binding = getBinding("countrySelect");
+			if (!binding) return;
+			const parsed = parseHotkey(binding);
+			for (const alt of parsed) {
+				if (alt.length === 1 && matchesKey(e, alt[0])) {
+					held = true;
+					document.body.style.cursor = "crosshair";
+					return;
+				}
 			}
 		};
 
 		const onKeyUp = (e: KeyboardEvent) => {
-			if (e.key.toLowerCase() === HOLD_KEY) {
+			if (!held) return;
+			const binding = getBinding("countrySelect");
+			if (!binding) return;
+			const parsed = parseHotkey(binding);
+			for (const alt of parsed) {
+				if (alt.length === 1 && e.key.toLowerCase() === alt[0].key) {
+					held = false;
+					document.body.style.cursor = "";
+					return;
+				}
+			}
+		};
+
+		const onBlur = () => {
+			if (held) {
 				held = false;
 				document.body.style.cursor = "";
 			}
@@ -90,19 +105,15 @@ registerPlugin({
 
 		document.addEventListener("keydown", onKeyDown);
 		document.addEventListener("keyup", onKeyUp);
+		window.addEventListener("blur", onBlur);
 		setClickInterceptor(interceptor);
 
 		return () => {
 			document.removeEventListener("keydown", onKeyDown);
 			document.removeEventListener("keyup", onKeyUp);
+			window.removeEventListener("blur", onBlur);
 			setClickInterceptor(null);
 			document.body.style.cursor = "";
 		};
-	},
-});
-
-function isEditable(target: EventTarget | null): boolean {
-	if (!(target instanceof HTMLElement)) return false;
-	const tag = target.tagName.toLowerCase();
-	return tag === "input" || tag === "textarea" || tag === "select" || target.isContentEditable;
+	}, []);
 }

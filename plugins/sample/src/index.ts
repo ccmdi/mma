@@ -3,7 +3,7 @@
 
 MMA.registerPlugin({
   activate() {
-    const map = MMA.getMap();
+    const map = MMA.getCurrentMap();
     if (map) {
       console.log(`[sample] Activated on "${map.meta.name}"`);
     }

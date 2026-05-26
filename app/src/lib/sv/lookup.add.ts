@@ -237,9 +237,10 @@ export async function lookupStreetView(
 		preferDirection?: string | null;
 		defaultPanoId?: boolean;
 		preferHigherQuality?: boolean;
+		radius?: number;
 	},
 ): Promise<Location | null> {
-	const radius = Math.max(50, Math.round(svSearchRadius(lat, zoom)));
+	const radius = opts.radius ?? Math.max(50, Math.round(svSearchRadius(lat, zoom)));
 	const click = { lat, lng };
 	const userUploaded: "ignore" | "avoid" | "allow" = opts.onlyOfficial
 		? "ignore"

@@ -1,28 +1,28 @@
-MMA Speed Matrix -- 2026-05-22T17:13:08.390Z
+MMA Speed Matrix -- 2026-05-25T22:39:56.164Z
 ================================================================================
 
 Operation                                  100       1,000      10,000     100,000   1,000,000
 -----------------------------------------------------------------------------------------------
-addLocations                              32ms        26ms       130ms         ---         ---
-save (incremental)                        20ms        20ms        25ms        74ms        18ms
-mapOpen                                   18ms        17ms        27ms       124ms       422ms
-mapClose                                  36ms        38ms        35ms        40ms       141ms
-addOne                                     5ms         6ms         4ms         5ms         5ms
-undo                                       5ms        10ms        21ms         ---         ---
-redo                                       5ms         7ms        30ms         ---         ---
-tagCounts                                  2ms         2ms         2ms         2ms         2ms
-batchUpdate                                4ms         9ms        51ms         ---         ---
-removeLocations                            6ms         8ms        21ms       203ms      2424ms
-removeOne                                  7ms         6ms         7ms        19ms         4ms
-commit                                    76ms       233ms       362ms         ---         ---
-selectEverything                          13ms        10ms        10ms        43ms       395ms
-selectTag                                  8ms         8ms         9ms        13ms        82ms
-selectUntagged                             9ms         8ms         9ms        35ms       593ms
-selectPanoIds                              9ms         7ms         8ms        29ms       119ms
-selectNotPanoIds                           9ms         7ms         7ms        32ms       194ms
-selectUnpanned                             7ms         7ms         8ms         8ms        13ms
-selectIntersection                         7ms         7ms         8ms        21ms        83ms
-selectUnion                                7ms         8ms         9ms        31ms       198ms
-selectInverse                              8ms         7ms         7ms        34ms       227ms
+addLocations                              37ms        25ms       128ms         ---         ---
+save (incremental)                        19ms        22ms        25ms        71ms        20ms
+mapOpen                                   18ms        20ms        29ms       128ms       441ms
+mapClose                                  44ms        44ms        44ms        34ms       107ms
+addOne                                    10ms        19ms         7ms        12ms       148ms
+undo                                      14ms         8ms        33ms         ---         ---
+redo                                       8ms         9ms        42ms         ---         ---
+tagCounts                                  3ms         4ms         3ms         8ms       132ms
+batchUpdate                                6ms        12ms        65ms         ---         ---
+removeLocations                            2ms         3ms         5ms        31ms       358ms
+removeOne                                  2ms         2ms         2ms         2ms         2ms
+commit                                   100ms       358ms       474ms         ---         ---
+selectEverything                          52ms        33ms        50ms       100ms      1194ms
+selectTag                                 17ms        10ms        15ms        32ms       111ms
+selectUntagged                            26ms        14ms        21ms        61ms      1086ms
+selectPanoIds                             13ms        16ms        10ms        41ms       199ms
+selectNotPanoIds                          15ms        20ms        19ms        46ms       326ms
+selectUnpanned                            18ms        18ms        14ms        26ms        43ms
+selectIntersection                        22ms        21ms        24ms        30ms        96ms
+selectUnion                               26ms        19ms        23ms        48ms       280ms
+selectInverse                             21ms        17ms        22ms        49ms       499ms
 
 All times in ms (avg of 3 runs)

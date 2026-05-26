@@ -6,9 +6,9 @@ import { textColorFor } from "@/lib/util/color";
 import { fmt } from "@/lib/util/format";
 import {
 	toggleTagSelections,
-	removeTagFromAll,
-	removeTagFromSelection,
+	removeTagFromAllLocations,
 	getSelectedLocationIds,
+    removeTagFromLocations,
 } from "@/store/useMapStore";
 import { cmd } from "@/lib/commands";
 import type { Tag } from "@/types";
@@ -326,14 +326,14 @@ function TreeContextMenu({
 		<ContextMenu.Content className="context-menu">
 			<ContextMenu.Item
 				className="context-menu__item"
-				onSelect={() => removeTagFromAll(tagId)}
+				onSelect={() => removeTagFromAllLocations(tagId)}
 			>
 				Remove from all ({fmt.format(totalCount)} locations)
 			</ContextMenu.Item>
 			<ContextMenu.Item
 				className="context-menu__item"
 				disabled={inSel === 0}
-				onSelect={() => removeTagFromSelection(tagId)}
+				onSelect={() => removeTagFromLocations(tagId, [...getSelectedLocationIds()])}
 			>
 				Remove from selection ({fmt.format(inSel)} locations)
 			</ContextMenu.Item>

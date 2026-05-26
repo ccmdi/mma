@@ -778,7 +778,7 @@ export function MapEmbed() {
 		async (info: PickingInfo, event: OverlayEvent) => {
 			const domEvent = event?.srcEvent?.domEvent;
 
-			const resolvePickedLocationAsync = async (): Promise<Location | undefined> => {
+			const resolvePickedLocation = async (): Promise<Location | undefined> => {
 				if (info.object) return info.object as Location;
 				if (typeof info.index !== "number" || info.index < 0) return undefined;
 				const layerId = info.layer?.id;
@@ -803,7 +803,7 @@ export function MapEmbed() {
 
 			if (domEvent instanceof MouseEvent && domEvent.button === 2) {
 				if (isLocationLayer(info.layer?.id)) {
-					const loc = await resolvePickedLocationAsync();
+					const loc = await resolvePickedLocation();
 					if (loc) {
 						openContextMenuLocation(loc);
 					} else if (info.coordinate) {
@@ -825,7 +825,7 @@ export function MapEmbed() {
 			if (domEvent instanceof MouseEvent && domEvent.button !== 0) return;
 
 			if (isLocationLayer(info.layer?.id)) {
-				const loc = await resolvePickedLocationAsync();
+				const loc = await resolvePickedLocation();
 				if (loc) {
 					if (domEvent instanceof MouseEvent && domEvent.ctrlKey) {
 						toggleManualSelection(loc.id);
@@ -1220,7 +1220,7 @@ export function MapEmbed() {
 				const selPatches = delta.colorPatches.filter(
 					(cp) => !(cp.r === 42 && cp.g === 42 && cp.b === 42),
 				);
-				cm.buildSelectionOverlay(selPatches);
+				cm.appendToSelectionOverlay(selPatches);
 			}
 			log.debug(
 				`[delta] applyDelta=${(performance.now() - t0).toFixed(0)}ms affected=${affected.size} +${delta.added.length} -${delta.removed.length}`,
@@ -1436,6 +1436,18 @@ export function MapEmbed() {
 		});
 	});
 
+	useHotkey(useBinding("mapZoomSelection"), () => {
+		cmd.storeSelectionBounds().then((bounds) => {
+			const gm = gMapRef.current;
+			if (!gm || !bounds || !google?.maps) return;
+			const [west, south, east, north] = bounds as [number, number, number, number];
+			gm.fitBounds({ west, south, east, north });
+			google.maps.event.addListenerOnce(gm, "bounds_changed", () => {
+				gm.moveCamera({ center: gm.getCenter()!, zoom: gm.getZoom()! });
+			});
+		});
+	});
+
 	useEffect(() => {
 		const nav = mapNavRef.current;
 		const actions = ["panLeft", "panRight", "panUp", "panDown", "mapZoomIn", "mapZoomOut"] as const;
@@ -1471,7 +1483,7 @@ export function MapEmbed() {
 			if (nav.held.has("panUp")) dy -= (s.mapPanSpeed * dt) / slow;
 			if (nav.held.has("panDown")) dy += (s.mapPanSpeed * dt) / slow;
 
-			const zoomStep = (s.mapZoomSpeed * 0.02 * dt) / slow;
+			const zoomStep = (0.02 * dt) / slow;
 			if (nav.held.has("mapZoomIn")) nav.zoom += zoomStep;
 			if (nav.held.has("mapZoomOut")) nav.zoom = Math.max(1, nav.zoom - zoomStep);
 

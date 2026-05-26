@@ -1,8 +1,8 @@
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
 use tauri::ipc::InvokeBody;
-use crate::types::Location;
 use tauri::Manager;
+use crate::arrow_bridge;
 
 pub fn is_test_mode() -> bool {
     cfg!(feature = "e2e") || std::env::var("MMA_TEST_DB").is_ok()
@@ -322,13 +322,13 @@ pub(crate) fn read_arrow_ipc(path: &std::path::Path) -> Result<arrow::array::Rec
     }
     if batches.is_empty() {
         return Ok(arrow::array::RecordBatch::new_empty(std::sync::Arc::new(
-            crate::arrow_bridge::location_schema(),
+            arrow_bridge::location_schema(),
         )));
     }
     if batches.len() == 1 {
         return Ok(batches.into_iter().next().unwrap());
     }
-    let schema = std::sync::Arc::new(crate::arrow_bridge::location_schema());
+    let schema = std::sync::Arc::new(arrow_bridge::location_schema());
     arrow::compute::concat_batches(&schema, &batches).map_err(|e| e.to_string())
 }
 
@@ -352,7 +352,7 @@ pub(crate) fn read_arrow_ipc_mmap(path: &std::path::Path) -> Result<(arrow::arra
 
     let buf_len = buffer.len();
     if buf_len < 10 {
-        let schema = Arc::new(crate::arrow_bridge::location_schema());
+        let schema = Arc::new(arrow_bridge::location_schema());
         return Ok((
             arrow::array::RecordBatch::new_empty(schema),
             MmapHandle { _buffer: buffer },

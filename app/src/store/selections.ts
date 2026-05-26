@@ -26,6 +26,7 @@ export type FilterOp =
 	| "gte"
 	| "lte"
 	| "between"
+	| "between_anyyear"
 	| "has"
 	| "nothas";
 
@@ -418,6 +419,7 @@ export function selectionDisplayName(map: MapData, sel: Selection): string {
 				gte: ">=",
 				lte: "<=",
 				between: "between",
+				between_anyyear: "between (any year)",
 				has: "has",
 				nothas: "does not have",
 			};
@@ -425,6 +427,15 @@ export function selectionDisplayName(map: MapData, sel: Selection): string {
 			const fieldLabel = fieldDef?.label ?? p.field;
 			if (p.op === "has") return `has ${fieldLabel}`;
 			if (p.op === "nothas") return `missing ${fieldLabel}`;
+			const fmtMD = (v: unknown) => {
+				const s = String(v);
+				const m = /^(\d{2})-(\d{2})$/.exec(s);
+				if (m) {
+					const dt = new Date(2000, Number(m[1]) - 1, Number(m[2]));
+					return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+				}
+				return s;
+			};
 			const fmtVal = (v: unknown) => {
 				const s = String(v);
 				if (fieldDef?.type === "enum" && fieldDef.labels?.[s]) return fieldDef.labels[s];
@@ -434,6 +445,8 @@ export function selectionDisplayName(map: MapData, sel: Selection): string {
 				}
 				return s;
 			};
+			if (p.op === "between_anyyear")
+				return `${fieldLabel} ${OP_LABELS[p.op]} ${fmtMD(p.value)}..${fmtMD(p.value2)}`;
 			if (p.op === "between")
 				return `${fieldLabel} ${OP_LABELS[p.op as FilterOp]} ${fmtVal(p.value)}..${fmtVal(p.value2)}`;
 			return `${fieldLabel} ${OP_LABELS[p.op as FilterOp]} ${fmtVal(p.value)}`;

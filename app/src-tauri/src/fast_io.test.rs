@@ -1,4 +1,5 @@
 use super::*;
+use crate::arrow_bridge;
 use crate::types::Location;
 
 fn sample_loc() -> Location {
@@ -85,7 +86,7 @@ fn make_test_batch(ids: &[u32]) -> arrow::array::RecordBatch {
         created_at: "2024-01-01T00:00:00Z".into(),
         modified_at: None,
     }).collect();
-    crate::arrow_bridge::locations_to_batch(&locs)
+    arrow_bridge::locations_to_batch(&locs)
 }
 
 #[test]
@@ -113,7 +114,7 @@ fn mmap_round_trip_preserves_data() {
 
 #[test]
 fn mmap_empty_file() {
-    let batch = crate::arrow_bridge::locations_to_batch(&[]);
+    let batch = arrow_bridge::locations_to_batch(&[]);
     let dir = std::env::temp_dir().join("mma_test_mmap_empty");
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join("empty.arrow");
@@ -182,7 +183,7 @@ fn mmap_preserves_nullable_fields() {
             created_at: "2024-01-01T00:00:00Z".into(), modified_at: Some("2024-06-01T00:00:00Z".into()),
         },
     ];
-    let batch = crate::arrow_bridge::locations_to_batch(&locs);
+    let batch = arrow_bridge::locations_to_batch(&locs);
     let dir = std::env::temp_dir().join("mma_test_mmap_null");
     let _ = std::fs::create_dir_all(&dir);
     let path = dir.join("nullable.arrow");

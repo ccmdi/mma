@@ -80,24 +80,7 @@ The global `MMA` object is the single API surface. It provides:
 - File dialogs
 - Raw Tauri IPC for advanced use
 
-### Quick reference
-
-**Locations:** `getMap()`, `getActiveLocation()`, `addLocations(locs)`, `removeLocations(ids)`, `updateLocation(id, patch)`, `setActiveLocation(id)`, `getLocationsByIds(ids)`, `createLocation(partial)`
-
-**Tags:** `addTag(tag)`, `updateTag(id, patch)`
-
-**Selections:** `getSelections()`, `getSelectedLocationIds()`, `queryIds(selectionProps)`
-
-**Events:** `on(event, handler)` — returns an unsubscribe function. Events: `location:add`, `location:remove`, `location:update`, `selection:change`, `map:open`, `map:close`
-
-**Shell:** `shell.Command` — spawn subprocesses. See [Tauri shell plugin docs](https://v2.tauri.app/plugin/shell/).
-
-**Dialogs:** `dialog.open(opts)`, `dialog.save(opts)` — native file picker.
-
-**IPC:** `invoke(command, args)` — call any Tauri backend command directly.
-
-**Plugin UI:** `enterPluginMode(id)`, `exitPluginMode()`, `getGoogleMap()`
-
+See [`plugins/types/mma.d.ts`](types/mma.d.ts) for the full API surface.
 ## UI plugins
 
 Plugins can provide React components for richer UI:

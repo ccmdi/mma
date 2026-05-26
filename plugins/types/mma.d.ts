@@ -4,32 +4,68 @@
 
 import { ComponentType } from 'react';
 
-export interface PluginSettingDef {
-	key: string;
-	label: string;
-	type: "boolean" | "string" | "number";
-	default: unknown;
-}
-interface Plugin$1 {
-	id: string;
-	name: string;
-	description?: string;
-	icon: string;
-	comingSoon?: boolean;
-	settings?: PluginSettingDef[];
-	activate(): void | (() => void);
-	modal?: ComponentType<{
-		onClose: () => void;
-	}>;
-	sidebar?: ComponentType<{
-		onClose: () => void;
-	}>;
-	locationPanel?: ComponentType;
-}
-export type PluginBehavior = Partial<Plugin$1> & {
-	activate(): void | (() => void);
+export type CellRemoval = {
+	cell: string;
+	cellIndex: number;
+	id: number;
 };
-declare function registerPlugin(plugin: Plugin$1 | PluginBehavior): void;
+export type ColorPatchEntry = {
+	cell: string;
+	cellIndex: number;
+	r: number;
+	g: number;
+	b: number;
+	a: number;
+};
+export type CommitBlobEntry = {
+	geohash: string;
+	blobHash: string;
+	locationCount: number;
+};
+export type CommitInfo = {
+	id: string;
+	mapId: string;
+	parentId: string | null;
+	message: string | null;
+	treeHash: string | null;
+	added: number;
+	removed: number;
+	modified: number;
+	locationCount: number;
+	createdAt: string;
+};
+export type DbStats = {
+	maps: number;
+	locations: number;
+	tags: number;
+	commits: number;
+	dbSizeBytes: number;
+	journalMode: string;
+	foreignKeys: boolean;
+};
+export type DbTableInfo = {
+	name: string;
+	rows: number;
+};
+export type EditorImportPreview = {
+	locationCount: number;
+	tags: Tag[];
+	fields: FieldCount[];
+	warnings: string[];
+};
+export type EditorImportResult_Serialize = {
+	importedCount: number;
+	warnings: string[];
+} & MutationResult_Serialize;
+export type ExportOpts = {
+	exportZoom: boolean;
+	exportUnpanned: boolean;
+	exportExtras: boolean;
+	scope: number[] | null;
+	mapName: string;
+	tagsJson: string;
+	extraFieldsJson: string | null;
+};
 export type ExtraFieldDef = {
 	type: ExtraFieldType;
 	label?: string | null;
@@ -39,6 +75,50 @@ export type ExtraFieldDef = {
 	} | null;
 };
 export type ExtraFieldType = "string" | "number" | "date" | "month" | "enum";
+export type FieldCount = {
+	key: string;
+	count: number;
+};
+export type ImportPreviewEntry = {
+	name: string;
+	folder: string | null;
+	locationCount: number;
+	tagCount: number;
+	warnings: string[];
+};
+export type ImportedMapInfo = {
+	id: string;
+	name: string;
+	locationCount: number;
+	tagCount: number;
+};
+export type LocationPatch_Deserialize = {
+	lat?: number | null;
+	lng?: number | null;
+	heading?: number | null;
+	pitch?: number | null;
+	zoom?: number | null;
+	panoId?: string | null;
+	flags?: number | null;
+	tags?: number[] | null;
+	extra?: any | null;
+	createdAt?: string | null;
+	modifiedAt?: string | null;
+};
+export type Location_Deserialize = {
+	id?: number;
+	lat: number;
+	lng: number;
+	heading: number;
+	pitch: number;
+	zoom: number;
+	panoId: string | null;
+	flags: number;
+	tags: number[];
+	extra?: any | null;
+	createdAt: string;
+	modifiedAt?: string | null;
+};
 export type Location_Serialize = {
 	id: number;
 	lat: number;
@@ -78,6 +158,18 @@ export type MapMeta = {
 	updatedAt: string;
 	lastOpenedAt: string | null;
 };
+export type MapMetaPatch = {
+	name?: string | null;
+	description?: string | null;
+	folder?: string | null;
+	settings?: MapSettings | null;
+	scoreBounds?: ScoreBounds | null;
+	extra?: MapExtra | null;
+	tags?: {
+		[key in string]: Tag;
+	} | null;
+	labels?: string[] | null;
+};
 export type MapSettings = {
 	pointAlongRoad: boolean;
 	preferDirection: number | null;
@@ -92,6 +184,23 @@ export type MapSettings = {
 	enrichFields: string[] | null;
 	generatedLocationTag: string | null;
 };
+export type MutationResult_Serialize = {
+	delta: RenderDelta_Serialize;
+	selectionSync: SelectionSync | null;
+	newFieldDefs: {
+		[key in string]: ExtraFieldDef;
+	} | null;
+	tags: {
+		[key in number]: Tag;
+	} | null;
+} & StoreStatus;
+export type PluginManifest = {
+	id: string;
+	name: string;
+	description: string;
+	icon: string;
+	main: string;
+};
 export type PolygonGeometry = {
 	coordinates: (([
 		number,
@@ -103,12 +212,86 @@ export type PolygonGeometry = {
 	])[])[])[] | null;
 	properties?: any | null;
 };
+export type RenderDelta_Serialize = {
+	added: RenderEntry[];
+	updated: RenderPatchEntry[];
+	removed: CellRemoval[];
+	colorPatches: ColorPatchEntry[];
+	fullReset?: boolean;
+};
+export type RenderEntry = {
+	cell: string;
+	id: number;
+	lng: number;
+	lat: number;
+	heading: number;
+	r: number;
+	g: number;
+	b: number;
+	a: number;
+};
+export type RenderPatchEntry = {
+	cell: string;
+	cellIndex: number;
+	lng: number | null;
+	lat: number | null;
+	heading: number | null;
+};
+export type RenderRequest = {
+	west?: number;
+	south?: number;
+	east?: number;
+	north?: number;
+	selectedIds?: number[] | null;
+	markerStyle?: string;
+};
+export type SaveResult = {
+	savedChunks: number;
+};
 export type ScoreBounds = string | [
 	number,
 	number,
 	number,
 	number
 ];
+export type SeenEntry = {
+	id: number;
+	panoId: string;
+	lat: number;
+	lng: number;
+	heading: number;
+	pitch: number;
+	zoom: number;
+	enteredAt: number;
+	mapId: string | null;
+	locationId: number | null;
+	countryCode: string | null;
+	address: string | null;
+	thumbnail: string | null;
+};
+export type SeenFilter = {
+	country?: string | null;
+	mapId?: string | null;
+	search?: string | null;
+};
+export type SeenMapInfo = {
+	id: string;
+	name: string;
+};
+export type SeenWriteEntry = {
+	panoId: string;
+	lat: number;
+	lng: number;
+	heading: number;
+	pitch: number;
+	zoom: number;
+	enteredAt: number;
+	mapId: string | null;
+	locationId: number | null;
+	countryCode: string | null;
+	address: string | null;
+	thumbnail: string | null;
+};
 type Selection$1 = {
 	key: string;
 	color: [
@@ -119,6 +302,14 @@ type Selection$1 = {
 	props: SelectionProps;
 	/**  JS-only: cached resolved count for sidebar display. Rust never sets this. */
 	count?: number | null;
+};
+export type SelectionInput = {
+	props: SelectionProps;
+	color: [
+		number,
+		number,
+		number
+	];
 };
 export type SelectionProps = {
 	type: "Locations";
@@ -167,12 +358,52 @@ export type SelectionProps = {
 	value: any;
 	value2: any | null;
 };
+export type SelectionResult = {
+	key: string;
+	count: number;
+	selectionVersion: number;
+};
+export type SelectionSummary = {
+	key: string;
+	color: [
+		number,
+		number,
+		number
+	];
+	type: string;
+	count: number;
+};
+export type SelectionSync = {
+	counts: number[];
+	patchFile: string | null;
+	selectedCount: number;
+};
+export type StoreStatus = {
+	version: number;
+	locationCount: number;
+	canUndo: boolean;
+	canRedo: boolean;
+	tagCounts: {
+		[key in number]: number;
+	};
+};
+export type SummaryResult = {
+	locationCount: number;
+	version: number;
+	dirtyCount: number;
+};
+export type SyncSelectionsResult = {
+	counts: number[];
+	patchFile: string | null;
+	selectedCount: number;
+};
 export type Tag = {
 	id: number;
 	name: string;
 	color: string;
 	visible?: boolean;
 	order?: number | null;
+	count?: number;
 };
 type Location$1 = Location_Serialize;
 type Tag$1 = Tag;
@@ -180,6 +411,33 @@ declare function createLocation(partial: Partial<Location$1> & {
 	lat: number;
 	lng: number;
 }): Location$1;
+export type WorkArea = "overview" | "location" | "duplicates" | "import" | "plugin";
+export interface PluginSettingDef {
+	key: string;
+	label: string;
+	type: "boolean" | "string" | "number";
+	default: unknown;
+}
+interface Plugin$1 {
+	id: string;
+	name: string;
+	description?: string;
+	icon: string;
+	comingSoon?: boolean;
+	settings?: PluginSettingDef[];
+	activate(): void | (() => void);
+	modal?: ComponentType<{
+		onClose: () => void;
+	}>;
+	sidebar?: ComponentType<{
+		onClose: () => void;
+	}>;
+	locationPanel?: ComponentType;
+}
+export type PluginBehavior = Partial<Plugin$1> & {
+	activate(): void | (() => void);
+};
+declare function registerPlugin(plugin: Plugin$1 | PluginBehavior): void;
 export interface EnrichFieldOption {
 	key: string;
 	label: string;
@@ -566,12 +824,274 @@ export type OpenDialogReturn<T extends OpenDialogOptions> = T["directory"] exten
 declare function open$1<T extends OpenDialogOptions>(options?: T): Promise<OpenDialogReturn<T>>;
 declare function save(options?: SaveDialogOptions): Promise<string | null>;
 export type EditorEvent = "location:add" | "location:remove" | "location:update" | "selection:change" | "map:open" | "map:close";
+declare enum ValidationState {
+	Ok = 0,
+	UpdateAvailable = 1,
+	UpdateApplied = 2,
+	NotFound = 3,
+	PanoIdBroke = 4,
+	Unofficial = 5,
+	GoodcamAvailable = 6
+}
+export type FilterOp = "eq" | "neq" | "gt" | "lt" | "gte" | "lte" | "between" | "between_anyyear" | "has" | "nothas";
+export interface SavedSelectionItem {
+	props: SavedSelectionProps;
+	color: [
+		number,
+		number,
+		number
+	];
+}
+export interface SavedSelection {
+	id: string;
+	name: string;
+	items: SavedSelectionItem[];
+	createdAt: number;
+}
+export type SavedSelectionProps = {
+	type: "Everything";
+} | {
+	type: "Polygon";
+	polygon: PolygonGeometry;
+	includeInformational: boolean;
+} | {
+	type: "TagName";
+	tagName: string;
+} | {
+	type: "Untagged";
+} | {
+	type: "Unpanned";
+} | {
+	type: "PanoIds";
+} | {
+	type: "NotPanoIds";
+} | {
+	type: "Duplicates";
+	distance: number;
+} | {
+	type: "Filter";
+	field: string;
+	op: FilterOp;
+	value: unknown;
+	value2?: unknown;
+} | {
+	type: "Intersection";
+	selections: SavedSelectionProps[];
+} | {
+	type: "Union";
+	selections: SavedSelectionProps[];
+} | {
+	type: "Invert";
+	selections: SavedSelectionProps[];
+};
+export type MovementMode = "moving" | "no-move" | "nmpz";
+export type ExactDateFormat = "date" | "datetime";
+export type DateTimezone = "location" | "utc";
+export type SeenResolution = "low" | "medium" | "high";
+export type MapListField = "locationCount" | "lastOpened" | "created";
+export type GeocodeProvider = "local" | "nominatim";
+export type TagViewMode = "flat" | "tree";
+export interface AppSettings {
+	showCameraBadges: boolean;
+	showLinksControl: boolean;
+	clickToGo: boolean;
+	showRoadLabels: boolean;
+	defaultMovementMode: MovementMode;
+	showCar: boolean;
+	showCrosshair: boolean;
+	showCompass: boolean;
+	showCompassTape: boolean;
+	showZoom: boolean;
+	showReturnToSpawn: boolean;
+	showJumpButtons: boolean;
+	showMapLinks: boolean;
+	showCoordinateDisplay: boolean;
+	showFullscreenButton: boolean;
+	showPanoMetadata: boolean;
+	showExactDate: boolean;
+	exactDateFormat: ExactDateFormat;
+	dateTimezone: DateTimezone;
+	showNavArrow: boolean;
+	showGroundArrow: boolean;
+	hidePanoUI: boolean;
+	fullscreenMap: boolean;
+	showFullscreenMinimap: boolean;
+	showFullscreenTagbar: boolean;
+	customCss: string;
+	enableSeen: boolean;
+	enableSeenThumbnails: boolean;
+	seenResolution: SeenResolution;
+	mapPanSpeed: number;
+	panoLookSpeed: number;
+	slowModifier: number;
+	showFps: boolean;
+	mapListFields: MapListField[];
+	geocodeProvider: GeocodeProvider;
+	nominatimApiKey: string;
+	tagViewMode: TagViewMode;
+	savedSelections: SavedSelection[];
+}
+declare function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void;
+declare function getSeenEntries(limit?: number, offset?: number, filter?: SeenFilter): Promise<SeenEntry[]>;
+declare function getSeenCount(filter?: SeenFilter): Promise<number>;
+declare function clearSeen(): Promise<void>;
+declare function loadSeenPano(entry: SeenEntry): void;
+export interface ValidationProgress {
+	progress: number;
+	results: Map<ValidationState, Location$1[]>;
+}
+declare function validateLocations(locations: Location$1[], opts?: {
+	signal?: AbortSignal;
+	onProgress?: (p: ValidationProgress) => void;
+}): Promise<Map<ValidationState, Location$1[]>>;
+export interface EnrichResult {
+	metaSuccess: number[];
+	metaFailed: number[];
+	dateSuccess: number[];
+	dateFailed: number[];
+}
+export type RenderDelta = RenderDelta_Serialize;
 export type Handler = (...args: unknown[]) => void;
-declare const mmaApi: {
-	registerPlugin: typeof registerPlugin;
-	createLocation: typeof createLocation;
-	registerEnrichFields: typeof registerEnrichFields;
-	registerEnrichmentProvider: typeof registerEnrichmentProvider;
+declare const mma: {
+	cmd: {
+		writeTempFile: (name: string, content: string) => Promise<string>;
+		readFile: (path: string) => Promise<string>;
+		getDbUri: () => Promise<string>;
+		getAppDataDir: () => Promise<string>;
+		openDataFolder: () => Promise<null>;
+		listUserPlugins: () => Promise<PluginManifest[]>;
+		reverseGeocode: (lat: number, lng: number) => Promise<{
+			city: string;
+			admin: string;
+			country: string;
+			country_code: string;
+		} | null>;
+		storeOpenMap: (mapId: string) => Promise<StoreStatus>;
+		storeCloseMap: () => Promise<null>;
+		storeSaveDirty: () => Promise<SaveResult>;
+		storeBakeAndSave: () => Promise<null>;
+		storeGetSummary: () => Promise<SummaryResult>;
+		storeListMaps: () => Promise<MapMeta[]>;
+		storeGetMap: (id: string) => Promise<{
+			meta: MapMeta;
+		} | null>;
+		storeCreateMap: (name: string, folder: string | null) => Promise<MapData>;
+		storeDeleteMap: (id: string) => Promise<null>;
+		storeUpdateMapMeta: (id: string, patch: MapMetaPatch) => Promise<null>;
+		storeTouchMapOpened: (mapId: string) => Promise<null>;
+		storeRenameFolder: (from: string, to: string) => Promise<null>;
+		storeDeleteFolder: (name: string) => Promise<null>;
+		storeMoveMapToFolder: (mapId: string, folder: string | null) => Promise<null>;
+		storeUpdateMapLabels: (mapId: string, labels: string[]) => Promise<null>;
+		storeGetPanoDate: (panoId: string) => Promise<number | null>;
+		storeSetPanoDate: (panoId: string, timestamp: number) => Promise<null>;
+		storeDbTableInfo: () => Promise<DbTableInfo[]>;
+		storeAddLocations: (locations: Location_Deserialize[]) => Promise<MutationResult_Serialize>;
+		storeRemoveLocations: (ids: number[]) => Promise<MutationResult_Serialize>;
+		storeUpdateLocations: (updates: [
+			number,
+			LocationPatch_Deserialize
+		][], recordUndo: boolean | null) => Promise<MutationResult_Serialize>;
+		storeSetActive: (id: number | null) => Promise<null>;
+		storeGetLocation: (id: number) => Promise<{
+			id: number;
+			lat: number;
+			lng: number;
+			heading: number;
+			pitch: number;
+			zoom: number;
+			panoId: string | null;
+			flags: number;
+			tags: number[];
+			extra?: any | null;
+			createdAt: string;
+			modifiedAt?: string | null;
+		} | null>;
+		storeGetLocationFile: (id: number) => Promise<string | null>;
+		storeGetLocationsByIds: (ids: number[]) => Promise<Location_Serialize[]>;
+		storeGetAllLocations: () => Promise<string>;
+		storeLocationCount: () => Promise<number>;
+		storeHasLocation: (id: number) => Promise<boolean>;
+		storeBounds: () => Promise<[
+			number,
+			number,
+			number,
+			number
+		] | null>;
+		storeSelectionBounds: () => Promise<[
+			number,
+			number,
+			number,
+			number
+		] | null>;
+		storeFindNearby: (lat: number, lng: number, radiusM: number) => Promise<Location_Serialize[]>;
+		storeExtraFieldValues: (field: string) => Promise<string[]>;
+		storeCreateTags: (names: string[]) => Promise<MutationResult_Serialize>;
+		storeUpdateTag: (tagId: number, name: string | null, color: string | null) => Promise<MutationResult_Serialize>;
+		storeDeleteTags: (tagIds: number[]) => Promise<MutationResult_Serialize>;
+		storeStripTags: (tagIds: number[]) => Promise<MutationResult_Serialize>;
+		storeReorderTags: (orderedIds: number[]) => Promise<MutationResult_Serialize>;
+		storeTagCounts: () => Promise<{
+			[x: number]: number;
+		}>;
+		storeUndo: () => Promise<MutationResult_Serialize>;
+		storeRedo: () => Promise<MutationResult_Serialize>;
+		storeResetUndo: () => Promise<null>;
+		storeCommitDiff: () => Promise<[
+			number,
+			number,
+			number
+		]>;
+		storeSyncSelections: (sels: SelectionInput[]) => Promise<SyncSelectionsResult>;
+		storeAddSelection: (props: SelectionProps) => Promise<SelectionResult>;
+		storeRemoveSelection: (key: string) => Promise<number>;
+		storeResetSelections: () => Promise<number>;
+		storeGetSelections: () => Promise<SelectionSummary[]>;
+		storeGetSelectedIds: () => Promise<number[]>;
+		storeGetSelectedIdsList: () => Promise<number[]>;
+		storeSetSelectedIds: (ids: number[]) => Promise<null>;
+		storeResolveSelection: (props: SelectionProps) => Promise<number[]>;
+		storeRefreshSelections: () => Promise<number>;
+		storeFillRenderFile: (req: RenderRequest) => Promise<string>;
+		storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
+		bulkImportPreview: (path: string) => Promise<ImportPreviewEntry[]>;
+		bulkImportConfirm: (path: string, selectedIndices: number[]) => Promise<ImportedMapInfo[]>;
+		storeImportPreview: (path: string) => Promise<EditorImportPreview>;
+		storeImportFile: (droppedFields: string[]) => Promise<EditorImportResult_Serialize>;
+		storeImportPaste: (text: string) => Promise<[
+			EditorImportResult_Serialize,
+			number | null
+		]>;
+		storeExportJson: (opts: ExportOpts) => Promise<string>;
+		storeExportCsv: (scope: number[] | null) => Promise<string>;
+		storeExportGeojson: (scope: number[] | null, tagsJson: string) => Promise<string>;
+		storeExportBulkZip: () => Promise<string>;
+		storeSnapshotCommit: () => Promise<CommitBlobEntry[]>;
+		storeRestoreCommit: (mapId: string, blobs: CommitBlobEntry[]) => Promise<null>;
+		storeDbClearTable: (table: string) => Promise<number>;
+		storeDbStats: () => Promise<DbStats>;
+		storeSeenWrite: (entry: SeenWriteEntry) => Promise<null>;
+		storeSeenList: (limit: number, offset: number, filter: {
+			country?: string | null;
+			mapId?: string | null;
+			search?: string | null;
+		} | null) => Promise<SeenEntry[]>;
+		storeSeenCount: (filter: {
+			country?: string | null;
+			mapId?: string | null;
+			search?: string | null;
+		} | null) => Promise<number>;
+		storeSeenCountries: () => Promise<string[]>;
+		storeSeenMaps: () => Promise<SeenMapInfo[]>;
+		storeSeenClear: () => Promise<null>;
+		storeCreateCommit: (mapId: string, message: string | null, diff: {
+			added?: number;
+			removed?: number;
+			modified?: number;
+		} | null) => Promise<string>;
+		storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
+		storeCheckoutCommit: (mapId: string, commitId: string) => Promise<null>;
+	};
 	invoke: typeof invoke;
 	shell: {
 		Command: typeof Command;
@@ -580,31 +1100,230 @@ declare const mmaApi: {
 		open: typeof open$1;
 		save: typeof save;
 	};
-	getMap: () => MapData | null;
-	getActiveLocation: () => Location_Serialize | null;
+	registerPlugin: typeof registerPlugin;
+	registerEnrichFields: typeof registerEnrichFields;
+	registerEnrichmentProvider: typeof registerEnrichmentProvider;
+	createLocation: typeof createLocation;
 	getGoogleMap: () => google.maps.Map | null;
-	addLocations: (locs: Location$1[]) => Promise<void>;
-	removeLocations: (ids: Set<number>) => void;
-	updateLocation: (id: number, patch: Partial<Location$1>) => void;
-	setActiveLocation: (id: number | null) => Promise<void>;
-	addTag: (tag: Tag$1) => void;
-	updateTag: (tagId: number, patch: Partial<Tag$1>) => void;
-	getSelections: () => Selection$1[];
-	getSelectedLocationIds: () => Set<number>;
-	queryIds: (props: SelectionProps) => Promise<number[]>;
-	getLocationsByIds: (ids: number[]) => Promise<Location_Serialize[]>;
-	enterPluginMode: (pluginId: string) => void;
-	exitPluginMode: () => void;
+	setSetting: typeof setSetting;
+	getSettings: () => {
+		showCameraBadges: boolean;
+		showLinksControl: boolean;
+		clickToGo: boolean;
+		showRoadLabels: boolean;
+		defaultMovementMode: MovementMode;
+		showCar: boolean;
+		showCrosshair: boolean;
+		showCompass: boolean;
+		showCompassTape: boolean;
+		showZoom: boolean;
+		showReturnToSpawn: boolean;
+		showJumpButtons: boolean;
+		showMapLinks: boolean;
+		showCoordinateDisplay: boolean;
+		showFullscreenButton: boolean;
+		showPanoMetadata: boolean;
+		showExactDate: boolean;
+		exactDateFormat: ExactDateFormat;
+		dateTimezone: DateTimezone;
+		showNavArrow: boolean;
+		showGroundArrow: boolean;
+		hidePanoUI: boolean;
+		fullscreenMap: boolean;
+		showFullscreenMinimap: boolean;
+		showFullscreenTagbar: boolean;
+		customCss: string;
+		enableSeen: boolean;
+		enableSeenThumbnails: boolean;
+		seenResolution: SeenResolution;
+		mapPanSpeed: number;
+		panoLookSpeed: number;
+		slowModifier: number;
+		showFps: boolean;
+		mapListFields: MapListField[];
+		geocodeProvider: GeocodeProvider;
+		nominatimApiKey: string;
+		tagViewMode: TagViewMode;
+		savedSelections: SavedSelection[];
+	};
 	on(event: EditorEvent, handler: Handler): () => void;
+	getSeenEntries: typeof getSeenEntries;
+	getSeenCount: typeof getSeenCount;
+	clearSeen: typeof clearSeen;
+	loadSeenPano: typeof loadSeenPano;
+	enrichAll: (opts?: Record<string, unknown>) => Promise<EnrichResult>;
+	bulkPinToPano: (opts?: Record<string, unknown>) => Promise<number>;
+	validateLocations: typeof validateLocations;
+	needsEnrichment: (loc: Pick<Location$1, "extra">) => boolean;
+	useMapList(): MapMeta[];
+	invalidateMapList(): Promise<void>;
+	useTagCounts(): Record<number, number>;
+	getTagCounts(): Record<number, number>;
+	refreshAfterMutation(): void;
+	useCurrentMap(): MapData | null;
+	getVisibleTags(): Tag$1[];
+	useMapVersion(): number;
+	useSelectedLocationIds(): Set<number>;
+	useActiveLocation(): Location$1 | null;
+	useDuplicateLocations(): Location$1[];
+	useWorkArea(): WorkArea;
+	useReview(): {
+		locations: number[];
+		index: number;
+	} | null;
+	hasCommitDiff(): boolean;
+	useCommitDiff(): {
+		added: number;
+		removed: number;
+		modified: number;
+	};
+	getDirtyCount(): Promise<number>;
+	scheduleSave(): void;
+	flushSave(): Promise<void>;
+	initStore(): Promise<void>;
+	openMap(id: string, pushHistory?: boolean): Promise<void>;
+	closeMap(pushHistory?: boolean): Promise<void>;
+	getCurrentMapId(): string | null;
+	getCurrentMap(): MapData | null;
+	getActiveLocation(): Location$1 | null;
+	fetchAllLocations(): Promise<Location$1[]>;
+	fetchLocation(id: number): Promise<Location$1 | null>;
+	fetchLocationsByIds(ids: number[]): Promise<Location$1[]>;
+	getSelections(): Selection$1[];
+	getSelectedLocationIds(): Set<number>;
+	syncSelections(): Promise<{
+		ids: number[];
+	}>;
+	createMap(name: string, folder?: string | null): Promise<void>;
+	deleteMap(id: string): Promise<void>;
+	renameFolder(from: string, to: string): Promise<void>;
+	moveMapToFolder(mapId: string, folder: string | null): Promise<void>;
+	deleteFolder(name: string): Promise<void>;
+	getAllMaps(): Promise<MapData[]>;
+	renameMap(id: string, name: string): Promise<void>;
+	updateMapLabels(id: string, labels: string[]): Promise<void>;
+	updateMapMeta(patch: MapMetaPatch): Promise<void>;
+	setMapExtraFields(fields: Record<string, ExtraFieldDef>): Promise<void>;
+	mutate(p: Promise<MutationResult_Serialize>): Promise<MutationResult_Serialize>;
+	addLocations(locs: Location$1[], opts?: {
+		hideInDelta?: boolean;
+	}): Promise<void>;
+	duplicateLocation(locId: number): Promise<number | null>;
+	updateLocationNoUndo(id: number, patch: Partial<Location$1>): Promise<MutationResult_Serialize>;
+	removeLocations(ids: Set<number>): void;
+	updateLocation(locId: number, patch: Partial<Location$1>): void;
+	batchUpdateLocations(updates: {
+		id: number;
+		patch: Partial<Location$1>;
+	}[]): Promise<void | MutationResult_Serialize>;
+	patchLocationExtra(locId: number, extraPatch: Record<string, unknown>, replace?: boolean): void;
+	useSelections(): Selection$1[];
+	useSelectionVersion(): number;
+	addSelection(props: SelectionProps): Promise<void>;
+	removeSelection(key: string): Promise<void>;
+	resetSelections(): Promise<void>;
+	selectIntersection(keys?: string[] | null): Promise<void>;
+	selectUnion(keys?: string[] | null): Promise<void>;
+	selectInverse(keys?: string[] | null): Promise<void>;
+	toggleManualSelection(locationId: number): Promise<void>;
+	selectEverything(): Promise<void>;
+	selectUntagged(): Promise<void>;
+	selectUnpanned(): Promise<void>;
+	selectPanoIds(): Promise<void>;
+	selectNotPanoIds(): Promise<void>;
+	selectDuplicates(distance: number): Promise<void>;
+	selectTag(tagId: number): Promise<void>;
+	selectPolygon(polygon: PolygonGeometry, includeInformational?: boolean): Promise<void>;
+	selectFilter(field: string, op: FilterOp, value: unknown, value2?: unknown): Promise<void>;
+	setPolygonName(key: string, name: string): Promise<void>;
+	setSelectionColor(key: string, color: [
+		number,
+		number,
+		number
+	]): void;
+	reorderSelection(fromKey: string, toKey: string, position: "before" | "after"): void;
+	composeSelections(dragKey: string, dropKey: string, mode: "intersection" | "union", dragParent: string | null, dropParent: string | null): void;
+	decomposeChild(parentKey: string, childKey: string): void;
+	removeChildFromSelection(parentKey: string, childKey: string): void;
+	toggleTagSelections(tagIds: number[]): void;
+	useSelectedTagIds(): Set<number>;
+	setActiveLocation(id: number | null, checkDuplicates?: boolean): Promise<void>;
+	openDuplicateLocation(loc: Location$1): void;
+	removeDuplicate(id: number): void;
+	closeDuplicates(): void;
+	setWorkArea(area: WorkArea): void;
+	useActivePluginId(): string | null;
+	getWorkArea(): WorkArea;
+	getActivePluginId(): string | null;
+	setPluginMode(pluginId: string): void;
+	exitPluginMode(): void;
+	createTags(names: string[]): Promise<Tag$1[]>;
+	updateTags(patches: {
+		id: number;
+		patch: Partial<Tag$1>;
+	}[]): Promise<void>;
+	deleteTags(tagIds: number[]): Promise<void>;
+	reorderTags(orderedIds: number[]): Promise<void>;
+	addTagToLocations(tagId: number, locationIds: number[]): Promise<void>;
+	removeTagFromLocations(tagId: number, locationIds: number[]): Promise<void>;
+	removeTagFromAllLocations(tagId: number): Promise<void>;
+	importFile(droppedFields: string[]): Promise<EditorImportResult_Serialize>;
+	importPaste(text: string): Promise<readonly [
+		EditorImportResult_Serialize,
+		number | null
+	]>;
+	beginReview(locationIds: number[]): Promise<void>;
+	cancelReview(): void;
+	reviewNext(): Promise<void>;
+	reviewPrev(): Promise<void>;
+	reviewDelete(): Promise<void>;
+	undo(): Promise<void>;
+	redo(): Promise<void>;
+	getUndoRedoState(): {
+		canUndo: boolean;
+		canRedo: boolean;
+	};
+	useUndoRedo(): {
+		canUndo: boolean;
+		canRedo: boolean;
+	};
+	commitMap(message?: string): Promise<string>;
+	checkoutCommit(commitId: string): Promise<void>;
+	renderDeltaBus: {
+		on: (fn: (delta: RenderDelta) => void) => () => void;
+		emit: (delta: RenderDelta) => void;
+	};
+	selBitmaskBus: {
+		on: (fn: (selColors: [
+			number,
+			number,
+			number
+		][], cellEntries: {
+			cellChar: string;
+			locCount: number;
+			masks: Uint8Array[];
+		}[], setIds: (ids: Set<number>) => void) => void) => () => void;
+		emit: (selColors: [
+			number,
+			number,
+			number
+		][], cellEntries: {
+			cellChar: string;
+			locCount: number;
+			masks: Uint8Array[];
+		}[], setIds: (ids: Set<number>) => void) => void;
+	};
+	ready: boolean;
 };
-export type MMAApi = typeof mmaApi;
+type MMA$1 = typeof mma;
 
 export {
+	MMA$1 as MMAApi,
 	Plugin$1 as MMAPlugin,
 };
 
 export {};
 
 declare global {
-	const MMA: typeof mmaApi;
+	const MMA: typeof mma;
 }

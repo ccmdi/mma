@@ -1,3 +1,4 @@
+import type { Location } from "@/types";
 import {
 	waitForReady,
 	createAndOpenMap,
@@ -7,7 +8,7 @@ import {
 	openMap,
 	addLocs,
 	getLoc,
-	makeLoc,
+	createLocation,
 	withApi,
 } from "./helpers";
 
@@ -26,7 +27,7 @@ describe("Data integrity - flags", () => {
 	});
 
 	it("flag=0 stays 0 through save/load", async () => {
-		const ids = await addLocs([makeLoc({ lat: 10, lng: 20, flags: 0 })]);
+		const ids = await addLocs([createLocation({ lat: 10, lng: 20, flags: 0 })]);
 		fl0Id = ids[0];
 
 		await flushAndWait();
@@ -51,7 +52,7 @@ describe("Data integrity - flags", () => {
 	});
 
 	it("flag=2 (Informational) survives save/load", async () => {
-		const ids = await addLocs([makeLoc({ lat: 30, lng: 40, flags: 2 })]);
+		const ids = await addLocs([createLocation({ lat: 30, lng: 40, flags: 2 })]);
 
 		await flushAndWait();
 		await closeMap();
@@ -62,7 +63,7 @@ describe("Data integrity - flags", () => {
 	});
 
 	it("flag=3 (both bits) survives save/load", async () => {
-		const ids = await addLocs([makeLoc({ lat: 50, lng: 60, flags: 3, panoId: "BOTH_PANO" })]);
+		const ids = await addLocs([createLocation({ lat: 50, lng: 60, flags: 3, panoId: "BOTH_PANO" })]);
 
 		await flushAndWait();
 		await closeMap();
@@ -90,7 +91,7 @@ describe("Data integrity - panoId", () => {
 	});
 
 	it("null panoId stays null", async () => {
-		const ids = await addLocs([makeLoc({ lat: 10, lng: 20, panoId: null })]);
+		const ids = await addLocs([createLocation({ lat: 10, lng: 20, panoId: null })]);
 		pnNullId = ids[0];
 
 		await flushAndWait();
@@ -103,7 +104,7 @@ describe("Data integrity - panoId", () => {
 
 	it("panoId string survives save/load", async () => {
 		const ids = await addLocs([
-			makeLoc({
+			createLocation({
 				lat: 30,
 				lng: 40,
 				panoId: "CAoSK0FGMVFpcE9YUV9QMWN6bUc1RG1RMHRES1",
@@ -148,9 +149,9 @@ describe("Data integrity - coordinates", () => {
 
 	it("extreme lat/lng values survive save/load", async () => {
 		const ids = await addLocs([
-			makeLoc({ lat: 85.05, lng: 179.99, heading: 359.99, pitch: 89, zoom: 5 }),
-			makeLoc({ lat: -85.05, lng: -179.99, heading: 0.01, pitch: -89, zoom: 0.1 }),
-			makeLoc({ lat: 0, lng: 0, heading: 0, pitch: 0, zoom: 0 }),
+			createLocation({ lat: 85.05, lng: 179.99, heading: 359.99, pitch: 89, zoom: 5 }),
+			createLocation({ lat: -85.05, lng: -179.99, heading: 0.01, pitch: -89, zoom: 0.1 }),
+			createLocation({ lat: 0, lng: 0, heading: 0, pitch: 0, zoom: 0 }),
 		]);
 
 		await flushAndWait();
@@ -177,7 +178,7 @@ describe("Data integrity - coordinates", () => {
 
 	it("high-precision coordinates survive", async () => {
 		const ids = await addLocs([
-			makeLoc({
+			createLocation({
 				lat: 40.7128123456789,
 				lng: -74.0060987654321,
 				heading: 123.456789,
@@ -212,7 +213,7 @@ describe("Data integrity - extras", () => {
 
 	it("string extra survives", async () => {
 		const ids = await addLocs([
-			makeLoc({
+			createLocation({
 				lat: 10,
 				lng: 20,
 				extra: { country: "United States of America" },
@@ -229,7 +230,7 @@ describe("Data integrity - extras", () => {
 
 	it("numeric extra survives", async () => {
 		const ids = await addLocs([
-			makeLoc({
+			createLocation({
 				lat: 20,
 				lng: 30,
 				extra: { altitude: 8848.86, population: 0, negative: -42 },
@@ -248,7 +249,7 @@ describe("Data integrity - extras", () => {
 
 	it("nested extra object survives", async () => {
 		const ids = await addLocs([
-			makeLoc({
+			createLocation({
 				lat: 30,
 				lng: 40,
 				extra: { meta: { source: "import", version: 2 }, arr: [1, 2, 3] },
@@ -267,7 +268,7 @@ describe("Data integrity - extras", () => {
 
 	it("empty extra object survives", async () => {
 		const ids = await addLocs([
-			makeLoc({
+			createLocation({
 				lat: 40,
 				lng: 50,
 				extra: {},
@@ -286,7 +287,7 @@ describe("Data integrity - extras", () => {
 	});
 
 	it("location without extra field survives", async () => {
-		const ids = await addLocs([makeLoc({ lat: 50, lng: 60 })]);
+		const ids = await addLocs([createLocation({ lat: 50, lng: 60 })]);
 
 		await flushAndWait();
 		await closeMap();
@@ -313,7 +314,7 @@ describe("Data integrity - createdAt", () => {
 
 	it("ISO date string survives save/load", async () => {
 		const date = "2024-06-15T14:30:00.000Z";
-		const ids = await addLocs([makeLoc({ lat: 10, lng: 20, createdAt: date })]);
+		const ids = await addLocs([createLocation({ lat: 10, lng: 20, createdAt: date })]);
 
 		await flushAndWait();
 		await closeMap();
@@ -340,44 +341,24 @@ describe("Data integrity - concurrent operations", () => {
 	it("rapid add/remove does not corrupt", async () => {
 		const result = await withApi(async (api) => {
 			// Add 100
-			const locs = [];
+			const locs: Location[] = [];
 			for (let i = 0; i < 100; i++) {
-				locs.push({
-					lat: i,
-					lng: i,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				});
+				locs.push(api.createLocation({ lat: i, lng: i, zoom: 1 }));
 			}
 			await api.addLocations(locs);
 
 			// Remove first 50
 			const toRemove = locs.slice(0, 50).map((l) => l.id);
-			await api.removeLocations(toRemove);
+			await api.removeLocations(new Set(toRemove));
 
 			// Add 50 more
-			const moreLocs = [];
+			const moreLocs: Location[] = [];
 			for (let i = 100; i < 150; i++) {
-				moreLocs.push({
-					lat: i,
-					lng: i,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				});
+				moreLocs.push(api.createLocation({ lat: i, lng: i, zoom: 1 }));
 			}
 			await api.addLocations(moreLocs);
 
-			const count = await api.getLocationCount();
+			const count = await api.cmd.storeLocationCount();
 			return { count };
 		});
 		expect(result.count).toBe(100); // 50 remaining from first batch + 50 new
@@ -403,36 +384,12 @@ describe("Data integrity - concurrent operations", () => {
 	it("add during save does not lose locations", async () => {
 		const result = await withApi(async (api) => {
 			// Trigger add
-			const triggerLocs = [
-				{
-					lat: 0,
-					lng: 0,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				},
-			];
+			const triggerLocs = [api.createLocation({ lat: 0, lng: 0, zoom: 1 })];
 			await api.addLocations(triggerLocs);
 			const triggerId = triggerLocs[0].id;
 
 			// Add more while save may be in progress
-			const duringLocs = [
-				{
-					lat: 1,
-					lng: 1,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				},
-			];
+			const duringLocs = [api.createLocation({ lat: 1, lng: 1, zoom: 1 })];
 			await api.addLocations(duringLocs);
 			const duringId = duringLocs[0].id;
 

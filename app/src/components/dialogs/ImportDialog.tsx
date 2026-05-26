@@ -1,15 +1,6 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
-import {
-	addTags,
-	renderDeltaBus,
-	refreshAfterMutation,
-	scheduleSave,
-	addLocationCount,
-	setTagCounts,
-	setUndoRedoState,
-	mergeNewFieldDefs,
-} from "@/store/useMapStore";
+import { importFile } from "@/store/useMapStore";
 import { fmt } from "@/lib/util/format";
 import { cmd } from "@/lib/commands";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -85,17 +76,8 @@ export function ImportDialog({ onClose }: Props) {
 		setStatus("importing");
 		const span = debugSpan("import:rust");
 		try {
-			const r = await cmd.storeImportFile([...droppedFields]);
-			span.end(`${r.locationCount} locs, ${r.tags.length} tags`);
-
-			addTags(r.tags.map((t) => ({ id: t.id, name: t.name, color: t.color, visible: true })));
-			addLocationCount(r.locationCount);
-			setTagCounts(r.tagCounts);
-			setUndoRedoState(r.canUndo, r.canRedo);
-			mergeNewFieldDefs(r.newFieldDefs);
-			renderDeltaBus.emit(r.delta);
-			refreshAfterMutation();
-			scheduleSave();
+			const r = await importFile([...droppedFields]);
+			span.end(`${r.importedCount} locs imported`);
 			setResult(r);
 			setStatus("done");
 		} catch (e: unknown) {
@@ -191,8 +173,7 @@ export function ImportDialog({ onClose }: Props) {
 					) : result ? (
 						<>
 							<p>
-								Imported {fmt.format(result.locationCount)} locations
-								{result.tags.length > 0 && `, ${result.tags.length} tags`}.
+								Imported {fmt.format(result.importedCount)} locations.
 							</p>
 							{result.warnings.length > 0 && (
 								<details>

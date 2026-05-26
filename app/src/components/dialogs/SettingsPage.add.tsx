@@ -63,9 +63,19 @@ function buildComboString(e: KeyboardEvent): string | null {
 	return parts.join("+");
 }
 
+const BLOCKED_COMBOS = new Set(["Mod++", "Mod+-"]);
+
+function getBlockedReason(e: KeyboardEvent): string | null {
+	if (e.altKey) return "Alt is reserved as a slow modifier for map/pano navigation";
+	const combo = buildComboString(e);
+	if (combo && BLOCKED_COMBOS.has(combo)) return "Intercepted by the app window before shortcuts can reach it";
+	return null;
+}
+
 function HotkeyRow({ action, label }: { action: HotkeyAction; label: string }) {
 	const binding = useBinding(action);
 	const [recording, setRecording] = useState(false);
+	const [blocked, setBlocked] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const custom = isCustomized(action);
 
@@ -80,12 +90,20 @@ function HotkeyRow({ action, label }: { action: HotkeyAction; label: string }) {
 
 			if (e.key === "Escape") {
 				setRecording(false);
+				setBlocked(null);
 				return;
 			}
 
 			if (e.key === "Backspace" || e.key === "Delete") {
 				setBinding(action, "");
 				setRecording(false);
+				setBlocked(null);
+				return;
+			}
+
+			const reason = getBlockedReason(e.nativeEvent);
+			if (reason) {
+				setBlocked(reason);
 				return;
 			}
 
@@ -94,6 +112,7 @@ function HotkeyRow({ action, label }: { action: HotkeyAction; label: string }) {
 
 			setBinding(action, combo);
 			setRecording(false);
+			setBlocked(null);
 		},
 		[action],
 	);
@@ -105,14 +124,17 @@ function HotkeyRow({ action, label }: { action: HotkeyAction; label: string }) {
 			<td>{label}</td>
 			<td>
 				{recording ? (
-					<input
-						ref={inputRef}
-						className="hotkey-record"
-						readOnly
-						value="Press a key..."
-						onKeyDown={handleKeyDown}
-						onBlur={() => setRecording(false)}
-					/>
+					<>
+						<input
+							ref={inputRef}
+							className="hotkey-record"
+							readOnly
+							value={blocked ? "Try another key..." : "Press a key..."}
+							onKeyDown={handleKeyDown}
+							onBlur={() => { setRecording(false); setBlocked(null); }}
+						/>
+						{blocked && <span className="hotkey-blocked">{blocked}</span>}
+					</>
 				) : (
 					<code
 						className={`hotkey-display${!binding ? " hotkey-display--empty" : ""}`}
@@ -287,7 +309,8 @@ function ViewerControlsSection() {
 	const controls: { key: keyof typeof s; label: string }[] = [
 		{ key: "showFullscreenButton", label: "Fullscreen button" },
 		{ key: "showJumpButtons", label: "Jump forward/backward buttons" },
-		{ key: "showCompass", label: "Compass" },
+		{ key: "showCompass", label: "Compass (wind rose)" },
+		{ key: "showCompassTape", label: "Compass (heading tape)" },
 		{ key: "showZoom", label: "Zoom controls" },
 		{ key: "showReturnToSpawn", label: "Return to spawn button" },
 		{ key: "showMapLinks", label: "Map links (open in maps, copy link)" },
@@ -460,24 +483,6 @@ function MapNavigationSection() {
 				/>
 				<span style={{ minWidth: "1.5rem", textAlign: "right", fontSize: "0.85rem" }}>
 					{s.mapPanSpeed}
-				</span>
-			</label>
-			<label
-				className="settings-popup__item"
-				style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-			>
-				Zoom speed
-				<input
-					type="range"
-					min={1}
-					max={5}
-					step={1}
-					value={s.mapZoomSpeed}
-					onChange={(e) => setSetting("mapZoomSpeed", Number(e.target.value))}
-					style={{ flex: 1 }}
-				/>
-				<span style={{ minWidth: "1.5rem", textAlign: "right", fontSize: "0.85rem" }}>
-					{s.mapZoomSpeed}
 				</span>
 			</label>
 			<label

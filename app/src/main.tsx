@@ -7,11 +7,9 @@ import App from "@/App.tsx";
 import { initLogging, log } from "@/lib/util/log";
 import { initStore, openMap, flushSave } from "@/store/useMapStore";
 import { cmd } from "@/lib/commands";
-import { exposeTestApi } from "@/lib/testApi.add";
 import { checkForUpdateOnStartup } from "@/lib/util/updateCheck";
+import "@/api";
 import "@/store/commandDefs.add";
-
-if (import.meta.env.DEV || import.meta.env.VITE_E2E) exposeTestApi();
 
 async function boot() {
 	await initLogging();
@@ -22,8 +20,7 @@ async function boot() {
 		await openMap(hashMatch[1], false);
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test harness bridge
-	if ((window as any).__TEST_API__) (window as any).__TEST_API__.ready = true;
+	if (window.MMA) window.MMA.ready = true;
 	log.info("App booted");
 
 	getCurrentWindow().onCloseRequested(async (event) => {

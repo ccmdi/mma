@@ -102,13 +102,13 @@ jobs:
           REPO="https://github.com/ccmdi/mma/releases/download/${TAG}"
 
           # Read signatures
-          WIN_SIG=$(cat "$(find artifacts -name '*.nsis.exe.sig' | head -1)" 2>/dev/null || echo "")
+          WIN_SIG=$(cat "$(find artifacts -path '*/nsis/*' -name '*.exe.sig' | head -1)" 2>/dev/null || echo "")
           MAC_ARM_SIG=$(cat "$(find artifacts -path '*aarch64*' -name '*.dmg.sig' | head -1)" 2>/dev/null || echo "")
           MAC_INTEL_SIG=$(cat "$(find artifacts -path '*x86_64*' -name '*.dmg.sig' | head -1)" 2>/dev/null || echo "")
           LINUX_SIG=$(cat "$(find artifacts -name '*.AppImage.sig' | head -1)" 2>/dev/null || echo "")
 
           # Get filenames
-          WIN_FILE=$(basename "$(find artifacts -name '*.nsis.exe' ! -name '*.sig' | head -1)")
+          WIN_FILE=$(basename "$(find artifacts -path '*/nsis/*' -name '*.exe' ! -name '*.sig' | head -1)")
           MAC_ARM_FILE=$(basename "$(find artifacts -path '*aarch64*' -name '*.dmg' ! -name '*.sig' | head -1)")
           MAC_INTEL_FILE=$(basename "$(find artifacts -path '*x86_64*' -name '*.dmg' ! -name '*.sig' | head -1)")
           LINUX_FILE=$(basename "$(find artifacts -name '*.AppImage' ! -name '*.sig' | head -1)")

@@ -1,3 +1,4 @@
+import type { Location } from "@/types";
 import {
 	waitForReady,
 	createAndOpenMap,
@@ -8,7 +9,7 @@ import {
 	addLocs,
 	getLoc,
 	getLocCount,
-	makeLoc,
+	createLocation,
 	withApi,
 } from "./helpers";
 
@@ -27,7 +28,7 @@ describe("Undo/Redo", () => {
 	});
 
 	it("undo add locations", async () => {
-		const ids = await addLocs([makeLoc({ lat: 10, lng: 20, heading: 0 })]);
+		const ids = await addLocs([createLocation({ lat: 10, lng: 20, heading: 0 })]);
 		undo1Id = ids[0];
 
 		let count = await getLocCount();
@@ -52,7 +53,7 @@ describe("Undo/Redo", () => {
 
 	it("undo remove locations", async () => {
 		await withApi(async (api, id) => {
-			await api.removeLocations([id]);
+			await api.removeLocations(new Set([id]));
 		}, undo1Id);
 
 		let count = await getLocCount();
@@ -87,48 +88,9 @@ describe("Undo/Redo", () => {
 	it("multiple undos in sequence", async () => {
 		// Add three locations in separate calls (separate undo entries)
 		await withApi(async (api) => {
-			const l1 = [
-				{
-					lat: 1,
-					lng: 1,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				},
-			];
-			await api.addLocations(l1);
-			const l2 = [
-				{
-					lat: 2,
-					lng: 2,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				},
-			];
-			await api.addLocations(l2);
-			const l3 = [
-				{
-					lat: 3,
-					lng: 3,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				},
-			];
-			await api.addLocations(l3);
+			await api.addLocations([api.createLocation({ lat: 1, lng: 1, zoom: 1 })]);
+			await api.addLocations([api.createLocation({ lat: 2, lng: 2, zoom: 1 })]);
+			await api.addLocations([api.createLocation({ lat: 3, lng: 3, zoom: 1 })]);
 		});
 
 		let count = await getLocCount();
@@ -156,20 +118,7 @@ describe("Undo/Redo", () => {
 
 	it("new edit clears redo stack", async () => {
 		await withApi(async (api) => {
-			const locs = [
-				{
-					lat: 0,
-					lng: 0,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				},
-			];
-			await api.addLocations(locs);
+			await api.addLocations([api.createLocation({ lat: 0, lng: 0, zoom: 1 })]);
 			await api.redo(); // should be no-op since new edit clears redo
 		});
 
@@ -179,19 +128,9 @@ describe("Undo/Redo", () => {
 
 	it("undo bulk operation", async () => {
 		await withApi(async (api) => {
-			const locs = [];
+			const locs: Location[] = [];
 			for (let i = 0; i < 200; i++) {
-				locs.push({
-					lat: i,
-					lng: i,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				});
+				locs.push(api.createLocation({ lat: i, lng: i, zoom: 1 }));
 			}
 			await api.addLocations(locs);
 		});
@@ -257,33 +196,9 @@ describe("Undo/Redo persistence", () => {
 
 	it("undo history survives save/load", async () => {
 		const result = await withApi(async (api) => {
-			const l1 = [
-				{
-					lat: 10,
-					lng: 10,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				},
-			];
+			const l1 = [api.createLocation({ lat: 10, lng: 10, zoom: 1 })];
 			await api.addLocations(l1);
-			const l2 = [
-				{
-					lat: 20,
-					lng: 20,
-					heading: 0,
-					pitch: 0,
-					zoom: 1,
-					panoId: null, id: 0,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				},
-			];
+			const l2 = [api.createLocation({ lat: 20, lng: 20, zoom: 1 })];
 			await api.addLocations(l2);
 			return { id1: l1[0].id, id2: l2[0].id };
 		});

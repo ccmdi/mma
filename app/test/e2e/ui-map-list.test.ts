@@ -35,7 +35,7 @@ describe("UI: Map list", () => {
 		await browser.pause(500);
 
 		const id = await withApi(async (api) => {
-			const maps = await api.listMaps();
+			const maps = await api.cmd.storeListMaps();
 			const m = maps.find((m: any) => m.name === "UI Test Map");
 			return m?.id ?? "NOT_FOUND";
 		});
@@ -70,7 +70,7 @@ describe("UI: Map list - rename and delete", () => {
 		await search.clearValue();
 
 		mapId = await withApi(async (api) => {
-			const map = await api.createMap("Rename Me", null);
+			const map = await api.cmd.storeCreateMap("Rename Me", null);
 			// api.createMap calls the raw command and doesn't refresh the list view.
 			await api.invalidateMapList();
 			return map.meta.id;

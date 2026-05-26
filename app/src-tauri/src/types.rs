@@ -7,6 +7,8 @@ pub struct Tag {
     pub visible: bool,
     #[serde(default)]
     pub order: Option<u32>,
+    #[serde(default)]
+    pub count: usize,
 }
 
 fn default_visible() -> bool {

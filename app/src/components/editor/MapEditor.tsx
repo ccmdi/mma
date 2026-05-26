@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { cmd } from "@/lib/commands";
 import { createLocation } from "@/types";
 import {
 	useCurrentMap,
@@ -8,15 +7,8 @@ import {
 	addLocations,
 	setActiveLocation,
 	getActiveLocation,
-	resolveTagsByName,
-	addTags,
-	addLocationCount,
-	setTagCounts,
-	setUndoRedoState,
-	refreshAfterMutation,
-	scheduleSave,
-	renderDeltaBus,
-	mergeNewFieldDefs,
+	createTags,
+	importPaste,
 } from "@/store/useMapStore";
 import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { getGoogleMap as getGoogleMapInstance } from "@/lib/map/mapState";
@@ -38,6 +30,7 @@ import { mdiBackburger, mdiPencil } from "@mdi/js";
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
 import SameLocation from "@/components/editor/SameLocation.add";
 import { log } from "@/lib/util/log"
+import { useCountrySelect } from "@/lib/map/useCountrySelect.add";
 
 function usePasteHandler() {
 	useEffect(() => {
@@ -52,16 +45,11 @@ function usePasteHandler() {
 				if (parsed) {
 					let tagIds: number[] = [];
 					if (parsed.tags.length > 0) {
-						const resolved = await resolveTagsByName(parsed.tags);
+						const resolved = await createTags(parsed.tags);
 						tagIds = resolved.map((t) => t.id);
 					}
 					const loc = createLocation({
-						lat: parsed.lat,
-						lng: parsed.lng,
-						heading: parsed.heading,
-						pitch: parsed.pitch,
-						zoom: parsed.zoom,
-						panoId: parsed.panoId,
+						...parsed,
 						tags: tagIds,
 					});
 					await addLocations([loc]);
@@ -71,18 +59,8 @@ function usePasteHandler() {
 			}
 
 			try {
-				const [r, singleId] = await cmd.storeImportPaste(text);
-				if (r.locationCount > 0) {
-					addTags(r.tags.map((t) => ({ id: t.id, name: t.name, color: t.color, visible: true })));
-					addLocationCount(r.locationCount);
-					setTagCounts(r.tagCounts);
-					setUndoRedoState(r.canUndo, r.canRedo);
-					mergeNewFieldDefs(r.newFieldDefs);
-					renderDeltaBus.emit(r.delta);
-					refreshAfterMutation();
-					scheduleSave();
-					if (singleId != null) setActiveLocation(singleId);
-				}
+				const [r, singleId] = await importPaste(text);
+				if (r.importedCount > 0 && singleId != null) setActiveLocation(singleId);
 			} catch {
 				log.warn('Couldn\'t import locations via paste.')
 			}
@@ -167,6 +145,7 @@ export function MapEditor() {
 	const appSettings = useSettings();
 	usePasteHandler();
 	useCommandHotkeys();
+	useCountrySelect();
 	useHotkey(useBinding("toggleFullscreenMap"), () => {
 		setSetting("fullscreenMap", !getSettings().fullscreenMap);
 	});

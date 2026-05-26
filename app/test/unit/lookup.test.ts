@@ -60,6 +60,16 @@ describe("svSearchRadius", () => {
 		const polar = svSearchRadius(80, 10);
 		expect(equator).toBeGreaterThan(polar);
 	});
+
+	it("zoom 0 produces an absurdly large radius (the jump bug)", () => {
+		const r = svSearchRadius(0, 0);
+		expect(r).toBeGreaterThan(600_000);
+	});
+
+	it("zoom 15+ produces a radius suitable for local navigation", () => {
+		const r = svSearchRadius(0, 15);
+		expect(r).toBeLessThan(200);
+	});
 });
 
 describe("normalizeHeading", () => {

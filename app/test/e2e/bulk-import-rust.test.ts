@@ -22,7 +22,7 @@ describe("Rust bulk import — preview", () => {
 
 	it("returns preview entries for the fixture zip", async () => {
 		const entries = await withApi(async (api, p) => {
-			return await api.bulkImportPreview(p);
+			return await api.cmd.bulkImportPreview(p);
 		}, FIXTURE_ZIP);
 
 		expect(entries.length).toBe(6);
@@ -37,7 +37,7 @@ describe("Rust bulk import — preview", () => {
 
 	it("reports correct location counts", async () => {
 		const entries = await withApi(async (api, p) => {
-			return await api.bulkImportPreview(p);
+			return await api.cmd.bulkImportPreview(p);
 		}, FIXTURE_ZIP);
 
 		const denmark = entries.find((e: any) => e.name === "Denmark Antennae")!;
@@ -52,7 +52,7 @@ describe("Rust bulk import — preview", () => {
 
 	it("reports tag counts", async () => {
 		const entries = await withApi(async (api, p) => {
-			return await api.bulkImportPreview(p);
+			return await api.cmd.bulkImportPreview(p);
 		}, FIXTURE_ZIP);
 
 		const denmark = entries.find((e: any) => e.name === "Denmark Antennae")!;
@@ -71,8 +71,8 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("imports selected maps into DB", async () => {
 		const result = await withApi(async (api, p) => {
-			await api.bulkImportPreview(p);
-			const imported = await api.bulkImportConfirm(p, [0, 1, 2, 3, 4, 5]);
+			await api.cmd.bulkImportPreview(p);
+			const imported = await api.cmd.bulkImportConfirm(p, [0, 1, 2, 3, 4, 5]);
 			await api.invalidateMapList();
 			return imported;
 		}, FIXTURE_ZIP);
@@ -82,7 +82,7 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("imported maps appear in map list", async () => {
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 
 		const names = maps.map((m: any) => m.name);
@@ -93,7 +93,7 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("imported maps have correct location counts", async () => {
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 
 		const denmark = maps.find((m: any) => m.name === "Denmark Antennae")!;
@@ -105,10 +105,10 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("imported maps can be opened and locations loaded", async () => {
 		const result = await withApi(async (api) => {
-			const maps = await api.listMaps();
+			const maps = await api.cmd.storeListMaps();
 			const denmark = maps.find((m: any) => m.name === "Denmark Antennae")!;
 			await api.openMap(denmark.id);
-			const locCount = await api.getLocationCount();
+			const locCount = await api.cmd.storeLocationCount();
 			const map = api.getCurrentMap()!;
 			const locs = await api.fetchAllLocations();
 			return {
@@ -157,7 +157,7 @@ describe("Rust bulk import — confirm and verify", () => {
 		const result = await withApi(async (api) => {
 			const map = api.getCurrentMap()!;
 			const id = map.meta.id;
-			const beforeCount = await api.getLocationCount();
+			const beforeCount = await api.cmd.storeLocationCount();
 			const beforeLocs = await api.fetchAllLocations();
 			const beforeFirst = beforeLocs[0];
 
@@ -165,7 +165,7 @@ describe("Rust bulk import — confirm and verify", () => {
 			await api.closeMap();
 			await api.openMap(id);
 
-			const afterCount = await api.getLocationCount();
+			const afterCount = await api.cmd.storeLocationCount();
 			const afterLocs = await api.fetchAllLocations();
 			return {
 				beforeCount,
@@ -181,7 +181,7 @@ describe("Rust bulk import — confirm and verify", () => {
 	after(async () => {
 		await closeMap();
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 		for (const m of maps) {
 			await deleteMap(m.id);
@@ -200,10 +200,10 @@ describe("Rust bulk import — selective import", () => {
 
 	it("imports only selected indices", async () => {
 		const result = await withApi(async (api, p) => {
-			await api.bulkImportPreview(p);
-			const imported = await api.bulkImportConfirm(p, [0, 2]);
+			await api.cmd.bulkImportPreview(p);
+			const imported = await api.cmd.bulkImportConfirm(p, [0, 2]);
 			await api.invalidateMapList();
-			const maps = await api.listMaps();
+			const maps = await api.cmd.storeListMaps();
 			return { importedCount: imported.length, mapCount: maps.length };
 		}, FIXTURE_ZIP);
 
@@ -213,7 +213,7 @@ describe("Rust bulk import — selective import", () => {
 
 	after(async () => {
 		const maps = await withApi(async (api) => {
-			return await api.listMaps();
+			return await api.cmd.storeListMaps();
 		});
 		for (const m of maps) await deleteMap(m.id);
 	});
@@ -230,11 +230,10 @@ describe("Benchmarks — selection at scale", () => {
 	before(async () => {
 		await waitForReady();
 		mapId = await withApi(async (api) => {
-			const map = await api.createMap("Bench Selections 100K", null);
+			const map = await api.cmd.storeCreateMap("Bench Selections 100K", null);
 			await api.openMap(map.meta.id);
-			const resolved = await api.resolveTagNames(["BenchTag"]);
+			const resolved = await api.createTags(["BenchTag"]);
 			const tagId = resolved[0].id;
-			await api.addTag({ id: tagId, name: "BenchTag", color: "#ff0000", visible: true });
 			const locs = [];
 			for (let i = 0; i < 100000; i++) {
 				locs.push({
@@ -280,7 +279,7 @@ describe("Benchmarks — selection at scale", () => {
 			const t0 = performance.now();
 			await api.selectTag(tagId);
 			const elapsed = performance.now() - t0;
-			const count = api.getSelectedLocationIds().length;
+			const count = api.getSelectedLocationIds().size;
 			api.resetSelections();
 			return { ms: elapsed, count };
 		}, benchTagId);
@@ -293,7 +292,7 @@ describe("Benchmarks — selection at scale", () => {
 			const t0 = performance.now();
 			await api.selectUnpanned();
 			const elapsed = performance.now() - t0;
-			const count = api.getSelectedLocationIds().length;
+			const count = api.getSelectedLocationIds().size;
 			api.resetSelections();
 			return { ms: elapsed, count };
 		});
@@ -308,7 +307,7 @@ describe("Benchmarks — selection at scale", () => {
 			const t0 = performance.now();
 			await api.selectPanoIds();
 			const elapsed = performance.now() - t0;
-			const count = api.getSelectedLocationIds().length;
+			const count = api.getSelectedLocationIds().size;
 			api.resetSelections();
 			return { ms: elapsed, count };
 		});
@@ -352,7 +351,7 @@ describe("Benchmarks — undo at scale", () => {
 	before(async () => {
 		await waitForReady();
 		mapId = await withApi(async (api) => {
-			const map = await api.createMap("Bench Undo 100K", null);
+			const map = await api.cmd.storeCreateMap("Bench Undo 100K", null);
 			await api.openMap(map.meta.id);
 			const locs = [];
 			for (let i = 0; i < 100000; i++) {
@@ -380,11 +379,11 @@ describe("Benchmarks — undo at scale", () => {
 
 	it("undo 100K location add", async () => {
 		const result = await withApi(async (api) => {
-			const before = await api.getLocationCount();
+			const before = await api.cmd.storeLocationCount();
 			const t0 = performance.now();
 			await api.undo();
 			const elapsed = performance.now() - t0;
-			const after = await api.getLocationCount();
+			const after = await api.cmd.storeLocationCount();
 			await api.redo();
 			return { ms: elapsed, before, after };
 		});

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Location, Tag } from "@/types";
-import { resolveTagsByName } from "@/store/useMapStore";
+import { createTags } from "@/store/useMapStore";
 
 function tagIdsToNames(tagIds: number[], tags: Record<string, Tag>): string[] {
 	return tagIds.map((id) => tags[id]?.name ?? String(id));
@@ -8,7 +8,7 @@ function tagIdsToNames(tagIds: number[], tags: Record<string, Tag>): string[] {
 
 async function resolveTagNames(names: string[]): Promise<number[]> {
 	if (names.length === 0) return [];
-	const resolved = await resolveTagsByName(names);
+	const resolved = await createTags(names);
 	return resolved.map((t) => t.id);
 }
 
@@ -21,7 +21,7 @@ export function JsonEditorPanel() {
 	useEffect(() => {
 		if (!active) return;
 		const { id: _id, createdAt: _createdAt, modifiedAt: _modifiedAt, ...editable } = active;
-		const map = MMA.getMap();
+		const map = MMA.getCurrentMap();
 		const display = map
 			? { ...editable, tags: tagIdsToNames(editable.tags, map.meta.tags) }
 			: editable;

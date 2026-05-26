@@ -282,6 +282,42 @@ export class CellManager {
 		this.selOverlayVersion++;
 	}
 
+	/** Append color patches to the existing selection overlay without replacing it. */
+	appendToSelectionOverlay(colorPatches: ColorPatchEntry[]) {
+		if (colorPatches.length === 0) return;
+		const oldCount = this.selOverlayCount;
+		const newCount = oldCount + colorPatches.length;
+		const pos = new Float32Array(newCount * 2);
+		const col = new Uint8Array(newCount * 4);
+		const ang = new Float32Array(newCount);
+		const ids: number[] = new Array(newCount);
+		pos.set(this.selOverlayPositions.subarray(0, oldCount * 2));
+		col.set(this.selOverlayColors.subarray(0, oldCount * 4));
+		ang.set(this.selOverlayAngles.subarray(0, oldCount));
+		for (let i = 0; i < oldCount; i++) ids[i] = this.selOverlayIds[i];
+
+		for (let i = 0; i < colorPatches.length; i++) {
+			const cp = colorPatches[i];
+			const cb = this.cells.get(cp.cell);
+			if (!cb || cp.cellIndex >= cb.count) continue;
+			const oi = oldCount + i;
+			pos[oi * 2] = cb.positions[cp.cellIndex * 2];
+			pos[oi * 2 + 1] = cb.positions[cp.cellIndex * 2 + 1];
+			col[oi * 4] = cp.r;
+			col[oi * 4 + 1] = cp.g;
+			col[oi * 4 + 2] = cp.b;
+			col[oi * 4 + 3] = cp.a;
+			ang[oi] = cb.angles[cp.cellIndex];
+			ids[oi] = cb.ids[cp.cellIndex];
+		}
+		this.selOverlayPositions = pos;
+		this.selOverlayColors = col;
+		this.selOverlayAngles = ang;
+		this.selOverlayIds = ids;
+		this.selOverlayCount = newCount;
+		this.selOverlayVersion++;
+	}
+
 	/**
 	 * Decode per-cell bitmasks from Rust into a colored selection overlay.
 	 * Selected locations are hidden in their main cell (alpha=0) and drawn in the overlay with

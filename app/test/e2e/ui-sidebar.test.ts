@@ -4,7 +4,7 @@ import {
 	closeMap,
 	deleteMap,
 	addLocs,
-	makeLoc,
+	createLocation,
 	getLocCount,
 	createTag,
 	withApi,
@@ -31,9 +31,6 @@ describe("UI: Tag manager", () => {
 
 		await withApi(
 			async (api, t1, t2, t3) => {
-				await api.addTag({ id: t1, name: "Mountains", color: "#3b82f6", visible: true });
-				await api.addTag({ id: t2, name: "Coastal", color: "#ef4444", visible: true });
-				await api.addTag({ id: t3, name: "Urban", color: "#22c55e", visible: true });
 			},
 			uiTag1Id,
 			uiTag2Id,
@@ -44,10 +41,10 @@ describe("UI: Tag manager", () => {
 		const locs = [];
 		for (let i = 0; i < 20; i++) {
 			locs.push(
-				makeLoc({
+				createLocation({
 					lat: i,
 					lng: i,
-					tags: i < 8 ? [uiTag1Id] : i < 14 ? [uiTag2Id] : [],
+					tags: i < 8 ? [uiTag1Id] : i < 14 ? [uiTag2Id] : [uiTag3Id],
 				}),
 			);
 		}
@@ -163,7 +160,7 @@ describe("UI: Selection manager", () => {
 		const locs = [];
 		for (let i = 0; i < 50; i++) {
 			locs.push(
-				makeLoc({
+				createLocation({
 					lat: i,
 					lng: i,
 					panoId: i < 20 ? `p${i}` : null,
@@ -293,11 +290,10 @@ describe("UI: Location editor", () => {
 		const tag = await createTag("TestTag");
 		leTagId = tag.id;
 		await withApi(async (api, tagId) => {
-			await api.addTag({ id: tagId, name: "TestTag", color: "#ff9900", visible: true });
 		}, leTagId);
 
 		const ids = await addLocs([
-			makeLoc({ lat: 48.8566, lng: 2.3522, heading: 90, pitch: 5, zoom: 2 }),
+			createLocation({ lat: 48.8566, lng: 2.3522, heading: 90, pitch: 5, zoom: 2 }),
 		]);
 		le1Id = ids[0];
 	});

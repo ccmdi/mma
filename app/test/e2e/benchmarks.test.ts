@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import {
 	waitForReady,
 	createAndOpenMap,
@@ -59,17 +60,12 @@ describe("Benchmarks - addLocations", () => {
 			const ms = await withApi(async (api) => {
 				const locs: Location[] = [];
 				for (let i = 0; i < 1000; i++) {
-					locs.push({ id: 0,
+					locs.push(api.createLocation({
 						lat: Math.random() * 170 - 85,
 						lng: Math.random() * 360 - 180,
 						heading: Math.random() * 360,
-						pitch: 0,
 						zoom: 1,
-						panoId: null,
-						flags: 0,
-						tags: [],
-						createdAt: new Date().toISOString(),
-					});
+					}));
 				}
 				const t0 = performance.now();
 				await api.addLocations(locs);
@@ -91,17 +87,12 @@ describe("Benchmarks - addLocations", () => {
 			const ms = await withApi(async (api) => {
 				const locs: Location[] = [];
 				for (let i = 0; i < 10000; i++) {
-					locs.push({ id: 0,
+					locs.push(api.createLocation({
 						lat: Math.random() * 170 - 85,
 						lng: Math.random() * 360 - 180,
 						heading: Math.random() * 360,
-						pitch: 0,
 						zoom: 1,
-						panoId: null,
-						flags: 0,
-						tags: [],
-						createdAt: new Date().toISOString(),
-					});
+					}));
 				}
 				const t0 = performance.now();
 				await api.addLocations(locs);
@@ -123,17 +114,12 @@ describe("Benchmarks - addLocations", () => {
 			const ms = await withApi(async (api) => {
 				const locs: Location[] = [];
 				for (let i = 0; i < 100000; i++) {
-					locs.push({ id: 0,
+					locs.push(api.createLocation({
 						lat: Math.random() * 170 - 85,
 						lng: Math.random() * 360 - 180,
 						heading: Math.random() * 360,
-						pitch: 0,
 						zoom: 1,
-						panoId: null,
-						flags: 0,
-						tags: [],
-						createdAt: new Date().toISOString(),
-					});
+					}));
 				}
 				const t0 = performance.now();
 				await api.addLocations(locs);
@@ -168,17 +154,11 @@ describe("Benchmarks - save", () => {
 			await withApi(async (api) => {
 				const locs: Location[] = [];
 				for (let i = 0; i < 1000; i++) {
-					locs.push({ id: 0,
+					locs.push(api.createLocation({
 						lat: Math.random() * 170 - 85,
 						lng: Math.random() * 360 - 180,
-						heading: 0,
-						pitch: 0,
 						zoom: 1,
-						panoId: null,
-						flags: 0,
-						tags: [],
-						createdAt: new Date().toISOString(),
-					});
+					}));
 				}
 				await api.addLocations(locs);
 				return "ok";
@@ -205,17 +185,11 @@ describe("Benchmarks - save", () => {
 			await withApi(async (api) => {
 				const locs: Location[] = [];
 				for (let i = 0; i < 10000; i++) {
-					locs.push({ id: 0,
+					locs.push(api.createLocation({
 						lat: Math.random() * 170 - 85,
 						lng: Math.random() * 360 - 180,
-						heading: 0,
-						pitch: 0,
 						zoom: 1,
-						panoId: null,
-						flags: 0,
-						tags: [],
-						createdAt: new Date().toISOString(),
-					});
+					}));
 				}
 				await api.addLocations(locs);
 				return "ok";
@@ -242,17 +216,11 @@ describe("Benchmarks - save", () => {
 			await withApi(async (api) => {
 				const locs: Location[] = [];
 				for (let i = 0; i < 100000; i++) {
-					locs.push({ id: 0,
+					locs.push(api.createLocation({
 						lat: Math.random() * 170 - 85,
 						lng: Math.random() * 360 - 180,
-						heading: 0,
-						pitch: 0,
 						zoom: 1,
-						panoId: null,
-						flags: 0,
-						tags: [],
-						createdAt: new Date().toISOString(),
-					});
+					}));
 				}
 				await api.addLocations(locs);
 				return "ok";
@@ -283,17 +251,11 @@ describe("Benchmarks - map open", () => {
 		await withApi(async (api) => {
 			const locs: Location[] = [];
 			for (let i = 0; i < 1000; i++) {
-				locs.push({ id: 0,
+				locs.push(api.createLocation({
 					lat: Math.random() * 170 - 85,
 					lng: Math.random() * 360 - 180,
-					heading: 0,
-					pitch: 0,
 					zoom: 1,
-					panoId: null,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				});
+				}));
 			}
 			await api.addLocations(locs);
 			return "ok";
@@ -323,17 +285,11 @@ describe("Benchmarks - map open", () => {
 		await withApi(async (api) => {
 			const locs: Location[] = [];
 			for (let i = 0; i < 10000; i++) {
-				locs.push({ id: 0,
+				locs.push(api.createLocation({
 					lat: Math.random() * 170 - 85,
 					lng: Math.random() * 360 - 180,
-					heading: 0,
-					pitch: 0,
 					zoom: 1,
-					panoId: null,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				});
+				}));
 			}
 			await api.addLocations(locs);
 			return "ok";
@@ -363,17 +319,11 @@ describe("Benchmarks - map open", () => {
 		await withApi(async (api) => {
 			const locs: Location[] = [];
 			for (let i = 0; i < 100000; i++) {
-				locs.push({ id: 0,
+				locs.push(api.createLocation({
 					lat: Math.random() * 170 - 85,
 					lng: Math.random() * 360 - 180,
-					heading: 0,
-					pitch: 0,
 					zoom: 1,
-					panoId: null,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				});
+				}));
 			}
 			await api.addLocations(locs);
 			return "ok";
@@ -412,17 +362,14 @@ describe("Benchmarks - selection refresh", () => {
 		await withApi(async (api, tagId) => {
 			const locs: Location[] = [];
 			for (let i = 0; i < 50000; i++) {
-				locs.push({ id: 0,
+				locs.push(api.createLocation({
 					lat: Math.random() * 170 - 85,
 					lng: Math.random() * 360 - 180,
-					heading: 0,
-					pitch: 0,
 					zoom: 1,
 					panoId: i < 20000 ? `p${i}` : null,
 					flags: i < 15000 ? 1 : 0,
 					tags: i < 25000 ? [tagId] : [],
-					createdAt: new Date().toISOString(),
-				});
+				}));
 			}
 			await api.addLocations(locs);
 			return "ok";
@@ -576,17 +523,11 @@ describe("Benchmarks - undo/redo", () => {
 		await withApi(async (api) => {
 			const locs: Location[] = [];
 			for (let i = 0; i < 10000; i++) {
-				locs.push({ id: 0,
+				locs.push(api.createLocation({
 					lat: Math.random() * 170 - 85,
 					lng: Math.random() * 360 - 180,
-					heading: 0,
-					pitch: 0,
 					zoom: 1,
-					panoId: null,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				});
+				}));
 			}
 			await api.addLocations(locs);
 			return "ok";
@@ -637,17 +578,11 @@ describe("Benchmarks - batch update", () => {
 		await withApi(async (api) => {
 			const locs: Location[] = [];
 			for (let i = 0; i < 10000; i++) {
-				locs.push({ id: 0,
+				locs.push(api.createLocation({
 					lat: Math.random() * 170 - 85,
 					lng: Math.random() * 360 - 180,
-					heading: 0,
-					pitch: 0,
 					zoom: 1,
-					panoId: null,
-					flags: 0,
-					tags: [],
-					createdAt: new Date().toISOString(),
-				});
+				}));
 			}
 			await api.addLocations(locs);
 			return "ok";

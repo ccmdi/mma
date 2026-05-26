@@ -34,8 +34,9 @@ import {
 	commitMap,
 	getCurrentMap,
 	getUndoRedoState,
-	deleteSelectedTags,
+	deleteTags,
 	getSelections,
+	getTagCounts,
 	hasCommitDiff,
 } from "./useMapStore";
 import { loadGeoJSON } from "@/lib/util/loadGeoJSON.add";
@@ -193,7 +194,9 @@ registerCommand({
 	label: "Delete selected tags",
 	icon: mdiTagRemove,
 	group: "Tags",
-	execute: deleteSelectedTags,
+	execute: async () => {
+		await deleteTags(getSelections().filter((s) => s.props.type === "Tag").map((s) => (s.props as { type: "Tag"; tagId: number }).tagId));
+	},
 	enabled: () => getSelections().some((s) => s.props.type === "Tag"),
 });
 
@@ -202,7 +205,22 @@ registerCommand({
 	label: "Download tag counts as CSV",
 	icon: mdiFileDelimitedOutline,
 	group: "Tags",
-	execute: () => {}, // TODO: implement
+	execute: () => {
+		const map = getCurrentMap();
+		if (!map) return;
+		const counts = getTagCounts();
+		const rows = Object.entries(counts)
+			.map(([id, count]) => ({ name: map.meta.tags[id]?.name ?? id, count }))
+			.sort((a, b) => b.count - a.count);
+		const csv = "name,count\n" + rows.map((r) => `"${r.name.replace(/"/g, '""')}",${r.count}`).join("\n");
+		const blob = new Blob([csv], { type: "text/csv" });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = `${map.meta.name} tags.csv`;
+		a.click();
+		URL.revokeObjectURL(url);
+	},
 });
 
 registerCommand({

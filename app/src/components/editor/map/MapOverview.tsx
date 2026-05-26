@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { DatePicker } from "@/components/primitives/DatePicker";
 import {
 	useCurrentMap,
 	useSelectedLocationIds,
@@ -15,8 +16,8 @@ import {
 	selectNotPanoIds,
 	setPolygonName,
 	setSelectionColor,
-	bulkAddTag,
-	resolveTagsByName,
+	addTagToLocations,
+	createTags,
 	beginReview,
 	selectDuplicates,
 	selectFilter,
@@ -384,6 +385,7 @@ const OP_LABELS: Record<FilterOp, string> = {
 	gte: ">=",
 	lte: "<=",
 	between: "between",
+	between_anyyear: "between (any year)",
 	has: "has",
 	nothas: "does not have",
 };
@@ -431,16 +433,6 @@ function useExtraFieldKeys(): FieldEntry[] {
 	}, [defs]);
 }
 
-function unixToDatetimeLocal(unix: string): string {
-	const n = Number(unix);
-	if (!unix || isNaN(n)) return "";
-	return new Date(n * 1000).toISOString().slice(0, 16);
-}
-
-function datetimeLocalToUnix(dt: string): string {
-	if (!dt) return "";
-	return String(Math.floor(new Date(dt).getTime() / 1000));
-}
 
 const TIMEZONE_VALUES = Intl.supportedValuesOf("timeZone");
 
@@ -472,11 +464,17 @@ function FilterValueInput({
 	value,
 	onChange,
 	placeholder,
+	anyYear,
+	onAnyYearToggle,
+	showAnyYear,
 }: {
 	fieldEntry: FieldEntry | undefined;
 	value: string;
 	onChange: (v: string) => void;
 	placeholder?: string;
+	anyYear?: boolean;
+	onAnyYearToggle?: (v: boolean) => void;
+	showAnyYear?: boolean;
 }) {
 	const type = fieldEntry?.fieldType;
 	const def = fieldEntry?.fieldDef;
@@ -495,24 +493,15 @@ function FilterValueInput({
 		);
 	}
 
-	if (type === "date") {
+	if (type === "date" || type === "month") {
 		return (
-			<input
-				className="input"
-				type="datetime-local"
-				value={unixToDatetimeLocal(value)}
-				onChange={(e) => onChange(datetimeLocalToUnix(e.target.value))}
-			/>
-		);
-	}
-
-	if (type === "month") {
-		return (
-			<input
-				className="input"
-				type="month"
+			<DatePicker
+				mode={type}
 				value={value}
-				onChange={(e) => onChange(e.target.value)}
+				onChange={onChange}
+				anyYear={anyYear}
+				onAnyYearToggle={onAnyYearToggle}
+				showAnyYear={showAnyYear}
 			/>
 		);
 	}
@@ -546,6 +535,7 @@ function FilterBuilder({ mapId }: { mapId: string }) {
 	const [op, setOp] = useState<FilterOp>(saved?.op ?? "eq");
 	const [value, setValue] = useState(saved?.value ?? "");
 	const [value2, setValue2] = useState(saved?.value2 ?? "");
+	const [anyYear, setAnyYear] = useState(false);
 	useEffect(() => {
 		if (!field && fields.length > 0) setField(fields[0].key);
 	}, [field, fields]);
@@ -556,7 +546,9 @@ function FilterBuilder({ mapId }: { mapId: string }) {
 
 	const fieldEntry = fields.find((f) => f.key === field);
 	const isNumeric = fieldEntry?.fieldType === "number" || fieldEntry?.fieldType === "date";
+	const isDateLike = fieldEntry?.fieldType === "date" || fieldEntry?.fieldType === "month";
 	const availableOps = opsForType(fieldEntry?.fieldType);
+	const isBetween = op === "between" || op === "between_anyyear";
 
 	const handleFieldChange = (key: string) => {
 		setField(key);
@@ -565,16 +557,53 @@ function FilterBuilder({ mapId }: { mapId: string }) {
 		if (!ops.includes(op)) setOp(ops[0]);
 		setValue("");
 		setValue2("");
+		setAnyYear(false);
+	};
+
+	const handleOpChange = (newOp: FilterOp) => {
+		setOp(newOp);
+		if (newOp !== "between") setAnyYear(false);
+	};
+
+	const handleAnyYearToggle = (checked: boolean) => {
+		setAnyYear(checked);
 	};
 
 	const needsValue = op !== "has" && op !== "nothas";
+	const toMonthDay = (v: string): string => {
+		if (!v) return "";
+		if (/^\d{2}-\d{2}$/.test(v)) return v;
+		if (/^\d{2}$/.test(v)) return `${v}-01`;
+		const n = Number(v);
+		if (!isNaN(n) && v !== "") {
+			const d = new Date(n * 1000);
+			return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+		}
+		const ym = /^\d{4}-(\d{2})$/.exec(v);
+		if (ym) return `${ym[1]}-01`;
+		return v;
+	};
 	const handleAdd = () => {
 		if (!field) return;
 		if (needsValue && !value) return;
-		const parsed = needsValue ? (isNumeric ? Number(value) : value) : null;
-		const parsed2 = op === "between" ? (isNumeric ? Number(value2) : value2) : undefined;
-		selectFilter(field, op, parsed, parsed2);
+		const finalOp = anyYear && isBetween ? "between_anyyear" as FilterOp : op;
+		let parsed: string | number | null;
+		let parsed2: string | number | undefined;
+		if (anyYear && isBetween) {
+			parsed = toMonthDay(value);
+			parsed2 = toMonthDay(value2);
+		} else {
+			parsed = needsValue ? (isNumeric ? Number(value) : value) : null;
+			parsed2 = isBetween ? (isNumeric ? Number(value2) : value2) : undefined;
+		}
+		if (isBetween && !anyYear && isNumeric && parsed != null && parsed2 != null && Number(parsed) > Number(parsed2)) {
+			selectFilter(field, finalOp, parsed2, parsed);
+		} else {
+			selectFilter(field, finalOp, parsed, parsed2);
+		}
 	};
+
+	const showAnyYear = isBetween && isDateLike;
 
 	return (
 		<div className="extra-filter-builder">
@@ -590,7 +619,7 @@ function FilterBuilder({ mapId }: { mapId: string }) {
 			<select
 				className="nselect"
 				value={op}
-				onChange={(e) => setOp(e.target.value as FilterOp)}
+				onChange={(e) => handleOpChange(e.target.value as FilterOp)}
 			>
 				{availableOps.map((o) => (
 					<option key={o} value={o}>
@@ -598,13 +627,23 @@ function FilterBuilder({ mapId }: { mapId: string }) {
 					</option>
 				))}
 			</select>
-			{needsValue && <FilterValueInput fieldEntry={fieldEntry} value={value} onChange={setValue} />}
-			{op === "between" && (
+			{needsValue && (
+				<FilterValueInput
+					fieldEntry={fieldEntry}
+					value={value}
+					onChange={setValue}
+					anyYear={anyYear}
+					onAnyYearToggle={handleAnyYearToggle}
+					showAnyYear={showAnyYear}
+				/>
+			)}
+			{isBetween && (
 				<FilterValueInput
 					fieldEntry={fieldEntry}
 					value={value2}
 					onChange={setValue2}
 					placeholder="Max"
+					anyYear={anyYear}
 				/>
 			)}
 			<button className="button" type="button" onClick={handleAdd}>
@@ -628,8 +667,8 @@ export function MapOverview() {
 		e.preventDefault();
 		const name = bulkTagInput.trim();
 		if (!name || selected.size === 0) return;
-		const [resolved] = await resolveTagsByName([name]);
-		bulkAddTag(resolved.id);
+		const [resolved] = await createTags([name]);
+		addTagToLocations(resolved.id, [...selected]);
 		setBulkTagInput("");
 	};
 
