@@ -368,6 +368,8 @@ pub fn run() {
                     import::bulk_import_preview,
                     import::bulk_import_confirm,
                     import::store_import_preview,
+                    import::store_import_preview_locations,
+                    import::store_paste_preview,
                     import::store_import_file,
                     import::store_import_paste,
                     export::store_export_json,

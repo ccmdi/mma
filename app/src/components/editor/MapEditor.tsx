@@ -8,7 +8,7 @@ import {
 	setActiveLocation,
 	getActiveLocation,
 	createTags,
-	importPaste,
+	stagePasteImport,
 } from "@/store/useMapStore";
 import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { getGoogleMap as getGoogleMapInstance } from "@/lib/map/mapState";
@@ -29,6 +29,7 @@ import { Icon } from "@/components/primitives/Icon";
 import { mdiBackburger, mdiPencil } from "@mdi/js";
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
 import SameLocation from "@/components/editor/SameLocation.add";
+import { ImportSidebar } from "@/components/editor/ImportSidebar";
 import { log } from "@/lib/util/log"
 import { useCountrySelect } from "@/lib/map/useCountrySelect.add";
 
@@ -59,10 +60,9 @@ function usePasteHandler() {
 			}
 
 			try {
-				const [r, singleId] = await importPaste(text);
-				if (r.importedCount > 0 && singleId != null) setActiveLocation(singleId);
+				await stagePasteImport(text);
 			} catch {
-				log.warn('Couldn\'t import locations via paste.')
+				log.warn('Couldn\'t stage locations via paste.')
 			}
 		}
 		document.body.addEventListener("paste", onPaste);
@@ -259,6 +259,7 @@ export function MapEditor() {
 			{workArea === "overview" && <MapOverview />}
 			{workArea === "location" && <LocationPreview />}
 			{workArea === "duplicates" && <SameLocation />}
+			{workArea === "import" && <ImportSidebar />}
 			{workArea === "plugin" && <PluginSidebarHost />}
 			<CommandPalette />
 		</div>

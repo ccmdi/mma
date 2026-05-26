@@ -119,6 +119,8 @@ export const commands = {
 	bulkImportPreview: (path: string) => typedError<ImportPreviewEntry[], string>(__TAURI_INVOKE("bulk_import_preview", { path })),
 	bulkImportConfirm: (path: string, selectedIndices: number[]) => typedError<ImportedMapInfo[], string>(__TAURI_INVOKE("bulk_import_confirm", { path, selectedIndices })),
 	storeImportPreview: (path: string) => typedError<EditorImportPreview, string>(__TAURI_INVOKE("store_import_preview", { path })),
+	storeImportPreviewLocations: () => typedError<([number, number])[], string>(__TAURI_INVOKE("store_import_preview_locations")).then((v) => ((v.status === "ok" ? { ...v, data: v.data.map(i=>i.map(i=>i)) } : v) as typeof v)),
+	storePastePreview: (text: string) => typedError<PastePreviewResult, string>(__TAURI_INVOKE("store_paste_preview", { text })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,positions:v.data.positions.map(i=>i.map(i=>i))}) } : v) as typeof v)),
 	storeImportFile: (droppedFields: string[]) => typedError<EditorImportResult_Serialize, string>(__TAURI_INVOKE("store_import_file", { droppedFields })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,delta:({...v.data.delta,added:v.data.delta.added.map(i=>i),updated:v.data.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))})}) } : v) as typeof v)),
 	/**
 	 *  Parse raw text (JSON or CSV) as locations and import into the open map.
@@ -215,11 +217,13 @@ export type EditorImportResult = EditorImportResult_Serialize | EditorImportResu
 
 export type EditorImportResult_Deserialize = {
 	importedCount: number,
+	importedIds: number[],
 	warnings: string[],
 } & MutationResult_Deserialize;
 
 export type EditorImportResult_Serialize = {
 	importedCount: number,
+	importedIds: number[],
 	warnings: string[],
 } & MutationResult_Serialize;
 
@@ -396,6 +400,11 @@ export type MutationResult_Serialize = {
 	newFieldDefs: { [key in string]: ExtraFieldDef } | null,
 	tags: { [key in number]: Tag } | null,
 } & StoreStatus;
+
+export type PastePreviewResult = {
+	preview: EditorImportPreview,
+	positions: ([number, number])[],
+};
 
 export type PluginManifest = {
 	id: string,

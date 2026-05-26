@@ -812,12 +812,68 @@ pub fn store_import_preview(path: String) -> Result<EditorImportPreview, String>
     Ok(preview)
 }
 
+#[tauri::command]
+#[specta::specta]
+pub fn store_import_preview_locations() -> Result<Vec<[f32; 2]>, String> {
+    let cache = EDITOR_IMPORT_CACHE.lock().unwrap();
+    let parsed = cache.as_ref().ok_or("no cached import — call store_import_preview first")?;
+    Ok(parsed.locations.iter().map(|l| [l.lng as f32, l.lat as f32]).collect())
+}
+
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PastePreviewResult {
+    pub preview: EditorImportPreview,
+    pub positions: Vec<[f32; 2]>,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn store_paste_preview(text: String) -> Result<PastePreviewResult, String> {
+    let mut buf = text.into_bytes();
+    let parsed = parse_file(&mut buf);
+    if parsed.locations.is_empty() {
+        return Err("no locations found".into());
+    }
+
+    let positions: Vec<[f32; 2]> = parsed.locations.iter().map(|l| [l.lng as f32, l.lat as f32]).collect();
+
+    let mut field_counts: HashMap<String, u32> = HashMap::new();
+    for loc in &parsed.locations {
+        if loc.heading != 0.0 { *field_counts.entry("heading".into()).or_default() += 1; }
+        if loc.pitch != 0.0 { *field_counts.entry("pitch".into()).or_default() += 1; }
+        if loc.zoom != 0.0 { *field_counts.entry("zoom".into()).or_default() += 1; }
+        if loc.pano_id.is_some() { *field_counts.entry("panoId".into()).or_default() += 1; }
+        if !loc.tags.is_empty() { *field_counts.entry("tags".into()).or_default() += 1; }
+        if let Some(extra) = &loc.extra {
+            for k in extra.keys() {
+                *field_counts.entry(format!("extra.{k}")).or_default() += 1;
+            }
+        }
+    }
+
+    let fields: Vec<FieldCount> = field_counts.into_iter()
+        .map(|(key, count)| FieldCount { key, count })
+        .collect();
+
+    let preview = EditorImportPreview {
+        location_count: parsed.locations.len() as u32,
+        tags: parsed.tags.clone(),
+        fields,
+        warnings: parsed.warnings.clone(),
+    };
+
+    *EDITOR_IMPORT_CACHE.lock().unwrap() = Some(parsed);
+    Ok(PastePreviewResult { preview, positions })
+}
+
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorImportResult {
     #[serde(flatten)]
     pub mutation: location_store::MutationResult,
     pub imported_count: u32,
+    pub imported_ids: Vec<u32>,
     pub warnings: Vec<String>,
 }
 
@@ -966,8 +1022,10 @@ pub fn store_import_file(
 
     log::debug!("[import] total={:.0}ms locs={}", t0.elapsed().as_millis(), parsed.locations.len());
 
+    let imported_ids = parsed.locations.iter().map(|l| l.id).collect();
     Ok(EditorImportResult {
         imported_count: parsed.locations.len() as u32,
+        imported_ids,
         warnings: parsed.warnings,
         mutation,
     })
@@ -997,8 +1055,10 @@ pub fn store_import_paste(
 
     let single_id = if parsed.locations.len() == 1 { parsed.locations.first().map(|l| l.id) } else { None };
 
+    let imported_ids = parsed.locations.iter().map(|l| l.id).collect();
     Ok((EditorImportResult {
         imported_count: parsed.locations.len() as u32,
+        imported_ids,
         warnings: parsed.warnings,
         mutation,
     }, single_id))

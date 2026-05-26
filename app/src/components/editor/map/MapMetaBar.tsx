@@ -7,9 +7,9 @@ import {
 	undo,
 	redo,
 	commitMap,
+	stageFileImport,
 } from "@/store/useMapStore";
 import { ExportDialog } from "@/components/dialogs/ExportDialog";
-import { ImportDialog } from "@/components/dialogs/ImportDialog";
 import { VersionHistory } from "@/components/dialogs/VersionHistory.add";
 import { SeenDialog } from "@/components/dialogs/SeenDialog.add";
 import { loadSeenPano } from "@/components/editor/location/LocationPreview";
@@ -23,13 +23,12 @@ export function MapMetaBar() {
 	const diff = useCommitDiff();
 	const hasDiff = hasCommitDiff();
 	const [showExport, setShowExport] = useState(false);
-	const [showImport, setShowImport] = useState(false);
 	const [showHistory, setShowHistory] = useState(false);
 	const [showSeen, setShowSeen] = useState(false);
 
 	useEffect(() => {
 		const onExport = () => setShowExport(true);
-		const onImport = () => setShowImport(true);
+		const onImport = () => { stageFileImport(); };
 		const onHistory = () => setShowHistory(true);
 		const onSeen = () => setShowSeen(true);
 		document.addEventListener("open-export", onExport);
@@ -98,14 +97,13 @@ export function MapMetaBar() {
 				<button className="button" type="button" onClick={() => setShowHistory(true)}>
 					History
 				</button>
-				<button className="button" type="button" onClick={() => setShowImport(true)}>
+				<button className="button" type="button" onClick={() => stageFileImport()}>
 					Import file
 				</button>
 				<button className="button" type="button" onClick={() => setShowExport(true)}>
 					Export
 				</button>
 			</div>
-			{showImport && <ImportDialog onClose={() => setShowImport(false)} />}
 			{showExport && <ExportDialog onClose={() => setShowExport(false)} />}
 			{showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
 			<SeenDialog open={showSeen} onOpenChange={setShowSeen} onLoadPano={loadSeenPano} />

@@ -39,6 +39,7 @@ import {
 	getSelections,
 	getTagCounts,
 	hasCommitDiff,
+	stageFileImport,
 } from "./useMapStore";
 import { loadGeoJSON } from "@/lib/util/loadGeoJSON.add";
 
@@ -57,7 +58,7 @@ registerCommand({
 	label: "Import file",
 	icon: mdiFileImportOutline,
 	group: "Map",
-	execute: () => document.dispatchEvent(new CustomEvent("open-import")),
+	execute: () => { stageFileImport(); },
 	enabled: () => getCurrentMap() !== null,
 });
 

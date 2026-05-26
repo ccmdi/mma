@@ -50,6 +50,7 @@ export type EditorImportPreview = {
 };
 export type EditorImportResult_Serialize = {
 	importedCount: number;
+	importedIds: number[];
 	warnings: string[];
 } & MutationResult_Serialize;
 export type ExportOpts = {

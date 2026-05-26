@@ -7,7 +7,9 @@ import { emit as emitEvent } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { debugSpan } from "@/lib/util/debug";
 import { mmaBufUrl } from "@/lib/util/util";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import type { RenderDelta } from "@/lib/render/CellManager";
+import type { ImportPreview } from "@/types";
 
 /** Minimal pub/sub bus. `.on()` returns an unsubscribe function. */
 function createBus<T extends (...args: never[]) => void>() {
@@ -999,6 +1001,138 @@ export async function importPaste(text: string) {
 	const [r, singleId] = await cmd.storeImportPaste(text);
 	await mutate(Promise.resolve(r));
 	return [r, singleId] as const;
+}
+
+// --- Staged Import (sidebar work area) ---
+
+export interface StagedImport {
+	name: string;
+	locationCount: number;
+	preview: ImportPreview;
+	positions: Float32Array;
+	droppedFields: Set<string>;
+	tagName: string;
+	source: "file" | "paste";
+	pasteText?: string;
+}
+
+let stagedImport: StagedImport | null = null;
+
+export function useStagedImport() {
+	useSyncExternalStore(subscribe, getMapSnapshot);
+	return stagedImport;
+}
+
+export function getStagedImport() {
+	return stagedImport;
+}
+
+export async function stageFileImport() {
+	const path = await openFileDialog({
+		multiple: false,
+		filters: [{ name: "Map data", extensions: ["json", "csv"] }],
+	});
+	if (!path) return;
+	const preview = await cmd.storeImportPreview(path);
+	const rawPositions = await cmd.storeImportPreviewLocations();
+	const positions = new Float32Array(rawPositions.length * 2);
+	for (let i = 0; i < rawPositions.length; i++) {
+		positions[i * 2] = rawPositions[i][0];
+		positions[i * 2 + 1] = rawPositions[i][1];
+	}
+	stagedImport = {
+		name: path.split(/[\\/]/).pop() ?? path,
+		locationCount: preview.locationCount,
+		preview,
+		positions,
+		droppedFields: loadImportFieldPrefs(),
+		tagName: "",
+		source: "file",
+	};
+	workArea = "import";
+	activeLocationId = null;
+	cachedActiveLocation = null;
+	mapVersion++;
+	notify();
+}
+
+export async function stagePasteImport(text: string) {
+	const result = await cmd.storePastePreview(text);
+	const positions = new Float32Array(result.positions.length * 2);
+	for (let i = 0; i < result.positions.length; i++) {
+		positions[i * 2] = result.positions[i][0];
+		positions[i * 2 + 1] = result.positions[i][1];
+	}
+	stagedImport = {
+		name: "Pasted data",
+		locationCount: result.preview.locationCount,
+		preview: result.preview,
+		positions,
+		droppedFields: loadImportFieldPrefs(),
+		tagName: "",
+		source: "paste",
+		pasteText: text,
+	};
+	workArea = "import";
+	activeLocationId = null;
+	cachedActiveLocation = null;
+	mapVersion++;
+	notify();
+}
+
+export function updateStagedDroppedFields(fields: Set<string>) {
+	if (!stagedImport) return;
+	stagedImport = { ...stagedImport, droppedFields: fields };
+	localStorage.setItem(IMPORT_FIELD_PREFS_KEY, JSON.stringify([...fields]));
+	mapVersion++;
+	notify();
+}
+
+export function updateStagedTag(tagName: string) {
+	if (!stagedImport) return;
+	stagedImport = { ...stagedImport, tagName };
+	mapVersion++;
+	notify();
+}
+
+export async function commitStagedImport() {
+	if (!stagedImport || !currentMap) return;
+	const { droppedFields, tagName, source, pasteText } = stagedImport;
+	const dropped = [...droppedFields];
+
+	if (source === "paste" && pasteText) {
+		await cmd.storePastePreview(pasteText);
+	}
+	const r = await cmd.storeImportFile(dropped);
+	await mutate(Promise.resolve(r));
+
+	if (tagName.trim() && r.importedIds.length > 0) {
+		const tags = await createTags([tagName.trim()]);
+		if (tags.length > 0) {
+			await addTagToLocations(tags[0].id, r.importedIds);
+		}
+	}
+
+	stagedImport = null;
+	workArea = "overview";
+	mapVersion++;
+	notify();
+}
+
+export function discardStagedImport() {
+	stagedImport = null;
+	workArea = "overview";
+	mapVersion++;
+	notify();
+}
+
+const IMPORT_FIELD_PREFS_KEY = "import-field-prefs";
+function loadImportFieldPrefs(): Set<string> {
+	try {
+		const stored = localStorage.getItem(IMPORT_FIELD_PREFS_KEY);
+		if (stored) return new Set(JSON.parse(stored));
+	} catch { /* ignored */ }
+	return new Set();
 }
 
 // --- Review ---

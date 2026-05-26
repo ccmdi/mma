@@ -35,6 +35,7 @@ import {
 	getSelectedLocationIds,
 	renderDeltaBus,
 	selBitmaskBus,
+	getStagedImport,
 } from "@/store/useMapStore";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { useTrailVersion, getTrail } from "@/lib/sv/svTrail.add";
@@ -754,7 +755,27 @@ export function MapEmbed() {
 			);
 		}
 
-		// span.end(`${layers.length} layers`);
+		const staged = getStagedImport();
+		if (staged) {
+			layers.push(
+				new ScatterplotLayer({
+					id: "import-preview",
+					data: {
+						length: staged.locationCount,
+						attributes: {
+							getPosition: { value: staged.positions, size: 2 },
+						},
+					},
+					getFillColor: [46, 204, 113, 180],
+					getRadius: 5,
+					radiusUnits: "pixels",
+					radiusMinPixels: 3,
+					opacity: 0.8,
+					pickable: true,
+				}),
+			);
+		}
+
 		return layers;
 	}, [
 		markerVisibility,
@@ -776,6 +797,9 @@ export function MapEmbed() {
 
 	const handleClick = useCallback(
 		async (info: PickingInfo, event: OverlayEvent) => {
+			if (info.layer?.id === "import-preview") {
+				return;
+			}
 			const domEvent = event?.srcEvent?.domEvent;
 
 			const resolvePickedLocation = async (): Promise<Location | undefined> => {
