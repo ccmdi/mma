@@ -4,7 +4,7 @@ import type { Location_Serialize, ExtraFieldDef } from "mma-plugin-types";
 const DEG = 180 / Math.PI;
 
 const FIELDS: Record<string, ExtraFieldDef> = {
-	sunAzimuth: { type: "number", label: "Sun azimuth" },
+	sunAzimuth: { type: "number", label: "Sun azimuth", comparison: { type: "circular", period: 360 } },
 	sunAltitude: { type: "number", label: "Sun altitude" },
 };
 

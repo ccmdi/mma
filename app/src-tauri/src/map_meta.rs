@@ -79,6 +79,18 @@ pub enum ExtraFieldType {
     Enum,
 }
 
+/// How a field's values are compared when measuring how strongly it separates
+/// groups (see `disambiguate`). The only un-inferrable property a field can
+/// declare is circularity (heading/azimuth=360, hour-of-day=24, month=12);
+/// everything else is inferred from `ExtraFieldType`.
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum ComparisonType {
+    Linear,
+    Circular { period: f64 },
+    Categorical,
+}
+
 /// Schema definition for a single `Location.extra` field. Stored in the map's
 /// `extra.fields` JSON. For enum types, `values` lists valid options and `labels`
 /// provides display names.
@@ -93,6 +105,10 @@ pub struct ExtraFieldDef {
     pub values: Option<Vec<String>>,
     #[serde(default)]
     pub labels: Option<HashMap<String, String>>,
+    /// Optional override for how this field is compared during disambiguation.
+    /// `None` => inferred from `field_type` (see [`resolved_comparison`]).
+    #[serde(default)]
+    pub comparison: Option<ComparisonType>,
 }
 
 /// Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
@@ -133,12 +149,14 @@ pub fn known_field_def(key: &str) -> Option<ExtraFieldDef> {
             label: Some("Altitude".into()),
             values: None,
             labels: None,
+            comparison: None,
         }),
         "countryCode" => Some(ExtraFieldDef {
             field_type: ExtraFieldType::String,
             label: Some("Country code".into()),
             values: None,
             labels: None,
+            comparison: None,
         }),
         "cameraType" => Some(ExtraFieldDef {
             field_type: ExtraFieldType::Enum,
@@ -146,6 +164,7 @@ pub fn known_field_def(key: &str) -> Option<ExtraFieldDef> {
             values: Some(vec!["gen1".into(), "gen2".into(), "gen4".into(), "badcam".into(), "tripod".into()]),
             labels: Some([("gen1", "Gen 1"), ("gen2", "Gen 2/3"), ("gen4", "Gen 4"), ("badcam", "Bad cam"), ("tripod", "Tripod")]
                 .into_iter().map(|(k, v)| (k.into(), v.into())).collect()),
+            comparison: None,
         }),
         "panoType" => Some(ExtraFieldDef {
             field_type: ExtraFieldType::Enum,
@@ -153,26 +172,51 @@ pub fn known_field_def(key: &str) -> Option<ExtraFieldDef> {
             values: Some(vec!["2".into(), "3".into(), "10".into()]),
             labels: Some([("2", "Official"), ("3", "Unknown"), ("10", "User uploaded")]
                 .into_iter().map(|(k, v)| (k.into(), v.into())).collect()),
+            comparison: None,
         }),
         "imageDate" => Some(ExtraFieldDef {
             field_type: ExtraFieldType::Month,
             label: Some("Image date".into()),
             values: None,
             labels: None,
+            comparison: None,
         }),
         "datetime" => Some(ExtraFieldDef {
             field_type: ExtraFieldType::Date,
             label: Some("Exact date".into()),
             values: None,
             labels: None,
+            comparison: None,
         }),
         "timezone" => Some(ExtraFieldDef {
             field_type: ExtraFieldType::Enum,
             label: Some("Timezone".into()),
             values: None,
             labels: None,
+            comparison: None,
         }),
         _ => None,
+    }
+}
+
+/// Resolve how a field should be compared during disambiguation. An explicit
+/// `comparison` on the field def wins; otherwise it's inferred. Built-in numeric
+/// columns are resolved by key (`heading` is circular over 360 degrees).
+pub fn resolved_comparison(key: &str, def: Option<&ExtraFieldDef>) -> ComparisonType {
+    if let Some(c) = def.and_then(|d| d.comparison.clone()) {
+        return c;
+    }
+    match key {
+        "heading" => return ComparisonType::Circular { period: 360.0 },
+        "pitch" | "zoom" => return ComparisonType::Linear,
+        _ => {}
+    }
+    match def.map(|d| &d.field_type) {
+        Some(ExtraFieldType::Number) | Some(ExtraFieldType::Date) | Some(ExtraFieldType::Month) => {
+            ComparisonType::Linear
+        }
+        Some(ExtraFieldType::String) | Some(ExtraFieldType::Enum) => ComparisonType::Categorical,
+        None => ComparisonType::Categorical,
     }
 }
 
@@ -212,6 +256,7 @@ pub fn auto_register_field_defs(
                 label: None,
                 values: None,
                 labels: None,
+                comparison: None,
             });
             new_defs.insert(key.clone(), def);
         }

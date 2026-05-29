@@ -67,6 +67,20 @@ export type CommitInfo = {
 	locationCount: number;
 	createdAt: string;
 };
+/**
+ *  How a field's values are compared when measuring how strongly it separates
+ *  groups (see `disambiguate`). The only un-inferrable property a field can
+ *  declare is circularity (heading/azimuth=360, hour-of-day=24, month=12);
+ *  everything else is inferred from `ExtraFieldType`.
+ */
+export type ComparisonType = {
+	type: "linear";
+} | {
+	type: "circular";
+	period: number;
+} | {
+	type: "categorical";
+};
 /**  Aggregate database statistics for the debug panel. */
 export type DbStats = {
 	maps: number;
@@ -137,6 +151,11 @@ export type ExtraFieldDef = {
 	labels?: {
 		[key in string]: string;
 	} | null;
+	/**
+	 *  Optional override for how this field is compared during disambiguation.
+	 *  `None` => inferred from `field_type` (see [`resolved_comparison`]).
+	 */
+	comparison?: ComparisonType | null;
 };
 /**
  *  Type discriminant for `Location.extra` field definitions.
@@ -632,6 +651,8 @@ export type WorkArea = "overview" | "location" | "duplicates" | "import" | "plug
 export interface EnrichFieldOption {
 	key: string;
 	label: string;
+	/** Excluded from the default field set (null enrichFields); user must opt in. */
+	defaultOff?: boolean;
 }
 declare function registerEnrichFields(fields: EnrichFieldOption[]): void;
 export interface EnrichmentProvider {
@@ -1168,6 +1189,17 @@ declare const mma: {
 		uninstallPlugin: (id: string) => Promise<null>;
 		checkBorderFile: (level: string) => Promise<boolean>;
 		downloadBorderFile: (level: string) => Promise<null>;
+		borderLookup: (lat: number, lng: number, level: string) => Promise<{
+			coordinates: (([
+				number,
+				number
+			])[])[];
+			extraPolygons?: ((([
+				number,
+				number
+			])[])[])[] | null;
+			properties?: any | null;
+		} | null>;
 		reverseGeocode: (lat: number, lng: number) => Promise<{
 			city: string;
 			admin: string;

@@ -143,6 +143,13 @@ impl<'a> LocView<'a> {
         self.patches.get(&self.batch_id(i))
     }
 
+    /// Materialize the effective `Location` at batch row `i` (patch wins over the
+    /// underlying Arrow row). Used by cold-path analysis that needs full records.
+    pub fn location_at_batch(&self, i: usize) -> Location {
+        if let Some(p) = self.patch_at(i) { return p.clone(); }
+        crate::arrow_bridge::row_to_location(self.batch.unwrap(), i)
+    }
+
     /// Read the effective ID at batch row `i`, checking patches first.
     pub fn id_at(&self, i: usize) -> u32 {
         if self.has_patches {

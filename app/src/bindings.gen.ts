@@ -66,16 +66,16 @@ export const commands = {
 	/**  Lightweight status query: location count, version, and dirty flag. */
 	storeGetSummary: () => typedError<SummaryResult, string>(__TAURI_INVOKE("store_get_summary")),
 	/**  Return metadata for every map in the database. */
-	storeListMaps: () => typedError<MapMeta[], string>(__TAURI_INVOKE("store_list_maps")),
+	storeListMaps: () => typedError<MapMeta[], string>(__TAURI_INVOKE("store_list_maps")).then((v) => ((v.status === "ok" ? { ...v, data: v.data.map(i=>({...i,extra:({...i.extra,fields:i.extra.fields==null?i.extra.fields:Object.fromEntries(Object.entries(i.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})) } : v) as typeof v)),
 	/**  Fetch a single map's metadata by ID. Returns `None` if not found. */
 	storeGetMap: (id: string) => typedError<{
 	meta: MapMeta,
-} | null, string>(__TAURI_INVOKE("store_get_map", { id })),
+} | null, string>(__TAURI_INVOKE("store_get_map", { id })).then((v) => ((v.status === "ok" ? { ...v, data: v.data==null?v.data:({...v.data,meta:({...v.data.meta,extra:({...v.data.meta.extra,fields:v.data.meta.extra.fields==null?v.data.meta.extra.fields:Object.fromEntries(Object.entries(v.data.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) } : v) as typeof v)),
 	/**
 	 *  Create a new empty map with default settings. Returns the full metadata
 	 *  (including the generated UUID) so the frontend can navigate to it immediately.
 	 */
-	storeCreateMap: (name: string, folder: string | null) => typedError<MapData, string>(__TAURI_INVOKE("store_create_map", { name, folder })),
+	storeCreateMap: (name: string, folder: string | null) => typedError<MapData, string>(__TAURI_INVOKE("store_create_map", { name, folder })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,meta:({...v.data.meta,extra:({...v.data.meta.extra,fields:v.data.meta.extra.fields==null?v.data.meta.extra.fields:Object.fromEntries(Object.entries(v.data.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) } : v) as typeof v)),
 	/**
 	 *  Delete a map and all associated data: SQLite rows (maps, edit_history,
 	 *  commits, orphaned commit_trees) and Arrow IPC files on disk.
@@ -87,7 +87,7 @@ export const commands = {
 	 *  on the in-memory store when extra fields change, so auto-registration
 	 *  doesn't re-discover fields the user explicitly defined.
 	 */
-	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => typedError<null, string>(__TAURI_INVOKE("store_update_map_meta", { id, patch: ({...patch,scoreBounds:patch.scoreBounds==null?patch.scoreBounds:patch.scoreBounds}) })),
+	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => typedError<null, string>(__TAURI_INVOKE("store_update_map_meta", { id, patch: ({...patch,scoreBounds:patch.scoreBounds==null?patch.scoreBounds:patch.scoreBounds,extra:patch.extra==null?patch.extra:({...patch.extra,fields:patch.extra.fields==null?patch.extra.fields:Object.fromEntries(Object.entries(patch.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) })),
 	/**
 	 *  Update `last_opened_at` to the current timestamp. Used to sort the map
 	 *  list by recency in the dashboard.
@@ -211,6 +211,13 @@ export const commands = {
 	 *  Used by plugins and one-off queries (e.g., tag merge, export filtered).
 	 */
 	storeResolveSelection: (props: SelectionProps) => typedError<number[], string>(__TAURI_INVOKE("store_resolve_selection", { props })),
+	/**
+	 *  Resolve N selections to labeled location groups and rank metadata fields by how
+	 *  strongly they separate the groups. Locations matched by more than one selection
+	 *  are dropped (ambiguous label) and counted in `excluded_overlap`. Errors with
+	 *  fewer than two selections.
+	 */
+	storeDisambiguate: (groups: SelectionInput[], fieldDefs: { [key in string]: ExtraFieldDef }) => typedError<DisambiguateResult, string>(__TAURI_INVOKE("store_disambiguate", { groups, fieldDefs: Object.fromEntries(Object.entries(fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})])) })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,fields:v.data.fields.map(i=>({...i,valueScore:i.valueScore==null?i.valueScore:i.valueScore,groups:i.groups.map(i=>({...i,median:i.median==null?i.median:i.median,p25:i.p25==null?i.p25:i.p25,p75:i.p75==null?i.p75:i.p75,meanDeg:i.meanDeg==null?i.meanDeg:i.meanDeg,concentration:i.concentration==null?i.concentration:i.concentration,top:i.top.map(i=>i)}))}))}) } : v) as typeof v)),
 	/**
 	 *  Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
 	 *  Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.
@@ -395,6 +402,14 @@ export type CommitInfo = {
 	createdAt: string,
 };
 
+/**
+ *  How a field's values are compared when measuring how strongly it separates
+ *  groups (see `disambiguate`). The only un-inferrable property a field can
+ *  declare is circularity (heading/azimuth=360, hour-of-day=24, month=12);
+ *  everything else is inferred from `ExtraFieldType`.
+ */
+export type ComparisonType = { type: "linear" } | { type: "circular"; period: number } | { type: "categorical" };
+
 /**  Aggregate database statistics for the debug panel. */
 export type DbStats = {
 	maps: number,
@@ -410,6 +425,15 @@ export type DbStats = {
 export type DbTableInfo = {
 	name: string,
 	rows: number,
+};
+
+export type DisambiguateResult = {
+	/**  Fields ranked by divergence (most separating first). */
+	fields: FieldDivergence[],
+	/**  Locations dropped because they belonged to more than one group. */
+	excludedOverlap: number,
+	/**  Per-group labeled location count (after overlap removal), input order. */
+	groupSizes: number[],
 };
 
 /**
@@ -479,6 +503,11 @@ export type ExtraFieldDef = {
 	label?: string | null,
 	values?: string[] | null,
 	labels?: { [key in string]: string } | null,
+	/**
+	 *  Optional override for how this field is compared during disambiguation.
+	 *  `None` => inferred from `field_type` (see [`resolved_comparison`]).
+	 */
+	comparison?: ComparisonType | null,
 };
 
 /**
@@ -496,6 +525,24 @@ export type FieldCount = {
 	count: number,
 };
 
+export type FieldDivergence = {
+	key: string,
+	label: string,
+	comparison: ComparisonType,
+	format: ValueFormat,
+	/**
+	 *  How strongly the field's values separate the groups, [0,1]. `None` when
+	 *  fewer than two groups have any present values.
+	 */
+	valueScore: number | null,
+	/**  How strongly field *presence* (vs absence) separates the groups, [0,1]. */
+	coverageScore: number,
+	/**  True when at least one group has too few present values to trust `value_score`. */
+	lowConfidence: boolean,
+	/**  Per-group summaries, in input group order. */
+	groups: GroupSummary[],
+};
+
 /**  Reverse geocode result: nearest populated place to a coordinate. */
 export type GeoResult = {
 	city: string,
@@ -504,6 +551,21 @@ export type GeoResult = {
 	country: string,
 	/**  ISO 3166-1 alpha-2 (e.g. "US", "FR"). */
 	country_code: string,
+};
+
+/**
+ *  Per-group summary for one field. Which fields are populated depends on the
+ *  field's `comparison` type (the UI reads the relevant ones).
+ */
+export type GroupSummary = {
+	n: number,
+	present: number,
+	median: number | null,
+	p25: number | null,
+	p75: number | null,
+	meanDeg: number | null,
+	concentration: number | null,
+	top: TopValue[],
 };
 
 /**
@@ -1012,6 +1074,18 @@ export type Tag = {
 	 */
 	count?: number,
 };
+
+export type TopValue = {
+	label: string,
+	freq: number,
+};
+
+/**
+ *  How the numeric per-group summaries should be rendered. Numeric fields are
+ *  compared as plain numbers internally even when they're dates, so the UI needs
+ *  this to turn a month-index or unix timestamp back into a readable value.
+ */
+export type ValueFormat = "number" | "month" | "dateTime";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

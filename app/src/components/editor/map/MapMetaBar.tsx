@@ -12,6 +12,7 @@ import { ExportDialog } from "@/components/dialogs/ExportDialog";
 import { ImportDialog } from "@/components/dialogs/ImportDialog";
 import { VersionHistory } from "@/components/dialogs/VersionHistory.add";
 import { SeenDialog } from "@/components/dialogs/SeenDialog.add";
+import { DisambiguateDialog } from "@/components/dialogs/DisambiguateDialog.add";
 import { loadSeenPano } from "@/components/editor/location/LocationPreview";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiUndo, mdiRedo } from "@mdi/js";
@@ -26,21 +27,25 @@ export function MapMetaBar() {
 	const [showImport, setShowImport] = useState(false);
 	const [showHistory, setShowHistory] = useState(false);
 	const [showSeen, setShowSeen] = useState(false);
+	const [showDisambiguate, setShowDisambiguate] = useState(false);
 
 	useEffect(() => {
 		const onExport = () => setShowExport(true);
 		const onImport = () => setShowImport(true);
 		const onHistory = () => setShowHistory(true);
 		const onSeen = () => setShowSeen(true);
+		const onDisambiguate = () => setShowDisambiguate(true);
 		document.addEventListener("open-export", onExport);
 		document.addEventListener("open-import", onImport);
 		document.addEventListener("open-history", onHistory);
 		document.addEventListener("open-seen", onSeen);
+		document.addEventListener("open-disambiguate", onDisambiguate);
 		return () => {
 			document.removeEventListener("open-export", onExport);
 			document.removeEventListener("open-import", onImport);
 			document.removeEventListener("open-history", onHistory);
 			document.removeEventListener("open-seen", onSeen);
+			document.removeEventListener("open-disambiguate", onDisambiguate);
 		};
 	}, []);
 
@@ -109,6 +114,7 @@ export function MapMetaBar() {
 			{showExport && <ExportDialog onClose={() => setShowExport(false)} />}
 			{showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
 			<SeenDialog open={showSeen} onOpenChange={setShowSeen} onLoadPano={loadSeenPano} />
+			{showDisambiguate && <DisambiguateDialog onClose={() => setShowDisambiguate(false)} />}
 		</>
 	);
 }

@@ -20,6 +20,7 @@ mod borders;
 mod geocoder;
 mod seen;
 mod vcs;
+mod disambiguate;
 
 /// Write arbitrary text content to a named temp file (`mma_{name}`). Returns the path.
 /// Used by JS to pass large payloads via file instead of IPC serialization.
@@ -448,6 +449,7 @@ pub fn run() {
                     location_store::store_sync_selections,
                     location_store::store_get_selected_ids_list,
                     location_store::store_resolve_selection,
+                    disambiguate::store_disambiguate,
                     // --- Render ---
                     location_store::store_fill_render_file,
                     location_store::store_resolve_pick,

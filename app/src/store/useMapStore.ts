@@ -675,12 +675,9 @@ export function useSelections() {
 	return selections;
 }
 
-/** Apply a pure selection transform, then IPC to Rust to resolve bitmasks and sync the overlay. */
-async function applySelectionUpdate(updater: (m: MapData, sels: Selection[]) => Selection[]) {
-	if (!currentMap) return;
-	const t = trace("selection", { summary: true });
-	selections = updater(currentMap, selections);
-	const sels = selections.map((s) => {
+/** Map the current selection stack to Rust `SelectionInput`s, resolving tag colors. */
+export function getSelectionInputs(): { props: SelectionProps; color: [number, number, number] }[] {
+	return selections.map((s) => {
 		let color = s.color;
 		if (s.props.type === "Tag" && currentMap) {
 			const tag = currentMap.meta.tags[s.props.tagId];
@@ -693,6 +690,14 @@ async function applySelectionUpdate(updater: (m: MapData, sels: Selection[]) => 
 		}
 		return { props: s.props, color };
 	});
+}
+
+/** Apply a pure selection transform, then IPC to Rust to resolve bitmasks and sync the overlay. */
+async function applySelectionUpdate(updater: (m: MapData, sels: Selection[]) => Selection[]) {
+	if (!currentMap) return;
+	const t = trace("selection", { summary: true });
+	selections = updater(currentMap, selections);
+	const sels = getSelectionInputs();
 	let result: SyncSelectionsResult;
 	try {
 		result = await cmd.storeSyncSelections(sels);

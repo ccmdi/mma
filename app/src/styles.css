@@ -2862,7 +2862,7 @@ summary.button {
 	white-space: nowrap;
 }
 .manage-fields-modal {
-	max-width: 36rem;
+	max-width: 52rem;
 }
 .manage-fields-table {
 	width: 100%;
@@ -2888,6 +2888,10 @@ summary.button {
 .manage-fields-table .input {
 	width: 100%;
 	height: 28px;
+}
+.manage-fields-table .manage-fields-table__period {
+	width: 6em;
+	margin-top: 4px;
 }
 .manage-fields-table .nselect {
 	height: 28px;
@@ -4943,4 +4947,99 @@ body {
 		opacity: 1;
 		transform: translateY(0);
 	}
+}
+
+/* --- Disambiguate dialog (renders inside the light .modal) --- */
+.disambig-modal {
+	width: min(640px, 92vw);
+	color: #1a1a1a;
+}
+.disambig__muted {
+	color: #6b7280;
+	font-size: 0.85em;
+}
+.disambig__error {
+	color: #b91c1c;
+}
+.disambig__summary {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+.disambig__list {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	max-height: 60vh;
+	overflow-y: auto;
+	padding-bottom: 4px;
+}
+.disambig__row {
+	border: 1px solid #e5e7eb;
+	border-radius: 6px;
+	padding: 10px 12px;
+}
+.disambig__row--weak {
+	opacity: 0.6;
+}
+.disambig__head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.disambig__label {
+	font-weight: 600;
+}
+.disambig__badge {
+	font-size: 0.72em;
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: #eef0f3;
+	color: #4b5563;
+}
+.disambig__badge--warn {
+	background: #fde68a;
+	color: #92400e;
+}
+.disambig__score {
+	margin-left: auto;
+	font-variant-numeric: tabular-nums;
+	font-weight: 700;
+}
+.disambig__bar {
+	height: 6px;
+	border-radius: 3px;
+	background: #eef0f3;
+	margin: 6px 0;
+	overflow: hidden;
+}
+.disambig__bar-fill {
+	height: 100%;
+	background: #2563eb;
+}
+.disambig__groups {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 16px;
+	margin-top: 6px;
+}
+.disambig__group {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+}
+.disambig__group-body {
+	font-size: 0.9em;
+}
+.disambig__coverage {
+	margin-top: 1px;
+}
+.disambig__swatch {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	margin-top: 3px;
+	flex-shrink: 0;
+	box-shadow: 0 0 0 1px #0002;
 }

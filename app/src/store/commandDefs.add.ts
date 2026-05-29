@@ -18,6 +18,7 @@ import {
 	mdiTagRemove,
 	mdiDatabaseRemoveOutline,
 	mdiFindReplace,
+	mdiCompare,
 } from "@mdi/js";
 import { registerCommand } from "./commands.add";
 import {
@@ -79,6 +80,15 @@ registerCommand({
 	defaultBinding: "Mod+y, Mod+Shift+z",
 	execute: redo,
 	enabled: () => getUndoRedoState().canRedo,
+});
+
+registerCommand({
+	id: "disambiguate",
+	label: "Disambiguate selections",
+	icon: mdiCompare,
+	group: "Selections",
+	execute: () => document.dispatchEvent(new CustomEvent("open-disambiguate")),
+	enabled: () => getSelections().length >= 2,
 });
 
 registerCommand({
