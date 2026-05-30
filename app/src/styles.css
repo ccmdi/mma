@@ -2886,7 +2886,8 @@ summary.button {
 	white-space: nowrap;
 }
 .manage-fields-modal {
-	max-width: 36rem;
+	max-width: 48rem;
+	width: 90vw;
 }
 .manage-fields-table {
 	width: 100%;
@@ -2921,6 +2922,55 @@ summary.button {
 	justify-content: flex-end;
 	gap: 0.5rem;
 	margin-top: 0.5rem;
+}
+.manage-fields-table__actions {
+	display: flex;
+	gap: 0.375rem;
+	justify-content: flex-end;
+	white-space: nowrap;
+}
+.button--small {
+	padding: 0.1875rem 0.5rem;
+	font-size: 0.75rem;
+	height: auto;
+}
+.manage-fields-action {
+	margin-top: 0.75rem;
+	padding: 0.75rem;
+	border: 1px solid #0002;
+	border-radius: 6px;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	font-size: 0.8125rem;
+}
+.manage-fields-action > label {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+.manage-fields-action code {
+	font-family: monospace;
+}
+.manage-fields-action__winner {
+	border: 1px solid #0002;
+	border-radius: 6px;
+	padding: 0.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+.manage-fields-action__winner legend {
+	padding: 0 0.25rem;
+}
+.manage-fields-action__winner label {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+}
+.manage-fields-action__buttons {
+	display: flex;
+	gap: 0.5rem;
 }
 .extra-filter-builder {
 	display: flex;

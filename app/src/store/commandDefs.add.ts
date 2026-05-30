@@ -17,6 +17,7 @@ import {
 	mdiEye,
 	mdiTagRemove,
 	mdiDatabaseRemoveOutline,
+	mdiDatabaseEditOutline,
 	mdiFindReplace,
 } from "@mdi/js";
 import { registerCommand } from "./commands.add";
@@ -172,6 +173,14 @@ registerCommand({
 	icon: mdiDatabaseArrowUp,
 	group: "Bulk Operations",
 	execute: () => document.dispatchEvent(new CustomEvent("open-bulk-op", { detail: "enrich" })),
+});
+
+registerCommand({
+	id: "bulk-set-field",
+	label: "Set metadata field value",
+	icon: mdiDatabaseEditOutline,
+	group: "Bulk Operations",
+	execute: () => document.dispatchEvent(new CustomEvent("open-bulk-op", { detail: "setField" })),
 });
 
 registerCommand({

@@ -14,6 +14,14 @@ import { trace } from "@/lib/util/debug";
 import { mmaBufUrl } from "@/lib/util/util";
 import { getTriggeredProviders } from "@/lib/data/fieldDefs.add";
 import { setUserFieldDefs, resetForMapChange } from "@/lib/data/fieldDefRegistry";
+import {
+	planFieldMove,
+	planFieldDelete,
+	rewriteSelectionFields,
+	type MergeWinner,
+} from "@/lib/data/fieldOps.add";
+import { getSavedSelections, rewriteSavedSelectionFields } from "./savedSelections.add";
+import { setSetting } from "./settings.add";
 import type { RenderDelta } from "@/lib/render/CellManager";
 
 /** Minimal pub/sub bus. `.on()` returns an unsubscribe function. */
@@ -650,6 +658,46 @@ export async function patchLocationExtra(
 		const merged = Object.assign({}, ...results.filter(Boolean));
 		if (Object.keys(merged).length > 0) await patchLocationExtra(patched, merged);
 	}
+}
+
+// --- Bulk metadata-field operations (rare; one undo entry each) ---
+
+/** Rename or merge extra-field `from` into `to` across all locations, then migrate
+ *  its definition and every selection that references it. Merge ≡ rename; `winner`
+ *  decides the survivor only where a location already holds `to`. */
+export async function renameField(from: string, to: string, winner: MergeWinner = "from") {
+	if (!currentMap || from === to || !to) return;
+	const updates = planFieldMove(await fetchAllLocations(), from, to, winner);
+	if (updates.length) {
+		await batchUpdateLocations(updates.map((u) => ({ id: u.id, patch: { extra: u.extra } })));
+		knownFieldKeys.add(to);
+	}
+	knownFieldKeys.delete(from);
+	await migrateFieldReferences(from, to);
+}
+
+/** Delete extra-field `key` from every location, its definition, and references. */
+export async function deleteField(key: string) {
+	if (!currentMap) return;
+	const updates = planFieldDelete(await fetchAllLocations(), key);
+	if (updates.length) {
+		await batchUpdateLocations(updates.map((u) => ({ id: u.id, patch: { extra: u.extra } })));
+	}
+	knownFieldKeys.delete(key);
+	await migrateFieldReferences(key, null);
+}
+
+/** Migrate field definition + active/saved selection references after a data move. */
+async function migrateFieldReferences(from: string, to: string | null) {
+	if (!currentMap) return;
+	const defs = { ...(currentMap.meta.extra?.fields ?? {}) };
+	if (defs[from]) {
+		if (to && !defs[to]) defs[to] = defs[from];
+		delete defs[from];
+		await setMapExtraFields(defs);
+	}
+	setSetting("savedSelections", rewriteSavedSelectionFields(getSavedSelections(), from, to));
+	await applySelectionUpdate((m, sels) => rewriteSelectionFields(m, sels, from, to));
 }
 
 // --- Selections ---

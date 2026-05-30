@@ -128,6 +128,43 @@ export function describeRule(props: SavedSelectionProps): string {
 	}
 }
 
+/**
+ * Rewrite Filter `field` references in persisted saved selections: `from` → `to`, or
+ * drop the Filter (and any selection/composite that empties) when `to` is null.
+ */
+export function rewriteSavedSelectionFields(
+	saved: SavedSelection[],
+	from: string,
+	to: string | null,
+): SavedSelection[] {
+	const rewriteProps = (p: SavedSelectionProps): SavedSelectionProps | null => {
+		if (p.type === "Filter") {
+			if (p.field !== from) return p;
+			return to === null ? null : { ...p, field: to };
+		}
+		if (p.type === "Intersection" || p.type === "Union" || p.type === "Invert") {
+			const children = p.selections
+				.map(rewriteProps)
+				.filter((c): c is SavedSelectionProps => c !== null);
+			if (children.length === 0) return null;
+			if (children.length === 1 && p.type !== "Invert") return children[0];
+			return { ...p, selections: children };
+		}
+		return p;
+	};
+	return saved
+		.map((s) => ({
+			...s,
+			items: s.items
+				.map((it) => {
+					const props = rewriteProps(it.props);
+					return props ? { ...it, props } : null;
+				})
+				.filter((it): it is SavedSelectionItem => it !== null),
+		}))
+		.filter((s) => s.items.length > 0);
+}
+
 // CRUD
 
 export function getSavedSelections(): SavedSelection[] {

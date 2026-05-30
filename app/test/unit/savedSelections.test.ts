@@ -4,6 +4,8 @@ import {
 	selectionToSaved,
 	savedToSelectionProps,
 	describeRule,
+	rewriteSavedSelectionFields,
+	type SavedSelection,
 	type SavedSelectionProps,
 } from "@/store/savedSelections.add";
 import type { MapData, Tag } from "@/types";
@@ -39,6 +41,55 @@ function makeMap(tags: Record<number, Tag> = {}): MapData {
 function makeSel(props: Selection["props"]): Selection {
 	return { key: "test", color: [100, 100, 100], props, count: 0 };
 }
+
+// ============================================================================
+// rewriteSavedSelectionFields
+// ============================================================================
+
+describe("rewriteSavedSelectionFields", () => {
+	const wrap = (props: SavedSelectionProps): SavedSelection => ({
+		id: "s1",
+		name: "n",
+		items: [{ props, color: [0, 0, 0] }],
+		createdAt: 0,
+	});
+
+	it("renames a Filter field", () => {
+		const out = rewriteSavedSelectionFields(
+			[wrap({ type: "Filter", field: "a", op: "eq", value: 1 })],
+			"a",
+			"b",
+		);
+		expect((out[0].items[0].props as any).field).toBe("b");
+	});
+
+	it("drops a saved selection whose only Filter is deleted", () => {
+		const out = rewriteSavedSelectionFields(
+			[wrap({ type: "Filter", field: "a", op: "eq", value: 1 })],
+			"a",
+			null,
+		);
+		expect(out).toEqual([]);
+	});
+
+	it("rewrites filters nested in a composite and collapses singletons", () => {
+		const out = rewriteSavedSelectionFields(
+			[
+				wrap({
+					type: "Union",
+					selections: [
+						{ type: "Filter", field: "a", op: "eq", value: 1 },
+						{ type: "Untagged" },
+					],
+				}),
+			],
+			"a",
+			null,
+		);
+		// Union loses its Filter child, collapsing to the lone Untagged
+		expect(out[0].items[0].props.type).toBe("Untagged");
+	});
+});
 
 // ============================================================================
 // selectionToSaved

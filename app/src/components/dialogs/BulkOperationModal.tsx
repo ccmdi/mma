@@ -10,14 +10,15 @@ import {
 } from "@/store/useMapStore";
 import type { Location } from "@/types";
 import { isPinnedToPano } from "@/types";
-import { getFieldDef } from "@/lib/data/fieldDefRegistry";
+import { getFieldDef, getAllFieldDefs } from "@/lib/data/fieldDefRegistry";
+import { planFieldSet } from "@/lib/data/fieldOps.add";
 import { ValidationState } from "@/store/selections";
 import { validateLocations } from "@/lib/sv/validate";
 import { enrichAll, needsEnrichment, type EnrichResult } from "@/lib/sv/enrich.add";
 import { bulkPinToPano } from "@/lib/sv/pinPano.add";
 import { fmt } from "@/lib/util/format";
 
-export type BulkOperation = "validate" | "enrich" | "pinPano" | "clearFields";
+export type BulkOperation = "validate" | "enrich" | "pinPano" | "clearFields" | "setField";
 
 interface Props {
 	operation: BulkOperation;
@@ -29,7 +30,13 @@ const TITLES: Record<BulkOperation, string> = {
 	enrich: "Enrich metadata",
 	pinPano: "Pin to Pano ID",
 	clearFields: "Clear metadata fields",
+	setField: "Set metadata field",
 };
+
+interface SetFieldOpt {
+	key: string;
+	value: unknown;
+}
 
 type Scope = "all" | "selection";
 
@@ -78,7 +85,12 @@ function BulkSetup({
 	onStart,
 }: {
 	operation: BulkOperation;
-	onStart: (opts: { force: boolean; scope: Scope; clearKeys?: string[] }) => void;
+	onStart: (opts: {
+		force: boolean;
+		scope: Scope;
+		clearKeys?: string[];
+		setField?: SetFieldOpt;
+	}) => void;
 }) {
 	const [force, setForce] = useState(false);
 	const [locs, setLocs] = useState<Location[]>([]);
@@ -172,6 +184,19 @@ function BulkSetup({
 				allCount={total}
 				selectionCount={selectionCount}
 				onStart={(keys) => onStart({ force: false, scope, clearKeys: keys })}
+			/>
+		);
+	}
+
+	if (operation === "setField") {
+		return (
+			<SetFieldSetup
+				locs={locs}
+				scope={scope}
+				onScopeChange={setScope}
+				allCount={total}
+				selectionCount={selectionCount}
+				onStart={(setField) => onStart({ force: false, scope, setField })}
 			/>
 		);
 	}
@@ -278,6 +303,118 @@ function ClearFieldsSetup({
 	);
 }
 
+function SetFieldSetup({
+	locs,
+	scope,
+	onScopeChange,
+	allCount,
+	selectionCount,
+	onStart,
+}: {
+	locs: Location[];
+	scope: Scope;
+	onScopeChange: (s: Scope) => void;
+	allCount: number;
+	selectionCount: number;
+	onStart: (opt: SetFieldOpt) => void;
+}) {
+	const knownKeys = new Set<string>(Object.keys(getAllFieldDefs()));
+	for (const loc of locs) {
+		if (loc.extra) for (const k of Object.keys(loc.extra)) knownKeys.add(k);
+	}
+	const sortedKeys = [...knownKeys].sort();
+
+	const [key, setKey] = useState("");
+	const [creatingNew, setCreatingNew] = useState(false);
+	const [newKey, setNewKey] = useState("");
+	const [raw, setRaw] = useState("");
+
+	const effectiveKey = (creatingNew ? newKey : key).trim();
+	const def = effectiveKey ? getFieldDef(effectiveKey) : undefined;
+	const isNumber = def?.type === "number";
+	const isEnum = def?.type === "enum" && def.values;
+	const value: unknown = isNumber ? Number(raw) : raw;
+	const invalid = !effectiveKey || (isNumber && (raw === "" || Number.isNaN(Number(raw))));
+
+	return (
+		<div className="bulk-operation">
+			<ScopeToggle
+				scope={scope}
+				onScopeChange={onScopeChange}
+				allCount={allCount}
+				selectionCount={selectionCount}
+			/>
+			<label className="bulk-operation__option">
+				Field
+				<select
+					className="nselect"
+					value={creatingNew ? "__new__" : key}
+					onChange={(e) => {
+						if (e.target.value === "__new__") {
+							setCreatingNew(true);
+						} else {
+							setCreatingNew(false);
+							setKey(e.target.value);
+						}
+					}}
+				>
+					<option value="" disabled>
+						Select a field...
+					</option>
+					{sortedKeys.map((k) => (
+						<option key={k} value={k}>
+							{getFieldDef(k)?.label ?? k}
+						</option>
+					))}
+					<option value="__new__">New field...</option>
+				</select>
+			</label>
+			{creatingNew && (
+				<label className="bulk-operation__option">
+					New field name
+					<input
+						className="input"
+						value={newKey}
+						onChange={(e) => setNewKey(e.target.value)}
+						placeholder="field name"
+						autoFocus
+					/>
+				</label>
+			)}
+			<label className="bulk-operation__option">
+				Value
+				{isEnum ? (
+					<select className="nselect" value={raw} onChange={(e) => setRaw(e.target.value)}>
+						<option value="" />
+						{def!.values!.map((v) => (
+							<option key={v} value={v}>
+								{def!.labels?.[v] ?? v}
+							</option>
+						))}
+					</select>
+				) : (
+					<input
+						className="input"
+						type={isNumber ? "number" : "text"}
+						value={raw}
+						onChange={(e) => setRaw(e.target.value)}
+					/>
+				)}
+			</label>
+			<div className="bulk-operation__actions">
+				<button
+					className="button button--primary"
+					type="button"
+					disabled={invalid}
+					onClick={() => onStart({ key: effectiveKey, value })}
+				>
+					Set field
+				</button>
+			</div>
+		</div>
+	);
+}
+
 function EnrichSummary({
 	result,
 	onSelect,
@@ -333,6 +470,7 @@ function BulkProgress({
 	scope,
 	selectedIds,
 	clearKeys,
+	setField,
 	onClose,
 }: {
 	operation: BulkOperation;
@@ -340,6 +478,7 @@ function BulkProgress({
 	scope: Scope;
 	selectedIds: Set<number>;
 	clearKeys?: string[];
+	setField?: SetFieldOpt;
 	onClose: () => void;
 }) {
 	const [progress, setProgress] = useState(0);
@@ -427,6 +566,17 @@ function BulkProgress({
 				}
 				setDone(updates.length);
 				setClearCount(updates.length);
+			} else if (operation === "setField" && setField) {
+				const updates = planFieldSet(locations, setField.key, setField.value).map((u) => ({
+					id: u.id,
+					patch: { extra: u.extra },
+				}));
+				setTotal(updates.length);
+				if (updates.length > 0) {
+					await batchUpdateLocations(updates);
+				}
+				setDone(updates.length);
+				setClearCount(updates.length);
 			}
 			setProgress(1);
 			setStatus("done");
@@ -438,7 +588,7 @@ function BulkProgress({
 				setStatus("error");
 			}
 		}
-	}, [operation, force, clearKeys]);
+	}, [operation, force, clearKeys, setField]);
 
 	useEffect(() => {
 		run();
@@ -462,6 +612,8 @@ function BulkProgress({
 					/>
 				) : status === "done" && operation === "clearFields" ? (
 					`Cleared fields from ${fmt.format(clearCount)} locations.`
+				) : status === "done" && operation === "setField" ? (
+					`Set field on ${fmt.format(clearCount)} locations.`
 				) : (
 					status === "done" && `Done -- ${fmt.format(total)} locations processed.`
 				)}
@@ -493,6 +645,7 @@ export function BulkOperationModal({ operation, onClose }: Props) {
 	const [force, setForce] = useState(false);
 	const [scope, setScope] = useState<Scope>("all");
 	const [clearKeys, setClearKeys] = useState<string[]>([]);
+	const [setField, setSetField] = useState<SetFieldOpt | undefined>(undefined);
 	const selectedIds = useSelectedLocationIds();
 
 	return (
@@ -510,6 +663,7 @@ export function BulkOperationModal({ operation, onClose }: Props) {
 							setForce(opts.force);
 							setScope(opts.scope);
 							if (opts.clearKeys) setClearKeys(opts.clearKeys);
+							if (opts.setField) setSetField(opts.setField);
 							setStarted(true);
 						}}
 					/>
@@ -520,6 +674,7 @@ export function BulkOperationModal({ operation, onClose }: Props) {
 						scope={scope}
 						selectedIds={selectedIds}
 						clearKeys={clearKeys}
+						setField={setField}
 						onClose={onClose}
 					/>
 				)}
