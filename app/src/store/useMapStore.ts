@@ -629,6 +629,16 @@ export function batchUpdateLocations(updates: { id: number; patch: Partial<Locat
 	);
 }
 
+// Like batchUpdateLocations but records no undo entry. Used by bulk field ops whose
+// definition/selection migration isn't part of the undo system — an undoable data
+// change there would half-revert and leave the map inconsistent.
+function batchUpdateLocationsNoUndo(updates: { id: number; patch: Partial<Location> }[]) {
+	if (!currentMap || updates.length === 0) return Promise.resolve();
+	return mutate(cmd.storeUpdateLocations(buildUpdates(updates), false)).catch((e) =>
+		log.error("[batchUpdateNoUndo] store_update_locations failed:", e),
+	);
+}
+
 export async function patchLocationExtra(
 	loc: Location,
 	extraPatch: Record<string, unknown>,
@@ -660,7 +670,8 @@ export async function patchLocationExtra(
 	}
 }
 
-// --- Bulk metadata-field operations (rare; one undo entry each) ---
+// --- Bulk metadata-field operations (rare; intentionally NOT undoable, since the
+//     definition/selection migration below isn't part of the undo system) ---
 
 /** Rename or merge extra-field `from` into `to` across all locations, then migrate
  *  its definition and every selection that references it. Merge ≡ rename; `winner`
@@ -669,7 +680,7 @@ export async function renameField(from: string, to: string, winner: MergeWinner 
 	if (!currentMap || from === to || !to) return;
 	const updates = planFieldMove(await fetchAllLocations(), from, to, winner);
 	if (updates.length) {
-		await batchUpdateLocations(updates.map((u) => ({ id: u.id, patch: { extra: u.extra } })));
+		await batchUpdateLocationsNoUndo(updates.map((u) => ({ id: u.id, patch: { extra: u.extra } })));
 		knownFieldKeys.add(to);
 	}
 	knownFieldKeys.delete(from);
@@ -681,7 +692,7 @@ export async function deleteField(key: string) {
 	if (!currentMap) return;
 	const updates = planFieldDelete(await fetchAllLocations(), key);
 	if (updates.length) {
-		await batchUpdateLocations(updates.map((u) => ({ id: u.id, patch: { extra: u.extra } })));
+		await batchUpdateLocationsNoUndo(updates.map((u) => ({ id: u.id, patch: { extra: u.extra } })));
 	}
 	knownFieldKeys.delete(key);
 	await migrateFieldReferences(key, null);
