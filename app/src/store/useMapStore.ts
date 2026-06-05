@@ -74,6 +74,7 @@ import {
 	removeFromComposite as removeFromCompositeSel,
 	composeSiblings as composeSiblingsSel,
 	replaceSelection as replaceSel,
+	sampleIds,
 } from "./selections";
 
 const storeBus = createBus<() => void>();
@@ -888,6 +889,17 @@ export function selectInverse(keys: string[] | null = null) {
 
 export function toggleManualSelection(locationId: number) {
 	return applySelectionUpdate((sels) => toggleManual(sels, locationId));
+}
+
+/** Replace the current selection with a single Manual selection holding `count` ids picked
+ *  at random from whatever is currently selected. `count` is clamped to the selection size.
+ *  No-op when nothing is selected. Returns the number of ids actually picked. */
+export function selectRandomFromSelection(count: number): number {
+	const ids = Array.from(getSelectedLocationIds());
+	const picked = sampleIds(ids, count);
+	if (picked.length === 0) return 0;
+	void applySelectionUpdate(() => addSel([], { type: "Manual", locations: picked }));
+	return picked.length;
 }
 
 export function selectEverything() {

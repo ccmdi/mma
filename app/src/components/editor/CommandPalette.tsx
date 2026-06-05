@@ -5,7 +5,8 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiUndo, mdiBookmarkOutline, mdiBookmarkCheckOutline } from "@mdi/js";
 import { BulkOperationModal, type BulkOperation } from "@/components/dialogs/BulkOperationModal";
-import { useSelections, useCurrentMap } from "@/store/useMapStore";
+import { RandomPickModal } from "@/components/dialogs/RandomPickModal.add";
+import { useSelections, useCurrentMap, getSelectedLocationIds } from "@/store/useMapStore";
 import { getCommands, type CommandGroup } from "@/store/commands.add";
 import {
 	saveCurrentSelections,
@@ -319,6 +320,7 @@ function PaletteContent({ onChangeOpen }: { onChangeOpen: (v: boolean) => void }
 export function CommandPalette() {
 	const [open, setOpen] = useState(false);
 	const [bulkOp, setBulkOp] = useState<BulkOperation | null>(null);
+	const [randomPick, setRandomPick] = useState<number | null>(null);
 
 	useHotkey(useBinding("openCommandPalette"), () => setOpen((v) => !v));
 
@@ -332,6 +334,12 @@ export function CommandPalette() {
 		const handler = (e: Event) => setBulkOp((e as CustomEvent).detail as BulkOperation);
 		document.addEventListener("open-bulk-op", handler);
 		return () => document.removeEventListener("open-bulk-op", handler);
+	}, []);
+
+	useEffect(() => {
+		const handler = () => setRandomPick(getSelectedLocationIds().size);
+		document.addEventListener("open-random-pick", handler);
+		return () => document.removeEventListener("open-random-pick", handler);
 	}, []);
 
 	return (
@@ -348,6 +356,13 @@ export function CommandPalette() {
 				</RadixDialog.Portal>
 			</RadixDialog.Root>
 			{bulkOp && <BulkOperationModal operation={bulkOp} onClose={() => setBulkOp(null)} />}
+			{randomPick != null && (
+				<RandomPickModal
+					open
+					total={randomPick}
+					onOpenChange={(o) => !o && setRandomPick(null)}
+				/>
+			)}
 		</>
 	);
 }

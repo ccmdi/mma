@@ -23,6 +23,7 @@ import {
 	mdiFindReplace,
 	mdiGhostOutline,
 	mdiCompassOutline,
+	mdiDiceMultiple,
 } from "@mdi/js";
 import { registerCommand } from "./commands.add";
 import {
@@ -164,6 +165,15 @@ registerCommand({
 	group: "Selections",
 	defaultBinding: "Mod+d",
 	execute: resetSelections,
+});
+
+registerCommand({
+	id: "select-random",
+	label: "Pick random locations from selection",
+	icon: mdiDiceMultiple,
+	group: "Selections",
+	execute: () => document.dispatchEvent(new CustomEvent("open-random-pick")),
+	enabled: () => getSelectedLocationIds().size > 0,
 });
 
 registerCommand({

@@ -68,6 +68,19 @@ function locationsKey(ids: number[]): string {
 	return ids.join(",");
 }
 
+/** Pick `n` distinct ids uniformly at random from `ids` using `Math.random`.
+ *  `n` is floored and clamped to `[0, ids.length]` (so over-large counts return all ids).
+ *  Uses a partial Fisher–Yates shuffle, so the result contains no duplicates and `ids` is not mutated. */
+export function sampleIds(ids: number[], n: number): number[] {
+	const k = Math.max(0, Math.min(Math.floor(n), ids.length));
+	const pool = ids.slice();
+	for (let i = 0; i < k; i += 1) {
+		const j = i + Math.floor(Math.random() * (pool.length - i));
+		[pool[i], pool[j]] = [pool[j], pool[i]];
+	}
+	return pool.slice(0, k);
+}
+
 export function resolveLocations(props: SelectionProps): number[] {
 	return match(props)
 		.with({ type: P.union("Locations", "Manual", "ValidationState", "Reviewed") }, (p) => [

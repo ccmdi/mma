@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
 	colorForKey,
 	buildSelection,
@@ -15,6 +15,7 @@ import {
 	decomposeChild,
 	removeFromComposite,
 	replaceSelection,
+	sampleIds,
 	ValidationState,
 } from "@/store/selections";
 import { setUserFieldDefs, resetForMapChange } from "@/lib/data/fieldDefRegistry";
@@ -738,5 +739,46 @@ describe("replaceSelection", () => {
 		const result = replaceSelection(input, "nonexistent", filterAEdited);
 		expect(result).toBe(input); // unchanged reference
 		expect(result[0].key).toBe(sel.key);
+	});
+});
+
+describe("sampleIds", () => {
+	const ids = Array.from({ length: 20 }, (_, i) => i + 1);
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("returns exactly n distinct ids drawn from the input", () => {
+		const out = sampleIds(ids, 5);
+		expect(out).toHaveLength(5);
+		expect(new Set(out).size).toBe(5); // no duplicates
+		for (const x of out) expect(ids).toContain(x);
+	});
+
+	it("clamps n to the input length", () => {
+		const out = sampleIds(ids, 999);
+		expect(out).toHaveLength(ids.length);
+		expect(new Set(out)).toEqual(new Set(ids)); // a permutation of all ids
+	});
+
+	it("floors fractional counts", () => {
+		expect(sampleIds(ids, 3.9)).toHaveLength(3);
+	});
+
+	it("returns an empty array for non-positive counts", () => {
+		expect(sampleIds(ids, 0)).toEqual([]);
+		expect(sampleIds(ids, -4)).toEqual([]);
+	});
+
+	it("does not mutate the input array", () => {
+		const input = ids.slice();
+		sampleIds(input, 10);
+		expect(input).toEqual(ids);
+	});
+
+	it("is deterministic given a fixed RNG", () => {
+		vi.spyOn(Math, "random").mockReturnValue(0); // always pick the first remaining element
+		expect(sampleIds([10, 20, 30, 40], 2)).toEqual([10, 20]);
 	});
 });

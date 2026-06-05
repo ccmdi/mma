@@ -1634,6 +1634,7 @@ declare const mma: {
 	selectUnion(keys?: string[] | null): Promise<void>;
 	selectInverse(keys?: string[] | null): Promise<void>;
 	toggleManualSelection(locationId: number): Promise<void>;
+	selectRandomFromSelection(count: number): number;
 	selectEverything(): Promise<void>;
 	selectUntagged(): Promise<void>;
 	selectUnpanned(): Promise<void>;
