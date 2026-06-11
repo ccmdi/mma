@@ -1,3 +1,6 @@
+import type { Tag } from "@/bindings.gen";
+import type { TagSortMode } from "@/types";
+
 /** Base URL for a Tauri custom URI scheme. Windows WebView2 uses http://<scheme>.localhost/. */
 export function schemeBase(scheme: string): string {
 	return navigator.platform.startsWith("Win")
@@ -64,6 +67,13 @@ export function bucketize(values: number[], count: number): NumericBuckets | nul
 			return idx < 0 ? 0 : idx >= count ? count - 1 : idx;
 		},
 	};
+}
+
+export function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[] {
+	const sorted = [...tags];
+	if (mode === "name") return sorted.sort((a, b) => a.name.localeCompare(b.name));
+	if (mode === "amount") return sorted.sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
+	return sorted.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name));
 }
 
 // FOV (degrees) → zoom level

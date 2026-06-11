@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { isFiniteNumber, fovToZoom, compareNatural, bucketize } from "@/lib/util/util";
+import { isFiniteNumber, fovToZoom, compareNatural, bucketize, sortTagsByMode } from "@/lib/util/util";
 import { relativeTime } from "@/lib/util/format";
+import type { Tag } from "@/bindings.gen";
 
 describe("isFiniteNumber", () => {
 	it("returns true for normal numbers", () => {
@@ -24,6 +25,27 @@ describe("isFiniteNumber", () => {
 		expect(isFiniteNumber(undefined)).toBe(false);
 		expect(isFiniteNumber(true)).toBe(false);
 		expect(isFiniteNumber({})).toBe(false);
+	});
+});
+
+describe("sortTagsByMode", () => {
+	const tag = (id: number, name: string, order?: number): Tag => ({ id, name, color: "#000", order });
+	const tags = [tag(1, "bravo", 2), tag(2, "alpha", 1), tag(3, "charlie")];
+	const counts = { 1: 5, 2: 1, 3: 9 };
+
+	it("default sorts by order, name-tiebreak, without mutating input", () => {
+		const input = [...tags];
+		expect(sortTagsByMode(input, "default", counts).map((t) => t.id)).toEqual([3, 2, 1]);
+		expect(input).toEqual(tags);
+	});
+
+	it("name sorts alphabetically", () => {
+		expect(sortTagsByMode(tags, "name", counts).map((t) => t.id)).toEqual([2, 1, 3]);
+	});
+
+	it("amount sorts by count descending, missing counts last", () => {
+		expect(sortTagsByMode(tags, "amount", {})).toEqual(tags);
+		expect(sortTagsByMode(tags, "amount", counts).map((t) => t.id)).toEqual([3, 1, 2]);
 	});
 });
 

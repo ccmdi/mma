@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { createSyncStore } from "@/lib/util/syncStore";
 import type { SavedSelection } from "./savedSelections";
+import type { TagSortMode } from "@/types";
 
 export const MOVEMENT_MODES = {
 	moving: "Moving",
@@ -99,6 +100,7 @@ const DEFAULTS = {
 	activeLocationColor: { r: 200, g: 0, b: 0 },
 	importPreviewColor: { r: 217, g: 70, b: 239 },
 	tagViewMode: "flat" as TagViewMode,
+	tagSortMode: "default" as TagSortMode,
 	borderDetail: "light" as BorderDetail,
 	previewAspectRatio: "16 / 9" as PreviewAspectRatio,
 	savedSelections: [] as SavedSelection[],

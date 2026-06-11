@@ -23,8 +23,8 @@ import { mdiPencil } from "@mdi/js";
 import { ToolBlock } from "@/components/primitives/ToolBlock";
 import { fmt } from "@/lib/util/format";
 import { textColorFor, hexToHsl, hslToHex } from "@/lib/util/color";
-import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
-import { useSetting } from "@/store/settings";
+import { useSetting, setSetting } from "@/store/settings";
+import { sortTagsByMode } from "@/lib/util/util";
 import { TagTreeView } from "./TagTree";
 
 export function TagManager() {
@@ -33,7 +33,7 @@ export function TagManager() {
 	const tagCounts = useTagCounts();
 	const tagViewMode = useSetting("tagViewMode");
 	const [filterText, setFilterText] = useState("");
-	const [sortMode, setTagSortMode] = useLocalStorage<TagSortMode>("tagTagSortMode", "default");
+	const sortMode = useSetting("tagSortMode");
 	const [editingTagId, setEditingTagId] = useState<number | null>(null);
 	const [renamingTag, setRenamingTag] = useState<{ id: number; name: string } | null>(null);
 	const [collapsed, setCollapsed] = useState(false);
@@ -54,10 +54,7 @@ export function TagManager() {
 			const lower = filterText.toLowerCase();
 			filtered = tags.filter((t) => t.name.toLowerCase().includes(lower));
 		}
-		if (sortMode === "name") return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
-		if (sortMode === "amount")
-			return [...filtered].sort((a, b) => (tagCounts[b.id] ?? 0) - (tagCounts[a.id] ?? 0));
-		return [...filtered].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+		return sortTagsByMode(filtered, sortMode, tagCounts);
 	}, [tags, filterText, sortMode, tagCounts]);
 
 	// Refs mirror volatile state so the row handlers below can stay identity-stable
@@ -203,7 +200,7 @@ export function TagManager() {
 									key={mode}
 									className="button button-group__button"
 									aria-checked={sortMode === mode}
-									onClick={() => setTagSortMode(mode)}
+									onClick={() => setSetting("tagSortMode", mode)}
 								>
 									{mode}
 								</button>

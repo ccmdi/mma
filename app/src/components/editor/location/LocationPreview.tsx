@@ -25,7 +25,9 @@ import {
 	createTags,
 	setActiveLocation,
 	getVisibleTags,
+	getTagCounts,
 } from "@/store/useMapStore";
+import { sortTagsByMode } from "@/lib/util/util";
 import { ReviewBar } from "@/components/editor/location/ReviewBar";
 import {
 	useReviewSession,
@@ -537,6 +539,7 @@ function FullscreenTagBar({
 }) {
 	const [input, setInput] = useState("");
 	const [focused, setFocused] = useState(false);
+	const tagSortMode = useSetting("tagSortMode");
 
 	const handleAdd = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -559,9 +562,7 @@ function FullscreenTagBar({
 	};
 
 	const locTags = pendingTags.map((id) => tags.find((t) => t.id === id)).filter(Boolean) as Tag[];
-	const sorted = [...tags].sort(
-		(a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name),
-	);
+	const sorted = sortTagsByMode(tags, tagSortMode, getTagCounts());
 	const available = sorted.filter((t) => !pendingTags.includes(t.id));
 	const filtered = input.trim()
 		? available.filter((t) => t.name.toLowerCase().includes(input.toLowerCase()))
@@ -759,6 +760,7 @@ function LocationPreviewInner() {
 	} = usePanoViewer();
 	const [tagInput, setTagInput] = useState("");
 	const [pendingTags, setPendingTags] = useState<number[]>(location?.tags ?? []);
+	const tagSortMode = useSetting("tagSortMode");
 	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0);
 	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const geoRef = useRef(geoResult);
@@ -1200,13 +1202,13 @@ function LocationPreviewInner() {
 		if (singletonPano) toggleViewportLock(singletonPano);
 	});
 
-	// Quicktag slots 1-9: toggle the Nth visible tag. Bindings are rebindable
-	// (registered as quicktag1..9 hotkey actions), defaulting to keys 1-9.
 	const pendingTagsRef = useRef(pendingTags);
 	pendingTagsRef.current = pendingTags;
+	// Quicktag slots 1-9: toggle the Nth tag in the current sort order. Bindings
+	// are rebindable (registered as quicktag1..9 hotkey actions), defaulting to 1-9.
 	const quicktagSlot = (idx: number) => {
 		if (!location || !map) return;
-		const tags = getVisibleTags();
+		const tags = sortTagsByMode(getVisibleTags(), getSettings().tagSortMode, getTagCounts());
 		if (idx >= tags.length) return;
 		const tag = tags[idx];
 		const cur = pendingTagsRef.current;
@@ -1354,9 +1356,7 @@ function LocationPreviewInner() {
 	if (!location || !map) return null;
 
 	const locTags = pendingTags.map((id) => map.meta.tags[id]).filter(Boolean);
-	const allTags = getVisibleTags().sort(
-		(a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name),
-	);
+	const allTags = sortTagsByMode(getVisibleTags(), tagSortMode, getTagCounts());
 	const suggestions = (() => {
 		const available = allTags.filter((t) => !pendingTags.includes(t.id));
 		if (tagInput.trim()) {
