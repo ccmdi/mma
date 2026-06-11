@@ -1368,6 +1368,11 @@ declare const DEFAULTS: {
 		g: number;
 		b: number;
 	};
+	importPreviewColor: {
+		r: number;
+		g: number;
+		b: number;
+	};
 	tagViewMode: TagViewMode;
 	borderDetail: BorderDetail;
 	previewAspectRatio: PreviewAspectRatio;
@@ -1563,6 +1568,11 @@ declare const mma: {
 		panToImported: boolean;
 		followActiveInReview: boolean;
 		activeLocationColor: {
+			r: number;
+			g: number;
+			b: number;
+		};
+		importPreviewColor: {
 			r: number;
 			g: number;
 			b: number;

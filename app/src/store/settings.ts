@@ -97,6 +97,7 @@ const DEFAULTS = {
 	panToImported: true,
 	followActiveInReview: true,
 	activeLocationColor: { r: 200, g: 0, b: 0 },
+	importPreviewColor: { r: 217, g: 70, b: 239 },
 	tagViewMode: "flat" as TagViewMode,
 	borderDetail: "light" as BorderDetail,
 	previewAspectRatio: "16 / 9" as PreviewAspectRatio,

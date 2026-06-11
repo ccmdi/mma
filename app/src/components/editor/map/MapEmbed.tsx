@@ -397,6 +397,7 @@ export function MapEmbed() {
 	const [mapZoom, setMapZoom] = useState(2);
 	const scoreMaxError = useScoreMaxError();
 	const activeLocationColor = useSetting("activeLocationColor");
+	const importPreviewColor = useSetting("importPreviewColor");
 
 	const [pointAlongRoad] = useMapSetting("pointAlongRoad");
 	const [preferDirection] = useMapSetting("preferDirection");
@@ -835,7 +836,7 @@ export function MapEmbed() {
 			);
 		}
 
-		// Staged import preview markers (green), non-pickable so they don't intercept clicks.
+		// Staged import preview markers, non-pickable so they don't intercept clicks.
 		if (getWorkArea() === "import") {
 			const previewPos = getImportPreviewPositions();
 			const previewCount = previewPos.length / 2;
@@ -847,10 +848,10 @@ export function MapEmbed() {
 							length: previewCount,
 							attributes: { getPosition: { value: previewPos, size: 2 } },
 						},
-						getRadius: 4,
+						getRadius: 6,
 						radiusUnits: "pixels",
-						radiusMinPixels: 2,
-						getFillColor: [34, 197, 94, 200],
+						radiusMinPixels: 3,
+						getFillColor: [importPreviewColor.r, importPreviewColor.g, importPreviewColor.b, 200],
 						stroked: false,
 						pickable: false,
 					}),
@@ -863,6 +864,7 @@ export function MapEmbed() {
 		markerOpacity,
 		markerStyle,
 		activeLocationColor,
+		importPreviewColor,
 		showPerfectScoreCircle,
 		scoreMaxError,
 		svPanoramas,

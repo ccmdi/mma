@@ -657,6 +657,25 @@ function ActiveLocationSection() {
 	);
 }
 
+function ImportSection() {
+	const s = useSettings();
+	return (
+		<fieldset className="fieldset">
+			<legend className="fieldset__header">
+				Import <span className="fieldset__divider" />
+			</legend>
+			<div className="settings-popup__item">
+				Staged marker color
+				<ColorPicker
+					color={s.importPreviewColor}
+					onChange={(color) => setSetting("importPreviewColor", color)}
+					ariaLabel="Staged import marker color"
+				/>
+			</div>
+		</fieldset>
+	);
+}
+
 function MapListSection() {
 	const s = useSettings();
 	const fields = s.mapListFields;
@@ -736,6 +755,7 @@ function MapTab() {
 		<>
 			<MapNavigationSection />
 			<ActiveLocationSection />
+			<ImportSection />
 		</>
 	);
 }
