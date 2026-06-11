@@ -32,7 +32,7 @@ import { useHotkey, useCommandHotkeys, isEditableElement } from "@/lib/hooks/use
 import { useBinding } from "@/lib/util/hotkeys";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { useSettings, setSetting, getSettings } from "@/store/settings";
-import { parseMapsUrl, parseCoordinates } from "@/lib/data/importExport";
+import { parseMapsUrl, parseCoordinates, parseUrlList, parsedLocationsToImportJson, type ParsedLocation } from "@/lib/data/importExport";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiBackburger, mdiPencil } from "@mdi/js";
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
@@ -45,6 +45,23 @@ function zoomToPasted(bounds: [number, number, number, number] | null, padding =
 	fitMapToBounds(bounds, padding);
 }
 
+async function addParsedLocations(parsed: ParsedLocation[]) {
+	const tagNames = [...new Set(parsed.flatMap((p) => p.tags))];
+	const resolved = await createTags(tagNames);
+	const tagIdByName = new Map(resolved.map((t) => [t.name.toLowerCase(), t.id]));
+	const locs = parsed.map((p) =>
+		createLocation({
+			...p,
+			tags: p.tags.map((n) => tagIdByName.get(n.toLowerCase())).filter((id): id is number => id !== undefined),
+		}),
+	);
+	await addLocations(locs);
+	setActiveLocation(locs[locs.length - 1].id);
+	const lats = locs.map((l) => l.lat);
+	const lngs = locs.map((l) => l.lng);
+	zoomToPasted([Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)]);
+}
+
 function usePasteHandler() {
 	useEffect(() => {
 		async function onPaste(e: ClipboardEvent) {
@@ -52,25 +69,23 @@ function usePasteHandler() {
 			const text = e.clipboardData?.getData("text") ?? "";
 			if (!text.trim()) return;
 
-			const isSingleLine = !text.trim().includes("\n");
-			if (isSingleLine) {
+			// Single line -> direct add + open; anything multi-line (JSON, CSV,
+			// URL lists) -> staged import flow
+			if (!text.trim().includes("\n")) {
 				const parsed = (await parseMapsUrl(text)) ?? parseCoordinates(text);
 				if (parsed) {
-					let tagIds: number[] = [];
-					if (parsed.tags.length > 0) {
-						const resolved = await createTags(parsed.tags);
-						tagIds = resolved.map((t) => t.id);
-					}
-					const loc = createLocation({ ...parsed, tags: tagIds });
-					await addLocations([loc]);
-					setActiveLocation(loc.id);
-					zoomToPasted([loc.lng, loc.lat, loc.lng, loc.lat]);
+					await addParsedLocations([parsed]);
 					return;
 				}
 			}
 
+			// list of urls overwrites the payload with a "proxy JSON"
+			let payload = text;
+			const urlLocs = await parseUrlList(text);
+			if (urlLocs.length > 0) payload = parsedLocationsToImportJson(urlLocs, "Pasted URLs");
+
 			try {
-				await beginImportPaste(text);
+				await beginImportPaste(payload);
 			} catch {
 				log.warn("Couldn't import locations via paste.");
 			}

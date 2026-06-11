@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseMapsUrl, parseCoordinates } from "@/lib/data/importExport";
+import { parseMapsUrl, parseCoordinates, parseUrlList, parsedLocationsToImportJson } from "@/lib/data/importExport";
 import { LocationFlag } from "@/types";
 
 describe("parseMapsUrl", () => {
@@ -120,6 +120,83 @@ describe("parseMapsUrl", () => {
 		expect(result).not.toBeNull();
 		expect(result!.heading).toBe(0);
 		expect(result!.pitch).toBe(0);
+	});
+});
+
+describe("parseUrlList", () => {
+	it("parses multiple Google Maps URLs", async () => {
+		const input = [
+			"https://www.google.com/maps?map_action=pano&viewpoint=48.8566,2.3522",
+			"https://www.google.com/maps?map_action=pano&viewpoint=40.7128,-74.006",
+		].join("\n");
+		const results = await parseUrlList(input);
+		expect(results).toHaveLength(2);
+		expect(results[0].lat).toBeCloseTo(48.8566, 4);
+		expect(results[1].lat).toBeCloseTo(40.7128, 4);
+	});
+
+	it("skips blank lines and unparseable lines", async () => {
+		const input = [
+			"https://www.google.com/maps?map_action=pano&viewpoint=10,20",
+			"",
+			"https://example.com/not-a-maps-url",
+			"https://www.google.com/maps?map_action=pano&viewpoint=30,40",
+		].join("\n");
+		const results = await parseUrlList(input);
+		expect(results).toHaveLength(2);
+		expect(results[0].lat).toBe(10);
+		expect(results[1].lat).toBe(30);
+	});
+
+	it("returns empty array for non-URL text", async () => {
+		expect(await parseUrlList("just some text\nwith newlines")).toEqual([]);
+		expect(await parseUrlList("")).toEqual([]);
+	});
+
+	it("returns empty array for JSON input", async () => {
+		expect(await parseUrlList('{"type": "FeatureCollection"}')).toEqual([]);
+	});
+
+	it("preserves input order beyond the concurrency window", async () => {
+		const lats = Array.from({ length: 12 }, (_, i) => i + 1);
+		const input = lats.map((la) => `https://www.google.com/maps?map_action=pano&viewpoint=${la},20`).join("\n");
+		const results = await parseUrlList(input);
+		expect(results.map((r) => r.lat)).toEqual(lats);
+	});
+});
+
+describe("parsedLocationsToImportJson", () => {
+	const base = { lat: 1, lng: 2, heading: 3, pitch: 4, zoom: 5, tags: [] as string[] };
+
+	it("produces a named import file in the standard shape", () => {
+		const json = JSON.parse(
+			parsedLocationsToImportJson([{ ...base, panoId: null, flags: LocationFlag.None }], "Pasted URLs"),
+		);
+		expect(json.name).toBe("Pasted URLs");
+		expect(json.customCoordinates).toEqual([{ lat: 1, lng: 2, heading: 3, pitch: 4, zoom: 5 }]);
+	});
+
+	it("emits top-level panoId only for LoadAsPanoId locations", () => {
+		const json = JSON.parse(
+			parsedLocationsToImportJson(
+				[
+					{ ...base, panoId: "abc", flags: LocationFlag.LoadAsPanoId },
+					{ ...base, panoId: "def", flags: LocationFlag.None },
+				],
+				"x",
+			),
+		);
+		expect(json.customCoordinates[0].panoId).toBe("abc");
+		expect(json.customCoordinates[0].extra).toBeUndefined();
+		expect(json.customCoordinates[1].panoId).toBeUndefined();
+		expect(json.customCoordinates[1].extra).toEqual({ panoId: "def" });
+	});
+
+	it("carries tags through extra.tags", () => {
+		const json = JSON.parse(
+			parsedLocationsToImportJson([{ ...base, tags: ["red", "blue"], panoId: null, flags: LocationFlag.None }]),
+		);
+		expect(json.customCoordinates[0].extra).toEqual({ tags: ["red", "blue"] });
 	});
 });
 

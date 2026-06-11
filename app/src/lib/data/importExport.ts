@@ -118,6 +118,48 @@ export function parseCoordinates(input: string): ParsedLocation | null {
 	return { lat, lng, heading: 0, pitch: 0, zoom: 0, panoId: null, flags: LocationFlag.None, tags: [] };
 }
 
+const URL_LINE = /^https?:\/\//;
+
+/** Parse a multi-line paste as a list of Maps URLs. Returns parsed locations
+ * (in input order) for all lines that resolved, via a concurrency-5 worker pool. */
+export async function parseUrlList(input: string): Promise<ParsedLocation[]> {
+	const lines = input.split("\n").map((l) => l.trim()).filter(Boolean);
+	if (lines.length === 0 || !URL_LINE.test(lines[0])) return [];
+
+	const results: (ParsedLocation | null)[] = new Array(lines.length);
+	let next = 0;
+	const worker = async () => {
+		while (next < lines.length) {
+			const i = next++;
+			results[i] = await parseMapsUrl(lines[i]);
+		}
+	};
+	await Promise.all(Array.from({ length: Math.min(5, lines.length) }, worker));
+	return results.filter((r): r is ParsedLocation => r != null);
+}
+
+/** Serialize parsed locations as a standard import file (the same JSON shape the
+ * importer already parses), so they can enter the staged import flow. */
+export function parsedLocationsToImportJson(locs: ParsedLocation[], name: string): string {
+	const customCoordinates = locs.map((l) => {
+		// Importer semantics: top-level panoId implies LoadAsPanoId; extra.panoId doesn't.
+		const loadAsPano = l.panoId != null && (l.flags & LocationFlag.LoadAsPanoId) !== 0;
+		const extra: Record<string, unknown> = {};
+		if (l.tags.length > 0) extra.tags = l.tags;
+		if (l.panoId != null && !loadAsPano) extra.panoId = l.panoId;
+		return {
+			lat: l.lat,
+			lng: l.lng,
+			heading: l.heading,
+			pitch: l.pitch,
+			zoom: l.zoom,
+			...(loadAsPano ? { panoId: l.panoId } : {}),
+			...(Object.keys(extra).length > 0 ? { extra } : {}),
+		};
+	});
+	return JSON.stringify({ name, customCoordinates });
+}
+
 export async function parseMapsUrl(input: string): Promise<ParsedLocation | null> {
 	let url: URL;
 	try {
