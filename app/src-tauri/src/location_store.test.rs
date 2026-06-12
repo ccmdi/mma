@@ -1984,3 +1984,92 @@ fn overlay_add_duplicate_id_asserts_in_debug() {
     let mut store = setup_store_with(&[loc(112, 1.0, 1.0)]);
     store.overlay_add(loc(112, 9.0, 9.0));
 }
+
+// -----------------------------------------------------------------------
+// Cross-map copy dedup (split_new_locations)
+// -----------------------------------------------------------------------
+
+fn loc_with_pano(id: u32, lat: f64, lng: f64, pano: &str) -> Location {
+    Location { pano_id: Some(pano.to_string()), ..loc(id, lat, lng) }
+}
+
+#[test]
+fn copy_dedup_pano_id_wins_over_coords() {
+    let existing = vec![loc_with_pano(1, 10.0, 20.0, "AAA")];
+    // Same pano, different coords: duplicate. Different pano, same coords: fresh.
+    let sources = vec![loc_with_pano(7, 99.0, 99.0, "AAA"), loc_with_pano(8, 10.0, 20.0, "BBB")];
+    let (fresh, skipped) = split_new_locations(sources, &existing);
+    assert_eq!(skipped, 1);
+    assert_eq!(fresh.len(), 1);
+    assert_eq!(fresh[0].pano_id.as_deref(), Some("BBB"));
+}
+
+#[test]
+fn copy_dedup_panoless_falls_back_to_exact_coords() {
+    let existing = vec![loc(1, 10.0, 20.0), loc_with_pano(2, 30.0, 40.0, "CCC")];
+    let sources = vec![loc(7, 10.0, 20.0), loc(8, 30.0, 40.0), loc(9, 10.0, 20.000001)];
+    let (fresh, skipped) = split_new_locations(sources, &existing);
+    // id7 matches pano-less coords; id8 matches CCC's coords (pano-less source);
+    // id9 is off by 1e-6 -- exact bits only, so fresh.
+    assert_eq!(skipped, 2);
+    assert_eq!(fresh.len(), 1);
+    assert_eq!(fresh[0].id, 9);
+}
+
+#[test]
+fn copy_dedup_empty_pano_treated_as_panoless() {
+    let existing = vec![Location { pano_id: Some(String::new()), ..loc(1, 10.0, 20.0) }];
+    let sources = vec![Location { pano_id: Some(String::new()), ..loc(7, 10.0, 20.0) }];
+    let (_, skipped) = split_new_locations(sources, &existing);
+    assert_eq!(skipped, 1);
+}
+
+// -----------------------------------------------------------------------
+// Tag reconciliation core (reconcile_tags_by_name) — shared by import + copy
+// -----------------------------------------------------------------------
+
+fn tag(id: u32, name: &str, color: &str) -> Tag {
+    Tag { id, name: name.into(), color: color.into(), visible: true, order: None, count: 0 }
+}
+
+#[test]
+fn reconcile_tags_match_by_name_case_insensitive() {
+    let mut target_tags: HashMap<u32, Tag> = [(3, tag(3, "rural", "#222222"))].into_iter().collect();
+    let mut next = 4;
+    let remap = reconcile_tags_by_name(&[tag(7, "Rural", "#111111")], &mut target_tags, &mut next);
+    assert_eq!(remap.get(&7), Some(&3));
+    assert_eq!(next, 4);
+    assert_eq!(target_tags.len(), 1);
+    // The existing target tag keeps its own color.
+    assert_eq!(target_tags.get(&3).unwrap().color, "#222222");
+}
+
+#[test]
+fn reconcile_tags_create_missing_with_source_color() {
+    let mut target_tags: HashMap<u32, Tag> = Default::default();
+    let mut next = 10;
+    let remap = reconcile_tags_by_name(
+        &[Tag { count: 42, ..tag(7, "Trekker", "#abcdef") }],
+        &mut target_tags,
+        &mut next,
+    );
+    assert_eq!(remap.get(&7), Some(&10));
+    assert_eq!(next, 11);
+    let new_tag = target_tags.get(&10).unwrap();
+    assert_eq!(new_tag.name, "Trekker");
+    assert_eq!(new_tag.color, "#abcdef");
+    assert_eq!(new_tag.count, 0); // source count never leaks into the target
+}
+
+#[test]
+fn reconcile_tags_dedupes_same_name_within_batch() {
+    let mut target_tags: HashMap<u32, Tag> = Default::default();
+    let mut next = 1;
+    let remap = reconcile_tags_by_name(
+        &[tag(7, "urban", "#111111"), tag(8, "Urban", "#222222")],
+        &mut target_tags,
+        &mut next,
+    );
+    assert_eq!(target_tags.len(), 1);
+    assert_eq!(remap.get(&7), remap.get(&8));
+}

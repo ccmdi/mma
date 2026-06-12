@@ -245,7 +245,7 @@ describe("Benchmarks — selection at scale", () => {
 					panoId: null, id: 0,
 					flags: i % 5 === 0 ? 1 : 0,
 					tags: i % 3 === 0 ? [tagId] : [],
-					createdAt: new Date().toISOString(),
+					createdAt: Math.floor(Date.now() / 1000),
 				});
 			}
 			await api.addLocations(locs);
@@ -364,7 +364,7 @@ describe("Benchmarks — undo at scale", () => {
 					panoId: null, id: 0,
 					flags: 0,
 					tags: [],
-					createdAt: new Date().toISOString(),
+					createdAt: Math.floor(Date.now() / 1000),
 				});
 			}
 			await api.addLocations(locs);

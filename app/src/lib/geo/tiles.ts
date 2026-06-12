@@ -677,14 +677,33 @@ export function buildSvCoverageConfig(opts: {
 	};
 }
 
-export function buildTileUrl(cfg: TileConfig, x: number, y: number, zoom: number): string {
+function applyTileCoords(cfg: TileConfig, x: number, y: number, zoom: number) {
 	const { tile } = cfg.query;
 	const n = 2 ** zoom;
 	tile.x = ((x % n) + n) % n;
 	tile.y = y;
 	tile.zoom = zoom;
 	tile.size = 256;
+}
+
+export function buildTileUrl(cfg: TileConfig, x: number, y: number, zoom: number): string {
+	applyTileCoords(cfg, x, y, zoom);
 	const url = new URL("https://maps.googleapis.com/maps/vt");
+	url.searchParams.set("pb", serializeTileUrl(cfg));
+	return url.toString();
+}
+
+// Cloud-styled tile endpoint: the map_id applies a server-side published style.
+export function buildStyledTileUrl(
+	cfg: TileConfig,
+	mapId: string,
+	x: number,
+	y: number,
+	zoom: number,
+): string {
+	applyTileCoords(cfg, x, y, zoom);
+	const url = new URL("https://mapsresources-pa.googleapis.com/v1/tiles");
+	url.searchParams.set("map_id", mapId);
 	url.searchParams.set("pb", serializeTileUrl(cfg));
 	return url.toString();
 }
@@ -729,6 +748,24 @@ export function createLabelsTileConfig(styles: MapStyle[] = []): TileConfig {
 				{ elementType: "labels", stylers: [{ visibility: "on" }] },
 				...styles,
 			]),
+		},
+		renderOptions: { scale: devicePixelRatio },
+	});
+}
+
+// GeoGuessr's published Cloud Maps style (legacy renderer: white/yellow roads).
+// The colors come from the map_id, so configs must be served via buildStyledTileUrl.
+export const LEGACY_STYLE_MAP_ID = "61449c20e7fc278b";
+
+export function createLegacyTileConfig(styles: MapStyle[] = []): TileConfig {
+	return new TileConfig({
+		query: { tile: {} },
+		layers: [{ type: LayerType.ROADMAP, layerName: "m", layerOptions: [] }],
+		options: {
+			language: "en",
+			region: "US",
+			unknownStyleFlag: LegacyFlag.LEGACY,
+			styles: buildMapStyles("roadmap", styles),
 		},
 		renderOptions: { scale: devicePixelRatio },
 	});

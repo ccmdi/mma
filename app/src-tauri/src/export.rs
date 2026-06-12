@@ -4,7 +4,7 @@
 
 use crate::types::{AppError, AppResult};
 use std::io::Write;
-use crate::fast_io;
+use crate::storage;
 use crate::location_store::StoreState;
 use crate::types::LocationFlags;
 use crate::util::hex_to_rgb;
@@ -237,14 +237,11 @@ pub fn store_save_export_file(src_path: String, dest_path: String) -> AppResult<
 /// Runs on a blocking thread to avoid starving the async runtime.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_export_bulk_zip(
-    app: tauri::AppHandle,
-) -> AppResult<String> {
-    let app2 = app.clone();
+pub async fn store_export_bulk_zip() -> AppResult<String> {
     let path = tokio::task::spawn_blocking(move || {
         use std::io::Cursor;
 
-        let conn = fast_io::open_db(&app2)?;
+        let conn = storage::open_db()?;
         let mut stmt = conn.prepare("SELECT id, name, folder, tags, extra FROM maps")?;
         let maps: Vec<(String, String, Option<String>, String, String)> = stmt.query_map([], |row| {
             Ok((
@@ -269,7 +266,7 @@ pub async fn store_export_bulk_zip(
 
             for (map_id, name, _folder, tags_json, extra_json) in &maps {
                 // Base file + uncommitted delta sidecar = the map's full current state.
-                let locs = crate::location_store::read_full_state_from_disk(&app2, map_id)?;
+                let locs = crate::location_store::read_full_state_from_disk(map_id)?;
 
                 let (tag_defs, id_to_name) = parse_tag_defs(tags_json);
 

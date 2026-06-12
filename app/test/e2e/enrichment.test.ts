@@ -20,7 +20,7 @@ const LoadAsPanoId = 1;
 const PANO_TIMEOUT = 10_000;
 
 function loc(overrides: Partial<Location> = {}): Location {
-	return createLocation({ lat: 0, lng: 0, modifiedAt: new Date().toISOString(), ...overrides });
+	return createLocation({ lat: 0, lng: 0, modifiedAt: Math.floor(Date.now() / 1000), ...overrides });
 }
 
 async function readLocation(id: number): Promise<any> {

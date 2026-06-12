@@ -54,6 +54,8 @@ import {
 	getSelectedLocationIds,
 	useImportMarkerVersion,
 	getImportPreviewPositions,
+	getActiveStagedIndex,
+	openStagedLocation,
 	useDiffMarkerVersion,
 	getCommitDiffPreview,
 	renderDeltaBus,
@@ -78,16 +80,20 @@ import { boundsToTiles, fetchPanoDots, type PanoDot } from "@/lib/geo/photometa"
 
 import {
 	buildTileUrl,
+	buildStyledTileUrl,
 	createRoadmapTileConfig,
+	createLegacyTileConfig,
 	createLabelsTileConfig,
 	createSatelliteTileConfig,
 	createSvTileConfig,
 	createSvBlobbyTileConfig,
 	createTerrainBasemapTileConfig,
 	createTerrainOverlayTileConfig,
+	LEGACY_STYLE_MAP_ID,
 	type MapStyle,
 } from "@/lib/geo/tiles";
 import type { Location } from "@/types";
+import { isVirtualLocation } from "@/types";
 import { SearchControl } from "@/components/editor/map/SearchControl";
 import {
 	MapTypeDropdown,
@@ -232,7 +238,10 @@ function createCompositeMapType(layers: google.maps.ImageMapType[]): google.maps
 
 const LOCATION_LAYER_ID = "locations";
 const isLocationLayer = (id?: string) =>
-	id?.startsWith(LOCATION_LAYER_ID) || id?.startsWith("cell:") || id?.startsWith("sel-overlay:");
+	id?.startsWith(LOCATION_LAYER_ID) ||
+	id?.startsWith("cell:") ||
+	id?.startsWith("sel-overlay:") ||
+	id === "import-preview";
 const PERFECT_SCORE_LAYER_ID = "perfect-score";
 
 interface MapEmbedPrefs {
@@ -836,10 +845,11 @@ export function MapEmbed() {
 			);
 		}
 
-		// Staged import preview markers, non-pickable so they don't intercept clicks.
-		if (getWorkArea() === "import") {
+		// Staged import preview markers; clicking one opens a read-only preview.
+		if (getWorkArea() === "import" || getActiveStagedIndex() !== null) {
 			const previewPos = getImportPreviewPositions();
 			const previewCount = previewPos.length / 2;
+			const stagedIdx = getActiveStagedIndex();
 			if (previewCount > 0) {
 				layers.push(
 					new ScatterplotLayer({
@@ -851,9 +861,13 @@ export function MapEmbed() {
 						getRadius: 6,
 						radiusUnits: "pixels",
 						radiusMinPixels: 3,
-						getFillColor: [importPreviewColor.r, importPreviewColor.g, importPreviewColor.b, 200],
+						getFillColor: (_: unknown, { index }: { index: number }) =>
+							index === stagedIdx
+								? [activeLocationColor.r, activeLocationColor.g, activeLocationColor.b, 255]
+								: [importPreviewColor.r, importPreviewColor.g, importPreviewColor.b, 200],
 						stroked: false,
-						pickable: false,
+						pickable: true,
+						updateTriggers: { getFillColor: [stagedIdx, importPreviewColor, activeLocationColor] },
 					}),
 				);
 			}
@@ -886,6 +900,15 @@ export function MapEmbed() {
 	const handleClick = useCallback(
 		async (info: PickingInfo, event: OverlayEvent) => {
 			const domEvent = event?.srcEvent?.domEvent;
+
+			// Staged import markers open a read-only preview; never fall through to the
+			// map-click SV lookup (which would create a new location).
+			if (info.layer?.id === "import-preview") {
+				if (typeof info.index === "number" && info.index >= 0) {
+					void openStagedLocation(info.index);
+				}
+				return;
+			}
 
 			const resolvePickedLocation = async (): Promise<Location | undefined> => {
 				if (info.object) return info.object as Location;
@@ -936,6 +959,7 @@ export function MapEmbed() {
 			if (isLocationLayer(info.layer?.id)) {
 				const loc = await resolvePickedLocation();
 				if (loc) {
+					if (isVirtualLocation(loc)) return; // staged location's active pin: already open
 					if (domEvent instanceof MouseEvent && domEvent.ctrlKey) {
 						toggleManualSelection(loc.id);
 					} else {
@@ -952,6 +976,7 @@ export function MapEmbed() {
 				if (tryInterceptClick(lat, lng)) return;
 				if (getWorkArea() === "plugin") return;
 				if (getWorkArea() === "import") return;
+				if (getActiveStagedIndex() !== null) return; // staged preview open
 				if (getWorkArea() === "diff") return;
 				if (selectOnlyRef.current) {
 					if (containerRef.current) {
@@ -1012,6 +1037,7 @@ export function MapEmbed() {
 		}) => {
 			const tileSize = new google.maps.Size(256, 256);
 			const layers: google.maps.ImageMapType[] = [];
+			const legacyBase = opts.style === "legacy" && opts.type === "map" && !opts.terrain;
 
 			const extraStyles: MapStyle[] = [];
 			if (opts.style === "darkMode") {
@@ -1089,6 +1115,24 @@ export function MapEmbed() {
 							maxZoom: 20,
 						}),
 					);
+				} else if (legacyBase) {
+					// Legacy style renders labels in the base tile (toggled via stylers),
+					// so the separate labels layer is skipped below.
+					const cfg = createLegacyTileConfig([
+						...(opts.labels
+							? []
+							: [{ elementType: "labels", stylers: [{ visibility: "off" }] } as MapStyle]),
+						...extraStyles,
+					]);
+					layers.push(
+						new google.maps.ImageMapType({
+							getTileUrl: (coord: TileCoord, zoom: number) =>
+								buildStyledTileUrl(cfg, LEGACY_STYLE_MAP_ID, coord.x, coord.y, zoom),
+							tileSize,
+							minZoom: 0,
+							maxZoom: 20,
+						}),
+					);
 				} else {
 					const cfg = createRoadmapTileConfig(extraStyles);
 					layers.push(
@@ -1128,7 +1172,7 @@ export function MapEmbed() {
 			svLayerRef.current = svLayer;
 			layers.push(svLayer);
 
-			if (opts.labels && opts.type !== "osm") {
+			if (opts.labels && opts.type !== "osm" && !legacyBase) {
 				const labelCfg = createLabelsTileConfig(extraStyles);
 				layers.push(
 					new google.maps.ImageMapType({

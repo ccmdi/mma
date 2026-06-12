@@ -9,12 +9,15 @@ import {
 	fieldValue,
 	fieldPatch,
 	groupByField,
+	projectionsForType,
+	TAG_PROJECTIONS,
 	rewriteSelectionFields,
 	pickPeriodEnd,
 	hasTimeOfDay,
 	stepFilterWindow,
 	dateParts,
 	partsToEpoch,
+	type ProjectionCtx,
 } from "@/lib/data/fieldOps";
 import { buildSelection } from "@/store/selections";
 import type { Location, MapData } from "@/types";
@@ -31,7 +34,7 @@ function makeLoc(id: number, extra?: Record<string, unknown>): Location {
 		flags: 0,
 		tags: [],
 		extra,
-		createdAt: "",
+		createdAt: 0,
 		modifiedAt: null,
 	} as Location;
 }
@@ -153,6 +156,92 @@ describe("groupByField", () => {
 
 	it("returns an empty map when no locations have the field", () => {
 		expect(groupByField([makeLoc(1, { other: "x" })], "missing").size).toBe(0);
+	});
+
+	it("groups by a key function and skips locations whose key is null", () => {
+		const locs = [makeLoc(1, { n: 84 }), makeLoc(2, { n: 1237 }), makeLoc(3, { n: "junk" })];
+		const groups = groupByField(locs, "n", (v) => {
+			const x = Number(v);
+			return Number.isFinite(x) ? String(Math.floor(x / 500) * 500) : null;
+		});
+		expect(groups.get("0")).toEqual([1]);
+		expect(groups.get("1000")).toEqual([2]);
+		expect(groups.size).toBe(2);
+	});
+});
+
+describe("tag projections", () => {
+	const proj = (id: string) => TAG_PROJECTIONS.find((p) => p.id === id)!;
+	const dateCtx = (over: Partial<ProjectionCtx> = {}): ProjectionCtx => ({
+		fieldType: "date",
+		loc: makeLoc(1),
+		...over,
+	});
+
+	it("projectionsForType filters by field type", () => {
+		expect(projectionsForType("string").map((p) => p.id)).toEqual(["value"]);
+		expect(projectionsForType("enum").map((p) => p.id)).toEqual(["value"]);
+		expect(projectionsForType("number").map((p) => p.id)).toEqual(["value", "bucket"]);
+		expect(projectionsForType("month").map((p) => p.id)).toEqual(["value", "year", "monthOfYear"]);
+		expect(projectionsForType("date").map((p) => p.id)).toEqual([
+			"year", "yearMonth", "day", "monthOfYear", "timeOfDay",
+		]);
+	});
+
+	it("date projections read viewer-local digits by default", () => {
+		// Round-trip through the local-frame codec so the test passes in any runner timezone.
+		const ts = partsToEpoch({ y: 2019, mo: 6, d: 14, h: 13 }, false);
+		expect(proj("year").key(ts, dateCtx())).toBe("2019");
+		expect(proj("yearMonth").key(ts, dateCtx())).toBe("2019-07");
+		expect(proj("day").key(ts, dateCtx())).toBe("2019-07-14");
+		expect(proj("monthOfYear").key(ts, dateCtx())).toBe("July");
+		expect(proj("timeOfDay").key(ts, dateCtx())).toBe("Afternoon");
+	});
+
+	it("time-of-day bucket boundaries", () => {
+		const at = (h: number) => partsToEpoch({ y: 2020, mo: 0, d: 1, h }, false);
+		expect(proj("timeOfDay").key(at(5), dateCtx())).toBe("Night");
+		expect(proj("timeOfDay").key(at(6), dateCtx())).toBe("Morning");
+		expect(proj("timeOfDay").key(at(12), dateCtx())).toBe("Afternoon");
+		expect(proj("timeOfDay").key(at(18), dateCtx())).toBe("Evening");
+	});
+
+	it("non-numeric date values yield null", () => {
+		expect(proj("year").key("garbage", dateCtx())).toBeNull();
+		expect(proj("year").key(null, dateCtx())).toBeNull();
+	});
+
+	it("month field values parse from YYYY-MM strings", () => {
+		const ctx = (loc = makeLoc(1)): ProjectionCtx => ({ fieldType: "month", loc });
+		expect(proj("year").key("2019-07", ctx())).toBe("2019");
+		expect(proj("monthOfYear").key("2019-07", ctx())).toBe("July");
+		expect(proj("year").key("garbage", ctx())).toBeNull();
+	});
+
+	it("tzLocal reads digits in the location's timezone, crossing year boundaries", () => {
+		// 2019-12-31T20:00:00Z is already 2020-01-01 05:00 in Tokyo (UTC+9, no DST).
+		const ts = Date.UTC(2019, 11, 31, 20, 0, 0) / 1000;
+		const tokyo = makeLoc(1, { timezone: "Asia/Tokyo" });
+		expect(proj("year").key(ts, dateCtx({ loc: tokyo, tzLocal: true }))).toBe("2020");
+		expect(proj("day").key(ts, dateCtx({ loc: tokyo, tzLocal: true }))).toBe("2020-01-01");
+		expect(proj("timeOfDay").key(ts, dateCtx({ loc: tokyo, tzLocal: true }))).toBe("Night");
+	});
+
+	it("tzLocal skips locations without a resolvable timezone (matching tzLocal filters)", () => {
+		const ts = Date.UTC(2019, 11, 31, 20, 0, 0) / 1000;
+		expect(proj("year").key(ts, dateCtx({ tzLocal: true }))).toBeNull();
+		const badTz = makeLoc(1, { timezone: "Not/AZone" });
+		expect(proj("year").key(ts, dateCtx({ loc: badTz, tzLocal: true }))).toBeNull();
+	});
+
+	it("bucket snaps numbers to fixed-width bands", () => {
+		const ctx = (width?: number): ProjectionCtx => ({ fieldType: "number", loc: makeLoc(1), width });
+		expect(proj("bucket").key(1237, ctx(500))).toBe("1000-1500");
+		expect(proj("bucket").key(84, ctx(500))).toBe("0-500");
+		expect(proj("bucket").key(-10, ctx(500))).toBe("-500-0");
+		expect(proj("bucket").key(1237, ctx())).toBeNull();
+		expect(proj("bucket").key(1237, ctx(0))).toBeNull();
+		expect(proj("bucket").key("junk", ctx(500))).toBeNull();
 	});
 });
 

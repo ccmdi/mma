@@ -6,6 +6,7 @@ import { google } from "@/lib/sv/opensv";
 import { lookupStreetView } from "@/lib/sv/lookup";
 import { shortenMapsUrl } from "@/lib/sv/shortUrl";
 import { useSettings } from "@/store/settings";
+import { getCurrentMap } from "@/store/useMapStore";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useHotkey, useHotkeyRef } from "@/lib/hooks/useHotkey";
 import { open } from "@tauri-apps/plugin-shell";
@@ -294,6 +295,12 @@ export function PanoControls({
 	const doCopy = useCallback(async (long: boolean) => {
 		const url = buildMapsUrl();
 		if (!url) return;
+		const tagsById = getCurrentMap()?.meta.tags ?? {};
+		for (const id of location.tags) {
+			const name = tagsById[id]?.name;
+			if (name) url.searchParams.append("extra[tags]", name);
+		}
+		if (!hasLoadAsPanoId(location)) url.searchParams.set("extra[loadMode]", "latLng");
 		const longStr = url.toString();
 		if (long) {
 			await navigator.clipboard.writeText(longStr).catch(() => {});
@@ -310,7 +317,7 @@ export function PanoControls({
 		}
 		setCopyState("done");
 		setTimeout(() => setCopyState("idle"), 500);
-	}, [buildMapsUrl]);
+	}, [buildMapsUrl, location]);
 
 	const copyLink = useCallback(() => doCopy(false), [doCopy]);
 

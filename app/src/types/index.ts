@@ -47,6 +47,23 @@ export function isPinnedToPano(loc: Location): boolean {
 	return hasLoadAsPanoId(loc) && loc.panoId != null;
 }
 
+/** Virtual locations (negative id) exist only ephemerally — e.g. staged imports
+ *  previewed before commit. They display like real locations but every mutate
+ *  path no-ops, and UI hides affordances that cannot apply. */
+export function isVirtualLocation(loc: { id: number }): boolean {
+	return loc.id < 0;
+}
+
+/** Encoding between a staged-import preview index and its virtual location id.
+ *  Single source for the `-(index + 1)` scheme. */
+export function stagedIndexToVirtualId(index: number): number {
+	return -(index + 1);
+}
+
+export function virtualIdToStagedIndex(id: number): number {
+	return -id - 1;
+}
+
 export function createLocation(
 	partial: Partial<Location> & { lat: number; lng: number },
 ): Location {

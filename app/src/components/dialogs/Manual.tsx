@@ -835,7 +835,9 @@ const CHAPTERS: Chapter[] = [
 						<strong>Apply metadata as tags.</strong> Pick a metadata field and MMA creates one tag
 						per distinct value, assigning each location the tag for its value (command palette). For
 						example, applying <strong>countryCode</strong> turns a map into per-country tags in one
-						step.
+						step. Date and month fields offer a grouping choice (year, year-month, exact day, month
+						of year, time of day), with an optional location-timezone frame; number fields can be
+						bucketed by a fixed width (e.g. altitude in 500m bands).
 					</li>
 					<li>
 						<strong>Find and replace in tag names.</strong> Bulk-rename across tags (command

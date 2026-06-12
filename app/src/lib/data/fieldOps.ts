@@ -5,7 +5,7 @@
  */
 
 import type { Location } from "@/types";
-import type { ExtraFieldDef, Selection, SelectionProps } from "@/bindings.gen";
+import type { ExtraFieldDef, ExtraFieldType, Selection, SelectionProps } from "@/bindings.gen";
 import { buildSelection } from "@/store/selections";
 
 /** When a move target already holds a value, which field's value survives. */
@@ -450,17 +450,184 @@ export function stepFilterWindow(
 	return null;
 }
 
+// --- Tag projections ("Apply metadata as tags" grouping keys) ----------------------
+// How a metadata value becomes a tag name: a table of pure key functions, filtered by
+// field type. The dialog reads the table; groupByField applies the chosen key.
+
+export interface ProjectionCtx {
+	fieldType: ExtraFieldType;
+	loc: Location;
+	/** Read date digits in the location's own timezone (`extra.timezone`); locations
+	 *  without a resolvable timezone yield null (skipped), matching tzLocal filters. */
+	tzLocal?: boolean;
+	/** Bucket width for the number "bucket" projection. */
+	width?: number;
+}
+
+export interface FieldProjection {
+	id: string;
+	label: string;
+	appliesTo: ExtraFieldType[];
+	needsTz?: boolean;
+	needsWidth?: boolean;
+	key(value: unknown, ctx: ProjectionCtx): string | null;
+}
+
+const tzFormatters = new Map<string, Intl.DateTimeFormat | null>();
+
+/** Offset (seconds) of IANA `tz` from UTC at `epochSec`, DST-correct; null when the
+ *  zone is unknown. JS mirror of the Rust tz_offset_seconds used by tzLocal filters. */
+function tzOffsetSeconds(tz: string, epochSec: number): number | null {
+	let dtf = tzFormatters.get(tz);
+	if (dtf === undefined) {
+		try {
+			dtf = new Intl.DateTimeFormat("en-US", {
+				timeZone: tz,
+				hourCycle: "h23",
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+				hour: "2-digit",
+				minute: "2-digit",
+				second: "2-digit",
+			});
+		} catch {
+			dtf = null;
+		}
+		tzFormatters.set(tz, dtf);
+	}
+	if (!dtf) return null;
+	const ts = Math.floor(epochSec);
+	const p: Record<string, number> = {};
+	for (const part of dtf.formatToParts(new Date(ts * 1000))) {
+		if (part.type !== "literal") p[part.type] = Number(part.value);
+	}
+	return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) / 1000 - ts;
+}
+
+const MONTH_RE = /^(\d{4})-(\d{2})$/;
+
+/** Calendar digits of a date (epoch seconds) or month ("YYYY-MM") field value. */
+function calendarParts(value: unknown, ctx: ProjectionCtx): DateParts | null {
+	if (ctx.fieldType === "month") {
+		const m = MONTH_RE.exec(String(value));
+		if (!m) return null;
+		return { y: Number(m[1]), mo: Number(m[2]) - 1, d: 1, h: 0, mi: 0, s: 0 };
+	}
+	if (value == null || value === "") return null;
+	const n = Number(value);
+	if (!Number.isFinite(n)) return null;
+	if (ctx.tzLocal) {
+		const tz = ctx.loc.extra?.timezone;
+		if (typeof tz !== "string") return null;
+		const offset = tzOffsetSeconds(tz, n);
+		if (offset == null) return null;
+		return dateParts(n + offset, true);
+	}
+	return dateParts(n, false);
+}
+
+const MONTH_NAMES = [
+	"January", "February", "March", "April", "May", "June",
+	"July", "August", "September", "October", "November", "December",
+];
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+export const TAG_PROJECTIONS: FieldProjection[] = [
+	{
+		id: "value",
+		label: "Value",
+		appliesTo: ["string", "enum", "number", "month"],
+		key: (v) => String(v),
+	},
+	{
+		id: "year",
+		label: "Year",
+		appliesTo: ["date", "month"],
+		needsTz: true,
+		key: (v, ctx) => {
+			const p = calendarParts(v, ctx);
+			return p && String(p.y);
+		},
+	},
+	{
+		id: "yearMonth",
+		label: "Year-month",
+		appliesTo: ["date"],
+		needsTz: true,
+		key: (v, ctx) => {
+			const p = calendarParts(v, ctx);
+			return p && `${p.y}-${pad2(p.mo + 1)}`;
+		},
+	},
+	{
+		id: "day",
+		label: "Exact day",
+		appliesTo: ["date"],
+		needsTz: true,
+		key: (v, ctx) => {
+			const p = calendarParts(v, ctx);
+			return p && `${p.y}-${pad2(p.mo + 1)}-${pad2(p.d)}`;
+		},
+	},
+	{
+		id: "monthOfYear",
+		label: "Month of year",
+		appliesTo: ["date", "month"],
+		needsTz: true,
+		key: (v, ctx) => {
+			const p = calendarParts(v, ctx);
+			return p && MONTH_NAMES[p.mo];
+		},
+	},
+	{
+		id: "timeOfDay",
+		label: "Time of day",
+		appliesTo: ["date"],
+		needsTz: true,
+		key: (v, ctx) => {
+			const p = calendarParts(v, ctx);
+			if (!p) return null;
+			return p.h < 6 ? "Night" : p.h < 12 ? "Morning" : p.h < 18 ? "Afternoon" : "Evening";
+		},
+	},
+	{
+		id: "bucket",
+		label: "Bucket",
+		appliesTo: ["number"],
+		needsWidth: true,
+		key: (v, ctx) => {
+			const n = Number(v);
+			const w = ctx.width ?? 0;
+			if (!Number.isFinite(n) || !(w > 0)) return null;
+			const lo = Math.floor(n / w) * w;
+			return `${lo}-${lo + w}`;
+		},
+	},
+];
+
+/** Projections valid for a field type, in display order (first = dialog default). */
+export function projectionsForType(type: ExtraFieldType): FieldProjection[] {
+	return TAG_PROJECTIONS.filter((p) => p.appliesTo.includes(type));
+}
+
 /** Group locations by the string value of `field` in their `extra`. Skips null/empty.
- *  Returns a map from field-value to the location ids that carry it. */
-export function groupByField(locations: Location[], field: string): Map<string, number[]> {
+ *  `key` maps a raw value to its group (default: String); returning null/"" skips that
+ *  location. Returns a map from group key to the location ids that carry it. */
+export function groupByField(
+	locations: Location[],
+	field: string,
+	key?: (value: unknown, loc: Location) => string | null,
+): Map<string, number[]> {
 	const groups = new Map<string, number[]>();
 	for (const loc of locations) {
 		const v = loc.extra?.[field];
 		if (v == null || v === "") continue;
-		const key = String(v);
-		const arr = groups.get(key);
+		const k = key ? key(v, loc) : String(v);
+		if (k == null || k === "") continue;
+		const arr = groups.get(k);
 		if (arr) arr.push(loc.id);
-		else groups.set(key, [loc.id]);
+		else groups.set(k, [loc.id]);
 	}
 	return groups;
 }

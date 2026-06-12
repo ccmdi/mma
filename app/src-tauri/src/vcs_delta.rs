@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, HashSet};
 use rusqlite::{params, Connection};
 
 use crate::arrow_bridge;
-use crate::fast_io;
+use crate::storage;
 use crate::types::Location;
 
 /// Ordered chain of commit ids from genesis (first) to `commit_id` (last),
@@ -49,7 +49,6 @@ pub(crate) fn replay_deltas(deltas: &[(Vec<Location>, Vec<Location>)]) -> BTreeM
 /// ancestor delta files from genesis forward. Locations are keyed (and thus
 /// returned sorted) by id.
 pub(crate) fn materialize_commit(
-    app: &tauri::AppHandle,
     conn: &Connection,
     map_id: &str,
     commit_id: &str,
@@ -57,8 +56,8 @@ pub(crate) fn materialize_commit(
     let chain = commit_chain(conn, commit_id)?;
     let mut deltas = Vec::with_capacity(chain.len());
     for id in &chain {
-        let path = fast_io::commit_delta_path(app, map_id, id)?;
-        let batch = fast_io::read_arrow_ipc(&path)?;
+        let path = storage::commit_delta_path(map_id, id)?;
+        let batch = storage::read_arrow_ipc(&path)?;
         deltas.push(arrow_bridge::batch_to_delta(&batch));
     }
     Ok(replay_deltas(&deltas))

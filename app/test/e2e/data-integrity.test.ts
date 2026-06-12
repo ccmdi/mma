@@ -314,8 +314,8 @@ describe("Data integrity - createdAt", () => {
 		await deleteMap(mapId);
 	});
 
-	it("ISO date string survives save/load", async () => {
-		const date = "2024-06-15T14:30:00.000Z";
+	it("createdAt timestamp survives save/load", async () => {
+		const date = 1718461800; // 2024-06-15T14:30:00Z
 		const ids = await addLocs([createLocation({ lat: 10, lng: 20, createdAt: date })]);
 
 		await flushAndWait();

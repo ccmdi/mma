@@ -6,7 +6,7 @@
 
 use crate::types::AppResult;
 use rusqlite::params_from_iter;
-use crate::fast_io;
+use crate::storage;
 
 /// A panorama visit record as returned to the frontend.
 #[derive(serde::Serialize, specta::Type)]
@@ -110,8 +110,8 @@ const MAX_SEEN: i64 = 10_000;
 /// bounded ring buffer without requiring explicit rotation.
 #[tauri::command]
 #[specta::specta]
-pub fn store_seen_write(app: tauri::AppHandle, entry: SeenWriteEntry) -> AppResult<()> {
-    let db = fast_io::open_db(&app)?;
+pub fn store_seen_write(entry: SeenWriteEntry) -> AppResult<()> {
+    let db = storage::open_db()?;
 
     db.execute(
         "INSERT INTO seen (pano_id, lat, lng, heading, pitch, zoom, entered_at, map_id, location_id, country_code, address, thumbnail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -139,12 +139,11 @@ pub fn store_seen_write(app: tauri::AppHandle, entry: SeenWriteEntry) -> AppResu
 #[tauri::command]
 #[specta::specta]
 pub fn store_seen_list(
-    app: tauri::AppHandle,
     limit: u32,
     offset: u32,
     filter: Option<SeenFilter>,
 ) -> AppResult<Vec<SeenEntry>> {
-    let db = fast_io::open_db(&app)?;
+    let db = storage::open_db()?;
     let (where_clause, mut params) = build_where_clause(&filter);
 
     let sql = format!(
@@ -185,8 +184,8 @@ pub fn store_seen_list(
 /// Returns the total number of seen entries matching the filter (for pagination).
 #[tauri::command]
 #[specta::specta]
-pub fn store_seen_count(app: tauri::AppHandle, filter: Option<SeenFilter>) -> AppResult<u32> {
-    let db = fast_io::open_db(&app)?;
+pub fn store_seen_count(filter: Option<SeenFilter>) -> AppResult<u32> {
+    let db = storage::open_db()?;
     let (where_clause, params) = build_where_clause(&filter);
 
     let sql = format!("SELECT COUNT(*) FROM seen{}", where_clause);
@@ -202,8 +201,8 @@ pub fn store_seen_count(app: tauri::AppHandle, filter: Option<SeenFilter>) -> Ap
 /// Used to populate the country filter dropdown.
 #[tauri::command]
 #[specta::specta]
-pub fn store_seen_countries(app: tauri::AppHandle) -> AppResult<Vec<String>> {
-    let db = fast_io::open_db(&app)?;
+pub fn store_seen_countries() -> AppResult<Vec<String>> {
+    let db = storage::open_db()?;
     let mut stmt = db
         .prepare("SELECT DISTINCT country_code FROM seen WHERE country_code IS NOT NULL ORDER BY country_code")?;
 
@@ -222,8 +221,8 @@ pub fn store_seen_countries(app: tauri::AppHandle) -> AppResult<Vec<String>> {
 /// map id if the map has been deleted.
 #[tauri::command]
 #[specta::specta]
-pub fn store_seen_maps(app: tauri::AppHandle) -> AppResult<Vec<SeenMapInfo>> {
-    let db = fast_io::open_db(&app)?;
+pub fn store_seen_maps() -> AppResult<Vec<SeenMapInfo>> {
+    let db = storage::open_db()?;
     let mut stmt = db
         .prepare(
             "SELECT DISTINCT s.map_id AS id, COALESCE(m.name, s.map_id) AS name \
@@ -249,8 +248,8 @@ pub fn store_seen_maps(app: tauri::AppHandle) -> AppResult<Vec<SeenMapInfo>> {
 /// Deletes all seen history entries.
 #[tauri::command]
 #[specta::specta]
-pub fn store_seen_clear(app: tauri::AppHandle) -> AppResult<()> {
-    let db = fast_io::open_db(&app)?;
+pub fn store_seen_clear() -> AppResult<()> {
+    let db = storage::open_db()?;
     db.execute("DELETE FROM seen", [])?;
     Ok(())
 }

@@ -22,21 +22,47 @@ pub fn db_filename() -> &'static str {
     if is_test_mode() { "mma_test.db" } else { "mma.db" }
 }
 
-/// Resolve the full path to the SQLite database inside the app data directory.
-pub(crate) fn db_path(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
-    app.path()
-        .app_data_dir()
-        .map(|p| p.join(db_filename()))
-        .map_err(AppError::from)
+/// Process-constant directories, resolved once at startup. Lets every path helper
+/// (db, arrow, plugins, temp) be zero-arg instead of threading an `AppHandle`
+/// through functions whose only use for it is path resolution.
+static APP_DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+static TEMP_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// Resolve and cache the data/temp directories. Called once from `setup()`,
+/// before anything touches disk.
+pub(crate) fn init_paths(app: &tauri::AppHandle) -> AppResult<()> {
+    let _ = APP_DATA_DIR.set(app.path().app_data_dir().map_err(AppError::from)?);
+    let _ = TEMP_DIR.set(app.path().temp_dir().map_err(AppError::from)?);
+    Ok(())
+}
+
+/// The app data directory. Errors if `init_paths` has not run.
+pub(crate) fn app_data_dir() -> AppResult<std::path::PathBuf> {
+    APP_DATA_DIR.get().cloned().ok_or_else(|| AppError::from("app paths not initialized".to_string()))
+}
+
+/// The OS temp directory (resolved via Tauri at startup).
+pub(crate) fn temp_dir() -> AppResult<std::path::PathBuf> {
+    TEMP_DIR.get().cloned().ok_or_else(|| AppError::from("app paths not initialized".to_string()))
+}
+
+/// Full path to the SQLite database.
+pub(crate) fn db_path() -> AppResult<std::path::PathBuf> {
+    Ok(app_data_dir()?.join(db_filename()))
 }
 
 /// Open (or create) the SQLite database, ensuring the parent directory exists.
-pub(crate) fn open_db(app: &tauri::AppHandle) -> AppResult<Connection> {
-    let path = db_path(app)?;
+/// The one place that owns per-connection setup (busy timeout, future pragmas).
+pub(crate) fn open_db() -> AppResult<Connection> {
+    let path = db_path()?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("failed to create app data dir: {e}"))?;
     }
-    Connection::open(path).map_err(AppError::from)
+    let conn = Connection::open(path)?;
+    // Default busy timeout is 0: any write-lock contention (second window, lingering
+    // process) fails instantly with "database is locked" instead of waiting.
+    conn.busy_timeout(std::time::Duration::from_secs(5))?;
+    Ok(conn)
 }
 
 /// Apply all pending schema migrations from [`MIGRATIONS`] in order.
@@ -44,8 +70,8 @@ pub(crate) fn open_db(app: &tauri::AppHandle) -> AppResult<Connection> {
 /// On first run after migrating from the old `tauri-plugin-sql` system, seeds
 /// already-applied versions from `_sqlx_migrations` so they aren't replayed.
 /// Sets WAL mode and foreign keys as part of the connection setup.
-pub(crate) fn run_migrations(app: &tauri::AppHandle) -> AppResult<()> {
-    let conn = open_db(app)?;
+pub(crate) fn run_migrations() -> AppResult<()> {
+    let conn = open_db()?;
     conn.execute_batch("
         PRAGMA foreign_keys = ON;
         PRAGMA journal_mode = WAL;
@@ -90,7 +116,7 @@ pub(crate) fn run_migrations(app: &tauri::AppHandle) -> AppResult<()> {
     // The delta-chain migration (v16) retires the geohash blob store. Reclaim its disk
     // once, when v16 first applies.
     if wiped_blobs {
-        let blobs = arrow_dir(app)?.join("blobs");
+        let blobs = arrow_dir()?.join("blobs");
         if blobs.exists() {
             if let Err(e) = std::fs::remove_dir_all(&blobs) {
                 log::warn!("[migrations] failed to remove old blob store {blobs:?}: {e}");
@@ -288,9 +314,9 @@ const MIGRATIONS: &[(u32, &str)] = &[
 
 /// Root directory for all Arrow IPC files (`arrow/` or `arrow_test/`).
 /// Created on first access.
-pub(crate) fn arrow_dir(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf> {
+pub(crate) fn arrow_dir() -> AppResult<std::path::PathBuf> {
     let subdir = if is_test_mode() { "arrow_test" } else { "arrow" };
-    let dir = app.path().app_data_dir()?.join(subdir);
+    let dir = app_data_dir()?.join(subdir);
     if !dir.exists() {
         std::fs::create_dir_all(&dir)?;
     }
@@ -298,19 +324,19 @@ pub(crate) fn arrow_dir(app: &tauri::AppHandle) -> AppResult<std::path::PathBuf>
 }
 
 /// Path to a map's base Arrow IPC snapshot: `<arrow_dir>/<map_id>.arrow`.
-pub(crate) fn arrow_path(app: &tauri::AppHandle, map_id: &str) -> AppResult<std::path::PathBuf> {
-    Ok(arrow_dir(app)?.join(format!("{map_id}.arrow")))
+pub(crate) fn arrow_path(map_id: &str) -> AppResult<std::path::PathBuf> {
+    Ok(arrow_dir()?.join(format!("{map_id}.arrow")))
 }
 
 /// Path to a map's uncommitted delta file: `<arrow_dir>/<map_id>_delta.arrow`.
 /// Contains overlay mutations not yet baked into the base snapshot.
-pub(crate) fn arrow_delta_path(app: &tauri::AppHandle, map_id: &str) -> AppResult<std::path::PathBuf> {
-    Ok(arrow_dir(app)?.join(format!("{map_id}_delta.arrow")))
+pub(crate) fn arrow_delta_path(map_id: &str) -> AppResult<std::path::PathBuf> {
+    Ok(arrow_dir()?.join(format!("{map_id}_delta.arrow")))
 }
 
 /// Directory holding a map's per-commit VCS delta files. Created on first access.
-pub(crate) fn commit_dir(app: &tauri::AppHandle, map_id: &str) -> AppResult<std::path::PathBuf> {
-    let dir = arrow_dir(app)?.join("commits").join(map_id);
+pub(crate) fn commit_dir(map_id: &str) -> AppResult<std::path::PathBuf> {
+    let dir = arrow_dir()?.join("commits").join(map_id);
     if !dir.exists() {
         std::fs::create_dir_all(&dir)?;
     }
@@ -318,8 +344,8 @@ pub(crate) fn commit_dir(app: &tauri::AppHandle, map_id: &str) -> AppResult<std:
 }
 
 /// Path to a single commit's Arrow delta file: `<arrow_dir>/commits/<map_id>/<commit_id>.arrow`.
-pub(crate) fn commit_delta_path(app: &tauri::AppHandle, map_id: &str, commit_id: &str) -> AppResult<std::path::PathBuf> {
-    Ok(commit_dir(app, map_id)?.join(format!("{commit_id}.arrow")))
+pub(crate) fn commit_delta_path(map_id: &str, commit_id: &str) -> AppResult<std::path::PathBuf> {
+    Ok(commit_dir(map_id)?.join(format!("{commit_id}.arrow")))
 }
 
 /// Atomically write a RecordBatch to an Arrow IPC file.
@@ -469,5 +495,5 @@ fn write_fixstr(out: &mut Vec<u8>, s: &str) {
 }
 
 #[cfg(test)]
-#[path = "fast_io.test.rs"]
+#[path = "storage.test.rs"]
 mod tests;

@@ -21,7 +21,7 @@ export async function withApi<A extends unknown[], R>(
 		"...___a",
 		`const ___d = ___a.pop();
      const api = window.MMA;
-     (async () => { try { ___d(await (${fn.toString()})(api, ...___a)); } catch(e) { ___d({ __withApiError: e.message }); } })();`,
+     (async () => { try { ___d(await (${fn.toString()})(api, ...___a)); } catch(e) { ___d({ __withApiError: (e && e.message) || String(e) }); } })();`,
 	);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback is serialized and re-evaluated in the browser; this bridge can't be statically typed
 	const result = (await browser.executeAsync(wrapped as any, ...args)) as unknown;
@@ -64,11 +64,17 @@ export async function openMap(id: string) {
 }
 
 export async function closeMap() {
-	await withApi(async (api) => {
+	const err = await withApi(async (api) => {
 		try {
 			await api.closeMap();
-		} catch {}
+			return null;
+		} catch (e) {
+			return (e && (e as Error).message) || String(e);
+		}
 	});
+	// Surface instead of swallowing: a failed close means state silently not persisted,
+	// which corrupts every downstream close/reopen assertion in undiagnosable ways.
+	if (err != null) throw new Error(`closeMap failed: ${err}`);
 }
 
 export async function deleteMap(id: string) {

@@ -246,6 +246,15 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					/>
 					Dark mode
 				</label>
+				<label className="layer-config__item">
+					<input
+						type="radio"
+						name="mapstyle"
+						checked={e.mapStyleName === "legacy"}
+						onChange={() => e.setMapStyleName("legacy")}
+					/>
+					Legacy
+				</label>
 				{e.customStyles.map((s) => (
 					<label key={s.name} className="layer-config__item">
 						<input
@@ -456,7 +465,7 @@ export function MapSettingsDropdown({ settings: s }: { settings: MapSettingsDrop
 								checked={s.selectOnly}
 								onChange={(e) => s.setSelectOnly(e.target.checked)}
 							/>
-							Select-only mode (map clicks never add locations)
+							Select-only mode
 						</label>
 						<label className="settings-popup__item">
 							<input

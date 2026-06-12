@@ -8,7 +8,7 @@ import {
 	useMemo,
 	useSyncExternalStore,
 } from "react";
-import { LocationFlag, createLocation } from "@/types";
+import { LocationFlag, createLocation, isVirtualLocation } from "@/types";
 import type { Location } from "@/types";
 import type { Tag } from "@/bindings.gen";
 import {
@@ -39,6 +39,9 @@ import {
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { fetchSvMetadata } from "@/lib/sv/svMeta";
 import { useHotkey, parseHotkey, matchesKey, isEditableElement } from "@/lib/hooks/useHotkey";
+import { registerMapKeyActionHandler } from "@/lib/map/mapKeyBindings";
+import { cmd } from "@/lib/commands";
+import { log } from "@/lib/util/log";
 import { useBinding, getBinding } from "@/lib/util/hotkeys";
 import { useSettings, useSetting, setSetting, getSettings } from "@/store/settings";
 import { useTimezone } from "@/lib/util/timezone";
@@ -63,9 +66,12 @@ import { isOfficialPano } from "@/lib/sv/panoId";
 import { enrich } from "@/lib/sv/enrich";
 import {
 	buildTileUrl,
+	buildStyledTileUrl,
 	createRoadmapTileConfig,
+	createLegacyTileConfig,
 	createSatelliteTileConfig,
 	createTerrainBasemapTileConfig,
+	LEGACY_STYLE_MAP_ID,
 	type MapStyle,
 } from "@/lib/geo/tiles";
 import { PanoControls, CrosshairOverlay, sendHideCar } from "./PanoControls";
@@ -289,27 +295,16 @@ const DARK_MODE_STYLES: MapStyle[] = [
 
 function buildMiniMapType(): google.maps.ImageMapType {
 	const tileSize = new google.maps.Size(256, 256);
-	const basemap = (() => {
+	const prefs = (() => {
 		try {
-			return JSON.parse(localStorage.getItem("basemap") ?? '"map"');
+			return JSON.parse(localStorage.getItem("mapEmbedPrefs") ?? "{}");
 		} catch {
-			return "map";
+			return {};
 		}
-	})() as string;
-	const terrain = (() => {
-		try {
-			return JSON.parse(localStorage.getItem("terrain") ?? "false");
-		} catch {
-			return false;
-		}
-	})() as boolean;
-	const style = (() => {
-		try {
-			return JSON.parse(localStorage.getItem("mapstyle") ?? '"default"');
-		} catch {
-			return "default";
-		}
-	})() as string;
+	})() as Partial<{ mapType: string; showTerrain: boolean; mapStyleName: string }>;
+	const basemap = prefs.mapType ?? "map";
+	const terrain = prefs.showTerrain ?? false;
+	const style = prefs.mapStyleName ?? "default";
 	// Re-enable labels and borders that createRoadmapTileConfig strips (they're normally a separate layer)
 	const showLabelsAndBorders: MapStyle[] = [
 		{ elementType: "labels", stylers: [{ visibility: "on" }] },
@@ -346,6 +341,16 @@ function buildMiniMapType(): google.maps.ImageMapType {
 		const cfg = createTerrainBasemapTileConfig(extraStyles);
 		return new google.maps.ImageMapType({
 			getTileUrl: (c: TileCoord, z: number) => buildTileUrl(cfg, c.x, c.y, z),
+			tileSize,
+			minZoom: 0,
+			maxZoom: 20,
+		});
+	}
+	if (style === "legacy") {
+		const cfg = createLegacyTileConfig();
+		return new google.maps.ImageMapType({
+			getTileUrl: (c: TileCoord, z: number) =>
+				buildStyledTileUrl(cfg, LEGACY_STYLE_MAP_ID, c.x, c.y, z),
 			tileSize,
 			minZoom: 0,
 			maxZoom: 20,
@@ -740,6 +745,7 @@ export function LocationPreview() {
 
 function LocationPreviewInner() {
 	const location = useActiveLocation();
+	const isStaged = location != null && isVirtualLocation(location);
 	const map = useCurrentMap();
 	const reviewSession = useReviewSession();
 	const isReviewMode = reviewSession !== null;
@@ -850,11 +856,13 @@ function LocationPreviewInner() {
 				});
 				if (pos) {
 					pushTrail(pos.lng(), pos.lat());
+					const activeForSeen = getActiveLocation();
 					seenPanoChanged(
 						panoId,
 						pos.lat(),
 						pos.lng(),
-						getActiveLocation()?.id ?? null,
+						// virtual locations have no persistent id to record against
+						activeForSeen && !isVirtualLocation(activeForSeen) ? activeForSeen.id : null,
 						(getActiveLocation()?.extra?.countryCode as string) ??
 							geoRef.current?.countryCode ??
 							null,
@@ -981,6 +989,7 @@ function LocationPreviewInner() {
 	const handleDateChange = useCallback(
 		(panoId: string | null) => {
 			if (!singletonPano || !location) return;
+			// updateLocation no-ops for staged (virtual) locations at the store level.
 			if (panoId == null) {
 				updateLocation(location, { flags: location.flags & ~LocationFlag.LoadAsPanoId });
 				if (location.panoId) singletonPano.setPano(location.panoId);
@@ -994,6 +1003,8 @@ function LocationPreviewInner() {
 
 	const handleSave = useCallback(() => {
 		if (!location || !singletonPano) return;
+		// Staged (virtual) location: updateLocation no-ops, cursorId can't match a
+		// negative id, so this falls through to setActiveLocation(null) = close.
 		const pov = singletonPano.getPov();
 		const zoom = singletonPano.getZoom();
 		const pano = singletonPano.getPano();
@@ -1032,7 +1043,7 @@ function LocationPreviewInner() {
 
 	const handleDelete = useCallback(() => {
 		if (!location) return;
-
+		// Staged: removeLocations treats virtual ids as "close the preview".
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			reviewDelete();
 		} else {
@@ -1215,6 +1226,48 @@ function LocationPreviewInner() {
 		const has = cur.includes(tag.id);
 		setPendingTags(has ? cur.filter((t) => t !== tag.id) : [...cur, tag.id]);
 	};
+	// Per-map bindings: registered only while a location is open, so the keys
+	// fall through to global hotkeys otherwise. Soft-deleted (invisible) tags
+	// keep their binding for undo symmetry; declining lets the key fall through.
+	// Staged (virtual) locations are read-only: both actions decline.
+	const hasLocation = location != null;
+	useEffect(() => {
+		if (!hasLocation) return;
+		const unregisterApply = registerMapKeyActionHandler("applyTag", ({ tagId }) => {
+			const active = getActiveLocation();
+			if (!active || isVirtualLocation(active)) return false;
+			if (!getVisibleTags().some((t) => t.id === tagId)) return false;
+			const cur = pendingTagsRef.current;
+			setPendingTags(cur.includes(tagId) ? cur.filter((t) => t !== tagId) : [...cur, tagId]);
+		});
+		const unregisterCopy = registerMapKeyActionHandler("copyToMap", ({ mapId }) => {
+			const loc = getActiveLocation();
+			if (!loc || isVirtualLocation(loc)) return false;
+			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
+			const t0 = performance.now();
+			cmd
+				.storeCopyLocationsToMap(mapId, [loc.id])
+				.then((res) => {
+					log.debug(`[copyToMap] ipc=${Math.round(performance.now() - t0)}ms`);
+					if (!container) return;
+					showToast(
+						container,
+						res.copied > 0
+							? `Copied to "${res.targetName}"`
+							: `Already in "${res.targetName}"`,
+					);
+				})
+				.catch((e) => {
+					log.error("[copyToMap] failed:", e);
+					if (container) showToast(container, "Copy failed");
+				});
+		});
+		return () => {
+			unregisterApply();
+			unregisterCopy();
+		};
+	}, [hasLocation]);
+
 	useHotkey(useBinding("quicktag1"), () => quicktagSlot(0));
 	useHotkey(useBinding("quicktag2"), () => quicktagSlot(1));
 	useHotkey(useBinding("quicktag3"), () => quicktagSlot(2));
@@ -1501,6 +1554,13 @@ function LocationPreviewInner() {
 						</button>
 					</div>
 					<div className="location-preview__tags">
+						{isStaged ? (
+							<p>
+								This location is still being imported and cannot be modified. Complete the
+								import before making changes.
+							</p>
+						) : (
+						<>
 						<ul className="tag-list">
 							{locTags.map((t) => (
 								<li
@@ -1564,6 +1624,8 @@ function LocationPreviewInner() {
 									))}
 								</ol>
 							</div>
+						)}
+						</>
 						)}
 					</div>
 					<PluginLocationPanels />

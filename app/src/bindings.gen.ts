@@ -49,6 +49,16 @@ export const commands = {
 	 */
 	storeSaveDirty: () => typedError<SaveResult, string>(__TAURI_INVOKE("store_save_dirty")),
 	/**
+	 *  Copy locations from the current window's map into another map (routing
+	 *  hotkeys). Duplicates in the target are skipped (`split_new_locations`).
+	 *  Tags carry over import-style (`reconcile_copied_tags`), extras carry with
+	 *  field defs auto-registered in the target; timestamps are fresh. If the
+	 *  target is open (any window), its live store is mutated and a
+	 *  `store-external-mutation` event tells its windows to resync; either way
+	 *  the result is persisted immediately (delta sidecar + tags + count).
+	 */
+	storeCopyLocationsToMap: (targetMapId: string, ids: number[]) => typedError<CopyToMapResult, string>(__TAURI_INVOKE("store_copy_locations_to_map", { targetMapId, ids })),
+	/**
 	 *  Merge the overlay into the Arrow batch, then write the full file to disk.
 	 *  Expensive at 10M+ rows — only called on commit, not on autosave.
 	 */
@@ -238,6 +248,11 @@ export const commands = {
 	 */
 	storeImportPastePreview: (text: string) => typedError<EditorImportPreview, string>(__TAURI_INVOKE("store_import_paste_preview", { text })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,bounds:v.data.bounds==null?v.data.bounds:v.data.bounds.map(i=>i)}) } : v) as typeof v)),
 	/**
+	 *  Fetch one staged (not yet imported) location by its preview index, for read-only
+	 *  preview in the editor. Indexes follow the preview positions order.
+	 */
+	storeImportStagedLocation: (index: number) => typedError<Location_Serialize, string>(__TAURI_INVOKE("store_import_staged_location", { index })),
+	/**
 	 *  Commit a previously previewed editor import, optionally dropping fields and/or
 	 *  applying a bulk tag to every imported location. Consumes the cached parse from
 	 *  `store_import_preview`/`store_import_paste_preview`. Fields in `dropped_fields`
@@ -419,6 +434,13 @@ export type CommitInfo = {
  *  everything else is inferred from `ExtraFieldType`.
  */
 export type ComparisonType = { type: "linear" } | { type: "circular"; period: number } | { type: "categorical" };
+
+/**  Result of a cross-map location copy. `target_name` feeds the toast. */
+export type CopyToMapResult = {
+	copied: number,
+	skipped: number,
+	targetName: string,
+};
 
 /**  Aggregate database statistics for the debug panel. */
 export type DbStats = {
@@ -699,6 +721,21 @@ export type MapExtra = {
 };
 
 /**
+ *  Action performed by a per-map key binding on the active location.
+ *  New action kinds (e.g. copy-to-map) are added as variants here.
+ */
+export type MapKeyAction = { type: "applyTag"; tagId: number } | { type: "copyToMap"; mapId: string };
+
+/**
+ *  One user-defined per-map key binding. `key` is a combo string in the same
+ *  canonical format as global hotkey bindings (e.g. "m", "Mod+Shift+x").
+ */
+export type MapKeyBinding = {
+	key: string,
+	action: MapKeyAction,
+};
+
+/**
  *  Full metadata for a map, deserialized from the SQLite `maps` row.
  *  JSON columns (settings, tags, extra, etc.) are parsed into typed structs.
  */
@@ -772,6 +809,7 @@ export type MapSettings = {
 	enrichMetadata?: boolean,
 	enrichFields?: string[] | null,
 	generatedLocationTag?: string | null,
+	keyBindings?: MapKeyBinding[],
 };
 
 /**

@@ -13,7 +13,6 @@ use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
 use serde::Deserialize;
-use tauri::Manager;
 
 use crate::selections::{self, PolygonGeometry};
 
@@ -361,11 +360,11 @@ fn parse_geojson(data: &str) -> AppResult<BorderDataset> {
     Ok(BorderDataset { features })
 }
 
-fn load_dataset(app: &tauri::AppHandle, level: &str) -> AppResult<()> {
+fn load_dataset(level: &str) -> AppResult<()> {
     let data = if level == "light" {
         include_str!("../../public/borders.json").to_string()
     } else {
-        let path = app.path().app_data_dir()?
+        let path = crate::storage::app_data_dir()?
             .join("borders")
             .join(format!("borders-{level}.json"));
         std::fs::read_to_string(&path)
@@ -390,10 +389,10 @@ fn validate_border_level(level: &str) -> AppResult<()> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn check_border_file(app: tauri::AppHandle, level: String) -> AppResult<bool> {
+pub fn check_border_file(level: String) -> AppResult<bool> {
     if level == "light" { return Ok(true); }
     validate_border_level(&level)?;
-    let path = app.path().app_data_dir()?
+    let path = crate::storage::app_data_dir()?
         .join("borders")
         .join(format!("borders-{level}.json"));
     Ok(path.exists())
@@ -401,10 +400,10 @@ pub fn check_border_file(app: tauri::AppHandle, level: String) -> AppResult<bool
 
 #[tauri::command]
 #[specta::specta]
-pub fn download_border_file(app: tauri::AppHandle, level: String) -> AppResult<()> {
+pub fn download_border_file(level: String) -> AppResult<()> {
     validate_border_level(&level)?;
     if level == "light" { return Ok(()); }
-    let dir = app.path().app_data_dir()?
+    let dir = crate::storage::app_data_dir()?
         .join("borders");
     std::fs::create_dir_all(&dir)?;
     let url = format!(
@@ -426,14 +425,14 @@ pub fn download_border_file(app: tauri::AppHandle, level: String) -> AppResult<(
 
 #[tauri::command]
 #[specta::specta]
-pub fn border_lookup(app: tauri::AppHandle, lat: f64, lng: f64, level: String) -> AppResult<Option<PolygonGeometry>> {
+pub fn border_lookup(lat: f64, lng: f64, level: String) -> AppResult<Option<PolygonGeometry>> {
     validate_border_level(&level)?;
 
     {
         let datasets = cache().lock().unwrap();
         if !datasets.contains_key(&level) {
             drop(datasets);
-            load_dataset(&app, &level)?;
+            load_dataset(&level)?;
         }
     }
 
@@ -455,11 +454,11 @@ pub fn border_lookup(app: tauri::AppHandle, lat: f64, lng: f64, level: String) -
 }
 
 /// Ensure a dataset level is loaded into the in-memory cache.
-fn ensure_loaded(app: &tauri::AppHandle, level: &str) -> AppResult<()> {
+fn ensure_loaded(level: &str) -> AppResult<()> {
     if cache().lock().unwrap().contains_key(level) {
         return Ok(());
     }
-    load_dataset(app, level)
+    load_dataset(level)
 }
 
 /// Classify each coordinate to its containing country (ISO-A2) via point-in-polygon
@@ -469,16 +468,15 @@ fn ensure_loaded(app: &tauri::AppHandle, level: &str) -> AppResult<()> {
 /// border (oceans, gaps) are dropped. Each feature's bbox is a cheap broad-phase reject
 /// before the full crossing test; the scan is parallelized over points with rayon.
 pub fn tally_countries(
-    app: &tauri::AppHandle,
     level: &str,
     coords: &[(f64, f64)],
 ) -> AppResult<Vec<(String, u32)>> {
     use rayon::prelude::*;
 
-    let level = if validate_border_level(level).is_ok() && ensure_loaded(app, level).is_ok() {
+    let level = if validate_border_level(level).is_ok() && ensure_loaded(level).is_ok() {
         level.to_string()
     } else {
-        ensure_loaded(app, "light")?;
+        ensure_loaded("light")?;
         "light".to_string()
     };
 

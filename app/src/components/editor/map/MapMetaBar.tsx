@@ -12,6 +12,7 @@ import {
 import { ExportDialog } from "@/components/dialogs/ExportDialog";
 import { VersionHistory } from "@/components/dialogs/VersionHistory";
 import { SeenDialog } from "@/components/dialogs/SeenDialog";
+import { CopyToMapDialog } from "@/components/editor/CopyToMapDialog";
 import { loadSeenPano } from "@/components/editor/location/LocationPreview";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiUndo, mdiRedo } from "@mdi/js";
@@ -25,21 +26,25 @@ export function MapMetaBar() {
 	const [showExport, setShowExport] = useState(false);
 	const [showHistory, setShowHistory] = useState(false);
 	const [showSeen, setShowSeen] = useState(false);
+	const [showCopyToMap, setShowCopyToMap] = useState(false);
 
 	useEffect(() => {
 		const onExport = () => setShowExport(true);
 		const onImport = () => beginImportFile();
 		const onHistory = () => setShowHistory(true);
 		const onSeen = () => setShowSeen(true);
+		const onCopyToMap = () => setShowCopyToMap(true);
 		document.addEventListener("open-export", onExport);
 		document.addEventListener("open-import", onImport);
 		document.addEventListener("open-history", onHistory);
 		document.addEventListener("open-seen", onSeen);
+		document.addEventListener("open-copy-to-map", onCopyToMap);
 		return () => {
 			document.removeEventListener("open-export", onExport);
 			document.removeEventListener("open-import", onImport);
 			document.removeEventListener("open-history", onHistory);
 			document.removeEventListener("open-seen", onSeen);
+			document.removeEventListener("open-copy-to-map", onCopyToMap);
 		};
 	}, []);
 
@@ -107,6 +112,7 @@ export function MapMetaBar() {
 			{showExport && <ExportDialog onClose={() => setShowExport(false)} />}
 			{showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
 			<SeenDialog open={showSeen} onOpenChange={setShowSeen} onLoadPano={loadSeenPano} />
+			{showCopyToMap && <CopyToMapDialog onClose={() => setShowCopyToMap(false)} />}
 		</>
 	);
 }

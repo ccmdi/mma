@@ -35,6 +35,7 @@ import {
 	BORDER_DETAILS,
 	PREVIEW_ASPECT_RATIOS,
 } from "@/store/settings";
+import { formatBinding, buildComboString } from "@/lib/hooks/useHotkey";
 import { useUpdateState, checkForUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 
@@ -56,43 +57,6 @@ function SettingSelect<K extends keyof AppSettings>({
 			))}
 		</select>
 	);
-}
-
-const IS_MAC = /Mac|iPod|iPhone|iPad/i.test(navigator.platform);
-
-function formatBinding(binding: string): string {
-	return binding
-		.replace(/Mod/g, IS_MAC ? "Cmd" : "Ctrl")
-		.replace(/ArrowRight/g, "Right")
-		.replace(/ArrowLeft/g, "Left")
-		.replace(/ArrowUp/g, "Up")
-		.replace(/ArrowDown/g, "Down");
-}
-
-function buildComboString(e: KeyboardEvent): string | null {
-	const key = e.key;
-	if (["Control", "Alt", "Shift", "Meta"].includes(key)) return null;
-
-	const parts: string[] = [];
-	if (e.ctrlKey && !IS_MAC) parts.push("Mod");
-	if (e.metaKey && IS_MAC) parts.push("Mod");
-	if (e.ctrlKey && IS_MAC) parts.push("Ctrl");
-	if (e.metaKey && !IS_MAC) parts.push("Meta");
-	if (e.altKey) parts.push("Alt");
-	if (e.shiftKey) parts.push("Shift");
-
-	let keyName = key;
-	if (key === " ") keyName = "space";
-	else if (key === "=" && !e.shiftKey) keyName = "+";
-	else if (key.length === 1) keyName = key.toLowerCase();
-
-	if (keyName === "+" && parts.length === 0) {
-		parts.push("plus");
-		return parts.join("+");
-	}
-
-	parts.push(keyName);
-	return parts.join("+");
 }
 
 const BLOCKED_COMBOS = new Set(["Mod++", "Mod+-"]);

@@ -6,13 +6,17 @@ import {
 	addLocations,
 	setActiveLocation,
 	getActiveLocation,
+	getCurrentMap,
+	getCurrentMapId,
 	getSelectedLocationIds,
+	refreshFromExternalMutation,
 	removeLocations,
 	createTags,
 	beginImportPaste,
 	beginImportFromPath,
 } from "@/store/useMapStore";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { listen } from "@tauri-apps/api/event";
 import { goToList } from "@/store/router";
 import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { getGoogleMap as getGoogleMapInstance, waitForGoogleMap, fitMapToBounds } from "@/lib/map/mapState";
@@ -39,6 +43,7 @@ import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
 import SameLocation from "@/components/editor/SameLocation";
 import { log } from "@/lib/util/log"
 import { useCountrySelect } from "@/lib/map/useCountrySelect";
+import { useMapKeyBindings } from "@/lib/map/mapKeyBindings";
 
 function zoomToPasted(bounds: [number, number, number, number] | null, padding = 0) {
 	if (!getSettings().panToImported) return;
@@ -210,10 +215,21 @@ export function MapEditor() {
 		};
 	}, [map?.meta.id]);
 
+	// Another window copied locations into this map: resync from the store.
+	useEffect(() => {
+		const unlisten = listen<string>("store-external-mutation", (e) => {
+			if (e.payload === getCurrentMapId()) void refreshFromExternalMutation();
+		});
+		return () => {
+			unlisten.then((f) => f());
+		};
+	}, []);
+
 	const appSettings = useSettings();
 	usePasteHandler();
 	const fileDragging = useFileDrop();
 	useCommandHotkeys();
+	useMapKeyBindings(() => getCurrentMap()?.meta.settings.keyBindings ?? []);
 	useCountrySelect();
 	useHotkey(useBinding("toggleFullscreenMap"), () => {
 		setSetting("fullscreenMap", !getSettings().fullscreenMap);

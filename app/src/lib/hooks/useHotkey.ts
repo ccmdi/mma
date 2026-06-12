@@ -47,6 +47,43 @@ export function parseHotkey(hotkeyStr: string): ParsedKey[][] {
 	);
 }
 
+/** Display form of a stored combo string (e.g. "Mod+k" -> "Ctrl+k" / "Cmd+k"). */
+export function formatBinding(binding: string): string {
+	return binding
+		.replace(/Mod/g, IS_MAC ? "Cmd" : "Ctrl")
+		.replace(/ArrowRight/g, "Right")
+		.replace(/ArrowLeft/g, "Left")
+		.replace(/ArrowUp/g, "Up")
+		.replace(/ArrowDown/g, "Down");
+}
+
+/** Canonical combo string for a captured keydown, or null for a bare modifier. */
+export function buildComboString(e: KeyboardEvent): string | null {
+	const key = e.key;
+	if (["Control", "Alt", "Shift", "Meta"].includes(key)) return null;
+
+	const parts: string[] = [];
+	if (e.ctrlKey && !IS_MAC) parts.push("Mod");
+	if (e.metaKey && IS_MAC) parts.push("Mod");
+	if (e.ctrlKey && IS_MAC) parts.push("Ctrl");
+	if (e.metaKey && !IS_MAC) parts.push("Meta");
+	if (e.altKey) parts.push("Alt");
+	if (e.shiftKey) parts.push("Shift");
+
+	let keyName = key;
+	if (key === " ") keyName = "space";
+	else if (key === "=" && !e.shiftKey) keyName = "+";
+	else if (key.length === 1) keyName = key.toLowerCase();
+
+	if (keyName === "+" && parts.length === 0) {
+		parts.push("plus");
+		return parts.join("+");
+	}
+
+	parts.push(keyName);
+	return parts.join("+");
+}
+
 const SHIFTED_CHARS = new Set('?!@#$%^&*()_+{}|:"<>~');
 
 // ignoreAlt: Alt is the global "slow" navigation modifier, so nav handlers match

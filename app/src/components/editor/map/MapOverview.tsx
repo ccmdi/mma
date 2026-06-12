@@ -34,7 +34,7 @@ import {
 } from "@/store/useMapStore";
 import { toast } from "@/lib/util/toast";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
-import { groupByField, pickPeriodEnd, hasTimeOfDay, stepFilterWindow, dateParts, partsToEpoch } from "@/lib/data/fieldOps";
+import { groupByField, projectionsForType, pickPeriodEnd, hasTimeOfDay, stepFilterWindow, dateParts, partsToEpoch } from "@/lib/data/fieldOps";
 import { useSetting } from "@/store/settings";
 import { cmd } from "@/lib/commands";
 
@@ -129,25 +129,45 @@ function ApplyFieldAsTagsDialog({
 	onOpenChange: (v: boolean) => void;
 }) {
 	const [field, setField] = useState("");
+	const [projectionId, setProjectionId] = useState("");
+	const [width, setWidth] = useState("");
+	const [tzLocal, setTzLocal] = useState(false);
 	const keys = useKnownFieldKeys();
 	const fields = useMemo(() => {
-		const entries: { key: string; label: string }[] = [];
+		const entries: { key: string; label: string; type: ExtraFieldDef["type"] }[] = [];
 		for (const key of keys) {
 			const def = getFieldDef(key);
-			entries.push({ key, label: def?.label ?? key });
+			entries.push({ key, label: def?.label ?? key, type: def?.type ?? "string" });
 		}
 		return entries;
 	}, [keys]);
 
+	const fieldType = fields.find((f) => f.key === field)?.type ?? "string";
+	const projections = projectionsForType(fieldType);
+	const projection = projections.find((p) => p.id === projectionId) ?? projections[0];
+	const showTz = projection?.needsTz === true && fieldType === "date";
+	const showWidth = projection?.needsWidth === true;
+	const widthValid = !showWidth || Number(width) > 0;
+
+	const handleFieldChange = (key: string) => {
+		setField(key);
+		const type = fields.find((f) => f.key === key)?.type ?? "string";
+		setProjectionId(projectionsForType(type)[0]?.id ?? "");
+		setWidth("");
+		setTzLocal(false);
+	};
+
 	const handleApply = async () => {
-		if (!field) return;
+		if (!field || !projection || !widthValid) return;
 		const { fetchLocationsByIds, createTags, batchUpdateLocations } = await import(
 			"@/store/useMapStore"
 		);
 		const ids = await cmd.storeResolveSelection({ type: "Everything" });
 		if (ids.length === 0) return;
 		const locs = await fetchLocationsByIds(ids);
-		const groups = groupByField(locs, field);
+		const groups = groupByField(locs, field, (v, loc) =>
+			projection.key(v, { fieldType, loc, tzLocal, width: Number(width) }),
+		);
 		if (groups.size === 0) return;
 		const created = await createTags([...groups.keys()]);
 		const tagIdByName = new Map(created.map((t) => [t.name.toLowerCase(), t.id]));
@@ -170,7 +190,12 @@ function ApplyFieldAsTagsDialog({
 			open={open}
 			onOpenChange={(v) => {
 				onOpenChange(v);
-				if (!v) setField("");
+				if (!v) {
+					setField("");
+					setProjectionId("");
+					setWidth("");
+					setTzLocal(false);
+				}
 			}}
 		>
 			<DialogContent title="Apply metadata as tags">
@@ -184,7 +209,7 @@ function ApplyFieldAsTagsDialog({
 					<select
 						className="input"
 						value={field}
-						onChange={(e) => setField(e.target.value)}
+						onChange={(e) => handleFieldChange(e.target.value)}
 						autoFocus
 					>
 						<option value="">Select a field...</option>
@@ -194,11 +219,48 @@ function ApplyFieldAsTagsDialog({
 							</option>
 						))}
 					</select>
+					{field && projections.length > 1 && (
+						<select
+							className="input"
+							value={projection?.id ?? ""}
+							onChange={(e) => setProjectionId(e.target.value)}
+						>
+							{projections.map((p) => (
+								<option key={p.id} value={p.id}>
+									{p.label}
+								</option>
+							))}
+						</select>
+					)}
+					{showWidth && (
+						<input
+							className="input"
+							type="number"
+							min="0"
+							value={width}
+							onChange={(e) => setWidth(e.target.value)}
+							placeholder="Bucket width..."
+						/>
+					)}
+					{showTz && (
+						<label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+							<input
+								type="checkbox"
+								checked={tzLocal}
+								onChange={(e) => setTzLocal(e.target.checked)}
+							/>
+							Location timezone
+						</label>
+					)}
 					<div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
 						<button className="button" type="button" onClick={() => onOpenChange(false)}>
 							Cancel
 						</button>
-						<button className="button button--primary" type="submit" disabled={!field}>
+						<button
+							className="button button--primary"
+							type="submit"
+							disabled={!field || !widthValid}
+						>
 							Apply
 						</button>
 					</div>

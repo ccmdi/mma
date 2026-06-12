@@ -8,7 +8,7 @@
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_webserve::{register_scheme, SchemeRequest, SchemeResponse};
 
-use crate::{fast_io, location_store};
+use crate::{storage, location_store};
 
 pub fn run_server() {
     // Drop the configured visible window; we make our own hidden blank "main"
@@ -21,7 +21,7 @@ pub fn run_server() {
         .invoke_handler(crate::specta_builder().invoke_handler())
         .plugin(tauri_plugin_webserve::init())
         .setup(|app| {
-            fast_io::run_migrations(app.handle())?;
+            storage::run_migrations(app.handle())?;
             register_web_schemes();
             let handle = app.handle().clone();
             WebviewWindowBuilder::new(

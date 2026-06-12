@@ -266,7 +266,7 @@ describe("Field fidelity across multiple save cycles", () => {
 					zoom: 2.5,
 					panoId: "CAoSK0FGMVFpcE1XRGU",
 					flags: 3,
-					createdAt: "2025-01-15T08:30:00.000Z",
+					createdAt: 1736929800, // 2025-01-15T08:30:00Z
 					extra: { country: "AU", altitude: 58.2, nested: { a: 1 } },
 				}),
 			];
@@ -291,7 +291,7 @@ describe("Field fidelity across multiple save cycles", () => {
 		expect(loaded.zoom).toBeCloseTo(2.5, 1);
 		expect(loaded.panoId).toBe("CAoSK0FGMVFpcE1XRGU");
 		expect(loaded.flags).toBe(3);
-		expect(loaded.createdAt).toBe("2025-01-15T08:30:00.000Z");
+		expect(loaded.createdAt).toBe(1736929800);
 		expect(loaded.extra.country).toBe("AU");
 		expect(loaded.extra.altitude).toBeCloseTo(58.2, 1);
 		expect(loaded.extra.nested.a).toBe(1);

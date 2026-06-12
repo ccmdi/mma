@@ -1,4 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
+import { SuggestInput } from "@/components/primitives/SuggestInput";
+
+interface PlaceResult {
+	name: string;
+	lat: number;
+	lng: number;
+}
 
 export function SearchControl({
 	onResult,
@@ -6,9 +13,7 @@ export function SearchControl({
 	onResult: (lat: number, lng: number, name: string) => void;
 }) {
 	const [query, setQuery] = useState("");
-	const [results, setResults] = useState<{ name: string; lat: number; lng: number }[]>([]);
-	const [isOpen, setIsOpen] = useState(false);
-	const containerRef = useRef<HTMLDivElement>(null);
+	const [results, setResults] = useState<PlaceResult[]>([]);
 	const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
 	const search = useCallback((q: string) => {
@@ -32,75 +37,49 @@ export function SearchControl({
 						lng: parseFloat(r.lon),
 					})),
 				);
-				setIsOpen(data.length > 0);
 			} catch {
 				// ignored
 			}
 		}, 300);
 	}, []);
 
-	useEffect(() => {
-		if (!isOpen) return;
-		const handler = (e: MouseEvent) => {
-			if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-				setIsOpen(false);
-			}
-		};
-		document.addEventListener("mousedown", handler);
-		return () => document.removeEventListener("mousedown", handler);
-	}, [isOpen]);
+	const primaryOf = (name: string) => name.split(",")[0].trim();
 
 	return (
-		<div
-			className="map-control search-control"
-			ref={containerRef}
-			aria-expanded={isOpen}
-			style={{ position: "relative" }}
-		>
-			<input
-				className="search-control__input"
-				placeholder="Search for places…"
-				value={query}
-				onChange={(e) => {
-					setQuery(e.target.value);
-					search(e.target.value);
-				}}
-				onFocus={() => results.length > 0 && setIsOpen(true)}
-			/>
-			<ol
-				className="search-results"
-				hidden={!isOpen || results.length === 0}
-				style={{ top: "40px", zIndex: 10 }}
-			>
-				{results.map((r, i) => {
-					const parts = r.name
-						.split(",")
-						.map((s: string) => s.trim())
-						.filter(Boolean);
-					const primary = parts[0];
-					const context = parts.slice(1).join(", ");
-					return (
-						<li key={i}>
-							<button
-								className="search-result"
-								onClick={() => {
-									onResult(r.lat, r.lng, r.name);
-									setQuery(primary);
-									setIsOpen(false);
-								}}
-							>
-								<strong>{primary}</strong>
-								{context && (
-									<>
-										<br />
-										<span className="search-result__context">{context}</span>
-									</>
-								)}
-							</button>
-						</li>
-					);
-				})}
-			</ol>
-		</div>
+		<SuggestInput
+			containerClassName="map-control search-control"
+			inputClassName="search-control__input"
+			placeholder="Search for places…"
+			value={query}
+			onChange={(v) => {
+				setQuery(v);
+				search(v);
+			}}
+			suggestions={results}
+			getKey={(r) => `${r.lat},${r.lng},${r.name}`}
+			onPick={(r) => {
+				onResult(r.lat, r.lng, r.name);
+				setQuery(primaryOf(r.name));
+			}}
+			listStyle={{ top: "40px", zIndex: 10 }}
+			renderItem={(r) => {
+				const parts = r.name
+					.split(",")
+					.map((s) => s.trim())
+					.filter(Boolean);
+				const context = parts.slice(1).join(", ");
+				return (
+					<>
+						<strong>{parts[0]}</strong>
+						{context && (
+							<>
+								<br />
+								<span className="search-result__context">{context}</span>
+							</>
+						)}
+					</>
+				);
+			}}
+		/>
 	);
 }

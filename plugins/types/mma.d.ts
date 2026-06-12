@@ -87,6 +87,12 @@ export type ComparisonType = {
 } | {
 	type: "categorical";
 };
+/**  Result of a cross-map location copy. `target_name` feeds the toast. */
+export type CopyToMapResult = {
+	copied: number;
+	skipped: number;
+	targetName: string;
+};
 /**  Aggregate database statistics for the debug panel. */
 export type DbStats = {
 	maps: number;
@@ -308,6 +314,25 @@ export type MapExtra = {
 	} | null;
 };
 /**
+ *  Action performed by a per-map key binding on the active location.
+ *  New action kinds (e.g. copy-to-map) are added as variants here.
+ */
+export type MapKeyAction = {
+	type: "applyTag";
+	tagId: number;
+} | {
+	type: "copyToMap";
+	mapId: string;
+};
+/**
+ *  One user-defined per-map key binding. `key` is a combo string in the same
+ *  canonical format as global hotkey bindings (e.g. "m", "Mod+Shift+x").
+ */
+export type MapKeyBinding = {
+	key: string;
+	action: MapKeyAction;
+};
+/**
  *  Full metadata for a map, deserialized from the SQLite `maps` row.
  *  JSON columns (settings, tags, extra, etc.) are parsed into typed structs.
  */
@@ -383,6 +408,7 @@ export type MapSettings = {
 	enrichMetadata?: boolean;
 	enrichFields?: string[] | null;
 	generatedLocationTag?: string | null;
+	keyBindings?: MapKeyBinding[];
 };
 /**
  *  Unified response for every mutation IPC. Bundles the store status, render delta,
@@ -1425,6 +1451,7 @@ declare const mma: {
 		storeOpenMap: (mapId: string) => Promise<StoreStatus>;
 		storeCloseMap: () => Promise<null>;
 		storeSaveDirty: () => Promise<SaveResult>;
+		storeCopyLocationsToMap: (targetMapId: string, ids: number[]) => Promise<CopyToMapResult>;
 		storeBakeAndSave: () => Promise<null>;
 		storeGetSummary: () => Promise<SummaryResult>;
 		storeListMaps: () => Promise<MapMeta[]>;
@@ -1483,6 +1510,7 @@ declare const mma: {
 		bulkImportConfirm: (path: string, selectedIndices: number[]) => Promise<ImportedMapInfo[]>;
 		storeImportPreview: (path: string) => Promise<EditorImportPreview>;
 		storeImportPastePreview: (text: string) => Promise<EditorImportPreview>;
+		storeImportStagedLocation: (index: number) => Promise<Location_Serialize>;
 		storeImportFile: (droppedFields: string[], tagName: string | null) => Promise<EditorImportResult_Serialize>;
 		storeExportJson: (opts: ExportOpts) => Promise<string>;
 		storeExportCsv: (scope: number[] | null) => Promise<string>;
@@ -1620,6 +1648,7 @@ declare const mma: {
 	getTagCounts(): Record<number, number>;
 	refreshAfterMutation(): void;
 	getVisibleTags(): Tag[];
+	getActiveStagedIndex(): number | null;
 	getImportPreviewPositions(): Float32Array<ArrayBuffer>;
 	getCommitDiffPreview(): CommitDiffPreview | null;
 	hasCommitDiff(): boolean;
@@ -1633,6 +1662,7 @@ declare const mma: {
 	flushSave(): Promise<void>;
 	initStore(): Promise<void>;
 	mapOpenMark(phase: string): void;
+	refreshFromExternalMutation(): Promise<void>;
 	getCurrentMapId(): string | null;
 	getCurrentMap(): MapData | null;
 	getKnownFieldKeys(): ReadonlySet<string>;
@@ -1660,7 +1690,7 @@ declare const mma: {
 		hideInDelta?: boolean;
 	}): Promise<void>;
 	duplicateLocation(locId: number): Promise<number | null>;
-	updateLocationNoUndo(id: number, patch: Partial<Location$1>): Promise<MutationResult_Serialize>;
+	updateLocationNoUndo(id: number, patch: Partial<Location$1>): Promise<null> | Promise<MutationResult_Serialize>;
 	removeLocations(ids: ReadonlyIdSet): Promise<void>;
 	updateLocation(loc: Location$1, patch: Partial<Location$1>): Promise<void>;
 	batchUpdateLocations(updates: {
@@ -1709,6 +1739,7 @@ declare const mma: {
 	removeChildFromSelection(parentKey: string, childKey: string): void;
 	toggleTagSelections(tagIds: number[]): void;
 	useSelectedTagIds(): Set<number>;
+	openStagedLocation(index: number): Promise<void>;
 	setActiveLocation(id: number | null, checkDuplicates?: boolean): Promise<void>;
 	openDuplicateLocation(loc: Location$1): void;
 	removeDuplicate(id: number): void;

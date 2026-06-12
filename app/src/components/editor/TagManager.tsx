@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback, memo } from "react";
+import { createPortal } from "react-dom";
 import { cmd } from "@/lib/commands";
 import { HslColorPicker } from "react-colorful";
 import * as ContextMenu from "@radix-ui/react-context-menu";
@@ -25,6 +26,11 @@ import { fmt } from "@/lib/util/format";
 import { textColorFor, hexToHsl, hslToHex } from "@/lib/util/color";
 import { useSetting, setSetting } from "@/store/settings";
 import { sortTagsByMode } from "@/lib/util/util";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
+import { useMapSetting } from "@/components/editor/map/useMapSetting";
+import { HotkeyInput } from "@/components/primitives/HotkeyInput";
+import { getConflicts } from "@/lib/util/hotkeys";
+import { getTagBindingKey, withTagKeyBinding } from "@/lib/map/mapKeyBindings";
 import { TagTreeView } from "./TagTree";
 
 export function TagManager() {
@@ -38,9 +44,11 @@ export function TagManager() {
 	const [renamingTag, setRenamingTag] = useState<{ id: number; name: string } | null>(null);
 	const [collapsed, setCollapsed] = useState(false);
 	const [dragTagId, setDragTagId] = useState<number | null>(null);
-	const [dropTarget, setDropTarget] = useState<{ id: number; position: "before" | "after" } | null>(
-		null,
-	);
+	// Insertion index into the sorted list with the dragged tag removed.
+	const [dropIdx, setDropIdx] = useState<number | null>(null);
+	// Holds the dropped order until the store mutation lands, so the list
+	// doesn't flash back to the old order for a frame after mouseup.
+	const [pendingOrder, setPendingOrder] = useState<Tag[] | null>(null);
 
 	// New array identity only when the map object changes (mutations), NOT on selection
 	// toggles -- keeps sortedTags stable so memoized rows can skip re-rendering.
@@ -57,26 +65,48 @@ export function TagManager() {
 		return sortTagsByMode(filtered, sortMode, tagCounts);
 	}, [tags, filterText, sortMode, tagCounts]);
 
+	// Live preview: render the list as it would look after the drop, with the
+	// dragged tag occupying (invisibly) its prospective slot.
+	const displayTags = useMemo(() => {
+		if (pendingOrder) return pendingOrder;
+		if (dragTagId == null || dropIdx == null) return sortedTags;
+		const dragTag = sortedTags.find((t) => t.id === dragTagId);
+		if (!dragTag) return sortedTags;
+		const without = sortedTags.filter((t) => t.id !== dragTagId);
+		without.splice(dropIdx, 0, dragTag);
+		return without;
+	}, [sortedTags, dragTagId, dropIdx, pendingOrder]);
+
+	const dragTag = dragTagId != null ? (sortedTags.find((t) => t.id === dragTagId) ?? null) : null;
+
 	// Refs mirror volatile state so the row handlers below can stay identity-stable
 	// (memoized TagRows only re-render when their own props change).
 	const sortedTagsRef = useRef(sortedTags);
 	sortedTagsRef.current = sortedTags;
 	const sortModeRef = useRef(sortMode);
 	sortModeRef.current = sortMode;
+	const filterTextRef = useRef(filterText);
+	filterTextRef.current = filterText;
 	const dragTagIdRef = useRef<number | null>(null);
-	const dropTargetRef = useRef<{ id: number; position: "before" | "after" } | null>(null);
+	const dropIdxRef = useRef<number | null>(null);
+	const suppressClickRef = useRef(false);
+	const previewRef = useRef<HTMLUListElement>(null);
+	const dragPosRef = useRef({ x: 0, y: 0 });
 
 	const setDrag = useCallback((v: number | null) => {
 		dragTagIdRef.current = v;
 		setDragTagId(v);
 	}, []);
-	const setDrop = useCallback((v: { id: number; position: "before" | "after" } | null) => {
-		dropTargetRef.current = v;
-		setDropTarget(v);
+	const setDrop = useCallback((v: number | null) => {
+		dropIdxRef.current = v;
+		setDropIdx(v);
 	}, []);
 
 	const handleTagClick = useCallback((e: React.MouseEvent, tagId: number) => {
-		if (dragTagIdRef.current) return;
+		if (dragTagIdRef.current != null || suppressClickRef.current) {
+			suppressClickRef.current = false;
+			return;
+		}
 		const sorted = sortedTagsRef.current;
 		if (e.shiftKey && lastShiftClickRef.current != null) {
 			const anchorIdx = sorted.findIndex((t) => t.id === lastShiftClickRef.current);
@@ -99,9 +129,10 @@ export function TagManager() {
 
 	const handleTagMouseDown = useCallback(
 		(e: React.MouseEvent, tagId: number) => {
-			if (e.button !== 0 || sortModeRef.current !== "default") return;
+			if (e.button !== 0 || sortModeRef.current !== "default" || filterTextRef.current) return;
 			if ((e.target as HTMLElement).closest("button")) return;
 			e.preventDefault();
+			suppressClickRef.current = false;
 			const startX = e.clientX;
 			const startY = e.clientY;
 			let started = false;
@@ -109,56 +140,63 @@ export function TagManager() {
 			const onMove = (me: MouseEvent) => {
 				if (!started && (Math.abs(me.clientX - startX) > 4 || Math.abs(me.clientY - startY) > 4)) {
 					started = true;
+					document.body.style.userSelect = "none";
 					setDrag(tagId);
+					setDrop(sortedTagsRef.current.findIndex((t) => t.id === tagId));
+				}
+				if (started) {
+					dragPosRef.current = { x: me.clientX, y: me.clientY };
+					const el = previewRef.current;
+					if (el) {
+						el.style.left = `${me.clientX + 12}px`;
+						el.style.top = `${me.clientY + 12}px`;
+					}
 				}
 			};
 			const onUp = () => {
 				window.removeEventListener("mousemove", onMove);
 				window.removeEventListener("mouseup", onUp);
-				if (started) setDrag(null);
+				if (!started) return;
+				document.body.style.userSelect = "";
+				suppressClickRef.current = true;
+				const dragId = dragTagIdRef.current;
+				const idx = dropIdxRef.current;
+				if (dragId != null && idx != null) {
+					const sorted = sortedTagsRef.current;
+					const fromIdx = sorted.findIndex((t) => t.id === dragId);
+					if (fromIdx !== -1 && idx !== fromIdx) {
+						const ordered = sorted.filter((t) => t.id !== dragId);
+						ordered.splice(idx, 0, sorted[fromIdx]);
+						setPendingOrder(ordered);
+						reorderTags(ordered.map((t) => t.id)).finally(() => setPendingOrder(null));
+					}
+				}
+				setDrop(null);
+				setDrag(null);
 			};
 			window.addEventListener("mousemove", onMove);
 			window.addEventListener("mouseup", onUp);
 		},
-		[setDrag],
+		[setDrag, setDrop],
 	);
 
 	const handleTagMouseMove = useCallback(
 		(e: React.MouseEvent, tagId: number, el: HTMLElement) => {
 			const dragId = dragTagIdRef.current;
-			if (!dragId || dragId === tagId) return;
+			if (dragId == null || dragId === tagId) return;
 			const rect = el.getBoundingClientRect();
-			const pos =
-				(e.clientX - rect.left) / rect.width < 0.5 ? ("before" as const) : ("after" as const);
-			const cur = dropTargetRef.current;
-			if (cur?.id !== tagId || cur.position !== pos) setDrop({ id: tagId, position: pos });
+			const after = (e.clientX - rect.left) / rect.width >= 0.5;
+			// Index of the hovered tag within the list-without-dragged-tag.
+			let idx = 0;
+			for (const t of sortedTagsRef.current) {
+				if (t.id === tagId) break;
+				if (t.id !== dragId) idx++;
+			}
+			if (after) idx++;
+			if (dropIdxRef.current !== idx) setDrop(idx);
 		},
 		[setDrop],
 	);
-
-	const handleTagMouseUp = useCallback(
-		(tagId: number) => {
-			const dragId = dragTagIdRef.current;
-			const drop = dropTargetRef.current;
-			if (!dragId || dragId === tagId || !drop) return;
-			const ids = sortedTagsRef.current.map((t) => t.id);
-			const fromIdx = ids.indexOf(dragId);
-			if (fromIdx === -1) return;
-			const without = ids.filter((_, i) => i !== fromIdx);
-			let toIdx = without.indexOf(drop.id);
-			if (toIdx === -1) return;
-			if (drop.position === "after") toIdx++;
-			without.splice(toIdx, 0, dragId);
-			reorderTags(without);
-			setDrop(null);
-			setDrag(null);
-		},
-		[setDrag, setDrop],
-	);
-
-	const handleTagMouseLeave = useCallback(() => {
-		if (dragTagIdRef.current) setDrop(null);
-	}, [setDrop]);
 
 	if (!map) return null;
 
@@ -220,26 +258,19 @@ export function TagManager() {
 						filterText={filterText}
 					/>
 				) : (
-					sortedTags.length > 0 && (
+					displayTags.length > 0 && (
 						<ul className="tag-list">
-							{sortedTags.map((tag) => (
+							{displayTags.map((tag) => (
 								<TagRow
 									key={tag.id}
 									tag={tag}
 									count={tagCounts[tag.id] ?? 0}
 									isSelected={selectedTagIds.has(tag.id)}
 									isDragging={dragTagId === tag.id}
-									drop={
-										dragTagId && dragTagId !== tag.id && dropTarget?.id === tag.id
-											? dropTarget.position
-											: null
-									}
 									sortMode={sortMode}
 									onClick={handleTagClick}
 									onMouseDown={handleTagMouseDown}
 									onMouseMove={handleTagMouseMove}
-									onMouseUp={handleTagMouseUp}
-									onMouseLeave={handleTagMouseLeave}
 									onEdit={setEditingTagId}
 									onRename={setRenamingTag}
 								/>
@@ -248,6 +279,33 @@ export function TagManager() {
 					)
 				)}
 			</ToolBlock>
+
+			{dragTag &&
+				createPortal(
+					<ul
+						className="tag-list tag-drag-preview"
+						ref={previewRef}
+						style={{ left: dragPosRef.current.x + 12, top: dragPosRef.current.y + 12 }}
+					>
+						<li
+							className="tag has-button"
+							style={{ backgroundColor: dragTag.color, color: textColorFor(dragTag.color) }}
+						>
+							<button className="button tag__button tag__button--edit" type="button" tabIndex={-1}>
+								<Icon path={mdiPencil} />
+							</button>
+							<label className="tag__text">
+								{dragTag.name}
+								<small
+									style={{ marginLeft: ".375rem", fontWeight: 600, verticalAlign: "middle" }}
+								>
+									{fmt.format(tagCounts[dragTag.id] ?? 0)}
+								</small>
+							</label>
+						</li>
+					</ul>,
+					document.body,
+				)}
 
 			{editingTag && <EditTagDialog tag={editingTag} onClose={() => setEditingTagId(null)} />}
 
@@ -267,13 +325,10 @@ const TagRow = memo(function TagRow({
 	count,
 	isSelected,
 	isDragging,
-	drop,
 	sortMode,
 	onClick,
 	onMouseDown,
 	onMouseMove,
-	onMouseUp,
-	onMouseLeave,
 	onEdit,
 	onRename,
 }: {
@@ -281,13 +336,10 @@ const TagRow = memo(function TagRow({
 	count: number;
 	isSelected: boolean;
 	isDragging: boolean;
-	drop: "before" | "after" | null;
 	sortMode: TagSortMode;
 	onClick: (e: React.MouseEvent, tagId: number) => void;
 	onMouseDown: (e: React.MouseEvent, tagId: number) => void;
 	onMouseMove: (e: React.MouseEvent, tagId: number, el: HTMLElement) => void;
-	onMouseUp: (tagId: number) => void;
-	onMouseLeave: () => void;
 	onEdit: (tagId: number) => void;
 	onRename: (tag: { id: number; name: string }) => void;
 }) {
@@ -304,12 +356,9 @@ const TagRow = memo(function TagRow({
 						cursor: sortMode === "default" ? "grab" : "pointer",
 					}}
 					data-tag-id={tag.id}
-					data-drop={drop ?? undefined}
 					onClick={(e) => onClick(e, tag.id)}
 					onMouseDown={(e) => onMouseDown(e, tag.id)}
 					onMouseMove={(e) => onMouseMove(e, tag.id, e.currentTarget)}
-					onMouseUp={() => onMouseUp(tag.id)}
-					onMouseLeave={onMouseLeave}
 				>
 					<button
 						className="button tag__button tag__button--edit"
@@ -449,9 +498,30 @@ function EditTagDialog({
 	const [name, setName] = useState(tag.name);
 	const [hsl, setHsl] = useState(() => hexToHsl(tag.color));
 	const hexValue = hslToHex(hsl.h, hsl.s, hsl.l);
+	const [bindings, setBindings] = useMapSetting("keyBindings");
+	const [hotkey, setHotkey] = useState(() => getTagBindingKey(bindings ?? [], tag.id) ?? "");
+
+	// Informational only: per-map bindings preempt these while this map is open,
+	// and assigning steals the key from whichever tag held it.
+	const globalConflicts = hotkey ? getConflicts("", hotkey) : [];
+	const holder = hotkey
+		? (bindings ?? []).find(
+				(b) =>
+					b.key === hotkey && !(b.action.type === "applyTag" && b.action.tagId === tag.id),
+			)
+		: undefined;
+	const holderAction = holder?.action;
+	const holderTag =
+		holderAction?.type === "applyTag"
+			? getVisibleTags().find((t) => t.id === holderAction.tagId)
+			: undefined;
 
 	const handleSave = () => {
 		updateTags([{ id: tag.id, patch: { name: name.trim() || tag.name, color: hexValue } }]);
+		const cur = bindings ?? [];
+		if ((getTagBindingKey(cur, tag.id) ?? "") !== hotkey) {
+			setBindings(withTagKeyBinding(cur, tag.id, hotkey));
+		}
 		onClose();
 	};
 
@@ -499,6 +569,26 @@ function EditTagDialog({
 							color={hsl}
 							onChange={setHsl}
 						/>
+					</div>
+					<div className="edit-tag-modal__hotkey">
+						<span>Hotkey:</span>
+						<HotkeyInput value={hotkey} onChange={setHotkey} />
+						<button
+							type="button"
+							className="button"
+							disabled={!hotkey}
+							onClick={() => setHotkey("")}
+						>
+							Clear
+						</button>
+						{(holderTag || globalConflicts.length > 0) && (
+							<p className="edit-tag-modal__hotkey-note">
+								{holderTag && <>Takes the key from "{holderTag.name}". </>}
+								{globalConflicts.length > 0 && (
+									<>Overrides "{globalConflicts[0].label}" while this map is open.</>
+								)}
+							</p>
+						)}
 					</div>
 					<div className="edit-tag-modal__actions">
 						<button

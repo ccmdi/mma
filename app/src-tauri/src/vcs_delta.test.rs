@@ -112,7 +112,7 @@ fn delta_batch_round_trip_preserves_all_fields() {
 /// to a real Arrow file, read them back, replay, and materialize the checkout batch.
 #[test]
 fn deltas_round_trip_through_disk_and_replay() {
-    use crate::fast_io::{read_arrow_ipc, write_arrow_ipc};
+    use crate::storage::{read_arrow_ipc, write_arrow_ipc};
 
     // genesis: add 1,2,3 ; c2: modify 1, remove 2 ; c3: add 4
     let mut one_v2 = loc(1, 10.0, 20.0);

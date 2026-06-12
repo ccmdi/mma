@@ -16,9 +16,8 @@ use serde_json::Value;
 use uuid::Uuid;
 use crate::util::{now_iso, now_unix};
 
-use tauri::Emitter;
 use crate::arrow_bridge;
-use crate::fast_io;
+use crate::storage;
 use crate::location_store;
 use crate::types::{Tag, Location, LocationFlags};
 
@@ -530,7 +529,7 @@ fn read_single_json(path: &str) -> AppResult<Vec<(String, String)>> {
 
 /// Persist a parsed map as a new database entry + Arrow IPC file.
 /// Assigns sequential u32 location IDs starting at 1.
-fn write_map_to_db(conn: &Connection, app: &tauri::AppHandle, mut map: ParsedMap) -> AppResult<ImportedMapInfo> {
+fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedMapInfo> {
     let map_id = Uuid::new_v4().to_string();
     let now = now_iso();
     let loc_count = map.locations.len() as u32;
@@ -548,8 +547,8 @@ fn write_map_to_db(conn: &Connection, app: &tauri::AppHandle, mut map: ParsedMap
     }
 
     let batch = arrow_bridge::locations_to_batch(&map.locations);
-    let arrow_path = fast_io::arrow_path(app, &map_id)?;
-    fast_io::write_arrow_ipc(&arrow_path, &batch)?;
+    let arrow_path = storage::arrow_path(&map_id)?;
+    storage::write_arrow_ipc(&arrow_path, &batch)?;
 
     let tx = conn.unchecked_transaction()?;
 
@@ -630,12 +629,10 @@ pub struct ImportProgress {
 #[tauri::command]
 #[specta::specta]
 pub async fn bulk_import_confirm(
-    app: tauri::AppHandle,
     path: String,
     selected_indices: Vec<u32>,
 ) -> AppResult<Vec<ImportedMapInfo>> {
-    let main_path = fast_io::db_path(&app)?;
-    let app_handle = app.clone();
+    let main_path = storage::db_path()?;
 
     tokio::task::spawn_blocking(move || {
         let all_maps = {
@@ -668,8 +665,8 @@ pub async fn bulk_import_confirm(
         let mut results = Vec::with_capacity(parsed_maps.len());
         for (i, map) in parsed_maps.into_iter().enumerate() {
             let map_name = map.name.clone();
-            let info = write_map_to_db(&conn, &app_handle, map)?;
-            let _ = app_handle.emit("bulk-import-progress", ImportProgress {
+            let info = write_map_to_db(&conn, map)?;
+            crate::emit_event("bulk-import-progress", ImportProgress {
                 current: (i + 1) as u32,
                 total,
                 map_name,
@@ -769,6 +766,16 @@ fn build_preview(parsed: ParsedMap) -> AppResult<EditorImportPreview> {
 
 static EDITOR_IMPORT_CACHE: Mutex<Option<ParsedMap>> = Mutex::new(None);
 
+/// Fetch one staged (not yet imported) location by its preview index, for read-only
+/// preview in the editor. Indexes follow the preview positions order.
+#[tauri::command]
+#[specta::specta]
+pub fn store_import_staged_location(index: u32) -> AppResult<Location> {
+    let cache = EDITOR_IMPORT_CACHE.lock().unwrap();
+    let parsed = cache.as_ref().ok_or("no staged import")?;
+    parsed.locations.get(index as usize).cloned().ok_or_else(|| "staged index out of range".into())
+}
+
 /// Parse a file and return field-level statistics + preview positions for the editor
 /// import sidebar. Caches the parse result for `store_import_file` to consume on commit.
 #[tauri::command]
@@ -811,34 +818,25 @@ pub struct EditorImportResult {
 }
 
 
-/// Merge imported tags with existing map tags by case-insensitive name matching.
-/// Tags that already exist get remapped to the existing ID; new tags get fresh
-/// IDs from the store's allocator. Returns a `{parsed_id -> store_id}` remap table.
-fn reconcile_tags(
+/// Insert pre-deduped copied locations (cross-map copy) through the same path
+/// as editor import: tag reconcile, id alloc, counts, field defs, undo entry,
+/// and render cell registration. `tags` are the source tag defs referenced by
+/// `locations`.
+pub(crate) fn add_copied_to_store(
     store: &mut location_store::Store,
-    parsed: &mut ParsedMap,
-    existing_tags: &HashMap<u32, Tag>,
-) -> HashMap<u32, u32> {
-    let mut name_to_id: HashMap<String, u32> = HashMap::new();
-    for (_, tag) in existing_tags {
-        name_to_id.insert(tag.name.to_lowercase(), tag.id);
-    }
-
-    let mut remap: HashMap<u32, u32> = HashMap::new();
-    parsed.tags.retain_mut(|tag| {
-        if let Some(&existing_id) = name_to_id.get(&tag.name.to_lowercase()) {
-            remap.insert(tag.id, existing_id);
-            false
-        } else {
-            let new_id = store.alloc_tag_id();
-            remap.insert(tag.id, new_id);
-            name_to_id.insert(tag.name.to_lowercase(), new_id);
-            tag.id = new_id;
-            true
-        }
-    });
-
-    remap
+    locations: Vec<Location>,
+    tags: Vec<Tag>,
+) -> AppResult<()> {
+    let mut parsed = ParsedMap {
+        name: String::new(),
+        folder: None,
+        locations,
+        tags,
+        fields: None,
+        warnings: Vec::new(),
+    };
+    add_parsed_to_store(store, &mut parsed, None)?;
+    Ok(())
 }
 
 /// Insert parsed locations into the open map's store via the overlay.
@@ -850,21 +848,19 @@ fn reconcile_tags(
 /// Tag reconciliation, render cell registration, and extra-field auto-registration
 /// happen regardless of size.
 fn add_parsed_to_store(
-    app: &tauri::AppHandle,
     store: &mut location_store::Store,
     parsed: &mut ParsedMap,
     bulk_tag: Option<&str>,
 ) -> AppResult<location_store::MutationResult> {
-    let existing_tags = store.tags.all.clone();
-
-    let tag_id_remap = reconcile_tags(store, parsed, &existing_tags);
-
-    if !parsed.tags.is_empty() {
-        for tag in &parsed.tags {
-            store.tags.all.insert(tag.id, tag.clone());
+    let tag_id_remap = {
+        let tags = &mut store.tags;
+        let before = tags.all.len();
+        let remap = location_store::reconcile_tags_by_name(&parsed.tags, &mut tags.all, &mut tags.next_id);
+        if tags.all.len() > before {
+            tags.dirty = true;
         }
-        store.tags.dirty = true;
-    }
+        remap
+    };
 
     for loc in &mut parsed.locations {
         loc.id = store.alloc_id();
@@ -927,7 +923,7 @@ fn add_parsed_to_store(
     result.tags = Some(store.tags.all.clone());
 
     if let Some(new_defs) = new_field_defs {
-        location_store::apply_field_defs(app, store, new_defs, &mut result);
+        location_store::apply_field_defs(store, new_defs, &mut result);
     }
     Ok(result)
 }
@@ -939,7 +935,6 @@ fn add_parsed_to_store(
 #[tauri::command]
 #[specta::specta]
 pub fn store_import_file(
-    app: tauri::AppHandle,
     webview: tauri::Webview,
     state: tauri::State<'_, location_store::StoreState>,
     dropped_fields: Vec<String>,
@@ -971,7 +966,7 @@ pub fn store_import_file(
     log::debug!("[import] parse=cached locs={}", imported_count);
 
     with_store!(webview, state, |store| {
-        let mutation = add_parsed_to_store(&app, store, &mut parsed, tag_name.as_deref())?;
+        let mutation = add_parsed_to_store(store, &mut parsed, tag_name.as_deref())?;
 
         log::debug!("[import] total={:.0}ms locs={}", t0.elapsed().as_millis(), imported_count);
 

@@ -317,9 +317,9 @@ const RAW_HOTKEY_DEFS: HotkeyDef[] = [
 	},
 	{
 		action: "toggleSelectOnly",
-		label: "Toggle select-only mode (block new locations)",
+		label: "Toggle select-only mode",
 		group: "Map Navigation",
-		defaultBinding: "v",
+		defaultBinding: "o",
 	},
 	...Array.from({ length: 9 }, (_, i): HotkeyDef => ({
 		action: `quicktag${i + 1}` as HotkeyAction,

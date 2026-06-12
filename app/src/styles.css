@@ -1330,15 +1330,19 @@ summary.button {
 }
 .page-map-list {
 	grid-gap: 1rem 4rem;
-	grid-template-columns: 1fr 1fr;
+	/* maps column grows with its longest entry, widening the page from center */
+	grid-template-columns: minmax(35rem, max-content) minmax(0, 35rem);
 	justify-content: center;
-	max-width: 1200px;
+	width: fit-content;
+	min-width: min(74rem, 100%);
+	max-width: 100%;
 	margin: 0.5rem auto;
 	display: grid;
 }
 @media (max-width: 800px) {
 	.page-map-list {
 		grid-template-columns: 100%;
+		width: 100%;
 	}
 }
 .map-link {
@@ -3652,13 +3656,14 @@ summary.button {
 	visibility: hidden;
 }
 .tag.is-dragging {
-	opacity: 0.4;
+	visibility: hidden;
 }
-.tag[data-drop="before"] {
-	box-shadow: -2px 0 0 0 #4a9eff;
-}
-.tag[data-drop="after"] {
-	box-shadow: 2px 0 0 0 #4a9eff;
+.tag-drag-preview {
+	position: fixed;
+	margin: 0;
+	pointer-events: none;
+	z-index: 1000;
+	opacity: 0.9;
 }
 .tag > label > input {
 	display: none;
@@ -3817,12 +3822,79 @@ summary.button {
 
 .edit-tag-modal {
 	grid-gap: 0.5rem;
-	grid-template-areas: "name" "color" "actions";
+	grid-template-areas: "name" "color" "hotkey" "actions";
 	padding-top: 2px;
 	display: grid;
 }
 .edit-tag-modal__name {
 	grid-area: name;
+}
+.edit-tag-modal__hotkey {
+	grid-gap: 0.25rem;
+	grid-area: hotkey;
+	grid-template-columns: auto 1fr auto;
+	align-items: center;
+	display: grid;
+}
+.edit-tag-modal__hotkey-note {
+	grid-column: 1 / -1;
+	margin: 0;
+	font-size: 0.85em;
+	color: #888;
+}
+/* The add-row suggestion dropdown must overlay the dialog edge, not become
+   scrollable content inside it. Row overflow is handled by the list itself. */
+.copy-to-map-modal-host .modal__content {
+	overflow: visible;
+}
+.copy-to-map-modal {
+	display: grid;
+	grid-gap: 0.75rem;
+	min-width: 26rem;
+}
+.copy-to-map-modal__hint {
+	margin: 0;
+	font-size: 0.85em;
+	color: #888;
+}
+.copy-to-map-modal__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	max-height: 50vh;
+	overflow-y: auto;
+	display: grid;
+	grid-gap: 0.25rem;
+}
+.copy-to-map-modal__row {
+	display: grid;
+	grid-template-columns: 1fr 9rem auto;
+	grid-gap: 0.25rem;
+	align-items: center;
+	padding: 0.25rem 0;
+}
+.copy-to-map-modal__name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.copy-to-map-modal__name small {
+	color: #888;
+}
+.copy-to-map-modal__add {
+	position: relative;
+	padding-bottom: 0.5rem;
+}
+.copy-to-map-modal__add .input,
+.copy-to-map-modal__add .search-results {
+	width: 100%;
+	box-sizing: border-box;
+}
+.copy-to-map-modal__add .search-results {
+	box-shadow: var(--shadow-1);
+}
+.copy-to-map-modal__add .search-result {
+	color: #000;
 }
 .edit-tag-modal__color {
 	grid-gap: 0.25rem;

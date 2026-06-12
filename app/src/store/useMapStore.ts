@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import type { Location, WorkArea, ImportPreview } from "@/types";
+import { isVirtualLocation, stagedIndexToVirtualId, virtualIdToStagedIndex } from "@/types";
 import type { MapData, MapMeta, Tag, ExtraFieldDef, FilterOp } from "@/bindings.gen";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
@@ -200,6 +201,12 @@ let cachedActiveLocation: Location | null = null;
 
 export const useActiveLocation = makeStoreHook((): Location | null => cachedActiveLocation);
 
+/** Staged-import preview index when the active location is virtual. */
+export function getActiveStagedIndex(): number | null {
+	const loc = cachedActiveLocation;
+	return loc && isVirtualLocation(loc) ? virtualIdToStagedIndex(loc.id) : null;
+}
+
 export const useDuplicateLocations = makeStoreHook(() => duplicateLocations);
 
 export const useWorkArea = makeStoreHook(() => workArea);
@@ -378,6 +385,15 @@ export async function closeMap() {
 	tagCounts = {};
 	mapVersion++;
 	notify();
+}
+
+/** Resync after another window mutated this map (store-external-mutation event):
+ *  re-fetch meta and rebuild the render state from the store. */
+export async function refreshFromExternalMutation() {
+	if (!currentMapId) return;
+	currentMap = await cmd.storeGetMap(currentMapId);
+	renderDeltaBus.emit({ added: [], updated: [], removed: [], colorPatches: [], fullReset: true });
+	refreshAfterMutation();
 }
 
 export function getCurrentMapId() {
@@ -596,7 +612,7 @@ export async function addLocations(locs: Location[], opts?: { hideInDelta?: bool
 }
 
 export async function duplicateLocation(locId: number): Promise<number | null> {
-	if (!currentMap) return null;
+	if (!currentMap || isVirtualLocation({ id: locId })) return null;
 	const loc = await cmd.storeGetLocation(locId);
 	if (!loc) return null;
 	const now = nowUnix();
@@ -606,6 +622,7 @@ export async function duplicateLocation(locId: number): Promise<number | null> {
 }
 
 export function updateLocationNoUndo(id: number, patch: Partial<Location>) {
+	if (isVirtualLocation({ id })) return Promise.resolve(null);
 	const p: Record<string, unknown> = {};
 	for (const [k, v] of Object.entries(patch)) {
 		if (k !== "id") p[k] = v;
@@ -615,6 +632,10 @@ export function updateLocationNoUndo(id: number, patch: Partial<Location>) {
 
 export async function removeLocations(ids: ReadonlyIdSet) {
 	if (!currentMap || ids.size === 0) return;
+	if ([...ids].some((id) => isVirtualLocation({ id }))) {
+		await setActiveLocation(null);
+		return;
+	}
 	if (activeLocationId && ids.has(activeLocationId)) {
 		activeLocationId = null;
 		cachedActiveLocation = null;
@@ -642,6 +663,7 @@ function buildUpdates(
 
 export async function updateLocation(loc: Location, patch: Partial<Location>) {
 	if (!currentMap) return;
+	if (isVirtualLocation(loc)) return;
 	const updates = buildUpdates([{ id: loc.id, patch }]);
 	emitEvent("location:update", { id: loc.id, ...patch });
 	await mutate(cmd.storeUpdateLocations(updates, true));
@@ -719,6 +741,7 @@ export async function patchLocationExtra(
 	replace = false,
 ) {
 	if (!currentMap) return;
+	if (isVirtualLocation(loc)) return;
 	const extra = replace ? extraPatch : { ...loc.extra, ...extraPatch };
 	await mutate(cmd.storeUpdateLocations([[loc.id, { extra }]], false));
 
@@ -1041,9 +1064,35 @@ export function useSelectedTagIds() {
 	return ids;
 }
 
-/** Set the active location. Fetches from Rust, checks for nearby duplicates, and updates workArea. */
+/** Open a staged-import location read-only, "as if" it were active. The location
+ *  becomes virtual (negative id) so identity and mutate-guards derive from it. */
+export async function openStagedLocation(index: number) {
+	const loc = await cmd.storeImportStagedLocation(index);
+	activeLocationId = null;
+	// Rust's active_id must not stay pinned to the previous real location.
+	cmd.storeSetActive(null).catch((e) => log.error("[stagedOpen] store_set_active failed:", e));
+	cachedActiveLocation = { ...loc, id: stagedIndexToVirtualId(index) };
+	workArea = "location";
+	importMarkerVersion++;
+	mapVersion++;
+	notify();
+	emitEvent("active:change", null);
+}
+
 export async function setActiveLocation(id: number | null, checkDuplicates = true) {
 	const t = trace("setActive");
+	if (cachedActiveLocation && isVirtualLocation(cachedActiveLocation)) {
+		importMarkerVersion++;
+		if (id == null) {
+			cachedActiveLocation = null;
+			workArea = "import";
+			mapVersion++;
+			notify();
+			emitEvent("active:change", null);
+			t.end();
+			return;
+		}
+	}
 	activeLocationId = id;
 	cmd.storeSetActive(id).catch((e) => log.error("[setActive] store_set_active failed:", e));
 	if (id) {
@@ -1272,6 +1321,10 @@ export function cancelImport() {
 	importStaging = null;
 	importPreviewPositions = new Float32Array(0);
 	importMarkerVersion++;
+	if (cachedActiveLocation && isVirtualLocation(cachedActiveLocation)) {
+		cachedActiveLocation = null;
+		workArea = "overview";
+	}
 	if (workArea === "import") workArea = "overview";
 	mapVersion++;
 	notify();

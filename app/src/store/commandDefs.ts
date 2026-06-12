@@ -24,6 +24,7 @@ import {
 	mdiGhostOutline,
 	mdiCompassOutline,
 	mdiDiceMultiple,
+	mdiMapPlus,
 } from "@mdi/js";
 import { registerCommand } from "./commands";
 import {
@@ -67,6 +68,15 @@ registerCommand({
 	icon: mdiFileImportOutline,
 	group: "Map",
 	execute: () => document.dispatchEvent(new CustomEvent("open-import")),
+	enabled: () => getCurrentMap() !== null,
+});
+
+registerCommand({
+	id: "addLocationToMap",
+	label: "Add location to map...",
+	icon: mdiMapPlus,
+	group: "Map",
+	execute: () => document.dispatchEvent(new CustomEvent("open-copy-to-map")),
 	enabled: () => getCurrentMap() !== null,
 });
 
