@@ -1,7 +1,7 @@
 const { registerPlugin } = window.MMA;
 import { mdiSync } from "@mdi/js";
 import { SyncSidebar } from "./SyncSidebar";
-import { getLink, livePref, startLive, stopLive } from "./controller";
+import { getLink, livePref, startLive, pauseLive } from "./controller";
 
 registerPlugin({
 	id: "map-making-sync",
@@ -17,11 +17,11 @@ registerPlugin({
 		};
 		resume();
 		const offOpen = M.on("map:open", resume);
-		const offClose = M.on("map:close", stopLive);
+		const offClose = M.on("map:close", pauseLive);
 		return () => {
 			offOpen();
 			offClose();
-			stopLive();
+			pauseLive();
 		};
 	},
 });

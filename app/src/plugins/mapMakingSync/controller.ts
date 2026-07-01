@@ -63,10 +63,22 @@ export async function unlink(): Promise<void> {
 	await storeFor(id).clear();
 }
 
-export async function syncNow(): Promise<SyncOutcome> {
+// Single in-flight guard shared by manual Sync-now AND the live loop, so two reconciles never
+// overlap on the same map (which would double-create unmapped locals + race the mapping writes).
+let syncing: Promise<SyncOutcome> | null = null;
+
+function runReconcile(): Promise<SyncOutcome> {
+	if (syncing) return syncing; // coalesce: hand back the run already in flight
 	const id = currentMapId();
-	if (!id) throw new Error("no map open");
-	return reconcile(makeApi(), storeFor(id));
+	if (!id) return Promise.reject(new Error("no map open"));
+	syncing = reconcile(makeApi(), storeFor(id)).finally(() => {
+		syncing = null;
+	});
+	return syncing;
+}
+
+export function syncNow(): Promise<SyncOutcome> {
+	return runReconcile();
 }
 
 // --- Live loop ---
@@ -86,9 +98,7 @@ export function startLive(): void {
 	const id = currentMapId();
 	if (scheduler || !id || !storeFor(id).getLink()) return;
 	kv().set("live", true);
-	const api = makeApi();
-	const store = storeFor(id);
-	scheduler = createScheduler(async () => void (await reconcile(api, store)), {
+	scheduler = createScheduler(async () => void (await runReconcile()), {
 		onStatus: (s) => statusListeners.forEach((l) => l(s)),
 	});
 	unsubs = [...LOCATION_DATA_EVENTS, ...TAG_DATA_EVENTS].map((e) =>
@@ -98,13 +108,20 @@ export function startLive(): void {
 	void scheduler.runNow();
 }
 
-export function stopLive(): void {
-	kv().set("live", false);
+/** Tear down the running loop but KEEP the persisted pref, so map:open can auto-resume it.
+ *  Used by the map-close teardown (a close is not the user turning sync off). */
+export function pauseLive(): void {
 	scheduler?.stop();
 	scheduler = null;
 	unsubs.forEach((u) => u());
 	unsubs = [];
 	statusListeners.forEach((l) => l("idle"));
+}
+
+/** Explicit user "off" (toggle/unlink): clear the persisted pref, then stop the loop. */
+export function stopLive(): void {
+	kv().set("live", false);
+	pauseLive();
 }
 
 /** Whether the user left the live toggle on (persisted), so `activate` can auto-resume on open. */
