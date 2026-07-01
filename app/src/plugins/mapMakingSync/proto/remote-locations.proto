@@ -1,0 +1,30 @@
+// Protobuf schema for `GET /api/maps/{mapId}/locations` when requested
+// with `Accept: application/protobuf` from map-making.app.
+syntax = "proto2";
+
+message RemoteLocationsResponse {
+  // String table used by Location.tagIndex. Each tagIndex entry indexes this list.
+  repeated string tag = 1;
+  repeated RemoteLocation location = 2;
+}
+
+message RemoteLocation {
+  optional uint32 id = 1;
+  optional uint32 author = 2;
+  optional RemoteLatLng location = 3;
+  optional string panoId = 4;
+  optional double heading = 5;
+  optional double pitch = 6;
+  optional double zoom = 7;
+  repeated uint32 tagIndex = 8 [packed = true];
+  optional uint32 flags = 9;
+  // Unix timestamp in seconds.
+  optional uint64 createdAt = 10;
+  // Unix timestamp in seconds. Month-granular pano capture date (pinned to the 1st).
+  optional uint64 panoDate = 11;
+}
+
+message RemoteLatLng {
+  optional double lat = 1;
+  optional double lng = 2;
+}

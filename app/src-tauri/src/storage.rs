@@ -506,6 +506,18 @@ const MIGRATIONS: &[(u32, &str)] = &[
         "DROP TABLE IF EXISTS tags;
           DROP INDEX IF EXISTS idx_tags_map_id;",
     ),
+    (
+        19,
+        "CREATE TABLE IF NOT EXISTS remote_mapping (
+            provider   TEXT    NOT NULL,
+            map_id     TEXT    NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            local_id   INTEGER NOT NULL,
+            remote_id  INTEGER NOT NULL,
+            hash       TEXT    NOT NULL,
+            PRIMARY KEY (provider, map_id, local_id)
+          );
+          CREATE INDEX IF NOT EXISTS idx_remote_mapping_remote ON remote_mapping(provider, map_id, remote_id);",
+    ),
 ];
 
 // ---------------------------------------------------------------------------
