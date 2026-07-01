@@ -3,7 +3,7 @@ import { Sidebar, Section, Field, EmptyState } from "@/components/primitives/Sid
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { mdiInformationOutline } from "@mdi/js";
 import type { Remote } from "./map-making-web-api";
-import type { SyncOutcome } from "./engine";
+import type { SyncOutcome, FirstSyncMode } from "./engine";
 import type { SyncStatus } from "./scheduler";
 import * as ctrl from "./controller";
 
@@ -22,6 +22,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 	const [live, setLive] = useState(ctrl.isLive());
 	const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [pendingLink, setPendingLink] = useState<Remote.Map | null>(null);
 
 	const mapId = ctrl.currentMapId();
 
@@ -48,14 +49,15 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	const doLink = useCallback(
-		async (m: Remote.Map) => {
+	const performLink = useCallback(
+		async (m: Remote.Map, mode: FirstSyncMode) => {
 			setBusy(true);
 			setError(null);
+			setPendingLink(null);
 			try {
 				ctrl.link(m.id, user?.id ?? null);
 				setLink(ctrl.getLink());
-				setOutcome(await ctrl.syncNow());
+				setOutcome(await ctrl.firstSync(mode));
 				ctrl.startLive(); // live by default on link
 				setLive(true);
 			} catch (e) {
@@ -65,6 +67,15 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			}
 		},
 		[user],
+	);
+
+	// Merge vs mirror only matters when BOTH sides already have pins; otherwise just merge.
+	const doLink = useCallback(
+		(m: Remote.Map) => {
+			if (ctrl.localLocationCount() > 0 && m.locationCount > 0) setPendingLink(m);
+			else void performLink(m, "merge");
+		},
+		[performLink],
 	);
 
 	const doSync = useCallback(async () => {
@@ -219,7 +230,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 				</Section>
 			)}
 
-			{user && mapId && !link && (
+			{user && mapId && !link && !pendingLink && (
 				<Section title="Link this map" defaultOpen>
 					<Field label="Find a remote map">
 						<input
@@ -241,6 +252,42 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 							{m.name || "(unnamed)"} · {m.locationCount} · #{m.id}
 						</button>
 					))}
+				</Section>
+			)}
+
+			{user && mapId && !link && pendingLink && (
+				<Section title="First sync" defaultOpen>
+					<p className="mma-input__help">
+						Both this map ({ctrl.localLocationCount()}) and "{pendingLink.name || "(unnamed)"}" (
+						{pendingLink.locationCount}) already have locations. How should the first sync go?
+					</p>
+					<button
+						className="button button--primary"
+						disabled={busy}
+						style={{ display: "block", width: "100%", textAlign: "left" }}
+						onClick={() => performLink(pendingLink, "merge")}
+					>
+						Merge · keep everything on both sides
+					</button>
+					<button
+						className="button"
+						disabled={busy}
+						style={{ display: "block", width: "100%", textAlign: "left" }}
+						onClick={() => performLink(pendingLink, "mirrorFromRemote")}
+					>
+						Use remote · delete local-only pins
+					</button>
+					<button
+						className="button"
+						disabled={busy}
+						style={{ display: "block", width: "100%", textAlign: "left" }}
+						onClick={() => performLink(pendingLink, "mirrorFromLocal")}
+					>
+						Use local · delete remote-only pins
+					</button>
+					<button className="button" disabled={busy} onClick={() => setPendingLink(null)}>
+						Cancel
+					</button>
 				</Section>
 			)}
 

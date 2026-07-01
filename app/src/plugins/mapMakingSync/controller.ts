@@ -3,7 +3,7 @@ import { MapMakingWebApi, Remote } from "./map-making-web-api";
 import { createSyncStore, type KeyValueStore, type SyncLink, type SyncStore } from "./syncStore";
 import { createMappingBackend } from "./mappingBackend";
 import { createScheduler, type Scheduler, type SyncStatus } from "./scheduler";
-import { reconcile, type SyncOutcome } from "./engine";
+import { reconcile, type FirstSyncMode, type SyncOutcome } from "./engine";
 
 const PROVIDER = "map-making.app";
 const PLUGIN_ID = "map-making-sync";
@@ -67,11 +67,11 @@ export async function unlink(): Promise<void> {
 // overlap on the same map (which would double-create unmapped locals + race the mapping writes).
 let syncing: Promise<SyncOutcome> | null = null;
 
-function runReconcile(): Promise<SyncOutcome> {
+function runReconcile(opts?: { firstSync?: FirstSyncMode }): Promise<SyncOutcome> {
 	if (syncing) return syncing; // coalesce: hand back the run already in flight
 	const id = currentMapId();
 	if (!id) return Promise.reject(new Error("no map open"));
-	syncing = reconcile(makeApi(), storeFor(id)).finally(() => {
+	syncing = reconcile(makeApi(), storeFor(id), opts).finally(() => {
 		syncing = null;
 	});
 	return syncing;
@@ -80,6 +80,14 @@ function runReconcile(): Promise<SyncOutcome> {
 export function syncNow(): Promise<SyncOutcome> {
 	return runReconcile();
 }
+
+/** First sync after linking, with the seeding mode the user chose (merge / mirror). */
+export function firstSync(mode: FirstSyncMode): Promise<SyncOutcome> {
+	return runReconcile({ firstSync: mode });
+}
+
+/** Location count of the currently open local map (for the merge-vs-mirror prompt). */
+export const localLocationCount = (): number => window.MMA.getCurrentMap()?.meta.locationCount ?? 0;
 
 // --- Live loop ---
 

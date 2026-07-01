@@ -20,6 +20,15 @@ export interface SyncOutcome {
 	conflicts: Conflict[];
 }
 
+/**
+ * First-sync seeding when both sides already have pins:
+ *  - `merge`            keep everything (union); never deletes. The default.
+ *  - `mirrorFromRemote` remote wins: pull remote-only in, DELETE local-only pins.
+ *  - `mirrorFromLocal`  local wins: push local-only up, DELETE remote-only pins.
+ * Only meaningful on the first sync (empty mapping); afterwards it's plain three-way.
+ */
+export type FirstSyncMode = "merge" | "mirrorFromRemote" | "mirrorFromLocal";
+
 const parseLocalId = (key: IdentityKey): number | null =>
 	key.startsWith("L:") ? Number(key.slice(2)) : null;
 
@@ -30,7 +39,11 @@ const parseLocalId = (key: IdentityKey): number | null =>
  * from the id-remap and advances the base. Conflicts are collected and returned, not applied
  * (review policy). No location content is persisted - only the `{localId, remoteId, hash}` index.
  */
-export async function reconcile(api: MapMakingWebApi, store: SyncStore): Promise<SyncOutcome> {
+export async function reconcile(
+	api: MapMakingWebApi,
+	store: SyncStore,
+	opts: { firstSync?: FirstSyncMode } = {},
+): Promise<SyncOutcome> {
 	const M = window.MMA;
 	const link = store.getLink();
 	if (!link) throw new Error("map is not linked");
@@ -51,6 +64,19 @@ export async function reconcile(api: MapMakingWebApi, store: SyncStore): Promise
 
 	const keyed = buildKeyedInputs(localLocs, remoteLocs, mapping, tagName);
 	const plan = computeSyncPlan(keyed.base, keyed.local, keyed.remote);
+
+	// Mirror seeding (first sync only): reinterpret one side's create-on-the-other as a delete on
+	// the loser side. `merge` leaves the plan untouched. Only when the base is empty.
+	const mode = opts.firstSync ?? "merge";
+	const mirrorLocalDeletes: number[] = []; // remote wins -> drop local-only pins locally
+	const mirrorRemoteDeletes: number[] = []; // local wins -> drop remote-only pins remotely
+	if (mapping.length === 0 && mode === "mirrorFromRemote") {
+		for (const key of plan.push.create) mirrorLocalDeletes.push(keyed.localById.get(key)!.id);
+		plan.push.create = [];
+	} else if (mapping.length === 0 && mode === "mirrorFromLocal") {
+		for (const key of plan.pull.create) mirrorRemoteDeletes.push(keyed.remoteById.get(key)!.id);
+		plan.pull.create = [];
+	}
 
 	// Create any local tags the incoming pulls reference, then resolve names -> ids.
 	const needed = new Set<string>();
@@ -96,6 +122,7 @@ export async function reconcile(api: MapMakingWebApi, store: SyncStore): Promise
 		localRemovals.add(localId);
 		deletes.push(localId);
 	}
+	for (const id of mirrorLocalDeletes) localRemovals.add(id); // unmapped, no index row to drop
 	if (localRemovals.size) await M.removeLocations(localRemovals);
 
 	// --- PUSH: send local-originated changes to the remote via one edit batch ---
@@ -125,6 +152,7 @@ export async function reconcile(api: MapMakingWebApi, store: SyncStore): Promise
 			deletes.push(localId);
 		}
 	}
+	remove.push(...mirrorRemoteDeletes); // unmapped remote-only pins dropped remotely
 	if (create.length || remove.length) {
 		const remap = await api.editLocations(link.remoteMapId, {
 			edits: [{ action: { type: EditActionType.Bulk }, create, remove }],
@@ -155,5 +183,10 @@ export async function reconcile(api: MapMakingWebApi, store: SyncStore): Promise
 	store.setLink({ ...link, lastSyncedAt: new Date().toISOString() });
 
 	const c = summarize(plan);
-	return { pushed: c.push, pulled: c.pull, adopted, conflicts: plan.conflicts };
+	return {
+		pushed: { ...c.push, delete: c.push.delete + mirrorRemoteDeletes.length },
+		pulled: { ...c.pull, delete: c.pull.delete + mirrorLocalDeletes.length },
+		adopted,
+		conflicts: plan.conflicts,
+	};
 }
