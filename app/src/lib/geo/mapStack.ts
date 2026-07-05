@@ -151,14 +151,7 @@ export function buildMapStack(opts: MapStackOpts): MapStackResult {
 				}),
 			);
 		} else if (legacyBase) {
-			// Legacy style renders labels in the base tile (toggled via stylers),
-			// so the separate labels layer is skipped below.
-			const cfg = createLegacyTileConfig([
-				...(opts.labels
-					? []
-					: [{ elementType: "labels", stylers: [{ visibility: "off" }] } as MapStyle]),
-				...extraStyles,
-			]);
+			const cfg = createLegacyTileConfig(extraStyles);
 			layers.push(
 				new google.maps.ImageMapType({
 					getTileUrl: (coord: TileCoord, zoom: number) =>
@@ -205,7 +198,7 @@ export function buildMapStack(opts: MapStackOpts): MapStackResult {
 	svLayer.setOpacity(blobbySingleType ? opts.svOpacity * 0.6 : opts.svOpacity);
 	layers.push(svLayer);
 
-	if (opts.labels && opts.type !== "osm" && !legacyBase) {
+	if (opts.labels && opts.type !== "osm") {
 		const labelCfg = createLabelsTileConfig(extraStyles);
 		layers.push(
 			new google.maps.ImageMapType({

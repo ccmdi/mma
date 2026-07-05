@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, type RefObject } from "react";
 import { ManageFieldsModal } from "@/components/dialogs/ManageFieldsModal";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
-import type { MapStyle } from "@/lib/geo/tiles";
+import { buildTileUrl, createRoadmapTileConfig, type MapStyle } from "@/lib/geo/tiles";
 import { BUILTIN_STYLE_KEYS, BUILTIN_STYLE_LABELS } from "@/lib/geo/mapStyles";
 import { EnrichInfoButton } from "@/components/editor/map/EnrichInfoButton";
 import { Icon } from "@/components/primitives/Icon";
@@ -235,28 +235,25 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 				<legend className="layer-config__header">
 					Map&nbsp;style <span className="layer-config__divider" />
 				</legend>
-				{BUILTIN_STYLE_KEYS.map((key) => (
-					<label key={key} className="layer-config__item">
-						<input
-							type="radio"
-							name="mapstyle"
-							checked={e.mapStyleName === key}
-							onChange={() => e.setMapStyleName(key)}
-						/>
-						{BUILTIN_STYLE_LABELS[key]}
-					</label>
-				))}
-				{e.customStyles.map((s) => (
-					<label key={s.name} className="layer-config__item">
-						<input
-							type="radio"
-							name="mapstyle"
-							checked={e.mapStyleName === s.name}
-							onChange={() => e.setMapStyleName(s.name)}
-						/>
-						{s.name}
-					</label>
-				))}
+				<label className="layer-config__item settings-popup__select">
+					Style:{" "}
+					<select
+						className="nselect nselect--limited"
+						value={e.mapStyleName}
+						onChange={(ev) => e.setMapStyleName(ev.target.value)}
+					>
+						{BUILTIN_STYLE_KEYS.map((key) => (
+							<option key={key} value={key}>
+								{BUILTIN_STYLE_LABELS[key]}
+							</option>
+						))}
+						{e.customStyles.map((s) => (
+							<option key={s.name} value={s.name}>
+								{s.name}
+							</option>
+						))}
+					</select>
+				</label>
 				<a
 					href="#"
 					onClick={(ev) => {
@@ -271,9 +268,114 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 	);
 }
 
+const MAP_TYPE_PREVIEW_STATIC: Partial<Record<MapTypeKey, string>> = {
+	satellite: "https://mts1.googleapis.com/vt?hl=en-US&lyrs=s&x=0&y=0&z=0",
+	osm: "https://tile.openstreetmap.org/0/0/0.png",
+};
+
+const MAP_TYPES: MapTypeKey[] = ["map", "satellite", "osm"];
+
+function BasemapSelector({
+	previewUrls,
+	selected,
+	onSelect,
+}: {
+	previewUrls: Record<MapTypeKey, string>;
+	selected: MapTypeKey;
+	onSelect: (type: MapTypeKey) => void;
+}) {
+	return (
+		<div className="map-type-control__basemap">
+			{MAP_TYPES.map((t) => (
+				<button
+					key={t}
+					type="button"
+					className="map-type-control__button"
+					data-state={selected === t ? "on" : "off"}
+					onClick={() => onSelect(t)}
+				>
+					<div className="map-type-control__background">
+						<img src={previewUrls[t]} alt="" draggable={false} />
+					</div>
+					<span>{MAP_TYPE_LABELS[t]}</span>
+				</button>
+			))}
+		</div>
+	);
+}
+
+/** Collapse to a single menu button when the expanded basemap would overlap top-right controls. */
+function useMapTypeCompact(
+	containerRef: RefObject<HTMLDivElement | null>,
+	basemapMeasureRef: RefObject<HTMLDivElement | null>,
+) {
+	const [compact, setCompact] = useState(false);
+
+	useEffect(() => {
+		const el = containerRef.current;
+		const measure = basemapMeasureRef.current;
+		if (!el) return;
+		const root = el.closest(".embed-controls");
+		const leftGroup = el.closest(".embed-controls__control");
+		if (!root || !leftGroup) return;
+
+		const check = () => {
+			const basemapWidth = measure?.scrollWidth ?? 0;
+			if (basemapWidth === 0) return;
+
+			const rootRect = root.getBoundingClientRect();
+			const leftEdge = rootRect.left + 8;
+			const topBandBottom = rootRect.top + 52;
+			let conflictLeft = rootRect.right - 8;
+
+			for (const control of Array.from(root.querySelectorAll(".embed-controls__control"))) {
+				if (control === leftGroup) continue;
+				const rect = control.getBoundingClientRect();
+				if (rect.top >= topBandBottom || rect.bottom <= rootRect.top) continue;
+				if (rect.left > leftEdge + 80) {
+					conflictLeft = Math.min(conflictLeft, rect.left);
+				}
+			}
+
+			let siblingsWidth = 0;
+			for (const child of Array.from(leftGroup.children)) {
+				if (child !== el && child instanceof HTMLElement) {
+					siblingsWidth += child.getBoundingClientRect().width;
+				}
+			}
+
+			const available = conflictLeft - leftEdge - 8;
+			const needed = basemapWidth + siblingsWidth;
+			setCompact((prev) => {
+				// Hysteresis avoids flip-flopping at the breakpoint.
+				if (prev) return needed > available;
+				return needed > available + 8;
+			});
+		};
+
+		const obs = new ResizeObserver(check);
+		obs.observe(root);
+		if (measure) obs.observe(measure);
+		for (const child of Array.from(leftGroup.children)) {
+			if (child !== el && child instanceof HTMLElement) obs.observe(child);
+		}
+		check();
+		return () => obs.disconnect();
+	}, [containerRef, basemapMeasureRef]);
+
+	return compact;
+}
+
 export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
+	const basemapMeasureRef = useRef<HTMLDivElement>(null);
+	const compact = useMapTypeCompact(containerRef, basemapMeasureRef);
+	const mapPreviewUrl = useMemo(() => buildTileUrl(createRoadmapTileConfig(), 0, 0, 0), []);
+
+	useEffect(() => {
+		setIsOpen(false);
+	}, [compact]);
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -286,41 +388,79 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 		return () => document.removeEventListener("mousedown", handler);
 	}, [isOpen]);
 
+	const previewUrls: Record<MapTypeKey, string> = {
+		map: mapPreviewUrl,
+		satellite: MAP_TYPE_PREVIEW_STATIC.satellite!,
+		osm: MAP_TYPE_PREVIEW_STATIC.osm!,
+	};
+
+	const settingsPopup = isOpen && (
+		<div
+			className="settings-popup"
+			style={{
+				position: "absolute",
+				top: "100%",
+				left: 0,
+				zIndex: 3,
+				maxHeight: "calc(100vh - 80px)",
+				overflowY: "auto",
+			}}
+		>
+			{compact && (
+				<BasemapSelector
+					previewUrls={previewUrls}
+					selected={layerConfig.basemap}
+					onSelect={(t) => layerConfig.setBasemap(t)}
+				/>
+			)}
+			<SettingsPopup layerConfig={layerConfig} />
+		</div>
+	);
+
 	return (
 		<div
 			className="map-control map-type-control"
 			ref={containerRef}
 			style={{ position: "relative" }}
 		>
-			<button className="map-control__menu-button" onClick={() => setIsOpen(!isOpen)}>
-				{MAP_TYPE_LABELS[layerConfig.basemap]}
-			</button>
-			{isOpen && (
-				<div
-					className="settings-popup"
-					style={{
-						position: "absolute",
-						top: "100%",
-						left: 0,
-						zIndex: 3,
-						maxHeight: "calc(100vh - 80px)",
-						overflowY: "auto",
-					}}
-				>
-					<div className="map-type-control__basemap">
-						{(["map", "satellite", "osm"] as MapTypeKey[]).map((t) => (
-							<button
-								key={t}
-								className="map-type-control__button"
-								data-state={layerConfig.basemap === t ? "on" : "off"}
-								onClick={() => layerConfig.setBasemap(t)}
-							>
-								<span>{MAP_TYPE_LABELS[t]}</span>
-							</button>
-						))}
-					</div>
-					<SettingsPopup layerConfig={layerConfig} />
-				</div>
+			<div
+				ref={basemapMeasureRef}
+				className="map-type-control__basemap map-type-control__basemap--measure"
+				aria-hidden
+			>
+				<BasemapSelector
+					previewUrls={previewUrls}
+					selected={layerConfig.basemap}
+					onSelect={() => {}}
+				/>
+			</div>
+			{compact ? (
+				<>
+					<button
+						type="button"
+						className="map-control__menu-button"
+						onClick={() => setIsOpen(!isOpen)}
+					>
+						{MAP_TYPE_LABELS[layerConfig.basemap]}
+					</button>
+					{settingsPopup}
+				</>
+			) : (
+				<>
+					<BasemapSelector
+						previewUrls={previewUrls}
+						selected={layerConfig.basemap}
+						onSelect={(t) => {
+							if (layerConfig.basemap === t) {
+								setIsOpen((v) => !v);
+							} else {
+								layerConfig.setBasemap(t);
+								setIsOpen(false);
+							}
+						}}
+					/>
+					{settingsPopup}
+				</>
 			)}
 		</div>
 	);

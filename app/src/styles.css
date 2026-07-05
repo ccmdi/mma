@@ -1744,6 +1744,10 @@ summary.button {
 .nselect--compact::picker(select) {
 	max-height: 300px;
 }
+.nselect--limited::picker(select) {
+	max-height: 150px !important;
+	scrollbar-width: thin;
+}
 .nselect:not(:disabled) {
 	cursor: pointer;
 }
@@ -2224,6 +2228,16 @@ summary.button {
 .map-type-control {
 	padding: 0;
 }
+.map-type-control__basemap--measure {
+	position: fixed;
+	left: -9999px;
+	top: 0;
+	visibility: hidden;
+	pointer-events: none;
+	width: max-content;
+	height: auto;
+	overflow: visible;
+}
 .map-type-control__basemap {
 	grid-auto-flow: column;
 	display: grid;
@@ -2239,6 +2253,7 @@ summary.button {
 	border: none;
 	font-family: Roboto, Arial, sans-serif;
 	font-size: 18px;
+	height: 40px;
 	line-height: 40px;
 	position: relative;
 	overflow: hidden;
@@ -2248,15 +2263,24 @@ summary.button {
 }
 .map-type-control__button span {
 	margin: 0 1rem;
+	position: relative;
 }
 .map-type-control__background {
 	opacity: 0.4;
-	z-index: -1;
-	width: 200px;
-	height: 40px;
+	z-index: 0;
 	position: absolute;
+	inset: 0;
+	overflow: hidden;
+}
+.map-type-control__background img {
+	position: absolute;
+	width: 256px;
+	height: 256px;
+	top: 50%;
 	left: 50%;
-	transform: translate(-50%);
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+	user-select: none;
 }
 .layer-config {
 	width: 100%;
@@ -2364,7 +2388,7 @@ summary.button {
 	padding: 0;
 }
 .search-control__input {
-	width: 260px;
+	width: 210px;
 	height: 40px;
 	font: 0.9rem var(--google-maps-font);
 	border: none;

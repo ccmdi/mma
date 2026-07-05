@@ -757,6 +757,22 @@ export function createLabelsTileConfig(styles: MapStyle[] = []): TileConfig {
 // The colors come from the map_id, so configs must be served via buildStyledTileUrl.
 export const LEGACY_STYLE_MAP_ID = "61449c20e7fc278b";
 
+function buildLegacyStylers(styleType: number, styles: MapStyle[] = []): Styler[] {
+	const stylers: Styler[] = [
+		new Styler({ type: styleType, params: [] }),
+		new Styler({ type: StyleType.HIGH_DPI, params: [] }),
+	];
+	if (styles.length > 0) {
+		const encoded = serializeStyles(styles);
+		if (encoded)
+			stylers.push(
+				new Styler({ type: StyleType.STYLERS, params: [{ key: "styles", value: encoded }] }),
+			);
+	}
+	return stylers;
+}
+
+// Legacy basemap via map_id with NO_LABELS so labels/borders can be stacked above SV coverage.
 export function createLegacyTileConfig(styles: MapStyle[] = []): TileConfig {
 	return new TileConfig({
 		query: { tile: {} },
@@ -764,8 +780,15 @@ export function createLegacyTileConfig(styles: MapStyle[] = []): TileConfig {
 		options: {
 			language: "en",
 			region: "US",
-			unknownStyleFlag: LegacyFlag.LEGACY,
-			styles: buildMapStyles("roadmap", styles),
+			unknownStyleFlag: LegacyFlag.CURRENT,
+			styles: buildLegacyStylers(StyleType.NO_LABELS, [
+				{
+					elementType: "geometry.stroke",
+					featureType: "administrative",
+					stylers: [{ visibility: "off" }],
+				},
+				...styles,
+			]),
 		},
 		renderOptions: { scale: devicePixelRatio },
 	});

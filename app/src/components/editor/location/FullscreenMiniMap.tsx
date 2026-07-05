@@ -145,8 +145,8 @@ export function FullscreenMiniMap() {
 		<div
 			className={`fullscreen-minimap${expanded ? " is-expanded" : ""}`}
 			style={sizeVars}
-			onMouseEnter={open}
-			onMouseLeave={scheduleClose}
+			onPointerEnter={open}
+			onPointerLeave={scheduleClose}
 		>
 			<div ref={containerRef} className="fullscreen-minimap__map" />
 			<div className="fullscreen-minimap__size">

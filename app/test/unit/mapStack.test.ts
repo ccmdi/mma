@@ -64,8 +64,12 @@ describe("buildMapStack layer composition", () => {
 		expect(layersOf(buildMapStack({ ...base, type: "osm" }))).toHaveLength(2);
 	});
 
-	it("legacy base map folds labels into the base tile (no separate labels layer)", () => {
-		expect(layersOf(buildMapStack({ ...base, style: "legacy" }))).toHaveLength(2);
+	it("legacy base map stacks a separate labels layer above SV coverage", () => {
+		expect(layersOf(buildMapStack({ ...base, style: "legacy" }))).toHaveLength(3);
+	});
+
+	it("legacy with labels off drops the labels layer", () => {
+		expect(layersOf(buildMapStack({ ...base, style: "legacy", labels: false }))).toHaveLength(2);
 	});
 
 	it("carries svOpacity onto the SV layer", () => {
