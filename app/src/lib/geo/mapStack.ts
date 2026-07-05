@@ -4,7 +4,9 @@ import {
 	buildStyledTileUrl,
 	createRoadmapTileConfig,
 	createLegacyTileConfig,
+	createLegacyTerrainTileConfig,
 	createLabelsTileConfig,
+	createSatelliteLabelsTileConfig,
 	createSatelliteTileConfig,
 	createSvTileConfig,
 	createSvBlobbyTileConfig,
@@ -73,7 +75,7 @@ export function mapStackOptsFromPrefs(
 export function buildMapStack(opts: MapStackOpts): MapStackResult {
 	const tileSize = new google.maps.Size(256, 256);
 	const layers: google.maps.ImageMapType[] = [];
-	const legacyBase = opts.style === "legacy" && opts.type === "map" && !opts.terrain;
+	const legacyMap = opts.style === "legacy" && opts.type === "map";
 
 	const extraStyles: MapStyle[] = [];
 	const builtinStyles = BUILTIN_STYLE_MAP[opts.style as keyof typeof BUILTIN_STYLE_MAP];
@@ -133,24 +135,38 @@ export function buildMapStack(opts: MapStackOpts): MapStackResult {
 		);
 	} else {
 		if (opts.terrain) {
-			const cfg = createTerrainBasemapTileConfig([
-				{ elementType: "labels", stylers: [{ visibility: "off" }] },
-				{
-					elementType: "geometry.stroke",
-					featureType: "administrative",
-					stylers: [{ visibility: "off" }],
-				},
-				...extraStyles,
-			]);
-			layers.push(
-				new google.maps.ImageMapType({
-					getTileUrl: (coord: TileCoord, zoom: number) => buildTileUrl(cfg, coord.x, coord.y, zoom),
-					tileSize,
-					minZoom: 0,
-					maxZoom: 20,
-				}),
-			);
-		} else if (legacyBase) {
+			if (legacyMap) {
+				const cfg = createLegacyTerrainTileConfig();
+				layers.push(
+					new google.maps.ImageMapType({
+						getTileUrl: (coord: TileCoord, zoom: number) =>
+							buildStyledTileUrl(cfg, LEGACY_STYLE_MAP_ID, coord.x, coord.y, zoom),
+						tileSize,
+						minZoom: 0,
+						maxZoom: 20,
+					}),
+				);
+			} else {
+				const cfg = createTerrainBasemapTileConfig([
+					{ elementType: "labels", stylers: [{ visibility: "off" }] },
+					{
+						elementType: "geometry.stroke",
+						featureType: "administrative",
+						stylers: [{ visibility: "off" }],
+					},
+					...extraStyles,
+				]);
+				layers.push(
+					new google.maps.ImageMapType({
+						getTileUrl: (coord: TileCoord, zoom: number) =>
+							buildTileUrl(cfg, coord.x, coord.y, zoom),
+						tileSize,
+						minZoom: 0,
+						maxZoom: 20,
+					}),
+				);
+			}
+		} else if (legacyMap) {
 			const cfg = createLegacyTileConfig(extraStyles);
 			layers.push(
 				new google.maps.ImageMapType({
@@ -199,7 +215,9 @@ export function buildMapStack(opts: MapStackOpts): MapStackResult {
 	layers.push(svLayer);
 
 	if (opts.labels && opts.type !== "osm") {
-		const labelCfg = createLabelsTileConfig(extraStyles);
+		const labelCfg =
+			opts.type === "satellite"
+				? createSatelliteLabelsTileConfig(extraStyles) : createLabelsTileConfig(extraStyles);
 		layers.push(
 			new google.maps.ImageMapType({
 				getTileUrl: (coord: TileCoord, zoom: number) =>

@@ -302,6 +302,12 @@ class Layer {
 	set layerName(v) {
 		this._a[1] = v;
 	}
+	get layerVersion() {
+		return this._a[2];
+	}
+	set layerVersion(v) {
+		this._a[2] = v;
+	}
 	get layerOptions(): LayerOption[] {
 		return (this._a[3] ??= []).map((e: any) => new LayerOption(e));
 	}
@@ -318,6 +324,7 @@ class Layer {
 function serializeLayer(e: any[], t: string[]) {
 	if (e[0] != null) t.push(`1e${e[0]}`);
 	if (e[1] != null) t.push(`2s${pbEscape(e[1])}`);
+	if (e[2] != null) t.push(`3i${e[2]}`);
 	e[3]?.forEach((e: any) => {
 		pbMsg(4, serializeLayerOption, e, t);
 	});
@@ -410,6 +417,12 @@ class Options {
 	set region(v) {
 		this._a[2] = v;
 	}
+	get outputFormat() {
+		return this._a[3] ?? 0;
+	}
+	set outputFormat(v) {
+		this._a[3] = v;
+	}
 	get unknownStyleFlag() {
 		return this._a[4] ?? 0;
 	}
@@ -434,6 +447,7 @@ function serializeOptions(e: any[], t: string[]) {
 	e[11]?.forEach((e: any) => {
 		pbMsg(12, serializeStyler, e, t);
 	});
+	if (e[3] != null) t.push(`4e${e[3]}`);
 }
 
 class RenderOptions {
@@ -506,9 +520,27 @@ export class TileConfig {
 	set renderOptions(v: any) {
 		this._a[4] = v == null ? [] : (v instanceof RenderOptions ? v : new RenderOptions(v)).toArray();
 	}
+	get tileHash() {
+		return this._a[22];
+	}
+	set tileHash(v) {
+		this._a[22] = v;
+	}
+	get footerStyleTypes(): number[] {
+		return this._a[25] ?? [];
+	}
+	set footerStyleTypes(v: number[]) {
+		this._a[25] = v;
+	}
 	toArray() {
 		return this._a;
 	}
+}
+
+function serializeTileFooterStyles(e: any[], t: string[]) {
+	e.forEach((v: number) => {
+		if (v != null) t.push(`1e${v}`);
+	});
 }
 
 function serializeTileConfig(e: any[], t: string[]) {
@@ -519,6 +551,8 @@ function serializeTileConfig(e: any[], t: string[]) {
 	if (e[2] != null) pbMsg(3, serializeOptions, e[2], t);
 	if (e[3] != null) t.push(`4i${e[3]}`);
 	if (e[4] != null) pbMsg(5, serializeRenderOptions, e[4], t);
+	if (e[22] != null) t.push(`23i${e[22]}`);
+	if (e[25]?.length) pbMsg(26, serializeTileFooterStyles, e[25], t);
 }
 
 export function serializeTileUrl(cfg: TileConfig): string {
@@ -789,6 +823,78 @@ export function createLegacyTileConfig(styles: MapStyle[] = []): TileConfig {
 				},
 				...styles,
 			]),
+		},
+		renderOptions: { scale: devicePixelRatio },
+	});
+}
+
+const LEGACY_TERRAIN_LAYER_VERSIONS = { terrain: 725, roads: 725483392 } as const;
+const LEGACY_TERRAIN_TILE_HASH = 56565656;
+
+export function createLegacyTerrainTileConfig(): TileConfig {
+	return new TileConfig({
+		query: { tile: {} },
+		layers: [
+			{
+				type: LayerType.TERRAIN,
+				layerName: "t",
+				layerVersion: LEGACY_TERRAIN_LAYER_VERSIONS.terrain,
+			},
+			{
+				type: LayerType.ROADMAP,
+				layerName: "r",
+				layerVersion: LEGACY_TERRAIN_LAYER_VERSIONS.roads,
+			},
+		],
+		options: {
+			language: "en",
+			region: "US",
+			outputFormat: 0,
+			unknownStyleFlag: LegacyFlag.LEGACY,
+			styles: [
+				new Styler({
+					type: StyleType.NO_LABELS,
+					params: [{ key: "set", value: "Terrain" }],
+				}),
+				new Styler({ type: StyleType.SMARTMAPS, params: [{ key: "smartmaps" }] }),
+			],
+		},
+		renderOptions: { rasterType: 3, scale: devicePixelRatio },
+		tileHash: LEGACY_TERRAIN_TILE_HASH,
+		footerStyleTypes: [StyleType.HIGH_DPI, StyleType.NO_LABELS],
+	});
+}
+
+export function createSatelliteLabelsTileConfig(styles: MapStyle[] = []): TileConfig {
+	const stylers: Styler[] = [
+		new Styler({ type: StyleType.SATELLITE, params: [] }),
+		new Styler({ type: StyleType.HIGH_DPI, params: [] }),
+	];
+	if (styles.length > 0) {
+		const encoded = serializeStyles([
+			{ elementType: "geometry", stylers: [{ visibility: "off" }] },
+			{
+				featureType: "administrative",
+				elementType: "geometry.stroke",
+				stylers: [{ visibility: "on" }],
+			},
+			{ elementType: "labels", stylers: [{ visibility: "on" }] },
+			...styles,
+		]);
+		if (encoded)
+			stylers.push(
+				new Styler({ type: StyleType.STYLERS, params: [{ key: "styles", value: encoded }] }),
+			);
+	}
+	return new TileConfig({
+		query: { tile: {} },
+		layers: [{ type: LayerType.ROADMAP, layerName: "m", layerOptions: [] }],
+		options: {
+			language: "en",
+			region: "US",
+			outputFormat: 0,
+			unknownStyleFlag: LegacyFlag.CURRENT,
+			styles: stylers,
 		},
 		renderOptions: { scale: devicePixelRatio },
 	});

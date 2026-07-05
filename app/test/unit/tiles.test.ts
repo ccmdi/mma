@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import {
 	buildStyledTileUrl,
 	createLegacyTileConfig,
-	createLegacyLabelsTileConfig,
+	createLabelsTileConfig,
 	LEGACY_STYLE_MAP_ID,
 } from "@/lib/geo/tiles";
 
@@ -37,7 +37,7 @@ describe("Legacy style tiles", () => {
 
 	it("serializes a legacy labels overlay tile", () => {
 		const url = new URL(
-			buildStyledTileUrl(createLegacyLabelsTileConfig(), LEGACY_STYLE_MAP_ID, 33, 22, 6),
+			buildStyledTileUrl(createLabelsTileConfig(), LEGACY_STYLE_MAP_ID, 33, 22, 6),
 		);
 		expect(url.searchParams.get("pb")).toBe(
 			"!1m5!1m4!1i6!2i33!3i22!4i256!2m2!1e0!2sm!3m12!2sen!3sUS!5e1105!12m1!1e3!12m1!1e2!12m4!1e26!2m2!1sstyles!2ss.e:g|p.v:off,s.t:1|s.e:g.s|p.v:on,s.e:l|p.v:on!5m1!5f1",
@@ -47,7 +47,7 @@ describe("Legacy style tiles", () => {
 	it("composes border emphasis on the legacy labels overlay tile", () => {
 		const url = new URL(
 			buildStyledTileUrl(
-				createLegacyLabelsTileConfig([
+				createLabelsTileConfig([
 					{
 						featureType: "administrative.country",
 						elementType: "geometry.stroke",

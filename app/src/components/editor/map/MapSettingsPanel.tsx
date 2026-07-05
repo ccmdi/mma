@@ -279,10 +279,12 @@ function BasemapSelector({
 	previewUrls,
 	selected,
 	onSelect,
+	onMouseEnter,
 }: {
 	previewUrls: Record<MapTypeKey, string>;
 	selected: MapTypeKey;
 	onSelect: (type: MapTypeKey) => void;
+	onMouseEnter?: () => void;
 }) {
 	return (
 		<div className="map-type-control__basemap">
@@ -293,6 +295,7 @@ function BasemapSelector({
 					className="map-type-control__button"
 					data-state={selected === t ? "on" : "off"}
 					onClick={() => onSelect(t)}
+					onMouseEnter={onMouseEnter}
 				>
 					<div className="map-type-control__background">
 						<img src={previewUrls[t]} alt="" draggable={false} />
@@ -374,10 +377,6 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 	const mapPreviewUrl = useMemo(() => buildTileUrl(createRoadmapTileConfig(), 0, 0, 0), []);
 
 	useEffect(() => {
-		setIsOpen(false);
-	}, [compact]);
-
-	useEffect(() => {
 		if (!isOpen) return;
 		const handler = (e: MouseEvent) => {
 			if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -457,6 +456,9 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 								layerConfig.setBasemap(t);
 								setIsOpen(false);
 							}
+						}}
+						onMouseEnter={() => {
+							setIsOpen(true);
 						}}
 					/>
 					{settingsPopup}
