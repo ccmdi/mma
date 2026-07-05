@@ -117,7 +117,6 @@ export function ApplyFieldAsTagsDialog({
 							className="nselect nselect--compact"
 							value={field}
 							onChange={(e) => handleFieldChange(e.target.value)}
-							onWheel={(e) => e.stopPropagation()}
 							style={{ flex: 1 }}
 							autoFocus
 						>

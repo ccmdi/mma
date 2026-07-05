@@ -1698,6 +1698,7 @@ summary.button {
 }
 .nselect::picker(select) {
 	appearance: base-select;
+	overscroll-behavior: contain;
 }
 .nselect {
 	text-align: left;
