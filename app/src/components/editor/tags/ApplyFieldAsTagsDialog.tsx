@@ -60,6 +60,13 @@ export function ApplyFieldAsTagsDialog({
 		setTzLocal(tzDefault);
 	};
 
+	const validateCopyrightYear = (imageDate: string, copyrightYear: string) => {
+		if (imageDate && copyrightYear && Number(imageDate.slice(0, 4)) > Number(copyrightYear)) {
+			return false;
+		}
+		return true;
+	};
+
 	const handleApply = async () => {
 		if (!field || !widthValid) return;
 
@@ -83,7 +90,10 @@ export function ApplyFieldAsTagsDialog({
 			if (tagId == null) continue;
 			for (const id of g.ids) {
 				const l = locById.get(id);
-				if (l && !l.tags.includes(tagId)) updates.push({ id, patch: { tags: [...l.tags, tagId] } });
+				if (l) {
+					if (field == "copyrightYear" && !validateCopyrightYear(l.extra?.imageDate, g.key)) continue;
+					if (!l.tags.includes(tagId)) updates.push({ id, patch: { tags: [...l.tags, tagId] } });
+				}
 			}
 		}
 		if (updates.length > 0) await updateLocations(updates);
@@ -117,6 +127,7 @@ export function ApplyFieldAsTagsDialog({
 							className="nselect nselect--compact"
 							value={field}
 							onChange={(e) => handleFieldChange(e.target.value)}
+							onWheel={(e) => e.stopPropagation()}
 							style={{ flex: 1 }}
 							autoFocus
 						>
@@ -132,6 +143,7 @@ export function ApplyFieldAsTagsDialog({
 								className="nselect nselect--compact"
 								value={projectionId}
 								onChange={(e) => setProjectionId(e.target.value)}
+								onWheel={(e) => e.stopPropagation()}
 							>
 								{projOptions.map((p) => (
 									<option key={p.id} value={p.id}>
