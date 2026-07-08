@@ -98,7 +98,7 @@ fn delta_batch_round_trip_preserves_all_fields() {
     l.tags = vec![1, 5, 9];
     let mut extra = serde_json::Map::new();
     extra.insert("note".into(), serde_json::Value::String("hi".into()));
-    l.extra = Some(extra);
+    l.extra = crate::types::RawExtra::from_map(&extra);
     let removed = loc(3, 1.0, 2.0);
 
     let batch = arrow_bridge::delta_to_batch(&[l.clone()], &[removed.clone()]);

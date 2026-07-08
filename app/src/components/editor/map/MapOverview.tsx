@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NSelect } from "@/components/primitives/NSelect";
 import {
 	useCurrentMap,
 	useSelectedLocationIds,
@@ -94,21 +95,20 @@ function TopKPanel({
 				selectTopK(field, count, ascending);
 			}}
 		>
-			<select className="nselect" value={field} onChange={(e) => setField(e.target.value)}>
+			<NSelect value={field} onChange={(e) => setField(e.target.value)}>
 				{fields.map((f) => (
 					<option key={f.key} value={f.key}>
 						{f.label}
 					</option>
 				))}
-			</select>
-			<select
-				className="nselect"
+			</NSelect>
+			<NSelect
 				value={ascending ? "bottom" : "top"}
 				onChange={(e) => setAscending(e.target.value === "bottom")}
 			>
 				<option value="top">Top</option>
 				<option value="bottom">Bottom</option>
-			</select>
+			</NSelect>
 			<input
 				className="input"
 				type="number"

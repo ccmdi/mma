@@ -3,6 +3,7 @@ import { createSyncStore } from "@/lib/util/syncStore";
 import type { SavedSelection } from "./savedSelections";
 import type { TagSortMode } from "@/types";
 import type { PinnedEntry } from "./commandDefs";
+import type { RGB } from "@/lib/util/color";
 
 export const MOVEMENT_MODES = {
 	moving: "Moving",
@@ -117,10 +118,10 @@ const DEFAULTS = {
 	nominatimApiKey: "",
 	panToImported: true,
 	followActiveInReview: true,
-	markerColor: { r: 42, g: 42, b: 42 },
-	activeLocationColor: { r: 200, g: 0, b: 0 },
-	importPreviewColor: { r: 217, g: 70, b: 239 },
-	panoDotColor: { r: 255, g: 0, b: 0 },
+	markerColor: { r: 42, g: 42, b: 42 } as RGB,
+	activeLocationColor: { r: 200, g: 0, b: 0 } as RGB,
+	importPreviewColor: { r: 217, g: 70, b: 239 } as RGB,
+	panoDotColor: { r: 255, g: 0, b: 0 } as RGB,
 	panoDotScaled: false,
 	tagViewMode: "flat" as TagViewMode,
 	/** Tree view only: render each tag as the shortest path suffix that's still unique. */

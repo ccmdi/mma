@@ -16,7 +16,7 @@ fn make_loc(
         pano_id: Some("PANO".into()),
         flags,
         tags,
-        extra,
+        extra: extra.as_ref().and_then(crate::types::RawExtra::from_map),
         created_at: 0,
         modified_at: None,
     }

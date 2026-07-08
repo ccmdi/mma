@@ -1,15 +1,12 @@
 import { useState } from "react";
-import {
-	useImportStaging,
-	confirmImport,
-	cancelImport,
-	getVisibleTags,
-} from "@/store/useMapStore";
+import { useImportStaging, confirmImport, cancelImport, getVisibleTags } from "@/store/useMapStore";
 import { fmt } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { textColorFor } from "@/lib/util/color";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { Icon } from "@/components/primitives/Icon";
+import { mdiClose } from "@mdi/js";
 
 const FIELD_PREFS_KEY = "import-field-prefs";
 const AUTOCOMMIT_ACK_KEY = "import-autocommit-ack";
@@ -162,9 +159,7 @@ export function ImportSidebar() {
 								onClick={() => setBulkTag(null)}
 								type="button"
 							>
-								<svg height="16" width="16" viewBox="0 0 24 24" fill="currentColor">
-									<path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
-								</svg>
+								<Icon path={mdiClose} size={16} />
 							</button>
 							<span className="tag__text">{bulkTag}</span>
 						</li>
@@ -209,9 +204,9 @@ export function ImportSidebar() {
 			<Dialog open={confirmAutoCommit} onOpenChange={setConfirmAutoCommit}>
 				<DialogContent title="Large import">
 					<p>
-						This import has {fmt.format(preview.locationCount)} locations, which is too many to
-						keep as an undoable change. It will be committed automatically and cannot be
-						undone afterward. You can still restore it later from history.
+						This import has {fmt.format(preview.locationCount)} locations, which is too many to keep
+						as an undoable change. It will be committed automatically and cannot be undone
+						afterward. You can still restore it later from history.
 					</p>
 					<label className="import-sidebar__ack">
 						<input

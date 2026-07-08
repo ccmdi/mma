@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Selection, SelectionProps } from "@/bindings.gen";
+import { NSelect } from "@/components/primitives/NSelect";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import { selectionDisplayName } from "@/store/selections";
 import { savedToSelectionProps, describeRule, type SavedSelection } from "@/store/savedSelections";
@@ -249,11 +250,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 		<Sidebar title="Pivot Table" onBack={onClose} className="pivot-sidebar" flush>
 			<div className="pivot-sidebar__controls">
 				<Field label="Rows">
-					<select
-						className="nselect"
-						value={rowSource}
-						onChange={(e) => setRowSource(e.target.value)}
-					>
+					<NSelect value={rowSource} onChange={(e) => setRowSource(e.target.value)}>
 						<option value="all">All Locations</option>
 						<option value="active">Active Selections</option>
 						{savedSelections.map((s) => (
@@ -261,25 +258,20 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 								{s.name}
 							</option>
 						))}
-					</select>
+					</NSelect>
 				</Field>
 				<Field label="Column field">
-					<select
-						className="nselect"
-						value={fieldKey}
-						onChange={(e) => setFieldKey(e.target.value)}
-					>
+					<NSelect value={fieldKey} onChange={(e) => setFieldKey(e.target.value)}>
 						{fields.map((f) => (
 							<option key={f.key} value={f.key}>
 								{f.label}
 							</option>
 						))}
-					</select>
+					</NSelect>
 				</Field>
 				{isNumericField && (
 					<Field label="Bucket numeric values">
-						<select
-							className="nselect"
+						<NSelect
 							value={bucketCount ?? "off"}
 							onChange={(e) =>
 								setBucketCount(e.target.value === "off" ? null : Number(e.target.value))
@@ -290,7 +282,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 							<option value="10">10 buckets</option>
 							<option value="15">15 buckets</option>
 							<option value="20">20 buckets</option>
-						</select>
+						</NSelect>
 					</Field>
 				)}
 			</div>

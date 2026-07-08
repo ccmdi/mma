@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GoogleMapsOverlay } from "@deck.gl/google-maps";
+import { Icon } from "@/components/primitives/Icon";
+import { mdiMinus, mdiPlus } from "@mdi/js";
 import { google } from "@/lib/sv/opensv";
 import { resolveStackForPrefs, CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { getStyleBackgroundColor } from "@/lib/geo/mapStyles";
@@ -157,9 +159,7 @@ export function FullscreenMiniMap() {
 					disabled={scale <= MINIMAP_SCALE.min}
 					onClick={() => setScale(scale - MINIMAP_SCALE_STEP)}
 				>
-					<svg height="16" width="16" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M19,13H5V11H19V13Z" />
-					</svg>
+					<Icon path={mdiMinus} size={16} />
 				</button>
 				<button
 					type="button"
@@ -168,9 +168,7 @@ export function FullscreenMiniMap() {
 					disabled={scale >= MINIMAP_SCALE.max}
 					onClick={() => setScale(scale + MINIMAP_SCALE_STEP)}
 				>
-					<svg height="16" width="16" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
-					</svg>
+					<Icon path={mdiPlus} size={16} />
 				</button>
 			</div>
 		</div>

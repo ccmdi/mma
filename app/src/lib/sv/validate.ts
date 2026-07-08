@@ -18,7 +18,7 @@ export async function validateOne(loc: Location, signal?: AbortSignal): Promise<
 
 	// Fetch by pano ID if stored
 	if (loc.panoId != null) {
-		[r] = await fetchSvMetadata([loc.panoId]);
+		[r] = await fetchSvMetadata([loc.panoId]).catch(() => [null]);
 	}
 
 	if (n) {
@@ -26,12 +26,12 @@ export async function validateOne(loc: Location, signal?: AbortSignal): Promise<
 		if (r == null) {
 			if (loc.panoId != null) a = ValidationState.PanoIdBroke;
 			const coordPano = await getPanoAtCoords(loc.lat, loc.lng);
-			if (coordPano) [r] = await fetchSvMetadata([coordPano]);
+			if (coordPano) [r] = await fetchSvMetadata([coordPano]).catch(() => [null]);
 		}
 	} else {
 		// No LoadAsPanoId: do coord lookup
 		const coordPano = await getPanoAtCoords(loc.lat, loc.lng);
-		if (coordPano) [i] = await fetchSvMetadata([coordPano]);
+		if (coordPano) [i] = await fetchSvMetadata([coordPano]).catch(() => [null]);
 	}
 
 	r ??= i;
@@ -42,7 +42,7 @@ export async function validateOne(loc: Location, signal?: AbortSignal): Promise<
 	// Badcam check (only when !n)
 	if (!n && r.extra?.cameraType === "badcam" && r.time?.length) {
 		const timePanoIds = r.time.map((t) => t.pano);
-		const timeResults = await fetchSvMetadata(timePanoIds);
+		const timeResults = await fetchSvMetadata(timePanoIds).catch(() => []);
 		if (timeResults.some((t) => t && GOOD_CAM_TYPES.has(t.extra?.cameraType ?? ""))) {
 			return ValidationState.GoodcamAvailable;
 		}

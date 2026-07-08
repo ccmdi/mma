@@ -35,6 +35,33 @@ export default defineConfig([
 			"react-hooks/preserve-manual-memoization": "off",
 			"no-console": "error",
 			"local/no-ipc-in-loop": "warn",
+			"no-restricted-imports": [
+				"error",
+				{
+					paths: [
+						{
+							name: "@tauri-apps/api/core",
+							importNames: ["invoke"],
+							message: "Use the typed cmd proxy (lib/commands.ts) instead of raw invoke().",
+						},
+					],
+				},
+			],
+			"no-restricted-syntax": [
+				"error",
+				{
+					selector: "JSXOpeningElement[name.name='select']",
+					message: "Use <NSelect> (@/components/primitives/NSelect) instead of a raw <select>.",
+				},
+				{
+					selector: "AssignmentExpression[left.property.name='innerHTML']",
+					message: "No raw innerHTML - use React or textContent.",
+				},
+				{
+					selector: "CallExpression[callee.property.name='insertAdjacentHTML']",
+					message: "No insertAdjacentHTML - use React or DOM APIs.",
+				},
+			],
 			"@typescript-eslint/no-unused-vars": [
 				"error",
 				{
@@ -47,8 +74,17 @@ export default defineConfig([
 		},
 	},
 	{
+		files: ["src/api.ts", "src/App.tsx"],
+		rules: { "no-restricted-imports": "off" },
+	},
+	{
 		files: ["src/store/commandDefs.ts"],
 		rules: { "local/no-duplicate-command-icons": "error" },
+	},
+	{
+		// The one sanctioned raw <select>: NSelect wraps it.
+		files: ["src/components/primitives/NSelect.tsx"],
+		rules: { "no-restricted-syntax": "off" },
 	},
 	{
 		files: [

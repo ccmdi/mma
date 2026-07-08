@@ -58,6 +58,7 @@ import {
 	type ReadonlyIdSet,
 	type SelCellEntry,
 } from "@/lib/render/CellManager";
+import { whenSceneSettled } from "@/lib/render/sceneStore";
 
 /** Minimal pub/sub bus. `.on()` returns an unsubscribe function. */
 function createBus<T extends (...args: never[]) => void>() {
@@ -218,7 +219,6 @@ function bump() {
 export function refreshAfterMutation() {
 	if (!currentMap) {
 		selections = [];
-
 		selectedLocationIds = SelectedIds.EMPTY;
 		bump();
 		return;
@@ -250,22 +250,15 @@ export function getTag(id: number): Tag | undefined {
 	return currentMap?.meta.tags[id];
 }
 
-/** Reactive map version counter. Bumps on every mutation. */
 export const useMapVersion = makeStoreHook(() => mapVersion);
-
 export const useSelectedLocationIds = makeStoreHook(() => selectedLocationIds);
 
 let cachedActiveLocation: Location | null = null;
-
 export const useActiveLocation = makeStoreHook((): Location | null => cachedActiveLocation);
-
 export const useDuplicateLocations = makeStoreHook(() => duplicateLocations);
 
 export const useWorkArea = makeStoreHook(() => workArea);
-
 export const useImportStaging = makeStoreHook(() => importStaging);
-
-/** Reactive counter for the staged import preview markers. */
 export const useImportMarkerVersion = makeStoreHook(() => importMarkerVersion);
 
 export function getImportPreviewPositions() {
@@ -273,8 +266,6 @@ export function getImportPreviewPositions() {
 }
 
 export const useCommitDiffPreview = makeStoreHook(() => commitDiffPreview);
-
-/** Reactive counter for the commit-diff overlay markers. */
 export const useDiffMarkerVersion = makeStoreHook(() => diffMarkerVersion);
 
 export function getCommitDiffPreview() {
@@ -308,7 +299,7 @@ export function useCommitDiff() {
 
 // --- Autosave ---
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
-let inflightSave: Promise<void> | null = null;
+let inflightPersist: Promise<void> | null = null;
 const AUTOSAVE_DELAY_MS = 2000;
 
 export async function getDirtyCount(): Promise<number> {
@@ -324,10 +315,19 @@ export function scheduleSave() {
 	}, AUTOSAVE_DELAY_MS);
 }
 
+function cancelAutosave() {
+	if (autosaveTimer) {
+		clearTimeout(autosaveTimer);
+		autosaveTimer = null;
+	}
+}
+
 async function doSave(): Promise<void> {
 	if (!currentMapId || !currentMap) return;
+	await inflightPersist;
+
 	const t = trace("save");
-	inflightSave = cmd
+	inflightPersist = cmd
 		.storeSaveDirty()
 		.then(() => {
 			t.end();
@@ -338,15 +338,13 @@ async function doSave(): Promise<void> {
 			log.error("Autosave failed, will retry:", err);
 		})
 		.finally(() => {
-			inflightSave = null;
+			inflightPersist = null;
 		});
-	await inflightSave;
+	await inflightPersist;
 }
 
 export async function flushSave(): Promise<void> {
-	if (autosaveTimer) clearTimeout(autosaveTimer);
-	autosaveTimer = null;
-	if (inflightSave) await inflightSave;
+	cancelAutosave();
 	await doSave();
 }
 
@@ -357,23 +355,28 @@ export async function initStore() {
 	listen("map-list-changed", () => reloadMapList());
 }
 
-let mapOpenT0 = 0;
-let mapOpenSeen = new Set<string>();
-export function mapOpenMark(phase: string) {
-	if (mapOpenT0 === 0 || mapOpenSeen.has(phase)) return;
-	mapOpenSeen.add(phase);
-	log.info(`[map-open] ${phase}=${Math.round(performance.now() - mapOpenT0)}ms`);
-}
+/** Cross-module stopwatch for map-open latency. */
+export const mapOpen = {
+	start: 0,
+	seen: new Set<string>(),
+	begin() {
+		this.start = performance.now();
+		this.seen.clear();
+	},
+	mark(phase: string) {
+		if (!this.start || this.seen.has(phase)) return;
+		this.seen.add(phase);
+		log.info(`[map-open] ${phase}=${Math.round(performance.now() - this.start)}ms`);
+	},
+};
 
 // --- Actions ---
 export async function openMap(id: string) {
-	mapOpenT0 = performance.now();
-	mapOpenSeen = new Set();
-	if (autosaveTimer) {
-		clearTimeout(autosaveTimer);
-		autosaveTimer = null;
-	}
-	if (inflightSave) await inflightSave;
+	mapOpen.begin();
+
+	cancelAutosave();
+	await inflightPersist;
+
 	const t = trace("openMap");
 	currentMapId = id;
 	currentMap = null;
@@ -385,7 +388,7 @@ export async function openMap(id: string) {
 		try {
 			const openResult = await cmd.storeOpenMap(id);
 			t.step("store_open_map");
-			mapOpenMark("data");
+			mapOpen.mark("data");
 			currentMap = meta;
 			tagCounts = openResult.tagCounts;
 			undoRedoState = { canUndo: openResult.canUndo, canRedo: openResult.canRedo };
@@ -414,8 +417,7 @@ export async function openMap(id: string) {
 	if (currentMap) emitEvent("map:open", currentMap);
 }
 
-// Tear down all in-memory state for the open map. Shared by closeMap (clean
-// close) and discardOpenMap (the map's data is gone, so we must NOT flush).
+/** Tear down all in-memory state for the open map. */
 function resetMapState() {
 	emitEvent("map:close");
 	currentMapId = null;
@@ -444,8 +446,7 @@ export async function closeMap() {
 
 /* Drop the open map without persisting anything */
 export function discardOpenMap() {
-	if (autosaveTimer) clearTimeout(autosaveTimer);
-	autosaveTimer = null;
+	cancelAutosave();
 	resetMapState();
 }
 
@@ -512,6 +513,7 @@ export async function syncSelections(): Promise<{ ids: number[] }> {
 	const ids = await cmd.storeGetSelectedIdsList();
 	return { ids };
 }
+
 export interface ScopeController {
 	scope: Scope;
 	setScope: (s: Scope) => void;
@@ -739,6 +741,7 @@ function applySelectionSync(sync: SelectionSync) {
 /** Await a mutation IPC, emit its render delta, sync JS state, and schedule a save. */
 export async function mutate(p: Promise<MutationResult>): Promise<MutationResult> {
 	const r = await p;
+	await inflightPersist;
 	renderDeltaBus.emit(r.delta);
 	syncMutationResult(r);
 	refreshAfterMutation();
@@ -803,8 +806,7 @@ export async function updateLocations(
 	}
 }
 
-// --- Bulk metadata-field operations (rare; intentionally NOT undoable, since the
-//     definition/selection migration below isn't part of the undo system) ---
+// --- Bulk metadata-field operations ---
 
 /** Rename or merge extra-field `from` into `to` across all locations, then migrate
  *  its definition and every selection that references it. Merge ≡ rename; `winner`
@@ -1181,9 +1183,8 @@ export function useSelectedTagIds() {
 	return ids;
 }
 
-// Each preview gets a fresh negative id so its identity changes between previews (the pano
-// viewer re-resolves on active-id change). The kind lives in the location's flags, not the id.
 let virtualIdSeq = 0;
+/** Each preview gets a fresh negative id so its identity changes between previews (the pano viewer re-resolves on active-id change). */
 const freshVirtualId = () => --virtualIdSeq;
 
 /** Open a staged-import location read-only, "as if" it were active. The location becomes
@@ -1232,9 +1233,11 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 		const wasStaged = isImportPreview(cachedActiveLocation);
 		if (id == null) {
 			cachedActiveLocation = null;
+
 			if (wasStaged) workArea = "import";
 			else if (activePluginId) workArea = "plugin";
 			else workArea = "overview";
+
 			bump();
 			emitEvent("active:change", null);
 			t.end();
@@ -1414,8 +1417,12 @@ async function setImportStaging(preview: EditorImportPreview, source: "file" | "
 
 /** Import from a known file path. Used by file picker and drag-and-drop. */
 export async function beginImportFromPath(path: string) {
-	const preview = await cmd.storeImportPreview(path);
-	await setImportStaging(preview, "file");
+	await setImportStaging(await cmd.storeImportPreview(path), "file");
+}
+
+/** Stage pasted text for preview. Throws if no locations are found. */
+export async function beginImportPaste(text: string) {
+	await setImportStaging(await cmd.storeImportPastePreview(text), "paste");
 }
 
 /** Pick a file, stage it for preview. No-op if the picker is cancelled. */
@@ -1428,37 +1435,41 @@ export async function beginImportFile() {
 	await beginImportFromPath(path);
 }
 
-/** Stage pasted text for preview. Throws if no locations are found. */
-export async function beginImportPaste(text: string) {
-	const preview = await cmd.storeImportPastePreview(text);
-	await setImportStaging(preview, "paste");
-}
-
 /** Commit the staged import, optionally dropping fields and applying a bulk tag. */
 export async function confirmImport(droppedFields: string[], tagName?: string) {
 	if (!importStaging) return null;
+	await inflightPersist; // don't overlap a prior import's backgrounded commit
+
 	const r = await cmd.storeImportFile(droppedFields, tagName?.trim() || null);
 	cancelImport();
 	await mutate(Promise.resolve(r));
+
 	// Overlay any settings the import carried (extra.settings) onto the open map's
 	// settings. Generic: imported keys win, untouched keys are preserved.
 	if (currentMap && r.settings && Object.keys(r.settings).length) {
 		await updateMapMeta({ settings: { ...currentMap.meta.settings, ...r.settings } });
 	}
-	// Large imports skip the undo stack (Rust); commit them so the baseline advances
-	// with a recorded history entry instead of silently diverging from HEAD. Use the
-	// single-pass commit+bake (builds the Arrow batch once) instead of commitMap.
+
 	if (r.autoCommit && currentMapId) {
-		// A pending autosave would write a delta the bake deletes (wasted + races it).
-		if (autosaveTimer) {
-			clearTimeout(autosaveTimer);
-			autosaveTimer = null;
-		}
-		if (inflightSave) await inflightSave;
-		await cmd.storeCommit(currentMapId, `Import ${r.importedCount} locations`);
-		undoRedoState = { canUndo: false, canRedo: false };
-		cachedCommitDiff = { added: 0, removed: 0, modified: 0 };
-		bump();
+		const mapId = currentMapId;
+		// Let the full render finish (markers on screen) before kicking off the commit --
+		// otherwise the commit's ~1s of Arrow writes stall the render-buffer fetch and the
+		// map stays blank for seconds after the import "returns".
+		await whenSceneSettled();
+		cancelAutosave();
+		await inflightPersist;
+
+		inflightPersist = cmd
+			.storeCommit(mapId, `Import ${r.importedCount} locations`)
+			.then(() => {
+				undoRedoState = { canUndo: false, canRedo: false };
+				cachedCommitDiff = { added: 0, removed: 0, modified: 0 };
+			})
+			.catch((e) => log.error("[import] background commit failed:", e))
+			.finally(() => {
+				inflightPersist = null;
+				bump();
+			});
 	}
 	return r;
 }
@@ -1512,21 +1523,15 @@ export const useUndoRedo = makeStoreHook(() => undoRedoState);
 export async function commitMap(message?: string): Promise<string> {
 	if (!currentMapId) throw new Error("No map open");
 	const t = trace("commit");
-	// A pending/inflight autosave would write a delta sidecar the bake immediately deletes
-	// -- wasted I/O, and its async write can race the delete and leave a stale sidecar.
-	// The commit persists everything, so cancel the autosave first.
-	if (autosaveTimer) {
-		clearTimeout(autosaveTimer);
-		autosaveTimer = null;
-	}
-	if (inflightSave) await inflightSave;
-	// One Rust call: build the delta from the overlay, bake it into the base, record the
-	// commit, and clear undo. A null message is auto-formatted (+a -r ~m) Rust-side.
+	cancelAutosave();
+	await inflightPersist;
+
 	const id = await cmd.storeCommit(currentMapId, message ?? null);
 	t.step("commit");
 	t.end();
 	undoRedoState = { canUndo: false, canRedo: false };
 	cachedCommitDiff = { added: 0, removed: 0, modified: 0 };
+
 	// Commit clears the overlay; commit-sensitive selections (e.g. Uncommitted) must
 	// re-resolve against the new baseline instead of showing now-committed rows.
 	if (selections.length > 0) {

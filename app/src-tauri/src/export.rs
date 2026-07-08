@@ -105,15 +105,15 @@ fn location_to_coord(
     c.insert("panoId".into(), if pinned { json!(loc.pano_id) } else { Value::Null });
 
     for k in ["countryCode", "stateCode"] {
-        c.insert(k.into(), loc.extra.as_ref().and_then(|e| e.get(k).cloned()).unwrap_or(Value::Null));
+        c.insert(k.into(), loc.extra.as_ref().and_then(|e| e.get(k)).unwrap_or(Value::Null));
     }
 
     if opts.export_extras {
         let mut extra = serde_json::Map::new();
         if let Some(ref e) = loc.extra {
-            for (k, v) in e {
+            for (k, v) in e.to_map() {
                 if k == "countryCode" || k == "stateCode" { continue; }
-                extra.insert(k.clone(), v.clone());
+                extra.insert(k, v);
             }
         }
         if !loc.tags.is_empty() {

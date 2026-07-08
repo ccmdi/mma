@@ -126,6 +126,7 @@ pub async fn store_commit(
 
         (pre_bake, current_fallback, location_count)
     };
+    let t_bake = _t.elapsed();
 
     let now = now_iso();
     let nonce = uuid::Uuid::new_v4();
@@ -156,6 +157,8 @@ pub async fn store_commit(
         }
     };
 
+    let t_delta = _t.elapsed();
+
     // Auto-format a default message when the caller didn't supply one.
     let message = message.or_else(|| format_diff_message(added, removed_n, modified));
 
@@ -169,8 +172,9 @@ pub async fn store_commit(
     )?;
 
     log::info!(
-        "[vcs] commit {} locs={} +{} -{} ~{} in {}ms",
-        &id[..7], location_count, added, removed_n, modified, _t.elapsed().as_millis()
+        "[vcs] commit {} locs={} +{} -{} ~{} in {}ms (bake+base-write={:.0}ms delta-write={:.0}ms sqlite={:.0}ms genesis={})",
+        &id[..7], location_count, added, removed_n, modified, _t.elapsed().as_millis(),
+        t_bake.as_millis(), (t_delta - t_bake).as_millis(), (_t.elapsed() - t_delta).as_millis(), genesis
     );
     Ok(id)
 }

@@ -14,6 +14,21 @@ import { useHotkeyRef } from "@/lib/hooks/useHotkey";
 import { open } from "@tauri-apps/plugin-shell";
 import { tweenPov } from "@/lib/sv/tweenPov";
 import { Tooltip } from "@/components/primitives/Tooltip";
+import { Icon } from "@/components/primitives/Icon";
+import {
+	mdiFullscreenExit,
+	mdiFullscreen,
+	mdiChevronUp,
+	mdiPlus,
+	mdiImageFilterCenterFocus,
+	mdiMinus,
+	mdiHome,
+	mdiOpenInNew,
+	mdiLoading,
+	mdiCheck,
+	mdiContentCopy,
+	mdiImageFilterHdrOutline,
+} from "@mdi/js";
 
 // --- Compass ---
 
@@ -32,8 +47,14 @@ function Compass({ heading }: { heading: number }) {
 }
 
 const TAPE_DIRECTIONS: [number, string][] = [
-	[0, "N"], [45, "NE"], [90, "E"], [135, "SE"],
-	[180, "S"], [225, "SW"], [270, "W"], [315, "NW"],
+	[0, "N"],
+	[45, "NE"],
+	[90, "E"],
+	[135, "SE"],
+	[180, "S"],
+	[225, "SW"],
+	[270, "W"],
+	[315, "NW"],
 ];
 
 const TAPE_DEG_WIDTH = 180;
@@ -65,8 +86,16 @@ function CompassTape({ heading }: { heading: number }) {
 									className="compass-tape__tick"
 									style={{ left: deg * TAPE_PX_PER_DEG }}
 								>
-									<div className={`compass-tape__mark${isCardinal ? " compass-tape__mark--cardinal" : t.label ? " compass-tape__mark--inter" : ""}`} />
-									{t.label && <span className={`compass-tape__label${isCardinal ? " compass-tape__label--cardinal" : ""}`}>{t.label}</span>}
+									<div
+										className={`compass-tape__mark${isCardinal ? " compass-tape__mark--cardinal" : t.label ? " compass-tape__mark--inter" : ""}`}
+									/>
+									{t.label && (
+										<span
+											className={`compass-tape__label${isCardinal ? " compass-tape__label--cardinal" : ""}`}
+										>
+											{t.label}
+										</span>
+									)}
 								</div>
 							);
 						}),
@@ -312,34 +341,37 @@ export function PanoControls({
 
 	// `long` skips the shortenMapsUrl redirect lookup and copies the raw long URL;
 	// `noTags` omits the tag/loadMode params.
-	const doCopy = useCallback(async ({ long, noTags }: { long: boolean; noTags: boolean }) => {
-		const url = buildMapsUrl();
-		if (!url) return;
-		if (!noTags) {
-			const tagsById = getCurrentMap()?.meta.tags ?? {};
-			for (const id of location.tags) {
-				const name = tagsById[id]?.name;
-				if (name) url.searchParams.append("extra[tags]", name);
+	const doCopy = useCallback(
+		async ({ long, noTags }: { long: boolean; noTags: boolean }) => {
+			const url = buildMapsUrl();
+			if (!url) return;
+			if (!noTags) {
+				const tagsById = getCurrentMap()?.meta.tags ?? {};
+				for (const id of location.tags) {
+					const name = tagsById[id]?.name;
+					if (name) url.searchParams.append("extra[tags]", name);
+				}
+				if (!hasLoadAsPanoId(location)) url.searchParams.set("extra[loadMode]", "latLng");
 			}
-			if (!hasLoadAsPanoId(location)) url.searchParams.set("extra[loadMode]", "latLng");
-		}
-		const longStr = url.toString();
-		if (long) {
-			await navigator.clipboard.writeText(longStr).catch(() => {});
+			const longStr = url.toString();
+			if (long) {
+				await navigator.clipboard.writeText(longStr).catch(() => {});
+				setCopyState("done");
+				setTimeout(() => setCopyState("idle"), 500);
+				return;
+			}
+			setCopyState("loading");
+			try {
+				const short = await shortenMapsUrl(longStr);
+				await navigator.clipboard.writeText(short);
+			} catch {
+				await navigator.clipboard.writeText(longStr).catch(() => {});
+			}
 			setCopyState("done");
 			setTimeout(() => setCopyState("idle"), 500);
-			return;
-		}
-		setCopyState("loading");
-		try {
-			const short = await shortenMapsUrl(longStr);
-			await navigator.clipboard.writeText(short);
-		} catch {
-			await navigator.clipboard.writeText(longStr).catch(() => {});
-		}
-		setCopyState("done");
-		setTimeout(() => setCopyState("idle"), 500);
-	}, [buildMapsUrl, location]);
+		},
+		[buildMapsUrl, location],
+	);
 
 	const hasChanged =
 		panorama.getPov().heading !== location.heading ||
@@ -398,20 +430,16 @@ export function PanoControls({
 					style={{ inset: "0px 0px auto auto" }}
 				>
 					<div className="map-control map-control--button">
-						<Tooltip content={`Toggle fullscreen (${fullscreenKey.toUpperCase()})`} side="bottom" align="end">
+						<Tooltip
+							content={`Toggle fullscreen (${fullscreenKey.toUpperCase()})`}
+							side="bottom"
+							align="end"
+						>
 							<button
 								onClick={onFullscreen}
 								aria-label={`Toggle fullscreen (${fullscreenKey.toUpperCase()})`}
 							>
-								{isFullscreen ? (
-									<svg height="24" width="24" viewBox="0 0 24 24">
-										<path d="M14,14H19V16H16V19H14V14M5,14H10V19H8V16H5V14M8,5H10V10H5V8H8V5M19,8V10H14V5H16V8H19Z" />
-									</svg>
-								) : (
-									<svg height="24" width="24" viewBox="0 0 24 24">
-										<path d="M5,5H10V7H7V10H5V5M14,5H19V10H17V7H14V5M17,14H19V19H14V17H17V14M10,17V19H5V14H7V17H10Z" />
-									</svg>
-								)}
+								{isFullscreen ? <Icon path={mdiFullscreenExit} /> : <Icon path={mdiFullscreen} />}
 							</button>
 						</Tooltip>
 					</div>
@@ -457,7 +485,10 @@ export function PanoControls({
 				>
 					<div className="map-control map-control--transparent">
 						<div className="compass-control">
-							<Tooltip content="Click to point north (N). Ctrl+click to cycle through linked panoramas." side="right">
+							<Tooltip
+								content="Click to point north (N). Ctrl+click to cycle through linked panoramas."
+								side="right"
+							>
 								<button
 									className="compass-control__button"
 									onClick={pointNorth}
@@ -475,9 +506,7 @@ export function PanoControls({
 									}
 									onClick={() => navigateToLink(link.heading ?? 0)}
 								>
-									<svg height="24" width="24" viewBox="0 0 24 24">
-										<path d="M7.41,15.41L12,10.83L16.59,15.41L18,14L12,8L6,14L7.41,15.41Z" />
-									</svg>
+									<Icon path={mdiChevronUp} />
 								</button>
 							))}
 						</div>
@@ -485,9 +514,7 @@ export function PanoControls({
 				</div>
 			)}
 
-			{vis.showCompassTape && (
-				<CompassTape heading={heading} />
-			)}
+			{vis.showCompassTape && <CompassTape heading={heading} />}
 
 			{vis.showZoom && (
 				<div
@@ -498,23 +525,17 @@ export function PanoControls({
 					<div className="map-control map-control--button">
 						<Tooltip content="Zoom in" side="right">
 							<button onClick={zoomIn} aria-label="Zoom in">
-								<svg height="24" width="24" viewBox="0 0 24 24">
-									<path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
-								</svg>
+								<Icon path={mdiPlus} />
 							</button>
 						</Tooltip>
 						<Tooltip content="Reset zoom" side="right">
 							<button disabled={zoom <= PANO_ZOOM.min} onClick={resetZoom} aria-label="Reset zoom">
-								<svg height="24" width="24" viewBox="0 0 24 24">
-									<path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M19,19H15V21H19A2,2 0 0,0 21,19V15H19M19,3H15V5H19V9H21V5A2,2 0 0,0 19,3M5,5H9V3H5A2,2 0 0,0 3,5V9H5M5,15H3V19A2,2 0 0,0 5,21H9V19H5V15Z" />
-								</svg>
+								<Icon path={mdiImageFilterCenterFocus} />
 							</button>
 						</Tooltip>
 						<Tooltip content="Zoom out" side="right">
 							<button disabled={zoom <= 0} onClick={zoomOut} aria-label="Zoom out">
-								<svg height="24" width="24" viewBox="0 0 24 24">
-									<path d="M19,13H5V11H19V13Z" />
-								</svg>
+								<Icon path={mdiMinus} />
 							</button>
 						</Tooltip>
 					</div>
@@ -534,9 +555,7 @@ export function PanoControls({
 								onClick={onReturnToSpawn}
 								aria-label="Return to spawn (R)"
 							>
-								<svg height="24" width="24" viewBox="0 0 24 24">
-									<path d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z" />
-								</svg>
+								<Icon path={mdiHome} />
 							</button>
 						</Tooltip>
 					</div>
@@ -552,9 +571,7 @@ export function PanoControls({
 					<div className="map-control map-control--button map-links-control">
 						<Tooltip content="Open in maps" side="top" align="start">
 							<button onClick={openInMaps} aria-label="Open in maps">
-								<svg height="24" width="24" viewBox="0 0 24 24">
-									<path d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
-								</svg>
+								<Icon path={mdiOpenInNew} />
 							</button>
 						</Tooltip>
 						<Tooltip content="Copy link - Shift: without tags, Alt: long URL" side="right">
@@ -563,17 +580,11 @@ export function PanoControls({
 								aria-label="Copy link"
 							>
 								{copyState === "loading" ? (
-									<svg height="24" width="24" viewBox="0 0 24 24" className="spin">
-										<path d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z" />
-									</svg>
+									<Icon path={mdiLoading} className="spin" />
 								) : copyState === "done" ? (
-									<svg height="24" width="24" viewBox="0 0 24 24">
-										<path d="M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z" />
-									</svg>
+									<Icon path={mdiCheck} />
 								) : (
-									<svg height="24" width="24" viewBox="0 0 24 24">
-										<path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" />
-									</svg>
+									<Icon path={mdiContentCopy} />
 								)}
 							</button>
 						</Tooltip>
@@ -588,9 +599,7 @@ export function PanoControls({
 					style={{ inset: "auto auto 0px 96px" }}
 				>
 					<div className="map-control coordinate-control is-dark">
-						<svg height="10" width="10" viewBox="0 0 24 24">
-							<path d="M23 18H1L8.25 8.33L10.25 11L14 6L23 18M11.5 12.67L14 16L19 16L14 9.33L11.5 12.67M5 16L11.5 16L8.25 11.67L5 16Z" />
-						</svg>
+						<Icon path={mdiImageFilterHdrOutline} size={10} />
 						<span>
 							{altitude === 0
 								? ` zoom ${(zoom ?? 0).toFixed(2)}`

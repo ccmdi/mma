@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { NSelect } from "@/components/primitives/NSelect";
 import { DatabaseManager } from "@/components/dialogs/DatabaseManager";
 import {
 	getAllBindings,
@@ -56,8 +57,8 @@ function SettingSelect<K extends keyof AppSettings>({
 }) {
 	const value = useSetting(setting);
 	return (
-		<select
-			className="nselect nselect--compact"
+		<NSelect
+			className="nselect--compact"
 			value={value as string}
 			onChange={(e) => setSetting(setting, e.target.value as AppSettings[K])}
 		>
@@ -66,7 +67,7 @@ function SettingSelect<K extends keyof AppSettings>({
 					{label as string}
 				</option>
 			))}
-		</select>
+		</NSelect>
 	);
 }
 
@@ -975,8 +976,8 @@ function BorderDetailSection() {
 			</legend>
 			<label className="settings-popup__item">
 				Country data
-				<select
-					className="nselect nselect--compact"
+				<NSelect
+					className="nselect--compact"
 					value={s.borderDetail}
 					onChange={(e) => handleChange(e.target.value as BorderDetail)}
 					disabled={downloading !== null}
@@ -987,12 +988,12 @@ function BorderDetailSection() {
 							{value !== "light" && statusLabel(value as "medium" | "heavy")}
 						</option>
 					))}
-				</select>
+				</NSelect>
 			</label>
 			<label className="settings-popup__item">
 				Subdivision data
-				<select
-					className="nselect nselect--compact"
+				<NSelect
+					className="nselect--compact"
 					value={s.subdivisionDetail}
 					onChange={(e) => handleSubdivisionChange(e.target.value as SubdivisionDetail)}
 					disabled={downloading !== null}
@@ -1003,7 +1004,7 @@ function BorderDetailSection() {
 							{value !== "off" && subdivisionStatus()}
 						</option>
 					))}
-				</select>
+				</NSelect>
 			</label>
 			{downloading && (
 				<p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", opacity: 0.7 }}>

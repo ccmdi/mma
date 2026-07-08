@@ -1,7 +1,5 @@
 import SunCalc from "suncalc";
-import type { ExtraFieldDef } from "mma-plugin-types";
-
-type Location = Awaited<ReturnType<typeof MMA.fetchAllLocations>>[number];
+import type { Location, ExtraFieldDef } from "mma-plugin-types";
 
 const DEG = 180 / Math.PI;
 

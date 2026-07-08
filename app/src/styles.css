@@ -1698,7 +1698,6 @@ summary.button {
 }
 .nselect::picker(select) {
 	appearance: base-select;
-	overscroll-behavior: contain;
 }
 .nselect {
 	text-align: left;
@@ -5972,4 +5971,9 @@ body {
 .segmented__option:disabled {
 	opacity: 0.4;
 	cursor: not-allowed;
+}
+
+.gmnoprint:has([title="Map Data"]),
+.gmnoprint:has([aria-label^="Terms"]) {
+	display: none;
 }

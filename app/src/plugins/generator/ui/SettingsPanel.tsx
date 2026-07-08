@@ -1,5 +1,6 @@
 import type { GeneratorSettings } from "../engine/types";
 import { DatePicker } from "@/components/primitives/DatePicker";
+import { NSelect } from "@/components/primitives/NSelect";
 import { Section, SegmentedControl } from "@/components/primitives/Sidebar";
 
 function Check({
@@ -442,8 +443,8 @@ export function SettingsPanel({
 									{ value: "exclude", label: "Exclude" },
 								]}
 							/>
-							<select
-								className="nselect nselect--compact"
+							<NSelect
+								className="nselect--compact"
 								value={settings.searchMode}
 								onChange={(e) =>
 									set("searchMode", e.target.value as GeneratorSettings["searchMode"])
@@ -454,7 +455,7 @@ export function SettingsPanel({
 								<option value="startswith">Starts with</option>
 								<option value="endswith">Ends with</option>
 								<option value="sectionmatch">Section match</option>
-							</select>
+							</NSelect>
 						</div>
 						<input
 							className="input"

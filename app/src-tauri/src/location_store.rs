@@ -1510,7 +1510,7 @@ pub struct LocationPatch {
     pub tags: Option<Vec<u32>>,
     #[serde(default, deserialize_with = "nullable")]
     #[specta(type = Option<Option<specta_typescript::Any>>)]
-    pub extra: Option<Option<serde_json::Map<String, serde_json::Value>>>,
+    pub extra: Option<Option<crate::types::RawExtra>>,
     pub created_at: Option<u32>,
     #[serde(default, deserialize_with = "nullable")]
     #[specta(type = Option<Option<u32>>)]
@@ -1724,7 +1724,7 @@ pub fn store_close_map(
 /// field-def registry immediately (no reload needed).
 pub(crate) fn auto_register_extras(
     store: &mut Store,
-    extras: &[&serde_json::Map<String, serde_json::Value>],
+    extras: &[&crate::types::RawExtra],
     result: &mut MutationResult,
 ) {
     if extras.is_empty() { return; }
@@ -1775,7 +1775,7 @@ pub fn store_add_locations(
             store.overlay_add(loc);
         }
         let mut result = store.finish_mutation(ChangeSet { added: added.clone(), ..Default::default() });
-        let extras: Vec<&serde_json::Map<String, serde_json::Value>> = added.iter()
+        let extras: Vec<&crate::types::RawExtra> = added.iter()
             .filter_map(|l| l.extra.as_ref())
             .collect();
         auto_register_extras(store, &extras, &mut result);
@@ -1850,7 +1850,7 @@ pub async fn store_update_locations(
         }
         let mut result = store.finish_mutation(ChangeSet { updated: updated.clone(), ..Default::default() });
         if any_extras {
-            let extras: Vec<&serde_json::Map<String, serde_json::Value>> = updated.iter()
+            let extras: Vec<&crate::types::RawExtra> = updated.iter()
                 .filter_map(|(_, n)| n.extra.as_ref())
                 .collect();
             auto_register_extras(store, &extras, &mut result);
@@ -2308,7 +2308,7 @@ pub fn store_copy_locations_to_map(
         // Register any extra-field defs the copies introduce. `persist_field_defs`
         // skips keys the target already defines, so an empty known-set is safe.
         {
-            let extras: Vec<&serde_json::Map<String, serde_json::Value>> =
+            let extras: Vec<&crate::types::RawExtra> =
                 fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
             if let Some(defs) = map_meta::auto_register_field_defs(&HashSet::<String>::new(), &extras) {
                 map_meta::persist_field_defs(&conn, &target_map_id, &defs)?;
@@ -2522,15 +2522,21 @@ pub(crate) fn save_arrow_inner(store: &Store, map_id: &str) -> AppResult<()> {
 /// location count + dirty tags. Used by `store_commit` so a commit builds
 /// the batch only once.
 pub(crate) fn bake_and_save_inner(store: &mut Store, map_id: &str) -> AppResult<()> {
+    let _t = std::time::Instant::now();
     store.bake_overlay();
+    let t_bake = _t.elapsed();
     store.mmap_handle = None;
     save_arrow_inner(store, map_id)?;
+    let t_write = _t.elapsed();
     let path = storage::arrow_path(map_id)?;
     if path.exists() {
         let (batch, handle) = storage::read_arrow_ipc_mmap(&path)?;
         store.batch = Some(batch);
         store.mmap_handle = Some(handle);
     }
+    let t_mmap = _t.elapsed();
+    log::debug!("[bake_and_save] bake={:.0}ms base-write={:.0}ms remmap={:.0}ms total={:.0}ms",
+        t_bake.as_millis(), (t_write - t_bake).as_millis(), (t_mmap - t_write).as_millis(), _t.elapsed().as_millis());
     let count = store.batch.as_ref().map_or(0, |b| b.num_rows());
     let conn = storage::open_db()?;
     conn.execute("UPDATE maps SET location_count = ?1 WHERE id = ?2", rusqlite::params![count, map_id])?;
@@ -2868,16 +2874,16 @@ fn merge_group(members: &[Location]) -> Location {
     others.sort_by_key(|m| m.id);
     for m in others {
         if let Some(e) = &m.extra {
-            for (k, v) in e { merged_extra.insert(k.clone(), v.clone()); }
+            for (k, v) in e.to_map() { merged_extra.insert(k, v); }
         }
     }
     if let Some(e) = &survivor.extra {
-        for (k, v) in e { merged_extra.insert(k.clone(), v.clone()); }
+        for (k, v) in e.to_map() { merged_extra.insert(k, v); }
     }
 
     let mut new_survivor = survivor.clone();
     new_survivor.tags = tagset.into_iter().collect();
-    new_survivor.extra = if merged_extra.is_empty() { None } else { Some(merged_extra) };
+    new_survivor.extra = crate::types::RawExtra::from_map(&merged_extra);
     new_survivor.modified_at = Some(crate::util::now_unix());
     new_survivor
 }

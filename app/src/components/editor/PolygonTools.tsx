@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useEffectEvent } from "react";
 import { google } from "@/lib/sv/opensv";
+import { Icon, polygonOutline, rectangleOutline } from "@/components/primitives/Icon";
+import { mdiPencil } from "@mdi/js";
 
 type DrawMode = "polygon" | "rectangle" | "freehand" | null;
 
@@ -184,9 +186,7 @@ export function PolygonTools({
 				className={mode === "polygon" ? "is-active" : undefined}
 				aria-label="Draw a polygon selection"
 			>
-				<svg height="24" width="24" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M21,16.5C21,16.88 20.79,17.21 20.47,17.38L12.57,21.82C12.41,21.94 12.21,22 12,22C11.79,22 11.59,21.94 11.43,21.82L3.53,17.38C3.21,17.21 3,16.88 3,16.5V7.5C3,7.12 3.21,6.79 3.53,6.62L11.43,2.18C11.59,2.06 11.79,2 12,2C12.21,2 12.41,2.06 12.57,2.18L20.47,6.62C20.79,6.79 21,7.12 21,7.5V16.5M5,7.61V16.39L12,20.13L19,16.39V7.61L12,3.87L5,7.61Z" />
-				</svg>
+				<Icon path={polygonOutline} />
 			</button>
 			<button
 				type="button"
@@ -194,9 +194,7 @@ export function PolygonTools({
 				className={mode === "rectangle" ? "is-active" : undefined}
 				aria-label="Draw a rectangle selection"
 			>
-				<svg height="24" width="24" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M4,6V19H20V6H4M4,4H20A2,2 0 0,1 22,6V19A2,2 0 0,1 20,21H4A2,2 0 0,1 2,19V6A2,2 0 0,1 4,4Z" />
-				</svg>
+				<Icon path={rectangleOutline} />
 			</button>
 			<button
 				type="button"
@@ -204,9 +202,7 @@ export function PolygonTools({
 				className={mode === "freehand" ? "is-active" : undefined}
 				aria-label="Freehand polygon selection"
 			>
-				<svg height="24" width="24" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z" />
-				</svg>
+				<Icon path={mdiPencil} />
 			</button>
 		</div>
 	);

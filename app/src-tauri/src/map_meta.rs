@@ -285,23 +285,28 @@ pub fn infer_field_type(value: &serde_json::Value) -> ExtraFieldType {
 /// Returns `None` if no new fields are discovered.
 pub fn auto_register_field_defs(
     known_keys: &std::collections::HashSet<String>,
-    extras: &[&serde_json::Map<String, serde_json::Value>],
+    extras: &[&crate::types::RawExtra],
 ) -> Option<HashMap<String, ExtraFieldDef>> {
     let mut new_defs: HashMap<String, ExtraFieldDef> = HashMap::new();
     for extra in extras {
-        for (key, value) in *extra {
+        // Byte key-scan (no per-loc map alloc). A value is only deep-parsed for genuinely
+        // new keys — the common case short-circuits on known_keys.
+        extra.for_each_field(|key, raw_value| {
             if known_keys.contains(key) || new_defs.contains_key(key) {
-                continue;
+                return;
             }
-            let def = known_field_def(key).unwrap_or_else(|| ExtraFieldDef {
-                field_type: infer_field_type(value),
-                label: None,
-                values: None,
-                labels: None,
-                comparison: None,
+            let def = known_field_def(key).unwrap_or_else(|| {
+                let value: serde_json::Value = serde_json::from_str(raw_value).unwrap_or(serde_json::Value::Null);
+                ExtraFieldDef {
+                    field_type: infer_field_type(&value),
+                    label: None,
+                    values: None,
+                    labels: None,
+                    comparison: None,
+                }
             });
-            new_defs.insert(key.clone(), def);
-        }
+            new_defs.insert(key.to_owned(), def);
+        });
     }
     if new_defs.is_empty() { None } else { Some(new_defs) }
 }
@@ -835,18 +840,20 @@ mod tests {
         assert!(matches!(known_field_def("cameraType").unwrap().field_type, ExtraFieldType::Enum));
     }
 
+    fn raw(json: &str) -> crate::types::RawExtra {
+        crate::types::RawExtra::from_string(json.to_string()).unwrap()
+    }
+
     #[test]
     fn auto_register_no_new_keys() {
         let known: HashSet<String> = ["altitude", "countryCode"].iter().map(|s| s.to_string()).collect();
-        let extra: serde_json::Map<String, serde_json::Value> = serde_json::from_str(r#"{"altitude": 100}"#).unwrap();
-        assert!(auto_register_field_defs(&known, &[&extra]).is_none());
+        assert!(auto_register_field_defs(&known, &[&raw(r#"{"altitude": 100}"#)]).is_none());
     }
 
     #[test]
     fn auto_register_known_key() {
         let known: HashSet<String> = HashSet::new();
-        let extra: serde_json::Map<String, serde_json::Value> = serde_json::from_str(r#"{"altitude": 500}"#).unwrap();
-        let result = auto_register_field_defs(&known, &[&extra]).unwrap();
+        let result = auto_register_field_defs(&known, &[&raw(r#"{"altitude": 500}"#)]).unwrap();
         assert_eq!(result.len(), 1);
         let def = &result["altitude"];
         assert!(matches!(def.field_type, ExtraFieldType::Number));
@@ -856,8 +863,7 @@ mod tests {
     #[test]
     fn auto_register_unknown_number() {
         let known: HashSet<String> = HashSet::new();
-        let extra: serde_json::Map<String, serde_json::Value> = serde_json::from_str(r#"{"plumbus": 1}"#).unwrap();
-        let result = auto_register_field_defs(&known, &[&extra]).unwrap();
+        let result = auto_register_field_defs(&known, &[&raw(r#"{"plumbus": 1}"#)]).unwrap();
         assert_eq!(result.len(), 1);
         let def = &result["plumbus"];
         assert!(matches!(def.field_type, ExtraFieldType::Number));
@@ -867,25 +873,21 @@ mod tests {
     #[test]
     fn auto_register_unknown_string() {
         let known: HashSet<String> = HashSet::new();
-        let extra: serde_json::Map<String, serde_json::Value> = serde_json::from_str(r#"{"region": "EU"}"#).unwrap();
-        let result = auto_register_field_defs(&known, &[&extra]).unwrap();
+        let result = auto_register_field_defs(&known, &[&raw(r#"{"region": "EU"}"#)]).unwrap();
         assert!(matches!(result["region"].field_type, ExtraFieldType::String));
     }
 
     #[test]
     fn auto_register_unknown_month() {
         let known: HashSet<String> = HashSet::new();
-        let extra: serde_json::Map<String, serde_json::Value> = serde_json::from_str(r#"{"captured": "2024-03"}"#).unwrap();
-        let result = auto_register_field_defs(&known, &[&extra]).unwrap();
+        let result = auto_register_field_defs(&known, &[&raw(r#"{"captured": "2024-03"}"#)]).unwrap();
         assert!(matches!(result["captured"].field_type, ExtraFieldType::Month));
     }
 
     #[test]
     fn auto_register_mixed() {
         let known: HashSet<String> = ["altitude"].iter().map(|s| s.to_string()).collect();
-        let extra: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
-            r#"{"altitude": 100, "countryCode": "US", "plumbus": 42}"#
-        ).unwrap();
+        let extra = raw(r#"{"altitude": 100, "countryCode": "US", "plumbus": 42}"#);
         let result = auto_register_field_defs(&known, &[&extra]).unwrap();
         // altitude is already known → skipped
         assert!(!result.contains_key("altitude"));
@@ -899,12 +901,26 @@ mod tests {
     #[test]
     fn auto_register_deduplicates_across_extras() {
         let known: HashSet<String> = HashSet::new();
-        let e1: serde_json::Map<String, serde_json::Value> = serde_json::from_str(r#"{"foo": 1}"#).unwrap();
-        let e2: serde_json::Map<String, serde_json::Value> = serde_json::from_str(r#"{"foo": 2, "bar": "x"}"#).unwrap();
-        let result = auto_register_field_defs(&known, &[&e1, &e2]).unwrap();
+        let result = auto_register_field_defs(&known, &[&raw(r#"{"foo": 1}"#), &raw(r#"{"foo": 2, "bar": "x"}"#)]).unwrap();
         assert_eq!(result.len(), 2);
         assert!(result.contains_key("foo"));
         assert!(result.contains_key("bar"));
+    }
+
+    #[test]
+    fn for_each_field_skips_nested_and_handles_specials() {
+        // Only depth-1 keys are visited; nested object/array keys are jumped over. Value
+        // slices capture strings (incl. braces/commas/escaped quotes) and nested structures whole.
+        let e = raw(r#"{"a":1,"b":"x,y}z","c":{"nested":true,"tags":[1]},"d":[1,2],"e":"q\"r"}"#);
+        let mut fields: Vec<(String, String)> = Vec::new();
+        e.for_each_field(|k, v| fields.push((k.to_owned(), v.trim().to_owned())));
+        let keys: Vec<&str> = fields.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(keys, vec!["a", "b", "c", "d", "e"], "nested keys must not be visited");
+        assert_eq!(fields[0].1, "1");
+        assert_eq!(fields[1].1, r#""x,y}z""#);
+        assert_eq!(fields[2].1, r#"{"nested":true,"tags":[1]}"#);
+        assert_eq!(fields[3].1, "[1,2]");
+        assert_eq!(fields[4].1, r#""q\"r""#);
     }
 
     #[test]

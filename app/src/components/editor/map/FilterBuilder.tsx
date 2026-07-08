@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import type { Selection, FilterOp, ExtraFieldDef } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
+import { NSelect } from "@/components/primitives/NSelect";
 import { getFieldDef, fieldLabel, useFieldDefsVersion } from "@/lib/data/fieldDefRegistry";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/data/fieldOps";
 import { useKnownFieldKeys, selectFilter } from "@/store/useMapStore";
@@ -165,14 +166,14 @@ function FilterValueInput({
 
 	if (type === "enum") {
 		return (
-			<select className="nselect" value={value} onChange={(e) => onChange(e.target.value)}>
+			<NSelect value={value} onChange={(e) => onChange(e.target.value)}>
 				<option value="">--</option>
 				{enumValues.map((v) => (
 					<option key={v} value={v}>
 						{def?.labels?.[v] ?? v}
 					</option>
 				))}
-			</select>
+			</NSelect>
 		);
 	}
 
@@ -497,25 +498,21 @@ export function FilterForm({
 			}}
 		>
 			<label>Filter by metadata:</label>
-			<select className="nselect" value={field} onChange={(e) => handleFieldChange(e.target.value)}>
+			<NSelect value={field} onChange={(e) => handleFieldChange(e.target.value)}>
 				{fields.length === 0 && <option value="">No metadata yet</option>}
 				{fields.map((f) => (
 					<option key={f.key} value={f.key}>
 						{f.label}
 					</option>
 				))}
-			</select>
-			<select
-				className="nselect"
-				value={op}
-				onChange={(e) => handleOpChange(e.target.value as FilterOp)}
-			>
+			</NSelect>
+			<NSelect value={op} onChange={(e) => handleOpChange(e.target.value as FilterOp)}>
 				{availableOps.map((o) => (
 					<option key={o} value={o}>
 						{(fieldEntry?.fieldType === "array" && ARRAY_OP_LABELS[o]) || OP_LABELS[o]}
 					</option>
 				))}
-			</select>
+			</NSelect>
 			{needsValue && (
 				<FilterValueInput
 					fieldEntry={fieldEntry}

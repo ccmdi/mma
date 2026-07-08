@@ -210,8 +210,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
                 resolve_field_loc(l, field),
                 l.extra.as_ref()
                     .and_then(|e| e.get("timezone"))
-                    .and_then(|v| v.as_str())
-                    .map(str::to_owned),
+                    .and_then(|v| v.as_str().map(str::to_owned)),
             ),
             RowInner::Base(v, i) => {
                 let extras: Option<serde_json::Map<String, serde_json::Value>> = v.extras.and_then(|c| {
@@ -1066,7 +1065,7 @@ fn resolve_field_loc(loc: &Location, field: &str) -> Option<serde_json::Value> {
         "createdAt" => Some(serde_json::json!(loc.created_at as f64)),
         "modifiedAt" => loc.modified_at.map(|ts| serde_json::json!(ts as f64)),
         "tagCount" => Some(serde_json::json!(loc.tags.len())),
-        _ => loc.extra.as_ref().and_then(|e| e.get(field).cloned()),
+        _ => loc.extra.as_ref().and_then(|e| e.get(field)),
     }
 }
 

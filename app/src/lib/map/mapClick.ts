@@ -29,8 +29,8 @@ export const isLocationLayer = (id?: string) =>
 	id?.startsWith("sel-overlay:") ||
 	id === "import-preview";
 
-// Resolve a deck.gl pick to a location id from the shared cell/selection buffers. 
-// Index-based (the SDF cell and selection-overlay layers carry no per-feature object); 
+// Resolve a deck.gl pick to a location id from the shared cell/selection buffers.
+// Index-based (the SDF cell and selection-overlay layers carry no per-feature object);
 // falls back to Rust for cells the JS buffer hasn't materialized yet.
 export async function resolvePickedId(cm: CellManager, info: PickingInfo): Promise<number | null> {
 	if (typeof info.index !== "number" || info.index < 0) return null;
@@ -136,6 +136,8 @@ export async function handleMapClick(
 
 	if (domEvent instanceof MouseEvent && domEvent.button !== 0) return;
 
+	if (ctx.measuring) return;
+
 	if (
 		info.coordinate &&
 		tryInterceptClick(
@@ -156,8 +158,6 @@ export async function handleMapClick(
 		}
 	}
 
-	if (ctx.measuring) return;
-
 	if (info.coordinate) {
 		const container = ctx.map?.getDiv() ?? null;
 		if (ctx.selectOnly) {
@@ -173,9 +173,8 @@ export async function handleMapClick(
 export function handleMapHover(info: PickingInfo, event: OverlayEvent): void {
 	const over =
 		info.object != null ||
-		(isLocationLayer(info.layer?.id) === true &&
-			typeof info.index === "number" &&
-			info.index >= 0);
-	const target = (event?.srcEvent?.domEvent as MouseEvent | undefined)?.target as HTMLElement | null;
+		(isLocationLayer(info.layer?.id) === true && typeof info.index === "number" && info.index >= 0);
+	const target = (event?.srcEvent?.domEvent as MouseEvent | undefined)
+		?.target as HTMLElement | null;
 	if (target) target.style.cursor = over ? "pointer" : "";
 }

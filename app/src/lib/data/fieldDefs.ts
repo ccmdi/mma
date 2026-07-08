@@ -46,9 +46,10 @@ export function getAllEnrichKeys(): string[] {
 
 /** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). */
 export function getDefaultEnrichKeys(): string[] {
-	return getEnrichFieldOptions().filter((f) => !f.defaultOff).map((f) => f.key);
+	return getEnrichFieldOptions()
+		.filter((f) => !f.defaultOff)
+		.map((f) => f.key);
 }
-
 
 /** Optional context passed by the bulk runner. Cheap providers can ignore it. */
 export interface EnrichCtx {
@@ -74,6 +75,8 @@ export interface EnrichmentProvider {
 	requires?: string[];
 	/** Progress units this provider would contribute in bulk (absent = instant). */
 	units?(locations: Location[], enrichFields: string[] | null, force?: boolean): number;
+	/** Transform a raw partition value per-location. Return null to skip. */
+	transform?(field: string, value: string, location: Location): string | null;
 }
 
 /** Schedule providers into dependency waves: a provider runs once no other
@@ -112,11 +115,13 @@ export function getEnrichmentProviders(): EnrichmentProvider[] {
 	return providers;
 }
 
+export function getProviderForField(field: string): EnrichmentProvider | undefined {
+	return providers.find((p) => field in p.fieldDefs);
+}
+
 export function getTriggeredProviders(patchedKeys: string[]): EnrichmentProvider[] {
 	const keySet = new Set(patchedKeys);
-	return providers.filter(
-		(p) => p.requires && p.requires.some((r) => keySet.has(r)),
-	);
+	return providers.filter((p) => p.requires && p.requires.some((r) => keySet.has(r)));
 }
 
 export function isFieldEnabled(enrichFields: string[] | null, key: string): boolean {
@@ -134,4 +139,3 @@ export function filterEnrichPatch(
 	}
 	return filtered;
 }
-

@@ -290,6 +290,185 @@ fn parsed_tags_sorted_by_order() {
 }
 
 // -----------------------------------------------------------------------
+// Raw-extra parse: the fast byte path (strip `tags`, keep the rest as raw JSON) and
+// its map-path fallbacks (non-null country/state fold, nested panoId) must produce
+// the same semantic result the old map-building parser did.
+// -----------------------------------------------------------------------
+
+fn parse_one(json: &[u8]) -> (Location, Vec<Tag>) {
+    let mut buf = json.to_vec();
+    let p = parse_single_json_mut(&mut buf);
+    (p.locations.into_iter().next().expect("one location"), p.tags)
+}
+
+#[test]
+fn fast_path_strips_tags_keeps_rest() {
+    let (loc, tags) = parse_one(br#"{"customCoordinates":[
+        {"lat":1,"lng":2,"countryCode":null,"stateCode":null,"extra":{"tags":["A","B"],"panoDate":"2025-08"}}
+    ]}"#);
+    let e = loc.extra.as_ref().unwrap();
+    assert_eq!(e.get("panoDate").unwrap(), "2025-08");
+    assert!(e.get("tags").is_none(), "tags stripped from stored extra");
+    assert!(e.get("countryCode").is_none(), "null country not folded (parity with old parser)");
+    assert_eq!(loc.tags.len(), 2);
+    let mut names: Vec<_> = tags.iter().map(|t| t.name.clone()).collect();
+    names.sort();
+    assert_eq!(names, vec!["A", "B"]);
+}
+
+#[test]
+fn fast_path_tags_with_special_chars() {
+    // Tag strings contain `,` `]` `:` and an escaped quote — the array must be located
+    // string-aware and parsed with serde (not a naive byte split).
+    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+        {"lat":1,"lng":2,"extra":{"tags":["a,b","c]d","e:f","q\"z"],"note":"keep"}}
+    ]}"#);
+    assert_eq!(loc.tags.len(), 4);
+    let e = loc.extra.as_ref().unwrap();
+    assert_eq!(e.get("note").unwrap(), "keep");
+    assert!(e.get("tags").is_none());
+}
+
+#[test]
+fn nested_tags_key_not_stripped() {
+    // A `tags` key nested inside a value object must be left intact; only the depth-1
+    // `tags` array is stripped.
+    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+        {"lat":1,"lng":2,"extra":{"meta":{"tags":5},"tags":["X"]}}
+    ]}"#);
+    assert_eq!(loc.tags.len(), 1);
+    let e = loc.extra.as_ref().unwrap();
+    assert_eq!(e.get("meta").unwrap(), serde_json::json!({"tags":5}));
+    assert!(e.get("tags").is_none(), "top-level tags stripped");
+}
+
+#[test]
+fn value_containing_tags_word_is_not_a_key() {
+    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+        {"lat":1,"lng":2,"extra":{"note":"my tags here","panoDate":"x"}}
+    ]}"#);
+    assert!(loc.tags.is_empty());
+    let e = loc.extra.as_ref().unwrap();
+    assert_eq!(e.get("note").unwrap(), "my tags here");
+    assert_eq!(e.get("panoDate").unwrap(), "x");
+}
+
+#[test]
+fn non_null_country_state_folded_into_extra() {
+    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+        {"lat":1,"lng":2,"countryCode":"US","stateCode":"CA","extra":{"tags":["X"]}}
+    ]}"#);
+    let e = loc.extra.as_ref().unwrap();
+    assert_eq!(e.get("countryCode").unwrap(), "US");
+    assert_eq!(e.get("stateCode").unwrap(), "CA");
+    assert_eq!(loc.tags.len(), 1);
+}
+
+#[test]
+fn pano_id_nested_in_extra_extracted() {
+    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+        {"lat":1,"lng":2,"extra":{"panoId":"PANO123","tags":["X"]}}
+    ]}"#);
+    assert_eq!(loc.pano_id.as_deref(), Some("PANO123"));
+    assert!(!loc.flags.contains(LocationFlags::LOAD_AS_PANO_ID), "nested panoId is not a top-level pano");
+    assert_eq!(loc.tags.len(), 1);
+    // panoId consumed out of extra, only tags were there → no extra left
+    assert!(loc.extra.is_none());
+}
+
+#[test]
+fn extra_with_only_tags_becomes_none() {
+    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+        {"lat":1,"lng":2,"extra":{"tags":["X"]}}
+    ]}"#);
+    assert!(loc.extra.is_none());
+    assert_eq!(loc.tags.len(), 1);
+}
+
+#[test]
+fn no_extra_at_all() {
+    let (loc, _tags) = parse_one(br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#);
+    assert!(loc.extra.is_none());
+    assert!(loc.tags.is_empty());
+}
+
+// -----------------------------------------------------------------------
+// Parallel boundary scan (parallel_find_object_boundaries) must be byte-identical
+// to the serial find_object_boundaries. Correctness is a hard invariant: the
+// parallel scanner is only ever a speed optimization over the serial one.
+// -----------------------------------------------------------------------
+
+/// Assert the parallel scan returns exactly the serial scan's ranges + array close.
+fn assert_parallel_matches_serial(arr: &[u8]) {
+    let (ser_r, ser_c) = find_object_boundaries(arr);
+    let (par_r, par_c) = parallel_find_object_boundaries(arr);
+    assert_eq!(par_r, ser_r, "parallel ranges differ from serial");
+    assert_eq!(par_c, ser_c, "parallel array-close differs from serial");
+}
+
+/// Build a synthetic array slice (the bytes between `[` and `]`) of `n` objects.
+/// `sep` is the inter-object separator (e.g. `,` minified or `,\n` delimited).
+fn synth_array(n: usize, sep: &str, with_extra: bool) -> Vec<u8> {
+    let mut s = String::from("[");
+    for i in 0..n {
+        if i > 0 { s.push_str(sep); }
+        if with_extra {
+            // extra with braces/commas inside strings to stress skip_string across ranges
+            s.push_str(&format!(
+                r#"{{"lat":{}.5,"lng":{}.25,"panoId":"pano{}","extra":{{"note":"a}},{{b][{}","tags":["T{}","common"]}}}}"#,
+                i % 90, i % 180, i, i, i % 7));
+        } else {
+            s.push_str(&format!(r#"{{"lat":{}.5,"lng":{}.25,"heading":0,"panoId":null}}"#, i % 90, i % 180));
+        }
+    }
+    s.push(']');
+    s.into_bytes()
+}
+
+#[test]
+fn parallel_scan_matches_serial_small_fixtures() {
+    // Reuse the tricky serial-correctness fixtures — braces/quotes/escapes in strings.
+    let arr = br#"[{"lat":1,"lng":2,"extra":{"uploaderName":"a},{b]["}},{"lat":3,"lng":4}]"#;
+    assert_parallel_matches_serial(arr);
+    let arr = br#"[{"lat":1,"lng":2,"extra":{"note":"he said \"}{,\" loudly"}},{"lat":3,"lng":4}]"#;
+    assert_parallel_matches_serial(arr);
+    let arr = br#"[{"lat":1,"lng":2,"extra":{"path":"C:\\"}},{"lat":3,"lng":4}]"#;
+    assert_parallel_matches_serial(arr);
+    assert_parallel_matches_serial(br#"[]"#);
+    assert_parallel_matches_serial(br#"[{"lat":1,"lng":2}]"#);
+}
+
+#[test]
+fn parallel_scan_matches_serial_large_minified() {
+    // Big enough to exceed the 2MB parallel threshold; minified (no interior newlines),
+    // so it exercises the `},{` resync path.
+    let arr = synth_array(60_000, ",", false);
+    assert!(arr.len() > 2_000_000, "fixture must cross the parallel threshold");
+    assert_parallel_matches_serial(&arr);
+}
+
+#[test]
+fn parallel_scan_matches_serial_large_delimited_with_extra() {
+    // Newline-delimited + extra whose string values contain `}`, `{`, `,`, `]` — the
+    // resync must land on real boundaries and skip_string must span range seams.
+    let arr = synth_array(40_000, ",\n", true);
+    assert!(arr.len() > 2_000_000);
+    assert_parallel_matches_serial(&arr);
+}
+
+#[test]
+fn parallel_scan_matches_serial_trailing_sibling_key() {
+    // Full doc shape: the array is followed by a sibling "extra" key. Both scanners
+    // must stop at the array's `]`, not read the sibling object as a coordinate.
+    let mut doc = Vec::from(&b"{\"customCoordinates\":"[..]);
+    doc.extend_from_slice(&synth_array(30_000, ",", false));
+    doc.extend_from_slice(br#","extra":{"tags":{"X":{"color":[1,2,3]}}}}"#);
+    // Slice from just after the array-open `[` to end, as parse_single_json_mut passes it.
+    let arr_start = doc.iter().position(|&b| b == b'[').unwrap() + 1;
+    assert_parallel_matches_serial(&doc[arr_start..]);
+}
+
+// -----------------------------------------------------------------------
 // Parse benchmark (ignored; run explicitly against a real large file)
 //   cargo test --release -p app_lib import::tests::bench_parse_real -- --ignored --nocapture
 // Override the file with MMA_BENCH_FILE=/path/to/file.json

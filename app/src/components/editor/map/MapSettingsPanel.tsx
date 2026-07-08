@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, type RefObject } from "react";
 import { ManageFieldsModal } from "@/components/dialogs/ManageFieldsModal";
+import { NSelect } from "@/components/primitives/NSelect";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
 import { buildTileUrl, createRoadmapTileConfig, type MapStyle } from "@/lib/geo/tiles";
@@ -237,8 +238,8 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 				</legend>
 				<label className="layer-config__item settings-popup__select">
 					Style:{" "}
-					<select
-						className="nselect nselect--limited"
+					<NSelect
+						className="nselect--limited"
 						value={e.mapStyleName}
 						onChange={(ev) => e.setMapStyleName(ev.target.value)}
 					>
@@ -252,7 +253,7 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 								{s.name}
 							</option>
 						))}
-					</select>
+					</NSelect>
 				</label>
 				<a
 					href="#"
@@ -530,8 +531,8 @@ export function MapSettingsDropdown({ settings: s }: { settings: MapSettingsDrop
 						{pointAlongRoad && (
 							<label className="settings-popup__item settings-popup__select">
 								Direction:{" "}
-								<select
-									className="nselect nselect--compact"
+								<NSelect
+									className="nselect--compact"
 									value={preferDirection ?? ""}
 									onChange={(e) => setPreferDirection(e.target.value || null)}
 								>
@@ -543,7 +544,7 @@ export function MapSettingsDropdown({ settings: s }: { settings: MapSettingsDrop
 									<option value="south">Most Southern</option>
 									<option value="west">Most Western</option>
 									<option value="random">Random</option>
-								</select>
+								</NSelect>
 							</label>
 						)}
 						<label className="settings-popup__item">
@@ -629,15 +630,15 @@ export function MapSettingsDropdown({ settings: s }: { settings: MapSettingsDrop
 						</legend>
 						<label className="settings-popup__item settings-popup__select">
 							Marker style:{" "}
-							<select
-								className="nselect nselect--compact"
+							<NSelect
+								className="nselect--compact"
 								value={s.markerStyle}
 								onChange={(e) => s.setMarkerStyle(e.target.value as MarkerStyle)}
 							>
 								<option value="pin">Pin</option>
 								<option value="circle">Circle</option>
 								<option value="arrow">Camera direction arrow</option>
-							</select>
+							</NSelect>
 						</label>
 						<label className="settings-popup__item settings-popup__slider">
 							Marker size:{" "}

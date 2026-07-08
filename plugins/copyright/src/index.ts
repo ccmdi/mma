@@ -1,6 +1,4 @@
-import type { ExtraFieldDef, EnrichCtx } from "mma-plugin-types";
-
-type Location = Awaited<ReturnType<typeof MMA.fetchAllLocations>>[number];
+import type { Location, ExtraFieldDef, EnrichCtx } from "mma-plugin-types";
 
 const BINARY_NAME = "mma-copyright";
 
@@ -117,7 +115,7 @@ async function enrich(
 MMA.registerPlugin({
 	activate() {
 		MMA.registerEnrichFields([
-			{ key: "copyrightYear", label: "Copyright year", defaultOff: true },
+			{ key: "copyrightYear", label: "Copyright year" },
 		]);
 		MMA.registerEnrichmentProvider({
 			id: "copyright",
@@ -125,6 +123,10 @@ MMA.registerPlugin({
 			enrich,
 			fieldDefs: FIELD_DEFS,
 			units: (locations, enrichFields, force) => usableLocations(locations, enrichFields, force).length,
+			transform(_field, value, loc) {
+				if (loc.extra?.imageDate && Number((loc.extra.imageDate as string).slice(0, 4)) > Number(value)) return null;
+				return `© ${value}`;
+			},
 		});
 	},
 	comingSoon: true,

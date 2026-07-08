@@ -1,4 +1,4 @@
-import type { Location_Serialize, ExtraFieldDef, EnrichFieldOption, EnrichCtx } from "mma-plugin-types";
+import type { Location, ExtraFieldDef, EnrichFieldOption, EnrichCtx } from "mma-plugin-types";
 
 interface WeatherField {
 	key: string;
@@ -99,7 +99,7 @@ async function fetchWithRetry(url: string): Promise<any | null> {
 }
 
 async function runTask(
-	locs: Location_Serialize[],
+	locs: Location[],
 	vars: string,
 	requested: WeatherField[],
 	limiter: RateLimiter,
@@ -143,9 +143,9 @@ function requestedFields(enrichFields: string[] | null): WeatherField[] {
 // Strictly datetime-dependent, and skips anything already holding every requested field
 // (re-runs cost nothing; only missing fields trigger a fetch).
 function usableLocations(
-	locations: Location_Serialize[],
+	locations: Location[],
 	enrichFields: string[] | null,
-): Location_Serialize[] {
+): Location[] {
 	const requested = requestedFields(enrichFields);
 	if (requested.length === 0) return [];
 	return locations.filter(
@@ -156,7 +156,7 @@ function usableLocations(
 }
 
 async function enrich(
-	locations: Location_Serialize[],
+	locations: Location[],
 	enrichFields: string[] | null,
 	ctx?: EnrichCtx,
 ): Promise<Map<number, Record<string, unknown>>> {
@@ -167,7 +167,7 @@ async function enrich(
 	if (usable.length === 0) return patches;
 
 	// Chunk all pending locations; per-coordinate dates let one request span arbitrary days.
-	const chunks: Location_Serialize[][] = [];
+	const chunks: Location[][] = [];
 	for (let i = 0; i < usable.length; i += COORDS_PER_REQUEST) {
 		chunks.push(usable.slice(i, i + COORDS_PER_REQUEST));
 	}

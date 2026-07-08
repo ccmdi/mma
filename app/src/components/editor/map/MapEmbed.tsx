@@ -1,6 +1,13 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
-import { mdiGoogleStreetView, mdiMapMarker } from "@mdi/js";
+import {
+	mdiGoogleStreetView,
+	mdiMapMarker,
+	mdiPlus,
+	mdiMinus,
+	mdiContentCopy,
+	mdiDelete,
+} from "@mdi/js";
 import { startSceneEngine, loadScene, clearScene, recolorScene } from "@/lib/render/sceneStore";
 import { useMapSurface } from "@/lib/render/useMapSurface";
 import { Icon } from "@/components/primitives/Icon";
@@ -12,7 +19,7 @@ import { getSettings, useSetting } from "@/store/settings";
 import { useMeasure } from "@/lib/sv/measure";
 import { MeasurementBar } from "@/components/primitives/MeasurementBar";
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
-import { useCurrentMap, selectPolygon, mapOpenMark } from "@/store/useMapStore";
+import { useCurrentMap, selectPolygon, mapOpen } from "@/store/useMapStore";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
 import { setGoogleMap as setGoogleMapInstance, tryInterceptDraw } from "@/lib/map/mapState";
@@ -108,7 +115,7 @@ export function MapEmbed({
 
 	useEffect(() => {
 		if (!containerRef.current || !map) return;
-		mapOpenMark("mounted");
+		mapOpen.mark("mounted");
 		let cancelled = false;
 
 		loadOpenSV().then(() => {
@@ -154,9 +161,9 @@ export function MapEmbed({
 					setMapZoom(gMapRef.current?.getZoom() ?? 0);
 				});
 				setMapReady(true);
-				mapOpenMark("map-ready");
+				mapOpen.mark("map-ready");
 				google.maps.event.addListenerOnce(gMapRef.current, "tilesloaded", () =>
-					mapOpenMark("tiles"),
+					mapOpen.mark("tiles"),
 				);
 
 				if (map.meta.locationCount > 0) {
@@ -449,20 +456,16 @@ export function MapEmbed({
 						/>
 					</div>
 				</div>
-				<div className="embed-controls__control" style={{ right: 0, bottom: 0 }}>
+				<div className="embed-controls__control" style={{ right: 0, bottom: 10 }}>
 					<div className="map-control map-control--button white">
 						<Tooltip content="Zoom in" side="left">
 							<button onClick={zoomIn} aria-label="Zoom in">
-								<svg height="18" width="18" viewBox="0 0 24 24" fill="currentColor">
-									<path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
-								</svg>
+								<Icon path={mdiPlus} size={18} />
 							</button>
 						</Tooltip>
 						<Tooltip content="Zoom out" side="left">
 							<button onClick={zoomOut} aria-label="Zoom out">
-								<svg height="18" width="18" viewBox="0 0 24 24" fill="currentColor">
-									<path d="M19,13H5V11H19V13Z" />
-								</svg>
+								<Icon path={mdiMinus} size={18} />
 							</button>
 						</Tooltip>
 					</div>
@@ -511,9 +514,7 @@ export function MapEmbed({
 												}}
 												aria-label="Copy JSON"
 											>
-												<svg height="20" width="20" viewBox="0 0 24 24" fill="currentColor">
-													<path d="M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z" />
-												</svg>
+												<Icon path={mdiContentCopy} size={20} />
 											</button>
 											<button
 												className="icon-button"
@@ -525,9 +526,7 @@ export function MapEmbed({
 												}}
 												aria-label="Delete style"
 											>
-												<svg height="20" width="20" viewBox="0 0 24 24" fill="currentColor">
-													<path d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z" />
-												</svg>
+												<Icon path={mdiDelete} size={20} />
 											</button>
 										</div>
 									</li>

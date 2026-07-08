@@ -79,14 +79,18 @@ async function enrich(locations, enrichFields, ctx) {
 MMA.registerPlugin({
   activate() {
     MMA.registerEnrichFields([
-      { key: "copyrightYear", label: "Copyright year", defaultOff: true }
+      { key: "copyrightYear", label: "Copyright year" }
     ]);
     MMA.registerEnrichmentProvider({
       id: "copyright",
       label: "Copyright year",
       enrich,
       fieldDefs: FIELD_DEFS,
-      units: (locations, enrichFields, force) => usableLocations(locations, enrichFields, force).length
+      units: (locations, enrichFields, force) => usableLocations(locations, enrichFields, force).length,
+      transform(_field, value, loc) {
+        if (loc.extra?.imageDate && Number(loc.extra.imageDate.slice(0, 4)) > Number(value)) return null;
+        return `\xA9 ${value}`;
+      }
     });
   },
   comingSoon: true

@@ -1071,11 +1071,11 @@ fn tz_fixture() -> Vec<Location> {
     // 2020-03-01 00:00:00 UTC. In Tokyo that's Mar 1 09:00; in New York Feb 29 19:00.
     let ts = 1583020800u64;
     let mut tokyo = loc(1, 0.0, 0.0);
-    tokyo.extra = serde_json::json!({ "datetime": ts, "timezone": "Asia/Tokyo" }).as_object().cloned();
+    tokyo.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": ts, "timezone": "Asia/Tokyo" }));
     let mut newyork = loc(2, 0.0, 0.0);
-    newyork.extra = serde_json::json!({ "datetime": ts, "timezone": "America/New_York" }).as_object().cloned();
+    newyork.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": ts, "timezone": "America/New_York" }));
     let mut no_tz = loc(3, 0.0, 0.0);
-    no_tz.extra = serde_json::json!({ "datetime": ts }).as_object().cloned();
+    no_tz.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": ts }));
     vec![tokyo, newyork, no_tz]
 }
 
@@ -1150,7 +1150,7 @@ fn filter_tz_local_ignored_for_nothas() {
     let dead = HashSet::new();
     let patches = HashMap::new();
     let mut with_field = loc(1, 0.0, 0.0);
-    with_field.extra = serde_json::json!({ "datetime": 100 }).as_object().cloned();
+    with_field.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": 100 }));
     let without = loc(2, 0.0, 0.0);
     let adds = vec![with_field, without];
     let view = make_view(None, &dead, &patches, &adds);
@@ -1166,7 +1166,7 @@ fn filter_tz_local_ignored_for_nothas() {
 // -----------------------------------------------------------------------
 
 fn loc_extra(id: u32, extra: serde_json::Value) -> Location {
-    Location { extra: extra.as_object().cloned(), ..loc(id, 0.0, 0.0) }
+    Location { extra: crate::types::RawExtra::from_value(&extra), ..loc(id, 0.0, 0.0) }
 }
 
 fn partition_view<'a>(adds: &'a [Location], dead: &'a HashSet<u32>, patches: &'a HashMap<u32, Location>) -> LocView<'a> {

@@ -27,6 +27,19 @@ npm run build
 
 Reopen a map in MMA and enable it in the marketplace. Edit `src/index.ts` and rebuild to iterate.
 
+### Dev mode
+
+For a faster edit-reload loop, use the dev script instead of manual builds + copies:
+
+```bash
+node plugins/dev.mjs plugins/my-plugin              # JS watch + auto-sync to appdata
+node plugins/dev.mjs plugins/my-plugin --sidecar     # also watches the sidecar binary
+```
+
+This watches your source, rebuilds on change, and copies `index.js`, `manifest.json`, and (with `--sidecar`) the debug binary into the appdata plugin folder. Reopen a map to pick up changes.
+
+For sidecar plugins, run `cargo build` in `plugins/<id>/sidecar/` in a separate terminal - the dev script polls for binary changes and copies them over.
+
 Each plugin is a folder containing at minimum:
 - `manifest.json` — plugin identity
 - `index.js` (or whatever `main` points to) — plugin behavior

@@ -558,24 +558,31 @@ pub fn run() {
         default_hook(info);
     }));
     let builder = tauri::Builder::default()
-        .register_uri_scheme_protocol("mma-buf", |_ctx, req| {
+        .register_asynchronous_uri_scheme_protocol("mma-buf", |_ctx, req, responder| {
             let raw = percent_encoding::percent_decode_str(req.uri().path())
                 .decode_utf8_lossy().into_owned();
-            let trimmed = raw.trim_start_matches('/');
-            let clean = if trimmed.starts_with(|c: char| c.is_ascii_alphabetic())
-                && trimmed.as_bytes().get(1) == Some(&b':') { trimmed } else { &raw };
-            match std::fs::read(clean) {
-                Ok(data) => tauri::http::Response::builder()
-                    .header("Access-Control-Allow-Origin", "*")
-                    .header("Content-Type", "application/octet-stream")
-                    .body(data)
-                    .unwrap(),
-                Err(e) => tauri::http::Response::builder()
-                    .status(404)
-                    .header("Access-Control-Allow-Origin", "*")
-                    .body(format!("file not found: {clean} — {e}").into_bytes())
-                    .unwrap(),
-            }
+            std::thread::spawn(move || {
+                let _t = std::time::Instant::now();
+                let trimmed = raw.trim_start_matches('/');
+                let clean = if trimmed.starts_with(|c: char| c.is_ascii_alphabetic())
+                    && trimmed.as_bytes().get(1) == Some(&b':') { trimmed } else { &raw };
+                let resp = match std::fs::read(clean) {
+                    Ok(data) => {
+                        log::debug!("[mma-buf] read {} bytes in {:.1}ms", data.len(), _t.elapsed().as_secs_f64() * 1000.0);
+                        tauri::http::Response::builder()
+                            .header("Access-Control-Allow-Origin", "*")
+                            .header("Content-Type", "application/octet-stream")
+                            .body(data)
+                            .unwrap()
+                    }
+                    Err(e) => tauri::http::Response::builder()
+                        .status(404)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(format!("file not found: {clean} — {e}").into_bytes())
+                        .unwrap(),
+                };
+                responder.respond(resp);
+            });
         })
         .register_uri_scheme_protocol("mma-plugin", |_ctx, req| {
             let plugins_dir = storage::app_data_dir()

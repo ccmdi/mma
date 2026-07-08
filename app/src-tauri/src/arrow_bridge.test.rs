@@ -183,7 +183,7 @@ fn patch_batch_nullable_transitions() {
     assert_eq!(restored[0].extra, None);
     assert_eq!(restored[0].modified_at, None);
     assert_eq!(restored[1].pano_id, Some("newpano".into()));
-    assert_eq!(restored[1].extra.as_ref().unwrap()["k"], "v");
+    assert_eq!(restored[1].extra.as_ref().unwrap().get("k").unwrap(), "v");
     assert_eq!(restored[1].modified_at, Some(123));
 }
 

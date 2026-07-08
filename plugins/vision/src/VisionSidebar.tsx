@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import type { Location } from "mma-plugin-types";
 import { spawnEmbed, spawnTextSearch } from "./sidecar";
 
 const { Sidebar, Field } = MMA.ui;
@@ -11,7 +12,7 @@ const CSS = `
 .vision-sidebar__actions { display: flex; gap: 6px; margin-top: 4px; }
 `;
 
-function panoIdToLocId(locs: Awaited<ReturnType<typeof MMA.fetchAllLocations>>, panoId: string): number | null {
+function panoIdToLocId(locs: Location[], panoId: string): number | null {
 	const loc = locs.find((l) => l.panoId === panoId);
 	return loc?.id ?? null;
 }

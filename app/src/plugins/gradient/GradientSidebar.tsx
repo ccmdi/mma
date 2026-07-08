@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
+import { NSelect } from "@/components/primitives/NSelect";
 import { ScopeSelector } from "@/components/primitives/ScopeSelector";
 import type { ExtraFieldDef, ExtraFieldType, KeySpec, DatePart } from "@/bindings.gen";
 import { getFieldDef, fieldLabel } from "@/lib/data/fieldDefRegistry";
@@ -167,8 +168,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 						<ScopeSelector ctl={scopeCtl} />
 					</Field>
 					<Field label="Field">
-						<select
-							className="nselect"
+						<NSelect
 							value={fieldKey}
 							onChange={(e) => {
 								const key = e.target.value;
@@ -185,13 +185,12 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 									{f.label}
 								</option>
 							))}
-						</select>
+						</NSelect>
 					</Field>
 
 					{projOptions.length > 1 && (
 						<Field label="Group by">
-							<select
-								className="nselect"
+							<NSelect
 								value={projectionId}
 								onChange={(e) => {
 									setProjectionId(e.target.value);
@@ -202,7 +201,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 										{p.label}
 									</option>
 								))}
-							</select>
+							</NSelect>
 						</Field>
 					)}
 

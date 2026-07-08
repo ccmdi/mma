@@ -99,7 +99,7 @@ fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
 
     let extras: StringArray = locs
         .iter()
-        .map(|l| l.extra.as_ref().map(|e| serde_json::to_string(e).unwrap()))
+        .map(|l| l.extra.as_ref().map(|e| e.as_str().to_string()))
         .collect();
 
     let created_ats = UInt32Array::from_iter_values(locs.iter().map(|l| l.created_at));
@@ -213,7 +213,7 @@ pub fn patch_batch(batch: &RecordBatch, patches: &std::collections::HashMap<u32,
                 COL_EXTRA => {
                     let old = col_extra(batch);
                     Arc::new((0..n).map(|i| match hits.get(&i) {
-                        Some(p) => p.extra.as_ref().map(|e| serde_json::to_string(e).unwrap()),
+                        Some(p) => p.extra.as_ref().map(|e| e.as_str().to_string()),
                         None => (!old.is_null(i)).then(|| old.value(i).to_string()),
                     }).collect::<StringArray>())
                 }
@@ -258,7 +258,7 @@ pub fn row_to_location(batch: &RecordBatch, idx: usize) -> Location {
     let extra = if extra_col.is_null(idx) {
         None
     } else {
-        serde_json::from_str(extra_col.value(idx)).ok()
+        crate::types::RawExtra::from_string(extra_col.value(idx).to_owned())
     };
 
     let modified_at = {

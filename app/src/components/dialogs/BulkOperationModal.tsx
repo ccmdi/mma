@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { NSelect } from "@/components/primitives/NSelect";
 import {
 	getCurrentMap,
 	addSelections,
@@ -366,8 +367,7 @@ function SetFieldSetup({ locs, scopeCtl, onReady }: SetupProps) {
 			<ScopeSelector ctl={scopeCtl} />
 			<label className="bulk-operation__option">
 				Field
-				<select
-					className="nselect"
+				<NSelect
 					value={creatingNew ? "__new__" : key}
 					onChange={(e) => {
 						if (e.target.value === "__new__") {
@@ -387,7 +387,7 @@ function SetFieldSetup({ locs, scopeCtl, onReady }: SetupProps) {
 						</option>
 					))}
 					<option value="__new__">New field...</option>
-				</select>
+				</NSelect>
 			</label>
 			{creatingNew && (
 				<label className="bulk-operation__option">
@@ -404,14 +404,14 @@ function SetFieldSetup({ locs, scopeCtl, onReady }: SetupProps) {
 			<label className="bulk-operation__option">
 				Value
 				{isEnum ? (
-					<select className="nselect" value={raw} onChange={(e) => setRaw(e.target.value)}>
+					<NSelect value={raw} onChange={(e) => setRaw(e.target.value)}>
 						<option value="" />
 						{def!.values!.map((v) => (
 							<option key={v} value={v}>
 								{def!.labels?.[v] ?? v}
 							</option>
 						))}
-					</select>
+					</NSelect>
 				) : (
 					<input
 						className="input"

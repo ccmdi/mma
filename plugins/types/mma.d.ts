@@ -38,6 +38,994 @@ export interface PluginStorage {
 	keys(): string[];
 }
 declare function createPluginStorage(id: string): PluginStorage;
+/** Commands */
+export declare const commands: {
+	/**
+	 *  Write arbitrary text content to a named temp file (`mma_{name}`). Returns the path.
+	 *  Used by JS to pass large payloads via file instead of IPC serialization.
+	 */
+	writeTempFile: (name: string, content: string) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**  Read a file from disk as UTF-8 text. Used by JS to read temp files and plugin sources. */
+	readFile: (path: string) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	appReady: () => Promise<number>;
+	/**  Return the platform-specific app data directory path (e.g., `%LOCALAPPDATA%/app.map-making.local`). */
+	getAppDataDir: () => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**  Report where map data is currently stored. */
+	getDataLocation: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: DataLocation;
+	}>;
+	/**
+	 *  Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch.
+	 *  Does not move existing data -- the caller warns the user.
+	 */
+	setDataLocation: (path: string | null) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Open the app data directory in the OS file explorer. */
+	openDataFolder: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Scan the `plugins/` directory under app data and return manifests for all installed plugins. */
+	listUserPlugins: () => Promise<PluginManifest[]>;
+	/**
+	 *  Download a plugin from the GitHub plugin repository and install it to the local plugins directory.
+	 *  Fetches `manifest.json` and the main JS file specified in the manifest.
+	 */
+	installPlugin: (id: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: PluginManifest;
+	}>;
+	/**  Remove a plugin by deleting its directory from the local plugins folder. */
+	uninstallPlugin: (id: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Download a plugin's sidecar bundle from GitHub Releases and extract it under
+	 *  `{appData}/plugins/{plugin_id}/sidecar/`. Emits `sidecar-install-progress`.
+	 */
+	sidecarInstall: (pluginId: string, name: string, version: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Installed sidecar version for a plugin (from `sidecar/version.txt`), or `None`. */
+	sidecarInstalledVersion: (pluginId: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: string | null;
+	}>;
+	/**
+	 *  Spawn a plugin's installed sidecar binary. Streams stdout/stderr lines as
+	 *  `sidecar-stdout` / `sidecar-stderr` events and the exit as `sidecar-exit`,
+	 *  keyed by the returned run id. Runs in the sidecar dir so co-located dlls resolve.
+	 */
+	sidecarSpawn: (pluginId: string, name: string, args: string[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: number;
+	}>;
+	/**  Kill a running sidecar process by run id (no-op if already exited). */
+	sidecarKill: (runId: number) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	checkBorderFile: (level: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: boolean;
+	}>;
+	downloadBorderFile: (level: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	borderLookup: (lat: number, lng: number, level: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: PolygonGeometry | null;
+	}>;
+	/**
+	 *  Finds the nearest city/country for a coordinate. O(log n) k-d tree lookup.
+	 *  Always returns `Some` -- the GeoNames dataset covers every landmass.
+	 */
+	reverseGeocode: (lat: number, lng: number) => Promise<GeoResult | null>;
+	/**
+	 *  Load a map's Arrow data from disk, rebuild all indexes, and return initial state
+	 *  (tag counts, undo/redo availability). Must be called before any other store commands.
+	 */
+	storeOpenMap: (mapId: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: StoreStatus;
+	}>;
+	/**
+	 *  Close the current map: bake overlay, flush Arrow + tags + edit history to disk, then
+	 *  release all in-memory state (batch, mmap, indexes, selections, undo stacks).
+	 */
+	storeCloseMap: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Autosave: serialize the overlay (uncommitted changes) to the delta sidecar, plus
+	 *  dirty tags and the location count. Skips entirely when nothing changed since the
+	 *  last save. Does NOT bake the overlay — `store_commit` does the full merge.
+	 *  `overlay.dirty` is cleared only after the write lands, and only if the overlay
+	 *  wasn't mutated while the write was in flight (rev guard), so a failed or raced
+	 *  save keeps the data flagged for the next attempt.
+	 */
+	storeSaveDirty: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: SaveResult;
+	}>;
+	/**
+	 *  Copy locations from the current window's map into another map (routing
+	 *  hotkeys). Duplicates in the target are skipped (`split_new_locations`).
+	 *  Tags carry over import-style (`reconcile_copied_tags`), extras carry with
+	 *  field defs auto-registered in the target; timestamps are fresh. If the
+	 *  target is open (any window), its live store is mutated and a
+	 *  `store-external-mutation` event tells its windows to resync; either way
+	 *  the result is persisted immediately (delta sidecar + tags + count).
+	 */
+	storeCopyLocationsToMap: (targetMapId: string, ids: number[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: CopyToMapResult;
+	}>;
+	/**  Lightweight status query: location count, version, and dirty flag. */
+	storeGetSummary: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: SummaryResult;
+	}>;
+	/**  Return metadata for every map in the database. */
+	storeListMaps: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MapMeta[];
+	}>;
+	/**  Fetch a single map's metadata by ID. Returns `None` if not found. */
+	storeGetMap: (id: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MapData | null;
+	}>;
+	/**
+	 *  Create a new empty map with default settings. Returns the full metadata
+	 *  (including the generated UUID) so the frontend can navigate to it immediately.
+	 */
+	storeCreateMap: (name: string, folder: string | null) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MapData;
+	}>;
+	/**
+	 *  Delete a map and all associated data: SQLite rows (maps, edit_history,
+	 *  commits) and Arrow base/delta/commit files on disk.
+	 *
+	 *  Evicts any live in-memory state for the map, so a window still showing it
+	 *  (or a racing autosave) can't flush its overlay back to disk after the files
+	 *  are gone. The manager lock is held across the whole delete so a concurrent
+	 *  `store_open_map` of the same map can't reload it from disk mid-deletion and
+	 *  resurrect it.
+	 */
+	storeDeleteMap: (id: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Apply a partial update to a map's metadata. Dynamically builds the SQL
+	 *  UPDATE from non-`None` fields in the patch. Also syncs `known_field_keys`
+	 *  on the in-memory store when extra fields change, so auto-registration
+	 *  doesn't re-discover fields the user explicitly defined.
+	 */
+	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Update `last_opened_at` to the current timestamp. Used to sort the map
+	 *  list by recency in the dashboard.
+	 */
+	storeTouchMapOpened: (mapId: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Rename a folder across all maps that reference it. */
+	storeRenameFolder: (from: string, to: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). */
+	storeDeleteFolder: (name: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  List all user-created tables with their row counts. Excludes SQLite internals. */
+	storeDbTableInfo: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: DbTableInfo[];
+	}>;
+	/**
+	 *  Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
+	 *  and clears the redo stack.
+	 */
+	storeAddLocations: (locations: Location[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**  Remove locations by ID. Snapshots the full location data for undo before deleting. */
+	storeRemoveLocations: (ids: number[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**
+	 *  Apply partial patches to existing locations. `record_undo` defaults to true;
+	 *  set to false for ephemeral updates (e.g., plugin-driven batch modifications
+	 *  that manage their own undo).
+	 */
+	storeUpdateLocations: (updates: Update<LocationPatch_Deserialize>[], recordUndo: boolean | null) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**
+	 *  Set (or clear) the active location. Fire-and-forget from JS; no re-render triggered.
+	 *  JS patches the cell buffer synchronously to hide/show the active marker.
+	 */
+	storeSetActive: (id: number | null) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Set the default marker color used by the render delta path. Fire-and-forget from JS;
+	 *  the JS side recolors its cell buffers in place (no full rebuild).
+	 */
+	storeSetMarkerColor: (color: [
+		number,
+		number,
+		number
+	]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Fetch a single location by ID. Returns `None` if the ID is dead or doesn't exist. */
+	storeGetLocation: (id: number) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: Location | null;
+	}>;
+	/**  Fetch multiple locations by ID. Silently skips IDs that don't exist. */
+	storeGetLocationsByIds: (ids: number[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: Location[];
+	}>;
+	/**
+	 *  Dump every alive location to a temp JSON file. Returns the file path.
+	 *  Used by export and plugins that need the full dataset.
+	 */
+	storeGetAllLocations: () => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**
+	 *  Count locations by country via point-in-polygon against the border dataset (no
+	 *  network). `level` selects the border precision ("light"/"medium"/"heavy"), falling
+	 *  back to bundled "light" if unavailable. Returns unsorted (ISO-A2 code, count) pairs.
+	 *  Coords are gathered under the store lock, then classified after it's released.
+	 */
+	storeCountryDistribution: (level: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: [
+			string,
+			number
+		][];
+	}>;
+	/**  Return the number of alive locations (batch + adds - dead). */
+	storeLocationCount: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: number;
+	}>;
+	/**
+	 *  Compute the bounding box [west, south, east, north]. O(N).
+	 *  When `selected_only` is true, restricts to the current selection.
+	 */
+	storeBounds: (selectedOnly: boolean) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: [
+			number,
+			number,
+			number,
+			number
+		] | null;
+	}>;
+	/**
+	 *  Find all locations within `radius_m` metres of (`lat`, `lng`).
+	 *
+	 *  Backed by the store's lazy spatial index: O(cells in radius) per query after a
+	 *  one-time O(N) build, maintained incrementally across mutations. Called on every
+	 *  marker click (duplicate check), so it must not scan.
+	 */
+	storeFindNearby: (lat: number, lng: number, radiusM: number) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: Location[];
+	}>;
+	/**
+	 *  For each input point, whether any existing location lies within `radius_m` metres.
+	 *  Bulk form so callers probing many coordinates (e.g. the map generator skipping
+	 *  already-covered spots) pay one IPC round-trip, not one per point.
+	 */
+	storeNearAny: (lats: number[], lngs: number[], radiusM: number) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: boolean[];
+	}>;
+	/**
+	 *  Collect all distinct values for an `extra` field across all alive locations. O(N).
+	 *  Used by the filter UI to populate dropdown options.
+	 */
+	storeExtraFieldValues: (field: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: string[];
+	}>;
+	/**
+	 *  Create tags by name. Deduplicates case-insensitively: if a tag with the same name
+	 *  already exists, it is made visible instead of creating a duplicate.
+	 */
+	storeCreateTags: (names: string[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**
+	 *  Update name and/or color for one or more tags in a single mutation. A new name
+	 *  that collides with an existing tag (case-insensitive) merges: locations remap from
+	 *  the renamed tag to the existing one. Batched so a folder-cascade rename lands as one
+	 *  render instead of one per tag. Returns MutationResult with `tags` populated.
+	 */
+	storeUpdateTags: (updates: Update<TagPatch>[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**
+	 *  Strip tags from all locations. Tags stay in `store.tags` with count=0 /
+	 *  visible=false so undo can revive them. Returns MutationResult with `tags`.
+	 */
+	storeDeleteTags: (tagIds: number[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**
+	 *  Persist tag ordering. `ordered_ids` specifies the desired order; each tag's
+	 *  `order` field is set to its index in the list.
+	 */
+	storeReorderTags: (orderedIds: number[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**  Pop the undo stack and reverse the last edit. Pushes the entry onto the redo stack. */
+	storeUndo: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**  Pop the redo stack and replay the edit forward. Pushes the entry back onto undo. */
+	storeRedo: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**  Clear both undo and redo stacks. Called after a commit to start fresh. */
+	storeResetUndo: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Net diff since last commit for the commit dialog, derived from the overlay --
+	 *  the same changeset `store_commit` will record. The undo stack is NOT consulted:
+	 *  it is capped, and non-undoable edits (enrichment, field renames, plugin batches)
+	 *  bypass it entirely while still being part of the commit.
+	 */
+	storeCommitDiff: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: [
+			number,
+			number,
+			number
+		];
+	}>;
+	/**
+	 *  Replace all selections, resolve bitmasks against current data, and write a binary
+	 *  patch file for JS to apply to the render overlay. Returns per-selection counts.
+	 */
+	storeSyncSelections: (sels: SelectionInput[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: SelectionSync;
+	}>;
+	/**  Return the union of all currently selected location IDs. */
+	storeGetSelectedIdsList: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: number[];
+	}>;
+	/**
+	 *  Resolve a single selection to its matching location IDs without persisting it.
+	 *  Used by plugins and one-off queries (e.g., tag merge, export filtered).
+	 */
+	storeResolveSelection: (props: SelectionProps) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: number[];
+	}>;
+	/**
+	 *  Partition the (optionally scoped) location set into groups by a derived key, returning
+	 *  compact `{ key, ids, bin }` per group — no hydrated locations. `scope` None partitions
+	 *  the whole map; Some resolves that selection and restricts to it. Powers the gradient
+	 *  (groups -> colored selections) and apply-as-tags (groups -> tags) surfaces without
+	 *  materializing location data into JS.
+	 */
+	storePartition: (field: string, key: KeySpec, scope: Scope) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: PartitionBucket[];
+	}>;
+	/**
+	 *  Transitive spatial duplicate groups (connected components, size >= 2) within `distance`
+	 *  metres. Read-only; used to preview a merge. Returns groups of location IDs.
+	 */
+	storeDuplicateGroups: (distance: number) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: number[][];
+	}>;
+	/**
+	 *  Merge each transitive duplicate group (size >= 2 within `distance` metres) into one
+	 *  survivor. Survivor = most tags, then earliest `created_at`, then lowest id. Tags are
+	 *  set-unioned across the group; `extra` is merged with the survivor winning key conflicts;
+	 *  all other survivor fields are kept. Applied as a single undoable edit.
+	 */
+	storeMergeDuplicates: (distance: number) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**
+	 *  Prune duplicates among `ids` (a resolved selection) within `distance` metres:
+	 *  <= 25m keeps the best-scored location per cluster (`keep_tag_ids` score +5, see
+	 *  selections::prune_score); > 25m thins greedily so no two survivors remain in
+	 *  range. Informational locations are never pruned. One undoable edit.
+	 */
+	storePruneDuplicates: (ids: number[], distance: number, keepTagIds: number[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: MutationResult;
+	}>;
+	/**
+	 *  Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
+	 *  Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.
+	 */
+	storeFillRenderFile: (req: RenderRequest) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**
+	 *  Resolve a deck.gl pick result (cell key + index within cell) to a location ID.
+	 *  Called on marker click to map the GPU pick back to a logical location.
+	 */
+	storeResolvePick: (cell: string, cellIndex: number) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: number | null;
+	}>;
+	/**
+	 *  Parse a file (JSON or ZIP of JSONs) and return previews without persisting.
+	 *  Results are cached in `CACHED_PARSE` so `bulk_import_confirm` can skip re-parsing.
+	 *  ZIP files have each `.json` entry parsed in parallel via rayon.
+	 */
+	bulkImportPreview: (path: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: ImportPreviewEntry[];
+	}>;
+	/**
+	 *  Persist selected maps from a previously previewed import.
+	 *  Uses the cached parse if available; otherwise re-parses the file.
+	 *  Each map gets a new UUID, Arrow IPC file, and SQLite row.
+	 *  Emits `bulk-import-progress` events per map for UI feedback.
+	 */
+	bulkImportConfirm: (path: string, selectedIndices: number[]) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: ImportedMapInfo[];
+	}>;
+	/**
+	 *  Drop the cached parse from `bulk_import_preview` when the user dismisses the
+	 *  import dialog without confirming, instead of holding it until the next preview.
+	 */
+	bulkImportCancel: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Parse a file and return field-level statistics + preview positions for the editor
+	 *  import sidebar. Caches the parse result for `store_import_file` to consume on commit.
+	 */
+	storeImportPreview: (path: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: EditorImportPreview;
+	}>;
+	/**
+	 *  Parse pasted text (JSON or CSV) and stage it for preview, exactly like
+	 *  `store_import_preview` does for a file. Caches the parse for `store_import_file`.
+	 */
+	storeImportPastePreview: (text: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: EditorImportPreview;
+	}>;
+	/**
+	 *  Fetch one staged (not yet imported) location by its preview index, for read-only
+	 *  preview in the editor. Indexes follow the preview positions order.
+	 */
+	storeImportStagedLocation: (index: number) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: Location;
+	}>;
+	/**
+	 *  Commit a previously previewed editor import, optionally dropping fields and/or
+	 *  applying a bulk tag to every imported location. Consumes the cached parse from
+	 *  `store_import_preview`/`store_import_paste_preview`. Fields in `dropped_fields`
+	 *  (e.g. `"heading"`, `"extra.countryCode"`) are zeroed/removed.
+	 */
+	storeImportFile: (droppedFields: string[], tagName: string | null) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: EditorImportResult;
+	}>;
+	/**
+	 *  Export locations as a JSON file.
+	 *
+	 *  Produces `{name, customCoordinates: [...]}` with optional `extra` block
+	 *  containing tags (with colors as RGB arrays) and field definitions.
+	 *  Heading of exactly 0 is written as 0.001 when `export_unpanned` is set,
+	 *  the convention for "no heading specified".
+	 */
+	storeExportJson: (opts: ExportOpts) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**  Export locations as a minimal lat/lng CSV file. */
+	storeExportCsv: (scope: number[] | null) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**
+	 *  Export locations as a GeoJSON FeatureCollection of Point features.
+	 *  Each feature carries its tag names in `properties.tags`.
+	 */
+	storeExportGeojson: (scope: number[] | null, tagsJson: string) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**
+	 *  Copy a temp export file to the destination chosen via the native save dialog,
+	 *  then remove the temp source. `dest_path` comes from the frontend save dialog.
+	 */
+	storeSaveExportFile: (srcPath: string, destPath: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Export every map in the database as a deflate-compressed ZIP of JSON files.
+	 *
+	 *  Each map becomes one `{name}.json` file in the archive, with full location
+	 *  data, tags, and extra fields. Reads Arrow IPC files directly from disk
+	 *  (bypasses the in-memory store). Duplicate map names get a numeric suffix.
+	 *  Runs on a blocking thread to avoid starving the async runtime.
+	 */
+	storeExportBulkZip: () => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**
+	 *  Delete all rows from a table. Returns the number of deleted rows.
+	 *  Used in the debug panel for cache/history cleanup.
+	 */
+	storeDbClearTable: (table: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: number;
+	}>;
+	/**
+	 *  Compute aggregate database statistics (map/location/tag/commit counts,
+	 *  database file size, journal mode). Tag count is summed across all maps
+	 *  by parsing each map's tags JSON column.
+	 */
+	storeDbStats: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: DbStats;
+	}>;
+	/**
+	 *  Records a panorama visit and evicts excess entries beyond `MAX_SEEN`.
+	 *
+	 *  Eviction deletes the oldest rows by `entered_at`, so the table acts as a
+	 *  bounded ring buffer without requiring explicit rotation.
+	 */
+	storeSeenWrite: (entry: SeenWriteEntry) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Returns a page of seen entries, newest first, with optional filtering. */
+	storeSeenList: (limit: number, offset: number, filter: SeenFilter | null, thumbnails: boolean) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: SeenEntry[];
+	}>;
+	/**  Returns the total number of seen entries matching the filter (for pagination). */
+	storeSeenCount: (filter: SeenFilter | null) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: number;
+	}>;
+	/**
+	 *  Returns all distinct country codes present in the seen table, sorted alphabetically.
+	 *  Used to populate the country filter dropdown.
+	 */
+	storeSeenCountries: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: string[];
+	}>;
+	/**
+	 *  Returns all distinct maps that have seen entries, with resolved display names.
+	 *  Returns maps that have seen entries. Only includes maps that still exist.
+	 */
+	storeSeenMaps: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: SeenMapInfo[];
+	}>;
+	/**  Deletes all seen history entries. */
+	storeSeenClear: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	storeReviewCreate: (session: ReviewCreate) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: ReviewSession;
+	}>;
+	storeReviewGet: (mapId: string, sourceKey: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: ReviewSession | null;
+	}>;
+	storeReviewList: (mapId: string, status: string | null) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: ReviewSession[];
+	}>;
+	storeReviewUpdate: (update: ReviewUpdate) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	storeReviewDelete: (id: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**
+	 *  Create a commit and bake the overlay in a single pass — the only commit path.
+	 *
+	 *  Builds the canonical batch ONCE (the bake) and derives the commit delta three ways:
+	 *  - dirty overlay (normal commit/import): the pre-bake overlay changeset, O(changeset).
+	 *  - genesis (no parent): full state == the base file just written; stored by copying
+	 *    the base (one serialization, not two; batch_to_delta reads it as all-created).
+	 *  - clean overlay with a parent (a checkout/revert commit): diff the current baked
+	 *    state against the materialized parent.
+	 *  `message` is auto-formatted (`+a -r ~m`) when None. Returns the new commit id.
+	 *
+	 *  `async` so the heavy bake/VCS work runs on a runtime worker, not the main
+	 *  (event-loop) thread — a sync command here freezes the webview and stalls the
+	 *  queued render behind it.
+	 */
+	storeCommit: (mapId: string, message: string | null) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**  List all commits for a map, newest first. */
+	storeListCommits: (mapId: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: CommitInfo[];
+	}>;
+	/**
+	 *  Restore a map to the state captured by a previous commit.
+	 *
+	 *  Materializes the commit's full state by replaying its ancestor deltas, writes
+	 *  it as the map's base Arrow file, and clears the uncommitted delta. The caller
+	 *  (`checkoutCommit` in JS) reopens the map and clears undo/redo.
+	 */
+	storeCheckoutCommit: (mapId: string, commitId: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Read a single commit's delta (created/removed locations) for the diff viewer. */
+	storeGetCommitDelta: (mapId: string, commitId: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: CommitDelta;
+	}>;
+	/**
+	 *  Generate locations from a Vali map definition (JSON/JSONC text). Missing country
+	 *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
+	 */
+	valiGenerate: (definition: string) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: ValiLocation[];
+	}>;
+	/**  Download Vali coverage data. `country` = code/continent alias/None for all. */
+	valiDownload: (country: string | null, full: boolean, updates: boolean) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
+	/**  Cancel an in-flight vali generate or download. */
+	valiCancel: () => Promise<void>;
+	/**  Subdivision weights for a country (JSON text, same shape as `vali subdivisions`). */
+	valiSubdivisions: (country: string) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+};
 /**
  *  A swap-removal from a render cell. JS must move the last element into `cell_index`
  *  and pop the array to mirror the Rust-side swap-remove.
@@ -264,6 +1252,13 @@ export type KeySpec =
 	part: DatePart;
 	tzLocal: boolean;
 };
+/**
+ *  A single Street View location on a map.
+ *
+ *  This is the atomic unit of data in the system. Locations are stored columnar
+ *  in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
+ *  within a map and assigned by the store's monotonic allocator.
+ */
 type Location = {
 	/**
 	 *  Monotonically increasing within a map. Zero is a sentinel meaning
@@ -306,6 +1301,23 @@ export type LocationPatch_Deserialize = {
 	extra?: any | null;
 	createdAt?: number | null;
 	modifiedAt?: number | null;
+};
+/**
+ *  Partial location update from JS. `None` fields are unchanged; `Some(None)` on
+ *  nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
+ */
+export type LocationPatch = {
+	lat: number | null;
+	lng: number | null;
+	heading: number | null;
+	pitch: number | null;
+	zoom: number | null;
+	panoId: string | null;
+	flags: number | null;
+	tags: number[] | null;
+	extra: any | null;
+	createdAt: number | null;
+	modifiedAt: number | null;
 };
 export type MapData = {
 	meta: MapMeta;
@@ -380,6 +1392,22 @@ export type MapMetaPatch_Deserialize = {
 	labels?: string[] | null;
 };
 /**
+ *  Partial update for map metadata. Only non-`None` fields are written.
+ *  `folder: Some(None)` explicitly unsets the folder (moves to root).
+ */
+export type MapMetaPatch = {
+	name: string | null;
+	description: string | null;
+	folder: string | null;
+	settings: MapSettings | null;
+	scoreBounds: ScoreBounds | null;
+	extra: MapExtra | null;
+	tags: {
+		[key in string]: Tag;
+	} | null;
+	labels: string[] | null;
+};
+/**
  *  Per-map editor preferences. Controls Street View lookup behavior (official vs
  *  unofficial, camera type filters), export defaults, and metadata enrichment.
  */
@@ -448,6 +1476,17 @@ export type PartitionBucket = {
 	] | null;
 };
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
+/**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
+export type PluginManifest_Deserialize = {
+	id: string;
+	name: string;
+	description: string;
+	icon: string;
+	main: string;
+	version: string;
+	sidecar: PluginSidecar_Deserialize | null;
+};
+/**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
 export type PluginManifest = {
 	id: string;
 	name: string;
@@ -458,9 +1497,19 @@ export type PluginManifest = {
 	sidecar?: PluginSidecar | null;
 };
 /**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
+/**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
+export type PluginSidecar_Deserialize = {
+	name: string;
+	version: string;
+	/**  Expected SHA-256 hex digest of the platform-specific zip archive. */
+	sha256: string | null;
+};
+/**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
 export type PluginSidecar = {
 	name: string;
 	version: string;
+	/**  Expected SHA-256 hex digest of the platform-specific zip archive. */
+	sha256?: string | null;
 };
 /**
  *  GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring +
@@ -567,9 +1616,9 @@ export type ReviewUpdate = {
 	ordering: number[] | null;
 	status: string | null;
 };
-/**  Result of `store_save_dirty`: how many bytes were written to the delta file. */
+/**  Result of `store_save_dirty`: bytes written to the delta sidecar (0 = skipped). */
 export type SaveResult = {
-	savedChunks: number;
+	savedBytes: number;
 };
 /**
  *  Which locations to operate on: the whole map or the current selection. Resolved in Rust
@@ -641,6 +1690,10 @@ export type SeenWriteEntry = {
 	address: string | null;
 	thumbnail: string | null;
 };
+/**
+ *  A named, colored selection. `key` is deterministic (e.g., `"tag:5"`, `"polygon:abc"`)
+ *  so JS can diff selections across syncs. `color` is the RGB overlay color.
+ */
 type Selection = {
 	key: string;
 	color: [
@@ -805,6 +1858,15 @@ export type TagPatch = {
 export type Update<P> = {
 	id: number;
 	patch: P;
+};
+export type ValiLocation_Deserialize = {
+	lat: number;
+	lng: number;
+	heading: number;
+	zoom: number | null;
+	pitch: number | null;
+	panoId: string | null;
+	tags: string[];
 };
 export type ValiLocation = {
 	lat: number;
@@ -1001,6 +2063,8 @@ export interface EnrichmentProvider {
 	requires?: string[];
 	/** Progress units this provider would contribute in bulk (absent = instant). */
 	units?(locations: Location[], enrichFields: string[] | null, force?: boolean): number;
+	/** Transform a raw partition value per-location. Return null to skip. */
+	transform?(field: string, value: string, location: Location): string | null;
 }
 declare function registerEnrichmentProvider(provider: EnrichmentProvider): void;
 declare function getFieldDef(key: string): ExtraFieldDef | undefined;
@@ -1762,6 +2826,11 @@ declare const COMMANDS: {
 };
 export type CommandId = keyof typeof COMMANDS;
 export type PinnedEntry = CommandId | "---" | (string & {});
+export type RGB = {
+	r: number;
+	g: number;
+	b: number;
+};
 declare const MOVEMENT_MODES: {
 	readonly moving: "Moving";
 	readonly "no-move": "No Move";
@@ -1865,26 +2934,10 @@ declare const DEFAULTS: {
 	nominatimApiKey: string;
 	panToImported: boolean;
 	followActiveInReview: boolean;
-	markerColor: {
-		r: number;
-		g: number;
-		b: number;
-	};
-	activeLocationColor: {
-		r: number;
-		g: number;
-		b: number;
-	};
-	importPreviewColor: {
-		r: number;
-		g: number;
-		b: number;
-	};
-	panoDotColor: {
-		r: number;
-		g: number;
-		b: number;
-	};
+	markerColor: RGB;
+	activeLocationColor: RGB;
+	importPreviewColor: RGB;
+	panoDotColor: RGB;
 	panoDotScaled: boolean;
 	tagViewMode: TagViewMode;
 	/** Tree view only: render each tag as the shortest path suffix that's still unique. */
@@ -2134,26 +3187,10 @@ declare const mma: {
 		nominatimApiKey: string;
 		panToImported: boolean;
 		followActiveInReview: boolean;
-		markerColor: {
-			r: number;
-			g: number;
-			b: number;
-		};
-		activeLocationColor: {
-			r: number;
-			g: number;
-			b: number;
-		};
-		importPreviewColor: {
-			r: number;
-			g: number;
-			b: number;
-		};
-		panoDotColor: {
-			r: number;
-			g: number;
-			b: number;
-		};
+		markerColor: RGB;
+		activeLocationColor: RGB;
+		importPreviewColor: RGB;
+		panoDotColor: RGB;
 		panoDotScaled: boolean;
 		tagViewMode: TagViewMode;
 		truncateTagPaths: boolean;
@@ -2225,7 +3262,6 @@ declare const mma: {
 	scheduleSave(): void;
 	flushSave(): Promise<void>;
 	initStore(): Promise<void>;
-	mapOpenMark(phase: string): void;
 	openMap(id: string): Promise<void>;
 	closeMap(): Promise<void>;
 	discardOpenMap(): void;
@@ -2332,8 +3368,8 @@ declare const mma: {
 	removeTagFromLocations(tagId: number, locationIds: number[]): Promise<void>;
 	removeTagFromAllLocations(tagId: number): Promise<void>;
 	beginImportFromPath(path: string): Promise<void>;
-	beginImportFile(): Promise<void>;
 	beginImportPaste(text: string): Promise<void>;
+	beginImportFile(): Promise<void>;
 	confirmImport(droppedFields: string[], tagName?: string): Promise<EditorImportResult | null>;
 	cancelImport(): void;
 	undo(): Promise<void>;
@@ -2388,6 +3424,12 @@ declare const mma: {
 	useImportMarkerVersion: () => number;
 	useCommitDiffPreview: () => CommitDiffPreview | null;
 	useDiffMarkerVersion: () => number;
+	mapOpen: {
+		start: number;
+		seen: Set<string>;
+		begin(): void;
+		mark(phase: string): void;
+	};
 	useKnownFieldKeys: () => ReadonlySet<string>;
 	useAllSelections: () => Selection[];
 	useSelections: () => Selection[];
@@ -2403,8 +3445,10 @@ declare const mma: {
 type MMA = typeof mma;
 
 export {
+	Location as Location,
 	MMA as MMAApi,
 	Plugin as MMAPlugin,
+	Selection as Selection,
 };
 
 export {};

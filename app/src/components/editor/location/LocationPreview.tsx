@@ -1,4 +1,3 @@
- 
 import {
 	useEffect,
 	useLayoutEffect,
@@ -17,6 +16,8 @@ import {
 	isSeenPreview,
 } from "@/types";
 import { Tooltip } from "@/components/primitives/Tooltip";
+import { Icon } from "@/components/primitives/Icon";
+import { mdiChevronLeft, mdiChevronRight, mdiClose, mdiPlus } from "@mdi/js";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import type { Tag } from "@/bindings.gen";
 import {
@@ -622,9 +623,7 @@ function LocationPreviewInner() {
 										aria-label="Go to previous location (Control+Left)"
 										data-qa="review-prev"
 									>
-										<svg height="24" width="24" viewBox="0 0 24 24" fill="currentColor">
-											<path d="M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z" />
-										</svg>
+										<Icon path={mdiChevronLeft} />
 									</button>
 								</Tooltip>
 								<Tooltip content="Go to next location (Control+Right)">
@@ -634,9 +633,7 @@ function LocationPreviewInner() {
 										aria-label="Go to next location (Control+Right)"
 										data-qa="review-next"
 									>
-										<svg height="24" width="24" viewBox="0 0 24 24" fill="currentColor">
-											<path d="M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z" />
-										</svg>
+										<Icon path={mdiChevronRight} />
 									</button>
 								</Tooltip>
 							</div>
@@ -673,9 +670,7 @@ function LocationPreviewInner() {
 												onClick={() => handleRemoveTag(name)}
 												type="button"
 											>
-												<svg height="16" width="16" viewBox="0 0 24 24" fill="currentColor">
-													<path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
-												</svg>
+												<Icon path={mdiClose} size={16} />
 											</button>
 											<span className="tag__text">{displayTagName(name)}</span>
 										</li>
@@ -719,9 +714,7 @@ function LocationPreviewInner() {
 														onClick={() => handleSuggestionClick(t)}
 														type="button"
 													>
-														<svg height="16" width="16" viewBox="0 0 24 24" fill="currentColor">
-															<path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
-														</svg>
+														<Icon path={mdiPlus} size={16} />
 													</button>
 													<span className="tag__text">{displayTagName(t.name)}</span>
 												</li>
