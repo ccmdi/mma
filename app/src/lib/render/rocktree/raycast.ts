@@ -155,18 +155,24 @@ export function localRay(invMvp: ArrayLike<number>, ndcX: number, ndcY: number):
 
 /**
  * Cheap precull: does the pixel fall inside the screen bounds of the node's
- * mesh-local [0,255] box? Conservative: any corner behind the eye (w <= 0)
+ * mesh-local bounding box? Conservative: any corner behind the eye (w <= 0)
  * makes the node a candidate.
  */
-export function ndcHitsNodeBounds(mvp: ArrayLike<number>, ndcX: number, ndcY: number): boolean {
+export function ndcHitsNodeBounds(
+	mvp: ArrayLike<number>,
+	ndcX: number,
+	ndcY: number,
+	min: Vec3,
+	max: Vec3,
+): boolean {
 	let minX = Infinity,
 		maxX = -Infinity,
 		minY = Infinity,
 		maxY = -Infinity;
 	for (let c = 0; c < 8; c++) {
-		const x = c & 1 ? 255 : 0;
-		const y = c & 2 ? 255 : 0;
-		const z = c & 4 ? 255 : 0;
+		const x = c & 1 ? max[0] : min[0];
+		const y = c & 2 ? max[1] : min[1];
+		const z = c & 4 ? max[2] : min[2];
 		const w = mvp[3] * x + mvp[7] * y + mvp[11] * z + mvp[15];
 		if (w <= 0) return true;
 		const px = (mvp[0] * x + mvp[4] * y + mvp[8] * z + mvp[12]) / w;

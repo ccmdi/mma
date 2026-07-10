@@ -3,7 +3,7 @@
 // with the same eye/target/fov; `slack` widens the frustum to absorb the
 // mercator-vs-perspective mismatch (grows with pitch and latitude).
 
-import { latLngToEcef, PLANET_RADIUS, type Obb, type Vec3 } from "./decode";
+import { ecefToLatLng, latLngToEcef, PLANET_RADIUS, type Obb, type Vec3 } from "./decode";
 
 // deck MapView defaults: 512px world at zoom 0, camera 1.5 screen heights
 // from the target, fovy = 2*atan(0.5/1.5).
@@ -33,6 +33,64 @@ export interface FrustumView {
 	planes: Plane[];
 	/** meters per screen pixel at distance d from the eye = d * pixelFactor */
 	pixelFactor: number;
+	/**
+	 * Flat-map mode (zoomed out): the mercator viewport shows regions a
+	 * perspective camera cannot (past the horizon), so visibility is the
+	 * viewport's lng/lat rect and LOD is a fixed meters-per-texel cutoff.
+	 */
+	flat?: {
+		maxMetersPerTexel: number;
+		west: number;
+		south: number;
+		east: number;
+		north: number;
+	};
+}
+
+const MERCATOR_WORLD_METERS = 40075016.686;
+
+/**
+ * View for a zoomed-out flat-map camera. `bounds` = viewport [w, s, e, n]
+ * degrees (west/east may be unwrapped); the eye sits at the surface under the
+ * camera so load priority still favors the center.
+ */
+export function makeFlatView(p: {
+	lat: number;
+	lng: number;
+	/** deck zoom (512px world) */
+	zoom: number;
+	bounds: [number, number, number, number];
+	/** max meters-per-texel as a multiple of meters-per-pixel at this zoom */
+	texelBudget?: number;
+}): FrustumView {
+	const mpp = MERCATOR_WORLD_METERS / (512 * 2 ** p.zoom);
+	return {
+		eye: latLngToEcef(p.lat, p.lng),
+		planes: [],
+		pixelFactor: 0,
+		flat: {
+			maxMetersPerTexel: mpp * (p.texelBudget ?? 1),
+			west: p.bounds[0],
+			south: p.bounds[1],
+			east: p.bounds[2],
+			north: p.bounds[3],
+		},
+	};
+}
+
+/** Conservative OBB vs lng/lat rect test (lng-wrap safe, pole-inflated). */
+function flatVisible(obb: Obb, f: NonNullable<FrustumView["flat"]>): boolean {
+	const c = ecefToLatLng(obb.center[0], obb.center[1], obb.center[2]);
+	const r = Math.hypot(obb.extents[0], obb.extents[1], obb.extents[2]);
+	const angular = (r / PLANET_RADIUS) * (180 / Math.PI);
+	if (c.lat + angular < f.south || c.lat - angular > f.north) return false;
+	if (f.east - f.west >= 360) return true;
+	const worstLat = Math.min(85, Math.abs(c.lat) + angular);
+	const lngRadius = Math.min(180, angular / Math.max(0.05, Math.cos((worstLat * Math.PI) / 180)));
+	const mid = (f.west + f.east) / 2;
+	const halfSpan = (f.east - f.west) / 2;
+	const delta = ((((c.lng - mid) % 360) + 540) % 360) - 180;
+	return Math.abs(delta) <= halfSpan + lngRadius;
 }
 
 const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -90,6 +148,7 @@ const localAxis = (o: Obb, i: number): Vec3 => [
 ];
 
 export function obbVisible(obb: Obb, view: FrustumView): boolean {
+	if (view.flat) return flatVisible(obb, view.flat);
 	for (const { n, d } of view.planes) {
 		const s = dot(n, obb.center) + d;
 		let r = 0;
@@ -120,5 +179,7 @@ export function lodSufficient(
 	view: FrustumView,
 	texelBudget = 1,
 ): boolean {
+	// flat mode bakes its own budget into the cutoff (mercator scale, not distance)
+	if (view.flat) return metersPerTexel <= view.flat.maxMetersPerTexel;
 	return metersPerTexel <= obbDistance(obb, view.eye) * view.pixelFactor * texelBudget;
 }

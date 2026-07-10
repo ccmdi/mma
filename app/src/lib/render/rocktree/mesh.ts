@@ -3,6 +3,7 @@
 // MapView (METER_OFFSETS around a lat/lng origin). Pure math, no IO/GL.
 
 import { ecefToLatLng, type DecodedMesh } from "./decode";
+import { commonUnitsPerMeter, lngLatToCommon, MERCATOR_LAT_LIMIT } from "./coverage";
 
 /**
  * Convert a triangle strip to a triangle list, dropping degenerate triangles
@@ -72,6 +73,50 @@ export interface EnuAnchor {
  * IS the translation), so the returned matrix is safe to downcast to f32.
  * Only valid while the mesh is small relative to the planet (a few km).
  */
+/**
+ * Anchor a COARSE node in deck's mercator common space: every vertex is
+ * projected individually (ECEF -> sphere lat/lng -> mercator), so planet
+ * curvature is exact at any node size - the regime where the ENU
+ * linearization breaks. Positions are stored relative to the node origin's
+ * common position in common units; modelMatrix = diag(metersPerUnit) so the
+ * standard draw path (which multiplies by deck's unitsPerMeter) nets out to
+ * identity scale. Longitudes unwrap toward the origin (antimeridian-safe) and
+ * latitudes clamp at the mercator limit.
+ */
+export function commonAnchor(
+	matrix: Float64Array,
+	locals: Float32Array[],
+): EnuAnchor & { positions: Float32Array[] } {
+	const o = ecefToLatLng(matrix[12], matrix[13], matrix[14]);
+	const upm = commonUnitsPerMeter(o.lat);
+	const ay = lngLatToCommon(o.lng, o.lat)[1];
+	const az = o.alt * upm;
+	const positions = locals.map((local) => {
+		const out = new Float32Array(local.length);
+		for (let i = 0; i < local.length; i += 3) {
+			const x = local[i],
+				y = local[i + 1],
+				z = local[i + 2];
+			const wx = matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12];
+			const wy = matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13];
+			const wz = matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14];
+			const p = ecefToLatLng(wx, wy, wz);
+			const lat = Math.max(-MERCATOR_LAT_LIMIT, Math.min(MERCATOR_LAT_LIMIT, p.lat));
+			let dlng = p.lng - o.lng;
+			if (dlng > 180) dlng -= 360;
+			else if (dlng < -180) dlng += 360;
+			out[i] = (dlng / 360) * 512;
+			out[i + 1] = lngLatToCommon(o.lng, lat)[1] - ay;
+			out[i + 2] = p.alt * commonUnitsPerMeter(lat) - az;
+		}
+		return out;
+	});
+	const modelMatrix = new Float64Array(16);
+	modelMatrix[0] = modelMatrix[5] = modelMatrix[10] = 1 / upm;
+	modelMatrix[15] = 1;
+	return { origin: [o.lng, o.lat, o.alt], modelMatrix, positions };
+}
+
 export function enuAnchor(matrix: Float64Array): EnuAnchor {
 	const cx = matrix[12],
 		cy = matrix[13],

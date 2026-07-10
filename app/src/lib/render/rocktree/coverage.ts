@@ -79,3 +79,23 @@ export function commonToLngLat(x: number, y: number): [lng: number, lat: number]
 		((2 * Math.atan(Math.exp((y / 512 - 0.5) * 2 * Math.PI)) - Math.PI / 2) * 180) / Math.PI;
 	return [lng, lat];
 }
+
+// math.gl's EARTH_CIRCUMFERENCE, NOT the true equatorial 40075016.686: deck
+// scales altitude with this constant, and ours must cancel against it exactly.
+const DECK_EARTH_CIRCUMFERENCE = 40.03e6;
+/** Web mercator clamps here; geometry beyond flattens onto the map edge. */
+export const MERCATOR_LAT_LIMIT = 85.051129;
+
+/** lng/lat degrees -> deck common-space (512px world) coordinates. */
+export function lngLatToCommon(lng: number, lat: number): [x: number, y: number] {
+	const latRad = (lat * Math.PI) / 180;
+	return [
+		((lng + 180) / 360) * 512,
+		512 * (0.5 + Math.log(Math.tan(Math.PI / 4 + latRad / 2)) / (2 * Math.PI)),
+	];
+}
+
+/** Common units per meter at a latitude (deck's mercator distance scale). */
+export function commonUnitsPerMeter(lat: number): number {
+	return 512 / (DECK_EARTH_CIRCUMFERENCE * Math.cos((lat * Math.PI) / 180));
+}

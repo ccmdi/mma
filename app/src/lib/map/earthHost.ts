@@ -13,9 +13,10 @@
 import { Deck, MapView, WebMercatorViewport } from "@deck.gl/core";
 import type { PickingInfo, Layer, MapViewState } from "@deck.gl/core";
 import { TerrainLayer } from "@deck.gl/geo-layers";
+import terrainWorkerUrl from "@loaders.gl/terrain/terrain-worker.js?url";
 import { fetchBulk, fetchNode, fetchPlanetoid } from "@/lib/render/rocktree/fetch";
 import type { FoundNode } from "@/lib/render/rocktree/traverse";
-import { makeView } from "@/lib/render/rocktree/lod";
+import { makeFlatView, makeView } from "@/lib/render/rocktree/lod";
 import { RocktreeStream, type DrawnNode } from "@/lib/render/rocktree/stream";
 import RocktreeMeshLayer, {
 	composeNodeModel,
@@ -39,6 +40,7 @@ import { createSvConfigForPrefs } from "@/lib/geo/mapStack";
 import { buildTileUrl, serializeTileUrl, type TileConfig } from "@/lib/geo/tiles";
 import type { Device } from "@luma.gl/core";
 import {
+	commonAnchor,
 	enuAnchor,
 	meshOctants,
 	meshPositions,
@@ -65,12 +67,22 @@ declare module "@/lib/map/host" {
 
 const ZOOM_OFFSET = 1;
 const ELEVATION_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
-const SATELLITE_TILES = "https://mts1.googleapis.com/vt?hl=en-US&lyrs=s&x={x}&y={y}&z={z}";
+// subdomain rotation: mts is HTTP/1.1-limited per host, 4 hosts = 4x the pipe
+const SATELLITE_TILES = [0, 1, 2, 3].map(
+	(s) => `https://mts${s}.googleapis.com/vt?hl=en-US&lyrs=s&x={x}&y={y}&z={z}`,
+);
 const TERRARIUM_DECODER = { rScaler: 256, gScaler: 1, bScaler: 1 / 256, offset: -32768 };
 const INITIAL_PITCH = 45;
-// ENU anchoring only holds for small nodes; shallower picks (zoomed way out)
-// are left to the terrain backdrop.
-const MIN_ROCKTREE_LEVEL = 12;
+// Coarse nodes anchor in mercator common space (per-vertex projection, exact
+// curvature); deep nodes use the ENU meter anchor (valid only while small).
+const MIN_ROCKTREE_LEVEL = 2;
+const ENU_MIN_LEVEL = 12;
+// Below this zoom the perspective camera model cannot see the whole flat map
+// (horizon culling); the covering switches to the flat lng/lat-rect view.
+const FLAT_VIEW_MAX_ZOOM = 5;
+// TerrainLayer survives only where the mercator world repeats/degenerates
+// (huge world copies, poles); its z0-2 tile count there is trivial.
+const TERRAIN_MAX_ZOOM = 2.5;
 const ROCKTREE_SETTLE_MS = 250;
 // Also re-cover DURING camera motion at this cadence (stale loads are aborted
 // by the stream), so tiles start arriving before the camera settles.
@@ -198,6 +210,8 @@ class EarthHost implements MapHostContract<"earth"> {
 				this.viewState = viewState as MapViewState;
 				this.deck.setProps({ viewState: this.viewState });
 				if (this.viewState.zoom !== prevZoom) this.emit("zoom", undefined);
+				if (prevZoom < TERRAIN_MAX_ZOOM !== this.viewState.zoom < TERRAIN_MAX_ZOOM)
+					this.composeLayers();
 				this.emit("camera", undefined);
 				this.scheduleRocktreeUpdate();
 			},
@@ -285,17 +299,24 @@ class EarthHost implements MapHostContract<"earth"> {
 	private fireRocktreeUpdate() {
 		if (this.destroyed) return;
 		this.lastRocktreeUpdate = Date.now();
-		this.rocktree.update(
-			makeView({
-				lat: this.viewState.latitude,
-				lng: this.viewState.longitude,
-				zoom: this.viewState.zoom,
-				pitch: this.viewState.pitch ?? INITIAL_PITCH,
-				bearing: this.viewState.bearing ?? 0,
-				width: Math.max(1, this.outer.clientWidth),
-				height: Math.max(1, this.outer.clientHeight),
-			}),
-		);
+		const view =
+			this.viewState.zoom < FLAT_VIEW_MAX_ZOOM
+				? makeFlatView({
+						lat: this.viewState.latitude,
+						lng: this.viewState.longitude,
+						zoom: this.viewState.zoom,
+						bounds: this.viewport().getBounds(),
+					})
+				: makeView({
+						lat: this.viewState.latitude,
+						lng: this.viewState.longitude,
+						zoom: this.viewState.zoom,
+						pitch: this.viewState.pitch ?? INITIAL_PITCH,
+						bearing: this.viewState.bearing ?? 0,
+						width: Math.max(1, this.outer.clientWidth),
+						height: Math.max(1, this.outer.clientHeight),
+					});
+		this.rocktree.update(view);
 	}
 
 	private onRocktreeChange() {
@@ -330,9 +351,18 @@ class EarthHost implements MapHostContract<"earth"> {
 		const rect: [number, number, number, number] = [cx - span / 2, cy + span / 2, span, span];
 		const meshes: HeightMesh[] = [];
 		for (const { node, model } of cache.entries) {
+			// coarse backdrop nodes are too low-res to anchor markers against
+			if (node.path.length < ENU_MIN_LEVEL) continue;
 			const uvAlt = uvAltMatrix(rect, model, node.data.enuModel, node.data.origin[2]);
 			for (const mesh of node.data.meshes)
 				meshes.push({ uvAlt, positions: mesh.positions, indices: mesh.indices });
+		}
+		if (meshes.length === 0) {
+			if (!this.heights) return;
+			this.heights.texture.destroy();
+			this.heights = null;
+			this.composeLayers();
+			return;
 		}
 		const data = rasterizeHeights(meshes, HEIGHT_SIZE);
 		const texture = this.device.createTexture({
@@ -360,11 +390,30 @@ class EarthHost implements MapHostContract<"earth"> {
 		priority: number,
 	): Promise<RocktreeNodeData> {
 		const node = await fetchNode(found.path, found.epoch, found.imageryEpoch, signal, priority);
-		const { origin, modelMatrix } = enuAnchor(node.matrix);
+		const locals = node.meshes.map(meshPositions);
+		let origin: [number, number, number];
+		let enuModel: Float64Array;
+		let positions: Float32Array[];
+		if (found.path.length >= ENU_MIN_LEVEL) {
+			({ origin, modelMatrix: enuModel } = enuAnchor(node.matrix));
+			positions = locals;
+		} else {
+			({ origin, modelMatrix: enuModel, positions } = commonAnchor(node.matrix, locals));
+		}
+		const boundsMin: [number, number, number] = [Infinity, Infinity, Infinity];
+		const boundsMax: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+		for (const p of positions) {
+			for (let i = 0; i < p.length; i += 3) {
+				for (let a = 0; a < 3; a++) {
+					if (p[i + a] < boundsMin[a]) boundsMin[a] = p[i + a];
+					if (p[i + a] > boundsMax[a]) boundsMax[a] = p[i + a];
+				}
+			}
+		}
 		const meshes: RocktreeNodeData["meshes"] = [];
-		for (const mesh of node.meshes) {
+		for (const [i, mesh] of node.meshes.entries()) {
 			meshes.push({
-				positions: meshPositions(mesh),
+				positions: positions[i],
 				uvs: meshUvs(mesh),
 				octants: meshOctants(mesh),
 				indices: stripToTriangles(mesh.strip, mesh.layerBounds[3]),
@@ -373,7 +422,7 @@ class EarthHost implements MapHostContract<"earth"> {
 				),
 			});
 		}
-		return { path: found.path, origin, enuModel: modelMatrix, meshes };
+		return { path: found.path, origin, enuModel, boundsMin, boundsMax, meshes };
 	}
 
 	private controllerProps() {
@@ -451,6 +500,7 @@ class EarthHost implements MapHostContract<"earth"> {
 	}
 
 	private buildLayers(): Layer[] {
+		const showTerrain = this.viewState.zoom < TERRAIN_MAX_ZOOM;
 		const terrain = new TerrainLayer({
 			id: "earth-terrain",
 			elevationData: ELEVATION_TILES,
@@ -460,7 +510,13 @@ class EarthHost implements MapHostContract<"earth"> {
 			tileSize: 256,
 			maxZoom: 15,
 			pickable: false,
-			loadOptions: { terrain: { worker: false } },
+			// default is 6 requests through one scheduler with main-thread meshing;
+			// the locally bundled worker keeps PNG decode + martini off the UI thread
+			maxRequests: 24,
+			loadOptions: {
+				maxConcurrency: 6,
+				terrain: { worker: true, workerUrl: terrainWorkerUrl },
+			},
 			// Backdrop only: the terrarium surface and the rocktree mesh disagree by
 			// tens of meters and interpenetrate. Without depth writes the mesh only
 			// depth-tests against itself and draws cleanly over the terrain.
@@ -473,6 +529,10 @@ class EarthHost implements MapHostContract<"earth"> {
 		});
 		const drawn = this.rocktree.drawnNodes();
 		this.lastDrawn = drawn;
+		if (!this.tilesLoadedFired && drawn.length > 0) {
+			this.tilesLoadedFired = true;
+			this.emit("tilesloaded", undefined);
+		}
 		// fade coverage out at low zooms where line width in meters dwarfs roads
 		const covFade = Math.min(1, Math.max(0, (this.viewState.zoom - 11.5) / 2.5));
 		const rocktreeLayer = new RocktreeMeshLayer({
@@ -498,7 +558,7 @@ class EarthHost implements MapHostContract<"earth"> {
 				} as Partial<typeof l.props>);
 			}),
 		);
-		return [terrain, rocktreeLayer as unknown as Layer, ...overlayLayers];
+		return [...(showTerrain ? [terrain] : []), rocktreeLayer as unknown as Layer, ...overlayLayers];
 	}
 
 	private composeLayers() {
@@ -633,7 +693,7 @@ class EarthHost implements MapHostContract<"earth"> {
 		let bestModel: Float64Array | null = null;
 		let bestRay: LocalRay | null = null;
 		for (const { node, model, mvp } of cache.entries) {
-			if (!ndcHitsNodeBounds(mvp, ndcX, ndcY)) continue;
+			if (!ndcHitsNodeBounds(mvp, ndcX, ndcY, node.data.boundsMin, node.data.boundsMax)) continue;
 			const inv = invert4(mvp);
 			if (!inv) continue;
 			const ray = localRay(inv, ndcX, ndcY);

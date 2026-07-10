@@ -13,10 +13,13 @@ import { uvAltMatrix, type CoverageRect } from "./coverage";
 
 export interface RocktreeNodeData {
 	path: string;
-	/** [lng, lat, alt] ENU anchor (from enuAnchor). */
+	/** [lng, lat, alt] anchor (from enuAnchor or commonAnchor). */
 	origin: [number, number, number];
-	/** Column-major 4x4, mesh-local -> ENU meters (from enuAnchor). */
+	/** Column-major 4x4, mesh-local -> ENU meters (from enuAnchor/commonAnchor). */
 	enuModel: Float64Array;
+	/** Mesh-local AABB for raycast preculling. */
+	boundsMin: [number, number, number];
+	boundsMax: [number, number, number];
 	meshes: {
 		positions: Float32Array;
 		uvs: Float32Array;

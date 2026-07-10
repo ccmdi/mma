@@ -14,6 +14,7 @@ import {
 } from "@/lib/render/rocktree/stream";
 import { composeNodeMvp, selectEvictions } from "@/lib/render/rocktree/layer";
 import { makeView } from "@/lib/render/rocktree/lod";
+import { makeFlatView } from "@/lib/render/rocktree/lod";
 import type { FoundNode } from "@/lib/render/rocktree/traverse";
 import { latLngToEcef, type Bulk, type BulkNode, type Obb } from "@/lib/render/rocktree/decode";
 
@@ -59,6 +60,22 @@ describe("computeDrawn", () => {
 	it("partial children leave the parent's other octants live", () => {
 		const out = computeDrawn(S("20", "200", "201"), S("200", "201"), S("20", "200", "201"));
 		expect(out.get("20")).toBe(0b11);
+	});
+
+	it("an unready pick draws injected stand-in descendants without masking its ancestor", () => {
+		// pick "205" loading; cached descendant "2050" injected as a stand-in
+		const out = computeDrawn(S("2", "20", "205", "2050"), S("205"), S("2", "2050"));
+		expect(out.get("2050")).toBe(0);
+		expect(out.has("205")).toBe(false);
+		// stand-in covers only one octant of the pick: ancestor must stay unmasked
+		expect(out.get("2")).toBe(0);
+	});
+
+	it("a ready pick ignores stand-in chains beneath it", () => {
+		const out = computeDrawn(S("2", "20", "205", "2050"), S("205"), S("2", "205", "2050"));
+		expect(out.get("205")).toBe(0);
+		expect(out.has("2050")).toBe(false);
+		expect(out.get("2")).toBe(1 << 0);
 	});
 });
 
@@ -375,6 +392,35 @@ describe("staged promotion (GPU upload budget)", () => {
 		// unwanted staged promote for free (never drawn); only "3" costs budget
 		expect(h.stream.promote(1)).toBe(0);
 		expect(h.stream.drawnNodes()).toEqual([{ path: "3", data: "3", mask: 0 }]);
+	});
+});
+
+describe("best-available stand-ins", () => {
+	const tick = () => new Promise((r) => setTimeout(r, 0));
+	// flat view whose meters-per-texel cutoff (~807) picks "2050" (mpt 600)
+	const FLAT = makeFlatView({ lat: T.lat, lng: T.lng, zoom: 6.6, bounds: [-120, 10, -30, 70] });
+
+	it("zooming out keeps cached fine tiles on screen until the coarse pick arrives", async () => {
+		const h = harness();
+		await h.stream.update(VIEW);
+		for (const l of h.loads) if (l.path.length === 5) l.resolve();
+		await tick();
+		h.stream.promote(Infinity);
+		const drawnPaths = () =>
+			h.stream
+				.drawnNodes()
+				.map((d) => d.path)
+				.sort();
+		expect(drawnPaths()).toEqual(["20500", "20501", "20502"]);
+
+		await h.stream.update(FLAT);
+		// the coarse pick "2050" is still loading: cached leaves stand in
+		expect(drawnPaths()).toEqual(["20500", "20501", "20502"]);
+
+		h.loads.find((l) => l.path === "2050")!.resolve();
+		await tick();
+		h.stream.promote(Infinity);
+		expect(h.stream.drawnNodes()).toEqual([{ path: "2050", data: "2050", mask: 0 }]);
 	});
 });
 

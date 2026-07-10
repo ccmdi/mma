@@ -52,11 +52,15 @@ export function loadPriority(found: FoundNode, view: FrustumView): number {
 }
 
 /**
- * Select what to draw from the wanted tree (picks + ancestor chains).
- * Walks top-down: a pick draws unmasked; a structural node draws with the
- * octants of covered children masked out; an unready node passes coverage
+ * Select what to draw from the wanted tree (picks + ancestor chains, plus
+ * cached stand-in chains injected under unready picks by drawnNodes).
+ * Walks top-down: a ready pick draws unmasked; a structural node draws with
+ * the octants of covered children masked out; an unready node passes coverage
  * up only when ALL its wanted children are covered (so a gap in the chain
- * leaves the coarser ancestor unmasked - no holes, no double-draw).
+ * leaves the coarser ancestor unmasked - no holes, no double-draw). An
+ * unready pick draws its stand-in descendants but NEVER reports covered:
+ * stand-ins may cover its region only partially, and the pick's own data
+ * spans all octants, so the coarser ancestor must keep drawing underneath.
  */
 export function computeDrawn(
 	wanted: ReadonlySet<string>,
@@ -78,8 +82,12 @@ export function computeDrawn(
 	const walk = (path: string): boolean => {
 		const isReady = ready.has(path);
 		if (picks.has(path)) {
-			if (isReady) out.set(path, 0);
-			return isReady;
+			if (isReady) {
+				out.set(path, 0);
+				return true;
+			}
+			for (let d = 0; d < 8; d++) if (wanted.has(path + d)) walk(path + d);
+			return false;
 		}
 		let mask = 0;
 		let hasKids = false;
@@ -275,11 +283,27 @@ export class RocktreeStream<T> {
 		return Math.max(0, staged.length - budget);
 	}
 
-	/** Ready wanted nodes with their octant masks (0xff = skip drawing). */
+	/**
+	 * Ready wanted nodes with their octant masks (0xff = skip drawing).
+	 * Best-available: while a pick downloads, ready CACHED descendants (e.g.
+	 * last zoom level's tiles after zooming out) stand in for it, so the
+	 * screen never shows less than the best data on hand.
+	 */
 	drawnNodes(): DrawnNode<T>[] {
 		const ready = new Set<string>();
 		for (const [path, e] of this.entries) if (e.state === "ready") ready.add(path);
-		const masks = computeDrawn(new Set(this.wanted.keys()), this.picks, ready);
+		const wanted = new Set(this.wanted.keys());
+		const unreadyPicks: string[] = [];
+		for (const p of this.picks) if (!ready.has(p)) unreadyPicks.push(p);
+		if (unreadyPicks.length) {
+			for (const r of ready) {
+				if (wanted.has(r)) continue;
+				const pick = unreadyPicks.find((p) => r.length > p.length && r.startsWith(p));
+				if (!pick) continue;
+				for (let l = pick.length + 1; l <= r.length; l++) wanted.add(r.slice(0, l));
+			}
+		}
+		const masks = computeDrawn(wanted, this.picks, ready);
 		const out: DrawnNode<T>[] = [];
 		for (const [path, mask] of masks) {
 			const e = this.entries.get(path);

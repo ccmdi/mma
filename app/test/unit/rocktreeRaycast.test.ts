@@ -71,6 +71,8 @@ describe("raycastMesh", () => {
 });
 
 describe("ndcHitsNodeBounds", () => {
+	const MIN: [number, number, number] = [0, 0, 0];
+	const MAX: [number, number, number] = [255, 255, 255];
 	// maps the local [0,255] box onto ndc [-1,1]
 	const box = new Float64Array([
 		2 / 255,
@@ -92,15 +94,21 @@ describe("ndcHitsNodeBounds", () => {
 	]);
 
 	it("accepts pixels inside and rejects pixels outside the projected box", () => {
-		expect(ndcHitsNodeBounds(box, 0, 0)).toBe(true);
-		expect(ndcHitsNodeBounds(box, 0.99, -0.99)).toBe(true);
-		expect(ndcHitsNodeBounds(box, 1.5, 0)).toBe(false);
+		expect(ndcHitsNodeBounds(box, 0, 0, MIN, MAX)).toBe(true);
+		expect(ndcHitsNodeBounds(box, 0.99, -0.99, MIN, MAX)).toBe(true);
+		expect(ndcHitsNodeBounds(box, 1.5, 0, MIN, MAX)).toBe(false);
+	});
+
+	it("respects custom bounds (common-anchored coarse nodes)", () => {
+		// same matrix, but geometry only occupies the lower-left octant
+		expect(ndcHitsNodeBounds(box, 0.5, 0.5, MIN, [127, 127, 127])).toBe(false);
+		expect(ndcHitsNodeBounds(box, -0.5, -0.5, MIN, [127, 127, 127])).toBe(true);
 	});
 
 	it("is conservative when a corner is behind the eye", () => {
 		const behind = new Float64Array(box);
 		behind[15] = -1;
-		expect(ndcHitsNodeBounds(behind, 100, 100)).toBe(true);
+		expect(ndcHitsNodeBounds(behind, 100, 100, MIN, MAX)).toBe(true);
 	});
 });
 
@@ -136,7 +144,7 @@ describe("raycast vs deck projection round-trip", () => {
 		const ndcX = (mvp[0] * p[0] + mvp[4] * p[1] + mvp[8] * p[2] + mvp[12]) / clipW;
 		const ndcY = (mvp[1] * p[0] + mvp[5] * p[1] + mvp[9] * p[2] + mvp[13]) / clipW;
 
-		expect(ndcHitsNodeBounds(mvp, ndcX, ndcY)).toBe(true);
+		expect(ndcHitsNodeBounds(mvp, ndcX, ndcY, [0, 0, 0], [255, 255, 255])).toBe(true);
 		const ray = localRay(invert4(mvp)!, ndcX, ndcY)!;
 		const t = raycastMesh(ray, positions, indices, octants, 0)!;
 		expect(t).not.toBeNull();

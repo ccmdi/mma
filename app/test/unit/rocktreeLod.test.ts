@@ -10,6 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+	makeFlatView,
 	makeView,
 	obbVisible,
 	obbDistance,
@@ -118,6 +119,40 @@ describe("obbDistance", () => {
 		// 5 units along column 1 (extent 1): 4 outside
 		const offAxis: Vec3 = [1000 - 5 * s, 2000 + 5 * c, 3000];
 		expect(obbDistance(obb, offAxis)).toBeCloseTo(4, 9);
+	});
+});
+
+describe("flat view (zoomed-out mercator)", () => {
+	const WORLD: [number, number, number, number] = [-180, -85, 180, 85];
+
+	it("sees nodes the perspective camera horizon-culls", () => {
+		const antipode = obbAt(-T.lat, 180 + T.lng, 10000);
+		expect(obbVisible(antipode, makeView(BASE))).toBe(false);
+		expect(obbVisible(antipode, makeFlatView({ ...T, zoom: 2, bounds: WORLD }))).toBe(true);
+	});
+
+	it("culls by the viewport's lat/lng rect", () => {
+		const view = makeFlatView({ ...T, zoom: 4, bounds: [-120, 10, -30, 70] });
+		expect(obbVisible(obbAt(40, -74, 1000), view)).toBe(true);
+		expect(obbVisible(obbAt(-60, -74, 1000), view)).toBe(false);
+		expect(obbVisible(obbAt(40, 100, 1000), view)).toBe(false);
+	});
+
+	it("handles longitude wrap in the viewport bounds", () => {
+		const view = makeFlatView({ lat: 0, lng: 180, zoom: 4, bounds: [170, -10, 190, 10] });
+		expect(obbVisible(obbAt(0, -175, 1000), view)).toBe(true);
+		expect(obbVisible(obbAt(0, 100, 1000), view)).toBe(false);
+	});
+
+	it("LOD is a fixed meters-per-texel cutoff independent of distance", () => {
+		const view = makeFlatView({ ...T, zoom: 3, bounds: WORLD });
+		const maxMpt = 40075016.686 / (512 * 2 ** 3);
+		const near = obbAt(T.lat, T.lng, 1000);
+		const far = obbAt(-T.lat, 180 + T.lng, 1000);
+		for (const obb of [near, far]) {
+			expect(lodSufficient(obb, maxMpt * 0.99, view)).toBe(true);
+			expect(lodSufficient(obb, maxMpt * 1.01, view)).toBe(false);
+		}
 	});
 });
 
