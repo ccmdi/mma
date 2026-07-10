@@ -2,7 +2,7 @@
 
 /// <reference types="google.maps" />
 
-import { ComponentType, ReactNode } from 'react';
+import { ComponentType, ReactNode, SetStateAction } from 'react';
 
 export interface PluginSettingDef {
 	key: string;
@@ -18,6 +18,9 @@ interface Plugin {
 	comingSoon?: boolean;
 	core?: boolean;
 	settings?: PluginSettingDef[];
+	/** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
+	 *  Only for plugins whose state can't be serialized (e.g. an iframe). */
+	keepAlive?: boolean;
 	activate(): void | (() => void);
 	modal?: ComponentType<{
 		onClose: () => void;
@@ -38,6 +41,10 @@ export interface PluginStorage {
 	keys(): string[];
 }
 declare function createPluginStorage(id: string): PluginStorage;
+declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [
+	T,
+	(action: SetStateAction<T>) => void
+];
 /** Commands */
 export declare const commands: {
 	/**
@@ -45,6 +52,14 @@ export declare const commands: {
 	 *  Used by JS to pass large payloads via file instead of IPC serialization.
 	 */
 	writeTempFile: (name: string, content: string) => Promise<{
+		status: "ok";
+		data: string;
+	} | {
+		status: "error";
+		error: string;
+	}>;
+	/**  Write binary content to a unique temp file. Returns the path for [`export::store_save_export_file`]. */
+	writeTempBytes: (ext: string, content: number[]) => Promise<{
 		status: "ok";
 		data: string;
 	} | {
@@ -2830,6 +2845,13 @@ declare const COMMANDS: {
 		aliases: string[];
 		execute: () => boolean;
 	};
+	"bulk-download-panoramas": {
+		label: string;
+		icon: string;
+		group: "Bulk Operations";
+		aliases: string[];
+		execute: () => boolean;
+	};
 	"delete-selected-tags": {
 		label: string;
 		icon: string;
@@ -3035,6 +3057,7 @@ declare function spawnSidecar(pluginId: string, name: string, args: string[]): P
 declare const mma: {
 	cmd: {
 		writeTempFile: (name: string, content: string) => Promise<string>;
+		writeTempBytes: (ext: string, content: number[]) => Promise<string>;
 		readFile: (path: string) => Promise<string>;
 		appReady: () => Promise<number>;
 		getAppDataDir: () => Promise<string>;
@@ -3177,6 +3200,7 @@ declare const mma: {
 	};
 	toast: typeof toast;
 	storage: typeof createPluginStorage;
+	usePluginState: typeof usePluginState;
 	getFieldDef: typeof getFieldDef;
 	getAllFieldDefs: typeof getAllFieldDefs;
 	createLocation: typeof createLocation;

@@ -217,12 +217,21 @@ function PaletteContent({ onChangeOpen }: { onChangeOpen: (v: boolean) => void }
 
 export function CommandPalette() {
 	const [open, setOpen] = useState(false);
-	const [bulkOp, setBulkOp] = useState<BulkOperation | null>(null);
+	const [bulkOp, setBulkOp] = useState<{
+		operation: BulkOperation;
+		locationIds?: number[];
+	} | null>(null);
 	useHotkey(useBinding("openCommandPalette"), () => setOpen((v) => !v));
 
 	useDomEvent("open-command-palette", () => setOpen(true));
 
-	useDomEvent("open-bulk-op", (e) => setBulkOp((e as CustomEvent).detail as BulkOperation));
+	useDomEvent("open-bulk-op", (e) => {
+		const detail = (e as CustomEvent).detail as
+			| BulkOperation
+			| { operation: BulkOperation; locationIds?: number[] };
+		if (typeof detail === "string") setBulkOp({ operation: detail });
+		else setBulkOp(detail);
+	});
 
 	return (
 		<>
@@ -237,7 +246,13 @@ export function CommandPalette() {
 					</RadixDialog.Content>
 				</RadixDialog.Portal>
 			</RadixDialog.Root>
-			{bulkOp && <BulkOperationModal operation={bulkOp} onClose={() => setBulkOp(null)} />}
+			{bulkOp && (
+				<BulkOperationModal
+					operation={bulkOp.operation}
+					locationIds={bulkOp.locationIds}
+					onClose={() => setBulkOp(null)}
+				/>
+			)}
 		</>
 	);
 }

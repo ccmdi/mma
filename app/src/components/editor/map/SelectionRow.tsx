@@ -395,6 +395,20 @@ export function SelectionRow({
 										>
 											Review selection
 										</DropdownMenu.Item>
+										<DropdownMenu.Item
+											className="context-menu__item"
+											disabled={count === 0}
+											onSelect={async () => {
+												const ids = await cmd.storeResolveSelection(selection.props);
+												document.dispatchEvent(
+													new CustomEvent("open-bulk-op", {
+														detail: { operation: "downloadPanoramas", locationIds: ids },
+													}),
+												);
+											}}
+										>
+											Download panoramas
+										</DropdownMenu.Item>
 										{selection.props.type !== "Tag" && (
 											<DropdownMenu.Item
 												className="context-menu__item"

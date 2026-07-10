@@ -44,6 +44,7 @@ import {
 	mdiContentSaveAlertOutline,
 	mdiEyeCheckOutline,
 	mdiBookOpenOutline,
+	mdiDownloadBoxOutline,
 } from "@mdi/js";
 import { registerCommand, type CommandDef } from "./commands";
 import {
@@ -391,6 +392,14 @@ const COMMANDS = {
 		aliases: ["align headings", "road direction"],
 		execute: () =>
 			document.dispatchEvent(new CustomEvent("open-bulk-op", { detail: "headingRoad" })),
+	},
+	"bulk-download-panoramas": {
+		label: "Download panoramas",
+		icon: mdiDownloadBoxOutline,
+		group: "Bulk Operations",
+		aliases: ["bulk download", "export panoramas", "download street view"],
+		execute: () =>
+			document.dispatchEvent(new CustomEvent("open-bulk-op", { detail: "downloadPanoramas" })),
 	},
 	"delete-selected-tags": {
 		label: "Delete selected tags",

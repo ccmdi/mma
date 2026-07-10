@@ -52,13 +52,6 @@ export function ApplyFieldAsTagsDialog({
 		setTzLocal(tzDefault);
 	};
 
-	const validateCopyrightYear = (imageDate: string, copyrightYear: string) => {
-		if (imageDate && copyrightYear && Number(imageDate.slice(0, 4)) > Number(copyrightYear)) {
-			return false;
-		}
-		return true;
-	};
-
 	const handleApply = async () => {
 		if (!field || !widthValid) return;
 

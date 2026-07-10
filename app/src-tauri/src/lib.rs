@@ -81,6 +81,23 @@ fn write_temp_file(name: String, content: String) -> AppResult<String> {
     Ok(path.to_string_lossy().to_string())
 }
 
+/// Write binary content to a unique temp file. Returns the path for [`export::store_save_export_file`].
+#[tauri::command]
+#[specta::specta]
+fn write_temp_bytes(ext: String, content: Vec<u8>) -> AppResult<String> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    let path = std::env::temp_dir().join(format!(
+        "mma_export_{}_{}.{}",
+        std::process::id(),
+        n,
+        ext.trim_start_matches('.')
+    ));
+    std::fs::write(&path, &content)?;
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// Read a file from disk as UTF-8 text. Used by JS to read temp files and plugin sources.
 #[tauri::command]
 #[specta::specta]
@@ -542,6 +559,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         )
         .commands(tauri_specta::collect_commands![
             write_temp_file,
+            write_temp_bytes,
             read_file,
             // --- Utility ---
             app_ready,

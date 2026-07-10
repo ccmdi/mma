@@ -2845,7 +2845,27 @@ summary.button {
 }
 .bulk-operation__actions {
 	display: flex;
+	flex-wrap: wrap;
 	justify-content: flex-end;
+	gap: 0.5rem;
+}
+.bulk-operation__download-lists {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	max-height: 10rem;
+	overflow: auto;
+	font-size: 0.8125rem;
+}
+.bulk-operation__download-list-title {
+	font-weight: 600;
+	margin-bottom: 0.125rem;
+}
+.bulk-operation__download-list--ok .bulk-operation__download-list-title {
+	color: var(--color-ok, #2d8a4e);
+}
+.bulk-operation__download-list--fail .bulk-operation__download-list-title {
+	color: var(--color-destructive, #c0392b);
 }
 
 .merge-duplicates__status {

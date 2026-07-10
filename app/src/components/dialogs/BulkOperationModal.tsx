@@ -5,6 +5,7 @@ import {
 	getCurrentMap,
 	addSelections,
 	fetchAllLocations,
+	fetchLocationsByIds,
 	useScope,
 	applyScope,
 	type ScopeController,
@@ -26,7 +27,16 @@ import { enrichAll, type EnrichResult } from "@/lib/sv/enrich";
 import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading, type RoadDirection } from "@/lib/sv/headingRoad";
+import {
+	bulkDownloadPanoramas,
+	saveDownloadedImages,
+	type BulkDownloadConfig,
+	type BulkDownloadResult,
+	type DownloadProgressDetail,
+} from "@/lib/sv/bulkDownloadPanoramas";
+import type { DownloadRenderMode } from "@/lib/sv/downloadPanorama";
 import { fmt } from "@/lib/util/format";
+import { toast } from "@/lib/util/toast";
 
 const TITLES = {
 	validate: "Validate locations",
@@ -35,10 +45,16 @@ const TITLES = {
 	clearFields: "Clear metadata fields",
 	setField: "Set metadata field",
 	headingRoad: "Pan headings along road",
+	downloadPanoramas: "Download panoramas",
 } as const;
 export type BulkOperation = keyof typeof TITLES;
 
-type ProgressFn = (done: number, total: number, label?: string) => void;
+type ProgressFn = (
+	done: number,
+	total: number,
+	label?: string,
+	detail?: DownloadProgressDetail,
+) => void;
 
 interface BulkRunContext {
 	locations: Location[];
@@ -49,6 +65,7 @@ interface BulkRunContext {
 interface BulkRunResult {
 	doneMessage?: string;
 	doneContent?: React.ReactNode;
+	downloadResult?: BulkDownloadResult;
 }
 
 type BulkRunner = (ctx: BulkRunContext) => Promise<BulkRunResult>;
@@ -56,6 +73,7 @@ type BulkRunner = (ctx: BulkRunContext) => Promise<BulkRunResult>;
 interface Props {
 	operation: BulkOperation;
 	onClose: () => void;
+	locationIds?: number[];
 }
 
 interface SetupProps {
@@ -63,6 +81,7 @@ interface SetupProps {
 	locs: Location[];
 	scopedLocs: Location[];
 	onReady: (run: BulkRunner) => void;
+	hideScope?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -449,6 +468,111 @@ function SetFieldSetup({ locs, scopeCtl, onReady }: SetupProps) {
 	);
 }
 
+function DownloadPanoramasSetup({ scopeCtl, scopedLocs, onReady, hideScope }: SetupProps) {
+	const [mode, setMode] = useState<DownloadRenderMode>("equirectangular");
+	const [zoom, setZoom] = useState(5);
+	const [tileX, setTileX] = useState(0);
+	const [tileY, setTileY] = useState(0);
+	const noPano = scopedLocs.filter((l) => !l.panoId).length;
+	const showZoom = mode !== "thumbnail";
+	const showTileCoords = mode === "tile";
+
+	return (
+		<div className="bulk-operation">
+			{hideScope ? (
+				<div className="bulk-operation__status">
+					{fmt.format(scopedLocs.length)} locations in this selection.
+				</div>
+			) : (
+				<ScopeSelector ctl={scopeCtl} />
+			)}
+			<div className="bulk-operation__status">
+				Perspective and thumbnail use each location&apos;s heading and pitch. A single image
+				is saved as-is; multiple images are packed into a ZIP when you save.
+			</div>
+			{noPano > 0 && (
+				<div className="bulk-operation__status">
+					{fmt.format(noPano)} without pano ID will be resolved from coordinates.
+				</div>
+			)}
+			<label className="bulk-operation__option">
+				Mode
+				<NSelect
+					value={mode}
+					onChange={(e) => setMode(e.target.value as DownloadRenderMode)}
+				>
+					<option value="equirectangular">Equirectangular (full panorama)</option>
+					<option value="perspective">Perspective (1920×1080)</option>
+					<option value="thumbnail">Thumbnail (1024×768)</option>
+					<option value="tile">Tile (512×512)</option>
+				</NSelect>
+			</label>
+			{showZoom && (
+				<label className="bulk-operation__option">
+					Zoom level
+					<NSelect
+						style={{ width: 100 }}
+						value={String(zoom)}
+						onChange={(e) => setZoom(Number(e.target.value))}
+					>
+						{[1, 2, 3, 4, 5].map((z) => (
+							<option key={z} value={z}>
+								{z}
+							</option>
+						))}
+					</NSelect>
+				</label>
+			)}
+			{showTileCoords && (
+				<>
+					<label className="bulk-operation__option">
+						Tile X
+						<input
+							className="input"
+							type="number"
+							min={0}
+							step={1}
+							value={tileX}
+							onChange={(e) => setTileX(Math.max(0, Number(e.target.value) || 0))}
+							style={{ width: 100 }}
+						/>
+					</label>
+					<label className="bulk-operation__option">
+						Tile Y
+						<input
+							className="input"
+							type="number"
+							min={0}
+							step={1}
+							value={tileY}
+							onChange={(e) => setTileY(Math.max(0, Number(e.target.value) || 0))}
+							style={{ width: 100 }}
+						/>
+					</label>
+				</>
+			)}
+			<div className="bulk-operation__actions">
+				<button
+					className="button button--primary"
+					type="button"
+					onClick={() => {
+						const config: BulkDownloadConfig = { mode, zoom, tileX, tileY };
+						onReady(async ({ locations, signal, onProgress }) => {
+							const result = await bulkDownloadPanoramas(locations, config, {
+								signal,
+								onProgress,
+							});
+							return { downloadResult: result };
+						});
+					}}
+				>
+					Start
+				</button>
+			</div>
+		</div>
+	);
+}
+
 function HeadingRoadSetup({ scopeCtl, onReady }: SetupProps) {
 	const [direction, setDirection] = useState<RoadDirection>("forwards");
 
@@ -497,6 +621,34 @@ function HeadingRoadSetup({ scopeCtl, onReady }: SetupProps) {
 // Result display
 // ---------------------------------------------------------------------------
 
+function DownloadLocationLists({
+	succeeded,
+	failed,
+}: {
+	succeeded: number[];
+	failed: number[];
+}) {
+	if (succeeded.length === 0 && failed.length === 0) return null;
+	return (
+		<div className="bulk-operation__download-lists">
+			{succeeded.length > 0 && (
+				<div className="bulk-operation__download-list bulk-operation__download-list--ok">
+					<div className="bulk-operation__download-list-title">
+						Succeeded ({fmt.format(succeeded.length)})
+					</div>
+				</div>
+			)}
+			{failed.length > 0 && (
+				<div className="bulk-operation__download-list bulk-operation__download-list--fail">
+					<div className="bulk-operation__download-list-title">
+						Failed ({fmt.format(failed.length)})
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
 function EnrichSummary({
 	result,
 	onSelect,
@@ -540,10 +692,12 @@ function EnrichSummary({
 function BulkProgress({
 	runner,
 	scope,
+	locationsOverride,
 	onClose,
 }: {
 	runner: BulkRunner;
 	scope: Scope;
+	locationsOverride?: Location[];
 	onClose: () => void;
 }) {
 	const [progress, setProgress] = useState(0);
@@ -555,6 +709,7 @@ function BulkProgress({
 	const [status, setStatus] = useState<"running" | "done" | "cancelled" | "error">("running");
 	const [error, setError] = useState<string | null>(null);
 	const [result, setResult] = useState<BulkRunResult>({});
+	const [downloadProgress, setDownloadProgress] = useState<DownloadProgressDetail | null>(null);
 	const controllerRef = useRef<AbortController | null>(null);
 	const rateRef = useRef<{ t: number; done: number; ema: number | null }>({
 		t: 0,
@@ -566,17 +721,19 @@ function BulkProgress({
 		const controller = new AbortController();
 		controllerRef.current = controller;
 
-		const locations = applyScope(scope, await fetchAllLocations());
+		const locations =
+			locationsOverride ?? applyScope(scope, await fetchAllLocations());
 		const runStart = performance.now();
 		rateRef.current = { t: runStart, done: 0, ema: null };
 		setRate(null);
 		setElapsed(null);
 
-		const onProgress: ProgressFn = (d, t, label) => {
+		const onProgress: ProgressFn = (d, t, label, detail) => {
 			setPhaseLabel(label ?? null);
 			setTotal(t);
 			setDone(d);
 			setProgress(t > 0 ? d / t : 1);
+			if (detail) setDownloadProgress(detail);
 
 			// Smoothed items/s. `d` resets between enrich waves; on a reset just
 			// re-anchor rather than emit a negative spike.
@@ -608,7 +765,7 @@ function BulkProgress({
 				setStatus("error");
 			}
 		}
-	}, [runner, scope]);
+	}, [runner, scope, locationsOverride]);
 
 	useEffect(() => {
 		run();
@@ -618,6 +775,35 @@ function BulkProgress({
 	}, [run]);
 
 	const pct = Math.round(progress * 100);
+	const downloadResult = result.downloadResult;
+	const listSucceeded = downloadResult?.succeeded ?? downloadProgress?.succeeded ?? [];
+	const listFailed = downloadResult?.failed ?? downloadProgress?.failed ?? [];
+	const showDownloadLists = listSucceeded.length > 0 || listFailed.length > 0;
+
+	const handleSaveDownload = async () => {
+		if (!downloadResult?.files.length) return;
+		try {
+			const saved = await saveDownloadedImages(downloadResult.files, downloadResult.archive);
+			if (saved) {
+				toast(
+					downloadResult.files.length === 1
+						? "Panorama saved"
+						: `Saved ${fmt.format(downloadResult.files.length)} panoramas as ZIP`,
+				);
+			}
+		} catch {
+			toast("Save failed");
+		}
+	};
+
+	const handleSelectFailed = () => {
+		if (!downloadResult?.failed.length) return;
+		addSelections([
+			{ type: "Locations", locations: downloadResult.failed, name: "failed to download" },
+		]);
+		toast(`Added ${fmt.format(downloadResult.failed.length)} locations to selections`);
+		onClose();
+	};
 
 	return (
 		<div className="bulk-operation">
@@ -626,7 +812,19 @@ function BulkProgress({
 					`${phaseLabel ? `${phaseLabel}: ` : ""}${fmt.format(done)} / ${fmt.format(total)} (${pct}%)${
 						rate != null ? ` -- ${fmt.format(Math.round(rate))}/s` : ""
 					}`}
+				{status === "done" && downloadResult && (
+					<>
+						Done — {fmt.format(downloadResult.succeeded.length)} succeeded
+						{downloadResult.failed.length > 0 &&
+							`, ${fmt.format(downloadResult.failed.length)} failed`}
+						{elapsed != null && elapsed > 0
+							? ` in ${elapsed.toFixed(1)}s`
+							: ""}
+						.
+					</>
+				)}
 				{status === "done" &&
+					!downloadResult &&
 					(result.doneContent ??
 						result.doneMessage ??
 						`Done -- ${fmt.format(total)} locations processed${
@@ -637,6 +835,9 @@ function BulkProgress({
 				{status === "cancelled" && `Cancelled at ${fmt.format(done)} / ${fmt.format(total)}.`}
 				{status === "error" && `Error: ${error}`}
 			</div>
+			{showDownloadLists && (
+				<DownloadLocationLists succeeded={listSucceeded} failed={listFailed} />
+			)}
 			<progress className="bulk-operation__bar" value={progress} max={1} />
 			<div className="bulk-operation__actions">
 				{status === "running" ? (
@@ -647,6 +848,28 @@ function BulkProgress({
 					>
 						Cancel
 					</button>
+				) : status === "done" && downloadResult ? (
+					<>
+						<button
+							className="button button--primary"
+							type="button"
+							disabled={downloadResult.files.length === 0}
+							onClick={() => void handleSaveDownload()}
+						>
+							{downloadResult.files.length === 1 ? "Save image" : "Save ZIP"}
+						</button>
+						<button
+							className="button"
+							type="button"
+							disabled={downloadResult.failed.length === 0}
+							onClick={handleSelectFailed}
+						>
+							Add failed to selections
+						</button>
+						<button className="button" type="button" onClick={onClose}>
+							Close
+						</button>
+					</>
 				) : (
 					<button className="button button--primary" type="button" onClick={onClose}>
 						Close
@@ -668,21 +891,27 @@ const SETUPS: Record<BulkOperation, React.ComponentType<SetupProps>> = {
 	clearFields: ClearFieldsSetup,
 	setField: SetFieldSetup,
 	headingRoad: HeadingRoadSetup,
+	downloadPanoramas: DownloadPanoramasSetup,
 };
 
-export function BulkOperationModal({ operation, onClose }: Props) {
+export function BulkOperationModal({ operation, onClose, locationIds }: Props) {
 	const [runner, setRunner] = useState<BulkRunner | null>(null);
 	const [locs, setLocs] = useState<Location[] | null>(null);
 	const scopeCtl = useScope();
+	const fixedScope = locationIds != null;
 
 	useEffect(() => {
-		fetchAllLocations().then(setLocs);
-	}, []);
+		if (locationIds != null) {
+			fetchLocationsByIds(locationIds).then(setLocs);
+		} else {
+			fetchAllLocations().then(setLocs);
+		}
+	}, [locationIds]);
 
 	if (locs === null) return null;
 
 	const onReady = (run: BulkRunner) => setRunner(() => run);
-	const scopedLocs = applyScope(scopeCtl.scope, locs);
+	const scopedLocs = fixedScope ? locs : applyScope(scopeCtl.scope, locs);
 	const Setup = SETUPS[operation];
 
 	return (
@@ -694,9 +923,20 @@ export function BulkOperationModal({ operation, onClose }: Props) {
 		>
 			<DialogContent title={TITLES[operation]} className="bulk-operation-modal">
 				{runner ? (
-					<BulkProgress runner={runner} scope={scopeCtl.scope} onClose={onClose} />
+					<BulkProgress
+						runner={runner}
+						scope={scopeCtl.scope}
+						locationsOverride={fixedScope ? locs : undefined}
+						onClose={onClose}
+					/>
 				) : (
-					<Setup scopeCtl={scopeCtl} locs={locs} scopedLocs={scopedLocs} onReady={onReady} />
+					<Setup
+						scopeCtl={scopeCtl}
+						locs={locs}
+						scopedLocs={scopedLocs}
+						onReady={onReady}
+						hideScope={fixedScope}
+					/>
 				)}
 			</DialogContent>
 		</Dialog>
