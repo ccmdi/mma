@@ -314,16 +314,20 @@ describe("Tag merge on rename collision", () => {
 	});
 
 	it("renaming tag A to tag B's name merges them", async () => {
-		const result = await withApi(async (api, aId, bId) => {
-			await api.updateTags([{ id: aId, patch: { name: "Beta" } }]);
-			const map = api.getCurrentMap()!;
-			const tags = map.meta.tags;
-			return {
-				aVisible: tags[String(aId)]?.visible,
-				bVisible: tags[String(bId)]?.visible,
-				visibleCount: Object.values(tags).filter((t: any) => t.visible !== false).length,
-			};
-		}, tagAId, tagBId);
+		const result = await withApi(
+			async (api, aId, bId) => {
+				await api.updateTags([{ id: aId, patch: { name: "Beta" } }]);
+				const map = api.getCurrentMap()!;
+				const tags = map.meta.tags;
+				return {
+					aVisible: tags[String(aId)]?.visible,
+					bVisible: tags[String(bId)]?.visible,
+					visibleCount: Object.values(tags).filter((t: any) => t.visible !== false).length,
+				};
+			},
+			tagAId,
+			tagBId,
+		);
 		// Tag A should be hidden (merged into B)
 		expect(result.aVisible).toBe(false);
 		expect(result.bVisible).toBe(true);
@@ -358,16 +362,20 @@ describe("Tag merge on rename collision", () => {
 	});
 
 	it("undo after merge restores the original tag", async () => {
-		const result = await withApi(async (api, aId, bId) => {
-			await api.undo();
-			const tags = api.getCurrentMap()!.meta.tags;
-			const aVisible = tags[String(aId)]?.visible;
-			const bVisible = tags[String(bId)]?.visible;
-			const locs = await api.fetchAllLocations();
-			const withA = locs.filter((l: any) => l.tags.includes(aId)).length;
-			const withB = locs.filter((l: any) => l.tags.includes(bId)).length;
-			return { aVisible, bVisible, withA, withB };
-		}, tagAId, tagBId);
+		const result = await withApi(
+			async (api, aId, bId) => {
+				await api.undo();
+				const tags = api.getCurrentMap()!.meta.tags;
+				const aVisible = tags[String(aId)]?.visible;
+				const bVisible = tags[String(bId)]?.visible;
+				const locs = await api.fetchAllLocations();
+				const withA = locs.filter((l: any) => l.tags.includes(aId)).length;
+				const withB = locs.filter((l: any) => l.tags.includes(bId)).length;
+				return { aVisible, bVisible, withA, withB };
+			},
+			tagAId,
+			tagBId,
+		);
 		expect(result.aVisible).toBe(true);
 		expect(result.bVisible).toBe(true);
 		// 10 locs had Alpha, 1 had both → 11 with Alpha
@@ -414,16 +422,20 @@ describe("Tag merge persists across save/load", () => {
 		await closeMap();
 		await openMap(mapId);
 
-		const result = await withApi(async (api, xId, yId) => {
-			const tags = api.getCurrentMap()!.meta.tags;
-			const locs = await api.fetchAllLocations();
-			return {
-				xVisible: tags[String(xId)]?.visible,
-				yVisible: tags[String(yId)]?.visible,
-				allHaveY: locs.every((l: any) => l.tags.includes(yId)),
-				noneHaveX: locs.every((l: any) => !l.tags.includes(xId)),
-			};
-		}, tagXId, tagYId);
+		const result = await withApi(
+			async (api, xId, yId) => {
+				const tags = api.getCurrentMap()!.meta.tags;
+				const locs = await api.fetchAllLocations();
+				return {
+					xVisible: tags[String(xId)]?.visible,
+					yVisible: tags[String(yId)]?.visible,
+					allHaveY: locs.every((l: any) => l.tags.includes(yId)),
+					noneHaveX: locs.every((l: any) => !l.tags.includes(xId)),
+				};
+			},
+			tagXId,
+			tagYId,
+		);
 		expect(result.xVisible).toBe(false);
 		expect(result.yVisible).toBe(true);
 		expect(result.allHaveY).toBe(true);
@@ -523,7 +535,10 @@ describe("Tag visibility lifecycle", () => {
 	it("delete strips tag from locations", async () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.createTags(["StripMe"]);
-			const locs = [api.createLocation({ lat: 50, lng: 50, tags: [tag.id] }), api.createLocation({ lat: 51, lng: 51, tags: [tag.id] })];
+			const locs = [
+				api.createLocation({ lat: 50, lng: 50, tags: [tag.id] }),
+				api.createLocation({ lat: 51, lng: 51, tags: [tag.id] }),
+			];
 			await api.addLocations(locs);
 			await api.deleteTags([tag.id]);
 			const allLocs = await api.fetchAllLocations();
@@ -685,25 +700,33 @@ describe("Tag merge advanced", () => {
 	});
 
 	it("tag counts are correct after merge", async () => {
-		const result = await withApi(async (api, aId, bId) => {
-			// A has 2 locs, B has 1 loc → merge A into B → B should have 3
-			await api.updateTags([{ id: aId, patch: { name: "MrgB" } }]);
-			const counts = api.getTagCounts();
-			return { bCount: counts[bId] ?? 0, aCount: counts[aId] ?? 0 };
-		}, tagAId, tagBId);
+		const result = await withApi(
+			async (api, aId, bId) => {
+				// A has 2 locs, B has 1 loc → merge A into B → B should have 3
+				await api.updateTags([{ id: aId, patch: { name: "MrgB" } }]);
+				const counts = api.getTagCounts();
+				return { bCount: counts[bId] ?? 0, aCount: counts[aId] ?? 0 };
+			},
+			tagAId,
+			tagBId,
+		);
 		expect(result.bCount).toBe(3);
 		expect(result.aCount).toBe(0);
 	});
 
 	it("sequential merges accumulate correctly", async () => {
-		const result = await withApi(async (api, cId, bId) => {
-			// C has 3 locs, B now has 3 → merge C into B → B should have 6
-			await api.updateTags([{ id: cId, patch: { name: "MrgB" } }]);
-			const counts = api.getTagCounts();
-			const locs = await api.fetchAllLocations();
-			const withB = locs.filter((l: any) => l.tags.includes(bId));
-			return { bCount: counts[bId] ?? 0, locsWithB: withB.length };
-		}, tagCId, tagBId);
+		const result = await withApi(
+			async (api, cId, bId) => {
+				// C has 3 locs, B now has 3 → merge C into B → B should have 6
+				await api.updateTags([{ id: cId, patch: { name: "MrgB" } }]);
+				const counts = api.getTagCounts();
+				const locs = await api.fetchAllLocations();
+				const withB = locs.filter((l: any) => l.tags.includes(bId));
+				return { bCount: counts[bId] ?? 0, locsWithB: withB.length };
+			},
+			tagCId,
+			tagBId,
+		);
 		expect(result.bCount).toBe(6);
 		expect(result.locsWithB).toBe(6);
 	});
@@ -715,15 +738,19 @@ describe("Tag merge advanced", () => {
 			return "ok";
 		});
 
-		const afterUndo = await withApi(async (api, cId, bId) => {
-			const tags = api.getCurrentMap()!.meta.tags;
-			const counts = api.getTagCounts();
-			return {
-				cVisible: tags[String(cId)]?.visible,
-				bCount: counts[bId] ?? 0,
-				cCount: counts[cId] ?? 0,
-			};
-		}, tagCId, tagBId);
+		const afterUndo = await withApi(
+			async (api, cId, bId) => {
+				const tags = api.getCurrentMap()!.meta.tags;
+				const counts = api.getTagCounts();
+				return {
+					cVisible: tags[String(cId)]?.visible,
+					bCount: counts[bId] ?? 0,
+					cCount: counts[cId] ?? 0,
+				};
+			},
+			tagCId,
+			tagBId,
+		);
 		expect(afterUndo.cVisible).toBe(true);
 		expect(afterUndo.cCount).toBe(3);
 		expect(afterUndo.bCount).toBe(3);
@@ -733,15 +760,19 @@ describe("Tag merge advanced", () => {
 			return "ok";
 		});
 
-		const afterRedo = await withApi(async (api, cId, bId) => {
-			const tags = api.getCurrentMap()!.meta.tags;
-			const counts = api.getTagCounts();
-			return {
-				cVisible: tags[String(cId)]?.visible,
-				bCount: counts[bId] ?? 0,
-				cCount: counts[cId] ?? 0,
-			};
-		}, tagCId, tagBId);
+		const afterRedo = await withApi(
+			async (api, cId, bId) => {
+				const tags = api.getCurrentMap()!.meta.tags;
+				const counts = api.getTagCounts();
+				return {
+					cVisible: tags[String(cId)]?.visible,
+					bCount: counts[bId] ?? 0,
+					cCount: counts[cId] ?? 0,
+				};
+			},
+			tagCId,
+			tagBId,
+		);
 		expect(afterRedo.cVisible).toBe(false);
 		expect(afterRedo.bCount).toBe(6);
 		expect(afterRedo.cCount).toBe(0);
@@ -773,34 +804,40 @@ describe("Tag import dedup", () => {
 
 	it("import with matching tag name reuses existing tag", async () => {
 		const json = JSON.stringify({
-			customCoordinates: [
-				{ lat: 10, lng: 20, extra: { tags: ["Existing"] } },
-			],
+			customCoordinates: [{ lat: 10, lng: 20, extra: { tags: ["Existing"] } }],
 		});
-		const result = await withApi(async (api, existId, jsonStr) => {
-			await api._test.importPaste(jsonStr);
-			const locs = await api.fetchAllLocations();
-			const withExisting = locs.filter((l: any) => l.tags.includes(existId));
-			const tags = api.getCurrentMap()!.meta.tags;
-			const visibleCount = Object.values(tags).filter((t: any) => t.visible !== false && t.name === "Existing").length;
-			return { withExisting: withExisting.length, visibleCount };
-		}, existingTagId, json);
+		const result = await withApi(
+			async (api, existId, jsonStr) => {
+				await api._test.importPaste(jsonStr);
+				const locs = await api.fetchAllLocations();
+				const withExisting = locs.filter((l: any) => l.tags.includes(existId));
+				const tags = api.getCurrentMap()!.meta.tags;
+				const visibleCount = Object.values(tags).filter(
+					(t: any) => t.visible !== false && t.name === "Existing",
+				).length;
+				return { withExisting: withExisting.length, visibleCount };
+			},
+			existingTagId,
+			json,
+		);
 		expect(result.withExisting).toBe(1);
 		expect(result.visibleCount).toBe(1);
 	});
 
 	it("import with tag name matching hidden tag reuses it", async () => {
 		const json = JSON.stringify({
-			customCoordinates: [
-				{ lat: 30, lng: 40, extra: { tags: ["WasHidden"] } },
-			],
+			customCoordinates: [{ lat: 30, lng: 40, extra: { tags: ["WasHidden"] } }],
 		});
-		const result = await withApi(async (api, hiddenId, jsonStr) => {
-			await api._test.importPaste(jsonStr);
-			const locs = await api.fetchAllLocations();
-			const withHidden = locs.filter((l: any) => l.tags.includes(hiddenId));
-			return { withHidden: withHidden.length, id: hiddenId };
-		}, hiddenTagId, json);
+		const result = await withApi(
+			async (api, hiddenId, jsonStr) => {
+				await api._test.importPaste(jsonStr);
+				const locs = await api.fetchAllLocations();
+				const withHidden = locs.filter((l: any) => l.tags.includes(hiddenId));
+				return { withHidden: withHidden.length, id: hiddenId };
+			},
+			hiddenTagId,
+			json,
+		);
 		expect(result.withHidden).toBe(1);
 	});
 });

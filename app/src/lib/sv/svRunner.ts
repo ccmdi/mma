@@ -64,7 +64,10 @@ export function getSvResolvers(): SvResolver[] {
 
 /** Merge resolver patches for one location: `extra` deep-merges into the location's
  *  existing extra; every other key overwrites. Same rule as `fieldOps.planFieldSet`. */
-export function mergePatches(loc: Location, patches: Partial<Location>[]): Partial<Location> | null {
+export function mergePatches(
+	loc: Location,
+	patches: Partial<Location>[],
+): Partial<Location> | null {
 	const out: Record<string, unknown> = {};
 	let extra: Record<string, unknown> | undefined;
 	for (const p of patches) {
@@ -166,7 +169,10 @@ export async function runResolvers(
 					result[r.id].failed.push(loc.id);
 					continue;
 				}
-				const patch = r.resolve?.(loc, data, { config, resolvedPanoId: resolvedPanoIds?.get(loc.id) });
+				const patch = r.resolve?.(loc, data, {
+					config,
+					resolvedPanoId: resolvedPanoIds?.get(loc.id),
+				});
 				result[r.id].success.push(loc.id);
 				if (patch) patches.push(patch);
 			}
@@ -177,7 +183,8 @@ export async function runResolvers(
 
 	if (metaPending.length > 0) onProgress?.(0, metaPending.length);
 	const metaBatches: Location[][] = [];
-	for (let i = 0; i < metaLocs.length; i += BATCH_SIZE) metaBatches.push(metaLocs.slice(i, i + BATCH_SIZE));
+	for (let i = 0; i < metaLocs.length; i += BATCH_SIZE)
+		metaBatches.push(metaLocs.slice(i, i + BATCH_SIZE));
 	await runConcurrent(
 		metaBatches,
 		async (batch) => {
@@ -197,7 +204,10 @@ export async function runResolvers(
 			const patches: Partial<Location>[] = [];
 			for (const { r, config } of flagResolvers) {
 				if (!r.pending(loc, force)) continue;
-				const patch = r.resolve?.(loc, null, { config, resolvedPanoId: resolvedPanoIds?.get(loc.id) });
+				const patch = r.resolve?.(loc, null, {
+					config,
+					resolvedPanoId: resolvedPanoIds?.get(loc.id),
+				});
 				if (patch) {
 					result[r.id].success.push(loc.id);
 					patches.push(patch);
@@ -225,7 +235,8 @@ export async function runResolvers(
 			const units = wave.map((p) => p.units?.(pluginLocs, enrichFields, force) ?? 0);
 			const waveTotal = units.reduce((a, b) => a + b, 0);
 			const slow = wave.filter((p, i) => units[i] > 0 && p.label);
-			const label = slow.length === 1 ? slow[0].label : slow.length > 1 ? "Enriching fields" : undefined;
+			const label =
+				slow.length === 1 ? slow[0].label : slow.length > 1 ? "Enriching fields" : undefined;
 			let waveDone = 0;
 			if (waveTotal > 0) onProgress?.(0, waveTotal, label);
 			const outcomeOf = (id: string) => (result[id] ??= { success: [], failed: [] });

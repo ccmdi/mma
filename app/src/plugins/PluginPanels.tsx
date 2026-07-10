@@ -1,10 +1,6 @@
-import { useState, createElement } from "react";
+import { memo, useState, createElement } from "react";
 import { useSyncExternalStore } from "react";
-import {
-	getEnabledPlugins,
-	subscribeRegistry,
-	getRegistrySnapshot,
-} from "@/plugins/registry";
+import { getEnabledPlugins, subscribeRegistry, getRegistrySnapshot } from "@/plugins/registry";
 import { useCurrentMap } from "@/store/useMapStore";
 import { setPluginMode } from "@/store/useMapStore";
 import { Icon } from "@/components/primitives/Icon";
@@ -19,7 +15,8 @@ export function PluginToolbar() {
 
 	if (plugins.length === 0) return null;
 
-	const toolbarPlugins = plugins.filter((p) => p.modal || p.sidebar)
+	const toolbarPlugins = plugins
+		.filter((p) => p.modal || p.sidebar)
 		.sort((a, b) => a.name.localeCompare(b.name));
 	const modalPlugin = modalId ? plugins.find((p) => p.id === modalId && p.modal) : null;
 
@@ -53,7 +50,7 @@ export function PluginToolbar() {
 	);
 }
 
-export function PluginLocationPanels() {
+export const PluginLocationPanels = memo(function PluginLocationPanels() {
 	useSyncExternalStore(subscribeRegistry, getRegistrySnapshot);
 
 	const plugins = getEnabledPlugins().filter((p) => p.locationPanel);
@@ -90,4 +87,4 @@ export function PluginLocationPanels() {
 			))}
 		</>
 	);
-}
+});

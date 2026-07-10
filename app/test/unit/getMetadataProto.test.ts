@@ -7,9 +7,17 @@ import {
 	type GetMetadataRequest,
 } from "@/lib/sv/proto/getmetadata.gen";
 import { parseResult, imageKeyToPanoId } from "@/lib/sv/svMeta";
-import { BIN_CAR, JSON_CAR, BIN_SCOUT, JSON_SCOUT, BIN_DEAD, JSON_DEAD } from "./fixtures/getMetadataFixtures";
+import {
+	BIN_CAR,
+	JSON_CAR,
+	BIN_SCOUT,
+	JSON_SCOUT,
+	BIN_DEAD,
+	JSON_DEAD,
+} from "./fixtures/getMetadataFixtures";
 
-const decode = (b64: string) => readGetMetadataResponse(new PbfReader(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))));
+const decode = (b64: string) =>
+	readGetMetadataResponse(new PbfReader(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))));
 
 // float32 fields arrive as exact f32 in binary but 7-significant-digit decimals in JSON
 const f32 = (a: number | null, b: number | null) => {
@@ -34,7 +42,9 @@ function expectParityWithJson(b64: string, json: any) {
 	expect(parsed.extra!._source).toBe(r[6]?.[5]?.[2] ?? null);
 	expect(parsed.copyright).toBe(r[4]?.[0]?.[0]?.[0]?.[0] ?? "");
 	expect(parsed.imageDate).toBe(
-		r[6]?.[7]?.[0] > 0 ? `${String(r[6][7][0]).padStart(4, "0")}-${String(r[6][7][1] ?? 0).padStart(2, "0")}` : "",
+		r[6]?.[7]?.[0] > 0
+			? `${String(r[6][7][0]).padStart(4, "0")}-${String(r[6][7][1] ?? 0).padStart(2, "0")}`
+			: "",
 	);
 	expect(parsed.tiles!.worldSize).toEqual({ width: r[2][2][1], height: r[2][2][0] });
 	expect(parsed.tiles!.tileSize).toEqual({ width: r[2][3][1][1], height: r[2][3][1][0] });
@@ -52,7 +62,9 @@ function expectParityWithJson(b64: string, json: any) {
 	for (const e of times) {
 		const pano = refs[e[0]] ? imageKeyToPanoId(refs[e[0]][0]) : parsed.location!.pano;
 		const match = parsed.time!.find((t) => t.pano === pano)!;
-		expect(match.date.getTime()).toBe(new Date(e[1]?.[0] ?? 0, e[1]?.[1] ?? 0, e[1]?.[2] ?? 0).getTime());
+		expect(match.date.getTime()).toBe(
+			new Date(e[1]?.[0] ?? 0, e[1]?.[1] ?? 0, e[1]?.[2] ?? 0).getTime(),
+		);
 	}
 }
 
@@ -82,7 +94,10 @@ describe("GetMetadata proto parsing", () => {
 		const req: GetMetadataRequest = {
 			context: { productId: "apiv3", language: "en" },
 			locale: { language: "en", regionCode: "US" },
-			key: [{ key: { frontend: 2, id: "20C-1_sANr4OMdhTDM2N-g" } }, { key: { frontend: 10, id: "userUpload" } }],
+			key: [
+				{ key: { frontend: 2, id: "20C-1_sANr4OMdhTDM2N-g" } },
+				{ key: { frontend: 10, id: "userUpload" } },
+			],
 			spec: { component: [1, 2, 3, 4, 8, 6] },
 		};
 		const writer = new PbfWriter();

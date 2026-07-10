@@ -80,8 +80,12 @@ struct GeoJsonFeature {
 #[derive(Deserialize)]
 #[serde(tag = "type")]
 enum GeoJsonGeometry {
-    Polygon { coordinates: Vec<Vec<[f64; 2]>> },
-    MultiPolygon { coordinates: Vec<Vec<Vec<[f64; 2]>>> },
+    Polygon {
+        coordinates: Vec<Vec<[f64; 2]>>,
+    },
+    MultiPolygon {
+        coordinates: Vec<Vec<Vec<[f64; 2]>>>,
+    },
 }
 
 // --- A3 -> (A2, name) lookup ---
@@ -341,7 +345,9 @@ static ISO_MAP: &[(&str, &str, &str)] = &[
 
 fn lookup_a3(a3: &str) -> (&'static str, &'static str) {
     for &(code3, code2, name) in ISO_MAP {
-        if code3 == a3 { return (code2, name); }
+        if code3 == a3 {
+            return (code2, name);
+        }
     }
     ("??", "Unknown")
 }
@@ -354,13 +360,25 @@ fn convert_feature(gj: GeoJsonFeature) -> Option<BorderFeature> {
     // geoBoundaries: { "shapeGroup": "FRA", "shapeName": "France" }
     // geo-maps:      { "A3": "FRA" }
     // light/bundled:  { "code": "FR", "name": "France" }
-    let (code, name) = if let Some(a3) = props.get("shapeGroup").or_else(|| props.get("A3")).and_then(|v| v.as_str()) {
+    let (code, name) = if let Some(a3) = props
+        .get("shapeGroup")
+        .or_else(|| props.get("A3"))
+        .and_then(|v| v.as_str())
+    {
         let (c2, n) = lookup_a3(a3);
         let display = props.get("shapeName").and_then(|v| v.as_str()).unwrap_or(n);
         (c2.to_string(), display.to_string())
     } else {
-        let code = props.get("code").and_then(|v| v.as_str()).unwrap_or("??").to_string();
-        let name = props.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+        let code = props
+            .get("code")
+            .and_then(|v| v.as_str())
+            .unwrap_or("??")
+            .to_string();
+        let name = props
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Unknown")
+            .to_string();
         (code, name)
     };
 
@@ -382,13 +400,21 @@ fn convert_feature(gj: GeoJsonFeature) -> Option<BorderFeature> {
         }
     };
 
-    Some(BorderFeature { name, code, geometry })
+    Some(BorderFeature {
+        name,
+        code,
+        geometry,
+    })
 }
 
 fn parse_geojson(data: &str) -> AppResult<Vec<BorderFeature>> {
     let collection: GeoJsonCollection =
         serde_json::from_str(data).map_err(|e| format!("Failed to parse border GeoJSON: {e}"))?;
-    Ok(collection.features.into_iter().filter_map(convert_feature).collect())
+    Ok(collection
+        .features
+        .into_iter()
+        .filter_map(convert_feature)
+        .collect())
 }
 
 /// Serialize a GeoJSON border dataset into the rkyv archive bytes shipped to clients.
@@ -414,7 +440,10 @@ fn convert_dataset(json: &str) -> AppResult<Vec<u8>> {
 fn load_dataset(level: &str) -> AppResult<()> {
     let dataset = if level == "light" {
         let features = parse_geojson(include_str!("../data/borders.json"))?;
-        log::info!("Loaded {} border features for level 'light'", features.len());
+        log::info!(
+            "Loaded {} border features for level 'light'",
+            features.len()
+        );
         Dataset::Owned(features)
     } else {
         let path = crate::storage::app_data_dir()?
@@ -448,8 +477,12 @@ fn arch_rings(poly: &ArchPoly) -> impl Iterator<Item = &[[f64; 2]]> {
 }
 
 fn arch_point_in_feature(lng: f64, lat: f64, f: &ArchivedArchFeature) -> bool {
-    if selections::polygon_contains(lng, lat, arch_rings(&f.rings)) { return true; }
-    f.extra.iter().any(|poly| selections::polygon_contains(lng, lat, arch_rings(poly)))
+    if selections::polygon_contains(lng, lat, arch_rings(&f.rings)) {
+        return true;
+    }
+    f.extra
+        .iter()
+        .any(|poly| selections::polygon_contains(lng, lat, arch_rings(poly)))
 }
 
 fn arch_feature_bbox(f: &ArchivedArchFeature) -> Option<[f64; 4]> {
@@ -460,7 +493,11 @@ fn arch_feature_bbox(f: &ArchivedArchFeature) -> Option<[f64; 4]> {
     for r in all_rings() {
         selections::extend_bbox_with_ring(&mut bb, &mut any, crosses, r.as_slice());
     }
-    if any { Some(bb) } else { None }
+    if any {
+        Some(bb)
+    } else {
+        None
+    }
 }
 
 /// Copy a matched archived feature back into an owned `PolygonGeometry` for the IPC reply.
@@ -487,7 +524,9 @@ fn validate_border_level(level: &str) -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub fn check_border_file(level: String) -> AppResult<bool> {
-    if level == "light" { return Ok(true); }
+    if level == "light" {
+        return Ok(true);
+    }
     validate_border_level(&level)?;
     let path = crate::storage::app_data_dir()?
         .join("borders")
@@ -499,9 +538,10 @@ pub fn check_border_file(level: String) -> AppResult<bool> {
 #[specta::specta]
 pub fn download_border_file(level: String) -> AppResult<()> {
     validate_border_level(&level)?;
-    if level == "light" { return Ok(()); }
-    let dir = crate::storage::app_data_dir()?
-        .join("borders");
+    if level == "light" {
+        return Ok(());
+    }
+    let dir = crate::storage::app_data_dir()?.join("borders");
     std::fs::create_dir_all(&dir)?;
     let url = format!(
         "https://raw.githubusercontent.com/ccmdi/mma/master/data/borders/borders-{level}.rkyv"
@@ -510,7 +550,9 @@ pub fn download_border_file(level: String) -> AppResult<()> {
         .use_rustls_tls()
         .timeout(std::time::Duration::from_secs(120))
         .build()?;
-    let bytes = client.get(&url).send()
+    let bytes = client
+        .get(&url)
+        .send()
         .and_then(|r| r.error_for_status())
         .map_err(|e| format!("Failed to download borders-{level}.rkyv: {e}"))?
         .bytes()?;
@@ -575,10 +617,7 @@ fn ensure_loaded(level: &str) -> AppResult<()> {
 /// "light" dataset when the requested level isn't downloaded. Points outside every
 /// border (oceans, gaps) are dropped. Each feature's bbox is a cheap broad-phase reject
 /// before the full crossing test; the scan is parallelized over points with rayon.
-pub fn tally_countries(
-    level: &str,
-    coords: &[(f64, f64)],
-) -> AppResult<Vec<(String, u32)>> {
+pub fn tally_countries(level: &str, coords: &[(f64, f64)]) -> AppResult<Vec<(String, u32)>> {
     let level = if validate_border_level(level).is_ok() && ensure_loaded(level).is_ok() {
         level.to_string()
     } else {
@@ -631,8 +670,12 @@ fn tally_scan<T: Sync>(
         .par_iter()
         .filter_map(|&(lat, lng)| {
             for (bb, f) in &feats {
-                if !selections::in_bbox(lng, lat, bb) { continue; }
-                if contains(lng, lat, f) { return Some(code(f).to_string()); }
+                if !selections::in_bbox(lng, lat, bb) {
+                    continue;
+                }
+                if contains(lng, lat, f) {
+                    return Some(code(f).to_string());
+                }
             }
             None
         })
@@ -641,7 +684,9 @@ fn tally_scan<T: Sync>(
             m
         })
         .reduce(HashMap::new, |mut a, b| {
-            for (k, v) in b { *a.entry(k).or_insert(0) += v; }
+            for (k, v) in b {
+                *a.entry(k).or_insert(0) += v;
+            }
             a
         })
         .into_iter()

@@ -45,10 +45,7 @@ describe("Version control — commit and restore", () => {
 	});
 
 	it("adding more locations after commit", async () => {
-		await addLocs([
-			createLocation({ lat: 30, lng: 30 }),
-			createLocation({ lat: 40, lng: 40 }),
-		]);
+		await addLocs([createLocation({ lat: 30, lng: 30 }), createLocation({ lat: 40, lng: 40 })]);
 		await flushAndWait();
 
 		const count = await getLocCount();
@@ -100,19 +97,13 @@ describe("Version control — multiple commits", () => {
 		await withApi(async (api) => api.commitMap("Initial"));
 
 		// Commit 2: 5 locations
-		await addLocs(
-			Array.from({ length: 5 }, (_, i) =>
-				createLocation({ lat: i, lng: i }),
-			),
-		);
+		await addLocs(Array.from({ length: 5 }, (_, i) => createLocation({ lat: i, lng: i })));
 		await flushAndWait();
 		await withApi(async (api) => api.commitMap("Five locations"));
 
 		// Commit 3: 10 total
 		await addLocs(
-			Array.from({ length: 5 }, (_, i) =>
-				createLocation({ lat: 10 + i, lng: 10 + i }),
-			),
+			Array.from({ length: 5 }, (_, i) => createLocation({ lat: 10 + i, lng: 10 + i })),
 		);
 		await flushAndWait();
 		await withApi(async (api) => api.commitMap("Ten locations"));

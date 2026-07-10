@@ -19,7 +19,9 @@ async function writeInputFile(data) {
   return MMA.cmd.writeTempFile(name, JSON.stringify(data));
 }
 var FIELD_DEFS = {
-  copyrightYear: { type: "number", label: "Copyright year" }
+  // Year labels are identification categories, not distances: comparison stays
+  // categorical (disambiguate) while type=number keeps numeric bucketing/ranges.
+  copyrightYear: { type: "number", label: "Copyright year", comparison: { type: "categorical" } }
 };
 function fieldRequested(enrichFields) {
   return !enrichFields || enrichFields.includes("copyrightYear");

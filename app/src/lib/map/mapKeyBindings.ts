@@ -66,10 +66,7 @@ export function withTagKeyBinding(
 }
 
 /** Combo currently assigned to copy-to-`mapId`, if any. */
-export function getMapCopyBindingKey(
-	bindings: MapKeyBinding[],
-	mapId: string,
-): string | undefined {
+export function getMapCopyBindingKey(bindings: MapKeyBinding[], mapId: string): string | undefined {
 	return bindings.find((b) => b.action.type === "copyToMap" && b.action.mapId === mapId)?.key;
 }
 

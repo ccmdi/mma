@@ -194,7 +194,6 @@ describe("Map metadata updates", () => {
 	});
 });
 
-
 describe("Active location and work area", () => {
 	let mapId: string;
 	let locIds: number[];
@@ -282,7 +281,17 @@ describe("Extra field definitions", () => {
 	it("set extra field definitions on map", async () => {
 		await withApi(async (api) => {
 			const cur = api.getCurrentMap()!.meta.extra?.fields ?? {};
-			await api.updateMapMeta({ extra: { ...api.getCurrentMap()!.meta.extra, fields: { ...cur, altitude: { type: "number", label: "Altitude (m)" }, country: { type: "string", label: "Country" }, region: { type: "enum", label: "Region", values: ["NA", "EU", "AS"] } } } });
+			await api.updateMapMeta({
+				extra: {
+					...api.getCurrentMap()!.meta.extra,
+					fields: {
+						...cur,
+						altitude: { type: "number", label: "Altitude (m)" },
+						country: { type: "string", label: "Country" },
+						region: { type: "enum", label: "Region", values: ["NA", "EU", "AS"] },
+					},
+				},
+			});
 		});
 
 		const extra = await withApi(async (api) => api.getCurrentMap()?.meta.extra);
@@ -304,7 +313,11 @@ describe("Extra field definitions", () => {
 	it("auto-registers field defs when adding locations with extras", async () => {
 		await withApi(async (api) => {
 			await api.addLocations([
-				api.createLocation({ lat: 0, lng: 0, extra: { plumbus: 1, captured: "2024-03", note: "hello" } }),
+				api.createLocation({
+					lat: 0,
+					lng: 0,
+					extra: { plumbus: 1, captured: "2024-03", note: "hello" },
+				}),
 			]);
 		});
 
@@ -343,9 +356,7 @@ describe("Extra field definitions", () => {
 
 	it("auto-registered field defs persist across map close/reopen", async () => {
 		await withApi(async (api) => {
-			await api.addLocations([
-				api.createLocation({ lat: 0, lng: 0, extra: { fleeb: 99 } }),
-			]);
+			await api.addLocations([api.createLocation({ lat: 0, lng: 0, extra: { fleeb: 99 } })]);
 		});
 
 		await flushAndWait();
@@ -382,14 +393,17 @@ describe("Extra field definitions", () => {
 		// Explicitly register with a custom label
 		await withApi(async (api) => {
 			const cur = api.getCurrentMap()!.meta.extra?.fields ?? {};
-			await api.updateMapMeta({ extra: { ...api.getCurrentMap()!.meta.extra, fields: { ...cur, score: { type: "number", label: "My Score" } } } });
+			await api.updateMapMeta({
+				extra: {
+					...api.getCurrentMap()!.meta.extra,
+					fields: { ...cur, score: { type: "number", label: "My Score" } },
+				},
+			});
 		});
 
 		// Add a location with the same key — should not overwrite the custom def
 		await withApi(async (api) => {
-			await api.addLocations([
-				api.createLocation({ lat: 0, lng: 0, extra: { score: 42 } }),
-			]);
+			await api.addLocations([api.createLocation({ lat: 0, lng: 0, extra: { score: 42 } })]);
 		});
 
 		const extra = await withApi(async (api) => api.getCurrentMap()?.meta.extra);

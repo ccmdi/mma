@@ -1,11 +1,23 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { fovToZoom, compareNatural, binNumeric, sortTagsByMode, tagChipStyle, appendTagName } from "@/lib/util/util";
+import {
+	fovToZoom,
+	compareNatural,
+	binNumeric,
+	sortTagsByMode,
+	tagChipStyle,
+	appendTagName,
+} from "@/lib/util/util";
 import { colorForName } from "@/lib/util/color";
 import { relativeTime } from "@/lib/util/format";
 import type { Tag } from "@/bindings.gen";
 
 describe("sortTagsByMode", () => {
-	const tag = (id: number, name: string, order?: number): Tag => ({ id, name, color: "#000", order });
+	const tag = (id: number, name: string, order?: number): Tag => ({
+		id,
+		name,
+		color: "#000",
+		order,
+	});
 	const tags = [tag(1, "bravo", 2), tag(2, "alpha", 1), tag(3, "charlie")];
 	const counts = { 1: 5, 2: 1, 3: 9 };
 

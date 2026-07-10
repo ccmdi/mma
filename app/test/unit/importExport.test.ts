@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseMapsUrl, parseCoordinates, parseUrlList, parsedLocationsToImportJson } from "@/lib/data/importExport";
+import {
+	parseMapsUrl,
+	parseCoordinates,
+	parseUrlList,
+	parsedLocationsToImportJson,
+} from "@/lib/data/importExport";
 import { LocationFlag } from "@/types";
 
 describe("parseMapsUrl", () => {
@@ -93,8 +98,7 @@ describe("parseMapsUrl", () => {
 	});
 
 	it("extracts extra[tags] from hash params", async () => {
-		const url =
-			"https://www.google.com/maps?map_action=pano&viewpoint=10,20#extra[tags]=FromHash";
+		const url = "https://www.google.com/maps?map_action=pano&viewpoint=10,20#extra[tags]=FromHash";
 		const result = await parseMapsUrl(url);
 		expect(result).not.toBeNull();
 		expect(result!.tags).toEqual(["FromHash"]);
@@ -159,7 +163,9 @@ describe("parseUrlList", () => {
 
 	it("preserves input order beyond the concurrency window", async () => {
 		const lats = Array.from({ length: 12 }, (_, i) => i + 1);
-		const input = lats.map((la) => `https://www.google.com/maps?map_action=pano&viewpoint=${la},20`).join("\n");
+		const input = lats
+			.map((la) => `https://www.google.com/maps?map_action=pano&viewpoint=${la},20`)
+			.join("\n");
 		const results = await parseUrlList(input);
 		expect(results.map((r) => r.lat)).toEqual(lats);
 	});
@@ -170,7 +176,10 @@ describe("parsedLocationsToImportJson", () => {
 
 	it("produces a named import file in the standard shape", () => {
 		const json = JSON.parse(
-			parsedLocationsToImportJson([{ ...base, panoId: null, flags: LocationFlag.None }], "Pasted URLs"),
+			parsedLocationsToImportJson(
+				[{ ...base, panoId: null, flags: LocationFlag.None }],
+				"Pasted URLs",
+			),
 		);
 		expect(json.name).toBe("Pasted URLs");
 		expect(json.customCoordinates).toEqual([{ lat: 1, lng: 2, heading: 3, pitch: 4, zoom: 5 }]);
@@ -194,7 +203,9 @@ describe("parsedLocationsToImportJson", () => {
 
 	it("carries tags through extra.tags", () => {
 		const json = JSON.parse(
-			parsedLocationsToImportJson([{ ...base, tags: ["red", "blue"], panoId: null, flags: LocationFlag.None }]),
+			parsedLocationsToImportJson([
+				{ ...base, tags: ["red", "blue"], panoId: null, flags: LocationFlag.None },
+			]),
 		);
 		expect(json.customCoordinates[0].extra).toEqual({ tags: ["red", "blue"] });
 	});

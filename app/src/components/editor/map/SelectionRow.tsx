@@ -46,23 +46,21 @@ import {
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { fmt } from "@/lib/util/format";
 import { rgbCss } from "@/lib/util/color";
-import { getGoogleMap as getGoogleMapInstance } from "@/lib/map/mapState";
+import { getMapHost } from "@/lib/map/mapState";
+import { boundsOfCoords, type MapHost } from "@/lib/map/host";
 
-async function fitSelectionBounds(map: google.maps.Map, selection: Selection) {
+async function fitSelectionBounds(host: MapHost, selection: Selection) {
 	if (selection.props.type === "Polygon") {
 		const coords = selection.props.polygon.coordinates.flat();
-		if (coords.length === 0) return;
-		const bounds = new google.maps.LatLngBounds();
-		for (const [lng, lat] of coords) bounds.extend({ lat, lng });
-		map.fitBounds(bounds, 100);
+		const bounds = boundsOfCoords(coords.map(([lng, lat]) => ({ lat, lng })));
+		if (bounds) host.fitBounds(bounds, 100);
 		return;
 	}
 	const ids = await cmd.storeResolveSelection(selection.props);
 	if (ids.length === 0) return;
 	const locs = await fetchLocationsByIds(ids);
-	const bounds = new google.maps.LatLngBounds();
-	for (const loc of locs) bounds.extend({ lat: loc.lat, lng: loc.lng });
-	map.fitBounds(bounds, 100);
+	const bounds = boundsOfCoords(locs);
+	if (bounds) host.fitBounds(bounds, 100);
 }
 
 function uniqueTagName(base: string, existing: Set<string>): string {
@@ -154,7 +152,7 @@ export function SelectionRow({
 	const stepFilter = (() => {
 		const p = selection.props;
 		if (p.type !== "Filter") return null;
-		const ft = fieldEntries.find((f) => f.key === p.field)?.fieldType;
+		const ft = fieldEntries.find((f) => f.key === p.field)?.def.type;
 		const wallClock = p.tzLocal ?? false;
 		if (stepFilterWindow(ft, p.op, p.value, p.value2, 1, wallClock) == null) return null;
 		return (dir: 1 | -1) => {
@@ -316,8 +314,8 @@ export function SelectionRow({
 					style={{ paddingLeft: `${depth * 2}rem` }}
 					onClick={() => {
 						if (drag) return;
-						const gMap = getGoogleMapInstance();
-						if (gMap && map) fitSelectionBounds(gMap, selection);
+						const host = getMapHost();
+						if (host && map) fitSelectionBounds(host, selection);
 					}}
 				>
 					<span className="color-block" style={{ backgroundColor: colorBlockCss }} />{" "}

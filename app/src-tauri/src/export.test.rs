@@ -61,7 +61,11 @@ fn coord_hoists_country_state_and_nests_other_extra() {
     extra.insert("note".into(), json!("hi"));
     let l = make_loc(LocationFlags::empty(), vec![1, 99], Some(extra));
     let id_to_name = std::collections::HashMap::from([(1u32, "red".to_string())]);
-    let co = CoordOpts { export_zoom: false, export_unpanned: true, export_extras: true };
+    let co = CoordOpts {
+        export_zoom: false,
+        export_unpanned: true,
+        export_extras: true,
+    };
     let v = location_to_coord(&l, &id_to_name, &co);
 
     assert_eq!(v["heading"], json!(0.001)); // unpanned convention
@@ -81,7 +85,11 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
     extra.insert("note".into(), json!("hi"));
     let l = make_loc(LocationFlags::LOAD_AS_PANO_ID, vec![1], Some(extra));
     let id_to_name = std::collections::HashMap::from([(1u32, "red".to_string())]);
-    let co = CoordOpts { export_zoom: true, export_unpanned: false, export_extras: true };
+    let co = CoordOpts {
+        export_zoom: true,
+        export_unpanned: false,
+        export_extras: true,
+    };
     let v = location_to_coord(&l, &id_to_name, &co);
 
     assert_eq!(v["note"], serde_json::Value::Null); // NOT spread at top level
@@ -97,7 +105,11 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
 fn unknown_tag_id_falls_back_to_stringified_id() {
     let l = make_loc(LocationFlags::empty(), vec![7], None);
     let id_to_name = std::collections::HashMap::new();
-    let co = CoordOpts { export_zoom: true, export_unpanned: false, export_extras: true };
+    let co = CoordOpts {
+        export_zoom: true,
+        export_unpanned: false,
+        export_extras: true,
+    };
     let v = location_to_coord(&l, &id_to_name, &co);
     assert_eq!(v["extra"]["tags"], json!(["7"]));
 }

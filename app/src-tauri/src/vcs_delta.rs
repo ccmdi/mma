@@ -20,8 +20,11 @@ fn commit_chain(conn: &Connection, commit_id: &str) -> AppResult<Vec<String>> {
     let mut chain = Vec::new();
     let mut current = Some(commit_id.to_string());
     while let Some(id) = current {
-        let parent: Option<String> = conn
-            .query_row("SELECT parent_id FROM commits WHERE id = ?1", params![id], |r| r.get(0))?;
+        let parent: Option<String> = conn.query_row(
+            "SELECT parent_id FROM commits WHERE id = ?1",
+            params![id],
+            |r| r.get(0),
+        )?;
         chain.push(id);
         current = parent;
     }

@@ -8,12 +8,27 @@ import {
 	patchLocationExtra,
 } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
+import { createSyncStore } from "@/lib/util/syncStore";
 import { hasLoadAsPanoId } from "@/types";
 import { isFieldEnabled } from "@/lib/data/fieldDefs";
 import { useTimezone } from "@/lib/util/timezone";
 import type { PanoReference } from "@/lib/sv/lookup";
 import { useExactDate } from "./useExactDate";
 import { derivePanoDateState, type PanoDateState } from "./panoDate";
+
+// Altitude lives outside React: its only reader is the imperative coordinate
+// readout, so routing it through context would re-render every consumer.
+let panoAltitude = 0;
+const altitudeStore = createSyncStore();
+export function setPanoAltitude(v: number): void {
+	if (v === panoAltitude) return;
+	panoAltitude = v;
+	altitudeStore.notify();
+}
+export function getPanoAltitude(): number {
+	return panoAltitude;
+}
+export const subscribePanoAltitude = altitudeStore.subscribe;
 
 interface PanoViewerContextValue {
 	currentPano: Pick<google.maps.StreetViewPanoramaData, "location" | "imageDate"> | null;
@@ -24,8 +39,6 @@ interface PanoViewerContextValue {
 	setIsFullscreen: React.Dispatch<React.SetStateAction<boolean>>;
 	panoReady: boolean;
 	setPanoReady: React.Dispatch<React.SetStateAction<boolean>>;
-	altitude: number;
-	setAltitude: React.Dispatch<React.SetStateAction<number>>;
 	selectedPanoId: string | null;
 	/** Resolved live pano position (current pano if loaded, else the active location). */
 	lat: number;
@@ -46,7 +59,6 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const [panoDates, setPanoDates] = useState<PanoReference[]>([]);
 	const [isFullscreen, setIsFullscreen] = useState(false);
 	const [panoReady, setPanoReady] = useState(false);
-	const [altitude, setAltitude] = useState(0);
 
 	const selectedPanoId =
 		location && hasLoadAsPanoId(location) && currentPano?.location?.pano
@@ -56,7 +68,10 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const defaultPanoId = location?.panoId ?? null;
 	const lat = currentPano?.location?.latLng?.lat() ?? location?.lat ?? 0;
 	const lng = currentPano?.location?.latLng?.lng() ?? location?.lng ?? 0;
-	const datetimeEnabled = isFieldEnabled(currentMap?.meta.settings.enrichFields ?? null, "datetime");
+	const datetimeEnabled = isFieldEnabled(
+		currentMap?.meta.settings.enrichFields ?? null,
+		"datetime",
+	);
 	const dateTimezone = useSetting("dateTimezone");
 
 	const dateState = useMemo(
@@ -81,30 +96,38 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		patchLocationExtra(loc, { datetime: exactDate.ts, timezone: resolvedTz });
 	}, [exactDate.ts, resolvedTz]);
 
-	return (
-		<PanoViewerContext.Provider
-			value={{
-				currentPano,
-				setCurrentPano,
-				panoDates,
-				setPanoDates,
-				isFullscreen,
-				setIsFullscreen,
-				panoReady,
-				setPanoReady,
-				altitude,
-				setAltitude,
-				selectedPanoId,
-				lat,
-				lng,
-				dateState,
-				exactDate,
-				resolvedTz,
-			}}
-		>
-			{children}
-		</PanoViewerContext.Provider>
+	const value = useMemo(
+		() => ({
+			currentPano,
+			setCurrentPano,
+			panoDates,
+			setPanoDates,
+			isFullscreen,
+			setIsFullscreen,
+			panoReady,
+			setPanoReady,
+			selectedPanoId,
+			lat,
+			lng,
+			dateState,
+			exactDate,
+			resolvedTz,
+		}),
+		[
+			currentPano,
+			panoDates,
+			isFullscreen,
+			panoReady,
+			selectedPanoId,
+			lat,
+			lng,
+			dateState,
+			exactDate,
+			resolvedTz,
+		],
 	);
+
+	return <PanoViewerContext.Provider value={value}>{children}</PanoViewerContext.Provider>;
 }
 
 export function usePanoViewer(): PanoViewerContextValue {

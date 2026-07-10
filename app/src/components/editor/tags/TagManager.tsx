@@ -14,6 +14,7 @@ import { HslColorPicker } from "react-colorful";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
 	useCurrentMap,
+	getCurrentMap,
 	useSelectedTagIds,
 	useTagCounts,
 	toggleTagSelections,
@@ -41,7 +42,7 @@ import { HotkeyInput } from "@/components/primitives/HotkeyInput";
 import { getConflicts } from "@/lib/util/hotkeys";
 import { getTagBindingKey, withTagKeyBinding } from "@/lib/map/mapKeyBindings";
 import { TagTreeView, type TagTreeHandle } from "./TagTree";
-import { cascadeRename, syncAliasSegments } from "./tagTreeRange";
+import { cascadeRename, syncAliasSegments, type TagTreeNode } from "./tagTreeRange";
 
 export function TagManager() {
 	const map = useCurrentMap();
@@ -126,13 +127,17 @@ export function TagManager() {
 		setVirtualTags(nextVT);
 	};
 	const addAlias = useCallback((tag: { id: number; name: string }) => setAddingAliasFor(tag), []);
+	const handleEditTreeTag = useCallback((node: TagTreeNode) => {
+		if (node.tag)
+			setEditingTreeTag({ tag: node.tag, descendantCount: node.descendantTagIds.length - 1 });
+	}, []);
 	const removeAlias = useCallback(
 		(aliasPath: string) => {
-			const next = { ...(aliases ?? {}) };
+			const next = { ...(getCurrentMap()?.meta.settings.aliases ?? {}) };
 			delete next[aliasPath];
 			setAliases(next);
 		},
-		[aliases, setAliases],
+		[setAliases],
 	);
 
 	const lastShiftClickRef = useRef<number | null>(null);
@@ -339,13 +344,7 @@ export function TagManager() {
 						sortMode={sortMode}
 						virtualTags={virtualTags ?? {}}
 						aliases={aliases ?? {}}
-						onEditTag={(node) => {
-							if (node.tag)
-								setEditingTreeTag({
-									tag: node.tag,
-									descendantCount: node.descendantTagIds.length - 1,
-								});
-						}}
+						onEditTag={handleEditTreeTag}
 						onEditVirtual={setEditingVirtualPath}
 						onRenameTag={setRenamingTag}
 						onAddAlias={addAlias}

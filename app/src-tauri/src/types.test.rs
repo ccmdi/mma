@@ -27,7 +27,10 @@ fn reads_legacy_map_encoded_blob() {
 
     // The current reader must accept it, not fail with "expected a string".
     let back: ExtraField = rmp_serde::from_slice(&bytes).unwrap();
-    assert_eq!(back.unwrap().unwrap().to_map(), extra(r#"{"a":1,"b":"x"}"#).to_map());
+    assert_eq!(
+        back.unwrap().unwrap().to_map(),
+        extra(r#"{"a":1,"b":"x"}"#).to_map()
+    );
 }
 
 #[test]

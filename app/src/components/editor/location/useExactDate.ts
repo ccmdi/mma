@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { resolveExactTimestamp } from "@/lib/sv/exactDate";
 import { useActiveLocation } from "@/store/useMapStore";
 import { useAsync } from "@/lib/hooks/useAsync";
@@ -22,5 +23,7 @@ export function useExactDate(
 		return resolveExactTimestamp(lat, lng, yearMonth);
 	}, [panoId, lat, lng, yearMonth, enabled, existingDatetime, panoMatchesLocation]);
 
-	return { ts: data, loading, error: error != null };
+	// Stable identity: this feeds the PanoViewerContext value memo.
+	const hasError = error != null;
+	return useMemo(() => ({ ts: data, loading, error: hasError }), [data, loading, hasError]);
 }

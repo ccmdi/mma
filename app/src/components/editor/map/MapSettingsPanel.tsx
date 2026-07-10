@@ -1,21 +1,16 @@
 import { useState, useEffect, useRef, useMemo, type RefObject } from "react";
-import { ManageFieldsModal } from "@/components/dialogs/ManageFieldsModal";
 import { NSelect } from "@/components/primitives/NSelect";
-import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
 import { buildTileUrl, createRoadmapTileConfig, type MapStyle } from "@/lib/geo/tiles";
-import { BUILTIN_STYLE_KEYS, BUILTIN_STYLE_LABELS } from "@/lib/geo/mapStyles";
-import { EnrichInfoButton } from "@/components/editor/map/EnrichInfoButton";
+import {
+	BUILTIN_STYLE_KEYS,
+	BUILTIN_STYLE_LABELS,
+	VECTOR_STYLE_KEYS,
+	VECTOR_STYLE_LABELS,
+} from "@/lib/geo/mapStyles";
+import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiCogOutline } from "@mdi/js";
-import {
-	type SvColor,
-	SV_COLORS,
-	type MapTypeKey,
-	type SvCoverageType,
-	type SvThickness,
-	type MarkerStyle,
-} from "@/types";
+import { SV_COLORS, type MapTypeKey, type SvCoverageType, type MarkerStyle } from "@/types";
 import { useMapSetting } from "@/store/useMapSetting";
 import { ScoreBoundsEditor } from "./ScoreBoundsEditor";
 
@@ -23,33 +18,16 @@ const MAP_TYPE_LABELS: Record<MapTypeKey, string> = {
 	map: "Map",
 	satellite: "Satellite",
 	osm: "OSM",
+	vector: "Vector",
 };
 
 export interface LayerConfig {
-	basemap: MapTypeKey;
-	setBasemap: (v: MapTypeKey) => void;
-	labels: boolean;
-	setLabels: (v: boolean) => void;
+	prefs: MapEmbedPrefs;
+	setPref: <K extends keyof MapEmbedPrefs>(k: K) => (v: MapEmbedPrefs[K]) => void;
 	supportsLabels: boolean;
-	terrain: boolean;
-	setTerrain: (v: boolean) => void;
 	supportsTerrain: boolean;
-	streetViewPanoramas: boolean;
-	setStreetViewPanoramas: (v: boolean) => void;
-	streetViewCoverageType: SvCoverageType;
-	setStreetViewCoverageType: (v: SvCoverageType) => void;
-	svColor: SvColor;
-	setSvColor: (v: SvColor) => void;
-	streetViewCoverageThickness: SvThickness;
-	setStreetViewCoverageThickness: (v: SvThickness) => void;
-	streetViewBlobby: boolean;
-	setStreetViewBlobby: (v: boolean) => void;
-	boldCountryBorders: boolean;
-	setBoldCountryBorders: (v: boolean) => void;
-	boldSubdivisionBorders: boolean;
-	setBoldSubdivisionBorders: (v: boolean) => void;
-	mapStyleName: string;
-	setMapStyleName: (v: string) => void;
+	// Google styler options (borders, hide POI, styles); off for vector basemaps.
+	supportsStyling: boolean;
 	customStyles: { name: string; style: MapStyle[] }[];
 	onManageStyles: () => void;
 }
@@ -105,6 +83,7 @@ function SearchRadiusSlider({
 }
 
 function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
+	const { prefs: p, setPref } = e;
 	return (
 		<div className="layer-config">
 			{/* Layers */}
@@ -116,9 +95,9 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					<input
 						role="menuitemcheckbox"
 						type="checkbox"
-						checked={e.terrain}
+						checked={p.showTerrain}
 						disabled={!e.supportsTerrain}
-						onChange={(ev) => e.setTerrain(ev.target.checked)}
+						onChange={(ev) => setPref("showTerrain")(ev.target.checked)}
 					/>
 					Terrain
 				</label>
@@ -130,9 +109,9 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					<input
 						role="menuitemcheckbox"
 						type="checkbox"
-						checked={e.labels}
+						checked={p.showLabels}
 						disabled={!e.supportsLabels}
-						onChange={(ev) => e.setLabels(ev.target.checked)}
+						onChange={(ev) => setPref("showLabels")(ev.target.checked)}
 					/>
 					Labels
 				</label>
@@ -140,8 +119,8 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					<input
 						role="menuitemcheckbox"
 						type="checkbox"
-						checked={e.streetViewPanoramas}
-						onChange={(ev) => e.setStreetViewPanoramas(ev.target.checked)}
+						checked={p.svPanoramas}
+						onChange={(ev) => setPref("svPanoramas")(ev.target.checked)}
 					/>
 					Panoramas (requires close zoom)
 				</label>
@@ -165,8 +144,8 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 							<button
 								key={opt.value}
 								className="button button-group__button"
-								aria-checked={e.streetViewCoverageType === opt.value}
-								onClick={() => e.setStreetViewCoverageType(opt.value)}
+								aria-checked={p.svCoverageType === opt.value}
+								onClick={() => setPref("svCoverageType")(opt.value)}
 							>
 								{opt.name}
 							</button>
@@ -180,8 +159,8 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 								key={c}
 								type="button"
 								className="color-swatch__block"
-								data-state={e.svColor === c ? "on" : "off"}
-								onClick={() => e.setSvColor(c)}
+								data-state={p.svColor === c ? "on" : "off"}
+								onClick={() => setPref("svColor")(c)}
 							>
 								<div className="color-block" style={{ backgroundColor: `var(--${c}-7)` }} />
 							</button>
@@ -191,18 +170,16 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 				<label className="layer-config__item">
 					<input
 						type="checkbox"
-						checked={e.streetViewCoverageThickness === "high"}
-						onChange={(ev) =>
-							e.setStreetViewCoverageThickness(ev.target.checked ? "high" : "default")
-						}
+						checked={p.svThickness === "high"}
+						onChange={(ev) => setPref("svThickness")(ev.target.checked ? "high" : "default")}
 					/>{" "}
 					Make the lines thinner
 				</label>
 				<label className="layer-config__item">
 					<input
 						type="checkbox"
-						checked={e.streetViewBlobby}
-						onChange={(ev) => e.setStreetViewBlobby(ev.target.checked)}
+						checked={p.svBlobby}
+						onChange={(ev) => setPref("svBlobby")(ev.target.checked)}
 					/>{" "}
 					Use blobby layer while zoomed out
 				</label>
@@ -216,8 +193,9 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					<input
 						role="menuitemcheckbox"
 						type="checkbox"
-						checked={e.boldCountryBorders}
-						onChange={(ev) => e.setBoldCountryBorders(ev.target.checked)}
+						checked={p.boldCountryBorders}
+						disabled={!e.supportsStyling}
+						onChange={(ev) => setPref("boldCountryBorders")(ev.target.checked)}
 					/>
 					Emphasise country borders
 				</label>
@@ -225,10 +203,51 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					<input
 						role="menuitemcheckbox"
 						type="checkbox"
-						checked={e.boldSubdivisionBorders}
-						onChange={(ev) => e.setBoldSubdivisionBorders(ev.target.checked)}
+						checked={p.boldSubdivisionBorders}
+						disabled={!e.supportsStyling}
+						onChange={(ev) => setPref("boldSubdivisionBorders")(ev.target.checked)}
 					/>
 					Emphasise subdivision borders
+				</label>
+				<label className="layer-config__item">
+					<input
+						role="menuitemcheckbox"
+						type="checkbox"
+						checked={p.hideRoadLabels}
+						disabled={!e.supportsStyling}
+						onChange={(ev) => setPref("hideRoadLabels")(ev.target.checked)}
+					/>
+					Hide road labels
+				</label>
+				<label className="layer-config__item">
+					<input
+						role="menuitemcheckbox"
+						type="checkbox"
+						checked={p.hidePoi}
+						disabled={!e.supportsStyling}
+						onChange={(ev) => setPref("hidePoi")(ev.target.checked)}
+					/>
+					Hide points of interest
+				</label>
+				<label className="layer-config__item">
+					<input
+						role="menuitemcheckbox"
+						type="checkbox"
+						checked={p.hideTransit}
+						disabled={!e.supportsStyling}
+						onChange={(ev) => setPref("hideTransit")(ev.target.checked)}
+					/>
+					Hide transit
+				</label>
+				<label className="layer-config__item">
+					<input
+						role="menuitemcheckbox"
+						type="checkbox"
+						checked={p.hideHighways}
+						disabled={!e.supportsStyling}
+						onChange={(ev) => setPref("hideHighways")(ev.target.checked)}
+					/>
+					Hide highways
 				</label>
 			</fieldset>
 			{/* Map style */}
@@ -236,34 +255,61 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 				<legend className="layer-config__header">
 					Map&nbsp;style <span className="layer-config__divider" />
 				</legend>
-				<label className="layer-config__item settings-popup__select">
-					Style:{" "}
-					<NSelect
-						className="nselect--limited"
-						value={e.mapStyleName}
-						onChange={(ev) => e.setMapStyleName(ev.target.value)}
+				{p.mapType === "vector" ? (
+					<div
+						className="layer-config__item settings-popup__select"
+						style={{ display: "flex", alignItems: "center", gap: 4 }}
 					>
-						{BUILTIN_STYLE_KEYS.map((key) => (
-							<option key={key} value={key}>
-								{BUILTIN_STYLE_LABELS[key]}
-							</option>
-						))}
-						{e.customStyles.map((s) => (
-							<option key={s.name} value={s.name}>
-								{s.name}
-							</option>
-						))}
-					</NSelect>
-				</label>
-				<a
-					href="#"
-					onClick={(ev) => {
-						ev.preventDefault();
-						e.onManageStyles();
-					}}
-				>
-					Manage map styles
-				</a>
+						Style:{" "}
+						<NSelect
+							className="nselect--limited"
+							value={p.vectorStyleName}
+							onChange={(ev) => setPref("vectorStyleName")(ev.target.value)}
+							style={{ flex: 1 }}
+						>
+							{VECTOR_STYLE_KEYS.map((key) => (
+								<option key={key} value={key}>
+									{VECTOR_STYLE_LABELS[key]}
+								</option>
+							))}
+						</NSelect>
+					</div>
+				) : (
+					<div
+						className="layer-config__item settings-popup__select"
+						style={{ display: "flex", alignItems: "center", gap: 4 }}
+					>
+						Style:{" "}
+						<NSelect
+							className="nselect--limited"
+							value={p.mapStyleName}
+							disabled={!e.supportsStyling}
+							onChange={(ev) => setPref("mapStyleName")(ev.target.value)}
+							style={{ flex: 1 }}
+						>
+							{BUILTIN_STYLE_KEYS.map((key) => (
+								<option key={key} value={key}>
+									{BUILTIN_STYLE_LABELS[key]}
+								</option>
+							))}
+							{e.customStyles.map((s) => (
+								<option key={s.name} value={s.name}>
+									{s.name}
+								</option>
+							))}
+						</NSelect>
+						<button
+							className="icon-button icon-button--inline"
+							title="Manage map styles"
+							onClick={(ev) => {
+								ev.preventDefault();
+								e.onManageStyles();
+							}}
+						>
+							<Icon path={mdiCogOutline} size={18} />
+						</button>
+					</div>
+				)}
 			</fieldset>
 		</div>
 	);
@@ -272,9 +318,11 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 const MAP_TYPE_PREVIEW_STATIC: Partial<Record<MapTypeKey, string>> = {
 	satellite: "https://mts1.googleapis.com/vt?hl=en-US&lyrs=s&x=0&y=0&z=0",
 	osm: "https://tile.openstreetmap.org/0/0/0.png",
+	// No raster endpoint for OpenFreeMap styles; Carto's voyager raster is a close stand-in.
+	vector: "https://basemaps.cartocdn.com/rastertiles/voyager/0/0/0.png",
 };
 
-const MAP_TYPES: MapTypeKey[] = ["map", "satellite", "osm"];
+const MAP_TYPES: MapTypeKey[] = ["map", "satellite", "osm", "vector"];
 
 function BasemapSelector({
 	previewUrls,
@@ -341,15 +389,19 @@ function useMapTypeCompact(
 				}
 			}
 
+			const marginX = (n: HTMLElement) => {
+				const s = getComputedStyle(n);
+				return (parseFloat(s.marginLeft) || 0) + (parseFloat(s.marginRight) || 0);
+			};
 			let siblingsWidth = 0;
 			for (const child of Array.from(leftGroup.children)) {
 				if (child !== el && child instanceof HTMLElement) {
-					siblingsWidth += child.getBoundingClientRect().width;
+					siblingsWidth += child.getBoundingClientRect().width + marginX(child);
 				}
 			}
 
 			const available = conflictLeft - leftEdge - 8;
-			const needed = basemapWidth + siblingsWidth;
+			const needed = basemapWidth + marginX(el) + siblingsWidth;
 			setCompact((prev) => {
 				// Hysteresis avoids flip-flopping at the breakpoint.
 				if (prev) return needed > available;
@@ -374,8 +426,22 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const basemapMeasureRef = useRef<HTMLDivElement>(null);
+	const basemapRef = useRef<HTMLDivElement>(null);
 	const compact = useMapTypeCompact(containerRef, basemapMeasureRef);
 	const mapPreviewUrl = useMemo(() => buildTileUrl(createRoadmapTileConfig(), 0, 0, 0), []);
+
+	useEffect(() => {
+		const measure = basemapMeasureRef.current;
+		const visible = basemapRef.current;
+		if (!measure || !visible) return;
+		const sync = () => {
+			visible.style.width = `${measure.scrollWidth}px`;
+		};
+		const obs = new ResizeObserver(sync);
+		obs.observe(measure);
+		sync();
+		return () => obs.disconnect();
+	}, [compact]);
 
 	useEffect(() => {
 		if (!isOpen) return;
@@ -392,6 +458,7 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 		map: mapPreviewUrl,
 		satellite: MAP_TYPE_PREVIEW_STATIC.satellite!,
 		osm: MAP_TYPE_PREVIEW_STATIC.osm!,
+		vector: MAP_TYPE_PREVIEW_STATIC.vector!,
 	};
 
 	const settingsPopup = isOpen && (
@@ -402,6 +469,8 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 				top: "100%",
 				left: 0,
 				zIndex: 3,
+				width: compact ? undefined : "100%",
+				boxSizing: "border-box",
 				maxHeight: "calc(100vh - 80px)",
 				overflowY: "auto",
 			}}
@@ -409,8 +478,8 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 			{compact && (
 				<BasemapSelector
 					previewUrls={previewUrls}
-					selected={layerConfig.basemap}
-					onSelect={(t) => layerConfig.setBasemap(t)}
+					selected={layerConfig.prefs.mapType}
+					onSelect={(t) => layerConfig.setPref("mapType")(t)}
 				/>
 			)}
 			<SettingsPopup layerConfig={layerConfig} />
@@ -430,7 +499,7 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 			>
 				<BasemapSelector
 					previewUrls={previewUrls}
-					selected={layerConfig.basemap}
+					selected={layerConfig.prefs.mapType}
 					onSelect={() => {}}
 				/>
 			</div>
@@ -441,27 +510,29 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 						className="map-control__menu-button"
 						onClick={() => setIsOpen(!isOpen)}
 					>
-						{MAP_TYPE_LABELS[layerConfig.basemap]}
+						{MAP_TYPE_LABELS[layerConfig.prefs.mapType]}
 					</button>
 					{settingsPopup}
 				</>
 			) : (
 				<>
-					<BasemapSelector
-						previewUrls={previewUrls}
-						selected={layerConfig.basemap}
-						onSelect={(t) => {
-							if (layerConfig.basemap === t) {
-								setIsOpen((v) => !v);
-							} else {
-								layerConfig.setBasemap(t);
-								setIsOpen(false);
-							}
-						}}
-						onMouseEnter={() => {
-							setIsOpen(true);
-						}}
-					/>
+					<div ref={basemapRef}>
+						<BasemapSelector
+							previewUrls={previewUrls}
+							selected={layerConfig.prefs.mapType}
+							onSelect={(t) => {
+								if (layerConfig.prefs.mapType === t) {
+									setIsOpen((v) => !v);
+								} else {
+									layerConfig.setPref("mapType")(t);
+									setIsOpen(false);
+								}
+							}}
+							onMouseEnter={() => {
+								setIsOpen(true);
+							}}
+						/>
+					</div>
 					{settingsPopup}
 				</>
 			)}
@@ -477,11 +548,7 @@ export function MapSettingsDropdown({ settings: s }: { settings: MapSettingsDrop
 	const [onlyOfficial, setOnlyOfficial] = useMapSetting("onlyOfficial");
 	const [defaultPanoId, setDefaultPanoId] = useMapSetting("defaultPanoId");
 	const [searchRadius, setSearchRadius] = useMapSetting("searchRadius");
-	const [enrichMetadata, setEnrichMetadata] = useMapSetting("enrichMetadata");
-	const [enrichFields, setEnrichFields] = useMapSetting("enrichFields");
 	const [isOpen, setIsOpen] = useState(false);
-	const [showManageFields, setShowManageFields] = useState(false);
-	const [showEnrichFields, setShowEnrichFields] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
@@ -601,27 +668,6 @@ export function MapSettingsDropdown({ settings: s }: { settings: MapSettingsDrop
 							/>
 							Select-only mode
 						</label>
-						<label className="settings-popup__item">
-							<input
-								type="checkbox"
-								checked={enrichMetadata}
-								onChange={(e) => setEnrichMetadata(e.target.checked)}
-							/>
-							Enrich locations with metadata
-							<EnrichInfoButton />
-							<button
-								className="icon-button"
-								title="Configure enrichment fields"
-								style={{ padding: 0, color: "#888", flexShrink: 0 }}
-								onClick={(e) => {
-									e.preventDefault();
-									setShowEnrichFields(true);
-									setIsOpen(false);
-								}}
-							>
-								<Icon path={mdiCogOutline} size={14} />
-							</button>
-						</label>
 					</fieldset>
 					<ScoreBoundsEditor />
 					<fieldset className="fieldset">
@@ -668,55 +714,8 @@ export function MapSettingsDropdown({ settings: s }: { settings: MapSettingsDrop
 							Show click search radius at cursor
 						</label>
 					</fieldset>
-					<div className="settings-popup__footer">
-						<button
-							className="button"
-							type="button"
-							onClick={() => {
-								setShowManageFields(true);
-								setIsOpen(false);
-							}}
-						>
-							Manage metadata fields
-						</button>
-					</div>
 				</div>
 			)}
-			{showManageFields && <ManageFieldsModal onClose={() => setShowManageFields(false)} />}
-			<Dialog open={showEnrichFields} onOpenChange={setShowEnrichFields}>
-				<DialogContent title="Enrichment fields">
-					<p style={{ margin: "0 0 .5rem", fontSize: ".85rem", color: "#888" }}>
-						Choose which metadata fields to add when enriching locations.
-					</p>
-					{getEnrichFieldOptions().map((f) => {
-						const enabled = enrichFields ? enrichFields.includes(f.key) : !f.defaultOff;
-						return (
-							<label
-								key={f.key}
-								className="settings-popup__item"
-								style={{ display: "flex", alignItems: "center", gap: ".5rem" }}
-							>
-								<input
-									type="checkbox"
-									checked={enabled}
-									onChange={(e) => {
-										const defaultKeys = getDefaultEnrichKeys();
-										const current = enrichFields ?? [...defaultKeys];
-										const next = e.target.checked
-											? [...current, f.key]
-											: current.filter((k) => k !== f.key);
-										const isDefault =
-											next.length === defaultKeys.length &&
-											next.every((k) => defaultKeys.includes(k));
-										setEnrichFields(isDefault ? null : next);
-									}}
-								/>
-								{f.label}
-							</label>
-						);
-					})}
-				</DialogContent>
-			</Dialog>
 		</div>
 	);
 }

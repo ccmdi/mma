@@ -65,7 +65,10 @@ export function trace(group: string, opts?: { summary?: boolean }): Trace {
 				log.debug(`[${group}] ${parts.join(" ")}`);
 			} else {
 				const extras = data
-					? " " + Object.entries(data).map(([k, v]) => `${k}=${v}`).join(" ")
+					? " " +
+						Object.entries(data)
+							.map(([k, v]) => `${k}=${v}`)
+							.join(" ")
 					: "";
 				log.debug(`[${group}] total=${total.toFixed(0)}ms${extras}`);
 			}

@@ -1,6 +1,8 @@
 import {
+	memo,
 	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 	useCallback,
@@ -31,7 +33,8 @@ import {
 	createTags,
 	setActiveLocation,
 	getVisibleTags,
-	getTagCounts,
+	useVisibleTags,
+	useTagCounts,
 } from "@/store/useMapStore";
 import { sortTagsByMode, tagChipStyle, appendTagName } from "@/lib/util/util";
 import { displayTagName } from "@/store/selections";
@@ -58,7 +61,7 @@ import { FullscreenTagBar } from "@/components/editor/location/FullscreenTagBar"
 import { PanoControls, CrosshairOverlay, sendHideCar } from "./PanoControls";
 import { seenPanoChanged, seenFlush, seenSetCanvas, seenUpdateGeo } from "@/lib/seen/seen";
 import { useReverseGeocode, type GeoDisplay } from "@/components/editor/location/useReverseGeocode";
-import { PanoViewerProvider, usePanoViewer } from "./PanoViewerContext";
+import { PanoViewerProvider, usePanoViewer, setPanoAltitude } from "./PanoViewerContext";
 import {
 	applyViewportLock,
 	getViewportLockInfo,
@@ -76,6 +79,133 @@ function idsToNames(ids: number[]): string[] {
 	const tags = getCurrentMap()?.meta.tags ?? {};
 	return ids.map((id) => tags[id]?.name).filter((n): n is string => n != null);
 }
+
+/** Pending-tag chips + add form + suggestion pills. Memoized and self-subscribed
+ *  so pano-switch churn in the parent doesn't re-render every pill. */
+const TagEditor = memo(function TagEditor({
+	pendingTags,
+	onChangeTags,
+	isImport,
+}: {
+	pendingTags: string[];
+	onChangeTags: React.Dispatch<React.SetStateAction<string[]>>;
+	isImport: boolean;
+}) {
+	const [tagInput, setTagInput] = useState("");
+	const visibleTags = useVisibleTags();
+	const tagCounts = useTagCounts();
+	const tagSortMode = useSetting("tagSortMode");
+	const suggestionLimit = useSetting("tagSuggestionLimit");
+
+	const allTags = useMemo(
+		() => sortTagsByMode(visibleTags, tagSortMode, tagCounts),
+		[visibleTags, tagSortMode, tagCounts],
+	);
+	const suggestions = useMemo(() => {
+		const pendingLower = new Set(pendingTags.map((n) => n.toLowerCase()));
+		const available = allTags.filter((t) => !pendingLower.has(t.name.toLowerCase()));
+		const cap = suggestionLimit || available.length;
+		if (tagInput.trim()) {
+			const lower = tagInput.toLowerCase();
+			return available.filter((t) => t.name.toLowerCase().includes(lower)).slice(0, cap);
+		}
+		return available.slice(0, cap);
+	}, [allTags, pendingTags, tagInput, suggestionLimit]);
+
+	const addPendingTag = (name: string) =>
+		onChangeTags((prev) => appendTagName(prev, name, getVisibleTags()));
+
+	const handleAddTag = (e: React.FormEvent) => {
+		e.preventDefault();
+		const name = tagInput.trim();
+		if (!name) return;
+		addPendingTag(name);
+		setTagInput("");
+	};
+
+	const handleRemoveTag = (name: string) => {
+		onChangeTags((prev) => prev.filter((t) => t !== name));
+	};
+
+	const handleSuggestionClick = (t: Tag) => {
+		addPendingTag(t.name);
+		setTagInput("");
+	};
+
+	if (isImport) {
+		return (
+			<p>
+				This location is still being imported and cannot be modified. Complete the import before
+				making changes.
+			</p>
+		);
+	}
+
+	return (
+		<>
+			<ul className="tag-list">
+				{pendingTags.map((name) => (
+					<li key={name} className="tag is-small has-button" style={tagChipStyle(name, allTags)}>
+						<button
+							className="button tag__button tag__button--delete"
+							onClick={() => handleRemoveTag(name)}
+							type="button"
+						>
+							<Icon path={mdiClose} size={16} />
+						</button>
+						<span className="tag__text">{displayTagName(name)}</span>
+					</li>
+				))}
+				<li>
+					<form className="form-add-tag" onSubmit={handleAddTag}>
+						<button className="button form-add-tag__button" type="submit">
+							+
+						</button>
+						<input
+							className="form-add-tag__input"
+							type="text"
+							placeholder="Add a tag…"
+							value={tagInput}
+							onChange={(e) => setTagInput(e.target.value)}
+						/>
+					</form>
+				</li>
+			</ul>
+			{suggestions.length > 0 && (
+				<div
+					style={{
+						paddingTop: "0.5rem",
+						maxHeight: "40vh",
+						overflowY: "auto",
+						scrollbarWidth: "none",
+					}}
+				>
+					<ol className="tag-list">
+						{suggestions.map((t) => (
+							<li
+								key={t.id}
+								className="tag is-small has-button"
+								style={{
+									backgroundColor: t.color,
+									color: textColorFor(t.color),
+								}}
+							>
+								<button
+									className="button tag__button tag__button--add"
+									onClick={() => handleSuggestionClick(t)}
+									type="button"
+								>
+									<Icon path={mdiPlus} size={16} />
+								</button>
+								<span className="tag__text">{displayTagName(t.name)}</span>
+							</li>
+						))}
+					</ol>
+				</div>
+			)}
+		</>
+	);
+});
 
 export function LocationPreview() {
 	return (
@@ -101,19 +231,19 @@ function LocationPreviewInner() {
 		setIsFullscreen,
 		panoReady,
 		setPanoReady,
-		altitude,
-		setAltitude,
 		selectedPanoId,
 	} = usePanoViewer();
-	const [tagInput, setTagInput] = useState("");
 	const [pendingTags, setPendingTags] = useState<string[]>(() => idsToNames(location?.tags ?? []));
-	const tagSortMode = useSetting("tagSortMode");
+	const visibleTags = useVisibleTags();
 	const [panoGeo, setPanoGeo] = useState<GeoDisplay | null>(null);
 	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0, panoGeo);
 	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const getGeoResult = useEffectEvent(() => geoResult);
 	useEffect(() => {
-		setPendingTags(idsToNames(location?.tags ?? []));
+		setPendingTags((prev) => {
+			const next = idsToNames(location?.tags ?? []);
+			return prev.length === next.length && prev.every((n, i) => n === next[i]) ? prev : next;
+		});
 		setPanoGeo(null);
 	}, [location?.id]);
 	useEffect(() => {
@@ -323,7 +453,7 @@ function LocationPreviewInner() {
 
 		fetchSvMetadata([loc.pano]).then(([data]) => {
 			if (cancelled || !data) return;
-			setAltitude(data.extra?.altitude ?? 0);
+			setPanoAltitude(data.extra?.altitude ?? 0);
 			setPanoGeo({
 				address: data.location.description || "",
 				countryCode: data.extra?.countryCode?.toUpperCase() ?? null,
@@ -337,24 +467,20 @@ function LocationPreviewInner() {
 		};
 	}, [location?.id, currentPano?.location?.pano]);
 
-	const handleDateChange = useCallback(
-		(panoId: string | null) => {
-			if (!singletonPano || !location) return;
-			// updateLocation no-ops for staged (virtual) locations at the store level.
-			if (panoId == null) {
-				updateLocations([
-					{ id: location.id, patch: { flags: location.flags & ~LocationFlag.LoadAsPanoId } },
-				]);
-				if (location.panoId) singletonPano.setPano(location.panoId);
-			} else {
-				updateLocations([
-					{ id: location.id, patch: { flags: location.flags | LocationFlag.LoadAsPanoId } },
-				]);
-				singletonPano.setPano(panoId);
-			}
-		},
-		[location],
-	);
+	// Reads the active location at call time to stay referentially stable
+	// (it is a memo'd PanoDatePicker prop).
+	const handleDateChange = useCallback((panoId: string | null) => {
+		const loc = getActiveLocation();
+		if (!singletonPano || !loc) return;
+		// updateLocation no-ops for staged (virtual) locations at the store level.
+		if (panoId == null) {
+			updateLocations([{ id: loc.id, patch: { flags: loc.flags & ~LocationFlag.LoadAsPanoId } }]);
+			if (loc.panoId) singletonPano.setPano(loc.panoId);
+		} else {
+			updateLocations([{ id: loc.id, patch: { flags: loc.flags | LocationFlag.LoadAsPanoId } }]);
+			singletonPano.setPano(panoId);
+		}
+	}, []);
 
 	const handleSave = useCallback(async () => {
 		if (!location || !singletonPano) return;
@@ -428,16 +554,17 @@ function LocationPreviewInner() {
 		}
 	}, [location, isReviewMode, reviewSession]);
 
+	// Reads the active location at call time so the callback stays referentially
+	// stable (it is a memo'd PanoControls prop).
 	const handleReturnToSpawn = useCallback(async () => {
-		if (!location || !singletonPano) return;
+		const loc = getActiveLocation();
+		if (!loc || !singletonPano) return;
 		if (!google) return;
-		const result = await resolvePano(location);
-		applyResolved(singletonPano, result, location);
+		const result = await resolvePano(loc);
+		applyResolved(singletonPano, result, loc);
 		google.maps.event.trigger(singletonPano, "resize");
-		updateLocations([
-			{ id: location.id, patch: { flags: location.flags & ~LocationFlag.LoadAsPanoId } },
-		]);
-	}, [location]);
+		updateLocations([{ id: loc.id, patch: { flags: loc.flags & ~LocationFlag.LoadAsPanoId } }]);
+	}, []);
 
 	const handleFullscreen = useCallback(() => {
 		setIsFullscreen((v) => !v);
@@ -488,38 +615,6 @@ function LocationPreviewInner() {
 
 	if (!location || !map) return null;
 
-	const allTags = sortTagsByMode(getVisibleTags(), tagSortMode, getTagCounts());
-	const pendingLower = new Set(pendingTags.map((n) => n.toLowerCase()));
-	const suggestions = (() => {
-		const available = allTags.filter((t) => !pendingLower.has(t.name.toLowerCase()));
-		const cap = appSettings.tagSuggestionLimit || available.length;
-		if (tagInput.trim()) {
-			const lower = tagInput.toLowerCase();
-			return available.filter((t) => t.name.toLowerCase().includes(lower)).slice(0, cap);
-		}
-		return available.slice(0, cap);
-	})();
-
-	const addPendingTag = (name: string) =>
-		setPendingTags(appendTagName(pendingTags, name, getVisibleTags()));
-
-	const handleAddTag = (e: React.FormEvent) => {
-		e.preventDefault();
-		const name = tagInput.trim();
-		if (!name) return;
-		addPendingTag(name);
-		setTagInput("");
-	};
-
-	const handleRemoveTag = (name: string) => {
-		setPendingTags(pendingTags.filter((t) => t !== name));
-	};
-
-	const handleSuggestionClick = (t: Tag) => {
-		addPendingTag(t.name);
-		setTagInput("");
-	};
-
 	return (
 		<>
 			<ReviewBar />
@@ -545,8 +640,6 @@ function LocationPreviewInner() {
 						{panoReady && singletonPano && (
 							<PanoControls
 								panorama={singletonPano}
-								location={location}
-								altitude={altitude}
 								isFullscreen={isFullscreen}
 								onFullscreen={handleFullscreen}
 								onReturnToSpawn={handleReturnToSpawn}
@@ -566,7 +659,7 @@ function LocationPreviewInner() {
 								<FullscreenTagBar
 									pendingTags={pendingTags}
 									onChangeTags={setPendingTags}
-									tags={getVisibleTags()}
+									tags={visibleTags}
 								/>
 							)}
 						</div>
@@ -651,79 +744,11 @@ function LocationPreviewInner() {
 						</button>
 					</div>
 					<div className="location-preview__tags">
-						{isImportPreview(location) ? (
-							<p>
-								This location is still being imported and cannot be modified. Complete the import
-								before making changes.
-							</p>
-						) : (
-							<>
-								<ul className="tag-list">
-									{pendingTags.map((name) => (
-										<li
-											key={name}
-											className="tag is-small has-button"
-											style={tagChipStyle(name, allTags)}
-										>
-											<button
-												className="button tag__button tag__button--delete"
-												onClick={() => handleRemoveTag(name)}
-												type="button"
-											>
-												<Icon path={mdiClose} size={16} />
-											</button>
-											<span className="tag__text">{displayTagName(name)}</span>
-										</li>
-									))}
-									<li>
-										<form className="form-add-tag" onSubmit={handleAddTag}>
-											<button className="button form-add-tag__button" type="submit">
-												+
-											</button>
-											<input
-												className="form-add-tag__input"
-												type="text"
-												placeholder="Add a tag…"
-												value={tagInput}
-												onChange={(e) => setTagInput(e.target.value)}
-											/>
-										</form>
-									</li>
-								</ul>
-								{suggestions.length > 0 && (
-									<div
-										style={{
-											paddingTop: "0.5rem",
-											maxHeight: "40vh",
-											overflowY: "auto",
-											scrollbarWidth: "none",
-										}}
-									>
-										<ol className="tag-list">
-											{suggestions.map((t) => (
-												<li
-													key={t.id}
-													className="tag is-small has-button"
-													style={{
-														backgroundColor: t.color,
-														color: textColorFor(t.color),
-													}}
-												>
-													<button
-														className="button tag__button tag__button--add"
-														onClick={() => handleSuggestionClick(t)}
-														type="button"
-													>
-														<Icon path={mdiPlus} size={16} />
-													</button>
-													<span className="tag__text">{displayTagName(t.name)}</span>
-												</li>
-											))}
-										</ol>
-									</div>
-								)}
-							</>
-						)}
+						<TagEditor
+							pendingTags={pendingTags}
+							onChangeTags={setPendingTags}
+							isImport={isImportPreview(location)}
+						/>
 					</div>
 					<PluginLocationPanels />
 				</div>

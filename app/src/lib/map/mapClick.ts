@@ -1,5 +1,6 @@
 import type { PickingInfo } from "@deck.gl/core";
 import type { CellManager } from "@/lib/render/CellManager";
+import type { MapHost } from "@/lib/map/host";
 import { LOCATION_LAYER_ID } from "@/lib/render/buildSceneLayers";
 import { cmd } from "@/lib/commands";
 import { lookupStreetView, showToast } from "@/lib/sv/lookup";
@@ -20,8 +21,6 @@ import {
 import { isVirtualLocation, isImportPreview, locId } from "@/types";
 import type { MaybeLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
-
-type OverlayEvent = { srcEvent?: { domEvent?: Event } };
 
 export const isLocationLayer = (id?: string) =>
 	id?.startsWith(LOCATION_LAYER_ID) ||
@@ -87,7 +86,7 @@ export async function createLocationAtLatLng(
 // consumer. The editor map passes the full set; the minimap passes a reduced one.
 export interface MapClickCtx {
 	cm: CellManager;
-	map: google.maps.Map | null;
+	host: MapHost | null;
 	selectOnly?: boolean;
 	measuring?: boolean;
 	// Dispatch the surface's context menu at the given client coords. Absent => the
@@ -97,11 +96,9 @@ export interface MapClickCtx {
 
 export async function handleMapClick(
 	info: PickingInfo,
-	event: OverlayEvent,
+	domEvent: Event | undefined,
 	ctx: MapClickCtx,
 ): Promise<void> {
-	const domEvent = event?.srcEvent?.domEvent;
-
 	// Staged import markers open a read-only preview; never fall through to SV lookup.
 	if (info.layer?.id === "import-preview") {
 		if (typeof info.index === "number" && info.index >= 0) void openStagedLocation(info.index);
@@ -159,22 +156,21 @@ export async function handleMapClick(
 	}
 
 	if (info.coordinate) {
-		const container = ctx.map?.getDiv() ?? null;
+		const container = ctx.host?.container ?? null;
 		if (ctx.selectOnly) {
 			if (container) showToast(container, "Select-only mode is on.");
 			return;
 		}
-		await createLocationAtLatLng(info.coordinate[1], info.coordinate[0], ctx.map?.getZoom() ?? 2, {
+		await createLocationAtLatLng(info.coordinate[1], info.coordinate[0], ctx.host?.getZoom() ?? 2, {
 			container,
 		});
 	}
 }
 
-export function handleMapHover(info: PickingInfo, event: OverlayEvent): void {
+export function handleMapHover(info: PickingInfo, domEvent?: Event): void {
 	const over =
 		info.object != null ||
 		(isLocationLayer(info.layer?.id) === true && typeof info.index === "number" && info.index >= 0);
-	const target = (event?.srcEvent?.domEvent as MouseEvent | undefined)
-		?.target as HTMLElement | null;
+	const target = (domEvent as MouseEvent | undefined)?.target as HTMLElement | null;
 	if (target) target.style.cursor = over ? "pointer" : "";
 }

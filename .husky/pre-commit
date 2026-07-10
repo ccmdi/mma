@@ -7,6 +7,16 @@ cd app
 # Format + lint staged files
 npx lint-staged || exit 1
 
+# Format staged Rust files
+STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep '^app/src-tauri/src/')
+if [ -n "$STAGED_RS" ]; then
+	echo "[pre-commit] rustfmt..."
+	cargo fmt --manifest-path src-tauri/Cargo.toml -- --check || {
+		echo "rustfmt failed. Run 'cargo fmt' to fix."
+		exit 1
+	}
+fi
+
 # TypeScript type check
 echo "[pre-commit] TypeScript..."
 npx tsc --noEmit -p tsconfig.app.json || exit 1

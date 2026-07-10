@@ -2,14 +2,30 @@ use super::*;
 use crate::location_store::Store;
 
 fn tag(id: u32, name: &str) -> Tag {
-    Tag { id, name: name.into(), color: "#000".into(), visible: true, order: None, count: 0 }
+    Tag {
+        id,
+        name: name.into(),
+        color: "#000".into(),
+        visible: true,
+        order: None,
+        count: 0,
+    }
 }
 
 fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
     Location {
-        id, lat: 0.0, lng: 0.0, heading: 0.0, pitch: 0.0, zoom: 1.0,
-        pano_id: None, flags: crate::types::LocationFlags::empty(), tags, extra: None,
-        created_at: 0, modified_at: None,
+        id,
+        lat: 0.0,
+        lng: 0.0,
+        heading: 0.0,
+        pitch: 0.0,
+        zoom: 1.0,
+        pano_id: None,
+        flags: crate::types::LocationFlags::empty(),
+        tags,
+        extra: None,
+        created_at: 0,
+        modified_at: None,
     }
 }
 
@@ -101,7 +117,11 @@ fn reconcile_location_tags_remapped_correctly() {
 
     // Apply the remap to locations (same as add_parsed_to_store does)
     let mut loc = loc_with_tags(1, vec![1, 2]);
-    loc.tags = loc.tags.iter().filter_map(|&old| remap.get(&old).copied()).collect();
+    loc.tags = loc
+        .tags
+        .iter()
+        .filter_map(|&old| remap.get(&old).copied())
+        .collect();
 
     assert_eq!(loc.tags.len(), 2);
     assert!(loc.tags.contains(&10), "Urban should map to existing ID 10");
@@ -110,7 +130,10 @@ fn reconcile_location_tags_remapped_correctly() {
 
 /// Scan `extra` from a buffer and pull tag meta, as the parse path does internally.
 fn tag_meta(buf: &[u8]) -> HashMap<String, ExtraTagMeta> {
-    find_top_level_extra(buf, 0, 0).as_ref().map(tag_meta_from_extra).unwrap_or_default()
+    find_top_level_extra(buf, 0, 0)
+        .as_ref()
+        .map(tag_meta_from_extra)
+        .unwrap_or_default()
 }
 
 #[test]
@@ -167,8 +190,14 @@ fn parse_captures_settings_overlay() {
     assert!(parsed.settings.contains_key("virtualTags"));
 
     let merged = merge_settings(crate::map_meta::MapSettings::default(), &parsed.settings);
-    assert_eq!(merged.virtual_tags["Europe"].color.as_deref(), Some("#c0f0f8"));
-    assert_eq!(merged.virtual_tags["Europe/France"].color.as_deref(), Some("#183848"));
+    assert_eq!(
+        merged.virtual_tags["Europe"].color.as_deref(),
+        Some("#c0f0f8")
+    );
+    assert_eq!(
+        merged.virtual_tags["Europe/France"].color.as_deref(),
+        Some("#183848")
+    );
 }
 
 #[test]
@@ -187,20 +216,38 @@ fn merge_settings_overlays_present_keys_only() {
 
     let mut base = crate::map_meta::MapSettings::default();
     base.point_along_road = false; // non-default, unrelated key
-    base.virtual_tags.insert("Europe".into(), crate::map_meta::VirtualTag { color: Some("#existing".into()) });
+    base.virtual_tags.insert(
+        "Europe".into(),
+        crate::map_meta::VirtualTag {
+            color: Some("#existing".into()),
+        },
+    );
 
     let merged = merge_settings(base, &parsed.settings);
-    assert!(!merged.point_along_road, "key absent from the overlay keeps its base value");
-    assert_eq!(merged.virtual_tags["Asia"].color.as_deref(), Some("#asia"), "imported key applied");
+    assert!(
+        !merged.point_along_road,
+        "key absent from the overlay keeps its base value"
+    );
+    assert_eq!(
+        merged.virtual_tags["Asia"].color.as_deref(),
+        Some("#asia"),
+        "imported key applied"
+    );
     // A present key replaces wholesale (shallow overlay), so base's Europe is gone.
-    assert!(!merged.virtual_tags.contains_key("Europe"), "present key replaces the whole value");
+    assert!(
+        !merged.virtual_tags.contains_key("Europe"),
+        "present key replaces the whole value"
+    );
 }
 
 #[test]
 fn merge_settings_empty_overlay_is_base() {
     let base = crate::map_meta::MapSettings::default();
     let merged = merge_settings(base, &serde_json::Map::new());
-    assert!(merged.point_along_road, "empty overlay leaves defaults untouched");
+    assert!(
+        merged.point_along_road,
+        "empty overlay leaves defaults untouched"
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -248,7 +295,10 @@ fn boundaries_escaped_backslash_before_quote() {
 #[test]
 fn boundaries_empty_array() {
     assert_eq!(parse_count(br#"{"customCoordinates":[]}"#), 0);
-    assert_eq!(parse_count(br#"{"customCoordinates":[],"extra":{"tags":{}}}"#), 0);
+    assert_eq!(
+        parse_count(br#"{"customCoordinates":[],"extra":{"tags":{}}}"#),
+        0
+    );
 }
 
 #[test]
@@ -298,7 +348,10 @@ fn parsed_tags_sorted_by_order() {
 fn parse_one(json: &[u8]) -> (Location, Vec<Tag>) {
     let mut buf = json.to_vec();
     let p = parse_single_json_mut(&mut buf);
-    (p.locations.into_iter().next().expect("one location"), p.tags)
+    (
+        p.locations.into_iter().next().expect("one location"),
+        p.tags,
+    )
 }
 
 #[test]
@@ -309,7 +362,10 @@ fn fast_path_strips_tags_keeps_rest() {
     let e = loc.extra.as_ref().unwrap();
     assert_eq!(e.get("panoDate").unwrap(), "2025-08");
     assert!(e.get("tags").is_none(), "tags stripped from stored extra");
-    assert!(e.get("countryCode").is_none(), "null country not folded (parity with old parser)");
+    assert!(
+        e.get("countryCode").is_none(),
+        "null country not folded (parity with old parser)"
+    );
     assert_eq!(loc.tags.len(), 2);
     let mut names: Vec<_> = tags.iter().map(|t| t.name.clone()).collect();
     names.sort();
@@ -320,9 +376,11 @@ fn fast_path_strips_tags_keeps_rest() {
 fn fast_path_tags_with_special_chars() {
     // Tag strings contain `,` `]` `:` and an escaped quote — the array must be located
     // string-aware and parsed with serde (not a naive byte split).
-    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+    let (loc, _tags) = parse_one(
+        br#"{"customCoordinates":[
         {"lat":1,"lng":2,"extra":{"tags":["a,b","c]d","e:f","q\"z"],"note":"keep"}}
-    ]}"#);
+    ]}"#,
+    );
     assert_eq!(loc.tags.len(), 4);
     let e = loc.extra.as_ref().unwrap();
     assert_eq!(e.get("note").unwrap(), "keep");
@@ -333,9 +391,11 @@ fn fast_path_tags_with_special_chars() {
 fn nested_tags_key_not_stripped() {
     // A `tags` key nested inside a value object must be left intact; only the depth-1
     // `tags` array is stripped.
-    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+    let (loc, _tags) = parse_one(
+        br#"{"customCoordinates":[
         {"lat":1,"lng":2,"extra":{"meta":{"tags":5},"tags":["X"]}}
-    ]}"#);
+    ]}"#,
+    );
     assert_eq!(loc.tags.len(), 1);
     let e = loc.extra.as_ref().unwrap();
     assert_eq!(e.get("meta").unwrap(), serde_json::json!({"tags":5}));
@@ -344,9 +404,11 @@ fn nested_tags_key_not_stripped() {
 
 #[test]
 fn value_containing_tags_word_is_not_a_key() {
-    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+    let (loc, _tags) = parse_one(
+        br#"{"customCoordinates":[
         {"lat":1,"lng":2,"extra":{"note":"my tags here","panoDate":"x"}}
-    ]}"#);
+    ]}"#,
+    );
     assert!(loc.tags.is_empty());
     let e = loc.extra.as_ref().unwrap();
     assert_eq!(e.get("note").unwrap(), "my tags here");
@@ -355,9 +417,11 @@ fn value_containing_tags_word_is_not_a_key() {
 
 #[test]
 fn non_null_country_state_folded_into_extra() {
-    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+    let (loc, _tags) = parse_one(
+        br#"{"customCoordinates":[
         {"lat":1,"lng":2,"countryCode":"US","stateCode":"CA","extra":{"tags":["X"]}}
-    ]}"#);
+    ]}"#,
+    );
     let e = loc.extra.as_ref().unwrap();
     assert_eq!(e.get("countryCode").unwrap(), "US");
     assert_eq!(e.get("stateCode").unwrap(), "CA");
@@ -366,11 +430,16 @@ fn non_null_country_state_folded_into_extra() {
 
 #[test]
 fn pano_id_nested_in_extra_extracted() {
-    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+    let (loc, _tags) = parse_one(
+        br#"{"customCoordinates":[
         {"lat":1,"lng":2,"extra":{"panoId":"PANO123","tags":["X"]}}
-    ]}"#);
+    ]}"#,
+    );
     assert_eq!(loc.pano_id.as_deref(), Some("PANO123"));
-    assert!(!loc.flags.contains(LocationFlags::LOAD_AS_PANO_ID), "nested panoId is not a top-level pano");
+    assert!(
+        !loc.flags.contains(LocationFlags::LOAD_AS_PANO_ID),
+        "nested panoId is not a top-level pano"
+    );
     assert_eq!(loc.tags.len(), 1);
     // panoId consumed out of extra, only tags were there → no extra left
     assert!(loc.extra.is_none());
@@ -378,9 +447,11 @@ fn pano_id_nested_in_extra_extracted() {
 
 #[test]
 fn extra_with_only_tags_becomes_none() {
-    let (loc, _tags) = parse_one(br#"{"customCoordinates":[
+    let (loc, _tags) = parse_one(
+        br#"{"customCoordinates":[
         {"lat":1,"lng":2,"extra":{"tags":["X"]}}
-    ]}"#);
+    ]}"#,
+    );
     assert!(loc.extra.is_none());
     assert_eq!(loc.tags.len(), 1);
 }
@@ -411,14 +482,20 @@ fn assert_parallel_matches_serial(arr: &[u8]) {
 fn synth_array(n: usize, sep: &str, with_extra: bool) -> Vec<u8> {
     let mut s = String::from("[");
     for i in 0..n {
-        if i > 0 { s.push_str(sep); }
+        if i > 0 {
+            s.push_str(sep);
+        }
         if with_extra {
             // extra with braces/commas inside strings to stress skip_string across ranges
             s.push_str(&format!(
                 r#"{{"lat":{}.5,"lng":{}.25,"panoId":"pano{}","extra":{{"note":"a}},{{b][{}","tags":["T{}","common"]}}}}"#,
                 i % 90, i % 180, i, i, i % 7));
         } else {
-            s.push_str(&format!(r#"{{"lat":{}.5,"lng":{}.25,"heading":0,"panoId":null}}"#, i % 90, i % 180));
+            s.push_str(&format!(
+                r#"{{"lat":{}.5,"lng":{}.25,"heading":0,"panoId":null}}"#,
+                i % 90,
+                i % 180
+            ));
         }
     }
     s.push(']');
@@ -443,7 +520,10 @@ fn parallel_scan_matches_serial_large_minified() {
     // Big enough to exceed the 2MB parallel threshold; minified (no interior newlines),
     // so it exercises the `},{` resync path.
     let arr = synth_array(60_000, ",", false);
-    assert!(arr.len() > 2_000_000, "fixture must cross the parallel threshold");
+    assert!(
+        arr.len() > 2_000_000,
+        "fixture must cross the parallel threshold"
+    );
     assert_parallel_matches_serial(&arr);
 }
 
@@ -475,8 +555,12 @@ fn parallel_scan_matches_serial_trailing_sibling_key() {
 // -----------------------------------------------------------------------
 struct StderrLog;
 impl log::Log for StderrLog {
-    fn enabled(&self, _: &log::Metadata) -> bool { true }
-    fn log(&self, record: &log::Record) { eprintln!("{}", record.args()); }
+    fn enabled(&self, _: &log::Metadata) -> bool {
+        true
+    }
+    fn log(&self, record: &log::Record) {
+        eprintln!("{}", record.args());
+    }
     fn flush(&self) {}
 }
 static STDERR_LOG: StderrLog = StderrLog;
@@ -488,12 +572,18 @@ fn bench_parse_real() {
     log::set_max_level(log::LevelFilter::Debug);
     let path = match std::env::var("MMA_BENCH_FILE") {
         Ok(p) => p,
-        Err(_) => { eprintln!("SKIP bench: MMA_BENCH_FILE not set"); return; }
+        Err(_) => {
+            eprintln!("SKIP bench: MMA_BENCH_FILE not set");
+            return;
+        }
     };
 
     let bytes = match std::fs::read(&path) {
         Ok(b) => b,
-        Err(e) => { eprintln!("SKIP bench: cannot read {path}: {e}"); return; }
+        Err(e) => {
+            eprintln!("SKIP bench: cannot read {path}: {e}");
+            return;
+        }
     };
     eprintln!("file={} size={:.1}MB", path, bytes.len() as f64 / 1e6);
 
@@ -569,11 +659,21 @@ fn add_copied_reconciles_tags_and_reports_counts() {
     assert_eq!(stored.len(), 2);
 
     // "Shared" reconciled to the target's existing id 5 (no duplicate tag created).
-    let shared: Vec<_> = store.tags.all.values().filter(|t| t.name == "Shared").collect();
+    let shared: Vec<_> = store
+        .tags
+        .all
+        .values()
+        .filter(|t| t.name == "Shared")
+        .collect();
     assert_eq!(shared.len(), 1);
     assert_eq!(shared[0].id, 5);
     // "Unique" created fresh, not reusing the source id.
-    let unique = store.tags.all.values().find(|t| t.name == "Unique").expect("Unique created");
+    let unique = store
+        .tags
+        .all
+        .values()
+        .find(|t| t.name == "Unique")
+        .expect("Unique created");
     assert_ne!(unique.id, 2);
 
     // Copies carry the reconciled *target* tag ids, not the source ids.
@@ -582,8 +682,9 @@ fn add_copied_reconciles_tags_and_reports_counts() {
     assert!(two_tag.tags.contains(&unique.id));
 
     // Counts in the result match membership: Shared on both copies, Unique on one.
-    assert_eq!(r.status.tag_counts[&5], 2);
-    assert_eq!(r.status.tag_counts[&unique.id], 1);
+    let counts = r.status.tag_counts.as_ref().expect("import changes counts");
+    assert_eq!(counts[&5], 2);
+    assert_eq!(counts[&unique.id], 1);
 
     // The new tag def is shipped on the result (the receiver needs it to render).
     assert!(r.tags.as_ref().and_then(|m| m.get(&unique.id)).is_some());

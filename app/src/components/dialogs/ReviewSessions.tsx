@@ -112,7 +112,8 @@ export function ReviewSessionsModal({
 				) : (
 					<ul className="review-sessions__list">
 						{sessions.map((s) => {
-							const pct = s.order.length > 0 ? Math.round((s.reviewed.length / s.order.length) * 100) : 0;
+							const pct =
+								s.order.length > 0 ? Math.round((s.reviewed.length / s.order.length) * 100) : 0;
 							return (
 								<li key={s.id} className="review-sessions__card">
 									<div className="review-sessions__info">
@@ -153,7 +154,9 @@ export function ReviewSessionsModal({
 											</div>
 										)}
 										<div className="review-sessions__meta">
-											<span>{s.reviewed.length} / {s.order.length} reviewed ({pct}%)</span>
+											<span>
+												{s.reviewed.length} / {s.order.length} reviewed ({pct}%)
+											</span>
 											<span title={new Date(s.createdAt).toLocaleString()}>
 												Started {formatDate(s.createdAt)}
 											</span>
@@ -162,10 +165,7 @@ export function ReviewSessionsModal({
 											</span>
 										</div>
 										<div className="review-sessions__bar">
-											<div
-												className="review-sessions__bar-fill"
-												style={{ width: `${pct}%` }}
-											/>
+											<div className="review-sessions__bar-fill" style={{ width: `${pct}%` }} />
 										</div>
 									</div>
 									<div className="review-sessions__actions">

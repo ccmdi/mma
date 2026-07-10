@@ -21,12 +21,20 @@ describe("emitBitmask wire decode", () => {
 		//   per cell: [u8 char][u32 locCount] then per sel [u8 fmt] + (idx: u32 count + u32[]) | (mask: bytes)
 		const bytes = [
 			...le32(1), // numSels
-			255, 0, 0, // selColors[0] = red
+			255,
+			0,
+			0, // selColors[0] = red
 			2, // numCells
-			"a".charCodeAt(0), ...le32(3), // cell 'a', locCount 3
-			1, ...le32(2), ...le32(0), ...le32(2), // fmt=1 index-list: count 2, indices [0,2]
-			"b".charCodeAt(0), ...le32(3), // cell 'b', locCount 3
-			0, 0b101, // fmt=0 bitmask: ceil(3/8)=1 byte, bits 0 and 2 set
+			"a".charCodeAt(0),
+			...le32(3), // cell 'a', locCount 3
+			1,
+			...le32(2),
+			...le32(0),
+			...le32(2), // fmt=1 index-list: count 2, indices [0,2]
+			"b".charCodeAt(0),
+			...le32(3), // cell 'b', locCount 3
+			0,
+			0b101, // fmt=0 bitmask: ceil(3/8)=1 byte, bits 0 and 2 set
 		];
 
 		const entries = decode(bytes);
@@ -53,7 +61,8 @@ describe("emitBitmask wire decode", () => {
 			...le32(numSels),
 			...Array.from({ length: numSels }, (_, i) => [i % 256, 0, 0]).flat(), // colors
 			1, // numCells
-			"a".charCodeAt(0), ...le32(2), // cell 'a', locCount 2
+			"a".charCodeAt(0),
+			...le32(2), // cell 'a', locCount 2
 			// per selection: fmt=1 index-list selecting index 0
 			...Array.from({ length: numSels }, () => [1, ...le32(1), ...le32(0)]).flat(),
 		];

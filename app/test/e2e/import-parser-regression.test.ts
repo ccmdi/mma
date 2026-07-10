@@ -108,9 +108,7 @@ describe("Import — panoId with special characters", () => {
 	it("preserves panoId containing unicode", async () => {
 		const result = await withApi(async (api) => {
 			const json = JSON.stringify({
-				customCoordinates: [
-					{ lat: 10, lng: 20, panoId: "CAoSLEFGMVFpcE5éabc" },
-				],
+				customCoordinates: [{ lat: 10, lng: 20, panoId: "CAoSLEFGMVFpcE5éabc" }],
 			});
 			const path = await api.cmd.writeTempFile("pano_unicode.json", json);
 			await api.cmd.storeImportPreview(path);
@@ -145,9 +143,7 @@ describe("Import — panoId with special characters", () => {
 	it("extra.panoId used as fallback (no LOAD_AS_PANO_ID flag)", async () => {
 		const result = await withApi(async (api) => {
 			const json = JSON.stringify({
-				customCoordinates: [
-					{ lat: 50, lng: 60, extra: { panoId: "FALLBACK_PANO" } },
-				],
+				customCoordinates: [{ lat: 50, lng: 60, extra: { panoId: "FALLBACK_PANO" } }],
 			});
 			const path = await api.cmd.writeTempFile("pano_fallback.json", json);
 			await api.cmd.storeImportPreview(path);
@@ -164,9 +160,7 @@ describe("Import — panoId with special characters", () => {
 	it("field aliases work: latitude, longitude, pano", async () => {
 		const result = await withApi(async (api) => {
 			const json = JSON.stringify({
-				customCoordinates: [
-					{ latitude: 70, longitude: 80, pano: "ALIAS_PANO" },
-				],
+				customCoordinates: [{ latitude: 70, longitude: 80, pano: "ALIAS_PANO" }],
 			});
 			const path = await api.cmd.writeTempFile("pano_alias.json", json);
 			await api.cmd.storeImportPreview(path);
@@ -437,7 +431,13 @@ describe("Import — export/reimport tag round-trip", () => {
 		const locs = [
 			createLocation({ lat: 46.5, lng: 7.5, heading: 0, panoId: "alp1", tags: [tagA.id] }),
 			createLocation({ lat: 43.3, lng: 5.4, heading: 90, panoId: "coast1", tags: [tagB.id] }),
-			createLocation({ lat: 47.0, lng: 8.0, heading: 180, panoId: "both1", tags: [tagA.id, tagB.id] }),
+			createLocation({
+				lat: 47.0,
+				lng: 8.0,
+				heading: 180,
+				panoId: "both1",
+				tags: [tagA.id, tagB.id],
+			}),
 		];
 		await addLocs(locs);
 		await flushAndWait();
@@ -468,7 +468,9 @@ describe("Import — export/reimport tag round-trip", () => {
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const map = api.getCurrentMap()!;
-			const tagNames = Object.values(map.meta.tags).map((t: any) => t.name).sort();
+			const tagNames = Object.values(map.meta.tags)
+				.map((t: any) => t.name)
+				.sort();
 			const alp = locs.find((l: any) => l.panoId === "alp1");
 			const coast = locs.find((l: any) => l.panoId === "coast1");
 			const both = locs.find((l: any) => l.panoId === "both1");

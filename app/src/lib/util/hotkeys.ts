@@ -177,14 +177,54 @@ const STATIC_HOTKEY_DEFS = [
 		group: "Review",
 		defaultBinding: "Mod+ArrowLeft",
 	},
-	{ action: "panLeft", label: "Pan left", group: "Map Navigation", defaultBinding: "a", altSlow: true },
-	{ action: "panRight", label: "Pan right", group: "Map Navigation", defaultBinding: "d", altSlow: true },
+	{
+		action: "panLeft",
+		label: "Pan left",
+		group: "Map Navigation",
+		defaultBinding: "a",
+		altSlow: true,
+	},
+	{
+		action: "panRight",
+		label: "Pan right",
+		group: "Map Navigation",
+		defaultBinding: "d",
+		altSlow: true,
+	},
 	{ action: "panUp", label: "Pan up", group: "Map Navigation", defaultBinding: "w", altSlow: true },
-	{ action: "panDown", label: "Pan down", group: "Map Navigation", defaultBinding: "s", altSlow: true },
-	{ action: "mapZoomIn", label: "Zoom in", group: "Map Navigation", defaultBinding: "Shift+w", altSlow: true },
-	{ action: "mapZoomOut", label: "Zoom out", group: "Map Navigation", defaultBinding: "Shift+s", altSlow: true },
-	{ action: "mapZoomBounds", label: "Zoom to bounds", group: "Map Navigation", defaultBinding: "Shift+b" },
-	{ action: "mapZoomReset", label: "Zoom all the way out", group: "Map Navigation", defaultBinding: "Shift+0" },
+	{
+		action: "panDown",
+		label: "Pan down",
+		group: "Map Navigation",
+		defaultBinding: "s",
+		altSlow: true,
+	},
+	{
+		action: "mapZoomIn",
+		label: "Zoom in",
+		group: "Map Navigation",
+		defaultBinding: "Shift+w",
+		altSlow: true,
+	},
+	{
+		action: "mapZoomOut",
+		label: "Zoom out",
+		group: "Map Navigation",
+		defaultBinding: "Shift+s",
+		altSlow: true,
+	},
+	{
+		action: "mapZoomBounds",
+		label: "Zoom to bounds",
+		group: "Map Navigation",
+		defaultBinding: "Shift+b",
+	},
+	{
+		action: "mapZoomReset",
+		label: "Zoom all the way out",
+		group: "Map Navigation",
+		defaultBinding: "Shift+0",
+	},
 	{
 		action: "panoLookLeft",
 		label: "Look left",
@@ -199,7 +239,13 @@ const STATIC_HOTKEY_DEFS = [
 		defaultBinding: "ArrowRight",
 		altSlow: true,
 	},
-	{ action: "panoLookUp", label: "Look up", group: "Location Editor", defaultBinding: "ArrowUp", altSlow: true },
+	{
+		action: "panoLookUp",
+		label: "Look up",
+		group: "Location Editor",
+		defaultBinding: "ArrowUp",
+		altSlow: true,
+	},
 	{
 		action: "panoLookDown",
 		label: "Look down",
@@ -273,12 +319,14 @@ const STATIC_HOTKEY_DEFS = [
 
 const RAW_HOTKEY_DEFS: HotkeyDef[] = [
 	...STATIC_HOTKEY_DEFS,
-	...QUICKTAG_SLOTS.map((n): HotkeyDef => ({
-		action: `quicktag${n}`,
-		label: `Quick-tag slot ${n}`,
-		group: "Quicktag",
-		defaultBinding: String(n),
-	})),
+	...QUICKTAG_SLOTS.map(
+		(n): HotkeyDef => ({
+			action: `quicktag${n}`,
+			label: `Quick-tag slot ${n}`,
+			group: "Quicktag",
+			defaultBinding: String(n),
+		}),
+	),
 ];
 
 // Unified view: raw defs + command-derived defs. This is what the shortcuts UI iterates.

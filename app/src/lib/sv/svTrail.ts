@@ -31,3 +31,5 @@ export function getTrail(): [number, number][] {
 export function useTrailVersion() {
 	return useSyncExternalStore(subscribe, getSnapshot);
 }
+
+export const subscribeTrail = subscribe;

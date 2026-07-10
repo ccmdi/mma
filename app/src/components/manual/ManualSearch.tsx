@@ -40,7 +40,10 @@ export function ManualSearch({
 		<RadixDialog.Root open={open} onOpenChange={onOpenChange}>
 			<RadixDialog.Portal>
 				<RadixDialog.Overlay className="modal__backdrop" />
-				<RadixDialog.Content className="modal command-palette manual-search" aria-describedby={undefined}>
+				<RadixDialog.Content
+					className="modal command-palette manual-search"
+					aria-describedby={undefined}
+				>
 					<VisuallyHidden.Root>
 						<RadixDialog.Title>Search the manual</RadixDialog.Title>
 					</VisuallyHidden.Root>
@@ -49,7 +52,10 @@ export function ManualSearch({
 							ref={inputRef}
 							autoFocus
 							value={query}
-							onChange={(e) => { setQuery(e.target.value); setActive(0); }}
+							onChange={(e) => {
+								setQuery(e.target.value);
+								setActive(0);
+							}}
 							onKeyDown={onKeyDown}
 							placeholder="Search the manual..."
 							className="command-palette__input"
@@ -61,7 +67,9 @@ export function ManualSearch({
 							{results.map((r, i) => (
 								<button
 									key={r.id}
-									className={i === active ? "manual-search__result is-active" : "manual-search__result"}
+									className={
+										i === active ? "manual-search__result is-active" : "manual-search__result"
+									}
 									onMouseMove={() => setActive(i)}
 									onClick={() => choose(r.id)}
 								>

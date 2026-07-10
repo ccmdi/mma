@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
 	useReviewSession,
 	reviewIndex,
@@ -10,7 +11,7 @@ import { mdiClose } from "@mdi/js";
 
 /** Header shown above the pano during a review pass. Single point of review-UI in the
  *  preview; the rest of LocationPreview only calls reviewNext/Prev/Delete. */
-export function ReviewBar() {
+export const ReviewBar = memo(function ReviewBar() {
 	const s = useReviewSession();
 	if (!s) return null;
 
@@ -40,4 +41,4 @@ export function ReviewBar() {
 			</span>
 		</div>
 	);
-}
+});

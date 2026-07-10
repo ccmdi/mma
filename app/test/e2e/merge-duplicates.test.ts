@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 /**
  * mergeDuplicates end-to-end: transitive grouping, survivor tie-break, tag union,
  * extra merge (survivor wins conflicts), group isolation, and undo. The Rust core
@@ -54,7 +54,10 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 		await withApi(async (api, t, c) => api.addTagToLocations(t, [c]), T3, C);
 
 		// Extra: A and C contribute keys; B (survivor) wins the shared "k" key.
-		await withApi(async (api, l) => api.patchLocationExtra(l, { k: "fromA", x: "ax" }), await getLoc(A));
+		await withApi(
+			async (api, l) => api.patchLocationExtra(l, { k: "fromA", x: "ax" }),
+			await getLoc(A),
+		);
 		await withApi(async (api, l) => api.patchLocationExtra(l, { k: "fromB" }), await getLoc(B));
 		await withApi(async (api, l) => api.patchLocationExtra(l, { y: "cy" }), await getLoc(C));
 

@@ -32,16 +32,12 @@ export function progressToast(message: string): ProgressHandle {
 	notify();
 	return {
 		update(fraction: number, label?: string) {
-			toasts = toasts.map((t) =>
-				t.id === id ? { ...t, progress: { fraction, label } } : t,
-			);
+			toasts = toasts.map((t) => (t.id === id ? { ...t, progress: { fraction, label } } : t));
 			notify();
 		},
 		finish(message?: string, duration = 2500) {
 			if (message) {
-				toasts = toasts.map((t) =>
-					t.id === id ? { ...t, message, progress: undefined } : t,
-				);
+				toasts = toasts.map((t) => (t.id === id ? { ...t, message, progress: undefined } : t));
 				notify();
 				setTimeout(() => {
 					toasts = toasts.filter((t) => t.id !== id);

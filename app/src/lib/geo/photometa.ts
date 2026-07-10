@@ -7,7 +7,7 @@ import type { RequireNonNull } from "@/types/util";
 const TILE_ZOOM = 17;
 const TILE_SIZE = 256;
 
-export type PanoDot = LatLng & RequireNonNull<Pick<Location, 'panoId'>>
+export type PanoDot = LatLng & RequireNonNull<Pick<Location, "panoId">>;
 
 export function latLngToWorldCoord(lat: number, lng: number) {
 	let n = Math.sin((lat * Math.PI) / 180);
@@ -72,14 +72,9 @@ function parsePanoDots(data: any): PanoDot[] {
 	}
 }
 
-export async function fetchPanoDotsWithIds(tile: {
-	x: number;
-	y: number;
-}): Promise<PanoDot[]> {
+export async function fetchPanoDotsWithIds(tile: { x: number; y: number }): Promise<PanoDot[]> {
 	const dots = await fetchPanoDots(tile);
-	return dots.filter(
-		(d): d is PanoDot => typeof d.panoId === "string",
-	);
+	return dots.filter((d): d is PanoDot => typeof d.panoId === "string");
 }
 
 const cache = new Map<string, PanoDot[] | Promise<PanoDot[]>>();

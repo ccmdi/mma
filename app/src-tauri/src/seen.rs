@@ -4,9 +4,9 @@
 //! eviction. Provides paginated listing, filtering by country/map/search, and
 //! aggregate queries for the history UI. All functions are Tauri IPC commands.
 
+use crate::storage;
 use crate::types::AppResult;
 use rusqlite::params_from_iter;
-use crate::storage;
 
 /// A panorama visit record as returned to the frontend.
 #[derive(serde::Serialize, specta::Type)]
@@ -59,7 +59,11 @@ pub struct SeenFilter {
 
 impl Default for SeenFilter {
     fn default() -> Self {
-        Self { country: None, map_id: None, search: None }
+        Self {
+            country: None,
+            map_id: None,
+            search: None,
+        }
     }
 }
 
@@ -73,7 +77,9 @@ pub struct SeenMapInfo {
 
 /// Builds a SQL WHERE clause and parameter list from the optional filter.
 /// Returns an empty string (no WHERE) when no filter fields are set.
-fn build_where_clause(filter: &Option<SeenFilter>) -> (String, Vec<Box<dyn rusqlite::types::ToSql>>) {
+fn build_where_clause(
+    filter: &Option<SeenFilter>,
+) -> (String, Vec<Box<dyn rusqlite::types::ToSql>>) {
     let mut conditions: Vec<String> = Vec::new();
     let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
@@ -121,8 +127,7 @@ pub fn store_seen_write(entry: SeenWriteEntry) -> AppResult<()> {
         ],
     )?;
 
-    let count: i64 = db
-        .query_row("SELECT COUNT(*) FROM seen", [], |row| row.get(0))?;
+    let count: i64 = db.query_row("SELECT COUNT(*) FROM seen", [], |row| row.get(0))?;
 
     if count > MAX_SEEN {
         let excess = count - MAX_SEEN;
@@ -157,24 +162,23 @@ pub fn store_seen_list(
     params.push(Box::new(offset));
 
     let mut stmt = db.prepare(&sql)?;
-    let rows = stmt
-        .query_map(params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
-            Ok(SeenEntry {
-                id: row.get(0)?,
-                pano_id: row.get(1)?,
-                lat: row.get(2)?,
-                lng: row.get(3)?,
-                heading: row.get(4)?,
-                pitch: row.get(5)?,
-                zoom: row.get(6)?,
-                entered_at: row.get(7)?,
-                map_id: row.get(8)?,
-                location_id: row.get(9)?,
-                country_code: row.get(10)?,
-                address: row.get(11)?,
-                thumbnail: row.get(12)?,
-            })
-        })?;
+    let rows = stmt.query_map(params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+        Ok(SeenEntry {
+            id: row.get(0)?,
+            pano_id: row.get(1)?,
+            lat: row.get(2)?,
+            lng: row.get(3)?,
+            heading: row.get(4)?,
+            pitch: row.get(5)?,
+            zoom: row.get(6)?,
+            entered_at: row.get(7)?,
+            map_id: row.get(8)?,
+            location_id: row.get(9)?,
+            country_code: row.get(10)?,
+            address: row.get(11)?,
+            thumbnail: row.get(12)?,
+        })
+    })?;
 
     let mut entries = Vec::new();
     for row in rows {
@@ -194,7 +198,9 @@ pub fn store_seen_count(filter: Option<SeenFilter>) -> AppResult<u32> {
 
     let mut stmt = db.prepare(&sql)?;
     let count: u32 = stmt
-        .query_row(params_from_iter(params.iter().map(|p| p.as_ref())), |row| row.get(0))?;
+        .query_row(params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+            row.get(0)
+        })?;
 
     Ok(count)
 }
@@ -208,8 +214,7 @@ pub fn store_seen_countries() -> AppResult<Vec<String>> {
     let mut stmt = db
         .prepare("SELECT DISTINCT country_code FROM seen WHERE country_code IS NOT NULL ORDER BY country_code")?;
 
-    let rows = stmt
-        .query_map([], |row| row.get(0))?;
+    let rows = stmt.query_map([], |row| row.get(0))?;
 
     let mut countries = Vec::new();
     for row in rows {
@@ -224,20 +229,18 @@ pub fn store_seen_countries() -> AppResult<Vec<String>> {
 #[specta::specta]
 pub fn store_seen_maps() -> AppResult<Vec<SeenMapInfo>> {
     let db = storage::open_db()?;
-    let mut stmt = db
-        .prepare(
-            "SELECT DISTINCT s.map_id AS id, m.name \
+    let mut stmt = db.prepare(
+        "SELECT DISTINCT s.map_id AS id, m.name \
              FROM seen s JOIN maps m ON m.id = s.map_id \
              WHERE s.map_id IS NOT NULL ORDER BY m.name",
-        )?;
+    )?;
 
-    let rows = stmt
-        .query_map([], |row| {
-            Ok(SeenMapInfo {
-                id: row.get(0)?,
-                name: row.get(1)?,
-            })
-        })?;
+    let rows = stmt.query_map([], |row| {
+        Ok(SeenMapInfo {
+            id: row.get(0)?,
+            name: row.get(1)?,
+        })
+    })?;
 
     let mut maps = Vec::new();
     for row in rows {

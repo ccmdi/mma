@@ -137,7 +137,9 @@ describe("buildComboString", () => {
 	}
 
 	it("records Shift+<digit> in base-digit form, not the shifted symbol", () => {
-		expect(buildComboString(mockEvent({ key: ")", code: "Digit0", shiftKey: true }))).toBe("Shift+0");
+		expect(buildComboString(mockEvent({ key: ")", code: "Digit0", shiftKey: true }))).toBe(
+			"Shift+0",
+		);
 	});
 
 	it("records a plain digit as itself", () => {

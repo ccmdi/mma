@@ -2,10 +2,16 @@ import type { ReactNode } from "react";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useEventVersion } from "@/lib/hooks/useEditorEvents";
 import { SELECTION_EVENTS } from "@/lib/events";
-import { Sidebar } from "@/components/primitives/Sidebar";
+import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
 import type { Selection, ExtraFieldDef, Location } from "@/bindings.gen";
 import { computeDivergence, soleGroup } from "./engine";
-import type { DisambiguateResult, FieldDivergence, GroupSummary, ValueFormat, Labeled } from "./engine";
+import type {
+	DisambiguateResult,
+	FieldDivergence,
+	GroupSummary,
+	ValueFormat,
+	Labeled,
+} from "./engine";
 import "./disambiguate.css";
 
 function rgb(c: [number, number, number]) {
@@ -41,14 +47,23 @@ function fmtVal(n: number | null | undefined, format: ValueFormat): string {
 	return fmtNum(n);
 }
 
-function GroupCell({ field, g, color }: { field: FieldDivergence; g: GroupSummary; color: [number, number, number] }) {
+function GroupCell({
+	field,
+	g,
+	color,
+}: {
+	field: FieldDivergence;
+	g: GroupSummary;
+	color: [number, number, number];
+}) {
 	const coverage = g.n > 0 ? Math.round((g.present / g.n) * 100) : 0;
 	let body: ReactNode;
 	if (field.comparison.type === "circular") {
 		body =
 			g.present > 0 ? (
 				<span>
-					{fmtNum(g.meanDeg)}&deg; <span className="disambig__muted">(conc {g.concentration?.toFixed(2)})</span>
+					{fmtNum(g.meanDeg)}&deg;{" "}
+					<span className="disambig__muted">(conc {g.concentration?.toFixed(2)})</span>
 				</span>
 			) : (
 				<span className="disambig__muted">no data</span>
@@ -86,14 +101,22 @@ function GroupCell({ field, g, color }: { field: FieldDivergence; g: GroupSummar
 	);
 }
 
-function FieldRow({ field, colors }: { field: FieldDivergence; colors: [number, number, number][] }) {
+function FieldRow({
+	field,
+	colors,
+}: {
+	field: FieldDivergence;
+	colors: [number, number, number][];
+}) {
 	const score = field.valueScore;
 	return (
 		<div className={`disambig__row${field.lowConfidence ? " disambig__row--weak" : ""}`}>
 			<div className="disambig__head">
 				<span className="disambig__label">{field.label}</span>
 				<span className="disambig__badge">{badgeText(field)}</span>
-				{field.lowConfidence && <span className="disambig__badge disambig__badge--warn">low data</span>}
+				{field.lowConfidence && (
+					<span className="disambig__badge disambig__badge--warn">low data</span>
+				)}
 				<span className="disambig__score">{score !== null ? score.toFixed(2) : "-"}</span>
 			</div>
 			<div className="disambig__bar">
@@ -144,7 +167,8 @@ async function analyze(): Promise<Analysis> {
 
 		const fieldDefs: Record<string, ExtraFieldDef> = MMA.getAllFieldDefs();
 		const tagNames: Record<number, string> = {};
-		for (const [id, t] of Object.entries(map.meta.tags)) tagNames[Number(id)] = (t as { name: string }).name;
+		for (const [id, t] of Object.entries(map.meta.tags))
+			tagNames[Number(id)] = (t as { name: string }).name;
 
 		const result = computeDivergence(labeled, sels.length, fieldDefs, tagNames);
 		return { result, colors, excludedOverlap };
@@ -155,7 +179,21 @@ async function analyze(): Promise<Analysis> {
 
 export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 	const version = useEventVersion(SELECTION_EVENTS);
-	const { data: analysis, loading, error } = useAsync(() => analyze(), [version]);
+	const selCount = MMA.getSelections().length;
+	// Synchronous null short-circuit: no loading flash while under two groups.
+	const {
+		data: analysis,
+		loading,
+		error,
+	} = useAsync(() => (selCount < 2 ? null : analyze()), [version]);
+
+	if (selCount < 2) {
+		return (
+			<Sidebar title="Disambiguate selections" onBack={onClose} className="disambig">
+				<EmptyState>Select at least two groups to compare - tags, polygons, or filters.</EmptyState>
+			</Sidebar>
+		);
+	}
 
 	return (
 		<Sidebar title="Disambiguate selections" onBack={onClose} className="disambig">

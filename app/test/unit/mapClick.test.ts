@@ -4,7 +4,9 @@ import type { PickingInfo } from "@deck.gl/core";
 import type { CellManager } from "@/lib/render/CellManager";
 
 const storeResolvePick = vi.fn();
-vi.mock("@/lib/commands", () => ({ cmd: { storeResolvePick: (...a: unknown[]) => storeResolvePick(...a) } }));
+vi.mock("@/lib/commands", () => ({
+	cmd: { storeResolvePick: (...a: unknown[]) => storeResolvePick(...a) },
+}));
 
 import { resolvePickedId } from "@/lib/map/mapClick";
 

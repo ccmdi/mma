@@ -42,7 +42,9 @@ function initStackedMapType() {
 	};
 }
 
-export function createCompositeMapType(layers: google.maps.ImageMapType[]): google.maps.ImageMapType {
+export function createCompositeMapType(
+	layers: google.maps.ImageMapType[],
+): google.maps.ImageMapType {
 	initStackedMapType();
 	return new StackedMapType(layers, {
 		tileSize: new google.maps.Size(256, 256),

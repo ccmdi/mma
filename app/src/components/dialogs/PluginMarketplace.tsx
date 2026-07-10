@@ -100,13 +100,8 @@ function PluginSettings({ pluginId }: { pluginId: string }) {
 	);
 }
 
-import {
-	mdiCheckCircle,
-	mdiCloseCircle,
-	mdiDownload,
-	mdiRefresh,
-	mdiTrashCanOutline,
-} from "@mdi/js";
+import { mdiDownload, mdiRefresh, mdiTrashCanOutline } from "@mdi/js";
+import { Switch } from "@/components/primitives/Switch";
 
 function CoreCard({ plugin }: { plugin: Plugin }) {
 	const [enabled, setEnabled] = useState(() => isPluginEnabled(plugin.id));
@@ -133,14 +128,7 @@ function CoreCard({ plugin }: { plugin: Plugin }) {
 			</div>
 			{!plugin.comingSoon && (
 				<div className="plugin-card__actions">
-					<button
-						className={`plugin-card__action-btn plugin-card__action-btn--${enabled ? "disable" : "enable"}`}
-						onClick={toggle}
-						title={enabled ? "Disable" : "Enable"}
-						aria-label={enabled ? "Disable" : "Enable"}
-					>
-						<Icon path={enabled ? mdiCheckCircle : mdiCloseCircle} size={16} />
-					</button>
+					<Switch checked={enabled} onChange={toggle} label={enabled ? "Disable" : "Enable"} />
 				</div>
 			)}
 			{enabled && <PluginSettings pluginId={plugin.id} />}
@@ -183,12 +171,10 @@ function AdditionalCard({
 }) {
 	const [busy, setBusy] = useState(false);
 
-	const handlePrimary = async () => {
+	const handleInstall = async () => {
 		setBusy(true);
 		try {
-			if (!installed) await onInstall(id);
-			else if (enabled) await onDisable(id);
-			else await onEnable(id);
+			await onInstall(id);
 		} finally {
 			setBusy(false);
 		}
@@ -202,10 +188,6 @@ function AdditionalCard({
 			setBusy(false);
 		}
 	};
-
-	const primaryIcon = !installed ? mdiDownload : enabled ? mdiCheckCircle : mdiCloseCircle;
-	const primaryTitle = !installed ? "Install" : enabled ? "Disable" : "Enable";
-	const primaryMod = !installed ? "install" : enabled ? "disable" : "enable";
 
 	return (
 		<div
@@ -221,15 +203,24 @@ function AdditionalCard({
 					{busy && installProgress !== undefined && (
 						<span className="plugin-card__progress">{installProgress}%</span>
 					)}
-					<button
-						className={`plugin-card__action-btn plugin-card__action-btn--${primaryMod}`}
-						onClick={handlePrimary}
-						disabled={busy}
-						title={primaryTitle}
-						aria-label={primaryTitle}
-					>
-						<Icon path={primaryIcon} size={16} />
-					</button>
+					{!installed ? (
+						<button
+							className="plugin-card__action-btn plugin-card__action-btn--install"
+							onClick={handleInstall}
+							disabled={busy}
+							title="Install"
+							aria-label="Install"
+						>
+							<Icon path={mdiDownload} size={16} />
+						</button>
+					) : (
+						<Switch
+							checked={enabled}
+							onChange={(next) => (next ? onEnable(id) : onDisable(id))}
+							disabled={busy}
+							label={enabled ? "Disable" : "Enable"}
+						/>
+					)}
 					{installed && updatable && (
 						<button
 							className="plugin-card__action-btn plugin-card__action-btn--update"

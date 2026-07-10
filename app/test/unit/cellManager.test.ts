@@ -300,7 +300,6 @@ describe("CellManager", () => {
 		off += 4;
 		// selection overlay count = 0
 		dv.setUint32(off, 0, true);
-		off += 4;
 
 		mgr.initFromBinary(buf);
 		expect(mgr.totalCount).toBe(2);
@@ -356,7 +355,6 @@ describe("CellManager", () => {
 		off += 4;
 		// id
 		dv.setUint32(off, 7, true);
-		off += 4;
 
 		mgr.initFromBinary(buf);
 		expect(mgr.selOverlayCount).toBe(1);
@@ -601,7 +599,10 @@ describe("applySelectionBitmasks", () => {
 		});
 
 		const mask = new Uint8Array([0b01]); // select index 0 only
-		mgr.applySelectionBitmasks([[255, 0, 0]], [{ cellChar: "s", locCount: 2, sels: [maskSel(mask)] }]);
+		mgr.applySelectionBitmasks(
+			[[255, 0, 0]],
+			[{ cellChar: "s", locCount: 2, sels: [maskSel(mask)] }],
+		);
 
 		const cb = mgr.cells.get("s")!;
 		// Index 0 (selected) should be hidden: alpha=0
@@ -896,22 +897,56 @@ describe("decodeSelectionBitmask", () => {
 	// per sel: u8 fmt (1 = u32le count + count*u32le indices, 0 = ceil(locCount/8) mask bytes).
 	it("decodes colors, idx entries, and mask entries", () => {
 		const bytes = [
-			2, 0, 0, 0, // numSels
-			255, 0, 0, // sel 0 color
-			0, 128, 255, // sel 1 color
+			2,
+			0,
+			0,
+			0, // numSels
+			255,
+			0,
+			0, // sel 0 color
+			0,
+			128,
+			255, // sel 1 color
 			2, // numCells
 			// cell "s", locCount=10
-			115, 10, 0, 0, 0,
+			115,
+			10,
+			0,
+			0,
+			0,
 			// sel 0: idx [2, 7]
-			1, 2, 0, 0, 0, 2, 0, 0, 0, 7, 0, 0, 0,
+			1,
+			2,
+			0,
+			0,
+			0,
+			2,
+			0,
+			0,
+			0,
+			7,
+			0,
+			0,
+			0,
 			// sel 1: mask (2 bytes), bits 0 and 9
-			0, 0b00000001, 0b00000010,
+			0,
+			0b00000001,
+			0b00000010,
 			// cell "t", locCount=3
-			116, 3, 0, 0, 0,
+			116,
+			3,
+			0,
+			0,
+			0,
 			// sel 0: mask (1 byte), bit 1
-			0, 0b00000010,
+			0,
+			0b00000010,
 			// sel 1: empty idx
-			1, 0, 0, 0, 0,
+			1,
+			0,
+			0,
+			0,
+			0,
 		];
 
 		const { selColors, cellEntries } = decodeSelectionBitmask(bytes);
@@ -947,7 +982,9 @@ describe("decodeSelectionBitmask", () => {
 		});
 
 		// 1 selection (red), cell "s" locCount=3, idx list [0, 2] -> ids 10 and 30
-		const bytes = [1, 0, 0, 0, 255, 0, 0, 1, 115, 3, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0];
+		const bytes = [
+			1, 0, 0, 0, 255, 0, 0, 1, 115, 3, 0, 0, 0, 1, 2, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0,
+		];
 		const { selColors, cellEntries } = decodeSelectionBitmask(bytes);
 		const ids = mgr.applySelectionBitmasks(selColors, cellEntries);
 

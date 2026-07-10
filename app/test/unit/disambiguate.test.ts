@@ -3,7 +3,13 @@
 
 import { describe, it, expect } from "vitest";
 import type { Location, ExtraFieldDef } from "@/types";
-import { computeDivergence, soleGroup, type DisambiguateResult, type FieldDivergence, type Labeled } from "@/plugins/disambiguate/engine";
+import {
+	computeDivergence,
+	soleGroup,
+	type DisambiguateResult,
+	type FieldDivergence,
+	type Labeled,
+} from "@/plugins/disambiguate/engine";
 import { circularSummary } from "@/plugins/disambiguate/stats";
 
 function loc(heading: number, extra: Record<string, unknown>, tags: number[]): Location {
@@ -70,7 +76,15 @@ describe("numeric (linear)", () => {
 	it("ranking puts most separating field first", () => {
 		const a = range(12).map((i) => loc(0, { alt: i, noise: i % 3 }, []));
 		const b = range(12).map((i) => loc(0, { alt: 1000 + i, noise: i % 3 }, []));
-		const r = computeDivergence(labeled([a, b]), 2, defs([["alt", numberDef()], ["noise", numberDef()]]), {});
+		const r = computeDivergence(
+			labeled([a, b]),
+			2,
+			defs([
+				["alt", numberDef()],
+				["noise", numberDef()],
+			]),
+			{},
+		);
 		expect(r.fields[0].key).toBe("alt");
 	});
 });
@@ -145,7 +159,10 @@ describe("coverage and missing data", () => {
 
 	it("missing values not treated as zero", () => {
 		const a = range(12).map(() => loc(0, { alt: 5 }, []));
-		const b = [...range(3).map(() => loc(0, { alt: 5 }, [])), ...range(9).map(() => loc(0, {}, []))];
+		const b = [
+			...range(3).map(() => loc(0, { alt: 5 }, [])),
+			...range(9).map(() => loc(0, {}, [])),
+		];
 		const r = computeDivergence(labeled([a, b]), 2, defs([["alt", numberDef()]]), {});
 		const f = find(r, "alt");
 		expect(f.valueScore!).toBeLessThan(0.15);

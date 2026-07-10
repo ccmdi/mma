@@ -81,9 +81,7 @@ export function isSeenPreview(loc: Location): boolean {
 	return (loc.flags & LocationFlag.SeenOverlay) !== 0;
 }
 
-export function createLocation(
-	partial: Partial<Location> & LatLng,
-): Location {
+export function createLocation(partial: Partial<Location> & LatLng): Location {
 	return {
 		id: 0, // placeholder; Rust assigns the real ID
 		heading: 0,
@@ -121,7 +119,7 @@ export const SV_COLORS = [
 ] as const;
 export type SvColor = (typeof SV_COLORS)[number];
 
-export type MapTypeKey = "map" | "satellite" | "osm";
+export type MapTypeKey = "map" | "satellite" | "osm" | "vector";
 export type SvCoverageType = "official" | "unofficial" | "default";
 export type SvThickness = "default" | "high";
 export type MarkerStyle = "pin" | "circle" | "arrow";

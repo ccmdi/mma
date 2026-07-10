@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-	CellBuffer,
-	CellManager,
-	type CellRenderEntry,
-} from "@/lib/render/CellManager";
+import { CellBuffer, CellManager, type CellRenderEntry } from "@/lib/render/CellManager";
 
 // Default marker color from the Rust render pipeline
 const DEFAULT_R = 42,
@@ -25,13 +21,7 @@ function entry(
 	return { cell, id, lng, lat, heading, r, g, b, a };
 }
 
-function coloredEntry(
-	cell: string,
-	id: number,
-	r: number,
-	g: number,
-	b: number,
-): CellRenderEntry {
+function coloredEntry(cell: string, id: number, r: number, g: number, b: number): CellRenderEntry {
 	return entry(cell, id, id, id, 0, r, g, b, 255);
 }
 
@@ -91,10 +81,7 @@ function isHidden(mgr: CellManager, id: number): boolean {
 	return c != null && c[3] === 0;
 }
 
-function selectAll(
-	mgr: CellManager,
-	color: [number, number, number] = [255, 0, 0],
-): Set<number> {
+function selectAll(mgr: CellManager, color: [number, number, number] = [255, 0, 0]): Set<number> {
 	const cellEntries = [];
 	for (const [cellChar, cb] of mgr.cells) {
 		const n = cb.count;
@@ -151,10 +138,7 @@ function assertNoDoubleMarkers(mgr: CellManager) {
 	}
 }
 
-function assertNoVanishedMarkers(
-	mgr: CellManager,
-	activeId: number | null = null,
-) {
+function assertNoVanishedMarkers(mgr: CellManager, activeId: number | null = null) {
 	const overlayIdSet = new Set(mgr.selOverlayIds.slice(0, mgr.selOverlayCount));
 	for (const cb of mgr.cells.values()) {
 		for (let i = 0; i < cb.count; i++) {
@@ -162,7 +146,9 @@ function assertNoVanishedMarkers(
 			if (id === activeId) continue; // active is intentionally hidden
 			const mainAlpha = cb.colors[i * 4 + 3];
 			if (mainAlpha === 0 && !overlayIdSet.has(id)) {
-				throw new Error(`ID ${id} is hidden in main layer but missing from overlay (vanished marker)`);
+				throw new Error(
+					`ID ${id} is hidden in main layer but missing from overlay (vanished marker)`,
+				);
 			}
 		}
 	}
@@ -220,14 +206,10 @@ function assertIdToIndexBijective(cb: CellBuffer, label = "") {
 	}
 	// No stale keys pointing outside valid range
 	for (const [id, idx] of cb.idToIndex) {
-		expect(
-			idx,
-			`idToIndex[${id}] = ${idx} >= count (${cb.count})${ctx}`,
-		).toBeLessThan(cb.count);
-		expect(
-			cb.ids[idx],
-			`ids[${idx}] = ${cb.ids[idx]}, expected ${id} (reverse check)${ctx}`,
-		).toBe(id);
+		expect(idx, `idToIndex[${id}] = ${idx} >= count (${cb.count})${ctx}`).toBeLessThan(cb.count);
+		expect(cb.ids[idx], `ids[${idx}] = ${cb.ids[idx]}, expected ${id} (reverse check)${ctx}`).toBe(
+			id,
+		);
 	}
 }
 
@@ -405,11 +387,7 @@ describe("Selection and main layer consistency", () => {
 	it("overlay angles match main layer angles", () => {
 		mgr = new CellManager();
 		mgr.applyDelta({
-			added: [
-				entry("s", 1, 10, 20, 45),
-				entry("s", 2, 30, 40, 135),
-				entry("s", 3, 50, 60, 270),
-			],
+			added: [entry("s", 1, 10, 20, 45), entry("s", 2, 30, 40, 135), entry("s", 3, 50, 60, 270)],
 			updated: [],
 			removed: [],
 			colorPatches: [],
@@ -569,7 +547,16 @@ describe("Deltas during active selections", () => {
 			added: [],
 			updated: [],
 			removed: [],
-			colorPatches: [{ cell: "s", cellIndex: mgr.cells.get("s")!.idToIndex.get(4)!, r: 200, g: 100, b: 50, a: 255 }],
+			colorPatches: [
+				{
+					cell: "s",
+					cellIndex: mgr.cells.get("s")!.idToIndex.get(4)!,
+					r: 200,
+					g: 100,
+					b: 50,
+					a: 255,
+				},
+			],
 		});
 
 		// Overlay should not have changed
@@ -839,8 +826,20 @@ describe("Multiple overlapping selections", () => {
 			if ([3, 4, 5].includes(id)) maskB[i >> 3] |= 1 << (i & 7);
 		}
 		mgr.applySelectionBitmasks(
-			[[255, 0, 0], [0, 0, 255]],
-			[{ cellChar: "s", locCount: n, sels: [{ kind: "mask" as const, mask: maskR }, { kind: "mask" as const, mask: maskB }] }],
+			[
+				[255, 0, 0],
+				[0, 0, 255],
+			],
+			[
+				{
+					cellChar: "s",
+					locCount: n,
+					sels: [
+						{ kind: "mask" as const, mask: maskR },
+						{ kind: "mask" as const, mask: maskB },
+					],
+				},
+			],
 		);
 
 		// ID=3 appears twice in overlay — last (blue) is drawn on top
@@ -866,8 +865,20 @@ describe("Multiple overlapping selections", () => {
 			mask2[i >> 3] |= 1 << (i & 7);
 		}
 		mgr.applySelectionBitmasks(
-			[[255, 0, 0], [0, 255, 0]],
-			[{ cellChar: "s", locCount: n, sels: [{ kind: "mask" as const, mask: mask1 }, { kind: "mask" as const, mask: mask2 }] }],
+			[
+				[255, 0, 0],
+				[0, 255, 0],
+			],
+			[
+				{
+					cellChar: "s",
+					locCount: n,
+					sels: [
+						{ kind: "mask" as const, mask: mask1 },
+						{ kind: "mask" as const, mask: mask2 },
+					],
+				},
+			],
 		);
 		for (let i = 0; i < cb.count; i++) {
 			expect(cb.colors[i * 4 + 3]).toBe(0);
@@ -949,20 +960,14 @@ describe("buildSelectionOverlay (explicit patches)", () => {
 	});
 
 	it("out-of-bounds cellIndex is skipped safely", () => {
-		mgr.buildSelectionOverlay([
-			{ cell: "s", cellIndex: 999, r: 255, g: 0, b: 0, a: 255 },
-		]);
+		mgr.buildSelectionOverlay([{ cell: "s", cellIndex: 999, r: 255, g: 0, b: 0, a: 255 }]);
 		// The entry is "allocated" (count=1) but has zeroed data since the copy was skipped
 		expect(mgr.selOverlayCount).toBe(1);
 	});
 
 	it("appendToSelectionOverlay adds without replacing", () => {
-		mgr.buildSelectionOverlay([
-			{ cell: "s", cellIndex: 0, r: 255, g: 0, b: 0, a: 255 },
-		]);
-		mgr.appendToSelectionOverlay([
-			{ cell: "s", cellIndex: 1, r: 0, g: 0, b: 255, a: 255 },
-		]);
+		mgr.buildSelectionOverlay([{ cell: "s", cellIndex: 0, r: 255, g: 0, b: 0, a: 255 }]);
+		mgr.appendToSelectionOverlay([{ cell: "s", cellIndex: 1, r: 0, g: 0, b: 255, a: 255 }]);
 		expect(mgr.selOverlayCount).toBe(2);
 		// First entry still red
 		expect(mgr.selOverlayColors[0]).toBe(255);
@@ -1261,8 +1266,10 @@ describe("Structural integrity (all three invariants) through operation sequence
 		// User opens map — locations load across cells
 		mgr.applyDelta({
 			added: [
-				entry("s", 1, 10, 20), entry("s", 2, 30, 40),
-				entry("t", 3, 50, 60), entry("t", 4, 70, 80),
+				entry("s", 1, 10, 20),
+				entry("s", 2, 30, 40),
+				entry("t", 3, 50, 60),
+				entry("t", 4, 70, 80),
 				entry("u", 5, 90, 100),
 			],
 			updated: [],
@@ -1340,13 +1347,17 @@ describe("Structural integrity (all three invariants) through operation sequence
 
 	it("holds through multi-cell initFromBinary", () => {
 		const buf = buildMultiCellBinary([
-			{ cell: "s", entries: [
-				{ id: 1, lng: 10, lat: 20, heading: 0, r: 42, g: 42, b: 42, a: 255 },
-				{ id: 2, lng: 30, lat: 40, heading: 0, r: 42, g: 42, b: 42, a: 255 },
-			]},
-			{ cell: "t", entries: [
-				{ id: 3, lng: 50, lat: 60, heading: 0, r: 42, g: 42, b: 42, a: 255 },
-			]},
+			{
+				cell: "s",
+				entries: [
+					{ id: 1, lng: 10, lat: 20, heading: 0, r: 42, g: 42, b: 42, a: 255 },
+					{ id: 2, lng: 30, lat: 40, heading: 0, r: 42, g: 42, b: 42, a: 255 },
+				],
+			},
+			{
+				cell: "t",
+				entries: [{ id: 3, lng: 50, lat: 60, heading: 0, r: 42, g: 42, b: 42, a: 255 }],
+			},
 		]);
 		mgr.initFromBinary(buf);
 		assertStructuralIntegrity(mgr, "after multi-cell initFromBinary");
@@ -1389,7 +1400,16 @@ describe("Structural integrity (all three invariants) through operation sequence
 // Helper to build a minimal Rust-format binary
 function buildMinimalBinary(
 	cell: string,
-	entries: { id: number; lng: number; lat: number; heading: number; r: number; g: number; b: number; a: number }[],
+	entries: {
+		id: number;
+		lng: number;
+		lat: number;
+		heading: number;
+		r: number;
+		g: number;
+		b: number;
+		a: number;
+	}[],
 ): ArrayBuffer {
 	const n = entries.length;
 	const cellHeaderSize = 5; // u8 char + u32 count
@@ -1398,29 +1418,59 @@ function buildMinimalBinary(
 	const dv = new DataView(buf);
 	let off = 0;
 
-	dv.setUint32(off, 1, true); off += 4; // 1 cell
-	dv.setUint8(off, cell.charCodeAt(0)); off += 1;
-	dv.setUint32(off, n, true); off += 4;
+	dv.setUint32(off, 1, true);
+	off += 4; // 1 cell
+	dv.setUint8(off, cell.charCodeAt(0));
+	off += 1;
+	dv.setUint32(off, n, true);
+	off += 4;
 
 	// IDs
-	for (const e of entries) { dv.setUint32(off, e.id, true); off += 4; }
+	for (const e of entries) {
+		dv.setUint32(off, e.id, true);
+		off += 4;
+	}
 	// Positions
-	for (const e of entries) { dv.setFloat32(off, e.lng, true); off += 4; dv.setFloat32(off, e.lat, true); off += 4; }
+	for (const e of entries) {
+		dv.setFloat32(off, e.lng, true);
+		off += 4;
+		dv.setFloat32(off, e.lat, true);
+		off += 4;
+	}
 	// Colors
-	for (const e of entries) { dv.setUint8(off, e.r); off += 1; dv.setUint8(off, e.g); off += 1; dv.setUint8(off, e.b); off += 1; dv.setUint8(off, e.a); off += 1; }
+	for (const e of entries) {
+		dv.setUint8(off, e.r);
+		off += 1;
+		dv.setUint8(off, e.g);
+		off += 1;
+		dv.setUint8(off, e.b);
+		off += 1;
+		dv.setUint8(off, e.a);
+		off += 1;
+	}
 	// Angles
-	for (const e of entries) { dv.setFloat32(off, e.heading, true); off += 4; }
+	for (const e of entries) {
+		dv.setFloat32(off, e.heading, true);
+		off += 4;
+	}
 	// Selection count = 0
 	dv.setUint32(off, 0, true);
 
 	return buf;
 }
 
-type BinaryEntry = { id: number; lng: number; lat: number; heading: number; r: number; g: number; b: number; a: number };
+type BinaryEntry = {
+	id: number;
+	lng: number;
+	lat: number;
+	heading: number;
+	r: number;
+	g: number;
+	b: number;
+	a: number;
+};
 
-function buildMultiCellBinary(
-	cells: { cell: string; entries: BinaryEntry[] }[],
-): ArrayBuffer {
+function buildMultiCellBinary(cells: { cell: string; entries: BinaryEntry[] }[]): ArrayBuffer {
 	let size = 4; // u32 cell_count
 	for (const c of cells) {
 		const n = c.entries.length;
@@ -1432,16 +1482,39 @@ function buildMultiCellBinary(
 	const dv = new DataView(buf);
 	let off = 0;
 
-	dv.setUint32(off, cells.length, true); off += 4;
+	dv.setUint32(off, cells.length, true);
+	off += 4;
 
 	for (const c of cells) {
 		const n = c.entries.length;
-		dv.setUint8(off, c.cell.charCodeAt(0)); off += 1;
-		dv.setUint32(off, n, true); off += 4;
-		for (const e of c.entries) { dv.setUint32(off, e.id, true); off += 4; }
-		for (const e of c.entries) { dv.setFloat32(off, e.lng, true); off += 4; dv.setFloat32(off, e.lat, true); off += 4; }
-		for (const e of c.entries) { dv.setUint8(off, e.r); off += 1; dv.setUint8(off, e.g); off += 1; dv.setUint8(off, e.b); off += 1; dv.setUint8(off, e.a); off += 1; }
-		for (const e of c.entries) { dv.setFloat32(off, e.heading, true); off += 4; }
+		dv.setUint8(off, c.cell.charCodeAt(0));
+		off += 1;
+		dv.setUint32(off, n, true);
+		off += 4;
+		for (const e of c.entries) {
+			dv.setUint32(off, e.id, true);
+			off += 4;
+		}
+		for (const e of c.entries) {
+			dv.setFloat32(off, e.lng, true);
+			off += 4;
+			dv.setFloat32(off, e.lat, true);
+			off += 4;
+		}
+		for (const e of c.entries) {
+			dv.setUint8(off, e.r);
+			off += 1;
+			dv.setUint8(off, e.g);
+			off += 1;
+			dv.setUint8(off, e.b);
+			off += 1;
+			dv.setUint8(off, e.a);
+			off += 1;
+		}
+		for (const e of c.entries) {
+			dv.setFloat32(off, e.heading, true);
+			off += 4;
+		}
 	}
 
 	dv.setUint32(off, 0, true); // sel_count = 0

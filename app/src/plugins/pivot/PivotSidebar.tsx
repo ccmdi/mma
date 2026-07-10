@@ -2,40 +2,36 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Selection, SelectionProps } from "@/bindings.gen";
 import { NSelect } from "@/components/primitives/NSelect";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
-import { selectionDisplayName } from "@/store/selections";
+import { selectionDisplayName, buildSelection } from "@/store/selections";
 import { savedToSelectionProps, describeRule, type SavedSelection } from "@/store/savedSelections";
-import { Sidebar, Field, EmptyState } from "@/components/primitives/Sidebar";
+import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import type { ExtraFieldDef } from "@/bindings.gen";
-import { getFieldDef, fieldLabel } from "@/lib/data/fieldDefRegistry";
+import { fieldLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { binNumeric, compareNatural } from "@/lib/util/util";
+import { usePluginState } from "@/plugins/registry";
+import {
+	stripNa,
+	pivotCellValue,
+	formatPct,
+	resolveBucketCount,
+	NA_KEY,
+	BUCKET_MIN_DISTINCT,
+	BUCKET_FORCE_DISTINCT,
+	DEFAULT_BUCKETS,
+	type PivotRow,
+	type PivotData,
+	type ValueMode,
+} from "./pivotMath";
 import type { LocationStore } from "@/api";
 import "./pivot.css";
 
 let locStore: LocationStore | null = null;
 
-interface PivotRow {
-	label: string;
-	color: [number, number, number];
-	counts: Map<string, number>;
-	total: number;
-}
-
-interface PivotData {
-	rows: PivotRow[];
-	columns: string[];
-	columnLabels: string[];
-	columnTotals: number[];
-}
-
 type RowSource = "all" | "active" | string; // "all", "active", or saved selection id
 
 const TAGS_FIELD_KEY = "__tags__";
 
-interface FieldOption {
-	key: string;
-	label: string;
-	def: ExtraFieldDef | undefined;
-}
+import type { FieldEntry } from "@/components/editor/map/FilterBuilder";
 
 async function computePivot(
 	rowSource: RowSource,
@@ -96,18 +92,24 @@ async function computePivot(
 	const tagMap = map.meta.tags;
 	const isNumeric = !isTags && (fieldDef?.type === "number" || fieldDef?.type === "date");
 
-	// Numeric fields explode into one column per distinct value; bucket them into a
-	// fixed histogram of ranges when a bucket count is given.
+	// Numeric fields explode into one column per distinct value; bucket them into
+	// a fixed histogram of ranges. resolveBucketCount arbitrates between the
+	// user's choice and the field's cardinality.
+	const numericVals = isNumeric
+		? allLocs.flatMap((loc) => {
+				const v = loc.extra?.[fieldKey];
+				const n = v == null ? NaN : Number(v);
+				return Number.isFinite(n) ? [n] : [];
+			})
+		: null;
+	const numericDistinct = numericVals ? new Set(numericVals).size : undefined;
+	const effectiveBuckets =
+		numericVals && numericDistinct != null
+			? resolveBucketCount(numericDistinct, bucketCount)
+			: null;
 	const buckets =
-		isNumeric && bucketCount
-			? binNumeric(
-					allLocs.flatMap((loc) => {
-						const v = loc.extra?.[fieldKey];
-						const n = v == null ? NaN : Number(v);
-						return Number.isFinite(n) ? [n] : [];
-					}),
-					{ by: "count", n: bucketCount },
-				)
+		numericVals && effectiveBuckets
+			? binNumeric(numericVals, { by: "count", n: effectiveBuckets })
 			: null;
 
 	// Build field index: locId -> field value(s). Tags are multi-valued.
@@ -167,14 +169,14 @@ async function computePivot(
 			}
 		}
 		if (naCount > 0) {
-			counts.set("__na__", naCount);
+			counts.set(NA_KEY, naCount);
 			hasNa = true;
 			total += naCount;
 		}
 		return { label: row.label, color: row.color, counts, total };
 	});
 
-	if (hasNa) columns.push("__na__");
+	if (hasNa) columns.push(NA_KEY);
 
 	const columnTotals = columns.map((col) =>
 		pivotRows.reduce((sum, r) => sum + (r.counts.get(col) ?? 0), 0),
@@ -182,33 +184,47 @@ async function computePivot(
 
 	const extraLabels = fieldDef?.labels ?? {};
 	const columnLabels = columns.map((c) => {
-		if (c === "__na__") return "N/A";
+		if (c === NA_KEY) return "N/A";
 		if (isTags) return tagMap[c]?.name ?? `Tag ${c}`;
 		return extraLabels[c] ?? c;
 	});
 
-	return { rows: pivotRows, columns, columnLabels, columnTotals };
+	// Selection props per column (same shapes gradient emits): tag columns map to Tag
+	// selections, buckets to `between` filters, plain values to `eq` filters.
+	const columnProps: (SelectionProps | null)[] = columns.map((col, i) => {
+		if (col === NA_KEY) return null;
+		if (isTags) return { type: "Tag", tagId: Number(col) };
+		if (buckets) {
+			const [lo, hi] = buckets.bounds[i];
+			return { type: "Filter", field: fieldKey, op: "between", value: lo, value2: hi };
+		}
+		return { type: "Filter", field: fieldKey, op: "eq", value: col, value2: null };
+	});
+
+	return { rows: pivotRows, columns, columnLabels, columnTotals, numericDistinct, columnProps };
 }
 
-function buildPivotFields(knownKeys: ReadonlySet<string>): FieldOption[] {
-	const result: FieldOption[] = [{ key: TAGS_FIELD_KEY, label: "Tags", def: undefined }];
+function buildPivotFields(knownKeys: ReadonlySet<string>): FieldEntry[] {
+	const result: FieldEntry[] = [{ key: TAGS_FIELD_KEY, label: "Tags", def: { type: "enum" } }];
 	for (const key of knownKeys) {
 		const def = getFieldDef(key);
-		result.push({ key, label: fieldLabel(key), def });
+		if (def) result.push({ key, label: fieldLabel(key), def });
 	}
 	return result;
 }
 
-function defaultPivotField(fields: FieldOption[]): string {
+function defaultPivotField(fields: FieldEntry[]): string {
 	return (fields.find((f) => f.key === "cameraType") ?? fields[0])?.key ?? "";
 }
 
 export function PivotSidebar({ onClose }: { onClose: () => void }) {
-	const [rowSource, setRowSource] = useState<RowSource>("active");
-	const [fieldKey, setFieldKey] = useState(() =>
+	const [rowSourceRaw, setRowSource] = usePluginState<RowSource>("pivot", "rowSource", "active");
+	const [fieldKeyRaw, setFieldKey] = usePluginState<string>("pivot", "fieldKey", () =>
 		defaultPivotField(buildPivotFields(MMA.getKnownFieldKeys())),
 	);
-	const [bucketCount, setBucketCount] = useState<number | null>(10);
+	const [bucketCount, setBucketCount] = usePluginState<number | null>("pivot", "bucketCount", 10);
+	const [valueMode, setValueMode] = usePluginState<ValueMode>("pivot", "valueMode", "count");
+	const [includeNa, setIncludeNa] = usePluginState<boolean>("pivot", "includeNa", true);
 	const [data, setData] = useState<PivotData | null>(null);
 	const [loading, setLoading] = useState(false);
 
@@ -216,6 +232,17 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	const fields = useMemo(() => buildPivotFields(knownKeys), [knownKeys]);
 
 	const savedSelections: SavedSelection[] = MMA.getSettings().savedSelections;
+
+	// Persisted values are global; fall back when they don't resolve on this map.
+	const rowSource: RowSource =
+		rowSourceRaw === "all" ||
+		rowSourceRaw === "active" ||
+		savedSelections.some((s) => s.id === rowSourceRaw)
+			? rowSourceRaw
+			: "active";
+	const fieldKey = fields.some((f) => f.key === fieldKeyRaw)
+		? fieldKeyRaw
+		: defaultPivotField(fields);
 
 	const currentDef = fields.find((f) => f.key === fieldKey)?.def;
 	const isNumericField = currentDef?.type === "number" || currentDef?.type === "date";
@@ -246,13 +273,27 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 		};
 	}, [recompute, debouncedRecompute]);
 
+	const hasNa = data?.columns.includes(NA_KEY) ?? false;
+
+	// Cardinality-aware bucketing (mirrors resolveBucketCount in computePivot):
+	// few distinct values -> no bucket control at all; too many -> "Off" disabled.
+	const distinct = isNumericField ? data?.numericDistinct : undefined;
+	const bucketHidden = distinct != null && distinct < BUCKET_MIN_DISTINCT;
+	const bucketForced = distinct != null && distinct >= BUCKET_FORCE_DISTINCT;
+
+	const view = useMemo(() => (data && !includeNa ? stripNa(data) : data), [data, includeNa]);
+
 	return (
 		<Sidebar title="Pivot Table" onBack={onClose} className="pivot-sidebar" flush>
 			<div className="pivot-sidebar__controls">
 				<Field label="Rows">
 					<NSelect value={rowSource} onChange={(e) => setRowSource(e.target.value)}>
-						<option value="all">All Locations</option>
-						<option value="active">Active Selections</option>
+						<option value="all" className="pivot-sidebar__opt-builtin">
+							All locations
+						</option>
+						<option value="active" className="pivot-sidebar__opt-builtin">
+							Active selections
+						</option>
 						{savedSelections.map((s) => (
 							<option key={s.id} value={s.id}>
 								{s.name}
@@ -269,21 +310,44 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 						))}
 					</NSelect>
 				</Field>
-				{isNumericField && (
+				{isNumericField && !bucketHidden && (
 					<Field label="Bucket numeric values">
 						<NSelect
-							value={bucketCount ?? "off"}
+							value={bucketForced ? (bucketCount ?? DEFAULT_BUCKETS) : (bucketCount ?? "off")}
 							onChange={(e) =>
 								setBucketCount(e.target.value === "off" ? null : Number(e.target.value))
 							}
 						>
-							<option value="off">Off</option>
+							<option value="off" disabled={bucketForced}>
+								{bucketForced ? "Off (too many values)" : "Off"}
+							</option>
 							<option value="5">5 buckets</option>
 							<option value="10">10 buckets</option>
 							<option value="15">15 buckets</option>
 							<option value="20">20 buckets</option>
 						</NSelect>
 					</Field>
+				)}
+				<Field label="Values">
+					<SegmentedControl<ValueMode>
+						value={valueMode}
+						onChange={setValueMode}
+						options={[
+							{ value: "count", label: "Count" },
+							{ value: "rowPct", label: "Row %" },
+							{ value: "colPct", label: "Col %" },
+						]}
+					/>
+				</Field>
+				{hasNa && (
+					<label className="pivot-sidebar__check">
+						<input
+							type="checkbox"
+							checked={includeNa}
+							onChange={(e) => setIncludeNa(e.target.checked)}
+						/>
+						Include N/A
+					</label>
 				)}
 			</div>
 
@@ -300,8 +364,8 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 								: "Saved selection could not be resolved."}
 					</EmptyState>
 				)}
-				{loading && <EmptyState>Computing...</EmptyState>}
-				{data && <PivotTable data={data} />}
+				{loading && !view && <EmptyState>Computing...</EmptyState>}
+				{view && <PivotTable data={view} mode={valueMode} stale={loading} />}
 			</div>
 		</Sidebar>
 	);
@@ -309,9 +373,31 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 
 type SortKey = "label" | "total" | string; // column key or "label" or "total"
 
-function PivotTable({ data }: { data: PivotData }) {
+function PivotTable({ data, mode, stale }: { data: PivotData; mode: ValueMode; stale?: boolean }) {
 	const [sortKey, setSortKey] = useState<SortKey>("label");
 	const [sortAsc, setSortAsc] = useState(true);
+
+	// Deterministic selection key per column; parent recomputes on selection:change,
+	// so live-state highlighting stays in sync through the data prop.
+	const columnKeys = useMemo(
+		() => data.columnProps?.map((p) => (p ? buildSelection(p).key : null)),
+		[data],
+	);
+	const liveKeys = new Set(MMA.getSelections().map((s) => s.key));
+
+	const toggleColumnSelection = useCallback(
+		(i: number) => {
+			const props = data.columnProps?.[i];
+			if (!props) return;
+			const key = columnKeys?.[i];
+			if (key && MMA.getSelections().some((s) => s.key === key)) {
+				MMA.removeSelections([key]);
+			} else {
+				MMA.addSelections([props]);
+			}
+		},
+		[data, columnKeys],
+	);
 
 	const handleSort = useCallback((key: SortKey) => {
 		setSortKey((prev) => {
@@ -324,6 +410,23 @@ function PivotTable({ data }: { data: PivotData }) {
 		});
 	}, []);
 
+	// Displayed value per cell; also drives sorting and shading so all three agree.
+	const cellValue = useCallback(
+		(row: PivotRow, col: string) => pivotCellValue(data, row, col, mode),
+		[mode, data],
+	);
+
+	const maxCellValue = useMemo(() => {
+		let max = 0;
+		for (const row of data.rows) {
+			for (const col of data.columns) {
+				const v = cellValue(row, col);
+				if (v > max) max = v;
+			}
+		}
+		return max;
+	}, [data, cellValue]);
+
 	const sortedIndices = useMemo(() => {
 		const indices = data.rows.map((_, i) => i);
 		indices.sort((a, b) => {
@@ -335,20 +438,20 @@ function PivotTable({ data }: { data: PivotData }) {
 				va = data.rows[a].total;
 				vb = data.rows[b].total;
 			} else {
-				va = data.rows[a].counts.get(sortKey) ?? 0;
-				vb = data.rows[b].counts.get(sortKey) ?? 0;
+				va = cellValue(data.rows[a], sortKey);
+				vb = cellValue(data.rows[b], sortKey);
 			}
 			if (va < vb) return sortAsc ? -1 : 1;
 			if (va > vb) return sortAsc ? 1 : -1;
 			return 0;
 		});
 		return indices;
-	}, [data, sortKey, sortAsc]);
+	}, [data, sortKey, sortAsc, cellValue]);
 
 	const arrow = (key: SortKey) => (sortKey === key ? (sortAsc ? " ▴" : " ▾") : "");
 
 	return (
-		<div className="pivot-sidebar__table-wrap">
+		<div className={`pivot-sidebar__table-wrap${stale ? " pivot-sidebar__table-wrap--stale" : ""}`}>
 			<table className="pivot-sidebar__table">
 				<thead>
 					<tr>
@@ -358,16 +461,28 @@ function PivotTable({ data }: { data: PivotData }) {
 						>
 							Selection{arrow("label")}
 						</th>
-						{data.columnLabels.map((label, i) => (
-							<th
-								key={data.columns[i]}
-								className="pivot-sidebar__th-sort"
-								onClick={() => handleSort(data.columns[i])}
-							>
-								{label}
-								{arrow(data.columns[i])}
-							</th>
-						))}
+						{data.columnLabels.map((label, i) => {
+							const selectable = !!data.columnProps?.[i];
+							const selected = !!columnKeys?.[i] && liveKeys.has(columnKeys[i]!);
+							return (
+								<th
+									key={data.columns[i]}
+									className={`pivot-sidebar__th-sort${selected ? " pivot-sidebar__th-selected" : ""}`}
+									title={
+										selectable
+											? "Click to sort. Ctrl+Click to select matching locations."
+											: undefined
+									}
+									onClick={(e) => {
+										if ((e.ctrlKey || e.metaKey) && selectable) toggleColumnSelection(i);
+										else handleSort(data.columns[i]);
+									}}
+								>
+									{label}
+									{arrow(data.columns[i])}
+								</th>
+							);
+						})}
 						<th className="pivot-sidebar__th-sort" onClick={() => handleSort("total")}>
 							Total{arrow("total")}
 						</th>
@@ -390,10 +505,20 @@ function PivotTable({ data }: { data: PivotData }) {
 									</span>
 								</td>
 								{data.columns.map((col) => {
-									const v = row.counts.get(col) ?? 0;
+									const raw = row.counts.get(col) ?? 0;
+									const v = cellValue(row, col);
 									return (
-										<td key={col} className={v === 0 ? "pivot-sidebar__cell--zero" : ""}>
-											{v}
+										<td
+											key={col}
+											className={raw === 0 ? "pivot-sidebar__cell--zero" : ""}
+											style={
+												raw > 0 && maxCellValue > 0
+													? { background: `rgba(255,255,255,${(0.11 * v) / maxCellValue})` }
+													: undefined
+											}
+											title={mode === "count" ? undefined : `${raw}`}
+										>
+											{mode === "count" ? raw : formatPct(v)}
 										</td>
 									);
 								})}

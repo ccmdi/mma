@@ -1,14 +1,14 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useEffect, useRef, useState, useCallback } from "react";
+import { memo, useEffect, useRef, useState, useCallback } from "react";
 import { hasLoadAsPanoId, LocationFlag } from "@/types";
 import { PANO_ZOOM, SV_JUMP_RADIUS } from "@/lib/sv/constants";
-import type { Location } from "@/bindings.gen";
 import { google } from "@/lib/sv/opensv";
 import { lookupStreetView } from "@/lib/sv/lookup";
 import { shortenMapsUrl } from "@/lib/sv/shortUrl";
 import { isOfficialPano } from "@/lib/sv/panoId";
 import { useSettings } from "@/store/settings";
-import { getCurrentMap } from "@/store/useMapStore";
+import { getCurrentMap, getActiveLocation, useActiveLocation } from "@/store/useMapStore";
+import { getPanoAltitude, subscribePanoAltitude } from "./PanoViewerContext";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useHotkeyRef } from "@/lib/hooks/useHotkey";
 import { open } from "@tauri-apps/plugin-shell";
@@ -32,12 +32,20 @@ import {
 
 // --- Compass ---
 
-function Compass({ heading }: { heading: number }) {
+function Compass({ panorama }: { panorama: google.maps.StreetViewPanorama }) {
+	const ref = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const update = () => {
+			ref.current?.style.setProperty("--heading", `${(-panorama.getPov().heading).toFixed(2)}deg`);
+		};
+		const listener = panorama.addListener("pov_changed", update);
+		update();
+		return () => {
+			google?.maps?.event?.removeListener(listener);
+		};
+	}, [panorama]);
 	return (
-		<div
-			className="compass"
-			style={{ "--heading": `${(-heading).toFixed(2)}deg` } as React.CSSProperties}
-		>
+		<div ref={ref} className="compass">
 			<svg className="compass__arrow" viewBox="0 0 40 100">
 				<path fill="#C1272D" d="M10 50l10-32 10 32z" />
 				<path fill="#D1D1D1" d="M30 50L20 82 10 50z" />
@@ -61,7 +69,20 @@ const TAPE_DEG_WIDTH = 180;
 const TAPE_PX_PER_DEG = 1.5;
 const TAPE_WIDTH_PX = TAPE_DEG_WIDTH * TAPE_PX_PER_DEG;
 
-function CompassTape({ heading }: { heading: number }) {
+function CompassTape({ panorama }: { panorama: google.maps.StreetViewPanorama }) {
+	const innerRef = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const update = () => {
+			if (innerRef.current)
+				innerRef.current.style.transform = `translateX(${(-panorama.getPov().heading * TAPE_PX_PER_DEG).toFixed(1)}px)`;
+		};
+		const listener = panorama.addListener("pov_changed", update);
+		update();
+		return () => {
+			google?.maps?.event?.removeListener(listener);
+		};
+	}, [panorama]);
+
 	const ticks: { deg: number; label?: string }[] = [];
 	for (let d = 0; d < 360; d += 5) {
 		const dir = TAPE_DIRECTIONS.find(([a]) => a === d);
@@ -72,10 +93,7 @@ function CompassTape({ heading }: { heading: number }) {
 		<div className="compass-tape">
 			<div className="compass-tape__center-mark" />
 			<div className="compass-tape__strip" style={{ width: TAPE_WIDTH_PX }}>
-				<div
-					className="compass-tape__inner"
-					style={{ transform: `translateX(${(-heading * TAPE_PX_PER_DEG).toFixed(1)}px)` }}
-				>
+				<div className="compass-tape__inner" ref={innerRef}>
 					{[-360, 0, 360].map((offset) =>
 						ticks.map((t) => {
 							const deg = t.deg + offset;
@@ -196,31 +214,11 @@ export function sendHideCar(hide: boolean) {
 	});
 }
 
-// --- PanoControls ---
+// --- Pano control subcomponents ---
 
-export function PanoControls({
-	panorama,
-	location,
-	altitude,
-	isFullscreen,
-	onFullscreen,
-	onReturnToSpawn,
-}: {
-	panorama: google.maps.StreetViewPanorama;
-	location: Location;
-	altitude: number;
-	isFullscreen: boolean;
-	onFullscreen: () => void;
-	onReturnToSpawn: () => void;
-}) {
-	const vis = useSettings();
-	const fullscreenKey = useBinding("toggleFullscreen");
-	const jumpForwardKey = useBinding("jumpForward");
-	const jumpBackwardKey = useBinding("jumpBackward");
-	const [heading, setHeading] = useState(0);
-	const [zoom, setZoom] = useState(0);
+function CompassControl({ panorama }: { panorama: google.maps.StreetViewPanorama }) {
 	const [links, setLinks] = useState<google.maps.StreetViewLink[]>([]);
-	const [copyState, setCopyState] = useState<"idle" | "loading" | "done">("idle");
+	const controlRef = useRef<HTMLDivElement>(null);
 	const animRef = useRef<{ stop: () => void; target: { heading: number; pitch: number } } | null>(
 		null,
 	);
@@ -237,26 +235,30 @@ export function PanoControls({
 	);
 
 	useEffect(() => {
-		const povListener = panorama.addListener("pov_changed", () => {
-			setHeading(panorama.getPov().heading);
-		});
-		const zoomListener = panorama.addListener("zoom_changed", () => {
-			setZoom(panorama.getZoom());
-		});
 		const linksListener = panorama.addListener("links_changed", () => {
 			setLinks(
 				(panorama.getLinks() ?? []).filter((l): l is google.maps.StreetViewLink => l != null),
 			);
 		});
-		setHeading(panorama.getPov().heading);
-		setZoom(panorama.getZoom());
 		setLinks((panorama.getLinks() ?? []).filter((l): l is google.maps.StreetViewLink => l != null));
 		return () => {
-			google?.maps?.event?.removeListener(povListener);
-			google?.maps?.event?.removeListener(zoomListener);
 			google?.maps?.event?.removeListener(linksListener);
 		};
 	}, [panorama]);
+
+	useEffect(() => {
+		const update = () => {
+			const h = panorama.getPov().heading;
+			controlRef.current?.querySelectorAll<HTMLElement>(".compass-control__link").forEach((btn) => {
+				btn.classList.toggle("is-active", Math.abs(h - Number(btn.dataset.heading ?? 0)) < 1);
+			});
+		};
+		const povListener = panorama.addListener("pov_changed", update);
+		update();
+		return () => {
+			google?.maps?.event?.removeListener(povListener);
+		};
+	}, [panorama, links]);
 
 	const pointNorth = useCallback(
 		(e?: React.MouseEvent) => {
@@ -290,6 +292,59 @@ export function PanoControls({
 		[animatePov],
 	);
 
+	return (
+		<div
+			className="embed-controls__control"
+			data-position="left-bottom"
+			style={{ inset: "auto auto 248px 0px" }}
+		>
+			<div className="map-control map-control--transparent">
+				<div className="compass-control" ref={controlRef}>
+					<Tooltip
+						content="Click to point north (N). Ctrl+click to cycle through linked panoramas."
+						side="right"
+					>
+						<button
+							className="compass-control__button"
+							onClick={pointNorth}
+							aria-label="Point north"
+						>
+							<Compass panorama={panorama} />
+						</button>
+					</Tooltip>
+					{links.map((link) => (
+						<button
+							key={link.pano}
+							className="compass-control__link"
+							data-heading={(link.heading ?? 0).toFixed(2)}
+							style={{ "--heading": `${(link.heading ?? 0).toFixed(2)}deg` } as React.CSSProperties}
+							onClick={() => navigateToLink(link.heading ?? 0)}
+						>
+							<Icon path={mdiChevronUp} />
+						</button>
+					))}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function ZoomControl({ panorama }: { panorama: google.maps.StreetViewPanorama }) {
+	const [atMin, setAtMin] = useState(() => (panorama.getZoom() ?? 0) <= PANO_ZOOM.min);
+	const [atZero, setAtZero] = useState(() => (panorama.getZoom() ?? 0) <= 0);
+	useEffect(() => {
+		const update = () => {
+			const z = panorama.getZoom() ?? 0;
+			setAtMin(z <= PANO_ZOOM.min);
+			setAtZero(z <= 0);
+		};
+		const listener = panorama.addListener("zoom_changed", update);
+		update();
+		return () => {
+			google?.maps?.event?.removeListener(listener);
+		};
+	}, [panorama]);
+
 	const zoomIn = useCallback(() => {
 		panorama.setZoom(Math.min(PANO_ZOOM.max, Math.max(0, panorama.getZoom()) + 1));
 	}, [panorama]);
@@ -301,6 +356,155 @@ export function PanoControls({
 	const resetZoom = useCallback(() => {
 		panorama.setZoom(PANO_ZOOM.min);
 	}, [panorama]);
+
+	return (
+		<div
+			className="embed-controls__control"
+			data-position="left-bottom"
+			style={{ inset: "auto auto 112px 0px" }}
+		>
+			<div className="map-control map-control--button">
+				<Tooltip content="Zoom in" side="right">
+					<button onClick={zoomIn} aria-label="Zoom in">
+						<Icon path={mdiPlus} />
+					</button>
+				</Tooltip>
+				<Tooltip content="Reset zoom" side="right">
+					<button disabled={atMin} onClick={resetZoom} aria-label="Reset zoom">
+						<Icon path={mdiImageFilterCenterFocus} />
+					</button>
+				</Tooltip>
+				<Tooltip content="Zoom out" side="right">
+					<button disabled={atZero} onClick={zoomOut} aria-label="Zoom out">
+						<Icon path={mdiMinus} />
+					</button>
+				</Tooltip>
+			</div>
+		</div>
+	);
+}
+
+function ReturnToSpawnControl({
+	panorama,
+	onReturnToSpawn,
+}: {
+	panorama: google.maps.StreetViewPanorama;
+	onReturnToSpawn: () => void;
+}) {
+	const location = useActiveLocation();
+	const [hasChanged, setHasChanged] = useState(false);
+	useEffect(() => {
+		if (!location) return;
+		const update = () => {
+			const pov = panorama.getPov();
+			setHasChanged(
+				pov.heading !== location.heading ||
+					pov.pitch !== location.pitch ||
+					panorama.getZoom() !== location.zoom,
+			);
+		};
+		const povListener = panorama.addListener("pov_changed", update);
+		const zoomListener = panorama.addListener("zoom_changed", update);
+		update();
+		return () => {
+			google?.maps?.event?.removeListener(povListener);
+			google?.maps?.event?.removeListener(zoomListener);
+		};
+	}, [panorama, location]);
+
+	return (
+		<div
+			className="embed-controls__control"
+			data-position="left-bottom"
+			style={{ inset: "auto auto 56px 0px" }}
+		>
+			<div className="map-control map-control--button">
+				<Tooltip content="Return to spawn (R)" side="right">
+					<button disabled={!hasChanged} onClick={onReturnToSpawn} aria-label="Return to spawn (R)">
+						<Icon path={mdiHome} />
+					</button>
+				</Tooltip>
+			</div>
+		</div>
+	);
+}
+
+function CoordinateControl({ panorama }: { panorama: google.maps.StreetViewPanorama }) {
+	const textRef = useRef<HTMLSpanElement>(null);
+	useEffect(() => {
+		const update = () => {
+			const zoom = (panorama.getZoom() ?? 0).toFixed(2);
+			const altitude = getPanoAltitude();
+			if (textRef.current)
+				textRef.current.textContent =
+					altitude === 0 ? ` zoom ${zoom}` : ` ${altitude.toFixed(2)}m · zoom ${zoom}`;
+		};
+		const listener = panorama.addListener("zoom_changed", update);
+		const unsubAltitude = subscribePanoAltitude(update);
+		update();
+		return () => {
+			google?.maps?.event?.removeListener(listener);
+			unsubAltitude();
+		};
+	}, [panorama]);
+
+	return (
+		<div
+			className="embed-controls__control"
+			data-position="bottom-left"
+			style={{ inset: "auto auto 0px 96px" }}
+		>
+			<div className="map-control coordinate-control is-dark">
+				<Icon path={mdiImageFilterHdrOutline} size={10} />
+				<span ref={textRef} />
+			</div>
+		</div>
+	);
+}
+
+// --- PanoControls ---
+
+function PanoMetadataControl() {
+	const location = useActiveLocation();
+	if (!location) return null;
+	return (
+		<div
+			className="embed-controls__control"
+			data-position="top-left"
+			style={{ inset: "0px auto auto 0px" }}
+		>
+			<div
+				className="map-control coordinate-control is-dark"
+				style={{ fontSize: "10px", display: "flex", flexDirection: "column", gap: "2px" }}
+			>
+				<span>Pinned pano: {hasLoadAsPanoId(location) ? "yes" : "no"}</span>
+				{location.extra &&
+					Object.entries(location.extra).map(([key, val]) => (
+						<span key={key}>
+							{key}: {val == null ? "null" : String(val)}
+						</span>
+					))}
+			</div>
+		</div>
+	);
+}
+
+export const PanoControls = memo(function PanoControls({
+	panorama,
+	isFullscreen,
+	onFullscreen,
+	onReturnToSpawn,
+}: {
+	panorama: google.maps.StreetViewPanorama;
+	isFullscreen: boolean;
+	onFullscreen: () => void;
+	onReturnToSpawn: () => void;
+}) {
+	const vis = useSettings();
+	const fullscreenKey = useBinding("toggleFullscreen");
+	const jumpForwardKey = useBinding("jumpForward");
+	const jumpBackwardKey = useBinding("jumpBackward");
+	const [copyState, setCopyState] = useState<"idle" | "loading" | "done">("idle");
 
 	const buildMapsUrl = useCallback(() => {
 		const loc = panorama.getLocation();
@@ -345,7 +549,8 @@ export function PanoControls({
 		async ({ long, noTags }: { long: boolean; noTags: boolean }) => {
 			const url = buildMapsUrl();
 			if (!url) return;
-			if (!noTags) {
+			const location = getActiveLocation();
+			if (!noTags && location) {
 				const tagsById = getCurrentMap()?.meta.tags ?? {};
 				for (const id of location.tags) {
 					const name = tagsById[id]?.name;
@@ -370,13 +575,8 @@ export function PanoControls({
 			setCopyState("done");
 			setTimeout(() => setCopyState("idle"), 500);
 		},
-		[buildMapsUrl, location],
+		[buildMapsUrl],
 	);
-
-	const hasChanged =
-		panorama.getPov().heading !== location.heading ||
-		panorama.getPov().pitch !== location.pitch ||
-		panorama.getZoom() !== location.zoom;
 
 	const jumpForwardRef = useHotkeyRef(jumpForwardKey);
 	const jumpBackwardRef = useHotkeyRef(jumpBackwardKey);
@@ -477,89 +677,14 @@ export function PanoControls({
 				</div>
 			)}
 
-			{vis.showCompass && (
-				<div
-					className="embed-controls__control"
-					data-position="left-bottom"
-					style={{ inset: "auto auto 248px 0px" }}
-				>
-					<div className="map-control map-control--transparent">
-						<div className="compass-control">
-							<Tooltip
-								content="Click to point north (N). Ctrl+click to cycle through linked panoramas."
-								side="right"
-							>
-								<button
-									className="compass-control__button"
-									onClick={pointNorth}
-									aria-label="Point north"
-								>
-									<Compass heading={heading} />
-								</button>
-							</Tooltip>
-							{links.map((link) => (
-								<button
-									key={link.pano}
-									className={`compass-control__link${Math.abs(heading - (link.heading ?? 0)) < 1 ? " is-active" : ""}`}
-									style={
-										{ "--heading": `${(link.heading ?? 0).toFixed(2)}deg` } as React.CSSProperties
-									}
-									onClick={() => navigateToLink(link.heading ?? 0)}
-								>
-									<Icon path={mdiChevronUp} />
-								</button>
-							))}
-						</div>
-					</div>
-				</div>
-			)}
+			{vis.showCompass && <CompassControl panorama={panorama} />}
 
-			{vis.showCompassTape && <CompassTape heading={heading} />}
+			{vis.showCompassTape && <CompassTape panorama={panorama} />}
 
-			{vis.showZoom && (
-				<div
-					className="embed-controls__control"
-					data-position="left-bottom"
-					style={{ inset: "auto auto 112px 0px" }}
-				>
-					<div className="map-control map-control--button">
-						<Tooltip content="Zoom in" side="right">
-							<button onClick={zoomIn} aria-label="Zoom in">
-								<Icon path={mdiPlus} />
-							</button>
-						</Tooltip>
-						<Tooltip content="Reset zoom" side="right">
-							<button disabled={zoom <= PANO_ZOOM.min} onClick={resetZoom} aria-label="Reset zoom">
-								<Icon path={mdiImageFilterCenterFocus} />
-							</button>
-						</Tooltip>
-						<Tooltip content="Zoom out" side="right">
-							<button disabled={zoom <= 0} onClick={zoomOut} aria-label="Zoom out">
-								<Icon path={mdiMinus} />
-							</button>
-						</Tooltip>
-					</div>
-				</div>
-			)}
+			{vis.showZoom && <ZoomControl panorama={panorama} />}
 
 			{vis.showReturnToSpawn && (
-				<div
-					className="embed-controls__control"
-					data-position="left-bottom"
-					style={{ inset: "auto auto 56px 0px" }}
-				>
-					<div className="map-control map-control--button">
-						<Tooltip content="Return to spawn (R)" side="right">
-							<button
-								disabled={!hasChanged}
-								onClick={onReturnToSpawn}
-								aria-label="Return to spawn (R)"
-							>
-								<Icon path={mdiHome} />
-							</button>
-						</Tooltip>
-					</div>
-				</div>
+				<ReturnToSpawnControl panorama={panorama} onReturnToSpawn={onReturnToSpawn} />
 			)}
 
 			<div
@@ -592,43 +717,9 @@ export function PanoControls({
 				)}
 			</div>
 
-			{vis.showCoordinateDisplay && (
-				<div
-					className="embed-controls__control"
-					data-position="bottom-left"
-					style={{ inset: "auto auto 0px 96px" }}
-				>
-					<div className="map-control coordinate-control is-dark">
-						<Icon path={mdiImageFilterHdrOutline} size={10} />
-						<span>
-							{altitude === 0
-								? ` zoom ${(zoom ?? 0).toFixed(2)}`
-								: ` ${altitude.toFixed(2)}m · zoom ${(zoom ?? 0).toFixed(2)}`}
-						</span>
-					</div>
-				</div>
-			)}
+			{vis.showCoordinateDisplay && <CoordinateControl panorama={panorama} />}
 
-			{vis.showPanoMetadata && (
-				<div
-					className="embed-controls__control"
-					data-position="top-left"
-					style={{ inset: "0px auto auto 0px" }}
-				>
-					<div
-						className="map-control coordinate-control is-dark"
-						style={{ fontSize: "10px", display: "flex", flexDirection: "column", gap: "2px" }}
-					>
-						<span>Pinned pano: {hasLoadAsPanoId(location) ? "yes" : "no"}</span>
-						{location.extra &&
-							Object.entries(location.extra).map(([key, val]) => (
-								<span key={key}>
-									{key}: {val == null ? "null" : String(val)}
-								</span>
-							))}
-					</div>
-				</div>
-			)}
+			{vis.showPanoMetadata && <PanoMetadataControl />}
 		</div>
 	);
-}
+});

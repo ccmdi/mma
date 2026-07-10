@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useEffectEvent } from "react";
 import { google } from "@/lib/sv/opensv";
 import { Icon, polygonOutline, rectangleOutline } from "@/components/primitives/Icon";
 import { mdiPencil } from "@mdi/js";
+import { hostInstance, type MapHost } from "@/lib/map/host";
+import { addClickInterceptor } from "@/lib/map/mapState";
 
 type DrawMode = "polygon" | "rectangle" | "freehand" | null;
 
@@ -33,13 +35,21 @@ function simplify(pts: number[][], eps: number): number[][] {
 	return [pts[0], pts[pts.length - 1]];
 }
 
+function closeRing(ring: number[][]): number[][] {
+	if (ring.length === 0) return ring;
+	const first = ring[0];
+	const last = ring[ring.length - 1];
+	if (first[0] !== last[0] || first[1] !== last[1]) return [...ring, [first[0], first[1]]];
+	return ring;
+}
+
 export function PolygonTools({
-	map,
+	host,
 	onDraw,
 	freehandPathRef,
 	requestOverlayUpdate,
 }: {
-	map: google.maps.Map | null;
+	host: MapHost | null;
 	onDraw: (rings: number[][][]) => void;
 	freehandPathRef: React.RefObject<number[][] | null>;
 	requestOverlayUpdate: () => void;
@@ -49,9 +59,11 @@ export function PolygonTools({
 	const isDrawingRef = useRef(false);
 	const emitDraw = useEffectEvent((rings: number[][][]) => onDraw(rings));
 	const emitUpdate = useEffectEvent(() => requestOverlayUpdate());
+	const gMap = hostInstance(host, "google");
 
+	// Google host: polygon/rectangle via the native DrawingManager (editable rubber band).
 	useEffect(() => {
-		if (!map) return;
+		if (!gMap) return;
 		if (!google?.maps) return;
 
 		let cancelled = false;
@@ -70,7 +82,7 @@ export function PolygonTools({
 				drawingControl: false,
 				polygonOptions: { editable: true },
 			});
-			dm.setMap(map);
+			dm.setMap(gMap);
 			managerRef.current = dm;
 
 			listener = google.maps.event.addListener(
@@ -85,12 +97,7 @@ export function PolygonTools({
 					if (e.type === Ym.POLYGON) {
 						const path = (e.overlay as google.maps.Polygon).getPath().getArray();
 						const ring = path.map((ll) => [ll.lng(), ll.lat()]);
-						if (ring.length > 0) {
-							const first = ring[0];
-							const last = ring[ring.length - 1];
-							if (first[0] !== last[0] || first[1] !== last[1]) ring.push([first[0], first[1]]);
-						}
-						emitDraw([ring]);
+						if (ring.length > 0) emitDraw([closeRing(ring)]);
 					} else if (e.type === Ym.RECTANGLE) {
 						const b = (e.overlay as google.maps.Rectangle).getBounds()!.toJSON();
 						let east = b.east;
@@ -115,9 +122,10 @@ export function PolygonTools({
 			if (dm) dm.setMap(null);
 			managerRef.current = null;
 		};
-	}, [map]);
+	}, [gMap]);
 
 	useEffect(() => {
+		if (!gMap) return;
 		const dm = managerRef.current;
 		if (!dm) return;
 		const Ym = google?.maps?.drawing?.OverlayType;
@@ -125,31 +133,30 @@ export function PolygonTools({
 		if (mode === "polygon") dm.setDrawingMode(Ym.POLYGON);
 		else if (mode === "rectangle") dm.setDrawingMode(Ym.RECTANGLE);
 		else dm.setDrawingMode(null);
-	}, [mode]);
+	}, [gMap, mode]);
 
+	// All hosts: freehand via host events.
 	useEffect(() => {
-		if (!map || mode !== "freehand") return;
-		if (!google?.maps) return;
+		if (!host || mode !== "freehand") return;
 
-		map.setOptions({ draggable: false });
+		host.setDraggable(false);
 		const points: number[][] = [];
 
-		const down = google.maps.event.addListener(map, "mousedown", (e: google.maps.MapMouseEvent) => {
-			if (!e.latLng) return;
+		const offDown = host.on("mousedown", (ll) => {
 			isDrawingRef.current = true;
 			points.length = 0;
-			points.push([e.latLng.lng(), e.latLng.lat()]);
+			points.push([ll.lng, ll.lat]);
 			freehandPathRef.current = points;
 			emitUpdate();
 		});
 
-		const move = google.maps.event.addListener(map, "mousemove", (e: google.maps.MapMouseEvent) => {
-			if (!isDrawingRef.current || !e.latLng) return;
-			points.push([e.latLng.lng(), e.latLng.lat()]);
+		const offMove = host.on("mousemove", (ll) => {
+			if (!isDrawingRef.current) return;
+			points.push([ll.lng, ll.lat]);
 			emitUpdate();
 		});
 
-		const up = google.maps.event.addListener(map, "mouseup", () => {
+		const offUp = host.on("mouseup", () => {
 			if (!isDrawingRef.current) return;
 			isDrawingRef.current = false;
 			freehandPathRef.current = null;
@@ -158,25 +165,125 @@ export function PolygonTools({
 			if (points.length < 3) return;
 
 			const simplified = simplify(points, 0.0001);
-			const first = simplified[0];
-			const last = simplified[simplified.length - 1];
-			if (first[0] !== last[0] || first[1] !== last[1]) {
-				simplified.push([first[0], first[1]]);
-			}
-
 			setMode(null);
-			emitDraw([simplified]);
+			emitDraw([closeRing(simplified)]);
 		});
 
 		return () => {
-			google.maps.event.removeListener(down);
-			google.maps.event.removeListener(move);
-			google.maps.event.removeListener(up);
-			map.setOptions({ draggable: true });
+			offDown();
+			offMove();
+			offUp();
+			host.setDraggable(true);
 			isDrawingRef.current = false;
 			freehandPathRef.current = null;
 		};
-	}, [map, mode, freehandPathRef]);
+	}, [host, mode, freehandPathRef]);
+
+	// Non-Google hosts: click-vertex polygon (double-click closes, Escape cancels).
+	useEffect(() => {
+		if (!host || gMap || mode !== "polygon") return;
+
+		const points: number[][] = [];
+		let cursor: number[] | null = null;
+
+		const preview = () => {
+			freehandPathRef.current =
+				points.length > 0 ? (cursor ? [...points, cursor] : [...points]) : null;
+			emitUpdate();
+		};
+		const finish = (commit: boolean) => {
+			const ring = [...points];
+			points.length = 0;
+			cursor = null;
+			freehandPathRef.current = null;
+			emitUpdate();
+			setMode(null);
+			if (commit && ring.length >= 3) emitDraw([closeRing(ring)]);
+		};
+
+		const offClick = addClickInterceptor((lat, lng) => {
+			const prev = points[points.length - 1];
+			if (!prev || prev[0] !== lng || prev[1] !== lat) points.push([lng, lat]);
+			preview();
+			return true;
+		});
+		const offMove = host.on("mousemove", (ll) => {
+			cursor = [ll.lng, ll.lat];
+			if (points.length > 0) preview();
+		});
+		const onDblClick = (e: MouseEvent) => {
+			e.preventDefault();
+			finish(true);
+		};
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape") finish(false);
+		};
+		host.setDoubleClickZoom(false);
+		host.container.addEventListener("dblclick", onDblClick, true);
+		document.addEventListener("keydown", onKey, true);
+
+		return () => {
+			offClick();
+			offMove();
+			host.container.removeEventListener("dblclick", onDblClick, true);
+			document.removeEventListener("keydown", onKey, true);
+			host.setDoubleClickZoom(true);
+			freehandPathRef.current = null;
+			emitUpdate();
+		};
+	}, [host, gMap, mode, freehandPathRef]);
+
+	// Non-Google hosts: drag rectangle.
+	useEffect(() => {
+		if (!host || gMap || mode !== "rectangle") return;
+
+		host.setDraggable(false);
+		let anchor: number[] | null = null;
+
+		const rectRing = (a: number[], b: number[]) => [
+			[a[0], a[1]],
+			[b[0], a[1]],
+			[b[0], b[1]],
+			[a[0], b[1]],
+			[a[0], a[1]],
+		];
+
+		const offDown = host.on("mousedown", (ll) => {
+			anchor = [ll.lng, ll.lat];
+		});
+		const offMove = host.on("mousemove", (ll) => {
+			if (!anchor) return;
+			freehandPathRef.current = rectRing(anchor, [ll.lng, ll.lat]);
+			emitUpdate();
+		});
+		const offUp = host.on("mouseup", (ll) => {
+			if (!anchor) return;
+			const ring = rectRing(anchor, [ll.lng, ll.lat]);
+			anchor = null;
+			freehandPathRef.current = null;
+			emitUpdate();
+			setMode(null);
+			if (ring[0][0] !== ring[1][0] && ring[0][1] !== ring[2][1]) emitDraw([ring]);
+		});
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				anchor = null;
+				freehandPathRef.current = null;
+				emitUpdate();
+				setMode(null);
+			}
+		};
+		document.addEventListener("keydown", onKey, true);
+
+		return () => {
+			offDown();
+			offMove();
+			offUp();
+			document.removeEventListener("keydown", onKey, true);
+			host.setDraggable(true);
+			freehandPathRef.current = null;
+		};
+	}, [host, gMap, mode, freehandPathRef]);
 
 	return (
 		<div className="map-control map-control--button white">

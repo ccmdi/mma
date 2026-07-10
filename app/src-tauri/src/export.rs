@@ -2,12 +2,12 @@
 //! All exports write to temp files and return the path -- the frontend
 //! triggers a native save dialog to move the file to its final destination.
 
-use crate::types::{AppError, AppResult};
-use std::io::Write;
-use crate::storage;
 use crate::location_store::StoreState;
+use crate::storage;
 use crate::types::LocationFlags;
+use crate::types::{AppError, AppResult};
 use crate::util::hex_to_rgb;
+use std::io::Write;
 
 /// Configuration for JSON export. Controls which fields are included and
 /// whether the export covers all locations or a specific selection.
@@ -40,13 +40,16 @@ fn export_temp_path(stem: &str, ext: &str) -> std::path::PathBuf {
 }
 
 /// Parse `{id: {name, color}}` tag definitions JSON into the raw defs map plus an id -> name lookup.
-fn parse_tag_defs(tags_json: &str) -> (
+fn parse_tag_defs(
+    tags_json: &str,
+) -> (
     std::collections::HashMap<String, serde_json::Value>,
     std::collections::HashMap<u32, String>,
 ) {
     let tag_defs: std::collections::HashMap<String, serde_json::Value> =
         serde_json::from_str(tags_json).unwrap_or_default();
-    let id_to_name = tag_defs.iter()
+    let id_to_name = tag_defs
+        .iter()
         .filter_map(|(k, v)| {
             let id = k.parse::<u32>().ok()?;
             let name = v.get("name")?.as_str()?.to_string();
@@ -62,7 +65,10 @@ fn tag_color_meta(
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut converted = serde_json::Map::new();
     for v in tag_defs.values() {
-        if let (Some(name), Some(color)) = (v.get("name").and_then(|n| n.as_str()), v.get("color").and_then(|c| c.as_str())) {
+        if let (Some(name), Some(color)) = (
+            v.get("name").and_then(|n| n.as_str()),
+            v.get("color").and_then(|c| c.as_str()),
+        ) {
             let mut entry = serde_json::Map::new();
             if let Some(rgb) = hex_to_rgb(color) {
                 entry.insert("color".into(), serde_json::json!([rgb[0], rgb[1], rgb[2]]));
@@ -98,27 +104,56 @@ fn location_to_coord(
 
     c.insert("lat".into(), json!(loc.lat));
     c.insert("lng".into(), json!(loc.lng));
-    let heading = if opts.export_unpanned && loc.heading == 0.0 { 0.001 } else { loc.heading };
+    let heading = if opts.export_unpanned && loc.heading == 0.0 {
+        0.001
+    } else {
+        loc.heading
+    };
     c.insert("heading".into(), json!(heading));
     c.insert("pitch".into(), json!(loc.pitch));
-    c.insert("zoom".into(), json!(if opts.export_zoom { loc.zoom } else { 0.0 }));
-    c.insert("panoId".into(), if pinned { json!(loc.pano_id) } else { Value::Null });
+    c.insert(
+        "zoom".into(),
+        json!(if opts.export_zoom { loc.zoom } else { 0.0 }),
+    );
+    c.insert(
+        "panoId".into(),
+        if pinned {
+            json!(loc.pano_id)
+        } else {
+            Value::Null
+        },
+    );
 
     for k in ["countryCode", "stateCode"] {
-        c.insert(k.into(), loc.extra.as_ref().and_then(|e| e.get(k)).unwrap_or(Value::Null));
+        c.insert(
+            k.into(),
+            loc.extra
+                .as_ref()
+                .and_then(|e| e.get(k))
+                .unwrap_or(Value::Null),
+        );
     }
 
     if opts.export_extras {
         let mut extra = serde_json::Map::new();
         if let Some(ref e) = loc.extra {
             for (k, v) in e.to_map() {
-                if k == "countryCode" || k == "stateCode" { continue; }
+                if k == "countryCode" || k == "stateCode" {
+                    continue;
+                }
                 extra.insert(k, v);
             }
         }
         if !loc.tags.is_empty() {
-            let names: Vec<Value> = loc.tags.iter()
-                .map(|id| json!(id_to_name.get(id).cloned().unwrap_or_else(|| id.to_string())))
+            let names: Vec<Value> = loc
+                .tags
+                .iter()
+                .map(|id| {
+                    json!(id_to_name
+                        .get(id)
+                        .cloned()
+                        .unwrap_or_else(|| id.to_string()))
+                })
                 .collect();
             extra.insert("tags".into(), json!(names));
         }
@@ -155,8 +190,10 @@ pub fn store_export_json(
             export_unpanned: opts.export_unpanned,
             export_extras: opts.export_extras,
         };
-        let coords: Vec<serde_json::Value> =
-            locs.iter().map(|loc| location_to_coord(loc, &id_to_name, &co)).collect();
+        let coords: Vec<serde_json::Value> = locs
+            .iter()
+            .map(|loc| location_to_coord(loc, &id_to_name, &co))
+            .collect();
 
         let mut parts = serde_json::Map::new();
         if !opts.map_name.is_empty() {
@@ -224,28 +261,36 @@ pub fn store_export_geojson(
     tags_json: String,
 ) -> AppResult<String> {
     with_store!(webview, state, |store| {
+        let (_, id_to_name) = parse_tag_defs(&tags_json);
+        let locs = store.collect_scoped(scope.as_deref());
 
-    let (_, id_to_name) = parse_tag_defs(&tags_json);
-    let locs = store.collect_scoped(scope.as_deref());
-
-    let features: Vec<serde_json::Value> = locs.iter().map(|l| {
-        let tag_names: Vec<String> = l.tags.iter()
-            .map(|id| id_to_name.get(id).cloned().unwrap_or_else(|| id.to_string()))
+        let features: Vec<serde_json::Value> = locs
+            .iter()
+            .map(|l| {
+                let tag_names: Vec<String> = l
+                    .tags
+                    .iter()
+                    .map(|id| {
+                        id_to_name
+                            .get(id)
+                            .cloned()
+                            .unwrap_or_else(|| id.to_string())
+                    })
+                    .collect();
+                serde_json::json!({
+                    "type": "Feature",
+                    "geometry": { "type": "Point", "coordinates": [l.lng, l.lat] },
+                    "properties": { "tags": tag_names }
+                })
+            })
             .collect();
-        serde_json::json!({
-            "type": "Feature",
-            "geometry": { "type": "Point", "coordinates": [l.lng, l.lat] },
-            "properties": { "tags": tag_names }
-        })
-    }).collect();
 
-    let geojson = serde_json::json!({ "type": "FeatureCollection", "features": features });
-    let json = serde_json::to_string(&geojson)?;
+        let geojson = serde_json::json!({ "type": "FeatureCollection", "features": features });
+        let json = serde_json::to_string(&geojson)?;
 
-    let path = export_temp_path("mma_export", "geojson");
-    std::fs::write(&path, &json)?;
-    Ok(path.to_string_lossy().into_owned())
-
+        let path = export_temp_path("mma_export", "geojson");
+        std::fs::write(&path, &json)?;
+        Ok(path.to_string_lossy().into_owned())
     })
 }
 
@@ -273,17 +318,18 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
 
         let conn = storage::open_db()?;
         let mut stmt = conn.prepare("SELECT id, name, folder, tags, extra FROM maps")?;
-        let maps: Vec<(String, String, Option<String>, String, String)> = stmt.query_map([], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, Option<String>>(2)?,
-                row.get::<_, String>(3)?,
-                row.get::<_, String>(4)?,
-            ))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+        let maps: Vec<(String, String, Option<String>, String, String)> = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
         drop(stmt);
         drop(conn);
         let mut buf = Cursor::new(Vec::new());
@@ -296,9 +342,12 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
             let total = maps.len();
 
             for (i, (map_id, name, _folder, tags_json, extra_json)) in maps.iter().enumerate() {
-                crate::emit_event("bulk-export-progress", serde_json::json!({
-                    "current": i + 1, "total": total, "mapName": name,
-                }));
+                crate::emit_event(
+                    "bulk-export-progress",
+                    serde_json::json!({
+                        "current": i + 1, "total": total, "mapName": name,
+                    }),
+                );
                 // Base file + uncommitted delta sidecar = the map's full current state.
                 let locs = crate::location_store::read_full_state_from_disk(map_id)?;
 
@@ -309,8 +358,10 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
                     export_unpanned: false,
                     export_extras: true,
                 };
-                let coords: Vec<serde_json::Value> =
-                    locs.iter().map(|loc| location_to_coord(loc, &id_to_name, &co)).collect();
+                let coords: Vec<serde_json::Value> = locs
+                    .iter()
+                    .map(|loc| location_to_coord(loc, &id_to_name, &co))
+                    .collect();
 
                 let mut entry = serde_json::Map::new();
                 entry.insert("name".into(), serde_json::json!(name));

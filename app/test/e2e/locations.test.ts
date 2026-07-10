@@ -32,7 +32,9 @@ describe("Location CRUD", () => {
 	// --- Add ---
 
 	it("add single location", async () => {
-		const ids = await addLocs([createLocation({ lat: 40.7, lng: -74.0, heading: 90, pitch: 5, zoom: 2 })]);
+		const ids = await addLocs([
+			createLocation({ lat: 40.7, lng: -74.0, heading: 90, pitch: 5, zoom: 2 }),
+		]);
 		singleLocId = ids[0];
 		const count = await getLocCount();
 		expect(count).toBe(1);
@@ -155,7 +157,9 @@ describe("Location CRUD", () => {
 
 	it("patch extra replace mode", async () => {
 		await withApi(async (api, id) => {
-			await api.updateLocations([{ id: id, patch: { extra: { only: "this" } } }], { undoable: false });
+			await api.updateLocations([{ id: id, patch: { extra: { only: "this" } } }], {
+				undoable: false,
+			});
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
 		expect(loc.extra.only).toBe("this");

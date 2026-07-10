@@ -8,7 +8,8 @@ import { installSvMock } from "../e2e/svMock";
  * This pins its wire output to the real schema reader so the two can't drift apart. */
 
 const RU_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
-const GM_URL = "https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/GetMetadata?alt=proto";
+const GM_URL =
+	"https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/GetMetadata?alt=proto";
 
 const g = globalThis as Record<string, unknown>;
 let hadWindow = false;

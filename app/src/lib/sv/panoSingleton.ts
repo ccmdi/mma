@@ -76,7 +76,11 @@ export function clearSingletonPano() {
 	singletonPano = null;
 }
 
-export function applyResolved(sv: google.maps.StreetViewPanorama, result: ResolvedPano, loc: Location) {
+export function applyResolved(
+	sv: google.maps.StreetViewPanorama,
+	result: ResolvedPano,
+	loc: Location,
+) {
 	if (result.pano?.location?.pano) {
 		sv.setPano(result.pano.location.pano);
 	} else {

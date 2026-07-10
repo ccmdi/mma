@@ -11,16 +11,16 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::sync::Mutex;
 
+use crate::util::{now_iso, now_unix};
 use rayon::prelude::*;
 use rusqlite::Connection;
 use serde_json::Value;
 use uuid::Uuid;
-use crate::util::{now_iso, now_unix};
 
 use crate::arrow_bridge;
-use crate::storage;
 use crate::location_store;
-use crate::types::{is_ws, skip_string, Tag, Location, LocationFlags};
+use crate::storage;
+use crate::types::{is_ws, skip_string, Location, LocationFlags, Tag};
 
 /// Read a file with sequential-scan hints for better OS prefetch on cold reads.
 fn read_sequential(path: &str) -> std::io::Result<Vec<u8>> {
@@ -82,7 +82,6 @@ pub struct ImportedMapInfo {
 // Internal parsed structures
 // ---------------------------------------------------------------------------
 
-
 /// Intermediate representation produced by all parsers (JSON, CSV, ZIP entry).
 /// Locations have placeholder IDs (0) -- real IDs are assigned at insert time.
 struct ParsedMap {
@@ -105,8 +104,20 @@ use crate::util::color_for_name;
 /// Parse CSV text into locations. Supports both named columns (lat/lng/heading/etc.)
 /// and positional (first two numeric columns = lat, lng). Skips malformed rows silently.
 fn parse_csv(text: &str) -> ParsedMap {
-    let empty = || ParsedMap { name: String::new(), folder: None, locations: Vec::new(), tags: Vec::new(), fields: None, warnings: Vec::new(), settings: serde_json::Map::new() };
-    let warn = |w: &str| { let mut m = empty(); m.warnings.push(w.into()); m };
+    let empty = || ParsedMap {
+        name: String::new(),
+        folder: None,
+        locations: Vec::new(),
+        tags: Vec::new(),
+        fields: None,
+        warnings: Vec::new(),
+        settings: serde_json::Map::new(),
+    };
+    let warn = |w: &str| {
+        let mut m = empty();
+        m.warnings.push(w.into());
+        m
+    };
 
     let mut rdr = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -121,16 +132,21 @@ fn parse_csv(text: &str) -> ParsedMap {
 
     let lower: Vec<String> = first.iter().map(|f| f.trim().to_lowercase()).collect();
     let lat_named = lower.iter().position(|h| h == "lat" || h == "latitude");
-    let lng_named = lower.iter().position(|h| h == "lng" || h == "longitude" || h == "lon");
+    let lng_named = lower
+        .iter()
+        .position(|h| h == "lng" || h == "longitude" || h == "lon");
 
     let (lat_idx, lng_idx, heading_idx, pitch_idx, zoom_idx, pano_idx, first_is_header) =
         if let (Some(la), Some(ln)) = (lat_named, lng_named) {
             (
-                la, ln,
+                la,
+                ln,
                 lower.iter().position(|h| h == "heading"),
                 lower.iter().position(|h| h == "pitch"),
                 lower.iter().position(|h| h == "zoom"),
-                lower.iter().position(|h| h == "pano" || h == "panoid" || h == "pano_id"),
+                lower
+                    .iter()
+                    .position(|h| h == "pano" || h == "panoid" || h == "pano_id"),
                 true,
             )
         } else {
@@ -145,19 +161,53 @@ fn parse_csv(text: &str) -> ParsedMap {
     let mut locations = Vec::new();
 
     let parse_row = |record: &csv::StringRecord| -> Option<Location> {
-        let lat: f64 = record.get(lat_idx)?.trim().parse().ok().filter(|v: &f64| v.is_finite())?;
-        let lng: f64 = record.get(lng_idx)?.trim().parse().ok().filter(|v: &f64| v.is_finite())?;
-        let heading = heading_idx.and_then(|i| record.get(i)?.trim().parse().ok()).unwrap_or(0.0);
-        let pitch = pitch_idx.and_then(|i| record.get(i)?.trim().parse().ok()).unwrap_or(0.0);
-        let zoom = zoom_idx.and_then(|i| record.get(i)?.trim().parse().ok()).unwrap_or(0.0);
+        let lat: f64 = record
+            .get(lat_idx)?
+            .trim()
+            .parse()
+            .ok()
+            .filter(|v: &f64| v.is_finite())?;
+        let lng: f64 = record
+            .get(lng_idx)?
+            .trim()
+            .parse()
+            .ok()
+            .filter(|v: &f64| v.is_finite())?;
+        let heading = heading_idx
+            .and_then(|i| record.get(i)?.trim().parse().ok())
+            .unwrap_or(0.0);
+        let pitch = pitch_idx
+            .and_then(|i| record.get(i)?.trim().parse().ok())
+            .unwrap_or(0.0);
+        let zoom = zoom_idx
+            .and_then(|i| record.get(i)?.trim().parse().ok())
+            .unwrap_or(0.0);
         let pano_id = pano_idx.and_then(|i| {
             let s = record.get(i)?.trim();
-            if s.is_empty() { None } else { Some(s.to_string()) }
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.to_string())
+            }
         });
-        let flags = if pano_id.is_some() { LocationFlags::LOAD_AS_PANO_ID } else { LocationFlags::empty() };
+        let flags = if pano_id.is_some() {
+            LocationFlags::LOAD_AS_PANO_ID
+        } else {
+            LocationFlags::empty()
+        };
         Some(Location {
-            id: 0, lat, lng, heading, pitch, zoom, pano_id, flags,
-            tags: Vec::new(), extra: None, created_at: now, modified_at: None,
+            id: 0,
+            lat,
+            lng,
+            heading,
+            pitch,
+            zoom,
+            pano_id,
+            flags,
+            tags: Vec::new(),
+            extra: None,
+            created_at: now,
+            modified_at: None,
         })
     };
 
@@ -174,7 +224,15 @@ fn parse_csv(text: &str) -> ParsedMap {
         }
     }
 
-    ParsedMap { name: String::new(), folder: None, locations, tags: Vec::new(), fields: None, warnings: Vec::new(), settings: serde_json::Map::new() }
+    ParsedMap {
+        name: String::new(),
+        folder: None,
+        locations,
+        tags: Vec::new(),
+        fields: None,
+        warnings: Vec::new(),
+        settings: serde_json::Map::new(),
+    }
 }
 
 struct ExtraTagMeta {
@@ -196,34 +254,81 @@ fn find_top_level_extra(buf: &[u8], start: usize, start_depth: i32) -> Option<se
     let mut esc2 = false;
     let mut pos = None;
     while i < buf.len() {
-        if esc2 { esc2 = false; i += 1; continue; }
-        if buf[i] == b'\\' && in_str { esc2 = true; i += 1; continue; }
-        if !in_str && depth == 1 && buf[i] == b'"' && i + needle.len() <= buf.len() && &buf[i..i + needle.len()] == needle {
+        if esc2 {
+            esc2 = false;
+            i += 1;
+            continue;
+        }
+        if buf[i] == b'\\' && in_str {
+            esc2 = true;
+            i += 1;
+            continue;
+        }
+        if !in_str
+            && depth == 1
+            && buf[i] == b'"'
+            && i + needle.len() <= buf.len()
+            && &buf[i..i + needle.len()] == needle
+        {
             pos = Some(i);
             break;
         }
-        if buf[i] == b'"' { in_str = !in_str; i += 1; continue; }
-        if in_str { i += 1; continue; }
-        if buf[i] == b'{' || buf[i] == b'[' { depth += 1; }
-        if buf[i] == b'}' || buf[i] == b']' { depth -= 1; }
+        if buf[i] == b'"' {
+            in_str = !in_str;
+            i += 1;
+            continue;
+        }
+        if in_str {
+            i += 1;
+            continue;
+        }
+        if buf[i] == b'{' || buf[i] == b'[' {
+            depth += 1;
+        }
+        if buf[i] == b'}' || buf[i] == b']' {
+            depth -= 1;
+        }
         i += 1;
     }
     let pos = pos?;
     let mut j = pos + needle.len();
-    while j < buf.len() && matches!(buf[j], b' ' | b':' | b'\n' | b'\r' | b'\t') { j += 1; }
-    if j >= buf.len() || buf[j] != b'{' { return None; }
+    while j < buf.len() && matches!(buf[j], b' ' | b':' | b'\n' | b'\r' | b'\t') {
+        j += 1;
+    }
+    if j >= buf.len() || buf[j] != b'{' {
+        return None;
+    }
     let obj_start = j;
     let mut depth = 1i32;
     let mut k = obj_start + 1;
     let mut in_str = false;
     let mut esc = false;
     while k < buf.len() && depth > 0 {
-        if esc { esc = false; k += 1; continue; }
-        if buf[k] == b'\\' && in_str { esc = true; k += 1; continue; }
-        if buf[k] == b'"' { in_str = !in_str; k += 1; continue; }
-        if in_str { k += 1; continue; }
-        if buf[k] == b'{' { depth += 1; }
-        if buf[k] == b'}' { depth -= 1; }
+        if esc {
+            esc = false;
+            k += 1;
+            continue;
+        }
+        if buf[k] == b'\\' && in_str {
+            esc = true;
+            k += 1;
+            continue;
+        }
+        if buf[k] == b'"' {
+            in_str = !in_str;
+            k += 1;
+            continue;
+        }
+        if in_str {
+            k += 1;
+            continue;
+        }
+        if buf[k] == b'{' {
+            depth += 1;
+        }
+        if buf[k] == b'}' {
+            depth -= 1;
+        }
         k += 1;
     }
     serde_json::from_slice(&buf[obj_start..k]).ok()
@@ -234,15 +339,23 @@ fn tag_meta_from_extra(extra: &serde_json::Value) -> HashMap<String, ExtraTagMet
     let mut meta = HashMap::new();
     if let Some(tags_obj) = extra.get("tags").and_then(|t| t.as_object()) {
         for (name, entry) in tags_obj {
-            let color = entry.get("color").and_then(|c| c.as_array()).and_then(|arr| {
-                if arr.len() >= 3 {
-                    let r = arr[0].as_u64().unwrap_or(0) as u8;
-                    let g = arr[1].as_u64().unwrap_or(0) as u8;
-                    let b = arr[2].as_u64().unwrap_or(0) as u8;
-                    Some(format!("#{:02x}{:02x}{:02x}", r, g, b))
-                } else { None }
-            });
-            let order = entry.get("order").and_then(|o| o.as_u64()).map(|o| o as u32);
+            let color = entry
+                .get("color")
+                .and_then(|c| c.as_array())
+                .and_then(|arr| {
+                    if arr.len() >= 3 {
+                        let r = arr[0].as_u64().unwrap_or(0) as u8;
+                        let g = arr[1].as_u64().unwrap_or(0) as u8;
+                        let b = arr[2].as_u64().unwrap_or(0) as u8;
+                        Some(format!("#{:02x}{:02x}{:02x}", r, g, b))
+                    } else {
+                        None
+                    }
+                });
+            let order = entry
+                .get("order")
+                .and_then(|o| o.as_u64())
+                .map(|o| o as u32);
             meta.insert(name.clone(), ExtraTagMeta { color, order });
         }
     }
@@ -251,7 +364,8 @@ fn tag_meta_from_extra(extra: &serde_json::Value) -> HashMap<String, ExtraTagMet
 
 /// Map settings carried by an import, from a parsed top-level `"extra"."settings"` block.
 fn settings_from_extra(extra: &serde_json::Value) -> serde_json::Map<String, Value> {
-    extra.get("settings")
+    extra
+        .get("settings")
         .and_then(|v| v.as_object())
         .cloned()
         .unwrap_or_default()
@@ -263,7 +377,10 @@ fn settings_from_extra(extra: &serde_json::Value) -> serde_json::Map<String, Val
 
 /// Auto-detect format (JSON vs CSV) by first non-whitespace byte and dispatch.
 fn parse_file(buf: &mut [u8]) -> ParsedMap {
-    let trimmed = buf.iter().position(|&b| !b.is_ascii_whitespace()).unwrap_or(0);
+    let trimmed = buf
+        .iter()
+        .position(|&b| !b.is_ascii_whitespace())
+        .unwrap_or(0);
     match buf.get(trimmed) {
         Some(b'{') | Some(b'[') => parse_single_json_mut(buf),
         _ => {
@@ -308,7 +425,9 @@ fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize) {
         let pos = i + off;
         match bytes[pos] {
             b'{' => {
-                if depth == 0 { obj_start = pos; }
+                if depth == 0 {
+                    obj_start = pos;
+                }
                 depth += 1;
                 i = pos + 1;
             }
@@ -343,7 +462,11 @@ fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize) {
 /// quote) — that happens in the final chunk. A well-formed non-final chunk ends with
 /// `end_depth == 0` and `terminated_close == None`; anything else means the chunk's
 /// start landed at a false boundary and the caller falls back to serial.
-fn scan_range(bytes: &[u8], start: usize, limit: usize) -> (Vec<(usize, usize)>, i32, Option<usize>) {
+fn scan_range(
+    bytes: &[u8],
+    start: usize,
+    limit: usize,
+) -> (Vec<(usize, usize)>, i32, Option<usize>) {
     let mut ranges: Vec<(usize, usize)> = Vec::with_capacity((limit - start) / 96);
     let mut depth = 0i32;
     let mut obj_start = 0usize;
@@ -353,18 +476,33 @@ fn scan_range(bytes: &[u8], start: usize, limit: usize) -> (Vec<(usize, usize)>,
         memchr::memchr(b']', &bytes[from..]).map_or(bytes.len(), |o| from + o)
     };
     while i < limit {
-        let Some(off) = memchr::memchr3(b'"', b'{', b'}', &bytes[i..limit]) else { break };
+        let Some(off) = memchr::memchr3(b'"', b'{', b'}', &bytes[i..limit]) else {
+            break;
+        };
         let pos = i + off;
         match bytes[pos] {
-            b'{' => { if depth == 0 { obj_start = pos; } depth += 1; i = pos + 1; }
+            b'{' => {
+                if depth == 0 {
+                    obj_start = pos;
+                }
+                depth += 1;
+                i = pos + 1;
+            }
             b'}' => {
                 depth -= 1;
                 i = pos + 1;
-                if depth == 0 { ranges.push((obj_start, pos + 1)); }
-                else if depth < 0 { let c = array_close(&ranges); return (ranges, depth, Some(c)); }
+                if depth == 0 {
+                    ranges.push((obj_start, pos + 1));
+                } else if depth < 0 {
+                    let c = array_close(&ranges);
+                    return (ranges, depth, Some(c));
+                }
             }
             _ => {
-                if depth == 0 { let c = array_close(&ranges); return (ranges, depth, Some(c)); }
+                if depth == 0 {
+                    let c = array_close(&ranges);
+                    return (ranges, depth, Some(c));
+                }
                 i = skip_string(bytes, pos + 1); // may cross `limit`; a string stays within its object
             }
         }
@@ -381,18 +519,28 @@ fn resync_object_start(bytes: &[u8], from: usize) -> usize {
     let len = bytes.len();
     if let Some(nl) = memchr::memchr(b'\n', &bytes[from..]) {
         let mut j = from + nl + 1;
-        while j < len && is_ws(bytes[j]) { j += 1; }
-        if j < len && bytes[j] == b'{' { return j; }
+        while j < len && is_ws(bytes[j]) {
+            j += 1;
+        }
+        if j < len && bytes[j] == b'{' {
+            return j;
+        }
     }
     let mut i = from;
     while let Some(off) = memchr::memchr(b'}', &bytes[i..]) {
         let p = i + off;
         let mut k = p + 1;
-        while k < len && is_ws(bytes[k]) { k += 1; }
+        while k < len && is_ws(bytes[k]) {
+            k += 1;
+        }
         if k < len && bytes[k] == b',' {
             let mut m = k + 1;
-            while m < len && is_ws(bytes[m]) { m += 1; }
-            if m < len && bytes[m] == b'{' { return m; }
+            while m < len && is_ws(bytes[m]) {
+                m += 1;
+            }
+            if m < len && bytes[m] == b'{' {
+                return m;
+            }
         }
         i = p + 1;
     }
@@ -415,8 +563,12 @@ fn parallel_find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize)
     starts.push(0usize);
     for i in 1..threads {
         let s = resync_object_start(bytes, (len / threads) * i);
-        if s >= len { break; }
-        if s > *starts.last().unwrap() { starts.push(s); }
+        if s >= len {
+            break;
+        }
+        if s > *starts.last().unwrap() {
+            starts.push(s);
+        }
     }
     starts.push(len);
     let k = starts.len() - 1;
@@ -431,17 +583,23 @@ fn parallel_find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize)
 
     // A false split shows up as the *previous* range not ending cleanly at depth 0.
     for p in &parts[..k - 1] {
-        if p.1 != 0 || p.2.is_some() { return find_object_boundaries(bytes); }
+        if p.1 != 0 || p.2.is_some() {
+            return find_object_boundaries(bytes);
+        }
     }
     let mut ranges: Vec<(usize, usize)> = Vec::with_capacity(len / 96);
-    for (r, _, _) in &parts[..k - 1] { ranges.extend_from_slice(r); }
+    for (r, _, _) in &parts[..k - 1] {
+        ranges.extend_from_slice(r);
+    }
     let (last_r, last_depth, last_close) = &parts[k - 1];
     ranges.extend_from_slice(last_r);
     if *last_depth > 0 && last_close.is_none() {
         return find_object_boundaries(bytes);
     }
     for w in ranges.windows(2) {
-        if w[0].1 > w[1].0 { return find_object_boundaries(bytes); }
+        if w[0].1 > w[1].0 {
+            return find_object_boundaries(bytes);
+        }
     }
     (ranges, last_close.unwrap_or(len))
 }
@@ -467,15 +625,21 @@ fn strip_tags_fast(
     let mut span: Option<(usize, usize, usize)> = None;
     crate::types::scan_fields(b, |fs| {
         let hit = &b[fs.key.clone()] == b"tags";
-        if hit { span = Some((fs.key.start - 1, fs.value.start, fs.value.end)); }
+        if hit {
+            span = Some((fs.key.start - 1, fs.value.start, fs.value.end));
+        }
         hit
     });
     let Some((kstart, vstart, vend)) = span else {
         // No tags key: keep the extra bytes verbatim.
         return Ok(crate::types::RawExtra::from_string(s.to_owned()));
     };
-    if b.get(vstart) != Some(&b'[') { return Err(()); }
-    let Ok(list) = serde_json::from_str::<Vec<&str>>(&s[vstart..vend]) else { return Err(()) };
+    if b.get(vstart) != Some(&b'[') {
+        return Err(());
+    }
+    let Ok(list) = serde_json::from_str::<Vec<&str>>(&s[vstart..vend]) else {
+        return Err(());
+    };
     for name in list {
         let id = match name_to_local.get(name) {
             Some(&id) => id,
@@ -491,13 +655,19 @@ fn strip_tags_fast(
     // Strip `"tags":[...]` plus one adjacent comma.
     let (mut mstart, mut mend) = (kstart, vend);
     let mut p = mstart;
-    while p > 0 && is_ws(b[p - 1]) { p -= 1; }
+    while p > 0 && is_ws(b[p - 1]) {
+        p -= 1;
+    }
     if p > 0 && b[p - 1] == b',' {
         mstart = p - 1;
     } else {
         let mut q = mend;
-        while q < b.len() && is_ws(b[q]) { q += 1; }
-        if q < b.len() && b[q] == b',' { mend = q + 1; }
+        while q < b.len() && is_ws(b[q]) {
+            q += 1;
+        }
+        if q < b.len() && b[q] == b',' {
+            mend = q + 1;
+        }
     }
     let mut out = String::with_capacity(s.len() - (mend - mstart));
     out.push_str(&s[..mstart]);
@@ -521,10 +691,12 @@ fn build_extra_via_map(
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or_default();
     if let Some(cc) = country_code {
-        m.entry("countryCode").or_insert_with(|| serde_json::from_str(cc.get()).unwrap_or(Value::Null));
+        m.entry("countryCode")
+            .or_insert_with(|| serde_json::from_str(cc.get()).unwrap_or(Value::Null));
     }
     if let Some(sc) = state_code {
-        m.entry("stateCode").or_insert_with(|| serde_json::from_str(sc.get()).unwrap_or(Value::Null));
+        m.entry("stateCode")
+            .or_insert_with(|| serde_json::from_str(sc.get()).unwrap_or(Value::Null));
     }
     if let Some(Value::Array(arr)) = m.remove("tags") {
         for v in arr {
@@ -541,7 +713,10 @@ fn build_extra_via_map(
             tags.push(id);
         }
     }
-    *out_pano = m.remove("panoId").and_then(|v| match v { Value::String(s) => Some(s), _ => None });
+    *out_pano = m.remove("panoId").and_then(|v| match v {
+        Value::String(s) => Some(s),
+        _ => None,
+    });
     crate::types::RawExtra::from_map(&m)
 }
 
@@ -568,7 +743,7 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     fn find_key_value_fast(buf: &[u8], key: &[u8]) -> Option<usize> {
         let mut i = 0;
         while i + key.len() + 3 < buf.len() {
-            if buf[i] == b'"' && buf[i+1..].starts_with(key) && buf[i + 1 + key.len()] == b'"' {
+            if buf[i] == b'"' && buf[i + 1..].starts_with(key) && buf[i + 1 + key.len()] == b'"' {
                 return Some(i + key.len() + 2);
             }
             i += 1;
@@ -578,15 +753,35 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
 
     fn read_string_at(buf: &[u8], pos: usize) -> Option<(String, usize)> {
         let mut i = pos;
-        while i < buf.len() && (buf[i] == b' ' || buf[i] == b':' || buf[i] == b'\n' || buf[i] == b'\r' || buf[i] == b'\t') { i += 1; }
-        if i >= buf.len() || buf[i] != b'"' { return None; }
+        while i < buf.len()
+            && (buf[i] == b' '
+                || buf[i] == b':'
+                || buf[i] == b'\n'
+                || buf[i] == b'\r'
+                || buf[i] == b'\t')
+        {
+            i += 1;
+        }
+        if i >= buf.len() || buf[i] != b'"' {
+            return None;
+        }
         i += 1;
         let start = i;
         let mut esc = false;
         while i < buf.len() {
-            if esc { esc = false; i += 1; continue; }
-            if buf[i] == b'\\' { esc = true; i += 1; continue; }
-            if buf[i] == b'"' { return Some((String::from_utf8_lossy(&buf[start..i]).to_string(), i + 1)); }
+            if esc {
+                esc = false;
+                i += 1;
+                continue;
+            }
+            if buf[i] == b'\\' {
+                esc = true;
+                i += 1;
+                continue;
+            }
+            if buf[i] == b'"' {
+                return Some((String::from_utf8_lossy(&buf[start..i]).to_string(), i + 1));
+            }
             i += 1;
         }
         None
@@ -594,39 +789,67 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
 
     fn find_array_start(buf: &[u8], pos: usize) -> Option<usize> {
         let mut i = pos;
-        while i < buf.len() && (buf[i] == b' ' || buf[i] == b':' || buf[i] == b'\n' || buf[i] == b'\r' || buf[i] == b'\t') { i += 1; }
-        if i >= buf.len() || buf[i] != b'[' { return None; }
+        while i < buf.len()
+            && (buf[i] == b' '
+                || buf[i] == b':'
+                || buf[i] == b'\n'
+                || buf[i] == b'\r'
+                || buf[i] == b'\t')
+        {
+            i += 1;
+        }
+        if i >= buf.len() || buf[i] != b'[' {
+            return None;
+        }
         Some(i + 1)
     }
 
     // Top-level metadata keys are always in the first few KB
     let header = &buf[..buf.len().min(4096)];
     if let Some(pos) = find_key_value_fast(header, b"name") {
-        if let Some((s, _)) = read_string_at(header, pos) { name = s; }
+        if let Some((s, _)) = read_string_at(header, pos) {
+            name = s;
+        }
     }
     if let Some(pos) = find_key_value_fast(header, b"folder") {
-        if let Some((s, _)) = read_string_at(header, pos) { folder = Some(s); }
+        if let Some((s, _)) = read_string_at(header, pos) {
+            folder = Some(s);
+        }
     }
 
     // Array key is also near the top — search first 8KB, fall back to full scan
     let key_search = &buf[..buf.len().min(8192)];
     if let Some(pos) = find_key_value_fast(key_search, b"customCoordinates") {
-        if let Some(s) = find_array_start(buf, pos) { arr_range = Some((s, buf.len())); }
-    }
-    if arr_range.is_none() {
-        if let Some(pos) = find_key_value_fast(key_search, b"locations") {
-            if let Some(s) = find_array_start(buf, pos) { arr_range = Some((s, buf.len())); }
+        if let Some(s) = find_array_start(buf, pos) {
+            arr_range = Some((s, buf.len()));
         }
     }
     if arr_range.is_none() {
-        if let Some(s) = find_array_start(buf, 0) { arr_range = Some((s, buf.len())); }
+        if let Some(pos) = find_key_value_fast(key_search, b"locations") {
+            if let Some(s) = find_array_start(buf, pos) {
+                arr_range = Some((s, buf.len()));
+            }
+        }
+    }
+    if arr_range.is_none() {
+        if let Some(s) = find_array_start(buf, 0) {
+            arr_range = Some((s, buf.len()));
+        }
     }
 
     let (arr_start, arr_end) = match arr_range {
         Some(r) => r,
         None => {
             warnings.push("No recognized coordinate array found".to_string());
-            return ParsedMap { name, folder, locations: Vec::new(), tags: Vec::new(), fields: None, warnings, settings: serde_json::Map::new() };
+            return ParsedMap {
+                name,
+                folder,
+                locations: Vec::new(),
+                tags: Vec::new(),
+                fields: None,
+                warnings,
+                settings: serde_json::Map::new(),
+            };
         }
     };
 
@@ -675,63 +898,95 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
 
     let arr_slice = &buf[arr_start..arr_end];
     let chunk_size = (obj_ranges.len() / (rayon::current_num_threads() * 4)).max(1);
-    let chunks: Vec<ChunkOut> = obj_ranges.par_chunks(chunk_size).map(|chunk| {
-        let mut names: Vec<String> = Vec::new();
-        let mut name_to_local: rustc_hash::FxHashMap<String, u32> = rustc_hash::FxHashMap::default();
-        let mut locs: Vec<Location> = Vec::with_capacity(chunk.len());
+    let chunks: Vec<ChunkOut> = obj_ranges
+        .par_chunks(chunk_size)
+        .map(|chunk| {
+            let mut names: Vec<String> = Vec::new();
+            let mut name_to_local: rustc_hash::FxHashMap<String, u32> =
+                rustc_hash::FxHashMap::default();
+            let mut locs: Vec<Location> = Vec::with_capacity(chunk.len());
 
-        for &(start, end) in chunk {
-            let Ok(raw) = serde_json::from_slice::<RawObj<'_>>(&arr_slice[start..end]) else { continue };
-            let (lat, lng) = match (raw.lat, raw.lng) {
-                (Some(la), Some(ln)) if la.is_finite() && ln.is_finite() => (la, ln),
-                _ => continue,
-            };
+            for &(start, end) in chunk {
+                let Ok(raw) = serde_json::from_slice::<RawObj<'_>>(&arr_slice[start..end]) else {
+                    continue;
+                };
+                let (lat, lng) = match (raw.lat, raw.lng) {
+                    (Some(la), Some(ln)) if la.is_finite() && ln.is_finite() => (la, ln),
+                    _ => continue,
+                };
 
-            let has_top_pano = raw.pano_id.is_some();
-            let top_pano = raw.pano_id.map(|c| c.into_owned());
-            let extra_str = raw.extra.map(|rv| rv.get());
+                let has_top_pano = raw.pano_id.is_some();
+                let top_pano = raw.pano_id.map(|c| c.into_owned());
+                let extra_str = raw.extra.map(|rv| rv.get());
 
-            // Fast path unless we must edit `extra` beyond stripping tags: folding a
-            // non-null top-level country/state code, or a `panoId` nested in `extra`.
-            let need_map = raw.country_code.is_some()
-                || raw.state_code.is_some()
-                || extra_str.is_some_and(|s| memchr::memmem::find(s.as_bytes(), b"\"panoId\"").is_some());
+                // Fast path unless we must edit `extra` beyond stripping tags: folding a
+                // non-null top-level country/state code, or a `panoId` nested in `extra`.
+                let need_map = raw.country_code.is_some()
+                    || raw.state_code.is_some()
+                    || extra_str.is_some_and(|s| {
+                        memchr::memmem::find(s.as_bytes(), b"\"panoId\"").is_some()
+                    });
 
-            let mut tags: Vec<u32> = Vec::new();
-            let mut extra_pano: Option<String> = None;
-            let fast = !need_map && extra_str.is_some();
-            let extra = if fast {
-                match strip_tags_fast(extra_str.unwrap(), &mut names, &mut name_to_local, &mut tags) {
-                    Ok(extra) => extra,
-                    Err(()) => build_extra_via_map(extra_str, raw.country_code, raw.state_code,
-                        &mut names, &mut name_to_local, &mut tags, &mut extra_pano),
-                }
-            } else if need_map {
-                build_extra_via_map(extra_str, raw.country_code, raw.state_code,
-                    &mut names, &mut name_to_local, &mut tags, &mut extra_pano)
-            } else {
-                None // no extra at all
-            };
+                let mut tags: Vec<u32> = Vec::new();
+                let mut extra_pano: Option<String> = None;
+                let fast = !need_map && extra_str.is_some();
+                let extra = if fast {
+                    match strip_tags_fast(
+                        extra_str.unwrap(),
+                        &mut names,
+                        &mut name_to_local,
+                        &mut tags,
+                    ) {
+                        Ok(extra) => extra,
+                        Err(()) => build_extra_via_map(
+                            extra_str,
+                            raw.country_code,
+                            raw.state_code,
+                            &mut names,
+                            &mut name_to_local,
+                            &mut tags,
+                            &mut extra_pano,
+                        ),
+                    }
+                } else if need_map {
+                    build_extra_via_map(
+                        extra_str,
+                        raw.country_code,
+                        raw.state_code,
+                        &mut names,
+                        &mut name_to_local,
+                        &mut tags,
+                        &mut extra_pano,
+                    )
+                } else {
+                    None // no extra at all
+                };
 
-            let pano_id = top_pano.or(extra_pano);
-            let flags = if has_top_pano { LocationFlags::LOAD_AS_PANO_ID } else { LocationFlags::empty() };
+                let pano_id = top_pano.or(extra_pano);
+                let flags = if has_top_pano {
+                    LocationFlags::LOAD_AS_PANO_ID
+                } else {
+                    LocationFlags::empty()
+                };
 
-            locs.push(Location {
-                id: 0,
-                lat, lng,
-                heading: raw.heading,
-                pitch: raw.pitch,
-                zoom: raw.zoom,
-                pano_id,
-                flags,
-                tags,
-                extra,
-                created_at: now,
-                modified_at: None,
-            });
-        }
-        ChunkOut { locs, names }
-    }).collect();
+                locs.push(Location {
+                    id: 0,
+                    lat,
+                    lng,
+                    heading: raw.heading,
+                    pitch: raw.pitch,
+                    zoom: raw.zoom,
+                    pano_id,
+                    flags,
+                    tags,
+                    extra,
+                    created_at: now,
+                    modified_at: None,
+                });
+            }
+            ChunkOut { locs, names }
+        })
+        .collect();
 
     let t_parse = t0.elapsed();
 
@@ -739,8 +994,14 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     // array's closing `]` (depth 2, the `]` drops it to 1) instead of rescanning
     // the whole buffer. Parse it once, derive both tag meta and virtual tags.
     let extra_val = find_top_level_extra(buf, arr_start + arr_close, 2);
-    let tag_meta = extra_val.as_ref().map(tag_meta_from_extra).unwrap_or_default();
-    let settings = extra_val.as_ref().map(settings_from_extra).unwrap_or_default();
+    let tag_meta = extra_val
+        .as_ref()
+        .map(tag_meta_from_extra)
+        .unwrap_or_default();
+    let settings = extra_val
+        .as_ref()
+        .map(settings_from_extra)
+        .unwrap_or_default();
 
     // Merge chunk-local tag tables into one global table, remapping each chunk's
     // local ids to global ids in place.
@@ -750,36 +1011,70 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     let mut locations = Vec::with_capacity(total);
     for chunk in chunks {
         let ChunkOut { mut locs, names } = chunk;
-        let local_to_global: Vec<u32> = names.into_iter().map(|name| {
-            *tags_by_name.entry(name).or_insert_with(|| { let id = next_tag; next_tag += 1; id })
-        }).collect();
+        let local_to_global: Vec<u32> = names
+            .into_iter()
+            .map(|name| {
+                *tags_by_name.entry(name).or_insert_with(|| {
+                    let id = next_tag;
+                    next_tag += 1;
+                    id
+                })
+            })
+            .collect();
         for loc in &mut locs {
-            for t in &mut loc.tags { *t = local_to_global[*t as usize]; }
+            for t in &mut loc.tags {
+                *t = local_to_global[*t as usize];
+            }
         }
         locations.append(&mut locs);
     }
     let t_merge = t0.elapsed();
 
-    let mut tags: Vec<Tag> = tags_by_name.into_iter().map(|(name, id)| {
-        let meta = tag_meta.get(&name);
-        let color = meta.and_then(|m| m.color.clone())
-            .unwrap_or_else(|| color_for_name(&name));
-        let order = meta.and_then(|m| m.order);
-        Tag { id, name, color, visible: true, order, count: 0 }
-    }).collect();
+    let mut tags: Vec<Tag> = tags_by_name
+        .into_iter()
+        .map(|(name, id)| {
+            let meta = tag_meta.get(&name);
+            let color = meta
+                .and_then(|m| m.color.clone())
+                .unwrap_or_else(|| color_for_name(&name));
+            let order = meta.and_then(|m| m.order);
+            Tag {
+                id,
+                name,
+                color,
+                visible: true,
+                order,
+                count: 0,
+            }
+        })
+        .collect();
     tags.sort_by(|a, b| {
-        a.order.unwrap_or(u32::MAX).cmp(&b.order.unwrap_or(u32::MAX))
+        a.order
+            .unwrap_or(u32::MAX)
+            .cmp(&b.order.unwrap_or(u32::MAX))
             .then_with(|| a.name.cmp(&b.name))
     });
 
-    log::debug!("[parse] scan={:.0}ms boundaries={:.0}ms parse={:.0}ms merge={:.0}ms total={:.0}ms objs={}",
-        t_scan.as_millis(), (t_boundaries - t_scan).as_millis(),
-        (t_parse - t_boundaries).as_millis(), (t_merge - t_parse).as_millis(),
-        t0.elapsed().as_millis(), locations.len());
+    log::debug!(
+        "[parse] scan={:.0}ms boundaries={:.0}ms parse={:.0}ms merge={:.0}ms total={:.0}ms objs={}",
+        t_scan.as_millis(),
+        (t_boundaries - t_scan).as_millis(),
+        (t_parse - t_boundaries).as_millis(),
+        (t_merge - t_parse).as_millis(),
+        t0.elapsed().as_millis(),
+        locations.len()
+    );
 
-    ParsedMap { name, folder, locations, tags, fields: None, warnings, settings }
+    ParsedMap {
+        name,
+        folder,
+        locations,
+        tags,
+        fields: None,
+        warnings,
+        settings,
+    }
 }
-
 
 // ---------------------------------------------------------------------------
 // Zip orchestration
@@ -787,12 +1082,15 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
 
 fn read_zip_entries(path: &str) -> AppResult<Vec<(String, String)>> {
     let file = std::fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {}", e))?;
 
     let mut entries = Vec::new();
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
-        if entry.is_dir() || !entry.name().ends_with(".json") { continue; }
+        if entry.is_dir() || !entry.name().ends_with(".json") {
+            continue;
+        }
         let name = entry.name().to_string();
         let mut text = String::new();
         entry.read_to_string(&mut text)?;
@@ -803,8 +1101,7 @@ fn read_zip_entries(path: &str) -> AppResult<Vec<(String, String)>> {
 }
 
 fn read_single_json(path: &str) -> AppResult<Vec<(String, String)>> {
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let text = std::fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
     let filename = std::path::Path::new(path)
         .file_name()
         .map(|f| f.to_string_lossy().to_string())
@@ -823,10 +1120,14 @@ fn merge_settings(
     base: crate::map_meta::MapSettings,
     overlay: &serde_json::Map<String, Value>,
 ) -> crate::map_meta::MapSettings {
-    if overlay.is_empty() { return base; }
+    if overlay.is_empty() {
+        return base;
+    }
     let mut v = serde_json::to_value(&base).unwrap_or_default();
     if let Some(obj) = v.as_object_mut() {
-        for (k, val) in overlay { obj.insert(k.clone(), val.clone()); }
+        for (k, val) in overlay {
+            obj.insert(k.clone(), val.clone());
+        }
     }
     serde_json::from_value(v).unwrap_or(base)
 }
@@ -840,7 +1141,10 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
     let tag_count = map.tags.len() as u32;
 
     let extra_json = if let Some(fields) = &map.fields {
-        format!(r#"{{"fields":{}}}"#, serde_json::to_string(fields).unwrap_or_else(|_| "{}".into()))
+        format!(
+            r#"{{"fields":{}}}"#,
+            serde_json::to_string(fields).unwrap_or_else(|_| "{}".into())
+        )
     } else {
         "{}".to_string()
     };
@@ -906,18 +1210,26 @@ pub async fn bulk_import_preview(path: String) -> AppResult<Vec<ImportPreviewEnt
             .map(|(_, text)| parse_single_json(text))
             .collect();
 
-        let results: Vec<ImportPreviewEntry> = maps.iter().map(|m| ImportPreviewEntry {
-            name: if m.name.is_empty() { "Untitled".to_string() } else { m.name.clone() },
-            folder: m.folder.clone(),
-            location_count: m.locations.len() as u32,
-            tag_count: m.tags.len() as u32,
-            warnings: m.warnings.clone(),
-        }).collect();
+        let results: Vec<ImportPreviewEntry> = maps
+            .iter()
+            .map(|m| ImportPreviewEntry {
+                name: if m.name.is_empty() {
+                    "Untitled".to_string()
+                } else {
+                    m.name.clone()
+                },
+                folder: m.folder.clone(),
+                location_count: m.locations.len() as u32,
+                tag_count: m.tags.len() as u32,
+                warnings: m.warnings.clone(),
+            })
+            .collect();
 
         *CACHED_PARSE.lock().unwrap() = Some(CachedImport { path, maps });
 
         Ok(results)
-    }).await?
+    })
+    .await?
 }
 
 /// Progress event emitted per-map during bulk import, consumed by the frontend
@@ -954,12 +1266,16 @@ pub async fn bulk_import_confirm(
                 } else {
                     read_single_json(&path)?
                 };
-                entries.par_iter().map(|(_, text)| parse_single_json(text)).collect::<Vec<_>>()
+                entries
+                    .par_iter()
+                    .map(|(_, text)| parse_single_json(text))
+                    .collect::<Vec<_>>()
             }
         };
 
         let selected_set: std::collections::HashSet<u32> = selected_indices.into_iter().collect();
-        let parsed_maps: Vec<ParsedMap> = all_maps.into_iter()
+        let parsed_maps: Vec<ParsedMap> = all_maps
+            .into_iter()
             .enumerate()
             .filter(|(i, _)| selected_set.contains(&(*i as u32)))
             .map(|(_, m)| m)
@@ -974,16 +1290,20 @@ pub async fn bulk_import_confirm(
         for (i, map) in parsed_maps.into_iter().enumerate() {
             let map_name = map.name.clone();
             let info = write_map_to_db(&conn, map)?;
-            crate::emit_event("bulk-import-progress", ImportProgress {
-                current: (i + 1) as u32,
-                total,
-                map_name,
-            });
+            crate::emit_event(
+                "bulk-import-progress",
+                ImportProgress {
+                    current: (i + 1) as u32,
+                    total,
+                    map_name,
+                },
+            );
             results.push(info);
         }
 
         Ok(results)
-    }).await?
+    })
+    .await?
 }
 
 /// Drop the cached parse from `bulk_import_preview` when the user dismisses the
@@ -998,7 +1318,6 @@ pub async fn bulk_import_cancel() -> AppResult<()> {
 // ---------------------------------------------------------------------------
 // Single-file import into open map (editor import)
 // ---------------------------------------------------------------------------
-
 
 /// Imports larger than this are committed automatically instead of kept as a
 /// reversible undo diff (the undo entry would clone every imported location and
@@ -1044,33 +1363,68 @@ fn build_preview(parsed: ParsedMap) -> AppResult<EditorImportPreview> {
     let (mut west, mut south, mut east, mut north) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
 
     for loc in &parsed.locations {
-        if loc.heading != 0.0 { h += 1; }
-        if loc.pitch != 0.0 { p += 1; }
-        if loc.zoom != 0.0 { z += 1; }
-        if loc.pano_id.is_some() { pano_c += 1; }
-        if !loc.tags.is_empty() { tag_c += 1; }
+        if loc.heading != 0.0 {
+            h += 1;
+        }
+        if loc.pitch != 0.0 {
+            p += 1;
+        }
+        if loc.zoom != 0.0 {
+            z += 1;
+        }
+        if loc.pano_id.is_some() {
+            pano_c += 1;
+        }
+        if !loc.tags.is_empty() {
+            tag_c += 1;
+        }
         if let Some(extra) = &loc.extra {
             // Byte key-scan (no per-loc map alloc); only allocate a String the first
             // time each distinct key is seen.
             extra.for_each_field(|k, _| {
-                if let Some(c) = extra_counts.get_mut(k) { *c += 1; }
-                else { extra_counts.insert(k.to_owned(), 1); }
+                if let Some(c) = extra_counts.get_mut(k) {
+                    *c += 1;
+                } else {
+                    extra_counts.insert(k.to_owned(), 1);
+                }
             });
         }
         pos_buf.extend_from_slice(&(loc.lng as f32).to_le_bytes());
         pos_buf.extend_from_slice(&(loc.lat as f32).to_le_bytes());
-        if loc.lng < west { west = loc.lng; }
-        if loc.lat < south { south = loc.lat; }
-        if loc.lng > east { east = loc.lng; }
-        if loc.lat > north { north = loc.lat; }
+        if loc.lng < west {
+            west = loc.lng;
+        }
+        if loc.lat < south {
+            south = loc.lat;
+        }
+        if loc.lng > east {
+            east = loc.lng;
+        }
+        if loc.lat > north {
+            north = loc.lat;
+        }
     }
 
     let mut fields: Vec<FieldCount> = Vec::with_capacity(5 + extra_counts.len());
-    for (key, count) in [("heading", h), ("pitch", p), ("zoom", z), ("panoId", pano_c), ("tags", tag_c)] {
-        if count > 0 { fields.push(FieldCount { key: key.into(), count }); }
+    for (key, count) in [
+        ("heading", h),
+        ("pitch", p),
+        ("zoom", z),
+        ("panoId", pano_c),
+        ("tags", tag_c),
+    ] {
+        if count > 0 {
+            fields.push(FieldCount {
+                key: key.into(),
+                count,
+            });
+        }
     }
     for (key, count) in extra_counts {
-        fields.push(FieldCount { key: format!("extra.{key}"), count });
+        fields.push(FieldCount {
+            key: format!("extra.{key}"),
+            count,
+        });
     }
 
     let path = std::env::temp_dir().join("mma_import_preview.bin");
@@ -1082,7 +1436,11 @@ fn build_preview(parsed: ParsedMap) -> AppResult<EditorImportPreview> {
         fields,
         warnings: parsed.warnings.clone(),
         preview_positions_path: path.to_string_lossy().into_owned(),
-        bounds: if n == 0 { None } else { Some([west, south, east, north]) },
+        bounds: if n == 0 {
+            None
+        } else {
+            Some([west, south, east, north])
+        },
         will_auto_commit: n > IMPORT_AUTOCOMMIT_THRESHOLD,
     };
 
@@ -1099,7 +1457,11 @@ static EDITOR_IMPORT_CACHE: Mutex<Option<ParsedMap>> = Mutex::new(None);
 pub fn store_import_staged_location(index: u32) -> AppResult<Location> {
     let cache = EDITOR_IMPORT_CACHE.lock().unwrap();
     let parsed = cache.as_ref().ok_or("no staged import")?;
-    parsed.locations.get(index as usize).cloned().ok_or_else(|| "staged index out of range".into())
+    parsed
+        .locations
+        .get(index as usize)
+        .cloned()
+        .ok_or_else(|| "staged index out of range".into())
 }
 
 /// Parse a file and return field-level statistics + preview positions for the editor
@@ -1116,10 +1478,16 @@ pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview
         let parsed = parse_file(&mut buf);
         let t_parse = t0.elapsed();
         let preview = build_preview(parsed)?;
-        log::debug!("[import-preview] read={:.0}ms parse={:.0}ms build={:.0}ms locs={}",
-            t_read.as_millis(), (t_parse - t_read).as_millis(), (t0.elapsed() - t_parse).as_millis(), preview.location_count);
+        log::debug!(
+            "[import-preview] read={:.0}ms parse={:.0}ms build={:.0}ms locs={}",
+            t_read.as_millis(),
+            (t_parse - t_read).as_millis(),
+            (t0.elapsed() - t_parse).as_millis(),
+            preview.location_count
+        );
         Ok(preview)
-    }).await?
+    })
+    .await?
 }
 
 /// Parse pasted text (JSON or CSV) and stage it for preview, exactly like
@@ -1134,9 +1502,14 @@ pub async fn store_import_paste_preview(text: String) -> AppResult<EditorImportP
         if parsed.locations.is_empty() {
             return Err("no locations found".into());
         }
-        log::debug!("[paste-preview] parse={:.0}ms locs={}", t0.elapsed().as_millis(), parsed.locations.len());
+        log::debug!(
+            "[paste-preview] parse={:.0}ms locs={}",
+            t0.elapsed().as_millis(),
+            parsed.locations.len()
+        );
         build_preview(parsed)
-    }).await?
+    })
+    .await?
 }
 
 /// Combined result of an editor import: the mutation delta (for render pipeline)
@@ -1154,7 +1527,6 @@ pub struct EditorImportResult {
     #[specta(type = std::collections::HashMap<String, specta_typescript::Any>)]
     pub settings: serde_json::Map<String, Value>,
 }
-
 
 /// Insert pre-deduped copied locations (cross-map copy) through the same path
 /// as editor import: tag reconcile, id alloc, counts, field defs, undo entry,
@@ -1195,7 +1567,8 @@ fn add_parsed_to_store(
     let tag_id_remap = {
         let tags = &mut store.tags;
         let before = tags.all.len();
-        let remap = location_store::reconcile_tags_by_name(&parsed.tags, &mut tags.all, &mut tags.next_id);
+        let remap =
+            location_store::reconcile_tags_by_name(&parsed.tags, &mut tags.all, &mut tags.next_id);
         if tags.all.len() > before {
             tags.dirty = true;
         }
@@ -1204,30 +1577,42 @@ fn add_parsed_to_store(
 
     for loc in &mut parsed.locations {
         loc.id = store.alloc_id();
-        loc.tags = loc.tags.iter().filter_map(|&old| tag_id_remap.get(&old).copied()).collect();
+        loc.tags = loc
+            .tags
+            .iter()
+            .filter_map(|&old| tag_id_remap.get(&old).copied())
+            .collect();
     }
     let t_reconcile = _t.elapsed();
 
     // Find-or-create the bulk tag (case-insensitive) and apply it to every location.
     if let Some(name) = bulk_tag.map(str::trim).filter(|n| !n.is_empty()) {
-        let tag_id = store.tags.all.values()
+        let tag_id = store
+            .tags
+            .all
+            .values()
             .find(|t| t.name.eq_ignore_ascii_case(name))
             .map(|t| t.id)
             .unwrap_or_else(|| {
                 let id = store.alloc_tag_id();
-                store.tags.all.insert(id, Tag {
+                store.tags.all.insert(
                     id,
-                    name: name.to_string(),
-                    color: crate::util::color_for_name(name),
-                    visible: true,
-                    order: None,
-                    count: 0,
-                });
+                    Tag {
+                        id,
+                        name: name.to_string(),
+                        color: crate::util::color_for_name(name),
+                        visible: true,
+                        order: None,
+                        count: 0,
+                    },
+                );
                 store.tags.dirty = true;
                 id
             });
         for loc in &mut parsed.locations {
-            if !loc.tags.contains(&tag_id) { loc.tags.push(tag_id); }
+            if !loc.tags.contains(&tag_id) {
+                loc.tags.push(tag_id);
+            }
         }
     }
 
@@ -1236,7 +1621,9 @@ fn add_parsed_to_store(
 
     // Discover new extra-field defs from the locations now, before we consume them.
     let new_field_defs = {
-        let extras: Vec<&crate::types::RawExtra> = parsed.locations.iter()
+        let extras: Vec<&crate::types::RawExtra> = parsed
+            .locations
+            .iter()
             .filter_map(|l| l.extra.as_ref())
             .collect();
         crate::map_meta::auto_register_field_defs(&store.known_field_keys, &extras)
@@ -1263,9 +1650,10 @@ fn add_parsed_to_store(
     }
     let t_overlay = _t.elapsed();
 
-    let mut result = store.finish_mutation(
-        location_store::ChangeSet { full_reset: true, ..Default::default() }
-    );
+    let mut result = store.finish_mutation(location_store::ChangeSet {
+        full_reset: true,
+        ..Default::default()
+    });
     result.tags = Some(store.tags.all.clone());
 
     if let Some(new_defs) = new_field_defs {
@@ -1292,24 +1680,41 @@ pub async fn store_import_file(
     tag_name: Option<String>,
 ) -> AppResult<EditorImportResult> {
     let t0 = std::time::Instant::now();
-    let mut parsed = EDITOR_IMPORT_CACHE.lock().unwrap().take()
+    let mut parsed = EDITOR_IMPORT_CACHE
+        .lock()
+        .unwrap()
+        .take()
         .ok_or("no cached import — call store_import_preview first")?;
 
-    let drop_set: std::collections::HashSet<&str> = dropped_fields.iter().map(|s| s.as_str()).collect();
+    let drop_set: std::collections::HashSet<&str> =
+        dropped_fields.iter().map(|s| s.as_str()).collect();
     if !drop_set.is_empty() {
         for loc in &mut parsed.locations {
-            if drop_set.contains("heading") { loc.heading = 0.0; }
-            if drop_set.contains("pitch") { loc.pitch = 0.0; }
-            if drop_set.contains("zoom") { loc.zoom = 0.0; }
-            if drop_set.contains("panoId") { loc.pano_id = None; loc.flags.remove(LocationFlags::LOAD_AS_PANO_ID); }
-            if drop_set.contains("tags") { loc.tags.clear(); }
+            if drop_set.contains("heading") {
+                loc.heading = 0.0;
+            }
+            if drop_set.contains("pitch") {
+                loc.pitch = 0.0;
+            }
+            if drop_set.contains("zoom") {
+                loc.zoom = 0.0;
+            }
+            if drop_set.contains("panoId") {
+                loc.pano_id = None;
+                loc.flags.remove(LocationFlags::LOAD_AS_PANO_ID);
+            }
+            if drop_set.contains("tags") {
+                loc.tags.clear();
+            }
             if let Some(extra) = &loc.extra {
                 let mut m = extra.to_map();
                 m.retain(|k, _| !drop_set.contains(format!("extra.{k}").as_str()));
                 loc.extra = crate::types::RawExtra::from_map(&m);
             }
         }
-        if drop_set.contains("tags") { parsed.tags.clear(); }
+        if drop_set.contains("tags") {
+            parsed.tags.clear();
+        }
     }
     // Capture before add_parsed_to_store, which consumes parsed.locations (moves them
     // into the overlay) leaving the vec empty.
@@ -1320,7 +1725,11 @@ pub async fn store_import_file(
     with_store!(webview, state, |store| {
         let mutation = add_parsed_to_store(store, &mut parsed, tag_name.as_deref())?;
 
-        log::debug!("[import] total={:.0}ms locs={}", t0.elapsed().as_millis(), imported_count);
+        log::debug!(
+            "[import] total={:.0}ms locs={}",
+            t0.elapsed().as_millis(),
+            imported_count
+        );
 
         Ok(EditorImportResult {
             imported_count,

@@ -38,10 +38,7 @@ describe("Multi-map isolation", () => {
 		await closeMap();
 
 		mapBId = await createAndOpenMap("E2E Map B");
-		await addLocs([
-			createLocation({ lat: 40, lng: 40 }),
-			createLocation({ lat: 50, lng: 50 }),
-		]);
+		await addLocs([createLocation({ lat: 40, lng: 40 }), createLocation({ lat: 50, lng: 50 })]);
 		await flushAndWait();
 		await closeMap();
 	});

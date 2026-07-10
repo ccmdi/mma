@@ -7,14 +7,14 @@
 //! bitmasks. The bitmasks are then serialized into a per-cell binary format that JS reads
 //! to color the selection overlay.
 
-use std::collections::{HashMap, HashSet};
-use arrow_array::{RecordBatch, StringArray, Float64Array, UInt32Array, ListArray, Array};
-use roaring::RoaringBitmap;
-use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Datelike, Timelike, Utc};
 use crate::types::{Location, LocationFlags};
-use crate::util::{unix_to_month_day, unix_to_hour_min, tz_offset_seconds};
+use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
+use arrow_array::{Array, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array};
+use chrono::{DateTime, Datelike, Timelike, Utc};
+use rayon::prelude::*;
+use roaring::RoaringBitmap;
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 
 /// Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
 /// for JS interop. Simple types (Tag, Untagged, PanoIds, etc.) resolve in O(N) with
@@ -23,26 +23,67 @@ use crate::util::{unix_to_month_day, unix_to_hour_min, tz_offset_seconds};
 #[derive(Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type")]
 pub enum SelectionProps {
-    Locations { locations: Vec<u32>, name: Option<String> },
+    Locations {
+        locations: Vec<u32>,
+        name: Option<String>,
+    },
     Everything,
     #[serde(rename_all = "camelCase")]
-    Polygon { polygon: PolygonGeometry, #[serde(rename = "includeInformational")] include_informational: bool },
-    Tag { #[serde(rename = "tagId")] tag_id: u32 },
+    Polygon {
+        polygon: PolygonGeometry,
+        #[serde(rename = "includeInformational")]
+        include_informational: bool,
+    },
+    Tag {
+        #[serde(rename = "tagId")]
+        tag_id: u32,
+    },
     Untagged,
     Unpanned,
     PanoIds,
     NotPanoIds,
     Uncommitted,
-    Manual { locations: Vec<u32> },
-    Duplicates { distance: f64 },
-    ValidationState { locations: Vec<u32>, state: u8 },
+    Manual {
+        locations: Vec<u32>,
+    },
+    Duplicates {
+        distance: f64,
+    },
+    ValidationState {
+        locations: Vec<u32>,
+        state: u8,
+    },
     #[serde(rename_all = "camelCase")]
-    Reviewed { locations: Vec<u32>, session_id: String, mode: String },
-    Intersection { selections: Vec<Selection> },
-    Union { selections: Vec<Selection> },
-    Invert { selections: Vec<Selection> },
-    Filter { field: String, op: FilterOp, #[specta(type = specta_typescript::Any)] value: serde_json::Value, #[serde(default)] #[specta(type = Option<specta_typescript::Any>)] value2: Option<serde_json::Value>, #[serde(default, rename = "tzLocal")] tz_local: bool },
-    TopK { field: String, k: u32, ascending: bool },
+    Reviewed {
+        locations: Vec<u32>,
+        session_id: String,
+        mode: String,
+    },
+    Intersection {
+        selections: Vec<Selection>,
+    },
+    Union {
+        selections: Vec<Selection>,
+    },
+    Invert {
+        selections: Vec<Selection>,
+    },
+    Filter {
+        field: String,
+        op: FilterOp,
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+        #[serde(default)]
+        #[specta(type = Option<specta_typescript::Any>)]
+        value2: Option<serde_json::Value>,
+        #[serde(default, rename = "tzLocal")]
+        tz_local: bool,
+    },
+    TopK {
+        field: String,
+        k: u32,
+        ascending: bool,
+    },
 }
 
 /// Filter comparison operator. Single source of truth: specta renders the literal
@@ -140,30 +181,57 @@ enum RowInner<'a, 'v> {
 
 impl<'a> RowRef<'a, '_> {
     pub fn from_loc(loc: &'a Location) -> Self {
-        RowRef { inner: RowInner::Loc(loc) }
+        RowRef {
+            inner: RowInner::Loc(loc),
+        }
     }
 }
 
 impl<'a, 'v> RowRef<'a, 'v> {
-    #[inline] pub fn id(&self) -> u32 {
-        match &self.inner { RowInner::Base(v, i) => v.batch_id(*i), RowInner::Loc(l) => l.id }
+    #[inline]
+    pub fn id(&self) -> u32 {
+        match &self.inner {
+            RowInner::Base(v, i) => v.batch_id(*i),
+            RowInner::Loc(l) => l.id,
+        }
     }
-    #[inline] pub fn lat(&self) -> f64 {
-        match &self.inner { RowInner::Base(v, i) => v.lats.unwrap().value(*i), RowInner::Loc(l) => l.lat }
+    #[inline]
+    pub fn lat(&self) -> f64 {
+        match &self.inner {
+            RowInner::Base(v, i) => v.lats.unwrap().value(*i),
+            RowInner::Loc(l) => l.lat,
+        }
     }
-    #[inline] pub fn lng(&self) -> f64 {
-        match &self.inner { RowInner::Base(v, i) => v.lngs.unwrap().value(*i), RowInner::Loc(l) => l.lng }
+    #[inline]
+    pub fn lng(&self) -> f64 {
+        match &self.inner {
+            RowInner::Base(v, i) => v.lngs.unwrap().value(*i),
+            RowInner::Loc(l) => l.lng,
+        }
     }
-    #[inline] pub fn heading(&self) -> f64 {
-        match &self.inner { RowInner::Base(v, i) => v.headings.unwrap().value(*i), RowInner::Loc(l) => l.heading }
+    #[inline]
+    pub fn heading(&self) -> f64 {
+        match &self.inner {
+            RowInner::Base(v, i) => v.headings.unwrap().value(*i),
+            RowInner::Loc(l) => l.heading,
+        }
     }
-    #[inline] pub fn pitch(&self) -> f64 {
-        match &self.inner { RowInner::Base(v, i) => v.pitches.unwrap().value(*i), RowInner::Loc(l) => l.pitch }
+    #[inline]
+    pub fn pitch(&self) -> f64 {
+        match &self.inner {
+            RowInner::Base(v, i) => v.pitches.unwrap().value(*i),
+            RowInner::Loc(l) => l.pitch,
+        }
     }
-    #[inline] pub fn zoom(&self) -> f64 {
-        match &self.inner { RowInner::Base(v, i) => v.zooms.unwrap().value(*i), RowInner::Loc(l) => l.zoom }
+    #[inline]
+    pub fn zoom(&self) -> f64 {
+        match &self.inner {
+            RowInner::Base(v, i) => v.zooms.unwrap().value(*i),
+            RowInner::Loc(l) => l.zoom,
+        }
     }
-    #[inline] pub fn flags(&self) -> LocationFlags {
+    #[inline]
+    pub fn flags(&self) -> LocationFlags {
         match &self.inner {
             RowInner::Base(v, i) => LocationFlags::from_bits_retain(v.flags.unwrap().value(*i)),
             RowInner::Loc(l) => l.flags,
@@ -190,9 +258,15 @@ impl<'a, 'v> RowRef<'a, 'v> {
             RowInner::Base(v, i) => {
                 let list = v.tags.unwrap().value(*i);
                 let ids = list.as_any().downcast_ref::<UInt32Array>().unwrap();
-                for j in 0..ids.len() { f(ids.value(j)); }
+                for j in 0..ids.len() {
+                    f(ids.value(j));
+                }
             }
-            RowInner::Loc(l) => { for &t in &l.tags { f(t); } }
+            RowInner::Loc(l) => {
+                for &t in &l.tags {
+                    f(t);
+                }
+            }
         }
     }
     pub fn resolve_field(&self, field: &str) -> Option<serde_json::Value> {
@@ -208,23 +282,28 @@ impl<'a, 'v> RowRef<'a, 'v> {
         match &self.inner {
             RowInner::Loc(l) => (
                 resolve_field_loc(l, field),
-                l.extra.as_ref()
+                l.extra
+                    .as_ref()
                     .and_then(|e| e.get("timezone"))
                     .and_then(|v| v.as_str().map(str::to_owned)),
             ),
             RowInner::Base(v, i) => {
-                let extras: Option<serde_json::Map<String, serde_json::Value>> = v.extras.and_then(|c| {
-                    if c.is_null(*i) { return None; }
-                    serde_json::from_str(c.value(*i)).ok()
-                });
-                let tz = extras.as_ref()
+                let extras: Option<serde_json::Map<String, serde_json::Value>> =
+                    v.extras.and_then(|c| {
+                        if c.is_null(*i) {
+                            return None;
+                        }
+                        serde_json::from_str(c.value(*i)).ok()
+                    });
+                let tz = extras
+                    .as_ref()
                     .and_then(|m| m.get("timezone"))
                     .and_then(|v| v.as_str())
                     .map(str::to_owned);
                 // Built-in names come from their columns; keep in sync with resolve_field_arrow.
                 let fv = match field {
-                    "lat" | "lng" | "heading" | "pitch" | "zoom" | "id" | "createdAt" | "modifiedAt" =>
-                        resolve_field_arrow(v, *i, field),
+                    "lat" | "lng" | "heading" | "pitch" | "zoom" | "id" | "createdAt"
+                    | "modifiedAt" => resolve_field_arrow(v, *i, field),
                     _ => extras.as_ref().and_then(|m| m.get(field).cloned()),
                 };
                 (fv, tz)
@@ -255,7 +334,10 @@ impl<'a> LocView<'a> {
         adds: &'a [Location],
         tag_sets: Option<&'a HashMap<u32, RoaringBitmap>>,
     ) -> Self {
-        use crate::arrow_bridge::{col_id, col_lat, col_lng, col_heading, col_pitch, col_zoom, col_flags, col_tags, col_extra, col_created_at, col_modified_at};
+        use crate::arrow_bridge::{
+            col_created_at, col_extra, col_flags, col_heading, col_id, col_lat, col_lng,
+            col_modified_at, col_pitch, col_tags, col_zoom,
+        };
         let batch_rows = batch.map_or(0, |b| b.num_rows());
         let ids = batch.map(col_id);
         let lats = batch.map(col_lat);
@@ -270,13 +352,37 @@ impl<'a> LocView<'a> {
         let modified_ats = batch.map(col_modified_at);
         let has_dead = !dead.is_empty();
         let has_patches = !patches.is_empty();
-        Self { batch, dead, patches, adds, ids, lats, lngs, headings, pitches, zooms, flags, tags, extras, created_ats, modified_ats, batch_rows, has_dead, has_patches, tag_sets }
+        Self {
+            batch,
+            dead,
+            patches,
+            adds,
+            ids,
+            lats,
+            lngs,
+            headings,
+            pitches,
+            zooms,
+            flags,
+            tags,
+            extras,
+            created_ats,
+            modified_ats,
+            batch_rows,
+            has_dead,
+            has_patches,
+            tag_sets,
+        }
     }
 
     /// Number of rows in the Arrow batch (before overlay).
-    pub fn batch_rows(&self) -> usize { self.batch_rows }
+    pub fn batch_rows(&self) -> usize {
+        self.batch_rows
+    }
     /// Read the raw batch ID at row `i` (no overlay check).
-    pub fn batch_id(&self, i: usize) -> u32 { self.ids.unwrap().value(i) }
+    pub fn batch_id(&self, i: usize) -> u32 {
+        self.ids.unwrap().value(i)
+    }
 
     /// Whether batch row `i` is alive (not in the dead set).
     #[inline]
@@ -287,14 +393,18 @@ impl<'a> LocView<'a> {
     /// Return the overlay patch for batch row `i`, if one exists.
     #[inline]
     pub fn patch_at(&self, i: usize) -> Option<&Location> {
-        if !self.has_patches { return None; }
+        if !self.has_patches {
+            return None;
+        }
         self.patches.get(&self.batch_id(i))
     }
 
     /// Read the effective ID at batch row `i`, checking patches first.
     pub fn id_at(&self, i: usize) -> u32 {
         if self.has_patches {
-            if let Some(p) = self.patches.get(&self.batch_id(i)) { return p.id; }
+            if let Some(p) = self.patches.get(&self.batch_id(i)) {
+                return p.id;
+            }
         }
         self.batch_id(i)
     }
@@ -310,38 +420,47 @@ impl<'a> LocView<'a> {
     #[inline]
     pub fn for_each(&self, mut f: impl FnMut(RowRef)) {
         for i in 0..self.batch_rows {
-            if !self.is_alive(i) { continue; }
+            if !self.is_alive(i) {
+                continue;
+            }
             match self.patch_at(i) {
-                Some(p) => f(RowRef { inner: RowInner::Loc(p) }),
-                None => f(RowRef { inner: RowInner::Base(self, i) }),
+                Some(p) => f(RowRef {
+                    inner: RowInner::Loc(p),
+                }),
+                None => f(RowRef {
+                    inner: RowInner::Base(self, i),
+                }),
             }
         }
         for loc in self.adds {
-            f(RowRef { inner: RowInner::Loc(loc) });
+            f(RowRef {
+                inner: RowInner::Loc(loc),
+            });
         }
     }
 
     /// Build a bool mask over all locations (batch + adds) using a per-row predicate.
     /// Batch rows are scanned in parallel with rayon. O(N) with parallel speedup.
-    pub fn resolve_mask(
-        &self,
-        test: impl Fn(&RowRef) -> bool + Sync + Send,
-    ) -> Vec<bool> {
+    pub fn resolve_mask(&self, test: impl Fn(&RowRef) -> bool + Sync + Send) -> Vec<bool> {
         let mut mask: Vec<bool> = (0..self.batch_rows)
             .into_par_iter()
             .with_min_len(CHUNK_SIZE)
             .map(|i| {
-                if !self.is_alive(i) { return false; }
+                if !self.is_alive(i) {
+                    return false;
+                }
                 let row = match self.patch_at(i) {
-                    Some(p) => RowRef { inner: RowInner::Loc(p) },
-                    None => RowRef { inner: RowInner::Base(self, i) },
+                    Some(p) => RowRef {
+                        inner: RowInner::Loc(p),
+                    },
+                    None => RowRef {
+                        inner: RowInner::Base(self, i),
+                    },
                 };
                 test(&row)
             })
             .collect();
-        mask.extend(self.adds.iter().map(|loc| {
-            test(&RowRef::from_loc(loc))
-        }));
+        mask.extend(self.adds.iter().map(|loc| test(&RowRef::from_loc(loc))));
         mask
     }
 }
@@ -363,14 +482,36 @@ fn test_row(r: &RowRef, props: &SelectionProps) -> bool {
         SelectionProps::PanoIds => r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
         SelectionProps::NotPanoIds => !r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
         SelectionProps::Uncommitted => r.is_uncommitted(),
-        SelectionProps::Polygon { polygon, include_informational } => {
-            if !include_informational && r.flags().contains(LocationFlags::INFORMATIONAL) { return false; }
+        SelectionProps::Polygon {
+            polygon,
+            include_informational,
+        } => {
+            if !include_informational && r.flags().contains(LocationFlags::INFORMATIONAL) {
+                return false;
+            }
             point_in_geometry(r.lng(), r.lat(), polygon)
         }
-        SelectionProps::Filter { field, op, value, value2, tz_local } => {
+        SelectionProps::Filter {
+            field,
+            op,
+            value,
+            value2,
+            tz_local,
+        } => {
             // tz_local only applies where a clock frame matters; has/nothas/eq/neq
             // keep their normal semantics even if the flag is set.
-            if *tz_local && matches!(op, FilterOp::Gt | FilterOp::Lt | FilterOp::Gte | FilterOp::Lte | FilterOp::Between | FilterOp::BetweenAnyyear | FilterOp::BetweenAnytime) {
+            if *tz_local
+                && matches!(
+                    op,
+                    FilterOp::Gt
+                        | FilterOp::Lt
+                        | FilterOp::Gte
+                        | FilterOp::Lte
+                        | FilterOp::Between
+                        | FilterOp::BetweenAnyyear
+                        | FilterOp::BetweenAnytime
+                )
+            {
                 return compare_filter_local_tz(r, field, *op, value, value2.as_ref());
             }
             match r.resolve_field(field) {
@@ -401,17 +542,25 @@ pub fn resolve_set(view: &LocView, props: &SelectionProps) -> RoaringBitmap {
             if let Some(idx) = view.tag_sets {
                 let mut set = idx.get(tag_id).cloned().unwrap_or_default();
                 if view.has_dead {
-                    for &d in view.dead.iter() { set.remove(d); }
+                    for &d in view.dead.iter() {
+                        set.remove(d);
+                    }
                 }
                 // Overlay adds aren't in the batch-built index; fold them in by scan.
                 for loc in view.adds.iter() {
-                    if loc.tags.contains(tag_id) { set.insert(loc.id); }
+                    if loc.tags.contains(tag_id) {
+                        set.insert(loc.id);
+                    }
                 }
                 // Patches can change a row's tags vs the indexed (base) value: re-test
                 // patched rows so the index can't go stale under uncommitted edits.
                 if view.has_patches {
                     for p in view.patches.values() {
-                        if p.tags.contains(tag_id) { set.insert(p.id); } else { set.remove(p.id); }
+                        if p.tags.contains(tag_id) {
+                            set.insert(p.id);
+                        } else {
+                            set.remove(p.id);
+                        }
                     }
                 }
                 return set;
@@ -419,24 +568,32 @@ pub fn resolve_set(view: &LocView, props: &SelectionProps) -> RoaringBitmap {
             // No index: fall through to the scan path below.
         }
         SelectionProps::Intersection { selections } => {
-            if selections.is_empty() { return RoaringBitmap::new(); }
+            if selections.is_empty() {
+                return RoaringBitmap::new();
+            }
             let mut acc = resolve_set(view, &selections[0].props);
             for s in &selections[1..] {
                 acc &= resolve_set(view, &s.props);
-                if acc.is_empty() { break; } // short-circuit: nothing left to intersect
+                if acc.is_empty() {
+                    break;
+                } // short-circuit: nothing left to intersect
             }
             return acc;
         }
         SelectionProps::Union { selections } => {
             let mut acc = RoaringBitmap::new();
-            for s in selections { acc |= resolve_set(view, &s.props); }
+            for s in selections {
+                acc |= resolve_set(view, &s.props);
+            }
             return acc;
         }
         SelectionProps::Invert { selections } => {
             // Invert = (all alive ids) - (child ids). roaring-rs has no native flip,
             // so this is a difference against the universe set.
             let universe = alive_id_set(view);
-            if selections.is_empty() { return universe; }
+            if selections.is_empty() {
+                return universe;
+            }
             let inner = resolve_set(view, &selections[0].props);
             return universe - inner;
         }
@@ -453,7 +610,10 @@ pub fn resolve_set(view: &LocView, props: &SelectionProps) -> RoaringBitmap {
 /// children's already-resolved sets instead of re-resolving them. (The previous
 /// resolve-then-count pair resolved every top-level node twice and nested children
 /// twice or more.)
-pub fn resolve_forest(view: &LocView, sels: &[Selection]) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
+pub fn resolve_forest(
+    view: &LocView,
+    sels: &[Selection],
+) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
     fn walk(view: &LocView, sel: &Selection, counts: &mut HashMap<String, u32>) -> RoaringBitmap {
         let set = match &sel.props {
             SelectionProps::Intersection { selections } => {
@@ -462,13 +622,18 @@ pub fn resolve_forest(view: &LocView, sels: &[Selection]) -> (Vec<RoaringBitmap>
                 let mut acc: Option<RoaringBitmap> = None;
                 for c in selections {
                     let child = walk(view, c, counts);
-                    acc = Some(match acc { Some(a) => a & child, None => child });
+                    acc = Some(match acc {
+                        Some(a) => a & child,
+                        None => child,
+                    });
                 }
                 acc.unwrap_or_default()
             }
             SelectionProps::Union { selections } => {
                 let mut acc = RoaringBitmap::new();
-                for c in selections { acc |= walk(view, c, counts); }
+                for c in selections {
+                    acc |= walk(view, c, counts);
+                }
                 acc
             }
             SelectionProps::Invert { selections } => {
@@ -480,7 +645,9 @@ pub fn resolve_forest(view: &LocView, sels: &[Selection]) -> (Vec<RoaringBitmap>
                 };
                 // Invert is unary: extra children don't affect the set but their
                 // counts are still reported, matching resolve_set semantics.
-                for c in children { walk(view, c, counts); }
+                for c in children {
+                    walk(view, c, counts);
+                }
                 set
             }
             _ => resolve_set(view, &sel.props),
@@ -503,7 +670,9 @@ pub fn resolve_node_counts(view: &LocView, sels: &[Selection]) -> HashMap<String
 /// Set of all alive location ids (batch minus dead, plus overlay adds).
 fn alive_id_set(view: &LocView) -> RoaringBitmap {
     let mut set = RoaringBitmap::new();
-    view.for_each(|row| { set.insert(row.id()); });
+    view.for_each(|row| {
+        set.insert(row.id());
+    });
     set
 }
 
@@ -512,10 +681,14 @@ fn alive_id_set(view: &LocView) -> RoaringBitmap {
 fn mask_to_set(view: &LocView, mask: &[bool]) -> RoaringBitmap {
     let mut set = RoaringBitmap::new();
     for i in 0..view.batch_rows {
-        if mask[i] && view.is_alive(i) { set.insert(view.id_at(i)); }
+        if mask[i] && view.is_alive(i) {
+            set.insert(view.id_at(i));
+        }
     }
     for (j, loc) in view.adds.iter().enumerate() {
-        if mask[view.batch_rows + j] { set.insert(loc.id); }
+        if mask[view.batch_rows + j] {
+            set.insert(loc.id);
+        }
     }
     set
 }
@@ -537,23 +710,36 @@ fn resolve_leaf_mask(view: &LocView, props: &SelectionProps) -> Vec<bool> {
             find_duplicates_bitmask(view, *distance, &mut mask);
             mask
         }
-        SelectionProps::Polygon { polygon, include_informational } => {
+        SelectionProps::Polygon {
+            polygon,
+            include_informational,
+        } => {
             let inc = *include_informational;
             match geometry_bbox(polygon) {
                 None => vec![false; n],
                 Some(bb) => view.resolve_mask(|r| {
-                    if !inc && r.flags().contains(LocationFlags::INFORMATIONAL) { return false; }
+                    if !inc && r.flags().contains(LocationFlags::INFORMATIONAL) {
+                        return false;
+                    }
                     in_bbox(r.lng(), r.lat(), &bb) && point_in_geometry(r.lng(), r.lat(), polygon)
                 }),
             }
         }
-        SelectionProps::TopK { field, k, ascending } => {
+        SelectionProps::TopK {
+            field,
+            k,
+            ascending,
+        } => {
             let mut entries: Vec<(usize, f64)> = Vec::new();
             for i in 0..view.batch_rows {
-                if !view.is_alive(i) { continue; }
+                if !view.is_alive(i) {
+                    continue;
+                }
                 let row = match view.patch_at(i) {
                     Some(p) => RowRef::from_loc(p),
-                    None => RowRef { inner: RowInner::Base(view, i) },
+                    None => RowRef {
+                        inner: RowInner::Base(view, i),
+                    },
                 };
                 if let Some(v) = row.resolve_field(field).as_ref().and_then(as_f64) {
                     entries.push((i, v));
@@ -565,9 +751,13 @@ fn resolve_leaf_mask(view: &LocView, props: &SelectionProps) -> Vec<bool> {
                 }
             }
             if *ascending {
-                entries.sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+                entries.sort_unstable_by(|a, b| {
+                    a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
+                });
             } else {
-                entries.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                entries.sort_unstable_by(|a, b| {
+                    b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+                });
             }
             let mut mask = vec![false; n];
             for &(i, _) in entries.iter().take(*k as usize) {
@@ -590,11 +780,17 @@ pub fn resolve(view: &LocView, props: &SelectionProps) -> Vec<u32> {
 /// (edge lng jump > 180) or unwrapped (any vertex lng outside [-180, 180]).
 pub(crate) fn ring_crosses_antimeridian(ring: &[[f64; 2]]) -> bool {
     let n = ring.len();
-    if n < 2 { return false; }
+    if n < 2 {
+        return false;
+    }
     let mut j = n - 1;
     for i in 0..n {
-        if ring[i][0] > 180.0 || ring[i][0] < -180.0 { return true; }
-        if (ring[i][0] - ring[j][0]).abs() > 180.0 { return true; }
+        if ring[i][0] > 180.0 || ring[i][0] < -180.0 {
+            return true;
+        }
+        if (ring[i][0] - ring[j][0]).abs() > 180.0 {
+            return true;
+        }
         j = i;
     }
     false
@@ -602,7 +798,11 @@ pub(crate) fn ring_crosses_antimeridian(ring: &[[f64; 2]]) -> bool {
 
 #[inline]
 pub(crate) fn normalize_lng(lng: f64) -> f64 {
-    if lng < 0.0 { lng + 360.0 } else { lng }
+    if lng < 0.0 {
+        lng + 360.0
+    } else {
+        lng
+    }
 }
 
 /// Ray-casting algorithm: cast a horizontal ray eastward from (lng, lat) and count
@@ -615,9 +815,17 @@ pub(crate) fn point_in_ring(lng: f64, lat: f64, ring: &[[f64; 2]]) -> bool {
     let n = ring.len();
     let mut j = n.wrapping_sub(1);
     for i in 0..n {
-        let xi = if crosses { normalize_lng(ring[i][0]) } else { ring[i][0] };
+        let xi = if crosses {
+            normalize_lng(ring[i][0])
+        } else {
+            ring[i][0]
+        };
         let yi = ring[i][1];
-        let xj = if crosses { normalize_lng(ring[j][0]) } else { ring[j][0] };
+        let xj = if crosses {
+            normalize_lng(ring[j][0])
+        } else {
+            ring[j][0]
+        };
         let yj = ring[j][1];
         if ((yi > lat) != (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) {
             inside = !inside;
@@ -635,10 +843,16 @@ pub(crate) fn polygon_contains<'a>(
     lat: f64,
     mut rings: impl Iterator<Item = &'a [[f64; 2]]>,
 ) -> bool {
-    let Some(outer) = rings.next() else { return false; };
-    if !point_in_ring(lng, lat, outer) { return false; }
+    let Some(outer) = rings.next() else {
+        return false;
+    };
+    if !point_in_ring(lng, lat, outer) {
+        return false;
+    }
     for hole in rings {
-        if point_in_ring(lng, lat, hole) { return false; }
+        if point_in_ring(lng, lat, hole) {
+            return false;
+        }
     }
     true
 }
@@ -649,10 +863,14 @@ fn point_in_polygon(lng: f64, lat: f64, coords: &[Vec<[f64; 2]>]) -> bool {
 
 /// Test against the full geometry (primary polygon + extra_polygons). Any hit = true.
 pub(crate) fn point_in_geometry(lng: f64, lat: f64, geom: &PolygonGeometry) -> bool {
-    if point_in_polygon(lng, lat, &geom.coordinates) { return true; }
+    if point_in_polygon(lng, lat, &geom.coordinates) {
+        return true;
+    }
     if let Some(extras) = &geom.extra_polygons {
         for poly in extras {
-            if point_in_polygon(lng, lat, poly) { return true; }
+            if point_in_polygon(lng, lat, poly) {
+                return true;
+            }
         }
     }
     false
@@ -664,8 +882,14 @@ pub(crate) fn point_in_geometry(lng: f64, lat: f64, geom: &PolygonGeometry) -> b
 /// When the geometry crosses the antimeridian, longitudes are normalized to [0, 360)
 /// so `max_lng` may exceed 180 — `in_bbox` handles this transparently.
 pub(crate) fn geometry_bbox(geom: &PolygonGeometry) -> Option<[f64; 4]> {
-    let crosses = geom.coordinates.iter()
-        .chain(geom.extra_polygons.iter().flat_map(|polys| polys.iter().flatten()))
+    let crosses = geom
+        .coordinates
+        .iter()
+        .chain(
+            geom.extra_polygons
+                .iter()
+                .flat_map(|polys| polys.iter().flatten()),
+        )
         .any(|ring| ring_crosses_antimeridian(ring));
     let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
     let mut any = false;
@@ -674,23 +898,42 @@ pub(crate) fn geometry_bbox(geom: &PolygonGeometry) -> Option<[f64; 4]> {
     }
     if let Some(extras) = &geom.extra_polygons {
         for poly in extras {
-            for ring in poly { extend_bbox_with_ring(&mut bb, &mut any, crosses, ring); }
+            for ring in poly {
+                extend_bbox_with_ring(&mut bb, &mut any, crosses, ring);
+            }
         }
     }
-    if any { Some(bb) } else { None }
+    if any {
+        Some(bb)
+    } else {
+        None
+    }
 }
 
 /// Fold one ring's vertices into a running `[min_lng, min_lat, max_lng, max_lat]`,
 /// normalizing longitudes to [0, 360) when the geometry crosses the antimeridian.
 /// `any` flips true once at least one vertex has been seen. Shared by owned and
 /// archived bbox computation.
-pub(crate) fn extend_bbox_with_ring(bb: &mut [f64; 4], any: &mut bool, crosses: bool, ring: &[[f64; 2]]) {
+pub(crate) fn extend_bbox_with_ring(
+    bb: &mut [f64; 4],
+    any: &mut bool,
+    crosses: bool,
+    ring: &[[f64; 2]],
+) {
     for &[lng, lat] in ring {
         let lng = if crosses { normalize_lng(lng) } else { lng };
-        if lng < bb[0] { bb[0] = lng; }
-        if lat < bb[1] { bb[1] = lat; }
-        if lng > bb[2] { bb[2] = lng; }
-        if lat > bb[3] { bb[3] = lat; }
+        if lng < bb[0] {
+            bb[0] = lng;
+        }
+        if lat < bb[1] {
+            bb[1] = lat;
+        }
+        if lng > bb[2] {
+            bb[2] = lng;
+        }
+        if lat > bb[3] {
+            bb[3] = lat;
+        }
         *any = true;
     }
 }
@@ -700,7 +943,11 @@ pub(crate) fn extend_bbox_with_ring(bb: &mut [f64; 4], any: &mut bool, crosses: 
 /// negative test longitudes are shifted by +360 automatically.
 #[inline]
 pub(crate) fn in_bbox(lng: f64, lat: f64, bb: &[f64; 4]) -> bool {
-    let lng = if bb[2] > 180.0 && lng < 0.0 { lng + 360.0 } else { lng };
+    let lng = if bb[2] > 180.0 && lng < 0.0 {
+        lng + 360.0
+    } else {
+        lng
+    };
     lng >= bb[0] && lng <= bb[2] && lat >= bb[1] && lat <= bb[3]
 }
 
@@ -752,7 +999,11 @@ impl SpatialHash {
             cell_start[b] = cell_start[b - 1];
         }
         cell_start[0] = 0;
-        SpatialHash { table_size, cell_start, entries }
+        SpatialHash {
+            table_size,
+            cell_start,
+            entries,
+        }
     }
 
     /// Point indices in the bucket that `(cx, cy)` hashes to. May include points from
@@ -777,7 +1028,9 @@ fn for_pairs_within<S>(
     skip_anchor: impl Fn(&S, usize) -> bool,
     mut pair: impl FnMut(&mut S, usize, usize),
 ) {
-    if n < 2 { return; }
+    if n < 2 {
+        return;
+    }
     let cell_deg = distance_m / 111_000.0 * 1.5;
     // Degenerate radius (distance == 0, or a non-finite cell size): "within 0 m" means
     // exact-coordinate equality. The grid would divide by zero, saturate every point to
@@ -786,13 +1039,20 @@ fn for_pairs_within<S>(
         let mut groups: HashMap<(u64, u64), Vec<usize>> = HashMap::new();
         for i in 0..n {
             let (lat, lng) = pos(i);
-            if !lat.is_finite() || !lng.is_finite() { continue; }
+            if !lat.is_finite() || !lng.is_finite() {
+                continue;
+            }
             // `+ 0.0` folds -0.0 into +0.0 so the two compare equal.
-            groups.entry(((lat + 0.0).to_bits(), (lng + 0.0).to_bits())).or_default().push(i);
+            groups
+                .entry(((lat + 0.0).to_bits(), (lng + 0.0).to_bits()))
+                .or_default()
+                .push(i);
         }
         for idxs in groups.values() {
             for (a, &pi) in idxs.iter().enumerate() {
-                if skip_anchor(state, pi) { continue; }
+                if skip_anchor(state, pi) {
+                    continue;
+                }
                 for &pj in &idxs[a + 1..] {
                     pair(state, pi, pj);
                 }
@@ -803,13 +1063,18 @@ fn for_pairs_within<S>(
     let cells: Vec<(i32, i32)> = (0..n)
         .map(|i| {
             let (lat, lng) = pos(i);
-            ((lng / cell_deg).floor() as i32, (lat / cell_deg).floor() as i32)
+            (
+                (lng / cell_deg).floor() as i32,
+                (lat / cell_deg).floor() as i32,
+            )
         })
         .collect();
     let grid = SpatialHash::build(&cells);
     let thresh_m2 = distance_m * distance_m;
     for pi in 0..n {
-        if skip_anchor(state, pi) { continue; }
+        if skip_anchor(state, pi) {
+            continue;
+        }
         let (lat, lng) = pos(pi);
         let (cx, cy) = cells[pi];
         let cos_lat = lat.to_radians().cos();
@@ -820,10 +1085,14 @@ fn for_pairs_within<S>(
                 let (nx, ny) = (cx.saturating_add(dx), cy.saturating_add(dy));
                 for &pj in grid.bucket(nx, ny) {
                     let pj = pj as usize;
-                    if pj <= pi { continue; }
+                    if pj <= pi {
+                        continue;
+                    }
                     // Bucket may hold points from collided cells; the cell-coord check
                     // keeps us to the true 3x3 neighborhood. Then the distance test.
-                    if cells[pj] != (nx, ny) { continue; }
+                    if cells[pj] != (nx, ny) {
+                        continue;
+                    }
                     let (plat, plng) = pos(pj);
                     if equirect_m2(lat, lng, plat, plng, cos_lat) <= thresh_m2 {
                         pair(state, pi, pj);
@@ -836,19 +1105,37 @@ fn for_pairs_within<S>(
 
 /// Grid-accelerated spatial duplicate detection.
 fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mut [bool]) {
-    struct Pt { lat: f64, lng: f64, global_idx: usize }
+    struct Pt {
+        lat: f64,
+        lng: f64,
+        global_idx: usize,
+    }
     let mut points = Vec::new();
 
     for i in 0..view.batch_rows {
-        if !view.is_alive(i) { continue; }
+        if !view.is_alive(i) {
+            continue;
+        }
         if let Some(p) = view.patch_at(i) {
-            points.push(Pt { lat: p.lat, lng: p.lng, global_idx: i });
+            points.push(Pt {
+                lat: p.lat,
+                lng: p.lng,
+                global_idx: i,
+            });
         } else {
-            points.push(Pt { lat: view.lats.unwrap().value(i), lng: view.lngs.unwrap().value(i), global_idx: i });
+            points.push(Pt {
+                lat: view.lats.unwrap().value(i),
+                lng: view.lngs.unwrap().value(i),
+                global_idx: i,
+            });
         }
     }
     for (j, loc) in view.adds.iter().enumerate() {
-        points.push(Pt { lat: loc.lat, lng: loc.lng, global_idx: view.batch_rows + j });
+        points.push(Pt {
+            lat: loc.lat,
+            lng: loc.lng,
+            global_idx: view.batch_rows + j,
+        });
     }
 
     let n = points.len();
@@ -860,7 +1147,9 @@ fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mut [bool]) {
         &mut state,
         |s, pi| s.0[pi],
         |s, pi, pj| {
-            if s.0[pj] { return; }
+            if s.0[pj] {
+                return;
+            }
             s.0[pj] = true;
             s.1[points[pj].global_idx] = true;
             s.1[points[pi].global_idx] = true;
@@ -875,12 +1164,24 @@ fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mut [bool]) {
 /// if A and C are out of range. Output is deterministic: ids ascending within each group,
 /// groups ordered by first id.
 pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
-    struct Pt { lat: f64, lng: f64, id: u32 }
+    struct Pt {
+        lat: f64,
+        lng: f64,
+        id: u32,
+    }
     let mut points: Vec<Pt> = Vec::new();
-    view.for_each(|row| points.push(Pt { lat: row.lat(), lng: row.lng(), id: row.id() }));
+    view.for_each(|row| {
+        points.push(Pt {
+            lat: row.lat(),
+            lng: row.lng(),
+            id: row.id(),
+        })
+    });
 
     let n = points.len();
-    if n < 2 { return Vec::new(); }
+    if n < 2 {
+        return Vec::new();
+    }
 
     // Union-find with path halving.
     fn find(parent: &mut [usize], mut x: usize) -> usize {
@@ -901,7 +1202,9 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
         |parent, pi, pj| {
             let ra = find(parent, pi);
             let rb = find(parent, pj);
-            if ra != rb { parent[ra] = rb; }
+            if ra != rb {
+                parent[ra] = rb;
+            }
         },
     );
 
@@ -911,9 +1214,13 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
         comps.entry(r).or_default().push(points[pi].id);
     }
 
-    let mut groups: Vec<Vec<u32>> = comps.into_values()
+    let mut groups: Vec<Vec<u32>> = comps
+        .into_values()
         .filter(|g| g.len() >= 2)
-        .map(|mut g| { g.sort_unstable(); g })
+        .map(|mut g| {
+            g.sort_unstable();
+            g
+        })
         .collect();
     groups.sort_unstable_by_key(|g| g[0]);
     groups
@@ -925,11 +1232,18 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
 ///   (see [`prune_score`]; tie: oldest `created_at`, then lowest id), rest pruned.
 /// - > 25 m: greedy max-thinning — repeatedly drop the location with the most in-range
 ///   neighbours until no two survivors are within `distance_m`.
-pub fn prune_duplicates(locs: &[Location], distance_m: f64, keep_tag_ids: &HashSet<u32>) -> Vec<u32> {
-    let locs: Vec<&Location> = locs.iter()
+pub fn prune_duplicates(
+    locs: &[Location],
+    distance_m: f64,
+    keep_tag_ids: &HashSet<u32>,
+) -> Vec<u32> {
+    let locs: Vec<&Location> = locs
+        .iter()
         .filter(|l| !l.flags.contains(LocationFlags::INFORMATIONAL))
         .collect();
-    if locs.len() < 2 { return Vec::new(); }
+    if locs.len() < 2 {
+        return Vec::new();
+    }
     if distance_m > 25.0 {
         prune_thinning(&locs, distance_m)
     } else {
@@ -940,10 +1254,18 @@ pub fn prune_duplicates(locs: &[Location], distance_m: f64, keep_tag_ids: &HashS
 /// Relevance score: +1 pano, +1 per tag, +1 LoadAsPanoId, +5 keep-tag, +1 nonzero heading.
 fn prune_score(l: &Location, keep_tag_ids: &HashSet<u32>) -> i64 {
     let mut s = l.tags.len() as i64;
-    if l.pano_id.is_some() { s += 1; }
-    if l.flags.contains(LocationFlags::LOAD_AS_PANO_ID) { s += 1; }
-    if l.tags.iter().any(|t| keep_tag_ids.contains(t)) { s += 5; }
-    if l.heading != 0.0 { s += 1; }
+    if l.pano_id.is_some() {
+        s += 1;
+    }
+    if l.flags.contains(LocationFlags::LOAD_AS_PANO_ID) {
+        s += 1;
+    }
+    if l.tags.iter().any(|t| keep_tag_ids.contains(t)) {
+        s += 5;
+    }
+    if l.heading != 0.0 {
+        s += 1;
+    }
     s
 }
 
@@ -969,15 +1291,23 @@ fn prune_relevance(locs: &[&Location], distance_m: f64, keep_tag_ids: &HashSet<u
     let mut pruned = vec![false; locs.len()];
     let mut out = Vec::new();
     for i in 0..locs.len() {
-        if pruned[i] { continue; }
+        if pruned[i] {
+            continue;
+        }
         let mut cluster: Vec<usize> = vec![i];
         cluster.extend(neighbors[i].iter().copied().filter(|&j| !pruned[j]));
-        if cluster.len() < 2 { continue; }
-        let survivor = *cluster.iter().max_by(|&&a, &&b| {
-            prune_score(locs[a], keep_tag_ids).cmp(&prune_score(locs[b], keep_tag_ids))
-                .then_with(|| locs[b].created_at.cmp(&locs[a].created_at)) // older wins ties
-                .then_with(|| locs[b].id.cmp(&locs[a].id))
-        }).unwrap();
+        if cluster.len() < 2 {
+            continue;
+        }
+        let survivor = *cluster
+            .iter()
+            .max_by(|&&a, &&b| {
+                prune_score(locs[a], keep_tag_ids)
+                    .cmp(&prune_score(locs[b], keep_tag_ids))
+                    .then_with(|| locs[b].created_at.cmp(&locs[a].created_at)) // older wins ties
+                    .then_with(|| locs[b].id.cmp(&locs[a].id))
+            })
+            .unwrap();
         for &j in &cluster {
             if j != survivor {
                 pruned[j] = true;
@@ -1000,7 +1330,9 @@ fn prune_thinning(locs: &[&Location], distance_m: f64) -> Vec<u32> {
     let mut pos: HashMap<usize, usize> = HashMap::new();
     loop {
         let max = deg.iter().copied().max().unwrap_or(0);
-        if max == 0 { break; }
+        if max == 0 {
+            break;
+        }
         for i in 0..n {
             if deg[i] == max {
                 pos.insert(i, stack.len());
@@ -1012,7 +1344,9 @@ fn prune_thinning(locs: &[&Location], distance_m: f64) -> Vec<u32> {
             deg[t] = 0;
             removed[t] = true;
             for &u in &neighbors[t] {
-                if deg[u] > 0 { deg[u] -= 1; }
+                if deg[u] > 0 {
+                    deg[u] -= 1;
+                }
                 if let Some(p) = pos.remove(&u) {
                     let last = stack.pop().unwrap();
                     if p < stack.len() {
@@ -1079,16 +1413,23 @@ fn resolve_field_arrow(view: &LocView, idx: usize, field: &str) -> Option<serde_
         "pitch" => view.pitches.map(|c| serde_json::json!(c.value(idx))),
         "zoom" => view.zooms.map(|c| serde_json::json!(c.value(idx))),
         "id" => view.ids.map(|c| serde_json::json!(c.value(idx))),
-        "createdAt" => view.created_ats.map(|c| serde_json::json!(c.value(idx) as f64)),
+        "createdAt" => view
+            .created_ats
+            .map(|c| serde_json::json!(c.value(idx) as f64)),
         "modifiedAt" => view.modified_ats.and_then(|c| {
-            if c.is_null(idx) { return None; }
+            if c.is_null(idx) {
+                return None;
+            }
             Some(serde_json::json!(c.value(idx) as f64))
         }),
         "tagCount" => view.tags.map(|c| serde_json::json!(c.value(idx).len())),
         _ => {
             let extras = view.extras?;
-            if extras.is_null(idx) { return None; }
-            let map: serde_json::Map<String, serde_json::Value> = serde_json::from_str(extras.value(idx)).ok()?;
+            if extras.is_null(idx) {
+                return None;
+            }
+            let map: serde_json::Map<String, serde_json::Value> =
+                serde_json::from_str(extras.value(idx)).ok()?;
             map.get(field).cloned()
         }
     }
@@ -1097,7 +1438,12 @@ fn resolve_field_arrow(view: &LocView, idx: usize, field: &str) -> Option<serde_
 /// Core comparison dispatch. Supports eq, neq, has, nothas, gt, lt, gte, lte, between,
 /// between_anyyear (month-day range ignoring year), and between_anytime (time-of-day range).
 /// Numeric comparison is attempted first; falls back to lexicographic string comparison.
-fn compare_filter(field_val: &serde_json::Value, op: FilterOp, value: &serde_json::Value, value2: Option<&serde_json::Value>) -> bool {
+fn compare_filter(
+    field_val: &serde_json::Value,
+    op: FilterOp,
+    value: &serde_json::Value,
+    value2: Option<&serde_json::Value>,
+) -> bool {
     if let Some(arr) = field_val.as_array() {
         return match op {
             FilterOp::Contains => arr.iter().any(|el| val_eq(el, value)),
@@ -1156,7 +1502,11 @@ fn compare_filter(field_val: &serde_json::Value, op: FilterOp, value: &serde_jso
                 format!("{:02}-{:02}", m, d)
             } else if let Some(s) = field_val.as_str() {
                 if s.len() >= 7 && s.as_bytes()[4] == b'-' {
-                    if s.len() >= 10 { s[5..10].to_string() } else { format!("{}-01", &s[5..7]) }
+                    if s.len() >= 10 {
+                        s[5..10].to_string()
+                    } else {
+                        format!("{}-01", &s[5..7])
+                    }
                 } else {
                     return false;
                 }
@@ -1194,7 +1544,13 @@ fn compare_filter(field_val: &serde_json::Value, op: FilterOp, value: &serde_jso
 /// anyyear/anytime shapes bucket month-day / hour-min in the pano's local clock.
 /// The location's `timezone` (IANA) supplies the DST-correct offset; locations lacking
 /// a resolvable `timezone` or field value are excluded.
-fn compare_filter_local_tz(r: &RowRef, field: &str, op: FilterOp, value: &serde_json::Value, value2: Option<&serde_json::Value>) -> bool {
+fn compare_filter_local_tz(
+    r: &RowRef,
+    field: &str,
+    op: FilterOp,
+    value: &serde_json::Value,
+    value2: Option<&serde_json::Value>,
+) -> bool {
     let (fv, tz_name) = r.resolve_field_and_tz(field);
     let ts = match fv.as_ref().and_then(as_f64) {
         Some(t) => t,
@@ -1208,13 +1564,22 @@ fn compare_filter_local_tz(r: &RowRef, field: &str, op: FilterOp, value: &serde_
         Some(o) => o,
         None => return false,
     };
-    compare_filter(&serde_json::Value::from(ts + offset as f64), op, value, value2)
+    compare_filter(
+        &serde_json::Value::from(ts + offset as f64),
+        op,
+        value,
+        value2,
+    )
 }
 
 /// Equality comparison with type coercion: tries numeric, then string, then JSON equality.
 fn val_eq(a: &serde_json::Value, b: &serde_json::Value) -> bool {
-    if a == b { return true; }
-    if a.is_null() || b.is_null() { return false; }
+    if a == b {
+        return true;
+    }
+    if a.is_null() || b.is_null() {
+        return false;
+    }
     match (as_f64(a), as_f64(b)) {
         (Some(fa), Some(fb)) => fa == fb,
         _ => {
@@ -1236,7 +1601,8 @@ fn val_to_str(v: &serde_json::Value) -> String {
 
 /// Try to extract an f64 from a JSON value: native number or parseable string.
 fn as_f64(v: &serde_json::Value) -> Option<f64> {
-    v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+    v.as_f64()
+        .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
 }
 
 // ---------------------------------------------------------------------------
@@ -1256,7 +1622,11 @@ pub enum KeySpec {
     /// Equal-width numeric bins.
     NumericBin { binning: NumericBinning },
     /// Calendar component of a date (epoch seconds) or month ("YYYY-MM") field.
-    DatePart { part: DatePart, #[serde(rename = "tzLocal")] tz_local: bool },
+    DatePart {
+        part: DatePart,
+        #[serde(rename = "tzLocal")]
+        tz_local: bool,
+    },
 }
 
 /// Equal-width bin sizing. `count` derives the width from the data range; `width` fixes it.
@@ -1298,14 +1668,29 @@ pub struct PartitionBucket {
 }
 
 const MONTH_NAMES: [&str; 12] = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ];
 
 /// Partition `view` into groups by `field`. `scope` (when Some) restricts to that id set.
 /// Returns groups in a deterministic but unsorted order (numeric: bin order; projection:
 /// first-seen) — the JS caller sorts for display.
-pub fn partition(view: &LocView, field: &str, spec: &KeySpec, scope: Option<&RoaringBitmap>) -> Vec<PartitionBucket> {
+pub fn partition(
+    view: &LocView,
+    field: &str,
+    spec: &KeySpec,
+    scope: Option<&RoaringBitmap>,
+) -> Vec<PartitionBucket> {
     match spec {
         KeySpec::NumericBin { binning } => partition_numeric(view, field, binning, scope),
         _ => partition_keyed(view, field, spec, scope),
@@ -1317,11 +1702,18 @@ fn out_of_scope(scope: Option<&RoaringBitmap>, id: u32) -> bool {
     scope.is_some_and(|s| !s.contains(id))
 }
 
-fn partition_numeric(view: &LocView, field: &str, binning: &NumericBinning, scope: Option<&RoaringBitmap>) -> Vec<PartitionBucket> {
+fn partition_numeric(
+    view: &LocView,
+    field: &str,
+    binning: &NumericBinning,
+    scope: Option<&RoaringBitmap>,
+) -> Vec<PartitionBucket> {
     let mut vals: Vec<(u32, f64)> = Vec::new();
     view.for_each(|row| {
         let id = row.id();
-        if out_of_scope(scope, id) { return; }
+        if out_of_scope(scope, id) {
+            return;
+        }
         if let Some(n) = row.resolve_field(field).as_ref().and_then(as_f64) {
             vals.push((id, n));
         }
@@ -1331,8 +1723,14 @@ fn partition_numeric(view: &LocView, field: &str, binning: &NumericBinning, scop
         Some(b) => b,
         None => return Vec::new(),
     };
-    let mut groups: Vec<PartitionBucket> = buckets.bounds.iter()
-        .map(|&(lo, hi)| PartitionBucket { key: bound_label(lo, hi), ids: Vec::new(), bin: Some([lo, hi]) })
+    let mut groups: Vec<PartitionBucket> = buckets
+        .bounds
+        .iter()
+        .map(|&(lo, hi)| PartitionBucket {
+            key: bound_label(lo, hi),
+            ids: Vec::new(),
+            bin: Some([lo, hi]),
+        })
         .collect();
     for (id, n) in vals {
         groups[buckets.index_of(n)].ids.push(id);
@@ -1341,12 +1739,19 @@ fn partition_numeric(view: &LocView, field: &str, binning: &NumericBinning, scop
     groups
 }
 
-fn partition_keyed(view: &LocView, field: &str, spec: &KeySpec, scope: Option<&RoaringBitmap>) -> Vec<PartitionBucket> {
+fn partition_keyed(
+    view: &LocView,
+    field: &str,
+    spec: &KeySpec,
+    scope: Option<&RoaringBitmap>,
+) -> Vec<PartitionBucket> {
     let mut index: HashMap<String, usize> = HashMap::new();
     let mut groups: Vec<PartitionBucket> = Vec::new();
     view.for_each(|row| {
         let id = row.id();
-        if out_of_scope(scope, id) { return; }
+        if out_of_scope(scope, id) {
+            return;
+        }
         let key = match spec {
             KeySpec::Value => row.resolve_field(field).and_then(|v| value_key(&v)),
             KeySpec::DatePart { part, tz_local } => {
@@ -1360,12 +1765,18 @@ fn partition_keyed(view: &LocView, field: &str, spec: &KeySpec, scope: Option<&R
             KeySpec::NumericBin { .. } => None,
         };
         if let Some(k) = key {
-            if k.is_empty() { return; }
+            if k.is_empty() {
+                return;
+            }
             match index.get(&k) {
                 Some(&i) => groups[i].ids.push(id),
                 None => {
                     index.insert(k.clone(), groups.len());
-                    groups.push(PartitionBucket { key: k, ids: vec![id], bin: None });
+                    groups.push(PartitionBucket {
+                        key: k,
+                        ids: vec![id],
+                        bin: None,
+                    });
                 }
             }
         }
@@ -1377,9 +1788,16 @@ fn partition_keyed(view: &LocView, field: &str, spec: &KeySpec, scope: Option<&R
 /// trailing ".0", bools as "true"/"false". Null/other -> skip.
 fn value_key(v: &serde_json::Value) -> Option<String> {
     match v {
-        serde_json::Value::String(s) => if s.is_empty() { None } else { Some(s.clone()) },
+        serde_json::Value::String(s) => {
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.clone())
+            }
+        }
         serde_json::Value::Number(n) => Some(
-            n.as_i64().map(|i| i.to_string())
+            n.as_i64()
+                .map(|i| i.to_string())
                 .or_else(|| n.as_f64().map(js_number_string))
                 .unwrap_or_else(|| n.to_string()),
         ),
@@ -1391,7 +1809,12 @@ fn value_key(v: &serde_json::Value) -> Option<String> {
 /// Calendar component of a date/month field value. Month strings ("YYYY-MM") read y/mo with
 /// day=1, hour=0; everything else is epoch seconds, read in the pano's timezone (`tz_local`)
 /// or UTC.
-fn date_part_key(v: Option<&serde_json::Value>, part: DatePart, tz_local: bool, tz: Option<&str>) -> Option<String> {
+fn date_part_key(
+    v: Option<&serde_json::Value>,
+    part: DatePart,
+    tz_local: bool,
+    tz: Option<&str>,
+) -> Option<String> {
     let v = v?;
     if let Some(s) = v.as_str() {
         if let Some((y, mo)) = parse_year_month(s) {
@@ -1422,7 +1845,9 @@ fn parts_to_key(y: i32, mo: u32, d: u32, h: u32, part: DatePart) -> String {
 /// numeric date string), which the caller then treats as epoch seconds.
 fn parse_year_month(s: &str) -> Option<(i32, u32)> {
     let b = s.as_bytes();
-    if s.len() != 7 || b[4] != b'-' { return None; }
+    if s.len() != 7 || b[4] != b'-' {
+        return None;
+    }
     Some((s[0..4].parse().ok()?, s[5..7].parse().ok()?))
 }
 
@@ -1433,7 +1858,11 @@ fn utc_parts(ts: f64) -> (i32, u32, u32, u32) {
 
 /// JS `String(number)`: integer-valued floats print without a decimal.
 fn js_number_string(f: f64) -> String {
-    if f.is_finite() && f.fract() == 0.0 { format!("{}", f as i64) } else { format!("{}", f) }
+    if f.is_finite() && f.fract() == 0.0 {
+        format!("{}", f as i64)
+    } else {
+        format!("{}", f)
+    }
 }
 
 /// Equal-width numeric bins, mirroring JS `binNumeric`.
@@ -1443,16 +1872,34 @@ struct NumBuckets {
 }
 
 enum BinMode {
-    Count { min: f64, max: f64, step: f64, count: usize },
-    Width { lo0: f64, w: f64, count: usize },
+    Count {
+        min: f64,
+        max: f64,
+        step: f64,
+        count: usize,
+    },
+    Width {
+        lo0: f64,
+        w: f64,
+        count: usize,
+    },
 }
 
 impl NumBuckets {
     fn index_of(&self, v: f64) -> usize {
         match self.mode {
-            BinMode::Count { min, max, step, count } => {
-                if v <= min { return 0; }
-                if v >= max { return count - 1; }
+            BinMode::Count {
+                min,
+                max,
+                step,
+                count,
+            } => {
+                if v <= min {
+                    return 0;
+                }
+                if v >= max {
+                    return count - 1;
+                }
                 (((v - min) / step).floor() as isize).clamp(0, count as isize - 1) as usize
             }
             BinMode::Width { lo0, w, count } => {
@@ -1467,32 +1914,59 @@ fn bin_numeric(values: &[f64], binning: &NumericBinning) -> Option<NumBuckets> {
     for &n in values {
         if n.is_finite() {
             any = true;
-            if n < min { min = n; }
-            if n > max { max = n; }
+            if n < min {
+                min = n;
+            }
+            if n > max {
+                max = n;
+            }
         }
     }
-    if !any { return None; }
+    if !any {
+        return None;
+    }
 
     match *binning {
         NumericBinning::Count { n } => {
             let count = n as usize;
-            if count < 1 || min == max { return None; }
+            if count < 1 || min == max {
+                return None;
+            }
             let step = (max - min) / count as f64;
             let bounds = (0..count)
                 .map(|i| {
                     let lo = min + step * i as f64;
-                    let hi = if i == count - 1 { max } else { min + step * (i + 1) as f64 };
+                    let hi = if i == count - 1 {
+                        max
+                    } else {
+                        min + step * (i + 1) as f64
+                    };
                     (lo, hi)
                 })
                 .collect();
-            Some(NumBuckets { bounds, mode: BinMode::Count { min, max, step, count } })
+            Some(NumBuckets {
+                bounds,
+                mode: BinMode::Count {
+                    min,
+                    max,
+                    step,
+                    count,
+                },
+            })
         }
         NumericBinning::Width { w } => {
-            if !(w > 0.0) { return None; }
+            if !(w > 0.0) {
+                return None;
+            }
             let lo0 = (min / w).floor() * w;
             let count = (((max - lo0) / w).floor() as usize + 1).max(1);
-            let bounds = (0..count).map(|i| (lo0 + w * i as f64, lo0 + w * (i + 1) as f64)).collect();
-            Some(NumBuckets { bounds, mode: BinMode::Width { lo0, w, count } })
+            let bounds = (0..count)
+                .map(|i| (lo0 + w * i as f64, lo0 + w * (i + 1) as f64))
+                .collect();
+            Some(NumBuckets {
+                bounds,
+                mode: BinMode::Width { lo0, w, count },
+            })
         }
     }
 }
@@ -1503,7 +1977,11 @@ fn bound_label(lo: f64, hi: f64) -> String {
 }
 
 fn fmt_bound(n: f64) -> String {
-    if n.fract() == 0.0 { format!("{}", n as i64) } else { format!("{}", (n * 100.0).round() / 100.0) }
+    if n.fract() == 0.0 {
+        format!("{}", n as i64)
+    } else {
+        format!("{}", (n * 100.0).round() / 100.0)
+    }
 }
 
 #[cfg(test)]

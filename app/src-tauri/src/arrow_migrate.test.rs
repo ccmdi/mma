@@ -1,7 +1,7 @@
 use super::*;
 use crate::arrow_bridge;
 use crate::types::Location;
-use arrow_array::{Array, ArrayRef, RecordBatch, StringArray, UInt8Array, UInt32Array};
+use arrow_array::{Array, ArrayRef, RecordBatch, StringArray, UInt32Array, UInt8Array};
 use arrow_schema::{DataType, Field, Schema};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -63,7 +63,10 @@ fn migrate_v1_converts_timestamps_to_epoch() {
     let v2 = arrow_bridge::locations_to_batch(&[loc(1), loc(2)]);
     let v1 = downgrade_to_v1(
         &v2,
-        vec![Some("2024-01-15T10:30:00Z"), Some("2024-06-20T15:00:00.500Z")],
+        vec![
+            Some("2024-01-15T10:30:00Z"),
+            Some("2024-06-20T15:00:00.500Z"),
+        ],
         vec![None, Some("2024-06-20T16:00:00Z")],
     );
     assert_eq!(batch_version(v1.schema().metadata()), 1);
@@ -71,13 +74,30 @@ fn migrate_v1_converts_timestamps_to_epoch() {
     let out = migrate(v1).unwrap();
     assert_eq!(batch_version(out.schema().metadata()), CURRENT_VERSION);
 
-    let created = out.column(10).as_any().downcast_ref::<UInt32Array>().unwrap();
-    let modified = out.column(11).as_any().downcast_ref::<UInt32Array>().unwrap();
-    assert_eq!(created.value(0), crate::util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32);
+    let created = out
+        .column(10)
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .unwrap();
+    let modified = out
+        .column(11)
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .unwrap();
+    assert_eq!(
+        created.value(0),
+        crate::util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32
+    );
     // sub-second precision is dropped (second resolution)
-    assert_eq!(created.value(1), crate::util::iso_to_unix("2024-06-20T15:00:00Z").unwrap() as u32);
+    assert_eq!(
+        created.value(1),
+        crate::util::iso_to_unix("2024-06-20T15:00:00Z").unwrap() as u32
+    );
     assert!(modified.is_null(0));
-    assert_eq!(modified.value(1), crate::util::iso_to_unix("2024-06-20T16:00:00Z").unwrap() as u32);
+    assert_eq!(
+        modified.value(1),
+        crate::util::iso_to_unix("2024-06-20T16:00:00Z").unwrap() as u32
+    );
 }
 
 #[test]
@@ -85,7 +105,11 @@ fn migrate_v1_unparseable_created_falls_back_to_zero() {
     let v2 = arrow_bridge::locations_to_batch(&[loc(1)]);
     let v1 = downgrade_to_v1(&v2, vec![Some("garbage")], vec![None]);
     let out = migrate(v1).unwrap();
-    let created = out.column(10).as_any().downcast_ref::<UInt32Array>().unwrap();
+    let created = out
+        .column(10)
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .unwrap();
     assert!(!created.is_null(0)); // created_at is non-nullable
     assert_eq!(created.value(0), 0);
 }
@@ -116,5 +140,9 @@ fn migrate_preserves_delta_op_column() {
         .unwrap();
     assert_eq!(op.value(0), arrow_bridge::OP_REMOVED);
     assert_eq!(op.value(1), arrow_bridge::OP_CREATED);
-    assert!(out.column(10).as_any().downcast_ref::<UInt32Array>().is_some());
+    assert!(out
+        .column(10)
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .is_some());
 }

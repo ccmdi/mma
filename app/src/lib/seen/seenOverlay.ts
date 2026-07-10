@@ -29,15 +29,14 @@ function notify() {
 	for (const l of listeners) l();
 }
 
+export function subscribeSeenOverlay(cb: () => void): () => void {
+	listeners.add(cb);
+	return () => listeners.delete(cb);
+}
+
 /** Repaint signal for the scene; include in the surface's rebuild deps. */
 export function useSeenOverlayVersion(): number {
-	return useSyncExternalStore(
-		(cb) => {
-			listeners.add(cb);
-			return () => listeners.delete(cb);
-		},
-		() => version,
-	);
+	return useSyncExternalStore(subscribeSeenOverlay, () => version);
 }
 
 export function isSeenOverlayActive(): boolean {

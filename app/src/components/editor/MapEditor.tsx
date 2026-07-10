@@ -22,7 +22,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
 import { goToList } from "@/store/router";
 import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
-import { getGoogleMap, waitForGoogleMap, fitMapToBounds } from "@/lib/map/mapState";
+import { getMapHost, waitForMapHost, fitMapToBounds } from "@/lib/map/mapState";
 import { pluginsReady } from "@/plugins";
 import { MapEmbed } from "@/components/editor/map/MapEmbed";
 import { MapMetaBar } from "@/components/editor/map/MapMetaBar";
@@ -32,22 +32,29 @@ import { DiffSidebar } from "@/components/editor/DiffSidebar";
 import { LocationPreview } from "@/components/editor/location/LocationPreview";
 import { CommandPalette } from "@/components/editor/CommandPalette";
 import { MapRenameForm } from "@/components/editor/MapRenameForm";
+import { EnrichmentButton } from "@/components/editor/map/EnrichmentDialog";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/primitives/Dialog";
 import { useHotkey, useCommandHotkeys, isEditableElement } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { useSettings, setSetting, getSettings } from "@/store/settings";
-import { parseMapsUrl, parseCoordinates, parseUrlList, parsedLocationsToImportJson, type ParsedLocation } from "@/lib/data/importExport";
+import {
+	parseMapsUrl,
+	parseCoordinates,
+	parseUrlList,
+	parsedLocationsToImportJson,
+	type ParsedLocation,
+} from "@/lib/data/importExport";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { mdiBackburger, mdiPencil } from "@mdi/js";
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
 import SameLocation from "@/components/editor/SameLocation";
-import { log } from "@/lib/util/log"
+import { log } from "@/lib/util/log";
 import { useCountrySelect } from "@/lib/map/useCountrySelect";
 import { useDeletePolygon } from "@/lib/map/useDeletePolygon";
 import { useMapKeyBindings } from "@/lib/map/mapKeyBindings";
-import { range, clamp } from "@/types/util"
+import { range, clamp } from "@/types/util";
 
 function zoomToPasted(bounds: Bounds | null, padding = 0) {
 	if (!getSettings().panToImported) return;
@@ -61,14 +68,21 @@ async function addParsedLocations(parsed: ParsedLocation[]) {
 	const locs = parsed.map((p) =>
 		createLocation({
 			...p,
-			tags: p.tags.map((n) => tagIdByName.get(n.toLowerCase())).filter((id): id is number => id !== undefined),
+			tags: p.tags
+				.map((n) => tagIdByName.get(n.toLowerCase()))
+				.filter((id): id is number => id !== undefined),
 		}),
 	);
 	await addLocations(locs);
 	setActiveLocation(locs[locs.length - 1].id);
 	const lats = locs.map((l) => l.lat);
 	const lngs = locs.map((l) => l.lng);
-	zoomToPasted({ west: Math.min(...lngs), south: Math.min(...lats), east: Math.max(...lngs), north: Math.max(...lats) });
+	zoomToPasted({
+		west: Math.min(...lngs),
+		south: Math.min(...lats),
+		east: Math.max(...lngs),
+		north: Math.max(...lats),
+	});
 }
 
 function usePasteHandler() {
@@ -227,7 +241,7 @@ export function MapEditor() {
 
 	useEffect(() => {
 		let cancelled = false;
-		Promise.all([pluginsReady, waitForGoogleMap()]).then(() => {
+		Promise.all([pluginsReady, waitForMapHost()]).then(() => {
 			if (cancelled) return;
 			activatePlugins();
 		});
@@ -271,10 +285,14 @@ export function MapEditor() {
 	useHotkey(useBinding("toggleFullscreenMap"), () => {
 		setSetting("fullscreenMap", !getSettings().fullscreenMap);
 	});
-	useHotkey(useBinding("locationDelete"), () => {
-		const ids = getSelectedLocationIds();
-		if (ids.size > 0) removeLocations(ids);
-	}, { bubble: true });
+	useHotkey(
+		useBinding("locationDelete"),
+		() => {
+			const ids = getSelectedLocationIds();
+			if (ids.size > 0) removeLocations(ids);
+		},
+		{ bubble: true },
+	);
 	const [showMapCursor, setShowMapCursor] = useState(false);
 	const showMapCursorRef = useRef(false);
 
@@ -292,11 +310,10 @@ export function MapEditor() {
 			showMapCursorRef.current = false;
 			setShowMapCursor(false);
 			if (!wasShowing) return;
-			const gmap = getGoogleMap();
-			const center = gmap?.getCenter();
-			if (!gmap || !center) return;
-			// deck.gl/google-maps picks off the Maps 'click' event (latLng), not DOM events.
-			google.maps.event.trigger(gmap, "click", { latLng: center });
+			const host = getMapHost();
+			const center = host?.getCenter();
+			if (!host || !center) return;
+			host.triggerClickAt(center);
 		}
 		function onBlur() {
 			setShowMapCursor(false);
@@ -320,7 +337,9 @@ export function MapEditor() {
 		<div
 			className={editorClasses}
 			style={{
-				gridTemplateColumns: appSettings.fullscreenMap ? undefined : `minmax(0, ${split}fr) minmax(0, ${100 - split}fr)`,
+				gridTemplateColumns: appSettings.fullscreenMap
+					? undefined
+					: `minmax(0, ${split}fr) minmax(0, ${100 - split}fr)`,
 			}}
 		>
 			<SplitHandle onSplitChange={setSplit} />
@@ -342,11 +361,7 @@ export function MapEditor() {
 				<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
 					<Tooltip content="Edit map" side="bottom">
 						<DialogTrigger asChild>
-							<button
-								className="icon-button"
-								type="button"
-								aria-label="Edit map"
-							>
+							<button className="icon-button" type="button" aria-label="Edit map">
 								<Icon path={mdiPencil} />
 							</button>
 						</DialogTrigger>
@@ -355,6 +370,7 @@ export function MapEditor() {
 						<MapRenameForm mapId={map.meta.id} currentName={map.meta.name} />
 					</DialogContent>
 				</Dialog>
+				<EnrichmentButton />
 			</header>
 			<div className="side-header"></div>
 			<section className="map-embed" style={{ background: "#e5e3df" }}>
@@ -369,7 +385,7 @@ export function MapEditor() {
 			{workArea === "duplicates" && <SameLocation />}
 			{workArea === "import" && <ImportSidebar />}
 			{workArea === "diff" && <DiffSidebar />}
-			{workArea === "plugin" && <PluginSidebarHost />}
+			<PluginSidebarHost />
 			<CommandPalette />
 			{fileDragging && (
 				<div className="file-drop-overlay">

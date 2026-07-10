@@ -196,7 +196,9 @@ describe("precedence over global hotkey layer", () => {
 		};
 		window.addEventListener("keydown", mapHandler, true);
 
-		document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "m", cancelable: true, bubbles: true }));
+		document.body.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "m", cancelable: true, bubbles: true }),
+		);
 
 		document.removeEventListener("keydown", globalHandler, true);
 		window.removeEventListener("keydown", mapHandler, true);

@@ -39,7 +39,8 @@ export interface NumericBuckets {
 // it (stable, comparable labels across datasets). One algorithm, two parameterizations.
 export type NumericBinning = { by: "count"; n: number } | { by: "width"; w: number };
 
-const fmtBound = (n: number) => (Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100));
+const fmtBound = (n: number) =>
+	Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
 
 // Split numeric values into equal-width bins. Non-finite values are ignored. Returns null
 // when there's nothing to bin (no finite values, or — count mode — no spread).
@@ -105,7 +106,11 @@ export function binNumeric(values: number[], binning: NumericBinning): NumericBu
 	};
 }
 
-export function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[] {
+export function sortTagsByMode(
+	tags: Tag[],
+	mode: TagSortMode,
+	counts: Record<number, number>,
+): Tag[] {
 	const sorted = [...tags];
 	if (mode === "name") return sorted.sort((a, b) => a.name.localeCompare(b.name));
 	if (mode === "amount") return sorted.sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
@@ -113,7 +118,10 @@ export function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<nu
 }
 
 /** Style for a staged tag chip. An existing tag uses its stored color. */
-export function tagChipStyle(name: string, tags: Tag[]): { backgroundColor: string; color: string } {
+export function tagChipStyle(
+	name: string,
+	tags: Tag[],
+): { backgroundColor: string; color: string } {
 	const existing = tags.find((t) => t.name.toLowerCase() === name.toLowerCase());
 	const color = existing?.color ?? colorForName(name);
 	return { backgroundColor: color, color: textColorFor(color) };

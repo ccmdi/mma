@@ -126,20 +126,35 @@ pub(crate) fn scan_fields(b: &[u8], mut f: impl FnMut(&FieldSpan) -> bool) {
     let mut depth = 0i32;
     while i < b.len() {
         match b[i] {
-            b'{' | b'[' => { depth += 1; i += 1; }
-            b'}' | b']' => { depth -= 1; i += 1; }
+            b'{' | b'[' => {
+                depth += 1;
+                i += 1;
+            }
+            b'}' | b']' => {
+                depth -= 1;
+                i += 1;
+            }
             b'"' => {
                 let kstart = i + 1;
                 let kend = skip_string(b, kstart); // just past the closing quote
                 i = kend;
                 if depth == 1 && kend > kstart {
                     let mut j = kend;
-                    while j < b.len() && is_ws(b[j]) { j += 1; }
+                    while j < b.len() && is_ws(b[j]) {
+                        j += 1;
+                    }
                     if j < b.len() && b[j] == b':' {
                         let mut v = j + 1;
-                        while v < b.len() && is_ws(b[v]) { v += 1; }
+                        while v < b.len() && is_ws(b[v]) {
+                            v += 1;
+                        }
                         let vend = skip_value(b, v);
-                        if f(&FieldSpan { key: kstart..kend - 1, value: v..vend }) { return; }
+                        if f(&FieldSpan {
+                            key: kstart..kend - 1,
+                            value: v..vend,
+                        }) {
+                            return;
+                        }
                         i = vend;
                     }
                 }
@@ -150,7 +165,9 @@ pub(crate) fn scan_fields(b: &[u8], mut f: impl FnMut(&FieldSpan) -> bool) {
 }
 
 #[inline]
-pub(crate) fn is_ws(b: u8) -> bool { matches!(b, b' ' | b'\t' | b'\r' | b'\n') }
+pub(crate) fn is_ws(b: u8) -> bool {
+    matches!(b, b' ' | b'\t' | b'\r' | b'\n')
+}
 
 /// Given the index just past an opening `"`, return the index just past the
 /// matching closing `"`, honoring backslash escapes. Uses memchr (SIMD) to jump
@@ -164,7 +181,9 @@ pub(crate) fn skip_string(bytes: &[u8], from: usize) -> usize {
         // but not past, the first content byte `from`). Even count => the quote
         // is unescaped and closes the string.
         let mut k = q;
-        while k > from && bytes[k - 1] == b'\\' { k -= 1; }
+        while k > from && bytes[k - 1] == b'\\' {
+            k -= 1;
+        }
         if (q - k) % 2 == 0 {
             return q + 1;
         }
@@ -182,8 +201,14 @@ pub(crate) fn skip_value(b: &[u8], from: usize) -> usize {
             while i < b.len() && d > 0 {
                 match b[i] {
                     b'"' => i = skip_string(b, i + 1),
-                    b'{' | b'[' => { d += 1; i += 1; }
-                    b'}' | b']' => { d -= 1; i += 1; }
+                    b'{' | b'[' => {
+                        d += 1;
+                        i += 1;
+                    }
+                    b'}' | b']' => {
+                        d -= 1;
+                        i += 1;
+                    }
                     _ => i += 1,
                 }
             }
@@ -191,7 +216,9 @@ pub(crate) fn skip_value(b: &[u8], from: usize) -> usize {
         }
         _ => {
             let mut i = from;
-            while i < b.len() && !matches!(b[i], b',' | b'}' | b']') { i += 1; }
+            while i < b.len() && !matches!(b[i], b',' | b'}' | b']') {
+                i += 1;
+            }
             i
         }
     }

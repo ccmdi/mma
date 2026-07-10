@@ -116,27 +116,42 @@ const notify = storeBus.emit;
 /** Subscribe to any store mutation (map open/close, rename, edits, ...). */
 export const subscribeStore = subscribe;
 
-/** Build a reactive store hook: subscribe to the bus, return the latest value. */
-function makeStoreHook<T>(getValue: () => T, snapshot: () => number = getMapSnapshot): () => T {
+/** Build a reactive store hook: subscribe to the bus, return the latest value.
+ *  The value itself is the useSyncExternalStore snapshot, so consumers re-render
+ *  only when its reference changes (Object.is). Two invariants follow:
+ *  - getValue must return a cached/stable reference, never construct per call
+ *  - mutations must reassign the published reference, never mutate in place */
+function makeStoreHook<T>(getValue: () => T): () => T {
 	return function useStoreValue(): T {
-		useSyncExternalStore(subscribe, snapshot);
-		return getValue();
+		return useSyncExternalStore(subscribe, getValue);
+	};
+}
+
+/** Single-slot memo for values derived from store state: re-derives only when an
+ *  input reference changes, so repeated calls return the same object. This is what
+ *  lets a derived getter double as a hook snapshot (see makeStoreHook). Inputs
+ *  must be the copy-on-write references the derivation reads. */
+function memoOnRefs<const I extends readonly unknown[], O>(
+	getInputs: () => I,
+	derive: (...inputs: I) => O,
+): () => O {
+	let slot: { inputs: I; output: O } | null = null;
+	return () => {
+		const inputs = getInputs();
+		if (!slot || slot.inputs.some((v, i) => v !== inputs[i])) {
+			slot = { inputs, output: derive(...inputs) };
+		}
+		return slot.output;
 	};
 }
 
 // --- Map list state ---
-let mapListVersion = 0;
-function getMapListSnapshot() {
-	return mapListVersion;
-}
-
 let cachedMapList: MapMeta[] = [];
-export const useMapList = makeStoreHook(() => cachedMapList, getMapListSnapshot);
+export const useMapList = makeStoreHook(() => cachedMapList);
 export const getMapList = () => cachedMapList;
 
 async function reloadMapList() {
 	cachedMapList = await cmd.storeListMaps();
-	mapListVersion++;
 	notify();
 }
 
@@ -155,8 +170,9 @@ let selections: Selection[] = [];
  *  The sole source for sidebar counts — refreshed wholesale from Rust on every sync. */
 let selectionCounts: Record<string, number> = {};
 /** Keys of selections that are "ghosted": kept in the list but excluded from the
- *  Rust sync, so they neither render nor count toward the selected set. Ephemeral. */
-const ghostedSelections = new Set<string>();
+ *  Rust sync, so they neither render nor count toward the selected set. Ephemeral.
+ *  Reassigned on every change (never mutated in place) — it is a hook snapshot. */
+let ghostedSelections: ReadonlySet<string> = new Set<string>();
 let selectedLocationIds: SelectedIds = SelectedIds.EMPTY;
 let activeLocationId: number | null = null;
 let duplicateLocations: Location[] = [];
@@ -228,19 +244,12 @@ export function refreshAfterMutation() {
 
 export const useCurrentMap = makeStoreHook(() => currentMap);
 
-/** Tags that exist from the user's point of view. Raw `meta.tags` also holds soft-deleted ghosts (count=0, visible=false, kept for undo revival) — almost nothing outside the undo/revival machinery should enumerate those. Cached on the tag-set reference (reassigned on every tag mutation) so repeated calls return the same array and memo deps stay stable. */
-let visibleTagsCache: { tags: MapData["meta"]["tags"]; list: Tag[] } | null = null;
-export function getVisibleTags(): Tag[] {
-	if (!currentMap) return [];
-	const tags = currentMap.meta.tags;
-	if (!visibleTagsCache || visibleTagsCache.tags !== tags) {
-		visibleTagsCache = {
-			tags,
-			list: Object.values(tags).filter((t) => t.visible !== false),
-		};
-	}
-	return visibleTagsCache.list;
-}
+/** Tags that exist from the user's point of view. Raw `meta.tags` also holds soft-deleted ghosts (count=0, visible=false, kept for undo revival) — almost nothing outside the undo/revival machinery should enumerate those. */
+const NO_TAGS: Tag[] = [];
+export const getVisibleTags: () => Tag[] = memoOnRefs(
+	() => [currentMap?.meta.tags] as const,
+	(tags) => (tags ? Object.values(tags).filter((t) => t.visible !== false) : NO_TAGS),
+);
 
 export const useVisibleTags = makeStoreHook(getVisibleTags);
 
@@ -390,7 +399,7 @@ export async function openMap(id: string) {
 			t.step("store_open_map");
 			mapOpen.mark("data");
 			currentMap = meta;
-			tagCounts = openResult.tagCounts;
+			tagCounts = openResult.tagCounts ?? {};
 			undoRedoState = { canUndo: openResult.canUndo, canRedo: openResult.canRedo };
 			knownFieldKeys = new Set(openResult.knownFieldKeys);
 			setUserFieldDefs(meta.meta.extra?.fields ?? {});
@@ -490,10 +499,10 @@ export function getAllSelections() {
 }
 
 /** Active (non-ghosted) selections, the default for any operational logic. */
-export function getSelections() {
-	if (ghostedSelections.size === 0) return selections;
-	return selections.filter((s) => !ghostedSelections.has(s.key));
-}
+export const getSelections: () => Selection[] = memoOnRefs(
+	() => [selections, ghostedSelections] as const,
+	(sels, ghosts) => (ghosts.size === 0 ? sels : sels.filter((s) => !ghosts.has(s.key))),
+);
 
 export function getSelectedLocationIds() {
 	return selectedLocationIds;
@@ -618,7 +627,6 @@ export async function deleteMap(id: string) {
 
 export async function renameFolder(from: string, to: string) {
 	cachedMapList = cachedMapList.map((m) => (m.folder === from ? { ...m, folder: to } : m));
-	mapListVersion++;
 	notify();
 	await cmd.storeRenameFolder(from, to);
 	await invalidateMapList();
@@ -628,7 +636,6 @@ export async function moveMapToFolder(mapId: string, folder: string | null) {
 	const idx = cachedMapList.findIndex((m) => m.id === mapId);
 	if (idx !== -1) {
 		cachedMapList = cachedMapList.map((m) => (m.id === mapId ? { ...m, folder } : m));
-		mapListVersion++;
 		notify();
 	}
 	await cmd.storeUpdateMapMeta(mapId, { folder: folder ?? null });
@@ -642,25 +649,31 @@ export async function deleteFolder(name: string) {
 
 export async function renameMap(id: string, name: string) {
 	await cmd.storeUpdateMapMeta(id, { name });
-	if (currentMap && currentMapId === id) currentMap.meta.name = name;
+	if (currentMap && currentMapId === id)
+		currentMap = { ...currentMap, meta: { ...currentMap.meta, name } };
 	refreshAfterMutation();
 	await invalidateMapList();
 }
 
 export async function updateMapLabels(id: string, labels: string[]) {
 	await cmd.storeUpdateMapMeta(id, { labels });
-	if (currentMap && currentMapId === id) currentMap.meta.labels = labels;
+	if (currentMap && currentMapId === id) {
+		currentMap = { ...currentMap, meta: { ...currentMap.meta, labels } };
+		notify();
+	}
 	await invalidateMapList();
 }
 
 export async function updateMapMeta(patch: MapMetaPatch) {
 	if (!currentMapId || !currentMap) return;
-	if (patch.name != null) currentMap.meta.name = patch.name;
-	if (patch.description != null) currentMap.meta.description = patch.description;
-	if (patch.folder !== undefined) currentMap.meta.folder = patch.folder;
-	if (patch.settings != null) currentMap.meta.settings = patch.settings;
-	if (patch.scoreBounds != null) currentMap.meta.scoreBounds = patch.scoreBounds;
-	if (patch.extra != null) currentMap.meta.extra = patch.extra;
+	const meta = { ...currentMap.meta };
+	if (patch.name != null) meta.name = patch.name;
+	if (patch.description != null) meta.description = patch.description;
+	if (patch.folder !== undefined) meta.folder = patch.folder;
+	if (patch.settings != null) meta.settings = patch.settings;
+	if (patch.scoreBounds != null) meta.scoreBounds = patch.scoreBounds;
+	if (patch.extra != null) meta.extra = patch.extra;
+	currentMap = { ...currentMap, meta };
 	refreshAfterMutation();
 	await cmd.storeUpdateMapMeta(currentMapId, patch);
 	await invalidateMapList();
@@ -685,21 +698,28 @@ function syncMutationResult(r: MutationResult) {
 		undoRedoState.canUndo !== r.canUndo ||
 		undoRedoState.canRedo !== r.canRedo ||
 		hasNewDefs ||
-		r.tags != null;
+		r.tags != null ||
+		r.tagCounts != null;
 	if (hasNewDefs) {
 		knownFieldKeys = new Set(knownFieldKeys);
 		for (const key of Object.keys(r.newFieldDefs!)) knownFieldKeys.add(key);
 		mergeUserFieldDefs(r.newFieldDefs!);
 	}
-	currentMap = {
-		...currentMap,
-		meta: {
-			...currentMap.meta,
-			locationCount: r.locationCount,
-		},
-	};
-	undoRedoState = { canUndo: r.canUndo, canRedo: r.canRedo };
-	tagCounts = r.tagCounts;
+	// Published references are hook snapshots: only replace them when the value
+	// actually changed, so unrelated consumers keep a stable reference.
+	if (currentMap.meta.locationCount !== r.locationCount) {
+		currentMap = {
+			...currentMap,
+			meta: {
+				...currentMap.meta,
+				locationCount: r.locationCount,
+			},
+		};
+	}
+	if (undoRedoState.canUndo !== r.canUndo || undoRedoState.canRedo !== r.canRedo) {
+		undoRedoState = { canUndo: r.canUndo, canRedo: r.canRedo };
+	}
+	if (r.tagCounts) tagCounts = r.tagCounts;
 	if (needsNotify) {
 		bump();
 	}
@@ -886,11 +906,7 @@ export async function patchLocationExtra(
 export const useAllSelections = makeStoreHook(() => selections);
 
 /** Active (non-ghosted) selections — the default for any operational logic. */
-export const useSelections = makeStoreHook(() =>
-	ghostedSelections.size === 0
-		? selections
-		: selections.filter((s) => !ghostedSelections.has(s.key)),
-);
+export const useSelections = makeStoreHook(getSelections);
 
 /** Keyed per-node selection counts (by `Selection.key`). Look up a row's count by its key. */
 export const useSelectionCounts = makeStoreHook(() => selectionCounts);
@@ -937,28 +953,30 @@ async function applySelectionUpdate(updater: (sels: Selection[]) => Selection[])
 function pruneGhosted() {
 	if (ghostedSelections.size === 0) return;
 	const live = new Set(selections.map((s) => s.key));
-	for (const k of ghostedSelections) if (!live.has(k)) ghostedSelections.delete(k);
+	const pruned = new Set([...ghostedSelections].filter((k) => live.has(k)));
+	if (pruned.size !== ghostedSelections.size) ghostedSelections = pruned;
 }
 
 export const useGhostedSelections = makeStoreHook(() => ghostedSelections);
+export const getGhostedSelections = () => ghostedSelections;
 
 /** Toggle a selection's ghosted state and re-sync (excludes/includes it from the overlay). */
 export function toggleGhostSelection(key: string) {
-	if (ghostedSelections.has(key)) ghostedSelections.delete(key);
-	else ghostedSelections.add(key);
+	const next = new Set(ghostedSelections);
+	if (next.has(key)) next.delete(key);
+	else next.add(key);
+	ghostedSelections = next;
 	return applySelectionUpdate((sels) => sels);
 }
 
 /** "Solo" a selection: ghost every other top-level selection, keep this one visible.
  *  If it is already the only visible one, un-ghost everything (toggle back). */
 export function isolateSelection(key: string) {
-	const next = isolateGhostKeys(
+	ghostedSelections = isolateGhostKeys(
 		selections.map((s) => s.key),
 		ghostedSelections,
 		key,
 	);
-	ghostedSelections.clear();
-	for (const k of next) ghostedSelections.add(k);
 	return applySelectionUpdate((sels) => sels);
 }
 
@@ -966,8 +984,7 @@ export function isolateSelection(key: string) {
 export function toggleGhostAllSelections() {
 	const keys = selections.map((s) => s.key);
 	const allGhosted = keys.length > 0 && keys.every((k) => ghostedSelections.has(k));
-	if (allGhosted) ghostedSelections.clear();
-	else for (const k of keys) ghostedSelections.add(k);
+	ghostedSelections = allGhosted ? new Set() : new Set([...ghostedSelections, ...keys]);
 	return applySelectionUpdate((sels) => sels);
 }
 
@@ -1020,6 +1037,19 @@ export function selectRandomFromSelection(count: number): number {
 	if (picked.length === 0) return 0;
 	void applySelectionUpdate(() => addSel([], { type: "Manual", locations: picked }));
 	return picked.length;
+}
+
+/** Replace the current selection with a single Manual selection of ids picked from the
+ *  current selection, spaced apart in Rust: either `count` ids maximizing spacing, or as
+ *  many as fit at `minDistanceM`. No-op when the pick returns nothing. */
+export async function selectSpacedFromSelection(opts: {
+	count?: number;
+	minDistanceM?: number;
+}): Promise<{ picked: number; distanceM: number }> {
+	const result = await cmd.storePickSpaced(opts.count ?? null, opts.minDistanceM ?? null);
+	if (result.ids.length === 0) return { picked: 0, distanceM: 0 };
+	await applySelectionUpdate(() => addSel([], { type: "Manual", locations: result.ids }));
+	return { picked: result.ids.length, distanceM: result.distanceM };
 }
 
 export function selectEverything() {
@@ -1108,12 +1138,15 @@ export function updateFilterSelection(oldKey: string, props: SelectionProps) {
 		// existing selection (shrinking the list); the survivor keeps its own ghost state and
 		// pruneGhosted clears the old key, so only migrate when nothing was merged away.
 		if (next.length === sels.length) {
+			let migrated: Set<string> | null = null;
 			for (let i = 0; i < sels.length; i++) {
 				if (next[i].key !== sels[i].key && ghostedSelections.has(sels[i].key)) {
-					ghostedSelections.delete(sels[i].key);
-					ghostedSelections.add(next[i].key);
+					migrated ??= new Set(ghostedSelections);
+					migrated.delete(sels[i].key);
+					migrated.add(next[i].key);
 				}
 			}
+			if (migrated) ghostedSelections = migrated;
 		}
 		return next;
 	});
@@ -1176,12 +1209,16 @@ export function toggleTagSelections(tagIds: number[]) {
 	});
 }
 
-export function useSelectedTagIds() {
-	useSyncExternalStore(subscribe, getMapSnapshot);
-	const ids = new Set<number>();
-	for (const s of selections) if (s.props.type === "Tag") ids.add(s.props.tagId);
-	return ids;
-}
+const getSelectedTagIds: () => ReadonlySet<number> = memoOnRefs(
+	() => [selections] as const,
+	(sels) => {
+		const ids = new Set<number>();
+		for (const s of sels) if (s.props.type === "Tag") ids.add(s.props.tagId);
+		return ids;
+	},
+);
+
+export const useSelectedTagIds = makeStoreHook(getSelectedTagIds);
 
 let virtualIdSeq = 0;
 /** Each preview gets a fresh negative id so its identity changes between previews (the pano viewer re-resolves on active-id change). */

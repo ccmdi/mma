@@ -53,7 +53,6 @@ export function getAvailableExternals(): string[] {
 }
 
 declare global {
-	 
 	var __mma_require: typeof mmaRequire;
 }
 

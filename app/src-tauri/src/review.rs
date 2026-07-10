@@ -9,10 +9,10 @@
 //! Command wrappers (`store_review_*`) open the DB and delegate to the `&Connection` core
 //! functions below, which carry all the behavior and are unit-tested directly.
 
-use crate::types::AppResult;
-use rusqlite::Connection;
 use crate::storage;
+use crate::types::AppResult;
 use crate::util::now_iso;
+use rusqlite::Connection;
 
 /// A review session as returned to the frontend. `order`/`reviewed` are decoded from the
 /// JSON-text columns; `source_props` is the originating `SelectionProps` (opaque here).
@@ -119,13 +119,16 @@ pub(crate) fn create(conn: &Connection, session: ReviewCreate) -> AppResult<Revi
 }
 
 /// Resume lookup: the most recent active session for `map_id` matching `source_key`, if any.
-pub(crate) fn get(conn: &Connection, map_id: &str, source_key: &str) -> AppResult<Option<ReviewSession>> {
+pub(crate) fn get(
+    conn: &Connection,
+    map_id: &str,
+    source_key: &str,
+) -> AppResult<Option<ReviewSession>> {
     let sql = format!(
         "SELECT {COLS} FROM review_sessions WHERE map_id = ? AND source_key = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1"
     );
     let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt
-        .query_map(rusqlite::params![map_id, source_key], row_to_session)?;
+    let mut rows = stmt.query_map(rusqlite::params![map_id, source_key], row_to_session)?;
     match rows.next() {
         Some(r) => Ok(Some(r?)),
         None => Ok(None),
@@ -133,7 +136,11 @@ pub(crate) fn get(conn: &Connection, map_id: &str, source_key: &str) -> AppResul
 }
 
 /// Lists a map's sessions, newest-first. Optional `status` filter (e.g. "active" / "done").
-pub(crate) fn list(conn: &Connection, map_id: &str, status: Option<&str>) -> AppResult<Vec<ReviewSession>> {
+pub(crate) fn list(
+    conn: &Connection,
+    map_id: &str,
+    status: Option<&str>,
+) -> AppResult<Vec<ReviewSession>> {
     let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = match status {
         Some(s) => (
             format!("SELECT {COLS} FROM review_sessions WHERE map_id = ? AND status = ? ORDER BY updated_at DESC"),
@@ -145,8 +152,10 @@ pub(crate) fn list(conn: &Connection, map_id: &str, status: Option<&str>) -> App
         ),
     };
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt
-        .query_map(rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())), row_to_session)?;
+    let rows = stmt.query_map(
+        rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
+        row_to_session,
+    )?;
     let mut out = Vec::new();
     for row in rows {
         out.push(row?);
@@ -186,14 +195,23 @@ pub(crate) fn update(conn: &Connection, update: ReviewUpdate) -> AppResult<()> {
     params.push(Box::new(now_iso()));
     params.push(Box::new(update.id));
 
-    let sql = format!("UPDATE review_sessions SET {} WHERE id = ?", sets.join(", "));
-    conn.execute(&sql, rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())))?;
+    let sql = format!(
+        "UPDATE review_sessions SET {} WHERE id = ?",
+        sets.join(", ")
+    );
+    conn.execute(
+        &sql,
+        rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
+    )?;
     Ok(())
 }
 
 /// Deletes a session.
 pub(crate) fn delete(conn: &Connection, id: &str) -> AppResult<()> {
-    conn.execute("DELETE FROM review_sessions WHERE id = ?", rusqlite::params![id])?;
+    conn.execute(
+        "DELETE FROM review_sessions WHERE id = ?",
+        rusqlite::params![id],
+    )?;
     Ok(())
 }
 

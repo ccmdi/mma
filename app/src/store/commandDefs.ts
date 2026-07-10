@@ -25,6 +25,7 @@ import {
 	mdiGhostOutline,
 	mdiCompassOutline,
 	mdiDiceMultiple,
+	mdiDotsGrid,
 	mdiMapPlus,
 	mdiMapMarkerPlus,
 	mdiVectorPolygon,
@@ -305,6 +306,15 @@ const COMMANDS = {
 		aliases: ["sample", "random sample"],
 		execute: () =>
 			document.dispatchEvent(new CustomEvent("open-inline-panel", { detail: "select-random" })),
+		enabled: () => getSelectedLocationIds().size > 0,
+	},
+	"select-spaced": {
+		label: "Pick evenly spaced locations from selection",
+		icon: mdiDotsGrid,
+		group: "Selections",
+		aliases: ["spaced", "thin", "reduce density", "distribute"],
+		execute: () =>
+			document.dispatchEvent(new CustomEvent("open-inline-panel", { detail: "select-spaced" })),
 		enabled: () => getSelectedLocationIds().size > 0,
 	},
 	"ghost-selections": {

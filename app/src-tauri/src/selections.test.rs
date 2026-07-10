@@ -1,13 +1,22 @@
 use super::*;
-use crate::types::Location;
 use crate::arrow_bridge::locations_to_batch;
+use crate::types::Location;
 use chrono::TimeZone;
 
 fn loc(id: u32, lat: f64, lng: f64) -> Location {
     Location {
-        id, lat, lng, heading: 0.0, pitch: 0.0, zoom: 1.0,
-        pano_id: None, flags: crate::types::LocationFlags::empty(), tags: vec![], extra: None,
-        created_at: 0, modified_at: None,
+        id,
+        lat,
+        lng,
+        heading: 0.0,
+        pitch: 0.0,
+        zoom: 1.0,
+        pano_id: None,
+        flags: crate::types::LocationFlags::empty(),
+        tags: vec![],
+        extra: None,
+        created_at: 0,
+        modified_at: None,
     }
 }
 
@@ -51,20 +60,44 @@ fn for_each_visits_alive_overlay_applied() {
 
 #[test]
 fn point_inside_square() {
-    let ring = vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]];
+    let ring = vec![
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [10.0, 10.0],
+        [0.0, 10.0],
+        [0.0, 0.0],
+    ];
     assert!(point_in_ring(5.0, 5.0, &ring));
 }
 
 #[test]
 fn point_outside_square() {
-    let ring = vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]];
+    let ring = vec![
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [10.0, 10.0],
+        [0.0, 10.0],
+        [0.0, 0.0],
+    ];
     assert!(!point_in_ring(15.0, 5.0, &ring));
 }
 
 #[test]
 fn point_in_polygon_with_hole() {
-    let outer = vec![[0.0, 0.0], [20.0, 0.0], [20.0, 20.0], [0.0, 20.0], [0.0, 0.0]];
-    let hole = vec![[5.0, 5.0], [15.0, 5.0], [15.0, 15.0], [5.0, 15.0], [5.0, 5.0]];
+    let outer = vec![
+        [0.0, 0.0],
+        [20.0, 0.0],
+        [20.0, 20.0],
+        [0.0, 20.0],
+        [0.0, 0.0],
+    ];
+    let hole = vec![
+        [5.0, 5.0],
+        [15.0, 5.0],
+        [15.0, 15.0],
+        [5.0, 15.0],
+        [5.0, 5.0],
+    ];
     let coords = vec![outer, hole];
     assert!(point_in_polygon(2.0, 2.0, &coords)); // outside hole, inside outer
     assert!(!point_in_polygon(10.0, 10.0, &coords)); // inside hole
@@ -72,8 +105,20 @@ fn point_in_polygon_with_hole() {
 
 #[test]
 fn point_in_geometry_extra_polygons() {
-    let main = vec![vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]]];
-    let extra = vec![vec![[20.0, 20.0], [30.0, 20.0], [30.0, 30.0], [20.0, 30.0], [20.0, 20.0]]];
+    let main = vec![vec![
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [10.0, 10.0],
+        [0.0, 10.0],
+        [0.0, 0.0],
+    ]];
+    let extra = vec![vec![
+        [20.0, 20.0],
+        [30.0, 20.0],
+        [30.0, 30.0],
+        [20.0, 30.0],
+        [20.0, 20.0],
+    ]];
     let geom = PolygonGeometry {
         coordinates: main,
         extra_polygons: Some(vec![extra]),
@@ -91,12 +136,35 @@ fn point_in_geometry_extra_polygons() {
 #[test]
 fn geometry_bbox_spans_all_rings() {
     // Outer [0..10] plus an extra polygon [20..30] -> bbox covers both.
-    let main = vec![vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]]];
-    let extra = vec![vec![[20.0, 20.0], [30.0, 20.0], [30.0, 30.0], [20.0, 30.0], [20.0, 20.0]]];
-    let geom = PolygonGeometry { coordinates: main, extra_polygons: Some(vec![extra]), properties: None };
+    let main = vec![vec![
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [10.0, 10.0],
+        [0.0, 10.0],
+        [0.0, 0.0],
+    ]];
+    let extra = vec![vec![
+        [20.0, 20.0],
+        [30.0, 20.0],
+        [30.0, 30.0],
+        [20.0, 30.0],
+        [20.0, 20.0],
+    ]];
+    let geom = PolygonGeometry {
+        coordinates: main,
+        extra_polygons: Some(vec![extra]),
+        properties: None,
+    };
     // [min_lng, min_lat, max_lng, max_lat]
     assert_eq!(geometry_bbox(&geom), Some([0.0, 0.0, 30.0, 30.0]));
-    assert_eq!(geometry_bbox(&PolygonGeometry { coordinates: vec![], extra_polygons: None, properties: None }), None);
+    assert_eq!(
+        geometry_bbox(&PolygonGeometry {
+            coordinates: vec![],
+            extra_polygons: None,
+            properties: None
+        }),
+        None
+    );
 }
 
 #[test]
@@ -117,9 +185,19 @@ fn polygon_resolve_matches_full_test_with_bbox_reject() {
     // L-shaped (concave) polygon: covers bbox [0..10]x[0..10] but the top-right
     // quadrant (>5,>5) is carved out.
     let l_shape = vec![vec![
-        [0.0, 0.0], [10.0, 0.0], [10.0, 5.0], [5.0, 5.0], [5.0, 10.0], [0.0, 10.0], [0.0, 0.0],
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [10.0, 5.0],
+        [5.0, 5.0],
+        [5.0, 10.0],
+        [0.0, 10.0],
+        [0.0, 0.0],
     ]];
-    let geom = PolygonGeometry { coordinates: l_shape, extra_polygons: None, properties: None };
+    let geom = PolygonGeometry {
+        coordinates: l_shape,
+        extra_polygons: None,
+        properties: None,
+    };
 
     let dead = HashSet::new();
     let patches = HashMap::new();
@@ -130,10 +208,13 @@ fn polygon_resolve_matches_full_test_with_bbox_reject() {
         loc(4, 1.0, 8.0),   // inside L (left column) -> selected
     ];
     let view = make_view(None, &dead, &patches, &adds);
-    let ids = resolve(&view, &SelectionProps::Polygon {
-        polygon: geom.clone(),
-        include_informational: true,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Polygon {
+            polygon: geom.clone(),
+            include_informational: true,
+        },
+    );
     assert!(ids.contains(&1));
     assert!(!ids.contains(&2)); // bbox would include it; full test must exclude
     assert!(!ids.contains(&3));
@@ -154,22 +235,34 @@ fn polygon_resolve_matches_full_test_with_bbox_reject() {
 fn point_in_ring_across_antimeridian() {
     // Polygon spanning the antimeridian: 170E to 170W (i.e., 170 to -170)
     let ring = vec![
-        [170.0, -10.0], [-170.0, -10.0], [-170.0, 10.0], [170.0, 10.0], [170.0, -10.0],
+        [170.0, -10.0],
+        [-170.0, -10.0],
+        [-170.0, 10.0],
+        [170.0, 10.0],
+        [170.0, -10.0],
     ];
-    assert!(point_in_ring(175.0, 0.0, &ring));   // inside, east side
-    assert!(point_in_ring(-175.0, 0.0, &ring));  // inside, west side
-    assert!(point_in_ring(180.0, 0.0, &ring));   // on the dateline
-    assert!(!point_in_ring(160.0, 0.0, &ring));  // outside, well west
+    assert!(point_in_ring(175.0, 0.0, &ring)); // inside, east side
+    assert!(point_in_ring(-175.0, 0.0, &ring)); // inside, west side
+    assert!(point_in_ring(180.0, 0.0, &ring)); // on the dateline
+    assert!(!point_in_ring(160.0, 0.0, &ring)); // outside, well west
     assert!(!point_in_ring(-160.0, 0.0, &ring)); // outside, well east
-    assert!(!point_in_ring(0.0, 0.0, &ring));    // outside, other side of world
+    assert!(!point_in_ring(0.0, 0.0, &ring)); // outside, other side of world
 }
 
 #[test]
 fn geometry_bbox_antimeridian() {
     let ring = vec![
-        [170.0, -10.0], [-170.0, -10.0], [-170.0, 10.0], [170.0, 10.0], [170.0, -10.0],
+        [170.0, -10.0],
+        [-170.0, -10.0],
+        [-170.0, 10.0],
+        [170.0, 10.0],
+        [170.0, -10.0],
     ];
-    let geom = PolygonGeometry { coordinates: vec![ring], extra_polygons: None, properties: None };
+    let geom = PolygonGeometry {
+        coordinates: vec![ring],
+        extra_polygons: None,
+        properties: None,
+    };
     let bb = geometry_bbox(&geom).unwrap();
     // After normalization: 170 and 190 (= -170 + 360)
     assert_eq!(bb[0], 170.0); // min_lng
@@ -184,22 +277,33 @@ fn geometry_bbox_antimeridian() {
 #[test]
 fn polygon_resolve_across_antimeridian() {
     let ring = vec![
-        [170.0, -10.0], [-170.0, -10.0], [-170.0, 10.0], [170.0, 10.0], [170.0, -10.0],
+        [170.0, -10.0],
+        [-170.0, -10.0],
+        [-170.0, 10.0],
+        [170.0, 10.0],
+        [170.0, -10.0],
     ];
-    let geom = PolygonGeometry { coordinates: vec![ring], extra_polygons: None, properties: None };
+    let geom = PolygonGeometry {
+        coordinates: vec![ring],
+        extra_polygons: None,
+        properties: None,
+    };
     let dead = HashSet::new();
     let patches = HashMap::new();
     let adds = vec![
-        loc(1, 5.0, 175.0),   // inside (east of dateline)
-        loc(2, 5.0, -175.0),  // inside (west of dateline)
-        loc(3, 5.0, 0.0),     // outside (other side of world)
-        loc(4, 5.0, 160.0),   // outside (west of polygon)
+        loc(1, 5.0, 175.0),  // inside (east of dateline)
+        loc(2, 5.0, -175.0), // inside (west of dateline)
+        loc(3, 5.0, 0.0),    // outside (other side of world)
+        loc(4, 5.0, 160.0),  // outside (west of polygon)
     ];
     let view = make_view(None, &dead, &patches, &adds);
-    let ids = resolve(&view, &SelectionProps::Polygon {
-        polygon: geom,
-        include_informational: true,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Polygon {
+            polygon: geom,
+            include_informational: true,
+        },
+    );
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
     assert!(!ids.contains(&3));
@@ -210,7 +314,11 @@ fn polygon_resolve_across_antimeridian() {
 fn point_in_ring_unwrapped_antimeridian() {
     // Rectangle-style unwrapped: east > 180 instead of negative
     let ring = vec![
-        [170.0, -10.0], [190.0, -10.0], [190.0, 10.0], [170.0, 10.0], [170.0, -10.0],
+        [170.0, -10.0],
+        [190.0, -10.0],
+        [190.0, 10.0],
+        [170.0, 10.0],
+        [170.0, -10.0],
     ];
     assert!(point_in_ring(175.0, 0.0, &ring));
     assert!(point_in_ring(-175.0, 0.0, &ring)); // = 185 after normalization
@@ -222,21 +330,32 @@ fn point_in_ring_unwrapped_antimeridian() {
 fn polygon_resolve_unwrapped_antimeridian() {
     // Rectangle-mode coordinates: east=190 instead of -170
     let ring = vec![
-        [170.0, -10.0], [190.0, -10.0], [190.0, 10.0], [170.0, 10.0], [170.0, -10.0],
+        [170.0, -10.0],
+        [190.0, -10.0],
+        [190.0, 10.0],
+        [170.0, 10.0],
+        [170.0, -10.0],
     ];
-    let geom = PolygonGeometry { coordinates: vec![ring], extra_polygons: None, properties: None };
+    let geom = PolygonGeometry {
+        coordinates: vec![ring],
+        extra_polygons: None,
+        properties: None,
+    };
     let dead = HashSet::new();
     let patches = HashMap::new();
     let adds = vec![
-        loc(1, 5.0, 175.0),   // inside
-        loc(2, 5.0, -175.0),  // inside (other side of IDL)
-        loc(3, 5.0, 0.0),     // outside
+        loc(1, 5.0, 175.0),  // inside
+        loc(2, 5.0, -175.0), // inside (other side of IDL)
+        loc(3, 5.0, 0.0),    // outside
     ];
     let view = make_view(None, &dead, &patches, &adds);
-    let ids = resolve(&view, &SelectionProps::Polygon {
-        polygon: geom,
-        include_informational: true,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Polygon {
+            polygon: geom,
+            include_informational: true,
+        },
+    );
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
     assert!(!ids.contains(&3));
@@ -255,7 +374,11 @@ fn haversine_zero_distance() {
 fn haversine_known_distance() {
     // London to Paris ~ 343 km
     let d = haversine_m(51.5074, -0.1278, 48.8566, 2.3522);
-    assert!((d - 343_500.0).abs() < 5000.0, "London-Paris should be ~343km, got {:.0}m", d);
+    assert!(
+        (d - 343_500.0).abs() < 5000.0,
+        "London-Paris should be ~343km, got {:.0}m",
+        d
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -264,26 +387,66 @@ fn haversine_known_distance() {
 
 #[test]
 fn filter_eq_string() {
-    assert!(compare_filter(&serde_json::json!("BR"), FilterOp::Eq, &serde_json::json!("BR"), None));
-    assert!(!compare_filter(&serde_json::json!("US"), FilterOp::Eq, &serde_json::json!("BR"), None));
+    assert!(compare_filter(
+        &serde_json::json!("BR"),
+        FilterOp::Eq,
+        &serde_json::json!("BR"),
+        None
+    ));
+    assert!(!compare_filter(
+        &serde_json::json!("US"),
+        FilterOp::Eq,
+        &serde_json::json!("BR"),
+        None
+    ));
 }
 
 #[test]
 fn filter_neq() {
-    assert!(compare_filter(&serde_json::json!("US"), FilterOp::Neq, &serde_json::json!("BR"), None));
-    assert!(!compare_filter(&serde_json::json!("BR"), FilterOp::Neq, &serde_json::json!("BR"), None));
+    assert!(compare_filter(
+        &serde_json::json!("US"),
+        FilterOp::Neq,
+        &serde_json::json!("BR"),
+        None
+    ));
+    assert!(!compare_filter(
+        &serde_json::json!("BR"),
+        FilterOp::Neq,
+        &serde_json::json!("BR"),
+        None
+    ));
 }
 
 #[test]
 fn filter_gt_numeric() {
-    assert!(compare_filter(&serde_json::json!(100), FilterOp::Gt, &serde_json::json!(50), None));
-    assert!(!compare_filter(&serde_json::json!(50), FilterOp::Gt, &serde_json::json!(100), None));
+    assert!(compare_filter(
+        &serde_json::json!(100),
+        FilterOp::Gt,
+        &serde_json::json!(50),
+        None
+    ));
+    assert!(!compare_filter(
+        &serde_json::json!(50),
+        FilterOp::Gt,
+        &serde_json::json!(100),
+        None
+    ));
 }
 
 #[test]
 fn filter_between() {
-    assert!(compare_filter(&serde_json::json!(500), FilterOp::Between, &serde_json::json!(100), Some(&serde_json::json!(1000))));
-    assert!(!compare_filter(&serde_json::json!(50), FilterOp::Between, &serde_json::json!(100), Some(&serde_json::json!(1000))));
+    assert!(compare_filter(
+        &serde_json::json!(500),
+        FilterOp::Between,
+        &serde_json::json!(100),
+        Some(&serde_json::json!(1000))
+    ));
+    assert!(!compare_filter(
+        &serde_json::json!(50),
+        FilterOp::Between,
+        &serde_json::json!(100),
+        Some(&serde_json::json!(1000))
+    ));
 }
 
 #[test]
@@ -298,9 +461,24 @@ fn filter_between_anyyear_normal_range() {
     let lo = serde_json::json!("04-15");
     let hi = serde_json::json!("05-15");
 
-    assert!(compare_filter(&apr15, FilterOp::BetweenAnyyear, &lo, Some(&hi)));
-    assert!(compare_filter(&may1, FilterOp::BetweenAnyyear, &lo, Some(&hi)));
-    assert!(!compare_filter(&jun10, FilterOp::BetweenAnyyear, &lo, Some(&hi)));
+    assert!(compare_filter(
+        &apr15,
+        FilterOp::BetweenAnyyear,
+        &lo,
+        Some(&hi)
+    ));
+    assert!(compare_filter(
+        &may1,
+        FilterOp::BetweenAnyyear,
+        &lo,
+        Some(&hi)
+    ));
+    assert!(!compare_filter(
+        &jun10,
+        FilterOp::BetweenAnyyear,
+        &lo,
+        Some(&hi)
+    ));
 }
 
 #[test]
@@ -315,9 +493,24 @@ fn filter_between_anyyear_wrapping_range() {
     let lo = serde_json::json!("11-15");
     let hi = serde_json::json!("02-15");
 
-    assert!(compare_filter(&dec1, FilterOp::BetweenAnyyear, &lo, Some(&hi)));
-    assert!(compare_filter(&jan15, FilterOp::BetweenAnyyear, &lo, Some(&hi)));
-    assert!(!compare_filter(&jul4, FilterOp::BetweenAnyyear, &lo, Some(&hi)));
+    assert!(compare_filter(
+        &dec1,
+        FilterOp::BetweenAnyyear,
+        &lo,
+        Some(&hi)
+    ));
+    assert!(compare_filter(
+        &jan15,
+        FilterOp::BetweenAnyyear,
+        &lo,
+        Some(&hi)
+    ));
+    assert!(!compare_filter(
+        &jul4,
+        FilterOp::BetweenAnyyear,
+        &lo,
+        Some(&hi)
+    ));
 }
 
 #[test]
@@ -325,10 +518,20 @@ fn filter_between_anyyear_string_field() {
     let ym = serde_json::json!("2023-04");
     let lo = serde_json::json!("03-01");
     let hi = serde_json::json!("05-01");
-    assert!(compare_filter(&ym, FilterOp::BetweenAnyyear, &lo, Some(&hi)));
+    assert!(compare_filter(
+        &ym,
+        FilterOp::BetweenAnyyear,
+        &lo,
+        Some(&hi)
+    ));
 
     let ym_out = serde_json::json!("2023-07");
-    assert!(!compare_filter(&ym_out, FilterOp::BetweenAnyyear, &lo, Some(&hi)));
+    assert!(!compare_filter(
+        &ym_out,
+        FilterOp::BetweenAnyyear,
+        &lo,
+        Some(&hi)
+    ));
 }
 
 #[test]
@@ -343,9 +546,24 @@ fn filter_between_anytime_normal_range() {
     let lo = serde_json::json!("08:00");
     let hi = serde_json::json!("15:00");
 
-    assert!(compare_filter(&ts_1430, FilterOp::BetweenAnytime, &lo, Some(&hi)));
-    assert!(compare_filter(&ts_0800, FilterOp::BetweenAnytime, &lo, Some(&hi)));
-    assert!(!compare_filter(&ts_2200, FilterOp::BetweenAnytime, &lo, Some(&hi)));
+    assert!(compare_filter(
+        &ts_1430,
+        FilterOp::BetweenAnytime,
+        &lo,
+        Some(&hi)
+    ));
+    assert!(compare_filter(
+        &ts_0800,
+        FilterOp::BetweenAnytime,
+        &lo,
+        Some(&hi)
+    ));
+    assert!(!compare_filter(
+        &ts_2200,
+        FilterOp::BetweenAnytime,
+        &lo,
+        Some(&hi)
+    ));
 }
 
 #[test]
@@ -360,9 +578,24 @@ fn filter_between_anytime_wrapping_range() {
     let lo = serde_json::json!("22:00");
     let hi = serde_json::json!("06:00");
 
-    assert!(compare_filter(&ts_2300, FilterOp::BetweenAnytime, &lo, Some(&hi)));
-    assert!(compare_filter(&ts_0200, FilterOp::BetweenAnytime, &lo, Some(&hi)));
-    assert!(!compare_filter(&ts_1200, FilterOp::BetweenAnytime, &lo, Some(&hi)));
+    assert!(compare_filter(
+        &ts_2300,
+        FilterOp::BetweenAnytime,
+        &lo,
+        Some(&hi)
+    ));
+    assert!(compare_filter(
+        &ts_0200,
+        FilterOp::BetweenAnytime,
+        &lo,
+        Some(&hi)
+    ));
+    assert!(!compare_filter(
+        &ts_1200,
+        FilterOp::BetweenAnytime,
+        &lo,
+        Some(&hi)
+    ));
 }
 
 #[test]
@@ -370,13 +603,28 @@ fn filter_between_anytime_string_field_returns_false() {
     let ym = serde_json::json!("2023-04");
     let lo = serde_json::json!("08:00");
     let hi = serde_json::json!("15:00");
-    assert!(!compare_filter(&ym, FilterOp::BetweenAnytime, &lo, Some(&hi)));
+    assert!(!compare_filter(
+        &ym,
+        FilterOp::BetweenAnytime,
+        &lo,
+        Some(&hi)
+    ));
 }
 
 #[test]
 fn filter_has_nothas() {
-    assert!(compare_filter(&serde_json::json!("anything"), FilterOp::Has, &serde_json::json!(null), None));
-    assert!(!compare_filter(&serde_json::json!("anything"), FilterOp::Nothas, &serde_json::json!(null), None));
+    assert!(compare_filter(
+        &serde_json::json!("anything"),
+        FilterOp::Has,
+        &serde_json::json!(null),
+        None
+    ));
+    assert!(!compare_filter(
+        &serde_json::json!("anything"),
+        FilterOp::Nothas,
+        &serde_json::json!(null),
+        None
+    ));
 }
 
 #[test]
@@ -400,7 +648,10 @@ fn val_eq_cross_type() {
     assert!(val_eq(&serde_json::json!(3.5), &serde_json::json!("3.5")));
     // bool never equals number/string
     assert!(!val_eq(&serde_json::json!(true), &serde_json::json!(1)));
-    assert!(!val_eq(&serde_json::json!(true), &serde_json::json!("true")));
+    assert!(!val_eq(
+        &serde_json::json!(true),
+        &serde_json::json!("true")
+    ));
     // null
     assert!(val_eq(&serde_json::json!(null), &serde_json::json!(null)));
     assert!(!val_eq(&serde_json::json!(null), &serde_json::json!(0)));
@@ -465,13 +716,31 @@ fn resolve_filter_tag_count() {
     let adds = vec![a3];
     let view = make_view(Some(&batch), &dead, &patches, &adds);
 
-    let eq2 = SelectionProps::Filter { field: "tagCount".into(), op: FilterOp::Eq, value: serde_json::json!(2), value2: None, tz_local: false };
+    let eq2 = SelectionProps::Filter {
+        field: "tagCount".into(),
+        op: FilterOp::Eq,
+        value: serde_json::json!(2),
+        value2: None,
+        tz_local: false,
+    };
     assert_eq!(resolve(&view, &eq2), vec![2]);
 
-    let gt1 = SelectionProps::Filter { field: "tagCount".into(), op: FilterOp::Gt, value: serde_json::json!(1), value2: None, tz_local: false };
+    let gt1 = SelectionProps::Filter {
+        field: "tagCount".into(),
+        op: FilterOp::Gt,
+        value: serde_json::json!(1),
+        value2: None,
+        tz_local: false,
+    };
     assert_eq!(resolve(&view, &gt1), vec![2, 3]);
 
-    let eq0 = SelectionProps::Filter { field: "tagCount".into(), op: FilterOp::Eq, value: serde_json::json!(0), value2: None, tz_local: false };
+    let eq0 = SelectionProps::Filter {
+        field: "tagCount".into(),
+        op: FilterOp::Eq,
+        value: serde_json::json!(0),
+        value2: None,
+        tz_local: false,
+    };
     assert_eq!(resolve(&view, &eq0), vec![1]);
 }
 
@@ -497,17 +766,25 @@ fn resolve_uncommitted() {
 
 #[test]
 fn resolve_reviewed_is_an_id_set_leaf_over_batch() {
-    let locs = vec![loc(1, 0.0, 0.0), loc(2, 0.0, 0.0), loc(3, 0.0, 0.0), loc(4, 0.0, 0.0)];
+    let locs = vec![
+        loc(1, 0.0, 0.0),
+        loc(2, 0.0, 0.0),
+        loc(3, 0.0, 0.0),
+        loc(4, 0.0, 0.0),
+    ];
     let batch = locations_to_batch(&locs);
     let dead = HashSet::new();
     let patches = HashMap::new();
     let adds: Vec<Location> = vec![];
     let view = make_view(Some(&batch), &dead, &patches, &adds);
-    let ids = resolve(&view, &SelectionProps::Reviewed {
-        locations: vec![2, 4],
-        session_id: "abc".into(),
-        mode: "reviewed".into(),
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Reviewed {
+            locations: vec![2, 4],
+            session_id: "abc".into(),
+            mode: "reviewed".into(),
+        },
+    );
     assert_eq!(ids, vec![2, 4]);
 }
 
@@ -517,11 +794,14 @@ fn resolve_reviewed_on_adds() {
     let patches = HashMap::new();
     let adds = vec![loc(1, 0.0, 0.0), loc(2, 0.0, 0.0), loc(3, 0.0, 0.0)];
     let view = make_view(None, &dead, &patches, &adds);
-    let ids = resolve(&view, &SelectionProps::Reviewed {
-        locations: vec![1, 3],
-        session_id: "s".into(),
-        mode: "unreviewed".into(),
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Reviewed {
+            locations: vec![1, 3],
+            session_id: "s".into(),
+            mode: "unreviewed".into(),
+        },
+    );
     assert_eq!(ids, vec![1, 3]);
 }
 
@@ -535,16 +815,21 @@ fn tagged_batch_and_index(locs: &[Location]) -> (RecordBatch, HashMap<u32, Roari
     let batch = locations_to_batch(locs);
     let mut sets: HashMap<u32, RoaringBitmap> = HashMap::new();
     for l in locs {
-        for &t in &l.tags { sets.entry(t).or_default().insert(l.id); }
+        for &t in &l.tags {
+            sets.entry(t).or_default().insert(l.id);
+        }
     }
     (batch, sets)
 }
 
 #[test]
 fn tag_index_matches_scan_path() {
-    let mut a = loc(1, 0.0, 0.0); a.tags = vec![10, 20];
-    let mut b = loc(2, 0.0, 0.0); b.tags = vec![20];
-    let mut c = loc(3, 0.0, 0.0); c.tags = vec![10];
+    let mut a = loc(1, 0.0, 0.0);
+    a.tags = vec![10, 20];
+    let mut b = loc(2, 0.0, 0.0);
+    b.tags = vec![20];
+    let mut c = loc(3, 0.0, 0.0);
+    c.tags = vec![10];
     let locs = vec![a, b, c];
     let (batch, sets) = tagged_batch_and_index(&locs);
     let dead = HashSet::new();
@@ -560,35 +845,47 @@ fn tag_index_matches_scan_path() {
         assert_eq!(s, i, "tag {tag_id}: scan {s:?} != index {i:?}");
     }
     // sanity on the actual membership
-    assert_eq!(resolve(&idx, &SelectionProps::Tag { tag_id: 10 }), vec![1, 3]);
+    assert_eq!(
+        resolve(&idx, &SelectionProps::Tag { tag_id: 10 }),
+        vec![1, 3]
+    );
 }
 
 #[test]
 fn tag_index_excludes_dead_includes_adds() {
-    let mut a = loc(1, 0.0, 0.0); a.tags = vec![10];
-    let mut b = loc(2, 0.0, 0.0); b.tags = vec![10];
+    let mut a = loc(1, 0.0, 0.0);
+    a.tags = vec![10];
+    let mut b = loc(2, 0.0, 0.0);
+    b.tags = vec![10];
     let (batch, sets) = tagged_batch_and_index(&[a, b]);
     let mut dead = HashSet::new();
     dead.insert(2u32); // kill row 2
     let patches = HashMap::new();
-    let mut add = loc(3, 0.0, 0.0); add.tags = vec![10]; // overlay add carries the tag
+    let mut add = loc(3, 0.0, 0.0);
+    add.tags = vec![10]; // overlay add carries the tag
     let adds = vec![add];
 
     let idx = LocView::new(Some(&batch), &dead, &patches, &adds, Some(&sets));
     // 2 is dead -> excluded; 3 is an overlay add -> included; 1 stays.
-    assert_eq!(resolve(&idx, &SelectionProps::Tag { tag_id: 10 }), vec![1, 3]);
+    assert_eq!(
+        resolve(&idx, &SelectionProps::Tag { tag_id: 10 }),
+        vec![1, 3]
+    );
 }
 
 #[test]
 fn tag_index_honors_patches() {
     // Base: loc 1 has tag 10, loc 2 has nothing. Index reflects the base.
-    let mut a = loc(1, 0.0, 0.0); a.tags = vec![10];
+    let mut a = loc(1, 0.0, 0.0);
+    a.tags = vec![10];
     let b = loc(2, 0.0, 0.0);
     let (batch, sets) = tagged_batch_and_index(&[a, b]);
     let dead = HashSet::new();
     // Patch: loc 1 LOSES tag 10, loc 2 GAINS tag 10 (uncommitted edits the index can't see).
-    let mut p1 = loc(1, 0.0, 0.0); p1.tags = vec![];
-    let mut p2 = loc(2, 0.0, 0.0); p2.tags = vec![10];
+    let mut p1 = loc(1, 0.0, 0.0);
+    p1.tags = vec![];
+    let mut p2 = loc(2, 0.0, 0.0);
+    p2.tags = vec![10];
     let mut patches = HashMap::new();
     patches.insert(1u32, p1);
     patches.insert(2u32, p2);
@@ -601,22 +898,43 @@ fn tag_index_honors_patches() {
 
 #[test]
 fn tag_index_in_composite() {
-    let mut a = loc(1, 0.0, 0.0); a.tags = vec![10, 20];
-    let mut b = loc(2, 0.0, 0.0); b.tags = vec![10];
-    let mut c = loc(3, 0.0, 0.0); c.tags = vec![20];
+    let mut a = loc(1, 0.0, 0.0);
+    a.tags = vec![10, 20];
+    let mut b = loc(2, 0.0, 0.0);
+    b.tags = vec![10];
+    let mut c = loc(3, 0.0, 0.0);
+    c.tags = vec![20];
     let (batch, sets) = tagged_batch_and_index(&[a, b, c]);
     let dead = HashSet::new();
     let patches = HashMap::new();
     let adds: Vec<Location> = vec![];
     let idx = LocView::new(Some(&batch), &dead, &patches, &adds, Some(&sets));
 
-    let t10 = Selection { key: "t10".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 10 } };
-    let t20 = Selection { key: "t20".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 20 } };
+    let t10 = Selection {
+        key: "t10".into(),
+        color: [0, 0, 0],
+        props: SelectionProps::Tag { tag_id: 10 },
+    };
+    let t20 = Selection {
+        key: "t20".into(),
+        color: [0, 0, 0],
+        props: SelectionProps::Tag { tag_id: 20 },
+    };
     // 10 AND 20 -> only loc 1
-    let inter = resolve(&idx, &SelectionProps::Intersection { selections: vec![t10.clone(), t20.clone()] });
+    let inter = resolve(
+        &idx,
+        &SelectionProps::Intersection {
+            selections: vec![t10.clone(), t20.clone()],
+        },
+    );
     assert_eq!(inter, vec![1]);
     // 10 OR 20 -> all three
-    let union = resolve(&idx, &SelectionProps::Union { selections: vec![t10, t20] });
+    let union = resolve(
+        &idx,
+        &SelectionProps::Union {
+            selections: vec![t10, t20],
+        },
+    );
     assert_eq!(union, vec![1, 2, 3]);
 }
 
@@ -698,8 +1016,16 @@ fn resolve_intersection() {
     let view = make_view(None, &dead, &patches, &adds);
     let props = SelectionProps::Intersection {
         selections: vec![
-            Selection { key: "a".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 10 } },
-            Selection { key: "b".into(), color: [0,0,0], props: SelectionProps::PanoIds },
+            Selection {
+                key: "a".into(),
+                color: [0, 0, 0],
+                props: SelectionProps::Tag { tag_id: 10 },
+            },
+            Selection {
+                key: "b".into(),
+                color: [0, 0, 0],
+                props: SelectionProps::PanoIds,
+            },
         ],
     };
     let ids = resolve(&view, &props);
@@ -719,8 +1045,16 @@ fn resolve_union() {
     let view = make_view(None, &dead, &patches, &adds);
     let props = SelectionProps::Union {
         selections: vec![
-            Selection { key: "a".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 10 } },
-            Selection { key: "b".into(), color: [0,0,0], props: SelectionProps::PanoIds },
+            Selection {
+                key: "a".into(),
+                color: [0, 0, 0],
+                props: SelectionProps::Tag { tag_id: 10 },
+            },
+            Selection {
+                key: "b".into(),
+                color: [0, 0, 0],
+                props: SelectionProps::PanoIds,
+            },
         ],
     };
     let ids = resolve(&view, &props);
@@ -740,9 +1074,11 @@ fn resolve_invert() {
     let adds = vec![l1, l2, l3];
     let view = make_view(None, &dead, &patches, &adds);
     let props = SelectionProps::Invert {
-        selections: vec![
-            Selection { key: "a".into(), color: [0,0,0], props: SelectionProps::PanoIds },
-        ],
+        selections: vec![Selection {
+            key: "a".into(),
+            color: [0, 0, 0],
+            props: SelectionProps::PanoIds,
+        }],
     };
     let ids = resolve(&view, &props);
     assert_eq!(ids.len(), 2);
@@ -759,9 +1095,12 @@ fn resolve_invert() {
 fn node_counts_cover_nested_children() {
     let dead = HashSet::new();
     let patches = HashMap::new();
-    let mut l1 = loc(1, 0.0, 0.0); l1.tags = vec![10, 20];
-    let mut l2 = loc(2, 0.0, 0.0); l2.tags = vec![10];
-    let mut l3 = loc(3, 0.0, 0.0); l3.tags = vec![20];
+    let mut l1 = loc(1, 0.0, 0.0);
+    l1.tags = vec![10, 20];
+    let mut l2 = loc(2, 0.0, 0.0);
+    l2.tags = vec![10];
+    let mut l3 = loc(3, 0.0, 0.0);
+    l3.tags = vec![20];
     let adds = vec![l1, l2, l3];
     let view = make_view(None, &dead, &patches, &adds);
 
@@ -770,8 +1109,16 @@ fn node_counts_cover_nested_children() {
         color: [0, 0, 0],
         props: SelectionProps::Intersection {
             selections: vec![
-                Selection { key: "a".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 10 } },
-                Selection { key: "b".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 20 } },
+                Selection {
+                    key: "a".into(),
+                    color: [0, 0, 0],
+                    props: SelectionProps::Tag { tag_id: 10 },
+                },
+                Selection {
+                    key: "b".into(),
+                    color: [0, 0, 0],
+                    props: SelectionProps::Tag { tag_id: 20 },
+                },
             ],
         },
     }];
@@ -787,7 +1134,8 @@ fn node_counts_cover_nested_children() {
 fn node_counts_invert_is_global_complement() {
     let dead = HashSet::new();
     let patches = HashMap::new();
-    let mut l1 = loc(1, 0.0, 0.0); l1.tags = vec![10];
+    let mut l1 = loc(1, 0.0, 0.0);
+    l1.tags = vec![10];
     let l2 = loc(2, 0.0, 0.0);
     let l3 = loc(3, 0.0, 0.0);
     let adds = vec![l1, l2, l3];
@@ -797,14 +1145,16 @@ fn node_counts_invert_is_global_complement() {
         key: "inv".into(),
         color: [0, 0, 0],
         props: SelectionProps::Invert {
-            selections: vec![
-                Selection { key: "t".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 10 } },
-            ],
+            selections: vec![Selection {
+                key: "t".into(),
+                color: [0, 0, 0],
+                props: SelectionProps::Tag { tag_id: 10 },
+            }],
         },
     }];
 
     let counts = resolve_node_counts(&view, &tree);
-    assert_eq!(counts.get("t"), Some(&1));   // tag 10: l1
+    assert_eq!(counts.get("t"), Some(&1)); // tag 10: l1
     assert_eq!(counts.get("inv"), Some(&2)); // NOT tag 10: l2, l3 (universe of 3 minus 1)
 }
 
@@ -814,15 +1164,22 @@ fn node_counts_invert_is_global_complement() {
 fn resolve_forest_matches_individual_resolve() {
     let dead = HashSet::new();
     let patches = HashMap::new();
-    let mut l1 = loc(1, 0.0, 0.0); l1.tags = vec![10, 20];
-    let mut l2 = loc(2, 0.0, 0.0); l2.tags = vec![10];
-    let mut l3 = loc(3, 5.0, 5.0); l3.tags = vec![20];
+    let mut l1 = loc(1, 0.0, 0.0);
+    l1.tags = vec![10, 20];
+    let mut l2 = loc(2, 0.0, 0.0);
+    l2.tags = vec![10];
+    let mut l3 = loc(3, 5.0, 5.0);
+    l3.tags = vec![20];
     let l4 = loc(4, 5.0, 5.0);
     let adds = vec![l1, l2, l3, l4];
     let view = make_view(None, &dead, &patches, &adds);
 
     let sels = vec![
-        Selection { key: "t10".into(), color: [0, 0, 0], props: SelectionProps::Tag { tag_id: 10 } },
+        Selection {
+            key: "t10".into(),
+            color: [0, 0, 0],
+            props: SelectionProps::Tag { tag_id: 10 },
+        },
         Selection {
             key: "inv".into(),
             color: [0, 0, 0],
@@ -832,26 +1189,43 @@ fn resolve_forest_matches_individual_resolve() {
                     color: [0, 0, 0],
                     props: SelectionProps::Union {
                         selections: vec![
-                            Selection { key: "a".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 10 } },
-                            Selection { key: "b".into(), color: [0,0,0], props: SelectionProps::Tag { tag_id: 20 } },
+                            Selection {
+                                key: "a".into(),
+                                color: [0, 0, 0],
+                                props: SelectionProps::Tag { tag_id: 10 },
+                            },
+                            Selection {
+                                key: "b".into(),
+                                color: [0, 0, 0],
+                                props: SelectionProps::Tag { tag_id: 20 },
+                            },
                         ],
                     },
                 }],
             },
         },
-        Selection { key: "none".into(), color: [0, 0, 0], props: SelectionProps::Untagged },
+        Selection {
+            key: "none".into(),
+            color: [0, 0, 0],
+            props: SelectionProps::Untagged,
+        },
     ];
 
     let (sets, counts) = resolve_forest(&view, &sels);
     assert_eq!(sets.len(), sels.len());
     for (i, sel) in sels.iter().enumerate() {
-        assert_eq!(sets[i], resolve_set(&view, &sel.props), "set mismatch for {}", sel.key);
+        assert_eq!(
+            sets[i],
+            resolve_set(&view, &sel.props),
+            "set mismatch for {}",
+            sel.key
+        );
     }
     for key in ["t10", "inv", "u", "a", "b", "none"] {
         assert!(counts.contains_key(key), "missing count for {key}");
     }
     assert_eq!(counts.get("t10"), Some(&2));
-    assert_eq!(counts.get("u"), Some(&3));   // union of tag10 {1,2} and tag20 {1,3}
+    assert_eq!(counts.get("u"), Some(&3)); // union of tag10 {1,2} and tag20 {1,3}
     assert_eq!(counts.get("inv"), Some(&1)); // universe {1..4} minus union {1,2,3}
     assert_eq!(counts.get("none"), Some(&1)); // l4
 }
@@ -956,7 +1330,9 @@ fn duplicate_groups_empty_when_all_far() {
 // prune_duplicates
 // -----------------------------------------------------------------------
 
-fn no_keep() -> HashSet<u32> { HashSet::new() }
+fn no_keep() -> HashSet<u32> {
+    HashSet::new()
+}
 
 // <= 25m relevance mode: the best-scored location in a cluster survives.
 #[test]
@@ -1008,7 +1384,11 @@ fn prune_never_touches_informational() {
 // Anchor 1's cluster {1,2} keeps 1; then 3 is alone (2 pruned) -> 3 survives too.
 #[test]
 fn prune_relevance_is_radius_scoped_not_transitive() {
-    let locs = vec![loc(1, 0.00000, 0.0), loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
+    let locs = vec![
+        loc(1, 0.00000, 0.0),
+        loc(2, 0.00001, 0.0),
+        loc(3, 0.00002, 0.0),
+    ];
     let removed = prune_duplicates(&locs, 2.0, &no_keep());
     assert_eq!(removed, vec![2]);
 }
@@ -1017,7 +1397,11 @@ fn prune_relevance_is_radius_scoped_not_transitive() {
 // 0.0003 deg ~= 33m; threshold 40m links 1-2 and 2-3 but not 1-3 (~66m).
 #[test]
 fn prune_thinning_drops_hub_keeps_endpoints() {
-    let locs = vec![loc(1, 0.0000, 0.0), loc(2, 0.0003, 0.0), loc(3, 0.0006, 0.0)];
+    let locs = vec![
+        loc(1, 0.0000, 0.0),
+        loc(2, 0.0003, 0.0),
+        loc(3, 0.0006, 0.0),
+    ];
     let removed = prune_duplicates(&locs, 40.0, &no_keep());
     assert_eq!(removed, vec![2]);
 }
@@ -1031,12 +1415,26 @@ fn prune_thinning_no_survivors_in_range() {
     }
     let removed = prune_duplicates(&locs, 40.0, &no_keep());
     let removed_set: HashSet<u32> = removed.iter().copied().collect();
-    let survivors: Vec<&Location> = locs.iter().filter(|l| !removed_set.contains(&l.id)).collect();
+    let survivors: Vec<&Location> = locs
+        .iter()
+        .filter(|l| !removed_set.contains(&l.id))
+        .collect();
     assert!(survivors.len() >= 2);
     for a in 0..survivors.len() {
         for b in (a + 1)..survivors.len() {
-            let d = haversine_m(survivors[a].lat, survivors[a].lng, survivors[b].lat, survivors[b].lng);
-            assert!(d > 40.0, "survivors {} and {} are {}m apart", survivors[a].id, survivors[b].id, d);
+            let d = haversine_m(
+                survivors[a].lat,
+                survivors[a].lng,
+                survivors[b].lat,
+                survivors[b].lng,
+            );
+            assert!(
+                d > 40.0,
+                "survivors {} and {} are {}m apart",
+                survivors[a].id,
+                survivors[b].id,
+                d
+            );
         }
     }
 }
@@ -1055,10 +1453,16 @@ fn extra_filter_eq_on_adds() {
     l2.extra = Some(serde_json::from_str(r#"{"country":"US"}"#).unwrap());
     let adds = vec![l1, l2];
     let view = make_view(None, &dead, &patches, &adds);
-    let ids = resolve(&view, &SelectionProps::Filter {
-        field: "country".into(), op: FilterOp::Eq,
-        value: serde_json::json!("BR"), value2: None, tz_local: false,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Filter {
+            field: "country".into(),
+            op: FilterOp::Eq,
+            value: serde_json::json!("BR"),
+            value2: None,
+            tz_local: false,
+        },
+    );
     assert_eq!(ids, vec![1]);
 }
 
@@ -1071,9 +1475,13 @@ fn tz_fixture() -> Vec<Location> {
     // 2020-03-01 00:00:00 UTC. In Tokyo that's Mar 1 09:00; in New York Feb 29 19:00.
     let ts = 1583020800u64;
     let mut tokyo = loc(1, 0.0, 0.0);
-    tokyo.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": ts, "timezone": "Asia/Tokyo" }));
+    tokyo.extra = crate::types::RawExtra::from_value(
+        &serde_json::json!({ "datetime": ts, "timezone": "Asia/Tokyo" }),
+    );
     let mut newyork = loc(2, 0.0, 0.0);
-    newyork.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": ts, "timezone": "America/New_York" }));
+    newyork.extra = crate::types::RawExtra::from_value(
+        &serde_json::json!({ "datetime": ts, "timezone": "America/New_York" }),
+    );
     let mut no_tz = loc(3, 0.0, 0.0);
     no_tz.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": ts }));
     vec![tokyo, newyork, no_tz]
@@ -1089,10 +1497,16 @@ fn filter_tz_local_between_buckets_per_timezone() {
     // Filter "all of Mar 1, 2020" as wall-clock-as-UTC epoch seconds.
     let lo = serde_json::json!(1583020800u64); // 2020-03-01 00:00
     let hi = serde_json::json!(1583107140u64); // 2020-03-01 23:59
-    let ids = resolve(&view, &SelectionProps::Filter {
-        field: "datetime".into(), op: FilterOp::Between,
-        value: lo, value2: Some(hi), tz_local: true,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Filter {
+            field: "datetime".into(),
+            op: FilterOp::Between,
+            value: lo,
+            value2: Some(hi),
+            tz_local: true,
+        },
+    );
     // Tokyo lands on Mar 1 -> in; New York is Feb 29 -> out; no timezone -> excluded.
     assert_eq!(ids, vec![1]);
 }
@@ -1105,11 +1519,16 @@ fn filter_tz_local_between_on_base_batch() {
     let dead = HashSet::new();
     let patches = HashMap::new();
     let view = make_view(Some(&batch), &dead, &patches, &[]);
-    let ids = resolve(&view, &SelectionProps::Filter {
-        field: "datetime".into(), op: FilterOp::Between,
-        value: serde_json::json!(1583020800u64), value2: Some(serde_json::json!(1583107140u64)),
-        tz_local: true,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Filter {
+            field: "datetime".into(),
+            op: FilterOp::Between,
+            value: serde_json::json!(1583020800u64),
+            value2: Some(serde_json::json!(1583107140u64)),
+            tz_local: true,
+        },
+    );
     assert_eq!(ids, vec![1]);
 }
 
@@ -1121,10 +1540,16 @@ fn filter_tz_local_anyyear_uses_local_month_day() {
     let view = make_view(None, &dead, &patches, &adds);
 
     // Feb 29 in the pano's local clock: only New York (Feb 29 19:00 local) matches.
-    let ids = resolve(&view, &SelectionProps::Filter {
-        field: "datetime".into(), op: FilterOp::BetweenAnyyear,
-        value: serde_json::json!("02-29"), value2: Some(serde_json::json!("02-29")), tz_local: true,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Filter {
+            field: "datetime".into(),
+            op: FilterOp::BetweenAnyyear,
+            value: serde_json::json!("02-29"),
+            value2: Some(serde_json::json!("02-29")),
+            tz_local: true,
+        },
+    );
     assert_eq!(ids, vec![2]);
 }
 
@@ -1136,10 +1561,16 @@ fn filter_tz_local_anytime_uses_local_clock() {
     let view = make_view(None, &dead, &patches, &adds);
 
     // Morning (in the pano's local clock): Tokyo is 09:00 -> in; New York 19:00 -> out.
-    let ids = resolve(&view, &SelectionProps::Filter {
-        field: "datetime".into(), op: FilterOp::BetweenAnytime,
-        value: serde_json::json!("06:00"), value2: Some(serde_json::json!("12:00")), tz_local: true,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Filter {
+            field: "datetime".into(),
+            op: FilterOp::BetweenAnytime,
+            value: serde_json::json!("06:00"),
+            value2: Some(serde_json::json!("12:00")),
+            tz_local: true,
+        },
+    );
     assert_eq!(ids, vec![1]);
 }
 
@@ -1154,10 +1585,16 @@ fn filter_tz_local_ignored_for_nothas() {
     let without = loc(2, 0.0, 0.0);
     let adds = vec![with_field, without];
     let view = make_view(None, &dead, &patches, &adds);
-    let ids = resolve(&view, &SelectionProps::Filter {
-        field: "datetime".into(), op: FilterOp::Nothas,
-        value: serde_json::Value::Null, value2: None, tz_local: true,
-    });
+    let ids = resolve(
+        &view,
+        &SelectionProps::Filter {
+            field: "datetime".into(),
+            op: FilterOp::Nothas,
+            value: serde_json::Value::Null,
+            value2: None,
+            tz_local: true,
+        },
+    );
     assert_eq!(ids, vec![2]);
 }
 
@@ -1166,10 +1603,17 @@ fn filter_tz_local_ignored_for_nothas() {
 // -----------------------------------------------------------------------
 
 fn loc_extra(id: u32, extra: serde_json::Value) -> Location {
-    Location { extra: crate::types::RawExtra::from_value(&extra), ..loc(id, 0.0, 0.0) }
+    Location {
+        extra: crate::types::RawExtra::from_value(&extra),
+        ..loc(id, 0.0, 0.0)
+    }
 }
 
-fn partition_view<'a>(adds: &'a [Location], dead: &'a HashSet<u32>, patches: &'a HashMap<u32, Location>) -> LocView<'a> {
+fn partition_view<'a>(
+    adds: &'a [Location],
+    dead: &'a HashSet<u32>,
+    patches: &'a HashMap<u32, Location>,
+) -> LocView<'a> {
     make_view(None, dead, patches, adds)
 }
 
@@ -1187,7 +1631,14 @@ fn topk_selects_highest() {
     let dead = HashSet::new();
     let patches = HashMap::new();
     let view = make_view(None, &dead, &patches, &locs);
-    let ids = resolve(&view, &SelectionProps::TopK { field: "alt".into(), k: 3, ascending: false });
+    let ids = resolve(
+        &view,
+        &SelectionProps::TopK {
+            field: "alt".into(),
+            k: 3,
+            ascending: false,
+        },
+    );
     assert_eq!(ids, vec![2, 4, 5]); // 500, 400, 300
 }
 
@@ -1203,7 +1654,14 @@ fn topk_selects_lowest() {
     let dead = HashSet::new();
     let patches = HashMap::new();
     let view = make_view(None, &dead, &patches, &locs);
-    let ids = resolve(&view, &SelectionProps::TopK { field: "alt".into(), k: 2, ascending: true });
+    let ids = resolve(
+        &view,
+        &SelectionProps::TopK {
+            field: "alt".into(),
+            k: 2,
+            ascending: true,
+        },
+    );
     assert_eq!(ids, vec![1, 3]); // 100, 200
 }
 
@@ -1217,7 +1675,14 @@ fn topk_skips_missing_field() {
     let dead = HashSet::new();
     let patches = HashMap::new();
     let view = make_view(None, &dead, &patches, &locs);
-    let ids = resolve(&view, &SelectionProps::TopK { field: "alt".into(), k: 10, ascending: false });
+    let ids = resolve(
+        &view,
+        &SelectionProps::TopK {
+            field: "alt".into(),
+            k: 10,
+            ascending: false,
+        },
+    );
     assert_eq!(ids, vec![1, 3]); // only 2 have the field, k=10 returns all available
 }
 
@@ -1233,7 +1698,14 @@ fn topk_works_on_base_batch() {
     let patches = HashMap::new();
     let adds: Vec<Location> = vec![];
     let view = make_view(Some(&batch), &dead, &patches, &adds);
-    let ids = resolve(&view, &SelectionProps::TopK { field: "val".into(), k: 1, ascending: false });
+    let ids = resolve(
+        &view,
+        &SelectionProps::TopK {
+            field: "val".into(),
+            k: 1,
+            ascending: false,
+        },
+    );
     assert_eq!(ids, vec![2]); // 30 is highest
 }
 
@@ -1246,7 +1718,14 @@ fn partition_numeric_count_matches_js() {
     ];
     let (dead, patches) = (HashSet::new(), HashMap::new());
     let view = partition_view(&adds, &dead, &patches);
-    let groups = partition(&view, "alt", &KeySpec::NumericBin { binning: NumericBinning::Count { n: 2 } }, None);
+    let groups = partition(
+        &view,
+        "alt",
+        &KeySpec::NumericBin {
+            binning: NumericBinning::Count { n: 2 },
+        },
+        None,
+    );
     assert_eq!(groups.len(), 2);
     assert_eq!(groups[0].key, "0–50");
     assert_eq!(groups[0].bin, Some([0.0, 50.0]));
@@ -1266,7 +1745,14 @@ fn partition_numeric_width_anchors_at_multiples() {
     ];
     let (dead, patches) = (HashSet::new(), HashMap::new());
     let view = partition_view(&adds, &dead, &patches);
-    let groups = partition(&view, "n", &KeySpec::NumericBin { binning: NumericBinning::Width { w: 500.0 } }, None);
+    let groups = partition(
+        &view,
+        "n",
+        &KeySpec::NumericBin {
+            binning: NumericBinning::Width { w: 500.0 },
+        },
+        None,
+    );
     let g0 = groups.iter().find(|g| g.key == "0–500").unwrap();
     assert_eq!(g0.ids, vec![1]);
     let g2 = groups.iter().find(|g| g.key == "1000–1500").unwrap();
@@ -1289,18 +1775,39 @@ fn partition_value_groups_by_distinct() {
     let groups = partition(&view, "c", &KeySpec::Value, None);
     assert_eq!(groups.len(), 2);
     assert!(groups.iter().all(|g| g.bin.is_none()));
-    assert_eq!(groups.iter().find(|g| g.key == "FR").unwrap().ids, vec![1, 3]);
+    assert_eq!(
+        groups.iter().find(|g| g.key == "FR").unwrap().ids,
+        vec![1, 3]
+    );
 }
 
 #[test]
 fn partition_date_tz_local_matches_js_golden() {
     // 2019-12-31T20:00:00Z is 2020-01-01 05:00 in Tokyo (UTC+9, no DST) — same vectors as
     // the JS fieldOps tzLocal test.
-    let ts = Utc.with_ymd_and_hms(2019, 12, 31, 20, 0, 0).unwrap().timestamp();
-    let adds = vec![loc_extra(1, serde_json::json!({"t": ts, "timezone": "Asia/Tokyo"}))];
+    let ts = Utc
+        .with_ymd_and_hms(2019, 12, 31, 20, 0, 0)
+        .unwrap()
+        .timestamp();
+    let adds = vec![loc_extra(
+        1,
+        serde_json::json!({"t": ts, "timezone": "Asia/Tokyo"}),
+    )];
     let (dead, patches) = (HashSet::new(), HashMap::new());
     let view = partition_view(&adds, &dead, &patches);
-    let part = |p: DatePart| partition(&view, "t", &KeySpec::DatePart { part: p, tz_local: true }, None)[0].key.clone();
+    let part = |p: DatePart| {
+        partition(
+            &view,
+            "t",
+            &KeySpec::DatePart {
+                part: p,
+                tz_local: true,
+            },
+            None,
+        )[0]
+        .key
+        .clone()
+    };
     assert_eq!(part(DatePart::Year), "2020");
     assert_eq!(part(DatePart::Day), "2020-01-01");
     assert_eq!(part(DatePart::HourOfDay), "05:00");
@@ -1309,13 +1816,32 @@ fn partition_date_tz_local_matches_js_golden() {
 #[test]
 fn partition_date_non_local_reads_utc() {
     // tz_local=false reads the UTC frame (not device-local).
-    let ts = Utc.with_ymd_and_hms(2021, 3, 14, 9, 0, 0).unwrap().timestamp();
+    let ts = Utc
+        .with_ymd_and_hms(2021, 3, 14, 9, 0, 0)
+        .unwrap()
+        .timestamp();
     let adds = vec![loc_extra(1, serde_json::json!({"t": ts}))];
     let (dead, patches) = (HashSet::new(), HashMap::new());
     let view = partition_view(&adds, &dead, &patches);
-    let day = partition(&view, "t", &KeySpec::DatePart { part: DatePart::Day, tz_local: false }, None);
+    let day = partition(
+        &view,
+        "t",
+        &KeySpec::DatePart {
+            part: DatePart::Day,
+            tz_local: false,
+        },
+        None,
+    );
     assert_eq!(day[0].key, "2021-03-14");
-    let hour = partition(&view, "t", &KeySpec::DatePart { part: DatePart::HourOfDay, tz_local: false }, None);
+    let hour = partition(
+        &view,
+        "t",
+        &KeySpec::DatePart {
+            part: DatePart::HourOfDay,
+            tz_local: false,
+        },
+        None,
+    );
     assert_eq!(hour[0].key, "09:00");
 }
 
@@ -1327,10 +1853,26 @@ fn partition_month_field_year_and_month_of_year() {
     ];
     let (dead, patches) = (HashSet::new(), HashMap::new());
     let view = partition_view(&adds, &dead, &patches);
-    let y = partition(&view, "m", &KeySpec::DatePart { part: DatePart::Year, tz_local: false }, None);
+    let y = partition(
+        &view,
+        "m",
+        &KeySpec::DatePart {
+            part: DatePart::Year,
+            tz_local: false,
+        },
+        None,
+    );
     assert_eq!(y[0].key, "2019");
     assert_eq!(y[0].ids, vec![1, 2]);
-    let mo = partition(&view, "m", &KeySpec::DatePart { part: DatePart::MonthOfYear, tz_local: false }, None);
+    let mo = partition(
+        &view,
+        "m",
+        &KeySpec::DatePart {
+            part: DatePart::MonthOfYear,
+            tz_local: false,
+        },
+        None,
+    );
     assert_eq!(mo[0].key, "July");
 }
 
@@ -1343,7 +1885,13 @@ fn partition_respects_scope() {
     ];
     let (dead, patches) = (HashSet::new(), HashMap::new());
     let view = partition_view(&adds, &dead, &patches);
-    let scope = resolve_set(&view, &SelectionProps::Locations { locations: vec![1, 2], name: None });
+    let scope = resolve_set(
+        &view,
+        &SelectionProps::Locations {
+            locations: vec![1, 2],
+            name: None,
+        },
+    );
     let groups = partition(&view, "c", &KeySpec::Value, Some(&scope));
     assert_eq!(groups.iter().find(|g| g.key == "FR").unwrap().ids, vec![1]);
     assert_eq!(groups.iter().find(|g| g.key == "DE").unwrap().ids, vec![2]);

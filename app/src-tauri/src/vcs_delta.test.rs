@@ -72,7 +72,10 @@ fn replay_reconstructs_state() {
 #[test]
 fn replay_yields_strictly_sorted_ids() {
     // Out-of-order ids must come back ascending (the base-batch bake invariant).
-    let deltas = vec![(vec![loc(3, 1.0, 1.0), loc(1, 2.0, 2.0), loc(2, 3.0, 3.0)], vec![])];
+    let deltas = vec![(
+        vec![loc(3, 1.0, 1.0), loc(1, 2.0, 2.0), loc(2, 3.0, 3.0)],
+        vec![],
+    )];
     let locs: Vec<Location> = replay_deltas(&deltas).into_values().collect();
     let ids: Vec<u32> = locs.iter().map(|l| l.id).collect();
     assert_eq!(ids, vec![1, 2, 3]);
@@ -118,7 +121,10 @@ fn deltas_round_trip_through_disk_and_replay() {
     let mut one_v2 = loc(1, 10.0, 20.0);
     one_v2.heading = 45.0;
     let commits: Vec<(Vec<Location>, Vec<Location>)> = vec![
-        (vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0), loc(3, 50.0, 60.0)], vec![]),
+        (
+            vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0), loc(3, 50.0, 60.0)],
+            vec![],
+        ),
         (vec![one_v2], vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0)]),
         (vec![loc(4, 70.0, 80.0)], vec![]),
     ];

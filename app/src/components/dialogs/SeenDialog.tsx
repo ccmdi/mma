@@ -148,7 +148,10 @@ export function SeenDialog({
 		<Dialog open={open && ready} onOpenChange={onOpenChange}>
 			<DialogContent title={`Seen (${total})`} className="seen-dialog">
 				<div className="seen-dialog__filters">
-					<Select.Root value={filterCountry || "_all"} onValueChange={(v) => setFilterCountry(v === "_all" ? "" : v)}>
+					<Select.Root
+						value={filterCountry || "_all"}
+						onValueChange={(v) => setFilterCountry(v === "_all" ? "" : v)}
+					>
 						<Select.Trigger className="select__input seen-dialog__select">
 							<Select.Value placeholder="All countries" />
 						</Select.Trigger>
@@ -167,7 +170,10 @@ export function SeenDialog({
 							</Select.Content>
 						</Select.Portal>
 					</Select.Root>
-					<Select.Root value={filterMap || "_all"} onValueChange={(v) => setFilterMap(v === "_all" ? "" : v)}>
+					<Select.Root
+						value={filterMap || "_all"}
+						onValueChange={(v) => setFilterMap(v === "_all" ? "" : v)}
+					>
 						<Select.Trigger className="select__input seen-dialog__select">
 							<Select.Value placeholder="All maps" />
 						</Select.Trigger>

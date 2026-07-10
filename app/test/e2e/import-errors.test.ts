@@ -83,7 +83,9 @@ describe("Malformed JSON import", () => {
 				const json = JSON.stringify(["foo", "bar", "baz"]);
 				const path = await api.cmd.writeTempFile("strings.json", json);
 				await api.cmd.storeImportPreview(path);
-			} catch (_e: any) { /* expected */ }
+			} catch (_e: any) {
+				/* expected */
+			}
 		});
 	});
 
@@ -136,7 +138,11 @@ describe("Paste import edge cases", () => {
 
 	it("empty string paste does not crash", async () => {
 		await withApi(async (api) => {
-			try { await api._test.importPaste(""); } catch (_e: any) { /* expected */ }
+			try {
+				await api._test.importPaste("");
+			} catch (_e: any) {
+				/* expected */
+			}
 		});
 		const count = await getLocCount();
 		expect(count).toBe(0);
@@ -144,7 +150,11 @@ describe("Paste import edge cases", () => {
 
 	it("paste of random text does not add locations", async () => {
 		await withApi(async (api) => {
-			try { await api._test.importPaste("hello world this is not coordinates"); } catch (_e: any) { /* expected */ }
+			try {
+				await api._test.importPaste("hello world this is not coordinates");
+			} catch (_e: any) {
+				/* expected */
+			}
 		});
 		const count = await getLocCount();
 		expect(count).toBe(0);
@@ -166,7 +176,11 @@ describe("Paste import edge cases", () => {
 	it("paste with mixed valid and invalid lines imports valid ones", async () => {
 		const countBefore = await getLocCount();
 		await withApi(async (api) => {
-			try { await api._test.importPaste("40.7128, -74.0060\nnot a coord\n35.6762, 139.6503"); } catch (_e: any) { /* partial import may throw */ }
+			try {
+				await api._test.importPaste("40.7128, -74.0060\nnot a coord\n35.6762, 139.6503");
+			} catch (_e: any) {
+				/* partial import may throw */
+			}
 		});
 		const countAfter = await getLocCount();
 		// Should have added at least the valid coordinates
@@ -211,7 +225,9 @@ describe("CSV import edge cases", () => {
 				const csv = "lng,lat,heading\n-0.1278,51.5074,0\n";
 				const path = await api.cmd.writeTempFile("swapped.csv", csv);
 				await api.cmd.storeImportPreview(path);
-			} catch (_e: any) { /* expected */ }
+			} catch (_e: any) {
+				/* expected */
+			}
 		});
 	});
 
@@ -220,7 +236,9 @@ describe("CSV import edge cases", () => {
 			try {
 				const path = await api.cmd.writeTempFile("empty.csv", "");
 				await api.cmd.storeImportPreview(path);
-			} catch (_e: any) { /* expected */ }
+			} catch (_e: any) {
+				/* expected */
+			}
 		});
 	});
 });

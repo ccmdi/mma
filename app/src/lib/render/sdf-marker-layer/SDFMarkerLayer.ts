@@ -44,9 +44,10 @@ const defaultProps: DefaultProps<SDFMarkerLayerProps> = {
 	getRadius: { type: "accessor", value: 1 },
 };
 
-export default class SDFMarkerLayer<DataT = unknown, ExtraPropsT extends Record<string, unknown> = Record<string, unknown>> extends Layer<
-	ExtraPropsT & Required<_SDFMarkerLayerProps<DataT>>
-> {
+export default class SDFMarkerLayer<
+	DataT = unknown,
+	ExtraPropsT extends Record<string, unknown> = Record<string, unknown>,
+> extends Layer<ExtraPropsT & Required<_SDFMarkerLayerProps<DataT>>> {
 	static defaultProps = defaultProps;
 	static layerName = "SDFMarkerLayer";
 

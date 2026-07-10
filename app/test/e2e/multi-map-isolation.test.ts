@@ -1,4 +1,3 @@
- 
 /**
  * Multi-map state isolation: verify that selections, undo/redo, dirty state,
  * settings, and tag operations in one map never bleed into another.

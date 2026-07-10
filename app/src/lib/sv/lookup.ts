@@ -81,7 +81,7 @@ export async function resolvePano(loc: Location): Promise<ResolvedPano> {
 }
 
 interface ResolvePanoResult {
-	resolved: RequireNonNull<Pick<Location, 'id' | 'panoId'>>[];
+	resolved: RequireNonNull<Pick<Location, "id" | "panoId">>[];
 	failed: number[];
 }
 
@@ -212,7 +212,7 @@ export function isUnofficial(p: google.maps.StreetViewResolvedPanoramaData | nul
 /** Find nearest pano via photometa tile dots (bypasses StreetViewService for coverage discovery). */
 export async function photometaSnap(
 	click: LatLng,
-	radius: number
+	radius: number,
 ): Promise<google.maps.StreetViewResolvedPanoramaData | null> {
 	try {
 		const wc = latLngToWorldCoord(click.lat, click.lng);
@@ -396,13 +396,15 @@ export async function followLinkedPanos(
 		if (!nextData) break;
 
 		const pos = nextData.location.latLng;
-		results.push(createLocation({
-			lat: pos.lat(),
-			lng: pos.lng(),
-			heading: best.heading,
-			panoId: best.pano,
-			flags: LocationFlag.LoadAsPanoId,
-		}));
+		results.push(
+			createLocation({
+				lat: pos.lat(),
+				lng: pos.lng(),
+				heading: best.heading,
+				panoId: best.pano,
+				flags: LocationFlag.LoadAsPanoId,
+			}),
+		);
 
 		currentPanoId = best.pano;
 		currentHeading = best.heading;
@@ -456,7 +458,12 @@ export function panoTileLayout(
 	};
 }
 
-async function fetchPanoTile(panoId: string, x: number, y: number, z: number): Promise<ImageBitmap | null> {
+async function fetchPanoTile(
+	panoId: string,
+	x: number,
+	y: number,
+	z: number,
+): Promise<ImageBitmap | null> {
 	const url = `https://geo0.ggpht.com/cbk?cb_client=apiv3&panoid=${panoId}&output=tile&zoom=${z}&x=${x}&y=${y}`;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		try {
@@ -474,10 +481,14 @@ async function fetchPanoTile(panoId: string, x: number, y: number, z: number): P
 export async function downloadPano(panoId: string, zoom = 5): Promise<void> {
 	try {
 		const [meta] = await fetchSvMetadata([panoId]);
-		const { zoom: z, cols, rows, width, height, tile } = panoTileLayout(
-			zoom,
-			meta?.tiles?.worldSize,
-		);
+		const {
+			zoom: z,
+			cols,
+			rows,
+			width,
+			height,
+			tile,
+		} = panoTileLayout(zoom, meta?.tiles?.worldSize);
 
 		const canvas = document.createElement("canvas");
 		canvas.width = width;
@@ -502,9 +513,7 @@ export async function downloadPano(panoId: string, zoom = 5): Promise<void> {
 		await Promise.all(loads);
 		if (loaded === 0) throw new Error("no tiles loaded");
 
-		const blob = await new Promise<Blob | null>((res) =>
-			canvas.toBlob(res, "image/jpeg", 0.95),
-		);
+		const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.95));
 		if (!blob) throw new Error("encode failed");
 
 		const a = document.createElement("a");

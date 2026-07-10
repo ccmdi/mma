@@ -1,7 +1,9 @@
 use super::*;
 
 fn have_vali_data() -> bool {
-    vali_data::paths::data_root().map(|r| r.join("RU").join("RU+RU-AL.bin").exists()).unwrap_or(false)
+    vali_data::paths::data_root()
+        .map(|r| r.join("RU").join("RU+RU-AL.bin").exists())
+        .unwrap_or(false)
 }
 
 // Runs the full definition -> prepare -> generate -> ValiLocation path against real
@@ -28,8 +30,18 @@ fn vali_generate_produces_locations() {
     assert!(locations.iter().all(|l| (-90.0..=90.0).contains(&l.lat)));
 
     let events = events.into_inner().unwrap();
-    assert!(matches!(events.first(), Some(ProgressEvent::WorkItems { total: 1 })));
-    assert!(events.iter().any(|e| matches!(e, ProgressEvent::WorkItemDone { done: 1, total: 1, .. })));
+    assert!(matches!(
+        events.first(),
+        Some(ProgressEvent::WorkItems { total: 1 })
+    ));
+    assert!(events.iter().any(|e| matches!(
+        e,
+        ProgressEvent::WorkItemDone {
+            done: 1,
+            total: 1,
+            ..
+        }
+    )));
 }
 
 #[test]

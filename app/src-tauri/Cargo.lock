@@ -3002,6 +3002,7 @@ dependencies = [
  "chrono",
  "chrono-tz",
  "csv",
+ "fastrand",
  "json5",
  "log",
  "memchr",
@@ -3037,6 +3038,7 @@ dependencies = [
  "vali-core",
  "vali-data",
  "vali-generate",
+ "vali-geo",
  "zip 2.4.2",
 ]
 

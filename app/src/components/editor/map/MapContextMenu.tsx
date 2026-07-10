@@ -8,15 +8,18 @@ import {
 	setLatLngAnchor,
 	getContextMenuTarget,
 } from "@/lib/sv/measure";
+import { hostInstance, type MapHost } from "@/lib/map/host";
 
 interface MapContextMenuProps {
-	mapRef: React.RefObject<google.maps.Map | null>;
+	host: MapHost | null;
 }
 
 export const MapContextMenuContent = forwardRef<HTMLDivElement, MapContextMenuProps>(
-	({ mapRef }, ref) => {
+	({ host }, ref) => {
 		const { isMeasuring } = useMeasureState();
 		const anchor = useLatLngAnchor();
+		// The measure tool is Google-only (measuretool-googlemaps-v3).
+		const gMap = hostInstance(host, "google");
 
 		return (
 			<ContextMenu.Content className="context-menu" ref={ref}>
@@ -25,16 +28,16 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement, MapContextMenuPr
 						End measurement
 					</ContextMenu.Item>
 				) : (
-					<ContextMenu.Item
-						className="context-menu__item"
-						onSelect={() => {
-							const map = mapRef.current;
-							if (!map) return;
-							startMeasure(map, getContextMenuTarget().latLng);
-						}}
-					>
-						Start measurement
-					</ContextMenu.Item>
+					gMap && (
+						<ContextMenu.Item
+							className="context-menu__item"
+							onSelect={() => {
+								startMeasure(gMap, getContextMenuTarget().latLng);
+							}}
+						>
+							Start measurement
+						</ContextMenu.Item>
+					)
 				)}
 				<ContextMenu.Item
 					className="context-menu__item"

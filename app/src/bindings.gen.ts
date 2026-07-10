@@ -23,6 +23,8 @@ export const commands = {
 	setDataLocation: (path: string | null) => typedError<null, string>(__TAURI_INVOKE("set_data_location", { path })),
 	/**  Open the app data directory in the OS file explorer. */
 	openDataFolder: () => typedError<null, string>(__TAURI_INVOKE("open_data_folder")),
+	/**  Open the current log file in the OS default handler. */
+	openLogFile: () => typedError<null, string>(__TAURI_INVOKE("open_log_file")),
 	/**  Scan the `plugins/` directory under app data and return manifests for all installed plugins. */
 	listUserPlugins: () => __TAURI_INVOKE<PluginManifest[]>("list_user_plugins"),
 	/**
@@ -231,6 +233,12 @@ export const commands = {
 	storeSyncSelections: (sels: SelectionInput[]) => typedError<SelectionSync, string>(__TAURI_INVOKE("store_sync_selections", { sels })),
 	/**  Return the union of all currently selected location IDs. */
 	storeGetSelectedIdsList: () => typedError<number[], string>(__TAURI_INVOKE("store_get_selected_ids_list")),
+	/**
+	 *  Pick an evenly spaced subset of the current selection. Exactly one of `target_count`
+	 *  (thin to N, maximizing spacing) or `min_distance_m` (keep as many as fit at that spacing)
+	 *  must be provided.
+	 */
+	storePickSpaced: (targetCount: number | null, minDistanceM: number | null) => typedError<SpacedPickResult, string>(__TAURI_INVOKE("store_pick_spaced", { targetCount, minDistanceM })),
 	/**
 	 *  Resolve a single selection to its matching location IDs without persisting it.
 	 *  Used by plugins and one-off queries (e.g., tag merge, export filtered).
@@ -1112,6 +1120,11 @@ export type SelectionSync = {
 	selectedCount: number,
 };
 
+export type SpacedPickResult = {
+	ids: number[],
+	distanceM: number,
+};
+
 /**
  *  Metadata snapshot returned to JS after every mutation. JS uses `version` to
  *  detect stale responses and `canUndo`/`canRedo` for toolbar button state.
@@ -1124,7 +1137,11 @@ export type StoreStatus = {
 	locationCount: number,
 	canUndo: boolean,
 	canRedo: boolean,
-	tagCounts: { [key in number]: number },
+	/**
+	 *  `None` when the mutation did not change any tag count (`finish_mutation`
+	 *  strips it), so JS keeps its reference and consumers skip re-rendering.
+	 */
+	tagCounts: { [key in number]: number } | null,
 	knownFieldKeys: string[],
 };
 

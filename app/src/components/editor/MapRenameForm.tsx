@@ -8,11 +8,7 @@ function DeleteMapSection({ mapId, name }: { mapId: string; name: string }) {
 	if (!confirming) {
 		return (
 			<div className="edit-map-modal__delete">
-				<button
-					type="button"
-					className="button button--danger"
-					onClick={() => setConfirming(true)}
-				>
+				<button type="button" className="button button--danger" onClick={() => setConfirming(true)}>
 					Delete map
 				</button>
 			</div>

@@ -38,7 +38,9 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 		setMerging(true);
 		try {
 			await mergeDuplicates(distance);
-			toast(`Merged ${fmt.format(preview?.mergedAway ?? 0)} duplicates into ${fmt.format(preview?.groups ?? 0)} locations`);
+			toast(
+				`Merged ${fmt.format(preview?.mergedAway ?? 0)} duplicates into ${fmt.format(preview?.groups ?? 0)} locations`,
+			);
 			onOpenChange(false);
 		} catch (e) {
 			log.error("[merge] failed:", e);
@@ -58,17 +60,15 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 					</div>
 				)}
 				{nothing && (
-					<p className="merge-duplicates__status">
-						No duplicate groups within {distance}m.
-					</p>
+					<p className="merge-duplicates__status">No duplicate groups within {distance}m.</p>
 				)}
 				{!loading && preview != null && preview.groups > 0 && (
 					<>
 						<p className="merge-duplicates__status">
-							{fmt.format(preview.groups)} group{preview.groups !== 1 ? "s" : ""} within {distance}m.
-							Merging removes {fmt.format(preview.mergedAway)} location
-							{preview.mergedAway !== 1 ? "s" : ""}, keeping one survivor each (tags
-							combined). Largest group: {fmt.format(preview.largest)}.
+							{fmt.format(preview.groups)} group{preview.groups !== 1 ? "s" : ""} within {distance}
+							m. Merging removes {fmt.format(preview.mergedAway)} location
+							{preview.mergedAway !== 1 ? "s" : ""}, keeping one survivor each (tags combined).
+							Largest group: {fmt.format(preview.largest)}.
 						</p>
 						<div className="merge-duplicates__actions">
 							<button className="button" type="button" onClick={() => onOpenChange(false)}>

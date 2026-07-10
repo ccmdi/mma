@@ -126,7 +126,11 @@ describe("projectionsForType", () => {
 		expect(projectionsForType("number").map((p) => p.id)).toEqual(["value"]);
 		expect(projectionsForType("month").map((p) => p.id)).toEqual(["value", "year", "monthOfYear"]);
 		expect(projectionsForType("date").map((p) => p.id)).toEqual([
-			"year", "yearMonth", "day", "monthOfYear", "hourOfDay",
+			"year",
+			"yearMonth",
+			"day",
+			"monthOfYear",
+			"hourOfDay",
 		]);
 	});
 });
@@ -237,7 +241,9 @@ describe("field expressions", () => {
 	it("planFieldExpr writes extra fields with merge semantics", () => {
 		const loc = makeLoc(1, { sunAzimuth: 90, keep: "x" });
 		const { updates } = planFieldExpr([loc], "sunHalf", parseFieldExpr("sunAzimuth / 2"));
-		expect(updates).toEqual([{ id: 1, patch: { extra: { sunAzimuth: 90, keep: "x", sunHalf: 45 } } }]);
+		expect(updates).toEqual([
+			{ id: 1, patch: { extra: { sunAzimuth: 90, keep: "x", sunHalf: 45 } } },
+		]);
 	});
 });
 

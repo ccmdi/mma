@@ -58,9 +58,7 @@ describe("Map metadata persistence", () => {
 		await closeMap();
 		await openMap(mapId);
 
-		const settings = await withApi(
-			async (api) => api.getCurrentMap()!.meta.settings,
-		);
+		const settings = await withApi(async (api) => api.getCurrentMap()!.meta.settings);
 		expect(settings.pointAlongRoad).toBe(true);
 		expect(settings.preferDirection).toBe("north");
 		expect(settings.preferOfficial).toBe(true);
@@ -78,9 +76,7 @@ describe("Map metadata persistence", () => {
 		await closeMap();
 		await openMap(mapId);
 
-		const bounds = await withApi(
-			async (api) => api.getCurrentMap()!.meta.scoreBounds,
-		);
+		const bounds = await withApi(async (api) => api.getCurrentMap()!.meta.scoreBounds);
 		expect(bounds).toEqual([-60, 70, -170, 170]);
 	});
 });
@@ -157,9 +153,7 @@ describe("Map listing and sorting", () => {
 
 	it("each map has correct name", async () => {
 		const maps = await withApi(async (api) => api.cmd.storeListMaps());
-		const names = mapIds.map(
-			(id) => maps.find((m: any) => m.id === id)!.name,
-		);
+		const names = mapIds.map((id) => maps.find((m: any) => m.id === id)!.name);
 		expect(names).toContain("Map Alpha");
 		expect(names).toContain("Map Beta");
 		expect(names).toContain("Map Gamma");

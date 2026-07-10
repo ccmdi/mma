@@ -1,5 +1,27 @@
 /* Full-screen mdBook-style manual */
 
+@keyframes manual-show {
+	from {
+		opacity: 0;
+		transform: translateY(1.5vh) scale(0.985);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+@keyframes manual-sidebar-in {
+	from {
+		opacity: 0;
+		transform: translateX(-14px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
 .manual {
 	position: fixed;
 	inset: 0;
@@ -12,6 +34,14 @@
 	font-family:
 		Open Sans,
 		sans-serif;
+	animation: 0.2s cubic-bezier(0.16, 1, 0.3, 1) manual-show;
+}
+
+@media (prefers-reduced-motion) {
+	.manual,
+	.manual__sidebar {
+		animation: none;
+	}
 }
 
 /* --- Sidebar / table of contents --- */
@@ -23,6 +53,7 @@
 	border-right: 1px solid rgba(255, 255, 255, 0.08);
 	overflow-y: auto;
 	scrollbar-width: none; /* Firefox */
+	animation: 0.3s cubic-bezier(0.16, 1, 0.3, 1) manual-sidebar-in;
 }
 
 .manual__sidebar::-webkit-scrollbar {

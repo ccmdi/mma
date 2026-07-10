@@ -1,5 +1,13 @@
 import { log } from "@/lib/util/log";
-import type { Location, Update, LocationPatch_Deserialize, MapData, Selection, Tag, TagPatch } from "@/bindings.gen";
+import type {
+	Location,
+	Update,
+	LocationPatch_Deserialize,
+	MapData,
+	Selection,
+	Tag,
+	TagPatch,
+} from "@/bindings.gen";
 
 /** Phantom helper: captures a payload type at the value level without a real value. */
 const event = <T>() => null as T;

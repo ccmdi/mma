@@ -14,7 +14,7 @@ import type { Scope, Location } from "@/bindings.gen";
 import { cmd as commands } from "@/lib/commands";
 import { goToMap, goToList } from "@/store/router";
 import { createLocation } from "@/types";
-import { registerPlugin, createPluginStorage } from "@/plugins/registry";
+import { registerPlugin, createPluginStorage, usePluginState } from "@/plugins/registry";
 import { trackDisposable } from "@/plugins/scope";
 import {
 	Sidebar,
@@ -191,6 +191,7 @@ const mma = {
 
 	// --- Namespaced per-plugin storage ---
 	storage: createPluginStorage,
+	usePluginState,
 
 	// --- Field definitions ---
 	getFieldDef,

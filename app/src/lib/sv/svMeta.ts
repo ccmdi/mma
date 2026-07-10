@@ -141,7 +141,9 @@ function buildGetMetadataRequest(panoIds: string[]): GetMetadataRequest {
 	};
 }
 
-export function parseResult(m: ImageMetadata | undefined): google.maps.StreetViewResolvedPanoramaData | null {
+export function parseResult(
+	m: ImageMetadata | undefined,
+): google.maps.StreetViewResolvedPanoramaData | null {
 	if (!m || m.status?.code !== 1) return null;
 
 	const info = m.information[0];

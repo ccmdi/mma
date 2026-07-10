@@ -46,7 +46,9 @@ export function ScoreBoundsEditor() {
 	const setMode = (next: Mode) => {
 		if (next === "auto") void updateMapMeta({ scoreBounds: "auto" });
 		else if (next === "world")
-			void updateMapMeta({ scoreBounds: boundsToScoreTuple(google.maps.LatLngBounds.MAX_BOUNDS.toJSON()) });
+			void updateMapMeta({
+				scoreBounds: boundsToScoreTuple(google.maps.LatLngBounds.MAX_BOUNDS.toJSON()),
+			});
 		else void updateMapMeta({ scoreBounds: boundsToScoreTuple(lastFixedRef.current) });
 	};
 

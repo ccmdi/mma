@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useImportStaging, confirmImport, cancelImport, getVisibleTags } from "@/store/useMapStore";
+import { useImportStaging, confirmImport, cancelImport, useVisibleTags } from "@/store/useMapStore";
 import { fmt } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
@@ -35,6 +35,7 @@ function previewColor(name: string): string {
 /** Import staging sidebar: field picker, file tags, bulk tag, and warnings. */
 export function ImportSidebar() {
 	const staging = useImportStaging();
+	const visibleTags = useVisibleTags();
 	const [droppedFields, setDroppedFields] = useState(loadDroppedFields);
 	const [bulkTag, setBulkTag] = useState<string | null>(null);
 	const [tagInput, setTagInput] = useState("");
@@ -97,7 +98,7 @@ export function ImportSidebar() {
 
 	// Reuse an existing tag's color if the name matches; else a placeholder.
 	const existing = bulkTag
-		? getVisibleTags().find((t) => t.name.toLowerCase() === bulkTag.toLowerCase())
+		? visibleTags.find((t) => t.name.toLowerCase() === bulkTag.toLowerCase())
 		: undefined;
 	const bulkColor = existing?.color ?? (bulkTag ? previewColor(bulkTag) : "");
 

@@ -5,13 +5,13 @@
 //! and deleting maps, plus the auto-registration logic that discovers new
 //! `Location.extra` fields and persists their type definitions.
 
-use crate::types::AppResult;
-use std::collections::HashMap;
-use rusqlite::params;
-use crate::storage;
 use crate::location_store::StoreState;
+use crate::storage;
+use crate::types::AppResult;
 use crate::types::Tag;
 use crate::util::now_iso;
+use rusqlite::params;
+use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
 // Typed sub-structs for MapMeta
@@ -200,17 +200,37 @@ pub fn known_field_def(key: &str) -> Option<ExtraFieldDef> {
         "cameraType" => Some(ExtraFieldDef {
             field_type: ExtraFieldType::Enum,
             label: Some("Camera type".into()),
-            values: Some(vec!["gen1".into(), "gen2".into(), "gen4".into(), "badcam".into(), "tripod".into()]),
-            labels: Some([("gen1", "Gen 1"), ("gen2", "Gen 2/3"), ("gen4", "Gen 4"), ("badcam", "Bad cam"), ("tripod", "Tripod")]
-                .into_iter().map(|(k, v)| (k.into(), v.into())).collect()),
+            values: Some(vec![
+                "gen1".into(),
+                "gen2".into(),
+                "gen4".into(),
+                "badcam".into(),
+                "tripod".into(),
+            ]),
+            labels: Some(
+                [
+                    ("gen1", "Gen 1"),
+                    ("gen2", "Gen 2/3"),
+                    ("gen4", "Gen 4"),
+                    ("badcam", "Bad cam"),
+                    ("tripod", "Tripod"),
+                ]
+                .into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
+            ),
             comparison: None,
         }),
         "panoType" => Some(ExtraFieldDef {
             field_type: ExtraFieldType::Enum,
             label: Some("Pano type".into()),
             values: Some(vec!["2".into(), "3".into(), "10".into()]),
-            labels: Some([("2", "Official"), ("3", "Unknown"), ("10", "User uploaded")]
-                .into_iter().map(|(k, v)| (k.into(), v.into())).collect()),
+            labels: Some(
+                [("2", "Official"), ("3", "Unknown"), ("10", "User uploaded")]
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
+            ),
             comparison: None,
         }),
         "imageDate" => Some(ExtraFieldDef {
@@ -270,7 +290,8 @@ pub fn infer_field_type(value: &serde_json::Value) -> ExtraFieldType {
     }
     if let Some(s) = value.as_str() {
         let b = s.as_bytes();
-        if b.len() == 7 && b[4] == b'-'
+        if b.len() == 7
+            && b[4] == b'-'
             && b[..4].iter().all(|c| c.is_ascii_digit())
             && b[5..].iter().all(|c| c.is_ascii_digit())
         {
@@ -296,7 +317,8 @@ pub fn auto_register_field_defs(
                 return;
             }
             let def = known_field_def(key).unwrap_or_else(|| {
-                let value: serde_json::Value = serde_json::from_str(raw_value).unwrap_or(serde_json::Value::Null);
+                let value: serde_json::Value =
+                    serde_json::from_str(raw_value).unwrap_or(serde_json::Value::Null);
                 ExtraFieldDef {
                     field_type: infer_field_type(&value),
                     label: None,
@@ -308,7 +330,11 @@ pub fn auto_register_field_defs(
             new_defs.insert(key.to_owned(), def);
         });
     }
-    if new_defs.is_empty() { None } else { Some(new_defs) }
+    if new_defs.is_empty() {
+        None
+    } else {
+        Some(new_defs)
+    }
 }
 
 /// Persist new field defs — skips keys that already exist. Used for auto-registration.
@@ -383,7 +409,9 @@ pub struct MapMetaPatch {
 }
 
 fn deserialize_double_option<'de, D>(de: D) -> Result<Option<Option<String>>, D::Error>
-where D: serde::Deserializer<'de> {
+where
+    D: serde::Deserializer<'de>,
+{
     Ok(Some(serde::Deserialize::deserialize(de)?))
 }
 
@@ -422,10 +450,8 @@ fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> 
 #[specta::specta]
 pub fn store_list_maps() -> AppResult<Vec<MapMeta>> {
     let conn = storage::open_db()?;
-    let mut stmt = conn
-        .prepare("SELECT * FROM maps")?;
-    let rows = stmt
-        .query_map([], |row| row_to_map_meta(row))?;
+    let mut stmt = conn.prepare("SELECT * FROM maps")?;
+    let rows = stmt.query_map([], |row| row_to_map_meta(row))?;
     let mut maps = Vec::new();
     for row in rows {
         maps.push(row?);
@@ -452,10 +478,7 @@ pub fn store_get_map(id: String) -> AppResult<Option<MapData>> {
 /// (including the generated UUID) so the frontend can navigate to it immediately.
 #[tauri::command]
 #[specta::specta]
-pub fn store_create_map(
-    name: String,
-    folder: Option<String>,
-) -> AppResult<MapData> {
+pub fn store_create_map(name: String, folder: Option<String>) -> AppResult<MapData> {
     let conn = storage::open_db()?;
     let id = uuid::Uuid::new_v4().to_string();
     let now = now_iso();
@@ -464,10 +487,9 @@ pub fn store_create_map(
         params![id, name, folder, default_settings_json(), now, now],
     )?;
 
-    let meta = conn
-        .query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
-            row_to_map_meta(row)
-        })?;
+    let meta = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
+        row_to_map_meta(row)
+    })?;
     Ok(MapData { meta })
 }
 
@@ -561,15 +583,14 @@ pub fn store_update_map_meta(
     let id_clone = id.clone();
     values.push(Box::new(id));
 
-    let sql = format!(
-        "UPDATE maps SET {} WHERE id = ?",
-        sets.join(", ")
-    );
+    let sql = format!("UPDATE maps SET {} WHERE id = ?", sets.join(", "));
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|b| b.as_ref()).collect();
     let conn = storage::open_db()?;
     let old_extra = if patch.extra.is_some() {
         let s: String = conn
-            .query_row("SELECT extra FROM maps WHERE id = ?", [&id_clone], |r| r.get(0))
+            .query_row("SELECT extra FROM maps WHERE id = ?", [&id_clone], |r| {
+                r.get(0)
+            })
             .unwrap_or_default();
         serde_json::from_str::<MapExtra>(&s).ok()
     } else {
@@ -595,7 +616,6 @@ pub fn store_update_map_meta(
     }
     Ok(())
 }
-
 
 /// Update `last_opened_at` to the current timestamp. Used to sort the map
 /// list by recency in the dashboard.
@@ -668,15 +688,19 @@ pub fn store_db_table_info() -> AppResult<Vec<DbTableInfo>> {
     let mut stmt = conn.prepare(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_sqlx_%' AND name NOT LIKE '_mma_%' ORDER BY name"
     )?;
-    let names: Vec<String> = stmt.query_map([], |row| row.get(0))?
+    let names: Vec<String> = stmt
+        .query_map([], |row| row.get(0))?
         .filter_map(|r| r.ok())
         .collect();
     let mut results = Vec::new();
     for name in names {
-        let rows: i64 = conn.query_row(
-            &format!("SELECT COUNT(*) FROM \"{}\"", name.replace('"', "")),
-            [], |r| r.get(0),
-        ).unwrap_or(-1);
+        let rows: i64 = conn
+            .query_row(
+                &format!("SELECT COUNT(*) FROM \"{}\"", name.replace('"', "")),
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(-1);
         results.push(DbTableInfo { name, rows });
     }
     Ok(results)
@@ -700,25 +724,46 @@ pub fn store_db_clear_table(table: String) -> AppResult<i64> {
 #[specta::specta]
 pub fn store_db_stats() -> AppResult<DbStats> {
     let conn = storage::open_db()?;
-    let maps: i64 = conn.query_row("SELECT COUNT(*) FROM maps", [], |r| r.get(0)).unwrap_or(0);
-    let locations: i64 = conn.query_row("SELECT COALESCE(SUM(location_count), 0) FROM maps", [], |r| r.get(0)).unwrap_or(0);
+    let maps: i64 = conn
+        .query_row("SELECT COUNT(*) FROM maps", [], |r| r.get(0))
+        .unwrap_or(0);
+    let locations: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(location_count), 0) FROM maps",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(0);
     let tags: i64 = {
         let mut stmt = conn.prepare("SELECT tags FROM maps")?;
-        let rows: Vec<String> = stmt.query_map([], |r| r.get(0))?
+        let rows: Vec<String> = stmt
+            .query_map([], |r| r.get(0))?
             .filter_map(|r| r.ok())
             .collect();
-        rows.iter().map(|t| {
-            serde_json::from_str::<serde_json::Value>(t)
-                .ok()
-                .and_then(|v| v.as_object().map(|o| o.len() as i64))
-                .unwrap_or(0)
-        }).sum()
+        rows.iter()
+            .map(|t| {
+                serde_json::from_str::<serde_json::Value>(t)
+                    .ok()
+                    .and_then(|v| v.as_object().map(|o| o.len() as i64))
+                    .unwrap_or(0)
+            })
+            .sum()
     };
-    let commits: i64 = conn.query_row("SELECT COUNT(*) FROM commits", [], |r| r.get(0)).unwrap_or(0);
-    let page_count: i64 = conn.query_row("PRAGMA page_count", [], |r| r.get(0)).unwrap_or(0);
-    let page_size: i64 = conn.query_row("PRAGMA page_size", [], |r| r.get(0)).unwrap_or(4096);
-    let journal_mode: String = conn.query_row("PRAGMA journal_mode", [], |r| r.get(0)).unwrap_or_default();
-    let fk: i64 = conn.query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap_or(0);
+    let commits: i64 = conn
+        .query_row("SELECT COUNT(*) FROM commits", [], |r| r.get(0))
+        .unwrap_or(0);
+    let page_count: i64 = conn
+        .query_row("PRAGMA page_count", [], |r| r.get(0))
+        .unwrap_or(0);
+    let page_size: i64 = conn
+        .query_row("PRAGMA page_size", [], |r| r.get(0))
+        .unwrap_or(4096);
+    let journal_mode: String = conn
+        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+        .unwrap_or_default();
+    let fk: i64 = conn
+        .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+        .unwrap_or(0);
     Ok(DbStats {
         maps,
         locations,
@@ -795,27 +840,54 @@ mod tests {
 
     #[test]
     fn infer_number() {
-        assert!(matches!(infer_field_type(&serde_json::json!(42)), ExtraFieldType::Number));
-        assert!(matches!(infer_field_type(&serde_json::json!(3.14)), ExtraFieldType::Number));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!(42)),
+            ExtraFieldType::Number
+        ));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!(3.14)),
+            ExtraFieldType::Number
+        ));
     }
 
     #[test]
     fn infer_month() {
-        assert!(matches!(infer_field_type(&serde_json::json!("2023-05")), ExtraFieldType::Month));
-        assert!(matches!(infer_field_type(&serde_json::json!("1999-12")), ExtraFieldType::Month));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!("2023-05")),
+            ExtraFieldType::Month
+        ));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!("1999-12")),
+            ExtraFieldType::Month
+        ));
     }
 
     #[test]
     fn infer_not_month() {
-        assert!(matches!(infer_field_type(&serde_json::json!("2023-5")), ExtraFieldType::String));
-        assert!(matches!(infer_field_type(&serde_json::json!("hello")), ExtraFieldType::String));
-        assert!(matches!(infer_field_type(&serde_json::json!("2023-123")), ExtraFieldType::String));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!("2023-5")),
+            ExtraFieldType::String
+        ));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!("hello")),
+            ExtraFieldType::String
+        ));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!("2023-123")),
+            ExtraFieldType::String
+        ));
     }
 
     #[test]
     fn infer_string_fallback() {
-        assert!(matches!(infer_field_type(&serde_json::json!("hello")), ExtraFieldType::String));
-        assert!(matches!(infer_field_type(&serde_json::json!(true)), ExtraFieldType::String));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!("hello")),
+            ExtraFieldType::String
+        ));
+        assert!(matches!(
+            infer_field_type(&serde_json::json!(true)),
+            ExtraFieldType::String
+        ));
     }
 
     #[test]
@@ -834,10 +906,22 @@ mod tests {
 
     #[test]
     fn known_field_types() {
-        assert!(matches!(known_field_def("altitude").unwrap().field_type, ExtraFieldType::Number));
-        assert!(matches!(known_field_def("imageDate").unwrap().field_type, ExtraFieldType::Month));
-        assert!(matches!(known_field_def("datetime").unwrap().field_type, ExtraFieldType::Date));
-        assert!(matches!(known_field_def("cameraType").unwrap().field_type, ExtraFieldType::Enum));
+        assert!(matches!(
+            known_field_def("altitude").unwrap().field_type,
+            ExtraFieldType::Number
+        ));
+        assert!(matches!(
+            known_field_def("imageDate").unwrap().field_type,
+            ExtraFieldType::Month
+        ));
+        assert!(matches!(
+            known_field_def("datetime").unwrap().field_type,
+            ExtraFieldType::Date
+        ));
+        assert!(matches!(
+            known_field_def("cameraType").unwrap().field_type,
+            ExtraFieldType::Enum
+        ));
     }
 
     fn raw(json: &str) -> crate::types::RawExtra {
@@ -846,7 +930,10 @@ mod tests {
 
     #[test]
     fn auto_register_no_new_keys() {
-        let known: HashSet<String> = ["altitude", "countryCode"].iter().map(|s| s.to_string()).collect();
+        let known: HashSet<String> = ["altitude", "countryCode"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
         assert!(auto_register_field_defs(&known, &[&raw(r#"{"altitude": 100}"#)]).is_none());
     }
 
@@ -874,14 +961,21 @@ mod tests {
     fn auto_register_unknown_string() {
         let known: HashSet<String> = HashSet::new();
         let result = auto_register_field_defs(&known, &[&raw(r#"{"region": "EU"}"#)]).unwrap();
-        assert!(matches!(result["region"].field_type, ExtraFieldType::String));
+        assert!(matches!(
+            result["region"].field_type,
+            ExtraFieldType::String
+        ));
     }
 
     #[test]
     fn auto_register_unknown_month() {
         let known: HashSet<String> = HashSet::new();
-        let result = auto_register_field_defs(&known, &[&raw(r#"{"captured": "2024-03"}"#)]).unwrap();
-        assert!(matches!(result["captured"].field_type, ExtraFieldType::Month));
+        let result =
+            auto_register_field_defs(&known, &[&raw(r#"{"captured": "2024-03"}"#)]).unwrap();
+        assert!(matches!(
+            result["captured"].field_type,
+            ExtraFieldType::Month
+        ));
     }
 
     #[test]
@@ -894,14 +988,21 @@ mod tests {
         // countryCode is new but in known_field_def → gets label
         assert_eq!(result["countryCode"].label.as_deref(), Some("Country code"));
         // plumbus is unknown → inferred as Number, no label
-        assert!(matches!(result["plumbus"].field_type, ExtraFieldType::Number));
+        assert!(matches!(
+            result["plumbus"].field_type,
+            ExtraFieldType::Number
+        ));
         assert!(result["plumbus"].label.is_none());
     }
 
     #[test]
     fn auto_register_deduplicates_across_extras() {
         let known: HashSet<String> = HashSet::new();
-        let result = auto_register_field_defs(&known, &[&raw(r#"{"foo": 1}"#), &raw(r#"{"foo": 2, "bar": "x"}"#)]).unwrap();
+        let result = auto_register_field_defs(
+            &known,
+            &[&raw(r#"{"foo": 1}"#), &raw(r#"{"foo": 2, "bar": "x"}"#)],
+        )
+        .unwrap();
         assert_eq!(result.len(), 2);
         assert!(result.contains_key("foo"));
         assert!(result.contains_key("bar"));
@@ -915,7 +1016,11 @@ mod tests {
         let mut fields: Vec<(String, String)> = Vec::new();
         e.for_each_field(|k, v| fields.push((k.to_owned(), v.trim().to_owned())));
         let keys: Vec<&str> = fields.iter().map(|(k, _)| k.as_str()).collect();
-        assert_eq!(keys, vec!["a", "b", "c", "d", "e"], "nested keys must not be visited");
+        assert_eq!(
+            keys,
+            vec!["a", "b", "c", "d", "e"],
+            "nested keys must not be visited"
+        );
         assert_eq!(fields[0].1, "1");
         assert_eq!(fields[1].1, r#""x,y}z""#);
         assert_eq!(fields[2].1, r#"{"nested":true,"tags":[1]}"#);

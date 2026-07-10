@@ -1,8 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { isVirtualLocation, isImportPreview, isSeenPreview, LocationFlag, VIRTUAL_FLAGS } from "@/types";
+import {
+	isVirtualLocation,
+	isImportPreview,
+	isSeenPreview,
+	LocationFlag,
+	VIRTUAL_FLAGS,
+} from "@/types";
 import type { Location } from "@/bindings.gen";
 
-const withFlags = (flags: number) => ({ flags } as Location);
+const withFlags = (flags: number) => ({ flags }) as Location;
 
 // Virtual (preview) locations are identified by a negative id (so bare-id checks work), with
 // the kind carried in the flags bitfield. Real ids (>= 1) and the unassigned sentinel (0) are
@@ -20,7 +26,9 @@ describe("virtual location identity", () => {
 describe("virtual kind flags", () => {
 	it("reads the kind from flags, independent of other bits", () => {
 		expect(isImportPreview(withFlags(LocationFlag.ImportPreview))).toBe(true);
-		expect(isSeenPreview(withFlags(LocationFlag.SeenOverlay | LocationFlag.LoadAsPanoId))).toBe(true);
+		expect(isSeenPreview(withFlags(LocationFlag.SeenOverlay | LocationFlag.LoadAsPanoId))).toBe(
+			true,
+		);
 		expect(isImportPreview(withFlags(LocationFlag.SeenOverlay))).toBe(false);
 		expect(isSeenPreview(withFlags(LocationFlag.LoadAsPanoId))).toBe(false);
 	});

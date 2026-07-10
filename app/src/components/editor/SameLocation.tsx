@@ -27,18 +27,12 @@ function DuplicateItem({
 	onClick: () => void;
 	tagMap: Record<number, { name: string; color: string }>;
 }) {
-	const thumbSrc = location.panoId
-		? svThumbnailUrl(location.panoId, location.heading)
-		: null;
+	const thumbSrc = location.panoId ? svThumbnailUrl(location.panoId, location.heading) : null;
 
 	return (
 		<li className="duplicate-item">
 			<label className="duplicate-item__select">
-				<input
-					type="checkbox"
-					checked={selected}
-					onChange={(e) => onSelect(e.target.checked)}
-				/>
+				<input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} />
 			</label>
 			<button className="duplicate-item__thumbnail" onClick={onClick}>
 				{thumbSrc ? (
@@ -72,14 +66,9 @@ function DuplicateItem({
 					<em>No tags</em>
 				)}
 			</div>
-			<div className="duplicate-item__meta">
-				{Math.round(location.heading)}&deg;
-			</div>
+			<div className="duplicate-item__meta">{Math.round(location.heading)}&deg;</div>
 			<div className="duplicate-item__actions">
-				<button
-					className="button button--destructive"
-					onClick={onDelete}
-				>
+				<button className="button button--destructive" onClick={onDelete}>
 					Delete
 				</button>
 			</div>
@@ -97,9 +86,7 @@ export default function SameLocation() {
 	const sorted = useMemo(
 		() =>
 			[...locations].sort((a, b) =>
-				a.tags.length !== b.tags.length
-					? b.tags.length - a.tags.length
-					: a.createdAt - b.createdAt,
+				a.tags.length !== b.tags.length ? b.tags.length - a.tags.length : a.createdAt - b.createdAt,
 			),
 		[locations],
 	);
@@ -113,20 +100,21 @@ export default function SameLocation() {
 		});
 	}, []);
 
-	const deleteSingle = useCallback((loc: Location) => {
-		removeLocations(new Set([loc.id]));
-		removeDuplicate(loc.id);
-		const remaining = locations.filter((l) => l.id !== loc.id);
-		if (remaining.length <= 1) {
-			if (remaining.length === 1) openDuplicateLocation(remaining[0]);
-			else closeDuplicates();
-		}
-	}, [locations]);
+	const deleteSingle = useCallback(
+		(loc: Location) => {
+			removeLocations(new Set([loc.id]));
+			removeDuplicate(loc.id);
+			const remaining = locations.filter((l) => l.id !== loc.id);
+			if (remaining.length <= 1) {
+				if (remaining.length === 1) openDuplicateLocation(remaining[0]);
+				else closeDuplicates();
+			}
+		},
+		[locations],
+	);
 
 	const keepSelected = useCallback(() => {
-		const toDelete = new Set(
-			locations.filter((l) => !selected.has(l.id)).map((l) => l.id),
-		);
+		const toDelete = new Set(locations.filter((l) => !selected.has(l.id)).map((l) => l.id));
 		removeLocations(toDelete);
 		const remaining = locations.find((l) => selected.has(l.id));
 		if (remaining) openDuplicateLocation(remaining);
@@ -144,8 +132,8 @@ export default function SameLocation() {
 		<section className="duplicates">
 			<h2>{locations.length} locations</h2>
 			<p>
-				Multiple locations were selected around this coordinate. Click
-				one of the thumbnails below to view that location.
+				Multiple locations were selected around this coordinate. Click one of the thumbnails below
+				to view that location.
 			</p>
 			<ul className="duplicates__location-list">
 				{sorted.map((loc) => (

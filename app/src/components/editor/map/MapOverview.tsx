@@ -8,11 +8,12 @@ import {
 	addTagToLocations,
 	createTags,
 	selectDuplicates,
-	getVisibleTags,
-	getTagCounts,
+	useVisibleTags,
+	useTagCounts,
 	selectFilter,
 	selectTopK,
 	selectRandomFromSelection,
+	selectSpacedFromSelection,
 } from "@/store/useMapStore";
 import { toast } from "@/lib/util/toast";
 import { sortTagsByMode } from "@/lib/util/util";
@@ -69,8 +70,51 @@ function RandomPickPanel() {
 	);
 }
 
+function SpacedPickPanel() {
+	const [mode, setMode] = useState<"count" | "distance">("count");
+	const [value, setValue] = useState("");
+	const total = useSelectedLocationIds().size;
+	const parsed = Math.floor(Number(value));
+	const valid = value.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
+
+	const handleSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		if (!valid) return;
+		const opts = mode === "count" ? { count: Math.min(parsed, total) } : { minDistanceM: parsed };
+		selectSpacedFromSelection(opts)
+			.then(({ picked, distanceM }) => {
+				if (picked === 0) return;
+				const spacing = distanceM > 0 ? `, at least ${fmt.format(distanceM)}m apart` : "";
+				toast(`Selected ${fmt.format(picked)} location${picked !== 1 ? "s" : ""}${spacing}`);
+			})
+			.catch((err) => toast(String(err)));
+	};
+
+	return (
+		<form className="selection-manager__inline-form" onSubmit={handleSubmit}>
+			<NSelect value={mode} onChange={(e) => setMode(e.target.value as "count" | "distance")}>
+				<option value="count">Count</option>
+				<option value="distance">Min distance</option>
+			</NSelect>
+			<input
+				className="input"
+				type="number"
+				min={1}
+				style={{ width: "7rem" }}
+				placeholder={mode === "count" ? "Count" : "Meters"}
+				value={value}
+				onChange={(e) => setValue(e.target.value)}
+			/>
+			{mode === "count" && <span style={{ opacity: 0.6 }}>of {fmt.format(total)}</span>}
+			<button className="button" type="submit" disabled={!valid}>
+				Pick
+			</button>
+		</form>
+	);
+}
+
 function TopKPanel({
-	field,
+	field: fieldProp,
 	setField,
 	count,
 	setCount,
@@ -85,7 +129,7 @@ function TopKPanel({
 	setAscending: (v: boolean) => void;
 }) {
 	const fields = useExtraFieldKeys();
-	if (field === "" && fields.length > 0) setField(fields[0].key);
+	const field = fieldProp || fields[0]?.key || "";
 	return (
 		<form
 			className="selection-manager__inline-form"
@@ -128,6 +172,8 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 	const map = useCurrentMap();
 	const selected = useSelectedLocationIds();
 	const selections = useAllSelections();
+	const visibleTags = useVisibleTags();
+	const tagCounts = useTagCounts();
 	const [bulkTagInput, setBulkTagInput] = useState("");
 	const tagSortMode = useSetting("tagSortMode");
 	const [selectionsCollapsed, setSelectionsCollapsed] = useState(false);
@@ -168,7 +214,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 	};
 
 	const bulkSuggestions = (() => {
-		const all = sortTagsByMode(getVisibleTags(), tagSortMode, getTagCounts());
+		const all = sortTagsByMode(visibleTags, tagSortMode, tagCounts);
 		const q = bulkTagInput.trim().toLowerCase();
 		return (q ? all.filter((t) => t.name.toLowerCase().includes(q)) : all).slice(0, 15);
 	})();
@@ -245,6 +291,9 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 					panels={{
 						"select-random": {
 							render: () => <RandomPickPanel />,
+						},
+						"select-spaced": {
+							render: () => <SpacedPickPanel />,
 						},
 						"find-duplicates": {
 							render: () => (

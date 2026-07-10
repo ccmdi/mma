@@ -10,9 +10,7 @@ vi.mock("@/store/useMapStore", () => ({
 	patchLocationExtra: async () => {},
 }));
 vi.mock("@/lib/sv/svMeta", () => ({ fetchSvMetadata: async () => [] }));
-const resolveExactTimestampMock = vi.hoisted(() =>
-	vi.fn(async (): Promise<number | null> => null),
-);
+const resolveExactTimestampMock = vi.hoisted(() => vi.fn(async (): Promise<number | null> => null));
 vi.mock("@/lib/sv/exactDate", () => ({ resolveExactTimestamp: resolveExactTimestampMock }));
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => null }));
 vi.mock("@/lib/sv/lookup", () => ({ resolvePanoIds: async () => [] }));
@@ -26,6 +24,7 @@ import { createLocation } from "@/types";
 import type { Location } from "@/types";
 
 // Minimal StreetViewPanoramaData stub: only the fields buildPatch reads.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function svData(imageDate: string, extra: Record<string, unknown> = {}): any {
 	return {
 		imageDate,

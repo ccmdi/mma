@@ -47,7 +47,9 @@ fn candidates_are_superset_never_missing() {
     let mut pts = Vec::new();
     let mut seed = 42u64;
     let mut rnd = || {
-        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         (seed >> 33) as f64 / (1u64 << 31) as f64
     };
     for i in 0..500u32 {
@@ -62,7 +64,10 @@ fn candidates_are_superset_never_missing() {
         for &(id, lat, lng) in &pts {
             let d = crate::selections::haversine_m(plat, plng, lat, lng);
             if d <= r {
-                assert!(cand.contains(&id), "id {id} at {d:.1}m missing from r={r} candidates");
+                assert!(
+                    cand.contains(&id),
+                    "id {id} at {d:.1}m missing from r={r} candidates"
+                );
             }
         }
     }

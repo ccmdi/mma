@@ -15,7 +15,9 @@ pub struct ValiState {
 
 impl ValiState {
     pub fn new() -> Self {
-        Self { cancel: Mutex::new(None) }
+        Self {
+            cancel: Mutex::new(None),
+        }
     }
 }
 
@@ -49,37 +51,71 @@ impl From<GeoMapLocation> for ValiLocation {
 }
 
 #[derive(serde::Serialize, Clone, specta::Type)]
-#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum ValiProgress {
-    WorkItems { total: u32 },
-    WorkItemDone { country_code: String, subdivision_code: Option<String>, done: u32, total: u32 },
-    CountryDownloadStarted { country_code: String, files: u32, bytes: f64, updates: bool },
-    FileDownloaded { country_code: String, name: String, bytes: f64 },
+    WorkItems {
+        total: u32,
+    },
+    WorkItemDone {
+        country_code: String,
+        subdivision_code: Option<String>,
+        done: u32,
+        total: u32,
+    },
+    CountryDownloadStarted {
+        country_code: String,
+        files: u32,
+        bytes: f64,
+        updates: bool,
+    },
+    FileDownloaded {
+        country_code: String,
+        name: String,
+        bytes: f64,
+    },
 }
 
 impl From<ProgressEvent> for ValiProgress {
     fn from(e: ProgressEvent) -> Self {
         match e {
-            ProgressEvent::WorkItems { total } => ValiProgress::WorkItems { total: total as u32 },
-            ProgressEvent::WorkItemDone { country_code, subdivision_code, done, total } => {
-                ValiProgress::WorkItemDone {
-                    country_code,
-                    subdivision_code,
-                    done: done as u32,
-                    total: total as u32,
-                }
-            }
-            ProgressEvent::CountryDownloadStarted { country_code, files, bytes, updates } => {
-                ValiProgress::CountryDownloadStarted {
-                    country_code,
-                    files: files as u32,
-                    bytes: bytes as f64,
-                    updates,
-                }
-            }
-            ProgressEvent::FileDownloaded { country_code, name, bytes } => {
-                ValiProgress::FileDownloaded { country_code, name, bytes: bytes as f64 }
-            }
+            ProgressEvent::WorkItems { total } => ValiProgress::WorkItems {
+                total: total as u32,
+            },
+            ProgressEvent::WorkItemDone {
+                country_code,
+                subdivision_code,
+                done,
+                total,
+            } => ValiProgress::WorkItemDone {
+                country_code,
+                subdivision_code,
+                done: done as u32,
+                total: total as u32,
+            },
+            ProgressEvent::CountryDownloadStarted {
+                country_code,
+                files,
+                bytes,
+                updates,
+            } => ValiProgress::CountryDownloadStarted {
+                country_code,
+                files: files as u32,
+                bytes: bytes as f64,
+                updates,
+            },
+            ProgressEvent::FileDownloaded {
+                country_code,
+                name,
+                bytes,
+            } => ValiProgress::FileDownloaded {
+                country_code,
+                name,
+                bytes: bytes as f64,
+            },
         }
     }
 }
@@ -96,15 +132,24 @@ fn data_root() -> AppResult<std::path::PathBuf> {
 /// data is auto-downloaded like the Vali CLI. Returns the generated locations.
 #[tauri::command]
 #[specta::specta]
-pub async fn vali_generate(state: tauri::State<'_, ValiState>, definition: String) -> AppResult<Vec<ValiLocation>> {
+pub async fn vali_generate(
+    state: tauri::State<'_, ValiState>,
+    definition: String,
+) -> AppResult<Vec<ValiLocation>> {
     let token = CancelToken::new();
     *state.cancel.lock().unwrap() = Some(token.clone());
     let result = tokio::task::spawn_blocking(move || {
         let def: vali_core::MapDefinition = json5::from_str(&definition)
             .map_err(|e| AppError(format!("The map definition is not valid JSON: {e}")))?;
         let prepared = prepare(&def).map_err(AppError)?;
-        let output = generate_output(&prepared, &data_root()?, false, Some(&emit_progress), Some(&token))
-            .map_err(|e| AppError(format!("{e:#}")))?;
+        let output = generate_output(
+            &prepared,
+            &data_root()?,
+            false,
+            Some(&emit_progress),
+            Some(&token),
+        )
+        .map_err(|e| AppError(format!("{e:#}")))?;
         Ok(output.records.into_iter().map(ValiLocation::from).collect())
     })
     .await
@@ -116,7 +161,12 @@ pub async fn vali_generate(state: tauri::State<'_, ValiState>, definition: Strin
 /// Download Vali coverage data. `country` = code/continent alias/None for all.
 #[tauri::command]
 #[specta::specta]
-pub async fn vali_download(state: tauri::State<'_, ValiState>, country: Option<String>, full: bool, updates: bool) -> AppResult<()> {
+pub async fn vali_download(
+    state: tauri::State<'_, ValiState>,
+    country: Option<String>,
+    full: bool,
+    updates: bool,
+) -> AppResult<()> {
     let token = CancelToken::new();
     *state.cancel.lock().unwrap() = Some(token.clone());
     let result = tokio::task::spawn_blocking(move || {

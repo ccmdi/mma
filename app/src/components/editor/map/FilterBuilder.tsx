@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import type { Selection, FilterOp, ExtraFieldDef } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { NSelect } from "@/components/primitives/NSelect";
-import { getFieldDef, fieldLabel, useFieldDefsVersion } from "@/lib/data/fieldDefRegistry";
+import { fieldLabel, useFieldDefsVersion, getAllFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/data/fieldOps";
 import { useKnownFieldKeys, selectFilter } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
@@ -60,36 +60,22 @@ function opsForType(type: string | undefined): FilterOp[] {
 export interface FieldEntry {
 	key: string;
 	label: string;
-	fieldType: ExtraFieldDef["type"];
-	fieldDef?: ExtraFieldDef;
+	def: ExtraFieldDef;
 }
-
-/* Non-extra fields the filter builder should acknowledge. */
-const VIRTUAL_FIELDS: FieldEntry[] = [
-	{ key: "createdAt", label: "Created", fieldType: "date" },
-	{ key: "modifiedAt", label: "Modified", fieldType: "date" },
-	{ key: "tagCount", label: "Tag count", fieldType: "number" },
-	{ key: "heading", label: "Heading", fieldType: "number" },
-	{ key: "pitch", label: "Pitch", fieldType: "number" },
-	{ key: "zoom", label: "Zoom", fieldType: "number" },
-];
 
 export function useExtraFieldKeys(): FieldEntry[] {
 	const keys = useKnownFieldKeys();
 	const defsVersion = useFieldDefsVersion();
 	return useMemo(() => {
+		const allDefs = getAllFieldDefs();
+		const seen = new Set<string>();
 		const entries: FieldEntry[] = [];
 		for (const key of keys) {
-			const def = getFieldDef(key);
-			entries.push({
-				key,
-				label: fieldLabel(key),
-				fieldType: def?.type ?? "string",
-				fieldDef: def,
-			});
+			seen.add(key);
+			entries.push({ key, label: fieldLabel(key), def: allDefs[key] ?? { type: "string" } });
 		}
-		for (const vf of VIRTUAL_FIELDS) {
-			if (!keys.has(vf.key)) entries.push(vf);
+		for (const [key, def] of Object.entries(allDefs)) {
+			if (!seen.has(key)) entries.push({ key, label: fieldLabel(key), def });
 		}
 		entries.sort((a, b) => a.label.localeCompare(b.label));
 		return entries;
@@ -98,18 +84,14 @@ export function useExtraFieldKeys(): FieldEntry[] {
 
 const TIMEZONE_VALUES = Intl.supportedValuesOf("timeZone");
 
-function useEnumValues(
-	fieldKey: string | undefined,
-	def: ExtraFieldDef | undefined,
-	fieldType: string | undefined,
-): string[] {
+function useEnumValues(fieldKey: string | undefined, def: ExtraFieldDef | undefined): string[] {
 	const [values, setValues] = useState<string[]>([]);
 	useEffect(() => {
-		if (fieldType !== "enum") {
+		if (def?.type !== "enum") {
 			setValues([]);
 			return;
 		}
-		if (def?.values) {
+		if (def.values) {
 			setValues(def.values);
 			return;
 		}
@@ -122,7 +104,7 @@ function useEnumValues(
 			return;
 		}
 		cmd.storeExtraFieldValues(fieldKey).then(setValues);
-	}, [fieldKey, def, fieldType]);
+	}, [fieldKey, def]);
 	return values;
 }
 
@@ -159,9 +141,9 @@ function FilterValueInput({
 	showTzLocal?: boolean;
 	onYearSelect?: (year: number) => void;
 }) {
-	const type = fieldEntry?.fieldType;
-	const def = fieldEntry?.fieldDef;
-	const enumValues = useEnumValues(fieldEntry?.key, def, type);
+	const type = fieldEntry?.def.type;
+	const def = fieldEntry?.def;
+	const enumValues = useEnumValues(fieldEntry?.key, def);
 	const exactDateFormat = useSetting("exactDateFormat");
 
 	if (type === "enum") {
@@ -294,7 +276,7 @@ export function FilterForm({
 	const [op, setOp] = useState<FilterOp>(() => {
 		const initial = saved?.op ?? "eq";
 		const ops = opsForType(
-			fields.find((f) => f.key === (saved?.field || fields[0]?.key))?.fieldType,
+			fields.find((f) => f.key === (saved?.field || fields[0]?.key))?.def.type,
 		);
 		return ops.includes(initial) ? initial : ops[0];
 	});
@@ -305,14 +287,14 @@ export function FilterForm({
 	const [tzLocal, setTzLocal] = useState(saved?.tzLocal ?? false);
 	const fieldEntry = fields.find((f) => f.key === field);
 	const isArrayContains =
-		fieldEntry?.fieldType === "array" && (op === "contains" || op === "notcontains");
+		fieldEntry?.def.type === "array" && (op === "contains" || op === "notcontains");
 	const isNumeric =
-		fieldEntry?.fieldType === "number" ||
-		fieldEntry?.fieldType === "date" ||
-		(fieldEntry?.fieldType === "array" && !isArrayContains);
-	const isDateLike = fieldEntry?.fieldType === "date" || fieldEntry?.fieldType === "month";
-	const isExactDate = fieldEntry?.fieldType === "date";
-	const availableOps = opsForType(fieldEntry?.fieldType);
+		fieldEntry?.def.type === "number" ||
+		fieldEntry?.def.type === "date" ||
+		(fieldEntry?.def.type === "array" && !isArrayContains);
+	const isDateLike = fieldEntry?.def.type === "date" || fieldEntry?.def.type === "month";
+	const isExactDate = fieldEntry?.def.type === "date";
+	const availableOps = opsForType(fieldEntry?.def.type);
 	const isBetween = op === "between" || op === "between_anyyear" || op === "between_anytime";
 
 	useEffect(() => {
@@ -323,7 +305,7 @@ export function FilterForm({
 	const handleFieldChange = (key: string) => {
 		setField(key);
 		const entry = fields.find((f) => f.key === key);
-		const ops = opsForType(entry?.fieldType);
+		const ops = opsForType(entry?.def.type);
 		const newOp = ops.includes(op) ? op : ops[0];
 		if (newOp !== op) setOp(newOp);
 		setValue("");
@@ -482,7 +464,7 @@ export function FilterForm({
 	const showTzLocal = isExactDate;
 
 	const handleYearSelect =
-		isBetween && fieldEntry?.fieldType === "month"
+		isBetween && fieldEntry?.def.type === "month"
 			? (year: number) => {
 					setValue(`${year}-01`);
 					setValue2(`${year}-12`);
@@ -509,7 +491,7 @@ export function FilterForm({
 			<NSelect value={op} onChange={(e) => handleOpChange(e.target.value as FilterOp)}>
 				{availableOps.map((o) => (
 					<option key={o} value={o}>
-						{(fieldEntry?.fieldType === "array" && ARRAY_OP_LABELS[o]) || OP_LABELS[o]}
+						{(fieldEntry?.def.type === "array" && ARRAY_OP_LABELS[o]) || OP_LABELS[o]}
 					</option>
 				))}
 			</NSelect>

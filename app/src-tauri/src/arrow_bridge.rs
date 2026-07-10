@@ -7,8 +7,7 @@ use std::sync::Arc;
 
 use arrow_array::{
     builder::{GenericListBuilder, UInt32Builder},
-    Array, ArrayRef, Float64Array, ListArray, RecordBatch,
-    StringArray, UInt32Array, UInt8Array,
+    Array, ArrayRef, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array, UInt8Array,
 };
 use arrow_schema::{DataType, Field, Schema};
 
@@ -80,10 +79,7 @@ fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
     let headings = Float64Array::from_iter_values(locs.iter().map(|l| l.heading));
     let pitches = Float64Array::from_iter_values(locs.iter().map(|l| l.pitch));
     let zooms = Float64Array::from_iter_values(locs.iter().map(|l| l.zoom));
-    let pano_ids: StringArray = locs
-        .iter()
-        .map(|l| l.pano_id.as_deref())
-        .collect();
+    let pano_ids: StringArray = locs.iter().map(|l| l.pano_id.as_deref()).collect();
     let flags = UInt32Array::from_iter_values(locs.iter().map(|l| l.flags.bits()));
 
     let mut tags_builder =
@@ -128,7 +124,10 @@ fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
 /// patch actually changed are rebuilt; untouched columns are reused via Arc clone.
 /// Row order is preserved (sorted id invariant). Patch ids absent from the batch
 /// are ignored.
-pub fn patch_batch(batch: &RecordBatch, patches: &std::collections::HashMap<u32, Location>) -> RecordBatch {
+pub fn patch_batch(
+    batch: &RecordBatch,
+    patches: &std::collections::HashMap<u32, Location>,
+) -> RecordBatch {
     let n = batch.num_rows();
     let ids = col_id(batch);
     let hits: std::collections::HashMap<usize, &Location> = (0..n)
@@ -154,12 +153,13 @@ pub fn patch_batch(batch: &RecordBatch, patches: &std::collections::HashMap<u32,
         touched[COL_MODIFIED_AT] |= old.modified_at != p.modified_at;
     }
 
-    let f64_col = |getter: fn(&RecordBatch) -> &Float64Array, pick: fn(&Location) -> f64| -> ArrayRef {
-        let old = getter(batch);
-        Arc::new(Float64Array::from_iter_values(
-            (0..n).map(|i| hits.get(&i).map_or_else(|| old.value(i), |p| pick(p))),
-        ))
-    };
+    let f64_col =
+        |getter: fn(&RecordBatch) -> &Float64Array, pick: fn(&Location) -> f64| -> ArrayRef {
+            let old = getter(batch);
+            Arc::new(Float64Array::from_iter_values(
+                (0..n).map(|i| hits.get(&i).map_or_else(|| old.value(i), |p| pick(p))),
+            ))
+        };
 
     let columns: Vec<ArrayRef> = batch
         .columns()
@@ -177,20 +177,28 @@ pub fn patch_batch(batch: &RecordBatch, patches: &std::collections::HashMap<u32,
                 COL_ZOOM => f64_col(col_zoom, |p| p.zoom),
                 COL_PANO_ID => {
                     let old = col_pano_id(batch);
-                    Arc::new((0..n).map(|i| match hits.get(&i) {
-                        Some(p) => p.pano_id.clone(),
-                        None => (!old.is_null(i)).then(|| old.value(i).to_string()),
-                    }).collect::<StringArray>())
+                    Arc::new(
+                        (0..n)
+                            .map(|i| match hits.get(&i) {
+                                Some(p) => p.pano_id.clone(),
+                                None => (!old.is_null(i)).then(|| old.value(i).to_string()),
+                            })
+                            .collect::<StringArray>(),
+                    )
                 }
                 COL_FLAGS => {
                     let old = col_flags(batch);
-                    Arc::new(UInt32Array::from_iter_values(
-                        (0..n).map(|i| hits.get(&i).map_or_else(|| old.value(i), |p| p.flags.bits())),
-                    ))
+                    Arc::new(UInt32Array::from_iter_values((0..n).map(|i| {
+                        hits.get(&i)
+                            .map_or_else(|| old.value(i), |p| p.flags.bits())
+                    })))
                 }
                 COL_TAGS => {
                     let old = col_tags(batch);
-                    let mut b = GenericListBuilder::<i32, UInt32Builder>::with_capacity(UInt32Builder::new(), n);
+                    let mut b = GenericListBuilder::<i32, UInt32Builder>::with_capacity(
+                        UInt32Builder::new(),
+                        n,
+                    );
                     for i in 0..n {
                         match hits.get(&i) {
                             Some(p) => {
@@ -212,23 +220,31 @@ pub fn patch_batch(batch: &RecordBatch, patches: &std::collections::HashMap<u32,
                 }
                 COL_EXTRA => {
                     let old = col_extra(batch);
-                    Arc::new((0..n).map(|i| match hits.get(&i) {
-                        Some(p) => p.extra.as_ref().map(|e| e.as_str().to_string()),
-                        None => (!old.is_null(i)).then(|| old.value(i).to_string()),
-                    }).collect::<StringArray>())
+                    Arc::new(
+                        (0..n)
+                            .map(|i| match hits.get(&i) {
+                                Some(p) => p.extra.as_ref().map(|e| e.as_str().to_string()),
+                                None => (!old.is_null(i)).then(|| old.value(i).to_string()),
+                            })
+                            .collect::<StringArray>(),
+                    )
                 }
                 COL_CREATED_AT => {
                     let old = col_created_at(batch);
-                    Arc::new(UInt32Array::from_iter_values(
-                        (0..n).map(|i| hits.get(&i).map_or_else(|| old.value(i), |p| p.created_at)),
-                    ))
+                    Arc::new(UInt32Array::from_iter_values((0..n).map(|i| {
+                        hits.get(&i).map_or_else(|| old.value(i), |p| p.created_at)
+                    })))
                 }
                 COL_MODIFIED_AT => {
                     let old = col_modified_at(batch);
-                    Arc::new((0..n).map(|i| match hits.get(&i) {
-                        Some(p) => p.modified_at,
-                        None => (!old.is_null(i)).then(|| old.value(i)),
-                    }).collect::<UInt32Array>())
+                    Arc::new(
+                        (0..n)
+                            .map(|i| match hits.get(&i) {
+                                Some(p) => p.modified_at,
+                                None => (!old.is_null(i)).then(|| old.value(i)),
+                            })
+                            .collect::<UInt32Array>(),
+                    )
                 }
                 _ => col.clone(),
             }
@@ -263,7 +279,11 @@ pub fn row_to_location(batch: &RecordBatch, idx: usize) -> Location {
 
     let modified_at = {
         let col = col_modified_at(batch);
-        if col.is_null(idx) { None } else { Some(col.value(idx)) }
+        if col.is_null(idx) {
+            None
+        } else {
+            Some(col.value(idx))
+        }
     };
 
     Location {
@@ -284,7 +304,9 @@ pub fn row_to_location(batch: &RecordBatch, idx: usize) -> Location {
 
 /// Materialize every row of a batch into a `Vec<Location>`.
 pub fn batch_to_locations(batch: &RecordBatch) -> Vec<Location> {
-    (0..batch.num_rows()).map(|i| row_to_location(batch, i)).collect()
+    (0..batch.num_rows())
+        .map(|i| row_to_location(batch, i))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +321,8 @@ pub const OP_CREATED: u8 = 1;
 /// Schema for a VCS delta file: the location columns plus a trailing `op` column
 /// (`OP_REMOVED`/`OP_CREATED`) distinguishing the two sides of the delta.
 pub fn delta_schema() -> Schema {
-    let mut fields: Vec<arrow_schema::FieldRef> = location_schema().fields().iter().cloned().collect();
+    let mut fields: Vec<arrow_schema::FieldRef> =
+        location_schema().fields().iter().cloned().collect();
     fields.push(Arc::new(Field::new("op", DataType::UInt8, false)));
     Schema::new_with_metadata(fields, crate::arrow_migrate::version_metadata())
 }
@@ -328,7 +351,10 @@ pub fn delta_to_batch(created: &[Location], removed: &[Location]) -> RecordBatch
 /// lets a genesis commit reuse the base file instead of re-serializing it.
 pub fn batch_to_delta(batch: &RecordBatch) -> (Vec<Location>, Vec<Location>) {
     let ops = if batch.num_columns() > COL_MODIFIED_AT + 1 {
-        batch.column(COL_MODIFIED_AT + 1).as_any().downcast_ref::<UInt8Array>()
+        batch
+            .column(COL_MODIFIED_AT + 1)
+            .as_any()
+            .downcast_ref::<UInt8Array>()
     } else {
         None
     };

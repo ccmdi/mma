@@ -27,7 +27,16 @@ describe("Extra field definitions", () => {
 	it("registers field definitions that persist after reopen", async () => {
 		await withApi(async (api) => {
 			const cur = api.getCurrentMap()!.meta.extra?.fields ?? {};
-			await api.updateMapMeta({ extra: { ...api.getCurrentMap()!.meta.extra, fields: { ...cur, altitude: { label: "Altitude", type: "number" }, country: { label: "Country", type: "string" } } } });
+			await api.updateMapMeta({
+				extra: {
+					...api.getCurrentMap()!.meta.extra,
+					fields: {
+						...cur,
+						altitude: { label: "Altitude", type: "number" },
+						country: { label: "Country", type: "string" },
+					},
+				},
+			});
 		});
 
 		await flushAndWait();

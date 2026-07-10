@@ -8,7 +8,7 @@
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_webserve::{register_scheme, SchemeRequest, SchemeResponse};
 
-use crate::{storage, location_store};
+use crate::{location_store, storage};
 
 pub fn run_server() {
     // Drop the configured visible window; we make our own hidden blank "main"
@@ -17,7 +17,9 @@ pub fn run_server() {
     ctx.config_mut().app.windows.clear();
 
     tauri::Builder::default()
-        .manage(location_store::StoreState::new(location_store::StoreManager::new()))
+        .manage(location_store::StoreState::new(
+            location_store::StoreManager::new(),
+        ))
         .invoke_handler(crate::specta_builder().invoke_handler())
         .plugin(tauri_plugin_webserve::init())
         .setup(|app| {
@@ -48,7 +50,11 @@ fn relay(r: tauri::http::Response<Vec<u8>>) -> SchemeResponse {
         .and_then(|v| v.to_str().ok())
         .unwrap_or("application/octet-stream")
         .to_string();
-    SchemeResponse { status, content_type, body: r.into_body() }
+    SchemeResponse {
+        status,
+        content_type,
+        body: r.into_body(),
+    }
 }
 
 fn qs(query: &str) -> String {
@@ -64,14 +70,19 @@ fn qs(query: &str) -> String {
 fn register_web_schemes() {
     register_scheme("mma-buf", |req: SchemeRequest| {
         let path = percent_encoding::percent_decode_str(&req.path)
-            .decode_utf8_lossy().into_owned();
+            .decode_utf8_lossy()
+            .into_owned();
         match std::fs::read(&path) {
             Ok(data) => SchemeResponse::ok("application/octet-stream", data),
             Err(e) => SchemeResponse::not_found(format!("file not found: {path} — {e}")),
         }
     });
     register_scheme("svtile", |req: SchemeRequest| {
-        let url = format!("https://lh3.ggpht.com/jsapi2/a/b/c/{}{}", req.path, qs(&req.query));
+        let url = format!(
+            "https://lh3.ggpht.com/jsapi2/a/b/c/{}{}",
+            req.path,
+            qs(&req.query)
+        );
         relay(crate::fetch_svtile(&url))
     });
     register_scheme("gmaps", |req: SchemeRequest| {
@@ -83,7 +94,13 @@ fn register_web_schemes() {
         } else {
             req.content_type
         };
-        relay(crate::proxy_gmaps(method, &url, ct, req.user_agent, req.body))
+        relay(crate::proxy_gmaps(
+            method,
+            &url,
+            ct,
+            req.user_agent,
+            req.body,
+        ))
     });
     register_scheme("googl", |req: SchemeRequest| {
         let mapsapp = req.query.split('&').any(|kv| kv == "source=mapsapp");

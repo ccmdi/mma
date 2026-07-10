@@ -46,7 +46,11 @@ pub fn tz_offset_seconds(tz_name: &str, ts: f64) -> Option<i32> {
     use chrono::{Offset, TimeZone};
     let tz: chrono_tz::Tz = tz_name.parse().ok()?;
     let dt = DateTime::<Utc>::from_timestamp(ts as i64, 0)?;
-    Some(tz.offset_from_utc_datetime(&dt.naive_utc()).fix().local_minus_utc())
+    Some(
+        tz.offset_from_utc_datetime(&dt.naive_utc())
+            .fix()
+            .local_minus_utc(),
+    )
 }
 
 /// Converts HSL to RGB. `h` is in degrees [0, 360), `s` and `l` in [0, 1].
@@ -78,7 +82,9 @@ pub fn color_for_name(name: &str) -> String {
 /// Parses a "#rrggbb" hex color string to an RGB byte array.
 pub fn hex_to_rgb(hex: &str) -> Option<[u8; 3]> {
     let h = hex.trim_start_matches('#');
-    if h.len() != 6 { return None; }
+    if h.len() != 6 {
+        return None;
+    }
     Some([
         u8::from_str_radix(&h[0..2], 16).ok()?,
         u8::from_str_radix(&h[2..4], 16).ok()?,
@@ -90,13 +96,25 @@ pub fn compute_bounds(coords: impl Iterator<Item = (f64, f64)>) -> Option<[f64; 
     let (mut w, mut s, mut e, mut n) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
     let mut count = 0usize;
     for (lat, lng) in coords {
-        if lng < w { w = lng; }
-        if lat < s { s = lat; }
-        if lng > e { e = lng; }
-        if lat > n { n = lat; }
+        if lng < w {
+            w = lng;
+        }
+        if lat < s {
+            s = lat;
+        }
+        if lng > e {
+            e = lng;
+        }
+        if lat > n {
+            n = lat;
+        }
         count += 1;
     }
-    if count == 0 { None } else { Some([w, s, e, n]) }
+    if count == 0 {
+        None
+    } else {
+        Some([w, s, e, n])
+    }
 }
 
 /// SHA-256 hash of `bytes` as a lowercase hex string.

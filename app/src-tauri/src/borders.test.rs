@@ -9,9 +9,21 @@ use crate::selections::{self, PolygonGeometry};
 
 fn sample() -> (PolygonGeometry, ArchFeature) {
     // Outer square [0,10]^2 with a hole [3,7]^2, plus a detached extra square [20,30]x[0,10].
-    let outer = vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0], [0.0, 0.0]];
+    let outer = vec![
+        [0.0, 0.0],
+        [10.0, 0.0],
+        [10.0, 10.0],
+        [0.0, 10.0],
+        [0.0, 0.0],
+    ];
     let hole = vec![[3.0, 3.0], [7.0, 3.0], [7.0, 7.0], [3.0, 7.0], [3.0, 3.0]];
-    let extra = vec![[20.0, 0.0], [30.0, 0.0], [30.0, 10.0], [20.0, 10.0], [20.0, 0.0]];
+    let extra = vec![
+        [20.0, 0.0],
+        [30.0, 0.0],
+        [30.0, 10.0],
+        [20.0, 10.0],
+        [20.0, 0.0],
+    ];
 
     let owned = PolygonGeometry {
         coordinates: vec![outer.clone(), hole.clone()],
@@ -30,7 +42,10 @@ fn sample() -> (PolygonGeometry, ArchFeature) {
 #[test]
 fn archived_geometry_matches_owned() {
     let (owned, arch) = sample();
-    let bytes = rkyv::to_bytes::<_, 1024>(&ArchDataset { features: vec![arch] }).unwrap();
+    let bytes = rkyv::to_bytes::<_, 1024>(&ArchDataset {
+        features: vec![arch],
+    })
+    .unwrap();
     let archived = rkyv::check_archived_root::<ArchDataset>(&bytes[..]).unwrap();
     let af = &archived.features[0];
 
@@ -71,8 +86,7 @@ fn convert_dataset_produces_valid_archive() {
 #[test]
 #[ignore]
 fn gen_rkyv_artifacts() {
-    let repo_borders = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../data/borders");
+    let repo_borders = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/borders");
     for level in ["medium", "heavy", "adm1"] {
         let json = std::fs::read_to_string(repo_borders.join(format!("borders-{level}.json")))
             .unwrap_or_else(|e| panic!("read borders-{level}.json: {e}"));

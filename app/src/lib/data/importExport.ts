@@ -4,7 +4,10 @@ import { LocationFlag } from "@/types";
 import type { Location } from "@/bindings.gen";
 
 /** A single location parsed out of a pasted Maps URL or a bare coordinate. */
-export type ParsedLocation = Pick<Location, "lat" | "lng" | "heading" | "pitch" | "zoom" | "panoId" | "flags"> & {
+export type ParsedLocation = Pick<
+	Location,
+	"lat" | "lng" | "heading" | "pitch" | "zoom" | "panoId" | "flags"
+> & {
 	/** Tag names */
 	tags: string[];
 };
@@ -48,7 +51,16 @@ function parseExpandedMapsUrl(url: URL): ParsedLocation | null {
 			const rawId = m[7] ?? null;
 			const type = m[8] ? parseInt(m[8], 10) : 0;
 			const panoId = rawId ? imageKeyToPanoId([type === 0 ? 2 : type, rawId]) : null;
-			return { lat, lng, heading, pitch, zoom, panoId, flags: panoId ? panoFlags : LocationFlag.None, tags };
+			return {
+				lat,
+				lng,
+				heading,
+				pitch,
+				zoom,
+				panoId,
+				flags: panoId ? panoFlags : LocationFlag.None,
+				tags,
+			};
 		}
 
 		if (url.searchParams.get("map_action") === "pano") {
@@ -61,7 +73,16 @@ function parseExpandedMapsUrl(url: URL): ParsedLocation | null {
 			const pitch = parseFloat(url.searchParams.get("pitch") ?? "0");
 			const panoId = url.searchParams.get("pano") || null;
 			const zoom = fovToZoom(parseFloat(url.searchParams.get("fov") ?? "90"));
-			return { lat, lng, heading, pitch, zoom, panoId, flags: panoId ? panoFlags : LocationFlag.None, tags };
+			return {
+				lat,
+				lng,
+				heading,
+				pitch,
+				zoom,
+				panoId,
+				flags: panoId ? panoFlags : LocationFlag.None,
+				tags,
+			};
 		}
 
 		if (url.searchParams.get("layer") === "c" && url.searchParams.has("cbll")) {
@@ -69,7 +90,16 @@ function parseExpandedMapsUrl(url: URL): ParsedLocation | null {
 			if (cbll) {
 				const lat = parseFloat(cbll[0] ?? "");
 				const lng = parseFloat(cbll[1] ?? "");
-				return { lat, lng, heading: 0, pitch: 0, zoom: 0, panoId: null, flags: LocationFlag.None, tags };
+				return {
+					lat,
+					lng,
+					heading: 0,
+					pitch: 0,
+					zoom: 0,
+					panoId: null,
+					flags: LocationFlag.None,
+					tags,
+				};
 			}
 		}
 	} else if (url.hostname.startsWith("artsandculture.google.") && url.searchParams.has("sv_pid")) {
@@ -81,7 +111,7 @@ function parseExpandedMapsUrl(url: URL): ParsedLocation | null {
 		const zoom = parseFloat(url.searchParams.get("sv_z") ?? "0");
 		return { lat, lng, heading, pitch, zoom, panoId, flags: LocationFlag.LoadAsPanoId, tags };
 	}
-	
+
 	return null;
 }
 
@@ -100,7 +130,8 @@ export function parseCoordinates(input: string): ParsedLocation | null {
 	if (!m) return null;
 
 	const component = (deg: string, min: string, sec: string, hemi: string) => {
-		let val = parseFloat(deg) + (min ? parseFloat(min) / 60 : 0) + (sec ? parseFloat(sec) / 3600 : 0);
+		let val =
+			parseFloat(deg) + (min ? parseFloat(min) / 60 : 0) + (sec ? parseFloat(sec) / 3600 : 0);
 		const h = hemi?.toUpperCase();
 		if (h === "S" || h === "W") val = -Math.abs(val);
 		const axis = h === "N" || h === "S" ? "lat" : h === "E" || h === "W" ? "lng" : null;
@@ -116,7 +147,16 @@ export function parseCoordinates(input: string): ParsedLocation | null {
 	const lng = swap ? a.val : b.val;
 	if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
 
-	return { lat, lng, heading: 0, pitch: 0, zoom: 0, panoId: null, flags: LocationFlag.None, tags: [] };
+	return {
+		lat,
+		lng,
+		heading: 0,
+		pitch: 0,
+		zoom: 0,
+		panoId: null,
+		flags: LocationFlag.None,
+		tags: [],
+	};
 }
 
 const URL_LINE = /^https?:\/\//;
@@ -124,7 +164,10 @@ const URL_LINE = /^https?:\/\//;
 /** Parse a multi-line paste as a list of Maps URLs. Returns parsed locations
  * (in input order) for all lines that resolved, via a concurrency-5 worker pool. */
 export async function parseUrlList(input: string): Promise<ParsedLocation[]> {
-	const lines = input.split("\n").map((l) => l.trim()).filter(Boolean);
+	const lines = input
+		.split("\n")
+		.map((l) => l.trim())
+		.filter(Boolean);
 	if (lines.length === 0 || !URL_LINE.test(lines[0])) return [];
 
 	const results: (ParsedLocation | null)[] = new Array(lines.length);

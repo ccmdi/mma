@@ -87,10 +87,18 @@ fn v1_to_v2_timestamps(batch: RecordBatch) -> AppResult<RecordBatch> {
                 .iter()
                 .map(|opt| {
                     let secs = opt.and_then(crate::util::iso_to_unix).map(|s| s as u32);
-                    if nullable { secs } else { Some(secs.unwrap_or(0)) }
+                    if nullable {
+                        secs
+                    } else {
+                        Some(secs.unwrap_or(0))
+                    }
                 })
                 .collect();
-            fields.push(Arc::new(Field::new(field.name(), DataType::UInt32, nullable)));
+            fields.push(Arc::new(Field::new(
+                field.name(),
+                DataType::UInt32,
+                nullable,
+            )));
             columns.push(Arc::new(converted) as ArrayRef);
         } else {
             fields.push(field.clone());

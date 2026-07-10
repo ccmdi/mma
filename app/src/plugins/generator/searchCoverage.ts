@@ -81,7 +81,13 @@ export function stampDisc(
 }
 
 /** Map a lng/lat to texel coordinates (origin top-left = NW corner). */
-export function lngLatToPixel(b: Bounds, w: number, h: number, lng: number, lat: number): [number, number] {
+export function lngLatToPixel(
+	b: Bounds,
+	w: number,
+	h: number,
+	lng: number,
+	lat: number,
+): [number, number] {
 	const [west, south, east, north] = b;
 	const px = ((lng - west) / (east - west)) * w;
 	const py = ((north - lat) / (north - south)) * h;

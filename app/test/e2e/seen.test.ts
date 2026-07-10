@@ -46,10 +46,10 @@ async function getSeenEntries(limit = 100) {
 
 /** Wait until a seen entry for `panoId` is flushed to the store. */
 async function waitForSeenPano(panoId: string) {
-	await browser.waitUntil(
-		async () => (await getSeenEntries(50)).some((e) => e.panoId === panoId),
-		{ timeout: 5000, timeoutMsg: `seen entry for ${panoId} never recorded` },
-	);
+	await browser.waitUntil(async () => (await getSeenEntries(50)).some((e) => e.panoId === panoId), {
+		timeout: 5000,
+		timeoutMsg: `seen entry for ${panoId} never recorded`,
+	});
 }
 
 async function getSeenCount(): Promise<number> {
@@ -115,7 +115,7 @@ describe("Seen -- recording consistency", () => {
 		await waitForSeenPano(OFFICIAL_PANO);
 
 		const entries = await getSeenEntries(10);
-		const recent = entries.find(e => e.panoId === OFFICIAL_PANO);
+		const recent = entries.find((e) => e.panoId === OFFICIAL_PANO);
 		expect(recent).toBeTruthy();
 	});
 
@@ -127,7 +127,7 @@ describe("Seen -- recording consistency", () => {
 		await waitForSeenPano(OFFICIAL_PANO);
 
 		const entries = await getSeenEntries(10);
-		const recent = entries.find(e => e.panoId === OFFICIAL_PANO);
+		const recent = entries.find((e) => e.panoId === OFFICIAL_PANO);
 		expect(recent).toBeTruthy();
 		// lat/lng should be near the official coords, not some stale previous location
 		expect(Math.abs(recent!.lat - OFFICIAL_COORDS.lat)).toBeLessThan(1);
@@ -161,8 +161,8 @@ describe("Seen -- recording consistency", () => {
 			async () => {
 				const entries = await getSeenEntries(20);
 				return (
-					entries.some(e => e.panoId === OFFICIAL_PANO) &&
-					entries.some(e => e.panoId === TREKKER_PANO)
+					entries.some((e) => e.panoId === OFFICIAL_PANO) &&
+					entries.some((e) => e.panoId === TREKKER_PANO)
 				);
 			},
 			{ timeout: 10000, timeoutMsg: "Expected seen entries for both panos" },
@@ -172,8 +172,8 @@ describe("Seen -- recording consistency", () => {
 		expect(count).toBeGreaterThanOrEqual(2);
 
 		const entries = await getSeenEntries(20);
-		const offEntry = entries.find(e => e.panoId === OFFICIAL_PANO);
-		const trekEntry = entries.find(e => e.panoId === TREKKER_PANO);
+		const offEntry = entries.find((e) => e.panoId === OFFICIAL_PANO);
+		const trekEntry = entries.find((e) => e.panoId === TREKKER_PANO);
 
 		expect(offEntry).toBeTruthy();
 		expect(trekEntry).toBeTruthy();

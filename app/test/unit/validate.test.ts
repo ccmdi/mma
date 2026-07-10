@@ -160,7 +160,11 @@ describe("NotFound and GoodcamAvailable", () => {
 	it("coord resolves to badcam with a better camera in the timeline -> GoodcamAvailable", async () => {
 		mockCoords.mockResolvedValue(BADCAM);
 		byId({
-			[BADCAM]: pano({ pano: BADCAM, cameraType: "badcam", time: [{ pano: BADCAM }, { pano: GOODCAM }] }),
+			[BADCAM]: pano({
+				pano: BADCAM,
+				cameraType: "badcam",
+				time: [{ pano: BADCAM }, { pano: GOODCAM }],
+			}),
 			[GOODCAM]: pano({ pano: GOODCAM, cameraType: "gen4" }),
 		});
 		expect(await validateOne(coord())).toBe(ValidationState.GoodcamAvailable);

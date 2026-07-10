@@ -134,7 +134,11 @@ describe("placeholder does not shadow plugin def", () => {
 
 	it("getAllFieldDefs composes the same way", () => {
 		registerPluginFieldDefs({
-			sunAzimuth: { type: "number", label: "Sun azimuth", comparison: { type: "circular", period: 360 } },
+			sunAzimuth: {
+				type: "number",
+				label: "Sun azimuth",
+				comparison: { type: "circular", period: 360 },
+			},
 		});
 		mergeUserFieldDefs({ sunAzimuth: { type: "number", label: null, comparison: null } });
 		const all = getAllFieldDefs();

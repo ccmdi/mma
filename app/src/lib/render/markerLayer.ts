@@ -8,9 +8,24 @@ export type MarkerBuf = { positions: Float32Array; colors: Uint8Array; angles: F
 
 // Per-style layer class + shape constants. `idSuffix` keeps deck.gl layer ids stable across styles.
 export const MARKER_STYLE = {
-	circle: { Layer: ScatterplotLayer, idSuffix: "s", angle: false, base: { getRadius: 6, radiusUnits: "pixels", radiusMinPixels: 3 } },
-	arrow: { Layer: SDFMarkerLayer, idSuffix: "d", angle: true, base: { shape: "arrow", radiusPixels: 12 } },
-	pin: { Layer: SDFMarkerLayer, idSuffix: "d", angle: false, base: { shape: "pin", radiusPixels: 16 } },
+	circle: {
+		Layer: ScatterplotLayer,
+		idSuffix: "s",
+		angle: false,
+		base: { getRadius: 6, radiusUnits: "pixels", radiusMinPixels: 3 },
+	},
+	arrow: {
+		Layer: SDFMarkerLayer,
+		idSuffix: "d",
+		angle: true,
+		base: { shape: "arrow", radiusPixels: 12 },
+	},
+	pin: {
+		Layer: SDFMarkerLayer,
+		idSuffix: "d",
+		angle: false,
+		base: { shape: "pin", radiusPixels: 16 },
+	},
 } as const;
 
 export function buildMarkerLayer(

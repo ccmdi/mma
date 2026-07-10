@@ -167,10 +167,7 @@ export function isPanoGood(
 
 	if (s.rejectUnofficial && !s.rejectOfficial) {
 		if (pano.location.pano.length !== 22) return false;
-		if (
-			s.filterByLinks &&
-			(pano.links.length < s.minLinks || pano.links.length > s.maxLinks)
-		)
+		if (s.filterByLinks && (pano.links.length < s.minLinks || pano.links.length > s.maxLinks))
 			return false;
 		if (
 			s.rejectNoDescription &&

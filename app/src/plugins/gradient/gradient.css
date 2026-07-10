@@ -21,20 +21,14 @@
 	border-radius: 2px;
 }
 
-.gradient-sidebar__control-label {
-	font-size: 12px;
-	opacity: 0.7;
-}
-
-.gradient-sidebar__preview {
+.gradient-sidebar__row {
 	display: flex;
-	flex-direction: column;
-	gap: 4px;
+	gap: 8px;
 }
 
-.gradient-sidebar__preview-bar {
-	height: 12px;
-	border-radius: 3px;
+.gradient-sidebar__row > * {
+	flex: 1;
+	min-width: 0;
 }
 
 .gradient-sidebar__preview-labels {
@@ -42,9 +36,32 @@
 	justify-content: space-between;
 	font-size: 10px;
 	opacity: 0.6;
+	padding: 0 2px;
 }
 
-.gradient-sidebar__apply {
-	align-self: flex-start;
+.gradient-sidebar__check {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	cursor: pointer;
+	user-select: none;
+	margin-top: 4px;
+}
+
+.gradient-sidebar__check input[type="checkbox"] {
+	margin: 0;
+	cursor: pointer;
+}
+
+.gradient-sidebar__apply-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
 	margin-top: 8px;
+}
+
+.gradient-sidebar__result {
+	font-size: 12px;
+	opacity: 0.7;
 }

@@ -95,6 +95,14 @@ export declare const commands: {
 		status: "ok";
 		data: null;
 	}>;
+	/**  Open the current log file in the OS default handler. */
+	openLogFile: () => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: null;
+	}>;
 	/**  Scan the `plugins/` directory under app data and return manifests for all installed plugins. */
 	listUserPlugins: () => Promise<PluginManifest[]>;
 	/**
@@ -600,6 +608,18 @@ export declare const commands: {
 	} | {
 		status: "ok";
 		data: number[];
+	}>;
+	/**
+	 *  Pick an evenly spaced subset of the current selection. Exactly one of `target_count`
+	 *  (thin to N, maximizing spacing) or `min_distance_m` (keep as many as fit at that spacing)
+	 *  must be provided.
+	 */
+	storePickSpaced: (targetCount: number | null, minDistanceM: number | null) => Promise<{
+		status: "error";
+		error: string;
+	} | {
+		status: "ok";
+		data: SpacedPickResult;
 	}>;
 	/**
 	 *  Resolve a single selection to its matching location IDs without persisting it.
@@ -1795,6 +1815,10 @@ export type SelectionSync = {
 	bitmask: number[] | null;
 	selectedCount: number;
 };
+export type SpacedPickResult = {
+	ids: number[];
+	distanceM: number;
+};
 /**
  *  Metadata snapshot returned to JS after every mutation. JS uses `version` to
  *  detect stale responses and `canUndo`/`canRedo` for toolbar button state.
@@ -1807,9 +1831,13 @@ export type StoreStatus = {
 	locationCount: number;
 	canUndo: boolean;
 	canRedo: boolean;
+	/**
+	 *  `None` when the mutation did not change any tag count (`finish_mutation`
+	 *  strips it), so JS keeps its reference and consumers skip re-rendering.
+	 */
 	tagCounts: {
 		[key in number]: number;
-	};
+	} | null;
 	knownFieldKeys: string[];
 };
 /**  Lightweight status for polling: count, version, and whether unsaved changes exist. */
@@ -2724,6 +2752,14 @@ declare const COMMANDS: {
 		execute: () => boolean;
 		enabled: () => boolean;
 	};
+	"select-spaced": {
+		label: string;
+		icon: string;
+		group: "Selections";
+		aliases: string[];
+		execute: () => boolean;
+		enabled: () => boolean;
+	};
 	"ghost-selections": {
 		label: string;
 		icon: string;
@@ -3005,6 +3041,7 @@ declare const mma: {
 		getDataLocation: () => Promise<DataLocation>;
 		setDataLocation: (path: string | null) => Promise<null>;
 		openDataFolder: () => Promise<null>;
+		openLogFile: () => Promise<null>;
 		listUserPlugins: () => Promise<PluginManifest[]>;
 		installPlugin: (id: string) => Promise<PluginManifest>;
 		uninstallPlugin: (id: string) => Promise<null>;
@@ -3070,6 +3107,7 @@ declare const mma: {
 		]>;
 		storeSyncSelections: (sels: SelectionInput[]) => Promise<SelectionSync>;
 		storeGetSelectedIdsList: () => Promise<number[]>;
+		storePickSpaced: (targetCount: number | null, minDistanceM: number | null) => Promise<SpacedPickResult>;
 		storeResolveSelection: (props: SelectionProps) => Promise<number[]>;
 		storePartition: (field: string, key: KeySpec, scope: Scope) => Promise<PartitionBucket[]>;
 		storeDuplicateGroups: (distance: number) => Promise<number[][]>;
@@ -3143,7 +3181,7 @@ declare const mma: {
 	getAllFieldDefs: typeof getAllFieldDefs;
 	createLocation: typeof createLocation;
 	getGoogleMap: () => google.maps.Map | null;
-	waitForGoogleMap: () => Promise<google.maps.Map>;
+	waitForGoogleMap: () => Promise<google.maps.Map | null>;
 	setSetting: typeof setSetting;
 	getSettings: () => {
 		showCameraBadges: boolean;
@@ -3248,7 +3286,6 @@ declare const mma: {
 	invalidateMapList(): Promise<void>;
 	getTagCounts(): Record<number, number>;
 	refreshAfterMutation(): void;
-	getVisibleTags(): Tag[];
 	getTag(id: number): Tag | undefined;
 	getImportPreviewPositions(): Float32Array<ArrayBuffer>;
 	getCommitDiffPreview(): CommitDiffPreview | null;
@@ -3273,7 +3310,6 @@ declare const mma: {
 	fetchLocation(id: number): Promise<Location | null>;
 	fetchLocationsByIds(ids: number[]): Promise<Location[]>;
 	getAllSelections(): Selection[];
-	getSelections(): Selection[];
 	getSelectedLocationIds(): SelectedIds;
 	setSelectedLocationIds(ids: SelectedIds): void;
 	syncSelections(): Promise<{
@@ -3319,6 +3355,13 @@ declare const mma: {
 	selectInverse(keys?: string[] | null): Promise<void>;
 	toggleManualSelection(locationId: number): Promise<void>;
 	selectRandomFromSelection(count: number): number;
+	selectSpacedFromSelection(opts: {
+		count?: number;
+		minDistanceM?: number;
+	}): Promise<{
+		picked: number;
+		distanceM: number;
+	}>;
 	selectEverything(): Promise<void>;
 	selectUntagged(): Promise<void>;
 	selectUnpanned(): Promise<void>;
@@ -3348,7 +3391,6 @@ declare const mma: {
 	decomposeChild(parentKey: string, childKey: string): void;
 	removeChildFromSelection(parentKey: string, childKey: string): void;
 	toggleTagSelections(tagIds: number[]): void;
-	useSelectedTagIds(): Set<number>;
 	openStagedLocation(index: number): Promise<void>;
 	previewVirtualLocation(loc: Location): void;
 	resolveLocation(m: MaybeLocation): Promise<Location | null>;
@@ -3414,6 +3456,7 @@ declare const mma: {
 	getMapList: () => MapMeta[];
 	useTagCounts: () => Record<number, number>;
 	useCurrentMap: () => MapData | null;
+	getVisibleTags: () => Tag[];
 	useVisibleTags: () => Tag[];
 	useMapVersion: () => number;
 	useSelectedLocationIds: () => SelectedIds;
@@ -3431,10 +3474,13 @@ declare const mma: {
 		mark(phase: string): void;
 	};
 	useKnownFieldKeys: () => ReadonlySet<string>;
+	getSelections: () => Selection[];
 	useAllSelections: () => Selection[];
 	useSelections: () => Selection[];
 	useSelectionCounts: () => Record<string, number>;
-	useGhostedSelections: () => Set<string>;
+	useGhostedSelections: () => ReadonlySet<string>;
+	getGhostedSelections: () => ReadonlySet<string>;
+	useSelectedTagIds: () => ReadonlySet<number>;
 	useActivePluginId: () => string | null;
 	useUndoRedo: () => {
 		canUndo: boolean;

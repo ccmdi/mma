@@ -35,7 +35,10 @@ export function buildPatch(
 		drivingDirection: data.extra.drivingDirection ?? null,
 		uploaderName: data.extra.uploaderName ?? null,
 		imageDate: data.imageDate || null,
-		coverageDates: data.time?.filter((t) => t.date).map((t) => `${t.date!.getFullYear()}-${pad2(t.date!.getMonth() + 1)}`) ?? [],
+		coverageDates:
+			data.time
+				?.filter((t) => t.date)
+				.map((t) => `${t.date!.getFullYear()}-${pad2(t.date!.getMonth() + 1)}`) ?? [],
 	};
 	const filtered = filterEnrichPatch(fullPatch, enrichFields);
 	// Stale exact-date data is wrong once imageDate changes; clear it regardless of the
@@ -147,7 +150,9 @@ export const exactDateProvider: EnrichmentProvider = {
 				ctx?.onUnit?.();
 			}
 		}
-		await Promise.all(Array.from({ length: Math.min(SV_CONCURRENCY, pending.length) }, () => worker()));
+		await Promise.all(
+			Array.from({ length: Math.min(SV_CONCURRENCY, pending.length) }, () => worker()),
+		);
 		return out;
 	},
 };

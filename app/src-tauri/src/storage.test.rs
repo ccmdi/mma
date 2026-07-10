@@ -32,16 +32,31 @@ fn location_data_serde_round_trip() {
 fn timestamps_serialize_as_numbers_not_iso() {
     let loc = sample_loc();
     let v: serde_json::Value = serde_json::to_value(&loc).unwrap();
-    assert!(v["createdAt"].is_number(), "createdAt must reach JS as a number, not ISO");
-    assert!(v["modifiedAt"].is_number(), "modifiedAt must reach JS as a number, not ISO");
+    assert!(
+        v["createdAt"].is_number(),
+        "createdAt must reach JS as a number, not ISO"
+    );
+    assert!(
+        v["modifiedAt"].is_number(),
+        "modifiedAt must reach JS as a number, not ISO"
+    );
 }
 
 #[test]
 fn location_data_null_optionals() {
     let loc = Location {
-        id: 1, lat: 0.0, lng: 0.0, heading: 0.0, pitch: 0.0, zoom: 0.0,
-        pano_id: None, flags: crate::types::LocationFlags::empty(), tags: vec![], extra: None,
-        created_at: 0, modified_at: None,
+        id: 1,
+        lat: 0.0,
+        lng: 0.0,
+        heading: 0.0,
+        pitch: 0.0,
+        zoom: 0.0,
+        pano_id: None,
+        flags: crate::types::LocationFlags::empty(),
+        tags: vec![],
+        extra: None,
+        created_at: 0,
+        modified_at: None,
     };
     let json = serde_json::to_string(&loc).unwrap();
     assert!(json.contains(r#""extra":null"#));
@@ -67,7 +82,9 @@ fn location_data_id_defaults_to_zero() {
 fn configure_connection_enables_foreign_keys() {
     let conn = Connection::open_in_memory().unwrap();
     configure_connection(&conn).unwrap();
-    let fk: i32 = conn.pragma_query_value(None, "foreign_keys", |r| r.get(0)).unwrap();
+    let fk: i32 = conn
+        .pragma_query_value(None, "foreign_keys", |r| r.get(0))
+        .unwrap();
     assert_eq!(fk, 1);
 }
 
@@ -83,12 +100,17 @@ fn configured_connection_cascades_on_map_delete() {
          );
          INSERT INTO maps VALUES ('m1');
          INSERT INTO review_sessions VALUES ('r1', 'm1');",
-    ).unwrap();
-    conn.execute("DELETE FROM maps WHERE id = 'm1'", []).unwrap();
+    )
+    .unwrap();
+    conn.execute("DELETE FROM maps WHERE id = 'm1'", [])
+        .unwrap();
     let orphans: i64 = conn
         .query_row("SELECT COUNT(*) FROM review_sessions", [], |r| r.get(0))
         .unwrap();
-    assert_eq!(orphans, 0, "ON DELETE CASCADE must fire on configured connections");
+    assert_eq!(
+        orphans, 0,
+        "ON DELETE CASCADE must fire on configured connections"
+    );
 }
 
 #[test]
@@ -108,7 +130,10 @@ fn sha256_hex_length() {
 fn sha256_hex_known_value() {
     // sha256("") = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
     let h = sha256_hex(b"");
-    assert_eq!(h, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    assert_eq!(
+        h,
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
 }
 
 #[test]
@@ -124,7 +149,10 @@ fn sha256_hex_differs_for_different_input() {
 fn parse_data_location_trims_and_rejects_empty() {
     assert_eq!(parse_data_location(""), None);
     assert_eq!(parse_data_location("   \n\t "), None);
-    assert_eq!(parse_data_location("  D:/maps  \n"), Some(std::path::PathBuf::from("D:/maps")));
+    assert_eq!(
+        parse_data_location("  D:/maps  \n"),
+        Some(std::path::PathBuf::from("D:/maps"))
+    );
 }
 
 #[test]
@@ -139,7 +167,11 @@ fn read_data_location_override_round_trip() {
     assert_eq!(read_data_location_override(&cfg), None);
 
     // Written pointer to a valid (creatable) folder -> that folder, and it now exists.
-    std::fs::write(cfg.join(DATA_LOCATION_FILE), target.to_string_lossy().as_bytes()).unwrap();
+    std::fs::write(
+        cfg.join(DATA_LOCATION_FILE),
+        target.to_string_lossy().as_bytes(),
+    )
+    .unwrap();
     assert_eq!(read_data_location_override(&cfg), Some(target.clone()));
     assert!(target.exists());
 
@@ -156,14 +188,23 @@ fn read_data_location_override_round_trip() {
 // -----------------------------------------------------------------------
 
 fn make_test_batch(ids: &[u32]) -> arrow_array::RecordBatch {
-    let locs: Vec<Location> = ids.iter().map(|&id| Location {
-        id, lat: id as f64, lng: id as f64 * 2.0,
-        heading: 0.0, pitch: 0.0, zoom: 1.0,
-        pano_id: Some(format!("pano_{id}")),
-        flags: crate::types::LocationFlags::empty(), tags: vec![1], extra: None,
-        created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
-        modified_at: None,
-    }).collect();
+    let locs: Vec<Location> = ids
+        .iter()
+        .map(|&id| Location {
+            id,
+            lat: id as f64,
+            lng: id as f64 * 2.0,
+            heading: 0.0,
+            pitch: 0.0,
+            zoom: 1.0,
+            pano_id: Some(format!("pano_{id}")),
+            flags: crate::types::LocationFlags::empty(),
+            tags: vec![1],
+            extra: None,
+            created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
+            modified_at: None,
+        })
+        .collect();
     arrow_bridge::locations_to_batch(&locs)
 }
 
@@ -178,11 +219,19 @@ fn mmap_round_trip_preserves_data() {
     let (loaded, _handle) = read_arrow_ipc_mmap(&path).unwrap();
 
     assert_eq!(loaded.num_rows(), 3);
-    let ids = loaded.column(0).as_any().downcast_ref::<arrow_array::UInt32Array>().unwrap();
+    let ids = loaded
+        .column(0)
+        .as_any()
+        .downcast_ref::<arrow_array::UInt32Array>()
+        .unwrap();
     assert_eq!(ids.value(0), 1);
     assert_eq!(ids.value(1), 2);
     assert_eq!(ids.value(2), 3);
-    let lats = loaded.column(1).as_any().downcast_ref::<arrow_array::Float64Array>().unwrap();
+    let lats = loaded
+        .column(1)
+        .as_any()
+        .downcast_ref::<arrow_array::Float64Array>()
+        .unwrap();
     assert_eq!(lats.value(0), 1.0);
     assert_eq!(lats.value(1), 2.0);
     assert_eq!(lats.value(2), 3.0);
@@ -217,8 +266,11 @@ fn mmap_matches_heap_read() {
 
     assert_eq!(heap.num_rows(), mmap.num_rows());
     for col in 0..heap.num_columns() {
-        assert_eq!(heap.column(col).as_ref(), mmap.column(col).as_ref(),
-            "column {col} mismatch between heap and mmap read");
+        assert_eq!(
+            heap.column(col).as_ref(),
+            mmap.column(col).as_ref(),
+            "column {col} mismatch between heap and mmap read"
+        );
     }
 
     let _ = std::fs::remove_dir_all(&dir);
@@ -250,15 +302,32 @@ fn mmap_handle_drop_allows_overwrite() {
 fn mmap_preserves_nullable_fields() {
     let locs = vec![
         Location {
-            id: 1, lat: 0.0, lng: 0.0, heading: 0.0, pitch: 0.0, zoom: 0.0,
-            pano_id: None, flags: crate::types::LocationFlags::empty(), tags: vec![], extra: None,
-            created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32, modified_at: None,
+            id: 1,
+            lat: 0.0,
+            lng: 0.0,
+            heading: 0.0,
+            pitch: 0.0,
+            zoom: 0.0,
+            pano_id: None,
+            flags: crate::types::LocationFlags::empty(),
+            tags: vec![],
+            extra: None,
+            created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
+            modified_at: None,
         },
         Location {
-            id: 2, lat: 1.0, lng: 1.0, heading: 0.0, pitch: 0.0, zoom: 0.0,
-            pano_id: Some("abc".into()), flags: crate::types::LocationFlags::empty(), tags: vec![1, 2],
+            id: 2,
+            lat: 1.0,
+            lng: 1.0,
+            heading: 0.0,
+            pitch: 0.0,
+            zoom: 0.0,
+            pano_id: Some("abc".into()),
+            flags: crate::types::LocationFlags::empty(),
+            tags: vec![1, 2],
             extra: Some(serde_json::from_str(r#"{"key":"val"}"#).unwrap()),
-            created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32, modified_at: Some(crate::util::iso_to_unix("2024-06-01T00:00:00Z").unwrap() as u32),
+            created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
+            modified_at: Some(crate::util::iso_to_unix("2024-06-01T00:00:00Z").unwrap() as u32),
         },
     ];
     let batch = arrow_bridge::locations_to_batch(&locs);
@@ -271,11 +340,19 @@ fn mmap_preserves_nullable_fields() {
 
     // Verify nullable columns preserved via the raw column (Array trait)
     assert!(loaded.column(6).is_null(0));
-    let pano_col = loaded.column(6).as_any().downcast_ref::<arrow_array::StringArray>().unwrap();
+    let pano_col = loaded
+        .column(6)
+        .as_any()
+        .downcast_ref::<arrow_array::StringArray>()
+        .unwrap();
     assert_eq!(pano_col.value(1), "abc");
 
     assert!(loaded.column(9).is_null(0));
-    let extra_col = loaded.column(9).as_any().downcast_ref::<arrow_array::StringArray>().unwrap();
+    let extra_col = loaded
+        .column(9)
+        .as_any()
+        .downcast_ref::<arrow_array::StringArray>()
+        .unwrap();
     assert!(extra_col.value(1).contains("key"));
 
     let _ = std::fs::remove_dir_all(&dir);

@@ -20,7 +20,10 @@ export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
 	const [query, setQuery] = useState("");
 
 	useEffect(() => {
-		cmd.storeListMaps().then(setMaps).catch((e) => log.error("[copyToMap] list failed:", e));
+		cmd
+			.storeListMaps()
+			.then(setMaps)
+			.catch((e) => log.error("[copyToMap] list failed:", e));
 	}, []);
 
 	const byId = useMemo(() => new Map((maps ?? []).map((m) => [m.id, m])), [maps]);
@@ -29,9 +32,7 @@ export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
 		const ids = (bindings ?? []).flatMap((b) =>
 			b.action.type === "copyToMap" ? [b.action.mapId] : [],
 		);
-		return ids.sort((a, b) =>
-			(byId.get(a)?.name ?? "").localeCompare(byId.get(b)?.name ?? ""),
-		);
+		return ids.sort((a, b) => (byId.get(a)?.name ?? "").localeCompare(byId.get(b)?.name ?? ""));
 	}, [bindings, byId]);
 
 	const rowIds = [...boundIds, ...pendingIds.filter((id) => !boundIds.includes(id))];
@@ -78,47 +79,47 @@ export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
 		>
 			<DialogContent title="Copy location to map (hotkeys)" className="copy-to-map-modal-host">
 				<div className="copy-to-map-modal">
-				<p className="copy-to-map-modal__hint">
-					Pressing an assigned key while a location is open copies that location into the map
-					(duplicates are skipped).
-				</p>
-				{rowIds.length > 0 && (
-					<ul className="copy-to-map-modal__list">
-						{rowIds.map((id) => {
-							const meta = byId.get(id);
-							const key = getMapCopyBindingKey(bindings ?? [], id) ?? "";
-							return (
-								<li key={id} className="copy-to-map-modal__row">
-									<span className="copy-to-map-modal__name">
-										{meta ? meta.name || "(unnamed)" : "(missing map)"}
-										{meta?.folder && <small> · {meta.folder}</small>}
-									</span>
-									<HotkeyInput value={key} onChange={(combo) => setRowKey(id, combo)} />
-									<button type="button" className="button" onClick={() => removeRow(id)}>
-										Remove
-									</button>
-								</li>
-							);
-						})}
-					</ul>
-				)}
-				<SuggestInput
-					containerClassName="copy-to-map-modal__add"
-					placeholder="Add a map..."
-					value={query}
-					onChange={setQuery}
-					suggestions={suggestions}
-					getKey={(m) => m.id}
-					onPick={(m) => addMap(m.id)}
-					listStyle={{ top: "100%", left: 0, zIndex: 10 }}
-					autoFocus
-					renderItem={(m) => (
-						<>
-							<strong>{m.name || "(unnamed)"}</strong>
-							{m.folder && <span className="search-result__context"> · {m.folder}</span>}
-						</>
+					<p className="copy-to-map-modal__hint">
+						Pressing an assigned key while a location is open copies that location into the map
+						(duplicates are skipped).
+					</p>
+					{rowIds.length > 0 && (
+						<ul className="copy-to-map-modal__list">
+							{rowIds.map((id) => {
+								const meta = byId.get(id);
+								const key = getMapCopyBindingKey(bindings ?? [], id) ?? "";
+								return (
+									<li key={id} className="copy-to-map-modal__row">
+										<span className="copy-to-map-modal__name">
+											{meta ? meta.name || "(unnamed)" : "(missing map)"}
+											{meta?.folder && <small> · {meta.folder}</small>}
+										</span>
+										<HotkeyInput value={key} onChange={(combo) => setRowKey(id, combo)} />
+										<button type="button" className="button" onClick={() => removeRow(id)}>
+											Remove
+										</button>
+									</li>
+								);
+							})}
+						</ul>
 					)}
-				/>
+					<SuggestInput
+						containerClassName="copy-to-map-modal__add"
+						placeholder="Add a map..."
+						value={query}
+						onChange={setQuery}
+						suggestions={suggestions}
+						getKey={(m) => m.id}
+						onPick={(m) => addMap(m.id)}
+						listStyle={{ top: "100%", left: 0, zIndex: 10 }}
+						autoFocus
+						renderItem={(m) => (
+							<>
+								<strong>{m.name || "(unnamed)"}</strong>
+								{m.folder && <span className="search-result__context"> · {m.folder}</span>}
+							</>
+						)}
+					/>
 				</div>
 			</DialogContent>
 		</Dialog>

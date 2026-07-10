@@ -36,7 +36,9 @@ interface DetectResult {
 }
 
 const FIELD_DEFS: Record<string, ExtraFieldDef> = {
-	copyrightYear: { type: "number", label: "Copyright year" },
+	// Year labels are identification categories, not distances: comparison stays
+	// categorical (disambiguate) while type=number keeps numeric bucketing/ranges.
+	copyrightYear: { type: "number", label: "Copyright year", comparison: { type: "categorical" } },
 };
 
 function fieldRequested(enrichFields: string[] | null): boolean {

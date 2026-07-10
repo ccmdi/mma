@@ -346,7 +346,10 @@ describe("Review mode - reviewed tracking & peek", () => {
 				await api.setActiveLocation(ids[2], false); // in-queue
 				await new Promise((res) => setTimeout(res, settle));
 				const s = api.getReviewSession();
-				const out = { cursorId: s?.cursorId ?? null, activeId: api.getActiveLocation()?.id ?? null };
+				const out = {
+					cursorId: s?.cursorId ?? null,
+					activeId: api.getActiveLocation()?.id ?? null,
+				};
 				api.cancelReview();
 				await new Promise((res) => setTimeout(res, settle));
 				return out;

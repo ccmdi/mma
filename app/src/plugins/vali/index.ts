@@ -7,6 +7,7 @@ registerPlugin({
 	name: "Vali",
 	description: "Generate locations from pre-built coverage data using Vali",
 	icon: mdiEarth,
+	keepAlive: true,
 	activate() {},
 	sidebar: ValiSidebar,
 });

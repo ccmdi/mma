@@ -38,3 +38,7 @@ The menu on each selection row (the dots button) offers:
 ## Picking a random subset
 
 **Pick random locations from selection** (command palette) takes a count and replaces the current selection with that many locations chosen at random from it. If you ask for more than the selection holds, it is clamped to the whole selection. Handy for sampling a large map down to a manageable set to review or export.
+
+## Reducing density
+
+**Pick evenly spaced locations from selection** (command palette) replaces the current selection with a spread-out subset of itself. Choose **Count** to keep a target number of locations, spacing them as far apart as possible, or **Min distance** to keep as many locations as fit while staying at least that many meters apart. Use this to thin a dense cluster of locations without leaving obvious gaps or clumps.

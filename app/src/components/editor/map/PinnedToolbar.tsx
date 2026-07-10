@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback, type ReactNode } from "react";
-import { useAllSelections, useSelectedLocationIds } from "@/store/useMapStore";
+import { useMapVersion } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
-import { getCommand, movePinnedCommand, removePinnedAt, insertSeparator, reorderPinned } from "@/store/commands";
+import {
+	getCommand,
+	movePinnedCommand,
+	removePinnedAt,
+	insertSeparator,
+	reorderPinned,
+} from "@/store/commands";
 import { Icon } from "@/components/primitives/Icon";
 import { useDomEvent } from "@/lib/hooks/useDomEvent";
 import { Tooltip } from "@/components/primitives/Tooltip";
@@ -11,22 +17,32 @@ export interface PanelDef {
 	render: (onClose: () => void) => ReactNode;
 }
 
-export function PinnedToolbar({ right, panels }: { right?: ReactNode; panels: Record<string, PanelDef> }) {
+export function PinnedToolbar({
+	right,
+	panels,
+}: {
+	right?: ReactNode;
+	panels: Record<string, PanelDef>;
+}) {
 	const pinned = useSetting("pinnedCommands");
 	const [openPanels, setOpenPanels] = useState<Set<string>>(new Set());
 	const [dragIdx, setDragIdx] = useState<number | null>(null);
 	const [dropIdx, setDropIdx] = useState<number | null>(null);
-	useAllSelections();
-	useSelectedLocationIds();
+	useMapVersion();
 
-	const handleInlinePanel = useCallback((e: Event) => {
-		const id = (e as CustomEvent).detail as string;
-		if (panels[id]) setOpenPanels((prev) => {
-			const next = new Set(prev);
-			if (next.has(id)) next.delete(id); else next.add(id);
-			return next;
-		});
-	}, [panels]);
+	const handleInlinePanel = useCallback(
+		(e: Event) => {
+			const id = (e as CustomEvent).detail as string;
+			if (panels[id])
+				setOpenPanels((prev) => {
+					const next = new Set(prev);
+					if (next.has(id)) next.delete(id);
+					else next.add(id);
+					return next;
+				});
+		},
+		[panels],
+	);
 	useDomEvent("open-inline-panel", handleInlinePanel);
 
 	// eslint-disable-next-line react-hooks/exhaustive-deps -- enabled() reads arbitrary external state; no dep list covers it
@@ -36,17 +52,22 @@ export function PinnedToolbar({ right, panels }: { right?: ReactNode; panels: Re
 		const next = new Set(openPanels);
 		for (const id of next) {
 			const cmd = getCommand(id);
-			if (cmd?.enabled && !cmd.enabled()) { next.delete(id); changed = true; }
+			if (cmd?.enabled && !cmd.enabled()) {
+				next.delete(id);
+				changed = true;
+			}
 		}
 		if (changed) setOpenPanels(next);
 	});
 
 	if (pinned.length === 0 && !right) return null;
-	const togglePanel = (id: string) => setOpenPanels((prev) => {
-		const next = new Set(prev);
-		if (next.has(id)) next.delete(id); else next.add(id);
-		return next;
-	});
+	const togglePanel = (id: string) =>
+		setOpenPanels((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
+		});
 
 	const handleDragStart = (i: number, e: React.MouseEvent) => {
 		if (e.button !== 0) return;
@@ -98,7 +119,10 @@ export function PinnedToolbar({ right, panels }: { right?: ReactNode; panels: Re
 								</ContextMenu.Trigger>
 								<ContextMenu.Portal>
 									<ContextMenu.Content className="context-menu">
-										<ContextMenu.Item className="context-menu__item" onSelect={() => removePinnedAt(i)}>
+										<ContextMenu.Item
+											className="context-menu__item"
+											onSelect={() => removePinnedAt(i)}
+										>
 											Remove separator
 										</ContextMenu.Item>
 									</ContextMenu.Content>
@@ -144,31 +168,48 @@ export function PinnedToolbar({ right, panels }: { right?: ReactNode; panels: Re
 					return (
 						<ContextMenu.Root key={id}>
 							<Tooltip content={command.label} side="bottom">
-								<ContextMenu.Trigger asChild>
-									{btn}
-								</ContextMenu.Trigger>
+								<ContextMenu.Trigger asChild>{btn}</ContextMenu.Trigger>
 							</Tooltip>
 							<ContextMenu.Portal>
 								<ContextMenu.Content className="context-menu">
 									{!isFirst && (
-										<ContextMenu.Item className="context-menu__item" onSelect={() => movePinnedCommand(i, -1)}>
+										<ContextMenu.Item
+											className="context-menu__item"
+											onSelect={() => movePinnedCommand(i, -1)}
+										>
 											Move left
 										</ContextMenu.Item>
 									)}
 									{!isLast && (
-										<ContextMenu.Item className="context-menu__item" onSelect={() => movePinnedCommand(i, 1)}>
+										<ContextMenu.Item
+											className="context-menu__item"
+											onSelect={() => movePinnedCommand(i, 1)}
+										>
 											Move right
 										</ContextMenu.Item>
 									)}
-									<ContextMenu.Separator style={{ height: 1, background: "#0000001a", margin: "4px 0" }} />
-									<ContextMenu.Item className="context-menu__item" onSelect={() => insertSeparator(i, "before")}>
+									<ContextMenu.Separator
+										style={{ height: 1, background: "#0000001a", margin: "4px 0" }}
+									/>
+									<ContextMenu.Item
+										className="context-menu__item"
+										onSelect={() => insertSeparator(i, "before")}
+									>
 										Add separator before
 									</ContextMenu.Item>
-									<ContextMenu.Item className="context-menu__item" onSelect={() => insertSeparator(i, "after")}>
+									<ContextMenu.Item
+										className="context-menu__item"
+										onSelect={() => insertSeparator(i, "after")}
+									>
 										Add separator after
 									</ContextMenu.Item>
-									<ContextMenu.Separator style={{ height: 1, background: "#0000001a", margin: "4px 0" }} />
-									<ContextMenu.Item className="context-menu__item" onSelect={() => removePinnedAt(i)}>
+									<ContextMenu.Separator
+										style={{ height: 1, background: "#0000001a", margin: "4px 0" }}
+									/>
+									<ContextMenu.Item
+										className="context-menu__item"
+										onSelect={() => removePinnedAt(i)}
+									>
 										Remove from toolbar
 									</ContextMenu.Item>
 								</ContextMenu.Content>
@@ -185,10 +226,16 @@ export function PinnedToolbar({ right, panels }: { right?: ReactNode; panels: Re
 					return (ai === -1 ? Infinity : ai) - (bi === -1 ? Infinity : bi);
 				})
 				.map(([id, panel]) => (
-				<div key={id} className="selection-manager__panel" hidden={!openPanels.has(id)}>
-					{panel.render(() => setOpenPanels((prev) => { const next = new Set(prev); next.delete(id); return next; }))}
-				</div>
-			))}
+					<div key={id} className="selection-manager__panel" hidden={!openPanels.has(id)}>
+						{panel.render(() =>
+							setOpenPanels((prev) => {
+								const next = new Set(prev);
+								next.delete(id);
+								return next;
+							}),
+						)}
+					</div>
+				))}
 		</div>
 	);
 }

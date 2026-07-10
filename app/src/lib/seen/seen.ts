@@ -9,11 +9,13 @@ import type { GeoDisplay } from "@/components/editor/location/useReverseGeocode"
 
 import type { Location, SeenEntry } from "@/bindings.gen";
 
-type PendingEntryLocation = RequireNonNull<Pick<Location, 'lat' | 'lng' | 'panoId'>> & Nullable<Rename<Pick<Location, 'id'>, { id: 'locationId' }>>
-type PendingEntry = PendingEntryLocation & Nullable<GeoDisplay> & {
-	enteredAt: number;
-	mapId: string | null;
-}
+type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> &
+	Nullable<Rename<Pick<Location, "id">, { id: "locationId" }>>;
+type PendingEntry = PendingEntryLocation &
+	Nullable<GeoDisplay> & {
+		enteredAt: number;
+		mapId: string | null;
+	};
 
 let staged: PendingEntry | null = null;
 let canvasGetter: (() => HTMLCanvasElement | null) | null = null;
@@ -102,11 +104,7 @@ function captureThumbnail(canvas: HTMLCanvasElement): string | null {
 	}
 }
 
-async function writeEntry(
-	entry: PendingEntry,
-	pov: LocationPOV,
-	thumbnail: string | null,
-) {
+async function writeEntry(entry: PendingEntry, pov: LocationPOV, thumbnail: string | null) {
 	try {
 		await cmd.storeSeenWrite({
 			...entry,

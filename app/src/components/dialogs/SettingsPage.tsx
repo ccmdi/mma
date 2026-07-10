@@ -18,7 +18,7 @@ import {
 	type HotkeyGroup,
 } from "@/lib/util/hotkeys";
 import { Icon } from "@/components/primitives/Icon";
-import { mdiAlertCircleOutline } from "@mdi/js";
+import { mdiAlertCircleOutline, mdiRefresh } from "@mdi/js";
 import {
 	useSettings,
 	useSetting,
@@ -717,14 +717,6 @@ function MapListSection() {
 			<legend className="fieldset__header">
 				Map List <span className="fieldset__divider" />
 			</legend>
-			<label className="settings-popup__item">
-				<input
-					type="checkbox"
-					checked={s.restoreSession}
-					onChange={(e) => setSetting("restoreSession", e.target.checked)}
-				/>
-				Restore open maps on startup
-			</label>
 			<p style={{ margin: "0.25rem 0", fontSize: "0.85rem", color: "#888" }}>
 				Fields shown on each map row (labels are always shown)
 			</p>
@@ -1032,9 +1024,32 @@ function StreetViewTab() {
 
 declare const __APP_VERSION__: string;
 
+const UPDATE_STATUS: Record<string, string> = {
+	idle: "Updates haven't been checked yet.",
+	checking: "Checking for updates...",
+	"up-to-date": "You're on the latest version.",
+	downloading: "Downloading update...",
+	ready: "Update installed. Restart to apply.",
+};
+
 function UpdateSection() {
 	const update = useUpdateState();
 	const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
+	const checking = update.phase === "checking";
+	const badgeMod =
+		update.phase === "up-to-date"
+			? " settings-updates__version--latest"
+			: update.phase === "available" || update.phase === "ready"
+				? " settings-updates__version--outdated"
+				: update.phase === "error"
+					? " settings-updates__version--error"
+					: "";
+	const status =
+		update.phase === "available"
+			? `Version ${update.version} is available.`
+			: update.phase === "error"
+				? (update.error ?? "Update check failed.")
+				: UPDATE_STATUS[update.phase];
 
 	return (
 		<fieldset className="fieldset">
@@ -1043,22 +1058,26 @@ function UpdateSection() {
 			</legend>
 			<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
 				<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-					<span>Current version: {version}</span>
-					{(update.phase === "idle" || update.phase === "up-to-date") && (
-						<button className="button" onClick={checkForUpdate}>
-							{update.phase === "up-to-date" ? "Check again" : "Check for updates"}
-						</button>
-					)}
-					{update.phase === "checking" && <span>Checking...</span>}
-					{update.phase === "up-to-date" && <span>Up to date</span>}
-					{update.phase === "error" && (
-						<>
-							<span style={{ color: "var(--color-error, #e53935)" }}>{update.error}</span>
-							<button className="button" onClick={checkForUpdate}>
-								Retry
-							</button>
-						</>
-					)}
+					<span
+						className={`settings-updates__version${badgeMod}`}
+						title={status}
+						aria-label={status}
+					>
+						v{version}
+					</span>
+					<button
+						className="icon-button settings-updates__check"
+						onClick={checkForUpdate}
+						disabled={checking || update.phase === "downloading"}
+						title="Check for updates"
+						aria-label="Check for updates"
+					>
+						<Icon
+							path={mdiRefresh}
+							size={18}
+							className={checking ? "settings-updates__spin" : undefined}
+						/>
+					</button>
 				</div>
 				{update.phase === "available" && (
 					<div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1100,7 +1119,8 @@ function UpdateSection() {
 	);
 }
 
-function DataFolderSection() {
+function DataSection() {
+	const [showDbManager, setShowDbManager] = useState(false);
 	const [loc, setLoc] = useState<DataLocation | null>(null);
 	// undefined = no dialog; string = chosen folder; null = reset to default.
 	const [pending, setPending] = useState<string | null | undefined>(undefined);
@@ -1135,12 +1155,12 @@ function DataFolderSection() {
 	return (
 		<fieldset className="fieldset">
 			<legend className="fieldset__header">
-				Data folder <span className="fieldset__divider" />
+				Data <span className="fieldset__divider" />
 			</legend>
 			<code style={{ display: "block", wordBreak: "break-all", marginBottom: 8 }}>
 				{loc?.path ?? "..."}
 			</code>
-			<div style={{ display: "flex", gap: 8 }}>
+			<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
 				<button className="button" onClick={pick}>
 					Change folder...
 				</button>
@@ -1152,7 +1172,11 @@ function DataFolderSection() {
 						Reset to default
 					</button>
 				)}
+				<button className="button" onClick={() => setShowDbManager(true)}>
+					Database management
+				</button>
 			</div>
+			<DatabaseManager open={showDbManager} onOpenChange={setShowDbManager} />
 
 			<Dialog open={pending !== undefined} onOpenChange={(o) => !o && setPending(undefined)}>
 				<DialogContent title="Change data folder">
@@ -1178,13 +1202,35 @@ function DataFolderSection() {
 	);
 }
 
+function StartupSection() {
+	const restoreSession = useSetting("restoreSession");
+	return (
+		<fieldset className="fieldset">
+			<legend className="fieldset__header">
+				Startup <span className="fieldset__divider" />
+			</legend>
+			<label className="settings-popup__item">
+				<input
+					type="checkbox"
+					checked={restoreSession}
+					onChange={(e) => setSetting("restoreSession", e.target.checked)}
+				/>
+				Restore open maps on startup
+			</label>
+		</fieldset>
+	);
+}
+
 function AdvancedTab() {
-	const [showDbManager, setShowDbManager] = useState(false);
 	const showFps = useSetting("showFps");
 	return (
 		<>
+			<StartupSection />
 			<MapListSection />
 			<SeenSection />
+			<CustomCssSection />
+			<UpdateSection />
+			<DataSection />
 			<fieldset className="fieldset">
 				<legend className="fieldset__header">
 					Debug <span className="fieldset__divider" />
@@ -1197,21 +1243,12 @@ function AdvancedTab() {
 					/>
 					Show FPS counter
 				</label>
-			</fieldset>
-			<CustomCssSection />
-			<UpdateSection />
-			<fieldset className="fieldset">
-				<legend className="fieldset__header">
-					Database <span className="fieldset__divider" />
-				</legend>
 				<div style={{ display: "flex", gap: 8 }}>
-					<button className="button" onClick={() => setShowDbManager(true)}>
-						Database management
+					<button className="button" onClick={() => cmd.openLogFile()}>
+						Open log file
 					</button>
 				</div>
 			</fieldset>
-			<DataFolderSection />
-			<DatabaseManager open={showDbManager} onOpenChange={setShowDbManager} />
 		</>
 	);
 }

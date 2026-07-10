@@ -1,4 +1,12 @@
-import { useState, useMemo, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
+import {
+	memo,
+	useState,
+	useMemo,
+	useCallback,
+	useRef,
+	forwardRef,
+	useImperativeHandle,
+} from "react";
 import { createPortal } from "react-dom";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import { Icon } from "@/components/primitives/Icon";
@@ -53,7 +61,7 @@ export interface TagTreeHandle {
 
 interface TagTreeViewProps {
 	tags: Tag[];
-	selectedTagIds: Set<number>;
+	selectedTagIds: ReadonlySet<number>;
 	tagCounts: Record<number, number>;
 	sortMode: TagSortMode;
 	virtualTags: Record<string, VirtualTag>;
@@ -282,12 +290,15 @@ export const TagTreeView = forwardRef<TagTreeHandle, TagTreeViewProps>(function 
 		[dragPath, applyDropTarget],
 	);
 
-	const drag: TreeDrag = {
-		dragPath,
-		dropTarget,
-		onMouseDown: handleDragMouseDown,
-		onMouseMove: handleDragMouseMove,
-	};
+	const drag: TreeDrag = useMemo(
+		() => ({
+			dragPath,
+			dropTarget,
+			onMouseDown: handleDragMouseDown,
+			onMouseMove: handleDragMouseMove,
+		}),
+		[dragPath, dropTarget, handleDragMouseDown, handleDragMouseMove],
+	);
 
 	const handleRowClick = useCallback(
 		(node: TagTreeNode, shiftKey: boolean, altKey: boolean) => {
@@ -389,7 +400,7 @@ export const TagTreeView = forwardRef<TagTreeHandle, TagTreeViewProps>(function 
 	);
 });
 
-function TagTreeNodeRow({
+const TagTreeNodeRow = memo(function TagTreeNodeRow({
 	node,
 	depth,
 	selectedTagIds,
@@ -407,7 +418,7 @@ function TagTreeNodeRow({
 }: {
 	node: TagTreeNode;
 	depth: number;
-	selectedTagIds: Set<number>;
+	selectedTagIds: ReadonlySet<number>;
 	tagCounts: Record<number, number>;
 	onEditTag: (node: TagTreeNode) => void;
 	onEditVirtual: (fullPath: string) => void;
@@ -546,7 +557,7 @@ function TagTreeNodeRow({
 			)}
 		</li>
 	);
-}
+});
 
 /** Live drag order: the dragged pill is spliced to its prospective slot so the group
  *  visibly opens a gap there (the dragged pill itself is hidden via `is-dragging`). Returns
@@ -569,7 +580,7 @@ function leafDisplayOrder(
 
 /** A group of terminal tags rendered as flat pills (flat-mode style), indented to sit
  *  under their parent folder row. */
-function TagLeafGroup({
+const TagLeafGroup = memo(function TagLeafGroup({
 	nodes,
 	depth,
 	selectedTagIds,
@@ -583,7 +594,7 @@ function TagLeafGroup({
 }: {
 	nodes: TagTreeNode[];
 	depth: number;
-	selectedTagIds: Set<number>;
+	selectedTagIds: ReadonlySet<number>;
 	tagCounts: Record<number, number>;
 	onEditTag: (node: TagTreeNode) => void;
 	onRenameTag: (tag: { id: number; name: string }) => void;
@@ -615,9 +626,9 @@ function TagLeafGroup({
 			))}
 		</ul>
 	);
-}
+});
 
-function TagTreeLeaf({
+const TagTreeLeaf = memo(function TagTreeLeaf({
 	node,
 	selectedTagIds,
 	tagCounts,
@@ -629,7 +640,7 @@ function TagTreeLeaf({
 	drag,
 }: {
 	node: TagTreeNode;
-	selectedTagIds: Set<number>;
+	selectedTagIds: ReadonlySet<number>;
 	tagCounts: Record<number, number>;
 	onEditTag: (node: TagTreeNode) => void;
 	onRenameTag: (tag: { id: number; name: string }) => void;
@@ -688,4 +699,4 @@ function TagTreeLeaf({
 			</ContextMenu.Portal>
 		</ContextMenu.Root>
 	);
-}
+});

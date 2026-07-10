@@ -14,7 +14,11 @@ let lockedZoom = 0;
 let svService: google.maps.StreetViewService | null = null;
 const frameCache = new Map<string, CameraFrame>();
 
-const { subscribe: subscribeViewportLock, getSnapshot: getViewportLockSnapshot, notify } = createSyncStore();
+const {
+	subscribe: subscribeViewportLock,
+	getSnapshot: getViewportLockSnapshot,
+	notify,
+} = createSyncStore();
 export { subscribeViewportLock, getViewportLockSnapshot };
 
 export function isViewportLocked() {

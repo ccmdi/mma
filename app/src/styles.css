@@ -675,6 +675,19 @@ summary.button {
 	outline: 2px solid rgba(255, 255, 255, 0.65);
 	outline-offset: -2px;
 }
+/* Compact variant for icons inline with a setting row: no min-width padding band,
+   fixed 2rem height so a larger glyph doesn't grow the row. */
+.icon-button--inline {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	vertical-align: middle;
+	height: 2rem;
+	min-width: 0;
+	padding: 0;
+	color: #888;
+	flex-shrink: 0;
+}
 .icon-button:disabled,
 .icon-button.is-disabled {
 	opacity: 0.35;
@@ -686,6 +699,12 @@ summary.button {
 	outline: 1px solid #ccc;
 	padding: 0 1rem;
 	line-height: 2rem;
+}
+.input:disabled {
+	color: #999;
+	background: #f3f3f3;
+	outline-color: #e0e0e0;
+	-webkit-text-fill-color: #999;
 }
 .input:focus-visible {
 	outline: 2px solid var(--blue-9);
@@ -796,6 +815,24 @@ summary.button {
 .edit-map-modal {
 	width: 540px;
 	max-height: 90vh;
+}
+.enrichment-modal {
+	width: min(56rem, 92vw);
+	max-width: 92vw;
+	max-height: 90vh;
+}
+.enrichment-modal__toggle {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	font-weight: 600;
+	cursor: pointer;
+	padding-bottom: 0.75rem;
+	margin-bottom: 0.5rem;
+	border-bottom: 1px solid #e5e5e5;
+}
+.enrichment-modal__toggle .switch {
+	vertical-align: middle;
 }
 .edit-map-modal p {
 	margin-block: 0.5rem;
@@ -1748,6 +1785,14 @@ summary.button {
 	max-height: 150px !important;
 	scrollbar-width: thin;
 }
+.nselect:disabled {
+	color: #999;
+	background: #f3f3f3;
+	box-shadow: none;
+}
+.nselect:disabled::picker-icon {
+	border-color: #bbb;
+}
 .nselect:not(:disabled) {
 	cursor: pointer;
 }
@@ -2238,9 +2283,18 @@ summary.button {
 	height: auto;
 	overflow: visible;
 }
+.map-type-control__basemap--measure .map-type-control__button span {
+	font-weight: 700;
+}
 .map-type-control__basemap {
 	grid-auto-flow: column;
+	grid-auto-columns: 1fr;
 	display: grid;
+	min-width: 200px;
+}
+.settings-popup .map-type-control__basemap {
+	width: 100%;
+	min-width: 0;
 }
 .map-type-control__button {
 	cursor: pointer;
@@ -2867,10 +2921,6 @@ summary.button {
 	font-size: 0.75rem;
 	white-space: nowrap;
 }
-.manage-fields-modal {
-	width: min(52rem, 92vw);
-	max-width: 92vw;
-}
 .manage-fields-table {
 	width: 100%;
 	border-collapse: collapse;
@@ -2889,7 +2939,7 @@ summary.button {
 	font-size: 0.8125rem;
 }
 .manage-fields-table__coverage-cell {
-	width: 14px;
+	width: 18px;
 	padding-right: 0;
 	color: var(--stone-7);
 }
@@ -2917,11 +2967,13 @@ summary.button {
 	gap: 0.5rem;
 	margin-top: 0.75rem;
 }
-.manage-fields-modal__actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 0.5rem;
-	margin-top: 0.5rem;
+.manage-fields-table__enrich {
+	text-align: center;
+}
+.manage-fields-table__enrich input[type="checkbox"] {
+	margin: 0;
+	width: 16px;
+	height: 16px;
 }
 .manage-fields-table__actions {
 	display: flex;
@@ -2939,6 +2991,13 @@ summary.button {
 	display: flex;
 	align-items: center;
 	transition: color 0.1s;
+}
+.manage-fields-table__delete:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+.manage-fields-table__delete:disabled:hover {
+	color: var(--stone-6);
 }
 .manage-fields-table__delete:hover {
 	color: var(--red);
@@ -4862,6 +4921,52 @@ body {
 	font-size: 0.85em;
 	color: #664d03;
 }
+.settings-updates__version {
+	display: inline-flex;
+	align-items: center;
+	height: 1.5rem;
+	border-radius: 0.25rem;
+	padding: 0 8px;
+	font-size: 0.8rem;
+	font-weight: 600;
+	background: #00000014;
+	cursor: default;
+}
+.settings-updates__version--latest {
+	background: var(--constructive);
+	color: #fff;
+}
+.settings-updates__version--outdated {
+	background: var(--deconstructive);
+	color: #fff;
+}
+.settings-updates__version--error {
+	background: var(--destructive);
+	color: #fff;
+}
+.settings-updates__check {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 1.5rem;
+	min-width: 1.5rem;
+	line-height: normal;
+	color: inherit;
+	background: #00000008;
+	border: 1px solid #00000033;
+	border-radius: 0.25rem;
+}
+.settings-updates__check:hover:not(:disabled) {
+	background: #00000014;
+}
+.settings-updates__spin {
+	animation: settings-updates-spin 0.8s linear infinite;
+}
+@keyframes settings-updates-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
 
 /* Hotkey settings table */
 .settings-hotkey-filter {
@@ -5541,22 +5646,6 @@ body {
 		background 0.1s,
 		border-color 0.1s;
 }
-.plugin-card__action-btn--enable {
-	color: #aaa;
-}
-.plugin-card__action-btn--enable:hover {
-	color: #16a34a;
-	background: #dcfce7;
-	border-color: #86efac;
-}
-.plugin-card__action-btn--disable {
-	color: #16a34a;
-}
-.plugin-card__action-btn--disable:hover {
-	color: #c00;
-	background: rgba(200, 0, 0, 0.08);
-	border-color: #c00;
-}
 .plugin-card__action-btn--update {
 	color: #16a34a;
 }
@@ -5935,6 +6024,40 @@ body {
 	opacity: 0.5;
 }
 
+.switch {
+	position: relative;
+	width: 34px;
+	height: 18px;
+	flex-shrink: 0;
+	border: none;
+	border-radius: 9px;
+	background: #cfcfcf;
+	cursor: pointer;
+	padding: 0;
+	transition: background 0.15s;
+}
+.switch--on {
+	background: var(--constructive);
+}
+.switch:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+.switch__thumb {
+	position: absolute;
+	top: 2px;
+	left: 2px;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: #fff;
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+	transition: left 0.15s;
+}
+.switch--on .switch__thumb {
+	left: 18px;
+}
+
 .segmented {
 	display: flex;
 	gap: 2px;
@@ -5976,4 +6099,13 @@ body {
 .gmnoprint:has([title="Map Data"]),
 .gmnoprint:has([aria-label^="Terms"]) {
 	display: none;
+}
+div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
+	display: none !important;
+}
+
+/* Vector (MapLibre) host: crosshair via class so hover's inline pointer/"" reset
+   falls back here instead of the engine default. */
+.mma-vector-canvas {
+	cursor: crosshair;
 }

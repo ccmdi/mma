@@ -39,9 +39,11 @@ describe("headingRoadResolver", () => {
 describe("pinPanoResolver", () => {
 	it("flags only panos resolved this run", () => {
 		const l = loc({ flags: 0 });
-		expect(pinPanoResolver.resolve!(l, null, { config: undefined, resolvedPanoId: "ABC" })).toEqual({
-			flags: LocationFlag.LoadAsPanoId,
-		});
+		expect(pinPanoResolver.resolve!(l, null, { config: undefined, resolvedPanoId: "ABC" })).toEqual(
+			{
+				flags: LocationFlag.LoadAsPanoId,
+			},
+		);
 		expect(pinPanoResolver.resolve!(l, null, { config: undefined })).toBeNull();
 	});
 

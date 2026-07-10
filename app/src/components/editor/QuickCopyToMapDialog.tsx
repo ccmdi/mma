@@ -14,7 +14,10 @@ export function QuickCopyToMapDialog({ onClose }: { onClose: () => void }) {
 	const contentRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
-		cmd.storeListMaps().then(setMaps).catch((e) => log.error("[quickCopy] list failed:", e));
+		cmd
+			.storeListMaps()
+			.then(setMaps)
+			.catch((e) => log.error("[quickCopy] list failed:", e));
 	}, []);
 
 	const lower = query.trim().toLowerCase();
@@ -22,11 +25,7 @@ export function QuickCopyToMapDialog({ onClose }: { onClose: () => void }) {
 		() =>
 			lower
 				? (maps ?? [])
-						.filter(
-							(m) =>
-								m.id !== getCurrentMapId() &&
-								m.name.toLowerCase().includes(lower),
-						)
+						.filter((m) => m.id !== getCurrentMapId() && m.name.toLowerCase().includes(lower))
 						.sort((a, b) => a.name.localeCompare(b.name))
 						.slice(0, 8)
 				: [],
@@ -46,9 +45,7 @@ export function QuickCopyToMapDialog({ onClose }: { onClose: () => void }) {
 				if (container) {
 					showToast(
 						container,
-						res.copied > 0
-							? `Copied to "${res.targetName}"`
-							: `Already in "${res.targetName}"`,
+						res.copied > 0 ? `Copied to "${res.targetName}"` : `Already in "${res.targetName}"`,
 					);
 				}
 				setTimeout(onClose, 600);

@@ -11,8 +11,8 @@ use rusqlite::params;
 use tauri::State;
 
 use crate::arrow_bridge;
-use crate::storage;
 use crate::location_store::StoreState;
+use crate::storage;
 use crate::types::Location;
 use crate::util::{now_iso, sha256_hex};
 use crate::vcs_delta;
@@ -59,9 +59,15 @@ pub struct CommitDelta {
 /// Build a default commit message (`+a -r ~m`) from the diff counts; None when empty.
 fn format_diff_message(added: u32, removed: u32, modified: u32) -> Option<String> {
     let mut parts = Vec::new();
-    if added > 0 { parts.push(format!("+{added}")); }
-    if removed > 0 { parts.push(format!("-{removed}")); }
-    if modified > 0 { parts.push(format!("~{modified}")); }
+    if added > 0 {
+        parts.push(format!("+{added}"));
+    }
+    if removed > 0 {
+        parts.push(format!("-{removed}"));
+    }
+    if modified > 0 {
+        parts.push(format!("~{modified}"));
+    }
     (!parts.is_empty()).then(|| parts.join(" "))
 }
 
@@ -150,8 +156,10 @@ pub async fn store_commit(
         }
         None => {
             // Clean overlay with a parent (revert/no-op commit): diff current vs parent.
-            let parent_state = vcs_delta::materialize_commit(&conn, &map_id, parent_id.as_ref().unwrap())?;
-            let (created, removed, a, r, m) = vcs_delta::diff_states(&parent_state, &current_fallback);
+            let parent_state =
+                vcs_delta::materialize_commit(&conn, &map_id, parent_id.as_ref().unwrap())?;
+            let (created, removed, a, r, m) =
+                vcs_delta::diff_states(&parent_state, &current_fallback);
             storage::write_arrow_ipc(&path, &arrow_bridge::delta_to_batch(&created, &removed))?;
             (a, r, m)
         }
@@ -182,32 +190,29 @@ pub async fn store_commit(
 /// List all commits for a map, newest first.
 #[tauri::command]
 #[specta::specta]
-pub fn store_list_commits(
-    map_id: String,
-) -> AppResult<Vec<CommitInfo>> {
+pub fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
     let conn = storage::open_db()?;
     let mut stmt = conn
         .prepare(
             "SELECT id, map_id, parent_id, message, tree_hash, added, removed, modified, location_count, created_at FROM commits WHERE map_id = ?1 ORDER BY created_at DESC, rowid DESC",
         )?;
 
-    let rows = stmt
-        .query_map(params![map_id], |row| {
-            Ok(CommitInfo {
-                id: row.get(0)?,
-                map_id: row.get(1)?,
-                parent_id: row.get(2)?,
-                message: row.get(3)?,
-                tree_hash: row.get(4)?,
-                diff: CommitDiff {
-                    added: row.get(5)?,
-                    removed: row.get(6)?,
-                    modified: row.get(7)?,
-                },
-                location_count: row.get(8)?,
-                created_at: row.get(9)?,
-            })
-        })?;
+    let rows = stmt.query_map(params![map_id], |row| {
+        Ok(CommitInfo {
+            id: row.get(0)?,
+            map_id: row.get(1)?,
+            parent_id: row.get(2)?,
+            message: row.get(3)?,
+            tree_hash: row.get(4)?,
+            diff: CommitDiff {
+                added: row.get(5)?,
+                removed: row.get(6)?,
+                modified: row.get(7)?,
+            },
+            location_count: row.get(8)?,
+            created_at: row.get(9)?,
+        })
+    })?;
 
     let mut commits = Vec::new();
     for row in rows {
@@ -223,10 +228,7 @@ pub fn store_list_commits(
 /// (`checkoutCommit` in JS) reopens the map and clears undo/redo.
 #[tauri::command]
 #[specta::specta]
-pub fn store_checkout_commit(
-    map_id: String,
-    commit_id: String,
-) -> AppResult<()> {
+pub fn store_checkout_commit(map_id: String, commit_id: String) -> AppResult<()> {
     let conn = storage::open_db()?;
     let materialized = vcs_delta::materialize_commit(&conn, &map_id, &commit_id)?;
     // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
@@ -251,10 +253,7 @@ pub fn store_checkout_commit(
 /// Read a single commit's delta (created/removed locations) for the diff viewer.
 #[tauri::command]
 #[specta::specta]
-pub fn store_get_commit_delta(
-    map_id: String,
-    commit_id: String,
-) -> AppResult<CommitDelta> {
+pub fn store_get_commit_delta(map_id: String, commit_id: String) -> AppResult<CommitDelta> {
     let path = storage::commit_delta_path(&map_id, &commit_id)?;
     let batch = storage::read_arrow_ipc(&path)?;
     let (created, removed) = arrow_bridge::batch_to_delta(&batch);

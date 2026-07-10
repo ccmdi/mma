@@ -18,7 +18,10 @@ export async function loadGeoJSON() {
 					if (f.geometry?.type === "Polygon") {
 						props.push({
 							type: "Polygon",
-							polygon: { coordinates: f.geometry.coordinates, properties: f.properties ?? undefined },
+							polygon: {
+								coordinates: f.geometry.coordinates,
+								properties: f.properties ?? undefined,
+							},
 							includeInformational: false,
 						});
 					} else if (f.geometry?.type === "MultiPolygon") {

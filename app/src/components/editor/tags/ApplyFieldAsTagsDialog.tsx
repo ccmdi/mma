@@ -1,17 +1,15 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import type {
-	ExtraFieldDef,
 	KeySpec,
 	DatePart,
 	Update,
 	LocationPatch_Deserialize as LocationPatch,
 } from "@/bindings.gen";
-import { getFieldDef, fieldLabel } from "@/lib/data/fieldDefRegistry";
 import { getProviderForField } from "@/lib/data/fieldDefs";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldOps";
+import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import {
-	useKnownFieldKeys,
 	fetchLocationsByIds,
 	partition,
 	useScope,
@@ -35,28 +33,20 @@ export function ApplyFieldAsTagsDialog({
 	const [width, setWidth] = useState("");
 	const [tzLocal, setTzLocal] = useState(tzDefault);
 	const scopeCtl = useScope();
-	const keys = useKnownFieldKeys();
-	const fields = useMemo(() => {
-		const entries: { key: string; label: string; type: ExtraFieldDef["type"] }[] = [];
-		for (const key of keys) {
-			const def = getFieldDef(key);
-			entries.push({ key, label: fieldLabel(key), type: def?.type ?? "string" });
-		}
-		return entries;
-	}, [keys]);
+	const fields = useExtraFieldKeys();
 
-	const fieldType = fields.find((f) => f.key === field)?.type ?? "string";
+	const fieldType = fields.find((f) => f.key === field)?.def.type ?? "string";
 	const projOptions = partitionKeyOptions(fieldType, false);
 	const isRange = projectionId === RANGE_ID;
 	const selectedProj = projectionsForType(fieldType).find((p) => p.id === projectionId);
-	const hasTzData = keys.has("timezone");
+	const hasTzData = fields.some((f) => f.key === "timezone");
 	const showTz = !isRange && selectedProj?.needsTz === true && fieldType === "date";
 	const showWidth = isRange;
 	const widthValid = !showWidth || Number(width) > 0;
 
 	const handleFieldChange = (key: string) => {
 		setField(key);
-		const type = fields.find((f) => f.key === key)?.type ?? "string";
+		const type = fields.find((f) => f.key === key)?.def.type ?? "string";
 		setProjectionId(projectionsForType(type)[0]?.id ?? "");
 		setWidth("");
 		setTzLocal(tzDefault);

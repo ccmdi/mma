@@ -1,40 +1,52 @@
 import type { Bounds } from "@/types";
+import { hostInstance, type MapHost } from "@/lib/map/host";
 
-let googleMap: google.maps.Map | null = null;
-let mapReadyResolve: ((map: google.maps.Map) => void) | null = null;
-let mapReadyPromise: Promise<google.maps.Map> | null = null;
+let mapHost: MapHost | null = null;
+let hostReadyResolve: ((host: MapHost) => void) | null = null;
+let hostReadyPromise: Promise<MapHost> | null = null;
 
-export function setGoogleMap(map: google.maps.Map | null) {
-	googleMap = map;
-	if (map && mapReadyResolve) {
-		mapReadyResolve(map);
-		mapReadyResolve = null;
+export function setMapHost(host: MapHost | null) {
+	mapHost = host;
+	if (host && hostReadyResolve) {
+		hostReadyResolve(host);
+		hostReadyResolve = null;
 	}
-	if (!map) {
-		mapReadyPromise = null;
+	if (!host) {
+		hostReadyPromise = null;
 	}
 }
 
 /**
  * This refers to the main editor map only.
  */
-export function getGoogleMap(): google.maps.Map | null {
-	return googleMap;
+export function getMapHost(): MapHost | null {
+	return mapHost;
 }
 
-export function waitForGoogleMap(): Promise<google.maps.Map> {
-	if (googleMap) return Promise.resolve(googleMap);
-	if (!mapReadyPromise) {
-		mapReadyPromise = new Promise((resolve) => { mapReadyResolve = resolve; });
+export function waitForMapHost(): Promise<MapHost> {
+	if (mapHost) return Promise.resolve(mapHost);
+	if (!hostReadyPromise) {
+		hostReadyPromise = new Promise((resolve) => {
+			hostReadyResolve = resolve;
+		});
 	}
-	return mapReadyPromise;
+	return hostReadyPromise;
+}
+
+/** Raw Google map of the editor surface; null on non-Google hosts (plugin API compat). */
+export function getGoogleMap(): google.maps.Map | null {
+	return hostInstance(mapHost, "google");
+}
+
+/** Resolves with the editor's Google map. On non-Google hosts this resolves null
+ *  once the host is ready (plugins that draw on the raw map should degrade). */
+export function waitForGoogleMap(): Promise<google.maps.Map | null> {
+	return waitForMapHost().then((host) => hostInstance(host, "google"));
 }
 
 export function fitMapToBounds(bounds: Bounds | null | undefined, padding = 0) {
 	if (!bounds) return;
-	const gm = googleMap;
-	if (!gm) return;
-	gm.fitBounds(bounds, padding);
+	mapHost?.fitBounds(bounds, padding);
 }
 
 type ClickInterceptor = (lat: number, lng: number, shiftKey: boolean) => boolean;

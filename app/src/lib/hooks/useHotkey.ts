@@ -143,7 +143,12 @@ export function isEditableElement(el: EventTarget | null): boolean {
 export function useHotkey(
 	hotkey: string,
 	callback: (e: KeyboardEvent) => void,
-	options: { enableInInputs?: boolean; bubble?: boolean; ignoreAlt?: boolean; ignoreShift?: boolean } = {},
+	options: {
+		enableInInputs?: boolean;
+		bubble?: boolean;
+		ignoreAlt?: boolean;
+		ignoreShift?: boolean;
+	} = {},
 ) {
 	const parsed = useMemo(() => parseHotkey(hotkey), [hotkey]);
 
@@ -152,7 +157,10 @@ export function useHotkey(
 		if (!options.enableInInputs && isEditableElement(e.target)) return;
 
 		for (const alt of parsed) {
-			if (alt.length === 1 && matchesKey(e, alt[0], { ignoreAlt: options.ignoreAlt, ignoreShift: options.ignoreShift })) {
+			if (
+				alt.length === 1 &&
+				matchesKey(e, alt[0], { ignoreAlt: options.ignoreAlt, ignoreShift: options.ignoreShift })
+			) {
 				e.preventDefault();
 				callback(e);
 				return;

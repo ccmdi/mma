@@ -2,12 +2,12 @@ import { useEffect, useRef } from "react";
 import { getSettings } from "@/store/settings";
 import { parseHotkey, matchesKey, isEditableElement } from "@/lib/hooks/useHotkey";
 import { getBinding } from "@/lib/util/hotkeys";
-import { google } from "@/lib/sv/opensv";
+import { latLngToWorld, worldToLatLng, type MapHost } from "@/lib/map/host";
 import { FRAME_MS } from "@/lib/sv/constants";
 
 /** Held-key map panning/zooming (pan*, mapZoomIn/Out) via an RAF tick loop, scoped to the
  *  given map. Bindings are resolved once on mount; speeds read live from app settings. */
-export function useMapKeyboardNav(map: google.maps.Map | null) {
+export function useMapKeyboardNav(host: MapHost | null) {
 	const navRef = useRef({
 		held: new Set<string>(),
 		zoom: null as number | null,
@@ -17,8 +17,7 @@ export function useMapKeyboardNav(map: google.maps.Map | null) {
 	});
 
 	useEffect(() => {
-		if (!map) return;
-		const gmap = map;
+		if (!host) return;
 		const nav = navRef.current;
 		const actions = ["panLeft", "panRight", "panUp", "panDown", "mapZoomIn", "mapZoomOut"] as const;
 
@@ -33,15 +32,14 @@ export function useMapKeyboardNav(map: google.maps.Map | null) {
 			const dt = nav.lastTime ? (now - nav.lastTime) / FRAME_MS : 1;
 			nav.lastTime = now;
 
-			const proj = gmap.getProjection();
-			const center = gmap.getCenter();
-			if (!proj || !center) {
+			const center = host!.getCenter();
+			if (!center) {
 				nav.rafId = 0;
 				nav.lastTime = 0;
 				return;
 			}
 
-			if (nav.zoom === null) nav.zoom = gmap.getZoom() ?? 2;
+			if (nav.zoom === null) nav.zoom = host!.getZoom();
 
 			const s = getSettings();
 			const slow = nav.alt ? s.slowModifier : 1;
@@ -57,12 +55,12 @@ export function useMapKeyboardNav(map: google.maps.Map | null) {
 			if (nav.held.has("mapZoomOut")) nav.zoom = Math.max(1, nav.zoom - zoomStep);
 
 			const scale = Math.pow(2, nav.zoom);
-			const worldPoint = proj.fromLatLngToPoint(center)!;
+			const worldPoint = latLngToWorld(center);
 			worldPoint.x += dx / scale;
 			worldPoint.y += dy / scale;
 
-			gmap.moveCamera({
-				center: proj.fromPointToLatLng(worldPoint)!,
+			host!.moveCamera({
+				center: worldToLatLng(worldPoint.x, worldPoint.y),
 				zoom: nav.zoom,
 			});
 			nav.rafId = requestAnimationFrame(tick);
@@ -105,7 +103,7 @@ export function useMapKeyboardNav(map: google.maps.Map | null) {
 			}
 		}
 
-		const zoomListener = map.addListener("zoom_changed", () => {
+		const offZoom = host.on("zoom", () => {
 			if (nav.held.size === 0) nav.zoom = null;
 		});
 
@@ -121,7 +119,7 @@ export function useMapKeyboardNav(map: google.maps.Map | null) {
 			document.removeEventListener("keyup", onKeyUp, true);
 			window.removeEventListener("blur", onBlur);
 			if (nav.rafId) cancelAnimationFrame(nav.rafId);
-			google.maps.event.removeListener(zoomListener);
+			offZoom();
 		};
-	}, [map]);
+	}, [host]);
 }

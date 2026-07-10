@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { textColorFor, hexToHsl, hslToHex, hslToRgb, rgbCss, rgbToHex, labelColor, colorForName } from "@/lib/util/color";
+import {
+	textColorFor,
+	hexToHsl,
+	hslToHex,
+	hslToRgb,
+	rgbCss,
+	rgbToHex,
+	labelColor,
+	colorForName,
+} from "@/lib/util/color";
 
 describe("textColorFor", () => {
 	it("returns black for light backgrounds", () => {

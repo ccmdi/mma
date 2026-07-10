@@ -78,7 +78,10 @@ function sincosSums(vals: number[], period: number): [number, number] {
 }
 
 /** Mean angle (original units, [0, period)) and concentration (resultant/n, [0,1]). */
-export function circularSummary(vals: number[], period: number): { mean: number; concentration: number } {
+export function circularSummary(
+	vals: number[],
+	period: number,
+): { mean: number; concentration: number } {
 	const [c, s] = sincosSums(vals, period);
 	const n = vals.length;
 	let theta = Math.atan2(s, c);

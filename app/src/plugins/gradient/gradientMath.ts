@@ -12,7 +12,10 @@ export function lerp(
 	];
 }
 
-export function gradientColor(stops: [number, number, number][], t: number): [number, number, number] {
+export function gradientColor(
+	stops: [number, number, number][],
+	t: number,
+): [number, number, number] {
 	if (t <= 0) return stops[0];
 	if (t >= 1) return stops[stops.length - 1];
 	const segment = t * (stops.length - 1);
@@ -103,6 +106,10 @@ export function colorPartition(
 				color,
 			};
 		}
-		return { props: { type: "Locations", locations: g.ids, name: g.key }, key: g.ids.join(","), color };
+		return {
+			props: { type: "Locations", locations: g.ids, name: g.key },
+			key: g.ids.join(","),
+			color,
+		};
 	});
 }

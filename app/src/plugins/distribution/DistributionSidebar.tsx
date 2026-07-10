@@ -5,6 +5,7 @@ import { cmd } from "@/lib/commands";
 import { getSettings } from "@/store/settings";
 import { fetchAllLocations } from "@/store/useMapStore";
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
+import { usePluginState, createPluginStorage } from "@/plugins/registry";
 import "./distribution.css";
 
 type Source = "coords" | "metadata";
@@ -51,9 +52,10 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	const [entries, setEntries] = useState<CountryEntry[]>([]);
 	const [unknown, setUnknown] = useState(0);
 	const [total, setTotal] = useState(0);
-	const [source, setSource] = useState<Source>("coords");
+	const [source, setSource] = usePluginState<Source>("distribution", "source", "coords");
 	const [metaAvailable, setMetaAvailable] = useState(false);
-	const autoDefaulted = useRef(false);
+	// A persisted choice counts as already defaulted — don't auto-flip it.
+	const autoDefaulted = useRef(createPluginStorage("distribution").keys().includes("source"));
 
 	const refresh = useCallback(async () => {
 		const map = MMA.getCurrentMap();
@@ -75,6 +77,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 				setSource("metadata");
 			}
 		}
+		if (active === "metadata" && !hasMeta) active = "coords";
 
 		if (active === "metadata") {
 			setEntries(meta.entries);
@@ -88,7 +91,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 			);
 			setUnknown(0);
 		}
-	}, [source]);
+	}, [source, setSource]);
 
 	useEffect(() => {
 		refresh();
@@ -100,7 +103,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	return (
 		<Sidebar title="Distribution" onBack={onClose} className="distribution-sidebar">
 			<SegmentedControl<Source>
-				value={source}
+				value={metaAvailable ? source : "coords"}
 				onChange={setSource}
 				options={[
 					{ value: "coords", label: "Coordinates" },

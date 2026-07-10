@@ -22,7 +22,10 @@ const MAX_AXIS_CELLS: i64 = 4096;
 
 #[inline]
 fn cell_for(lat: f64, lng: f64) -> (i32, i32) {
-    ((lng / CELL_DEG).floor() as i32, (lat / CELL_DEG).floor() as i32)
+    (
+        (lng / CELL_DEG).floor() as i32,
+        (lat / CELL_DEG).floor() as i32,
+    )
 }
 
 pub(crate) struct SpatialIndex {
@@ -32,7 +35,10 @@ pub(crate) struct SpatialIndex {
 
 impl SpatialIndex {
     pub(crate) fn new() -> Self {
-        SpatialIndex { cells: HashMap::new(), len: 0 }
+        SpatialIndex {
+            cells: HashMap::new(),
+            len: 0,
+        }
     }
 
     /// Number of indexed points. Compared against `alive_count` as a drift check.
@@ -63,7 +69,10 @@ impl SpatialIndex {
                 return;
             }
         }
-        log::warn!("[spatial] remove miss for id {} — falling back to full scan", id);
+        log::warn!(
+            "[spatial] remove miss for id {} — falling back to full scan",
+            id
+        );
         for (k, v) in self.cells.iter_mut() {
             if let Some(pos) = v.iter().position(|&x| x == id) {
                 v.swap_remove(pos);
@@ -88,8 +97,13 @@ impl SpatialIndex {
         let d_lng = radius_m / (111_320.0 * cos_lat);
         let (cx0, cy0) = cell_for(lat - d_lat, lng - d_lng);
         let (cx1, cy1) = cell_for(lat + d_lat, lng + d_lng);
-        if (cx1 as i64 - cx0 as i64) > MAX_AXIS_CELLS || (cy1 as i64 - cy0 as i64) > MAX_AXIS_CELLS {
-            log::warn!("[spatial] query span too large (r={}m lat={}) — clamped", radius_m, lat);
+        if (cx1 as i64 - cx0 as i64) > MAX_AXIS_CELLS || (cy1 as i64 - cy0 as i64) > MAX_AXIS_CELLS
+        {
+            log::warn!(
+                "[spatial] query span too large (r={}m lat={}) — clamped",
+                radius_m,
+                lat
+            );
         }
         let cx1 = cx1.min(cx0.saturating_add(MAX_AXIS_CELLS as i32));
         let cy1 = cy1.min(cy0.saturating_add(MAX_AXIS_CELLS as i32));
