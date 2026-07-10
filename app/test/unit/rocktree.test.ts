@@ -314,11 +314,12 @@ describe("synthetic mesh (derived uv + guards)", () => {
 		return parseNodeData(pbf.finish());
 	}
 
-	it("derives uv offset/scale with V-flip when field 10 is absent", () => {
+	it("derives uv offset/scale without V-flip when field 10 is absent", () => {
+		// Top-origin (browser) sampling: no V-flip. GL bottom-up clients flip here.
 		const m = syntheticNodeData({}).meshes[0];
 		expect(m.vertexCount).toBe(3);
-		expect(m.uvOffset).toEqual([0.5, 0.5 - 10]);
-		expect(m.uvScale).toEqual([1 / 5, -1 / 10]);
+		expect(m.uvOffset).toEqual([0.5, 0.5]);
+		expect(m.uvScale).toEqual([1 / 5, 1 / 10]);
 		const dv = new DataView(m.vertexData.buffer);
 		expect([dv.getUint16(4, true), dv.getUint16(6, true)]).toEqual([1, 2]);
 		expect([dv.getUint16(12, true), dv.getUint16(14, true)]).toEqual([2, 4]);

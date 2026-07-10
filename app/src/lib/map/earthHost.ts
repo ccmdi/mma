@@ -9,9 +9,14 @@
 // at sea level, so at high pitch on tall terrain the created location can land
 // slightly off; fine for v1.
 
-import { Deck, MapView, WebMercatorViewport } from "@deck.gl/core";
+import { Deck, MapView, WebMercatorViewport, COORDINATE_SYSTEM } from "@deck.gl/core";
 import type { PickingInfo, Layer, MapViewState } from "@deck.gl/core";
 import { TerrainLayer } from "@deck.gl/geo-layers";
+import { SimpleMeshLayer } from "@deck.gl/mesh-layers";
+import { fetchNode } from "@/lib/render/rocktree/fetch";
+import { findNodeNear } from "@/lib/render/rocktree/traverse";
+import { enuAnchor, meshPositions, meshUvs, stripToTriangles } from "@/lib/render/rocktree/mesh";
+import { log } from "@/lib/util/log";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import type { LatLng, Bounds } from "@/types";
 import type {
@@ -69,6 +74,8 @@ class EarthHost implements MapHostContract<"earth"> {
 	private listeners = new Map<keyof MapHostEvents, Set<(arg: never) => void>>();
 	private domOffs: (() => void)[] = [];
 	private tilesLoadedFired = false;
+	private rocktreeLayers: Layer[] = [];
+	private destroyed = false;
 	private draggable = true;
 	private dblClickZoom = true;
 	private lastRightDown: { x: number; y: number } | null = null;
@@ -111,6 +118,59 @@ class EarthHost implements MapHostContract<"earth"> {
 		});
 
 		this.wireDomEvents(container);
+		void this.loadRocktreeProbe(camera.center);
+	}
+
+	// Milestone-2 probe: fetch and draw the deepest rocktree mesh node covering
+	// the initial camera target, composited over the terrain. Full octree
+	// streaming with LOD replaces this.
+	private async loadRocktreeProbe(center: LatLng) {
+		try {
+			const found = await findNodeNear(center.lat, center.lng);
+			// Coarse nodes span thousands of km; the local ENU frame only holds
+			// for deep (small) nodes.
+			if (!found || found.path.length < 12) {
+				log.info(`[rocktree] no deep node at ${center.lat.toFixed(4)},${center.lng.toFixed(4)}`);
+				return;
+			}
+			const node = await fetchNode(found.path, found.epoch, found.imageryEpoch);
+			const { origin, modelMatrix } = enuAnchor(node.matrix);
+			const layers: Layer[] = [];
+			for (const [i, mesh] of node.meshes.entries()) {
+				const texture = await createImageBitmap(
+					new Blob([mesh.texture.data as BlobPart], { type: "image/jpeg" }),
+				);
+				layers.push(
+					new SimpleMeshLayer({
+						id: `rocktree-probe-${found.path}-${i}`,
+						data: [0],
+						mesh: {
+							attributes: {
+								positions: { value: meshPositions(mesh), size: 3 },
+								texCoords: { value: meshUvs(mesh), size: 2 },
+							},
+							indices: { value: stripToTriangles(mesh.strip, mesh.layerBounds[3]), size: 1 },
+						},
+						texture,
+						getPosition: () => [0, 0, 0],
+						coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
+						coordinateOrigin: origin,
+						modelMatrix,
+						// imagery is pre-lit; no scene lighting
+						material: false,
+						pickable: false,
+					}),
+				);
+			}
+			if (this.destroyed) return;
+			this.rocktreeLayers = layers;
+			this.composeLayers();
+			log.info(
+				`[rocktree] probe node ${found.path} (${node.meshes.length} mesh) at ${origin[1].toFixed(5)},${origin[0].toFixed(5)}`,
+			);
+		} catch (e) {
+			log.warn(`[rocktree] probe failed: ${e}`);
+		}
 	}
 
 	private controllerProps() {
@@ -198,6 +258,10 @@ class EarthHost implements MapHostContract<"earth"> {
 			maxZoom: 15,
 			pickable: false,
 			loadOptions: { terrain: { worker: false } },
+			// Backdrop only: the terrarium surface and the rocktree mesh disagree by
+			// tens of meters and interpenetrate. Without depth writes the mesh only
+			// depth-tests against itself and draws cleanly over the terrain.
+			parameters: { depthWriteEnabled: false },
 			onViewportLoad: () => {
 				if (this.tilesLoadedFired) return;
 				this.tilesLoadedFired = true;
@@ -213,7 +277,7 @@ class EarthHost implements MapHostContract<"earth"> {
 				}),
 			),
 		);
-		return [terrain, ...overlayLayers];
+		return [terrain, ...this.rocktreeLayers, ...overlayLayers];
 	}
 
 	private composeLayers() {
@@ -358,6 +422,7 @@ class EarthHost implements MapHostContract<"earth"> {
 	}
 
 	destroy() {
+		this.destroyed = true;
 		for (const o of [...this.overlays]) o.finalize();
 		this.domOffs.forEach((off) => off());
 		this.deck.finalize();

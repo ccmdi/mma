@@ -263,10 +263,11 @@ function decodeMesh(mesh: import("./rocktree.gen").Mesh): DecodedMesh {
 		uvOffset = [mesh.uv_offset_and_scale[0], mesh.uv_offset_and_scale[1]];
 		uvScale = [mesh.uv_offset_and_scale[2], mesh.uv_offset_and_scale[3]];
 	} else {
-		// Derived transform flips V; if field-10 textures render mirrored at the
-		// render milestone, apply the same flip there too.
-		uvOffset = [0.5, 0.5 - vMod];
-		uvScale = [1 / uMod, -1 / vMod];
+		// No V-flip: browser image upload samples v=0 at the TOP row. The flip in
+		// GL-convention reference clients (bottom-up upload) scrambles the atlas
+		// here (verified visually on a live node).
+		uvOffset = [0.5, 0.5];
+		uvScale = [1 / uMod, 1 / vMod];
 	}
 
 	// Indices: first varint is strip length, then delta-from-high-water coding:
