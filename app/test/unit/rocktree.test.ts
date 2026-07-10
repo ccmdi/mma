@@ -30,7 +30,13 @@ import {
 	type Vec3,
 } from "@/lib/render/rocktree/decode";
 import { writeNodeData } from "@/lib/render/rocktree/rocktree.gen";
-import { planetoidUrl, bulkUrl, nodeUrl, fetchPlanetoid } from "@/lib/render/rocktree/fetch";
+import {
+	planetoidUrl,
+	bulkUrl,
+	nodeUrl,
+	fetchPlanetoid,
+	fetchNode,
+} from "@/lib/render/rocktree/fetch";
 
 const fixture = (name: string) =>
 	new Uint8Array(readFileSync(new URL(`./fixtures/rocktree/${name}`, import.meta.url)));
@@ -387,6 +393,32 @@ describe("fetch policy", () => {
 		await Promise.all(Array.from({ length: 30 }, () => fetchPlanetoid()));
 		expect(peak).toBeLessThanOrEqual(8);
 		expect(peak).toBeGreaterThan(1);
+	});
+
+	it("grants queued slots lowest-priority-value first", async () => {
+		const order: string[] = [];
+		const unblock: (() => void)[] = [];
+		vi.stubGlobal("fetch", (url: string) => {
+			if (url.includes("NodeData")) {
+				order.push(/!1s(\d+)!/.exec(url)![1]);
+				return Promise.resolve(new Response(null, { status: 404 }));
+			}
+			return new Promise<Response>((resolve) =>
+				unblock.push(() => resolve(new Response(fixture("planetoid.bin"), { status: 200 }))),
+			);
+		});
+		// fill all 8 slots, then queue three node fetches out of priority order
+		const blockers = Array.from({ length: 8 }, () => fetchPlanetoid());
+		const nodes = [
+			fetchNode("11", 1, undefined, undefined, 5).catch(() => {}),
+			fetchNode("22", 1, undefined, undefined, 1).catch(() => {}),
+			fetchNode("33", 1, undefined, undefined, 3).catch(() => {}),
+		];
+		await new Promise((r) => setTimeout(r, 0)); // let the blockers reach fetch
+		expect(unblock.length).toBe(8);
+		for (const u of unblock) u();
+		await Promise.all([...blockers, ...nodes]);
+		expect(order).toEqual(["22", "33", "11"]);
 	});
 });
 

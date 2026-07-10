@@ -9,6 +9,7 @@ import { Model, Geometry } from "@luma.gl/engine";
 import type { Texture } from "@luma.gl/core";
 import type { ShaderModule } from "@luma.gl/shadertools";
 import type { NumberArray16 } from "@math.gl/types";
+import { covUvMatrix, type CoverageRect } from "./coverage";
 
 export interface RocktreeNodeData {
 	path: string;
@@ -26,16 +27,15 @@ export interface RocktreeNodeData {
 }
 
 /**
- * Compose the common-space MVP for one node in f64 and downcast to f32.
- * commonFromMesh = T(originCommon) * S(unitsPerMeter) * enuModel; METER_OFFSETS
- * linearization, valid because nodes are small relative to the planet.
+ * commonFromMesh = T(originCommon) * S(unitsPerMeter) * enuModel, in f64.
+ * METER_OFFSETS linearization, valid because nodes are small relative to the
+ * planet.
  */
-export function composeNodeMvp(
-	viewProjection: ArrayLike<number>,
+export function composeNodeModel(
 	originCommon: [number, number, number],
 	unitsPerMeter: number[],
 	enuModel: Float64Array,
-): Float32Array {
+): Float64Array {
 	const m = new Float64Array(16);
 	for (let col = 0; col < 4; col++) {
 		for (let row = 0; row < 3; row++) {
@@ -46,34 +46,63 @@ export function composeNodeMvp(
 	m[12] += originCommon[0];
 	m[13] += originCommon[1];
 	m[14] += originCommon[2];
+	return m;
+}
 
-	const out = new Float32Array(16);
+/** a * b for column-major 4x4 in f64. */
+export function mul4(a: ArrayLike<number>, b: ArrayLike<number>): Float64Array {
+	const out = new Float64Array(16);
 	for (let col = 0; col < 4; col++) {
 		for (let row = 0; row < 4; row++) {
 			let s = 0;
-			for (let k = 0; k < 4; k++) s += viewProjection[k * 4 + row] * m[col * 4 + k];
+			for (let k = 0; k < 4; k++) s += a[k * 4 + row] * b[col * 4 + k];
 			out[col * 4 + row] = s;
 		}
 	}
 	return out;
 }
 
-type RocktreeNodeUniforms = { mvp: NumberArray16; mask: number };
+/**
+ * Compose the common-space MVP for one node in f64 and downcast to f32.
+ * The huge translations cancel in f64 before f32 sees them.
+ */
+export function composeNodeMvp(
+	viewProjection: ArrayLike<number>,
+	originCommon: [number, number, number],
+	unitsPerMeter: number[],
+	enuModel: Float64Array,
+): Float32Array {
+	return new Float32Array(
+		mul4(viewProjection, composeNodeModel(originCommon, unitsPerMeter, enuModel)),
+	);
+}
+
+type RocktreeNodeUniforms = {
+	mvp: NumberArray16;
+	covUv: NumberArray16;
+	mask: number;
+	covOpacity: number;
+};
 
 const uniformBlock = `\
 layout(std140) uniform rocktreeNodeUniforms {
   mat4 mvp;
+  mat4 covUv;
   highp int mask;
+  float covOpacity;
 } rocktreeNode;
 `;
 
 const rocktreeNodeUniforms = {
 	name: "rocktreeNode",
 	vs: uniformBlock,
+	fs: uniformBlock,
 	source: "",
 	uniformTypes: {
 		mvp: "mat4x4<f32>",
+		covUv: "mat4x4<f32>",
 		mask: "i32",
+		covOpacity: "f32",
 	},
 } as const satisfies ShaderModule<RocktreeNodeUniforms>;
 
@@ -84,6 +113,7 @@ in vec3 positions;
 in vec2 uvs;
 in float octants;
 out vec2 vUv;
+out vec2 vCov;
 
 void main(void) {
   // collapse octants covered by a drawn descendant
@@ -92,6 +122,7 @@ void main(void) {
     return;
   }
   vUv = uvs;
+  vCov = (rocktreeNode.covUv * vec4(positions, 1.0)).xy;
   gl_Position = rocktreeNode.mvp * vec4(positions, 1.0);
 }
 `;
@@ -101,17 +132,59 @@ const fs = /* glsl */ `\
 #define SHADER_NAME rocktree-fragment
 precision highp float;
 in vec2 vUv;
+in vec2 vCov;
 uniform sampler2D rocktreeTexture;
+uniform sampler2D rocktreeCoverage;
 out vec4 fragColor;
 
 void main(void) {
-  fragColor = vec4(texture(rocktreeTexture, vUv).rgb, 1.0);
+  vec3 base = texture(rocktreeTexture, vUv).rgb;
+  vec4 cov = texture(rocktreeCoverage, vCov);
+  float inRect = step(abs(vCov.x - 0.5), 0.5) * step(abs(vCov.y - 0.5), 0.5);
+  // canvas bitmaps upload premultiplied
+  vec3 covColor = cov.rgb / max(cov.a, 1e-4);
+  fragColor = vec4(mix(base, covColor, cov.a * inRect * rocktreeNode.covOpacity), 1.0);
 }
 `;
+
+// Retention: GPU resources for nodes that leave the drawn set are kept for a
+// grace period so zoom oscillation does not destroy/recreate models+textures.
+const RETAIN_MS = 3000;
+const MAX_RETAINED = 128;
+
+/**
+ * Which retained entries to destroy now: any past the grace period, plus the
+ * oldest beyond the retained cap. `entries` maps path -> unusedSince (null =
+ * currently drawn, never evicted).
+ */
+export function selectEvictions(
+	entries: Iterable<[string, number | null]>,
+	now: number,
+	graceMs = RETAIN_MS,
+	maxRetained = MAX_RETAINED,
+): string[] {
+	const retained: [string, number][] = [];
+	for (const [path, since] of entries) if (since != null) retained.push([path, since]);
+	retained.sort((a, b) => a[1] - b[1]);
+	const excess = retained.length - maxRetained;
+	const out: string[] = [];
+	for (let i = 0; i < retained.length; i++)
+		if (i < excess || now - retained[i][1] > graceMs) out.push(retained[i][0]);
+	return out;
+}
+
+export interface CoverageTexture {
+	bitmap: ImageBitmap;
+	rect: CoverageRect;
+	/** Monotonic; drives texture re-upload and per-node covUv recompute. */
+	version: number;
+}
 
 type _RocktreeMeshLayerProps = {
 	nodes?: RocktreeNodeData[];
 	masks?: ReadonlyMap<string, number>;
+	coverage?: CoverageTexture | null;
+	svOpacity?: number;
 };
 
 export type RocktreeMeshLayerProps = _RocktreeMeshLayerProps & LayerProps;
@@ -120,37 +193,115 @@ const defaultProps: DefaultProps<RocktreeMeshLayerProps> = {
 	// plain values: reference change per compose is the update signal
 	nodes: [],
 	masks: new Map(),
+	coverage: null,
+	svOpacity: 0,
 };
 
 interface GpuNode {
 	node: RocktreeNodeData;
 	models: Model[];
 	textures: Texture[];
+	/** Timestamp the node left the drawn set; null while drawn. */
+	unusedSince: number | null;
+	covUv: Float32Array;
+	covVersion: number;
 }
+
+const IDENTITY_F32 = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 
 export default class RocktreeMeshLayer extends Layer<Required<_RocktreeMeshLayerProps>> {
 	static layerName = "RocktreeMeshLayer";
 	static defaultProps = defaultProps;
 
-	declare state: { gpuNodes?: Map<string, GpuNode> };
+	declare state: {
+		gpuNodes?: Map<string, GpuNode>;
+		drawOrder?: GpuNode[];
+		covTexture?: Texture | null;
+		covVersion?: number;
+		blankCov?: Texture;
+	};
 
 	initializeState() {
 		this.state.gpuNodes = new Map();
+		this.state.drawOrder = [];
+		this.state.covTexture = null;
+		this.state.covVersion = 0;
+		this.state.blankCov = this.context.device.createTexture({
+			data: new Uint8Array([0, 0, 0, 0]),
+			width: 1,
+			height: 1,
+		});
 	}
 
 	updateState(params: UpdateParameters<this>) {
 		super.updateState(params);
+		this.updateCoverageTexture();
 		const gpuNodes = this.state.gpuNodes!;
+		const now = Date.now();
 		const next = new Set<string>();
 		for (const node of this.props.nodes) {
 			next.add(node.path);
-			if (!gpuNodes.has(node.path)) gpuNodes.set(node.path, this.createGpuNode(node));
+			let gpu = gpuNodes.get(node.path);
+			if (!gpu) {
+				gpu = this.createGpuNode(node);
+				gpuNodes.set(node.path, gpu);
+			}
+			gpu.unusedSince = null;
 		}
-		for (const [path, gpu] of gpuNodes) {
-			if (next.has(path)) continue;
-			this.destroyGpuNode(gpu);
+		for (const [path, gpu] of gpuNodes)
+			if (!next.has(path) && gpu.unusedSince == null) gpu.unusedSince = now;
+		const stale = selectEvictions(
+			[...gpuNodes].map(([path, gpu]) => [path, gpu.unusedSince] as [string, number | null]),
+			now,
+		);
+		for (const path of stale) {
+			this.destroyGpuNode(gpuNodes.get(path)!);
 			gpuNodes.delete(path);
 		}
+		// deepest first so refinement wins depth ties
+		this.state.drawOrder = [...next]
+			.map((path) => gpuNodes.get(path)!)
+			.sort((a, b) => b.node.path.length - a.node.path.length);
+	}
+
+	private updateCoverageTexture() {
+		const cov = this.props.coverage;
+		if ((cov?.version ?? 0) === this.state.covVersion) return;
+		this.state.covTexture?.destroy();
+		this.state.covTexture = cov
+			? this.context.device.createTexture({
+					data: cov.bitmap,
+					width: cov.bitmap.width,
+					height: cov.bitmap.height,
+					sampler: {
+						minFilter: "linear",
+						magFilter: "linear",
+						addressModeU: "clamp-to-edge",
+						addressModeV: "clamp-to-edge",
+					},
+				})
+			: null;
+		this.state.covVersion = cov?.version ?? 0;
+		const bound = this.state.covTexture ?? this.state.blankCov!;
+		for (const gpu of this.state.gpuNodes!.values())
+			for (const model of gpu.models) model.setBindings({ rocktreeCoverage: bound });
+	}
+
+	/** commonFromMesh is camera-independent, so this only recomputes per rect. */
+	private nodeCovUv(gpu: GpuNode): Float32Array {
+		const cov = this.props.coverage;
+		if (!cov) return IDENTITY_F32;
+		if (gpu.covVersion !== cov.version) {
+			const { viewport } = this.context;
+			const model = composeNodeModel(
+				viewport.projectPosition(gpu.node.origin),
+				viewport.getDistanceScales(gpu.node.origin).unitsPerMeter,
+				gpu.node.enuModel,
+			);
+			gpu.covUv = new Float32Array(mul4(covUvMatrix(cov.rect), model));
+			gpu.covVersion = cov.version;
+		}
+		return gpu.covUv;
 	}
 
 	private createGpuNode(node: RocktreeNodeData): GpuNode {
@@ -196,11 +347,14 @@ export default class RocktreeMeshLayer extends Layer<Required<_RocktreeMeshLayer
 					indices: mesh.indices,
 				}),
 			});
-			model.setBindings({ rocktreeTexture: texture });
+			model.setBindings({
+				rocktreeTexture: texture,
+				rocktreeCoverage: this.state.covTexture ?? this.state.blankCov!,
+			});
 			models.push(model);
 			textures.push(texture);
 		}
-		return { node, models, textures };
+		return { node, models, textures, unusedSince: null, covUv: IDENTITY_F32, covVersion: 0 };
 	}
 
 	private destroyGpuNode(gpu: GpuNode) {
@@ -209,21 +363,26 @@ export default class RocktreeMeshLayer extends Layer<Required<_RocktreeMeshLayer
 	}
 
 	draw() {
-		const gpuNodes = this.state.gpuNodes!;
 		const { viewport } = this.context;
 		const vp = viewport.viewProjectionMatrix;
 		const masks = this.props.masks;
-		// deepest first so refinement wins depth ties
-		const order = [...gpuNodes.values()].sort((a, b) => b.node.path.length - a.node.path.length);
-		for (const gpu of order) {
-			const mask = masks.get(gpu.node.path) ?? 0;
-			if (mask === 0xff) continue;
+		const covOpacity = this.props.coverage ? (this.props.svOpacity ?? 0) : 0;
+		for (const gpu of this.state.drawOrder!) {
+			const mask = masks.get(gpu.node.path);
+			// undefined = retained but not in the drawn set
+			if (mask === undefined || mask === 0xff) continue;
 			const originCommon = viewport.projectPosition(gpu.node.origin);
 			const { unitsPerMeter } = viewport.getDistanceScales(gpu.node.origin);
 			const mvp = composeNodeMvp(vp, originCommon, unitsPerMeter, gpu.node.enuModel);
+			const covUv = this.nodeCovUv(gpu);
 			for (const model of gpu.models) {
 				model.shaderInputs.setProps({
-					rocktreeNode: { mvp: mvp as unknown as NumberArray16, mask },
+					rocktreeNode: {
+						mvp: mvp as unknown as NumberArray16,
+						covUv: covUv as unknown as NumberArray16,
+						mask,
+						covOpacity,
+					},
 				});
 				model.draw(this.context.renderPass);
 			}
@@ -234,5 +393,7 @@ export default class RocktreeMeshLayer extends Layer<Required<_RocktreeMeshLayer
 		super.finalizeState(context);
 		for (const gpu of this.state.gpuNodes?.values() ?? []) this.destroyGpuNode(gpu);
 		this.state.gpuNodes?.clear();
+		this.state.covTexture?.destroy();
+		this.state.blankCov?.destroy();
 	}
 }

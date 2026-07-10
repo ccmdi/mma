@@ -1,12 +1,18 @@
 /**
- * M4 streaming invariants: octant-mask/coverage selection (computeDrawn),
- * stream lifecycle (ancestor prefetch, coarse-first order, abort on view
- * change, LRU eviction, failure retry), and the per-node MVP composition.
+ * M4/M5 streaming invariants: octant-mask/coverage selection (computeDrawn),
+ * stream lifecycle (ancestor prefetch, priority order, abort on view change,
+ * LRU eviction, failure retry), staged promotion budget, GPU retention
+ * eviction, and the per-node MVP composition.
  */
 import { describe, it, expect } from "vitest";
 import { WebMercatorViewport } from "@deck.gl/core";
-import { computeDrawn, RocktreeStream, type StreamDeps } from "@/lib/render/rocktree/stream";
-import { composeNodeMvp } from "@/lib/render/rocktree/layer";
+import {
+	computeDrawn,
+	loadPriority,
+	RocktreeStream,
+	type StreamDeps,
+} from "@/lib/render/rocktree/stream";
+import { composeNodeMvp, selectEvictions } from "@/lib/render/rocktree/layer";
 import { makeView } from "@/lib/render/rocktree/lod";
 import type { FoundNode } from "@/lib/render/rocktree/traverse";
 import { latLngToEcef, type Bulk, type BulkNode, type Obb } from "@/lib/render/rocktree/decode";
@@ -148,6 +154,11 @@ const obbAt = (extent: number): Obb => ({
 	extents: [extent, extent, extent],
 	orientation: IDENTITY3(),
 });
+const antipodeObb = (): Obb => ({
+	center: latLngToEcef(-T.lat, 180 + T.lng),
+	extents: [10000, 10000, 10000],
+	orientation: IDENTITY3(),
+});
 
 function mkNode(path: string, o: Partial<BulkNode> = {}): BulkNode {
 	return {
@@ -170,7 +181,8 @@ function mkBulk(headEpoch: number, nodes: BulkNode[]): Bulk {
 	};
 }
 
-// chain 2 -> 20 -> 205 -> 2050 -> child bulk leaves 0..2 (fine mpt, LOD stops)
+// chain 2 -> 20 -> 205 -> 2050 -> child bulk leaves 0..2 (fine mpt, LOD stops);
+// "3" is a childless antipodal branch only the AWAY view covers
 function world(): Record<string, Bulk> {
 	return {
 		"": mkBulk(100, [
@@ -178,6 +190,7 @@ function world(): Record<string, Bulk> {
 			mkNode("20", { obb: obbAt(800), metersPerTexel: 2500 }),
 			mkNode("205", { obb: obbAt(800), metersPerTexel: 1200 }),
 			mkNode("2050", { obb: obbAt(800), metersPerTexel: 600 }),
+			mkNode("3", { obb: antipodeObb(), metersPerTexel: 5000 }),
 		]),
 		"2050": mkBulk(55, [
 			mkNode("0", { obb: obbAt(100), metersPerTexel: 0.05 }),
@@ -189,7 +202,13 @@ function world(): Record<string, Bulk> {
 
 interface Harness {
 	stream: RocktreeStream<string>;
-	loads: { path: string; signal: AbortSignal; resolve(): void; reject(e: unknown): void }[];
+	loads: {
+		path: string;
+		priority: number;
+		signal: AbortSignal;
+		resolve(): void;
+		reject(e: unknown): void;
+	}[];
 	disposed: string[];
 	changes: () => number;
 	resolveAll(): Promise<void>;
@@ -206,9 +225,15 @@ function harness(opts: { cacheBudget?: number } = {}): Harness {
 			if (!b) throw new Error(`no bulk ${path}`);
 			return b;
 		},
-		loadNode: (found: FoundNode, signal: AbortSignal) =>
+		loadNode: (found: FoundNode, signal: AbortSignal, priority: number) =>
 			new Promise<string>((resolve, reject) => {
-				loads.push({ path: found.path, signal, resolve: () => resolve(found.path), reject });
+				loads.push({
+					path: found.path,
+					priority,
+					signal,
+					resolve: () => resolve(found.path),
+					reject,
+				});
 			}),
 		disposeNode: (d) => disposed.push(d),
 		onChange: () => changes++,
@@ -227,6 +252,7 @@ function harness(opts: { cacheBudget?: number } = {}): Harness {
 		resolveAll: async () => {
 			for (const l of loads) if (!l.signal.aborted) l.resolve();
 			await new Promise((r) => setTimeout(r, 0));
+			stream.promote(Infinity);
 		},
 	};
 }
@@ -241,12 +267,13 @@ describe("RocktreeStream", () => {
 			expect(paths[i].length).toBeGreaterThanOrEqual(paths[i - 1].length);
 	});
 
-	it("draws coarse cover immediately and refines as nodes arrive", async () => {
+	it("draws coarse cover as soon as promoted and refines as nodes arrive", async () => {
 		const h = harness();
 		await h.stream.update(VIEW);
 		expect(h.stream.drawnNodes()).toEqual([]);
 		h.loads.find((l) => l.path === "2")!.resolve();
 		await new Promise((r) => setTimeout(r, 0));
+		h.stream.promote(Infinity);
 		expect(h.stream.drawnNodes()).toEqual([{ path: "2", data: "2", mask: 0 }]);
 		await h.resolveAll();
 		const drawn = new Map(h.stream.drawnNodes().map((d) => [d.path, d.mask]));
@@ -261,7 +288,7 @@ describe("RocktreeStream", () => {
 		await h.stream.update(VIEW);
 		expect(h.loads.length).toBeGreaterThan(0);
 		await h.stream.update(AWAY);
-		for (const l of h.loads) expect(l.signal.aborted).toBe(true);
+		for (const l of h.loads) expect(l.signal.aborted).toBe(l.path !== "3");
 		expect(h.stream.drawnNodes()).toEqual([]);
 	});
 
@@ -282,8 +309,8 @@ describe("RocktreeStream", () => {
 		await h.resolveAll();
 		expect(h.stream.drawnNodes().length).toBe(7);
 		await h.stream.update(AWAY);
-		// 7 ready, none wanted, budget 2: 5 disposed
-		expect(h.disposed.length).toBe(5);
+		// 7 ready none wanted + "3" loading, budget 2: 6 disposed
+		expect(h.disposed.length).toBe(6);
 	});
 
 	it("retries failed nodes on the next update", async () => {
@@ -297,6 +324,15 @@ describe("RocktreeStream", () => {
 		expect(attempts.length).toBe(2);
 	});
 
+	it("passes level-major, then nearer-first priorities to loadNode", async () => {
+		const h = harness();
+		await h.stream.update(VIEW);
+		const pr = new Map(h.loads.map((l) => [l.path, l.priority]));
+		expect(pr.get("2")!).toBeLessThan(pr.get("20")!);
+		expect(pr.get("20")!).toBeLessThan(pr.get("205")!);
+		expect(pr.get("2050")!).toBeLessThan(pr.get("20500")!);
+	});
+
 	it("dispose aborts everything and disposes ready data", async () => {
 		const h = harness();
 		await h.stream.update(VIEW);
@@ -305,5 +341,82 @@ describe("RocktreeStream", () => {
 		h.stream.dispose();
 		expect(h.disposed).toContain("2");
 		for (const l of h.loads) if (l.path !== "2") expect(l.signal.aborted).toBe(true);
+	});
+});
+
+describe("staged promotion (GPU upload budget)", () => {
+	const tick = () => new Promise((r) => setTimeout(r, 0));
+
+	it("arrived nodes stay staged (not drawable) until promoted, coarse-first within the budget", async () => {
+		const h = harness();
+		await h.stream.update(VIEW);
+		for (const l of h.loads) l.resolve();
+		await tick();
+		expect(h.stream.drawnNodes()).toEqual([]);
+		expect(h.stream.promote(2)).toBe(5);
+		expect(
+			h.stream
+				.drawnNodes()
+				.map((d) => d.path)
+				.sort(),
+		).toEqual(["2", "20"]);
+		expect(h.stream.promote(Infinity)).toBe(0);
+		expect(h.stream.drawnNodes().length).toBe(7);
+	});
+
+	it("stale staged nodes from a previous view never starve a wanted arrival", async () => {
+		const h = harness();
+		await h.stream.update(VIEW);
+		for (const l of h.loads) l.resolve();
+		await tick(); // 7 staged, all about to become unwanted
+		await h.stream.update(AWAY);
+		h.loads.find((l) => l.path === "3")!.resolve();
+		await tick();
+		// unwanted staged promote for free (never drawn); only "3" costs budget
+		expect(h.stream.promote(1)).toBe(0);
+		expect(h.stream.drawnNodes()).toEqual([{ path: "3", data: "3", mask: 0 }]);
+	});
+});
+
+describe("loadPriority", () => {
+	it("orders by level first, then distance to the eye", () => {
+		const at = (path: string, extent: number) => ({ path, epoch: 1, obb: obbAt(extent) });
+		// bigger extent = surface closer to the eye
+		expect(loadPriority(at("20", 500), VIEW)).toBeLessThan(loadPriority(at("20", 100), VIEW));
+		expect(loadPriority(at("2", 100), VIEW)).toBeLessThan(loadPriority(at("20", 500), VIEW));
+	});
+});
+
+describe("selectEvictions (GPU retention)", () => {
+	it("never evicts drawn entries (unusedSince null)", () => {
+		expect(selectEvictions([["a", null]], 1e9, 0, 0)).toEqual([]);
+	});
+
+	it("evicts retained entries past the grace period", () => {
+		const out = selectEvictions(
+			[
+				["old", 0],
+				["fresh", 900],
+				["drawn", null],
+			],
+			1000,
+			500,
+			10,
+		);
+		expect(out).toEqual(["old"]);
+	});
+
+	it("evicts the oldest beyond the cap even within grace", () => {
+		const out = selectEvictions(
+			[
+				["b", 20],
+				["a", 10],
+				["c", 30],
+			],
+			40,
+			1000,
+			2,
+		);
+		expect(out).toEqual(["a"]);
 	});
 });

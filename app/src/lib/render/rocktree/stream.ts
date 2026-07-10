@@ -7,7 +7,7 @@
 
 import { imageryEpochFor, isRenderable, nodeDataEpoch, type Bulk } from "./decode";
 import { coveringSet, type BulkSource, type FoundNode } from "./traverse";
-import type { FrustumView } from "./lod";
+import { obbDistance, type FrustumView } from "./lod";
 import { log } from "@/lib/util/log";
 
 export interface StreamOpts {
@@ -23,7 +23,8 @@ export interface StreamOpts {
 export interface StreamDeps<T> {
 	getRootEpoch(): Promise<number>;
 	getBulk: BulkSource;
-	loadNode(found: FoundNode, signal: AbortSignal): Promise<T>;
+	/** Lower priority value = more urgent (level-major, then distance to eye). */
+	loadNode(found: FoundNode, signal: AbortSignal, priority: number): Promise<T>;
 	disposeNode?(data: T): void;
 	/** Drawn set changed (node arrived, covering moved). Host re-renders. */
 	onChange(): void;
@@ -37,10 +38,17 @@ export interface DrawnNode<T> {
 }
 
 interface Entry<T> {
-	state: "loading" | "ready" | "failed";
+	/** "staged": loaded but not yet promoted to drawable (GPU-upload budget). */
+	state: "loading" | "staged" | "ready" | "failed";
 	data?: T;
 	abort?: AbortController;
 	lastWanted: number;
+}
+
+/** Fetch priority: coarse levels first, then nearest to the eye. */
+export function loadPriority(found: FoundNode, view: FrustumView): number {
+	const dist = found.obb ? obbDistance(found.obb, view.eye) : 0;
+	return found.path.length * 1e8 + Math.min(dist, 1e8 - 1);
 }
 
 /**
@@ -165,6 +173,7 @@ export class RocktreeStream<T> {
 			path,
 			epoch: nodeDataEpoch(bulk, node),
 			imageryEpoch: imageryEpochFor(bulk, node),
+			obb: node.obb,
 		};
 	}
 
@@ -187,15 +196,16 @@ export class RocktreeStream<T> {
 		this.wanted = wanted;
 		this.picks = new Set(picks.map((p) => p.path));
 
-		// abort loads that left the view; drop stale failures
+		// abort loads that left the view; drop stale failures (staged/ready data
+		// stays cached and is governed by the LRU)
 		for (const [path, e] of this.entries) {
-			if (e.state !== "ready" && !wanted.has(path)) {
+			if ((e.state === "loading" || e.state === "failed") && !wanted.has(path)) {
 				e.abort?.abort();
 				this.entries.delete(path);
 			}
 		}
-		// start missing loads, coarse levels first (fetch cap is FIFO)
-		const toLoad: FoundNode[] = [];
+		// start missing loads, most urgent first
+		const toLoad: { found: FoundNode; priority: number }[] = [];
 		for (const [path, found] of wanted) {
 			if (!found) continue;
 			const e = this.entries.get(path);
@@ -203,25 +213,25 @@ export class RocktreeStream<T> {
 				e.lastWanted = this.seq;
 				continue;
 			}
-			toLoad.push(found);
+			toLoad.push({ found, priority: loadPriority(found, view) });
 		}
-		toLoad.sort((a, b) => a.path.length - b.path.length);
-		for (const found of toLoad) this.startLoad(found);
+		toLoad.sort((a, b) => a.priority - b.priority);
+		for (const { found, priority } of toLoad) this.startLoad(found, priority);
 		this.evict();
 		this.deps.onChange();
 	}
 
-	private startLoad(found: FoundNode) {
+	private startLoad(found: FoundNode, priority: number) {
 		const abort = new AbortController();
 		const entry: Entry<T> = { state: "loading", abort, lastWanted: this.seq };
 		this.entries.set(found.path, entry);
-		this.deps.loadNode(found, abort.signal).then(
+		this.deps.loadNode(found, abort.signal, priority).then(
 			(data) => {
 				if (abort.signal.aborted || this.disposed) {
 					this.deps.disposeNode?.(data);
 					return;
 				}
-				entry.state = "ready";
+				entry.state = "staged";
 				entry.data = data;
 				this.deps.onChange();
 			},
@@ -244,6 +254,25 @@ export class RocktreeStream<T> {
 			if (e.data !== undefined) this.deps.disposeNode?.(e.data);
 			this.entries.delete(path);
 		}
+	}
+
+	/**
+	 * Promote up to `budget` staged WANTED nodes to drawable, coarse first.
+	 * The host calls this once per frame so GPU uploads never burst; returns
+	 * the number still staged (schedule another frame while > 0). Staged nodes
+	 * no longer wanted promote for free: they are never drawn (no GPU cost),
+	 * they just join the ready cache.
+	 */
+	promote(budget: number): number {
+		const staged: [string, Entry<T>][] = [];
+		for (const [path, e] of this.entries) {
+			if (e.state !== "staged") continue;
+			if (this.wanted.has(path)) staged.push([path, e]);
+			else e.state = "ready";
+		}
+		staged.sort((a, b) => a[0].length - b[0].length);
+		for (const [, e] of staged.slice(0, budget)) e.state = "ready";
+		return Math.max(0, staged.length - budget);
 	}
 
 	/** Ready wanted nodes with their octant masks (0xff = skip drawing). */

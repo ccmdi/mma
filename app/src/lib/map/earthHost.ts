@@ -5,9 +5,10 @@
 // depth-test disabled so markers stay visible over mountains.
 //
 // Camera: right-drag (or ctrl-drag) tilts/orbits. Zoom is normalized to Google
-// scale (deck's 512px world = google zoom - 1). Clicks on empty ground unproject
-// at sea level, so at high pitch on tall terrain the created location can land
-// slightly off; fine for v1.
+// scale (deck's 512px world = google zoom - 1). Coordinate lookups raycast the
+// pixel against the CPU-side rocktree meshes (so clicks/readouts land on the
+// 3D surface actually under the cursor) and fall back to a sea-level unproject
+// where no mesh is drawn.
 
 import { Deck, MapView, WebMercatorViewport } from "@deck.gl/core";
 import type { PickingInfo, Layer, MapViewState } from "@deck.gl/core";
@@ -15,8 +16,23 @@ import { TerrainLayer } from "@deck.gl/geo-layers";
 import { fetchBulk, fetchNode, fetchPlanetoid } from "@/lib/render/rocktree/fetch";
 import type { FoundNode } from "@/lib/render/rocktree/traverse";
 import { makeView } from "@/lib/render/rocktree/lod";
-import { RocktreeStream } from "@/lib/render/rocktree/stream";
-import RocktreeMeshLayer, { type RocktreeNodeData } from "@/lib/render/rocktree/layer";
+import { RocktreeStream, type DrawnNode } from "@/lib/render/rocktree/stream";
+import RocktreeMeshLayer, {
+	composeNodeModel,
+	mul4,
+	type RocktreeNodeData,
+} from "@/lib/render/rocktree/layer";
+import {
+	invert4,
+	localRay,
+	ndcHitsNodeBounds,
+	raycastMesh,
+	type LocalRay,
+} from "@/lib/render/rocktree/raycast";
+import { coverageGrid } from "@/lib/render/rocktree/coverage";
+import type { CoverageTexture } from "@/lib/render/rocktree/layer";
+import { createSvConfigForPrefs } from "@/lib/geo/mapStack";
+import { buildTileUrl, serializeTileUrl, type TileConfig } from "@/lib/geo/tiles";
 import {
 	enuAnchor,
 	meshOctants,
@@ -51,6 +67,16 @@ const INITIAL_PITCH = 45;
 // are left to the terrain backdrop.
 const MIN_ROCKTREE_LEVEL = 12;
 const ROCKTREE_SETTLE_MS = 250;
+// Also re-cover DURING camera motion at this cadence (stale loads are aborted
+// by the stream), so tiles start arriving before the camera settles.
+const ROCKTREE_MOTION_MS = 400;
+// Staged nodes promoted to drawable per frame: bounds GPU model/texture
+// creation so a burst of arrivals cannot hitch a single frame.
+const ROCKTREE_PROMOTE_PER_FRAME = 4;
+// SV coverage decal: GRID x GRID tiles composited into one texture draped over
+// the mesh, spanning this many viewport widths around the camera target.
+const COVERAGE_GRID = 8;
+const COVERAGE_SPAN_FACTOR = 2.5;
 
 type DeckEvent = { srcEvent?: Event };
 
@@ -88,13 +114,29 @@ class EarthHost implements MapHostContract<"earth"> {
 	private rocktree: RocktreeStream<RocktreeNodeData>;
 	private rocktreeTimer: ReturnType<typeof setTimeout> | null = null;
 	private rocktreeRaf: number | null = null;
+	private lastRocktreeUpdate = 0;
+	private lastDrawn: DrawnNode<RocktreeNodeData>[] = [];
+	// per-node MVPs for picking, valid for one (camera, drawn set) pair
+	private raycastCache: {
+		viewState: MapViewState;
+		drawn: DrawnNode<RocktreeNodeData>[];
+		viewport: WebMercatorViewport;
+		entries: { node: DrawnNode<RocktreeNodeData>; model: Float64Array; mvp: Float64Array }[];
+	} | null = null;
+	private covCfg: TileConfig;
+	private covSeq = 0;
+	private covKey: string | null = null;
+	private coverage: CoverageTexture | null = null;
+	private svOpacity: number;
 	private destroyed = false;
 	private draggable = true;
 	private dblClickZoom = true;
 	private lastRightDown: { x: number; y: number } | null = null;
 
-	constructor(container: HTMLElement, _prefs: MapEmbedPrefs, opts: CreateHostOpts) {
+	constructor(container: HTMLElement, prefs: MapEmbedPrefs, opts: CreateHostOpts) {
 		this.outer = container;
+		this.svOpacity = prefs.svOpacity;
+		this.covCfg = createSvConfigForPrefs(prefs, opts.useBlobby);
 		const camera = opts.camera ?? { center: { lat: 0, lng: 0 }, zoom: 2 };
 		this.viewState = {
 			longitude: camera.center.lng,
@@ -109,7 +151,7 @@ class EarthHost implements MapHostContract<"earth"> {
 			{
 				getRootEpoch: () => (planetoid ??= fetchPlanetoid()).then((p) => p.rootEpoch),
 				getBulk: fetchBulk,
-				loadNode: (found, signal) => this.prepareNode(found, signal),
+				loadNode: (found, signal, priority) => this.prepareNode(found, signal, priority),
 				disposeNode: (data) => {
 					for (const m of data.meshes) m.texture.close();
 				},
@@ -142,7 +184,8 @@ class EarthHost implements MapHostContract<"earth"> {
 				this.scheduleRocktreeUpdate();
 			},
 			onClick: (info: PickingInfo, ev: DeckEvent) => {
-				for (const o of this.overlays) o.props.onClick?.(info, ev?.srcEvent);
+				const fixed = this.withMeshCoordinate(info);
+				for (const o of this.overlays) o.props.onClick?.(fixed, ev?.srcEvent);
 			},
 			onHover: (info: PickingInfo, ev: DeckEvent) => {
 				for (const o of this.overlays) o.props.onHover?.(info, ev?.srcEvent);
@@ -156,25 +199,85 @@ class EarthHost implements MapHostContract<"earth"> {
 		this.scheduleRocktreeUpdate();
 	}
 
-	// Live octree streaming (M4): recompute the covering when the camera
-	// settles; the stream fetches/aborts/evicts and we just recompose.
+	// Live octree streaming (M4/M5): re-cover during motion (throttled) plus a
+	// trailing settle pass; the stream fetches/aborts/evicts and we recompose.
 	private scheduleRocktreeUpdate() {
 		if (this.rocktreeTimer) clearTimeout(this.rocktreeTimer);
 		this.rocktreeTimer = setTimeout(() => {
 			this.rocktreeTimer = null;
-			if (this.destroyed) return;
-			this.rocktree.update(
-				makeView({
-					lat: this.viewState.latitude,
-					lng: this.viewState.longitude,
-					zoom: this.viewState.zoom,
-					pitch: this.viewState.pitch ?? INITIAL_PITCH,
-					bearing: this.viewState.bearing ?? 0,
-					width: Math.max(1, this.outer.clientWidth),
-					height: Math.max(1, this.outer.clientHeight),
-				}),
-			);
+			this.fireRocktreeUpdate();
+			void this.updateCoverage();
 		}, ROCKTREE_SETTLE_MS);
+		if (Date.now() - this.lastRocktreeUpdate >= ROCKTREE_MOTION_MS) this.fireRocktreeUpdate();
+	}
+
+	// Re-render the SV coverage decal for the settled camera. The texture is
+	// world-anchored, so a stale one stays geographically correct while moving.
+	private async updateCoverage() {
+		if (this.destroyed || this.svOpacity <= 0) return;
+		const vs = this.viewState;
+		const viewport = this.viewport();
+		const [cx, cy] = viewport.projectPosition([vs.longitude, vs.latitude, 0]);
+		const span =
+			(Math.max(this.outer.clientWidth, this.outer.clientHeight) / 2 ** vs.zoom) *
+			COVERAGE_SPAN_FACTOR;
+		const { tileZ, tx0, ty0, rect } = coverageGrid([cx, cy], span, COVERAGE_GRID);
+		const key = `${serializeTileUrl(this.covCfg)}|${tileZ}:${tx0}:${ty0}`;
+		if (key === this.covKey) return;
+		this.covKey = key;
+		const seq = ++this.covSeq;
+
+		const n = 2 ** tileZ;
+		const canvas = document.createElement("canvas");
+		canvas.width = canvas.height = COVERAGE_GRID * 256;
+		const ctx = canvas.getContext("2d")!;
+		const loadTile = (url: string) =>
+			new Promise<HTMLImageElement | null>((resolve) => {
+				const img = new Image();
+				img.crossOrigin = "anonymous";
+				img.onload = () => resolve(img);
+				img.onerror = () => resolve(null);
+				img.src = url;
+			});
+		const jobs: Promise<void>[] = [];
+		for (let col = 0; col < COVERAGE_GRID; col++) {
+			for (let row = 0; row < COVERAGE_GRID; row++) {
+				const tx = (((tx0 + col) % n) + n) % n;
+				const ty = ty0 + row;
+				if (ty < 0 || ty >= n) continue;
+				jobs.push(
+					loadTile(buildTileUrl(this.covCfg, tx, ty, tileZ)).then((img) => {
+						if (img && seq === this.covSeq) ctx.drawImage(img, col * 256, row * 256, 256, 256);
+					}),
+				);
+			}
+		}
+		await Promise.all(jobs);
+		if (seq !== this.covSeq || this.destroyed) return;
+		const bitmap = await createImageBitmap(canvas);
+		if (seq !== this.covSeq || this.destroyed) {
+			bitmap.close();
+			return;
+		}
+		this.coverage?.bitmap.close();
+		this.coverage = { bitmap, rect, version: seq };
+		this.composeLayers();
+	}
+
+	private fireRocktreeUpdate() {
+		if (this.destroyed) return;
+		this.lastRocktreeUpdate = Date.now();
+		this.rocktree.update(
+			makeView({
+				lat: this.viewState.latitude,
+				lng: this.viewState.longitude,
+				zoom: this.viewState.zoom,
+				pitch: this.viewState.pitch ?? INITIAL_PITCH,
+				bearing: this.viewState.bearing ?? 0,
+				width: Math.max(1, this.outer.clientWidth),
+				height: Math.max(1, this.outer.clientHeight),
+			}),
+		);
 	}
 
 	private onRocktreeChange() {
@@ -185,8 +288,12 @@ class EarthHost implements MapHostContract<"earth"> {
 		});
 	}
 
-	private async prepareNode(found: FoundNode, signal: AbortSignal): Promise<RocktreeNodeData> {
-		const node = await fetchNode(found.path, found.epoch, found.imageryEpoch, signal);
+	private async prepareNode(
+		found: FoundNode,
+		signal: AbortSignal,
+		priority: number,
+	): Promise<RocktreeNodeData> {
+		const node = await fetchNode(found.path, found.epoch, found.imageryEpoch, signal, priority);
 		const { origin, modelMatrix } = enuAnchor(node.matrix);
 		const meshes: RocktreeNodeData["meshes"] = [];
 		for (const mesh of node.meshes) {
@@ -299,10 +406,13 @@ class EarthHost implements MapHostContract<"earth"> {
 			},
 		});
 		const drawn = this.rocktree.drawnNodes();
+		this.lastDrawn = drawn;
 		const rocktreeLayer = new RocktreeMeshLayer({
 			id: "rocktree",
 			nodes: drawn.map((d) => d.data),
 			masks: new Map(drawn.map((d) => [d.path, d.mask])),
+			coverage: this.coverage,
+			svOpacity: this.svOpacity,
 			pickable: false,
 		});
 		// Overlay content renders on top of terrain regardless of depth, so markers
@@ -318,7 +428,10 @@ class EarthHost implements MapHostContract<"earth"> {
 	}
 
 	private composeLayers() {
+		const staged = this.rocktree.promote(ROCKTREE_PROMOTE_PER_FRAME);
 		this.deck.setProps({ layers: this.buildLayers() });
+		// spread remaining GPU uploads over subsequent frames
+		if (staged > 0) this.onRocktreeChange();
 	}
 
 	get container(): HTMLElement {
@@ -404,12 +517,81 @@ class EarthHost implements MapHostContract<"earth"> {
 	}
 
 	containerPxToLatLng(x: number, y: number): LatLng | null {
+		const hit = this.meshLatLngAt(x, y);
+		if (hit) return hit;
 		try {
 			const [lng, lat] = this.viewport().unproject([x, y]);
 			return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 		} catch {
 			return null;
 		}
+	}
+
+	private raycastEntries() {
+		let c = this.raycastCache;
+		if (!c || c.viewState !== this.viewState || c.drawn !== this.lastDrawn) {
+			const viewport = this.viewport();
+			const vp = viewport.viewProjectionMatrix;
+			const entries = [];
+			for (const node of this.lastDrawn) {
+				if (node.mask === 0xff) continue;
+				const model = composeNodeModel(
+					viewport.projectPosition(node.data.origin),
+					viewport.getDistanceScales(node.data.origin).unitsPerMeter,
+					node.data.enuModel,
+				);
+				entries.push({ node, model, mvp: mul4(vp, model) });
+			}
+			c = { viewState: this.viewState, drawn: this.lastDrawn, viewport, entries };
+			this.raycastCache = c;
+		}
+		return c;
+	}
+
+	/** Nearest mesh surface under the pixel; null when no mesh is hit. */
+	private meshLatLngAt(x: number, y: number): LatLng | null {
+		const width = Math.max(1, this.outer.clientWidth);
+		const height = Math.max(1, this.outer.clientHeight);
+		const ndcX = (2 * x) / width - 1;
+		const ndcY = 1 - (2 * y) / height;
+		const cache = this.raycastEntries();
+		let bestT: number | null = null;
+		let bestModel: Float64Array | null = null;
+		let bestRay: LocalRay | null = null;
+		for (const { node, model, mvp } of cache.entries) {
+			if (!ndcHitsNodeBounds(mvp, ndcX, ndcY)) continue;
+			const inv = invert4(mvp);
+			if (!inv) continue;
+			const ray = localRay(inv, ndcX, ndcY);
+			if (!ray) continue;
+			for (const mesh of node.data.meshes) {
+				const t = raycastMesh(ray, mesh.positions, mesh.indices, mesh.octants, node.mask);
+				if (t !== null && (bestT === null || t < bestT)) {
+					bestT = t;
+					bestModel = model;
+					bestRay = ray;
+				}
+			}
+		}
+		if (bestT === null || !bestModel || !bestRay) return null;
+		const lx = bestRay.p0[0] + bestRay.dir[0] * bestT;
+		const ly = bestRay.p0[1] + bestRay.dir[1] * bestT;
+		const lz = bestRay.p0[2] + bestRay.dir[2] * bestT;
+		const m = bestModel;
+		const common: [number, number, number] = [
+			m[0] * lx + m[4] * ly + m[8] * lz + m[12],
+			m[1] * lx + m[5] * ly + m[9] * lz + m[13],
+			m[2] * lx + m[6] * ly + m[10] * lz + m[14],
+		];
+		const [lng, lat] = cache.viewport.unprojectPosition(common);
+		return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+	}
+
+	/** For unpicked clicks, replace deck's sea-level coordinate with the mesh hit. */
+	private withMeshCoordinate(info: PickingInfo): PickingInfo {
+		if (info.picked) return info;
+		const ll = this.meshLatLngAt(info.x, info.y);
+		return ll ? { ...info, coordinate: [ll.lng, ll.lat] } : info;
 	}
 
 	setDraggable(v: boolean) {
@@ -449,11 +631,17 @@ class EarthHost implements MapHostContract<"earth"> {
 		for (const o of this.overlays) o.props.onClick?.(info, undefined);
 	}
 
-	applyPrefs(_prefs: MapEmbedPrefs, _opts: BasemapOpts) {
-		// No basemap variants and no SV coverage layer on the 3D view (yet).
+	applyPrefs(prefs: MapEmbedPrefs, opts: BasemapOpts) {
+		// No basemap variants on the 3D view; only the SV coverage decal reacts.
+		this.covCfg = createSvConfigForPrefs(prefs, opts.useBlobby);
+		void this.updateCoverage();
 	}
 
-	setSvOpacity(_v: number) {}
+	setSvOpacity(v: number) {
+		this.svOpacity = v;
+		void this.updateCoverage();
+		this.composeLayers();
+	}
 
 	resize() {
 		this.deck.setProps({ viewState: this.viewState });
@@ -463,6 +651,8 @@ class EarthHost implements MapHostContract<"earth"> {
 		this.destroyed = true;
 		if (this.rocktreeTimer) clearTimeout(this.rocktreeTimer);
 		if (this.rocktreeRaf != null) cancelAnimationFrame(this.rocktreeRaf);
+		this.covSeq++;
+		this.coverage?.bitmap.close();
 		this.rocktree.dispose();
 		for (const o of [...this.overlays]) o.finalize();
 		this.domOffs.forEach((off) => off());

@@ -11,6 +11,7 @@ import {
 	nodeDataEpoch,
 	type Bulk,
 	type BulkNode,
+	type Obb,
 } from "./decode";
 import { fetchBulk, fetchPlanetoid } from "./fetch";
 import { lodSufficient, obbVisible, type FrustumView } from "./lod";
@@ -20,6 +21,8 @@ export interface FoundNode {
 	path: string;
 	epoch: number;
 	imageryEpoch?: number;
+	/** For fetch prioritization (distance to eye); null only in edge fixtures. */
+	obb: Obb | null;
 }
 
 export type BulkSource = (path: string, epoch: number) => Promise<Bulk>;
@@ -58,6 +61,7 @@ export async function coveringSet(
 				path: bulkPath + node.path,
 				epoch: nodeDataEpoch(bulk, node),
 				imageryEpoch: imageryEpochFor(bulk, node),
+				obb: node.obb,
 			},
 		];
 	};

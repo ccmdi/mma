@@ -28,29 +28,33 @@ export function nodeUrl(path: string, epoch: number, imageryEpoch?: number): str
 
 // Politeness + resilience: kh.google.com resets connections under bursts
 // (hundreds of parallel bulk fetches at deep LOD), so all rocktree requests
-// share one in-flight cap and transient failures retry with backoff.
+// share one in-flight cap and transient failures retry with backoff. Queued
+// requests are served lowest-priority-value first (0 = most urgent), so
+// metadata and coarse near-camera nodes jump ahead of deep far ones.
 const MAX_CONCURRENT = 8;
 const RETRIES = 2;
 const RETRY_DELAY_MS = 400;
 
 let active = 0;
-const waiters: (() => void)[] = [];
-function acquire(): Promise<void> {
+const waiters: { priority: number; grant: () => void }[] = [];
+function acquire(priority: number): Promise<void> {
 	if (active < MAX_CONCURRENT) {
 		active++;
 		return Promise.resolve();
 	}
-	return new Promise((r) => waiters.push(r));
+	return new Promise((grant) => waiters.push({ priority, grant }));
 }
 function release() {
-	const next = waiters.shift();
-	// hand the slot to the next waiter, else free it
-	if (next) next();
+	let best = -1;
+	for (let i = 0; i < waiters.length; i++)
+		if (best < 0 || waiters[i].priority < waiters[best].priority) best = i;
+	// hand the slot to the most urgent waiter, else free it
+	if (best >= 0) waiters.splice(best, 1)[0].grant();
 	else active--;
 }
 
-async function fetchBytes(url: string, signal?: AbortSignal): Promise<Uint8Array> {
-	await acquire();
+async function fetchBytes(url: string, signal?: AbortSignal, priority = 0): Promise<Uint8Array> {
+	await acquire(priority);
 	try {
 		let lastErr: unknown;
 		for (let attempt = 0; attempt <= RETRIES; attempt++) {
@@ -86,6 +90,7 @@ export async function fetchNode(
 	epoch: number,
 	imageryEpoch?: number,
 	signal?: AbortSignal,
+	priority = 0,
 ): Promise<DecodedNode> {
-	return parseNodeData(await fetchBytes(nodeUrl(path, epoch, imageryEpoch), signal));
+	return parseNodeData(await fetchBytes(nodeUrl(path, epoch, imageryEpoch), signal, priority));
 }
