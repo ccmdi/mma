@@ -1,0 +1,75 @@
+// Google Earth rocktree metadata + mesh payloads (kh.google.com/rt/earth/).
+// Response messages only; trimmed to the fields the decoder reads.
+syntax = "proto2";
+
+package geo_globetrotter_proto_rocktree;
+
+message NodeKey {
+    optional string path = 1;
+    optional uint32 epoch = 2;
+}
+
+message BulkMetadata {
+    repeated NodeMetadata node_metadata = 1;
+    optional NodeKey head_node_key = 2;
+    repeated double head_node_center = 3 [packed = true];
+    repeated float meters_per_texel = 4 [packed = true];
+    optional uint32 default_imagery_epoch = 5;
+}
+
+message NodeMetadata {
+    optional uint32 path_and_flags = 1;
+    optional uint32 epoch = 2;
+    optional bytes oriented_bounding_box = 3;
+    optional float meters_per_texel = 4;
+    optional uint32 bulk_metadata_epoch = 5;
+    optional uint32 imagery_epoch = 7;
+
+    enum Flags {
+        RICH3D_LEAF = 1;
+        RICH3D_NODATA = 2;
+        LEAF = 4;
+        NODATA = 8;
+        USE_IMAGERY_EPOCH = 16;
+    }
+}
+
+message NodeData {
+    repeated double matrix_globe_from_mesh = 1 [packed = true];
+    repeated Mesh meshes = 2;
+    optional bytes for_normals = 8;
+}
+
+message Mesh {
+    optional bytes vertices = 1;
+    optional bytes texture_coords = 2;
+    optional bytes indices = 3;
+    repeated Texture texture = 6;
+    optional bytes texture_coordinates = 7;
+    optional bytes layer_and_octant_counts = 8;
+    repeated float uv_offset_and_scale = 10 [packed = true];
+    optional bytes normals = 11;
+    optional uint32 mesh_id = 12;
+}
+
+message Texture {
+    repeated bytes data = 1;
+
+    optional Format format = 2;
+    enum Format {
+        JPG = 1;
+        DXT1 = 2;
+        ETC1 = 3;
+        PVRTC2 = 4;
+        PVRTC4 = 5;
+        CRN_DXT1 = 6;
+    }
+
+    optional uint32 width = 3 [default = 256];
+    optional uint32 height = 4 [default = 256];
+}
+
+message PlanetoidMetadata {
+    optional NodeMetadata root_node_metadata = 1;
+    optional float radius = 2;
+}

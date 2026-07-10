@@ -43,8 +43,9 @@ describe("boundsOfCoords", () => {
 });
 
 describe("hostKindForMapType", () => {
-	it("routes vector to maplibre, everything else to google", () => {
+	it("routes vector to maplibre, earth to earth, everything else to google", () => {
 		expect(hostKindForMapType("vector")).toBe("maplibre");
+		expect(hostKindForMapType("earth")).toBe("earth");
 		expect(hostKindForMapType("map")).toBe("google");
 		expect(hostKindForMapType("satellite")).toBe("google");
 		expect(hostKindForMapType("osm")).toBe("google");

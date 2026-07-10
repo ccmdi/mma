@@ -19,6 +19,7 @@ const MAP_TYPE_LABELS: Record<MapTypeKey, string> = {
 	satellite: "Satellite",
 	osm: "OSM",
 	vector: "Vector",
+	earth: "Earth",
 };
 
 export interface LayerConfig {
@@ -320,9 +321,10 @@ const MAP_TYPE_PREVIEW_STATIC: Partial<Record<MapTypeKey, string>> = {
 	osm: "https://tile.openstreetmap.org/0/0/0.png",
 	// No raster endpoint for OpenFreeMap styles; Carto's voyager raster is a close stand-in.
 	vector: "https://basemaps.cartocdn.com/rastertiles/voyager/0/0/0.png",
+	earth: "https://mts1.googleapis.com/vt?hl=en-US&lyrs=y&x=0&y=0&z=0",
 };
 
-const MAP_TYPES: MapTypeKey[] = ["map", "satellite", "osm", "vector"];
+const MAP_TYPES: MapTypeKey[] = ["map", "satellite", "osm", "vector", "earth"];
 
 function BasemapSelector({
 	previewUrls,
@@ -459,6 +461,7 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 		satellite: MAP_TYPE_PREVIEW_STATIC.satellite!,
 		osm: MAP_TYPE_PREVIEW_STATIC.osm!,
 		vector: MAP_TYPE_PREVIEW_STATIC.vector!,
+		earth: MAP_TYPE_PREVIEW_STATIC.earth!,
 	};
 
 	const settingsPopup = isOpen && (
