@@ -9,6 +9,8 @@ export const commands = {
 	 *  Used by JS to pass large payloads via file instead of IPC serialization.
 	 */
 	writeTempFile: (name: string, content: string) => typedError<string, string>(__TAURI_INVOKE("write_temp_file", { name, content })),
+	/**  Write binary content to a unique temp file. Returns the path for [`export::store_save_export_file`]. */
+	writeTempBytes: (ext: string, content: number[]) => typedError<string, string>(__TAURI_INVOKE("write_temp_bytes", { ext, content })),
 	/**  Read a file from disk as UTF-8 text. Used by JS to read temp files and plugin sources. */
 	readFile: (path: string) => typedError<string, string>(__TAURI_INVOKE("read_file", { path })),
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
