@@ -9,7 +9,7 @@
  *   bulk_user.bin  BulkMetadata for path 205352734340 (epoch 1012)
  *   node_user.bin  NodeData for a Dallas-area node (JPG texture)
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { PbfWriter } from "pbf";
 import {
@@ -30,7 +30,7 @@ import {
 	type Vec3,
 } from "@/lib/render/rocktree/decode";
 import { writeNodeData } from "@/lib/render/rocktree/rocktree.gen";
-import { planetoidUrl, bulkUrl, nodeUrl } from "@/lib/render/rocktree/fetch";
+import { planetoidUrl, bulkUrl, nodeUrl, fetchPlanetoid } from "@/lib/render/rocktree/fetch";
 
 const fixture = (name: string) =>
 	new Uint8Array(readFileSync(new URL(`./fixtures/rocktree/${name}`, import.meta.url)));
@@ -343,6 +343,50 @@ describe("resource urls", () => {
 			/NodeData\/pb=!1m2!1s20535273434062!2u1009!2e1!4b0$/,
 		);
 		expect(nodeUrl("2", 1012, 1030)).toMatch(/NodeData\/pb=!1m2!1s2!2u1012!2e1!3u1030!4b0$/);
+	});
+});
+
+describe("fetch policy", () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it("retries network errors and 5xx, but not 4xx", async () => {
+		let calls = 0;
+		vi.stubGlobal("fetch", async () => {
+			calls++;
+			if (calls === 1) throw new TypeError("Failed to fetch");
+			if (calls === 2) return new Response(null, { status: 503 });
+			return new Response(fixture("planetoid.bin"), { status: 200 });
+		});
+		await expect(fetchPlanetoid()).resolves.toEqual({ rootEpoch: 1012, radius: 6371010 });
+		expect(calls).toBe(3);
+
+		calls = 0;
+		vi.stubGlobal("fetch", async () => {
+			calls++;
+			return new Response(null, { status: 404 });
+		});
+		await expect(fetchPlanetoid()).rejects.toThrow(/404/);
+		expect(calls).toBe(1);
+	}, 15000);
+
+	it("caps concurrent requests", async () => {
+		let inFlight = 0;
+		let peak = 0;
+		vi.stubGlobal(
+			"fetch",
+			() =>
+				new Promise<Response>((resolve) => {
+					inFlight++;
+					peak = Math.max(peak, inFlight);
+					setTimeout(() => {
+						inFlight--;
+						resolve(new Response(fixture("planetoid.bin"), { status: 200 }));
+					}, 5);
+				}),
+		);
+		await Promise.all(Array.from({ length: 30 }, () => fetchPlanetoid()));
+		expect(peak).toBeLessThanOrEqual(8);
+		expect(peak).toBeGreaterThan(1);
 	});
 });
 

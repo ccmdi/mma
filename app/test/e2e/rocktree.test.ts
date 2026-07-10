@@ -23,6 +23,7 @@ import {
 	type Bulk,
 	type BulkNode,
 } from "@/lib/render/rocktree/decode";
+import { obbDistance } from "@/lib/render/rocktree/lod";
 
 const TARGET = { lat: 40.758, lng: -73.9855 }; // Times Square
 
@@ -143,6 +144,26 @@ describe("rocktree proxy + decode", function () {
 			expect(mesh.layerBounds[9]).toBe(mesh.strip.length);
 			expect([mesh.texture.data[0], mesh.texture.data[1]]).toEqual([0xff, 0xd8]);
 		}
+
+		// OBB convention check on live geometry: every vertex must sit inside the
+		// node's own OBB when its axes are read as the COLUMNS of orientation
+		// (frustum culling and LOD depend on this reading).
+		const obb = best!.node.obb!;
+		let worst = 0;
+		for (const m of node.meshes) {
+			for (let i = 0; i < m.vertexCount; i++) {
+				const x = m.vertexData[i * 8],
+					y = m.vertexData[i * 8 + 1],
+					z = m.vertexData[i * 8 + 2];
+				const p: [number, number, number] = [
+					M[0] * x + M[4] * y + M[8] * z + M[12],
+					M[1] * x + M[5] * y + M[9] * z + M[13],
+					M[2] * x + M[6] * y + M[10] * z + M[14],
+				];
+				worst = Math.max(worst, obbDistance(obb, p));
+			}
+		}
+		expect(worst).toBeLessThan(0.05 * Math.max(...obb.extents));
 
 		// Sphere-frame check end to end: the mesh centroid must land near the target.
 		const mesh = node.meshes[0];

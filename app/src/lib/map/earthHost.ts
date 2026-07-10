@@ -14,7 +14,8 @@ import type { PickingInfo, Layer, MapViewState } from "@deck.gl/core";
 import { TerrainLayer } from "@deck.gl/geo-layers";
 import { SimpleMeshLayer } from "@deck.gl/mesh-layers";
 import { fetchNode } from "@/lib/render/rocktree/fetch";
-import { findNodeNear } from "@/lib/render/rocktree/traverse";
+import { loadCoveringSet, type FoundNode } from "@/lib/render/rocktree/traverse";
+import { makeView } from "@/lib/render/rocktree/lod";
 import { enuAnchor, meshPositions, meshUvs, stripToTriangles } from "@/lib/render/rocktree/mesh";
 import { log } from "@/lib/util/log";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
@@ -40,6 +41,10 @@ const ELEVATION_TILES = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium
 const SATELLITE_TILES = "https://mts1.googleapis.com/vt?hl=en-US&lyrs=s&x={x}&y={y}&z={z}";
 const TERRARIUM_DECODER = { rScaler: 256, gScaler: 1, bScaler: 1 / 256, offset: -32768 };
 const INITIAL_PITCH = 45;
+// ENU anchoring only holds for small nodes; shallower picks (zoomed way out)
+// are left to the terrain backdrop.
+const MIN_ROCKTREE_LEVEL = 12;
+const ROCKTREE_FETCH_CONCURRENCY = 6;
 
 type DeckEvent = { srcEvent?: Event };
 
@@ -118,59 +123,91 @@ class EarthHost implements MapHostContract<"earth"> {
 		});
 
 		this.wireDomEvents(container);
-		void this.loadRocktreeProbe(camera.center);
+		void this.loadRocktreeCovering();
 	}
 
-	// Milestone-2 probe: fetch and draw the deepest rocktree mesh node covering
-	// the initial camera target, composited over the terrain. Full octree
-	// streaming with LOD replaces this.
-	private async loadRocktreeProbe(center: LatLng) {
+	// Milestone-3: one-shot covering set for the initial camera. Traverses the
+	// octree, fetches every covering node, draws each as its own SimpleMeshLayer
+	// over the terrain. Camera-move updates and octant masking are M4.
+	private async loadRocktreeCovering() {
 		try {
-			const found = await findNodeNear(center.lat, center.lng);
-			// Coarse nodes span thousands of km; the local ENU frame only holds
-			// for deep (small) nodes.
-			if (!found || found.path.length < 12) {
-				log.info(`[rocktree] no deep node at ${center.lat.toFixed(4)},${center.lng.toFixed(4)}`);
+			const view = makeView({
+				lat: this.viewState.latitude,
+				lng: this.viewState.longitude,
+				zoom: this.viewState.zoom,
+				pitch: this.viewState.pitch ?? INITIAL_PITCH,
+				bearing: this.viewState.bearing ?? 0,
+				width: Math.max(1, this.outer.clientWidth),
+				height: Math.max(1, this.outer.clientHeight),
+			});
+			const found = (
+				await loadCoveringSet(view, {
+					// 0.25 = two levels deeper than 1 texel/px; matches what Google's
+					// client shows up close (trees/cars stop being blobs)
+					texelBudget: 0.25 / Math.min(2, window.devicePixelRatio || 1),
+					maxLevel: 22,
+					maxNodes: 2048,
+				})
+			).filter((f) => f.path.length >= MIN_ROCKTREE_LEVEL);
+			if (!found.length) {
+				log.info(`[rocktree] no coverable nodes for this view`);
 				return;
 			}
-			const node = await fetchNode(found.path, found.epoch, found.imageryEpoch);
-			const { origin, modelMatrix } = enuAnchor(node.matrix);
-			const layers: Layer[] = [];
-			for (const [i, mesh] of node.meshes.entries()) {
-				const texture = await createImageBitmap(
-					new Blob([mesh.texture.data as BlobPart], { type: "image/jpeg" }),
-				);
-				layers.push(
-					new SimpleMeshLayer({
-						id: `rocktree-probe-${found.path}-${i}`,
-						data: [0],
-						mesh: {
-							attributes: {
-								positions: { value: meshPositions(mesh), size: 3 },
-								texCoords: { value: meshUvs(mesh), size: 2 },
-							},
-							indices: { value: stripToTriangles(mesh.strip, mesh.layerBounds[3]), size: 1 },
-						},
-						texture,
-						getPosition: () => [0, 0, 0],
-						coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
-						coordinateOrigin: origin,
-						modelMatrix,
-						// imagery is pre-lit; no scene lighting
-						material: false,
-						pickable: false,
-					}),
-				);
-			}
-			if (this.destroyed) return;
-			this.rocktreeLayers = layers;
-			this.composeLayers();
-			log.info(
-				`[rocktree] probe node ${found.path} (${node.meshes.length} mesh) at ${origin[1].toFixed(5)},${origin[0].toFixed(5)}`,
-			);
+			let done = 0;
+			const queue = [...found];
+			const worker = async () => {
+				for (;;) {
+					const f = queue.shift();
+					if (!f || this.destroyed) return;
+					try {
+						this.rocktreeLayers.push(...(await this.nodeLayers(f)));
+					} catch (e) {
+						log.warn(`[rocktree] node ${f.path} failed: ${e}`);
+					}
+					done++;
+					if (this.destroyed) return;
+					// recomposing diffs every layer; keep it infrequent for large sets
+					if (done % 24 === 0 || done === found.length) this.composeLayers();
+				}
+			};
+			await Promise.all(Array.from({ length: ROCKTREE_FETCH_CONCURRENCY }, worker));
+			log.info(`[rocktree] covering set drawn: ${found.length} nodes`);
 		} catch (e) {
-			log.warn(`[rocktree] probe failed: ${e}`);
+			log.warn(`[rocktree] covering load failed: ${e}`);
 		}
+	}
+
+	private async nodeLayers(f: FoundNode): Promise<Layer[]> {
+		const node = await fetchNode(f.path, f.epoch, f.imageryEpoch);
+		const { origin, modelMatrix } = enuAnchor(node.matrix);
+		const layers: Layer[] = [];
+		for (const [i, mesh] of node.meshes.entries()) {
+			const texture = await createImageBitmap(
+				new Blob([mesh.texture.data as BlobPart], { type: "image/jpeg" }),
+			);
+			layers.push(
+				new SimpleMeshLayer({
+					id: `rocktree-${f.path}-${i}`,
+					data: [0],
+					mesh: {
+						attributes: {
+							positions: { value: meshPositions(mesh), size: 3 },
+							texCoords: { value: meshUvs(mesh), size: 2 },
+						},
+						indices: { value: stripToTriangles(mesh.strip, mesh.layerBounds[3]), size: 1 },
+					},
+					texture,
+					getPosition: () => [0, 0, 0],
+					coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
+					coordinateOrigin: origin,
+					modelMatrix,
+					// imagery is pre-lit; no scene lighting
+					material: false,
+					pickable: false,
+				}),
+			);
+		}
+		return layers;
 	}
 
 	private controllerProps() {

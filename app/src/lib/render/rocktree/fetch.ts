@@ -26,10 +26,49 @@ export function nodeUrl(path: string, epoch: number, imageryEpoch?: number): str
 	return `${schemeBase("rocktree")}NodeData/pb=!1m2!1s${path}!2u${epoch}!2e${TEXTURE_FORMAT_JPG}${img}!4b0`;
 }
 
+// Politeness + resilience: kh.google.com resets connections under bursts
+// (hundreds of parallel bulk fetches at deep LOD), so all rocktree requests
+// share one in-flight cap and transient failures retry with backoff.
+const MAX_CONCURRENT = 8;
+const RETRIES = 2;
+const RETRY_DELAY_MS = 400;
+
+let active = 0;
+const waiters: (() => void)[] = [];
+function acquire(): Promise<void> {
+	if (active < MAX_CONCURRENT) {
+		active++;
+		return Promise.resolve();
+	}
+	return new Promise((r) => waiters.push(r));
+}
+function release() {
+	const next = waiters.shift();
+	// hand the slot to the next waiter, else free it
+	if (next) next();
+	else active--;
+}
+
 async function fetchBytes(url: string): Promise<Uint8Array> {
-	const res = await fetch(url);
-	if (!res.ok) throw new Error(`rocktree: HTTP ${res.status} for ${url}`);
-	return new Uint8Array(await res.arrayBuffer());
+	await acquire();
+	try {
+		let lastErr: unknown;
+		for (let attempt = 0; attempt <= RETRIES; attempt++) {
+			if (attempt) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
+			try {
+				const res = await fetch(url);
+				if (res.ok) return new Uint8Array(await res.arrayBuffer());
+				lastErr = new Error(`rocktree: HTTP ${res.status} for ${url}`);
+				// 4xx is a real answer (bad path/epoch); only retry 5xx/429
+				if (res.status < 500 && res.status !== 429) break;
+			} catch (e) {
+				lastErr = e;
+			}
+		}
+		throw lastErr;
+	} finally {
+		release();
+	}
 }
 
 export async function fetchPlanetoid(): Promise<PlanetoidInfo> {
