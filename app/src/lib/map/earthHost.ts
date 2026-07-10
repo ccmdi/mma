@@ -9,15 +9,21 @@
 // at sea level, so at high pitch on tall terrain the created location can land
 // slightly off; fine for v1.
 
-import { Deck, MapView, WebMercatorViewport, COORDINATE_SYSTEM } from "@deck.gl/core";
+import { Deck, MapView, WebMercatorViewport } from "@deck.gl/core";
 import type { PickingInfo, Layer, MapViewState } from "@deck.gl/core";
 import { TerrainLayer } from "@deck.gl/geo-layers";
-import { SimpleMeshLayer } from "@deck.gl/mesh-layers";
-import { fetchNode } from "@/lib/render/rocktree/fetch";
-import { loadCoveringSet, type FoundNode } from "@/lib/render/rocktree/traverse";
+import { fetchBulk, fetchNode, fetchPlanetoid } from "@/lib/render/rocktree/fetch";
+import type { FoundNode } from "@/lib/render/rocktree/traverse";
 import { makeView } from "@/lib/render/rocktree/lod";
-import { enuAnchor, meshPositions, meshUvs, stripToTriangles } from "@/lib/render/rocktree/mesh";
-import { log } from "@/lib/util/log";
+import { RocktreeStream } from "@/lib/render/rocktree/stream";
+import RocktreeMeshLayer, { type RocktreeNodeData } from "@/lib/render/rocktree/layer";
+import {
+	enuAnchor,
+	meshOctants,
+	meshPositions,
+	meshUvs,
+	stripToTriangles,
+} from "@/lib/render/rocktree/mesh";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import type { LatLng, Bounds } from "@/types";
 import type {
@@ -44,7 +50,7 @@ const INITIAL_PITCH = 45;
 // ENU anchoring only holds for small nodes; shallower picks (zoomed way out)
 // are left to the terrain backdrop.
 const MIN_ROCKTREE_LEVEL = 12;
-const ROCKTREE_FETCH_CONCURRENCY = 6;
+const ROCKTREE_SETTLE_MS = 250;
 
 type DeckEvent = { srcEvent?: Event };
 
@@ -79,7 +85,9 @@ class EarthHost implements MapHostContract<"earth"> {
 	private listeners = new Map<keyof MapHostEvents, Set<(arg: never) => void>>();
 	private domOffs: (() => void)[] = [];
 	private tilesLoadedFired = false;
-	private rocktreeLayers: Layer[] = [];
+	private rocktree: RocktreeStream<RocktreeNodeData>;
+	private rocktreeTimer: ReturnType<typeof setTimeout> | null = null;
+	private rocktreeRaf: number | null = null;
 	private destroyed = false;
 	private draggable = true;
 	private dblClickZoom = true;
@@ -96,6 +104,27 @@ class EarthHost implements MapHostContract<"earth"> {
 			bearing: 0,
 		};
 
+		let planetoid: Promise<{ rootEpoch: number }> | null = null;
+		this.rocktree = new RocktreeStream<RocktreeNodeData>(
+			{
+				getRootEpoch: () => (planetoid ??= fetchPlanetoid()).then((p) => p.rootEpoch),
+				getBulk: fetchBulk,
+				loadNode: (found, signal) => this.prepareNode(found, signal),
+				disposeNode: (data) => {
+					for (const m of data.meshes) m.texture.close();
+				},
+				onChange: () => this.onRocktreeChange(),
+			},
+			{
+				minLevel: MIN_ROCKTREE_LEVEL,
+				// 0.25 = two levels deeper than 1 texel/px; matches what Google's
+				// client shows up close (trees/cars stop being blobs)
+				texelBudget: 0.25 / Math.min(2, window.devicePixelRatio || 1),
+				maxLevel: 22,
+				maxNodes: 2048,
+			},
+		);
+
 		this.deck = new Deck({
 			parent: container as HTMLDivElement,
 			views: new MapView({ repeat: true }),
@@ -110,6 +139,7 @@ class EarthHost implements MapHostContract<"earth"> {
 				this.deck.setProps({ viewState: this.viewState });
 				if (this.viewState.zoom !== prevZoom) this.emit("zoom", undefined);
 				this.emit("camera", undefined);
+				this.scheduleRocktreeUpdate();
 			},
 			onClick: (info: PickingInfo, ev: DeckEvent) => {
 				for (const o of this.overlays) o.props.onClick?.(info, ev?.srcEvent);
@@ -123,91 +153,54 @@ class EarthHost implements MapHostContract<"earth"> {
 		});
 
 		this.wireDomEvents(container);
-		void this.loadRocktreeCovering();
+		this.scheduleRocktreeUpdate();
 	}
 
-	// Milestone-3: one-shot covering set for the initial camera. Traverses the
-	// octree, fetches every covering node, draws each as its own SimpleMeshLayer
-	// over the terrain. Camera-move updates and octant masking are M4.
-	private async loadRocktreeCovering() {
-		try {
-			const view = makeView({
-				lat: this.viewState.latitude,
-				lng: this.viewState.longitude,
-				zoom: this.viewState.zoom,
-				pitch: this.viewState.pitch ?? INITIAL_PITCH,
-				bearing: this.viewState.bearing ?? 0,
-				width: Math.max(1, this.outer.clientWidth),
-				height: Math.max(1, this.outer.clientHeight),
-			});
-			const found = (
-				await loadCoveringSet(view, {
-					// 0.25 = two levels deeper than 1 texel/px; matches what Google's
-					// client shows up close (trees/cars stop being blobs)
-					texelBudget: 0.25 / Math.min(2, window.devicePixelRatio || 1),
-					maxLevel: 22,
-					maxNodes: 2048,
-				})
-			).filter((f) => f.path.length >= MIN_ROCKTREE_LEVEL);
-			if (!found.length) {
-				log.info(`[rocktree] no coverable nodes for this view`);
-				return;
-			}
-			let done = 0;
-			const queue = [...found];
-			const worker = async () => {
-				for (;;) {
-					const f = queue.shift();
-					if (!f || this.destroyed) return;
-					try {
-						this.rocktreeLayers.push(...(await this.nodeLayers(f)));
-					} catch (e) {
-						log.warn(`[rocktree] node ${f.path} failed: ${e}`);
-					}
-					done++;
-					if (this.destroyed) return;
-					// recomposing diffs every layer; keep it infrequent for large sets
-					if (done % 24 === 0 || done === found.length) this.composeLayers();
-				}
-			};
-			await Promise.all(Array.from({ length: ROCKTREE_FETCH_CONCURRENCY }, worker));
-			log.info(`[rocktree] covering set drawn: ${found.length} nodes`);
-		} catch (e) {
-			log.warn(`[rocktree] covering load failed: ${e}`);
-		}
-	}
-
-	private async nodeLayers(f: FoundNode): Promise<Layer[]> {
-		const node = await fetchNode(f.path, f.epoch, f.imageryEpoch);
-		const { origin, modelMatrix } = enuAnchor(node.matrix);
-		const layers: Layer[] = [];
-		for (const [i, mesh] of node.meshes.entries()) {
-			const texture = await createImageBitmap(
-				new Blob([mesh.texture.data as BlobPart], { type: "image/jpeg" }),
-			);
-			layers.push(
-				new SimpleMeshLayer({
-					id: `rocktree-${f.path}-${i}`,
-					data: [0],
-					mesh: {
-						attributes: {
-							positions: { value: meshPositions(mesh), size: 3 },
-							texCoords: { value: meshUvs(mesh), size: 2 },
-						},
-						indices: { value: stripToTriangles(mesh.strip, mesh.layerBounds[3]), size: 1 },
-					},
-					texture,
-					getPosition: () => [0, 0, 0],
-					coordinateSystem: COORDINATE_SYSTEM.METER_OFFSETS,
-					coordinateOrigin: origin,
-					modelMatrix,
-					// imagery is pre-lit; no scene lighting
-					material: false,
-					pickable: false,
+	// Live octree streaming (M4): recompute the covering when the camera
+	// settles; the stream fetches/aborts/evicts and we just recompose.
+	private scheduleRocktreeUpdate() {
+		if (this.rocktreeTimer) clearTimeout(this.rocktreeTimer);
+		this.rocktreeTimer = setTimeout(() => {
+			this.rocktreeTimer = null;
+			if (this.destroyed) return;
+			this.rocktree.update(
+				makeView({
+					lat: this.viewState.latitude,
+					lng: this.viewState.longitude,
+					zoom: this.viewState.zoom,
+					pitch: this.viewState.pitch ?? INITIAL_PITCH,
+					bearing: this.viewState.bearing ?? 0,
+					width: Math.max(1, this.outer.clientWidth),
+					height: Math.max(1, this.outer.clientHeight),
 				}),
 			);
+		}, ROCKTREE_SETTLE_MS);
+	}
+
+	private onRocktreeChange() {
+		if (this.rocktreeRaf != null || this.destroyed) return;
+		this.rocktreeRaf = requestAnimationFrame(() => {
+			this.rocktreeRaf = null;
+			if (!this.destroyed) this.composeLayers();
+		});
+	}
+
+	private async prepareNode(found: FoundNode, signal: AbortSignal): Promise<RocktreeNodeData> {
+		const node = await fetchNode(found.path, found.epoch, found.imageryEpoch, signal);
+		const { origin, modelMatrix } = enuAnchor(node.matrix);
+		const meshes: RocktreeNodeData["meshes"] = [];
+		for (const mesh of node.meshes) {
+			meshes.push({
+				positions: meshPositions(mesh),
+				uvs: meshUvs(mesh),
+				octants: meshOctants(mesh),
+				indices: stripToTriangles(mesh.strip, mesh.layerBounds[3]),
+				texture: await createImageBitmap(
+					new Blob([mesh.texture.data as BlobPart], { type: "image/jpeg" }),
+				),
+			});
 		}
-		return layers;
+		return { path: found.path, origin, enuModel: modelMatrix, meshes };
 	}
 
 	private controllerProps() {
@@ -305,6 +298,13 @@ class EarthHost implements MapHostContract<"earth"> {
 				this.emit("tilesloaded", undefined);
 			},
 		});
+		const drawn = this.rocktree.drawnNodes();
+		const rocktreeLayer = new RocktreeMeshLayer({
+			id: "rocktree",
+			nodes: drawn.map((d) => d.data),
+			masks: new Map(drawn.map((d) => [d.path, d.mask])),
+			pickable: false,
+		});
 		// Overlay content renders on top of terrain regardless of depth, so markers
 		// never sink into mountains.
 		const overlayLayers = [...this.overlays].flatMap((o) =>
@@ -314,7 +314,7 @@ class EarthHost implements MapHostContract<"earth"> {
 				}),
 			),
 		);
-		return [terrain, ...this.rocktreeLayers, ...overlayLayers];
+		return [terrain, rocktreeLayer as unknown as Layer, ...overlayLayers];
 	}
 
 	private composeLayers() {
@@ -382,6 +382,7 @@ class EarthHost implements MapHostContract<"earth"> {
 		this.deck.setProps({ viewState: this.viewState });
 		if (this.viewState.zoom !== prevZoom) this.emit("zoom", undefined);
 		this.emit("camera", undefined);
+		this.scheduleRocktreeUpdate();
 	}
 
 	on<K extends keyof MapHostEvents>(event: K, fn: (arg: MapHostEvents[K]) => void): () => void {
@@ -460,6 +461,9 @@ class EarthHost implements MapHostContract<"earth"> {
 
 	destroy() {
 		this.destroyed = true;
+		if (this.rocktreeTimer) clearTimeout(this.rocktreeTimer);
+		if (this.rocktreeRaf != null) cancelAnimationFrame(this.rocktreeRaf);
+		this.rocktree.dispose();
 		for (const o of [...this.overlays]) o.finalize();
 		this.domOffs.forEach((off) => off());
 		this.deck.finalize();

@@ -40,6 +40,13 @@ export function meshPositions(mesh: DecodedMesh): Float32Array {
 	return out;
 }
 
+/** Per-vertex octant ids (0-7) as floats for the mask shader. */
+export function meshOctants(mesh: DecodedMesh): Float32Array {
+	const out = new Float32Array(mesh.vertexCount);
+	for (let i = 0; i < mesh.vertexCount; i++) out[i] = mesh.vertexData[i * 8 + 3];
+	return out;
+}
+
 /** Final texture coordinates: (uv + uvOffset) * uvScale. */
 export function meshUvs(mesh: DecodedMesh): Float32Array {
 	const dv = new DataView(mesh.vertexData.buffer, mesh.vertexData.byteOffset);

@@ -27,28 +27,30 @@ function fmt(msg: string, ...args: unknown[]): string {
 }
 
 const DEV = import.meta.env.DEV;
+// no webview bridge under vitest/node; console still receives everything
+const SHIP = typeof window !== "undefined";
 
 /* eslint-disable no-console */
 export const log = {
 	info: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.info(msg, ...args);
-		tauriInfo(fmt(msg, ...args));
+		if (SHIP) tauriInfo(fmt(msg, ...args));
 	},
 	warn: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.warn(msg, ...args);
-		tauriWarn(fmt(msg, ...args));
+		if (SHIP) tauriWarn(fmt(msg, ...args));
 	},
 	error: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.error(msg, ...args);
-		tauriError(fmt(msg, ...args));
+		if (SHIP) tauriError(fmt(msg, ...args));
 	},
 	debug: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.debug(msg, ...args);
-		tauriDebug(fmt(msg, ...args));
+		if (SHIP) tauriDebug(fmt(msg, ...args));
 	},
 	trace: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.debug(msg, ...args);
-		tauriTrace(fmt(msg, ...args));
+		if (SHIP) tauriTrace(fmt(msg, ...args));
 	},
 };
 /* eslint-enable no-console */

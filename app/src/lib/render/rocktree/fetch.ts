@@ -49,19 +49,21 @@ function release() {
 	else active--;
 }
 
-async function fetchBytes(url: string): Promise<Uint8Array> {
+async function fetchBytes(url: string, signal?: AbortSignal): Promise<Uint8Array> {
 	await acquire();
 	try {
 		let lastErr: unknown;
 		for (let attempt = 0; attempt <= RETRIES; attempt++) {
 			if (attempt) await new Promise((r) => setTimeout(r, RETRY_DELAY_MS * attempt));
+			if (signal?.aborted) throw signal.reason ?? new DOMException("aborted", "AbortError");
 			try {
-				const res = await fetch(url);
+				const res = await fetch(url, { signal });
 				if (res.ok) return new Uint8Array(await res.arrayBuffer());
 				lastErr = new Error(`rocktree: HTTP ${res.status} for ${url}`);
 				// 4xx is a real answer (bad path/epoch); only retry 5xx/429
 				if (res.status < 500 && res.status !== 429) break;
 			} catch (e) {
+				if (signal?.aborted) throw e;
 				lastErr = e;
 			}
 		}
@@ -83,6 +85,7 @@ export async function fetchNode(
 	path: string,
 	epoch: number,
 	imageryEpoch?: number,
+	signal?: AbortSignal,
 ): Promise<DecodedNode> {
-	return parseNodeData(await fetchBytes(nodeUrl(path, epoch, imageryEpoch)));
+	return parseNodeData(await fetchBytes(nodeUrl(path, epoch, imageryEpoch), signal));
 }
