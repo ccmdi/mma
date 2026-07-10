@@ -92,7 +92,9 @@ export function hostInstance<K extends MapHostKind>(
 }
 
 export function hostKindForMapType(mapType: MapTypeKey): MapHostKind {
-	return mapType === "vector" ? "maplibre" : "google";
+	if (mapType === "vector") return "maplibre";
+	if (mapType === "earth") return "earth";
+	return "google";
 }
 
 export interface CreateHostOpts extends BasemapOpts {
@@ -110,6 +112,10 @@ export async function createMapHost(
 	if (kind === "maplibre") {
 		const { createMapLibreHost } = await import("@/lib/map/maplibreHost");
 		return createMapLibreHost(container, prefs, opts);
+	}
+	if (kind === "earth") {
+		const { createEarthHost } = await import("@/lib/map/earthHost");
+		return createEarthHost(container, prefs, opts);
 	}
 	const { createGoogleMapHost } = await import("@/lib/map/googleHost");
 	return createGoogleMapHost(container, prefs, opts);

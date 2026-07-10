@@ -1,7 +1,7 @@
 //! Tauri command layer and URI scheme proxies for the MMA desktop app.
 //!
 //! This is the application entry point. It registers all IPC commands (via tauri-specta),
-//! custom URI scheme handlers (svtile, gmaps, googl, mma-buf, mma-plugin), and Tauri plugins.
+//! custom URI scheme handlers (svtile, rocktree, gmaps, googl, mma-buf, mma-plugin), and Tauri plugins.
 //! No business logic lives here -- commands delegate to `location_store`, `map_meta`, `import`, etc.
 
 use crate::types::{AppError, AppResult};
@@ -458,6 +458,27 @@ pub(crate) fn fetch_svtile(url: &str) -> tauri::http::Response<Vec<u8>> {
     }
 }
 
+/// rocktree: Google Earth octree metadata + mesh data via kh.google.com.
+pub(crate) fn fetch_rocktree(url: &str) -> tauri::http::Response<Vec<u8>> {
+    match proxy_client()
+        .get(url)
+        .header(reqwest::header::USER_AGENT, "Mozilla/5.0")
+        .send()
+    {
+        Ok(resp) => {
+            let mut out = relay(resp, "application/x-protobuffer");
+            // Match upstream's cache policy so the webview HTTP cache absorbs
+            // refetches of the same octree node.
+            if let Ok(v) = "public, max-age=14400".parse() {
+                out.headers_mut()
+                    .insert(tauri::http::header::CACHE_CONTROL, v);
+            }
+            out
+        }
+        Err(e) => proxy_error(format!("rocktree fetch error: {e}")),
+    }
+}
+
 /// gmaps: forward a request (POST batchexecute etc.) to www.google.com.
 pub(crate) fn proxy_gmaps(
     method: reqwest::Method,
@@ -739,6 +760,14 @@ pub fn run() {
                 .unwrap_or_default();
             let url = format!("https://lh3.ggpht.com/jsapi2/a/b/c/{path}{query}");
             std::thread::spawn(move || responder.respond(fetch_svtile(&url)));
+        })
+        .register_asynchronous_uri_scheme_protocol("rocktree", |_ctx, req, responder| {
+            let path = percent_encoding::percent_decode_str(req.uri().path())
+                .decode_utf8_lossy()
+                .trim_start_matches('/')
+                .to_string();
+            let url = format!("https://kh.google.com/rt/earth/{path}");
+            std::thread::spawn(move || responder.respond(fetch_rocktree(&url)));
         })
         .register_asynchronous_uri_scheme_protocol("gmaps", |_ctx, req, responder| {
             let path = req.uri().path().to_string();

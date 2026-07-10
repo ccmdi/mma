@@ -85,6 +85,13 @@ fn register_web_schemes() {
         );
         relay(crate::fetch_svtile(&url))
     });
+    register_scheme("rocktree", |req: SchemeRequest| {
+        let path = percent_encoding::percent_decode_str(&req.path)
+            .decode_utf8_lossy()
+            .into_owned();
+        let url = format!("https://kh.google.com/rt/earth/{path}");
+        relay(crate::fetch_rocktree(&url))
+    });
     register_scheme("gmaps", |req: SchemeRequest| {
         let url = format!("https://www.google.com/{}{}", req.path, qs(&req.query));
         let method =

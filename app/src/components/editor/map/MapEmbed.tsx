@@ -346,9 +346,9 @@ export function MapEmbed({
 						layerConfig={{
 							prefs,
 							setPref: pref,
-							supportsLabels: mapType !== "osm" && mapType !== "vector",
+							supportsLabels: mapType !== "osm" && mapType !== "vector" && mapType !== "earth",
 							supportsTerrain: mapType === "map" || mapType === "satellite",
-							supportsStyling: mapType !== "vector",
+							supportsStyling: mapType !== "vector" && mapType !== "earth",
 							customStyles,
 							onManageStyles: () => setShowStylesDialog(true),
 						}}

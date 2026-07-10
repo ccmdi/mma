@@ -46,6 +46,7 @@ docs/
 CLAUDE.md
 mma-source
 *.bin
+!app/test/unit/fixtures/rocktree/*.bin
 # sidecar ONNX models (exported/downloaded, not committed)
 plugins/*/sidecar/models/*
 
