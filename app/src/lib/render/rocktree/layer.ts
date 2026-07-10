@@ -9,7 +9,7 @@ import { Model, Geometry } from "@luma.gl/engine";
 import type { Texture } from "@luma.gl/core";
 import type { ShaderModule } from "@luma.gl/shadertools";
 import type { NumberArray16 } from "@math.gl/types";
-import { covUvMatrix, type CoverageRect } from "./coverage";
+import { uvAltMatrix, type CoverageRect } from "./coverage";
 
 export interface RocktreeNodeData {
 	path: string;
@@ -80,6 +80,7 @@ export function composeNodeMvp(
 type RocktreeNodeUniforms = {
 	mvp: NumberArray16;
 	covUv: NumberArray16;
+	covScale: [number, number];
 	mask: number;
 	covOpacity: number;
 };
@@ -88,6 +89,7 @@ const uniformBlock = `\
 layout(std140) uniform rocktreeNodeUniforms {
   mat4 mvp;
   mat4 covUv;
+  vec2 covScale;
   highp int mask;
   float covOpacity;
 } rocktreeNode;
@@ -101,6 +103,7 @@ const rocktreeNodeUniforms = {
 	uniformTypes: {
 		mvp: "mat4x4<f32>",
 		covUv: "mat4x4<f32>",
+		covScale: "vec2<f32>",
 		mask: "i32",
 		covOpacity: "f32",
 	},
@@ -113,7 +116,7 @@ in vec3 positions;
 in vec2 uvs;
 in float octants;
 out vec2 vUv;
-out vec2 vCov;
+out vec3 vCov;
 
 void main(void) {
   // collapse octants covered by a drawn descendant
@@ -122,7 +125,8 @@ void main(void) {
     return;
   }
   vUv = uvs;
-  vCov = (rocktreeNode.covUv * vec4(positions, 1.0)).xy;
+  // xy = coverage texture uv, z = ENU altitude meters (for the slope mask)
+  vCov = (rocktreeNode.covUv * vec4(positions, 1.0)).xyz;
   gl_Position = rocktreeNode.mvp * vec4(positions, 1.0);
 }
 `;
@@ -132,18 +136,24 @@ const fs = /* glsl */ `\
 #define SHADER_NAME rocktree-fragment
 precision highp float;
 in vec2 vUv;
-in vec2 vCov;
+in vec3 vCov;
 uniform sampler2D rocktreeTexture;
 uniform sampler2D rocktreeCoverage;
 out vec4 fragColor;
 
 void main(void) {
   vec3 base = texture(rocktreeTexture, vUv).rgb;
-  vec4 cov = texture(rocktreeCoverage, vCov);
+  vec4 cov = texture(rocktreeCoverage, vCov.xy);
   float inRect = step(abs(vCov.x - 0.5), 0.5) * step(abs(vCov.y - 0.5), 0.5);
+  // slope mask: coverage is a top-down decal, so keep it off walls. Surface
+  // normal from screen-space derivatives of the position in meters.
+  vec3 sp = vec3(vCov.xy * rocktreeNode.covScale, vCov.z);
+  vec3 nrm = cross(dFdx(sp), dFdy(sp));
+  float upness = abs(nrm.z) / max(length(nrm), 1e-9);
+  float ground = smoothstep(0.55, 0.8, upness);
   // canvas bitmaps upload premultiplied
   vec3 covColor = cov.rgb / max(cov.a, 1e-4);
-  fragColor = vec4(mix(base, covColor, cov.a * inRect * rocktreeNode.covOpacity), 1.0);
+  fragColor = vec4(mix(base, covColor, cov.a * inRect * ground * rocktreeNode.covOpacity), 1.0);
 }
 `;
 
@@ -204,6 +214,7 @@ interface GpuNode {
 	/** Timestamp the node left the drawn set; null while drawn. */
 	unusedSince: number | null;
 	covUv: Float32Array;
+	covScale: [number, number];
 	covVersion: number;
 }
 
@@ -288,20 +299,22 @@ export default class RocktreeMeshLayer extends Layer<Required<_RocktreeMeshLayer
 	}
 
 	/** commonFromMesh is camera-independent, so this only recomputes per rect. */
-	private nodeCovUv(gpu: GpuNode): Float32Array {
+	private nodeCovUv(gpu: GpuNode): GpuNode {
 		const cov = this.props.coverage;
-		if (!cov) return IDENTITY_F32;
-		if (gpu.covVersion !== cov.version) {
+		if (cov && gpu.covVersion !== cov.version) {
 			const { viewport } = this.context;
+			const scales = viewport.getDistanceScales(gpu.node.origin);
 			const model = composeNodeModel(
 				viewport.projectPosition(gpu.node.origin),
-				viewport.getDistanceScales(gpu.node.origin).unitsPerMeter,
+				scales.unitsPerMeter,
 				gpu.node.enuModel,
 			);
-			gpu.covUv = new Float32Array(mul4(covUvMatrix(cov.rect), model));
+			gpu.covUv = new Float32Array(uvAltMatrix(cov.rect, model, gpu.node.enuModel));
+			// meters per uv unit, so the fragment shader can build a metric normal
+			gpu.covScale = [cov.rect[2] * scales.metersPerUnit[0], cov.rect[3] * scales.metersPerUnit[1]];
 			gpu.covVersion = cov.version;
 		}
-		return gpu.covUv;
+		return gpu;
 	}
 
 	private createGpuNode(node: RocktreeNodeData): GpuNode {
@@ -354,7 +367,15 @@ export default class RocktreeMeshLayer extends Layer<Required<_RocktreeMeshLayer
 			models.push(model);
 			textures.push(texture);
 		}
-		return { node, models, textures, unusedSince: null, covUv: IDENTITY_F32, covVersion: 0 };
+		return {
+			node,
+			models,
+			textures,
+			unusedSince: null,
+			covUv: IDENTITY_F32,
+			covScale: [1, 1] as [number, number],
+			covVersion: 0,
+		};
 	}
 
 	private destroyGpuNode(gpu: GpuNode) {
@@ -374,12 +395,13 @@ export default class RocktreeMeshLayer extends Layer<Required<_RocktreeMeshLayer
 			const originCommon = viewport.projectPosition(gpu.node.origin);
 			const { unitsPerMeter } = viewport.getDistanceScales(gpu.node.origin);
 			const mvp = composeNodeMvp(vp, originCommon, unitsPerMeter, gpu.node.enuModel);
-			const covUv = this.nodeCovUv(gpu);
+			this.nodeCovUv(gpu);
 			for (const model of gpu.models) {
 				model.shaderInputs.setProps({
 					rocktreeNode: {
 						mvp: mvp as unknown as NumberArray16,
-						covUv: covUv as unknown as NumberArray16,
+						covUv: gpu.covUv as unknown as NumberArray16,
+						covScale: gpu.covScale,
 						mask,
 						covOpacity,
 					},

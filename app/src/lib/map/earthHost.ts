@@ -29,10 +29,15 @@ import {
 	raycastMesh,
 	type LocalRay,
 } from "@/lib/render/rocktree/raycast";
-import { coverageGrid } from "@/lib/render/rocktree/coverage";
+import { commonToLngLat, coverageGrid, uvAltMatrix } from "@/lib/render/rocktree/coverage";
+import { rasterizeHeights, type HeightMesh } from "@/lib/render/rocktree/heightmap";
 import type { CoverageTexture } from "@/lib/render/rocktree/layer";
+import { MeshHeightExtension, type MeshHeights } from "@/lib/map/meshHeightExtension";
+import SDFMarkerLayer from "@/lib/render/sdf-marker-layer/SDFMarkerLayer";
+import { ScatterplotLayer } from "@deck.gl/layers";
 import { createSvConfigForPrefs } from "@/lib/geo/mapStack";
 import { buildTileUrl, serializeTileUrl, type TileConfig } from "@/lib/geo/tiles";
+import type { Device } from "@luma.gl/core";
 import {
 	enuAnchor,
 	meshOctants,
@@ -77,6 +82,13 @@ const ROCKTREE_PROMOTE_PER_FRAME = 4;
 // the mesh, spanning this many viewport widths around the camera target.
 const COVERAGE_GRID = 8;
 const COVERAGE_SPAN_FACTOR = 2.5;
+// Marker heightmap: mesh rasterized top-down over this rect so markers sit on
+// the 3D surface. Rebuilt (debounced) as tiles arrive and on camera settle.
+const HEIGHT_SIZE = 1024;
+const HEIGHT_SPAN_FACTOR = 1.5;
+const HEIGHT_DEBOUNCE_MS = 500;
+
+const MESH_HEIGHT_EXTENSION = new MeshHeightExtension();
 
 type DeckEvent = { srcEvent?: Event };
 
@@ -128,6 +140,9 @@ class EarthHost implements MapHostContract<"earth"> {
 	private covKey: string | null = null;
 	private coverage: CoverageTexture | null = null;
 	private svOpacity: number;
+	private device: Device | null = null;
+	private heights: MeshHeights | null = null;
+	private heightTimer: ReturnType<typeof setTimeout> | null = null;
 	private destroyed = false;
 	private draggable = true;
 	private dblClickZoom = true;
@@ -169,6 +184,9 @@ class EarthHost implements MapHostContract<"earth"> {
 
 		this.deck = new Deck({
 			parent: container as HTMLDivElement,
+			onDeviceInitialized: (device) => {
+				this.device = device;
+			},
 			views: new MapView({ repeat: true }),
 			viewState: this.viewState,
 			controller: this.controllerProps(),
@@ -281,11 +299,59 @@ class EarthHost implements MapHostContract<"earth"> {
 	}
 
 	private onRocktreeChange() {
-		if (this.rocktreeRaf != null || this.destroyed) return;
+		if (this.destroyed) return;
+		this.scheduleHeightmap();
+		if (this.rocktreeRaf != null) return;
 		this.rocktreeRaf = requestAnimationFrame(() => {
 			this.rocktreeRaf = null;
 			if (!this.destroyed) this.composeLayers();
 		});
+	}
+
+	private scheduleHeightmap() {
+		if (this.heightTimer) clearTimeout(this.heightTimer);
+		this.heightTimer = setTimeout(() => {
+			this.heightTimer = null;
+			this.rebuildHeightmap();
+		}, HEIGHT_DEBOUNCE_MS);
+	}
+
+	// Rasterize the drawn mesh into a top-down heightmap so markers can sit on
+	// the surface. Debounced; a stale map is world-anchored and stays correct.
+	private rebuildHeightmap() {
+		if (this.destroyed || !this.device) return;
+		const cache = this.raycastEntries();
+		if (cache.entries.length === 0) return;
+		const vs = this.viewState;
+		const [cx, cy] = cache.viewport.projectPosition([vs.longitude, vs.latitude, 0]);
+		const span =
+			(Math.max(this.outer.clientWidth, this.outer.clientHeight) / 2 ** vs.zoom) *
+			HEIGHT_SPAN_FACTOR;
+		const rect: [number, number, number, number] = [cx - span / 2, cy + span / 2, span, span];
+		const meshes: HeightMesh[] = [];
+		for (const { node, model } of cache.entries) {
+			const uvAlt = uvAltMatrix(rect, model, node.data.enuModel, node.data.origin[2]);
+			for (const mesh of node.data.meshes)
+				meshes.push({ uvAlt, positions: mesh.positions, indices: mesh.indices });
+		}
+		const data = rasterizeHeights(meshes, HEIGHT_SIZE);
+		const texture = this.device.createTexture({
+			format: "r32float",
+			width: HEIGHT_SIZE,
+			height: HEIGHT_SIZE,
+			data,
+			sampler: {
+				minFilter: "nearest",
+				magFilter: "nearest",
+				addressModeU: "clamp-to-edge",
+				addressModeV: "clamp-to-edge",
+			},
+		});
+		const [west, north] = commonToLngLat(rect[0], rect[1]);
+		const [east, south] = commonToLngLat(rect[0] + rect[2], rect[1] - rect[3]);
+		this.heights?.texture.destroy();
+		this.heights = { texture, bounds: [west, north, 1 / (east - west), 1 / (north - south)] };
+		this.composeLayers();
 	}
 
 	private async prepareNode(
@@ -407,22 +473,30 @@ class EarthHost implements MapHostContract<"earth"> {
 		});
 		const drawn = this.rocktree.drawnNodes();
 		this.lastDrawn = drawn;
+		// fade coverage out at low zooms where line width in meters dwarfs roads
+		const covFade = Math.min(1, Math.max(0, (this.viewState.zoom - 11.5) / 2.5));
 		const rocktreeLayer = new RocktreeMeshLayer({
 			id: "rocktree",
 			nodes: drawn.map((d) => d.data),
 			masks: new Map(drawn.map((d) => [d.path, d.mask])),
 			coverage: this.coverage,
-			svOpacity: this.svOpacity,
+			svOpacity: this.svOpacity * covFade,
 			pickable: false,
 		});
 		// Overlay content renders on top of terrain regardless of depth, so markers
-		// never sink into mountains.
+		// never sink into mountains. Point markers additionally lift onto the mesh
+		// surface via the heightmap extension (parallax fix).
 		const overlayLayers = [...this.overlays].flatMap((o) =>
-			(o.props.layers ?? []).map((l) =>
-				l.clone({
+			(o.props.layers ?? []).map((l) => {
+				const lift =
+					l instanceof SDFMarkerLayer || l instanceof ScatterplotLayer
+						? { extensions: [MESH_HEIGHT_EXTENSION], meshHeights: this.heights }
+						: {};
+				return l.clone({
 					parameters: { ...l.props.parameters, depthCompare: "always", depthWriteEnabled: false },
-				}),
-			),
+					...lift,
+				} as Partial<typeof l.props>);
+			}),
 		);
 		return [terrain, rocktreeLayer as unknown as Layer, ...overlayLayers];
 	}
@@ -653,6 +727,8 @@ class EarthHost implements MapHostContract<"earth"> {
 		if (this.rocktreeRaf != null) cancelAnimationFrame(this.rocktreeRaf);
 		this.covSeq++;
 		this.coverage?.bitmap.close();
+		if (this.heightTimer) clearTimeout(this.heightTimer);
+		this.heights?.texture.destroy();
 		this.rocktree.dispose();
 		for (const o of [...this.overlays]) o.finalize();
 		this.domOffs.forEach((off) => off());
