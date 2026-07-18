@@ -32,7 +32,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { Command } from "@tauri-apps/plugin-shell";
 import { open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
-import { getGoogleMap, waitForGoogleMap } from "@/lib/map/mapState";
+import { getGoogleMap, waitForGoogleMap, addClickInterceptor } from "@/lib/map/mapState";
+import {
+	setSvCoverageSuppressed,
+	isSvCoverageSuppressed,
+	subscribeSvCoverageSuppressed,
+	getMapEmbedPrefs,
+	patchMapEmbedPrefs,
+	subscribeMapEmbedPrefs,
+} from "@/lib/map/svCoverageBridge";
+import { registerPanoProvider, findPanoProvider } from "@/lib/sv/panoProvider";
 import { subscribe, type EditorEvent, type EventHandler } from "@/lib/events";
 import { setSetting, getSettings } from "@/store/settings";
 import { getSavedSelections, savedToSelectionProps, describeRule } from "@/store/savedSelections";
@@ -204,6 +213,21 @@ const mma = {
 	// --- Google Maps ---
 	getGoogleMap: () => getGoogleMap(),
 	waitForGoogleMap: () => waitForGoogleMap(),
+	addClickInterceptor: (
+		fn: (lat: number, lng: number, shiftKey: boolean) => boolean | Promise<boolean>,
+	) => addClickInterceptor(fn),
+
+	/** Coverage takeover for alt providers (e.g. Look Around). */
+	setSvCoverageSuppressed,
+	isSvCoverageSuppressed,
+	subscribeSvCoverageSuppressed,
+	getMapEmbedPrefs,
+	patchMapEmbedPrefs,
+	subscribeMapEmbedPrefs,
+
+	/** Alternate panorama viewport providers (replace Google SV in location-preview). */
+	registerPanoProvider,
+	findPanoProvider,
 
 	// --- Settings ---
 	setSetting,

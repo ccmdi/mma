@@ -14,6 +14,7 @@ fn make_loc(
         pitch: 5.0,
         zoom: 3.0,
         pano_id: Some("PANO".into()),
+        provider: None,
         flags,
         tags,
         extra: extra.as_ref().and_then(crate::types::RawExtra::from_map),
@@ -99,6 +100,62 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
     assert_eq!(v["panoId"], json!("PANO")); // pinned
     assert_eq!(v["extra"]["tags"], json!(["red"]));
     assert!(v["extra"].get("panoId").is_none()); // pinned -> no panoId in extra
+}
+
+#[test]
+fn alt_provider_exports_source_and_empty_extra() {
+    let mut extra = serde_json::Map::new();
+    extra.insert("countryCode".into(), json!("CN"));
+    extra.insert("cameraType".into(), json!("baidu"));
+    let mut l = make_loc(LocationFlags::LOAD_AS_PANO_ID, vec![1], Some(extra));
+    l.provider = Some("baidu".into());
+    l.pano_id = Some("09000300122012131028445027I".into());
+    let id_to_name = std::collections::HashMap::from([(1u32, "red".to_string())]);
+    let co = CoordOpts {
+        export_zoom: true,
+        export_unpanned: false,
+        export_extras: true,
+    };
+    let v = location_to_coord(&l, &id_to_name, &co);
+
+    assert_eq!(v["source"], json!("baidu_pano"));
+    assert!(v.get("provider").is_none());
+    assert_eq!(v["panoId"], json!("09000300122012131028445027I"));
+    assert_eq!(v["countryCode"], json!("CN"));
+    assert_eq!(v["extra"], json!({}));
+}
+
+#[test]
+fn apple_provider_exports_apple_pano_source() {
+    let mut l = make_loc(LocationFlags::LOAD_AS_PANO_ID, vec![], None);
+    l.provider = Some("apple".into());
+    l.pano_id = Some("7966846247780953899".into());
+    let id_to_name = std::collections::HashMap::new();
+    let co = CoordOpts {
+        export_zoom: false,
+        export_unpanned: false,
+        export_extras: false,
+    };
+    let v = location_to_coord(&l, &id_to_name, &co);
+    assert_eq!(v["source"], json!("apple_pano"));
+    assert!(v.get("provider").is_none());
+    assert_eq!(v["extra"], json!({}));
+}
+
+#[test]
+fn alt_provider_export_strips_pano_prefix() {
+    let mut l = make_loc(LocationFlags::LOAD_AS_PANO_ID, vec![], None);
+    l.provider = Some("tencent".into());
+    l.pano_id = Some("TENCENT:sv123".into());
+    let id_to_name = std::collections::HashMap::new();
+    let co = CoordOpts {
+        export_zoom: false,
+        export_unpanned: false,
+        export_extras: false,
+    };
+    let v = location_to_coord(&l, &id_to_name, &co);
+    assert_eq!(v["source"], json!("qq_pano"));
+    assert_eq!(v["panoId"], json!("sv123"));
 }
 
 #[test]

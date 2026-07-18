@@ -1539,6 +1539,9 @@ impl Store {
         if let Some(ref v) = patch.pano_id {
             loc.pano_id = v.clone();
         }
+        if let Some(ref v) = patch.provider {
+            loc.provider = v.clone();
+        }
         if let Some(v) = patch.flags {
             loc.flags = LocationFlags::from_bits_retain(v);
         }
@@ -1899,6 +1902,9 @@ pub struct LocationPatch {
     #[serde(default, deserialize_with = "nullable")]
     #[specta(type = Option<Option<String>>)]
     pub pano_id: Option<Option<String>>,
+    #[serde(default, deserialize_with = "nullable")]
+    #[specta(type = Option<Option<String>>)]
+    pub provider: Option<Option<String>>,
     pub flags: Option<u32>,
     pub tags: Option<Vec<u32>>,
     #[serde(default, deserialize_with = "nullable")]

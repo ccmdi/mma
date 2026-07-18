@@ -23,6 +23,12 @@ export interface Plugin {
 	activate(): void | (() => void);
 	modal?: ComponentType<{ onClose: () => void }>;
 	sidebar?: ComponentType<{ onClose: () => void }>;
+	/** Toolbar button that toggles on/off (no sidebar). */
+	toolbarToggle?: {
+		getActive: () => boolean;
+		onToggle: () => void;
+		subscribe?: (cb: () => void) => () => void;
+	};
 	locationPanel?: ComponentType;
 }
 
@@ -46,14 +52,35 @@ export type PluginBehavior = Partial<Plugin> & {
 	activate(): void | (() => void);
 };
 
-// An installed plugin is updatable when both its installed version and the registry's
-// version are known and differ. The registry only moves forward, so any mismatch means
-// a newer build is published. Empty/unknown versions never prompt an update.
+// An installed plugin is updatable when the registry publishes a newer semver than
+// what's installed. A locally synced dev build may bump ahead of the registry; that
+// must not surface an Update button (clicking it re-downloads from GitHub and
+// overwrites the local artifact).
+function parseSemver(version: string): [number, number, number] | null {
+	const m = /^(\d+)\.(\d+)\.(\d+)/.exec(version.trim());
+	if (!m) return null;
+	return [Number(m[1]), Number(m[2]), Number(m[3])];
+}
+
+function compareSemver(a: string, b: string): number | null {
+	const pa = parseSemver(a);
+	const pb = parseSemver(b);
+	if (!pa || !pb) return null;
+	for (let i = 0; i < 3; i++) {
+		if (pa[i] !== pb[i]) return pa[i] - pb[i];
+	}
+	return 0;
+}
+
 export function isPluginUpdatable(
 	installedVersion: string | undefined,
 	latestVersion: string | undefined,
 ): boolean {
-	return !!installedVersion && !!latestVersion && installedVersion !== latestVersion;
+	if (!installedVersion || !latestVersion) return false;
+	const cmp = compareSemver(installedVersion, latestVersion);
+	if (cmp !== null) return cmp < 0;
+	// Non-semver strings: only flag when they differ and we can't order them.
+	return installedVersion !== latestVersion;
 }
 
 // A plugin needs updating when its JS version drifts OR its sidecar drifts. A registry

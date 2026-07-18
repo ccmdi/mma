@@ -53,6 +53,13 @@ export function setLocal<T>(key: string, value: T): void {
 	entry.listeners.forEach((l) => l());
 }
 
+/** Subscribe to imperative/reactive updates for a localStorage-backed key. */
+export function subscribeLocal(key: string, cb: () => void): () => void {
+	const entry = entryFor(key, null);
+	entry.listeners.add(cb);
+	return () => entry.listeners.delete(cb);
+}
+
 /** Reactive view of a localStorage-backed key. */
 export function useLocalStorage<T>(
 	key: string,

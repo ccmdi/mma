@@ -10,6 +10,12 @@ export const shortDateFmt = new Intl.DateTimeFormat("en-US", {
 	day: "numeric",
 	year: "numeric",
 });
+/** Day-level date like "21 May 2021" (alt pano providers / historical pickers). */
+export const panoDayFmt = new Intl.DateTimeFormat("en-GB", {
+	day: "numeric",
+	month: "short",
+	year: "numeric",
+});
 
 /** Location timestamps are Unix seconds; JS Date wants milliseconds. */
 export function locDate(secs: number): Date {

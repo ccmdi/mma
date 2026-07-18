@@ -9,6 +9,8 @@ import {
 	type DrawOrder,
 } from "@/lib/render/markerLayer";
 import PanoCoverageLayer from "@/lib/render/PanoCoverageLayer";
+import LookAroundPanoCoverageLayer from "@/lib/sv/lookaround/LookAroundPanoCoverageLayer";
+import { isProviderEnabled, getProviderSettings } from "@/lib/sv/providers/settings";
 import type { CellManager } from "@/lib/render/CellManager";
 import type { Bounds, LatLng, MarkerStyle } from "@/types";
 import { isImportPreview } from "@/types";
@@ -190,6 +192,15 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				parameters: NO_DEPTH_WRITE,
 			}),
 		);
+
+	// Apple panoramas: same deck.gl band as Google PanoCoverageLayer.
+	if (isProviderEnabled("apple") && getProviderSettings("apple").showPoints) {
+		layers.push(
+			new LookAroundPanoCoverageLayer({
+				id: "lookaround-pano-coverage",
+			}),
+		);
+	}
 
 	// Draw-order allocation: every marker instance this frame gets a global slot;
 	// higher slot = drawn later = on top (the depth pass mirrors painter's order).

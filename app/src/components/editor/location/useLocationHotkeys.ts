@@ -1,6 +1,7 @@
 import {
 	useEffect,
 	useEffectEvent,
+	useRef,
 	type Dispatch,
 	type RefObject,
 	type SetStateAction,
@@ -52,8 +53,9 @@ interface LocationHotkeyDeps {
 	handleClose: () => void;
 	handleDelete: () => void;
 	handleReturnToSpawn: () => void;
-	handleFullscreen: () => void;
 	handleDateChange: (panoId: string | null) => void;
+	/** Active panorama (Google singleton or alt provider proxy). */
+	panorama?: google.maps.StreetViewPanorama | null;
 }
 
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
@@ -72,9 +74,13 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		handleClose,
 		handleDelete,
 		handleReturnToSpawn,
-		handleFullscreen,
 		handleDateChange,
+		panorama: panoramaProp,
 	} = deps;
+
+	const panoramaRef = useRef(panoramaProp);
+	panoramaRef.current = panoramaProp;
+	const pano = () => panoramaRef.current ?? singletonPano;
 
 	useHotkey(useBinding("locationSave"), () => {
 		if (location) handleSave();
@@ -91,55 +97,58 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	useHotkey(useBinding("reviewPrev"), () => {
 		if (isReviewMode) reviewPrev();
 	});
-	useHotkey(useBinding("toggleFullscreen"), () => {
-		handleFullscreen();
-	});
 	useHotkey(useBinding("returnToSpawn"), () => {
 		handleReturnToSpawn();
 	});
 	useHotkey(useBinding("pointNorth"), () => {
-		if (singletonPano) {
+		const panorama = pano();
+		if (panorama) {
 			cancelTweenRef.current?.();
-			const h = singletonPano.getPov().heading;
-			if (Math.abs(h) < 1 && Math.abs(singletonPano.getPov().pitch) < 1) {
-				cancelTweenRef.current = tweenPov(singletonPano, { heading: 0, pitch: -90 });
+			const h = panorama.getPov().heading;
+			if (Math.abs(h) < 1 && Math.abs(panorama.getPov().pitch) < 1) {
+				cancelTweenRef.current = tweenPov(panorama, { heading: 0, pitch: -90 });
 			} else {
-				cancelTweenRef.current = tweenPov(singletonPano, { heading: 0, pitch: 0 });
+				cancelTweenRef.current = tweenPov(panorama, { heading: 0, pitch: 0 });
 			}
 		}
 	});
 	useHotkey(useBinding("centerRoad"), () => {
-		if (!singletonPano) return;
-		const headings = (singletonPano.getLinks() ?? [])
+		const panorama = pano();
+		if (!panorama) return;
+		const headings = (panorama.getLinks() ?? [])
 			.map((l) => l?.heading)
 			.filter((h): h is number => h != null);
-		const nearest = nearestLinkHeading(headings, singletonPano.getPov().heading);
+		const nearest = nearestLinkHeading(headings, panorama.getPov().heading);
 		if (nearest == null) return;
 		cancelTweenRef.current?.();
-		cancelTweenRef.current = tweenPov(singletonPano, { heading: nearest, pitch: 0 });
+		cancelTweenRef.current = tweenPov(panorama, { heading: nearest, pitch: 0 });
 	});
 	useHotkey(useBinding("spin180"), () => {
-		if (singletonPano) {
+		const panorama = pano();
+		if (panorama) {
 			cancelTweenRef.current?.();
-			const pov = singletonPano.getPov();
-			cancelTweenRef.current = tweenPov(singletonPano, {
+			const pov = panorama.getPov();
+			cancelTweenRef.current = tweenPov(panorama, {
 				heading: (pov.heading + 180) % 360,
 				pitch: pov.pitch,
 			});
 		}
 	});
 	useHotkey(useBinding("zoomIn"), () => {
-		if (singletonPano) {
-			singletonPano.setZoom(Math.min(PANO_ZOOM.max, Math.max(0, singletonPano.getZoom()) + 1));
+		const panorama = pano();
+		if (panorama) {
+			panorama.setZoom(Math.min(PANO_ZOOM.max, Math.max(0, panorama.getZoom()) + 1));
 		}
 	});
 	useHotkey(useBinding("zoomOut"), () => {
-		if (singletonPano) {
-			singletonPano.setZoom(Math.max(0, singletonPano.getZoom() - 1));
+		const panorama = pano();
+		if (panorama) {
+			panorama.setZoom(Math.max(0, panorama.getZoom() - 1));
 		}
 	});
 	useHotkey(useBinding("panoZoomReset"), () => {
-		if (singletonPano) singletonPano.setZoom(PANO_ZOOM.min);
+		const panorama = pano();
+		if (panorama) panorama.setZoom(PANO_ZOOM.min);
 	});
 	useHotkey(
 		useBinding("copyLink"),
@@ -171,8 +180,8 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	useHotkey(useBinding("downloadPanoTile"), () => {
-		const panoId = singletonPano?.getPano();
-		if (panoId) downloadPano(panoId);
+		const panoId = pano()?.getPano();
+		if (panoId) void downloadPano(panoId, { location, zoom: 5 });
 	});
 	useHotkey(useBinding("nextPanoDate"), () => {
 		if (!panoDates.length) return;
@@ -191,9 +200,10 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		handleDateChange(panoDates[prev].pano);
 	});
 	useHotkey(useBinding("followRoad"), () => {
-		if (!singletonPano) return;
-		const panoId = singletonPano.getPano();
-		const heading = singletonPano.getPov().heading;
+		const panorama = pano();
+		if (!panorama) return;
+		const panoId = panorama.getPano();
+		const heading = panorama.getPov().heading;
 		if (!panoId) return;
 		const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 		if (container) showToast(container, "Following road...");
@@ -208,7 +218,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	useHotkey(useBinding("refreshPano"), () => {
-		if (!singletonPano || !location) return;
+		if (!singletonPano || !location || panoramaRef.current) return;
 		const panoId = singletonPano.getPano();
 		const pov = singletonPano.getPov();
 		const zoom = singletonPano.getZoom();
@@ -225,7 +235,8 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	useHotkey(useBinding("viewportLock"), () => {
-		if (singletonPano) toggleViewportLock(singletonPano);
+		const panorama = pano();
+		if (panorama) toggleViewportLock(panorama);
 	});
 
 	const quicktagSlot = (idx: number) => {

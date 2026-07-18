@@ -511,9 +511,14 @@ function DownloadPanoramasSetup({ scopeCtl, scopedLocs, onReady }: SetupProps) {
 			<ScopeSelector ctl={scopeCtl} />
 			{noPano > 0 && (
 				<div className="bulk-operation__status">
-					{fmt.format(noPano)} without pano ID will be resolved from coordinates.
+					{fmt.format(noPano)} without pano ID will be resolved from coordinates
+					(using each location's provider).
 				</div>
 			)}
+			<div className="bulk-operation__status">
+				Supports Google, Baidu, Tencent, and Apple Look Around in the same batch.
+				Tile mode is Google-only; Apple skips thumbnail mode.
+			</div>
 			<label className="bulk-operation__option">
 				Mode
 				<NSelect value={mode} onChange={(e) => setMode(e.target.value as PanoRenderMode)}>

@@ -28,6 +28,12 @@ interface Plugin {
 	sidebar?: ComponentType<{
 		onClose: () => void;
 	}>;
+	/** Toolbar button that toggles on/off (no sidebar). */
+	toolbarToggle?: {
+		getActive: () => boolean;
+		onToggle: () => void;
+		subscribe?: (cb: () => void) => () => void;
+	};
 	locationPanel?: ComponentType;
 }
 export type PluginBehavior = Partial<Plugin> & {
@@ -1137,6 +1143,27 @@ export declare const commands: {
 	}>;
 };
 /**
+ *  Per-provider Street View settings (coverage overlay + click behavior).
+ *  Shape is shared across alternate providers; omitted keys mean "use frontend defaults".
+ */
+export type AltProviderSettings = {
+	enabled?: boolean;
+	preferred?: boolean;
+	fallbackToGoogle?: boolean;
+	showLines?: boolean;
+	showPoints?: boolean;
+	lineOpacity?: number;
+	pointsOpacity?: number;
+	lineColor?: string;
+	trekkerLineColor?: string;
+	pointFill?: string;
+	pointStroke?: string;
+	trekkerPointFill?: string;
+	trekkerPointStroke?: string;
+	lineWidthScale?: number;
+	pointSizeScale?: number;
+};
+/**
  *  A swap-removal from a render cell. JS must move the last element into `cell_index`
  *  and pop the array to mirror the Rust-side swap-remove.
  */
@@ -1381,6 +1408,11 @@ type Location = {
 	pitch: number;
 	zoom: number;
 	panoId: string | null;
+	/**
+	 *  Imagery provider discriminator (`"google"`, `"apple"`, ...).
+	 *  Defaults to `"google"`. Missing on deserialize (pre-provider maps / JSON) → `"google"`.
+	 */
+	provider?: string | null;
 	/**  See [`LocationFlags`]. */
 	flags: number;
 	/**  Tag IDs applied to this location. References `Tag.id`. */
@@ -1408,6 +1440,7 @@ export type LocationPatch_Deserialize = {
 	pitch?: number | null;
 	zoom?: number | null;
 	panoId?: string | null;
+	provider?: string | null;
 	flags?: number | null;
 	tags?: number[] | null;
 	extra?: any | null;
@@ -1426,6 +1459,7 @@ export type LocationPatch = {
 	pitch: number | null;
 	zoom: number | null;
 	panoId: string | null;
+	provider: string | null;
 	flags: number | null;
 	tags: number[] | null;
 	extra: any | null;
@@ -1550,6 +1584,8 @@ export type MapSettings = {
 	aliases?: {
 		[key in string]: number;
 	};
+	/**  Alternate Street View providers (Apple Look Around, …). */
+	providers: ProvidersSettings;
 };
 /**
  *  Unified response for every mutation IPC. Bundles the store status, render delta,
@@ -1657,6 +1693,17 @@ export type PresenceActivity = {
 	smallText: string | null;
 	/**  Unix seconds; Discord renders an "elapsed" timer counting up from here. */
 	start: number | null;
+};
+/**
+ *  Alternate Street View provider settings bag on a map.
+ *  Google is the host default and is not configured here. Each key is optional so
+ *  future providers can be added without migrating existing maps.
+ */
+export type ProvidersSettings = {
+	apple?: AltProviderSettings | null;
+	baidu?: AltProviderSettings | null;
+	tencent?: AltProviderSettings | null;
+	yandex?: AltProviderSettings | null;
 };
 /**
  *  Incremental render update sent to JS after a mutation. Contains adds, position/heading
@@ -2032,7 +2079,13 @@ export type LatLng = google.maps.LatLngLiteral;
 export type MaybeLocation = Location | number;
 declare function createLocation(partial: Partial<Location> & LatLng): Location;
 export type TagSortMode = "default" | "name" | "amount";
-export type WorkArea = "overview" | "location" | "duplicates" | "import" | "plugin" | "diff";
+export type WorkArea = "overview" | "location" | "duplicates" | "import" | "plugin" | "providers" | "diff";
+/** Hex like "#1098ad"; legacy stored prefs may hold an Open Props ramp name. */
+export type SvColor = string;
+export type MapTypeKey = "map" | "satellite" | "osm" | "vector";
+export type SvCoverageType = "official" | "unofficial" | "default";
+export type SvThickness = "default" | "high";
+export type MarkerStyle = "pin" | "circle" | "arrow";
 /** When a move target already holds a value, which field's value survives. */
 export type MergeWinner = "from" | "to";
 /** Per-cell, per-selection membership: a dense bitmask or a sparse selected-index list. */
@@ -2593,6 +2646,117 @@ export type FileAccessMode = "copy" | "scoped";
 export type OpenDialogReturn<T extends OpenDialogOptions> = T["directory"] extends true ? T["multiple"] extends true ? string[] | null : string | null : T["multiple"] extends true ? string[] | null : string | null;
 declare function open<T extends OpenDialogOptions>(options?: T): Promise<OpenDialogReturn<T>>;
 declare function save(options?: SaveDialogOptions): Promise<string | null>;
+export interface MapEmbedPrefs {
+	svOpacity: number;
+	svColor: SvColor;
+	showLabels: boolean;
+	showTerrain: boolean;
+	svPanoramas: boolean;
+	svCoverageType: SvCoverageType;
+	svThickness: SvThickness;
+	svBlobby: boolean;
+	boldCountryBorders: boolean;
+	boldSubdivisionBorders: boolean;
+	hideRoadLabels: boolean;
+	hidePoi: boolean;
+	hideTransit: boolean;
+	hideHighways: boolean;
+	mapStyleName: string;
+	vectorStyleName: string;
+	mapType: MapTypeKey;
+	markerStyle: MarkerStyle;
+	markerOpacity: number;
+	markerSize: number;
+	showPerfectScoreCircle: boolean;
+	showSearchRadiusCursor: boolean;
+	showPreviews: boolean;
+	selectOnly: boolean;
+}
+declare function setSvCoverageSuppressed(suppressed: boolean): void;
+declare function isSvCoverageSuppressed(): boolean;
+declare function subscribeSvCoverageSuppressed(cb: () => void): () => void;
+declare function getMapEmbedPrefs(): MapEmbedPrefs;
+declare function patchMapEmbedPrefs(patch: Partial<MapEmbedPrefs>): void;
+declare function subscribeMapEmbedPrefs(cb: () => void): () => void;
+/** A capture at (nearly) the same location with a distinct timestamp — powers the
+ *  date picker for providers that expose per-visit historical imagery. */
+export interface PanoDateEntry {
+	pano: string;
+	/** Capture time, ms since epoch. */
+	timestamp: number;
+	/** Optional per-capture camera label key (provider-defined). */
+	cameraType?: string;
+}
+/** Provider-owned camera badge — rendered by the app without knowing the vendor. */
+export interface PanoCameraBadge {
+	id: string;
+	label: string;
+	/** Optional CSS class(es) on the badge element (e.g. "badge--apple"). */
+	className?: string;
+}
+/**
+ * Alternate panorama viewport session. `panorama` duck-types the Google
+ * StreetViewPanorama surface used by PanoControls and LocationPreview Save.
+ */
+export interface PanoProviderSession {
+	panorama: google.maps.StreetViewPanorama;
+	destroy(): void;
+	/** Alternate-date captures near the current pano, if the provider supports them. */
+	getAlternateDates?(): PanoDateEntry[];
+	/** Fires whenever `getAlternateDates()` would return a new list (e.g. after moving). */
+	subscribeAlternateDates?(cb: () => void): () => void;
+	/** Current pano elevation in metres, if known. */
+	getAltitude?(): number | null;
+	/**
+	 * Root DOM node for this provider's viewport. Reparentable so fullscreen-map
+	 * mini preview can own the same canvas as LocationPreview.
+	 */
+	viewport?: HTMLElement;
+	/** Recompute layout after the viewport is resized or reparented (e.g. PSV autoSize). */
+	resize?(): void;
+}
+/**
+ * Alternate panorama viewport provider (non-Google Street View).
+ * Plugins / in-app providers register one; routing is via `location.provider`.
+ */
+export interface PanoProvider {
+	id: string;
+	/** Higher priority wins when multiple providers canHandle the same location. */
+	priority?: number;
+	canHandle(location: Location): boolean;
+	/**
+	 * Own the location-preview embed host for this location (Google SV is not mounted).
+	 * Resolve once the viewport is ready for embed-controls.
+	 */
+	open(host: HTMLElement, location: Location): Promise<PanoProviderSession>;
+	/**
+	 * Default / spawn pano id for this location (date-picker Default, return-to-spawn).
+	 * Prefer top-level `location.panoId`.
+	 */
+	getSpawnPanoId?(location: Location): string | null;
+	/**
+	 * Extra fields to merge when saving the currently viewed pano id.
+	 * Provider identity (`provider` / `panoId`) is written on the location itself by the save path.
+	 */
+	buildSaveExtra?(location: Location, panoId: string): Record<string, unknown>;
+	/**
+	 * Date-picker display granularity. `"day"` uses day-level formatting;
+	 * omit / `"month"` keeps Google-style month labels.
+	 */
+	dateGranularity?: "month" | "day";
+	/**
+	 * When true, skip Google exact-date RPC and use capture timestamps from
+	 * alternate-date entries / location.extra.datetime.
+	 */
+	ownsExactDate?: boolean;
+	/**
+	 * Resolve a camera badge for the date picker. Return null to fall through
+	 * to Google SV metadata (or "unofficial" for non-official Google ids).
+	 */
+	resolveCameraBadge?(panoId: string, location: Location, entryCameraType?: string): PanoCameraBadge | null;
+}
+declare function registerPanoProvider(provider: PanoProvider): () => void;
+declare function findPanoProvider(location: Location): PanoProvider | null;
 declare const EVENT_DEFS: {
 	"location:add": Location[];
 	"location:remove": number[];
@@ -3092,6 +3256,9 @@ declare const DEFAULTS: {
 	showGroundArrow: boolean;
 	hidePanoUI: boolean;
 	fullscreenMap: boolean;
+	showFullscreenMapMeta: boolean;
+	showFullscreenMiniLocationPreview: boolean;
+	fullscreenMiniLocationScale: number;
 	showFullscreenMinimap: boolean;
 	fullscreenMinimapScale: number;
 	showFullscreenTagbar: boolean;
@@ -3348,6 +3515,17 @@ declare const mma: {
 	createLocation: typeof createLocation;
 	getGoogleMap: () => google.maps.Map | null;
 	waitForGoogleMap: () => Promise<google.maps.Map | null>;
+	addClickInterceptor: (fn: (lat: number, lng: number, shiftKey: boolean) => boolean | Promise<boolean>) => () => void;
+	/** Coverage takeover for alt providers (e.g. Look Around). */
+	setSvCoverageSuppressed: typeof setSvCoverageSuppressed;
+	isSvCoverageSuppressed: typeof isSvCoverageSuppressed;
+	subscribeSvCoverageSuppressed: typeof subscribeSvCoverageSuppressed;
+	getMapEmbedPrefs: typeof getMapEmbedPrefs;
+	patchMapEmbedPrefs: typeof patchMapEmbedPrefs;
+	subscribeMapEmbedPrefs: typeof subscribeMapEmbedPrefs;
+	/** Alternate panorama viewport providers (replace Google SV in location-preview). */
+	registerPanoProvider: typeof registerPanoProvider;
+	findPanoProvider: typeof findPanoProvider;
 	setSetting: typeof setSetting;
 	getSettings: () => {
 		showCameraBadges: boolean;
@@ -3372,6 +3550,9 @@ declare const mma: {
 		showGroundArrow: boolean;
 		hidePanoUI: boolean;
 		fullscreenMap: boolean;
+		showFullscreenMapMeta: boolean;
+		showFullscreenMiniLocationPreview: boolean;
+		fullscreenMiniLocationScale: number;
 		showFullscreenMinimap: boolean;
 		fullscreenMinimapScale: number;
 		showFullscreenTagbar: boolean;
@@ -3578,6 +3759,8 @@ declare const mma: {
 	removeDuplicate(id: number): void;
 	closeDuplicates(): void;
 	setWorkArea(area: WorkArea): void;
+	toggleProvidersMode(): void;
+	exitProvidersMode(): void;
 	getWorkArea(): WorkArea;
 	setPluginMode(pluginId: string): void;
 	exitPluginMode(): void;

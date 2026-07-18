@@ -497,6 +497,18 @@ function MarkersBody() {
 	const s = useSettings();
 	return (
 		<>
+			<GroupHeading>Fullscreen</GroupHeading>
+			<SettingRow
+				checked={s.showFullscreenMapMeta}
+				onChange={(v) => setSetting("showFullscreenMapMeta", v)}
+				label="Show map meta bar in fullscreen"
+			/>
+			<SettingRow
+				checked={s.showFullscreenMiniLocationPreview}
+				onChange={(v) => setSetting("showFullscreenMiniLocationPreview", v)}
+				label="Show mini location preview in fullscreen"
+			/>
+
 			<GroupHeading>Navigation</GroupHeading>
 			<SettingRow
 				label="Pan speed"

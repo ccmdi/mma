@@ -2,11 +2,27 @@ import { imageKeyToPanoId } from "@/lib/sv/svMeta";
 import { fovToZoom, schemeBase } from "@/lib/util/util";
 import { LocationFlag } from "@/types";
 import type { Location } from "@/bindings.gen";
+import type { SvProvider } from "@/lib/sv/providers/types";
+import { providerToWireSource } from "@/lib/sv/providers/types";
+import { fetchBaiduMeta } from "@/lib/sv/baidu/api";
+import {
+	expandBaiduShortUrl,
+	isBaiduMapsHost,
+	isBaiduShortHost,
+	parseBaiduMapsUrl,
+} from "@/lib/sv/baidu/shareLink";
+import { META_OPEN } from "@/lib/sv/lookaround/api";
+import { headingPitchDeg } from "@/lib/sv/lookaround/panoExtra";
+import { getClosestPano } from "@/lib/sv/lookaround/tile";
+import { isLookmapHost, parseLookmapUrl } from "@/lib/sv/lookaround/shareLink";
+import { fetchTencentMeta } from "@/lib/sv/tencent/api";
+import { isTencentShareHost, parseTencentShareUrl } from "@/lib/sv/tencent/shareLink";
+import { normalizeStoragePanoId } from "@/lib/sv/providers/panoIdStorage";
 
 /** A single location parsed out of a pasted Maps URL or a bare coordinate. */
 export type ParsedLocation = Pick<
 	Location,
-	"lat" | "lng" | "heading" | "pitch" | "zoom" | "panoId" | "flags"
+	"lat" | "lng" | "heading" | "pitch" | "zoom" | "panoId" | "flags" | "provider"
 > & {
 	/** Tag names */
 	tags: string[];
@@ -58,6 +74,7 @@ function parseExpandedMapsUrl(url: URL): ParsedLocation | null {
 				pitch,
 				zoom,
 				panoId,
+				provider: "google",
 				flags: panoId ? panoFlags : LocationFlag.None,
 				tags,
 			};
@@ -80,6 +97,7 @@ function parseExpandedMapsUrl(url: URL): ParsedLocation | null {
 				pitch,
 				zoom,
 				panoId,
+				provider: "google",
 				flags: panoId ? panoFlags : LocationFlag.None,
 				tags,
 			};
@@ -97,6 +115,7 @@ function parseExpandedMapsUrl(url: URL): ParsedLocation | null {
 					pitch: 0,
 					zoom: 0,
 					panoId: null,
+					provider: "google",
 					flags: LocationFlag.None,
 					tags,
 				};
@@ -109,10 +128,145 @@ function parseExpandedMapsUrl(url: URL): ParsedLocation | null {
 		const pitch = parseFloat(url.searchParams.get("s_p") ?? "0");
 		const panoId = url.searchParams.get("sv_pid");
 		const zoom = parseFloat(url.searchParams.get("sv_z") ?? "0");
-		return { lat, lng, heading, pitch, zoom, panoId, flags: LocationFlag.LoadAsPanoId, tags };
+		return {
+			lat,
+			lng,
+			heading,
+			pitch,
+			zoom,
+			panoId,
+			provider: "google",
+			flags: LocationFlag.LoadAsPanoId,
+			tags,
+		};
 	}
 
 	return null;
+}
+
+async function parseLookmapLocation(url: URL): Promise<ParsedLocation | null> {
+	const pov = parseLookmapUrl(url);
+	if (!pov) return null;
+
+	let lat = pov.lat;
+	let lng = pov.lng;
+	let heading = pov.heading;
+	let pitch = pov.pitch;
+	let panoId: string | null = null;
+
+	try {
+		const pano = await getClosestPano(lat, lng, META_OPEN);
+		if (pano) {
+			panoId = pano.panoid;
+			lat = pano.lat;
+			lng = pano.lon;
+			// Keep share-link POV when present; only fill from pano when both are 0.
+			if (heading === 0 && pitch === 0) {
+				const povFromPano = headingPitchDeg(pano);
+				heading = povFromPano.heading;
+				pitch = povFromPano.pitch;
+			}
+		}
+	} catch {
+		/* keep POV-only pin */
+	}
+
+	return {
+		lat,
+		lng,
+		heading,
+		pitch,
+		zoom: 0,
+		panoId,
+		provider: "apple" satisfies SvProvider,
+		flags: panoId ? LocationFlag.LoadAsPanoId : LocationFlag.None,
+		tags: [],
+	};
+}
+
+async function parseBaiduLocation(url: URL): Promise<ParsedLocation | null> {
+	const parsed = parseBaiduMapsUrl(url);
+	if (!parsed) return null;
+
+	let { lat, lng, heading, pitch } = parsed;
+	const { panoId } = parsed;
+
+	if (panoId) {
+		try {
+			// Prefer sdata when online, but fall back to path coords quickly when offline.
+			const meta = await Promise.race([
+				fetchBaiduMeta(panoId),
+				new Promise<null>((resolve) => setTimeout(() => resolve(null), 2_000)),
+			]);
+			if (meta) {
+				lat = meta.lat;
+				lng = meta.lng;
+				// Prefer URL POV when the share link included heading/pitch.
+				if (heading === 0 && pitch === 0) {
+					heading = meta.heading;
+					pitch = meta.pitch;
+				}
+			}
+		} catch {
+			/* fall through to path coords */
+		}
+	}
+
+	if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+		return null;
+	}
+
+	return {
+		lat,
+		lng,
+		heading,
+		pitch,
+		zoom: 0,
+		panoId,
+		provider: "baidu",
+		flags: panoId ? LocationFlag.LoadAsPanoId : LocationFlag.None,
+		tags: [],
+	};
+}
+
+async function parseTencentLocation(url: URL): Promise<ParsedLocation | null> {
+	const parsed = parseTencentShareUrl(url);
+	if (!parsed?.panoId) return null;
+
+	let lat: number | null = null;
+	let lng: number | null = null;
+	let heading = parsed.heading;
+	const pitch = parsed.pitch;
+	const panoId = parsed.panoId;
+
+	try {
+		const meta = await fetchTencentMeta(panoId);
+		if (meta) {
+			lat = meta.lat;
+			lng = meta.lng;
+			if (heading === 0 && pitch === 0) {
+				heading = meta.heading;
+			}
+		}
+	} catch {
+		/* need meta for coords */
+	}
+
+	if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+		return null;
+	}
+
+	return {
+		lat,
+		lng,
+		heading,
+		pitch,
+		zoom: 0,
+		panoId,
+		provider: "tencent",
+		flags: LocationFlag.LoadAsPanoId,
+		tags: [],
+	};
 }
 
 // One coordinate component: signed degrees, optional `°`, optional minutes (with
@@ -154,6 +308,7 @@ export function parseCoordinates(input: string): ParsedLocation | null {
 		pitch: 0,
 		zoom: 0,
 		panoId: null,
+		provider: "google",
 		flags: LocationFlag.None,
 		tags: [],
 	};
@@ -168,14 +323,14 @@ export async function parseUrlList(input: string): Promise<ParsedLocation[]> {
 		.split("\n")
 		.map((l) => l.trim())
 		.filter(Boolean);
-	if (lines.length === 0 || !URL_LINE.test(lines[0])) return [];
+	if (lines.length === 0 || !URL_LINE.test(lines[0]!)) return [];
 
 	const results: (ParsedLocation | null)[] = new Array(lines.length);
 	let next = 0;
 	const worker = async () => {
 		while (next < lines.length) {
 			const i = next++;
-			results[i] = await parseMapsUrl(lines[i]);
+			results[i] = await parseMapsUrl(lines[i]!);
 		}
 	};
 	await Promise.all(Array.from({ length: Math.min(5, lines.length) }, worker));
@@ -187,17 +342,21 @@ export async function parseUrlList(input: string): Promise<ParsedLocation[]> {
 export function parsedLocationsToImportJson(locs: ParsedLocation[], name: string): string {
 	const customCoordinates = locs.map((l) => {
 		// Importer semantics: top-level panoId implies LoadAsPanoId; extra.panoId doesn't.
-		const loadAsPano = l.panoId != null && (l.flags & LocationFlag.LoadAsPanoId) !== 0;
+		const storagePanoId = normalizeStoragePanoId(l.panoId);
+		const loadAsPano = storagePanoId != null && (l.flags & LocationFlag.LoadAsPanoId) !== 0;
 		const extra: Record<string, unknown> = {};
 		if (l.tags.length > 0) extra.tags = l.tags;
-		if (l.panoId != null && !loadAsPano) extra.panoId = l.panoId;
+		if (storagePanoId != null && !loadAsPano) extra.panoId = storagePanoId;
+		const provider = (l.provider ?? "google") as SvProvider;
+		const source = providerToWireSource(provider);
 		return {
 			lat: l.lat,
 			lng: l.lng,
 			heading: l.heading,
 			pitch: l.pitch,
 			zoom: l.zoom,
-			...(loadAsPano ? { panoId: l.panoId } : {}),
+			...(loadAsPano ? { panoId: storagePanoId } : {}),
+			...(source ? { source } : {}),
 			...(Object.keys(extra).length > 0 ? { extra } : {}),
 		};
 	});
@@ -217,9 +376,23 @@ export async function parseMapsUrl(input: string): Promise<ParsedLocation | null
 			url = await resolveShortUrl(url);
 		} else if (url.hostname === "maps.app.goo.gl") {
 			url = await resolveShortUrl(url);
+		} else if (isBaiduShortHost(url.hostname)) {
+			const expanded = await expandBaiduShortUrl(url);
+			if (!expanded) return null;
+			url = expanded;
 		}
 	} catch {
 		return null;
+	}
+
+	if (isLookmapHost(url.hostname)) {
+		return parseLookmapLocation(url);
+	}
+	if (isBaiduMapsHost(url.hostname)) {
+		return parseBaiduLocation(url);
+	}
+	if (isTencentShareHost(url.hostname)) {
+		return parseTencentLocation(url);
 	}
 
 	return parseExpandedMapsUrl(url);

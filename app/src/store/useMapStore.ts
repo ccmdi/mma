@@ -1338,6 +1338,24 @@ export function setWorkArea(area: WorkArea) {
 	bump();
 }
 
+export function toggleProvidersMode() {
+	if (workArea === "providers") {
+		workArea = "overview";
+	} else {
+		workArea = "providers";
+		activePluginId = null;
+		activeLocationId = null;
+	}
+	bump();
+}
+
+export function exitProvidersMode() {
+	if (workArea === "providers") {
+		workArea = "overview";
+		bump();
+	}
+}
+
 // --- Plugin mode ---
 
 export const useActivePluginId = makeStoreHook(() => activePluginId);

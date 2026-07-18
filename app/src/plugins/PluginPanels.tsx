@@ -1,10 +1,38 @@
 import { memo, useState, createElement } from "react";
 import { useSyncExternalStore } from "react";
-import { getEnabledPlugins, subscribeRegistry, getRegistrySnapshot } from "@/plugins/registry";
+import {
+	getEnabledPlugins,
+	subscribeRegistry,
+	getRegistrySnapshot,
+	type Plugin,
+} from "@/plugins/registry";
 import { useCurrentMap } from "@/store/useMapStore";
 import { setPluginMode } from "@/store/useMapStore";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
+
+function ToolbarToggleButton({ plugin }: { plugin: Plugin }) {
+	const toggle = plugin.toolbarToggle!;
+	const active = useSyncExternalStore(
+		toggle.subscribe ?? (() => () => {}),
+		toggle.getActive,
+		toggle.getActive,
+	);
+	const label = `${plugin.name} (${active ? "on" : "off"})`;
+	return (
+		<Tooltip content={label} side="bottom">
+			<button
+				type="button"
+				className={`icon-button${active ? " is-active" : ""}`}
+				onClick={toggle.onToggle}
+				aria-label={label}
+				aria-pressed={active}
+			>
+				<Icon path={plugin.icon} />
+			</button>
+		</Tooltip>
+	);
+}
 
 export function PluginToolbar() {
 	useSyncExternalStore(subscribeRegistry, getRegistrySnapshot);
@@ -16,7 +44,7 @@ export function PluginToolbar() {
 	if (plugins.length === 0) return null;
 
 	const toolbarPlugins = plugins
-		.filter((p) => p.modal || p.sidebar)
+		.filter((p) => p.modal || p.sidebar || p.toolbarToggle)
 		.sort((a, b) => a.name.localeCompare(b.name));
 	const modalPlugin = modalId ? plugins.find((p) => p.id === modalId && p.modal) : null;
 
@@ -24,23 +52,28 @@ export function PluginToolbar() {
 
 	return (
 		<>
-			{toolbarPlugins.map((p) => (
-				<Tooltip key={p.id} content={p.name} side="bottom">
-					<button
-						className="icon-button"
-						onClick={() => {
-							if (p.sidebar) {
-								setPluginMode(p.id);
-							} else if (p.modal) {
-								setModalId(modalId === p.id ? null : p.id);
-							}
-						}}
-						aria-label={p.name}
-					>
-						<Icon path={p.icon} />
-					</button>
-				</Tooltip>
-			))}
+			{toolbarPlugins.map((p) => {
+				if (p.toolbarToggle) {
+					return <ToolbarToggleButton key={p.id} plugin={p} />;
+				}
+				return (
+					<Tooltip key={p.id} content={p.name} side="bottom">
+						<button
+							className="icon-button"
+							onClick={() => {
+								if (p.sidebar) {
+									setPluginMode(p.id);
+								} else if (p.modal) {
+									setModalId(modalId === p.id ? null : p.id);
+								}
+							}}
+							aria-label={p.name}
+						>
+							<Icon path={p.icon} />
+						</button>
+					</Tooltip>
+				);
+			})}
 			{modalPlugin &&
 				modalPlugin.modal &&
 				createElement(modalPlugin.modal, {

@@ -9,12 +9,19 @@ import type { Location } from "@/bindings.gen";
 import { runConcurrent } from "@/lib/util/concurrent";
 
 import { SV_SEARCH_RADIUS, SV_CONCURRENCY } from "@/lib/sv/constants";
+import { installGoogleInjectBridge } from "@/lib/sv/providers/googleInject";
+import { stripBaidu } from "@/lib/sv/baidu/prefix";
+import { stripTencent } from "@/lib/sv/tencent/prefix";
+import { getLocationProvider } from "@/lib/sv/providers/types";
+import { viewerPanoId } from "@/lib/sv/providers/panoIdStorage";
 import { type RequireNonNull } from "@/types/util";
 
 /** A single historical panorama entry (pano ID + capture date). */
 export interface PanoReference {
 	pano: string;
 	date: Date;
+	/** Optional per-capture camera label (provider metadata). */
+	cameraType?: string;
 }
 
 /** Normalize the various date formats opensv returns into a Date. */
@@ -65,6 +72,29 @@ export interface ResolvedPano {
 }
 
 export async function resolvePano(loc: Location): Promise<ResolvedPano> {
+	const provider = getLocationProvider(loc);
+	// Baidu / Tencent: native opensv lifecycle with prefixed ids (inject bridge).
+	if (provider === "baidu" || provider === "tencent") {
+		await installGoogleInjectBridge();
+		const pinned = hasLoadAsPanoId(loc);
+		const viewerId = loc.panoId ? viewerPanoId(provider, loc.panoId) : null;
+		const strip = provider === "baidu" ? stripBaidu : stripTencent;
+		let resolved: google.maps.StreetViewResolvedPanoramaData | null = null;
+		if (viewerId) {
+			resolved = await fetchPanoData({ pano: viewerId });
+		}
+		resolved ??= await fetchPanoData({
+			location: { lat: loc.lat, lng: loc.lng },
+			radius: SV_SEARCH_RADIUS,
+		});
+		const got = resolved?.location?.pano ?? null;
+		const isFallback =
+			Boolean(pinned && viewerId) &&
+			got != null &&
+			strip(got) !== strip(viewerId!);
+		return { pano: resolved, isFallback };
+	}
+
 	const pinned = hasLoadAsPanoId(loc);
 	let resolved: google.maps.StreetViewResolvedPanoramaData | null = null;
 	if (pinned && loc.panoId) {
@@ -354,6 +384,7 @@ export async function lookupStreetView(
 		lng: pos.lng(),
 		heading,
 		panoId: chosen.location.pano ?? null,
+		provider: "google",
 		flags: !isDefault || opts.defaultPanoId ? LocationFlag.LoadAsPanoId : LocationFlag.None,
 	});
 }
@@ -402,6 +433,7 @@ export async function followLinkedPanos(
 				lng: pos.lng(),
 				heading: best.heading,
 				panoId: best.pano,
+				provider: "google",
 				flags: LocationFlag.LoadAsPanoId,
 			}),
 		);

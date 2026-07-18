@@ -17,6 +17,7 @@ import {
 	createTags,
 	beginImportPaste,
 	beginImportFromPath,
+	toggleProvidersMode,
 } from "@/store/useMapStore";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
@@ -30,6 +31,10 @@ import { MapOverview } from "@/components/editor/map/MapOverview";
 import { ImportSidebar } from "@/components/editor/ImportSidebar";
 import { DiffSidebar } from "@/components/editor/DiffSidebar";
 import { LocationPreview } from "@/components/editor/location/LocationPreview";
+import { FullscreenMiniLocationPreview } from "@/components/editor/location/FullscreenMiniLocationPreview";
+import { PanoViewerProvider } from "@/components/editor/location/PanoViewerContext";
+import { exitFullscreenMap } from "@/components/editor/location/fullscreenModeState";
+import { useFullscreenModeHotkeys } from "@/components/editor/location/useFullscreenModeHotkeys";
 import { CommandPalette } from "@/components/editor/CommandPalette";
 import { MapRenameForm } from "@/components/editor/MapRenameForm";
 import { EnrichmentButton } from "@/components/editor/map/EnrichmentDialog";
@@ -37,7 +42,7 @@ import { Dialog, DialogTrigger, DialogContent } from "@/components/primitives/Di
 import { useHotkey, useCommandHotkeys, isEditableElement } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
-import { useSettings, setSetting, getSettings } from "@/store/settings";
+import { useSettings, getSettings } from "@/store/settings";
 import {
 	parseMapsUrl,
 	parseCoordinates,
@@ -47,8 +52,14 @@ import {
 } from "@/lib/data/importExport";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
-import { mdiBackburger, mdiPencil } from "@mdi/js";
+import { mdiBackburger, mdiEarthPlus, mdiPencil } from "@mdi/js";
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
+import { ProvidersSidebar } from "@/components/editor/providers/ProvidersSidebar";
+import { useSoleEnabledProviderId } from "@/components/editor/providers/useProvidersHeaderIcon";
+import { ProviderIcon } from "@/components/editor/providers/ProviderIcon";
+import { startLookAroundProvider } from "@/lib/sv/lookaround/bootstrap";
+import { startBaiduProvider } from "@/lib/sv/baidu/bootstrap";
+import { startTencentProvider } from "@/lib/sv/tencent/bootstrap";
 import SameLocation from "@/components/editor/SameLocation";
 import { log } from "@/lib/util/log";
 import { useCountrySelect } from "@/lib/map/useCountrySelect";
@@ -233,14 +244,23 @@ function SplitHandle({ onSplitChange }: { onSplitChange: (v: number) => void }) 
 	);
 }
 
+function FullscreenModeHotkeys() {
+	useFullscreenModeHotkeys();
+	return null;
+}
+
 export function MapEditor() {
 	const map = useCurrentMap();
 	const workArea = useWorkArea();
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [split, setSplit] = useLocalStorage("editorSplit", 50);
+	const soleProviderId = useSoleEnabledProviderId();
 
 	useEffect(() => {
 		let cancelled = false;
+		const stopLookaround = startLookAroundProvider();
+		const stopBaidu = startBaiduProvider();
+		const stopTencent = startTencentProvider();
 		Promise.all([pluginsReady, waitForMapHost()]).then(() => {
 			if (cancelled) return;
 			activatePlugins();
@@ -248,6 +268,9 @@ export function MapEditor() {
 		return () => {
 			cancelled = true;
 			deactivatePlugins();
+			stopLookaround();
+			stopBaidu();
+			stopTencent();
 		};
 	}, [map?.meta.id]);
 
@@ -282,9 +305,13 @@ export function MapEditor() {
 	useMapKeyBindings(() => getCurrentMap()?.meta.settings.keyBindings ?? []);
 	useCountrySelect();
 	useDeletePolygon();
-	useHotkey(useBinding("toggleFullscreenMap"), () => {
-		setSetting("fullscreenMap", !getSettings().fullscreenMap);
-	});
+	useHotkey(
+		"escape",
+		() => {
+			exitFullscreenMap();
+		},
+		{ bubble: true },
+	);
 	useHotkey(
 		useBinding("locationDelete"),
 		() => {
@@ -334,64 +361,96 @@ export function MapEditor() {
 	const editorClasses = `page-map-editor${appSettings.fullscreenMap ? " fullscreen-map" : ""}`;
 
 	return (
-		<div
-			className={editorClasses}
-			style={{
-				gridTemplateColumns: appSettings.fullscreenMap
-					? undefined
-					: `minmax(0, ${split}fr) minmax(0, ${100 - split}fr)`,
-			}}
-		>
-			<SplitHandle onSplitChange={setSplit} />
-			<header>
-				<Tooltip content="Back to map list" side="bottom" align="start">
-					<a
-						href="#"
-						style={{ textDecoration: "none" }}
-						aria-label="Back to map list"
-						onClick={(e) => {
-							e.preventDefault();
-							goToList();
-						}}
-					>
-						<Icon path={mdiBackburger} />
-					</a>
-				</Tooltip>
-				<h1>{map.meta.name}</h1>
-				<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-					<Tooltip content="Edit map" side="bottom">
-						<DialogTrigger asChild>
-							<button className="icon-button" type="button" aria-label="Edit map">
-								<Icon path={mdiPencil} />
-							</button>
-						</DialogTrigger>
+		<PanoViewerProvider>
+			<FullscreenModeHotkeys />
+			<div
+				className={editorClasses}
+				style={{
+					gridTemplateColumns: appSettings.fullscreenMap
+						? undefined
+						: `minmax(0, ${split}fr) minmax(0, ${100 - split}fr)`,
+				}}
+			>
+				{!appSettings.fullscreenMap && <SplitHandle onSplitChange={setSplit} />}
+				<header>
+					<Tooltip content="Back to map list" side="bottom" align="start">
+						<a
+							href="#"
+							style={{ textDecoration: "none" }}
+							aria-label="Back to map list"
+							onClick={(e) => {
+								e.preventDefault();
+								goToList();
+							}}
+						>
+							<Icon path={mdiBackburger} />
+						</a>
 					</Tooltip>
-					<DialogContent title="Map settings" className="edit-map-modal">
-						<MapRenameForm mapId={map.meta.id} currentName={map.meta.name} />
-					</DialogContent>
-				</Dialog>
-				<EnrichmentButton />
-			</header>
-			<div className="side-header"></div>
-			<section className="map-embed" style={{ background: "var(--surface-0)" }}>
-				<MapEmbed onAddLocation={(p) => addParsedLocations([p])} />
-				{showMapCursor && <div className="map-cursor-crosshair" />}
-			</section>
-			<section className="map-meta">
-				<MapMetaBar />
-			</section>
-			<MapOverview hidden={workArea !== "overview"} />
-			{workArea === "location" && <LocationPreview />}
-			{workArea === "duplicates" && <SameLocation />}
-			{workArea === "import" && <ImportSidebar />}
-			{workArea === "diff" && <DiffSidebar />}
-			<PluginSidebarHost />
-			<CommandPalette />
-			{fileDragging && (
-				<div className="file-drop-overlay">
-					<div className="file-drop-overlay__content">Drop file to import</div>
-				</div>
-			)}
-		</div>
+					<h1>{map.meta.name}</h1>
+					<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+						<Tooltip content="Edit map" side="bottom">
+							<DialogTrigger asChild>
+								<button className="icon-button" type="button" aria-label="Edit map">
+									<Icon path={mdiPencil} />
+								</button>
+							</DialogTrigger>
+						</Tooltip>
+						<DialogContent title="Map settings" className="edit-map-modal">
+							<MapRenameForm mapId={map.meta.id} currentName={map.meta.name} />
+						</DialogContent>
+					</Dialog>
+					<EnrichmentButton />
+					<Tooltip
+						content={
+							workArea === "providers"
+								? "Close Street View providers"
+								: "Street View providers"
+						}
+						side="bottom"
+						align="end"
+					>
+						<button
+							className={`icon-button`}
+							type="button"
+							aria-label="Street View providers"
+							aria-pressed={workArea === "providers"}
+							onClick={() => toggleProvidersMode()}
+						>
+							{soleProviderId ? (
+								<ProviderIcon id={soleProviderId} size={24} />
+							) : (
+								<Icon path={mdiEarthPlus} />
+							)}
+						</button>
+					</Tooltip>
+				</header>
+				<div className="side-header"></div>
+				<section className="map-embed" style={{ background: "var(--surface-0)" }}>
+					<MapEmbed onAddLocation={(p) => addParsedLocations([p])} />
+					{showMapCursor && <div className="map-cursor-crosshair" />}
+					{appSettings.fullscreenMap &&
+						appSettings.showFullscreenMiniLocationPreview &&
+						workArea === "location" && <FullscreenMiniLocationPreview />}
+				</section>
+				{(!appSettings.fullscreenMap || appSettings.showFullscreenMapMeta) && (
+					<section className="map-meta">
+						<MapMetaBar />
+					</section>
+				)}
+				<MapOverview hidden={workArea !== "overview"} />
+				{workArea === "location" && <LocationPreview />}
+				{workArea === "duplicates" && <SameLocation />}
+				{workArea === "import" && <ImportSidebar />}
+				{workArea === "diff" && <DiffSidebar />}
+				{workArea === "providers" && <ProvidersSidebar />}
+				<PluginSidebarHost />
+				<CommandPalette />
+				{fileDragging && (
+					<div className="file-drop-overlay">
+						<div className="file-drop-overlay__content">Drop file to import</div>
+					</div>
+				)}
+			</div>
+		</PanoViewerProvider>
 	);
 }

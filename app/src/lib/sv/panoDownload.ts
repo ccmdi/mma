@@ -6,10 +6,29 @@ import type { PanoData } from "@/lib/sv/svRunner";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { toast } from "@/lib/util/toast";
 import { mmaBufUrl } from "@/lib/util/util";
+import { getLocationProvider } from "@/lib/sv/providers/types";
+import type { SvProvider } from "@/lib/sv/providers/types";
+import { renderBaiduLocationImage, stitchBaiduPano } from "@/lib/sv/baidu/panoDownload";
+import { resolveBaiduNear } from "@/lib/sv/baidu/api";
+import { stripBaidu } from "@/lib/sv/baidu/prefix";
+import { renderTencentLocationImage, stitchTencentPano } from "@/lib/sv/tencent/panoDownload";
+import { resolveTencentNear } from "@/lib/sv/tencent/api";
+import { stripTencent } from "@/lib/sv/tencent/prefix";
+import {
+	renderLookaroundLocationImage,
+	stitchLookaroundPano,
+} from "@/lib/sv/lookaround/panoDownload";
+import { getClosestPano } from "@/lib/sv/lookaround/tile";
+import { generatePerspectiveFromEquirect } from "@/lib/sv/panoDownloadShared";
+import type { PanoDownloadConfig, RenderedPanoImage } from "@/lib/sv/panoDownloadTypes";
 
-export type PanoRenderMode = "equirectangular" | "perspective" | "thumbnail" | "tile";
+export type {
+	PanoDownloadConfig,
+	PanoRenderMode,
+	RenderedPanoImage,
+} from "@/lib/sv/panoDownloadTypes";
 
-// --- Tile fetch and stitching ---
+// --- Tile fetch and stitching (Google) ---
 
 /** Street View tiles are a fixed 512px pitch in `worldSize` space */
 const SV_TILE = 512;
@@ -69,7 +88,7 @@ async function fetchPanoTile(
 	return null;
 }
 
-/** Stitch a panorama's tiles onto a canvas at the given zoom. Null if no tiles loaded. */
+/** Stitch a Google panorama's tiles onto a canvas at the given zoom. Null if no tiles loaded. */
 export async function stitchPano(
 	panoId: string,
 	meta: PanoData | null | undefined,
@@ -102,32 +121,55 @@ export async function stitchPano(
 	return loaded > 0 ? canvas : null;
 }
 
-/** Download the full panorama as a single stitched JPEG at max quality. Toasts on success/failure. */
-export async function downloadPano(panoId: string, zoom = 5): Promise<void> {
+export interface DownloadPanoOpts {
+	/** Owning location — required for Baidu / Look Around (buildId, CRS, etc.). */
+	location?: Location | null;
+	provider?: SvProvider;
+	zoom?: number;
+}
+
+/** Download the full panorama as a single stitched JPEG. Toasts on success/failure. */
+export async function downloadPano(
+	panoId: string,
+	zoomOrOpts: number | DownloadPanoOpts = 5,
+): Promise<void> {
+	const opts: DownloadPanoOpts =
+		typeof zoomOrOpts === "number" ? { zoom: zoomOrOpts } : (zoomOrOpts ?? {});
+	const zoom = opts.zoom ?? 5;
+	const provider = opts.provider ?? getLocationProvider(opts.location);
 	try {
-		const [meta] = await fetchSvMetadata([panoId]);
-		const canvas = await stitchPano(panoId, meta, zoom);
+		let canvas: HTMLCanvasElement | null = null;
+		if (provider === "baidu") {
+			canvas = await stitchBaiduPano(panoId, zoom);
+		} else if (provider === "tencent") {
+			canvas = await stitchTencentPano(panoId, zoom);
+		} else if (provider === "apple") {
+			if (!opts.location) throw new Error("Look Around download needs a location");
+			canvas = await stitchLookaroundPano(opts.location, panoId, zoom);
+		} else {
+			const [meta] = await fetchSvMetadata([panoId]);
+			canvas = await stitchPano(panoId, meta, zoom);
+		}
 		if (!canvas) throw new Error("no tiles loaded");
 
-		const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.95));
+		const blob = await new Promise<Blob | null>((res) => canvas!.toBlob(res, "image/jpeg", 0.95));
 		if (!blob) throw new Error("encode failed");
 
 		const a = document.createElement("a");
 		a.href = URL.createObjectURL(blob);
-		a.download = `${panoId}.jpg`;
+		const fileStem =
+			provider === "baidu"
+				? stripBaidu(panoId)
+				: provider === "tencent"
+					? stripTencent(panoId)
+					: panoId;
+		a.download = `${fileStem || panoId}.jpg`;
 		a.click();
 		URL.revokeObjectURL(a.href);
 		toast("Panorama downloaded");
 	} catch {
 		toast("Panorama download failed");
 	}
-}
-
-export interface PanoDownloadConfig {
-	mode: PanoRenderMode;
-	zoom: number;
-	tileX: number;
-	tileY: number;
 }
 
 export interface BulkDownloadResult {
@@ -142,105 +184,7 @@ export interface BulkDownloadResult {
 const META_BATCH = 200;
 const DOWNLOAD_CONCURRENCY = 4;
 
-// --- Equirectangular -> perspective reprojection ---
-
-function rotationMatrix(axis: [number, number, number], angle: number): number[][] {
-	const rad = angle * (Math.PI / 180);
-	const c = Math.cos(rad);
-	const s = Math.sin(rad);
-	const t = 1 - c;
-	const [x, y, z] = axis;
-
-	return [
-		[t * x * x + c, t * x * y - s * z, t * x * z + s * y],
-		[t * x * y + s * z, t * y * y + c, t * y * z - s * x],
-		[t * x * z - s * y, t * y * z + s * x, t * z * z + c],
-	];
-}
-
-function applyRotation(m: number[][], v: [number, number, number]): [number, number, number] {
-	return [
-		m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
-		m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
-		m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
-	];
-}
-
-function multiplyMatrices(a: number[][], b: number[][]): number[][] {
-	const result = Array.from({ length: 3 }, () => Array(3).fill(0));
-	for (let i = 0; i < 3; i++) {
-		for (let j = 0; j < 3; j++) {
-			for (let k = 0; k < 3; k++) {
-				result[i][j] += a[i][k] * b[k][j];
-			}
-		}
-	}
-	return result;
-}
-
-function generatePerspective(
-	canvas: HTMLCanvasElement,
-	fov: number,
-	theta: number,
-	phi: number,
-	outputWidth: number,
-	outputHeight: number,
-): HTMLCanvasElement {
-	const out = document.createElement("canvas");
-	out.width = outputWidth;
-	out.height = outputHeight;
-	const perspectiveCtx = out.getContext("2d")!;
-
-	const f = (0.5 * outputWidth) / Math.tan((fov / 2) * (Math.PI / 180));
-	const cx = outputWidth / 2;
-	const cy = outputHeight / 2;
-
-	const inputWidth = canvas.width;
-	const inputHeight = canvas.height;
-	const inputImageData = canvas.getContext("2d")!.getImageData(0, 0, inputWidth, inputHeight);
-
-	const outputImageData = perspectiveCtx.createImageData(outputWidth, outputHeight);
-	const outputData = outputImageData.data;
-
-	const r1 = rotationMatrix([0, 1, 0], theta);
-	const rotatedXAxis = applyRotation(r1, [1, 0, 0]);
-	const r2 = rotationMatrix(rotatedXAxis, phi);
-	const r = multiplyMatrices(r2, r1);
-
-	for (let y = 0; y < outputHeight; y++) {
-		for (let x = 0; x < outputWidth; x++) {
-			const nx = (x - cx) / f;
-			const ny = (y - cy) / f;
-			const nz = 1;
-
-			const [rx, ry, rz] = applyRotation(r, [nx, ny, nz]);
-			const lon = Math.atan2(rx, rz);
-			const lat = Math.asin(ry / Math.sqrt(rx * rx + ry * ry + rz * rz));
-
-			const u = Math.floor((lon / (2 * Math.PI) + 0.5) * inputWidth);
-			const v = Math.floor((lat / Math.PI + 0.5) * inputHeight);
-
-			if (u >= 0 && u < inputWidth && v >= 0 && v < inputHeight) {
-				const srcOffset = (v * inputWidth + u) * 4;
-				const destOffset = (y * outputWidth + x) * 4;
-				outputData[destOffset] = inputImageData.data[srcOffset];
-				outputData[destOffset + 1] = inputImageData.data[srcOffset + 1];
-				outputData[destOffset + 2] = inputImageData.data[srcOffset + 2];
-				outputData[destOffset + 3] = 255;
-			}
-		}
-	}
-
-	perspectiveCtx.putImageData(outputImageData, 0, 0);
-	return out;
-}
-
 // --- Per-location rendering ---
-
-interface RenderedImage {
-	blob: Blob;
-	fileName: string;
-}
 
 function canvasToBlob(
 	canvas: HTMLCanvasElement,
@@ -259,13 +203,13 @@ async function fetchImage(url: string): Promise<Blob | null> {
 	}
 }
 
-/** Render one location's image per the configured mode. Null on failure. */
-async function renderLocationImage(
+/** Render one Google location's image per the configured mode. Null on failure. */
+async function renderGoogleLocationImage(
 	loc: Location,
 	panoId: string,
 	meta: PanoData | null,
 	config: PanoDownloadConfig,
-): Promise<RenderedImage | null> {
+): Promise<RenderedPanoImage | null> {
 	const name = panoId;
 
 	if (config.mode === "thumbnail") {
@@ -287,7 +231,7 @@ async function renderLocationImage(
 
 	if (config.mode === "perspective") {
 		const centerHeading = meta?.extra?.drivingDirection ?? 0;
-		const perspective = generatePerspective(
+		const perspective = generatePerspectiveFromEquirect(
 			canvas,
 			125,
 			loc.heading - centerHeading,
@@ -301,6 +245,28 @@ async function renderLocationImage(
 
 	const blob = await canvasToBlob(canvas, "image/jpeg", 0.95);
 	return blob ? { blob, fileName: `${name}.jpg` } : null;
+}
+
+/** Modes unsupported for a provider — skip without counting as download failure. */
+export function shouldSkipPanoDownload(loc: Location, config: PanoDownloadConfig): boolean {
+	const provider = getLocationProvider(loc);
+	if (config.mode === "tile" && provider !== "google") return true;
+	if (config.mode === "thumbnail" && provider === "apple") return true;
+	return false;
+}
+
+async function renderLocationImage(
+	loc: Location,
+	panoId: string,
+	meta: PanoData | null,
+	config: PanoDownloadConfig,
+): Promise<RenderedPanoImage | null> {
+	if (shouldSkipPanoDownload(loc, config)) return null;
+	const provider = getLocationProvider(loc);
+	if (provider === "baidu") return renderBaiduLocationImage(loc, panoId, config);
+	if (provider === "tencent") return renderTencentLocationImage(loc, panoId, config);
+	if (provider === "apple") return renderLookaroundLocationImage(loc, panoId, config);
+	return renderGoogleLocationImage(loc, panoId, meta, config);
 }
 
 // --- Bulk orchestration ---
@@ -322,6 +288,86 @@ async function fetchMetadataMap(
 	return out;
 }
 
+/** Resolve missing pano IDs with the location's own imagery provider. */
+async function resolveMissingPanoIds(
+	locations: Location[],
+	opts: {
+		signal?: AbortSignal;
+		onProgress?: (done: number, total: number) => void;
+	},
+): Promise<{ resolved: Map<number, string>; failed: number[] }> {
+	const resolved = new Map<number, string>();
+	const failed: number[] = [];
+	const { signal, onProgress } = opts;
+
+	const google: Location[] = [];
+	const baidu: Location[] = [];
+	const tencent: Location[] = [];
+	const apple: Location[] = [];
+	for (const loc of locations) {
+		switch (getLocationProvider(loc)) {
+			case "baidu":
+				baidu.push(loc);
+				break;
+			case "tencent":
+				tencent.push(loc);
+				break;
+			case "apple":
+				apple.push(loc);
+				break;
+			default:
+				google.push(loc);
+		}
+	}
+
+	const total = locations.length;
+	let done = 0;
+	const bump = () => {
+		done++;
+		onProgress?.(done, total);
+	};
+
+	if (google.length > 0) {
+		const res = await resolvePanoIds(google, {
+			signal,
+			onProgress: (d) => onProgress?.(done + d, total),
+		});
+		for (const r of res.resolved) resolved.set(r.id, r.panoId);
+		failed.push(...res.failed);
+		done += google.length;
+		onProgress?.(done, total);
+	}
+
+	await runConcurrent(
+		[...baidu, ...tencent, ...apple],
+		async (loc) => {
+			signal?.throwIfAborted();
+			try {
+				const prov = getLocationProvider(loc);
+				if (prov === "baidu") {
+					const meta = await resolveBaiduNear(loc.lat, loc.lng);
+					if (meta?.id) resolved.set(loc.id, meta.id);
+					else failed.push(loc.id);
+				} else if (prov === "tencent") {
+					const meta = await resolveTencentNear(loc.lat, loc.lng);
+					if (meta?.id) resolved.set(loc.id, meta.id);
+					else failed.push(loc.id);
+				} else {
+					const pano = await getClosestPano(loc.lat, loc.lng);
+					if (pano?.panoid) resolved.set(loc.id, pano.panoid);
+					else failed.push(loc.id);
+				}
+			} catch {
+				failed.push(loc.id);
+			}
+			bump();
+		},
+		{ concurrency: DOWNLOAD_CONCURRENCY, signal },
+	);
+
+	return { resolved, failed };
+}
+
 /** Download panoramas for `locations`, uploading each image into a Rust session
  *  dir (via mma-buf POST) that is packaged into a single file or Stored ZIP. */
 export async function bulkDownloadPanoramas(
@@ -340,28 +386,35 @@ export async function bulkDownloadPanoramas(
 	const resolvedMap = new Map<number, string>();
 	if (needResolve.length > 0) {
 		onProgress?.(0, needResolve.length, "Resolving pano IDs");
-		const res = await resolvePanoIds(needResolve, {
+		const res = await resolveMissingPanoIds(needResolve, {
 			signal,
 			onProgress: (d, t) => onProgress?.(d, t, "Resolving pano IDs"),
 		});
-		for (const r of res.resolved) resolvedMap.set(r.id, r.panoId);
+		for (const [id, panoId] of res.resolved) resolvedMap.set(id, panoId);
 		failed.push(...res.failed);
 	}
 
 	const pending = locations.flatMap((loc) => {
 		const panoId = loc.panoId ?? resolvedMap.get(loc.id);
-		return panoId ? [{ loc, panoId }] : [];
+		if (!panoId) return [];
+		// Skip unsupported provider/mode pairs (non-Google tile, Apple thumbnail).
+		if (shouldSkipPanoDownload(loc, config)) return [];
+		return [{ loc, panoId }];
 	});
 	if (pending.length === 0) {
 		return { succeeded, failed, outputPath: null, suggestedName: null, fileCount: 0 };
 	}
 
-	// Metadata drives tile layout and center heading; thumbnail/tile modes need neither.
+	// Google metadata drives tile layout and center heading; other providers ignore it.
 	let metaMap = new Map<string, PanoData>();
-	if (config.mode === "equirectangular" || config.mode === "perspective") {
-		onProgress?.(0, pending.length, "Fetching metadata");
+	const googlePending = pending.filter((p) => getLocationProvider(p.loc) === "google");
+	if (
+		(config.mode === "equirectangular" || config.mode === "perspective") &&
+		googlePending.length > 0
+	) {
+		onProgress?.(0, googlePending.length, "Fetching metadata");
 		metaMap = await fetchMetadataMap(
-			pending.map((p) => p.panoId),
+			googlePending.map((p) => p.panoId),
 			signal,
 		);
 	}
@@ -391,7 +444,12 @@ export async function bulkDownloadPanoramas(
 		await runConcurrent(
 			pending,
 			async ({ loc, panoId }) => {
-				const image = await renderLocationImage(loc, panoId, metaMap.get(panoId) ?? null, config);
+				const image = await renderLocationImage(
+					loc,
+					panoId,
+					metaMap.get(panoId) ?? null,
+					config,
+				);
 				let ok = false;
 				if (image) {
 					const fileName = uniqueName(image.fileName);

@@ -7,9 +7,13 @@ import { getBinding } from "@/lib/util/hotkeys";
 import { singletonPano } from "@/lib/sv/panoSingleton";
 import type { AppSettings } from "@/store/settings";
 
-export function usePanoNavigation(appSettings: AppSettings) {
+export function usePanoNavigation(
+	appSettings: AppSettings,
+	panorama?: google.maps.StreetViewPanorama | null,
+) {
 	const navRef = useRef({ held: new Set<string>(), rafId: 0, alt: false, lastTime: 0 });
 	const getAppSettings = useEffectEvent(() => appSettings);
+	const getPanorama = useEffectEvent(() => panorama ?? singletonPano);
 
 	useEffect(() => {
 		const nav = navRef.current;
@@ -18,7 +22,8 @@ export function usePanoNavigation(appSettings: AppSettings) {
 		const allActions = [...lookActions, ...moveActions] as const;
 
 		function tick() {
-			if (!singletonPano || nav.held.size === 0) {
+			const active = getPanorama();
+			if (!active || nav.held.size === 0) {
 				nav.rafId = 0;
 				nav.lastTime = 0;
 				return;
@@ -31,7 +36,7 @@ export function usePanoNavigation(appSettings: AppSettings) {
 			const s = getAppSettings();
 			const slow = nav.alt ? s.slowModifier : 1;
 			const speed = (s.panoLookSpeed * 0.4 * dt) / slow;
-			const pov = singletonPano.getPov();
+			const pov = active.getPov();
 			let dh = 0,
 				dp = 0;
 			if (nav.held.has("panoLookLeft")) dh -= speed;
@@ -40,11 +45,16 @@ export function usePanoNavigation(appSettings: AppSettings) {
 			if (nav.held.has("panoLookDown")) dp -= speed;
 
 			if (dh || dp) {
-				singletonPano.setOptions({
+				active.setOptions({
 					pov: {
 						heading: (pov.heading + dh + 360) % 360,
 						pitch: clamp(pov.pitch + dp, PANO_PITCH),
 					},
+				});
+				// Alt providers may ignore setOptions — also apply via setPov.
+				active.setPov({
+					heading: (pov.heading + dh + 360) % 360,
+					pitch: clamp(pov.pitch + dp, PANO_PITCH),
 				});
 			}
 
@@ -68,12 +78,13 @@ export function usePanoNavigation(appSettings: AppSettings) {
 				for (const alt of parsed) {
 					if (alt.length === 1 && matchesKey(e, alt[0], { ignoreAlt: true })) {
 						if (action === "panoMoveForward" || action === "panoMoveBackward") {
-							if (!singletonPano) return;
-							const links = singletonPano
+							const active = getPanorama();
+							if (!active) return;
+							const links = active
 								.getLinks()
 								?.filter((l): l is google.maps.StreetViewLink => l != null);
 							if (!links?.length) return;
-							const heading = singletonPano.getPov().heading;
+							const heading = active.getPov().heading;
 							const target = action === "panoMoveForward" ? heading : (heading + 180) % 360;
 							let best = links[0];
 							let bestDiff = 360;
@@ -84,7 +95,7 @@ export function usePanoNavigation(appSettings: AppSettings) {
 									best = link;
 								}
 							}
-							if (best.pano) singletonPano.setPano(best.pano);
+							if (best.pano) active.setPano(best.pano);
 							e.preventDefault();
 							e.stopImmediatePropagation();
 							return;

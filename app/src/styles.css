@@ -1776,8 +1776,8 @@ input[type="range"]:disabled {
 		transform: translateY(var(--popover-origin)) scaleY(0.96);
 	}
 }
-/* Author-supplied base-select trigger button in the pano date picker: closed
-   control looks like the NSelect control (matches TextInput), no button chrome. */
+/* Author-supplied base-select trigger in the pano date picker: closed control
+   looks like NSelect/TextInput; option rows use grid + badge chips. */
 .pano-date-select__trigger {
 	appearance: none;
 	-webkit-appearance: none;
@@ -1812,9 +1812,6 @@ input[type="range"]:disabled {
 	mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round' d='M6 9l6 6 6-6'/%3E%3C/svg%3E")
 		center / contain no-repeat;
 }
-/* The author-supplied trigger provides the control chrome (including its own
-   ::after chevron); strip the select's box and its UA picker icon so neither
-   doubles up. */
 .nselect.pano-date-select {
 	background: none;
 	border: none;
@@ -3035,6 +3032,15 @@ input.date-picker__trigger:focus {
 	height: 100%;
 	position: absolute;
 }
+.location-preview__pano-host {
+	position: absolute;
+	inset: 0;
+}
+.location-preview__nmpz-shield {
+	position: absolute;
+	inset: 0;
+	z-index: 1;
+}
 .viewport-lock-badge {
 	position: absolute;
 	top: 8px;
@@ -3102,6 +3108,34 @@ input.date-picker__trigger:focus {
 .badge--unofficial {
 	color: #fff;
 	background: #222;
+}
+.badge--apple {
+	color: #fff;
+	background: #555;
+}
+.badge--apple-small {
+	color: #fff;
+	background: #6b7c93;
+}
+.badge--apple-low {
+	color: #fff;
+	background: #8b6914;
+}
+.badge--apple-backpack {
+	color: #fff;
+	background: #9b59b6;
+}
+.badge--baidu {
+	color: #fff;
+	background: #2932e1;
+}
+.badge--tencent {
+	color: #fff;
+	background: #0051da;
+}
+.badge--provider {
+	color: #fff;
+	background: #525252;
 }
 .badge--gen1 {
 	color: #fff;
@@ -4852,14 +4886,26 @@ body {
 
 /* Fullscreen map mode: map takes full area, sidebar hidden */
 .page-map-editor.fullscreen-map {
-	grid-template: "map-embed map-embed" 1fr "map-meta map-meta" min-content/1fr;
+	height: 100vh;
+	margin: 0;
+	grid-gap: 0;
+	grid-template: "map-embed map-embed" 1fr/1fr;
 }
+.page-map-editor.fullscreen-map:has(> .map-meta) {
+	grid-template: "map-embed map-embed" 1fr "map-meta map-meta" min-content/1fr;
+	row-gap: 0.5rem;
+	padding: 0.5rem;
+}
+.page-map-editor.fullscreen-map > .split-handle,
 .page-map-editor.fullscreen-map > header,
 .page-map-editor.fullscreen-map > .side-header,
 .page-map-editor.fullscreen-map > .location-preview,
 .page-map-editor.fullscreen-map > .map-overview,
 .page-map-editor.fullscreen-map > .duplicates,
-.page-map-editor.fullscreen-map > .importer {
+.page-map-editor.fullscreen-map > .importer,
+.page-map-editor.fullscreen-map > .import-sidebar,
+.page-map-editor.fullscreen-map > .map-sidebar,
+.page-map-editor.fullscreen-map > .plugin-sidebar {
 	display: none;
 }
 
@@ -4940,6 +4986,68 @@ body {
 	opacity: 0.4;
 	cursor: default;
 }
+
+/* Fullscreen-map floating location preview (Street View chip).
+ * Size snaps (no width/height transition) so the SV canvas isn't stretched
+ * mid-animation — that was causing hover-expand jitter. Opacity still fades. */
+.fullscreen-mini-location {
+	position: absolute;
+	bottom: 8px;
+	right: 8px;
+	width: 250px;
+	height: 140px;
+	border: 2px solid rgba(255, 255, 255, 0.4);
+	border-radius: 4px;
+	z-index: 12;
+	pointer-events: auto;
+	overflow: hidden;
+	opacity: 0.45;
+	transition: opacity 0.2s;
+}
+.fullscreen-mini-location.is-expanded {
+	width: min(var(--fs-mini-loc-w, 480px), calc(100% - 16px));
+	height: min(var(--fs-mini-loc-h, 270px), calc(100% - 16px));
+	opacity: 1;
+}
+.fullscreen-mini-location__pano {
+	position: absolute;
+	inset: 0;
+}
+.fullscreen-mini-location__size {
+	position: absolute;
+	top: 6px;
+	left: 6px;
+	z-index: 1;
+	display: flex;
+	gap: 4px;
+	opacity: 0;
+	transition: opacity 0.15s;
+}
+.fullscreen-mini-location.is-expanded .fullscreen-mini-location__size {
+	opacity: 1;
+}
+.fullscreen-mini-location__size-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: rgba(30, 30, 30, 0.75);
+	color: #fff;
+	cursor: pointer;
+	transition: background 0.15s;
+}
+.fullscreen-mini-location__size-btn:hover {
+	background: rgba(30, 30, 30, 0.95);
+}
+.fullscreen-mini-location__size-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
+
 /* Fullscreen bottom tray (date picker + tag bar) */
 .fullscreen-bottom-tray {
 	position: absolute;
@@ -5668,4 +5776,84 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
    falls back here instead of the engine default. */
 .mma-vector-canvas {
 	cursor: crosshair;
+}
+
+/* Street View providers sidebar */
+.providers-sidebar__tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem;
+	padding: 0.5rem 0.75rem;
+	border-bottom: 1px solid var(--pu-divider, #333);
+}
+.providers-sidebar__tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.35rem 0.55rem;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--text-secondary, #999);
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+.providers-sidebar__tab:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+.providers-sidebar__tab.is-active {
+	border-color: var(--pu-divider, #444);
+	color: var(--text-primary, #fff);
+	background: var(--pu-hover, rgba(255, 255, 255, 0.06));
+}
+.providers-sidebar__tab.is-on {
+	color: var(--text-primary, #fff);
+}
+.providers-sidebar__control {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 0;
+}
+.providers-sidebar__control label {
+	flex: 1;
+	font-size: 13px;
+}
+.providers-sidebar__control input[type="range"] {
+	width: 100px;
+}
+.providers-sidebar__control input[type="color"] {
+	width: 36px;
+	height: 24px;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: pointer;
+}
+.providers-sidebar__value {
+	min-width: 40px;
+	text-align: right;
+	font-size: 12px;
+	color: var(--text-secondary, #999);
+	font-variant-numeric: tabular-nums;
+}
+.providers-sidebar__hint {
+	font-size: 12px;
+	color: var(--text-secondary, #999);
+	margin: 0.25rem 0 0;
+	line-height: 1.4;
+}
+.providers-sidebar__reset {
+	font-size: 12px;
+	color: var(--text-secondary, #999);
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 0;
+	text-decoration: underline;
+}
+.providers-sidebar__reset:hover {
+	color: var(--text-primary, #fff);
 }

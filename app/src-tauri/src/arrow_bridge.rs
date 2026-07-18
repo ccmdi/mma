@@ -39,8 +39,8 @@ macro_rules! columns {
     };
 }
 
-// `tags` is a `List<UInt32>`; `pano_id`/`extra`/`modified_at` are nullable.
-// TODO: extras-as-columns — promote known_field_keys to real typed columns
+// `tags` is a `List<UInt32>`; `pano_id`/`provider`/`extra`/`modified_at` are nullable.
+// TODO: extras-as-columns —?promote known_field_keys to real typed columns
 // (schema per-map), JSON only at import/export. Big project; kills the per-row
 // JSON parse in filters/scans and the re-serialize cost in bake.
 columns! {
@@ -51,11 +51,12 @@ columns! {
     4  COL_PITCH       col_pitch       "pitch"       DataType::Float64, Float64Array, false;
     5  COL_ZOOM        col_zoom        "zoom"        DataType::Float64, Float64Array, false;
     6  COL_PANO_ID     col_pano_id     "pano_id"     DataType::Utf8,    StringArray,  true;
-    7  COL_FLAGS       col_flags       "flags"       DataType::UInt32,  UInt32Array,  false;
-    8  COL_TAGS        col_tags        "tags"        DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))), ListArray, false;
-    9  COL_EXTRA       col_extra       "extra"       DataType::Utf8,    StringArray,  true;
-    10 COL_CREATED_AT  col_created_at  "created_at"  DataType::UInt32,  UInt32Array,  false;
-    11 COL_MODIFIED_AT col_modified_at "modified_at" DataType::UInt32,  UInt32Array,  true;
+    7  COL_PROVIDER    col_provider    "provider"    DataType::Utf8,    StringArray,  true;
+    8  COL_FLAGS       col_flags       "flags"       DataType::UInt32,  UInt32Array,  false;
+    9  COL_TAGS        col_tags        "tags"        DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))), ListArray, false;
+    10 COL_EXTRA       col_extra       "extra"       DataType::Utf8,    StringArray,  true;
+    11 COL_CREATED_AT  col_created_at  "created_at"  DataType::UInt32,  UInt32Array,  false;
+    12 COL_MODIFIED_AT col_modified_at "modified_at" DataType::UInt32,  UInt32Array,  true;
 }
 
 /// Serialize a slice of [`Location`]s into a single Arrow [`RecordBatch`].
@@ -80,6 +81,7 @@ fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
     let pitches = Float64Array::from_iter_values(locs.iter().map(|l| l.pitch));
     let zooms = Float64Array::from_iter_values(locs.iter().map(|l| l.zoom));
     let pano_ids: StringArray = locs.iter().map(|l| l.pano_id.as_deref()).collect();
+    let providers: StringArray = locs.iter().map(|l| l.provider.as_deref()).collect();
     let flags = UInt32Array::from_iter_values(locs.iter().map(|l| l.flags.bits()));
 
     let mut tags_builder =
@@ -110,6 +112,7 @@ fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
         Arc::new(pitches),
         Arc::new(zooms),
         Arc::new(pano_ids),
+        Arc::new(providers),
         Arc::new(flags),
         Arc::new(tags),
         Arc::new(extras),
@@ -137,7 +140,7 @@ pub fn patch_batch(
         return batch.clone();
     }
 
-    let mut touched = [false; 12];
+    let mut touched = [false; 13];
     for (&i, p) in &hits {
         let old = row_to_location(batch, i);
         touched[COL_LAT] |= old.lat != p.lat;
@@ -146,6 +149,7 @@ pub fn patch_batch(
         touched[COL_PITCH] |= old.pitch != p.pitch;
         touched[COL_ZOOM] |= old.zoom != p.zoom;
         touched[COL_PANO_ID] |= old.pano_id != p.pano_id;
+        touched[COL_PROVIDER] |= old.provider != p.provider;
         touched[COL_FLAGS] |= old.flags != p.flags;
         touched[COL_TAGS] |= old.tags != p.tags;
         touched[COL_EXTRA] |= old.extra != p.extra;
@@ -181,6 +185,17 @@ pub fn patch_batch(
                         (0..n)
                             .map(|i| match hits.get(&i) {
                                 Some(p) => p.pano_id.clone(),
+                                None => (!old.is_null(i)).then(|| old.value(i).to_string()),
+                            })
+                            .collect::<StringArray>(),
+                    )
+                }
+                COL_PROVIDER => {
+                    let old = col_provider(batch);
+                    Arc::new(
+                        (0..n)
+                            .map(|i| match hits.get(&i) {
+                                Some(p) => p.provider.clone(),
                                 None => (!old.is_null(i)).then(|| old.value(i).to_string()),
                             })
                             .collect::<StringArray>(),
@@ -266,6 +281,13 @@ pub fn row_to_location(batch: &RecordBatch, idx: usize) -> Location {
         Some(pano_id_col.value(idx).to_string())
     };
 
+    let provider_col = col_provider(batch);
+    let provider = if provider_col.is_null(idx) {
+        None
+    } else {
+        Some(provider_col.value(idx).to_string())
+    };
+
     let tags_arr = col_tags(batch).value(idx);
     let tags_u32 = tags_arr.as_any().downcast_ref::<UInt32Array>().unwrap();
     let tags: Vec<u32> = (0..tags_u32.len()).map(|i| tags_u32.value(i)).collect();
@@ -294,6 +316,7 @@ pub fn row_to_location(batch: &RecordBatch, idx: usize) -> Location {
         pitch: col_pitch(batch).value(idx),
         zoom: col_zoom(batch).value(idx),
         pano_id,
+        provider,
         flags: LocationFlags::from_bits_retain(col_flags(batch).value(idx)),
         tags,
         extra,
@@ -330,7 +353,7 @@ pub fn delta_schema() -> Schema {
 /// Serialize a commit delta (`created` + `removed` locations) into one delta batch.
 /// Removed rows come first, then created; the `op` column tags each.
 pub fn delta_to_batch(created: &[Location], removed: &[Location]) -> RecordBatch {
-    // Stitch removed++created by reference — no deep clone of the location set.
+    // Stitch removed++created by reference —?no deep clone of the location set.
     let refs: Vec<&Location> = removed.iter().chain(created.iter()).collect();
 
     let base = locations_to_batch_refs(&refs);
@@ -345,14 +368,15 @@ pub fn delta_to_batch(created: &[Location], removed: &[Location]) -> RecordBatch
 
 /// Split a delta batch back into `(created, removed)` location vectors.
 ///
-/// Two on-disk forms are accepted: a true delta carries a 13th `op` column
+/// Two on-disk forms are accepted: a true delta carries a trailing `op` column
 /// (`OP_CREATED`/`OP_REMOVED`); a genesis **snapshot** is stored in the plain
-/// 12-column base format (no `op`) and every row is treated as created. The latter
+/// base format (no `op`) and every row is treated as created. The latter
 /// lets a genesis commit reuse the base file instead of re-serializing it.
 pub fn batch_to_delta(batch: &RecordBatch) -> (Vec<Location>, Vec<Location>) {
-    let ops = if batch.num_columns() > COL_MODIFIED_AT + 1 {
+    let base_cols = location_schema().fields().len();
+    let ops = if batch.num_columns() > base_cols {
         batch
-            .column(COL_MODIFIED_AT + 1)
+            .column(base_cols)
             .as_any()
             .downcast_ref::<UInt8Array>()
     } else {

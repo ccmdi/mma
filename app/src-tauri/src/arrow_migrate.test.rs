@@ -15,6 +15,7 @@ fn loc(id: u32) -> Location {
         pitch: 0.0,
         zoom: 0.0,
         pano_id: None,
+        provider: None,
         flags: crate::types::LocationFlags::empty(),
         tags: vec![1],
         extra: None,
@@ -23,7 +24,7 @@ fn loc(id: u32) -> Location {
     }
 }
 
-/// Rebuild a current (v2) batch in the v1 on-disk shape: `created_at`/`modified_at`
+/// Rebuild a current batch in the v1 on-disk shape: `created_at`/`modified_at`
 /// back to `Utf8`, schema metadata stripped (so it reads as v1). All other columns
 /// (including a delta `op` column) pass through untouched.
 fn downgrade_to_v1(
@@ -52,6 +53,21 @@ fn downgrade_to_v1(
     RecordBatch::try_new(Arc::new(Schema::new(fields)), cols).unwrap()
 }
 
+/// Drop `provider` and stamp as v2 — matches origin/master Arrow files.
+fn downgrade_to_v2_without_provider(batch: &RecordBatch) -> RecordBatch {
+    let mut fields: Vec<Arc<Field>> = Vec::new();
+    let mut cols: Vec<ArrayRef> = Vec::new();
+    for (i, f) in batch.schema().fields().iter().enumerate() {
+        if f.name() == "provider" {
+            continue;
+        }
+        fields.push(f.clone());
+        cols.push(batch.column(i).clone());
+    }
+    let meta = HashMap::from([(VERSION_KEY.to_string(), "2".to_string())]);
+    RecordBatch::try_new(Arc::new(Schema::new_with_metadata(fields, meta)), cols).unwrap()
+}
+
 #[test]
 fn version_defaults_to_one_when_unstamped() {
     assert_eq!(batch_version(&HashMap::new()), 1);
@@ -75,12 +91,12 @@ fn migrate_v1_converts_timestamps_to_epoch() {
     assert_eq!(batch_version(out.schema().metadata()), CURRENT_VERSION);
 
     let created = out
-        .column(10)
+        .column(11)
         .as_any()
         .downcast_ref::<UInt32Array>()
         .unwrap();
     let modified = out
-        .column(11)
+        .column(12)
         .as_any()
         .downcast_ref::<UInt32Array>()
         .unwrap();
@@ -106,7 +122,7 @@ fn migrate_v1_unparseable_created_falls_back_to_zero() {
     let v1 = downgrade_to_v1(&v2, vec![Some("garbage")], vec![None]);
     let out = migrate(v1).unwrap();
     let created = out
-        .column(10)
+        .column(11)
         .as_any()
         .downcast_ref::<UInt32Array>()
         .unwrap();
@@ -115,11 +131,30 @@ fn migrate_v1_unparseable_created_falls_back_to_zero() {
 }
 
 #[test]
-fn migrate_v2_is_noop() {
-    let v2 = arrow_bridge::locations_to_batch(&[loc(1)]);
-    let out = migrate(v2.clone()).unwrap();
-    assert_eq!(out.schema(), v2.schema());
-    assert_eq!(out.num_rows(), v2.num_rows());
+fn migrate_current_is_noop() {
+    let current = arrow_bridge::locations_to_batch(&[loc(1)]);
+    let out = migrate(current.clone()).unwrap();
+    assert_eq!(out.schema(), current.schema());
+    assert_eq!(out.num_rows(), current.num_rows());
+}
+
+#[test]
+fn migrate_v2_fills_provider_google() {
+    let current = arrow_bridge::locations_to_batch(&[loc(1), loc(2)]);
+    let v2 = downgrade_to_v2_without_provider(&current);
+    assert!(v2.schema().column_with_name("provider").is_none());
+    assert_eq!(batch_version(v2.schema().metadata()), 2);
+
+    let out = migrate(v2).unwrap();
+    assert_eq!(batch_version(out.schema().metadata()), CURRENT_VERSION);
+    let provider = out
+        .column(7)
+        .as_any()
+        .downcast_ref::<StringArray>()
+        .unwrap();
+    assert_eq!(provider.value(0), "google");
+    assert_eq!(provider.value(1), "google");
+    assert!(!provider.is_null(0));
 }
 
 #[test]
@@ -141,7 +176,7 @@ fn migrate_preserves_delta_op_column() {
     assert_eq!(op.value(0), arrow_bridge::OP_REMOVED);
     assert_eq!(op.value(1), arrow_bridge::OP_CREATED);
     assert!(out
-        .column(10)
+        .column(11)
         .as_any()
         .downcast_ref::<UInt32Array>()
         .is_some());

@@ -24,6 +24,7 @@ import { useBinding } from "@/lib/util/hotkeys";
 import { useMapKeyboardNav } from "@/lib/hooks/useMapKeyboardNav";
 import { subscribeTrail } from "@/lib/sv/svTrail";
 import { subscribeSeenOverlay } from "@/lib/seen/seenOverlay";
+import { subscribeProviderCoverageLayers } from "@/lib/sv/providers/coverageLayers";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 
 export interface MapSurfaceOpts {
@@ -222,6 +223,7 @@ export function useMapSurface(
 			subscribeTrail(scheduleRebuild),
 			subscribeSeenOverlay(scheduleRebuild),
 			subscribeLatLngAnchor(scheduleRebuild),
+			subscribeProviderCoverageLayers(scheduleRebuild),
 		];
 		return () => unsubs.forEach((u) => u());
 	}, []);

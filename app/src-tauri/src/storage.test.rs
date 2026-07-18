@@ -12,6 +12,7 @@ fn sample_loc() -> Location {
         pitch: 5.0,
         zoom: 1.5,
         pano_id: Some("CAoSLEF".into()),
+        provider: None,
         flags: crate::types::LocationFlags::LOAD_AS_PANO_ID,
         tags: vec![1, 2, 3],
         extra: Some(serde_json::from_str(r#"{"country":"FR"}"#).unwrap()),
@@ -52,6 +53,7 @@ fn location_data_null_optionals() {
         pitch: 0.0,
         zoom: 0.0,
         pano_id: None,
+        provider: None,
         flags: crate::types::LocationFlags::empty(),
         tags: vec![],
         extra: None,
@@ -67,9 +69,17 @@ fn location_data_null_optionals() {
 
 #[test]
 fn location_data_id_defaults_to_zero() {
-    let json = r#"{"id":0,"lat":0,"lng":0,"heading":0,"pitch":0,"zoom":0,"panoId":null,"flags":0,"tags":[],"extra":null,"createdAt":0,"modifiedAt":null}"#;
+    let json = r#"{"id":0,"lat":0,"lng":0,"heading":0,"pitch":0,"zoom":0,"panoId":null,"provider":null,"flags":0,"tags":[],"extra":null,"createdAt":0,"modifiedAt":null}"#;
     let loc: Location = serde_json::from_str(json).unwrap();
     assert_eq!(loc.id, 0);
+}
+
+#[test]
+fn location_missing_provider_defaults_to_google() {
+    // Pre-provider GeoGuessr / remote export JSON has no provider key.
+    let json = r#"{"id":0,"lat":0,"lng":0,"heading":0,"pitch":0,"zoom":0,"panoId":null,"flags":0,"tags":[],"extra":null,"createdAt":0,"modifiedAt":null}"#;
+    let loc: Location = serde_json::from_str(json).unwrap();
+    assert_eq!(loc.provider.as_deref(), Some("google"));
 }
 
 // -----------------------------------------------------------------------
@@ -198,6 +208,7 @@ fn make_test_batch(ids: &[u32]) -> arrow_array::RecordBatch {
             pitch: 0.0,
             zoom: 1.0,
             pano_id: Some(format!("pano_{id}")),
+            provider: None,
             flags: crate::types::LocationFlags::empty(),
             tags: vec![1],
             extra: None,
@@ -309,6 +320,7 @@ fn mmap_preserves_nullable_fields() {
             pitch: 0.0,
             zoom: 0.0,
             pano_id: None,
+            provider: None,
             flags: crate::types::LocationFlags::empty(),
             tags: vec![],
             extra: None,
@@ -323,6 +335,7 @@ fn mmap_preserves_nullable_fields() {
             pitch: 0.0,
             zoom: 0.0,
             pano_id: Some("abc".into()),
+            provider: None,
             flags: crate::types::LocationFlags::empty(),
             tags: vec![1, 2],
             extra: Some(serde_json::from_str(r#"{"key":"val"}"#).unwrap()),
@@ -347,9 +360,9 @@ fn mmap_preserves_nullable_fields() {
         .unwrap();
     assert_eq!(pano_col.value(1), "abc");
 
-    assert!(loaded.column(9).is_null(0));
+    assert!(loaded.column(10).is_null(0));
     let extra_col = loaded
-        .column(9)
+        .column(10)
         .as_any()
         .downcast_ref::<arrow_array::StringArray>()
         .unwrap();

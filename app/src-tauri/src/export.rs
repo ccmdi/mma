@@ -89,10 +89,34 @@ struct CoordOpts {
     export_extras: bool,
 }
 
+/// Internal provider id → GeoGuessr-style JSON `source` value.
+fn provider_to_wire_source(provider: &str) -> Option<&'static str> {
+    match provider {
+        "apple" => Some("apple_pano"),
+        "baidu" => Some("baidu_pano"),
+        "tencent" => Some("qq_pano"),
+        "yandex" => Some("yandex_pano"),
+        _ => None,
+    }
+}
+
+/// Strip alt-provider pano id prefixes for export (storage wire format).
+fn strip_export_pano_prefix(pano_id: &str) -> &str {
+    const PREFIXES: &[&str] = &["APPLE:", "BAIDU:", "TENCENT:", "YANDEX:"];
+    for prefix in PREFIXES {
+        if let Some(raw) = pano_id.strip_prefix(prefix) {
+            return raw;
+        }
+    }
+    pano_id
+}
+
 /// Convert one location to a `{lat, lng, heading, ...}` coordinate object.
 /// Single source of truth for the export wire shape shared by JSON and bulk ZIP.
 /// `countryCode`/`stateCode` are always hoisted to the top level; all other
 /// `extra` fields nest under `extra`.
+/// Non-Google providers export as `source: "*_pano"` (never `provider`) with an
+/// empty `extra` object — matching the alt-provider GeoGuessr wire format.
 fn location_to_coord(
     loc: &crate::types::Location,
     id_to_name: &std::collections::HashMap<u32, String>,
@@ -100,6 +124,9 @@ fn location_to_coord(
 ) -> serde_json::Value {
     use serde_json::{json, Value};
     let pinned = loc.flags.contains(LocationFlags::LOAD_AS_PANO_ID);
+    let provider = loc.provider.as_deref().unwrap_or("google");
+    let wire_source = provider_to_wire_source(provider);
+    let is_alt = wire_source.is_some();
     let mut c = serde_json::Map::new();
 
     c.insert("lat".into(), json!(loc.lat));
@@ -117,12 +144,15 @@ fn location_to_coord(
     );
     c.insert(
         "panoId".into(),
-        if pinned {
-            json!(loc.pano_id)
+        if pinned || (is_alt && loc.pano_id.is_some()) {
+            json!(loc.pano_id.as_ref().map(|id| strip_export_pano_prefix(id)))
         } else {
             Value::Null
         },
     );
+    if let Some(source) = wire_source {
+        c.insert("source".into(), json!(source));
+    }
 
     for k in ["countryCode", "stateCode"] {
         c.insert(
@@ -134,7 +164,11 @@ fn location_to_coord(
         );
     }
 
-    if opts.export_extras {
+    if is_alt {
+        // Alt-provider GG wire format: always emit an empty extra object; never
+        // re-export internal tags / enrichment under `extra`.
+        c.insert("extra".into(), Value::Object(serde_json::Map::new()));
+    } else if opts.export_extras {
         let mut extra = serde_json::Map::new();
         if let Some(ref e) = loc.extra {
             for (k, v) in e.to_map() {
@@ -157,8 +191,12 @@ fn location_to_coord(
                 .collect();
             extra.insert("tags".into(), json!(names));
         }
+        // Google historically kept unpinned panoId under extra.
         if !pinned && loc.pano_id.is_some() {
-            extra.insert("panoId".into(), json!(loc.pano_id));
+            extra.insert(
+                "panoId".into(),
+                json!(strip_export_pano_prefix(loc.pano_id.as_ref().unwrap())),
+            );
         }
         if !extra.is_empty() {
             c.insert("extra".into(), Value::Object(extra));

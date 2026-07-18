@@ -149,7 +149,7 @@ pub async fn store_commit(
         None if genesis => {
             // The commit's full state == the base file we just wrote. Store the delta as a
             // snapshot by copying the base (one serialization, not two); batch_to_delta
-            // reads a 12-column snapshot as all-created.
+            // reads a 13-column snapshot as all-created.
             let base_path = storage::arrow_path(&map_id)?;
             std::fs::copy(&base_path, &path)?;
             (location_count, 0, 0)

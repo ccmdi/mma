@@ -120,6 +120,7 @@ function AppChrome() {
 	});
 
 	const hasSeenWelcome = useSetting("hasSeenWelcome");
+	const fullscreenMap = useSetting("fullscreenMap");
 
 	return (
 		<>
@@ -143,7 +144,7 @@ function AppChrome() {
 				open={isMapList && !hasSeenWelcome}
 				onDismiss={() => setSetting("hasSeenWelcome", true)}
 			/>
-			{!showSettings && !showPlugins && (
+			{!showSettings && !showPlugins && !(map && fullscreenMap) && (
 				<div className="bottom-bar">
 					{update.version && !update.dismissed && (
 						<div className="update-pill">

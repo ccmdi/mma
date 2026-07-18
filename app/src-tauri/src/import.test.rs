@@ -21,6 +21,7 @@ fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
         pitch: 0.0,
         zoom: 1.0,
         pano_id: None,
+        provider: None,
         flags: crate::types::LocationFlags::empty(),
         tags,
         extra: None,
@@ -763,4 +764,67 @@ fn add_copied_reconciles_tags_and_reports_counts() {
 
     // The new tag def is shipped on the result (the receiver needs it to render).
     assert!(r.tags.as_ref().and_then(|m| m.get(&unique.id)).is_some());
+}
+
+#[test]
+fn parse_source_field_maps_to_internal_provider() {
+    let json = br#"{"customCoordinates":[
+        {"lat":30.7,"lng":114.3,"panoId":"0900020012230410091747271AU","source":"baidu_pano","extra":{}},
+        {"lat":48.6,"lng":2.8,"panoId":"7966846247780953899","source":"apple_pano","extra":{}},
+        {"lat":30.7,"lng":114.3,"panoId":"BAIDU:0900020012230410091747271AU","source":"baidu_pano","extra":{"tags":["Hubei"]}},
+        {"lat":30.7,"lng":114.3,"panoId":"BAIDU:0900020012230410091747271AU","extra":{}}
+    ]}"#;
+    let mut buf = json.to_vec();
+    let parsed = parse_single_json_mut(&mut buf);
+    assert_eq!(parsed.locations.len(), 4);
+    assert_eq!(parsed.locations[0].provider.as_deref(), Some("baidu"));
+    assert_eq!(
+        parsed.locations[0].pano_id.as_deref(),
+        Some("0900020012230410091747271AU")
+    );
+    assert_eq!(parsed.locations[1].provider.as_deref(), Some("apple"));
+    assert_eq!(
+        parsed.locations[2].pano_id.as_deref(),
+        Some("0900020012230410091747271AU")
+    );
+    assert_eq!(parsed.locations[2].provider.as_deref(), Some("baidu"));
+    // BAIDU: prefix alone (no source) also selects baidu and strips the prefix.
+    assert_eq!(parsed.locations[3].provider.as_deref(), Some("baidu"));
+    assert_eq!(
+        parsed.locations[3].pano_id.as_deref(),
+        Some("0900020012230410091747271AU")
+    );
+}
+
+#[test]
+fn parse_pano_id_prefix_infers_provider() {
+    let json = br#"{"customCoordinates":[
+        {"lat":48.6,"lng":2.8,"panoId":"APPLE:7966846247780953899"},
+        {"lat":30.7,"lng":114.3,"panoId":"TENCENT:abc123"},
+        {"lat":55.7,"lng":37.6,"panoId":"YANDEX:xyz789"}
+    ]}"#;
+    let mut buf = json.to_vec();
+    let parsed = parse_single_json_mut(&mut buf);
+    assert_eq!(parsed.locations.len(), 3);
+    assert_eq!(parsed.locations[0].provider.as_deref(), Some("apple"));
+    assert_eq!(
+        parsed.locations[0].pano_id.as_deref(),
+        Some("7966846247780953899")
+    );
+    assert_eq!(parsed.locations[1].provider.as_deref(), Some("tencent"));
+    assert_eq!(parsed.locations[1].pano_id.as_deref(), Some("abc123"));
+    assert_eq!(parsed.locations[2].provider.as_deref(), Some("yandex"));
+    assert_eq!(parsed.locations[2].pano_id.as_deref(), Some("xyz789"));
+}
+
+#[test]
+fn parse_legacy_provider_wire_values() {
+    let json = br#"{"customCoordinates":[
+        {"lat":1.0,"lng":2.0,"panoId":"abc","provider":"apple_pano"},
+        {"lat":1.0,"lng":2.0,"panoId":"def","provider":"baidu"}
+    ]}"#;
+    let mut buf = json.to_vec();
+    let parsed = parse_single_json_mut(&mut buf);
+    assert_eq!(parsed.locations[0].provider.as_deref(), Some("apple"));
+    assert_eq!(parsed.locations[1].provider.as_deref(), Some("baidu"));
 }

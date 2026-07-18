@@ -46,6 +46,63 @@ pub struct VirtualTag {
     pub color: Option<String>,
 }
 
+/// Per-provider Street View settings (coverage overlay + click behavior).
+/// Shape is shared across alternate providers; omitted keys mean "use frontend defaults".
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct AltProviderSettings {
+    pub enabled: bool,
+    pub preferred: bool,
+    pub fallback_to_google: bool,
+    pub show_lines: bool,
+    pub show_points: bool,
+    pub line_opacity: f64,
+    pub points_opacity: f64,
+    pub line_color: String,
+    pub trekker_line_color: String,
+    pub point_fill: String,
+    pub point_stroke: String,
+    pub trekker_point_fill: String,
+    pub trekker_point_stroke: String,
+    pub line_width_scale: f64,
+    pub point_size_scale: f64,
+}
+
+impl Default for AltProviderSettings {
+    fn default() -> Self {
+        // Keep in sync with `DEFAULT_APPLE_SETTINGS` in the frontend providers module.
+        Self {
+            enabled: false,
+            preferred: true,
+            fallback_to_google: false,
+            show_lines: true,
+            show_points: true,
+            line_opacity: 0.85,
+            points_opacity: 1.0,
+            line_color: "rgba(26, 159, 176, 1)".into(),
+            trekker_line_color: "rgba(173, 140, 191, 1)".into(),
+            point_fill: "rgba(26, 159, 176, 0.25)".into(),
+            point_stroke: "rgba(26, 159, 176, 0.9)".into(),
+            trekker_point_fill: "rgba(173, 140, 191, 0.25)".into(),
+            trekker_point_stroke: "rgba(173, 140, 191, 0.9)".into(),
+            line_width_scale: 1.0,
+            point_size_scale: 1.0,
+        }
+    }
+}
+
+/// Alternate Street View provider settings bag on a map.
+/// Google is the host default and is not configured here. Each key is optional so
+/// future providers can be added without migrating existing maps.
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ProvidersSettings {
+    pub apple: Option<AltProviderSettings>,
+    pub baidu: Option<AltProviderSettings>,
+    pub tencent: Option<AltProviderSettings>,
+    pub yandex: Option<AltProviderSettings>,
+}
+
 /// Per-map editor preferences. Controls Street View lookup behavior (official vs
 /// unofficial, camera type filters), export defaults, and metadata enrichment.
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -70,6 +127,8 @@ pub struct MapSettings {
     /// Tag aliases: a second tree location (full slash path) -> the real tag id shown
     /// there. Tree-view only; clicking the alias leaf toggles the real tag.
     pub aliases: HashMap<String, u32>,
+    /// Alternate Street View providers (Apple Look Around, …).
+    pub providers: ProvidersSettings,
 }
 
 /// Canonical default map settings.
@@ -92,6 +151,7 @@ impl Default for MapSettings {
             key_bindings: Vec::new(),
             virtual_tags: HashMap::new(),
             aliases: HashMap::new(),
+            providers: ProvidersSettings::default(),
         }
     }
 }
@@ -1264,5 +1324,9 @@ mod tests {
         assert!(parsed.key_bindings.is_empty());
         assert!(parsed.virtual_tags.is_empty());
         assert!(parsed.aliases.is_empty());
+        assert!(parsed.providers.apple.is_none());
+        assert!(parsed.providers.baidu.is_none());
+        assert!(parsed.providers.tencent.is_none());
+        assert!(parsed.providers.yandex.is_none());
     }
 }

@@ -26,6 +26,7 @@ vi.mock("@/store/useMapStore", () => ({
 	resolveLocation: vi.fn(),
 	setActiveLocation: vi.fn(),
 	toggleManualSelection: vi.fn(),
+	subscribeStore: vi.fn(),
 }));
 
 let seenActive = false;

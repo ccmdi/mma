@@ -71,6 +71,31 @@ async function getDateCount(): Promise<number> {
 	return parseInt(await badge.getText()) || 0;
 }
 
+async function getDateSelect() {
+	return browser.$(".location-preview__date select.pano-date-select");
+}
+
+async function waitForDateSelect(timeout = 5000) {
+	const sel = await getDateSelect();
+	await sel.waitForExist({ timeout });
+	return sel;
+}
+
+async function panoOptionCount(): Promise<number> {
+	const sel = await waitForDateSelect();
+	return (await sel.$$("option.pano-option")).length;
+}
+
+async function selectPanoOptionIndex(index: number) {
+	const sel = await waitForDateSelect();
+	await sel.selectByIndex(index);
+}
+
+async function _selectDefaultPanoOption() {
+	const sel = await waitForDateSelect();
+	await sel.selectByAttribute("value", "default");
+}
+
 /** Read a location from Rust by numeric ID. */
 async function readLocation(id: number): Promise<any> {
 	return withApi(async (api, locId) => {
@@ -199,36 +224,30 @@ describe("LocationPreview — official pano", () => {
 	it("dropdown contains multiple historical dates", async () => {
 		await openLocation(offDefaultId);
 		await waitForDates();
-		const trigger = await browser.$(".location-preview__date .select__input");
-		await trigger.click();
-		await waitForOptions(".select__content .pano-option", 2);
-		const count = await (await browser.$$(".select__content .pano-option")).length;
+		await browser.waitUntil(async () => (await panoOptionCount()) >= 2, {
+			timeout: 5000,
+			timeoutMsg: "Expected multiple pano date options",
+		});
+		const count = await panoOptionCount();
 		expect(count).toBeGreaterThan(1);
-		await browser.keys("Escape");
 	});
 
 	it("dropdown has a Default/auto-updating option", async () => {
 		await openLocation(offDefaultId);
 		await waitForDates();
-		const trigger = await browser.$(".location-preview__date .select__input");
-		await trigger.click();
-		await waitForOptions(".select__option.pano-option", 1);
+		const sel = await waitForDateSelect();
+		expect(await sel.$('option[value="default"]').isExisting()).toBe(true);
 		const def = await browser.execute(() => {
-			const items = document.querySelectorAll(".select__option.pano-option");
-			return [...items].some((el) => el.textContent?.includes("Default"));
+			const opt = document.querySelector('.pano-date-select option[value="default"]');
+			return opt?.textContent?.includes("Default") ?? false;
 		});
 		expect(def).toBe(true);
-		await browser.keys("Escape");
 	});
 
 	it("selecting a date sets LoadAsPanoId flag", async () => {
 		await openLocation(offDefaultId);
 		await waitForDates();
-		const trigger = await browser.$(".location-preview__date .select__input");
-		await trigger.click();
-		await waitForOptions(".select__content .pano-option", 1);
-		const opts = await browser.$$(".select__content .pano-option");
-		await opts[0].click();
+		await selectPanoOptionIndex(0);
 		await waitForFlag(offDefaultId, LoadAsPanoId);
 		const l = await readLocation(offDefaultId);
 		const flags = l?.flags ?? -1;
@@ -889,12 +908,7 @@ describe("LocationPreview — return to spawn", () => {
 		await openLocation(spawn1Id);
 		await waitForDates();
 
-		// Select a specific date first
-		const trigger = await browser.$(".location-preview__date .select__input");
-		await trigger.click();
-		await waitForOptions(".select__content .pano-option", 1);
-		const opts = await browser.$$(".select__content .pano-option");
-		await opts[0].click();
+		await selectPanoOptionIndex(0);
 		await waitForFlag(spawn1Id, LoadAsPanoId);
 
 		// Press 'r' to return to spawn

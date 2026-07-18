@@ -24,7 +24,7 @@ pub const VERSION_KEY: &str = "mma_version";
 
 /// The version every freshly written batch is stamped with. Bump this and add a
 /// `(old, step)` entry to [`MIGRATIONS`] whenever the persisted schema changes.
-pub const CURRENT_VERSION: u32 = 2;
+pub const CURRENT_VERSION: u32 = 3;
 
 /// Schema metadata stamping a batch as [`CURRENT_VERSION`]. Used by
 /// `location_schema`/`delta_schema` so all new writes are versioned.
@@ -44,7 +44,7 @@ type MigrationStep = fn(RecordBatch) -> AppResult<RecordBatch>;
 
 /// Ordered `(from_version, step)` registry. Each step migrates `from_version` ->
 /// `from_version + 1`. Steps must be contiguous and end at `CURRENT_VERSION - 1`.
-const MIGRATIONS: &[(u32, MigrationStep)] = &[(1, v1_to_v2_timestamps)];
+const MIGRATIONS: &[(u32, MigrationStep)] = &[(1, v1_to_v2_timestamps), (2, v2_to_v3_add_provider)];
 
 /// Bring a batch up to [`CURRENT_VERSION`], applying each registered step in order.
 /// A no-op for batches already at (or beyond) the current version.
@@ -103,6 +103,54 @@ fn v1_to_v2_timestamps(batch: RecordBatch) -> AppResult<RecordBatch> {
         } else {
             fields.push(field.clone());
             columns.push(col.clone());
+        }
+    }
+
+    let schema = Arc::new(Schema::new_with_metadata(fields, version_metadata()));
+    RecordBatch::try_new(schema, columns).map_err(AppError::from)
+}
+
+/// v2 -> v3: add Utf8 `provider` column after `pano_id`.
+/// Existing remote maps (no column) are filled with `"google"`. Trailing `op` on
+/// delta batches is preserved.
+fn v2_to_v3_add_provider(batch: RecordBatch) -> AppResult<RecordBatch> {
+    let schema = batch.schema();
+    if schema.column_with_name("provider").is_some() {
+        let schema = Arc::new(Schema::new_with_metadata(
+            schema.fields().iter().cloned().collect::<Vec<_>>(),
+            version_metadata(),
+        ));
+        return RecordBatch::try_new(schema, batch.columns().to_vec()).map_err(AppError::from);
+    }
+
+    let n = batch.num_rows();
+    let mut fields: Vec<Arc<Field>> = Vec::with_capacity(schema.fields().len() + 1);
+    let mut columns: Vec<ArrayRef> = Vec::with_capacity(batch.num_columns() + 1);
+    let google: StringArray = (0..n).map(|_| Some("google")).collect();
+    let provider_field = Arc::new(Field::new("provider", DataType::Utf8, true));
+    let mut inserted = false;
+
+    for (i, field) in schema.fields().iter().enumerate() {
+        fields.push(field.clone());
+        columns.push(batch.column(i).clone());
+        if field.name() == "pano_id" {
+            fields.push(provider_field.clone());
+            columns.push(Arc::new(google.clone()) as ArrayRef);
+            inserted = true;
+        }
+    }
+    if !inserted {
+        // Fallback: insert before trailing `op` if present, else append.
+        if fields.last().is_some_and(|f| f.name() == "op") {
+            let op_field = fields.pop().unwrap();
+            let op_col = columns.pop().unwrap();
+            fields.push(provider_field);
+            columns.push(Arc::new(google) as ArrayRef);
+            fields.push(op_field);
+            columns.push(op_col);
+        } else {
+            fields.push(provider_field);
+            columns.push(Arc::new(google) as ArrayRef);
         }
     }
 

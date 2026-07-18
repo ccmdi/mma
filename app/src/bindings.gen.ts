@@ -103,14 +103,14 @@ export const commands = {
 	/**  Lightweight status query: location count, version, and dirty flag. */
 	storeGetSummary: () => typedError<SummaryResult, string>(__TAURI_INVOKE("store_get_summary")),
 	/**  Return metadata for every map in the database. */
-	storeListMaps: () => typedError<MapMeta[], string>(__TAURI_INVOKE("store_list_maps")).then((v) => ((v.status === "ok" ? { ...v, data: v.data.map(i=>({...i,extra:({...i.extra,fields:i.extra.fields==null?i.extra.fields:Object.fromEntries(Object.entries(i.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})) } : v) as typeof v)),
+	storeListMaps: () => typedError<MapMeta[], string>(__TAURI_INVOKE("store_list_maps")).then((v) => ((v.status === "ok" ? { ...v, data: v.data.map(i=>({...i,settings:({...i.settings,providers:({...i.settings.providers,apple:i.settings.providers.apple==null?i.settings.providers.apple:i.settings.providers.apple,baidu:i.settings.providers.baidu==null?i.settings.providers.baidu:i.settings.providers.baidu,tencent:i.settings.providers.tencent==null?i.settings.providers.tencent:i.settings.providers.tencent,yandex:i.settings.providers.yandex==null?i.settings.providers.yandex:i.settings.providers.yandex})}),extra:({...i.extra,fields:i.extra.fields==null?i.extra.fields:Object.fromEntries(Object.entries(i.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})) } : v) as typeof v)),
 	/**  Fetch a single map's metadata by ID. Returns `None` if not found. */
-	storeGetMap: (id: string) => typedError<MapData | null, string>(__TAURI_INVOKE("store_get_map", { id })).then((v) => ((v.status === "ok" ? { ...v, data: v.data==null?v.data:({...v.data,meta:({...v.data.meta,extra:({...v.data.meta.extra,fields:v.data.meta.extra.fields==null?v.data.meta.extra.fields:Object.fromEntries(Object.entries(v.data.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) } : v) as typeof v)),
+	storeGetMap: (id: string) => typedError<MapData | null, string>(__TAURI_INVOKE("store_get_map", { id })).then((v) => ((v.status === "ok" ? { ...v, data: v.data==null?v.data:({...v.data,meta:({...v.data.meta,settings:({...v.data.meta.settings,providers:({...v.data.meta.settings.providers,apple:v.data.meta.settings.providers.apple==null?v.data.meta.settings.providers.apple:v.data.meta.settings.providers.apple,baidu:v.data.meta.settings.providers.baidu==null?v.data.meta.settings.providers.baidu:v.data.meta.settings.providers.baidu,tencent:v.data.meta.settings.providers.tencent==null?v.data.meta.settings.providers.tencent:v.data.meta.settings.providers.tencent,yandex:v.data.meta.settings.providers.yandex==null?v.data.meta.settings.providers.yandex:v.data.meta.settings.providers.yandex})}),extra:({...v.data.meta.extra,fields:v.data.meta.extra.fields==null?v.data.meta.extra.fields:Object.fromEntries(Object.entries(v.data.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) } : v) as typeof v)),
 	/**
 	 *  Create a new empty map with default settings. Returns the full metadata
 	 *  (including the generated UUID) so the frontend can navigate to it immediately.
 	 */
-	storeCreateMap: (name: string, folder: string | null) => typedError<MapData, string>(__TAURI_INVOKE("store_create_map", { name, folder })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,meta:({...v.data.meta,extra:({...v.data.meta.extra,fields:v.data.meta.extra.fields==null?v.data.meta.extra.fields:Object.fromEntries(Object.entries(v.data.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) } : v) as typeof v)),
+	storeCreateMap: (name: string, folder: string | null) => typedError<MapData, string>(__TAURI_INVOKE("store_create_map", { name, folder })).then((v) => ((v.status === "ok" ? { ...v, data: ({...v.data,meta:({...v.data.meta,settings:({...v.data.meta.settings,providers:({...v.data.meta.settings.providers,apple:v.data.meta.settings.providers.apple==null?v.data.meta.settings.providers.apple:v.data.meta.settings.providers.apple,baidu:v.data.meta.settings.providers.baidu==null?v.data.meta.settings.providers.baidu:v.data.meta.settings.providers.baidu,tencent:v.data.meta.settings.providers.tencent==null?v.data.meta.settings.providers.tencent:v.data.meta.settings.providers.tencent,yandex:v.data.meta.settings.providers.yandex==null?v.data.meta.settings.providers.yandex:v.data.meta.settings.providers.yandex})}),extra:({...v.data.meta.extra,fields:v.data.meta.extra.fields==null?v.data.meta.extra.fields:Object.fromEntries(Object.entries(v.data.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) } : v) as typeof v)),
 	/**
 	 *  Delete a map and all associated data: SQLite rows (maps, edit_history,
 	 *  commits) and Arrow base/delta/commit files on disk.
@@ -128,7 +128,7 @@ export const commands = {
 	 *  on the in-memory store when extra fields change, so auto-registration
 	 *  doesn't re-discover fields the user explicitly defined.
 	 */
-	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => typedError<null, string>(__TAURI_INVOKE("store_update_map_meta", { id, patch: ({...patch,scoreBounds:patch.scoreBounds==null?patch.scoreBounds:patch.scoreBounds,extra:patch.extra==null?patch.extra:({...patch.extra,fields:patch.extra.fields==null?patch.extra.fields:Object.fromEntries(Object.entries(patch.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) })),
+	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => typedError<null, string>(__TAURI_INVOKE("store_update_map_meta", { id, patch: ({...patch,settings:patch.settings==null?patch.settings:({...patch.settings,providers:({...patch.settings.providers,apple:patch.settings.providers.apple==null?patch.settings.providers.apple:patch.settings.providers.apple,baidu:patch.settings.providers.baidu==null?patch.settings.providers.baidu:patch.settings.providers.baidu,tencent:patch.settings.providers.tencent==null?patch.settings.providers.tencent:patch.settings.providers.tencent,yandex:patch.settings.providers.yandex==null?patch.settings.providers.yandex:patch.settings.providers.yandex})}),scoreBounds:patch.scoreBounds==null?patch.scoreBounds:patch.scoreBounds,extra:patch.extra==null?patch.extra:({...patch.extra,fields:patch.extra.fields==null?patch.extra.fields:Object.fromEntries(Object.entries(patch.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) })),
 	/**
 	 *  Update `last_opened_at` to the current timestamp. Used to sort the map
 	 *  list by recency in the dashboard.
@@ -468,6 +468,28 @@ export const commands = {
 
 /* Types */
 /**
+ *  Per-provider Street View settings (coverage overlay + click behavior).
+ *  Shape is shared across alternate providers; omitted keys mean "use frontend defaults".
+ */
+export type AltProviderSettings = {
+	enabled?: boolean,
+	preferred?: boolean,
+	fallbackToGoogle?: boolean,
+	showLines?: boolean,
+	showPoints?: boolean,
+	lineOpacity?: number,
+	pointsOpacity?: number,
+	lineColor?: string,
+	trekkerLineColor?: string,
+	pointFill?: string,
+	pointStroke?: string,
+	trekkerPointFill?: string,
+	trekkerPointStroke?: string,
+	lineWidthScale?: number,
+	pointSizeScale?: number,
+};
+
+/**
  *  A swap-removal from a render cell. JS must move the last element into `cell_index`
  *  and pop the array to mirror the Rust-side swap-remove.
  */
@@ -709,6 +731,11 @@ export type Location = {
 	pitch: number,
 	zoom: number,
 	panoId: string | null,
+	/**
+	 *  Imagery provider discriminator (`"google"`, `"apple"`, ...).
+	 *  Defaults to `"google"`. Missing on deserialize (pre-provider maps / JSON) → `"google"`.
+	 */
+	provider?: string | null,
 	/**  See [`LocationFlags`]. */
 	flags: number,
 	/**  Tag IDs applied to this location. References `Tag.id`. */
@@ -738,6 +765,7 @@ export type LocationPatch_Deserialize = {
 	pitch?: number | null,
 	zoom?: number | null,
 	panoId?: string | null,
+	provider?: string | null,
 	flags?: number | null,
 	tags?: number[] | null,
 	extra?: any | null,
@@ -757,6 +785,7 @@ export type LocationPatch = {
 	pitch: number | null,
 	zoom: number | null,
 	panoId: string | null,
+	provider: string | null,
 	flags: number | null,
 	tags: number[] | null,
 	extra: any | null,
@@ -872,6 +901,8 @@ export type MapSettings = {
 	 *  there. Tree-view only; clicking the alias leaf toggles the real tag.
 	 */
 	aliases?: { [key in string]: number },
+	/**  Alternate Street View providers (Apple Look Around, …). */
+	providers: ProvidersSettings,
 };
 
 /**
@@ -972,6 +1003,18 @@ export type PresenceActivity = {
 	smallText: string | null,
 	/**  Unix seconds; Discord renders an "elapsed" timer counting up from here. */
 	start: number | null,
+};
+
+/**
+ *  Alternate Street View provider settings bag on a map.
+ *  Google is the host default and is not configured here. Each key is optional so
+ *  future providers can be added without migrating existing maps.
+ */
+export type ProvidersSettings = {
+	apple?: AltProviderSettings | null,
+	baidu?: AltProviderSettings | null,
+	tencent?: AltProviderSettings | null,
+	yandex?: AltProviderSettings | null,
 };
 
 /**

@@ -6,9 +6,9 @@ import { colorForName, textColorFor } from "@/lib/util/color";
 
 /** Base URL for a Tauri custom URI scheme. Windows WebView2 uses http://<scheme>.localhost/. */
 export function schemeBase(scheme: string): string {
-	return navigator.platform.startsWith("Win")
-		? `http://${scheme}.localhost/`
-		: `${scheme}://localhost/`;
+	const isWin =
+		typeof navigator !== "undefined" && navigator.platform.startsWith("Win");
+	return isWin ? `http://${scheme}.localhost/` : `${scheme}://localhost/`;
 }
 
 export function mmaBufUrl(path: string): string {

@@ -32,6 +32,10 @@ fn default_visible() -> bool {
     true
 }
 
+fn default_provider_google() -> Option<String> {
+    Some("google".into())
+}
+
 /// `Location.extra` stored as its raw JSON bytes instead of a parsed map.
 ///
 /// Over IPC/JSON and into the Arrow `extra` string column it emits transparently, so
@@ -307,6 +311,10 @@ pub struct Location {
     pub pitch: f64,
     pub zoom: f64,
     pub pano_id: Option<String>,
+    /// Imagery provider discriminator (`"google"`, `"apple"`, ...).
+    /// Defaults to `"google"`. Missing on deserialize (pre-provider maps / JSON) → `"google"`.
+    #[serde(default = "default_provider_google")]
+    pub provider: Option<String>,
     /// See [`LocationFlags`].
     pub flags: LocationFlags,
     /// Tag IDs applied to this location. References `Tag.id`.

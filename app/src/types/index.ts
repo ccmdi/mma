@@ -1,4 +1,5 @@
 import type { Location, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
+import { normalizeLocationStorageFields } from "@/lib/sv/providers/panoIdStorage";
 import { nowUnix } from "@/lib/util/format";
 
 /** Street View camera orientation (POV). */
@@ -82,18 +83,20 @@ export function isSeenPreview(loc: Location): boolean {
 }
 
 export function createLocation(partial: Partial<Location> & LatLng): Location {
+	const normalized = normalizeLocationStorageFields(partial);
 	return {
 		id: 0, // placeholder; Rust assigns the real ID
 		heading: 0,
 		pitch: 0,
 		zoom: 0,
 		panoId: null,
+		provider: "google",
 		flags: LocationFlag.None,
 		tags: [],
 		extra: null,
 		createdAt: nowUnix(),
 		modifiedAt: null,
-		...partial,
+		...normalized,
 	};
 }
 
@@ -102,7 +105,11 @@ export function createLocation(partial: Partial<Location> & LatLng): Location {
  *  and a null patch clears extra entirely. */
 export function applyLocationPatch(loc: Location, patch: LocationPatch): Location {
 	const { extra: extraPatch, ...rest } = patch;
-	const next = { ...loc, ...rest } as Location;
+	const normalized = normalizeLocationStorageFields({
+		...rest,
+		provider: rest.provider ?? loc.provider,
+	});
+	const next = { ...loc, ...normalized } as Location;
 	if (extraPatch !== undefined) {
 		if (extraPatch === null) {
 			next.extra = null;
@@ -121,7 +128,14 @@ export function applyLocationPatch(loc: Location, patch: LocationPatch): Locatio
 export type SortMode = "name" | "created" | "opened" | "amount";
 export type TagSortMode = "default" | "name" | "amount";
 
-export type WorkArea = "overview" | "location" | "duplicates" | "import" | "plugin" | "diff";
+export type WorkArea =
+	| "overview"
+	| "location"
+	| "duplicates"
+	| "import"
+	| "plugin"
+	| "providers"
+	| "diff";
 
 /** Hex like "#1098ad"; legacy stored prefs may hold an Open Props ramp name. */
 export type SvColor = string;

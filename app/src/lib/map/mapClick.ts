@@ -7,6 +7,16 @@ import { latLngToWorld } from "@/lib/geo/mercator";
 import { cmd } from "@/lib/commands";
 import { lookupStreetView, showToast } from "@/lib/sv/lookup";
 import { tryInterceptClick } from "@/lib/map/mapState";
+import { createAppleLocationAtLatLng } from "@/lib/sv/lookaround/click";
+import {
+	createInjectProviderLocationAtLatLng,
+	isInjectProviderId,
+} from "@/lib/sv/providers/race";
+import {
+	getEnabledAltProviders,
+	getProviderSettings,
+} from "@/lib/sv/providers/settings";
+import type { AltSvProviderId } from "@/lib/sv/providers/types";
 import { openSeenEntry, isSeenOverlayActive, getSeenOverlayEntries } from "@/lib/seen/seenOverlay";
 import { openContextMenuLatLng, openContextMenuLocation } from "@/lib/sv/measure";
 import { trace } from "@/lib/util/debug";
@@ -173,21 +183,18 @@ export async function pickMarkerAt(
 // Click / hover pipeline
 // ---------------------------------------------------------------------------
 
-// Create a location from a map click: snap to nearest SV coverage under the active
-// map's settings, add it, make it active. Shared by the editor map and the minimap.
-// Work-area guards live here so neither call site has to repeat them.
-export async function createLocationAtLatLng(
+const NO_COVERAGE_TOAST = "No street view coverage found at this location";
+
+function toastNoCoverage(container?: HTMLElement | null): void {
+	if (container) showToast(container, NO_COVERAGE_TOAST);
+}
+
+/** Create a Google Street View location (default host). */
+async function createGoogleLocationAtLatLng(
 	lat: number,
 	lng: number,
 	zoom: number,
-	opts?: { container?: HTMLElement | null },
 ): Promise<Location | null> {
-	const area = getWorkArea();
-	if (area === "plugin" || area === "import" || area === "diff") return null;
-	const active = getActiveLocation();
-	if (active != null && isImportPreview(active)) return null;
-
-	const t = trace("add");
 	const ms = getCurrentMap()?.meta.settings;
 	const loc = await lookupStreetView(lat, lng, zoom, {
 		preferOfficial: ms?.preferOfficial,
@@ -198,17 +205,86 @@ export async function createLocationAtLatLng(
 		preferHigherQuality: ms?.preferHigherQuality,
 		minRadius: ms?.searchRadius ?? undefined,
 	});
-	if (!loc) {
-		if (opts?.container) showToast(opts.container, "No coverage found at this location.");
-		return null;
-	}
-	t.step("lookup");
+	if (!loc) return null;
+	loc.provider = loc.provider ?? "google";
 	await addLocations([loc], { hideInDelta: true });
-	t.step("addLocations");
 	setActiveLocation(loc);
-	t.step("setActive");
-	t.end();
 	return loc;
+}
+
+async function tryAltProviderAtLatLng(
+	id: AltSvProviderId,
+	lat: number,
+	lng: number,
+): Promise<Location | null> {
+	switch (id) {
+		case "apple":
+			return createAppleLocationAtLatLng(lat, lng);
+		case "baidu":
+		case "tencent":
+			// Handled via createChinaLocationAtLatLng (parallel race).
+			return null;
+		default:
+			return null;
+	}
+}
+
+/**
+ * Create a location from a blank map click.
+ * Tries every enabled alt provider (preferred first). Baidu + Tencent are raced
+ * in parallel (first success wins; the other becomes a date-picker alternate) —
+ * catalog priority does not pick between them. Google runs only when no alts
+ * are enabled, or when at least one tried alt has fallbackToGoogle.
+ */
+export async function createLocationAtLatLng(
+	lat: number,
+	lng: number,
+	zoom: number,
+	opts?: { container?: HTMLElement | null },
+): Promise<Location | null> {
+	const area = getWorkArea();
+	if (area === "plugin" || area === "import" || area === "diff" || area === "providers") return null;
+	const active = getActiveLocation();
+	if (active != null && isImportPreview(active)) return null;
+
+	const t = trace("add");
+	const alts = getEnabledAltProviders();
+	let fallbackToGoogle = false;
+	let triedInjectRace = false;
+
+	for (const provider of alts) {
+		if (getProviderSettings(provider.id).fallbackToGoogle) fallbackToGoogle = true;
+		if (isInjectProviderId(provider.id)) {
+			if (triedInjectRace) continue;
+			triedInjectRace = true;
+			const loc = await createInjectProviderLocationAtLatLng(lat, lng);
+			t.step("inject");
+			if (loc) {
+				t.end();
+				return loc;
+			}
+			continue;
+		}
+		const loc = await tryAltProviderAtLatLng(provider.id, lat, lng);
+		t.step(provider.id);
+		if (loc) {
+			t.end();
+			return loc;
+		}
+	}
+
+	const tryGoogle = alts.length === 0 || fallbackToGoogle;
+	if (tryGoogle) {
+		const loc = await createGoogleLocationAtLatLng(lat, lng, zoom);
+		t.step("google");
+		t.end();
+		if (!loc) toastNoCoverage(opts?.container);
+		return loc;
+	}
+
+	t.end();
+	toastNoCoverage(opts?.container);
+	return null;
 }
 
 // Capabilities a map surface grants its click pipeline. Behavior only — UI lives in the
@@ -265,7 +341,9 @@ export async function handleMapClick(
 
 	if (ctx.measuring) return;
 
-	if (tryInterceptClick(lat, lng, domEvent instanceof MouseEvent && domEvent.shiftKey)) return;
+	if (await tryInterceptClick(lat, lng, domEvent instanceof MouseEvent && domEvent.shiftKey)) {
+		return;
+	}
 
 	const pick = await pickMarkerAt(lat, lng, pickCtx(ctx));
 	if (pick) {

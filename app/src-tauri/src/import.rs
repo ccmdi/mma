@@ -44,7 +44,7 @@ fn read_sequential(path: &str) -> std::io::Result<Vec<u8>> {
 
 /// Cached result from `bulk_import_preview` so `bulk_import_confirm` can
 /// skip re-parsing. Keyed by file path to detect stale caches.
-// TODO: single slot — multi-file bulk import only caches the last file; earlier ones re-parse.
+// TODO: single slot ??multi-file bulk import only caches the last file; earlier ones re-parse.
 static CACHED_PARSE: Mutex<Option<CachedImport>> = Mutex::new(None);
 
 struct CachedImport {
@@ -208,6 +208,7 @@ fn parse_csv(text: &str) -> ParsedMap {
             extra: None,
             created_at: now,
             modified_at: None,
+            provider: Some("google".into()),
         })
     };
 
@@ -406,7 +407,7 @@ fn parse_single_json(text: &str) -> ParsedMap {
 ///
 /// SIMD-accelerated via memchr: we jump directly between the structural bytes
 /// (`"`, `{`, `}`) and skip string bodies wholesale, instead of branching on
-/// every byte. This is the precursor to parallel parsing — we find boundaries
+/// every byte. This is the precursor to parallel parsing ??we find boundaries
 /// in one pass, then hand each slice to rayon.
 fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize) {
     let mut ranges = Vec::with_capacity(bytes.len() / 96);
@@ -437,13 +438,12 @@ fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize) {
                 if depth == 0 {
                     ranges.push((obj_start, pos + 1));
                 } else if depth < 0 {
-                    // Root object's `}` after the array — array already ended.
+                    // Root object's `}` after the array ??array already ended.
                     let close = array_close(&ranges);
                     return (ranges, close);
                 }
             }
-            // A quote at array level (depth 0) is a sibling key like "extra" —
-            // we've passed the array's `]`. Inside an object, skip the string.
+            // A quote at array level (depth 0) is a sibling key like "extra" ??            // we've passed the array's `]`. Inside an object, skip the string.
             _ => {
                 if depth == 0 {
                     let close = array_close(&ranges);
@@ -459,7 +459,7 @@ fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize) {
 /// Boundary scan of `[start, limit)` for depth-0 `{...}` objects (absolute offsets).
 /// Returns `(ranges, end_depth, terminated_close)`. `terminated_close` is `Some`
 /// only when the array's end is reached (`}` past depth 0, or a depth-0 sibling key
-/// quote) — that happens in the final chunk. A well-formed non-final chunk ends with
+/// quote) ??that happens in the final chunk. A well-formed non-final chunk ends with
 /// `end_depth == 0` and `terminated_close == None`; anything else means the chunk's
 /// start landed at a false boundary and the caller falls back to serial.
 fn scan_range(
@@ -514,7 +514,7 @@ fn scan_range(
 /// newline boundary (a raw newline never appears inside a JSON string, so this is
 /// always a safe split for newline-delimited exports); falls back to a `}`,`{`
 /// separator scan for minified single-line input. A wrong guess can't corrupt the
-/// result — `parallel_find_object_boundaries` validates and falls back to serial.
+/// result ??`parallel_find_object_boundaries` validates and falls back to serial.
 fn resync_object_start(bytes: &[u8], from: usize) -> usize {
     let len = bytes.len();
     if let Some(nl) = memchr::memchr(b'\n', &bytes[from..]) {
@@ -550,7 +550,7 @@ fn resync_object_start(bytes: &[u8], from: usize) -> usize {
 /// Parallel counterpart to `find_object_boundaries`. Splits the array bytes into
 /// per-core ranges, resyncs each range start to a real object boundary, scans them
 /// concurrently, then validates (each non-final range ends at depth 0; no overlaps).
-/// On any inconsistency — or for small inputs — it falls back to the serial scan, so
+/// On any inconsistency ??or for small inputs ??it falls back to the serial scan, so
 /// the output is always byte-identical to `find_object_boundaries`.
 fn parallel_find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize) {
     let len = bytes.len();
@@ -735,7 +735,7 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     let t0 = std::time::Instant::now();
 
     // Single pass: find top-level keys and the coordinate array.
-    // Only scan until we find what we need — once we hit the array,
+    // Only scan until we find what we need ??once we hit the array,
     // we know the rest is coordinates and can stop scanning keys.
     let mut name = String::new();
     let mut folder: Option<String> = None;
@@ -817,7 +817,7 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
         }
     }
 
-    // Array key is also near the top — search first 8KB, fall back to full scan
+    // Array key is also near the top ??search first 8KB, fall back to full scan
     let key_search = &buf[..buf.len().min(8192)];
     if let Some(pos) = find_key_value_fast(key_search, b"customCoordinates") {
         if let Some(s) = find_array_start(buf, pos) {
@@ -862,6 +862,61 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
 
     let now = now_unix();
 
+    /// Map JSON `source` / legacy `provider` wire values onto internal provider ids.
+    /// Also strips `APPLE:` / `BAIDU:` / `TENCENT:` / `YANDEX:` panoId prefixes
+    /// (infers provider from prefix when no source/provider is set).
+    fn normalize_import_provider(
+        source: Option<&str>,
+        provider: Option<&str>,
+        pano_id: &mut Option<String>,
+    ) -> String {
+        const PREFIXES: &[(&str, &str)] = &[
+            ("APPLE:", "apple"),
+            ("BAIDU:", "baidu"),
+            ("TENCENT:", "tencent"),
+            ("YANDEX:", "yandex"),
+        ];
+
+        let from_prefix = {
+            let mut inferred: Option<&'static str> = None;
+            if let Some(id) = pano_id.take() {
+                for (prefix, provider) in PREFIXES {
+                    if let Some(raw) = id.strip_prefix(prefix) {
+                        *pano_id = Some(raw.to_string());
+                        inferred = Some(provider);
+                        break;
+                    }
+                }
+                if pano_id.is_none() {
+                    *pano_id = Some(id);
+                }
+            }
+            inferred
+        };
+
+        let wire_to_internal = |raw: &str| -> Option<&'static str> {
+            match raw {
+                "apple_pano" | "apple" => Some("apple"),
+                "baidu_pano" | "baidu" => Some("baidu"),
+                "qq_pano" | "tencent" => Some("tencent"),
+                "yandex_pano" | "yandex" => Some("yandex"),
+                "google" => Some("google"),
+                _ => None,
+            }
+        };
+
+        if let Some(s) = source.and_then(wire_to_internal) {
+            return s.to_string();
+        }
+        if let Some(p) = provider.and_then(wire_to_internal) {
+            return p.to_string();
+        }
+        if let Some(p) = from_prefix {
+            return p.to_string();
+        }
+        "google".into()
+    }
+
     #[derive(serde::Deserialize)]
     struct RawObj<'a> {
         #[serde(alias = "latitude")]
@@ -876,6 +931,12 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
         zoom: f64,
         #[serde(borrow, rename = "panoId", alias = "pano", alias = "pano_id")]
         pano_id: Option<Cow<'a, str>>,
+        /// GeoGuessr-style wire discriminator (`apple_pano`, `baidu_pano`, …).
+        #[serde(borrow, default)]
+        source: Option<Cow<'a, str>>,
+        /// Internal id (`apple`/`baidu`) or legacy wire values (`apple_pano`, …).
+        #[serde(borrow, default)]
+        provider: Option<Cow<'a, str>>,
         // Raw slices (no value tree). `null` deserializes to `None`, so `Some` means a
         // real value that must be folded into `extra`.
         #[serde(borrow, rename = "countryCode")]
@@ -890,7 +951,7 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     // ~millions of duplicate tag strings serde allocates are freed inside the
     // parallel region (only the few distinct names per chunk survive), and each
     // Location stores chunk-local tag ids. The serial merge below maps locals to
-    // globals — a cheap pass over u32s, no string work.
+    // globals ??a cheap pass over u32s, no string work.
     struct ChunkOut {
         locs: Vec<Location>,
         names: Vec<String>, // local id (index) -> tag name
@@ -916,7 +977,9 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                 };
 
                 let has_top_pano = raw.pano_id.is_some();
-                let top_pano = raw.pano_id.map(|c| c.into_owned());
+                let mut top_pano = raw.pano_id.map(|c| c.into_owned());
+                let source = raw.source.as_deref();
+                let provider_raw = raw.provider.as_deref();
                 let extra_str = raw.extra.map(|rv| rv.get());
 
                 // Fast path unless we must edit `extra` beyond stripping tags: folding a
@@ -962,7 +1025,8 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                     None // no extra at all
                 };
 
-                let pano_id = top_pano.or(extra_pano);
+                let mut pano_id = top_pano.take().or(extra_pano);
+                let provider = normalize_import_provider(source, provider_raw, &mut pano_id);
                 let flags = if has_top_pano {
                     LocationFlags::LOAD_AS_PANO_ID
                 } else {
@@ -977,6 +1041,7 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                     pitch: raw.pitch,
                     zoom: raw.zoom,
                     pano_id,
+                    provider: Some(provider),
                     flags,
                     tags,
                     extra,
@@ -1488,7 +1553,7 @@ pub fn store_import_staged_location(index: u32) -> AppResult<Location> {
 #[specta::specta]
 pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview> {
     // CPU-bound parse runs on a blocking thread so it never stalls the main/event-loop
-    // thread (which the webview shares — a sync command here freezes the window).
+    // thread (which the webview shares ??a sync command here freezes the window).
     tokio::task::spawn_blocking(move || {
         let t0 = std::time::Instant::now();
         let mut buf = read_sequential(&path)?;
@@ -1701,7 +1766,7 @@ pub async fn store_import_file(
         .lock()
         .unwrap()
         .take()
-        .ok_or("no cached import — call store_import_preview first")?;
+        .ok_or("no cached import ??call store_import_preview first")?;
 
     let drop_set: std::collections::HashSet<&str> =
         dropped_fields.iter().map(|s| s.as_str()).collect();

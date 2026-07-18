@@ -7,6 +7,7 @@ import {
 	parsedLocationsToImportJson,
 	type ParsedLocation,
 } from "@/lib/data/importExport";
+import { normalizeStoragePanoId } from "@/lib/sv/providers/panoIdStorage";
 import { LocationFlag } from "@/types";
 
 describe("parseMapsUrl", () => {
@@ -19,6 +20,48 @@ describe("parseMapsUrl", () => {
 	it("returns null for URLs from unsupported domains", async () => {
 		expect(await parseMapsUrl("https://example.com/maps")).toBeNull();
 		expect(await parseMapsUrl("https://openstreetmap.org/#map=14/51.5074/-0.1278")).toBeNull();
+	});
+
+	it("parses lookmap open URLs with POV (closest may fail offline)", async () => {
+		const url =
+			"https://lookmap.skzk.dev/#c=5/41.367904/-8.392022&p=41.367904/-8.392022&a=121.11/-16.95";
+		const result = await parseMapsUrl(url);
+		expect(result).not.toBeNull();
+		expect(result!.provider).toBe("apple");
+		expect(result!.lat).toBeCloseTo(41.367904, 4);
+		expect(result!.lng).toBeCloseTo(-8.392022, 4);
+		expect(result!.heading).toBeCloseTo(121.11, 2);
+		expect(result!.pitch).toBeCloseTo(-16.95, 2);
+	});
+
+	it("parses lookmap short share hashes", async () => {
+		const { encodeShareLinkPayload, googlePovToLookmapRadians } = await import(
+			"@/lib/sv/lookaround/shareLink"
+		);
+		const { yaw, pitch } = googlePovToLookmapRadians(90, -5);
+		const payload = encodeShareLinkPayload(48.85, 2.35, yaw, pitch);
+		const result = await parseMapsUrl(`https://lookmap.skzk.dev/#s=${payload}`);
+		expect(result).not.toBeNull();
+		expect(result!.provider).toBe("apple");
+		expect(result!.lat).toBeCloseTo(48.85, 2);
+		expect(result!.lng).toBeCloseTo(2.35, 2);
+		expect(result!.heading).toBeCloseTo(90, 0);
+		expect(result!.pitch).toBeCloseTo(-5, 0);
+	});
+
+	it("parses Baidu long Street View URLs from hash panoid + path meters", async () => {
+		const url =
+			"https://map.baidu.com/search/%E5%8F%B0%E5%B7%9E%E5%B8%82/@13517338.48,3312052.08,13z,87t,1.38h#panoid=09025100011602251440355768N&panotype=street&heading=173.43&pitch=-6.66&l=13&tn=B_NORMAL_MAP&sc=0&newmap=1&shareurl=1&pid=09025100011602251440355768N";
+		const result = await parseMapsUrl(url);
+		expect(result).not.toBeNull();
+		expect(result!.provider).toBe("baidu");
+		expect(result!.panoId).toBe("09025100011602251440355768N");
+		expect(result!.heading).toBeCloseTo(173.43, 2);
+		expect(result!.pitch).toBeCloseTo(-6.66, 2);
+		expect(result!.flags).toBe(LocationFlag.LoadAsPanoId);
+		// Path meters give a mainland China pin even if sdata is offline.
+		expect(result!.lat).toBeGreaterThan(20);
+		expect(result!.lng).toBeGreaterThan(100);
 	});
 
 	it("parses Google Maps pano viewpoint URL", async () => {
@@ -174,7 +217,15 @@ describe("parseUrlList", () => {
 });
 
 describe("parsedLocationsToImportJson", () => {
-	const base = { lat: 1, lng: 2, heading: 3, pitch: 4, zoom: 5, tags: [] as string[] };
+	const base = {
+		lat: 1,
+		lng: 2,
+		heading: 3,
+		pitch: 4,
+		zoom: 5,
+		tags: [] as string[],
+		provider: "google" as const,
+	};
 
 	it("produces a named import file in the standard shape", () => {
 		const json = JSON.parse(
@@ -210,6 +261,49 @@ describe("parsedLocationsToImportJson", () => {
 			]),
 		);
 		expect(json.customCoordinates[0].extra).toEqual({ tags: ["red", "blue"] });
+	});
+
+	it("emits source (not provider) for alt-provider locations", () => {
+		const json = JSON.parse(
+			parsedLocationsToImportJson(
+				[
+					{
+						...base,
+						provider: "baidu",
+						panoId: "0900020012230410091747271AU",
+						flags: LocationFlag.LoadAsPanoId,
+					},
+					{
+						...base,
+						provider: "apple",
+						panoId: "7966846247780953899",
+						flags: LocationFlag.LoadAsPanoId,
+					},
+				],
+				"alts",
+			),
+		);
+		expect(json.customCoordinates[0].source).toBe("baidu_pano");
+		expect(json.customCoordinates[0].provider).toBeUndefined();
+		expect(json.customCoordinates[1].source).toBe("apple_pano");
+		expect(json.customCoordinates[1].provider).toBeUndefined();
+	});
+
+	it("strips alt-provider prefixes from exported panoId", () => {
+		const json = JSON.parse(
+			parsedLocationsToImportJson(
+				[
+					{
+						...base,
+						provider: "tencent",
+						panoId: "TENCENT:sv123",
+						flags: LocationFlag.LoadAsPanoId,
+					},
+				],
+				"x",
+			),
+		);
+		expect(json.customCoordinates[0].panoId).toBe("sv123");
 	});
 });
 
@@ -353,13 +447,15 @@ describe("parsedLocationsToImportJson (property-based)", () => {
 						panoId?: string;
 						extra?: { panoId?: string };
 					};
-					const loadAsPano = l.panoId != null && (l.flags & LocationFlag.LoadAsPanoId) !== 0;
+					const storagePanoId = normalizeStoragePanoId(l.panoId);
+					const loadAsPano =
+						storagePanoId != null && (l.flags & LocationFlag.LoadAsPanoId) !== 0;
 					if (loadAsPano) {
-						expect(cc.panoId).toBe(l.panoId);
+						expect(cc.panoId).toBe(storagePanoId);
 						expect(cc.extra?.panoId).toBeUndefined();
 					} else {
 						expect(cc.panoId).toBeUndefined();
-						if (l.panoId != null) expect(cc.extra?.panoId).toBe(l.panoId);
+						if (storagePanoId != null) expect(cc.extra?.panoId).toBe(storagePanoId);
 						else expect(cc.extra?.panoId).toBeUndefined();
 					}
 				});

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useCallback, useState, useSyncExternalStore } from "react";
 import * as ContextMenu from "@radix-ui/react-context-menu";
 import {
 	mdiGoogleStreetView,
@@ -24,6 +24,14 @@ import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
 import { setMapHost, tryInterceptDraw } from "@/lib/map/mapState";
 import { createMapHost, hostKindForMapType, type MapHost } from "@/lib/map/host";
+import {
+	isSvCoverageSuppressed,
+	subscribeSvCoverageSuppressed,
+} from "@/lib/map/svCoverageBridge";
+import {
+	getProviderCoverageLayersEpoch,
+	subscribeProviderCoverageLayers,
+} from "@/lib/sv/providers/coverageLayers";
 import { mountSearchRadiusCursor } from "@/lib/map/searchRadiusCursor";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
@@ -204,12 +212,22 @@ export function MapEmbed({
 		};
 	}, [hostKind]);
 
+	const svSuppressed = useSyncExternalStore(
+		subscribeSvCoverageSuppressed,
+		isSvCoverageSuppressed,
+		isSvCoverageSuppressed,
+	);
+
 	useEffect(() => {
 		if (!host) return;
+		if (svSuppressed) {
+			host.setSvOpacity(0);
+			return;
+		}
 		const blobbySingleType =
 			prefs.svBlobby && belowBlobbyZoom && prefs.svCoverageType !== "default";
 		host.setSvOpacity(blobbySingleType ? svOpacity * 0.6 : svOpacity);
-	}, [host, svOpacity, prefs.svBlobby, belowBlobbyZoom, prefs.svCoverageType]);
+	}, [host, svOpacity, prefs.svBlobby, belowBlobbyZoom, prefs.svCoverageType, svSuppressed]);
 
 	// The editor map drives the single scene engine (delta/selection/active subscriptions)
 	useEffect(() => startSceneEngine(), []);
@@ -290,9 +308,15 @@ export function MapEmbed({
 
 	const useBlobby = prefs.svBlobby && belowBlobbyZoom;
 
+	const coverageEpoch = useSyncExternalStore(
+		subscribeProviderCoverageLayers,
+		getProviderCoverageLayersEpoch,
+		getProviderCoverageLayersEpoch,
+	);
+
 	useEffect(() => {
 		hostRef.current?.applyPrefs(prefs, { useBlobby, customStyles });
-	}, [host, prefs, useBlobby, customStyles]);
+	}, [host, prefs, useBlobby, customStyles, coverageEpoch]);
 
 	const handleSearchResult = useCallback((lat: number, lng: number, _name: string) => {
 		hostRef.current?.fitBounds({
@@ -314,6 +338,7 @@ export function MapEmbed({
 	}, []);
 
 	const showFps = useSetting("showFps");
+	const fullscreenMap = useSetting("fullscreenMap");
 
 	useHotkey(useBinding("mapZoomReset"), () => {
 		hostRef.current?.moveCamera({ zoom: 1 });
@@ -412,7 +437,9 @@ export function MapEmbed({
 						<Tooltip
 							content={
 								opacityTarget === "sv"
-									? "Adjusting Street View opacity"
+									? svSuppressed
+										? "Adjusting coverage opacity"
+										: "Adjusting Street View opacity"
 									: "Adjusting marker opacity"
 							}
 							side="left"
@@ -440,7 +467,10 @@ export function MapEmbed({
 						/>
 					</div>
 				</div>
-				<div className="embed-controls__control" style={{ right: 0, bottom: 10 }}>
+				<div
+					className="embed-controls__control"
+					style={fullscreenMap ? { left: 0, bottom: 10 } : { right: 0, bottom: 10 }}
+				>
 					<div className="map-control map-control--button white">
 						<Tooltip content="Zoom in" side="left">
 							<button onClick={zoomIn} aria-label="Zoom in">

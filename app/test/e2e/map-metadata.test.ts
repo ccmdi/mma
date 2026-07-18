@@ -37,8 +37,10 @@ describe("Map metadata persistence", () => {
 
 	it("map settings update and persist", async () => {
 		await withApi(async (api) => {
+			const map = api.getCurrentMap()!;
 			await api.updateMapMeta({
 				settings: {
+					...map.meta.settings,
 					pointAlongRoad: true,
 					preferDirection: "north",
 					preferOfficial: true,

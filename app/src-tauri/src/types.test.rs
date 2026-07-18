@@ -190,6 +190,7 @@ fn arb_location() -> impl Strategy<Value = Location> {
                     pitch,
                     zoom,
                     pano_id,
+                    provider: None,
                     flags,
                     tags,
                     extra,

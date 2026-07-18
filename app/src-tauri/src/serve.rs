@@ -105,6 +105,21 @@ fn register_web_schemes() {
             req.body,
         ))
     });
+    register_scheme("bmaps", |req: SchemeRequest| {
+        let path = if req.path.is_empty() || req.path == "/" {
+            "/".to_string()
+        } else if req.path.starts_with('/') {
+            req.path.clone()
+        } else {
+            format!("/{}", req.path)
+        };
+        if req.query.split('&').any(|kv| kv == "mma_resolve=1") {
+            relay(crate::resolve_bmapslink(&path))
+        } else {
+            let url = format!("https://j.map.baidu.com{}{}", path, qs(&req.query));
+            relay(crate::proxy_bmaps(&url))
+        }
+    });
     register_scheme("googl", |req: SchemeRequest| {
         let mapsapp = req.query.split('&').any(|kv| kv == "source=mapsapp");
         relay(crate::resolve_googl(&req.path, mapsapp))

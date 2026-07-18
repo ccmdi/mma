@@ -6,6 +6,16 @@ import { google } from "@/lib/sv/opensv";
 import { lookupStreetView } from "@/lib/sv/lookup";
 import { shortenMapsUrl } from "@/lib/sv/shortUrl";
 import { isOfficialPano } from "@/lib/sv/panoId";
+import {
+	buildLookmapOpenUrl,
+	buildLookmapShareUrl,
+	googlePovToLookmapRadians,
+} from "@/lib/sv/lookaround/shareLink";
+import { buildBaiduShareUrl, shortenBaiduShareUrl } from "@/lib/sv/baidu/shareLink";
+import { stripBaidu, isBaiduPanoId } from "@/lib/sv/baidu/prefix";
+import { buildTencentShareUrl } from "@/lib/sv/tencent/shareLink";
+import { stripTencent, isTencentPanoId } from "@/lib/sv/tencent/prefix";
+import { getLocationProvider } from "@/lib/sv/providers/types";
 import { useSettings } from "@/store/settings";
 import { getCurrentMap, getActiveLocation, useActiveLocation } from "@/store/useMapStore";
 import { getPanoAltitude, subscribePanoAltitude } from "./PanoViewerContext";
@@ -272,6 +282,10 @@ function CompassControl({ panorama }: { panorama: google.maps.StreetViewPanorama
 					if (curDelta <= 0.01) return best;
 					return curDelta < bestDelta ? cur : best;
 				});
+				if (next?.pano) {
+					panorama.setPano(next.pano);
+					return;
+				}
 				if (next) animatePov({ heading: next.heading!, pitch: 0 });
 				return;
 			}
@@ -434,16 +448,28 @@ function CoordinateControl({ panorama }: { panorama: google.maps.StreetViewPanor
 	useEffect(() => {
 		const update = () => {
 			const zoom = (panorama.getZoom() ?? 0).toFixed(2);
-			const altitude = getPanoAltitude();
-			if (textRef.current)
+			let altitude = getPanoAltitude();
+			if (altitude == null) {
+				const alt = getActiveLocation()?.extra?.altitude;
+				if (typeof alt === "number" && Number.isFinite(alt)) altitude = alt;
+			}
+			if (textRef.current) {
+				// null = unknown → hide; 0 is a valid sea-level reading and must show.
 				textRef.current.textContent =
-					altitude === 0 ? ` zoom ${zoom}` : ` ${altitude.toFixed(2)}m · zoom ${zoom}`;
+					altitude == null
+						? ` zoom ${zoom}`
+						: ` ${altitude.toFixed(2)}m · zoom ${zoom}`;
+			}
 		};
-		const listener = panorama.addListener("zoom_changed", update);
+		const zoomListener = panorama.addListener("zoom_changed", update);
+		const posListener = panorama.addListener("position_changed", update);
+		const panoListener = panorama.addListener("pano_changed", update);
 		const unsubAltitude = subscribePanoAltitude(update);
 		update();
 		return () => {
-			google?.maps?.event?.removeListener(listener);
+			google?.maps?.event?.removeListener(zoomListener);
+			google?.maps?.event?.removeListener(posListener);
+			google?.maps?.event?.removeListener(panoListener);
 			unsubAltitude();
 		};
 	}, [panorama]);
@@ -494,11 +520,14 @@ export const PanoControls = memo(function PanoControls({
 	isFullscreen,
 	onFullscreen,
 	onReturnToSpawn,
+	altProvider = false,
 }: {
 	panorama: google.maps.StreetViewPanorama;
 	isFullscreen: boolean;
 	onFullscreen: () => void;
 	onReturnToSpawn: () => void;
+	/** True when an alt pano provider (e.g. Look Around) owns the viewport. */
+	altProvider?: boolean;
 }) {
 	const vis = useSettings();
 	const fullscreenKey = useBinding("toggleFullscreen");
@@ -506,11 +535,39 @@ export const PanoControls = memo(function PanoControls({
 	const jumpBackwardKey = useBinding("jumpBackward");
 	const [copyState, setCopyState] = useState<"idle" | "loading" | "done">("idle");
 
+	const location = useActiveLocation();
+	const provider = getLocationProvider(location);
+	const isAppleLocation = provider === "apple";
+	const isBaiduLocation = provider === "baidu";
+	const isTencentLocation = provider === "tencent";
+
 	const buildMapsUrl = useCallback(() => {
-		const loc = panorama.getLocation();
 		const pos = panorama.getPosition();
 		const pov = panorama.getPov();
-		if (!loc || !pos || !pov) return null;
+		if (!pos || !pov) return null;
+
+		if (isAppleLocation) {
+			const lat = pos.lat();
+			const lng = pos.lng();
+			return new URL(buildLookmapOpenUrl(lat, lng, pov.heading, pov.pitch));
+		}
+
+		if (isBaiduLocation) {
+			const loc = panorama.getLocation();
+			const sid = stripBaidu(loc?.pano ?? "");
+			if (!sid) return null;
+			return new URL(buildBaiduShareUrl(sid, pov.heading, pov.pitch));
+		}
+
+		if (isTencentLocation) {
+			const loc = panorama.getLocation();
+			const svid = stripTencent(loc?.pano ?? "");
+			if (!svid) return null;
+			return new URL(buildTencentShareUrl(svid, pov.heading, pov.pitch));
+		}
+
+		const loc = panorama.getLocation();
+		if (!loc) return null;
 		const fov = (360 / Math.PI) * Math.atan(0.75 * Math.pow(2, 1 - panorama.getZoom()));
 		const panoId = loc.pano ?? "";
 
@@ -536,6 +593,30 @@ export const PanoControls = memo(function PanoControls({
 		url.searchParams.set("coh", "235716");
 		url.searchParams.set("entry", "tts");
 		return url;
+	}, [panorama, isAppleLocation, isBaiduLocation, isTencentLocation]);
+
+	const buildAppleShareUrl = useCallback(() => {
+		const pos = panorama.getPosition();
+		const pov = panorama.getPov();
+		if (!pos || !pov) return null;
+		const { yaw, pitch } = googlePovToLookmapRadians(pov.heading, pov.pitch);
+		return buildLookmapShareUrl(pos.lat(), pos.lng(), yaw, pitch);
+	}, [panorama]);
+
+	const buildBaiduCopyUrl = useCallback(() => {
+		const loc = panorama.getLocation();
+		const pov = panorama.getPov();
+		const sid = stripBaidu(loc?.pano ?? "");
+		if (!sid || !pov) return null;
+		return buildBaiduShareUrl(sid, pov.heading, pov.pitch);
+	}, [panorama]);
+
+	const buildTencentCopyUrl = useCallback(() => {
+		const loc = panorama.getLocation();
+		const pov = panorama.getPov();
+		const svid = stripTencent(loc?.pano ?? "");
+		if (!svid || !pov) return null;
+		return buildTencentShareUrl(svid, pov.heading, pov.pitch);
 	}, [panorama]);
 
 	const openInMaps = useCallback(() => {
@@ -547,16 +628,55 @@ export const PanoControls = memo(function PanoControls({
 	// `noTags` omits the tag/loadMode params.
 	const doCopy = useCallback(
 		async ({ long, noTags }: { long: boolean; noTags: boolean }) => {
+			if (isAppleLocation) {
+				const link = buildAppleShareUrl();
+				if (!link) return;
+				await navigator.clipboard.writeText(link).catch(() => {});
+				setCopyState("done");
+				setTimeout(() => setCopyState("idle"), 500);
+				return;
+			}
+
+			if (isBaiduLocation) {
+				const link = buildBaiduCopyUrl();
+				if (!link) return;
+				if (long) {
+					await navigator.clipboard.writeText(link).catch(() => {});
+					setCopyState("done");
+					setTimeout(() => setCopyState("idle"), 500);
+					return;
+				}
+				setCopyState("loading");
+				try {
+					const short = await shortenBaiduShareUrl(link);
+					await navigator.clipboard.writeText(short);
+				} catch {
+					await navigator.clipboard.writeText(link).catch(() => {});
+				}
+				setCopyState("done");
+				setTimeout(() => setCopyState("idle"), 500);
+				return;
+			}
+
+			if (isTencentLocation) {
+				const link = buildTencentCopyUrl();
+				if (!link) return;
+				await navigator.clipboard.writeText(link).catch(() => {});
+				setCopyState("done");
+				setTimeout(() => setCopyState("idle"), 500);
+				return;
+			}
+
 			const url = buildMapsUrl();
 			if (!url) return;
-			const location = getActiveLocation();
-			if (!noTags && location) {
+			const active = getActiveLocation();
+			if (!noTags && active) {
 				const tagsById = getCurrentMap()?.meta.tags ?? {};
-				for (const id of location.tags) {
+				for (const id of active.tags) {
 					const name = tagsById[id]?.name;
 					if (name) url.searchParams.append("extra[tags]", name);
 				}
-				if (!hasLoadAsPanoId(location)) url.searchParams.set("extra[loadMode]", "latLng");
+				if (!hasLoadAsPanoId(active)) url.searchParams.set("extra[loadMode]", "latLng");
 			}
 			const longStr = url.toString();
 			if (long) {
@@ -575,7 +695,15 @@ export const PanoControls = memo(function PanoControls({
 			setCopyState("done");
 			setTimeout(() => setCopyState("idle"), 500);
 		},
-		[buildMapsUrl],
+		[
+			buildMapsUrl,
+			buildAppleShareUrl,
+			buildBaiduCopyUrl,
+			buildTencentCopyUrl,
+			isAppleLocation,
+			isBaiduLocation,
+			isTencentLocation,
+		],
 	);
 
 	const jumpForwardRef = useHotkeyRef(jumpForwardKey);
@@ -587,14 +715,57 @@ export const PanoControls = memo(function PanoControls({
 			await jumpPending.current;
 			const pos = panorama.getPosition();
 			if (!pos) return;
-			if (!google?.maps?.geometry) return;
-			const target = google.maps.geometry.spherical.computeOffset(
-				pos,
-				SV_JUMP_RADIUS,
-				panorama.getPov().heading + headingOffset,
-			);
+			const lat = typeof pos.lat === "function" ? pos.lat() : Number.NaN;
+			const lng = typeof pos.lng === "function" ? pos.lng() : Number.NaN;
+			if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+			const heading = (panorama.getPov().heading + headingOffset + 360) % 360;
+			let targetLit: { lat: number; lng: number };
+			if (google?.maps?.geometry?.spherical?.computeOffset) {
+				const origin = new google.maps.LatLng(lat, lng);
+				const target = google.maps.geometry.spherical.computeOffset(
+					origin,
+					SV_JUMP_RADIUS,
+					heading,
+				);
+				targetLit = { lat: target.lat(), lng: target.lng() };
+			} else {
+				// opensv does not always ship the geometry library — fall back to
+				// a local spherical offset so alt-provider jumps still work.
+				const R = 6371000;
+				const δ = SV_JUMP_RADIUS / R;
+				const θ = (heading * Math.PI) / 180;
+				const φ1 = (lat * Math.PI) / 180;
+				const λ1 = (lng * Math.PI) / 180;
+				const φ2 = Math.asin(
+					Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ),
+				);
+				const λ2 =
+					λ1 +
+					Math.atan2(
+						Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
+						Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2),
+					);
+				targetLit = {
+					lat: (φ2 * 180) / Math.PI,
+					lng: ((((λ2 * 180) / Math.PI + 540) % 360) - 180),
+				};
+			}
+
 			try {
-				const loc = await lookupStreetView(target.lat(), target.lng(), 0, {
+				// Look Around proxy / Baidu+Tencent inject: setPosition → SIS → provider meta.
+				const panoId = panorama.getPano();
+				if (
+					altProvider ||
+					isBaiduPanoId(panoId) ||
+					isTencentPanoId(panoId) ||
+					isBaiduLocation ||
+					isTencentLocation
+				) {
+					panorama.setPosition(targetLit);
+					return;
+				}
+				const loc = await lookupStreetView(targetLit.lat, targetLit.lng, 0, {
 					onlyOfficial: true,
 					radius: SV_JUMP_RADIUS,
 				});
@@ -610,7 +781,7 @@ export const PanoControls = memo(function PanoControls({
 				jumpPending.current = null;
 			}
 		},
-		[panorama],
+		[panorama, altProvider, isBaiduLocation, isTencentLocation],
 	);
 
 	const jumpForward = useCallback(() => {
@@ -622,7 +793,7 @@ export const PanoControls = memo(function PanoControls({
 	}, [jump]);
 
 	return (
-		<div className="embed-controls">
+		<div className="embed-controls pano-embed-controls">
 			{vis.showFullscreenButton && (
 				<div
 					className="embed-controls__control"

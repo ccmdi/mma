@@ -63,7 +63,8 @@ export function fitMapToBounds(bounds: Bounds | null | undefined, padding = 0, m
 	mapHost?.fitBounds(bounds, padding);
 }
 
-type ClickInterceptor = (lat: number, lng: number, shiftKey: boolean) => boolean;
+type ClickInterceptorResult = boolean | Promise<boolean>;
+type ClickInterceptor = (lat: number, lng: number, shiftKey: boolean) => ClickInterceptorResult;
 const clickInterceptors = new Set<ClickInterceptor>();
 
 export function addClickInterceptor(fn: ClickInterceptor): () => void {
@@ -71,9 +72,15 @@ export function addClickInterceptor(fn: ClickInterceptor): () => void {
 	return () => clickInterceptors.delete(fn);
 }
 
-export function tryInterceptClick(lat: number, lng: number, shiftKey = false): boolean {
+export async function tryInterceptClick(
+	lat: number,
+	lng: number,
+	shiftKey = false,
+): Promise<boolean> {
 	for (const fn of clickInterceptors) {
-		if (fn(lat, lng, shiftKey)) return true;
+		const result = fn(lat, lng, shiftKey);
+		const consumed = result instanceof Promise ? await result : result;
+		if (consumed) return true;
 	}
 	return false;
 }
