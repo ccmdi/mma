@@ -709,6 +709,12 @@ fn migration_versions(conn: &Connection) -> std::collections::HashSet<u32> {
         .collect()
 }
 
+/// Every version in the chain, derived from MIGRATIONS so adding one doesn't
+/// require touching each test.
+fn all_versions() -> std::collections::HashSet<u32> {
+    MIGRATIONS.iter().map(|(v, _)| *v).collect()
+}
+
 fn count_rows(conn: &Connection, table: &str) -> i64 {
     conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
         .unwrap()
@@ -743,7 +749,7 @@ fn fresh_full_chain_succeeds() {
     assert!(result.is_ok(), "fresh chain must apply cleanly: {result:?}");
 
     let versions = migration_versions(&conn);
-    let expected: std::collections::HashSet<u32> = (1..=18).collect();
+    let expected = all_versions();
     assert_eq!(versions, expected);
 
     for table in ["maps", "commits", "seen", "edit_history", "review_sessions"] {
@@ -774,7 +780,7 @@ fn every_prefix_upgrades_to_head() {
     run_migrations_on(&reference).unwrap();
     let reference_signature = schema_signature(&reference);
 
-    for k in 1..=18usize {
+    for k in 1..=MIGRATIONS.len() {
         let conn = Connection::open_in_memory().unwrap();
         configure_connection(&conn).unwrap();
         apply_prefix(&conn, k);
@@ -815,7 +821,7 @@ fn every_prefix_upgrades_to_head() {
         );
 
         let versions = migration_versions(&conn);
-        let expected: std::collections::HashSet<u32> = (1..=18).collect();
+        let expected = all_versions();
         assert_eq!(
             versions, expected,
             "prefix k={k} missing versions after upgrade"
@@ -919,7 +925,7 @@ fn sqlx_seeding_skips_already_applied() {
     );
 
     let versions = migration_versions(&conn);
-    let expected: std::collections::HashSet<u32> = (1..=18).collect();
+    let expected = all_versions();
     assert_eq!(
         versions, expected,
         "versions 6 onward must still be applied after seeding"
