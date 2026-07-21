@@ -26,6 +26,7 @@ mma.html
 
 # Secrets
 .env
+.env.*
 
 # e2e tooling output (scripts/e2e.sh --shard, scripts/e2e-build.sh)
 shard-*.log
