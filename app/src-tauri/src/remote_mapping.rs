@@ -22,11 +22,20 @@ pub struct RemoteMappingRow {
 // --- Core (testable against any Connection) ---
 
 /// All rows for a linked map.
-pub(crate) fn get(conn: &Connection, provider: &str, map_id: &str) -> AppResult<Vec<RemoteMappingRow>> {
-    let mut stmt =
-        conn.prepare("SELECT local_id, remote_id, hash FROM remote_mapping WHERE provider = ? AND map_id = ?")?;
+pub(crate) fn get(
+    conn: &Connection,
+    provider: &str,
+    map_id: &str,
+) -> AppResult<Vec<RemoteMappingRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT local_id, remote_id, hash FROM remote_mapping WHERE provider = ? AND map_id = ?",
+    )?;
     let rows = stmt.query_map(params![provider, map_id], |row| {
-        Ok(RemoteMappingRow { local_id: row.get(0)?, remote_id: row.get(1)?, hash: row.get(2)? })
+        Ok(RemoteMappingRow {
+            local_id: row.get(0)?,
+            remote_id: row.get(1)?,
+            hash: row.get(2)?,
+        })
     })?;
     let mut out = Vec::new();
     for r in rows {
@@ -36,7 +45,12 @@ pub(crate) fn get(conn: &Connection, provider: &str, map_id: &str) -> AppResult<
 }
 
 /// Insert or update rows by `(provider, map_id, local_id)`. One transaction for the batch.
-pub(crate) fn upsert(conn: &mut Connection, provider: &str, map_id: &str, rows: &[RemoteMappingRow]) -> AppResult<()> {
+pub(crate) fn upsert(
+    conn: &mut Connection,
+    provider: &str,
+    map_id: &str,
+    rows: &[RemoteMappingRow],
+) -> AppResult<()> {
     let tx = conn.transaction()?;
     {
         let mut stmt = tx.prepare(
@@ -52,10 +66,17 @@ pub(crate) fn upsert(conn: &mut Connection, provider: &str, map_id: &str, rows: 
 }
 
 /// Remove specific rows by local id.
-pub(crate) fn delete(conn: &mut Connection, provider: &str, map_id: &str, local_ids: &[u32]) -> AppResult<()> {
+pub(crate) fn delete(
+    conn: &mut Connection,
+    provider: &str,
+    map_id: &str,
+    local_ids: &[u32],
+) -> AppResult<()> {
     let tx = conn.transaction()?;
     {
-        let mut stmt = tx.prepare("DELETE FROM remote_mapping WHERE provider = ? AND map_id = ? AND local_id = ?")?;
+        let mut stmt = tx.prepare(
+            "DELETE FROM remote_mapping WHERE provider = ? AND map_id = ? AND local_id = ?",
+        )?;
         for id in local_ids {
             stmt.execute(params![provider, map_id, id])?;
         }
@@ -66,7 +87,10 @@ pub(crate) fn delete(conn: &mut Connection, provider: &str, map_id: &str, local_
 
 /// Drop the whole mapping for a linked map (unlink).
 pub(crate) fn clear(conn: &Connection, provider: &str, map_id: &str) -> AppResult<()> {
-    conn.execute("DELETE FROM remote_mapping WHERE provider = ? AND map_id = ?", params![provider, map_id])?;
+    conn.execute(
+        "DELETE FROM remote_mapping WHERE provider = ? AND map_id = ?",
+        params![provider, map_id],
+    )?;
     Ok(())
 }
 
@@ -80,13 +104,21 @@ pub fn remote_mapping_get(provider: String, map_id: String) -> AppResult<Vec<Rem
 
 #[tauri::command]
 #[specta::specta]
-pub fn remote_mapping_upsert(provider: String, map_id: String, rows: Vec<RemoteMappingRow>) -> AppResult<()> {
+pub fn remote_mapping_upsert(
+    provider: String,
+    map_id: String,
+    rows: Vec<RemoteMappingRow>,
+) -> AppResult<()> {
     upsert(&mut storage::open_db()?, &provider, &map_id, &rows)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn remote_mapping_delete(provider: String, map_id: String, local_ids: Vec<u32>) -> AppResult<()> {
+pub fn remote_mapping_delete(
+    provider: String,
+    map_id: String,
+    local_ids: Vec<u32>,
+) -> AppResult<()> {
     delete(&mut storage::open_db()?, &provider, &map_id, &local_ids)
 }
 

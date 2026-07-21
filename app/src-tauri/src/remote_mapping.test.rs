@@ -18,7 +18,11 @@ fn setup() -> Connection {
 }
 
 fn row(local_id: u32, remote_id: i64, hash: &str) -> RemoteMappingRow {
-    RemoteMappingRow { local_id, remote_id, hash: hash.into() }
+    RemoteMappingRow {
+        local_id,
+        remote_id,
+        hash: hash.into(),
+    }
 }
 
 const P: &str = "map-making.app";
@@ -26,7 +30,13 @@ const P: &str = "map-making.app";
 #[test]
 fn upsert_then_get_round_trips() {
     let mut conn = setup();
-    upsert(&mut conn, P, "map-a", &[row(1, 1000, "h1"), row(2, 2000, "h2")]).unwrap();
+    upsert(
+        &mut conn,
+        P,
+        "map-a",
+        &[row(1, 1000, "h1"), row(2, 2000, "h2")],
+    )
+    .unwrap();
     let mut got = get(&conn, P, "map-a").unwrap();
     got.sort_by_key(|r| r.local_id);
     assert_eq!(got.len(), 2);
@@ -49,11 +59,20 @@ fn upsert_updates_remote_id_and_hash_on_conflict() {
 #[test]
 fn delete_removes_only_named_rows() {
     let mut conn = setup();
-    upsert(&mut conn, P, "map-a", &[row(1, 10, "a"), row(2, 20, "b"), row(3, 30, "c")]).unwrap();
+    upsert(
+        &mut conn,
+        P,
+        "map-a",
+        &[row(1, 10, "a"), row(2, 20, "b"), row(3, 30, "c")],
+    )
+    .unwrap();
     delete(&mut conn, P, "map-a", &[2]).unwrap();
     let mut got = get(&conn, P, "map-a").unwrap();
     got.sort_by_key(|r| r.local_id);
-    assert_eq!(got.iter().map(|r| r.local_id).collect::<Vec<_>>(), vec![1, 3]);
+    assert_eq!(
+        got.iter().map(|r| r.local_id).collect::<Vec<_>>(),
+        vec![1, 3]
+    );
 }
 
 #[test]
