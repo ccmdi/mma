@@ -13,12 +13,11 @@ import { LocationFlag } from "@/types";
 import { MapMakingWebApi, Remote } from "@/plugins/mapMakingSync/map-making-web-api";
 import {
 	localToNormalized,
-	remoteToNormalized,
-	localToRemoteInput,
 	syncKey,
 	type NormalizedSyncLocation,
 	type TagName,
-} from "@/plugins/mapMakingSync/adapter";
+} from "@/lib/sync/normalized";
+import { mapMakingProvider } from "@/plugins/mapMakingSync/provider";
 
 const KEY = process.env.MMA_API_KEY;
 const MAP = process.env.MMA_SYNC_TEST_MAP ? Number(process.env.MMA_SYNC_TEST_MAP) : undefined;
@@ -71,7 +70,19 @@ describe.runIf(enabled)("map-making.app real push/pull contract", () => {
 	}
 
 	async function push(locals: Location[]) {
-		const create = locals.map((l, i) => localToRemoteInput(l, -(i + 1), tagName));
+		const create = locals.map((l, i) => {
+			const item = mapMakingProvider.materialize(localToNormalized(l, tagName), tagName);
+			return {
+				id: -(i + 1),
+				location: item.location,
+				panoId: item.panoId,
+				heading: item.heading,
+				pitch: item.pitch,
+				zoom: item.zoom,
+				flags: item.flags,
+				tags: item.tags,
+			} satisfies Remote.LocationInput;
+		});
 		await api.editLocations(MAP!, {
 			edits: [{ action: { type: Remote.EditActionType.Import }, create, remove: [] }],
 		});
@@ -127,7 +138,7 @@ describe.runIf(enabled)("map-making.app real push/pull contract", () => {
 		await push([L]);
 		const pulled = await api.getLocationsJson(MAP!);
 		expect(pulled).toHaveLength(1);
-		expect(remoteToNormalized(pulled[0]!)).toEqual(localToNormalized(L, tagName));
+		expect(mapMakingProvider.normalize(pulled[0]!)).toEqual(localToNormalized(L, tagName));
 	});
 
 	// --- Batch + order independence ---
@@ -142,7 +153,7 @@ describe.runIf(enabled)("map-making.app real push/pull contract", () => {
 		await push(batch);
 		const pulled = await api.getLocationsJson(MAP!);
 		expect(pulled).toHaveLength(batch.length);
-		expect(keysSorted(pulled.map(remoteToNormalized))).toEqual(
+		expect(keysSorted(pulled.map((r) => mapMakingProvider.normalize(r)))).toEqual(
 			keysSorted(batch.map((l) => localToNormalized(l, tagName))),
 		);
 	});
@@ -165,10 +176,10 @@ describe.runIf(enabled)("map-making.app real push/pull contract", () => {
 		const json = await api.getLocationsJson(MAP!);
 		const proto = await api.getLocationsProtobuf(MAP!);
 		expect(proto).toHaveLength(json.length);
-		expect(keysSorted(proto.map(remoteToNormalized))).toEqual(
-			keysSorted(json.map(remoteToNormalized)),
+		expect(keysSorted(proto.map((r) => mapMakingProvider.normalize(r)))).toEqual(
+			keysSorted(json.map((r) => mapMakingProvider.normalize(r))),
 		);
-		expect(keysSorted(json.map(remoteToNormalized))).toEqual(
+		expect(keysSorted(json.map((r) => mapMakingProvider.normalize(r)))).toEqual(
 			keysSorted(batch.map((l) => localToNormalized(l, tagName))),
 		);
 	});

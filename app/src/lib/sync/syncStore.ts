@@ -12,14 +12,21 @@ import type { IdentityKey } from "./diff";
 
 export interface SyncLink {
 	localMapId: string;
-	remoteMapId: number;
-	remoteBaseUrl: string;
-	remoteUserId: number | null;
+	/** String because providers differ: map-making.app uses an integer, GeoGuessr a hex slug. */
+	remoteMapId: string;
+	/** Display name captured at link time, so the UI doesn't need a fetch to say what it's linked to. */
+	remoteMapName: string;
+	remoteUserId: string | null;
 	linkedAt: string;
 	lastSyncedAt: string | null;
 }
 
-/** One mapping row: stable local id -> current remote id + last-synced fingerprint. */
+/**
+ * One mapping row: stable local id -> the remote handle + last-synced fingerprint.
+ *
+ * What `remoteId` means depends on the provider's `IdentityModel`: a real remote id for
+ * `stable` providers, the index we last wrote it at for `positional` ones.
+ */
 export interface RemoteMappingRow {
 	localId: number;
 	remoteId: number;
@@ -28,8 +35,6 @@ export interface RemoteMappingRow {
 
 /** Stable identity key from the durable local id. */
 export const localKey = (localId: number): IdentityKey => `L:${localId}`;
-/** Transient within-cycle key for a remote location not yet mapped to a local one. */
-export const remoteKey = (remoteId: number): IdentityKey => `R:${remoteId}`;
 
 /** Tiny KV surface for the link singleton (matches `MMA.storage(pluginId)`). */
 export interface KeyValueStore {

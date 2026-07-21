@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { syncHash, type NormalizedSyncLocation } from "@/plugins/mapMakingSync/adapter";
+import { syncHash, type NormalizedSyncLocation } from "@/lib/sync/normalized";
 import {
 	computeSyncPlan,
 	summarize,
 	isNoop,
 	type SyncState,
 	type BaseHashes,
-} from "@/plugins/mapMakingSync/diff";
+} from "@/lib/sync/diff";
 
 function n(over: Partial<NormalizedSyncLocation> = {}): NormalizedSyncLocation {
 	return {
@@ -32,7 +32,7 @@ const hashes = (entries: Record<string, NormalizedSyncLocation>): BaseHashes =>
 const NOSTATE: SyncState = new Map();
 const NOBASE: BaseHashes = new Map();
 
-describe("mapMakingSync diff — three-way merge (hash-based base)", () => {
+describe("sync diff — three-way merge (hash-based base)", () => {
 	it("no changes anywhere is a no-op", () => {
 		const v = { a: n({ lat: 1 }) };
 		expect(isNoop(computeSyncPlan(hashes(v), state(v), state(v)))).toBe(true);

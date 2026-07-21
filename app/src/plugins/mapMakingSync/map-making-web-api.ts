@@ -17,14 +17,12 @@ export interface MapMakingWebApiOptions {
 
 export class MapMakingWebApiError extends Error {
 	readonly status: number;
-	readonly response: Response;
 	readonly body: unknown;
 
-	constructor(message: string, response: Response, body: unknown) {
+	constructor(message: string, status: number, body: unknown) {
 		super(message);
 		this.name = "MapMakingWebApiError";
-		this.status = response.status;
-		this.response = response;
+		this.status = status;
 		this.body = body;
 	}
 }
@@ -160,7 +158,7 @@ async function makeApiError(response: Response): Promise<MapMakingWebApiError> {
 			body = undefined;
 		}
 	}
-	return new MapMakingWebApiError(message, response, body);
+	return new MapMakingWebApiError(message, response.status, body);
 }
 
 function parseRemoteLocationsProtobuf(buf: ArrayBuffer): Remote.Location[] {

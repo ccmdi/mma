@@ -1,7 +1,7 @@
 const { registerPlugin } = window.MMA;
 import { mdiSync } from "@mdi/js";
 import { SyncSidebar } from "./SyncSidebar";
-import { getLink, livePref, startLive, pauseLive } from "./controller";
+import { controller } from "./controller";
 
 registerPlugin({
 	id: "map-making-sync",
@@ -13,15 +13,15 @@ registerPlugin({
 		const M = window.MMA;
 		// Resume the live loop when a linked map is (re)opened and live was left on.
 		const resume = () => {
-			if (getLink() && livePref()) startLive();
+			if (controller.getLink() && controller.livePref()) controller.startLive();
 		};
 		resume();
 		const offOpen = M.on("map:open", resume);
-		const offClose = M.on("map:close", pauseLive);
+		const offClose = M.on("map:close", () => controller.pauseLive());
 		return () => {
 			offOpen();
 			offClose();
-			pauseLive();
+			controller.pauseLive();
 		};
 	},
 });

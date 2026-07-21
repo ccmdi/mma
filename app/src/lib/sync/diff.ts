@@ -1,10 +1,11 @@
-import type { NormalizedSyncLocation } from "./adapter";
-import { syncEqual, syncHash } from "./adapter";
+import type { NormalizedSyncLocation } from "./normalized";
+import { syncEqual, syncHash } from "./normalized";
 
 /**
- * Stable identity for a synced location across runs. Comes from the persisted local<->remote
- * id mapping; items not yet mapped get a side-scoped key (e.g. `"L:<localId>"` / `"R:<remoteId>"`)
- * so they can't collide. The diff is identity-keyed and never matches by content on its own.
+ * Stable identity for a synced location across runs. A location in the persisted local<->remote
+ * mapping is keyed `"L:<localId>"`; one that isn't yet mapped is keyed by its content and an
+ * occurrence counter, `"C:<hash>#<n>"` (see `keying.ts`). The diff itself is purely
+ * identity-keyed -- it never matches by content on its own.
  */
 export type IdentityKey = string;
 
@@ -25,7 +26,10 @@ export type ConflictKind =
 	| "update-update"
 	/** One side deleted while the other modified. */
 	| "delete-update"
-	/** Both sides independently added the same identity with different content. */
+	/**
+	 * Both sides independently added the same identity with different content. Unmapped
+	 * locations are keyed by content hash, so this only arises on a hash collision.
+	 */
 	| "add-add";
 
 export interface Conflict {

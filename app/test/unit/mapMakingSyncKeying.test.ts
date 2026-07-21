@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
 import type { Location } from "@/bindings.gen";
-import { buildKeyedInputs } from "@/plugins/mapMakingSync/keying";
-import { computeSyncPlan } from "@/plugins/mapMakingSync/diff";
-import { syncHash, localToNormalized } from "@/plugins/mapMakingSync/adapter";
+import { buildKeyedInputs } from "@/lib/sync/keying";
+import { computeSyncPlan } from "@/lib/sync/diff";
+import { syncHash, localToNormalized } from "@/lib/sync/normalized";
+import type { RemoteMappingRow } from "@/lib/sync/syncStore";
 import type * as Remote from "@/plugins/mapMakingSync/remote-types";
-import type { RemoteMappingRow } from "@/plugins/mapMakingSync/syncStore";
+import { mapMakingProvider } from "@/plugins/mapMakingSync/provider";
 
 const NAMES = new Map([[1, "red"]]);
 const tagName = (id: number) => NAMES.get(id);
@@ -45,7 +46,7 @@ describe("mapMakingSync keying", () => {
 	it("first sync: identical unmapped pins on both sides converge (adopt, no dup)", () => {
 		const l = local(5, { lat: 1, lng: 2 });
 		const r = remote(9000, { location: { lat: 1, lng: 2 } }); // same content, different ids
-		const k = buildKeyedInputs([l], [r], [], tagName);
+		const k = buildKeyedInputs(mapMakingProvider, [l], [r], [], tagName);
 		const plan = computeSyncPlan(k.base, k.local, k.remote);
 		expect(plan.converged).toHaveLength(1);
 		expect(plan.push.create).toEqual([]);
@@ -58,6 +59,7 @@ describe("mapMakingSync keying", () => {
 
 	it("first sync: one-sided pins become create on the correct side", () => {
 		const k = buildKeyedInputs(
+			mapMakingProvider,
 			[local(5, { lat: 1 })],
 			[remote(9000, { location: { lat: 2, lng: 0 } })],
 			[],
@@ -77,6 +79,7 @@ describe("mapMakingSync keying", () => {
 		];
 		// local unchanged, remote moved
 		const k = buildKeyedInputs(
+			mapMakingProvider,
 			[orig],
 			[remote(9000, { location: { lat: 9, lng: 9 } })],
 			mapping,
@@ -93,7 +96,7 @@ describe("mapMakingSync keying", () => {
 		const mapping: RemoteMappingRow[] = [
 			{ localId: 5, remoteId: 9000, hash: syncHash(localToNormalized(orig, tagName)) },
 		];
-		const k = buildKeyedInputs([orig], [], mapping, tagName); // remote gone
+		const k = buildKeyedInputs(mapMakingProvider, [orig], [], mapping, tagName); // remote gone
 		const plan = computeSyncPlan(k.base, k.local, k.remote);
 		expect(plan.pull.delete).toEqual(["L:5"]);
 	});

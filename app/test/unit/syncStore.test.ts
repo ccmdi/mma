@@ -2,12 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
 	createSyncStore,
 	localKey,
-	remoteKey,
 	type KeyValueStore,
 	type MappingBackend,
 	type RemoteMappingRow,
 	type SyncLink,
-} from "@/plugins/mapMakingSync/syncStore";
+} from "@/lib/sync/syncStore";
 
 /** In-memory KV mirroring MMA.storage(pluginId), with a serialize round-trip. */
 function memKv(): KeyValueStore {
@@ -38,9 +37,9 @@ function memMapping(): MappingBackend {
 
 const link = (over: Partial<SyncLink> = {}): SyncLink => ({
 	localMapId: "map-a",
-	remoteMapId: 449219,
-	remoteBaseUrl: "https://map-making.app",
-	remoteUserId: 854,
+	remoteMapId: "449219",
+	remoteMapName: "test map",
+	remoteUserId: "854",
 	linkedAt: "2026-06-30T00:00:00Z",
 	lastSyncedAt: null,
 	...over,
@@ -49,10 +48,9 @@ const link = (over: Partial<SyncLink> = {}): SyncLink => ({
 const P = "map-making.app";
 const byLocal = (rows: RemoteMappingRow[]) => [...rows].sort((a, b) => a.localId - b.localId);
 
-describe("mapMakingSync syncStore", () => {
-	it("identity keys are local-anchored and namespaced by side", () => {
+describe("sync syncStore", () => {
+	it("identity keys are local-anchored", () => {
 		expect(localKey(42)).toBe("L:42");
-		expect(remoteKey(42)).toBe("R:42");
 	});
 
 	it("link round-trips via KV; mapping starts empty", async () => {

@@ -90,8 +90,8 @@ export interface Location {
 	heading: number;
 	pitch: number;
 	zoom: number | null;
-	/** ISO 8601, server-assigned. */
-	createdAt: string;
+	/** ISO 8601, server-assigned. Absent on a location we have built but not yet sent. */
+	createdAt?: string;
 	flags: number;
 	/** Tag names (not ids). */
 	tags: string[];
