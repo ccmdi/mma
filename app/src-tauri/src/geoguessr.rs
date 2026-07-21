@@ -1,0 +1,270 @@
+//! GeoGuessr session auth and the `ggapi` authenticated proxy.
+//!
+//! The frontend cannot talk to geoguessr.com directly: CORS blocks it and the
+//! `_ncfa` session cookie is HttpOnly. So the user signs in inside a dedicated
+//! webview window, we lift `_ncfa` out of that webview's cookie store, and every
+//! subsequent API call goes through the `ggapi://` scheme, which replays it
+//! server-side with the cookie attached.
+//!
+//! The token is stored at rest unencrypted in the app DB, consistent with how the
+//! app stores its other secrets (remote API key, sidecar config).
+
+use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
+
+use rusqlite::Connection;
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+use crate::storage;
+use crate::types::AppResult;
+
+pub(crate) const ORIGIN: &str = "https://www.geoguessr.com";
+const KV_KEY: &str = "geoguessr_ncfa";
+const LOGIN_LABEL: &str = "gg-login";
+const POLL_INTERVAL: Duration = Duration::from_millis(750);
+const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// The signed-in GeoGuessr account.
+#[derive(serde::Serialize, serde::Deserialize, specta::Type, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GgUser {
+    pub id: String,
+    pub nick: String,
+}
+
+// ---------------------------------------------------------------------------
+// Session state
+// ---------------------------------------------------------------------------
+
+/// Outer `None` = not yet read from the DB; inner `None` = no session.
+fn cell() -> &'static Mutex<Option<Option<String>>> {
+    static S: OnceLock<Mutex<Option<Option<String>>>> = OnceLock::new();
+    S.get_or_init(|| Mutex::new(None))
+}
+
+pub(crate) fn load_session(conn: &Connection) -> AppResult<Option<String>> {
+    storage::kv_get(conn, KV_KEY)
+}
+
+pub(crate) fn persist_session(conn: &Connection, ncfa: Option<&str>) -> AppResult<()> {
+    match ncfa {
+        Some(v) => storage::kv_set(conn, KV_KEY, v),
+        None => storage::kv_delete(conn, KV_KEY),
+    }
+}
+
+/// Current `_ncfa`, loading it from the DB on first use.
+fn session() -> AppResult<Option<String>> {
+    let mut g = cell().lock()?;
+    if g.is_none() {
+        let loaded = match storage::open_db().and_then(|c| load_session(&c)) {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("[geoguessr] session load failed: {e}");
+                None
+            }
+        };
+        *g = Some(loaded);
+    }
+    Ok(g.clone().unwrap_or_default())
+}
+
+fn set_session(ncfa: Option<String>) -> AppResult<()> {
+    persist_session(&storage::open_db()?, ncfa.as_deref())?;
+    *cell().lock()? = Some(ncfa);
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// ggapi proxy
+// ---------------------------------------------------------------------------
+
+/// `ggapi://localhost/<path>?<query>` -> `https://www.geoguessr.com/<path>?<query>`.
+pub(crate) fn upstream_url(path: &str, query: Option<&str>) -> String {
+    let path = path.trim_start_matches('/');
+    match query {
+        Some(q) if !q.is_empty() => format!("{ORIGIN}/{path}?{q}"),
+        _ => format!("{ORIGIN}/{path}"),
+    }
+}
+
+/// Headers for an upstream call. `Origin`/`Referer` are set defensively -- an
+/// on-origin caller would send them for free and we have not tested their absence.
+pub(crate) fn proxy_headers(ncfa: &str, content_type: Option<&str>) -> Vec<(&'static str, String)> {
+    let mut h = vec![
+        ("cookie", format!("_ncfa={ncfa}")),
+        ("x-client", "web".to_string()),
+        ("accept", "application/json".to_string()),
+        ("origin", ORIGIN.to_string()),
+        ("referer", format!("{ORIGIN}/")),
+    ];
+    if let Some(ct) = content_type {
+        h.push(("content-type", ct.to_string()));
+    }
+    h
+}
+
+fn no_session_response() -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(401)
+        .header("Content-Type", "application/json")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(br#"{"message":"not signed in to GeoGuessr"}"#.to_vec())
+        .unwrap()
+}
+
+/// Replay a `ggapi` request upstream with the stored session cookie. The upstream
+/// status is relayed verbatim -- callers distinguish 401 from 409/400 themselves.
+pub(crate) fn proxy(
+    method: reqwest::Method,
+    path: &str,
+    query: Option<&str>,
+    content_type: Option<String>,
+    body: Vec<u8>,
+) -> tauri::http::Response<Vec<u8>> {
+    let ncfa = match session() {
+        Ok(Some(v)) => v,
+        Ok(None) => return no_session_response(),
+        Err(e) => return crate::proxy_error(format!("ggapi session error: {e}")),
+    };
+    let url = upstream_url(path, query);
+    let has_body = !body.is_empty();
+    let mut req = crate::proxy_client().request(method, &url);
+    for (k, v) in proxy_headers(&ncfa, content_type.as_deref().filter(|_| has_body)) {
+        req = req.header(k, v);
+    }
+    if has_body {
+        req = req.body(body);
+    }
+    match req.send() {
+        Ok(resp) => crate::relay(resp, "application/json"),
+        Err(e) => crate::proxy_error(format!("ggapi fetch error: {e}")),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Profile lookup
+// ---------------------------------------------------------------------------
+
+/// Pull `{id, nick}` out of the `/api/v3/profiles` payload. The user sits under
+/// `user` on that endpoint, but accept a bare user object too.
+fn parse_profile(v: &serde_json::Value) -> Option<GgUser> {
+    let user = v.get("user").filter(|u| u.is_object()).unwrap_or(v);
+    Some(GgUser {
+        id: user.get("id")?.as_str()?.to_string(),
+        nick: user.get("nick")?.as_str()?.to_string(),
+    })
+}
+
+/// Blocking `/api/v3/profiles` call. `Ok(None)` means the session is absent or
+/// rejected (and has been cleared).
+fn fetch_me() -> AppResult<Option<GgUser>> {
+    let Some(ncfa) = session()? else {
+        return Ok(None);
+    };
+    let mut req = crate::proxy_client().get(upstream_url("api/v3/profiles", None));
+    for (k, v) in proxy_headers(&ncfa, None) {
+        req = req.header(k, v);
+    }
+    let resp = req.send().map_err(|e| format!("geoguessr profiles: {e}"))?;
+    if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
+        set_session(None)?;
+        return Ok(None);
+    }
+    if !resp.status().is_success() {
+        return Err(format!("geoguessr profiles returned {}", resp.status()).into());
+    }
+    let body: serde_json::Value = resp.json().map_err(|e| format!("profiles decode: {e}"))?;
+    Ok(parse_profile(&body))
+}
+
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> AppResult<T> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .map_err(|e| format!("task failed: {e}").into())
+}
+
+// ---------------------------------------------------------------------------
+// Commands
+// ---------------------------------------------------------------------------
+
+/// Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
+/// Returns the signed-in nickname.
+#[tauri::command]
+#[specta::specta]
+pub async fn geoguessr_login(app: tauri::AppHandle) -> AppResult<String> {
+    if app.get_webview_window(LOGIN_LABEL).is_some() {
+        return Err("a GeoGuessr login window is already open".into());
+    }
+    let url = format!("{ORIGIN}/signin")
+        .parse()
+        .map_err(|e| format!("bad signin url: {e}"))?;
+    WebviewWindowBuilder::new(&app, LOGIN_LABEL, WebviewUrl::External(url))
+        .title("Sign in to GeoGuessr")
+        .inner_size(500.0, 700.0)
+        .resizable(true)
+        .build()?;
+
+    // cookies_for_url deadlocks on Windows unless it runs off the main thread.
+    let handle = app.clone();
+    let polled = blocking(move || poll_for_ncfa(&handle)).await?;
+
+    // Close on failure too: a timed-out window left open would trip the guard above and lock the
+    // user out of retrying.
+    if let Some(win) = app.get_webview_window(LOGIN_LABEL) {
+        let _ = win.close();
+    }
+    set_session(Some(polled?))?;
+    match blocking(fetch_me).await?? {
+        Some(user) => Ok(user.nick),
+        None => Err("signed in, but GeoGuessr rejected the session".into()),
+    }
+}
+
+/// Polls the login webview's cookie store. Terminates as soon as the window is
+/// gone, so the task cannot outlive the window the user closed.
+fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
+    let url: tauri::Url = ORIGIN.parse().map_err(|e| format!("bad origin: {e}"))?;
+    let deadline = std::time::Instant::now() + LOGIN_TIMEOUT;
+    loop {
+        let Some(win) = app.get_webview_window(LOGIN_LABEL) else {
+            return Err("login window was closed".into());
+        };
+        match win.cookies_for_url(url.clone()) {
+            Ok(cookies) => {
+                if let Some(c) = cookies.iter().find(|c| c.name() == "_ncfa") {
+                    return Ok(c.value().to_string());
+                }
+            }
+            Err(e) => log::debug!("[geoguessr] cookie read: {e}"),
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err("timed out waiting for GeoGuessr sign-in".into());
+        }
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// The signed-in user, or `None` when there is no session (or it was rejected).
+#[tauri::command]
+#[specta::specta]
+pub async fn geoguessr_me() -> AppResult<Option<GgUser>> {
+    blocking(fetch_me).await?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn geoguessr_logout() -> AppResult<()> {
+    blocking(|| set_session(None)).await?
+}
+
+/// Local-only check: is a token stored? Says nothing about its validity.
+#[tauri::command]
+#[specta::specta]
+pub async fn geoguessr_has_session() -> AppResult<bool> {
+    blocking(|| Ok(session()?.is_some())).await?
+}
+
+#[cfg(test)]
+#[path = "geoguessr.test.rs"]
+mod tests;

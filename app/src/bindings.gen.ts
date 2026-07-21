@@ -343,6 +343,20 @@ export const commands = {
 	storeReviewList: (mapId: string, status: string | null) => __TAURI_INVOKE<ReviewSession[]>("store_review_list", { mapId, status }),
 	storeReviewUpdate: (update: ReviewUpdate) => __TAURI_INVOKE<null>("store_review_update", { update }),
 	storeReviewDelete: (id: string) => __TAURI_INVOKE<null>("store_review_delete", { id }),
+	remoteMappingGet: (provider: string, mapId: string) => __TAURI_INVOKE<RemoteMappingRow[]>("remote_mapping_get", { provider, mapId }),
+	remoteMappingUpsert: (provider: string, mapId: string, rows: RemoteMappingRow[]) => __TAURI_INVOKE<null>("remote_mapping_upsert", { provider, mapId, rows }),
+	remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => __TAURI_INVOKE<null>("remote_mapping_delete", { provider, mapId, localIds }),
+	remoteMappingClear: (provider: string, mapId: string) => __TAURI_INVOKE<null>("remote_mapping_clear", { provider, mapId }),
+	/**
+	 *  Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
+	 *  Returns the signed-in nickname.
+	 */
+	geoguessrLogin: () => __TAURI_INVOKE<string>("geoguessr_login"),
+	/**  The signed-in user, or `None` when there is no session (or it was rejected). */
+	geoguessrMe: () => __TAURI_INVOKE<GgUser | null>("geoguessr_me"),
+	geoguessrLogout: () => __TAURI_INVOKE<null>("geoguessr_logout"),
+	/**  Local-only check: is a token stored? Says nothing about its validity. */
+	geoguessrHasSession: () => __TAURI_INVOKE<boolean>("geoguessr_has_session"),
 	/**
 	 *  Commit the map's uncommitted changes and return the new commit id.
 	 *  `message` None auto-generates a `+a -r ~m` summary.
@@ -563,6 +577,12 @@ export type GeoResult = {
 	country: string,
 	/**  ISO 3166-1 alpha-2 (e.g. "US", "FR"). */
 	country_code: string,
+};
+
+/**  The signed-in GeoGuessr account. */
+export type GgUser = {
+	id: string,
+	nick: string,
 };
 
 /**
@@ -867,6 +887,14 @@ export type PresenceActivity = {
 	smallText: string | null,
 	/**  Unix seconds; Discord renders an "elapsed" timer counting up from here. */
 	start: number | null,
+};
+
+/**  One mapping row. `hash` is the plugin's content fingerprint (opaque text to us). */
+export type RemoteMappingRow = {
+	localId: number,
+	/**  Remote ids can exceed u32 (observed ~1.2e10), so i64. */
+	remoteId: number,
+	hash: string,
 };
 
 /**

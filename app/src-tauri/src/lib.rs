@@ -42,13 +42,14 @@ mod borders;
 mod export;
 mod gdoc;
 mod geocoder;
+mod geoguessr;
 mod import;
 mod map_meta;
 mod plugins;
 mod presence;
 mod remote_api;
-mod review;
 mod remote_mapping;
+mod review;
 mod seen;
 mod sidecar;
 mod vcs;
@@ -691,6 +692,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             remote_mapping::remote_mapping_upsert,
             remote_mapping::remote_mapping_delete,
             remote_mapping::remote_mapping_clear,
+            geoguessr::geoguessr_login,
+            geoguessr::geoguessr_me,
+            geoguessr::geoguessr_logout,
+            geoguessr::geoguessr_has_session,
             vcs::store_commit,
             vcs::store_list_commits,
             vcs::store_checkout_commit,
@@ -833,6 +838,41 @@ pub fn run() {
             let body = req.body().clone();
             std::thread::spawn(move || {
                 responder.respond(proxy_gmaps(method, &url, content_type, user_agent, body))
+            });
+        })
+        .register_asynchronous_uri_scheme_protocol("ggapi", |_ctx, req, responder| {
+            if req.method() == tauri::http::Method::OPTIONS {
+                responder.respond(
+                    tauri::http::Response::builder()
+                        .status(204)
+                        .header("Access-Control-Allow-Origin", "*")
+                        .header(
+                            "Access-Control-Allow-Methods",
+                            "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+                        )
+                        .header("Access-Control-Allow-Headers", "*")
+                        .body(Vec::new())
+                        .unwrap(),
+                );
+                return;
+            }
+            let path = req.uri().path().to_string();
+            let query = req.uri().query().map(str::to_string);
+            let method = req.method().clone();
+            let content_type = req
+                .headers()
+                .get(tauri::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string);
+            let body = req.body().clone();
+            std::thread::spawn(move || {
+                responder.respond(geoguessr::proxy(
+                    method,
+                    &path,
+                    query.as_deref(),
+                    content_type,
+                    body,
+                ))
             });
         })
         .register_asynchronous_uri_scheme_protocol("gdoc", |_ctx, req, responder| {
