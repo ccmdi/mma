@@ -82,16 +82,17 @@ describe.runIf(enabled)("geoguessr wire contract", () => {
 		expect(typeof container.nick).toBe("string");
 	});
 
-	it("lists maps in the shape listMaps expects", async () => {
-		const maps = await gg<Record<string, unknown>[]>("/api/v3/profiles/maps");
-		expect(Array.isArray(maps)).toBe(true);
-		if (!maps.length) return; // nothing to assert against on a fresh account
-		const sample = maps[0]!;
-		// The provider reads id/name, and treats mode === "regions" as unlinkable. If this fails,
-		// the key list in the message is exactly what listMaps needs to be rewritten against.
-		expect(Object.keys(sample).join(",")).toMatch(/(^|,)(id|slug)(,|$)/);
-		expect(sample).toHaveProperty("name");
-		expect(maps.some((m) => m.id === MAP || m.slug === MAP)).toBe(true);
+	it("lists drafts, keyed by slug, including unpublished ones", async () => {
+		// Must be the drafts endpoint: /api/v3/profiles/maps lists PUBLISHED maps and silently
+		// omits every draft that was never published, which is most of what people sync.
+		const drafts = await gg<Record<string, unknown>[]>("/api/v4/user-maps/drafts");
+		expect(Array.isArray(drafts)).toBe(true);
+		const mine = drafts.find((m) => m.slug === MAP);
+		expect(mine, `test draft ${MAP} not in ${drafts.length} drafts`).toBeDefined();
+		expect(typeof mine!.name).toBe("string");
+		// `mode` drives the polygonal-map guard, and the list carries no coordinates to count.
+		expect(mine!.mode).toBe("coordinates");
+		expect(mine!.coordinates ?? null).toBeNull();
 	});
 
 	it("reads locations under `coordinates` but writes them under `customCoordinates`", async () => {

@@ -1,5 +1,11 @@
 import { schemeBase } from "@/lib/util/util";
-import type { GgDraft, GgDraftWrite, GgMapSummary, GgWriteResult } from "./remote-types";
+import type {
+	GgDraft,
+	GgDraftSummary,
+	GgDraftWrite,
+	GgPublishedSummary,
+	GgWriteResult,
+} from "./remote-types";
 
 /**
  * GeoGuessr's API cannot be called from the webview: it has no permissive CORS and its session
@@ -46,8 +52,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 	return (await res.json()) as T;
 }
 
-export function listDrafts(signal?: AbortSignal): Promise<GgMapSummary[]> {
-	return request<GgMapSummary[]>("/api/v3/profiles/maps", { signal });
+/** Every draft the user owns, published or not. Unpaginated. */
+export function listDrafts(signal?: AbortSignal): Promise<GgDraftSummary[]> {
+	return request<GgDraftSummary[]>("/api/v4/user-maps/drafts", { signal });
+}
+
+/**
+ * The user's maps as published entities. Only used to spot maps that have no draft yet -- older
+ * maps predate the draft system, and sync has nothing to write to until one exists.
+ */
+export function listPublished(signal?: AbortSignal): Promise<GgPublishedSummary[]> {
+	return request<GgPublishedSummary[]>("/api/v4/user-maps/maps", { signal });
 }
 
 export function getDraft(mapId: string, signal?: AbortSignal): Promise<GgDraft> {

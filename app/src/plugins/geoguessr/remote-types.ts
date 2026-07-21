@@ -54,12 +54,23 @@ export interface GgDraftWrite {
 	customCoordinates: GgCoordinate[];
 }
 
-/** A map in the signed-in user's list. */
-export interface GgMapSummary {
-	id: string;
+/**
+ * An entry of `GET /api/v4/user-maps/drafts`. Same document as a single draft read, except
+ * `coordinates` is always null -- the list carries no location count, so the picker can't show
+ * one. Note this lists DRAFTS; `/api/v3/profiles/maps` lists published maps and omits any draft
+ * that was never published, which is most of them.
+ */
+export type GgDraftSummary = Pick<GgDraft, "slug" | "name" | "mode">;
+
+/**
+ * An entry of `GET /api/v4/user-maps/maps`: a map as a published entity. Older maps predate the
+ * draft system and have no draft at all, so they appear here but not in the drafts list.
+ * `coordinateCount` is a display string ("1000+"), not a number -- never rely on it.
+ */
+export interface GgPublishedSummary {
+	slug: string;
 	name: string;
-	mode?: GgMapMode;
-	coordinateCount?: number | null;
+	published: boolean;
 }
 
 /** GeoGuessr answers a successful draft write with `{ message: "OK" }` and nothing else. */

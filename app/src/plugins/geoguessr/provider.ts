@@ -2,7 +2,7 @@ import { LocationFlag } from "@/types";
 import { createSyncController } from "@/lib/sync/controller";
 import type { NormalizedSyncLocation } from "@/lib/sync/normalized";
 import type { PushedId, RemoteMapSummary, RemoteSnapshot, SyncProvider } from "@/lib/sync/provider";
-import { getDraft, listDrafts, putDraftCoordinates } from "./api";
+import { getDraft, listDrafts, listPublished, putDraftCoordinates } from "./api";
 import type { GgCoordinate } from "./remote-types";
 
 export const PLUGIN_ID = "geoguessr";
@@ -47,16 +47,33 @@ export const geoguessrProvider: SyncProvider<GgCoordinate> = {
 	remoteIdOf: (_item, index) => index,
 
 	async listMaps(signal) {
-		const drafts = await listDrafts(signal);
-		return drafts.map(
+		const [drafts, published] = await Promise.all([listDrafts(signal), listPublished(signal)]);
+		const linkable = drafts.map(
 			(m): RemoteMapSummary => ({
-				id: m.id,
+				id: m.slug,
 				name: m.name,
-				locationCount: m.coordinateCount ?? null,
+				// The drafts list omits coordinates entirely, so a count would cost one request per map.
+				locationCount: null,
 				// Polygonal maps have regions instead of a coordinate list; there is nothing to sync.
 				unsupported: m.mode === "regions" ? "Polygonal map" : undefined,
 			}),
 		);
+
+		// Sync writes the draft, so a map without one has nothing to write to. Surface those as
+		// visibly unlinkable rather than omitting them, or an older map just looks missing.
+		const haveDrafts = new Set(drafts.map((d) => d.slug));
+		const draftless = published
+			.filter((m) => !haveDrafts.has(m.slug))
+			.map(
+				(m): RemoteMapSummary => ({
+					id: m.slug,
+					name: m.name,
+					locationCount: null,
+					unsupported: "No draft yet - open it once in GeoGuessr's map maker",
+				}),
+			);
+
+		return [...linkable, ...draftless];
 	},
 
 	async pull(remoteMapId, signal): Promise<RemoteSnapshot<GgCoordinate>> {
