@@ -9,7 +9,7 @@ import {
 } from "@/lib/sync/normalized";
 import type { PushBatch } from "@/lib/sync/provider";
 import * as Remote from "@/plugins/mapMakingSync/remote-types";
-import { mapMakingProvider as P } from "@/plugins/mapMakingSync/provider";
+import { mapMakingProvider as P, splitPush } from "@/plugins/mapMakingSync/provider";
 
 const NAMES = new Map([
 	[10, "red"],
@@ -197,7 +197,7 @@ describe("mapMakingSync provider — push", () => {
 		batch.create.push({ localId: 11, item: P.materialize(norm({ lat: 1 }), tagName) });
 		batch.create.push({ localId: 12, item: P.materialize(norm({ lat: 2 }), tagName) });
 
-		const pushed = await P.push("449219", batch, undefined);
+		const pushed = await P.push("449219", batch, { token: undefined });
 
 		const edit = sent.edits[0]!;
 		expect(edit.action).toEqual({ type: Remote.EditActionType.Bulk });
@@ -217,7 +217,7 @@ describe("mapMakingSync provider — push", () => {
 			replaces: remoteLoc({ id: 9000, location: { lat: 4, lng: 0 } }),
 		});
 
-		const pushed = await P.push("449219", batch, undefined);
+		const pushed = await P.push("449219", batch, { token: undefined });
 
 		const edit = sent.edits[0]!;
 		expect(edit.remove).toEqual([9000]); // the old remote id is dropped
@@ -232,7 +232,7 @@ describe("mapMakingSync provider — push", () => {
 		const batch = emptyBatch();
 		batch.delete.push(remoteLoc({ id: 1234 }));
 
-		const pushed = await P.push("449219", batch, undefined);
+		const pushed = await P.push("449219", batch, { token: undefined });
 
 		expect(sent.edits[0]!.remove).toEqual([1234]);
 		expect(sent.edits[0]!.create).toEqual([]);
@@ -249,7 +249,7 @@ describe("mapMakingSync provider — push", () => {
 		});
 		batch.delete.push(remoteLoc({ id: 600 }));
 
-		const pushed = await P.push("449219", batch, undefined);
+		const pushed = await P.push("449219", batch, { token: undefined });
 
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 		expect(sent.edits).toHaveLength(1);
@@ -262,7 +262,44 @@ describe("mapMakingSync provider — push", () => {
 	});
 
 	it("an empty batch never hits the network", async () => {
-		expect(await P.push("449219", emptyBatch(), undefined)).toEqual([]);
+		expect(await P.push("449219", emptyBatch(), { token: undefined })).toEqual([]);
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("mapMakingSync provider — chunking", () => {
+	const op = (n: number) => ({ localId: n, item: remoteLoc({ id: 0 }) });
+
+	it("keeps everything in one request when it fits", () => {
+		const batch = emptyBatch();
+		batch.create.push(op(1), op(2), op(3));
+		expect(splitPush(batch, 10)).toHaveLength(1);
+	});
+
+	it("splits into parts of at most the chunk size", () => {
+		const batch = emptyBatch();
+		for (let i = 1; i <= 5; i++) batch.create.push(op(i));
+		const parts = splitPush(batch, 2);
+
+		expect(parts.map((p) => p.create.length)).toEqual([2, 2, 1]);
+		// Placeholder ids must stay unique ACROSS parts, or a later part's remap collides.
+		const negIds = parts.flatMap((p) => p.staged.map((s) => s.negId));
+		expect(new Set(negIds).size).toBe(negIds.length);
+		expect(parts.flatMap((p) => p.staged.map((s) => s.localId))).toEqual([1, 2, 3, 4, 5]);
+	});
+
+	it("never separates an update's remove-old from its create-new", () => {
+		// Chunk size 1 is the worst case: if the pairing could split, it would split here.
+		const batch = emptyBatch();
+		batch.update.push({ localId: 9, item: remoteLoc({ id: 0 }), replaces: remoteLoc({ id: 42 }) });
+		batch.update.push({ localId: 8, item: remoteLoc({ id: 0 }), replaces: remoteLoc({ id: 43 }) });
+		const parts = splitPush(batch, 1);
+
+		expect(parts).toHaveLength(2);
+		for (const p of parts) {
+			expect(p.create).toHaveLength(1);
+			expect(p.remove).toHaveLength(1);
+		}
+		expect(parts.flatMap((p) => p.remove)).toEqual([42, 43]);
 	});
 });

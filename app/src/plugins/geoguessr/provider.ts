@@ -10,8 +10,13 @@ export const PLUGIN_ID = "geoguessr";
 /** GeoGuessr reads heading 0 as "unset, pick at random", so a genuine north must be nudged. */
 const NORTH = 1e-4;
 
-/** A draft refuses to save past this many locations. */
-export const MAX_LOCATIONS = 110_000;
+/**
+ * A draft write is capped by body SIZE, not location count, despite the server rejecting with
+ * `TooManyCoordinates`: 175k bare coordinates (13.8 MiB) is accepted, the same 150k carrying pano
+ * ids (14.7 MiB) is not. The exact ceiling is somewhere in between; this is the largest size
+ * measured to succeed, so we stop before spending a multi-MiB upload on a certain rejection.
+ */
+const MAX_BODY_BYTES = 13.5 * 1024 * 1024;
 
 const loadsAsPano = (flags: number): boolean => (flags & LocationFlag.LoadAsPanoId) !== 0;
 
@@ -83,22 +88,21 @@ export const geoguessrProvider: SyncProvider<GgCoordinate> = {
 		return { locations: draft.coordinates ?? [], token: draft.version };
 	},
 
-	async push(remoteMapId, batch, token, signal): Promise<PushedId[]> {
-		if (batch.desired.length > MAX_LOCATIONS)
-			throw new Error(
-				`GeoGuessr maps cap at ${MAX_LOCATIONS.toLocaleString()} locations; this sync would write ${batch.desired.length.toLocaleString()}.`,
-			);
-		if (typeof token !== "number") throw new Error("missing draft version");
+	async push(remoteMapId, batch, ctx): Promise<PushedId[]> {
+		if (typeof ctx.token !== "number") throw new Error("missing draft version");
 
-		await putDraftCoordinates(
-			remoteMapId,
-			{
-				mode: "coordinates",
-				version: token + 1,
-				customCoordinates: batch.desired.map((d) => d.item),
-			},
-			signal,
-		);
+		// A draft is replaced whole, so there is no chunking available here: it either fits or the
+		// map cannot be synced to GeoGuessr at all.
+		const body = {
+			mode: "coordinates" as const,
+			version: ctx.token + 1,
+			customCoordinates: batch.desired.map((d) => d.item),
+		};
+		const bytes = new Blob([JSON.stringify(body)]).size;
+		if (bytes > MAX_BODY_BYTES)
+			throw new Error(`Too large for a GeoGuessr draft (${(bytes / 1048576).toFixed(1)} MiB).`);
+
+		await putDraftCoordinates(remoteMapId, body, ctx.signal);
 
 		// Rewriting the document reindexes everything, so report a handle for every entry we wrote,
 		// not just the ones that changed.

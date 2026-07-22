@@ -9,7 +9,7 @@ import {
 } from "./normalized";
 import { computeSyncPlan, summarize, type Conflict, type IdentityKey, type SyncPlan } from "./diff";
 import { buildKeyedInputs, type KeyedInputs } from "./keying";
-import type { DesiredEntry, PushBatch, SyncProvider } from "./provider";
+import type { DesiredEntry, PushBatch, PushedId, SyncProvider } from "./provider";
 import type { RemoteMappingRow, SyncStore } from "./syncStore";
 
 export interface SyncOutcome {
@@ -192,23 +192,35 @@ export async function reconcile<R>(
 	for (const [key, index] of keyed.remoteIndex) handleOf.set(key, index);
 
 	if (batch.create.length || batch.update.length || batch.delete.length) {
-		const pushed = await provider.push(link.remoteMapId, batch, snapshot.token, signal);
 		const keyOfLocalId = new Map<number, IdentityKey>();
 		for (const [key, id] of localIdOf) keyOfLocalId.set(id, key);
-		for (const { localId, remoteId } of pushed) {
-			const key = keyOfLocalId.get(localId);
-			if (key !== undefined) handleOf.set(key, remoteId);
-		}
-		// Persist what the push resolved BEFORE anything else can throw. The remote has already
-		// moved; a mapping row we fail to write here would re-push and re-pull the same location
-		// on every subsequent sync. This write is the commit point for the push half.
-		const pushRows = rowsFor(
-			pushed.map((p) => keyOfLocalId.get(p.localId)),
-			settled,
-			localIdOf,
-			handleOf,
+
+		// Persist what the push resolves AS it resolves it. The remote has already moved by then;
+		// a mapping row we fail to write would re-push and re-pull the same location on every
+		// subsequent sync. This is the commit point for the push half, and for a provider that
+		// writes in several requests it makes a part-way failure resumable rather than duplicating.
+		const commit = async (pushed: PushedId[]) => {
+			for (const { localId, remoteId } of pushed) {
+				const key = keyOfLocalId.get(localId);
+				if (key !== undefined) handleOf.set(key, remoteId);
+			}
+			const rows = rowsFor(
+				pushed.map((p) => keyOfLocalId.get(p.localId)),
+				settled,
+				localIdOf,
+				handleOf,
+			);
+			if (rows.length) await store.upsertMapping(rows);
+		};
+
+		// Re-committing what a provider already reported is a harmless idempotent upsert.
+		await commit(
+			await provider.push(link.remoteMapId, batch, {
+				token: snapshot.token,
+				signal,
+				onProgress: commit,
+			}),
 		);
-		if (pushRows.length) await store.upsertMapping(pushRows);
 	}
 
 	for (const key of plan.push.delete) {

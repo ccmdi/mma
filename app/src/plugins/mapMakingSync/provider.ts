@@ -1,6 +1,7 @@
 import { canonTags, remoteFlags, type NormalizedSyncLocation } from "@/lib/sync/normalized";
 import type {
 	PushBatch,
+	PushContext,
 	PushedId,
 	RemoteMapSummary,
 	RemoteSnapshot,
@@ -17,6 +18,11 @@ export const getApiKey = (): string => kv().get<string>("apiKey", "");
 export const setApiKey = (key: string): void => kv().set("apiKey", key.trim());
 
 export const createApi = (): MapMakingWebApi => new MapMakingWebApi({ apiKey: getApiKey() });
+
+/**
+ * Operations per edit request.
+ */
+const PUSH_CHUNK = 200_000;
 
 /** Write shape from the read shape. `id` is assigned by the caller (negative placeholder). */
 const toInput = (item: Remote.Location, id: number): Remote.LocationInput => ({
@@ -76,40 +82,73 @@ export const mapMakingProvider: SyncProvider<Remote.Location> = {
 	async push(
 		remoteMapId: string,
 		batch: PushBatch<Remote.Location>,
-		_token: unknown,
-		signal?: AbortSignal,
+		ctx: PushContext,
 	): Promise<PushedId[]> {
-		const create: Remote.LocationInput[] = [];
-		const remove: number[] = [];
-		const created: { localId: number; negId: number }[] = [];
-		let neg = -1;
+		const api = createApi();
+		const mapId = Number(remoteMapId);
+		const all: PushedId[] = [];
 
-		const stage = (localId: number, item: Remote.Location) => {
-			const negId = neg--;
-			create.push(toInput(item, negId));
-			created.push({ localId, negId });
-		};
+		for (const part of splitPush(batch, PUSH_CHUNK)) {
+			const remap = await api.editLocations(
+				mapId,
+				{
+					edits: [
+						{
+							action: { type: Remote.EditActionType.Bulk },
+							create: part.create,
+							remove: part.remove,
+						},
+					],
+				},
+				ctx.signal,
+			);
 
-		for (const e of batch.create) stage(e.localId, e.item);
-		// A remote id churns on edit, so an update is remove-old + create-new.
-		for (const e of batch.update) {
-			remove.push(e.replaces.id);
-			stage(e.localId, e.item);
+			const pushed: PushedId[] = [];
+			for (const { localId, negId } of part.staged) {
+				const remoteId = remap[String(negId)];
+				if (remoteId !== undefined) pushed.push({ localId, remoteId });
+			}
+			all.push(...pushed);
+			// Let the engine persist this chunk before the next one can fail.
+			if (pushed.length) await ctx.onProgress?.(pushed);
 		}
-		for (const item of batch.delete) remove.push(item.id);
-		if (!create.length && !remove.length) return [];
-
-		const remap = await createApi().editLocations(
-			Number(remoteMapId),
-			{ edits: [{ action: { type: Remote.EditActionType.Bulk }, create, remove }] },
-			signal,
-		);
-
-		const pushed: PushedId[] = [];
-		for (const { localId, negId } of created) {
-			const remoteId = remap[String(negId)];
-			if (remoteId !== undefined) pushed.push({ localId, remoteId });
-		}
-		return pushed;
+		return all;
 	},
 };
+
+export interface PushPart {
+	create: Remote.LocationInput[];
+	remove: number[];
+	staged: { localId: number; negId: number }[];
+}
+
+/**
+ * Split a push into edit requests of at most `chunk` operations.
+ *
+ * An update is remove-old + create-new (a remote id churns on edit), and both halves must stay in
+ * the SAME request: splitting them would leave the location duplicated on the remote in between.
+ * So chunking counts logical operations, not the two arrays independently.
+ */
+export function splitPush(batch: PushBatch<Remote.Location>, chunk: number): PushPart[] {
+	let neg = -1;
+	const ops = [
+		...batch.create.map((e) => ({ localId: e.localId, item: e.item, remove: undefined })),
+		...batch.update.map((e) => ({ localId: e.localId, item: e.item, remove: e.replaces.id })),
+		...batch.delete.map((item) => ({ localId: undefined, item: undefined, remove: item.id })),
+	];
+
+	const parts: PushPart[] = [];
+	for (let i = 0; i < ops.length; i += chunk) {
+		const part: PushPart = { create: [], remove: [], staged: [] };
+		for (const op of ops.slice(i, i + chunk)) {
+			if (op.remove !== undefined) part.remove.push(op.remove);
+			if (op.item !== undefined && op.localId !== undefined) {
+				const negId = neg--;
+				part.create.push(toInput(op.item, negId));
+				part.staged.push({ localId: op.localId, negId });
+			}
+		}
+		parts.push(part);
+	}
+	return parts;
+}

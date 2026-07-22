@@ -67,6 +67,21 @@ export interface PushedId {
 	remoteId: number;
 }
 
+export interface PushContext {
+	/** The concurrency handle from the matching {@link RemoteSnapshot}. */
+	token: unknown;
+	signal?: AbortSignal;
+	/**
+	 * Report ids as they are confirmed, for a provider that writes in more than one request. The
+	 * engine persists each report immediately, so a failure part-way through leaves a consistent
+	 * partial mapping that the next sync finishes -- rather than orphaned remote locations that
+	 * get created again on every subsequent sync.
+	 *
+	 * Providers that write atomically can ignore this and just return their ids.
+	 */
+	onProgress?(pushed: PushedId[]): Promise<void>;
+}
+
 /**
  * Everything sync needs to know about one remote backend. The engine owns the three-way merge
  * and all persistence; a provider only knows how to talk to its API and how to convert between
@@ -88,12 +103,7 @@ export interface SyncProvider<R> {
 
 	pull(remoteMapId: string, signal?: AbortSignal): Promise<RemoteSnapshot<R>>;
 
-	push(
-		remoteMapId: string,
-		batch: PushBatch<R>,
-		token: unknown,
-		signal?: AbortSignal,
-	): Promise<PushedId[]>;
+	push(remoteMapId: string, batch: PushBatch<R>, ctx: PushContext): Promise<PushedId[]>;
 
 	/**
 	 * Stable handle for a remote location. Return the provider's own id when `identity` is
