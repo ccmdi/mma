@@ -507,8 +507,6 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
     conn.execute("DELETE FROM maps WHERE id = ?1", params![id])?;
     conn.execute("DELETE FROM edit_history WHERE map_id = ?1", params![id])?;
     conn.execute("DELETE FROM commits WHERE map_id = ?1", params![id])?;
-    // FK cascade is dead at runtime (foreign_keys off per-connection), so clean this manually.
-    conn.execute("DELETE FROM remote_mapping WHERE map_id = ?1", params![id])?;
 
     if let Ok(path) = storage::arrow_path(&id) {
         let _ = std::fs::remove_file(path);
