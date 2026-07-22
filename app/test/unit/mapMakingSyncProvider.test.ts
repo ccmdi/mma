@@ -209,6 +209,17 @@ describe("mapMakingSync provider - push", () => {
 		]);
 	});
 
+	it("accumulates a full 200k chunk without overflowing the call stack", async () => {
+		const batch = emptyBatch();
+		const item = P.materialize(norm(), tagName);
+		for (let i = 0; i < 200_000; i++) batch.create.push({ localId: i + 1, item });
+
+		const pushed = await P.push("449219", batch, { token: undefined });
+
+		expect(pushed).toHaveLength(200_000);
+		expect(pushed[199_999]).toEqual({ localId: 200_000, remoteId: 7000 + 199_999 });
+	});
+
 	it("an update is remove-old + create-new, and remaps the local id to the new remote id", async () => {
 		const batch = emptyBatch();
 		batch.update.push({

@@ -111,7 +111,8 @@ export const mapMakingProvider: SyncProvider<Remote.Location> = {
 				const remoteId = remap[String(negId)];
 				if (remoteId !== undefined) pushed.push({ localId, remoteId });
 			}
-			all.push(...pushed);
+			// no spread: a 200k-entry chunk as call arguments overflows the stack
+			for (const p of pushed) all.push(p);
 			// Let the engine persist this chunk before the next one can fail.
 			if (pushed.length) await ctx.onProgress?.(pushed);
 		}
