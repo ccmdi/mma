@@ -363,6 +363,10 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 					) : (
 						<Field label="Find a remote map">
 							<SuggestInput
+								// Portalled: the sidebar clips overflow, so an inline dropdown is both cut
+								// off and forced to grow the section instead of floating over it.
+								portal
+								listStyle={{ maxHeight: "40vh", overflowY: "auto" }}
 								value={filter}
 								onChange={setFilter}
 								suggestions={shown}
