@@ -10,7 +10,7 @@ export interface SyncController {
 	readonly provider: { id: string; label: string };
 	currentMapId(): string | null;
 	getLink(): SyncLink | null;
-	link(map: RemoteMapSummary, remoteUserId: string | null): void;
+	link(map: RemoteMapSummary, remoteUserId: string | null): Promise<void>;
 	unlink(): Promise<void>;
 	syncNow(): Promise<SyncOutcome>;
 	/** First sync after linking, with the seeding mode the user chose. */
@@ -24,6 +24,8 @@ export interface SyncController {
 	isLive(): boolean;
 	livePref(): boolean;
 	liveStatus(): SyncStatus;
+	/** Why the last live sync failed. Survives the loop stopping; cleared by the next success. */
+	liveError(): string | null;
 	onStatus(fn: (s: SyncStatus) => void): () => void;
 	startLive(): void;
 	/** Tear the loop down but KEEP the persisted pref, so `map:open` can auto-resume it. */
@@ -69,7 +71,13 @@ export function createSyncController<R>(
 		if (inFlight?.mapId === id) {
 			if (coalesce) return inFlight.run;
 			// Queue behind it: two reconciles on one map would double-create unmapped locations.
-			return inFlight.run.catch(() => undefined).then(() => runReconcile(opts, false));
+			// These opts (mirror mode, resolutions) belong to `id`; bail if the map changed.
+			return inFlight.run
+				.catch(() => undefined)
+				.then(() => {
+					if (currentMapId() !== id) throw new Error("map changed before sync could run");
+					return runReconcile(opts, false);
+				});
 		}
 		if (inFlight) inFlight.abort.abort(); // a different map: the old run is moot
 		const abort = new AbortController();
@@ -82,6 +90,7 @@ export function createSyncController<R>(
 
 	let scheduler: Scheduler | null = null;
 	let unsubs: (() => void)[] = [];
+	let liveError: string | null = null;
 	const statusListeners = new Set<(s: SyncStatus) => void>();
 
 	const pauseLive = () => {
@@ -99,9 +108,11 @@ export function createSyncController<R>(
 		getLink,
 		localLocationCount: () => window.MMA.getCurrentMap()?.meta.locationCount ?? 0,
 
-		link(map, remoteUserId) {
+		async link(map, remoteUserId) {
 			const id = currentMapId();
 			if (!id) throw new Error("no map open");
+			// Drop any stale mapping rows a prior link left behind before seeding the new link.
+			await storeFor(id).clear();
 			storeFor(id).setLink({
 				localMapId: id,
 				remoteMapId: map.id,
@@ -115,7 +126,11 @@ export function createSyncController<R>(
 		async unlink() {
 			const id = currentMapId();
 			if (!id) return;
+			// The in-flight run persists rows + the link at its very end, past its last abort
+			// checkpoint. Let it settle before clearing, or it resurrects what we just removed.
+			const pending = inFlight?.run;
 			this.stopLive();
+			await pending?.catch(() => undefined);
 			await storeFor(id).clear();
 		},
 
@@ -125,8 +140,12 @@ export function createSyncController<R>(
 			runReconcile({ resolutions: new Map(resolutions.map((r) => [r.key, r.side])) }, false),
 
 		isLive: () => scheduler !== null,
-		livePref: () => kv().get<boolean>("live", false),
+		livePref: () => {
+			const id = currentMapId();
+			return id ? kv().get<boolean>(`live:${id}`, false) : false;
+		},
 		liveStatus: () => scheduler?.status() ?? "idle",
+		liveError: () => liveError,
 		onStatus(fn) {
 			statusListeners.add(fn);
 			return () => statusListeners.delete(fn);
@@ -135,10 +154,24 @@ export function createSyncController<R>(
 		startLive() {
 			const id = currentMapId();
 			if (scheduler || !id || !storeFor(id).getLink()) return;
-			kv().set("live", true);
-			scheduler = createScheduler(async () => void (await runReconcile()), {
-				onStatus: (s) => statusListeners.forEach((l) => l(s)),
-			});
+			kv().set(`live:${id}`, true);
+			liveError = null;
+			scheduler = createScheduler(
+				async () => {
+					try {
+						await runReconcile();
+						liveError = null;
+					} catch (e) {
+						liveError = e instanceof Error ? e.message : String(e);
+						// A dead credential never heals by retrying; stop the loop, keep the pref.
+						if (provider.isAuthError?.(e)) pauseLive();
+						throw e;
+					}
+				},
+				{
+					onStatus: (s) => statusListeners.forEach((l) => l(s)),
+				},
+			);
 			unsubs = [...LOCATION_DATA_EVENTS, ...TAG_DATA_EVENTS].map((e) =>
 				window.MMA.on(e, () => scheduler?.request()),
 			);
@@ -148,7 +181,8 @@ export function createSyncController<R>(
 
 		pauseLive,
 		stopLive() {
-			kv().set("live", false);
+			const id = currentMapId();
+			if (id) kv().set(`live:${id}`, false);
 			pauseLive();
 		},
 	};

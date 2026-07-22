@@ -18,8 +18,9 @@ export const forgetAuth = (): void => {
 	cachedUser = null;
 };
 
-export async function validate(): Promise<Remote.User> {
-	cachedUser = await createApi().getUser();
+/** Validate `key` (default: the stored one) without persisting it; caller stores on success. */
+export async function validate(key?: string): Promise<Remote.User> {
+	cachedUser = await createApi(key).getUser();
 	return cachedUser;
 }
 

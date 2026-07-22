@@ -142,4 +142,11 @@ export interface SyncProvider<R> {
 	 * providers that carry tags; ignore it otherwise.
 	 */
 	materialize(loc: NormalizedSyncLocation, tagName: TagName): R;
+
+	/**
+	 * Whether an error from `pull`/`push` means the session or key is no longer valid. The live
+	 * loop stops on these instead of retrying a dead credential forever; anything else backs off
+	 * and retries. Optional; omitting it treats every error as retryable.
+	 */
+	isAuthError?(e: unknown): boolean;
 }

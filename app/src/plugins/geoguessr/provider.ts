@@ -2,7 +2,7 @@ import { LocationFlag } from "@/types";
 import { createSyncController } from "@/lib/sync/controller";
 import type { NormalizedSyncLocation } from "@/lib/sync/normalized";
 import type { PushedId, RemoteMapSummary, RemoteSnapshot, SyncProvider } from "@/lib/sync/provider";
-import { getDraft, listDrafts, listPublished, putDraftCoordinates } from "./api";
+import { getDraft, isUnauthorized, listDrafts, listPublished, putDraftCoordinates } from "./api";
 import type { GgCoordinate } from "./remote-types";
 
 export const PLUGIN_ID = "geoguessr";
@@ -48,6 +48,8 @@ export const geoguessrProvider: SyncProvider<GgCoordinate> = {
 	label: "GeoGuessr",
 	identity: "positional",
 	supportsTags: false,
+
+	isAuthError: isUnauthorized,
 
 	remoteIdOf: (_item, index) => index,
 

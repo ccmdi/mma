@@ -7,7 +7,7 @@ import type {
 	RemoteSnapshot,
 	SyncProvider,
 } from "@/lib/sync/provider";
-import { MapMakingWebApi } from "./map-making-web-api";
+import { MapMakingWebApi, MapMakingWebApiError } from "./map-making-web-api";
 import * as Remote from "./remote-types";
 
 export const PLUGIN_ID = "map-making-sync";
@@ -17,11 +17,10 @@ const kv = () => window.MMA.storage(PLUGIN_ID);
 export const getApiKey = (): string => kv().get<string>("apiKey", "");
 export const setApiKey = (key: string): void => kv().set("apiKey", key.trim());
 
-export const createApi = (): MapMakingWebApi => new MapMakingWebApi({ apiKey: getApiKey() });
+export const createApi = (apiKey?: string): MapMakingWebApi =>
+	new MapMakingWebApi({ apiKey: apiKey ?? getApiKey() });
 
-/**
- * Operations per edit request.
- */
+/** Ops per edit request; not a server limit. */
 const PUSH_CHUNK = 200_000;
 
 /** Write shape from the read shape. `id` is assigned by the caller (negative placeholder). */
@@ -41,6 +40,8 @@ export const mapMakingProvider: SyncProvider<Remote.Location> = {
 	label: "map-making.app",
 	identity: "stable",
 	supportsTags: true,
+
+	isAuthError: (e) => e instanceof MapMakingWebApiError && e.status === 401,
 
 	remoteIdOf: (item) => item.id,
 
