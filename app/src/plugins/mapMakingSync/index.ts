@@ -1,5 +1,5 @@
 const { registerPlugin } = window.MMA;
-import { mdiSync } from "@mdi/js";
+import { mapMakingApp } from "@/components/primitives/Icon";
 import { SyncSidebar } from "./SyncSidebar";
 import { controller } from "./controller";
 
@@ -7,7 +7,7 @@ registerPlugin({
 	id: "map-making-sync",
 	name: "map-making.app sync",
 	description: "Bidirectional sync with map-making.app maps",
-	icon: mdiSync,
+	icon: mapMakingApp,
 	sidebar: SyncSidebar,
 	activate() {
 		const M = window.MMA;

@@ -43,6 +43,8 @@ export const mapMakingProvider: SyncProvider<Remote.Location> = {
 
 	isAuthError: (e) => e instanceof MapMakingWebApiError && e.status === 401,
 
+	remoteMapUrl: (id) => `https://map-making.app/maps/${id}`,
+
 	remoteIdOf: (item) => item.id,
 
 	normalize: (item): NormalizedSyncLocation => ({

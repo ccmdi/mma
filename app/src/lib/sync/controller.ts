@@ -10,6 +10,8 @@ export interface SyncController {
 	readonly provider: { id: string; label: string };
 	currentMapId(): string | null;
 	getLink(): SyncLink | null;
+	/** Web URL of the linked remote map, or null when unlinked. */
+	remoteMapUrl(): string | null;
 	link(map: RemoteMapSummary, remoteUserId: string | null): Promise<void>;
 	unlink(): Promise<void>;
 	syncNow(): Promise<SyncOutcome>;
@@ -106,6 +108,10 @@ export function createSyncController<R>(
 		provider: { id: provider.id, label: provider.label },
 		currentMapId,
 		getLink,
+		remoteMapUrl() {
+			const link = getLink();
+			return link ? provider.remoteMapUrl(link.remoteMapId) : null;
+		},
 		localLocationCount: () => window.MMA.getCurrentMap()?.meta.locationCount ?? 0,
 
 		async link(map, remoteUserId) {

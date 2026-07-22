@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { Sidebar, Section, Field, EmptyState } from "@/components/primitives/Sidebar";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
+import { Icon } from "@/components/primitives/Icon";
 import { mdiInformationOutline } from "@mdi/js";
 import type { SyncController } from "../controller";
 import type { Conflict } from "../diff";
@@ -25,6 +27,8 @@ export interface SyncSidebarProps {
 	identity: { id: string | null } | null | undefined;
 	/** Fetch linkable remote maps. Called when authenticated and unlinked. */
 	listMaps: () => Promise<RemoteMapSummary[]>;
+	/** Provider mark for the header's open-in-browser button (shown when linked). */
+	brand?: { path: string; color: string };
 }
 
 function errText(e: unknown): string {
@@ -107,7 +111,14 @@ function ConflictItem({
 	);
 }
 
-export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: SyncSidebarProps) {
+export function SyncSidebar({
+	onClose,
+	controller,
+	auth,
+	identity,
+	listMaps,
+	brand,
+}: SyncSidebarProps) {
 	const [maps, setMaps] = useState<RemoteMapSummary[] | null>(null);
 	const [filter, setFilter] = useState("");
 	const [link, setLink] = useState(controller.getLink());
@@ -253,8 +264,27 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 		return list.slice(0, 25);
 	}, [maps, filter]);
 
+	const remoteUrl = link ? controller.remoteMapUrl() : null;
+
 	return (
-		<Sidebar title={controller.provider.label} onBack={onClose}>
+		<Sidebar
+			title={controller.provider.label}
+			onBack={onClose}
+			actions={
+				brand && remoteUrl ? (
+					<Tooltip content={`Open in ${controller.provider.label}`}>
+						<button
+							className="icon-button"
+							type="button"
+							aria-label={`Open in ${controller.provider.label}`}
+							onClick={() => void openExternal(remoteUrl)}
+						>
+							<Icon path={brand.path} size={18} style={{ fill: brand.color }} />
+						</button>
+					</Tooltip>
+				) : undefined
+			}
+		>
 			<Section title="Connection" defaultOpen>
 				{/* 2rem is the button height both auth states resolve to, so the swap does not shift. */}
 				{checking ? (

@@ -52,6 +52,7 @@ function makeProvider(over: Partial<SyncProvider<Raw>> = {}): SyncProvider<Raw> 
 		label: "Test",
 		identity: "stable",
 		supportsTags: true,
+		remoteMapUrl: (id) => `https://test.test/maps/${id}`,
 		listMaps: async () => [],
 		pull: async () => ({ locations: [] }),
 		push: async () => [],

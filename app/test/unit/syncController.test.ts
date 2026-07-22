@@ -79,6 +79,7 @@ function makeProvider() {
 		label: "Fake",
 		identity: "stable",
 		supportsTags: false,
+		remoteMapUrl: (id) => `https://fake.test/maps/${id}`,
 		listMaps: async () => [],
 		pull: async () => {
 			if (gate) await gate;

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { mdiMapMarker } from "@mdi/js";
 import { Field } from "@/components/primitives/Sidebar";
 import { SyncSidebar } from "@/lib/sync/ui/SyncSidebar";
 import { log } from "@/lib/util/log";
@@ -93,6 +94,7 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 			auth={auth}
 			identity={user === undefined ? undefined : user ? { id: user.id } : null}
 			listMaps={() => geoguessrProvider.listMaps()}
+			brand={{ path: mdiMapMarker, color: "#CC302E" }}
 		/>
 	);
 }

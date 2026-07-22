@@ -98,6 +98,9 @@ export interface SyncProvider<R> {
 	/** Whether the provider round-trips per-location tags. When false the engine never pulls tags. */
 	readonly supportsTags: boolean;
 
+	/** Web URL of a remote map, for opening it in the user's browser. */
+	remoteMapUrl(remoteMapId: string): string;
+
 	/** Maps the signed-in user can link to. */
 	listMaps(signal?: AbortSignal): Promise<RemoteMapSummary[]>;
 

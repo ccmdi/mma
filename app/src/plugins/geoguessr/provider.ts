@@ -51,6 +51,8 @@ export const geoguessrProvider: SyncProvider<GgCoordinate> = {
 
 	isAuthError: isUnauthorized,
 
+	remoteMapUrl: (id) => `https://www.geoguessr.com/map-maker/${id}`,
+
 	remoteIdOf: (_item, index) => index,
 
 	async listMaps(signal) {

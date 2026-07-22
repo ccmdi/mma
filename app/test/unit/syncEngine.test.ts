@@ -188,6 +188,7 @@ function makeRemote(
 		label: "Fake",
 		identity,
 		supportsTags: true,
+		remoteMapUrl: (id) => `https://fake.test/maps/${id}`,
 		listMaps: async () => [],
 		pull: async () => {
 			const snapshot = { locations: items.map((i) => ({ ...i })), token: "tok" };
