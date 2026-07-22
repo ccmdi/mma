@@ -54,15 +54,19 @@ fn content_type_is_forwarded_only_when_given() {
 #[test]
 fn profile_parses_wrapped_and_bare_shapes() {
     let wrapped = serde_json::json!({
-        "user": { "id": "abc123", "nick": "ccmdi", "isProUser": true },
+        "user": { "id": "abc123", "nick": "ccmdi", "isProUser": true,
+                  "pin": { "url": "pin/abc.png", "anchor": "center" } },
         "email": "x@example.com"
     });
     let got = parse_profile(&wrapped).unwrap();
     assert_eq!(got.id, "abc123");
     assert_eq!(got.nick, "ccmdi");
+    assert_eq!(got.pin.as_deref(), Some("pin/abc.png"));
 
+    // No pin object is fine; the avatar is just absent.
     let bare = serde_json::json!({ "id": "z9", "nick": "solo" });
     assert_eq!(parse_profile(&bare).unwrap().nick, "solo");
+    assert_eq!(parse_profile(&bare).unwrap().pin, None);
 }
 
 #[test]

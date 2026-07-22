@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { mdiMapMarker } from "@mdi/js";
-import { Field } from "@/components/primitives/Sidebar";
-import { SyncSidebar } from "@/lib/sync/ui/SyncSidebar";
+import { ConnectionUser, SyncSidebar } from "@/lib/sync/ui/SyncSidebar";
 import { log } from "@/lib/util/log";
 import { controller, geoguessrProvider, PLUGIN_ID } from "./provider";
 
@@ -11,6 +10,8 @@ const kv = () => window.MMA.storage(PLUGIN_ID);
 interface GgIdentity {
 	id: string;
 	nick: string;
+	/** Avatar pin path (`pin/<hash>.png`); absent on older cached entries. */
+	pin?: string | null;
 }
 
 /**
@@ -66,14 +67,19 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 	}, [remember]);
 
 	const auth = user ? (
-		<Field label="Signed in" row>
-			<span>
-				{user.nick}{" "}
+		<ConnectionUser
+			name={user.nick}
+			avatarUrl={
+				user.pin
+					? `https://www.geoguessr.com/images/resize:auto:96:96/gravity:ce/plain/${user.pin}`
+					: null
+			}
+			action={
 				<button className="button" onClick={() => void signOut()}>
 					Sign out
 				</button>
-			</span>
-		</Field>
+			}
+		/>
 	) : (
 		<>
 			<button className="button button--primary" disabled={busy} onClick={() => void signIn()}>

@@ -35,6 +35,61 @@ function errText(e: unknown): string {
 	return e instanceof Error ? e.message : String(e);
 }
 
+/** Compact signed-in row for the Connection section: avatar (or initial), name, action. */
+export function ConnectionUser({
+	name,
+	avatarUrl,
+	action,
+}: {
+	name: string;
+	avatarUrl?: string | null;
+	action: ReactNode;
+}) {
+	return (
+		<div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: "2rem" }}>
+			{avatarUrl ? (
+				<img
+					src={avatarUrl}
+					alt=""
+					width={24}
+					height={24}
+					style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+					onError={(e) => (e.currentTarget.style.display = "none")}
+				/>
+			) : (
+				<span
+					aria-hidden
+					style={{
+						width: 24,
+						height: 24,
+						borderRadius: "50%",
+						background: "var(--surface-3, rgba(128,128,128,0.25))",
+						display: "inline-flex",
+						alignItems: "center",
+						justifyContent: "center",
+						fontSize: 12,
+						flexShrink: 0,
+					}}
+				>
+					{name.slice(0, 1).toUpperCase()}
+				</span>
+			)}
+			<span
+				style={{
+					flex: 1,
+					minWidth: 0,
+					overflow: "hidden",
+					textOverflow: "ellipsis",
+					whiteSpace: "nowrap",
+				}}
+			>
+				{name}
+			</span>
+			{action}
+		</div>
+	);
+}
+
 const CONFLICT_LABEL: Record<Conflict["kind"], string> = {
 	"update-update": "Both sides edited",
 	"delete-update": "Deleted on one side, edited on the other",

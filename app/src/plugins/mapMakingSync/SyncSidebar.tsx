@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Field } from "@/components/primitives/Sidebar";
 import { mapMakingApp } from "@/components/primitives/Icon";
-import { SyncSidebar as SharedSyncSidebar } from "@/lib/sync/ui/SyncSidebar";
+import { ConnectionUser, SyncSidebar as SharedSyncSidebar } from "@/lib/sync/ui/SyncSidebar";
 import type { Remote } from "./map-making-web-api";
 import * as auth from "./controller";
 import { controller } from "./controller";
@@ -40,9 +40,11 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	const authUi = user ? (
-		<Field label="Signed in" row>
-			<span>
-				{user.username}{" "}
+		// map-making.app's API-key surface exposes no avatar (auth is Discord-side), so the
+		// initial-letter fallback is permanent here.
+		<ConnectionUser
+			name={user.username}
+			action={
 				<button
 					className="button"
 					onClick={() => {
@@ -52,8 +54,8 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 				>
 					Change key
 				</button>
-			</span>
-		</Field>
+			}
+		/>
 	) : (
 		<form
 			onSubmit={(e) => {

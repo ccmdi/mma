@@ -583,6 +583,8 @@ export type GeoResult = {
 export type GgUser = {
 	id: string,
 	nick: string,
+	/**  Avatar pin path (e.g. `pin/<hash>.png`), served under `/images/` on geoguessr.com. */
+	pin: string | null,
 };
 
 /**

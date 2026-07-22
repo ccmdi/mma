@@ -28,6 +28,8 @@ const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 pub struct GgUser {
     pub id: String,
     pub nick: String,
+    /// Avatar pin path (e.g. `pin/<hash>.png`), served under `/images/` on geoguessr.com.
+    pub pin: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -137,6 +139,11 @@ fn parse_profile(v: &serde_json::Value) -> Option<GgUser> {
     Some(GgUser {
         id: user.get("id")?.as_str()?.to_string(),
         nick: user.get("nick")?.as_str()?.to_string(),
+        pin: user
+            .get("pin")
+            .and_then(|p| p.get("url"))
+            .and_then(|u| u.as_str())
+            .map(String::from),
     })
 }
 

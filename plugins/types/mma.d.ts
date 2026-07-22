@@ -625,6 +625,8 @@ type GeoResult = {
 type GgUser = {
     id: string;
     nick: string;
+    /**  Avatar pin path (e.g. `pin/<hash>.png`), served under `/images/` on geoguessr.com. */
+    pin: string | null;
 };
 /**
  *  Summary of a single map found during bulk import preview.
