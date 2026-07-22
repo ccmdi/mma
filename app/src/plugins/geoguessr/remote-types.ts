@@ -16,7 +16,11 @@ export interface GgCoordinate {
 	/** 0 is the default field of view. Never null on read. */
 	zoom: number;
 	panoId: string | null;
-	/** Server-derived by reverse geocoding. Read-only: never send these, never diff on them. */
+	/**
+	 * Server-owned geocode fields. We never set or diff on them, but pulled values ride along
+	 * on push (the whole-document write carries kept pins verbatim) and count against the
+	 * stored-size limit.
+	 */
 	countryCode?: string | null;
 	stateCode?: string | null;
 	cityCode?: string | null;

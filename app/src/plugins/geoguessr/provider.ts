@@ -11,12 +11,37 @@ export const PLUGIN_ID = "geoguessr";
 const NORTH = 1e-4;
 
 /**
- * A draft write is capped by body SIZE, not location count, despite the server rejecting with
- * `TooManyCoordinates`: 175k bare coordinates (13.8 MiB) is accepted, the same 150k carrying pano
- * ids (14.7 MiB) is not. The exact ceiling is somewhere in between; this is the largest size
- * measured to succeed, so we stop before spending a multi-MiB upload on a certain rejection.
+ * A draft is stored as a single MongoDB document, so a write is accepted iff the STORED
+ * document's BSON size fits Mongo's 16 MiB limit. Request body size and location count are
+ * irrelevant (a 24.7 MiB JSON body of the same BSON size is accepted). Measured live at
+ * single-pin precision on four payload shapes; `TooManyCoordinates` only fires above the
+ * driver's 16 MiB + 16 KiB serialization allowance, and writes between the two limits fail
+ * as bare 500s.
  */
-const MAX_BODY_BYTES = 13.5 * 1024 * 1024;
+const BSON_DOC_LIMIT = 16_777_216;
+
+/** Headroom for the rest of the stored draft (name, description, avatar, tags, ~300B measured). */
+const DRAFT_METADATA_MARGIN = 64 * 1024;
+
+const utf8 = new TextEncoder();
+// BSON string element: type + key + NUL + int32 length + bytes + NUL. Null is stored for
+// panoId (type + key + NUL) but DROPPED for the geocode fields; both behaviors are measured.
+const strElem = (key: string, v: string): number => key.length + 7 + utf8.encode(v).length;
+
+/** BSON size of the coordinate array exactly as GeoGuessr stores it. */
+export function storedBsonSize(coords: GgCoordinate[]): number {
+	let size = 5;
+	for (let i = 0; i < coords.length; i++) {
+		const c = coords[i]!;
+		// 77 = pin doc wrapper + the five always-present doubles with their keys
+		let pin = 77 + (c.panoId == null ? 8 : strElem("panoId", c.panoId));
+		if (c.countryCode != null) pin += strElem("countryCode", c.countryCode);
+		if (c.stateCode != null) pin += strElem("stateCode", c.stateCode);
+		if (c.cityCode != null) pin += strElem("cityCode", c.cityCode);
+		size += 2 + String(i).length + pin;
+	}
+	return size;
+}
 
 const loadsAsPano = (flags: number): boolean => (flags & LocationFlag.LoadAsPanoId) !== 0;
 
@@ -102,9 +127,11 @@ export const geoguessrProvider: SyncProvider<GgCoordinate> = {
 			version: ctx.token + 1,
 			customCoordinates: batch.desired.map((d) => d.item),
 		};
-		const bytes = new Blob([JSON.stringify(body)]).size;
-		if (bytes > MAX_BODY_BYTES)
-			throw new Error(`Too large for a GeoGuessr draft (${(bytes / 1048576).toFixed(1)} MiB).`);
+		const stored = storedBsonSize(body.customCoordinates);
+		if (stored > BSON_DOC_LIMIT - DRAFT_METADATA_MARGIN)
+			throw new Error(
+				`Too large for a GeoGuessr draft (stores as ${(stored / 1048576).toFixed(1)} MiB; the limit is 16 MiB).`,
+			);
 
 		await putDraftCoordinates(remoteMapId, body, ctx.signal);
 
