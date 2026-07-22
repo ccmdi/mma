@@ -395,6 +395,20 @@ declare const commands: {
     storeReviewList: (mapId: string, status: string | null) => Promise<ReviewSession[]>;
     storeReviewUpdate: (update: ReviewUpdate) => Promise<null>;
     storeReviewDelete: (id: string) => Promise<null>;
+    remoteMappingGet: (provider: string, mapId: string) => Promise<RemoteMappingRow[]>;
+    remoteMappingUpsert: (provider: string, mapId: string, rows: RemoteMappingRow[]) => Promise<null>;
+    remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => Promise<null>;
+    remoteMappingClear: (provider: string, mapId: string) => Promise<null>;
+    /**
+     *  Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
+     *  Returns the signed-in nickname.
+     */
+    geoguessrLogin: () => Promise<string>;
+    /**  The signed-in user, or `None` when there is no session (or it was rejected). */
+    geoguessrMe: () => Promise<GgUser | null>;
+    geoguessrLogout: () => Promise<null>;
+    /**  Local-only check: is a token stored? Says nothing about its validity. */
+    geoguessrHasSession: () => Promise<boolean>;
     /**
      *  Commit the map's uncommitted changes and return the new commit id.
      *  `message` None auto-generates a `+a -r ~m` summary.
@@ -606,6 +620,11 @@ type GeoResult = {
     country: string;
     /**  ISO 3166-1 alpha-2 (e.g. "US", "FR"). */
     country_code: string;
+};
+/**  The signed-in GeoGuessr account. */
+type GgUser = {
+    id: string;
+    nick: string;
 };
 /**
  *  Summary of a single map found during bulk import preview.
@@ -920,6 +939,13 @@ type PresenceActivity = {
     smallText: string | null;
     /**  Unix seconds; Discord renders an "elapsed" timer counting up from here. */
     start: number | null;
+};
+/**  One mapping row. `hash` is the plugin's content fingerprint (opaque text to us). */
+type RemoteMappingRow = {
+    localId: number;
+    /**  Remote ids can exceed u32 (observed ~1.2e10), so i64. */
+    remoteId: number;
+    hash: string;
 };
 /**
  *  Incremental render update sent to JS after a mutation. Contains adds, position/heading
@@ -3149,4 +3175,4 @@ declare global {
 }
 
 export { MMA as MMAApi, PanoType, commands };
-export type { CellRemoval, ColorPatchEntry, CommitDelta, CommitDiff, CommitInfo, ComparisonType, CopyToMapResult, DataLocation, DatePart, DbStats, DbTableInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExtraFieldDef, ExtraFieldType, FieldCount, FilterOp, GeoResult, ImportPreviewEntry, ImportedMapInfo, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MutationResult, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ReviewCreate, ReviewSession, ReviewUpdate, SaveResult, Scope, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionProps, SelectionSync, SpacedPickResult, StoreStatus, SummaryResult, Tag, TagPatch, Update, ValiLocation, ValiLocation_Deserialize, VirtualTag };
+export type { CellRemoval, ColorPatchEntry, CommitDelta, CommitDiff, CommitInfo, ComparisonType, CopyToMapResult, DataLocation, DatePart, DbStats, DbTableInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExtraFieldDef, ExtraFieldType, FieldCount, FilterOp, GeoResult, GgUser, ImportPreviewEntry, ImportedMapInfo, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MutationResult, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ReviewCreate, ReviewSession, ReviewUpdate, SaveResult, Scope, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionProps, SelectionSync, SpacedPickResult, StoreStatus, SummaryResult, Tag, TagPatch, Update, ValiLocation, ValiLocation_Deserialize, VirtualTag };
