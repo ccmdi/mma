@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Sidebar, Section, Field, EmptyState } from "@/components/primitives/Sidebar";
 import { Tooltip } from "@/components/primitives/Tooltip";
+import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { mdiInformationOutline } from "@mdi/js";
 import type { SyncController } from "../controller";
 import type { Conflict } from "../diff";
@@ -267,16 +268,34 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 						row
 					>
 						<button className={live ? "button button--primary" : "button"} onClick={toggleLive}>
-							{live ? `On (${status})` : "Off"}
+							{live ? "On" : "Off"}
+							{/* A dot rather than text: the poll ticks every few seconds, and a changing
+							    label reflows the row each time. The space is reserved either way. */}
+							<span
+								aria-hidden
+								style={{
+									display: "inline-block",
+									width: 6,
+									height: 6,
+									marginLeft: 6,
+									borderRadius: "50%",
+									verticalAlign: "middle",
+									background:
+										status === "error"
+											? "var(--red-9, #e5484d)"
+											: status === "syncing"
+												? "currentColor"
+												: "transparent",
+									opacity: status === "syncing" ? 0.5 : 1,
+								}}
+							/>
 						</button>
 					</Field>
 					<div style={{ display: "flex", gap: 8 }}>
-						<button
-							className="button button--primary"
-							disabled={busy || status === "syncing"}
-							onClick={doSync}
-						>
-							{busy || status === "syncing" ? "Syncing..." : "Sync now"}
+						{/* Driven by `busy` alone. Reflecting the background poll here made the label
+						    flip to "Syncing..." on its own every few seconds. */}
+						<button className="button button--primary" disabled={busy} onClick={doSync}>
+							{busy ? "Syncing..." : "Sync now"}
 						</button>
 						<button className="button" disabled={busy} onClick={doUnlink}>
 							Unlink
@@ -317,29 +336,36 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 
 			{authed && mapId && !link && !pendingLink && (
 				<Section title="Link this map" defaultOpen>
-					<Field label="Find a remote map">
-						<input
-							className="input"
-							value={filter}
-							onChange={(e) => setFilter(e.target.value)}
-							placeholder="filter by name or id"
-						/>
-					</Field>
-					{!maps && <EmptyState>Loading maps...</EmptyState>}
-					{shown.map((m) => (
-						<div key={m.id}>
-							<button
-								className="button"
-								disabled={busy || m.unsupported !== undefined}
-								style={{ display: "block", width: "100%", textAlign: "left" }}
-								onClick={() => doLink(m)}
-							>
-								{m.name || "(unnamed)"}
-								{m.locationCount !== null ? ` · ${m.locationCount}` : ""} · #{m.id}
-							</button>
-							{m.unsupported && <span className="mma-input__help">{m.unsupported}</span>}
-						</div>
-					))}
+					{!maps ? (
+						<EmptyState>Loading maps...</EmptyState>
+					) : (
+						<Field label="Find a remote map">
+							<SuggestInput
+								value={filter}
+								onChange={setFilter}
+								suggestions={shown}
+								getKey={(m) => m.id}
+								onPick={(m) => !m.unsupported && doLink(m)}
+								disabled={busy}
+								placeholder={`Search ${maps.length} map${maps.length === 1 ? "" : "s"}`}
+								renderItem={(m) => (
+									<span
+										style={{
+											display: "flex",
+											justifyContent: "space-between",
+											gap: 8,
+											opacity: m.unsupported ? 0.5 : 1,
+										}}
+									>
+										<span>{m.name || "(unnamed)"}</span>
+										<span style={{ opacity: 0.6, whiteSpace: "nowrap" }}>
+											{m.unsupported ?? (m.locationCount !== null ? m.locationCount : "")}
+										</span>
+									</span>
+								)}
+							/>
+						</Field>
+					)}
 				</Section>
 			)}
 
