@@ -122,16 +122,29 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 	const checking = identity === undefined;
 	const authed = !checking && identity !== null;
 
-	useEffect(() => controller.onStatus(setStatus), []); // eslint-disable-line react-hooks/exhaustive-deps
+	useEffect(
+		() =>
+			controller.onStatus((s) => {
+				setStatus(s);
+				// Poll ticks advance "last synced" and can stop the loop; keep both current.
+				if (s !== "syncing") {
+					setLink(controller.getLink());
+					setLive(controller.isLive());
+				}
+			}),
+		[], // eslint-disable-line react-hooks/exhaustive-deps
+	);
 
 	// The prop is typically an inline arrow, so it can't be an effect dep.
 	const fetchMaps = useRef(listMaps);
 	fetchMaps.current = listMaps;
+	const [mapsAttempt, setMapsAttempt] = useState(0);
 
 	useEffect(() => {
 		if (!authed || !mapId || link) return;
 		let cancelled = false;
 		setMaps(null);
+		setError(null);
 		fetchMaps
 			.current()
 			.then((m) => !cancelled && setMaps(m))
@@ -139,17 +152,25 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 		return () => {
 			cancelled = true;
 		};
-	}, [authed, mapId, link]);
+	}, [authed, mapId, link, mapsAttempt]);
 
 	const performLink = useCallback(
 		async (m: RemoteMapSummary, mode: FirstSyncMode) => {
 			setBusy(true);
 			setError(null);
-			setPendingLink(null);
 			try {
-				controller.link(m, identity?.id ?? null);
+				await controller.link(m, identity?.id ?? null);
+				try {
+					setOutcome(await controller.firstSync(mode));
+				} catch (e) {
+					// Keeping the link would forget the chosen mode; retry must re-run THIS choice.
+					await controller.unlink();
+					setError(errText(e));
+					setPendingLink(m);
+					return;
+				}
 				setLink(controller.getLink());
-				setOutcome(await controller.firstSync(mode));
+				setPendingLink(null);
 				controller.startLive(); // live by default on link
 				setLive(true);
 			} catch (e) {
@@ -164,8 +185,7 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 	// Merge vs mirror only matters when BOTH sides already have pins; otherwise just merge.
 	const doLink = useCallback(
 		(m: RemoteMapSummary) => {
-			// An unknown remote count has to prompt: silently merging would be a guess, and merge
-			// is still one click away in the prompt.
+			// An unknown remote count (null) must prompt, not assume empty.
 			if (controller.localLocationCount() > 0 && m.locationCount !== 0) setPendingLink(m);
 			else void performLink(m, "merge");
 		},
@@ -255,8 +275,7 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 
 			{authed && !mapId && <EmptyState>Open a map to link it.</EmptyState>}
 
-			{/* Link and map id are known synchronously, so a linked map shows its whole Sync section
-			    on first paint. Gating this on the async identity check made it pop in late. */}
+			{/* mapId and link are synchronous; never gate this on the async identity check. */}
 			{mapId && link && (
 				<Section title="Sync" defaultOpen>
 					<Field label="Linked to" row>
@@ -312,8 +331,7 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 						</span>
 					</Field>
 					<div style={{ display: "flex", gap: 8 }}>
-						{/* Driven by `busy` alone. Reflecting the background poll here made the label
-						    flip to "Syncing..." on its own every few seconds. */}
+						{/* Driven by `busy` alone; the background poll must not drive this label. */}
 						<button className="button button--primary" disabled={busy} onClick={doSync}>
 							{busy ? "Syncing..." : "Sync now"}
 						</button>
@@ -321,6 +339,11 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 							Unlink
 						</button>
 					</div>
+					{status === "error" && controller.liveError() && (
+						<p className="mma-input__help" style={{ color: "var(--red-9, #e5484d)" }}>
+							{controller.liveError()}
+						</p>
+					)}
 					{outcome && (
 						<p className="mma-input__help">
 							Pushed +{outcome.pushed.create} ~{outcome.pushed.update} -{outcome.pushed.delete} ·
@@ -356,7 +379,11 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 
 			{authed && mapId && !link && !pendingLink && (
 				<Section title="Link this map" defaultOpen>
-					{!maps ? (
+					{!maps && error ? (
+						<button className="button" onClick={() => setMapsAttempt((n) => n + 1)}>
+							Retry loading maps
+						</button>
+					) : !maps ? (
 						<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
 							<span className="spinner" aria-label="Loading maps" />
 						</div>

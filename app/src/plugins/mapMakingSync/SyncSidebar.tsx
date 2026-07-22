@@ -19,8 +19,10 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 		setBusy(true);
 		setError(null);
 		try {
+			// Validate before persisting: a typo'd key must not replace a working one.
+			const user = await auth.validate(keyDraft);
 			auth.setApiKey(keyDraft);
-			setUser(await auth.validate());
+			setUser(user);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
 			setUser(null);
