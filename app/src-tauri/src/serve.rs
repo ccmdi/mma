@@ -105,6 +105,18 @@ fn register_web_schemes() {
             req.body,
         ))
     });
+    register_scheme("ggapi", |req: SchemeRequest| {
+        let method =
+            reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
+        let content_type = (!req.content_type.is_empty()).then_some(req.content_type);
+        relay(crate::geoguessr::proxy(
+            method,
+            &req.path,
+            Some(&req.query),
+            content_type,
+            req.body,
+        ))
+    });
     register_scheme("gdoc", |req: SchemeRequest| {
         relay(crate::gdoc::fetch_gdoc(&req.path))
     });
