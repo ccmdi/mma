@@ -201,8 +201,26 @@ pub async fn geoguessr_login(app: tauri::AppHandle) -> AppResult<String> {
         .map_err(|e| format!("bad signin url: {e}"))?;
     WebviewWindowBuilder::new(&app, LOGIN_LABEL, WebviewUrl::External(url))
         .title("Sign in to GeoGuessr")
-        .inner_size(500.0, 700.0)
+        .inner_size(500.0, 800.0)
         .resizable(true)
+        // Sign in with Google opens a popup and hands the credential back through its opener.
+        // Without a handler the request is dropped and the button does nothing; forcing the URL
+        // into this window instead breaks the handshake, because the popup has no opener to
+        // answer. `Allow` lets the platform open a real popup, which is what the flow expects.
+        .on_new_window(|url, _features| {
+            log::debug!("[geoguessr] popup -> {}", url.host_str().unwrap_or("?"));
+            tauri::webview::NewWindowResponse::Allow
+        })
+        .on_navigation(|u| {
+            // Where the sign-in actually went, so a stall is diagnosable from the log alone.
+            log::debug!(
+                "[geoguessr] login window -> {}://{}{}",
+                u.scheme(),
+                u.host_str().unwrap_or("?"),
+                u.path()
+            );
+            true
+        })
         .build()?;
 
     // cookies_for_url deadlocks on Windows unless it runs off the main thread.
@@ -226,17 +244,35 @@ pub async fn geoguessr_login(app: tauri::AppHandle) -> AppResult<String> {
 fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
     let url: tauri::Url = ORIGIN.parse().map_err(|e| format!("bad origin: {e}"))?;
     let deadline = std::time::Instant::now() + LOGIN_TIMEOUT;
+    let mut seen = String::new();
     loop {
         let Some(win) = app.get_webview_window(LOGIN_LABEL) else {
             return Err("login window was closed".into());
         };
-        match win.cookies_for_url(url.clone()) {
-            Ok(cookies) => {
+        // The window can be destroyed between the check above and this call, and cookies_for_url
+        // unwraps its internal channel -- so a close mid-read panics inside Tauri rather than
+        // returning Err. Absorb it and treat it as the close it is.
+        let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            win.cookies_for_url(url.clone())
+        }));
+        match read {
+            Ok(Ok(cookies)) => {
                 if let Some(c) = cookies.iter().find(|c| c.name() == "_ncfa") {
                     return Ok(c.value().to_string());
                 }
+                // Names only, never values. Sorted because the store returns them in arbitrary
+                // order, so an unsorted comparison logs on every poll instead of on every change.
+                // This is what identifies a renamed auth cookie if sign-in ever stops resolving.
+                let mut names = cookies.iter().map(|c| c.name()).collect::<Vec<_>>();
+                names.sort_unstable();
+                let names = names.join(",");
+                if names != seen {
+                    log::debug!("[geoguessr] login cookies: [{names}]");
+                    seen = names;
+                }
             }
-            Err(e) => log::debug!("[geoguessr] cookie read: {e}"),
+            Ok(Err(e)) => log::debug!("[geoguessr] cookie read: {e}"),
+            Err(_) => return Err("login window was closed".into()),
         }
         if std::time::Instant::now() >= deadline {
             return Err("timed out waiting for GeoGuessr sign-in".into());
