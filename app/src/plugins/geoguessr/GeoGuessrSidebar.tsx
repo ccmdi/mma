@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Field } from "@/components/primitives/Sidebar";
 import { SyncSidebar } from "@/lib/sync/ui/SyncSidebar";
 import { log } from "@/lib/util/log";
-import { controller, geoguessrProvider } from "./provider";
+import { controller, geoguessrProvider, PLUGIN_ID } from "./provider";
+
+const CACHED_USER = "user";
+const kv = () => window.MMA.storage(PLUGIN_ID);
 
 interface GgIdentity {
 	id: string;
@@ -15,20 +18,29 @@ interface GgIdentity {
  * without us ever handling a password.
  */
 export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
-	// `undefined` until the first session check resolves, so the sidebar can say "checking"
-	// instead of flashing the signed-out UI.
-	const [user, setUser] = useState<GgIdentity | null | undefined>(undefined);
+	// Last known identity, so reopening the sidebar paints the signed-in state immediately instead
+	// of spinning through a round trip every time. `undefined` only on the very first open, when
+	// there is genuinely nothing to show yet. The cache is corrected by the check below.
+	const [user, setUser] = useState<GgIdentity | null | undefined>(() =>
+		kv().get<GgIdentity | null | undefined>(CACHED_USER, undefined),
+	);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
+	const remember = useCallback((next: GgIdentity | null) => {
+		kv().set(CACHED_USER, next);
+		setUser(next);
+	}, []);
+
 	const refresh = useCallback(async () => {
 		try {
-			setUser(await window.MMA.cmd.geoguessrMe());
+			remember(await window.MMA.cmd.geoguessrMe());
 		} catch (e) {
+			// A failed check says nothing about the session (offline, transient). Keep what we had
+			// rather than falsely reporting a sign-out.
 			log.warn("geoguessr: session check failed", e);
-			setUser(null);
 		}
-	}, []);
+	}, [remember]);
 
 	useEffect(() => {
 		void refresh();
@@ -49,8 +61,8 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 
 	const signOut = useCallback(async () => {
 		await window.MMA.cmd.geoguessrLogout();
-		setUser(null);
-	}, []);
+		remember(null);
+	}, [remember]);
 
 	const auth = user ? (
 		<Field label="Signed in" row>

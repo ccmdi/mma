@@ -236,8 +236,16 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 	return (
 		<Sidebar title={controller.provider.label} onBack={onClose}>
 			<Section title="Connection" defaultOpen>
+				{/* 2rem is the button height both auth states resolve to, so the swap does not shift. */}
 				{checking ? (
-					<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
+					<div
+						style={{
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							minHeight: "2rem",
+						}}
+					>
 						<span className="spinner" aria-label="Checking connection" />
 					</div>
 				) : (
@@ -247,7 +255,9 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 
 			{authed && !mapId && <EmptyState>Open a map to link it.</EmptyState>}
 
-			{authed && mapId && link && (
+			{/* Link and map id are known synchronously, so a linked map shows its whole Sync section
+			    on first paint. Gating this on the async identity check made it pop in late. */}
+			{mapId && link && (
 				<Section title="Sync" defaultOpen>
 					<Field label="Linked to" row>
 						<span>
