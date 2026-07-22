@@ -348,6 +348,11 @@ export const commands = {
 	remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => __TAURI_INVOKE<null>("remote_mapping_delete", { provider, mapId, localIds }),
 	remoteMappingClear: (provider: string, mapId: string) => __TAURI_INVOKE<null>("remote_mapping_clear", { provider, mapId }),
 	/**
+	 *  Reconcile a linked, open map against its remote. Snapshots local state under the store lock,
+	 *  drops the lock, then does all network + persistence off the async thread.
+	 */
+	syncReconcile: (provider: string, mapId: string, remoteMapId: string, apiKey: string | null, firstSync: FirstSyncMode | null, resolutions: ([string, ResolutionSide])[] | null) => __TAURI_INVOKE<SyncReconcileResult>("sync_reconcile", { provider, mapId, remoteMapId, apiKey, firstSync, resolutions }).then((v) => (({...v,conflicts:v.conflicts.map(i=>({...i,local:i.local==null?i.local:i.local,remote:i.remote==null?i.remote:i.remote})),pullUpdates:v.pullUpdates.map(i=>({...i,patch:({...i.patch,lat:i.patch.lat==null?i.patch.lat:i.patch.lat,lng:i.patch.lng==null?i.patch.lng:i.patch.lng,heading:i.patch.heading==null?i.patch.heading:i.patch.heading,pitch:i.patch.pitch==null?i.patch.pitch:i.patch.pitch,zoom:i.patch.zoom==null?i.patch.zoom:i.patch.zoom})}))}) as typeof v)),
+	/**
 	 *  Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
 	 *  Returns the signed-in nickname.
 	 */
@@ -440,6 +445,22 @@ export type CommitInfo = {
  *  everything else is inferred from `ExtraFieldType`.
  */
 export type ComparisonType = { type: "linear" } | { type: "circular"; period: number } | { type: "categorical" };
+
+export type Conflict = {
+	key: string,
+	kind: ConflictKind,
+	/**  Base value is not persisted (only its hash), so conflicts surface local vs remote. */
+	local: NormalizedSyncLocation | null,
+	remote: NormalizedSyncLocation | null,
+};
+
+export type ConflictKind = 
+/**  Both sides modified the same location differently. */
+"update-update" | 
+/**  One side deleted while the other modified. */
+"delete-update" | 
+/**  Both sides added the same identity with different content (hash collision only). */
+"add-add";
 
 /**  Result of a cross-map location copy. `target_name` feeds the toast. */
 export type CopyToMapResult = {
@@ -568,6 +589,12 @@ export type FieldCount = {
  *  union, so the TS `FilterOp` type and `OP_LABELS` derive from this enum.
  */
 export type FilterOp = "eq" | "neq" | "gt" | "lt" | "gte" | "lte" | "between" | "between_anyyear" | "between_anytime" | "has" | "nothas" | "contains" | "notcontains";
+
+/**
+ *  First-sync seeding when both sides already have pins. Only meaningful on the first sync
+ *  (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
+ */
+export type FirstSyncMode = "merge" | "mirrorFromRemote" | "mirrorFromLocal";
 
 /**  Reverse geocode result: nearest populated place to a coordinate. */
 export type GeoResult = {
@@ -815,6 +842,23 @@ export type MutationResult = {
 	tags: { [key in number]: Tag } | null,
 } & StoreStatus;
 
+/**
+ *  The syncable contract: the only fields that participate in diffing. Everything else is
+ *  owned by exactly one side and would register as a phantom change.
+ */
+export type NormalizedSyncLocation = {
+	lat: number,
+	lng: number,
+	heading: number,
+	pitch: number,
+	zoom: number,
+	panoId: string | null,
+	/**  Remote-meaningful bits only; virtual bits are stripped. */
+	flags: number,
+	/**  Tag names, deduped and sorted. Empty for providers with no tag support. */
+	tags: string[],
+};
+
 /**  Equal-width bin sizing. `count` derives the width from the data range; `width` fixes it. */
 export type NumericBinning = { by: "count"; n: number } | { by: "width"; w: number };
 
@@ -891,6 +935,22 @@ export type PresenceActivity = {
 	start: number | null,
 };
 
+/**
+ *  A remote-originated create for JS to apply. `remote_id` is the handle its mapping row must
+ *  carry once created (a positional push reindexes to its desired-document position).
+ */
+export type PullCreate = {
+	fields: NormalizedSyncLocation,
+	remoteId: number,
+	hash: string,
+};
+
+/**  A remote-originated update for JS to apply to an existing local id. */
+export type PullUpdate = {
+	localId: number,
+	patch: SyncPatch,
+};
+
 /**  One mapping row. `hash` is the plugin's content fingerprint (opaque text to us). */
 export type RemoteMappingRow = {
 	localId: number,
@@ -948,6 +1008,9 @@ export type RenderRequest = {
 	markerStyle?: string,
 	markerColor?: [number, number, number] | null,
 };
+
+/**  Which side won a resolved conflict; serialized as "local"/"remote". */
+export type ResolutionSide = "local" | "remote";
 
 /**
  *  Inbound payload for creating a session. `order` is the frozen worklist (must be non-empty);
@@ -1104,6 +1167,12 @@ export type SelectionSync = {
 	selectedCount: number,
 };
 
+export type SideCounts = {
+	create: number,
+	update: number,
+	delete: number,
+};
+
 export type SpacedPickResult = {
 	ids: number[],
 	distanceM: number,
@@ -1134,6 +1203,38 @@ export type SummaryResult = {
 	locationCount: number,
 	version: number,
 	dirtyCount: number,
+};
+
+/**
+ *  Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
+ *  on the remote side and must not overwrite local data, so absent fields are left untouched.
+ *  `pano_id` applies only when `pano_id_set` is true (a cleared panoId is a real change to `null`).
+ */
+export type SyncPatch = {
+	lat: number | null,
+	lng: number | null,
+	heading: number | null,
+	pitch: number | null,
+	zoom: number | null,
+	panoIdSet: boolean,
+	panoId: string | null,
+	flags: number | null,
+	tags: string[] | null,
+};
+
+/**  Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map. */
+export type SyncReconcileResult = {
+	/**  Remote-applied counts; mirror-from-local deletes fold into `delete`. */
+	pushed: SideCounts,
+	/**  Local-applied counts; mirror-from-remote deletes fold into `delete`. */
+	pulled: SideCounts,
+	adopted: number,
+	conflicts: Conflict[],
+	neededTags: string[],
+	pullCreates: PullCreate[],
+	pullUpdates: PullUpdate[],
+	pullDeleteIds: number[],
+	mirrorLocalDeleteIds: number[],
 };
 
 /**

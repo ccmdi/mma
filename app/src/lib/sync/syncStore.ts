@@ -1,4 +1,5 @@
-import type { IdentityKey } from "./diff";
+/** Stable identity for a synced location across runs (e.g. `"L:<localId>"`). */
+export type IdentityKey = string;
 
 /**
  * Durable sync metadata for one linked map. The bulk -- the per-location `localId <-> remoteId`
@@ -22,10 +23,9 @@ export interface SyncLink {
 }
 
 /**
- * One mapping row: stable local id -> the remote handle + last-synced fingerprint.
- *
- * What `remoteId` means depends on the provider's `IdentityModel`: a real remote id for
- * `stable` providers, the index we last wrote it at for `positional` ones.
+ * One mapping row: stable local id -> the remote handle + last-synced fingerprint. What
+ * `remoteId` means is provider-specific (a real remote id, or an index into a positional
+ * document); the Rust reconcile owns that interpretation.
  */
 export interface RemoteMappingRow {
 	localId: number;

@@ -1,21 +1,35 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import type { Location } from "@/bindings.gen";
+import type { SyncReconcileResult } from "@/bindings.gen";
 import { createSyncController } from "@/lib/sync/controller";
-import type { NormalizedSyncLocation } from "@/lib/sync/normalized";
-import type { PushedId, SyncProvider } from "@/lib/sync/provider";
+import type { SyncProvider } from "@/lib/sync/provider";
 import type { RemoteMappingRow } from "@/lib/sync/syncStore";
 
 const PLUGIN = "test-plugin";
 const REMOTE = { id: "r1", name: "Remote", locationCount: 0 };
 
+/** Empty reconcile result: nothing to push, pull, or hold. */
+const EMPTY_RESULT: SyncReconcileResult = {
+	pushed: { create: 0, update: 0, delete: 0 },
+	pulled: { create: 0, update: 0, delete: 0 },
+	adopted: 0,
+	conflicts: [],
+	neededTags: [],
+	pullCreates: [],
+	pullUpdates: [],
+	pullDeleteIds: [],
+	mirrorLocalDeleteIds: [],
+};
+
 // --- fake window.MMA -------------------------------------------------------
 
-/** In-memory MMA with a KV store and the row-oriented mapping backend the controller wires up. */
+/** In-memory MMA with a KV store, the row-oriented mapping backend, and a gated syncReconcile. */
 function makeMma() {
 	const storage = new Map<string, unknown>();
 	const mapping = new Map<string, RemoteMappingRow[]>(); // key = `${provider}:${mapId}`
 	let mapId: string | null = "map-a";
+	let gate: Promise<void> | null = null;
+	let release: (() => void) | null = null;
 
 	const kv = {
 		get: <T>(k: string, fallback?: T): T =>
@@ -27,14 +41,17 @@ function makeMma() {
 	const api = {
 		storage: () => kv,
 		getCurrentMap: () => (mapId ? { meta: { id: mapId, locationCount: 0, tags: {} } } : null),
-		fetchAllLocations: async (): Promise<Location[]> => [],
-		createLocation: (p: Partial<Location>) => p,
+		createLocation: (p: unknown) => p,
 		addLocations: async () => {},
 		updateLocations: async () => {},
 		removeLocations: async () => {},
 		createTags: async () => [],
 		on: () => () => {},
 		cmd: {
+			syncReconcile: async (): Promise<SyncReconcileResult> => {
+				if (gate) await gate;
+				return EMPTY_RESULT;
+			},
 			remoteMappingGet: async (provider: string, id: string) =>
 				(mapping.get(`${provider}:${id}`) ?? []).map((r) => ({ ...r })),
 			remoteMappingUpsert: async (provider: string, id: string, rows: RemoteMappingRow[]) => {
@@ -65,38 +82,21 @@ function makeMma() {
 		setMapId: (id: string | null) => {
 			mapId = id;
 		},
-	};
-}
-
-// --- fake provider with a controllable pull gate ---------------------------
-
-function makeProvider() {
-	let gate: Promise<void> | null = null;
-	let release: (() => void) | null = null;
-
-	const provider: SyncProvider<NormalizedSyncLocation> = {
-		id: "fake",
-		label: "Fake",
-		identity: "stable",
-		supportsTags: false,
-		remoteMapUrl: (id) => `https://fake.test/maps/${id}`,
-		listMaps: async () => [],
-		pull: async () => {
-			if (gate) await gate;
-			return { locations: [], token: "tok" };
-		},
-		push: async (): Promise<PushedId[]> => [],
-		remoteIdOf: (_item, index) => index,
-		normalize: (item) => item,
-		materialize: (loc) => loc,
-	};
-
-	return {
-		provider,
 		block: () => {
 			gate = new Promise<void>((r) => (release = r));
 		},
 		release: () => release?.(),
+	};
+}
+
+// --- fake provider ---------------------------------------------------------
+
+function makeProvider(): SyncProvider {
+	return {
+		id: "fake",
+		label: "Fake",
+		remoteMapUrl: (id) => `https://fake.test/maps/${id}`,
+		listMaps: async () => [],
 	};
 }
 
@@ -106,18 +106,17 @@ describe("createSyncController", () => {
 	it("unlink waits for the in-flight sync before clearing, so an aborted run cannot resurrect the link", async () => {
 		const mma = makeMma();
 		mma.install();
-		const { provider, block, release } = makeProvider();
-		const controller = createSyncController(provider, PLUGIN);
+		const controller = createSyncController(makeProvider(), PLUGIN);
 
 		await controller.link(REMOTE, null);
 		expect(controller.getLink()).not.toBeNull();
 
-		block();
-		const syncing = controller.syncNow(); // reconcile suspends on the blocked pull
+		mma.block();
+		const syncing = controller.syncNow(); // reconcile suspends on the blocked command
 		await Promise.resolve();
 
 		const unlinking = controller.unlink();
-		release(); // the aborted run runs to its end and re-persists the link
+		mma.release(); // the aborted run runs to its end and re-persists the link
 		await Promise.all([syncing.catch(() => undefined), unlinking]);
 
 		expect(controller.getLink()).toBeNull();
@@ -127,18 +126,17 @@ describe("createSyncController", () => {
 	it("a queued non-coalesced run rejects when the open map changed while it waited", async () => {
 		const mma = makeMma();
 		mma.install();
-		const { provider, block, release } = makeProvider();
-		const controller = createSyncController(provider, PLUGIN);
+		const controller = createSyncController(makeProvider(), PLUGIN);
 
 		await controller.link(REMOTE, null);
 
-		block();
+		mma.block();
 		const first = controller.syncNow(); // in flight for map-a
 		await Promise.resolve();
 		const queued = controller.firstSync("merge"); // queues behind it (non-coalesced)
 
 		mma.setMapId("map-b"); // user switches maps before the queue drains
-		release();
+		mma.release();
 
 		await Promise.all([
 			first.catch(() => undefined),
@@ -149,12 +147,11 @@ describe("createSyncController", () => {
 	it("live preference is namespaced per map, not shared across the provider's maps", async () => {
 		const mma = makeMma();
 		mma.install();
-		const { provider, block } = makeProvider();
-		const controller = createSyncController(provider, PLUGIN);
+		const controller = createSyncController(makeProvider(), PLUGIN);
 
 		await controller.link(REMOTE, null);
 
-		block(); // keep the scheduler's first run from completing
+		mma.block(); // keep the scheduler's first run from completing
 		controller.startLive();
 		expect(controller.livePref()).toBe(true);
 		expect(controller.isLive()).toBe(true);

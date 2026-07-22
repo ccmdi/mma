@@ -8,7 +8,7 @@
 		"gen:plugin-registry": "node ../plugins/generate-registry.js",
 		"gen:image-dims": "node scripts/gen-image-dims.mjs",
 		"gen:bindings": "cargo run --manifest-path src-tauri/Cargo.toml -- --export-bindings",
-		"proto:gen": "pbf src/lib/sv/proto/getmetadata.proto > src/lib/sv/proto/getmetadata.gen.js && pbf src/plugins/mapMakingSync/proto/remote-locations.proto > src/plugins/mapMakingSync/proto/remote-locations.gen.js",
+		"proto:gen": "pbf src/lib/sv/proto/getmetadata.proto > src/lib/sv/proto/getmetadata.gen.js",
 		"dev": "vite",
 		"build": "npm run gen:plugin-types && npm run gen:plugin-registry && npm run gen:image-dims && vite build",
 		"build:opensv": "node opensv-build/build-opensv.mjs",

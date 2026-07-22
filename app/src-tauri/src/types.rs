@@ -412,9 +412,23 @@ impl_app_error_from!(
     tauri::Error,
     tokio::task::JoinError,
     zip::result::ZipError,
-    reqwest::Error,
     keyring::Error,
 );
+
+// reqwest's Display is just "error sending request for url (...)"; the actionable cause
+// (timed out / dns / tls) lives in the source chain, so flatten it into the message.
+impl From<reqwest::Error> for AppError {
+    fn from(e: reqwest::Error) -> Self {
+        let mut msg = e.to_string();
+        let mut source = std::error::Error::source(&e);
+        while let Some(s) = source {
+            msg.push_str(": ");
+            msg.push_str(&s.to_string());
+            source = s.source();
+        }
+        AppError(msg)
+    }
+}
 
 // `PoisonError<T>` is generic; Display is unconditional, so one blanket covers all lock types.
 impl<T> From<std::sync::PoisonError<T>> for AppError {

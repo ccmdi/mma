@@ -29,7 +29,9 @@ export function createScheduler(
 	},
 ): Scheduler {
 	const debounceMs = opts.debounceMs ?? 1500;
-	const pollMs = opts.pollMs ?? 15000;
+	// Local edits arrive event-driven via `request`, so the poll exists ONLY to notice remote
+	// edits; minutes-scale is plenty, and each poll re-reads the whole remote side.
+	const pollMs = opts.pollMs ?? 180_000;
 	const maxBackoffMs = opts.maxBackoffMs ?? 8 * pollMs;
 	let debounce: ReturnType<typeof setTimeout> | null = null;
 	let poll: ReturnType<typeof setInterval> | null = null;

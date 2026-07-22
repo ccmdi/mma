@@ -400,6 +400,11 @@ declare const commands: {
     remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => Promise<null>;
     remoteMappingClear: (provider: string, mapId: string) => Promise<null>;
     /**
+     *  Reconcile a linked, open map against its remote. Snapshots local state under the store lock,
+     *  drops the lock, then does all network + persistence off the async thread.
+     */
+    syncReconcile: (provider: string, mapId: string, remoteMapId: string, apiKey: string | null, firstSync: FirstSyncMode | null, resolutions: ([string, ResolutionSide])[] | null) => Promise<SyncReconcileResult>;
+    /**
      *  Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
      *  Returns the signed-in nickname.
      */
@@ -492,6 +497,20 @@ type ComparisonType = {
 } | {
     type: "categorical";
 };
+type Conflict = {
+    key: string;
+    kind: ConflictKind;
+    /**  Base value is not persisted (only its hash), so conflicts surface local vs remote. */
+    local: NormalizedSyncLocation | null;
+    remote: NormalizedSyncLocation | null;
+};
+type ConflictKind = 
+/**  Both sides modified the same location differently. */
+"update-update" | 
+/**  One side deleted while the other modified. */
+"delete-update" | 
+/**  Both sides added the same identity with different content (hash collision only). */
+"add-add";
 /**  Result of a cross-map location copy. `target_name` feeds the toast. */
 type CopyToMapResult = {
     copied: number;
@@ -612,6 +631,11 @@ type FieldCount = {
  *  union, so the TS `FilterOp` type and `OP_LABELS` derive from this enum.
  */
 type FilterOp = "eq" | "neq" | "gt" | "lt" | "gte" | "lte" | "between" | "between_anyyear" | "between_anytime" | "has" | "nothas" | "contains" | "notcontains";
+/**
+ *  First-sync seeding when both sides already have pins. Only meaningful on the first sync
+ *  (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
+ */
+type FirstSyncMode = "merge" | "mirrorFromRemote" | "mirrorFromLocal";
 /**  Reverse geocode result: nearest populated place to a coordinate. */
 type GeoResult = {
     city: string;
@@ -870,6 +894,22 @@ type MutationResult = {
         [key in number]: Tag;
     } | null;
 } & StoreStatus;
+/**
+ *  The syncable contract: the only fields that participate in diffing. Everything else is
+ *  owned by exactly one side and would register as a phantom change.
+ */
+type NormalizedSyncLocation = {
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    panoId: string | null;
+    /**  Remote-meaningful bits only; virtual bits are stripped. */
+    flags: number;
+    /**  Tag names, deduped and sorted. Empty for providers with no tag support. */
+    tags: string[];
+};
 /**  Equal-width bin sizing. `count` derives the width from the data range; `width` fixes it. */
 type NumericBinning = {
     by: "count";
@@ -942,6 +982,20 @@ type PresenceActivity = {
     /**  Unix seconds; Discord renders an "elapsed" timer counting up from here. */
     start: number | null;
 };
+/**
+ *  A remote-originated create for JS to apply. `remote_id` is the handle its mapping row must
+ *  carry once created (a positional push reindexes to its desired-document position).
+ */
+type PullCreate = {
+    fields: NormalizedSyncLocation;
+    remoteId: number;
+    hash: string;
+};
+/**  A remote-originated update for JS to apply to an existing local id. */
+type PullUpdate = {
+    localId: number;
+    patch: SyncPatch;
+};
 /**  One mapping row. `hash` is the plugin's content fingerprint (opaque text to us). */
 type RemoteMappingRow = {
     localId: number;
@@ -995,6 +1049,8 @@ type RenderRequest = {
     markerStyle?: string;
     markerColor?: [number, number, number] | null;
 };
+/**  Which side won a resolved conflict; serialized as "local"/"remote". */
+type ResolutionSide = "local" | "remote";
 /**
  *  Inbound payload for creating a session. `order` is the frozen worklist (must be non-empty);
  *  the cursor starts at its first id and `reviewed` starts empty.
@@ -1201,6 +1257,11 @@ type SelectionSync = {
     bitmask: number[] | null;
     selectedCount: number;
 };
+type SideCounts = {
+    create: number;
+    update: number;
+    delete: number;
+};
 type SpacedPickResult = {
     ids: number[];
     distanceM: number;
@@ -1231,6 +1292,36 @@ type SummaryResult = {
     locationCount: number;
     version: number;
     dirtyCount: number;
+};
+/**
+ *  Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
+ *  on the remote side and must not overwrite local data, so absent fields are left untouched.
+ *  `pano_id` applies only when `pano_id_set` is true (a cleared panoId is a real change to `null`).
+ */
+type SyncPatch = {
+    lat: number | null;
+    lng: number | null;
+    heading: number | null;
+    pitch: number | null;
+    zoom: number | null;
+    panoIdSet: boolean;
+    panoId: string | null;
+    flags: number | null;
+    tags: string[] | null;
+};
+/**  Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map. */
+type SyncReconcileResult = {
+    /**  Remote-applied counts; mirror-from-local deletes fold into `delete`. */
+    pushed: SideCounts;
+    /**  Local-applied counts; mirror-from-remote deletes fold into `delete`. */
+    pulled: SideCounts;
+    adopted: number;
+    conflicts: Conflict[];
+    neededTags: string[];
+    pullCreates: PullCreate[];
+    pullUpdates: PullUpdate[];
+    pullDeleteIds: number[];
+    mirrorLocalDeleteIds: number[];
 };
 /**
  *  A user-defined label that can be applied to any number of locations.
@@ -3177,4 +3268,4 @@ declare global {
 }
 
 export { MMA as MMAApi, PanoType, commands };
-export type { CellRemoval, ColorPatchEntry, CommitDelta, CommitDiff, CommitInfo, ComparisonType, CopyToMapResult, DataLocation, DatePart, DbStats, DbTableInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExtraFieldDef, ExtraFieldType, FieldCount, FilterOp, GeoResult, GgUser, ImportPreviewEntry, ImportedMapInfo, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MutationResult, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ReviewCreate, ReviewSession, ReviewUpdate, SaveResult, Scope, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionProps, SelectionSync, SpacedPickResult, StoreStatus, SummaryResult, Tag, TagPatch, Update, ValiLocation, ValiLocation_Deserialize, VirtualTag };
+export type { CellRemoval, ColorPatchEntry, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DbTableInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExtraFieldDef, ExtraFieldType, FieldCount, FilterOp, FirstSyncMode, GeoResult, GgUser, ImportPreviewEntry, ImportedMapInfo, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, PullCreate, PullUpdate, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ReviewCreate, ReviewSession, ReviewUpdate, SaveResult, Scope, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionProps, SelectionSync, SideCounts, SpacedPickResult, StoreStatus, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, ValiLocation, ValiLocation_Deserialize, VirtualTag };

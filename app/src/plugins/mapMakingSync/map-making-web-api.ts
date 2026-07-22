@@ -1,8 +1,3 @@
-import { PbfReader } from "pbf";
-import {
-	readRemoteLocationsResponse,
-	type RemoteLocation as ProtoLocation,
-} from "./proto/remote-locations.gen";
 import * as Remote from "./remote-types";
 
 export * as Remote from "./remote-types";
@@ -72,35 +67,6 @@ export class MapMakingWebApi {
 		});
 	}
 
-	async getLocationsJson(mapId: number, signal?: AbortSignal): Promise<Remote.Location[]> {
-		return await this.getJson<Remote.Location[]>(`/api/maps/${mapId}/locations`, { signal });
-	}
-
-	async getLocationsProtobuf(mapId: number, signal?: AbortSignal): Promise<Remote.Location[]> {
-		const response = await this.request(`/api/maps/${mapId}/locations`, {
-			headers: { accept: "application/protobuf" },
-			signal,
-		});
-		return parseRemoteLocationsProtobuf(await response.arrayBuffer());
-	}
-
-	/**
-	 * Apply a batch of edits. Returns a map of each submitted id (often a negative
-	 * placeholder) to the id MMA assigned. This is the only tag-write channel for
-	 * API-key clients: tag membership rides on each location's `tags` names.
-	 */
-	async editLocations(
-		mapId: number,
-		body: Remote.LocationEditRequest,
-		signal?: AbortSignal,
-	): Promise<Remote.LocationEditResult> {
-		return await this.requestJson<Remote.LocationEditResult>(`/api/maps/${mapId}/locations`, {
-			method: "POST",
-			body,
-			signal,
-		});
-	}
-
 	private async getJson<T>(
 		path: string,
 		init: Omit<ApiRequestInit, "method" | "body"> = {},
@@ -159,27 +125,6 @@ async function makeApiError(response: Response): Promise<MapMakingWebApiError> {
 		}
 	}
 	return new MapMakingWebApiError(message, response.status, body);
-}
-
-function parseRemoteLocationsProtobuf(buf: ArrayBuffer): Remote.Location[] {
-	const response = readRemoteLocationsResponse(new PbfReader(buf));
-	return response.location.map((location) => protoLocationToRemote(location, response.tag));
-}
-
-function protoLocationToRemote(location: ProtoLocation, tags: string[]): Remote.Location {
-	return {
-		id: location.id,
-		author: location.author,
-		location: location.location ?? { lat: 0, lng: 0 },
-		panoId: location.panoId || null,
-		heading: location.heading,
-		pitch: location.pitch,
-		zoom: location.zoom,
-		createdAt: new Date(location.createdAt * 1000).toISOString(),
-		panoDate: location.panoDate ? new Date(location.panoDate * 1000).toISOString() : null,
-		flags: location.flags,
-		tags: location.tagIndex.flatMap((index) => tags[index] ?? []),
-	};
 }
 
 function isObject(value: unknown): value is { message?: unknown } {

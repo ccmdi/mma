@@ -5,10 +5,9 @@ import { Tooltip } from "@/components/primitives/Tooltip";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiInformationOutline } from "@mdi/js";
+import type { Conflict, FirstSyncMode, NormalizedSyncLocation } from "@/bindings.gen";
 import type { SyncController } from "../controller";
-import type { Conflict } from "../diff";
-import type { SyncOutcome, FirstSyncMode } from "../engine";
-import type { NormalizedSyncLocation } from "../normalized";
+import type { SyncOutcome } from "../engine";
 import type { RemoteMapSummary } from "../provider";
 import type { SyncStatus } from "../scheduler";
 

@@ -1,10 +1,15 @@
 import { LOCATION_DATA_EVENTS, TAG_DATA_EVENTS } from "@/lib/events";
-import type { IdentityKey } from "./diff";
 import { reconcile, type FirstSyncMode, type ReconcileOptions, type SyncOutcome } from "./engine";
 import { createMappingBackend } from "./mappingBackend";
 import { createScheduler, type Scheduler, type SyncStatus } from "./scheduler";
 import type { RemoteMapSummary, SyncProvider } from "./provider";
-import { createSyncStore, type KeyValueStore, type SyncLink, type SyncStore } from "./syncStore";
+import {
+	createSyncStore,
+	type IdentityKey,
+	type KeyValueStore,
+	type SyncLink,
+	type SyncStore,
+} from "./syncStore";
 
 export interface SyncController {
 	readonly provider: { id: string; label: string };
@@ -40,10 +45,7 @@ export interface SyncController {
  * Per-provider sync controller: owns the link, the in-flight guard and the live loop for
  * whichever map is currently open. Everything provider-specific arrives via {@link SyncProvider}.
  */
-export function createSyncController<R>(
-	provider: SyncProvider<R>,
-	pluginId: string,
-): SyncController {
+export function createSyncController(provider: SyncProvider, pluginId: string): SyncController {
 	const kv = (): KeyValueStore => window.MMA.storage(pluginId);
 	const storeFor = (mapId: string): SyncStore =>
 		createSyncStore(kv(), createMappingBackend(), provider.id, mapId);
@@ -83,7 +85,10 @@ export function createSyncController<R>(
 		}
 		if (inFlight) inFlight.abort.abort(); // a different map: the old run is moot
 		const abort = new AbortController();
-		const run = reconcile(provider, storeFor(id), { ...opts, signal: abort.signal }).finally(() => {
+		const run = reconcile(provider, storeFor(id), {
+			...opts,
+			signal: abort.signal,
+		}).finally(() => {
 			if (inFlight?.run === run) inFlight = null;
 		});
 		inFlight = { mapId: id, run, abort };
@@ -168,13 +173,17 @@ export function createSyncController<R>(
 						await runReconcile();
 						liveError = null;
 					} catch (e) {
-						liveError = e instanceof Error ? e.message : String(e);
+						// The Rust reconcile marks auth failures with an "auth: " prefix; show it clean.
+						liveError = (e instanceof Error ? e.message : String(e)).replace(/^auth: /, "");
 						// A dead credential never heals by retrying; stop the loop, keep the pref.
 						if (provider.isAuthError?.(e)) pauseLive();
 						throw e;
 					}
 				},
 				{
+					// Every pass re-downloads the whole remote side, so on big maps an edit burst
+					// should coalesce into few passes: scale the quiet period with map size.
+					debounceMs: Math.min(30_000, Math.max(1500, this.localLocationCount() / 100)),
 					onStatus: (s) => statusListeners.forEach((l) => l(s)),
 				},
 			);

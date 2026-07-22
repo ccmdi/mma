@@ -1453,7 +1453,7 @@ impl Store {
     }
 
     /// Construct a read-only view over all alive locations for selection resolution.
-    fn loc_view(&self) -> selections::LocView<'_> {
+    pub(crate) fn loc_view(&self) -> selections::LocView<'_> {
         selections::LocView::new(
             self.batch.as_ref(),
             &self.overlay.dead,

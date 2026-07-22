@@ -52,6 +52,12 @@ mod remote_mapping;
 mod review;
 mod seen;
 mod sidecar;
+mod sync;
+mod sync_diff;
+mod sync_engine;
+mod sync_geoguessr;
+mod sync_keying;
+mod sync_map_making;
 mod vcs;
 mod vcs_delta;
 
@@ -419,6 +425,20 @@ pub(crate) fn proxy_client() -> &'static reqwest::blocking::Client {
     C.get_or_init(|| build_http_client(true))
 }
 
+/// Sync transfers move whole maps, far past the proxy client's 15s total cap, so this client
+/// bounds the CONNECT, not the transfer.
+pub(crate) fn sync_client() -> &'static reqwest::blocking::Client {
+    static C: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
+    C.get_or_init(|| {
+        reqwest::blocking::Client::builder()
+            .use_rustls_tls()
+            .connect_timeout(std::time::Duration::from_secs(20))
+            .timeout(std::time::Duration::from_secs(300))
+            .build()
+            .expect("failed to build sync http client")
+    })
+}
+
 /// Does NOT follow redirects, so the `Location` header is readable (googl).
 fn resolve_client() -> &'static reqwest::blocking::Client {
     static C: std::sync::OnceLock<reqwest::blocking::Client> = std::sync::OnceLock::new();
@@ -692,6 +712,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             remote_mapping::remote_mapping_upsert,
             remote_mapping::remote_mapping_delete,
             remote_mapping::remote_mapping_clear,
+            sync_engine::sync_reconcile,
             geoguessr::geoguessr_login,
             geoguessr::geoguessr_me,
             geoguessr::geoguessr_logout,
