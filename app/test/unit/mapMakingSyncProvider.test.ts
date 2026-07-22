@@ -66,7 +66,7 @@ function echo(item: Remote.Location, id: number): Remote.Location {
 	});
 }
 
-describe("mapMakingSync provider — 1:1 contract", () => {
+describe("mapMakingSync provider - 1:1 contract", () => {
 	it("declares the persisted provider identity", () => {
 		expect(P.id).toBe("map-making.app");
 		expect(P.identity).toBe("stable");
@@ -166,7 +166,7 @@ const emptyBatch = (): PushBatch<Remote.Location> => ({
 	desired: [],
 });
 
-describe("mapMakingSync provider — push", () => {
+describe("mapMakingSync provider - push", () => {
 	let sent: Remote.LocationEditRequest;
 	let fetchMock: ReturnType<typeof vi.fn>;
 	const realFetch = globalThis.fetch;
@@ -267,7 +267,7 @@ describe("mapMakingSync provider — push", () => {
 	});
 });
 
-describe("mapMakingSync provider — chunking", () => {
+describe("mapMakingSync provider - chunking", () => {
 	const op = (n: number) => ({ localId: n, item: remoteLoc({ id: 0 }) });
 
 	it("keeps everything in one request when it fits", () => {

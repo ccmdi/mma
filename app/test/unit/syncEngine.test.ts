@@ -499,9 +499,6 @@ describe("reconcile: positional reindexing", () => {
 		expect(remote.items()).toEqual([raw({ lat: 2 }), raw({ lat: 3 })]);
 	});
 
-	// BUG: `settled` only holds keys the plan touched, so untouched-but-reindexed locations get no
-	// mapping row and keep the index they had before the push (2 -> 1, 3 -> 2 instead of 0 and 1).
-	// The comment above the final `rowsFor` in engine.ts claims the opposite.
 	it("rewrites the mapping rows of untouched locations to their new indices", async () => {
 		const { mma, remote, store } = setup();
 
@@ -521,10 +518,6 @@ describe("reconcile: positional reindexing", () => {
 		expect(store.rows().map((r) => r.localId)).toEqual([2, 3]);
 	});
 
-	// BUG (consequence of the stale rows above): once the rows are stale, a later REMOTE edit can no
-	// longer be recovered. `claimRemotes` pass 1/2 fail on the changed hash, pass 3 has no panoId to
-	// match on, and pass 4's bare index is out of range - so the edit reads as delete + add and the
-	// location loses its local id (and everything hanging off it) instead of being patched.
 	it("keeps the local id when the remote later edits a reindexed location", async () => {
 		const { mma, remote, store } = setup();
 		await run(mma, remote, store);

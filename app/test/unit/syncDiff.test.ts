@@ -32,7 +32,7 @@ const hashes = (entries: Record<string, NormalizedSyncLocation>): BaseHashes =>
 const NOSTATE: SyncState = new Map();
 const NOBASE: BaseHashes = new Map();
 
-describe("sync diff — three-way merge (hash-based base)", () => {
+describe("sync diff - three-way merge (hash-based base)", () => {
 	it("no changes anywhere is a no-op", () => {
 		const v = { a: n({ lat: 1 }) };
 		expect(isNoop(computeSyncPlan(hashes(v), state(v), state(v)))).toBe(true);

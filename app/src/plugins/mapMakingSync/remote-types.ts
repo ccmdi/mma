@@ -1,6 +1,6 @@
 /**
  * Bitfield. Test bits, never equality: use `flags & LocationFlag.LoadAsPanoId`,
- * not `flags === 1` — the API reserves other bits for future use.
+ * not `flags === 1` - the API reserves other bits for future use.
  */
 export const LocationFlag = {
 	None: 0,
@@ -123,7 +123,7 @@ export const EditActionType = {
 } as const;
 
 /**
- * `action` is history metadata only — the actual mutation is the edit's `create`/`remove`
+ * `action` is history metadata only - the actual mutation is the edit's `create`/`remove`
  * arrays. Choose the most accurate action for the history UI; correctness comes from
  * create/remove. For `Bulk`, leave `actions` unset when using it as a catch-all.
  */
