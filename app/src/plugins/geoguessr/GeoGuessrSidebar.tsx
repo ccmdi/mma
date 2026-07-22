@@ -15,7 +15,9 @@ interface GgIdentity {
  * without us ever handling a password.
  */
 export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
-	const [user, setUser] = useState<GgIdentity | null>(null);
+	// `undefined` until the first session check resolves, so the sidebar can say "checking"
+	// instead of flashing the signed-out UI.
+	const [user, setUser] = useState<GgIdentity | null | undefined>(undefined);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -77,7 +79,7 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 			onClose={onClose}
 			controller={controller}
 			auth={auth}
-			identity={user ? { id: user.id } : null}
+			identity={user === undefined ? undefined : user ? { id: user.id } : null}
 			listMaps={() => geoguessrProvider.listMaps()}
 		/>
 	);

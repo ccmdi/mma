@@ -17,8 +17,12 @@ export interface SyncSidebarProps {
 	controller: SyncController;
 	/** Rendered in the Connection section: the provider's own auth affordance. */
 	auth: ReactNode;
-	/** Null until authenticated; drives whether the link/sync sections render. */
-	identity: { id: string | null } | null;
+	/**
+	 * `undefined` while the provider is still working out whether it has a session, `null` once
+	 * it knows there is none. The distinction matters: treating "not yet known" as "signed out"
+	 * flashes the whole sign-in UI for a moment on every open.
+	 */
+	identity: { id: string | null } | null | undefined;
 	/** Fetch linkable remote maps. Called when authenticated and unlinked. */
 	listMaps: () => Promise<RemoteMapSummary[]>;
 }
@@ -115,7 +119,8 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 	const [pendingLink, setPendingLink] = useState<RemoteMapSummary | null>(null);
 
 	const mapId = controller.currentMapId();
-	const authed = identity !== null;
+	const checking = identity === undefined;
+	const authed = !checking && identity !== null;
 
 	useEffect(() => controller.onStatus(setStatus), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -231,7 +236,13 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 	return (
 		<Sidebar title={controller.provider.label} onBack={onClose}>
 			<Section title="Connection" defaultOpen>
-				{auth}
+				{checking ? (
+					<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
+						<span className="spinner" aria-label="Checking connection" />
+					</div>
+				) : (
+					auth
+				)}
 			</Section>
 
 			{authed && !mapId && <EmptyState>Open a map to link it.</EmptyState>}
@@ -267,19 +278,15 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 						}
 						row
 					>
-						<button className={live ? "button button--primary" : "button"} onClick={toggleLive}>
-							{live ? "On" : "Off"}
-							{/* A dot rather than text: the poll ticks every few seconds, and a changing
-							    label reflows the row each time. The space is reserved either way. */}
+						<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+							{/* Outside the button, so the label stays centred, and always present, so a
+							    poll tick changes only its colour and can never reflow the row. */}
 							<span
 								aria-hidden
 								style={{
-									display: "inline-block",
 									width: 6,
 									height: 6,
-									marginLeft: 6,
 									borderRadius: "50%",
-									verticalAlign: "middle",
 									background:
 										status === "error"
 											? "var(--red-9, #e5484d)"
@@ -289,7 +296,10 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 									opacity: status === "syncing" ? 0.5 : 1,
 								}}
 							/>
-						</button>
+							<button className={live ? "button button--primary" : "button"} onClick={toggleLive}>
+								{live ? "On" : "Off"}
+							</button>
+						</span>
 					</Field>
 					<div style={{ display: "flex", gap: 8 }}>
 						{/* Driven by `busy` alone. Reflecting the background poll here made the label
@@ -337,7 +347,9 @@ export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: S
 			{authed && mapId && !link && !pendingLink && (
 				<Section title="Link this map" defaultOpen>
 					{!maps ? (
-						<EmptyState>Loading maps...</EmptyState>
+						<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
+							<span className="spinner" aria-label="Loading maps" />
+						</div>
 					) : (
 						<Field label="Find a remote map">
 							<SuggestInput

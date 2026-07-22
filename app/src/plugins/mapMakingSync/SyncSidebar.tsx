@@ -11,6 +11,9 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 	const [user, setUser] = useState<Remote.User | null>(auth.getCachedUser());
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	// True only while the mount-time validation below is in flight. With no key there is nothing
+	// to check, so the key form shows immediately rather than flashing through a "checking" state.
+	const [checking, setChecking] = useState(() => !!auth.getApiKey() && !auth.getCachedUser());
 
 	const validate = useCallback(async () => {
 		setBusy(true);
@@ -23,6 +26,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			setUser(null);
 		} finally {
 			setBusy(false);
+			setChecking(false);
 		}
 	}, [keyDraft]);
 
@@ -89,7 +93,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			onClose={onClose}
 			controller={controller}
 			auth={authUi}
-			identity={user ? { id: String(user.id) } : null}
+			identity={checking ? undefined : user ? { id: String(user.id) } : null}
 			listMaps={auth.listMaps}
 		/>
 	);
