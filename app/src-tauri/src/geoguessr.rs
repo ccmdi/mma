@@ -6,20 +6,17 @@
 //! subsequent API call goes through the `ggapi://` scheme, which replays it
 //! server-side with the cookie attached.
 //!
-//! The token lives in the OS credential store; a plaintext `app_kv` row written by
-//! older builds is migrated in (and deleted) on first read.
+//! The token lives in the OS credential store, never the app DB.
 
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
-use rusqlite::Connection;
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::storage;
 use crate::types::AppResult;
 
 pub(crate) const ORIGIN: &str = "https://www.geoguessr.com";
-const KV_KEY: &str = "geoguessr_ncfa";
 const SECRET_NAME: &str = "geoguessr";
 const LOGIN_LABEL: &str = "gg-login";
 const POLL_INTERVAL: Duration = Duration::from_millis(750);
@@ -37,48 +34,27 @@ pub struct GgUser {
 // Session state
 // ---------------------------------------------------------------------------
 
-/// Outer `None` = not yet read from the DB; inner `None` = no session.
+/// Outer `None` = not yet read from the credential store; inner `None` = no session.
 fn cell() -> &'static Mutex<Option<Option<String>>> {
     static S: OnceLock<Mutex<Option<Option<String>>>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(None))
 }
 
-/// Credential store first, then a plaintext row left by an older build, migrated in and deleted.
-pub(crate) fn load_session(conn: &Connection) -> AppResult<Option<String>> {
-    if let Some(v) = storage::secret::get(SECRET_NAME)? {
-        return Ok(Some(v));
-    }
-    match storage::kv_get(conn, KV_KEY)? {
-        Some(v) => {
-            storage::secret::set(SECRET_NAME, &v)?;
-            storage::kv_delete(conn, KV_KEY)?;
-            Ok(Some(v))
-        }
-        None => Ok(None),
-    }
-}
-
-pub(crate) fn persist_session(conn: &Connection, ncfa: Option<&str>) -> AppResult<()> {
-    match ncfa {
-        Some(v) => storage::secret::set(SECRET_NAME, v)?,
-        None => storage::secret::delete(SECRET_NAME)?,
-    }
-    // A plaintext row must not survive either direction.
-    storage::kv_delete(conn, KV_KEY)
-}
-
-/// Current `_ncfa`, loading it from the DB on first use. A load failure is propagated and NOT
-/// cached, so the next call retries rather than reporting "signed out" until restart.
+/// Current `_ncfa`, read from the credential store on first use. A load failure is propagated
+/// and NOT cached, so the next call retries rather than reporting "signed out" until restart.
 fn session() -> AppResult<Option<String>> {
     let mut g = cell().lock()?;
     if g.is_none() {
-        *g = Some(load_session(&storage::open_db()?)?);
+        *g = Some(storage::secret::get(SECRET_NAME)?);
     }
     Ok(g.clone().unwrap_or_default())
 }
 
 fn set_session(ncfa: Option<String>) -> AppResult<()> {
-    persist_session(&storage::open_db()?, ncfa.as_deref())?;
+    match ncfa.as_deref() {
+        Some(v) => storage::secret::set(SECRET_NAME, v)?,
+        None => storage::secret::delete(SECRET_NAME)?,
+    }
     *cell().lock()? = Some(ncfa);
     Ok(())
 }

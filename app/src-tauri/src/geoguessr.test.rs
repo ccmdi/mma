@@ -1,57 +1,5 @@
 use super::*;
 
-fn setup() -> Connection {
-    let conn = Connection::open_in_memory().unwrap();
-    conn.execute_batch("CREATE TABLE app_kv (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);")
-        .unwrap();
-    conn
-}
-
-#[test]
-fn session_round_trips_through_the_db() {
-    let conn = setup();
-    assert_eq!(load_session(&conn).unwrap(), None);
-    persist_session(&conn, Some("tok-1")).unwrap();
-    assert_eq!(load_session(&conn).unwrap().as_deref(), Some("tok-1"));
-}
-
-#[test]
-fn persisting_again_replaces_the_token() {
-    let conn = setup();
-    persist_session(&conn, Some("tok-1")).unwrap();
-    persist_session(&conn, Some("tok-2")).unwrap();
-    assert_eq!(load_session(&conn).unwrap().as_deref(), Some("tok-2"));
-}
-
-#[test]
-fn logout_clears_the_stored_token() {
-    let conn = setup();
-    persist_session(&conn, Some("tok-1")).unwrap();
-    persist_session(&conn, None).unwrap();
-    assert_eq!(load_session(&conn).unwrap(), None);
-    // clearing an already-empty session is not an error
-    persist_session(&conn, None).unwrap();
-}
-
-#[test]
-fn plaintext_token_migrates_into_the_credential_store() {
-    let conn = setup();
-    storage::kv_set(&conn, KV_KEY, "old-tok").unwrap();
-    assert_eq!(load_session(&conn).unwrap().as_deref(), Some("old-tok"));
-    // The plaintext row is gone; the token now comes from the credential store alone.
-    assert_eq!(storage::kv_get(&conn, KV_KEY).unwrap(), None);
-    assert_eq!(load_session(&conn).unwrap().as_deref(), Some("old-tok"));
-}
-
-#[test]
-fn persisting_scrubs_any_plaintext_row() {
-    let conn = setup();
-    storage::kv_set(&conn, KV_KEY, "old-tok").unwrap();
-    persist_session(&conn, Some("new-tok")).unwrap();
-    assert_eq!(storage::kv_get(&conn, KV_KEY).unwrap(), None);
-    assert_eq!(load_session(&conn).unwrap().as_deref(), Some("new-tok"));
-}
-
 #[test]
 fn upstream_url_maps_path_and_query() {
     assert_eq!(

@@ -518,42 +518,7 @@ const MIGRATIONS: &[(u32, &str)] = &[
           );
           CREATE INDEX IF NOT EXISTS idx_remote_mapping_remote ON remote_mapping(provider, map_id, remote_id);",
     ),
-    (
-        20,
-        "CREATE TABLE IF NOT EXISTS app_kv (
-            key   TEXT PRIMARY KEY NOT NULL,
-            value TEXT NOT NULL
-          );",
-    ),
 ];
-
-// ---------------------------------------------------------------------------
-// app_kv: app-global key/value strings (not per-map)
-// ---------------------------------------------------------------------------
-
-pub(crate) fn kv_get(conn: &Connection, key: &str) -> AppResult<Option<String>> {
-    let mut stmt = conn.prepare("SELECT value FROM app_kv WHERE key = ?")?;
-    let mut rows = stmt.query([key])?;
-    match rows.next()? {
-        Some(row) => Ok(Some(row.get(0)?)),
-        None => Ok(None),
-    }
-}
-
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) fn kv_set(conn: &Connection, key: &str, value: &str) -> AppResult<()> {
-    conn.execute(
-        "INSERT INTO app_kv (key, value) VALUES (?, ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        rusqlite::params![key, value],
-    )?;
-    Ok(())
-}
-
-pub(crate) fn kv_delete(conn: &Connection, key: &str) -> AppResult<()> {
-    conn.execute("DELETE FROM app_kv WHERE key = ?", [key])?;
-    Ok(())
-}
 
 // ---------------------------------------------------------------------------
 // secret: named secrets in the OS credential store (not the DB)
