@@ -148,6 +148,22 @@ export async function reconcile<R>(
 	const deletes: number[] = [];
 	const upsertsExtra: RemoteMappingRow[] = [];
 
+	/**
+	 * Write mapping rows, skipping any that are already stored as-is. `settled` spans every synced
+	 * location, so without this a steady-state poll would rewrite the whole table on an unchanged
+	 * map, and a chunked push would write each row twice.
+	 */
+	const persisted = new Map(mapping.map((r) => [r.localId, r]));
+	const writeRows = async (rows: RemoteMappingRow[]) => {
+		const changed = rows.filter((r) => {
+			const prev = persisted.get(r.localId);
+			return !prev || prev.remoteId !== r.remoteId || prev.hash !== r.hash;
+		});
+		if (!changed.length) return;
+		for (const r of changed) persisted.set(r.localId, r);
+		await store.upsertMapping(changed);
+	};
+
 	// --- PULL: apply remote-originated changes to the local store ---
 	const newLocals: Location[] = [];
 	const newKeys: IdentityKey[] = [];
@@ -204,16 +220,18 @@ export async function reconcile<R>(
 				const key = keyOfLocalId.get(localId);
 				if (key !== undefined) handleOf.set(key, remoteId);
 			}
-			const rows = rowsFor(
-				pushed.map((p) => keyOfLocalId.get(p.localId)),
-				settled,
-				localIdOf,
-				handleOf,
+			await writeRows(
+				rowsFor(
+					pushed.map((p) => keyOfLocalId.get(p.localId)),
+					settled,
+					localIdOf,
+					handleOf,
+				),
 			);
-			if (rows.length) await store.upsertMapping(rows);
 		};
 
-		// Re-committing what a provider already reported is a harmless idempotent upsert.
+		// The only commit for a provider that writes atomically; a no-op for one that already
+		// reported each chunk, since `writeRows` skips rows it has stored.
 		await commit(
 			await provider.push(link.remoteMapId, batch, {
 				token: snapshot.token,
@@ -252,8 +270,7 @@ export async function reconcile<R>(
 
 	// Everything the sync settled gets a row, so a positional push that reindexed untouched
 	// locations is reflected too.
-	const upserts = [...rowsFor([...settled.keys()], settled, localIdOf, handleOf), ...upsertsExtra];
-	if (upserts.length) await store.upsertMapping(upserts);
+	await writeRows([...rowsFor([...settled.keys()], settled, localIdOf, handleOf), ...upsertsExtra]);
 	if (deletes.length) await store.deleteMapping(deletes);
 	store.setLink({ ...link, lastSyncedAt: new Date().toISOString() });
 

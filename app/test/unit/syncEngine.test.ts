@@ -587,3 +587,53 @@ describe("reconcile: guards", () => {
 		await expect(reconcile(remote.provider, store)).rejects.toThrow("map is not linked");
 	});
 });
+
+describe("reconcile: chunked push commits", () => {
+	/** Wraps a store so every upsertMapping call's row count is recorded. */
+	function recording(store: FakeStore): { store: FakeStore; sizes: number[] } {
+		const sizes: number[] = [];
+		const inner = store.upsertMapping.bind(store);
+		return {
+			sizes,
+			store: {
+				...store,
+				upsertMapping: async (rs) => {
+					sizes.push(rs.length);
+					await inner(rs);
+				},
+			},
+		};
+	}
+
+	it("commits each chunk as it lands and does not re-write them at the end", async () => {
+		const mma = makeMma([local(1, { lat: 1 }), local(2, { lat: 2 }), local(3, { lat: 3 })]);
+		const remote = makeRemote("stable");
+		// Report in two instalments, then return the full accumulated list as the contract requires.
+		remote.provider.push = async (_mapId, batch, ctx) => {
+			const ids = batch.create.map((c, i) => ({ localId: c.localId, remoteId: 900 + i }));
+			await ctx.onProgress!(ids.slice(0, 2));
+			await ctx.onProgress!(ids.slice(2));
+			return ids;
+		};
+		const { store, sizes } = recording(makeStore());
+
+		await run(mma, remote, store);
+
+		// Two chunk commits, and nothing after them: the outer commit must add nothing, and the
+		// final settled write must skip rows the chunks already wrote. Re-writing them would double
+		// the mapping cost of exactly the case chunking exists for - a very large first sync.
+		expect(sizes).toEqual([2, 1]);
+		expect(store.rows().map((r) => r.remoteId)).toEqual([900, 901, 902]);
+	});
+
+	it("still commits for an atomic provider that never reports progress", async () => {
+		const mma = makeMma([local(1, { lat: 1 }), local(2, { lat: 2 })]);
+		const remote = makeRemote("stable");
+		const { store, sizes } = recording(makeStore());
+
+		await run(mma, remote, store);
+
+		expect(sizes).toEqual([2]); // the outer commit is the only one
+		expect(store.rows()).toHaveLength(2);
+	});
+});
