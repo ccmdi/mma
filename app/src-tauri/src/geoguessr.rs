@@ -6,8 +6,8 @@
 //! subsequent API call goes through the `ggapi://` scheme, which replays it
 //! server-side with the cookie attached.
 //!
-//! The token is stored at rest unencrypted in the app DB, consistent with how the
-//! app stores its other secrets (remote API key, sidecar config).
+//! The token lives in the OS credential store; a plaintext `app_kv` row written by
+//! older builds is migrated in (and deleted) on first read.
 
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
@@ -20,6 +20,7 @@ use crate::types::AppResult;
 
 pub(crate) const ORIGIN: &str = "https://www.geoguessr.com";
 const KV_KEY: &str = "geoguessr_ncfa";
+const SECRET_NAME: &str = "geoguessr";
 const LOGIN_LABEL: &str = "gg-login";
 const POLL_INTERVAL: Duration = Duration::from_millis(750);
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
@@ -42,29 +43,36 @@ fn cell() -> &'static Mutex<Option<Option<String>>> {
     S.get_or_init(|| Mutex::new(None))
 }
 
+/// Credential store first, then a plaintext row left by an older build, migrated in and deleted.
 pub(crate) fn load_session(conn: &Connection) -> AppResult<Option<String>> {
-    storage::kv_get(conn, KV_KEY)
+    if let Some(v) = storage::secret::get(SECRET_NAME)? {
+        return Ok(Some(v));
+    }
+    match storage::kv_get(conn, KV_KEY)? {
+        Some(v) => {
+            storage::secret::set(SECRET_NAME, &v)?;
+            storage::kv_delete(conn, KV_KEY)?;
+            Ok(Some(v))
+        }
+        None => Ok(None),
+    }
 }
 
 pub(crate) fn persist_session(conn: &Connection, ncfa: Option<&str>) -> AppResult<()> {
     match ncfa {
-        Some(v) => storage::kv_set(conn, KV_KEY, v),
-        None => storage::kv_delete(conn, KV_KEY),
+        Some(v) => storage::secret::set(SECRET_NAME, v)?,
+        None => storage::secret::delete(SECRET_NAME)?,
     }
+    // A plaintext row must not survive either direction.
+    storage::kv_delete(conn, KV_KEY)
 }
 
-/// Current `_ncfa`, loading it from the DB on first use.
+/// Current `_ncfa`, loading it from the DB on first use. A load failure is propagated and NOT
+/// cached, so the next call retries rather than reporting "signed out" until restart.
 fn session() -> AppResult<Option<String>> {
     let mut g = cell().lock()?;
     if g.is_none() {
-        let loaded = match storage::open_db().and_then(|c| load_session(&c)) {
-            Ok(v) => v,
-            Err(e) => {
-                log::warn!("[geoguessr] session load failed: {e}");
-                None
-            }
-        };
-        *g = Some(loaded);
+        *g = Some(load_session(&storage::open_db()?)?);
     }
     Ok(g.clone().unwrap_or_default())
 }
@@ -188,6 +196,33 @@ async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> 
 // Commands
 // ---------------------------------------------------------------------------
 
+/// Whether the login window may navigate to `url`. The custom scheme handlers (`ggapi`, `mma-buf`,
+/// `gmaps`) attach to every webview, so an unrestricted navigation could reach the authenticated
+/// proxy from an arbitrary page. Only geoguessr.com and the SSO hosts the sign-in flow uses pass.
+fn login_nav_allowed(url: &tauri::Url) -> bool {
+    if url.as_str() == "about:blank" {
+        return true;
+    }
+    if url.scheme() != "https" {
+        return false;
+    }
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    const ALLOWED: &[&str] = &[
+        "geoguessr.com",
+        "google.com",
+        "googleapis.com",
+        "gstatic.com",
+        "facebook.com",
+        "appleid.apple.com",
+    ];
+    // Exact match or a dot-boundary subdomain, so "xgeoguessr.com" does not slip past "geoguessr.com".
+    ALLOWED
+        .iter()
+        .any(|d| host == *d || host.ends_with(&format!(".{d}")))
+}
+
 /// Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
 /// Returns the signed-in nickname.
 #[tauri::command]
@@ -203,23 +238,30 @@ pub async fn geoguessr_login(app: tauri::AppHandle) -> AppResult<String> {
         .title("Sign in to GeoGuessr")
         .inner_size(500.0, 800.0)
         .resizable(true)
-        // Sign in with Google opens a popup and hands the credential back through its opener.
-        // Without a handler the request is dropped and the button does nothing; forcing the URL
-        // into this window instead breaks the handshake, because the popup has no opener to
-        // answer. `Allow` lets the platform open a real popup, which is what the flow expects.
+        // SSO hands its credential back through the popup's `window.opener`, so the popup
+        // must be a real window.
         .on_new_window(|url, _features| {
             log::debug!("[geoguessr] popup -> {}", url.host_str().unwrap_or("?"));
             tauri::webview::NewWindowResponse::Allow
         })
         .on_navigation(|u| {
-            // Where the sign-in actually went, so a stall is diagnosable from the log alone.
-            log::debug!(
-                "[geoguessr] login window -> {}://{}{}",
-                u.scheme(),
-                u.host_str().unwrap_or("?"),
-                u.path()
-            );
-            true
+            let allowed = login_nav_allowed(u);
+            if allowed {
+                // Where the sign-in actually went, so a stall is diagnosable from the log alone.
+                log::debug!(
+                    "[geoguessr] login window -> {}://{}{}",
+                    u.scheme(),
+                    u.host_str().unwrap_or("?"),
+                    u.path()
+                );
+            } else {
+                // Host only, never the query string.
+                log::info!(
+                    "[geoguessr] blocked login navigation to {}",
+                    u.host_str().unwrap_or("?")
+                );
+            }
+            allowed
         })
         .build()?;
 
@@ -260,9 +302,7 @@ fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
                 if let Some(c) = cookies.iter().find(|c| c.name() == "_ncfa") {
                     return Ok(c.value().to_string());
                 }
-                // Names only, never values. Sorted because the store returns them in arbitrary
-                // order, so an unsorted comparison logs on every poll instead of on every change.
-                // This is what identifies a renamed auth cookie if sign-in ever stops resolving.
+                // Names only, never values; sorted so it logs once per change, not per poll.
                 let mut names = cookies.iter().map(|c| c.name()).collect::<Vec<_>>();
                 names.sort_unstable();
                 let names = names.join(",");
@@ -290,8 +330,34 @@ pub async fn geoguessr_me() -> AppResult<Option<GgUser>> {
 
 #[tauri::command]
 #[specta::specta]
-pub async fn geoguessr_logout() -> AppResult<()> {
-    blocking(|| set_session(None)).await?
+pub async fn geoguessr_logout(app: tauri::AppHandle) -> AppResult<()> {
+    blocking(move || {
+        set_session(None)?;
+        clear_webview_cookies(&app);
+        Ok(())
+    })
+    .await?
+}
+
+/// Best-effort. The shared webview profile keeps its own signed-in state; left in place, the
+/// next login window silently re-lifts the OLD account's cookie instead of showing the form.
+fn clear_webview_cookies(app: &tauri::AppHandle) {
+    let Ok(url) = ORIGIN.parse::<tauri::Url>() else {
+        return;
+    };
+    let Some(win) = app.webview_windows().into_values().next() else {
+        return;
+    };
+    match win.cookies_for_url(url) {
+        Ok(cookies) => {
+            for c in cookies {
+                if let Err(e) = win.delete_cookie(c) {
+                    log::debug!("[geoguessr] logout cookie delete: {e}");
+                }
+            }
+        }
+        Err(e) => log::debug!("[geoguessr] logout cookie read: {e}"),
+    }
 }
 
 /// Local-only check: is a token stored? Says nothing about its validity.

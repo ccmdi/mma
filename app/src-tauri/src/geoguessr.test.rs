@@ -34,6 +34,25 @@ fn logout_clears_the_stored_token() {
 }
 
 #[test]
+fn plaintext_token_migrates_into_the_credential_store() {
+    let conn = setup();
+    storage::kv_set(&conn, KV_KEY, "old-tok").unwrap();
+    assert_eq!(load_session(&conn).unwrap().as_deref(), Some("old-tok"));
+    // The plaintext row is gone; the token now comes from the credential store alone.
+    assert_eq!(storage::kv_get(&conn, KV_KEY).unwrap(), None);
+    assert_eq!(load_session(&conn).unwrap().as_deref(), Some("old-tok"));
+}
+
+#[test]
+fn persisting_scrubs_any_plaintext_row() {
+    let conn = setup();
+    storage::kv_set(&conn, KV_KEY, "old-tok").unwrap();
+    persist_session(&conn, Some("new-tok")).unwrap();
+    assert_eq!(storage::kv_get(&conn, KV_KEY).unwrap(), None);
+    assert_eq!(load_session(&conn).unwrap().as_deref(), Some("new-tok"));
+}
+
+#[test]
 fn upstream_url_maps_path_and_query() {
     assert_eq!(
         upstream_url("/api/v4/user-maps/abc", None),
@@ -102,4 +121,19 @@ fn profile_parses_wrapped_and_bare_shapes() {
 fn profile_missing_fields_is_none_not_a_panic() {
     assert!(parse_profile(&serde_json::json!({ "user": { "id": "a" } })).is_none());
     assert!(parse_profile(&serde_json::json!({})).is_none());
+}
+
+#[test]
+fn login_nav_allows_only_sign_in_hosts() {
+    let allow = |s: &str| login_nav_allowed(&s.parse::<tauri::Url>().unwrap());
+    assert!(allow("https://geoguessr.com/signin"));
+    assert!(allow("https://sub.geoguessr.com/x"));
+    assert!(allow("https://accounts.google.com/o/oauth2"));
+    assert!(allow("about:blank"));
+
+    assert!(!allow("https://evil.com"));
+    assert!(!allow("http://geoguessr.com"));
+    assert!(!allow("https://notgeoguessr.com"));
+    // Suffix trick: a dot boundary is required, not a bare string suffix.
+    assert!(!allow("https://xgeoguessr.com"));
 }

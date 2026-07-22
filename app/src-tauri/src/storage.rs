@@ -540,6 +540,7 @@ pub(crate) fn kv_get(conn: &Connection, key: &str) -> AppResult<Option<String>> 
     }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn kv_set(conn: &Connection, key: &str, value: &str) -> AppResult<()> {
     conn.execute(
         "INSERT INTO app_kv (key, value) VALUES (?, ?)
@@ -552,6 +553,71 @@ pub(crate) fn kv_set(conn: &Connection, key: &str, value: &str) -> AppResult<()>
 pub(crate) fn kv_delete(conn: &Connection, key: &str) -> AppResult<()> {
     conn.execute("DELETE FROM app_kv WHERE key = ?", [key])?;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// secret: named secrets in the OS credential store (not the DB)
+// ---------------------------------------------------------------------------
+
+#[cfg(not(test))]
+pub(crate) mod secret {
+    use crate::types::AppResult;
+
+    /// One credential per `name`, all under the app identifier.
+    const SERVICE: &str = "app.map-making.local";
+
+    fn entry(name: &str) -> AppResult<keyring::Entry> {
+        Ok(keyring::Entry::new(SERVICE, name)?)
+    }
+
+    pub fn get(name: &str) -> AppResult<Option<String>> {
+        match entry(name)?.get_password() {
+            Ok(v) => Ok(Some(v)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn set(name: &str, value: &str) -> AppResult<()> {
+        Ok(entry(name)?.set_password(value)?)
+    }
+
+    pub fn delete(name: &str) -> AppResult<()> {
+        match entry(name)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+/// Test builds swap in a thread-local map so the suite never touches the real keychain.
+#[cfg(test)]
+pub(crate) mod secret {
+    use crate::types::AppResult;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    thread_local! {
+        static STORE: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    }
+
+    pub fn get(name: &str) -> AppResult<Option<String>> {
+        Ok(STORE.with(|s| s.borrow().get(name).cloned()))
+    }
+
+    pub fn set(name: &str, value: &str) -> AppResult<()> {
+        STORE.with(|s| {
+            s.borrow_mut().insert(name.to_string(), value.to_string());
+        });
+        Ok(())
+    }
+
+    pub fn delete(name: &str) -> AppResult<()> {
+        STORE.with(|s| {
+            s.borrow_mut().remove(name);
+        });
+        Ok(())
+    }
 }
 
 // ---------------------------------------------------------------------------

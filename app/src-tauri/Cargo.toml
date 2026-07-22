@@ -56,6 +56,7 @@ rkyv = { version = "=0.7.46", features = ["validation"] }
 bytes = "1.9"
 percent-encoding = "2"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
+keyring = "4"
 specta = { version = "=2.0.0-rc.25", features = ["derive", "serde_json"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta-typescript = "0.0.12"

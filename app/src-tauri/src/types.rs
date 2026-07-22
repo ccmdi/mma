@@ -413,6 +413,7 @@ impl_app_error_from!(
     tokio::task::JoinError,
     zip::result::ZipError,
     reqwest::Error,
+    keyring::Error,
 );
 
 // `PoisonError<T>` is generic; Display is unconditional, so one blanket covers all lock types.
