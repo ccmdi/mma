@@ -171,6 +171,12 @@
 [data-radix-popper-content-wrapper]:has(> .tooltip) {
 	pointer-events: none !important;
 }
+/* if two tooltips coexist for a frame during handoff, only the newest shows */
+[data-radix-popper-content-wrapper]:has(> .tooltip):has(
+		~ [data-radix-popper-content-wrapper] > .tooltip
+	) {
+	visibility: hidden;
+}
 .tooltip {
 	color: var(--text-1);
 	font-size: 13px;
@@ -184,11 +190,9 @@
 	pointer-events: none;
 	animation: tooltip-fade-in 0.18s ease-in-out;
 }
-.tooltip[data-state="closed"] {
-	animation: tooltip-fade-out 0.18s ease-in-out;
-}
 .tooltip__arrow {
-	fill: #111111e6;
+	fill: var(--surface-3);
+	transform: translateY(-1px);
 }
 @keyframes tooltip-fade-in {
 	from {
@@ -196,14 +200,6 @@
 	}
 	to {
 		opacity: 1;
-	}
-}
-@keyframes tooltip-fade-out {
-	from {
-		opacity: 1;
-	}
-	to {
-		opacity: 0;
 	}
 }
 
