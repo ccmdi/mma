@@ -1,6 +1,6 @@
 //! Provider-agnostic remote sync: shared types, the canonical content hash, and the provider
 //! trait. The engine (sync_engine.rs) is generic over [`SyncProvider`]; diff/keying are pure.
-//! Ported from the TS engine in app/src/lib/sync; the TS side keeps UI, scheduling and auth.
+//! The TS side keeps UI, scheduling and auth.
 
 use crate::types::{Location, LocationFlags};
 use serde::{Deserialize, Serialize};

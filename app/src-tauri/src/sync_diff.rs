@@ -1,4 +1,4 @@
-//! Three-way merge over identity keys. Ported from app/src/lib/sync/diff.ts.
+//! Three-way merge over identity keys.
 //! Pure: no IO, no provider knowledge. The engine feeds it base/local/remote and applies the plan.
 
 use crate::sync::{

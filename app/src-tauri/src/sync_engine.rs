@@ -1,7 +1,7 @@
 //! The reconcile pass: composes keying + diff + the provider seam into one pure plan, then
-//! executes the push and rewrites the mapping. Ported from app/src/lib/sync/{digest,engine}.ts,
-//! merged into a single pass EXCEPT pull application: pulls are returned as instructions for the
-//! JS side to apply (it owns store-mutation events and undo).
+//! executes the push and rewrites the mapping. One pass end to end, EXCEPT pull application:
+//! pulls are returned as instructions for the JS side to apply (it owns store-mutation events
+//! and undo).
 //!
 //! Three layers:
 //!  - [`plan`]: pure, IO-free, fully testable. Everything the sync settled to.

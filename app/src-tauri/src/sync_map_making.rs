@@ -1,5 +1,4 @@
 //! map-making.app sync provider: protobuf pull decode, chunked edit-batch push.
-//! Ported from app/src/plugins/mapMakingSync (contract.ts + provider.ts + map-making-web-api.ts).
 //! The pure halves (protobuf decode, push chunking) are factored out of IO so they test
 //! without a network; see sync_map_making.test.rs.
 
@@ -15,7 +14,7 @@ use crate::types::{AppError, AppResult};
 
 const BASE_URL: &str = "https://map-making.app";
 
-/// Ops per edit request; not a server limit (mirrors provider.ts PUSH_CHUNK).
+/// Ops per edit request; bounds failure cost, not a server limit.
 const PUSH_CHUNK: usize = 200_000;
 
 /// EditActionType.Bulk from remote-types.ts.

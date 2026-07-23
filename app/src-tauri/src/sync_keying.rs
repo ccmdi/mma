@@ -1,4 +1,4 @@
-//! Identity keying and positional realignment. Ported from app/src/lib/sync/keying.ts.
+//! Identity keying and positional realignment.
 //! Turns raw local + remote locations plus the persisted mapping into the three keyed inputs the
 //! diff consumes, and the lookups the apply step needs.
 //!

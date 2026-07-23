@@ -3,7 +3,7 @@
 //! A draft is one ordered array replaced wholesale, so identity is `Positional` (the index is
 //! the only handle) and the wire format is lossy (no tags, no "keep panoId but don't load it").
 //! [`GeoGuessrProvider::project`] erases exactly those distinctions on both sides so they never
-//! read as a difference. Ported from app/src/plugins/geoguessr/{contract,provider}.ts.
+//! read as a difference.
 
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +22,7 @@ const INFORMATIONAL: u32 = LocationFlags::INFORMATIONAL.bits();
 /// 1e-4 degrees is ~1cm of bearing, far below anything a user set deliberately.
 const NORTH: f64 = 1e-4;
 
-// --- wire types (ported from remote-types.ts) -------------------------------
+// --- wire types -------------------------------------------------------------
 
 /// One draft location. `panoId` is ALWAYS serialized, even when None (an explicit null is
 /// meaningful to GeoGuessr). The three geocode codes are server-owned: we never set them, pulled
@@ -80,7 +80,7 @@ fn write_body(items: Vec<GgCoordinate>, version: i64) -> GgDraftWrite {
     }
 }
 
-// --- stored-size guard (ported from provider.ts) ----------------------------
+// --- stored-size guard ------------------------------------------------------
 
 /// A draft is stored as a single MongoDB document; a write is accepted iff the STORED document's
 /// BSON size fits Mongo's 16 MiB limit. Request body size and location count are irrelevant.
@@ -160,7 +160,7 @@ impl GeoGuessrProvider {
     }
 }
 
-/// JS-truthy string: a non-empty value. Matches `panoId ? ...` in contract.ts, where "" is falsy.
+/// A pano id is present only when non-empty; hashes were defined under JS truthiness ("" = none).
 fn has_pano(pano: &Option<String>) -> bool {
     pano.as_deref().is_some_and(|s| !s.is_empty())
 }
