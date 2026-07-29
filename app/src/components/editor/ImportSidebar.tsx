@@ -87,7 +87,7 @@ export function ImportSidebar() {
 		setError(null);
 		const t = trace("import");
 		try {
-			const r = await confirmImport([...droppedFields], bulkTag ?? undefined);
+			const r = await confirmImport([...droppedFields], bulkTag ?? tagInput);
 			t.end({ imported: r?.importedCount ?? 0 });
 		} catch (e: unknown) {
 			log.error("[import] failed:", e);
