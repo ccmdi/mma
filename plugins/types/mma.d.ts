@@ -1024,8 +1024,8 @@ type RenderEntry = {
     lng: number;
     lat: number;
     heading: number;
-    /**  `None` = drawn by the base layer, `Some(rgb)` = drawn by the selection overlay. */
-    sel: [number, number, number] | null;
+    /**  `None` = drawn by the base layer, `Some(paint)` = drawn by the selection overlay. */
+    sel: SelPaint | null;
     /**
      *  The slot this row vacated when it crossed cells. Present only for a move, so JS
      *  mirrors the swap-remove and carries the overlay entry across instead of inferring
@@ -1044,7 +1044,7 @@ type RenderPatchEntry = {
     lng: number | null;
     lat: number | null;
     heading: number | null;
-    sel: [number, number, number] | null;
+    sel: SelPaint | null;
 };
 /**
  *  Parameters for a full render rebuild. `marker_style` ("arrow" or "pin") determines
@@ -1170,6 +1170,16 @@ type SeenWriteEntry = {
     countryCode: string | null;
     address: string | null;
     thumbnail: string | null;
+};
+/**
+ *  The selection drawing a row: its colour, and its index in `SelectionState::resolved`.
+ *  The index is the draw order — a later selection overdraws an earlier one — so the
+ *  overlay can be ordered by it instead of by whatever order rows happen to arrive in.
+ *  Every marker sits at z=0 in one deck.gl layer, so buffer order is the only z there is.
+ */
+type SelPaint = {
+    idx: number;
+    color: [number, number, number];
 };
 /**
  *  A named, colored selection. `key` is deterministic (e.g., `"tag:5"`, `"polygon:abc"`)
@@ -1816,6 +1826,7 @@ declare namespace store {
 declare function loadGeoJSON(): Promise<void>;
 
 declare const requiresMap: () => boolean;
+declare const hasActiveLocation: () => boolean;
 declare const hasSelection: () => boolean;
 declare const hasAnySelections: () => boolean;
 /** Every editor command (palette entries; all are hotkey-bindable in Settings). */
@@ -1848,7 +1859,7 @@ declare const COMMANDS: {
         icon: string;
         group: "Map";
         execute: () => void;
-        enabled: typeof requiresMap;
+        enabled: typeof hasActiveLocation;
     };
     undo: {
         label: string;
@@ -2777,6 +2788,7 @@ declare const EVENT_DEFS: {
     "store:changed": void;
     "render:delta": RenderDelta;
     "render:selection": SelectionBitmaskPayload;
+    "map-list:changed": void;
     "settings:changed": void;
     "fullscreen:changed": void;
     "plugins:changed": void;
@@ -3221,4 +3233,4 @@ declare global {
 }
 
 export { MMA as MMAApi, PanoType, commands };
-export type { CellRemoval, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DbTableInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExtraFieldDef, ExtraFieldType, FieldCount, FilterOp, FirstSyncMode, GeoResult, GgUser, ImportPreviewEntry, ImportedMapInfo, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, PullCreate, PullUpdate, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ReviewCreate, ReviewSession, ReviewUpdate, SaveResult, Scope, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionProps, SelectionSync, SideCounts, SpacedPickResult, StoreStatus, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, ValiLocation, ValiLocation_Deserialize, VirtualTag };
+export type { CellRemoval, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DbTableInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExtraFieldDef, ExtraFieldType, FieldCount, FilterOp, FirstSyncMode, GeoResult, GgUser, ImportPreviewEntry, ImportedMapInfo, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, PullCreate, PullUpdate, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ReviewCreate, ReviewSession, ReviewUpdate, SaveResult, Scope, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionProps, SelectionSync, SideCounts, SpacedPickResult, StoreStatus, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, ValiLocation, ValiLocation_Deserialize, VirtualTag };
