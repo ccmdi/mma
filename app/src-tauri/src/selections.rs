@@ -1124,6 +1124,103 @@ impl SpatialHash {
     }
 }
 
+/// Index groups keyed by exact coordinate, the degenerate-radius fallback shared by
+/// every duplicate path: "within 0 m" means exact-coordinate equality. The grid would
+/// divide by zero, saturate every point to one cell, and collapse to O(n^2). Hashing
+/// on exact coords instead is O(n); non-finite coordinates never match anything. (#69)
+fn exact_coord_groups(pts: &[(f64, f64)]) -> HashMap<(u64, u64), Vec<usize>> {
+    let mut groups: HashMap<(u64, u64), Vec<usize>> = HashMap::new();
+    for (i, &(lat, lng)) in pts.iter().enumerate() {
+        if !lat.is_finite() || !lng.is_finite() {
+            continue;
+        }
+        // `+ 0.0` folds -0.0 into +0.0 so the two compare equal.
+        groups
+            .entry(((lat + 0.0).to_bits(), (lng + 0.0).to_bits()))
+            .or_default()
+            .push(i);
+    }
+    groups
+}
+
+/// The grid broad-phase every duplicate path runs on: cell sizing, coordinate
+/// quantization, and the 3x3 neighborhood walk live here once, so the pair sweep and
+/// the parallel per-point scan cannot drift apart. Read-only after build, so callers
+/// may probe it from parallel iterators.
+struct DupGrid {
+    /// (lat, lng) per point, the coordinates the cells were quantized from.
+    pts: Vec<(f64, f64)>,
+    cells: Vec<(i32, i32)>,
+    grid: SpatialHash,
+    thresh_m2: f64,
+}
+
+impl DupGrid {
+    /// `None` for a degenerate radius (distance == 0, or a non-finite cell size) —
+    /// callers fall back to `exact_coord_groups`.
+    fn build(pts: &[(f64, f64)], distance_m: f64) -> Option<DupGrid> {
+        let cell_deg = distance_m / 111_000.0 * 1.5;
+        if !(cell_deg > 0.0) {
+            return None;
+        }
+        let pts = pts.to_vec();
+        let cells: Vec<(i32, i32)> = pts
+            .iter()
+            .map(|&(lat, lng)| {
+                (
+                    (lng / cell_deg).floor() as i32,
+                    (lat / cell_deg).floor() as i32,
+                )
+            })
+            .collect();
+        let grid = SpatialHash::build(&cells);
+        Some(DupGrid {
+            pts,
+            cells,
+            grid,
+            thresh_m2: distance_m * distance_m,
+        })
+    }
+
+    /// Visit every point within the distance threshold of `pi`, skipping indices below
+    /// `min_pj` before the distance test (`pi + 1` gives the ordered pair sweep, `0`
+    /// gives all neighbours). Stops early when `visit` returns true; returns whether it
+    /// stopped.
+    fn for_each_neighbor(
+        &self,
+        pi: usize,
+        min_pj: usize,
+        mut visit: impl FnMut(usize) -> bool,
+    ) -> bool {
+        let (lat, lng) = self.pts[pi];
+        let (cx, cy) = self.cells[pi];
+        let cos_lat = lat.to_radians().cos();
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                // saturating: a stray non-finite coord can floor to i32::MAX/MIN; a plain
+                // add would overflow (panic in debug, wrap in release).
+                let (nx, ny) = (cx.saturating_add(dx), cy.saturating_add(dy));
+                for &pj in self.grid.bucket(nx, ny) {
+                    let pj = pj as usize;
+                    if pj == pi || pj < min_pj {
+                        continue;
+                    }
+                    // Bucket may hold points from collided cells; the cell-coord check
+                    // keeps us to the true 3x3 neighborhood. Then the distance test.
+                    if self.cells[pj] != (nx, ny) {
+                        continue;
+                    }
+                    let (plat, plng) = self.pts[pj];
+                    if equirect_m2(lat, lng, plat, plng, cos_lat) <= self.thresh_m2 && visit(pj) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+}
+
 /// Grid broad-phase pair sweep shared by the duplicate groups/prune paths.
 /// Calls `pair(state, pi, pj)` (pi < pj) for every index pair within `distance_m`
 /// metres. O(N) average with uniform distribution, O(N^2) worst case if all points
@@ -1138,24 +1235,9 @@ fn for_pairs_within<S>(
     if n < 2 {
         return;
     }
-    let cell_deg = distance_m / 111_000.0 * 1.5;
-    // Degenerate radius (distance == 0, or a non-finite cell size): "within 0 m" means
-    // exact-coordinate equality. The grid would divide by zero, saturate every point to
-    // one cell, and collapse to O(n^2). Hash on exact coords instead — O(n). (#69)
-    if !(cell_deg > 0.0) {
-        let mut groups: HashMap<(u64, u64), Vec<usize>> = HashMap::new();
-        for i in 0..n {
-            let (lat, lng) = pos(i);
-            if !lat.is_finite() || !lng.is_finite() {
-                continue;
-            }
-            // `+ 0.0` folds -0.0 into +0.0 so the two compare equal.
-            groups
-                .entry(((lat + 0.0).to_bits(), (lng + 0.0).to_bits()))
-                .or_default()
-                .push(i);
-        }
-        for idxs in groups.values() {
+    let pts: Vec<(f64, f64)> = (0..n).map(pos).collect();
+    let Some(grid) = DupGrid::build(&pts, distance_m) else {
+        for idxs in exact_coord_groups(&pts).values() {
             for (a, &pi) in idxs.iter().enumerate() {
                 for &pj in &idxs[a + 1..] {
                     pair(state, pi, pj);
@@ -1163,44 +1245,12 @@ fn for_pairs_within<S>(
             }
         }
         return;
-    }
-    let cells: Vec<(i32, i32)> = (0..n)
-        .map(|i| {
-            let (lat, lng) = pos(i);
-            (
-                (lng / cell_deg).floor() as i32,
-                (lat / cell_deg).floor() as i32,
-            )
-        })
-        .collect();
-    let grid = SpatialHash::build(&cells);
-    let thresh_m2 = distance_m * distance_m;
+    };
     for pi in 0..n {
-        let (lat, lng) = pos(pi);
-        let (cx, cy) = cells[pi];
-        let cos_lat = lat.to_radians().cos();
-        for dx in -1..=1 {
-            for dy in -1..=1 {
-                // saturating: a stray non-finite coord can floor to i32::MAX/MIN; a plain
-                // add would overflow (panic in debug, wrap in release).
-                let (nx, ny) = (cx.saturating_add(dx), cy.saturating_add(dy));
-                for &pj in grid.bucket(nx, ny) {
-                    let pj = pj as usize;
-                    if pj <= pi {
-                        continue;
-                    }
-                    // Bucket may hold points from collided cells; the cell-coord check
-                    // keeps us to the true 3x3 neighborhood. Then the distance test.
-                    if cells[pj] != (nx, ny) {
-                        continue;
-                    }
-                    let (plat, plng) = pos(pj);
-                    if equirect_m2(lat, lng, plat, plng, cos_lat) <= thresh_m2 {
-                        pair(state, pi, pj);
-                    }
-                }
-            }
-        }
+        grid.for_each_neighbor(pi, pi + 1, |pj| {
+            pair(state, pi, pj);
+            false
+        });
     }
 }
 
@@ -1249,67 +1299,23 @@ fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mut [bool]) {
         return;
     }
 
-    let cell_deg = distance_m / 111_000.0 * 1.5;
-    // Degenerate radius: "within 0 m" means exact-coordinate equality — count
-    // occupancy per exact coordinate; every member of a bucket of >= 2 is a dup. (#69)
-    if !(cell_deg > 0.0) {
-        let key = |p: &Pt| -> Option<(u64, u64)> {
-            if !p.lat.is_finite() || !p.lng.is_finite() {
-                return None;
-            }
-            // `+ 0.0` folds -0.0 into +0.0 so the two compare equal.
-            Some(((p.lat + 0.0).to_bits(), (p.lng + 0.0).to_bits()))
-        };
-        let mut counts: HashMap<(u64, u64), u32> = HashMap::new();
-        for p in &points {
-            if let Some(k) = key(p) {
-                *counts.entry(k).or_insert(0) += 1;
-            }
-        }
-        for p in &points {
-            if key(p).is_some_and(|k| counts[&k] >= 2) {
-                mask[p.global_idx] = true;
-            }
-        }
-        return;
-    }
-
-    let cells: Vec<(i32, i32)> = points
-        .iter()
-        .map(|p| {
-            (
-                (p.lng / cell_deg).floor() as i32,
-                (p.lat / cell_deg).floor() as i32,
-            )
-        })
-        .collect();
-    let grid = SpatialHash::build(&cells);
-    let thresh_m2 = distance_m * distance_m;
-
-    let has_neighbor = |pi: usize| -> bool {
-        let (lat, lng) = (points[pi].lat, points[pi].lng);
-        let (cx, cy) = cells[pi];
-        let cos_lat = lat.to_radians().cos();
-        for dx in -1..=1 {
-            for dy in -1..=1 {
-                let (nx, ny) = (cx.saturating_add(dx), cy.saturating_add(dy));
-                for &pj in grid.bucket(nx, ny) {
-                    let pj = pj as usize;
-                    if pj == pi || cells[pj] != (nx, ny) {
-                        continue;
-                    }
-                    if equirect_m2(lat, lng, points[pj].lat, points[pj].lng, cos_lat) <= thresh_m2 {
-                        return true;
-                    }
+    let pts: Vec<(f64, f64)> = points.iter().map(|p| (p.lat, p.lng)).collect();
+    // Degenerate radius: every member of an exact-coordinate group of >= 2 is a dup.
+    let Some(grid) = DupGrid::build(&pts, distance_m) else {
+        for idxs in exact_coord_groups(&pts).values() {
+            if idxs.len() >= 2 {
+                for &i in idxs {
+                    mask[points[i].global_idx] = true;
                 }
             }
         }
-        false
+        return;
     };
+
     let marks: Vec<bool> = (0..n)
         .into_par_iter()
         .with_min_len(4096)
-        .map(has_neighbor)
+        .map(|pi| grid.for_each_neighbor(pi, 0, |_| true))
         .collect();
     for (i, p) in points.iter().enumerate() {
         if marks[i] {
