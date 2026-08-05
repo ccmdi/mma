@@ -1,7 +1,7 @@
-import type { RenderDelta, RenderEntry } from "@/bindings.gen";
+import type { RenderDelta, RenderEntry, SelPaint } from "@/bindings.gen";
 
-/** A marker's selection state: `null` = the base layer draws it, an RGB = the overlay does. */
-export type SelColor = [number, number, number] | null;
+/** A marker's selection state: `null` = the base layer draws it, a paint = the overlay does. */
+export type SelColor = SelPaint | null;
 
 function bitHas(bits: Uint8Array, id: number): boolean {
 	return (bits[id >>> 3] & (1 << (id & 7))) !== 0;
@@ -120,13 +120,20 @@ const MIN_CAPACITY = 256;
  * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
  * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
  * alone, and every by-id operation is O(1).
- * Writes swap-remove, so slots are unordered. Draw order does not matter.
+ *
+ * Writes swap-remove, so slots land unordered — but the overlay is one deck.gl layer and
+ * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
+ * puts the slots back in selection order, and the batch entry points call it once they
+ * settle. Nothing else may hand these arrays to a layer.
  */
 export class SelectionOverlay {
 	positions = new Float32Array(0);
 	colors = new Uint8Array(0);
 	angles = new Float32Array(0);
 	ids = new Uint32Array(0);
+	/** Per-entry index of the selection drawing it, and the sort key `order()` uses.
+	 *  CPU-side bookkeeping like `ids` — never an attribute, never uploaded. */
+	sel = new Uint32Array(0);
 	count = 0;
 	version = 0;
 
@@ -134,14 +141,25 @@ export class SelectionOverlay {
 	private bits = new Uint8Array(0);
 	/** id -> slot. Only meaningful where `bits` is set, so it needs no empty sentinel. */
 	private slot = new Uint32Array(0);
+	/** Scratch for `order()`: entry -> destination slot. Reused across calls. */
+	private dest = new Uint32Array(0);
 
 	has(id: number): boolean {
 		const w = id >>> 3;
 		return w < this.bits.length && (this.bits[w] & (1 << (id & 7))) !== 0;
 	}
 
-	/** Add `id` to the overlay, or restate an existing entry. */
-	set(id: number, lng: number, lat: number, heading: number, color: [number, number, number]) {
+	/** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
+	 *  selection's index — the sort key `order()` needs, which no caller can recover from
+	 *  the colour alone once two selections share one. */
+	set(
+		id: number,
+		lng: number,
+		lat: number,
+		heading: number,
+		color: readonly [number, number, number],
+		selIdx: number,
+	) {
 		let i: number;
 		if (this.has(id)) {
 			i = this.slot[id];
@@ -155,6 +173,7 @@ export class SelectionOverlay {
 		this.positions[i * 2] = lng;
 		this.positions[i * 2 + 1] = lat;
 		this.angles[i] = heading;
+		this.sel[i] = selIdx;
 		const o = i * 4;
 		this.colors[o] = color[0];
 		this.colors[o + 1] = color[1];
@@ -181,6 +200,7 @@ export class SelectionOverlay {
 			this.positions.copyWithin(i * 2, last * 2, last * 2 + 2);
 			this.colors.copyWithin(i * 4, last * 4, last * 4 + 4);
 			this.angles[i] = this.angles[last];
+			this.sel[i] = this.sel[last];
 			const moved = this.ids[last];
 			this.ids[i] = moved;
 			this.slot[moved] = i;
@@ -195,24 +215,98 @@ export class SelectionOverlay {
 		this.version++;
 	}
 
+	/**
+	 * Sort the entries by selection index, so a later selection's markers overdraw an
+	 * earlier one's everywhere rather than wherever slot order happens to favour them.
+	 *
+	 * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
+	 * array sized by the selection count. The leading scan makes the cases that need no
+	 * work — already ordered, or one selection in play — a single pass with no allocation,
+	 * which covers a plain single-selection map entirely.
+	 */
+	order() {
+		const n = this.count;
+		if (n < 2) return;
+		const sel = this.sel;
+		let lo = sel[0];
+		let hi = sel[0];
+		let sorted = true;
+		for (let i = 1; i < n; i++) {
+			const s = sel[i];
+			if (s < sel[i - 1]) sorted = false;
+			if (s < lo) lo = s;
+			if (s > hi) hi = s;
+		}
+		if (sorted || lo === hi) return;
+
+		// Bucket starts, then `dest[i]` = the slot entry `i` belongs in. Stable, so entries
+		// within one selection keep the order they were written in.
+		const at = new Uint32Array(hi - lo + 2);
+		for (let i = 0; i < n; i++) at[sel[i] - lo + 1]++;
+		for (let k = 1; k < at.length; k++) at[k] += at[k - 1];
+		if (this.dest.length < n) this.dest = new Uint32Array(n);
+		const dest = this.dest;
+		for (let i = 0; i < n; i++) dest[i] = at[sel[i] - lo]++;
+
+		// Apply the permutation in place by swapping each entry towards its slot. Every swap
+		// lands at least one entry for good, so this is O(n) with no second set of arrays.
+		for (let i = 0; i < n; i++) {
+			while (dest[i] !== i) {
+				const j = dest[i];
+				this.swap(i, j);
+				dest[i] = dest[j];
+				dest[j] = j;
+			}
+		}
+		this.version++;
+	}
+
+	/** Exchange two slots, keeping `slot` pointing at where each id actually lives. */
+	private swap(i: number, j: number) {
+		for (let k = 0; k < 2; k++) {
+			const t = this.positions[i * 2 + k];
+			this.positions[i * 2 + k] = this.positions[j * 2 + k];
+			this.positions[j * 2 + k] = t;
+		}
+		for (let k = 0; k < 4; k++) {
+			const t = this.colors[i * 4 + k];
+			this.colors[i * 4 + k] = this.colors[j * 4 + k];
+			this.colors[j * 4 + k] = t;
+		}
+		const a = this.angles[i];
+		this.angles[i] = this.angles[j];
+		this.angles[j] = a;
+		const s = this.sel[i];
+		this.sel[i] = this.sel[j];
+		this.sel[j] = s;
+		const id = this.ids[i];
+		this.ids[i] = this.ids[j];
+		this.ids[j] = id;
+		this.slot[this.ids[i]] = i;
+		this.slot[this.ids[j]] = j;
+	}
+
 	/** Snapshot of the selected ids. Copies the bit array so later edits can't mutate it. */
 	selectedIds(): SelectedIds {
 		if (this.count === 0) return SelectedIds.EMPTY;
 		return new SelectedIds(this.bits.slice(), this.count);
 	}
 
-	/** Replace every entry with arrays sliced straight out of Rust's render binary. */
+	/** Replace every entry with arrays sliced straight out of Rust's render binary, which
+	 *  ships them already in selection order. */
 	load(
 		positions: Float32Array<ArrayBuffer>,
 		colors: Uint8Array<ArrayBuffer>,
 		angles: Float32Array<ArrayBuffer>,
 		ids: Uint32Array<ArrayBuffer>,
+		sel: Uint32Array<ArrayBuffer>,
 		maxId: number,
 	) {
 		this.positions = positions;
 		this.colors = colors;
 		this.angles = angles;
 		this.ids = ids;
+		this.sel = sel;
 		this.count = this.capacity = ids.length;
 		this.bits = new Uint8Array((maxId >>> 3) + 1);
 		this.slot = new Uint32Array(maxId + 1);
@@ -237,6 +331,7 @@ export class SelectionOverlay {
 			this.colors = grow(this.colors, cap * 4, Uint8Array);
 			this.angles = grow(this.angles, cap, Float32Array);
 			this.ids = grow(this.ids, cap, Uint32Array);
+			this.sel = grow(this.sel, cap, Uint32Array);
 			this.capacity = cap;
 		}
 		// `bits` and `slot` are both indexed by id, so they grow together off one id capacity.
@@ -417,7 +512,8 @@ export class CellManager {
 			this.totalCount += count;
 		}
 
-		// Selection overlay: [u32 count][f32[] positions][u8[] colors][f32[] angles][u32[] ids]
+		// Selection overlay, in selection order:
+		// [u32 count][f32[] positions][u8[] colors][f32[] angles][u32[] ids][u32[] selIdx]
 		if (offset + 4 <= buf.byteLength) {
 			const selCount = dv.getUint32(offset, true);
 			offset += 4;
@@ -429,7 +525,9 @@ export class CellManager {
 				const ang = new Float32Array(buf, offset, selCount);
 				offset += selCount * 4;
 				const ids = new Uint32Array(buf, offset, selCount);
-				this.overlay.load(pos, col, ang, ids, this.maxId);
+				offset += selCount * 4;
+				const sel = new Uint32Array(buf, offset, selCount);
+				this.overlay.load(pos, col, ang, ids, sel, this.maxId);
 			}
 		}
 
@@ -447,6 +545,7 @@ export class CellManager {
 	 */
 	applyDelta(delta: RenderDelta): Set<string> {
 		const affected = new Set<string>();
+		const overlayBefore = this.overlay.version;
 
 		for (const rem of delta.removed) {
 			const cb = this.cells.get(rem.cell);
@@ -495,6 +594,13 @@ export class CellManager {
 			this.setSelection(cb, i, patch.sel);
 		}
 
+		// Entries just added landed at the end of the overlay and deletes swapped the tail
+		// into the hole, so the slots have to be put back in selection order before they
+		// are drawn — otherwise an edited marker jumps in front of everything. Guarded on
+		// the overlay having moved at all, so a delta that touches no selected row doesn't
+		// pay a scan over every selected marker on the map.
+		if (this.overlay.version !== overlayBefore) this.overlay.order();
+
 		this.version++;
 		return affected;
 	}
@@ -505,8 +611,12 @@ export class CellManager {
 	 *  active-location path, which only knows an id. */
 	private setSelection(cb: CellBuffer, i: number, sel: SelColor) {
 		const id = cb.ids[i];
-		if (sel) this.overlay.set(id, cb.positions[i * 2], cb.positions[i * 2 + 1], cb.angles[i], sel);
-		else this.overlay.delete(id);
+		if (sel) {
+			const p = cb.positions;
+			this.overlay.set(id, p[i * 2], p[i * 2 + 1], cb.angles[i], sel.color, sel.idx);
+		} else {
+			this.overlay.delete(id);
+		}
 		cb.patchVisible(i, sel || id === this.activeId ? 0 : 255);
 	}
 
@@ -625,10 +735,16 @@ export class CellManager {
 					cb.positions[li * 2 + 1],
 					cb.angles[li],
 					selColors[si],
+					si,
 				);
 				cb.visible[li] = 0;
 			}
 		}
+
+		// Written cell by cell, so the slots come out in row order. Sorting them by selection
+		// is what makes the winner above hold between neighbouring markers too, not just
+		// between two selections covering the same row.
+		this.overlay.order();
 
 		// The active row was shown again along with the rest of its cell.
 		if (this.activeId != null) this.syncVisible(this.activeId);

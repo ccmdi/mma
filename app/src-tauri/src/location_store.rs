@@ -285,25 +285,34 @@ pub(crate) struct SelectionState {
 }
 
 impl SelectionState {
-    /// Color of a selected id = color of the last selection containing it. None if unselected.
-    fn color_for(&self, id: u32) -> Option<[u8; 3]> {
+    /// Paint of a selected id = the last selection containing it. None if unselected.
+    fn paint_for(&self, id: u32) -> Option<SelPaint> {
         if !self.ids.contains(id) {
             return None;
         }
-        let mut color = None;
-        for r in &self.resolved {
+        let mut paint = None;
+        for (i, r) in self.resolved.iter().enumerate() {
             if r.set.contains(id) {
-                color = Some(r.sel.color);
+                paint = Some(SelPaint {
+                    idx: i as u32,
+                    color: r.sel.color,
+                });
             }
         }
-        color
+        paint
     }
 
-    fn color_map(&self) -> HashMap<u32, [u8; 3]> {
+    /// Bulk form of `paint_for`. Later selections overwrite earlier ones, so each id ends
+    /// up with the same paint the per-id lookup would return.
+    fn paint_map(&self) -> HashMap<u32, SelPaint> {
         let mut map = HashMap::with_capacity(self.ids.len() as usize);
-        for r in &self.resolved {
+        for (i, r) in self.resolved.iter().enumerate() {
+            let paint = SelPaint {
+                idx: i as u32,
+                color: r.sel.color,
+            };
             for id in &r.set {
-                map.insert(id, r.sel.color);
+                map.insert(id, paint);
             }
         }
         map
@@ -368,8 +377,8 @@ pub(crate) struct EditEntry {
     pub removed: Vec<Location>,
 }
 
-/// Ids whose selection membership changed in a mutation. Carries no colour:
-/// `SelectionState::color_for` is the one place a selection colour is decided.
+/// Ids whose selection membership changed in a mutation. Carries no paint:
+/// `SelectionState::paint_for` is the one place a selection colour and draw order is decided.
 struct MembershipDelta {
     changed: HashSet<u32>,
 }
@@ -677,7 +686,7 @@ impl Store {
                 lng: loc.lng as f32,
                 lat: loc.lat as f32,
                 heading: self.render_angle(loc.heading),
-                sel: self.selections.color_for(loc.id),
+                sel: self.selections.paint_for(loc.id),
                 moved_from: None,
             });
         }
@@ -704,7 +713,7 @@ impl Store {
                     lng: new.lng as f32,
                     lat: new.lat as f32,
                     heading: self.render_angle(new.heading),
-                    sel: self.selections.color_for(new.id),
+                    sel: self.selections.paint_for(new.id),
                     moved_from,
                 });
                 continue;
@@ -718,7 +727,7 @@ impl Store {
                         lng: pos_changed.then_some(new.lng as f32),
                         lat: pos_changed.then_some(new.lat as f32),
                         heading: heading_changed.then(|| self.render_angle(new.heading)),
-                        sel: self.selections.color_for(new.id),
+                        sel: self.selections.paint_for(new.id),
                     });
                 }
             }
@@ -1839,6 +1848,17 @@ impl ChangeSet {
     }
 }
 
+/// The selection drawing a row: its colour, and its index in `SelectionState::resolved`.
+/// The index is the draw order — a later selection overdraws an earlier one — so the
+/// overlay can be ordered by it instead of by whatever order rows happen to arrive in.
+/// Every marker sits at z=0 in one deck.gl layer, so buffer order is the only z there is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SelPaint {
+    pub idx: u32,
+    pub color: [u8; 3],
+}
+
 /// A marker appended to a render cell: position, heading, and selection state.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -1848,8 +1868,8 @@ pub struct RenderEntry {
     pub lng: f32,
     pub lat: f32,
     pub heading: f32,
-    /// `None` = drawn by the base layer, `Some(rgb)` = drawn by the selection overlay.
-    pub sel: Option<[u8; 3]>,
+    /// `None` = drawn by the base layer, `Some(paint)` = drawn by the selection overlay.
+    pub sel: Option<SelPaint>,
     /// The slot this row vacated when it crossed cells. Present only for a move, so JS
     /// mirrors the swap-remove and carries the overlay entry across instead of inferring
     /// a move from an unrelated removed/added pair.
@@ -1867,7 +1887,7 @@ pub struct RenderPatchEntry {
     pub lng: Option<f32>,
     pub lat: Option<f32>,
     pub heading: Option<f32>,
-    pub sel: Option<[u8; 3]>,
+    pub sel: Option<SelPaint>,
 }
 
 /// A swap-removal from a render cell. JS must move the last element into `cell_index`
@@ -3249,7 +3269,7 @@ fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) -> Vec<u8> 
     let has_patches = !store.overlay.patches.is_empty();
 
     let selected_set: &RoaringBitmap = &store.selections.ids;
-    let color_map = store.selections.color_map();
+    let paint_map = store.selections.paint_map();
     let active_id = store.selections.active_id;
     let arrow_style = req.marker_style == "arrow";
 
@@ -3265,18 +3285,22 @@ fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) -> Vec<u8> 
     const NONE: Option<CellOut> = None;
     let mut cells: [Option<CellOut>; 32] = [NONE; 32];
 
-    // Selection overlay: selected entries rendered as a separate colored layer
+    // Selection overlay: selected entries rendered as a separate colored layer. `sel_idx`
+    // is the drawing selection's index, both to order the entries below and so JS can keep
+    // them ordered as later edits add and drop entries.
     struct SelOverlay {
         ids: Vec<u32>,
         positions: Vec<f32>,
         colors: Vec<u8>,
         angles: Vec<f32>,
+        sel_idx: Vec<u32>,
     }
     let mut sel_ov = SelOverlay {
         ids: Vec::new(),
         positions: Vec::new(),
         colors: Vec::new(),
         angles: Vec::new(),
+        sel_idx: Vec::new(),
     };
 
     {
@@ -3296,12 +3320,17 @@ fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) -> Vec<u8> 
             out.visible.push(if hidden { 0 } else { 255 });
             out.angles.push(angle);
             out.ids.push(id);
-            if let Some(&[r, g, b]) = color_map.get(&id) {
+            if let Some(&SelPaint {
+                idx,
+                color: [r, g, b],
+            }) = paint_map.get(&id)
+            {
                 sel_ov.positions.push(lng as f32);
                 sel_ov.positions.push(lat as f32);
                 sel_ov.colors.extend_from_slice(&[r, g, b, 255]);
                 sel_ov.angles.push(angle);
                 sel_ov.ids.push(id);
+                sel_ov.sel_idx.push(idx);
             }
         };
 
@@ -3324,6 +3353,42 @@ fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) -> Vec<u8> 
         for loc in &store.overlay.adds {
             emit(loc.id, loc.lat, loc.lng, loc.heading);
         }
+    }
+
+    // Order the overlay by selection index, so a later selection's markers overdraw an
+    // earlier one's. Emitting in batch-row order instead would let two overlapping markers
+    // settle their z by whichever row came first in the batch. Counting sort — the key is a
+    // small dense integer, and it is stable, so rows within one selection keep batch order.
+    let num_sels = store.selections.resolved.len();
+    if num_sels > 1 && sel_ov.ids.len() > 1 {
+        let n = sel_ov.ids.len();
+        let mut at = vec![0u32; num_sels + 1];
+        for &si in &sel_ov.sel_idx {
+            at[si as usize + 1] += 1;
+        }
+        for i in 1..at.len() {
+            at[i] += at[i - 1];
+        }
+        let mut sorted = SelOverlay {
+            ids: vec![0; n],
+            positions: vec![0.0; n * 2],
+            colors: vec![0; n * 4],
+            angles: vec![0.0; n],
+            sel_idx: vec![0; n],
+        };
+        for src in 0..n {
+            let si = sel_ov.sel_idx[src] as usize;
+            let dst = at[si] as usize;
+            at[si] += 1;
+            sorted.positions[dst * 2] = sel_ov.positions[src * 2];
+            sorted.positions[dst * 2 + 1] = sel_ov.positions[src * 2 + 1];
+            sorted.colors[dst * 4..dst * 4 + 4]
+                .copy_from_slice(&sel_ov.colors[src * 4..src * 4 + 4]);
+            sorted.angles[dst] = sel_ov.angles[src];
+            sorted.ids[dst] = sel_ov.ids[src];
+            sorted.sel_idx[dst] = si as u32;
+        }
+        sel_ov = sorted;
     }
 
     // Rebuild per-cell render tracking
@@ -3367,6 +3432,7 @@ fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) -> Vec<u8> 
             + sel_ov.colors.len()
             + sel_ov.angles.len() * 4
             + sel_ov.ids.len() * 4
+            + sel_ov.sel_idx.len() * 4
     };
     let mut buf = Vec::with_capacity(4 + body_cap + 4 + sel_cap);
     buf.extend_from_slice(&non_empty.to_le_bytes());
@@ -3387,7 +3453,8 @@ fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) -> Vec<u8> 
         buf.extend_from_slice(bytemuck::cast_slice(&out.angles));
     }
 
-    // Selection overlay: [u32 count][f32[] positions][u8[] colors][f32[] angles][u32[] ids]
+    // Selection overlay, already ordered by selection index:
+    // [u32 count][f32[] positions][u8[] colors][f32[] angles][u32[] ids][u32[] selIdx]
     let sel_count = sel_ov.ids.len() as u32;
     buf.extend_from_slice(&sel_count.to_le_bytes());
     if sel_count > 0 {
@@ -3395,6 +3462,7 @@ fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) -> Vec<u8> 
         buf.extend_from_slice(&sel_ov.colors);
         buf.extend_from_slice(bytemuck::cast_slice(&sel_ov.angles));
         buf.extend_from_slice(bytemuck::cast_slice(&sel_ov.ids));
+        buf.extend_from_slice(bytemuck::cast_slice(&sel_ov.sel_idx));
     }
 
     log::debug!(

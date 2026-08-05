@@ -19,6 +19,12 @@ function entry(
 	return { cell, id, lng, lat, heading, sel, movedFrom: null };
 }
 
+/** A `SelColor`: the paint a delta entry carries. `idx` is the drawing selection's
+ *  position in the selection list, which is what the overlay orders by. */
+function paint(color: [number, number, number], idx = 0): SelColor {
+	return { idx, color };
+}
+
 /** A render delta with everything defaulted, so a case names only what it exercises. */
 function delta(parts: Partial<RenderDelta> = {}): RenderDelta {
 	return { added: [], updated: [], removed: [], fullReset: false, ...parts };
@@ -486,7 +492,7 @@ describe("Deltas during active selections", () => {
 		mgr.applyDelta(
 			delta({
 				updated: [
-					{ cell: "s", cellIndex: idx, lng: 999, lat: 888, heading: null, sel: [255, 0, 0] },
+					{ cell: "s", cellIndex: idx, lng: 999, lat: 888, heading: null, sel: paint([255, 0, 0]) },
 				],
 			}),
 		);
@@ -507,7 +513,9 @@ describe("Deltas during active selections", () => {
 
 		mgr.applyDelta(
 			delta({
-				updated: [{ cell: "s", cellIndex: idx, lng: 999, lat: 888, heading: 45, sel: [255, 0, 0] }],
+				updated: [
+					{ cell: "s", cellIndex: idx, lng: 999, lat: 888, heading: 45, sel: paint([255, 0, 0]) },
+				],
 			}),
 		);
 
@@ -535,7 +543,7 @@ describe("Deltas during active selections", () => {
 						lng: 7,
 						lat: 8,
 						heading: 0,
-						sel: [255, 0, 0],
+						sel: paint([255, 0, 0]),
 						movedFrom: { cell: "s", cellIndex: idx, id: 2 },
 					},
 				],
@@ -557,7 +565,7 @@ describe("Deltas during active selections", () => {
 		selectIds(mgr, new Set([1]));
 		const before = mgr.overlay.count;
 
-		mgr.applyDelta(delta({ updated: [selPatch("s", 9999, [1, 2, 3])] }));
+		mgr.applyDelta(delta({ updated: [selPatch("s", 9999, paint([1, 2, 3]))] }));
 
 		expect(mgr.overlay.count).toBe(before);
 		expect(mgr.selectedIds().has(0)).toBe(false);
@@ -593,7 +601,7 @@ describe("Deltas during active selections", () => {
 		const cellIndex = cb.idToIndex.get(2)!;
 
 		// Same id patched selected twice: the overlay must still hold exactly one entry.
-		const patch = selPatch("s", cellIndex, [0, 200, 0]);
+		const patch = selPatch("s", cellIndex, paint([0, 200, 0]));
 		mgr.applyDelta(delta({ updated: [patch] }));
 		mgr.applyDelta(delta({ updated: [patch] }));
 
@@ -623,7 +631,7 @@ describe("Membership propagation via selection patches", () => {
 	it("a patch hides only the rows it names", () => {
 		mgr.applyDelta(
 			delta({
-				updated: [selPatch("s", 0, [50, 200, 50]), selPatch("s", 1, [50, 200, 50])],
+				updated: [selPatch("s", 0, paint([50, 200, 50])), selPatch("s", 1, paint([50, 200, 50]))],
 			}),
 		);
 
@@ -641,7 +649,7 @@ describe("Membership propagation via selection patches", () => {
 			}),
 		);
 
-		mgr.applyDelta(delta({ updated: [selPatch("s", 0, [0, 255, 0])] }));
+		mgr.applyDelta(delta({ updated: [selPatch("s", 0, paint([0, 255, 0]))] }));
 
 		expect(cb.ids[0]).toBe(3);
 		expect(getVisible(mgr, 3)).toBe(0);
@@ -957,15 +965,15 @@ describe("SelectionOverlay id index", () => {
 
 	it("set is idempotent and restates colour in place", () => {
 		const ov = mgr.overlay;
-		ov.set(1, 10, 20, 0, [255, 0, 0]);
-		ov.set(1, 10, 20, 0, [0, 0, 255]);
+		ov.set(1, 10, 20, 0, [255, 0, 0], 0);
+		ov.set(1, 10, 20, 0, [0, 0, 255], 0);
 		expect(ov.count).toBe(1);
 		expect([...ov.colors.slice(0, 4)]).toEqual([0, 0, 255, 255]);
 	});
 
 	it("delete swap-removes and keeps every surviving id findable", () => {
 		const ov = mgr.overlay;
-		for (const id of [1, 2, 3, 4, 5]) ov.set(id, id, id, 0, [255, 0, 0]);
+		for (const id of [1, 2, 3, 4, 5]) ov.set(id, id, id, 0, [255, 0, 0], 0);
 
 		ov.delete(1); // id 5 swaps into slot 0
 		ov.delete(3);
@@ -981,7 +989,7 @@ describe("SelectionOverlay id index", () => {
 
 	it("deleting an absent id is a no-op", () => {
 		const ov = mgr.overlay;
-		ov.set(1, 1, 1, 0, [255, 0, 0]);
+		ov.set(1, 1, 1, 0, [255, 0, 0], 0);
 		const v = ov.version;
 		ov.delete(99);
 		expect(ov.count).toBe(1);
@@ -990,8 +998,8 @@ describe("SelectionOverlay id index", () => {
 
 	it("selectedIds snapshots, so a later delete does not rewrite it", () => {
 		const ov = mgr.overlay;
-		ov.set(1, 1, 1, 0, [255, 0, 0]);
-		ov.set(2, 2, 2, 0, [255, 0, 0]);
+		ov.set(1, 1, 1, 0, [255, 0, 0], 0);
+		ov.set(2, 2, 2, 0, [255, 0, 0], 0);
 		const snapshot = ov.selectedIds();
 		ov.delete(1);
 		expect(snapshot.has(1)).toBe(true);
@@ -1000,7 +1008,7 @@ describe("SelectionOverlay id index", () => {
 
 	it("clear empties membership without leaving stale bits", () => {
 		const ov = mgr.overlay;
-		for (const id of [1, 2, 3]) ov.set(id, id, id, 0, [255, 0, 0]);
+		for (const id of [1, 2, 3]) ov.set(id, id, id, 0, [255, 0, 0], 0);
 		ov.clear();
 		expect(ov.count).toBe(0);
 		for (const id of [1, 2, 3]) expect(ov.has(id)).toBe(false);

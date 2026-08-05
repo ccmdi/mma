@@ -19,6 +19,12 @@ function entry(
 	return { cell, id, lng, lat, heading, sel, movedFrom: null };
 }
 
+/** A `SelColor`: the paint a delta entry carries. `idx` is the drawing selection's
+ *  position in the selection list, which is what the overlay orders by. */
+function paint(color: [number, number, number], idx = 0): SelColor {
+	return { idx, color };
+}
+
 /** A render delta with everything defaulted, so a case names only what it exercises. */
 function delta(parts: Partial<RenderDelta> = {}): RenderDelta {
 	return { added: [], updated: [], removed: [], fullReset: false, ...parts };
@@ -182,7 +188,7 @@ describe("CellManager", () => {
 		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20)] }));
 		mgr.applyDelta(
 			delta({
-				updated: [selPatch("s", 0, [255, 0, 0])],
+				updated: [selPatch("s", 0, paint([255, 0, 0]))],
 			}),
 		);
 		expect(mgr.cells.get("s")!.visible[0]).toBe(0);
@@ -192,7 +198,7 @@ describe("CellManager", () => {
 	});
 
 	it("a patch stating no selection returns the row to the base layer", () => {
-		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20, 0, [255, 0, 0])] }));
+		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20, 0, paint([255, 0, 0]))] }));
 		expect(mgr.overlay.count).toBe(1);
 		mgr.applyDelta(
 			delta({
@@ -338,7 +344,7 @@ describe("CellManager", () => {
 
 	it("initFromBinary parses selection overlay", () => {
 		// 0 cells + 1 selection overlay entry
-		const buf = new ArrayBuffer(4 + 4 + 2 * 4 + 4 + 4 + 4);
+		const buf = new ArrayBuffer(4 + 4 + 2 * 4 + 4 + 4 + 4 + 4);
 		const dv = new DataView(buf);
 		let off = 0;
 		dv.setUint32(off, 0, true);
@@ -364,12 +370,16 @@ describe("CellManager", () => {
 		off += 4;
 		// id
 		dv.setUint32(off, 7, true);
+		off += 4;
+		// selection index
+		dv.setUint32(off, 3, true);
 
 		mgr.initFromBinary(buf);
 		expect(mgr.overlay.count).toBe(1);
 		expect(mgr.overlay.ids[0]).toBe(7);
 		expect(mgr.overlay.positions[0]).toBeCloseTo(5.5);
 		expect(mgr.overlay.colors[0]).toBe(255);
+		expect(mgr.overlay.sel[0]).toBe(3);
 		// The loaded overlay is indexed, not just drawn: membership answers come off it.
 		expect(mgr.overlay.has(7)).toBe(true);
 		expect(mgr.selectedIds().has(7)).toBe(true);
@@ -391,7 +401,7 @@ describe("CellManager", () => {
 	it("an added entry that is already selected goes straight into the overlay", () => {
 		mgr.applyDelta(
 			delta({
-				added: [entry("s", 1, 10, 20, 45, [255, 0, 0]), entry("s", 2, 30, 40, 90)],
+				added: [entry("s", 1, 10, 20, 45, paint([255, 0, 0])), entry("s", 2, 30, 40, 90)],
 			}),
 		);
 		expect(mgr.overlay.count).toBe(1);
@@ -404,7 +414,7 @@ describe("CellManager", () => {
 	});
 
 	it("movedFrom carries a selected row's overlay entry across cells", () => {
-		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20, 0, [0, 255, 0])] }));
+		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20, 0, paint([0, 255, 0]))] }));
 		expect(mgr.overlay.count).toBe(1);
 
 		mgr.applyDelta(
@@ -416,7 +426,7 @@ describe("CellManager", () => {
 						lng: 99,
 						lat: 88,
 						heading: 0,
-						sel: [0, 255, 0],
+						sel: paint([0, 255, 0]),
 						movedFrom: { cell: "s", cellIndex: 0, id: 1 },
 					},
 				],
@@ -437,7 +447,7 @@ describe("CellManager", () => {
 	it("setActive hides the active row and restores it, without disturbing selection", () => {
 		mgr.applyDelta(
 			delta({
-				added: [entry("s", 1, 10, 20), entry("s", 2, 30, 40, 0, [255, 0, 0])],
+				added: [entry("s", 1, 10, 20), entry("s", 2, 30, 40, 0, paint([255, 0, 0]))],
 			}),
 		);
 		const cb = mgr.cells.get("s")!;
@@ -645,6 +655,75 @@ describe("applySelectionBitmasks", () => {
 		expect(mgr.overlay.colors[idx10 * 4]).toBe(255);
 		const idx30 = mgr.overlay.ids.indexOf(30);
 		expect(mgr.overlay.colors[idx30 * 4 + 2]).toBe(255);
+	});
+
+	it("orders the overlay by selection, whatever order the rows sit in", () => {
+		// Rows alternate between the two selections, so row order and selection order
+		// disagree for every marker but the first.
+		mgr.applyDelta(
+			delta({
+				added: [
+					entry("s", 10, 1, 1),
+					entry("s", 20, 2, 2),
+					entry("s", 30, 3, 3),
+					entry("s", 40, 4, 4),
+				],
+			}),
+		);
+
+		// Selection 0 (red): rows 0, 2. Selection 1 (blue): rows 1, 3.
+		mgr.applySelectionBitmasks(
+			[
+				[255, 0, 0],
+				[0, 0, 255],
+			],
+			[
+				{
+					cellChar: "s",
+					locCount: 4,
+					sels: [maskSel(new Uint8Array([0b0101])), maskSel(new Uint8Array([0b1010]))],
+				},
+			],
+		);
+
+		// Buffer order is the only z-stacking these markers have, so every blue entry has
+		// to sit after every red one — not just the ones that happen to come later by row.
+		const sel = [...mgr.overlay.sel.slice(0, mgr.overlay.count)];
+		expect(sel).toEqual([0, 0, 1, 1]);
+		const ids = [...mgr.overlay.ids.slice(0, mgr.overlay.count)];
+		expect(new Set(ids.slice(0, 2))).toEqual(new Set([10, 30]));
+		expect(new Set(ids.slice(2))).toEqual(new Set([20, 40]));
+		// Colours travelled with their rows through the reorder.
+		for (let i = 0; i < mgr.overlay.count; i++) {
+			const red = mgr.overlay.colors[i * 4] === 255;
+			expect(red).toBe(mgr.overlay.sel[i] === 0);
+		}
+	});
+
+	it("keeps the overlay ordered when a delta repaints a row", () => {
+		mgr.applyDelta(
+			delta({
+				added: [
+					entry("s", 10, 1, 1, 0, paint([0, 0, 255], 1)),
+					entry("s", 20, 2, 2, 0, paint([0, 0, 255], 1)),
+					entry("s", 30, 3, 3),
+				],
+			}),
+		);
+		expect([...mgr.overlay.sel.slice(0, 2)]).toEqual([1, 1]);
+
+		// Row 30 joins the *earlier* selection. Appended at the end, it would draw over
+		// both blue markers; it belongs underneath them.
+		mgr.applyDelta(delta({ updated: [selPatch("s", 2, paint([255, 0, 0], 0))] }));
+
+		expect(mgr.overlay.count).toBe(3);
+		expect([...mgr.overlay.sel.slice(0, 3)]).toEqual([0, 1, 1]);
+		expect(mgr.overlay.ids[0]).toBe(30);
+		expect(mgr.overlay.colors[0]).toBe(255);
+		// The id index survived the reorder, so membership answers still work.
+		expect(mgr.overlay.has(30)).toBe(true);
+		expect(mgr.overlay.has(10)).toBe(true);
+		expect(mgr.overlay.has(20)).toBe(true);
 	});
 
 	it("selected entries get alpha=0 in main layer (hidden)", () => {
