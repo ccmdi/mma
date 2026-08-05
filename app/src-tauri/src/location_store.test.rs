@@ -2814,6 +2814,55 @@ fn removed_selected_location_leaves_no_patch() {
 }
 
 #[test]
+fn leaving_winning_selection_restates_survivors_paint() {
+    // A row in two overlapping selections is painted by the later one. Editing it out of
+    // the winner — without moving it — must ship a patch stating the survivor's paint:
+    // union membership never flips here, so this is exactly the case a union-flip test
+    // misses and the overlay would keep the dead winner's colour until a full resolve.
+    let both = loc_with_tags(1, 10.0, 20.0, vec![1, 2]);
+    let mut store = setup_store_with(&[both.clone()]);
+    insert_tag(&mut store, 1, 1);
+    insert_tag(&mut store, 2, 1);
+    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 2, [0, 0, 255]);
+    store.resolve_selection_membership();
+    assert_eq!(
+        store.selections.paint_for(1),
+        Some(SelPaint {
+            idx: 1,
+            color: [0, 0, 255]
+        }),
+        "the later selection wins while the row is in both"
+    );
+
+    let only_first = loc_with_tags(1, 10.0, 20.0, vec![1]);
+    let result = store.finish_mutation(ChangeSet {
+        updated: vec![(both, only_first)],
+        ..Default::default()
+    });
+
+    assert_eq!(
+        result.delta.updated.len(),
+        1,
+        "leaving the winner while staying selected must still ship a patch"
+    );
+    let p = &result.delta.updated[0];
+    assert_eq!(
+        p.sel,
+        Some(SelPaint {
+            idx: 0,
+            color: [255, 0, 0]
+        }),
+        "the surviving selection's paint"
+    );
+    assert_eq!(
+        (p.lng, p.lat, p.heading),
+        (None, None, None),
+        "nothing moved, so only the selection state is stated"
+    );
+}
+
+#[test]
 fn membership_delta_no_patch_when_nothing_changed() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![1]);
     let mut store = setup_store_with(&[l1.clone()]);

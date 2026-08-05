@@ -377,8 +377,9 @@ pub(crate) struct EditEntry {
     pub removed: Vec<Location>,
 }
 
-/// Ids whose selection membership changed in a mutation. Carries no paint:
-/// `SelectionState::paint_for` is the one place a selection colour and draw order is decided.
+/// Ids whose selection paint changed in a mutation — including moves between overlapping
+/// selections, where union membership never flips but the winning colour does. Carries no
+/// paint: `SelectionState::paint_for` is the one place colour and draw order is decided.
 struct MembershipDelta {
     changed: HashSet<u32>,
 }
@@ -737,22 +738,22 @@ impl Store {
     }
 
     /// Update selection membership sets for incremental changes (adds/removes/updates).
-    /// Returns which ids crossed in or out of a selection, so the render delta can state
-    /// their new selection state.
+    /// Returns which ids changed paint, so the render delta can state their new
+    /// selection state.
     fn update_selection_membership(&mut self, changes: &ChangeSet) -> MembershipDelta {
-        let mut was_selected: HashSet<u32> = HashSet::new();
-
         let drop_ids: HashSet<u32> = changes
             .removed
             .iter()
             .copied()
             .chain(changes.updated.iter().map(|(_, n)| n.id))
             .collect();
+        // Paint before the mutation, snapshotted while the sets still reflect it. Paint is
+        // the compared fact — not union membership — because a row that moves between
+        // overlapping selections changes colour without ever leaving the union.
+        let mut prev_paint: HashMap<u32, Option<SelPaint>> = HashMap::new();
         if !drop_ids.is_empty() {
             for id in &drop_ids {
-                if self.selections.ids.contains(*id) {
-                    was_selected.insert(*id);
-                }
+                prev_paint.insert(*id, self.selections.paint_for(*id));
             }
             for r in &mut self.selections.resolved {
                 for id in &drop_ids {
@@ -794,7 +795,10 @@ impl Store {
             .iter()
             .chain(changes.updated.iter().map(|(_, n)| n))
         {
-            if self.selections.ids.contains(loc.id) != was_selected.contains(&loc.id) {
+            // Added rows have no snapshot: their previous paint is None, and they compare
+            // against whatever they resolve to now.
+            let before = prev_paint.get(&loc.id).copied().flatten();
+            if self.selections.paint_for(loc.id) != before {
                 changed.insert(loc.id);
             }
         }
