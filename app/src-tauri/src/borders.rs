@@ -588,9 +588,7 @@ pub async fn download_border_file(level: String) -> AppResult<()> {
             .bytes()?;
         write_border_file(&level, &bytes)
     })
-    .await
-    .map_err(AppError::from)
-    .and_then(|r| r)
+    .await?
 }
 
 /// Load every dataset already on disk so the first lookup does not pay for it.

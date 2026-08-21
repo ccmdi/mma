@@ -66,9 +66,7 @@ pub async fn remote_api_start(key: String) -> AppResult<String> {
         }
         Ok(format!("http://{}", addr()))
     })
-    .await
-    .map_err(crate::types::AppError::from)
-    .and_then(|r| r)
+    .await?
 }
 
 #[tauri::command]

@@ -2237,9 +2237,7 @@ pub async fn store_close_map(
         (map_id, store)
     };
     tokio::task::spawn_blocking(move || flush_closed_store(&map_id, &store))
-        .await
-        .map_err(AppError::from)
-        .and_then(|r| r)
+        .await?
 }
 
 fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
@@ -3185,8 +3183,7 @@ pub async fn store_save_dirty(
     let map_id2 = map_id.clone();
     let write = tokio::task::spawn_blocking(move || persist_dirty(&map_id2, delta_data, alive, tags_json))
         .await
-        .map_err(AppError::from)
-        .and_then(|r| r);
+        .unwrap_or_else(|e| Err(e.into()));
     if write.is_err() && wrote_tags {
         if let Ok(store) = state.lock()?.store_for_window(&label.0) {
             store.tags.dirty = true;

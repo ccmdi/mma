@@ -164,9 +164,7 @@ fn fetch(url: &str, what: &str) -> AppResult<bytes::Bytes> {
 pub async fn install_plugin(id: String) -> AppResult<PluginManifest> {
     validate_plugin_id(&id)?;
     tokio::task::spawn_blocking(move || install(id))
-        .await
-        .map_err(AppError::from)
-        .and_then(|r| r)
+        .await?
 }
 
 fn install(id: String) -> AppResult<PluginManifest> {
@@ -205,9 +203,7 @@ pub async fn uninstall_plugin(id: String) -> AppResult<()> {
             Ok(())
         })
     })
-    .await
-    .map_err(AppError::from)
-    .and_then(|r| r)
+    .await?
 }
 
 /// `mma-plugin://` handler: a file from inside the plugins dir, nothing outside it.
