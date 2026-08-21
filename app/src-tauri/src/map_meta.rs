@@ -671,14 +671,6 @@ pub fn store_delete_folder(name: String) -> AppResult<()> {
 // Debug / diagnostics
 // ---------------------------------------------------------------------------
 
-/// Row count for a single SQLite table, used in the debug diagnostics panel.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct DbTableInfo {
-    pub name: String,
-    pub rows: i64,
-}
-
 /// Aggregate database statistics for the debug panel.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -690,43 +682,6 @@ pub struct DbStats {
     pub db_size_bytes: i64,
     pub journal_mode: String,
     pub foreign_keys: bool,
-}
-
-/// List all user-created tables with their row counts. Excludes SQLite internals.
-#[tauri::command]
-#[specta::specta]
-pub fn store_db_table_info() -> AppResult<Vec<DbTableInfo>> {
-    let conn = storage::open_db()?;
-    let mut stmt = conn.prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_sqlx_%' AND name NOT LIKE '_mma_%' ORDER BY name"
-    )?;
-    let names: Vec<String> = stmt
-        .query_map([], |row| row.get(0))?
-        .filter_map(|r| r.ok())
-        .collect();
-    let mut results = Vec::new();
-    for name in names {
-        let rows: i64 = conn
-            .query_row(
-                &format!("SELECT COUNT(*) FROM \"{}\"", name.replace('"', "")),
-                [],
-                |r| r.get(0),
-            )
-            .unwrap_or(-1);
-        results.push(DbTableInfo { name, rows });
-    }
-    Ok(results)
-}
-
-/// Delete all rows from a table. Returns the number of deleted rows.
-/// Used in the debug panel for cache/history cleanup.
-#[tauri::command]
-#[specta::specta]
-pub fn store_db_clear_table(table: String) -> AppResult<i64> {
-    let safe = table.replace('"', "");
-    let conn = storage::open_db()?;
-    let deleted = conn.execute(&format!("DELETE FROM \"{}\"", safe), [])?;
-    Ok(deleted as i64)
 }
 
 /// Compute aggregate database statistics (map/location/tag/commit counts,

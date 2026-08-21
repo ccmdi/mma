@@ -14,35 +14,29 @@ import * as maplibregl from 'maplibre-gl';
 
 /** Commands */
 declare const commands: {
+    /**  Milliseconds from `run()` to the frontend's first call; logged once. */
+    appReady: () => Promise<number>;
     /**
-     *  Write arbitrary text content to a named temp file (`mma_{name}`). Returns the path.
-     *  Used by JS to pass large payloads via file instead of IPC serialization.
+     *  Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
+     *  large payloads over by file instead of IPC serialization.
      */
     writeTempFile: (name: string, content: string) => Promise<string>;
-    /**  Read a file from disk as UTF-8 text. Used by JS to read temp files and plugin sources. */
+    /**  Read a file as UTF-8 text (temp files, plugin sources). */
     readFile: (path: string) => Promise<string>;
-    appReady: () => Promise<number>;
-    /**  Return the platform-specific app data directory path (e.g., `%LOCALAPPDATA%/app.map-making.local`). */
     getAppDataDir: () => Promise<string>;
-    /**  Report where map data is currently stored. */
     getDataLocation: () => Promise<DataLocation>;
     /**
-     *  Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch.
-     *  Does not move existing data -- the caller warns the user.
+     *  Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
+     *  and does not move existing data.
      */
     setDataLocation: (path: string | null) => Promise<null>;
-    /**  Open the app data directory in the OS file explorer. */
     openDataFolder: () => Promise<null>;
-    /**  Open the current log file in the OS default handler. */
     openLogFile: () => Promise<null>;
-    /**  Scan the `plugins/` directory under app data and return manifests for all installed plugins. */
+    /**  Manifests of every installed plugin. */
     listUserPlugins: () => Promise<PluginManifest[]>;
-    /**
-     *  Download a plugin from the GitHub plugin repository and install it to the local plugins directory.
-     *  Fetches `manifest.json` and the main JS file specified in the manifest.
-     */
+    /**  Install a plugin from the marketplace repo: its `manifest.json` plus the main JS file. */
     installPlugin: (id: string) => Promise<PluginManifest>;
-    /**  Remove a plugin by deleting its directory from the local plugins folder. */
+    /**  Delete a plugin's directory. */
     uninstallPlugin: (id: string) => Promise<null>;
     /**
      *  Download a plugin's sidecar bundle from GitHub Releases and extract it under
@@ -172,30 +166,6 @@ declare const commands: {
     storeCopyLocationsToMap: (targetMapId: string, scope: Scope) => Promise<CopyToMapResult>;
     /**  Lightweight status query: location count, version, and dirty flag. */
     storeGetSummary: () => Promise<SummaryResult>;
-    /**  Return metadata for every map in the database. */
-    storeListMaps: () => Promise<MapMeta[]>;
-    /**  Fetch a single map's metadata by ID. Returns `None` if not found. */
-    storeGetMap: (id: string) => Promise<MapData | null>;
-    /**
-     *  Create a new empty map with default settings. Returns the full metadata
-     *  (including the generated UUID) so the frontend can navigate to it immediately.
-     */
-    storeCreateMap: (name: string, folder: string | null) => Promise<MapData>;
-    /**  Delete a map and all its data: database rows and files on disk. */
-    storeDeleteMap: (id: string) => Promise<null>;
-    /**  Apply a partial update to a map's metadata; `None` fields are left unchanged. */
-    storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => Promise<null>;
-    /**
-     *  Update `last_opened_at` to the current timestamp. Used to sort the map
-     *  list by recency in the dashboard.
-     */
-    storeTouchMapOpened: (mapId: string) => Promise<null>;
-    /**  Rename a folder across all maps that reference it. */
-    storeRenameFolder: (from: string, to: string) => Promise<null>;
-    /**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). */
-    storeDeleteFolder: (name: string) => Promise<null>;
-    /**  List all user-created tables with their row counts. Excludes SQLite internals. */
-    storeDbTableInfo: () => Promise<DbTableInfo[]>;
     /**
      *  Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
      *  and clears the redo stack.
@@ -301,6 +271,34 @@ declare const commands: {
      *  Called on marker click to map the GPU pick back to a logical location.
      */
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
+    /**  Return metadata for every map in the database. */
+    storeListMaps: () => Promise<MapMeta[]>;
+    /**  Fetch a single map's metadata by ID. Returns `None` if not found. */
+    storeGetMap: (id: string) => Promise<MapData | null>;
+    /**
+     *  Create a new empty map with default settings. Returns the full metadata
+     *  (including the generated UUID) so the frontend can navigate to it immediately.
+     */
+    storeCreateMap: (name: string, folder: string | null) => Promise<MapData>;
+    /**  Delete a map and all its data: database rows and files on disk. */
+    storeDeleteMap: (id: string) => Promise<null>;
+    /**  Apply a partial update to a map's metadata; `None` fields are left unchanged. */
+    storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => Promise<null>;
+    /**
+     *  Update `last_opened_at` to the current timestamp. Used to sort the map
+     *  list by recency in the dashboard.
+     */
+    storeTouchMapOpened: (mapId: string) => Promise<null>;
+    /**  Rename a folder across all maps that reference it. */
+    storeRenameFolder: (from: string, to: string) => Promise<null>;
+    /**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). */
+    storeDeleteFolder: (name: string) => Promise<null>;
+    /**
+     *  Compute aggregate database statistics (map/location/tag/commit counts,
+     *  database file size, journal mode). Tag count is summed across all maps
+     *  by parsing each map's tags JSON column.
+     */
+    storeDbStats: () => Promise<DbStats>;
     /**
      *  Parse a file (JSON or ZIP of JSONs) and return previews without persisting.
      *  Results are cached in `CACHED_PARSE` so `bulk_import_confirm` can skip re-parsing.
@@ -366,16 +364,19 @@ declare const commands: {
     /**  Remove an abandoned upload session dir (e.g. cancelled operation). */
     storeUploadAbort: (sessionDir: string) => Promise<null>;
     /**
-     *  Delete all rows from a table. Returns the number of deleted rows.
-     *  Used in the debug panel for cache/history cleanup.
+     *  Commit the map's uncommitted changes and return the new commit id.
+     *  `message` None auto-generates a `+a -r ~m` summary.
      */
-    storeDbClearTable: (table: string) => Promise<number>;
+    storeCommit: (mapId: string, message: string | null) => Promise<string>;
+    /**  List all commits for a map, newest first. */
+    storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
     /**
-     *  Compute aggregate database statistics (map/location/tag/commit counts,
-     *  database file size, journal mode). Tag count is summed across all maps
-     *  by parsing each map's tags JSON column.
+     *  Restore a map to the state captured by a previous commit. The caller must reopen
+     *  the map afterwards (undo/redo is cleared).
      */
-    storeDbStats: () => Promise<DbStats>;
+    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<null>;
+    /**  Read a single commit's delta (created/removed locations) for the diff viewer. */
+    storeGetCommitDelta: (mapId: string, commitId: string) => Promise<CommitDelta>;
     /**  Record a panorama visit. Oldest entries beyond `MAX_SEEN` are evicted. */
     storeSeenWrite: (entry: SeenWriteEntry) => Promise<null>;
     /**  Returns a page of seen entries, newest first, with optional filtering. */
@@ -418,20 +419,6 @@ declare const commands: {
     geoguessrLogout: () => Promise<null>;
     /**  Local-only check: is a token stored? Says nothing about its validity. */
     geoguessrHasSession: () => Promise<boolean>;
-    /**
-     *  Commit the map's uncommitted changes and return the new commit id.
-     *  `message` None auto-generates a `+a -r ~m` summary.
-     */
-    storeCommit: (mapId: string, message: string | null) => Promise<string>;
-    /**  List all commits for a map, newest first. */
-    storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
-    /**
-     *  Restore a map to the state captured by a previous commit. The caller must reopen
-     *  the map afterwards (undo/redo is cleared).
-     */
-    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<null>;
-    /**  Read a single commit's delta (created/removed locations) for the diff viewer. */
-    storeGetCommitDelta: (mapId: string, commitId: string) => Promise<CommitDelta>;
     /**
      *  Generate locations from a Vali map definition (JSON/JSONC text). Missing country
      *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
@@ -768,11 +755,9 @@ type CopyToMapResult = {
 };
 /**  The active and default data-folder paths, plus whether a custom override is in effect. */
 type DataLocation = {
-    /**  Folder currently in use this session (default or override). */
     path: string;
-    /**  OS default, ignoring any override -- used for the "reset" affordance. */
+    /**  OS default, ignoring any override -- backs the "reset" affordance. */
     default_path: string;
-    /**  True when `path` differs from the OS default. */
     is_custom: boolean;
 };
 /**  A calendar component to group dates by. */
@@ -786,11 +771,6 @@ type DbStats = {
     dbSizeBytes: number;
     journalMode: string;
     foreignKeys: boolean;
-};
-/**  Row count for a single SQLite table, used in the debug diagnostics panel. */
-type DbTableInfo = {
-    name: string;
-    rows: number;
 };
 /**  What the user needs in order to authorize: the code to type and where to type it. */
 type DeviceCodeInfo = {
@@ -3794,4 +3774,4 @@ declare global {
 }
 
 export { BUILTIN_FIELDS, KNOWN_FIELDS, MMA as MMAApi, PanoType, commands, events };
-export type { AnonIssueRef, AttachmentRef, CameraType, CellRemoval, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DbTableInfo, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, PullCreate, PullUpdate, QueryResult, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ReviewCreate, ReviewSession, ReviewUpdate, SaveResult, Scope, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Select, Selection, SelectionInput, SelectionProps, SelectionSync, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, CameraType, CellRemoval, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, PullCreate, PullUpdate, QueryResult, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ReviewCreate, ReviewSession, ReviewUpdate, SaveResult, Scope, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Select, Selection, SelectionInput, SelectionProps, SelectionSync, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

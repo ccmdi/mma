@@ -284,13 +284,6 @@ export const commands = {
 	storeRenameFolder: (from: string, to: string) => __TAURI_INVOKE<null>("store_rename_folder", { from, to }),
 	/**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). */
 	storeDeleteFolder: (name: string) => __TAURI_INVOKE<null>("store_delete_folder", { name }),
-	/**  List all user-created tables with their row counts. Excludes SQLite internals. */
-	storeDbTableInfo: () => __TAURI_INVOKE<DbTableInfo[]>("store_db_table_info"),
-	/**
-	 *  Delete all rows from a table. Returns the number of deleted rows.
-	 *  Used in the debug panel for cache/history cleanup.
-	 */
-	storeDbClearTable: (table: string) => __TAURI_INVOKE<number>("store_db_clear_table", { table }),
 	/**
 	 *  Compute aggregate database statistics (map/location/tag/commit counts,
 	 *  database file size, journal mode). Tag count is summed across all maps
@@ -572,12 +565,6 @@ export type DbStats = {
 	dbSizeBytes: number,
 	journalMode: string,
 	foreignKeys: boolean,
-};
-
-/**  Row count for a single SQLite table, used in the debug diagnostics panel. */
-export type DbTableInfo = {
-	name: string,
-	rows: number,
 };
 
 /**  What the user needs in order to authorize: the code to type and where to type it. */

@@ -45,7 +45,6 @@ mod vcs_delta;
 #[cfg(feature = "web-serve")]
 pub mod serve;
 
-/// The whole surface the criterion benches link against. See `benches/store.rs`.
 #[cfg(feature = "bench")]
 pub use location_store::bench as bench_api;
 
@@ -184,8 +183,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             map_meta::store_touch_map_opened,
             map_meta::store_rename_folder,
             map_meta::store_delete_folder,
-            map_meta::store_db_table_info,
-            map_meta::store_db_clear_table,
             map_meta::store_db_stats,
             import::bulk_import_preview,
             import::bulk_import_confirm,
