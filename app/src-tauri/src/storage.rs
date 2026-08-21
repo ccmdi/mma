@@ -165,6 +165,14 @@ pub(crate) fn db_path() -> AppResult<std::path::PathBuf> {
 
 /// Open (or create) the SQLite database, ensuring the parent directory exists.
 /// The one place that owns per-connection setup (busy timeout, pragmas).
+/// Run `f` against a fresh connection on the blocking pool, so a busy-timeout
+/// wait never lands on a command thread.
+pub(crate) async fn with_db<T: Send + 'static>(
+    f: impl FnOnce(&mut Connection) -> AppResult<T> + Send + 'static,
+) -> AppResult<T> {
+    tokio::task::spawn_blocking(move || f(&mut open_db()?)).await?
+}
+
 pub(crate) fn open_db() -> AppResult<Connection> {
     let path = db_path()?;
     if let Some(parent) = path.parent() {

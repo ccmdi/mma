@@ -98,34 +98,34 @@ pub(crate) fn clear(conn: &Connection, provider: &str, map_id: &str) -> AppResul
 
 #[tauri::command]
 #[specta::specta]
-pub fn remote_mapping_get(provider: String, map_id: String) -> AppResult<Vec<RemoteMappingRow>> {
-    get(&storage::open_db()?, &provider, &map_id)
+pub async fn remote_mapping_get(provider: String, map_id: String) -> AppResult<Vec<RemoteMappingRow>> {
+    storage::with_db(move |conn| get(conn, &provider, &map_id)).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn remote_mapping_upsert(
+pub async fn remote_mapping_upsert(
     provider: String,
     map_id: String,
     rows: Vec<RemoteMappingRow>,
 ) -> AppResult<()> {
-    upsert(&mut storage::open_db()?, &provider, &map_id, &rows)
+    storage::with_db(move |conn| upsert(conn, &provider, &map_id, &rows)).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn remote_mapping_delete(
+pub async fn remote_mapping_delete(
     provider: String,
     map_id: String,
     local_ids: Vec<u32>,
 ) -> AppResult<()> {
-    delete(&mut storage::open_db()?, &provider, &map_id, &local_ids)
+    storage::with_db(move |conn| delete(conn, &provider, &map_id, &local_ids)).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn remote_mapping_clear(provider: String, map_id: String) -> AppResult<()> {
-    clear(&storage::open_db()?, &provider, &map_id)
+pub async fn remote_mapping_clear(provider: String, map_id: String) -> AppResult<()> {
+    storage::with_db(move |conn| clear(conn, &provider, &map_id)).await
 }
 
 #[cfg(test)]

@@ -10,7 +10,7 @@ use crate::storage::{self, push_field};
 use crate::types::AppResult;
 use crate::types::Tag;
 use crate::util::now_iso;
-use rusqlite::params;
+use rusqlite::{params, Connection};
 use std::collections::HashMap;
 
 // ---------------------------------------------------------------------------
@@ -488,49 +488,55 @@ fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> 
 /// Return metadata for every map in the database.
 #[tauri::command]
 #[specta::specta]
-pub fn store_list_maps() -> AppResult<Vec<MapMeta>> {
-    let conn = storage::open_db()?;
-    let mut stmt = conn.prepare("SELECT * FROM maps")?;
-    let rows = stmt.query_map([], |row| row_to_map_meta(row))?;
-    let mut maps = Vec::new();
-    for row in rows {
-        maps.push(row?);
-    }
-    Ok(maps)
+pub async fn store_list_maps() -> AppResult<Vec<MapMeta>> {
+    storage::with_db(move |conn| {
+        let mut stmt = conn.prepare("SELECT * FROM maps")?;
+        let rows = stmt.query_map([], |row| row_to_map_meta(row))?;
+        let mut maps = Vec::new();
+        for row in rows {
+            maps.push(row?);
+        }
+        Ok(maps)
+    })
+    .await
 }
 
 /// Fetch a single map's metadata by ID. Returns `None` if not found.
 #[tauri::command]
 #[specta::specta]
-pub fn store_get_map(id: String) -> AppResult<Option<MapData>> {
-    let conn = storage::open_db()?;
-    let result = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
-        row_to_map_meta(row)
-    });
-    match result {
-        Ok(meta) => Ok(Some(MapData { meta })),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e.into()),
-    }
+pub async fn store_get_map(id: String) -> AppResult<Option<MapData>> {
+    storage::with_db(move |conn| {
+        let result = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
+            row_to_map_meta(row)
+        });
+        match result {
+            Ok(meta) => Ok(Some(MapData { meta })),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    })
+    .await
 }
 
 /// Create a new empty map with default settings. Returns the full metadata
 /// (including the generated UUID) so the frontend can navigate to it immediately.
 #[tauri::command]
 #[specta::specta]
-pub fn store_create_map(name: String, folder: Option<String>) -> AppResult<MapData> {
-    let conn = storage::open_db()?;
-    let id = uuid::Uuid::new_v4().to_string();
-    let now = now_iso();
-    conn.execute(
-        "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id, name, folder, default_settings_json(), now, now],
-    )?;
+pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult<MapData> {
+    storage::with_db(move |conn| {
+        let id = uuid::Uuid::new_v4().to_string();
+        let now = now_iso();
+        conn.execute(
+            "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id, name, folder, default_settings_json(), now, now],
+        )?;
 
-    let meta = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
-        row_to_map_meta(row)
-    })?;
-    Ok(MapData { meta })
+        let meta = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
+            row_to_map_meta(row)
+        })?;
+        Ok(MapData { meta })
+    })
+    .await
 }
 
 /// Delete a map and all its data: database rows and files on disk.
@@ -567,11 +573,39 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
 // auto-registration doesn't re-discover fields the user explicitly defined.
 #[tauri::command]
 #[specta::specta]
-pub fn store_update_map_meta(
+pub async fn store_update_map_meta(
     state: tauri::State<'_, StoreState>,
     id: String,
     patch: MapMetaPatch,
 ) -> AppResult<()> {
+    let new_fields = patch.extra.as_ref().and_then(|e| e.fields.clone());
+    let row_id = id.clone();
+    let old_extra = storage::with_db(move |conn| update_map_meta_row(conn, &row_id, patch)).await?;
+    let Some(new_fields) = new_fields else {
+        return Ok(());
+    };
+    let mut mgr = state.lock()?;
+    if let Ok(store) = mgr.store_for_map(&id) {
+        if let Some(old_fields) = old_extra.and_then(|e| e.fields) {
+            for key in old_fields.keys() {
+                if !new_fields.contains_key(key) {
+                    store.known_field_keys.remove(key);
+                }
+            }
+        }
+        for key in new_fields.keys() {
+            store.known_field_keys.insert(key.clone());
+        }
+    }
+    Ok(())
+}
+
+/// Apply the patch to the `maps` row; returns the previous `extra` when the patch touches it.
+fn update_map_meta_row(
+    conn: &Connection,
+    id: &str,
+    patch: MapMetaPatch,
+) -> AppResult<Option<MapExtra>> {
     let mut sets: Vec<&str> = Vec::new();
     let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
@@ -585,85 +619,70 @@ pub fn store_update_map_meta(
     push_field!(json sets, values, patch, "labels", labels);
 
     if sets.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
 
     let now = now_iso();
     sets.push("updated_at = ?");
     values.push(Box::new(now));
-    let id_clone = id.clone();
-    values.push(Box::new(id));
+    values.push(Box::new(id.to_string()));
 
     let sql = format!("UPDATE maps SET {} WHERE id = ?", sets.join(", "));
     let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|b| b.as_ref()).collect();
-    let conn = storage::open_db()?;
     let old_extra = if patch.extra.is_some() {
         let s: String = conn
-            .query_row("SELECT extra FROM maps WHERE id = ?", [&id_clone], |r| {
-                r.get(0)
-            })
+            .query_row("SELECT extra FROM maps WHERE id = ?", [id], |r| r.get(0))
             .unwrap_or_default();
         Some(MapExtra::from_json(&s))
     } else {
         None
     };
     conn.execute(&sql, param_refs.as_slice())?;
-    if let Some(ref extra) = patch.extra {
-        let mut mgr = state.lock()?;
-        if let Ok(store) = mgr.store_for_map(&id_clone) {
-            if let Some(ref new_fields) = extra.fields {
-                if let Some(ref old_fields) = old_extra.and_then(|e| e.fields) {
-                    for key in old_fields.keys() {
-                        if !new_fields.contains_key(key) {
-                            store.known_field_keys.remove(key);
-                        }
-                    }
-                }
-                for key in new_fields.keys() {
-                    store.known_field_keys.insert(key.clone());
-                }
-            }
-        }
-    }
-    Ok(())
+    Ok(old_extra)
 }
 
 /// Update `last_opened_at` to the current timestamp. Used to sort the map
 /// list by recency in the dashboard.
 #[tauri::command]
 #[specta::specta]
-pub fn store_touch_map_opened(map_id: String) -> AppResult<()> {
-    let conn = storage::open_db()?;
-    let now = now_iso();
-    conn.execute(
-        "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
-        params![now, map_id],
-    )?;
-    Ok(())
+pub async fn store_touch_map_opened(map_id: String) -> AppResult<()> {
+    storage::with_db(move |conn| {
+        let now = now_iso();
+        conn.execute(
+            "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
+            params![now, map_id],
+        )?;
+        Ok(())
+    })
+    .await
 }
 
 /// Rename a folder across all maps that reference it.
 #[tauri::command]
 #[specta::specta]
-pub fn store_rename_folder(from: String, to: String) -> AppResult<()> {
-    let conn = storage::open_db()?;
-    conn.execute(
-        "UPDATE maps SET folder = ?1 WHERE folder = ?2",
-        params![to, from],
-    )?;
-    Ok(())
+pub async fn store_rename_folder(from: String, to: String) -> AppResult<()> {
+    storage::with_db(move |conn| {
+        conn.execute(
+            "UPDATE maps SET folder = ?1 WHERE folder = ?2",
+            params![to, from],
+        )?;
+        Ok(())
+    })
+    .await
 }
 
 /// Delete a folder by setting all its maps' folder to `NULL` (moves them to root).
 #[tauri::command]
 #[specta::specta]
-pub fn store_delete_folder(name: String) -> AppResult<()> {
-    let conn = storage::open_db()?;
-    conn.execute(
-        "UPDATE maps SET folder = NULL WHERE folder = ?1",
-        params![name],
-    )?;
-    Ok(())
+pub async fn store_delete_folder(name: String) -> AppResult<()> {
+    storage::with_db(move |conn| {
+        conn.execute(
+            "UPDATE maps SET folder = NULL WHERE folder = ?1",
+            params![name],
+        )?;
+        Ok(())
+    })
+    .await
 }
 
 // ---------------------------------------------------------------------------
@@ -688,57 +707,59 @@ pub struct DbStats {
 /// by parsing each map's tags JSON column.
 #[tauri::command]
 #[specta::specta]
-pub fn store_db_stats() -> AppResult<DbStats> {
-    let conn = storage::open_db()?;
-    let maps: i64 = conn
-        .query_row("SELECT COUNT(*) FROM maps", [], |r| r.get(0))
-        .unwrap_or(0);
-    let locations: i64 = conn
-        .query_row(
-            "SELECT COALESCE(SUM(location_count), 0) FROM maps",
-            [],
-            |r| r.get(0),
-        )
-        .unwrap_or(0);
-    let tags: i64 = {
-        let mut stmt = conn.prepare("SELECT tags FROM maps")?;
-        let rows: Vec<String> = stmt
-            .query_map([], |r| r.get(0))?
-            .filter_map(|r| r.ok())
-            .collect();
-        rows.iter()
-            .map(|t| {
-                serde_json::from_str::<serde_json::Value>(t)
-                    .ok()
-                    .and_then(|v| v.as_object().map(|o| o.len() as i64))
-                    .unwrap_or(0)
-            })
-            .sum()
-    };
-    let commits: i64 = conn
-        .query_row("SELECT COUNT(*) FROM commits", [], |r| r.get(0))
-        .unwrap_or(0);
-    let page_count: i64 = conn
-        .query_row("PRAGMA page_count", [], |r| r.get(0))
-        .unwrap_or(0);
-    let page_size: i64 = conn
-        .query_row("PRAGMA page_size", [], |r| r.get(0))
-        .unwrap_or(4096);
-    let journal_mode: String = conn
-        .query_row("PRAGMA journal_mode", [], |r| r.get(0))
-        .unwrap_or_default();
-    let fk: i64 = conn
-        .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
-        .unwrap_or(0);
-    Ok(DbStats {
-        maps,
-        locations,
-        tags,
-        commits,
-        db_size_bytes: page_count * page_size,
-        journal_mode,
-        foreign_keys: fk != 0,
+pub async fn store_db_stats() -> AppResult<DbStats> {
+    storage::with_db(move |conn| {
+        let maps: i64 = conn
+            .query_row("SELECT COUNT(*) FROM maps", [], |r| r.get(0))
+            .unwrap_or(0);
+        let locations: i64 = conn
+            .query_row(
+                "SELECT COALESCE(SUM(location_count), 0) FROM maps",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(0);
+        let tags: i64 = {
+            let mut stmt = conn.prepare("SELECT tags FROM maps")?;
+            let rows: Vec<String> = stmt
+                .query_map([], |r| r.get(0))?
+                .filter_map(|r| r.ok())
+                .collect();
+            rows.iter()
+                .map(|t| {
+                    serde_json::from_str::<serde_json::Value>(t)
+                        .ok()
+                        .and_then(|v| v.as_object().map(|o| o.len() as i64))
+                        .unwrap_or(0)
+                })
+                .sum()
+        };
+        let commits: i64 = conn
+            .query_row("SELECT COUNT(*) FROM commits", [], |r| r.get(0))
+            .unwrap_or(0);
+        let page_count: i64 = conn
+            .query_row("PRAGMA page_count", [], |r| r.get(0))
+            .unwrap_or(0);
+        let page_size: i64 = conn
+            .query_row("PRAGMA page_size", [], |r| r.get(0))
+            .unwrap_or(4096);
+        let journal_mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |r| r.get(0))
+            .unwrap_or_default();
+        let fk: i64 = conn
+            .query_row("PRAGMA foreign_keys", [], |r| r.get(0))
+            .unwrap_or(0);
+        Ok(DbStats {
+            maps,
+            locations,
+            tags,
+            commits,
+            db_size_bytes: page_count * page_size,
+            journal_mode,
+            foreign_keys: fk != 0,
+        })
     })
+    .await
 }
 
 #[cfg(test)]

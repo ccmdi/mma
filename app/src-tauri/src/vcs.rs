@@ -184,35 +184,37 @@ pub async fn store_commit(
 /// List all commits for a map, newest first.
 #[tauri::command]
 #[specta::specta]
-pub fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
-    let conn = storage::open_db()?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT id, map_id, parent_id, message, tree_hash, added, removed, modified, location_count, created_at FROM commits WHERE map_id = ?1 ORDER BY created_at DESC, rowid DESC",
-        )?;
+pub async fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
+    storage::with_db(move |conn| {
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, map_id, parent_id, message, tree_hash, added, removed, modified, location_count, created_at FROM commits WHERE map_id = ?1 ORDER BY created_at DESC, rowid DESC",
+            )?;
 
-    let rows = stmt.query_map(params![map_id], |row| {
-        Ok(CommitInfo {
-            id: row.get(0)?,
-            map_id: row.get(1)?,
-            parent_id: row.get(2)?,
-            message: row.get(3)?,
-            tree_hash: row.get(4)?,
-            diff: CommitDiff {
-                added: row.get(5)?,
-                removed: row.get(6)?,
-                modified: row.get(7)?,
-            },
-            location_count: row.get(8)?,
-            created_at: row.get(9)?,
-        })
-    })?;
+        let rows = stmt.query_map(params![map_id], |row| {
+            Ok(CommitInfo {
+                id: row.get(0)?,
+                map_id: row.get(1)?,
+                parent_id: row.get(2)?,
+                message: row.get(3)?,
+                tree_hash: row.get(4)?,
+                diff: CommitDiff {
+                    added: row.get(5)?,
+                    removed: row.get(6)?,
+                    modified: row.get(7)?,
+                },
+                location_count: row.get(8)?,
+                created_at: row.get(9)?,
+            })
+        })?;
 
-    let mut commits = Vec::new();
-    for row in rows {
-        commits.push(row?);
-    }
-    Ok(commits)
+        let mut commits = Vec::new();
+        for row in rows {
+            commits.push(row?);
+        }
+        Ok(commits)
+    })
+    .await
 }
 
 /// Restore a map to the state captured by a previous commit. The caller must reopen
