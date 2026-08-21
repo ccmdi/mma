@@ -54,6 +54,8 @@ mod remote_mapping;
 mod review;
 mod seen;
 mod sidecar;
+#[cfg(all(debug_assertions, windows))]
+mod stall_reporter;
 mod sync;
 mod sync_diff;
 mod sync_engine;
@@ -963,6 +965,9 @@ pub fn run() {
 
             std::thread::spawn(borders::update_border_files);
 
+            #[cfg(all(debug_assertions, windows))]
+            stall_reporter::start();
+
             #[cfg(desktop)]
             {
                 app.handle()
@@ -986,6 +991,8 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {
+            #[cfg(all(debug_assertions, windows))]
+            stall_reporter::beat();
             if let tauri::RunEvent::Exit = event {
                 sidecar::kill_all_sidecars();
                 presence::shutdown();
