@@ -1354,10 +1354,6 @@ fn undo_stack_msgpack_round_trip() {
 }
 
 // -----------------------------------------------------------------------
-// Render buffer binary format
-// -----------------------------------------------------------------------
-
-// -----------------------------------------------------------------------
 // Cross-cutting invariants
 // -----------------------------------------------------------------------
 
@@ -1685,7 +1681,7 @@ fn selected_ids_cleared_properly() {
 
 // -----------------------------------------------------------------------
 // Bug regression: tag counts after bulk operations + undo
-// (edd45ab, TODO "tag counts are wrong")
+// (edd45ab)
 // -----------------------------------------------------------------------
 
 #[test]
@@ -3680,7 +3676,7 @@ fn delta_bytes_roundtrip_exact() {
 // deletes the delta sidecar non-atomically. A crash between the two leaves a
 // stale delta whose `adds` duplicate what the (now up to date) base already
 // holds. store_open_map applies the parsed delta unconditionally -- mirror
-// that application exactly (location_store.rs ~2024-2039) and pin whatever
+// that application exactly and pin whatever
 // the store ends up doing with the collision.
 // -----------------------------------------------------------------------
 

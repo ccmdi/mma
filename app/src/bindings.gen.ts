@@ -379,10 +379,7 @@ export const commands = {
 	 *  Used to populate the country filter dropdown.
 	 */
 	storeSeenCountries: () => __TAURI_INVOKE<string[]>("store_seen_countries"),
-	/**
-	 *  Returns all distinct maps that have seen entries, with resolved display names.
-	 *  Returns maps that have seen entries. Only includes maps that still exist.
-	 */
+	/**  Returns all distinct maps that have seen entries, with resolved display names. */
 	storeSeenMaps: () => __TAURI_INVOKE<SeenMapInfo[]>("store_seen_maps"),
 	/**  Deletes all seen history entries. */
 	storeSeenClear: () => __TAURI_INVOKE<null>("store_seen_clear"),

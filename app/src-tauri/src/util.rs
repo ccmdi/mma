@@ -27,13 +27,11 @@ pub fn iso_to_unix(s: &str) -> Option<f64> {
         .map(|dt| dt.and_utc().timestamp() as f64)
 }
 
-/// Extracts (month, day) from a Unix timestamp in seconds.
 pub fn unix_to_month_day(ts: f64) -> (u32, u32) {
     let dt = DateTime::<Utc>::from_timestamp(ts as i64, 0).unwrap_or_default();
     (dt.month(), dt.day())
 }
 
-/// Extracts (hour, minute) from a Unix timestamp in seconds.
 pub fn unix_to_hour_min(ts: f64) -> (u32, u32) {
     let dt = DateTime::<Utc>::from_timestamp(ts as i64, 0).unwrap_or_default();
     (dt.hour(), dt.minute())
@@ -108,7 +106,6 @@ pub fn hex_to_rgb(hex: &str) -> Option<[u8; 3]> {
     ])
 }
 
-/// SHA-256 hash of `bytes` as a lowercase hex string.
 pub fn sha256_hex(bytes: &[u8]) -> String {
     let digest = sha256(bytes);
     let mut s = String::with_capacity(digest.len() * 2);
@@ -119,7 +116,6 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     s
 }
 
-/// SHA-256 digest of `bytes`.
 pub fn sha256(bytes: &[u8]) -> [u8; 32] {
     Sha256::digest(bytes).into()
 }

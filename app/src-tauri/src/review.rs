@@ -2,9 +2,8 @@
 //!
 //! A review session is a frozen, ordered worklist of location ids (born from a selection)
 //! plus a per-session set of ids that have been reviewed and a content-addressed cursor.
-//! Stored in SQLite (`review_sessions`), scoped per map. Unlike the old in-memory cursor,
-//! sessions survive map close, run in parallel, and never desync on worklist mutation
-//! because the cursor is an id, not a positional index.
+//! Stored in SQLite (`review_sessions`), scoped per map. Sessions survive map close, and
+//! the cursor is an id rather than a positional index, so worklist mutation cannot desync it.
 //!
 //! Command wrappers (`store_review_*`) open the DB and delegate to the `&Connection` core
 //! functions below, which carry all the behavior and are unit-tested directly.
@@ -188,7 +187,6 @@ pub(crate) fn update(conn: &Connection, update: ReviewUpdate) -> AppResult<()> {
     Ok(())
 }
 
-/// Deletes a session.
 pub(crate) fn delete(conn: &Connection, id: &str) -> AppResult<()> {
     conn.execute(
         "DELETE FROM review_sessions WHERE id = ?",

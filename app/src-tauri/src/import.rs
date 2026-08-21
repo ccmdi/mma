@@ -1064,8 +1064,6 @@ fn merge_settings(
     serde_json::from_value(v).unwrap_or(base)
 }
 
-/// Persist a parsed map as a new database entry + Arrow IPC file.
-/// Assigns sequential u32 location IDs starting at 1.
 /// Rebase ordered tags to dense 1..k, keeping their relative (order, name)
 /// ordering; unordered tags stay `None`. Source order values are never stored.
 fn renumber_ordered_tags(tags: &mut [Tag]) {

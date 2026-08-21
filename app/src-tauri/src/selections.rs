@@ -1,11 +1,9 @@
-//! Bitmask-based selection resolution engine.
+//! Selection resolution engine.
 //!
 //! Selections are predicates over the location set (tag membership, polygon containment,
-//! duplicates, filters on arbitrary fields, etc.). This module resolves each selection to
-//! a `Vec<bool>` bitmask over the unified `LocView` (batch + overlay), using rayon for
-//! parallel evaluation. Composite selections (Intersection, Union, Invert) combine child
-//! bitmasks. The bitmasks are then serialized into a per-cell binary format that JS reads
-//! to color the selection overlay.
+//! duplicates, filters on arbitrary fields, etc.). Each resolves to an id set over the
+//! unified `LocView` (batch + overlay); composites (Intersection, Union, Invert) combine
+//! their children's sets.
 
 use mma_geo::equirect_m2;
 pub(crate) use mma_geo::{
@@ -413,7 +411,6 @@ impl<'a> LocView<'a> {
         }
     }
 
-    /// Number of rows in the Arrow batch (before overlay).
     pub fn batch_rows(&self) -> usize {
         self.batch_rows
     }
@@ -428,7 +425,6 @@ impl<'a> LocView<'a> {
         !self.has_dead || !self.dead.contains(&self.batch_id(i))
     }
 
-    /// Return the overlay patch for batch row `i`, if one exists.
     #[inline]
     pub fn patch_at(&self, i: usize) -> Option<&'a Location> {
         if !self.has_patches {
@@ -447,7 +443,6 @@ impl<'a> LocView<'a> {
         self.batch_id(i)
     }
 
-    /// Materialize batch row `i` into a full `Location`.
     pub fn loc_at(&self, i: usize) -> Location {
         crate::arrow_bridge::row_to_location(self.batch.unwrap(), i)
     }
@@ -651,9 +646,7 @@ pub fn resolve_set(view: &LocView, props: &SelectionProps) -> RoaringBitmap {
 /// Resolve a whole selection forest in one pass: the id-set for each top-level
 /// selection plus the resolved count of every node (top-level and nested), keyed by
 /// `Selection.key`. Each node is resolved exactly once — composites combine their
-/// children's already-resolved sets instead of re-resolving them. (The previous
-/// resolve-then-count pair resolved every top-level node twice and nested children
-/// twice or more.)
+/// children's already-resolved sets instead of re-resolving them.
 pub fn resolve_forest(
     view: &LocView,
     sels: &[Selection],

@@ -1061,12 +1061,10 @@ impl Store {
         changes
     }
 
-    /// Replay an edit forward: remove `entry.removed`, create `entry.created`.
     fn apply_edit_forward(&mut self, entry: &EditEntry) -> ChangeSet {
         self.apply_edit(&entry.removed, &entry.created)
     }
 
-    /// Reverse an edit: remove `entry.created`, restore `entry.removed`.
     fn apply_edit_reverse(&mut self, entry: &EditEntry) -> ChangeSet {
         self.apply_edit(&entry.created, &entry.removed)
     }
@@ -1703,7 +1701,6 @@ impl Store {
         let mut batch = match self.batch.take() {
             Some(b) => b,
             None => {
-                // No batch yet, just convert adds
                 let b = arrow_bridge::locations_to_batch(&self.overlay.adds);
                 self.clear_overlay();
                 self.batch = Some(b);
@@ -2111,7 +2108,7 @@ pub async fn store_open_map(
             (batch, handle, delta)
         };
 
-        // Ensure sorted ID invariant (one-time migration for pre-Phase2 files)
+        // Legacy files may be unsorted; enforce the sorted ID invariant once.
         let (batch, mmap_handle) = {
             let ids = col_id(&batch);
             let sorted = (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i));
@@ -3022,7 +3019,6 @@ pub fn store_copy_locations_to_map(
                 t_add.elapsed().as_millis(),
                 _t.elapsed().as_millis()
             );
-            // Ship the full MutationResult (+ target map id for routing) on the event.
             crate::emit_event(ExternalMutation {
                     result,
                     map_id: target_map_id.clone(),
@@ -4266,17 +4262,10 @@ pub fn store_near_any(
     })
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 #[path = "location_store.test.rs"]
 mod tests;
 
-/// Fixtures and command-body mirrors for the criterion suite. A child module so it
-/// reaches these internals without widening any visibility; absent unless the
-/// `bench` feature is on.
 #[cfg(feature = "bench")]
 #[path = "location_store.bench.rs"]
 pub mod bench;

@@ -162,7 +162,6 @@ pub async fn store_commit(
 
     let t_delta = _t.elapsed();
 
-    // Auto-format a default message when the caller didn't supply one.
     let message = message.or_else(|| format_diff_message(added, removed_n, modified));
 
     conn.execute(

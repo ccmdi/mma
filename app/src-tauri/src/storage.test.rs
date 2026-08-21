@@ -533,10 +533,8 @@ fn atomic_write_failure_leaves_dest_unchanged() {
     assert_eq!(loaded.num_rows(), 3);
 }
 
-// atomic_write leaves the .tmp sibling behind on write_fn failure (storage.rs
-// ~line 552-556: no cleanup on the early-return Err path). Not silent data
-// corruption, but an accumulating disk leak on repeated failures. See
-// SUSPECTED BUGS.
+// atomic_write leaves the .tmp sibling behind when write_fn fails (no cleanup on the
+// early-return Err path). Not data corruption, but an accumulating disk leak.
 #[test]
 fn atomic_write_failure_leaves_tmp_file_behind() {
     let dir = TempDir::new("mma_test_crash_atomic_tmp_leak");

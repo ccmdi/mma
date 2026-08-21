@@ -72,8 +72,6 @@ pub fn sync_key(n: &NormalizedSyncLocation) -> String {
 }
 
 /// cyrb53 (ported from the TS engine, over UTF-8 bytes): fast 53-bit string hash.
-/// NOT compatible with hashes the TS engine persisted; pre-port dev links self-serve
-/// by unlinking and relinking (identity adoption re-pairs them).
 fn cyrb53(s: &str) -> u64 {
     let mut h1: u32 = 0xdeadbeef;
     let mut h2: u32 = 0x41c6ce57;

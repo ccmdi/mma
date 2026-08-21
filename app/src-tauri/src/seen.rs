@@ -221,7 +221,6 @@ pub fn store_seen_countries() -> AppResult<Vec<String>> {
 }
 
 /// Returns all distinct maps that have seen entries, with resolved display names.
-/// Returns maps that have seen entries. Only includes maps that still exist.
 #[tauri::command]
 #[specta::specta]
 pub fn store_seen_maps() -> AppResult<Vec<SeenMapInfo>> {

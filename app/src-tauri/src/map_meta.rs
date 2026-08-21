@@ -72,7 +72,6 @@ pub struct MapSettings {
     pub aliases: HashMap<String, u32>,
 }
 
-/// Canonical default map settings.
 impl Default for MapSettings {
     fn default() -> Self {
         Self {

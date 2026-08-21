@@ -44,7 +44,6 @@ fn is_test_mode() -> bool {
     cfg!(feature = "e2e") || std::env::var("MMA_TEST_DB").is_ok()
 }
 
-/// Returns `"mma_test.db"` in test mode, `"mma.db"` otherwise.
 fn db_filename() -> &'static str {
     if is_test_mode() {
         "mma_test.db"
@@ -160,7 +159,6 @@ pub(crate) fn temp_dir() -> AppResult<std::path::PathBuf> {
         .ok_or_else(|| AppError::from("app paths not initialized".to_string()))
 }
 
-/// Full path to the SQLite database.
 pub(crate) fn db_path() -> AppResult<std::path::PathBuf> {
     Ok(app_data_dir()?.join(db_filename()))
 }

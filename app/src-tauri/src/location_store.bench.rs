@@ -11,7 +11,6 @@
 use super::*;
 use crate::types::RawExtra;
 
-/// Everything a bench target needs to name.
 pub use crate::location_store::{LocationPatch, MutationResult, RenderRequest, SelectionInput, Store, Update};
 pub use crate::selections::{Selection, SelectionProps};
 pub use crate::types::{Location, Tag};

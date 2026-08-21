@@ -388,10 +388,7 @@ declare const commands: {
      *  Used to populate the country filter dropdown.
      */
     storeSeenCountries: () => Promise<string[]>;
-    /**
-     *  Returns all distinct maps that have seen entries, with resolved display names.
-     *  Returns maps that have seen entries. Only includes maps that still exist.
-     */
+    /**  Returns all distinct maps that have seen entries, with resolved display names. */
     storeSeenMaps: () => Promise<SeenMapInfo[]>;
     /**  Deletes all seen history entries. */
     storeSeenClear: () => Promise<null>;
