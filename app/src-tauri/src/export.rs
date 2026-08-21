@@ -2,7 +2,7 @@
 //! All exports write to temp files and return the path -- the frontend
 //! triggers a native save dialog to move the file to its final destination.
 
-use crate::location_store::{StoreState, WindowLabel};
+use crate::location_store::{with_store, StoreState, WindowLabel};
 use crate::selections::Scope;
 use crate::storage;
 use crate::types::LocationFlags;
@@ -434,9 +434,7 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
             let total = maps.len();
 
             for (i, (map_id, name, _folder, tags_json, extra_json)) in maps.iter().enumerate() {
-                crate::emit_event(
-                    "bulk-export-progress",
-                    ExportProgress {
+                crate::emit_event(ExportProgress {
                         current: (i + 1) as u32,
                         total: total as u32,
                         map_name: name.clone(),

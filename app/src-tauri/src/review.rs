@@ -9,7 +9,7 @@
 //! Command wrappers (`store_review_*`) open the DB and delegate to the `&Connection` core
 //! functions below, which carry all the behavior and are unit-tested directly.
 
-use crate::storage;
+use crate::storage::{self, push_field};
 use crate::types::AppResult;
 use crate::util::now_iso;
 use rusqlite::Connection;

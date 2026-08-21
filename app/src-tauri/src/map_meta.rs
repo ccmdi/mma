@@ -6,7 +6,7 @@
 //! `Location.extra` fields and persists their type definitions.
 
 use crate::location_store::StoreState;
-use crate::storage;
+use crate::storage::{self, push_field};
 use crate::types::AppResult;
 use crate::types::Tag;
 use crate::util::now_iso;

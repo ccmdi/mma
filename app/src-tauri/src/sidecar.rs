@@ -173,9 +173,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
         hasher.update(&chunk[..n]);
         downloaded += n as u64;
         if downloaded - last_emit >= 262_144 {
-            emit_event(
-                "sidecar-install-progress",
-                SidecarProgress {
+            emit_event(SidecarProgress {
                     plugin_id: plugin_id.clone(),
                     downloaded,
                     total,
@@ -187,9 +185,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
     zip_file.flush()?;
     drop(zip_file);
 
-    emit_event(
-        "sidecar-install-progress",
-        SidecarProgress {
+    emit_event(SidecarProgress {
             plugin_id: plugin_id.clone(),
             downloaded,
             total: total.max(downloaded),
@@ -633,7 +629,7 @@ fn run_resident(
             post(addr.port, command, body).map_err(|e| e.into_app(command))?
         }
     };
-    emit_event("sidecar-line", SidecarLine { req_id, line: text });
+    emit_event(SidecarLine { req_id, line: text });
     Ok(())
 }
 
@@ -691,14 +687,14 @@ fn run_oneshot_inner(
         std::thread::spawn(move || {
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                 log::info!("[sidecar:{log_id}] {line}");
-                emit_event("sidecar-log", SidecarLog { req_id, line });
+                emit_event(SidecarLog { req_id, line });
             }
         })
     });
 
     // No lock held while streaming, so sidecar_cancel can reach the child mid-run.
     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-        emit_event("sidecar-line", SidecarLine { req_id, line });
+        emit_event(SidecarLine { req_id, line });
     }
     if let Some(handle) = errors {
         let _ = handle.join();
@@ -758,7 +754,7 @@ pub fn sidecar_request(
         if let Some(ref message) = error {
             log::error!("[sidecar] req_id={req_id} failed: {message}");
         }
-        emit_event("sidecar-done", SidecarDone { req_id, error });
+        emit_event(SidecarDone { req_id, error });
     });
 
     Ok(req_id)

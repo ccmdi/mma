@@ -35,6 +35,7 @@ macro_rules! push_field {
         }
     };
 }
+pub(crate) use push_field;
 
 /// True when running under e2e tests or with `MMA_TEST_DB` set.
 /// Controls which database file and Arrow directory are used, keeping

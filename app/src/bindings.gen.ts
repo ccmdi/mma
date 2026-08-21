@@ -448,6 +448,7 @@ export const events = {
 	sidecarLine: makeEvent<SidecarLine>("sidecar-line"),
 	sidecarLog: makeEvent<SidecarLog>("sidecar-log"),
 	storeExternalMutation: makeEvent<ExternalMutation>("store-external-mutation", (v) => ({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),newFieldDefs:v.newFieldDefs==null?v.newFieldDefs:Object.fromEntries(Object.entries(v.newFieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}), (v) => ({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),newFieldDefs:v.newFieldDefs==null?v.newFieldDefs:Object.fromEntries(Object.entries(v.newFieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})),
+	storeWarning: makeEvent<StoreWarning>("store-warning"),
 	valiProgress: makeEvent<ValiProgress>("vali-progress"),
 };
 
@@ -1434,6 +1435,9 @@ export type StoreStatus = {
 	tagCounts: { [key in number]: number } | null,
 	knownFieldKeys: string[],
 };
+
+/**  User-facing warning toast. */
+export type StoreWarning = string;
 
 /**  Lightweight status for polling: count, version, and whether unsaved changes exist. */
 export type SummaryResult = {

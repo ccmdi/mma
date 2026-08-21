@@ -3,14 +3,6 @@
 
 mod arrow_bridge;
 mod arrow_migrate;
-mod selections;
-mod spatial;
-#[macro_use]
-mod storage;
-mod types;
-mod util;
-#[macro_use]
-mod location_store;
 mod borders;
 mod export;
 mod feedback;
@@ -19,6 +11,7 @@ mod geocoder;
 mod geoguessr;
 mod github;
 mod import;
+mod location_store;
 mod map_meta;
 mod plugins;
 mod presence;
@@ -27,9 +20,12 @@ mod remote_api;
 mod remote_mapping;
 mod review;
 mod seen;
+mod selections;
 mod sidecar;
+mod spatial;
 #[cfg(all(debug_assertions, windows))]
 mod stall_reporter;
+mod storage;
 mod sync;
 mod sync_diff;
 mod sync_engine;
@@ -38,7 +34,9 @@ mod sync_keying;
 mod sync_map_making;
 #[cfg(test)]
 mod test_util;
+mod types;
 mod user_plugins;
+mod util;
 mod vcs;
 mod vcs_delta;
 
@@ -64,8 +62,9 @@ pub(crate) fn app_handle() -> Option<&'static tauri::AppHandle> {
 }
 
 /// Emit an app-wide event to all windows. No-op before setup completes.
-pub(crate) fn emit_event(event: &str, payload: impl serde::Serialize + Clone) {
+pub(crate) fn emit_event<E: tauri_specta::Event + serde::Serialize + Clone>(payload: E) {
     use tauri::Emitter;
+    let event = E::NAME;
     // Browser tabs aren't app webviews, so app.emit can't reach them; bridge the
     // event to the web-serve SSE channel (no-op when no browser is connected).
     #[cfg(feature = "web-serve")]
@@ -239,6 +238,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             import::ImportProgress,
             export::ExportProgress,
             location_store::ExternalMutation,
+            location_store::StoreWarning,
             plugins::ValiProgress,
         ])
 }

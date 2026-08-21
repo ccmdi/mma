@@ -1812,6 +1812,7 @@ macro_rules! with_store {
         $body
     }};
 }
+pub(crate) use with_store;
 
 /// The invoking window's label, extracted from the IPC call. Commands take this
 /// instead of a `Webview` so they stay runtime-agnostic and directly callable
@@ -1988,6 +1989,12 @@ pub struct MutationResult {
     pub tags: Option<HashMap<u32, Tag>>,
 }
 
+/// User-facing warning toast.
+#[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
+#[serde(transparent)]
+#[tauri_specta(event_name = "store-warning")]
+pub struct StoreWarning(pub String);
+
 /// A mutation another window made to a map this window may have open, routed by `map_id`.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
@@ -2056,10 +2063,9 @@ fn load_delta(delta_path: &std::path::Path) -> Option<Overlay> {
             let _ = std::fs::remove_file(&kept);
             let moved = std::fs::rename(delta_path, &kept).is_ok();
             log::error!("[store_open] unreadable delta ({e}), set aside (moved={moved}) at {kept:?}");
-            crate::emit_event(
-                "store-warning",
-                "Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.",
-            );
+            crate::emit_event(StoreWarning(
+                "Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.".into(),
+            ));
             None
         }
     }
@@ -3017,9 +3023,7 @@ pub fn store_copy_locations_to_map(
                 _t.elapsed().as_millis()
             );
             // Ship the full MutationResult (+ target map id for routing) on the event.
-            crate::emit_event(
-                "store-external-mutation",
-                ExternalMutation {
+            crate::emit_event(ExternalMutation {
                     result,
                     map_id: target_map_id.clone(),
                 },

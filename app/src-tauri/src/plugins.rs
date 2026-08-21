@@ -122,7 +122,7 @@ impl From<ProgressEvent> for ValiProgress {
 }
 
 fn emit_progress(e: ProgressEvent) {
-    crate::emit_event("vali-progress", ValiProgress::from(e));
+    crate::emit_event(ValiProgress::from(e));
 }
 
 fn data_root() -> AppResult<std::path::PathBuf> {

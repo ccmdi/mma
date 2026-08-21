@@ -5,6 +5,7 @@
 //! serde_json with parallel object deserialization via rayon. A two-phase
 //! preview/confirm flow lets the user inspect data before committing.
 
+use crate::location_store::with_store;
 use crate::types::AppResult;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -1238,9 +1239,7 @@ pub async fn bulk_import_confirm(
         for (i, map) in parsed_maps.into_iter().enumerate() {
             let map_name = map.name.clone();
             let info = write_map_to_db(&conn, map)?;
-            crate::emit_event(
-                "bulk-import-progress",
-                ImportProgress {
+            crate::emit_event(ImportProgress {
                     current: (i + 1) as u32,
                     total,
                     map_name,
