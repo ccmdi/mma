@@ -17,7 +17,7 @@
 				"height": 900,
 				"resizable": true,
 				"fullscreen": false,
-				"visible": true,
+				"visible": false,
 				"zoomHotkeysEnabled": true,
 				"backgroundColor": "#252521"
 			}

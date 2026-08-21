@@ -50,8 +50,8 @@ const mapEditorModule = import("@/components/editor/MapEditor");
 // every tab reports label "main" — there the URL (targetMapId) alone picks editor vs list.
 const isEditorWindow = getCurrentWindow().label.startsWith("map-");
 
-// tauri-plugin-window-state StateFlags::all() — size|position|maximized|visible|decorations|fullscreen
-const WINDOW_STATE_ALL = 0b111111;
+// tauri-plugin-window-state flags, matching lib.rs: all() minus VISIBLE (bit 3).
+const WINDOW_STATE_FLAGS = 0b110111;
 
 const BLANK_STYLE: CSSProperties = { position: "fixed", inset: 0, background: "var(--surface-0)" };
 const Blank = () => <div style={BLANK_STYLE} />;
@@ -234,7 +234,7 @@ function useSelfDestruct(closing: boolean) {
 				await main?.setFocus();
 			})
 			.finally(async () => {
-				await invoke("plugin:window-state|save_window_state", { flags: WINDOW_STATE_ALL }).catch(
+				await invoke("plugin:window-state|save_window_state", { flags: WINDOW_STATE_FLAGS }).catch(
 					() => {},
 				);
 				getCurrentWindow().destroy();
