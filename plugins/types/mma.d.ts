@@ -61,7 +61,7 @@ declare const commands: {
      *  Stop every plugin's sidecar processes. Used when the editor tears all plugins
      *  down at once (map close), where nothing should still be running afterwards.
      */
-    sidecarStopAll: () => Promise<void>;
+    sidecarStopAll: () => Promise<null>;
     /**
      *  Kill the process behind a one-shot request (no-op if it already finished).
      *  Resident-served requests have no process of their own, so this does not

@@ -221,9 +221,11 @@ pub(crate) fn register_schemes(builder: tauri::Builder<tauri::Wry>) -> tauri::Bu
                 None => read_local(local_path(&raw)),
             });
         })
-        .register_uri_scheme_protocol("mma-plugin", |_ctx, req| {
-            let path = percent_encoding::percent_decode_str(req.uri().path()).decode_utf8_lossy();
-            crate::user_plugins::serve_file(&path)
+        .register_asynchronous_uri_scheme_protocol("mma-plugin", |_ctx, req, responder| {
+            let path = percent_encoding::percent_decode_str(req.uri().path())
+                .decode_utf8_lossy()
+                .into_owned();
+            respond_async(responder, move || crate::user_plugins::serve_file(&path));
         })
         .register_asynchronous_uri_scheme_protocol("svtile", |_ctx, req, responder| {
             let (path, query) = path_and_query(&req);

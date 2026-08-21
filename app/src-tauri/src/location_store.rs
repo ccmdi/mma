@@ -2216,31 +2216,40 @@ pub async fn store_open_map(
 /// release all in-memory state (batch, mmap, indexes, selections, undo stacks).
 #[tauri::command]
 #[specta::specta]
-pub fn store_close_map(
+pub async fn store_close_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<()> {
-    let mut mgr = state.lock()?;
-    let label = label.0.clone();
-    let map_id = match mgr.window_map.remove(&label) {
-        Some(id) => id,
-        None => return Ok(()),
+    let (map_id, store) = {
+        let mut mgr = state.lock()?;
+        let map_id = match mgr.window_map.remove(&label.0) {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+        if mgr.window_map.values().any(|v| v == &map_id) {
+            log::debug!("[close_map] {map_id} still open in another window, skipping flush");
+            return Ok(());
+        }
+        let Some(store) = mgr.stores.remove(&map_id) else {
+            log::debug!("[close_map] {map_id} has no store, nothing to flush");
+            return Ok(());
+        };
+        (map_id, store)
     };
-    let still_open = mgr.window_map.values().any(|v| v == &map_id);
-    if still_open {
-        log::debug!("[close_map] {map_id} still open in another window, skipping flush");
-        return Ok(());
-    }
-    if mgr.stores.get(&map_id).is_none() {
-        log::debug!("[close_map] {map_id} has no store, nothing to flush");
-    }
-    if let Some(store) = mgr.stores.remove(&map_id) {
+    tokio::task::spawn_blocking(move || flush_closed_store(&map_id, &store))
+        .await
+        .map_err(AppError::from)
+        .and_then(|r| r)
+}
+
+fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
+    {
         if store.overlay.dirty {
             // Persist uncommitted edits to the delta sidecar. The base file stays pinned
             // at the last committed state -- it only advances on commit/checkout -- so the
             // overlay remains a faithful changeset-since-last-commit for the next commit.
-            let bytes = overlay_delta_bytes(&store)?;
-            let path = storage::arrow_delta_path(&map_id)?;
+            let bytes = overlay_delta_bytes(store)?;
+            let path = storage::arrow_delta_path(map_id)?;
             storage::atomic_write(&path, |mut file| {
                 use std::io::Write;
                 file.write_all(&bytes).map_err(AppError::from)
@@ -2253,9 +2262,9 @@ pub fn store_close_map(
             rusqlite::params![count, map_id],
         )?;
         if store.tags.dirty {
-            write_tags_json(&conn, &map_id, &store.tags.all)?;
+            write_tags_json(&conn, map_id, &store.tags.all)?;
         }
-        save_edit_history(&map_id, &store.edits.undo, &store.edits.redo)?;
+        save_edit_history(map_id, &store.edits.undo, &store.edits.redo)?;
         log::debug!(
             "[close_map] {map_id} flushed: undo={} redo={}",
             store.edits.undo.len(),

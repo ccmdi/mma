@@ -161,8 +161,15 @@ fn fetch(url: &str, what: &str) -> AppResult<bytes::Bytes> {
 /// Install a plugin from the marketplace repo: its `manifest.json` plus the main JS file.
 #[tauri::command]
 #[specta::specta]
-pub fn install_plugin(id: String) -> AppResult<PluginManifest> {
+pub async fn install_plugin(id: String) -> AppResult<PluginManifest> {
     validate_plugin_id(&id)?;
+    tokio::task::spawn_blocking(move || install(id))
+        .await
+        .map_err(AppError::from)
+        .and_then(|r| r)
+}
+
+fn install(id: String) -> AppResult<PluginManifest> {
     let dir = plugins_dir()?.join(&id);
     std::fs::create_dir_all(&dir)?;
 
@@ -185,18 +192,22 @@ pub fn install_plugin(id: String) -> AppResult<PluginManifest> {
 /// Delete a plugin's directory.
 #[tauri::command]
 #[specta::specta]
-pub fn uninstall_plugin(id: String) -> AppResult<()> {
+pub async fn uninstall_plugin(id: String) -> AppResult<()> {
     validate_plugin_id(&id)?;
     let dir = plugins_dir()?.join(&id);
     // A live sidecar holds the directory open on Windows, so delete under the
     // plugin's process lock with everything stopped.
-    sidecar::with_plugin_stopped(&id, || {
-        if dir.exists() {
-            std::fs::remove_dir_all(&dir)?;
-        }
-        Ok(())
-    })?;
-    Ok(())
+    tokio::task::spawn_blocking(move || {
+        sidecar::with_plugin_stopped(&id, || {
+            if dir.exists() {
+                std::fs::remove_dir_all(&dir)?;
+            }
+            Ok(())
+        })
+    })
+    .await
+    .map_err(AppError::from)
+    .and_then(|r| r)
 }
 
 /// `mma-plugin://` handler: a file from inside the plugins dir, nothing outside it.

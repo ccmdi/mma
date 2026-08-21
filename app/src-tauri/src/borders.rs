@@ -574,18 +574,34 @@ fn write_border_file(level: &str, bytes: &[u8]) -> AppResult<()> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn download_border_file(level: String) -> AppResult<()> {
+pub async fn download_border_file(level: String) -> AppResult<()> {
     validate_border_level(&level)?;
     if level == "light" {
         return Ok(());
     }
-    let bytes = border_client()?
-        .get(border_url(&level))
-        .send()
-        .and_then(|r| r.error_for_status())
-        .map_err(|e| format!("Failed to download borders-{level}.rkyv: {e}"))?
-        .bytes()?;
-    write_border_file(&level, &bytes)
+    tokio::task::spawn_blocking(move || {
+        let bytes = border_client()?
+            .get(border_url(&level))
+            .send()
+            .and_then(|r| r.error_for_status())
+            .map_err(|e| format!("Failed to download borders-{level}.rkyv: {e}"))?
+            .bytes()?;
+        write_border_file(&level, &bytes)
+    })
+    .await
+    .map_err(AppError::from)
+    .and_then(|r| r)
+}
+
+/// Load every dataset already on disk so the first lookup does not pay for it.
+pub fn warm() {
+    for level in ["light", "medium", "heavy", "adm1"] {
+        if level == "light" || border_path(level).is_ok_and(|p| p.exists()) {
+            if let Err(e) = ensure_loaded(level) {
+                log::warn!("[borders] warm {level}: {e}");
+            }
+        }
+    }
 }
 
 /// Git blob id of `bytes` -- the `sha` the contents API reports, computable locally so

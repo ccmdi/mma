@@ -302,7 +302,11 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
     log::info!("[startup] migrations: {}ms", t.elapsed().as_millis());
 
-    std::thread::spawn(borders::update_border_files);
+    std::thread::spawn(|| {
+        borders::update_border_files();
+        borders::warm();
+    });
+    std::thread::spawn(geocoder::warm);
 
     #[cfg(all(debug_assertions, windows))]
     stall_reporter::start();

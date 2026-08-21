@@ -764,9 +764,9 @@ pub fn sidecar_request(
 /// uninstalled, so a resident process never outlives the plugin that wanted it.
 #[tauri::command]
 #[specta::specta]
-pub fn sidecar_stop(plugin_id: String) -> AppResult<()> {
+pub async fn sidecar_stop(plugin_id: String) -> AppResult<()> {
     validate_plugin_id(&plugin_id)?;
-    kill_plugin(&plugin_id);
+    tokio::task::spawn_blocking(move || kill_plugin(&plugin_id)).await?;
     Ok(())
 }
 
@@ -774,8 +774,9 @@ pub fn sidecar_stop(plugin_id: String) -> AppResult<()> {
 /// down at once (map close), where nothing should still be running afterwards.
 #[tauri::command]
 #[specta::specta]
-pub fn sidecar_stop_all() {
-    kill_all_sidecars();
+pub async fn sidecar_stop_all() -> AppResult<()> {
+    tokio::task::spawn_blocking(kill_all_sidecars).await?;
+    Ok(())
 }
 
 /// Kill the process behind a one-shot request (no-op if it already finished).
@@ -783,14 +784,17 @@ pub fn sidecar_stop_all() {
 /// interrupt them -- the caller simply stops listening.
 #[tauri::command]
 #[specta::specta]
-pub fn sidecar_cancel(req_id: u32) -> AppResult<()> {
-    let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
-    for slot in slots {
-        if let Some(child) = lock(&slot).children.get(&req_id) {
-            let _ = lock(child).kill();
-            return Ok(());
+pub async fn sidecar_cancel(req_id: u32) -> AppResult<()> {
+    tokio::task::spawn_blocking(move || {
+        let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
+        for slot in slots {
+            if let Some(child) = lock(&slot).children.get(&req_id) {
+                let _ = lock(child).kill();
+                return;
+            }
         }
-    }
+    })
+    .await?;
     Ok(())
 }
 

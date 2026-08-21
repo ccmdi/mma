@@ -18,6 +18,11 @@ fn get_geocoder() -> &'static ReverseGeocoder {
     GEOCODER.get_or_init(ReverseGeocoder::new)
 }
 
+/// Build the dataset ahead of the first lookup.
+pub fn warm() {
+    get_geocoder();
+}
+
 /// Reverse geocode result: nearest populated place to a coordinate.
 #[derive(Serialize, specta::Type)]
 pub struct GeoResult {
