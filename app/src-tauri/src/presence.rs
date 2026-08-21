@@ -8,11 +8,61 @@ use discord_rich_presence::{
     activity::{Activity, Assets, Timestamps},
     DiscordIpc, DiscordIpcClient,
 };
-use std::sync::Mutex;
+use std::sync::mpsc::{channel, Sender};
+use std::sync::OnceLock;
+use std::time::Duration;
 
 const CLIENT_ID: &str = "1525958540181901475";
 
-static CLIENT: Mutex<Option<DiscordIpcClient>> = Mutex::new(None);
+type Job<C> = Box<dyn FnOnce(&mut C) -> Result<(), Box<dyn std::error::Error>> + Send>;
+
+/// Serial executor owning the lazily connected client; IPC never runs on a command thread.
+struct Worker<C> {
+    tx: Sender<(bool, Job<C>)>,
+}
+
+impl<C: Send + 'static> Worker<C> {
+    fn spawn(connect: impl Fn() -> Option<C> + Send + 'static) -> Self {
+        let (tx, rx) = channel::<(bool, Job<C>)>();
+        std::thread::spawn(move || {
+            let mut client: Option<C> = None;
+            for (may_connect, job) in rx {
+                if client.is_none() {
+                    if !may_connect {
+                        continue;
+                    }
+                    client = connect();
+                }
+                if let Some(c) = client.as_mut() {
+                    if job(c).is_err() {
+                        client = None;
+                    }
+                }
+            }
+        });
+        Worker { tx }
+    }
+
+    /// With `may_connect` false the job is dropped unless already connected.
+    fn submit(
+        &self,
+        may_connect: bool,
+        job: impl FnOnce(&mut C) -> Result<(), Box<dyn std::error::Error>> + Send + 'static,
+    ) {
+        let _ = self.tx.send((may_connect, Box::new(job)));
+    }
+}
+
+static WORKER: OnceLock<Worker<DiscordIpcClient>> = OnceLock::new();
+
+fn worker() -> &'static Worker<DiscordIpcClient> {
+    WORKER.get_or_init(|| {
+        Worker::spawn(|| {
+            let mut client = DiscordIpcClient::new(CLIENT_ID).ok()?;
+            client.connect().ok().map(|_| client)
+        })
+    })
+}
 
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -27,34 +77,10 @@ pub struct PresenceActivity {
     pub start: Option<i64>,
 }
 
-/// Run `f` against a connected client, lazily connecting first. Returns early
-/// (no-op) if Discord isn't reachable. If the call fails mid-session (pipe broke
-/// on a Discord restart), the client is dropped so the next call reconnects.
-fn with_client<F>(f: F)
-where
-    F: FnOnce(&mut DiscordIpcClient) -> Result<(), Box<dyn std::error::Error>>,
-{
-    let Ok(mut guard) = CLIENT.lock() else { return };
-    if guard.is_none() {
-        let Ok(mut client) = DiscordIpcClient::new(CLIENT_ID) else {
-            return;
-        };
-        if client.connect().is_err() {
-            return; // Discord not running
-        }
-        *guard = Some(client);
-    }
-    let client = guard.as_mut().expect("just set");
-    if f(client).is_err() {
-        let _ = client.close();
-        *guard = None;
-    }
-}
-
 #[tauri::command]
 #[specta::specta]
 pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
-    with_client(|client| {
+    worker().submit(true, move |client| {
         let mut act = Activity::new();
         if let Some(d) = activity.details.as_deref() {
             act = act.details(d);
@@ -79,8 +105,7 @@ pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
         if let Some(ts) = activity.start {
             act = act.timestamps(Timestamps::new().start(ts));
         }
-        client.set_activity(act)?;
-        Ok(())
+        client.set_activity(act)
     });
     Ok(())
 }
@@ -88,19 +113,23 @@ pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub fn discord_presence_clear() -> AppResult<()> {
-    with_client(|client| {
-        client.clear_activity()?;
-        Ok(())
-    });
+    worker().submit(false, |client| client.clear_activity());
     Ok(())
 }
 
-/// Clear presence and drop the connection on app exit.
+/// Clear presence and drop the connection on app exit; never waits on a stuck pipe.
 pub fn shutdown() {
-    if let Ok(mut guard) = CLIENT.lock() {
-        if let Some(mut client) = guard.take() {
-            let _ = client.clear_activity();
-            let _ = client.close();
-        }
-    }
+    let Some(w) = WORKER.get() else { return };
+    let (tx, rx) = channel();
+    w.submit(false, move |client| {
+        let _ = client.clear_activity();
+        let _ = client.close();
+        let _ = tx.send(());
+        Ok(())
+    });
+    let _ = rx.recv_timeout(Duration::from_millis(500));
 }
+
+#[cfg(test)]
+#[path = "presence.test.rs"]
+mod presence_tests;
