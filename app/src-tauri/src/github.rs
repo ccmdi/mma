@@ -110,7 +110,7 @@ fn renew(stale: &str) -> AppResult<Option<String>> {
         store_session(None)?;
         return Ok(None);
     };
-    let resp = crate::proxy_client()
+    let resp = crate::proxy::proxy_client()
         .post(TOKEN_URL)
         .header("Accept", "application/json")
         .header("User-Agent", user_agent())
@@ -268,7 +268,7 @@ fn request_device_code() -> AppResult<DeviceCodeResponse> {
     if CLIENT_ID.is_empty() {
         return Err("GitHub sign-in is not configured in this build".into());
     }
-    let resp = crate::proxy_client()
+    let resp = crate::proxy::proxy_client()
         .post(DEVICE_CODE_URL)
         .header("Accept", "application/json")
         .header("User-Agent", user_agent())
@@ -281,7 +281,7 @@ fn request_device_code() -> AppResult<DeviceCodeResponse> {
 }
 
 fn poll_once(device_code: &str) -> AppResult<Poll> {
-    let resp = crate::proxy_client()
+    let resp = crate::proxy::proxy_client()
         .post(TOKEN_URL)
         .header("Accept", "application/json")
         .header("User-Agent", user_agent())
@@ -361,7 +361,7 @@ fn authed(
 
 fn get(url: &str) -> AppResult<serde_json::Value> {
     let resp = authed(|token| {
-        crate::proxy_client()
+        crate::proxy::proxy_client()
             .get(url)
             .header("Accept", "application/vnd.github+json")
             .header("Authorization", format!("Bearer {token}"))
@@ -525,7 +525,7 @@ pub async fn github_create_issue(
         let body = crate::feedback::scrub(&body);
         let payload = serde_json::json!({ "title": title, "body": body, "labels": labels });
         let resp = authed(|token| {
-            crate::proxy_client()
+            crate::proxy::proxy_client()
                 .post(format!("{API}/repos/{REPO}/issues"))
                 .header("Accept", "application/vnd.github+json")
                 .header("Authorization", format!("Bearer {token}"))

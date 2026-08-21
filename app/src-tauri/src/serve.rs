@@ -73,7 +73,7 @@ fn register_web_schemes() {
             .decode_utf8_lossy()
             .into_owned();
         if req.method.eq_ignore_ascii_case("POST") {
-            return relay(crate::write_upload(&path, &req.body));
+            return relay(crate::proxy::write_upload(&path, &req.body));
         }
         match std::fs::read(&path) {
             Ok(data) => SchemeResponse::ok("application/octet-stream", data),
@@ -86,7 +86,7 @@ fn register_web_schemes() {
             req.path,
             qs(&req.query)
         );
-        relay(crate::fetch_svtile(&url))
+        relay(crate::proxy::fetch_svtile(&url))
     });
     register_scheme("gmaps", |req: SchemeRequest| {
         let url = format!("https://www.google.com/{}{}", req.path, qs(&req.query));
@@ -97,7 +97,7 @@ fn register_web_schemes() {
         } else {
             req.content_type
         };
-        relay(crate::proxy_gmaps(
+        relay(crate::proxy::proxy_gmaps(
             method,
             &url,
             ct,
@@ -122,6 +122,6 @@ fn register_web_schemes() {
     });
     register_scheme("googl", |req: SchemeRequest| {
         let mapsapp = req.query.split('&').any(|kv| kv == "source=mapsapp");
-        relay(crate::resolve_googl(&req.path, mapsapp))
+        relay(crate::proxy::resolve_googl(&req.path, mapsapp))
     });
 }

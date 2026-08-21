@@ -118,7 +118,7 @@ fn fetch_challenge() -> AppResult<String> {
     struct ChallengeResp {
         challenge: String,
     }
-    let resp = crate::proxy_client()
+    let resp = crate::proxy::proxy_client()
         .get(format!("{WORKER_URL}/challenge"))
         .send()?;
     if !resp.status().is_success() {
@@ -184,7 +184,7 @@ pub async fn feedback_submit_anonymous(
         let challenge = fetch_challenge()?;
         let content = crate::util::sha256_hex(format!("{title}\0{body}").as_bytes());
         let nonce = solve_pow(&format!("{challenge}:{content}"), POW_BITS);
-        let resp = crate::proxy_client()
+        let resp = crate::proxy::proxy_client()
             .post(format!("{WORKER_URL}/reports"))
             .json(&serde_json::json!({
                 "title": title,
@@ -266,7 +266,7 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
             percent_encoding::NON_ALPHANUMERIC,
         )
         .to_string();
-        let resp = crate::proxy_client()
+        let resp = crate::proxy::proxy_client()
             .post(format!(
                 "{WORKER_URL}/uploads?name={name}&challenge={challenge}&nonce={nonce}"
             ))
@@ -301,7 +301,7 @@ pub async fn feedback_request_label(number: u32) -> AppResult<()> {
         let request = || -> AppResult<()> {
             let challenge = fetch_challenge()?;
             let nonce = solve_pow(&format!("{challenge}:label:{number}"), POW_BITS);
-            let resp = crate::proxy_client()
+            let resp = crate::proxy::proxy_client()
                 .post(format!(
                     "{WORKER_URL}/reports/{number}/label?challenge={challenge}&nonce={nonce}"
                 ))
@@ -328,7 +328,7 @@ pub async fn feedback_anonymous_thread(number: u32, token: String) -> AppResult<
     }
     blocking(move || {
         // In a header rather than the URL, which lands in request logs along the way.
-        let resp = crate::proxy_client()
+        let resp = crate::proxy::proxy_client()
             .get(format!("{WORKER_URL}/reports/{number}"))
             .header("Authorization", format!("Bearer {token}"))
             .send()?;

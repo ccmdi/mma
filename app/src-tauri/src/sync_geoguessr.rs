@@ -252,7 +252,7 @@ impl SyncProvider for GeoGuessrProvider {
 
     fn pull(&self, remote_map_id: &str) -> AppResult<RemoteSnapshot<GgCoordinate>> {
         let url = upstream_url(&format!("api/v4/user-maps/drafts/{remote_map_id}"), None);
-        let mut req = crate::sync_client().get(&url);
+        let mut req = crate::proxy::sync_client().get(&url);
         for (k, v) in proxy_headers(&self.ncfa, None) {
             req = req.header(k, v);
         }
@@ -295,7 +295,7 @@ impl SyncProvider for GeoGuessrProvider {
         let bytes = serde_json::to_vec(&write_body(items, version))?;
 
         let url = upstream_url(&format!("api/v4/user-maps/drafts/{remote_map_id}"), None);
-        let mut req = crate::sync_client().put(&url).body(bytes);
+        let mut req = crate::proxy::sync_client().put(&url).body(bytes);
         for (k, v) in proxy_headers(&self.ncfa, Some("application/json")) {
             req = req.header(k, v);
         }

@@ -5,35 +5,29 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 
 /** Commands */
 export const commands = {
+	/**  Milliseconds from `run()` to the frontend's first call; logged once. */
+	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
-	 *  Write arbitrary text content to a named temp file (`mma_{name}`). Returns the path.
-	 *  Used by JS to pass large payloads via file instead of IPC serialization.
+	 *  Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
+	 *  large payloads over by file instead of IPC serialization.
 	 */
 	writeTempFile: (name: string, content: string) => __TAURI_INVOKE<string>("write_temp_file", { name, content }),
-	/**  Read a file from disk as UTF-8 text. Used by JS to read temp files and plugin sources. */
+	/**  Read a file as UTF-8 text (temp files, plugin sources). */
 	readFile: (path: string) => __TAURI_INVOKE<string>("read_file", { path }),
-	appReady: () => __TAURI_INVOKE<number>("app_ready"),
-	/**  Return the platform-specific app data directory path (e.g., `%LOCALAPPDATA%/app.map-making.local`). */
 	getAppDataDir: () => __TAURI_INVOKE<string>("get_app_data_dir"),
-	/**  Report where map data is currently stored. */
 	getDataLocation: () => __TAURI_INVOKE<DataLocation>("get_data_location"),
 	/**
-	 *  Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch.
-	 *  Does not move existing data -- the caller warns the user.
+	 *  Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
+	 *  and does not move existing data.
 	 */
 	setDataLocation: (path: string | null) => __TAURI_INVOKE<null>("set_data_location", { path }),
-	/**  Open the app data directory in the OS file explorer. */
 	openDataFolder: () => __TAURI_INVOKE<null>("open_data_folder"),
-	/**  Open the current log file in the OS default handler. */
 	openLogFile: () => __TAURI_INVOKE<null>("open_log_file"),
-	/**  Scan the `plugins/` directory under app data and return manifests for all installed plugins. */
+	/**  Manifests of every installed plugin. */
 	listUserPlugins: () => __TAURI_INVOKE<PluginManifest[]>("list_user_plugins"),
-	/**
-	 *  Download a plugin from the GitHub plugin repository and install it to the local plugins directory.
-	 *  Fetches `manifest.json` and the main JS file specified in the manifest.
-	 */
+	/**  Install a plugin from the marketplace repo: its `manifest.json` plus the main JS file. */
 	installPlugin: (id: string) => __TAURI_INVOKE<PluginManifest>("install_plugin", { id }),
-	/**  Remove a plugin by deleting its directory from the local plugins folder. */
+	/**  Delete a plugin's directory. */
 	uninstallPlugin: (id: string) => __TAURI_INVOKE<null>("uninstall_plugin", { id }),
 	/**
 	 *  Download a plugin's sidecar bundle from GitHub Releases and extract it under
@@ -163,30 +157,6 @@ export const commands = {
 	storeCopyLocationsToMap: (targetMapId: string, scope: Scope) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, scope }),
 	/**  Lightweight status query: location count, version, and dirty flag. */
 	storeGetSummary: () => __TAURI_INVOKE<SummaryResult>("store_get_summary"),
-	/**  Return metadata for every map in the database. */
-	storeListMaps: () => __TAURI_INVOKE<MapMeta[]>("store_list_maps").then((v) => (v.map(i=>({...i,extra:({...i.extra,fields:i.extra.fields==null?i.extra.fields:Object.fromEntries(Object.entries(i.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})) as typeof v)),
-	/**  Fetch a single map's metadata by ID. Returns `None` if not found. */
-	storeGetMap: (id: string) => __TAURI_INVOKE<MapData | null>("store_get_map", { id }).then((v) => (v==null?v:({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
-	/**
-	 *  Create a new empty map with default settings. Returns the full metadata
-	 *  (including the generated UUID) so the frontend can navigate to it immediately.
-	 */
-	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapData>("store_create_map", { name, folder }).then((v) => (({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
-	/**  Delete a map and all its data: database rows and files on disk. */
-	storeDeleteMap: (id: string) => __TAURI_INVOKE<null>("store_delete_map", { id }),
-	/**  Apply a partial update to a map's metadata; `None` fields are left unchanged. */
-	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => __TAURI_INVOKE<null>("store_update_map_meta", { id, patch: ({...patch,scoreBounds:patch.scoreBounds==null?patch.scoreBounds:patch.scoreBounds,extra:patch.extra==null?patch.extra:({...patch.extra,fields:patch.extra.fields==null?patch.extra.fields:Object.fromEntries(Object.entries(patch.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) }),
-	/**
-	 *  Update `last_opened_at` to the current timestamp. Used to sort the map
-	 *  list by recency in the dashboard.
-	 */
-	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
-	/**  Rename a folder across all maps that reference it. */
-	storeRenameFolder: (from: string, to: string) => __TAURI_INVOKE<null>("store_rename_folder", { from, to }),
-	/**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). */
-	storeDeleteFolder: (name: string) => __TAURI_INVOKE<null>("store_delete_folder", { name }),
-	/**  List all user-created tables with their row counts. Excludes SQLite internals. */
-	storeDbTableInfo: () => __TAURI_INVOKE<DbTableInfo[]>("store_db_table_info"),
 	/**
 	 *  Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
 	 *  and clears the redo stack.
@@ -292,6 +262,41 @@ export const commands = {
 	 *  Called on marker click to map the GPU pick back to a logical location.
 	 */
 	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
+	/**  Return metadata for every map in the database. */
+	storeListMaps: () => __TAURI_INVOKE<MapMeta[]>("store_list_maps").then((v) => (v.map(i=>({...i,extra:({...i.extra,fields:i.extra.fields==null?i.extra.fields:Object.fromEntries(Object.entries(i.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})) as typeof v)),
+	/**  Fetch a single map's metadata by ID. Returns `None` if not found. */
+	storeGetMap: (id: string) => __TAURI_INVOKE<MapData | null>("store_get_map", { id }).then((v) => (v==null?v:({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
+	/**
+	 *  Create a new empty map with default settings. Returns the full metadata
+	 *  (including the generated UUID) so the frontend can navigate to it immediately.
+	 */
+	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapData>("store_create_map", { name, folder }).then((v) => (({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
+	/**  Delete a map and all its data: database rows and files on disk. */
+	storeDeleteMap: (id: string) => __TAURI_INVOKE<null>("store_delete_map", { id }),
+	/**  Apply a partial update to a map's metadata; `None` fields are left unchanged. */
+	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => __TAURI_INVOKE<null>("store_update_map_meta", { id, patch: ({...patch,scoreBounds:patch.scoreBounds==null?patch.scoreBounds:patch.scoreBounds,extra:patch.extra==null?patch.extra:({...patch.extra,fields:patch.extra.fields==null?patch.extra.fields:Object.fromEntries(Object.entries(patch.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) }),
+	/**
+	 *  Update `last_opened_at` to the current timestamp. Used to sort the map
+	 *  list by recency in the dashboard.
+	 */
+	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
+	/**  Rename a folder across all maps that reference it. */
+	storeRenameFolder: (from: string, to: string) => __TAURI_INVOKE<null>("store_rename_folder", { from, to }),
+	/**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). */
+	storeDeleteFolder: (name: string) => __TAURI_INVOKE<null>("store_delete_folder", { name }),
+	/**  List all user-created tables with their row counts. Excludes SQLite internals. */
+	storeDbTableInfo: () => __TAURI_INVOKE<DbTableInfo[]>("store_db_table_info"),
+	/**
+	 *  Delete all rows from a table. Returns the number of deleted rows.
+	 *  Used in the debug panel for cache/history cleanup.
+	 */
+	storeDbClearTable: (table: string) => __TAURI_INVOKE<number>("store_db_clear_table", { table }),
+	/**
+	 *  Compute aggregate database statistics (map/location/tag/commit counts,
+	 *  database file size, journal mode). Tag count is summed across all maps
+	 *  by parsing each map's tags JSON column.
+	 */
+	storeDbStats: () => __TAURI_INVOKE<DbStats>("store_db_stats"),
 	/**
 	 *  Parse a file (JSON or ZIP of JSONs) and return previews without persisting.
 	 *  Results are cached in `CACHED_PARSE` so `bulk_import_confirm` can skip re-parsing.
@@ -357,16 +362,19 @@ export const commands = {
 	/**  Remove an abandoned upload session dir (e.g. cancelled operation). */
 	storeUploadAbort: (sessionDir: string) => __TAURI_INVOKE<null>("store_upload_abort", { sessionDir }),
 	/**
-	 *  Delete all rows from a table. Returns the number of deleted rows.
-	 *  Used in the debug panel for cache/history cleanup.
+	 *  Commit the map's uncommitted changes and return the new commit id.
+	 *  `message` None auto-generates a `+a -r ~m` summary.
 	 */
-	storeDbClearTable: (table: string) => __TAURI_INVOKE<number>("store_db_clear_table", { table }),
+	storeCommit: (mapId: string, message: string | null) => __TAURI_INVOKE<string>("store_commit", { mapId, message }),
+	/**  List all commits for a map, newest first. */
+	storeListCommits: (mapId: string) => __TAURI_INVOKE<CommitInfo[]>("store_list_commits", { mapId }),
 	/**
-	 *  Compute aggregate database statistics (map/location/tag/commit counts,
-	 *  database file size, journal mode). Tag count is summed across all maps
-	 *  by parsing each map's tags JSON column.
+	 *  Restore a map to the state captured by a previous commit. The caller must reopen
+	 *  the map afterwards (undo/redo is cleared).
 	 */
-	storeDbStats: () => __TAURI_INVOKE<DbStats>("store_db_stats"),
+	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<null>("store_checkout_commit", { mapId, commitId }),
+	/**  Read a single commit's delta (created/removed locations) for the diff viewer. */
+	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<CommitDelta>("store_get_commit_delta", { mapId, commitId }).then((v) => (({...v,created:v.created.map(i=>i),removed:v.removed.map(i=>i)}) as typeof v)),
 	/**  Record a panorama visit. Oldest entries beyond `MAX_SEEN` are evicted. */
 	storeSeenWrite: (entry: SeenWriteEntry) => __TAURI_INVOKE<null>("store_seen_write", { entry }),
 	/**  Returns a page of seen entries, newest first, with optional filtering. */
@@ -409,20 +417,6 @@ export const commands = {
 	geoguessrLogout: () => __TAURI_INVOKE<null>("geoguessr_logout"),
 	/**  Local-only check: is a token stored? Says nothing about its validity. */
 	geoguessrHasSession: () => __TAURI_INVOKE<boolean>("geoguessr_has_session"),
-	/**
-	 *  Commit the map's uncommitted changes and return the new commit id.
-	 *  `message` None auto-generates a `+a -r ~m` summary.
-	 */
-	storeCommit: (mapId: string, message: string | null) => __TAURI_INVOKE<string>("store_commit", { mapId, message }),
-	/**  List all commits for a map, newest first. */
-	storeListCommits: (mapId: string) => __TAURI_INVOKE<CommitInfo[]>("store_list_commits", { mapId }),
-	/**
-	 *  Restore a map to the state captured by a previous commit. The caller must reopen
-	 *  the map afterwards (undo/redo is cleared).
-	 */
-	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<null>("store_checkout_commit", { mapId, commitId }),
-	/**  Read a single commit's delta (created/removed locations) for the diff viewer. */
-	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<CommitDelta>("store_get_commit_delta", { mapId, commitId }).then((v) => (({...v,created:v.created.map(i=>i),removed:v.removed.map(i=>i)}) as typeof v)),
 	/**
 	 *  Generate locations from a Vali map definition (JSON/JSONC text). Missing country
 	 *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
@@ -560,11 +554,9 @@ export type CopyToMapResult = {
 
 /**  The active and default data-folder paths, plus whether a custom override is in effect. */
 export type DataLocation = {
-	/**  Folder currently in use this session (default or override). */
 	path: string,
-	/**  OS default, ignoring any override -- used for the "reset" affordance. */
+	/**  OS default, ignoring any override -- backs the "reset" affordance. */
 	default_path: string,
-	/**  True when `path` differs from the OS default. */
 	is_custom: boolean,
 };
 

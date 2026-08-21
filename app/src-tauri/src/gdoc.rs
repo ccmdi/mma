@@ -1,7 +1,7 @@
 //! Document fetching for the doclink feature: the `gdoc://` scheme resolves a
 //! Google Doc id to its static HTML.
 
-use crate::{proxy_client, proxy_error, relay};
+use crate::proxy::{proxy_client, proxy_error, relay};
 
 /// Only a bare doc id may reach the gdoc proxy, so it can't be used as an open proxy.
 pub(crate) fn valid_gdoc_id(doc_id: &str) -> bool {

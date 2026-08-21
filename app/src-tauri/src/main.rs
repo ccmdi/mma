@@ -20,13 +20,7 @@ fn main() {
     // launching the app. Breaks the deadlock when broken bindings block the frontend build.
     #[cfg(debug_assertions)]
     if std::env::args().any(|a| a == "--export-bindings") {
-        let out =
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.gen.ts");
-        app_lib::specta_builder()
-            .export(specta_typescript::Typescript::default(), &out)
-            .expect("bindings export failed");
-        app_lib::promote_serialize_bindings(&out);
-        println!("bindings exported to {}", out.display());
+        app_lib::export_bindings().expect("bindings export failed");
         return;
     }
     app_lib::run();

@@ -133,7 +133,7 @@ fn read_data_location_override(config_dir: &std::path::Path) -> Option<std::path
 /// Persist (or clear) the data-folder override. `Some(path)` validates the folder
 /// is creatable then writes the pointer; `None` removes it (revert to default).
 /// Takes effect on next launch -- the active paths are fixed for the process.
-pub(crate) fn set_data_location(path: Option<&std::path::Path>) -> AppResult<()> {
+pub(crate) fn set_data_location_override(path: Option<&std::path::Path>) -> AppResult<()> {
     let config_dir = CONFIG_DIR
         .get()
         .ok_or_else(|| AppError::from("app paths not initialized".to_string()))?;
@@ -839,6 +839,83 @@ pub(crate) fn read_arrow_ipc_mmap(
             MmapHandle { _buffer: buffer },
         ))
     }
+}
+
+/// Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
+/// large payloads over by file instead of IPC serialization.
+#[tauri::command]
+#[specta::specta]
+pub fn write_temp_file(name: String, content: String) -> AppResult<String> {
+    let path = std::env::temp_dir().join(format!("mma_{name}"));
+    std::fs::write(&path, &content)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Read a file as UTF-8 text (temp files, plugin sources).
+#[tauri::command]
+#[specta::specta]
+pub fn read_file(path: String) -> AppResult<String> {
+    Ok(std::fs::read_to_string(&path)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_app_data_dir() -> AppResult<String> {
+    app_data_dir().map(|p| p.to_string_lossy().into_owned())
+}
+
+/// The active and default data-folder paths, plus whether a custom override is in effect.
+#[derive(serde::Serialize, specta::Type)]
+pub struct DataLocation {
+    path: String,
+    /// OS default, ignoring any override -- backs the "reset" affordance.
+    default_path: String,
+    is_custom: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_data_location() -> AppResult<DataLocation> {
+    let path = app_data_dir()?;
+    let default_path = default_data_dir()?;
+    Ok(DataLocation {
+        is_custom: path != default_path,
+        path: path.to_string_lossy().into_owned(),
+        default_path: default_path.to_string_lossy().into_owned(),
+    })
+}
+
+/// Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
+/// and does not move existing data.
+#[tauri::command]
+#[specta::specta]
+pub fn set_data_location(path: Option<String>) -> AppResult<()> {
+    set_data_location_override(path.as_deref().map(std::path::Path::new))
+}
+
+/// Hand a path to the OS shell (file explorer / default handler).
+fn os_open(path: &std::path::Path) -> AppResult<()> {
+    #[cfg(target_os = "windows")]
+    let program = "explorer";
+    #[cfg(target_os = "macos")]
+    let program = "open";
+    #[cfg(target_os = "linux")]
+    let program = "xdg-open";
+    std::process::Command::new(program).arg(path).spawn()?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn open_data_folder() -> AppResult<()> {
+    os_open(&app_data_dir()?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn open_log_file(app: tauri::AppHandle) -> AppResult<()> {
+    use tauri::Manager;
+    os_open(&app.path().app_log_dir()?.join("mma.log"))
 }
 
 #[cfg(test)]

@@ -321,7 +321,7 @@ mod live {
 
     fn get_draft(ncfa: &str, map: &str) -> serde_json::Value {
         let url = upstream_url(&format!("api/v4/user-maps/drafts/{map}"), None);
-        let mut req = crate::proxy_client().get(&url);
+        let mut req = crate::proxy::proxy_client().get(&url);
         for (k, v) in proxy_headers(ncfa, None) {
             req = req.header(k, v);
         }
@@ -338,7 +338,7 @@ mod live {
     fn put_body(ncfa: &str, map: &str, body: &serde_json::Value) -> reqwest::blocking::Response {
         let url = upstream_url(&format!("api/v4/user-maps/drafts/{map}"), None);
         let bytes = serde_json::to_vec(body).unwrap();
-        let mut req = crate::proxy_client().put(&url).body(bytes);
+        let mut req = crate::proxy::proxy_client().put(&url).body(bytes);
         for (k, v) in proxy_headers(ncfa, Some("application/json")) {
             req = req.header(k, v);
         }

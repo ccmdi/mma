@@ -97,11 +97,11 @@ pub(crate) fn proxy(
     let ncfa = match session() {
         Ok(Some(v)) => v,
         Ok(None) => return no_session_response(),
-        Err(e) => return crate::proxy_error(format!("ggapi session error: {e}")),
+        Err(e) => return crate::proxy::proxy_error(format!("ggapi session error: {e}")),
     };
     let url = upstream_url(path, query);
     let has_body = !body.is_empty();
-    let mut req = crate::proxy_client().request(method, &url);
+    let mut req = crate::proxy::proxy_client().request(method, &url);
     for (k, v) in proxy_headers(&ncfa, content_type.as_deref().filter(|_| has_body)) {
         req = req.header(k, v);
     }
@@ -109,8 +109,8 @@ pub(crate) fn proxy(
         req = req.body(body);
     }
     match req.send() {
-        Ok(resp) => crate::relay(resp, "application/json"),
-        Err(e) => crate::proxy_error(format!("ggapi fetch error: {e}")),
+        Ok(resp) => crate::proxy::relay(resp, "application/json"),
+        Err(e) => crate::proxy::proxy_error(format!("ggapi fetch error: {e}")),
     }
 }
 
@@ -139,7 +139,7 @@ fn fetch_me() -> AppResult<Option<GgUser>> {
     let Some(ncfa) = session()? else {
         return Ok(None);
     };
-    let mut req = crate::proxy_client().get(upstream_url("api/v3/profiles", None));
+    let mut req = crate::proxy::proxy_client().get(upstream_url("api/v3/profiles", None));
     for (k, v) in proxy_headers(&ncfa, None) {
         req = req.header(k, v);
     }

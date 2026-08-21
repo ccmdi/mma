@@ -16,7 +16,8 @@
 //! without the plugin describing it: variable input travels as JSON, never as flags.
 
 use crate::types::{AppError, AppResult};
-use crate::{emit_event, validate_plugin_id, validate_sidecar_command, validate_sidecar_name};
+use crate::emit_event;
+use crate::user_plugins::{validate_plugin_id, validate_sidecar_command, validate_sidecar_name};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Read, Write};
