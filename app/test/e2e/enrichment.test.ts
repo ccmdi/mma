@@ -58,6 +58,22 @@ async function waitForEnrichment(locId: number, field = "countryCode") {
 	);
 }
 
+// knownFieldKeys propagate asynchronously after an extra write lands; poll instead of
+// asserting once, or the read races the registration under slow (SwiftShader) runs.
+async function waitForFieldKeys(...wanted: string[]) {
+	await browser.waitUntil(
+		async () => {
+			const keys = await withApi((api) => [...api.getMapState().knownFieldKeys]);
+			return wanted.every((k) => keys.includes(k));
+		},
+		{
+			timeout: PANO_TIMEOUT,
+			interval: 50,
+			timeoutMsg: `field defs never registered: ${wanted.join(", ")}`,
+		},
+	);
+}
+
 async function waitForPreview() {
 	const el = await browser.$(".location-preview");
 	await el.waitForExist({ timeout: 5000 });
@@ -295,11 +311,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		await openLocation(defsAutoId);
 		await waitForPreview();
 		await waitForEnrichment(defsAutoId);
-
-		const keys = await withApi((api) => [...api.getMapState().knownFieldKeys]);
-		expect(keys).toContain("countryCode");
-		expect(keys).toContain("altitude");
-		expect(keys).toContain("imageDate");
+		await waitForFieldKeys("countryCode", "altitude", "imageDate");
 
 		const defs = await withApi((api) => ({
 			countryCode: api.getFieldDef("countryCode"),
@@ -354,9 +366,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			return "ok";
 		}, patchLoc);
 
-		await new Promise((r) => setTimeout(r, 500));
-		const keys = await withApi((api) => [...api.getMapState().knownFieldKeys]);
-		expect(keys).toContain("datetime");
+		await waitForFieldKeys("datetime");
 		const def = await withApi((api) => api.getFieldDef("datetime"));
 		expect(def?.type).toBe("date");
 	});
@@ -364,9 +374,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("addLocations auto-registers known field keys", async () => {
 		await addLocs([loc({ lat: 10, lng: 20, extra: { altitude: 100, countryCode: "US" } })]);
 
-		const keys = await withApi((api) => [...api.getMapState().knownFieldKeys]);
-		expect(keys).toContain("altitude");
-		expect(keys).toContain("countryCode");
+		await waitForFieldKeys("altitude", "countryCode");
 		const defs = await withApi((api) => ({
 			altitude: api.getFieldDef("altitude"),
 			countryCode: api.getFieldDef("countryCode"),
@@ -384,8 +392,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			return "ok";
 		}, customLoc);
 
-		const keys = await withApi((api) => [...api.getMapState().knownFieldKeys]);
-		expect(keys).toContain("randomCustomThing");
+		await waitForFieldKeys("randomCustomThing");
 	});
 });
 
@@ -451,8 +458,7 @@ describe("Enrichment — exact date via preview", () => {
 	});
 
 	it("datetime field def is available", async () => {
-		const keys = await withApi((api) => [...api.getMapState().knownFieldKeys]);
-		expect(keys).toContain("datetime");
+		await waitForFieldKeys("datetime");
 		const def = await withApi((api) => api.getFieldDef("datetime"));
 		expect(def?.type).toBe("date");
 	});

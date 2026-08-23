@@ -4,7 +4,7 @@
  * addLocations). Under --mock the whole lookup (StreetViewService, photometa,
  * GetMetadata) is served by svMock; unmocked it hits real Street View.
  */
-import { useMap, withApi, getLocCount, getAllLocs, waitForLocCount } from "./helpers";
+import { useMap, withApi, getLocCount, getAllLocs } from "./helpers";
 
 // Matches an svMock fixture pano; also has real coverage for unmocked runs.
 const COVERED = { lat: 52.10947502806108, lng: 34.90131410856584 };
@@ -27,8 +27,15 @@ describe("Map click", () => {
 
 	it("clicking empty map creates a location snapped to SV coverage", async () => {
 		const before = await getLocCount();
-		await clickAt(COVERED.lat, COVERED.lng);
-		await waitForLocCount(before + 1);
+		// The deck overlay drops clicks until its first render completes (slow under
+		// software WebGL), so retry until the click actually lands.
+		await browser.waitUntil(
+			async () => {
+				await clickAt(COVERED.lat, COVERED.lng);
+				return (await getLocCount()) > before;
+			},
+			{ timeout: 15000, interval: 1000, timeoutMsg: "covered click never created a location" },
+		);
 
 		const locs = await getAllLocs();
 		const loc = locs[locs.length - 1];

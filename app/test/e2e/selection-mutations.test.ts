@@ -903,7 +903,7 @@ describe("Slot reuse correctness", () => {
 					);
 				}
 				await api.addLocations(batch);
-				api.removeLocations(new Set(batch.slice(0, 3).map((l) => l.id)));
+				await api.removeLocations(new Set(batch.slice(0, 3).map((l) => l.id)));
 			}
 
 			const totalLocs = (await api.cmd.storeGetSummary()).locationCount;
