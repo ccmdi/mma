@@ -1,10 +1,11 @@
-name: Label issues
+name: Issue triage
 
 # A model reads each new issue, explores the repo and reference docs to gauge scope, and
-# proposes labels. Issue bodies are untrusted input (anonymous reports arrive through the
-# intake worker), so the model must never hold a write capability: it runs in a job whose
-# token can only read, writes its verdict to a file, and a separate job filters that file
-# against a hard allowlist before touching the issue.
+# proposes labels plus, when warranted, a clearer title. Issue bodies are untrusted input
+# (anonymous reports arrive through the intake worker), so the model must never hold a
+# write capability: it runs in a job whose token can only read, writes its verdict to a
+# file, and a separate job filters that file against a hard allowlist before touching
+# the issue.
 on:
   issues:
     types: [opened]
@@ -92,7 +93,8 @@ jobs:
           prompt: |
             You are triaging issue #${{ matrix.issue }} on this repository (a Tauri desktop app:
             React/TypeScript frontend in app/src, Rust data engine in app/src-tauri). Your
-            only job is to choose labels. You cannot and must not do anything else.
+            only job is to choose labels and, when warranted, propose a clearer title.
+            You cannot and must not do anything else.
 
             Project guidance is at ./CLAUDE.md and reference material is under ./mma-reference
             -- consult them to understand what an issue would touch. Reference-only:
@@ -125,18 +127,42 @@ jobs:
                Always choose exactly one. "unknown" is the honest answer when the issue
                does not say enough to size it.
 
-            4. Write your verdict to labels.txt in the working directory: one label per
-               line, nothing else. Only these values are valid:
-               bug
-               enhancement
-               documentation
-               effort: small
-               effort: medium
-               effort: large
-               effort: unknown
-               Output only labels the issue should GAIN. You MUST always write the file,
-               even when the issue already has every label it needs -- in that case write
-               an empty file. Do not comment on the issue or produce any other output.
+            4. Write your verdict to labels.txt in the working directory. You MUST always
+               write the file, even when there is nothing to report -- write an empty
+               file in that case. Do not comment on the issue or produce any other
+               output. File format:
+               - One label per line. Only these values are valid:
+                 bug
+                 enhancement
+                 documentation
+                 effort: small
+                 effort: medium
+                 effort: large
+                 effort: unknown
+               - At most one additional line starting with "title: " proposing a
+                 replacement issue title (step 5).
+               Anything else is discarded. Output only labels the issue should GAIN.
+
+            5. Propose a rename if and only if the current title is worse than what the
+               issue actually describes. A good title states the user-facing problem
+               itself, as a fact:
+                 "tree mode tag drag and drop issue"
+                   -> title: Tags and subfolders can't be dragged back to top level
+                 "lasso tool buggy lines"
+                   -> title: Lasso tool shows ghost lines from the last vertex
+                 "map list search results"
+                   -> title: Map list search should match locations in collapsed folders
+                 "Don't show commit message modal every time"
+                   -> title: Commit message modal opens on every commit
+               Rules: bugs get a factual sentence about the misbehavior, feature
+               requests a noun phrase naming the missing capability. Never narrate the
+               complaint or reporter ("user complains X"), never phrase it as an
+               imperative request ("don't show X"), no fragments, no filler words
+               (issue, buggy, weird, annoying), no internal component or file names,
+               5-10 words, sentence case, no trailing period. Fixing a misnamed feature
+               or typo is fine when the codebase makes the real subject clear, as long
+               as the meaning stays identical. If the current title already follows
+               these rules, propose no rename.
 
       - name: Require a verdict
         run: test -f labels.txt || { echo "model wrote no labels.txt"; exit 1; }
@@ -179,10 +205,12 @@ jobs:
         run: |
           [ -f labels.txt ] || { echo "verdict artifact missing"; exit 1; }
           args=()
-          while IFS= read -r label; do
-            case "$label" in
+          while IFS= read -r line; do
+            case "$line" in
               bug|enhancement|documentation|"effort: small"|"effort: medium"|"effort: large"|"effort: unknown")
-                args+=(--add-label "$label") ;;
+                args+=(--add-label "$line") ;;
+              "title: "?*)
+                args+=(--title "${line#title: }") ;;
             esac
           done < labels.txt
           if [ "${#args[@]}" -gt 0 ]; then
