@@ -2027,7 +2027,7 @@ pub struct LocationPatch {
     pub zoom: Option<f64>,
     #[serde(default, deserialize_with = "nullable")]
     #[specta(type = Option<Option<String>>)]
-    pub pano_id: Option<Option<String>>,
+    pub pano_id: Option<Option<compact_str::CompactString>>,
     pub flags: Option<u32>,
     pub tags: Option<Vec<u32>>,
     #[serde(default, deserialize_with = "nullable")]

@@ -251,7 +251,7 @@ fn arb_location() -> impl Strategy<Value = Location> {
                     heading,
                     pitch,
                     zoom,
-                    pano_id,
+                    pano_id: pano_id.map(Into::into),
                     flags,
                     tags,
                     extra,

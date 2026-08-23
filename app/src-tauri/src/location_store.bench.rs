@@ -54,7 +54,7 @@ fn make_location(id: u32, rng: &mut fastrand::Rng) -> Location {
         heading: rng.f64() * 360.0,
         pitch: 0.0,
         zoom: 1.0,
-        pano_id,
+        pano_id: pano_id.map(Into::into),
         flags: LocationFlags::empty(),
         tags,
         extra,

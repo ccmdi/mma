@@ -180,8 +180,8 @@ pub fn patch_batch(
                     Arc::new(
                         (0..n)
                             .map(|i| match hits.get(&i) {
-                                Some(p) => p.pano_id.clone(),
-                                None => (!old.is_null(i)).then(|| old.value(i).to_string()),
+                                Some(p) => p.pano_id.as_deref(),
+                                None => (!old.is_null(i)).then(|| old.value(i)),
                             })
                             .collect::<StringArray>(),
                     )
@@ -263,7 +263,7 @@ pub fn row_to_location(batch: &RecordBatch, idx: usize) -> Location {
     let pano_id = if pano_id_col.is_null(idx) {
         None
     } else {
-        Some(pano_id_col.value(idx).to_string())
+        Some(pano_id_col.value(idx).into())
     };
 
     let tags_arr = col_tags(batch).value(idx);

@@ -387,7 +387,8 @@ pub struct Location {
     pub heading: f64,
     pub pitch: f64,
     pub zoom: f64,
-    pub pano_id: Option<String>,
+    #[specta(type = Option<String>)]
+    pub pano_id: Option<compact_str::CompactString>,
     /// See [`LocationFlags`].
     pub flags: LocationFlags,
     /// Tag IDs applied to this location. References `Tag.id`.

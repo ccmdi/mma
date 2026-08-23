@@ -183,7 +183,7 @@ fn make_test_batch(ids: &[u32]) -> arrow_array::RecordBatch {
             lat: id as f64,
             lng: id as f64 * 2.0,
             zoom: 1.0,
-            pano_id: Some(format!("pano_{id}")),
+            pano_id: Some(format!("pano_{id}").into()),
             tags: vec![1],
             created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
             ..Default::default()

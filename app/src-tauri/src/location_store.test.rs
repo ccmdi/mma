@@ -3163,7 +3163,7 @@ fn overlay_add_duplicate_id_asserts_in_debug() {
 
 fn loc_with_pano(id: u32, lat: f64, lng: f64, pano: &str) -> Location {
     Location {
-        pano_id: Some(pano.to_string()),
+        pano_id: Some(pano.into()),
         ..loc(id, lat, lng)
     }
 }
@@ -3201,11 +3201,11 @@ fn copy_dedup_panoless_falls_back_to_exact_coords() {
 #[test]
 fn copy_dedup_empty_pano_treated_as_panoless() {
     let existing = vec![Location {
-        pano_id: Some(String::new()),
+        pano_id: Some(Default::default()),
         ..loc(1, 10.0, 20.0)
     }];
     let sources = vec![Location {
-        pano_id: Some(String::new()),
+        pano_id: Some(Default::default()),
         ..loc(7, 10.0, 20.0)
     }];
     let (_, skipped) = split_new_locations(sources, &existing);

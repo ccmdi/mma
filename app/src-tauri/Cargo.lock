@@ -3322,6 +3322,7 @@ dependencies = [
  "bytes",
  "chrono",
  "chrono-tz",
+ "compact_str",
  "criterion",
  "csv",
  "discord-rich-presence",

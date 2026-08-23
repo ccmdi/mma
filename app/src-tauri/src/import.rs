@@ -181,7 +181,7 @@ fn parse_csv(text: &str) -> ParsedMap {
             if s.is_empty() {
                 None
             } else {
-                Some(s.to_string())
+                Some(s.into())
             }
         });
         let flags = if pano_id.is_some() {
@@ -892,7 +892,7 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                     None // no extra at all
                 };
 
-                let pano_id = top_pano.or(extra_pano);
+                let pano_id = top_pano.or(extra_pano).map(compact_str::CompactString::from);
                 let flags = if has_top_pano {
                     LocationFlags::LOAD_AS_PANO_ID
                 } else {

@@ -71,6 +71,7 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta-typescript = "0.0.12"
 csv = "1"
 fastrand = "2"
+compact_str = { version = "0.9", features = ["serde"] }
 memchr = "2"
 rustc-hash = "2"
 mimalloc = "0.1"

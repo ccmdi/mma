@@ -136,7 +136,7 @@ impl From<Location> for SyncLocalPin {
             heading: loc.heading,
             pitch: loc.pitch,
             zoom: loc.zoom,
-            pano_id: loc.pano_id,
+            pano_id: loc.pano_id.map(Into::into),
             flags: loc.flags.bits(),
             tags: loc.tags,
         }
