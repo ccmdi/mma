@@ -95,7 +95,7 @@ fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
 
     let extras: StringArray = locs
         .iter()
-        .map(|l| l.extra.as_ref().map(|e| e.as_str().to_string()))
+        .map(|l| l.extra.as_ref().map(|e| e.as_str()))
         .collect();
 
     let created_ats = UInt32Array::from_iter_values(locs.iter().map(|l| l.created_at));
@@ -195,24 +195,23 @@ pub fn patch_batch(
                 }
                 COL_TAGS => {
                     let old = col_tags(batch);
+                    let old_vals = old
+                        .values()
+                        .as_any()
+                        .downcast_ref::<UInt32Array>()
+                        .unwrap()
+                        .values();
+                    let offs = old.value_offsets();
                     let mut b = GenericListBuilder::<i32, UInt32Builder>::with_capacity(
                         UInt32Builder::new(),
                         n,
                     );
                     for i in 0..n {
                         match hits.get(&i) {
-                            Some(p) => {
-                                for &t in &p.tags {
-                                    b.values().append_value(t);
-                                }
-                            }
-                            None => {
-                                let v = old.value(i);
-                                let u = v.as_any().downcast_ref::<UInt32Array>().unwrap();
-                                for j in 0..u.len() {
-                                    b.values().append_value(u.value(j));
-                                }
-                            }
+                            Some(p) => b.values().append_slice(&p.tags),
+                            None => b
+                                .values()
+                                .append_slice(&old_vals[offs[i] as usize..offs[i + 1] as usize]),
                         }
                         b.append(true);
                     }
@@ -223,8 +222,8 @@ pub fn patch_batch(
                     Arc::new(
                         (0..n)
                             .map(|i| match hits.get(&i) {
-                                Some(p) => p.extra.as_ref().map(|e| e.as_str().to_string()),
-                                None => (!old.is_null(i)).then(|| old.value(i).to_string()),
+                                Some(p) => p.extra.as_ref().map(|e| e.as_str()),
+                                None => (!old.is_null(i)).then(|| old.value(i)),
                             })
                             .collect::<StringArray>(),
                     )
