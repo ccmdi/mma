@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { useDialog, useDialogState } from "@/store/dialogBus";
 import { Tooltip } from "@/components/primitives/Tooltip";
-import { useMapState, undo, redo } from "@/store/useMapStore";
+import { useMapState, undo, redo, commitMap } from "@/store/useMapStore";
+import { getSettings } from "@/store/settings";
 import { CommitDialog } from "@/components/dialogs/CommitDialog";
 import { useCommitDiff, hasCommitDiff } from "@/store/commitDiff";
 import { beginImportFromPath } from "@/store/importStaging";
@@ -31,10 +32,14 @@ function CommitControls() {
 	const diff = useCommitDiff();
 	const hasDiff = hasCommitDiff();
 	const [showCommit, setShowCommit] = useState(false);
-	useDialog("commit", () => hasCommitDiff() && setShowCommit(true));
+	const requestCommit = useCallback(() => {
+		if (getSettings().askCommitMessage) setShowCommit(true);
+		else void commitMap();
+	}, []);
+	useDialog("commit", () => hasCommitDiff() && requestCommit());
 	return (
 		<>
-			<Button variant="primary" disabled={!hasDiff} onClick={() => setShowCommit(true)}>
+			<Button variant="primary" disabled={!hasDiff} onClick={requestCommit}>
 				{t("Commit")}
 			</Button>
 			{showCommit && <CommitDialog onClose={() => setShowCommit(false)} />}

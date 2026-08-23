@@ -885,6 +885,9 @@ function EditingBody() {
 				</>
 			)}
 
+			<GroupHeading>{t("Version control")}</GroupHeading>
+			<SettingRow setting="askCommitMessage" label={t("Ask for a commit message")} />
+
 			<GroupHeading>{t("Geocoding")}</GroupHeading>
 			<SettingRow
 				label={t("Provider")}

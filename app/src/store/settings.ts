@@ -229,6 +229,8 @@ export const DEFAULTS = {
 		"bulk-enrich",
 	] as PinnedEntry[],
 	hasSeenWelcome: false,
+	/** Off = Commit applies immediately with no message prompt. */
+	askCommitMessage: true,
 };
 export type AppSettings = typeof DEFAULTS;
 

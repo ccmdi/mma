@@ -169,4 +169,19 @@ describe("Version control - commit message dialog", () => {
 		});
 		await input.waitForExist({ reverse: true });
 	});
+
+	it("commits immediately when the message prompt is off", async () => {
+		await addLocs([createLocation({ lat: 6, lng: 6, heading: 0, panoId: null, flags: 0 })]);
+		await withApi(async (api) => api.setSetting("askCommitMessage", false));
+		try {
+			await browser.$("button=Commit").click();
+			await browser.$(".commit-dialog").waitForExist({ reverse: true, timeout: 2000 });
+			await browser.waitUntil(async () => {
+				const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
+				return commits.length >= 1;
+			});
+		} finally {
+			await withApi(async (api) => api.setSetting("askCommitMessage", true));
+		}
+	});
 });
