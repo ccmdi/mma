@@ -46,9 +46,17 @@ fn default_visible() -> bool {
 /// when a consumer needs keyed access, via [`RawExtra::to_map`] (deep) or
 /// [`RawExtra::get`]/[`RawExtra::for_each_field`] (zero-alloc byte scan).
 #[derive(Clone, Debug)]
-pub struct RawExtra(Box<serde_json::value::RawValue>);
+pub struct RawExtra(std::sync::Arc<Box<serde_json::value::RawValue>>);
 
 impl RawExtra {
+    /// Share an owned raw value. `Location` clones sit on the bulk-update and undo paths,
+    /// so the JSON payload is refcounted rather than copied. `Arc::new` over the existing
+    /// `Box` keeps construction to one pointer-sized allocation -- `Arc::from(box)` would
+    /// reallocate and copy the payload, which costs more than the clone saves.
+    fn wrap(rv: Box<serde_json::value::RawValue>) -> Self {
+        RawExtra(std::sync::Arc::new(rv))
+    }
+
     /// Wrap an existing JSON string (e.g. from the Arrow column). Returns `None` for
     /// an empty object or an invalid JSON value, matching the `Option<...>` "no extra".
     pub fn from_string(s: String) -> Option<Self> {
@@ -56,7 +64,7 @@ impl RawExtra {
         if is_empty_object(rv.get()) {
             return None;
         }
-        Some(RawExtra(canonicalize_keys(rv)))
+        Some(RawExtra::wrap(canonicalize_keys(rv)))
     }
 
     /// Build from a JSON value (an object). `None` if not an object or empty.
@@ -70,7 +78,7 @@ impl RawExtra {
     pub(crate) fn from_string_uncanonicalized(s: &str) -> Option<Self> {
         serde_json::value::RawValue::from_string(s.to_string())
             .ok()
-            .map(RawExtra)
+            .map(RawExtra::wrap)
     }
 
     /// Build from a map. `None` if the map is empty.
@@ -81,7 +89,7 @@ impl RawExtra {
         let s = serde_json::to_string(m).ok()?;
         serde_json::value::RawValue::from_string(s)
             .ok()
-            .map(RawExtra)
+            .map(RawExtra::wrap)
     }
 
     /// The raw JSON bytes -- what gets written to the Arrow column.
@@ -301,7 +309,7 @@ fn is_empty_object(s: &str) -> bool {
 
 impl PartialEq for RawExtra {
     fn eq(&self, other: &Self) -> bool {
-        self.0.get() == other.0.get()
+        std::sync::Arc::ptr_eq(&self.0, &other.0) || self.0.get() == other.0.get()
     }
 }
 
@@ -313,7 +321,7 @@ impl PartialEq for RawExtra {
 impl serde::Serialize for RawExtra {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         if s.is_human_readable() {
-            self.0.serialize(s)
+            (**self.0).serialize(s)
         } else {
             s.serialize_str(self.0.get())
         }
@@ -325,7 +333,7 @@ impl<'de> serde::Deserialize<'de> for RawExtra {
         if d.is_human_readable() {
             Box::<serde_json::value::RawValue>::deserialize(d)
                 .map(canonicalize_keys)
-                .map(RawExtra)
+                .map(RawExtra::wrap)
         } else {
             d.deserialize_any(BinRawExtraVisitor)
         }
@@ -348,7 +356,7 @@ impl<'de> serde::de::Visitor<'de> for BinRawExtraVisitor {
     fn visit_string<E: serde::de::Error>(self, v: String) -> Result<RawExtra, E> {
         serde_json::value::RawValue::from_string(v)
             .map(canonicalize_keys)
-            .map(RawExtra)
+            .map(RawExtra::wrap)
             .map_err(E::custom)
     }
 
@@ -358,7 +366,7 @@ impl<'de> serde::de::Visitor<'de> for BinRawExtraVisitor {
         )?;
         let s = serde_json::to_string(&m).map_err(serde::de::Error::custom)?;
         serde_json::value::RawValue::from_string(s)
-            .map(RawExtra)
+            .map(RawExtra::wrap)
             .map_err(serde::de::Error::custom)
     }
 }

@@ -4,7 +4,7 @@ use super::*;
 type ExtraField = Option<Option<RawExtra>>;
 
 fn extra(json: &str) -> RawExtra {
-    RawExtra(serde_json::value::RawValue::from_string(json.to_owned()).unwrap())
+    RawExtra::wrap(serde_json::value::RawValue::from_string(json.to_owned()).unwrap())
 }
 
 #[test]
