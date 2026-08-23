@@ -699,7 +699,7 @@ fn finish_mutation_reports_correct_state() {
         removed: vec![],
     });
 
-    let result = store.finish_mutation(ChangeSet::default());
+    let result = store.finish_mutation(&ChangeSet::default());
     assert_eq!(result.status.location_count, 1);
     assert!(result.status.can_undo);
     assert!(!result.status.can_redo);
@@ -717,16 +717,16 @@ fn tag_counts_shipped_only_when_changed() {
     let mut store = setup_store_with(&[l.clone()]);
 
     // Setup's add_tag_counts left counts dirty: first mutation ships them once.
-    let result = store.finish_mutation(ChangeSet::default());
+    let result = store.finish_mutation(&ChangeSet::default());
     assert!(result.status.tag_counts.is_some());
 
     // A mutation that touches no tags must not ship counts.
-    let result = store.finish_mutation(ChangeSet::default());
+    let result = store.finish_mutation(&ChangeSet::default());
     assert!(result.status.tag_counts.is_none());
 
     // A tag-touching edit ships fresh counts again.
     let changes = store.apply_edit(std::slice::from_ref(&l), &[]);
-    let result = store.finish_mutation(changes);
+    let result = store.finish_mutation(&changes);
     assert_eq!(
         result.status.tag_counts.as_ref().unwrap().get(&10),
         Some(&0)
@@ -2323,7 +2323,7 @@ fn an_empty_tag_survives_an_unrelated_mutation() {
         lat: 31.0,
         ..old.clone()
     };
-    store.finish_mutation(ChangeSet {
+    store.finish_mutation(&ChangeSet {
         updated: vec![(old, moved)],
         ..Default::default()
     });
@@ -2355,7 +2355,7 @@ fn losing_its_last_location_still_hides_a_tag() {
     };
     store.remove_tag_counts(&[old.clone()]);
     store.add_tag_counts(&[untagged.clone()]);
-    store.finish_mutation(ChangeSet {
+    store.finish_mutation(&ChangeSet {
         updated: vec![(old, untagged)],
         ..Default::default()
     });
@@ -2553,7 +2553,7 @@ fn incremental_membership_change_ships_no_bitmask() {
     insert_tag(&mut store, 1, 0);
     add_tag_selection(&mut store, 1, [255, 0, 0]);
 
-    let result = store.finish_mutation(ChangeSet {
+    let result = store.finish_mutation(&ChangeSet {
         updated: vec![(l1, loc_with_tags(1, 10.0, 20.0, vec![1]))],
         ..Default::default()
     });
@@ -2593,7 +2593,7 @@ fn full_resolve_ships_a_bitmask_for_every_cell() {
     add_tag_selection(&mut store, 1, [255, 0, 0]);
 
     // `full_reset` forces the full-resolve branch.
-    let result = store.finish_mutation(ChangeSet {
+    let result = store.finish_mutation(&ChangeSet {
         full_reset: true,
         ..Default::default()
     });
@@ -2630,7 +2630,7 @@ fn membership_delta_reports_gained_on_tag_add() {
 
     // Add tag 1 to location 1
     let with_tag = loc_with_tags(1, 10.0, 20.0, vec![1]);
-    let result = store.finish_mutation(ChangeSet {
+    let result = store.finish_mutation(&ChangeSet {
         updated: vec![(l1, with_tag)],
         ..Default::default()
     });
@@ -2667,7 +2667,7 @@ fn membership_delta_reports_lost_on_tag_remove() {
     assert!(store.selections.ids.contains(1), "starts selected");
 
     let untagged = loc_with_tags(1, 10.0, 20.0, vec![]);
-    let result = store.finish_mutation(ChangeSet {
+    let result = store.finish_mutation(&ChangeSet {
         updated: vec![(tagged, untagged)],
         ..Default::default()
     });
@@ -2695,7 +2695,7 @@ fn removed_selected_location_leaves_no_patch() {
     add_tag_selection(&mut store, 1, [255, 0, 0]);
     store.resolve_selection_membership();
 
-    let result = store.finish_mutation(ChangeSet {
+    let result = store.finish_mutation(&ChangeSet {
         removed: vec![1],
         ..Default::default()
     });
@@ -2734,7 +2734,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
     );
 
     let only_first = loc_with_tags(1, 10.0, 20.0, vec![1]);
-    let result = store.finish_mutation(ChangeSet {
+    let result = store.finish_mutation(&ChangeSet {
         updated: vec![(both, only_first)],
         ..Default::default()
     });
@@ -2785,7 +2785,7 @@ fn membership_delta_no_patch_when_nothing_changed() {
         heading: 90.0,
         ..l1.clone()
     };
-    let result = store.finish_mutation(ChangeSet {
+    let result = store.finish_mutation(&ChangeSet {
         updated: vec![(l1, updated)],
         ..Default::default()
     });
@@ -2823,7 +2823,7 @@ fn selected_row_moving_across_cells_ships_as_one_move() {
         render_cell_idx(-30.0, -40.0),
         "test requires a cross-cell move"
     );
-    let result = store.finish_mutation(ChangeSet {
+    let result = store.finish_mutation(&ChangeSet {
         updated: vec![(l1, moved)],
         ..Default::default()
     });
@@ -2859,7 +2859,7 @@ fn touched_zero_member_tag_is_hidden_by_finish_mutation() {
     insert_tag(&mut store, 1, 0);
     store.tags.touched.insert(1);
 
-    let result = store.finish_mutation(ChangeSet::default());
+    let result = store.finish_mutation(&ChangeSet::default());
 
     assert!(
         !store.tags.all[&1].visible,
@@ -3851,10 +3851,9 @@ fn apply_model_op(
             let old = store.get_loc_by_id(id).unwrap();
             store.overlay_update(id, &patch!(heading: *heading, tags: tags.clone()));
             let new_loc = store.get_loc_by_id(id).unwrap();
-            let updated = vec![(old.clone(), new_loc.clone())];
             store.remove_tag_counts(std::slice::from_ref(&old));
             store.add_tag_counts(std::slice::from_ref(&new_loc));
-            store.record_update_undo(&updated);
+            store.record_update_undo([(old, new_loc.clone())]);
             model.insert(id, new_loc);
         }
     }

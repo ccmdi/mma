@@ -1591,7 +1591,7 @@ fn add_parsed_to_store(
     }
     let t_overlay = _t.elapsed();
 
-    let mut result = store.finish_mutation(location_store::ChangeSet {
+    let mut result = store.finish_mutation(&location_store::ChangeSet {
         full_reset: true,
         ..Default::default()
     });

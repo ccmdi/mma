@@ -608,9 +608,9 @@ impl Store {
     /// Bump version, derive the render delta + selection sync from the semantic
     /// changeset, and return the full mutation result. The changeset is the single
     /// source of truth; the render delta and selection sync are two projections of it.
-    pub(crate) fn finish_mutation(&mut self, changes: ChangeSet) -> MutationResult {
+    pub(crate) fn finish_mutation(&mut self, changes: &ChangeSet) -> MutationResult {
         self.bump();
-        self.update_bounds(&changes);
+        self.update_bounds(changes);
 
         // A metadata-only mutation (tag rename, reorder, a create with nothing to assign)
         // moves no rows, so there is no membership to re-test and no delta to derive.
@@ -626,7 +626,7 @@ impl Store {
                 self.resolve_selection_membership();
                 None
             } else {
-                Some(self.update_selection_membership(&changes))
+                Some(self.update_selection_membership(changes))
             }
         } else {
             None
@@ -636,7 +636,7 @@ impl Store {
         // states the row's selection state, so membership changes need no second channel:
         // a row that only gained or lost a selection comes out as a coordinate-free patch.
         let changed = membership_delta.map(|md| md.changed).unwrap_or_default();
-        let delta = self.derive_render_delta(&changes, &changed);
+        let delta = self.derive_render_delta(changes, &changed);
 
         // Step 3: Only a full resolve ships a bitmask. The incremental path is carried
         // entirely by the delta above, which costs O(changed) instead of the
@@ -985,27 +985,26 @@ impl Store {
         self.update_tag_counts(locs, -1);
     }
 
-    /// Push an undo entry for the changed (old != new) pairs and clear redo.
-    fn record_update_undo(&mut self, updated: &[(Location, Location)]) {
-        let (changed_old, changed_new): (Vec<_>, Vec<_>) = updated
-            .iter()
-            .filter(|(o, n)| o != n)
-            .map(|(o, n)| (o.clone(), n.clone()))
-            .unzip();
-        if !changed_old.is_empty() {
-            self.push_undo(EditEntry {
-                created: changed_new,
-                removed: changed_old,
-            });
-            self.edits.redo.clear();
+    /// Push an undo entry for the changed (old != new) pairs and clear redo. Returns
+    /// whether anything was pushed.
+    fn record_update_undo(&mut self, updated: impl IntoIterator<Item = (Location, Location)>) -> bool {
+        let (changed_old, changed_new): (Vec<_>, Vec<_>) =
+            updated.into_iter().filter(|(o, n)| o != n).unzip();
+        if changed_old.is_empty() {
+            return false;
         }
+        self.push_undo(EditEntry {
+            created: changed_new,
+            removed: changed_old,
+        });
+        self.edits.redo.clear();
+        true
     }
 
     /// Apply a tags-only update: adjust tag counts, write the tags patch into the
     /// overlay, and record undo for the changed pairs. Returns the ChangeSet.
     fn commit_tag_update(&mut self, updated: Vec<(Location, Location)>) -> ChangeSet {
-        let old_locs: Vec<Location> = updated.iter().map(|(o, _)| o.clone()).collect();
-        self.remove_tag_counts(&old_locs);
+        self.remove_tag_counts(updated.iter().map(|(o, _)| o));
         let updated: Vec<(Location, Location)> = updated
             .into_iter()
             .map(|(old, new_loc)| {
@@ -1013,9 +1012,8 @@ impl Store {
                 (old, new_loc)
             })
             .collect();
-        let new_locs: Vec<Location> = updated.iter().map(|(_, n)| n.clone()).collect();
-        self.add_tag_counts(&new_locs);
-        self.record_update_undo(&updated);
+        self.add_tag_counts(updated.iter().map(|(_, n)| n));
+        self.record_update_undo(updated.iter().cloned());
         ChangeSet {
             updated,
             ..Default::default()
@@ -1072,7 +1070,7 @@ impl Store {
     /// Apply an edit, record undo, clear redo, finish mutation. No-op when both sides empty.
     fn apply_undoable(&mut self, remove: Vec<Location>, create: Vec<Location>) -> MutationResult {
         if remove.is_empty() && create.is_empty() {
-            return self.finish_mutation(ChangeSet::default());
+            return self.finish_mutation(&ChangeSet::default());
         }
         let changes = self.apply_edit(&remove, &create);
         self.push_undo(EditEntry {
@@ -1080,7 +1078,7 @@ impl Store {
             removed: remove,
         });
         self.edits.redo.clear();
-        self.finish_mutation(changes)
+        self.finish_mutation(&changes)
     }
 
     /// Ensure `names` exist as tags and are on `location_ids`, in one mutation. Names match
@@ -1142,7 +1140,7 @@ impl Store {
         }
 
         let changeset = self.commit_tag_update(updated);
-        let mut result = self.finish_mutation(changeset);
+        let mut result = self.finish_mutation(&changeset);
         result.tags = Some(self.tags.all.clone());
         result
     }
@@ -2333,7 +2331,7 @@ pub fn store_add_locations(
         for loc in locations {
             store.overlay_add(loc);
         }
-        let mut result = store.finish_mutation(ChangeSet {
+        let mut result = store.finish_mutation(&ChangeSet {
             added: added.clone(),
             ..Default::default()
         });
@@ -2380,7 +2378,7 @@ pub fn store_remove_locations(
             _t.elapsed().as_millis(),
             ids.len()
         );
-        Ok(store.finish_mutation(ChangeSet {
+        Ok(store.finish_mutation(&ChangeSet {
             removed: removed_ids,
             ..Default::default()
         }))
@@ -2432,18 +2430,22 @@ fn apply_updates(
         store.remove_tag_counts(updated.iter().map(|(o, _)| o));
         store.add_tag_counts(updated.iter().map(|(_, n)| n));
     }
-    if record_undo {
-        store.record_update_undo(&updated);
-    }
     let extras: Vec<crate::types::RawExtra> = if any_extras {
         updated.iter().filter_map(|(_, n)| n.extra.clone()).collect()
     } else {
         Vec::new()
     };
-    let mut result = store.finish_mutation(ChangeSet {
+    let changes = ChangeSet {
         updated,
         ..Default::default()
-    });
+    };
+    let mut result = store.finish_mutation(&changes);
+    // Undo is recorded after the mutation is finished so the pairs move into the entry
+    // instead of being cloned; the status was read before the push, so patch it.
+    if record_undo && store.record_update_undo(changes.updated) {
+        result.status.can_undo = true;
+        result.status.can_redo = false;
+    }
     if any_extras {
         let refs: Vec<&crate::types::RawExtra> = extras.iter().collect();
         auto_register_extras(store, &refs, &mut result);
@@ -2680,7 +2682,7 @@ pub async fn store_update_tags(
         }
 
         store.tags.dirty = true;
-        let mut result = store.finish_mutation(ChangeSet {
+        let mut result = store.finish_mutation(&ChangeSet {
             updated: all_updated,
             ..Default::default()
         });
@@ -2734,7 +2736,7 @@ pub async fn store_delete_tags(
         // directly or finish_mutation skips the visible=false flip and the delete no-ops.
         store.tags.touched.extend(tag_set.iter().copied());
         let changeset = store.commit_tag_update(updated);
-        Ok(store.finish_mutation(changeset))
+        Ok(store.finish_mutation(&changeset))
     })
 }
 
@@ -3652,7 +3654,7 @@ pub fn store_undo(
             changes.removed.len()
         );
         store.edits.redo.push(entry);
-        Ok(store.finish_mutation(changes))
+        Ok(store.finish_mutation(&changes))
     })
 }
 
@@ -3681,7 +3683,7 @@ pub fn store_redo(
             changes.removed.len()
         );
         store.push_undo(entry);
-        Ok(store.finish_mutation(changes))
+        Ok(store.finish_mutation(&changes))
     })
 }
 
@@ -3870,7 +3872,7 @@ pub fn store_reorder_tags(
             }
         }
         store.tags.dirty = true;
-        let mut result = store.finish_mutation(ChangeSet::default());
+        let mut result = store.finish_mutation(&ChangeSet::default());
         result.tags = Some(store.tags.all.clone());
         Ok(result)
     })
