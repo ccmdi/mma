@@ -60,14 +60,14 @@ async function waitForEnrichment(locId: number, field = "countryCode") {
 
 // knownFieldKeys propagate asynchronously after an extra write lands; poll instead of
 // asserting once, or the read races the registration under slow (SwiftShader) runs.
-async function waitForFieldKeys(...wanted: string[]) {
+async function waitForFieldKeys(timeoutMs: number, ...wanted: string[]) {
 	await browser.waitUntil(
 		async () => {
 			const keys = await withApi((api) => [...api.getMapState().knownFieldKeys]);
 			return wanted.every((k) => keys.includes(k));
 		},
 		{
-			timeout: PANO_TIMEOUT,
+			timeout: timeoutMs,
 			interval: 50,
 			timeoutMsg: `field defs never registered: ${wanted.join(", ")}`,
 		},
@@ -311,16 +311,25 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		await openLocation(defsAutoId);
 		await waitForPreview();
 		await waitForEnrichment(defsAutoId);
-		await waitForFieldKeys("countryCode", "altitude", "imageDate");
-
-		const defs = await withApi((api) => ({
-			countryCode: api.getFieldDef("countryCode"),
-			altitude: api.getFieldDef("altitude"),
-			imageDate: api.getFieldDef("imageDate"),
-		}));
-		expect(defs.countryCode?.type).toBe("string");
-		expect(defs.altitude?.type).toBe("number");
-		expect(defs.imageDate?.type).toBe("month");
+		// Poll getFieldDef rather than knownFieldKeys: concurrent enrichment mutations
+		// can land out of order and transiently regress the keys set.
+		const defsOk = async () => {
+			const defs = await withApi((api) => ({
+				countryCode: api.getFieldDef("countryCode"),
+				altitude: api.getFieldDef("altitude"),
+				imageDate: api.getFieldDef("imageDate"),
+			}));
+			return (
+				defs.countryCode?.type === "string" &&
+				defs.altitude?.type === "number" &&
+				defs.imageDate?.type === "month"
+			);
+		};
+		await browser.waitUntil(defsOk, {
+			timeout: PANO_TIMEOUT,
+			interval: 50,
+			timeoutMsg: "enrichment field defs never registered",
+		});
 	});
 
 	it("does not clobber user-customized field defs", async () => {
@@ -366,7 +375,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			return "ok";
 		}, patchLoc);
 
-		await waitForFieldKeys("datetime");
+		await waitForFieldKeys(PANO_TIMEOUT, "datetime");
 		const def = await withApi((api) => api.getFieldDef("datetime"));
 		expect(def?.type).toBe("date");
 	});
@@ -374,7 +383,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("addLocations auto-registers known field keys", async () => {
 		await addLocs([loc({ lat: 10, lng: 20, extra: { altitude: 100, countryCode: "US" } })]);
 
-		await waitForFieldKeys("altitude", "countryCode");
+		await waitForFieldKeys(PANO_TIMEOUT, "altitude", "countryCode");
 		const defs = await withApi((api) => ({
 			altitude: api.getFieldDef("altitude"),
 			countryCode: api.getFieldDef("countryCode"),
@@ -392,7 +401,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			return "ok";
 		}, customLoc);
 
-		await waitForFieldKeys("randomCustomThing");
+		await waitForFieldKeys(PANO_TIMEOUT, "randomCustomThing");
 	});
 });
 
@@ -458,9 +467,12 @@ describe("Enrichment — exact date via preview", () => {
 	});
 
 	it("datetime field def is available", async () => {
-		await waitForFieldKeys("datetime");
-		const def = await withApi((api) => api.getFieldDef("datetime"));
-		expect(def?.type).toBe("date");
+		// getFieldDef is monotonic; knownFieldKeys can regress when concurrent
+		// enrichment mutations land out of order.
+		await browser.waitUntil(
+			async () => (await withApi((api) => api.getFieldDef("datetime")))?.type === "date",
+			{ timeout: 60_000, interval: 50, timeoutMsg: "datetime field def never available" },
+		);
 	});
 });
 

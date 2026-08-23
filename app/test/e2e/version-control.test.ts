@@ -174,8 +174,18 @@ describe("Version control - commit message dialog", () => {
 		await addLocs([createLocation({ lat: 6, lng: 6, heading: 0, panoId: null, flags: 0 })]);
 		await withApi(async (api) => api.setSetting("askCommitMessage", false));
 		try {
-			await browser.$("button=Commit").click();
-			await browser.$(".commit-dialog").waitForExist({ reverse: true, timeout: 2000 });
+			// The button's handler reads the setting through React state; until the
+			// re-render flushes, a click still opens the dialog. Dismiss and retry.
+			await browser.waitUntil(
+				async () => {
+					await browser.$("button=Commit").click();
+					const dialog = await browser.$(".commit-dialog");
+					if (!(await dialog.isExisting())) return true;
+					await (await dialog.$("button=Cancel")).click();
+					return false;
+				},
+				{ timeout: 10000, interval: 500, timeoutMsg: "commit dialog kept opening with prompt off" },
+			);
 			await browser.waitUntil(async () => {
 				const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
 				return commits.length >= 1;
