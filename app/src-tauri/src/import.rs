@@ -574,16 +574,7 @@ fn strip_tags_fast(
         return Err(());
     };
     for name in list {
-        let id = match name_to_local.get(name) {
-            Some(&id) => id,
-            None => {
-                let id = names.len() as u32;
-                names.push(name.to_owned());
-                name_to_local.insert(name.to_owned(), id);
-                id
-            }
-        };
-        tags.push(id);
+        tags.push(intern_tag_name(names, name_to_local, name));
     }
     // Strip `"tags":[...]` plus one adjacent comma.
     let (mut mstart, mut mend) = (kstart, vend);
@@ -606,6 +597,22 @@ fn strip_tags_fast(
     out.push_str(&s[..mstart]);
     out.push_str(&s[mend..]);
     Ok(crate::types::RawExtra::from_string(out))
+}
+
+fn intern_tag_name(
+    names: &mut Vec<String>,
+    name_to_local: &mut rustc_hash::FxHashMap<String, u32>,
+    name: &str,
+) -> u32 {
+    match name_to_local.get(name) {
+        Some(&id) => id,
+        None => {
+            let id = names.len() as u32;
+            names.push(name.to_owned());
+            name_to_local.insert(name.to_owned(), id);
+            id
+        }
+    }
 }
 
 /// Slow path: build a `serde_json::Map` from raw `extra`, fold in non-null top-level
@@ -634,16 +641,7 @@ fn build_extra_via_map(
     if let Some(Value::Array(arr)) = m.remove("tags") {
         for v in arr {
             let Value::String(s) = v else { continue };
-            let id = match name_to_local.get(s.as_str()) {
-                Some(&id) => id,
-                None => {
-                    let id = names.len() as u32;
-                    names.push(s.clone());
-                    name_to_local.insert(s, id);
-                    id
-                }
-            };
-            tags.push(id);
+            tags.push(intern_tag_name(names, name_to_local, &s));
         }
     }
     *out_pano = m.remove("panoId").and_then(|v| match v {
