@@ -19,7 +19,7 @@ import {
 	uploadImages,
 	type StagedImage,
 } from "@/lib/feedback/attachments";
-import { collectDiagnostics, type Diagnostics } from "@/lib/feedback/diagnostics";
+import { collectDiagnostics, type Diagnostics } from "@/lib/diagnostics";
 import { isSignedIn, submitReport } from "@/lib/feedback/submit";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";

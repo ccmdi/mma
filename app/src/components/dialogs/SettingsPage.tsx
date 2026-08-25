@@ -29,7 +29,7 @@ import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import type { DeviceCodeInfo, GhUser } from "@/bindings.gen";
-import { collectDiagnostics } from "@/lib/feedback/diagnostics";
+import { collectDiagnostics } from "@/lib/diagnostics";
 import { refreshStoredReports } from "@/lib/feedback/submit";
 import { markRepliesSeen, reportStatus, unreadReplyCount, useReports } from "@/store/feedback";
 import { openDialog as openAppDialog } from "@/store/dialogBus";

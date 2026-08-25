@@ -6,7 +6,7 @@ import {
 	type Attachments,
 	type ReportInput,
 } from "@/lib/feedback/body";
-import { changedFrom, type Diagnostics } from "@/lib/feedback/diagnostics";
+import { changedFrom, type Diagnostics } from "@/lib/diagnostics";
 import { refreshStoredReports, submitReport } from "@/lib/feedback/submit";
 import { cmd } from "@/lib/commands";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
@@ -48,7 +48,18 @@ const diagnostics: Diagnostics = {
 	devicePixelRatio: 2,
 	opensvVersion: "3.63",
 	startupMs: 1600,
-	db: { maps: 3, locations: 12000, tags: 40, commits: 7, sizeBytes: 5_000_000, journalMode: "wal" },
+	uptimeSecs: 3720,
+	jsHeap: { usedBytes: 120_000_000, limitBytes: 4_294_967_296 },
+	panoSingleton: true,
+	db: {
+		maps: 3,
+		locations: 12000,
+		tags: 40,
+		commits: 7,
+		sizeBytes: 5_000_000,
+		journalMode: "wal",
+		foreignKeys: true,
+	},
 	plugins: ["vali@1.2.0", "generator"],
 	changedSettings: { showRoadLabels: true },
 	map: {

@@ -15,6 +15,9 @@ export interface Diagnostics {
 	devicePixelRatio: number;
 	opensvVersion: string;
 	startupMs: number;
+	uptimeSecs: number;
+	jsHeap: { usedBytes: number; limitBytes: number } | null;
+	panoSingleton: boolean;
 	db: {
 		maps: number;
 		locations: number;
@@ -22,6 +25,7 @@ export interface Diagnostics {
 		commits: number;
 		sizeBytes: number;
 		journalMode: string;
+		foreignKeys: boolean;
 	};
 	/** Enabled plugin ids, with `@version` where the plugin is user-installed. */
 	plugins: string[];
@@ -39,9 +43,7 @@ export interface MapDiagnostics {
 	changedSettings: Record<string, unknown>;
 }
 
-/** Shared with Stats for Nerds: the renderer string is the single most useful field for a
- *  rendering bug and the lookup is easy to get subtly wrong. */
-export function webglRenderer(): string {
+function webglRenderer(): string {
 	try {
 		const canvas = document.createElement("canvas");
 		const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
@@ -129,6 +131,9 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
 		pluginList(),
 		mapDiagnostics(),
 	]);
+	const perfMem = (
+		performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }
+	).memory;
 	return {
 		appVersion: typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev",
 		buildMode: import.meta.env.MODE,
@@ -138,6 +143,11 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
 		devicePixelRatio: window.devicePixelRatio,
 		opensvVersion: google?.maps?.version ?? "not loaded",
 		startupMs,
+		uptimeSecs: Math.floor(performance.now() / 1000),
+		jsHeap: perfMem
+			? { usedBytes: perfMem.usedJSHeapSize, limitBytes: perfMem.jsHeapSizeLimit }
+			: null,
+		panoSingleton: !!google?.maps?.StreetViewPanorama,
 		db: {
 			maps: db.maps,
 			locations: db.locations,
@@ -145,6 +155,7 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
 			commits: db.commits,
 			sizeBytes: db.dbSizeBytes,
 			journalMode: db.journalMode,
+			foreignKeys: db.foreignKeys,
 		},
 		plugins,
 		changedSettings: changedFrom(getSettings(), DEFAULTS, (k) =>

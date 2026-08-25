@@ -82,6 +82,13 @@ const MINUTE = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
+/** Human-readable byte count: KB below a mebibyte, MB below a gibibyte, GB above. */
+export function formatBytes(bytes: number): string {
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+	return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
 export function relativeTime(time: string | number): string {
 	const ms = typeof time === "number" ? time * 1000 : new Date(time).getTime();
 	const delta = Date.now() - ms;

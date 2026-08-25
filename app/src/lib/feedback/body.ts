@@ -1,4 +1,5 @@
-import type { Diagnostics } from "./diagnostics";
+import { formatBytes } from "@/lib/util/format";
+import type { Diagnostics } from "@/lib/diagnostics";
 
 export type ReportKind = "bug" | "idea";
 
@@ -63,7 +64,7 @@ function diagnosticsTable(d: Diagnostics): string {
 		[
 			"Database",
 			`${d.db.maps} maps, ${d.db.locations} locations, ${d.db.tags} tags, ${d.db.commits} commits, ` +
-				`${(d.db.sizeBytes / (1024 * 1024)).toFixed(1)} MB (${d.db.journalMode})`,
+				`${formatBytes(d.db.sizeBytes)} (${d.db.journalMode})`,
 		],
 		["Plugins", d.plugins.length ? d.plugins.join(", ") : "none"],
 	];

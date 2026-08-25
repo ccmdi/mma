@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
-import { cmd } from "@/lib/commands";
+import { collectDiagnostics, type Diagnostics } from "@/lib/diagnostics";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useDomEvent } from "@/lib/hooks/useDomEvent";
-import { webglRenderer } from "@/lib/feedback/diagnostics";
-import { google } from "@/lib/sv/opensv";
-import { fmt, localeFormat } from "@/lib/util/format";
-import { getMapState } from "@/store/useMapStore";
+import { fmt, formatBytes, localeFormat } from "@/lib/util/format";
 import {
 	startFrameMeter,
 	stopFrameMeter,
@@ -20,79 +17,6 @@ import {
 } from "@/lib/render/renderStats";
 import { t } from "@/lib/i18n";
 
-declare const __APP_VERSION__: string;
-
-interface Stats {
-	appVersion: string;
-	buildMode: string;
-	maps: number;
-	locations: number;
-	tags: number;
-	commits: number;
-	pendingSaves: number;
-	dbSize: string;
-	journalMode: string;
-	foreignKeys: string;
-	opensvVersion: string;
-	webglRenderer: string;
-	userAgent: string;
-	viewport: string;
-	devicePixelRatio: number;
-	memory: string;
-	startup: string;
-	uptime: string;
-	panoSingleton: boolean;
-}
-
-async function gatherStats(): Promise<Stats> {
-	const dbStats = await cmd.storeDbStats();
-	const startupMs = await cmd.appReady();
-
-	const bytes = dbStats.dbSizeBytes;
-	const dbSize =
-		bytes < 1024 * 1024
-			? `${(bytes / 1024).toFixed(1)} KB`
-			: bytes < 1024 * 1024 * 1024
-				? `${(bytes / (1024 * 1024)).toFixed(2)} MB`
-				: `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-
-	const perfMem = (
-		performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }
-	).memory;
-	const mem = perfMem
-		? `${(perfMem.usedJSHeapSize / (1024 * 1024)).toFixed(1)} / ${(perfMem.jsHeapSizeLimit / (1024 * 1024)).toFixed(0)} MB`
-		: "N/A";
-
-	const secs = Math.floor(performance.now() / 1000);
-	const uptime = uptimeFmt.format({
-		hours: Math.floor(secs / 3600),
-		minutes: Math.floor(secs / 60) % 60,
-		seconds: secs % 60,
-	});
-
-	return {
-		appVersion: typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev",
-		buildMode: import.meta.env.MODE,
-		maps: dbStats.maps,
-		locations: dbStats.locations,
-		tags: dbStats.tags,
-		commits: dbStats.commits,
-		pendingSaves: getMapState().map ? (await cmd.storeGetSummary()).dirtyCount : 0,
-		dbSize,
-		journalMode: dbStats.journalMode,
-		foreignKeys: dbStats.foreignKeys ? "ON" : "OFF",
-		opensvVersion: google?.maps?.version ?? "not loaded",
-		webglRenderer: webglRenderer(),
-		userAgent: navigator.userAgent,
-		viewport: `${window.innerWidth}x${window.innerHeight}`,
-		devicePixelRatio: window.devicePixelRatio,
-		memory: mem,
-		startup: `${startupMs} ms`,
-		uptime,
-		panoSingleton: !!google?.maps?.StreetViewPanorama,
-	};
-}
-
 interface LiveStats {
 	frame: FrameStats;
 	deck: DeckMetrics | null;
@@ -104,6 +28,41 @@ const uptimeFmt = localeFormat<Partial<Record<Intl.DurationFormatUnit, number>>>
 );
 const fmtInt = (n: number) => fmt.format(Math.round(n));
 const fmtMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+function statsRows(d: Diagnostics): [string, string | number][] {
+	return [
+		["Version", d.appVersion],
+		["Build", d.buildMode],
+		["Maps", d.db.maps],
+		["Locations", fmt.format(d.db.locations)],
+		["Tags", d.db.tags],
+		["Commits", d.db.commits],
+		["Pending saves", d.map?.dirtyCount ?? 0],
+		["DB size", formatBytes(d.db.sizeBytes)],
+		["Journal mode", d.db.journalMode],
+		["Foreign keys", d.db.foreignKeys ? "ON" : "OFF"],
+		["opensv", d.opensvVersion],
+		["WebGL", d.webglRenderer],
+		["DPR", d.devicePixelRatio],
+		["Viewport", d.viewport],
+		[
+			"JS heap",
+			d.jsHeap
+				? `${fmtMB(d.jsHeap.usedBytes)} / ${fmtMB(d.jsHeap.limitBytes)}`
+				: "N/A",
+		],
+		["Startup", `${d.startupMs} ms`],
+		[
+			"Uptime",
+			uptimeFmt.format({
+				hours: Math.floor(d.uptimeSecs / 3600),
+				minutes: Math.floor(d.uptimeSecs / 60) % 60,
+				seconds: d.uptimeSecs % 60,
+			}),
+		],
+		["User agent", d.userAgent],
+	];
+}
 
 function liveRows(live: LiveStats): [string, string][] {
 	const { frame, deck, scene } = live;
@@ -142,7 +101,7 @@ function liveRows(live: LiveStats): [string, string][] {
 
 export function StatsForNerds({ onClose }: { onClose: () => void }) {
 	const [live, setLive] = useState<LiveStats | null>(null);
-	const { data: stats, error } = useAsync(gatherStats, []);
+	const { data: stats, error } = useAsync(collectDiagnostics, []);
 
 	useEffect(() => {
 		startFrameMeter();
@@ -219,26 +178,7 @@ export function StatsForNerds({ onClose }: { onClose: () => void }) {
 				{stats && (
 					<table style={{ width: "100%", borderCollapse: "collapse" }}>
 						<tbody>
-							{[
-								["Version", stats.appVersion],
-								["Build", stats.buildMode],
-								["Maps", stats.maps],
-								["Locations", fmt.format(stats.locations)],
-								["Tags", stats.tags],
-								["Commits", stats.commits],
-								["Pending saves", stats.pendingSaves],
-								["DB size", stats.dbSize],
-								["Journal mode", stats.journalMode],
-								["Foreign keys", stats.foreignKeys],
-								["opensv", stats.opensvVersion],
-								["WebGL", stats.webglRenderer],
-								["DPR", stats.devicePixelRatio],
-								["Viewport", stats.viewport],
-								["JS heap", stats.memory],
-								["Startup", stats.startup],
-								["Uptime", stats.uptime],
-								["User agent", stats.userAgent],
-							].map(([label, value]) => (
+							{statsRows(stats).map(([label, value]) => (
 								<tr key={label}>
 									<td
 										className="text-muted"
