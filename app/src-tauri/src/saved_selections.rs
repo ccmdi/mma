@@ -42,8 +42,9 @@ const NO_COLOR: [u8; 3] = [128, 128, 128];
 
 /// Every rule's identity, oldest first. Reads no tree, so its cost is the rule count.
 pub(crate) fn list_info(conn: &Connection) -> AppResult<Vec<SavedSelectionInfo>> {
-    let mut stmt =
-        conn.prepare("SELECT id, name, color, created_at FROM saved_selections ORDER BY created_at, id")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, name, color, created_at FROM saved_selections ORDER BY created_at, id",
+    )?;
     let rows = stmt.query_map([], |row| {
         Ok(SavedSelectionInfo {
             id: row.get(0)?,

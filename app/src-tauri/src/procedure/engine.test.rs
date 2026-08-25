@@ -1406,7 +1406,11 @@ fn a_cancelled_query_has_its_requests_declined() {
     }));
     let err = run_query(&deps, "q.js", "{}", None, &|| true).unwrap_err();
     assert!(err.0.contains("cancelled"), "{}", err.0);
-    assert_eq!(calls.load(Ordering::Relaxed), 0, "a declined request is never sent");
+    assert_eq!(
+        calls.load(Ordering::Relaxed),
+        0,
+        "a declined request is never sent"
+    );
 }
 
 #[test]
@@ -1441,7 +1445,9 @@ fn get(url: &str) -> HttpRequestSpec {
 }
 
 fn gets(n: usize) -> Vec<HttpRequestSpec> {
-    (0..n).map(|i| get(&format!("https://x.test/{i}"))).collect()
+    (0..n)
+        .map(|i| get(&format!("https://x.test/{i}")))
+        .collect()
 }
 
 /// A fetch that holds each request until `target` are in flight (or `wait` passes),
@@ -1613,7 +1619,10 @@ fn fetch_many_retries_a_declared_status_per_request() {
 
     assert_eq!(
         bodies(out),
-        vec!["https://x.test/0".to_string(), "https://x.test/1".to_string()]
+        vec![
+            "https://x.test/0".to_string(),
+            "https://x.test/1".to_string()
+        ]
     );
     assert_eq!(seen.lock().unwrap().len(), 3);
 }
@@ -1641,7 +1650,11 @@ fn fetch_many_pays_the_rate_limiter_per_request() {
         |h| h.fetch_many(&reqs),
     );
     assert_eq!(out.len(), 8);
-    assert!(start.elapsed() >= Duration::from_millis(10), "{:?}", start.elapsed());
+    assert!(
+        start.elapsed() >= Duration::from_millis(10),
+        "{:?}",
+        start.elapsed()
+    );
 }
 
 #[test]
@@ -1746,7 +1759,12 @@ fn collected_pages_arrive_in_page_order() {
         .map(|i| loc(i, i as f64 * 0.0001, 0.0))
         .collect();
     let (state, map_id) = setup(&rows);
-    let d = collect_decl("paged", BatchMode::Chunk { size: PAGE_SIZE as u32 });
+    let d = collect_decl(
+        "paged",
+        BatchMode::Chunk {
+            size: PAGE_SIZE as u32,
+        },
+    );
     let h = Harness::map_only(patch_all("7"));
     run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
@@ -1766,7 +1784,12 @@ fn cancelling_stops_delivery() {
         .map(|i| loc(i, i as f64 * 0.0001, 0.0))
         .collect();
     let (state, map_id) = setup(&rows);
-    let mut d = collect_decl("paged", BatchMode::Chunk { size: PAGE_SIZE as u32 });
+    let mut d = collect_decl(
+        "paged",
+        BatchMode::Chunk {
+            size: PAGE_SIZE as u32,
+        },
+    );
     d.instances = Some(1);
     let cancel = Arc::new(AtomicBool::new(false));
     let c = cancel.clone();

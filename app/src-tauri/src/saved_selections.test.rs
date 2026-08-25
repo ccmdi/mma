@@ -64,7 +64,10 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
     match &got.selector {
         Selector::Union { selections } => {
             assert_eq!(selections.len(), 2);
-            assert!(matches!(selections[0].selector, Selector::Tag { tag_id: 4 }));
+            assert!(matches!(
+                selections[0].selector,
+                Selector::Tag { tag_id: 4 }
+            ));
             assert_eq!(selections[0].color, [1, 2, 3]);
         }
         _ => panic!("expected a Union"),
@@ -74,8 +77,22 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
 #[test]
 fn delete_removes_only_the_named_rule() {
     let conn = setup();
-    let a = create(&conn, "a".into(), Selector::Untagged, HashMap::new(), [0; 3]).unwrap();
-    create(&conn, "b".into(), Selector::Unpanned, HashMap::new(), [0; 3]).unwrap();
+    let a = create(
+        &conn,
+        "a".into(),
+        Selector::Untagged,
+        HashMap::new(),
+        [0; 3],
+    )
+    .unwrap();
+    create(
+        &conn,
+        "b".into(),
+        Selector::Unpanned,
+        HashMap::new(),
+        [0; 3],
+    )
+    .unwrap();
     delete(&conn, &a.info.id).unwrap();
     let names: Vec<String> = all(&conn).into_iter().map(|s| s.info.name).collect();
     assert_eq!(names, vec!["b"]);
@@ -84,7 +101,14 @@ fn delete_removes_only_the_named_rule() {
 #[test]
 fn an_unreadable_row_is_skipped_not_fatal() {
     let conn = setup();
-    create(&conn, "good".into(), Selector::Untagged, HashMap::new(), [0; 3]).unwrap();
+    create(
+        &conn,
+        "good".into(),
+        Selector::Untagged,
+        HashMap::new(),
+        [0; 3],
+    )
+    .unwrap();
     conn.execute(
         "INSERT INTO saved_selections VALUES ('bad', 'bad', '{\"type\":\"NoSuchVariant\"}', '{}', '[0,0,0]', '2026-01-01')",
         [],
@@ -125,7 +149,14 @@ fn the_index_carries_identity_without_reading_any_tree() {
 #[test]
 fn get_ignores_ids_that_are_not_there() {
     let conn = setup();
-    let a = create(&conn, "a".into(), Selector::Untagged, HashMap::new(), [0; 3]).unwrap();
+    let a = create(
+        &conn,
+        "a".into(),
+        Selector::Untagged,
+        HashMap::new(),
+        [0; 3],
+    )
+    .unwrap();
     let got = get(&conn, &[a.info.id.clone(), "nope".into()]).unwrap();
     assert_eq!(got.len(), 1);
     assert_eq!(got[0].info.id, a.info.id);

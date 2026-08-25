@@ -410,7 +410,9 @@ fn collect_chunks<T: serde::de::DeserializeOwned>(dir: &std::path::Path) -> AppR
 
     let mut out = Vec::new();
     for (_, path) in &chunks {
-        out.append(&mut serde_json::from_slice::<Vec<T>>(&std::fs::read(path)?)?);
+        out.append(&mut serde_json::from_slice::<Vec<T>>(&std::fs::read(
+            path,
+        )?)?);
     }
     Ok(out)
 }

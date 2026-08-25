@@ -31,6 +31,9 @@ fn a_file_field_that_could_escape_the_plugin_directory_is_rejected() {
             r#"{{"id":"x","main":{}}}"#,
             serde_json::Value::from(file)
         ));
-        assert!(install_files(&m).is_err(), "main {file:?} should be rejected");
+        assert!(
+            install_files(&m).is_err(),
+            "main {file:?} should be rejected"
+        );
     }
 }

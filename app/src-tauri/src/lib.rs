@@ -4,7 +4,6 @@
 mod arrow_bridge;
 mod arrow_migrate;
 mod borders;
-mod procedure;
 mod export;
 mod feedback;
 mod gdoc;
@@ -16,6 +15,7 @@ mod location_store;
 mod map_meta;
 mod plugins;
 mod presence;
+mod procedure;
 mod proxy;
 mod remote_api;
 mod remote_mapping;

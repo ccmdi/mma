@@ -172,10 +172,8 @@ fn install_files(manifest: &PluginManifest) -> AppResult<Vec<&str>> {
     .into_iter()
     .filter_map(|(field, file)| Some((field, file?)))
     .map(|(field, file)| {
-        let ok = !file.is_empty()
-            && !file.contains("..")
-            && !file.contains('/')
-            && !file.contains('\\');
+        let ok =
+            !file.is_empty() && !file.contains("..") && !file.contains('/') && !file.contains('\\');
         ok.then_some(file)
             .ok_or_else(|| AppError(format!("Invalid {field} field in manifest: {file}")))
     })

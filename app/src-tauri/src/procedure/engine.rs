@@ -201,7 +201,10 @@ impl EngineDeps {
         EngineDeps {
             factory: Box::new(|decl| {
                 let path = decl.entry.as_deref().ok_or_else(|| {
-                    AppError(format!("provider '{}' declares no procedure module", decl.id))
+                    AppError(format!(
+                        "provider '{}' declares no procedure module",
+                        decl.id
+                    ))
                 })?;
                 let proc = super::quickjs::checkout(&resolve_entry(path)?)?;
                 Ok(Box::new(proc) as Box<dyn super::Procedure>)
@@ -784,9 +787,7 @@ fn batch_ceiling(mode: &BatchMode, total: u32) -> usize {
     let pages = total.div_ceil(PAGE_SIZE);
     match mode {
         BatchMode::PerRow => total,
-        BatchMode::Chunk { size } => {
-            total.min(PAGE_SIZE).div_ceil((*size).max(1) as usize) * pages
-        }
+        BatchMode::Chunk { size } => total.min(PAGE_SIZE).div_ceil((*size).max(1) as usize) * pages,
         BatchMode::DedupeBy { .. } => pages,
     }
 }
@@ -1103,11 +1104,9 @@ fn run_batch(
 /// being silently ignored.
 fn patch_keys() -> &'static [String] {
     static KEYS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-    KEYS.get_or_init(|| {
-        match serde_json::to_value(LocationPatch::default()) {
-            Ok(serde_json::Value::Object(map)) => map.into_iter().map(|(k, _)| k).collect(),
-            _ => unreachable!("LocationPatch serializes as an object"),
-        }
+    KEYS.get_or_init(|| match serde_json::to_value(LocationPatch::default()) {
+        Ok(serde_json::Value::Object(map)) => map.into_iter().map(|(k, _)| k).collect(),
+        _ => unreachable!("LocationPatch serializes as an object"),
     })
 }
 
@@ -1369,7 +1368,8 @@ pub async fn procedure_run(
         };
         let state: tauri::State<'_, StoreState> = tauri::Manager::state(app);
         let deps = EngineDeps::production();
-        let progress: Arc<ProgressSink> = Arc::new(Box::new(crate::emit_event::<ProcedureProgress>));
+        let progress: Arc<ProgressSink> =
+            Arc::new(Box::new(crate::emit_event::<ProcedureProgress>));
         let results: Arc<ResultSink> = Arc::new(Box::new(crate::emit_event::<ProcedureResult>));
         run_all(
             state.inner(),
@@ -1421,7 +1421,9 @@ pub async fn procedure_query(
     }
     let out = tokio::task::spawn_blocking(move || {
         let deps = EngineDeps::production();
-        run_query(&deps, &entry, &input, config, &|| flag.load(Ordering::Relaxed))
+        run_query(&deps, &entry, &input, config, &|| {
+            flag.load(Ordering::Relaxed)
+        })
     })
     .await;
     if let Some(token) = cancel {
