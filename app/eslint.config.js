@@ -12,6 +12,7 @@ import noUnsupportedBuiltins from "./eslint-rules/no-unsupported-builtins.js";
 import noPrimitiveClass from "./eslint-rules/no-primitive-class.js";
 import noEffectEventInMemo from "./eslint-rules/no-effect-event-in-memo.js";
 import noNativeDialog from "./eslint-rules/no-native-dialog.js";
+import noUndefinedCssClass from "./eslint-rules/no-undefined-css-class.js";
 
 const RESTRICTED_IMPORT_PATHS = [
 	{
@@ -75,6 +76,7 @@ export default defineConfig([
 					"no-primitive-class": noPrimitiveClass,
 					"no-effect-event-in-memo": noEffectEventInMemo,
 					"no-native-dialog": noNativeDialog,
+					"no-undefined-css-class": noUndefinedCssClass,
 				},
 			},
 		},
@@ -98,6 +100,7 @@ export default defineConfig([
 			"local/no-primitive-class": "error",
 			"local/no-effect-event-in-memo": "error",
 			"local/no-native-dialog": "error",
+			"local/no-undefined-css-class": "error",
 			"no-restricted-imports": [
 				"error",
 				{
