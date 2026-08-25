@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { cmd } from "@/lib/commands";
 import {
 	addLocs,
 	closeLocation,
@@ -12,11 +13,11 @@ import {
 	withApi,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
+import { LocationFlag } from "@/types";
 
 const OFFICIAL_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };
 
-const LoadAsPanoId = 1;
 const PANO_TIMEOUT = 10_000;
 
 function loc(overrides: Partial<Location> = {}): Location {
@@ -83,20 +84,20 @@ describe("Enrichment — single location via preview", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 			loc({
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				extra: { myCustomField: "keep-me", anotherField: 42 },
 			}),
 			loc({
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				extra: { countryCode: "XX", altitude: 999, datetime: 1600000000, timezone: "Europe/Fake" },
 			}),
 			loc({
@@ -218,7 +219,7 @@ describe("Enrichment — respects enrichFields setting", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		];
 		const ids = await addLocs(locs);
@@ -283,7 +284,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		];
 		const ids = await addLocs(locs);
@@ -406,7 +407,7 @@ describe("Enrichment — exact date via preview", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		];
 		const ids = await addLocs(locs);
@@ -466,150 +467,123 @@ describe("Enrichment — exact date via preview", () => {
 // Multiple providers merge without clobbering each other (single-pass enrichment)
 // ============================================================================
 
+// Wave ordering is not observable here: every provider's `requires` is satisfied by the
+// seeded `datetime`, so nothing has to wait. The Rust engine tests own wave scheduling.
 describe("Enrichment — multiple providers merge without clobbering", () => {
 	useMap("E2E Enrich Merge", { closeLocation: true });
-	let singleId: number;
-	let bulkAId: number;
-	let bulkBId: number;
-	let trigId: number;
+	let mergeIds: number[] = [];
+
+	// The sunPosition plugin's procedure module, present in the e2e image at the repo root.
+	// Pure compute over lat/lng + extra.datetime: deterministic and offline.
+	const SUN_ENTRY = "/repo/plugins/sunPosition/procedure.js";
 
 	before(async () => {
-		await updateMapSettings({ enrichMetadata: true, enrichFields: undefined });
-
-		// Register four providers writing distinct keys. They gate on per-test sentinel
-		// extra keys so they never touch other suites' locations — there is no unregister
-		// API, so these persist for the rest of the app session.
-		await withApi(async (api) => {
-			const gated = (sentinel: string, key: string, value: number) => async (locs: any[]) =>
-				new Map(locs.filter((l) => l.extra?.[sentinel]).map((l) => [l.id, { [key]: value }]));
-			api.registerEnrichmentProvider({
-				id: "e2e-clobber-a",
-				fieldDefs: {},
-				enrich: gated("__clobberTest", "clobberA", 1),
-			});
-			api.registerEnrichmentProvider({
-				id: "e2e-clobber-b",
-				fieldDefs: {},
-				enrich: gated("__clobberTest", "clobberB", 2),
-			});
-			api.registerEnrichmentProvider({
-				id: "e2e-trig-a",
-				fieldDefs: {},
-				requires: ["datetime"],
-				enrich: gated("__trigTest", "trigA", 1),
-			});
-			api.registerEnrichmentProvider({
-				id: "e2e-trig-b",
-				fieldDefs: {},
-				requires: ["datetime"],
-				enrich: gated("__trigTest", "trigB", 2),
-			});
-			return "ok";
+		// A provider whose fields are all deselected is skipped, so the sun keys must be enabled.
+		// The seeded imageDate matches the mock pano's: a changed imageDate nulls datetime,
+		// which would starve every provider that requires it.
+		await updateMapSettings({
+			enrichMetadata: true,
+			enrichFields: ["countryCode", "timezone", "sunAzimuth", "sunAltitude"],
 		});
 
-		const ids = await addLocs([
+		mergeIds = await addLocs([
 			loc({
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
-				extra: { __clobberTest: true },
+				flags: LocationFlag.LoadAsPanoId,
+				extra: { datetime: 1700000000, imageDate: "2021-09", keep: "a" },
 			}),
 			loc({
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
-				extra: { __clobberTest: true },
+				flags: LocationFlag.LoadAsPanoId,
+				extra: { datetime: 1700003600, imageDate: "2021-09", keep: "b" },
 			}),
-			loc({
-				lat: OFFICIAL_COORDS.lat,
-				lng: OFFICIAL_COORDS.lng,
-				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
-				extra: { __clobberTest: true },
-			}),
-			loc({ lat: 12, lng: 34, extra: { __trigTest: true } }),
 		]);
-		singleId = ids[0];
-		bulkAId = ids[1];
-		bulkBId = ids[2];
-		trigId = ids[3];
+
+		// Registration disposables are only tracked during a plugin's activation window, so
+		// a provider registered from a test lives for the rest of the app session. Pinning
+		// `select` to these ids is what keeps it off every other suite's locations.
+		await withApi(
+			async (api, ids, entry) => {
+				api.registerEnrichmentProvider({
+					id: "e2e-sun",
+					requires: ["datetime"],
+					fieldDefs: {
+						sunAzimuth: { type: "number", label: "Sun azimuth" },
+						sunAltitude: { type: "number", label: "Sun altitude" },
+					},
+					procedure: {
+						entry,
+						select: { type: "Locations", locations: ids, name: null },
+						batch: { mode: "chunk", size: 1000 },
+					},
+				});
+				return "ok";
+			},
+			mergeIds,
+			SUN_ENTRY,
+		);
 	});
 	afterEach(async () => {
 		await closeLocation();
 	});
 
-	it("single-location enrich keeps both providers' fields plus core metadata", async () => {
-		await openLocation(singleId);
+	it("single-location enrich keeps the plugin procedure's fields plus core metadata", async () => {
+		await openLocation(mergeIds[0]);
 		await waitForPreview();
-		await waitForEnrichment(singleId); // core countryCode
+		await waitForEnrichment(mergeIds[0]); // core countryCode, written in JS from the pano data
 		await browser.waitUntil(
 			async () => {
-				const l = await readLocation(singleId);
-				return l?.extra?.clobberA != null && l?.extra?.clobberB != null;
+				const l = await readLocation(mergeIds[0]);
+				return l?.extra?.sunAzimuth != null && l?.extra?.timezone != null;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "both provider fields never present" },
+			{ timeout: PANO_TIMEOUT, timeoutMsg: "plugin procedure fields never present" },
 		);
 
-		const l = await readLocation(singleId);
-		expect(l.extra.clobberA).toBe(1);
-		expect(l.extra.clobberB).toBe(2);
+		const l = await readLocation(mergeIds[0]);
+		expect(typeof l.extra.sunAzimuth).toBe("number");
+		expect(typeof l.extra.sunAltitude).toBe("number");
+		expect(typeof l.extra.timezone).toBe("string");
 		expect(l.extra.countryCode).toBeTruthy();
-	});
-
-	it("bulk enrichAll keeps both providers' fields on every location", async () => {
-		await withApi(async (api) => {
-			await api.enrichAll(await api.fetchAllLocations());
-			return "ok";
-		});
-		await browser.waitUntil(
-			async () => {
-				const a = await readLocation(bulkAId);
-				const b = await readLocation(bulkBId);
-				return (
-					a?.extra?.clobberA != null &&
-					a?.extra?.clobberB != null &&
-					b?.extra?.clobberA != null &&
-					b?.extra?.clobberB != null
-				);
-			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "bulk provider fields never present on both locations" },
-		);
-
-		for (const id of [bulkAId, bulkBId]) {
-			const l = await readLocation(id);
-			expect(l.extra.clobberA).toBe(1);
-			expect(l.extra.clobberB).toBe(2);
-			expect(l.extra.countryCode).toBeTruthy();
-		}
-	});
-
-	it("provider waves merge with pre-existing extra instead of clobbering it", async () => {
-		const l0 = await readLocation(trigId);
-		await withApi(async (api, loc0) => {
-			await api.updateLocations([{ id: loc0.id, patch: { extra: { datetime: 1700000000 } } }], {
-				undoable: false,
-			});
-			return "ok";
-		}, l0);
-
-		await withApi(async (api) => {
-			await api.enrichAll(await api.fetchAllLocations());
-			return "ok";
-		});
-		await browser.waitUntil(
-			async () => {
-				const l = await readLocation(trigId);
-				return l?.extra?.trigA != null && l?.extra?.trigB != null;
-			},
-			{ timeout: 5000, timeoutMsg: "both wave-2 provider fields never present" },
-		);
-
-		const l = await readLocation(trigId);
-		expect(l.extra.trigA).toBe(1);
-		expect(l.extra.trigB).toBe(2);
+		expect(l.extra.keep).toBe("a");
 		expect(l.extra.datetime).toBe(1700000000);
+	});
+
+	it("bulk enrichAll merges every provider into the pre-existing extra", async () => {
+		// Only offline fields are selected, so the network-bound core providers (svMeta,
+		// exactDate) sit the run out and every write below comes from an offline module.
+		await updateMapSettings({ enrichFields: ["timezone", "sunAzimuth", "sunAltitude"] });
+		await withApi(async (api) => {
+			await api.enrichAll({ type: "Everything" }, { force: true });
+			return "ok";
+		});
+		await browser.waitUntil(
+			async () => {
+				for (const id of mergeIds) {
+					const l = await readLocation(id);
+					if (l?.extra?.sunAzimuth == null || l?.extra?.timezone == null) return false;
+				}
+				return true;
+			},
+			{ timeout: PANO_TIMEOUT, timeoutMsg: "plugin procedure fields never present on every location" },
+		);
+
+		const expected = [
+			{ keep: "a", datetime: 1700000000 },
+			{ keep: "b", datetime: 1700003600 },
+		];
+		for (let i = 0; i < mergeIds.length; i++) {
+			const l = await readLocation(mergeIds[i]);
+			expect(typeof l.extra.sunAzimuth).toBe("number");
+			expect(typeof l.extra.sunAltitude).toBe("number");
+			expect(typeof l.extra.timezone).toBe("string");
+			expect(l.extra.timezone.length).toBeGreaterThan(0);
+			expect(l.extra.keep).toBe(expected[i].keep);
+			expect(l.extra.datetime).toBe(expected[i].datetime);
+		}
 	});
 });
 
@@ -772,5 +746,77 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 		const ids = await refreshSelections();
 		expect(ids).toContain(filterAId);
 		expect(ids).not.toContain(filterCId);
+	});
+});
+
+describe("Enrichment — the read-only query surface", () => {
+	useMap("query-surface");
+
+	it("svMeta answers metadata for arbitrary panos without touching the store", async () => {
+		const before = await withApi(async (api) => (await api.cmd.storeGetSummary()).locationCount);
+
+		const answers = (await withApi(
+			async (api, pano) =>
+				JSON.parse(
+					await api.cmd.procedureQuery(
+						"res://procedures/svMeta.js",
+						JSON.stringify({ op: "metadata", panoIds: [pano, "DEAD_PANO"] }),
+						null,
+						null,
+					),
+				),
+			OFFICIAL_PANO,
+		)) as any[];
+
+		expect(answers).toHaveLength(2);
+		expect(answers[1]).toBe(null);
+		expect(answers[0].pano).toBe(OFFICIAL_PANO);
+		expect(answers[0].lat).toBeCloseTo(OFFICIAL_COORDS.lat, 6);
+		expect(answers[0].lng).toBeCloseTo(OFFICIAL_COORDS.lng, 6);
+		expect(answers[0].countryCode).toBe("RU");
+		expect(answers[0].worldSize).toEqual({ width: 16384, height: 8192 });
+		expect(answers[0].tileSize).toEqual({ width: 512, height: 512 });
+
+		expect(await withApi(async (api) => (await api.cmd.storeGetSummary()).locationCount)).toBe(
+			before,
+		);
+	});
+
+	it("the JS wrapper hands the module's answer over as plain data", async () => {
+		const data = (await withApi(async (api, pano) => {
+			const [d] = await api.svMetadata([pano]);
+			if (!d) return null;
+			return {
+				pano: d.pano,
+				lat: d.lat,
+				worldHeight: d.worldSize.height,
+				date: d.date,
+				timePanos: d.time.map((t: any) => t.pano),
+				timeDates: d.time.map((t: any) => t.date),
+			};
+		}, OFFICIAL_PANO)) as any;
+
+		expect(data).not.toBe(null);
+		expect(data.pano).toBe(OFFICIAL_PANO);
+		// A number, not an accessor: nothing pretends to be a live opensv object.
+		expect(data.lat).toBeCloseTo(OFFICIAL_COORDS.lat, 6);
+		expect(data.worldHeight).toBe(8192);
+		expect(data.date).toEqual({ year: 2021, month: 9, day: 1 });
+		// The whole capture history, each entry its own pano: the fixture has three dates.
+		expect(new Set(data.timePanos).size).toBe(3);
+		expect(data.timePanos).toContain(OFFICIAL_PANO);
+		expect(data.timeDates).toEqual(["2012-08-01", "2015-06-01", "2021-09-01"]);
+	});
+
+	it("a module without a query export fails loudly", async () => {
+		const err = await withApi(async (api) => {
+			try {
+				await api.cmd.procedureQuery("res://procedures/timezone.js", "{}", null, null);
+				return "no error";
+			} catch (e: any) {
+				return String(e?.message ?? e);
+			}
+		});
+		expect(err).toContain("query");
 	});
 });

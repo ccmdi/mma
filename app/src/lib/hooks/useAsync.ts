@@ -49,3 +49,13 @@ export function useAsync<T>(fn: () => T | Promise<T>, deps: DependencyList): Asy
 	}, deps);
 	return state;
 }
+
+/** `useAsync` that holds its last resolved value while the next run is in flight.
+ *  For a value a subtree is gated on: without it, a dependency change blanks the
+ *  value for a frame and unmounts everything below, resetting its state. */
+export function useAsyncSticky<T>(fn: () => T | Promise<T>, deps: DependencyList): T | null {
+	const { data } = useAsync(fn, deps);
+	const last = useRef<T | null>(null);
+	if (data !== null) last.current = data;
+	return last.current;
+}

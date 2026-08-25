@@ -33,10 +33,11 @@ for (const name of fs.readdirSync(pluginsDir)) {
 	}
 	seenIds.set(id, name);
 
-	const mainFile = path.join(dir, raw.main || "index.js");
-	if (!fs.existsSync(mainFile)) {
-		console.error(`ERROR: plugins/${name}/${raw.main || "index.js"} not found (build the plugin first)`);
-		hasError = true;
+	for (const file of [raw.main || "index.js", raw.procedure].filter(Boolean)) {
+		if (!fs.existsSync(path.join(dir, file))) {
+			console.error(`ERROR: plugins/${name}/${file} not found (build the plugin first)`);
+			hasError = true;
+		}
 	}
 
 	const entry = {
@@ -47,6 +48,8 @@ for (const name of fs.readdirSync(pluginsDir)) {
 		version: raw.version || "0.0.0",
 		main: raw.main || "index.js",
 	};
+	// The installer downloads the procedure module alongside `main`.
+	if (raw.procedure) entry.procedure = raw.procedure;
 	if (raw.comingSoon) entry.comingSoon = true;
 	if (raw.experimental) entry.experimental = true;
 	if (raw.minAppVersion) entry.minAppVersion = raw.minAppVersion;

@@ -5,30 +5,24 @@ import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
-import { getMapState, addSelections, fetchLocations, updateLocations } from "@/store/useMapStore";
-import { useScope, applyScope, type ScopeController } from "@/store/scope";
+import { addSelections, countIn, fetchLocations, fieldCoverage, getMapState, updateLocations } from "@/store/useMapStore";
+import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
 import type {
-	Scope,
-	Location,
+	Selector,
 	Update,
+	FilterOp,
 	LocationPatch_Deserialize as LocationPatch,
 } from "@/bindings.gen";
-import { ScopeSelector } from "@/components/primitives/ScopeSelector";
-import { isPinnedToPano } from "@/types";
+import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import {
 	getFieldDef,
 	fieldLabel,
 	getAllFieldDefs,
 	isWritableField,
 } from "@/lib/data/fieldDefRegistry";
-import {
-	planFieldSet,
-	planFieldExpr,
-	parseFieldExpr,
-	fieldPatch,
-	extraKeysOf,
-} from "@/lib/data/fieldOps";
-import { ValidationState } from "@/store/selections";
+import { planFieldSet, planFieldExpr, parseFieldExpr, fieldPatch } from "@/lib/data/fieldOps";
+import { buildSelection } from "@/store/selections";
+import { ValidationState } from "@/types";
 import { validateLocations } from "@/lib/sv/validate";
 import { enrichAll, type EnrichResult } from "@/lib/sv/enrich";
 import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
@@ -39,8 +33,8 @@ import {
 	type BulkDownloadResult,
 	type PanoRenderMode,
 } from "@/lib/sv/panoDownload";
-import { useAsync } from "@/lib/hooks/useAsync";
-import { saveExportTempFile } from "@/lib/util/util";
+import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
+import { saveExportTempFile } from "@/lib/util/tauri";
 import { fmt } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
 import { t, msg } from "@/lib/i18n";
@@ -59,7 +53,7 @@ export type BulkOperation = keyof typeof TITLES;
 type ProgressFn = (done: number, total: number, label?: string) => void;
 
 interface BulkRunContext {
-	locations: Location[];
+	selector: Selector;
 	signal: AbortSignal;
 	onProgress: ProgressFn;
 }
@@ -78,31 +72,58 @@ interface Props {
 	onClose: () => void;
 }
 
+/** Everything the setup screens display about the current selector, read as projections --
+ *  no location rows. `coverage` maps an `extra` key to how many selected rows carry it. */
+interface TargetInfo {
+	total: number;
+	noPano: number;
+	pinned: number;
+	coverage: Map<string, number>;
+}
+
 interface SetupProps {
-	scopeCtl: ScopeController;
-	locs: Location[];
-	scopedLocs: Location[];
+	picker: SelectorPickController;
+	info: TargetInfo;
+	/** Every `extra` key present anywhere on the map, sorted. */
+	fieldKeys: string[];
 	onReady: (run: BulkRunner) => void;
+}
+
+async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
+	const panoFilter = (op: FilterOp): Selector => ({
+		type: "Filter",
+		field: "panoId",
+		op,
+		value: null,
+	});
+	const narrowed = (...extra: Selector[]): Selector => ({
+		type: "Intersection",
+		selections: [selector, ...extra].map(buildSelection),
+	});
+	const [total, noPano, pinned, coverage] = await Promise.all([
+		countIn(selector),
+		countIn(narrowed(panoFilter("nothas"))),
+		// Pinned is a pano ID *and* the flag: the flag alone can outlive the id.
+		countIn(narrowed(panoFilter("has"), { type: "PanoIds" })),
+		fieldCoverage(selector),
+	]);
+	return { total, noPano, pinned, coverage: new Map(coverage) };
 }
 
 // ---------------------------------------------------------------------------
 // Setup components — each produces a BulkRunner closure
 // ---------------------------------------------------------------------------
 
-function ValidateSetup({ scopeCtl, onReady }: SetupProps) {
+function ValidateSetup({ picker, onReady }: SetupProps) {
 	return (
 		<div className="bulk-operation">
-			<ScopeSelector ctl={scopeCtl} />
+			<SelectorPicker ctl={picker} />
 			<div className="bulk-operation__actions">
 				<Button
 					variant="primary"
 					onClick={() =>
-						onReady(async ({ locations, signal, onProgress }) => {
-							const results = await validateLocations(locations, {
-								signal,
-								onProgress: (p) =>
-									onProgress(Math.round(p.progress * locations.length), locations.length),
-							});
+						onReady(async ({ selector, signal, onProgress }) => {
+							const results = await validateLocations(selector, { signal, onProgress });
 							const stateOrder = [
 								ValidationState.Ok,
 								ValidationState.UpdateAvailable,
@@ -116,17 +137,18 @@ function ValidateSetup({ scopeCtl, onReady }: SetupProps) {
 								.filter((state) => (results.get(state)?.length ?? 0) > 0)
 								.map((state) => ({
 									type: "ValidationState" as const,
-									locations: results.get(state)!.map((l) => l.id),
+									locations: results.get(state)!,
 									state,
 								}));
 							if (batch.length > 0) void addSelections(batch);
+							const n = batch.reduce((total, b) => total + b.locations.length, 0);
 							return {
 								doneMessage: t(
 									{
 										one: "Done -- {n} location validated.",
 										other: "Done -- {n} locations validated.",
 									},
-									{ n: locations.length },
+									{ n },
 								),
 							};
 						})
@@ -139,27 +161,25 @@ function ValidateSetup({ scopeCtl, onReady }: SetupProps) {
 	);
 }
 
-function EnrichSetup({ scopeCtl, locs, onReady }: SetupProps) {
+function EnrichSetup({ picker, info, onReady }: SetupProps) {
 	const [force, setForce] = useState(false);
 	const map = getMapState().map;
 	if (!map) return null;
 
-	const scopedLocs = applyScope(scopeCtl.scope, locs);
 	const enrichFields = map.meta.settings.enrichFields ?? getDefaultEnrichKeys();
 	const allOptions = getEnrichFieldOptions();
 	const enabledFields = allOptions.filter((f) => isFieldEnabled(enrichFields, f.key));
-	const total = scopedLocs.length;
+	const total = info.total;
 	const coverage = enabledFields.map((f) => ({
 		key: f.key,
 		label: f.label,
-		have: scopedLocs.filter((l) => l.extra?.[f.key] != null).length,
+		have: info.coverage.get(f.key) ?? 0,
 	}));
 	const needsAny = coverage.some((c) => c.have < total);
-	const noPano = scopedLocs.filter((l) => !l.panoId).length;
 
 	return (
 		<div className="bulk-operation">
-			<ScopeSelector ctl={scopeCtl} />
+			<SelectorPicker ctl={picker} />
 			{enabledFields.length === 0 && (
 				<div className="bulk-operation__status" style={{ opacity: 0.8 }}>
 					{t(
@@ -190,14 +210,14 @@ function EnrichSetup({ scopeCtl, locs, onReady }: SetupProps) {
 					</tbody>
 				</table>
 			)}
-			{noPano > 0 && (
+			{info.noPano > 0 && (
 				<div className="bulk-operation__status">
 					{t(
 						{
 							one: "{n} without pano ID will be resolved from coordinates.",
 							other: "{n} without pano ID will be resolved from coordinates.",
 						},
-						{ n: noPano },
+						{ n: info.noPano },
 					)}
 				</div>
 			)}
@@ -210,8 +230,8 @@ function EnrichSetup({ scopeCtl, locs, onReady }: SetupProps) {
 				<Button
 					variant="primary"
 					onClick={() =>
-						onReady(async ({ locations, signal, onProgress }) => {
-							const er = await enrichAll(locations, { signal, force, onProgress });
+						onReady(async ({ selector, signal, onProgress }) => {
+							const er = await enrichAll(selector, { signal, force, onProgress });
 							return {
 								doneContent: (
 									<EnrichSummary
@@ -231,15 +251,14 @@ function EnrichSetup({ scopeCtl, locs, onReady }: SetupProps) {
 	);
 }
 
-function PinPanoSetup({ scopeCtl, locs, onReady }: SetupProps) {
+function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 	const [force, setForce] = useState(false);
 	const [useLatest, setUseLatest] = useState(false);
-	const scopedLocs = applyScope(scopeCtl.scope, locs);
-	const unpinned = scopedLocs.filter((l) => !isPinnedToPano(l)).length;
+	const unpinned = info.total - info.pinned;
 
 	return (
 		<div className="bulk-operation">
-			<ScopeSelector ctl={scopeCtl} />
+			<SelectorPicker ctl={picker} />
 			<div className="bulk-operation__status">
 				{t(
 					{
@@ -263,8 +282,8 @@ function PinPanoSetup({ scopeCtl, locs, onReady }: SetupProps) {
 				<Button
 					variant="primary"
 					onClick={() =>
-						onReady(async ({ locations, signal, onProgress }) => {
-							const count = await bulkPinToPano(locations, {
+						onReady(async ({ selector, signal, onProgress }) => {
+							const count = await bulkPinToPano(selector, {
 								signal,
 								force: force || useLatest,
 								useLatest,
@@ -287,8 +306,7 @@ function PinPanoSetup({ scopeCtl, locs, onReady }: SetupProps) {
 	);
 }
 
-function ClearFieldsSetup({ locs, scopedLocs, scopeCtl, onReady }: SetupProps) {
-	const sortedKeys = [...extraKeysOf(locs)].sort();
+function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 	const [selected, setSelected] = useState<Set<string>>(new Set());
 
 	const toggle = (key: string) => {
@@ -300,18 +318,18 @@ function ClearFieldsSetup({ locs, scopedLocs, scopeCtl, onReady }: SetupProps) {
 		});
 	};
 
-	const scopedWithData = (key: string) => scopedLocs.filter((l) => l.extra?.[key] != null).length;
+	const withData = (key: string) => info.coverage.get(key) ?? 0;
 
 	return (
 		<div className="bulk-operation">
-			<ScopeSelector ctl={scopeCtl} />
-			{sortedKeys.length === 0 ? (
+			<SelectorPicker ctl={picker} />
+			{fieldKeys.length === 0 ? (
 				<div className="bulk-operation__status">{t("No metadata fields on this map.")}</div>
 			) : (
 				<div className="bulk-operation__field-list">
-					{sortedKeys.map((key) => {
+					{fieldKeys.map((key) => {
 						const def = getFieldDef(key);
-						const count = scopedWithData(key);
+						const count = withData(key);
 						return (
 							<label key={key} className="bulk-operation__field-item">
 								<Checkbox checked={selected.has(key)} onChange={() => toggle(key)} />
@@ -334,7 +352,8 @@ function ClearFieldsSetup({ locs, scopedLocs, scopeCtl, onReady }: SetupProps) {
 					variant="primary"
 					onClick={() => {
 						const keys = [...selected];
-						onReady(async ({ locations }) => {
+						onReady(async ({ selector }) => {
+							const locations = await fetchLocations(selector);
 							const updates: Update<LocationPatch>[] = [];
 							for (const loc of locations) {
 								if (!loc.extra) continue;
@@ -368,12 +387,12 @@ function ClearFieldsSetup({ locs, scopedLocs, scopeCtl, onReady }: SetupProps) {
 	);
 }
 
-function SetFieldSetup({ locs, scopeCtl, onReady }: SetupProps) {
+function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 	const sortedKeys = useMemo(() => {
 		const known = new Set<string>(Object.keys(getAllFieldDefs()).filter(isWritableField));
-		for (const k of extraKeysOf(locs)) known.add(k);
+		for (const k of fieldKeys) known.add(k);
 		return [...known].sort();
-	}, [locs]);
+	}, [fieldKeys]);
 
 	const [key, setKey] = useState("");
 	const [creatingNew, setCreatingNew] = useState(false);
@@ -397,7 +416,7 @@ function SetFieldSetup({ locs, scopeCtl, onReady }: SetupProps) {
 
 	return (
 		<div className="bulk-operation">
-			<ScopeSelector ctl={scopeCtl} />
+			<SelectorPicker ctl={picker} />
 			<label className="bulk-operation__option">
 				{t("Field")}
 				<NSelect
@@ -468,7 +487,8 @@ function SetFieldSetup({ locs, scopeCtl, onReady }: SetupProps) {
 						const ek = effectiveKey;
 						const rv = raw;
 						const useExpr = isNumber;
-						onReady(async ({ locations }) => {
+						onReady(async ({ selector }) => {
+							const locations = await fetchLocations(selector);
 							if (useExpr) {
 								const { updates, skipped } = planFieldExpr(locations, ek, parseFieldExpr(rv));
 								if (updates.length > 0) await updateLocations(updates);
@@ -500,12 +520,12 @@ function SetFieldSetup({ locs, scopeCtl, onReady }: SetupProps) {
 	);
 }
 
-function HeadingRoadSetup({ scopeCtl, onReady }: SetupProps) {
+function HeadingRoadSetup({ picker, onReady }: SetupProps) {
 	const [direction, setDirection] = useState<RoadDirection>("forwards");
 
 	return (
 		<div className="bulk-operation">
-			<ScopeSelector ctl={scopeCtl} />
+			<SelectorPicker ctl={picker} />
 			<div className="bulk-operation__fieldset">
 				<label>
 					<Radio
@@ -530,8 +550,8 @@ function HeadingRoadSetup({ scopeCtl, onReady }: SetupProps) {
 				<Button
 					variant="primary"
 					onClick={() =>
-						onReady(async ({ locations, signal, onProgress }) => {
-							const count = await bulkPanHeading(locations, direction, { signal, onProgress });
+						onReady(async ({ selector, signal, onProgress }) => {
+							const count = await bulkPanHeading(selector, direction, { signal, onProgress });
 							return {
 								doneMessage: t(
 									{ one: "Panned {n} heading.", other: "Panned {n} headings." },
@@ -548,24 +568,23 @@ function HeadingRoadSetup({ scopeCtl, onReady }: SetupProps) {
 	);
 }
 
-function DownloadPanoramasSetup({ scopeCtl, scopedLocs, onReady }: SetupProps) {
+function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 	const [mode, setMode] = useState<PanoRenderMode>("equirectangular");
 	const [zoom, setZoom] = useState(5);
 	const [tileX, setTileX] = useState(0);
 	const [tileY, setTileY] = useState(0);
-	const noPano = scopedLocs.filter((l) => !l.panoId).length;
 
 	return (
 		<div className="bulk-operation">
-			<ScopeSelector ctl={scopeCtl} />
-			{noPano > 0 && (
+			<SelectorPicker ctl={picker} />
+			{info.noPano > 0 && (
 				<div className="bulk-operation__status">
 					{t(
 						{
 							one: "{n} without pano ID will be resolved from coordinates.",
 							other: "{n} without pano ID will be resolved from coordinates.",
 						},
-						{ n: noPano },
+						{ n: info.noPano },
 					)}
 				</div>
 			)}
@@ -625,7 +644,8 @@ function DownloadPanoramasSetup({ scopeCtl, scopedLocs, onReady }: SetupProps) {
 					variant="primary"
 					onClick={() => {
 						const config = { mode, zoom, tileX, tileY };
-						onReady(async ({ locations, signal, onProgress }) => {
+						onReady(async ({ selector, signal, onProgress }) => {
+							const locations = await fetchLocations(selector);
 							const result = await bulkDownloadPanoramas(locations, config, {
 								signal,
 								onProgress,
@@ -746,17 +766,17 @@ function EnrichSummary({
 			{result.map((r) => (
 				<div key={r.id}>
 					{t(r.label)}
-					{t(":")} {t({ one: "{n} updated", other: "{n} updated" }, { n: r.success.length })}
+					{t(":")} {t({ one: "{n} updated", other: "{n} updated" }, { n: r.success })}
 					{r.failed.length > 0 && (
-						<>{t({ one: ", {n} failed", other: ", {n} failed" }, { n: r.failed.length })}</>
-					)}
-					{r.failed.length > 0 && (
-						<Button
-							style={{ marginLeft: 8 }}
-							onClick={() => onSelect(r.failed, t("{label} failed", { label: t(r.label) }))}
-						>
-							{t("Select failed")}
-						</Button>
+						<>
+							{t({ one: ", {n} failed", other: ", {n} failed" }, { n: r.failed.length })}
+							<Button
+								style={{ marginLeft: 8 }}
+								onClick={() => onSelect(r.failed, t("{label} failed", { label: t(r.label) }))}
+							>
+								{t("Select failed")}
+							</Button>
+						</>
 					)}
 				</div>
 			))}
@@ -770,11 +790,11 @@ function EnrichSummary({
 
 function BulkProgress({
 	runner,
-	scope,
+	selector,
 	onClose,
 }: {
 	runner: BulkRunner;
-	scope: Scope;
+	selector: Selector;
 	onClose: () => void;
 }) {
 	const [progress, setProgress] = useState(0);
@@ -797,7 +817,6 @@ function BulkProgress({
 		const controller = new AbortController();
 		controllerRef.current = controller;
 
-		const locations = await fetchLocations(scope);
 		const runStart = performance.now();
 		rateRef.current = { t: runStart, done: 0, ema: null };
 		setRate(null);
@@ -826,7 +845,7 @@ function BulkProgress({
 		};
 
 		try {
-			const r = await runner({ locations, signal: controller.signal, onProgress });
+			const r = await runner({ selector, signal: controller.signal, onProgress });
 			setResult(r);
 			setProgress(1);
 			setElapsed((performance.now() - runStart) / 1000);
@@ -839,7 +858,7 @@ function BulkProgress({
 				setStatus("error");
 			}
 		}
-	}, [runner, scope]);
+	}, [runner, selector]);
 
 	useEffect(() => {
 		void run();
@@ -920,13 +939,13 @@ const SETUPS: Record<BulkOperation, React.ComponentType<SetupProps>> = {
 
 export function BulkOperationModal({ operation, onClose }: Props) {
 	const [runner, setRunner] = useState<BulkRunner | null>(null);
-	const scopeCtl = useScope();
-	const { data: locs } = useAsync(() => fetchLocations({ kind: "all" }), []);
+	const picker = useSelectorPick();
+	const { data: allKeys } = useAsync(() => fieldCoverage({ type: "Everything" }), []);
+	const info = useAsyncSticky(() => readTargetInfo(picker.selector), [picker.selector]);
 
-	if (locs === null) return null;
+	if (allKeys === null || info === null) return null;
 
 	const onReady = (run: BulkRunner) => setRunner(() => run);
-	const scopedLocs = applyScope(scopeCtl.scope, locs);
 	const Setup = SETUPS[operation];
 
 	return (
@@ -938,9 +957,14 @@ export function BulkOperationModal({ operation, onClose }: Props) {
 		>
 			<DialogContent title={t(TITLES[operation])} className="bulk-operation-modal">
 				{runner ? (
-					<BulkProgress runner={runner} scope={scopeCtl.scope} onClose={onClose} />
+					<BulkProgress runner={runner} selector={picker.selector} onClose={onClose} />
 				) : (
-					<Setup scopeCtl={scopeCtl} locs={locs} scopedLocs={scopedLocs} onReady={onReady} />
+					<Setup
+						picker={picker}
+						info={info}
+						fieldKeys={allKeys.map(([key]) => key)}
+						onReady={onReady}
+					/>
 				)}
 			</DialogContent>
 		</Dialog>

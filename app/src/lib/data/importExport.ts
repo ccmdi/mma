@@ -1,4 +1,4 @@
-import { imageKeyToPanoId } from "@/lib/sv/svMeta";
+import { imageKeyToPanoId } from "@/lib/sv/panoId";
 import { fovToZoom, schemeBase } from "@/lib/util/util";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { LocationFlag } from "@/types";

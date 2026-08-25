@@ -39,7 +39,7 @@ import { loadSeenPano } from "@/lib/sv/panoSingleton";
 import { enrichAll, needsEnrichment } from "@/lib/sv/enrich";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { validateLocations } from "@/lib/sv/validate";
-import { fetchSvMetadata } from "@/lib/sv/svMeta";
+import { svMetadata } from "@/lib/sv/query";
 import { mmaBufUrl } from "@/lib/util/util";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { getScene } from "@/lib/render/sceneStore";
@@ -240,16 +240,13 @@ const surface = {
 	loadSeenPano,
 
 	// --- Enrichment ---
-	// Rows are accepted only here, normalized by the legacy adapter; internals take a Selector.
-	enrichAll: (target: legacy.SelectorOrLocations, opts?: Parameters<typeof enrichAll>[1]) =>
-		enrichAll(legacy.asSelector(target), opts),
-	bulkPinToPano: (target: legacy.SelectorOrLocations, opts?: Parameters<typeof bulkPinToPano>[1]) =>
-		bulkPinToPano(legacy.asSelector(target), opts),
+	enrichAll,
+	bulkPinToPano,
 	validateLocations,
 	needsEnrichment,
 
 	// --- SV metadata ---
-	fetchSvMetadata,
+	svMetadata,
 
 	// --- Util ---
 	mmaBufUrl,

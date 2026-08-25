@@ -1,37 +1,49 @@
-import type { Location } from "@/bindings.gen";
-import { normalizeHeading } from "@/lib/sv/lookup";
-import { registerSvResolver, runResolvers, type SvResolver } from "@/lib/sv/svRunner";
+import type { Selector } from "@/bindings.gen";
+import { procedureEntry, runProviders } from "@/lib/data/procedures";
+import { panoResolveProvider } from "@/lib/sv/enrich";
+import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
+import { registerEnrichmentProvider, type EnrichmentProvider } from "@/lib/data/fieldDefs";
 import { msg } from "@/lib/i18n";
 
 export type RoadDirection = "forwards" | "backwards";
 
-/** Pan a location's heading along the road. The driving direction comes from
- *  `fetchSvMetadata` as `extra.drivingDirection` (this source has no `tiles.centerHeading`).
- *  "forwards" faces it, "backwards" faces the opposite. */
-export const headingRoadResolver: SvResolver = {
+export interface HeadingRoadConfig {
+	direction: RoadDirection;
+}
+
+/** Pan a location's heading along the road. The driving direction is GetMetadata's
+ *  `pov.heading` (this source has no `tiles.centerHeading`); "forwards" faces it,
+ *  "backwards" faces the opposite. */
+export const headingRoadProvider: EnrichmentProvider = {
 	id: "headingRoad",
 	label: msg("Pan heading along road"),
-	pending: () => true,
-	needsPanoResolve: (loc) => !loc.panoId,
-	needsMetadata: true,
-	resolve: (_loc, data, ctx) => {
-		const center = data?.extra?.drivingDirection;
-		if (center == null) return null;
-		const direction = (ctx.config as RoadDirection) ?? "forwards";
-		return { heading: direction === "backwards" ? normalizeHeading(center - 180) : center };
+	requires: ["panoId"],
+	procedure: {
+		entry: procedureEntry("headingRoad"),
+		batch: { mode: "dedupeBy", key: "panoId" },
+		retry: { attempts: 3, on: [429, 500, 503] },
+		inflight: GET_METADATA_INFLIGHT,
 	},
 };
 
-registerSvResolver(headingRoadResolver);
+registerEnrichmentProvider(headingRoadProvider);
 
+/** Pan every heading in the selector along the road. Returns the number panned. */
 export async function bulkPanHeading(
-	locations: Location[],
+	selector: Selector,
 	direction: RoadDirection,
 	opts: {
 		signal?: AbortSignal;
 		onProgress?: (done: number, total: number) => void;
 	} = {},
 ): Promise<number> {
-	const result = await runResolvers(locations, [{ id: "headingRoad", config: direction }], opts);
-	return result.headingRoad?.success.length ?? 0;
+	const result = await runProviders(
+		[
+			{ provider: panoResolveProvider },
+			{ provider: headingRoadProvider, config: { direction } satisfies HeadingRoadConfig },
+		],
+		selector,
+		opts,
+	);
+	return result.headingRoad?.success ?? 0;
 }

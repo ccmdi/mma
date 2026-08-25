@@ -1256,6 +1256,7 @@
 	"Valid location": "有效位置",
 	"Validate": "验证",
 	"Validate locations": "验证位置",
+	"Validating": "正在验证",
 	"Validating...": "正在验证…",
 	"Value": "值",
 	"Value at which this field wraps around (e.g. 360 for degrees, 24 for hours, 12 for\n\t\t\t\t\t\tmonths).": "字段回绕的值（例如角度 360、小时 24、月份 12）。",

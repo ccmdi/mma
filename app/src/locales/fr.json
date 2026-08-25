@@ -1324,6 +1324,7 @@
 	"Valid location": "Lieu valide",
 	"Validate": "Vérifier",
 	"Validate locations": "Vérifier les lieux",
+	"Validating": "Vérification",
 	"Validating...": "Vérification...",
 	"Value": "Valeur",
 	"Value at which this field wraps around (e.g. 360 for degrees, 24 for hours, 12 for\n\t\t\t\t\t\tmonths).": "Valeur à laquelle ce champ boucle (par ex. 360 pour les degrés, 24 pour les heures, 12 pour\n\t\t\t\t\t\tles mois).",

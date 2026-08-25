@@ -1,17 +1,12 @@
 import { useState } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
-import type {
-	KeySpec,
-	DatePart,
-	Update,
-	LocationPatch_Deserialize as LocationPatch,
-} from "@/bindings.gen";
-import { getProviderForField } from "@/lib/data/fieldDefs";
+import type { KeySpec, DatePart } from "@/bindings.gen";
+import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldOps";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
-import { fetchLocations, createTags, updateLocations, scopeIds } from "@/store/useMapStore";
-import { partition, useScope } from "@/store/scope";
-import { ScopeSelector } from "@/components/primitives/ScopeSelector";
+import { createTags, partition, resolveIds } from "@/store/useMapStore";
+import { useSelectorPick } from "@/store/selectorPick";
+import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { useSetting } from "@/store/settings";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
@@ -26,7 +21,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const [width, setWidth] = useState("");
 	const [tzLocal, setTzLocal] = useState(tzDefault);
 	const [tagMissing, setTagMissing] = useState(false);
-	const scopeCtl = useScope();
+	const picker = useSelectorPick();
 	const fields = useExtraFieldKeys();
 
 	const fieldType = fields.find((f) => f.key === field)?.def.type ?? "string";
@@ -58,62 +53,33 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 				? { kind: "value" }
 				: { kind: "datePart", part: projectionId as DatePart, tzLocal: tzLocal && hasTzData };
 
-		const groups = await partition(field, key, scopeCtl.scope);
+		const groups = await partition(field, key, picker.selector);
 
 		// Rust drops rows whose key does not resolve, so whatever the groups miss is exactly
 		// the set with no value for this field.
 		let missing: number[] = [];
 		if (tagMissing) {
 			const grouped = new Set(groups.flatMap((g) => g.ids));
-			missing = (await scopeIds(scopeCtl.scope)).filter((id) => !grouped.has(id));
+			missing = (await resolveIds(picker.selector)).filter((id) => !grouped.has(id));
 		}
 		if (groups.length === 0 && missing.length === 0) return;
 
-		const transform = getProviderForField(field)?.transform;
-		const locs = await fetchLocations({
-			kind: "ids",
-			ids: [...groups.flatMap((g) => g.ids), ...missing],
+		// Two groups can share a label, so ids are merged by name first.
+		const labels = await resolveFieldLabels(
+			field,
+			groups.map((g) => g.key),
+		);
+		const idsByName = new Map<string, number[]>();
+		groups.forEach((g, i) => {
+			const name = labels[i];
+			const ids = idsByName.get(name);
+			if (ids) ids.push(...g.ids);
+			else idsByName.set(name, [...g.ids]);
 		});
-		const locById = new Map(locs.map((l) => [l.id, l]));
+		if (missing.length > 0) idsByName.set(missingName, missing);
 
-		const tagNames = new Set<string>();
-		if (missing.length > 0) tagNames.add(missingName);
-		for (const g of groups) {
-			if (transform) {
-				for (const id of g.ids) {
-					const l = locById.get(id);
-					if (!l) continue;
-					const name = transform(field, g.key, l);
-					if (name != null) tagNames.add(name);
-				}
-			} else {
-				tagNames.add(g.key);
-			}
-		}
-
-		const created = await createTags([...tagNames]);
-		const tagIdByName = new Map(created.map((t) => [t.name.toLowerCase(), t.id]));
-		const updates: Update<LocationPatch>[] = [];
-		for (const g of groups) {
-			for (const id of g.ids) {
-				const l = locById.get(id);
-				if (!l) continue;
-				const name = transform ? transform(field, g.key, l) : g.key;
-				if (name == null) continue;
-				const tagId = tagIdByName.get(name.toLowerCase());
-				if (tagId != null && !l.tags.includes(tagId))
-					updates.push({ id, patch: { tags: [...l.tags, tagId] } });
-			}
-		}
-		const missingTagId = tagIdByName.get(missingName.toLowerCase());
-		if (missingTagId != null) {
-			for (const id of missing) {
-				const l = locById.get(id);
-				if (l && !l.tags.includes(missingTagId))
-					updates.push({ id, patch: { tags: [...l.tags, missingTagId] } });
-			}
-		}
-		if (updates.length > 0) await updateLocations(updates);
+		for (const [name, ids] of idsByName)
+			await createTags([name], { type: "Locations", locations: ids, name: null });
 		onOpenChange(false);
 	};
 
@@ -139,7 +105,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 					}}
 					style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}
 				>
-					<ScopeSelector ctl={scopeCtl} />
+					<SelectorPicker ctl={picker} />
 					<div style={{ display: "flex", gap: "0.5rem" }}>
 						<NSelect
 							className="nselect--compact"

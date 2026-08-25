@@ -1290,6 +1290,7 @@
 	"Valid location": "Gültiger Standort",
 	"Validate": "Validieren",
 	"Validate locations": "Standorte validieren",
+	"Validating": "Wird validiert",
 	"Validating...": "Wird validiert...",
 	"Value": "Wert",
 	"Value at which this field wraps around (e.g. 360 for degrees, 24 for hours, 12 for\n\t\t\t\t\t\tmonths).": "Wert, bei dem dieses Feld überläuft (z. B. 360 für Grad, 24 für Stunden, 12 für\n\t\t\t\t\t\tMonate).",

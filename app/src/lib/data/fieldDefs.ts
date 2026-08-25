@@ -1,6 +1,14 @@
-import { KNOWN_FIELDS, type ExtraFieldDef, type Location } from "@/bindings.gen";
+import {
+	KNOWN_FIELDS,
+	type BatchMode,
+	type ExtraFieldDef,
+	type RateSpec,
+	type Selector,
+	type Sink,
+} from "@/bindings.gen";
 import { registerPluginFieldDefs, unregisterPluginFieldDefs } from "@/lib/data/fieldDefRegistry";
-import { trackDisposable } from "@/plugins/scope";
+import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
+import { log } from "@/lib/util/log";
 
 export interface EnrichFieldOption {
 	key: string;
@@ -62,50 +70,65 @@ export function getDefaultEnrichKeys(): string[] {
 		.map((f) => f.key);
 }
 
-/** Optional context passed by the bulk runner. Cheap providers can ignore it. */
-export interface EnrichCtx {
-	signal?: AbortSignal;
-	force?: boolean;
-	/** Advance the bulk progress bar by one unit. */
-	onUnit?: () => void;
-	/** Report a location that errored (surfaced as failed in the bulk summary). */
-	onFail?: (id: number) => void;
+/** A unit of work for the procedure engine: which module, and how to drive it. This is
+ *  everything the engine needs and nothing about enrichment; `runProcedure` takes one
+ *  directly. Locations never reach JS: the engine pages them and applies the patches
+ *  itself. `TCollected` is the shape of one answer under the `collect` sink, as the
+ *  module defines it; the engine carries it as JSON and never checks it. */
+export interface ProcedureSpec<TCollected = unknown> {
+	/** Never set. Carries `TCollected` on the value so `runProcedure` can type its answers. */
+	readonly collects?: TCollected;
+	/** Module entry point: absolute path, or "res://procedures/<name>.js" for app-bundled
+	 *  core procedures, or a bare relative filename for user-plugin-shipped modules (resolved
+	 *  against the registering plugin's directory by the plugin loader). */
+	entry: string;
+	/** Rows the engine feeds the procedure. Omitted, the driver supplies its own. */
+	select?: Selector;
+	batch: BatchMode;
+	/** Where the answers go: `patch` (the default) writes them to the locations they
+	 *  name, `collect` hands them to the caller and writes nothing. `runProcedure` can
+	 *  override it, which is how a caller borrows a writing procedure for its answers
+	 *  alone. */
+	sink?: Sink;
+	rate?: RateSpec;
+	retry?: { attempts: number; on: number[] };
+	/** Requests this provider may keep in flight at once, summed over its instances.
+	 *  This is where a network-bound provider's throughput comes from: the engine holds
+	 *  the budget, so a procedure reaches it by asking for many requests at once
+	 *  (`fetchMany`), never by running more instances. */
+	inflight?: number;
+	/** Procedure instances the provider may run at once. Only for a procedure that cannot
+	 *  run beside itself (one sidecar process, one large model); otherwise the engine
+	 *  takes one per core, which is not a throughput knob. */
+	instances?: number;
+	/** Provider-specific settings for the module, any JSON value. The engine splices it
+	 *  into the configuration it hands the procedure: `{fields, force, config}`. */
+	config?: unknown;
+	/** Awaited before the provider joins a run; false drops it (e.g. a dataset download failed). */
+	prepare?: () => Promise<boolean>;
 }
 
+/** What the enrichment scheduler needs on top of a procedure: the fields it produces
+ *  (which the field picker offers and the skip-if-present check reads), the columns it
+ *  writes, and what it must wait for. Only the enrichment path registers these; a
+ *  consumer that just wants a procedure run declares a `ProcedureSpec` and calls
+ *  `runProcedure`. */
 export interface EnrichmentProvider {
 	id: string;
 	/** Bulk progress label for slow providers; omit for instant ones. */
 	label?: string;
-	enrich(
-		locations: Location[],
-		enrichFields: string[] | null,
-		ctx?: EnrichCtx,
-	): Promise<Map<number, Record<string, unknown>>>;
-	fieldDefs: Record<string, ExtraFieldDef>;
-	/** Fields this provider reads: schedules it into a later dependency wave than any
-	 *  provider producing them (core-written fields like imageDate precede wave 1). */
+	/** The procedure the Rust engine runs for this provider. */
+	procedure: ProcedureSpec;
+	/** Selectable `extra` keys this provider produces. Omitted, the provider writes
+	 *  core columns instead: it is always active, and `enrichAll` never runs it
+	 *  implicitly -- only a caller naming it does. */
+	fieldDefs?: Record<string, ExtraFieldDef>;
+	/** Core columns this provider writes, e.g. `panoId`. Scheduled into the dependency
+	 *  waves and used to skip rows that already hold them, exactly like `fieldDefs`. */
+	provides?: string[];
+	/** Fields this provider reads: the engine schedules it into a later dependency
+	 *  wave than any provider producing them. */
 	requires?: string[];
-	/** Progress units this provider would contribute in bulk (absent = instant). */
-	units?(locations: Location[], enrichFields: string[] | null, force?: boolean): number;
-	/** Transform a raw partition value per-location. Return null to skip. */
-	transform?(field: string, value: string, location: Location): string | null;
-}
-
-/** Schedule providers into dependency waves: a provider runs once no other
- *  unscheduled provider produces (via `fieldDefs`) a field it `requires`.
- *  A dependency cycle falls back to running the remainder as one wave. */
-export function providerWaves(list: EnrichmentProvider[]): EnrichmentProvider[][] {
-	const waves: EnrichmentProvider[][] = [];
-	let remaining = [...list];
-	while (remaining.length > 0) {
-		let wave = remaining.filter(
-			(p) => !p.requires?.some((r) => remaining.some((q) => q !== p && r in q.fieldDefs)),
-		);
-		if (wave.length === 0) wave = remaining;
-		waves.push(wave);
-		remaining = remaining.filter((p) => !wave.includes(p));
-	}
-	return waves;
 }
 
 const providers: EnrichmentProvider[] = [];
@@ -113,10 +136,15 @@ const providers: EnrichmentProvider[] = [];
 /** Register a provider that computes extra fields during enrichment (e.g. sun position).
  *  Unregistered when the plugin deactivates. */
 export function registerEnrichmentProvider(provider: EnrichmentProvider) {
+	if (!provider.procedure) {
+		log.error(`[procedure] provider "${provider.id}" declares no procedure; ignored`);
+		return;
+	}
+	provider.procedure.entry = resolvePluginPath(provider.procedure.entry);
 	if (!providers.some((p) => p.id === provider.id)) {
 		providers.push(provider);
-		registerPluginFieldDefs(provider.fieldDefs);
-		const defKeys = Object.keys(provider.fieldDefs);
+		registerPluginFieldDefs(provider.fieldDefs ?? {});
+		const defKeys = Object.keys(provider.fieldDefs ?? {});
 		trackDisposable(() => {
 			const i = providers.findIndex((p) => p.id === provider.id);
 			if (i >= 0) providers.splice(i, 1);
@@ -130,21 +158,9 @@ export function getEnrichmentProviders(): EnrichmentProvider[] {
 }
 
 export function getProviderForField(field: string): EnrichmentProvider | undefined {
-	return providers.find((p) => field in p.fieldDefs);
+	return providers.find((p) => p.fieldDefs != null && field in p.fieldDefs);
 }
 
 export function isFieldEnabled(enrichFields: string[] | null, key: string): boolean {
 	return (enrichFields ?? getDefaultEnrichKeys()).includes(key);
-}
-
-export function filterEnrichPatch(
-	patch: Record<string, unknown>,
-	enrichFields: string[] | null,
-): Record<string, unknown> {
-	if (!enrichFields) return patch;
-	const filtered: Record<string, unknown> = {};
-	for (const key of enrichFields) {
-		if (key in patch) filtered[key] = patch[key];
-	}
-	return filtered;
 }

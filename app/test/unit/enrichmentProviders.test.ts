@@ -1,4 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("@/lib/util/log", () => ({
+	log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {} },
+}));
+
 import {
 	registerEnrichmentProvider,
 	getEnrichmentProviders,
@@ -7,10 +12,11 @@ import {
 	getAllEnrichKeys,
 	getDefaultEnrichKeys,
 	isFieldEnabled,
-	filterEnrichPatch,
-	providerWaves,
 } from "@/lib/data/fieldDefs";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
+import type { ProcedureSpec } from "@/lib/data/fieldDefs";
+
+const procedure: ProcedureSpec = { entry: "res://procedures/test.js", batch: { mode: "perRow" } };
 
 // The providers array is module-level and accumulates, so tests see
 // providers from prior registrations. We test behavior, not count.
@@ -19,7 +25,7 @@ describe("registerEnrichmentProvider", () => {
 	it("registers a provider that appears in getEnrichmentProviders", () => {
 		const provider = {
 			id: "test-provider-" + Math.random(),
-			enrich: async () => new Map(),
+			procedure: { ...procedure },
 			fieldDefs: { testField: { type: "number" as const, label: "Test" } },
 		};
 		registerEnrichmentProvider(provider);
@@ -28,11 +34,18 @@ describe("registerEnrichmentProvider", () => {
 
 	it("does not register duplicate providers", () => {
 		const id = "dedup-test-" + Math.random();
-		const p1 = { id, enrich: async () => new Map(), fieldDefs: {} };
-		const p2 = { id, enrich: async () => new Map(), fieldDefs: {} };
+		const p1 = { id, procedure: { ...procedure }, fieldDefs: {} };
+		const p2 = { id, procedure: { ...procedure }, fieldDefs: {} };
 		registerEnrichmentProvider(p1);
 		registerEnrichmentProvider(p2);
 		expect(getEnrichmentProviders().filter((p) => p.id === id)).toHaveLength(1);
+	});
+
+	it("ignores a provider that declares no procedure", () => {
+		const id = "no-procedure-" + Math.random();
+		// @ts-expect-error procedure is required; this is the runtime guard for plugins.
+		registerEnrichmentProvider({ id, fieldDefs: {} });
+		expect(getEnrichmentProviders().some((p) => p.id === id)).toBe(false);
 	});
 
 	it("registers plugin fieldDefs into the registry", () => {
@@ -40,7 +53,7 @@ describe("registerEnrichmentProvider", () => {
 		const key = "registryTestField_" + Math.random().toString(36).slice(2);
 		registerEnrichmentProvider({
 			id,
-			enrich: async () => new Map(),
+			procedure: { ...procedure },
 			fieldDefs: { [key]: { type: "number" as const, label: "Registered" } },
 		});
 		expect(getFieldDef(key)).toBeDefined();
@@ -96,61 +109,3 @@ describe("isFieldEnabled", () => {
 	});
 });
 
-describe("providerWaves", () => {
-	const p = (id: string, produces: string[], requires?: string[]) => ({
-		id,
-		enrich: async () => new Map(),
-		fieldDefs: Object.fromEntries(produces.map((k) => [k, { type: "number" as const, label: k }])),
-		requires,
-	});
-
-	it("runs independent providers in a single wave", () => {
-		const a = p("a", ["x"]);
-		const b = p("b", ["y"]);
-		expect(providerWaves([a, b])).toEqual([[a, b]]);
-	});
-
-	it("schedules a provider after the provider that produces its requirement", () => {
-		const producer = p("producer", ["datetime"], ["imageDate"]);
-		const consumer = p("consumer", ["sunAzimuth"], ["datetime"]);
-		expect(providerWaves([consumer, producer])).toEqual([[producer], [consumer]]);
-	});
-
-	it("handles chains of arbitrary depth", () => {
-		const a = p("a", ["f1"]);
-		const b = p("b", ["f2"], ["f1"]);
-		const c = p("c", ["f3"], ["f2"]);
-		expect(providerWaves([c, a, b])).toEqual([[a], [b], [c]]);
-	});
-
-	it("does not delay on requirements no provider produces (core-pass fields)", () => {
-		const a = p("a", ["x"], ["imageDate"]);
-		expect(providerWaves([a])).toEqual([[a]]);
-	});
-
-	it("falls back to a single wave on a dependency cycle", () => {
-		const a = p("a", ["x"], ["y"]);
-		const b = p("b", ["y"], ["x"]);
-		expect(providerWaves([a, b])).toEqual([[a, b]]);
-	});
-});
-
-describe("filterEnrichPatch", () => {
-	it("returns full patch when enrichFields is null", () => {
-		const patch = { altitude: 100, countryCode: "US" };
-		expect(filterEnrichPatch(patch, null)).toEqual(patch);
-	});
-
-	it("filters to only enabled fields", () => {
-		const patch = { altitude: 100, countryCode: "US", cameraType: "gen4" };
-		expect(filterEnrichPatch(patch, ["altitude", "cameraType"])).toEqual({
-			altitude: 100,
-			cameraType: "gen4",
-		});
-	});
-
-	it("returns empty when no fields match", () => {
-		const patch = { altitude: 100 };
-		expect(filterEnrichPatch(patch, ["countryCode"])).toEqual({});
-	});
-});

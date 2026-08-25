@@ -16,6 +16,7 @@ type Disposable = () => void;
 
 let currentOwner: string | null = null;
 const stores = new Map<string, Disposable[]>();
+const baseDirs = new Map<string, string>();
 
 /** Run `fn` attributed to plugin `id`; host registrations during it are tracked for teardown. */
 export function runAsPlugin<T>(id: string, fn: () => T): T {
@@ -37,6 +38,22 @@ export function trackDisposable(dispose: Disposable): void {
 		stores.set(currentOwner, store);
 	}
 	store.push(dispose);
+}
+
+/** Record where a plugin's files live on disk, so its registrations can resolve
+ *  paths to assets it ships. Core plugins have no directory. */
+export function setPluginBaseDir(id: string, dir: string): void {
+	baseDirs.set(id, dir);
+}
+
+/** Resolve a file path a plugin registration referred to, against the directory of the
+ *  plugin currently activating. Absolute paths, "res://" URLs, registrations outside an
+ *  activation window, and core plugins (no directory) all pass through unchanged. */
+export function resolvePluginPath(path: string): string {
+	if (!currentOwner || path.startsWith("res://") || path.startsWith("/") || /^[a-zA-Z]:/.test(path))
+		return path;
+	const dir = baseDirs.get(currentOwner);
+	return dir ? `${dir}/${path}` : path;
 }
 
 /** Run and clear every teardown a plugin registered, in reverse order. */

@@ -14,6 +14,7 @@ import {
 import { appVersion } from "@/lib/version";
 import type { PluginManifest } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
+import { setPluginBaseDir } from "./scope";
 import { log } from "@/lib/util/log";
 
 // Re-export the API type for plugin consumers
@@ -33,8 +34,10 @@ export async function loadUserPlugin(m: PluginManifest) {
 	await preloadModules(getAvailableExternals());
 	const appDataDir = await cmd.getAppDataDir();
 	setPendingManifest(m);
+	const dir = `${appDataDir}/plugins/${m.id}`;
+	setPluginBaseDir(m.id, dir);
 	try {
-		const filePath = `${appDataDir}/plugins/${m.id}/${m.main}`;
+		const filePath = `${dir}/${m.main}`;
 		const code = await cmd.readFile(filePath);
 		const blob = new Blob([code], { type: "application/javascript" });
 		await import(/* @vite-ignore */ URL.createObjectURL(blob));

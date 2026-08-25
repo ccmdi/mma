@@ -1,11 +1,10 @@
-﻿// Legacy API shims for plugins. Every export is deprecated: kept only so
+// Legacy API shims for plugins. Every export is deprecated: kept only so
 // plugins built against an older MMA keep working. New code must not call these.
 
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { hostInstance } from "@/lib/map/host";
 import { getMapState, getActiveSelections, fetchLocations } from "@/store/useMapStore";
 import { cmd } from "@/lib/commands";
-import type { Location, Selector } from "@/bindings.gen";
 
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
 export function getGoogleMap(): google.maps.Map | null {
@@ -87,15 +86,4 @@ export function fetchAllLocations() {
 	return fetchLocations({ type: "Everything" });
 }
 
-/** Argument shape the bulk enrichment entry points still tolerate: plugins built against
- *  an older MMA hand them location rows. `asSelector` is the only place either shape is
- *  accepted -- the app's own code, and everything below the API surface, passes a Selector.
- *  @deprecated v0.9.2. Pass a Selector. */
-export type SelectorOrLocations = Selector | Location[];
 
-/** @deprecated v0.9.2. Pass a Selector to `MMA.enrichAll`/`MMA.bulkPinToPano` instead. */
-export function asSelector(target: SelectorOrLocations): Selector {
-	return Array.isArray(target)
-		? { type: "Locations", locations: target.map((l) => l.id), name: null }
-		: target;
-}

@@ -3,14 +3,15 @@
   "private": true,
   "scripts": {
     "build": "node ../build-plugin.mjs .",
-    "dev": "node ../build-plugin.mjs . --watch"
+    "dev": "node ../build-plugin.mjs . --watch",
+    "test": "npm run build && node --test \"test/*.test.mjs\""
+  },
+  "devDependencies": {
+    "@types/suncalc": "^1.8.0",
+    "esbuild": "^0.25.0",
+    "mma-plugin-types": "file:../types"
   },
   "dependencies": {
     "suncalc": "^1.9.0"
-  },
-  "devDependencies": {
-    "esbuild": "^0.25.0",
-    "mma-plugin-types": "file:../types",
-    "@types/suncalc": "^1.8.0"
   }
 }

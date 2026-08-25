@@ -1,107 +1,59 @@
-import { hasLoadAsPanoId } from "@/types";
-import type { Location } from "@/bindings.gen";
-import { ValidationState } from "@/store/selections";
-import { fetchSvMetadata } from "./svMeta";
-import { isOfficialPano, newestOfficialPano } from "./panoId";
-import { getPanoAtCoords, isUnofficial } from "./lookup";
-import { runConcurrent } from "@/lib/util/concurrent";
+import type { Selector } from "@/bindings.gen";
+import { ValidationState } from "@/types";
+import type { ProcedureSpec } from "@/lib/data/fieldDefs";
+import { procedureEntry, runProcedure } from "@/lib/data/procedures";
+import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
+import { log } from "@/lib/util/log";
+import { msg } from "@/lib/i18n";
 
-const GOOD_CAM_TYPES = new Set(["gen4", "gen2"]);
-
-export async function validateOne(loc: Location, signal?: AbortSignal): Promise<ValidationState> {
-	signal?.throwIfAborted();
-
-	const pinned = hasLoadAsPanoId(loc);
-	let data: google.maps.StreetViewResolvedPanoramaData | null = null;
-	let coordData: google.maps.StreetViewResolvedPanoramaData | null = null;
-	let state = ValidationState.Ok;
-
-	// Fetch by pano ID if stored
-	if (loc.panoId != null) {
-		[data] = await fetchSvMetadata([loc.panoId]).catch(() => [null]);
-	}
-
-	if (pinned) {
-		// LoadAsPanoId: if pano lookup failed, mark broke, fall back to coord
-		if (data == null) {
-			if (loc.panoId != null) state = ValidationState.PanoIdBroke;
-			const coordPano = await getPanoAtCoords(loc.lat, loc.lng);
-			if (coordPano) [data] = await fetchSvMetadata([coordPano]).catch(() => [null]);
-		}
-	} else {
-		// No LoadAsPanoId: do coord lookup
-		const coordPano = await getPanoAtCoords(loc.lat, loc.lng);
-		if (coordPano) [coordData] = await fetchSvMetadata([coordPano]).catch(() => [null]);
-	}
-
-	data ??= coordData;
-
-	if (data == null) return ValidationState.NotFound;
-	if (isUnofficial(data)) return ValidationState.Unofficial;
-
-	// Badcam check (only when not pinned)
-	if (!pinned && data.extra?.cameraType === "badcam" && data.time?.length) {
-		const timePanoIds = data.time.map((t) => t.pano);
-		const timeResults = await fetchSvMetadata(timePanoIds).catch(() => []);
-		if (timeResults.some((t) => t && GOOD_CAM_TYPES.has(t.extra?.cameraType ?? ""))) {
-			return ValidationState.GoodcamAvailable;
-		}
-	}
-
-	// Coord update (only when not pinned, since coordData is only set then)
-	if (coordData != null && coordData.location.pano !== data.location.pano) {
-		return ValidationState.UpdateApplied;
-	}
-
-	// Timeline check: the stored pano is a known official capture, but not the newest one
-	const time = data.time ?? [];
-	const storedIsOfficial = time.some((t) => t.pano === loc.panoId && isOfficialPano(t.pano));
-	if (storedIsOfficial && newestOfficialPano(time)?.pano !== loc.panoId) {
-		return pinned ? ValidationState.UpdateAvailable : ValidationState.UpdateApplied;
-	}
-
-	return state;
+export interface ValidateConfig {
+	radius: number;
 }
 
-export interface ValidationProgress {
-	progress: number;
-	results: Map<ValidationState, Location[]>;
-}
+/** Street View coverage validation: per location, metadata for the stored pano, a
+ *  coordinate lookup as fallback or comparison, then the unofficial, badcam and
+ *  timeline checks. It answers with a `ValidationState` and writes nothing, so it
+ *  declares the collect sink. Not an enrichment provider: nothing selects its fields
+ *  and it never joins a run implicitly. */
+export const validateSpec: ProcedureSpec<ValidationState> = {
+	entry: procedureEntry("validate"),
+	batch: { mode: "chunk", size: 200 },
+	sink: "collect",
+	retry: { attempts: 3, on: [429, 500, 503] },
+	// Every row of a batch searches its coordinate in one round, one request each.
+	inflight: 100,
+	config: { radius: SV_SEARCH_RADIUS } satisfies ValidateConfig,
+};
 
-/** Check that each location's Street View coverage still exists; returns locations grouped
- *  by validation state. */
+const STATES = new Set<number>(
+	Object.values(ValidationState).filter((v): v is number => typeof v === "number"),
+);
+
+/** Check that each location's Street View coverage still exists; returns the location
+ *  ids grouped by the state they validated to. */
 export async function validateLocations(
-	locations: Location[],
+	selector: Selector,
 	opts: {
 		signal?: AbortSignal;
-		onProgress?: (p: ValidationProgress) => void;
+		onProgress?: (done: number, total: number) => void;
 	} = {},
-): Promise<Map<ValidationState, Location[]>> {
-	const { signal, onProgress } = opts;
-	const results = new Map<ValidationState, Location[]>();
-	let completed = 0;
-	let lastUpdate = 0;
+): Promise<Map<ValidationState, number[]>> {
+	const run = await runProcedure(validateSpec, selector, {
+		id: "validate",
+		label: msg("Validating"),
+		signal: opts.signal,
+		onProgress: (done, total) => opts.onProgress?.(done, total),
+	});
 
-	await runConcurrent(
-		locations,
-		async (loc) => {
-			try {
-				const state = await validateOne(loc, signal);
-				const list = results.get(state);
-				if (list) list.push(loc);
-				else results.set(state, [loc]);
-			} finally {
-				completed++;
-				const now = Date.now();
-				if (now - lastUpdate > 16) {
-					lastUpdate = now;
-					onProgress?.({ progress: completed / locations.length, results });
-				}
-			}
-		},
-		{ concurrency: 100, signal },
-	);
-
-	onProgress?.({ progress: 1, results });
+	const results = new Map<ValidationState, number[]>();
+	for (const { id, value: state } of run.collected ?? []) {
+		if (typeof state !== "number" || !STATES.has(state)) {
+			log.warn(`[validate] location ${id}: unknown validation state ${String(state)}`);
+			continue;
+		}
+		const list = results.get(state);
+		if (list) list.push(id);
+		else results.set(state, [id]);
+	}
 	return results;
 }

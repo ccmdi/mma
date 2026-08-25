@@ -6,6 +6,13 @@ Xvfb :99 -screen 0 1920x1080x24 &
 export DISPLAY=:99
 sleep 1
 
+# The Rust procedure engine fetches Street View outside the webview, so under --mock it is
+# pointed at the harness's local stub (wdio onPrepare serves this port). tauri-driver
+# passes its environment to the app it spawns, so this must be exported before it starts.
+if [ -n "${MMA_TEST_MOCK_SV:-}" ]; then
+    export MMA_E2E_SV_ORIGIN="http://127.0.0.1:${MMA_E2E_SV_PORT:-4599}"
+fi
+
 # Start tauri-driver (WebDriver bridge on :4444)
 tauri-driver &
 sleep 3

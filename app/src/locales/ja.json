@@ -1256,6 +1256,7 @@
 	"Valid location": "有効な地点",
 	"Validate": "検証",
 	"Validate locations": "地点を検証",
+	"Validating": "検証中",
 	"Validating...": "検証中...",
 	"Value": "値",
 	"Value at which this field wraps around (e.g. 360 for degrees, 24 for hours, 12 for\n\t\t\t\t\t\tmonths).": "このフィールドが一周する値です（度なら 360、時間なら 24、月なら 12）。",

@@ -54,6 +54,9 @@ pub struct PluginManifest {
     description: String,
     icon: String,
     main: String,
+    /// Enrichment procedure module this plugin ships, downloaded alongside `main`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    procedure: Option<String>,
     version: String,
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     experimental: bool,
@@ -73,6 +76,7 @@ impl Default for PluginManifest {
             description: String::new(),
             icon: String::new(),
             main: "index.js".to_string(),
+            procedure: None,
             version: String::new(),
             experimental: false,
             coming_soon: false,
@@ -158,7 +162,28 @@ fn fetch(url: &str, what: &str) -> AppResult<bytes::Bytes> {
         .bytes()?)
 }
 
-/// Install a plugin from the marketplace repo: its `manifest.json` plus the main JS file.
+/// The files `install` downloads beside `manifest.json`. Each must be a plain filename:
+/// a separator or `..` could place the download outside the plugin's directory.
+fn install_files(manifest: &PluginManifest) -> AppResult<Vec<&str>> {
+    [
+        ("main", Some(manifest.main.as_str())),
+        ("procedure", manifest.procedure.as_deref()),
+    ]
+    .into_iter()
+    .filter_map(|(field, file)| Some((field, file?)))
+    .map(|(field, file)| {
+        let ok = !file.is_empty()
+            && !file.contains("..")
+            && !file.contains('/')
+            && !file.contains('\\');
+        ok.then_some(file)
+            .ok_or_else(|| AppError(format!("Invalid {field} field in manifest: {file}")))
+    })
+    .collect()
+}
+
+/// Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
+/// the procedure module it declares.
 #[tauri::command]
 #[specta::specta]
 pub async fn install_plugin(id: String) -> AppResult<PluginManifest> {
@@ -175,14 +200,12 @@ fn install(id: String) -> AppResult<PluginManifest> {
     let manifest: PluginManifest = serde_json::from_slice(&manifest_bytes)
         .map_err(|e| format!("Invalid manifest JSON: {e}"))?;
 
-    let main = &manifest.main;
-    if main.contains("..") || main.contains('/') || main.contains('\\') {
-        return Err(AppError(format!("Invalid main field in manifest: {main}")));
+    for file in install_files(&manifest)? {
+        std::fs::write(
+            dir.join(file),
+            fetch(&format!("{REPO_BASE}/{id}/{file}"), file)?,
+        )?;
     }
-    std::fs::write(
-        dir.join(main),
-        fetch(&format!("{REPO_BASE}/{id}/{main}"), main)?,
-    )?;
 
     let mut manifest = manifest.with_fallback(&id);
     manifest.id = id;
@@ -233,3 +256,7 @@ pub(crate) fn serve_file(path: &str) -> tauri::http::Response<Vec<u8>> {
     };
     cors().header("Content-Type", mime).body(data).unwrap()
 }
+
+#[cfg(test)]
+#[path = "user_plugins.test.rs"]
+mod tests;

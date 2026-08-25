@@ -1358,6 +1358,7 @@
 	"Valid location": "Prawidłowa lokalizacja",
 	"Validate": "Sprawdź",
 	"Validate locations": "Sprawdź poprawność lokalizacji",
+	"Validating": "Sprawdzanie",
 	"Validating...": "Sprawdzanie...",
 	"Value": "Wartość",
 	"Value at which this field wraps around (e.g. 360 for degrees, 24 for hours, 12 for\n\t\t\t\t\t\tmonths).": "Wartość, przy której to pole zawija się do początku (np. 360 dla stopni, 24 dla godzin, 12 dla\n\t\t\t\t\t\tmiesięcy).",

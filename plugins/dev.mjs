@@ -1,5 +1,6 @@
-// Dev mode for a plugin: builds JS in watch mode and syncs output files
-// (index.js, manifest.json, sidecar binary) to the appdata plugin directory.
+// Dev mode for a plugin: builds every artifact in watch mode and syncs the output files
+// (index.js, the procedure module, manifest.json, sidecar binary) to the appdata plugin
+// directory.
 //
 // Usage:
 //   node plugins/dev.mjs plugins/vision              # JS watch + sync
@@ -10,13 +11,10 @@
 // dir; this script just watches the output and copies it when it changes.
 
 import { existsSync, readFileSync, mkdirSync, copyFileSync, statSync } from "node:fs";
-import { join, resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
+import { basename, join, resolve, dirname } from "node:path";
+import { allOpts, resolveEsbuild } from "./build-plugin.mjs";
 
 const IS_WIN = process.platform === "win32";
-const pluginsDir = dirname(fileURLToPath(import.meta.url));
-const mmaExternals = createRequire(import.meta.url)("./mma-externals.js");
 
 function appDataPluginDir(pluginId) {
 	const base = IS_WIN
@@ -53,7 +51,7 @@ if (!existsSync(manifestPath)) {
 }
 
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
-const pluginId = manifest.id || pluginDir.split(/[\\/]/).pop();
+const pluginId = manifest.id || pluginDir.split(/[\/]/).pop();
 const destDir = appDataPluginDir(pluginId);
 mkdirSync(destDir, { recursive: true });
 
@@ -64,46 +62,29 @@ console.log(`[dev] target: ${destDir}`);
 // --- Sync manifest ---
 syncFile(manifestPath, join(destDir, "manifest.json"), "manifest.json");
 
-// --- JS watch build (esbuild) ---
-const tsx = existsSync(join(pluginDir, "src/index.tsx"));
-const entry = tsx ? "src/index.tsx" : "src/index.ts";
-if (!existsSync(join(pluginDir, entry))) {
-	console.error(`No entry point found (tried src/index.tsx, src/index.ts)`);
-	process.exit(1);
-}
-
-const { context } = createRequire(join(pluginDir, "package.json"))("esbuild");
-
-const outfile = join(pluginDir, "index.js");
-const opts = {
-	entryPoints: [join(pluginDir, entry)],
-	bundle: true,
-	format: "esm",
-	outfile,
-	absWorkingDir: pluginsDir,
-	plugins: [
-		mmaExternals(),
+// --- Watch builds (esbuild), one per artifact the plugin ships ---
+const { context } = resolveEsbuild(pluginDir);
+const contexts = [];
+for (const opts of allOpts(pluginDir)) {
+	const name = basename(opts.outfile);
+	opts.plugins = [
+		...(opts.plugins ?? []),
 		{
 			name: "sync-on-build",
 			setup(build) {
 				build.onEnd((result) => {
-					if (result.errors.length === 0) {
-						syncFile(outfile, join(destDir, "index.js"), "index.js");
-						syncFile(manifestPath, join(destDir, "manifest.json"), "manifest.json");
-					}
+					if (result.errors.length > 0) return;
+					syncFile(opts.outfile, join(destDir, name), name);
+					syncFile(manifestPath, join(destDir, "manifest.json"), "manifest.json");
 				});
 			},
 		},
-	],
-};
-if (tsx) {
-	opts.jsx = "automatic";
-	opts.jsxImportSource = "react";
+	];
+	const ctx = await context(opts);
+	await ctx.watch();
+	contexts.push(ctx);
+	console.log(`[dev] watching ${name}`);
 }
-
-const ctx = await context(opts);
-await ctx.watch();
-console.log("[dev] JS watching");
 
 // --- Sidecar binary watch ---
 if (watchSidecar && manifest.sidecar) {
@@ -132,6 +113,6 @@ if (watchSidecar && manifest.sidecar) {
 
 // Keep alive
 process.on("SIGINT", () => {
-	ctx.dispose();
+	for (const ctx of contexts) ctx.dispose();
 	process.exit(0);
 });

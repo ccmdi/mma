@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "build": "node ../build-plugin.mjs .",
-    "dev": "node ../build-plugin.mjs . --watch"
+    "dev": "node ../build-plugin.mjs . --watch",
+    "test": "npm run build && node --test \"test/*.test.mjs\""
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

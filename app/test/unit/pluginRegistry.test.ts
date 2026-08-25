@@ -281,7 +281,7 @@ describe("plugin deactivation tears down enrichment registrations", () => {
 				registerEnrichFields([{ key: fieldKey, label: "WX", defaultOff: true }]);
 				registerEnrichmentProvider({
 					id: provId,
-					enrich: async () => new Map(),
+					procedure: { entry: "res://procedures/test.js", batch: { mode: "perRow" } },
 					fieldDefs: { [fieldKey]: { type: "number" as const, label: "WX" } },
 				});
 			}),

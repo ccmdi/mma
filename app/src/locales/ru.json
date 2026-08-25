@@ -1358,6 +1358,7 @@
 	"Valid location": "Корректная локация",
 	"Validate": "Проверить",
 	"Validate locations": "Проверить локации",
+	"Validating": "Проверка",
 	"Validating...": "Проверка...",
 	"Value": "Значение",
 	"Value at which this field wraps around (e.g. 360 for degrees, 24 for hours, 12 for\n\t\t\t\t\t\tmonths).": "Значение, при котором поле зацикливается (например, 360 для градусов, 24 для часов, 12 для месяцев).",

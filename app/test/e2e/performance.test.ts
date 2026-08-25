@@ -21,6 +21,8 @@ import {
 	collectEnvironment,
 	runBenchmark,
 	writeBenchmarkReport,
+	writeEnrichFixture,
+	writeExactDateFixture,
 	writeFixture,
 	type BenchmarkCase,
 	type BenchmarkReport,
@@ -60,6 +62,11 @@ const ROUTES: Record<string, string> = {
 	"redo-delete": "history",
 	"render-fill": "render",
 	"export-json": "export",
+	// Opt-in: each needs its own fixture and map, so they only run when named in
+	// MMA_BENCH_ROUTES.
+	"enrich-sun": "enrichment",
+	"enrich-exactdate": "enrichment",
+	validate: "enrichment",
 	// Frame-rate scenarios: only meaningful on a real GPU, so opt in with MMA_BENCH_GPU=1.
 	"render-idle": "render",
 	"render-pan-dense": "render",
@@ -68,6 +75,16 @@ const ROUTES: Record<string, string> = {
 };
 
 const GPU_ROUTES = ["render-idle", "render-pan-dense", "render-pan-wide", "render-zoom-sweep"];
+const OPT_IN_ROUTES = ["enrich-sun", "enrich-exactdate", "validate"];
+
+/** The sun-position procedure, at the path Dockerfile.e2e bakes it to
+ *  (`WORKDIR /repo` then `COPY plugins/ ./plugins/`). */
+const SUN_ENTRY = "/repo/plugins/sunPosition/procedure.js";
+/** Sentinel rows whose sun keys are cleared before each engine sample; the run is
+ *  complete once every one of them is written again. */
+const SENTINEL_COUNT = 5;
+const ENRICH_POLL_MS = 250;
+const ENRICH_TIMEOUT_MS = 20 * 60 * 1000;
 
 /** Marker configurations the GPU scenarios sweep; used as the `scale` half of the id. */
 const GPU_MATRIX: { style: "pin" | "circle"; size: number }[] = [
@@ -125,6 +142,7 @@ const GPU_ENABLED = process.env.MMA_BENCH_GPU === "1";
 
 function enabled(route: string): boolean {
 	if (GPU_ROUTES.includes(route) && !GPU_ENABLED) return false;
+	if (OPT_IN_ROUTES.includes(route)) return ROUTE_FILTER?.has(route) ?? false;
 	return ROUTE_FILTER === null || ROUTE_FILTER.has(route);
 }
 
@@ -339,6 +357,15 @@ describe("Performance benchmarks", () => {
 // --- Scale block ---
 
 async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
+	// Own fixture and own map: the enrichment rows carry a datetime and no panoId.
+	if (enabled("enrich-sun")) await runEnrichSun(scale, scaleMaps);
+	if (enabled("enrich-exactdate")) await runEnrichExactDate(scale, scaleMaps);
+	if (enabled("validate")) await runValidate(scale, scaleMaps);
+	if (
+		!Object.keys(ROUTES).some((r) => r !== "app-idle" && !OPT_IN_ROUTES.includes(r) && enabled(r))
+	)
+		return;
+
 	const fixture = await writeFixture(scale);
 
 	// import: fresh map per sample, so each one measures a cold import.
@@ -527,7 +554,11 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 
 	// --- selection ---
 
-	const selectionCase = (route: string, props: Record<string, unknown>, minimumSelected: number) =>
+	const selectionCase = (
+		route: string,
+		selector: Record<string, unknown>,
+		minimumSelected: number,
+	) =>
 		bench(route, scale, {
 			setup: async () => {
 				await ensureOpen(mapId, sceneFloor);
@@ -681,7 +712,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const [loc] = await api.fetchLocations({ kind: "ids", ids: [id] });
+				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (loc?.heading !== 11) throw new Error(`location ${id} was not updated`);
 				return { durationMs: performance.now() - start, operationMs };
 			}, helperA),
@@ -691,7 +722,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: () => unwind(mapId, sceneFloor),
 		run: () =>
 			withApi(async (api) => {
-				const ids = await api.scopeIds({ kind: "all" });
+				const ids = await api.resolveIds({ type: "Everything" });
 				const updates = ids.map((id) => ({ id, patch: { pitch: 0.25 } }));
 				const start = performance.now();
 				await api.updateLocations(updates);
@@ -763,7 +794,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: () => unwind(mapId, sceneFloor),
 		run: () =>
 			withApi(async (api) => {
-				const ids = new Set(await api.scopeIds({ kind: "all" }));
+				const ids = new Set(await api.resolveIds({ type: "Everything" }));
 				const start = performance.now();
 				await api.removeLocations(ids);
 				const operationMs = performance.now() - start;
@@ -840,7 +871,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await ensureOpen(mapId, sceneFloor);
 			await withApi(async (api, id) => {
-				const [loc] = await api.fetchLocations({ kind: "ids", ids: [id] });
+				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (!loc) throw new Error(`autosave helper ${id} is missing`);
 				await api.updateLocations([{ id, patch: { heading: (loc.heading + 1) % 360 } }]);
 				api.cancelAutosave();
@@ -863,7 +894,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				api.cancelAutosave();
 				await api.waitForInflightPersist();
 				if ((await api.cmd.storeGetSummary()).dirtyCount > 0) await api.commitMap("Bench setup");
-				const [loc] = await api.fetchLocations({ kind: "ids", ids: [id] });
+				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (!loc) throw new Error(`commit helper ${id} is missing`);
 				await api.updateLocations([{ id, patch: { pitch: (loc.pitch ?? 0) + 0.25 } }]);
 				api.cancelAutosave();
@@ -896,7 +927,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					exportZoom: true,
 					exportUnpanned: true,
 					exportExtras: true,
-					scope: { kind: "all" },
+					selector: { type: "Everything" },
 					mapName: map.meta.name,
 					tagsJson: JSON.stringify(api.getMapState().tags),
 					extraFieldsJson: map.meta.extra?.fields ? JSON.stringify(map.meta.extra.fields) : null,
@@ -908,6 +939,241 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				return { durationMs, operationMs: durationMs, cleanupPath: path };
 			}),
 	});
+}
+
+// --- Enrichment (opt-in, build-agnostic) ---
+
+/** Sun-position enrichment over the whole map: pure compute, no network. */
+async function runEnrichSun(scale: number, scaleMaps: Set<string>): Promise<void> {
+	const fixture = await writeEnrichFixture(scale);
+	const mapId = await createOpenMap(`Bench enrich ${scale} ${Date.now()}`);
+	scaleMaps.add(mapId);
+
+	const sentinels = await withApi(
+		async (api, path, target, sentinelCount) => {
+			await api.beginImportFromPath(path);
+			const result = await api.confirmImport([], undefined);
+			if (!result || result.importedCount !== target) {
+				throw new Error(
+					`enrich fixture imported ${result?.importedCount ?? 0}, expected ${target}`,
+				);
+			}
+			await api.waitForInflightPersist();
+			const ids = await api.resolveIds({ type: "Everything" });
+			if (ids.length < sentinelCount) throw new Error(`enrich fixture has only ${ids.length} rows`);
+			// Min, max and evenly spaced between: a run is complete once all of them land,
+			// which bounds the tail to the batch the last sentinel sits in.
+			return Array.from(
+				{ length: sentinelCount },
+				(_, i) => ids[Math.round((i * (ids.length - 1)) / (sentinelCount - 1))],
+			);
+		},
+		fixture,
+		scale,
+		SENTINEL_COUNT,
+	);
+	await waitForScene(scale);
+
+	await bench("enrich-sun", scale, {
+		setup: () => ensureOpen(mapId, scale),
+		run: () =>
+			withApi(
+				async (api, ids, entry, pollMs, timeoutMs, rows) => {
+					// The run recomputes unconditionally (the force flag), so every sample does
+					// the same work; the writes after sample 1 are value-identical and no-op-detected.
+					await api.updateLocations(
+						ids.map((id) => ({ id, patch: { extra: { sunAzimuth: null, sunAltitude: null } } })),
+						{ undoable: false },
+					);
+					api.cancelAutosave();
+
+					const start = performance.now();
+					{
+						await api.cmd.procedureRun(
+							[
+								{
+									id: "benchSun",
+									label: null,
+									entry,
+									fields: ["sunAzimuth", "sunAltitude"],
+									requires: [],
+									select: { type: "Everything" },
+									batch: { mode: "chunk", size: 10_000 },
+									rate: null,
+									retry: null,
+									inflight: null,
+									instances: null,
+									config: null,
+								},
+							],
+							true,
+						);
+						const deadline = performance.now() + timeoutMs;
+						for (;;) {
+							const seen = await api.fetchLocations({
+								type: "Locations",
+								locations: ids,
+								name: null,
+							});
+							const written = seen.filter((l) => typeof l.extra?.sunAzimuth === "number").length;
+							if (written === ids.length) break;
+							if (performance.now() >= deadline) {
+								throw new Error(`enrich run wrote ${written}/${ids.length} sentinels`);
+							}
+							await new Promise<void>((resolve) => setTimeout(resolve, pollMs));
+						}
+					}
+					const durationMs = performance.now() - start;
+					api.cancelAutosave();
+					return {
+						durationMs,
+						operationMs: durationMs,
+						metrics: { rows, rowsPerSecond: rows / (durationMs / 1000) },
+					};
+				},
+				sentinels,
+				SUN_ENTRY,
+				ENRICH_POLL_MS,
+				ENRICH_TIMEOUT_MS,
+				scale,
+			),
+	});
+
+	await deleteOwnedMap(mapId);
+	scaleMaps.delete(mapId);
+}
+
+/** Exact-date enrichment over the whole map: the network-bound case, and the one whose
+ *  cost is dominated by how many requests a build keeps in flight rather than by how fast
+ *  it computes. Every row already carries a `panoId` and an `imageDate` and the map has
+ *  only `datetime` selected, so the exact-date search is the only work either build has.
+ *
+ *  Requests are answered
+ *  by the mock at `MMA_E2E_SV_LATENCY_MS`, which both mock surfaces honour -- with no
+ *  latency the measurement is the stub's own throughput, not the provider's width. */
+/** Validation over every row. The point of this route is memory, not speed: validate is
+ *  the one Run-shape provider with `sink: collect`, so it reads every row and writes no
+ *  patches at all. Whatever working set it holds is the engine's own, with none of the
+ *  mutation bookkeeping a patching provider adds. */
+async function runValidate(scale: number, scaleMaps: Set<string>): Promise<void> {
+	const fixture = await writeExactDateFixture(scale);
+	const mapId = await createOpenMap(`Bench validate ${scale} ${Date.now()}`);
+	scaleMaps.add(mapId);
+
+	await withApi(
+		async (api, path, target) => {
+			await api.beginImportFromPath(path);
+			const result = await api.confirmImport([], undefined);
+			if (!result || result.importedCount !== target) {
+				throw new Error(
+					`validate fixture imported ${result?.importedCount ?? 0}, expected ${target}`,
+				);
+			}
+			await api.waitForInflightPersist();
+		},
+		fixture,
+		scale,
+	);
+	await waitForScene(scale);
+
+	await bench("validate", scale, {
+		setup: () => ensureOpen(mapId, scale),
+		run: () =>
+			withApi(async (api, rows) => {
+				const all = { type: "Everything" } as never;
+				const start = performance.now();
+				const states = await api.validateLocations(all, {});
+				const durationMs = performance.now() - start;
+				const checked = [...states.values()].reduce((n, ids) => n + ids.length, 0);
+				if (checked === 0) throw new Error("validate answered for no rows");
+				return {
+					durationMs,
+					operationMs: durationMs,
+					metrics: { rows, rowsPerSecond: rows / (durationMs / 1000), checked },
+				};
+			}, scale),
+	});
+
+	await deleteOwnedMap(mapId);
+	scaleMaps.delete(mapId);
+}
+
+async function runEnrichExactDate(scale: number, scaleMaps: Set<string>): Promise<void> {
+	const fixture = await writeExactDateFixture(scale);
+	const mapId = await createOpenMap(`Bench exactdate ${scale} ${Date.now()}`);
+	scaleMaps.add(mapId);
+
+	const sentinels = await withApi(
+		async (api, path, target, sentinelCount) => {
+			await api.beginImportFromPath(path);
+			const result = await api.confirmImport([], undefined);
+			if (!result || result.importedCount !== target) {
+				throw new Error(
+					`exact-date fixture imported ${result?.importedCount ?? 0}, expected ${target}`,
+				);
+			}
+			const map = api.getMapState().map;
+			if (!map) throw new Error("no map open for the exact-date fixture");
+			await api.updateMapMeta({
+				settings: { ...map.meta.settings, enrichMetadata: true, enrichFields: ["datetime"] },
+			});
+			await api.waitForInflightPersist();
+			const rows = await api.fetchLocations({ type: "Everything" } as never);
+			const ids = rows.map((l) => l.id);
+			if (ids.length < sentinelCount) throw new Error(`exact-date fixture has ${ids.length} rows`);
+			return Array.from(
+				{ length: sentinelCount },
+				(_, i) => ids[Math.round((i * (ids.length - 1)) / (sentinelCount - 1))],
+			);
+		},
+		fixture,
+		scale,
+		SENTINEL_COUNT,
+	);
+	await waitForScene(scale);
+
+	await bench("enrich-exactdate", scale, {
+		setup: () => ensureOpen(mapId, scale),
+		run: () =>
+			withApi(
+				async (api, ids, rows) => {
+					const everything = { type: "Everything" } as never;
+
+					// Untimed: clear what the last sample wrote, so every sample searches.
+					const before = await api.fetchLocations(everything);
+					await api.updateLocations(
+						before.map((l) => ({ id: l.id, patch: { extra: { datetime: null } } })),
+						{ undoable: false },
+					);
+					api.cancelAutosave();
+
+					const start = performance.now();
+					await api.enrichAll(everything, { force: false });
+					const durationMs = performance.now() - start;
+
+					const seen = await api.fetchLocations({
+						type: "Locations",
+						locations: ids,
+						name: null,
+					} as never);
+					const written = seen.filter((l) => typeof l.extra?.datetime === "number").length;
+					if (written !== ids.length) {
+						throw new Error(`exact-date run wrote ${written}/${ids.length} sentinels`);
+					}
+					api.cancelAutosave();
+					return {
+						durationMs,
+						operationMs: durationMs,
+						metrics: { rows, rowsPerSecond: rows / (durationMs / 1000) },
+					};
+				},
+				sentinels,
+				scale,
+			),
+	});
+
+	await deleteOwnedMap(mapId);
+	scaleMaps.delete(mapId);
 }
 
 // --- GPU frame-rate scenarios (opt-in, local GPU only) ---

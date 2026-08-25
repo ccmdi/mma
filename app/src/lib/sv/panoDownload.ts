@@ -1,8 +1,11 @@
 import type { Location } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { resolvePanoIds, svThumbnailUrl } from "@/lib/sv/lookup";
-import { fetchSvMetadata, fetchSvMetadataBatched } from "@/lib/sv/svMeta";
-import type { PanoData } from "@/lib/sv/svRunner";
+import { svThumbnailUrl } from "@/lib/sv/lookup";
+import { svMetadata } from "@/lib/sv/query";
+import type { Pano } from "@/types";
+import { centerHeading } from "@/lib/sv/getMetadata";
+import { panoResolveSpec } from "@/lib/sv/enrich";
+import { runProcedure } from "@/lib/data/procedures";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { fileTimestamp } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
@@ -24,7 +27,7 @@ const SV_TILE = 512;
  *  to the full grid when metadata is unavailable. */
 export function panoTileLayout(
 	zoom: number,
-	worldSize?: google.maps.Size,
+	worldSize?: { width: number; height: number },
 ): { zoom: number; cols: number; rows: number; width: number; height: number; tile: number } {
 	let z = zoom;
 	let width: number;
@@ -76,11 +79,11 @@ async function fetchPanoTile(
 /** Stitch a panorama's tiles onto a canvas at the given zoom. Null if no tiles loaded. */
 export async function stitchPano(
 	panoId: string,
-	meta: PanoData | null | undefined,
+	meta: Pano | null | undefined,
 	zoom: number,
 	signal?: AbortSignal,
 ): Promise<HTMLCanvasElement | null> {
-	const { zoom: z, cols, rows, width, height, tile } = panoTileLayout(zoom, meta?.tiles?.worldSize);
+	const { zoom: z, cols, rows, width, height, tile } = panoTileLayout(zoom, meta?.worldSize);
 
 	const canvas = document.createElement("canvas");
 	canvas.width = width;
@@ -111,7 +114,7 @@ export async function stitchPano(
 /** Download the full panorama as a single stitched JPEG at max quality. Toasts on success/failure. */
 export async function downloadPano(panoId: string, zoom = 5): Promise<void> {
 	try {
-		const [meta] = await fetchSvMetadata([panoId]);
+		const [meta] = await svMetadata([panoId]);
 		const canvas = await stitchPano(panoId, meta, zoom);
 		if (!canvas) throw new Error("no tiles loaded");
 
@@ -141,7 +144,6 @@ export interface BulkDownloadResult {
 	fileCount: number;
 }
 
-const META_BATCH = 200;
 const DOWNLOAD_CONCURRENCY = 4;
 
 // --- Equirectangular -> perspective reprojection ---
@@ -265,7 +267,7 @@ async function fetchImage(url: string, signal?: AbortSignal): Promise<Blob | nul
 async function renderLocationImage(
 	loc: Location,
 	panoId: string,
-	meta: PanoData | null,
+	meta: Pano | null,
 	config: PanoDownloadConfig,
 	signal?: AbortSignal,
 ): Promise<RenderedImage | null> {
@@ -292,11 +294,10 @@ async function renderLocationImage(
 	if (!canvas) return null;
 
 	if (config.mode === "perspective") {
-		const centerHeading = meta?.extra?.drivingDirection ?? 0;
 		const perspective = generatePerspective(
 			canvas,
 			125,
-			loc.heading - centerHeading,
+			loc.heading - (meta ? centerHeading(meta) : 0),
 			loc.pitch,
 			1920,
 			1080,
@@ -314,10 +315,10 @@ async function renderLocationImage(
 async function fetchMetadataMap(
 	panoIds: string[],
 	signal?: AbortSignal,
-): Promise<Map<string, PanoData>> {
+): Promise<Map<string, Pano>> {
 	const unique = [...new Set(panoIds)];
-	const datas = await fetchSvMetadataBatched(unique, { batchSize: META_BATCH, signal });
-	const out = new Map<string, PanoData>();
+	const datas = await svMetadata(unique, signal);
+	const out = new Map<string, Pano>();
 	datas.forEach((d, i) => {
 		if (d) out.set(unique[i], d);
 	});
@@ -342,12 +343,23 @@ export async function bulkDownloadPanoramas(
 	const resolvedMap = new Map<number, string>();
 	if (needResolve.length > 0) {
 		onProgress?.(0, needResolve.length, t("Resolving pano IDs"));
-		const res = await resolvePanoIds(needResolve, {
-			signal,
-			onProgress: (d, total) => onProgress?.(d, total, t("Resolving pano IDs")),
-		});
-		for (const r of res.resolved) resolvedMap.set(r.id, r.panoId);
-		failed.push(...res.failed);
+		// The same procedure enrichment runs, borrowed for its answers: a download must
+		// not move the panorama the user's location points at.
+		const run = await runProcedure(
+			panoResolveSpec,
+			{ type: "Locations", locations: needResolve.map((l) => l.id), name: null },
+			{
+				id: "panoResolve",
+				sink: "collect",
+				signal,
+				onProgress: (d, total) => onProgress?.(d, total, t("Resolving pano IDs")),
+			},
+		);
+		for (const { id, value } of run.collected ?? []) {
+			const panoId = value?.panoId;
+			if (typeof panoId === "string" && panoId) resolvedMap.set(id, panoId);
+		}
+		failed.push(...needResolve.filter((l) => !resolvedMap.has(l.id)).map((l) => l.id));
 	}
 
 	const pending = locations.flatMap((loc) => {
@@ -359,7 +371,7 @@ export async function bulkDownloadPanoramas(
 	}
 
 	// Metadata drives tile layout and center heading; thumbnail/tile modes need neither.
-	let metaMap = new Map<string, PanoData>();
+	let metaMap = new Map<string, Pano>();
 	if (config.mode === "equirectangular" || config.mode === "perspective") {
 		onProgress?.(0, pending.length, t("Fetching metadata"));
 		metaMap = await fetchMetadataMap(

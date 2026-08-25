@@ -1,7 +1,10 @@
 import { range } from "@/types/util";
 
 export const SV_SEARCH_RADIUS = 50;
-export const SV_CONCURRENCY = 128;
+/** GetMetadata requests a procedure may keep in flight, at up to 200 panos each. */
+export const GET_METADATA_INFLIGHT = 48;
+/** SingleImageSearch location lookups a procedure may keep in flight, one pano each. */
+export const LOCATION_SEARCH_INFLIGHT = 128;
 export const SV_JUMP_RADIUS = 100;
 
 export const PANO_ZOOM = range([-3, 4]);
