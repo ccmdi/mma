@@ -32,6 +32,7 @@ import { ToastContainer } from "@/components/primitives/Toast";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
 import { useUpdateState, dismissUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
 import { APP_NAME } from "@/lib/util/format";
+import { appVersion } from "@/lib/version";
 import { useDiscordPresence } from "@/lib/discord/presence";
 import { initRemoteHost } from "@/lib/remote/host";
 import { cmd } from "@/lib/commands";
@@ -291,8 +292,6 @@ function useCustomCss() {
 	}, [customCss]);
 }
 
-declare const __APP_VERSION__: string;
-
 function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => void }) {
 	return (
 		<Dialog
@@ -306,7 +305,7 @@ function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => vo
 					<img src="/icon-1024.png" alt="" width={80} height={80} draggable={false} />
 					<div className="welcome-dialog__name">{APP_NAME}</div>
 					<div className="welcome-dialog__version">
-						v{typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev"}
+						v{appVersion() ?? "dev"}
 					</div>
 				</div>
 				<div className="welcome-dialog__links">

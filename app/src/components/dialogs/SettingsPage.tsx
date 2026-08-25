@@ -30,6 +30,7 @@ import { Tooltip } from "@/components/primitives/Tooltip";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import type { DeviceCodeInfo, GhUser } from "@/bindings.gen";
 import { collectDiagnostics } from "@/lib/diagnostics";
+import { appVersion } from "@/lib/version";
 import { refreshStoredReports } from "@/lib/feedback/submit";
 import { markRepliesSeen, reportStatus, unreadReplyCount, useReports } from "@/store/feedback";
 import { openDialog as openAppDialog } from "@/store/dialogBus";
@@ -950,8 +951,6 @@ function MapListBlock() {
 	);
 }
 
-declare const __APP_VERSION__: string;
-
 const UPDATE_STATUS: Record<string, string> = {
 	idle: msg("Updates haven't been checked yet."),
 	checking: msg("Checking for updates..."),
@@ -962,7 +961,7 @@ const UPDATE_STATUS: Record<string, string> = {
 
 function UpdateBlock() {
 	const update = useUpdateState();
-	const version = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev";
+	const version = appVersion() ?? "dev";
 	const checking = update.phase === "checking";
 	const badgeMod = update.phase === "up-to-date" ? " settings-updates__version--latest" : "";
 	const status =

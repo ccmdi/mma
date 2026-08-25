@@ -14,6 +14,7 @@ import {
 import { openMapWindow } from "@/lib/window";
 import { log, fireAndForget } from "@/lib/util/log";
 import { cmpVersion } from "@/lib/util/util";
+import { appVersion } from "@/lib/version";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openDialog as openAppDialog } from "@/store/dialogBus";
 import { cmd } from "@/lib/commands";
@@ -74,8 +75,6 @@ function parseChangelog(md: string): ChangelogSection[] {
 	if (cur) sections.push(cur);
 	return sections;
 }
-
-declare const __APP_VERSION__: string;
 
 // Inline markdown: **bold**, *italic*, `code`, [text](url).
 function renderInline(text: string, kb: string): React.ReactNode[] {
@@ -240,7 +239,7 @@ function WhatsNew() {
 	if (failed) return null;
 
 	const displayTag = activeTag ?? versions?.[0]?.tag ?? null;
-	const installed = typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : null;
+	const installed = appVersion();
 	const isUnreleased = (tag: string) =>
 		installed ? cmpVersion(tag.replace(/^v/, ""), installed) > 0 : false;
 

@@ -21,9 +21,8 @@ import {
 import { events, type PluginManifest } from "@/bindings.gen";
 import { loadAndActivatePlugin, loadUserPlugin } from "@/plugins/index";
 import { cmd } from "@/lib/commands";
+import { appVersion } from "@/lib/version";
 import { log } from "@/lib/util/log";
-
-declare const __APP_VERSION__: string;
 
 // Download a plugin's sidecar (if declared), reporting progress via onProgress. Shared by
 // install + update so both paths fetch the binary the same way.
@@ -320,7 +319,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 					latestVersion: r.version,
 					comingSoon: r.comingSoon,
 					experimental: r.experimental ?? manifest?.experimental,
-					requiresApp: isPluginCompatible(r.minAppVersion, __APP_VERSION__)
+					requiresApp: isPluginCompatible(r.minAppVersion, appVersion() ?? "0")
 						? undefined
 						: r.minAppVersion,
 				};

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, type DialogProps } from "@/components/primitives
 import { Button } from "@/components/primitives/Button";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
-import { countryName, fmt } from "@/lib/util/format";
+import { countryName, fmt, formatBytes } from "@/lib/util/format";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
 
@@ -72,11 +72,6 @@ export function downloadProgress(
 		default:
 			return prev;
 	}
-}
-
-function fmtBytes(bytes: number): string {
-	const mb = bytes / (1024 * 1024);
-	return mb >= 1024 ? `${(mb / 1024).toFixed(2)} GB` : `${mb.toFixed(1)} MB`;
 }
 
 /** Names every out-of-date country. Empty string for "nothing stale" so callers can render
@@ -252,7 +247,7 @@ export function ValiDownloadDialog({
 							</span>
 							<span className="mono">
 								{fmt.format(progress.done)} / {fmt.format(progress.files)} (
-								{fmtBytes(progress.bytesDone)} / {fmtBytes(progress.bytes)})
+								{formatBytes(progress.bytesDone)} / {formatBytes(progress.bytes)})
 							</span>
 						</div>
 						<div className="vali-download__bar-track">

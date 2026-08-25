@@ -3,8 +3,8 @@ import { google } from "@/lib/sv/opensv";
 import { getEnabledPlugins } from "@/plugins/registry";
 import { DEFAULTS, PRIVATE_SETTINGS, getSettings, type AppSettings } from "@/store/settings";
 import { getMapState } from "@/store/useMapStore";
-
-declare const __APP_VERSION__: string;
+import { formatBytes } from "@/lib/util/format";
+import { appVersion } from "@/lib/version";
 
 export interface Diagnostics {
 	appVersion: string;
@@ -63,7 +63,7 @@ const MAX_VALUE_CHARS = 400;
 function summarize(value: unknown): unknown {
 	const json = JSON.stringify(value) ?? "null";
 	if (json.length <= MAX_VALUE_CHARS) return value;
-	const size = `${(json.length / 1024).toFixed(1)} KB`;
+	const size = formatBytes(json.length);
 	if (Array.isArray(value)) return `<omitted: ${value.length} items, ${size}>`;
 	if (typeof value === "string") return `<omitted: ${value.length} chars, ${size}>`;
 	if (value && typeof value === "object") {
@@ -135,7 +135,7 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
 		performance as unknown as { memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number } }
 	).memory;
 	return {
-		appVersion: typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "dev",
+		appVersion: appVersion() ?? "dev",
 		buildMode: import.meta.env.MODE,
 		userAgent: navigator.userAgent,
 		webglRenderer: webglRenderer(),

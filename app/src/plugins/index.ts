@@ -11,11 +11,10 @@ import {
 	autoUpdatePlugin,
 	fetchPluginRegistry,
 } from "./registry";
+import { appVersion } from "@/lib/version";
 import type { PluginManifest } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
-
-declare const __APP_VERSION__: string;
 
 // Re-export the API type for plugin consumers
 export type { MMA as MMAApi } from "@/api";
@@ -61,7 +60,7 @@ async function loadUserPlugins() {
 	}
 	for (const m of manifests) {
 		try {
-			await loadUserPlugin(await autoUpdatePlugin(m, latest.get(m.id), __APP_VERSION__));
+			await loadUserPlugin(await autoUpdatePlugin(m, latest.get(m.id), appVersion() ?? "0"));
 		} catch (e) {
 			log.error(`[plugin] failed to load user plugin "${m.id}":`, e);
 		}
