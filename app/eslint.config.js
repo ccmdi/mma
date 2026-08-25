@@ -9,6 +9,7 @@ import noIpcInLoop from "./eslint-rules/no-ipc-in-loop.js";
 import noRedundantMutateGuard from "./eslint-rules/no-redundant-mutate-guard.js";
 import noSelectionAlias from "./eslint-rules/no-selection-alias.js";
 import noUnsupportedBuiltins from "./eslint-rules/no-unsupported-builtins.js";
+import noPrimitiveClass from "./eslint-rules/no-primitive-class.js";
 
 const RESTRICTED_IMPORT_PATHS = [
 	{
@@ -73,6 +74,7 @@ export default defineConfig([
 					"no-redundant-mutate-guard": noRedundantMutateGuard,
 					"no-selection-alias": noSelectionAlias,
 					"no-unsupported-builtins": noUnsupportedBuiltins,
+					"no-primitive-class": noPrimitiveClass,
 				},
 			},
 		},
@@ -93,6 +95,7 @@ export default defineConfig([
 			"local/no-ipc-in-loop": "warn",
 			"local/no-redundant-mutate-guard": "warn",
 			"local/no-selection-alias": "warn",
+			"local/no-primitive-class": "error",
 			"no-restricted-imports": [
 				"error",
 				{

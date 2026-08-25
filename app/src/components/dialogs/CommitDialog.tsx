@@ -5,6 +5,7 @@ import { commitMap } from "@/store/useMapStore";
 import { useCommitDiff } from "@/store/commitDiff";
 import { t } from "@/lib/i18n";
 import { fmt } from "@/lib/util/format";
+import { TextInput } from "@/components/primitives/TextInput";
 
 export function CommitDialog({ onClose }: { onClose: () => void }) {
 	const diff = useCommitDiff();
@@ -21,10 +22,10 @@ export function CommitDialog({ onClose }: { onClose: () => void }) {
 					<span className="map-meta__count--removed">-{fmt.format(diff.removed)}</span>{" "}
 					<span className="map-meta__count--updated">&plusmn;{fmt.format(diff.modified)}</span>
 				</span>
-				<input
+				<TextInput
 					type="text"
 					autoFocus
-					className="text-input commit-dialog__message"
+					className="commit-dialog__message"
 					placeholder={t("Commit message (optional)")}
 					value={message}
 					onChange={(e) => setMessage(e.target.value)}
