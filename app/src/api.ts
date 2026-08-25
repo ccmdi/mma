@@ -16,6 +16,7 @@ import { events } from "@/bindings.gen";
 import { cmd as commands, type Cmd } from "@/lib/commands";
 import { createLocation } from "@/types";
 import { registerPlugin, createPluginStorage, usePluginState } from "@/plugins/registry";
+import { useJob } from "@/lib/hooks/useJob";
 import { trackDisposable } from "@/plugins/scope";
 import * as ui from "@/components/primitives";
 import { toast } from "@/lib/util/toast";
@@ -179,6 +180,7 @@ const surface = {
 	// --- Namespaced per-plugin storage ---
 	storage: createPluginStorage,
 	usePluginState,
+	useJob,
 
 	// --- Field definitions ---
 	getFieldDef,
