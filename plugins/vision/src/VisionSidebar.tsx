@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Location } from "mma-plugin-types";
 import { embed, searchText } from "./sidecar";
 
-const { Sidebar, Field } = MMA.ui;
+const { Sidebar, Field, TextInput } = MMA.ui;
 
 const CSS = `
 .vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -62,8 +62,7 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 			<style>{CSS}</style>
 			<div className="vision-sidebar__body">
 				<Field label="Search for">
-					<input
-						className="input"
+					<TextInput
 						placeholder="cars, snow, indoor..."
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}

@@ -105,7 +105,7 @@ async function searchImage(panoId, k, threshold, signal) {
 
 // vision/src/VisionSidebar.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime());
-var { Sidebar, Field } = MMA.ui;
+var { Sidebar, Field, TextInput } = MMA.ui;
 var CSS = `
 .vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
 .vision-sidebar__progress { font-size: 12px; color: var(--text-secondary, #999); padding: 4px 0; }
@@ -153,9 +153,8 @@ function VisionSidebar({ onClose }) {
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: CSS }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-sidebar__body", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Search for", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "input",
+        TextInput,
         {
-          className: "input",
           placeholder: "cars, snow, indoor...",
           value: query,
           onChange: (e) => setQuery(e.target.value),

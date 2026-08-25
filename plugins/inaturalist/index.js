@@ -639,7 +639,7 @@ function removeCSS() {
     styleEl = null;
   }
 }
-var { Sidebar, Section: Section2 } = MMA.ui;
+var { Sidebar, Section: Section2, TextInput } = MMA.ui;
 function INatSidebar({ onClose }) {
   const [query, setQuery] = (0, import_react2.useState)("");
   const [results, setResults] = (0, import_react2.useState)([]);
@@ -682,9 +682,8 @@ function INatSidebar({ onClose }) {
     /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Section2, { title: "Observations", children: [
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "inat-sidebar__search", children: [
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-          "input",
+          TextInput,
           {
-            className: "input",
             placeholder: "Search species...",
             value: query,
             onChange: (e) => setQuery(e.target.value),

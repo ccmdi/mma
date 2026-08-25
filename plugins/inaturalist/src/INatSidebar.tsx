@@ -63,7 +63,7 @@ function removeCSS() {
 	}
 }
 
-const { Sidebar, Section } = MMA.ui;
+const { Sidebar, Section, TextInput } = MMA.ui;
 
 export function INatSidebar({ onClose }: { onClose: () => void }) {
 	const [query, setQuery] = useState("");
@@ -114,8 +114,7 @@ export function INatSidebar({ onClose }: { onClose: () => void }) {
 		<Sidebar title="iNaturalist" onBack={onClose}>
 			<Section title="Observations">
 				<div className="inat-sidebar__search">
-					<input
-						className="input"
+					<TextInput
 						placeholder="Search species..."
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}

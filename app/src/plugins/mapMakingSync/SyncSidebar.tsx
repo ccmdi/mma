@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Field } from "@/components/primitives/Sidebar";
+import { TextInput } from "@/components/primitives/TextInput";
 import { mapMakingApp } from "@/components/primitives/Icon";
 import { ConnectionUser, SyncSidebar as SharedSyncSidebar } from "@/lib/sync/ui/SyncSidebar";
 import type { Remote } from "./map-making-web-api";
@@ -75,8 +76,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 				style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
 			/>
 			<Field label={t("API key")} hint={t("Get one at map-making.app/keys")}>
-				<input
-					className="input"
+				<TextInput
 					type="password"
 					autoComplete="current-password"
 					value={keyDraft}
