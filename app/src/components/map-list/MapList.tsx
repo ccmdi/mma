@@ -50,6 +50,7 @@ import { t, msg } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { TextInput } from "@/components/primitives/TextInput";
+import { Button } from "@/components/primitives/Button";
 
 // --- What's new (latest release notes) ---
 
@@ -343,9 +344,9 @@ function RenameForm({
 				/>
 			</p>
 			<div className="edit-map-modal__actions">
-				<button type="submit" className="button button--primary">
+				<Button type="submit" variant="primary">
 					{t("Save")}
-				</button>
+				</Button>
 			</div>
 		</form>
 	);
@@ -431,9 +432,9 @@ function MapEditForm({ id, name, labels }: { id: string; name: string; labels: s
 				</div>
 			</div>
 			<div className="edit-map-modal__actions">
-				<button type="submit" className="button button--primary">
+				<Button type="submit" variant="primary">
 					{t("Save")}
-				</button>
+				</Button>
 			</div>
 		</form>
 	);
@@ -732,15 +733,15 @@ function ImportPreviewModal({
 		>
 			<DialogContent title={t("Import Maps")} className="import-preview-modal">
 				<div className="import-preview__actions">
-					<button className="button" onClick={selectAll}>
+					<Button onClick={selectAll}>
 						{t("All")}
-					</button>
-					<button className="button" onClick={selectNone}>
+					</Button>
+					<Button onClick={selectNone}>
 						{t("None")}
-					</button>
-					<button className="button" onClick={selectNew}>
+					</Button>
+					<Button onClick={selectNew}>
 						{t("New only")}
-					</button>
+					</Button>
 					<span className="import-preview__summary">
 						{t("{selected} of {total} selected ({locations} locations)", {
 							selected: selectedCount,
@@ -787,11 +788,11 @@ function ImportPreviewModal({
 				)}
 
 				<div className="import-preview__footer">
-					<button className="button" onClick={onClose}>
+					<Button onClick={onClose}>
 						{t("Cancel")}
-					</button>
-					<button
-						className="button button--primary"
+					</Button>
+					<Button
+						variant="primary"
 						disabled={selectedCount === 0}
 						onClick={() => {
 							const indices = entries.map((e, i) => (e.selected ? i : -1)).filter((i) => i >= 0);
@@ -799,7 +800,7 @@ function ImportPreviewModal({
 						}}
 					>
 						{t({ one: "Import {n} map", other: "Import {n} maps" }, { n: selectedCount })}
-					</button>
+					</Button>
 				</div>
 			</DialogContent>
 		</Dialog>
@@ -1378,18 +1379,18 @@ export function MapList() {
 							<>
 								<p>{t('Delete "{name}"?', { name: activeAction.name || t("(unnamed)") })}</p>
 								<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-									<button className="button" onClick={() => setActiveAction(null)}>
+									<Button onClick={() => setActiveAction(null)}>
 										{t("Cancel")}
-									</button>
-									<button
-										className="button button--destructive"
+									</Button>
+									<Button
+										variant="destructive"
 										onClick={() => {
 											deleteMap(activeAction.id);
 											setActiveAction(null);
 										}}
 									>
 										{t("Delete")}
-									</button>
+									</Button>
 								</div>
 							</>
 						)}
@@ -1414,11 +1415,11 @@ export function MapList() {
 									)}
 								</p>
 								<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-									<button className="button" onClick={() => setActiveAction(null)}>
+									<Button onClick={() => setActiveAction(null)}>
 										{t("Cancel")}
-									</button>
-									<button
-										className="button button--destructive"
+									</Button>
+									<Button
+										variant="destructive"
 										onClick={async () => {
 											const name = activeAction.name;
 											setActiveAction(null);
@@ -1427,7 +1428,7 @@ export function MapList() {
 										}}
 									>
 										{t("Delete folder")}
-									</button>
+									</Button>
 								</div>
 							</>
 						)}

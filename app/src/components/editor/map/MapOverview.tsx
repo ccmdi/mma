@@ -276,9 +276,9 @@ function BulkTagForm() {
 	return (
 		<form className="selection-manager__bulk-tag" onSubmit={handleBulkAddTag}>
 			<span className="tag-input">
-				<button type="submit" className="button tag-input__button" disabled={!hasSelection}>
+				<Button type="submit" className="tag-input__button" disabled={!hasSelection}>
 					+
-				</button>
+				</Button>
 				<SuggestInput
 					containerClassName="tag-input__suggest"
 					inputClassName="tag-input__value"

@@ -22,6 +22,7 @@ import { MONTHS, ymParse } from "@/lib/util/date";
 import "./generator.css";
 import { t } from "@/lib/i18n";
 import { TextInput } from "@/components/primitives/TextInput";
+import { Button } from "@/components/primitives/Button";
 
 const genStore = createPluginStorage("map-generator");
 
@@ -357,21 +358,21 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 				)}
 				<div className="generator-sidebar__actions">
 					{!running ? (
-						<button
-							className="button button--primary"
+						<Button
+							variant="primary"
 							onClick={handleStart}
 							disabled={polygonSelections.length === 0}
 						>
 							{t("Start")}
-						</button>
+						</Button>
 					) : (
 						<>
-							<button className="button" onClick={handlePause}>
+							<Button onClick={handlePause}>
 								{paused ? t("Resume") : t("Pause")}
-							</button>
-							<button className="button" onClick={handleStop}>
+							</Button>
+							<Button onClick={handleStop}>
 								{t("Stop")}
-							</button>
+							</Button>
 						</>
 					)}
 				</div>

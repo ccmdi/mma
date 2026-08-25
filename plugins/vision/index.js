@@ -105,7 +105,7 @@ async function searchImage(panoId, k, threshold, signal) {
 
 // vision/src/VisionSidebar.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime());
-var { Sidebar, Field, TextInput } = MMA.ui;
+var { Sidebar, Field, TextInput, Button } = MMA.ui;
 var CSS = `
 .vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
 .vision-sidebar__progress { font-size: 12px; color: var(--text-secondary, #999); padding: 4px 0; }
@@ -176,14 +176,14 @@ function VisionSidebar({ onClose }) {
         }
       ) }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__actions", children: !job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "button",
+        Button,
         {
-          className: "button button--primary",
+          variant: "primary",
           disabled: !query.trim(),
           onClick: job.run,
           children: "Search"
         }
-      ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "button", onClick: job.cancel, children: "Cancel" }) }),
+      ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: job.cancel, children: "Cancel" }) }),
       job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__progress", children: job.progress }),
       job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__error", children: job.error }),
       job.result !== null && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-sidebar__results", children: [
@@ -196,6 +196,7 @@ function VisionSidebar({ onClose }) {
 
 // vision/src/FindSimilarButton.tsx
 var import_jsx_runtime2 = __toESM(require_jsx_runtime());
+var { Button: Button2 } = MMA.ui;
 var SIMILARITY_THRESHOLD = 0.85;
 var statusStyle = { fontSize: 12, color: "var(--text-secondary, #999)", padding: "4px 0" };
 function FindSimilarButton() {
@@ -224,9 +225,9 @@ function FindSimilarButton() {
   if (!panoId) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      "button",
+      Button2,
       {
-        className: "button button--small",
+        small: true,
         style: { width: "100%" },
         onClick: job.running ? job.cancel : job.run,
         children: job.running ? "Cancel" : "Find similar panos"

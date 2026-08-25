@@ -1,5 +1,7 @@
 import { embed, searchImage } from "./sidecar";
 
+const { Button } = MMA.ui;
+
 const SIMILARITY_THRESHOLD = 0.85;
 
 const statusStyle = { fontSize: 12, color: "var(--text-secondary, #999)", padding: "4px 0" };
@@ -38,13 +40,13 @@ export function FindSimilarButton() {
 
 	return (
 		<>
-			<button
-				className="button button--small"
+			<Button
+				small
 				style={{ width: "100%" }}
 				onClick={job.running ? job.cancel : job.run}
 			>
 				{job.running ? "Cancel" : "Find similar panos"}
-			</button>
+			</Button>
 			{job.progress && <div style={statusStyle}>{job.progress}</div>}
 			{job.error && <div style={{ ...statusStyle, color: "#e55" }}>{job.error}</div>}
 			{job.result !== null && !job.running && (

@@ -8,6 +8,7 @@ import { Icon } from "@/components/primitives/Icon";
 import { useSetting, setSetting } from "@/store/settings";
 import { displayTagName } from "@/store/selections";
 import { t } from "@/lib/i18n";
+import { Button } from "@/components/primitives/Button";
 
 export function FullscreenTagBar({
 	pendingTags,
@@ -78,9 +79,9 @@ export function FullscreenTagBar({
 						))}
 					</ul>
 					<form className="form-add-tag" onSubmit={handleAdd}>
-						<button className="button form-add-tag__button" type="submit">
+						<Button className="form-add-tag__button" type="submit">
 							+
-						</button>
+						</Button>
 						<input
 							className="form-add-tag__input fullscreen-tagbar__input"
 							type="text"

@@ -509,7 +509,7 @@ function Label({ children, info }) {
     )
   ] });
 }
-var { Section, Field, SegmentedControl } = MMA.ui;
+var { Section, Field, SegmentedControl, Button } = MMA.ui;
 function TaxonomySorter() {
   const storage = MMA.storage("inaturalist");
   const [lang, setLang] = (0, import_react.useState)(() => storage.get("taxo_lang", "en"));
@@ -560,11 +560,10 @@ function TaxonomySorter() {
       }
     ) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 6, marginTop: 4 }, children: [
-      job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "button button--danger", onClick: job.cancel, style: { flex: 1 }, children: "Cancel" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "button button--primary", onClick: job.run, style: { flex: 1 }, children: "Sort Tags" }),
+      job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "destructive", onClick: job.cancel, style: { flex: 1 }, children: "Cancel" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", onClick: job.run, style: { flex: 1 }, children: "Sort Tags" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "button",
+        Button,
         {
-          className: "button",
           onClick: handleClearCache,
           disabled: job.running,
           title: "Clear cached API results",
@@ -639,7 +638,7 @@ function removeCSS() {
     styleEl = null;
   }
 }
-var { Sidebar, Section: Section2, TextInput } = MMA.ui;
+var { Sidebar, Section: Section2, TextInput, Button: Button2 } = MMA.ui;
 function INatSidebar({ onClose }) {
   const [query, setQuery] = (0, import_react2.useState)("");
   const [results, setResults] = (0, import_react2.useState)([]);
@@ -694,7 +693,7 @@ function INatSidebar({ onClose }) {
             style: { flex: 1 }
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "button", onClick: doSearch, disabled: searching || !query.trim(), children: searching ? "..." : "Search" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button2, { onClick: doSearch, disabled: searching || !query.trim(), children: searching ? "..." : "Search" })
       ] }),
       results.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "inat-sidebar__results", children: results.map((t) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "inat-sidebar__taxon", onClick: () => handleSelect(t), children: [
         t.photoUrl && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("img", { className: "inat-sidebar__taxon-photo", src: t.photoUrl }),
@@ -717,12 +716,12 @@ function INatSidebar({ onClose }) {
         ] })
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className: "inat-sidebar__actions", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "button", onClick: toggleVisibility, disabled: !taxon, children: vis ? "Hide" : "Show" }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("button", { className: "button button--primary", onClick: handleImport, disabled: count === 0, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button2, { onClick: toggleVisibility, disabled: !taxon, children: vis ? "Hide" : "Show" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(Button2, { variant: "primary", onClick: handleImport, disabled: count === 0, children: [
           "Import",
           count > 0 ? ` (${count})` : ""
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("button", { className: "button button--danger", onClick: clearData, disabled: !taxon, children: "Clear" })
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button2, { variant: "destructive", onClick: clearData, disabled: !taxon, children: "Clear" })
       ] }),
       !taxon && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "inat-sidebar__hint", children: "Search for a species to visualize observations on the map." })
     ] }),

@@ -13,6 +13,7 @@ import type { SyncStatus } from "../scheduler";
 import { errText } from "@/lib/util/util";
 import { t, msg } from "@/lib/i18n";
 import { dateTimeFmt } from "@/lib/util/format";
+import { Button } from "@/components/primitives/Button";
 
 type Side = "local" | "remote";
 
@@ -157,12 +158,12 @@ function ConflictItem({
 				</span>
 			))}
 			<div style={{ display: "flex", gap: 8 }}>
-				<button className="button" disabled={busy} onClick={() => onResolve("local")}>
+				<Button disabled={busy} onClick={() => onResolve("local")}>
 					{t("Keep local")}
-				</button>
-				<button className="button" disabled={busy} onClick={() => onResolve("remote")}>
+				</Button>
+				<Button disabled={busy} onClick={() => onResolve("remote")}>
 					{t("Keep remote")}
-				</button>
+				</Button>
 			</div>
 		</div>
 	);
@@ -421,12 +422,12 @@ export function SyncSidebar({
 					</Field>
 					<div style={{ display: "flex", gap: 8 }}>
 						{/* Driven by `busy` alone; the background poll must not drive this label. */}
-						<button className="button button--primary" disabled={busy} onClick={doSync}>
+						<Button variant="primary" disabled={busy} onClick={doSync}>
 							{busy ? t("Syncing...") : t("Sync now")}
-						</button>
-						<button className="button" disabled={busy} onClick={doUnlink}>
+						</Button>
+						<Button disabled={busy} onClick={doUnlink}>
 							{t("Unlink")}
-						</button>
+						</Button>
 					</div>
 					{status === "error" && controller.liveError() && (
 						<p className="mma-input__help" style={{ color: "var(--red-9, #e5484d)" }}>
@@ -459,12 +460,12 @@ export function SyncSidebar({
 					{outcome && outcome.conflicts.length > 0 && (
 						<>
 							<div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-								<button className="button" disabled={busy} onClick={() => resolveAll("local")}>
+								<Button disabled={busy} onClick={() => resolveAll("local")}>
 									{t("Keep local for all")}
-								</button>
-								<button className="button" disabled={busy} onClick={() => resolveAll("remote")}>
+								</Button>
+								<Button disabled={busy} onClick={() => resolveAll("remote")}>
 									{t("Keep remote for all")}
-								</button>
+								</Button>
 							</div>
 							{outcome.conflicts.map((c) => (
 								<ConflictItem
@@ -482,9 +483,9 @@ export function SyncSidebar({
 			{authed && mapId && !link && !pendingLink && (
 				<Section title={t("Link this map")} defaultOpen>
 					{!maps && error ? (
-						<button className="button" onClick={() => setMapsAttempt((n) => n + 1)}>
+						<Button onClick={() => setMapsAttempt((n) => n + 1)}>
 							{t("Retry loading maps")}
-						</button>
+						</Button>
 					) : !maps ? (
 						<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
 							<span className="spinner" aria-label={t("Loading maps")} />
@@ -539,33 +540,31 @@ export function SyncSidebar({
 							},
 						)}
 					</p>
-					<button
-						className="button button--primary"
+					<Button
+						variant="primary"
 						disabled={busy}
 						style={{ display: "block", width: "100%", textAlign: "left" }}
 						onClick={() => performLink(pendingLink, "merge")}
 					>
 						{t("Merge · keep everything on both sides")}
-					</button>
-					<button
-						className="button"
+					</Button>
+					<Button
 						disabled={busy}
 						style={{ display: "block", width: "100%", textAlign: "left" }}
 						onClick={() => performLink(pendingLink, "mirrorFromRemote")}
 					>
 						{t("Use remote · delete local-only pins")}
-					</button>
-					<button
-						className="button"
+					</Button>
+					<Button
 						disabled={busy}
 						style={{ display: "block", width: "100%", textAlign: "left" }}
 						onClick={() => performLink(pendingLink, "mirrorFromLocal")}
 					>
 						{t("Use local · delete remote-only pins")}
-					</button>
-					<button className="button" disabled={busy} onClick={() => setPendingLink(null)}>
+					</Button>
+					<Button disabled={busy} onClick={() => setPendingLink(null)}>
 						{t("Cancel")}
-					</button>
+					</Button>
 				</Section>
 			)}
 

@@ -1,6 +1,7 @@
 import { useIsMeasuring, useMeasureLength, endMeasure } from "@/lib/sv/measure";
 import { formatDistance, computeScore, useScoreMaxError } from "@/lib/geo/scoring";
 import { t } from "@/lib/i18n";
+import { Button } from "./Button";
 
 export function MeasurementBar() {
 	const isMeasuring = useIsMeasuring();
@@ -20,9 +21,9 @@ export function MeasurementBar() {
 					<br />
 					{t("Score:")} {computeScore(length, maxError)}
 				</p>
-				<button className="button measurement-control__end" onClick={endMeasure}>
+				<Button className="measurement-control__end" onClick={endMeasure}>
 					{t("End")}
-				</button>
+				</Button>
 			</div>
 		</div>
 	);

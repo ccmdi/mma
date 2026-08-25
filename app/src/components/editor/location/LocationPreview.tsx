@@ -164,9 +164,9 @@ const TagEditor = memo(function TagEditor({
 				))}
 				<li>
 					<form className="form-add-tag" onSubmit={handleAddTag}>
-						<button className="button form-add-tag__button" type="submit">
+						<Button className="form-add-tag__button" type="submit">
 							+
-						</button>
+						</Button>
 						<input
 							className="form-add-tag__input"
 							type="text"

@@ -40,6 +40,7 @@ import {
 import type { TagSortMode } from "@/types";
 import type { Tag, VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
+import { Button } from "@/components/primitives/Button";
 
 type DropTarget = { path: string; position: "before" | "after" | "into" };
 
@@ -625,18 +626,17 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 								/>
 							)}
 							<small className="tag-tree__count mono">{fmt.format(count)}</small>
-							<button
-								className="button tag-tree__edit"
+							<Button
+								className="tag-tree__edit"
 								onClick={(e) => {
 									e.stopPropagation();
 									if (node.tag) onEditTag(node);
 									else onEditVirtual(node.fullPath);
 								}}
-								type="button"
 								style={{ color: fg }}
 							>
 								<Icon path={mdiPencil} size={14} />
-							</button>
+							</Button>
 						</div>
 					}
 				/>

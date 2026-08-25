@@ -8,6 +8,7 @@ import * as auth from "./controller";
 import { controller } from "./controller";
 import { errText } from "@/lib/util/util";
 import { t } from "@/lib/i18n";
+import { Button } from "@/components/primitives/Button";
 
 /** The shared sync sidebar, with map-making.app's API-key auth plugged into it. */
 export function SyncSidebar({ onClose }: { onClose: () => void }) {
@@ -48,15 +49,14 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 		<ConnectionUser
 			name={user.username}
 			action={
-				<button
-					className="button"
+				<Button
 					onClick={() => {
 						auth.forgetAuth();
 						setUser(null);
 					}}
 				>
 					{t("Change key")}
-				</button>
+				</Button>
 			}
 		/>
 	) : (
@@ -84,9 +84,9 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 					placeholder={t("paste API key")}
 				/>
 			</Field>
-			<button className="button button--primary" type="submit" disabled={busy || !keyDraft}>
+			<Button variant="primary" type="submit" disabled={busy || !keyDraft}>
 				{busy ? t("Validating...") : t("Validate")}
-			</button>
+			</Button>
 			{error && (
 				<p className="mma-input__help" style={{ color: "var(--red-9, #e5484d)" }}>
 					{error}

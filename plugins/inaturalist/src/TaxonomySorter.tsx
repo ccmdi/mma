@@ -33,7 +33,7 @@ function Label({ children, info }: { children: ReactNode; info: string }) {
 	);
 }
 
-const { Section, Field, SegmentedControl } = MMA.ui;
+const { Section, Field, SegmentedControl, Button } = MMA.ui;
 
 export function TaxonomySorter() {
 	const storage = MMA.storage("inaturalist");
@@ -93,22 +93,21 @@ export function TaxonomySorter() {
 
 			<div style={{ display: "flex", gap: 6, marginTop: 4 }}>
 				{job.running ? (
-					<button className="button button--danger" onClick={job.cancel} style={{ flex: 1 }}>
+					<Button variant="destructive" onClick={job.cancel} style={{ flex: 1 }}>
 						Cancel
-					</button>
+					</Button>
 				) : (
-					<button className="button button--primary" onClick={job.run} style={{ flex: 1 }}>
+					<Button variant="primary" onClick={job.run} style={{ flex: 1 }}>
 						Sort Tags
-					</button>
+					</Button>
 				)}
-				<button
-					className="button"
+				<Button
 					onClick={handleClearCache}
 					disabled={job.running}
 					title="Clear cached API results"
 				>
 					Clear Cache
-				</button>
+				</Button>
 			</div>
 
 			{job.progress && (

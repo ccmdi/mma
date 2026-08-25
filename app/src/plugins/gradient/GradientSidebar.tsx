@@ -14,6 +14,7 @@ import { usePluginState } from "@/plugins/registry";
 import { useSetting } from "@/store/settings";
 import "./gradient.css";
 import { t, msg } from "@/lib/i18n";
+import { Button } from "@/components/primitives/Button";
 
 interface GradientPreset {
 	name: string;
@@ -278,13 +279,14 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 					</Field>
 
 					<div className="gradient-sidebar__apply-row">
-						<button
-							className="button button--primary gradient-sidebar__apply"
+						<Button
+							variant="primary"
+							className="gradient-sidebar__apply"
 							onClick={applyGradient}
 							disabled={applying || !fieldKey}
 						>
 							{t("Apply")}
-						</button>
+						</Button>
 						{lastResult != null && (
 							<span className="gradient-sidebar__result">
 								{!lastResult.applied

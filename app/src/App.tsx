@@ -41,6 +41,7 @@ import "@/plugins";
 import { t } from "@/lib/i18n";
 import { ReportDialog } from "@/components/dialogs/ReportDialog";
 import { useDialogState } from "@/store/dialogBus";
+import { Button } from "@/components/primitives/Button";
 
 // Dynamic import (deck.gl/luma.gl out of the initial bundle) WITHOUT React.lazy/Suspense —
 // a Suspense boundary makes React 19 render the editor in a low-priority lane (~260ms/open).
@@ -338,9 +339,9 @@ function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => vo
 						</span>
 					</a>
 				</div>
-				<button className="button button--primary welcome-dialog__cta" onClick={onDismiss}>
+				<Button variant="primary" className="welcome-dialog__cta" onClick={onDismiss}>
 					{t("Got it")}
-				</button>
+				</Button>
 			</DialogContent>
 		</Dialog>
 	);

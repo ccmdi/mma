@@ -63,7 +63,7 @@ function removeCSS() {
 	}
 }
 
-const { Sidebar, Section, TextInput } = MMA.ui;
+const { Sidebar, Section, TextInput, Button } = MMA.ui;
 
 export function INatSidebar({ onClose }: { onClose: () => void }) {
 	const [query, setQuery] = useState("");
@@ -124,9 +124,9 @@ export function INatSidebar({ onClose }: { onClose: () => void }) {
 						}}
 						style={{ flex: 1 }}
 					/>
-					<button className="button" onClick={doSearch} disabled={searching || !query.trim()}>
+					<Button onClick={doSearch} disabled={searching || !query.trim()}>
 						{searching ? "..." : "Search"}
-					</button>
+					</Button>
 				</div>
 
 				{results.length > 0 && (
@@ -154,15 +154,15 @@ export function INatSidebar({ onClose }: { onClose: () => void }) {
 				)}
 
 				<div className="inat-sidebar__actions">
-					<button className="button" onClick={toggleVisibility} disabled={!taxon}>
+					<Button onClick={toggleVisibility} disabled={!taxon}>
 						{vis ? "Hide" : "Show"}
-					</button>
-					<button className="button button--primary" onClick={handleImport} disabled={count === 0}>
+					</Button>
+					<Button variant="primary" onClick={handleImport} disabled={count === 0}>
 						Import{count > 0 ? ` (${count})` : ""}
-					</button>
-					<button className="button button--danger" onClick={clearData} disabled={!taxon}>
+					</Button>
+					<Button variant="destructive" onClick={clearData} disabled={!taxon}>
 						Clear
-					</button>
+					</Button>
 				</div>
 
 				{!taxon && <div className="inat-sidebar__hint">Search for a species to visualize observations on the map.</div>}

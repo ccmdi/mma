@@ -5,6 +5,7 @@ import { log } from "@/lib/util/log";
 import { errText } from "@/lib/util/util";
 import { controller, geoguessrProvider, PLUGIN_ID } from "./provider";
 import { t } from "@/lib/i18n";
+import { Button } from "@/components/primitives/Button";
 
 const CACHED_USER = "user";
 const kv = () => window.MMA.storage(PLUGIN_ID);
@@ -77,16 +78,16 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 					: null
 			}
 			action={
-				<button className="button" onClick={() => void signOut()}>
+				<Button onClick={() => void signOut()}>
 					{t("Sign out")}
-				</button>
+				</Button>
 			}
 		/>
 	) : (
 		<>
-			<button className="button button--primary" disabled={busy} onClick={() => void signIn()}>
+			<Button variant="primary" disabled={busy} onClick={() => void signIn()}>
 				{busy ? t("Waiting for sign-in...") : t("Sign in to GeoGuessr")}
-			</button>
+			</Button>
 			{error && (
 				<p className="mma-input__help" style={{ color: "var(--red-9, #e5484d)" }}>
 					{error}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Location } from "mma-plugin-types";
 import { embed, searchText } from "./sidecar";
 
-const { Sidebar, Field, TextInput } = MMA.ui;
+const { Sidebar, Field, TextInput, Button } = MMA.ui;
 
 const CSS = `
 .vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -84,15 +84,15 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 				</Field>
 				<div className="vision-sidebar__actions">
 					{!job.running ? (
-						<button
-							className="button button--primary"
+						<Button
+							variant="primary"
 							disabled={!query.trim()}
 							onClick={job.run}
 						>
 							Search
-						</button>
+						</Button>
 					) : (
-						<button className="button" onClick={job.cancel}>Cancel</button>
+						<Button onClick={job.cancel}>Cancel</Button>
 					)}
 				</div>
 

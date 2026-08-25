@@ -104,8 +104,7 @@ export function RegionSelector({
 						style={{ width: "5.5rem" }}
 					/>
 				</label>
-				<button
-					className="button"
+				<Button
 					style={{ fontSize: "inherit" }}
 					disabled={polygonSelections.length === 0}
 					onClick={() => {
@@ -114,7 +113,7 @@ export function RegionSelector({
 					}}
 				>
 					{t("Change all caps")}
-				</button>
+				</Button>
 			</div>
 			<Dialog open={capDialogOpen} onOpenChange={setCapDialogOpen}>
 				<DialogContent title={t("Change all caps")}>
