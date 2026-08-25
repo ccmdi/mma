@@ -17,14 +17,7 @@ import { cmd as commands, type Cmd } from "@/lib/commands";
 import { createLocation } from "@/types";
 import { registerPlugin, createPluginStorage, usePluginState } from "@/plugins/registry";
 import { trackDisposable } from "@/plugins/scope";
-import {
-	Sidebar,
-	Section,
-	Field,
-	EmptyState,
-	SegmentedControl,
-} from "@/components/primitives/Sidebar";
-import { ScopeSelector } from "@/components/primitives/ScopeSelector";
+import * as ui from "@/components/primitives";
 import { toast } from "@/lib/util/toast";
 import { preloadModules, getAvailableExternals } from "@/plugins/externals";
 import { registerEnrichFields, registerEnrichmentProvider } from "@/lib/data/fieldDefs";
@@ -178,7 +171,7 @@ const surface = {
 	getAvailableExternals,
 
 	// --- UI primitives (for plugins) ---
-	ui: { Sidebar, Section, Field, EmptyState, SegmentedControl, ScopeSelector },
+	ui,
 
 	// --- Notifications ---
 	toast,
