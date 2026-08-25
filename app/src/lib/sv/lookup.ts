@@ -145,7 +145,11 @@ export async function lookupStreetView(
 		panosAt([click], radius),
 		panosAt([click], radius, { sources: [PanoType.Official] }),
 		photometaSnap(click, radius),
-		userUploaded === "allow" ? panosAt([click], radius).then(([p]) => p) : null,
+		userUploaded === "allow"
+			? panosAt([click], radius, {
+					sources: [PanoType.Unknown, PanoType.UserUploaded],
+				}).then(([p]) => p)
+			: null,
 	]);
 
 	const candidates: Pano[] = [];
