@@ -11,7 +11,8 @@ import {
 	renameReview,
 } from "@/lib/review/review";
 import { shortDateFmt, relativeTime } from "@/lib/util/format";
-import { getLocale, t } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
+import { dateTimeFmt } from "@/lib/util/format";
 import type { ReviewSession } from "@/bindings.gen";
 
 function formatDate(iso: string): string {
@@ -147,10 +148,10 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 													pct,
 												})}
 											</span>
-											<span title={new Date(s.createdAt).toLocaleString(getLocale())}>
+											<span title={dateTimeFmt.format(new Date(s.createdAt))}>
 												{t("Started")} {formatDate(s.createdAt)}
 											</span>
-											<span title={new Date(s.updatedAt).toLocaleString(getLocale())}>
+											<span title={dateTimeFmt.format(new Date(s.updatedAt))}>
 												{t("Updated")} {relativeTime(s.updatedAt)}
 											</span>
 										</div>

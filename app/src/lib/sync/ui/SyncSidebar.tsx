@@ -11,7 +11,8 @@ import type { SyncOutcome } from "../engine";
 import type { RemoteMapSummary } from "../provider";
 import type { SyncStatus } from "../scheduler";
 import { errText } from "@/lib/util/util";
-import { t, msg, getLocale } from "@/lib/i18n";
+import { t, msg } from "@/lib/i18n";
+import { dateTimeFmt } from "@/lib/util/format";
 
 type Side = "local" | "remote";
 
@@ -373,7 +374,7 @@ export function SyncSidebar({
 					<Field label={t("Last synced")} row>
 						<span>
 							{link.lastSyncedAt
-								? new Date(link.lastSyncedAt).toLocaleString(getLocale())
+								? dateTimeFmt.format(new Date(link.lastSyncedAt))
 								: t("never")}
 						</span>
 					</Field>
