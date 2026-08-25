@@ -4,8 +4,8 @@
 import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
-import * as react from 'react';
-import { ComponentType, SetStateAction, ReactNode } from 'react';
+import * as React$1 from 'react';
+import { ComponentType, SetStateAction, ComponentPropsWithRef, ReactNode, CSSProperties, ElementType, ReactElement } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
 import { open, save } from '@tauri-apps/plugin-dialog';
@@ -2885,6 +2885,8 @@ declare const DEFAULTS: {
     remoteApiKey: string;
     pinnedCommands: PinnedEntry[];
     hasSeenWelcome: boolean;
+    /** Off = Commit applies immediately with no message prompt. */
+    askCommitMessage: boolean;
 };
 export type AppSettings = typeof DEFAULTS;
 declare function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void;
@@ -3196,6 +3198,261 @@ declare function createPluginStorage(id: string): PluginStorage;
  *  the current map (e.g. a field key or saved-selection id). */
 declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
 
+export interface JobContext<P> {
+    signal: AbortSignal;
+    /** Push a progress value to the UI. Ignored once the job is cancelled. */
+    report: (progress: P) => void;
+}
+export interface Job<R, P> {
+    running: boolean;
+    progress: P | null;
+    result: R | null;
+    /** Message from a failed run. Cancelling is not a failure and leaves this null. */
+    error: string | null;
+    run: () => void;
+    cancel: () => void;
+}
+/** A user-triggered async job that reports progress and can be cancelled -- the
+ *  run/cancel/progress/error state every long plugin action was keeping by hand.
+ *  Cancelling aborts the signal and stops the UI immediately; nothing the job does
+ *  afterwards can write back. Unmounting cancels. `run` while running is a no-op,
+ *  so a double-clicked button cannot start two.
+ *
+ *  For work driven by changing deps rather than a click, use `useAsync`. */
+declare function useJob<R = void, P = string>(fn: (ctx: JobContext<P>) => Promise<R>): Job<R, P>;
+
+export type ButtonVariant = "primary" | "destructive" | "ghost";
+declare function Button({ variant, small, type, className, ...props }: ComponentPropsWithRef<"button"> & {
+    variant?: ButtonVariant;
+    small?: boolean;
+}): React$1.JSX.Element;
+
+declare function Checkbox({ className, ...props }: ComponentPropsWithRef<"input">): React$1.JSX.Element;
+
+/** The picker surface itself, debounced. Sole place the `{r,g,b}` shape react-colorful
+ *  wants exists -- every caller in the app passes and receives an [r, g, b] tuple. */
+declare function RgbPicker({ color, onChange }: {
+    color: RGB;
+    onChange: (color: RGB) => void;
+}): React$1.JSX.Element;
+/** A color swatch that opens the picker in a popover on click. */
+declare function ColorPicker({ color, onChange, ariaLabel, }: {
+    color: RGB;
+    onChange: (color: RGB) => void;
+    ariaLabel?: string;
+}): React$1.JSX.Element;
+
+export interface DatePickerProps {
+    mode: "date" | "month";
+    value: string;
+    onChange: (v: string) => void;
+    anyYear?: boolean;
+    onAnyYearToggle?: (v: boolean) => void;
+    showAnyYear?: boolean;
+    showTime?: boolean;
+    anyTime?: boolean;
+    onAnyTimeToggle?: (v: boolean) => void;
+    showAnyTime?: boolean;
+    tzLocal?: boolean;
+    onTzLocalToggle?: (v: boolean) => void;
+    showTzLocal?: boolean;
+    onYearSelect?: (year: number) => void;
+    /** Treat the value as a wall-clock instant encoded as a UTC epoch (the picked
+     *  numbers survive unshifted by the viewer's timezone). Used by location-time
+     *  date filtering, where Rust re-interprets the wall-clock in each pano's zone. */
+    wallClock?: boolean;
+}
+declare function DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): React$1.JSX.Element;
+
+declare const NODES: readonly ["a", "button", "div", "form", "h2", "h3", "img", "input", "label", "li", "nav", "ol", "p", "select", "span", "svg", "ul"];
+export type Primitives = {
+    [E in (typeof NODES)[number]]: PrimitiveForwardRefComponent<E>;
+};
+export type PrimitivePropsWithRef<E extends React$1.ElementType> = React$1.ComponentPropsWithRef<E> & {
+    asChild?: boolean;
+};
+export interface PrimitiveForwardRefComponent<E extends React$1.ElementType> extends React$1.ForwardRefExoticComponent<PrimitivePropsWithRef<E>> {
+}
+declare const Primitive: Primitives;
+
+export type PrimitiveDivProps$1 = React$1.ComponentPropsWithoutRef<typeof Primitive.div>;
+export interface DismissableLayerProps$1 extends PrimitiveDivProps$1 {
+    /**
+     * When `true`, hover/focus/click interactions will be disabled on elements outside
+     * the `DismissableLayer`. Users will need to click twice on outside elements to
+     * interact with them: once to close the `DismissableLayer`, and again to trigger the element.
+     */
+    disableOutsidePointerEvents?: boolean;
+    /**
+     * When `true`, a `'pointerdown'` event outside of the layered element will
+     * wait for the interaction's click event before dispatching, allowing
+     * third-party code to stop propagation of later events and cancel dismissal.
+     */
+    deferPointerDownOutside?: boolean;
+    /**
+     * Event handler called when the escape key is down.
+     * Can be prevented.
+     */
+    onEscapeKeyDown?: (event: KeyboardEvent) => void;
+    /**
+     * Event handler called when the a `pointerdown` event happens outside of the `DismissableLayer`.
+     * Can be prevented.
+     */
+    onPointerDownOutside?: (event: PointerDownOutsideEvent) => void;
+    /**
+     * Event handler called when the focus moves outside of the `DismissableLayer`.
+     * Can be prevented.
+     */
+    onFocusOutside?: (event: FocusOutsideEvent) => void;
+    /**
+     * Event handler called when an interaction happens outside the `DismissableLayer`.
+     * Specifically, when a `pointerdown` event happens outside or focus moves outside of it.
+     * Can be prevented.
+     */
+    onInteractOutside?: (event: PointerDownOutsideEvent | FocusOutsideEvent) => void;
+    /**
+     * Handler called when the `DismissableLayer` should be dismissed
+     */
+    onDismiss?: () => void;
+}
+declare const DismissableLayer: React$1.ForwardRefExoticComponent<DismissableLayerProps$1 & React$1.RefAttributes<HTMLDivElement>>;
+export type PointerDownOutsideEvent = CustomEvent<{
+    originalEvent: PointerEvent;
+}>;
+export type FocusOutsideEvent = CustomEvent<{
+    originalEvent: FocusEvent;
+}>;
+
+export type PrimitiveDivProps = React$1.ComponentPropsWithoutRef<typeof Primitive.div>;
+export interface FocusScopeProps$1 extends PrimitiveDivProps {
+    /**
+     * When `true`, tabbing from last item will focus first tabbable
+     * and shift+tab from first item will focus last tababble.
+     * @defaultValue false
+     */
+    loop?: boolean;
+    /**
+     * When `true`, focus cannot escape the focus scope via keyboard,
+     * pointer, or a programmatic focus.
+     * @defaultValue false
+     */
+    trapped?: boolean;
+    /**
+     * Event handler called when auto-focusing on mount.
+     * Can be prevented.
+     */
+    onMountAutoFocus?: (event: Event) => void;
+    /**
+     * Event handler called when auto-focusing on unmount.
+     * Can be prevented.
+     */
+    onUnmountAutoFocus?: (event: Event) => void;
+}
+declare const FocusScope: React$1.ForwardRefExoticComponent<FocusScopeProps$1 & React$1.RefAttributes<HTMLDivElement>>;
+
+export interface DialogProps$1 {
+    children?: React$1.ReactNode;
+    open?: boolean;
+    defaultOpen?: boolean;
+    onOpenChange?(open: boolean): void;
+    modal?: boolean;
+}
+export type PrimitiveButtonProps = React$1.ComponentPropsWithoutRef<typeof Primitive.button>;
+export interface DialogTriggerProps extends PrimitiveButtonProps {
+}
+export interface DialogContentProps extends DialogContentTypeProps {
+    /**
+     * Used to force mounting when more control is needed. Useful when
+     * controlling animation with React animation libraries.
+     */
+    forceMount?: true;
+}
+export interface DialogContentTypeProps extends Omit<DialogContentImplProps, 'trapFocus' | 'disableOutsidePointerEvents'> {
+}
+export type DismissableLayerProps = React$1.ComponentPropsWithoutRef<typeof DismissableLayer>;
+export type FocusScopeProps = React$1.ComponentPropsWithoutRef<typeof FocusScope>;
+export interface DialogContentImplProps extends Omit<DismissableLayerProps, 'onDismiss'> {
+    /**
+     * When `true`, focus cannot escape the `Content` via keyboard,
+     * pointer, or a programmatic focus.
+     * @defaultValue false
+     */
+    trapFocus?: FocusScopeProps['trapped'];
+    /**
+     * Event handler called when auto-focusing on open.
+     * Can be prevented.
+     */
+    onOpenAutoFocus?: FocusScopeProps['onMountAutoFocus'];
+    /**
+     * Event handler called when auto-focusing on close.
+     * Can be prevented.
+     */
+    onCloseAutoFocus?: FocusScopeProps['onUnmountAutoFocus'];
+}
+
+/** Controlled open/close pair every dialog component takes. */
+export interface DialogProps {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}
+declare function useCloseDialog(): () => void;
+declare function Dialog({ open, onOpenChange, children, ...props }: DialogProps$1): React$1.JSX.Element;
+declare const DialogTrigger: React$1.ForwardRefExoticComponent<DialogTriggerProps & React$1.RefAttributes<HTMLButtonElement>>;
+declare function DialogContent({ className, title, children, ...props }: DialogContentProps & {
+    title: string;
+}): React$1.JSX.Element;
+
+/** Country flag from the bundled SVG set. Renders nothing for a missing or malformed code. */
+declare function Flag({ code, height, className, }: {
+    code: string | null | undefined;
+    height?: number;
+    className?: string;
+}): React$1.JSX.Element | null;
+
+/** Click-to-record key combo input. Backspace/Delete clears, Escape cancels. */
+declare function HotkeyInput({ value, onChange, }: {
+    value: string;
+    onChange: (combo: string) => void;
+}): React$1.JSX.Element;
+
+export interface IconProps {
+    path: string;
+    size?: number;
+    className?: string;
+    style?: React.CSSProperties;
+}
+declare function Icon({ path, size, className, style }: IconProps): React$1.JSX.Element;
+
+declare function NSelect({ className, onWheel, ...props }: ComponentPropsWithRef<"select">): React$1.JSX.Element;
+
+declare function Radio({ className, ...props }: ComponentPropsWithRef<"input">): React$1.JSX.Element;
+
+declare function ScopeSelector({ ctl, className, }: {
+    ctl: ScopeController<ScopeWithSaved>;
+    className?: string;
+}): React$1.JSX.Element;
+
+/** `label` stays a plain string so settings search can match on it; `badge` is the escape hatch
+ *  for a marker sitting beside it, like the flask on an experimental plugin card. */
+export type Base = {
+    label: string;
+    badge?: ReactNode;
+    description?: string;
+    disabled?: boolean;
+    sub?: boolean;
+};
+export type BoolRow = Base & {
+    checked: boolean;
+    onChange: (v: boolean) => void;
+};
+export type AutoBoolRow = Base & {
+    setting: keyof AppSettings;
+};
+export type ControlRow = Base & {
+    control: ReactNode;
+};
+declare function SettingRow(props: BoolRow | ControlRow | AutoBoolRow): React$1.JSX.Element | null;
+
 /** Standard right-hand sidebar chrome (title, back button, scrollable body). Use for plugin sidebars. */
 declare function Sidebar({ title, onBack, actions, className, flush, children, }: {
     title: ReactNode;
@@ -3204,7 +3461,7 @@ declare function Sidebar({ title, onBack, actions, className, flush, children, }
     className?: string;
     flush?: boolean;
     children: ReactNode;
-}): react.JSX.Element;
+}): React$1.JSX.Element;
 /** Collapsible titled section inside a Sidebar. */
 declare function Section({ title, defaultOpen, collapsible, addons, children, }: {
     title: ReactNode;
@@ -3212,19 +3469,19 @@ declare function Section({ title, defaultOpen, collapsible, addons, children, }:
     collapsible?: boolean;
     addons?: ReactNode;
     children: ReactNode;
-}): react.JSX.Element;
+}): React$1.JSX.Element;
 /** Labelled form row (label left, control right) for sidebar sections. */
 declare function Field({ label, hint, row, children, }: {
     label: ReactNode;
     hint?: ReactNode;
     row?: boolean;
     children: ReactNode;
-}): react.JSX.Element;
+}): React$1.JSX.Element;
 /** Centered icon + message for empty panels. */
 declare function EmptyState({ icon, children }: {
     icon?: string;
     children: ReactNode;
-}): react.JSX.Element;
+}): React$1.JSX.Element;
 export interface SegmentedOption<T extends string | number> {
     value: T;
     label: ReactNode;
@@ -3237,12 +3494,153 @@ declare function SegmentedControl<T extends string | number>({ options, value, o
     value: T;
     onChange: (value: T) => void;
     className?: string;
-}): react.JSX.Element;
+}): React$1.JSX.Element;
 
-declare function ScopeSelector({ ctl, className, }: {
-    ctl: ScopeController<ScopeWithSaved>;
+/** Range input whose track fills with the accent up to the current value.
+ *  Controlled only: the fill derives from the value prop. */
+declare function Slider({ className, ...props }: ComponentPropsWithRef<"input">): React$1.JSX.Element;
+
+/** Autocomplete input: owns open/close state, outside-click dismissal,
+ *  Enter-picks-first, and Escape-closes. Suggestion sourcing stays at the call
+ *  site (sync filter or debounced fetch) — the dropdown shows whenever
+ *  `suggestions` is non-empty and not dismissed. Default classes render the
+ *  standard `.search-results` dropdown; override them for other skins. */
+declare function SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: {
+    value: string;
+    onChange: (v: string) => void;
+    suggestions: T[];
+    onPick: (item: T) => void;
+    renderItem: (item: T) => ReactNode;
+    getKey: (item: T) => string | number;
+    placeholder?: string;
+    containerClassName?: string;
+    inputClassName?: string;
+    listClassName?: string;
+    itemClassName?: string;
+    listStyle?: CSSProperties;
+    autoFocus?: boolean;
+    disabled?: boolean;
+    /** When false, Enter closes the dropdown and falls through (e.g. to a form submit). */
+    pickOnEnter?: boolean;
+    /** Render the dropdown in a body portal (fixed, anchored to the input) so it floats
+     *  over clipping ancestors like `.modal__content`. Clicks on it are exempted from
+     *  dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
+    portal?: boolean;
+}): React$1.JSX.Element;
+
+declare function Switch({ checked, onChange, disabled, label, }: {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    disabled?: boolean;
+    label?: string;
+}): React$1.JSX.Element;
+
+/** A compact, control-left row whose whole surface toggles an immediate-effect
+ *  boolean. The Switch owns keyboard + a11y; the row forwards mouse clicks to
+ *  the same toggle. The control wrapper stops propagation so a direct switch
+ *  click does not also fire the row handler. Used by MapSettingsPanel and any
+ *  surface outside the Settings dialog (SettingRow is the Settings dialog row). */
+declare function SwitchRow({ checked, onChange, label, disabled, className, children, }: {
+    checked: boolean;
+    onChange: (v: boolean) => void;
+    label: string;
+    disabled?: boolean;
     className?: string;
-}): react.JSX.Element;
+    children?: ReactNode;
+}): React$1.JSX.Element;
+
+export type TagPillButtonVariant = "add" | "delete" | "edit";
+/** The leading affordance inside a TagPill: remove, apply, or open the editor. */
+declare function TagPillButton({ variant, className, ...props }: ComponentPropsWithRef<"button"> & {
+    variant: TagPillButtonVariant;
+}): React$1.JSX.Element;
+export type TagPillOwnProps = {
+    color: string;
+    label: ReactNode;
+    count?: number;
+    small?: boolean;
+    button?: ReactNode;
+    children?: ReactNode;
+};
+export type TagPillProps<E extends ElementType> = TagPillOwnProps & {
+    as?: E;
+} & Omit<ComponentPropsWithRef<E>, keyof TagPillOwnProps | "as">;
+/** The one tag pill. Owns the tag color's rendering: every surface that shows a tag
+ *  goes through here, so the look changes in one place. */
+declare function TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): React$1.JSX.Element;
+
+declare function TextInput({ className, ...props }: ComponentPropsWithRef<"input">): React$1.JSX.Element;
+
+export interface ToolBlockProps {
+    title: string;
+    className?: string;
+    addons?: ReactNode;
+    children?: ReactNode;
+    isCollapsed?: boolean;
+    onCollapse?: (collapsed: boolean) => void;
+    collapsedAddons?: ReactNode;
+}
+declare function ToolBlock(props: ToolBlockProps): React$1.JSX.Element;
+
+export type Side = "top" | "bottom" | "left" | "right";
+export type Align = "start" | "center" | "end";
+/** Marks its child as a tooltip trigger. Adds attributes to the existing element instead of
+ *  wrapping it, so a trigger costs no extra fibers and hovering re-renders only the single
+ *  host below -- one portal for the whole app rather than one per trigger. */
+declare function Tooltip({ content, side, align, children, }: {
+    content: string;
+    side?: Side;
+    align?: Align;
+    children: ReactElement;
+}): ReactElement<Record<string, unknown>, string | React$1.JSXElementConstructor<any>>;
+
+/**
+ * The public widget set, re-exported as one surface so `MMA.ui` is this list and
+ * nothing else. Membership is deliberate: whatever a plugin can reach here has to
+ * keep working (see legacy.ts), so a primitive is added when a plugin needs it,
+ * not because it happens to live in this folder.
+ *
+ * Deliberately absent: ToastContainer (singleton mount -- use `MMA.toast`),
+ * MeasurementBar (reads map state), SettingsSearchContext/useSettingsSearch
+ * (Settings-dialog plumbing), Trans (i18n infra).
+ */
+
+declare const ui_Button: typeof Button;
+declare const ui_Checkbox: typeof Checkbox;
+declare const ui_ColorPicker: typeof ColorPicker;
+declare const ui_DatePicker: typeof DatePicker;
+declare const ui_Dialog: typeof Dialog;
+declare const ui_DialogContent: typeof DialogContent;
+export type ui_DialogProps = DialogProps;
+declare const ui_DialogTrigger: typeof DialogTrigger;
+declare const ui_EmptyState: typeof EmptyState;
+declare const ui_Field: typeof Field;
+declare const ui_Flag: typeof Flag;
+declare const ui_HotkeyInput: typeof HotkeyInput;
+declare const ui_Icon: typeof Icon;
+declare const ui_NSelect: typeof NSelect;
+declare const ui_Radio: typeof Radio;
+declare const ui_RgbPicker: typeof RgbPicker;
+declare const ui_ScopeSelector: typeof ScopeSelector;
+declare const ui_Section: typeof Section;
+declare const ui_SegmentedControl: typeof SegmentedControl;
+export type ui_SegmentedOption<T extends string | number> = SegmentedOption<T>;
+declare const ui_SettingRow: typeof SettingRow;
+declare const ui_Sidebar: typeof Sidebar;
+declare const ui_Slider: typeof Slider;
+declare const ui_SuggestInput: typeof SuggestInput;
+declare const ui_Switch: typeof Switch;
+declare const ui_SwitchRow: typeof SwitchRow;
+declare const ui_TagPill: typeof TagPill;
+declare const ui_TagPillButton: typeof TagPillButton;
+declare const ui_TextInput: typeof TextInput;
+declare const ui_ToolBlock: typeof ToolBlock;
+declare const ui_Tooltip: typeof Tooltip;
+declare const ui_useCloseDialog: typeof useCloseDialog;
+declare namespace ui {
+  export { ui_Button as Button, ui_Checkbox as Checkbox, ui_ColorPicker as ColorPicker, ui_DatePicker as DatePicker, ui_Dialog as Dialog, ui_DialogContent as DialogContent, ui_DialogTrigger as DialogTrigger, ui_EmptyState as EmptyState, ui_Field as Field, ui_Flag as Flag, ui_HotkeyInput as HotkeyInput, ui_Icon as Icon, ui_NSelect as NSelect, ui_Radio as Radio, ui_RgbPicker as RgbPicker, ui_ScopeSelector as ScopeSelector, ui_Section as Section, ui_SegmentedControl as SegmentedControl, ui_SettingRow as SettingRow, ui_Sidebar as Sidebar, ui_Slider as Slider, ui_SuggestInput as SuggestInput, ui_Switch as Switch, ui_SwitchRow as SwitchRow, ui_TagPill as TagPill, ui_TagPillButton as TagPillButton, ui_TextInput as TextInput, ui_ToolBlock as ToolBlock, ui_Tooltip as Tooltip, ui_useCloseDialog as useCloseDialog };
+  export type { ui_DialogProps as DialogProps, ui_SegmentedOption as SegmentedOption };
+}
 
 declare function toast(message: string, duration?: number, container?: HTMLElement): void;
 
@@ -3642,17 +4040,11 @@ declare const surface: {
     registerEnrichmentProvider: typeof registerEnrichmentProvider;
     preloadModules: typeof preloadModules;
     getAvailableExternals: typeof getAvailableExternals;
-    ui: {
-        Sidebar: typeof Sidebar;
-        Section: typeof Section;
-        Field: typeof Field;
-        EmptyState: typeof EmptyState;
-        SegmentedControl: typeof SegmentedControl;
-        ScopeSelector: typeof ScopeSelector;
-    };
+    ui: typeof ui;
     toast: typeof toast;
     storage: typeof createPluginStorage;
     usePluginState: typeof usePluginState;
+    useJob: typeof useJob;
     getFieldDef: typeof getFieldDef;
     getAllFieldDefs: typeof getAllFieldDefs;
     createLocation: typeof createLocation;
@@ -3747,6 +4139,7 @@ declare const surface: {
         remoteApiKey: string;
         pinnedCommands: PinnedEntry[];
         hasSeenWelcome: boolean;
+        askCommitMessage: boolean;
     };
     getSavedSelections: typeof getSavedSelections;
     savedToSelectionProps: typeof savedToSelectionProps;
