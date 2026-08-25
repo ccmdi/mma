@@ -168,10 +168,7 @@ pub async fn store_commit(
         "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, tree_hash, added, removed, modified) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![id, map_id, parent_id, message, location_count, now, Option::<String>::None, added, removed_n, modified],
     )?;
-    conn.execute(
-        "UPDATE maps SET location_count = ?1 WHERE id = ?2",
-        params![location_count, map_id],
-    )?;
+    crate::storage::set_location_count(&conn, &map_id, location_count as usize)?;
 
     log::info!(
         "[vcs] commit {} locs={} +{} -{} ~{} in {}ms (bake+base-write={:.0}ms delta-write={:.0}ms sqlite={:.0}ms genesis={})",
@@ -245,12 +242,19 @@ pub fn store_checkout_commit(map_id: String, commit_id: String) -> AppResult<()>
     Ok(())
 }
 
+pub(crate) fn read_commit_delta(
+    map_id: &str,
+    commit_id: &str,
+) -> AppResult<(Vec<Location>, Vec<Location>)> {
+    let path = storage::commit_delta_path(map_id, commit_id)?;
+    let batch = storage::read_arrow_ipc(&path)?;
+    Ok(arrow_bridge::batch_to_delta(&batch))
+}
+
 /// Read a single commit's delta (created/removed locations) for the diff viewer.
 #[tauri::command]
 #[specta::specta]
 pub fn store_get_commit_delta(map_id: String, commit_id: String) -> AppResult<CommitDelta> {
-    let path = storage::commit_delta_path(&map_id, &commit_id)?;
-    let batch = storage::read_arrow_ipc(&path)?;
-    let (created, removed) = arrow_bridge::batch_to_delta(&batch);
+    let (created, removed) = read_commit_delta(&map_id, &commit_id)?;
     Ok(CommitDelta { created, removed })
 }

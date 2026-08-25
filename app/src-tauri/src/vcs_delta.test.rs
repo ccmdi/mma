@@ -1,4 +1,5 @@
 use super::*;
+use crate::arrow_bridge;
 use crate::test_util::TempDir;
 use std::collections::BTreeMap;
 
