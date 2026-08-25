@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
 	addLocs,
-	createLocation,
-	openLocation,
 	closeLocation,
+	createLocation,
+	getLocOrNull,
+	openLocation,
 	refreshSelections,
-	withApi,
+	updateMapSettings,
 	useMap,
+	waitForPreview,
+	withApi,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
 
@@ -25,24 +28,12 @@ function loc(overrides: Partial<Location> = {}): Location {
 	});
 }
 
-async function readLocation(id: number): Promise<any> {
-	return withApi(async (api, locId) => {
-		return await api.fetchLocation(locId);
-	}, id);
-}
+const readLocation = getLocOrNull as (id: number) => Promise<any>;
 
 async function getMapMeta(): Promise<any> {
 	return withApi(async (api) => {
 		return api.getMapState().map?.meta ?? null;
 	});
-}
-
-async function updateMapSettings(patch: Record<string, any>) {
-	await withApi(async (api, p) => {
-		const map = api.getMapState().map!;
-		await api.updateMapMeta({ settings: { ...map.meta.settings, ...p } });
-		return "ok";
-	}, patch);
 }
 
 async function waitForEnrichment(locId: number, field = "countryCode") {
@@ -72,11 +63,6 @@ async function waitForFieldKeys(timeoutMs: number, ...wanted: string[]) {
 			timeoutMsg: `field defs never registered: ${wanted.join(", ")}`,
 		},
 	);
-}
-
-async function waitForPreview() {
-	const el = await browser.$(".location-preview");
-	await el.waitForExist({ timeout: 5000 });
 }
 
 // ============================================================================

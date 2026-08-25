@@ -5,7 +5,7 @@
 
 import type { MMA } from "@/api";
 import { createLocation } from "../../src/types";
-import type { Location, SelectionProps } from "@/bindings.gen";
+import type { Location, SelectionProps, ExtraFieldDef } from "@/bindings.gen";
 
 /**
  * Run an async function in the browser with the MMA API injected as `api`.
@@ -230,6 +230,43 @@ export async function waitForActive(id: number | null) {
 }
 
 /** Wait until the store's work area matches (e.g. "overview" | "location"). */
+export async function updateMapSettings(patch: Record<string, unknown>) {
+	await withApi(async (api, p) => {
+		const map = api.getMapState().map!;
+		await api.updateMapMeta({ settings: { ...map.meta.settings, ...p } });
+		return "ok";
+	}, patch);
+}
+
+export async function registerFields(defs: Record<string, ExtraFieldDef>) {
+	await withApi(async (api, d) => {
+		const map = api.getMapState().map!;
+		const cur = map.meta.extra?.fields ?? {};
+		await api.updateMapMeta({
+			extra: { ...map.meta.extra, fields: { ...cur, ...d } },
+		});
+		return "ok";
+	}, defs);
+}
+
+/** Wait for the date count badge to show a positive number;
+ *  the default is deliberately far above the shared WAIT timeout. */
+export async function waitForDates(timeout = 30_000) {
+	await browser.waitUntil(
+		async () => {
+			const badge = await browser.$(".location-preview__date .badge--number");
+			if (!(await badge.isExisting())) return false;
+			return parseInt(await badge.getText()) > 0;
+		},
+		{ timeout, timeoutMsg: "Date picker never populated with dates" },
+	);
+}
+
+export async function waitForPreview() {
+	const el = await browser.$(".location-preview");
+	await el.waitForExist({ timeout: 5000 });
+}
+
 export async function waitForWorkArea(area: string) {
 	await browser.waitUntil(() => withApi((api, a) => api.getMapState().workArea === a, area), {
 		...WAIT,

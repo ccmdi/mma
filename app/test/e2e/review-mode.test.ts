@@ -1,4 +1,12 @@
-import { addLocs, getLocCount, createLocation, withApi, useMap, seedLocs } from "./helpers";
+import {
+	addLocs,
+	createLocation,
+	getLocCount,
+	getLocOrNull,
+	seedLocs,
+	useMap,
+	withApi,
+} from "./helpers";
 
 const SETTLE = 50; // ms for React state to settle after async review ops
 
@@ -217,9 +225,7 @@ describe("Review mode - delete", () => {
 			return { ok: true };
 		});
 		const restoredId = locIds[2];
-		const loc = await withApi(async (api, id) => {
-			return await api.fetchLocation(id);
-		}, restoredId);
+		const loc = await getLocOrNull(restoredId);
 		expect(loc).not.toBeNull();
 	});
 });

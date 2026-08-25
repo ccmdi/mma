@@ -1,14 +1,14 @@
 import {
-	waitForReady,
-	createAndOpenMap,
+	addLocs,
 	closeMap,
+	createAndOpenMap,
+	createLocation,
 	deleteMap,
 	flushAndWait,
 	openMap,
-	addLocs,
-	createLocation,
-	withApi,
 	useMap,
+	waitForReady,
+	withApi,
 } from "./helpers";
 
 describe("Map rename", () => {

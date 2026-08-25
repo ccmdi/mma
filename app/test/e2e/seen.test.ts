@@ -1,15 +1,17 @@
 import {
-	waitForReady,
-	createAndOpenMap,
-	closeMap,
-	deleteMap,
 	addLocs,
-	getLocCount,
-	withApi,
-	createLocation,
-	openLocation,
 	closeLocation,
+	closeMap,
+	createAndOpenMap,
+	createLocation,
+	deleteMap,
+	getLocCount,
+	openLocation,
+	waitForDates,
+	waitForPreview,
+	waitForReady,
 	waitForWorkArea,
+	withApi,
 } from "./helpers";
 import { LocationFlag } from "../../src/types";
 import type { SeenEntry } from "../../src/bindings.gen";
@@ -20,23 +22,6 @@ const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };
 const TREKKER_PANO = "5upMz1_zTGPdkIXG6_QM3g";
 const TREKKER_COORDS = { lat: 55.510656, lng: 157.636627 };
 
-const PANO_TIMEOUT = 30_000;
-
-async function waitForPreview() {
-	const el = await browser.$(".location-preview");
-	await el.waitForExist({ timeout: 5000 });
-}
-
-async function waitForPanoReady() {
-	await browser.waitUntil(
-		async () => {
-			const badge = await browser.$(".location-preview__date .badge--number");
-			if (!(await badge.isExisting())) return false;
-			return parseInt(await badge.getText()) > 0;
-		},
-		{ timeout: PANO_TIMEOUT, timeoutMsg: "Pano never became ready (dates never populated)" },
-	);
-}
 
 async function getSeenEntries(limit = 100) {
 	return withApi(async (api, lim) => {
@@ -109,7 +94,7 @@ describe("Seen -- recording consistency", () => {
 	it("opening a location records a seen entry with correct pano_id", async () => {
 		await openLocation(seenOffId);
 		await waitForPreview();
-		await waitForPanoReady();
+		await waitForDates();
 		// Close to flush the staged entry
 		await closeLocation();
 		await waitForSeenPano(OFFICIAL_PANO);
@@ -122,7 +107,7 @@ describe("Seen -- recording consistency", () => {
 	it("recorded lat/lng matches the pano's actual position (not stale)", async () => {
 		await openLocation(seenOffId);
 		await waitForPreview();
-		await waitForPanoReady();
+		await waitForDates();
 		await closeLocation();
 		await waitForSeenPano(OFFICIAL_PANO);
 
@@ -138,7 +123,7 @@ describe("Seen -- recording consistency", () => {
 		// Open trek first to ensure the singleton pano changes when we open off next
 		await openLocation(seenTrekId);
 		await waitForPreview();
-		await waitForPanoReady();
+		await waitForDates();
 		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
 		await browser.pause(400);
 
@@ -146,13 +131,13 @@ describe("Seen -- recording consistency", () => {
 
 		await openLocation(seenOffId);
 		await waitForPreview();
-		await waitForPanoReady();
+		await waitForDates();
 		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
 		await browser.pause(400);
 
 		await openLocation(seenTrekId);
 		await waitForPreview();
-		await waitForPanoReady();
+		await waitForDates();
 		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
 		await browser.pause(400);
 
@@ -300,10 +285,7 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 			OFFICIAL_COORDS.lng,
 		);
 
-		await browser.waitUntil(
-			async () => (await withApi((api) => api.getMapState().workArea)) === "location",
-			{ timeout: 3000, timeoutMsg: "Work area did not switch to location" },
-		);
+		await waitForWorkArea("location");
 
 		const countAfter = await getLocCount();
 		expect(countAfter).toBe(countBefore + 1);
@@ -351,7 +333,7 @@ describe("Seen -- enableSeen setting", () => {
 
 		await openLocation(seenSetting1Id);
 		await waitForPreview();
-		await waitForPanoReady();
+		await waitForDates();
 		await closeLocation();
 		// eslint-disable-next-line no-restricted-syntax -- negative assertion: confirm nothing is recorded with seen disabled
 		await browser.pause(500);
@@ -416,13 +398,13 @@ describe("Seen -- clear", () => {
 		// Open a different pano first so seen-clear-1 triggers a fresh status_changed
 		await openLocation(seenClearWarmId);
 		await waitForPreview();
-		await waitForPanoReady();
+		await waitForDates();
 		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
 		await browser.pause(400);
 
 		await openLocation(seenClear1Id);
 		await waitForPreview();
-		await waitForPanoReady();
+		await waitForDates();
 		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
 		await browser.pause(400);
 		await closeLocation();

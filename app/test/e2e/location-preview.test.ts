@@ -1,25 +1,29 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
-	waitForReady,
-	createAndOpenMap,
-	closeMap,
-	deleteMap,
 	addLocs,
+	closeLocation,
+	closeMap,
+	createAndOpenMap,
+	createLocation,
+	createTag,
+	deleteMap,
+	flushAndWait,
 	getAllLocs,
 	getLocCount,
-	createTag,
-	createLocation,
+	getLocOrNull,
 	openLocation,
-	closeLocation,
-	withApi,
-	flushAndWait,
-	waitForSave,
-	waitForFlag,
-	waitForOptions,
-	waitForActive,
-	waitForWorkArea,
-	waitForLocCount,
+	updateMapSettings,
 	useMap,
+	waitForActive,
+	waitForDates,
+	waitForFlag,
+	waitForLocCount,
+	waitForOptions,
+	waitForPreview,
+	waitForReady,
+	waitForSave,
+	waitForWorkArea,
+	withApi,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
 
@@ -45,18 +49,6 @@ const PANO_TIMEOUT = 30_000;
 
 function loc(overrides: Partial<Location> = {}): Location {
 	return createLocation({ lat: 0, lng: 0, ...overrides });
-}
-
-/** Wait for the date count badge to show a positive number. */
-async function waitForDates(timeout = PANO_TIMEOUT) {
-	await browser.waitUntil(
-		async () => {
-			const badge = await browser.$(".location-preview__date .badge--number");
-			if (!(await badge.isExisting())) return false;
-			return parseInt(await badge.getText()) > 0;
-		},
-		{ timeout, timeoutMsg: "Date picker never populated with dates" },
-	);
 }
 
 // The pano picker is a native <select> styled with appearance: base-select, so its
@@ -87,12 +79,6 @@ async function selectPanoOption(index: number) {
 	await selectPanoValue(value);
 }
 
-/** Wait for .location-preview to appear. */
-async function waitForPreview() {
-	const el = await browser.$(".location-preview");
-	await el.waitForExist({ timeout: 5000 });
-}
-
 /** Get the date count from the badge. */
 async function getDateCount(): Promise<number> {
 	const badge = await browser.$(".location-preview__date .badge--number");
@@ -101,11 +87,7 @@ async function getDateCount(): Promise<number> {
 }
 
 /** Read a location from Rust by numeric ID. */
-async function readLocation(id: number): Promise<any> {
-	return withApi(async (api, locId) => {
-		return await api.fetchLocation(locId);
-	}, id);
-}
+const readLocation = getLocOrNull as (id: number) => Promise<any>;
 
 // ============================================================================
 // Tests
@@ -172,11 +154,7 @@ describe("LocationPreview — official pano", () => {
 	let offPinnedId: number;
 
 	before(async () => {
-		await withApi(async (api) => {
-			const map = api.getMapState().map!;
-			await api.updateMapMeta({ settings: { ...map.meta.settings, enrichMetadata: true } });
-			return "ok";
-		});
+		await updateMapSettings({ enrichMetadata: true });
 		const ids = await addLocs([
 			loc({ lat: OFFICIAL_COORDS.lat, lng: OFFICIAL_COORDS.lng, panoId: OFFICIAL_PANO }),
 			loc({
@@ -1170,13 +1148,7 @@ const NO_EXACT_ENRICH_FIELDS = ["altitude", "countryCode", "cameraType", "panoTy
 // Exact-date resolution is gated by the per-map datetime enrich field, so enable/disable
 // it by setting enrichFields rather than a global app setting.
 async function setMapEnrichFields(fields: string[]) {
-	await withApi(async (api, f) => {
-		const map = api.getMapState().map!;
-		await api.updateMapMeta({
-			settings: { ...map.meta.settings, enrichMetadata: true, enrichFields: f },
-		});
-		return "ok";
-	}, fields);
+	await updateMapSettings({ enrichMetadata: true, enrichFields: fields });
 }
 
 describe("LocationPreview — settings toggles", () => {
@@ -1373,11 +1345,7 @@ describe("LocationPreview — edge cases", () => {
 	let edgeExtraId: number;
 
 	before(async () => {
-		await withApi(async (api) => {
-			const map = api.getMapState().map!;
-			await api.updateMapMeta({ settings: { ...map.meta.settings, enrichMetadata: true } });
-			return "ok";
-		});
+		await updateMapSettings({ enrichMetadata: true });
 		const ids = await addLocs([
 			loc({
 				lat: OFFICIAL_COORDS.lat,
