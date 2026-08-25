@@ -242,8 +242,8 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 
 		// Create a seen entry and load it
 		await withApi(
-			(api, pano, lat, lng, locId) => {
-				api.loadSeenPano({
+			async (api, pano, lat, lng, locId) => {
+				await api.loadSeenPano({
 					id: 999,
 					panoId: pano,
 					lat,

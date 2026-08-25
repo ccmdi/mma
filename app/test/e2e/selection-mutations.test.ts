@@ -94,7 +94,7 @@ describe("Live selection correctness after add/remove", () => {
 			async (api, tagId: number, removeId0: number, removeId1: number) => {
 				await api.addSelections([{ type: "Tag", tagId: tagId }]);
 				const before = api.getMapState().selectedLocationIds.size;
-				api.removeLocations(new Set([removeId0, removeId1]));
+				await api.removeLocations(new Set([removeId0, removeId1]));
 				return before;
 			},
 			tagRedId,
@@ -123,7 +123,7 @@ describe("Live selection correctness after add/remove", () => {
 		expect(afterAddIds.ids.length).toBe(initial + 3);
 
 		await withApi(async (api, removeId: number) => {
-			api.removeLocations(new Set([removeId]));
+			await api.removeLocations(new Set([removeId]));
 		}, afterAddIds.removeId);
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(initial + 2);
@@ -268,7 +268,7 @@ describe("Review mode delete with active selections", () => {
 	});
 	beforeEach(async () => {
 		await withApi(async (api) => {
-			api.resetSelections();
+			await api.resetSelections();
 			api.cancelReview();
 		});
 	});
@@ -381,7 +381,7 @@ describe("Selection correctness after undo/redo", () => {
 			async (api, tagId: number, locId: number) => {
 				await api.resetSelections();
 				await api.addSelections([{ type: "Tag", tagId: tagId }]);
-				api.removeLocations(new Set([locId]));
+				await api.removeLocations(new Set([locId]));
 				await new Promise((r) => setTimeout(r, 300));
 			},
 			tagUndoId,
@@ -391,7 +391,7 @@ describe("Selection correctness after undo/redo", () => {
 		const before = afterRemoveIds.length;
 
 		await withApi(async (api) => {
-			api.undo();
+			await api.undo();
 			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterUndoIds = await refreshSelections();
@@ -416,7 +416,7 @@ describe("Selection correctness after undo/redo", () => {
 		const before = afterUpdateIds.length;
 
 		await withApi(async (api) => {
-			api.undo();
+			await api.undo();
 			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterUndoIds = await refreshSelections();
@@ -464,14 +464,14 @@ describe("Selection correctness after undo/redo", () => {
 		const afterAdd = await refreshSelections();
 
 		await withApi(async (api) => {
-			api.undo();
+			await api.undo();
 			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterUndoIds = await refreshSelections();
 		expect(afterUndoIds.length).toBe(afterAdd.length - 1);
 
 		await withApi(async (api) => {
-			api.redo();
+			await api.redo();
 			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterRedoIds = await refreshSelections();
@@ -683,7 +683,7 @@ describe("Bulk operations with active selections", () => {
 
 			// Remove first 10 of the newly added
 			const toRemove = newLocs.slice(0, 10).map((l) => l.id);
-			api.removeLocations(new Set(toRemove));
+			await api.removeLocations(new Set(toRemove));
 			const afterRemoveResult = await api._test.syncSelections();
 			const afterRemove = afterRemoveResult.ids.length;
 
@@ -773,7 +773,7 @@ describe("Slot reuse correctness", () => {
 			await api.addSelections([{ type: "Tag", tagId: tagId }]);
 
 			// Remove all 10 — tag count drops to 0, selection is cleared
-			api.removeLocations(new Set(batch1.map((l) => l.id)));
+			await api.removeLocations(new Set(batch1.map((l) => l.id)));
 			const afterRemoveResult = await api._test.syncSelections();
 			const afterRemoveIds: number[] = afterRemoveResult.ids;
 			const afterRemoveAll = afterRemoveIds.length;
@@ -844,7 +844,7 @@ describe("Slot reuse correctness", () => {
 
 			// Remove indices 0-4 (tagged AND flagged)
 			const toRemove = locs.slice(0, 5).map((l) => l.id);
-			api.removeLocations(new Set(toRemove));
+			await api.removeLocations(new Set(toRemove));
 			await api._test.syncSelections();
 
 			const tagAfterRemove = tagKey ? api.getMapState().selectionCounts[tagKey] : undefined;

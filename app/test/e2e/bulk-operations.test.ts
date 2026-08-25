@@ -90,7 +90,7 @@ describe("Bulk operations -- enrichAll", () => {
 		// Undo until enrichment is gone (but stop before undoing the addLocations)
 		await withApi(async (api, id) => {
 			for (let i = 0; i < 100; i++) {
-				api.undo();
+				await api.undo();
 				await new Promise((r) => setTimeout(r, 300));
 				const loc = await api.fetchLocation(id);
 				if (!loc || !loc.extra?.countryCode) break;

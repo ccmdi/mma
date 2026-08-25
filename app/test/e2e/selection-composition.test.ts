@@ -85,7 +85,7 @@ describe("Selection composition", () => {
 
 	it("removeChildFromSelection removes without extracting", async () => {
 		const result = await withApi(async (api, tagId) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([{ type: "PanoIds" }]);
 			await api.addSelections([{ type: "Tag", tagId: tagId }]);
 			await api.addSelections([{ type: "Untagged" }]);

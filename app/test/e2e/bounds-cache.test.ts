@@ -262,7 +262,7 @@ describe("Bounds cache - selected-only", () => {
 
 	it("selected-only with no selection returns null", async () => {
 		const bounds = await withApi(async (api) => {
-			api.resetSelections();
+			await api.resetSelections();
 			return api.fetchBounds({ kind: "selected" });
 		});
 		expect(bounds).toBeNull();

@@ -44,49 +44,49 @@ const pointerUpAt = (clientX: number, clientY: number) =>
 	});
 
 describe("useHoverExpand", () => {
-	it("expands on enter and collapses after the delay on leave", () => {
+	it("expands on enter and collapses after the delay on leave", async () => {
 		enter();
 		expect(api.expanded).toBe(true);
 
 		leave();
 		expect(api.expanded).toBe(true);
-		act(() => vi.advanceTimersByTime(DELAY));
+		await act(() => vi.advanceTimersByTime(DELAY));
 		expect(api.expanded).toBe(false);
 	});
 
-	it("re-entering cancels a pending close", () => {
+	it("re-entering cancels a pending close", async () => {
 		enter();
 		leave();
 		enter();
-		act(() => vi.advanceTimersByTime(DELAY));
+		await act(() => vi.advanceTimersByTime(DELAY));
 		expect(api.expanded).toBe(true);
 	});
 
-	it("collapses when a drag releases outside, with no leave event", () => {
+	it("collapses when a drag releases outside, with no leave event", async () => {
 		enter();
 		pointerDown();
 		pointerUpAt(500, 500);
-		act(() => vi.advanceTimersByTime(DELAY));
+		await act(() => vi.advanceTimersByTime(DELAY));
 		expect(api.expanded).toBe(false);
 	});
 
-	it("stays open for the whole drag, however far it wanders", () => {
+	it("stays open for the whole drag, however far it wanders", async () => {
 		enter();
 		pointerDown();
 		leave();
-		act(() => vi.advanceTimersByTime(DELAY * 4));
+		await act(() => vi.advanceTimersByTime(DELAY * 4));
 		expect(api.expanded).toBe(true);
 
 		pointerUpAt(500, 500);
-		act(() => vi.advanceTimersByTime(DELAY));
+		await act(() => vi.advanceTimersByTime(DELAY));
 		expect(api.expanded).toBe(false);
 	});
 
-	it("stays open when a drag releases inside", () => {
+	it("stays open when a drag releases inside", async () => {
 		enter();
 		pointerDown();
 		pointerUpAt(50, 50);
-		act(() => vi.advanceTimersByTime(DELAY));
+		await act(() => vi.advanceTimersByTime(DELAY));
 		expect(api.expanded).toBe(true);
 	});
 });

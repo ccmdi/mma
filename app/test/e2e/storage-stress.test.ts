@@ -1051,7 +1051,7 @@ describe("Selection during mutation", () => {
 
 		// Re-select -- should now get 40
 		const count2 = await withApi(async (api, tid) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([{ type: "Tag", tagId: tid }]);
 			return api.getMapState().selectedLocationIds.size;
 		}, tag.id);
@@ -1060,11 +1060,11 @@ describe("Selection during mutation", () => {
 
 	it("removing selected locations updates selection", async () => {
 		const result = await withApi(async (api) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([{ type: "Everything" }]);
 			const beforeCount = api.getMapState().selectedLocationIds.size;
 			const ids = [...api.getMapState().selectedLocationIds].slice(0, 5);
-			api.removeLocations(new Set(ids));
+			await api.removeLocations(new Set(ids));
 			// Give Rust a moment to refresh selections
 			await new Promise((r) => setTimeout(r, 100));
 			await api.addSelections([{ type: "Everything" }]);

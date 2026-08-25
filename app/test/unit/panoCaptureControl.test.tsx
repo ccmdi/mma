@@ -126,7 +126,7 @@ describe("PanoControls screenshot button", () => {
 		expect(mocks.download).not.toHaveBeenCalled();
 		expect(mocks.toast).toHaveBeenCalledWith("Screenshot copied");
 
-		act(() => vi.advanceTimersByTime(500));
+		await act(() => vi.advanceTimersByTime(500));
 		expect(button.disabled).toBe(false);
 	});
 

@@ -7,25 +7,25 @@ import { getActiveSelections, getMapState, toggleGhostSelection } from "@/store/
 // references (never construct per call).
 
 describe("store snapshot invariants", () => {
-	it("ghostedSelections is reassigned on every change, never mutated in place", () => {
+	it("ghostedSelections is reassigned on every change, never mutated in place", async () => {
 		const before = getMapState().ghostedSelections;
-		toggleGhostSelection("tag:1");
+		await toggleGhostSelection("tag:1");
 		const ghosted = getMapState().ghostedSelections;
 		expect(ghosted).not.toBe(before);
 		expect(ghosted.has("tag:1")).toBe(true);
 
-		toggleGhostSelection("tag:1");
+		await toggleGhostSelection("tag:1");
 		const unghosted = getMapState().ghostedSelections;
 		expect(unghosted).not.toBe(ghosted);
 		expect(unghosted.has("tag:1")).toBe(false);
 	});
 
-	it("getActiveSelections returns a stable reference between mutations", () => {
+	it("getActiveSelections returns a stable reference between mutations", async () => {
 		expect(getActiveSelections()).toBe(getActiveSelections());
 		// The filtered (ghosted non-empty) branch must be cached too.
-		toggleGhostSelection("tag:2");
+		await toggleGhostSelection("tag:2");
 		expect(getMapState().ghostedSelections.size).toBeGreaterThan(0);
 		expect(getActiveSelections()).toBe(getActiveSelections());
-		toggleGhostSelection("tag:2");
+		await toggleGhostSelection("tag:2");
 	});
 });

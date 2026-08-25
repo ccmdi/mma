@@ -696,7 +696,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("string equality filter (countryCode = US) selects correct location", async () => {
 		await withApi(async (api) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([
 				{
 					type: "Filter",
@@ -715,7 +715,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("between filter (altitude 60-150) selects correct location", async () => {
 		await withApi(async (api) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([
 				{
 					type: "Filter",
@@ -735,7 +735,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("string inequality filter (countryCode != US)", async () => {
 		await withApi(async (api) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([
 				{
 					type: "Filter",
@@ -754,7 +754,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("month comparison filter (imageDate >= 2024-01)", async () => {
 		await withApi(async (api) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([
 				{
 					type: "Filter",
@@ -772,7 +772,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("filter on missing field excludes locations without it", async () => {
 		await withApi(async (api) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([
 				{
 					type: "Filter",

@@ -221,7 +221,7 @@ describe("Selection operations", () => {
 			await api.addSelections([{ type: "Tag", tagId: tagId }]);
 			const before = api.getActiveSelections().length;
 			const key = api.getActiveSelections()[0].key;
-			api.removeSelections([key]);
+			await api.removeSelections([key]);
 			const after = api.getActiveSelections().length;
 			return { before, after };
 		}, tagAId);
@@ -238,7 +238,7 @@ describe("Selection operations", () => {
 
 		const result = await withApi(async (api) => {
 			const before = api.getActiveSelections().length;
-			api.resetSelections();
+			await api.resetSelections();
 			const after = api.getActiveSelections().length;
 			return { before, after };
 		});
@@ -283,7 +283,7 @@ describe("Selection correctness after mutations", () => {
 				await api.updateLocations([{ id: l.id, patch: { flags: 1 } }]);
 			}
 			await new Promise((r) => setTimeout(r, 500));
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([{ type: "PanoIds" }]);
 			const after = api.getMapState().selectedLocationIds.size;
 			return { before, after };
@@ -314,7 +314,7 @@ describe("Selection correctness after mutations", () => {
 			await api.addSelections([{ type: "Everything" }]);
 			const before = (await api._test.syncSelections()).ids;
 			const toRemove = before[before.length - 1];
-			api.removeLocations(new Set([toRemove]));
+			await api.removeLocations(new Set([toRemove]));
 			await new Promise((r) => setTimeout(r, 300));
 			const after = (await api._test.syncSelections()).ids;
 			return { before: before.length, after: after.length };
@@ -325,7 +325,7 @@ describe("Selection correctness after mutations", () => {
 	it("PanoIds selection correct after undo of flag change", async () => {
 		const loc0 = await getLoc(locIds[0]);
 		await withApi(async (api, loc) => {
-			api.resetSelections();
+			await api.resetSelections();
 			await api.addSelections([{ type: "PanoIds" }]);
 			await api.updateLocations([{ id: loc.id, patch: { flags: 0 } }]);
 			await new Promise((r) => setTimeout(r, 300));
@@ -335,7 +335,7 @@ describe("Selection correctness after mutations", () => {
 		expect(afterUnpin.length).toBe(4);
 
 		await withApi(async (api) => {
-			api.undo();
+			await api.undo();
 			await new Promise((r) => setTimeout(r, 300));
 		});
 
@@ -349,7 +349,7 @@ describe("Selection correctness after mutations", () => {
 		const tagLoc1 = await getLoc(locIds[1]);
 		await withApi(
 			async (api, l0, l1, tagId: number) => {
-				api.resetSelections();
+				await api.resetSelections();
 				await api.updateLocations([{ id: l0.id, patch: { tags: [tagId] } }]);
 				await api.updateLocations([{ id: l1.id, patch: { tags: [tagId] } }]);
 				await api.addSelections([{ type: "Tag", tagId: tagId }]);

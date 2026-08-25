@@ -55,9 +55,9 @@ function type(text: string) {
 	});
 }
 
-function clickImport() {
+async function clickImport() {
 	const button = [...container.querySelectorAll("button")].find((b) => b.textContent === "Import")!;
-	act(() => button.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+	await act(() => button.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 }
 
 function pills() {
@@ -74,10 +74,10 @@ beforeEach(() => {
 // #105: the typed tag is the tag. There is no commit step, so nothing can be
 // silently dropped by skipping one.
 describe("import bulk tag", () => {
-	it("applies a typed tag without pressing enter", () => {
+	it("applies a typed tag without pressing enter", async () => {
 		const unmount = mount();
 		type("france");
-		clickImport();
+		await clickImport();
 		expect(confirmImport).toHaveBeenCalledWith([], "france");
 		unmount();
 	});
@@ -101,20 +101,20 @@ describe("import bulk tag", () => {
 		unmount();
 	});
 
-	it("treats a whitespace-only tag as no tag", () => {
+	it("treats a whitespace-only tag as no tag", async () => {
 		const unmount = mount();
 		type("   ");
 		expect(pills()).toEqual([]);
-		clickImport();
+		await clickImport();
 		expect(confirmImport).toHaveBeenCalledWith([], "");
 		unmount();
 	});
 
-	it("trims the tag it imports with", () => {
+	it("trims the tag it imports with", async () => {
 		const unmount = mount();
 		type("  france  ");
 		expect(pills()).toEqual(["france"]);
-		clickImport();
+		await clickImport();
 		expect(confirmImport).toHaveBeenCalledWith([], "france");
 		unmount();
 	});

@@ -169,7 +169,7 @@ describe("Location CRUD", () => {
 
 	it("remove single location", async () => {
 		await withApi(async (api, id) => {
-			api.removeLocations(new Set([id]));
+			await api.removeLocations(new Set([id]));
 		}, singleLocId);
 		const count = await getLocCount();
 		expect(count).toBe(501);
@@ -178,7 +178,7 @@ describe("Location CRUD", () => {
 	it("remove bulk locations", async () => {
 		const idsToRemove = bulkLocIds.slice(0, 100);
 		await withApi(async (api, ids) => {
-			api.removeLocations(new Set(ids));
+			await api.removeLocations(new Set(ids));
 		}, idsToRemove);
 		const count = await getLocCount();
 		expect(count).toBe(401);
@@ -186,7 +186,7 @@ describe("Location CRUD", () => {
 
 	it("remove nonexistent id is a no-op", async () => {
 		await withApi(async (api) => {
-			api.removeLocations(new Set([999999999]));
+			await api.removeLocations(new Set([999999999]));
 		});
 		const count = await getLocCount();
 		expect(count).toBe(401);
