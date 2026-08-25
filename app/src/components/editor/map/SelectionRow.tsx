@@ -139,6 +139,8 @@ export const SelectionRow = memo(function SelectionRow({
 	const [editingFilter, setEditingFilter] = useState(false);
 	const [savingTag, setSavingTag] = useState(false);
 	const [tagName, setTagName] = useState("");
+	const [renaming, setRenaming] = useState(false);
+	const [renameDraft, setRenameDraft] = useState("");
 	const rowRef = useRef<HTMLDivElement>(null);
 	const drag = useDragState();
 	const isDragging = drag?.key === selection.key;
@@ -181,9 +183,13 @@ export const SelectionRow = memo(function SelectionRow({
 
 	const handleRename = () => {
 		if (selection.props.type !== "Polygon") return;
-		const current = selection.props.polygon.properties?.name ?? "";
-		const next = window.prompt(t("Polygon name"), current);
-		if (next != null) setPolygonName(selection.key, next);
+		setRenameDraft(selection.props.polygon.properties?.name ?? "");
+		setRenaming(true);
+	};
+
+	const submitRename = () => {
+		setPolygonName(selection.key, renameDraft);
+		setRenaming(false);
 	};
 
 	const handleSaveAsTag = async () => {
@@ -489,6 +495,30 @@ export const SelectionRow = memo(function SelectionRow({
 					onClose={() => setEditingFilter(false)}
 				/>
 			)}
+			<Dialog open={renaming} onOpenChange={setRenaming}>
+				<DialogContent title={t("Polygon name")}>
+					<form
+						onSubmit={(e) => {
+							e.preventDefault();
+							submitRename();
+						}}
+						style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}
+					>
+						<TextInput
+							value={renameDraft}
+							onChange={(e) => setRenameDraft(e.target.value)}
+							onFocus={(e) => e.currentTarget.select()}
+							autoFocus
+						/>
+						<div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+							<Button onClick={() => setRenaming(false)}>{t("Cancel")}</Button>
+							<Button variant="primary" type="submit">
+								{t("Rename")}
+							</Button>
+						</div>
+					</form>
+				</DialogContent>
+			</Dialog>
 			<Dialog
 				open={savingTag}
 				onOpenChange={(v) => {
