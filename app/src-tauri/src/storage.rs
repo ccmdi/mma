@@ -538,6 +538,17 @@ const MIGRATIONS: &[(u32, &str)] = &[
         "CREATE INDEX IF NOT EXISTS idx_seen_country ON seen(country_code);
           CREATE INDEX IF NOT EXISTS idx_seen_map ON seen(map_id);",
     ),
+    (
+        21,
+        "CREATE TABLE IF NOT EXISTS saved_selections (
+            id         TEXT PRIMARY KEY NOT NULL,
+            name       TEXT NOT NULL,
+            selector   TEXT NOT NULL,
+            tag_names  TEXT NOT NULL DEFAULT '{}',
+            color      TEXT NOT NULL,
+            created_at TEXT NOT NULL
+          );",
+    ),
 ];
 
 // ---------------------------------------------------------------------------

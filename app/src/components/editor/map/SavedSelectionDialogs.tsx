@@ -1,19 +1,40 @@
+import { useEffect, useState } from "react";
 import { useMapState } from "@/store/useMapStore";
-import { useSetting } from "@/store/settings";
+import { selectionDisplayName } from "@/store/selections";
 import {
 	saveCurrentSelections,
 	applySavedSelection,
 	deleteSavedSelection,
-	selectorToSaved,
-	describeRule,
-	type SavedSelectionItem,
+	isSaveable,
+	loadAllSavedSelections,
+	savedParts,
+	type SavedPart,
 } from "@/store/savedSelections";
+import type { SavedSelection } from "@/bindings.gen";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { mdiClose } from "@mdi/js";
 import { t } from "@/lib/i18n";
+import { log } from "@/lib/util/log";
+
+/** One chip per part of a rule, colored the way its selection was when it was saved. */
+function RuleChips({ parts }: { parts: Pick<SavedPart, "label" | "color">[] }) {
+	return (
+		<div className="saved-selection-row__rules">
+			{parts.map((part, i) => (
+				<span key={i} className="saved-selection-row__chip">
+					<span
+						className="saved-selection-row__dot"
+						style={{ background: `rgb(${part.color[0]},${part.color[1]},${part.color[2]})` }}
+					/>
+					{part.label}
+				</span>
+			))}
+		</div>
+	);
+}
 
 export function SaveSelectionsDialog({
 	open,
@@ -23,21 +44,15 @@ export function SaveSelectionsDialog({
 }: DialogProps & { name: string; onNameChange: (v: string) => void }) {
 	const map = useMapState((s) => s.map);
 	const selections = useMapState((s) => s.selections);
-	const saveableItems: SavedSelectionItem[] = (() => {
-		if (!map) return [];
-		return selections
-			.map((s) => {
-				const saved = selectorToSaved(s.selector);
-				if (!saved) return null;
-				return { props: saved, color: s.color } as SavedSelectionItem;
-			})
-			.filter((item): item is SavedSelectionItem => item !== null);
-	})();
+	const saveable = map
+		? selections
+				.filter((s) => isSaveable(s.selector))
+				.map((s) => ({ label: selectionDisplayName(s), color: s.color }))
+		: [];
 
-	const handleSave = () => {
+	const handleSave = async () => {
 		if (!name.trim() || !map) return;
-		const ok = saveCurrentSelections(name.trim(), selections);
-		if (ok) {
+		if (await saveCurrentSelections(name.trim(), selections)) {
 			onNameChange("");
 			onOpenChange(false);
 		}
@@ -46,13 +61,13 @@ export function SaveSelectionsDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Save current selections")}>
-				{saveableItems.length === 0 ? (
+				{saveable.length === 0 ? (
 					<p>{t("No saveable selections active.")}</p>
 				) : (
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
-							handleSave();
+							void handleSave();
 						}}
 						style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}
 					>
@@ -62,19 +77,7 @@ export function SaveSelectionsDialog({
 							placeholder={t("Name this selection...")}
 							autoFocus
 						/>
-						<div className="saved-selection-row__rules">
-							{saveableItems.map((item, i) => (
-								<span key={i} className="saved-selection-row__chip">
-									<span
-										className="saved-selection-row__dot"
-										style={{
-											background: `rgb(${item.color[0]},${item.color[1]},${item.color[2]})`,
-										}}
-									/>
-									{describeRule(item.props)}
-								</span>
-							))}
-						</div>
+						<RuleChips parts={saveable} />
 						<div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
 							<Button onClick={() => onOpenChange(false)}>{t("Cancel")}</Button>
 							<Button variant="primary" type="submit" disabled={!name.trim()}>
@@ -90,7 +93,24 @@ export function SaveSelectionsDialog({
 
 export function ApplySavedSelectionDialog({ open, onOpenChange }: DialogProps) {
 	const map = useMapState((s) => s.map);
-	const saved = useSetting("savedSelections");
+	const [saved, setSaved] = useState<SavedSelection[] | null>(null);
+
+	useEffect(() => {
+		let live = true;
+		loadAllSavedSelections()
+			.then((rules) => {
+				if (live) setSaved(rules);
+			})
+			.catch((e) => {
+				log.error("[saved-selections] could not read rules:", e);
+				if (live) setSaved([]);
+			});
+		return () => {
+			live = false;
+		};
+	}, []);
+
+	if (saved === null) return null;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -116,26 +136,15 @@ export function ApplySavedSelectionDialog({ open, onOpenChange }: DialogProps) {
 										className="saved-selection-row__delete"
 										onClick={(e) => {
 											e.stopPropagation();
-											deleteSavedSelection(s.id);
+											void deleteSavedSelection(s.id);
+											setSaved(saved.filter((r) => r.id !== s.id));
 										}}
 										title={t("Delete")}
 									>
 										<Icon path={mdiClose} size={14} />
 									</button>
 								</div>
-								<div className="saved-selection-row__rules">
-									{s.items.map((item, i) => (
-										<span key={i} className="saved-selection-row__chip">
-											<span
-												className="saved-selection-row__dot"
-												style={{
-													background: `rgb(${item.color[0]},${item.color[1]},${item.color[2]})`,
-												}}
-											/>
-											{describeRule(item.props)}
-										</span>
-									))}
-								</div>
+								<RuleChips parts={savedParts(s)} />
 							</div>
 						))}
 					</div>

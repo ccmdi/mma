@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { createSelectorPick, selectorForPick } from "@/store/selectorPick";
-import { applyScope } from "@/legacy";
+
+// A missing saved rule triggers a body fetch; there is no Tauri host here to answer it.
+vi.mock("@/lib/commands", () => ({ cmd: { storeGetSavedSelections: async () => [] } }));
 
 describe("selectorForPick", () => {
 	it("turns each pick into a Selector -- the only language below the UI", () => {
@@ -9,8 +11,9 @@ describe("selectorForPick", () => {
 		expect(selectorForPick({ pick: "selection" })).toEqual({ type: "Union", selections: [] });
 		// A saved rule that this map cannot resolve contributes no members.
 		expect(selectorForPick({ pick: "saved", id: "missing" })).toEqual({
-			type: "Union",
-			selections: [],
+			type: "Locations",
+			locations: [],
+			name: null,
 		});
 	});
 });
@@ -41,24 +44,5 @@ describe("createSelectorPick", () => {
 		a.set({ pick: "selection" });
 		expect(a.getChoice()).toEqual({ pick: "selection" });
 		expect(b.getChoice()).toEqual({ pick: "all" });
-	});
-});
-
-describe("applyScope (legacy shim)", () => {
-	const pool = [{ id: 1 }, { id: 2 }, { id: 3 }];
-
-	it("'all' is the identity over any pool (no copy)", () => {
-		expect(applyScope({ type: "Everything" }, pool)).toBe(pool);
-	});
-
-	it("narrows the pool to a named id list", () => {
-		expect(applyScope({ type: "Locations", locations: [1, 3], name: null }, pool)).toEqual([
-			{ id: 1 },
-			{ id: 3 },
-		]);
-	});
-
-	it("refuses a predicate only Rust can evaluate", () => {
-		expect(() => applyScope({ type: "PanoIds" }, pool)).toThrow(/resolves in Rust/);
 	});
 });

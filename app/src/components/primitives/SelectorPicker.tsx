@@ -1,6 +1,6 @@
 import { useId } from "react";
 import type { SelectorPickController } from "@/store/selectorPick";
-import { getSavedSelections } from "@/store/savedSelections";
+import { useSavedSelectionIndex } from "@/store/savedSelections";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Radio } from "@/components/primitives/Radio";
 import { t } from "@/lib/i18n";
@@ -14,7 +14,8 @@ export function SelectorPicker({
 	const { choice, setChoice, allCount, selectionCount } = ctl;
 	const name = useId();
 	const hasSelection = selectionCount > 0;
-	const saved = ctl.saved ? getSavedSelections() : [];
+	const allSaved = useSavedSelectionIndex();
+	const saved = ctl.saved ? allSaved : [];
 	const savedMissing = choice.pick === "saved" && !saved.some((s) => s.id === choice.id);
 	return (
 		<div className={`selector-picker${className ? ` ${className}` : ""}`}>

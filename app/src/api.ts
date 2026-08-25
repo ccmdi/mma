@@ -28,7 +28,12 @@ import { Command } from "@tauri-apps/plugin-shell";
 import { open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
 import { subscribe, type EditorEvent, type EventHandler } from "@/lib/events";
 import { setSetting, getSettings } from "@/store/settings";
-import { getSavedSelections, savedToSelector, describeRule } from "@/store/savedSelections";
+import {
+	getSavedSelectionIndex,
+	loadSavedSelections,
+	savedParts,
+	savedSelector,
+} from "@/store/savedSelections";
 import { getSeenEntries, getSeenCount, clearSeen } from "@/lib/seen/seen";
 import { loadSeenPano } from "@/lib/sv/panoSingleton";
 import { enrichAll, needsEnrichment } from "@/lib/sv/enrich";
@@ -216,9 +221,10 @@ const surface = {
 	getSettings: () => ({ ...getSettings() }),
 
 	// --- Saved selections ---
-	getSavedSelections,
-	savedToSelector,
-	describeRule,
+	getSavedSelectionIndex,
+	loadSavedSelections,
+	savedParts,
+	savedSelector,
 
 	// --- Events (for plugins) ---
 	on<E extends EditorEvent>(event: E, handler: EventHandler<E>) {

@@ -19,6 +19,7 @@ mod proxy;
 mod remote_api;
 mod remote_mapping;
 mod review;
+mod saved_selections;
 mod seen;
 mod selections;
 mod sidecar;
@@ -222,6 +223,11 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             review::store_review_list,
             review::store_review_update,
             review::store_review_delete,
+            saved_selections::store_list_saved_selections,
+            saved_selections::store_get_saved_selections,
+            saved_selections::store_save_selection,
+            saved_selections::store_delete_saved_selection,
+            saved_selections::legacy::store_import_legacy_saved_selections,
             remote_mapping::remote_mapping_get,
             remote_mapping::remote_mapping_upsert,
             remote_mapping::remote_mapping_delete,

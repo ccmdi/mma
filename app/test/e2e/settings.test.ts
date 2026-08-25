@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { waitForReady, createAndOpenMap, closeMap, deleteMap, withApi } from "./helpers";
 
 describe("Settings persistence", () => {
@@ -75,63 +74,52 @@ describe("Settings persistence", () => {
 	});
 });
 
-describe("Settings - saved selections", () => {
-	let mapId: string;
+describe("Saved selections", () => {
+	const created: string[] = [];
 
 	before(async () => {
 		await waitForReady();
-		mapId = await createAndOpenMap("E2E Settings SavedSel");
 	});
 
 	after(async () => {
-		await closeMap();
-		await deleteMap(mapId);
-		// Clear saved selections
-		await withApi(async (api) => {
-			api.setSetting("savedSelections", []);
-		});
+		await withApi(async (api, ids) => {
+			// eslint-disable-next-line local/no-ipc-in-loop -- at most one leftover rule
+			for (const id of ids) await api.cmd.storeDeleteSavedSelection(id);
+			return "ok";
+		}, created);
 	});
 
-	it("starts with empty savedSelections", async () => {
-		const sels = await withApi(async (api) => api.getSettings().savedSelections);
-		expect(Array.isArray(sels)).toBe(true);
+	it("stores a rule with its tag-name side table and reads it back", async () => {
+		const saved = await withApi(async (api) =>
+			api.cmd.storeSaveSelection(
+				"E2E Preset",
+				{ type: "Tag", tagId: 7 },
+				{ 7: "Japan" },
+				[255, 0, 0],
+			),
+		);
+		created.push(saved.id);
+
+		// The index carries identity only; the tree comes from a separate by-id read.
+		const index = await withApi(async (api) => api.cmd.storeListSavedSelections());
+		const listed = index.find((s) => s.id === saved.id);
+		expect(listed).toBeTruthy();
+		expect(listed!.name).toBe("E2E Preset");
+		expect(listed!.color).toEqual([255, 0, 0]);
+		expect(listed).not.toHaveProperty("selector");
+
+		const [body] = await withApi(
+			async (api, id) => api.cmd.storeGetSavedSelections([id]),
+			saved.id,
+		);
+		expect(body.selector).toEqual({ type: "Tag", tagId: 7 });
+		expect(body.tagNames).toEqual({ 7: "Japan" });
 	});
 
-	it("can store and retrieve saved selections via settings", async () => {
-		await withApi(async (api) => {
-			const current = api.getSettings().savedSelections;
-			const entry = {
-				id: "test-1",
-				name: "Test Preset",
-				items: [
-					{
-						selector: { type: "Everything" as const },
-						color: [255, 0, 0] as [number, number, number],
-					},
-				],
-				createdAt: Date.now(),
-			};
-			api.setSetting("savedSelections", [...current, entry]);
-		});
-
-		const sels = await withApi(async (api) => api.getSettings().savedSelections);
-		expect(sels.length).toBeGreaterThanOrEqual(1);
-		const found = sels.find((s: any) => s.id === "test-1");
-		expect(found).toBeTruthy();
-		expect(found!.name).toBe("Test Preset");
-	});
-
-	it("can remove a saved selection", async () => {
-		await withApi(async (api) => {
-			const current = api.getSettings().savedSelections;
-			api.setSetting(
-				"savedSelections",
-				current.filter((s: any) => s.id !== "test-1"),
-			);
-		});
-
-		const sels = await withApi(async (api) => api.getSettings().savedSelections);
-		const found = sels.find((s: any) => s.id === "test-1");
-		expect(found).toBeUndefined();
+	it("removes a rule", async () => {
+		const id = created.pop()!;
+		await withApi(async (api, saved) => api.cmd.storeDeleteSavedSelection(saved), id);
+		const index = await withApi(async (api) => api.cmd.storeListSavedSelections());
+		expect(index.find((s) => s.id === id)).toBeUndefined();
 	});
 });

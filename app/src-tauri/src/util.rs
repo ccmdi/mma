@@ -6,9 +6,17 @@
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use sha2::{Digest, Sha256};
 
+/// The ISO 8601 form every SQLite timestamp column is written in.
+const ISO_FMT: &str = "%Y-%m-%dT%H:%M:%S%.3fZ";
+
 /// Returns the current UTC time as an ISO 8601 string with millisecond precision.
 pub fn now_iso() -> String {
-    Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
+    Utc::now().format(ISO_FMT).to_string()
+}
+
+/// Formats a Unix timestamp in milliseconds the same way [`now_iso`] does.
+pub fn unix_ms_to_iso(ms: i64) -> Option<String> {
+    DateTime::from_timestamp_millis(ms).map(|d| d.format(ISO_FMT).to_string())
 }
 
 /// Returns the current UTC time as a Unix timestamp in seconds. Location

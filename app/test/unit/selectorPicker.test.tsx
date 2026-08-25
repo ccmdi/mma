@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
+// The picker lists saved rules; this suite is about the radios, so keep the list empty
+// rather than reaching for the store.
+vi.mock("@/store/savedSelections", () => ({ useSavedSelectionIndex: () => [] }));
+
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import type { SelectorPickController } from "@/store/selectorPick";
 

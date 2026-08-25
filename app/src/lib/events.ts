@@ -41,6 +41,7 @@ const EVENT_DEFS = {
 	"render:delta": event<RenderDelta>(),
 	"render:selection": event<SelectionBitmaskPayload>(),
 	"map-list:changed": event<void>(),
+	"saved-selections:changed": event<void>(),
 	"settings:changed": event<void>(),
 	"fullscreen:changed": event<void>(),
 	"plugins:changed": event<void>(),
@@ -136,7 +137,8 @@ function useEventSubscription(evt: EditorEvent | readonly EditorEvent[]) {
  *  - producers must reassign the published reference, never mutate it in place */
 export function useEventValue<T>(evt: EditorEvent | readonly EditorEvent[], getValue: () => T): T {
 	const { sub } = useEventSubscription(evt);
-	return useSyncExternalStore(sub, getValue);
+	// getValue doubles as the server snapshot: the value is module state either way.
+	return useSyncExternalStore(sub, getValue, getValue);
 }
 
 /** React hook: re-renders when the given event(s) fire. Returns a version counter. */

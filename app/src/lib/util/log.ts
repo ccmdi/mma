@@ -28,6 +28,9 @@ function fmt(msg: string, ...args: unknown[]): string {
 
 const DEV = import.meta.env.DEV;
 
+// The sink is fire-and-forget: outside a Tauri window (vitest, a bare browser) it rejects,
+// and a logger must never turn into an unhandled rejection of its own.
+
 /* eslint-disable no-console */
 /** A log sink with no Tauri host behind it has to fail silently -- routing the
  *  rejection anywhere would re-enter `log` and recurse. */

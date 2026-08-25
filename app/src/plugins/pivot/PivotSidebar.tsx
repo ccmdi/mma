@@ -4,7 +4,7 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import { selectionDisplayName, buildSelection } from "@/store/selections";
-import { savedToSelector, describeRule, type SavedSelection } from "@/store/savedSelections";
+import { loadSavedSelections, savedParts, useSavedSelectionIndex } from "@/store/savedSelections";
 import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import type { ExtraFieldDef } from "@/bindings.gen";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
@@ -65,21 +65,10 @@ async function computePivot(
 			),
 		);
 	} else {
-		const saved: SavedSelection[] = MMA.getSettings().savedSelections;
-		const entry = saved.find((s: SavedSelection) => s.id === rowSource);
-		if (!entry || entry.items.length === 0) return null;
-		const resolvedRows: {
-			label: string;
-			color: [number, number, number];
-			selector: Selector;
-		}[] = [];
-		for (const item of entry.items) {
-			const selector = savedToSelector(item.props);
-			if (!selector) continue;
-			resolvedRows.push({ label: describeRule(item.props), color: item.color, selector });
-		}
-		if (resolvedRows.length === 0) return null;
-		rowDefs = resolvedRows.map((r) => ({ label: r.label, color: r.color }));
+		const [entry] = await loadSavedSelections([rowSource]);
+		const parts = entry ? savedParts(entry) : [];
+		if (parts.length === 0) return null;
+		rowDefs = parts.map((p) => ({ label: p.label, color: p.color }));
 		idSets = await Promise.all(
 			parts.map((p) => MMA.resolveIds(p.selector).then((ids) => new Set(ids))),
 		);
@@ -216,7 +205,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	const knownKeys = useMapState((s) => s.knownFieldKeys);
 	const fields = useMemo(() => pivotFields(allFields, knownKeys), [allFields, knownKeys]);
 
-	const savedSelections: SavedSelection[] = MMA.getSettings().savedSelections;
+	const savedSelections = useSavedSelectionIndex();
 
 	// Persisted values are global; fall back when they don't resolve on this map.
 	const rowSource: RowSource =

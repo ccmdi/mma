@@ -513,8 +513,9 @@ export function replaceSelection(
 
 /** Human-readable label for a selection, resolving tag names and filter ops. Each branch is one
  *  whole message with named params -- never assembled from translated fragments, so a language
- *  can reorder it. */
-export function selectionDisplayName(sel: Selection): string {
+ *  can reorder it. `tagNames` is a saved rule's tag-name side table: it names `Tag` leaves whose
+ *  id belongs to the map the rule was saved on rather than the one that is open. */
+export function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string {
 	return match(sel.selector)
 		.with({ type: "Locations" }, (p) => p.name ?? t("Selection"))
 		.with({ type: "Everything" }, () => t("Everything"))
@@ -523,7 +524,7 @@ export function selectionDisplayName(sel: Selection): string {
 				? t("Polygon: {name}", { name: String(p.polygon.properties.name) })
 				: t("Polygon"),
 		)
-		.with({ type: "Tag" }, (p) => t("Tag: {name}", { name: tagDisplayName(p.tagId) }))
+		.with({ type: "Tag" }, (p) => t("Tag: {name}", { name: tagDisplayName(p.tagId, tagNames) }))
 		.with({ type: "Untagged" }, () => t("Untagged"))
 		.with({ type: "Unpanned" }, () => t("Unpanned"))
 		.with({ type: "PanoIds" }, () => t("Pano ID locations"))
@@ -536,7 +537,7 @@ export function selectionDisplayName(sel: Selection): string {
 		.with({ type: "Intersection" }, () => t("Intersection"))
 		.with({ type: "Union" }, () => t("Union"))
 		.with({ type: "Invert" }, (p) =>
-			t("Invert: {selection}", { selection: selectionDisplayName(p.selections[0]) }),
+			t("Invert: {selection}", { selection: selectionDisplayName(p.selections[0], tagNames) }),
 		)
 		.with({ type: "Filter" }, (p) => {
 			const fieldDef = getFieldDef(p.field);
@@ -598,9 +599,11 @@ export function displayTagName(name: string): string {
 	return suffixCache.suffixes.get(name) ?? name;
 }
 
-function tagDisplayName(tagId: number): string {
+function tagDisplayName(tagId: number, tagNames?: Record<number, string>): string {
 	const name = getTag(tagId)?.name;
-	return name == null ? String(tagId) : displayTagName(name);
+	if (name != null) return displayTagName(name);
+	// Not a tag on this map: a saved rule still knows what it was called where it was saved.
+	return tagNames?.[tagId] ?? String(tagId);
 }
 
 /** English source strings -- callers translate. */
