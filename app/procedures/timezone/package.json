@@ -1,0 +1,11 @@
+{
+	"name": "mma-procedure-timezone",
+	"version": "0.1.0",
+	"private": true,
+	"description": "IANA timezone procedure (MapOnly shape) for the MMA procedure engine",
+	"type": "module",
+	"scripts": {
+		"build": "node ../../scripts/build-procedures.mjs timezone",
+		"test": "npm run build && node --test \"test/*.test.mjs\""
+	}
+}

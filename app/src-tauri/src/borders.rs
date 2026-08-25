@@ -619,7 +619,12 @@ pub(crate) fn parse_border_shas(listing: &serde_json::Value) -> HashMap<String, 
         .as_array()
         .into_iter()
         .flatten()
-        .filter_map(|e| Some((e["name"].as_str()?.to_string(), e["sha"].as_str()?.to_string())))
+        .filter_map(|e| {
+            Some((
+                e["name"].as_str()?.to_string(),
+                e["sha"].as_str()?.to_string(),
+            ))
+        })
         .collect()
 }
 
@@ -724,22 +729,31 @@ pub fn border_lookup(lat: f64, lng: f64, level: String) -> AppResult<Option<Poly
 #[tauri::command]
 #[specta::specta]
 pub fn border_classify(level: String, points: Vec<(f64, f64)>) -> AppResult<Vec<Option<String>>> {
-    validate_border_level(&level)?;
-    ensure_loaded(&level)?;
+    classify_points(&level, &points)
+}
+
+/// In-process entry point for [`border_classify`], for callers that already hold
+/// borrowed points (the procedure engine's `classify` host import).
+pub(crate) fn classify_points(
+    level: &str,
+    points: &[(f64, f64)],
+) -> AppResult<Vec<Option<String>>> {
+    validate_border_level(level)?;
+    ensure_loaded(level)?;
 
     let datasets = cache().lock().unwrap();
-    let ds = datasets.get(&level).unwrap();
+    let ds = datasets.get(level).unwrap();
 
     Ok(match ds {
         Dataset::Owned { features, bboxes } => classify_scan(
             zip_bboxes(features.iter(), bboxes),
-            &points,
+            points,
             |lng, lat, f| selections::point_in_geometry(lng, lat, &f.geometry),
             |f| f.name.as_str(),
         ),
         Dataset::Mapped { mmap, bboxes } => classify_scan(
             zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
-            &points,
+            points,
             |lng, lat, f| arch_point_in_feature(lng, lat, f),
             |f| f.name.as_str(),
         ),

@@ -2019,7 +2019,7 @@ where
 /// Partial location update from JS. `None` fields are unchanged; `Some(None)` on
 /// nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
 /// `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
-#[derive(Default, serde::Deserialize, specta::Type)]
+#[derive(Default, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LocationPatch {
     pub lat: Option<f64>,
@@ -2033,7 +2033,7 @@ pub struct LocationPatch {
     pub flags: Option<u32>,
     pub tags: Option<Vec<u32>>,
     #[serde(default, deserialize_with = "nullable")]
-    #[specta(type = Option<Option<specta_typescript::Any>>)]
+    #[specta(type = Option<Option<std::collections::HashMap<String, specta_typescript::Unknown>>>)]
     pub extra: Option<Option<crate::types::RawExtra>>,
     pub created_at: Option<u32>,
     #[serde(default, deserialize_with = "nullable")]
@@ -2311,34 +2311,71 @@ pub(crate) fn apply_field_defs(
 pub fn store_add_locations(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    mut locations: Vec<Location>,
+    locations: Vec<Location>,
 ) -> AppResult<MutationResult> {
     let _t = std::time::Instant::now();
     with_store!(label, state, |store| {
         let _lock = _t.elapsed().as_millis();
-        for loc in &mut locations {
-            loc.id = store.alloc_id();
-        }
-        store.push_undo(EditEntry {
-            created: locations.clone(),
-            removed: Vec::new(),
-        });
-        store.edits.redo.clear();
-        store.add_tag_counts(&locations);
-        let added = locations.clone();
-        for loc in locations {
-            store.overlay_add(loc);
-        }
-        let mut result = store.finish_mutation(&ChangeSet {
-            added: added.clone(),
-            ..Default::default()
-        });
-        let extras: Vec<&crate::types::RawExtra> =
-            added.iter().filter_map(|l| l.extra.as_ref()).collect();
-        auto_register_extras(store, &extras, &mut result);
+        let result = apply_adds(store, locations);
         log::debug!(
             "[cmd] store_add_locations lock={}ms total={}ms",
             _lock,
+            _t.elapsed().as_millis()
+        );
+        Ok(result)
+    })
+}
+
+/// Allocate IDs for `locations`, insert them, and record the undo entry. The one place a
+/// batch of new locations becomes a mutation -- every add path (direct IPC, uploaded chunks)
+/// ends here, so they cannot drift in what they record.
+pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> MutationResult {
+    for loc in &mut locations {
+        loc.id = store.alloc_id();
+    }
+    store.push_undo(EditEntry {
+        created: locations.clone(),
+        removed: Vec::new(),
+    });
+    store.edits.redo.clear();
+    store.add_tag_counts(&locations);
+    let added = locations.clone();
+    for loc in locations {
+        store.overlay_add(loc);
+    }
+    let mut result = store.finish_mutation(&ChangeSet {
+        added: added.clone(),
+        ..Default::default()
+    });
+    let extras: Vec<&crate::types::RawExtra> =
+        added.iter().filter_map(|l| l.extra.as_ref()).collect();
+    auto_register_extras(store, &extras, &mut result);
+    result
+}
+
+/// Add locations uploaded as chunked JSON in an upload session dir (see `store_upload_begin`),
+/// so the frontend never serializes the whole batch at once. Otherwise identical to
+/// [`store_add_locations`]: one atomic mutation, one undo entry, IDs in uploaded order.
+#[tauri::command]
+#[specta::specta]
+pub async fn store_add_locations_uploaded(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    session_dir: String,
+) -> AppResult<MutationResult> {
+    let _t = std::time::Instant::now();
+    // Parse before taking the store lock: a malformed chunk must leave the store untouched.
+    let locations =
+        tokio::task::spawn_blocking(move || crate::export::read_uploaded_chunks(&session_dir))
+            .await??;
+    let _read = _t.elapsed().as_millis();
+    with_store!(label, state, |store| {
+        let n = locations.len();
+        let result = apply_adds(store, locations);
+        log::debug!(
+            "[cmd] store_add_locations_uploaded n={} read={}ms total={}ms",
+            n,
+            _read,
             _t.elapsed().as_millis()
         );
         Ok(result)
@@ -2411,7 +2448,7 @@ pub async fn store_update_locations(
 
 /// Apply `{id, patch}` updates: overlay, tag counts, undo, extras registration. The one
 /// place a patch batch becomes a mutation -- every command that derives patches ends here.
-fn apply_updates(
+pub(crate) fn apply_updates(
     store: &mut Store,
     updates: &[Update<LocationPatch>],
     record_undo: bool,
@@ -3993,10 +4030,7 @@ fn rows_file_path(temp: &std::path::Path, map_id: &str) -> std::path::PathBuf {
     temp.join(format!("mma_rows_{map_id}_{slot}.json"))
 }
 
-/// One read through a selector. Each projection is its own command returning its own type: every
-/// caller wants exactly one answer, so a shared command would only add a runtime tag to
-/// check. `store_*` bodies below all follow the same shape -- resolve the selector once,
-/// then project.
+/// One read through a selector: resolve once, then project.
 macro_rules! selector_read {
     ($label:ident, $state:ident, $selector:ident, |$view:ident, $set:ident| $body:expr) => {
         with_store!($label, $state, |store| {

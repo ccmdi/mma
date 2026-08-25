@@ -395,7 +395,7 @@ pub struct Location {
     pub tags: Vec<u32>,
     /// Arbitrary key-value metadata
     // Stored as raw JSON bytes; see [`RawExtra`].
-    #[specta(type = Option<specta_typescript::Any>)]
+    #[specta(type = Option<std::collections::HashMap<String, specta_typescript::Unknown>>)]
     pub extra: Option<RawExtra>,
     /// Unix timestamp (seconds)
     pub created_at: u32,

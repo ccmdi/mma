@@ -81,6 +81,8 @@ jobs:
         working-directory: app
       - run: npx vitest run
         working-directory: app
+      - run: npm run test:procedures
+        working-directory: app
 
   generated:
     runs-on: ubuntu-latest

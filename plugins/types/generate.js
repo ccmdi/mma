@@ -18,7 +18,7 @@ async function main() {
       { cwd: appDir, stdio: "inherit" },
     );
 
-    // Hand-written .d.ts sources (getmetadata.gen, google-maps) are not emitted
+    // Hand-written .d.ts sources (google-maps) are not emitted
     // by tsc - copy them in so imports resolve.
     const copyDts = (dir, rel = "") => {
       for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {

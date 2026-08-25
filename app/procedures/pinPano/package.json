@@ -1,0 +1,11 @@
+{
+	"name": "mma-procedure-pinpano",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Pin to pano ID procedure (Run shape) for the MMA procedure engine",
+	"type": "module",
+	"scripts": {
+		"build": "node ../../scripts/build-procedures.mjs pinPano",
+		"test": "npm run build && node --test \"test/*.test.mjs\""
+	}
+}

@@ -4,6 +4,7 @@
 mod arrow_bridge;
 mod arrow_migrate;
 mod borders;
+mod procedure;
 mod export;
 mod feedback;
 mod gdoc;
@@ -152,6 +153,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             location_store::store_copy_locations_to_map,
             location_store::store_get_summary,
             location_store::store_add_locations,
+            location_store::store_add_locations_uploaded,
             location_store::store_remove_locations,
             location_store::store_update_locations,
             location_store::store_set_active,
@@ -244,6 +246,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             plugins::vali_countries,
             plugins::vali_data_status,
             plugins::vali_download_stale,
+            procedure::engine::procedure_run,
+            procedure::engine::procedure_cancel,
+            procedure::engine::procedure_query,
+            procedure::engine::procedure_query_cancel,
         ])
         .events(tauri_specta::collect_events![
             sidecar::SidecarProgress,
@@ -255,6 +261,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             location_store::ExternalMutation,
             location_store::StoreWarning,
             plugins::ValiProgress,
+            procedure::engine::ProcedureProgress,
+            procedure::engine::ProcedureResult,
         ])
 }
 

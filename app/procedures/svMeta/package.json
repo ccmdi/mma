@@ -1,0 +1,11 @@
+{
+	"name": "mma-procedure-svmeta",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Street View metadata procedure (Run shape) for the MMA procedure engine",
+	"type": "module",
+	"scripts": {
+		"build": "node ../../scripts/build-procedures.mjs svMeta",
+		"test": "npm run build && node --test \"test/*.test.mjs\""
+	}
+}

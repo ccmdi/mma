@@ -164,7 +164,27 @@ let inflightPersist: Promise<void> | null = null;
 const AUTOSAVE_DELAY_MS = 2000;
 
 /** Schedule an autosave shortly. Mutations call this automatically; debounced. */
+let autosaveHolds = 0;
+let saveDeferred = false;
+
+/** Defer autosave until the returned release runs. A bulk run that lands many mutations
+ *  would otherwise re-serialize the whole overlay on each one; one save at the end is enough. */
+export function holdAutosave(): () => void {
+	autosaveHolds++;
+	return () => {
+		autosaveHolds--;
+		if (autosaveHolds === 0 && saveDeferred) {
+			saveDeferred = false;
+			scheduleSave();
+		}
+	};
+}
+
 export function scheduleSave() {
+	if (autosaveHolds > 0) {
+		saveDeferred = true;
+		return;
+	}
 	if (autosaveTimer) clearTimeout(autosaveTimer);
 	autosaveTimer = setTimeout(() => {
 		autosaveTimer = null;
@@ -397,7 +417,6 @@ export async function partition(
 
 /** Materialize a selector's location rows -- by id, by selection, or the whole map.
  *  Rust picks the transport (inline vs staged file) by size. Missing ids are skipped.
- *  The heaviest read there is: every other projection answers without shipping rows.
  *
  *  Every row lands in webview memory, so an unscoped call costs O(map) -- at millions of
  *  locations that is the tab's whole heap. Prefer a projection, or an enrichment
@@ -541,12 +560,38 @@ export async function mutate(fn: () => Promise<MutationResult>): Promise<Mutatio
 	return r;
 }
 
+/** Locations per staged chunk. A serialized Location averages ~250 bytes, so a chunk is a
+ *  ~1MB POST body: small enough that peak JS memory stays flat at any batch size, large
+ *  enough that the per-chunk round trip disappears into the parse. */
+const ADD_CHUNK = 5000;
+
+/** Stage `locs` as chunked JSON in an upload session, then commit them in one mutation.
+ *  Only one chunk is serialized at a time, so peak memory is O(chunk), not O(batch). */
+async function addViaUpload(locs: Location[]): Promise<MutationResult> {
+	const session = await cmd.storeUploadBegin();
+	try {
+		for (let i = 0, n = 0; i < locs.length; i += ADD_CHUNK, n++) {
+			const res = await fetch(mmaBufUrl(`${session}/${n}.json`), {
+				method: "POST",
+				body: JSON.stringify(locs.slice(i, i + ADD_CHUNK)),
+			});
+			if (!res.ok) throw new Error(`staged add: chunk ${n} upload failed (${res.status})`);
+		}
+	} catch (e) {
+		await cmd.storeUploadAbort(session).catch(() => {});
+		throw e;
+	}
+	return cmd.storeAddLocationsUploaded(session);
+}
+
 /** Add locations to the map. Rust assigns real ids and they are written back into
  *  the passed objects -- build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
 export async function addLocations(locs: Location[]) {
 	if (locs.length === 0) return;
 	const t = trace("add");
-	const r = await mutate(() => cmd.storeAddLocations(locs));
+	const r = await mutate(() =>
+		locs.length > ADD_CHUNK ? addViaUpload(locs) : cmd.storeAddLocations(locs),
+	);
 	t.end({ delta: `+${r.delta.added.length} -${r.delta.removed.length}` });
 	for (let i = 0; i < r.delta.added.length && i < locs.length; i++) {
 		locs[i].id = r.delta.added[i].id;

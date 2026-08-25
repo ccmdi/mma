@@ -4194,3 +4194,129 @@ fn concurrent_rows_file_queries_get_distinct_paths() {
     let b = rows_file_path(&temp, "m");
     assert_ne!(a, b);
 }
+
+// -----------------------------------------------------------------------
+// Staged (chunked upload) adds
+// -----------------------------------------------------------------------
+
+/// Stage `chunks` into a fresh upload session the way the frontend POSTs them.
+fn stage_chunks(chunks: &[Vec<Location>]) -> String {
+    let session = crate::export::store_upload_begin().unwrap();
+    for (i, chunk) in chunks.iter().enumerate() {
+        let path = std::path::Path::new(&session).join(format!("{i}.json"));
+        std::fs::write(path, serde_json::to_vec(chunk).unwrap()).unwrap();
+    }
+    session
+}
+
+fn added_ids(result: &MutationResult) -> Vec<u32> {
+    result.delta.added.iter().map(|a| a.id).collect()
+}
+
+#[test]
+fn uploaded_add_reads_chunks_in_index_order() {
+    let session = stage_chunks(&[
+        vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)],
+        vec![loc(0, 3.0, 3.0)],
+    ]);
+    let uploaded = crate::export::read_uploaded_chunks::<Location>(&session).unwrap();
+    assert_eq!(
+        uploaded.iter().map(|l| l.lat).collect::<Vec<_>>(),
+        vec![1.0, 2.0, 3.0]
+    );
+}
+
+#[test]
+fn uploaded_add_echoes_ids_in_staged_order() {
+    let mut store = setup_store_with(&[]);
+    let session = stage_chunks(&[
+        vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)],
+        vec![loc(0, 3.0, 3.0)],
+    ]);
+    let uploaded = crate::export::read_uploaded_chunks::<Location>(&session).unwrap();
+    let result = apply_adds(&mut store, uploaded);
+
+    let ids = added_ids(&result);
+    assert_eq!(ids.len(), 3);
+    assert!(ids.windows(2).all(|w| w[1] == w[0] + 1));
+    for (id, lat) in ids.iter().zip([1.0, 2.0, 3.0]) {
+        assert_eq!(store.get_loc_by_id(*id).unwrap().lat, lat);
+    }
+}
+
+#[test]
+fn uploaded_add_matches_direct_add() {
+    let locs = vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0), loc(0, 3.0, 3.0)];
+
+    let mut direct_store = setup_store_with(&[]);
+    let direct = apply_adds(&mut direct_store, locs.clone());
+
+    let mut uploaded_store = setup_store_with(&[]);
+    let session = stage_chunks(&[locs[..2].to_vec(), locs[2..].to_vec()]);
+    let uploaded = apply_adds(
+        &mut uploaded_store,
+        crate::export::read_uploaded_chunks::<Location>(&session).unwrap(),
+    );
+
+    assert_eq!(
+        serde_json::to_value(&direct).unwrap(),
+        serde_json::to_value(&uploaded).unwrap()
+    );
+    assert_eq!(
+        direct_store.edits.undo.len(),
+        uploaded_store.edits.undo.len()
+    );
+    assert_eq!(
+        direct_store.edits.undo.last().unwrap().created,
+        uploaded_store.edits.undo.last().unwrap().created
+    );
+}
+
+#[test]
+fn uploaded_add_rejects_malformed_chunk_before_mutating() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let session = stage_chunks(&[vec![loc(0, 1.0, 1.0)]]);
+    std::fs::write(
+        std::path::Path::new(&session).join("1.json"),
+        b"[{\"id\": \"not a number\"}]",
+    )
+    .unwrap();
+
+    // Mirrors the command: parse first, mutate only on Ok.
+    let uploaded = crate::export::read_uploaded_chunks::<Location>(&session);
+    assert!(uploaded.is_err());
+    if let Ok(locs) = uploaded {
+        apply_adds(&mut store, locs);
+    }
+
+    assert_eq!(store.alive_count, 1);
+    assert!(store.edits.undo.is_empty());
+}
+
+#[test]
+fn uploaded_add_rejects_missing_chunk() {
+    let session = stage_chunks(&[vec![loc(0, 1.0, 1.0)]]);
+    std::fs::write(
+        std::path::Path::new(&session).join("2.json"),
+        serde_json::to_vec(&vec![loc(0, 2.0, 2.0)]).unwrap(),
+    )
+    .unwrap();
+    assert!(crate::export::read_uploaded_chunks::<Location>(&session).is_err());
+}
+
+#[test]
+fn uploaded_add_rejects_dir_outside_session() {
+    assert!(crate::export::read_uploaded_chunks::<Location>("C:/somewhere/else").is_err());
+}
+
+#[test]
+fn uploaded_add_removes_session_dir() {
+    let ok = stage_chunks(&[vec![loc(0, 1.0, 1.0)]]);
+    crate::export::read_uploaded_chunks::<Location>(&ok).unwrap();
+    assert!(!std::path::Path::new(&ok).exists());
+
+    let bad = stage_chunks(&[]);
+    std::fs::write(std::path::Path::new(&bad).join("junk.json"), b"[]").unwrap();
+    assert!(crate::export::read_uploaded_chunks::<Location>(&bad).is_err());
+    assert!(!std::path::Path::new(&bad).exists());
+}

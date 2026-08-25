@@ -2700,7 +2700,7 @@ fn extra_key_coverage_does_not_descend_into_nested_objects() {
 
 fn pinned(id: u32, pano: Option<&str>, flag: bool) -> Location {
     Location {
-        pano_id: pano.map(str::to_string),
+        pano_id: pano.map(Into::into),
         flags: if flag {
             LocationFlags::LOAD_AS_PANO_ID
         } else {

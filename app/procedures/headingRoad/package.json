@@ -1,0 +1,11 @@
+{
+	"name": "mma-procedure-headingroad",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Heading along the road procedure (Run shape) for the MMA procedure engine",
+	"type": "module",
+	"scripts": {
+		"build": "node ../../scripts/build-procedures.mjs headingRoad",
+		"test": "npm run build && node --test \"test/*.test.mjs\""
+	}
+}

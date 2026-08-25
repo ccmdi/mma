@@ -7,6 +7,7 @@ import { hslToRgb } from "@/lib/util/color";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { localDateTime, utcDateTime } from "@/lib/util/format";
 import { clamp, isVariant, unionTuple, type Variant } from "@/types/util";
+import { ValidationState } from "@/types";
 import { pointInPolygon } from "@/lib/geo/geo";
 import { getSettings } from "@/store/settings";
 import { dayMonthFmt } from "@/lib/util/format";
@@ -26,16 +27,6 @@ export type GroupType = Exclude<CompositeType, UnaryType>;
 const COMPOSITE_TYPES = unionTuple<CompositeType>()(["Intersection", "Union", "Invert"]);
 const GROUP_TYPES = unionTuple<GroupType>()(["Intersection", "Union"]);
 export const UNARY_TYPES = unionTuple<UnaryType>()(["Invert"]);
-
-export enum ValidationState {
-	Ok = 0,
-	UpdateAvailable = 1,
-	UpdateApplied = 2,
-	NotFound = 3,
-	PanoIdBroke = 4,
-	Unofficial = 5,
-	GoodcamAvailable = 6,
-}
 
 /** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
  *  operators are marked for translation. */

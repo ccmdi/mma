@@ -22,8 +22,8 @@ import {
 	sampleIds,
 	polygonSelectionsContaining,
 	isolateGhostKeys,
-	ValidationState,
 } from "@/store/selections";
+import { ValidationState } from "@/types";
 import { setUserFieldDefs, resetForMapChange } from "@/lib/data/fieldDefRegistry";
 import { setSetting } from "@/store/settings";
 

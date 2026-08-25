@@ -1,0 +1,10 @@
+{
+	/* The procedures are bundled by esbuild, which does not typecheck them, so they get
+	   their own pass. They are outside the app config's rootDir, which the plugin-types
+	   emit depends on. */
+	"extends": "./tsconfig.app.json",
+	"compilerOptions": {
+		"tsBuildInfoFile": "./node_modules/.tmp/tsconfig.procedures.tsbuildinfo"
+	},
+	"include": ["procedures", "src"]
+}

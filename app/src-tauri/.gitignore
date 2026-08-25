@@ -2,3 +2,7 @@
 # will have compiled files and executables
 /target/
 /gen/schemas
+
+# Built procedure bundles (npm run build:procedures)
+/procedures/*
+!/procedures/.gitkeep

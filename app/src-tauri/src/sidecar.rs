@@ -15,8 +15,8 @@
 //! Every sidecar takes the same argv (see `build_args`), so the app can construct it
 //! without the plugin describing it: variable input travels as JSON, never as flags.
 
-use crate::types::{AppError, AppResult};
 use crate::emit_event;
+use crate::types::{AppError, AppResult};
 use crate::user_plugins::{validate_plugin_id, validate_sidecar_command, validate_sidecar_name};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -174,11 +174,10 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
         downloaded += n as u64;
         if downloaded - last_emit >= 262_144 {
             emit_event(SidecarProgress {
-                    plugin_id: plugin_id.clone(),
-                    downloaded,
-                    total,
-                },
-            );
+                plugin_id: plugin_id.clone(),
+                downloaded,
+                total,
+            });
             last_emit = downloaded;
         }
     }
@@ -186,11 +185,10 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
     drop(zip_file);
 
     emit_event(SidecarProgress {
-            plugin_id: plugin_id.clone(),
-            downloaded,
-            total: total.max(downloaded),
-        },
-    );
+        plugin_id: plugin_id.clone(),
+        downloaded,
+        total: total.max(downloaded),
+    });
 
     let actual_sha = format!("{:x}", hasher.finalize());
     if let Some(ref expected) = expected_sha256 {
@@ -543,7 +541,10 @@ fn spawn_resident(plugin_id: &str, spec: &SidecarSpec, epoch: u64) -> AppResult<
         )));
     };
 
-    log::info!("[sidecar] resident {} for {plugin_id} on port {port}", spec.name);
+    log::info!(
+        "[sidecar] resident {} for {plugin_id} on port {port}",
+        spec.name
+    );
     Ok(Resident { child, port, epoch })
 }
 
@@ -556,14 +557,21 @@ struct ResidentAddr {
 /// epoch of a resident that just failed a request: it is killed and replaced only if
 /// it still occupies the slot, so concurrent failures cannot kill each other's
 /// fresh process.
-fn resident_port(plugin_id: &str, spec: &SidecarSpec, stale: Option<u64>) -> AppResult<ResidentAddr> {
+fn resident_port(
+    plugin_id: &str,
+    spec: &SidecarSpec,
+    stale: Option<u64>,
+) -> AppResult<ResidentAddr> {
     let slot = plugin_slot(plugin_id);
     let mut procs = lock(&slot);
     if let Some(r) = procs.resident.take() {
         // try_wait also reaps a process that exited on its own (idle timeout).
         let alive = matches!(lock(&r.child).try_wait(), Ok(None));
         if alive && stale != Some(r.epoch) {
-            let addr = ResidentAddr { port: r.port, epoch: r.epoch };
+            let addr = ResidentAddr {
+                port: r.port,
+                epoch: r.epoch,
+            };
             procs.resident = Some(r);
             return Ok(addr);
         }
@@ -573,7 +581,10 @@ fn resident_port(plugin_id: &str, spec: &SidecarSpec, stale: Option<u64>) -> App
     }
     procs.epoch += 1;
     let resident = spawn_resident(plugin_id, spec, procs.epoch)?;
-    let addr = ResidentAddr { port: resident.port, epoch: resident.epoch };
+    let addr = ResidentAddr {
+        port: resident.port,
+        epoch: resident.epoch,
+    };
     procs.resident = Some(resident);
     Ok(addr)
 }
@@ -608,6 +619,29 @@ fn post(port: u16, command: &str, body: &str) -> Result<String, PostError> {
     Ok(text)
 }
 
+/// Post one command to the plugin's resident process and return its single reply.
+fn post_resident(
+    plugin_id: &str,
+    spec: &SidecarSpec,
+    command: &str,
+    payload: Option<&str>,
+) -> AppResult<String> {
+    let body = payload.unwrap_or("{}");
+    let addr = resident_port(plugin_id, spec, None)?;
+    match post(addr.port, command, body) {
+        Ok(text) => Ok(text),
+        // An HTTP error status is the resident answering; only a transport failure
+        // (idled out or crashed between the liveness check and the send) warrants
+        // one restart and retry.
+        Err(e @ PostError::Http(_)) => Err(e.into_app(command)),
+        Err(PostError::Transport(e)) => {
+            log::warn!("[sidecar] resident {command} unreachable ({e}), restarting");
+            let addr = resident_port(plugin_id, spec, Some(addr.epoch))?;
+            post(addr.port, command, body).map_err(|e| e.into_app(command))
+        }
+    }
+}
+
 fn run_resident(
     plugin_id: &str,
     spec: &SidecarSpec,
@@ -615,20 +649,7 @@ fn run_resident(
     payload: Option<&str>,
     req_id: u32,
 ) -> AppResult<()> {
-    let body = payload.unwrap_or("{}");
-    let addr = resident_port(plugin_id, spec, None)?;
-    let text = match post(addr.port, command, body) {
-        Ok(text) => text,
-        // An HTTP error status is the resident answering; only a transport failure
-        // (idled out or crashed between the liveness check and the send) warrants
-        // one restart and retry.
-        Err(e @ PostError::Http(_)) => return Err(e.into_app(command)),
-        Err(PostError::Transport(e)) => {
-            log::warn!("[sidecar] resident {command} unreachable ({e}), restarting");
-            let addr = resident_port(plugin_id, spec, Some(addr.epoch))?;
-            post(addr.port, command, body).map_err(|e| e.into_app(command))?
-        }
-    };
+    let text = post_resident(plugin_id, spec, command, payload)?;
     emit_event(SidecarLine { req_id, line: text });
     Ok(())
 }
@@ -647,13 +668,30 @@ fn run_oneshot(
     command: &str,
     payload: Option<&str>,
     req_id: u32,
+    on_line: &mut dyn FnMut(String),
 ) -> AppResult<()> {
     let input = payload.map(|p| write_input(req_id, p)).transpose()?;
-    let result = run_oneshot_inner(plugin_id, spec, command, input.as_deref(), req_id);
+    let result = run_oneshot_inner(plugin_id, spec, command, input.as_deref(), req_id, on_line);
     if let Some(path) = input {
         let _ = std::fs::remove_file(path);
     }
     result
+}
+
+/// Run a one-shot command to completion and return its stdout lines instead of
+/// streaming them as events. For in-process callers such as the procedure engine.
+pub(crate) fn run_oneshot_collect(
+    plugin_id: &str,
+    spec: &SidecarSpec,
+    command: &str,
+    payload: Option<&str>,
+) -> AppResult<Vec<String>> {
+    let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let mut lines = Vec::new();
+    run_oneshot(plugin_id, spec, command, payload, req_id, &mut |l| {
+        lines.push(l)
+    })?;
+    Ok(lines)
 }
 
 fn run_oneshot_inner(
@@ -662,6 +700,7 @@ fn run_oneshot_inner(
     command: &str,
     input: Option<&Path>,
     req_id: u32,
+    on_line: &mut dyn FnMut(String),
 ) -> AppResult<()> {
     let slot = plugin_slot(plugin_id);
     // Spawn and register under the plugin lock: a concurrent stop or install either
@@ -670,7 +709,10 @@ fn run_oneshot_inner(
     let mut child = build_command(plugin_id, spec, command, input)?
         .spawn()
         .map_err(|e| AppError(format!("Failed to spawn {} {command}: {e}", spec.name)))?;
-    log::info!("[sidecar] {} {command} for {plugin_id} (req_id={req_id})", spec.name);
+    log::info!(
+        "[sidecar] {} {command} for {plugin_id} (req_id={req_id})",
+        spec.name
+    );
 
     let Some(stdout) = child.stdout.take() else {
         let _ = child.kill();
@@ -694,7 +736,7 @@ fn run_oneshot_inner(
 
     // No lock held while streaming, so sidecar_cancel can reach the child mid-run.
     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-        emit_event(SidecarLine { req_id, line });
+        on_line(line);
     }
     if let Some(handle) = errors {
         let _ = handle.join();
@@ -715,7 +757,9 @@ fn run_oneshot_inner(
     lock(&slot).children.remove(&req_id);
 
     if !status.success() {
-        let code = status.code().map_or("signal".to_string(), |c| c.to_string());
+        let code = status
+            .code()
+            .map_or("signal".to_string(), |c| c.to_string());
         return Err(AppError(format!("{} {command} exited ({code})", spec.name)));
     }
     Ok(())
@@ -739,7 +783,9 @@ pub fn sidecar_request(
     // The app starts residents itself; a requested `serve` would sit as a
     // never-finishing one-shot.
     if command == SERVE_COMMAND {
-        return Err(AppError("serve is app-managed and cannot be requested".into()));
+        return Err(AppError(
+            "serve is app-managed and cannot be requested".into(),
+        ));
     }
     let spec = read_spec(&plugin_id)?;
     let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
@@ -748,7 +794,14 @@ pub fn sidecar_request(
         let result = if spec.is_resident(&command) {
             run_resident(&plugin_id, &spec, &command, payload.as_deref(), req_id)
         } else {
-            run_oneshot(&plugin_id, &spec, &command, payload.as_deref(), req_id)
+            run_oneshot(
+                &plugin_id,
+                &spec,
+                &command,
+                payload.as_deref(),
+                req_id,
+                &mut |line| emit_event(SidecarLine { req_id, line }),
+            )
         };
         let error = result.err().map(|e| e.0);
         if let Some(ref message) = error {
@@ -758,6 +811,34 @@ pub fn sidecar_request(
     });
 
     Ok(req_id)
+}
+
+/// Run one sidecar command synchronously and return every line it produced. Same
+/// resident-vs-one-shot dispatch as [`sidecar_request`], but nothing is emitted:
+/// the caller owns the lines. A resident answers with exactly one.
+pub(crate) fn sidecar_call_collect(
+    plugin_id: &str,
+    command: &str,
+    payload: &str,
+) -> AppResult<Vec<String>> {
+    validate_plugin_id(plugin_id)?;
+    validate_sidecar_command(command)?;
+    if command == SERVE_COMMAND {
+        return Err(AppError(
+            "serve is app-managed and cannot be requested".into(),
+        ));
+    }
+    let spec = read_spec(plugin_id)?;
+    if spec.is_resident(command) {
+        Ok(vec![post_resident(
+            plugin_id,
+            &spec,
+            command,
+            Some(payload),
+        )?])
+    } else {
+        run_oneshot_collect(plugin_id, &spec, command, Some(payload))
+    }
 }
 
 /// Stop everything a plugin has running. Called when the plugin is disabled or

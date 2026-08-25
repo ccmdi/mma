@@ -2,8 +2,8 @@
 //! the owned GeoJSON path, and the offline artifact generator.
 
 use super::{
-    arch_feature_bbox, arch_point_in_feature, arch_to_geometry, classify_scan, convert_dataset, git_blob_sha1, parse_border_shas,
-    ArchDataset, ArchFeature,
+    arch_feature_bbox, arch_point_in_feature, arch_to_geometry, classify_points, classify_scan,
+    convert_dataset, git_blob_sha1, parse_border_shas, ArchDataset, ArchFeature,
 };
 use crate::selections::{self, PolygonGeometry};
 
@@ -178,7 +178,10 @@ fn gen_rkyv_artifacts() {
 /// raw.githubusercontent's ETag is the blob id, so this formula must match git's.
 #[test]
 fn git_blob_sha1_matches_git() {
-    assert_eq!(git_blob_sha1(b""), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391");
+    assert_eq!(
+        git_blob_sha1(b""),
+        "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+    );
     assert_eq!(
         git_blob_sha1(b"hello world\n"),
         "3b18e512dba79e4c8300dd08aeb37f8e728b8dad"
@@ -201,4 +204,26 @@ fn parse_border_shas_reads_contents_listing() {
         Some("527857ecf3dabcba8705aab16e6a548c090b46a2")
     );
     assert!(parse_border_shas(&serde_json::json!({ "message": "rate limited" })).is_empty());
+}
+
+/// `classify_points` is the in-process entry the `mma.classify` host import reaches.
+/// Driven against the bundled "light" set so it needs no downloaded archive.
+#[test]
+fn classify_points_resolves_against_the_bundled_dataset() {
+    let out = classify_points("light", &[(48.8566, 2.3522), (0.0, -140.0)]).expect("classifies");
+    assert_eq!(out.len(), 2);
+    assert!(out[0].is_some(), "Paris should land inside a feature");
+    assert_eq!(out[1], None, "mid-Pacific is outside every feature");
+}
+
+/// The subdivision provider's real dataset is a download, so this only runs with
+/// `--ignored` on a machine that already has borders-adm1.rkyv.
+#[test]
+#[ignore]
+fn classify_points_names_a_subdivision_on_adm1() {
+    let out = classify_points("adm1", &[(47.3769, 8.5417)]).expect("classifies");
+    assert!(
+        out[0].is_some(),
+        "Zurich should land inside an adm1 feature"
+    );
 }
