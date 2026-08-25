@@ -1,125 +1,31 @@
 import { distMeters } from "@/lib/geo/geo";
 import { fetchPanoDotsWithIds } from "@/lib/geo/photometa";
 import { latLngToWorld, worldToTile } from "@/lib/geo/mercator";
-import { google } from "@/lib/sv/opensv";
-import { cameraTypeFromHeight, fetchSvMetadata } from "@/lib/sv/svMeta";
-import { LocationFlag, hasLoadAsPanoId, createLocation } from "@/types";
-import type { LatLng } from "@/types";
+import { cameraTypeFromHeight, centerHeading, imageDateOf } from "@/lib/sv/getMetadata";
+import { isUnofficial } from "@/lib/sv/panoId";
+import { panosAt, svMetadata } from "@/lib/sv/query";
+import { LocationFlag, PanoType, hasLoadAsPanoId, createLocation } from "@/types";
+import type { LatLng, Pano } from "@/types";
 import type { Location } from "@/bindings.gen";
-import { runConcurrent } from "@/lib/util/concurrent";
-import { ymToDate } from "@/lib/util/date";
-import { chunk } from "@/lib/util/util";
 
-import { SV_SEARCH_RADIUS, SV_CONCURRENCY } from "@/lib/sv/constants";
-import { type RequireNonNull } from "@/types/util";
+import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
+import { normalizeHeading, reverseHeading } from "@/lib/geo/geo";
 
-/** A single historical panorama entry (pano ID + capture date). */
-export interface PanoReference {
-	pano: string;
-	date: Date;
-}
-
-/** Normalize the various date formats opensv returns into a Date. */
-export function parsePanoDate(d: Date | { year?: number; month?: number } | string | null): Date {
-	if (d instanceof Date && !isNaN(d.getTime())) return d;
-	if (d && typeof d === "object" && "year" in d) {
-		return new Date(d.year ?? 0, (d.month ?? 1) - 1);
+/** The pano a location should display: the one it is pinned to when that still resolves,
+ *  otherwise whatever sits at its coordinates. */
+export async function resolvePano(loc: Location): Promise<Pano | null> {
+	if (hasLoadAsPanoId(loc) && loc.panoId) {
+		const [pinned] = await svMetadata([loc.panoId]);
+		if (pinned) return pinned;
 	}
-	if (typeof d === "string") {
-		const ym = ymToDate(d);
-		if (ym) return ym;
-	}
-	return new Date(0);
+	const [here] = await panosAt([{ lat: loc.lat, lng: loc.lng }]);
+	return here;
 }
 
-/** Fetch panorama data via StreetViewService. Returns null on failure or missing location. */
-export async function fetchPanoData(
-	request: google.maps.StreetViewPanoRequest | google.maps.StreetViewLocationRequest,
-): Promise<google.maps.StreetViewResolvedPanoramaData | null> {
-	try {
-		const sv = new google.maps.StreetViewService();
-		const result = await sv.getPanorama(request);
-		const data = result?.data;
-		if (data?.location?.latLng) return data as google.maps.StreetViewResolvedPanoramaData;
-		return null;
-	} catch {
-		return null;
-	}
-}
-
-export async function getPanoAtCoords(
-	lat: number,
-	lng: number,
-	radius = SV_SEARCH_RADIUS,
-): Promise<string | null> {
-	const sv = new google.maps.StreetViewService();
-	try {
-		const result = await sv.getPanorama({ location: { lat, lng }, radius });
-		return result.data.location?.pano ?? null;
-	} catch {
-		return null;
-	}
-}
-
-export interface ResolvedPano {
-	pano: google.maps.StreetViewResolvedPanoramaData | null;
-	isFallback: boolean;
-}
-
-export async function resolvePano(loc: Location): Promise<ResolvedPano> {
-	const pinned = hasLoadAsPanoId(loc);
-	let resolved: google.maps.StreetViewResolvedPanoramaData | null = null;
-	if (pinned && loc.panoId) {
-		resolved = await fetchPanoData({ pano: loc.panoId });
-	}
-	resolved ??= await fetchPanoData({
-		location: { lat: loc.lat, lng: loc.lng },
-		radius: SV_SEARCH_RADIUS,
-	});
-	return {
-		pano: resolved,
-		isFallback: pinned && loc.panoId != null && resolved?.location?.pano !== loc.panoId,
-	};
-}
-
-interface ResolvePanoResult {
-	resolved: RequireNonNull<Pick<Location, "id" | "panoId">>[];
-	failed: number[];
-}
-
-export async function resolvePanoIds(
-	locations: Location[],
-	opts: {
-		concurrency?: number;
-		batchSize?: number;
-		signal?: AbortSignal;
-		onProgress?: (done: number, total: number) => void;
-	} = {},
-): Promise<ResolvePanoResult> {
-	const { concurrency = SV_CONCURRENCY, batchSize = 200, signal, onProgress } = opts;
-	const result: ResolvePanoResult = { resolved: [], failed: [] };
-	if (!google) return result;
-
-	let done = 0;
-	for (const batch of chunk(locations, batchSize)) {
-		signal?.throwIfAborted();
-		await runConcurrent(
-			batch,
-			async (loc) => {
-				const pano = await getPanoAtCoords(loc.lat, loc.lng);
-				if (pano) {
-					result.resolved.push({ id: loc.id, panoId: pano });
-				} else {
-					result.failed.push(loc.id);
-				}
-			},
-			{ concurrency, signal },
-		);
-		done += batch.length;
-		onProgress?.(done, locations.length);
-	}
-
-	return result;
+/** True when the location names a pano that no longer resolves, so `resolvePano` fell back
+ *  to its coordinates. */
+export function isPanoFallback(loc: Location, resolved: Pano | null): boolean {
+	return hasLoadAsPanoId(loc) && loc.panoId != null && resolved?.pano !== loc.panoId;
 }
 
 /** Compute SV search radius in meters based on map zoom and latitude. */
@@ -132,11 +38,6 @@ export function svSearchRadius(lat: number, zoom: number): number {
  *  for both the click path and the cursor picker overlay. */
 export function clickSearchRadius(lat: number, zoom: number, minRadius?: number): number {
 	return Math.max(minRadius ?? SV_SEARCH_RADIUS, Math.round(svSearchRadius(lat, zoom)));
-}
-
-/** Clamp heading to [-180, 180]. */
-export function normalizeHeading(h: number): number {
-	return h > 180 ? h - 360 : h < -180 ? h + 360 : h;
 }
 
 /** Heading among `headings` closest to `target` by shortest angular distance, or null if empty. */
@@ -155,11 +56,11 @@ export function nearestLinkHeading(headings: number[], target: number): number |
 
 /** Determine initial heading for a location based on road links and direction preference. */
 export function calcHeading(
-	data: google.maps.StreetViewResolvedPanoramaData,
+	data: Pano,
 	opts?: { pointAlongRoad?: boolean; preferDirection?: string | null },
 ): number {
 	if (!opts?.pointAlongRoad) return 0;
-	const center = data.tiles.centerHeading ?? data.tiles.originHeading ?? 0;
+	const center = centerHeading(data);
 	const dir = opts.preferDirection;
 	if (dir === "forwards" || !dir) {
 		if (!dir && data.links && data.links.length > 0 && data.links[0].heading != null) {
@@ -167,7 +68,7 @@ export function calcHeading(
 		}
 		return center;
 	}
-	if (dir === "backwards") return normalizeHeading(center - 180);
+	if (dir === "backwards") return reverseHeading(center);
 	if (data.links && data.links.length > 0) {
 		let link = data.links[0];
 		if (dir === "random") {
@@ -189,34 +90,8 @@ export function calcHeading(
 	return center;
 }
 
-/** Extract plain {lat, lng} from a PanoData's LatLng object. */
-export function panoLatLng(p: google.maps.StreetViewResolvedPanoramaData): LatLng {
-	const ll = p.location.latLng;
-	return { lat: ll.lat(), lng: ll.lng() };
-}
-
-/** True if both PanoData reference the same panorama ID. */
-export function samePano(
-	a: google.maps.StreetViewResolvedPanoramaData | null,
-	b: google.maps.StreetViewResolvedPanoramaData | null,
-): boolean {
-	return !!(a?.location?.pano && b?.location?.pano && a.location.pano === b.location.pano);
-}
-
-/** Heuristic: true if the pano is user-uploaded (long ID or copyright attribution). */
-export function isUnofficial(p: google.maps.StreetViewResolvedPanoramaData | null): boolean {
-	const pano = p?.location?.pano;
-	if (!pano) return false;
-	if (pano.length > 22) return true;
-	const src = p?.location?.shortDescription ?? p?.copyright ?? "";
-	return /photo by|user[- ]uploaded/i.test(src);
-}
-
-/** Find nearest pano via photometa tile dots (bypasses StreetViewService for coverage discovery). */
-export async function photometaSnap(
-	click: LatLng,
-	radius: number,
-): Promise<google.maps.StreetViewResolvedPanoramaData | null> {
+/** Nearest pano via photometa tile dots, a coverage source neither RPC exposes. */
+export async function photometaSnap(click: LatLng, radius: number): Promise<Pano | null> {
 	try {
 		const wc = latLngToWorld(click);
 		const tile = worldToTile(wc.x, wc.y, 17);
@@ -228,7 +103,8 @@ export async function photometaSnap(
 			if (dist < radius && (!best || dist < best.dist)) best = { panoId: d.panoId, dist };
 		}
 		if (!best) return null;
-		return fetchPanoData({ pano: best.panoId });
+		const [pano] = await svMetadata([best.panoId]);
+		return pano;
 	} catch {
 		return null;
 	}
@@ -263,34 +139,24 @@ export async function lookupStreetView(
 			? "avoid"
 			: "allow";
 
-	const [iRes, aRes, oRes, sRes] = await Promise.all([
-		fetchPanoData({ location: click, radius }),
-		fetchPanoData({
-			location: click,
-			radius,
-			sources: [google.maps.StreetViewSource.GOOGLE],
-			preference: google.maps.StreetViewPreference.NEAREST,
-		}),
+	// Each probe is one request, and answers the pano's metadata with it. All three are
+	// nearest searches; only the collections differ.
+	const [[iRes], [aRes], oRes, sRes] = await Promise.all([
+		panosAt([click], radius),
+		panosAt([click], radius, { sources: [PanoType.Official] }),
 		photometaSnap(click, radius),
-		userUploaded === "allow"
-			? fetchPanoData({
-					location: click,
-					radius,
-					sources: ["unofficial" as unknown as google.maps.StreetViewSource],
-					preference: google.maps.StreetViewPreference.NEAREST,
-				})
-			: null,
+		userUploaded === "allow" ? panosAt([click], radius).then(([p]) => p) : null,
 	]);
 
-	const candidates: google.maps.StreetViewResolvedPanoramaData[] = [];
-	const push = (e: google.maps.StreetViewResolvedPanoramaData | null) => {
-		if (!e?.location?.pano) return;
-		if (!candidates.some((c) => samePano(c, e))) candidates.push(e);
+	const candidates: Pano[] = [];
+	const push = (e: Pano | null) => {
+		if (!e?.pano) return;
+		if (!candidates.some((c) => c.pano === e.pano)) candidates.push(e);
 	};
 
 	if (iRes && sRes) {
-		const di = distMeters(click, panoLatLng(iRes));
-		const ds = distMeters(click, panoLatLng(sRes));
+		const di = distMeters(click, { lat: iRes.lat, lng: iRes.lng });
+		const ds = distMeters(click, { lat: sRes.lat, lng: sRes.lng });
 		push(di > ds ? sRes : iRes);
 	} else {
 		push(iRes);
@@ -300,13 +166,9 @@ export async function lookupStreetView(
 	push(sRes);
 
 	const official = candidates.find((c) => !isUnofficial(c));
-	if (official?.time?.length) {
-		const fetches = await Promise.allSettled(
-			official.time.map((t) => fetchPanoData({ pano: t.pano })),
-		);
-		for (const r of fetches) {
-			if (r.status === "fulfilled") push(r.value);
-		}
+	if (official?.time.length) {
+		// The whole historical stack, in one request.
+		for (const p of await svMetadata(official.time.map((t) => t.pano))) push(p);
 	}
 
 	let filtered = candidates;
@@ -314,7 +176,7 @@ export async function lookupStreetView(
 
 	if (opts.preferHigherQuality) {
 		filtered = filtered.filter((c) => {
-			const ct = cameraTypeFromHeight(c.tiles.worldSize.height);
+			const ct = cameraTypeFromHeight(c.worldSize.height);
 			return ct == null || CAMERA_PRIORITY.includes(ct);
 		});
 	}
@@ -327,8 +189,8 @@ export async function lookupStreetView(
 			if (!xu && yu) return -1;
 		}
 		if (opts.preferHigherQuality) {
-			const xc = cameraTypeFromHeight(x.tiles.worldSize.height);
-			const yc = cameraTypeFromHeight(y.tiles.worldSize.height);
+			const xc = cameraTypeFromHeight(x.worldSize.height);
+			const yc = cameraTypeFromHeight(y.worldSize.height);
 			if (xc != null && yc == null) return -1;
 			if (xc == null && yc != null) return 1;
 			if (xc != null && yc != null) {
@@ -339,24 +201,23 @@ export async function lookupStreetView(
 			}
 		}
 		if (userUploaded === "allow") return 0;
-		const xd = x.imageDate ?? "9999-99";
-		const yd = y.imageDate ?? "9999-99";
+		const xd = imageDateOf(x) || "9999-99";
+		const yd = imageDateOf(y) || "9999-99";
 		return -xd.localeCompare(yd);
 	});
 
 	const chosen = filtered[0];
 	if (!chosen) return null;
 
-	const verify = await fetchPanoData({ location: panoLatLng(chosen), radius: SV_SEARCH_RADIUS });
-	const isDefault = verify !== null && samePano(chosen, verify);
+	const [verify] = await panosAt([{ lat: chosen.lat, lng: chosen.lng }], SV_SEARCH_RADIUS);
+	const isDefault = verify !== null && verify.pano === chosen.pano;
 
-	const pos = chosen.location.latLng;
 	const heading = calcHeading(chosen, opts);
 	return createLocation({
-		lat: pos.lat(),
-		lng: pos.lng(),
+		lat: chosen.lat,
+		lng: chosen.lng,
 		heading,
-		panoId: chosen.location.pano ?? null,
+		panoId: chosen.pano || null,
 		flags: !isDefault || opts.defaultPanoId ? LocationFlag.LoadAsPanoId : LocationFlag.None,
 	});
 }
@@ -376,7 +237,7 @@ export async function followLinkedPanos(
 	let currentHeading = heading;
 
 	for (let i = 0; i < maxSteps; i++) {
-		const [data] = await fetchSvMetadata([currentPanoId]);
+		const [data] = await svMetadata([currentPanoId]);
 		const links = data?.links;
 		if (!links || links.length === 0) break;
 
@@ -395,14 +256,14 @@ export async function followLinkedPanos(
 		if (!best || bestDelta > 90) break;
 
 		visited.add(best.pano);
-		const [nextData] = await fetchSvMetadata([best.pano]);
+		const [nextData] = await svMetadata([best.pano]);
 		if (!nextData) break;
 
-		const pos = nextData.location.latLng;
+		const pos = { lat: nextData.lat, lng: nextData.lng };
 		results.push(
 			createLocation({
-				lat: pos.lat(),
-				lng: pos.lng(),
+				lat: pos.lat,
+				lng: pos.lng,
 				heading: best.heading,
 				panoId: best.pano,
 				flags: LocationFlag.LoadAsPanoId,

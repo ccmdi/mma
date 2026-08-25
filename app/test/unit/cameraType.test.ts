@@ -1,24 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { detectCameraType, cameraTypeFromHeight } from "@/lib/sv/svMeta";
+import { cameraTypeFromHeight, detectCameraType } from "@/lib/sv/getMetadata";
+import type { Pano } from "@/types";
 
-type SvData = google.maps.StreetViewResolvedPanoramaData;
-
-function makeData(opts: {
-	height: number;
-	imageDate?: string;
-	countryCode?: string | null;
-	levelId?: string | null;
-	lat?: number;
-	source?: string | null;
-}): SvData {
-	const { height, imageDate, countryCode = null, levelId = null, lat = 0, source = null } = opts;
-	return {
-		tiles: { worldSize: { width: 0, height } },
-		imageDate,
-		location: { latLng: { lat: () => lat, lng: () => 0 } },
-		extra: { countryCode, _levelId: levelId, _source: source },
-	} as unknown as SvData;
-}
+const meta = (over: Partial<Pano>): Pano => ({
+	pano: "p",
+	panoFrontend: 2,
+	worldSize: { width: 13312, height: 6656 },
+	tileSize: { width: 512, height: 512 },
+	copyright: "",
+	description: "",
+	shortDescription: "",
+	uploaderName: null,
+	lat: 0,
+	lng: 0,
+	altitude: 0,
+	pov: null,
+	countryCode: null,
+	levelId: null,
+	links: [],
+	time: [],
+	date: { year: 2022, month: 6, day: 1 },
+	source: "launch",
+	...over,
+});
 
 describe("cameraTypeFromHeight", () => {
 	it("maps tile world heights to generations", () => {
@@ -30,87 +34,51 @@ describe("cameraTypeFromHeight", () => {
 });
 
 describe("detectCameraType", () => {
-	it("returns gen1/gen4 directly from height", () => {
-		expect(detectCameraType(makeData({ height: 1664 }))).toBe("gen1");
-		expect(detectCameraType(makeData({ height: 8192 }))).toBe("gen4");
-	});
-
-	it("gen2-height pano with no badcam/tripod signals is gen2", () => {
-		expect(detectCameraType(makeData({ height: 6656, imageDate: "2024-05" }))).toBe("gen2");
-	});
-
-	it("gen2-height pano with _levelId is tripod", () => {
-		expect(detectCameraType(makeData({ height: 6656, levelId: "L1" }))).toBe("tripod");
-	});
-
-	it("classifies a badcam-country pano past its threshold as badcam", () => {
-		// India threshold: after 2021-10
-		expect(
-			detectCameraType(makeData({ height: 6656, countryCode: "IN", imageDate: "2022-01" })),
-		).toBe("badcam");
-	});
-
-	it("does not mark a badcam-country pano before its threshold", () => {
-		expect(
-			detectCameraType(makeData({ height: 6656, countryCode: "IN", imageDate: "2020-01" })),
-		).toBe("gen2");
-	});
-
-	it("badcam takes priority over tripod when both apply", () => {
-		// Tripod (_levelId) AND in a badcam country past threshold -> returns badcam.
-		expect(
-			detectCameraType(
-				makeData({ height: 6656, countryCode: "IN", imageDate: "2022-01", levelId: "L1" }),
-			),
-		).toBe("badcam");
-	});
-
-	it("scout source refines plain gen2/gen4 to trekker", () => {
-		expect(detectCameraType(makeData({ height: 8192, source: "scout" }))).toBe("trekker");
-		expect(detectCameraType(makeData({ height: 6656, source: "scout" }))).toBe("trekker");
-	});
-
-	it("scout does not override badcam, tripod, or gen1", () => {
-		// Indoor tripods are also scout-sourced (e.g. museum floors)
-		expect(detectCameraType(makeData({ height: 6656, levelId: "L1", source: "scout" }))).toBe(
-			"tripod",
+	it("only refines gen2 and scout gen4", () => {
+		expect(detectCameraType(meta({ worldSize: { width: 0, height: 1664 } }))).toBe("gen1");
+		expect(detectCameraType(meta({ worldSize: { width: 0, height: 8192 } }))).toBe("gen4");
+		expect(detectCameraType(meta({ worldSize: { width: 0, height: 8192 }, source: "scout" }))).toBe(
+			"trekker",
 		);
+		expect(detectCameraType(meta({ worldSize: { width: 0, height: 999 } }))).toBe(null);
+		expect(detectCameraType(meta({}))).toBe("gen2");
+		expect(detectCameraType(meta({ source: "scout" }))).toBe("trekker");
+	});
+
+	it("reads the badcam thresholds per country", () => {
+		const at = (countryCode: string, ym: string, lat = 0) =>
+			detectCameraType(
+				meta({
+					countryCode,
+					lat,
+					date: { year: Number(ym.slice(0, 4)), month: Number(ym.slice(5)), day: 1 },
+				}),
+			);
+		expect(at("FI", "2020-10")).toBe("badcam");
+		expect(at("FI", "2020-09")).toBe("gen2");
+		expect(at("FR", "2021-02")).toBe("badcam");
+		expect(at("FR", "2021-01")).toBe("gen2");
+		expect(at("CY", "1999-06")).toBe("gen2"); // pre-2001 dates never reach the table
+		expect(at("CY", "2001-06")).toBe("badcam");
+		// The US threshold is latitude-gated.
+		expect(at("US", "2020-06", 60)).toBe("badcam");
+		expect(at("US", "2020-06", 40)).toBe("gen2");
+		expect(at("DE", "2024-06")).toBe("gen2");
+	});
+
+	it("prefers badcam over tripod, and tripod over scout", () => {
 		expect(
 			detectCameraType(
-				makeData({ height: 6656, countryCode: "IN", imageDate: "2022-01", source: "scout" }),
+				meta({ countryCode: "FR", levelId: 0, date: { year: 2024, month: 1, day: 1 } }),
 			),
 		).toBe("badcam");
-		expect(detectCameraType(makeData({ height: 1664, source: "scout" }))).toBe("gen1");
+		expect(detectCameraType(meta({ levelId: 0, source: "scout" }))).toBe("tripod");
 	});
 
-	it("launch source keeps height-based classification", () => {
-		expect(detectCameraType(makeData({ height: 8192, source: "launch" }))).toBe("gen4");
-	});
-
-	it("US badcam only above latitude 52", () => {
-		const past = { height: 6656, countryCode: "US", imageDate: "2020-01" } as const;
-		expect(detectCameraType(makeData({ ...past, lat: 60 }))).toBe("badcam");
-		expect(detectCameraType(makeData({ ...past, lat: 40 }))).toBe("gen2");
-	});
-});
-
-// Exclusive on the month named. Was a UTC-vs-local Date comparison; TZ is pinned to +05:30
-// so a reintroduced Date fails here rather than passing on UTC CI.
-describe("badcam threshold boundary", () => {
-	const bd = (imageDate: string) =>
-		detectCameraType(makeData({ height: 6656, imageDate, countryCode: "BD" }));
-
-	it("excludes the threshold month itself", () => {
-		expect(bd("2021-04")).toBe("gen2");
-	});
-
-	it("includes months after the threshold", () => {
-		expect(bd("2021-05")).toBe("badcam");
-		expect(bd("2022-01")).toBe("badcam");
-	});
-
-	it("excludes months before the threshold", () => {
-		expect(bd("2021-03")).toBe("gen2");
-		expect(bd("2020-12")).toBe("gen2");
+	it("ignores a malformed or absent capture month", () => {
+		expect(detectCameraType(meta({ countryCode: "FR", date: null }))).toBe("gen2");
+		expect(
+			detectCameraType(meta({ countryCode: "FR", date: { year: 2024, month: 13, day: 1 } })),
+		).toBe("gen2");
 	});
 });

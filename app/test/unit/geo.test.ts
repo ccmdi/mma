@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
 	densifyRing,
-	foldLng,
+	normalizeHeading,
+	reverseHeading,
+	wrapDeg,
 	inBbox,
 	lerpLng,
 	lngSpan,
@@ -98,11 +100,60 @@ describe("densifyRing", () => {
 	});
 });
 
-describe("foldLng", () => {
+describe("wrapDeg", () => {
 	it("shifts into [min, min + 360)", () => {
-		expect(foldLng(-175, 170)).toBeCloseTo(185);
-		expect(foldLng(160, 170)).toBeCloseTo(520);
-		expect(foldLng(5, 5)).toBeCloseTo(5);
+		expect(wrapDeg(-175, 170)).toBeCloseTo(185);
+		expect(wrapDeg(160, 170)).toBeCloseTo(520);
+		expect(wrapDeg(5, 5)).toBeCloseTo(5);
+	});
+
+	it("folds any number of whole turns, not just one", () => {
+		expect(wrapDeg(700, -180)).toBeCloseTo(-20);
+		expect(wrapDeg(-700, -180)).toBeCloseTo(20);
+		expect(wrapDeg(3610, 0)).toBeCloseTo(10);
+	});
+
+	it("puts the window start at both ends, so min + 360 folds back to min", () => {
+		expect(wrapDeg(-180, -180)).toBe(-180);
+		expect(wrapDeg(180, -180)).toBe(-180);
+		expect(wrapDeg(360, 0)).toBe(0);
+	});
+});
+
+describe("normalizeHeading", () => {
+	it("passes through values inside [-180, 180)", () => {
+		expect(normalizeHeading(0)).toBe(0);
+		expect(normalizeHeading(90)).toBe(90);
+		expect(normalizeHeading(-90)).toBe(-90);
+		expect(normalizeHeading(-180)).toBe(-180);
+	});
+
+	it("wraps outside it, over any number of turns", () => {
+		expect(normalizeHeading(270)).toBe(-90);
+		expect(normalizeHeading(360)).toBe(0);
+		expect(normalizeHeading(-270)).toBe(90);
+		expect(normalizeHeading(-360)).toBe(0);
+		expect(normalizeHeading(700)).toBeCloseTo(-20);
+	});
+
+	// The window is half-open, so the antipode has one spelling rather than two.
+	it("spells 180 as -180", () => {
+		expect(normalizeHeading(180)).toBe(-180);
+	});
+});
+
+describe("reverseHeading", () => {
+	it("is the opposite bearing", () => {
+		expect(reverseHeading(0)).toBe(-180);
+		expect(reverseHeading(90)).toBe(-90);
+		expect(reverseHeading(-90)).toBe(90);
+		expect(reverseHeading(350)).toBe(170);
+	});
+
+	it("is its own inverse", () => {
+		for (const h of [0, 37, 90, 179, -179, -90, 270, 359]) {
+			expect(reverseHeading(reverseHeading(h))).toBeCloseTo(normalizeHeading(h));
+		}
 	});
 });
 

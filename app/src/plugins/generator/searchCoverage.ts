@@ -5,7 +5,7 @@
 // overlap darkening. This module is deck-free (so it stays unit-testable); the buffer
 // is rendered by coverageOverlay.ts into the plugin's own GoogleMapsOverlay.
 
-import { foldLng, lngSpan, unionBounds, M_PER_DEG } from "@/lib/geo/geo";
+import { wrapDeg, lngSpan, unionBounds, M_PER_DEG } from "@/lib/geo/geo";
 import type { Bounds } from "@/types";
 
 /** deck.gl BitmapLayer bounds, `[left, bottom, right, top]`. Unwrapped, so `right` runs
@@ -103,7 +103,7 @@ export function lngLatToPixel(
 	lng: number,
 	lat: number,
 ): [number, number] {
-	const px = (foldLng(lng - b.west, 0) / lngSpan(b)) * w;
+	const px = (wrapDeg(lng - b.west, 0) / lngSpan(b)) * w;
 	const py = ((b.north - lat) / (b.north - b.south)) * h;
 	return [px, py];
 }

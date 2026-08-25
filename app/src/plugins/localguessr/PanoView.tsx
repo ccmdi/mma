@@ -2,8 +2,10 @@ import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } fro
 import { createLocation, LocationFlag } from "@/types";
 import { getPanorama, singletonDiv, applyResolved } from "@/lib/sv/panoSingleton";
 import { tweenPov } from "@/lib/sv/tweenPov";
+import { normalizeHeading } from "@/lib/geo/geo";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
-import { resolvePano, type ResolvedPano } from "@/lib/sv/lookup";
+import { resolvePano } from "@/lib/sv/lookup";
+import type { Pano } from "@/types";
 import { t } from "@/lib/i18n";
 import type { MovementMode, RoundLocation } from "./game";
 
@@ -62,7 +64,7 @@ export function PanoView({
 	const loading = revealed !== round;
 	const spawnRef = useRef(round);
 	spawnRef.current = round;
-	const stagedRef = useRef<{ round: RoundLocation; resolved: ResolvedPano } | null>(null);
+	const stagedRef = useRef<{ round: RoundLocation; resolved: Pano | null } | null>(null);
 	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const checkpointRef = useRef<{ panoId: string; heading: number; pitch: number } | null>(null);
 
@@ -82,9 +84,7 @@ export function PanoView({
 				if (!pano) return;
 				cancelTweenRef.current?.();
 				const pov = pano.getPov();
-				let dh = pov.heading % 360;
-				if (dh < 0) dh += 360;
-				const isNorth = Math.abs(dh) < 2 || Math.abs(dh - 360) < 2;
+				const isNorth = Math.abs(normalizeHeading(pov.heading)) < 2;
 				// Second press: top-down and fully zoomed out, for lining up with the map.
 				if (isNorth) pano.setZoom(0);
 				const target = isNorth ? { heading: 0, pitch: -90 } : { heading: 0, pitch: pov.pitch };
@@ -153,7 +153,7 @@ export function PanoView({
 			stagedRef.current = null;
 			const resolved = staged?.round === round ? staged.resolved : await resolvePano(loc);
 			if (cancelled) return;
-			if (!resolved.pano) {
+			if (!resolved?.pano) {
 				setError(t("No panorama found here"));
 				return;
 			}
@@ -163,7 +163,7 @@ export function PanoView({
 			google.maps.event.trigger(pano, "resize");
 			onPanorama?.(pano);
 
-			const target = resolved.pano.location?.pano ?? null;
+			const target = resolved.pano;
 			const reveal = () => {
 				if (cancelled || pano.getStatus() !== "OK") return;
 				// status_changed also fires for the outgoing pano mid-swap.
@@ -193,10 +193,9 @@ export function PanoView({
 			const pano = getPanorama();
 			if (!pano) return;
 			const resolved = await resolvePano(toLocation(preload));
-			if (cancelled || !resolved.pano) return;
+			if (cancelled || !resolved?.pano) return;
 			stagedRef.current = { round: preload, resolved };
-			const target = resolved.pano.location?.pano;
-			if (target) pano.setPano(target);
+			pano.setPano(resolved.pano);
 			pano.setPov({ heading: preload.heading, pitch: preload.pitch });
 		})();
 		return () => {

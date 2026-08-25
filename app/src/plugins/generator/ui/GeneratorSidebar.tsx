@@ -245,7 +245,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 		}
 		setMeta(nextMeta);
 
-		const engine = new GenerationEngine(google, settings, regions, {
+		const engine = new GenerationEngine(settings, regions, {
 			onLocationsFound: (locs: GeneratedLocation[]) => {
 				void MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
 				rerender((n) => n + 1);

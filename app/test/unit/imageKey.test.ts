@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { imageKeyToPanoId, panoIdToImageKey } from "@/lib/sv/svMeta";
+import { imageKeyToPanoId, panoIdToImageKey } from "@/lib/sv/panoId";
 
 // Reference vectors computed from the pre-pbf hand-rolled encoder
 const LONG_ID = "AF1QipMnotARealPhotoIdButRepresentative_0123456789";

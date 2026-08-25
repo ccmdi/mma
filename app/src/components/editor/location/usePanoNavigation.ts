@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 import { PANO_PITCH, FRAME_MS } from "@/lib/sv/constants";
 import { clamp } from "@/types/util";
+import { normalizeHeading, reverseHeading, wrapDeg } from "@/lib/geo/geo";
 import { parseHotkey, matchesKey, isEditableElement } from "@/lib/hooks/useHotkey";
 import { getBinding } from "@/lib/util/hotkeys";
 
@@ -41,7 +42,7 @@ export function usePanoNavigation(appSettings: AppSettings) {
 
 			if (dh || dp) {
 				singletonPano.setPov({
-					heading: (pov.heading + dh + 360) % 360,
+					heading: wrapDeg(pov.heading + dh, 0),
 					pitch: clamp(pov.pitch + dp, PANO_PITCH),
 				});
 			}
@@ -73,11 +74,11 @@ export function usePanoNavigation(appSettings: AppSettings) {
 								?.filter((l): l is google.maps.StreetViewLink => l != null);
 							if (!links?.length) return;
 							const heading = singletonPano.getPov().heading;
-							const target = action === "panoMoveForward" ? heading : (heading + 180) % 360;
+							const target = action === "panoMoveForward" ? heading : reverseHeading(heading);
 							let best = links[0];
 							let bestDiff = 360;
 							for (const link of links) {
-								const diff = Math.abs(((link.heading! - target + 540) % 360) - 180);
+								const diff = Math.abs(normalizeHeading(link.heading! - target));
 								if (diff < bestDiff) {
 									bestDiff = diff;
 									best = link;

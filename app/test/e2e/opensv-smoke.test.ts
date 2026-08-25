@@ -22,6 +22,7 @@ import {
 	createLocation,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
+import { LocationFlag } from "@/types";
 
 const OFFICIAL_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };
@@ -34,7 +35,6 @@ const TREKKER_PANO = "5upMz1_zTGPdkIXG6_QM3g";
 const TREKKER_COORDS = { lat: 55.510656, lng: 157.636627 };
 const TIMES_SQUARE = { lat: 40.758, lng: -73.9855 };
 
-const LoadAsPanoId = 1;
 const PANO_RENDER_TIMEOUT = 30_000;
 
 function loc(overrides: Partial<Location> = {}): Location {
@@ -173,7 +173,7 @@ describe("opensv smoke", function () {
 			loc({
 				...OFFICIAL_COORDS,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				heading: 90,
 				pitch: 0,
 				zoom: 0,
@@ -189,7 +189,7 @@ describe("opensv smoke", function () {
 			loc({
 				...UNOFFICIAL_COORDS,
 				panoId: UNOFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				heading: 0,
 				pitch: 0,
 				zoom: 0,
@@ -205,7 +205,7 @@ describe("opensv smoke", function () {
 			loc({
 				...UNOFFICIAL_RAW_COORDS,
 				panoId: UNOFFICIAL_RAW_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				heading: 0,
 				pitch: 0,
 				zoom: 0,
@@ -221,7 +221,7 @@ describe("opensv smoke", function () {
 			loc({
 				...TREKKER_COORDS,
 				panoId: TREKKER_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				heading: 180,
 				pitch: 0,
 				zoom: 0,
@@ -241,9 +241,9 @@ describe("opensv smoke", function () {
 
 	it("should survive rapid pano switching", async () => {
 		const locs = [
-			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LoadAsPanoId, heading: 90 }),
-			loc({ ...TREKKER_COORDS, panoId: TREKKER_PANO, flags: LoadAsPanoId, heading: 180 }),
-			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LoadAsPanoId, heading: 270 }),
+			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 90 }),
+			loc({ ...TREKKER_COORDS, panoId: TREKKER_PANO, flags: LocationFlag.LoadAsPanoId, heading: 180 }),
+			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 270 }),
 		];
 		const ids = await addLocs(locs);
 		for (const id of ids) await openLocation(id);
@@ -253,9 +253,9 @@ describe("opensv smoke", function () {
 
 	it("should survive switching between official and unofficial", async () => {
 		const locs = [
-			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LoadAsPanoId, heading: 0 }),
-			loc({ ...UNOFFICIAL_COORDS, panoId: UNOFFICIAL_PANO, flags: LoadAsPanoId, heading: 0 }),
-			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LoadAsPanoId, heading: 180 }),
+			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 0 }),
+			loc({ ...UNOFFICIAL_COORDS, panoId: UNOFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 0 }),
+			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 180 }),
 		];
 		const ids = await addLocs(locs);
 		await openLocation(ids[0]);
@@ -301,7 +301,7 @@ describe("opensv smoke", function () {
 			loc({
 				...OFFICIAL_COORDS,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				heading: 90,
 				pitch: 0,
 				zoom: -2,

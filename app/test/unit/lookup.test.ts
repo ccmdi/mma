@@ -2,50 +2,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from "vitest";
 import {
-	parsePanoDate,
 	svSearchRadius,
 	clickSearchRadius,
-	normalizeHeading,
 	nearestLinkHeading,
 	calcHeading,
-	samePano,
-	isUnofficial,
 	svThumbnailUrl,
 } from "@/lib/sv/lookup";
+import type { Pano } from "@/types";
 import { panoTileLayout } from "@/lib/sv/panoDownload";
-
-describe("parsePanoDate", () => {
-	it("passes through a valid Date", () => {
-		const d = new Date("2024-06-15");
-		expect(parsePanoDate(d).getTime()).toBe(d.getTime());
-	});
-
-	it("parses {year, month} object", () => {
-		const d = parsePanoDate({ year: 2024, month: 6 });
-		expect(d.getFullYear()).toBe(2024);
-		expect(d.getMonth()).toBe(5); // 0-indexed
-	});
-
-	it("parses YYYY-MM string", () => {
-		const d = parsePanoDate("2024-06");
-		expect(d.getFullYear()).toBe(2024);
-		expect(d.getMonth()).toBe(5);
-	});
-
-	it("returns epoch for null", () => {
-		expect(parsePanoDate(null).getTime()).toBe(0);
-	});
-
-	it("returns epoch for invalid Date", () => {
-		expect(parsePanoDate(new Date("invalid")).getTime()).toBe(0);
-	});
-
-	it("handles missing month in {year} object", () => {
-		const d = parsePanoDate({ year: 2020 });
-		expect(d.getFullYear()).toBe(2020);
-		expect(d.getMonth()).toBe(0);
-	});
-});
 
 describe("svSearchRadius", () => {
 	it("is unclamped at high zoom (the 25m floor now lives in the caller)", () => {
@@ -90,26 +54,6 @@ describe("clickSearchRadius (the cursor picker must equal the real click radius)
 
 	it("ignores the minRadius floor when the extent is larger", () => {
 		expect(clickSearchRadius(0, 5, 120)).toBe(Math.round(svSearchRadius(0, 5)));
-	});
-});
-
-describe("normalizeHeading", () => {
-	it("passes through values in [-180, 180]", () => {
-		expect(normalizeHeading(0)).toBe(0);
-		expect(normalizeHeading(90)).toBe(90);
-		expect(normalizeHeading(-90)).toBe(-90);
-		expect(normalizeHeading(180)).toBe(180);
-		expect(normalizeHeading(-180)).toBe(-180);
-	});
-
-	it("wraps values > 180", () => {
-		expect(normalizeHeading(270)).toBe(-90);
-		expect(normalizeHeading(360)).toBe(0);
-	});
-
-	it("wraps values < -180", () => {
-		expect(normalizeHeading(-270)).toBe(90);
-		expect(normalizeHeading(-360)).toBe(0);
 	});
 });
 
@@ -168,14 +112,11 @@ describe("panoTileLayout", () => {
 });
 
 describe("calcHeading", () => {
-	function makeData(opts: {
-		centerHeading?: number;
-		links?: { heading: number }[];
-	}): google.maps.StreetViewResolvedPanoramaData {
+	function makeData(opts: { centerHeading?: number; links?: { heading: number }[] }): Pano {
 		return {
-			tiles: { centerHeading: opts.centerHeading ?? 0, originHeading: 0 },
+			pov: { heading: opts.centerHeading ?? 0, tilt: 90, roll: 0 },
 			links: opts.links ?? [],
-		} as any;
+		} as unknown as Pano;
 	}
 
 	it("returns 0 when pointAlongRoad is false", () => {
@@ -203,47 +144,6 @@ describe("calcHeading", () => {
 		expect(calcHeading(data, { pointAlongRoad: true, preferDirection: "south" })).toBe(170);
 		expect(calcHeading(data, { pointAlongRoad: true, preferDirection: "west" })).toBe(260);
 		expect(calcHeading(data, { pointAlongRoad: true, preferDirection: "north" })).toBe(10);
-	});
-});
-
-describe("samePano", () => {
-	const makeP = (pano: string) => ({ location: { pano } }) as any;
-
-	it("true for same pano ID", () => {
-		expect(samePano(makeP("ABC"), makeP("ABC"))).toBe(true);
-	});
-
-	it("false for different pano ID", () => {
-		expect(samePano(makeP("ABC"), makeP("XYZ"))).toBe(false);
-	});
-
-	it("false for null", () => {
-		expect(samePano(null, makeP("ABC"))).toBe(false);
-		expect(samePano(makeP("ABC"), null)).toBe(false);
-		expect(samePano(null, null)).toBe(false);
-	});
-});
-
-describe("isUnofficial", () => {
-	it("long pano ID is unofficial", () => {
-		expect(isUnofficial({ location: { pano: "A".repeat(30) } } as any)).toBe(true);
-	});
-
-	it("22-char pano ID is official", () => {
-		expect(isUnofficial({ location: { pano: "A".repeat(22) } } as any)).toBe(false);
-	});
-
-	it("null is not unofficial", () => {
-		expect(isUnofficial(null)).toBe(false);
-	});
-
-	it("copyright with 'user-uploaded' is unofficial", () => {
-		expect(
-			isUnofficial({
-				location: { pano: "A".repeat(22) },
-				copyright: "Photo by John",
-			} as any),
-		).toBe(true);
 	});
 });
 

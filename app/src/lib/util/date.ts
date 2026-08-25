@@ -62,6 +62,12 @@ export function ymToDate(s: string): Date | null {
 	return p ? new Date(p.y, p.m - 1) : null;
 }
 
+/** A civil `YYYY-MM-DD` as the first of its month, local frame. Pano capture dates are
+ *  month-precision, and every reader of one displays or compares it by month. */
+export function civilToDate(s: string): Date | null {
+	return ymToDate(s.slice(0, 7));
+}
+
 /** Comparable month ordinal (`y*12 + m-1`). */
 export function ymOrdinal(s: string): number | null {
 	const p = ymParse(s);

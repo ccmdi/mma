@@ -1,5 +1,5 @@
 import {
-	foldLng,
+	wrapDeg,
 	inBbox,
 	lerpLng,
 	lngSpan,
@@ -75,9 +75,9 @@ export function poissonDiskSample(
 	const mPerDegLng = M_PER_DEG * Math.cos(midLat * DEG_TO_RAD);
 
 	// Metres run east from the western edge; a crossing box stays a plain interval here.
-	const toMx = (lng: number) => foldLng(lng - west, 0) * mPerDegLng;
+	const toMx = (lng: number) => wrapDeg(lng - west, 0) * mPerDegLng;
 	const toMy = (lat: number) => (lat - south) * M_PER_DEG;
-	const toLng = (mx: number) => foldLng(mx / mPerDegLng + west, -180);
+	const toLng = (mx: number) => wrapDeg(mx / mPerDegLng + west, -180);
 	const toLat = (my: number) => my / M_PER_DEG + south;
 
 	const widthM = lngSpan(bounds) * mPerDegLng;

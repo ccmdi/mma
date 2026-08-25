@@ -13,12 +13,21 @@ import { useMapSurface } from "@/lib/render/useMapSurface";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { svThumbnailUrl, svSearchRadius } from "@/lib/sv/lookup";
+import { PanoType } from "@/types";
+import { centerHeading } from "@/lib/sv/getMetadata";
+import { panosAt } from "@/lib/sv/query";
 import { log } from "@/lib/util/log";
 import { getSettings, useSetting } from "@/store/settings";
 import { useMeasure, useMeasureInteraction } from "@/lib/sv/measure";
 import { MeasurementBar } from "@/components/primitives/MeasurementBar";
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
-import { addSelections, currentSelection, fetchBounds, mapOpen, useMapState } from "@/store/useMapStore";
+import {
+	addSelections,
+	currentSelection,
+	fetchBounds,
+	mapOpen,
+	useMapState,
+} from "@/store/useMapStore";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { setMapHost, tryInterceptDraw } from "@/lib/map/mapState";
 import { createMapHost, hostKindForMapType, type MapHost } from "@/lib/map/host";
@@ -251,30 +260,24 @@ export function MapEmbed({
 					await new Promise((r) => setTimeout(r, 300));
 					if (ac.signal.aborted) return;
 
-					const sv = new google.maps.StreetViewService();
-					void sv.getPanorama(
-						{
-							location: { lat, lng },
-							radius: svSearchRadius(lat, zoom),
-							sources: [google.maps.StreetViewSource.GOOGLE],
-							preference: google.maps.StreetViewPreference.NEAREST,
-						},
-						(data: google.maps.StreetViewPanoramaData | null, status: string) =>
-							void (async () => {
-								if (ac.signal.aborted || status !== "OK" || !data?.location?.pano) return;
-								const heading = data.tiles.centerHeading ?? 0;
-								const url = svThumbnailUrl(data.location.pano, heading);
-								try {
-									const res = await fetch(url, { signal: ac.signal });
-									if (!res.ok || ac.signal.aborted) return;
-									const blob = await res.blob();
-									if (ac.signal.aborted) return;
-									setSvPreview({ url: URL.createObjectURL(blob) });
-								} catch {
-									// ignored
-								}
-							})(),
-					);
+					try {
+						const [pano] = await panosAt(
+							[{ lat, lng }],
+							svSearchRadius(lat, zoom),
+							{ sources: [PanoType.Official] },
+							ac.signal,
+						);
+						if (!pano || ac.signal.aborted) return;
+						const res = await fetch(svThumbnailUrl(pano.pano, centerHeading(pano)), {
+							signal: ac.signal,
+						});
+						if (!res.ok || ac.signal.aborted) return;
+						const blob = await res.blob();
+						if (ac.signal.aborted) return;
+						setSvPreview({ url: URL.createObjectURL(blob) });
+					} catch {
+						// ignored
+					}
 				})(),
 		);
 

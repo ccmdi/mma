@@ -13,7 +13,10 @@ import { useBinding } from "@/lib/util/hotkeys";
 import { getSettings, setSetting, MOVEMENT_CYCLE, MOVEMENT_MODES } from "@/store/settings";
 import { PANO_ZOOM, zoomInStep, zoomOutStep } from "@/lib/sv/constants";
 import { tweenPov } from "@/lib/sv/tweenPov";
-import { type PanoReference, nearestLinkHeading, followLinkedPanos } from "@/lib/sv/lookup";
+import { nearestLinkHeading, followLinkedPanos } from "@/lib/sv/lookup";
+import type { Pano } from "@/types";
+import { reverseHeading } from "@/lib/geo/geo";
+import type { ViewerPano } from "./PanoViewerContext";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
 import { downloadPano } from "@/lib/sv/panoDownload";
@@ -31,9 +34,9 @@ import { google } from "@/lib/sv/opensv";
 interface LocationHotkeyDeps {
 	location: Location | null;
 	isReviewMode: boolean;
-	panoDates: PanoReference[];
+	panoDates: Pano["time"];
 	selectedPanoId: string | null;
-	currentPano: Pick<google.maps.StreetViewPanoramaData, "location" | "imageDate"> | null;
+	currentPano: ViewerPano | null;
 	cancelTweenRef: RefObject<(() => void) | null>;
 	pendingTags: string[];
 	setPendingTags: Dispatch<SetStateAction<string[]>>;
@@ -109,7 +112,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 			cancelTweenRef.current?.();
 			const pov = singletonPano.getPov();
 			cancelTweenRef.current = tweenPov(singletonPano, {
-				heading: (pov.heading + 180) % 360,
+				heading: reverseHeading(pov.heading),
 				pitch: pov.pitch,
 			});
 		}
@@ -169,14 +172,12 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 	const stepPanoDate = (step: 1 | -1) => {
 		if (!panoDates.length) return;
-		const current = selectedPanoId ?? currentPano?.location?.pano ?? location?.panoId;
-		void Promise.resolve(
-			handleDateChange(
-				cycle(
-					panoDates.map((d) => d.pano),
-					current,
-					step,
-				),
+		const current = selectedPanoId ?? currentPano?.pano ?? location?.panoId;
+		void handleDateChange(
+			cycle(
+				panoDates.map((d) => d.pano),
+				current,
+				step,
 			),
 		);
 	};

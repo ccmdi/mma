@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { isOfficialPano, newestOfficialPano } from "@/lib/sv/panoId";
+import { isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";
+import type { Pano } from "@/types";
 
 describe("isOfficialPano", () => {
 	it("recognizes F: prefix as unofficial", () => {
@@ -53,5 +54,33 @@ describe("newestOfficialPano", () => {
 	it("preserves the entry object, not just the id", () => {
 		const entry = { pano: off1, date: new Date(2019, 5) };
 		expect(newestOfficialPano([entry])).toBe(entry);
+	});
+});
+
+describe("isUnofficial", () => {
+	const pano = (id: string, attribution: Partial<Pick<Pano, "shortDescription" | "copyright">> = {}) =>
+		({ pano: id, shortDescription: "", copyright: "", ...attribution }) as Pano;
+
+	it("long pano ID is unofficial", () => {
+		expect(isUnofficial(pano("A".repeat(30)))).toBe(true);
+	});
+
+	it("22-char pano ID is official", () => {
+		expect(isUnofficial(pano("A".repeat(22)))).toBe(false);
+	});
+
+	it("no pano ID is not unofficial", () => {
+		expect(isUnofficial(pano(""))).toBe(false);
+	});
+
+	it("attribution naming a photographer or a user upload is unofficial", () => {
+		expect(isUnofficial(pano("A".repeat(22), { copyright: "Photo by John" }))).toBe(true);
+		expect(isUnofficial(pano("A".repeat(22), { shortDescription: "User-uploaded image" }))).toBe(true);
+	});
+
+	it("a described user photo is still unofficial", () => {
+		expect(
+			isUnofficial(pano("A".repeat(22), { shortDescription: "Main Street", copyright: "Photo by John" })),
+		).toBe(true);
 	});
 });

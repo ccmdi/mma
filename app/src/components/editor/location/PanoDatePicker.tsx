@@ -1,11 +1,18 @@
 import { memo, useRef, useCallback } from "react";
 import { useSetting } from "@/store/settings";
 import { dateFmt } from "@/lib/util/format";
-import { type PanoReference } from "@/lib/sv/lookup";
+import { civilToDate } from "@/lib/util/date";
+import type { Pano } from "@/types";
 import { useCameraType, type FullCameraType } from "./useCameraType";
 import { usePanoViewer } from "./PanoViewerContext";
 import { NSelect } from "@/components/primitives/NSelect";
 import { getLocale, t } from "@/lib/i18n";
+
+/** "Jun 2024" for a pano's civil capture date, "" when there is none. */
+function monthLabel(civil: string | undefined): string {
+	const d = civil ? civilToDate(civil) : null;
+	return d ? dateFmt.format(d) : "";
+}
 
 function PanoBadge({ cameraType }: { cameraType: FullCameraType | null }) {
 	switch (cameraType) {
@@ -28,12 +35,12 @@ function PanoBadge({ cameraType }: { cameraType: FullCameraType | null }) {
 	}
 }
 
-function PanoOption({ pano }: { pano: PanoReference }) {
+function PanoOption({ pano, date }: Pano["time"][number]) {
 	const showBadges = useSetting("showCameraBadges");
-	const cameraType = useCameraType(pano.pano);
+	const cameraType = useCameraType(pano);
 	return (
-		<option value={pano.pano} className="pano-option">
-			<span>{dateFmt.format(pano.date)}</span>
+		<option value={pano} className="pano-option">
+			<span>{monthLabel(date)}</span>
 			{(cameraType === "unofficial" || showBadges) && <PanoBadge cameraType={cameraType} />}
 		</option>
 	);
@@ -120,15 +127,15 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 			</button>
 			<optgroup label={t("Specific Panorama")}>
 				{sorted.map((d) => (
-					<PanoOption key={d.pano} pano={d} />
+					<PanoOption key={d.pano} {...d} />
 				))}
 			</optgroup>
 			<optgroup label={t("Default / auto-updating")}>
 				<option value="default" className="pano-option">
 					<span>
 						{t("Default")}
-						{(defaultEntry?.date ?? sorted[sorted.length - 1]?.date)
-							? ` (${dateFmt.format((defaultEntry?.date ?? sorted[sorted.length - 1]?.date)!)})`
+						{monthLabel(defaultEntry?.date ?? sorted[sorted.length - 1]?.date)
+							? ` (${monthLabel(defaultEntry?.date ?? sorted[sorted.length - 1]?.date)})`
 							: ""}
 					</span>
 				</option>

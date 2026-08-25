@@ -15,6 +15,7 @@ import {
 	isVirtualLocation,
 	isImportPreview,
 	isSeenPreview,
+	PanoType,
 } from "@/types";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
@@ -45,7 +46,8 @@ import {
 	isAtStart,
 } from "@/lib/review/review";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
-import { fetchSvMetadata } from "@/lib/sv/svMeta";
+import { panosAt, svMetadata } from "@/lib/sv/query";
+import { SearchPreference } from "@/lib/sv/singleImageSearch";
 
 import {
 	useSettings,
@@ -59,10 +61,10 @@ import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { PluginLocationPanels } from "@/plugins/PluginPanels";
 import { relativeTime } from "@/lib/util/format";
-import { type PanoReference, resolvePano, fetchPanoData } from "@/lib/sv/lookup";
+import { isPanoFallback, resolvePano } from "@/lib/sv/lookup";
 import { usePanoEvent } from "@/lib/hooks/usePanoEvent";
 import { toast } from "@/lib/util/toast";
-import { isOfficialPano } from "@/lib/sv/panoId";
+import { allUnofficial, mergeTimelines } from "@/lib/sv/getMetadata";
 import { enrich } from "@/lib/sv/enrich";
 import { FullscreenMiniMap } from "@/components/editor/location/FullscreenMiniMap";
 import { FullscreenTagBar } from "@/components/editor/location/FullscreenTagBar";
@@ -314,13 +316,16 @@ export function LocationPreview() {
 				const panoId = pano.getPano();
 				if (!panoId) return; // ?
 				const pos = pano.getPosition();
-				setCurrentPano((prev) => {
-					if (prev?.location?.pano === panoId) return prev;
-					return {
-						location: { pano: panoId, latLng: pos! },
-						imageDate: prev?.imageDate,
-					};
-				});
+				setCurrentPano((prev) =>
+					prev?.pano === panoId
+						? prev
+						: {
+								pano: panoId,
+								lat: pos?.lat() ?? 0,
+								lng: pos?.lng() ?? 0,
+								date: prev?.date ?? null,
+							},
+				);
 				if (pos) {
 					pushTrail(pos.lng(), pos.lat());
 					const activeForSeen = getMapState().activeLocation;
@@ -335,7 +340,10 @@ export function LocationPreview() {
 						},
 						geo && {
 							address: geo.address,
-							countryCode: activeForSeen?.extra?.countryCode ?? geo.countryCode,
+							countryCode:
+								typeof activeForSeen?.extra?.countryCode === "string"
+									? activeForSeen.extra.countryCode
+									: geo.countryCode,
 						},
 						() => ({
 							heading: pano.getPov().heading,
@@ -359,14 +367,17 @@ export function LocationPreview() {
 			if (cancelled) return;
 			applyResolved(pano, result, location);
 			google.maps.event.trigger(pano, "resize");
-			if (result.isFallback) {
+			if (isPanoFallback(location, result)) {
 				const root = Object.values(pano).find((v) => v instanceof HTMLElement) as
 					HTMLElement | undefined;
 				if (root)
 					toast(t("Configured pano ID could not be found. Falling back to lat/lng."), 3000, root);
 			}
-			if (result.pano?.location) {
-				setCurrentPano(result.pano);
+			// Populate currentPano from the resolve result immediately.
+			// Covers the case where setPano() with the same ID doesn't trigger status_changed.
+			if (result) {
+				const { pano: id, lat, lng, date } = result;
+				setCurrentPano({ pano: id, lat, lng, date });
 			}
 			setPanoReady(true);
 		});
@@ -393,58 +404,51 @@ export function LocationPreview() {
 			setPanoDates([]);
 			return;
 		}
-		let cancelled = false;
+		// Leaving this pano cancels its lookups in the engine, not just their use here.
+		const ac = new AbortController();
+		const { signal } = ac;
 
-		function extractTimes(data: google.maps.StreetViewPanoramaData | null): PanoReference[] {
-			const raw = (data as unknown as { time?: { pano: string; AA?: Date }[] })?.time ?? [];
-			return raw.flatMap((t) =>
-				t.pano && t.AA instanceof Date ? [{ pano: t.pano, date: t.AA }] : [],
-			);
-		}
+		void (async () => {
+			// The pano's own stack, plus the coordinate's -- a partly-official stack picks up
+			// the rest of its history from the neighbour.
+			const [[data], [atCoord]] = await Promise.all([
+				svMetadata([currentPano.pano], signal),
+				panosAt(
+					[{ lat: currentPano.lat, lng: currentPano.lng }],
+					SV_SEARCH_RADIUS,
+					{ preference: SearchPreference.Best },
+					signal,
+				),
+			]);
+			if (!data) return;
 
-		const loc = currentPano.location;
-		if (!loc?.latLng) return;
-		const panoPos = { lat: loc.latLng.lat(), lng: loc.latLng.lng() };
-		const byPano = fetchPanoData({ pano: loc.pano });
-		const byLoc = fetchPanoData({ location: panoPos, radius: SV_SEARCH_RADIUS });
-
-		void Promise.all([byPano, byLoc]).then(([panoData, locData]) => {
-			if (cancelled) return;
-			const merged = new Map<string, PanoReference>();
-			for (const t of extractTimes(locData)) merged.set(t.pano, t);
-			for (const t of extractTimes(panoData)) merged.set(t.pano, t);
-
-			const allUnofficial = merged.size > 0 && [...merged.keys()].every((p) => !isOfficialPano(p));
-			if (allUnofficial && !cancelled) {
-				void fetchPanoData({
-					location: panoPos,
-					radius: 25,
-					sources: [google.maps.StreetViewSource.GOOGLE],
-				}).then((officialData) => {
-					if (cancelled) return;
-					for (const t of extractTimes(officialData)) merged.set(t.pano, t);
-					setPanoDates(Array.from(merged.values()));
-				});
-			} else {
-				setPanoDates(Array.from(merged.values()));
-			}
-		});
-
-		void fetchSvMetadata([loc.pano]).then(([data]) => {
-			if (cancelled || !data) return;
-			setPanoAltitude(data.extra?.altitude ?? 0);
+			setPanoAltitude(data.altitude);
 			setPanoGeo({
-				address: data.location.description || "",
-				countryCode: data.extra?.countryCode?.toUpperCase() ?? null,
+				address: data.description || "",
+				countryCode: data.countryCode?.toUpperCase() ?? null,
 			});
-			const loc = getMapState().activeLocation;
-			if (loc) void enrich(loc, data);
+			const active = getMapState().activeLocation;
+			if (active) void enrich(active, data);
+
+			let time = mergeTimelines([atCoord, data]);
+
+			if (allUnofficial(time)) {
+				const [official] = await panosAt(
+					[{ lat: currentPano.lat, lng: currentPano.lng }],
+					25,
+					{ sources: [PanoType.Official], preference: SearchPreference.Best },
+					signal,
+				);
+				// Official last, so its entries win: it is the authority on the history here.
+				time = mergeTimelines([atCoord, data, official]);
+			}
+			setPanoDates(time);
+		})().catch((e: unknown) => {
+			if (!signal.aborted) throw e;
 		});
 
-		return () => {
-			cancelled = true;
-		};
-	}, [location?.id, currentPano?.location?.pano]);
+		return () => ac.abort();
+	}, [location?.id, currentPano?.pano]);
 
 	// Reads the active location at call time to stay referentially stable
 	// (it is a memo'd PanoDatePicker prop).

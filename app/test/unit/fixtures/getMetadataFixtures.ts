@@ -1,7 +1,7 @@
 /* Live GetMetadata captures (2026-06-10): identical request sent with and without
  * alt=proto. BIN_* is the binary response (base64); JSON_* is the json+protobuf response,
  * used as positional ground truth for schema parity. Regenerate via the capture script in
- * the PR that introduced src/lib/sv/proto/. */
+ * the PR that introduced app/src/lib/proto/. */
 
 // car coverage with links + time history + relations
 export const BIN_CAR =

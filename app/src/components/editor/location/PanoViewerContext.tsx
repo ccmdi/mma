@@ -15,7 +15,7 @@ import { emit as emitEvent } from "@/lib/events";
 import { hasLoadAsPanoId } from "@/types";
 import { isFieldEnabled } from "@/lib/data/fieldDefs";
 import { useTimezone } from "@/lib/util/timezone";
-import type { PanoReference } from "@/lib/sv/lookup";
+import type { Pano } from "@/types";
 import { useExactDate } from "./useExactDate";
 import { derivePanoDateState, type PanoDateState } from "./panoDate";
 import { onFullscreenMapChanged, onLocationCleared } from "./fullscreenModeState";
@@ -33,10 +33,10 @@ export function getPanoAltitude(): number {
 }
 
 interface PanoViewerContextValue {
-	currentPano: Pick<google.maps.StreetViewPanoramaData, "location" | "imageDate"> | null;
-	setCurrentPano: React.Dispatch<React.SetStateAction<PanoViewerContextValue["currentPano"]>>;
-	panoDates: PanoReference[];
-	setPanoDates: React.Dispatch<React.SetStateAction<PanoReference[]>>;
+	currentPano: ViewerPano | null;
+	setCurrentPano: React.Dispatch<React.SetStateAction<ViewerPano | null>>;
+	panoDates: Pano["time"];
+	setPanoDates: React.Dispatch<React.SetStateAction<Pano["time"]>>;
 	panoReady: boolean;
 	setPanoReady: React.Dispatch<React.SetStateAction<boolean>>;
 	selectedPanoId: string | null;
@@ -50,23 +50,27 @@ interface PanoViewerContextValue {
 	resolvedTz: string | null;
 }
 
+/** The part of a `Pano` the viewer itself knows, read straight off the live panorama.
+ *  Everything else about it has to be fetched, so it stays out of here. */
+export type ViewerPano = Pick<Pano, "pano" | "lat" | "lng" | "date">;
+
 const PanoViewerContext = createContext<PanoViewerContextValue | null>(null);
 
 export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const location = useMapState((s) => s.activeLocation);
 	const currentMap = useMapState((s) => s.map);
-	const [currentPano, setCurrentPano] = useState<PanoViewerContextValue["currentPano"]>(null);
-	const [panoDates, setPanoDates] = useState<PanoReference[]>([]);
+	const [currentPano, setCurrentPano] = useState<ViewerPano | null>(null);
+	const [panoDates, setPanoDates] = useState<Pano["time"]>([]);
 	const [panoReady, setPanoReady] = useState(false);
 
 	const selectedPanoId =
-		location && hasLoadAsPanoId(location) && currentPano?.location?.pano
-			? currentPano.location.pano
+		location && hasLoadAsPanoId(location) && currentPano?.pano
+			? currentPano.pano
 			: null;
 
 	const defaultPanoId = location?.panoId ?? null;
-	const lat = currentPano?.location?.latLng?.lat() ?? location?.lat ?? 0;
-	const lng = currentPano?.location?.latLng?.lng() ?? location?.lng ?? 0;
+	const lat = currentPano?.lat ?? location?.lat ?? 0;
+	const lng = currentPano?.lng ?? location?.lng ?? 0;
 	const datetimeEnabled = isFieldEnabled(
 		currentMap?.meta.settings.enrichFields ?? null,
 		"datetime",
@@ -130,7 +134,17 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			exactDate,
 			resolvedTz,
 		}),
-		[currentPano, panoDates, panoReady, selectedPanoId, lat, lng, dateState, exactDate, resolvedTz],
+		[
+			currentPano,
+			panoDates,
+			panoReady,
+			selectedPanoId,
+			lat,
+			lng,
+			dateState,
+			exactDate,
+			resolvedTz,
+		],
 	);
 
 	return <PanoViewerContext.Provider value={value}>{children}</PanoViewerContext.Provider>;

@@ -11,9 +11,12 @@ import {
 	poissonDiskSample,
 } from "./geo";
 import { blueLineSample } from "./blueLineSampler";
-import { ymFromDate } from "@/lib/util/date";
 import { passesInitialFilters, passesDateFilters, isPanoGood, computeHeading } from "./filters";
-import { fetchSvMetadataBatched } from "@/lib/sv/svMeta";
+import { svMetadata } from "@/lib/sv/query";
+import { PanoType } from "@/types";
+import type { Pano } from "@/types";
+import { imageDateOf } from "@/lib/sv/getMetadata";
+import { panosAt } from "@/lib/sv/query";
 import { distMeters, lerpLng, unionBounds } from "@/lib/geo/geo";
 import { searchCoverage } from "../searchCoverage";
 import { cmd } from "@/lib/commands";
@@ -25,8 +28,6 @@ export class GenerationEngine {
 	private settings: GeneratorSettings;
 	private regions: GeneratorRegion[];
 	private callbacks: GenerationCallbacks;
-	private sv: google.maps.StreetViewService;
-	private google: Google;
 	private running = false;
 	private paused = false;
 	private pauseResolvers: (() => void)[] = [];
@@ -42,13 +43,10 @@ export class GenerationEngine {
 	private bluelineIndex = new Map<string, number>();
 
 	constructor(
-		google: Google,
 		settings: GeneratorSettings,
 		regions: GeneratorRegion[],
 		callbacks: GenerationCallbacks,
 	) {
-		this.google = google;
-		this.sv = new google.maps.StreetViewService();
 		this.settings = settings;
 		this.regions = regions;
 		this.callbacks = callbacks;
@@ -263,7 +261,7 @@ export class GenerationEngine {
 				)
 					break;
 				await this.waitIfPaused();
-				await Promise.allSettled(batch.map((coord) => this.getLoc(coord, region)));
+				await this.probeCoords(batch, region);
 			}
 		}
 
@@ -318,7 +316,7 @@ export class GenerationEngine {
 				)
 					break;
 				await this.waitIfPaused();
-				await Promise.allSettled(batch.map((coord) => this.getLoc(coord, region)));
+				await this.probeCoords(batch, region);
 			}
 		}
 
@@ -379,7 +377,7 @@ export class GenerationEngine {
 
 			region.isProcessing = true;
 			const frontier = queue.splice(0, Math.max(s.speed, 50));
-			const results = await fetchSvMetadataBatched(frontier);
+			const results = await svMetadata(frontier);
 
 			for (let i = 0; i < results.length; i++) {
 				if (region.found.length >= region.target) break;
@@ -387,12 +385,8 @@ export class GenerationEngine {
 				const pano = results[i];
 				if (!pano) continue;
 
-				if (pano.extra?.drivingDirection != null && pano.tiles) {
-					pano.tiles.centerHeading = pano.extra.drivingDirection;
-				}
-
-				const lat = pano.location.latLng.lat();
-				const lng = pano.location.latLng.lng();
+				const lat = pano.lat;
+				const lng = pano.lng;
 				if (!pointInGeoJsonGeometry(lng, lat, region.feature.geometry)) continue;
 
 				let depth = depthMap.get(frontier[i]) ?? 0;
@@ -479,158 +473,132 @@ export class GenerationEngine {
 				)
 					break;
 				await this.waitIfPaused();
-				await Promise.allSettled(batch.map((coord) => this.getLoc(coord, region)));
+				await this.probeCoords(batch, region);
 			}
 		}
 	}
 
-	private getLoc(coord: LatLng, region: GeneratorRegion): Promise<void> {
-		searchCoverage.addProbe(coord.lng, coord.lat);
+	private async probeCoords(coords: LatLng[], region: GeneratorRegion): Promise<void> {
+		for (const c of coords) searchCoverage.addProbe(c.lng, c.lat);
 		const s = this.settings;
-		const source = s.rejectUnofficial
-			? this.google.maps.StreetViewSource.GOOGLE
-			: this.google.maps.StreetViewSource.DEFAULT;
 
-		return new Promise<void>((resolve) => {
-			void this.sv.getPanorama(
-				{ location: { lat: coord.lat, lng: coord.lng }, sources: [source], radius: s.radius },
-				(data: google.maps.StreetViewPanoramaData | null, status: string) => {
-					// Paused/stopped while this request was in flight: drop the result.
-					if (!this.running || this.paused) {
-						resolve();
-						return;
-					}
-					if (status !== "OK" || !data) {
-						resolve();
-						return;
-					}
-					const pano = data as google.maps.StreetViewResolvedPanoramaData;
+		// The search answers the metadata too, so there is no second lookup.
+		const panos = (
+			await panosAt(
+				coords,
+				s.radius,
+				s.rejectUnofficial ? { sources: [PanoType.Official] } : undefined,
+			)
+		).filter((p) => p !== null);
+		if (panos.length === 0) return;
 
-					if (!passesInitialFilters(pano, s)) {
-						resolve();
-						return;
-					}
+		// Paused or stopped while the lookups were in flight: drop the results.
+		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
 
-					if (s.findRegions) {
-						for (const found of region.found) {
-							if (distMeters(found, coord) < s.regionRadius * 1000) {
-								resolve();
-								return;
-							}
-						}
-					}
+		const seeds: string[] = [];
+		for (let i = 0; i < panos.length; i++) {
+			const pano = panos[i];
+			if (!pano || !passesInitialFilters(pano, s)) continue;
 
-					const dateResult = passesDateFilters(pano, s);
-					if (dateResult === false) {
-						resolve();
-						return;
-					}
+			if (s.findRegions) {
+				const coord = { lat: pano.lat, lng: pano.lng };
+				if (region.found.some((f) => distMeters(f, coord) < s.regionRadius * 1000)) continue;
+			}
 
-					if (s.randomInTimeline && pano.time?.length) {
-						const idx = Math.floor(Math.random() * pano.time.length);
-						const entry = pano.time[idx];
-						const d = Object.values(entry).find((v): v is Date => v instanceof Date);
-						if (d) {
-							const ym = ymFromDate(d);
-							if (
-								Date.parse(ym) < Date.parse(s.fromDate) ||
-								Date.parse(ym) > Date.parse(s.toDate)
-							) {
-								resolve();
-								return;
-							}
-						}
-						this.getPanoDeep(entry.pano, region, 0);
-						resolve();
-						return;
-					}
+			const dateResult = passesDateFilters(pano, s);
+			if (dateResult === false) continue;
 
-					if (dateResult === "checkAll" && pano.time) {
-						const fromDate = Date.parse(s.fromDate);
-						const toDate = Date.parse(s.toDate);
-						for (const entry of pano.time) {
-							if (s.rejectUnofficial && entry.pano.length !== 22) continue;
-							const d = Object.values(entry).find((v): v is Date => v instanceof Date);
-							if (!d) continue;
-							const ym = ymFromDate(d);
-							if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) {
-								this.getPanoDeep(entry.pano, region, 0);
-							}
-						}
-					} else {
-						this.getPanoDeep(pano.location.pano, region, 0);
+			if (s.randomInTimeline && pano.time?.length) {
+				const entry = pano.time[Math.floor(Math.random() * pano.time.length)];
+				if (entry.date) {
+					const ym = entry.date.slice(0, 7);
+					if (Date.parse(ym) < Date.parse(s.fromDate) || Date.parse(ym) > Date.parse(s.toDate)) {
+						continue;
 					}
+				}
+				seeds.push(entry.pano);
+				continue;
+			}
 
-					resolve();
-				},
-			);
+			if (dateResult === "checkAll" && pano.time) {
+				const fromDate = Date.parse(s.fromDate);
+				const toDate = Date.parse(s.toDate);
+				for (const entry of pano.time) {
+					if (s.rejectUnofficial && entry.pano.length !== 22) continue;
+					if (!entry.date) continue;
+					const ym = entry.date.slice(0, 7);
+					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) seeds.push(entry.pano);
+				}
+			} else {
+				seeds.push(pano.pano);
+			}
+		}
+
+		this.walk(seeds, region, 0);
+	}
+
+	/** The walk runs alongside the probing rather than holding it up, so a region keeps
+	 *  sampling while earlier finds are still opening up. */
+	private walk(ids: string[], region: GeneratorRegion, depth: number): void {
+		void this.walkPanos(ids, region, depth).catch((e) => {
+			log.warn("[generator] link walk failed:", e);
 		});
 	}
 
-	private getPanoDeep(id: string, region: GeneratorRegion, depth: number): void {
+	/** Walks a level of the link/timeline graph: every id at `depth` is fetched in one
+	 *  batch, and what each one opens up is walked as the next level. A pano that passes
+	 *  resets the depth of what it leads to, which is what lets a good stretch keep
+	 *  going while a dead one bottoms out at `linksDepth`. */
+	private async walkPanos(ids: string[], region: GeneratorRegion, depth: number): Promise<void> {
 		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
 		const s = this.settings;
 		if (depth > s.linksDepth) return;
-		if (region.checkedPanos.has(id)) return;
-		region.checkedPanos.add(id);
 		if (region.found.length >= region.target) return;
 
-		void this.sv.getPanorama(
-			{ pano: id },
-			(data: google.maps.StreetViewPanoramaData | null, status: string) => {
-				if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
-				if (status === "UNKNOWN_ERROR") {
-					region.checkedPanos.delete(id);
-					this.getPanoDeep(id, region, depth);
-					return;
-				}
-				if (status !== "OK" || !data) return;
-				const pano = data as google.maps.StreetViewResolvedPanoramaData;
+		const fresh = ids.filter((id) => id && !region.checkedPanos.has(id));
+		if (fresh.length === 0) return;
+		for (const id of fresh) region.checkedPanos.add(id);
 
-				const inRegion = pointInGeoJsonGeometry(
-					pano.location.latLng.lng(),
-					pano.location.latLng.lat(),
-					region.feature.geometry,
-				);
-				const good = isPanoGood(pano, s) && inRegion;
+		const panos = await svMetadata(fresh);
+		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
 
-				if (s.checkAllDates && !s.selectMonths && pano.time) {
-					const fromDate = Date.parse(s.fromDate);
-					const toDate = Date.parse(s.toDate);
-					for (const entry of pano.time) {
-						if (s.rejectUnofficial && entry.pano.length !== 22) continue;
-						const d = Object.values(entry).find((v): v is Date => v instanceof Date);
-						if (!d) continue;
-						const ym = ymFromDate(d);
-						if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) {
-							this.getPanoDeep(entry.pano, region, good ? 1 : depth + 1);
-						}
-					}
-				}
+		// A pano that passed sends what it opens up back to depth 1; everything else sinks.
+		const fromGood: string[] = [];
+		const deeper: string[] = [];
 
-				if (s.checkLinks && pano.links) {
-					for (const link of pano.links) {
-						if (link.pano) this.getPanoDeep(link.pano, region, good ? 1 : depth + 1);
-					}
-				}
-				if (s.checkLinks && pano.time) {
-					for (const entry of pano.time) {
-						this.getPanoDeep(entry.pano, region, good ? 1 : depth + 1);
-					}
-				}
+		for (const pano of panos) {
+			if (!pano) continue;
+			const inRegion = pointInGeoJsonGeometry(pano.lng, pano.lat, region.feature.geometry);
+			const good = isPanoGood(pano, s) && inRegion;
+			const next = good ? fromGood : deeper;
 
-				if (good) void this.finalizeLoc(pano, region);
-			},
-		);
+			if (s.checkAllDates && !s.selectMonths && pano.time) {
+				const fromDate = Date.parse(s.fromDate);
+				const toDate = Date.parse(s.toDate);
+				for (const entry of pano.time) {
+					if (s.rejectUnofficial && entry.pano.length !== 22) continue;
+					if (!entry.date) continue;
+					const ym = entry.date.slice(0, 7);
+					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) next.push(entry.pano);
+				}
+			}
+
+			if (s.checkLinks) {
+				for (const link of pano.links) if (link.pano) next.push(link.pano);
+				for (const entry of pano.time) next.push(entry.pano);
+			}
+
+			if (good) void this.finalizeLoc(pano, region);
+		}
+
+		this.walk(fromGood, region, 1);
+		this.walk(deeper, region, depth + 1);
 	}
 
-	private async finalizeLoc(
-		pano: google.maps.StreetViewResolvedPanoramaData,
-		region: GeneratorRegion,
-	): Promise<void> {
+	private async finalizeLoc(pano: Pano, region: GeneratorRegion): Promise<void> {
 		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
 		const s = this.settings;
-		const panoId: string = pano.location.pano;
+		const panoId: string = pano.pano;
 
 		if (this.globalFoundPanoIds.has(panoId)) return;
 		if (region.found.length >= region.target) return;
@@ -641,11 +609,7 @@ export class GenerationEngine {
 		// its probe coordinate didn't — final skip-existing gate before accepting.
 		if (s.skipExisting) {
 			try {
-				const covered = await cmd.storeNearAny(
-					[pano.location.latLng.lat()],
-					[pano.location.latLng.lng()],
-					s.skipExistingRadius,
-				);
+				const covered = await cmd.storeNearAny([pano.lat], [pano.lng], s.skipExistingRadius);
 				if (covered[0]) return;
 			} catch (e) {
 				log.warn("[generator] storeNearAny failed, accepting unchecked:", e);
@@ -656,12 +620,12 @@ export class GenerationEngine {
 
 		const loc: GeneratedLocation = {
 			panoId,
-			lat: pano.location.latLng.lat(),
-			lng: pano.location.latLng.lng(),
+			lat: pano.lat,
+			lng: pano.lng,
 			heading: computeHeading(pano, s),
 			pitch: s.adjustPitch ? s.pitchDeviation : 0,
 			zoom: s.adjustZoom ? s.zoomLevel : 0,
-			imageDate: pano.imageDate ?? null,
+			imageDate: imageDateOf(pano) || null,
 		};
 
 		region.found.push(loc);

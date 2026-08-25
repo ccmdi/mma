@@ -1,5 +1,7 @@
-import { google } from "./opensv";
+import { normalizeHeading } from "@/lib/geo/geo";
 import { emit as emitEvent } from "@/lib/events";
+import { svMetadata } from "@/lib/sv/query";
+import { cameraFrame } from "@/lib/sv/getMetadata";
 
 interface CameraFrame {
 	heading: number;
@@ -11,7 +13,6 @@ let relHeading = 0;
 let relPitch = 0;
 let lockedZoom = 0;
 
-let svService: google.maps.StreetViewService | null = null;
 const frameCache = new Map<string, CameraFrame>();
 
 export function isViewportLocked() {
@@ -23,36 +24,14 @@ export function getViewportLockInfo() {
 	return { relHeading, relPitch, lockedZoom };
 }
 
-function norm(deg: number) {
-	return ((((deg + 180) % 360) + 360) % 360) - 180;
-}
-
 async function getCameraFrame(panoId: string): Promise<CameraFrame | null> {
-	if (frameCache.has(panoId)) return frameCache.get(panoId)!;
-	if (!google?.maps) return null;
-	svService ??= new google.maps.StreetViewService();
-	return new Promise((resolve) => {
-		void svService!.getPanorama(
-			{ pano: panoId },
-			(
-				data: google.maps.StreetViewPanoramaData | null,
-				status: google.maps.StreetViewStatusString,
-			) => {
-				if (status !== google.maps.StreetViewStatus.OK || !data?.tiles) return resolve(null);
-				const t = data.tiles;
-				const heading = Number(t.centerHeading ?? t.originHeading ?? 0);
-				const originPitch = Number(t.originPitch ?? 0);
-				const originPitchYaw = Number(t.originPitchYaw);
-				let pitch = -originPitch;
-				if (!Number.isNaN(originPitchYaw)) {
-					pitch *= Math.cos(((heading - originPitchYaw) * Math.PI) / 180);
-				}
-				const frame = { heading, pitch };
-				frameCache.set(panoId, frame);
-				resolve(frame);
-			},
-		);
-	});
+	const cached = frameCache.get(panoId);
+	if (cached) return cached;
+	const [data] = await svMetadata([panoId]);
+	if (!data) return null;
+	const frame = cameraFrame(data);
+	frameCache.set(panoId, frame);
+	return frame;
 }
 
 export async function applyViewportLock(pano: google.maps.StreetViewPanorama) {
@@ -62,7 +41,7 @@ export async function applyViewportLock(pano: google.maps.StreetViewPanorama) {
 	const frame = await getCameraFrame(panoId);
 	if (!frame || !locked || pano.getPano?.() !== panoId) return;
 	pano.setPov({
-		heading: norm(frame.heading + relHeading),
+		heading: normalizeHeading(frame.heading + relHeading),
 		pitch: frame.pitch + relPitch,
 	});
 	pano.setZoom(lockedZoom);
@@ -79,7 +58,7 @@ export async function toggleViewportLock(pano: google.maps.StreetViewPanorama): 
 	if (!pov || !panoId) return false;
 	const frame = await getCameraFrame(panoId);
 	if (!frame) return false;
-	relHeading = norm(pov.heading - frame.heading);
+	relHeading = normalizeHeading(pov.heading - frame.heading);
 	relPitch = (pov.pitch ?? 0) - frame.pitch;
 	lockedZoom = pano.getZoom?.() ?? 0;
 	locked = true;

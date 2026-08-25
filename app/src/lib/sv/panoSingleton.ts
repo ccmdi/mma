@@ -5,7 +5,7 @@ import { getSettings, panoDisplayOptions } from "@/store/settings";
 import { google } from "@/lib/sv/opensv";
 import { patchOpenSV, setPanoHovered } from "@/lib/sv/opensvPatch";
 import { seenSkipNext } from "@/lib/seen/seen";
-import type { ResolvedPano } from "@/lib/sv/lookup";
+import type { Pano } from "@/types";
 import { displayZoom } from "@/lib/sv/constants";
 
 export let singletonPano: google.maps.StreetViewPanorama | null = null;
@@ -66,13 +66,9 @@ export function clearSingletonPano() {
 	singletonPano = null;
 }
 
-export function applyResolved(
-	sv: google.maps.StreetViewPanorama,
-	result: ResolvedPano,
-	loc: Location,
-) {
-	if (result.pano?.location?.pano) {
-		sv.setPano(result.pano.location.pano);
+export function applyResolved(sv: google.maps.StreetViewPanorama, resolved: Pano | null, loc: Location) {
+	if (resolved?.pano) {
+		sv.setPano(resolved.pano);
 	} else {
 		sv.setPosition({ lat: loc.lat, lng: loc.lng });
 	}

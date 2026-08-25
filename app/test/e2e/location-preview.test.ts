@@ -26,6 +26,7 @@ import {
 	withApi,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
+import { LocationFlag } from "@/types";
 
 // --- Test pano IDs ---
 // Official Google car coverage (Kursk oblast, Russia)
@@ -42,8 +43,6 @@ const DEAD_PANO = "DEAD_PANO_DOES_NOT_EXIST_12345";
 
 // Coord-only location (Times Square — dense coverage, no saved panoId)
 const COORD_ONLY = { lat: 40.758, lng: -73.9855 };
-
-const LoadAsPanoId = 1;
 
 const PANO_TIMEOUT = 30_000;
 
@@ -161,7 +160,7 @@ describe("LocationPreview — official pano", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		]);
 		offDefaultId = ids[0];
@@ -208,10 +207,10 @@ describe("LocationPreview — official pano", () => {
 		await openLocation(offDefaultId);
 		await waitForDates();
 		await selectPanoOption(0);
-		await waitForFlag(offDefaultId, LoadAsPanoId);
+		await waitForFlag(offDefaultId, LocationFlag.LoadAsPanoId);
 		const l = await readLocation(offDefaultId);
 		const flags = l?.flags ?? -1;
-		expect(flags & LoadAsPanoId).toBe(LoadAsPanoId);
+		expect(flags & LocationFlag.LoadAsPanoId).toBe(LocationFlag.LoadAsPanoId);
 	});
 
 	it("selecting Default clears LoadAsPanoId flag", async () => {
@@ -219,13 +218,13 @@ describe("LocationPreview — official pano", () => {
 		await waitForDates();
 		// first select a specific date
 		await selectPanoOption(0);
-		await waitForFlag(offDefaultId, LoadAsPanoId);
+		await waitForFlag(offDefaultId, LocationFlag.LoadAsPanoId);
 		// now select Default
 		await selectPanoValue("default");
-		await waitForFlag(offDefaultId, LoadAsPanoId, false);
+		await waitForFlag(offDefaultId, LocationFlag.LoadAsPanoId, false);
 		const l = await readLocation(offDefaultId);
 		const flags = l?.flags ?? -1;
-		expect(flags & LoadAsPanoId).toBe(0);
+		expect(flags & LocationFlag.LoadAsPanoId).toBe(0);
 	});
 
 	it("save persists panoId and heading/pitch/zoom", async () => {
@@ -251,7 +250,7 @@ describe("LocationPreview — official pano", () => {
 		await waitForSave(offPinnedId, (l) => l.panoId === OFFICIAL_PANO);
 		const saved = await readLocation(offPinnedId);
 		expect(saved.panoId).toBe(OFFICIAL_PANO);
-		expect(saved.flags & LoadAsPanoId).toBe(LoadAsPanoId);
+		expect(saved.flags & LocationFlag.LoadAsPanoId).toBe(LocationFlag.LoadAsPanoId);
 	});
 
 	it("reopen same location still shows dates", async () => {
@@ -294,7 +293,7 @@ describe("LocationPreview — unofficial pano", () => {
 				lat: UNOFFICIAL_COORDS.lat,
 				lng: UNOFFICIAL_COORDS.lng,
 				panoId: UNOFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		]);
 		unoff1Id = ids[0];
@@ -355,7 +354,7 @@ describe("LocationPreview — trekker pano", () => {
 				lat: TREKKER_COORDS.lat,
 				lng: TREKKER_COORDS.lng,
 				panoId: TREKKER_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		]);
 		trek1Id = ids[0];
@@ -404,7 +403,7 @@ describe("LocationPreview — dead pano (fallback)", () => {
 				lat: COORD_ONLY.lat,
 				lng: COORD_ONLY.lng,
 				panoId: DEAD_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		]);
 		dead1Id = ids[0];
@@ -492,13 +491,13 @@ describe("LocationPreview — switching between pano types", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 			loc({
 				lat: TREKKER_COORDS.lat,
 				lng: TREKKER_COORDS.lng,
 				panoId: TREKKER_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 			loc({ lat: COORD_ONLY.lat, lng: COORD_ONLY.lng }),
 		]);
@@ -761,7 +760,7 @@ describe("LocationPreview — return to spawn", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				heading: 228.57,
 				pitch: 0,
 				zoom: 0,
@@ -779,7 +778,7 @@ describe("LocationPreview — return to spawn", () => {
 
 		// Select a specific date first
 		await selectPanoOption(0);
-		await waitForFlag(spawn1Id, LoadAsPanoId);
+		await waitForFlag(spawn1Id, LocationFlag.LoadAsPanoId);
 
 		// Press 'r' to return to spawn
 		await browser.keys("r");
@@ -807,7 +806,7 @@ describe("LocationPreview — next/prev date hotkeys", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		]);
 		hotkeyDatesId = ids[0];
@@ -829,12 +828,12 @@ describe("LocationPreview — next/prev date hotkeys", () => {
 
 		// Press ] to cycle to next date
 		await browser.keys("]");
-		await waitForFlag(hotkeyDatesId, LoadAsPanoId);
+		await waitForFlag(hotkeyDatesId, LocationFlag.LoadAsPanoId);
 
-		// LoadAsPanoId should now be set (date was explicitly selected via hotkey)
+		// LocationFlag.LoadAsPanoId should now be set (date was explicitly selected via hotkey)
 		const l = await readLocation(hotkeyDatesId);
 		const flags = l?.flags ?? -1;
-		expect(flags & LoadAsPanoId).toBe(LoadAsPanoId);
+		expect(flags & LocationFlag.LoadAsPanoId).toBe(LocationFlag.LoadAsPanoId);
 	});
 
 	it("'[' key selects previous date", async () => {
@@ -850,11 +849,11 @@ describe("LocationPreview — next/prev date hotkeys", () => {
 
 		// Press [ to cycle to prev date
 		await browser.keys("[");
-		await waitForFlag(hotkeyDatesId, LoadAsPanoId);
+		await waitForFlag(hotkeyDatesId, LocationFlag.LoadAsPanoId);
 
 		const l = await readLocation(hotkeyDatesId);
 		const flags = l?.flags ?? -1;
-		expect(flags & LoadAsPanoId).toBe(LoadAsPanoId);
+		expect(flags & LocationFlag.LoadAsPanoId).toBe(LocationFlag.LoadAsPanoId);
 	});
 });
 
@@ -870,7 +869,7 @@ describe("LocationPreview — duplicate location", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				tags: [],
 			}),
 		]);
@@ -1061,19 +1060,19 @@ describe("LocationPreview — camera type badges", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 			loc({
 				lat: UNOFFICIAL_COORDS.lat,
 				lng: UNOFFICIAL_COORDS.lng,
 				panoId: UNOFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 			loc({
 				lat: TREKKER_COORDS.lat,
 				lng: TREKKER_COORDS.lng,
 				panoId: TREKKER_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		]);
 		badgeOfficialId = ids[0];
@@ -1163,7 +1162,7 @@ describe("LocationPreview — settings toggles", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		]);
 		set1Id = ids[0];
@@ -1351,25 +1350,25 @@ describe("LocationPreview — edge cases", () => {
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 			loc({
 				lat: TREKKER_COORDS.lat,
 				lng: TREKKER_COORDS.lng,
 				panoId: TREKKER_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 			loc({
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 			loc({
 				lat: OFFICIAL_COORDS.lat,
 				lng: OFFICIAL_COORDS.lng,
 				panoId: OFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 				extra: { customField: "preserve-me", altitude: 999 },
 			}),
 		]);
@@ -1426,7 +1425,7 @@ describe("LocationPreview — edge cases", () => {
 				lat: UNOFFICIAL_COORDS.lat,
 				lng: UNOFFICIAL_COORDS.lng,
 				panoId: UNOFFICIAL_PANO,
-				flags: LoadAsPanoId,
+				flags: LocationFlag.LoadAsPanoId,
 			}),
 		]);
 		const edgeSingleDateId = ids[0];

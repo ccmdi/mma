@@ -1,11 +1,24 @@
 import type { Bounds, LatLng } from "@/types";
 
-/** Shortest signed longitude delta from `from` to `to`, in [-180, 180]. */
+/** Shift `deg` by whole turns into `[min, min + 360)`. The one circular primitive: every
+ *  heading and longitude wrap below is a window on it. */
+export function wrapDeg(deg: number, min: number): number {
+	return min + ((((deg - min) % 360) + 360) % 360);
+}
+
+/** Shortest signed longitude delta from `from` to `to`, in [-180, 180). */
 function lngDelta(from: number, to: number): number {
-	const d = (to - from) % 360;
-	if (d > 180) return d - 360;
-	if (d < -180) return d + 360;
-	return d;
+	return wrapDeg(to - from, -180);
+}
+
+/** A heading in [-180, 180). */
+export function normalizeHeading(h: number): number {
+	return wrapDeg(h, -180);
+}
+
+/** The opposite bearing, in [-180, 180). */
+export function reverseHeading(h: number): number {
+	return wrapDeg(h + 180, -180);
 }
 
 /** Continue a path at `lng` in the frame of `prevLng`. */
@@ -46,11 +59,6 @@ export function densifyRing<T extends number[]>(ring: T[]): T[] {
 	return out;
 }
 
-/** Shift `lng` by whole turns into `[min, min + 360)`. */
-export function foldLng(lng: number, min: number): number {
-	return min + ((((lng - min) % 360) + 360) % 360);
-}
-
 /** Bbox over `rings`, each unwrapped then shifted by whole turns to sit nearest the box
  *  so far. Crossing form: `west > east` means the box crosses the antimeridian, so test
  *  with `inBbox`. `null` if no vertices. Mirrors `geometry_bbox` in selections.rs. */
@@ -83,7 +91,7 @@ export function ringsBbox(rings: number[][][]): Bounds | null {
 	// The crossing form can't tell a 360-degree span from a 0-degree one: folding both
 	// edges of a full-globe box lands them on the same longitude.
 	if (e - w >= 360) return { west: -180, south: s, east: 180, north: n };
-	return { west: foldLng(w, -180), south: s, east: foldLng(e, -180), north: n };
+	return { west: wrapDeg(w, -180), south: s, east: wrapDeg(e, -180), north: n };
 }
 
 /** Width of a box in degrees of longitude; positive on a crossing box, where
@@ -94,7 +102,7 @@ export function lngSpan(b: Bounds): number {
 
 /** A longitude at fraction `t` along the box, folded back into [-180, 180). */
 export function lerpLng(b: Bounds, t: number): number {
-	return foldLng(b.west + lngSpan(b) * t, -180);
+	return wrapDeg(b.west + lngSpan(b) * t, -180);
 }
 
 /** Smallest box covering both, closing the smaller of the two gaps - plain min/max
@@ -104,12 +112,12 @@ export function unionBounds(a: Bounds, b: Bounds): Bounds {
 	const north = Math.max(a.north, b.north);
 	// Each candidate anchors on one box and measures how far east the other one reaches.
 	const reach = (from: Bounds, other: Bounds) =>
-		Math.max(lngSpan(from), foldLng(other.west, from.west) - from.west + lngSpan(other));
+		Math.max(lngSpan(from), wrapDeg(other.west, from.west) - from.west + lngSpan(other));
 	const spanA = reach(a, b);
 	const spanB = reach(b, a);
 	const [west, span] = spanA <= spanB ? [a.west, spanA] : [b.west, spanB];
 	if (span >= 360) return { west: -180, south, east: 180, north };
-	return { west, south, east: foldLng(west + span, -180), north };
+	return { west, south, east: wrapDeg(west + span, -180), north };
 }
 
 /** Broad-phase reject against a `Bounds`, honouring the `west > east` crossing form.
@@ -125,7 +133,7 @@ function pointInRing(lng: number, lat: number, ring: number[][]): boolean {
 	const unwrapped = unwrapRing(ring);
 	let min = Infinity;
 	for (const p of unwrapped) if (p[0] < min) min = p[0];
-	const x = foldLng(lng, min);
+	const x = wrapDeg(lng, min);
 	let inside = false;
 	for (let i = 0, j = unwrapped.length - 1; i < unwrapped.length; j = i++) {
 		const [xi, yi] = unwrapped[i];

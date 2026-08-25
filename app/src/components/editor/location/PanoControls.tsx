@@ -9,6 +9,7 @@ import {
 	zoomOutStep,
 } from "@/lib/sv/constants";
 import { google } from "@/lib/sv/opensv";
+import { wrapDeg } from "@/lib/geo/geo";
 import { lookupStreetView } from "@/lib/sv/lookup";
 import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
 import { fileTimestamp } from "@/lib/util/format";
@@ -256,8 +257,8 @@ function CompassControl({ panorama }: { panorama: google.maps.StreetViewPanorama
 				if (animRef.current || links.length === 0) return;
 				const h = panorama.getPov().heading;
 				const next = links.reduce((best, cur) => {
-					const bestDelta = (best.heading! + 360 - h) % 360;
-					const curDelta = (cur.heading! + 360 - h) % 360;
+					const bestDelta = wrapDeg(best.heading! - h, 0);
+					const curDelta = wrapDeg(cur.heading! - h, 0);
 					if (bestDelta <= 0.01) return cur;
 					if (curDelta <= 0.01) return best;
 					return curDelta < bestDelta ? cur : best;

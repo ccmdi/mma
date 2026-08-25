@@ -1,3 +1,5 @@
+import { normalizeHeading } from "@/lib/geo/geo";
+
 const TWEEN_DURATION = 160;
 
 export function tweenPov(
@@ -6,9 +8,7 @@ export function tweenPov(
 	onComplete?: () => void,
 ): () => void {
 	const from = pano.getPov();
-	let dh = from.heading - target.heading;
-	if (dh > 180) dh -= 360;
-	if (dh < -180) dh += 360;
+	const dh = normalizeHeading(from.heading - target.heading);
 	const dp = from.pitch - target.pitch;
 	const start = performance.now();
 	let id = 0;
