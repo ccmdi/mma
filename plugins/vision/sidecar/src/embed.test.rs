@@ -42,3 +42,13 @@ fn cache_dims_are_siglip() {
     assert_eq!(CACHE_VERSION, 6);
     assert_eq!(NUM_CROPS, 4);
 }
+
+#[test]
+fn canonicalize_folds_case_punctuation_and_whitespace() {
+    assert_eq!(canonicalize_text("White Car"), canonicalize_text("white car"));
+    assert_eq!(canonicalize_text("A Map."), "a map");
+    assert_eq!(canonicalize_text("  snow,   indoor!  "), "snow indoor");
+    // SigLIP deletes punctuation rather than splitting on it.
+    assert_eq!(canonicalize_text("snow-covered"), "snowcovered");
+    assert_eq!(canonicalize_text("Ålesund"), "ålesund");
+}

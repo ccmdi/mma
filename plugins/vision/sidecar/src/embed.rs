@@ -178,8 +178,18 @@ pub fn embed_image_batch(session: &mut Session, images: &[image::RgbImage]) -> R
     Ok(results)
 }
 
+/// SigLIP canonicalizes captions (delete punctuation, collapse whitespace, lowercase).
+fn canonicalize_text(text: &str) -> String {
+    let folded: String = text
+        .chars()
+        .filter(|c| !c.is_ascii_punctuation())
+        .flat_map(char::to_lowercase)
+        .collect();
+    folded.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 pub fn embed_text(session: &mut Session, tokenizer: &tokenizers::Tokenizer, text: &str) -> Result<[f32; EMBED_DIM], String> {
-    let encoding = tokenizer.encode(text, true).map_err(|e| e.to_string())?;
+    let encoding = tokenizer.encode(canonicalize_text(text), true).map_err(|e| e.to_string())?;
     let mut ids: Vec<i64> = encoding.get_ids().iter().map(|&id| id as i64).collect();
     ids.truncate(TEXT_SEQ_LEN);
     ids.resize(TEXT_SEQ_LEN, PAD_ID);
