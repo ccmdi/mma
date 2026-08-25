@@ -1,25 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, vi } from "vitest";
 
-vi.mock("@/lib/sv/opensv", () => {
-	class Size {
-		constructor(
-			public w: number,
-			public h: number,
-		) {}
-	}
-	class ImageMapType {
-		constructor(public opts: { getTileUrl(c: { x: number; y: number }, z: number): string }) {}
-		getTile(_coord: unknown, _zoom: number, doc: Document) {
-			return doc.createElement("div");
-		}
-	}
-	return { google: { maps: { Size, ImageMapType } } };
-});
+vi.mock("@/lib/sv/opensv", async () => (await import("./fixtures/mocks")).googleMapsMock());
 
-vi.mock("@/lib/geo/stackedMapType", () => ({
-	createCompositeMapType: (layers: unknown[]) => ({ layers }),
-}));
+vi.mock("@/lib/geo/stackedMapType", async () =>
+	(await import("./fixtures/mocks")).stackedMapTypeMock(),
+);
 
 import { buildMapStack } from "@/lib/geo/mapStack";
 import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";

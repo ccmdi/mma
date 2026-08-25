@@ -27,3 +27,91 @@ export function logMock() {
 		initLogging: async () => {},
 	};
 }
+
+export function googleMapsMock() {
+	class Size {
+		constructor(
+			public w: number,
+			public h: number,
+		) {}
+	}
+	class ImageMapType {
+		constructor(public opts: { getTileUrl(c: { x: number; y: number }, z: number): string }) {}
+		getTile(_coord: unknown, _zoom: number, doc: Document) {
+			return doc.createElement("div");
+		}
+	}
+	class MapMock {
+		stack: { layers: google.maps.ImageMapType[] } | null = null;
+		mapTypes = {
+			set: (_id: string, stack: { layers: google.maps.ImageMapType[] }) => {
+				this.stack = stack;
+			},
+		};
+		private div = document.createElement("div");
+		constructor(
+			public container: HTMLElement,
+			public opts: unknown,
+		) {}
+		setOptions() {}
+		setMapTypeId() {}
+		getDiv() {
+			return this.div;
+		}
+		addListener() {
+			return {};
+		}
+	}
+	return {
+		google: {
+			maps: {
+				Size,
+				ImageMapType,
+				Map: MapMock,
+				event: { trigger: () => {}, clearInstanceListeners: () => {} },
+			},
+		},
+	};
+}
+
+export function stackedMapTypeMock() {
+	return { createCompositeMapType: (layers: unknown[]) => ({ layers }) };
+}
+
+type Handlers = Record<string, (...args: unknown[]) => unknown>;
+
+export function testMap(over: { locationCount?: number; tags?: Record<string, unknown> } = {}) {
+	return {
+		id: "m1",
+		meta: {
+			id: "m1",
+			name: "test",
+			description: "",
+			folder: null,
+			locationCount: over.locationCount ?? 1,
+			tags: over.tags ?? {},
+			settings: {},
+			scoreBounds: null,
+			createdAt: "",
+			updatedAt: "",
+			extra: null,
+		},
+	};
+}
+
+export function openMapResult(
+	over: { tagCounts?: Record<string, number>; knownFieldKeys?: string[] } = {},
+) {
+	return {
+		tagCounts: over.tagCounts ?? {},
+		canUndo: false,
+		canRedo: false,
+		knownFieldKeys: over.knownFieldKeys ?? [],
+	};
+}
+
+export function cmdProxy(handlers: Handlers) {
+	return {
+		cmd: new Proxy({}, { get: (_t, name: string) => handlers[name] ?? (async () => null) }),
+	};
+}

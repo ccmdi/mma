@@ -1,55 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@/lib/sv/opensv", () => {
-	class Size {
-		constructor(
-			public w: number,
-			public h: number,
-		) {}
-	}
-	class ImageMapType {
-		constructor(public opts: unknown) {}
-		getTile(_coord: unknown, _zoom: number, doc: Document) {
-			return doc.createElement("div");
-		}
-	}
-	class MapMock {
-		stack: { layers: google.maps.ImageMapType[] } | null = null;
-		mapTypes = {
-			set: (_id: string, stack: { layers: google.maps.ImageMapType[] }) => {
-				this.stack = stack;
-			},
-		};
-		private div = document.createElement("div");
-		constructor(
-			public container: HTMLElement,
-			public opts: unknown,
-		) {}
-		setOptions() {}
-		setMapTypeId() {}
-		getDiv() {
-			return this.div;
-		}
-		addListener() {
-			return {};
-		}
-	}
-	return {
-		google: {
-			maps: {
-				Size,
-				ImageMapType,
-				Map: MapMock,
-				event: { trigger: () => {}, clearInstanceListeners: () => {} },
-			},
-		},
-	};
-});
+vi.mock("@/lib/sv/opensv", async () => (await import("./fixtures/mocks")).googleMapsMock());
 
-vi.mock("@/lib/geo/stackedMapType", () => ({
-	createCompositeMapType: (layers: unknown[]) => ({ layers }),
-}));
+vi.mock("@/lib/geo/stackedMapType", async () =>
+	(await import("./fixtures/mocks")).stackedMapTypeMock(),
+);
 
 import { createGoogleMapHost } from "@/lib/map/googleHost";
 import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
@@ -62,8 +18,9 @@ const makeHost = (): Host =>
 
 // The roadmap stack is [basemap, SV coverage, labels]; opacity rides each SV tile.
 const svOpacity = (host: Host, zoom = 5) => {
-	const stack = (host.getHostInstance() as unknown as { stack: { layers: google.maps.ImageMapType[] } })
-		.stack;
+	const stack = (
+		host.getHostInstance() as unknown as { stack: { layers: google.maps.ImageMapType[] } }
+	).stack;
 	return Number((stack.layers[1].getTile(null, zoom, document) as HTMLElement).style.opacity);
 };
 

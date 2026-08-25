@@ -14,7 +14,8 @@ const wire = vi.hoisted(() => ({
 	gated: false,
 }));
 
-vi.mock("@/lib/commands", () => {
+vi.mock("@/lib/commands", async () => {
+	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
 	const mutationResult = () => ({
 		delta: { added: [], updated: [], removed: [], fullReset: false },
 		locationCount: 1,
@@ -25,40 +26,16 @@ vi.mock("@/lib/commands", () => {
 		tagCounts: null,
 		knownFieldKeys: [],
 	});
-	const map = {
-		id: "m1",
-		meta: {
-			id: "m1",
-			name: "test",
-			description: "",
-			folder: null,
-			locationCount: 0,
-			tags: {},
-			settings: {},
-			scoreBounds: null,
-			createdAt: "",
-			updatedAt: "",
-			extra: null,
-		},
-	};
-	const handlers: Record<string, (...args: unknown[]) => unknown> = {
-		storeGetMap: async () => map,
-		storeOpenMap: async () => ({
-			tagCounts: {},
-			canUndo: false,
-			canRedo: false,
-			knownFieldKeys: [],
-		}),
+	return cmdProxy({
+		storeGetMap: async () => testMap({ locationCount: 0 }),
+		storeOpenMap: async () => openMapResult(),
 		storeUpdateLocations: (updates: unknown, undoable: unknown) => {
 			wire.updates.push(updates as UpdateCall);
 			wire.undoable.push(undoable as boolean);
 			if (!wire.gated) return Promise.resolve(mutationResult());
 			return new Promise((res) => wire.gates.push(() => res(mutationResult())));
 		},
-	};
-	return {
-		cmd: new Proxy({}, { get: (_t, name: string) => handlers[name] ?? (async () => null) }),
-	};
+	});
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 

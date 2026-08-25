@@ -8,26 +8,8 @@ const h = vi.hoisted(() => ({
 	spacedScopes: [] as unknown[],
 }));
 
-vi.mock("@/lib/commands", () => {
-	const map = {
-		id: "m1",
-		meta: {
-			id: "m1",
-			name: "test",
-			description: "",
-			folder: null,
-			locationCount: 20,
-			tags: {
-				1: { id: 1, name: "a", color: "#ff0000", visible: true },
-				2: { id: 2, name: "b", color: "#00ff00", visible: true },
-			},
-			settings: {},
-			scoreBounds: null,
-			createdAt: "",
-			updatedAt: "",
-			extra: null,
-		},
-	};
+vi.mock("@/lib/commands", async () => {
+	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
 	// Tag 1 and tag 2 overlap on ids 4 and 5; tag 3 is disjoint from both.
 	const byTag: Record<number, number[]> = {
 		1: [1, 2, 3, 4, 5],
@@ -35,8 +17,7 @@ vi.mock("@/lib/commands", () => {
 		3: [11, 12, 13, 14, 15],
 	};
 	type TestScope =
-		| { kind: "selected" }
-		| { kind: "props"; props: { type: string; tagId?: number } };
+		{ kind: "selected" } | { kind: "props"; props: { type: string; tagId?: number } };
 	// Pool per scope: props resolve against byTag, "selected" against the live JS set.
 	const poolOf = async (scope: TestScope): Promise<number[]> => {
 		if (scope.kind === "props")
@@ -45,13 +26,15 @@ vi.mock("@/lib/commands", () => {
 		return [...getMapState().selectedLocationIds];
 	};
 	const handlers: Record<string, (...args: never[]) => unknown> = {
-		storeGetMap: async () => map,
-		storeOpenMap: async () => ({
-			tagCounts: { 1: 5, 2: 5 },
-			canUndo: false,
-			canRedo: false,
-			knownFieldKeys: [],
-		}),
+		storeGetMap: async () =>
+			testMap({
+				locationCount: 20,
+				tags: {
+					1: { id: 1, name: "a", color: "#ff0000", visible: true },
+					2: { id: 2, name: "b", color: "#00ff00", visible: true },
+				},
+			}),
+		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 5, 2: 5 } }),
 		storeSyncSelections: async () => ({ counts: {}, bitmask: null, selectedCount: 0 }),
 		storeQuery: async (
 			scope: TestScope,
@@ -73,9 +56,7 @@ vi.mock("@/lib/commands", () => {
 			return { kind: "ids", ids: pool };
 		},
 	};
-	return {
-		cmd: new Proxy({}, { get: (_t, name: string) => handlers[name] ?? (async () => null) }),
-	};
+	return cmdProxy(handlers as Record<string, (...args: unknown[]) => unknown>);
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 

@@ -5,35 +5,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // skipped so untouched slices keep their reference (the render gate for
 // useMapState selectors is reference identity).
 
-vi.mock("@/lib/commands", () => {
-	const map = {
-		id: "m1",
-		meta: {
-			id: "m1",
-			name: "test",
-			description: "",
-			folder: null,
-			locationCount: 2,
-			tags: { 1: { id: 1, name: "red", color: "#ff0000", visible: true } },
-			settings: {},
-			scoreBounds: null,
-			createdAt: "",
-			updatedAt: "",
-			extra: null,
-		},
-	};
-	const handlers: Record<string, (...args: unknown[]) => unknown> = {
-		storeGetMap: async () => map,
-		storeOpenMap: async () => ({
-			tagCounts: { 1: 2 },
-			canUndo: false,
-			canRedo: false,
-			knownFieldKeys: ["alt"],
-		}),
-	};
-	return {
-		cmd: new Proxy({}, { get: (_t, name: string) => handlers[name] ?? (async () => null) }),
-	};
+vi.mock("@/lib/commands", async () => {
+	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
+	return cmdProxy({
+		storeGetMap: async () =>
+			testMap({
+				locationCount: 2,
+				tags: { 1: { id: 1, name: "red", color: "#ff0000", visible: true } },
+			}),
+		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 2 }, knownFieldKeys: ["alt"] }),
+	});
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
