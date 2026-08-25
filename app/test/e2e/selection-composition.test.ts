@@ -35,7 +35,7 @@ describe("Selection composition", () => {
 			const after = api.getActiveSelections();
 			return {
 				selCount: after.length,
-				type: after[0]?.props?.type,
+				type: after[0]?.selector?.type,
 			};
 		}, tagAId);
 		const ids = await refreshSelections();
@@ -53,7 +53,7 @@ describe("Selection composition", () => {
 			const after = api.getActiveSelections();
 			return {
 				selCount: after.length,
-				type: after[0]?.props?.type,
+				type: after[0]?.selector?.type,
 			};
 		}, tagBId);
 		const ids = await refreshSelections();
@@ -70,14 +70,15 @@ describe("Selection composition", () => {
 			api.composeSelections(sels[0].key, sels[1].key, "Union", null, null);
 
 			const composite = api.getActiveSelections()[0];
-			const childKey = "selections" in composite.props ? composite.props.selections[0].key : "";
+			const childKey =
+				"selections" in composite.selector ? composite.selector.selections[0].key : "";
 			const parentKey = composite.key;
 
 			api.decomposeChild(parentKey, childKey);
 			const after = api.getActiveSelections();
 			return {
 				selCount: after.length,
-				types: after.map((s) => s.props.type),
+				types: after.map((s) => s.selector.type),
 			};
 		}, tagAId);
 		expect(result.selCount).toBe(2);
@@ -96,7 +97,7 @@ describe("Selection composition", () => {
 			const compositeKey = api.getActiveSelections()[0].key;
 
 			// Now compose the third into the union
-			const third = api.getActiveSelections().find((s) => s.props.type === "Untagged");
+			const third = api.getActiveSelections().find((s) => s.selector.type === "Untagged");
 			if (third) {
 				api.composeSelections(third.key, compositeKey, "Union", null, compositeKey);
 			}
@@ -104,9 +105,13 @@ describe("Selection composition", () => {
 			// Remove one child from composite
 			const composite = api
 				.getActiveSelections()
-				.find((s) => s.props.type === "Union" || s.props.type === "Intersection");
-			if (composite && "selections" in composite.props && composite.props.selections.length > 0) {
-				const childToRemove = composite.props.selections[0].key;
+				.find((s) => s.selector.type === "Union" || s.selector.type === "Intersection");
+			if (
+				composite &&
+				"selections" in composite.selector &&
+				composite.selector.selections.length > 0
+			) {
+				const childToRemove = composite.selector.selections[0].key;
 				api.removeChildFromSelection(composite.key, childToRemove);
 			}
 

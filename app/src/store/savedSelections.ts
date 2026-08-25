@@ -1,7 +1,7 @@
-import type { Selection, SelectionProps } from "@/bindings.gen";
+import type { Selection, Selector } from "@/bindings.gen";
 import { buildSelection } from "./selections";
 import { getSettings, setSetting } from "./settings";
-import { addSelections, getTag, getVisibleTags, scopeIds } from "./useMapStore";
+import { addSelections, getTag, getVisibleTags } from "./useMapStore";
 import { t } from "@/lib/i18n";
 
 export interface SavedSelectionItem {
@@ -22,8 +22,8 @@ export interface SavedSelection {
 export const MAP_LOCAL_TYPES = ["Locations", "Manual", "ValidationState", "Reviewed"] as const;
 export type MapLocalType = (typeof MAP_LOCAL_TYPES)[number];
 
-type MapLocalProps = Extract<SelectionProps, { type: MapLocalType }>;
-type PortableProps = Exclude<SelectionProps, MapLocalProps>;
+type MapLocalProps = Extract<Selector, { type: MapLocalType }>;
+type PortableProps = Exclude<Selector, MapLocalProps>;
 
 export type SavedSelectionProps =
 	| Exclude<PortableProps, { type: "Tag" | "Intersection" | "Union" | "Invert" }>
@@ -34,20 +34,18 @@ export type SavedSelectionProps =
 
 const MAP_LOCAL_SET: ReadonlySet<string> = new Set(MAP_LOCAL_TYPES);
 
-function isMapLocal(props: SelectionProps): props is MapLocalProps {
+function isMapLocal(props: Selector): props is MapLocalProps {
 	return MAP_LOCAL_SET.has(props.type);
 }
 
-export function selectionToSaved(sel: Selection): SavedSelectionProps | null {
-	return propsToSaved(sel.props);
-}
+/** A live selector as a persistable rule, or null when it is map-local. The inverse of
+ *  [`savedToSelector`]. */
+export function selectorToSaved(selector: Selector): SavedSelectionProps | null {
+	if (isMapLocal(selector)) return null;
 
-function propsToSaved(props: SelectionProps): SavedSelectionProps | null {
-	if (isMapLocal(props)) return null;
-
-	switch (props.type) {
+	switch (selector.type) {
 		case "Tag": {
-			const tag = getTag(props.tagId);
+			const tag = getTag(selector.tagId);
 			if (!tag) return null;
 			return { type: "TagName", tagName: tag.name };
 		}
@@ -55,15 +53,15 @@ function propsToSaved(props: SelectionProps): SavedSelectionProps | null {
 		case "Intersection":
 		case "Union":
 		case "Invert": {
-			const children = props.selections
-				.map((child) => propsToSaved(child.props))
+			const children = selector.selections
+				.map((child) => selectorToSaved(child.selector))
 				.filter((c): c is SavedSelectionProps => c !== null);
 			if (children.length === 0) return null;
-			return { type: props.type, selections: children };
+			return { type: selector.type, selections: children };
 		}
 
 		default:
-			return props;
+			return selector;
 	}
 }
 
@@ -78,7 +76,7 @@ function resolveTagByName(tagName: string): number | null {
 
 /** Resolve a saved rule against the open map, or null when it no longer applies
  *  (e.g. the tag name doesn't exist here). */
-export function savedToSelectionProps(saved: SavedSelectionProps): SelectionProps | null {
+export function savedToSelector(saved: SavedSelectionProps): Selector | null {
 	switch (saved.type) {
 		case "TagName": {
 			const tagId = resolveTagByName(saved.tagName);
@@ -90,8 +88,8 @@ export function savedToSelectionProps(saved: SavedSelectionProps): SelectionProp
 		case "Union":
 		case "Invert": {
 			const children = saved.selections
-				.map((child) => savedToSelectionProps(child))
-				.filter((c): c is SelectionProps => c !== null);
+				.map((child) => savedToSelector(child))
+				.filter((c): c is Selector => c !== null);
 			if (children.length === 0) return null;
 			const builtChildren = children.map((p) => buildSelection(p));
 			return { type: saved.type, selections: builtChildren };
@@ -102,20 +100,14 @@ export function savedToSelectionProps(saved: SavedSelectionProps): SelectionProp
 	}
 }
 
-// Resolution
-
-/** Resolve a saved selection to the union of its items' matching location ids. */
-export async function resolveSavedSelectionIds(id: string): Promise<Set<number>> {
-	const ids = new Set<number>();
+/** A saved selection as a `Selector`: the union of the items that still apply to this
+ *  map. Empty when the rule has been orphaned (e.g. its tag names are all gone). */
+export function savedSelector(id: string): Selector {
 	const saved = getSavedSelections().find((s) => s.id === id);
-	if (saved) {
-		const propsList = saved.items
-			.map((item) => savedToSelectionProps(item.props))
-			.filter((p): p is SelectionProps => p !== null);
-		const resolved = await Promise.all(propsList.map((p) => scopeIds({ kind: "props", props: p })));
-		for (const arr of resolved) for (const locId of arr) ids.add(locId);
-	}
-	return ids;
+	const items = (saved?.items ?? [])
+		.map((item) => savedToSelector(item.props))
+		.filter((s): s is Selector => s !== null);
+	return { type: "Union", selections: items.map(buildSelection) };
 }
 
 // Display
@@ -175,7 +167,7 @@ export function getSavedSelections(): SavedSelection[] {
 export function saveCurrentSelections(name: string, selections: Selection[]): boolean {
 	const items: SavedSelectionItem[] = [];
 	for (const sel of selections) {
-		const props = selectionToSaved(sel);
+		const props = selectorToSaved(sel.selector);
 		if (props) items.push({ props, color: sel.color });
 	}
 	if (items.length === 0) return false;
@@ -198,9 +190,9 @@ export function deleteSavedSelection(id: string): void {
 }
 
 export function applySavedSelection(saved: SavedSelection): number {
-	const batch: SelectionProps[] = [];
+	const batch: Selector[] = [];
 	for (const item of saved.items) {
-		const props = savedToSelectionProps(item.props);
+		const props = savedToSelector(item.props);
 		if (props) batch.push(props);
 	}
 	if (batch.length > 0) void addSelections(batch);

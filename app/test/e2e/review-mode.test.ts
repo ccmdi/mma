@@ -1,3 +1,4 @@
+import { cmd } from "@/lib/commands";
 import {
 	addLocs,
 	createLocation,

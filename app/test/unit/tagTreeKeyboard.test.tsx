@@ -79,9 +79,7 @@ describe("TagTreeView keyboard reorder", () => {
 		const first = container.querySelector<HTMLElement>("[data-tag-id]")!;
 		act(() => first.focus());
 		act(() => {
-			first.dispatchEvent(
-				new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }),
-			);
+			first.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
 		});
 		expect(onReorder).not.toHaveBeenCalled();
 	});

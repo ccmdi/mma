@@ -114,7 +114,9 @@ describe("measure drag then click", () => {
 
 describe("measure Escape layering", () => {
 	const escape = () =>
-		div.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+		div.dispatchEvent(
+			new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+		);
 
 	it("leaves the measurement alone when a capture-phase handler consumed Escape", () => {
 		mountMeasuring({ lat: 0.01, lng: 0.01 });

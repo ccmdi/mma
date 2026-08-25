@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
 import { useMapState, getVisibleTags } from "@/store/useMapStore";
-import type { Scope } from "@/bindings.gen";
+import { selectorForPick, type SelectorPick } from "@/store/selectorPick";
 import { useMapSetting } from "@/store/useMapSetting";
 import { cmd } from "@/lib/commands";
 import { mmaBufUrl, saveExportTempFile } from "@/lib/util/util";
@@ -25,7 +25,9 @@ export function ExportDialog({ onClose }: Props) {
 	const locationCount = useMapState((s) => s.locationCount);
 	const uid = useId();
 
-	const [scope, setScope] = useState<Scope>({ kind: "all" });
+	const [pick, setPick] = useState<SelectorPick>({ pick: "all" });
+	// Derived, not stored: "the selection" has to follow the live one.
+	const selector = selectorForPick(pick);
 	const [saveZoom, setSaveZoom] = useMapSetting("exportZoom");
 	const [saveExtras, setSaveExtras] = useMapSetting("exportExtras");
 	const [bypassUnpanned, setBypassUnpanned] = useMapSetting("exportUnpanned");
@@ -43,13 +45,13 @@ export function ExportDialog({ onClose }: Props) {
 			exportZoom: saveZoom,
 			exportUnpanned: bypassUnpanned,
 			exportExtras: saveExtras,
-			scope,
+			selector: selector,
 			mapName: map.meta.name,
 			tagsJson: tagsJson(),
 			extraFieldsJson: JSON.stringify(getAllFieldDefs()),
 		});
-	const csvPath = () => cmd.storeExportCsv(scope);
-	const geojsonPath = () => cmd.storeExportGeojson(scope, tagsJson());
+	const csvPath = () => cmd.storeExportCsv(selector);
+	const geojsonPath = () => cmd.storeExportGeojson(selector, tagsJson());
 
 	const saveToFile = (srcPath: string, ext: string) =>
 		saveExportTempFile(srcPath, `${baseName}.${ext}`);
@@ -109,8 +111,8 @@ export function ExportDialog({ onClose }: Props) {
 							<Radio
 								name="selection"
 								value="all"
-								checked={scope.kind === "all"}
-								onChange={() => setScope({ kind: "all" })}
+								checked={pick.pick === "all"}
+								onChange={() => setPick({ pick: "all" })}
 							/>
 							{t(
 								{
@@ -124,8 +126,8 @@ export function ExportDialog({ onClose }: Props) {
 							<Radio
 								name="selection"
 								value="selected"
-								checked={scope.kind === "selected"}
-								onChange={() => setScope({ kind: "selected" })}
+								checked={pick.pick === "selection"}
+								onChange={() => setPick({ pick: "selection" })}
 								disabled={selCount === 0}
 							/>
 							<span style={selCount === 0 ? { opacity: 0.7 } : undefined}>

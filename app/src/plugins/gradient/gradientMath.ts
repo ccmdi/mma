@@ -1,4 +1,4 @@
-import type { ExtraFieldDef, PartitionBucket, SelectionProps } from "@/bindings.gen";
+import type { ExtraFieldDef, PartitionBucket, Selector } from "@/bindings.gen";
 import { ymOrdinal } from "@/lib/util/date";
 
 export function lerp(
@@ -39,7 +39,7 @@ export function fieldScale(value: string, type: string | undefined): number | nu
 }
 
 export interface GradientSelection {
-	props: SelectionProps;
+	selector: Selector;
 	key: string;
 	color: [number, number, number];
 }
@@ -55,20 +55,20 @@ export interface GradientSelection {
 //   - unscoped numeric bin  -> live Filter `between` (re-evaluates against the whole map)
 //   - unscoped value group  -> live Filter `eq`
 //   - everything else       -> static Locations (projections can't be expressed as a Filter;
-//                              scoped groups are inherently a fixed id subset)
+//                              narrowed groups are inherently a fixed id subset)
 export function colorPartition(
 	groups: PartitionBucket[],
 	opts: {
 		fieldKey: string;
 		fieldType: string | undefined;
 		stops: [number, number, number][];
-		scoped: boolean;
+		narrowed: boolean;
 		ordinal: boolean;
 		eqFilter: boolean;
 	},
 ): GradientSelection[] {
 	if (groups.length === 0) return [];
-	const { fieldKey, fieldType, stops, scoped, ordinal, eqFilter } = opts;
+	const { fieldKey, fieldType, stops, narrowed, ordinal, eqFilter } = opts;
 	const n = groups.length;
 	const evenSpaced = (i: number) => (n === 1 ? 0.5 : i / (n - 1));
 
@@ -89,23 +89,23 @@ export function colorPartition(
 
 	return groups.map((g, i) => {
 		const color = gradientColor(stops, ts[i]);
-		if (!scoped && g.bin) {
+		if (!narrowed && g.bin) {
 			const [lo, hi] = g.bin;
 			return {
-				props: { type: "Filter", field: fieldKey, op: "between", value: lo, value2: hi },
+				selector: { type: "Filter", field: fieldKey, op: "between", value: lo, value2: hi },
 				key: `filter:${fieldKey}:between:${lo}:${hi}`,
 				color,
 			};
 		}
-		if (!scoped && eqFilter) {
+		if (!narrowed && eqFilter) {
 			return {
-				props: { type: "Filter", field: fieldKey, op: "eq", value: g.key, value2: null },
+				selector: { type: "Filter", field: fieldKey, op: "eq", value: g.key, value2: null },
 				key: `filter:${fieldKey}:eq:${g.key}`,
 				color,
 			};
 		}
 		return {
-			props: { type: "Locations", locations: g.ids, name: g.key },
+			selector: { type: "Locations", locations: g.ids, name: g.key },
 			key: g.ids.join(","),
 			color,
 		};

@@ -3,7 +3,7 @@
 //! triggers a native save dialog to move the file to its final destination.
 
 use crate::location_store::{with_store, StoreState, WindowLabel};
-use crate::selections::Scope;
+use crate::selections::Selector;
 use crate::storage;
 use crate::types::LocationFlags;
 use crate::types::{AppError, AppResult};
@@ -19,7 +19,7 @@ pub struct ExportOpts {
     pub export_unpanned: bool,
     pub export_extras: bool,
     /// Which locations to export.
-    pub scope: Scope,
+    pub selector: Selector,
     pub map_name: String,
     /// Serialized `{id: {name, color}}` tag definitions from the store, used to
     /// convert numeric tag IDs back to human-readable names in the output.
@@ -185,7 +185,7 @@ pub fn store_export_json(
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
         let (tag_defs, id_to_name) = parse_tag_defs(&opts.tags_json);
-        let locs = store.collect(&opts.scope);
+        let locs = store.collect(&opts.selector);
 
         let co = CoordOpts {
             export_zoom: opts.export_zoom,
@@ -235,10 +235,10 @@ pub fn store_export_json(
 pub fn store_export_csv(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    scope: Scope,
+    selector: Selector,
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
-        let locs = store.collect(&scope);
+        let locs = store.collect(&selector);
 
         let mut buf = String::with_capacity(locs.len() * 30);
         buf.push_str("lat,lng\n");
@@ -259,12 +259,12 @@ pub fn store_export_csv(
 pub fn store_export_geojson(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    scope: Scope,
+    selector: Selector,
     tags_json: String,
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
         let (_, id_to_name) = parse_tag_defs(&tags_json);
-        let locs = store.collect(&scope);
+        let locs = store.collect(&selector);
 
         let features: Vec<serde_json::Value> = locs
             .iter()
@@ -380,6 +380,41 @@ pub fn store_upload_finish(session_dir: String) -> AppResult<String> {
     Ok(out.to_string_lossy().into_owned())
 }
 
+/// Read a session's `<n>.json` chunks in index order, concatenated. Indices must run
+/// 0..len-1 with no gaps -- a chunk whose POST was dropped would otherwise silently
+/// truncate the result. The dir is removed either way.
+pub(crate) fn read_uploaded_chunks<T: serde::de::DeserializeOwned>(
+    session_dir: &str,
+) -> AppResult<Vec<T>> {
+    let dir = upload_session_dir(session_dir)?;
+    let result = collect_chunks(&dir);
+    let _ = std::fs::remove_dir_all(&dir);
+    result
+}
+
+fn collect_chunks<T: serde::de::DeserializeOwned>(dir: &std::path::Path) -> AppResult<Vec<T>> {
+    let mut chunks: Vec<(u32, std::path::PathBuf)> = Vec::new();
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        let index = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.parse::<u32>().ok())
+            .ok_or_else(|| AppError::from("uploaded chunk: non-numeric name"))?;
+        chunks.push((index, path));
+    }
+    chunks.sort_by_key(|(i, _)| *i);
+    if chunks.iter().enumerate().any(|(n, (i, _))| n as u32 != *i) {
+        return Err("uploaded chunk: missing chunk".into());
+    }
+
+    let mut out = Vec::new();
+    for (_, path) in &chunks {
+        out.append(&mut serde_json::from_slice::<Vec<T>>(&std::fs::read(path)?)?);
+    }
+    Ok(out)
+}
+
 /// Remove an abandoned upload session dir (e.g. cancelled operation).
 #[tauri::command]
 #[specta::specta]
@@ -435,11 +470,10 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
 
             for (i, (map_id, name, _folder, tags_json, extra_json)) in maps.iter().enumerate() {
                 crate::emit_event(ExportProgress {
-                        current: (i + 1) as u32,
-                        total: total as u32,
-                        map_name: name.clone(),
-                    },
-                );
+                    current: (i + 1) as u32,
+                    total: total as u32,
+                    map_name: name.clone(),
+                });
                 // Base file + uncommitted delta sidecar = the map's full current state.
                 let locs = crate::location_store::read_full_state_from_disk(map_id)?;
 

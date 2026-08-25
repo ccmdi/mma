@@ -56,8 +56,8 @@ async function resolveTagByName(name: string): Promise<number | null> {
 }
 
 function selectionToRegion(sel: Selection, meta: GeneratorRegionMeta): GeneratorRegion | null {
-	if (sel.props.type !== "Polygon") return null;
-	const poly = sel.props.polygon;
+	if (sel.selector.type !== "Polygon") return null;
+	const poly = sel.selector.polygon;
 	const name = poly.properties?.name || t("Unnamed polygon");
 	const geometry = poly.extraPolygons
 		? { type: "MultiPolygon" as const, coordinates: [poly.coordinates, ...poly.extraPolygons] }
@@ -219,7 +219,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	const handleStart = useCallback(async () => {
-		const sels = getActiveSelections().filter((s) => s.props.type === "Polygon");
+		const sels = getActiveSelections().filter((s) => s.selector.type === "Polygon");
 		if (sels.length === 0) return;
 		if (!google) return;
 
@@ -273,7 +273,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 		const engine = engineRef.current;
 		if (!engine) return;
 		if (engine.isPaused()) {
-			const sels = getActiveSelections().filter((s) => s.props.type === "Polygon");
+			const sels = getActiveSelections().filter((s) => s.selector.type === "Polygon");
 			const nextMeta = new Map(sessionMeta);
 			const desired: GeneratorRegion[] = [];
 			for (const sel of sels) {
@@ -310,7 +310,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	}, [onClose]);
 
 	// Build regions from current selections + meta for progress display
-	const polygonSelections = selections.filter((s) => s.props.type === "Polygon");
+	const polygonSelections = selections.filter((s) => s.selector.type === "Polygon");
 	const regions: GeneratorRegion[] = [];
 	for (const sel of polygonSelections) {
 		const m = meta.get(sel.key);

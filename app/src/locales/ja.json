@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/秒",
 	" in {seconds}s ({rate}/s)": " 所要 {seconds}s（{rate}/s）",
+	"Pano ID": "Pano ID",
 	"\"{path}\" already exists in the tree": "「{path}」はツリー内に既に存在します",
 	"(deleted selection)": "（削除済みの選択）",
 	"(downloading...)": "(ダウンロード中...)",

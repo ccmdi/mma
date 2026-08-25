@@ -11,7 +11,7 @@ import type {
 	Location,
 	ExtraFieldType,
 	Selection,
-	SelectionProps,
+	Selector,
 	Update,
 	LocationPatch_Deserialize as LocationPatch,
 } from "@/bindings.gen";
@@ -59,7 +59,7 @@ function changesLocation(loc: Location, patch: Partial<Location>): boolean {
 
 // --- Field expressions ("set X = f(Y)" bulk op) -------------------------------
 // A deliberately tiny numeric expression language: field references, arithmetic,
-// parens, and a few functions. Scope (WHERE) belongs to selections and multiple
+// parens, and a few functions. The row set (WHERE) belongs to selections and multiple
 // assignments are repeat runs -- the language stays one expression wide.
 
 type FieldExpr =
@@ -287,7 +287,7 @@ export function planFieldExpr(
  * to their sole survivor (matching the rest of the selection engine's semantics).
  */
 function rewriteSelection(sel: Selection, from: string, to: string | null): Selection | null {
-	const p = sel.props;
+	const p = sel.selector;
 	if (p.type === "Filter") {
 		if (p.field !== from) return sel;
 		return to === null ? null : buildSelection({ ...p, field: to });
@@ -298,7 +298,7 @@ function rewriteSelection(sel: Selection, from: string, to: string | null): Sele
 			.filter((c): c is Selection => c !== null);
 		if (children.length === 0) return null;
 		if (children.length === 1 && p.type !== "Invert") return children[0];
-		return buildSelection({ ...p, selections: children } as SelectionProps);
+		return buildSelection({ ...p, selections: children } as Selector);
 	}
 	return sel;
 }

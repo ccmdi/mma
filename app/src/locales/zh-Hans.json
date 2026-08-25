@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/秒",
 	" in {seconds}s ({rate}/s)": "，用时 {seconds}s（{rate}/s）",
+	"Pano ID": "全景 ID",
 	"\"{path}\" already exists in the tree": "「{path}」在树中已存在",
 	"(deleted selection)": "（已删除的选择）",
 	"(downloading...)": "(正在下载…)",

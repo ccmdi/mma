@@ -73,7 +73,16 @@ describe("resolvePickedId (shared pick resolution)", () => {
 
 describe("openHref (map-aware link opening)", () => {
 	const HREF = "https://www.google.com/maps/@1,2,3z";
-	const parsed = { lat: 10, lng: 20, panoId: "PANO_A", heading: 0, pitch: 0, zoom: 0, flags: 0, tags: [] };
+	const parsed = {
+		lat: 10,
+		lng: 20,
+		panoId: "PANO_A",
+		heading: 0,
+		pitch: 0,
+		zoom: 0,
+		flags: 0,
+		tags: [],
+	};
 	const loc = (id: number, panoId: string) => ({ id, lat: 10, lng: 20, panoId });
 
 	let openExternal: ReturnType<typeof vi.fn>;

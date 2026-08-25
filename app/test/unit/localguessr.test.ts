@@ -194,16 +194,22 @@ describe("reduce", () => {
 	const playing: View = { phase: "playing", game: game() };
 
 	it("increments the streak on a hit and resets it on a miss", () => {
-		const hit = reduce({ phase: "playing", game: game({ streak: 2 }) }, {
-			type: "result",
-			result: result({ streakHit: true }),
-		});
+		const hit = reduce(
+			{ phase: "playing", game: game({ streak: 2 }) },
+			{
+				type: "result",
+				result: result({ streakHit: true }),
+			},
+		);
 		expect(hit.phase === "result" && hit.game.streak).toBe(3);
 
-		const miss = reduce({ phase: "playing", game: game({ streak: 2 }) }, {
-			type: "result",
-			result: result({ streakHit: false }),
-		});
+		const miss = reduce(
+			{ phase: "playing", game: game({ streak: 2 }) },
+			{
+				type: "result",
+				result: result({ streakHit: false }),
+			},
+		);
 		expect(miss.phase === "result" && miss.game.streak).toBe(0);
 	});
 
@@ -273,9 +279,8 @@ describe("round helpers", () => {
 
 describe("saved game storage", () => {
 	it("scopes the saved game to its map", async () => {
-		const { saveGame, getSavedGame, clearSavedGame } = await import(
-			"@/plugins/localguessr/storage"
-		);
+		const { saveGame, getSavedGame, clearSavedGame } =
+			await import("@/plugins/localguessr/storage");
 		saveGame(game({ mapId: "a" }));
 		expect(getSavedGame("a")?.mapId).toBe("a");
 		expect(getSavedGame("b")).toBeNull();

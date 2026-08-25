@@ -297,9 +297,7 @@ describe("matchTagsToHeadings", () => {
 
 	it("skips pairs already assigned in this doc", () => {
 		const linked = tag(1, "Antenna", ["https://docs.google.com/document/d/d1/edit#heading=h.a"]);
-		expect(pairs([linked], [h("h.a", "Antenna"), h("h.b", "Antenna")])).toEqual([
-			"Antenna->h.b",
-		]);
+		expect(pairs([linked], [h("h.a", "Antenna"), h("h.b", "Antenna")])).toEqual(["Antenna->h.b"]);
 	});
 
 	it("ignores links to other docs when deciding what is assigned", () => {

@@ -154,13 +154,17 @@ async function analyze(): Promise<Analysis> {
 
 	const colors = sels.map((s) => s.color);
 	const idSets = await Promise.all(
-		sels.map((s) => MMA.scopeIds({ kind: "props", props: s.props }).then((ids) => new Set(ids))),
+		sels.map((s) => MMA.resolveIds(s.selector).then((ids) => new Set(ids))),
 	);
 
 	const labeled: Labeled[] = [];
 	let excludedOverlap = 0;
 	const unionIds = [...new Set(idSets.flatMap((s) => [...s]))];
-	for (const loc of await MMA.fetchLocations({ kind: "ids", ids: unionIds })) {
+	for (const loc of await MMA.fetchLocations({
+		type: "Locations",
+		locations: unionIds,
+		name: null,
+	})) {
 		const g = soleGroup(idSets, loc.id);
 		if (g === "overlap") excludedOverlap++;
 		else if (g !== null) labeled.push({ group: g, loc: loc as Location });

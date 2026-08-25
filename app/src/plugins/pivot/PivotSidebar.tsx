@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import type { KeySpec, PartitionBucket, Selection, SelectionProps } from "@/bindings.gen";
+import type { KeySpec, PartitionBucket, Selection, Selector } from "@/bindings.gen";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import { selectionDisplayName, buildSelection } from "@/store/selections";
-import { savedToSelectionProps, describeRule, type SavedSelection } from "@/store/savedSelections";
+import { savedToSelector, describeRule, type SavedSelection } from "@/store/savedSelections";
 import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import type { ExtraFieldDef } from "@/bindings.gen";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
@@ -49,7 +49,7 @@ async function computePivot(
 	let idSets: Set<number>[];
 
 	if (rowSource === "all") {
-		const allIds = new Set(await MMA.scopeIds({ kind: "all" }));
+		const allIds = new Set(await MMA.resolveIds({ type: "Everything" }));
 		rowDefs = [{ label: t("All locations"), color: [140, 140, 140] }];
 		idSets = [allIds];
 	} else if (rowSource === "active") {
@@ -61,7 +61,7 @@ async function computePivot(
 		}));
 		idSets = await Promise.all(
 			sels.map((s: Selection) =>
-				MMA.scopeIds({ kind: "props", props: s.props }).then((ids: number[]) => new Set(ids)),
+				MMA.resolveIds(s.selector).then((ids) => new Set(ids)),
 			),
 		);
 	} else {
@@ -71,19 +71,17 @@ async function computePivot(
 		const resolvedRows: {
 			label: string;
 			color: [number, number, number];
-			props: SelectionProps;
+			selector: Selector;
 		}[] = [];
 		for (const item of entry.items) {
-			const props = savedToSelectionProps(item.props);
-			if (!props) continue;
-			resolvedRows.push({ label: describeRule(item.props), color: item.color, props });
+			const selector = savedToSelector(item.props);
+			if (!selector) continue;
+			resolvedRows.push({ label: describeRule(item.props), color: item.color, selector });
 		}
 		if (resolvedRows.length === 0) return null;
 		rowDefs = resolvedRows.map((r) => ({ label: r.label, color: r.color }));
 		idSets = await Promise.all(
-			resolvedRows.map((r) =>
-				MMA.scopeIds({ kind: "props", props: r.props }).then((ids: number[]) => new Set(ids)),
-			),
+			parts.map((p) => MMA.resolveIds(p.selector).then((ids) => new Set(ids))),
 		);
 	}
 
@@ -92,7 +90,7 @@ async function computePivot(
 	const isNumeric = !isTags && (fieldDef?.type === "number" || fieldDef?.type === "date");
 
 	// Field index (locId -> group key(s)) comes from the engine: tags from per-tag
-	// scopes, everything else from one whole-map groupBy. Numeric fields bucket into
+	// selectors, everything else from one whole-map groupBy. Numeric fields bucket into
 	// a histogram; resolveBucketCount arbitrates between the user's choice and the
 	// field's cardinality.
 	const fieldIndex = new Map<number, string[]>();
@@ -101,10 +99,7 @@ async function computePivot(
 	if (isTags) {
 		await Promise.all(
 			Object.keys(tagMap).map(async (tid) => {
-				const ids = await MMA.scopeIds({
-					kind: "props",
-					props: { type: "Tag", tagId: Number(tid) },
-				});
+				const ids = await MMA.resolveIds({ type: "Tag", tagId: Number(tid) });
 				for (const id of ids) {
 					const vals = fieldIndex.get(id);
 					if (vals) vals.push(tid);
@@ -113,13 +108,14 @@ async function computePivot(
 			}),
 		);
 	} else {
-		if (isNumeric) numericDistinct = (await MMA.fieldValues({ kind: "all" }, fieldKey)).length;
+		if (isNumeric)
+			numericDistinct = (await MMA.fieldValues({ type: "Everything" }, fieldKey)).length;
 		const effectiveBuckets =
 			numericDistinct != null ? resolveBucketCount(numericDistinct, bucketCount) : null;
 		const key: KeySpec = effectiveBuckets
 			? { kind: "numericBin", binning: { by: "count", n: effectiveBuckets } }
 			: { kind: "value" };
-		const groups = await MMA.groupBy({ kind: "all" }, fieldKey, key);
+		const groups = await MMA.partition(fieldKey, key, { type: "Everything" });
 		for (const g of groups) for (const id of g.ids) fieldIndex.set(id, [g.key]);
 		if (effectiveBuckets) buckets = groups;
 	}
@@ -181,7 +177,7 @@ async function computePivot(
 
 	// Selection props per column (same shapes gradient emits): tag columns map to Tag
 	// selections, buckets to `between` filters, plain values to `eq` filters.
-	const columnProps: (SelectionProps | null)[] = columns.map((col, i) => {
+	const columnProps: (Selector | null)[] = columns.map((col, i) => {
 		if (col === NA_KEY) return null;
 		if (isTags) return { type: "Tag", tagId: Number(col) };
 		if (buckets) {

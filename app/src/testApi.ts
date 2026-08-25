@@ -2,11 +2,12 @@
 // drives; never called by app code.
 
 import {
-	openMap as storeOpenMap,
 	closeMap as storeCloseMap,
-	mutate,
+	currentSelection,
 	getMapState,
-	scopeIds,
+	mutate,
+	openMap as storeOpenMap,
+	resolveIds,
 } from "@/store/useMapStore";
 import * as mapList from "@/store/mapList";
 import { cmd } from "@/lib/commands";
@@ -21,12 +22,12 @@ export async function syncSelections(): Promise<{ ids: number[] }> {
 	await cmd.storeSyncSelections(
 		selections.map((s) => ({
 			key: s.key,
-			props: s.props,
+			selector: s.selector,
 			color: s.color,
 			ghosted: ghostedSelections.has(s.key),
 		})),
 	);
-	return { ids: await scopeIds({ kind: "selected" }) };
+	return { ids: await resolveIds(currentSelection()) };
 }
 
 export async function openMap(id: string) {

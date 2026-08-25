@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " за {seconds}s ({rate}/s)",
+	"Pano ID": "Pano ID",
 	"\"{path}\" already exists in the tree": "\"{path}\" уже есть в дереве",
 	"(deleted selection)": "(удалённая выборка)",
 	"(downloading...)": "(загрузка...)",

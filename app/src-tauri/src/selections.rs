@@ -5,20 +5,19 @@
 //! unified `LocView` (batch + overlay); composites (Intersection, Union, Invert) combine
 //! their children's sets.
 
+use crate::types::{Location, LocationFlags};
+use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
+use arrow_array::{Array, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array};
+use chrono::{DateTime, Datelike, Timelike, Utc};
 use mma_geo::equirect_m2;
 pub(crate) use mma_geo::{
     anchor_bbox, extend_bbox_with_ring, haversine_m, in_bbox, polygon_contains, PreparedRing,
 };
 #[cfg(test)]
 pub(crate) use mma_geo::{point_in_ring, unwrap_ring};
-use crate::types::{Location, LocationFlags};
-use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
-use arrow_array::{Array, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array};
-use chrono::{DateTime, Datelike, Timelike, Utc};
 use rayon::prelude::*;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 
 /// Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
@@ -27,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 /// children. Duplicates uses a grid-accelerated spatial scan.
 #[derive(Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type")]
-pub enum SelectionProps {
+pub enum Selector {
     Locations {
         locations: Vec<u32>,
         name: Option<String>,
@@ -131,7 +130,7 @@ pub struct PolygonGeometry {
 pub struct Selection {
     pub key: String,
     pub color: [u8; 3],
-    pub props: SelectionProps,
+    pub selector: Selector,
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +154,7 @@ pub struct LocView<'a> {
     flags: Option<&'a UInt32Array>,
     tags: Option<&'a ListArray>,
     extras: Option<&'a StringArray>,
+    pano_ids: Option<&'a StringArray>,
     created_ats: Option<&'a UInt32Array>,
     modified_ats: Option<&'a UInt32Array>,
     batch_rows: usize,
@@ -317,10 +317,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
                 // One byte-scan collects both members; only their value slices parse.
                 let mut fv_extra: Option<serde_json::Value> = None;
                 let mut tz: Option<String> = None;
-                if let Some(s) = v
-                    .extras
-                    .and_then(|c| (!c.is_null(*i)).then(|| c.value(*i)))
-                {
+                if let Some(s) = v.extras.and_then(|c| (!c.is_null(*i)).then(|| c.value(*i))) {
                     let b = s.as_bytes();
                     crate::types::scan_fields(b, |fs| {
                         let k = &b[fs.key.clone()];
@@ -352,8 +349,8 @@ impl<'a, 'v> RowRef<'a, 'v> {
             RowInner::Loc(l) => (*l).clone(),
         }
     }
-    pub fn matches(&self, props: &SelectionProps) -> bool {
-        test_row(self, props)
+    pub fn matches(&self, selector: &Selector) -> bool {
+        test_row(self, selector)
     }
     /// Whether this row lives in the overlay (an add or a patch) rather than the
     /// committed base batch -- i.e. it has uncommitted changes since the last commit.
@@ -372,7 +369,7 @@ impl<'a> LocView<'a> {
     ) -> Self {
         use crate::arrow_bridge::{
             col_created_at, col_extra, col_flags, col_heading, col_id, col_lat, col_lng,
-            col_modified_at, col_pitch, col_tags, col_zoom,
+            col_modified_at, col_pano_id, col_pitch, col_tags, col_zoom,
         };
         let batch_rows = batch.map_or(0, |b| b.num_rows());
         let ids = batch.map(col_id);
@@ -384,6 +381,7 @@ impl<'a> LocView<'a> {
         let flags = batch.map(col_flags);
         let tags = batch.map(col_tags);
         let extras = batch.map(col_extra);
+        let pano_ids = batch.map(col_pano_id);
         let created_ats = batch.map(col_created_at);
         let modified_ats = batch.map(col_modified_at);
         let has_dead = !dead.is_empty();
@@ -402,6 +400,7 @@ impl<'a> LocView<'a> {
             flags,
             tags,
             extras,
+            pano_ids,
             created_ats,
             modified_ats,
             batch_rows,
@@ -462,10 +461,10 @@ impl<'a> LocView<'a> {
             .chain(self.adds.iter().map(RowRef::from_loc))
     }
 
-    /// The scope guard: in-scope rows only, `None` = unscoped. Pairs with
-    /// `Scope::resolve` -- resolution happens once at the command boundary, this is
+    /// The narrowing guard: rows in `set` only, `None` = every alive row. Pairs with
+    /// `narrow` -- resolution happens once at the command boundary, this is
     /// the one place the resolved set filters iteration.
-    pub fn scoped<'v>(
+    pub fn within<'v>(
         &'v self,
         set: Option<&'v RoaringBitmap>,
     ) -> impl Iterator<Item = RowRef<'a, 'v>> + 'v {
@@ -508,20 +507,20 @@ impl<'a> LocView<'a> {
 // Bitmask resolve
 // ---------------------------------------------------------------------------
 
-fn test_row(r: &RowRef, props: &SelectionProps) -> bool {
-    match props {
-        SelectionProps::Everything => true,
-        SelectionProps::Locations { locations, .. }
-        | SelectionProps::Manual { locations }
-        | SelectionProps::ValidationState { locations, .. }
-        | SelectionProps::Reviewed { locations, .. } => locations.contains(&r.id()),
-        SelectionProps::Tag { tag_id } => r.has_tag(*tag_id),
-        SelectionProps::Untagged => r.tags_empty(),
-        SelectionProps::Unpanned => r.heading() == 0.0,
-        SelectionProps::PanoIds => r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
-        SelectionProps::NotPanoIds => !r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
-        SelectionProps::Uncommitted => r.is_uncommitted(),
-        SelectionProps::Polygon {
+fn test_row(r: &RowRef, selector: &Selector) -> bool {
+    match selector {
+        Selector::Everything => true,
+        Selector::Locations { locations, .. }
+        | Selector::Manual { locations }
+        | Selector::ValidationState { locations, .. }
+        | Selector::Reviewed { locations, .. } => locations.contains(&r.id()),
+        Selector::Tag { tag_id } => r.has_tag(*tag_id),
+        Selector::Untagged => r.tags_empty(),
+        Selector::Unpanned => r.heading() == 0.0,
+        Selector::PanoIds => r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
+        Selector::NotPanoIds => !r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
+        Selector::Uncommitted => r.is_uncommitted(),
+        Selector::Polygon {
             polygon,
             include_informational,
         } => {
@@ -530,7 +529,7 @@ fn test_row(r: &RowRef, props: &SelectionProps) -> bool {
             }
             point_in_geometry(r.lng(), r.lat(), polygon)
         }
-        SelectionProps::Filter {
+        Selector::Filter {
             field,
             op,
             value,
@@ -574,10 +573,10 @@ const CHUNK_SIZE: usize = 64 * 1024;
 /// present (O(1)-ish clone) instead of scanning every row's tag list. Geometric
 /// leaves (`Polygon`/`Filter`/`Duplicates`) still scan, producing a positional mask
 /// that is converted to an id set.
-pub fn resolve_set(view: &LocView, props: &SelectionProps) -> RoaringBitmap {
-    match props {
+pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
+    match selector {
         // Tag leaf via index: clone the precomputed member set, minus dead ids.
-        SelectionProps::Tag { tag_id } => {
+        Selector::Tag { tag_id } => {
             if let Some(idx) = view.tag_sets {
                 let mut set = idx.get(tag_id).cloned().unwrap_or_default();
                 if view.has_dead {
@@ -606,40 +605,40 @@ pub fn resolve_set(view: &LocView, props: &SelectionProps) -> RoaringBitmap {
             }
             // No index: fall through to the scan path below.
         }
-        SelectionProps::Intersection { selections } => {
+        Selector::Intersection { selections } => {
             if selections.is_empty() {
                 return RoaringBitmap::new();
             }
-            let mut acc = resolve_set(view, &selections[0].props);
+            let mut acc = resolve(view, &selections[0].selector);
             for s in &selections[1..] {
-                acc &= resolve_set(view, &s.props);
+                acc &= resolve(view, &s.selector);
                 if acc.is_empty() {
                     break;
                 } // short-circuit: nothing left to intersect
             }
             return acc;
         }
-        SelectionProps::Union { selections } => {
+        Selector::Union { selections } => {
             let mut acc = RoaringBitmap::new();
             for s in selections {
-                acc |= resolve_set(view, &s.props);
+                acc |= resolve(view, &s.selector);
             }
             return acc;
         }
-        SelectionProps::Invert { selections } => {
+        Selector::Invert { selections } => {
             // Invert = (all alive ids) - (child ids). roaring-rs has no native flip,
             // so this is a difference against the universe set.
             let universe = alive_id_set(view);
             if selections.is_empty() {
                 return universe;
             }
-            let inner = resolve_set(view, &selections[0].props);
+            let inner = resolve(view, &selections[0].selector);
             return universe - inner;
         }
         _ => {}
     }
     // Scan leaves (incl. Tag with no index): build a positional mask, convert to ids.
-    let mask = resolve_leaf_mask(view, props);
+    let mask = resolve_leaf_mask(view, selector);
     mask_to_set(view, &mask)
 }
 
@@ -652,8 +651,8 @@ pub fn resolve_forest(
     sels: &[Selection],
 ) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
     fn walk(view: &LocView, sel: &Selection, counts: &mut HashMap<String, u32>) -> RoaringBitmap {
-        let set = match &sel.props {
-            SelectionProps::Intersection { selections } => {
+        let set = match &sel.selector {
+            Selector::Intersection { selections } => {
                 // No empty short-circuit: children's counts are reported regardless,
                 // so they must resolve either way.
                 let mut acc: Option<RoaringBitmap> = None;
@@ -666,14 +665,14 @@ pub fn resolve_forest(
                 }
                 acc.unwrap_or_default()
             }
-            SelectionProps::Union { selections } => {
+            Selector::Union { selections } => {
                 let mut acc = RoaringBitmap::new();
                 for c in selections {
                     acc |= walk(view, c, counts);
                 }
                 acc
             }
-            SelectionProps::Invert { selections } => {
+            Selector::Invert { selections } => {
                 let universe = alive_id_set(view);
                 let mut children = selections.iter();
                 let set = match children.next() {
@@ -681,13 +680,13 @@ pub fn resolve_forest(
                     None => universe,
                 };
                 // Invert is unary: extra children don't affect the set but their
-                // counts are still reported, matching resolve_set semantics.
+                // counts are still reported, matching resolve semantics.
                 for c in children {
                     walk(view, c, counts);
                 }
                 set
             }
-            _ => resolve_set(view, &sel.props),
+            _ => resolve(view, &sel.selector),
         };
         counts.insert(sel.key.clone(), set.len() as u32);
         set
@@ -731,23 +730,23 @@ fn mask_to_set(view: &LocView, mask: &[bool]) -> RoaringBitmap {
 }
 
 /// Resolve a single non-composite leaf into a positional bool mask. O(N) parallel
-/// (or O(N^2) grid-accelerated for Duplicates). Composites are handled by `resolve_set`.
-fn resolve_leaf_mask(view: &LocView, props: &SelectionProps) -> Vec<bool> {
+/// (or O(N^2) grid-accelerated for Duplicates). Composites are handled by `resolve`.
+fn resolve_leaf_mask(view: &LocView, selector: &Selector) -> Vec<bool> {
     let n = view.batch_rows + view.adds.len();
-    match props {
-        SelectionProps::Locations { locations, .. }
-        | SelectionProps::Manual { locations }
-        | SelectionProps::ValidationState { locations, .. }
-        | SelectionProps::Reviewed { locations, .. } => {
+    match selector {
+        Selector::Locations { locations, .. }
+        | Selector::Manual { locations }
+        | Selector::ValidationState { locations, .. }
+        | Selector::Reviewed { locations, .. } => {
             let set: HashSet<u32> = locations.iter().copied().collect();
             view.resolve_mask(|r| set.contains(&r.id()))
         }
-        SelectionProps::Duplicates { distance } => {
+        Selector::Duplicates { distance } => {
             let mut mask = vec![false; n];
             find_duplicates_bitmask(view, *distance, &mut mask);
             mask
         }
-        SelectionProps::Polygon {
+        Selector::Polygon {
             polygon,
             include_informational,
         } => {
@@ -765,7 +764,7 @@ fn resolve_leaf_mask(view: &LocView, props: &SelectionProps) -> Vec<bool> {
                 }
             }
         }
-        SelectionProps::TopK {
+        Selector::TopK {
             field,
             k,
             ascending,
@@ -810,13 +809,8 @@ fn resolve_leaf_mask(view: &LocView, props: &SelectionProps) -> Vec<bool> {
             }
             mask
         }
-        _ => view.resolve_mask(|r| test_row(r, props)),
+        _ => view.resolve_mask(|r| test_row(r, selector)),
     }
-}
-
-/// Resolve a selection to a Vec of matching location IDs (sorted ascending). O(N).
-pub fn resolve(view: &LocView, props: &SelectionProps) -> Vec<u32> {
-    resolve_set(view, props).into_iter().collect()
 }
 
 // --- Geometry (ray-casting point-in-polygon; primitives live in mma-geo) ---
@@ -1367,7 +1361,6 @@ fn prune_thinning(locs: &[&Location], distance_m: f64) -> Vec<u32> {
     (0..n).filter(|&i| removed[i]).map(|i| locs[i].id).collect()
 }
 
-
 // --- Filter: field-level comparison predicates ---
 
 /// How a built-in field may be accessed by the field system on the TS side.
@@ -1475,6 +1468,11 @@ builtin_fields! {
         |l| l.modified_at.map(|ts| serde_json::json!(ts as f64)),
         |v, i| v.modified_ats.and_then(|c| {
             (!c.is_null(i)).then(|| serde_json::json!(c.value(i) as f64))
+        });
+    "panoId", "Pano ID", ExtraFieldType::String, None, None,
+        |l| l.pano_id.as_deref().map(|p| serde_json::json!(p)),
+        |v, i| v.pano_ids.and_then(|c| {
+            (!c.is_null(i)).then(|| serde_json::json!(c.value(i)))
         });
     "tagCount", "Tag count", ExtraFieldType::Number, Some(BuiltinFieldKind::Virtual), None,
         |l| Some(serde_json::json!(l.tags.len())),
@@ -1655,7 +1653,7 @@ fn as_f64(v: &serde_json::Value) -> Option<f64> {
 // Partition: group-by aggregation
 // ---------------------------------------------------------------------------
 //
-// `partition` splits the (scoped) location set into groups by a derived key, returning
+// `partition` splits the selected location set into groups by a derived key, returning
 // compact `{ key, ids, bin }` per group.
 //
 
@@ -1683,35 +1681,15 @@ pub enum NumericBinning {
     Width { w: f64 },
 }
 
-/// Which locations to operate on. The one way to name a row set: resolved in Rust
-/// against the maintained selection set, so callers never materialize rows to narrow them.
-/// `All`/`Selected` reference state Rust already holds; `Ids`/`Props` carry their
-/// definition in the call.
-#[derive(Clone, Deserialize, specta::Type)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum Scope {
-    All,
-    Selected,
-    /// The consumer decides ordering: `collect` (rows) preserves the caller's order and
-    /// duplicates, while `resolve` (every set projection) funnels through a bitmap that
-    /// sorts and dedups. Callers that care about order must not rely on set projections.
-    Ids { ids: Vec<u32> },
-    Props { props: SelectionProps },
-}
-
-impl Scope {
-    /// The id set this scope narrows to, or `None` for the whole map.
-    pub fn resolve<'a>(
-        &'a self,
-        view: &LocView,
-        selected: &'a RoaringBitmap,
-    ) -> Option<Cow<'a, RoaringBitmap>> {
-        match self {
-            Scope::All => None,
-            Scope::Selected => Some(Cow::Borrowed(selected)),
-            Scope::Ids { ids } => Some(Cow::Owned(ids.iter().copied().collect())),
-            Scope::Props { props } => Some(Cow::Owned(resolve_set(view, props))),
-        }
+/// The id set a selector narrows to, or `None` for "no narrowing" -- every alive row.
+/// Two selectors answer without resolving: `Everything` is the whole map, and `Locations`
+/// is already an id list. The result is only ever handed to [`LocView::within`], which
+/// skips dead rows itself, so neither fast path has to filter them.
+pub fn narrow(view: &LocView, selector: &Selector) -> Option<RoaringBitmap> {
+    match selector {
+        Selector::Everything => None,
+        Selector::Locations { locations, .. } => Some(locations.iter().copied().collect()),
+        _ => Some(resolve(view, selector)),
     }
 }
 
@@ -1773,7 +1751,7 @@ fn partition_numeric(
     set: Option<&RoaringBitmap>,
 ) -> Vec<PartitionBucket> {
     let mut vals: Vec<(u32, f64)> = Vec::new();
-    for row in view.scoped(set) {
+    for row in view.within(set) {
         if let Some(n) = row.resolve_field(field).as_ref().and_then(as_f64) {
             vals.push((row.id(), n));
         }
@@ -1807,7 +1785,7 @@ fn partition_keyed(
 ) -> Vec<PartitionBucket> {
     let mut index: HashMap<String, usize> = HashMap::new();
     let mut groups: Vec<PartitionBucket> = Vec::new();
-    for row in view.scoped(set) {
+    for row in view.within(set) {
         let id = row.id();
         let key = match spec {
             KeySpec::Value => row.resolve_field(field).and_then(|v| value_key(&v)),
@@ -1855,11 +1833,11 @@ pub fn count_by(
         .collect()
 }
 
-/// How many scoped rows carry each top-level `extra` key, key-sorted. Answers "which
+/// How many selected rows carry each top-level `extra` key, key-sorted. Answers "which
 /// fields does this map actually have, and how covered are they" in one pass.
 pub fn extra_key_coverage(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<(String, u32)> {
     let mut counts: HashMap<String, u32> = HashMap::new();
-    for row in view.scoped(set) {
+    for row in view.within(set) {
         row.for_each_extra_key(|key| match counts.get_mut(key) {
             Some(c) => *c += 1,
             None => {
@@ -1872,16 +1850,21 @@ pub fn extra_key_coverage(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<(S
     out
 }
 
-/// Ids of every alive location in scope, in view order (batch rows, then overlay adds).
-pub fn scoped_ids(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<u32> {
-    view.scoped(set).map(|row| row.id()).collect()
+/// Size of the selected set. Counts rows, never materializes them.
+pub fn count_within(view: &LocView, set: Option<&RoaringBitmap>) -> u32 {
+    view.within(set).count() as u32
 }
 
-/// Distinct values of `field` across the scoped set, sorted. Scalars stringify so they
+/// Ids of every alive location in the set, in view order (batch rows, then overlay adds).
+pub fn ids_within(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<u32> {
+    view.within(set).map(|row| row.id()).collect()
+}
+
+/// Distinct values of `field` across the selected set, sorted. Scalars stringify so they
 /// match the string-typed options they populate; null and containers are skipped.
 pub fn distinct_values(view: &LocView, field: &str, set: Option<&RoaringBitmap>) -> Vec<String> {
     let mut seen = std::collections::BTreeSet::new();
-    for row in view.scoped(set) {
+    for row in view.within(set) {
         match row.resolve_field(field) {
             Some(serde_json::Value::String(s)) if !s.is_empty() => {
                 seen.insert(s);

@@ -113,7 +113,11 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 		const sidecar = { name: "mma-x", version: "0.2.0" };
 		sidecarInstalledVersion.mockResolvedValue("0.1.0");
 		installPlugin.mockResolvedValue(manifest({ sidecar }));
-		await autoUpdatePlugin(manifest({ sidecar: { name: "mma-x", version: "0.1.0" } }), manifest({ sidecar }), "1.0.0");
+		await autoUpdatePlugin(
+			manifest({ sidecar: { name: "mma-x", version: "0.1.0" } }),
+			manifest({ sidecar }),
+			"1.0.0",
+		);
 		expect(installPlugin).toHaveBeenCalledWith("p");
 		expect(sidecarInstall).toHaveBeenCalledWith("p", "mma-x", "0.2.0");
 	});

@@ -1,3 +1,4 @@
+import { cmd } from "@/lib/commands";
 import {
 	waitForReady,
 	createAndOpenMap,
@@ -581,7 +582,7 @@ describe("Export with scope", () => {
 				exportZoom: true,
 				exportUnpanned: true,
 				exportExtras: true,
-				scope: { kind: "ids", ids },
+				selector: { type: "Locations", locations: ids, name: null },
 				mapName: map.meta.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,

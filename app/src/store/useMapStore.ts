@@ -27,22 +27,16 @@ import {
 	resetForMapChange,
 } from "@/lib/data/fieldDefRegistry";
 import { rewriteSelectionFields } from "@/lib/data/fieldOps";
+import { compareNatural } from "@/lib/util/util";
+import { compareMonthOrder } from "@/lib/util/date";
 import type { LocationPatch_Deserialize as LocationPatch, Update, TagPatch } from "@/bindings.gen";
-import type {
-	Scope,
-	Select,
-	QueryResult,
-	KeySpec,
-	PartitionBucket,
-	FieldOp,
-	MergeWinner,
-} from "@/bindings.gen";
+import type { KeySpec, PartitionBucket, FieldOp, MergeWinner } from "@/bindings.gen";
 import { SelectedIds, decodeSelectionBitmask, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { resetImportState } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
-import type { Selection, SelectionProps } from "@/bindings.gen";
+import type { Selection, Selector } from "@/bindings.gen";
 import {
 	type GroupType,
 	addSelection as addSel,
@@ -345,69 +339,72 @@ export function discardOpenMap() {
 	resetMapState();
 }
 
-/** Run one scoped read and narrow its result. The only place `QueryResult` is unwrapped. */
-async function query<K extends QueryResult["kind"]>(
-	scope: Scope,
-	select: Select,
-	kind: K,
-): Promise<Extract<QueryResult, { kind: K }>> {
-	const res = await cmd.storeQuery(scope, select);
-	if (res.kind !== kind) throw new Error(`store_query returned ${res.kind}, expected ${kind}`);
-	return res as Extract<QueryResult, { kind: K }>;
+/** Ids of every location the selector resolves to. */
+export function resolveIds(selector: Selector): Promise<number[]> {
+	return cmd.storeResolve(selector);
 }
 
-/** Ids of every location in scope. */
-export async function scopeIds(scope: Scope): Promise<number[]> {
-	return (await query(scope, { kind: "ids" }, "ids")).ids;
+/** How many locations the selector resolves to, without shipping any of them. */
+export function countIn(selector: Selector): Promise<number> {
+	return cmd.storeCount(selector);
 }
 
-/** Bounding box `[west, south, east, north]` of the scope, or null when it's empty.
- *  The whole-map box is an O(1) cache hit in Rust; scoped boxes scan. */
-export async function fetchBounds(scope: Scope): Promise<[number, number, number, number] | null> {
-	return (await query(scope, { kind: "bounds" }, "bounds")).bounds;
+/** Bounding box `[west, south, east, north]`, or null when the selector is empty.
+ *  The whole-map box is an O(1) cache hit in Rust; narrower ones scan. */
+export function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null> {
+	return cmd.storeBounds(selector);
 }
 
-/** `n` ids drawn uniformly at random from the scope, without replacement. */
-export async function sampleScope(scope: Scope, n: number): Promise<number[]> {
-	return (await query(scope, { kind: "sample", n }, "ids")).ids;
+/** `n` ids drawn uniformly at random, without replacement. */
+export function sampleFrom(selector: Selector, n: number): Promise<number[]> {
+	return cmd.storeSample(selector, n);
 }
 
-/** Distinct values of `field` across the scope, sorted. */
-export async function fieldValues(scope: Scope, field: string): Promise<string[]> {
-	return (await query(scope, { kind: "values", field }, "values")).values;
+/** Distinct values of `field`, sorted. */
+export function fieldValues(selector: Selector, field: string): Promise<string[]> {
+	return cmd.storeValues(selector, field);
 }
 
-/** Group the scope by a derived key and count, without shipping member ids. */
-export async function countBy(
-	scope: Scope,
+/** Group by a derived key and count, without shipping member ids. */
+export function countBy(
+	selector: Selector,
 	field: string,
 	key: KeySpec,
 ): Promise<[string, number][]> {
-	return (await query(scope, { kind: "countBy", field, key }, "counts")).counts;
+	return cmd.storeCountBy(selector, field, key);
 }
 
-/** How many locations in scope carry each `extra` key, key-sorted. */
-export async function fieldCoverage(scope: Scope): Promise<[string, number][]> {
-	return (await query(scope, { kind: "coverage" }, "counts")).counts;
+/** How many locations carry each `extra` key, key-sorted. */
+export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
+	return cmd.storeCoverage(selector);
 }
 
-/** Group the scope by a derived key, with member ids per group. */
-export async function groupBy(
-	scope: Scope,
+/** Group the selected location set by a derived key - entirely in Rust, no locations fetched.
+ *  Numeric bins arrive in bound order; projection keys are sorted naturally for display. */
+export async function partition(
 	field: string,
 	key: KeySpec,
+	selector: Selector,
 ): Promise<PartitionBucket[]> {
-	return (await query(scope, { kind: "groupBy", field, key }, "groups")).groups;
+	const groups = await cmd.storeGroupBy(selector, field, key);
+	if (key.kind !== "numericBin") {
+		const cmp =
+			key.kind === "datePart" && key.part === "monthOfYear" ? compareMonthOrder : compareNatural;
+		groups.sort((a, b) => cmp(a.key, b.key));
+	}
+	return groups;
 }
 
-/** Materialize a scope's location rows -- by id, by selection, or the whole map.
+/** Materialize a selector's location rows -- by id, by selection, or the whole map.
  *  Rust picks the transport (inline vs staged file) by size. Missing ids are skipped.
- *  The heaviest read there is: every other projection answers without shipping rows. */
-export async function fetchLocations(scope: Scope): Promise<Location[]> {
-	const res = await cmd.storeQuery(scope, { kind: "rows" });
-	if (res.kind === "rows") return res.locations;
-	if (res.kind === "rowsFile") return (await fetch(mmaBufUrl(res.path))).json();
-	throw new Error(`store_query returned ${res.kind}, expected rows`);
+ *  The heaviest read there is: every other projection answers without shipping rows.
+ *
+ *  Every row lands in webview memory, so an unscoped call costs O(map) -- at millions of
+ *  locations that is the tab's whole heap. Prefer a projection, or an enrichment
+ *  procedure that runs beside the data. Trusted, not policed: selector it yourself. */
+export async function fetchLocations(selector: Selector): Promise<Location[]> {
+	const rows = await cmd.storeCollect(selector);
+	return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
 }
 
 /** Active (non-ghosted) selections, the default for any operational logic. */
@@ -415,6 +412,13 @@ export const getActiveSelections: () => Selection[] = memoOnRefs(
 	() => [state.selections, state.ghostedSelections] as const,
 	(sels, ghosts) => (ghosts.size === 0 ? sels : sels.filter((s) => !ghosts.has(s.key))),
 );
+
+/** The live selection as a `Selector`: the union of the active selection nodes. What
+ *  every "operate on the selection" call site sends -- Rust holds no notion of "selected",
+ *  so the tree JS already has is the definition. */
+export function currentSelection(): Selector {
+	return { type: "Union", selections: getActiveSelections() };
+}
 
 /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want -- prefer `addSelections`. */
 export function setSelectedLocationIds(ids: SelectedIds) {
@@ -553,7 +557,7 @@ export async function addLocations(locs: Location[]) {
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
 export async function duplicateLocation(id: number): Promise<number | null> {
 	if (!state.map || isVirtualLocation({ id })) return null;
-	const [loc] = await fetchLocations({ kind: "ids", ids: [id] });
+	const [loc] = await fetchLocations({ type: "Locations", locations: [id], name: null });
 	if (!loc) return null;
 	const now = nowUnix();
 	const clone: Location = { ...loc, id: 0, createdAt: now, modifiedAt: now };
@@ -618,11 +622,11 @@ export async function deleteField(key: string) {
  *  emits a coarse `location:invalidate` (derived views re-query) and refreshes the open
  *  editor's location. */
 async function applyFieldOp(op: FieldOp): Promise<MutationResult> {
-	const r = await mutate(() => cmd.storeApplyFieldOp({ kind: "all" }, op, false));
+	const r = await mutate(() => cmd.storeApplyFieldOp({ type: "Everything" }, op, false));
 	emitEvent("location:invalidate");
 	const active = state.activeLocation;
 	if (active && !isVirtualLocation(active)) {
-		const [fresh] = await fetchLocations({ kind: "ids", ids: [active.id] });
+		const [fresh] = await fetchLocations({ type: "Locations", locations: [active.id], name: null });
 		if (fresh) {
 			setState({ activeLocation: fresh });
 			emitEvent("store:changed");
@@ -650,8 +654,8 @@ async function migrateFieldReferences(from: string, to: string | null) {
 
 /** Resolve a selection's overlay color, substituting the live tag color for Tag selections. */
 function selectionSyncColor(s: Selection): [number, number, number] {
-	if (s.props.type === "Tag") {
-		const tag = state.tags[s.props.tagId];
+	if (s.selector.type === "Tag") {
+		const tag = state.tags[s.selector.tagId];
 		if (tag) return hexToRgb(tag.color);
 	}
 	return s.color;
@@ -661,7 +665,7 @@ function selectionSyncColor(s: Selection): [number, number, number] {
 function buildSyncInputs() {
 	return state.selections.map((s) => ({
 		key: s.key,
-		props: s.props,
+		selector: s.selector,
 		color: selectionSyncColor(s),
 		ghosted: state.ghostedSelections.has(s.key),
 	}));
@@ -727,10 +731,10 @@ export function toggleGhostAllSelections() {
 }
 
 /** Add selections to the sidebar and highlight their locations. Same-key selections replace. */
-export function addSelections(props: SelectionProps[]) {
+export function addSelections(selector: Selector[]) {
 	return applySelectionUpdate((sels) => {
 		let result = sels;
-		for (const p of props) result = addSel(result, p);
+		for (const p of selector) result = addSel(result, p);
 		return result;
 	});
 }
@@ -776,10 +780,10 @@ export function toggleManualSelection(locationId: number) {
  *  whole selection as one. `null` means "whatever is currently selected" - the only way to
  *  express a selected-id set that no live selection produced. Falls back to that single
  *  bucket below two active selections, where per-bucket picking is the same operation. */
-function pickBuckets(perSelection: boolean): (SelectionProps | null)[] {
+function pickBuckets(perSelection: boolean): (Selector | null)[] {
 	const active = getActiveSelections();
 	if (!perSelection || active.length < 2) return [null];
-	return active.map((s) => s.props);
+	return active.map((s) => s.selector);
 }
 
 /** Replace the current selection with a single Manual selection holding `count` ids picked
@@ -791,8 +795,8 @@ export async function selectRandomFromSelection(
 	perSelection = false,
 ): Promise<number> {
 	const buckets = await Promise.all(
-		pickBuckets(perSelection).map((props) =>
-			sampleScope(props ? { kind: "props", props } : { kind: "selected" }, count),
+		pickBuckets(perSelection).map((selector) =>
+			sampleFrom(selector ?? currentSelection(), count),
 		),
 	);
 	const picked = [...new Set(buckets.flat())];
@@ -810,15 +814,11 @@ export async function selectSpacedFromSelection(
 	perSelection = false,
 ): Promise<{ picked: number; distanceM: number }> {
 	const results = await Promise.all(
-		pickBuckets(perSelection).map((props) =>
-			query(
-				props ? { kind: "props", props } : { kind: "selected" },
-				{
-					kind: "spaced",
-					targetCount: opts.count ?? null,
-					minDistanceM: opts.minDistanceM ?? null,
-				},
-				"spaced",
+		pickBuckets(perSelection).map((selector) =>
+			cmd.storeSpaced(
+				selector ?? currentSelection(),
+				opts.count ?? null,
+				opts.minDistanceM ?? null,
 			),
 		),
 	);
@@ -845,22 +845,20 @@ export async function mergeDuplicates(distance: number) {
  * cluster (<= 25m) or thins to enforce spacing (> 25m). Locations tagged "keep pano"
  * get a +5 score bonus. Returns the number pruned.
  */
-export async function pruneDuplicates(props: SelectionProps, distance: number): Promise<number> {
+export async function pruneDuplicates(selector: Selector, distance: number): Promise<number> {
 	if (!state.map) return 0;
 	const keepTagIds = getVisibleTags()
 		.filter((t) => t.name === "keep pano")
 		.map((t) => t.id);
-	const r = await mutate(() =>
-		cmd.storePruneDuplicates({ kind: "props", props }, distance, keepTagIds),
-	);
+	const r = await mutate(() => cmd.storePruneDuplicates(selector, distance, keepTagIds));
 	return r.delta.removed.length;
 }
 
 /** Edit an existing filter (or any selection) in place by key, preserving its
  *  position inside any AND/OR/Invert composite. Carries ghost state to the new key. */
-export function updateFilterSelection(oldKey: string, props: SelectionProps) {
+export function updateFilterSelection(oldKey: string, selector: Selector) {
 	return applySelectionUpdate((sels) => {
-		const next = replaceSel(sels, oldKey, props);
+		const next = replaceSel(sels, oldKey, selector);
 		// Carry a ghost flag across an in-place re-key. A collision instead merges into the
 		// existing selection (shrinking the list); the survivor keeps its own ghost state and
 		// pruneGhosted clears the old key, so only migrate when nothing was merged away.
@@ -951,7 +949,7 @@ export const getSelectedTagIds: () => ReadonlySet<number> = (() => {
 		() => [state.selections] as const,
 		(sels) => {
 			const ids = new Set<number>();
-			for (const s of sels) if (s.props.type === "Tag") ids.add(s.props.tagId);
+			for (const s of sels) if (s.selector.type === "Tag") ids.add(s.selector.tagId);
 			if (prev && prev.size === ids.size && [...ids].every((id) => prev!.has(id))) return prev;
 			prev = ids;
 			return ids;
@@ -968,8 +966,8 @@ export const getSelectedTagIdsDeep: () => readonly number[] = memoOnRefs(
 		const out: number[] = [];
 		const walk = (list: Selection[]) => {
 			for (const s of list) {
-				if (s.props.type === "Tag") out.push(s.props.tagId);
-				if ("selections" in s.props) walk(s.props.selections);
+				if (s.selector.type === "Tag") out.push(s.selector.tagId);
+				if ("selections" in s.selector) walk(s.selector.selections);
 			}
 		};
 		walk(sels);
@@ -1028,7 +1026,9 @@ function clearActiveLocation(): void {
 
 /** Materialize a `MaybeLocation`. */
 export async function resolveLocation(m: MaybeLocation): Promise<Location | null> {
-	return typeof m === "number" ? ((await fetchLocations({ kind: "ids", ids: [m] }))[0] ?? null) : m;
+	return typeof m === "number"
+		? ((await fetchLocations({ type: "Locations", locations: [m], name: null }))[0] ?? null)
+		: m;
 }
 
 /** Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
@@ -1127,15 +1127,15 @@ export function exitPluginMode() {
  *  in subsequent location updates. Idempotent — existing tags are returned
  *  as-is, new names get auto-generated colors.
  *
- *  Pass `scope` to assign the tags to those locations in the same mutation. Prefer that
+ *  Pass `selector` to assign the tags to those locations in the same mutation. Prefer that
  *  over a follow-up `addTagToLocations`: it is one round trip instead of three, and the
  *  tag never renders at count 0 in between. The default assigns nothing. */
 export async function createTags(
 	names: string[],
-	scope: Scope = { kind: "ids", ids: [] },
+	selector: Selector = { type: "Locations", locations: [], name: null },
 ): Promise<Tag[]> {
 	if (names.length === 0) return [];
-	await mutate(() => cmd.storeCreateTags(names, scope));
+	await mutate(() => cmd.storeCreateTags(names, selector));
 	const lower = new Set(names.map((n) => n.toLowerCase()));
 	const created = Object.values(state.tags).filter((t) => lower.has(t.name.toLowerCase()));
 	emitEvent("tag:add", created);
@@ -1152,7 +1152,7 @@ export async function updateTags(updates: Update<TagPatch>[]) {
 	// ONLY resync on color change, everything else is resolved by Rust
 	if (
 		state.selections.some((s) => {
-			const p = s.props;
+			const p = s.selector;
 			return p.type === "Tag" && updates.some((q) => q.id === p.tagId && q.patch.color != null);
 		})
 	) {
@@ -1181,7 +1181,7 @@ async function modifyTagOnLocations(
 	transform: (tags: number[], tagId: number) => number[] | null,
 ) {
 	if (locationIds.length === 0) return;
-	const locs = await fetchLocations({ kind: "ids", ids: locationIds });
+	const locs = await fetchLocations({ type: "Locations", locations: locationIds, name: null });
 	const updates: Update<LocationPatch>[] = [];
 	for (const l of locs) {
 		const next = transform(l.tags, tagId);
@@ -1208,7 +1208,7 @@ export function removeTagFromLocations(tagId: number, locationIds: number[]) {
 /** Remove a tag from every location that has it. Undoable. */
 export async function removeTagFromAllLocations(tagId: number) {
 	if (!state.map) return;
-	const allWithTag = await scopeIds({ kind: "props", props: { type: "Tag", tagId } });
+	const allWithTag = await resolveIds({ type: "Tag", tagId });
 	if (allWithTag.length > 0) await removeTagFromLocations(tagId, allWithTag);
 }
 

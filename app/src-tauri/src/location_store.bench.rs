@@ -11,8 +11,10 @@
 use super::*;
 use crate::types::RawExtra;
 
-pub use crate::location_store::{LocationPatch, MutationResult, RenderRequest, SelectionInput, Store, Update};
-pub use crate::selections::{Selection, SelectionProps};
+pub use crate::location_store::{
+    LocationPatch, MutationResult, RenderRequest, SelectionInput, Store, Update,
+};
+pub use crate::selections::{Selection, Selector};
 pub use crate::types::{Location, Tag};
 
 /// Row count for the scale-parameterized benches. `MMA_BENCH_SCALE=200000` for a
@@ -66,7 +68,9 @@ fn make_location(id: u32, rng: &mut fastrand::Rng) -> Location {
 /// `n` deterministic locations with ids `1..=n`.
 pub fn locations(n: usize, seed: u64) -> Vec<Location> {
     let mut rng = fastrand::Rng::with_seed(seed);
-    (1..=n as u32).map(|id| make_location(id, &mut rng)).collect()
+    (1..=n as u32)
+        .map(|id| make_location(id, &mut rng))
+        .collect()
 }
 
 /// A single realistic location, for the clone/materialize micro benches.
@@ -119,10 +123,18 @@ impl Fixture {
                 }
             }
         }
-        let known_field_keys = ["countryCode", "subdivisionCode", "source", "year", "month", "driveSide", "cameraGen"]
-            .iter()
-            .map(|s| s.to_string())
-            .collect();
+        let known_field_keys = [
+            "countryCode",
+            "subdivisionCode",
+            "source",
+            "year",
+            "month",
+            "driveSide",
+            "cameraGen",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
         Fixture {
             batch: arrow_bridge::locations_to_batch(&locs),
             tags,
@@ -283,9 +295,9 @@ pub fn update_locations(
 }
 
 /// Resolution only, no bitmask serialization.
-pub fn resolve_selection(store: &Store, props: &SelectionProps) -> usize {
+pub fn resolve_selection(store: &Store, selector: &Selector) -> usize {
     let view = store.loc_view();
-    selections::resolve(&view, props).len()
+    selections::resolve(&view, selector).len() as usize
 }
 
 /// Setup-only population of the overlay (id alloc + add + tag counts). Fixture
@@ -359,7 +371,11 @@ pub fn write_arrow(path: &std::path::Path, batch: &RecordBatch) {
 pub fn open_from_arrow(path: &std::path::Path, tags: &HashMap<u32, Tag>) -> Store {
     let (batch, handle) = storage::read_arrow_ipc_mmap(path).expect("read arrow");
     let n = batch.num_rows();
-    let max_id = if n > 0 { col_id(&batch).value(n - 1) } else { 0 };
+    let max_id = if n > 0 {
+        col_id(&batch).value(n - 1)
+    } else {
+        0
+    };
     let mut store = Store::new();
     store.map_id = Some("bench".into());
     store.batch = Some(batch);

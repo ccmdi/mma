@@ -1,3 +1,4 @@
+import { cmd } from "@/lib/commands";
 import { addLocs, getLoc, createLocation, flushAndWait, withApi, useMap } from "./helpers";
 
 describe("Dirty tracking", () => {

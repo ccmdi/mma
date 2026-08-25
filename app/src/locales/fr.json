@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " en {seconds} s ({rate}/s)",
+	"Pano ID": "Pano ID",
 	"\"{path}\" already exists in the tree": "\"{path}\" existe déjà dans l'arborescence",
 	"(deleted selection)": "(sélection supprimée)",
 	"(downloading...)": "(téléchargement...)",

@@ -8,6 +8,7 @@
  * records -- so non-undoable extra writes count as modified and enable the
  * "Commit map" command, and the commit captures them.
  */
+import { cmd } from "@/lib/commands";
 import { addLocs, createLocation, getLoc, flushAndWait, withApi, useMap } from "./helpers";
 
 describe("VCS — extra-only change commit semantics", () => {

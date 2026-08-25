@@ -279,9 +279,9 @@ describe("opensv smoke", function () {
 	});
 
 	it("should fire tilesloaded on the map", async () => {
-		expect(
-			await moveMapAndWaitForTiles((map) => map.setZoom((map.getZoom() || 10) + 1)),
-		).toBe(true);
+		expect(await moveMapAndWaitForTiles((map) => map.setZoom((map.getZoom() || 10) + 1))).toBe(
+			true,
+		);
 	});
 
 	it("should handle StreetViewService.getPanorama lookups", async () => {

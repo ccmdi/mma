@@ -74,7 +74,11 @@ fn header_str(req: &Request<Vec<u8>>, name: header::HeaderName) -> Option<&str> 
 }
 
 fn path_and_query(req: &Request<Vec<u8>>) -> (String, String) {
-    let query = req.uri().query().map(|q| format!("?{q}")).unwrap_or_default();
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{q}"))
+        .unwrap_or_default();
     (req.uri().path().to_string(), query)
 }
 
@@ -125,7 +129,11 @@ fn local_path(raw: &str) -> &str {
     let trimmed = raw.trim_start_matches('/');
     let is_drive = trimmed.starts_with(|c: char| c.is_ascii_alphabetic())
         && trimmed.as_bytes().get(1) == Some(&b':');
-    if is_drive { trimmed } else { raw }
+    if is_drive {
+        trimmed
+    } else {
+        raw
+    }
 }
 
 fn read_local(clean: &str) -> Reply {
@@ -197,7 +205,11 @@ pub(crate) fn resolve_googl(id: &str, mapsapp: bool) -> Reply {
             Some(location) => cors()
                 .status(200)
                 .header("Content-Type", "application/json")
-                .body(serde_json::to_string(location).unwrap_or_default().into_bytes())
+                .body(
+                    serde_json::to_string(location)
+                        .unwrap_or_default()
+                        .into_bytes(),
+                )
                 .unwrap(),
             None => cors_resp(404, Vec::new()),
         },
@@ -242,7 +254,9 @@ pub(crate) fn register_schemes(builder: tauri::Builder<tauri::Wry>) -> tauri::Bu
             let content_type = header_str(&req, header::CONTENT_TYPE)
                 .unwrap_or("application/x-www-form-urlencoded")
                 .to_string();
-            let user_agent = header_str(&req, header::USER_AGENT).unwrap_or("").to_string();
+            let user_agent = header_str(&req, header::USER_AGENT)
+                .unwrap_or("")
+                .to_string();
             let body = req.body().clone();
             respond_async(responder, move || {
                 proxy_gmaps(method, &url, content_type, user_agent, body)

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { cmd } from "@/lib/commands";
 import {
 	createAndOpenMap,
 	closeMap,
@@ -388,7 +389,7 @@ describe("Import — export/reimport tag round-trip", () => {
 				exportZoom: true,
 				exportUnpanned: true,
 				exportExtras: true,
-				scope: { kind: "all" },
+				selector: { type: "Everything" },
 				mapName: map.meta.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,

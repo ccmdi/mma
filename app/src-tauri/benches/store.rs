@@ -46,7 +46,7 @@
 //! use it for both halves of an A/B or neither.
 
 use app_lib::bench_api as bench;
-use bench::{LocationPatch, Selection, SelectionInput, SelectionProps};
+use bench::{LocationPatch, Selection, SelectionInput, Selector};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use std::hint::black_box;
 
@@ -177,24 +177,24 @@ fn selections(c: &mut Criterion) {
     let app = bench::BenchApp::new();
     app.set_store(fx.rendered_store());
 
-    let tag_leaf = SelectionProps::Tag { tag_id: 3 };
-    let composite = SelectionProps::Intersection {
+    let tag_leaf = Selector::Tag { tag_id: 3 };
+    let composite = Selector::Intersection {
         selections: vec![
             Selection {
                 key: "tag:1".into(),
                 color: [255, 0, 0],
-                props: SelectionProps::Tag { tag_id: 1 },
+                selector: Selector::Tag { tag_id: 1 },
             },
             Selection {
                 key: "tag:2".into(),
                 color: [0, 255, 0],
-                props: SelectionProps::Tag { tag_id: 2 },
+                selector: Selector::Tag { tag_id: 2 },
             },
         ],
     };
-    let input = |key: &str, props: &SelectionProps| SelectionInput {
+    let input = |key: &str, selector: &Selector| SelectionInput {
         key: key.into(),
-        props: props.clone(),
+        selector: selector.clone(),
         color: [255, 0, 0],
         ghosted: false,
     };

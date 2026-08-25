@@ -14,7 +14,7 @@ use crate::util::now_iso;
 use rusqlite::Connection;
 
 /// A review session as returned to the frontend. `order`/`reviewed` are decoded from the
-/// JSON-text columns; `source_props` is the originating `SelectionProps` (opaque here).
+/// JSON-text columns; `source_props` is the originating `Selector` (opaque here).
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewSession {
@@ -205,13 +205,19 @@ pub async fn store_review_create(session: ReviewCreate) -> AppResult<ReviewSessi
 
 #[tauri::command]
 #[specta::specta]
-pub async fn store_review_get(map_id: String, source_key: String) -> AppResult<Option<ReviewSession>> {
+pub async fn store_review_get(
+    map_id: String,
+    source_key: String,
+) -> AppResult<Option<ReviewSession>> {
     storage::with_db(move |conn| get(conn, &map_id, &source_key)).await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub async fn store_review_list(map_id: String, status: Option<String>) -> AppResult<Vec<ReviewSession>> {
+pub async fn store_review_list(
+    map_id: String,
+    status: Option<String>,
+) -> AppResult<Vec<ReviewSession>> {
     storage::with_db(move |conn| list(conn, &map_id, status.as_deref())).await
 }
 

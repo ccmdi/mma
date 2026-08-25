@@ -20,16 +20,29 @@ fn captures_the_stack_of_a_blocked_thread() {
 
     assert!(stack.len() >= 2, "{stack:?}");
     assert!(
-        stack.iter().any(|f| f.to_lowercase().contains("sleep") || f.contains("NtDelayExecution")),
+        stack
+            .iter()
+            .any(|f| f.to_lowercase().contains("sleep") || f.contains("NtDelayExecution")),
         "{stack:?}"
     );
 }
 
 #[test]
 fn idle_means_parked_in_the_message_pump() {
-    assert!(is_idle(&frames(&["NtUserGetMessage", "GetMessageW", "tao::platform_impl::event_loop"])));
-    assert!(!is_idle(&frames(&["NtReadFile", "ReadFile", "std::fs::read"])));
-    assert!(!is_idle(&frames(&["NtUserGetMessage", "GetMessageA", "webview2_com::wait_with_pump"])));
+    assert!(is_idle(&frames(&[
+        "NtUserGetMessage",
+        "GetMessageW",
+        "tao::platform_impl::event_loop"
+    ])));
+    assert!(!is_idle(&frames(&[
+        "NtReadFile",
+        "ReadFile",
+        "std::fs::read"
+    ])));
+    assert!(!is_idle(&frames(&[
+        "NtUserGetMessage",
+        "GetMessageA",
+        "webview2_com::wait_with_pump"
+    ])));
     assert!(!is_idle(&frames(&["a", "b", "c", "GetMessageW"])));
 }
-

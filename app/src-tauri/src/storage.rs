@@ -713,7 +713,10 @@ pub(crate) fn atomic_write(
     write_fn(file)?;
     // write_fn consumed the handle; reopen to fsync - without it the rename can
     // become durable before the data, losing the file on power cut.
-    std::fs::OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&tmp)?
+        .sync_all()?;
     std::fs::rename(&tmp, path)?;
     Ok(())
 }
@@ -801,9 +804,12 @@ pub(crate) fn read_arrow_ipc_mmap(
     let footer_len = read_footer_length(trailer)?;
     let footer = root_as_footer(&buffer[buf_len - 10 - footer_len..buf_len - 10])
         .map_err(|e| AppError(e.to_string()))?;
-    let fb_schema = footer
-        .schema()
-        .ok_or_else(|| AppError(format!("Arrow file {}: footer has no schema", path.display())))?;
+    let fb_schema = footer.schema().ok_or_else(|| {
+        AppError(format!(
+            "Arrow file {}: footer has no schema",
+            path.display()
+        ))
+    })?;
     // fb_to_schema panics (not Errs) on out-of-range enum values in a corrupted footer.
     let schema = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| fb_to_schema(fb_schema)))
         .map_err(|_| AppError(format!("Arrow file {}: corrupted footer", path.display())))?;

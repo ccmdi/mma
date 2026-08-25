@@ -10,6 +10,7 @@ import {
 	getActiveSelections,
 	selectRandomFromSelection,
 	selectSpacedFromSelection,
+	currentSelection,
 } from "@/store/useMapStore";
 import { toast } from "@/lib/util/toast";
 import { sortTagsByMode } from "@/lib/util/util";
@@ -256,7 +257,7 @@ function BulkTagForm() {
 		const name = bulkTagInput.trim();
 		const selected = getMapState().selectedLocationIds;
 		if (!name || selected.size === 0) return;
-		await createTags([name], { kind: "selected" });
+		await createTags([name], currentSelection());
 		setBulkTagInput("");
 	};
 

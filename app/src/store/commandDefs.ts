@@ -230,15 +230,15 @@ const COMMANDS = {
 		label: msg("Download polygon selections as GeoJSON"),
 		icon: mdiVectorPolygon,
 		group: msg("Selections"),
-		enabled: () => getActiveSelections().some((s) => s.props.type === "Polygon"),
+		enabled: () => getActiveSelections().some((s) => s.selector.type === "Polygon"),
 		execute: () => {
 			const features: unknown[] = [];
 			for (const sel of getActiveSelections()) {
-				if (sel.props.type !== "Polygon") continue;
+				if (sel.selector.type !== "Polygon") continue;
 				features.push({
 					type: "Feature",
-					properties: sel.props.polygon.properties ?? {},
-					geometry: { type: "Polygon", coordinates: sel.props.polygon.coordinates },
+					properties: sel.selector.polygon.properties ?? {},
+					geometry: { type: "Polygon", coordinates: sel.selector.polygon.coordinates },
 				});
 			}
 			const blob = new Blob([JSON.stringify({ type: "FeatureCollection", features })], {
@@ -398,11 +398,11 @@ const COMMANDS = {
 		execute: async () => {
 			await deleteTags(
 				getActiveSelections()
-					.filter((s) => s.props.type === "Tag")
-					.map((s) => (s.props as { type: "Tag"; tagId: number }).tagId),
+					.filter((s) => s.selector.type === "Tag")
+					.map((s) => (s.selector as { type: "Tag"; tagId: number }).tagId),
 			);
 		},
-		enabled: () => getActiveSelections().some((s) => s.props.type === "Tag"),
+		enabled: () => getActiveSelections().some((s) => s.selector.type === "Tag"),
 	},
 	"tag-download-csv": {
 		label: msg("Download tag counts as CSV"),

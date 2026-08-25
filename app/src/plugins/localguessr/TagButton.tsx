@@ -30,7 +30,7 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 			if (!trimmed || busy || locationIds.length === 0) return;
 			setBusy(true);
 			try {
-				await createTags([trimmed], { kind: "ids", ids: locationIds });
+				await createTags([trimmed], { type: "Locations", locations: locationIds, name: null });
 				toast(
 					locationIds.length === 1
 						? t("Tagged with {tag}", { tag: trimmed })

@@ -6,7 +6,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { t, msg, initLocale, getLocale } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
-import { staleCatalogs, pseudo, auditUnwrapped, catalogTargets } from "../../scripts/i18n-extract.mjs";
+import {
+	staleCatalogs,
+	pseudo,
+	auditUnwrapped,
+	catalogTargets,
+} from "../../scripts/i18n-extract.mjs";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -65,9 +70,7 @@ describe("Trans", () => {
 	});
 
 	it("splices React nodes into a translated sentence", () => {
-		const text = renderToText(
-			<Trans msg="Rename {n} tags in {name}" n={3} name={<b>Europe</b>} />,
-		);
+		const text = renderToText(<Trans msg="Rename {n} tags in {name}" n={3} name={<b>Europe</b>} />);
 		expect(text).toBe("Rename 3 tags in Europe");
 	});
 

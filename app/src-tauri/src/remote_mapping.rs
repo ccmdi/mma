@@ -98,7 +98,10 @@ pub(crate) fn clear(conn: &Connection, provider: &str, map_id: &str) -> AppResul
 
 #[tauri::command]
 #[specta::specta]
-pub async fn remote_mapping_get(provider: String, map_id: String) -> AppResult<Vec<RemoteMappingRow>> {
+pub async fn remote_mapping_get(
+    provider: String,
+    map_id: String,
+) -> AppResult<Vec<RemoteMappingRow>> {
     storage::with_db(move |conn| get(conn, &provider, &map_id)).await
 }
 

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Sidebar, SegmentedControl } from "@/components/primitives/Sidebar";
 import { cmd } from "@/lib/commands";
-import { getSettings } from "@/store/settings";
 import { countBy } from "@/store/useMapStore";
+import { getSettings } from "@/store/settings";
+
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
 import { usePluginState, createPluginStorage } from "@/plugins/registry";
 import "./distribution.css";
@@ -46,7 +47,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 		setTotal(count);
 
 		const meta = toDistribution(
-			await countBy({ kind: "all" }, "countryCode", { kind: "value" }),
+			await countBy({ type: "Everything" }, "countryCode", { kind: "value" }),
 			count,
 		);
 		const hasMeta = count > 0 && meta.unknown < count;
@@ -69,7 +70,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 			setUnknown(meta.unknown);
 		} else {
 			const counts = await cmd.storeCountryDistribution(
-				{ kind: "all" },
+				{ type: "Everything" },
 				getSettings().borderDetail,
 			);
 			setEntries(

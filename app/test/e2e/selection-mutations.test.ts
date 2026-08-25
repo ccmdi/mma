@@ -1,3 +1,4 @@
+import { cmd } from "@/lib/commands";
 import {
 	addLocs,
 	createLocation,
@@ -837,8 +838,8 @@ describe("Slot reuse correctness", () => {
 
 			await api.addSelections([{ type: "Tag", tagId: tagId }]);
 			await api.addSelections([{ type: "PanoIds" }]);
-			const tagKey = api.getActiveSelections().find((s) => s.props.type === "Tag")?.key;
-			const panoKey = api.getActiveSelections().find((s) => s.props.type === "PanoIds")?.key;
+			const tagKey = api.getActiveSelections().find((s) => s.selector.type === "Tag")?.key;
+			const panoKey = api.getActiveSelections().find((s) => s.selector.type === "PanoIds")?.key;
 			const tagBefore = tagKey ? api.getMapState().selectionCounts[tagKey] : undefined;
 			const panoBefore = panoKey ? api.getMapState().selectionCounts[panoKey] : undefined;
 

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import {
 	fovToZoom,
 	compareNatural,
-	binNumeric,
 	sortTagsByMode,
 	tagColorFor,
 	appendTagName,
@@ -107,58 +106,6 @@ describe("compareNatural", () => {
 
 	it("orders plain strings lexically", () => {
 		expect(["gen4", "gen2", "gen1"].sort(compareNatural)).toEqual(["gen1", "gen2", "gen4"]);
-	});
-});
-
-describe("binNumeric (count mode)", () => {
-	it("splits a range into equal-width buckets", () => {
-		const b = binNumeric([0, 25, 50, 75, 100], { by: "count", n: 5 })!;
-		expect(b.count).toBe(5);
-		expect(b.bounds[0]).toEqual([0, 20]);
-		expect(b.bounds[4][1]).toBe(100);
-	});
-
-	it("assigns values to the right bucket and clamps the ends", () => {
-		const b = binNumeric([0, 100], { by: "count", n: 10 })!;
-		expect(b.bucketIndex(0)).toBe(0);
-		expect(b.bucketIndex(100)).toBe(9);
-		expect(b.bucketIndex(55)).toBe(5);
-		expect(b.bucketIndex(-999)).toBe(0);
-		expect(b.bucketIndex(999)).toBe(9);
-	});
-
-	it("ignores non-finite values", () => {
-		const b = binNumeric([NaN, 0, Infinity, 10], { by: "count", n: 2 })!;
-		expect(b.min).toBe(0);
-		expect(b.max).toBe(10);
-	});
-
-	it("returns null when there is no spread", () => {
-		expect(binNumeric([5, 5, 5], { by: "count", n: 4 })).toBeNull();
-		expect(binNumeric([], { by: "count", n: 4 })).toBeNull();
-		expect(binNumeric([1, 2, 3], { by: "count", n: 0 })).toBeNull();
-	});
-});
-
-describe("binNumeric (width mode)", () => {
-	it("anchors bins at multiples of the width and assigns values", () => {
-		const b = binNumeric([84, 1237, 1300], { by: "width", w: 500 })!;
-		expect(b.bounds[0]).toEqual([0, 500]);
-		expect(b.labels).toContain("1000–1500");
-		expect(b.bucketIndex(84)).toBe(0);
-		expect(b.bucketIndex(1237)).toBe(b.labels.indexOf("1000–1500"));
-	});
-
-	it("handles negatives and a single value (one bin)", () => {
-		expect(binNumeric([-10], { by: "width", w: 500 })!.bounds[0]).toEqual([-500, 0]);
-		const one = binNumeric([42, 42], { by: "width", w: 100 })!;
-		expect(one.count).toBe(1);
-		expect(one.bounds[0]).toEqual([0, 100]);
-	});
-
-	it("returns null for no finite values or non-positive width", () => {
-		expect(binNumeric([NaN, Infinity], { by: "width", w: 10 })).toBeNull();
-		expect(binNumeric([1, 2], { by: "width", w: 0 })).toBeNull();
 	});
 });
 

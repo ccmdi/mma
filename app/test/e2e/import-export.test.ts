@@ -1,3 +1,4 @@
+import { cmd } from "@/lib/commands";
 import { addLocs, getLoc, createLocation, createTag, withApi, useMap } from "./helpers";
 
 interface ExportedCoord {
@@ -52,7 +53,7 @@ describe("JSON import/export round-trip", () => {
 				exportZoom: true,
 				exportUnpanned: true,
 				exportExtras: true,
-				scope: { kind: "all" },
+				selector: { type: "Everything" },
 				mapName: map.meta.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,
@@ -100,7 +101,7 @@ describe("JSON import/export round-trip", () => {
 				exportZoom: true,
 				exportUnpanned: true,
 				exportExtras: true,
-				scope: { kind: "all" },
+				selector: { type: "Everything" },
 				mapName: map.meta.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,
@@ -128,7 +129,7 @@ describe("JSON import/export round-trip", () => {
 				exportZoom: false,
 				exportUnpanned: true,
 				exportExtras: true,
-				scope: { kind: "all" },
+				selector: { type: "Everything" },
 				mapName: map.meta.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,
@@ -153,7 +154,7 @@ describe("JSON import/export round-trip", () => {
 				exportZoom: true,
 				exportUnpanned: true,
 				exportExtras: true,
-				scope: { kind: "all" },
+				selector: { type: "Everything" },
 				mapName: map.meta.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,
@@ -196,7 +197,7 @@ describe("CSV import/export", () => {
 		]);
 
 		const result = await withApi(async (api) => {
-			const path = await api.cmd.storeExportCsv({ kind: "all" });
+			const path = await api.cmd.storeExportCsv({ type: "Everything" });
 			const res = await fetch(api.mmaBufUrl(path));
 			const csv = await res.text();
 			const lines = csv.trim().split("\n");
@@ -209,7 +210,7 @@ describe("CSV import/export", () => {
 
 	it("CSV round-trip preserves coordinates", async () => {
 		const result = await withApi(async (api) => {
-			const path = await api.cmd.storeExportCsv({ kind: "all" });
+			const path = await api.cmd.storeExportCsv({ type: "Everything" });
 			const res = await fetch(api.mmaBufUrl(path));
 			const csv = await res.text();
 			const lines = csv.trim().split("\n").slice(1);
@@ -240,7 +241,10 @@ describe("GeoJSON export", () => {
 	});
 	it("GeoJSON export produces valid FeatureCollection", async () => {
 		const result = await withApi(async (api) => {
-			const path = await api.cmd.storeExportGeojson({ kind: "all" }, JSON.stringify(api.getMapState().tags));
+			const path = await api.cmd.storeExportGeojson(
+				{ type: "Everything" },
+				JSON.stringify(api.getMapState().tags),
+			);
 			const res = await fetch(api.mmaBufUrl(path));
 			const geojson = await res.text();
 			const parsed = JSON.parse(geojson);

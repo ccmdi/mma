@@ -105,7 +105,7 @@ describe("Settings - saved selections", () => {
 				name: "Test Preset",
 				items: [
 					{
-						props: { type: "Everything" as const },
+						selector: { type: "Everything" as const },
 						color: [255, 0, 0] as [number, number, number],
 					},
 				],

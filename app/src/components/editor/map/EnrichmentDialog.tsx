@@ -11,14 +11,7 @@ import { Checkbox } from "@/components/primitives/Checkbox";
 import { openManual } from "@/store/router";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { getFieldDef, fieldLabel } from "@/lib/data/fieldDefRegistry";
-import {
-	setMapExtraFields,
-	getMapState,
-	renameField,
-	deleteField,
-	fieldCoverage,
-	fieldValues,
-} from "@/store/useMapStore";
+import { deleteField, fieldCoverage, fieldValues, getMapState, renameField, setMapExtraFields } from "@/store/useMapStore";
 import { useMapSetting } from "@/store/useMapSetting";
 import type { ExtraFieldDef, MergeWinner } from "@/bindings.gen";
 import { mdiClose, mdiDatabasePlusOutline, mdiInformationOutline } from "@mdi/js";
@@ -200,7 +193,7 @@ function FieldsTable({
 	useEffect(() => {
 		const total = getMapState().locationCount;
 		if (total === 0) return;
-		void fieldCoverage({ kind: "all" }).then((counts) => {
+		void fieldCoverage({ type: "Everything" }).then((counts) => {
 			setCoverage(new Map(counts.map(([key, n]) => [key, n / total])));
 		});
 	}, [coverageEpoch]);
@@ -268,7 +261,7 @@ function FieldsTable({
 		if (valueRows.length === 0) valueRows.push({ value: "", label: "" });
 		setEnumPrompt({ key: row.key, rows: valueRows, candidates: [] });
 		const have = new Set(row.values ?? []);
-		const values = await fieldValues({ kind: "all" }, row.key);
+		const values = await fieldValues({ type: "Everything" }, row.key);
 		const candidates = values.filter((v) => !have.has(v));
 		setEnumPrompt((p) => (p && p.key === row.key ? { ...p, candidates } : p));
 	};
@@ -319,7 +312,7 @@ function FieldsTable({
 			updateRow(row.key, { draftKey: row.key });
 			return;
 		}
-		const counts = await fieldCoverage({ kind: "all" });
+		const counts = await fieldCoverage({ type: "Everything" });
 		const affected = counts.find(([key]) => key === row.key)?.[1] ?? 0;
 		setRenamePrompt({
 			key: row.key,

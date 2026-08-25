@@ -5,7 +5,7 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { fieldLabel, getAllFieldDefs, isListableField } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/data/fieldOps";
-import { useMapState, addSelections, fieldValues } from "@/store/useMapStore";
+import { addSelections, fieldValues, useMapState } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { OP_LABELS } from "@/store/selections";
 import { DatePicker } from "@/components/primitives/DatePicker";
@@ -107,7 +107,7 @@ function useEnumValues(fieldKey: string | undefined, def: ExtraFieldDef | undefi
 			setValues([]);
 			return;
 		}
-		void fieldValues({ kind: "all" }, fieldKey).then(setValues);
+		void fieldValues({ type: "Everything" }, fieldKey).then(setValues);
 	}, [fieldKey, def]);
 	return values;
 }
@@ -227,7 +227,7 @@ type FilterFormSeed = {
 
 /** Reverse of FilterForm.handleAdd: turn a stored Filter selection back into editable form state. */
 export function filterPropsToSeed(
-	p: Extract<Selection["props"], { type: "Filter" }>,
+	p: Extract<Selection["selector"], { type: "Filter" }>,
 ): FilterFormSeed {
 	let op = p.op as FilterOp;
 	let anyYear = false;

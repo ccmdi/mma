@@ -57,7 +57,7 @@ fn get_returns_active_session_by_source_key() {
     let got = get(&conn, "m1", "tag:1").unwrap().expect("session present");
     assert_eq!(got.id, created.id);
     assert_eq!(got.order, vec![1, 2, 3]);
-    // source_props round-trips as the original SelectionProps json.
+    // source_props round-trips as the original Selector json.
     assert_eq!(got.source_props["type"], "Tag");
     assert_eq!(got.source_props["tagId"], 1);
 }

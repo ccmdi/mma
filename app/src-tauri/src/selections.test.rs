@@ -26,15 +26,17 @@ fn for_each_visits_alive_overlay_applied() {
     assert_eq!(seen, vec![(1, 1.0, 1.0), (3, 30.0, 30.0), (4, 4.0, 4.0)]);
 }
 
-// scoped(None) is the full alive walk; scoped(Some) filters to the resolved set,
+// within(None) is the full alive walk; within(Some) filters to the resolved set,
 // preserving view order (batch rows, then adds).
 #[test]
-fn scoped_iterates_resolved_set_in_view_order() {
+fn within_iterates_resolved_set_in_view_order() {
     let base = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)];
-    let fx = Fx::base(&base).with_adds(vec![loc(4, 4.0, 4.0)]).with_dead([2]);
+    let fx = Fx::base(&base)
+        .with_adds(vec![loc(4, 4.0, 4.0)])
+        .with_dead([2]);
     let view = fx.view();
 
-    let ids = |set: Option<&RoaringBitmap>| view.scoped(set).map(|r| r.id()).collect::<Vec<u32>>();
+    let ids = |set: Option<&RoaringBitmap>| view.within(set).map(|r| r.id()).collect::<Vec<u32>>();
     assert_eq!(ids(None), vec![1, 3, 4]);
     let set: RoaringBitmap = [4u32, 1].into_iter().collect();
     assert_eq!(ids(Some(&set)), vec![1, 4]);
@@ -194,9 +196,9 @@ fn polygon_resolve_matches_full_test_with_bbox_reject() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Polygon {
+        &Selector::Polygon {
             polygon: geom.clone(),
             include_informational: true,
         },
@@ -344,9 +346,9 @@ fn polygon_resolve_across_antimeridian() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Polygon {
+        &Selector::Polygon {
             polygon: geom,
             include_informational: true,
         },
@@ -395,9 +397,9 @@ fn polygon_resolve_unwrapped_antimeridian() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Polygon {
+        &Selector::Polygon {
             polygon: geom,
             include_informational: true,
         },
@@ -472,9 +474,9 @@ fn polygon_resolve_wide_box() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Polygon {
+        &Selector::Polygon {
             polygon: geom,
             include_informational: true,
         },
@@ -799,7 +801,7 @@ fn resolve_everything() {
     let adds = vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0)];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Everything);
+    let ids = ids_of(&view, &Selector::Everything);
     assert_eq!(ids.len(), 2);
 }
 
@@ -811,7 +813,7 @@ fn resolve_tag_on_adds() {
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Tag { tag_id: 10 });
+    let ids = ids_of(&view, &Selector::Tag { tag_id: 10 });
     assert_eq!(ids, vec![1]);
 }
 
@@ -823,7 +825,7 @@ fn resolve_untagged() {
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Untagged);
+    let ids = ids_of(&view, &Selector::Untagged);
     assert_eq!(ids, vec![2]);
 }
 
@@ -898,32 +900,32 @@ fn resolve_filter_tag_count() {
     let fx = Fx::base(&[b1, b2]).with_adds(adds);
     let view = fx.view();
 
-    let eq2 = SelectionProps::Filter {
+    let eq2 = Selector::Filter {
         field: "tagCount".into(),
         op: FilterOp::Eq,
         value: serde_json::json!(2),
         value2: None,
         tz_local: false,
     };
-    assert_eq!(resolve(&view, &eq2), vec![2]);
+    assert_eq!(ids_of(&view, &eq2), vec![2]);
 
-    let gt1 = SelectionProps::Filter {
+    let gt1 = Selector::Filter {
         field: "tagCount".into(),
         op: FilterOp::Gt,
         value: serde_json::json!(1),
         value2: None,
         tz_local: false,
     };
-    assert_eq!(resolve(&view, &gt1), vec![2, 3]);
+    assert_eq!(ids_of(&view, &gt1), vec![2, 3]);
 
-    let eq0 = SelectionProps::Filter {
+    let eq0 = Selector::Filter {
         field: "tagCount".into(),
         op: FilterOp::Eq,
         value: serde_json::json!(0),
         value2: None,
         tz_local: false,
     };
-    assert_eq!(resolve(&view, &eq0), vec![1]);
+    assert_eq!(ids_of(&view, &eq0), vec![1]);
 }
 
 // Uncommitted resolves to overlay membership: committed base rows are excluded, while
@@ -941,7 +943,7 @@ fn resolve_uncommitted() {
     let fx = Fx::batch(batch).with_adds(adds).with_patch(2, p2);
     let view = fx.view();
 
-    assert_eq!(resolve(&view, &SelectionProps::Uncommitted), vec![2, 3]);
+    assert_eq!(ids_of(&view, &Selector::Uncommitted), vec![2, 3]);
 }
 
 #[test]
@@ -954,9 +956,9 @@ fn resolve_reviewed_is_an_id_set_leaf_over_batch() {
     ];
     let fx = Fx::base(&locs);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Reviewed {
+        &Selector::Reviewed {
             locations: vec![2, 4],
             session_id: "abc".into(),
             mode: "reviewed".into(),
@@ -970,9 +972,9 @@ fn resolve_reviewed_on_adds() {
     let adds = vec![loc(1, 0.0, 0.0), loc(2, 0.0, 0.0), loc(3, 0.0, 0.0)];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Reviewed {
+        &Selector::Reviewed {
             locations: vec![1, 3],
             session_id: "s".into(),
             mode: "unreviewed".into(),
@@ -1013,15 +1015,12 @@ fn tag_index_matches_scan_path() {
     let idx = fx.view_indexed(&sets);
 
     for tag_id in [10u32, 20, 99] {
-        let s = resolve(&scan, &SelectionProps::Tag { tag_id });
-        let i = resolve(&idx, &SelectionProps::Tag { tag_id });
+        let s = ids_of(&scan, &Selector::Tag { tag_id });
+        let i = ids_of(&idx, &Selector::Tag { tag_id });
         assert_eq!(s, i, "tag {tag_id}: scan {s:?} != index {i:?}");
     }
     // sanity on the actual membership
-    assert_eq!(
-        resolve(&idx, &SelectionProps::Tag { tag_id: 10 }),
-        vec![1, 3]
-    );
+    assert_eq!(ids_of(&idx, &Selector::Tag { tag_id: 10 }), vec![1, 3]);
 }
 
 #[test]
@@ -1036,10 +1035,7 @@ fn tag_index_excludes_dead_includes_adds() {
     let fx = Fx::batch(batch).with_adds(vec![add]).with_dead([2]);
     let idx = fx.view_indexed(&sets);
     // 2 is dead -> excluded; 3 is an overlay add -> included; 1 stays.
-    assert_eq!(
-        resolve(&idx, &SelectionProps::Tag { tag_id: 10 }),
-        vec![1, 3]
-    );
+    assert_eq!(ids_of(&idx, &Selector::Tag { tag_id: 10 }), vec![1, 3]);
 }
 
 #[test]
@@ -1057,7 +1053,7 @@ fn tag_index_honors_patches() {
     let fx = Fx::batch(batch).with_patch(1, p1).with_patch(2, p2);
     let idx = fx.view_indexed(&sets);
     // Patches must override the stale index: 1 dropped, 2 added.
-    assert_eq!(resolve(&idx, &SelectionProps::Tag { tag_id: 10 }), vec![2]);
+    assert_eq!(ids_of(&idx, &Selector::Tag { tag_id: 10 }), vec![2]);
 }
 
 #[test]
@@ -1075,25 +1071,25 @@ fn tag_index_in_composite() {
     let t10 = Selection {
         key: "t10".into(),
         color: [0, 0, 0],
-        props: SelectionProps::Tag { tag_id: 10 },
+        selector: Selector::Tag { tag_id: 10 },
     };
     let t20 = Selection {
         key: "t20".into(),
         color: [0, 0, 0],
-        props: SelectionProps::Tag { tag_id: 20 },
+        selector: Selector::Tag { tag_id: 20 },
     };
     // 10 AND 20 -> only loc 1
-    let inter = resolve(
+    let inter = ids_of(
         &idx,
-        &SelectionProps::Intersection {
+        &Selector::Intersection {
             selections: vec![t10.clone(), t20.clone()],
         },
     );
     assert_eq!(inter, vec![1]);
     // 10 OR 20 -> all three
-    let union = resolve(
+    let union = ids_of(
         &idx,
-        &SelectionProps::Union {
+        &Selector::Union {
             selections: vec![t10, t20],
         },
     );
@@ -1108,7 +1104,7 @@ fn resolve_unpanned() {
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Unpanned);
+    let ids = ids_of(&view, &Selector::Unpanned);
     assert_eq!(ids, vec![1]);
 }
 
@@ -1120,8 +1116,8 @@ fn resolve_panoids() {
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let pano = resolve(&view, &SelectionProps::PanoIds);
-    let not_pano = resolve(&view, &SelectionProps::NotPanoIds);
+    let pano = ids_of(&view, &Selector::PanoIds);
+    let not_pano = ids_of(&view, &Selector::NotPanoIds);
     assert_eq!(pano, vec![1]);
     assert_eq!(not_pano, vec![2]);
 }
@@ -1131,7 +1127,7 @@ fn resolve_with_dead_batch_rows() {
     let locs = vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0), loc(3, 50.0, 60.0)];
     let fx = Fx::base(&locs).with_dead([2]);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Everything);
+    let ids = ids_of(&view, &Selector::Everything);
     assert_eq!(ids.len(), 2);
     assert!(ids.contains(&1));
     assert!(ids.contains(&3));
@@ -1145,7 +1141,7 @@ fn resolve_with_patched_tags() {
     patched.tags = vec![10];
     let fx = Fx::base(&locs).with_patch(1, patched);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Tag { tag_id: 10 });
+    let ids = ids_of(&view, &Selector::Tag { tag_id: 10 });
     assert_eq!(ids, vec![1]);
 }
 
@@ -1165,21 +1161,21 @@ fn resolve_intersection() {
     let adds = vec![l1, l2, l3];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let props = SelectionProps::Intersection {
+    let selector = Selector::Intersection {
         selections: vec![
             Selection {
                 key: "a".into(),
                 color: [0, 0, 0],
-                props: SelectionProps::Tag { tag_id: 10 },
+                selector: Selector::Tag { tag_id: 10 },
             },
             Selection {
                 key: "b".into(),
                 color: [0, 0, 0],
-                props: SelectionProps::PanoIds,
+                selector: Selector::PanoIds,
             },
         ],
     };
-    let ids = resolve(&view, &props);
+    let ids = ids_of(&view, &selector);
     assert_eq!(ids, vec![1]); // only l1 has both tag 10 and PanoId flag
 }
 
@@ -1193,21 +1189,21 @@ fn resolve_union() {
     let adds = vec![l1, l2, l3];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let props = SelectionProps::Union {
+    let selector = Selector::Union {
         selections: vec![
             Selection {
                 key: "a".into(),
                 color: [0, 0, 0],
-                props: SelectionProps::Tag { tag_id: 10 },
+                selector: Selector::Tag { tag_id: 10 },
             },
             Selection {
                 key: "b".into(),
                 color: [0, 0, 0],
-                props: SelectionProps::PanoIds,
+                selector: Selector::PanoIds,
             },
         ],
     };
-    let ids = resolve(&view, &props);
+    let ids = ids_of(&view, &selector);
     assert_eq!(ids.len(), 2);
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
@@ -1222,14 +1218,14 @@ fn resolve_invert() {
     let adds = vec![l1, l2, l3];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let props = SelectionProps::Invert {
+    let selector = Selector::Invert {
         selections: vec![Selection {
             key: "a".into(),
             color: [0, 0, 0],
-            props: SelectionProps::PanoIds,
+            selector: Selector::PanoIds,
         }],
     };
-    let ids = resolve(&view, &props);
+    let ids = ids_of(&view, &selector);
     assert_eq!(ids.len(), 2);
     assert!(ids.contains(&2));
     assert!(ids.contains(&3));
@@ -1255,17 +1251,17 @@ fn node_counts_cover_nested_children() {
     let tree = vec![Selection {
         key: "root".into(),
         color: [0, 0, 0],
-        props: SelectionProps::Intersection {
+        selector: Selector::Intersection {
             selections: vec![
                 Selection {
                     key: "a".into(),
                     color: [0, 0, 0],
-                    props: SelectionProps::Tag { tag_id: 10 },
+                    selector: Selector::Tag { tag_id: 10 },
                 },
                 Selection {
                     key: "b".into(),
                     color: [0, 0, 0],
-                    props: SelectionProps::Tag { tag_id: 20 },
+                    selector: Selector::Tag { tag_id: 20 },
                 },
             ],
         },
@@ -1291,11 +1287,11 @@ fn node_counts_invert_is_global_complement() {
     let tree = vec![Selection {
         key: "inv".into(),
         color: [0, 0, 0],
-        props: SelectionProps::Invert {
+        selector: Selector::Invert {
             selections: vec![Selection {
                 key: "t".into(),
                 color: [0, 0, 0],
-                props: SelectionProps::Tag { tag_id: 10 },
+                selector: Selector::Tag { tag_id: 10 },
             }],
         },
     }];
@@ -1305,7 +1301,7 @@ fn node_counts_invert_is_global_complement() {
     assert_eq!(counts.get("inv"), Some(&2)); // NOT tag 10: l2, l3 (universe of 3 minus 1)
 }
 
-// The single-pass forest must produce exactly what per-selection resolve_set does —
+// The single-pass forest must produce exactly what per-selection resolve does —
 // same top-level sets, same count for every node key.
 #[test]
 fn resolve_forest_matches_individual_resolve() {
@@ -1324,26 +1320,26 @@ fn resolve_forest_matches_individual_resolve() {
         Selection {
             key: "t10".into(),
             color: [0, 0, 0],
-            props: SelectionProps::Tag { tag_id: 10 },
+            selector: Selector::Tag { tag_id: 10 },
         },
         Selection {
             key: "inv".into(),
             color: [0, 0, 0],
-            props: SelectionProps::Invert {
+            selector: Selector::Invert {
                 selections: vec![Selection {
                     key: "u".into(),
                     color: [0, 0, 0],
-                    props: SelectionProps::Union {
+                    selector: Selector::Union {
                         selections: vec![
                             Selection {
                                 key: "a".into(),
                                 color: [0, 0, 0],
-                                props: SelectionProps::Tag { tag_id: 10 },
+                                selector: Selector::Tag { tag_id: 10 },
                             },
                             Selection {
                                 key: "b".into(),
                                 color: [0, 0, 0],
-                                props: SelectionProps::Tag { tag_id: 20 },
+                                selector: Selector::Tag { tag_id: 20 },
                             },
                         ],
                     },
@@ -1353,7 +1349,7 @@ fn resolve_forest_matches_individual_resolve() {
         Selection {
             key: "none".into(),
             color: [0, 0, 0],
-            props: SelectionProps::Untagged,
+            selector: Selector::Untagged,
         },
     ];
 
@@ -1362,7 +1358,7 @@ fn resolve_forest_matches_individual_resolve() {
     for (i, sel) in sels.iter().enumerate() {
         assert_eq!(
             sets[i],
-            resolve_set(&view, &sel.props),
+            resolve(&view, &sel.selector),
             "set mismatch for {}",
             sel.key
         );
@@ -1389,7 +1385,7 @@ fn duplicates_finds_nearby() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Duplicates { distance: 1.0 });
+    let ids = ids_of(&view, &Selector::Duplicates { distance: 1.0 });
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
     assert!(!ids.contains(&3));
@@ -1407,7 +1403,7 @@ fn duplicates_chain_marks_all_members() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Duplicates { distance: 2.0 });
+    let ids = ids_of(&view, &Selector::Duplicates { distance: 2.0 });
     assert_eq!(ids, vec![1, 2, 3]);
 }
 
@@ -1434,7 +1430,7 @@ fn duplicates_bitmask_matches_flattened_groups() {
     let fx = Fx::adds(adds);
     let view = fx.view();
     for d in [0.5, 2.0, 25.0] {
-        let selected = resolve(&view, &SelectionProps::Duplicates { distance: d });
+        let selected = ids_of(&view, &Selector::Duplicates { distance: d });
         let mut grouped: Vec<u32> = find_duplicate_groups(&view, d)
             .into_iter()
             .flatten()
@@ -1460,7 +1456,7 @@ fn duplicates_match_brute_force_at_high_latitude() {
             .collect();
         let d = 100.0;
         let fx = Fx::adds(adds);
-        let ids: HashSet<u32> = resolve(&fx.view(), &SelectionProps::Duplicates { distance: d })
+        let ids: HashSet<u32> = ids_of(&fx.view(), &Selector::Duplicates { distance: d })
             .into_iter()
             .collect();
         for a in &fx.adds {
@@ -1471,9 +1467,19 @@ fn duplicates_match_brute_force_at_high_latitude() {
                 .map(|b| haversine_m(a.lat, a.lng, b.lat, b.lng))
                 .fold(f64::INFINITY, f64::min);
             if nn <= d - 0.5 {
-                assert!(ids.contains(&a.id), "missed dup id {} at lat0={} (nn={nn:.1}m)", a.id, lat0);
+                assert!(
+                    ids.contains(&a.id),
+                    "missed dup id {} at lat0={} (nn={nn:.1}m)",
+                    a.id,
+                    lat0
+                );
             } else if nn >= d + 0.5 {
-                assert!(!ids.contains(&a.id), "false dup id {} at lat0={} (nn={nn:.1}m)", a.id, lat0);
+                assert!(
+                    !ids.contains(&a.id),
+                    "false dup id {} at lat0={} (nn={nn:.1}m)",
+                    a.id,
+                    lat0
+                );
             }
         }
     }
@@ -1488,7 +1494,7 @@ fn duplicates_detected_across_antimeridian() {
         loc(2, -17.8, -179.9995),
         loc(3, -17.8, 179.99),
     ]);
-    let ids = resolve(&fx.view(), &SelectionProps::Duplicates { distance: 150.0 });
+    let ids = ids_of(&fx.view(), &Selector::Duplicates { distance: 150.0 });
     assert_eq!(ids, vec![1, 2]);
 }
 
@@ -1498,7 +1504,7 @@ fn duplicates_dense_cluster_marks_every_member() {
     let adds: Vec<Location> = (0..50).map(|i| loc(i + 1, 12.0, 34.0)).collect();
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Duplicates { distance: 5.0 });
+    let ids = ids_of(&view, &Selector::Duplicates { distance: 5.0 });
     assert_eq!(ids.len(), 50);
 }
 
@@ -1513,7 +1519,7 @@ fn duplicates_zero_distance_is_exact_match() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Duplicates { distance: 0.0 });
+    let ids = ids_of(&view, &Selector::Duplicates { distance: 0.0 });
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
     assert!(!ids.contains(&3));
@@ -1529,7 +1535,7 @@ fn duplicates_non_finite_coord_does_not_overflow() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Duplicates { distance: 10.0 });
+    let ids = ids_of(&view, &Selector::Duplicates { distance: 10.0 });
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
     assert!(!ids.contains(&3));
@@ -1699,9 +1705,9 @@ fn extra_filter_eq_on_adds() {
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Filter {
+        &Selector::Filter {
             field: "country".into(),
             op: FilterOp::Eq,
             value: serde_json::json!("BR"),
@@ -1724,7 +1730,7 @@ fn extra_filter_scans_base_batch_top_level_only() {
     let fx = Fx::base(&[l1, l2]);
     let view = fx.view();
 
-    let filter = |field: &str, op: FilterOp, value: serde_json::Value| SelectionProps::Filter {
+    let filter = |field: &str, op: FilterOp, value: serde_json::Value| Selector::Filter {
         field: field.into(),
         op,
         value,
@@ -1733,11 +1739,11 @@ fn extra_filter_scans_base_batch_top_level_only() {
     };
     // l1 matches on its top-level alt; l2's nested alt must not count.
     assert_eq!(
-        resolve(&view, &filter("alt", FilterOp::Eq, serde_json::json!(100))),
+        ids_of(&view, &filter("alt", FilterOp::Eq, serde_json::json!(100))),
         vec![1]
     );
     assert_eq!(
-        resolve(
+        ids_of(
             &view,
             &filter("alt", FilterOp::Has, serde_json::Value::Null)
         ),
@@ -1745,7 +1751,7 @@ fn extra_filter_scans_base_batch_top_level_only() {
     );
     // Escaped quote and brace inside a string value must not derail the scan.
     assert_eq!(
-        resolve(
+        ids_of(
             &view,
             &filter("note", FilterOp::Eq, serde_json::json!("a\"b}"))
         ),
@@ -1764,9 +1770,9 @@ fn extra_filter_matches_ascii_escaped_field_name() {
     let view = fx.view();
 
     assert_eq!(
-        resolve(
+        ids_of(
             &view,
-            &SelectionProps::Filter {
+            &Selector::Filter {
                 field: "café".into(),
                 op: FilterOp::Eq,
                 value: serde_json::json!("noir"),
@@ -1808,9 +1814,9 @@ fn filter_tz_local_between_buckets_per_timezone() {
     // Filter "all of Mar 1, 2020" as wall-clock-as-UTC epoch seconds.
     let lo = serde_json::json!(1583020800u64); // 2020-03-01 00:00
     let hi = serde_json::json!(1583107140u64); // 2020-03-01 23:59
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Filter {
+        &Selector::Filter {
             field: "datetime".into(),
             op: FilterOp::Between,
             value: lo,
@@ -1828,9 +1834,9 @@ fn filter_tz_local_between_buckets_per_timezone() {
 fn filter_tz_local_between_on_base_batch() {
     let fx = Fx::base(&tz_fixture());
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Filter {
+        &Selector::Filter {
             field: "datetime".into(),
             op: FilterOp::Between,
             value: serde_json::json!(1583020800u64),
@@ -1848,9 +1854,9 @@ fn filter_tz_local_anyyear_uses_local_month_day() {
     let view = fx.view();
 
     // Feb 29 in the pano's local clock: only New York (Feb 29 19:00 local) matches.
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Filter {
+        &Selector::Filter {
             field: "datetime".into(),
             op: FilterOp::BetweenAnyyear,
             value: serde_json::json!("02-29"),
@@ -1868,9 +1874,9 @@ fn filter_tz_local_anytime_uses_local_clock() {
     let view = fx.view();
 
     // Morning (in the pano's local clock): Tokyo is 09:00 -> in; New York 19:00 -> out.
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Filter {
+        &Selector::Filter {
             field: "datetime".into(),
             op: FilterOp::BetweenAnytime,
             value: serde_json::json!("06:00"),
@@ -1891,9 +1897,9 @@ fn filter_tz_local_ignored_for_nothas() {
     let adds = vec![with_field, without];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::Filter {
+        &Selector::Filter {
             field: "datetime".into(),
             op: FilterOp::Nothas,
             value: serde_json::Value::Null,
@@ -1928,9 +1934,9 @@ fn topk_selects_highest() {
     ];
     let fx = Fx::adds(locs);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::TopK {
+        &Selector::TopK {
             field: "alt".into(),
             k: 3,
             ascending: false,
@@ -1950,9 +1956,9 @@ fn topk_selects_lowest() {
     ];
     let fx = Fx::adds(locs);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::TopK {
+        &Selector::TopK {
             field: "alt".into(),
             k: 2,
             ascending: true,
@@ -1970,9 +1976,9 @@ fn topk_skips_missing_field() {
     ];
     let fx = Fx::adds(locs);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::TopK {
+        &Selector::TopK {
             field: "alt".into(),
             k: 10,
             ascending: false,
@@ -1990,9 +1996,9 @@ fn topk_works_on_base_batch() {
     ];
     let fx = Fx::base(&locs);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::TopK {
+        &Selector::TopK {
             field: "val".into(),
             k: 1,
             ascending: false,
@@ -2009,9 +2015,9 @@ fn topk_zero_k_selects_nothing() {
     ];
     let fx = Fx::adds(locs);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::TopK {
+        &Selector::TopK {
             field: "alt".into(),
             k: 0,
             ascending: false,
@@ -2029,9 +2035,9 @@ fn topk_k_equals_len_selects_all() {
     ];
     let fx = Fx::adds(locs);
     let view = fx.view();
-    let ids = resolve(
+    let ids = ids_of(
         &view,
-        &SelectionProps::TopK {
+        &Selector::TopK {
             field: "alt".into(),
             k: 3,
             ascending: false,
@@ -2208,7 +2214,7 @@ fn partition_month_field_year_and_month_of_year() {
 }
 
 #[test]
-fn partition_respects_scope() {
+fn partition_respects_the_selector() {
     let adds = vec![
         loc_extra(1, serde_json::json!({"c": "FR"})),
         loc_extra(2, serde_json::json!({"c": "DE"})),
@@ -2216,14 +2222,14 @@ fn partition_respects_scope() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let scope = resolve_set(
+    let set = resolve(
         &view,
-        &SelectionProps::Locations {
+        &Selector::Locations {
             locations: vec![1, 2],
             name: None,
         },
     );
-    let groups = partition(&view, "c", &KeySpec::Value, Some(&scope));
+    let groups = partition(&view, "c", &KeySpec::Value, Some(&set));
     assert_eq!(groups.iter().find(|g| g.key == "FR").unwrap().ids, vec![1]);
     assert_eq!(groups.iter().find(|g| g.key == "DE").unwrap().ids, vec![2]);
 }
@@ -2236,13 +2242,13 @@ fn bound_label_matches_js_fmt() {
 }
 
 // -----------------------------------------------------------------------
-// Property-based oracle tests for resolve_set / resolve / resolve_forest.
+// Property-based oracle tests for resolve / resolve / resolve_forest.
 //
 // The oracle is a naive HashSet-based evaluator over an explicit alive-id
 // snapshot (id -> effective tags), built to mirror LocView's overlay rules:
 // dead batch rows are excluded, a patch's tags win over the batch row's, and
 // adds carry their own tags untouched. Composite semantics are copied
-// verbatim from resolve_set: Intersection([]) = empty (not universe), Union
+// verbatim from resolve: Intersection([]) = empty (not universe), Union
 // = fold with |, Invert uses only its FIRST child (extra children ignored
 // for the set, only for resolve_forest's per-node counts).
 // -----------------------------------------------------------------------
@@ -2258,8 +2264,8 @@ enum OracleProps {
     Invert(Vec<OracleProps>),
 }
 
-fn oracle_resolve(alive: &[(u32, Vec<u32>)], props: &OracleProps) -> HashSet<u32> {
-    match props {
+fn oracle_resolve(alive: &[(u32, Vec<u32>)], selector: &OracleProps) -> HashSet<u32> {
+    match selector {
         OracleProps::Tag(t) => alive
             .iter()
             .filter(|(_, tags)| tags.contains(t))
@@ -2307,25 +2313,25 @@ fn oracle_resolve(alive: &[(u32, Vec<u32>)], props: &OracleProps) -> HashSet<u32
 fn to_selection(o: &OracleProps, counter: &mut u32) -> Selection {
     *counter += 1;
     let key = format!("k{counter}");
-    let props = match o {
-        OracleProps::Tag(t) => SelectionProps::Tag { tag_id: *t },
-        OracleProps::Manual(ids) => SelectionProps::Manual {
+    let selector = match o {
+        OracleProps::Tag(t) => Selector::Tag { tag_id: *t },
+        OracleProps::Manual(ids) => Selector::Manual {
             locations: ids.clone(),
         },
-        OracleProps::Intersection(cs) => SelectionProps::Intersection {
+        OracleProps::Intersection(cs) => Selector::Intersection {
             selections: cs.iter().map(|c| to_selection(c, counter)).collect(),
         },
-        OracleProps::Union(cs) => SelectionProps::Union {
+        OracleProps::Union(cs) => Selector::Union {
             selections: cs.iter().map(|c| to_selection(c, counter)).collect(),
         },
-        OracleProps::Invert(cs) => SelectionProps::Invert {
+        OracleProps::Invert(cs) => Selector::Invert {
             selections: cs.iter().map(|c| to_selection(c, counter)).collect(),
         },
     };
     Selection {
         key,
         color: [0, 0, 0],
-        props,
+        selector,
     }
 }
 
@@ -2439,8 +2445,8 @@ proptest! {
         let (adds, alive) = build_adds_view(&masks);
         let fx = Fx::adds(adds);
         let view = fx.view();
-        let props = to_selection(&tree, &mut 0).props;
-        let got: HashSet<u32> = resolve_set(&view, &props).into_iter().collect();
+        let selector = to_selection(&tree, &mut 0).selector;
+        let got: HashSet<u32> = resolve(&view, &selector).into_iter().collect();
         let want = oracle_resolve(&alive, &tree);
         prop_assert_eq!(got, want);
     }
@@ -2450,8 +2456,8 @@ proptest! {
         let (batch, dead, patches, adds, alive) = build_overlay_view(&entries);
         let fx = Fx { batch: Some(batch), dead, patches, adds };
         let view = fx.view();
-        let props = to_selection(&tree, &mut 0).props;
-        let got: HashSet<u32> = resolve_set(&view, &props).into_iter().collect();
+        let selector = to_selection(&tree, &mut 0).selector;
+        let got: HashSet<u32> = resolve(&view, &selector).into_iter().collect();
         let want = oracle_resolve(&alive, &tree);
         prop_assert_eq!(got, want);
     }
@@ -2461,8 +2467,8 @@ proptest! {
         let (adds, _alive) = build_adds_view(&masks);
         let fx = Fx::adds(adds);
         let view = fx.view();
-        let props = to_selection(&tree, &mut 0).props;
-        let ids = resolve(&view, &props);
+        let selector = to_selection(&tree, &mut 0).selector;
+        let ids = ids_of(&view, &selector);
         for w in ids.windows(2) {
             prop_assert!(w[0] < w[1]);
         }
@@ -2481,11 +2487,11 @@ proptest! {
         let (sets, _counts) = resolve_forest(&view, &sels);
         prop_assert_eq!(sets.len(), sels.len());
         for (i, sel) in sels.iter().enumerate() {
-            prop_assert_eq!(&sets[i], &resolve_set(&view, &sel.props));
+            prop_assert_eq!(&sets[i], &resolve(&view, &sel.selector));
         }
     }
 
-    // Invert = universe - resolve(first child), and a leaf/composite's own set is
+    // Invert = universe - ids_of(first child), and a leaf/composite's own set is
     // always a subset of the alive universe, so double-inverting is the identity.
     #[test]
     fn invert_is_involutive_on_alive_set(masks in masks_strategy(60), tree in oracle_tree_strategy()) {
@@ -2493,23 +2499,23 @@ proptest! {
         let fx = Fx::adds(adds);
         let view = fx.view();
         let inner = to_selection(&tree, &mut 0);
-        let x_set = resolve_set(&view, &inner.props);
-        let double_invert = SelectionProps::Invert {
+        let x_set = resolve(&view, &inner.selector);
+        let double_invert = Selector::Invert {
             selections: vec![Selection {
                 key: "outer".into(),
                 color: [0, 0, 0],
-                props: SelectionProps::Invert {
+                selector: Selector::Invert {
                     selections: vec![inner],
                 },
             }],
         };
-        let got = resolve_set(&view, &double_invert);
+        let got = resolve(&view, &double_invert);
         prop_assert_eq!(got, x_set);
     }
 }
 
 // -----------------------------------------------------------------------
-// Composite edge pins: empty selections vecs. resolve_set explicitly checks
+// Composite edge pins: empty selections vecs. resolve explicitly checks
 // `is_empty()` before indexing, so none of these panic -- pinning the chosen
 // (non-obvious) semantics rather than reproducing a crash.
 // -----------------------------------------------------------------------
@@ -2519,7 +2525,7 @@ fn intersection_of_empty_selections_is_empty_not_universe() {
     let adds = vec![loc(1, 0.0, 0.0), loc(2, 0.0, 0.0)];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Intersection { selections: vec![] });
+    let ids = ids_of(&view, &Selector::Intersection { selections: vec![] });
     assert!(
         ids.is_empty(),
         "empty Intersection is vacuously empty, not the universe: {ids:?}"
@@ -2531,7 +2537,7 @@ fn union_of_empty_selections_is_empty() {
     let adds = vec![loc(1, 0.0, 0.0), loc(2, 0.0, 0.0)];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Union { selections: vec![] });
+    let ids = ids_of(&view, &Selector::Union { selections: vec![] });
     assert!(ids.is_empty());
 }
 
@@ -2540,24 +2546,26 @@ fn invert_of_empty_selections_is_the_alive_universe() {
     let adds = vec![loc(1, 0.0, 0.0), loc(2, 0.0, 0.0), loc(3, 0.0, 0.0)];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = resolve(&view, &SelectionProps::Invert { selections: vec![] });
+    let ids = ids_of(&view, &Selector::Invert { selections: vec![] });
     assert_eq!(ids, vec![1, 2, 3]);
 }
 
 // -----------------------------------------------------------------------
-// Query projections: one scoped traversal, several accumulators
+// Query projections: one traversal, several accumulators
 // -----------------------------------------------------------------------
 
 #[test]
-fn scoped_ids_applies_the_overlay_and_the_scope() {
+fn ids_within_applies_the_overlay_and_the_set() {
     let base = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)];
-    let fx = Fx::base(&base).with_adds(vec![loc(4, 4.0, 4.0)]).with_dead([2]);
+    let fx = Fx::base(&base)
+        .with_adds(vec![loc(4, 4.0, 4.0)])
+        .with_dead([2]);
 
-    assert_eq!(scoped_ids(&fx.view(), None), vec![1, 3, 4]);
+    assert_eq!(ids_within(&fx.view(), None), vec![1, 3, 4]);
 
-    let scope: RoaringBitmap = [2u32, 3, 4].into_iter().collect();
-    // 2 is dead, so the scope can't resurrect it.
-    assert_eq!(scoped_ids(&fx.view(), Some(&scope)), vec![3, 4]);
+    let set: RoaringBitmap = [2u32, 3, 4].into_iter().collect();
+    // 2 is dead, so the set cannot resurrect it.
+    assert_eq!(ids_within(&fx.view(), Some(&set)), vec![3, 4]);
 }
 
 #[test]
@@ -2607,11 +2615,14 @@ fn distinct_values_sorts_stringifies_scalars_and_skips_the_rest() {
 }
 
 #[test]
-fn distinct_values_honours_the_scope() {
-    let locs = vec![loc_extra(1, serde_json::json!({"t":"a"})), loc_extra(2, serde_json::json!({"t":"b"}))];
+fn distinct_values_honours_the_set() {
+    let locs = vec![
+        loc_extra(1, serde_json::json!({"t":"a"})),
+        loc_extra(2, serde_json::json!({"t":"b"})),
+    ];
     let fx = Fx::base(&locs);
-    let scope: RoaringBitmap = [1u32].into_iter().collect();
-    assert_eq!(distinct_values(&fx.view(), "t", Some(&scope)), vec!["a"]);
+    let set: RoaringBitmap = [1u32].into_iter().collect();
+    assert_eq!(distinct_values(&fx.view(), "t", Some(&set)), vec!["a"]);
 }
 
 #[test]
@@ -2648,7 +2659,10 @@ fn extra_key_coverage_counts_rows_per_key_across_the_overlay() {
         loc_extra(3, serde_json::json!({"b":2})),
     ];
     let fx = Fx::base(&base)
-        .with_adds(vec![loc_extra(4, serde_json::json!({"a":9,"c":{"nested":1}}))])
+        .with_adds(vec![loc_extra(
+            4,
+            serde_json::json!({"a":9,"c":{"nested":1}}),
+        )])
         .with_dead([3]);
 
     assert_eq!(
@@ -2684,44 +2698,182 @@ fn extra_key_coverage_does_not_descend_into_nested_objects() {
     );
 }
 
+fn pinned(id: u32, pano: Option<&str>, flag: bool) -> Location {
+    Location {
+        pano_id: pano.map(str::to_string),
+        flags: if flag {
+            LocationFlags::LOAD_AS_PANO_ID
+        } else {
+            LocationFlags::empty()
+        },
+        ..loc(id, 0.0, 0.0)
+    }
+}
+
+fn leaf(key: &str, selector: Selector) -> Selection {
+    Selection {
+        key: key.into(),
+        color: [0, 0, 0],
+        selector,
+    }
+}
+
+/// Base rows exercise the Arrow pano_id column; the add exercises the overlay row.
+fn pano_fx() -> Fx {
+    Fx::base(&[
+        pinned(1, Some("a"), true),
+        pinned(2, Some("b"), false),
+        pinned(3, None, true),
+        pinned(4, Some("d"), true),
+    ])
+    .with_adds(vec![pinned(5, Some("e"), true)])
+    .with_dead([4])
+}
+
 #[test]
-fn scope_resolves_to_the_id_set_it_names() {
+fn count_is_the_selected_size() {
+    let fx = pano_fx();
+    let view = fx.view();
+
+    assert_eq!(count_within(&view, None), 4);
+
+    // A named id list is raw: the dead id must not be counted.
+    let set: RoaringBitmap = [2u32, 3, 4].into_iter().collect();
+    assert_eq!(count_within(&view, Some(&set)), 2);
+}
+
+/// `panoId` is a builtin field: the generic Filter predicate reaches the Arrow column
+/// and the overlay row, so no bespoke selection variant is needed.
+fn pano_filter(op: FilterOp) -> Selector {
+    Selector::Filter {
+        field: "panoId".into(),
+        op,
+        value: serde_json::Value::Null,
+        value2: None,
+        tz_local: false,
+    }
+}
+
+/// Count through a selector: the shape the bulk modal builds.
+fn count_selector(view: &LocView, selector: Selector) -> u32 {
+    count_within(view, narrow(view, &selector).as_ref())
+}
+
+/// Resolved ids as a vec, for order-and-content assertions.
+fn ids_of(view: &LocView, selector: &Selector) -> Vec<u32> {
+    resolve(view, selector).into_iter().collect()
+}
+
+fn intersect(selector: Vec<Selector>) -> Selector {
+    Selector::Intersection {
+        selections: selector
+            .into_iter()
+            .enumerate()
+            .map(|(i, p)| leaf(&format!("c{i}"), p))
+            .collect(),
+    }
+}
+
+#[test]
+fn pano_id_filter_counts_base_and_overlay_rows_and_skips_dead_ones() {
+    let fx = pano_fx();
+    let view = fx.view();
+    let none = RoaringBitmap::new();
+
+    assert_eq!(count_selector(&view, pano_filter(FilterOp::Has)), 3);
+    assert_eq!(count_selector(&view, pano_filter(FilterOp::Nothas)), 1);
+
+    // Narrowed by ids, the way a bulk operation does it.
+    let ids = Selector::Locations {
+        locations: vec![2, 3],
+        name: None,
+    };
+    let narrow = |op| intersect(vec![ids.clone(), pano_filter(op)]);
+    assert_eq!(count_selector(&view, narrow(FilterOp::Has)), 1);
+    assert_eq!(count_selector(&view, narrow(FilterOp::Nothas)), 1);
+}
+
+#[test]
+fn pano_id_filter_intersected_with_pano_ids_is_the_pinned_count() {
+    let fx = pano_fx();
+    let view = fx.view();
+    let none = RoaringBitmap::new();
+    let pinned = intersect(vec![pano_filter(FilterOp::Has), Selector::PanoIds]);
+
+    // 1 and 5 carry a pano ID and the flag; 3 has the flag but no pano ID.
+    assert_eq!(count_selector(&view, pinned.clone()), 2);
+
+    let narrowed = intersect(vec![
+        Selector::Locations {
+            locations: vec![2, 3],
+            name: None,
+        },
+        pinned,
+    ]);
+    assert_eq!(count_selector(&view, narrowed), 0);
+}
+
+#[test]
+fn pano_id_resolves_from_both_row_variants_and_is_none_when_absent() {
+    let fx = pano_fx();
+    let view = fx.view();
+
+    let base = |i| {
+        RowRef {
+            inner: RowInner::Base(&view, i),
+        }
+        .resolve_field("panoId")
+    };
+    assert_eq!(base(0), Some(serde_json::json!("a")));
+    assert_eq!(base(2), None);
+
+    let add = RowRef {
+        inner: RowInner::Loc(&fx.adds[0]),
+    };
+    assert_eq!(add.resolve_field("panoId"), Some(serde_json::json!("e")));
+
+    let bare = pinned(9, None, false);
+    let bare_row = RowRef {
+        inner: RowInner::Loc(&bare),
+    };
+    assert_eq!(bare_row.resolve_field("panoId"), None);
+}
+
+#[test]
+fn narrow_resolves_to_the_id_set_it_names() {
     let locs = vec![loc(1, 0.0, 0.0), loc(2, 1.0, 1.0), loc(7, 2.0, 2.0)];
     let fx = Fx::base(&locs);
     let view = fx.view();
-    let selected: RoaringBitmap = [7u32, 8].into_iter().collect();
 
-    assert!(Scope::All.resolve(&view, &selected).is_none());
+    // Everything is the whole map: no narrowing set at all.
+    assert!(narrow(&view, &Selector::Everything).is_none());
+    // A named id list answers as itself, without resolving.
     assert_eq!(
-        Scope::Selected
-            .resolve(&view, &selected)
-            .unwrap()
-            .into_owned(),
-        selected
-    );
-    assert_eq!(
-        Scope::Ids { ids: vec![1, 2] }
-            .resolve(&view, &selected)
-            .unwrap()
-            .into_owned(),
+        narrow(
+            &view,
+            &Selector::Locations {
+                locations: vec![1, 2],
+                name: None,
+            }
+        )
+        .unwrap(),
         [1u32, 2].into_iter().collect::<RoaringBitmap>()
     );
-    // Props ships the predicate by value and resolves like any selection.
+    // Any other selector resolves like the selection it is.
     assert_eq!(
-        Scope::Props {
-            props: SelectionProps::Manual {
+        narrow(
+            &view,
+            &Selector::Manual {
                 locations: vec![1, 7]
             }
-        }
-        .resolve(&view, &selected)
-        .unwrap()
-        .into_owned(),
+        )
+        .unwrap(),
         [1u32, 7].into_iter().collect::<RoaringBitmap>()
     );
 }
 
 #[test]
-fn every_projection_honours_an_id_scope() {
+fn every_projection_honours_a_named_id_list() {
     let locs = vec![
         loc_extra(1, serde_json::json!({"c":"US"})),
         loc_extra(2, serde_json::json!({"c":"FR"})),
@@ -2729,16 +2881,23 @@ fn every_projection_honours_an_id_scope() {
     ];
     let fx = Fx::base(&locs);
     let view = fx.view();
-    let selected = RoaringBitmap::new();
-    let scope = Scope::Ids { ids: vec![2, 3] };
-    let resolved = scope.resolve(&view, &selected);
-    let set = resolved.as_deref();
+    let resolved = narrow(
+        &view,
+        &Selector::Locations {
+            locations: vec![2, 3],
+            name: None,
+        },
+    );
+    let set = resolved.as_ref();
 
-    assert_eq!(scoped_ids(&view, set), vec![2, 3]);
+    assert_eq!(ids_within(&view, set), vec![2, 3]);
     assert_eq!(distinct_values(&view, "c", set), vec!["FR"]);
     assert_eq!(
         count_by(&view, "c", &KeySpec::Value, set),
         vec![("FR".to_string(), 2u32)]
     );
-    assert_eq!(extra_key_coverage(&view, set), vec![("c".to_string(), 2u32)]);
+    assert_eq!(
+        extra_key_coverage(&view, set),
+        vec![("c".to_string(), 2u32)]
+    );
 }

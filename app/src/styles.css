@@ -5869,19 +5869,19 @@ body:has([data-plugin-overlay]) .map-meta {
 }
 
 /* --- Scope selector --- */
-.scope-selector {
+.selector-picker {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.375rem 1rem;
 	font-size: 0.875rem;
 }
-.scope-selector__option {
+.selector-picker__option {
 	display: flex;
 	align-items: center;
 	gap: 0.375rem;
 	cursor: pointer;
 }
-.scope-selector__option select {
+.selector-picker__option select {
 	max-width: 10rem;
 	font-size: inherit;
 }

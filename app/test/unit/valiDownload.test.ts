@@ -7,7 +7,12 @@ import {
 import { valiMessageAction } from "@/plugins/vali/ui/ValiSidebar";
 import type { ValiCountryStatus, ValiProgress } from "@/bindings.gen";
 
-const started = (countryCode: string, files: number, bytes = 100, updates = false): ValiProgress => ({
+const started = (
+	countryCode: string,
+	files: number,
+	bytes = 100,
+	updates = false,
+): ValiProgress => ({
 	kind: "countryDownloadStarted",
 	countryCode,
 	files,

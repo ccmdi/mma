@@ -2,14 +2,14 @@ import { useState, useMemo, useCallback, useEffect } from "react";
 import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
-import { ScopeSelector } from "@/components/primitives/ScopeSelector";
+import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import type { ExtraFieldType, KeySpec, DatePart } from "@/bindings.gen";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";
-import { useMapState } from "@/store/useMapStore";
+import { useMapState, partition } from "@/store/useMapStore";
 import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldOps";
 import { isNumericField, colorPartition } from "./gradientMath";
-import { partition, useScope } from "@/store/scope";
+import { useSelectorPick } from "@/store/selectorPick";
 import { usePluginState } from "@/plugins/registry";
 import { useSetting } from "@/store/settings";
 import "./gradient.css";
@@ -107,7 +107,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 	const [reversed, setReversed] = usePluginState("gradient", "reversed", false);
 	const [applying, setApplying] = useState(false);
 	const [lastResult, setLastResult] = useState<{ groups: number; applied: boolean } | null>(null);
-	const scopeCtl = useScope();
+	const picker = useSelectorPick();
 	const dateTimezone = useSetting("dateTimezone");
 
 	const map = MMA.getMapState().map;
@@ -145,7 +145,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 								tzLocal: dateTimezone === "location",
 							};
 
-			const groups = await partition(fieldKey, key, scopeCtl.scope);
+			const groups = await partition(fieldKey, key, picker.selector);
 			if (groups.length > MAX_GROUPS) {
 				setLastResult({ groups: groups.length, applied: false });
 				return;
@@ -157,14 +157,14 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 				fieldKey: fieldKey,
 				fieldType,
 				stops,
-				scoped: scopeCtl.scope.kind === "selected",
+				narrowed: picker.choice.pick === "selection",
 				ordinal: projectionId === RANGE_ID,
 				eqFilter: projectionId === "value",
 			});
 			if (sels.length === 0) return;
 
 			await MMA.resetSelections();
-			await MMA.addSelections(sels.map((s) => s.props));
+			await MMA.addSelections(sels.map((s) => s.selector));
 			MMA.setSelectionColors(sels.map((s) => ({ key: s.key, color: s.color })));
 		} finally {
 			setApplying(false);
@@ -177,14 +177,15 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 		map,
 		bucketCount,
 		stops,
-		scopeCtl.scope,
+		picker.selector,
+		picker.choice.pick,
 		dateTimezone,
 	]);
 
 	// The result line describes the last apply; stale once any input changes.
 	useEffect(() => {
 		setLastResult(null);
-	}, [fieldKey, projectionId, presetIdx, bucketCount, reversed, scopeCtl.scope]);
+	}, [fieldKey, projectionId, presetIdx, bucketCount, reversed, picker.selector]);
 
 	return (
 		<Sidebar title={t("Gradient")} onBack={onClose} className="gradient-sidebar">
@@ -193,7 +194,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 			) : (
 				<>
 					<Field label={t("Apply to")}>
-						<ScopeSelector ctl={scopeCtl} />
+						<SelectorPicker ctl={picker} />
 					</Field>
 					<div className="gradient-sidebar__row">
 						<Field label={t("Field")}>

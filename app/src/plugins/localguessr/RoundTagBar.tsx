@@ -22,7 +22,7 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 
 	useEffect(() => {
 		let cancelled = false;
-		void fetchLocations({ kind: "ids", ids: [locationId] }).then((locs) => {
+		void fetchLocations({ type: "Locations", locations: [locationId], name: null }).then((locs) => {
 			if (!cancelled) setNames(tagIdsToNames(locs[0]?.tags ?? []));
 		});
 		return () => {

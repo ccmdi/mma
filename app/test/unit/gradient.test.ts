@@ -160,40 +160,40 @@ describe("colorPartition", () => {
 		{ key: "50–100", ids: [3], bin: [50, 100] },
 	];
 
-	it("unscoped numeric bins emit live Filter `between` selections", () => {
+	it("whole-map numeric bins emit live Filter `between` selections", () => {
 		const sels = colorPartition(numericBins, {
 			fieldKey: "altitude",
 			fieldType: "number",
 			stops,
-			scoped: false,
+			narrowed: false,
 			ordinal: true,
 			eqFilter: false,
 		});
-		expect(sels.every((s) => s.props.type === "Filter")).toBe(true);
+		expect(sels.every((s) => s.selector.type === "Filter")).toBe(true);
 		expect(sels.every((s) => s.key.startsWith("filter:altitude:between:"))).toBe(true);
 	});
 
-	it("scoped numeric bins emit static Locations selections keyed by their id list", () => {
+	it("narrowed numeric bins emit static Locations selections keyed by their id list", () => {
 		const sels = colorPartition(numericBins, {
 			fieldKey: "altitude",
 			fieldType: "number",
 			stops,
-			scoped: true,
+			narrowed: true,
 			ordinal: true,
 			eqFilter: false,
 		});
-		expect(sels.every((s) => s.props.type === "Locations")).toBe(true);
-		const ids = sels.flatMap((s) => (s.props.type === "Locations" ? s.props.locations : []));
+		expect(sels.every((s) => s.selector.type === "Locations")).toBe(true);
+		const ids = sels.flatMap((s) => (s.selector.type === "Locations" ? s.selector.locations : []));
 		expect(ids.sort()).toEqual([1, 2, 3]);
 		const first = sels[0];
-		if (first.props.type === "Locations") {
-			expect(first.key).toBe(first.props.locations.join(","));
+		if (first.selector.type === "Locations") {
+			expect(first.key).toBe(first.selector.locations.join(","));
 			// carries the group key as its name, so it isn't a generic "Selection"
-			expect(first.props.name).toBe("0–50");
+			expect(first.selector.name).toBe("0–50");
 		}
 	});
 
-	it("unscoped value groups emit live Filter `eq` selections", () => {
+	it("whole-map value groups emit live Filter `eq` selections", () => {
 		const groups: PartitionGroup[] = [
 			{ key: "a", ids: [1, 3], bin: null },
 			{ key: "b", ids: [2], bin: null },
@@ -202,15 +202,15 @@ describe("colorPartition", () => {
 			fieldKey: "tag",
 			fieldType: "string",
 			stops,
-			scoped: false,
+			narrowed: false,
 			ordinal: false,
 			eqFilter: true,
 		});
-		expect(sels.every((s) => s.props.type === "Filter")).toBe(true);
+		expect(sels.every((s) => s.selector.type === "Filter")).toBe(true);
 		expect(sels.map((s) => s.key)).toEqual(["filter:tag:eq:a", "filter:tag:eq:b"]);
 	});
 
-	it("unscoped projection groups (no eqFilter, no bin) fall back to static Locations", () => {
+	it("whole-map projection groups (no eqFilter, no bin) fall back to static Locations", () => {
 		const groups: PartitionGroup[] = [
 			{ key: "2020-01-01", ids: [1, 2], bin: null },
 			{ key: "2020-01-02", ids: [3], bin: null },
@@ -219,11 +219,11 @@ describe("colorPartition", () => {
 			fieldKey: "datetime",
 			fieldType: "date",
 			stops,
-			scoped: false,
+			narrowed: false,
 			ordinal: false,
 			eqFilter: false,
 		});
-		expect(sels.every((s) => s.props.type === "Locations")).toBe(true);
+		expect(sels.every((s) => s.selector.type === "Locations")).toBe(true);
 	});
 
 	it("empty groups yield no selections", () => {
@@ -232,7 +232,7 @@ describe("colorPartition", () => {
 				fieldKey: "x",
 				fieldType: "number",
 				stops,
-				scoped: true,
+				narrowed: true,
 				ordinal: true,
 				eqFilter: false,
 			}),

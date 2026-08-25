@@ -8,13 +8,13 @@ import type { GeneratorRegionMeta } from "../engine/types";
 import { t } from "@/lib/i18n";
 
 function getPolygonName(sel: Selection): string {
-	if (sel.props.type !== "Polygon") return sel.key;
-	return sel.props.polygon.properties?.name || t("Unnamed polygon");
+	if (sel.selector.type !== "Polygon") return sel.key;
+	return sel.selector.polygon.properties?.name || t("Unnamed polygon");
 }
 
 function getPolygonCode(sel: Selection): string | undefined {
-	if (sel.props.type !== "Polygon") return undefined;
-	return sel.props.polygon.properties?.code;
+	if (sel.selector.type !== "Polygon") return undefined;
+	return sel.selector.polygon.properties?.code;
 }
 
 export function RegionSelector({
@@ -29,7 +29,7 @@ export function RegionSelector({
 	onMetaChange: (meta: Map<string, GeneratorRegionMeta>) => void;
 }) {
 	const selections = useMapState(getActiveSelections);
-	const polygonSelections = selections.filter((s) => s.props.type === "Polygon");
+	const polygonSelections = selections.filter((s) => s.selector.type === "Polygon");
 	const [capDialogOpen, setCapDialogOpen] = useState(false);
 	const [capInput, setCapInput] = useState("");
 

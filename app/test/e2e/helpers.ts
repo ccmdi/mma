@@ -3,9 +3,10 @@
  * All browser calls go through withApi, which injects the MMA API as `api`.
  */
 
+import { cmd } from "@/lib/commands";
 import type { MMA } from "@/api";
 import { createLocation } from "../../src/types";
-import type { Location, SelectionProps, ExtraFieldDef } from "@/bindings.gen";
+import type { Location, Selector, ExtraFieldDef } from "@/bindings.gen";
 
 /**
  * Run an async function in the browser with the MMA API injected as `api`.
@@ -186,26 +187,26 @@ export async function getLocCount(): Promise<number> {
 }
 
 /** Add selections to the live map. */
-export async function select(...props: SelectionProps[]) {
-	await withApi(async (api, p) => api.addSelections(p), props);
+export async function select(...selector: Selector[]) {
+	await withApi(async (api, p) => api.addSelections(p), selector);
 }
 
 /** Add selections and return how many locations they resolve to. */
-export async function selectCount(...props: SelectionProps[]): Promise<number> {
+export async function selectCount(...selector: Selector[]): Promise<number> {
 	return withApi(async (api, p) => {
 		await api.addSelections(p);
 		return api.getMapState().selectedLocationIds.size;
-	}, props);
+	}, selector);
 }
 
 export async function refreshSelections(): Promise<number[]> {
 	return withApi(async (api) => {
 		const sels = api
 			.getActiveSelections()
-			.map((s) => ({ key: s.key, props: s.props, color: s.color }));
+			.map((s) => ({ key: s.key, selector: s.selector, color: s.color }));
 		if (sels.length === 0) return [] as number[];
 		await api.cmd.storeSyncSelections(sels);
-		return api.scopeIds({ kind: "selected" });
+		return api.resolveIds(api.currentSelection());
 	});
 }
 

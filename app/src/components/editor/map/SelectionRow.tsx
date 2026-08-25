@@ -1,22 +1,22 @@
 import { memo, useState, useEffect, useCallback, useRef } from "react";
 import {
-	useMapState,
+	composeSelections,
+	createTags,
+	decomposeChild,
+	fetchBounds,
+	getVisibleTags,
+	isolateSelection,
+	pruneDuplicates,
+	removeChildFromSelection,
+	removeSelections,
+	reorderSelection,
+	resolveIds,
 	selectInverse,
 	setPolygonName,
 	setSelectionColors,
-	createTags,
-	reorderSelection,
-	composeSelections,
-	decomposeChild,
-	removeChildFromSelection,
-	removeSelections,
 	toggleGhostSelection,
-	isolateSelection,
 	updateFilterSelection,
-	pruneDuplicates,
-	getVisibleTags,
-	scopeIds,
-	fetchBounds,
+	useMapState,
 } from "@/store/useMapStore";
 import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
@@ -51,13 +51,13 @@ import { boundsOfCoords, type MapHost } from "@/lib/map/host";
 import { t } from "@/lib/i18n";
 
 async function fitSelectionBounds(host: MapHost, selection: Selection) {
-	if (selection.props.type === "Polygon") {
-		const coords = selection.props.polygon.coordinates.flat();
+	if (selection.selector.type === "Polygon") {
+		const coords = selection.selector.polygon.coordinates.flat();
 		const bounds = boundsOfCoords(coords.map(([lng, lat]) => ({ lat, lng })));
 		if (bounds) host.fitBounds(bounds, 100);
 		return;
 	}
-	const box = await fetchBounds({ kind: "props", props: selection.props });
+	const box = await fetchBounds(selection.selector);
 	if (box) host.fitBounds({ west: box[0], south: box[1], east: box[2], north: box[3] }, 100);
 }
 
@@ -70,10 +70,10 @@ function uniqueTagName(base: string, existing: Set<string>): string {
 }
 
 function pruneDistance(selection: Selection): number | null {
-	if (selection.props.type === "Duplicates") return selection.props.distance;
-	if (selection.props.type === "Intersection") {
-		for (const child of selection.props.selections) {
-			if (child.props.type === "Duplicates") return child.props.distance;
+	if (selection.selector.type === "Duplicates") return selection.selector.distance;
+	if (selection.selector.type === "Intersection") {
+		for (const child of selection.selector.selections) {
+			if (child.selector.type === "Duplicates") return child.selector.distance;
 		}
 	}
 	return null;
@@ -107,7 +107,7 @@ function useDragState() {
 
 /** An Invert wraps exactly one selection; its row renders the wrapped one. */
 function innerOf(selection: Selection): Selection {
-	return selection.props.type === "Invert" ? selection.props.selections[0] : selection;
+	return selection.selector.type === "Invert" ? selection.selector.selections[0] : selection;
 }
 
 export const SelectionRow = memo(function SelectionRow({
@@ -124,7 +124,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const map = useMapState((s) => s.map);
 	const tagColor = useMapState((s) => {
 		const i = innerOf(selection);
-		return i.props.type === "Tag" ? s.tags[i.props.tagId]?.color : undefined;
+		return i.selector.type === "Tag" ? s.tags[i.selector.tagId]?.color : undefined;
 	});
 	const count = useMapState((s) => s.selectionCounts[selection.key] ?? 0);
 	const isTopLevel = depth === 0;
@@ -157,7 +157,7 @@ export const SelectionRow = memo(function SelectionRow({
 	if (!map) return null;
 	const inner = innerOf(selection);
 	const stepFilter = (() => {
-		const p = selection.props;
+		const p = selection.selector;
 		if (p.type !== "Filter") return null;
 		const ft = fieldEntries.find((f) => f.key === p.field)?.def.type;
 		const wallClock = p.tzLocal ?? false;
@@ -176,14 +176,14 @@ export const SelectionRow = memo(function SelectionRow({
 			}
 		};
 	})();
-	const showChildren = inner.props.type === "Intersection" || inner.props.type === "Union";
-	const isPoly = selection.props.type === "Polygon";
+	const showChildren = inner.selector.type === "Intersection" || inner.selector.type === "Union";
+	const isPoly = selection.selector.type === "Polygon";
 	const colorBlockCss =
-		inner.props.type === "Tag" ? (tagColor ?? rgbCss(selection.color)) : rgbCss(selection.color);
+		inner.selector.type === "Tag" ? (tagColor ?? rgbCss(selection.color)) : rgbCss(selection.color);
 
 	const handleRename = () => {
-		if (selection.props.type !== "Polygon") return;
-		setRenameDraft(selection.props.polygon.properties?.name ?? "");
+		if (selection.selector.type !== "Polygon") return;
+		setRenameDraft(selection.selector.polygon.properties?.name ?? "");
 		setRenaming(true);
 	};
 
@@ -195,14 +195,14 @@ export const SelectionRow = memo(function SelectionRow({
 	const handleSaveAsTag = async () => {
 		const name = tagName.trim();
 		if (!name || count === 0) return;
-		await createTags([name], { kind: "props", props: selection.props });
+		await createTags([name], selection.selector);
 		setSavingTag(false);
 		setTagName("");
 	};
 
 	const handleDownloadGeoJSON = () => {
-		if (selection.props.type !== "Polygon") return;
-		const poly = selection.props.polygon;
+		if (selection.selector.type !== "Polygon") return;
+		const poly = selection.selector.polygon;
 		const name = poly.properties?.name ?? "polygon";
 		const fc = {
 			type: "Feature",
@@ -371,7 +371,7 @@ export const SelectionRow = memo(function SelectionRow({
 											>
 												{t("Invert selection")}
 											</Menu.Item>
-											{selection.props.type === "Filter" && (
+											{selection.selector.type === "Filter" && (
 												<Menu.Item
 													className="context-menu__item"
 													onClick={() => setEditingFilter(true)}
@@ -384,14 +384,14 @@ export const SelectionRow = memo(function SelectionRow({
 												disabled={count === 0}
 												onClick={() =>
 													void (async () => {
-														const ids = await scopeIds({ kind: "props", props: selection.props });
+														const ids = await resolveIds(selection.selector);
 														void beginReview(ids, selection);
 													})()
 												}
 											>
 												{t("Review selection")}
 											</Menu.Item>
-											{selection.props.type !== "Tag" && (
+											{selection.selector.type !== "Tag" && (
 												<Menu.Item
 													className="context-menu__item"
 													disabled={count === 0}
@@ -411,7 +411,7 @@ export const SelectionRow = memo(function SelectionRow({
 													onClick={() =>
 														void (async () => {
 															const n = await pruneDuplicates(
-																selection.props,
+																selection.selector,
 																pruneDistance(selection)!,
 															);
 															toast(
@@ -429,7 +429,7 @@ export const SelectionRow = memo(function SelectionRow({
 													{t("Prune duplicates")}
 												</Menu.Item>
 											)}
-											{selection.props.type !== "Tag" && (
+											{selection.selector.type !== "Tag" && (
 												<Menu.Item
 													className="context-menu__item"
 													closeOnClick={false}
@@ -484,9 +484,9 @@ export const SelectionRow = memo(function SelectionRow({
 					</button>
 				</span>
 			</div>
-			{editingFilter && selection.props.type === "Filter" && (
+			{editingFilter && selection.selector.type === "Filter" && (
 				<FilterForm
-					initial={filterPropsToSeed(selection.props)}
+					initial={filterPropsToSeed(selection.selector)}
 					submitLabel={t("Update filter")}
 					onSubmit={(field, op, value, value2, tzLocal) =>
 						void updateFilterSelection(selection.key, {
@@ -565,7 +565,7 @@ export const SelectionRow = memo(function SelectionRow({
 			</Dialog>
 			{showChildren &&
 				(
-					inner.props as Extract<Selection["props"], { type: "Intersection" | "Union" }>
+					inner.selector as Extract<Selection["selector"], { type: "Intersection" | "Union" }>
 				).selections.map((child) => (
 					<SelectionRow
 						key={child.key}

@@ -252,7 +252,7 @@ describe("Selection operations", () => {
 			const sels = api.getActiveSelections();
 			return {
 				count: sels.length,
-				type: sels[0]?.props?.type,
+				type: sels[0]?.selector?.type,
 				locCount: sels[0] ? api.getMapState().selectionCounts[sels[0].key] : undefined,
 			};
 		});

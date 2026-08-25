@@ -163,9 +163,12 @@ describe("sampleColorRange", () => {
 
 describe("gradientCss", () => {
 	it("places each stop at its own position", () => {
-		expect(gradientCss([{ color: [0, 0, 0], pos: 0 }, { color: [255, 0, 0], pos: 0.25 }])).toBe(
-			"linear-gradient(to right, rgb(0,0,0) 0%, rgb(255,0,0) 25%)",
-		);
+		expect(
+			gradientCss([
+				{ color: [0, 0, 0], pos: 0 },
+				{ color: [255, 0, 0], pos: 0.25 },
+			]),
+		).toBe("linear-gradient(to right, rgb(0,0,0) 0%, rgb(255,0,0) 25%)");
 	});
 
 	it("renders a single stop flat and an empty ramp transparent", () => {

@@ -8,17 +8,17 @@ import {
 	SegmentedControl,
 	EmptyState,
 } from "@/components/primitives/Sidebar";
-import { ScopeSelector } from "@/components/primitives/ScopeSelector";
+import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { Button } from "@/components/primitives/Button";
 import { Slider } from "@/components/primitives/Slider";
 import { NSelect } from "@/components/primitives/NSelect";
 import { usePluginState } from "@/plugins/registry";
-import { useScope } from "@/store/scope";
-import { fetchLocations, getMapState, sampleScope, useMapState } from "@/store/useMapStore";
+import { useSelectorPick } from "@/store/selectorPick";
+import { fetchLocations, getMapState, sampleFrom, useMapState } from "@/store/useMapStore";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
-import type { Scope } from "@/bindings.gen";
+import type { Selector } from "@/bindings.gen";
 import {
 	DEFAULT_CONFIG,
 	INFINITE_BATCH,
@@ -43,10 +43,12 @@ import { RoundPlayer } from "./RoundPlayer";
 import { Summary } from "./Summary";
 import "./localguessr.css";
 
-async function drawRounds(scope: Scope, n: number): Promise<RoundLocation[]> {
-	const ids = await sampleScope(scope, n);
+async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
+	const ids = await sampleFrom(selector, n);
 	if (ids.length === 0) return [];
-	return (await fetchLocations({ kind: "ids", ids })).map(toRoundLocation);
+	return (await fetchLocations({ type: "Locations", locations: ids, name: null })).map(
+		toRoundLocation,
+	);
 }
 
 export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
@@ -55,7 +57,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	const map = useMapState((s) => s.map);
 	const locationCount = useMapState((s) => s.locationCount);
 	const maxError = useScoreMaxError();
-	const scopeCtl = useScope();
+	const picker = useSelectorPick();
 	const [view, dispatch] = useReducer(reduce, { phase: "config" } as View);
 	const [starting, setStarting] = useState(false);
 	const [resumable, setResumable] = useState(() => {
@@ -91,7 +93,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 		setStarting(true);
 		try {
 			const count = config.roundMode === "classic" ? config.rounds : INFINITE_BATCH;
-			const locations = await drawRounds(scopeCtl.scope, count);
+			const locations = await drawRounds(picker.selector, count);
 			if (locations.length === 0) {
 				toast(t("No locations to play"));
 				return;
@@ -114,7 +116,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 		} finally {
 			setStarting(false);
 		}
-	}, [config, scopeCtl.scope, maxError, starting]);
+	}, [config, picker.selector, maxError, starting]);
 
 	// Infinite mode draws a fresh batch when the current one runs out.
 	const next = useCallback(() => {
@@ -122,13 +124,13 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 		const { game } = view;
 		const exhausted = game.index + 1 >= game.locations.length;
 		if (game.config.roundMode === "infinite" && exhausted) {
-			void drawRounds(scopeCtl.scope, INFINITE_BATCH).then((locations) =>
+			void drawRounds(picker.selector, INFINITE_BATCH).then((locations) =>
 				dispatch({ type: "next", locations }),
 			);
 			return;
 		}
 		dispatch({ type: "next" });
-	}, [view, scopeCtl.scope]);
+	}, [view, picker.selector]);
 
 	const overlay =
 		view.phase === "config"
@@ -141,7 +143,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 							<RoundPlayer
 								game={view.game}
 								showResult={view.phase === "result"}
-								scope={scopeCtl.scope}
+								selector={picker.selector}
 								onResult={(result) => dispatch({ type: "result", result })}
 								onNext={next}
 								onFinish={() => dispatch({ type: "finish" })}
@@ -160,7 +162,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 				) : (
 					<>
 						<Section title={t("Locations")}>
-							<ScopeSelector ctl={scopeCtl} />
+							<SelectorPicker ctl={picker} />
 						</Section>
 
 						<Section title={t("Mode")}>

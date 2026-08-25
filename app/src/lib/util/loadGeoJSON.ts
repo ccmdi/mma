@@ -1,5 +1,5 @@
 import { addSelections } from "@/store/useMapStore";
-import type { PolygonGeometry, SelectionProps } from "@/bindings.gen";
+import type { PolygonGeometry, Selector } from "@/bindings.gen";
 
 /** Prompt for GeoJSON file(s) and add their polygons as selections. */
 export async function loadGeoJSON() {
@@ -9,7 +9,7 @@ export async function loadGeoJSON() {
 	input.multiple = true;
 	input.onchange = async () => {
 		if (!input.files) return;
-		const props: SelectionProps[] = [];
+		const selector: Selector[] = [];
 		for (const file of input.files) {
 			try {
 				const text = await file.text();
@@ -17,7 +17,7 @@ export async function loadGeoJSON() {
 				const features = data.type === "FeatureCollection" ? data.features : [data];
 				for (const f of features) {
 					if (f.geometry?.type === "Polygon") {
-						props.push({
+						selector.push({
 							type: "Polygon",
 							polygon: {
 								coordinates: f.geometry.coordinates,
@@ -33,14 +33,14 @@ export async function loadGeoJSON() {
 							properties: f.properties ?? undefined,
 						};
 						if (rest.length) polygon.extraPolygons = rest;
-						props.push({ type: "Polygon", polygon, includeInformational: false });
+						selector.push({ type: "Polygon", polygon, includeInformational: false });
 					}
 				}
 			} catch {
 				/* ignore malformed files */
 			}
 		}
-		if (props.length) void addSelections(props);
+		if (selector.length) void addSelections(selector);
 	};
 	input.click();
 }

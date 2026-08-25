@@ -1,40 +1,41 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ScopeSelector } from "@/components/primitives/ScopeSelector";
-import type { ScopeController } from "@/store/scope";
+import { SelectorPicker } from "@/components/primitives/SelectorPicker";
+import type { SelectorPickController } from "@/store/selectorPick";
 
-const ctl = (over: Partial<ScopeController>): ScopeController => ({
-	scope: { kind: "all" },
-	setScope: () => {},
+const ctl = (over: Partial<SelectorPickController>): SelectorPickController => ({
+	selector: { type: "Everything" },
+	choice: { pick: "all" },
+	setChoice: () => {},
 	allCount: 1234,
 	selectionCount: 0,
 	...over,
 });
 
-describe("ScopeSelector", () => {
-	it("checks the radio matching scope.kind", () => {
-		const all = renderToStaticMarkup(<ScopeSelector ctl={ctl({ scope: { kind: "all" } })} />);
+describe("SelectorPicker", () => {
+	it("checks the radio matching the pick", () => {
+		const all = renderToStaticMarkup(<SelectorPicker ctl={ctl({ choice: { pick: "all" } })} />);
 		// first (all) radio checked, second not
 		expect(all.match(/checked=""/g)?.length).toBe(1);
 		expect(all).toMatch(/All locations/);
 
 		const sel = renderToStaticMarkup(
-			<ScopeSelector ctl={ctl({ scope: { kind: "selected" }, selectionCount: 3 })} />,
+			<SelectorPicker ctl={ctl({ choice: { pick: "selection" }, selectionCount: 3 })} />,
 		);
 		expect(sel.match(/checked=""/g)?.length).toBe(1);
 		expect(sel).toMatch(/Current selection/);
 	});
 
 	it("disables and dims the selection option when nothing is selected", () => {
-		const html = renderToStaticMarkup(<ScopeSelector ctl={ctl({ selectionCount: 0 })} />);
+		const html = renderToStaticMarkup(<SelectorPicker ctl={ctl({ selectionCount: 0 })} />);
 		expect(html).toMatch(/disabled=""/);
 		expect(html).toMatch(/opacity:0\.5/);
 	});
 
 	it("renders formatted counts", () => {
 		const html = renderToStaticMarkup(
-			<ScopeSelector ctl={ctl({ allCount: 1234, selectionCount: 56 })} />,
+			<SelectorPicker ctl={ctl({ allCount: 1234, selectionCount: 56 })} />,
 		);
 		expect(html).toMatch(/1,234/);
 		expect(html).toMatch(/56/);

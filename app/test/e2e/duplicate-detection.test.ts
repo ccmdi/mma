@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { cmd } from "@/lib/commands";
 import { addLocs, createLocation, refreshSelections, withApi, useMap, select } from "./helpers";
 describe("Duplicate detection via selectDuplicates", () => {
 	useMap("E2E Duplicates");

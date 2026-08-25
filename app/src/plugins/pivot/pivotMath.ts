@@ -1,4 +1,4 @@
-import type { SelectionProps } from "@/bindings.gen";
+import type { Selector } from "@/bindings.gen";
 import { localeFormat } from "@/lib/util/format";
 
 export interface PivotRow {
@@ -16,7 +16,7 @@ export interface PivotData {
 	/** Distinct raw values of the numeric field (absent for non-numeric fields). */
 	numericDistinct?: number;
 	/** Per-column selection props for header toggling (null = not expressible, e.g. N/A). */
-	columnProps?: (SelectionProps | null)[];
+	columnProps?: (Selector | null)[];
 }
 
 export type ValueMode = "count" | "rowPct" | "colPct";

@@ -4,7 +4,7 @@ import {
 	saveCurrentSelections,
 	applySavedSelection,
 	deleteSavedSelection,
-	selectionToSaved,
+	selectorToSaved,
 	describeRule,
 	type SavedSelectionItem,
 } from "@/store/savedSelections";
@@ -27,7 +27,7 @@ export function SaveSelectionsDialog({
 		if (!map) return [];
 		return selections
 			.map((s) => {
-				const saved = selectionToSaved(s);
+				const saved = selectorToSaved(s.selector);
 				if (!saved) return null;
 				return { props: saved, color: s.color } as SavedSelectionItem;
 			})

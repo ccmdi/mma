@@ -163,8 +163,7 @@ fn fetch(url: &str, what: &str) -> AppResult<bytes::Bytes> {
 #[specta::specta]
 pub async fn install_plugin(id: String) -> AppResult<PluginManifest> {
     validate_plugin_id(&id)?;
-    tokio::task::spawn_blocking(move || install(id))
-        .await?
+    tokio::task::spawn_blocking(move || install(id)).await?
 }
 
 fn install(id: String) -> AppResult<PluginManifest> {
@@ -180,7 +179,10 @@ fn install(id: String) -> AppResult<PluginManifest> {
     if main.contains("..") || main.contains('/') || main.contains('\\') {
         return Err(AppError(format!("Invalid main field in manifest: {main}")));
     }
-    std::fs::write(dir.join(main), fetch(&format!("{REPO_BASE}/{id}/{main}"), main)?)?;
+    std::fs::write(
+        dir.join(main),
+        fetch(&format!("{REPO_BASE}/{id}/{main}"), main)?,
+    )?;
 
     let mut manifest = manifest.with_fallback(&id);
     manifest.id = id;
@@ -208,7 +210,12 @@ pub async fn uninstall_plugin(id: String) -> AppResult<()> {
 
 /// `mma-plugin://` handler: a file from inside the plugins dir, nothing outside it.
 pub(crate) fn serve_file(path: &str) -> tauri::http::Response<Vec<u8>> {
-    let status = |code: u16| tauri::http::Response::builder().status(code).body(vec![]).unwrap();
+    let status = |code: u16| {
+        tauri::http::Response::builder()
+            .status(code)
+            .body(vec![])
+            .unwrap()
+    };
     let root = plugins_dir().unwrap_or_default();
     let canonical = root
         .join(path.trim_start_matches('/'))

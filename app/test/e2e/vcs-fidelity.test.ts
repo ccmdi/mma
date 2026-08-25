@@ -9,6 +9,7 @@
  * ->reopen round trip, and that the post-checkout revert commit keeps the chain
  * materializable.
  */
+import { cmd } from "@/lib/commands";
 import {
 	closeMap,
 	addLocs,

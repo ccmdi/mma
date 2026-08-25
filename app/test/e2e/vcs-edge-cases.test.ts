@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { cmd } from "@/lib/commands";
 import { addLocs, createLocation, getLocCount, flushAndWait, withApi, useMap } from "./helpers";
 
 describe("Version control — commit and restore", () => {

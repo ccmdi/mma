@@ -102,7 +102,7 @@ describe("rewriteSelectionFields", () => {
 	it("rewrites a Filter field and regenerates its key", () => {
 		const out = rewriteSelectionFields([filter("a")], "a", "b");
 		expect(out).toHaveLength(1);
-		expect((out[0].props as { field: string }).field).toBe("b");
+		expect((out[0].selector as { field: string }).field).toBe("b");
 		expect(out[0].key).toBe("filter:b:eq:1");
 	});
 
@@ -119,8 +119,9 @@ describe("rewriteSelectionFields", () => {
 	it("rewrites filters nested in a composite", () => {
 		const union = buildSelection({ type: "Union", selections: [filter("a"), filter("c")] });
 		const out = rewriteSelectionFields([union], "a", "b");
-		const children = (out[0].props as { selections: { props: { field: string } }[] }).selections;
-		expect(children.map((c) => c.props.field)).toEqual(["b", "c"]);
+		const children = (out[0].selector as { selections: { selector: { field: string } }[] })
+			.selections;
+		expect(children.map((c) => c.selector.field)).toEqual(["b", "c"]);
 	});
 
 	it("collapses a group to its sole survivor when a child is deleted", () => {
@@ -128,7 +129,7 @@ describe("rewriteSelectionFields", () => {
 		const union = buildSelection({ type: "Union", selections: [filter("a"), tag] });
 		const out = rewriteSelectionFields([union], "a", null);
 		expect(out).toHaveLength(1);
-		expect(out[0].props.type).toBe("Tag");
+		expect(out[0].selector.type).toBe("Tag");
 	});
 });
 
@@ -351,4 +352,3 @@ describe("stepFilterWindow", () => {
 		expect(stepFilterWindow("string", "between", "a", "b", 1)).toBeNull();
 	});
 });
-

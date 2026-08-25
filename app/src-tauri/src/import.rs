@@ -1236,11 +1236,10 @@ pub async fn bulk_import_confirm(
             let map_name = map.name.clone();
             let info = write_map_to_db(&conn, map)?;
             crate::emit_event(ImportProgress {
-                    current: (i + 1) as u32,
-                    total,
-                    map_name,
-                },
-            );
+                current: (i + 1) as u32,
+                total,
+                map_name,
+            });
             results.push(info);
         }
 

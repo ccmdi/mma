@@ -10,16 +10,16 @@ import {
 import { HslColorPicker } from "react-colorful";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
 import {
-	useMapState,
+	deleteTags,
 	getMapState,
 	getSelectedTagIds,
-	updateTags,
-	reorderTags,
-	deleteTags,
-	removeTagFromAllLocations,
 	getVisibleTags,
+	removeTagFromAllLocations,
 	removeTagFromLocations,
-	scopeIds,
+	reorderTags,
+	resolveIds,
+	updateTags,
+	useMapState,
 } from "@/store/useMapStore";
 import type { TagSortMode } from "@/types";
 import type { Tag, TagPatch, Update, VirtualTag } from "@/bindings.gen";
@@ -402,7 +402,7 @@ export function TagContextMenuContent({
 			setSelCount(0);
 			return;
 		}
-		void scopeIds({ kind: "props", props: { type: "Tag", tagId } }).then((tagLocIds) => {
+		void resolveIds({ type: "Tag", tagId }).then((tagLocIds) => {
 			let count = 0;
 			for (const id of tagLocIds) if (selIds.has(id)) count++;
 			setSelCount(count);

@@ -789,7 +789,7 @@ fn add_copied_reconciles_tags_and_reports_counts() {
 
     // Both copies landed in the target store.
     assert_eq!(r.status.location_count, 2);
-    let stored = store.collect(&crate::selections::Scope::All);
+    let stored = store.collect(&crate::selections::Selector::Everything);
     assert_eq!(stored.len(), 2);
 
     // "Shared" reconciled to the target's existing id 5 (no duplicate tag created).

@@ -120,7 +120,7 @@ pub async fn store_commit(
         // Clean overlay + existing parent (checkout/revert commit): capture the current
         // baked state to diff against the parent below.
         let current_fallback = if pre_bake.is_none() && !genesis {
-            store.collect(&crate::selections::Scope::All)
+            store.collect(&crate::selections::Selector::Everything)
         } else {
             Vec::new()
         };

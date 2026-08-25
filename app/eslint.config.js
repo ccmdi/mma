@@ -29,6 +29,17 @@ const USE_SYNC_EXTERNAL_STORE_BAN = {
 		"Use useEvent/useEventValue from @/lib/events instead of raw useSyncExternalStore. The event system handles subscribe + versioning centrally.",
 };
 
+const QUERY_COMMANDS =
+	"/^store(Resolve|Count|CountBy|Bounds|Sample|Spaced|Values|Coverage|GroupBy|Collect)$/";
+
+/** The store's query surface is named vocabulary, not raw IPC: `fieldCoverage`, not
+ *  `cmd.storeCoverage`. Only useMapStore may reach past the wrappers. */
+const QUERY_CMD_BAN = {
+	selector: `MemberExpression[property.name=${QUERY_COMMANDS}]:matches([object.name='cmd'], [object.property.name='cmd'])`,
+	message:
+		"Query commands go through their named wrapper in store/useMapStore (resolveIds, countIn, fetchBounds, sampleFrom, fieldValues, countBy, fieldCoverage, partition, fetchLocations), not raw cmd.",
+};
+
 const RESTRICTED_SYNTAX = [
 	{
 		selector: "JSXOpeningElement[name.name='select']",
@@ -109,7 +120,7 @@ export default defineConfig([
 					paths: RESTRICTED_IMPORT_PATHS,
 				},
 			],
-			"no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX, USE_SYNC_EXTERNAL_STORE_BAN],
+			"no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX, USE_SYNC_EXTERNAL_STORE_BAN, QUERY_CMD_BAN],
 			"@typescript-eslint/no-unused-vars": [
 				"error",
 				{
@@ -144,12 +155,19 @@ export default defineConfig([
 		// Legitimate low-level users of useSyncExternalStore: exempt from that one ban.
 		files: [
 			"src/lib/events.ts",
-			"src/store/scope.ts",
+			"src/store/selectorPick.ts",
 			"src/lib/hooks/useLocalStorage.ts",
 			"src/plugins/generator/ui/progressSignal.ts",
 		],
 		rules: {
 			"no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX],
+		},
+	},
+	{
+		// The store owns the query wrappers, so it is the one file that calls them raw.
+		files: ["src/store/useMapStore.ts"],
+		rules: {
+			"no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX, USE_SYNC_EXTERNAL_STORE_BAN],
 		},
 	},
 	{

@@ -18,7 +18,7 @@ export { HotkeyInput } from "./HotkeyInput";
 export { Icon } from "./Icon";
 export { NSelect } from "./NSelect";
 export { Radio } from "./Radio";
-export { ScopeSelector } from "./ScopeSelector";
+export { SelectorPicker } from "./SelectorPicker";
 export { SettingRow } from "./SettingRow";
 export {
 	EmptyState,

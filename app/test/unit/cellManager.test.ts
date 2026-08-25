@@ -395,9 +395,7 @@ describe("CellManager", () => {
 		expect(Array.from(mgr.overlay.sel.subarray(0, n))).toEqual([0, 0, 1, 1]);
 		expect(Array.from(mgr.overlay.ids.subarray(0, n))).toEqual([1, 3, 2, 4]);
 		// The other arrays move with their entry, and `slot` still points at each id.
-		expect(Array.from(mgr.overlay.positions.subarray(0, n * 2))).toEqual([
-			1, 0, 3, 0, 2, 0, 4, 0,
-		]);
+		expect(Array.from(mgr.overlay.positions.subarray(0, n * 2))).toEqual([1, 0, 3, 0, 2, 0, 4, 0]);
 		expect(Array.from(mgr.overlay.colors.subarray(0, n * 4))).toEqual([
 			1, 0, 0, 255, 3, 0, 0, 255, 2, 0, 0, 255, 4, 0, 0, 255,
 		]);

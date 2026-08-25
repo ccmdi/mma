@@ -7,6 +7,7 @@
  * incidentally at best, so a regression there can pass ~46 of 47 tests.
  */
 
+import { cmd } from "@/lib/commands";
 import { createAndOpenMap, closeMap, deleteMap, withApi, addLocs, createLocation } from "./helpers";
 
 describe("Web bridge", () => {
@@ -41,7 +42,7 @@ describe("Web bridge", () => {
 	describe("scheme relay (/__scheme/)", () => {
 		it("serves a real file", async () => {
 			const res = await withApi(async (api) => {
-				const path = await api.cmd.storeExportCsv({ kind: "all" });
+				const path = await api.cmd.storeExportCsv({ type: "Everything" });
 				const r = await fetch(api.mmaBufUrl(path));
 				return { status: r.status, type: r.headers.get("content-type"), body: await r.text() };
 			});

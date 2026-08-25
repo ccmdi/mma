@@ -89,12 +89,12 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	const allSelections = getMapState().selections;
 	const polygonSels = allSelections.flatMap((sel) =>
-		sel.props.type === "Intersection" ? sel.props.selections : [sel],
+		sel.selector.type === "Intersection" ? sel.selector.selections : [sel],
 	);
 	const livePolygonKeys = new Set<string>();
 	for (const sel of polygonSels) {
-		if (sel.props.type !== "Polygon") continue;
-		const poly = sel.props.polygon;
+		if (sel.selector.type !== "Polygon") continue;
+		const poly = sel.selector.polygon;
 		livePolygonKeys.add(sel.key);
 		let geom = ctx.polygonGeomCache.get(sel.key);
 		if (!geom || geom.poly !== poly) {

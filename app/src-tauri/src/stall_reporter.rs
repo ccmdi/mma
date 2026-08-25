@@ -49,7 +49,9 @@ pub fn start() {
 }
 
 fn monitor(tid: u32) {
-    let Some(thread) = open_thread(tid) else { return };
+    let Some(thread) = open_thread(tid) else {
+        return;
+    };
     let mut inspected = None;
     let mut stalled = None;
     loop {

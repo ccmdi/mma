@@ -1,3 +1,4 @@
+import { fetchBounds } from "@/store/useMapStore";
 import {
 	useCallback,
 	useEffect,
@@ -32,9 +33,9 @@ import { useSetting } from "@/store/settings";
 import { usePluginState } from "@/plugins/registry";
 import { clamp, range } from "@/types/util";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
-import { fetchBounds } from "@/store/useMapStore";
+
 import { t } from "@/lib/i18n";
-import type { Scope } from "@/bindings.gen";
+import type { Selector } from "@/bindings.gen";
 import type { LatLng, MapTypeKey } from "@/types";
 
 // Sizing mirrors the pano viewer minimap. Grows in layout, never by transform --
@@ -112,7 +113,7 @@ export function GuessMap({
 	truth,
 	showResult,
 	roundKey,
-	scope,
+	selector,
 	onGuess,
 	onSubmit,
 	submitting,
@@ -122,7 +123,7 @@ export function GuessMap({
 	showResult: boolean;
 	/** Changes per round; refits the camera without reacting to guess placement. */
 	roundKey: string;
-	scope: Scope;
+	selector: Selector;
 	onGuess: (p: LatLng) => void;
 	onSubmit: () => void;
 	submitting: boolean;
@@ -135,7 +136,7 @@ export function GuessMap({
 	const [scale, setScale] = usePluginState<number>("localguessr", "mapScale", 1);
 	const closeDelay = useSetting("fullscreenMinimapCloseDelay");
 	const { expanded, hoverProps } = useHoverExpand(rootRef, closeDelay);
-	// Scoped to the round: the hook carries `expanded` across the result, and resetting
+	// Per round: the hook carries `expanded` across the result, and resetting
 	// in an effect leaves a window where a pointerenter re-opens it.
 	const [hoveredRound, setHoveredRound] = useState<string | null>(null);
 	const hovered = hoveredRound === roundKey;
@@ -184,7 +185,7 @@ export function GuessMap({
 						camera: { center: { lat: 20, lng: 0 }, zoom: 1.5 },
 						scaleControl: false,
 					}),
-					fetchBounds(scope),
+					fetchBounds(selector),
 				]);
 				if (cancelled) {
 					host.destroy();

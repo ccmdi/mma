@@ -12,7 +12,7 @@ const buf: MarkerBuf = {
 function build(style: MarkerStyle, opacity?: number) {
 	return buildMarkerLayer(style, "t", 1, buf, 0, 0, opacity) as unknown as {
 		constructor: unknown;
-		props: Record<string, unknown>;
+		selector: Record<string, unknown>;
 	};
 }
 

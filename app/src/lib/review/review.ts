@@ -148,7 +148,7 @@ export async function beginReview(ids: number[], source?: Selection): Promise<vo
 	if (!mapId || !map || ids.length === 0) return;
 
 	const sourceKey = source?.key ?? "manual";
-	if (source && source.props.type !== "Manual") {
+	if (source && source.selector.type !== "Manual") {
 		try {
 			const existing = await cmd.storeReviewGet(mapId, sourceKey);
 			if (existing) {
@@ -161,13 +161,13 @@ export async function beginReview(ids: number[], source?: Selection): Promise<vo
 	}
 
 	// Freeze the worklist to ids that still exist, preserving the given order.
-	const live = await fetchLocations({ kind: "ids", ids });
+	const live = await fetchLocations({ type: "Locations", locations: ids, name: null });
 	const liveSet = new Set(live.map((l) => l.id));
 	const order = ids.filter((id) => liveSet.has(id));
 	if (order.length === 0) return;
 
 	const name = source ? selectionDisplayName(source) : t("Selected locations");
-	const sourceProps = source?.props ?? { type: "Manual", locations: order };
+	const sourceProps = source?.selector ?? { type: "Manual", locations: order };
 	try {
 		session = await cmd.storeReviewCreate({ mapId, name, sourceKey, sourceProps, order });
 		emit("review:changed");
@@ -317,7 +317,7 @@ export async function selectReviewedHistory(): Promise<void> {
 }
 
 /** Add a reviewed/unreviewed overlay selection for an arbitrary session (resume modal). Mirrors
- *  refreshProjection's props so the key and color match an in-progress projection. */
+ *  refreshProjection's selector so the key and color match an in-progress projection. */
 export function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed") {
 	const reviewedSet = new Set(s.reviewed);
 	const locations =
@@ -371,7 +371,7 @@ function clearProjection(id: string): void {
 async function adopt(s: ReviewSession): Promise<void> {
 	let { order, reviewed, cursorId } = s;
 	try {
-		const live = await fetchLocations({ kind: "ids", ids: s.order });
+		const live = await fetchLocations({ type: "Locations", locations: s.order, name: null });
 		const liveIds = new Set(live.map((l) => l.id));
 		order = s.order.filter((id) => liveIds.has(id));
 		if (order.length === 0) {

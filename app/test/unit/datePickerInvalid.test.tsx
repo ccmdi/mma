@@ -28,9 +28,7 @@ function type(input: HTMLInputElement, text: string) {
 
 describe("DatePicker", () => {
 	function render() {
-		act(() =>
-			root.render(<DatePicker mode="date" value="2019-06-03" onChange={() => {}} />),
-		);
+		act(() => root.render(<DatePicker mode="date" value="2019-06-03" onChange={() => {}} />));
 		return container.querySelector("input") as HTMLInputElement;
 	}
 

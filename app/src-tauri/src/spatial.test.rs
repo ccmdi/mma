@@ -104,7 +104,10 @@ fn huge_radius_returns_far_candidates() {
     ix.insert(3, 45.0, 9.0); // ~157km east
     ix.insert(4, 50.0, 20.0); // ~1100km away, outside the 200km disc
     let cand = query(&ix, 45.0, 7.0, 200_000.0);
-    assert!(cand.contains(&1) && cand.contains(&2) && cand.contains(&3), "got {cand:?}");
+    assert!(
+        cand.contains(&1) && cand.contains(&2) && cand.contains(&3),
+        "got {cand:?}"
+    );
     // 4 may or may not appear (superset semantics); the near ones must.
 }
 

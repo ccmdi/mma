@@ -261,11 +261,8 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
         let challenge = fetch_challenge()?;
         let digest = crate::util::sha256_hex(&bytes);
         let nonce = solve_pow(&format!("{challenge}:{digest}"), POW_BITS);
-        let name = percent_encoding::utf8_percent_encode(
-            &name,
-            percent_encoding::NON_ALPHANUMERIC,
-        )
-        .to_string();
+        let name = percent_encoding::utf8_percent_encode(&name, percent_encoding::NON_ALPHANUMERIC)
+            .to_string();
         let resp = crate::proxy::proxy_client()
             .post(format!(
                 "{WORKER_URL}/uploads?name={name}&challenge={challenge}&nonce={nonce}"
