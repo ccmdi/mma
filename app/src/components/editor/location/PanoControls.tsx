@@ -10,7 +10,7 @@ import {
 } from "@/lib/sv/constants";
 import { google } from "@/lib/sv/opensv";
 import { lookupStreetView } from "@/lib/sv/lookup";
-import { shortenMapsUrl, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
+import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
 import { useSettings } from "@/store/settings";
 import { getMapState, useMapState } from "@/store/useMapStore";
 import { getPanoAltitude } from "./PanoViewerContext";
@@ -510,20 +510,8 @@ export const PanoControls = memo(function PanoControls({
 			if (!url) return;
 			const location = getMapState().activeLocation;
 			if (!noTags && location) appendLinkTags(url, location, getMapState().tags);
-			const longStr = url.toString();
-			if (long) {
-				await navigator.clipboard.writeText(longStr).catch(() => {});
-				setCopyState("done");
-				setTimeout(() => setCopyState("idle"), 500);
-				return;
-			}
-			setCopyState("loading");
-			try {
-				const short = await shortenMapsUrl(longStr);
-				await navigator.clipboard.writeText(short);
-			} catch {
-				await navigator.clipboard.writeText(longStr).catch(() => {});
-			}
+			if (!long) setCopyState("loading");
+			await copyMapsLink(url, { long });
 			setCopyState("done");
 			setTimeout(() => setCopyState("idle"), 500);
 		},

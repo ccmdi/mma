@@ -53,6 +53,22 @@ export function appendLinkTags(url: URL, loc: Location, tagsById: Record<number,
 // www.google.com), so it works in dev and release.
 const BATCH_URL = `${schemeBase("gmaps")}maps/_/MapsWizUi/data/batchexecute`;
 
+export async function copyMapsLink(
+	url: URL,
+	{ long = false }: { long?: boolean } = {},
+): Promise<void> {
+	const longStr = url.toString();
+	if (long) {
+		await navigator.clipboard.writeText(longStr).catch(() => {});
+		return;
+	}
+	try {
+		await navigator.clipboard.writeText(await shortenMapsUrl(longStr));
+	} catch {
+		await navigator.clipboard.writeText(longStr).catch(() => {});
+	}
+}
+
 export async function shortenMapsUrl(longUrl: string): Promise<string> {
 	const innerPayload = JSON.stringify([
 		longUrl,

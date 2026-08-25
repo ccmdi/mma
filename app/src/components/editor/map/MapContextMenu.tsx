@@ -13,7 +13,7 @@ import { selectBorderAt } from "@/lib/map/useCountrySelect";
 import { polygonsAt, deletePolygonsAt } from "@/lib/map/useDeletePolygon";
 import { getMapState, duplicateLocation, removeLocations } from "@/store/useMapStore";
 import { openDialog } from "@/store/dialogBus";
-import { mapsPanoUrl, appendLinkTags, shortenMapsUrl } from "@/lib/sv/mapsLink";
+import { mapsPanoUrl, appendLinkTags, copyMapsLink } from "@/lib/sv/mapsLink";
 import { downloadPano } from "@/lib/sv/panoDownload";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
@@ -32,12 +32,7 @@ async function copyLocationLink(loc: Location) {
 		panoId: loc.panoId ?? "",
 	});
 	appendLinkTags(url, loc, getMapState().tags);
-	const long = url.toString();
-	try {
-		await navigator.clipboard.writeText(await shortenMapsUrl(long));
-	} catch {
-		await navigator.clipboard.writeText(long).catch(() => {});
-	}
+	await copyMapsLink(url);
 	toast(t("Link copied"), 1500);
 }
 
