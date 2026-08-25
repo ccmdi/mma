@@ -2175,10 +2175,7 @@ pub async fn store_open_map(
     store.bounds_dirty = false;
     {
         let conn = storage::open_db()?;
-        conn.execute(
-            "UPDATE maps SET location_count = ?1 WHERE id = ?2",
-            rusqlite::params![alive, map_id],
-        )?;
+        storage::set_location_count(&conn, &map_id, alive)?;
         let mut tags = read_tags_json(&conn, &map_id);
         let (max_tag_id, healed) = reconcile_tag_registry(&mut tags, &tag_counts);
         store.tags.all = tags;
@@ -2253,10 +2250,7 @@ fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
         }
         let count = store.alive_count;
         let conn = storage::open_db()?;
-        conn.execute(
-            "UPDATE maps SET location_count = ?1 WHERE id = ?2",
-            rusqlite::params![count, map_id],
-        )?;
+        storage::set_location_count(&conn, map_id, count)?;
         if store.tags.dirty {
             write_tags_json(&conn, map_id, &store.tags.all)?;
         }
@@ -3127,10 +3121,7 @@ pub(crate) fn persist_dirty(
         })?;
     }
     let conn = storage::open_db()?;
-    conn.execute(
-        "UPDATE maps SET location_count = ?1 WHERE id = ?2",
-        rusqlite::params![alive, map_id],
-    )?;
+    storage::set_location_count(&conn, map_id, alive)?;
     if let Some(tags_json) = tags_json {
         conn.execute(
             "UPDATE maps SET tags = ?1 WHERE id = ?2",
@@ -3356,10 +3347,7 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
     );
     let count = store.batch.as_ref().map_or(0, |b| b.num_rows());
     let conn = storage::open_db()?;
-    conn.execute(
-        "UPDATE maps SET location_count = ?1 WHERE id = ?2",
-        rusqlite::params![count, map_id],
-    )?;
+    storage::set_location_count(&conn, map_id, count)?;
     if store.tags.dirty {
         write_tags_json(&conn, map_id, &store.tags.all)?;
         store.tags.dirty = false;

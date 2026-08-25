@@ -194,6 +194,14 @@ fn configure_connection(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
+pub(crate) fn set_location_count(conn: &Connection, map_id: &str, count: usize) -> AppResult<()> {
+    conn.execute(
+        "UPDATE maps SET location_count = ?1 WHERE id = ?2",
+        rusqlite::params![count, map_id],
+    )?;
+    Ok(())
+}
+
 /// Apply all pending schema migrations from [`MIGRATIONS`] in order.
 ///
 /// On first run after migrating from the old `tauri-plugin-sql` system, seeds
