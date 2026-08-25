@@ -49,6 +49,7 @@ import { parseMapQuery, mapMatchesQuery, toggleLabelInQuery } from "./mapQuery";
 import { t, msg } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
+import { TextInput } from "@/components/primitives/TextInput";
 
 // --- What's new (latest release notes) ---
 
@@ -332,11 +333,10 @@ function RenameForm({
 			}}
 		>
 			<p>
-				<input
+				<TextInput
 					type="text"
 					name="name"
 					defaultValue={name}
-					className="text-input"
 					minLength={1}
 					maxLength={100}
 					autoFocus
@@ -381,11 +381,10 @@ function MapEditForm({ id, name, labels }: { id: string; name: string; labels: s
 			}}
 		>
 			<p>
-				<input
+				<TextInput
 					type="text"
 					name="name"
 					defaultValue={name}
-					className="text-input"
 					minLength={1}
 					maxLength={100}
 					autoFocus
@@ -1172,7 +1171,7 @@ export function MapList() {
 						<Icon path={mdiTextSearch} />
 					</span>
 					<span style={{ position: "relative", flexGrow: 1, display: "flex" }}>
-						<input
+						<TextInput
 							defaultValue=""
 							ref={filterInputRef}
 							onChange={(e) => {
@@ -1202,7 +1201,6 @@ export function MapList() {
 								}
 								createMap(name).then((m) => openMapWindow(m.id, m.name));
 							}}
-							className="text-input"
 							type="text"
 							placeholder={t("Search maps...")}
 							title={t('Filter by name, or by label with label:name / label:"two words"')}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatBinding, buildComboString } from "@/lib/hooks/useHotkey";
 import { t } from "@/lib/i18n";
+import { TextInput } from "./TextInput";
 
 /** Click-to-record key combo input. Backspace/Delete clears, Escape cancels. */
 export function HotkeyInput({
@@ -12,8 +13,7 @@ export function HotkeyInput({
 }) {
 	const [recording, setRecording] = useState(false);
 	return (
-		<input
-			className="text-input"
+		<TextInput
 			type="text"
 			readOnly
 			value={recording ? "" : value ? formatBinding(value) : ""}

@@ -21,6 +21,7 @@ import { searchCoverage } from "../searchCoverage";
 import { MONTHS, ymParse } from "@/lib/util/date";
 import "./generator.css";
 import { t } from "@/lib/i18n";
+import { TextInput } from "@/components/primitives/TextInput";
 
 const genStore = createPluginStorage("map-generator");
 
@@ -334,8 +335,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			<Section title={t("Output")}>
 				<label className="settings-popup__item settings-popup__select">
 					{t("Tag as:")}
-					<input
-						className="text-input"
+					<TextInput
 						type="text"
 						value={tagName}
 						onChange={(e) => {

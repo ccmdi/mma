@@ -96,9 +96,8 @@ export function RegionSelector({
 			<div className="generator-regions__controls">
 				<label className="generator-regions__target-label">
 					{t("Locations per region:")}
-					<input
+					<TextInput
 						type="number"
-						className="text-input"
 						min={1}
 						value={defaultTarget}
 						onChange={(e) => onDefaultTargetChange(Number(e.target.value) || 10)}
@@ -165,9 +164,8 @@ export function RegionSelector({
 								</div>
 								<div className="generator-regions__item-count">
 									{found} /
-									<input
+									<TextInput
 										type="number"
-										className="text-input"
 										min={found || 1}
 										value={target}
 										onChange={(e) => setTarget(sel.key, Number(e.target.value) || 1)}

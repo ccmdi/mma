@@ -5,6 +5,7 @@ import { Radio } from "@/components/primitives/Radio";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Section, SegmentedControl } from "@/components/primitives/Sidebar";
 import { t } from "@/lib/i18n";
+import { TextInput } from "@/components/primitives/TextInput";
 
 function Check({
 	label,
@@ -45,9 +46,8 @@ function NumberInput({
 	return (
 		<label className={`generator-settings__number ${indent ? "generator-settings__indent" : ""}`}>
 			{label}
-			<input
+			<TextInput
 				type="number"
-				className="text-input"
 				value={value}
 				onChange={(e) => onChange(Number(e.target.value))}
 				min={min}
@@ -345,8 +345,7 @@ export function SettingsPanel({
 								<div className="generator-settings__date-range">
 									<label className="generator-settings__date-label">
 										{t("From month")}{" "}
-										<input
-											className="text-input"
+										<TextInput
 											style={{ width: "3rem" }}
 											value={settings.fromMonth}
 											onChange={(e) => set("fromMonth", e.target.value)}
@@ -354,8 +353,7 @@ export function SettingsPanel({
 									</label>
 									<label className="generator-settings__date-label">
 										{t("to")}{" "}
-										<input
-											className="text-input"
+										<TextInput
 											style={{ width: "3rem" }}
 											value={settings.toMonth}
 											onChange={(e) => set("toMonth", e.target.value)}
@@ -365,8 +363,7 @@ export function SettingsPanel({
 								<div className="generator-settings__date-range">
 									<label className="generator-settings__date-label">
 										{t("Between years")}{" "}
-										<input
-											className="text-input"
+										<TextInput
 											style={{ width: "4rem" }}
 											value={settings.fromYear}
 											onChange={(e) => set("fromYear", e.target.value)}
@@ -374,8 +371,7 @@ export function SettingsPanel({
 									</label>
 									<label className="generator-settings__date-label">
 										{t("and")}{" "}
-										<input
-											className="text-input"
+										<TextInput
 											style={{ width: "4rem" }}
 											value={settings.toYear}
 											onChange={(e) => set("toYear", e.target.value)}
@@ -455,8 +451,7 @@ export function SettingsPanel({
 								<option value="sectionmatch">{t("Section match")}</option>
 							</NSelect>
 						</div>
-						<input
-							className="text-input"
+						<TextInput
 							type="text"
 							placeholder={t("Comma-separated terms")}
 							value={settings.searchTerms}
