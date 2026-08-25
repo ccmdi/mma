@@ -35,10 +35,7 @@ vi.mock("@/lib/commands", () => {
 		cmd: new Proxy({}, { get: (_t, name: string) => handlers[name] ?? (async () => null) }),
 	};
 });
-vi.mock("@/lib/util/log", () => ({
-	log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-	fireAndForget: (p: Promise<unknown> | undefined) => void p?.catch(() => {}),
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { openMap, mutate, getMapState } from "@/store/useMapStore";
 import type { MutationResult, Tag } from "@/bindings.gen";

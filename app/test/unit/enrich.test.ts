@@ -13,9 +13,7 @@ const resolveExactTimestampMock = vi.hoisted(() => vi.fn(async (): Promise<numbe
 vi.mock("@/lib/sv/exactDate", () => ({ resolveExactTimestamp: resolveExactTimestampMock }));
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => null }));
 vi.mock("@/lib/sv/lookup", () => ({ resolvePanoIds: async () => [] }));
-vi.mock("@/lib/util/log", () => ({
-	log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {} },
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 const cmdMock = vi.hoisted(() => ({
 	checkBorderFile: vi.fn(async () => true),
 	downloadBorderFile: vi.fn(async () => {}),

@@ -22,9 +22,7 @@ vi.mock("@tauri-apps/api/event", () => ({
 vi.mock("@tauri-apps/api/window", () => ({
 	getCurrentWindow: () => ({ label: "map-1" }),
 }));
-vi.mock("@/lib/util/log", () => ({
-	log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), trace: vi.fn() },
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { emit, subscribe, bridgeAcrossWindows } from "@/lib/events";
 

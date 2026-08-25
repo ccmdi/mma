@@ -21,9 +21,7 @@ vi.mock("@/store/settings", () => ({
 vi.mock("@/store/session", () => ({
 	saveSession: (ids: string[]) => h.saved.push(ids),
 }));
-vi.mock("@/lib/util/log", () => ({
-	log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@tauri-apps/plugin-updater", () => ({
 	check: async () => ({
 		version: "9.9.9",

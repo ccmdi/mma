@@ -13,9 +13,7 @@ vi.mock("@/lib/commands", () => ({
 }));
 const toast = vi.fn();
 vi.mock("@/lib/util/toast", () => ({ toast: (...a: unknown[]) => toast(...a) }));
-vi.mock("@/lib/util/log", () => ({
-	log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { isPluginUpdatable, needsUpdate, autoUpdatePlugin } from "@/plugins/registry";
 

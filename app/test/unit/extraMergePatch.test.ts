@@ -60,10 +60,7 @@ vi.mock("@/lib/commands", () => {
 		cmd: new Proxy({}, { get: (_t, name: string) => handlers[name] ?? (async () => null) }),
 	};
 });
-vi.mock("@/lib/util/log", () => ({
-	log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, trace: () => {} },
-	fireAndForget: (p: Promise<unknown>) => void p.catch(() => {}),
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { openMap, openDuplicateLocation, updateLocations, getMapState } from "@/store/useMapStore";
 import { createLocation, applyLocationPatch } from "@/types";

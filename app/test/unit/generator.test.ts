@@ -7,10 +7,7 @@ const h = vi.hoisted(() => ({
 	fetched: [] as string[],
 }));
 
-vi.mock("@/lib/util/log", () => ({
-	log: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, trace: () => {} },
-	fireAndForget: (p: Promise<unknown>) => void p.catch(() => {}),
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {

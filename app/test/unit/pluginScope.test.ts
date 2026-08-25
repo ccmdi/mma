@@ -1,8 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@/lib/util/log", () => ({
-	log: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { runAsPlugin, trackDisposable, disposePlugin } from "@/plugins/scope";
 

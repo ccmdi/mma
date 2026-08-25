@@ -31,14 +31,7 @@ vi.mock("@/lib/commands", () => ({
 }));
 vi.mock("@tauri-apps/plugin-shell", () => ({ open: vi.fn() }));
 // The log plugin invokes Tauri, which is absent here.
-vi.mock("@/lib/util/log", () => ({
-	log: { trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-	fireAndForget: (p: Promise<unknown> | undefined) => void p?.catch(() => {}),
-	asyncHandler:
-		(fn: (...a: unknown[]) => Promise<unknown>) =>
-		(...a: unknown[]) =>
-			void fn(...a).catch(() => {}),
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 const { SettingsPage, UnreadReplyDot } = await import("@/components/dialogs/SettingsPage");
 

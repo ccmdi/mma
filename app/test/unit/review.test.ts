@@ -11,9 +11,7 @@ vi.mock("@/store/useMapStore", () => ({
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 vi.mock("@/lib/events", () => ({ subscribe: () => () => {}, emit: vi.fn() }));
 vi.mock("@/store/selections", () => ({ selectionDisplayName: () => "x" }));
-vi.mock("@/lib/util/log", () => ({
-	log: { error: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: vi.fn() },
-}));
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import {
 	pruneSession,
