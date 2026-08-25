@@ -7,3 +7,8 @@ tools/
 **/.venv/
 **/.*
 !.nvmrc
+# Plugin sidecars, models and eval data are never part of the app build; they are
+# gigabytes that would otherwise ship as build context on every image build.
+plugins/*/sidecar/
+plugins/*/eval/
+plugins/automapper/

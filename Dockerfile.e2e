@@ -50,12 +50,25 @@ RUN chmod +x ./scripts/internal/*.sh
 
 WORKDIR /repo/app
 
-# One debug binary serving both suites: `e2e` adds the WebDriver bridge (desktop),
+# One binary serving both suites: `e2e` adds the WebDriver bridge (desktop),
 # `web-serve` adds the `--serve` HTTP sidecar (browser). Neither affects the other.
+# A /usr/local/bin exe resolves `res://` to /usr/local/lib/<productName>, so the bundled
+# procedures are copied there (tauri-build only stages resources inside target/).
+#
+# Debug by default: the suite only needs correct behaviour and debug builds fast. A
+# benchmark needs `MMA_E2E_PROFILE=release`, because a debug binary handicaps only the
+# Rust side -- the webview's JavaScript is JIT-compiled either way, so a debug build
+# measures an unoptimised interpreter against optimised JS.
+ARG MMA_E2E_PROFILE=debug
+# Read back by scripts/e2e.sh so a benchmark records the profile it actually ran on.
+LABEL mma.profile=$MMA_E2E_PROFILE
 RUN --mount=type=cache,target=/repo/app/src-tauri/target \
     --mount=type=cache,target=/root/.cargo/registry \
-    cargo tauri build --debug --features e2e,web-serve --no-bundle \
-    && cp src-tauri/target/debug/map-making-app /usr/local/bin/map-making-app
+    if [ "$MMA_E2E_PROFILE" = "release" ]; then FLAG=; else FLAG=--debug; fi \
+    && cargo tauri build $FLAG --features e2e,web-serve --no-bundle \
+    && cp "src-tauri/target/$MMA_E2E_PROFILE/map-making-app" /usr/local/bin/map-making-app \
+    && mkdir -p "/usr/local/lib/Map Making App" \
+    && if [ -d src-tauri/procedures ]; then cp -r src-tauri/procedures "/usr/local/lib/Map Making App/"; fi
 
 # Start Xvfb + tauri-driver, then run tests
 CMD ["/repo/scripts/internal/e2e-native.sh"]

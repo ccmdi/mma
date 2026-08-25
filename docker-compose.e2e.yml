@@ -1,8 +1,13 @@
 services:
   e2e:
+    # Tagged per commit and profile by scripts/internal/e2e-image.sh.
+    image: ${MMA_E2E_IMAGE:-map-making-app-e2e}
     build:
       context: .
       dockerfile: Dockerfile.e2e
+      args:
+        # `release` for benchmarks; see the note in Dockerfile.e2e.
+        MMA_E2E_PROFILE: ${MMA_E2E_PROFILE:-debug}
     volumes:
       - cargo-registry:/root/.cargo/registry
       - cargo-git:/root/.cargo/git

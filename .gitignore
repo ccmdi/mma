@@ -32,9 +32,6 @@ mma.html
 .env
 .env.*
 
-# e2e tooling output (scripts/e2e.sh --shard, scripts/e2e-build.sh)
-shard-*.log
-build-e2e.log
 
 # Plugin built artifacts (CI builds these during release)
 plugins/*/index.js
