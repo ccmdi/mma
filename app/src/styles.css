@@ -6099,8 +6099,7 @@ body:has([data-plugin-overlay]) .map-meta {
 }
 
 .segmented__option {
-	flex: 1;
-	min-width: 0;
+	flex: 1 1 auto;
 	border: none;
 	background: transparent;
 	color: inherit;
