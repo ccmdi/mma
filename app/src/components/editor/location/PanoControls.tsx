@@ -11,6 +11,7 @@ import {
 import { google } from "@/lib/sv/opensv";
 import { lookupStreetView } from "@/lib/sv/lookup";
 import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
+import { fileTimestamp } from "@/lib/util/format";
 import { useSettings } from "@/store/settings";
 import { getMapState, useMapState } from "@/store/useMapStore";
 import { getPanoAltitude } from "./PanoViewerContext";
@@ -571,7 +572,7 @@ export const PanoControls = memo(function PanoControls({
 				if (copied) {
 					toast(t("Screenshot copied"));
 				} else {
-					const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+					const stamp = fileTimestamp();
 					downloadBlob(blob, `${view.panoId}_${stamp}.png`);
 					toast(
 						download

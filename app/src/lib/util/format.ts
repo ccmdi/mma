@@ -89,6 +89,10 @@ export function formatBytes(bytes: number): string {
 	return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+export function fileTimestamp(date: Date = new Date()): string {
+	return date.toISOString().slice(0, 19).replace(/[T:]/g, "-");
+}
+
 export function relativeTime(time: string | number): string {
 	const ms = typeof time === "number" ? time * 1000 : new Date(time).getTime();
 	const delta = Date.now() - ms;

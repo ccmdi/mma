@@ -4,6 +4,7 @@ import { resolvePanoIds, svThumbnailUrl } from "@/lib/sv/lookup";
 import { fetchSvMetadata, fetchSvMetadataBatched } from "@/lib/sv/svMeta";
 import type { PanoData } from "@/lib/sv/svRunner";
 import { runConcurrent } from "@/lib/util/concurrent";
+import { fileTimestamp } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
 import { clamp } from "@/types/util";
@@ -426,7 +427,7 @@ export async function bulkDownloadPanoramas(
 	}
 
 	const outputPath = await cmd.storeUploadFinish(session);
-	const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, "-");
+	const stamp = fileTimestamp();
 	const suggestedName =
 		succeeded.length === 1 && singleName ? singleName : `panoramas-${stamp}.zip`;
 	return { succeeded, failed, outputPath, suggestedName, fileCount: succeeded.length };
