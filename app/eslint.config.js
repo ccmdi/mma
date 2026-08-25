@@ -93,6 +93,8 @@ export default defineConfig([
 			"react-hooks/immutability": "off",
 			"react-hooks/preserve-manual-memoization": "off",
 			"no-console": "error",
+			"@typescript-eslint/no-floating-promises": "error",
+			"@typescript-eslint/no-misused-promises": "error",
 			"local/no-unsupported-builtins": "error",
 			"local/no-ipc-in-loop": "warn",
 			"local/no-redundant-mutate-guard": "warn",
