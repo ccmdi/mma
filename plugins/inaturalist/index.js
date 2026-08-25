@@ -515,43 +515,18 @@ function TaxonomySorter() {
   const [lang, setLang] = (0, import_react.useState)(() => storage.get("taxo_lang", "en"));
   const [deep, setDeep] = (0, import_react.useState)(true);
   const [commonNames, setCommonNames] = (0, import_react.useState)(true);
-  const [running, setRunning] = (0, import_react.useState)(false);
-  const [progress, setProgress] = (0, import_react.useState)(null);
-  const [result, setResult] = (0, import_react.useState)(null);
-  const [abortCtl, setAbortCtl] = (0, import_react.useState)(null);
   const handleLangChange = (0, import_react.useCallback)((code) => {
     setLang(code);
     storage.set("taxo_lang", code);
   }, [storage]);
-  const handleSort = (0, import_react.useCallback)(async () => {
-    setRunning(true);
-    setResult(null);
-    setProgress(null);
-    const ctl = new AbortController();
-    setAbortCtl(ctl);
-    try {
-      const opts = { lang, deep, commonNames };
-      const r = await sortTagsByTaxonomy(opts, setProgress, ctl.signal);
-      setResult(r);
-      if (r.sorted > 0) {
-        MMA.toast(`Sorted ${r.sorted} tag${r.sorted === 1 ? "" : "s"} into taxonomy folders`);
-      } else {
-        MMA.toast("No tags needed sorting");
-      }
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") {
-        MMA.toast("Taxonomy sort cancelled");
-      } else {
-        MMA.toast("Taxonomy sort failed");
-      }
-    }
-    setRunning(false);
-    setAbortCtl(null);
-    setProgress(null);
-  }, [lang, deep, commonNames]);
-  const handleCancel = (0, import_react.useCallback)(() => {
-    abortCtl?.abort();
-  }, [abortCtl]);
+  const job = MMA.useJob(async ({ signal, report }) => {
+    const opts = { lang, deep, commonNames };
+    const r = await sortTagsByTaxonomy(opts, report, signal);
+    MMA.toast(
+      r.sorted > 0 ? `Sorted ${r.sorted} tag${r.sorted === 1 ? "" : "s"} into taxonomy folders` : "No tags needed sorting"
+    );
+    return r;
+  });
   const handleClearCache = (0, import_react.useCallback)(() => {
     clearTaxonomyCache();
     MMA.toast("Taxonomy cache cleared");
@@ -585,31 +560,32 @@ function TaxonomySorter() {
       }
     ) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 6, marginTop: 4 }, children: [
-      running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "button button--danger", onClick: handleCancel, style: { flex: 1 }, children: "Cancel" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "button button--primary", onClick: handleSort, style: { flex: 1 }, children: "Sort Tags" }),
+      job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "button button--danger", onClick: job.cancel, style: { flex: 1 }, children: "Cancel" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "button button--primary", onClick: job.run, style: { flex: 1 }, children: "Sort Tags" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "button",
         {
           className: "button",
           onClick: handleClearCache,
-          disabled: running,
+          disabled: job.running,
           title: "Clear cached API results",
           children: "Clear Cache"
         }
       )
     ] }),
-    progress && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: "var(--text-secondary, #999)", marginTop: 6 }, children: [
-      progress.phase,
+    job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: "var(--text-secondary, #999)", marginTop: 6 }, children: [
+      job.progress.phase,
       " (",
-      progress.current,
+      job.progress.current,
       "/",
-      progress.total,
+      job.progress.total,
       ")",
-      progress.detail && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { opacity: 0.7 }, children: progress.detail })
+      job.progress.detail && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { opacity: 0.7 }, children: job.progress.detail })
     ] }),
-    result && !running && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: "var(--text-secondary, #999)", marginTop: 6 }, children: [
-      result.sorted,
+    job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 11, color: "#e55", marginTop: 6 }, children: job.error }),
+    job.result && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: "var(--text-secondary, #999)", marginTop: 6 }, children: [
+      job.result.sorted,
       " sorted, ",
-      result.skipped,
+      job.result.skipped,
       " skipped"
     ] })
   ] });

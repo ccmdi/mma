@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState } from "react";
 import type { Location } from "mma-plugin-types";
 import { embed, searchText } from "./sidecar";
 
@@ -20,71 +20,42 @@ function panoIdToLocId(locs: Location[], panoId: string): number | null {
 export function VisionSidebar({ onClose }: { onClose: () => void }) {
 	const [query, setQuery] = useState("");
 	const [threshold, setThreshold] = useState(0.01);
-	const [running, setRunning] = useState(false);
-	const [progress, setProgress] = useState("");
-	const [error, setError] = useState("");
-	const [resultCount, setResultCount] = useState<number | null>(null);
-	const abortRef = useRef<AbortController | null>(null);
 
-	const run = useCallback(async () => {
+	const job = MMA.useJob<number>(async ({ signal, report }) => {
 		const q = query.trim();
-		if (!q) return;
-		setRunning(true);
-		setError("");
-		setResultCount(null);
-		const abort = new AbortController();
-		abortRef.current = abort;
+		const locs = await MMA.fetchAllLocations();
+		signal.throwIfAborted();
 
-		try {
-			const locs = await MMA.fetchAllLocations();
-			if (abort.signal.aborted) return;
-			const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
-			if (panoIds.length === 0) { setError("No locations with pano IDs"); return; }
+		const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
+		if (panoIds.length === 0) throw new Error("No locations with pano IDs");
 
-			setProgress(`Embedding ${panoIds.length} panos (cached skip)...`);
-			let embedDone = 0;
-			const embedStart = Date.now();
-			await embed(panoIds, {
-				signal: abort.signal,
-				onStatus: setProgress,
-				onUnit: (count) => {
-					embedDone += count;
-					const elapsed = (Date.now() - embedStart) / 1000;
-					const rate = elapsed > 0.5 ? (embedDone / elapsed).toFixed(1) : "--";
-					setProgress(`Embedding: ${embedDone}/${panoIds.length} (${rate} panos/s)`);
-				},
-			});
-			if (abort.signal.aborted) return;
+		let embedded = 0;
+		const start = Date.now();
+		await embed(panoIds, {
+			signal,
+			onStatus: report,
+			onUnit: (count) => {
+				embedded += count;
+				const elapsed = (Date.now() - start) / 1000;
+				const rate = elapsed > 0.5 ? (embedded / elapsed).toFixed(1) : "--";
+				report(`Embedding: ${embedded}/${panoIds.length} (${rate} panos/s)`);
+			},
+		});
+		signal.throwIfAborted();
 
-			setProgress(`Searching for "${q}"...`);
-			const results = await searchText(q, null, threshold, abort.signal);
-			if (abort.signal.aborted) return;
+		report(`Searching for "${q}"...`);
+		const results = await searchText(q, null, threshold, signal);
+		const matchedIds = results
+			.map((r) => panoIdToLocId(locs, r.panoId))
+			.filter((id): id is number => id != null);
 
-			const matchedIds = results
-				.map((r) => panoIdToLocId(locs, r.panoId))
-				.filter((id): id is number => id != null);
-
-			if (matchedIds.length > 0) {
-				await MMA.addSelections([{ type: "Locations", locations: matchedIds, name: `Vision: "${q}"` }]);
-			}
-			setResultCount(matchedIds.length);
-			setProgress("");
-		} catch (e) {
-			if (!abort.signal.aborted) setError(String(e));
-		} finally {
-			abortRef.current = null;
-			setRunning(false);
+		if (matchedIds.length > 0) {
+			await MMA.addSelections([
+				{ type: "Locations", locations: matchedIds, name: `Vision: "${q}"` },
+			]);
 		}
-	}, [query, threshold]);
-
-	const cancel = useCallback(() => {
-		abortRef.current?.abort();
-		abortRef.current = null;
-		setRunning(false);
-		setProgress("");
-	}, []);
-
-	useEffect(() => () => abortRef.current?.abort(), []);
+		return matchedIds.length;
+	});
 
 	return (
 		<Sidebar title="Vision" onBack={onClose}>
@@ -96,7 +67,9 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 						placeholder="cars, snow, indoor..."
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
-						onKeyDown={(e) => { if (e.key === "Enter" && !running) run(); }}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && !job.running && query.trim()) job.run();
+						}}
 					/>
 				</Field>
 				<Field label={`Min confidence: ${threshold.toFixed(3)}`}>
@@ -111,19 +84,23 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 					/>
 				</Field>
 				<div className="vision-sidebar__actions">
-					{!running ? (
-						<button className="button button--primary" disabled={!query.trim()} onClick={run}>
+					{!job.running ? (
+						<button
+							className="button button--primary"
+							disabled={!query.trim()}
+							onClick={job.run}
+						>
 							Search
 						</button>
 					) : (
-						<button className="button" onClick={cancel}>Cancel</button>
+						<button className="button" onClick={job.cancel}>Cancel</button>
 					)}
 				</div>
 
-				{progress && <div className="vision-sidebar__progress">{progress}</div>}
-				{error && <div className="vision-sidebar__error">{error}</div>}
-				{resultCount !== null && !running && (
-					<div className="vision-sidebar__results">{resultCount} locations selected</div>
+				{job.progress && <div className="vision-sidebar__progress">{job.progress}</div>}
+				{job.error && <div className="vision-sidebar__error">{job.error}</div>}
+				{job.result !== null && !job.running && (
+					<div className="vision-sidebar__results">{job.result} locations selected</div>
 				)}
 			</div>
 		</Sidebar>

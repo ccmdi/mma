@@ -1,56 +1,57 @@
-import { useState } from "react";
 import { embed, searchImage } from "./sidecar";
 
 const SIMILARITY_THRESHOLD = 0.85;
 
+const statusStyle = { fontSize: 12, color: "var(--text-secondary, #999)", padding: "4px 0" };
+
 export function FindSimilarButton() {
-	const [running, setRunning] = useState(false);
-	const [result, setResult] = useState<string | null>(null);
-
 	const active = MMA.getMapState().activeLocation;
-	if (!active?.panoId) return null;
+	const panoId = active?.panoId;
 
-	const run = async () => {
-		setRunning(true);
-		setResult(null);
-		try {
-			const locs = await MMA.fetchAllLocations();
-			const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
+	const job = MMA.useJob<number>(async ({ signal, report }) => {
+		const locs = await MMA.fetchAllLocations();
+		signal.throwIfAborted();
+		const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
 
-			// Ensure embeddings exist (cached ones skip instantly)
-			await embed(panoIds);
+		await embed(panoIds, { signal, onStatus: report });
+		signal.throwIfAborted();
 
-			const results = await searchImage(active.panoId!, null, SIMILARITY_THRESHOLD);
+		report("Comparing...");
+		const results = await searchImage(panoId!, null, SIMILARITY_THRESHOLD);
+		const matchedIds = results
+			.map((r) => locs.find((l) => l.panoId === r.panoId)?.id)
+			.filter((id): id is number => id != null);
 
-			const matchedIds = results
-				.map((r) => locs.find((l) => l.panoId === r.panoId)?.id)
-				.filter((id): id is number => id != null);
-
-			if (matchedIds.length > 0) {
-				await MMA.addSelections([{
+		if (matchedIds.length > 0) {
+			await MMA.addSelections([
+				{
 					type: "Locations",
 					locations: matchedIds,
-					name: `Similar to ${active.panoId!.slice(0, 8)}...`,
-				}]);
-				setResult(`${matchedIds.length} similar`);
-			} else {
-				setResult("No similar panos found");
-			}
-		} catch (e) {
-			setResult(`Error: ${e}`);
-		} finally {
-			setRunning(false);
+					name: `Similar to ${panoId!.slice(0, 8)}...`,
+				},
+			]);
 		}
-	};
+		return matchedIds.length;
+	});
+
+	if (!panoId) return null;
 
 	return (
-		<button
-			className="button button--small"
-			style={{ width: "100%" }}
-			disabled={running}
-			onClick={run}
-		>
-			{running ? "Searching..." : "Find similar panos"}
-		</button>
+		<>
+			<button
+				className="button button--small"
+				style={{ width: "100%" }}
+				onClick={job.running ? job.cancel : job.run}
+			>
+				{job.running ? "Cancel" : "Find similar panos"}
+			</button>
+			{job.progress && <div style={statusStyle}>{job.progress}</div>}
+			{job.error && <div style={{ ...statusStyle, color: "#e55" }}>{job.error}</div>}
+			{job.result !== null && !job.running && (
+				<div style={statusStyle}>
+					{job.result > 0 ? `${job.result} similar` : "No similar panos found"}
+				</div>
+			)}
+		</>
 	);
 }
