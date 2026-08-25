@@ -175,6 +175,13 @@ export default defineConfig([
 		rules: { "no-console": "off", "no-control-regex": "off" },
 	},
 	{
+		files: ["test/**/*.{ts,tsx}"],
+		rules: {
+			"local/no-undefined-css-class": "off",
+			"local/no-primitive-class": "off",
+		},
+	},
+	{
 		files: ["test/e2e/bulk-import-rust.test.ts"],
 		rules: { "no-console": "off" },
 	},
