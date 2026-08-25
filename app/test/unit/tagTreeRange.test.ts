@@ -16,6 +16,7 @@ import {
 	type FolderColorOpts,
 } from "@/components/editor/tags/tagTreeRange";
 import type { Tag, VirtualTag } from "@/bindings.gen";
+import { findNode, mkTag, segs } from "./fixtures/tagFixtures";
 
 interface N {
 	fullPath: string;
@@ -176,21 +177,6 @@ describe("reorderSiblingsFlatOrder", () => {
 });
 
 describe("collectDragBlock", () => {
-	const mkTag = (id: number, name: string, order = id): Tag => ({
-		id,
-		name,
-		color: "#888888",
-		order,
-	});
-	function findNode(nodes: TagTreeNode[], path: string): TagTreeNode | null {
-		for (const n of nodes) {
-			if (n.fullPath === path) return n;
-			const hit = findNode(n.children, path);
-			if (hit) return hit;
-		}
-		return null;
-	}
-
 	it("carries the grabbed pill plus selected sibling pills, in sibling order", () => {
 		const tree = buildTagTree(
 			[mkTag(1, "a"), mkTag(2, "b"), mkTag(3, "c"), mkTag(4, "d")],
@@ -233,14 +219,6 @@ describe("collectDragBlock", () => {
 });
 
 describe("buildTagTree", () => {
-	const mkTag = (id: number, name: string, order = id): Tag => ({
-		id,
-		name,
-		color: "#888888",
-		order,
-	});
-	const segs = (nodes: TagTreeNode[]) => nodes.map((n) => n.segment);
-
 	it("floats leaf tags above sub-branches at the root (default sort)", () => {
 		// 'Europe' becomes a branch (has France); Red/Blue are plain leaves.
 		const tags = [mkTag(1, "Europe/France"), mkTag(2, "Red"), mkTag(3, "Blue")];
@@ -357,19 +335,17 @@ describe("buildTagTree", () => {
 	});
 
 	it("split=false matches flat default sort (order, then name)", () => {
-		const tags = [mkTag(1, "b", 2), mkTag(2, "a", 2), mkTag(3, "c", 1)];
+		const tags = [
+			mkTag(1, "b", "#888888", 2),
+			mkTag(2, "a", "#888888", 2),
+			mkTag(3, "c", "#888888", 1),
+		];
 		const tree = buildTagTree(tags, "default", {}, {}, {}, false);
 		expect(segs(tree)).toEqual(["c", "a", "b"]);
 	});
 });
 
 describe("folder colors", () => {
-	const mkTag = (id: number, name: string, color: string, order = id): Tag => ({
-		id,
-		name,
-		color,
-		order,
-	});
 	const build = (
 		tags: Tag[],
 		folderColor: FolderColorOpts,
@@ -437,8 +413,6 @@ describe("folder colors", () => {
 });
 
 describe("cascadeRename", () => {
-	const mkTag = (id: number, name: string): Tag => ({ id, name, color: "#888888", order: id });
-
 	it("renames the folder tag and all descendants, leaving unrelated tags", () => {
 		const tags = [
 			mkTag(1, "Europe"),
@@ -533,12 +507,6 @@ describe("syncAliasSegments", () => {
 });
 
 describe("canDropInto / moveIntoFolder", () => {
-	const mkTag = (id: number, name: string, order = id): Tag => ({
-		id,
-		name,
-		color: "#888888",
-		order,
-	});
 	// Root pills Red(1), Blue(2); folder Cars { a(3), b(4), Old { c(5) } }.
 	const baseTags = [
 		mkTag(1, "Red"),
@@ -608,22 +576,6 @@ describe("canDropInto / moveIntoFolder", () => {
 });
 
 describe("declared empty folders (virtualTags)", () => {
-	const mkTag = (id: number, name: string, order = id): Tag => ({
-		id,
-		name,
-		color: "#888888",
-		order,
-	});
-	const segs = (nodes: TagTreeNode[]) => nodes.map((n) => n.segment);
-	function findNode(nodes: TagTreeNode[], path: string): TagTreeNode | null {
-		for (const n of nodes) {
-			if (n.fullPath === path) return n;
-			const hit = findNode(n.children, path);
-			if (hit) return hit;
-		}
-		return null;
-	}
-
 	it("seeds a tagless folder node from a virtualTags key no tag passes through", () => {
 		const tree = buildTagTree([mkTag(1, "a")], "default", {}, { F: {} });
 		const f = findNode(tree, "F")!;
