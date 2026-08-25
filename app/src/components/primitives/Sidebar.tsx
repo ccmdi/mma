@@ -97,7 +97,7 @@ export function EmptyState({ icon, children }: { icon?: string; children: ReactN
 	return (
 		<div className="plugin-empty">
 			{icon && <Icon path={icon} size={28} className="plugin-empty__icon" />}
-			<div className="plugin-empty__text">{children}</div>
+			<div>{children}</div>
 		</div>
 	);
 }

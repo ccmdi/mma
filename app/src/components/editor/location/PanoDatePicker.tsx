@@ -33,7 +33,7 @@ function PanoOption({ pano }: { pano: PanoReference }) {
 	const cameraType = useCameraType(pano.pano);
 	return (
 		<option value={pano.pano} className="pano-option">
-			<span className="pano-option__name">{dateFmt.format(pano.date)}</span>
+			<span>{dateFmt.format(pano.date)}</span>
 			{(cameraType === "unofficial" || showBadges) && <PanoBadge cameraType={cameraType} />}
 		</option>
 	);
@@ -110,7 +110,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 				<span className="pano-value">
 					{exactDate.loading ? displayLabel : (exactLabel ?? displayLabel)}
 					<span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-						{exactDate.loading && <span className="badge badge--loading">...</span>}
+						{exactDate.loading && <span className="badge">...</span>}
 						{(triggerCameraType === "unofficial" || showBadges) && (
 							<PanoBadge cameraType={triggerCameraType} />
 						)}
@@ -125,7 +125,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 			</optgroup>
 			<optgroup label={t("Default / auto-updating")}>
 				<option value="default" className="pano-option">
-					<span className="pano-option__name">
+					<span>
 						{t("Default")}
 						{(defaultEntry?.date ?? sorted[sorted.length - 1]?.date)
 							? ` (${dateFmt.format((defaultEntry?.date ?? sorted[sorted.length - 1]?.date)!)})`

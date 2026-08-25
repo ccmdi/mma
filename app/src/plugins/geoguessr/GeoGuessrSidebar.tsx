@@ -89,7 +89,7 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 				{busy ? t("Waiting for sign-in...") : t("Sign in to GeoGuessr")}
 			</Button>
 			{error && (
-				<p className="mma-input__help" style={{ color: "var(--red-9, #e5484d)" }}>
+				<p style={{ color: "var(--red-9, #e5484d)" }}>
 					{error}
 				</p>
 			)}

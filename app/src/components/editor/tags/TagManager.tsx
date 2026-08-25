@@ -229,7 +229,7 @@ export function TagManager() {
 						{tagViewMode === "tree" && (
 							<Button onClick={() => setNewFolderParent("")}>{t("New folder")}</Button>
 						)}
-						<span className="tag-manager__sort button-group" role="radiogroup" aria-label={t("Sort tags")}>
+						<span className="button-group" role="radiogroup" aria-label={t("Sort tags")}>
 							{(
 								[
 									["default", t("default")],

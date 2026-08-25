@@ -43,7 +43,6 @@ export function MapRenameForm({ mapId, currentName }: { mapId: string; currentNa
 	return (
 		<>
 			<form
-				className="edit-map-modal__rename"
 				onSubmit={(e) => {
 					e.preventDefault();
 					updateMapMeta({ name: name || currentName });

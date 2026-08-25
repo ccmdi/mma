@@ -106,7 +106,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 									<div className="review-sessions__info">
 										{editingId === s.id ? (
 											<input
-												className="review-sessions__name review-sessions__name-input"
+												className="review-sessions__name"
 												style={{ font: "inherit", width: "100%", boxSizing: "border-box" }}
 												autoFocus
 												value={draft}

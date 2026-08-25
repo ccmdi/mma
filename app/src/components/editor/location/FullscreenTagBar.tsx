@@ -83,7 +83,7 @@ export function FullscreenTagBar({
 							+
 						</Button>
 						<input
-							className="form-add-tag__input fullscreen-tagbar__input"
+							className="form-add-tag__input"
 							type="text"
 							placeholder={t("Add a tag...")}
 							spellCheck={false}

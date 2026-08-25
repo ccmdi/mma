@@ -142,14 +142,14 @@ function ConflictItem({
 
 	return (
 		<div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
-			<span className="mma-input__help">
+			<span>
 				{t(CONFLICT_LABEL[conflict.kind])}
 				{known ? ` · ${coord(known)}` : ""}
 			</span>
-			{!local && <span className="mma-input__help">{t("Deleted here")}</span>}
-			{!remote && <span className="mma-input__help">{t("Deleted on the remote")}</span>}
+			{!local && <span>{t("Deleted here")}</span>}
+			{!remote && <span>{t("Deleted on the remote")}</span>}
 			{diffs.map((d) => (
-				<span className="mma-input__help" key={d.field}>
+				<span key={d.field}>
 					{t("{field}: local {local} · remote {remote}", {
 						field: d.field,
 						local: String(d.local),
@@ -430,12 +430,12 @@ export function SyncSidebar({
 						</Button>
 					</div>
 					{status === "error" && controller.liveError() && (
-						<p className="mma-input__help" style={{ color: "var(--red-9, #e5484d)" }}>
+						<p style={{ color: "var(--red-9, #e5484d)" }}>
 							{controller.liveError()}
 						</p>
 					)}
 					{outcome && (
-						<p className="mma-input__help">
+						<p>
 							{t("Pushed +{pc} ~{pu} -{pd} · Pulled +{lc} ~{lu} -{ld}", {
 								pc: outcome.pushed.create,
 								pu: outcome.pushed.update,
@@ -530,7 +530,7 @@ export function SyncSidebar({
 
 			{authed && mapId && !link && pendingLink && (
 				<Section title={t("First sync")} defaultOpen>
-					<p className="mma-input__help">
+					<p>
 						{t(
 							'This map ({local}) and "{name}" ({remote}) may both already have locations. How should the first sync go?',
 							{
@@ -569,7 +569,7 @@ export function SyncSidebar({
 			)}
 
 			{error && (
-				<p className="mma-input__help" style={{ color: "var(--red-9, #e5484d)" }}>
+				<p style={{ color: "var(--red-9, #e5484d)" }}>
 					{error}
 				</p>
 			)}

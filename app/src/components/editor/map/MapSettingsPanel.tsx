@@ -626,7 +626,7 @@ export function MapSettingsDropdown({
 								<option value="arrow">{t("Camera direction arrow")}</option>
 							</NSelect>
 						</label>
-						<label className="settings-popup__item settings-popup__slider">
+						<label className="settings-popup__item">
 							{t("Marker size:")}{" "}
 							<Slider
 								min={0.5}

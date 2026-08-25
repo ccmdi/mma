@@ -738,13 +738,13 @@ function EnrichSummary({
 }) {
 	if (result.length === 0) {
 		return (
-			<div className="enrich-summary">
+			<div>
 				<div>{t("Nothing to process.")}</div>
 			</div>
 		);
 	}
 	return (
-		<div className="enrich-summary">
+		<div>
 			{result.map((r) => (
 				<div key={r.id}>
 					{t(r.label)}

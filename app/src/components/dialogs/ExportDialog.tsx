@@ -182,7 +182,7 @@ export function ExportDialog({ onClose }: Props) {
 					</div>
 				</div>
 				<div className="export-modal__formats">
-					<div className="export-modal__format export-modal__format--json">
+					<div className="export-modal__format">
 						<h3 className="export-modal__subhead">{t("As JSON (recommended)")}</h3>
 						<div className="export-modal__export-buttons">
 							<Button onClick={copyJson} disabled={!navigator.clipboard} data-qa="json-copy">
@@ -193,7 +193,7 @@ export function ExportDialog({ onClose }: Props) {
 							</Button>
 						</div>
 					</div>
-					<div className="export-modal__format export-modal__format--csv">
+					<div className="export-modal__format">
 						<h3 className="export-modal__subhead">{t("As CSV")}</h3>
 						<p>
 							<Trans
@@ -210,7 +210,7 @@ export function ExportDialog({ onClose }: Props) {
 							</Button>
 						</div>
 					</div>
-					<div className="export-format export-modal__format--geojson">
+					<div className="export-modal__format">
 						<h3 className="export-modal__subhead">{t("As GeoJSON")}</h3>
 						<p>{t("For use in non-GeoGuessr mapping tools.")}</p>
 						<div className="export-modal__export-buttons">

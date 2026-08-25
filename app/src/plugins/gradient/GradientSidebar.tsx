@@ -281,7 +281,6 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 					<div className="gradient-sidebar__apply-row">
 						<Button
 							variant="primary"
-							className="gradient-sidebar__apply"
 							onClick={applyGradient}
 							disabled={applying || !fieldKey}
 						>
