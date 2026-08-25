@@ -10,6 +10,7 @@ import noRedundantMutateGuard from "./eslint-rules/no-redundant-mutate-guard.js"
 import noSelectionAlias from "./eslint-rules/no-selection-alias.js";
 import noUnsupportedBuiltins from "./eslint-rules/no-unsupported-builtins.js";
 import noPrimitiveClass from "./eslint-rules/no-primitive-class.js";
+import noEffectEventInMemo from "./eslint-rules/no-effect-event-in-memo.js";
 
 const RESTRICTED_IMPORT_PATHS = [
 	{
@@ -75,6 +76,7 @@ export default defineConfig([
 					"no-selection-alias": noSelectionAlias,
 					"no-unsupported-builtins": noUnsupportedBuiltins,
 					"no-primitive-class": noPrimitiveClass,
+					"no-effect-event-in-memo": noEffectEventInMemo,
 				},
 			},
 		},
@@ -96,6 +98,7 @@ export default defineConfig([
 			"local/no-redundant-mutate-guard": "warn",
 			"local/no-selection-alias": "warn",
 			"local/no-primitive-class": "error",
+			"local/no-effect-event-in-memo": "error",
 			"no-restricted-imports": [
 				"error",
 				{
