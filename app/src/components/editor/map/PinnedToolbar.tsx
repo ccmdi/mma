@@ -4,6 +4,7 @@ import { useEventValue } from "@/lib/events";
 import { useSetting } from "@/store/settings";
 import {
 	getCommand,
+	runCommand,
 	movePinnedCommand,
 	removePinnedAt,
 	insertSeparator,
@@ -128,7 +129,7 @@ export function PinnedToolbar({
 					const disabled = command.enabled ? !command.enabled() : false;
 					const hasPanel = id in panels;
 					const isOpen = openPanels.has(id);
-					const handleClick = hasPanel ? () => togglePanel(id) : command.execute;
+					const handleClick = hasPanel ? () => togglePanel(id) : () => runCommand(command);
 					const isFirst = i === 0;
 					const isLast = i === pinned.length - 1;
 

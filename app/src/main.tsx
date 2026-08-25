@@ -50,11 +50,9 @@ async function boot() {
 
 	const isMainWindow = getCurrentWindow().label === "main";
 
-	getCurrentWindow().onCloseRequested(async (event) => {
+	void getCurrentWindow().onCloseRequested(async (event) => {
 		event.preventDefault();
 		log.info("Window close requested, closing map...");
-		// Closing the main (list) window ends the session: remember the maps still
-		// open at this instant, then close them so they restore next launch.
 		if (isMainWindow && getSettings().restoreSession) {
 			const openIds = await openMapWindowIds();
 			saveSession(openIds);
@@ -64,7 +62,7 @@ async function boot() {
 		await flushSave();
 		await cmd.storeCloseMap().catch((e) => log.error("[close] store_close_map failed:", e));
 		log.info("Map closed, destroying window");
-		getCurrentWindow().destroy();
+		void getCurrentWindow().destroy();
 	});
 
 	window.addEventListener("beforeunload", () => {
@@ -76,7 +74,7 @@ async function boot() {
 
 	document.addEventListener("keydown", (e) => {
 		if (e.key === "F11") {
-			win.isFullscreen().then((fs) => win.setFullscreen(!fs));
+			void win.isFullscreen().then((fs) => win.setFullscreen(!fs));
 		}
 	});
 	blockBrowserAccelerators();
@@ -84,7 +82,7 @@ async function boot() {
 	createRoot(document.getElementById("root")!).render(<App />);
 	mark("render");
 
-	getCurrentWindow().show();
+	void getCurrentWindow().show();
 	const jsTotal = performance.now();
 	mark("show");
 
@@ -99,7 +97,7 @@ async function boot() {
 		)
 		.catch(() => {});
 
-	setTimeout(checkForUpdate, 5000);
+	setTimeout(() => void checkForUpdate(), 5000);
 	// Every window shares the same stored reports, so one window refreshes them.
 	if (isMainWindow) setTimeout(() => void refreshStoredReports(), 5000);
 }
@@ -116,4 +114,4 @@ function restoreSession() {
 	}
 }
 
-boot();
+void boot();

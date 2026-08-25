@@ -99,7 +99,9 @@ export function setLocal<T>(arg: StoreArg<T>, value: T): void {
 }
 
 /** Reactive view of a localStorage-backed key. */
-export function useLocalStorage<T>(store: PersistedStore<T>): [T, (v: T | ((prev: T) => T)) => void];
+export function useLocalStorage<T>(
+	store: PersistedStore<T>,
+): [T, (v: T | ((prev: T) => T)) => void];
 export function useLocalStorage<T>(
 	key: string,
 	defaultValue: T,

@@ -32,7 +32,7 @@ async function getCameraFrame(panoId: string): Promise<CameraFrame | null> {
 	if (!google?.maps) return null;
 	svService ??= new google.maps.StreetViewService();
 	return new Promise((resolve) => {
-		svService!.getPanorama(
+		void svService!.getPanorama(
 			{ pano: panoId },
 			(
 				data: google.maps.StreetViewPanoramaData | null,

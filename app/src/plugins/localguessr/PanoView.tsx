@@ -87,9 +87,7 @@ export function PanoView({
 				const isNorth = Math.abs(dh) < 2 || Math.abs(dh - 360) < 2;
 				// Second press: top-down and fully zoomed out, for lining up with the map.
 				if (isNorth) pano.setZoom(0);
-				const target = isNorth
-					? { heading: 0, pitch: -90 }
-					: { heading: 0, pitch: pov.pitch };
+				const target = isNorth ? { heading: 0, pitch: -90 } : { heading: 0, pitch: pov.pitch };
 				cancelTweenRef.current = tweenPov(pano, target);
 			},
 			setCheckpoint: () => {
@@ -227,10 +225,7 @@ export function PanoView({
 			<div ref={hostRef} className="lg-pano__host" />
 			{movementMode === "nmpz" && <div className="lg-pano__shield" aria-hidden="true" />}
 			{!error && (
-				<div
-					className={`lg-pano__loading${loading ? "" : " is-revealed"}`}
-					aria-hidden="true"
-				/>
+				<div className={`lg-pano__loading${loading ? "" : " is-revealed"}`} aria-hidden="true" />
 			)}
 			{error && <div className="lg-pano__error">{error}</div>}
 		</div>

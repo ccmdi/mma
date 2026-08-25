@@ -200,7 +200,7 @@ function FieldsTable({
 	useEffect(() => {
 		const total = getMapState().locationCount;
 		if (total === 0) return;
-		fieldCoverage({ kind: "all" }).then((counts) => {
+		void fieldCoverage({ kind: "all" }).then((counts) => {
 			setCoverage(new Map(counts.map(([key, n]) => [key, n / total])));
 		});
 	}, [coverageEpoch]);
@@ -228,7 +228,7 @@ function FieldsTable({
 	const updateRow = (key: string, patch: Partial<FieldRow>, commit = false) => {
 		setRows((prev) => {
 			const next = prev.map((r) => (r.key === key ? { ...r, ...patch } : r));
-			if (commit) commitDefs(next);
+			if (commit) void commitDefs(next);
 			return next;
 		});
 	};
@@ -403,7 +403,7 @@ function FieldsTable({
 												return;
 											}
 											setEditingKey(null);
-											proposeRename(row);
+											void proposeRename(row);
 										}}
 										onKeyDown={(e) => {
 											if (e.key === "Enter") e.currentTarget.blur();
@@ -427,7 +427,7 @@ function FieldsTable({
 									value={row.label}
 									disabled={!row.present}
 									onChange={(e) => updateRow(row.key, { label: e.target.value })}
-									onBlur={() => commitDefs(rows)}
+									onBlur={() => void commitDefs(rows)}
 								/>
 							</td>
 							<td>
@@ -450,7 +450,7 @@ function FieldsTable({
 											className="manage-fields-table__values"
 											type="button"
 											title={t("Edit allowed values")}
-											onClick={() => openEnumValues(row)}
+											onClick={() => void openEnumValues(row)}
 										>
 											{row.values?.length
 												? t("Values ({n})", { n: row.values.length })
@@ -565,7 +565,7 @@ function FieldsTable({
 								</fieldset>
 							)}
 							<div className="period-prompt__actions">
-								<Button variant="primary" disabled={busy} onClick={confirmRename}>
+								<Button variant="primary" disabled={busy} onClick={() => void confirmRename()}>
 									{renamePrompt.merge ? t("Merge") : t("Rename")}
 								</Button>
 								<Button disabled={busy} onClick={cancelRename}>
@@ -586,7 +586,7 @@ function FieldsTable({
 						/>
 					</p>
 					<div className="period-prompt__actions">
-						<Button variant="destructive" disabled={busy} onClick={confirmDelete}>
+						<Button variant="destructive" disabled={busy} onClick={() => void confirmDelete()}>
 							{t("Delete field")}
 						</Button>
 						<Button disabled={busy} onClick={() => setDeleteKey(null)}>

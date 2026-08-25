@@ -176,7 +176,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 		const tagId = sessionTagId;
 		engine.replaceCallbacks({
 			onLocationsFound: (locs: GeneratedLocation[]) => {
-				MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
+				void MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
 				rerender((n) => n + 1);
 			},
 			onProgress: () => tickProgress(),
@@ -247,7 +247,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 
 		const engine = new GenerationEngine(google, settings, regions, {
 			onLocationsFound: (locs: GeneratedLocation[]) => {
-				MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
+				void MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
 				rerender((n) => n + 1);
 			},
 			onProgress: () => tickProgress(),
@@ -266,7 +266,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 		sessionEngine = engine;
 		setRunning(true);
 		setPaused(false);
-		engine.start();
+		void engine.start();
 	}, [settings, tagName]);
 
 	const handlePause = useCallback(() => {
@@ -360,19 +360,15 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 					{!running ? (
 						<Button
 							variant="primary"
-							onClick={handleStart}
+							onClick={() => void handleStart()}
 							disabled={polygonSelections.length === 0}
 						>
 							{t("Start")}
 						</Button>
 					) : (
 						<>
-							<Button onClick={handlePause}>
-								{paused ? t("Resume") : t("Pause")}
-							</Button>
-							<Button onClick={handleStop}>
-								{t("Stop")}
-							</Button>
+							<Button onClick={handlePause}>{paused ? t("Resume") : t("Pause")}</Button>
+							<Button onClick={handleStop}>{t("Stop")}</Button>
 						</>
 					)}
 				</div>

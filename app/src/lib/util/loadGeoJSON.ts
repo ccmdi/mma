@@ -40,7 +40,7 @@ export async function loadGeoJSON() {
 				/* ignore malformed files */
 			}
 		}
-		if (props.length) addSelections(props);
+		if (props.length) void addSelections(props);
 	};
 	input.click();
 }

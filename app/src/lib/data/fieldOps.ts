@@ -108,7 +108,9 @@ function tokenize(src: string): Token[] {
 			i++;
 			continue;
 		}
-		throw new Error(t('Unexpected character "{char}" at position {position}', { char: c, position: i }));
+		throw new Error(
+			t('Unexpected character "{char}" at position {position}', { char: c, position: i }),
+		);
 	}
 	return tokens;
 }

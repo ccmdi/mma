@@ -87,11 +87,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			<Button variant="primary" type="submit" disabled={busy || !keyDraft}>
 				{busy ? t("Validating...") : t("Validate")}
 			</Button>
-			{error && (
-				<p style={{ color: "var(--red-9, #e5484d)" }}>
-					{error}
-				</p>
-			)}
+			{error && <p style={{ color: "var(--red-9, #e5484d)" }}>{error}</p>}
 		</form>
 	);
 

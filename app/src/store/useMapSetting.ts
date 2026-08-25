@@ -17,7 +17,9 @@ export function useMapSetting<K extends keyof MapSettings>(
 	const set = useCallback(
 		(v: MapSettings[K]) => {
 			const settings = getMapState().map?.meta.settings;
-			if (settings) updateMapMeta({ settings: { ...settings, [key]: v } });
+			if (settings) {
+				void updateMapMeta({ settings: { ...settings, [key]: v } });
+			}
 		},
 		[key],
 	);

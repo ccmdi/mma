@@ -157,12 +157,7 @@ export interface DoclinkMatch {
 }
 
 const normName = (s: string) =>
-	s
-		.normalize("NFKD")
-		.replace(/\p{M}/gu, "")
-		.toLowerCase()
-		.replace(/\s+/g, " ")
-		.trim();
+	s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
 
 /** Propose (tag, heading) links by name: exact normalized full-name matches, plus
  *  leaf-segment matches ("Poland/Bollard" -> heading "Bollard") when exactly one

@@ -45,7 +45,7 @@ export function MapRenameForm({ mapId, currentName }: { mapId: string; currentNa
 			<form
 				onSubmit={(e) => {
 					e.preventDefault();
-					updateMapMeta({ name: name || currentName });
+					void updateMapMeta({ name: name || currentName });
 					close();
 				}}
 			>

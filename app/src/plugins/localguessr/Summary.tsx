@@ -25,9 +25,7 @@ export function Summary({
 					<div className="lg-summary__score">{session.totalScore.toLocaleString()}</div>
 				</div>
 				<div className="lg-summary__meta">
-					<div>
-						{formatElapsed(session.results.reduce((sum, r) => sum + r.elapsedMs, 0))}
-					</div>
+					<div>{formatElapsed(session.results.reduce((sum, r) => sum + r.elapsedMs, 0))}</div>
 					{session.config.streakMode !== "off" && (
 						<div>{t("Best streak: {n}", { n: session.bestStreak })}</div>
 					)}
@@ -43,9 +41,7 @@ export function Summary({
 						<span className="lg-summary__row-dist">
 							{r.distanceMeters != null ? formatRoundDistance(r.distanceMeters) : "—"}
 						</span>
-						<span className="lg-summary__row-time">
-							{formatElapsed(r.elapsedMs)}
-						</span>
+						<span className="lg-summary__row-time">{formatElapsed(r.elapsedMs)}</span>
 						<span className="lg-summary__row-place">
 							<Flag code={r.truth?.country_code ?? null} />
 							{[r.truth?.admin, r.truth?.country].filter(Boolean).join(", ")}

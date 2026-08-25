@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo, useCallback, useEffectEvent } from "react";
-import { getCommands } from "@/store/commands";
+import { getCommands, runCommand } from "@/store/commands";
 import { getBinding } from "@/lib/util/hotkeys";
 
 const IS_MAC = /Mac|iPod|iPhone|iPad/i.test(navigator.platform);
@@ -253,7 +253,7 @@ export function useCommandHotkeys() {
 						// Before the enabled check, or a disabled command leaks the key to the browser.
 						e.preventDefault();
 						if (cmd.enabled && !cmd.enabled()) return;
-						cmd.execute();
+						runCommand(cmd);
 						return;
 					}
 				}

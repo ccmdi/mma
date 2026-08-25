@@ -89,7 +89,7 @@ export default function SameLocation() {
 
 	const deleteSingle = useCallback(
 		(loc: Location) => {
-			removeLocations(new Set([loc.id]));
+			void removeLocations(new Set([loc.id]));
 			removeDuplicate(loc.id);
 			const remaining = locations.filter((l) => l.id !== loc.id);
 			if (remaining.length <= 1) {
@@ -102,14 +102,14 @@ export default function SameLocation() {
 
 	const keepSelected = useCallback(() => {
 		const toDelete = new Set(locations.map((l) => l.id)).difference(selected);
-		removeLocations(toDelete);
+		void removeLocations(toDelete);
 		const remaining = locations.find((l) => selected.has(l.id));
 		if (remaining) openDuplicateLocation(remaining);
 		else closeDuplicates();
 	}, [locations, selected]);
 
 	const deleteSelected = useCallback(() => {
-		removeLocations(new Set(selected));
+		void removeLocations(new Set(selected));
 		const remaining = locations.find((l) => !selected.has(l.id));
 		if (remaining) openDuplicateLocation(remaining);
 		else closeDuplicates();

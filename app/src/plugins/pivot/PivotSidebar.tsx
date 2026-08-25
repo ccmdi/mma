@@ -248,10 +248,10 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 		}
 	}, [rowSource, fieldKey, fields, bucketCount]);
 
-	const debouncedRecompute = useDebouncedCallback(recompute, 150);
+	const debouncedRecompute = useDebouncedCallback(() => void recompute(), 150);
 
 	useEffect(() => {
-		recompute();
+		void recompute();
 		const unsubLoc = subscribeMany(LOCATION_DATA_EVENTS, debouncedRecompute);
 		const unsubSel = MMA.on("selection:change", debouncedRecompute);
 		return () => {
@@ -375,9 +375,9 @@ function PivotTable({ data, mode, stale }: { data: PivotData; mode: ValueMode; s
 			if (!props) return;
 			const key = columnKeys?.[i];
 			if (key && MMA.getActiveSelections().some((s) => s.key === key)) {
-				MMA.removeSelections([key]);
+				void MMA.removeSelections([key]);
 			} else {
-				MMA.addSelections([props]);
+				void MMA.addSelections([props]);
 			}
 		},
 		[data, columnKeys],

@@ -1,8 +1,21 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+	type CSSProperties,
+} from "react";
 import { ScatterplotLayer, PathLayer } from "@deck.gl/layers";
 import { PathStyleExtension } from "@deck.gl/extensions";
 import { Icon } from "@/components/primitives/Icon";
-import { mdiLayers, mdiPlus, mdiMinus, mdiMagnifyPlusOutline, mdiMagnifyMinusOutline } from "@mdi/js";
+import {
+	mdiLayers,
+	mdiPlus,
+	mdiMinus,
+	mdiMagnifyPlusOutline,
+	mdiMagnifyMinusOutline,
+} from "@mdi/js";
 import {
 	createMapHost,
 	hostInstance,
@@ -72,7 +85,14 @@ function resultLineLayer(guess: LatLng, truth: LatLng, settledZoom: number) {
 	const width = 2.5 / 2 ** (settledZoom - 1);
 	return new PathLayer({
 		id: "lg-line",
-		data: [{ path: [[guess.lng, guess.lat], [truth.lng, truth.lat]] }],
+		data: [
+			{
+				path: [
+					[guess.lng, guess.lat],
+					[truth.lng, truth.lat],
+				],
+			},
+		],
 		getPath: (d: { path: [number, number][] }) => d.path,
 		getColor: [25, 25, 25, 240],
 		getWidth: width,
@@ -315,7 +335,10 @@ export function GuessMap({
 			ref={rootRef}
 			className={`lg-guess-map${expanded && hovered && !showResult ? " is-expanded" : ""}${showResult ? " lg-guess-map--result" : ""}${instant ? " is-instant" : ""}`}
 			style={
-				{ "--lg-map-w": panelSize(BASE_W, scale), "--lg-map-h": panelSize(BASE_H, scale) } as CSSProperties
+				{
+					"--lg-map-w": panelSize(BASE_W, scale),
+					"--lg-map-h": panelSize(BASE_H, scale),
+				} as CSSProperties
 			}
 			{...(showResult
 				? {}

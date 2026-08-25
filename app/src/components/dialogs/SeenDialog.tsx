@@ -101,7 +101,7 @@ export function SeenDialog({
 			setFilterCountry("");
 			setFilterMap("");
 			setFilterSearch("");
-			Promise.all([
+			void Promise.all([
 				load(0),
 				getSeenCountries().then(setCountries),
 				getSeenMaps().then(setMaps),
@@ -111,11 +111,11 @@ export function SeenDialog({
 
 	useEffect(() => {
 		if (!ready) return;
-		load(0, buildFilter());
+		void load(0, buildFilter());
 	}, [filterCountry, filterMap]);
 
 	const debouncedSearch = useDebouncedCallback((value: string) => {
-		load(0, { ...buildFilter(), search: value || undefined });
+		void load(0, { ...buildFilter(), search: value || undefined });
 	}, 250);
 
 	const handleSearchInput = (value: string) => {
@@ -187,19 +187,22 @@ export function SeenDialog({
 				<div className="seen-dialog__footer">
 					<Button
 						variant="destructive"
-						onClick={handleClear}
+						onClick={() => void handleClear()}
 						onBlur={() => setConfirmingClear(false)}
 					>
 						{confirmingClear ? t("Are you sure?") : t("Clear")}
 					</Button>
 					<div className="seen-dialog__pagination">
-						<Button disabled={page === 0 || loading} onClick={() => load(page - 1, buildFilter())}>
+						<Button
+							disabled={page === 0 || loading}
+							onClick={() => void load(page - 1, buildFilter())}
+						>
 							{t("Prev")}
 						</Button>
 						<span className="mono">{totalPages > 0 ? `${page + 1} / ${totalPages}` : "0 / 0"}</span>
 						<Button
 							disabled={page >= totalPages - 1 || loading}
-							onClick={() => load(page + 1, buildFilter())}
+							onClick={() => void load(page + 1, buildFilter())}
 						>
 							{t("Next")}
 						</Button>

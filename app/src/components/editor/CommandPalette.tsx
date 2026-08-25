@@ -6,7 +6,7 @@ import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiUndo, mdiPin, mdiPinOutline } from "@mdi/js";
 import { BulkOperationModal, type BulkOperation } from "@/components/dialogs/BulkOperationModal";
-import { getCommands, togglePinnedCommand, type CommandGroup } from "@/store/commands";
+import { getCommands, runCommand, togglePinnedCommand, type CommandGroup } from "@/store/commands";
 import { useSetting } from "@/store/settings";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { getBinding, useBinding } from "@/lib/util/hotkeys";
@@ -127,7 +127,7 @@ function MainCommands() {
 								key={cmd.id}
 								label={t(cmd.label)}
 								icon={cmd.icon ? <Icon path={cmd.icon} size={18} /> : undefined}
-								onSelect={cmd.execute}
+								onSelect={() => runCommand(cmd)}
 								disabled={cmd.enabled ? !cmd.enabled() : false}
 								shortcut={cmd.defaultBinding ? formatBinding(getBinding(cmd.id)) : undefined}
 								commandId={cmd.id}
@@ -170,7 +170,7 @@ function MapSwitcher() {
 					<PaletteItem
 						key={m.id}
 						label={m.name}
-						onSelect={() => closeMap().then(() => goToMap(m.id))}
+						onSelect={() => void closeMap().then(() => goToMap(m.id))}
 					/>
 				))
 			)}

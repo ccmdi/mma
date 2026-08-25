@@ -16,7 +16,7 @@ import type {
 	SelectionSync,
 } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
-import { log, fireAndForget } from "@/lib/util/log";
+import { log } from "@/lib/util/log";
 import { hexToRgb } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { trace } from "@/lib/util/debug";
@@ -174,7 +174,7 @@ export function scheduleSave() {
 	if (autosaveTimer) clearTimeout(autosaveTimer);
 	autosaveTimer = setTimeout(() => {
 		autosaveTimer = null;
-		doSave();
+		void doSave();
 	}, AUTOSAVE_DELAY_MS);
 }
 
@@ -213,7 +213,7 @@ async function doSave(): Promise<void> {
 		.storeSaveDirty()
 		.then(() => {
 			t.end();
-			invalidateMapList();
+			void invalidateMapList();
 		})
 		.catch((err) => {
 			scheduleSave();
@@ -236,8 +236,9 @@ export async function flushSave(): Promise<void> {
 export async function initStore() {
 	setCachedMapList(await cmd.storeListMaps());
 	emitEvent("store:changed");
-	listen("map-list-changed", () => reloadMapList());
-	listen<string>("store-warning", (e) => toast(e.payload, 8000));
+	// App-lifetime listeners: never unsubscribed, so the handles are dropped on purpose.
+	void listen("map-list-changed", () => void reloadMapList());
+	void listen<string>("store-warning", (e) => toast(e.payload, 8000));
 }
 
 /** Cross-module stopwatch for map-open latency. */
@@ -308,7 +309,7 @@ export async function openMap(id: string) {
 			emitEvent("store:changed");
 			return;
 		}
-		cmd.storeTouchMapOpened(id);
+		void cmd.storeTouchMapOpened(id);
 	}
 
 	clearEditState();
@@ -490,7 +491,7 @@ function applyMutation(r: MutationResult) {
 		knownFieldKeys: new Set([...r.knownFieldKeys, ...Object.keys(r.newFieldDefs ?? {})]),
 	});
 	if (r.newFieldDefs) mergeUserFieldDefs(r.newFieldDefs);
-	if (r.tags) removeSelections(deadTagKeys(oldTags, r.tags));
+	if (r.tags) void removeSelections(deadTagKeys(oldTags, r.tags));
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
 }
 
@@ -812,7 +813,11 @@ export async function selectSpacedFromSelection(
 		pickBuckets(perSelection).map((props) =>
 			query(
 				props ? { kind: "props", props } : { kind: "selected" },
-				{ kind: "spaced", targetCount: opts.count ?? null, minDistanceM: opts.minDistanceM ?? null },
+				{
+					kind: "spaced",
+					targetCount: opts.count ?? null,
+					minDistanceM: opts.minDistanceM ?? null,
+				},
 				"spaced",
 			),
 		),
@@ -881,7 +886,7 @@ export function setPolygonName(key: string, name: string) {
 
 /** Set the highlight color of selections, by key. */
 export function setSelectionColors(entries: { key: string; color: [number, number, number] }[]) {
-	applySelectionUpdate((sels) => {
+	void applySelectionUpdate((sels) => {
 		let result = sels;
 		for (const { key, color } of entries) result = setSelColor(result, key, color);
 		return result;
@@ -890,7 +895,7 @@ export function setSelectionColors(entries: { key: string; color: [number, numbe
 
 /** Move a selection before/after another in the sidebar order. */
 export function reorderSelection(fromKey: string, toKey: string, position: "before" | "after") {
-	applySelectionUpdate((sels) => reorderSelections(sels, fromKey, toKey, position));
+	void applySelectionUpdate((sels) => reorderSelections(sels, fromKey, toKey, position));
 }
 
 /** Nest existing selections under a new AND/OR/Invert composite. */
@@ -901,7 +906,7 @@ export function composeSelections(
 	dragParent: string | null,
 	dropParent: string | null,
 ) {
-	applySelectionUpdate((sels) => {
+	void applySelectionUpdate((sels) => {
 		if (dragParent && dropParent && dragParent === dropParent) {
 			return composeSiblingsSel(sels, dragParent, dragKey, dropKey, mode);
 		}
@@ -915,18 +920,18 @@ export function composeSelections(
 
 /** Pull a child out of a composite back to the top level. */
 export function decomposeChild(parentKey: string, childKey: string) {
-	applySelectionUpdate((sels) => decomposeChildSel(sels, parentKey, childKey));
+	void applySelectionUpdate((sels) => decomposeChildSel(sels, parentKey, childKey));
 }
 
 /** Delete a child from a composite (without re-adding it at the top level). */
 export function removeChildFromSelection(parentKey: string, childKey: string) {
-	applySelectionUpdate((sels) => removeFromCompositeSel(sels, parentKey, childKey));
+	void applySelectionUpdate((sels) => removeFromCompositeSel(sels, parentKey, childKey));
 }
 
 /** Toggle tag selections on/off for the given tags (used by tag-pill clicks). */
 export function toggleTagSelections(tagIds: number[]) {
 	if (!state.map || tagIds.length === 0) return;
-	applySelectionUpdate((sels) => {
+	void applySelectionUpdate((sels) => {
 		let result = sels;
 		for (const tagId of tagIds) {
 			const key = `tag:${tagId}`;
@@ -981,7 +986,7 @@ const freshVirtualId = () => --virtualIdSeq;
 export async function openStagedLocation(index: number) {
 	const loc = await cmd.storeImportStagedLocation(index);
 	// Rust's active_id must not stay pinned to the previous real location.
-	fireAndForget(cmd.storeSetActive(null), "stagedOpen:setActive");
+	void cmd.storeSetActive(null);
 	setState({
 		activeLocationId: null,
 		activeLocation: {
@@ -999,7 +1004,7 @@ export async function openStagedLocation(index: number) {
 /** Open an arbitrary location read-only as a virtual seen-preview: loads its pano without
  *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. */
 export function previewVirtualLocation(loc: Location) {
-	fireAndForget(cmd.storeSetActive(null), "virtualPreview:setActive");
+	void cmd.storeSetActive(null);
 	setState({
 		activeLocationId: null,
 		activeLocation: {
@@ -1016,7 +1021,7 @@ export function previewVirtualLocation(loc: Location) {
 /** Drop the active location, keeping Rust's `active_id` and `active:change` in step. */
 function clearActiveLocation(): void {
 	if (state.activeLocationId == null && state.activeLocation == null) return;
-	if (state.activeLocationId != null) fireAndForget(cmd.storeSetActive(null), "clearActive");
+	if (state.activeLocationId != null) void cmd.storeSetActive(null);
 	setState({ activeLocationId: null, activeLocation: null });
 	emitEvent("active:change", null);
 }
@@ -1046,7 +1051,7 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 		}
 	}
 	setState({ activeLocationId: id });
-	fireAndForget(cmd.storeSetActive(id), "setActive");
+	void cmd.storeSetActive(id);
 	if (id) {
 		const loc = await resolveLocation(target!);
 		t.step("ipc");
@@ -1078,7 +1083,7 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 /** Open one location from the duplicate-resolution panel in the editor. */
 export function openDuplicateLocation(loc: Location) {
 	setState({ activeLocationId: loc.id, activeLocation: loc, workArea: "location" });
-	fireAndForget(cmd.storeSetActive(loc.id), "setActive");
+	void cmd.storeSetActive(loc.id);
 	emitEvent("store:changed");
 }
 
@@ -1151,7 +1156,7 @@ export async function updateTags(updates: Update<TagPatch>[]) {
 			return p.type === "Tag" && updates.some((q) => q.id === p.tagId && q.patch.color != null);
 		})
 	) {
-		applySelectionUpdate((sels) => sels);
+		void applySelectionUpdate((sels) => sels);
 	}
 }
 

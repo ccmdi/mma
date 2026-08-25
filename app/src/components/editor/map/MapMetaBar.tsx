@@ -66,7 +66,7 @@ function UndoRedoControls() {
 					disabled={!canUndo}
 					style={{ color: canUndo ? undefined : "var(--text-3)" }}
 					aria-label={t("Undo")}
-					onClick={undo}
+					onClick={() => void undo()}
 				>
 					<Icon path={mdiUndo} />
 				</button>
@@ -78,7 +78,7 @@ function UndoRedoControls() {
 					disabled={!canRedo}
 					style={{ color: canRedo ? undefined : "var(--text-3)" }}
 					aria-label={t("Redo")}
-					onClick={redo}
+					onClick={() => void redo()}
 				>
 					<Icon path={mdiRedo} />
 				</button>
@@ -103,7 +103,7 @@ export function MapMetaBar() {
 		if (!path || typeof path !== "string") return;
 		await beginImportFromPath(path);
 	}, []);
-	useDialog("import", importFile);
+	useDialog("import", () => void importFile());
 	useDialog("quick-copy-to-map", (id) => setQuickCopyId(id));
 
 	if (!map) return null;
@@ -119,12 +119,18 @@ export function MapMetaBar() {
 			<div className="map-meta__import">
 				<Button onClick={() => setShowSeen(true)}>{t("Seen")}</Button>
 				<Button onClick={() => setShowHistory(true)}>{t("History")}</Button>
-				<Button onClick={importFile}>{t("Import file")}</Button>
+				<Button onClick={() => void importFile()}>{t("Import file")}</Button>
 				<Button onClick={() => setShowExport(true)}>{t("Export")}</Button>
 			</div>
 			{showExport && <ExportDialog onClose={() => setShowExport(false)} />}
 			{showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
-			{showSeen && <SeenDialog open onOpenChange={setShowSeen} onLoadPano={loadSeenPano} />}
+			{showSeen && (
+				<SeenDialog
+					open
+					onOpenChange={setShowSeen}
+					onLoadPano={(entry) => void loadSeenPano(entry)}
+				/>
+			)}
 			{showCopyToMap && <CopyToMapDialog onClose={() => setShowCopyToMap(false)} />}
 			{quickCopyId != null && (
 				<QuickCopyToMapDialog locationId={quickCopyId} onClose={() => setQuickCopyId(null)} />

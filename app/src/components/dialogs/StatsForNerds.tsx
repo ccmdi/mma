@@ -45,12 +45,7 @@ function statsRows(d: Diagnostics): [string, string | number][] {
 		["WebGL", d.webglRenderer],
 		["DPR", d.devicePixelRatio],
 		["Viewport", d.viewport],
-		[
-			"JS heap",
-			d.jsHeap
-				? `${fmtMB(d.jsHeap.usedBytes)} / ${fmtMB(d.jsHeap.limitBytes)}`
-				: "N/A",
-		],
+		["JS heap", d.jsHeap ? `${fmtMB(d.jsHeap.usedBytes)} / ${fmtMB(d.jsHeap.limitBytes)}` : "N/A"],
 		["Startup", `${d.startupMs} ms`],
 		[
 			"Uptime",

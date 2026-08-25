@@ -57,7 +57,7 @@ export function JsonEditorPanel() {
 				};
 			}
 			setError(null);
-			MMA.updateLocations([{ id: active.id, patch: parsed }]);
+			void MMA.updateLocations([{ id: active.id, patch: parsed }]);
 			setSaved(true);
 		} catch (e: unknown) {
 			setError(errText(e));
@@ -101,9 +101,7 @@ export function JsonEditorPanel() {
 			/>
 			{error && <div style={{ color: "#e53e3e", fontSize: "11px", marginTop: 4 }}>{error}</div>}
 			<div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-				<Button onClick={handleSave}>
-					{t("Apply")}
-				</Button>
+				<Button onClick={() => void handleSave()}>{t("Apply")}</Button>
 				{saved && (
 					<span style={{ color: "var(--constructive)", fontSize: "11px" }}>{t("Saved")}</span>
 				)}

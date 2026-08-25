@@ -55,7 +55,7 @@ export function useMapSurface(
 		const overlay = overlayRef.current;
 		if (!overlay) return;
 		const onClick = (info: PickingInfo, domEvent?: Event) =>
-			handleMapClick(info, domEvent, {
+			void handleMapClick(info, domEvent, {
 				cm: getScene(),
 				host,
 				selectOnly: opts.prefs.selectOnly,

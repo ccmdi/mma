@@ -74,7 +74,7 @@ export function FullscreenMiniMap() {
 
 	useEffect(() => {
 		let cancelled = false;
-		ensureMinimapHost(prefs, lat, lng).then((s) => {
+		void ensureMinimapHost(prefs, lat, lng).then((s) => {
 			if (!cancelled) setSurface(s);
 		});
 		return () => {

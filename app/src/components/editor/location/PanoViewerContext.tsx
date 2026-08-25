@@ -92,7 +92,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		if (!getMapState().map?.meta.settings.enrichMetadata) return;
 		const loc = getMapState().activeLocation;
 		if (!loc || loc.extra?.datetime != null) return;
-		updateLocations(
+		void updateLocations(
 			[{ id: loc.id, patch: { extra: { datetime: exactDate.ts, timezone: resolvedTz } } }],
 			{ undoable: false },
 		);

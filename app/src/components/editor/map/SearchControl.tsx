@@ -30,25 +30,29 @@ export function SearchControl({
 		// and Nominatim may answer them out of order.
 		acRef.current?.abort();
 		const ac = (acRef.current = new AbortController());
-		timerRef.current = setTimeout(async () => {
-			try {
-				const res = await fetch(
-					`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`,
-					{ headers: { "Accept-Language": "en" }, signal: ac.signal },
-				);
-				if (!res.ok) return;
-				const data = await res.json();
-				setResults(
-					data.map((r: { display_name: string; lat: string; lon: string }) => ({
-						name: r.display_name,
-						lat: parseFloat(r.lat),
-						lng: parseFloat(r.lon),
-					})),
-				);
-			} catch {
-				// ignored
-			}
-		}, 300);
+		timerRef.current = setTimeout(
+			() =>
+				void (async () => {
+					try {
+						const res = await fetch(
+							`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5`,
+							{ headers: { "Accept-Language": "en" }, signal: ac.signal },
+						);
+						if (!res.ok) return;
+						const data = await res.json();
+						setResults(
+							data.map((r: { display_name: string; lat: string; lon: string }) => ({
+								name: r.display_name,
+								lat: parseFloat(r.lat),
+								lng: parseFloat(r.lon),
+							})),
+						);
+					} catch {
+						// ignored
+					}
+				})(),
+			300,
+		);
 	}, []);
 
 	// a Maps URL or coordinate resolves to a location, otherwise default geocode

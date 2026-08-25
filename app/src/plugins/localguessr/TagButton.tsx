@@ -70,7 +70,7 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 					}
 					className="lg-tag-dialog"
 					// TODO: deferred focus is a workaround for portal measuring before dialog layout settles
-				onOpenAutoFocus={(e) => {
+					onOpenAutoFocus={(e) => {
 						e.preventDefault();
 						setTimeout(() => {
 							formRef.current?.querySelector<HTMLInputElement>("input")?.focus();

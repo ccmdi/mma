@@ -31,10 +31,7 @@ export const ReviewBar = memo(function ReviewBar() {
 					{pos} / {s.order.length}
 				</span>{" "}
 				&middot;{" "}
-				<Trans
-					msg="{count} reviewed"
-					count={<span className="mono">{s.reviewed.length}</span>}
-				/>
+				<Trans msg="{count} reviewed" count={<span className="mono">{s.reviewed.length}</span>} />
 			</span>
 			<span style={{ display: "flex", alignItems: "center", gap: ".5rem" }}>
 				<Tooltip content={t("Exit review")} side="bottom">

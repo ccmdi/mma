@@ -12,7 +12,7 @@ import {
 	invalidateMapList,
 } from "@/store/mapList";
 import { openMapWindow } from "@/lib/window";
-import { log, fireAndForget } from "@/lib/util/log";
+import { log } from "@/lib/util/log";
 import { cmpVersion } from "@/lib/util/util";
 import { appVersion } from "@/lib/version";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -215,7 +215,7 @@ function WhatsNew() {
 
 	useEffect(() => {
 		let alive = true;
-		fetchChangelog().then((v) => {
+		void fetchChangelog().then((v) => {
 			if (!alive) return;
 			if (v) setVersions(v);
 			else setFailed(true);
@@ -329,7 +329,7 @@ function RenameForm({
 				if (typeof val === "string" && val.trim() !== "") {
 					const to = val.trim();
 					onRename?.(name, to);
-					renameFolder(name, to).finally(close);
+					void renameFolder(name, to).finally(close);
 				}
 			}}
 		>
@@ -375,7 +375,7 @@ function MapEditForm({ id, name, labels }: { id: string; name: string; labels: s
 				e.preventDefault();
 				const val = new FormData(e.currentTarget).get("name");
 				if (typeof val === "string" && val.trim() !== "") {
-					Promise.all([renameMap(id, val.trim()), updateMapLabels(id, currentLabels)]).finally(
+					void Promise.all([renameMap(id, val.trim()), updateMapLabels(id, currentLabels)]).finally(
 						close,
 					);
 				}
@@ -502,7 +502,7 @@ const MapEntry = React.memo(function MapEntry({
 				className="map-link"
 				onClick={(e) => {
 					e.preventDefault();
-					openMapWindow(meta.id, meta.name);
+					void openMapWindow(meta.id, meta.name);
 				}}
 			>
 				{meta.name || t("(unnamed)")}
@@ -733,15 +733,9 @@ function ImportPreviewModal({
 		>
 			<DialogContent title={t("Import Maps")} className="import-preview-modal">
 				<div className="import-preview__actions">
-					<Button onClick={selectAll}>
-						{t("All")}
-					</Button>
-					<Button onClick={selectNone}>
-						{t("None")}
-					</Button>
-					<Button onClick={selectNew}>
-						{t("New only")}
-					</Button>
+					<Button onClick={selectAll}>{t("All")}</Button>
+					<Button onClick={selectNone}>{t("None")}</Button>
+					<Button onClick={selectNew}>{t("New only")}</Button>
 					<span className="import-preview__summary">
 						{t("{selected} of {total} selected ({locations} locations)", {
 							selected: selectedCount,
@@ -788,9 +782,7 @@ function ImportPreviewModal({
 				)}
 
 				<div className="import-preview__footer">
-					<Button onClick={onClose}>
-						{t("Cancel")}
-					</Button>
+					<Button onClick={onClose}>{t("Cancel")}</Button>
 					<Button
 						variant="primary"
 						disabled={selectedCount === 0}
@@ -946,7 +938,7 @@ export function BulkActions() {
 		<>
 			<button
 				className="settings-gear"
-				onClick={handleExport}
+				onClick={() => void handleExport()}
 				disabled={exporting}
 				title={exporting ? t("Exporting...") : t("Export all maps")}
 			>
@@ -954,7 +946,7 @@ export function BulkActions() {
 			</button>
 			<button
 				className="settings-gear"
-				onClick={handleImport}
+				onClick={() => void handleImport()}
 				disabled={importing || parseStatus !== null}
 				title={parseStatus ?? (importing ? t("Importing...") : t("Import maps"))}
 			>
@@ -963,9 +955,9 @@ export function BulkActions() {
 			{preview && (
 				<ImportPreviewModal
 					preview={preview}
-					onConfirm={handleConfirm}
+					onConfirm={(indices) => void handleConfirm(indices)}
 					onClose={() => {
-						fireAndForget(cmd.bulkImportCancel(), "bulkImportCancel");
+						void cmd.bulkImportCancel();
 						setPreview(null);
 						importEntriesRef.current = null;
 					}}
@@ -1136,7 +1128,7 @@ export function MapList() {
 
 			const target = dropRef.current;
 			if (target !== false && target !== item.folder) {
-				moveMapToFolder(item.id, target);
+				void moveMapToFolder(item.id, target);
 			}
 			dropRef.current = false;
 			setDragItem(null);
@@ -1200,7 +1192,7 @@ export function MapList() {
 									exact.querySelector<HTMLAnchorElement>(".map-link")?.click();
 									return;
 								}
-								createMap(name).then((m) => openMapWindow(m.id, m.name));
+								void createMap(name).then((m) => openMapWindow(m.id, m.name));
 							}}
 							type="text"
 							placeholder={t("Search maps...")}
@@ -1264,7 +1256,7 @@ export function MapList() {
 								toast(t("Type a name to create a map"));
 								return;
 							}
-							createMap(name);
+							void createMap(name);
 						}}
 						aria-label={t("New map")}
 					>
@@ -1379,13 +1371,11 @@ export function MapList() {
 							<>
 								<p>{t('Delete "{name}"?', { name: activeAction.name || t("(unnamed)") })}</p>
 								<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-									<Button onClick={() => setActiveAction(null)}>
-										{t("Cancel")}
-									</Button>
+									<Button onClick={() => setActiveAction(null)}>{t("Cancel")}</Button>
 									<Button
 										variant="destructive"
 										onClick={() => {
-											deleteMap(activeAction.id);
+											void deleteMap(activeAction.id);
 											setActiveAction(null);
 										}}
 									>
@@ -1415,17 +1405,17 @@ export function MapList() {
 									)}
 								</p>
 								<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-									<Button onClick={() => setActiveAction(null)}>
-										{t("Cancel")}
-									</Button>
+									<Button onClick={() => setActiveAction(null)}>{t("Cancel")}</Button>
 									<Button
 										variant="destructive"
-										onClick={async () => {
-											const name = activeAction.name;
-											setActiveAction(null);
-											setSyntheticFolders((prev) => prev.filter((f) => f !== name));
-											await deleteFolder(name);
-										}}
+										onClick={() =>
+											void (async () => {
+												const name = activeAction.name;
+												setActiveAction(null);
+												setSyntheticFolders((prev) => prev.filter((f) => f !== name));
+												await deleteFolder(name);
+											})()
+										}
 									>
 										{t("Delete folder")}
 									</Button>

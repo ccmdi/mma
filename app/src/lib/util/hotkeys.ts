@@ -9,16 +9,10 @@ type QuicktagSlot = (typeof QUICKTAG_SLOTS)[number];
 /** Derived from the def table: the raw UI defs below plus the generated
  *  quicktag slots. Command-level bindings are keyed by registry id (string). */
 export type HotkeyAction =
-	| (typeof STATIC_HOTKEY_DEFS)[number]["action"]
-	| `quicktag${QuicktagSlot}`;
+	(typeof STATIC_HOTKEY_DEFS)[number]["action"] | `quicktag${QuicktagSlot}`;
 
 export type HotkeyGroup =
-	| "Commands"
-	| "Global"
-	| "Map Navigation"
-	| "Location Editor"
-	| "Quicktag"
-	| "Review";
+	"Commands" | "Global" | "Map Navigation" | "Location Editor" | "Quicktag" | "Review";
 
 export interface HotkeyDef {
 	action: HotkeyAction;
@@ -368,14 +362,12 @@ const QUICKTAG_LABELS: Record<QuicktagSlot, string> = {
 
 const RAW_HOTKEY_DEFS: HotkeyDef[] = [
 	...STATIC_HOTKEY_DEFS,
-	...QUICKTAG_SLOTS.map(
-		(n): HotkeyDef => ({
-			action: `quicktag${n}`,
-			label: QUICKTAG_LABELS[n],
-			group: msg("Quicktag"),
-			defaultBinding: String(n),
-		}),
-	),
+	...QUICKTAG_SLOTS.map((n): HotkeyDef => ({
+		action: `quicktag${n}`,
+		label: QUICKTAG_LABELS[n],
+		group: msg("Quicktag"),
+		defaultBinding: String(n),
+	})),
 ];
 
 // Unified view: raw defs + command-derived defs. This is what the shortcuts UI iterates.

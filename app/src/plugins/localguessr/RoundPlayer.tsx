@@ -4,7 +4,16 @@ import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { Flag } from "@/components/primitives/Flag";
 import { Tooltip } from "@/components/primitives/Tooltip";
-import { mdiClose, mdiHome, mdiNavigation, mdiBookmarkOutline, mdiBookmark, mdiCar, mdiCarOff, mdiTagOutline } from "@mdi/js";
+import {
+	mdiClose,
+	mdiHome,
+	mdiNavigation,
+	mdiBookmarkOutline,
+	mdiBookmark,
+	mdiCar,
+	mdiCarOff,
+	mdiTagOutline,
+} from "@mdi/js";
 import { cmd } from "@/lib/commands";
 import { getSettings, setSetting, useSettings } from "@/store/settings";
 import { sendHideCar, Compass, CompassTape } from "@/components/editor/location/PanoControls";
@@ -70,7 +79,12 @@ function Timer({
 	);
 }
 
-function streakMessage(result: RoundResult, results: RoundResult[], streak: number, streakMode: StreakMode): string | null {
+function streakMessage(
+	result: RoundResult,
+	results: RoundResult[],
+	streak: number,
+	streakMode: StreakMode,
+): string | null {
 	if (result.streakHit === null) return null;
 	const place = (g: GeoResult | null) =>
 		streakMode === "state"
@@ -320,7 +334,10 @@ export function RoundPlayer({
 						</Tooltip>
 					)}
 					{game.config.movementMode === "moving" && (
-						<Tooltip content={hasCheckpoint ? t("Return to checkpoint (B)") : t("Set checkpoint (C)")} side="right">
+						<Tooltip
+							content={hasCheckpoint ? t("Return to checkpoint (B)") : t("Set checkpoint (C)")}
+							side="right"
+						>
 							<button
 								type="button"
 								className={`lg-round__tool${hasCheckpoint ? " is-active" : ""}`}
@@ -377,9 +394,7 @@ export function RoundPlayer({
 							<div className="lg-result-bar__place">
 								<Flag code={lastResult.truth.country_code} />
 								<span>
-									{[lastResult.truth.admin, lastResult.truth.country]
-										.filter(Boolean)
-										.join(", ")}
+									{[lastResult.truth.admin, lastResult.truth.country].filter(Boolean).join(", ")}
 								</span>
 							</div>
 						)}
@@ -401,9 +416,7 @@ export function RoundPlayer({
 								</span>
 							</div>
 							<div className="lg-result-bar__stat lg-result-bar__stat--score">
-								<span className="lg-result-bar__value">
-									{lastResult.score.toLocaleString()}
-								</span>
+								<span className="lg-result-bar__value">{lastResult.score.toLocaleString()}</span>
 								<span className="lg-result-bar__label">{t("of 5,000 points")}</span>
 							</div>
 						</div>

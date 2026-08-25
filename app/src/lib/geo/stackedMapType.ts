@@ -24,9 +24,11 @@ function initStackedMapType() {
 			const tiles = this.layers.map((l) => l.getTile(coord, zoom, doc)!);
 			const div = doc.createElement("div");
 			div.append(...tiles.filter(Boolean));
-			Promise.all(tiles.filter((t): t is Element => t != null).map(waitForTileLoad)).then(() => {
-				google.maps.event.trigger(div, "load");
-			});
+			void Promise.all(tiles.filter((t): t is Element => t != null).map(waitForTileLoad)).then(
+				() => {
+					google.maps.event.trigger(div, "load");
+				},
+			);
 			return div;
 		}
 		releaseTile(el: HTMLElement) {

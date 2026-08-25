@@ -135,7 +135,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
-						handleApply();
+						void handleApply();
 					}}
 					style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}
 				>
@@ -199,10 +199,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 					)}
 					{field && (
 						<label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-							<Checkbox
-								checked={tagMissing}
-								onChange={(e) => setTagMissing(e.target.checked)}
-							/>
+							<Checkbox checked={tagMissing} onChange={(e) => setTagMissing(e.target.checked)} />
 							{t("Tag locations with no value as “{name}”", { name: missingName })}
 						</label>
 					)}

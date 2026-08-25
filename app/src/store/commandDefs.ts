@@ -337,9 +337,9 @@ const COMMANDS = {
 		icon: mdiTrashCanOutline,
 		group: msg("Selections"),
 		enabled: hasSelection,
-		execute: () => {
+		execute: async () => {
 			const ids = getMapState().selectedLocationIds;
-			if (ids.size > 0) removeLocations(ids);
+			if (ids.size > 0) await removeLocations(ids);
 		},
 	},
 	"bulk-validate": {

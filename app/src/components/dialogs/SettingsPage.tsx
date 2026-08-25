@@ -573,9 +573,7 @@ function MapBody() {
 			<SettingRow
 				setting="enterOpensCenter"
 				label={t("Enter opens location at map center")}
-				description={t(
-					"With no location open, Enter opens the location at the center of the map.",
-				)}
+				description={t("With no location open, Enter opens the location at the center of the map.")}
 			/>
 
 			<GroupHeading>{t("Markers")}</GroupHeading>
@@ -680,7 +678,7 @@ function BorderDetailGroup() {
 
 	useEffect(() => {
 		let cancelled = false;
-		(async () => {
+		void (async () => {
 			const [m, h, a] = await Promise.all([
 				cmd.checkBorderFile("medium").catch(() => false),
 				cmd.checkBorderFile("heavy").catch(() => false),
@@ -761,7 +759,7 @@ function BorderDetailGroup() {
 					<NSelect
 						className="nselect--compact"
 						value={s.borderDetail}
-						onChange={(e) => handleChange(e.target.value as BorderDetail)}
+						onChange={(e) => void handleChange(e.target.value as BorderDetail)}
 						disabled={downloading !== null}
 					>
 						{Object.entries(BORDER_DETAILS).map(([value, label]) => (
@@ -779,7 +777,7 @@ function BorderDetailGroup() {
 					<NSelect
 						className="nselect--compact"
 						value={s.subdivisionDetail}
-						onChange={(e) => handleSubdivisionChange(e.target.value as SubdivisionDetail)}
+						onChange={(e) => void handleSubdivisionChange(e.target.value as SubdivisionDetail)}
 						disabled={downloading !== null}
 					>
 						{Object.entries(SUBDIVISION_DETAILS).map(([value, label]) => (
@@ -984,7 +982,7 @@ function UpdateBlock() {
 					</span>
 					<button
 						className="icon-button settings-updates__check"
-						onClick={checkForUpdate}
+						onClick={() => void checkForUpdate()}
 						disabled={checking || update.phase === "downloading"}
 						title={t("Check for updates")}
 						aria-label={t("Check for updates")}
@@ -1017,7 +1015,7 @@ function UpdateBlock() {
 								{update.notes}
 							</pre>
 						)}
-						<Button variant="primary" onClick={installUpdate}>
+						<Button variant="primary" onClick={() => void installUpdate()}>
 							{t("Download and install")}
 						</Button>
 					</div>
@@ -1031,7 +1029,7 @@ function UpdateBlock() {
 				{update.phase === "ready" && (
 					<div className="settings-aux__row">
 						<span>{t("Update installed. Restart to apply.")}</span>
-						<Button variant="primary" onClick={relaunchApp}>
+						<Button variant="primary" onClick={() => void relaunchApp()}>
 							{t("Restart now")}
 						</Button>
 					</div>
@@ -1203,8 +1201,8 @@ function DataBody() {
 				{loc?.path ?? "..."}
 			</code>
 			<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-				<Button onClick={pick}>{t("Change folder...")}</Button>
-				<Button onClick={() => cmd.openDataFolder()}>{t("Open data folder")}</Button>
+				<Button onClick={() => void pick()}>{t("Change folder...")}</Button>
+				<Button onClick={() => void cmd.openDataFolder()}>{t("Open data folder")}</Button>
 				{loc?.is_custom && (
 					<Button onClick={() => setPending(null)}>{t("Reset to default")}</Button>
 				)}
@@ -1225,7 +1223,7 @@ function DataBody() {
 						<Button onClick={() => setPending(undefined)} disabled={busy}>
 							{t("Cancel")}
 						</Button>
-						<Button variant="primary" onClick={apply} disabled={busy}>
+						<Button variant="primary" onClick={() => void apply()} disabled={busy}>
 							{t("Relaunch now")}
 						</Button>
 					</div>
@@ -1245,7 +1243,7 @@ function AdvancedBody() {
 			<SettingRow setting="showFps" label={t("Show FPS counter")} />
 			<Aux match="log file logs diagnostics">
 				<div style={{ display: "flex", gap: 8 }}>
-					<Button onClick={() => cmd.openLogFile()}>{t("Open log file")}</Button>
+					<Button onClick={() => void cmd.openLogFile()}>{t("Open log file")}</Button>
 					<CopyDiagnosticsButton />
 				</div>
 			</Aux>

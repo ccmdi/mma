@@ -45,7 +45,10 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 		const count = MMA.getMapState().locationCount;
 		setTotal(count);
 
-		const meta = toDistribution(await countBy({ kind: "all" }, "countryCode", { kind: "value" }), count);
+		const meta = toDistribution(
+			await countBy({ kind: "all" }, "countryCode", { kind: "value" }),
+			count,
+		);
 		const hasMeta = count > 0 && meta.unknown < count;
 		setMetaAvailable(hasMeta);
 
@@ -65,7 +68,10 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 			setEntries(meta.entries);
 			setUnknown(meta.unknown);
 		} else {
-			const counts = await cmd.storeCountryDistribution({ kind: "all" }, getSettings().borderDetail);
+			const counts = await cmd.storeCountryDistribution(
+				{ kind: "all" },
+				getSettings().borderDetail,
+			);
 			setEntries(
 				counts
 					.map(([code, count]) => ({ code, name: countryName(code), count }))
@@ -76,8 +82,9 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	}, [source, setSource]);
 
 	useEffect(() => {
-		refresh();
-		return subscribeMany(LOCATION_DATA_EVENTS, refresh);
+		const run = () => void refresh();
+		run();
+		return subscribeMany(LOCATION_DATA_EVENTS, run);
 	}, [refresh]);
 
 	const maxCount = entries.length > 0 ? entries[0].count : 1;

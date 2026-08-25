@@ -77,22 +77,14 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 					? `https://www.geoguessr.com/images/resize:auto:96:96/gravity:ce/plain/${user.pin}`
 					: null
 			}
-			action={
-				<Button onClick={() => void signOut()}>
-					{t("Sign out")}
-				</Button>
-			}
+			action={<Button onClick={() => void signOut()}>{t("Sign out")}</Button>}
 		/>
 	) : (
 		<>
 			<Button variant="primary" disabled={busy} onClick={() => void signIn()}>
 				{busy ? t("Waiting for sign-in...") : t("Sign in to GeoGuessr")}
 			</Button>
-			{error && (
-				<p style={{ color: "var(--red-9, #e5484d)" }}>
-					{error}
-				</p>
-			)}
+			{error && <p style={{ color: "var(--red-9, #e5484d)" }}>{error}</p>}
 		</>
 	);
 

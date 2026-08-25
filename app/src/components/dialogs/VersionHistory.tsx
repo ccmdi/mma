@@ -97,7 +97,9 @@ export function VersionHistory({ onClose }: { onClose: () => void }) {
 									return (
 										<tr
 											key={c.id}
-											onClick={() => hasDiff && viewDiff(c)}
+											onClick={() => {
+												if (hasDiff) void viewDiff(c);
+											}}
 											title={hasDiff ? t("View changes on the map") : undefined}
 											style={{
 												borderBottom: "1px solid var(--border-subtle)",
@@ -135,7 +137,7 @@ export function VersionHistory({ onClose }: { onClose: () => void }) {
 													disabled={restoring !== null}
 													onClick={(e) => {
 														e.stopPropagation();
-														handleRestore(c);
+														void handleRestore(c);
 													}}
 													onBlur={() => confirmingId === c.id && setConfirmingId(null)}
 												>

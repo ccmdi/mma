@@ -150,7 +150,7 @@ export function MapEmbed({
 
 		// opensv always loads: the Google host renders with it, and every host needs
 		// the SV services (click lookup, previews, pano).
-		loadOpenSV().then(async () => {
+		void loadOpenSV().then(async () => {
 			if (cancelled || !containerRef.current) return;
 			if (hostKind === "google" && !google?.maps) return;
 
@@ -185,7 +185,7 @@ export function MapEmbed({
 				mapOpen.mark("map-ready");
 				created.once("tilesloaded", () => mapOpen.mark("tiles"));
 				if (map.meta.locationCount > 0) {
-					fetchBounds({ kind: "all" }).then((bounds) => {
+					void fetchBounds({ kind: "all" }).then((bounds) => {
 						if (cancelled || !hostRef.current || !bounds) return;
 						const [west, south, east, north] = bounds;
 						hostRef.current.fitBounds({ west, south, east, north }, undefined, { snap: true });
@@ -236,42 +236,47 @@ export function MapEmbed({
 		}
 		if (!google?.maps) return;
 
-		const offMove = host.on("mousemove", async (ll) => {
-			setSvPreview(null);
-			previewAbortRef.current?.abort();
-			const ac = new AbortController();
-			previewAbortRef.current = ac;
+		const offMove = host.on(
+			"mousemove",
+			(ll) =>
+				void (async () => {
+					setSvPreview(null);
+					previewAbortRef.current?.abort();
+					const ac = new AbortController();
+					previewAbortRef.current = ac;
 
-			const { lat, lng } = ll;
-			const zoom = host.getZoom();
+					const { lat, lng } = ll;
+					const zoom = host.getZoom();
 
-			await new Promise((r) => setTimeout(r, 300));
-			if (ac.signal.aborted) return;
+					await new Promise((r) => setTimeout(r, 300));
+					if (ac.signal.aborted) return;
 
-			const sv = new google.maps.StreetViewService();
-			sv.getPanorama(
-				{
-					location: { lat, lng },
-					radius: svSearchRadius(lat, zoom),
-					sources: [google.maps.StreetViewSource.GOOGLE],
-					preference: google.maps.StreetViewPreference.NEAREST,
-				},
-				async (data: google.maps.StreetViewPanoramaData | null, status: string) => {
-					if (ac.signal.aborted || status !== "OK" || !data?.location?.pano) return;
-					const heading = data.tiles.centerHeading ?? 0;
-					const url = svThumbnailUrl(data.location.pano, heading);
-					try {
-						const res = await fetch(url, { signal: ac.signal });
-						if (!res.ok || ac.signal.aborted) return;
-						const blob = await res.blob();
-						if (ac.signal.aborted) return;
-						setSvPreview({ url: URL.createObjectURL(blob) });
-					} catch {
-						// ignored
-					}
-				},
-			);
-		});
+					const sv = new google.maps.StreetViewService();
+					void sv.getPanorama(
+						{
+							location: { lat, lng },
+							radius: svSearchRadius(lat, zoom),
+							sources: [google.maps.StreetViewSource.GOOGLE],
+							preference: google.maps.StreetViewPreference.NEAREST,
+						},
+						(data: google.maps.StreetViewPanoramaData | null, status: string) =>
+							void (async () => {
+								if (ac.signal.aborted || status !== "OK" || !data?.location?.pano) return;
+								const heading = data.tiles.centerHeading ?? 0;
+								const url = svThumbnailUrl(data.location.pano, heading);
+								try {
+									const res = await fetch(url, { signal: ac.signal });
+									if (!res.ok || ac.signal.aborted) return;
+									const blob = await res.blob();
+									if (ac.signal.aborted) return;
+									setSvPreview({ url: URL.createObjectURL(blob) });
+								} catch {
+									// ignored
+								}
+							})(),
+					);
+				})(),
+		);
 
 		const offOut = host.on("mouseout", () => {
 			previewAbortRef.current?.abort();
@@ -323,7 +328,7 @@ export function MapEmbed({
 	useHotkey(useBinding("toggleSvOpacity"), () => toggleLayer("sv"));
 	useHotkey(useBinding("toggleMarkerOpacity"), () => toggleLayer("marker"));
 	useHotkey(useBinding("mapZoomBounds"), () => {
-		fetchBounds({ kind: "all" }).then((bounds) => {
+		void fetchBounds({ kind: "all" }).then((bounds) => {
 			if (!hostRef.current || !bounds) return;
 			const [west, south, east, north] = bounds;
 			hostRef.current.fitBounds({ west, south, east, north }, undefined, { snap: true });
@@ -331,7 +336,7 @@ export function MapEmbed({
 	});
 
 	useHotkey(useBinding("mapZoomSelection"), () => {
-		fetchBounds({ kind: "selected" }).then((bounds) => {
+		void fetchBounds({ kind: "selected" }).then((bounds) => {
 			if (!hostRef.current || !bounds) return;
 			const [west, south, east, north] = bounds;
 			hostRef.current.fitBounds({ west, south, east, north }, undefined, { snap: true });
@@ -368,7 +373,7 @@ export function MapEmbed({
 							onDraw={(rings) => {
 								if (rings.length === 0) return;
 								if (tryInterceptDraw(rings)) return;
-								addSelections([
+								void addSelections([
 									{
 										type: "Polygon",
 										polygon: { coordinates: rings as [number, number][][] },
@@ -418,13 +423,9 @@ export function MapEmbed({
 							max={1}
 							step={0.05}
 							value={opacityTarget === "sv" ? svLayerOpacity(prefs) : markerLayerOpacity(prefs)}
-							onChange={(e) =>
-								setLayerOpacity(opacityTarget, Number(e.target.value))
-							}
+							onChange={(e) => setLayerOpacity(opacityTarget, Number(e.target.value))}
 							title={
-								opacityTarget === "sv"
-									? t("Street View layer opacity")
-									: t("Marker layer opacity")
+								opacityTarget === "sv" ? t("Street View layer opacity") : t("Marker layer opacity")
 							}
 						/>
 					</div>
@@ -487,7 +488,7 @@ export function MapEmbed({
 												className="icon-button"
 												style={{ color: "var(--text-2)" }}
 												onClick={() => {
-													navigator.clipboard.writeText(JSON.stringify(s.style, null, 2));
+													void navigator.clipboard.writeText(JSON.stringify(s.style, null, 2));
 												}}
 												aria-label={t("Copy JSON")}
 											>

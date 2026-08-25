@@ -20,7 +20,6 @@ function formatDate(iso: string): string {
 	return shortDateFmt.format(d);
 }
 
-
 export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	const [filter, setFilter] = useState<"active" | "done">("active");
 	const [sessions, setSessions] = useState<ReviewSession[]>([]);
@@ -39,11 +38,11 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	}, [filter]);
 
 	useEffect(() => {
-		if (open) reload();
+		if (open) void reload();
 	}, [open, reload]);
 
 	const handleResume = (s: ReviewSession) => {
-		resumeReview(s);
+		void resumeReview(s);
 		onOpenChange(false);
 	};
 
@@ -53,7 +52,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	};
 
 	const handleSelect = (s: ReviewSession, mode: "reviewed" | "unreviewed") => {
-		selectReviewSet(s, mode);
+		void selectReviewSet(s, mode);
 		onOpenChange(false);
 	};
 
@@ -194,7 +193,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 											className="icon-button review-sessions__delete"
 											title={t("Delete session")}
 											aria-label={t("Delete session")}
-											onClick={() => handleDelete(s.id)}
+											onClick={() => void handleDelete(s.id)}
 											data-qa="review-session-delete"
 										>
 											<Icon path={mdiDelete} size={18} />

@@ -21,9 +21,7 @@ export function MeasurementBar() {
 					<br />
 					{t("Score:")} {computeScore(length, maxError)}
 				</p>
-				<Button onClick={endMeasure}>
-					{t("End")}
-				</Button>
+				<Button onClick={endMeasure}>{t("End")}</Button>
 			</div>
 		</div>
 	);

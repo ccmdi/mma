@@ -41,7 +41,7 @@ async function importLocations(valiLocs: ValiLocation[], tagName: string): Promi
 			...(tagId != null ? { tags: [tagId] } : {}),
 		}),
 	);
-	MMA.addLocations(locations);
+	await MMA.addLocations(locations);
 	return locations.length;
 }
 
@@ -78,7 +78,7 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 			const action = valiMessageAction(e.data?.type, busyRef.current);
 			if (action === "ignore") return;
 			if (action === "cancel") {
-				cmd.valiCancel();
+				void cmd.valiCancel();
 				return;
 			}
 			if (action === "reject") {
@@ -101,8 +101,9 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 				setBusy(null);
 			}
 		};
-		window.addEventListener("message", onMessage);
-		return () => window.removeEventListener("message", onMessage);
+		const handleMessage = (e: MessageEvent) => void onMessage(e);
+		window.addEventListener("message", handleMessage);
+		return () => window.removeEventListener("message", handleMessage);
 	}, []);
 
 	// Metadata-only, so it costs a couple of listing requests. Offline leaves it unknown.

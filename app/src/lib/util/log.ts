@@ -29,34 +29,33 @@ function fmt(msg: string, ...args: unknown[]): string {
 const DEV = import.meta.env.DEV;
 
 /* eslint-disable no-console */
+/** A log sink with no Tauri host behind it has to fail silently -- routing the
+ *  rejection anywhere would re-enter `log` and recurse. */
+const sink = (p: Promise<unknown>) => void p.catch(() => {});
+
 export const log = {
 	info: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.info(msg, ...args);
-		tauriInfo(fmt(msg, ...args));
+		sink(tauriInfo(fmt(msg, ...args)));
 	},
 	warn: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.warn(msg, ...args);
-		tauriWarn(fmt(msg, ...args));
+		sink(tauriWarn(fmt(msg, ...args)));
 	},
 	error: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.error(msg, ...args);
-		tauriError(fmt(msg, ...args));
+		sink(tauriError(fmt(msg, ...args)));
 	},
 	debug: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.debug(msg, ...args);
-		tauriDebug(fmt(msg, ...args));
+		sink(tauriDebug(fmt(msg, ...args)));
 	},
 	trace: (msg: string, ...args: unknown[]) => {
 		if (DEV) console.debug(msg, ...args);
-		tauriTrace(fmt(msg, ...args));
+		sink(tauriTrace(fmt(msg, ...args)));
 	},
 };
 /* eslint-enable no-console */
-
-/** Run a promise fire-and-forget, logging any rejection under `label` */
-export function fireAndForget(p: Promise<unknown>, label: string): void {
-	p.catch((e) => log.error(`[${label}] failed:`, e));
-}
 
 export async function initLogging() {
 	window.addEventListener("error", (e) => {

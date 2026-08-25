@@ -40,14 +40,7 @@ const PREFETCH_MARGIN = 128;
 maplibregl.setMaxParallelImageRequests(64);
 
 type MlEventName =
-	| "mousemove"
-	| "mousedown"
-	| "mouseup"
-	| "mouseout"
-	| "zoom"
-	| "move"
-	| "idle"
-	| "load";
+	"mousemove" | "mousedown" | "mouseup" | "mouseout" | "zoom" | "move" | "idle" | "load";
 
 const EVENT_NAMES: Record<keyof MapHostEvents, MlEventName> = {
 	mousemove: "mousemove",

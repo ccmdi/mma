@@ -68,11 +68,11 @@ export function createScheduler(
 		request() {
 			if (applying) return;
 			if (debounce) clearTimeout(debounce);
-			debounce = setTimeout(fire, debounceMs);
+			debounce = setTimeout(() => void fire(), debounceMs);
 		},
 		start() {
 			if (poll) return;
-			poll = setInterval(fire, pollMs);
+			poll = setInterval(() => void fire(), pollMs);
 		},
 		stop() {
 			if (debounce) clearTimeout(debounce);

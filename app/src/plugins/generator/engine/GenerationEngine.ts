@@ -492,7 +492,7 @@ export class GenerationEngine {
 			: this.google.maps.StreetViewSource.DEFAULT;
 
 		return new Promise<void>((resolve) => {
-			this.sv.getPanorama(
+			void this.sv.getPanorama(
 				{ location: { lat: coord.lat, lng: coord.lng }, sources: [source], radius: s.radius },
 				(data: google.maps.StreetViewPanoramaData | null, status: string) => {
 					// Paused/stopped while this request was in flight: drop the result.
@@ -575,7 +575,7 @@ export class GenerationEngine {
 		region.checkedPanos.add(id);
 		if (region.found.length >= region.target) return;
 
-		this.sv.getPanorama(
+		void this.sv.getPanorama(
 			{ pano: id },
 			(data: google.maps.StreetViewPanoramaData | null, status: string) => {
 				if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;

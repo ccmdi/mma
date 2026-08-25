@@ -24,7 +24,7 @@ export async function openMapWindow(id: string, name: string): Promise<void> {
 		backgroundColor: "#252521",
 	});
 
-	win.once("tauri://error", (e) => {
+	void win.once("tauri://error", (e) => {
 		log.error("Failed to create map window:", e);
 	});
 }

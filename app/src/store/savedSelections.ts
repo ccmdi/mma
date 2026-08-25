@@ -203,6 +203,6 @@ export function applySavedSelection(saved: SavedSelection): number {
 		const props = savedToSelectionProps(item.props);
 		if (props) batch.push(props);
 	}
-	if (batch.length > 0) addSelections(batch);
+	if (batch.length > 0) void addSelections(batch);
 	return batch.length;
 }

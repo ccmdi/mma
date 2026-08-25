@@ -109,7 +109,7 @@ export function TagFindReplaceDialog({ open, onOpenChange }: DialogProps) {
 							<Button
 								variant="primary"
 								disabled={!find || matches.length === 0}
-								onClick={handleApply}
+								onClick={() => void handleApply()}
 							>
 								{t({ one: "Replace {n} tag", other: "Replace {n} tags" }, { n: matches.length })}
 							</Button>

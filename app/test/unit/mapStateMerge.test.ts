@@ -37,7 +37,7 @@ vi.mock("@/lib/commands", () => {
 });
 vi.mock("@/lib/util/log", () => ({
 	log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-	fireAndForget: (p: Promise<unknown>) => void p.catch(() => {}),
+	fireAndForget: (p: Promise<unknown> | undefined) => void p?.catch(() => {}),
 }));
 
 import { openMap, mutate, getMapState } from "@/store/useMapStore";

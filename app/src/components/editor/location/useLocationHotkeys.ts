@@ -39,11 +39,11 @@ interface LocationHotkeyDeps {
 	setPendingTags: Dispatch<SetStateAction<string[]>>;
 	fullscreenContainerRef: RefObject<HTMLDivElement | null>;
 	panoContainerRef: RefObject<HTMLDivElement | null>;
-	handleSave: () => void;
-	handleClose: () => void;
-	handleDelete: () => void;
-	handleReturnToSpawn: () => void;
-	handleDateChange: (panoId: string | null) => void;
+	handleSave: () => void | Promise<void>;
+	handleClose: () => void | Promise<void>;
+	handleDelete: () => void | Promise<void>;
+	handleReturnToSpawn: () => void | Promise<void>;
+	handleDateChange: (panoId: string | null) => void | Promise<void>;
 }
 
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
@@ -66,22 +66,22 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	} = deps;
 
 	useHotkey(useBinding("locationSave"), () => {
-		if (location) handleSave();
+		if (location) void Promise.resolve(handleSave());
 	});
 	useHotkey(useBinding("locationClose"), () => {
-		handleClose();
+		void Promise.resolve(handleClose());
 	});
 	useHotkey(useBinding("locationDelete"), () => {
-		if (location) handleDelete();
+		if (location) void Promise.resolve(handleDelete());
 	});
 	useHotkey(useBinding("reviewNext"), () => {
-		if (isReviewMode) reviewNext();
+		if (isReviewMode) void reviewNext();
 	});
 	useHotkey(useBinding("reviewPrev"), () => {
-		if (isReviewMode) reviewPrev();
+		if (isReviewMode) void reviewPrev();
 	});
 	useHotkey(useBinding("returnToSpawn"), () => {
-		handleReturnToSpawn();
+		void Promise.resolve(handleReturnToSpawn());
 	});
 	useHotkey(useBinding("pointNorth"), () => {
 		if (singletonPano) {
@@ -160,21 +160,23 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (container) toast(t(MOVEMENT_MODES[mode]), 1200, container);
 	});
 	useHotkey(useBinding("duplicateLocation"), () => {
-		if (location) duplicateLocation(location.id);
+		if (location) void duplicateLocation(location.id);
 	});
 
 	useHotkey(useBinding("downloadPanoTile"), () => {
 		const panoId = singletonPano?.getPano();
-		if (panoId) downloadPano(panoId);
+		if (panoId) void downloadPano(panoId);
 	});
 	const stepPanoDate = (step: 1 | -1) => {
 		if (!panoDates.length) return;
 		const current = selectedPanoId ?? currentPano?.location?.pano ?? location?.panoId;
-		handleDateChange(
-			cycle(
-				panoDates.map((d) => d.pano),
-				current,
-				step,
+		void Promise.resolve(
+			handleDateChange(
+				cycle(
+					panoDates.map((d) => d.pano),
+					current,
+					step,
+				),
 			),
 		);
 	};
@@ -189,7 +191,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (container) toast(t("Following road..."), 1500, container);
 		followLinkedPanos(panoId, heading)
 			.then((locs) => {
-				if (locs.length > 0) addLocations(locs);
+				if (locs.length > 0) void addLocations(locs);
 				if (container)
 					toast(
 						t({ one: "Added {n} location", other: "Added {n} locations" }, { n: locs.length }),
@@ -220,7 +222,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	useHotkey(useBinding("viewportLock"), () => {
-		if (singletonPano) toggleViewportLock(singletonPano);
+		if (singletonPano) void toggleViewportLock(singletonPano);
 	});
 
 	const quicktagSlot = (idx: number) => {

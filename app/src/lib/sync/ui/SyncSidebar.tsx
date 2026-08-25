@@ -374,9 +374,7 @@ export function SyncSidebar({
 					</Field>
 					<Field label={t("Last synced")} row>
 						<span>
-							{link.lastSyncedAt
-								? dateTimeFmt.format(new Date(link.lastSyncedAt))
-								: t("never")}
+							{link.lastSyncedAt ? dateTimeFmt.format(new Date(link.lastSyncedAt)) : t("never")}
 						</span>
 					</Field>
 					<Field
@@ -422,17 +420,15 @@ export function SyncSidebar({
 					</Field>
 					<div style={{ display: "flex", gap: 8 }}>
 						{/* Driven by `busy` alone; the background poll must not drive this label. */}
-						<Button variant="primary" disabled={busy} onClick={doSync}>
+						<Button variant="primary" disabled={busy} onClick={() => void doSync()}>
 							{busy ? t("Syncing...") : t("Sync now")}
 						</Button>
-						<Button disabled={busy} onClick={doUnlink}>
+						<Button disabled={busy} onClick={() => void doUnlink()}>
 							{t("Unlink")}
 						</Button>
 					</div>
 					{status === "error" && controller.liveError() && (
-						<p style={{ color: "var(--red-9, #e5484d)" }}>
-							{controller.liveError()}
-						</p>
+						<p style={{ color: "var(--red-9, #e5484d)" }}>{controller.liveError()}</p>
 					)}
 					{outcome && (
 						<p>
@@ -483,9 +479,7 @@ export function SyncSidebar({
 			{authed && mapId && !link && !pendingLink && (
 				<Section title={t("Link this map")} defaultOpen>
 					{!maps && error ? (
-						<Button onClick={() => setMapsAttempt((n) => n + 1)}>
-							{t("Retry loading maps")}
-						</Button>
+						<Button onClick={() => setMapsAttempt((n) => n + 1)}>{t("Retry loading maps")}</Button>
 					) : !maps ? (
 						<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
 							<span className="spinner" aria-label={t("Loading maps")} />
@@ -544,21 +538,21 @@ export function SyncSidebar({
 						variant="primary"
 						disabled={busy}
 						style={{ display: "block", width: "100%", textAlign: "left" }}
-						onClick={() => performLink(pendingLink, "merge")}
+						onClick={() => void performLink(pendingLink, "merge")}
 					>
 						{t("Merge · keep everything on both sides")}
 					</Button>
 					<Button
 						disabled={busy}
 						style={{ display: "block", width: "100%", textAlign: "left" }}
-						onClick={() => performLink(pendingLink, "mirrorFromRemote")}
+						onClick={() => void performLink(pendingLink, "mirrorFromRemote")}
 					>
 						{t("Use remote · delete local-only pins")}
 					</Button>
 					<Button
 						disabled={busy}
 						style={{ display: "block", width: "100%", textAlign: "left" }}
-						onClick={() => performLink(pendingLink, "mirrorFromLocal")}
+						onClick={() => void performLink(pendingLink, "mirrorFromLocal")}
 					>
 						{t("Use local · delete remote-only pins")}
 					</Button>
@@ -568,11 +562,7 @@ export function SyncSidebar({
 				</Section>
 			)}
 
-			{error && (
-				<p style={{ color: "var(--red-9, #e5484d)" }}>
-					{error}
-				</p>
-			)}
+			{error && <p style={{ color: "var(--red-9, #e5484d)" }}>{error}</p>}
 		</Sidebar>
 	);
 }

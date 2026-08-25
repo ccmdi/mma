@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { createPortal } from "react-dom";
 import { mdiEarth } from "@mdi/js";
-import { Sidebar, Section, Field, SegmentedControl, EmptyState } from "@/components/primitives/Sidebar";
+import {
+	Sidebar,
+	Section,
+	Field,
+	SegmentedControl,
+	EmptyState,
+} from "@/components/primitives/Sidebar";
 import { ScopeSelector } from "@/components/primitives/ScopeSelector";
 import { Button } from "@/components/primitives/Button";
 import { Slider } from "@/components/primitives/Slider";
@@ -26,7 +32,13 @@ import {
 	type TimerMode,
 	type View,
 } from "./game";
-import { clearSavedGame, getGlobalStreak, getSavedGame, saveGame, setGlobalStreak } from "./storage";
+import {
+	clearSavedGame,
+	getGlobalStreak,
+	getSavedGame,
+	saveGame,
+	setGlobalStreak,
+} from "./storage";
 import { RoundPlayer } from "./RoundPlayer";
 import { Summary } from "./Summary";
 import "./localguessr.css";
@@ -124,11 +136,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 			: createPortal(
 					<div className="lg-overlay" role="dialog" aria-modal="true" data-plugin-overlay>
 						{view.phase === "summary" ? (
-							<Summary
-								session={view.session}
-								onPlayAgain={() => void start()}
-								onBack={exitGame}
-							/>
+							<Summary session={view.session} onPlayAgain={() => void start()} onBack={exitGame} />
 						) : (
 							<RoundPlayer
 								game={view.game}
@@ -241,10 +249,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 											n: resumable.index + 1,
 										})}
 									</span>
-									<Button
-										small
-										onClick={() => dispatch({ type: "start", game: resumable })}
-									>
+									<Button small onClick={() => dispatch({ type: "start", game: resumable })}>
 										{t("Resume")}
 									</Button>
 								</div>

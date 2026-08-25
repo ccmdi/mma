@@ -54,13 +54,13 @@ export function ImportSidebar() {
 			setConfirmAutoCommit(true);
 			return;
 		}
-		handleImport();
+		void handleImport();
 	};
 
 	const proceedAutoCommit = () => {
 		if (dontWarnAgain) localStorage.setItem(AUTOCOMMIT_ACK_KEY, "1");
 		setConfirmAutoCommit(false);
-		handleImport();
+		void handleImport();
 	};
 
 	const handleImport = async () => {

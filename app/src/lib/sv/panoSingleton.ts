@@ -56,8 +56,7 @@ export function getPanorama(): google.maps.StreetViewPanorama | null {
 	});
 	patchOpenSV(singletonPano);
 	const root = Object.values(singletonPano).find((v) => v instanceof HTMLElement) as
-		| HTMLElement
-		| undefined;
+		HTMLElement | undefined;
 	if (root) root.style.backgroundColor = "#000";
 	return singletonPano;
 }
@@ -88,15 +87,13 @@ export async function loadSeenPano(entry: SeenEntry) {
 	seenSkipNext(entry.panoId);
 
 	const [fetched] =
-		entry.locationId != null
-			? await fetchLocations({ kind: "ids", ids: [entry.locationId] })
-			: [];
+		entry.locationId != null ? await fetchLocations({ kind: "ids", ids: [entry.locationId] }) : [];
 	const existing = fetched && fetched.panoId === entry.panoId ? fetched : null;
 
 	if (existing) {
 		const active = getMapState().activeLocation;
 		if (active?.id !== existing.id) {
-			setActiveLocation(existing.id);
+			await setActiveLocation(existing.id);
 			return;
 		}
 	} else {

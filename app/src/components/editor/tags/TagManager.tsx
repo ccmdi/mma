@@ -402,7 +402,7 @@ export function TagContextMenuContent({
 			setSelCount(0);
 			return;
 		}
-		scopeIds({ kind: "props", props: { type: "Tag", tagId } }).then((tagLocIds) => {
+		void scopeIds({ kind: "props", props: { type: "Tag", tagId } }).then((tagLocIds) => {
 			let count = 0;
 			for (const id of tagLocIds) if (selIds.has(id)) count++;
 			setSelCount(count);
@@ -416,7 +416,7 @@ export function TagContextMenuContent({
 			<ContextMenu.Popup className="context-menu">
 				<ContextMenu.Item
 					className="context-menu__item"
-					onClick={() => removeTagFromAllLocations(tagId)}
+					onClick={() => void removeTagFromAllLocations(tagId)}
 				>
 					{t(
 						{ one: "Remove from all ({n} location)", other: "Remove from all ({n} locations)" },
@@ -426,7 +426,7 @@ export function TagContextMenuContent({
 				<ContextMenu.Item
 					className="context-menu__item"
 					disabled={inSel === 0}
-					onClick={() => removeTagFromLocations(tagId, [...getMapState().selectedLocationIds])}
+					onClick={() => void removeTagFromLocations(tagId, [...getMapState().selectedLocationIds])}
 				>
 					{t(
 						{
@@ -592,7 +592,7 @@ function EditTagDialog({
 	};
 
 	const handleDelete = () => {
-		deleteTags([tag.id]);
+		void deleteTags([tag.id]);
 		onClose();
 	};
 

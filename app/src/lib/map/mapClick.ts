@@ -68,7 +68,7 @@ export async function addParsedLocations(parsed: ParsedLocation[]) {
 		}),
 	);
 	await addLocations(locs);
-	setActiveLocation(locs[locs.length - 1].id);
+	await setActiveLocation(locs[locs.length - 1].id);
 	zoomToPasted(boundsOfCoords(locs));
 }
 
@@ -127,7 +127,7 @@ export async function createLocationAtLatLng(
 	tr.step("lookup");
 	await addLocations([loc]);
 	tr.step("addLocations");
-	setActiveLocation(loc);
+	await setActiveLocation(loc);
 	tr.step("setActive");
 	tr.end();
 	return loc;
@@ -201,8 +201,9 @@ export async function handleMapClick(
 		const picked = await resolvePicked();
 		if (picked != null) {
 			if (isVirtualLocation({ id: locId(picked) })) return; // staged location's active pin: already open
-			if (domEvent instanceof MouseEvent && domEvent.ctrlKey) toggleManualSelection(locId(picked));
-			else setActiveLocation(picked); // fetches once iff lazy; free if materialized
+			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
+				void toggleManualSelection(locId(picked));
+			else void setActiveLocation(picked);
 			return;
 		}
 	}

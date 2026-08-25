@@ -66,7 +66,7 @@ function flushStaged(getPov: () => LocationPOV) {
 	staged = null;
 
 	const thumbnail = getSettings().enableSeenThumbnails ? captureThumbnail() : null;
-	writeEntry(entry, getPov(), thumbnail);
+	void writeEntry(entry, getPov(), thumbnail);
 }
 
 export function seenFlush(getPov: () => LocationPOV) {

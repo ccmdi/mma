@@ -185,10 +185,14 @@ export function ExportDialog({ onClose }: Props) {
 					<div className="export-modal__format">
 						<h3 className="export-modal__subhead">{t("As JSON (recommended)")}</h3>
 						<div className="export-modal__export-buttons">
-							<Button onClick={copyJson} disabled={!navigator.clipboard} data-qa="json-copy">
+							<Button
+								onClick={() => void copyJson()}
+								disabled={!navigator.clipboard}
+								data-qa="json-copy"
+							>
 								{t("Copy")}
 							</Button>
-							<Button onClick={downloadJson} data-qa="json-dl">
+							<Button onClick={() => void downloadJson()} data-qa="json-dl">
 								{t("Download")}
 							</Button>
 						</div>
@@ -202,10 +206,14 @@ export function ExportDialog({ onClose }: Props) {
 							/>
 						</p>
 						<div className="export-modal__export-buttons">
-							<Button onClick={copyCsv} disabled={!navigator.clipboard} data-qa="csv-copy">
+							<Button
+								onClick={() => void copyCsv()}
+								disabled={!navigator.clipboard}
+								data-qa="csv-copy"
+							>
 								{t("Copy")}
 							</Button>
-							<Button onClick={downloadCsv} data-qa="csv-dl">
+							<Button onClick={() => void downloadCsv()} data-qa="csv-dl">
 								{t("Download")}
 							</Button>
 						</div>
@@ -214,7 +222,7 @@ export function ExportDialog({ onClose }: Props) {
 						<h3 className="export-modal__subhead">{t("As GeoJSON")}</h3>
 						<p>{t("For use in non-GeoGuessr mapping tools.")}</p>
 						<div className="export-modal__export-buttons">
-							<Button onClick={downloadGeoJson} data-qa="geojson-download">
+							<Button onClick={() => void downloadGeoJson()} data-qa="geojson-download">
 								{t("Download")}
 							</Button>
 						</div>

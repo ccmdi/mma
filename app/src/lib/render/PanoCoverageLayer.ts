@@ -86,7 +86,7 @@ export default class PanoCoverageLayer extends CompositeLayer<Required<_PanoCove
 		if (fresh.length === 0 && inView.length === this.state.tiles.length) return;
 		for (const t of inView) {
 			const r = fetchPanoDots(t);
-			if (r instanceof Promise) r.then((d) => d.length && scheduleFlush());
+			if (r instanceof Promise) void r.then((d) => d.length && scheduleFlush());
 		}
 		this.setState({ tiles: inView });
 	}

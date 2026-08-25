@@ -192,7 +192,7 @@ function TopKPanel({
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!field || count < 1) return;
-				addSelections([{ type: "TopK", field, k: count, ascending }]);
+				void addSelections([{ type: "TopK", field, k: count, ascending }]);
 			}}
 		>
 			<NSelect value={field} onChange={(e) => setField(e.target.value)}>
@@ -269,12 +269,12 @@ function BulkTagForm() {
 	const handleBulkPick = (t: Tag) => {
 		const selected = getMapState().selectedLocationIds;
 		if (selected.size === 0) return;
-		addTagToLocations(t.id, [...selected]);
+		void addTagToLocations(t.id, [...selected]);
 		setBulkTagInput("");
 	};
 
 	return (
-		<form className="selection-manager__bulk-tag" onSubmit={handleBulkAddTag}>
+		<form className="selection-manager__bulk-tag" onSubmit={(e) => void handleBulkAddTag(e)}>
 			<span className="tag-input">
 				<Button type="submit" className="tag-input__button" disabled={!hasSelection}>
 					+
@@ -317,7 +317,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 		const { selectedLocationIds, selections } = getMapState();
 		if (selectedLocationIds.size === 0) return;
 		const source = selections.length === 1 ? selections[0] : undefined;
-		beginReview(Array.from(selectedLocationIds), source);
+		void beginReview(Array.from(selectedLocationIds), source);
 	});
 
 	if (!map) return null;
@@ -358,7 +358,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									className="selection-manager__inline-form"
 									onSubmit={(e) => {
 										e.preventDefault();
-										addSelections([{ type: "Duplicates", distance: dupDistance }]);
+										void addSelections([{ type: "Duplicates", distance: dupDistance }]);
 									}}
 								>
 									<label>
@@ -382,7 +382,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									persistKey={map.meta.id}
 									submitLabel={t("Add filter")}
 									onSubmit={(field, op, value, value2, tzLocal) => {
-										addSelections([{ type: "Filter", field, op, value, value2, tzLocal }]);
+										void addSelections([{ type: "Filter", field, op, value, value2, tzLocal }]);
 									}}
 								/>
 							),

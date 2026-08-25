@@ -5,12 +5,7 @@ import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
-import {
-	getMapState,
-	addSelections,
-	fetchLocations,
-	updateLocations,
-} from "@/store/useMapStore";
+import { getMapState, addSelections, fetchLocations, updateLocations } from "@/store/useMapStore";
 import { useScope, applyScope, type ScopeController } from "@/store/scope";
 import type {
 	Scope,
@@ -124,7 +119,7 @@ function ValidateSetup({ scopeCtl, onReady }: SetupProps) {
 									locations: results.get(state)!.map((l) => l.id),
 									state,
 								}));
-							if (batch.length > 0) addSelections(batch);
+							if (batch.length > 0) void addSelections(batch);
 							return {
 								doneMessage: t(
 									{
@@ -221,7 +216,7 @@ function EnrichSetup({ scopeCtl, locs, onReady }: SetupProps) {
 								doneContent: (
 									<EnrichSummary
 										result={er}
-										onSelect={(ids) => addSelections([{ type: "Manual", locations: ids }])}
+										onSelect={(ids) => void addSelections([{ type: "Manual", locations: ids }])}
 									/>
 								),
 							};
@@ -647,7 +642,10 @@ function DownloadPanoramasSetup({ scopeCtl, scopedLocs, onReady }: SetupProps) {
 								doneMessage:
 									t("Done -- {n} downloaded", { n: result.succeeded.length }) +
 									(result.failed.length > 0
-										? t({ one: ", {n} failed.", other: ", {n} failed." }, { n: result.failed.length })
+										? t(
+												{ one: ", {n} failed.", other: ", {n} failed." },
+												{ n: result.failed.length },
+											)
 										: "."),
 								doneActions: <DownloadDoneActions result={result} initiallySaved={saved} />,
 							};
@@ -710,7 +708,7 @@ function DownloadDoneActions({
 			{result.failed.length > 0 && (
 				<Button
 					onClick={() => {
-						addSelections([{ type: "Manual", locations: result.failed }]);
+						void addSelections([{ type: "Manual", locations: result.failed }]);
 						toast(
 							t(
 								{
@@ -844,7 +842,7 @@ function BulkProgress({
 	}, [runner, scope]);
 
 	useEffect(() => {
-		run();
+		void run();
 		return () => {
 			controllerRef.current?.abort();
 		};

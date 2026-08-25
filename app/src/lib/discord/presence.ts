@@ -49,7 +49,7 @@ export function useDiscordPresence(): void {
 
 	useEffect(() => {
 		if (isWeb() || level === "off") {
-			cmd.discordPresenceClear();
+			void cmd.discordPresenceClear();
 			return;
 		}
 

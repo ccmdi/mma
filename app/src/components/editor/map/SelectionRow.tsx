@@ -165,7 +165,7 @@ export const SelectionRow = memo(function SelectionRow({
 		return (dir: 1 | -1) => {
 			const next = stepFilterWindow(ft, p.op, p.value, p.value2, dir, wallClock);
 			if (next) {
-				updateFilterSelection(selection.key, {
+				void updateFilterSelection(selection.key, {
 					type: "Filter",
 					field: p.field,
 					op: p.op,
@@ -188,7 +188,7 @@ export const SelectionRow = memo(function SelectionRow({
 	};
 
 	const submitRename = () => {
-		setPolygonName(selection.key, renameDraft);
+		void setPolygonName(selection.key, renameDraft);
 		setRenaming(false);
 	};
 
@@ -317,7 +317,7 @@ export const SelectionRow = memo(function SelectionRow({
 					onClick={() => {
 						if (drag) return;
 						const host = getMapHost();
-						if (host && map) fitSelectionBounds(host, selection);
+						if (host && map) void fitSelectionBounds(host, selection);
 					}}
 				>
 					<span className="color-block" style={{ backgroundColor: colorBlockCss }} />{" "}
@@ -367,7 +367,7 @@ export const SelectionRow = memo(function SelectionRow({
 										<>
 											<Menu.Item
 												className="context-menu__item"
-												onClick={() => selectInverse([selection.key])}
+												onClick={() => void selectInverse([selection.key])}
 											>
 												{t("Invert selection")}
 											</Menu.Item>
@@ -382,10 +382,12 @@ export const SelectionRow = memo(function SelectionRow({
 											<Menu.Item
 												className="context-menu__item"
 												disabled={count === 0}
-												onClick={async () => {
-													const ids = await scopeIds({ kind: "props", props: selection.props });
-													beginReview(ids, selection);
-												}}
+												onClick={() =>
+													void (async () => {
+														const ids = await scopeIds({ kind: "props", props: selection.props });
+														void beginReview(ids, selection);
+													})()
+												}
 											>
 												{t("Review selection")}
 											</Menu.Item>
@@ -406,21 +408,23 @@ export const SelectionRow = memo(function SelectionRow({
 												<Menu.Item
 													className="context-menu__item"
 													disabled={count === 0}
-													onClick={async () => {
-														const n = await pruneDuplicates(
-															selection.props,
-															pruneDistance(selection)!,
-														);
-														toast(
-															t(
-																{
-																	one: "Pruned {n} duplicate",
-																	other: "Pruned {n} duplicates",
-																},
-																{ n },
-															),
-														);
-													}}
+													onClick={() =>
+														void (async () => {
+															const n = await pruneDuplicates(
+																selection.props,
+																pruneDistance(selection)!,
+															);
+															toast(
+																t(
+																	{
+																		one: "Pruned {n} duplicate",
+																		other: "Pruned {n} duplicates",
+																	},
+																	{ n },
+																),
+															);
+														})()
+													}
 												>
 													{t("Prune duplicates")}
 												</Menu.Item>
@@ -462,7 +466,9 @@ export const SelectionRow = memo(function SelectionRow({
 							aria-label={ghosted ? t("Un-ghost selection") : t("Ghost selection")}
 							title={t("Ghost selection (Alt-click to isolate)")}
 							onClick={(e) =>
-								e.altKey ? isolateSelection(selection.key) : toggleGhostSelection(selection.key)
+								void (e.altKey
+									? isolateSelection(selection.key)
+									: toggleGhostSelection(selection.key))
 							}
 						>
 							<Icon path={ghosted ? mdiGhost : mdiGhostOutline} />
@@ -483,7 +489,7 @@ export const SelectionRow = memo(function SelectionRow({
 					initial={filterPropsToSeed(selection.props)}
 					submitLabel={t("Update filter")}
 					onSubmit={(field, op, value, value2, tzLocal) =>
-						updateFilterSelection(selection.key, {
+						void updateFilterSelection(selection.key, {
 							type: "Filter",
 							field,
 							op,
@@ -530,7 +536,7 @@ export const SelectionRow = memo(function SelectionRow({
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
-							handleSaveAsTag();
+							void handleSaveAsTag();
 						}}
 						style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}
 					>

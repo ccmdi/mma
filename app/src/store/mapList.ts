@@ -23,7 +23,7 @@ export async function reloadMapList() {
 /** Re-fetch the map list from the database. */
 export async function invalidateMapList() {
 	await reloadMapList();
-	tauriEmit("map-list-changed");
+	await tauriEmit("map-list-changed");
 }
 
 /** Set the cached map list directly (used by initStore). */
@@ -42,7 +42,7 @@ export async function createMap(name: string, folder: string | null = null) {
 export async function deleteMap(id: string) {
 	await cmd.storeDeleteMap(id);
 	await invalidateMapList();
-	tauriEmit("map-deleted", id);
+	await tauriEmit("map-deleted", id);
 }
 
 export async function renameFolder(from: string, to: string) {
@@ -59,7 +59,7 @@ export async function moveMapToFolder(mapId: string, folder: string | null) {
 		emitEvent("map-list:changed");
 	}
 	await cmd.storeUpdateMapMeta(mapId, { folder: folder ?? null });
-	tauriEmit("map-list-changed");
+	await tauriEmit("map-list-changed");
 }
 
 export async function deleteFolder(name: string) {

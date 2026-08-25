@@ -8,13 +8,10 @@ const REPORTS_KEY = "feedbackReports";
 const INSTALL_ID_KEY = "feedbackInstallId";
 
 /** Per-kind attachment choices; a suggestion starts with none since they only bear on bugs. */
-export const ATTACHMENT_PREFS = persisted<Record<ReportKind, Attachments>>(
-	"feedbackAttachments",
-	{
-		bug: { diagnostics: true, settings: true, log: true },
-		idea: { diagnostics: false, settings: false, log: false },
-	},
-);
+export const ATTACHMENT_PREFS = persisted<Record<ReportKind, Attachments>>("feedbackAttachments", {
+	bug: { diagnostics: true, settings: true, log: true },
+	idea: { diagnostics: false, settings: false, log: false },
+});
 
 /** A report this install has filed. Kept locally because an anonymous reporter has no account
  *  to look their own issues up under. */

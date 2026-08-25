@@ -57,7 +57,7 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 						<ContextMenu.Item
 							className="context-menu__item"
 							disabled={!location.panoId}
-							onClick={() => navigator.clipboard.writeText(location.panoId ?? "")}
+							onClick={() => void navigator.clipboard.writeText(location.panoId ?? "")}
 						>
 							{t("Copy pano ID")}
 						</ContextMenu.Item>
@@ -104,7 +104,7 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 				<ContextMenu.Item
 					className="context-menu__item"
 					onClick={() =>
-						navigator.clipboard.writeText(`${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`)
+						void navigator.clipboard.writeText(`${latLng.lat.toFixed(6)}, ${latLng.lng.toFixed(6)}`)
 					}
 				>
 					{t("Copy coordinates")}

@@ -92,8 +92,9 @@ function usePasteHandler() {
 				log.warn("Couldn't import locations via paste.");
 			}
 		}
-		document.body.addEventListener("paste", onPaste);
-		return () => document.body.removeEventListener("paste", onPaste);
+		const handlePaste = (e: ClipboardEvent) => void onPaste(e);
+		document.body.addEventListener("paste", handlePaste);
+		return () => document.body.removeEventListener("paste", handlePaste);
 	}, []);
 }
 
@@ -127,7 +128,7 @@ function useFileDrop() {
 		});
 		return () => {
 			cancelled = true;
-			unlistenPromise.then((unlisten) => unlisten());
+			void unlistenPromise.then((unlisten) => unlisten());
 		};
 	}, []);
 
@@ -200,7 +201,7 @@ export function MapEditor() {
 
 	useEffect(() => {
 		let cancelled = false;
-		Promise.all([pluginsReady, waitForMapHost()]).then(() => {
+		void Promise.all([pluginsReady, waitForMapHost()]).then(() => {
 			if (cancelled) return;
 			activatePlugins();
 		});
@@ -216,7 +217,7 @@ export function MapEditor() {
 			if (e.payload.mapId === getMapState().mapId) void mutate(() => Promise.resolve(e.payload));
 		});
 		return () => {
-			unlisten.then((f) => f());
+			void unlisten.then((f) => f());
 		};
 	}, []);
 
@@ -230,7 +231,7 @@ export function MapEditor() {
 			}
 		});
 		return () => {
-			unlisten.then((f) => f());
+			void unlisten.then((f) => f());
 		};
 	}, []);
 
@@ -259,7 +260,7 @@ export function MapEditor() {
 		useBinding("locationDelete"),
 		() => {
 			const ids = getMapState().selectedLocationIds;
-			if (ids.size > 0) removeLocations(ids);
+			if (ids.size > 0) void removeLocations(ids);
 		},
 		{ bubble: true },
 	);

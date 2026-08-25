@@ -99,7 +99,7 @@ function EditorRoot() {
 	const map = useMapState((s) => s.map);
 	const [MapEditor, setMapEditor] = useState<ComponentType | null>(null);
 	useEffect(() => {
-		mapEditorModule.then((m) => setMapEditor(() => m.MapEditor));
+		void mapEditorModule.then((m) => setMapEditor(() => m.MapEditor));
 	}, []);
 	if (!map || !MapEditor) return <Blank />;
 	return <MapEditor />;
@@ -156,7 +156,7 @@ function AppChrome() {
 						<div className="update-pill">
 							{update.phase === "available" && (
 								<>
-									<button className="update-pill__label" onClick={installUpdate}>
+									<button className="update-pill__label" onClick={() => void installUpdate()}>
 										{t("v{version} - download update", { version: update.version ?? "" })}
 									</button>
 									<button
@@ -174,13 +174,13 @@ function AppChrome() {
 								</span>
 							)}
 							{update.phase === "ready" && (
-								<button className="update-pill__label" onClick={relaunchApp}>
+								<button className="update-pill__label" onClick={() => void relaunchApp()}>
 									{t("Restart to update")}
 								</button>
 							)}
 							{update.phase === "error" && (
 								<>
-									<button className="update-pill__label" onClick={installUpdate}>
+									<button className="update-pill__label" onClick={() => void installUpdate()}>
 										{t("Update failed - retry")}
 									</button>
 									<button
@@ -230,16 +230,16 @@ function AppChrome() {
 function useSelfDestruct(closing: boolean) {
 	useEffect(() => {
 		if (!closing) return;
-		WebviewWindow.getByLabel("main")
+		void WebviewWindow.getByLabel("main")
 			.then(async (main) => {
 				await main?.unminimize();
 				await main?.setFocus();
 			})
 			.finally(async () => {
-				await invoke("plugin:window-state|save_window_state", { flags: WINDOW_STATE_FLAGS }).catch(
-					() => {},
-				);
-				getCurrentWindow().destroy();
+				await invoke("plugin:window-state|save_window_state", {
+					flags: WINDOW_STATE_FLAGS,
+				}).catch(() => {});
+				void getCurrentWindow().destroy();
 			});
 	}, [closing]);
 }
@@ -305,9 +305,7 @@ function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => vo
 				<div className="welcome-dialog__hero">
 					<img src="/icon-1024.png" alt="" width={80} height={80} draggable={false} />
 					<div className="welcome-dialog__name">{APP_NAME}</div>
-					<div className="welcome-dialog__version">
-						v{appVersion() ?? "dev"}
-					</div>
+					<div className="welcome-dialog__version">v{appVersion() ?? "dev"}</div>
 				</div>
 				<div className="welcome-dialog__links">
 					<button

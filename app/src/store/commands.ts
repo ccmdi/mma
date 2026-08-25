@@ -6,7 +6,7 @@ export interface CommandDef {
 	group: CommandGroup;
 	defaultBinding?: string;
 	aliases?: string[];
-	execute: () => void;
+	execute: () => void | Promise<void>;
 	enabled?: () => boolean;
 }
 
@@ -15,6 +15,10 @@ export interface Command extends CommandDef {
 }
 
 const commands: Command[] = [];
+
+export function runCommand(cmd: Command): void {
+	void Promise.resolve(cmd.execute());
+}
 
 export function registerCommand(cmd: Command): void {
 	commands.push(cmd);

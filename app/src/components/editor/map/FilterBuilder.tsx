@@ -107,7 +107,7 @@ function useEnumValues(fieldKey: string | undefined, def: ExtraFieldDef | undefi
 			setValues([]);
 			return;
 		}
-		fieldValues({ kind: "all" }, fieldKey).then(setValues);
+		void fieldValues({ kind: "all" }, fieldKey).then(setValues);
 	}, [fieldKey, def]);
 	return values;
 }
@@ -558,7 +558,7 @@ export function FilterBuilder({ mapId }: { mapId: string }) {
 			persistKey={mapId}
 			submitLabel={t("Add filter")}
 			onSubmit={(field, op, value, value2, tzLocal) =>
-				addSelections([{ type: "Filter", field, op, value, value2, tzLocal }])
+				void addSelections([{ type: "Filter", field, op, value, value2, tzLocal }])
 			}
 		/>
 	);

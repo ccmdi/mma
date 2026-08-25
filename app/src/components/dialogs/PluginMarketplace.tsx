@@ -155,13 +155,15 @@ function PluginCard({
 	const { id, name, description, icon, core, installed, enabled, comingSoon, requiresApp } = entry;
 	const [busy, setBusy] = useState(false);
 
-	const run = (fn: (id: string) => void | Promise<void>) => async () => {
-		setBusy(true);
-		try {
-			await fn(id);
-		} finally {
-			setBusy(false);
-		}
+	const run = (fn: (id: string) => void | Promise<void>) => () => {
+		void (async () => {
+			setBusy(true);
+			try {
+				await fn(id);
+			} finally {
+				setBusy(false);
+			}
+		})();
 	};
 
 	return (
@@ -282,7 +284,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 	}, []);
 
 	useEffect(() => {
-		if (open) refreshInstalled();
+		if (open) void refreshInstalled();
 	}, [open, refreshInstalled]);
 
 	const fetchRegistry = useCallback(() => {
@@ -398,7 +400,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 			} catch (e) {
 				log.error(`[marketplace] uninstall failed for "${id}":`, e);
 			}
-			refreshInstalled();
+			void refreshInstalled();
 			rerender((n) => n + 1);
 		},
 		[refreshInstalled],

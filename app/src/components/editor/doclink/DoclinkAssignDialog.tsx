@@ -434,12 +434,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 									{tagFilter ? (
 										<div className="doclink-assign__pills">
 											{filteredTags.map((tag) => (
-												<TreePill
-													key={tag.id}
-													tag={tag}
-													label={tag.name}
-													ctx={treeCtx}
-												/>
+												<TreePill key={tag.id} tag={tag} label={tag.name} ctx={treeCtx} />
 											))}
 										</div>
 									) : (
@@ -460,7 +455,11 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 										value={headingFilter}
 										onChange={(e) => setHeadingFilter(e.target.value)}
 									/>
-									<Button small disabled={!outline || outline.headings.length === 0} onClick={runMatch}>
+									<Button
+										small
+										disabled={!outline || outline.headings.length === 0}
+										onClick={runMatch}
+									>
 										{t("Match names")}
 									</Button>
 								</div>

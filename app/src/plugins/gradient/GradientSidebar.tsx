@@ -241,8 +241,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 								value: n,
 								label: String(n),
 								disabled: projectionId !== RANGE_ID,
-								title:
-									projectionId !== RANGE_ID ? t("Only applies to Range grouping") : undefined,
+								title: projectionId !== RANGE_ID ? t("Only applies to Range grouping") : undefined,
 							}))}
 						/>
 					</Field>
@@ -281,7 +280,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 					<div className="gradient-sidebar__apply-row">
 						<Button
 							variant="primary"
-							onClick={applyGradient}
+							onClick={() => void applyGradient()}
 							disabled={applying || !fieldKey}
 						>
 							{t("Apply")}

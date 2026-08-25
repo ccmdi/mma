@@ -72,7 +72,6 @@ interface TagTreeCallbacks {
 
 const TagTreeCtx = createContext<TagTreeCallbacks>(null!);
 
-
 export interface TagTreeHandle {
 	/** Rewrite expanded-folder paths after a cascade rename so the renamed folder stays open. */
 	remapExpanded: (oldPrefix: string, newPrefix: string) => void;

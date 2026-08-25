@@ -187,7 +187,7 @@ export function ValiDownloadDialog({
 							variant="primary"
 							small
 							disabled={running}
-							onClick={() => run(() => cmd.valiDownloadStale())}
+							onClick={() => void run(() => cmd.valiDownloadStale())}
 						>
 							{t("Update these")}
 						</Button>
@@ -266,7 +266,7 @@ export function ValiDownloadDialog({
 
 				<div className="vali-download__footer">
 					{running ? (
-						<Button variant="destructive" onClick={() => cmd.valiCancel()}>
+						<Button variant="destructive" onClick={() => void cmd.valiCancel()}>
 							{t("Cancel")}
 						</Button>
 					) : (
@@ -275,7 +275,9 @@ export function ValiDownloadDialog({
 					<Button
 						variant="primary"
 						disabled={!target || running}
-						onClick={() => target && run(() => cmd.valiDownload(target.code, full, false))}
+						onClick={() => {
+							if (target) void run(() => cmd.valiDownload(target.code, full, false));
+						}}
 					>
 						{running ? t("Downloading...") : t("Download")}
 					</Button>

@@ -369,7 +369,7 @@ function ReturnToSpawnControl({
 	onReturnToSpawn,
 }: {
 	panorama: google.maps.StreetViewPanorama;
-	onReturnToSpawn: () => void;
+	onReturnToSpawn: () => void | Promise<void>;
 }) {
 	const location = useMapState((s) => s.activeLocation);
 	const [hasChanged, setHasChanged] = useState(false);
@@ -395,7 +395,7 @@ function ReturnToSpawnControl({
 				<Tooltip content={t("Return to spawn (R)")} side="right">
 					<button
 						disabled={!hasChanged}
-						onClick={onReturnToSpawn}
+						onClick={() => void Promise.resolve(onReturnToSpawn())}
 						aria-label={t("Return to spawn (R)")}
 					>
 						<Icon path={mdiHome} />
@@ -473,7 +473,7 @@ export const PanoControls = memo(function PanoControls({
 	panorama: google.maps.StreetViewPanorama;
 	isFullscreen: boolean;
 	onFullscreen: () => void;
-	onReturnToSpawn: () => void;
+	onReturnToSpawn: () => void | Promise<void>;
 }) {
 	const vis = useSettings();
 	const fullscreenKey = useBinding("toggleFullscreen");
@@ -500,7 +500,7 @@ export const PanoControls = memo(function PanoControls({
 
 	const openInMaps = useCallback(() => {
 		const url = buildMapsUrl();
-		if (url) open(url.toString());
+		if (url) void open(url.toString());
 	}, [buildMapsUrl]);
 
 	// `long` skips the shortenMapsUrl redirect lookup and copies the raw long URL;
@@ -575,9 +575,7 @@ export const PanoControls = memo(function PanoControls({
 					const stamp = fileTimestamp();
 					downloadBlob(blob, `${view.panoId}_${stamp}.png`);
 					toast(
-						download
-							? t("Screenshot downloaded")
-							: t("Clipboard unavailable, downloaded instead"),
+						download ? t("Screenshot downloaded") : t("Clipboard unavailable, downloaded instead"),
 					);
 				}
 				setScreenshotState("done");
@@ -601,13 +599,9 @@ export const PanoControls = memo(function PanoControls({
 				>
 					{vis.showScreenshotButton && (
 						<div className="map-control map-control--button">
-							<Tooltip
-								content={t("Copy screenshot (Shift: download)")}
-								side="bottom"
-								align="end"
-							>
+							<Tooltip content={t("Copy screenshot (Shift: download)")} side="bottom" align="end">
 								<button
-									onClick={(e) => takeScreenshot(e.shiftKey)}
+									onClick={(e) => void takeScreenshot(e.shiftKey)}
 									disabled={screenshotState !== "idle"}
 									aria-label={t("Copy screenshot to clipboard")}
 									data-qa="pano-screenshot"
@@ -705,7 +699,7 @@ export const PanoControls = memo(function PanoControls({
 						</Tooltip>
 						<Tooltip content={t("Copy link - Shift: without tags, Alt: long URL")} side="right">
 							<button
-								onClick={(e) => doCopy({ long: e.altKey, noTags: e.shiftKey })}
+								onClick={(e) => void doCopy({ long: e.altKey, noTags: e.shiftKey })}
 								aria-label={t("Copy link")}
 							>
 								{copyState === "loading" ? (

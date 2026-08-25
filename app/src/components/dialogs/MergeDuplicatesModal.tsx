@@ -86,7 +86,7 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 						</p>
 						<div className="merge-duplicates__actions">
 							<Button onClick={() => onOpenChange(false)}>{t("Cancel")}</Button>
-							<Button variant="primary" onClick={handleMerge} disabled={merging}>
+							<Button variant="primary" onClick={() => void handleMerge()} disabled={merging}>
 								{merging ? t("Merging...") : t("Merge")}
 							</Button>
 						</div>
