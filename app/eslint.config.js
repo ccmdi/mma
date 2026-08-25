@@ -11,6 +11,7 @@ import noSelectionAlias from "./eslint-rules/no-selection-alias.js";
 import noUnsupportedBuiltins from "./eslint-rules/no-unsupported-builtins.js";
 import noPrimitiveClass from "./eslint-rules/no-primitive-class.js";
 import noEffectEventInMemo from "./eslint-rules/no-effect-event-in-memo.js";
+import noNativeDialog from "./eslint-rules/no-native-dialog.js";
 
 const RESTRICTED_IMPORT_PATHS = [
 	{
@@ -44,10 +45,6 @@ const RESTRICTED_SYNTAX = [
 			'Use <Checkbox> (@/components/primitives/Checkbox) instead of a raw <input type="checkbox">.',
 	},
 	{
-		selector: "CallExpression[callee.name=/^(confirm|alert|prompt)$/]",
-		message: "Native confirm()/alert()/prompt() hang in WebView2 - use a Radix dialog instead.",
-	},
-	{
 		selector: "AssignmentExpression[left.property.name='innerHTML']",
 		message: "No raw innerHTML - use React or textContent.",
 	},
@@ -77,6 +74,7 @@ export default defineConfig([
 					"no-unsupported-builtins": noUnsupportedBuiltins,
 					"no-primitive-class": noPrimitiveClass,
 					"no-effect-event-in-memo": noEffectEventInMemo,
+					"no-native-dialog": noNativeDialog,
 				},
 			},
 		},
@@ -99,6 +97,7 @@ export default defineConfig([
 			"local/no-selection-alias": "warn",
 			"local/no-primitive-class": "error",
 			"local/no-effect-event-in-memo": "error",
+			"local/no-native-dialog": "error",
 			"no-restricted-imports": [
 				"error",
 				{
