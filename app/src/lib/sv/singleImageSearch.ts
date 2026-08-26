@@ -70,11 +70,14 @@ export interface SearchOpts {
 	preference?: SearchPreference;
 }
 
-/** Every collection a location search covers unless narrowed. */
+/** What a search covers when the caller names no sources: every frontend, which is what the
+ *  Maps JS API's `getPanorama({location})` searched. Verified live on six coordinates: the
+ *  API's cold answer is this search's nearest pano each time, and the official frontend on
+ *  its own misses user coverage entirely. (The API's answer drifts with its session -- it
+ *  sends a session id this search does not -- so only cold calls compare.) */
 export const ALL_SOURCES: PanoType[] = [PanoType.Official, PanoType.Unknown, PanoType.UserUploaded];
 
-/** Nearest panorama within `radius` metres of the point, searching `sources`. The Maps JS
- *  API's `sources: ["google"]` is `[PanoType.Official]`; its default is all three. */
+/** Nearest panorama within `radius` metres of the point, searching `sources`. */
 export function buildLocationSearchBody(
 	lat: number,
 	lng: number,

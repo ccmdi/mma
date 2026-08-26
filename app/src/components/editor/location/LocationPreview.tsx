@@ -47,7 +47,6 @@ import {
 } from "@/lib/review/review";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { panosAt, svMetadata } from "@/lib/sv/query";
-import { SearchPreference } from "@/lib/sv/singleImageSearch";
 
 import {
 	useSettings,
@@ -413,12 +412,7 @@ export function LocationPreview() {
 			// the rest of its history from the neighbour.
 			const [[data], [atCoord]] = await Promise.all([
 				svMetadata([currentPano.pano], signal),
-				panosAt(
-					[{ lat: currentPano.lat, lng: currentPano.lng }],
-					SV_SEARCH_RADIUS,
-					{ preference: SearchPreference.Best },
-					signal,
-				),
+				panosAt([{ lat: currentPano.lat, lng: currentPano.lng }], SV_SEARCH_RADIUS, undefined, signal),
 			]);
 			if (!data) return;
 
@@ -436,7 +430,7 @@ export function LocationPreview() {
 				const [official] = await panosAt(
 					[{ lat: currentPano.lat, lng: currentPano.lng }],
 					25,
-					{ sources: [PanoType.Official], preference: SearchPreference.Best },
+					{ sources: [PanoType.Official] },
 					signal,
 				);
 				// Official last, so its entries win: it is the authority on the history here.

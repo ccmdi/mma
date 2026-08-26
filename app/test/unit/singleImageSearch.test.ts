@@ -17,7 +17,7 @@ describe("SingleImageSearch bodies", () => {
 		);
 	});
 
-	it("builds the nearest-panorama search, all sources by default", () => {
+	it("builds the nearest-panorama search, every frontend by default", () => {
 		expect(buildLocationSearchBody(47.3769, 8.5417, 50)).toBe(
 			'[["apiv3"],[[null,null,47.3769,8.5417],50],[null,null,null,null,null,null,null,null,[2],null,[[[2,true,2],[3,true,2],[10,true,2]]]],[[1,2,3,4,8,6]]]',
 		);

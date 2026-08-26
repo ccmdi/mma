@@ -14,8 +14,8 @@ const decoder = new TextDecoder();
 
 // --- Reference request body, mirroring StreetViewService.getPanorama({location, radius}) ---
 
-function jsLocationBody(lat, lng, radius, official = false) {
-	const sources = official ? "[2,true,2]" : "[2,true,2],[3,true,2],[10,true,2]";
+function jsLocationBody(lat, lng, radius, frontends = [2, 3, 10]) {
+	const sources = frontends.map((f) => `[${f},true,2]`).join(",");
 	return `[["apiv3"],[[null,null,${lat},${lng}],${radius}],[null,null,null,null,null,null,null,null,[2],null,[[${sources}]]],[[1,2,3,4,8,6]]]`;
 }
 
@@ -286,10 +286,11 @@ test("the query radius rides the request, defaulting to 50", () => {
 
 test("sources narrows the search to the collections named", () => {
 	const pt = [{ lat: 1, lng: 2 }];
-	const on = queryAt({ op: "at", points: pt, sources: [2] }, () => NO_IMAGES);
-	assert.equal(on.calls[0].body, jsLocationBody(1, 2, 50, true));
+	const user = queryAt({ op: "at", points: pt, sources: [3, 10] }, () => NO_IMAGES);
+	assert.equal(user.calls[0].body, jsLocationBody(1, 2, 50, [3, 10]));
+	// No sources named: every frontend, as getPanorama({location}) searched.
 	const off = queryAt({ op: "at", points: pt }, () => NO_IMAGES);
-	assert.equal(off.calls[0].body, jsLocationBody(1, 2, 50, false));
+	assert.equal(off.calls[0].body, jsLocationBody(1, 2, 50));
 });
 
 test("a non-2xx response reads as no coverage rather than failing the query", () => {
