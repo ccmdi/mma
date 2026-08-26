@@ -90,6 +90,7 @@ jobs:
           claude_args: |
             --model claude-sonnet-5
             --allowedTools "Read,Grep,Glob,Write,Bash(gh issue view:*),Bash(gh issue list:*)"
+            --disallowedTools "Agent"
           prompt: |
             You are triaging issue #${{ matrix.issue }} on this repository (a Tauri desktop app:
             React/TypeScript frontend in app/src, Rust data engine in app/src-tauri). Your
