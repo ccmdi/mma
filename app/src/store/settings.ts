@@ -166,6 +166,8 @@ export const DEFAULTS = {
 	language: "en" as Language,
 	/** Reopen the maps that were open when the session last ended (main window closed). */
 	restoreSession: true,
+	/** Offer pre-release builds to the updater as well as full releases. */
+	prereleaseUpdates: false,
 	/** Discord Rich Presence: off, generic (no map name), or full (map name + count). */
 	discordPresence: "off" as DiscordPresenceMode,
 	/** Per-label color overrides (hex), keyed by lowercased label name. Shared across all maps. */

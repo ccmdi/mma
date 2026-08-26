@@ -49,34 +49,12 @@ import { parseMapQuery, mapMatchesQuery, toggleLabelInQuery } from "./mapQuery";
 import { t, msg } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
+import { PrereleasePill } from "@/components/primitives/PrereleasePill";
+import { fetchReleases, type Release } from "@/lib/util/updateCheck";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
 
 // --- What's new (latest release notes) ---
-
-interface ChangelogSection {
-	tag: string;
-	heading: string;
-	body: string;
-}
-
-// Split the changelog into per-version sections. A version starts at a `## vX...`
-// heading; headings inside a body (e.g. `## What's new`) are left untouched.
-function parseChangelog(md: string): ChangelogSection[] {
-	const sections: ChangelogSection[] = [];
-	let cur: ChangelogSection | null = null;
-	for (const line of md.split(/\r?\n/)) {
-		const m = /^##\s+(v\d\S*)\s*(.*)$/.exec(line);
-		if (m) {
-			if (cur) sections.push(cur);
-			cur = { tag: m[1], heading: line.replace(/^##\s+/, "").trim(), body: "" };
-		} else if (cur) {
-			cur.body += line + "\n";
-		}
-	}
-	if (cur) sections.push(cur);
-	return sections;
-}
 
 // Inline markdown: **bold**, *italic*, `code`, [text](url).
 function renderInline(text: string, kb: string): React.ReactNode[] {
@@ -145,25 +123,6 @@ function renderMarkdown(md: string): React.ReactNode[] {
 	return out;
 }
 
-let changelogPromise: Promise<ChangelogSection[] | null> | null = null;
-
-function fetchChangelog(): Promise<ChangelogSection[] | null> {
-	if (!changelogPromise) {
-		changelogPromise = fetch("https://raw.githubusercontent.com/ccmdi/mma/master/CHANGELOG.md")
-			.then((r) => (r.ok ? r.text() : null))
-			.then((md) => {
-				if (!md) return null;
-				const sections = parseChangelog(md);
-				return sections.length ? sections : null;
-			})
-			.catch((e) => {
-				log.warn("Failed to fetch changelog", e);
-				return null;
-			});
-	}
-	return changelogPromise;
-}
-
 // One character cell of the version readout. When its character changes it rolls
 // the old one out and the new one in, like a safe dial. Digits roll by value
 // (higher rolls up, lower rolls down); other characters default to rolling up.
@@ -208,16 +167,16 @@ function RollChar({ ch }: { ch: string }) {
 }
 
 function WhatsNew() {
-	const [versions, setVersions] = useState<ChangelogSection[] | null>(null);
+	const [releases, setReleases] = useState<Release[] | null>(null);
 	const [failed, setFailed] = useState(false);
 	const [activeTag, setActiveTag] = useState<string | null>(null);
 	const historyRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		let alive = true;
-		void fetchChangelog().then((v) => {
+		void fetchReleases().then((v) => {
 			if (!alive) return;
-			if (v) setVersions(v);
+			if (v) setReleases(v);
 			else setFailed(true);
 		});
 		return () => {
@@ -240,46 +199,52 @@ function WhatsNew() {
 
 	if (failed) return null;
 
-	const displayTag = activeTag ?? versions?.[0]?.tag ?? null;
+	const shown = releases?.find((r) => r.tag === activeTag) ?? releases?.[0] ?? null;
 	const installed = appVersion();
-	const isUnreleased = (tag: string) =>
-		installed ? cmpVersion(tag.replace(/^v/, ""), installed) > 0 : false;
+	const notInstalled = (r: Release) => (installed ? cmpVersion(r.version, installed) > 0 : false);
 
 	return (
 		<li className="updates__item updates__item--new">
 			<span className="updates__circle" />
 			<time className="updates__time">
 				{t("What's new")}
-				{displayTag && (
+				{shown && (
 					<>
 						<span className="updates__version-sep">·</span>
 						<span className="updates__version-roll">
-							{[...displayTag].map((c, i) => (
+							{[...shown.tag].map((c, i) => (
 								<RollChar key={i} ch={c} />
 							))}
 						</span>
+						{shown.prerelease && <PrereleasePill />}
 					</>
 				)}
 			</time>
-			<div className={clsx("updates__skeleton", versions && "updates__skeleton--hidden")}>
+			<div className={clsx("updates__skeleton", releases && "updates__skeleton--hidden")}>
 				<span />
 				<span />
 				<span />
 			</div>
-			<div className={clsx("updates__notes", versions && "updates__notes--open")}>
+			<div className={clsx("updates__notes", releases && "updates__notes--open")}>
 				<div>
 					<div className="updates__history" ref={historyRef} onScroll={onScroll}>
-						{versions?.map((v, vi) => (
+						{releases?.map((r, i) => (
 							<div
-								key={v.tag}
+								key={r.tag}
 								className={clsx(
 									"updates__release",
-									isUnreleased(v.tag) && "updates__release--unreleased",
+									notInstalled(r) && "updates__release--unreleased",
 								)}
-								data-tag={v.tag}
+								data-tag={r.tag}
 							>
-								{vi > 0 && <time className="updates__release-tag">{v.heading}</time>}
-								<div className="updates__release-body">{renderMarkdown(v.body)}</div>
+								{i > 0 && (
+									<time className="updates__release-tag">
+										{r.tag}
+										{r.publishedAt && ` - ${shortDateFmt.format(new Date(r.publishedAt))}`}
+										{r.prerelease && <PrereleasePill />}
+									</time>
+								)}
+								<div className="updates__release-body">{renderMarkdown(r.body)}</div>
 							</div>
 						))}
 					</div>
@@ -1192,7 +1157,9 @@ export function MapList() {
 									exact.querySelector<HTMLAnchorElement>(".map-link")?.click();
 									return;
 								}
-								void createMap(name).then((m) => openWindow({ type: "editor", mapId: m.id }, m.name));
+								void createMap(name).then((m) =>
+									openWindow({ type: "editor", mapId: m.id }, m.name),
+								);
 							}}
 							type="text"
 							placeholder={t("Search maps...")}

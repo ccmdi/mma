@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/秒",
 	" in {seconds}s ({rate}/s)": "，用时 {seconds}s（{rate}/s）",
+	"Get new versions as soon as they are cut, before they are marked stable.": "在版本被标记为稳定版之前，第一时间获取新版本。",
 	"Pano ID": "全景 ID",
 	"\"{path}\" already exists in the tree": "「{path}」在树中已存在",
 	"(deleted selection)": "（已删除的选择）",
@@ -1238,6 +1239,7 @@
 	"Update installed. Restart to apply.": "更新已安装。重启以生效。",
 	"Update requires app v{version} or newer": "更新需要应用 v{version} 或更新版本",
 	"Update these": "更新这些",
+	"Update to pre-releases": "更新到预发布版本",
 	"Update to v{version}": "更新到 v{version}",
 	"Updated": "更新于",
 	"Updates": "更新",
@@ -1346,6 +1348,7 @@
 	"of {total}": "共 {total}",
 	"opened {when}": "{when}打开",
 	"paste API key": "粘贴 API 密钥",
+	"pre-release": "预发布",
 	"presence differs across groups (coverage {score})": "各组存在率不同（覆盖率 {score}）",
 	"somewhere unknown": "未知地点",
 	"to": "至",

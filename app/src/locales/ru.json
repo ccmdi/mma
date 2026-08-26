@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " за {seconds}s ({rate}/s)",
+	"Get new versions as soon as they are cut, before they are marked stable.": "Получать новые версии сразу после выпуска, до того как их отметят стабильными.",
 	"Pano ID": "Pano ID",
 	"\"{path}\" already exists in the tree": "\"{path}\" уже есть в дереве",
 	"(deleted selection)": "(удалённая выборка)",
@@ -1340,6 +1341,7 @@
 	"Update installed. Restart to apply.": "Обновление установлено. Перезапустите для применения.",
 	"Update requires app v{version} or newer": "Для обновления нужно приложение v{version} или новее",
 	"Update these": "Обновить их",
+	"Update to pre-releases": "Обновляться до предварительных версий",
 	"Update to v{version}": "Обновить до v{version}",
 	"Updated": "Обновлено",
 	"Updates": "Обновления",
@@ -1451,6 +1453,7 @@
 	"of {total}": "из {total}",
 	"opened {when}": "открыто {when}",
 	"paste API key": "вставьте API-ключ",
+	"pre-release": "предварительная",
 	"presence differs across groups (coverage {score})": "наличие различается между группами (покрытие {score})",
 	"somewhere unknown": "неизвестное место",
 	"to": "по",

@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/秒",
 	" in {seconds}s ({rate}/s)": " 所要 {seconds}s（{rate}/s）",
+	"Get new versions as soon as they are cut, before they are marked stable.": "安定版として公開される前の、リリース直後の新しいバージョンを受け取ります。",
 	"Pano ID": "Pano ID",
 	"\"{path}\" already exists in the tree": "「{path}」はツリー内に既に存在します",
 	"(deleted selection)": "（削除済みの選択）",
@@ -1238,6 +1239,7 @@
 	"Update installed. Restart to apply.": "更新をインストールしました。再起動して適用してください。",
 	"Update requires app v{version} or newer": "更新にはアプリ v{version} 以降が必要です",
 	"Update these": "これらを更新",
+	"Update to pre-releases": "プレリリース版に更新する",
 	"Update to v{version}": "v{version} に更新",
 	"Updated": "更新",
 	"Updates": "更新",
@@ -1346,6 +1348,7 @@
 	"of {total}": "/ {total}",
 	"opened {when}": "{when}に開きました",
 	"paste API key": "API キーを貼り付け",
+	"pre-release": "プレリリース",
 	"presence differs across groups (coverage {score})": "グループ間で有無が異なります（カバレッジ {score}）",
 	"somewhere unknown": "不明な場所",
 	"to": "～",

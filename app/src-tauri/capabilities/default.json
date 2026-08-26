@@ -41,7 +41,6 @@
 		"shell:allow-kill",
 		"shell:allow-open",
 		"dialog:default",
-		"updater:default",
 		"process:default"
 	]
 }

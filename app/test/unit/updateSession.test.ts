@@ -17,20 +17,38 @@ vi.mock("@/lib/window", () => ({
 	openWindows: async () => h.openIds.map((mapId) => ({ type: "editor", mapId })),
 }));
 vi.mock("@/store/settings", () => ({
-	getSettings: () => ({ restoreSession: h.restoreSession }),
+	getSettings: () => ({ restoreSession: h.restoreSession, prereleaseUpdates: false }),
 }));
 vi.mock("@/store/session", () => ({
 	saveSession: (ids: string[]) => h.saved.push(ids),
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-vi.mock("@tauri-apps/plugin-updater", () => ({
-	check: async () => ({
-		version: "9.9.9",
-		body: "",
-		downloadAndInstall: async () => {
+vi.mock("@/lib/version", () => ({ appVersion: () => "0.0.1" }));
+vi.mock("@/bindings.gen", () => ({
+	events: { updateProgress: { listen: async () => () => {} } },
+}));
+vi.mock("@/lib/commands", () => ({
+	cmd: {
+		updateCheck: async () => ({ version: "9.9.9", currentVersion: "0.0.1", notes: "" }),
+		updateInstall: async () => {
 			h.savedAtDownload = h.saved.at(-1) ?? null;
 		},
-	}),
+	},
+}));
+
+// One release, newer than the running build, so the check has something to offer.
+vi.stubGlobal("fetch", async () => ({
+	ok: true,
+	json: async () => [
+		{
+			tag_name: "v9.9.9",
+			body: "",
+			draft: false,
+			prerelease: false,
+			published_at: "2026-01-01T00:00:00Z",
+			assets: [{ name: "latest.json", browser_download_url: "https://example.invalid/l.json" }],
+		},
+	],
 }));
 vi.mock("@tauri-apps/plugin-process", () => ({
 	relaunch: async () => {

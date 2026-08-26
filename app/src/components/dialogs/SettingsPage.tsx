@@ -80,9 +80,10 @@ import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useUpdateState, checkForUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
+import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { t, msg } from "@/lib/i18n";
-import { errText } from "@/lib/util/util";
+import { errText, isPrereleaseVersion } from "@/lib/util/util";
 import { Trans } from "@/components/primitives/Trans";
 
 /** Non-row section content. Hidden during search unless the section title
@@ -960,6 +961,7 @@ const UPDATE_STATUS: Record<string, string> = {
 function UpdateBlock() {
 	const update = useUpdateState();
 	const version = appVersion() ?? "dev";
+	const onPrerelease = isPrereleaseVersion(version);
 	const checking = update.phase === "checking";
 	const badgeMod = update.phase === "up-to-date" ? " settings-updates__version--latest" : "";
 	const status =
@@ -980,9 +982,10 @@ function UpdateBlock() {
 					>
 						v{version}
 					</span>
+					{onPrerelease && <PrereleasePill />}
 					<button
 						className="icon-button settings-updates__check"
-						onClick={() => void checkForUpdate()}
+						onClick={() => void checkForUpdate(true)}
 						disabled={checking || update.phase === "downloading"}
 						title={t("Check for updates")}
 						aria-label={t("Check for updates")}
@@ -1001,7 +1004,10 @@ function UpdateBlock() {
 				</div>
 				{update.phase === "available" && (
 					<div className="settings-aux__col">
-						<span>{t("Version {version} is available", { version: update.version ?? "" })}</span>
+						<span>
+							{t("Version {version} is available", { version: update.version ?? "" })}
+							{update.prerelease && <PrereleasePill />}
+						</span>
 						{update.notes && (
 							<pre
 								style={{
@@ -1036,6 +1042,22 @@ function UpdateBlock() {
 				)}
 			</div>
 		</Aux>
+	);
+}
+
+/** Changing the channel re-checks straight away, so the block above answers the question the
+ *  toggle just raised instead of waiting for the next launch. */
+function PrereleaseRow() {
+	return (
+		<SettingRow
+			label={t("Update to pre-releases")}
+			description={t("Get new versions as soon as they are cut, before they are marked stable.")}
+			checked={useSetting("prereleaseUpdates")}
+			onChange={(v) => {
+				setSetting("prereleaseUpdates", v);
+				void checkForUpdate(true);
+			}}
+		/>
 	);
 }
 
@@ -1100,6 +1122,7 @@ function ApplicationBody() {
 
 			<GroupHeading>{t("Updates")}</GroupHeading>
 			<UpdateBlock />
+			<PrereleaseRow />
 
 			<GroupHeading>{t("Data")}</GroupHeading>
 			<DataBody />

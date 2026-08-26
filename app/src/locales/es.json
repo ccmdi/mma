@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " en {seconds} s ({rate}/s)",
+	"Get new versions as soon as they are cut, before they are marked stable.": "Recibe las versiones nuevas en cuanto se publican, antes de marcarse como estables.",
 	"Pano ID": "Pano ID",
 	"\"{path}\" already exists in the tree": "\"{path}\" ya existe en el árbol",
 	"(deleted selection)": "(selección eliminada)",
@@ -1306,6 +1307,7 @@
 	"Update installed. Restart to apply.": "Actualización instalada. Reiniciar para aplicarla.",
 	"Update requires app v{version} or newer": "La actualización requiere la aplicación v{version} o posterior",
 	"Update these": "Actualizar estos",
+	"Update to pre-releases": "Actualizar a versiones preliminares",
 	"Update to v{version}": "Actualizar a v{version}",
 	"Updated": "Actualizado",
 	"Updates": "Actualizaciones",
@@ -1416,6 +1418,7 @@
 	"of {total}": "de {total}",
 	"opened {when}": "abierto {when}",
 	"paste API key": "pegar la clave API",
+	"pre-release": "versión preliminar",
 	"presence differs across groups (coverage {score})": "la presencia varía entre grupos (cobertura {score})",
 	"somewhere unknown": "lugar desconocido",
 	"to": "a",

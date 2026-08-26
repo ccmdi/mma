@@ -151,10 +151,14 @@ jobs:
           MAC_INTEL_FILE=$(basename "$(find artifacts -path '*x86_64*' -name '*.app.tar.gz' ! -name '*.sig' | head -1)")
           LINUX_FILE=$(basename "$(find artifacts -name '*.AppImage' ! -name '*.sig' | head -1)")
 
+          # The app reads notes from the Releases API; latest.json's copy is the fallback for
+          # when that is unreachable, so it carries the real thing rather than a placeholder.
+          NOTES=$(jq -Rs . < notes.md)
+
           cat > latest.json <<EOF
           {
             "version": "${VERSION}",
-            "notes": "See release notes on GitHub",
+            "notes": ${NOTES},
             "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "platforms": {
               "windows-x86_64": { "url": "${REPO}/${WIN_FILE}", "signature": "${WIN_SIG}" },

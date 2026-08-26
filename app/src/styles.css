@@ -4629,6 +4629,29 @@ body {
 }
 
 /* Update available pill */
+/* Marks a build that shipped ahead of stable. Deliberately quiet: it labels, it does not warn. */
+.prerelease-pill {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-left: 0.5em;
+	padding: 0 0.4em;
+	border: 1px solid color-mix(in srgb, var(--text-2) 30%, transparent);
+	border-radius: var(--radius-2);
+	background: color-mix(in srgb, var(--text-2) 8%, transparent);
+	color: var(--text-2);
+	font-size: 0.7rem;
+	font-weight: 500;
+	letter-spacing: 0.02em;
+	line-height: 1.5;
+	text-transform: lowercase;
+	white-space: nowrap;
+}
+.update-pill .prerelease-pill {
+	margin-left: 0;
+	margin-right: 0.35em;
+}
+
 .update-pill {
 	display: flex;
 	align-items: center;

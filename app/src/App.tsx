@@ -30,6 +30,7 @@ import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline } from "@mdi
 import { ToastContainer } from "@/components/primitives/Toast";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
 import { useUpdateState, dismissUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
+import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { APP_NAME } from "@/lib/util/format";
 import { appVersion } from "@/lib/version";
 import { useDiscordPresence } from "@/lib/discord/presence";
@@ -149,6 +150,7 @@ function AppChrome() {
 									<button className="update-pill__label" onClick={() => void installUpdate()}>
 										{t("v{version} - download update", { version: update.version ?? "" })}
 									</button>
+									{update.prerelease && <PrereleasePill />}
 									<button
 										className="update-pill__dismiss"
 										onClick={dismissUpdate}

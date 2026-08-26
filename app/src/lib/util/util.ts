@@ -34,15 +34,44 @@ export function chunk<T>(arr: readonly T[], n: number): T[][] {
 	return out;
 }
 
-/** Compare two dotted version strings (e.g. "0.6.1"). Returns >0 if a > b. */
+/** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
+ *  Build metadata is ignored; a pre-release sorts below the release it precedes. */
 export function cmpVersion(a: string, b: string): number {
-	const pa = a.split(".").map(Number);
-	const pb = b.split(".").map(Number);
-	for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-		const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+	const [coreA, preA] = splitVersion(a);
+	const [coreB, preB] = splitVersion(b);
+	const na = coreA.split(".").map(Number);
+	const nb = coreB.split(".").map(Number);
+	for (let i = 0; i < Math.max(na.length, nb.length); i++) {
+		const d = (na[i] ?? 0) - (nb[i] ?? 0);
 		if (d) return d;
 	}
+	if (preA === preB) return 0;
+	if (!preA || !preB) return preA ? -1 : 1;
+	const ia = preA.split(".");
+	const ib = preB.split(".");
+	for (let i = 0; i < Math.max(ia.length, ib.length); i++) {
+		const x = ia[i];
+		const y = ib[i];
+		if (x === undefined || y === undefined) return x === undefined ? -1 : 1;
+		const nx = /^\d+$/.test(x);
+		const ny = /^\d+$/.test(y);
+		if (nx && ny) {
+			if (Number(x) !== Number(y)) return Number(x) - Number(y);
+		} else if (nx !== ny) return nx ? -1 : 1;
+		else if (x !== y) return x < y ? -1 : 1;
+	}
 	return 0;
+}
+
+/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. */
+export function splitVersion(v: string): [core: string, pre: string] {
+	const m = /^v?([^-+]*)(?:-([^+]*))?/.exec(v.trim());
+	return [m?.[1] ?? "", m?.[2] ?? ""];
+}
+
+/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". */
+export function isPrereleaseVersion(v: string): boolean {
+	return splitVersion(v)[1] !== "";
 }
 
 /** True when running under the web-serve bridge (a plain browser, no native shell). */

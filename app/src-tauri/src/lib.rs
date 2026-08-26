@@ -37,6 +37,7 @@ mod sync_map_making;
 #[cfg(test)]
 mod test_util;
 mod types;
+mod update;
 mod user_plugins;
 mod util;
 mod vcs;
@@ -144,6 +145,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             feedback::feedback_upload_attachment,
             feedback::feedback_request_label,
             feedback::feedback_anonymous_thread,
+            update::update_check,
+            update::update_install,
             remote_api::remote_api_start,
             remote_api::remote_api_stop,
             remote_api::remote_api_respond,
@@ -263,6 +266,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             plugins::ValiProgress,
             procedure::engine::ProcedureProgress,
             procedure::engine::ProcedureResult,
+            update::UpdateProgress,
         ])
 }
 

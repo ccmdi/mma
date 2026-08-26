@@ -130,6 +130,16 @@ export const commands = {
 	/**  State and replies for an anonymous report, relayed by the worker. */
 	feedbackAnonymousThread: (number: number, token: string) => __TAURI_INVOKE<IssueThread>("feedback_anonymous_thread", { number, token }),
 	/**
+	 *  Look for an update at `endpoint` (a release's `latest.json`). `None` means the announced
+	 *  version is not newer than the running one, which is the plugin's own comparison.
+	 */
+	updateCheck: (endpoint: string) => __TAURI_INVOKE<UpdateAvailable | null>("update_check", { endpoint }),
+	/**
+	 *  Download and install whatever the last [`update_check`] found. The installer replaces the
+	 *  running app, so nothing after this is guaranteed to run -- the caller saves its state first.
+	 */
+	updateInstall: () => __TAURI_INVOKE<null>("update_install"),
+	/**
 	 *  Start (or re-key) the remote API server. Idempotent: a running server just
 	 *  picks up the new key. Returns the base URL.
 	 */
@@ -502,6 +512,7 @@ export const events = {
 	sidecarLog: makeEvent<SidecarLog>("sidecar-log"),
 	storeExternalMutation: makeEvent<ExternalMutation>("store-external-mutation", (v) => ({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),newFieldDefs:v.newFieldDefs==null?v.newFieldDefs:Object.fromEntries(Object.entries(v.newFieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}), (v) => ({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),newFieldDefs:v.newFieldDefs==null?v.newFieldDefs:Object.fromEntries(Object.entries(v.newFieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})),
 	storeWarning: makeEvent<StoreWarning>("store-warning"),
+	updateProgress: makeEvent<UpdateProgress>("update-progress"),
 	valiProgress: makeEvent<ValiProgress>("vali-progress"),
 };
 
@@ -1674,6 +1685,18 @@ export type TagPatch = {
 export type Update<P> = {
 	id: number,
 	patch: P,
+};
+
+export type UpdateAvailable = {
+	version: string,
+	currentVersion: string,
+	notes: string | null,
+};
+
+/**  Download progress, emitted per chunk. `total` is absent when the server sends no length. */
+export type UpdateProgress = {
+	downloaded: number,
+	total: number | null,
 };
 
 /**  How far behind one country's downloaded coverage data is. */
