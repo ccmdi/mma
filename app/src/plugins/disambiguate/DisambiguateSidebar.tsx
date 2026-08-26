@@ -2,14 +2,13 @@ import type { ReactNode } from "react";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useEvent, SELECTION_EVENTS } from "@/lib/events";
 import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
-import type { Selection, ExtraFieldDef, Location } from "@/bindings.gen";
-import { computeDivergence, soleGroup } from "./engine";
+import type { Selection, ExtraFieldDef } from "@/bindings.gen";
+import { analysisColumns, computeDivergence, soleGroup, type GroupColumns } from "./engine";
 import type {
 	DisambiguateResult,
 	FieldDivergence,
 	GroupSummary,
 	ValueFormat,
-	Labeled,
 } from "./engine";
 import "./disambiguate.css";
 import { t } from "@/lib/i18n";
@@ -157,17 +156,13 @@ async function analyze(): Promise<Analysis> {
 		sels.map((s) => MMA.resolveIds(s.selector).then((ids) => new Set(ids))),
 	);
 
-	const labeled: Labeled[] = [];
+	const groupIds: number[][] = sels.map(() => []);
 	let excludedOverlap = 0;
 	const unionIds = [...new Set(idSets.flatMap((s) => [...s]))];
-	for (const loc of await MMA.fetchLocations({
-		type: "Locations",
-		locations: unionIds,
-		name: null,
-	})) {
-		const g = soleGroup(idSets, loc.id);
+	for (const id of unionIds) {
+		const g = soleGroup(idSets, id);
 		if (g === "overlap") excludedOverlap++;
-		else if (g !== null) labeled.push({ group: g, loc: loc as Location });
+		else if (g !== null) groupIds[g].push(id);
 	}
 
 	const fieldDefs: Record<string, ExtraFieldDef> = MMA.getAllFieldDefs();
@@ -175,7 +170,19 @@ async function analyze(): Promise<Analysis> {
 	for (const [id, t] of Object.entries(MMA.getMapState().tags))
 		tagNames[Number(id)] = (t as { name: string }).name;
 
-	const result = computeDivergence(labeled, sels.length, fieldDefs, tagNames);
+	const present = await MMA.fieldCoverage({ type: "Locations", locations: unionIds, name: null });
+	const fields = analysisColumns(
+		fieldDefs,
+		present.map(([k]) => k),
+	);
+	const groups: GroupColumns[] = await Promise.all(
+		groupIds.map(async (ids) => {
+			const cols = await MMA.fetchColumns({ type: "Locations", locations: ids, name: null }, fields);
+			return { size: ids.length, columns: Object.fromEntries(fields.map((f, i) => [f, cols[i]])) };
+		}),
+	);
+
+	const result = computeDivergence(groups, fieldDefs, tagNames);
 	return { result, colors, excludedOverlap };
 }
 

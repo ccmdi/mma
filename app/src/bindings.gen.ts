@@ -218,6 +218,8 @@ export const commands = {
 	storeValues: (selector: Selector, field: string) => __TAURI_INVOKE<string[]>("store_values", { selector, field }),
 	/**  How many rows carry each top-level `extra` key, key-sorted. */
 	storeCoverage: (selector: Selector) => __TAURI_INVOKE<([string, number])[]>("store_coverage", { selector }),
+	/**  Values, never rows: the projection for a scan that reads fields across a set. */
+	storeColumns: (selector: Selector, fields: string[]) => __TAURI_INVOKE<Columns>("store_columns", { selector, fields }),
 	/**  Bounding box `[west, south, east, north]`, or `None` when the set is empty. */
 	storeBounds: (selector: Selector) => __TAURI_INVOKE<[number, number, number, number] | null>("store_bounds", { selector }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
 	/**
@@ -563,6 +565,12 @@ export type CellRemoval = {
 	cellIndex: number,
 	id: number,
 };
+
+/**
+ *  Per-field columns of the selected set. One value per row per field, `null` where a
+ *  row lacks it; `"tags"` is a column of tag-id arrays.
+ */
+export type Columns = unknown[][];
 
 /**
  *  A commit's delta, returned to the frontend for the per-commit diff viewer.

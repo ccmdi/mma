@@ -30,14 +30,14 @@ const USE_SYNC_EXTERNAL_STORE_BAN = {
 };
 
 const QUERY_COMMANDS =
-	"/^store(Resolve|Count|CountBy|Bounds|Sample|Spaced|Values|Coverage|GroupBy|Collect)$/";
+	"/^store(Resolve|Count|CountBy|Bounds|Sample|Spaced|Values|Coverage|Columns|GroupBy|Collect)$/";
 
 /** The store's query surface is named vocabulary, not raw IPC: `fieldCoverage`, not
  *  `cmd.storeCoverage`. Only useMapStore may reach past the wrappers. */
 const QUERY_CMD_BAN = {
 	selector: `MemberExpression[property.name=${QUERY_COMMANDS}]:matches([object.name='cmd'], [object.property.name='cmd'])`,
 	message:
-		"Query commands go through their named wrapper in store/useMapStore (resolveIds, countIn, fetchBounds, sampleFrom, fieldValues, countBy, fieldCoverage, partition, fetchLocations), not raw cmd.",
+		"Query commands go through their named wrapper in store/useMapStore (resolveIds, countIn, fetchBounds, sampleFrom, fieldValues, countBy, fieldCoverage, fetchColumns, partition, fetchLocations), not raw cmd.",
 };
 
 const RESTRICTED_SYNTAX = [

@@ -2676,6 +2676,29 @@ fn extra_key_coverage_counts_rows_per_key_across_the_overlay() {
 }
 
 #[test]
+fn columns_within_projects_one_value_per_row_per_field() {
+    let mut tagged = loc_extra(2, serde_json::json!({"a":"x"}));
+    tagged.tags = vec![7, 9];
+    tagged.heading = 45.0;
+    let base = vec![loc_extra(1, serde_json::json!({"a":1,"b":2})), tagged];
+    let fx = Fx::base(&base).with_adds(vec![loc_extra(3, serde_json::json!({"b":3}))]);
+    let fields: Vec<String> = ["a", "b", "heading", "tags", "nope"]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let cols = columns_within(&fx.view(), None, &fields);
+    assert_eq!(cols[0], vec![serde_json::json!(1), serde_json::json!("x"), serde_json::Value::Null]);
+    assert_eq!(cols[1], vec![serde_json::json!(2), serde_json::Value::Null, serde_json::json!(3)]);
+    assert_eq!(cols[2], vec![serde_json::json!(0.0), serde_json::json!(45.0), serde_json::json!(0.0)]);
+    assert_eq!(cols[3], vec![serde_json::json!([]), serde_json::json!([7, 9]), serde_json::json!([])]);
+    assert_eq!(cols[4], vec![serde_json::Value::Null; 3]);
+
+    let set: RoaringBitmap = [2u32].into_iter().collect();
+    let cols = columns_within(&fx.view(), Some(&set), &fields[..1]);
+    assert_eq!(cols[0], vec![serde_json::json!("x")]);
+}
+
+#[test]
 fn extra_key_coverage_decodes_escaped_base_row_keys() {
     // Blobs baked before key canonicalization can still carry `café` on disk; coverage
     // must report the decoded spelling, matching overlay rows and the field-def registry.

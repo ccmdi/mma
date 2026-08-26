@@ -2,31 +2,25 @@
 // computeDivergence path and the statistical/labeling helpers — no store needed.
 
 import { describe, it, expect } from "vitest";
-import type { Location, ExtraFieldDef } from "@/types";
+import type { ExtraFieldDef } from "@/types";
 import {
 	computeDivergence,
 	soleGroup,
+	TAGS_COLUMN,
 	type DisambiguateResult,
 	type FieldDivergence,
-	type Labeled,
+	type GroupColumns,
 } from "@/plugins/disambiguate/engine";
 import { circularSummary } from "@/plugins/disambiguate/stats";
 
-function loc(heading: number, extra: Record<string, unknown>, tags: number[]): Location {
-	return {
-		id: 0,
-		lat: 0,
-		lng: 0,
-		heading,
-		pitch: 0,
-		zoom: 0,
-		panoId: null,
-		flags: 0,
-		tags,
-		extra: Object.keys(extra).length > 0 ? extra : null,
-		createdAt: "",
-		modifiedAt: null,
-	} as unknown as Location;
+interface Row {
+	heading: number;
+	extra: Record<string, unknown>;
+	tags: number[];
+}
+
+function loc(heading: number, extra: Record<string, unknown>, tags: number[]): Row {
+	return { heading, extra, tags };
 }
 
 function numberDef(): ExtraFieldDef {
@@ -43,11 +37,21 @@ function find(r: DisambiguateResult, key: string): FieldDivergence {
 	return f;
 }
 
-/** Build labeled locations: groups[g] is the list of locations for group g. */
-function labeled(groups: Location[][]): Labeled[] {
-	const out: Labeled[] = [];
-	groups.forEach((locs, group) => locs.forEach((l) => out.push({ group, loc: l })));
-	return out;
+/** Rows as the per-group columns the store would project: every extra key seen in any
+ *  group is a column in every group (null where a row lacks it). */
+function groups(rows: Row[][]): GroupColumns[] {
+	const keys = new Set<string>();
+	for (const g of rows) for (const r of g) for (const k of Object.keys(r.extra)) keys.add(k);
+	return rows.map((g) => ({
+		size: g.length,
+		columns: {
+			heading: g.map((r) => r.heading),
+			pitch: g.map(() => 0),
+			zoom: g.map(() => 0),
+			[TAGS_COLUMN]: g.map((r) => r.tags),
+			...Object.fromEntries([...keys].map((k) => [k, g.map((r) => r.extra[k] ?? null)])),
+		},
+	}));
 }
 
 const range = (n: number) => Array.from({ length: n }, (_, i) => i);
@@ -58,7 +62,7 @@ describe("numeric (linear)", () => {
 	it("separated numeric scores high", () => {
 		const a = range(12).map((i) => loc(0, { alt: i }, []));
 		const b = range(12).map((i) => loc(0, { alt: 1000 + i }, []));
-		const r = computeDivergence(labeled([a, b]), 2, defs([["alt", numberDef()]]), {});
+		const r = computeDivergence(groups([a, b]), defs([["alt", numberDef()]]), {});
 		const f = find(r, "alt");
 		expect(f.comparison.type).toBe("linear");
 		// Two-group epsilon-squared caps at H/(n-1); perfect 12v12 separation = ~0.75.
@@ -69,16 +73,14 @@ describe("numeric (linear)", () => {
 	it("overlapping numeric scores low", () => {
 		const a = range(12).map((i) => loc(0, { alt: i % 10 }, []));
 		const b = range(12).map((i) => loc(0, { alt: i % 10 }, []));
-		const r = computeDivergence(labeled([a, b]), 2, defs([["alt", numberDef()]]), {});
+		const r = computeDivergence(groups([a, b]), defs([["alt", numberDef()]]), {});
 		expect(find(r, "alt").valueScore!).toBeLessThan(0.15);
 	});
 
 	it("ranking puts most separating field first", () => {
 		const a = range(12).map((i) => loc(0, { alt: i, noise: i % 3 }, []));
 		const b = range(12).map((i) => loc(0, { alt: 1000 + i, noise: i % 3 }, []));
-		const r = computeDivergence(
-			labeled([a, b]),
-			2,
+		const r = computeDivergence(groups([a, b]),
 			defs([
 				["alt", numberDef()],
 				["noise", numberDef()],
@@ -96,7 +98,7 @@ describe("categorical", () => {
 		const a = range(12).map(() => loc(0, { cc: "US" }, []));
 		const b = range(12).map(() => loc(0, { cc: "FR" }, []));
 		const cc: ExtraFieldDef = { type: "string" };
-		const r = computeDivergence(labeled([a, b]), 2, defs([["cc", cc]]), {});
+		const r = computeDivergence(groups([a, b]), defs([["cc", cc]]), {});
 		const f = find(r, "cc");
 		expect(f.comparison.type).toBe("categorical");
 		expect(f.valueScore!).toBeGreaterThan(0.8);
@@ -107,7 +109,7 @@ describe("categorical", () => {
 		const a = range(12).map(mk);
 		const b = range(12).map(mk);
 		const cam: ExtraFieldDef = { type: "enum" };
-		const r = computeDivergence(labeled([a, b]), 2, defs([["cam", cam]]), {});
+		const r = computeDivergence(groups([a, b]), defs([["cam", cam]]), {});
 		expect(find(r, "cam").valueScore!).toBeLessThan(0.15);
 	});
 });
@@ -123,7 +125,7 @@ describe("circular", () => {
 		const bv = [357, 359, 1, 3, 5, 356, 358, 0, 2, 4, 359, 1];
 		const a = av.map((h) => loc(h, {}, []));
 		const b = bv.map((h) => loc(h, {}, []));
-		const r = computeDivergence(labeled([a, b]), 2, {}, {});
+		const r = computeDivergence(groups([a, b]), {}, {});
 		const f = find(r, "heading");
 		expect(f.comparison.type === "circular" && f.comparison.period === 360).toBe(true);
 		expect(f.valueScore!).toBeLessThan(0.3);
@@ -140,7 +142,7 @@ describe("circular", () => {
 	it("opposite directions score high", () => {
 		const a = range(12).map((i) => loc(i % 5, {}, []));
 		const b = range(12).map((i) => loc(178 + (i % 5), {}, []));
-		const r = computeDivergence(labeled([a, b]), 2, {}, {});
+		const r = computeDivergence(groups([a, b]), {}, {});
 		expect(find(r, "heading").valueScore!).toBeGreaterThan(0.8);
 	});
 });
@@ -151,7 +153,7 @@ describe("coverage and missing data", () => {
 	it("coverage asymmetry is flagged", () => {
 		const a = range(12).map((i) => loc(0, { alt: i }, []));
 		const b = range(12).map(() => loc(0, {}, []));
-		const r = computeDivergence(labeled([a, b]), 2, defs([["alt", numberDef()]]), {});
+		const r = computeDivergence(groups([a, b]), defs([["alt", numberDef()]]), {});
 		const f = find(r, "alt");
 		expect(f.coverageScore).toBeGreaterThan(0.8);
 		expect(f.valueScore).toBeNull();
@@ -163,7 +165,7 @@ describe("coverage and missing data", () => {
 			...range(3).map(() => loc(0, { alt: 5 }, [])),
 			...range(9).map(() => loc(0, {}, [])),
 		];
-		const r = computeDivergence(labeled([a, b]), 2, defs([["alt", numberDef()]]), {});
+		const r = computeDivergence(groups([a, b]), defs([["alt", numberDef()]]), {});
 		const f = find(r, "alt");
 		expect(f.valueScore!).toBeLessThan(0.15);
 		expect(f.lowConfidence).toBe(true);
@@ -177,7 +179,7 @@ describe("tags", () => {
 	it("discriminating tag scores high", () => {
 		const a = range(12).map(() => loc(0, {}, [7]));
 		const b = range(12).map(() => loc(0, {}, []));
-		const r = computeDivergence(labeled([a, b]), 2, {}, { 7: "Verified" });
+		const r = computeDivergence(groups([a, b]), {}, { 7: "Verified" });
 		const f = find(r, "tag:7");
 		expect(f.label).toBe("Verified");
 		expect(f.valueScore!).toBeGreaterThan(0.8);
@@ -191,7 +193,7 @@ describe("excluded fields and labeling", () => {
 	it("spatial and timestamp fields never analyzed", () => {
 		const a = range(4).map(() => loc(0, {}, []));
 		const b = range(4).map(() => loc(0, {}, []));
-		const r = computeDivergence(labeled([a, b]), 2, {}, {});
+		const r = computeDivergence(groups([a, b]), {}, {});
 		for (const bad of ["lat", "lng", "createdAt", "modifiedAt"]) {
 			expect(r.fields.some((f) => f.key === bad)).toBe(false);
 		}
@@ -200,7 +202,7 @@ describe("excluded fields and labeling", () => {
 	it("group sizes reflect labels", () => {
 		const a = range(5).map(() => loc(0, {}, []));
 		const b = range(3).map(() => loc(0, {}, []));
-		const r = computeDivergence(labeled([a, b]), 2, {}, {});
+		const r = computeDivergence(groups([a, b]), {}, {});
 		expect(r.groupSizes).toEqual([5, 3]);
 	});
 
@@ -219,7 +221,7 @@ describe("undeclared field inference", () => {
 	it("undeclared numeric field treated as linear", () => {
 		const a = range(12).map((i) => loc(0, { mystery: i }, []));
 		const b = range(12).map((i) => loc(0, { mystery: 1000 + i }, []));
-		const r = computeDivergence(labeled([a, b]), 2, {}, {});
+		const r = computeDivergence(groups([a, b]), {}, {});
 		const f = find(r, "mystery");
 		expect(f.comparison.type).toBe("linear");
 		expect(f.valueScore!).toBeGreaterThan(0.7);

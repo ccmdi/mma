@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fieldValue, projectionsForType, rewriteSelectionFields } from "@/lib/data/fieldOps";
+import { projectionsForType, rewriteSelectionFields } from "@/lib/data/fieldOps";
 import {
 	pickPeriodEnd,
 	hasTimeOfDay,
@@ -8,24 +8,6 @@ import {
 	partsToEpoch,
 } from "@/lib/util/date";
 import { buildSelection } from "@/store/selections";
-import type { Location } from "@/types";
-
-function makeLoc(id: number, extra?: Record<string, unknown>): Location {
-	return {
-		id,
-		lat: 0,
-		lng: 0,
-		heading: 0,
-		pitch: 0,
-		zoom: 0,
-		panoId: null,
-		flags: 0,
-		tags: [],
-		extra,
-		createdAt: 0,
-		modifiedAt: null,
-	} as Location;
-}
 
 describe("projectionsForType", () => {
 	// The catalog of grouping keys (UI + KeySpec mapping); key derivation itself lives in
@@ -80,17 +62,6 @@ describe("rewriteSelectionFields", () => {
 		const out = rewriteSelectionFields([union], "a", null);
 		expect(out).toHaveLength(1);
 		expect(out[0].selector.type).toBe("Tag");
-	});
-});
-
-describe("fieldValue", () => {
-	it("reads built-in keys from the top level and the rest from extra", () => {
-		const loc = { ...makeLoc(1, { foo: 7 }), heading: 33 } as Location;
-		expect(fieldValue(loc, "heading")).toBe(33);
-		expect(fieldValue(loc, "foo")).toBe(7);
-		expect(fieldValue(loc, "missing")).toBeUndefined();
-		// `id` is a builtin column, so it must not fall through to `extra`.
-		expect(fieldValue(loc, "id")).toBe(1);
 	});
 });
 

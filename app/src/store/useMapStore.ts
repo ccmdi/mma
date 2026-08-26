@@ -399,6 +399,12 @@ export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
 	return cmd.storeCoverage(selector);
 }
 
+/** One column per field over the selected set: values, never rows. `null` where a row
+ *  lacks the field; `"tags"` is a column of tag-id arrays. */
+export function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]> {
+	return cmd.storeColumns(selector, fields);
+}
+
 /** Group the selected location set by a derived key - entirely in Rust, no locations fetched.
  *  Numeric bins arrive in bound order; projection keys are sorted naturally for display. */
 export async function partition(

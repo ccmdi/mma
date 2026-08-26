@@ -170,6 +170,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             location_store::store_count_by,
             location_store::store_values,
             location_store::store_coverage,
+            location_store::store_columns,
             location_store::store_bounds,
             location_store::store_collect,
             location_store::store_apply_field_op,

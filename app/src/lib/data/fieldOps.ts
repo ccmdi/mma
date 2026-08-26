@@ -5,25 +5,9 @@
  * patches. Side-effect-free.
  */
 
-import type { Location, ExtraFieldType, Selection, Selector } from "@/bindings.gen";
+import type { ExtraFieldType, Selection, Selector } from "@/bindings.gen";
 import { buildSelection } from "@/store/selections";
-import { isBuiltinField } from "@/lib/data/fieldDefRegistry";
 import { msg } from "@/lib/i18n";
-
-/** Read field `key` from a location: built-in keys read the top-level property,
- *  everything else reads from `extra`. */
-export function fieldValue(loc: Location, key: string): unknown {
-	return isBuiltinField(key) ? (loc as unknown as Record<string, unknown>)[key] : loc.extra?.[key];
-}
-
-/** Every `extra` key present on any of `locs`. */
-export function extraKeysOf(locs: readonly Location[]): Set<string> {
-	const keys = new Set<string>();
-	for (const loc of locs) {
-		if (loc.extra) for (const k of Object.keys(loc.extra)) keys.add(k);
-	}
-	return keys;
-}
 
 /**
  * Rewrite Filter `field` references in a selection tree: `from` → `to`, or drop the

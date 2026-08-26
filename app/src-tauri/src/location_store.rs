@@ -4322,6 +4322,28 @@ pub fn store_coverage(
     })
 }
 
+/// Per-field columns of the selected set. One value per row per field, `null` where a
+/// row lacks it; `"tags"` is a column of tag-id arrays.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(transparent)]
+pub struct Columns(
+    #[specta(type = Vec<Vec<specta_typescript::Unknown>>)] pub Vec<Vec<serde_json::Value>>,
+);
+
+/// Values, never rows: the projection for a scan that reads fields across a set.
+#[tauri::command]
+#[specta::specta]
+pub fn store_columns(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    selector: Selector,
+    fields: Vec<String>,
+) -> AppResult<Columns> {
+    selector_read!(label, state, selector, |view, set| {
+        Columns(selections::columns_within(&view, set, &fields))
+    })
+}
+
 /// Bounding box `[west, south, east, north]`, or `None` when the set is empty.
 #[tauri::command]
 #[specta::specta]

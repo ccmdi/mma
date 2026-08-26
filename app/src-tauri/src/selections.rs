@@ -1857,6 +1857,29 @@ pub fn extra_key_coverage(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<(S
     out
 }
 
+/// One value per selected row for each of `fields`, in view order, `Null` where the row
+/// lacks it; `"tags"` yields the row's tag ids. A typed projection for scans that need
+/// values but not rows.
+pub fn columns_within(
+    view: &LocView,
+    set: Option<&RoaringBitmap>,
+    fields: &[String],
+) -> Vec<Vec<serde_json::Value>> {
+    let mut out: Vec<Vec<serde_json::Value>> = fields.iter().map(|_| Vec::new()).collect();
+    for row in view.within(set) {
+        for (col, field) in out.iter_mut().zip(fields) {
+            col.push(if field == "tags" {
+                let mut tags = Vec::new();
+                row.for_each_tag(|t| tags.push(serde_json::Value::from(t)));
+                serde_json::Value::Array(tags)
+            } else {
+                row.resolve_field(field).unwrap_or(serde_json::Value::Null)
+            });
+        }
+    }
+    out
+}
+
 /// Size of the selected set. Counts rows, never materializes them.
 pub fn count_within(view: &LocView, set: Option<&RoaringBitmap>) -> u32 {
     view.within(set).count() as u32
