@@ -29,17 +29,17 @@ function run(rows) {
   if (byPano.size === 0) return [];
   const payload = JSON.stringify({ panoIds: [...byPano.keys()] });
   const out = [];
-  for (const line of mma.sidecar(PLUGIN_ID, COMMAND, payload)) {
+  mma.sidecar(PLUGIN_ID, COMMAND, payload, (line) => {
     const parsed = parseLine(line);
     const group = parsed?.panoId ? byPano.get(parsed.panoId) : void 0;
-    if (!parsed || !group) continue;
+    if (!parsed || !group) return;
     for (const row of group) {
       if (parsed.error) mma.fail(row.id);
       else if (typeof parsed.year === "number" && yearFitsCapture(row.extra, parsed.year))
         out.push({ id: row.id, patch: { extra: { copyrightYear: parsed.year } } });
       mma.progress(1);
     }
-  }
+  });
   return out;
 }
 function query(input) {
