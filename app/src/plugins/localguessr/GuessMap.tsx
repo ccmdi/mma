@@ -7,6 +7,7 @@ import {
 	useState,
 	type CSSProperties,
 } from "react";
+import type React from "react";
 import { ScatterplotLayer, PathLayer } from "@deck.gl/layers";
 import { PathStyleExtension } from "@deck.gl/extensions";
 import { Icon } from "@/components/primitives/Icon";
@@ -345,9 +346,9 @@ export function GuessMap({
 				? {}
 				: {
 						...hoverProps,
-						onPointerEnter: () => {
+						onPointerEnter: (e: React.PointerEvent) => {
 							setHoveredRound(roundKey);
-							hoverProps.onPointerEnter();
+							hoverProps.onPointerEnter(e);
 						},
 					})}
 		>

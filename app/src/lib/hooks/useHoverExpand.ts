@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
+import type React from "react";
 import { useDomEvent } from "./useDomEvent";
 
 /** Short edge of the display the `base` sizes are authored against. */
@@ -59,7 +60,10 @@ export function useHoverExpand(ref: RefObject<HTMLElement | null>, closeDelay: n
 	return {
 		expanded,
 		hoverProps: {
-			onPointerEnter: open,
+			// Panning the pano across the map must not expand it, same as the basemap menu.
+			onPointerEnter: (e: React.PointerEvent) => {
+				if (e.buttons === 0) open();
+			},
 			onPointerLeave: scheduleClose,
 			onPointerDown: () => {
 				dragging.current = true;
