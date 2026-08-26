@@ -17,8 +17,8 @@ MMA.registerPlugin({
 			fieldDefs: FIELD_DEFS,
 			procedure: {
 				entry: "procedure.js",
-				batch: { mode: "chunk", size: 50 },
-				// One sidecar process serves the whole run, so batches must not overlap.
+				// Every call is a one-shot process that loads the models (~3 s), so a batch is a page.
+				batch: { mode: "chunk", size: 10000 },
 				instances: 1,
 			},
 		});
