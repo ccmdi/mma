@@ -5,7 +5,7 @@ import * as Popover from "@radix-ui/react-popover";
 import { Icon } from "@/components/primitives/Icon";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { mdiClose } from "@mdi/js";
-import { dateParts, partsToEpoch } from "@/lib/data/fieldOps";
+import { dateParts, partsToEpoch } from "@/lib/util/date";
 import { MONTHS, parseTypedDate } from "@/lib/util/date";
 import { dateFmt, dayMonthFmt, shortDateFmt, monthShort } from "@/lib/util/format";
 import { t } from "@/lib/i18n";

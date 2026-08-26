@@ -4,7 +4,7 @@ import type { Selection, FilterOp, ExtraFieldDef } from "@/bindings.gen";
 import { NSelect } from "@/components/primitives/NSelect";
 import { fieldLabel, getAllFieldDefs, isListableField } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
-import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/data/fieldOps";
+import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
 import { addSelections, fieldValues, useMapState } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { OP_LABELS } from "@/store/selections";

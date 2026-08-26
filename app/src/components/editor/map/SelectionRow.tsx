@@ -20,7 +20,7 @@ import {
 } from "@/store/useMapStore";
 import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
-import { stepFilterWindow } from "@/lib/data/fieldOps";
+import { stepFilterWindow } from "@/lib/util/date";
 import type { RGB } from "@/lib/util/color";
 import type { Selection } from "@/bindings.gen";
 import { selectionDisplayName } from "@/store/selections";

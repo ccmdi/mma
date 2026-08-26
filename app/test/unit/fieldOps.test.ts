@@ -1,14 +1,12 @@
 import { describe, it, expect } from "vitest";
+import { fieldValue, projectionsForType, rewriteSelectionFields } from "@/lib/data/fieldOps";
 import {
-	fieldValue,
-	projectionsForType,
-	rewriteSelectionFields,
 	pickPeriodEnd,
 	hasTimeOfDay,
 	stepFilterWindow,
 	dateParts,
 	partsToEpoch,
-} from "@/lib/data/fieldOps";
+} from "@/lib/util/date";
 import { buildSelection } from "@/store/selections";
 import type { Location } from "@/types";
 

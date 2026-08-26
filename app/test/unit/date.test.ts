@@ -11,7 +11,7 @@ import {
 	ymOrdinal,
 	ymFromOrdinal,
 } from "@/lib/util/date";
-import { partsToEpoch, dateParts } from "@/lib/data/fieldOps";
+import { partsToEpoch, dateParts } from "@/lib/util/date";
 
 describe("MONTHS", () => {
 	it("short and full names align by index", () => {
