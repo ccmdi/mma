@@ -233,32 +233,34 @@ describe("Bulk operations -- cancel preserves progress", () => {
 	const N = 50_000;
 
 	before(async () => {
-		// Enough rows for several engine pages. Only `timezone` is selected: it is an
-		// offline module, so the run is deterministic.
-		await withApi(async (api) => {
-			const map = api.getMapState().map!;
-			await api.updateMapMeta({
-				settings: { ...map.meta.settings, enrichMetadata: true, enrichFields: ["timezone"] },
-			});
-			return "ok";
-		});
+		// Enough rows for several engine pages, each with the datetime timezone needs.
 		await seedLocs(N, (i) => ({
 			lat: 52.109 + (i % 1000) * 0.0001,
 			lng: 34.901 + Math.floor(i / 1000) * 0.0001,
 			extra: { datetime: 1700000000 },
 		}));
 	});
-	it("enrichAll with abort preserves completed pages", async () => {
+	it("a cancelled run keeps the pages it applied and lands no more", async () => {
 		const result = await withApi(async (api, total) => {
+			// The timezone procedure on its own, one instance, so pages apply one at a time
+			// and a cancel after the first progress report leaves a partial run. enrichAll
+			// cannot be used here: it schedules panoResolve in the same wave, and timezone
+			// finishes every page while panoResolve is still searching.
+			const controller = new AbortController();
 			try {
-				const controller = new AbortController();
-				// Early enough that a fast provider cannot finish every page first.
-				setTimeout(() => controller.abort(), 100);
-				await api.enrichAll(
+				await api._test.runProcedure(
+					{
+						entry: api._test.procedureEntry("timezone"),
+						batch: { mode: "chunk", size: 10000 },
+						instances: 1,
+					},
 					{ type: "Everything" },
 					{
+						id: "timezone",
 						signal: controller.signal,
-						force: true,
+						onProgress: (done) => {
+							if (done > 0) controller.abort();
+						},
 					},
 				);
 				return { cancelled: false };
@@ -283,9 +285,9 @@ describe("Bulk operations -- cancel preserves progress", () => {
 			}
 		}, N);
 
-		// A run that finished inside the abort window is not a cancel and proves nothing.
-		if (!result.cancelled) return expect(result).toEqual({ cancelled: false });
-		// Pages applied before the cancel took hold stay applied, and no page lands after.
+		expect(result.cancelled).toBe(true);
+		// The page that reported progress stays applied, and no page lands after the cancel.
+		expect(result.settled).toBeGreaterThan(0);
 		expect(result.settled).toBeLessThan(N);
 		expect(result.later).toBe(result.settled);
 	});

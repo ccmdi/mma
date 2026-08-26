@@ -3923,6 +3923,8 @@ declare function loadSeenPano(entry: SeenEntry): Promise<void>;
  * to the caller. Locations never reach JS.
  */
 
+/** Entry point of a procedure this app bundles. Plugins ship their own paths. */
+declare const procedureEntry: (name: string) => string;
 /** One location's answer from a `collect` run, as its module defines it. */
 export interface CollectedEntry<T = unknown> {
     id: number;
@@ -3939,6 +3941,34 @@ export interface ResolverOutcome<TCollected = unknown> {
      *  crosses a JSON boundary, so a reader guards it. */
     collected?: CollectedEntry<TCollected>[];
 }
+export interface RunOpts {
+    signal?: AbortSignal;
+    force?: boolean;
+    /** The `extra` keys the run should produce; null means the default set. */
+    enrichFields?: string[] | null;
+    /** `label` names the current phase; undefined = no labelled provider is running.
+     *  `done`/`total` are phase-relative and net of skipped rows, so they reset as each
+     *  dependency wave begins. */
+    onProgress?: (done: number, total: number, label?: string) => void;
+}
+/** What a run may set on top of what the spec declares. */
+export interface DeclOpts {
+    label?: string;
+    /** Replaces the spec's `config`. */
+    config?: unknown;
+    /** `collect` takes the answers instead of writing them. */
+    sink?: Sink;
+    /** Re-derive even on an unforced run: recompute rather than fill in what is missing. */
+    force?: boolean;
+    fields?: string[];
+    requires?: string[];
+}
+/** Run one procedure over `selector`, on its own. The primitive: a consumer that is not
+ *  enrichment (validation, a download resolving pano ids) declares a spec and calls this,
+ *  and gets its collected answers typed by the spec. */
+declare function runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: RunOpts & Omit<DeclOpts, "fields" | "requires"> & {
+    id: string;
+}): Promise<ResolverOutcome<T>>;
 
 /** True when the location is missing any of the given enrich fields (default: the enabled set). */
 declare function needsEnrichment(loc: Location, enrichFields?: string[]): boolean;
@@ -4219,6 +4249,8 @@ declare const testApi_deleteMap: typeof deleteMap;
 declare const testApi_importFile: typeof importFile;
 declare const testApi_importPaste: typeof importPaste;
 declare const testApi_openMap: typeof openMap;
+declare const testApi_procedureEntry: typeof procedureEntry;
+declare const testApi_runProcedure: typeof runProcedure;
 declare const testApi_syncSelections: typeof syncSelections;
 declare namespace testApi {
   export {
@@ -4227,6 +4259,8 @@ declare namespace testApi {
     testApi_importFile as importFile,
     testApi_importPaste as importPaste,
     testApi_openMap as openMap,
+    testApi_procedureEntry as procedureEntry,
+    testApi_runProcedure as runProcedure,
     testApi_syncSelections as syncSelections,
   };
 }

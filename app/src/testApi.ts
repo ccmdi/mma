@@ -13,6 +13,10 @@ import * as mapList from "@/store/mapList";
 import { cmd } from "@/lib/commands";
 import { goTo } from "@/store/router";
 
+/** The engine primitive, for a spec that needs a run shaped exactly (one instance, no
+ *  companion providers). */
+export { runProcedure, procedureEntry } from "@/lib/data/procedures";
+
 /** Forces a full selection re-resolve in Rust and returns the raw selected IDs.
  *  App code reads `getMapState().selectedLocationIds` — mutations already sync
  *  selections via MutationResult. */
