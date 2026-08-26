@@ -1463,5 +1463,9 @@
 	"{n}h ago": "vor {n}h",
 	"{n}m ago": "vor {n}m",
 	"{pct}% of locations": "{pct}% der Standorte",
-	"{selected} of {total} selected ({locations} locations)": "{selected} von {total} ausgewählt ({locations} Standorte)"
+	"{selected} of {total} selected ({locations} locations)": "{selected} von {total} ausgewählt ({locations} Standorte)",
+	"Move to top level": "Auf die oberste Ebene verschieben",
+	"Open or close plugins": "Plugins öffnen oder schließen",
+	"Open or close settings": "Einstellungen öffnen oder schließen",
+	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} ist der projizierte Wert, {field} die Feldbezeichnung. Ein / erzeugt einen Ordner."
 }

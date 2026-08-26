@@ -1561,5 +1561,9 @@
 	"{n}h ago": "{n} ч назад",
 	"{n}m ago": "{n} мин назад",
 	"{pct}% of locations": "{pct}% локаций",
-	"{selected} of {total} selected ({locations} locations)": "Выбрано {selected} из {total} ({locations} локаций)"
+	"{selected} of {total} selected ({locations} locations)": "Выбрано {selected} из {total} ({locations} локаций)",
+	"Move to top level": "Переместить на верхний уровень",
+	"Open or close plugins": "Открыть или закрыть плагины",
+	"Open or close settings": "Открыть или закрыть настройки",
+	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} - спроецированное значение, {field} - название поля. Символ / создаёт папку."
 }

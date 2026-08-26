@@ -1414,5 +1414,9 @@
 	"{n}h ago": "{n} 小时前",
 	"{n}m ago": "{n} 分钟前",
 	"{pct}% of locations": "{pct}% 的位置",
-	"{selected} of {total} selected ({locations} locations)": "已选 {selected} / {total}（{locations} 个位置）"
+	"{selected} of {total} selected ({locations} locations)": "已选 {selected} / {total}（{locations} 个位置）",
+	"Move to top level": "移到顶层",
+	"Open or close plugins": "打开或关闭插件",
+	"Open or close settings": "打开或关闭设置",
+	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} 为投影值，{field} 为字段名。/ 会创建文件夹。"
 }

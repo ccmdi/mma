@@ -1561,5 +1561,9 @@
 	"{n}h ago": "{n} godz. temu",
 	"{n}m ago": "{n} min temu",
 	"{pct}% of locations": "{pct}% lokalizacji",
-	"{selected} of {total} selected ({locations} locations)": "Zaznaczono {selected} z {total} ({locations} lokalizacji)"
+	"{selected} of {total} selected ({locations} locations)": "Zaznaczono {selected} z {total} ({locations} lokalizacji)",
+	"Move to top level": "Przenieś na najwyższy poziom",
+	"Open or close plugins": "Otwórz lub zamknij wtyczki",
+	"Open or close settings": "Otwórz lub zamknij ustawienia",
+	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} to rzutowana wartość, {field} to etykieta pola. Znak / tworzy folder."
 }
