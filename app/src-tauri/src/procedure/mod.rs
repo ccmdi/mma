@@ -4,6 +4,7 @@
 pub mod engine;
 pub mod quickjs;
 
+use crate::sidecar::SidecarStream;
 use crate::types::{AppError, AppResult};
 
 #[derive(Debug, Clone)]
@@ -51,13 +52,14 @@ pub trait ProcHost {
     }
     /// Point-in-polygon lookup against a local border dataset. `None` outside every feature.
     fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>>;
-    /// Run one sidecar command to completion, collecting the output lines it produced.
+    /// Start one sidecar command; its output lines are pulled from the stream as they
+    /// arrive, so the caller can report progress while the command still runs.
     fn sidecar(
         &mut self,
         plugin_id: &str,
         command: &str,
         payload_json: &str,
-    ) -> AppResult<Vec<String>>;
+    ) -> AppResult<SidecarStream>;
     fn progress(&mut self, units: u32);
     fn fail(&mut self, id: u32);
     fn aborted(&self) -> bool;

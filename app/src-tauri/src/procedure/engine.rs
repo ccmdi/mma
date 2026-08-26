@@ -7,6 +7,7 @@ use crate::location_store::{
     apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
 };
 use crate::selections::{ids_within, narrow, Selector};
+use crate::sidecar::SidecarStream;
 use crate::types::{AppError, AppResult, Location};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -1250,8 +1251,8 @@ impl ProcHost for EngineHost<'_> {
         plugin_id: &str,
         command: &str,
         payload_json: &str,
-    ) -> AppResult<Vec<String>> {
-        crate::sidecar::sidecar_call_collect(plugin_id, command, payload_json)
+    ) -> AppResult<SidecarStream> {
+        crate::sidecar::sidecar_call_stream(plugin_id, command, payload_json)
     }
 
     fn progress(&mut self, units: u32) {
@@ -1318,8 +1319,8 @@ impl ProcHost for QueryHost<'_> {
         plugin_id: &str,
         command: &str,
         payload_json: &str,
-    ) -> AppResult<Vec<String>> {
-        crate::sidecar::sidecar_call_collect(plugin_id, command, payload_json)
+    ) -> AppResult<SidecarStream> {
+        crate::sidecar::sidecar_call_stream(plugin_id, command, payload_json)
     }
 
     fn progress(&mut self, _units: u32) {}

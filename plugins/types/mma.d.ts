@@ -4077,7 +4077,9 @@ interface ProcedureHost {
     fetch(req: ProcedureRequest): ProcedureResponse;
     fetchMany(reqs: ProcedureRequest[]): ProcedureResponse[];
     classify(dataset: string, lat: number, lng: number): string | null;
-    sidecar(pluginId: string, command: string, payloadJson: string): string[];
+    /** Run one sidecar command. `onLine` sees each output line as it arrives, so a
+     *  procedure can report progress mid-run; the lines are also returned together. */
+    sidecar(pluginId: string, command: string, payloadJson: string, onLine?: (line: string) => void): string[];
     /** 0 debug, 1 info, 2 warn, 3 error. `console.*` routes here. */
     log(level: number, msg: string): void;
     progress(units: number): void;

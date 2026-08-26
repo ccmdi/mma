@@ -51,6 +51,9 @@ struct MockProcHost {
     classify_answer: Option<String>,
     sidecar_calls: Vec<(String, String, String)>,
     sidecar_lines: Vec<String>,
+    /// Interleaving of `line` pulls and `progress` calls, to pin that a line handler's
+    /// progress reaches the host before the next line is pulled.
+    trace: Arc<Mutex<Vec<&'static str>>>,
 }
 
 impl ProcHost for MockProcHost {
@@ -77,15 +80,20 @@ impl ProcHost for MockProcHost {
         plugin_id: &str,
         command: &str,
         payload_json: &str,
-    ) -> AppResult<Vec<String>> {
+    ) -> AppResult<SidecarStream> {
         self.sidecar_calls.push((
             plugin_id.to_string(),
             command.to_string(),
             payload_json.to_string(),
         ));
-        Ok(self.sidecar_lines.clone())
+        let trace = self.trace.clone();
+        Ok(Box::new(self.sidecar_lines.clone().into_iter().map(move |l| {
+            trace.lock().unwrap().push("line");
+            Ok(l)
+        })))
     }
     fn progress(&mut self, units: u32) {
+        self.trace.lock().unwrap().push("progress");
         self.progress.push(units);
     }
     fn fail(&mut self, id: u32) {
@@ -464,6 +472,66 @@ fn sidecar_lines_reach_a_run_shape() {
         extra(&patches),
         serde_json::json!({ "lines": ["one", "two"] })
     );
+}
+
+#[test]
+fn sidecar_lines_stream_to_a_handler_with_progress_serviced_between_them() {
+    let mut proc = loaded(
+        "export function run(rows) {
+           const seen = [];
+           const lines = mma.sidecar('plug', 'cmd', '{}', (line) => {
+             seen.push(line + '!');
+             mma.progress(1);
+           });
+           return [{ id: rows[0].id, patch: { extra: { seen, lines } } }];
+         }",
+    );
+    let mut host = MockProcHost {
+        sidecar_lines: vec!["one".into(), "two".into()],
+        ..Default::default()
+    };
+    let patches = proc.run(&rows(), &mut host).expect("run succeeds");
+    assert_eq!(
+        extra(&patches),
+        serde_json::json!({ "seen": ["one!", "two!"], "lines": ["one", "two"] })
+    );
+    assert_eq!(host.progress, vec![1, 1]);
+    assert_eq!(
+        *host.trace.lock().unwrap(),
+        vec!["line", "progress", "line", "progress"]
+    );
+}
+
+#[test]
+fn a_throwing_line_handler_fails_the_sidecar_call() {
+    let mut proc = loaded(
+        "export function run(rows) {
+           mma.sidecar('plug', 'cmd', '{}', () => { throw new Error('bad line'); });
+           return [];
+         }",
+    );
+    let mut host = MockProcHost {
+        sidecar_lines: vec!["one".into()],
+        ..Default::default()
+    };
+    let err = proc.run(&rows(), &mut host).expect_err("handler error surfaces");
+    assert!(err.0.contains("bad line"), "{}", err.0);
+}
+
+#[test]
+fn a_line_handler_cannot_start_another_sidecar() {
+    let mut proc = loaded(
+        "export function run(rows) {
+           mma.sidecar('plug', 'cmd', '{}', () => { mma.sidecar('plug', 'other', '{}'); });
+           return [];
+         }",
+    );
+    let mut host = MockProcHost {
+        sidecar_lines: vec!["one".into()],
+        ..Default::default()
+    };
+    let err = proc.run(&rows(), &mut host).expect_err("nested sidecar is refused");
+    assert!(err.0.contains("line handler"), "{}", err.0);
 }
 
 #[test]

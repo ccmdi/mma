@@ -28,13 +28,14 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
-use rquickjs::function::Rest;
+use rquickjs::function::{Opt, Rest};
 use rquickjs::{
     Array, ArrayBuffer, CatchResultExt, CaughtError, Context, Ctx, Function, Module, Object,
     Runtime, TypedArray, Value,
 };
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
+use crate::sidecar::SidecarStream;
 use crate::types::{AppError, AppResult};
 
 /// Ceiling on one runtime's heap. Procedures decode whole responses in memory, so this
@@ -189,6 +190,9 @@ enum HostReq {
         command: String,
         payload: String,
     },
+    /// The next line of the sidecar the guest started; pulled one at a time so the
+    /// host stays free to service the calls a line handler makes.
+    SidecarNext,
     Progress(u32),
     Fail(u32),
     Aborted,
@@ -198,7 +202,9 @@ enum HostRep {
     Fetch(AppResult<HttpResponse>),
     FetchMany(Vec<AppResult<HttpResponse>>),
     Classify(AppResult<Option<String>>),
-    Sidecar(AppResult<Vec<String>>),
+    Sidecar(AppResult<()>),
+    SidecarLine(String),
+    SidecarEnd(AppResult<()>),
     Unit,
     Aborted(bool),
 }
@@ -226,7 +232,7 @@ impl Bridge {
     }
 }
 
-fn service(host: &mut dyn ProcHost, req: HostReq) -> HostRep {
+fn service(host: &mut dyn ProcHost, stream: &mut Option<SidecarStream>, req: HostReq) -> HostRep {
     match req {
         HostReq::Fetch(spec) => HostRep::Fetch(host.fetch(&spec)),
         HostReq::FetchMany(specs) => HostRep::FetchMany(host.fetch_many(&specs)),
@@ -237,7 +243,27 @@ fn service(host: &mut dyn ProcHost, req: HostReq) -> HostRep {
             plugin_id,
             command,
             payload,
-        } => HostRep::Sidecar(host.sidecar(&plugin_id, &command, &payload)),
+        } => {
+            if stream.is_some() {
+                return HostRep::Sidecar(Err(AppError(
+                    "mma.sidecar cannot be called from a line handler".into(),
+                )));
+            }
+            HostRep::Sidecar(host.sidecar(&plugin_id, &command, &payload).map(|s| {
+                *stream = Some(s);
+            }))
+        }
+        HostReq::SidecarNext => match stream.as_mut().and_then(|s| s.next()) {
+            Some(Ok(line)) => HostRep::SidecarLine(line),
+            Some(Err(e)) => {
+                *stream = None;
+                HostRep::SidecarEnd(Err(e))
+            }
+            None => {
+                *stream = None;
+                HostRep::SidecarEnd(Ok(()))
+            }
+        },
         HostReq::Progress(units) => {
             host.progress(units);
             HostRep::Unit
@@ -265,7 +291,7 @@ impl ProcHost for NoHost {
         _plugin_id: &str,
         _command: &str,
         _payload_json: &str,
-    ) -> AppResult<Vec<String>> {
+    ) -> AppResult<SidecarStream> {
         Err(AppError("procedure has no host attached".into()))
     }
     fn progress(&mut self, _units: u32) {}
@@ -291,6 +317,20 @@ fn throw(ctx: &Ctx<'_>, msg: impl std::fmt::Display) -> rquickjs::Error {
 fn value_fn<F>(f: F) -> F
 where
     F: for<'js> Fn(Ctx<'js>, Value<'js>) -> rquickjs::Result<Value<'js>> + 'static,
+{
+    f
+}
+
+fn sidecar_fn<F>(f: F) -> F
+where
+    F: for<'js> Fn(
+            Ctx<'js>,
+            String,
+            String,
+            String,
+            Opt<Function<'js>>,
+        ) -> rquickjs::Result<Vec<String>>
+        + 'static,
 {
     f
 }
@@ -522,21 +562,39 @@ fn install_host_calls<'js>(
             "sidecar",
             Function::new(
                 ctx.clone(),
-                move |ctx: Ctx<'_>,
-                      plugin_id: String,
-                      command: String,
-                      payload: String|
-                      -> rquickjs::Result<Vec<String>> {
-                    match b.call(HostReq::Sidecar {
-                        plugin_id,
-                        command,
-                        payload,
-                    }) {
-                        Ok(HostRep::Sidecar(Ok(lines))) => Ok(lines),
-                        Ok(HostRep::Sidecar(Err(e))) | Err(e) => Err(throw(&ctx, e)),
-                        Ok(_) => Err(throw(&ctx, "host answered the wrong call")),
-                    }
-                },
+                sidecar_fn(
+                    move |ctx: Ctx<'_>,
+                          plugin_id: String,
+                          command: String,
+                          payload: String,
+                          on_line: Opt<Function<'_>>| {
+                        match b.call(HostReq::Sidecar {
+                            plugin_id,
+                            command,
+                            payload,
+                        }) {
+                            Ok(HostRep::Sidecar(Ok(()))) => {}
+                            Ok(HostRep::Sidecar(Err(e))) | Err(e) => return Err(throw(&ctx, e)),
+                            Ok(_) => return Err(throw(&ctx, "host answered the wrong call")),
+                        }
+                        let mut lines = Vec::new();
+                        loop {
+                            match b.call(HostReq::SidecarNext) {
+                                Ok(HostRep::SidecarLine(line)) => {
+                                    if let Some(f) = &on_line.0 {
+                                        f.call::<_, ()>((line.clone(),))?;
+                                    }
+                                    lines.push(line);
+                                }
+                                Ok(HostRep::SidecarEnd(Ok(()))) => return Ok(lines),
+                                Ok(HostRep::SidecarEnd(Err(e))) | Err(e) => {
+                                    return Err(throw(&ctx, e))
+                                }
+                                Ok(_) => return Err(throw(&ctx, "host answered the wrong call")),
+                            }
+                        }
+                    },
+                ),
             )?,
         )?;
     } else {
@@ -725,10 +783,11 @@ impl JsProcedure {
                     out
                 })
             });
+            let mut stream: Option<SidecarStream> = None;
             loop {
                 match msg_rx.recv_timeout(ABORT_POLL) {
                     Ok(Msg::Host(req)) => {
-                        if rep_tx.send(service(host, req)).is_err() {
+                        if rep_tx.send(service(host, &mut stream, req)).is_err() {
                             break;
                         }
                     }

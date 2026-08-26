@@ -24,6 +24,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::time::Duration;
 
@@ -678,22 +679,6 @@ fn run_oneshot(
     result
 }
 
-/// Run a one-shot command to completion and return its stdout lines instead of
-/// streaming them as events. For in-process callers such as the procedure engine.
-pub(crate) fn run_oneshot_collect(
-    plugin_id: &str,
-    spec: &SidecarSpec,
-    command: &str,
-    payload: Option<&str>,
-) -> AppResult<Vec<String>> {
-    let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let mut lines = Vec::new();
-    run_oneshot(plugin_id, spec, command, payload, req_id, &mut |l| {
-        lines.push(l)
-    })?;
-    Ok(lines)
-}
-
 fn run_oneshot_inner(
     plugin_id: &str,
     spec: &SidecarSpec,
@@ -816,11 +801,18 @@ pub fn sidecar_request(
 /// Run one sidecar command synchronously and return every line it produced. Same
 /// resident-vs-one-shot dispatch as [`sidecar_request`], but nothing is emitted:
 /// the caller owns the lines. A resident answers with exactly one.
-pub(crate) fn sidecar_call_collect(
+/// A sidecar command's output, one line at a time, blocking until the next arrives.
+/// The stream ends after the last line, or with the error that stopped the run.
+pub(crate) type SidecarStream = Box<dyn Iterator<Item = AppResult<String>> + Send>;
+
+/// Run one command on its own thread and hand its lines over as they arrive, so an
+/// in-process caller such as the procedure engine can report progress mid-run. A
+/// resident command answers with a single line.
+pub(crate) fn sidecar_call_stream(
     plugin_id: &str,
     command: &str,
     payload: &str,
-) -> AppResult<Vec<String>> {
+) -> AppResult<SidecarStream> {
     validate_plugin_id(plugin_id)?;
     validate_sidecar_command(command)?;
     if command == SERVE_COMMAND {
@@ -829,16 +821,35 @@ pub(crate) fn sidecar_call_collect(
         ));
     }
     let spec = read_spec(plugin_id)?;
-    if spec.is_resident(command) {
-        Ok(vec![post_resident(
-            plugin_id,
-            &spec,
-            command,
-            Some(payload),
-        )?])
-    } else {
-        run_oneshot_collect(plugin_id, &spec, command, Some(payload))
-    }
+    let (tx, rx) = mpsc::channel::<AppResult<String>>();
+    let (plugin_id, command, payload) = (
+        plugin_id.to_string(),
+        command.to_string(),
+        payload.to_string(),
+    );
+    std::thread::spawn(move || {
+        let result = if spec.is_resident(&command) {
+            post_resident(&plugin_id, &spec, &command, Some(&payload)).map(|text| {
+                let _ = tx.send(Ok(text));
+            })
+        } else {
+            let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
+            run_oneshot(
+                &plugin_id,
+                &spec,
+                &command,
+                Some(&payload),
+                req_id,
+                &mut |l| {
+                    let _ = tx.send(Ok(l));
+                },
+            )
+        };
+        if let Err(e) = result {
+            let _ = tx.send(Err(e));
+        }
+    });
+    Ok(Box::new(rx.into_iter()))
 }
 
 /// Stop everything a plugin has running. Called when the plugin is disabled or
