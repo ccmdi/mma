@@ -50,6 +50,15 @@ export function DialogContent({
 					if ((e.target as Element | null)?.closest?.(".suggest-portal")) e.preventDefault();
 					else props.onInteractOutside?.(e);
 				}}
+				onOpenAutoFocus={(e) => {
+					if (props.onOpenAutoFocus) return props.onOpenAutoFocus(e);
+					// Radix would land on the first tabbable, the close X, wearing a focus ring.
+					// Park focus on the content instead unless a child already claimed it
+					// (autoFocus); Tab still reaches the X and everything after it.
+					e.preventDefault();
+					const content = e.currentTarget as HTMLElement;
+					if (!content.contains(document.activeElement)) content.focus();
+				}}
 			>
 				<div className={clsx("modal__dialog", className)}>
 					<header className={clsx("modal__header", className ? `${className}__header` : null)}>

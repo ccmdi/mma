@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, useState } from "react";
+import type React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/primitives/Dialog";
@@ -18,17 +19,38 @@ afterEach(() => {
 	container.remove();
 });
 
-function Harness() {
+function Harness({ body = "body" }: { body?: React.ReactNode }) {
 	const [open, setOpen] = useState(false);
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger>open me</DialogTrigger>
-			<DialogContent title="Test">body</DialogContent>
+			<DialogContent title="Test">{body}</DialogContent>
 		</Dialog>
 	);
 }
 
+function openDialog() {
+	const trigger = container.querySelector("button") as HTMLButtonElement;
+	act(() => {
+		trigger.focus();
+		trigger.click();
+	});
+	return trigger;
+}
+
 describe("Dialog focus", () => {
+	it("opens with focus parked on the content, not a ring on the close button", () => {
+		act(() => root.render(<Harness />));
+		openDialog();
+		expect(document.activeElement).toBe(document.querySelector(".modal"));
+	});
+
+	it("lets a child that asks for focus keep it", () => {
+		act(() => root.render(<Harness body={<input autoFocus data-qa="first" />} />));
+		openDialog();
+		expect(document.activeElement).toBe(document.querySelector('[data-qa="first"]'));
+	});
+
 	it("returns focus to the trigger on close", async () => {
 		act(() => root.render(<Harness />));
 		const trigger = container.querySelector("button") as HTMLButtonElement;
