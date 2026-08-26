@@ -112,6 +112,8 @@ function AppChrome() {
 
 	useHotkey(useBinding("toggleStats"), () => setShowStats((s) => !s));
 	useHotkey(useBinding("openManualSearch"), () => setManualSearchOpen((v) => !v));
+	useHotkey(useBinding("toggleSettings"), () => setShowSettings((v) => !v));
+	useHotkey(useBinding("togglePlugins"), () => setShowPlugins((v) => !v));
 	useHotkey(useBinding("closeMap"), () => {
 		if (map) goTo({ type: "list" });
 	});

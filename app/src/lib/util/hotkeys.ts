@@ -37,6 +37,18 @@ const STATIC_HOTKEY_DEFS = [
 		defaultBinding: "Mod+?",
 	},
 	{
+		action: "toggleSettings",
+		label: msg("Open or close settings"),
+		group: msg("Global"),
+		defaultBinding: "Mod+,",
+	},
+	{
+		action: "togglePlugins",
+		label: msg("Open or close plugins"),
+		group: msg("Global"),
+		defaultBinding: "Mod+Shift+p",
+	},
+	{
 		action: "toggleStats",
 		label: msg("Toggle stats for nerds"),
 		group: msg("Global"),
