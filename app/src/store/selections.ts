@@ -597,7 +597,6 @@ function tagDisplayName(tagId: number, tagNames?: Record<number, string>): strin
 	return tagNames?.[tagId] ?? String(tagId);
 }
 
-/** English source strings -- callers translate. */
 function validationStateLabel(state: ValidationState): string {
 	switch (state) {
 		case ValidationState.Ok:
