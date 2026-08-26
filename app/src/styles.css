@@ -929,9 +929,12 @@ input[type="range"]:disabled {
 	place-content: center;
 	display: flex;
 	position: fixed;
-	top: 50%;
-	left: 50%;
-	transform: translate(-50%, -50%);
+	/* Auto margins centre on whole pixels; a translate(-50%) lands odd sizes on a half
+	   pixel, and the re-snap when the entrance animation ends reads as content moving. */
+	inset: 0;
+	margin: auto;
+	width: fit-content;
+	height: fit-content;
 }
 /* Radix parks focus on the content element (tabindex -1) whenever a child unmounts;
    it is never a tab stop, so its ring is noise. */
