@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type React from "react";
 import { act, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { useHoverExpand } from "@/lib/hooks/useHoverExpand";
@@ -35,7 +36,8 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-const enter = () => act(() => api.hoverProps.onPointerEnter());
+const enter = (buttons = 0) =>
+	act(() => api.hoverProps.onPointerEnter({ buttons } as React.PointerEvent));
 const leave = () => act(() => api.hoverProps.onPointerLeave());
 const pointerDown = () => act(() => api.hoverProps.onPointerDown());
 const pointerUpAt = (clientX: number, clientY: number) =>
@@ -52,6 +54,13 @@ describe("useHoverExpand", () => {
 		expect(api.expanded).toBe(true);
 		await act(() => vi.advanceTimersByTime(DELAY));
 		expect(api.expanded).toBe(false);
+	});
+
+	it("ignores an enter while a mouse button is held, so panning across it does not open it", () => {
+		enter(1);
+		expect(api.expanded).toBe(false);
+		enter();
+		expect(api.expanded).toBe(true);
 	});
 
 	it("re-entering cancels a pending close", async () => {
