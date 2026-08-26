@@ -2901,3 +2901,24 @@ fn every_projection_honours_a_named_id_list() {
         vec![("c".to_string(), 2u32)]
     );
 }
+
+#[test]
+fn has_pano_id_matches_a_pinned_row_in_base_and_overlay() {
+    let mut pinned = loc(1, 0.0, 0.0);
+    pinned.pano_id = Some("abcdefghijklmnopqrstuv".into());
+    let bare = loc(2, 0.0, 0.0);
+    let filter = Selector::Filter {
+        field: "panoId".into(),
+        op: FilterOp::Has,
+        value: serde_json::Value::Null,
+        value2: None,
+        tz_local: false,
+    };
+    let base = Fx::base(&[pinned.clone(), bare.clone()]);
+    assert_eq!(ids_of(&base.view(), &filter), vec![1]);
+    let adds = Fx::adds(vec![pinned.clone(), bare.clone()]);
+    assert_eq!(ids_of(&adds.view(), &filter), vec![1]);
+    // Pinned after a commit: the base row is bare, the pano lives in a patch.
+    let patched = Fx::base(&[bare.clone(), loc(1, 0.0, 0.0)]).with_patch(1, pinned);
+    assert_eq!(ids_of(&patched.view(), &filter), vec![1]);
+}
