@@ -7,6 +7,7 @@ import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import {
 	SettingRow,
+	SettingsGroup,
 	SettingsSearchContext,
 	useSettingsSearch,
 } from "@/components/primitives/SettingRow";
@@ -86,6 +87,10 @@ import { t, msg } from "@/lib/i18n";
 import { errText, isPrereleaseVersion } from "@/lib/util/util";
 import { Trans } from "@/components/primitives/Trans";
 
+/** The translated labels of a select's options, so a search for a value ("tree") finds
+ *  the row that offers it. */
+const optionLabels = (options: Record<string, string>) => Object.values(options).map((m) => t(m));
+
 /** Non-row section content. Hidden during search unless the section title
  *  matched, or `match` (a keyword string for content with no SettingRows)
  *  contains the query. */
@@ -93,15 +98,6 @@ function Aux({ children, match }: { children: ReactNode; match?: string }) {
 	const { query, auxVisible } = useSettingsSearch();
 	if (!auxVisible && !(match && query && match.toLowerCase().includes(query))) return null;
 	return <div className="settings-aux">{children}</div>;
-}
-
-/** A sub-group heading inside a section. Visible only when the section is fully
- *  shown (not searching, or section title matched) so search results collapse
- *  cleanly under the section breadcrumb. */
-function GroupHeading({ children }: { children: ReactNode }) {
-	const { auxVisible } = useSettingsSearch();
-	if (!auxVisible) return null;
-	return <h3 className="settings-group">{children}</h3>;
 }
 
 function SettingSlider({
@@ -431,90 +427,99 @@ function StreetViewBody() {
 
 	return (
 		<>
-			<GroupHeading>{t("Navigation")}</GroupHeading>
-			<SettingRow setting="showLinksControl" label={t("Show link arrows (ground navigation)")} />
-			<SettingRow setting="clickToGo" label={t("Show click-to-go navigation")} />
-			{s.clickToGo && (
-				<>
-					<SettingRow sub setting="showNavArrow" label={t("Show navigation X")} />
-					<SettingRow sub setting="showGroundArrow" label={t("Show ground arrow")} />
-				</>
-			)}
-			<SettingRow
-				setting="hideNavWithUI"
-				label={t("Hide navigation with pano UI")}
-				description={t(
-					"The pano UI toggle also hides link arrows, the ground arrow, and the navigation X.",
+			<SettingsGroup title={t("Navigation")}>
+				<SettingRow setting="showLinksControl" label={t("Show link arrows (ground navigation)")} />
+				<SettingRow setting="clickToGo" label={t("Show click-to-go navigation")} />
+				{s.clickToGo && (
+					<>
+						<SettingRow sub setting="showNavArrow" label={t("Show navigation X")} />
+						<SettingRow sub setting="showGroundArrow" label={t("Show ground arrow")} />
+					</>
 				)}
-			/>
-			<SettingRow
-				label={t("Default movement mode")}
-				control={<SettingSelect setting="defaultMovementMode" options={MOVEMENT_MODES} />}
-			/>
-			<SettingRow
-				label={t("Pano look speed")}
-				control={
-					<SettingSlider
-						value={s.panoLookSpeed}
-						min={1}
-						max={10}
-						step={1}
-						onChange={(v) => setSetting("panoLookSpeed", v)}
-					/>
-				}
-			/>
+				<SettingRow
+					setting="hideNavWithUI"
+					label={t("Hide navigation with pano UI")}
+					description={t(
+						"The pano UI toggle also hides link arrows, the ground arrow, and the navigation X.",
+					)}
+				/>
+				<SettingRow
+					label={t("Default movement mode")}
+					keywords={optionLabels(MOVEMENT_MODES)}
+					control={<SettingSelect setting="defaultMovementMode" options={MOVEMENT_MODES} />}
+				/>
+				<SettingRow
+					label={t("Pano look speed")}
+					control={
+						<SettingSlider
+							value={s.panoLookSpeed}
+							min={1}
+							max={10}
+							step={1}
+							onChange={(v) => setSetting("panoLookSpeed", v)}
+						/>
+					}
+				/>
+			</SettingsGroup>
 
-			<GroupHeading>{t("Display")}</GroupHeading>
-			<SettingRow setting="showRoadLabels" label={t("Show road labels")} />
-			<SettingRow setting="showCar" label={t("Show car")} />
-			<SettingRow setting="showCrosshair" label={t("Show crosshair")} />
-			<SettingRow
-				label={t("Preview aspect ratio")}
-				control={<SettingSelect setting="previewAspectRatio" options={PREVIEW_ASPECT_RATIOS} />}
-			/>
+			<SettingsGroup title={t("Display")}>
+				<SettingRow setting="showRoadLabels" label={t("Show road labels")} />
+				<SettingRow setting="showCar" label={t("Show car")} />
+				<SettingRow setting="showCrosshair" label={t("Show crosshair")} />
+				<SettingRow
+					label={t("Preview aspect ratio")}
+					keywords={optionLabels(PREVIEW_ASPECT_RATIOS)}
+					control={<SettingSelect setting="previewAspectRatio" options={PREVIEW_ASPECT_RATIOS} />}
+				/>
+			</SettingsGroup>
 
-			<GroupHeading>{t("Viewer controls")}</GroupHeading>
-			{controls.map(({ key, label }) => (
-				<SettingRow key={key} setting={key} label={label} />
-			))}
+			<SettingsGroup title={t("Viewer controls")}>
+				{controls.map(({ key, label }) => (
+					<SettingRow key={key} setting={key} label={label} />
+				))}
+			</SettingsGroup>
 
-			<GroupHeading>{t("Fullscreen panorama")}</GroupHeading>
-			<SettingRow setting="showFullscreenMinimap" label={t("Show minimap in fullscreen")} />
-			<SettingRow
-				sub
-				disabled={!s.showFullscreenMinimap}
-				label={t("Minimap close delay")}
-				description={t("How long the minimap stays expanded after the pointer leaves it.")}
-				control={
-					<SettingSlider
-						value={s.fullscreenMinimapCloseDelay}
-						min={0}
-						max={1000}
-						step={50}
-						disabled={!s.showFullscreenMinimap}
-						onChange={(v) => setSetting("fullscreenMinimapCloseDelay", v)}
-						format={(v) => `${v}ms`}
-					/>
-				}
-			/>
-			<SettingRow setting="showFullscreenTagbar" label={t("Show tag bar in fullscreen")} />
-			<SettingRow setting="showFullscreenDatePicker" label={t("Show date picker in fullscreen")} />
-			<SettingRow setting="showFullscreenReviewBar" label={t("Show review bar in fullscreen")} />
-			<SettingRow setting="showFullscreenGeocode" label={t("Show geocoding info in fullscreen")} />
+			<SettingsGroup title={t("Fullscreen panorama")}>
+				<SettingRow setting="showFullscreenMinimap" label={t("Show minimap in fullscreen")} />
+				<SettingRow
+					sub
+					disabled={!s.showFullscreenMinimap}
+					label={t("Minimap close delay")}
+					description={t("How long the minimap stays expanded after the pointer leaves it.")}
+					control={
+						<SettingSlider
+							value={s.fullscreenMinimapCloseDelay}
+							min={0}
+							max={1000}
+							step={50}
+							disabled={!s.showFullscreenMinimap}
+							onChange={(v) => setSetting("fullscreenMinimapCloseDelay", v)}
+							format={(v) => `${v}ms`}
+						/>
+					}
+				/>
+				<SettingRow setting="showFullscreenTagbar" label={t("Show tag bar in fullscreen")} />
+				<SettingRow setting="showFullscreenDatePicker" label={t("Show date picker in fullscreen")} />
+				<SettingRow setting="showFullscreenReviewBar" label={t("Show review bar in fullscreen")} />
+				<SettingRow setting="showFullscreenGeocode" label={t("Show geocoding info in fullscreen")} />
+			</SettingsGroup>
 
-			<GroupHeading>{t("Date picker")}</GroupHeading>
-			<SettingRow
-				setting="showCameraBadges"
-				label={t("Show camera type badges (Gen1, Gen2, etc.)")}
-			/>
-			<SettingRow
-				label={t("Exact date format")}
-				control={<SettingSelect setting="exactDateFormat" options={EXACT_DATE_FORMATS} />}
-			/>
-			<SettingRow
-				label={t("Exact date timezone")}
-				control={<SettingSelect setting="dateTimezone" options={DATE_TIMEZONES} />}
-			/>
+			<SettingsGroup title={t("Date picker")}>
+				<SettingRow
+					setting="showCameraBadges"
+					label={t("Show camera type badges (Gen1, Gen2, etc.)")}
+				/>
+				<SettingRow
+					label={t("Exact date format")}
+					keywords={optionLabels(EXACT_DATE_FORMATS)}
+					control={<SettingSelect setting="exactDateFormat" options={EXACT_DATE_FORMATS} />}
+				/>
+				<SettingRow
+					label={t("Exact date timezone")}
+					keywords={optionLabels(DATE_TIMEZONES)}
+					control={<SettingSelect setting="dateTimezone" options={DATE_TIMEZONES} />}
+				/>
+			</SettingsGroup>
 		</>
 	);
 }
@@ -523,148 +528,155 @@ function MapBody() {
 	const s = useSettings();
 	return (
 		<>
-			<GroupHeading>{t("Navigation")}</GroupHeading>
-			<SettingRow
-				label={t("Pan speed")}
-				control={
-					<SettingSlider
-						value={s.mapPanSpeed}
-						min={1}
-						max={20}
-						step={1}
-						onChange={(v) => setSetting("mapPanSpeed", v)}
-					/>
-				}
-			/>
-			<SettingRow setting="panToImported" label={t("Pan to imported locations")} />
-			<SettingRow
-				sub
-				disabled={!s.panToImported}
-				label={t("Paste zoom padding")}
-				control={
-					<SettingSlider
-						value={s.pastePadding}
-						min={0.001}
-						max={0.05}
-						step={0.001}
-						disabled={!s.panToImported}
-						onChange={(v) => setSetting("pastePadding", v)}
-						format={(v) => `${v.toFixed(3)}°`}
-					/>
-				}
-			/>
-			<SettingRow
-				label={t("Alt slow-down")}
-				description={t("Hold Alt to slow down map panning and pano look.")}
-				control={
-					<SettingSlider
-						value={s.slowModifier}
-						min={2}
-						max={10}
-						step={1}
-						onChange={(v) => setSetting("slowModifier", v)}
-						format={(v) => `${v}x`}
-					/>
-				}
-			/>
-			<SettingRow
-				setting="followActiveInReview"
-				label={t("Center map on active location during review")}
-			/>
-			<SettingRow
-				setting="enterOpensCenter"
-				label={t("Enter opens location at map center")}
-				description={t("With no location open, Enter opens the location at the center of the map.")}
-			/>
+			<SettingsGroup title={t("Navigation")}>
+				<SettingRow
+					label={t("Pan speed")}
+					control={
+						<SettingSlider
+							value={s.mapPanSpeed}
+							min={1}
+							max={20}
+							step={1}
+							onChange={(v) => setSetting("mapPanSpeed", v)}
+						/>
+					}
+				/>
+				<SettingRow setting="panToImported" label={t("Pan to imported locations")} />
+				<SettingRow
+					sub
+					disabled={!s.panToImported}
+					label={t("Paste zoom padding")}
+					control={
+						<SettingSlider
+							value={s.pastePadding}
+							min={0.001}
+							max={0.05}
+							step={0.001}
+							disabled={!s.panToImported}
+							onChange={(v) => setSetting("pastePadding", v)}
+							format={(v) => `${v.toFixed(3)}°`}
+						/>
+					}
+				/>
+				<SettingRow
+					label={t("Alt slow-down")}
+					description={t("Hold Alt to slow down map panning and pano look.")}
+					control={
+						<SettingSlider
+							value={s.slowModifier}
+							min={2}
+							max={10}
+							step={1}
+							onChange={(v) => setSetting("slowModifier", v)}
+							format={(v) => `${v}x`}
+						/>
+					}
+				/>
+				<SettingRow
+					setting="followActiveInReview"
+					label={t("Center map on active location during review")}
+				/>
+				<SettingRow
+					setting="enterOpensCenter"
+					label={t("Enter opens location at map center")}
+					description={t("With no location open, Enter opens the location at the center of the map.")}
+				/>
+			</SettingsGroup>
 
-			<GroupHeading>{t("Markers")}</GroupHeading>
-			<SettingRow
-				label={t("Default marker color")}
-				control={
-					<ColorPicker
-						color={s.markerColor}
-						onChange={(color) => setSetting("markerColor", color)}
-						ariaLabel={t("Default marker color")}
-					/>
-				}
-			/>
-			<SettingRow
-				label={t("Active marker color")}
-				control={
-					<ColorPicker
-						color={s.activeLocationColor}
-						onChange={(color) => setSetting("activeLocationColor", color)}
-						ariaLabel={t("Active location marker color")}
-					/>
-				}
-			/>
-			<SettingRow
-				label={t("Staged marker color")}
-				control={
-					<ColorPicker
-						color={s.importPreviewColor}
-						onChange={(color) => setSetting("importPreviewColor", color)}
-						ariaLabel={t("Staged import marker color")}
-					/>
-				}
-			/>
-			<SettingRow
-				label={t("Layer opacity toggle")}
-				description={t(
-					"What the Street View and marker opacity hotkeys restore a hidden layer to.",
-				)}
-				control={<SettingSelect setting="opacityToggleMode" options={OPACITY_TOGGLE_MODES} />}
-			/>
+			<SettingsGroup title={t("Markers")}>
+				<SettingRow
+					label={t("Default marker color")}
+					control={
+						<ColorPicker
+							color={s.markerColor}
+							onChange={(color) => setSetting("markerColor", color)}
+							ariaLabel={t("Default marker color")}
+						/>
+					}
+				/>
+				<SettingRow
+					label={t("Active marker color")}
+					control={
+						<ColorPicker
+							color={s.activeLocationColor}
+							onChange={(color) => setSetting("activeLocationColor", color)}
+							ariaLabel={t("Active location marker color")}
+						/>
+					}
+				/>
+				<SettingRow
+					label={t("Staged marker color")}
+					control={
+						<ColorPicker
+							color={s.importPreviewColor}
+							onChange={(color) => setSetting("importPreviewColor", color)}
+							ariaLabel={t("Staged import marker color")}
+						/>
+					}
+				/>
+				<SettingRow
+					label={t("Layer opacity toggle")}
+					keywords={optionLabels(OPACITY_TOGGLE_MODES)}
+					description={t(
+						"What the Street View and marker opacity hotkeys restore a hidden layer to.",
+					)}
+					control={<SettingSelect setting="opacityToggleMode" options={OPACITY_TOGGLE_MODES} />}
+				/>
+			</SettingsGroup>
 
-			<GroupHeading>{t("Panorama dots")}</GroupHeading>
-			<SettingRow
-				label={t("Dot color")}
-				control={
-					<ColorPicker
-						color={s.panoDotColor}
-						onChange={(color) => setSetting("panoDotColor", color)}
-						ariaLabel={t("Panorama dot color")}
-					/>
-				}
-			/>
-			<SettingRow
-				label={t("Dot size")}
-				control={
-					<NSelect
-						value={s.panoDotScaled ? "scaled" : "constant"}
-						onChange={(e) => setSetting("panoDotScaled", e.target.value === "scaled")}
-					>
-						<option value="constant">{t("Constant on screen")}</option>
-						<option value="scaled">{t("Grow when zoomed in")}</option>
-					</NSelect>
-				}
-			/>
+			<SettingsGroup title={t("Panorama dots")}>
+				<SettingRow
+					label={t("Dot color")}
+					control={
+						<ColorPicker
+							color={s.panoDotColor}
+							onChange={(color) => setSetting("panoDotColor", color)}
+							ariaLabel={t("Panorama dot color")}
+						/>
+					}
+				/>
+				<SettingRow
+					label={t("Dot size")}
+					control={
+						<NSelect
+							value={s.panoDotScaled ? "scaled" : "constant"}
+							onChange={(e) => setSetting("panoDotScaled", e.target.value === "scaled")}
+						>
+							<option value="constant">{t("Constant on screen")}</option>
+							<option value="scaled">{t("Grow when zoomed in")}</option>
+						</NSelect>
+					}
+				/>
+			</SettingsGroup>
 
-			<GroupHeading>{t("Selections")}</GroupHeading>
-			<SettingRow
-				label={t("Polygon color")}
-				control={
-					<span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-						<SettingSelect setting="polygonColorMode" options={POLYGON_COLOR_MODES} />
-						{s.polygonColorMode === "fixed" && (
-							<ColorPicker
-								color={s.polygonColor}
-								onChange={(color) => setSetting("polygonColor", color)}
-								ariaLabel={t("Default polygon color")}
-							/>
-						)}
-					</span>
-				}
-			/>
+			<SettingsGroup title={t("Selections")}>
+				<SettingRow
+					label={t("Polygon color")}
+					keywords={optionLabels(POLYGON_COLOR_MODES)}
+					control={
+						<span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+							<SettingSelect setting="polygonColorMode" options={POLYGON_COLOR_MODES} />
+							{s.polygonColorMode === "fixed" && (
+								<ColorPicker
+									color={s.polygonColor}
+									onChange={(color) => setSetting("polygonColor", color)}
+									ariaLabel={t("Default polygon color")}
+								/>
+							)}
+						</span>
+					}
+				/>
 
-			<BorderDetailGroup />
+				<BorderDetailGroup />
+			</SettingsGroup>
 
-			<GroupHeading>{t("Fullscreen map")}</GroupHeading>
-			<SettingRow setting="showFullscreenMapMeta" label={t("Show map meta bar in fullscreen")} />
-			<SettingRow
-				setting="showFullscreenMiniLocationPreview"
-				label={t("Show mini location preview in fullscreen")}
-			/>
+			<SettingsGroup title={t("Fullscreen map")}>
+				<SettingRow setting="showFullscreenMapMeta" label={t("Show map meta bar in fullscreen")} />
+				<SettingRow
+					setting="showFullscreenMiniLocationPreview"
+					label={t("Show mini location preview in fullscreen")}
+				/>
+			</SettingsGroup>
 		</>
 	);
 }
@@ -753,53 +765,54 @@ function BorderDetailGroup() {
 
 	return (
 		<>
-			<GroupHeading>{t("Borders")}</GroupHeading>
-			<SettingRow
-				label={t("Country data")}
-				control={
-					<NSelect
-						className="nselect--compact"
-						value={s.borderDetail}
-						onChange={(e) => void handleChange(e.target.value as BorderDetail)}
-						disabled={downloading !== null}
-					>
-						{Object.entries(BORDER_DETAILS).map(([value, label]) => (
-							<option key={value} value={value}>
-								{t(label)}
-								{value !== "light" && statusLabel(value as "medium" | "heavy")}
-							</option>
-						))}
-					</NSelect>
-				}
-			/>
-			<SettingRow
-				label={t("Subdivision data")}
-				control={
-					<NSelect
-						className="nselect--compact"
-						value={s.subdivisionDetail}
-						onChange={(e) => void handleSubdivisionChange(e.target.value as SubdivisionDetail)}
-						disabled={downloading !== null}
-					>
-						{Object.entries(SUBDIVISION_DETAILS).map(([value, label]) => (
-							<option key={value} value={value}>
-								{t(label)}
-								{value !== "off" && subdivisionStatus()}
-							</option>
-						))}
-					</NSelect>
-				}
-			/>
-			{(downloading || error) && (
-				<Aux>
-					{downloading && (
-						<p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", opacity: 0.7 }}>
-							{t("Downloading border data...")}
-						</p>
-					)}
-					{error && <p className="settings-popup__warning">{error}</p>}
-				</Aux>
-			)}
+			<SettingsGroup title={t("Borders")}>
+				<SettingRow
+					label={t("Country data")}
+					control={
+						<NSelect
+							className="nselect--compact"
+							value={s.borderDetail}
+							onChange={(e) => void handleChange(e.target.value as BorderDetail)}
+							disabled={downloading !== null}
+						>
+							{Object.entries(BORDER_DETAILS).map(([value, label]) => (
+								<option key={value} value={value}>
+									{t(label)}
+									{value !== "light" && statusLabel(value as "medium" | "heavy")}
+								</option>
+							))}
+						</NSelect>
+					}
+				/>
+				<SettingRow
+					label={t("Subdivision data")}
+					control={
+						<NSelect
+							className="nselect--compact"
+							value={s.subdivisionDetail}
+							onChange={(e) => void handleSubdivisionChange(e.target.value as SubdivisionDetail)}
+							disabled={downloading !== null}
+						>
+							{Object.entries(SUBDIVISION_DETAILS).map(([value, label]) => (
+								<option key={value} value={value}>
+									{t(label)}
+									{value !== "off" && subdivisionStatus()}
+								</option>
+							))}
+						</NSelect>
+					}
+				/>
+				{(downloading || error) && (
+					<Aux>
+						{downloading && (
+							<p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", opacity: 0.7 }}>
+								{t("Downloading border data...")}
+							</p>
+						)}
+						{error && <p className="settings-popup__warning">{error}</p>}
+					</Aux>
+				)}
+			</SettingsGroup>
 		</>
 	);
 }
@@ -812,107 +825,115 @@ function EditingBody() {
 	);
 	return (
 		<>
-			<GroupHeading>{t("Tags")}</GroupHeading>
-			<SettingRow
-				label={t("View mode")}
-				control={<SettingSelect setting="tagViewMode" options={TAG_VIEW_MODES} />}
-			/>
-			{s.tagViewMode === "tree" && (
-				<>
-					<SettingRow
-						sub
-						label={t("Folder color")}
-						control={
-							<span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-								<SettingSelect setting="tagFolderColorMode" options={TAG_FOLDER_COLOR_MODES} />
-								{s.tagFolderColorMode === "direct" && (
-									<ColorPicker
-										color={s.tagFolderColor}
-										onChange={(color) => setSetting("tagFolderColor", color)}
-										ariaLabel={t("Default folder color")}
-									/>
-								)}
-							</span>
-						}
-					/>
-					<SettingRow
-						sub
-						setting="truncateTagPaths"
-						label={t("Truncate tag names to shortest unique path")}
-					/>
-				</>
-			)}
-			<SettingRow setting="animateTagReorder" label={t("Animate tags during drag reorder")} />
-			<SettingRow
-				label={t("Tag gap")}
-				control={
-					<SettingSlider
-						value={s.tagGap}
-						min={0}
-						max={16}
-						step={1}
-						onChange={(v) => setSetting("tagGap", v)}
-						format={(v) => `${v}px`}
-					/>
-				}
-			/>
-			<SettingRow
-				label={t("Suggestions shown")}
-				control={
-					<SettingSlider
-						value={limitIndex}
-						min={0}
-						max={TAG_SUGGESTION_LIMITS.length - 1}
-						step={1}
-						onChange={(v) => setSetting("tagSuggestionLimit", TAG_SUGGESTION_LIMITS[v])}
-						format={() => (s.tagSuggestionLimit === 0 ? t("All") : String(s.tagSuggestionLimit))}
-					/>
-				}
-			/>
-
-			<GroupHeading>{t("Seen")}</GroupHeading>
-			<SettingRow setting="enableSeen" label={t("Log viewed panos")} />
-			{s.enableSeen && (
-				<>
-					<SettingRow sub setting="enableSeenThumbnails" label={t("Save thumbnails")} />
-					{s.enableSeenThumbnails && (
+			<SettingsGroup title={t("Tags")}>
+				<SettingRow
+					label={t("View mode")}
+					keywords={optionLabels(TAG_VIEW_MODES)}
+					control={<SettingSelect setting="tagViewMode" options={TAG_VIEW_MODES} />}
+				/>
+				{s.tagViewMode === "tree" && (
+					<>
 						<SettingRow
 							sub
-							label={t("Thumbnail resolution")}
-							control={<SettingSelect setting="seenResolution" options={SEEN_RESOLUTIONS} />}
+							label={t("Folder color")}
+							keywords={optionLabels(TAG_FOLDER_COLOR_MODES)}
+							control={
+								<span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+									<SettingSelect setting="tagFolderColorMode" options={TAG_FOLDER_COLOR_MODES} />
+									{s.tagFolderColorMode === "direct" && (
+										<ColorPicker
+											color={s.tagFolderColor}
+											onChange={(color) => setSetting("tagFolderColor", color)}
+											ariaLabel={t("Default folder color")}
+										/>
+									)}
+								</span>
+							}
 						/>
-					)}
-				</>
-			)}
+						<SettingRow
+							sub
+							setting="truncateTagPaths"
+							label={t("Truncate tag names to shortest unique path")}
+						/>
+					</>
+				)}
+				<SettingRow setting="animateTagReorder" label={t("Animate tags during drag reorder")} />
+				<SettingRow
+					label={t("Tag gap")}
+					control={
+						<SettingSlider
+							value={s.tagGap}
+							min={0}
+							max={16}
+							step={1}
+							onChange={(v) => setSetting("tagGap", v)}
+							format={(v) => `${v}px`}
+						/>
+					}
+				/>
+				<SettingRow
+					label={t("Suggestions shown")}
+					control={
+						<SettingSlider
+							value={limitIndex}
+							min={0}
+							max={TAG_SUGGESTION_LIMITS.length - 1}
+							step={1}
+							onChange={(v) => setSetting("tagSuggestionLimit", TAG_SUGGESTION_LIMITS[v])}
+							format={() => (s.tagSuggestionLimit === 0 ? t("All") : String(s.tagSuggestionLimit))}
+						/>
+					}
+				/>
+			</SettingsGroup>
 
-			<GroupHeading>{t("Version control")}</GroupHeading>
-			<SettingRow setting="askCommitMessage" label={t("Ask for a commit message")} />
-
-			<GroupHeading>{t("Geocoding")}</GroupHeading>
-			<SettingRow
-				label={t("Provider")}
-				control={<SettingSelect setting="geocodeProvider" options={GEOCODE_PROVIDERS} />}
-			/>
-			{s.geocodeProvider === "nominatim" && (
-				<>
-					<Aux>
-						<p className="settings-popup__warning">
-							{t("Without an API key, requests may be rate-limited by Nominatim's usage policy.")}
-						</p>
-					</Aux>
-					<SettingRow
-						sub
-						label={t("API key (optional)")}
-						control={
-							<TextInput
-								type="text"
-								value={s.nominatimApiKey}
-								onChange={(e) => setSetting("nominatimApiKey", e.target.value)}
+			<SettingsGroup title={t("Seen")}>
+				<SettingRow setting="enableSeen" label={t("Log viewed panos")} />
+				{s.enableSeen && (
+					<>
+						<SettingRow sub setting="enableSeenThumbnails" label={t("Save thumbnails")} />
+						{s.enableSeenThumbnails && (
+							<SettingRow
+								sub
+								label={t("Thumbnail resolution")}
+								keywords={optionLabels(SEEN_RESOLUTIONS)}
+								control={<SettingSelect setting="seenResolution" options={SEEN_RESOLUTIONS} />}
 							/>
-						}
-					/>
-				</>
-			)}
+						)}
+					</>
+				)}
+			</SettingsGroup>
+
+			<SettingsGroup title={t("Version control")}>
+				<SettingRow setting="askCommitMessage" label={t("Ask for a commit message")} />
+			</SettingsGroup>
+
+			<SettingsGroup title={t("Geocoding")}>
+				<SettingRow
+					label={t("Provider")}
+					keywords={optionLabels(GEOCODE_PROVIDERS)}
+					control={<SettingSelect setting="geocodeProvider" options={GEOCODE_PROVIDERS} />}
+				/>
+				{s.geocodeProvider === "nominatim" && (
+					<>
+						<Aux>
+							<p className="settings-popup__warning">
+								{t("Without an API key, requests may be rate-limited by Nominatim's usage policy.")}
+							</p>
+						</Aux>
+						<SettingRow
+							sub
+							label={t("API key (optional)")}
+							control={
+								<TextInput
+									type="text"
+									value={s.nominatimApiKey}
+									onChange={(e) => setSetting("nominatimApiKey", e.target.value)}
+								/>
+							}
+						/>
+					</>
+				)}
+			</SettingsGroup>
 		</>
 	);
 }
@@ -1111,21 +1132,26 @@ function LanguageRow() {
 function ApplicationBody() {
 	return (
 		<>
-			<GroupHeading>{t("Language")}</GroupHeading>
-			<LanguageRow />
+			<SettingsGroup title={t("Language")}>
+				<LanguageRow />
+			</SettingsGroup>
 
-			<GroupHeading>{t("Startup")}</GroupHeading>
-			<SettingRow setting="restoreSession" label={t("Restore open maps on startup")} />
+			<SettingsGroup title={t("Startup")}>
+				<SettingRow setting="restoreSession" label={t("Restore open maps on startup")} />
+			</SettingsGroup>
 
-			<GroupHeading>{t("Map list")}</GroupHeading>
-			<MapListBlock />
+			<SettingsGroup title={t("Map list")}>
+				<MapListBlock />
+			</SettingsGroup>
 
-			<GroupHeading>{t("Updates")}</GroupHeading>
-			<UpdateBlock />
-			<PrereleaseRow />
+			<SettingsGroup title={t("Updates")}>
+				<UpdateBlock />
+				<PrereleaseRow />
+			</SettingsGroup>
 
-			<GroupHeading>{t("Data")}</GroupHeading>
-			<DataBody />
+			<SettingsGroup title={t("Data")}>
+				<DataBody />
+			</SettingsGroup>
 		</>
 	);
 }
@@ -1157,38 +1183,41 @@ function IntegrationsBody() {
 	const key = useSetting("remoteApiKey");
 	return (
 		<>
-			<GroupHeading>{t("Discord")}</GroupHeading>
-			<SettingRow
-				label={t("Rich Presence")}
-				control={<SettingSelect setting="discordPresence" options={DISCORD_PRESENCE_MODES} />}
-			/>
+			<SettingsGroup title={t("Discord")}>
+				<SettingRow
+					label={t("Rich Presence")}
+					keywords={optionLabels(DISCORD_PRESENCE_MODES)}
+					control={<SettingSelect setting="discordPresence" options={DISCORD_PRESENCE_MODES} />}
+				/>
+			</SettingsGroup>
 
-			<GroupHeading>{t("Remote API")}</GroupHeading>
-			<SettingRow
-				checked={enabled}
-				onChange={(v) => {
-					if (v && !key) setSetting("remoteApiKey", generateApiKey());
-					setSetting("remoteApi", v);
-				}}
-				label={t("Enable local REST API")}
-			/>
-			{enabled && (
-				<Aux match="api key regenerate remote token">
-					<div className="settings-aux__row">
-						<TextInput
-							type="text"
-							readOnly
-							className="mono"
-							value={key}
-							style={{ flex: 1 }}
-							onFocus={(e) => e.target.select()}
-						/>
-						<Button onClick={() => setSetting("remoteApiKey", generateApiKey())}>
-							{t("Regenerate")}
-						</Button>
-					</div>
-				</Aux>
-			)}
+			<SettingsGroup title={t("Remote API")}>
+				<SettingRow
+					checked={enabled}
+					onChange={(v) => {
+						if (v && !key) setSetting("remoteApiKey", generateApiKey());
+						setSetting("remoteApi", v);
+					}}
+					label={t("Enable local REST API")}
+				/>
+				{enabled && (
+					<Aux match="api key regenerate remote token">
+						<div className="settings-aux__row">
+							<TextInput
+								type="text"
+								readOnly
+								className="mono"
+								value={key}
+								style={{ flex: 1 }}
+								onFocus={(e) => e.target.select()}
+							/>
+							<Button onClick={() => setSetting("remoteApiKey", generateApiKey())}>
+								{t("Regenerate")}
+							</Button>
+						</div>
+					</Aux>
+				)}
+			</SettingsGroup>
 		</>
 	);
 }
@@ -1259,17 +1288,19 @@ function DataBody() {
 function AdvancedBody() {
 	return (
 		<>
-			<GroupHeading>{t("Custom CSS")}</GroupHeading>
-			<CustomCssBlock />
+			<SettingsGroup title={t("Custom CSS")}>
+				<CustomCssBlock />
+			</SettingsGroup>
 
-			<GroupHeading>{t("Debug")}</GroupHeading>
-			<SettingRow setting="showFps" label={t("Show FPS counter")} />
-			<Aux match="log file logs diagnostics">
-				<div style={{ display: "flex", gap: 8 }}>
-					<Button onClick={() => void cmd.openLogFile()}>{t("Open log file")}</Button>
-					<CopyDiagnosticsButton />
-				</div>
-			</Aux>
+			<SettingsGroup title={t("Debug")}>
+				<SettingRow setting="showFps" label={t("Show FPS counter")} />
+				<Aux match="log file logs diagnostics">
+					<div style={{ display: "flex", gap: 8 }}>
+						<Button onClick={() => void cmd.openLogFile()}>{t("Open log file")}</Button>
+						<CopyDiagnosticsButton />
+					</div>
+				</Aux>
+			</SettingsGroup>
 		</>
 	);
 }
@@ -1323,87 +1354,89 @@ function FeedbackBody() {
 
 	return (
 		<>
-			<GroupHeading>{t("Account")}</GroupHeading>
-			<Aux match="github sign in account anonymous">
-				<div className="feedback-account">
-					{checking ? (
-						<span className="text-muted">{t("Checking sign-in...")}</span>
-					) : user ? (
-						<>
-							{user.avatarUrl && (
-								<img className="feedback-account__avatar" src={user.avatarUrl} alt="" />
-							)}
-							<span>{user.login}</span>
-							<Button
-								onClick={() => {
-									void cmd.githubLogout().then(() => setUser(null));
-								}}
-							>
-								{t("Sign out")}
-							</Button>
-						</>
-					) : (
-						<>
-							<span className="text-muted">
-								{t("Not signed in. Reports are filed anonymously and replies arrive here.")}
-							</span>
-							<Button onClick={() => void signIn()}>{t("Sign in with GitHub")}</Button>
-						</>
+			<SettingsGroup title={t("Account")}>
+				<Aux match="github sign in account anonymous">
+					<div className="feedback-account">
+						{checking ? (
+							<span className="text-muted">{t("Checking sign-in...")}</span>
+						) : user ? (
+							<>
+								{user.avatarUrl && (
+									<img className="feedback-account__avatar" src={user.avatarUrl} alt="" />
+								)}
+								<span>{user.login}</span>
+								<Button
+									onClick={() => {
+										void cmd.githubLogout().then(() => setUser(null));
+									}}
+								>
+									{t("Sign out")}
+								</Button>
+							</>
+						) : (
+							<>
+								<span className="text-muted">
+									{t("Not signed in. Reports are filed anonymously and replies arrive here.")}
+								</span>
+								<Button onClick={() => void signIn()}>{t("Sign in with GitHub")}</Button>
+							</>
+						)}
+					</div>
+					{code && (
+						<p className="text-muted">
+							{t("Enter code {code} in your browser to finish signing in.", {
+								code: code.userCode,
+							})}
+						</p>
 					)}
-				</div>
-				{code && (
-					<p className="text-muted">
-						{t("Enter code {code} in your browser to finish signing in.", {
-							code: code.userCode,
-						})}
-					</p>
-				)}
-				{error && <p className="feedback-error">{error}</p>}
-			</Aux>
+					{error && <p className="feedback-error">{error}</p>}
+				</Aux>
+			</SettingsGroup>
 
-			<GroupHeading>{t("Reports")}</GroupHeading>
-			<Aux match="report bug feedback issue replies">
-				<div style={{ display: "flex", gap: 8 }}>
-					<Button variant="primary" onClick={() => openAppDialog("feedback")}>
-						{t("Send feedback")}
-					</Button>
-				</div>
-				{reports.length === 0 ? (
-					<p className="text-muted">{t("Nothing sent yet.")}</p>
-				) : (
-					<ul className="feedback-reports">
-						{reports.map((r) => {
-							const status = reportStatus(r);
-							return (
-								<li key={r.number} className="feedback-reports__item">
-									{status && (
-										<span
-											className={`feedback-reports__status feedback-reports__status--${status.tone}`}
-											title={t(status.label)}
+			<SettingsGroup title={t("Reports")}>
+				<Aux match="report bug feedback issue replies">
+					<div style={{ display: "flex", gap: 8 }}>
+						<Button variant="primary" onClick={() => openAppDialog("feedback")}>
+							{t("Send feedback")}
+						</Button>
+					</div>
+					{reports.length === 0 ? (
+						<p className="text-muted">{t("Nothing sent yet.")}</p>
+					) : (
+						<ul className="feedback-reports">
+							{reports.map((r) => {
+								const status = reportStatus(r);
+								return (
+									<li key={r.number} className="feedback-reports__item">
+										{status && (
+											<span
+												className={`feedback-reports__status feedback-reports__status--${status.tone}`}
+												title={t(status.label)}
+											>
+												<Icon path={status.icon} size={16} />
+											</span>
+										)}
+										<button
+											type="button"
+											className="link-button"
+											onClick={() => {
+												markRepliesSeen(r.number);
+												void openExternal(r.url);
+											}}
 										>
-											<Icon path={status.icon} size={16} />
-										</span>
-									)}
-									<button
-										type="button"
-										className="link-button"
-										onClick={() => {
-											markRepliesSeen(r.number);
-											void openExternal(r.url);
-										}}
-									>
-										{r.title}
-									</button>
-									{r.replies > r.seenReplies && (
-										<span className="feedback-reports__badge">{r.replies - r.seenReplies}</span>
-									)}
-									<span className="text-muted">{new Date(r.submittedAt).toLocaleDateString()}</span>
-								</li>
-							);
-						})}
-					</ul>
-				)}
-			</Aux>
+											{r.title}
+										</button>
+										{r.replies > r.seenReplies && (
+											<span className="feedback-reports__badge">{r.replies - r.seenReplies}</span>
+										)}
+										<span className="text-muted">{new Date(r.submittedAt).toLocaleDateString()}</span>
+									</li>
+								);
+							})}
+						</ul>
+					)}
+				</Aux>
+			</SettingsGroup>
 		</>
 	);
 }
@@ -1460,7 +1493,9 @@ function SectionShell({
 		mode === "single" || query === "" || t(section.title).toLowerCase().includes(query);
 	const Body = section.Body;
 	return (
-		<SettingsSearchContext.Provider value={{ query, searching: mode === "search", sectionMatched }}>
+		<SettingsSearchContext.Provider
+			value={{ query, searching: mode === "search", sectionMatched, sectionTitle: t(section.title) }}
+		>
 			<section
 				className={`settings-section${mode === "search" ? " settings-section--search" : ""}`}
 				data-qa={`settings-section-${section.id}`}

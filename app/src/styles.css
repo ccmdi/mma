@@ -4812,6 +4812,10 @@ body {
 	) {
 	display: none;
 }
+/* A search that leaves nothing under a heading hides the heading with it. */
+.settings-section--search .settings-group-block:not(:has(> :not(.settings-group))) {
+	display: none;
+}
 .settings-group {
 	margin: 1.1rem 0 0.15rem;
 	font-size: 0.72rem;

@@ -121,6 +121,29 @@ describe("settings search", () => {
 		expect(titles.length).toBeGreaterThan(0);
 		for (const title of titles) expect(title).toContain("crosshair");
 	});
+
+	it("a group title is part of every row's path, and the matching group keeps its heading", async () => {
+		await mount();
+		search("tags");
+		const titles = qa(".setting-row__title").map((n) => n.textContent ?? "");
+		expect(titles).toContain("View mode");
+		expect(qa(".settings-group").map((n) => n.textContent)).toContain("Tags");
+	});
+
+	it("a select row is found by one of its option labels", async () => {
+		await mount();
+		search("tree");
+		expect(qa(".setting-row__title").map((n) => n.textContent)).toContain("View mode");
+	});
+
+	it("a row match keeps its group heading, and headings with nothing under them stay listed only in the DOM", async () => {
+		await mount();
+		search("view mode");
+		const rows = qa(".setting-row__title").map((n) => n.textContent);
+		expect(rows).toEqual(["View mode"]);
+		const block = q(".settings-group-block:has(.setting-row)");
+		expect(block?.querySelector(".settings-group")?.textContent).toBe("Tags");
+	});
 });
 
 // The report list is the only place a filed report's fate is visible in the app.
