@@ -250,11 +250,11 @@ impl BenchApp {
     }
 
     pub fn undo(&self) -> MutationResult {
-        store_undo(label(), self.state()).expect("undo")
+        tauri::async_runtime::block_on(store_undo(label(), self.state())).expect("undo")
     }
 
     pub fn redo(&self) -> MutationResult {
-        store_redo(label(), self.state()).expect("redo")
+        tauri::async_runtime::block_on(store_redo(label(), self.state())).expect("redo")
     }
 
     pub fn sync_selections(&self, sels: Vec<SelectionInput>) -> usize {
@@ -309,7 +309,7 @@ pub fn seed_adds(store: &mut Store, mut locs: Vec<Location>) {
     }
     store.add_tag_counts(&locs);
     for loc in locs {
-        store.overlay_add(loc);
+        store.overlay_add(vec![loc]);
     }
 }
 

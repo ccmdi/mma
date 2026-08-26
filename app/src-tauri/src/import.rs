@@ -1586,7 +1586,7 @@ fn add_parsed_to_store(
     for loc in std::mem::take(&mut parsed.locations) {
         let ci = location_store::render_cell_idx(loc.lat, loc.lng);
         store.cell_add_render(ci, loc.id);
-        store.overlay_add(loc);
+        store.overlay_add(vec![loc]);
     }
     let t_overlay = _t.elapsed();
 

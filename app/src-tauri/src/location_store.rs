@@ -1033,9 +1033,7 @@ impl Store {
         self.remove_tag_counts(remove);
         self.overlay_remove(remove);
         self.add_tag_counts(create);
-        for loc in create {
-            self.overlay_add(loc.clone());
-        }
+        self.overlay_add(create.to_vec());
 
         // Categorize: same-id remove+create is an update; the rest are pure add/remove.
         let mut changes = ChangeSet::default();
@@ -1568,37 +1566,64 @@ impl Store {
         )
     }
 
-    /// Insert or restore a location in the overlay. O(1) amortized.
-    pub(crate) fn overlay_add(&mut self, loc: Location) {
-        self.overlay.touch();
-        self.alive_count += 1;
-        if let Some(ix) = self.spatial.as_mut() {
-            ix.insert(loc.id, loc.lat, loc.lng);
-        }
-        let in_batch = self
-            .batch
-            .as_ref()
-            .and_then(|b| batch_row_for_id(b, loc.id))
-            .is_some();
-        if in_batch {
+    /// Insert or restore locations in the overlay. `adds` stays sorted by id (the invariant
+    /// `bake_overlay` asserts): fresh ids sort above everything and are appended, O(k);
+    /// anything else (an undo re-adding old ids) is merged in one linear pass, O(n + k),
+    /// where inserting each row into its slot would shift the rows above it, O(n * k).
+    pub(crate) fn overlay_add(&mut self, locs: Vec<Location>) {
+        let mut fresh: Vec<Location> = Vec::with_capacity(locs.len());
+        for loc in locs {
+            self.overlay.touch();
+            self.alive_count += 1;
+            if let Some(ix) = self.spatial.as_mut() {
+                ix.insert(loc.id, loc.lat, loc.lng);
+            }
             self.overlay.dead.remove(&loc.id);
-            if self.base_loc_by_id(loc.id).as_ref() == Some(&loc) {
+            let in_batch = self
+                .batch
+                .as_ref()
+                .and_then(|b| batch_row_for_id(b, loc.id))
+                .is_some();
+            if !in_batch {
+                fresh.push(loc);
+            } else if self.base_loc_by_id(loc.id).as_ref() == Some(&loc) {
                 self.overlay.patches.remove(&loc.id);
             } else {
                 self.overlay.patches.insert(loc.id, loc);
             }
+        }
+        if fresh.is_empty() {
+            return;
+        }
+        fresh.sort_unstable_by_key(|l| l.id);
+        if cfg!(debug_assertions) {
+            if let Some(w) = fresh.windows(2).find(|w| w[0].id == w[1].id) {
+                panic!("overlay_add duplicate id {} -- next_id allocation bug", w[1].id);
+            }
+        }
+        let adds = &mut self.overlay.adds;
+        if adds.last().is_none_or(|last| last.id < fresh[0].id) {
+            adds.extend(fresh);
         } else {
-            self.overlay.dead.remove(&loc.id);
-            // Keep overlay_adds sorted by id (invariant asserted in bake_overlay). A normal add has a
-            // monotonic new id so this inserts at the end (cheap, like push); undo re-adds an old id,
-            // which a plain push would append out of order — partition_point puts it in its sorted slot.
-            let pos = self.overlay.adds.partition_point(|l| l.id < loc.id);
-            debug_assert!(
-                self.overlay.adds.get(pos).is_none_or(|l| l.id != loc.id),
-                "overlay_add duplicate id {} — next_id allocation bug",
-                loc.id
-            );
-            self.overlay.adds.insert(pos, loc);
+            let old = std::mem::take(adds);
+            let mut merged = Vec::with_capacity(old.len() + fresh.len());
+            let mut a = old.into_iter().peekable();
+            let mut b = fresh.into_iter().peekable();
+            loop {
+                let take_a = match (a.peek(), b.peek()) {
+                    (Some(x), Some(y)) => x.id < y.id,
+                    (Some(_), None) => true,
+                    (None, Some(_)) => false,
+                    (None, None) => break,
+                };
+                merged.extend(if take_a { a.next() } else { b.next() });
+            }
+            if cfg!(debug_assertions) {
+                if let Some(w) = merged.windows(2).find(|w| w[0].id == w[1].id) {
+                    panic!("overlay_add duplicate id {} -- next_id allocation bug", w[1].id);
+                }
+            }
+            *adds = merged;
         }
     }
 
@@ -2344,7 +2369,7 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
     store.add_tag_counts(&locations);
     let added = locations.clone();
     for loc in locations {
-        store.overlay_add(loc);
+        store.overlay_add(vec![loc]);
     }
     let mut result = store.finish_mutation(&ChangeSet {
         added: added.clone(),
@@ -3668,7 +3693,7 @@ pub fn store_resolve_pick(
 /// Pop the undo stack and reverse the last edit. Pushes the entry onto the redo stack.
 #[tauri::command]
 #[specta::specta]
-pub fn store_undo(
+pub async fn store_undo(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<MutationResult> {
@@ -3697,7 +3722,7 @@ pub fn store_undo(
 /// Pop the redo stack and replay the edit forward. Pushes the entry back onto undo.
 #[tauri::command]
 #[specta::specta]
-pub fn store_redo(
+pub async fn store_redo(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<MutationResult> {

@@ -14,7 +14,7 @@ fn setup(locs: &[Location]) -> (StoreState, String) {
     store.map_id = Some(map_id.clone());
     store.batch = Some(crate::arrow_bridge::locations_to_batch(&[]));
     for l in locs {
-        store.overlay_add(l.clone());
+        store.overlay_add(vec![l.clone()]);
         let ci = render_cell_idx(l.lat, l.lng);
         store.cell_add_render(ci, l.id);
     }
