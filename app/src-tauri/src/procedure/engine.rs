@@ -216,10 +216,15 @@ impl EngineDeps {
 }
 
 /// `res://<rel>` names a module bundled with the app; anything else is a filesystem path.
+/// A dev build reads the bundle from the crate: nothing copies `bundle.resources` beside
+/// the dev exe, so the resource dir there is whatever an earlier build left behind.
 fn resolve_entry(spec: &str) -> AppResult<std::path::PathBuf> {
     let Some(rel) = spec.strip_prefix("res://") else {
         return Ok(std::path::PathBuf::from(spec));
     };
+    if tauri::is_dev() {
+        return Ok(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel));
+    }
     let app = crate::app_handle()
         .ok_or_else(|| AppError("procedure: no app handle for resource lookup".to_string()))?;
     let dir = tauri::Manager::path(app)

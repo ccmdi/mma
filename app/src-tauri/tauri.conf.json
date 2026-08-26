@@ -6,7 +6,7 @@
 	"build": {
 		"frontendDist": "../dist",
 		"devUrl": "http://localhost:5173",
-		"beforeDevCommand": "npm run gen:plugin-types && npm run dev",
+		"beforeDevCommand": "npm run gen:plugin-types && npm run build:procedures && npm run dev",
 		"beforeBuildCommand": "npm run build"
 	},
 	"app": {
