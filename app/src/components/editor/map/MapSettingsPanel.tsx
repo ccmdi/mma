@@ -19,7 +19,6 @@ import { useStableHandler } from "@/lib/hooks/useStableHandler";
 import { Slider } from "@/components/primitives/Slider";
 import { hexToRgb, rgbToHex, resolveSvColorHex } from "@/lib/util/color";
 import { useMapSetting } from "@/store/useMapSetting";
-import { ScoreBoundsEditor } from "./ScoreBoundsEditor";
 import { t, msg } from "@/lib/i18n";
 
 const MAP_TYPE_LABELS: Record<MapTypeKey, string> = {
@@ -609,7 +608,6 @@ export function MapSettingsDropdown({
 							label={t("Select-only mode")}
 						/>
 					</fieldset>
-					<ScoreBoundsEditor />
 					<fieldset className="fieldset">
 						<legend className="fieldset__header">
 							{t("Display")} <span className="fieldset__divider" />

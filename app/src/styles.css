@@ -1133,6 +1133,32 @@ input[type="range"]:disabled {
 	color: var(--text-3);
 	font-size: 0.8125rem;
 }
+.edit-map-modal .fieldset {
+	margin-top: 1rem;
+}
+/* Own the row rhythm rather than inheriting it: this section used to sit in the settings
+   popup and lean on its line-height, which the modal doesn't set. */
+.score-bounds__row {
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 1.75rem;
+	display: flex;
+}
+.score-bounds__bounds {
+	grid-template-columns: auto 1fr auto 1fr;
+	align-items: center;
+	gap: 0.25rem 0.5rem;
+	margin-top: 0.375rem;
+	display: grid;
+}
+.score-bounds__bounds > span {
+	color: var(--text-2);
+	font-size: 0.8rem;
+}
+.score-bounds__bounds .text-input {
+	text-align: end;
+	width: 100%;
+}
 /* One row: delete (and its confirm) on the left, save on the right. */
 .edit-map-modal__actions {
 	justify-content: space-between;

@@ -7,6 +7,7 @@ import { useCloseDialog } from "../primitives/Dialog";
 import { Button } from "../primitives/Button";
 import { Icon } from "../primitives/Icon";
 import { TextInput } from "../primitives/TextInput";
+import { ScoreBoundsEditor } from "./ScoreBoundsEditor";
 import { t } from "@/lib/i18n";
 
 /** The built-in survivor ranking, written in the expression syntax. Shown as the
@@ -115,6 +116,7 @@ export function MapSettingsForm({ mapId, currentName }: { mapId: string; current
 					? t("Invalid expression: {error}", { error: scoreError })
 					: t("Highest score survives a merge; ties go to the oldest.")}
 			</p>
+			<ScoreBoundsEditor />
 			<div className="edit-map-modal__actions">
 				<DeleteMapSection mapId={mapId} name={currentName} />
 				<Button

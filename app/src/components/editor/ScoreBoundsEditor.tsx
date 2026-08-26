@@ -20,7 +20,7 @@ function modeOf(bounds: ScoreBounds): Mode {
 	return isWorldBounds(scoreTupleToBounds(bounds)) ? "world" : "fixed";
 }
 
-/** "Scoring" section of the edit-map modal. */
+/** "Scoring" section of the map settings modal. */
 export function ScoreBoundsEditor() {
 	const map = useMapState((s) => s.map);
 	const bounds: ScoreBounds = map?.meta.scoreBounds ?? "auto";
@@ -75,19 +75,19 @@ export function ScoreBoundsEditor() {
 			<legend className="fieldset__header">
 				{t("Scoring")} <span className="fieldset__divider" />
 			</legend>
-			<label className="settings-popup__item">
+			<label className="score-bounds__row">
 				<Radio name="score-bounds" checked={mode === "auto"} onChange={() => setMode("auto")} />
 
 				{t("Automatic based on locations")}
 				{autoError != null && ` (${formatDistance(autoError)})`}
 			</label>
 
-			<label className="settings-popup__item">
+			<label className="score-bounds__row">
 				<Radio name="score-bounds" checked={mode === "world"} onChange={() => setMode("world")} />
 				{t("World map (ACW, {distance})", { distance: formatDistance(WORLD_MAX_ERROR) })}
 			</label>
 
-			<label className="settings-popup__item">
+			<label className="score-bounds__row">
 				<Radio name="score-bounds" checked={mode === "fixed"} onChange={() => setMode("fixed")} />
 
 				{t("Fixed bounds")}
@@ -95,18 +95,10 @@ export function ScoreBoundsEditor() {
 			</label>
 
 			{mode === "fixed" && (
-				<div
-					className="settings-popup__item"
-					style={{
-						display: "grid",
-						gridTemplateColumns: "auto 1fr auto 1fr",
-						gap: ".25rem .5rem",
-						alignItems: "center",
-					}}
-				>
+				<div className="score-bounds__bounds">
 					{(["S", "W", "N", "E"] as const).map((label, i) => (
 						<Fragment key={label}>
-							<span style={{ fontSize: ".8rem" }}>{label}</span>
+							<span>{label}</span>
 							<TextInput
 								type="text"
 								inputMode="decimal"
@@ -117,7 +109,6 @@ export function ScoreBoundsEditor() {
 									setDraft(next);
 								}}
 								onBlur={() => commitFixed(draft)}
-								style={{ width: "100%", textAlign: "end" }}
 							/>
 						</Fragment>
 					))}
