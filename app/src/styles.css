@@ -1119,15 +1119,18 @@ input[type="range"]:disabled {
 	align-items: center;
 	display: grid;
 }
+/* One row: delete (and its confirm) on the left, save on the right. */
 .edit-map-modal__actions {
-	justify-content: flex-end;
+	justify-content: space-between;
+	align-items: center;
 	gap: 0.5rem;
+	margin-top: 1rem;
 	display: flex;
 }
 .edit-map-modal__delete {
-	margin-top: 1rem;
-	padding-top: 1rem;
-	border-top: 1px solid var(--border-subtle);
+	align-items: center;
+	gap: 0.5rem;
+	display: flex;
 }
 /* Pin the updates column to viewport height and flex the release-notes scroller
    into the remaining space, so the default view ends at the window bottom. */

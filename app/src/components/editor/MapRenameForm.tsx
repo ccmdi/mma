@@ -11,27 +11,23 @@ function DeleteMapSection({ mapId, name }: { mapId: string; name: string }) {
 
 	if (!confirming) {
 		return (
-			<div className="edit-map-modal__delete">
-				<Button variant="destructive" onClick={() => setConfirming(true)}>
-					{t("Delete map")}
-				</Button>
-			</div>
+			<Button variant="destructive" onClick={() => setConfirming(true)}>
+				{t("Delete map")}
+			</Button>
 		);
 	}
 
 	return (
 		<div className="edit-map-modal__delete">
-			<p>
-				{t("Delete \u201C{name}\u201D? This permanently removes the map and its history.", {
+			<span>
+				{t("Delete “{name}”? This permanently removes the map and its history.", {
 					name: name || t("(unnamed)"),
 				})}
-			</p>
-			<div className="edit-map-modal__actions">
-				<Button onClick={() => setConfirming(false)}>{t("Cancel")}</Button>
-				<Button variant="destructive" onClick={() => void deleteMap(mapId)}>
-					{t("Delete map")}
-				</Button>
-			</div>
+			</span>
+			<Button onClick={() => setConfirming(false)}>{t("Cancel")}</Button>
+			<Button variant="destructive" onClick={() => void deleteMap(mapId)}>
+				{t("Delete map")}
+			</Button>
 		</div>
 	);
 }
@@ -41,33 +37,31 @@ export function MapRenameForm({ mapId, currentName }: { mapId: string; currentNa
 	const close = useCloseDialog();
 	const [name, setName] = useState(currentName);
 	return (
-		<>
-			<form
-				onSubmit={(e) => {
-					e.preventDefault();
-					void updateMapMeta({ name: name || currentName });
-					close();
-				}}
-			>
-				<p className="edit-map-modal__name">
-					<label htmlFor={`${id}name`}>{t("Map name:")}</label>
-					<TextInput
-						id={`${id}name`}
-						type="text"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						minLength={1}
-						maxLength={100}
-						autoFocus
-					/>
-				</p>
-				<div className="edit-map-modal__actions">
-					<Button variant="primary" type="submit" disabled={name.trim().length === 0}>
-						{t("Save")}
-					</Button>
-				</div>
-			</form>
-			<DeleteMapSection mapId={mapId} name={currentName} />
-		</>
+		<form
+			onSubmit={(e) => {
+				e.preventDefault();
+				void updateMapMeta({ name: name || currentName });
+				close();
+			}}
+		>
+			<p className="edit-map-modal__name">
+				<label htmlFor={`${id}name`}>{t("Map name:")}</label>
+				<TextInput
+					id={`${id}name`}
+					type="text"
+					value={name}
+					onChange={(e) => setName(e.target.value)}
+					minLength={1}
+					maxLength={100}
+					autoFocus
+				/>
+			</p>
+			<div className="edit-map-modal__actions">
+				<DeleteMapSection mapId={mapId} name={currentName} />
+				<Button variant="primary" type="submit" disabled={name.trim().length === 0}>
+					{t("Save")}
+				</Button>
+			</div>
+		</form>
 	);
 }
