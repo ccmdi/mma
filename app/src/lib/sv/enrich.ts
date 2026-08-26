@@ -61,6 +61,11 @@ export async function enrich(loc: Location, data?: Pano | null): Promise<boolean
 
 export interface PanoResolveConfig {
 	radius: number;
+	/** The enrich fields the run is after. Set, the prelude resolves a pano only for a
+	 *  row that still lacks one of them: resolving is a means to their metadata, not a
+	 *  goal, so a fully enriched row keeps its coordinates-only state. Unset, every row
+	 *  without a pano is resolved (pinning, heading). */
+	needs?: string[];
 }
 
 /** Pano id from coordinates, via the location search `StreetViewService.getPanorama`
@@ -188,7 +193,13 @@ export async function enrichAll(
 	const enrichFields = map.meta.settings.enrichFields ?? getDefaultEnrichKeys();
 
 	const run = await runProviders(
-		[panoResolveProvider, ...enrichFieldProviders()].map((provider) => ({ provider })),
+		[
+			{
+				provider: panoResolveProvider,
+				config: { radius: SV_SEARCH_RADIUS, needs: enrichFields } satisfies PanoResolveConfig,
+			},
+			...enrichFieldProviders().map((provider) => ({ provider })),
+		],
 		selector,
 		{ ...opts, enrichFields },
 	);

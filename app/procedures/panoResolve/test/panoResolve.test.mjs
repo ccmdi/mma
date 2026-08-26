@@ -235,6 +235,21 @@ test("non-official frontends round-trip through the ImageKey encoding", () => {
 	assert.deepEqual([...raw], [0x08, 10, 0x12, 8, ...Buffer.from("upload-1")]);
 });
 
+test("with needs configured, a row that holds every wanted field is left alone", () => {
+	const rows = [
+		{ id: 1, lat: 1, lng: 2, panoId: null, extra: { countryCode: "CH", panoType: 2 } },
+		{ id: 2, lat: 1, lng: 2, panoId: null, extra: { countryCode: "CH" } },
+		{ id: 3, lat: 1, lng: 2, panoId: null, extra: { countryCode: "CH", panoType: null } },
+	];
+	const config = { radius: 50, needs: ["countryCode", "panoType"] };
+	const done = runProcedure(rows, () => found("x1"), { config });
+	assert.deepEqual(done.patches.map((p) => p.id), [2, 3]);
+	assert.equal(done.calls.length, 2);
+	// Without needs (pinning, heading) every row without a pano is resolved.
+	const all = runProcedure(rows, () => found("x1"), { config: { radius: 50 } });
+	assert.equal(all.patches.length, 3);
+});
+
 test("the configured radius rides the request", () => {
 	const { calls } = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => NO_IMAGES, {
 		config: { radius: 250 },

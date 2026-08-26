@@ -10,19 +10,26 @@ import { panosAtCoords, type SearchPreference } from "@/lib/sv/singleImageSearch
 
 interface RunConfig {
 	force?: boolean;
-	config?: { radius?: number } | null;
+	config?: { radius?: number; needs?: string[] } | null;
 }
 
 let radius = SV_SEARCH_RADIUS;
 let force = false;
+/** Enrich fields the run is after; null resolves every row without a pano. */
+let needs: string[] | null = null;
 
 export function configure(cfg: RunConfig | null): void {
 	radius = cfg?.config?.radius ?? SV_SEARCH_RADIUS;
 	force = cfg?.force === true;
+	needs = Array.isArray(cfg?.config?.needs) ? cfg.config.needs : null;
 }
 
+/** Same rule as `needsEnrichment`: a row is pending while any wanted field is null. */
+const pending = (row: Location) =>
+	needs === null || needs.some((key) => (row.extra as Record<string, unknown> | null)?.[key] == null);
+
 export function run(rows: Location[]): Update<LocationPatch>[] {
-	const todo = rows.filter((row) => !row.panoId || force);
+	const todo = rows.filter((row) => force || (!row.panoId && pending(row)));
 	if (todo.length === 0 || mma.aborted()) return [];
 
 	const panos = panosAtCoords(todo, radius);
