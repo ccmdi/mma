@@ -1,3 +1,16 @@
+## v0.10.0 - 2026-08-26
+- **Enrichment can now reliably scale to millions of locations**
+- Enrichment now uses significantly less memory
+- Enrichment is somewhat faster in general, and much faster for larger scale
+- 100-300x faster undo/redo
+- Pano ID is available as a filter field
+- Setting to skip the commit message prompt
+- Fixed the window freezing periodically while Discord presence was on
+- Fixed a blank flash when a window opens
+- Fixed renaming a polygon using native prompt
+- Fixed sidebar segmented controls squashing their labels
+- Fixed the sync sidebar's inputs missing their styling
+
 ## v0.9.2 - 2026-08-20
 - Copy-to-map hotkeys can be made global instead of per-map
 - Plugins installed from the marketplace update themselves at startup
