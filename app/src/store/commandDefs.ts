@@ -63,6 +63,7 @@ import {
 	toggleGhostAllSelections,
 } from "./useMapStore";
 import { hasCommitDiff } from "./commitDiff";
+import { isReservedMap } from "./mapList";
 import { loadGeoJSON } from "@/lib/util/loadGeoJSON";
 import { downloadBlob } from "@/lib/util/util";
 import { toggleSeenOverlay } from "@/lib/seen/seenOverlay";
@@ -71,6 +72,7 @@ import { openDialog } from "./dialogBus";
 import { msg } from "@/lib/i18n";
 
 const requiresMap = () => getMapState().map !== null;
+const requiresVersioning = () => requiresMap() && !isReservedMap(getMapState().mapId);
 const hasActiveLocation = () => getMapState().activeLocation != null;
 const hasSelection = () => getMapState().selectedLocationIds.size > 0;
 const hasAnySelections = () => getMapState().selections.length > 0;
@@ -86,7 +88,7 @@ const COMMANDS = {
 		defaultBinding: "Mod+s",
 		aliases: ["save", "snapshot"],
 		execute: () => openDialog("commit"),
-		enabled: () => requiresMap() && hasCommitDiff(),
+		enabled: () => requiresVersioning() && hasCommitDiff(),
 	},
 	import: {
 		label: msg("Import file"),
@@ -140,7 +142,7 @@ const COMMANDS = {
 		icon: mdiHistory,
 		group: msg("Map"),
 		execute: () => openDialog("history"),
-		enabled: requiresMap,
+		enabled: requiresVersioning,
 	},
 	"open-seen": {
 		label: msg("Open seen locations"),

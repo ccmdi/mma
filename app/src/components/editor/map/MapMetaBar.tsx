@@ -9,6 +9,7 @@ import { beginImportFromPath } from "@/store/importStaging";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { ExportDialog } from "@/components/dialogs/ExportDialog";
 import { VersionHistory } from "@/components/dialogs/VersionHistory";
+import { isReservedMap } from "@/store/mapList";
 import { SeenDialog } from "@/components/dialogs/SeenDialog";
 import { CopyToMapDialog } from "@/components/editor/CopyToMapDialog";
 import { QuickCopyToMapDialog } from "@/components/editor/QuickCopyToMapDialog";
@@ -108,22 +109,24 @@ export function MapMetaBar() {
 
 	if (!map) return null;
 
+	const versioned = !isReservedMap(map.meta.id);
+
 	return (
 		<>
 			<LocationTotal />
 			<span className="map-meta__actions">
-				<CommitControls />
+				{versioned && <CommitControls />}
 				<UndoRedoControls />
 			</span>
 			<span className="map-meta__spacer"></span>
 			<div className="map-meta__import">
 				<Button onClick={() => setShowSeen(true)}>{t("Seen")}</Button>
-				<Button onClick={() => setShowHistory(true)}>{t("History")}</Button>
+				{versioned && <Button onClick={() => setShowHistory(true)}>{t("History")}</Button>}
 				<Button onClick={() => void importFile()}>{t("Import file")}</Button>
 				<Button onClick={() => setShowExport(true)}>{t("Export")}</Button>
 			</div>
 			{showExport && <ExportDialog onClose={() => setShowExport(false)} />}
-			{showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
+			{versioned && showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
 			{showSeen && (
 				<SeenDialog
 					open
