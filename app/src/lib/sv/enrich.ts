@@ -192,11 +192,15 @@ export async function enrichAll(
 	if (!map) return [];
 	const enrichFields = map.meta.settings.enrichFields ?? getDefaultEnrichKeys();
 
+	// Force re-derives fields, never panos: a stored pano id is kept, and every row
+	// without one is resolved.
+	const needs = opts.force ? undefined : enrichFields;
 	const run = await runProviders(
 		[
 			{
 				provider: panoResolveProvider,
-				config: { radius: SV_SEARCH_RADIUS, needs: enrichFields } satisfies PanoResolveConfig,
+				force: false,
+				config: { radius: SV_SEARCH_RADIUS, needs } satisfies PanoResolveConfig,
 			},
 			...enrichFieldProviders().map((provider) => ({ provider })),
 		],

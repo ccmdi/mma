@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
 		fields: string[];
 		config: string | null;
 		sink: string;
+		force: boolean | null;
 	}[],
 	total: 5,
 	failed: 0,
@@ -129,7 +130,7 @@ import {
 	queryProcedure,
 	resolveFieldLabels,
 } from "@/lib/data/procedures";
-import { registerEnrichmentProvider } from "@/lib/data/fieldDefs";
+import { registerEnrichmentProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { enrichAll, panoResolveProvider } from "@/lib/sv/enrich";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
@@ -285,6 +286,18 @@ describe("the implicit provider set", () => {
 		);
 		expect(ids()).not.toContain("pinPano");
 		expect(ids()).not.toContain("headingRoad");
+	});
+
+	it("a forced enrichAll re-derives fields but never re-resolves a stored pano", async () => {
+		await enrichAll({ type: "Everything" });
+		expect(h.decls[0].force).toBe(false);
+		expect(JSON.parse(h.decls[0].config ?? "null").needs).toEqual(getDefaultEnrichKeys());
+
+		h.decls = [];
+		await enrichAll({ type: "Everything" }, { force: true });
+		expect(h.decls[0].id).toBe("panoResolve");
+		expect(h.decls[0].force).toBe(false);
+		expect(JSON.parse(h.decls[0].config ?? "null").needs).toBeUndefined();
 	});
 
 	it("the single-location path runs no core-column provider", async () => {
