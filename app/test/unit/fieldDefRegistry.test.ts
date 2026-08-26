@@ -9,6 +9,7 @@ import {
 	resetForMapChange,
 	isBuiltinField,
 	isWritableField,
+	projectionsForType,
 	isListableField,
 	getBuiltinKeys,
 } from "@/lib/data/fieldDefRegistry";
@@ -243,5 +244,23 @@ describe("mergeUserFieldDefs (auto-register merge)", () => {
 		mergeUserFieldDefs({ fresh: { type: "number", label: "Fresh" } });
 		expect(getFieldDef("existing")!.label).toBe("Existing");
 		expect(getFieldDef("fresh")!.label).toBe("Fresh");
+	});
+});
+
+describe("projectionsForType", () => {
+	// The catalog of grouping keys (UI + KeySpec mapping); key derivation itself lives in
+	// Rust (selections.rs), parity-tested in selections.test.rs.
+	it("filters projections by field type", () => {
+		expect(projectionsForType("string").map((p) => p.id)).toEqual(["value"]);
+		expect(projectionsForType("enum").map((p) => p.id)).toEqual(["value"]);
+		expect(projectionsForType("number").map((p) => p.id)).toEqual(["value"]);
+		expect(projectionsForType("month").map((p) => p.id)).toEqual(["value", "year", "monthOfYear"]);
+		expect(projectionsForType("date").map((p) => p.id)).toEqual([
+			"year",
+			"yearMonth",
+			"day",
+			"monthOfYear",
+			"hourOfDay",
+		]);
 	});
 });

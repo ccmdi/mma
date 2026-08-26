@@ -26,7 +26,7 @@ import {
 	mergeUserFieldDefs,
 	resetForMapChange,
 } from "@/lib/data/fieldDefRegistry";
-import { rewriteSelectionFields } from "@/lib/data/fieldOps";
+import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
 import { compareMonthOrder } from "@/lib/util/date";
 import type { LocationPatch_Deserialize as LocationPatch, Update, TagPatch } from "@/bindings.gen";

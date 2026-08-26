@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import type { KeySpec, DatePart } from "@/bindings.gen";
 import { resolveFieldLabels } from "@/lib/data/procedures";
-import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldOps";
+import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { createTags, partition, resolveIds } from "@/store/useMapStore";
 import { useSelectorPick } from "@/store/selectorPick";

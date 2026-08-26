@@ -22,6 +22,7 @@ import {
 	sampleIds,
 	polygonSelectionsContaining,
 	isolateGhostKeys,
+	rewriteSelectionFields,
 } from "@/store/selections";
 import { ValidationState } from "@/types";
 import { setUserFieldDefs, resetForMapChange } from "@/lib/data/fieldDefRegistry";
@@ -1258,5 +1259,43 @@ describe("polygonSelectionsContaining", () => {
 			key: "multi",
 		};
 		expect(polygonSelectionsContaining([sel], 11, 11)).toEqual(["multi"]);
+	});
+});
+
+describe("rewriteSelectionFields", () => {
+	const filter = (field: string) =>
+		buildSelection({ type: "Filter", field, op: "eq", value: 1, value2: null });
+
+	it("rewrites a Filter field and regenerates its key", () => {
+		const out = rewriteSelectionFields([filter("a")], "a", "b");
+		expect(out).toHaveLength(1);
+		expect((out[0].selector as { field: string }).field).toBe("b");
+		expect(out[0].key).toBe("filter:b:eq:1");
+	});
+
+	it("leaves unrelated filters untouched", () => {
+		const f = filter("c");
+		const out = rewriteSelectionFields([f], "a", "b");
+		expect(out[0].key).toBe(f.key);
+	});
+
+	it("drops a Filter when the field is deleted (to = null)", () => {
+		expect(rewriteSelectionFields([filter("a")], "a", null)).toEqual([]);
+	});
+
+	it("rewrites filters nested in a composite", () => {
+		const union = buildSelection({ type: "Union", selections: [filter("a"), filter("c")] });
+		const out = rewriteSelectionFields([union], "a", "b");
+		const children = (out[0].selector as { selections: { selector: { field: string } }[] })
+			.selections;
+		expect(children.map((c) => c.selector.field)).toEqual(["b", "c"]);
+	});
+
+	it("collapses a group to its sole survivor when a child is deleted", () => {
+		const tag = buildSelection({ type: "Tag", tagId: 1 });
+		const union = buildSelection({ type: "Union", selections: [filter("a"), tag] });
+		const out = rewriteSelectionFields([union], "a", null);
+		expect(out).toHaveLength(1);
+		expect(out[0].selector.type).toBe("Tag");
 	});
 });

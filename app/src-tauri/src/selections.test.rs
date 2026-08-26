@@ -2676,6 +2676,19 @@ fn extra_key_coverage_counts_rows_per_key_across_the_overlay() {
 }
 
 #[test]
+fn every_projection_id_is_value_or_a_date_part_wire_name() {
+    for p in PROJECTIONS {
+        if p.id == "value" {
+            continue;
+        }
+        let parsed: Result<DatePart, _> = serde_json::from_str(&format!("\"{}\"", p.id));
+        assert!(parsed.is_ok(), "projection id {} is not a DatePart", p.id);
+        assert!(p.needs_tz, "date projection {} reads a clock", p.id);
+    }
+    assert_eq!(PROJECTIONS.iter().filter(|p| p.id == "value").count(), 1);
+}
+
+#[test]
 fn columns_within_projects_one_value_per_row_per_field() {
     let mut tagged = loc_extra(2, serde_json::json!({"a":"x"}));
     tagged.tags = vec![7, 9];

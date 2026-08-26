@@ -7,7 +7,7 @@ import type { ExtraFieldType, KeySpec, DatePart } from "@/bindings.gen";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";
 import { useMapState, partition } from "@/store/useMapStore";
-import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldOps";
+import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
 import { usePluginState } from "@/plugins/registry";

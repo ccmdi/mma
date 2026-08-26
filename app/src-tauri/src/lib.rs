@@ -108,6 +108,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .typ::<map_meta::CameraType>()
         .constant("KNOWN_FIELDS", map_meta::KNOWN_FIELDS)
         .constant("BUILTIN_FIELDS", selections::BUILTIN_FIELDS)
+        .constant("PROJECTIONS", selections::PROJECTIONS)
         .commands(tauri_specta::collect_commands![
             app_ready,
             storage::write_temp_file,

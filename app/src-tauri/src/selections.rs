@@ -1711,6 +1711,54 @@ pub enum DatePart {
     HourOfDay,
 }
 
+/// One grouping projection a field type may be partitioned by: `"value"` or a `DatePart`
+/// by its wire name. Exported to TS as a specta constant so the dropdowns derive from
+/// here rather than restating the list.
+#[derive(Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Projection {
+    pub id: &'static str,
+    pub applies_to: &'static [crate::map_meta::ExtraFieldType],
+    /// Date projections read in the location's own timezone when asked to.
+    pub needs_tz: bool,
+}
+
+pub const PROJECTIONS: &[Projection] = {
+    use crate::map_meta::ExtraFieldType::*;
+    &[
+        Projection {
+            id: "value",
+            applies_to: &[String, Enum, Number, Month],
+            needs_tz: false,
+        },
+        Projection {
+            id: "year",
+            applies_to: &[Date, Month],
+            needs_tz: true,
+        },
+        Projection {
+            id: "yearMonth",
+            applies_to: &[Date],
+            needs_tz: true,
+        },
+        Projection {
+            id: "day",
+            applies_to: &[Date],
+            needs_tz: true,
+        },
+        Projection {
+            id: "monthOfYear",
+            applies_to: &[Date, Month],
+            needs_tz: true,
+        },
+        Projection {
+            id: "hourOfDay",
+            applies_to: &[Date],
+            needs_tz: true,
+        },
+    ]
+};
+
 /// One partition group: a stable key, the ids it holds, and (numeric bins only) the
 /// `[lo, hi]` bounds so JS can rebuild a live Filter for whole-map gradients.
 #[derive(Serialize, specta::Type)]

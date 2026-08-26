@@ -636,3 +636,35 @@ export function setPolygonName(current: Selection[], key: string, name: string):
 		return { ...s, selector };
 	});
 }
+
+/**
+ * Rewrite Filter `field` references in a selection tree: `from` -> `to`, or drop the
+ * Filter when `to` is null (field deleted). Composites collapse if emptied, or unwrap
+ * to their sole survivor (matching the rest of the selection engine's semantics).
+ */
+function rewriteSelection(sel: Selection, from: string, to: string | null): Selection | null {
+	const p = sel.selector;
+	if (p.type === "Filter") {
+		if (p.field !== from) return sel;
+		return to === null ? null : buildSelection({ ...p, field: to });
+	}
+	if ("selections" in p) {
+		const children = p.selections
+			.map((c) => rewriteSelection(c, from, to))
+			.filter((c): c is Selection => c !== null);
+		if (children.length === 0) return null;
+		if (children.length === 1 && p.type !== "Invert") return children[0];
+		return buildSelection({ ...p, selections: children } as Selector);
+	}
+	return sel;
+}
+
+export function rewriteSelectionFields(
+	selections: Selection[],
+	from: string,
+	to: string | null,
+): Selection[] {
+	return selections
+		.map((s) => rewriteSelection(s, from, to))
+		.filter((s): s is Selection => s !== null);
+}
