@@ -11,7 +11,7 @@ import {
 	moveMapToFolder,
 	invalidateMapList,
 } from "@/store/mapList";
-import { openMapWindow } from "@/lib/window";
+import { openWindow } from "@/lib/window";
 import { log } from "@/lib/util/log";
 import { cmpVersion } from "@/lib/util/util";
 import { appVersion } from "@/lib/version";
@@ -502,7 +502,7 @@ const MapEntry = React.memo(function MapEntry({
 				className="map-link"
 				onClick={(e) => {
 					e.preventDefault();
-					void openMapWindow(meta.id, meta.name);
+					void openWindow({ type: "editor", mapId: meta.id }, meta.name);
 				}}
 			>
 				{meta.name || t("(unnamed)")}
@@ -1192,7 +1192,7 @@ export function MapList() {
 									exact.querySelector<HTMLAnchorElement>(".map-link")?.click();
 									return;
 								}
-								void createMap(name).then((m) => openMapWindow(m.id, m.name));
+								void createMap(name).then((m) => openWindow({ type: "editor", mapId: m.id }, m.name));
 							}}
 							type="text"
 							placeholder={t("Search maps...")}

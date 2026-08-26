@@ -12,7 +12,7 @@ import { useHotkey } from "@/lib/hooks/useHotkey";
 import { getBinding, useBinding } from "@/lib/util/hotkeys";
 import { getMapState, closeMap } from "@/store/useMapStore";
 import { useMapList } from "@/store/mapList";
-import { goToMap } from "@/store/router";
+import { goTo } from "@/store/router";
 import { t, msg } from "@/lib/i18n";
 
 interface PaletteContext {
@@ -170,7 +170,7 @@ function MapSwitcher() {
 					<PaletteItem
 						key={m.id}
 						label={m.name}
-						onSelect={() => void closeMap().then(() => goToMap(m.id))}
+						onSelect={() => void closeMap().then(() => goTo({ type: "editor", mapId: m.id }))}
 					/>
 				))
 			)}

@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
 import type { ComponentType, CSSProperties } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { invoke } from "@tauri-apps/api/core";
+
+import { appWindow, closeAndDestroy } from "@/lib/window";
 import { useMapState } from "@/store/useMapStore";
 import {
 	useTargetMapId,
 	useManualChapter,
 	closeManual,
 	gotoManualChapter,
-	goToList,
+	goTo,
 	openManual,
 } from "@/store/router";
 import { MapList, BulkActions } from "@/components/map-list/MapList";
@@ -48,13 +47,6 @@ import { Button } from "@/components/primitives/Button";
 // We preload the chunk in the background and render it as a plain component in the urgent lane.
 const mapEditorModule = import("@/components/editor/MapEditor");
 
-// A real Tauri sub-window for a single map (label "map-<id>"). Always false on web, where
-// every tab reports label "main" — there the URL (targetMapId) alone picks editor vs list.
-const isEditorWindow = getCurrentWindow().label.startsWith("map-");
-
-// tauri-plugin-window-state flags, matching lib.rs: all() minus VISIBLE (bit 3).
-const WINDOW_STATE_FLAGS = 0b110111;
-
 const BLANK_STYLE: CSSProperties = { position: "fixed", inset: 0, background: "var(--surface-0)" };
 const Blank = () => <div style={BLANK_STYLE} />;
 
@@ -63,9 +55,7 @@ const Blank = () => <div style={BLANK_STYLE} />;
 export default function App() {
 	const targetMapId = useTargetMapId();
 	const manualOpen = useManualChapter() !== null;
-	// A Tauri map window whose map was backed out of: focus the list window, persist this
-	// window's geometry, then destroy it. Never true on web (no sub-window to close).
-	const closing = isEditorWindow && !targetMapId;
+	const closing = appWindow.type === "editor" && !targetMapId;
 
 	useSelfDestruct(closing);
 	useCustomCss();
@@ -122,7 +112,7 @@ function AppChrome() {
 	useHotkey(useBinding("toggleStats"), () => setShowStats((s) => !s));
 	useHotkey(useBinding("openManualSearch"), () => setManualSearchOpen((v) => !v));
 	useHotkey(useBinding("closeMap"), () => {
-		if (map) goToList();
+		if (map) goTo({ type: "list" });
 	});
 
 	const hasSeenWelcome = useSetting("hasSeenWelcome");
@@ -224,23 +214,10 @@ function AppChrome() {
 	);
 }
 
-/** Tauri-only: a map sub-window persists its geometry and destroys itself once its map is
- *  backed out of. destroy() never fires CloseRequested, so the window-state plugin wouldn't
- *  save geometry — we save it explicitly first. */
 function useSelfDestruct(closing: boolean) {
 	useEffect(() => {
 		if (!closing) return;
-		void WebviewWindow.getByLabel("main")
-			.then(async (main) => {
-				await main?.unminimize();
-				await main?.setFocus();
-			})
-			.finally(async () => {
-				await invoke("plugin:window-state|save_window_state", {
-					flags: WINDOW_STATE_FLAGS,
-				}).catch(() => {});
-				void getCurrentWindow().destroy();
-			});
+		void closeAndDestroy();
 	}, [closing]);
 }
 

@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 
-// Mock the store — router.ts imports openMap/closeMap/getMapState at module scope
 vi.mock("@/store/useMapStore", () => ({
 	openMap: vi.fn(),
 	closeMap: vi.fn(),
@@ -10,63 +9,66 @@ vi.mock("@/store/useMapStore", () => ({
 
 import { parse, build } from "@/store/router";
 
+const list = { type: "list" } as const;
+const editor = (mapId: string) => ({ type: "editor" as const, mapId });
+
 describe("parse", () => {
-	it("empty hash → no map, no manual", () => {
-		expect(parse("")).toEqual({ mapId: null, manual: null });
-		expect(parse("#")).toEqual({ mapId: null, manual: null });
+	it("empty hash", () => {
+		expect(parse("")).toEqual({ window: list, manual: null });
+		expect(parse("#")).toEqual({ window: list, manual: null });
 	});
 
 	it("map only", () => {
-		expect(parse("#map/abc-123")).toEqual({ mapId: "abc-123", manual: null });
+		expect(parse("#map/abc-123")).toEqual({ window: editor("abc-123"), manual: null });
 	});
 
-	it("manual only (no map)", () => {
-		expect(parse("#manual")).toEqual({ mapId: null, manual: "" });
-		expect(parse("#manual/getting-started")).toEqual({ mapId: null, manual: "getting-started" });
+	it("manual only", () => {
+		expect(parse("#manual")).toEqual({ window: list, manual: "" });
+		expect(parse("#manual/getting-started")).toEqual({ window: list, manual: "getting-started" });
 	});
 
 	it("map + manual", () => {
-		expect(parse("#map/m1/manual")).toEqual({ mapId: "m1", manual: "" });
-		expect(parse("#map/m1/manual/ch2")).toEqual({ mapId: "m1", manual: "ch2" });
+		expect(parse("#map/m1/manual")).toEqual({ window: editor("m1"), manual: "" });
+		expect(parse("#map/m1/manual/ch2")).toEqual({ window: editor("m1"), manual: "ch2" });
 	});
 
 	it("ignores trailing slashes", () => {
-		expect(parse("#map/m1/")).toEqual({ mapId: "m1", manual: null });
+		expect(parse("#map/m1/")).toEqual({ window: editor("m1"), manual: null });
 	});
 
-	it("bare #map with no id yields null mapId", () => {
-		expect(parse("#map")).toEqual({ mapId: null, manual: null });
+	it("bare #map with no id is the list", () => {
+		expect(parse("#map")).toEqual({ window: list, manual: null });
 	});
 });
 
 describe("build", () => {
-	it("no map, no manual → bare hash", () => {
-		expect(build({ mapId: null, manual: null })).toBe("#");
+	it("no map, no manual", () => {
+		expect(build({ window: list, manual: null })).toBe("#");
 	});
 
 	it("map only", () => {
-		expect(build({ mapId: "m1", manual: null })).toBe("#map/m1");
+		expect(build({ window: editor("m1"), manual: null })).toBe("#map/m1");
 	});
 
 	it("manual only", () => {
-		expect(build({ mapId: null, manual: "" })).toBe("#manual");
-		expect(build({ mapId: null, manual: "ch" })).toBe("#manual/ch");
+		expect(build({ window: list, manual: "" })).toBe("#manual");
+		expect(build({ window: list, manual: "ch" })).toBe("#manual/ch");
 	});
 
 	it("map + manual", () => {
-		expect(build({ mapId: "m1", manual: "" })).toBe("#map/m1/manual");
-		expect(build({ mapId: "m1", manual: "ch" })).toBe("#map/m1/manual/ch");
+		expect(build({ window: editor("m1"), manual: "" })).toBe("#map/m1/manual");
+		expect(build({ window: editor("m1"), manual: "ch" })).toBe("#map/m1/manual/ch");
 	});
 });
 
-describe("parse ∘ build round-trip", () => {
-	const cases: { mapId: string | null; manual: string | null }[] = [
-		{ mapId: null, manual: null },
-		{ mapId: "abc", manual: null },
-		{ mapId: null, manual: "" },
-		{ mapId: null, manual: "getting-started" },
-		{ mapId: "m1", manual: "" },
-		{ mapId: "m1", manual: "ch2" },
+describe("parse + build round-trip", () => {
+	const cases = [
+		{ window: list, manual: null },
+		{ window: editor("abc"), manual: null },
+		{ window: list, manual: "" },
+		{ window: list, manual: "getting-started" },
+		{ window: editor("m1"), manual: "" },
+		{ window: editor("m1"), manual: "ch2" },
 	];
 	for (const route of cases) {
 		it(`round-trips ${JSON.stringify(route)}`, () => {

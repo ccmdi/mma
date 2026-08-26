@@ -3,7 +3,7 @@ import { emit, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { getSettings } from "@/store/settings";
 import { saveSession } from "@/store/session";
-import { openMapWindowIds } from "@/lib/window";
+import { openWindows } from "@/lib/window";
 import { errText } from "@/lib/util/util";
 
 type Phase = "idle" | "checking" | "up-to-date" | "available" | "downloading" | "ready" | "error";
@@ -63,7 +63,7 @@ export async function checkForUpdate() {
 async function snapshotSessionForRestart() {
 	if (!getSettings().restoreSession) return;
 	try {
-		const ids = await openMapWindowIds();
+		const ids = (await openWindows("editor")).map((w) => w.mapId);
 		saveSession(ids);
 		log.info(`[session] saved ${ids.length} open map(s) before restart: ${ids.join(", ")}`);
 	} catch (e) {

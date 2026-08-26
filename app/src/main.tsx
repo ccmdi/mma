@@ -1,7 +1,7 @@
 import "@/lib/sv/shaderPatch";
 import {} from "react";
 import { createRoot } from "react-dom/client";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { appWindow } from "@/lib/window";
 import "@/styles.css";
 import App from "@/App.tsx";
 import { initLogging, log } from "@/lib/util/log";
@@ -11,7 +11,7 @@ import { getMapList } from "@/store/mapList";
 import { initRouter } from "@/store/router";
 import { getSettings } from "@/store/settings";
 import { loadSession, saveSession } from "@/store/session";
-import { openMapWindow, openMapWindowIds, closeAllMapWindows } from "@/lib/window";
+import { openWindow, openWindows, closeWindows } from "@/lib/window";
 import { cmd } from "@/lib/commands";
 import { checkForUpdate } from "@/lib/util/updateCheck";
 import { refreshStoredReports } from "@/lib/feedback/submit";
@@ -48,33 +48,32 @@ async function boot() {
 	if (window.MMA) window.MMA.ready = true;
 	log.info("App booted");
 
-	const isMainWindow = getCurrentWindow().label === "main";
+	
 
-	void getCurrentWindow().onCloseRequested(async (event) => {
+	void appWindow.onCloseRequested(async (event) => {
 		event.preventDefault();
 		log.info("Window close requested, closing map...");
-		if (isMainWindow && getSettings().restoreSession) {
-			const openIds = await openMapWindowIds();
+		if (appWindow.type === "list" && getSettings().restoreSession) {
+			const openIds = (await openWindows("editor")).map((w) => w.mapId);
 			saveSession(openIds);
 			log.info(`[session] saved ${openIds.length} open map(s): ${openIds.join(", ")}`);
-			await closeAllMapWindows();
+			await closeWindows("editor");
 		}
 		await flushSave();
 		await cmd.storeCloseMap().catch((e) => log.error("[close] store_close_map failed:", e));
 		log.info("Map closed, destroying window");
-		void getCurrentWindow().destroy();
+		void appWindow.destroy();
 	});
 
 	window.addEventListener("beforeunload", () => {
 		cmd.storeCloseMap().catch(() => {});
 	});
 
-	const win = getCurrentWindow();
 	document.addEventListener("contextmenu", (e) => e.preventDefault());
 
 	document.addEventListener("keydown", (e) => {
 		if (e.key === "F11") {
-			void win.isFullscreen().then((fs) => win.setFullscreen(!fs));
+			void appWindow.isFullscreen().then((fs) => appWindow.setFullscreen(!fs));
 		}
 	});
 	blockBrowserAccelerators();
@@ -82,11 +81,11 @@ async function boot() {
 	createRoot(document.getElementById("root")!).render(<App />);
 	mark("render");
 
-	void getCurrentWindow().show();
+	void appWindow.show();
 	const jsTotal = performance.now();
 	mark("show");
 
-	if (isMainWindow && getSettings().restoreSession) restoreSession();
+	if (appWindow.type === "list" && getSettings().restoreSession) restoreSession();
 
 	cmd
 		.appReady()
@@ -99,7 +98,7 @@ async function boot() {
 
 	setTimeout(() => void checkForUpdate(), 5000);
 	// Every window shares the same stored reports, so one window refreshes them.
-	if (isMainWindow) setTimeout(() => void refreshStoredReports(), 5000);
+	if (appWindow.type === "list") setTimeout(() => void refreshStoredReports(), 5000);
 }
 
 /** Reopen the maps recorded when the session last ended, skipping any since deleted. */
@@ -110,7 +109,7 @@ function restoreSession() {
 	const names = new Map(getMapList().map((m) => [m.id, m.name]));
 	for (const id of ids) {
 		const name = names.get(id);
-		if (name !== undefined) void openMapWindow(id, name);
+		if (name !== undefined) void openWindow({ type: "editor", mapId: id }, name);
 	}
 }
 

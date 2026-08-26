@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { appWindow, hasWindowHost } from "@/lib/window";
 import { log } from "@/lib/util/log";
 import type {
 	Location,
@@ -79,7 +79,7 @@ const versions = new Map<EditorEvent, number>();
 export function emit<E extends EditorEvent>(evt: E, ...args: EmitArgs<E>): void {
 	versions.set(evt, (versions.get(evt) ?? 0) + 1);
 	if (!applyingRemote && bridgedEvents.has(evt)) {
-		void tauriEmit(`xwin:${evt}`, WINDOW_LABEL).catch((e) =>
+		void tauriEmit(`xwin:${evt}`, appWindow.label).catch((e) =>
 			log.error(`[event] broadcast ${evt}:`, e),
 		);
 	}
@@ -99,14 +99,6 @@ export function emit<E extends EditorEvent>(evt: E, ...args: EmitArgs<E>): void 
  *  receiver rereads state instead of receiving it. */
 type VoidEvent = { [E in EditorEvent]: EditorEventMap[E] extends void ? E : never }[EditorEvent];
 
-// Null outside a Tauri/webserve context (vitest, bare browser); the bridge is inert there.
-const WINDOW_LABEL = (() => {
-	try {
-		return getCurrentWindow().label;
-	} catch {
-		return null;
-	}
-})();
 const bridgedEvents = new Set<EditorEvent>();
 let applyingRemote = false;
 
@@ -115,10 +107,10 @@ let applyingRemote = false;
  *  re-emitting locally, so all consumers update through their normal subscription. Emits
  *  during `rehydrate` don't re-broadcast, so two bridged windows can't echo. */
 export function bridgeAcrossWindows(event: VoidEvent, rehydrate: () => void): void {
-	if (WINDOW_LABEL === null) return;
+	if (!hasWindowHost) return;
 	bridgedEvents.add(event);
 	void listen<string>(`xwin:${event}`, (e) => {
-		if (e.payload === WINDOW_LABEL) return;
+		if (e.payload === appWindow.label) return;
 		applyingRemote = true;
 		try {
 			rehydrate();

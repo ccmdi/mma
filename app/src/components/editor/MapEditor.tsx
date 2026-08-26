@@ -10,7 +10,7 @@ import {
 import { beginImportPaste, beginImportFromPath } from "@/store/importStaging";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
-import { goToList } from "@/store/router";
+import { goTo } from "@/store/router";
 import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { addParsedLocations } from "@/lib/map/mapClick";
@@ -227,7 +227,7 @@ export function MapEditor() {
 		const unlisten = listen<string>("map-deleted", (e) => {
 			if (e.payload === getMapState().mapId) {
 				discardOpenMap();
-				goToList();
+				goTo({ type: "list" });
 			}
 		});
 		return () => {
@@ -327,7 +327,7 @@ export function MapEditor() {
 									aria-label={t("Back to map list")}
 									onClick={(e) => {
 										e.preventDefault();
-										goToList();
+										goTo({ type: "list" });
 									}}
 								>
 									<Icon path={mdiBackburger} />

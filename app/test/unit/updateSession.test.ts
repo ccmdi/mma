@@ -13,7 +13,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/window", () => ({
-	openMapWindowIds: async () => h.openIds,
+	appWindow: { type: "list" },
+	openWindows: async () => h.openIds.map((mapId) => ({ type: "editor", mapId })),
 }));
 vi.mock("@/store/settings", () => ({
 	getSettings: () => ({ restoreSession: h.restoreSession }),

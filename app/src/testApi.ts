@@ -10,7 +10,7 @@ import {
 } from "@/store/useMapStore";
 import * as mapList from "@/store/mapList";
 import { cmd } from "@/lib/commands";
-import { goToMap, goToList } from "@/store/router";
+import { goTo } from "@/store/router";
 
 /** Forces a full selection re-resolve in Rust and returns the raw selected IDs.
  *  App code reads `getMapState().selectedLocationIds` — mutations already sync
@@ -34,12 +34,12 @@ export async function openMap(id: string) {
 	// URL — by which point the router's reconcile is a no-op (state already matches),
 	// so no second fire-and-forget openMap can interleave with the next test step.
 	await storeOpenMap(id);
-	goToMap(id);
+	goTo({ type: "editor", mapId: id });
 }
 
 export async function closeMap() {
 	await storeCloseMap();
-	goToList();
+	goTo({ type: "list" });
 }
 
 export function deleteMap(id: string) {
