@@ -5,13 +5,19 @@ import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
-import { addSelections, countIn, fetchLocations, fieldCoverage, getMapState, updateLocations } from "@/store/useMapStore";
+import {
+	addSelections,
+	applyFieldOp,
+	countIn,
+	fetchLocations,
+	fieldCoverage,
+	getMapState,
+} from "@/store/useMapStore";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
 import type {
 	Selector,
-	Update,
+	FieldOp,
 	FilterOp,
-	LocationPatch_Deserialize as LocationPatch,
 } from "@/bindings.gen";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import {
@@ -20,7 +26,7 @@ import {
 	getAllFieldDefs,
 	isWritableField,
 } from "@/lib/data/fieldDefRegistry";
-import { planFieldSet, planFieldExpr, parseFieldExpr, fieldPatch } from "@/lib/data/fieldOps";
+import { cmd } from "@/lib/commands";
 import { buildSelection } from "@/store/selections";
 import { ValidationState } from "@/types";
 import { validateLocations } from "@/lib/sv/validate";
@@ -353,25 +359,14 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 					onClick={() => {
 						const keys = [...selected];
 						onReady(async ({ selector }) => {
-							const locations = await fetchLocations(selector);
-							const updates: Update<LocationPatch>[] = [];
-							for (const loc of locations) {
-								if (!loc.extra) continue;
-								const present = keys.filter((k) => loc.extra![k] != null);
-								if (present.length === 0) continue;
-								updates.push({
-									id: loc.id,
-									patch: { extra: Object.fromEntries(present.map((k) => [k, null])) },
-								});
-							}
-							if (updates.length > 0) await updateLocations(updates);
+							const { changed } = await applyFieldOp(selector, { kind: "delete", keys }, true);
 							return {
 								doneMessage: t(
 									{
 										one: "Cleared fields from {n} location.",
 										other: "Cleared fields from {n} locations.",
 									},
-									{ n: updates.length },
+									{ n: changed },
 								),
 							};
 						});
@@ -403,14 +398,19 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 	const def = effectiveKey ? getFieldDef(effectiveKey) : undefined;
 	const isNumber = def?.type === "number";
 	const isEnum = def?.type === "enum" && def.values;
-	const exprError = useMemo(() => {
-		if (!isNumber || raw.trim() === "") return null;
-		try {
-			parseFieldExpr(raw);
-			return null;
-		} catch (e) {
-			return e instanceof Error ? e.message : t("Invalid expression");
+	const [exprError, setExprError] = useState<string | null>(null);
+	useEffect(() => {
+		if (!isNumber || raw.trim() === "") {
+			setExprError(null);
+			return;
 		}
+		let live = true;
+		void cmd.fieldExprError(raw).then((err) => {
+			if (live) setExprError(err);
+		});
+		return () => {
+			live = false;
+		};
 	}, [isNumber, raw]);
 	const invalid = !effectiveKey || (isNumber && (raw.trim() === "" || exprError != null));
 
@@ -488,28 +488,19 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 						const rv = raw;
 						const useExpr = isNumber;
 						onReady(async ({ selector }) => {
-							const locations = await fetchLocations(selector);
-							if (useExpr) {
-								const { updates, skipped } = planFieldExpr(locations, ek, parseFieldExpr(rv));
-								if (updates.length > 0) await updateLocations(updates);
-								const message =
-									t(
-										{ one: "Set field on {n} location.", other: "Set field on {n} locations." },
-										{ n: updates.length },
-									) +
-									(skipped > 0
-										? " " + t("{n} skipped (missing source fields).", { n: skipped })
-										: "");
-								return { doneMessage: message };
-							}
-							const updates = planFieldSet(locations, fieldPatch(ek, rv));
-							if (updates.length > 0) await updateLocations(updates);
-							return {
-								doneMessage: t(
+							const op: FieldOp = useExpr
+								? { kind: "expr", key: ek, expr: rv }
+								: { kind: "set", key: ek, value: rv };
+							const { changed, skipped } = await applyFieldOp(selector, op, true);
+							const message =
+								t(
 									{ one: "Set field on {n} location.", other: "Set field on {n} locations." },
-									{ n: updates.length },
-								),
-							};
+									{ n: changed },
+								) +
+								(skipped > 0
+									? " " + t("{n} skipped (missing source fields).", { n: skipped })
+									: "");
+							return { doneMessage: message };
 						});
 					}}
 				>

@@ -4009,8 +4009,26 @@ fn planned_extra(u: &Update<LocationPatch>) -> serde_json::Value {
 }
 
 fn plan(locs: &[Location], op: &FieldOp) -> Vec<Update<LocationPatch>> {
+    plan_full(locs, op).updates
+}
+
+fn plan_full(locs: &[Location], op: &FieldOp) -> FieldPlan {
     let fx = crate::test_util::Fx::base(locs);
-    plan_field_op(&fx.view(), None, op).0
+    plan_field_op(&fx.view(), None, op).unwrap()
+}
+
+fn set_op(key: &str, value: serde_json::Value) -> FieldOp {
+    FieldOp::Set {
+        key: key.into(),
+        value,
+    }
+}
+
+fn expr_op(key: &str, expr: &str) -> FieldOp {
+    FieldOp::Expr {
+        key: key.into(),
+        expr: expr.into(),
+    }
 }
 
 fn move_op(from: &str, to: &str, winner: MergeWinner) -> FieldOp {
@@ -4119,11 +4137,16 @@ fn field_op_honours_the_selector() {
     ];
     let fx = crate::test_util::Fx::base(&locs);
     let set: roaring::RoaringBitmap = [2u32].into_iter().collect();
-    let (out, forget) = plan_field_op(
+    let FieldPlan {
+        updates: out,
+        forget,
+        ..
+    } = plan_field_op(
         &fx.view(),
         Some(&set),
         &move_op("a", "b", MergeWinner::From),
-    );
+    )
+    .unwrap();
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].id, 2);
     // Row 1 still holds `a`, so the key must not be forgotten.
@@ -4139,23 +4162,118 @@ fn field_op_forgets_a_key_only_when_no_row_retains_it() {
     let fx = crate::test_util::Fx::base(&locs);
 
     // Whole-map move erases `a` everywhere.
-    let (_, forget) = plan_field_op(&fx.view(), None, &move_op("a", "b", MergeWinner::From));
+    let forget = plan_field_op(&fx.view(), None, &move_op("a", "b", MergeWinner::From))
+        .unwrap()
+        .forget;
     assert_eq!(forget, vec!["a".to_string()]);
 
     // Whole-map delete of `x` erases it; `a` is untouched.
-    let (_, forget) = plan_field_op(
+    let forget = plan_field_op(
         &fx.view(),
         None,
         &FieldOp::Delete {
             keys: vec!["x".into()],
         },
-    );
+    )
+    .unwrap()
+    .forget;
     assert_eq!(forget, vec!["x".to_string()]);
 
     // Invalid move plans nothing and forgets nothing.
-    let (out, forget) = plan_field_op(&fx.view(), None, &move_op("a", "a", MergeWinner::From));
-    assert!(out.is_empty());
-    assert!(forget.is_empty());
+    let p = plan_field_op(&fx.view(), None, &move_op("a", "a", MergeWinner::From)).unwrap();
+    assert!(p.updates.is_empty());
+    assert!(p.forget.is_empty());
+}
+
+#[test]
+fn set_op_writes_extra_only_where_the_value_differs() {
+    let locs = [
+        loc_with_extra(1, r#"{"a":5}"#),
+        loc_with_extra(2, r#"{"a":6}"#),
+        loc_with_extra(3, r#"{"b":1}"#),
+    ];
+    let out = plan(&locs, &set_op("a", serde_json::json!(5)));
+    assert_eq!(out.iter().map(|u| u.id).collect::<Vec<_>>(), vec![2, 3]);
+    assert_eq!(planned_extra(&out[0]), serde_json::json!({ "a": 5 }));
+    // A stored integer equals the float an expression would compute.
+    assert!(plan(&locs, &set_op("a", serde_json::json!(5.0)))
+        .iter()
+        .all(|u| u.id != 1));
+    // Strings compare exactly.
+    let out = plan(&locs, &set_op("a", serde_json::json!("x")));
+    assert_eq!(out.len(), 3);
+}
+
+#[test]
+fn set_op_patches_a_writable_builtin_column() {
+    let locs = [loc(1, 1.0, 1.0), loc(2, 1.0, 1.0)];
+    let out = plan(&locs, &set_op("heading", serde_json::json!(90)));
+    assert_eq!(out.len(), 2);
+    assert_eq!(out[0].patch.heading, Some(90.0));
+    assert!(out[0].patch.extra.is_none());
+}
+
+#[test]
+fn expr_op_evaluates_per_row_and_counts_the_rows_it_cannot() {
+    let locs = [
+        loc_with_extra(1, r#"{"a":10}"#),
+        loc_with_extra(2, r#"{"a":-10}"#),
+        loc_with_extra(3, r#"{"b":1}"#),
+        loc_with_extra(4, r#"{"a":"ten"}"#),
+    ];
+    let p = plan_full(&locs, &expr_op("h", "mod(a + 180, 360)"));
+    assert_eq!(p.updates.iter().map(|u| u.id).collect::<Vec<_>>(), vec![1, 2]);
+    assert_eq!(planned_extra(&p.updates[0]), serde_json::json!({ "h": 190 }));
+    assert_eq!(planned_extra(&p.updates[1]), serde_json::json!({ "h": 170 }));
+    assert_eq!(p.skipped, 2);
+    assert!(p.forget.is_empty());
+}
+
+#[test]
+fn expr_op_drops_rows_the_result_would_not_change() {
+    let locs = [
+        loc_with_extra(1, r#"{"a":5}"#),
+        loc_with_extra(2, r#"{"a":5.5}"#),
+    ];
+    let p = plan_full(&locs, &expr_op("a", "a * 1"));
+    assert!(p.updates.is_empty());
+    assert_eq!(p.skipped, 0);
+    // Fractions survive as floats, whole numbers as integers.
+    let out = plan(&locs, &expr_op("c", "a / 2"));
+    assert_eq!(planned_extra(&out[0]), serde_json::json!({ "c": 2.5 }));
+    assert_eq!(planned_extra(&out[1]), serde_json::json!({ "c": 2.75 }));
+    let out = plan(&locs, &expr_op("c", "a * 2"));
+    assert_eq!(planned_extra(&out[0]), serde_json::json!({ "c": 10 }));
+}
+
+#[test]
+fn expr_op_reads_builtin_columns_and_may_write_one() {
+    let mut l = loc(1, 1.0, 1.0);
+    l.heading = 350.0;
+    let out = plan(&[l], &expr_op("heading", "mod(heading + 20, 360)"));
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].patch.heading, Some(10.0));
+}
+
+#[test]
+fn expr_op_rejects_a_syntax_error_before_touching_rows() {
+    let fx = crate::test_util::Fx::base(&[loc_with_extra(1, r#"{"a":5}"#)]);
+    let err = plan_field_op(&fx.view(), None, &expr_op("a", "a +")).err().unwrap();
+    assert!(err.0.contains("Unexpected end of expression"), "{}", err.0);
+}
+
+#[test]
+fn field_op_check_guards_builtin_names() {
+    assert!(check_field_op(&set_op("panoId", serde_json::json!("x"))).is_err());
+    assert!(check_field_op(&expr_op("lat", "1")).is_err());
+    assert!(check_field_op(&set_op("heading", serde_json::json!("north"))).is_err());
+    assert!(check_field_op(&set_op("heading", serde_json::json!(90))).is_ok());
+    assert!(check_field_op(&set_op("mine", serde_json::json!("x"))).is_ok());
+    assert!(check_field_op(&move_op("heading", "b", MergeWinner::From)).is_err());
+    assert!(check_field_op(&FieldOp::Delete {
+        keys: vec!["zoom".into()]
+    })
+    .is_err());
 }
 
 // The round-trip rename invariant: a->b then b->a. The render delta never carries
@@ -4176,7 +4294,8 @@ fn field_op_round_trip_rename_reannounces_the_key() {
         &move_op("a", "b", MergeWinner::From),
         false,
     )
-    .unwrap();
+    .unwrap()
+    .mutation;
     assert!(r1.delta.updated.is_empty(), "extra-only: no render delta");
     assert!(!store.known_field_keys.contains("a"), "a erased, forgotten");
     assert!(store.known_field_keys.contains("b"), "b auto-registered");
@@ -4188,7 +4307,8 @@ fn field_op_round_trip_rename_reannounces_the_key() {
         &move_op("b", "a", MergeWinner::From),
         false,
     )
-    .unwrap();
+    .unwrap()
+    .mutation;
     assert!(store.known_field_keys.contains("a"));
     assert!(!store.known_field_keys.contains("b"));
     assert!(

@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-	planFieldSet,
-	planFieldExpr,
-	parseFieldExpr,
-	evalFieldExpr,
 	fieldValue,
-	fieldPatch,
 	projectionsForType,
 	rewriteSelectionFields,
 	pickPeriodEnd,
@@ -33,49 +28,6 @@ function makeLoc(id: number, extra?: Record<string, unknown>): Location {
 		modifiedAt: null,
 	} as Location;
 }
-
-describe("planFieldSet", () => {
-	it("sets an extra value, creating extra when absent", () => {
-		const out = planFieldSet([makeLoc(1), makeLoc(2, { k: "old" })], { extra: { k: "new" } });
-		expect(out).toEqual([
-			{ id: 1, patch: { extra: { k: "new" } } },
-			{ id: 2, patch: { extra: { k: "new" } } },
-		]);
-	});
-
-	it("carries only patched keys (the store merges into existing extra)", () => {
-		const out = planFieldSet([makeLoc(1, { keep: 1 })], { extra: { k: "new" } });
-		expect(out).toEqual([{ id: 1, patch: { extra: { k: "new" } } }]);
-	});
-
-	it("skips locations whose extra value already matches", () => {
-		expect(planFieldSet([makeLoc(1, { k: "v" })], { extra: { k: "v" } })).toEqual([]);
-	});
-
-	it("patches a top-level field directly", () => {
-		const out = planFieldSet([makeLoc(1), makeLoc(2)], { heading: 90 });
-		expect(out).toEqual([
-			{ id: 1, patch: { heading: 90 } },
-			{ id: 2, patch: { heading: 90 } },
-		]);
-	});
-
-	it("skips top-level fields already equal", () => {
-		const loc = makeLoc(1);
-		(loc as Record<string, unknown>).pitch = 10;
-		expect(planFieldSet([loc], { pitch: 10 })).toEqual([]);
-	});
-});
-
-describe("fieldPatch", () => {
-	it("nests unknown keys under extra", () => {
-		expect(fieldPatch("foo", 5)).toEqual({ extra: { foo: 5 } });
-	});
-
-	it("places built-in keys at the top level", () => {
-		expect(fieldPatch("heading", 90)).toEqual({ heading: 90 });
-	});
-});
 
 describe("projectionsForType", () => {
 	// The catalog of grouping keys (UI + KeySpec mapping); key derivation itself lives in
@@ -133,78 +85,14 @@ describe("rewriteSelectionFields", () => {
 	});
 });
 
-describe("field expressions", () => {
-	const evalOn = (src: string, loc: Location) => evalFieldExpr(parseFieldExpr(src), loc);
-
-	it("parses and evaluates constants and arithmetic with precedence", () => {
-		const loc = makeLoc(1);
-		expect(evalOn("45", loc)).toBe(45);
-		expect(evalOn("2 + 3 * 4", loc)).toBe(14);
-		expect(evalOn("(2 + 3) * 4", loc)).toBe(20);
-		expect(evalOn("-5 + 10", loc)).toBe(5);
-		expect(evalOn("7 % 4", loc)).toBe(3);
-	});
-
-	it("resolves field references from extra and top-level", () => {
-		const loc = { ...makeLoc(1, { sunAzimuth: 200 }), heading: 90, lat: 12.5 } as Location;
-		expect(evalOn("sunAzimuth + 180", loc)).toBe(380);
-		expect(evalOn("heading + 10", loc)).toBe(100);
-		expect(evalOn("lat * 2", loc)).toBe(25);
-	});
-
-	it("fieldValue mirrors fieldPatch's top-level vs extra split", () => {
+describe("fieldValue", () => {
+	it("reads built-in keys from the top level and the rest from extra", () => {
 		const loc = { ...makeLoc(1, { foo: 7 }), heading: 33 } as Location;
 		expect(fieldValue(loc, "heading")).toBe(33);
 		expect(fieldValue(loc, "foo")).toBe(7);
 		expect(fieldValue(loc, "missing")).toBeUndefined();
 		// `id` is a builtin column, so it must not fall through to `extra`.
 		expect(fieldValue(loc, "id")).toBe(1);
-	});
-
-	it("supports functions: mod wraps negatives, clamp bounds", () => {
-		const loc = makeLoc(1, { sunAzimuth: 200 });
-		expect(evalOn("mod(sunAzimuth + 180, 360)", loc)).toBe(20);
-		expect(evalOn("mod(-90, 360)", loc)).toBe(270);
-		expect(evalOn("clamp(500, 0, 360)", loc)).toBe(360);
-		expect(evalOn("abs(-3)", loc)).toBe(3);
-		expect(evalOn("min(2, 9)", loc)).toBe(2);
-		expect(evalOn("max(2, 9)", loc)).toBe(9);
-		expect(evalOn("round(2.6)", loc)).toBe(3);
-		expect(evalOn("floor(2.6)", loc)).toBe(2);
-	});
-
-	it("returns null for missing or non-numeric fields and non-finite results", () => {
-		expect(evalOn("nope + 1", makeLoc(1))).toBeNull();
-		expect(evalOn("s + 1", makeLoc(1, { s: "hello" }))).toBeNull();
-		expect(evalOn("1 / 0", makeLoc(1))).toBeNull();
-	});
-
-	it("throws on syntax errors, unknown functions, and wrong arity", () => {
-		expect(() => parseFieldExpr("1 +")).toThrow();
-		expect(() => parseFieldExpr("(1 + 2")).toThrow();
-		expect(() => parseFieldExpr("1 2")).toThrow();
-		expect(() => parseFieldExpr("nope(1)")).toThrow(/Unknown function/);
-		expect(() => parseFieldExpr("mod(1)")).toThrow(/argument/);
-		expect(() => parseFieldExpr("heading @ 2")).toThrow(/Unexpected character/);
-	});
-
-	it("planFieldExpr patches per location, skips unevaluable, drops no-ops", () => {
-		const a = { ...makeLoc(1, { sunAzimuth: 200 }), heading: 0 } as Location;
-		const b = makeLoc(2); // no sunAzimuth -> skipped
-		const c = { ...makeLoc(3, { sunAzimuth: 160 }), heading: 340 } as Location; // already 340 -> no-op
-		const { updates, skipped } = planFieldExpr(
-			[a, b, c],
-			"heading",
-			parseFieldExpr("mod(sunAzimuth + 180, 360)"),
-		);
-		expect(skipped).toBe(1);
-		expect(updates).toEqual([{ id: 1, patch: { heading: 20 } }]);
-	});
-
-	it("planFieldExpr ships only the assigned extra key (store merges)", () => {
-		const loc = makeLoc(1, { sunAzimuth: 90, keep: "x" });
-		const { updates } = planFieldExpr([loc], "sunHalf", parseFieldExpr("sunAzimuth / 2"));
-		expect(updates).toEqual([{ id: 1, patch: { extra: { sunHalf: 45 } } }]);
 	});
 });
 

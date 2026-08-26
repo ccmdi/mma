@@ -1411,6 +1411,13 @@ macro_rules! builtin_fields {
             matches!(field, $($key)|*)
         }
 
+        /// True for the built-in columns a bulk set may assign (`heading`, `pitch`, `zoom`).
+        pub fn is_writable_builtin(field: &str) -> bool {
+            BUILTIN_FIELDS
+                .iter()
+                .any(|f| f.key == field && matches!(f.kind, Some(BuiltinFieldKind::Writable)))
+        }
+
         /// Resolve a field name to its JSON value from a `Location` struct.
         /// Unknown fields fall through to `loc.extra`.
         fn resolve_field_loc(loc: &Location, field: &str) -> Option<serde_json::Value> {

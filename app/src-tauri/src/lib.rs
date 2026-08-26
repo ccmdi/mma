@@ -6,6 +6,7 @@ mod arrow_migrate;
 mod borders;
 mod export;
 mod feedback;
+mod field_expr;
 mod gdoc;
 mod geocoder;
 mod geoguessr;
@@ -172,6 +173,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             location_store::store_bounds,
             location_store::store_collect,
             location_store::store_apply_field_op,
+            field_expr::field_expr_error,
             location_store::store_country_distribution,
             location_store::store_find_nearby,
             location_store::store_near_any,

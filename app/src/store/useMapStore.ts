@@ -30,7 +30,7 @@ import { rewriteSelectionFields } from "@/lib/data/fieldOps";
 import { compareNatural } from "@/lib/util/util";
 import { compareMonthOrder } from "@/lib/util/date";
 import type { LocationPatch_Deserialize as LocationPatch, Update, TagPatch } from "@/bindings.gen";
-import type { KeySpec, PartitionBucket, FieldOp, MergeWinner } from "@/bindings.gen";
+import type { KeySpec, PartitionBucket, FieldOp, FieldOpResult, MergeWinner } from "@/bindings.gen";
 import { SelectedIds, decodeSelectionBitmask, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { resetImportState } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
@@ -651,23 +651,31 @@ export async function updateLocations(
  *  decides the survivor only where a location already holds `to`. */
 export async function renameField(from: string, to: string, winner: MergeWinner = "from") {
 	if (!state.map || from === to || !to) return;
-	await applyFieldOp({ kind: "move", from, to, winner });
+	await applyFieldOp({ type: "Everything" }, { kind: "move", from, to, winner }, false);
 	await migrateFieldReferences(from, to);
 }
 
 /** Delete extra-field `key` from every location, its definition, and references. */
 export async function deleteField(key: string) {
 	if (!state.map) return;
-	await applyFieldOp({ kind: "delete", keys: [key] });
+	await applyFieldOp({ type: "Everything" }, { kind: "delete", keys: [key] }, false);
 	await migrateFieldReferences(key, null);
 }
 
-/** Rewrite an `extra` field across the whole map in Rust. Not undoable. The per-location
- *  patches never exist in JS -- which is the point -- so instead of `location:update` this
- *  emits a coarse `location:invalidate` (derived views re-query) and refreshes the open
- *  editor's location. */
-async function applyFieldOp(op: FieldOp): Promise<MutationResult> {
-	const r = await mutate(() => cmd.storeApplyFieldOp({ type: "Everything" }, op, false));
+/** Rewrite a field across `selector` in Rust. The per-location patches never exist in
+ *  JS -- which is the point -- so instead of `location:update` this emits a coarse
+ *  `location:invalidate` (derived views re-query) and refreshes the open editor's
+ *  location. */
+export async function applyFieldOp(
+	selector: Selector,
+	op: FieldOp,
+	recordUndo: boolean,
+): Promise<FieldOpResult> {
+	let r: FieldOpResult = { mutation: EMPTY_MUTATION, changed: 0, skipped: 0 };
+	await mutate(async () => {
+		r = await cmd.storeApplyFieldOp(selector, op, recordUndo);
+		return r.mutation;
+	});
 	emitEvent("location:invalidate");
 	const active = state.activeLocation;
 	if (active && !isVirtualLocation(active)) {

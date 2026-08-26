@@ -226,7 +226,9 @@ export const commands = {
 	 *  rather than pushed through the IPC channel.
 	 */
 	storeCollect: (selector: Selector) => __TAURI_INVOKE<Rows>("store_collect", { selector }),
-	storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => __TAURI_INVOKE<MutationResult>("store_apply_field_op", { selector, op, recordUndo }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),newFieldDefs:v.newFieldDefs==null?v.newFieldDefs:Object.fromEntries(Object.entries(v.newFieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
+	storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => __TAURI_INVOKE<FieldOpResult>("store_apply_field_op", { selector, op, recordUndo }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),newFieldDefs:v.mutation.newFieldDefs==null?v.mutation.newFieldDefs:Object.fromEntries(Object.entries(v.mutation.newFieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
+	/**  The parse error for `src`, or nothing when it parses. For the dialog's live check. */
+	fieldExprError: (src: string) => __TAURI_INVOKE<string | null>("field_expr_error", { src }),
 	/**
 	 *  Count locations by country (offline point-in-polygon). Returns unsorted (ISO-A2, count) pairs.
 	 *  `level` selects border precision, falling back to "light" if unavailable.
@@ -759,7 +761,26 @@ export type FieldOp =
  */
 { kind: "move"; from: string; to: string; winner: MergeWinner } | 
 /**  Drop `keys` from every row that has them. */
-{ kind: "delete"; keys: string[] };
+{ kind: "delete"; keys: string[] } | 
+/**
+ *  Assign `value` to `key` on every row where it differs. A writable built-in key
+ *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
+ */
+{ kind: "set"; key: string; value: unknown } | 
+/**
+ *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+ *  missing or non-numeric field, a non-finite result) is skipped and counted.
+ */
+{ kind: "expr"; key: string; expr: string };
+
+/**  The op's outcome for the caller: the mutation plus the counts its message needs. */
+export type FieldOpResult = {
+	mutation: MutationResult,
+	/**  Rows the op patched. */
+	changed: number,
+	/**  Rows an expression could not evaluate. */
+	skipped: number,
+};
 
 /**
  *  Filter comparison operator. Single source of truth: specta renders the literal

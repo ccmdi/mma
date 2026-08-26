@@ -2541,29 +2541,123 @@ pub enum FieldOp {
     },
     /// Drop `keys` from every row that has them.
     Delete { keys: Vec<String> },
+    /// Assign `value` to `key` on every row where it differs. A writable built-in key
+    /// (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
+    Set {
+        key: String,
+        #[specta(type = specta_typescript::Unknown)]
+        value: serde_json::Value,
+    },
+    /// Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+    /// missing or non-numeric field, a non-finite result) is skipped and counted.
+    Expr { key: String, expr: String },
 }
 
-/// Derive the `extra` merge patch each selected row needs for `op`. Rows the op wouldn't
-/// change yield nothing, so the patch list is the changed set. Also reports which of the
-/// op's removed keys no longer exist on ANY row afterward -- the caller forgets those in
+/// What a field op planned: the patches for the rows it changes, the removed keys that
+/// no longer exist on any row, and the rows an expression could not evaluate.
+#[derive(Default)]
+struct FieldPlan {
+    updates: Vec<Update<LocationPatch>>,
+    forget: Vec<String>,
+    skipped: u32,
+}
+
+/// The op's outcome for the caller: the mutation plus the counts its message needs.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldOpResult {
+    pub mutation: MutationResult,
+    /// Rows the op patched.
+    pub changed: u32,
+    /// Rows an expression could not evaluate.
+    pub skipped: u32,
+}
+
+/// Two field values are the same when JSON says so, except numbers, which compare by
+/// value: an integer stored as `45` equals the `45.0` an expression computes.
+fn same_field_value(current: Option<&serde_json::Value>, next: &serde_json::Value) -> bool {
+    match (current, next) {
+        (Some(c), n) if c.is_number() && n.is_number() => c.as_f64() == n.as_f64(),
+        (c, n) => c == Some(n),
+    }
+}
+
+/// A computed number as the JSON a JS writer would have stored: whole values as
+/// integers, the rest as floats.
+fn number_value(v: f64) -> serde_json::Value {
+    if v.fract() == 0.0 && v.abs() < 9.0e15 {
+        serde_json::Value::from(v as i64)
+    } else {
+        serde_json::Value::from(v)
+    }
+}
+
+/// The patch assigning `value` to `key`: a writable built-in column directly, anything
+/// else as an `extra` merge.
+fn assign_patch(key: &str, value: serde_json::Value) -> AppResult<LocationPatch> {
+    if selections::is_writable_builtin(key) {
+        Ok(serde_json::from_value(serde_json::json!({ key: value }))?)
+    } else {
+        let mut merge = serde_json::Map::new();
+        merge.insert(key.to_string(), value);
+        Ok(LocationPatch {
+            extra: Some(crate::types::RawExtra::from_map(&merge)),
+            ..Default::default()
+        })
+    }
+}
+
+/// Derive the patch each selected row needs for `op`. Rows the op wouldn't change yield
+/// nothing, so the patch list is the changed set. Also reports which of the op's removed
+/// keys no longer exist on ANY row afterward -- the caller forgets those in
 /// `known_field_keys`, so a later reappearance of the key is re-announced to JS. Pure.
 fn plan_field_op(
     view: &selections::LocView,
     set: Option<&roaring::RoaringBitmap>,
     op: &FieldOp,
-) -> (Vec<Update<LocationPatch>>, Vec<String>) {
+) -> AppResult<FieldPlan> {
     let removed: Vec<String> = match op {
         FieldOp::Move { from, to, .. } if from != to && !to.is_empty() => vec![from.clone()],
-        FieldOp::Move { .. } => return (Vec::new(), Vec::new()),
+        FieldOp::Move { .. } => return Ok(FieldPlan::default()),
         FieldOp::Delete { keys } => keys.clone(),
+        FieldOp::Set { .. } | FieldOp::Expr { .. } => Vec::new(),
     };
+    let expr = match op {
+        FieldOp::Expr { expr, .. } => Some(crate::field_expr::parse(expr)?),
+        _ => None,
+    };
+    let mut plan = FieldPlan::default();
     let mut survives: HashSet<String> = HashSet::new();
-    let mut updates: Vec<Update<LocationPatch>> = Vec::new();
+    let mut failed: Option<AppError> = None;
     view.for_each(|row| {
         let id = row.id();
         let mut merge = serde_json::Map::new();
         if set.is_none_or(|s| s.contains(id)) {
             match op {
+                FieldOp::Set { key, value } => {
+                    if !same_field_value(row.resolve_field(key).as_ref(), value) {
+                        match assign_patch(key, value.clone()) {
+                            Ok(patch) => plan.updates.push(Update { id, patch }),
+                            Err(e) => failed = Some(e),
+                        }
+                    }
+                }
+                FieldOp::Expr { key, .. } => {
+                    let expr = expr.as_ref().expect("parsed above");
+                    let field = |name: &str| row.resolve_field(name).and_then(|v| v.as_f64());
+                    match crate::field_expr::eval(expr, &field) {
+                        None => plan.skipped += 1,
+                        Some(v) => {
+                            let value = number_value(v);
+                            if !same_field_value(row.resolve_field(key).as_ref(), &value) {
+                                match assign_patch(key, value) {
+                                    Ok(patch) => plan.updates.push(Update { id, patch }),
+                                    Err(e) => failed = Some(e),
+                                }
+                            }
+                        }
+                    }
+                }
                 FieldOp::Move { from, to, winner } => {
                     if let Some(value) = row.resolve_field(from) {
                         merge.insert(from.clone(), serde_json::Value::Null);
@@ -2593,7 +2687,7 @@ fn plan_field_op(
             }
         }
         if !merge.is_empty() {
-            updates.push(Update {
+            plan.updates.push(Update {
                 id,
                 patch: LocationPatch {
                     extra: Some(crate::types::RawExtra::from_map(&merge)),
@@ -2602,15 +2696,47 @@ fn plan_field_op(
             });
         }
     });
-    let forget = removed
+    if let Some(e) = failed {
+        return Err(e);
+    }
+    plan.forget = removed
         .into_iter()
         .filter(|k| !survives.contains(k))
         .collect();
-    (updates, forget)
+    Ok(plan)
 }
 
-/// Rewrite an `extra` field across the selected set in one pass. Replaces fetching every
-/// location into JS to derive patches and shipping them all back. Keeps `known_field_keys`
+/// The keys an op may only reach through `extra`, and the shape a built-in assignment
+/// must have. A built-in name written through `extra` would silently shadow a column.
+fn check_field_op(op: &FieldOp) -> AppResult<()> {
+    let extra_keys: Vec<&str> = match op {
+        FieldOp::Move { from, to, .. } => vec![from.as_str(), to.as_str()],
+        FieldOp::Delete { keys } => keys.iter().map(String::as_str).collect(),
+        FieldOp::Set { key, .. } | FieldOp::Expr { key, .. } => {
+            if selections::is_writable_builtin(key) {
+                Vec::new()
+            } else {
+                vec![key.as_str()]
+            }
+        }
+    };
+    if let Some(k) = extra_keys.iter().find(|k| selections::is_builtin_field(k)) {
+        return Err(AppError::from(format!(
+            "store_apply_field_op: {k} is a built-in field"
+        )));
+    }
+    if let FieldOp::Set { key, value } = op {
+        if selections::is_writable_builtin(key) && !value.is_number() {
+            return Err(AppError::from(format!(
+                "store_apply_field_op: {key} takes a number"
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Rewrite a field across the selected set in one pass. Replaces fetching every location
+/// into JS to derive patches and shipping them all back. Keeps `known_field_keys`
 /// truthful: keys the op erased from every row are forgotten (before the status snapshot),
 /// so `StoreStatus.knownFieldKeys` reflects the data and a reappearing key is re-announced
 /// through `new_field_defs`.
@@ -2619,26 +2745,21 @@ pub(crate) fn apply_field_op(
     selector: &Selector,
     op: &FieldOp,
     record_undo: bool,
-) -> AppResult<MutationResult> {
-    let touched: Vec<&str> = match op {
-        FieldOp::Move { from, to, .. } => vec![from.as_str(), to.as_str()],
-        FieldOp::Delete { keys } => keys.iter().map(String::as_str).collect(),
-    };
-    // These ops write through `extra` only; a built-in name would silently shadow a column.
-    if let Some(k) = touched.iter().find(|k| selections::is_builtin_field(k)) {
-        return Err(AppError::from(format!(
-            "store_apply_field_op: {k} is a built-in field"
-        )));
-    }
-    let (updates, forget) = {
+) -> AppResult<FieldOpResult> {
+    check_field_op(op)?;
+    let plan = {
         let view = store.loc_view();
         let resolved = selections::narrow(&view, selector);
-        plan_field_op(&view, resolved.as_ref(), op)
+        plan_field_op(&view, resolved.as_ref(), op)?
     };
-    for k in &forget {
+    for k in &plan.forget {
         store.known_field_keys.remove(k);
     }
-    Ok(apply_updates(store, &updates, record_undo))
+    Ok(FieldOpResult {
+        changed: plan.updates.len() as u32,
+        skipped: plan.skipped,
+        mutation: apply_updates(store, &plan.updates, record_undo),
+    })
 }
 
 #[tauri::command]
@@ -2649,7 +2770,7 @@ pub async fn store_apply_field_op(
     selector: Selector,
     op: FieldOp,
     record_undo: Option<bool>,
-) -> AppResult<MutationResult> {
+) -> AppResult<FieldOpResult> {
     let _t = std::time::Instant::now();
     with_store!(label, state, |store| {
         let result = apply_field_op(store, &selector, &op, record_undo.unwrap_or(true))?;
