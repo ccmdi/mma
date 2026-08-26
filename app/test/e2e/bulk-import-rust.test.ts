@@ -1,4 +1,3 @@
-import { cmd } from "@/lib/commands";
 import { waitForReady, closeMap, deleteMap, withApi } from "./helpers";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";

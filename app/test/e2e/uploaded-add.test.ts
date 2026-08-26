@@ -1,4 +1,3 @@
-import { cmd } from "@/lib/commands";
 import { withApi, useMap, createTag } from "./helpers";
 
 // Batches over 5000 route through the chunked upload session instead of one invoke.

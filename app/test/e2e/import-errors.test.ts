@@ -3,7 +3,6 @@
  * Import error paths: verify that malformed, empty, and edge-case inputs
  * produce graceful errors (not crashes or silent data loss).
  */
-import { cmd } from "@/lib/commands";
 import {
 	waitForReady,
 	createAndOpenMap,

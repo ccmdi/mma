@@ -3,7 +3,6 @@
  * settings, and tag operations in one map never bleed into another.
  * Extends multi-map.test.ts which covers basic location/tag/metadata isolation.
  */
-import { cmd } from "@/lib/commands";
 import {
 	waitForReady,
 	createAndOpenMap,

@@ -4,7 +4,6 @@
  * beyond just "the location is gone." Covers dirty count, metadata, active location,
  * selection sync, and tag counts.
  */
-import { cmd } from "@/lib/commands";
 import {
 	addLocs,
 	createLocation,

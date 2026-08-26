@@ -3,7 +3,6 @@
  * All browser calls go through withApi, which injects the MMA API as `api`.
  */
 
-import { cmd } from "@/lib/commands";
 import type { MMA } from "@/api";
 import { createLocation } from "../../src/types";
 import type { Location, Selector, ExtraFieldDef } from "@/bindings.gen";

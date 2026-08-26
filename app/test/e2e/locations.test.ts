@@ -1,4 +1,3 @@
-import { cmd } from "@/lib/commands";
 import {
 	closeMap,
 	flushAndWait,

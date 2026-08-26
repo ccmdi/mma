@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { cmd } from "@/lib/commands";
 import {
 	waitForReady,
 	createAndOpenMap,

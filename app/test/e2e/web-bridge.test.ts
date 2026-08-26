@@ -7,7 +7,6 @@
  * incidentally at best, so a regression there can pass ~46 of 47 tests.
  */
 
-import { cmd } from "@/lib/commands";
 import { createAndOpenMap, closeMap, deleteMap, withApi, addLocs, createLocation } from "./helpers";
 
 describe("Web bridge", () => {

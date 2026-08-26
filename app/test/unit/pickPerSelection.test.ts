@@ -55,7 +55,6 @@ import {
 	openMap,
 	addSelections,
 	resetSelections,
-	setSelectedLocationIds,
 	selectRandomFromSelection,
 	selectSpacedFromSelection,
 	getMapState,

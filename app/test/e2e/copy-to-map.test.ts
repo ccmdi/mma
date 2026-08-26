@@ -17,7 +17,6 @@
  * covered by the import specs), and the producer's add_copied_to_store result is
  * covered by a Rust unit test in import.test.rs.
  */
-import { cmd } from "@/lib/commands";
 import {
 	waitForReady,
 	createAndOpenMap,

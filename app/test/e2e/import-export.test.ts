@@ -1,4 +1,3 @@
-import { cmd } from "@/lib/commands";
 import { addLocs, getLoc, createLocation, createTag, withApi, useMap } from "./helpers";
 
 interface ExportedCoord {
