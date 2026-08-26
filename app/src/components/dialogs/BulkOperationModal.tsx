@@ -806,6 +806,9 @@ function BulkProgress({
 	const [status, setStatus] = useState<"running" | "done" | "cancelled" | "error">("running");
 	const [error, setError] = useState<string | null>(null);
 	const [result, setResult] = useState<BulkRunResult>({});
+	// The run's selector is fixed at start: a live-selection selector changes when the run
+	// itself adds selections, and re-running on that would loop.
+	const [target] = useState(selector);
 	const controllerRef = useRef<AbortController | null>(null);
 	const rateRef = useRef<{ t: number; done: number; ema: number | null }>({
 		t: 0,
@@ -845,7 +848,7 @@ function BulkProgress({
 		};
 
 		try {
-			const r = await runner({ selector, signal: controller.signal, onProgress });
+			const r = await runner({ selector: target, signal: controller.signal, onProgress });
 			setResult(r);
 			setProgress(1);
 			setElapsed((performance.now() - runStart) / 1000);
@@ -858,7 +861,7 @@ function BulkProgress({
 				setStatus("error");
 			}
 		}
-	}, [runner, selector]);
+	}, [runner, target]);
 
 	useEffect(() => {
 		void run();
