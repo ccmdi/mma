@@ -493,16 +493,57 @@ fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> 
 #[tauri::command]
 #[specta::specta]
 pub async fn store_list_maps() -> AppResult<Vec<MapMeta>> {
+    storage::with_db(move |conn| Ok(list_map_rows(conn)?)).await
+}
+
+/// The one ephemeral map. A reserved id rather than a flag column: the row is an
+/// ordinary map that four call sites agree to treat as disposable -- this module's
+/// create and list queries, and the startup purge.
+pub const SCRATCH_MAP_ID: &str = "scratch";
+
+/// Every map except the scratch one.
+fn list_map_rows(conn: &Connection) -> rusqlite::Result<Vec<MapMeta>> {
+    let mut stmt = conn.prepare("SELECT * FROM maps WHERE id != ?1")?;
+    let rows = stmt.query_map(params![SCRATCH_MAP_ID], row_to_map_meta)?;
+    rows.collect()
+}
+
+/// The scratch map's row, inserted on first use. A later call adopts the existing
+/// row, so re-entering the map during a session keeps whatever is in it. It is created
+/// nameless: a reserved map is not the user's to name, and every surface that renders a
+/// map name already degrades when there isn't one.
+fn scratch_map_row(conn: &Connection) -> rusqlite::Result<MapMeta> {
+    let now = now_iso();
+    conn.execute(
+        "INSERT OR IGNORE INTO maps (id, name, folder, settings, created_at, updated_at)
+         VALUES (?1, '', NULL, ?2, ?3, ?3)",
+        params![SCRATCH_MAP_ID, default_settings_json(), now],
+    )?;
+    conn.query_row(
+        "SELECT * FROM maps WHERE id = ?1",
+        params![SCRATCH_MAP_ID],
+        row_to_map_meta,
+    )
+}
+
+/// Open the scratch map, creating it if this is its first use. Ordinary in every way
+/// except that [`store_list_maps`] hides it and startup wipes it.
+#[tauri::command]
+#[specta::specta]
+pub async fn store_scratch_map() -> AppResult<MapData> {
     storage::with_db(move |conn| {
-        let mut stmt = conn.prepare("SELECT * FROM maps")?;
-        let rows = stmt.query_map([], |row| row_to_map_meta(row))?;
-        let mut maps = Vec::new();
-        for row in rows {
-            maps.push(row?);
-        }
-        Ok(maps)
+        Ok(MapData {
+            meta: scratch_map_row(conn)?,
+        })
     })
     .await
+}
+
+/// Drop last session's scratch map. Startup-only: nothing is open yet, so there is no
+/// live store to evict first. Returns whether a map was actually there.
+pub fn purge_scratch_map() -> AppResult<bool> {
+    let conn = storage::open_db()?;
+    delete_map_data(&conn, SCRATCH_MAP_ID)
 }
 
 /// Fetch a single map's metadata by ID. Returns `None` if not found.
@@ -543,6 +584,26 @@ pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult
     .await
 }
 
+/// Drop a map's rows and its files on disk. Returns whether the map was there at all.
+/// Callers evict any live in-memory store first -- this only touches persistence.
+fn delete_map_data(conn: &Connection, id: &str) -> AppResult<bool> {
+    let removed = conn.execute("DELETE FROM maps WHERE id = ?1", params![id])?;
+    conn.execute("DELETE FROM edit_history WHERE map_id = ?1", params![id])?;
+    conn.execute("DELETE FROM commits WHERE map_id = ?1", params![id])?;
+
+    if let Ok(path) = storage::arrow_path(id) {
+        let _ = std::fs::remove_file(path);
+    }
+    if let Ok(path) = storage::arrow_delta_path(id) {
+        let _ = std::fs::remove_file(path);
+    }
+    // Remove the map's per-commit VCS delta files.
+    if let Ok(dir) = storage::arrow_dir() {
+        let _ = std::fs::remove_dir_all(dir.join("commits").join(id));
+    }
+    Ok(removed > 0)
+}
+
 /// Delete a map and all its data: database rows and files on disk.
 // Evicts live in-memory state so an open window or racing autosave can't flush the overlay
 // back after the files are gone. The manager lock is held across the whole delete so a
@@ -555,20 +616,7 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
     mgr.window_map.retain(|_, v| v != &id);
 
     let conn = storage::open_db()?;
-    conn.execute("DELETE FROM maps WHERE id = ?1", params![id])?;
-    conn.execute("DELETE FROM edit_history WHERE map_id = ?1", params![id])?;
-    conn.execute("DELETE FROM commits WHERE map_id = ?1", params![id])?;
-
-    if let Ok(path) = storage::arrow_path(&id) {
-        let _ = std::fs::remove_file(path);
-    }
-    if let Ok(path) = storage::arrow_delta_path(&id) {
-        let _ = std::fs::remove_file(path);
-    }
-    // Remove the map's per-commit VCS delta files.
-    if let Ok(dir) = storage::arrow_dir() {
-        let _ = std::fs::remove_dir_all(dir.join("commits").join(&id));
-    }
+    delete_map_data(&conn, &id)?;
     Ok(())
 }
 
@@ -1189,6 +1237,61 @@ mod tests {
             ExtraFieldType::Number
         ));
         assert_eq!(result["altitude"].label.as_deref(), Some("Altitude"));
+    }
+
+    // --- scratch map ---
+
+    /// A real schema in memory, plus one ordinary map to prove nothing else is touched.
+    fn setup_real_db() -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        storage::run_migrations_on(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO maps (id, name, settings, created_at, updated_at)
+             VALUES ('m1', 'Real', '{}', '2020-01-01', '2020-01-01')",
+            [],
+        )
+        .unwrap();
+        conn
+    }
+
+    #[test]
+    fn scratch_map_is_adopted_not_recreated() {
+        let conn = setup_real_db();
+        let first = scratch_map_row(&conn).unwrap();
+        assert_eq!(first.name, "", "a reserved map has no name of its own");
+        conn.execute(
+            "UPDATE maps SET name = 'renamed' WHERE id = ?1",
+            params![SCRATCH_MAP_ID],
+        )
+        .unwrap();
+        let second = scratch_map_row(&conn).unwrap();
+        assert_eq!(first.id, SCRATCH_MAP_ID);
+        // Re-entering the map during a session must keep whatever is in it.
+        assert_eq!(second.name, "renamed");
+        assert_eq!(second.created_at, first.created_at);
+    }
+
+    #[test]
+    fn scratch_map_is_hidden_from_the_map_list() {
+        let conn = setup_real_db();
+        scratch_map_row(&conn).unwrap();
+        let listed = list_map_rows(&conn).unwrap();
+        // Hiding it here is what also keeps it out of the counts, the copy-to-map
+        // targets, and session restore.
+        assert_eq!(
+            listed.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+            ["m1"]
+        );
+    }
+
+    #[test]
+    fn deleting_the_scratch_map_leaves_other_maps_alone() {
+        let conn = setup_real_db();
+        scratch_map_row(&conn).unwrap();
+        assert!(delete_map_data(&conn, SCRATCH_MAP_ID).unwrap());
+        // Nothing to drop on the next startup.
+        assert!(!delete_map_data(&conn, SCRATCH_MAP_ID).unwrap());
+        assert_eq!(list_map_rows(&conn).unwrap().len(), 1);
     }
 
     fn setup_maps_table() -> rusqlite::Connection {

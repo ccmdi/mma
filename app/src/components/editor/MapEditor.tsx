@@ -29,6 +29,7 @@ import {
 import { ChipHostContext } from "@/components/editor/location/FullscreenMiniLocationPreview";
 import { CommandPalette } from "@/components/editor/CommandPalette";
 import { MapSettingsForm } from "@/components/editor/MapSettingsForm";
+import { isReservedMap } from "@/store/mapList";
 import { EnrichmentButton } from "@/components/editor/map/EnrichmentDialog";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/primitives/Dialog";
 import {
@@ -333,19 +334,21 @@ export function MapEditor() {
 									<Icon path={mdiBackburger} />
 								</a>
 							</Tooltip>
-							<h1>{map.meta.name}</h1>
-							<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-								<Tooltip content={t("Edit map")} side="bottom">
-									<DialogTrigger asChild>
-										<button className="icon-button" type="button" aria-label={t("Edit map")}>
-											<Icon path={mdiPencil} />
-										</button>
-									</DialogTrigger>
-								</Tooltip>
-								<DialogContent title={t("Map settings")} className="edit-map-modal">
-									<MapSettingsForm mapId={map.meta.id} currentName={map.meta.name} />
-								</DialogContent>
-							</Dialog>
+							{map.meta.name && <h1>{map.meta.name}</h1>}
+							{!isReservedMap(map.meta.id) && (
+								<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+									<Tooltip content={t("Edit map")} side="bottom">
+										<DialogTrigger asChild>
+											<button className="icon-button" type="button" aria-label={t("Edit map")}>
+												<Icon path={mdiPencil} />
+											</button>
+										</DialogTrigger>
+									</Tooltip>
+									<DialogContent title={t("Map settings")} className="edit-map-modal">
+										<MapSettingsForm mapId={map.meta.id} currentName={map.meta.name} />
+									</DialogContent>
+								</Dialog>
+							)}
 							<EnrichmentButton />
 						</header>
 						<div className="side-header">

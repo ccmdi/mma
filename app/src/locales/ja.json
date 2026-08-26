@@ -4,6 +4,7 @@
 	"Get new versions as soon as they are cut, before they are marked stable.": "安定版として公開される前の、リリース直後の新しいバージョンを受け取ります。",
 	"Highest score survives a merge; ties go to the oldest.": "統合ではスコアが最も高いものが残ります。同点の場合は古いものが残ります。",
 	"Pano ID": "Pano ID",
+	"Scratch map": "スクラッチマップ",
 	"\"{path}\" already exists in the tree": "「{path}」はツリー内に既に存在します",
 	"(deleted selection)": "（削除済みの選択）",
 	"(downloading...)": "(ダウンロード中...)",

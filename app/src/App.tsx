@@ -12,6 +12,7 @@ import {
 	openManual,
 } from "@/store/router";
 import { MapList, BulkActions } from "@/components/map-list/MapList";
+import { openScratchMap } from "@/store/mapList";
 import { StatsForNerds } from "@/components/dialogs/StatsForNerds";
 import { SettingsPage, UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { PluginMarketplace } from "@/components/dialogs/PluginMarketplace";
@@ -26,7 +27,7 @@ import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";
 import "@/lib/render/renderStats"; // installs the window.__mmaPerf harness bridge
 import { applyAccentColor, resolveSvColorHex } from "@/lib/util/color";
 import { Icon, mdiDiscord } from "@/components/primitives/Icon";
-import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline } from "@mdi/js";
+import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutline } from "@mdi/js";
 import { ToastContainer } from "@/components/primitives/Toast";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
 import { useUpdateState, dismissUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
@@ -136,6 +137,13 @@ function AppChrome() {
 					</a>
 					<button className="settings-gear" onClick={() => openManual()} title={t("Manual")}>
 						<Icon path={mdiBookOpenPageVariantOutline} />
+					</button>
+					<button
+						className="settings-gear"
+						onClick={() => void openScratchMap()}
+						title={t("Scratch map")}
+					>
+						<Icon path={mdiMapOutline} />
 					</button>
 				</div>
 			)}

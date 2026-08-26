@@ -4,6 +4,7 @@
 	"Get new versions as soon as they are cut, before they are marked stable.": "Recibe las versiones nuevas en cuanto se publican, antes de marcarse como estables.",
 	"Highest score survives a merge; ties go to the oldest.": "La puntuación más alta sobrevive a una combinación; en caso de empate gana la más antigua.",
 	"Pano ID": "Pano ID",
+	"Scratch map": "Mapa de borrador",
 	"\"{path}\" already exists in the tree": "\"{path}\" ya existe en el árbol",
 	"(deleted selection)": "(selección eliminada)",
 	"(downloading...)": "(descargando...)",

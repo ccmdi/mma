@@ -4,6 +4,7 @@
 	"Get new versions as soon as they are cut, before they are marked stable.": "Получать новые версии сразу после выпуска, до того как их отметят стабильными.",
 	"Highest score survives a merge; ties go to the oldest.": "После объединения остаётся наибольшая оценка; при равенстве — более старый.",
 	"Pano ID": "Pano ID",
+	"Scratch map": "Черновая карта",
 	"\"{path}\" already exists in the tree": "\"{path}\" уже есть в дереве",
 	"(deleted selection)": "(удалённая выборка)",
 	"(downloading...)": "(загрузка...)",

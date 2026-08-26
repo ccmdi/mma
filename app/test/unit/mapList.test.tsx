@@ -3,8 +3,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { emit } from "@/lib/events";
-import { useMapList, setCachedMapList } from "@/store/mapList";
-import type { MapMeta } from "@/bindings.gen";
+import { useMapList, setCachedMapList, isReservedMap } from "@/store/mapList";
+import { SCRATCH_MAP_ID, type MapMeta } from "@/bindings.gen";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -58,5 +58,15 @@ describe("useMapList subscription granularity", () => {
 		});
 		expect(renders).toBe(1);
 		unmount();
+	});
+});
+
+describe("reserved maps", () => {
+	it("matches the reserved id, never a name that happens to look like one", () => {
+		expect(isReservedMap(SCRATCH_MAP_ID)).toBe(true);
+		// A user map merely named "scratch" is theirs, with a name and settings of its own.
+		expect(isReservedMap("some-uuid")).toBe(false);
+		expect(isReservedMap(null)).toBe(false);
+		expect(isReservedMap(undefined)).toBe(false);
 	});
 });

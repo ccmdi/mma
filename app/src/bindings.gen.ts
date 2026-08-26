@@ -317,6 +317,11 @@ export const commands = {
 	 *  (including the generated UUID) so the frontend can navigate to it immediately.
 	 */
 	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapData>("store_create_map", { name, folder }).then((v) => (({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
+	/**
+	 *  Open the scratch map, creating it if this is its first use. Ordinary in every way
+	 *  except that [`store_list_maps`] hides it and startup wipes it.
+	 */
+	storeScratchMap: () => __TAURI_INVOKE<MapData>("store_scratch_map").then((v) => (({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  Delete a map and all its data: database rows and files on disk. */
 	storeDeleteMap: (id: string) => __TAURI_INVOKE<null>("store_delete_map", { id }),
 	/**  Apply a partial update to a map's metadata; `None` fields are left unchanged. */
@@ -527,6 +532,8 @@ export const BUILTIN_FIELDS = [{"key":"lat","label":"Latitude","type":"number","
 export const KNOWN_FIELDS = [{"key":"altitude","type":"number","label":"Altitude","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"countryCode","type":"string","label":"Country code","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"cameraType","type":"enum","label":"Camera type","values":["gen1","gen2","gen4","badcam","tripod","trekker"],"labels":[["gen1","Gen 1"],["gen2","Gen 2/3"],["gen4","Gen 4"],["badcam","Bad cam"],["tripod","Tripod"],["trekker","Trekker"]],"circularPeriod":null,"defaultOff":false},{"key":"panoType","type":"enum","label":"Pano type","values":["2","3","10"],"labels":[["2","Official"],["3","Unknown"],["10","User uploaded"]],"circularPeriod":null,"defaultOff":false},{"key":"imageDate","type":"month","label":"Image date","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"datetime","type":"date","label":"Exact date","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"timezone","type":"enum","label":"Timezone","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"drivingDirection","type":"number","label":"Driving direction","values":[],"labels":[],"circularPeriod":360.0,"defaultOff":true},{"key":"uploaderName","type":"string","label":"Uploader","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"coverageDates","type":"array","label":"Coverage dates","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"subdivision","type":"string","label":"Subdivision","values":[],"labels":[],"circularPeriod":null,"defaultOff":true}] as const;
 
 export const PROJECTIONS = [{"id":"value","appliesTo":["string","enum","number","month"],"needsTz":false},{"id":"year","appliesTo":["date","month"],"needsTz":true},{"id":"yearMonth","appliesTo":["date"],"needsTz":true},{"id":"day","appliesTo":["date"],"needsTz":true},{"id":"monthOfYear","appliesTo":["date","month"],"needsTz":true},{"id":"hourOfDay","appliesTo":["date"],"needsTz":true}] as const;
+
+export const SCRATCH_MAP_ID = "scratch" as const;
 
 /* Types */
 export type AnonIssueRef = {

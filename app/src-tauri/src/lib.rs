@@ -107,6 +107,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         // Exported for TS but not carried by any command signature.
         .typ::<map_meta::CameraType>()
         .constant("KNOWN_FIELDS", map_meta::KNOWN_FIELDS)
+        .constant("SCRATCH_MAP_ID", map_meta::SCRATCH_MAP_ID)
         .constant("BUILTIN_FIELDS", selections::BUILTIN_FIELDS)
         .constant("PROJECTIONS", selections::PROJECTIONS)
         .commands(tauri_specta::collect_commands![
@@ -196,6 +197,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             map_meta::store_list_maps,
             map_meta::store_get_map,
             map_meta::store_create_map,
+            map_meta::store_scratch_map,
             map_meta::store_delete_map,
             map_meta::store_update_map_meta,
             map_meta::store_touch_map_opened,
@@ -330,6 +332,11 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let swept = storage::sweep_orphaned_tmp();
     if swept > 0 {
         log::info!("[startup] swept {swept} orphaned .tmp files");
+    }
+    match map_meta::purge_scratch_map() {
+        Ok(true) => log::info!("[startup] dropped last session's scratch map"),
+        Ok(false) => {}
+        Err(e) => log::warn!("[startup] scratch map purge failed: {e}"),
     }
     log::info!("[startup] migrations: {}ms", t.elapsed().as_millis());
 

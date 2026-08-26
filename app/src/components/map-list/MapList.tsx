@@ -5,6 +5,7 @@ import { renameMap, updateMapLabels } from "@/store/useMapStore";
 import {
 	useMapList,
 	createMap,
+	openScratchMap,
 	deleteMap,
 	renameFolder,
 	deleteFolder,
@@ -1146,7 +1147,11 @@ export function MapList() {
 								if (e.key !== "Enter") return;
 								e.preventDefault();
 								const name = filterInputRef.current?.value.trim();
-								if (!name) return;
+								// Nameless input, nameless map.
+								if (!name) {
+									void openScratchMap();
+									return;
+								}
 								const entries = listRef.current?.querySelectorAll<HTMLElement>(
 									"[data-filter-name]:not([hidden])",
 								);
