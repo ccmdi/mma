@@ -150,7 +150,10 @@ if [ "${1:-}" = "--shard" ]; then
 	exit $rc
 fi
 
-# Subset: prefix each spec file with --spec. No args => full suite.
+# Subset: prefix each spec file with --spec. No args => full suite. A named spec runs even
+# when the default suite excludes it: --exclude replaces the config's list, which would
+# otherwise block --spec too.
 args=()
 for s in "$@"; do args+=(--spec "$s"); done
+[ ${#args[@]} -gt 0 ] && args+=(--exclude ./test/e2e/scratch.test.ts)
 run_logged "$(log_name)" "${MOCK_ENV[@]}" --rm e2e $RUNNER "${args[@]}"
