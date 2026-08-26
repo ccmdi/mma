@@ -47,9 +47,9 @@ async function resolveWorldSizes(panoIds, onProgress) {
   const entries = [];
   for (let i = 0; i < panoIds.length; i += BATCH) {
     const batch = panoIds.slice(i, i + BATCH);
-    const metas = await MMA.fetchSvMetadata(batch);
+    const metas = await MMA.svMetadata(batch);
     for (let j = 0; j < batch.length; j++) {
-      const ws = metas[j]?.tiles?.worldSize;
+      const ws = metas[j]?.worldSize;
       entries.push({
         panoId: batch[j],
         worldWidth: ws?.width ?? 6656,
