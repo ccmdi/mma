@@ -987,7 +987,10 @@ impl Store {
 
     /// Push an undo entry for the changed (old != new) pairs and clear redo. Returns
     /// whether anything was pushed.
-    fn record_update_undo(&mut self, updated: impl IntoIterator<Item = (Location, Location)>) -> bool {
+    fn record_update_undo(
+        &mut self,
+        updated: impl IntoIterator<Item = (Location, Location)>,
+    ) -> bool {
         let (changed_old, changed_new): (Vec<_>, Vec<_>) =
             updated.into_iter().filter(|(o, n)| o != n).unzip();
         if changed_old.is_empty() {
