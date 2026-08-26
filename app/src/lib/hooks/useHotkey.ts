@@ -31,6 +31,9 @@ function parseCombo(combo: string): ParsedKey {
 			parsed.shift = true;
 		} else if (lower === "plus") {
 			parsed.key = "+";
+		} else if (lower === "comma") {
+			// A bare "," would read as the alternative separator in parseHotkey.
+			parsed.key = ",";
 		} else {
 			parsed.key = lower;
 		}
@@ -78,6 +81,7 @@ export function buildComboString(e: KeyboardEvent): string | null {
 	let keyName = key;
 	if (digit) keyName = digit[1];
 	else if (key === " ") keyName = "space";
+	else if (key === ",") keyName = "comma";
 	else if (key === "=" && !e.shiftKey) keyName = "+";
 	else if (key.length === 1) keyName = key.toLowerCase();
 

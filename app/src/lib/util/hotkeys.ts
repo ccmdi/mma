@@ -40,7 +40,7 @@ const STATIC_HOTKEY_DEFS = [
 		action: "toggleSettings",
 		label: msg("Open or close settings"),
 		group: msg("Global"),
-		defaultBinding: "Mod+,",
+		defaultBinding: "Mod+comma",
 	},
 	{
 		action: "togglePlugins",

@@ -150,6 +150,14 @@ describe("buildComboString", () => {
 		);
 	});
 
+	it("names the comma, which a raw \",\" would split as an alternative", () => {
+		expect(buildComboString(mockEvent({ key: ",", ctrlKey: true }))).toBe("Mod+comma");
+		const [[pk]] = parseHotkey("Mod+comma");
+		expect(pk.key).toBe(",");
+		expect(matchesKey(mockEvent({ key: ",", ctrlKey: true }), pk)).toBe(true);
+		expect(parseHotkey("Mod+comma")).toHaveLength(1);
+	});
+
 	it("records a plain digit as itself", () => {
 		expect(buildComboString(mockEvent({ key: "0", code: "Digit0" }))).toBe("0");
 	});
