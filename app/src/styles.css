@@ -961,6 +961,9 @@ input[type="range"]:disabled {
 	max-height: 90vh;
 	padding: 1rem 0;
 	animation: 0.15s cubic-bezier(0.16, 1, 0.3, 1) modalShow;
+	/* Stay on a compositor layer after the entrance: dropping it repaints outlines and
+	   text in a different antialiasing mode, which reads as a brightness flash. */
+	will-change: transform;
 	display: grid;
 }
 .modal__content {
