@@ -128,13 +128,19 @@ function TooltipHost() {
 				return null;
 			});
 		};
+		// Focus reaching a trigger without the keyboard (a dialog handing focus back to the
+		// button that opened it) is not a hover; only keyboard focus earns the tooltip.
+		const showOnKeyboardFocus = (e: Event) => {
+			const target = e.target as HTMLElement | null;
+			if (target?.matches?.(":focus-visible")) show(e);
+		};
 		const hideAll = () => setShown(null);
 
 		const ac = new AbortController();
 		const { signal } = ac;
 		document.addEventListener("pointerover", show, { signal });
 		document.addEventListener("pointerout", hide, { signal });
-		document.addEventListener("focusin", show, { signal });
+		document.addEventListener("focusin", showOnKeyboardFocus, { signal });
 		document.addEventListener("focusout", hide, { signal });
 		document.addEventListener("pointerdown", hideAll, { capture: true, signal });
 		window.addEventListener("scroll", hideAll, { capture: true, signal });
