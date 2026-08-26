@@ -292,3 +292,71 @@ describe("Bulk operations -- cancel preserves progress", () => {
 		expect(result.later).toBe(result.settled);
 	});
 });
+
+// ============================================================================
+// Field ops: set / expression / clear run in Rust over a selector, one undo entry each
+// ============================================================================
+
+describe("Bulk operations -- field ops", () => {
+	useMap("E2E Bulk Field Ops");
+	let ids: number[];
+
+	before(async () => {
+		ids = await addLocs([
+			loc({ extra: { a: 10 } }),
+			loc({ extra: { a: -10 } }),
+			loc({ extra: { b: 1 } }),
+		]);
+	});
+
+	it("an expression writes per row, skips rows it cannot evaluate, and undoes as one entry", async () => {
+		const r = await withApi(
+			(api, ids) =>
+				api.applyFieldOp(
+					{ type: "Locations", locations: ids, name: null },
+					{ kind: "expr", key: "h", expr: "mod(a + 180, 360)" },
+					true,
+				),
+			ids,
+		);
+		expect(r.changed).toBe(2);
+		expect(r.skipped).toBe(1);
+		expect((await getLoc(ids[0])).extra?.h).toBe(190);
+		expect((await getLoc(ids[1])).extra?.h).toBe(170);
+		expect((await getLoc(ids[2])).extra?.h).toBeUndefined();
+
+		await withApi(async (api) => {
+			await api.undo();
+			return "ok";
+		});
+		expect((await getLoc(ids[0])).extra?.h).toBeUndefined();
+		expect((await getLoc(ids[1])).extra?.h).toBeUndefined();
+	});
+
+	it("a constant set patches a writable built-in column and a clear drops extra keys", async () => {
+		const set = await withApi(
+			(api, ids) =>
+				api.applyFieldOp(
+					{ type: "Locations", locations: ids, name: null },
+					{ kind: "set", key: "heading", value: 90 },
+					true,
+				),
+			ids,
+		);
+		expect(set.changed).toBe(3);
+		expect((await getLoc(ids[2])).heading).toBe(90);
+
+		const cleared = await withApi(
+			(api, ids) =>
+				api.applyFieldOp(
+					{ type: "Locations", locations: ids, name: null },
+					{ kind: "delete", keys: ["a"] },
+					true,
+				),
+			ids,
+		);
+		expect(cleared.changed).toBe(2);
+		expect((await getLoc(ids[0])).extra?.a).toBeUndefined();
+		expect((await getLoc(ids[2])).extra?.b).toBe(1);
+	});
+});
