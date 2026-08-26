@@ -1,16 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { imageKeyToPanoId, panoIdToImageKey } from "@/lib/sv/panoId";
 
-// Reference vectors computed from the pre-pbf hand-rolled encoder
+// Reference vectors computed from the pre-pbf hand-rolled encoder, padded with "." the
+// way the Maps JS API spells the same key.
 const LONG_ID = "AF1QipMnotARealPhotoIdButRepresentative_0123456789";
 const HUGE_ID = "x".repeat(200);
 const VECTORS: [number, string, string][] = [
-	[10, "abc", "CAoSA2FiYw"],
+	[10, "abc", "CAoSA2FiYw.."],
 	[10, LONG_ID, "CAoSMkFGMVFpcE1ub3RBUmVhbFBob3RvSWRCdXRSZXByZXNlbnRhdGl2ZV8wMTIzNDU2Nzg5"],
 	[
 		10,
 		HUGE_ID,
-		"CAoSyAF4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eA",
+		"CAoSyAF4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eA..",
 	],
 ];
 
