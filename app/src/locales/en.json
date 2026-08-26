@@ -700,6 +700,7 @@
 	"Move forward": "Move forward",
 	"Move left": "Move left",
 	"Move right": "Move right",
+	"Move to top level": "Move to top level",
 	"Movement": "Movement",
 	"Moving": "Moving",
 	"Multiple locations were selected around this coordinate. Click one of the thumbnails below\n\t\t\t\tto view that location.": "Multiple locations were selected around this coordinate. Click one of the thumbnails below\n\t\t\t\tto view that location.",
@@ -1463,5 +1464,6 @@
 	"{n}h ago": "{n}h ago",
 	"{n}m ago": "{n}m ago",
 	"{pct}% of locations": "{pct}% of locations",
-	"{selected} of {total} selected ({locations} locations)": "{selected} of {total} selected ({locations} locations)"
+	"{selected} of {total} selected ({locations} locations)": "{selected} of {total} selected ({locations} locations)",
+	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} is the projected value, {field} the field label. A / makes a folder."
 }

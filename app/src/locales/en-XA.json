@@ -700,6 +700,7 @@
 	"Move forward": "[Ɱöṽé ƒöŕŵåŕð åéîöü]",
 	"Move left": "[Ɱöṽé ĺéƒţ åéîö]",
 	"Move right": "[Ɱöṽé ŕîǧĥţ åéîö]",
+	"Move to top level": "[Ɱöṽé ţö ţöƥ ĺéṽéĺ åéîöüåé]",
 	"Movement": "[Ɱöṽéɱéñţ åéîö]",
 	"Moving": "[Ɱöṽîñǧ åéî]",
 	"Multiple locations were selected around this coordinate. Click one of the thumbnails below\n\t\t\t\tto view that location.": "[Ɱüĺţîƥĺé ĺöçåţîöñş ŵéŕé şéĺéçţéð åŕöüñð ţĥîş çööŕðîñåţé. Çĺîçķ öñé öƒ ţĥé ţĥüɱƀñåîĺş ƀéĺöŵ\n\t\t\t\tţö ṽîéŵ ţĥåţ ĺöçåţîöñ. åéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåé]",
@@ -1463,5 +1464,6 @@
 	"{n}h ago": "[{n}ĥ åǧö åé]",
 	"{n}m ago": "[{n}ɱ åǧö åé]",
 	"{pct}% of locations": "[{pct}% öƒ ĺöçåţîöñş åéîöüå]",
-	"{selected} of {total} selected ({locations} locations)": "[{selected} öƒ {total} şéĺéçţéð ({locations} ĺöçåţîöñş) åéîöüåéîöüå]"
+	"{selected} of {total} selected ({locations} locations)": "[{selected} öƒ {total} şéĺéçţéð ({locations} ĺöçåţîöñş) åéîöüåéîöüå]",
+	"{value} is the projected value, {field} the field label. A / makes a folder.": "[{value} îş ţĥé ƥŕöĵéçţéð ṽåĺüé, {field} ţĥé ƒîéĺð ĺåƀéĺ. Å / ɱåķéş å ƒöĺðéŕ. åéîöüåéîöüåéîöüåéîöüåéîöü]"
 }

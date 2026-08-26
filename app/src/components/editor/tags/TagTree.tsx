@@ -503,6 +503,19 @@ export function TagTreeView({
 					))}
 				</ul>
 			)}
+			{dragPaths && dragNodeRef.current && dragNodeRef.current.parentPath !== "" && (
+				<div
+					className={`tag-tree__root-drop${dropTarget?.position === "into" && dropTarget.path === "" ? " is-drop-into" : ""}`}
+					onMouseMove={() => {
+						const block = dragBlockRef.current;
+						if (!block || !canDropInto(treeRef.current, [...block], "")) return;
+						if (dropTargetRef.current?.path !== "" || dropTargetRef.current.position !== "into")
+							applyDropTarget({ path: "", position: "into" });
+					}}
+				>
+					{t("Move to top level")}
+				</div>
+			)}
 			{dragLeaf &&
 				createPortal(
 					<ul

@@ -370,13 +370,17 @@ function findByPath(tree: TagTreeNode[], path: string): TagTreeNode | null {
  *  the block's current parent (no-op), and none of its children collide with a dragged
  *  node's segment. */
 export function canDropInto(tree: TagTreeNode[], dragPaths: string[], targetPath: string): boolean {
-	const target = findByPath(tree, targetPath);
-	if (!target || isLeafTag(target) || target.isAlias) return false;
+	const targetChildren = targetPath === "" ? tree : findByPath(tree, targetPath)?.children;
+	if (!targetChildren) return false;
+	if (targetPath !== "") {
+		const target = findByPath(tree, targetPath)!;
+		if (isLeafTag(target) || target.isAlias) return false;
+	}
 	const nodes = dragPaths.map((p) => findByPath(tree, p));
 	if (nodes.length === 0 || nodes.some((n) => !n || n.isAlias)) return false;
 	if (dragPaths.some((p) => targetPath === p || targetPath.startsWith(`${p}/`))) return false;
 	if (nodes[0]!.parentPath === targetPath) return false;
-	const childSegments = new Set(target.children.map((c) => c.segment));
+	const childSegments = new Set(targetChildren.map((c) => c.segment));
 	return !nodes.some((n) => childSegments.has(n!.segment));
 }
 
@@ -390,10 +394,11 @@ export interface TagMoveResult {
 	pathRemaps: [string, string][];
 }
 
-/** Move the sibling block `dragPaths` into folder `targetPath`: cascadeRename each block
- *  member to `targetPath/<segment>` (tags, virtualTags, and alias keys all follow), and
- *  rebase the global order so the block lands contiguously at the end of the target's
- *  children, keeping its relative order. Returns null when the drop isn't allowed. */
+/** Move the sibling block `dragPaths` into folder `targetPath` (`""` is the top level):
+ *  cascadeRename each block member to `targetPath/<segment>` (tags, virtualTags, and alias
+ *  keys all follow), and rebase the global order so the block lands contiguously at the
+ *  end of the target's children, keeping its relative order. Returns null when the drop
+ *  isn't allowed. */
 export function moveIntoFolder(
 	tree: TagTreeNode[],
 	dragPaths: string[],
@@ -412,7 +417,7 @@ export function moveIntoFolder(
 	const renameById = new Map<number, string>();
 	const pathRemaps: [string, string][] = [];
 	for (const node of nodes) {
-		const newPath = `${targetPath}/${node.segment}`;
+		const newPath = targetPath === "" ? node.segment : `${targetPath}/${node.segment}`;
 		const res = cascadeRename(node.fullPath, newPath, workingTags, workingVT, workingAliases);
 		for (const r of res.tagRenames) renameById.set(r.id, r.name);
 		workingTags = workingTags.map((t) => {
@@ -439,6 +444,7 @@ export function moveIntoFolder(
 		}
 	};
 	walk(tree);
+	if (targetPath === "") for (const b of nodes) emitSubtree(b);
 
 	return {
 		tagRenames: [...renameById].map(([id, name]) => ({ id, name })),
