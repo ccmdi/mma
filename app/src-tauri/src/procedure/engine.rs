@@ -401,7 +401,7 @@ impl RateLimiter {
 // ---------------------------------------------------------------------------
 
 /// What a request declined by a cancelling run answers with.
-const CANCELLED: &str = "procedure: run cancelled";
+pub(super) const CANCELLED: &str = "procedure: run cancelled";
 
 /// A provider's share of the network for the length of its run: how many requests may be
 /// in flight at once, and how fast they may be issued. Every instance of the provider
@@ -1059,7 +1059,12 @@ fn run_instance(
         let (product, failed) = match result {
             Ok(p) => (Some(p), host.failed),
             Err(e) => {
-                log::warn!("[procedure] provider '{}' batch failed: {e}", decl.id);
+                // A batch cut short by a cancel is not a failure worth a warning.
+                if ctx.aborted() {
+                    log::debug!("[procedure] provider '{}' batch cancelled: {e}", decl.id);
+                } else {
+                    log::warn!("[procedure] provider '{}' batch failed: {e}", decl.id);
+                }
                 prog.add_failed(units);
                 (None, batch.ids)
             }

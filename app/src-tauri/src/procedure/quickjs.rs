@@ -505,7 +505,9 @@ fn install_host_calls<'js>(
                         let resp = match r {
                             Ok(resp) => response_to_js(&ctx, resp)?,
                             Err(e) => {
-                                log::debug!("[procedure] fetchMany: {e}");
+                                if e.0 != super::engine::CANCELLED {
+                                    log::debug!("[procedure] fetchMany: {e}");
+                                }
                                 response_to_js(&ctx, &failed_response())?
                             }
                         };
