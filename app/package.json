@@ -83,7 +83,6 @@
 		"@wdio/mocha-framework": "^9.27.1",
 		"@wdio/spec-reporter": "^9.27.1",
 		"@wdio/types": "^9.27.1",
-		"dts-bundle-generator": "^9.5.1",
 		"esbuild": "^0.28.2",
 		"eslint": "^10.2.1",
 		"eslint-plugin-react-hooks": "^7.1.1",
