@@ -788,6 +788,22 @@ fn an_old_style_flat_patch_fails_the_batch() {
 }
 
 #[test]
+fn a_provider_announces_its_total_before_its_first_batch() {
+    let (state, map_id) = setup(&[loc(1, 0.0, 0.0), loc(2, 1.0, 0.0)]);
+    let d = decl("announcer", BatchMode::PerRow);
+    let (sink, events) = recording_sink();
+    let h = Harness::map_only(patch_all(r#"{"panoId":"x"}"#));
+    let mut ctx = h.ctx(&state, &map_id);
+    ctx.progress = sink;
+    run_provider(&ctx, &d).unwrap();
+
+    let events = events.lock().unwrap();
+    let first = &events[0];
+    assert_eq!((first.done, first.total, first.finished), (0, 2, false));
+    assert!(events.last().unwrap().finished);
+}
+
+#[test]
 fn force_false_skips_rows_that_already_hold_every_field() {
     let done = Location {
         extra: RawExtra::from_string(r#"{"country":"JP"}"#.into()),

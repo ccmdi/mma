@@ -578,6 +578,12 @@ impl ProviderProgress {
         (self.sink)(self.snapshot(false));
     }
 
+    /// Announces the provider before any batch, so a listener sees its total at once
+    /// rather than the previous phase's last snapshot until the first batch returns.
+    fn start(&self) {
+        (self.sink)(self.snapshot(false));
+    }
+
     fn finish(&self) {
         (self.sink)(self.snapshot(true));
     }
@@ -691,6 +697,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
         total
     );
     let prog = ProviderProgress::new(ctx.run_id, decl.id.clone(), total, ctx.progress.clone());
+    prog.start();
     let force = decl.force.unwrap_or(ctx.force);
     let batch_mode = effective_batch_mode(ctx, decl)?;
     // One budget for the provider, not one per page or per instance.
