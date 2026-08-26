@@ -1089,7 +1089,7 @@ input[type="range"]:disabled {
 	width: 100%;
 }
 .edit-map-modal {
-	width: 540px;
+	width: 600px;
 	max-height: 90vh;
 }
 .enrichment-modal {
@@ -1118,6 +1118,20 @@ input[type="range"]:disabled {
 	justify-content: space-between;
 	align-items: center;
 	display: grid;
+}
+/* The reset button rides inside the 20rem field column, not beside it. */
+.edit-map-modal__expr {
+	align-items: center;
+	gap: 0.25rem;
+	display: flex;
+}
+.edit-map-modal__expr .text-input {
+	flex: 1;
+	min-width: 0;
+}
+.edit-map-modal__hint {
+	color: var(--text-3);
+	font-size: 0.8125rem;
 }
 /* One row: delete (and its confirm) on the left, save on the right. */
 .edit-map-modal__actions {

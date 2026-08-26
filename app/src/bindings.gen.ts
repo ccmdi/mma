@@ -289,9 +289,10 @@ export const commands = {
 	storeDuplicateGroups: (distance: number) => __TAURI_INVOKE<number[][]>("store_duplicate_groups", { distance }),
 	/**
 	 *  Merge each duplicate group within `distance` metres into one survivor location, unioning
-	 *  tags and extra fields. One undoable edit.
+	 *  tags and extra fields. `score` is the map's duplicate preference expression; blank or
+	 *  absent keeps the built-in ranking. One undoable edit.
 	 */
-	storeMergeDuplicates: (distance: number) => __TAURI_INVOKE<MutationResult>("store_merge_duplicates", { distance }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),newFieldDefs:v.newFieldDefs==null?v.newFieldDefs:Object.fromEntries(Object.entries(v.newFieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
+	storeMergeDuplicates: (distance: number, score: string | null) => __TAURI_INVOKE<MutationResult>("store_merge_duplicates", { distance, score }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),newFieldDefs:v.newFieldDefs==null?v.newFieldDefs:Object.fromEntries(Object.entries(v.newFieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
 	/**
 	 *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
 	 *  cluster. Informational locations are never pruned. One undoable edit.
@@ -1076,6 +1077,11 @@ export type MapSettings = {
 	 *  there. Tree-view only; clicking the alias leaf toggles the real tag.
 	 */
 	aliases?: { [key in string]: number },
+	/**
+	 *  Which member of a duplicate group survives a merge: a `field_expr` scoring the
+	 *  location, highest wins. `None` (or blank) keeps the built-in ranking.
+	 */
+	duplicateScore?: string | null,
 };
 
 /**  When a move target already holds a value, which side survives. */

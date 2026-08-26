@@ -28,7 +28,7 @@ import {
 } from "@/components/editor/location/fullscreenModeState";
 import { ChipHostContext } from "@/components/editor/location/FullscreenMiniLocationPreview";
 import { CommandPalette } from "@/components/editor/CommandPalette";
-import { MapRenameForm } from "@/components/editor/MapRenameForm";
+import { MapSettingsForm } from "@/components/editor/MapSettingsForm";
 import { EnrichmentButton } from "@/components/editor/map/EnrichmentDialog";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/primitives/Dialog";
 import {
@@ -343,7 +343,7 @@ export function MapEditor() {
 									</DialogTrigger>
 								</Tooltip>
 								<DialogContent title={t("Map settings")} className="edit-map-modal">
-									<MapRenameForm mapId={map.meta.id} currentName={map.meta.name} />
+									<MapSettingsForm mapId={map.meta.id} currentName={map.meta.name} />
 								</DialogContent>
 							</Dialog>
 							<EnrichmentButton />

@@ -3892,19 +3892,31 @@ pub fn store_reset_undo(label: WindowLabel, state: tauri::State<'_, StoreState>)
     })
 }
 
-/// Fold a duplicate group into one survivor. Survivor = most tags, then earliest
+/// Fold a duplicate group into one survivor. Survivor = highest `score` (the map's
+/// duplicate preference expression, or tag count when it has none), then earliest
 /// `created_at`, then lowest id (`max_by` picks the greatest, so created_at/id are
-/// reversed to favour smaller). Tags are set-unioned; `extra` is merged with the
-/// survivor winning key conflicts; all other survivor fields are kept. `members` must
-/// be non-empty. The returned survivor keeps its original id (so callers represent the
-/// merge as an update of the survivor plus removal of the rest).
-fn merge_group(members: &[Location]) -> Location {
+/// reversed to favour smaller). A location the expression can't evaluate ranks below
+/// every one it can. Tags are set-unioned; `extra` is merged with the survivor winning
+/// key conflicts; all other survivor fields are kept. `members` must be non-empty. The
+/// returned survivor keeps its original id (so callers represent the merge as an update
+/// of the survivor plus removal of the rest).
+fn merge_group(members: &[Location], score: Option<&crate::field_expr::Expr>) -> Location {
+    let rank = |l: &Location| -> Option<f64> {
+        let Some(expr) = score else {
+            return Some(l.tags.len() as f64);
+        };
+        let row = selections::RowRef::from_loc(l);
+        crate::field_expr::eval(expr, &|name| {
+            row.resolve_field(name).as_ref().and_then(|v| v.as_f64())
+        })
+    };
     let survivor = members
         .iter()
         .max_by(|a, b| {
-            a.tags
-                .len()
-                .cmp(&b.tags.len())
+            // Option orders None below Some; eval never yields NaN, so partial_cmp is total.
+            rank(a)
+                .partial_cmp(&rank(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
                 .then_with(|| b.created_at.cmp(&a.created_at))
                 .then_with(|| b.id.cmp(&a.id))
         })
@@ -4399,16 +4411,23 @@ pub fn store_duplicate_groups(
 }
 
 /// Merge each duplicate group within `distance` metres into one survivor location, unioning
-/// tags and extra fields. One undoable edit.
-// Survivor = most tags, then earliest created_at, then lowest id; extra merges survivor-wins.
+/// tags and extra fields. `score` is the map's duplicate preference expression; blank or
+/// absent keeps the built-in ranking. One undoable edit.
+// Survivor = highest score, then earliest created_at, then lowest id; extra merges
+// survivor-wins.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_merge_duplicates(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     distance: f64,
+    score: Option<String>,
 ) -> AppResult<MutationResult> {
     let _t = std::time::Instant::now();
+    let score = match score.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(src) => Some(crate::field_expr::parse(src)?),
+        None => None,
+    };
     with_store!(label, state, |store| {
         let groups = {
             let view = store.loc_view();
@@ -4426,7 +4445,7 @@ pub async fn store_merge_duplicates(
             if members.len() < 2 {
                 continue;
             }
-            create.push(merge_group(&members));
+            create.push(merge_group(&members, score.as_ref()));
             for m in members {
                 remove.push(m);
             }

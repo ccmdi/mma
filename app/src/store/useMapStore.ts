@@ -894,9 +894,12 @@ export function previewDuplicateGroups(distance: number): Promise<number[][]> {
 	return cmd.storeDuplicateGroups(distance);
 }
 
-/** Merge each transitive duplicate group into one survivor (tags unioned). One undoable edit. */
+/** Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
+ *  map's duplicate preference. One undoable edit. */
 export async function mergeDuplicates(distance: number) {
-	await mutate(() => cmd.storeMergeDuplicates(distance));
+	await mutate(() =>
+		cmd.storeMergeDuplicates(distance, state.map?.meta.settings.duplicateScore ?? null),
+	);
 }
 
 /**
