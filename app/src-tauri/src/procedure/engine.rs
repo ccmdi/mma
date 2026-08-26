@@ -682,6 +682,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
         ids_within(&view, set.as_ref())
     };
     let total = ids.len() as u32;
+    let started = Instant::now();
     log::info!(
         "[procedure] run={} provider='{}' ({}) total={}",
         ctx.run_id,
@@ -749,6 +750,15 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     });
     outcome?;
     prog.finish();
+    log::info!(
+        "[procedure] run={} provider='{}' done={} skipped={} failed={} in {}ms",
+        ctx.run_id,
+        decl.id,
+        prog.done.load(Ordering::Relaxed),
+        prog.skipped.load(Ordering::Relaxed),
+        prog.failed.load(Ordering::Relaxed),
+        started.elapsed().as_millis()
+    );
     Ok(())
 }
 
