@@ -98,6 +98,11 @@ describe("settings search", () => {
 		await initLocale("en");
 	});
 
+	it("focuses the search box when the dialog opens", async () => {
+		await mount();
+		expect(document.activeElement).toBe(q(".settings-rail__search"));
+	});
+
 	// "spawn" is a static binding; Command-backed ones (Undo, etc.) only register with a map open.
 	it("reaches hotkeys from the dialog-wide search box", async () => {
 		await mount();

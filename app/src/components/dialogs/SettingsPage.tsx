@@ -1515,6 +1515,7 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 	const [reports] = useReports();
 	const unread = unreadReplyCount(reports);
 	const [query, setQuery] = useState("");
+	const searchRef = useRef<HTMLInputElement>(null);
 	const q = query.trim().toLowerCase();
 	const searching = q !== "";
 
@@ -1524,9 +1525,17 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Settings")} className="settings-page">
+			<DialogContent
+				title={t("Settings")}
+				className="settings-page"
+				onOpenAutoFocus={(e) => {
+					e.preventDefault();
+					searchRef.current?.focus();
+				}}
+			>
 				<nav className="settings-rail">
 					<TextInput
+						ref={searchRef}
 						type="text"
 						className="settings-rail__search"
 						placeholder={t("Search settings...")}
