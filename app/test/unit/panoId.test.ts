@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";
+import { isOfficialPano, isUnofficial, newestOfficialPano, panoIdToImageKey, imageKeyToPanoId } from "@/lib/sv/panoId";
 import type { Pano } from "@/types";
 
 describe("isOfficialPano", () => {
@@ -82,5 +82,15 @@ describe("isUnofficial", () => {
 		expect(
 			isUnofficial(pano("A".repeat(22), { shortDescription: "Main Street", copyright: "Photo by John" })),
 		).toBe(true);
+	});
+});
+
+describe("ImageKey round-trip", () => {
+	it("spells a user pano id the way the Maps JS API does, dot padding included", () => {
+		// Captured live: the id opensv reports for a Times Square photosphere.
+		const id = "CAoSFkNJSE0wb2dLRUlDQWdJREV5TV9hRFE.";
+		const [frontend, key] = panoIdToImageKey(id);
+		expect(frontend).toBe(10);
+		expect(imageKeyToPanoId([frontend, key])).toBe(id);
 	});
 });

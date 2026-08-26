@@ -229,7 +229,7 @@ test("non-official frontends round-trip through the ImageKey encoding", () => {
 	const user = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => found("upload-1", 10));
 	assert.equal(user.patches.length, 1);
 	const raw = Buffer.from(
-		user.patches[0].patch.panoId.replace(/-/g, "+").replace(/_/g, "/"),
+		user.patches[0].patch.panoId.replace(/-/g, "+").replace(/_/g, "/").replace(/\./g, "="),
 		"base64",
 	);
 	assert.deepEqual([...raw], [0x08, 10, 0x12, 8, ...Buffer.from("upload-1")]);

@@ -55,7 +55,8 @@ export function imageKeyToPanoId(key: unknown[]): string {
 	const id = key[1] as string;
 	if (type === 2 || type === 0) return id;
 	if (type === 3) return `F:${id}`;
-	// Other types (e.g. 10 = USER_UPLOADED): encode as binary protobuf ImageKey + base64url
+	// Other types (e.g. 10 = USER_UPLOADED): binary protobuf ImageKey, web-safe base64 with
+	// Google's "." padding -- the exact string the Maps JS API reports for the same pano.
 	const pbf = new PbfWriter();
 	pbf.writeVarintField(1, type);
 	pbf.writeStringField(2, id);
@@ -63,5 +64,5 @@ export function imageKeyToPanoId(key: unknown[]): string {
 	// Spreading into fromCharCode blows the argument limit on a long id.
 	let bin = "";
 	for (const byte of buf) bin += String.fromCharCode(byte);
-	return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+	return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, ".");
 }
