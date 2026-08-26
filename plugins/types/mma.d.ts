@@ -2743,7 +2743,7 @@ declare const COMMANDS: {
         icon: string;
         group: "Selections";
         enabled: typeof hasSelection;
-        execute: () => void;
+        execute: () => Promise<void>;
     };
     "bulk-validate": {
         label: "Validate locations";
@@ -3571,8 +3571,8 @@ declare function NSelect({ className, onWheel, ...props }: ComponentPropsWithRef
 
 declare function Radio({ className, ...props }: ComponentPropsWithRef<"input">): React$1.JSX.Element;
 
-declare function ScopeSelector({ ctl, className, }: {
-    ctl: ScopeController<ScopeWithSaved>;
+declare function SelectorPicker({ ctl, className, }: {
+    ctl: SelectorPickController;
     className?: string;
 }): React$1.JSX.Element;
 
@@ -3640,8 +3640,55 @@ declare function SegmentedControl<T extends string | number>({ options, value, o
     className?: string;
 }): React$1.JSX.Element;
 
-declare function SelectorPicker({ ctl, className, }: {
-    ctl: SelectorPickController;
+/** Range input whose track fills with the accent up to the current value.
+ *  Controlled only: the fill derives from the value prop. */
+declare function Slider({ className, ...props }: ComponentPropsWithRef<"input">): React$1.JSX.Element;
+
+/** Autocomplete input: owns open/close state, outside-click dismissal,
+ *  Enter-picks-first, and Escape-closes. Suggestion sourcing stays at the call
+ *  site (sync filter or debounced fetch) — the dropdown shows whenever
+ *  `suggestions` is non-empty and not dismissed. Default classes render the
+ *  standard `.search-results` dropdown; override them for other skins. */
+declare function SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: {
+    value: string;
+    onChange: (v: string) => void;
+    suggestions: T[];
+    onPick: (item: T) => void;
+    renderItem: (item: T) => ReactNode;
+    getKey: (item: T) => string | number;
+    placeholder?: string;
+    containerClassName?: string;
+    inputClassName?: string;
+    listClassName?: string;
+    itemClassName?: string;
+    listStyle?: CSSProperties;
+    autoFocus?: boolean;
+    disabled?: boolean;
+    /** When false, Enter closes the dropdown and falls through (e.g. to a form submit). */
+    pickOnEnter?: boolean;
+    /** Render the dropdown in a body portal (fixed, anchored to the input) so it floats
+     *  over clipping ancestors like `.modal__content`. Clicks on it are exempted from
+     *  dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
+    portal?: boolean;
+}): React$1.JSX.Element;
+
+declare function Switch({ checked, onChange, disabled, label, }: {
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    disabled?: boolean;
+    label?: string;
+}): React$1.JSX.Element;
+
+/** A compact, control-left row whose whole surface toggles an immediate-effect
+ *  boolean. The Switch owns keyboard + a11y; the row forwards mouse clicks to
+ *  the same toggle. The control wrapper stops propagation so a direct switch
+ *  click does not also fire the row handler. Used by MapSettingsPanel and any
+ *  surface outside the Settings dialog (SettingRow is the Settings dialog row). */
+declare function SwitchRow({ checked, onChange, label, disabled, className, children, }: {
+    checked: boolean;
+    onChange: (v: boolean) => void;
+    label: string;
+    disabled?: boolean;
     className?: string;
     children?: ReactNode;
 }): React$1.JSX.Element;
@@ -3718,10 +3765,10 @@ declare const ui_Icon: typeof Icon;
 declare const ui_NSelect: typeof NSelect;
 declare const ui_Radio: typeof Radio;
 declare const ui_RgbPicker: typeof RgbPicker;
-declare const ui_ScopeSelector: typeof ScopeSelector;
 declare const ui_Section: typeof Section;
 declare const ui_SegmentedControl: typeof SegmentedControl;
 export type ui_SegmentedOption<T extends string | number> = SegmentedOption<T>;
+declare const ui_SelectorPicker: typeof SelectorPicker;
 declare const ui_SettingRow: typeof SettingRow;
 declare const ui_Sidebar: typeof Sidebar;
 declare const ui_Slider: typeof Slider;
@@ -3735,7 +3782,7 @@ declare const ui_ToolBlock: typeof ToolBlock;
 declare const ui_Tooltip: typeof Tooltip;
 declare const ui_useCloseDialog: typeof useCloseDialog;
 declare namespace ui {
-  export { ui_Button as Button, ui_Checkbox as Checkbox, ui_ColorPicker as ColorPicker, ui_DatePicker as DatePicker, ui_Dialog as Dialog, ui_DialogContent as DialogContent, ui_DialogTrigger as DialogTrigger, ui_EmptyState as EmptyState, ui_Field as Field, ui_Flag as Flag, ui_HotkeyInput as HotkeyInput, ui_Icon as Icon, ui_NSelect as NSelect, ui_Radio as Radio, ui_RgbPicker as RgbPicker, ui_ScopeSelector as ScopeSelector, ui_Section as Section, ui_SegmentedControl as SegmentedControl, ui_SettingRow as SettingRow, ui_Sidebar as Sidebar, ui_Slider as Slider, ui_SuggestInput as SuggestInput, ui_Switch as Switch, ui_SwitchRow as SwitchRow, ui_TagPill as TagPill, ui_TagPillButton as TagPillButton, ui_TextInput as TextInput, ui_ToolBlock as ToolBlock, ui_Tooltip as Tooltip, ui_useCloseDialog as useCloseDialog };
+  export { ui_Button as Button, ui_Checkbox as Checkbox, ui_ColorPicker as ColorPicker, ui_DatePicker as DatePicker, ui_Dialog as Dialog, ui_DialogContent as DialogContent, ui_DialogTrigger as DialogTrigger, ui_EmptyState as EmptyState, ui_Field as Field, ui_Flag as Flag, ui_HotkeyInput as HotkeyInput, ui_Icon as Icon, ui_NSelect as NSelect, ui_Radio as Radio, ui_RgbPicker as RgbPicker, ui_Section as Section, ui_SegmentedControl as SegmentedControl, ui_SelectorPicker as SelectorPicker, ui_SettingRow as SettingRow, ui_Sidebar as Sidebar, ui_Slider as Slider, ui_SuggestInput as SuggestInput, ui_Switch as Switch, ui_SwitchRow as SwitchRow, ui_TagPill as TagPill, ui_TagPillButton as TagPillButton, ui_TextInput as TextInput, ui_ToolBlock as ToolBlock, ui_Tooltip as Tooltip, ui_useCloseDialog as useCloseDialog };
   export type { ui_DialogProps as DialogProps, ui_SegmentedOption as SegmentedOption };
 }
 
@@ -4299,14 +4346,7 @@ declare const surface: {
     registerEnrichmentProvider: typeof registerEnrichmentProvider;
     preloadModules: typeof preloadModules;
     getAvailableExternals: typeof getAvailableExternals;
-    ui: {
-        Sidebar: typeof Sidebar;
-        Section: typeof Section;
-        Field: typeof Field;
-        EmptyState: typeof EmptyState;
-        SegmentedControl: typeof SegmentedControl;
-        SelectorPicker: typeof SelectorPicker;
-    };
+    ui: typeof ui;
     toast: typeof toast;
     storage: typeof createPluginStorage;
     usePluginState: typeof usePluginState;
