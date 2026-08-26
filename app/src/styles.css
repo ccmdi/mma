@@ -1136,6 +1136,10 @@ input[type="range"]:disabled {
 .edit-map-modal .fieldset {
 	margin-top: 1rem;
 }
+.edit-map-modal__description {
+	resize: vertical;
+	min-height: 4rem;
+}
 /* Own the row rhythm rather than inheriting it: this section used to sit in the settings
    popup and lean on its line-height, which the modal doesn't set. */
 .score-bounds__row {

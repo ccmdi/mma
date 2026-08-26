@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
-import { renameMap, updateMapLabels } from "@/store/useMapStore";
 import {
 	useMapList,
 	createMap,
@@ -23,6 +22,7 @@ import { mmaBufUrl, downloadBlob } from "@/lib/util/util";
 import * as Collapsible from "@radix-ui/react-collapsible";
 import { Dialog, DialogContent, useCloseDialog } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
+import { MapSettingsForm } from "@/components/dialogs/MapSettingsForm";
 import {
 	mdiChevronDown,
 	mdiChevronRight,
@@ -42,9 +42,8 @@ import type { SortMode } from "@/types";
 import { events, type MapMeta } from "@/bindings.gen";
 import { fmt, relativeTime, shortDateFmt } from "@/lib/util/format";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
-import { useSetting, setSetting, getSettings, type MapListField } from "@/store/settings";
-import { ColorPicker } from "@/components/primitives/ColorPicker";
-import { labelColor, rgbToHex, hexToRgb, textColorFor } from "@/lib/util/color";
+import { useSetting, type MapListField } from "@/store/settings";
+import { labelColor, textColorFor } from "@/lib/util/color";
 import { toast, progressToast } from "@/lib/util/toast";
 import { parseMapQuery, mapMatchesQuery, toggleLabelInQuery } from "./mapQuery";
 import { t, msg } from "@/lib/i18n";
@@ -318,99 +317,10 @@ function RenameForm({
 	);
 }
 
-function MapEditForm({ id, name, labels }: { id: string; name: string; labels: string[] }) {
-	const close = useCloseDialog();
-	const labelColors = useSetting("labelColors");
-	const [currentLabels, setCurrentLabels] = useState(labels);
-	const [labelInput, setLabelInput] = useState("");
-
-	const setLabelColor = (label: string, hex: string) =>
-		setSetting("labelColors", { ...getSettings().labelColors, [label.toLowerCase()]: hex });
-
-	const addLabel = () => {
-		const val = labelInput.trim().toLowerCase();
-		if (val && !currentLabels.includes(val)) {
-			setCurrentLabels([...currentLabels, val]);
-		}
-		setLabelInput("");
-	};
-
-	return (
-		<form
-			onSubmit={(e) => {
-				e.preventDefault();
-				const val = new FormData(e.currentTarget).get("name");
-				if (typeof val === "string" && val.trim() !== "") {
-					void Promise.all([renameMap(id, val.trim()), updateMapLabels(id, currentLabels)]).finally(
-						close,
-					);
-				}
-			}}
-		>
-			<p>
-				<TextInput
-					type="text"
-					name="name"
-					defaultValue={name}
-					minLength={1}
-					maxLength={100}
-					autoFocus
-				/>
-			</p>
-			<div className="map-edit-labels">
-				<div className="map-edit-labels__label">{t("Labels")}</div>
-				<div className="map-edit-labels__list">
-					{currentLabels.map((l) => {
-						return (
-							<span key={l} className="map-label map-label--editable">
-								<ColorPicker
-									color={hexToRgb(labelColor(l, labelColors))}
-									onChange={(rgb) => setLabelColor(l, rgbToHex(rgb))}
-									ariaLabel={t("Color for {label}", { label: l })}
-								/>
-								{l}
-								<button
-									type="button"
-									className="map-label__remove"
-									onClick={() => setCurrentLabels(currentLabels.filter((x) => x !== l))}
-								>
-									<Icon path={mdiClose} size={12} />
-								</button>
-							</span>
-						);
-					})}
-					<input
-						type="text"
-						className="map-edit-labels__input"
-						placeholder={t("Add label...")}
-						value={labelInput}
-						onChange={(e) => setLabelInput(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") {
-								e.preventDefault();
-								addLabel();
-							}
-							if (e.key === "Backspace" && !labelInput && currentLabels.length > 0) {
-								setCurrentLabels(currentLabels.slice(0, -1));
-							}
-						}}
-					/>
-				</div>
-			</div>
-			<div className="edit-map-modal__actions">
-				<Button type="submit" variant="primary">
-					{t("Save")}
-				</Button>
-			</div>
-		</form>
-	);
-}
-
 interface MapAction {
 	type: "edit" | "delete";
 	id: string;
 	name: string;
-	labels: string[];
 }
 
 const FIELD_RENDERERS: Record<MapListField, (meta: MapMeta) => React.ReactNode> = {
@@ -500,16 +410,14 @@ const MapEntry = React.memo(function MapEntry({
 			<button
 				className="map-list__edit icon-button"
 				aria-label={t("Edit map")}
-				onClick={() =>
-					onAction({ type: "edit", id: meta.id, name: meta.name, labels: meta.labels })
-				}
+				onClick={() => onAction({ type: "edit", id: meta.id, name: meta.name })}
 			>
 				<Icon path={mdiPencil} />
 			</button>
 			<button
 				className="map-list__edit icon-button"
 				aria-label={t("Delete map")}
-				onClick={() => onAction({ type: "delete", id: meta.id, name: meta.name, labels: [] })}
+				onClick={() => onAction({ type: "delete", id: meta.id, name: meta.name })}
 			>
 				<Icon path={mdiDelete} />
 			</button>
@@ -1045,6 +953,10 @@ export function MapList() {
 
 	const [activeAction, setActiveAction] = useState<(MapAction | FolderAction) | null>(null);
 
+	// The dialog edits the live row, not the snapshot the menu click carried.
+	const editingMeta =
+		activeAction?.type === "edit" ? maps.find((m) => m.id === activeAction.id) : undefined;
+
 	const handleMapAction = useCallback((action: MapAction) => setActiveAction(action), []);
 	const handleFolderAction = useCallback((action: FolderAction) => setActiveAction(action), []);
 
@@ -1332,12 +1244,8 @@ export function MapList() {
 						}
 						className="edit-map-modal"
 					>
-						{activeAction.type === "edit" && (
-							<MapEditForm
-								id={activeAction.id}
-								name={activeAction.name}
-								labels={(activeAction as MapAction).labels}
-							/>
+						{activeAction.type === "edit" && editingMeta && (
+							<MapSettingsForm meta={editingMeta} context="list" />
 						)}
 						{activeAction.type === "delete" && (
 							<>

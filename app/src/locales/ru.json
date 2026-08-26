@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " за {seconds}s ({rate}/s)",
+	"Description:": "Описание:",
 	"Get new versions as soon as they are cut, before they are marked stable.": "Получать новые версии сразу после выпуска, до того как их отметят стабильными.",
 	"Highest score survives a merge; ties go to the oldest.": "После объединения остаётся наибольшая оценка; при равенстве — более старый.",
 	"Pano ID": "Pano ID",

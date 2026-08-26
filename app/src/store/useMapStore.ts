@@ -450,8 +450,9 @@ export function setSelectedLocationIds(ids: SelectedIds) {
 	setState({ selectedLocationIds: ids });
 }
 
-/** Optimistically patch map meta, persist, and refresh the map list. */
-async function patchMapMeta(id: string, patch: MapMetaPatch) {
+/** Optimistically patch any map's meta by id, persist, and refresh the map list. Mirrors
+ *  onto the open map's state when it is that map. */
+export async function patchMapMeta(id: string, patch: MapMetaPatch) {
 	if (state.map && state.mapId === id) {
 		const meta = { ...state.map.meta };
 		if (patch.name != null) meta.name = patch.name;
@@ -468,14 +469,7 @@ async function patchMapMeta(id: string, patch: MapMetaPatch) {
 	await invalidateMapList();
 }
 
-export function renameMap(id: string, name: string) {
-	return patchMapMeta(id, { name });
-}
-
-export function updateMapLabels(id: string, labels: string[]) {
-	return patchMapMeta(id, { labels });
-}
-
+/** [`patchMapMeta`] for the map open in this window. */
 export function updateMapMeta(patch: MapMetaPatch) {
 	if (!state.mapId) return;
 	return patchMapMeta(state.mapId, patch);

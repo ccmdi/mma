@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import type { LatLng, Bounds } from "@/types";
+import type { ScoreBounds } from "@/bindings.gen";
 import { isWorldBounds, scoreTupleToBounds } from "@/types";
 import { fetchBounds, useMapState } from "@/store/useMapStore";
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
@@ -92,10 +93,11 @@ export function resolveScoreMaxErrorFromBounds(
  * In `"auto"` mode it tracks the locations' bounding box via the cheap
  * `store_bounds` command and refreshes on location mutations. This is the single
  * value that drives both the Scoring editor display and the measurement score.
+ * `override` resolves against an unsaved value instead of the map's committed one.
  */
-export function useScoreMaxError(): number {
+export function useScoreMaxError(override?: ScoreBounds): number {
 	const map = useMapState((s) => s.map);
-	const raw = map?.meta.scoreBounds ?? "auto";
+	const raw = override ?? map?.meta.scoreBounds ?? "auto";
 	const bounds: "auto" | Bounds = typeof raw === "string" ? "auto" : scoreTupleToBounds(raw);
 	const isAuto = bounds === "auto";
 	const [autoBbox, setAutoBbox] = useState<Bbox | null>(null);

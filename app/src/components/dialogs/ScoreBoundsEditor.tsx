@@ -2,7 +2,6 @@ import { Fragment, useState, useEffect, useRef } from "react";
 import type { ScoreBounds } from "@/bindings.gen";
 import type { Bounds } from "@/types";
 import { isWorldBounds, scoreTupleToBounds, boundsToScoreTuple } from "@/types";
-import { useMapState, updateMapMeta } from "@/store/useMapStore";
 import {
 	resolveScoreMaxError,
 	formatDistance,
@@ -20,16 +19,21 @@ function modeOf(bounds: ScoreBounds): Mode {
 	return isWorldBounds(scoreTupleToBounds(bounds)) ? "world" : "fixed";
 }
 
-/** "Scoring" section of the map settings modal. */
-export function ScoreBoundsEditor() {
-	const map = useMapState((s) => s.map);
-	const bounds: ScoreBounds = map?.meta.scoreBounds ?? "auto";
-	const mode = modeOf(bounds);
-	const resolvedError = useScoreMaxError();
+/** "Scoring" section of the map settings form. Controlled: the form owns the value and
+ *  decides when it is written. */
+export function ScoreBoundsEditor({
+	value,
+	onChange,
+}: {
+	value: ScoreBounds;
+	onChange: (bounds: ScoreBounds) => void;
+}) {
+	const mode = modeOf(value);
+	const resolvedError = useScoreMaxError(value);
 
 	const fixed: Bounds =
-		typeof bounds !== "string" && !isWorldBounds(scoreTupleToBounds(bounds))
-			? scoreTupleToBounds(bounds)
+		typeof value !== "string" && !isWorldBounds(scoreTupleToBounds(value))
+			? scoreTupleToBounds(value)
 			: { south: 0, west: 0, north: 0, east: 0 };
 	const [draft, setDraft] = useState<[string, string, string, string]>([
 		String(fixed.south),
@@ -47,12 +51,10 @@ export function ScoreBoundsEditor() {
 	}, [mode, fixed.south, fixed.west, fixed.north, fixed.east]);
 
 	const setMode = (next: Mode) => {
-		if (next === "auto") void updateMapMeta({ scoreBounds: "auto" });
+		if (next === "auto") onChange("auto");
 		else if (next === "world")
-			void updateMapMeta({
-				scoreBounds: boundsToScoreTuple(google.maps.LatLngBounds.MAX_BOUNDS.toJSON()),
-			});
-		else void updateMapMeta({ scoreBounds: boundsToScoreTuple(lastFixedRef.current) });
+			onChange(boundsToScoreTuple(google.maps.LatLngBounds.MAX_BOUNDS.toJSON()));
+		else onChange(boundsToScoreTuple(lastFixedRef.current));
 	};
 
 	const commitFixed = (parts: [string, string, string, string]) => {
@@ -61,7 +63,7 @@ export function ScoreBoundsEditor() {
 		const [s, w, n, e] = nums;
 		const next: Bounds = { south: s, west: w, north: n, east: e };
 		lastFixedRef.current = next;
-		void updateMapMeta({ scoreBounds: boundsToScoreTuple(next) });
+		onChange(boundsToScoreTuple(next));
 	};
 
 	// Per-mode resolved max-error for the radio labels. The active mode shows the
@@ -77,7 +79,6 @@ export function ScoreBoundsEditor() {
 			</legend>
 			<label className="score-bounds__row">
 				<Radio name="score-bounds" checked={mode === "auto"} onChange={() => setMode("auto")} />
-
 				{t("Automatic based on locations")}
 				{autoError != null && ` (${formatDistance(autoError)})`}
 			</label>
@@ -89,7 +90,6 @@ export function ScoreBoundsEditor() {
 
 			<label className="score-bounds__row">
 				<Radio name="score-bounds" checked={mode === "fixed"} onChange={() => setMode("fixed")} />
-
 				{t("Fixed bounds")}
 				{fixedError != null && ` (${formatDistance(fixedError)})`}
 			</label>

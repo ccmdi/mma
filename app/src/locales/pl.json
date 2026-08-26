@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " w {seconds} s ({rate}/s)",
+	"Description:": "Opis:",
 	"Get new versions as soon as they are cut, before they are marked stable.": "Otrzymuj nowe wersje zaraz po ich wydaniu, zanim zostaną oznaczone jako stabilne.",
 	"Highest score survives a merge; ties go to the oldest.": "Scalenie przetrwa najwyższy wynik; przy remisie wygrywa starszy.",
 	"Pano ID": "Pano ID",

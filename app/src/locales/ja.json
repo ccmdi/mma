@@ -1,6 +1,7 @@
 {
 	" -- {rate}/s": " -- {rate}/秒",
 	" in {seconds}s ({rate}/s)": " 所要 {seconds}s（{rate}/s）",
+	"Description:": "説明:",
 	"Get new versions as soon as they are cut, before they are marked stable.": "安定版として公開される前の、リリース直後の新しいバージョンを受け取ります。",
 	"Highest score survives a merge; ties go to the oldest.": "統合ではスコアが最も高いものが残ります。同点の場合は古いものが残ります。",
 	"Pano ID": "Pano ID",
