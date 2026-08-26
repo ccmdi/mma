@@ -13,6 +13,10 @@ import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { t } from "@/lib/i18n";
+import { fillTemplate } from "@/lib/util/format";
+
+/** `{value}` alone keeps today's names; a prefix such as `Camera/{value}` files them in a folder. */
+const DEFAULT_TEMPLATE = "{value}";
 
 export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const tzDefault = useSetting("dateTimezone") === "location";
@@ -21,6 +25,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const [width, setWidth] = useState("");
 	const [tzLocal, setTzLocal] = useState(tzDefault);
 	const [tagMissing, setTagMissing] = useState(false);
+	const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
 	const picker = useSelectorPick();
 	const fields = useExtraFieldKeys();
 
@@ -43,6 +48,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 
 	const fieldLabel = fields.find((f) => f.key === field)?.label ?? field;
 	const missingName = t("No {field} data", { field: t(fieldLabel) });
+	const tagName = (value: string) => fillTemplate(template, { value, field: t(fieldLabel) });
 
 	const handleApply = async () => {
 		if (!field || !widthValid) return;
@@ -71,12 +77,12 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		);
 		const idsByName = new Map<string, number[]>();
 		groups.forEach((g, i) => {
-			const name = labels[i];
+			const name = tagName(labels[i]);
 			const ids = idsByName.get(name);
 			if (ids) ids.push(...g.ids);
 			else idsByName.set(name, [...g.ids]);
 		});
-		if (missing.length > 0) idsByName.set(missingName, missing);
+		if (missing.length > 0) idsByName.set(tagName(missingName), missing);
 
 		for (const [name, ids] of idsByName)
 			await createTags([name], { type: "Locations", locations: ids, name: null });
@@ -94,6 +100,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 					setWidth("");
 					setTzLocal(tzDefault);
 					setTagMissing(false);
+					setTemplate(DEFAULT_TEMPLATE);
 				}
 			}}
 		>
@@ -161,6 +168,17 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 							/>
 
 							{t("Location timezone")}
+						</label>
+					)}
+					{field && (
+						<label className="bulk-operation__option">
+							{t("Tag name")}
+							<TextInput
+								value={template}
+								onChange={(e) => setTemplate(e.target.value)}
+								placeholder={DEFAULT_TEMPLATE}
+								title={t("{value} is the projected value, {field} the field label. A / makes a folder.")}
+							/>
 						</label>
 					)}
 					{field && (

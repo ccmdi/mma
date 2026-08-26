@@ -89,6 +89,11 @@ export function formatBytes(bytes: number): string {
 	return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
+/** Fill `{name}` placeholders from `vars`; an unknown placeholder is left as written. */
+export function fillTemplate(template: string, vars: Record<string, string>): string {
+	return template.replace(/\{(\w+)\}/g, (m, key: string) => vars[key] ?? m);
+}
+
 export function fileTimestamp(date: Date = new Date()): string {
 	return date.toISOString().slice(0, 19).replace(/[T:]/g, "-");
 }
