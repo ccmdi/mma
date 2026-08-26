@@ -167,7 +167,7 @@ export function TagManager() {
 	}, []);
 	const removeAlias = useCallback(
 		(aliasPath: string) => {
-			const next = { ...(getMapState().map?.meta.settings.aliases ?? {}) };
+			const next = { ...(getMapState().map?.settings.aliases ?? {}) };
 			delete next[aliasPath];
 			setAliases(next);
 		},
@@ -176,7 +176,7 @@ export function TagManager() {
 	// Deletes the declared subtree (only reachable when no tags live under `path`).
 	const deleteFolder = useCallback(
 		(path: string) => {
-			const vt = getMapState().map?.meta.settings.virtualTags ?? {};
+			const vt = getMapState().map?.settings.virtualTags ?? {};
 			const next: Record<string, VirtualTag> = {};
 			for (const [k, v] of Object.entries(vt)) {
 				if (k !== path && !k.startsWith(`${path}/`)) next[k] = v;

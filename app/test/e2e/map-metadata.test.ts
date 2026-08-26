@@ -22,7 +22,7 @@ describe("Map metadata persistence", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const desc = await withApi(async (api) => api.getMapState().map!.meta.description);
+		const desc = await withApi(async (api) => api.getMapState().map!.description);
 		expect(desc).toBe("A test map for e2e");
 	});
 
@@ -49,7 +49,7 @@ describe("Map metadata persistence", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const settings = await withApi(async (api) => api.getMapState().map!.meta.settings);
+		const settings = await withApi(async (api) => api.getMapState().map!.settings);
 		expect(settings.pointAlongRoad).toBe(true);
 		expect(settings.preferDirection).toBe("north");
 		expect(settings.preferOfficial).toBe(true);
@@ -67,7 +67,7 @@ describe("Map metadata persistence", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const bounds = await withApi(async (api) => api.getMapState().map!.meta.scoreBounds);
+		const bounds = await withApi(async (api) => api.getMapState().map!.scoreBounds);
 		expect(bounds).toEqual([-60, 70, -170, 170]);
 	});
 });

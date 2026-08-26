@@ -34,7 +34,7 @@ export function setCachedMapList(list: MapMeta[]) {
 
 /** Create a new empty map and return its metadata. */
 export async function createMap(name: string, folder: string | null = null) {
-	const { meta } = await cmd.storeCreateMap(name, folder);
+	const meta = await cmd.storeCreateMap(name, folder);
 	await invalidateMapList();
 	return meta;
 }
@@ -42,7 +42,7 @@ export async function createMap(name: string, folder: string | null = null) {
 /** Open the scratch map, created on first use. An ordinary map that the list hides and
  *  startup wipes, so the list never needs invalidating for it. */
 export async function openScratchMap() {
-	const { meta } = await cmd.storeScratchMap();
+	const meta = await cmd.storeScratchMap();
 	await openWindow({ type: "editor", mapId: meta.id }, meta.name);
 }
 

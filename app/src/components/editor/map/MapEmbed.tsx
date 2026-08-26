@@ -193,7 +193,7 @@ export function MapEmbed({
 			if (first) {
 				mapOpen.mark("map-ready");
 				created.once("tilesloaded", () => mapOpen.mark("tiles"));
-				if (map.meta.locationCount > 0) {
+				if (map.locationCount > 0) {
 					void fetchBounds({ type: "Everything" }).then((bounds) => {
 						if (cancelled || !hostRef.current || !bounds) return;
 						const [west, south, east, north] = bounds;

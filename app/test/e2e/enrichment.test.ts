@@ -32,7 +32,7 @@ const readLocation = getLocOrNull as (id: number) => Promise<any>;
 
 async function getMapMeta(): Promise<any> {
 	return withApi(async (api) => {
-		return api.getMapState().map?.meta ?? null;
+		return api.getMapState().map ?? null;
 	});
 }
 
@@ -321,10 +321,10 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("does not clobber user-customized field defs", async () => {
 		// Manually set countryCode to a custom type
 		await withApi(async (api) => {
-			const cur = api.getMapState().map!.meta.extra?.fields ?? {};
+			const cur = api.getMapState().map!.extra?.fields ?? {};
 			await api.updateMapMeta({
 				extra: {
-					...api.getMapState().map!.meta.extra,
+					...api.getMapState().map!.extra,
 					fields: {
 						...cur,
 						countryCode: { type: "enum", label: "My Custom Country", values: ["US", "RU"] },
@@ -620,10 +620,10 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 		filterCId = ids[2];
 		// Register field defs
 		await withApi(async (api) => {
-			const cur = api.getMapState().map!.meta.extra?.fields ?? {};
+			const cur = api.getMapState().map!.extra?.fields ?? {};
 			await api.updateMapMeta({
 				extra: {
-					...api.getMapState().map!.meta.extra,
+					...api.getMapState().map!.extra,
 					fields: {
 						...cur,
 						altitude: { type: "number", label: "Altitude" },

@@ -67,6 +67,6 @@ export const closeManual = () => navigate({ ...route, manual: null });
 export function initRouter() {
 	window.addEventListener("popstate", applyRoute);
 	window.addEventListener("hashchange", applyRoute);
-	subscribeEvent("store:changed", () => syncTitle(getMapState().map?.meta.name ?? null));
+	subscribeEvent("store:changed", () => syncTitle(getMapState().map?.name ?? null));
 	applyRoute();
 }

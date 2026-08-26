@@ -97,7 +97,7 @@ export function resolveScoreMaxErrorFromBounds(
  */
 export function useScoreMaxError(override?: ScoreBounds): number {
 	const map = useMapState((s) => s.map);
-	const raw = override ?? map?.meta.scoreBounds ?? "auto";
+	const raw = override ?? map?.scoreBounds ?? "auto";
 	const bounds: "auto" | Bounds = typeof raw === "string" ? "auto" : scoreTupleToBounds(raw);
 	const isAuto = bounds === "auto";
 	const [autoBbox, setAutoBbox] = useState<Bbox | null>(null);

@@ -311,17 +311,17 @@ export const commands = {
 	/**  Return metadata for every map in the database. */
 	storeListMaps: () => __TAURI_INVOKE<MapMeta[]>("store_list_maps").then((v) => (v.map(i=>({...i,extra:({...i.extra,fields:i.extra.fields==null?i.extra.fields:Object.fromEntries(Object.entries(i.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})) as typeof v)),
 	/**  Fetch a single map's metadata by ID. Returns `None` if not found. */
-	storeGetMap: (id: string) => __TAURI_INVOKE<MapData | null>("store_get_map", { id }).then((v) => (v==null?v:({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
+	storeGetMap: (id: string) => __TAURI_INVOKE<MapMeta | null>("store_get_map", { id }).then((v) => (v==null?v:({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
 	 *  Create a new empty map with default settings. Returns the full metadata
 	 *  (including the generated UUID) so the frontend can navigate to it immediately.
 	 */
-	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapData>("store_create_map", { name, folder }).then((v) => (({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
+	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapMeta>("store_create_map", { name, folder }).then((v) => (({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
 	 *  Open the scratch map, creating it if this is its first use. Ordinary in every way
 	 *  except that [`store_list_maps`] hides it and startup wipes it.
 	 */
-	storeScratchMap: () => __TAURI_INVOKE<MapData>("store_scratch_map").then((v) => (({...v,meta:({...v.meta,extra:({...v.meta.extra,fields:v.meta.extra.fields==null?v.meta.extra.fields:Object.fromEntries(Object.entries(v.meta.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
+	storeScratchMap: () => __TAURI_INVOKE<MapMeta>("store_scratch_map").then((v) => (({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  Delete a map and all its data: database rows and files on disk. */
 	storeDeleteMap: (id: string) => __TAURI_INVOKE<null>("store_delete_map", { id }),
 	/**  Apply a partial update to a map's metadata; `None` fields are left unchanged. */
@@ -974,10 +974,6 @@ export type LocationPatch = {
 	extra: { [key in string]: unknown } | null,
 	createdAt: number | null,
 	modifiedAt: number | null,
-};
-
-export type MapData = {
-	meta: MapMeta,
 };
 
 /**

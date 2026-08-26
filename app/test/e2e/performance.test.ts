@@ -186,8 +186,8 @@ async function waitForScene(minimumMarkers: number): Promise<number> {
 async function createOpenMap(name: string): Promise<string> {
 	const id = await withApi(async (api, mapName) => {
 		const map = await api.cmd.storeCreateMap(mapName, null);
-		await api._test.openMap(map.meta.id);
-		return map.meta.id;
+		await api._test.openMap(map.id);
+		return map.id;
 	}, name);
 	ownedMapIds.add(id);
 	await waitForScene(0);
@@ -928,9 +928,9 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					exportUnpanned: true,
 					exportExtras: true,
 					selector: { type: "Everything" },
-					mapName: map.meta.name,
+					mapName: map.name,
 					tagsJson: JSON.stringify(api.getMapState().tags),
-					extraFieldsJson: map.meta.extra?.fields ? JSON.stringify(map.meta.extra.fields) : null,
+					extraFieldsJson: map.extra?.fields ? JSON.stringify(map.extra.fields) : null,
 				};
 				const start = performance.now();
 				const path = await api.cmd.storeExportJson(options);
@@ -1115,7 +1115,7 @@ async function runEnrichExactDate(scale: number, scaleMaps: Set<string>): Promis
 			const map = api.getMapState().map;
 			if (!map) throw new Error("no map open for the exact-date fixture");
 			await api.updateMapMeta({
-				settings: { ...map.meta.settings, enrichMetadata: true, enrichFields: ["datetime"] },
+				settings: { ...map.settings, enrichMetadata: true, enrichFields: ["datetime"] },
 			});
 			await api.waitForInflightPersist();
 			const rows = await api.fetchLocations({ type: "Everything" } as never);

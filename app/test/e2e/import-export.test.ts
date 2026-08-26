@@ -53,7 +53,7 @@ describe("JSON import/export round-trip", () => {
 				exportUnpanned: true,
 				exportExtras: true,
 				selector: { type: "Everything" },
-				mapName: map.meta.name,
+				mapName: map.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,
 			});
@@ -101,7 +101,7 @@ describe("JSON import/export round-trip", () => {
 				exportUnpanned: true,
 				exportExtras: true,
 				selector: { type: "Everything" },
-				mapName: map.meta.name,
+				mapName: map.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,
 			});
@@ -129,7 +129,7 @@ describe("JSON import/export round-trip", () => {
 				exportUnpanned: true,
 				exportExtras: true,
 				selector: { type: "Everything" },
-				mapName: map.meta.name,
+				mapName: map.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,
 			});
@@ -154,7 +154,7 @@ describe("JSON import/export round-trip", () => {
 				exportUnpanned: true,
 				exportExtras: true,
 				selector: { type: "Everything" },
-				mapName: map.meta.name,
+				mapName: map.name,
 				tagsJson: JSON.stringify(api.getMapState().tags),
 				extraFieldsJson: null,
 			});

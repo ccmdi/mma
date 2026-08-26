@@ -80,7 +80,7 @@ export async function reconcile(
 	const assertStillOpen = () => {
 		if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
 		const open = M.getMapState().map;
-		if (!open || open.meta.id !== link.localMapId) throw new Error("linked map is no longer open");
+		if (!open || open.id !== link.localMapId) throw new Error("linked map is no longer open");
 		return open;
 	};
 

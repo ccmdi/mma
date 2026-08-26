@@ -41,7 +41,7 @@ describe("Export dialog settings persistence", () => {
 		expect(await checkboxStates()).toEqual({ zoom: true, extras: false, unpanned: false });
 		await closeExportDialog();
 
-		const settings = await withApi(async (api) => api.getMapState().map!.meta.settings);
+		const settings = await withApi(async (api) => api.getMapState().map!.settings);
 		expect(settings.exportZoom).toBe(true);
 		expect(settings.exportExtras).toBe(false);
 		expect(settings.exportUnpanned).toBe(false);

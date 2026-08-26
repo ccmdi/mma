@@ -192,7 +192,7 @@ export function MapEditor() {
 	const prefetchDocs = useEffectEvent(() => {
 		if (map) prefetchDoclinks(getMapState().tags);
 	});
-	useEffect(() => prefetchDocs(), [map?.meta.id]);
+	useEffect(() => prefetchDocs(), [map?.id]);
 	const workArea = useMapState((s) => s.workArea);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [split, setSplit] = useLocalStorage("editorSplit", 50);
@@ -210,7 +210,7 @@ export function MapEditor() {
 			cancelled = true;
 			deactivatePlugins();
 		};
-	}, [map?.meta.id]);
+	}, [map?.id]);
 
 	// Another window mutated this map
 	useEffect(() => {
@@ -242,7 +242,7 @@ export function MapEditor() {
 	useCommandHotkeys();
 	useMapKeyBindings(() =>
 		mergedKeyBindings(
-			getMapState().map?.meta.settings.keyBindings ?? [],
+			getMapState().map?.settings.keyBindings ?? [],
 			getSettings().globalCopyBindings,
 			getMapState().mapId,
 		),
@@ -334,8 +334,8 @@ export function MapEditor() {
 									<Icon path={mdiBackburger} />
 								</a>
 							</Tooltip>
-							{map.meta.name && <h1>{map.meta.name}</h1>}
-							{!isReservedMap(map.meta.id) && (
+							{map.name && <h1>{map.name}</h1>}
+							{!isReservedMap(map.id) && (
 								<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
 									<Tooltip content={t("Edit map")} side="bottom">
 										<DialogTrigger asChild>
@@ -345,7 +345,7 @@ export function MapEditor() {
 										</DialogTrigger>
 									</Tooltip>
 									<DialogContent title={t("Map settings")} className="edit-map-modal">
-										<MapSettingsForm meta={map.meta} context="editor" />
+										<MapSettingsForm map={map} context="editor" />
 									</DialogContent>
 								</Dialog>
 							)}

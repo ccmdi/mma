@@ -435,12 +435,6 @@ pub struct MapMeta {
     pub last_opened_at: Option<String>,
 }
 
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct MapData {
-    pub meta: MapMeta,
-}
-
 /// Partial update for map metadata. Only non-`None` fields are written.
 /// `folder: Some(None)` explicitly unsets the folder (moves to root).
 #[derive(Default, serde::Deserialize, specta::Type)]
@@ -530,13 +524,8 @@ fn scratch_map_row(conn: &Connection) -> rusqlite::Result<MapMeta> {
 /// except that [`store_list_maps`] hides it and startup wipes it.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_scratch_map() -> AppResult<MapData> {
-    storage::with_db(move |conn| {
-        Ok(MapData {
-            meta: scratch_map_row(conn)?,
-        })
-    })
-    .await
+pub async fn store_scratch_map() -> AppResult<MapMeta> {
+    storage::with_db(move |conn| Ok(scratch_map_row(conn)?)).await
 }
 
 /// Drop last session's scratch map. Startup-only: nothing is open yet, so there is no
@@ -549,13 +538,13 @@ pub fn purge_scratch_map() -> AppResult<bool> {
 /// Fetch a single map's metadata by ID. Returns `None` if not found.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_get_map(id: String) -> AppResult<Option<MapData>> {
+pub async fn store_get_map(id: String) -> AppResult<Option<MapMeta>> {
     storage::with_db(move |conn| {
         let result = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
             row_to_map_meta(row)
         });
         match result {
-            Ok(meta) => Ok(Some(MapData { meta })),
+            Ok(meta) => Ok(Some(meta)),
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
             Err(e) => Err(e.into()),
         }
@@ -567,7 +556,7 @@ pub async fn store_get_map(id: String) -> AppResult<Option<MapData>> {
 /// (including the generated UUID) so the frontend can navigate to it immediately.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult<MapData> {
+pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult<MapMeta> {
     storage::with_db(move |conn| {
         let id = uuid::Uuid::new_v4().to_string();
         let now = now_iso();
@@ -576,10 +565,10 @@ pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult
             params![id, name, folder, default_settings_json(), now, now],
         )?;
 
-        let meta = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
+        conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
             row_to_map_meta(row)
-        })?;
-        Ok(MapData { meta })
+        })
+        .map_err(Into::into)
     })
     .await
 }

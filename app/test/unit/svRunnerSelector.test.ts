@@ -41,7 +41,7 @@ vi.mock("@/store/useMapStore", () => ({
 	holdAutosave: () => () => {},
 	updateLocations: async () => {},
 	getMapState: () => ({
-		map: { meta: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } } },
+		map: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } },
 	}),
 }));
 

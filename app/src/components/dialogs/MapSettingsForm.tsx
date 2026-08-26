@@ -233,12 +233,12 @@ function DeleteMapSection({ mapId, name }: { mapId: string; name: string }) {
 
 /** Edits one map's metadata. The same form in both windows; `context` decides which
  *  sections it is made of. */
-export function MapSettingsForm({ meta, context }: { meta: MapMeta; context: MapFormContext }) {
+export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFormContext }) {
 	const close = useCloseDialog();
 	const [patch, setPatch] = useState<Partial<MapMeta>>({});
 	const [blocked, setBlocked] = useState<ReadonlySet<string>>(new Set());
 
-	const draft: MapMeta = { ...meta, ...patch };
+	const draft: MapMeta = { ...map, ...patch };
 	const sections = SECTIONS.filter((s) => s.in.includes(context));
 
 	// Stable per-section callbacks: sections put them in effect deps.
@@ -267,7 +267,7 @@ export function MapSettingsForm({ meta, context }: { meta: MapMeta; context: Map
 		<form
 			onSubmit={(e) => {
 				e.preventDefault();
-				void patchMapMeta(meta.id, patch);
+				void patchMapMeta(map.id, patch);
 				close();
 			}}
 		>
@@ -275,7 +275,7 @@ export function MapSettingsForm({ meta, context }: { meta: MapMeta; context: Map
 				<Body key={id} draft={draft} {...handlers.get(id)!} />
 			))}
 			<div className="edit-map-modal__actions">
-				{context === "editor" && <DeleteMapSection mapId={meta.id} name={meta.name} />}
+				{context === "editor" && <DeleteMapSection mapId={map.id} name={map.name} />}
 				<Button variant="primary" type="submit" disabled={blocked.size > 0}>
 					{t("Save")}
 				</Button>

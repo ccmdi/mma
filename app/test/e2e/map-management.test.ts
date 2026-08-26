@@ -35,7 +35,7 @@ describe("Map management", () => {
 		const id = await createAndOpenMap("Test Map 1");
 		createdMapIds.push(id);
 
-		const name = await withApi(async (api) => api.getMapState().map?.meta.name);
+		const name = await withApi(async (api) => api.getMapState().map?.name);
 		expect(name).toBe("Test Map 1");
 
 		const count = await getLocCount();
@@ -48,7 +48,7 @@ describe("Map management", () => {
 		for (let i = 2; i <= 5; i++) {
 			const id = await withApi(async (api, name) => {
 				const map = await api.cmd.storeCreateMap(name, null);
-				return map.meta.id;
+				return map.id;
 			}, `Test Map ${i}`);
 			expect(id).not.toContain("ERROR");
 			createdMapIds.push(id);
@@ -75,7 +75,7 @@ describe("Map management", () => {
 
 		const map = await withApi(async (api) => {
 			const state = api.getMapState();
-			return state.map ? { id: state.mapId, name: state.map.meta.name } : null;
+			return state.map ? { id: state.mapId, name: state.map.name } : null;
 		});
 		expect(map).not.toBeNull();
 		expect(map!.id).toBe(createdMapIds[0]);
@@ -148,7 +148,7 @@ describe("Map metadata", () => {
 		await waitForReady();
 		mapId = await withApi(async (api) => {
 			const map = await api.cmd.storeCreateMap("Meta Test Map", null);
-			return map.meta.id;
+			return map.id;
 		});
 	});
 
@@ -160,7 +160,7 @@ describe("Map metadata", () => {
 	it("map has correct initial metadata", async () => {
 		await openMap(mapId);
 		const meta = await withApi(async (api) => {
-			return api.getMapState().map!.meta;
+			return api.getMapState().map!;
 		});
 		expect(meta.name).toBe("Meta Test Map");
 		expect(meta.description).toBe("");
@@ -184,7 +184,7 @@ describe("Empty map edge cases", () => {
 		await waitForReady();
 		mapId = await withApi(async (api) => {
 			const map = await api.cmd.storeCreateMap("Empty Map", null);
-			return map.meta.id;
+			return map.id;
 		});
 	});
 

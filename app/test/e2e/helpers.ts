@@ -54,8 +54,8 @@ export async function clearInput(selector: string) {
 export async function createAndOpenMap(name: string): Promise<string> {
 	const id = await withApi(async (api, n) => {
 		const map = await api.cmd.storeCreateMap(n, null);
-		await api._test.openMap(map.meta.id);
-		return map.meta.id;
+		await api._test.openMap(map.id);
+		return map.id;
 	}, name);
 	// The editor mounts asynchronously after open and runs init effects (render fill,
 	// plugin activation). Seeding/selecting before that settles is racy, so gate here
@@ -233,7 +233,7 @@ export async function waitForActive(id: number | null) {
 export async function updateMapSettings(patch: Record<string, unknown>) {
 	await withApi(async (api, p) => {
 		const map = api.getMapState().map!;
-		await api.updateMapMeta({ settings: { ...map.meta.settings, ...p } });
+		await api.updateMapMeta({ settings: { ...map.settings, ...p } });
 		return "ok";
 	}, patch);
 }
@@ -241,9 +241,9 @@ export async function updateMapSettings(patch: Record<string, unknown>) {
 export async function registerFields(defs: Record<string, ExtraFieldDef>) {
 	await withApi(async (api, d) => {
 		const map = api.getMapState().map!;
-		const cur = map.meta.extra?.fields ?? {};
+		const cur = map.extra?.fields ?? {};
 		await api.updateMapMeta({
-			extra: { ...map.meta.extra, fields: { ...cur, ...d } },
+			extra: { ...map.extra, fields: { ...cur, ...d } },
 		});
 		return "ok";
 	}, defs);

@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({
-		map: { meta: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } } },
+		map: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } },
 	}),
 	updateLocations: async (updates: { patch: { extra: Record<string, unknown> } }[]) => {
 		for (const u of updates) h.written.push(u.patch.extra);

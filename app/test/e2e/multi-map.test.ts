@@ -151,12 +151,12 @@ describe("Multi-map metadata isolation", () => {
 
 	it("each map retains its own description", async () => {
 		await openMap(map1Id);
-		const desc1 = await withApi(async (api) => api.getMapState().map!.meta.description);
+		const desc1 = await withApi(async (api) => api.getMapState().map!.description);
 		expect(desc1).toBe("Description 1");
 		await closeMap();
 
 		await openMap(map2Id);
-		const desc2 = await withApi(async (api) => api.getMapState().map!.meta.description);
+		const desc2 = await withApi(async (api) => api.getMapState().map!.description);
 		expect(desc2).toBe("Description 2");
 		await closeMap();
 	});

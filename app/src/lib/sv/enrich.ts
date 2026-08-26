@@ -44,8 +44,8 @@ export async function enrich(loc: Location, data?: Pano | null): Promise<boolean
 		if (!data) return false;
 	}
 	const map = getMapState().map;
-	if (!map || !map.meta.settings.enrichMetadata) return false;
-	const enrichFields = map.meta.settings.enrichFields ?? getDefaultEnrichKeys();
+	if (!map || !map.settings.enrichMetadata) return false;
+	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
 
 	const patch = metadataPatch(data, loc.extra, new Set(enrichFields));
 	if (Object.keys(patch).length > 0) {
@@ -190,7 +190,7 @@ export async function enrichAll(
 ): Promise<EnrichResult> {
 	const map = getMapState().map;
 	if (!map) return [];
-	const enrichFields = map.meta.settings.enrichFields ?? getDefaultEnrichKeys();
+	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
 
 	// Force re-derives fields, never panos: a stored pano id is kept, and every row
 	// without one is resolved.

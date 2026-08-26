@@ -7,7 +7,7 @@ import {
 	locId,
 	applyLocationPatch,
 } from "@/types";
-import type { Location, MapData, MapMeta, Tag, ExtraFieldDef, StoreStatus } from "@/bindings.gen";
+import type { Location, MapMeta, Tag, ExtraFieldDef, StoreStatus } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import type {
@@ -61,7 +61,7 @@ import {
 export interface MapState {
 	mapId: string | null;
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
-	map: MapData | null;
+	map: MapMeta | null;
 	locationCount: number;
 	canUndo: boolean;
 	canRedo: boolean;
@@ -284,11 +284,11 @@ function clearEditState() {
 }
 
 /** State fields every (re)open derives from the meta snapshot + open status. */
-function openedMapState(meta: MapData | null, status: StoreStatus) {
+function openedMapState(meta: MapMeta | null, status: StoreStatus) {
 	return {
 		map: meta,
-		locationCount: meta?.meta.locationCount ?? 0,
-		tags: meta?.meta.tags ?? {},
+		locationCount: meta?.locationCount ?? 0,
+		tags: meta?.tags ?? {},
 		tagCounts: status.tagCounts ?? {},
 		canUndo: status.canUndo,
 		canRedo: status.canRedo,
@@ -316,7 +316,7 @@ export async function openMap(id: string) {
 			t.step("store_open_map");
 			mapOpen.mark("data");
 			setState(openedMapState(meta, openResult));
-			setUserFieldDefs(meta.meta.extra?.fields ?? {});
+			setUserFieldDefs(meta.extra?.fields ?? {});
 		} catch (e) {
 			log.error("[openMap] store_open_map failed:", e);
 			setState({ mapId: null, map: null });
@@ -454,7 +454,7 @@ export function setSelectedLocationIds(ids: SelectedIds) {
  *  onto the open map's state when it is that map. */
 export async function patchMapMeta(id: string, patch: MapMetaPatch) {
 	if (state.map && state.mapId === id) {
-		const meta = { ...state.map.meta };
+		const meta = { ...state.map };
 		if (patch.name != null) meta.name = patch.name;
 		if (patch.description != null) meta.description = patch.description;
 		if (patch.folder !== undefined) meta.folder = patch.folder;
@@ -462,7 +462,7 @@ export async function patchMapMeta(id: string, patch: MapMetaPatch) {
 		if (patch.scoreBounds != null) meta.scoreBounds = patch.scoreBounds;
 		if (patch.extra != null) meta.extra = patch.extra;
 		if (patch.labels != null) meta.labels = patch.labels;
-		setState({ map: { ...state.map, meta } });
+		setState({ map: meta });
 	}
 	emitEvent("store:changed");
 	await cmd.storeUpdateMapMeta(id, patch);
@@ -478,9 +478,9 @@ export function updateMapMeta(patch: MapMetaPatch) {
 /** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
 export async function setMapExtraFields(fields: Record<string, ExtraFieldDef>) {
 	if (!state.mapId || !state.map) return;
-	const current = state.map.meta.extra ?? {};
+	const current = state.map.extra ?? {};
 	const replaced = { ...current, fields };
-	setState({ map: { ...state.map, meta: { ...state.map.meta, extra: replaced } } });
+	setState({ map: { ...state.map, extra: replaced } });
 	setUserFieldDefs(fields);
 	emitEvent("store:changed");
 	await cmd.storeUpdateMapMeta(state.mapId, { extra: replaced } as Partial<MapMeta>);
@@ -694,7 +694,7 @@ export async function applyFieldOp(
  *  must not mutate them (the rule simply stops resolving here). */
 async function migrateFieldReferences(from: string, to: string | null) {
 	if (!state.map) return;
-	const defs = { ...(state.map.meta.extra?.fields ?? {}) };
+	const defs = { ...(state.map.extra?.fields ?? {}) };
 	if (defs[from]) {
 		if (to && !defs[to]) defs[to] = defs[from];
 		delete defs[from];
@@ -892,7 +892,7 @@ export function previewDuplicateGroups(distance: number): Promise<number[][]> {
  *  map's duplicate preference. One undoable edit. */
 export async function mergeDuplicates(distance: number) {
 	await mutate(() =>
-		cmd.storeMergeDuplicates(distance, state.map?.meta.settings.duplicateScore ?? null),
+		cmd.storeMergeDuplicates(distance, state.map?.settings.duplicateScore ?? null),
 	);
 }
 

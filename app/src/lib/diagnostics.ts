@@ -111,7 +111,7 @@ async function mapDiagnostics(): Promise<MapDiagnostics | null> {
 	} catch {
 		// A report about a broken map must still send.
 	}
-	const settings = state.map.meta.settings ?? {};
+	const settings = state.map.settings ?? {};
 	return {
 		locationCount: state.locationCount,
 		tagCount: Object.keys(state.tags).length,

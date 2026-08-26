@@ -64,17 +64,12 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const [panoReady, setPanoReady] = useState(false);
 
 	const selectedPanoId =
-		location && hasLoadAsPanoId(location) && currentPano?.pano
-			? currentPano.pano
-			: null;
+		location && hasLoadAsPanoId(location) && currentPano?.pano ? currentPano.pano : null;
 
 	const defaultPanoId = location?.panoId ?? null;
 	const lat = currentPano?.lat ?? location?.lat ?? 0;
 	const lng = currentPano?.lng ?? location?.lng ?? 0;
-	const datetimeEnabled = isFieldEnabled(
-		currentMap?.meta.settings.enrichFields ?? null,
-		"datetime",
-	);
+	const datetimeEnabled = isFieldEnabled(currentMap?.settings.enrichFields ?? null, "datetime");
 	const dateTimezone = useSetting("dateTimezone");
 
 	const dateState = useMemo(
@@ -93,7 +88,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	// Single writer: persist the resolved exact date back to the active location's extra.
 	useEffect(() => {
 		if (exactDate.ts == null) return;
-		if (!getMapState().map?.meta.settings.enrichMetadata) return;
+		if (!getMapState().map?.settings.enrichMetadata) return;
 		const loc = getMapState().activeLocation;
 		if (!loc || loc.extra?.datetime != null) return;
 		void updateLocations(
@@ -134,17 +129,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			exactDate,
 			resolvedTz,
 		}),
-		[
-			currentPano,
-			panoDates,
-			panoReady,
-			selectedPanoId,
-			lat,
-			lng,
-			dateState,
-			exactDate,
-			resolvedTz,
-		],
+		[currentPano, panoDates, panoReady, selectedPanoId, lat, lng, dateState, exactDate, resolvedTz],
 	);
 
 	return <PanoViewerContext.Provider value={value}>{children}</PanoViewerContext.Provider>;

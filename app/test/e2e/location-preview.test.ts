@@ -614,7 +614,7 @@ describe("LocationPreview — exact date resolution", () => {
 			const map = api.getMapState().map!;
 			await api.updateMapMeta({
 				settings: {
-					...map.meta.settings,
+					...map.settings,
 					enrichMetadata: true,
 					enrichFields: [
 						"altitude",

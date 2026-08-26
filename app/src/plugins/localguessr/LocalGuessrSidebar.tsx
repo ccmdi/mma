@@ -61,7 +61,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	const [view, dispatch] = useReducer(reduce, { phase: "config" } as View);
 	const [starting, setStarting] = useState(false);
 	const [resumable, setResumable] = useState(() => {
-		const id = getMapState().map?.meta.id;
+		const id = getMapState().map?.id;
 		return id ? getSavedGame(id) : null;
 	});
 
@@ -70,7 +70,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	// The config phase never clears here: this effect also runs on a fresh mount,
 	// and clearing then would wipe a resumable run. Explicit exits clear via `exitGame`.
 	useEffect(() => {
-		const mapId = getMapState().map?.meta.id;
+		const mapId = getMapState().map?.id;
 		if (view.phase === "playing" || view.phase === "result") {
 			saveGame(view.game);
 			setGlobalStreak(view.game.config.streakMode, view.game.streak);
@@ -82,7 +82,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 
 	/** Leave and forfeit the game (drops the saved run). */
 	const exitGame = useCallback(() => {
-		const mapId = getMapState().map?.meta.id;
+		const mapId = getMapState().map?.id;
 		if (mapId) clearSavedGame(mapId);
 		dispatch({ type: "exit" });
 	}, []);
@@ -102,8 +102,8 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 				type: "start",
 				game: {
 					config,
-					mapId: current.meta.id,
-					mapName: current.meta.name,
+					mapId: current.id,
+					mapName: current.name,
 					maxError,
 					locations,
 					index: 0,

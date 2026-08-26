@@ -5,7 +5,7 @@ MMA.registerPlugin({
   activate() {
     const map = MMA.getMapState().map;
     if (map) {
-      console.log(`[sample] Activated on "${map.meta.name}"`);
+      console.log(`[sample] Activated on "${map.name}"`);
     }
 
     // Subscribe to events

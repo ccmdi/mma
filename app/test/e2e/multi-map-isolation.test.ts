@@ -211,7 +211,7 @@ describe("Per-map settings isolation", () => {
 		// Only patch individual settings via the existing defaults, not full replacement
 		mapAId = await createAndOpenMap("E2E SettingsIso A");
 		await withApi(async (api) => {
-			const current = api.getMapState().map!.meta.settings;
+			const current = api.getMapState().map!.settings;
 			await api.updateMapMeta({
 				settings: {
 					...current,
@@ -225,7 +225,7 @@ describe("Per-map settings isolation", () => {
 
 		mapBId = await createAndOpenMap("E2E SettingsIso B");
 		await withApi(async (api) => {
-			const current = api.getMapState().map!.meta.settings;
+			const current = api.getMapState().map!.settings;
 			await api.updateMapMeta({
 				settings: {
 					...current,
@@ -247,7 +247,7 @@ describe("Per-map settings isolation", () => {
 
 	it("map A has its own settings", async () => {
 		await openMap(mapAId);
-		const settings = await withApi(async (api) => api.getMapState().map!.meta.settings);
+		const settings = await withApi(async (api) => api.getMapState().map!.settings);
 		expect(settings.exportZoom).toBe(true);
 		expect(settings.preferOfficial).toBe(true);
 		await closeMap();
@@ -255,7 +255,7 @@ describe("Per-map settings isolation", () => {
 
 	it("map B has its own settings (different from A)", async () => {
 		await openMap(mapBId);
-		const settings = await withApi(async (api) => api.getMapState().map!.meta.settings);
+		const settings = await withApi(async (api) => api.getMapState().map!.settings);
 		expect(settings.exportZoom).toBe(false);
 		expect(settings.preferOfficial).toBe(false);
 		expect(settings.onlyOfficial).toBe(true);
@@ -265,7 +265,7 @@ describe("Per-map settings isolation", () => {
 	it("modifying A settings does not change B", async () => {
 		await openMap(mapAId);
 		await withApi(async (api) => {
-			const current = api.getMapState().map!.meta.settings;
+			const current = api.getMapState().map!.settings;
 			await api.updateMapMeta({
 				settings: {
 					...current,
@@ -278,7 +278,7 @@ describe("Per-map settings isolation", () => {
 		await closeMap();
 
 		await openMap(mapBId);
-		const settingsB = await withApi(async (api) => api.getMapState().map!.meta.settings);
+		const settingsB = await withApi(async (api) => api.getMapState().map!.settings);
 		expect(settingsB.onlyOfficial).toBe(true);
 		await closeMap();
 	});

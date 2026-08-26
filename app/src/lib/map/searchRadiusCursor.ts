@@ -28,7 +28,7 @@ export function mountSearchRadiusCursor(): () => void {
 		const latLng = host.containerPxToLatLng(pixel.x, pixel.y);
 		if (!latLng) return;
 		const zoom = host.getZoom();
-		const minRadius = getMapState().map?.meta.settings.searchRadius ?? undefined;
+		const minRadius = getMapState().map?.settings.searchRadius ?? undefined;
 		const radius = clickSearchRadius(latLng.lat, zoom, minRadius);
 		overlay.setProps({
 			layers: [

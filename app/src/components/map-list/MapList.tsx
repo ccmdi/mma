@@ -954,7 +954,7 @@ export function MapList() {
 	const [activeAction, setActiveAction] = useState<(MapAction | FolderAction) | null>(null);
 
 	// The dialog edits the live row, not the snapshot the menu click carried.
-	const editingMeta =
+	const editingMap =
 		activeAction?.type === "edit" ? maps.find((m) => m.id === activeAction.id) : undefined;
 
 	const handleMapAction = useCallback((action: MapAction) => setActiveAction(action), []);
@@ -1244,8 +1244,8 @@ export function MapList() {
 						}
 						className="edit-map-modal"
 					>
-						{activeAction.type === "edit" && editingMeta && (
-							<MapSettingsForm meta={editingMeta} context="list" />
+						{activeAction.type === "edit" && editingMap && (
+							<MapSettingsForm map={editingMap} context="list" />
 						)}
 						{activeAction.type === "delete" && (
 							<>

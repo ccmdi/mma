@@ -32,12 +32,12 @@ export function ExportDialog({ onClose }: Props) {
 	const [saveZoom, setSaveZoom] = useMapSetting("exportZoom");
 	const [saveExtras, setSaveExtras] = useMapSetting("exportExtras");
 	const [bypassUnpanned, setBypassUnpanned] = useMapSetting("exportUnpanned");
-	const [fileName, setFileName] = useState(map?.meta.name ?? "");
+	const [fileName, setFileName] = useState(map?.name ?? "");
 	const selCount = selectedIds.size;
 
 	if (!map) return null;
 
-	const baseName = fileName || map.meta.name || "export";
+	const baseName = fileName || map.name || "export";
 
 	const tagsJson = () => JSON.stringify(Object.fromEntries(getVisibleTags().map((t) => [t.id, t])));
 
@@ -47,7 +47,7 @@ export function ExportDialog({ onClose }: Props) {
 			exportUnpanned: bypassUnpanned,
 			exportExtras: saveExtras,
 			selector: selector,
-			mapName: map.meta.name,
+			mapName: map.name,
 			tagsJson: tagsJson(),
 			extraFieldsJson: JSON.stringify(getAllFieldDefs()),
 		});

@@ -76,7 +76,7 @@ export async function confirmImport(droppedFields: string[], tagName?: string) {
 
 	const map = getMapState().map;
 	if (map && r.settings && Object.keys(r.settings).length) {
-		await updateMapMeta({ settings: { ...map.meta.settings, ...r.settings } });
+		await updateMapMeta({ settings: { ...map.settings, ...r.settings } });
 	}
 
 	if (r.autoCommit) {

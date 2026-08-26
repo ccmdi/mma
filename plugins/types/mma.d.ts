@@ -298,9 +298,10 @@ declare const commands: {
     storeDuplicateGroups: (distance: number) => Promise<number[][]>;
     /**
      *  Merge each duplicate group within `distance` metres into one survivor location, unioning
-     *  tags and extra fields. One undoable edit.
+     *  tags and extra fields. `score` is the map's duplicate preference expression; blank or
+     *  absent keeps the built-in ranking. One undoable edit.
      */
-    storeMergeDuplicates: (distance: number) => Promise<MutationResult>;
+    storeMergeDuplicates: (distance: number, score: string | null) => Promise<MutationResult>;
     /**
      *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
      *  cluster. Informational locations are never pruned. One undoable edit.
@@ -319,12 +320,17 @@ declare const commands: {
     /**  Return metadata for every map in the database. */
     storeListMaps: () => Promise<MapMeta[]>;
     /**  Fetch a single map's metadata by ID. Returns `None` if not found. */
-    storeGetMap: (id: string) => Promise<MapData | null>;
+    storeGetMap: (id: string) => Promise<MapMeta | null>;
     /**
      *  Create a new empty map with default settings. Returns the full metadata
      *  (including the generated UUID) so the frontend can navigate to it immediately.
      */
-    storeCreateMap: (name: string, folder: string | null) => Promise<MapData>;
+    storeCreateMap: (name: string, folder: string | null) => Promise<MapMeta>;
+    /**
+     *  Open the scratch map, creating it if this is its first use. Ordinary in every way
+     *  except that [`store_list_maps`] hides it and startup wipes it.
+     */
+    storeScratchMap: () => Promise<MapMeta>;
     /**  Delete a map and all its data: database rows and files on disk. */
     storeDeleteMap: (id: string) => Promise<null>;
     /**  Apply a partial update to a map's metadata; `None` fields are left unchanged. */
@@ -801,6 +807,7 @@ declare const PROJECTIONS: readonly [{
     readonly appliesTo: readonly ["date"];
     readonly needsTz: true;
 }];
+declare const SCRATCH_MAP_ID: "scratch";
 type AnonIssueRef = {
     number: number;
     url: string;
@@ -1247,9 +1254,6 @@ type LocationPatch = {
     createdAt: number | null;
     modifiedAt: number | null;
 };
-type MapData = {
-    meta: MapMeta;
-};
 /**
  *  Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
  *  but structured as an object to allow future extensions.
@@ -1365,6 +1369,11 @@ type MapSettings = {
     aliases?: {
         [key in string]: number;
     };
+    /**
+     *  Which member of a duplicate group survives a merge: a `field_expr` scoring the
+     *  location, highest wins. `None` (or blank) keeps the built-in ranking.
+     */
+    duplicateScore?: string | null;
 };
 /**  When a move target already holds a value, which side survives. */
 type MergeWinner = "from" | "to";
@@ -2235,7 +2244,7 @@ export type GroupType = Exclude<CompositeType, UnaryType>;
 export interface MapState {
     mapId: string | null;
     /** Persisted identity slice (metadata + settings). Changes rarely. */
-    map: MapData | null;
+    map: MapMeta | null;
     locationCount: number;
     canUndo: boolean;
     canRedo: boolean;
@@ -2338,8 +2347,10 @@ declare const getActiveSelections: () => Selection[];
 declare function currentSelection(): Selector;
 /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want -- prefer `addSelections`. */
 declare function setSelectedLocationIds(ids: SelectedIds): void;
-declare function renameMap(id: string, name: string): Promise<void>;
-declare function updateMapLabels(id: string, labels: string[]): Promise<void>;
+/** Optimistically patch any map's meta by id, persist, and refresh the map list. Mirrors
+ *  onto the open map's state when it is that map. */
+declare function patchMapMeta(id: string, patch: MapMetaPatch_Deserialize): Promise<void>;
+/** [`patchMapMeta`] for the map open in this window. */
 declare function updateMapMeta(patch: MapMetaPatch_Deserialize): Promise<void> | undefined;
 /** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
 declare function setMapExtraFields(fields: Record<string, ExtraFieldDef>): Promise<void>;
@@ -2409,7 +2420,8 @@ declare function selectSpacedFromSelection(opts: {
 }>;
 /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. */
 declare function previewDuplicateGroups(distance: number): Promise<number[][]>;
-/** Merge each transitive duplicate group into one survivor (tags unioned). One undoable edit. */
+/** Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
+ *  map's duplicate preference. One undoable edit. */
 declare function mergeDuplicates(distance: number): Promise<void>;
 /**
  * Prune duplicates within a resolved selection: keeps the most relevant location per
@@ -2542,6 +2554,7 @@ declare const store_mutate: typeof mutate;
 declare const store_openDuplicateLocation: typeof openDuplicateLocation;
 declare const store_openStagedLocation: typeof openStagedLocation;
 declare const store_partition: typeof partition;
+declare const store_patchMapMeta: typeof patchMapMeta;
 declare const store_previewDuplicateGroups: typeof previewDuplicateGroups;
 declare const store_previewVirtualLocation: typeof previewVirtualLocation;
 declare const store_pruneDuplicates: typeof pruneDuplicates;
@@ -2553,7 +2566,6 @@ declare const store_removeSelections: typeof removeSelections;
 declare const store_removeTagFromAllLocations: typeof removeTagFromAllLocations;
 declare const store_removeTagFromLocations: typeof removeTagFromLocations;
 declare const store_renameField: typeof renameField;
-declare const store_renameMap: typeof renameMap;
 declare const store_reorderSelection: typeof reorderSelection;
 declare const store_reorderTags: typeof reorderTags;
 declare const store_resetSelections: typeof resetSelections;
@@ -2582,13 +2594,12 @@ declare const store_toggleTagSelections: typeof toggleTagSelections;
 declare const store_undo: typeof undo;
 declare const store_updateFilterSelection: typeof updateFilterSelection;
 declare const store_updateLocations: typeof updateLocations;
-declare const store_updateMapLabels: typeof updateMapLabels;
 declare const store_updateMapMeta: typeof updateMapMeta;
 declare const store_updateTags: typeof updateTags;
 declare const store_useMapState: typeof useMapState;
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
-  export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_composeSelections as composeSelections, store_countBy as countBy, store_countIn as countIn, store_createTags as createTags, store_currentSelection as currentSelection, store_decomposeChild as decomposeChild, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldCoverage as fieldCoverage, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_isolateSelection as isolateSelection, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeChildFromSelection as removeChildFromSelection, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_renameMap as renameMap, store_reorderSelection as reorderSelection, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectIntersection as selectIntersection, store_selectInverse as selectInverse, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_selectUnion as selectUnion, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setPolygonName as setPolygonName, store_setSelectedLocationIds as setSelectedLocationIds, store_setSelectionColors as setSelectionColors, store_setWorkArea as setWorkArea, store_tagIdsToNames as tagIdsToNames, store_toggleGhostAllSelections as toggleGhostAllSelections, store_toggleGhostSelection as toggleGhostSelection, store_toggleManualSelection as toggleManualSelection, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapLabels as updateMapLabels, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
+  export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_composeSelections as composeSelections, store_countBy as countBy, store_countIn as countIn, store_createTags as createTags, store_currentSelection as currentSelection, store_decomposeChild as decomposeChild, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldCoverage as fieldCoverage, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_isolateSelection as isolateSelection, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeChildFromSelection as removeChildFromSelection, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderSelection as reorderSelection, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectIntersection as selectIntersection, store_selectInverse as selectInverse, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_selectUnion as selectUnion, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setPolygonName as setPolygonName, store_setSelectedLocationIds as setSelectedLocationIds, store_setSelectionColors as setSelectionColors, store_setWorkArea as setWorkArea, store_tagIdsToNames as tagIdsToNames, store_toggleGhostAllSelections as toggleGhostAllSelections, store_toggleGhostSelection as toggleGhostSelection, store_toggleManualSelection as toggleManualSelection, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
   export type { store_MapState as MapState };
 }
 
@@ -2596,6 +2607,7 @@ declare namespace store {
 declare function loadGeoJSON(): Promise<void>;
 
 declare const requiresMap: () => boolean;
+declare const requiresVersioning: () => boolean;
 declare const hasActiveLocation: () => boolean;
 declare const hasSelection: () => boolean;
 declare const hasAnySelections: () => boolean;
@@ -2659,7 +2671,7 @@ declare const COMMANDS: {
         icon: string;
         group: "Map";
         execute: () => void;
-        enabled: typeof requiresMap;
+        enabled: typeof requiresVersioning;
     };
     "open-seen": {
         label: "Open seen locations";
@@ -3281,6 +3293,13 @@ declare function invalidateMapList(): Promise<void>;
 declare function setCachedMapList(list: MapMeta[]): void;
 /** Create a new empty map and return its metadata. */
 declare function createMap(name: string, folder?: string | null): Promise<MapMeta>;
+/** Open the scratch map, created on first use. An ordinary map that the list hides and
+ *  startup wipes, so the list never needs invalidating for it. */
+declare function openScratchMap(): Promise<void>;
+/** A reserved map is an app fixture, not one of the user's: it carries no name, never
+ *  appears in the list, and has nothing to configure. Keyed by id, never by name -- the
+ *  name is a value the user could type. */
+declare function isReservedMap(id: string | null | undefined): boolean;
 /** Permanently delete a map and all its data. Not undoable. */
 declare function deleteMap$1(id: string): Promise<void>;
 declare function renameFolder(from: string, to: string): Promise<void>;
@@ -3291,7 +3310,9 @@ declare const mapList_createMap: typeof createMap;
 declare const mapList_deleteFolder: typeof deleteFolder;
 declare const mapList_getMapList: typeof getMapList;
 declare const mapList_invalidateMapList: typeof invalidateMapList;
+declare const mapList_isReservedMap: typeof isReservedMap;
 declare const mapList_moveMapToFolder: typeof moveMapToFolder;
+declare const mapList_openScratchMap: typeof openScratchMap;
 declare const mapList_reloadMapList: typeof reloadMapList;
 declare const mapList_renameFolder: typeof renameFolder;
 declare const mapList_setCachedMapList: typeof setCachedMapList;
@@ -3303,7 +3324,9 @@ declare namespace mapList {
     deleteMap$1 as deleteMap,
     mapList_getMapList as getMapList,
     mapList_invalidateMapList as invalidateMapList,
+    mapList_isReservedMap as isReservedMap,
     mapList_moveMapToFolder as moveMapToFolder,
+    mapList_openScratchMap as openScratchMap,
     mapList_reloadMapList as reloadMapList,
     mapList_renameFolder as renameFolder,
     mapList_setCachedMapList as setCachedMapList,
@@ -3683,6 +3706,8 @@ export type Base = {
     label: string;
     badge?: ReactNode;
     description?: string;
+    /** Extra search terms, e.g. the option labels of a select control. */
+    keywords?: string[];
     disabled?: boolean;
     sub?: boolean;
 };
@@ -3996,7 +4021,7 @@ declare const EVENT_DEFS: {
     "tag:update": Update<TagPatch>[];
     "selection:change": Selection[];
     "active:change": number | null;
-    "map:open": MapData;
+    "map:open": MapMeta;
     "map:close": void;
     "store:changed": void;
     "render:delta": RenderDelta;
@@ -4317,7 +4342,7 @@ declare function getGoogleMap(): google.maps.Map | null;
 /** @deprecated v0.8.1. Use `MMA.waitForMapHost()`. */
 declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
 /** @deprecated v0.8.2. Read `MMA.getMapState().map`. */
-declare function getCurrentMap(): MapData | null;
+declare function getCurrentMap(): MapMeta | null;
 /** @deprecated v0.8.2. Read `MMA.getMapState().mapId`. */
 declare function getCurrentMapId(): string | null;
 /** @deprecated v0.8.2. Read `MMA.getMapState().activeLocation`. */
@@ -4584,5 +4609,5 @@ declare global {
     const MMA: MMA;
 }
 
-export { BUILTIN_FIELDS, KNOWN_FIELDS, MMA as MMAApi, PROJECTIONS, PanoType, commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapData, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export { BUILTIN_FIELDS, KNOWN_FIELDS, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, commands, events };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

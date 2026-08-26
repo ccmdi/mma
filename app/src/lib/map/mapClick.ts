@@ -110,7 +110,7 @@ export async function createLocationAtLatLng(
 	if (active != null && isImportPreview(active)) return null;
 
 	const tr = trace("add");
-	const ms = getMapState().map?.meta.settings;
+	const ms = getMapState().map?.settings;
 	const loc = await lookupStreetView(lat, lng, zoom, {
 		preferOfficial: ms?.preferOfficial,
 		onlyOfficial: ms?.onlyOfficial,

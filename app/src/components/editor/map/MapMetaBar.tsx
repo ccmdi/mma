@@ -109,7 +109,7 @@ export function MapMetaBar() {
 
 	if (!map) return null;
 
-	const versioned = !isReservedMap(map.meta.id);
+	const versioned = !isReservedMap(map.id);
 
 	return (
 		<>

@@ -419,7 +419,7 @@ const COMMANDS = {
 				.sort((a, b) => b.count - a.count);
 			const csv =
 				"name,count\n" + rows.map((r) => `"${r.name.replace(/"/g, '""')}",${r.count}`).join("\n");
-			downloadBlob(new Blob([csv], { type: "text/csv" }), `${map.meta.name} tags.csv`);
+			downloadBlob(new Blob([csv], { type: "text/csv" }), `${map.name} tags.csv`);
 		},
 	},
 	"tag-find-replace": {

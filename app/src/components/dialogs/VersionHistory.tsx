@@ -40,10 +40,7 @@ export function VersionHistory({ onClose }: { onClose: () => void }) {
 	const map = useMapState((s) => s.map);
 	const [restoring, setRestoring] = useState<string | null>(null);
 	const [confirmingId, setConfirmingId] = useState<string | null>(null);
-	const { data: commits } = useAsync(
-		() => (map ? cmd.storeListCommits(map.meta.id) : null),
-		[map?.meta.id],
-	);
+	const { data: commits } = useAsync(() => (map ? cmd.storeListCommits(map.id) : null), [map?.id]);
 
 	if (!map || !commits) return null;
 

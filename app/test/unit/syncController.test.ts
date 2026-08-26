@@ -42,7 +42,7 @@ function makeMma() {
 		storage: () => kv,
 		getMapState: () => ({
 			mapId,
-			map: mapId ? { meta: { id: mapId, locationCount: 0, tags: {} } } : null,
+			map: mapId ? { id: mapId, locationCount: 0, tags: {} } : null,
 			locationCount: 0,
 		}),
 		createLocation: (p: unknown) => p,

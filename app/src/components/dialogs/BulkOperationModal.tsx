@@ -172,7 +172,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 	const map = getMapState().map;
 	if (!map) return null;
 
-	const enrichFields = map.meta.settings.enrichFields ?? getDefaultEnrichKeys();
+	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
 	const allOptions = getEnrichFieldOptions();
 	const enabledFields = allOptions.filter((f) => isFieldEnabled(enrichFields, f.key));
 	const total = info.total;

@@ -36,7 +36,7 @@ function buildActivity(level: Exclude<DiscordPresenceMode, "off">): PresenceActi
 	const count = getMapState().locationCount;
 	return {
 		...base,
-		details: map.meta.name ? `Editing ${map.meta.name}` : "Editing a map",
+		details: map.name ? `Editing ${map.name}` : "Editing a map",
 		state: t({ one: "{n} location", other: "{n} locations" }, { n: count }),
 		start,
 	};
