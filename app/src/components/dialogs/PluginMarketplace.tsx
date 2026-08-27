@@ -24,6 +24,7 @@ import { loadAndActivatePlugin, loadUserPlugin } from "@/plugins/index";
 import { cmd } from "@/lib/commands";
 import { appVersion } from "@/lib/version";
 import { log } from "@/lib/util/log";
+import { toast } from "@/lib/util/toast";
 
 // Download a plugin's sidecar (if declared), reporting progress via onProgress. Shared by
 // install + update so both paths fetch the binary the same way.
@@ -374,6 +375,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 				rerender((n) => n + 1);
 			} catch (e) {
 				log.error(`[marketplace] install failed for "${id}":`, e);
+				toast(t("Install failed: {error}", { error: String(e) }));
 			}
 		},
 		[refreshInstalled, setProgress],
@@ -410,24 +412,31 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 	const handleUpdate = useCallback(
 		async (id: string) => {
 			const wasEnabled = isPluginEnabled(id);
+			// Download before tearing down, so a failed fetch leaves the plugin running.
+			let manifest: PluginManifest;
 			try {
-				// Tear down the running plugin, re-download (install overwrites the files),
-				// then re-register the fresh code — preserving enabled/disabled state.
-				if (wasEnabled) deactivatePlugin(id);
-				unregisterPlugin(id);
-				const manifest = await cmd.installPlugin(id);
+				manifest = await cmd.installPlugin(id);
 				try {
 					await installSidecar(manifest, (pct) => setProgress(id, pct));
 				} finally {
 					setProgress(id, null);
 				}
+			} catch (e) {
+				log.error(`[marketplace] update download failed for "${id}":`, e);
+				toast(t("Update failed: {error}", { error: String(e) }));
+				return;
+			}
+			try {
+				if (wasEnabled) deactivatePlugin(id);
+				unregisterPlugin(id);
 				await loadUserPlugin(manifest);
 				if (wasEnabled) activatePlugin(id);
-				await refreshInstalled();
-				rerender((n) => n + 1);
 			} catch (e) {
 				log.error(`[marketplace] update failed for "${id}":`, e);
+				toast(t("Update failed: {error}", { error: String(e) }));
 			}
+			await refreshInstalled();
+			rerender((n) => n + 1);
 		},
 		[refreshInstalled, setProgress],
 	);
