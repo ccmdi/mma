@@ -5,8 +5,9 @@ import assert from "node:assert/strict";
 
 const host = { lines: [], abort: false, calls: [], failed: [], progress: [] };
 globalThis.mma = {
-	sidecar(pluginId, command, payload) {
+	sidecar(pluginId, command, payload, onLine) {
 		host.calls.push({ pluginId, command, payload });
+		for (const line of host.lines) onLine?.(line);
 		return host.lines;
 	},
 	progress: (units) => host.progress.push(units),
