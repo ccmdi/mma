@@ -45,7 +45,7 @@ use std::sync::OnceLock;
 use std::thread;
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::procedure::sidecar::SidecarStream;
+use crate::plugins::sidecar::SidecarStream;
 use crate::types::{AppError, AppResult};
 
 /// Ceiling on one runtime's heap. Procedures decode whole responses in memory, so this

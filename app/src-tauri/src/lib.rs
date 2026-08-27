@@ -100,12 +100,12 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             plugins::user::list_user_plugins,
             plugins::user::install_plugin,
             plugins::user::uninstall_plugin,
-            procedure::sidecar::sidecar_install,
-            procedure::sidecar::sidecar_installed_version,
-            procedure::sidecar::sidecar_request,
-            procedure::sidecar::sidecar_stop,
-            procedure::sidecar::sidecar_stop_all,
-            procedure::sidecar::sidecar_cancel,
+            plugins::sidecar::sidecar_install,
+            plugins::sidecar::sidecar_installed_version,
+            plugins::sidecar::sidecar_request,
+            plugins::sidecar::sidecar_stop,
+            plugins::sidecar::sidecar_stop_all,
+            plugins::sidecar::sidecar_cancel,
             plugins::borders::check_border_file,
             plugins::borders::download_border_file,
             plugins::borders::border_lookup,
@@ -239,10 +239,10 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             procedure::engine::procedure_query_cancel,
         ])
         .events(tauri_specta::collect_events![
-            procedure::sidecar::SidecarProgress,
-            procedure::sidecar::SidecarLine,
-            procedure::sidecar::SidecarLog,
-            procedure::sidecar::SidecarDone,
+            plugins::sidecar::SidecarProgress,
+            plugins::sidecar::SidecarLine,
+            plugins::sidecar::SidecarLog,
+            plugins::sidecar::SidecarDone,
             io::import::ImportProgress,
             io::export::ExportProgress,
             store::location_store::ExternalMutation,
@@ -450,7 +450,7 @@ pub fn run() {
             #[cfg(all(debug_assertions, windows))]
             stall_reporter::beat();
             if let tauri::RunEvent::Exit = event {
-                procedure::sidecar::kill_all_sidecars();
+                plugins::sidecar::kill_all_sidecars();
                 net::presence::shutdown();
             }
         });

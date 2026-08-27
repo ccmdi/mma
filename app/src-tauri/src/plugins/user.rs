@@ -3,7 +3,7 @@
 //! webview over `mma-plugin://`.
 
 use crate::net::proxy::{cors, proxy_client};
-use crate::procedure::sidecar;
+use crate::plugins::sidecar;
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
 use reqwest::blocking;

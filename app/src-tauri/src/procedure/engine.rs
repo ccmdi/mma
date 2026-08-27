@@ -4,8 +4,8 @@
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
 use crate::plugins::borders;
-use crate::procedure::sidecar;
-use crate::procedure::sidecar::SidecarStream;
+use crate::plugins::sidecar;
+use crate::plugins::sidecar::SidecarStream;
 use crate::selections::{ids_within, narrow, Selector};
 use crate::store::location_store::{
     apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
