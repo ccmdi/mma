@@ -2096,8 +2096,42 @@ fn partition_numeric_width_anchors_at_multiples() {
     let mut ids = g2.ids.clone();
     ids.sort();
     assert_eq!(ids, vec![2, 3]);
-    // the empty "500–1000" bin is dropped
-    assert!(groups.iter().all(|g| g.key != "500–1000"));
+    let gap = groups.iter().find(|g| g.key == "500–1000").unwrap();
+    assert!(gap.ids.is_empty());
+    assert_eq!(gap.bin, Some([500.0, 1000.0]));
+}
+
+#[test]
+fn partition_numeric_drops_empties_once_the_table_would_be_unusable() {
+    let adds = vec![
+        loc_extra(1, serde_json::json!({"n": 0})),
+        loc_extra(2, serde_json::json!({"n": 150})),
+    ];
+    let fx = Fx::adds(adds);
+    let view = fx.view();
+    let groups = partition(
+        &view,
+        "n",
+        &KeySpec::NumericBin {
+            binning: NumericBinning::Width { w: 1.0 },
+        },
+        None,
+    );
+    assert_eq!(groups.len(), 2);
+    assert!(groups.iter().all(|g| !g.ids.is_empty()));
+}
+
+#[test]
+fn partition_value_never_invents_a_group() {
+    let adds = vec![
+        loc_extra(1, serde_json::json!({"c": "a"})),
+        loc_extra(2, serde_json::json!({"c": "c"})),
+    ];
+    let fx = Fx::adds(adds);
+    let view = fx.view();
+    let groups = partition(&view, "c", &KeySpec::Value, None);
+    assert_eq!(groups.len(), 2);
+    assert!(groups.iter().all(|g| !g.ids.is_empty()));
 }
 
 #[test]

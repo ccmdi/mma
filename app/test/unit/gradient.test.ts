@@ -160,6 +160,25 @@ describe("colorPartition", () => {
 		{ key: "50–100", ids: [3], bin: [50, 100] },
 	];
 
+	it("skips the empty bins the pivot keeps, so no selection selects nothing", () => {
+		const withGap: PartitionGroup[] = [
+			{ key: "0–50", ids: [1, 2], bin: [0, 50] },
+			{ key: "50–100", ids: [], bin: [50, 100] },
+			{ key: "100–150", ids: [3], bin: [100, 150] },
+		];
+		const sels = colorPartition(withGap, {
+			fieldKey: "altitude",
+			fieldType: "number",
+			stops,
+			narrowed: false,
+			ordinal: true,
+			eqFilter: false,
+		});
+		expect(sels).toHaveLength(2);
+		expect(sels[0].color).toEqual([0, 0, 0]);
+		expect(sels[1].color).toEqual([255, 255, 255]);
+	});
+
 	it("whole-map numeric bins emit live Filter `between` selections", () => {
 		const sels = colorPartition(numericBins, {
 			fieldKey: "altitude",

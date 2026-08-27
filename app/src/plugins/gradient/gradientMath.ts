@@ -67,6 +67,8 @@ export function colorPartition(
 		eqFilter: boolean;
 	},
 ): GradientSelection[] {
+	// Numeric bins keep their empties for the pivot; an empty selection is noise here.
+	groups = groups.filter((g) => g.ids.length > 0);
 	if (groups.length === 0) return [];
 	const { fieldKey, fieldType, stops, narrowed, ordinal, eqFilter } = opts;
 	const n = groups.length;

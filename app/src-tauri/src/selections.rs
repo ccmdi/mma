@@ -1799,6 +1799,8 @@ pub fn partition(
     }
 }
 
+const MAX_BINS_WITH_EMPTIES: usize = 100;
+
 fn partition_numeric(
     view: &LocView,
     field: &str,
@@ -1828,7 +1830,9 @@ fn partition_numeric(
     for (id, n) in vals {
         groups[buckets.index_of(n)].ids.push(id);
     }
-    groups.retain(|g| !g.ids.is_empty());
+    if groups.len() > MAX_BINS_WITH_EMPTIES {
+        groups.retain(|g| !g.ids.is_empty());
+    }
     groups
 }
 
