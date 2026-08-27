@@ -76,20 +76,34 @@ async function embed(panoIds, opts = {}) {
   const panos = await resolveWorldSizes(uncached, (done, total) => {
     opts.onStatus?.(`Metadata: ${done}/${total}`);
   });
-  await MMA.sidecar.request("vision", "embed", { panos }, {
-    signal: opts.signal,
-    onLog: (line) => {
-      if (line.startsWith("[vision]")) opts.onStatus?.(line);
-    },
-    onLine: (s) => opts.onUnit?.(s.status === "cache_hit" ? s.count ?? 1 : 1)
-  });
+  await MMA.sidecar.request(
+    "vision",
+    "embed",
+    { panos },
+    {
+      signal: opts.signal,
+      onLog: (line) => {
+        if (line.startsWith("[vision]")) opts.onStatus?.(line);
+        else opts.onDiagnostic?.(line);
+      },
+      onLine: (s) => {
+        if (s.status === "error") opts.onFailed?.(s.panoId, s.error);
+        else opts.onUnit?.(s.status === "cache_hit" ? s.done ?? 1 : 1);
+      }
+    }
+  );
 }
-async function searchText(query, k, threshold, signal) {
+async function searchText(query, k, threshold, signal, onDiagnostic) {
   const res = await MMA.sidecar.request(
     "vision",
     "search-text",
     { query, k, threshold },
-    { signal }
+    {
+      signal,
+      onLog: (line) => {
+        if (!line.startsWith("[vision]")) onDiagnostic?.(line);
+      }
+    }
   );
   return res?.results ?? [];
 }
@@ -117,6 +131,7 @@ var CSS = `
 .vision-result__headline { font-size: 13px; }
 .vision-result__count { font-size: 15px; font-weight: 600; }
 .vision-result__note { font-size: 11px; color: var(--text-secondary, #999); }
+.vision-result__warn { font-size: 11px; color: #eaa; }
 .vision-meter { position: relative; height: 6px; border-radius: 3px; background: var(--surface-3, #403f38); }
 .vision-meter__fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--accent, #1098ad); }
 .vision-meter__cut { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text-1, #f4f3ef); }
@@ -146,7 +161,7 @@ function ScoreMeter({ top, cut }) {
   ] });
 }
 function Result({ outcome }) {
-  const { selected, elsewhere, top, cut } = outcome;
+  const { selected, elsewhere, top, cut, failed, notes } = outcome;
   const belowCut = top !== null && top < cut;
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-result", children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-result__headline", children: selected > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
@@ -162,7 +177,14 @@ function Result({ outcome }) {
       elsewhere === 1 ? "" : "es",
       " in other maps -- the embed cache spans every map"
     ] }),
-    selected === 0 && belowCut && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-result__note", children: "Lower the threshold to reach it." })
+    selected === 0 && belowCut && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-result__note", children: "Lower the threshold to reach it." }),
+    failed > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-result__warn", children: [
+      failed,
+      " pano",
+      failed === 1 ? "" : "s",
+      " failed to embed and are not in the search"
+    ] }),
+    notes.map((n) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-result__warn", children: n }, n))
   ] });
 }
 function VisionSidebar({ onClose }) {
@@ -176,6 +198,11 @@ function VisionSidebar({ onClose }) {
     const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId);
     if (panoIds.length === 0) throw new Error("No locations with pano IDs");
     let embedded = 0;
+    let failed = 0;
+    const notes = [];
+    const note = (line) => {
+      if (!notes.includes(line)) notes.push(line);
+    };
     const start = Date.now();
     await embed(panoIds, {
       signal,
@@ -185,23 +212,27 @@ function VisionSidebar({ onClose }) {
         const elapsed = (Date.now() - start) / 1e3;
         const rate = elapsed > 0.5 ? (embedded / elapsed).toFixed(1) : "--";
         report(`Embedding: ${embedded}/${panoIds.length} (${rate} panos/s)`);
-      }
+      },
+      onFailed: () => failed++,
+      onDiagnostic: note
     });
     signal.throwIfAborted();
     report(`Searching for "${q}"...`);
-    const results = await searchText(q, null, cut, signal);
+    const results = await searchText(q, null, cut, signal, note);
     const matchedIds = results.map((r) => panoIdToLocId(locs, r.panoId)).filter((id) => id != null);
     if (matchedIds.length > 0) {
       await MMA.addSelections([
         { type: "Locations", locations: matchedIds, name: `Vision: "${q}"` }
       ]);
     }
-    const top = results[0]?.score ?? (await searchText(q, 1, null, signal))[0]?.score ?? null;
+    const top = results[0]?.score ?? (await searchText(q, 1, null, signal, note))[0]?.score ?? null;
     return {
       selected: matchedIds.length,
       elsewhere: results.length - matchedIds.length,
       top,
-      cut
+      cut,
+      failed,
+      notes
     };
   });
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Sidebar, { title: "Vision", onBack: onClose, children: [

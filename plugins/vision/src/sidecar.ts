@@ -12,8 +12,11 @@ interface SearchResponse {
 }
 
 interface EmbedStatus {
-	status?: string;
-	count?: number;
+	panoId: string;
+	status: string;
+	error?: string;
+	done?: number;
+	total?: number;
 }
 
 interface PanoEntry {
@@ -54,6 +57,10 @@ export interface EmbedOptions {
 	onStatus?(message: string): void;
 	/** How many panos the last line accounted for. */
 	onUnit?(count: number): void;
+	/** A pano the sidecar could not embed. */
+	onFailed?(panoId: string, error: string | undefined): void;
+	/** Sidecar output that isn't progress -- inference and encoder faults carry no prefix. */
+	onDiagnostic?(line: string): void;
 	signal?: AbortSignal;
 }
 
@@ -72,13 +79,22 @@ export async function embed(panoIds: string[], opts: EmbedOptions = {}): Promise
 		opts.onStatus?.(`Metadata: ${done}/${total}`);
 	});
 
-	await MMA.sidecar.request<EmbedStatus>("vision", "embed", { panos }, {
-		signal: opts.signal,
-		onLog: (line) => {
-			if (line.startsWith("[vision]")) opts.onStatus?.(line);
+	await MMA.sidecar.request<EmbedStatus>(
+		"vision",
+		"embed",
+		{ panos },
+		{
+			signal: opts.signal,
+			onLog: (line) => {
+				if (line.startsWith("[vision]")) opts.onStatus?.(line);
+				else opts.onDiagnostic?.(line);
+			},
+			onLine: (s) => {
+				if (s.status === "error") opts.onFailed?.(s.panoId, s.error);
+				else opts.onUnit?.(s.status === "cache_hit" ? (s.done ?? 1) : 1);
+			},
 		},
-		onLine: (s) => opts.onUnit?.(s.status === "cache_hit" ? (s.count ?? 1) : 1),
-	});
+	);
 }
 
 export async function searchText(
@@ -86,12 +102,18 @@ export async function searchText(
 	k: number | null,
 	threshold: number | null,
 	signal?: AbortSignal,
+	onDiagnostic?: (line: string) => void,
 ): Promise<SearchResult[]> {
 	const res = await MMA.sidecar.request<SearchResponse>(
 		"vision",
 		"search-text",
 		{ query, k, threshold },
-		{ signal },
+		{
+			signal,
+			onLog: (line) => {
+				if (!line.startsWith("[vision]")) onDiagnostic?.(line);
+			},
+		},
 	);
 	return res?.results ?? [];
 }

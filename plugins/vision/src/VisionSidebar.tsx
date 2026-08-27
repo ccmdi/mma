@@ -17,6 +17,7 @@ const CSS = `
 .vision-result__headline { font-size: 13px; }
 .vision-result__count { font-size: 15px; font-weight: 600; }
 .vision-result__note { font-size: 11px; color: var(--text-secondary, #999); }
+.vision-result__warn { font-size: 11px; color: #eaa; }
 .vision-meter { position: relative; height: 6px; border-radius: 3px; background: var(--surface-3, #403f38); }
 .vision-meter__fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--accent, #1098ad); }
 .vision-meter__cut { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text-1, #f4f3ef); }
@@ -32,6 +33,10 @@ interface Outcome {
 	top: number | null;
 	/** The threshold this run used, so the readout still explains itself afterwards. */
 	cut: number;
+	/** Panos the sidecar could not embed: the corpus covers fewer than it looks. */
+	failed: number;
+	/** Sidecar faults that would otherwise only reach mma.log. */
+	notes: string[];
 }
 
 function panoIdToLocId(locs: Location[], panoId: string): number | null {
@@ -60,7 +65,7 @@ function ScoreMeter({ top, cut }: { top: number; cut: number }) {
 }
 
 function Result({ outcome }: { outcome: Outcome }) {
-	const { selected, elsewhere, top, cut } = outcome;
+	const { selected, elsewhere, top, cut, failed, notes } = outcome;
 	const belowCut = top !== null && top < cut;
 	return (
 		<div className="vision-result">
@@ -88,6 +93,16 @@ function Result({ outcome }: { outcome: Outcome }) {
 			{selected === 0 && belowCut && (
 				<div className="vision-result__note">Lower the threshold to reach it.</div>
 			)}
+			{failed > 0 && (
+				<div className="vision-result__warn">
+					{failed} pano{failed === 1 ? "" : "s"} failed to embed and are not in the search
+				</div>
+			)}
+			{notes.map((n) => (
+				<div className="vision-result__warn" key={n}>
+					{n}
+				</div>
+			))}
 		</div>
 	);
 }
@@ -106,6 +121,11 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 		if (panoIds.length === 0) throw new Error("No locations with pano IDs");
 
 		let embedded = 0;
+		let failed = 0;
+		const notes: string[] = [];
+		const note = (line: string) => {
+			if (!notes.includes(line)) notes.push(line);
+		};
 		const start = Date.now();
 		await embed(panoIds, {
 			signal,
@@ -116,11 +136,13 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 				const rate = elapsed > 0.5 ? (embedded / elapsed).toFixed(1) : "--";
 				report(`Embedding: ${embedded}/${panoIds.length} (${rate} panos/s)`);
 			},
+			onFailed: () => failed++,
+			onDiagnostic: note,
 		});
 		signal.throwIfAborted();
 
 		report(`Searching for "${q}"...`);
-		const results = await searchText(q, null, cut, signal);
+		const results = await searchText(q, null, cut, signal, note);
 		const matchedIds = results
 			.map((r) => panoIdToLocId(locs, r.panoId))
 			.filter((id): id is number => id != null);
@@ -132,12 +154,14 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 		}
 		// When the threshold filtered everything out there is no score left to report, so
 		// ask for the single best regardless of it.
-		const top = results[0]?.score ?? (await searchText(q, 1, null, signal))[0]?.score ?? null;
+		const top = results[0]?.score ?? (await searchText(q, 1, null, signal, note))[0]?.score ?? null;
 		return {
 			selected: matchedIds.length,
 			elsewhere: results.length - matchedIds.length,
 			top,
 			cut,
+			failed,
+			notes,
 		};
 	});
 
