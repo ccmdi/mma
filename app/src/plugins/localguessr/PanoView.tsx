@@ -1,5 +1,6 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
-import { createLocation, LocationFlag } from "@/types";
+import { createLocation } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 import { getPanorama, singletonDiv, applyResolved } from "@/lib/sv/panoSingleton";
 import { tweenPov } from "@/lib/sv/tweenPov";
 import { normalizeHeading } from "@/lib/geo/geo";

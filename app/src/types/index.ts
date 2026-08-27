@@ -4,7 +4,8 @@ import type {
 	LocationPatch_Deserialize as LocationPatch,
 } from "@/bindings.gen";
 import { nowUnix } from "@/lib/util/util";
-import type { RequireNonNull } from "@/types/util";
+import type { RequireNonNull, EnumOf } from "@/types/util";
+import { LocationFlag, PanoType } from "@/bindings.consts";
 
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
@@ -31,25 +32,7 @@ export function boundsToScoreTuple(b: Bounds): [number, number, number, number] 
 	return [b.south, b.west, b.north, b.east];
 }
 
-export const enum LocationFlag {
-	None = 0,
-	LoadAsPanoId = 1,
-	Informational = 2,
-	// Virtual-preview kind tags. JS-only and set only on the ephemeral active-location preview
-	// (never persisted) — strip with VIRTUAL_FLAGS before materializing one into the map.
-	ImportPreview = 4,
-	SeenOverlay = 8,
-}
-
-/** Mask of the virtual-only kind bits, to clear when turning a preview into a real location. */
-export const VIRTUAL_FLAGS = LocationFlag.ImportPreview | LocationFlag.SeenOverlay;
-
-/** Panorama source type from Google's internal metadata. */
-export const enum PanoType {
-	Official = 2,
-	Unknown = 3,
-	UserUploaded = 10,
-}
+export type PanoType = EnumOf<typeof PanoType>;
 
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
 export enum ValidationState {

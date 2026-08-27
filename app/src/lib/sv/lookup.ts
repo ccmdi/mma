@@ -4,7 +4,8 @@ import { latLngToWorld, worldToTile } from "@/lib/geo/mercator";
 import { cameraTypeFromHeight, centerHeading, imageDateOf } from "@/lib/sv/getMetadata";
 import { isUnofficial } from "@/lib/sv/panoId";
 import { panosAt, svMetadata } from "@/lib/sv/query";
-import { LocationFlag, PanoType, hasLoadAsPanoId, createLocation } from "@/types";
+import { hasLoadAsPanoId, createLocation } from "@/types";
+import { LocationFlag, PanoType } from "@/bindings.consts";
 import type { LatLng, Pano } from "@/types";
 import type { Location } from "@/bindings.gen";
 

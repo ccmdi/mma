@@ -1,7 +1,7 @@
 import { isOfficialPano } from "@/lib/sv/panoId";
 import { detectCameraType } from "@/lib/sv/getMetadata";
 import { svMetadata } from "@/lib/sv/query";
-import { PanoType } from "@/types";
+import { PanoType } from "@/bindings.consts";
 import { useAsync } from "@/lib/hooks/useAsync";
 import type { CameraType } from "@/bindings.gen";
 

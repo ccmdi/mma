@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { createLocation, LocationFlag } from "@/types";
+import { createLocation } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 import type {
 	GeneratorSettings,
 	GeneratorRegion,

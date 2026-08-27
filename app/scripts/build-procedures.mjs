@@ -26,16 +26,24 @@ const ALLOWED = [
 	"src/lib/data/procedureHost.ts",
 	"src/types/",
 	"src/bindings.gen.ts",
+	"src/bindings.consts.ts",
 	"node_modules/",
 ];
 // Dependencies a procedure may not carry even through an allowed root.
-const FORBIDDEN = ["@tauri-apps/", "node_modules/react", "node_modules/@deck.gl", "node_modules/@loaders.gl"];
+const FORBIDDEN = [
+	"@tauri-apps/",
+	"node_modules/react",
+	"node_modules/@deck.gl",
+	"node_modules/@loaders.gl",
+];
 
 /** Inputs of the finished bundle that no procedure may reach. */
 function forbidden(metafile) {
 	return Object.keys(metafile.inputs).filter((p) => {
 		const norm = p.replaceAll("\\", "/");
-		return !ALLOWED.some((ok) => norm.startsWith(ok)) || FORBIDDEN.some((bad) => norm.includes(bad));
+		return (
+			!ALLOWED.some((ok) => norm.startsWith(ok)) || FORBIDDEN.some((bad) => norm.includes(bad))
+		);
 	});
 }
 

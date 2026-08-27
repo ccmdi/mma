@@ -1,12 +1,7 @@
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { WorkArea, MaybeLocation } from "@/types";
-import {
-	isVirtualLocation,
-	isImportPreview,
-	LocationFlag,
-	locId,
-	applyLocationPatch,
-} from "@/types";
+import { isVirtualLocation, isImportPreview, locId, applyLocationPatch } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 import type { Location, MapMeta, Tag, ExtraFieldDef, StoreStatus } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
@@ -848,9 +843,7 @@ export async function selectRandomFromSelection(
 	perSelection = false,
 ): Promise<number> {
 	const buckets = await Promise.all(
-		pickBuckets(perSelection).map((selector) =>
-			sampleFrom(selector ?? currentSelection(), count),
-		),
+		pickBuckets(perSelection).map((selector) => sampleFrom(selector ?? currentSelection(), count)),
 	);
 	const picked = [...new Set(buckets.flat())];
 	if (picked.length === 0) return 0;

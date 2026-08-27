@@ -26,7 +26,7 @@ import {
 	withApi,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
-import { LocationFlag } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 
 // --- Test pano IDs ---
 // Official Google car coverage (Kursk oblast, Russia)

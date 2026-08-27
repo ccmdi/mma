@@ -5,7 +5,8 @@
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { fetchMetadata, indexPanos } from "@/lib/sv/getMetadata";
 import { newestOfficialPano } from "@/lib/sv/panoId";
-import { LocationFlag, isPinnedToPano } from "@/types";
+import { isPinnedToPano } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 
 let useLatest = false;
 let force = false;

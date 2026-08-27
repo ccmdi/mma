@@ -1704,7 +1704,7 @@ export type Tag = {
 	doclinks?: string[],
 };
 
-/**  Patchable fields of a `Tag`. Subset by design: id/count/visible aren't editable here. */
+/**  Patchable fields of a `Tag`. Subset by design: id/visible aren't editable here. */
 export type TagPatch = {
 	name?: string | null,
 	color?: string | null,

@@ -15,11 +15,13 @@ pub fn auth_error(message: impl std::fmt::Display) -> AppError {
     AppError(format!("{AUTH_PREFIX}{message}"))
 }
 
-/// Keep only the flag bits this crate declares. JS-side virtual bits - and any future bit not
-/// added to [`LocationFlags`] - are structurally excluded from the synced contract, so a new
-/// persisted bit starts syncing only when it is declared here, never by accident.
+/// Keep only the persisted flag bits. [`LocationFlags::VIRTUAL`] and any bit not declared at
+/// all are excluded from the synced contract, so a new bit starts syncing only when it is
+/// both declared and left out of `VIRTUAL`, never by accident.
 pub fn sync_flags(bits: u32) -> u32 {
-    bits & LocationFlags::all().bits()
+    bits & LocationFlags::all()
+        .difference(LocationFlags::VIRTUAL)
+        .bits()
 }
 
 /// How a provider identifies a location across syncs.

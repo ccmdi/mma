@@ -22,7 +22,7 @@ import {
 	createLocation,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
-import { LocationFlag } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 
 const OFFICIAL_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };
@@ -241,9 +241,24 @@ describe("opensv smoke", function () {
 
 	it("should survive rapid pano switching", async () => {
 		const locs = [
-			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 90 }),
-			loc({ ...TREKKER_COORDS, panoId: TREKKER_PANO, flags: LocationFlag.LoadAsPanoId, heading: 180 }),
-			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 270 }),
+			loc({
+				...OFFICIAL_COORDS,
+				panoId: OFFICIAL_PANO,
+				flags: LocationFlag.LoadAsPanoId,
+				heading: 90,
+			}),
+			loc({
+				...TREKKER_COORDS,
+				panoId: TREKKER_PANO,
+				flags: LocationFlag.LoadAsPanoId,
+				heading: 180,
+			}),
+			loc({
+				...OFFICIAL_COORDS,
+				panoId: OFFICIAL_PANO,
+				flags: LocationFlag.LoadAsPanoId,
+				heading: 270,
+			}),
 		];
 		const ids = await addLocs(locs);
 		for (const id of ids) await openLocation(id);
@@ -253,9 +268,24 @@ describe("opensv smoke", function () {
 
 	it("should survive switching between official and unofficial", async () => {
 		const locs = [
-			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 0 }),
-			loc({ ...UNOFFICIAL_COORDS, panoId: UNOFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 0 }),
-			loc({ ...OFFICIAL_COORDS, panoId: OFFICIAL_PANO, flags: LocationFlag.LoadAsPanoId, heading: 180 }),
+			loc({
+				...OFFICIAL_COORDS,
+				panoId: OFFICIAL_PANO,
+				flags: LocationFlag.LoadAsPanoId,
+				heading: 0,
+			}),
+			loc({
+				...UNOFFICIAL_COORDS,
+				panoId: UNOFFICIAL_PANO,
+				flags: LocationFlag.LoadAsPanoId,
+				heading: 0,
+			}),
+			loc({
+				...OFFICIAL_COORDS,
+				panoId: OFFICIAL_PANO,
+				flags: LocationFlag.LoadAsPanoId,
+				heading: 180,
+			}),
 		];
 		const ids = await addLocs(locs);
 		await openLocation(ids[0]);

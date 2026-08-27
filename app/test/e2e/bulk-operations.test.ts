@@ -10,7 +10,7 @@ import {
 	seedLocs,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
-import { LocationFlag } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 
 const OFFICIAL_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };

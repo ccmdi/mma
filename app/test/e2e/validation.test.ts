@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { addLocs, createLocation, useMap, withApi } from "./helpers";
 import type { Location } from "@/bindings.gen";
-import { LocationFlag, ValidationState } from "@/types";
+import { ValidationState } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 
 const OFFICIAL_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };

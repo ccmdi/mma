@@ -1,11 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-	isVirtualLocation,
-	isImportPreview,
-	isSeenPreview,
-	LocationFlag,
-	VIRTUAL_FLAGS,
-} from "@/types";
+import { isVirtualLocation, isImportPreview, isSeenPreview } from "@/types";
+import { LocationFlag, VIRTUAL_FLAGS } from "@/bindings.consts";
 import type { Location } from "@/bindings.gen";
 
 const withFlags = (flags: number) => ({ flags }) as Location;

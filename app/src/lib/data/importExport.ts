@@ -1,7 +1,7 @@
 import { imageKeyToPanoId } from "@/lib/sv/panoId";
 import { fovToZoom, schemeBase } from "@/lib/util/util";
 import { runConcurrent } from "@/lib/util/concurrent";
-import { LocationFlag } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 import type { Location } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 

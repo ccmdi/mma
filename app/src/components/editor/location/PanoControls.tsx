@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, useEffect, useRef, useState, useCallback } from "react";
-import { hasLoadAsPanoId, LocationFlag } from "@/types";
+import { hasLoadAsPanoId } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 import {
 	PANO_ZOOM,
 	SV_JUMP_RADIUS,

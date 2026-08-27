@@ -15,7 +15,8 @@
 
 import { parseImageArray } from "@/lib/sv/getMetadata";
 import type { Pano } from "@/types";
-import { PanoType } from "@/types";
+import { PanoType } from "@/bindings.consts";
+import type { EnumOf } from "@/types/util";
 import type { ProcedureRequest } from "@/lib/data/procedureHost";
 
 export const SINGLE_IMAGE_SEARCH_URL =
@@ -66,7 +67,7 @@ export const enum SearchPreference {
 }
 
 export interface SearchOpts {
-	sources?: PanoType[];
+	sources?: EnumOf<typeof PanoType>[];
 	preference?: SearchPreference;
 }
 
@@ -75,7 +76,11 @@ export interface SearchOpts {
  *  API's cold answer is this search's nearest pano each time, and the official frontend on
  *  its own misses user coverage entirely. (The API's answer drifts with its session -- it
  *  sends a session id this search does not -- so only cold calls compare.) */
-export const ALL_SOURCES: PanoType[] = [PanoType.Official, PanoType.Unknown, PanoType.UserUploaded];
+export const ALL_SOURCES: EnumOf<typeof PanoType>[] = [
+	PanoType.Official,
+	PanoType.Unknown,
+	PanoType.UserUploaded,
+];
 
 /** Nearest panorama within `radius` metres of the point, searching `sources`. */
 export function buildLocationSearchBody(

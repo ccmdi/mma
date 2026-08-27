@@ -8,12 +8,17 @@
 // `mma.fetchMany`, so a batch of any size costs a fixed number of rounds.
 
 import type { Location, Update } from "@/bindings.gen";
-import { detectCameraType, fetchMetadata, indexPanos, type FetchedMetadata } from "@/lib/sv/getMetadata";
+import {
+	detectCameraType,
+	fetchMetadata,
+	indexPanos,
+	type FetchedMetadata,
+} from "@/lib/sv/getMetadata";
 import { isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { panosAtCoords } from "@/lib/sv/singleImageSearch";
-import { LocationFlag, ValidationState, type Pano } from "@/types";
-
+import { ValidationState, type Pano } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 
 interface RunConfig {
 	config?: { radius?: number } | null;

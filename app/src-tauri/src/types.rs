@@ -417,13 +417,79 @@ impl Default for Location {
     }
 }
 
+/// `SCREAMING_SNAKE` -> `PascalCase`, so a wire-visible name is spelled once here.
+fn pascal(name: &str) -> String {
+    name.split('_')
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f
+                    .to_uppercase()
+                    .chain(c.flat_map(|x| x.to_lowercase()))
+                    .collect(),
+                None => String::new(),
+            }
+        })
+        .collect()
+}
+
+/// The `PascalCase` name -> value map TypeScript mirrors.
+pub fn wire_names<V>(
+    pairs: impl IntoIterator<Item = (&'static str, V)>,
+) -> std::collections::BTreeMap<String, V> {
+    pairs.into_iter().map(|(n, v)| (pascal(n), v)).collect()
+}
+
+/// A closed set of numeric values Rust owns: the constants, the enum-field catalogue
+/// entries built from them, and the map TypeScript mirrors, all from one list.
+macro_rules! wire_enum {
+    ($(#[$m:meta])* $name:ident : $repr:ty { $($konst:ident = $val:expr => $label:literal),* $(,)? }) => {
+        $(#[$m])*
+        pub struct $name;
+        impl $name {
+            $(pub const $konst: $repr = $val;)*
+            /// Values as the `extra` column stores them.
+            pub const VALUES: &'static [&'static str] = &[$(stringify!($val)),*];
+            pub const LABELS: &'static [(&'static str, &'static str)] =
+                &[$((stringify!($val), $label)),*];
+            pub fn wire_names() -> std::collections::BTreeMap<String, $repr> {
+                wire_names([$((stringify!($konst), $val)),*])
+            }
+        }
+    };
+}
+
+wire_enum! {
+    /// Panorama source type, as Google's metadata reports it.
+    PanoType: u8 {
+        OFFICIAL = 2 => "Official",
+        UNKNOWN = 3 => "Unknown",
+        USER_UPLOADED = 10 => "User uploaded",
+    }
+}
+
 bitflags::bitflags! {
-    /// Per-location bitfield. Serializes as a plain `u32` over IPC and Arrow so the
-    /// JS side (which models the bits with its own `LocationFlag` enum) is unaffected.
+    /// Per-location bitfield, serialized as a plain `u32` over IPC and Arrow.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct LocationFlags: u32 {
         const LOAD_AS_PANO_ID = 1;
         const INFORMATIONAL = 2;
+        /// Preview kinds, set only on the ephemeral active-location preview and stripped
+        /// by [`LocationFlags::VIRTUAL`] before one is materialized. Never persisted.
+        const IMPORT_PREVIEW = 4;
+        const SEEN_OVERLAY = 8;
+    }
+}
+
+impl LocationFlags {
+    /// The bits a preview carries that a real location must not.
+    pub const VIRTUAL: Self = Self::IMPORT_PREVIEW.union(Self::SEEN_OVERLAY);
+
+    pub fn wire_names() -> std::collections::BTreeMap<String, u32> {
+        wire_names(
+            std::iter::once(("NONE", 0))
+                .chain(Self::all().iter_names().map(|(n, f)| (n, f.bits()))),
+        )
     }
 }
 

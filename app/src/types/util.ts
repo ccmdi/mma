@@ -132,3 +132,6 @@ export const unionTuple =
 		tuple: U & ([T] extends [U[number]] ? unknown : { readonly __missing: Exclude<T, U[number]> }),
 	): U =>
 		tuple;
+
+/** The value union of a `const` object, so a Rust-owned name -> value map reads as a type. */
+export type EnumOf<T> = T[keyof T];

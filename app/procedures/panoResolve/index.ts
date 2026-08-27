@@ -5,7 +5,8 @@
 
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { PanoType, type Pano } from "@/types";
+import { type Pano } from "@/types";
+import { PanoType } from "@/bindings.consts";
 import { panosAtCoords, type SearchPreference } from "@/lib/sv/singleImageSearch";
 
 interface RunConfig {
@@ -26,7 +27,8 @@ export function configure(cfg: RunConfig | null): void {
 
 /** Same rule as `needsEnrichment`: a row is pending while any wanted field is null. */
 const pending = (row: Location) =>
-	needs === null || needs.some((key) => (row.extra as Record<string, unknown> | null)?.[key] == null);
+	needs === null ||
+	needs.some((key) => (row.extra as Record<string, unknown> | null)?.[key] == null);
 
 export function run(rows: Location[]): Update<LocationPatch>[] {
 	const todo = rows.filter((row) => force || (!row.panoId && pending(row)));

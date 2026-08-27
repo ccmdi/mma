@@ -7,7 +7,7 @@ import {
 	parsedLocationsToImportJson,
 	type ParsedLocation,
 } from "@/lib/data/importExport";
-import { LocationFlag } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 
 describe("parseMapsUrl", () => {
 	it("returns null for non-URL strings", async () => {

@@ -8,15 +8,8 @@ import {
 	useCallback,
 	useEffectEvent,
 } from "react";
-import {
-	LocationFlag,
-	VIRTUAL_FLAGS,
-	createLocation,
-	isVirtualLocation,
-	isImportPreview,
-	isSeenPreview,
-	PanoType,
-} from "@/types";
+import { createLocation, isVirtualLocation, isImportPreview, isSeenPreview } from "@/types";
+import { LocationFlag, VIRTUAL_FLAGS, PanoType } from "@/bindings.consts";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -412,7 +405,12 @@ export function LocationPreview() {
 			// the rest of its history from the neighbour.
 			const [[data], [atCoord]] = await Promise.all([
 				svMetadata([currentPano.pano], signal),
-				panosAt([{ lat: currentPano.lat, lng: currentPano.lng }], SV_SEARCH_RADIUS, undefined, signal),
+				panosAt(
+					[{ lat: currentPano.lat, lng: currentPano.lng }],
+					SV_SEARCH_RADIUS,
+					undefined,
+					signal,
+				),
 			]);
 			if (!data) return;
 

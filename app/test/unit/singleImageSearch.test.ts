@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PanoType } from "@/types";
+import { PanoType } from "@/bindings.consts";
 import {
 	buildLocationSearchBody,
 	SearchPreference,
@@ -82,9 +82,9 @@ describe("search preference", () => {
 	});
 
 	it("sends best when a caller asks for it", () => {
-		expect(field9(buildLocationSearchBody(0, 0, 50, { preference: SearchPreference.Best }))).toEqual([
-			SearchPreference.Best,
-		]);
+		expect(
+			field9(buildLocationSearchBody(0, 0, 50, { preference: SearchPreference.Best })),
+		).toEqual([SearchPreference.Best]);
 		expect(SearchPreference.Best).toBe(1);
 	});
 });

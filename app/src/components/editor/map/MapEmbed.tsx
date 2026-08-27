@@ -13,7 +13,7 @@ import { useMapSurface } from "@/lib/render/useMapSurface";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { svThumbnailUrl, svSearchRadius } from "@/lib/sv/lookup";
-import { PanoType } from "@/types";
+import { PanoType } from "@/bindings.consts";
 import { centerHeading } from "@/lib/sv/getMetadata";
 import { panosAt } from "@/lib/sv/query";
 import { log } from "@/lib/util/log";

@@ -13,7 +13,7 @@ import {
 import { blueLineSample } from "./blueLineSampler";
 import { passesInitialFilters, passesDateFilters, isPanoGood, computeHeading } from "./filters";
 import { svMetadata } from "@/lib/sv/query";
-import { PanoType } from "@/types";
+import { PanoType } from "@/bindings.consts";
 import type { Pano } from "@/types";
 import { imageDateOf } from "@/lib/sv/getMetadata";
 import { panosAt } from "@/lib/sv/query";
