@@ -5,6 +5,7 @@ use crate::test_util::{loc, Fx};
 use crate::types::Location;
 use crate::types::RawExtra;
 use chrono::TimeZone;
+use chrono::Utc;
 use std::iter;
 use std::slice;
 

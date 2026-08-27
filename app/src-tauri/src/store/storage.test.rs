@@ -1,10 +1,12 @@
 use super::*;
 use crate::store::arrow_bridge;
 use crate::test_util::TempDir;
+use crate::types::AppError;
 use crate::types::Location;
 use crate::types::LocationFlags;
 use crate::util;
 use crate::util::sha256_hex;
+use rusqlite::Connection;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
 use std::fs;

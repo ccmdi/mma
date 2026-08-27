@@ -4,6 +4,7 @@ use crate::io::export;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::{self, Selection, Selector};
+use crate::store::arrow_bridge::empty_batch;
 use crate::store::commands::rows_file_path;
 use crate::test_util::Fx;
 use crate::test_util::TempDir;

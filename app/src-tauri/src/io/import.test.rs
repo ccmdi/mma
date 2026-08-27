@@ -1,10 +1,13 @@
 use super::*;
 use crate::selections::Selector;
+use crate::store::location_store;
 use crate::store::location_store::Store;
 use crate::store::map_meta;
 use crate::store::map_meta::MapSettings;
 use crate::store::map_meta::VirtualTag;
 use crate::types::RawExtra;
+use crate::types::{Location, LocationFlags, Tag};
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
 use std::fs;

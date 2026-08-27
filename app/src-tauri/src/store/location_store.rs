@@ -7,7 +7,7 @@
 
 use crate::types::{AppError, AppResult};
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 pub use history::*;
 pub use mutations::*;
@@ -20,11 +20,10 @@ pub use tags::*;
 use roaring::RoaringBitmap;
 
 use arrow_array::RecordBatch;
-use arrow_schema::SchemaRef;
 use rayon::prelude::*;
 
 use crate::store::arrow_bridge;
-use crate::store::arrow_bridge::col_id;
+use crate::store::arrow_bridge::{batch_row_for_id, col_id, schema};
 use crate::store::spatial;
 use crate::store::storage;
 use crate::types::RawExtra;
@@ -39,32 +38,6 @@ use std::time::Instant;
 use tauri::ipc::CommandArg;
 use tauri::ipc::CommandItem;
 use tauri::ipc::InvokeError;
-
-/// Binary search for a location ID in a sorted batch. O(log n).
-fn batch_row_for_id(batch: &RecordBatch, id: u32) -> Option<usize> {
-    let ids = col_id(batch);
-    let (mut lo, mut hi) = (0usize, batch.num_rows());
-    while lo < hi {
-        let mid = lo + (hi - lo) / 2;
-        let mid_id = ids.value(mid);
-        if mid_id < id {
-            lo = mid + 1;
-        } else if mid_id > id {
-            hi = mid;
-        } else {
-            return Some(mid);
-        }
-    }
-    None
-}
-
-pub(crate) fn schema() -> SchemaRef {
-    Arc::new(arrow_bridge::location_schema())
-}
-
-fn empty_batch() -> RecordBatch {
-    RecordBatch::new_empty(schema())
-}
 
 // ---------------------------------------------------------------------------
 // Store

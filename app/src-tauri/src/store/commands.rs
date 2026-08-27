@@ -7,7 +7,7 @@ use crate::io::import;
 use crate::plugins::borders;
 use crate::selections::field_expr;
 use crate::selections::{self, Selection, Selector};
-use crate::store::arrow_bridge::col_id;
+use crate::store::arrow_bridge::{col_id, schema};
 use crate::store::location_store::*;
 use crate::store::map_meta;
 use crate::store::storage;

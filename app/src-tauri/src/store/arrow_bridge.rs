@@ -11,6 +11,7 @@ use arrow_array::{
     builder::{GenericListBuilder, UInt32Builder},
     Array, ArrayRef, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array, UInt8Array,
 };
+use arrow_schema::SchemaRef;
 use arrow_schema::{DataType, Field, Schema};
 use std::collections::HashMap;
 
@@ -372,3 +373,29 @@ pub fn batch_to_delta(batch: &RecordBatch) -> (Vec<Location>, Vec<Location>) {
 #[cfg(test)]
 #[path = "arrow_bridge.test.rs"]
 mod tests;
+
+/// Binary search for a location ID in a sorted batch. O(log n).
+pub(crate) fn batch_row_for_id(batch: &RecordBatch, id: u32) -> Option<usize> {
+    let ids = col_id(batch);
+    let (mut lo, mut hi) = (0usize, batch.num_rows());
+    while lo < hi {
+        let mid = lo + (hi - lo) / 2;
+        let mid_id = ids.value(mid);
+        if mid_id < id {
+            lo = mid + 1;
+        } else if mid_id > id {
+            hi = mid;
+        } else {
+            return Some(mid);
+        }
+    }
+    None
+}
+
+pub(crate) fn schema() -> SchemaRef {
+    Arc::new(location_schema())
+}
+
+pub(crate) fn empty_batch() -> RecordBatch {
+    RecordBatch::new_empty(schema())
+}
