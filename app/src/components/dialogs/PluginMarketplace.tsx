@@ -3,6 +3,7 @@ import { Dialog, DialogContent, type DialogProps } from "@/components/primitives
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
+import { SegmentedControl } from "@/components/primitives/Sidebar";
 import {
 	getPlugin,
 	getPlugins,
@@ -442,20 +443,15 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Plugins")} className="plugin-marketplace">
-				<div className="plugin-marketplace__tabs">
-					<button
-						className={`plugin-marketplace__tab ${tab === "core" ? "plugin-marketplace__tab--active" : ""}`}
-						onClick={() => setTab("core")}
-					>
-						{t("Core")}
-					</button>
-					<button
-						className={`plugin-marketplace__tab ${tab === "additional" ? "plugin-marketplace__tab--active" : ""}`}
-						onClick={() => setTab("additional")}
-					>
-						{t("Additional")}
-					</button>
-				</div>
+				<SegmentedControl
+					className="segmented--fill plugin-marketplace__tabs"
+					options={[
+						{ value: "core", label: t("Core") },
+						{ value: "additional", label: t("Additional") },
+					]}
+					value={tab}
+					onChange={setTab}
+				/>
 
 				{tab === "core" && (
 					<div className="plugin-marketplace__grid">
