@@ -8,7 +8,6 @@ fn tag(id: u32, name: &str) -> Tag {
         color: "#000".into(),
         visible: true,
         order: None,
-        count: 0,
         doclinks: Vec::new(),
     }
 }

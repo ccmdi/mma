@@ -975,7 +975,6 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                 color,
                 visible: true,
                 order,
-                count: 0,
                 doclinks,
             }
         })
@@ -1542,7 +1541,6 @@ fn add_parsed_to_store(
                         color: crate::util::color_for_name(name),
                         visible: true,
                         order: None,
-                        count: 0,
                         doclinks: Vec::new(),
                     },
                 );

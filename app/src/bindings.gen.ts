@@ -1679,8 +1679,8 @@ export type SyncReconcileResult = {
  *  A user-defined label that can be applied to any number of locations.
  * 
  *  Tags are stored in `MapMeta` and referenced by id in each `Location.tags`.
- *  The `count` field is maintained by callers during batch mutations, not by
- *  the overlay add/remove methods.
+ *  Member counts are not part of the tag record: `TagState.counts` owns them and
+ *  `StoreStatus.tag_counts` is the only channel that ships them.
  */
 export type Tag = {
 	id: number,
@@ -1696,11 +1696,6 @@ export type Tag = {
 	 *  that predate ordered insertion.
 	 */
 	order?: number | null,
-	/**
-	 *  Number of locations currently carrying this tag. Denormalized for
-	 *  fast sidebar display -- kept in sync by callers after batch edits.
-	 */
-	count?: number,
 	/**
 	 *  Document links from the map JSON's `extra.tags[name].doclinks` --
 	 *  URLs into external docs (e.g. Google Docs heading links). Read-only

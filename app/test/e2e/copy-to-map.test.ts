@@ -111,6 +111,7 @@ describe("Copy to a closed map", () => {
 		await openMap(tgt);
 		const locs = await getAllLocs();
 		const tags = Object.values(await withApi((api) => api.getMapState().tags));
+		const tagCounts = await withApi((api) => api.getMapState().tagCounts);
 
 		// "Shared" reconciled to the target's existing tag (no duplicate created).
 		expect(tags.filter((t) => t.name === "Shared").length).toBe(1);
@@ -123,8 +124,8 @@ describe("Copy to a closed map", () => {
 		expect(locs.filter((l) => l.tags.includes(sharedId)).length).toBe(3);
 		expect(locs.filter((l) => l.tags.includes(uniqueId)).length).toBe(1);
 		// Counts must reflect membership (the exact thing the cross-window fix guards).
-		expect(tags.find((t) => t.name === "Shared")!.count).toBe(3);
-		expect(tags.find((t) => t.name === "Unique")!.count).toBe(1);
+		expect(tagCounts[sharedId]).toBe(3);
+		expect(tagCounts[uniqueId]).toBe(1);
 
 		await closeMap();
 		await deleteMap(src);

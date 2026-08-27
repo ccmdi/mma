@@ -384,6 +384,10 @@ impl SelectionState {
 
 pub(crate) struct TagState {
     pub all: HashMap<u32, Tag>,
+    /// `tag_id -> number of locations carrying it`. The sole owner of tag counts;
+    /// `StoreStatus.tag_counts` is their only channel to JS, so nothing on the wire-facing
+    /// `Tag` can disagree. Maintained in `update_tag_counts`, rebuilt on map open.
+    pub counts: HashMap<u32, usize>,
     pub dirty: bool,
     /// Tags whose count moved since the last `finish_mutation`, which drains it. Decides
     /// both which tags get their visibility re-derived (scanning all of them instead would
@@ -572,6 +576,7 @@ impl Store {
             },
             tags: TagState {
                 all: HashMap::new(),
+                counts: HashMap::new(),
                 dirty: false,
                 touched: HashSet::new(),
                 next_id: 1,
@@ -600,7 +605,13 @@ impl Store {
             location_count: self.alive_count,
             can_undo: !self.edits.undo.is_empty(),
             can_redo: !self.edits.redo.is_empty(),
-            tag_counts: Some(self.tags.all.iter().map(|(&id, t)| (id, t.count)).collect()),
+            tag_counts: Some(
+                self.tags
+                    .all
+                    .keys()
+                    .map(|&id| (id, self.tag_count(id)))
+                    .collect(),
+            ),
             known_field_keys: self.known_field_keys.iter().cloned().collect(),
         }
     }
@@ -660,10 +671,10 @@ impl Store {
         let touched = std::mem::take(&mut self.tags.touched);
         let counts_changed = !touched.is_empty();
         for tag_id in touched {
+            let should = self.tag_count(tag_id) > 0;
             let Some(tag) = self.tags.all.get_mut(&tag_id) else {
                 continue;
             };
-            let should = tag.count > 0;
             if tag.visible != should {
                 tag.visible = should;
                 vis_changed = true;
@@ -924,13 +935,7 @@ impl Store {
         let mut members: HashMap<u32, Vec<u32>> = HashMap::new();
         for loc in locs {
             for &tag_id in &loc.tags {
-                if let Some(tag) = self.tags.all.get_mut(&tag_id) {
-                    if delta < 0 {
-                        tag.count = tag.count.saturating_sub((-delta) as usize);
-                    } else {
-                        tag.count += delta as usize;
-                    }
-                } else if delta > 0 {
+                if delta > 0 && !self.tags.all.contains_key(&tag_id) {
                     self.tags.all.insert(
                         tag_id,
                         Tag {
@@ -939,11 +944,16 @@ impl Store {
                             color: util::color_for_name(&format!("Tag {}", tag_id)),
                             visible: true,
                             order: None,
-                            count: delta as usize,
                             doclinks: Vec::new(),
                         },
                     );
                     self.tags.dirty = true;
+                }
+                let count = self.tags.counts.entry(tag_id).or_default();
+                if delta < 0 {
+                    *count = count.saturating_sub((-delta) as usize);
+                } else {
+                    *count += delta as usize;
                 }
                 members.entry(tag_id).or_default().push(loc.id);
                 self.tags.touched.insert(tag_id);
@@ -974,6 +984,11 @@ impl Store {
             });
         });
         self.tags.sets = sets;
+    }
+
+    /// Locations currently carrying `tag_id`.
+    pub(crate) fn tag_count(&self, tag_id: u32) -> usize {
+        self.tags.counts.get(&tag_id).copied().unwrap_or(0)
     }
 
     /// Increment tag counts for all tags referenced by `locs`.
@@ -1108,7 +1123,6 @@ impl Store {
                         color: util::color_for_name(name),
                         visible: true,
                         order: Some(order.map_or(1, |m| m + 1)),
-                        count: 0,
                         doclinks: Vec::new(),
                     },
                 );
@@ -2213,6 +2227,7 @@ pub async fn store_open_map(
         let mut tags = read_tags_json(&conn, &map_id);
         let (max_tag_id, healed) = reconcile_tag_registry(&mut tags, &tag_counts);
         store.tags.all = tags;
+        store.tags.counts = tag_counts;
         store.tags.dirty = healed;
         store.tags.next_id = max_tag_id + 1;
         store.rebuild_tag_sets();
@@ -2792,7 +2807,7 @@ pub struct Update<P> {
     pub patch: P,
 }
 
-/// Patchable fields of a `Tag`. Subset by design: id/count/visible aren't editable here.
+/// Patchable fields of a `Tag`. Subset by design: id/visible aren't editable here.
 #[derive(serde::Deserialize, specta::Type, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TagPatch {
@@ -3095,7 +3110,6 @@ pub(crate) fn reconcile_tags_by_name(
                     id,
                     Tag {
                         id,
-                        count: 0,
                         order: None,
                         ..tag.clone()
                     },
@@ -3245,11 +3259,6 @@ pub fn store_copy_locations_to_map(
                 .iter()
                 .filter_map(|t| remap.get(t).copied())
                 .collect();
-            for t in &loc.tags {
-                if let Some(tag) = target_tags.get_mut(t) {
-                    tag.count += 1;
-                }
-            }
         }
 
         // Register any extra-field defs the copies introduce. `persist_field_defs`
@@ -3968,20 +3977,17 @@ pub(crate) fn read_tags_json(conn: &rusqlite::Connection, map_id: &str) -> HashM
         .collect()
 }
 
-/// Rebuild registry counts from a location scan (map open). Counted tags are
-/// forced visible: commit checkout restores locations without reviving their
-/// soft-deleted tags, so a count>0/visible=false pair is always a desync.
-/// Returns (max tag id, whether any tag was revived and needs persisting).
+/// Reconcile the persisted tag registry against a location scan (map open): every
+/// tag the scan found must exist and be visible -- commit checkout restores locations
+/// without reviving their soft-deleted tags, so a counted/invisible pair is always a
+/// desync. Returns (max tag id, whether any tag was revived and needs persisting).
 fn reconcile_tag_registry(
     tags: &mut HashMap<u32, Tag>,
     tag_counts: &HashMap<u32, usize>,
 ) -> (u32, bool) {
-    for tag in tags.values_mut() {
-        tag.count = 0;
-    }
     let mut max_tag_id: u32 = tags.keys().max().copied().unwrap_or(0);
     let mut healed = false;
-    for (&tid, &count) in tag_counts {
+    for &tid in tag_counts.keys() {
         max_tag_id = max_tag_id.max(tid);
         let tag = tags.entry(tid).or_insert_with(|| Tag {
             id: tid,
@@ -3989,10 +3995,8 @@ fn reconcile_tag_registry(
             color: util::color_for_name(&format!("Tag {}", tid)),
             visible: true,
             order: None,
-            count: 0,
             doclinks: Vec::new(),
         });
-        tag.count = count;
         healed |= !tag.visible;
         tag.visible = true;
     }

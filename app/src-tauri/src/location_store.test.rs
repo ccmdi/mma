@@ -8,6 +8,11 @@ fn loc_with_tags(id: u32, lat: f64, lng: f64, tags: Vec<u32>) -> Location {
     }
 }
 
+/// Member count for a registered tag, `None` when the tag isn't in the registry.
+fn tag_count(store: &Store, id: u32) -> Option<usize> {
+    store.tags.all.contains_key(&id).then(|| store.tag_count(id))
+}
+
 fn loc_with_heading(id: u32, lat: f64, lng: f64, heading: f64) -> Location {
     Location {
         heading,
@@ -346,8 +351,8 @@ fn tag_counts_after_add() {
     let l1 = loc_with_tags(1, 0.0, 0.0, vec![10, 20]);
     let l2 = loc_with_tags(2, 1.0, 1.0, vec![10]);
     let store = setup_store_with(&[l1, l2]);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(2));
-    assert_eq!(store.tags.all.get(&20).map(|t| t.count), Some(1));
+    assert_eq!(tag_count(&store, 10), Some(2));
+    assert_eq!(tag_count(&store, 20), Some(1));
 }
 
 #[test]
@@ -356,8 +361,8 @@ fn tag_counts_after_remove() {
     let l2 = loc_with_tags(2, 1.0, 1.0, vec![10]);
     let mut store = setup_store_with(&[l1.clone(), l2]);
     store.remove_tag_counts(&[l1]);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(1));
-    assert_eq!(store.tags.all.get(&20).map(|t| t.count), Some(0));
+    assert_eq!(tag_count(&store, 10), Some(1));
+    assert_eq!(tag_count(&store, 20), Some(0));
 }
 
 #[test]
@@ -365,7 +370,7 @@ fn tag_counts_saturate_at_zero() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
     store.remove_tag_counts(&[l]);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), None);
+    assert_eq!(tag_count(&store, 10), None);
 }
 
 // -----------------------------------------------------------------------
@@ -474,28 +479,28 @@ fn redo_stack_cleared_on_new_edit() {
 fn tag_counts_correct_after_undo_add() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10, 20]);
     let mut store = setup_store_with(&[l.clone()]);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(1));
+    assert_eq!(tag_count(&store, 10), Some(1));
 
     let entry = EditEntry {
         created: vec![l],
         removed: vec![],
     };
     store.apply_edit_reverse(&entry);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(0));
+    assert_eq!(tag_count(&store, 10), Some(0));
 }
 
 #[test]
 fn tag_counts_correct_after_undo_remove() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), None);
+    assert_eq!(tag_count(&store, 10), None);
 
     let entry = EditEntry {
         created: vec![],
         removed: vec![l],
     };
     store.apply_edit_reverse(&entry);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(1));
+    assert_eq!(tag_count(&store, 10), Some(1));
 }
 
 #[test]
@@ -503,12 +508,10 @@ fn tag_counts_correct_after_undo_tag_change() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![20]);
     let mut store = setup_store_with(&[new.clone()]);
-    for tag in store.tags.all.values_mut() {
-        tag.count = 0;
-    }
+    store.tags.counts.clear();
     store.add_tag_counts(&[new.clone()]);
-    assert_eq!(store.tags.all.get(&20).map(|t| t.count), Some(1));
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), None);
+    assert_eq!(tag_count(&store, 20), Some(1));
+    assert_eq!(tag_count(&store, 10), None);
 
     let entry = EditEntry {
         created: vec![new],
@@ -516,8 +519,8 @@ fn tag_counts_correct_after_undo_tag_change() {
     };
     store.apply_edit_reverse(&entry);
 
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(1));
-    assert_eq!(store.tags.all.get(&20).map(|t| t.count), Some(0));
+    assert_eq!(tag_count(&store, 10), Some(1));
+    assert_eq!(tag_count(&store, 20), Some(0));
 }
 
 #[test]
@@ -530,10 +533,10 @@ fn tag_counts_survive_undo_redo_cycle() {
     };
 
     store.apply_edit_reverse(&entry);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(0));
+    assert_eq!(tag_count(&store, 10), Some(0));
 
     store.apply_edit_forward(&entry);
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(1));
+    assert_eq!(tag_count(&store, 10), Some(1));
 }
 
 // -----------------------------------------------------------------------
@@ -1097,11 +1100,11 @@ fn multiple_undo_redo_cycles_consistent() {
     for _ in 0..5 {
         store.apply_edit_forward(&entry);
         assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![20]);
-        assert_eq!(store.tags.all.get(&20).map(|t| t.count), Some(1));
+        assert_eq!(tag_count(&store, 20), Some(1));
 
         store.apply_edit_reverse(&entry);
         assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![10]);
-        assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(1));
+        assert_eq!(tag_count(&store, 10), Some(1));
     }
 }
 
@@ -1727,18 +1730,18 @@ fn tag_counts_correct_after_bulk_add_then_undo() {
         .map(|i| loc_with_tags(i, i as f64, 0.0, vec![5]))
         .collect();
     let mut store = setup_store_with(&locs);
-    assert_eq!(store.tags.all.get(&5).map(|t| t.count), Some(10));
+    assert_eq!(tag_count(&store, 5), Some(10));
 
     let entry = EditEntry {
         created: locs.clone(),
         removed: vec![],
     };
     store.apply_edit_reverse(&entry);
-    assert_eq!(store.tags.all.get(&5).map(|t| t.count), Some(0));
+    assert_eq!(tag_count(&store, 5), Some(0));
     assert_eq!(store.alive_count, 0);
 
     store.apply_edit_forward(&entry);
-    assert_eq!(store.tags.all.get(&5).map(|t| t.count), Some(10));
+    assert_eq!(tag_count(&store, 5), Some(10));
     assert_eq!(store.alive_count, 10);
 }
 
@@ -1748,12 +1751,10 @@ fn tag_counts_correct_after_tag_reassignment_undo() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![5]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![5, 10]);
     let mut store = setup_store_with(&[new.clone()]);
-    for tag in store.tags.all.values_mut() {
-        tag.count = 0;
-    }
+    store.tags.counts.clear();
     store.add_tag_counts(&[new.clone()]);
-    assert_eq!(store.tags.all.get(&5).map(|t| t.count), Some(1));
-    assert_eq!(store.tags.all.get(&10).map(|t| t.count), Some(1));
+    assert_eq!(tag_count(&store, 5), Some(1));
+    assert_eq!(tag_count(&store, 10), Some(1));
 
     let entry = EditEntry {
         created: vec![new],
@@ -1761,12 +1762,12 @@ fn tag_counts_correct_after_tag_reassignment_undo() {
     };
     store.apply_edit_reverse(&entry);
     assert_eq!(
-        store.tags.all.get(&5).map(|t| t.count),
+        tag_count(&store, 5),
         Some(1),
         "tag 5 should still be 1"
     );
     assert_eq!(
-        store.tags.all.get(&10).map(|t| t.count),
+        tag_count(&store, 10),
         Some(0),
         "tag 10 should be 0 after undo"
     );
@@ -2319,7 +2320,11 @@ fn create_tags_with_locations_never_leaves_the_tag_at_zero() {
         .values()
         .find(|t| t.name == "field")
         .expect("tag created");
-    assert_eq!(tag.count, 2, "the count is right in the same mutation");
+    assert_eq!(
+        store.tag_count(tag.id),
+        2,
+        "the count is right in the same mutation"
+    );
     assert!(
         tag.visible,
         "and it is not flipped invisible for being empty"
@@ -2341,7 +2346,7 @@ fn create_tags_without_locations_only_creates() {
     store.create_tags(&["solo".to_string()], &[]);
 
     let tag = store.tags.all.values().find(|t| t.name == "solo").unwrap();
-    assert_eq!(tag.count, 0);
+    assert_eq!(store.tag_count(tag.id), 0);
     assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
 }
 
@@ -2401,7 +2406,7 @@ fn losing_its_last_location_still_hides_a_tag() {
         ..Default::default()
     });
 
-    assert_eq!(store.tags.all[&tag_id].count, 0);
+    assert_eq!(store.tag_count(tag_id), 0);
     assert!(!store.tags.all[&tag_id].visible);
 }
 
@@ -2420,8 +2425,8 @@ fn create_tags_is_idempotent_against_locations_that_already_have_the_tag() {
     // Same name, same location: no second copy of the tag, no double count.
     store.create_tags(&["DUP".to_string()], &[1]);
 
-    assert_eq!(store.tags.all.values().filter(|t| t.count > 0).count(), 1);
-    assert_eq!(store.tags.all[&tag_id].count, 1);
+    assert_eq!(store.tags.counts.values().filter(|&&c| c > 0).count(), 1);
+    assert_eq!(store.tag_count(tag_id), 1);
     assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![tag_id]);
 }
 
@@ -2478,7 +2483,6 @@ fn tag_patch_applies_set_fields_only() {
         color: "#ff0000".into(),
         visible: true,
         order: None,
-        count: 0,
         doclinks: vec!["https://old".into()],
     };
     // Unset fields untouched; blank name ignored.
@@ -2512,14 +2516,13 @@ fn tag_patch_applies_set_fields_only() {
     assert_eq!(tag.name, "A");
 }
 
-fn registry_tag(id: u32, count: usize, visible: bool) -> Tag {
+fn registry_tag(id: u32, visible: bool) -> Tag {
     Tag {
         id,
         name: format!("tag{id}"),
         color: "#ff0000".into(),
         visible,
         order: None,
-        count,
         doclinks: Vec::new(),
     }
 }
@@ -2530,9 +2533,9 @@ fn registry_tag(id: u32, count: usize, visible: bool) -> Tag {
 #[test]
 fn reconcile_revives_soft_deleted_tag_with_members() {
     let mut tags = HashMap::from([
-        (1, registry_tag(1, 0, false)), // ghost, but locations reference it again
-        (2, registry_tag(2, 9, true)),  // live, stale count
-        (3, registry_tag(3, 0, false)), // ghost with no members
+        (1, registry_tag(1, false)), // ghost, but locations reference it again
+        (2, registry_tag(2, true)),  // live
+        (3, registry_tag(3, false)), // ghost with no members
     ]);
     let counts = HashMap::from([(1, 2usize), (2, 5)]);
 
@@ -2541,21 +2544,18 @@ fn reconcile_revives_soft_deleted_tag_with_members() {
     assert!(healed, "revived tag must be flagged for persistence");
     assert_eq!(max_tag_id, 3);
     assert!(tags[&1].visible);
-    assert_eq!(tags[&1].count, 2);
     assert!(tags[&2].visible);
-    assert_eq!(tags[&2].count, 5);
     assert!(
         !tags[&3].visible,
         "memberless ghost stays soft-deleted for undo revival"
     );
-    assert_eq!(tags[&3].count, 0);
 }
 
 #[test]
 fn reconcile_clean_registry_needs_no_persist() {
     let mut tags = HashMap::from([
-        (1, registry_tag(1, 3, true)),
-        (2, registry_tag(2, 0, true)), // created but unassigned; stays visible
+        (1, registry_tag(1, true)),
+        (2, registry_tag(2, true)), // created but unassigned; stays visible
     ]);
     let counts = HashMap::from([(1, 3usize), (5, 1)]);
 
@@ -2564,10 +2564,8 @@ fn reconcile_clean_registry_needs_no_persist() {
     assert!(!healed, "no desync, so open must not dirty the registry");
     assert_eq!(max_tag_id, 5);
     assert!(tags[&2].visible);
-    assert_eq!(tags[&2].count, 0);
     let placeholder = &tags[&5];
     assert!(placeholder.visible);
-    assert_eq!(placeholder.count, 1);
     assert_eq!(placeholder.name, "Tag 5");
 }
 
@@ -2581,10 +2579,10 @@ fn insert_tag(store: &mut Store, id: u32, count: usize) {
             color: "#ff0000".into(),
             visible: true,
             order: None,
-            count,
             doclinks: Vec::new(),
         },
     );
+    store.tags.counts.insert(id, count);
 }
 
 #[test]
@@ -2663,7 +2661,6 @@ fn membership_delta_reports_gained_on_tag_add() {
             color: "#ff0000".into(),
             visible: true,
             order: None,
-            count: 0,
             doclinks: Vec::new(),
         },
     );
@@ -2813,7 +2810,6 @@ fn membership_delta_no_patch_when_nothing_changed() {
             color: "#ff0000".into(),
             visible: true,
             order: None,
-            count: 1,
             doclinks: Vec::new(),
         },
     );
@@ -3302,7 +3298,6 @@ fn tag(id: u32, name: &str, color: &str) -> Tag {
         color: color.into(),
         visible: true,
         order: None,
-        count: 0,
         doclinks: Vec::new(),
     }
 }
@@ -3327,10 +3322,7 @@ fn reconcile_tags_create_missing_with_source_color() {
     let mut target_tags: HashMap<u32, Tag> = Default::default();
     let mut next = 10;
     let (remap, changed) = reconcile_tags_by_name(
-        &[Tag {
-            count: 42,
-            ..tag(7, "Trekker", "#abcdef")
-        }],
+        &[tag(7, "Trekker", "#abcdef")],
         &mut target_tags,
         &mut next,
     );
@@ -3340,7 +3332,6 @@ fn reconcile_tags_create_missing_with_source_color() {
     let new_tag = target_tags.get(&10).unwrap();
     assert_eq!(new_tag.name, "Trekker");
     assert_eq!(new_tag.color, "#abcdef");
-    assert_eq!(new_tag.count, 0); // source count never leaks into the target
 }
 
 #[test]

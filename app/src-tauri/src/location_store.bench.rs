@@ -87,6 +87,7 @@ pub fn one_location(seed: u64) -> Location {
 pub struct Fixture {
     pub batch: RecordBatch,
     pub tags: HashMap<u32, Tag>,
+    pub counts: HashMap<u32, usize>,
     pub sets: HashMap<u32, RoaringBitmap>,
     pub known_field_keys: HashSet<String>,
     pub n: usize,
@@ -101,6 +102,7 @@ impl Fixture {
         let locs = locations(n, seed);
         let mut tags: HashMap<u32, Tag> = HashMap::new();
         let mut sets: HashMap<u32, RoaringBitmap> = HashMap::new();
+        let mut counts: HashMap<u32, usize> = HashMap::new();
         for id in 1..=TAG_COUNT {
             tags.insert(
                 id,
@@ -110,7 +112,6 @@ impl Fixture {
                     color: "#3a7fc2".into(),
                     visible: true,
                     order: Some(id),
-                    count: 0,
                     doclinks: Vec::new(),
                 },
             );
@@ -118,9 +119,7 @@ impl Fixture {
         for l in &locs {
             for t in &l.tags {
                 sets.entry(*t).or_default().insert(l.id);
-                if let Some(tag) = tags.get_mut(t) {
-                    tag.count += 1;
-                }
+                *counts.entry(*t).or_default() += 1;
             }
         }
         let known_field_keys = [
@@ -138,6 +137,7 @@ impl Fixture {
         Fixture {
             batch: arrow_bridge::locations_to_batch(&locs),
             tags,
+            counts,
             sets,
             known_field_keys,
             n,
@@ -153,6 +153,7 @@ impl Fixture {
         store.alive_count = self.n;
         store.known_field_keys = self.known_field_keys.clone();
         store.tags.all = self.tags.clone();
+        store.tags.counts = self.counts.clone();
         store.tags.sets = self.sets.clone();
         store.tags.next_id = TAG_COUNT + 1;
         store.bounds_dirty = true;
@@ -386,6 +387,7 @@ pub fn open_from_arrow(path: &std::path::Path, tags: &HashMap<u32, Tag>) -> Stor
     store.bounds_cache = agg.bounds;
     store.bounds_dirty = false;
     store.tags.all = tags.clone();
+    store.tags.counts = agg.tag_counts;
     store.tags.next_id = TAG_COUNT + 1;
     store.rebuild_tag_sets();
     store

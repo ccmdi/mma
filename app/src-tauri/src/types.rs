@@ -7,8 +7,8 @@
 /// A user-defined label that can be applied to any number of locations.
 ///
 /// Tags are stored in `MapMeta` and referenced by id in each `Location.tags`.
-/// The `count` field is maintained by callers during batch mutations, not by
-/// the overlay add/remove methods.
+/// Member counts are not part of the tag record: `TagState.counts` owns them and
+/// `StoreStatus.tag_counts` is the only channel that ships them.
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug, specta::Type)]
 pub struct Tag {
     pub id: u32,
@@ -22,10 +22,6 @@ pub struct Tag {
     /// that predate ordered insertion.
     #[serde(default)]
     pub order: Option<u32>,
-    /// Number of locations currently carrying this tag. Denormalized for
-    /// fast sidebar display -- kept in sync by callers after batch edits.
-    #[serde(default)]
-    pub count: usize,
     /// Document links from the map JSON's `extra.tags[name].doclinks` --
     /// URLs into external docs (e.g. Google Docs heading links). Read-only
     /// in the app; round-trips through import/export.
