@@ -40,11 +40,6 @@ use tauri::ipc::CommandArg;
 use tauri::ipc::CommandItem;
 use tauri::ipc::InvokeError;
 
-const MAX_UNDO_ENTRIES: usize = 1000;
-/// Standard base-32 alphabet (Gustavo Niemeyer geohash variant); render cells are
-/// keyed by its first character.
-const BASE32: &[u8] = b"0123456789bcdefghjkmnpqrstuvwxyz";
-
 /// Binary search for a location ID in a sorted batch. O(log n).
 fn batch_row_for_id(batch: &RecordBatch, id: u32) -> Option<usize> {
     let ids = col_id(batch);
@@ -742,19 +737,6 @@ pub struct SummaryResult {
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
-
-/// How `store_collect` shipped its answer. A transport choice, not a projection: both
-/// variants carry the same rows, and callers take whichever arrives.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum Rows {
-    Inline { locations: Vec<Location> },
-    File { path: String },
-}
 
 /// One read through a selector: resolve once, then project.
 macro_rules! selector_read {

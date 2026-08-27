@@ -26,6 +26,19 @@ use std::sync::atomic::{self, AtomicUsize};
 use std::time::Instant;
 use tokio::task;
 
+/// How `store_collect` shipped its answer. A transport choice, not a projection: both
+/// variants carry the same rows, and callers take whichever arrives.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum Rows {
+    Inline { locations: Vec<Location> },
+    File { path: String },
+}
+
 /// Above this many rows, `store_collect` stages a file instead of answering over IPC.
 pub(crate) const ROWS_INLINE_MAX: usize = 1024;
 

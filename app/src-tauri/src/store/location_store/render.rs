@@ -8,6 +8,10 @@ use std::array;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
+/// Standard base-32 alphabet (Gustavo Niemeyer geohash variant); render cells are
+/// keyed by its first character.
+pub(super) const BASE32: &[u8] = b"0123456789bcdefghjkmnpqrstuvwxyz";
+
 /// Compute the render cell index (0-31) directly from coordinates. This is the
 /// first base-32 character of the point's geohash, computed without allocating.
 pub(crate) fn render_cell_idx(lat: f64, lng: f64) -> u8 {

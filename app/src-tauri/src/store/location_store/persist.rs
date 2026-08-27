@@ -159,31 +159,6 @@ pub(super) fn save_edit_history(
     Ok(())
 }
 
-/// Highest location id referenced anywhere in the undo/redo stacks. Used to seed
-/// `next_id` on map open so undo/redo replay can never collide with a fresh allocation.
-pub(crate) fn history_max_id(undo: &[EditEntry], redo: &[EditEntry]) -> u32 {
-    undo.iter()
-        .chain(redo.iter())
-        .flat_map(|e| e.created.iter().chain(e.removed.iter()))
-        .map(|l| l.id)
-        .max()
-        .unwrap_or(0)
-}
-
-/// Open-time `next_id` seed. Must exceed every id the system can re-materialize:
-/// base rows, uncommitted overlay adds, and ids replayable from persisted undo/redo
-/// (replay resurrects locations with their original ids; re-allocating one would
-/// create a duplicate and break the strictly-sorted bake invariant).
-pub(crate) fn seed_next_id(
-    base_max: u32,
-    adds: &[Location],
-    undo: &[EditEntry],
-    redo: &[EditEntry],
-) -> u32 {
-    let max_add = adds.iter().map(|l| l.id).max().unwrap_or(0);
-    base_max.max(max_add).max(history_max_id(undo, redo)) + 1
-}
-
 /// Load undo/redo stacks from SQLite. Returns empty stacks if no history exists.
 pub(crate) fn load_edit_history(map_id: &str) -> AppResult<(Vec<EditEntry>, Vec<EditEntry>)> {
     let conn = storage::open_db()?;
