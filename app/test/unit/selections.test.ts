@@ -11,7 +11,7 @@ import {
 	toggleManualSelection,
 	selectionDisplayName,
 	displayTagName,
-	resolveLocations,
+	SELECTIONS,
 	reorderSelections,
 	composeSelections,
 	decomposeChild,
@@ -781,38 +781,20 @@ describe("displayTagName", () => {
 	});
 });
 
-describe("resolveLocations", () => {
-	it("Manual returns copy of locations", () => {
+describe("SELECTIONS.locations", () => {
+	it("copies the ids out rather than aliasing them", () => {
 		const locs = [10, 20, 30];
-		const result = resolveLocations({ type: "Manual", locations: locs });
+		const result = SELECTIONS.Manual.locations!({ type: "Manual", locations: locs });
 		expect(result).toEqual([10, 20, 30]);
 		expect(result).not.toBe(locs);
 	});
 
-	it("Locations returns copy of locations", () => {
-		const locs = [5, 15];
-		const result = resolveLocations({ type: "Locations", locations: locs, name: null });
-		expect(result).toEqual([5, 15]);
-		expect(result).not.toBe(locs);
-	});
-
-	it("ValidationState returns copy of locations", () => {
-		const locs = [7, 8, 9];
-		const result = resolveLocations({
-			type: "ValidationState",
-			locations: locs,
-			state: ValidationState.Ok,
-		});
-		expect(result).toEqual([7, 8, 9]);
-		expect(result).not.toBe(locs);
-	});
-
-	it("Everything returns empty array", () => {
-		expect(resolveLocations({ type: "Everything" })).toEqual([]);
-	});
-
-	it("Tag returns empty array", () => {
-		expect(resolveLocations({ type: "Tag", tagId: 1 })).toEqual([]);
+	it("is declared by exactly the variants that carry an id list", () => {
+		const carriers = Object.entries(SELECTIONS)
+			.filter(([, d]) => d.locations)
+			.map(([type]) => type)
+			.sort();
+		expect(carriers).toEqual(["Locations", "Manual", "Reviewed", "ValidationState"]);
 	});
 });
 

@@ -1,10 +1,9 @@
 /** Pure selection transforms. These only manipulate the JS selection tree; Rust resolves the actual bitmasks. */
 
-import { match, P } from "ts-pattern";
 import type { FilterOp, PolygonGeometry, Tag } from "@/bindings.gen";
 import { getVisibleTags, getTag } from "@/store/useMapStore";
 import { hslToRgb } from "@/lib/util/color";
-import { getFieldDef } from "@/lib/data/fieldDefRegistry";
+import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
 import { localDateTime, utcDateTime } from "@/lib/util/format";
 import { clamp, isVariant, unionTuple, type Variant } from "@/types/util";
 import { ValidationState } from "@/types";
@@ -81,12 +80,151 @@ export function sampleIds(ids: number[], n: number): number[] {
 	return pool.slice(0, k);
 }
 
-export function resolveLocations(selector: Selector): number[] {
-	return match(selector)
-		.with({ type: P.union("Locations", "Manual", "ValidationState", "Reviewed") }, (p) => [
-			...p.locations,
-		])
-		.otherwise(() => []);
+/** What one selection type answers about itself; optional answers default at the lookup. */
+interface SelectionDescriptor<K extends Selector["type"]> {
+	key(selector: Variant<Selector, K>, locations: number[]): string;
+	label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
+	/** Null falls through to the key hash. */
+	color?(selector: Variant<Selector, K>): [number, number, number] | null;
+	locations?(selector: Variant<Selector, K>): number[];
+}
+
+const ownLocations = (s: { locations: number[] }) => [...s.locations];
+
+export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
+	Locations: {
+		key: (_s, locations) => locationsKey(locations),
+		label: (s) => s.name ?? t("Selection"),
+		locations: ownLocations,
+	},
+	Everything: {
+		key: () => "everything",
+		label: () => t("Everything"),
+	},
+	Polygon: {
+		key: (s) => polygonKey(s.polygon),
+		label: (s) =>
+			s.polygon.properties?.name
+				? t("Polygon: {name}", { name: String(s.polygon.properties.name) })
+				: t("Polygon"),
+		color: () => {
+			const { polygonColorMode, polygonColor } = getSettings();
+			return polygonColorMode === "fixed" ? polygonColor : null;
+		},
+	},
+	Tag: {
+		key: (s) => `tag:${s.tagId}`,
+		label: (s, tagNames) => t("Tag: {name}", { name: tagDisplayName(s.tagId, tagNames) }),
+	},
+	Untagged: {
+		key: () => "untagged",
+		label: () => t("Untagged"),
+	},
+	Unpanned: {
+		key: () => "unpanned",
+		label: () => t("Unpanned"),
+	},
+	PanoIds: {
+		key: () => "panoids",
+		label: () => t("Pano ID locations"),
+	},
+	NotPanoIds: {
+		key: () => "notpanoids",
+		label: () => t("Coordinate locations"),
+	},
+	Uncommitted: {
+		key: () => "uncommitted",
+		label: () => t("Uncommitted"),
+	},
+	Duplicates: {
+		key: (s) => `duplicates:${s.distance}`,
+		label: (s) => t("Duplicates ({distance}m)", { distance: s.distance }),
+	},
+	Manual: {
+		key: () => "manual",
+		label: () => t("Manual selection"),
+		locations: ownLocations,
+	},
+	ValidationState: {
+		key: (s) => `validation:${s.state}`,
+		label: (s) => t(validationStateLabel(s.state)),
+		locations: ownLocations,
+	},
+	Reviewed: {
+		key: (s) => `review:${s.sessionId}:${s.mode}`,
+		label: (s) => (s.mode === "unreviewed" ? t("Unreviewed") : t("Reviewed")),
+		// Green reviewed, violet unreviewed: both stay clear of the red active marker.
+		color: (s) => (s.mode === "unreviewed" ? hslToRgb(280, 0.6, 0.5) : hslToRgb(145, 0.6, 0.5)),
+		locations: ownLocations,
+	},
+	Intersection: {
+		key: (s) => s.selections.map((c) => `(${c.key})`).join("^"),
+		label: () => t("Intersection"),
+	},
+	Union: {
+		key: (s) => s.selections.map((c) => `(${c.key})`).join("|"),
+		label: () => t("Union"),
+	},
+	Invert: {
+		key: (s) => `!${s.selections[0].key}`,
+		label: (s, tagNames) =>
+			t("Invert: {selection}", { selection: selectionDisplayName(s.selections[0], tagNames) }),
+	},
+	Filter: {
+		key: (s) =>
+			`filter:${s.field}:${s.op}:${String(s.value)}${s.value2 != null ? `:${String(s.value2)}` : ""}${s.tzLocal ? ":local" : ""}`,
+		label: (p) => {
+			const fieldDef = getFieldDef(p.field);
+			const fieldLabel = fieldDef?.label ? t(fieldDef.label) : p.field;
+			if (p.op === "has") return t("has {field}", { field: fieldLabel });
+			if (p.op === "nothas") return t("missing {field}", { field: fieldLabel });
+			const fmtMD = (v: unknown) => {
+				const s = String(v);
+				const m = /^(\d{2})-(\d{2})$/.exec(s);
+				if (m) {
+					const dt = new Date(2000, Number(m[1]) - 1, Number(m[2]));
+					return dayMonthFmt.format(dt);
+				}
+				return s;
+			};
+			// tzLocal values are wall-clock instants encoded as UTC epochs: render via UTC getters.
+			const fmtVal = (v: unknown) => {
+				if (fieldDef?.type === "date") {
+					const n = Number(v);
+					if (!isNaN(n)) return p.tzLocal ? utcDateTime(n) : localDateTime(n);
+				}
+				return fieldValueLabel(fieldDef, v);
+			};
+			const tzSuffix = p.tzLocal ? " " + t("(location time)") : "";
+			const clause = (op: FilterOp, value: string) =>
+				t("{field} {op} {value}", { field: fieldLabel, op: t(OP_LABELS[op]), value }) + tzSuffix;
+			if (p.op === "between_anyyear") return clause(p.op, `${fmtMD(p.value)}..${fmtMD(p.value2)}`);
+			if (p.op === "between_anytime") return clause(p.op, `${p.value}..${p.value2}`);
+			if (p.op === "between")
+				return clause(p.op as FilterOp, `${fmtVal(p.value)}..${fmtVal(p.value2)}`);
+			return clause(p.op as FilterOp, fmtVal(p.value));
+		},
+	},
+	TopK: {
+		key: (s) => `topk:${s.field}:${s.k}:${s.ascending}`,
+		label: (s) => {
+			const fieldDef = getFieldDef(s.field);
+			const label = fieldDef?.label ? t(fieldDef.label) : s.field;
+			return s.ascending
+				? t("Bottom {k} by {field}", { k: s.k, field: label })
+				: t("Top {k} by {field}", { k: s.k, field: label });
+		},
+	},
+};
+
+function descriptorFor(selector: Selector) {
+	const d = SELECTIONS[selector.type] as SelectionDescriptor<Selector["type"]>;
+	return {
+		key: (locations: number[]) => d.key(selector, locations),
+		label: (tagNames?: Record<number, string>) => d.label(selector, tagNames),
+		color: () => d.color?.(selector) ?? null,
+		locations: () => d.locations?.(selector) ?? [],
+	};
 }
 
 /** Key a polygon by hashing its raw coordinates: identical geometry = identical key,
@@ -110,52 +248,11 @@ function polygonKey(geom: PolygonGeometry): string {
 	return `polygon:${(h1 >>> 0).toString(36)}${(h2 >>> 0).toString(36)}`;
 }
 
-function keyForSelector(selector: Selector, locations: number[]): string {
-	return match(selector)
-		.with({ type: "Locations" }, () => locationsKey(locations))
-		.with({ type: "Everything" }, () => "everything")
-		.with({ type: "Polygon" }, (p) => polygonKey(p.polygon))
-		.with({ type: "Tag" }, (p) => `tag:${p.tagId}`)
-		.with({ type: "Untagged" }, () => "untagged")
-		.with({ type: "Unpanned" }, () => "unpanned")
-		.with({ type: "PanoIds" }, () => "panoids")
-		.with({ type: "NotPanoIds" }, () => "notpanoids")
-		.with({ type: "Uncommitted" }, () => "uncommitted")
-		.with({ type: "Duplicates" }, (p) => `duplicates:${p.distance}`)
-		.with({ type: "Manual" }, () => "manual")
-		.with({ type: "ValidationState" }, (p) => `validation:${p.state}`)
-		.with({ type: "Reviewed" }, (p) => `review:${p.sessionId}:${p.mode}`)
-		.with({ type: "Intersection" }, (p) => p.selections.map((s) => `(${s.key})`).join("^"))
-		.with({ type: "Union" }, (p) => p.selections.map((s) => `(${s.key})`).join("|"))
-		.with({ type: "Invert" }, (p) => `!${p.selections[0].key}`)
-		.with(
-			{ type: "Filter" },
-			(p) =>
-				`filter:${p.field}:${p.op}:${String(p.value)}${p.value2 != null ? `:${String(p.value2)}` : ""}${p.tzLocal ? ":local" : ""}`,
-		)
-		.with({ type: "TopK" }, (p) => `topk:${p.field}:${p.k}:${p.ascending}`)
-		.exhaustive();
-}
-
-/** Overlay color for a selection. Reviewed is green (145), unreviewed is violet (280): both stay
- *  well clear of the red active-location marker so the cursor never blends in. Polygons follow the
- *  polygonColorMode setting — everything else is hashed from its key. */
-function selectionColor(selector: Selector, key: string): [number, number, number] {
-	if (selector.type === "Reviewed") {
-		return selector.mode === "unreviewed" ? hslToRgb(280, 0.6, 0.5) : hslToRgb(145, 0.6, 0.5);
-	}
-	if (selector.type === "Polygon") {
-		const { polygonColorMode, polygonColor } = getSettings();
-		if (polygonColorMode === "fixed") return polygonColor;
-	}
-	return colorForKey(key);
-}
-
 /** Create a Selection with a deterministic key and overlay color from its selector. */
 export function buildSelection(selector: Selector): Selection {
-	const locations = resolveLocations(selector);
-	const key = keyForSelector(selector, locations);
-	return { key, color: selectionColor(selector, key), selector };
+	const d = descriptorFor(selector);
+	const key = d.key(d.locations());
+	return { key, color: d.color() ?? colorForKey(key), selector };
 }
 
 // dedupe by key, preserving order of last occurrence
@@ -507,70 +604,7 @@ export function replaceSelection(
  *  can reorder it. `tagNames` is a saved rule's tag-name side table: it names `Tag` leaves whose
  *  id belongs to the map the rule was saved on rather than the one that is open. */
 export function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string {
-	return match(sel.selector)
-		.with({ type: "Locations" }, (p) => p.name ?? t("Selection"))
-		.with({ type: "Everything" }, () => t("Everything"))
-		.with({ type: "Polygon" }, (p) =>
-			p.polygon.properties?.name
-				? t("Polygon: {name}", { name: String(p.polygon.properties.name) })
-				: t("Polygon"),
-		)
-		.with({ type: "Tag" }, (p) => t("Tag: {name}", { name: tagDisplayName(p.tagId, tagNames) }))
-		.with({ type: "Untagged" }, () => t("Untagged"))
-		.with({ type: "Unpanned" }, () => t("Unpanned"))
-		.with({ type: "PanoIds" }, () => t("Pano ID locations"))
-		.with({ type: "NotPanoIds" }, () => t("Coordinate locations"))
-		.with({ type: "Uncommitted" }, () => t("Uncommitted"))
-		.with({ type: "Duplicates" }, (p) => t("Duplicates ({distance}m)", { distance: p.distance }))
-		.with({ type: "Manual" }, () => t("Manual selection"))
-		.with({ type: "ValidationState" }, (p) => t(validationStateLabel(p.state)))
-		.with({ type: "Reviewed" }, (p) => (p.mode === "unreviewed" ? t("Unreviewed") : t("Reviewed")))
-		.with({ type: "Intersection" }, () => t("Intersection"))
-		.with({ type: "Union" }, () => t("Union"))
-		.with({ type: "Invert" }, (p) =>
-			t("Invert: {selection}", { selection: selectionDisplayName(p.selections[0], tagNames) }),
-		)
-		.with({ type: "Filter" }, (p) => {
-			const fieldDef = getFieldDef(p.field);
-			const fieldLabel = fieldDef?.label ? t(fieldDef.label) : p.field;
-			if (p.op === "has") return t("has {field}", { field: fieldLabel });
-			if (p.op === "nothas") return t("missing {field}", { field: fieldLabel });
-			const fmtMD = (v: unknown) => {
-				const s = String(v);
-				const m = /^(\d{2})-(\d{2})$/.exec(s);
-				if (m) {
-					const dt = new Date(2000, Number(m[1]) - 1, Number(m[2]));
-					return dayMonthFmt.format(dt);
-				}
-				return s;
-			};
-			// tzLocal values are wall-clock instants encoded as UTC epochs: render via UTC getters.
-			const fmtVal = (v: unknown) => {
-				const s = String(v);
-				if (fieldDef?.type === "enum" && fieldDef.labels?.[s]) return t(fieldDef.labels[s]);
-				if (fieldDef?.type === "date") {
-					const n = Number(v);
-					if (!isNaN(n)) return p.tzLocal ? utcDateTime(n) : localDateTime(n);
-				}
-				return s;
-			};
-			const tzSuffix = p.tzLocal ? " " + t("(location time)") : "";
-			const clause = (op: FilterOp, value: string) =>
-				t("{field} {op} {value}", { field: fieldLabel, op: t(OP_LABELS[op]), value }) + tzSuffix;
-			if (p.op === "between_anyyear") return clause(p.op, `${fmtMD(p.value)}..${fmtMD(p.value2)}`);
-			if (p.op === "between_anytime") return clause(p.op, `${p.value}..${p.value2}`);
-			if (p.op === "between")
-				return clause(p.op as FilterOp, `${fmtVal(p.value)}..${fmtVal(p.value2)}`);
-			return clause(p.op as FilterOp, fmtVal(p.value));
-		})
-		.with({ type: "TopK" }, (p) => {
-			const fieldDef = getFieldDef(p.field);
-			const label = fieldDef?.label ? t(fieldDef.label) : p.field;
-			return p.ascending
-				? t("Bottom {k} by {field}", { k: p.k, field: label })
-				: t("Top {k} by {field}", { k: p.k, field: label });
-		})
-		.exhaustive();
+	return descriptorFor(sel.selector).label(tagNames);
 }
 
 let suffixCache: { tags: Tag[]; suffixes: Map<string, string> } | null = null;
