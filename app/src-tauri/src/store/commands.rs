@@ -21,8 +21,22 @@ use arrow_select::take;
 use roaring::RoaringBitmap;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{self, AtomicUsize};
 use std::time::Instant;
 use tokio::task;
+
+/// Above this many rows, `store_collect` stages a file instead of answering over IPC.
+pub(crate) const ROWS_INLINE_MAX: usize = 1024;
+
+/// A rotating slot per rows-file query: the file is fetched after the store lock is
+/// released, so two concurrent row reads must not share one path -- while the slot
+/// cycle keeps stale files bounded and self-overwriting like a fixed path.
+pub(crate) fn rows_file_path(temp: &Path, map_id: &str) -> PathBuf {
+    static SLOT: AtomicUsize = AtomicUsize::new(0);
+    let slot = SLOT.fetch_add(1, atomic::Ordering::Relaxed) % 8;
+    temp.join(format!("mma_rows_{map_id}_{slot}.json"))
+}
 
 /// Load a map's Arrow data from disk, rebuild all indexes, and return initial state
 /// (tag counts, undo/redo availability). Must be called before any other store commands.
