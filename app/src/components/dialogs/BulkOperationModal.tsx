@@ -14,15 +14,12 @@ import {
 	getMapState,
 } from "@/store/useMapStore";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
-import type {
-	Selector,
-	FieldOp,
-	FilterOp,
-} from "@/bindings.gen";
+import type { Selector, FieldOp, FilterOp } from "@/bindings.gen";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import {
 	getFieldDef,
 	fieldLabel,
+	fieldValueLabel,
 	getAllFieldDefs,
 	isWritableField,
 } from "@/lib/data/fieldDefRegistry";
@@ -459,7 +456,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 						<option value="" />
 						{def!.values!.map((v) => (
 							<option key={v} value={v}>
-								{def!.labels?.[v] ?? v}
+								{fieldValueLabel(def, v)}
 							</option>
 						))}
 					</NSelect>

@@ -26,7 +26,7 @@
 import { emit } from "@/lib/events";
 import { BUILTIN_FIELDS, PROJECTIONS } from "@/bindings.gen";
 import type { ExtraFieldDef, ExtraFieldType } from "@/bindings.gen";
-import { msg } from "@/lib/i18n";
+import { msg, t } from "@/lib/i18n";
 
 /**
  * What a registry field *is*, which determines how it may be accessed:
@@ -144,6 +144,15 @@ export function fieldLabel(key: string): string {
 			.replace(/_/g, " ")
 			.replace(/^./, (c) => c.toUpperCase())
 	);
+}
+
+/** Display text for one *value* of a field, the counterpart to [`fieldLabel`] naming the
+ *  field itself. Enum values carry translated display names; everything else is its own
+ *  string. */
+export function fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string {
+	const raw = String(value);
+	const label = def?.type === "enum" ? def.labels?.[raw] : undefined;
+	return label ? t(label) : raw;
 }
 
 /** Merged view of all field definitions across all layers. */

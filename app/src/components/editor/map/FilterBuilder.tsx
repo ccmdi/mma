@@ -2,7 +2,12 @@
 import { useState, useEffect, useMemo } from "react";
 import type { Selection, FilterOp, ExtraFieldDef } from "@/bindings.gen";
 import { NSelect } from "@/components/primitives/NSelect";
-import { fieldLabel, getAllFieldDefs, isListableField } from "@/lib/data/fieldDefRegistry";
+import {
+	fieldLabel,
+	fieldValueLabel,
+	getAllFieldDefs,
+	isListableField,
+} from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
 import { addSelections, fieldValues, useMapState } from "@/store/useMapStore";
@@ -156,7 +161,7 @@ function FilterValueInput({
 				<option value="">--</option>
 				{enumValues.map((v) => (
 					<option key={v} value={v}>
-						{def?.labels?.[v] ? t(def.labels[v]) : v}
+						{fieldValueLabel(def, v)}
 					</option>
 				))}
 			</NSelect>

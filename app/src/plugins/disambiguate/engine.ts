@@ -6,6 +6,7 @@
 import type { ExtraFieldDef, ComparisonType } from "@/bindings.gen";
 import {
 	getFieldDef,
+	fieldValueLabel,
 	isWritableField,
 	isBuiltinField,
 	getBuiltinKeys,
@@ -247,7 +248,7 @@ function finishCategorical(
 	label: string,
 	perGroup: Map<string, number>[],
 	groupSizes: number[],
-	labels: Record<string, string> | null | undefined,
+	def: ExtraFieldDef | undefined,
 ): FieldDivergence {
 	const present = perGroup.map((m) => [...m.values()].reduce((a, b) => a + b, 0));
 	const valueScore = cramersV(perGroup);
@@ -260,7 +261,7 @@ function finishCategorical(
 		if (total > 0) {
 			const pairs = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 			s.top = pairs.slice(0, TOP_N).map(([val, c]) => ({
-				label: labels?.[val] ?? val,
+				label: fieldValueLabel(def, val),
 				freq: c / total,
 			}));
 		}
@@ -292,7 +293,7 @@ function categoricalField(
 	def: ExtraFieldDef | undefined,
 ): FieldDivergence {
 	const perGroup = groups.map((g) => countValues(column(g, key).map(categoryValue)));
-	return finishCategorical(key, fieldLabel(key, def), perGroup, groupSizes, def?.labels);
+	return finishCategorical(key, fieldLabel(key, def), perGroup, groupSizes, def);
 }
 
 function tagIdsOf(group: GroupColumns): number[][] {
@@ -309,7 +310,7 @@ function tagField(
 		countValues(tagIdsOf(g).map((tags) => (tags.includes(tid) ? "yes" : "no"))),
 	);
 	const label = tagNames[tid] ?? t("Tag {id}", { id: tid });
-	return finishCategorical(`tag:${tid}`, label, perGroup, groupSizes, null);
+	return finishCategorical(`tag:${tid}`, label, perGroup, groupSizes, undefined);
 }
 
 function sortKey(f: FieldDivergence): number {
