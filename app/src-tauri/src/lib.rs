@@ -324,6 +324,24 @@ fn log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
         .build()
 }
 
+/// Raise whatever window the running instance already has, so a second launch reads as
+/// "the app is over here" rather than as nothing happening.
+#[cfg(not(feature = "e2e"))]
+fn focus_existing(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    let Some(window) = app
+        .webview_windows()
+        .into_values()
+        .next()
+        .map(|w| w.as_ref().window())
+    else {
+        return;
+    };
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let t = std::time::Instant::now();
     let _ = APP_HANDLE.set(app.handle().clone());
@@ -379,7 +397,18 @@ pub fn run() {
         eprintln!("[specta] export FAILED: {e}");
     }
 
-    let builder = proxy::register_schemes(tauri::Builder::default())
+    let builder = proxy::register_schemes(tauri::Builder::default());
+
+    // Registered first, before any plugin that opens a file: a second process would hold its
+    // own overlay over the same delta files, and whichever autosaved last would silently
+    // discard the other's uncommitted edits. Exempt under `e2e`, where running a second
+    // process beside a live app is the point.
+    #[cfg(not(feature = "e2e"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        focus_existing(app);
+    }));
+
+    let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(log_plugin())
