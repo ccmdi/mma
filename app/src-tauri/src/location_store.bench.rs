@@ -9,6 +9,7 @@
 //! command fns, no mirrored bodies -- so they can never drift from the app.
 
 use super::*;
+use crate::store_commands::*;
 use crate::types::RawExtra;
 use std::env;
 use tauri::async_runtime;
