@@ -42,7 +42,7 @@ export interface Env {
 	RATE: RateLimit;
 }
 
-/** Must match `POW_BITS` in `app/src-tauri/src/feedback.rs`. */
+/** Must match `POW_BITS` in `app/src-tauri/src/net/feedback.rs`. */
 const POW_BITS = 20;
 
 const MAX_TITLE = 200;

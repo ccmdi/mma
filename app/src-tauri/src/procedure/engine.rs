@@ -3,13 +3,13 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::borders;
-use crate::location_store::{
+use crate::plugins::borders;
+use crate::procedure::sidecar;
+use crate::procedure::sidecar::SidecarStream;
+use crate::selections::{ids_within, narrow, Selector};
+use crate::store::location_store::{
     apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
 };
-use crate::selections::{ids_within, narrow, Selector};
-use crate::sidecar;
-use crate::sidecar::SidecarStream;
 use crate::types::{AppError, AppResult, Location};
 use futures::executor;
 use futures::future;

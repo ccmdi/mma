@@ -3,8 +3,9 @@
 
 pub mod engine;
 pub mod quickjs;
+pub(crate) mod sidecar;
 
-use crate::sidecar::SidecarStream;
+use crate::procedure::sidecar::SidecarStream;
 use crate::types::{AppError, AppResult};
 
 #[derive(Debug, Clone)]

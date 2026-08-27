@@ -1,7 +1,7 @@
 use super::*;
-use crate::arrow_bridge;
-use crate::location_store::{render_cell_idx, Store, StoreManager};
 use crate::procedure::quickjs::JsProcedure;
+use crate::store::arrow_bridge;
+use crate::store::location_store::{render_cell_idx, Store, StoreManager};
 use crate::test_util::loc;
 use crate::types::LocationFlags;
 use crate::types::RawExtra;

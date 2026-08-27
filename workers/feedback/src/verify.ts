@@ -1,7 +1,7 @@
 /** Verification primitives shared by the intake and reply routes.
  *
  *  The proof-of-work rule here must stay identical to the solver in
- *  `app/src-tauri/src/feedback.rs`; the two are a matched pair and there is no negotiation
+ *  `app/src-tauri/src/net/feedback.rs`; the two are a matched pair and there is no negotiation
  *  step between them. */
 
 const encoder = new TextEncoder();

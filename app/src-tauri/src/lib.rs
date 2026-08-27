@@ -11,55 +11,24 @@ use std::thread;
 use std::time::Instant;
 use tauri::plugin::TauriPlugin;
 
-mod arrow_bridge;
-mod arrow_migrate;
-mod borders;
-mod export;
-mod feedback;
-mod field_expr;
-mod gdoc;
-mod geocoder;
-mod geoguessr;
-mod github;
-mod import;
-mod location_store;
-mod map_meta;
+mod io;
+mod net;
 mod plugins;
-mod presence;
 mod procedure;
-mod proxy;
-mod remote_api;
-mod remote_mapping;
-mod review;
-mod saved_selections;
-mod seen;
 mod selections;
-mod sidecar;
-mod spatial;
 #[cfg(all(debug_assertions, windows))]
 mod stall_reporter;
-mod storage;
-mod store_commands;
+mod store;
 mod sync;
-mod sync_diff;
-mod sync_engine;
-mod sync_geoguessr;
-mod sync_keying;
-mod sync_map_making;
 #[cfg(test)]
 mod test_util;
 mod types;
-mod update;
-mod user_plugins;
 mod util;
-mod vcs;
-mod vcs_delta;
 
 #[cfg(feature = "web-serve")]
-pub mod serve;
-
+pub use net::serve;
 #[cfg(feature = "bench")]
-pub use location_store::bench as bench_api;
+pub use store::location_store::bench as bench_api;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -114,174 +83,174 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
         .semantic_types(Configuration::default().enable_lossless_floats())
         // Exported for TS but not carried by any command signature.
-        .typ::<map_meta::CameraType>()
-        .constant("KNOWN_FIELDS", map_meta::KNOWN_FIELDS)
-        .constant("SCRATCH_MAP_ID", map_meta::SCRATCH_MAP_ID)
+        .typ::<store::map_meta::CameraType>()
+        .constant("KNOWN_FIELDS", store::map_meta::KNOWN_FIELDS)
+        .constant("SCRATCH_MAP_ID", store::map_meta::SCRATCH_MAP_ID)
         .constant("BUILTIN_FIELDS", selections::BUILTIN_FIELDS)
         .constant("PROJECTIONS", selections::PROJECTIONS)
         .commands(tauri_specta::collect_commands![
             app_ready,
-            storage::write_temp_file,
-            storage::read_file,
-            storage::get_app_data_dir,
-            storage::get_data_location,
-            storage::set_data_location,
-            storage::open_data_folder,
-            storage::open_log_file,
-            user_plugins::list_user_plugins,
-            user_plugins::install_plugin,
-            user_plugins::uninstall_plugin,
-            sidecar::sidecar_install,
-            sidecar::sidecar_installed_version,
-            sidecar::sidecar_request,
-            sidecar::sidecar_stop,
-            sidecar::sidecar_stop_all,
-            sidecar::sidecar_cancel,
-            borders::check_border_file,
-            borders::download_border_file,
-            borders::border_lookup,
-            borders::border_classify,
-            geocoder::reverse_geocode,
-            presence::discord_presence_set,
-            presence::discord_presence_clear,
-            github::github_start_login,
-            github::github_poll_login,
-            github::github_me,
-            github::github_logout,
-            github::github_has_session,
-            github::github_create_issue,
-            github::github_issue_thread,
-            feedback::feedback_log_tail,
-            feedback::feedback_anonymous_available,
-            feedback::feedback_submit_anonymous,
-            feedback::feedback_upload_attachment,
-            feedback::feedback_request_label,
-            feedback::feedback_anonymous_thread,
-            update::update_check,
-            update::update_install,
-            remote_api::remote_api_start,
-            remote_api::remote_api_stop,
-            remote_api::remote_api_respond,
-            store_commands::store_open_map,
-            store_commands::store_close_map,
-            store_commands::store_save_dirty,
-            store_commands::store_copy_locations_to_map,
-            store_commands::store_get_summary,
-            store_commands::store_add_locations,
-            store_commands::store_add_locations_uploaded,
-            store_commands::store_remove_locations,
-            store_commands::store_update_locations,
-            store_commands::store_set_active,
-            store_commands::store_set_marker_color,
-            store_commands::store_resolve,
-            store_commands::store_count,
-            store_commands::store_sample,
-            store_commands::store_spaced,
-            store_commands::store_group_by,
-            store_commands::store_count_by,
-            store_commands::store_values,
-            store_commands::store_coverage,
-            store_commands::store_columns,
-            store_commands::store_bounds,
-            store_commands::store_collect,
-            store_commands::store_apply_field_op,
-            field_expr::field_expr_error,
-            store_commands::store_country_distribution,
-            store_commands::store_find_nearby,
-            store_commands::store_near_any,
-            store_commands::store_create_tags,
-            store_commands::store_update_tags,
-            store_commands::store_delete_tags,
-            store_commands::store_reorder_tags,
-            store_commands::store_undo,
-            store_commands::store_redo,
-            store_commands::store_reset_undo,
-            store_commands::store_commit_diff,
-            store_commands::store_sync_selections,
-            store_commands::store_duplicate_groups,
-            store_commands::store_merge_duplicates,
-            store_commands::store_prune_duplicates,
-            store_commands::store_fill_render_file,
-            store_commands::store_resolve_pick,
-            map_meta::store_list_maps,
-            map_meta::store_get_map,
-            map_meta::store_create_map,
-            map_meta::store_scratch_map,
-            map_meta::store_delete_map,
-            map_meta::store_update_map_meta,
-            map_meta::store_touch_map_opened,
-            map_meta::store_rename_folder,
-            map_meta::store_delete_folder,
-            map_meta::store_db_stats,
-            import::bulk_import_preview,
-            import::bulk_import_confirm,
-            import::bulk_import_cancel,
-            import::store_import_preview,
-            import::store_import_paste_preview,
-            import::store_import_staged_location,
-            import::store_import_file,
-            export::store_export_json,
-            export::store_export_csv,
-            export::store_export_geojson,
-            export::store_save_export_file,
-            export::store_export_bulk_zip,
-            export::store_upload_begin,
-            export::store_upload_finish,
-            export::store_upload_abort,
-            vcs::store_commit,
-            vcs::store_list_commits,
-            vcs::store_checkout_commit,
-            vcs::store_get_commit_delta,
-            seen::store_seen_write,
-            seen::store_seen_list,
-            seen::store_seen_count,
-            seen::store_seen_countries,
-            seen::store_seen_maps,
-            seen::store_seen_clear,
-            review::store_review_create,
-            review::store_review_get,
-            review::store_review_list,
-            review::store_review_update,
-            review::store_review_delete,
-            saved_selections::store_list_saved_selections,
-            saved_selections::store_get_saved_selections,
-            saved_selections::store_save_selection,
-            saved_selections::store_delete_saved_selection,
-            saved_selections::legacy::store_import_legacy_saved_selections,
-            remote_mapping::remote_mapping_get,
-            remote_mapping::remote_mapping_upsert,
-            remote_mapping::remote_mapping_delete,
-            remote_mapping::remote_mapping_clear,
-            sync_engine::sync_reconcile,
-            geoguessr::geoguessr_login,
-            geoguessr::geoguessr_me,
-            geoguessr::geoguessr_logout,
-            geoguessr::geoguessr_has_session,
-            plugins::vali_generate,
-            plugins::vali_download,
-            plugins::vali_cancel,
-            plugins::vali_subdivisions,
-            plugins::vali_countries,
-            plugins::vali_data_status,
-            plugins::vali_download_stale,
+            store::storage::write_temp_file,
+            store::storage::read_file,
+            store::storage::get_app_data_dir,
+            store::storage::get_data_location,
+            store::storage::set_data_location,
+            store::storage::open_data_folder,
+            store::storage::open_log_file,
+            plugins::user::list_user_plugins,
+            plugins::user::install_plugin,
+            plugins::user::uninstall_plugin,
+            procedure::sidecar::sidecar_install,
+            procedure::sidecar::sidecar_installed_version,
+            procedure::sidecar::sidecar_request,
+            procedure::sidecar::sidecar_stop,
+            procedure::sidecar::sidecar_stop_all,
+            procedure::sidecar::sidecar_cancel,
+            plugins::borders::check_border_file,
+            plugins::borders::download_border_file,
+            plugins::borders::border_lookup,
+            plugins::borders::border_classify,
+            net::geocoder::reverse_geocode,
+            net::presence::discord_presence_set,
+            net::presence::discord_presence_clear,
+            net::github::github_start_login,
+            net::github::github_poll_login,
+            net::github::github_me,
+            net::github::github_logout,
+            net::github::github_has_session,
+            net::github::github_create_issue,
+            net::github::github_issue_thread,
+            net::feedback::feedback_log_tail,
+            net::feedback::feedback_anonymous_available,
+            net::feedback::feedback_submit_anonymous,
+            net::feedback::feedback_upload_attachment,
+            net::feedback::feedback_request_label,
+            net::feedback::feedback_anonymous_thread,
+            net::update::update_check,
+            net::update::update_install,
+            net::remote_api::remote_api_start,
+            net::remote_api::remote_api_stop,
+            net::remote_api::remote_api_respond,
+            store::commands::store_open_map,
+            store::commands::store_close_map,
+            store::commands::store_save_dirty,
+            store::commands::store_copy_locations_to_map,
+            store::commands::store_get_summary,
+            store::commands::store_add_locations,
+            store::commands::store_add_locations_uploaded,
+            store::commands::store_remove_locations,
+            store::commands::store_update_locations,
+            store::commands::store_set_active,
+            store::commands::store_set_marker_color,
+            store::commands::store_resolve,
+            store::commands::store_count,
+            store::commands::store_sample,
+            store::commands::store_spaced,
+            store::commands::store_group_by,
+            store::commands::store_count_by,
+            store::commands::store_values,
+            store::commands::store_coverage,
+            store::commands::store_columns,
+            store::commands::store_bounds,
+            store::commands::store_collect,
+            store::commands::store_apply_field_op,
+            selections::field_expr::field_expr_error,
+            store::commands::store_country_distribution,
+            store::commands::store_find_nearby,
+            store::commands::store_near_any,
+            store::commands::store_create_tags,
+            store::commands::store_update_tags,
+            store::commands::store_delete_tags,
+            store::commands::store_reorder_tags,
+            store::commands::store_undo,
+            store::commands::store_redo,
+            store::commands::store_reset_undo,
+            store::commands::store_commit_diff,
+            store::commands::store_sync_selections,
+            store::commands::store_duplicate_groups,
+            store::commands::store_merge_duplicates,
+            store::commands::store_prune_duplicates,
+            store::commands::store_fill_render_file,
+            store::commands::store_resolve_pick,
+            store::map_meta::store_list_maps,
+            store::map_meta::store_get_map,
+            store::map_meta::store_create_map,
+            store::map_meta::store_scratch_map,
+            store::map_meta::store_delete_map,
+            store::map_meta::store_update_map_meta,
+            store::map_meta::store_touch_map_opened,
+            store::map_meta::store_rename_folder,
+            store::map_meta::store_delete_folder,
+            store::map_meta::store_db_stats,
+            io::import::bulk_import_preview,
+            io::import::bulk_import_confirm,
+            io::import::bulk_import_cancel,
+            io::import::store_import_preview,
+            io::import::store_import_paste_preview,
+            io::import::store_import_staged_location,
+            io::import::store_import_file,
+            io::export::store_export_json,
+            io::export::store_export_csv,
+            io::export::store_export_geojson,
+            io::export::store_save_export_file,
+            io::export::store_export_bulk_zip,
+            io::export::store_upload_begin,
+            io::export::store_upload_finish,
+            io::export::store_upload_abort,
+            store::vcs::store_commit,
+            store::vcs::store_list_commits,
+            store::vcs::store_checkout_commit,
+            store::vcs::store_get_commit_delta,
+            store::seen::store_seen_write,
+            store::seen::store_seen_list,
+            store::seen::store_seen_count,
+            store::seen::store_seen_countries,
+            store::seen::store_seen_maps,
+            store::seen::store_seen_clear,
+            store::review::store_review_create,
+            store::review::store_review_get,
+            store::review::store_review_list,
+            store::review::store_review_update,
+            store::review::store_review_delete,
+            selections::saved::store_list_saved_selections,
+            selections::saved::store_get_saved_selections,
+            selections::saved::store_save_selection,
+            selections::saved::store_delete_saved_selection,
+            selections::saved::legacy::store_import_legacy_saved_selections,
+            sync::remote_mapping::remote_mapping_get,
+            sync::remote_mapping::remote_mapping_upsert,
+            sync::remote_mapping::remote_mapping_delete,
+            sync::remote_mapping::remote_mapping_clear,
+            sync::engine::sync_reconcile,
+            net::geoguessr::geoguessr_login,
+            net::geoguessr::geoguessr_me,
+            net::geoguessr::geoguessr_logout,
+            net::geoguessr::geoguessr_has_session,
+            plugins::vali::vali_generate,
+            plugins::vali::vali_download,
+            plugins::vali::vali_cancel,
+            plugins::vali::vali_subdivisions,
+            plugins::vali::vali_countries,
+            plugins::vali::vali_data_status,
+            plugins::vali::vali_download_stale,
             procedure::engine::procedure_run,
             procedure::engine::procedure_cancel,
             procedure::engine::procedure_query,
             procedure::engine::procedure_query_cancel,
         ])
         .events(tauri_specta::collect_events![
-            sidecar::SidecarProgress,
-            sidecar::SidecarLine,
-            sidecar::SidecarLog,
-            sidecar::SidecarDone,
-            import::ImportProgress,
-            export::ExportProgress,
-            location_store::ExternalMutation,
-            location_store::StoreWarning,
-            plugins::ValiProgress,
+            procedure::sidecar::SidecarProgress,
+            procedure::sidecar::SidecarLine,
+            procedure::sidecar::SidecarLog,
+            procedure::sidecar::SidecarDone,
+            io::import::ImportProgress,
+            io::export::ExportProgress,
+            store::location_store::ExternalMutation,
+            store::location_store::StoreWarning,
+            plugins::vali::ValiProgress,
             procedure::engine::ProcedureProgress,
             procedure::engine::ProcedureResult,
-            update::UpdateProgress,
+            net::update::UpdateProgress,
         ])
 }
 
@@ -389,13 +358,13 @@ fn focus_existing(app: &tauri::AppHandle) {
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
     let t = Instant::now();
     let _ = APP_HANDLE.set(app.handle().clone());
-    storage::init_paths(app.handle())?;
-    storage::run_migrations()?;
-    let swept = storage::sweep_orphaned_tmp();
+    store::storage::init_paths(app.handle())?;
+    store::storage::run_migrations()?;
+    let swept = store::storage::sweep_orphaned_tmp();
     if swept > 0 {
         log::info!("[startup] swept {swept} orphaned .tmp files");
     }
-    match map_meta::purge_scratch_map() {
+    match store::map_meta::purge_scratch_map() {
         Ok(true) => log::info!("[startup] dropped last session's scratch map"),
         Ok(false) => {}
         Err(e) => log::warn!("[startup] scratch map purge failed: {e}"),
@@ -403,10 +372,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
     log::info!("[startup] migrations: {}ms", t.elapsed().as_millis());
 
     thread::spawn(|| {
-        borders::update_border_files();
-        borders::warm();
+        plugins::borders::update_border_files();
+        plugins::borders::warm();
     });
-    thread::spawn(geocoder::warm);
+    thread::spawn(net::geocoder::warm);
 
     #[cfg(all(debug_assertions, windows))]
     stall_reporter::start();
@@ -441,7 +410,7 @@ pub fn run() {
         log::error!("[specta] export FAILED: {e}");
     }
 
-    let builder = proxy::register_schemes(tauri::Builder::default());
+    let builder = net::proxy::register_schemes(tauri::Builder::default());
 
     // Registered first, before any plugin that opens a file: a second process would hold its
     // own overlay over the same delta files, and whichever autosaved last would silently
@@ -464,10 +433,10 @@ pub fn run() {
                 )
                 .build(),
         )
-        .manage(location_store::StoreState::new(
-            location_store::StoreManager::new(),
+        .manage(store::location_store::StoreState::new(
+            store::location_store::StoreManager::new(),
         ))
-        .manage(plugins::ValiState::new())
+        .manage(plugins::vali::ValiState::new())
         .invoke_handler(specta_builder().invoke_handler())
         .setup(setup);
 
@@ -481,8 +450,8 @@ pub fn run() {
             #[cfg(all(debug_assertions, windows))]
             stall_reporter::beat();
             if let tauri::RunEvent::Exit = event {
-                sidecar::kill_all_sidecars();
-                presence::shutdown();
+                procedure::sidecar::kill_all_sidecars();
+                net::presence::shutdown();
             }
         });
 }

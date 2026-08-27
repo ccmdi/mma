@@ -1,0 +1,975 @@
+//! Persistence layer: SQLite metadata database and Arrow IPC file I/O.
+//!
+//! All disk writes use [`atomic_write`] (temp-file-then-rename) to prevent
+//! corruption on crash. Arrow IPC writes go through [`BufWriter`](std::io::BufWriter)
+//! because unbuffered `File` writes are ~15x slower.
+
+use crate::store::arrow_bridge;
+use crate::store::arrow_migrate;
+use crate::types::{AppError, AppResult};
+use arrow_ipc::reader::FileReader;
+use arrow_ipc::writer::FileWriter;
+use arrow_select::concat;
+use rusqlite::Connection;
+use serde::de::DeserializeOwned;
+use std::collections::HashSet;
+use std::env;
+use std::fs;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::BufWriter;
+use std::panic;
+use std::panic::AssertUnwindSafe;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::OnceLock;
+use std::time::Duration;
+use tauri::Manager;
+use tokio::task;
+
+/// Deserialize a JSON text column from a SQLite row, falling back to `T::default()`
+/// on parse failure (forward-compatible with schema evolution).
+pub(crate) fn json_col<T: Default + DeserializeOwned>(
+    row: &rusqlite::Row,
+    col: &str,
+) -> rusqlite::Result<T> {
+    let s: String = row.get(col)?;
+    Ok(serde_json::from_str(&s).unwrap_or_default())
+}
+
+/// Push a plain field onto a dynamic SQL UPDATE builder.
+/// Skips `None` fields; clones `Some` values into the boxed param list.
+macro_rules! push_field {
+    ($sets:expr, $vals:expr, $patch:expr, $col:literal, $field:ident) => {
+        if let Some(ref v) = $patch.$field {
+            $sets.push(concat!($col, " = ?"));
+            $vals.push(Box::new(v.clone()));
+        }
+    };
+    (json $sets:expr, $vals:expr, $patch:expr, $col:literal, $field:ident) => {
+        if let Some(ref v) = $patch.$field {
+            $sets.push(concat!($col, " = ?"));
+            $vals.push(Box::new(serde_json::to_string(v).unwrap_or_default()));
+        }
+    };
+}
+pub(crate) use push_field;
+
+/// True when running under e2e tests or with `MMA_TEST_DB` set.
+/// Controls which database file and Arrow directory are used, keeping
+/// test data isolated from production.
+fn is_test_mode() -> bool {
+    cfg!(feature = "e2e") || env::var("MMA_TEST_DB").is_ok()
+}
+
+fn db_filename() -> &'static str {
+    if is_test_mode() {
+        "mma_test.db"
+    } else {
+        "mma.db"
+    }
+}
+
+/// Process-constant directories, resolved once at startup. Lets every path helper
+/// (db, arrow, plugins, temp) be zero-arg instead of threading an `AppHandle`
+/// through functions whose only use for it is path resolution.
+static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+static DEFAULT_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
+static TEMP_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// Bootstrap pointer file (in `app_config_dir`, never relocatable) naming the
+/// user's chosen data folder. Absent/empty means "use the OS default".
+const DATA_LOCATION_FILE: &str = "data_location.txt";
+
+/// Resolve and cache the data/temp directories. Called once from `setup()`,
+/// before anything touches disk.
+///
+/// The effective data dir is the OS default unless a [`DATA_LOCATION_FILE`]
+/// pointer in `app_config_dir` overrides it. Test mode always uses the default.
+pub(crate) fn init_paths<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppResult<()> {
+    let default_dir = app.path().app_data_dir().map_err(AppError::from)?;
+    let config_dir = app.path().app_config_dir().map_err(AppError::from)?;
+    let _ = DEFAULT_DATA_DIR.set(default_dir.clone());
+    let _ = CONFIG_DIR.set(config_dir.clone());
+    let _ = TEMP_DIR.set(app.path().temp_dir().map_err(AppError::from)?);
+
+    let effective = if is_test_mode() {
+        default_dir
+    } else {
+        read_data_location_override(&config_dir).unwrap_or(default_dir)
+    };
+    let _ = APP_DATA_DIR.set(effective);
+    Ok(())
+}
+
+/// The effective app data directory (default or user override). Errors if
+/// `init_paths` has not run.
+pub(crate) fn app_data_dir() -> AppResult<PathBuf> {
+    APP_DATA_DIR
+        .get()
+        .cloned()
+        .ok_or_else(|| AppError::from("app paths not initialized".to_string()))
+}
+
+/// The OS default data directory, ignoring any override. Used to reset the
+/// data-folder setting and to tell the UI what "default" resolves to.
+pub(crate) fn default_data_dir() -> AppResult<PathBuf> {
+    DEFAULT_DATA_DIR
+        .get()
+        .cloned()
+        .ok_or_else(|| AppError::from("app paths not initialized".to_string()))
+}
+
+/// Parse the raw pointer-file contents into an override path. Pure: trims
+/// whitespace, treats empty as "no override". Does not touch disk.
+fn parse_data_location(raw: &str) -> Option<PathBuf> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(PathBuf::from(trimmed))
+    }
+}
+
+/// Read and validate the data-folder override from `<config_dir>/data_location.txt`.
+/// Returns `None` (falling back to default) if the file is absent, empty, or names
+/// a folder that cannot be created/used.
+fn read_data_location_override(config_dir: &Path) -> Option<PathBuf> {
+    let raw = fs::read_to_string(config_dir.join(DATA_LOCATION_FILE)).ok()?;
+    let path = parse_data_location(&raw)?;
+    if let Err(e) = fs::create_dir_all(&path) {
+        log::warn!(
+            "configured data folder '{}' is unusable ({e}); using default",
+            path.display()
+        );
+        return None;
+    }
+    Some(path)
+}
+
+/// Persist (or clear) the data-folder override. `Some(path)` validates the folder
+/// is creatable then writes the pointer; `None` removes it (revert to default).
+/// Takes effect on next launch -- the active paths are fixed for the process.
+pub(crate) fn set_data_location_override(path: Option<&Path>) -> AppResult<()> {
+    let config_dir = CONFIG_DIR
+        .get()
+        .ok_or_else(|| AppError::from("app paths not initialized".to_string()))?;
+    fs::create_dir_all(config_dir)?;
+    let file = config_dir.join(DATA_LOCATION_FILE);
+    match path {
+        Some(p) => {
+            fs::create_dir_all(p)?;
+            fs::write(&file, p.to_string_lossy().as_bytes())?;
+        }
+        None => {
+            let _ = fs::remove_file(&file);
+        }
+    }
+    Ok(())
+}
+
+/// The OS temp directory (resolved via Tauri at startup).
+pub(crate) fn temp_dir() -> AppResult<PathBuf> {
+    TEMP_DIR
+        .get()
+        .cloned()
+        .ok_or_else(|| AppError::from("app paths not initialized".to_string()))
+}
+
+pub(crate) fn db_path() -> AppResult<PathBuf> {
+    Ok(app_data_dir()?.join(db_filename()))
+}
+
+/// Open (or create) the SQLite database, ensuring the parent directory exists.
+/// The one place that owns per-connection setup (busy timeout, pragmas).
+/// Run `f` against a fresh connection on the blocking pool, so a busy-timeout
+/// wait never lands on a command thread.
+pub(crate) async fn with_db<T: Send + 'static>(
+    f: impl FnOnce(&mut Connection) -> AppResult<T> + Send + 'static,
+) -> AppResult<T> {
+    task::spawn_blocking(move || f(&mut open_db()?)).await?
+}
+
+pub(crate) fn open_db() -> AppResult<Connection> {
+    let path = db_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("failed to create app data dir: {e}"))?;
+    }
+    let conn = Connection::open(path)?;
+    configure_connection(&conn)?;
+    Ok(conn)
+}
+
+/// Per-connection setup applied to every open. FK enforcement is per-connection and
+/// defaults OFF in SQLite; without it every ON DELETE CASCADE in the schema is dead.
+fn configure_connection(conn: &Connection) -> AppResult<()> {
+    // Default busy timeout is 0: any write-lock contention (second window, lingering
+    // process) fails instantly with "database is locked" instead of waiting.
+    conn.busy_timeout(Duration::from_secs(5))?;
+    conn.pragma_update(None, "foreign_keys", true)?;
+    Ok(())
+}
+
+pub(crate) fn set_location_count(conn: &Connection, map_id: &str, count: usize) -> AppResult<()> {
+    conn.execute(
+        "UPDATE maps SET location_count = ?1 WHERE id = ?2",
+        rusqlite::params![count, map_id],
+    )?;
+    Ok(())
+}
+
+/// Apply all pending schema migrations from [`MIGRATIONS`] in order.
+///
+/// On first run after migrating from the old `tauri-plugin-sql` system, seeds
+/// already-applied versions from `_sqlx_migrations` so they aren't replayed.
+/// Sets WAL mode and foreign keys as part of the connection setup.
+pub(crate) fn run_migrations() -> AppResult<()> {
+    let conn = open_db()?;
+    let wiped_blobs = run_migrations_on(&conn)?;
+
+    if wiped_blobs {
+        let blobs = arrow_dir()?.join("blobs");
+        if blobs.exists() {
+            if let Err(e) = fs::remove_dir_all(&blobs) {
+                log::warn!("[migrations] failed to remove old blob store {blobs:?}: {e}");
+            } else {
+                log::info!("[migrations] removed retired blob store {blobs:?}");
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Run the migration chain against an arbitrary connection. Returns whether v16
+/// was newly applied (the caller owns the retired blob-store cleanup).
+pub(crate) fn run_migrations_on(conn: &Connection) -> AppResult<bool> {
+    conn.execute_batch(
+        "
+        PRAGMA foreign_keys = ON;
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+    ",
+    )?;
+
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS _mma_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)",
+        [],
+    )?;
+
+    // Seed from tauri-plugin-sql's migration table if upgrading from old system
+    let sqlx_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap_or(false);
+    if sqlx_exists {
+        conn.execute_batch(
+            "INSERT OR IGNORE INTO _mma_migrations (version, applied_at)
+             SELECT version, installed_on FROM _sqlx_migrations WHERE success = 1",
+        )
+        .ok();
+    }
+
+    let applied: HashSet<u32> = conn
+        .prepare("SELECT version FROM _mma_migrations")?
+        .query_map([], |row| row.get(0))?
+        .filter_map(Result::ok)
+        .collect();
+
+    let mut wiped_blobs = false;
+    for (version, sql) in MIGRATIONS {
+        if applied.contains(version) {
+            continue;
+        }
+        log::info!("[migrations] applying v{version}");
+        conn.execute_batch(sql)
+            .map_err(|e| format!("migration v{version} failed: {e}"))?;
+        conn.execute(
+            "INSERT INTO _mma_migrations (version, applied_at) VALUES (?1, datetime('now'))",
+            rusqlite::params![version],
+        )?;
+        if *version == 16 {
+            wiped_blobs = true;
+        }
+    }
+
+    // auto_vacuum must be set before the DB has data, or toggled with a one-time VACUUM.
+    let auto_vacuum: i32 = conn.pragma_query_value(None, "auto_vacuum", |r| r.get(0))?;
+    if auto_vacuum != 1 {
+        log::info!("[migrations] enabling auto_vacuum");
+        conn.pragma_update(None, "auto_vacuum", 1)?;
+        conn.execute_batch("VACUUM")?;
+    }
+
+    Ok(wiped_blobs)
+}
+
+const MIGRATIONS: &[(u32, &str)] = &[
+    (
+        1,
+        "CREATE TABLE IF NOT EXISTS maps (
+            id TEXT PRIMARY KEY NOT NULL,
+            name TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL DEFAULT '',
+            folder TEXT,
+            settings TEXT NOT NULL DEFAULT '{}',
+            score_bounds TEXT NOT NULL DEFAULT '\"auto\"',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS tags (
+            id TEXT PRIMARY KEY NOT NULL,
+            map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            color TEXT NOT NULL,
+            visible INTEGER NOT NULL DEFAULT 1
+          );
+          CREATE TABLE IF NOT EXISTS locations (
+            id TEXT PRIMARY KEY NOT NULL,
+            map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            heading REAL NOT NULL DEFAULT 0,
+            pitch REAL NOT NULL DEFAULT 0,
+            zoom REAL NOT NULL DEFAULT 0,
+            pano_id TEXT,
+            created_at TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS location_tags (
+            location_id TEXT NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
+            tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+            PRIMARY KEY (location_id, tag_id)
+          );
+          CREATE INDEX IF NOT EXISTS idx_locations_map_id ON locations(map_id);
+          CREATE INDEX IF NOT EXISTS idx_tags_map_id ON tags(map_id);
+          CREATE INDEX IF NOT EXISTS idx_location_tags_location ON location_tags(location_id);
+          CREATE INDEX IF NOT EXISTS idx_location_tags_tag ON location_tags(tag_id);",
+    ),
+    (
+        2,
+        "DROP TABLE IF EXISTS location_tags;
+          DROP TABLE IF EXISTS locations;
+          DROP INDEX IF EXISTS idx_locations_map_id;
+          DROP INDEX IF EXISTS idx_location_tags_location;
+          DROP INDEX IF EXISTS idx_location_tags_tag;
+          CREATE TABLE IF NOT EXISTS blobs (
+            hash TEXT PRIMARY KEY NOT NULL,
+            data TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS working_tree (
+            map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            geohash TEXT NOT NULL,
+            blob_hash TEXT NOT NULL REFERENCES blobs(hash),
+            location_count INTEGER NOT NULL,
+            PRIMARY KEY (map_id, geohash)
+          );
+          CREATE TABLE IF NOT EXISTS commits (
+            id TEXT PRIMARY KEY NOT NULL,
+            map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            parent_id TEXT,
+            message TEXT,
+            location_count INTEGER NOT NULL,
+            created_at TEXT NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS commit_trees (
+            commit_id TEXT NOT NULL REFERENCES commits(id) ON DELETE CASCADE,
+            geohash TEXT NOT NULL,
+            blob_hash TEXT NOT NULL REFERENCES blobs(hash),
+            location_count INTEGER NOT NULL,
+            PRIMARY KEY (commit_id, geohash)
+          );
+          CREATE INDEX IF NOT EXISTS idx_working_tree_map ON working_tree(map_id);
+          CREATE INDEX IF NOT EXISTS idx_commits_map ON commits(map_id);",
+    ),
+    (
+        3,
+        "CREATE TABLE IF NOT EXISTS edit_history (
+            map_id TEXT PRIMARY KEY NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            undo_stack TEXT NOT NULL DEFAULT '[]',
+            redo_stack TEXT NOT NULL DEFAULT '[]'
+          );",
+    ),
+    (
+        4,
+        "CREATE TABLE IF NOT EXISTS pano_date_cache (
+            pano_id TEXT PRIMARY KEY NOT NULL,
+            timestamp INTEGER NOT NULL
+          );",
+    ),
+    (
+        5,
+        "ALTER TABLE commits ADD COLUMN tree_hash TEXT;
+          ALTER TABLE commits ADD COLUMN added INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE commits ADD COLUMN removed INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE commits ADD COLUMN modified INTEGER NOT NULL DEFAULT 0;",
+    ),
+    (
+        6,
+        "ALTER TABLE tags ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;",
+    ),
+    (
+        7,
+        "CREATE TABLE IF NOT EXISTS seen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pano_id TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            heading REAL NOT NULL,
+            pitch REAL NOT NULL,
+            zoom REAL NOT NULL,
+            entered_at INTEGER NOT NULL,
+            map_id TEXT,
+            location_id TEXT,
+            thumbnail BLOB
+          );
+          CREATE INDEX IF NOT EXISTS idx_seen_entered ON seen(entered_at DESC);",
+    ),
+    (
+        8,
+        "DROP TABLE IF EXISTS seen;
+          CREATE TABLE IF NOT EXISTS seen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pano_id TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            heading REAL NOT NULL,
+            pitch REAL NOT NULL,
+            zoom REAL NOT NULL,
+            entered_at INTEGER NOT NULL,
+            map_id TEXT,
+            location_id TEXT,
+            country_code TEXT,
+            address TEXT,
+            thumbnail TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_seen_entered ON seen(entered_at DESC);",
+    ),
+    (
+        9,
+        "ALTER TABLE maps ADD COLUMN extra TEXT NOT NULL DEFAULT '{}';",
+    ),
+    (
+        10,
+        "CREATE TABLE IF NOT EXISTS working_tree_new (
+            map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            geohash TEXT NOT NULL,
+            blob_hash TEXT NOT NULL,
+            location_count INTEGER NOT NULL,
+            PRIMARY KEY (map_id, geohash)
+          );
+          INSERT INTO working_tree_new SELECT * FROM working_tree;
+          DROP TABLE working_tree;
+          ALTER TABLE working_tree_new RENAME TO working_tree;
+          CREATE INDEX IF NOT EXISTS idx_working_tree_map ON working_tree(map_id);
+          CREATE TABLE IF NOT EXISTS commit_trees_new (
+            commit_id TEXT NOT NULL REFERENCES commits(id) ON DELETE CASCADE,
+            geohash TEXT NOT NULL,
+            blob_hash TEXT NOT NULL,
+            location_count INTEGER NOT NULL,
+            PRIMARY KEY (commit_id, geohash)
+          );
+          INSERT INTO commit_trees_new SELECT * FROM commit_trees;
+          DROP TABLE commit_trees;
+          ALTER TABLE commit_trees_new RENAME TO commit_trees;
+          DROP TABLE IF EXISTS blobs;",
+    ),
+    (
+        11,
+        "ALTER TABLE maps ADD COLUMN location_count INTEGER NOT NULL DEFAULT 0;",
+    ),
+    (
+        12,
+        "ALTER TABLE maps ADD COLUMN tags TEXT NOT NULL DEFAULT '{}';",
+    ),
+    (
+        13,
+        "DROP TABLE IF EXISTS seen;
+          CREATE TABLE seen (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pano_id TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            heading REAL NOT NULL,
+            pitch REAL NOT NULL,
+            zoom REAL NOT NULL,
+            entered_at INTEGER NOT NULL,
+            map_id TEXT,
+            location_id INTEGER,
+            country_code TEXT,
+            address TEXT,
+            thumbnail TEXT
+          );
+          CREATE INDEX IF NOT EXISTS idx_seen_entered ON seen(entered_at DESC);",
+    ),
+    (
+        14,
+        "ALTER TABLE maps ADD COLUMN labels TEXT NOT NULL DEFAULT '[]';
+          ALTER TABLE maps ADD COLUMN last_opened_at TEXT;",
+    ),
+    (15, "DROP TABLE IF EXISTS pano_date_cache;"),
+    (
+        16,
+        "DROP TABLE IF EXISTS commit_trees;
+          DROP TABLE IF EXISTS working_tree;
+          DELETE FROM commits;",
+    ),
+    (
+        17,
+        "CREATE TABLE IF NOT EXISTS review_sessions (
+            id           TEXT PRIMARY KEY NOT NULL,
+            map_id       TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            name         TEXT NOT NULL DEFAULT '',
+            source_key   TEXT NOT NULL,
+            source_props TEXT NOT NULL DEFAULT '{}',
+            ordering     TEXT NOT NULL,
+            reviewed     TEXT NOT NULL DEFAULT '[]',
+            cursor_id    INTEGER NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'active',
+            created_at   TEXT NOT NULL,
+            updated_at   TEXT NOT NULL
+          );
+          CREATE INDEX IF NOT EXISTS idx_review_sessions_map ON review_sessions(map_id, status);",
+    ),
+    (
+        18,
+        "DROP TABLE IF EXISTS tags;
+          DROP INDEX IF EXISTS idx_tags_map_id;",
+    ),
+    (
+        19,
+        "CREATE TABLE IF NOT EXISTS remote_mapping (
+            provider   TEXT    NOT NULL,
+            map_id     TEXT    NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            local_id   INTEGER NOT NULL,
+            remote_id  INTEGER NOT NULL,
+            hash       TEXT    NOT NULL,
+            PRIMARY KEY (provider, map_id, local_id)
+          );
+          CREATE INDEX IF NOT EXISTS idx_remote_mapping_remote ON remote_mapping(provider, map_id, remote_id);",
+    ),
+    (
+        20,
+        "CREATE INDEX IF NOT EXISTS idx_seen_country ON seen(country_code);
+          CREATE INDEX IF NOT EXISTS idx_seen_map ON seen(map_id);",
+    ),
+    (
+        21,
+        "CREATE TABLE IF NOT EXISTS saved_selections (
+            id         TEXT PRIMARY KEY NOT NULL,
+            name       TEXT NOT NULL,
+            selector   TEXT NOT NULL,
+            tag_names  TEXT NOT NULL DEFAULT '{}',
+            color      TEXT NOT NULL,
+            created_at TEXT NOT NULL
+          );",
+    ),
+];
+
+// ---------------------------------------------------------------------------
+// secret: named secrets in the OS credential store (not the DB)
+// ---------------------------------------------------------------------------
+
+#[cfg(not(test))]
+pub(crate) mod secret {
+    use crate::types::AppResult;
+
+    /// One credential per `name`, all under the app identifier.
+    const SERVICE: &str = "app.map-making.local";
+
+    fn entry(name: &str) -> AppResult<keyring::Entry> {
+        Ok(keyring::Entry::new(SERVICE, name)?)
+    }
+
+    pub fn get(name: &str) -> AppResult<Option<String>> {
+        match entry(name)?.get_password() {
+            Ok(v) => Ok(Some(v)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn set(name: &str, value: &str) -> AppResult<()> {
+        Ok(entry(name)?.set_password(value)?)
+    }
+
+    pub fn delete(name: &str) -> AppResult<()> {
+        match entry(name)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+
+/// Test builds swap in a thread-local map so the suite never touches the real keychain.
+#[cfg(test)]
+pub(crate) mod secret {
+    use crate::types::AppResult;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    thread_local! {
+        static STORE: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    }
+
+    pub fn get(name: &str) -> AppResult<Option<String>> {
+        Ok(STORE.with(|s| s.borrow().get(name).cloned()))
+    }
+
+    pub fn set(name: &str, value: &str) -> AppResult<()> {
+        STORE.with(|s| {
+            s.borrow_mut().insert(name.to_string(), value.to_string());
+        });
+        Ok(())
+    }
+
+    pub fn delete(name: &str) -> AppResult<()> {
+        STORE.with(|s| {
+            s.borrow_mut().remove(name);
+        });
+        Ok(())
+    }
+}
+
+/// A named secret cached in memory: read from the credential store on first use, then held
+/// for the process lifetime. Outer `None` = not yet read; inner `None` = no session.
+pub(crate) struct SessionCell {
+    name: &'static str,
+    cached: Mutex<Option<Option<String>>>,
+}
+
+impl SessionCell {
+    pub(crate) const fn new(name: &'static str) -> Self {
+        Self {
+            name,
+            cached: Mutex::new(None),
+        }
+    }
+
+    /// A load failure is propagated and NOT cached, so the next call retries rather than
+    /// reporting "signed out" until restart.
+    pub(crate) fn get(&self) -> AppResult<Option<String>> {
+        let mut g = self.cached.lock()?;
+        if g.is_none() {
+            *g = Some(secret::get(self.name)?);
+        }
+        Ok(g.clone().unwrap_or_default())
+    }
+
+    pub(crate) fn set(&self, value: Option<String>) -> AppResult<()> {
+        match value.as_deref() {
+            Some(v) => secret::set(self.name, v)?,
+            None => secret::delete(self.name)?,
+        }
+        *self.cached.lock()? = Some(value);
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Arrow IPC
+// ---------------------------------------------------------------------------
+
+/// Root directory for all Arrow IPC files (`arrow/` or `arrow_test/`).
+/// Created on first access.
+pub(crate) fn arrow_dir() -> AppResult<PathBuf> {
+    let subdir = if is_test_mode() {
+        "arrow_test"
+    } else {
+        "arrow"
+    };
+    let dir = app_data_dir()?.join(subdir);
+    if !dir.exists() {
+        fs::create_dir_all(&dir)?;
+    }
+    Ok(dir)
+}
+
+/// Path to a map's base Arrow IPC snapshot: `<arrow_dir>/<map_id>.arrow`.
+pub(crate) fn arrow_path(map_id: &str) -> AppResult<PathBuf> {
+    Ok(arrow_dir()?.join(format!("{map_id}.arrow")))
+}
+
+/// Path to a map's uncommitted delta file: `<arrow_dir>/<map_id>_delta.arrow`.
+/// Contains overlay mutations not yet baked into the base snapshot.
+pub(crate) fn arrow_delta_path(map_id: &str) -> AppResult<PathBuf> {
+    Ok(arrow_dir()?.join(format!("{map_id}_delta.arrow")))
+}
+
+/// Directory holding a map's per-commit VCS delta files. Created on first access.
+pub(crate) fn commit_dir(map_id: &str) -> AppResult<PathBuf> {
+    let dir = arrow_dir()?.join("commits").join(map_id);
+    if !dir.exists() {
+        fs::create_dir_all(&dir)?;
+    }
+    Ok(dir)
+}
+
+/// Path to a single commit's Arrow delta file: `<arrow_dir>/commits/<map_id>/<commit_id>.arrow`.
+pub(crate) fn commit_delta_path(map_id: &str, commit_id: &str) -> AppResult<PathBuf> {
+    Ok(commit_dir(map_id)?.join(format!("{commit_id}.arrow")))
+}
+
+/// Atomically write a RecordBatch to an Arrow IPC file.
+///
+/// Uses a 1 MB `BufWriter` (unbuffered writes are ~15x slower on Windows).
+/// The write targets a `.tmp` sibling then renames, so readers never see
+/// a partial file.
+pub(crate) fn write_arrow_ipc(path: &Path, batch: &arrow_array::RecordBatch) -> AppResult<()> {
+    atomic_write(path, |file| {
+        let buf = BufWriter::with_capacity(1 << 20, file);
+        let mut writer = FileWriter::try_new(buf, &batch.schema())?;
+        writer.write(batch)?;
+        writer.finish()?;
+        Ok(())
+    })
+}
+
+/// Write to `path` via a temporary `.tmp` sibling, then atomically rename.
+/// Guarantees readers never observe a partially-written file.
+pub(crate) fn atomic_write(
+    path: &Path,
+    write_fn: impl FnOnce(File) -> AppResult<()>,
+) -> AppResult<()> {
+    let tmp = path.with_extension("tmp");
+    let file = File::create(&tmp)?;
+    write_fn(file)?;
+    // write_fn consumed the handle; reopen to fsync - without it the rename can
+    // become durable before the data, losing the file on power cut.
+    OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
+    fs::rename(&tmp, path)?;
+    Ok(())
+}
+
+/// Delete orphaned `.tmp` files left under the Arrow root by interrupted
+/// [`atomic_write`]s. Returns the number removed. Called once at startup.
+pub(crate) fn sweep_orphaned_tmp() -> usize {
+    arrow_dir().map(|d| sweep_tmp_under(&d)).unwrap_or(0)
+}
+
+/// Recursively delete `*.tmp` files under `dir`; returns the number removed.
+pub(crate) fn sweep_tmp_under(dir: &Path) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut n = 0;
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            n += sweep_tmp_under(&p);
+        } else if p.extension().is_some_and(|x| x == "tmp") && fs::remove_file(&p).is_ok() {
+            n += 1;
+        }
+    }
+    n
+}
+
+/// Read an Arrow IPC file into a single RecordBatch.
+///
+/// If the file contains multiple batches they are concatenated. An empty or
+/// missing-batch file returns an empty batch with the location schema.
+pub(crate) fn read_arrow_ipc(path: &Path) -> AppResult<arrow_array::RecordBatch> {
+    let file = File::open(path)?;
+    let reader = FileReader::try_new(file, None)?;
+    let mut batches = Vec::new();
+    for batch in reader {
+        batches.push(arrow_migrate::migrate(batch?)?);
+    }
+    if batches.is_empty() {
+        return Ok(arrow_array::RecordBatch::new_empty(Arc::new(
+            arrow_bridge::location_schema(),
+        )));
+    }
+    if batches.len() == 1 {
+        return Ok(batches.into_iter().next().unwrap());
+    }
+    let schema = Arc::new(arrow_bridge::location_schema());
+    concat::concat_batches(&schema, &batches).map_err(AppError::from)
+}
+
+/// Keeps the mmap alive for as long as the RecordBatch references it.
+pub(crate) struct MmapHandle {
+    _buffer: arrow_buffer::Buffer,
+}
+
+/// Zero-copy Arrow IPC read via memory-mapped file.
+///
+/// Returns the batch alongside an [`MmapHandle`] that must be kept alive for
+/// as long as any array data from the batch is referenced. Parses the IPC
+/// footer and record-batch blocks directly from the mmap buffer, avoiding
+/// any heap allocation for the raw column data.
+pub(crate) fn read_arrow_ipc_mmap(
+    path: &Path,
+) -> AppResult<(arrow_array::RecordBatch, MmapHandle)> {
+    use arrow_buffer::Buffer;
+    use arrow_ipc::reader::{read_footer_length, FileDecoder};
+    use arrow_ipc::{convert::fb_to_schema, root_as_footer};
+    use std::sync::Arc;
+
+    let file = File::open(path)?;
+    // SAFETY: we own the file exclusively; no other process modifies it while mapped.
+    // On Windows, the mmap holds an exclusive lock preventing external modification.
+    let mmap = unsafe { memmap2::Mmap::map(&file) }?;
+    let buffer = Buffer::from(bytes::Bytes::from_owner(mmap));
+
+    let buf_len = buffer.len();
+    if buf_len < 10 {
+        return Err(AppError(format!(
+            "Arrow file {} is truncated ({buf_len} bytes)",
+            path.display()
+        )));
+    }
+
+    let trailer: [u8; 10] = buffer[buf_len - 10..].try_into().unwrap();
+    let footer_len = read_footer_length(trailer)?;
+    let footer = root_as_footer(&buffer[buf_len - 10 - footer_len..buf_len - 10])
+        .map_err(|e| AppError(e.to_string()))?;
+    let fb_schema = footer.schema().ok_or_else(|| {
+        AppError(format!(
+            "Arrow file {}: footer has no schema",
+            path.display()
+        ))
+    })?;
+    // fb_to_schema panics (not Errs) on out-of-range enum values in a corrupted footer.
+    let schema = panic::catch_unwind(AssertUnwindSafe(|| fb_to_schema(fb_schema)))
+        .map_err(|_| AppError(format!("Arrow file {}: corrupted footer", path.display())))?;
+    let schema = Arc::new(schema);
+    let mut decoder = FileDecoder::new(schema.clone(), footer.version());
+
+    // Read dictionaries if present
+    for block in footer.dictionaries().iter().flatten() {
+        let block_len = block.bodyLength() as usize + block.metaDataLength() as usize;
+        let data = buffer.slice_with_length(block.offset() as usize, block_len);
+        decoder.read_dictionary(block, &data)?;
+    }
+
+    let blocks = footer.recordBatches();
+    let blocks = blocks.as_ref();
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    let empty = blocks.map_or(true, |b| b.is_empty());
+    if empty {
+        return Ok((
+            arrow_array::RecordBatch::new_empty(schema),
+            MmapHandle { _buffer: buffer },
+        ));
+    }
+    let blocks = blocks.unwrap();
+
+    if blocks.len() == 1 {
+        let block = blocks.get(0);
+        let block_len = block.bodyLength() as usize + block.metaDataLength() as usize;
+        let data = buffer.slice_with_length(block.offset() as usize, block_len);
+        let batch = decoder
+            .read_record_batch(block, &data)?
+            .unwrap_or_else(|| arrow_array::RecordBatch::new_empty(schema));
+        Ok((
+            arrow_migrate::migrate(batch)?,
+            MmapHandle { _buffer: buffer },
+        ))
+    } else {
+        let mut batches = Vec::with_capacity(blocks.len());
+        for i in 0..blocks.len() {
+            let block = blocks.get(i);
+            let block_len = block.bodyLength() as usize + block.metaDataLength() as usize;
+            let data = buffer.slice_with_length(block.offset() as usize, block_len);
+            if let Some(batch) = decoder.read_record_batch(block, &data)? {
+                batches.push(batch);
+            }
+        }
+        let merged = concat::concat_batches(&schema, &batches)?;
+        Ok((
+            arrow_migrate::migrate(merged)?,
+            MmapHandle { _buffer: buffer },
+        ))
+    }
+}
+
+/// Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
+/// large payloads over by file instead of IPC serialization.
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+#[specta::specta]
+pub fn write_temp_file(name: String, content: String) -> AppResult<String> {
+    let path = env::temp_dir().join(format!("mma_{name}"));
+    fs::write(&path, &content)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Read a file as UTF-8 text (temp files, plugin sources).
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+#[specta::specta]
+pub fn read_file(path: String) -> AppResult<String> {
+    Ok(fs::read_to_string(&path)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_app_data_dir() -> AppResult<String> {
+    app_data_dir().map(|p| p.to_string_lossy().into_owned())
+}
+
+/// The active and default data-folder paths, plus whether a custom override is in effect.
+#[derive(serde::Serialize, specta::Type)]
+pub struct DataLocation {
+    path: String,
+    /// OS default, ignoring any override -- backs the "reset" affordance.
+    default_path: String,
+    is_custom: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn get_data_location() -> AppResult<DataLocation> {
+    let path = app_data_dir()?;
+    let default_path = default_data_dir()?;
+    Ok(DataLocation {
+        is_custom: path != default_path,
+        path: path.to_string_lossy().into_owned(),
+        default_path: default_path.to_string_lossy().into_owned(),
+    })
+}
+
+/// Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
+/// and does not move existing data.
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+#[specta::specta]
+pub fn set_data_location(path: Option<String>) -> AppResult<()> {
+    set_data_location_override(path.as_deref().map(Path::new))
+}
+
+/// Hand a path to the OS shell (file explorer / default handler).
+fn os_open(path: &Path) -> AppResult<()> {
+    #[cfg(target_os = "windows")]
+    let program = "explorer";
+    #[cfg(target_os = "macos")]
+    let program = "open";
+    #[cfg(target_os = "linux")]
+    let program = "xdg-open";
+    Command::new(program).arg(path).spawn()?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn open_data_folder() -> AppResult<()> {
+    os_open(&app_data_dir()?)
+}
+
+#[allow(clippy::needless_pass_by_value)]
+#[tauri::command]
+#[specta::specta]
+pub fn open_log_file(app: tauri::AppHandle) -> AppResult<()> {
+    use tauri::Manager;
+    os_open(&app.path().app_log_dir()?.join("mma.log"))
+}
+
+#[cfg(test)]
+#[path = "storage.test.rs"]
+mod tests;
