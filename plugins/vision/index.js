@@ -106,22 +106,71 @@ async function searchImage(panoId, k, threshold, signal) {
 // vision/src/VisionSidebar.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime());
 var { Sidebar, Field, TextInput, Button } = MMA.ui;
+var MAX_SCORE = 0.3;
 var CSS = `
 .vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
 .vision-sidebar__progress { font-size: 12px; color: var(--text-secondary, #999); padding: 4px 0; }
-.vision-sidebar__results { font-size: 12px; padding: 4px 0; }
 .vision-sidebar__error { font-size: 12px; color: #e55; padding: 4px 0; }
 .vision-sidebar__actions { display: flex; gap: 6px; margin-top: 4px; }
+
+.vision-result { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 6px; background: var(--surface-1, #2d2d28); }
+.vision-result__headline { font-size: 13px; }
+.vision-result__count { font-size: 15px; font-weight: 600; }
+.vision-result__note { font-size: 11px; color: var(--text-secondary, #999); }
+.vision-meter { position: relative; height: 6px; border-radius: 3px; background: var(--surface-3, #403f38); }
+.vision-meter__fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--accent, #1098ad); }
+.vision-meter__cut { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text-1, #f4f3ef); }
+.vision-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary, #999); }
 `;
 function panoIdToLocId(locs, panoId) {
   const loc = locs.find((l) => l.panoId === panoId);
   return loc?.id ?? null;
+}
+var pct = (v) => `${Math.min(100, v / MAX_SCORE * 100)}%`;
+function ScoreMeter({ top, cut }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-meter", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-meter__fill", style: { width: pct(top) } }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-meter__cut", style: { left: pct(cut) } })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-scale", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+        "best ",
+        top.toFixed(3)
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { children: [
+        "cut ",
+        cut.toFixed(3)
+      ] })
+    ] })
+  ] });
+}
+function Result({ outcome }) {
+  const { selected, elsewhere, top, cut } = outcome;
+  const belowCut = top !== null && top < cut;
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-result", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-result__headline", children: selected > 0 ? /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "vision-result__count", children: selected }),
+      " location",
+      selected === 1 ? "" : "s",
+      " selected"
+    ] }) : top === null ? "Nothing in the corpus scored against that" : belowCut ? "No matches above the threshold" : "No matches in this map" }),
+    top !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ScoreMeter, { top, cut }),
+    elsewhere > 0 && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-result__note", children: [
+      elsewhere,
+      " match",
+      elsewhere === 1 ? "" : "es",
+      " in other maps -- the embed cache spans every map"
+    ] }),
+    selected === 0 && belowCut && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-result__note", children: "Lower the threshold to reach it." })
+  ] });
 }
 function VisionSidebar({ onClose }) {
   const [query, setQuery] = (0, import_react.useState)("");
   const [threshold, setThreshold] = (0, import_react.useState)(0.01);
   const job = MMA.useJob(async ({ signal, report }) => {
     const q = query.trim();
+    const cut = threshold;
     const locs = await MMA.fetchAllLocations();
     signal.throwIfAborted();
     const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId);
@@ -140,14 +189,20 @@ function VisionSidebar({ onClose }) {
     });
     signal.throwIfAborted();
     report(`Searching for "${q}"...`);
-    const results = await searchText(q, null, threshold, signal);
+    const results = await searchText(q, null, cut, signal);
     const matchedIds = results.map((r) => panoIdToLocId(locs, r.panoId)).filter((id) => id != null);
     if (matchedIds.length > 0) {
       await MMA.addSelections([
         { type: "Locations", locations: matchedIds, name: `Vision: "${q}"` }
       ]);
     }
-    return matchedIds.length;
+    const top = results[0]?.score ?? (await searchText(q, 1, null, signal))[0]?.score ?? null;
+    return {
+      selected: matchedIds.length,
+      elsewhere: results.length - matchedIds.length,
+      top,
+      cut
+    };
   });
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Sidebar, { title: "Vision", onBack: onClose, children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: CSS }),
@@ -168,28 +223,17 @@ function VisionSidebar({ onClose }) {
         {
           type: "range",
           min: 0,
-          max: 0.3,
+          max: MAX_SCORE,
           step: 5e-3,
           value: threshold,
           onChange: (e) => setThreshold(Number(e.target.value)),
           style: { width: "100%" }
         }
       ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__actions", children: !job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        Button,
-        {
-          variant: "primary",
-          disabled: !query.trim(),
-          onClick: job.run,
-          children: "Search"
-        }
-      ) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: job.cancel, children: "Cancel" }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__actions", children: !job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", disabled: !query.trim(), onClick: job.run, children: "Search" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: job.cancel, children: "Cancel" }) }),
       job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__progress", children: job.progress }),
       job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__error", children: job.error }),
-      job.result !== null && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-sidebar__results", children: [
-        job.result,
-        " locations selected"
-      ] })
+      job.result !== null && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Result, { outcome: job.result })
     ] })
   ] });
 }
