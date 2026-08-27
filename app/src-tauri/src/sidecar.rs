@@ -537,7 +537,7 @@ fn spawn_resident(plugin_id: &str, spec: &SidecarSpec, epoch: u64) -> AppResult<
     let port = match rx.recv_timeout(HANDSHAKE_TIMEOUT) {
         Ok(line) => serde_json::from_str::<serde_json::Value>(&line)
             .ok()
-            .and_then(|v| v.get("port").and_then(|p| p.as_u64()))
+            .and_then(|v| v.get("port").and_then(serde_json::Value::as_u64))
             .and_then(|p| u16::try_from(p).ok()),
         Err(_) => None,
     };

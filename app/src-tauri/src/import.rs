@@ -277,15 +277,12 @@ fn tag_meta_from_extra(extra: &Value) -> HashMap<String, ExtraTagMeta> {
                         let r = arr[0].as_u64().unwrap_or(0) as u8;
                         let g = arr[1].as_u64().unwrap_or(0) as u8;
                         let b = arr[2].as_u64().unwrap_or(0) as u8;
-                        Some(format!("#{:02x}{:02x}{:02x}", r, g, b))
+                        Some(format!("#{r:02x}{g:02x}{b:02x}"))
                     } else {
                         None
                     }
                 });
-            let order = entry
-                .get("order")
-                .and_then(|o| o.as_u64())
-                .map(|o| o as u32);
+            let order = entry.get("order").and_then(Value::as_u64).map(|o| o as u32);
             // `doclinks` array is the convention; a bare `doclink` string is tolerated.
             let doclinks = match entry.get("doclinks") {
                 Some(Value::Array(arr)) => arr
@@ -860,8 +857,8 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                 };
 
                 let has_top_pano = raw.pano_id.is_some();
-                let top_pano = raw.pano_id.map(|c| c.into_owned());
-                let extra_str = raw.extra.map(|rv| rv.get());
+                let top_pano = raw.pano_id.map(Cow::into_owned);
+                let extra_str = raw.extra.map(RawValue::get);
 
                 // Fast path unless we must edit `extra` beyond stripping tags: folding a
                 // non-null top-level country/state code, or a `panoId` nested in `extra`.
@@ -1027,9 +1024,8 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
 // ---------------------------------------------------------------------------
 
 fn read_zip_entries(path: &str) -> AppResult<Vec<(String, String)>> {
-    let file = File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
-    let mut archive =
-        zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {}", e))?;
+    let file = File::open(path).map_err(|e| format!("Failed to open file: {e}"))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {e}"))?;
 
     let mut entries = Vec::new();
     for i in 0..archive.len() {
@@ -1047,7 +1043,7 @@ fn read_zip_entries(path: &str) -> AppResult<Vec<(String, String)>> {
 }
 
 fn read_single_json(path: &str) -> AppResult<Vec<(String, String)>> {
-    let text = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+    let text = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {e}"))?;
     let filename = Path::new(path)
         .file_name()
         .map(|f| f.to_string_lossy().to_string())
@@ -1636,7 +1632,7 @@ pub async fn store_import_file(
         .take()
         .ok_or("no cached import — call store_import_preview first")?;
 
-    let drop_set: HashSet<&str> = dropped_fields.iter().map(|s| s.as_str()).collect();
+    let drop_set: HashSet<&str> = dropped_fields.iter().map(String::as_str).collect();
     if !drop_set.is_empty() {
         for loc in &mut parsed.locations {
             if drop_set.contains("heading") {
@@ -1669,7 +1665,7 @@ pub async fn store_import_file(
     // into the overlay) leaving the vec empty.
     let imported_count = parsed.locations.len() as u32;
     let auto_commit = parsed.locations.len() > IMPORT_AUTOCOMMIT_THRESHOLD;
-    log::debug!("[import] parse=cached locs={}", imported_count);
+    log::debug!("[import] parse=cached locs={imported_count}");
 
     with_store!(label, state, |store| {
         let mutation = add_parsed_to_store(store, &mut parsed, tag_name.as_deref())?;
@@ -1691,5 +1687,6 @@ pub async fn store_import_file(
 }
 
 #[cfg(test)]
+#[allow(clippy::print_stdout, clippy::print_stderr)]
 #[path = "import.test.rs"]
 mod tests;

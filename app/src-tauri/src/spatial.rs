@@ -65,11 +65,8 @@ impl SpatialIndex {
                 return;
             }
         }
-        log::warn!(
-            "[spatial] remove miss for id {} — falling back to full scan",
-            id
-        );
-        for (k, v) in self.cells.iter_mut() {
+        log::warn!("[spatial] remove miss for id {id} — falling back to full scan");
+        for (k, v) in &mut self.cells {
             if let Some(pos) = v.iter().position(|&x| x == id) {
                 v.swap_remove(pos);
                 if v.is_empty() {

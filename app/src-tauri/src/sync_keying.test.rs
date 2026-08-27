@@ -140,7 +140,7 @@ fn hash_of(l: &SyncLocalPin) -> String {
 
 /// Plan arrays come from HashSet iteration, so any ordered comparison sorts both sides.
 fn sorted(v: &[IdentityKey]) -> Vec<&str> {
-    let mut out: Vec<&str> = v.iter().map(|s| s.as_str()).collect();
+    let mut out: Vec<&str> = v.iter().map(String::as_str).collect();
     out.sort();
     out
 }

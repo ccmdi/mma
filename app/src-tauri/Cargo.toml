@@ -107,6 +107,17 @@ unused_qualifications = "warn"
 
 [lints.clippy]
 absolute_paths = "warn"
+semicolon_if_nothing_returned = "warn"
+needless_pass_by_value = "warn"
+redundant_closure_for_method_calls = "warn"
+explicit_iter_loop = "warn"
+manual_let_else = "warn"
+uninlined_format_args = "warn"
+large_enum_variant = "warn"
+too_many_lines = "warn"
+dbg_macro = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
 
 [features]
 # Exposes `app_lib::bench_api` (fixtures + store-internals access) for benches/store.rs.

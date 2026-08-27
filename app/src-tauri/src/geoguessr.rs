@@ -271,7 +271,10 @@ fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
                     return Ok(c.value().to_string());
                 }
                 // Names only, never values; sorted so it logs once per change, not per poll.
-                let mut names = cookies.iter().map(|c| c.name()).collect::<Vec<_>>();
+                let mut names = cookies
+                    .iter()
+                    .map(tauri::webview::Cookie::name)
+                    .collect::<Vec<_>>();
                 names.sort_unstable();
                 let names = names.join(",");
                 if names != seen {

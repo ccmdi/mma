@@ -971,8 +971,8 @@ impl Store {
                         tag_id,
                         Tag {
                             id: tag_id,
-                            name: format!("Tag {}", tag_id),
-                            color: util::color_for_name(&format!("Tag {}", tag_id)),
+                            name: format!("Tag {tag_id}"),
+                            color: util::color_for_name(&format!("Tag {tag_id}")),
                             visible: true,
                             order: None,
                             doclinks: Vec::new(),
@@ -1711,7 +1711,7 @@ impl Store {
             loc.extra = match v {
                 None => None,
                 Some(p) => {
-                    let mut m = loc.extra.as_ref().map(|e| e.to_map()).unwrap_or_default();
+                    let mut m = loc.extra.as_ref().map(RawExtra::to_map).unwrap_or_default();
                     for (k, val) in p.to_map() {
                         if val.is_null() {
                             m.remove(&k);
@@ -3403,7 +3403,7 @@ pub async fn store_save_dirty(
         )
     };
 
-    let size = delta_data.as_ref().map_or(0, |d| d.len());
+    let size = delta_data.as_ref().map_or(0, Vec::len);
     let wrote_delta = delta_data.is_some();
     let wrote_tags = tags_json.is_some();
     let map_id2 = map_id.clone();
@@ -3578,7 +3578,7 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
         (t_mmap - t_write).as_millis(),
         _t.elapsed().as_millis()
     );
-    let count = store.batch.as_ref().map_or(0, |b| b.num_rows());
+    let count = store.batch.as_ref().map_or(0, RecordBatch::num_rows);
     let conn = storage::open_db()?;
     storage::set_location_count(&conn, map_id, count)?;
     if store.tags.dirty {
@@ -3946,7 +3946,9 @@ fn merge_group(members: &[Location], score: Option<&Expr>) -> Location {
         };
         let row = selections::RowRef::from_loc(l);
         field_expr::eval(expr, &|name| {
-            row.resolve_field(name).as_ref().and_then(|v| v.as_f64())
+            row.resolve_field(name)
+                .as_ref()
+                .and_then(serde_json::Value::as_f64)
         })
     };
     let survivor = members
@@ -4021,8 +4023,8 @@ fn reconcile_tag_registry(
         max_tag_id = max_tag_id.max(tid);
         let tag = tags.entry(tid).or_insert_with(|| Tag {
             id: tid,
-            name: format!("Tag {}", tid),
-            color: util::color_for_name(&format!("Tag {}", tid)),
+            name: format!("Tag {tid}"),
+            color: util::color_for_name(&format!("Tag {tid}")),
             visible: true,
             order: None,
             doclinks: Vec::new(),
@@ -4176,7 +4178,7 @@ pub async fn store_sync_selections(
 
         log::debug!("[cmd] store_sync_selections total={}ms sels={} selected={} cells={} buf_size={} batch_rows={} overlay_adds={} dead={} alive={} render_total={} first_set_len={} counts={:?}",
             _t.elapsed().as_millis(), sels.len(), selected_count, num_cells, buf.len(),
-            store.batch.as_ref().map_or(0, |b| b.num_rows()), store.overlay.adds.len(),
+            store.batch.as_ref().map_or(0, RecordBatch::num_rows), store.overlay.adds.len(),
             store.overlay.dead.len(), store.alive_count, render_total,
             store.selections.resolved.first().map_or(0, |r| r.set.len() as usize), counts);
 

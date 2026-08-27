@@ -1465,7 +1465,7 @@ fn ids_are_never_reused() {
     let mut seen = HashSet::new();
     for _ in 0..1000 {
         let id = store.alloc_id();
-        assert!(!seen.contains(&id), "ID {} was reused", id);
+        assert!(!seen.contains(&id), "ID {id} was reused");
         seen.insert(id);
     }
 }
@@ -1476,7 +1476,7 @@ fn tag_ids_are_never_reused() {
     let mut seen = HashSet::new();
     for _ in 0..1000 {
         let id = store.alloc_tag_id();
-        assert!(!seen.contains(&id), "Tag ID {} was reused", id);
+        assert!(!seen.contains(&id), "Tag ID {id} was reused");
         seen.insert(id);
     }
 }
@@ -2048,7 +2048,7 @@ fn paint_map_matches_paint_for() {
     for id in 1..=4 {
         let bulk = map.get(&id).map(|p| (p.idx, p.color));
         let single = store.selections.paint_for(id).map(|p| (p.idx, p.color));
-        assert_eq!(bulk, single, "id {}", id);
+        assert_eq!(bulk, single, "id {id}");
     }
 }
 
@@ -2452,7 +2452,7 @@ fn create_tags_is_idempotent_against_locations_that_already_have_the_tag() {
 fn add_tag_selection(store: &mut Store, tag_id: u32, color: [u8; 3]) {
     store.selections.resolved.push(ResolvedSelection {
         sel: Selection {
-            key: format!("tag:{}", tag_id),
+            key: format!("tag:{tag_id}"),
             color,
             selector: Selector::Tag { tag_id },
         },
@@ -3102,7 +3102,7 @@ fn selection_cell_segment_adapts_format() {
     let mut absent = RoaringBitmap::new();
     absent.insert(n as u32 + 10);
     let routed = selection_cell_indices(&render, render.total_len(), &absent);
-    assert!(routed.iter().all(|v| v.is_empty()));
+    assert!(routed.iter().all(Vec::is_empty));
 }
 
 // -----------------------------------------------------------------------
@@ -3598,8 +3598,7 @@ fn pick_spaced_count_returns_exactly_n_subset() {
     for id in &res.ids {
         assert!(
             store.selections.ids.contains(*id),
-            "id {} not in selection",
-            id
+            "id {id} not in selection"
         );
     }
 }
@@ -3642,7 +3641,7 @@ fn pick_spaced_distance_enforces_threshold() {
     assert_eq!(res.distance_m, 250);
     assert!(!res.ids.is_empty());
     let min = min_pairwise(&res.ids, &coords);
-    assert!(min >= 250.0 - 1e-6, "min pairwise {} < 250", min);
+    assert!(min >= 250.0 - 1e-6, "min pairwise {min} < 250");
 }
 
 #[test]
@@ -3691,7 +3690,7 @@ fn pick_spaced_narrowing_overrides_selection() {
     let res = store.pick_spaced(Some(&set), Some(3), None).unwrap();
     assert_eq!(res.ids.len(), 3);
     for id in &res.ids {
-        assert!(*id <= 5, "id {} outside the set", id);
+        assert!(*id <= 5, "id {id} outside the set");
     }
 
     // An empty selection does not starve a narrowed pick.
@@ -3734,8 +3733,8 @@ fn delta_parse_never_panics_on_corrupt_bytes() {
     ];
     for bytes in &cases {
         let result = panic::catch_unwind(|| rmp_serde::from_slice::<Overlay>(bytes));
-        assert!(result.is_ok(), "parsing must not panic: {:?}", bytes);
-        assert!(result.unwrap().is_err(), "must fail to parse: {:?}", bytes);
+        assert!(result.is_ok(), "parsing must not panic: {bytes:?}");
+        assert!(result.unwrap().is_err(), "must fail to parse: {bytes:?}");
     }
 }
 

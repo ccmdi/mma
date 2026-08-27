@@ -115,7 +115,7 @@ pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub fn discord_presence_clear() -> AppResult<()> {
-    worker().submit(false, |client| client.clear_activity());
+    worker().submit(false, DiscordIpc::clear_activity);
     Ok(())
 }
 

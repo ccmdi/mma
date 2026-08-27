@@ -1,1 +1,2 @@
 absolute-paths-max-segments = 2
+too-many-lines-threshold = 150

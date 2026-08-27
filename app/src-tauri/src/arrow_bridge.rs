@@ -98,7 +98,7 @@ fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
 
     let extras: StringArray = locs
         .iter()
-        .map(|l| l.extra.as_ref().map(|e| e.as_str()))
+        .map(|l| l.extra.as_ref().map(RawExtra::as_str))
         .collect();
 
     let created_ats = UInt32Array::from_iter_values(locs.iter().map(|l| l.created_at));
@@ -222,7 +222,7 @@ pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<u32, Location>) -> Rec
                     Arc::new(
                         (0..n)
                             .map(|i| match hits.get(&i) {
-                                Some(p) => p.extra.as_ref().map(|e| e.as_str()),
+                                Some(p) => p.extra.as_ref().map(RawExtra::as_str),
                                 None => (!old.is_null(i)).then(|| old.value(i)),
                             })
                             .collect::<StringArray>(),

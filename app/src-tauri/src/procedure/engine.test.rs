@@ -345,7 +345,7 @@ fn pages_cap_at_page_size() {
     run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
     let seen = h.seen.lock().unwrap();
-    let sizes: Vec<usize> = seen.iter().map(|b| b.len()).collect();
+    let sizes: Vec<usize> = seen.iter().map(Vec::len).collect();
     assert_eq!(sizes, vec![PAGE_SIZE, PAGE_SIZE, 5_000]);
     assert_eq!(seen[0][0], 1);
     assert_eq!(*seen[0].last().unwrap(), 10_000);
@@ -395,7 +395,7 @@ fn chunk_mode_splits_a_page_into_batches() {
     let h = Harness::map_only(Arc::new(|_| Ok(Vec::new())));
     run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
-    let sizes: Vec<usize> = h.seen.lock().unwrap().iter().map(|b| b.len()).collect();
+    let sizes: Vec<usize> = h.seen.lock().unwrap().iter().map(Vec::len).collect();
     assert_eq!(sizes, vec![4, 4, 2]);
 }
 
@@ -1149,7 +1149,7 @@ fn map_only_chunks_are_cut_to_keep_every_worker_busy() {
     );
     d.instances = Some(4);
     run_provider(&h.ctx(&state, &map_id), &d).unwrap();
-    let sizes: Vec<usize> = h.seen.lock().unwrap().iter().map(|b| b.len()).collect();
+    let sizes: Vec<usize> = h.seen.lock().unwrap().iter().map(Vec::len).collect();
     assert_eq!(sizes.len(), 4);
     assert!(sizes.iter().all(|&n| n == PAGE_SIZE / 4));
 }
@@ -1709,7 +1709,7 @@ fn fetch_many_declines_every_request_once_cancelled() {
     for n in [1, 4] {
         let out = host.fetch_many(&gets(n));
         assert_eq!(out.len(), n);
-        assert!(out.iter().all(|r| r.is_err()), "{n} requests");
+        assert!(out.iter().all(Result::is_err), "{n} requests");
     }
     // Including the single-request path, which takes the same slot and the same check.
     assert_eq!(calls.load(Ordering::SeqCst), 0);

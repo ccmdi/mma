@@ -17,6 +17,7 @@ use serde::Deserialize;
 use crate::selections::{self, PolygonGeometry};
 use crate::storage;
 use reqwest::blocking::Client;
+use reqwest::blocking::Response;
 use rkyv::vec::ArchivedVec;
 use std::fs;
 use std::fs::File;
@@ -493,7 +494,7 @@ type ArchPoly = ArchivedVec<ArchivedVec<[f64; 2]>>;
 
 /// Rings of an archived polygon as `&[[f64; 2]]` slices.
 fn arch_rings(poly: &ArchPoly) -> impl Iterator<Item = &[[f64; 2]]> {
-    poly.iter().map(|r| r.as_slice())
+    poly.iter().map(ArchivedVec::as_slice)
 }
 
 fn arch_point_in_feature(lng: f64, lat: f64, f: &ArchivedArchFeature) -> bool {
@@ -591,7 +592,7 @@ pub async fn download_border_file(level: String) -> AppResult<()> {
         let bytes = border_client()?
             .get(border_url(&level))
             .send()
-            .and_then(|r| r.error_for_status())
+            .and_then(Response::error_for_status)
             .map_err(|e| format!("Failed to download borders-{level}.rkyv: {e}"))?
             .bytes()?;
         write_border_file(&level, &bytes)
@@ -876,5 +877,6 @@ fn tally_scan<T: Sync>(
 }
 
 #[cfg(test)]
+#[allow(clippy::print_stdout, clippy::print_stderr)]
 #[path = "borders.test.rs"]
 mod tests;

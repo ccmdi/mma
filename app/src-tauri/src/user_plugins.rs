@@ -5,6 +5,7 @@
 use crate::proxy::{cors, proxy_client};
 use crate::types::{AppError, AppResult};
 use crate::{sidecar, storage};
+use reqwest::blocking;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -161,7 +162,7 @@ fn fetch(url: &str, what: &str) -> AppResult<bytes::Bytes> {
     Ok(proxy_client()
         .get(url)
         .send()
-        .and_then(|r| r.error_for_status())
+        .and_then(blocking::Response::error_for_status)
         .map_err(|e| format!("Failed to fetch {what}: {e}"))?
         .bytes()?)
 }

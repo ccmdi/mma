@@ -286,6 +286,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
 
 /// Regenerate `../src/bindings.gen.ts` from [`specta_builder`].
 #[cfg(debug_assertions)]
+#[allow(clippy::print_stderr)]
 pub fn export_bindings() -> Result<(), String> {
     let out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.gen.ts");
     specta_builder()
@@ -309,6 +310,7 @@ pub fn export_bindings() -> Result<(), String> {
 
 /// Values Rust owns that TypeScript mirrors, in their own file because it must stay
 /// import-free: the procedure sandbox bundles it and may not reach Tauri.
+#[allow(clippy::print_stderr)]
 fn export_consts() -> Result<(), String> {
     let out = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/bindings.consts.ts");
     let mut ts = String::from(
@@ -435,7 +437,7 @@ pub fn run() {
 
     #[cfg(debug_assertions)]
     if let Err(e) = export_bindings() {
-        eprintln!("[specta] export FAILED: {e}");
+        log::error!("[specta] export FAILED: {e}");
     }
 
     let builder = proxy::register_schemes(tauri::Builder::default());

@@ -2733,7 +2733,7 @@ fn columns_within_projects_one_value_per_row_per_field() {
     let fx = Fx::base(&base).with_adds(vec![loc_extra(3, serde_json::json!({"b":3}))]);
     let fields: Vec<String> = ["a", "b", "heading", "tags", "nope"]
         .iter()
-        .map(|s| s.to_string())
+        .map(ToString::to_string)
         .collect();
     let cols = columns_within(&fx.view(), None, &fields);
     assert_eq!(

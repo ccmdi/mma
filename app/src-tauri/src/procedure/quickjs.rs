@@ -263,7 +263,7 @@ fn service(host: &mut dyn ProcHost, stream: &mut Option<SidecarStream>, req: Hos
                 *stream = Some(s);
             }))
         }
-        HostReq::SidecarNext => match stream.as_mut().and_then(|s| s.next()) {
+        HostReq::SidecarNext => match stream.as_mut().and_then(Iterator::next) {
             Some(Ok(line)) => HostRep::SidecarLine(line),
             Some(Err(e)) => {
                 *stream = None;

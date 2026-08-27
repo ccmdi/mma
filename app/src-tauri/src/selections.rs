@@ -375,7 +375,7 @@ impl<'a> LocView<'a> {
             col_created_at, col_extra, col_flags, col_heading, col_id, col_lat, col_lng,
             col_modified_at, col_pano_id, col_pitch, col_tags, col_zoom,
         };
-        let batch_rows = batch.map_or(0, |b| b.num_rows());
+        let batch_rows = batch.map_or(0, RecordBatch::num_rows);
         let ids = batch.map(col_id);
         let lats = batch.map(col_lat);
         let lngs = batch.map(col_lng);
@@ -478,7 +478,7 @@ impl<'a> LocView<'a> {
 
     #[inline]
     pub fn for_each(&self, f: impl FnMut(RowRef)) {
-        self.iter().for_each(f)
+        self.iter().for_each(f);
     }
 
     /// Build a bool mask over all locations (batch + adds) using a per-row predicate.
@@ -584,12 +584,12 @@ pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
             if let Some(idx) = view.tag_sets {
                 let mut set = idx.get(tag_id).cloned().unwrap_or_default();
                 if view.has_dead {
-                    for &d in view.dead.iter() {
+                    for &d in view.dead {
                         set.remove(d);
                     }
                 }
                 // Overlay adds aren't in the batch-built index; fold them in by scan.
-                for loc in view.adds.iter() {
+                for loc in view.adds {
                     if loc.tags.contains(tag_id) {
                         set.insert(loc.id);
                     }
@@ -854,7 +854,7 @@ impl<'a> PreparedGeometry<'a> {
 }
 
 fn point_in_polygon(lng: f64, lat: f64, coords: &[Vec<[f64; 2]>]) -> bool {
-    polygon_contains(lng, lat, coords.iter().map(|r| r.as_slice()))
+    polygon_contains(lng, lat, coords.iter().map(Vec::as_slice))
 }
 
 /// Test against the full geometry (primary polygon + extra_polygons). Any hit = true.
@@ -929,7 +929,7 @@ impl SpatialHash {
         }
         // Prefix-sum into start offsets.
         let mut sum = 0u32;
-        for slot in cell_start.iter_mut() {
+        for slot in &mut cell_start {
             let c = *slot;
             *slot = sum;
             sum += c;
@@ -1179,7 +1179,7 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
             lat: row.lat(),
             lng: row.lng(),
             id: row.id(),
-        })
+        });
     });
 
     let n = points.len();
@@ -1554,7 +1554,7 @@ fn compare_filter(
             let hi = value2.and_then(|v| v.as_str()).unwrap_or("12-31");
             let fv_md = if let Some(ts) = as_f64(field_val) {
                 let (m, d) = unix_to_month_day(ts);
-                format!("{:02}-{:02}", m, d)
+                format!("{m:02}-{d:02}")
             } else if let Some(s) = field_val.as_str() {
                 if s.len() >= 7 && s.as_bytes()[4] == b'-' {
                     if s.len() >= 10 {
@@ -1579,7 +1579,7 @@ fn compare_filter(
             let hi = value2.and_then(|v| v.as_str()).unwrap_or("23:59");
             let fv_hm = if let Some(ts) = as_f64(field_val) {
                 let (h, m) = unix_to_hour_min(ts);
-                format!("{:02}:{:02}", h, m)
+                format!("{h:02}:{m:02}")
             } else {
                 return false;
             };
@@ -2025,11 +2025,11 @@ fn date_part_key(
 
 fn parts_to_key(y: i32, mo: u32, d: u32, h: u32, part: DatePart) -> String {
     match part {
-        DatePart::Year => format!("{}", y),
-        DatePart::YearMonth => format!("{}-{:02}", y, mo),
-        DatePart::Day => format!("{}-{:02}-{:02}", y, mo, d),
+        DatePart::Year => format!("{y}"),
+        DatePart::YearMonth => format!("{y}-{mo:02}"),
+        DatePart::Day => format!("{y}-{mo:02}-{d:02}"),
         DatePart::MonthOfYear => MONTH_NAMES[(mo.clamp(1, 12) - 1) as usize].to_string(),
-        DatePart::HourOfDay => format!("{:02}:00", h),
+        DatePart::HourOfDay => format!("{h:02}:00"),
     }
 }
 
@@ -2053,7 +2053,7 @@ fn js_number_string(f: f64) -> String {
     if f.is_finite() && f.fract() == 0.0 {
         format!("{}", f as i64)
     } else {
-        format!("{}", f)
+        format!("{f}")
     }
 }
 

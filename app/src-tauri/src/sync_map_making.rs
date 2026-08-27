@@ -472,5 +472,6 @@ fn decode_latlng(buf: &[u8]) -> anyhow::Result<(f64, f64)> {
 }
 
 #[cfg(test)]
+#[allow(clippy::print_stdout, clippy::print_stderr)]
 #[path = "sync_map_making.test.rs"]
 mod tests;

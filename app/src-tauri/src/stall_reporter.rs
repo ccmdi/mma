@@ -11,6 +11,7 @@ use std::time::{Duration, Instant};
 
 use std::env;
 use std::mem;
+use std::path::Path;
 use std::ptr;
 use std::slice;
 use windows_sys::Win32::Foundation::HANDLE;
@@ -106,7 +107,7 @@ fn init_symbols() {
     ONCE.call_once(|| unsafe {
         let exe_dir = env::current_exe()
             .ok()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .and_then(|p| p.parent().map(Path::to_path_buf))
             .unwrap_or_default();
         let path: Vec<u16> = exe_dir.as_os_str().encode_wide().chain([0]).collect();
         SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);

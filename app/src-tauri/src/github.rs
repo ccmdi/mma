@@ -257,7 +257,7 @@ fn parse_token_response(body: &serde_json::Value) -> Poll {
         return Poll::Token(Tokens {
             access_token,
             refresh_token: str_field("refresh_token"),
-            expires_in: body.get("expires_in").and_then(|v| v.as_u64()),
+            expires_in: body.get("expires_in").and_then(serde_json::Value::as_u64),
         });
     }
     match body.get("error").and_then(|v| v.as_str()) {
@@ -541,7 +541,10 @@ pub async fn github_create_issue(
         }
         let v: serde_json::Value = resp.json()?;
         Ok(IssueRef {
-            number: v.get("number").and_then(|n| n.as_u64()).unwrap_or(0) as u32,
+            number: v
+                .get("number")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(0) as u32,
             url: v
                 .get("html_url")
                 .and_then(|u| u.as_str())

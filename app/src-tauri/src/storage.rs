@@ -279,7 +279,7 @@ pub(crate) fn run_migrations_on(conn: &Connection) -> AppResult<bool> {
     let applied: HashSet<u32> = conn
         .prepare("SELECT version FROM _mma_migrations")?
         .query_map([], |row| row.get(0))?
-        .filter_map(|r| r.ok())
+        .filter_map(Result::ok)
         .collect();
 
     let mut wiped_blobs = false;
@@ -850,7 +850,9 @@ pub(crate) fn read_arrow_ipc_mmap(
 
     let blocks = footer.recordBatches();
     let blocks = blocks.as_ref();
-    if blocks.map_or(true, |b| b.is_empty()) {
+    #[allow(clippy::redundant_closure_for_method_calls)]
+    let empty = blocks.map_or(true, |b| b.is_empty());
+    if empty {
         return Ok((
             arrow_array::RecordBatch::new_empty(schema),
             MmapHandle { _buffer: buffer },

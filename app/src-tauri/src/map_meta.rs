@@ -345,8 +345,8 @@ pub fn infer_field_type(value: &serde_json::Value) -> ExtraFieldType {
         let b = s.as_bytes();
         if b.len() == 7
             && b[4] == b'-'
-            && b[..4].iter().all(|c| c.is_ascii_digit())
-            && b[5..].iter().all(|c| c.is_ascii_digit())
+            && b[..4].iter().all(u8::is_ascii_digit)
+            && b[5..].iter().all(u8::is_ascii_digit)
         {
             let month = (b[5] - b'0') * 10 + (b[6] - b'0');
             if (1..=12).contains(&month) {
@@ -675,7 +675,7 @@ fn update_map_meta_row(
     values.push(Box::new(id.to_string()));
 
     let sql = format!("UPDATE maps SET {} WHERE id = ?", sets.join(", "));
-    let param_refs: Vec<&dyn ToSql> = values.iter().map(|b| b.as_ref()).collect();
+    let param_refs: Vec<&dyn ToSql> = values.iter().map(AsRef::as_ref).collect();
     let old_extra = if patch.extra.is_some() {
         let s: String = conn
             .query_row("SELECT extra FROM maps WHERE id = ?", [id], |r| r.get(0))
@@ -770,7 +770,7 @@ pub async fn store_db_stats() -> AppResult<DbStats> {
             let mut stmt = conn.prepare("SELECT tags FROM maps")?;
             let rows: Vec<String> = stmt
                 .query_map([], |r| r.get(0))?
-                .filter_map(|r| r.ok())
+                .filter_map(Result::ok)
                 .collect();
             rows.iter()
                 .map(|t| {
@@ -1015,7 +1015,7 @@ mod tests {
     fn auto_register_no_new_keys() {
         let known: HashSet<String> = ["altitude", "countryCode"]
             .iter()
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect();
         assert!(auto_register_field_defs(&known, &[&raw(r#"{"altitude": 100}"#)]).is_none());
     }
@@ -1063,7 +1063,7 @@ mod tests {
 
     #[test]
     fn auto_register_mixed() {
-        let known: HashSet<String> = ["altitude"].iter().map(|s| s.to_string()).collect();
+        let known: HashSet<String> = ["altitude"].iter().map(ToString::to_string).collect();
         let extra = raw(r#"{"altitude": 100, "countryCode": "US", "plumbus": 42}"#);
         let result = auto_register_field_defs(&known, &[&extra]).unwrap();
         // altitude is already known → skipped

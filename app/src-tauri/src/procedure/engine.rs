@@ -22,6 +22,7 @@ use std::pin::Pin;
 use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::OnceLock;
+use std::sync::PoisonError;
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -397,7 +398,7 @@ impl RateLimiter {
         let want = (cost.max(1) as f64).min(self.capacity);
         loop {
             let wait = {
-                let mut st = self.state.lock().unwrap_or_else(|p| p.into_inner());
+                let mut st = self.state.lock().unwrap_or_else(PoisonError::into_inner);
                 let now = Instant::now();
                 let elapsed_ms = now.duration_since(st.1).as_secs_f64() * 1000.0;
                 st.0 = (st.0 + elapsed_ms * self.per_ms).min(self.capacity);
@@ -586,7 +587,7 @@ impl ProviderProgress {
 
     fn maybe_emit(&self) {
         {
-            let mut last = self.last.lock().unwrap_or_else(|p| p.into_inner());
+            let mut last = self.last.lock().unwrap_or_else(PoisonError::into_inner);
             if last.elapsed() < PROGRESS_INTERVAL {
                 return;
             }
@@ -1063,7 +1064,10 @@ fn run_instance(
         if ctx.aborted() {
             return;
         }
-        let next = batches.lock().unwrap_or_else(|p| p.into_inner()).recv();
+        let next = batches
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .recv();
         let Ok(Tagged { page, batch }) = next else {
             return;
         };
@@ -1169,7 +1173,7 @@ fn patch_object(
         return Err(err(format!("unknown field `{key}`")));
     }
     let empty_extra = map.get("extra").and_then(|v| v.as_object());
-    if empty_extra.is_some_and(|o| o.is_empty()) {
+    if empty_extra.is_some_and(serde_json::Map::is_empty) {
         map.remove("extra");
     }
     Ok((!map.is_empty()).then_some(map))
@@ -1488,5 +1492,6 @@ pub async fn procedure_query_cancel(cancel: u32) -> AppResult<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::print_stdout, clippy::print_stderr)]
 #[path = "engine.test.rs"]
 mod tests;

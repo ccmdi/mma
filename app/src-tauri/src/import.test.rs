@@ -522,7 +522,7 @@ fn ascii_escaped_field_names_survive_both_paths() {
         .filter_map(|l| l.extra.as_ref())
         .collect();
     let defs = map_meta::auto_register_field_defs(&HashSet::new(), &extras).unwrap();
-    let mut keys: Vec<&str> = defs.keys().map(|k| k.as_str()).collect();
+    let mut keys: Vec<&str> = defs.keys().map(String::as_str).collect();
     keys.sort();
     assert_eq!(keys, vec!["café", "countryCode"]);
 }

@@ -174,7 +174,7 @@ pub async fn store_seen_list(
 
         let mut stmt = db.prepare(&sql)?;
         let rows = stmt.query_map(
-            params_from_iter(params.iter().map(|p| p.as_ref())),
+            params_from_iter(params.iter().map(AsRef::as_ref)),
             row_to_seen,
         )?;
 
@@ -194,11 +194,11 @@ pub async fn store_seen_count(filter: Option<SeenFilter>) -> AppResult<u32> {
     storage::with_db(move |db| {
         let (where_clause, params) = build_where_clause(&filter);
 
-        let sql = format!("SELECT COUNT(*) FROM seen{}", where_clause);
+        let sql = format!("SELECT COUNT(*) FROM seen{where_clause}");
 
         let mut stmt = db.prepare(&sql)?;
         let count: u32 = stmt
-            .query_row(params_from_iter(params.iter().map(|p| p.as_ref())), |row| {
+            .query_row(params_from_iter(params.iter().map(AsRef::as_ref)), |row| {
                 row.get(0)
             })?;
 

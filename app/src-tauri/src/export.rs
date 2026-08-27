@@ -83,7 +83,7 @@ fn tag_color_meta(
             if let Some(rgb) = hex_to_rgb(color) {
                 entry.insert("color".into(), serde_json::json!([rgb[0], rgb[1], rgb[2]]));
             }
-            if let Some(order) = v.get("order").and_then(|o| o.as_u64()) {
+            if let Some(order) = v.get("order").and_then(serde_json::Value::as_u64) {
                 entry.insert("order".into(), serde_json::json!(order));
             }
             if let Some(links) = v.get("doclinks").and_then(|d| d.as_array()) {
@@ -351,7 +351,7 @@ pub fn store_upload_begin() -> AppResult<String> {
 pub fn store_upload_finish(session_dir: String) -> AppResult<String> {
     let dir = upload_session_dir(&session_dir)?;
     let mut files: Vec<PathBuf> = fs::read_dir(&dir)?
-        .filter_map(|e| e.ok())
+        .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|p| p.is_file())
         .collect();
@@ -462,7 +462,7 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
                     row.get::<_, String>(4)?,
                 ))
             })?
-            .filter_map(|r| r.ok())
+            .filter_map(Result::ok)
             .collect();
         drop(stmt);
         drop(conn);

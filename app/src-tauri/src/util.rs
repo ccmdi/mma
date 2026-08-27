@@ -102,7 +102,7 @@ pub fn color_for_name(name: &str) -> String {
     h = h.wrapping_mul(214013).wrapping_add(2531011);
     let hue = (h.abs() % 360) as f64;
     let (r, g, b) = hsl_to_rgb(hue, 0.5, 0.5);
-    format!("#{:02x}{:02x}{:02x}", r, g, b)
+    format!("#{r:02x}{g:02x}{b:02x}")
 }
 
 /// Parses a "#rrggbb" hex color string to an RGB byte array.

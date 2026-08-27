@@ -815,9 +815,9 @@ fn console_output_does_not_fault_at_module_scope() {
 
 /// Loads counted around a body, so a test reads the pool's effect directly.
 fn loads(body: impl FnOnce()) -> u32 {
-    let before = LOADS.with(|c| c.get());
+    let before = LOADS.with(Cell::get);
     body();
-    LOADS.with(|c| c.get()) - before
+    LOADS.with(Cell::get) - before
 }
 
 /// Distinguishable module bodies: same exports, different sizes, so a rewrite

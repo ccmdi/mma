@@ -150,7 +150,7 @@ pub(crate) fn list(
     };
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(
-        rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
+        rusqlite::params_from_iter(params.iter().map(AsRef::as_ref)),
         row_to_session,
     )?;
     let mut out = Vec::new();
@@ -183,7 +183,7 @@ pub(crate) fn update(conn: &Connection, update: ReviewUpdate) -> AppResult<()> {
     );
     conn.execute(
         &sql,
-        rusqlite::params_from_iter(params.iter().map(|p| p.as_ref())),
+        rusqlite::params_from_iter(params.iter().map(AsRef::as_ref)),
     )?;
     Ok(())
 }

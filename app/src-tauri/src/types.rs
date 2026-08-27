@@ -206,7 +206,7 @@ pub(crate) struct FieldSpan {
 /// `true` to stop early. String/escape aware, and nested objects/arrays are skipped
 /// wholesale, so a matching key inside a value is never yielded.
 pub(crate) fn scan_fields(b: &[u8], f: impl FnMut(&FieldSpan) -> bool) {
-    scan_fields_from(b, 0, 0, f)
+    scan_fields_from(b, 0, 0, f);
 }
 
 /// [`scan_fields`] resumed mid-document: begins at byte `start`, with `start_depth`
@@ -446,7 +446,7 @@ fn pascal(name: &str) -> String {
             match c.next() {
                 Some(f) => f
                     .to_uppercase()
-                    .chain(c.flat_map(|x| x.to_lowercase()))
+                    .chain(c.flat_map(char::to_lowercase))
                     .collect(),
                 None => String::new(),
             }

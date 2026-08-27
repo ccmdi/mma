@@ -652,7 +652,7 @@ fn migration_versions(conn: &Connection) -> HashSet<u32> {
         .unwrap()
         .query_map([], |r| r.get(0))
         .unwrap()
-        .filter_map(|r| r.ok())
+        .filter_map(Result::ok)
         .collect()
 }
 
@@ -676,7 +676,7 @@ fn schema_signature(conn: &Connection) -> BTreeSet<(String, String)> {
     .unwrap()
     .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
     .unwrap()
-    .filter_map(|r| r.ok())
+    .filter_map(Result::ok)
     .collect()
 }
 
@@ -741,7 +741,7 @@ fn seen_dropdown_queries_use_covering_indexes() {
             .unwrap()
             .query_map([], |r| r.get::<_, String>(3))
             .unwrap()
-            .filter_map(|r| r.ok())
+            .filter_map(Result::ok)
             .collect();
         assert!(
             plan.iter()
