@@ -1,3 +1,4 @@
+#![allow(clippy::needless_pass_by_value)]
 use super::*;
 use crate::export;
 use crate::field_expr;

@@ -2383,6 +2383,7 @@ pub(crate) fn apply_field_defs(
 
 /// Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
 /// and clears the redo stack.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_add_locations(
@@ -2458,6 +2459,7 @@ pub async fn store_add_locations_uploaded(
 }
 
 /// Remove locations by ID. Snapshots the full location data for undo before deleting.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_remove_locations(
@@ -2977,6 +2979,7 @@ pub async fn store_delete_tags(
 
 /// Set (or clear) the active location. Fire-and-forget from JS; no re-render triggered.
 /// JS patches the cell buffer synchronously to hide/show the active marker.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_set_active(
@@ -2992,6 +2995,7 @@ pub fn store_set_active(
 
 /// Set the default marker color used by the render delta path. Fire-and-forget from JS;
 /// the JS side recolors its cell buffers in place (no full rebuild).
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_set_marker_color(
@@ -3183,6 +3187,7 @@ pub(crate) fn reconcile_tags_by_name(
 /// fields carry over.
 // If the target is open in any window its live store is mutated and `store-external-mutation`
 // tells its windows to resync; either way the result is persisted immediately.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_copy_locations_to_map(
@@ -3437,6 +3442,7 @@ pub async fn store_save_dirty(
 }
 
 /// Lightweight status query: location count, version, and dirty flag.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_get_summary(
@@ -3830,6 +3836,7 @@ pub async fn store_fill_render_file(
 
 /// Resolve a deck.gl pick result (cell key + index within cell) to a location ID.
 /// Called on marker click to map the GPU pick back to a logical location.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_resolve_pick(
@@ -3911,6 +3918,7 @@ pub async fn store_redo(
 /// The uncommitted changes since the last commit -- the same changeset `store_commit` will record.
 // Derived from the overlay, not the undo stack: the stack is capped, and non-undoable edits
 // (enrichment, field renames, plugin batches) bypass it while still being part of the commit.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_commit_diff(
@@ -3921,6 +3929,7 @@ pub fn store_commit_diff(
 }
 
 /// Clear both undo and redo stacks. Called after a commit to start fresh.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_reset_undo(label: WindowLabel, state: tauri::State<'_, StoreState>) -> AppResult<()> {
@@ -4062,6 +4071,7 @@ pub(crate) fn write_tags_json(
 /// Doing both here is not a convenience: creating and assigning as two commands leaves the
 /// tag visible at count 0 for the round trip in between, and makes the caller fetch every
 /// location into JS just to append an id Rust already has.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_create_tags(
@@ -4082,6 +4092,7 @@ pub fn store_create_tags(
 
 /// Persist tag ordering. `ordered_ids` specifies the desired order; each tag's
 /// `order` field is set to its index in the list.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_reorder_tags(
@@ -4252,6 +4263,7 @@ macro_rules! selector_read {
 }
 
 /// Ids of every location the selector resolves to, ascending.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_resolve(
@@ -4265,6 +4277,7 @@ pub fn store_resolve(
 }
 
 /// How many locations the selector resolves to. Counts rows, never materializes them.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_count(
@@ -4281,6 +4294,7 @@ pub fn store_count(
 }
 
 /// `n` ids drawn uniformly at random from the selected set, without replacement.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_sample(
@@ -4297,6 +4311,7 @@ pub fn store_sample(
 
 /// An evenly spaced subset: exactly one of `target_count` (thin to N, maximizing
 /// spacing) or `min_distance_m` (keep as many as fit at that spacing).
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_spaced(
@@ -4314,6 +4329,7 @@ pub fn store_spaced(
 }
 
 /// Group by a derived key, returning `{ key, ids, bin }` per group.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_group_by(
@@ -4329,6 +4345,7 @@ pub fn store_group_by(
 }
 
 /// Group by a derived key, returning counts only -- no member ids on the wire.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_count_by(
@@ -4344,6 +4361,7 @@ pub fn store_count_by(
 }
 
 /// Distinct values of `field` across the selected set, sorted.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_values(
@@ -4358,6 +4376,7 @@ pub fn store_values(
 }
 
 /// How many rows carry each top-level `extra` key, key-sorted.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_coverage(
@@ -4379,6 +4398,7 @@ pub struct Columns(
 );
 
 /// Values, never rows: the projection for a scan that reads fields across a set.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_columns(
@@ -4393,6 +4413,7 @@ pub fn store_columns(
 }
 
 /// Bounding box `[west, south, east, north]`, or `None` when the set is empty.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_bounds(
@@ -4410,6 +4431,7 @@ pub fn store_bounds(
 /// Full rows. The last resort -- prefer a projection. Every row is materialized in
 /// webview memory, so an `Everything` call costs O(map). Large answers are staged to a file
 /// rather than pushed through the IPC channel.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_collect(
@@ -4433,6 +4455,7 @@ pub fn store_collect(
 
 /// Transitive spatial duplicate groups (connected components, size >= 2) within `distance`
 /// metres. Read-only; used to preview a merge. Returns groups of location IDs.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_duplicate_groups(
@@ -4536,6 +4559,7 @@ pub async fn store_prune_duplicates(
 /// Find all locations within `radius_m` metres of (`lat`, `lng`).
 // Lazy spatial index: O(cells in radius) per query after a one-time O(N) build, maintained
 // incrementally. Called on every marker click (duplicate check), so it must not scan.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_find_nearby(
@@ -4566,6 +4590,7 @@ pub fn store_find_nearby(
 /// For each input point, whether any existing location lies within `radius_m` metres.
 /// Bulk form so callers probing many coordinates (e.g. the map generator skipping
 /// already-covered spots) pay one IPC round-trip, not one per point.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_near_any(

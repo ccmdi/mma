@@ -1,3 +1,4 @@
+#![allow(clippy::needless_pass_by_value)]
 use super::*;
 
 fn poll(json: serde_json::Value) -> Poll {

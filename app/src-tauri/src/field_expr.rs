@@ -277,6 +277,7 @@ fn eval_node(expr: &Expr, field: &dyn Fn(&str) -> Option<f64>) -> Option<f64> {
 }
 
 /// The parse error for `src`, or nothing when it parses. For the dialog's live check.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn field_expr_error(src: String) -> Option<String> {

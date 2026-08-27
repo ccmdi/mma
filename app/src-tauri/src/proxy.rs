@@ -284,7 +284,13 @@ pub(crate) fn register_schemes(builder: tauri::Builder<tauri::Wry>) -> tauri::Bu
             let content_type = header_str(&req, header::CONTENT_TYPE).map(str::to_string);
             let body = req.body().clone();
             respond_async(responder, move || {
-                geoguessr::proxy(method, &path, query.as_deref(), content_type, body)
+                geoguessr::proxy(
+                    method,
+                    &path,
+                    query.as_deref(),
+                    content_type.as_deref(),
+                    body,
+                )
             });
         })
         .register_asynchronous_uri_scheme_protocol("gdoc", |_ctx, req, responder| {

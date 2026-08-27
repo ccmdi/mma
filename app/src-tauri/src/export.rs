@@ -185,6 +185,7 @@ fn location_to_coord(
 
 /// Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs.
 // Heading of exactly 0 is written as 0.001 when `export_unpanned` is set ("no heading" convention).
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_export_json(
@@ -239,6 +240,7 @@ pub fn store_export_json(
 }
 
 /// Export locations as a minimal lat/lng CSV file.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_export_csv(
@@ -263,6 +265,7 @@ pub fn store_export_csv(
 
 /// Export locations as a GeoJSON FeatureCollection of Point features.
 /// Each feature carries its tag names in `properties.tags`.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_export_geojson(
@@ -307,6 +310,7 @@ pub fn store_export_geojson(
 
 /// Copy a temp export file to the destination chosen via the native save dialog,
 /// then remove the temp source. `dest_path` comes from the frontend save dialog.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_save_export_file(src_path: String, dest_path: String) -> AppResult<()> {
@@ -346,6 +350,7 @@ pub fn store_upload_begin() -> AppResult<String> {
 /// Package an upload session and remove its dir: a single file is moved out
 /// as-is, multiple are packed into a Stored ZIP (entries like JPEG/PNG are
 /// already compressed). Returns a temp path for [`store_save_export_file`].
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_upload_finish(session_dir: String) -> AppResult<String> {
@@ -423,6 +428,7 @@ fn collect_chunks<T: DeserializeOwned>(dir: &Path) -> AppResult<Vec<T>> {
 }
 
 /// Remove an abandoned upload session dir (e.g. cancelled operation).
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_upload_abort(session_dir: String) -> AppResult<()> {

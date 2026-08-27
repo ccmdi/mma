@@ -650,16 +650,16 @@ impl WorkBatch {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_all(
     state: &StoreState,
-    map_id: String,
-    providers: Vec<ProviderDecl>,
+    map_id: &str,
+    providers: &[ProviderDecl],
     force: bool,
     run_id: u32,
-    cancel: Arc<AtomicBool>,
+    cancel: &Arc<AtomicBool>,
     deps: &EngineDeps,
-    progress: Arc<ProgressSink>,
-    results: Arc<ResultSink>,
+    progress: &Arc<ProgressSink>,
+    results: &Arc<ResultSink>,
 ) {
-    for wave in provider_waves(&providers) {
+    for wave in provider_waves(providers) {
         if cancel.load(Ordering::Relaxed) {
             break;
         }
@@ -668,7 +668,7 @@ pub(crate) fn run_all(
                 let decl = &providers[idx];
                 let ctx = RunCtx {
                     state,
-                    map_id: map_id.clone(),
+                    map_id: map_id.to_owned(),
                     run_id,
                     force,
                     cancel: cancel.clone(),
@@ -884,6 +884,8 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
 /// Gathers batch products by page and delivers each page as it completes. Whatever has
 /// completed of a page when the queue closes (a cancel) is delivered too: an applied batch
 /// is never thrown away.
+// The receiver rides into the applier thread, so it is owned even though only `recv` is called.
+#[allow(clippy::needless_pass_by_value)]
 fn apply_pages(ctx: &RunCtx, decl: &ProviderDecl, rx: mpsc::Receiver<Produced>) -> AppResult<()> {
     #[derive(Default)]
     struct Pending {
@@ -1420,14 +1422,14 @@ pub async fn procedure_run(
         let results: Arc<ResultSink> = Arc::new(Box::new(crate::emit_event::<ProcedureResult>));
         run_all(
             state.inner(),
-            map_id,
-            providers,
+            &map_id,
+            &providers,
             force,
             run_id,
-            cancel,
+            &cancel,
             &deps,
-            progress,
-            results,
+            &progress,
+            &results,
         );
     });
     Ok(run_id)

@@ -891,6 +891,7 @@ pub(crate) fn read_arrow_ipc_mmap(
 
 /// Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
 /// large payloads over by file instead of IPC serialization.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn write_temp_file(name: String, content: String) -> AppResult<String> {
@@ -900,6 +901,7 @@ pub fn write_temp_file(name: String, content: String) -> AppResult<String> {
 }
 
 /// Read a file as UTF-8 text (temp files, plugin sources).
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn read_file(path: String) -> AppResult<String> {
@@ -935,6 +937,7 @@ pub fn get_data_location() -> AppResult<DataLocation> {
 
 /// Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
 /// and does not move existing data.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn set_data_location(path: Option<String>) -> AppResult<()> {
@@ -959,6 +962,7 @@ pub fn open_data_folder() -> AppResult<()> {
     os_open(&app_data_dir()?)
 }
 
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn open_log_file(app: tauri::AppHandle) -> AppResult<()> {

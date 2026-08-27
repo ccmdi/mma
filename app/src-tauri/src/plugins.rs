@@ -226,6 +226,7 @@ pub async fn vali_download_stale(state: tauri::State<'_, ValiState>) -> AppResul
 }
 
 /// Cancel an in-flight vali generate or download.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn vali_cancel(state: tauri::State<'_, ValiState>) {
@@ -235,6 +236,7 @@ pub fn vali_cancel(state: tauri::State<'_, ValiState>) {
 }
 
 /// Subdivision weights for a country (JSON text, same shape as `vali subdivisions`).
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn vali_subdivisions(country: String) -> AppResult<String> {

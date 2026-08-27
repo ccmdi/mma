@@ -603,6 +603,7 @@ fn delete_map_data(conn: &Connection, id: &str) -> AppResult<bool> {
 // Evicts live in-memory state so an open window or racing autosave can't flush the overlay
 // back after the files are gone. The manager lock is held across the whole delete so a
 // concurrent store_open_map can't reload the map mid-deletion and resurrect it.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppResult<()> {
@@ -627,7 +628,8 @@ pub async fn store_update_map_meta(
 ) -> AppResult<()> {
     let new_fields = patch.extra.as_ref().and_then(|e| e.fields.clone());
     let row_id = id.clone();
-    let old_extra = storage::with_db(move |conn| update_map_meta_row(conn, &row_id, patch)).await?;
+    let old_extra =
+        storage::with_db(move |conn| update_map_meta_row(conn, &row_id, &patch)).await?;
     let Some(new_fields) = new_fields else {
         return Ok(());
     };
@@ -651,7 +653,7 @@ pub async fn store_update_map_meta(
 fn update_map_meta_row(
     conn: &Connection,
     id: &str,
-    patch: MapMetaPatch,
+    patch: &MapMetaPatch,
 ) -> AppResult<Option<MapExtra>> {
     let mut sets: Vec<&str> = Vec::new();
     let mut values: Vec<Box<dyn ToSql>> = Vec::new();

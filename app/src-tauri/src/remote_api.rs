@@ -66,7 +66,7 @@ pub async fn remote_api_start(key: String) -> AppResult<String> {
                     .map_err(|e| format!("remote api bind {addr}: {e}"))?,
             );
             *server = Some(srv.clone());
-            thread::spawn(move || accept_loop(srv));
+            thread::spawn(move || accept_loop(&srv));
             log::info!("[remote-api] listening on http://{addr}");
         }
         Ok(format!("http://{}", addr()))
@@ -87,6 +87,7 @@ pub fn remote_api_stop() -> AppResult<()> {
 /// Webview -> HTTP reply path: resolves the parked request for `id`.
 /// `payload` is JSON text, not a typed value -- specta cannot export the
 /// recursive `serde_json::Value` type (stack overflow at bindings export).
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn remote_api_respond(id: u32, ok: bool, payload: String) {
@@ -96,7 +97,7 @@ pub fn remote_api_respond(id: u32, ok: bool, payload: String) {
     }
 }
 
-fn accept_loop(server: Arc<tiny_http::Server>) {
+fn accept_loop(server: &tiny_http::Server) {
     for req in server.incoming_requests() {
         // Per-request thread: a parked MMA call must not block other requests.
         thread::spawn(move || handle(req));
@@ -156,7 +157,7 @@ fn handle(mut req: tiny_http::Request) {
         .split('&')
         .find_map(|kv| kv.strip_prefix("mapId="))
         .map(str::to_string);
-    let (status, out) = dispatch(&mma_path, args, map_id.as_deref());
+    let (status, out) = dispatch(&mma_path, &args, map_id.as_deref());
     let _ = req.respond(json_response(status, out));
 }
 
@@ -174,7 +175,7 @@ fn authorized(req: &tiny_http::Request) -> bool {
 }
 
 /// Route a call into a webview and wait for its reply.
-fn dispatch(mma_path: &str, args: serde_json::Value, map_id: Option<&str>) -> (u16, String) {
+fn dispatch(mma_path: &str, args: &serde_json::Value, map_id: Option<&str>) -> (u16, String) {
     let Some(app) = crate::app_handle() else {
         return (500, r#"{"error":"app not ready"}"#.into());
     };

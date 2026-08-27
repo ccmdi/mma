@@ -98,7 +98,7 @@ pub(crate) fn proxy(
     method: reqwest::Method,
     path: &str,
     query: Option<&str>,
-    content_type: Option<String>,
+    content_type: Option<&str>,
     body: Vec<u8>,
 ) -> Response<Vec<u8>> {
     let ncfa = match session() {
@@ -109,7 +109,7 @@ pub(crate) fn proxy(
     let url = upstream_url(path, query);
     let has_body = !body.is_empty();
     let mut req = proxy::proxy_client().request(method, &url);
-    for (k, v) in proxy_headers(&ncfa, content_type.as_deref().filter(|_| has_body)) {
+    for (k, v) in proxy_headers(&ncfa, content_type.filter(|_| has_body)) {
         req = req.header(k, v);
     }
     if has_body {

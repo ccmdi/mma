@@ -110,7 +110,7 @@ fn classify_scan_names_points_in_order() {
         (5.0, 35.0),
     ];
     let names = classify_scan(
-        feats,
+        &feats,
         &coords,
         |lng, lat, f| selections::point_in_geometry(lng, lat, &f.1),
         |f| f.0,

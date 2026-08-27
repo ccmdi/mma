@@ -41,7 +41,7 @@ pub fn batch_version(metadata: &HashMap<String, String>) -> u32 {
         .unwrap_or(1)
 }
 
-type MigrationStep = fn(RecordBatch) -> AppResult<RecordBatch>;
+type MigrationStep = fn(&RecordBatch) -> AppResult<RecordBatch>;
 
 /// Ordered `(from_version, step)` registry. Each step migrates `from_version` ->
 /// `from_version + 1`. Steps must be contiguous and end at `CURRENT_VERSION - 1`.
@@ -62,7 +62,7 @@ pub fn migrate(batch: RecordBatch) -> AppResult<RecordBatch> {
             .map(|(_, step)| step)
             .ok_or_else(|| format!("no migration registered from v{version}"))?;
         log::info!("[arrow_migrate] v{version} -> v{}", version + 1);
-        batch = step(batch)?;
+        batch = step(&batch)?;
         version += 1;
     }
     Ok(batch)
@@ -71,7 +71,7 @@ pub fn migrate(batch: RecordBatch) -> AppResult<RecordBatch> {
 /// v1 -> v2: `created_at`/`modified_at` columns change from ISO-string `Utf8`
 /// to `UInt32` epoch seconds. Non-nullable columns fall back to 0 on parse
 /// failure (the schema forbids nulls there).
-fn v1_to_v2_timestamps(batch: RecordBatch) -> AppResult<RecordBatch> {
+fn v1_to_v2_timestamps(batch: &RecordBatch) -> AppResult<RecordBatch> {
     let schema = batch.schema();
     let mut fields: Vec<Arc<Field>> = Vec::with_capacity(schema.fields().len());
     let mut columns: Vec<ArrayRef> = Vec::with_capacity(batch.num_columns());

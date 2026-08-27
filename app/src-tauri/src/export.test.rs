@@ -1,3 +1,4 @@
+#![allow(clippy::needless_pass_by_value)]
 use super::*;
 use crate::types::Location;
 use crate::types::RawExtra;

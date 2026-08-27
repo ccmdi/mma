@@ -542,6 +542,7 @@ fn validate_border_level(level: &str) -> AppResult<()> {
     Ok(())
 }
 
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn check_border_file(level: String) -> AppResult<bool> {
@@ -690,6 +691,7 @@ pub fn update_border_files() {
     }
 }
 
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn border_lookup(lat: f64, lng: f64, level: String) -> AppResult<Option<PolygonGeometry>> {
@@ -735,6 +737,7 @@ pub fn border_lookup(lat: f64, lng: f64, level: String) -> AppResult<Option<Poly
 /// Classify each `(lat, lng)` to the name of its containing feature at `level`
 /// (subdivision names for "adm1"). `None` for points outside every feature.
 /// Same bbox-prefiltered parallel scan as `tally_countries`, but per-point names.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn border_classify(level: String, points: Vec<(f64, f64)>) -> AppResult<Vec<Option<String>>> {
@@ -755,13 +758,13 @@ pub(crate) fn classify_points(
 
     Ok(match ds {
         Dataset::Owned { features, bboxes } => classify_scan(
-            zip_bboxes(features.iter(), bboxes),
+            &zip_bboxes(features.iter(), bboxes),
             points,
             |lng, lat, f| selections::point_in_geometry(lng, lat, &f.geometry),
             |f| f.name.as_str(),
         ),
         Dataset::Mapped { mmap, bboxes } => classify_scan(
-            zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
+            &zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
             points,
             arch_point_in_feature,
             |f| f.name.as_str(),
@@ -782,7 +785,7 @@ fn zip_bboxes<'a, T>(
 
 /// Bbox-prefiltered parallel point classification, generic over the feature backend.
 fn classify_scan<T: Sync>(
-    feats: Vec<([f64; 4], &T)>,
+    feats: &[([f64; 4], &T)],
     coords: &[(f64, f64)],
     contains: impl Fn(f64, f64, &T) -> bool + Sync,
     name: impl Fn(&T) -> &str + Sync,
@@ -826,13 +829,13 @@ pub fn tally_countries(level: &str, coords: &[(f64, f64)]) -> AppResult<Vec<(Str
 
     Ok(match ds {
         Dataset::Owned { features, bboxes } => tally_scan(
-            zip_bboxes(features.iter(), bboxes),
+            &zip_bboxes(features.iter(), bboxes),
             coords,
             |lng, lat, f| selections::point_in_geometry(lng, lat, &f.geometry),
             |f| f.code.as_str(),
         ),
         Dataset::Mapped { mmap, bboxes } => tally_scan(
-            zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
+            &zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
             coords,
             arch_point_in_feature,
             |f| f.code.as_str(),
@@ -843,7 +846,7 @@ pub fn tally_countries(level: &str, coords: &[(f64, f64)]) -> AppResult<Vec<(Str
 /// Bbox-prefiltered parallel point-in-polygon tally, generic over the feature backend
 /// (owned `BorderFeature` or archived `ArchivedArchFeature`).
 fn tally_scan<T: Sync>(
-    feats: Vec<([f64; 4], &T)>,
+    feats: &[([f64; 4], &T)],
     coords: &[(f64, f64)],
     contains: impl Fn(f64, f64, &T) -> bool + Sync,
     code: impl Fn(&T) -> &str + Sync,
@@ -852,7 +855,7 @@ fn tally_scan<T: Sync>(
     coords
         .par_iter()
         .filter_map(|&(lat, lng)| {
-            for (bb, f) in &feats {
+            for (bb, f) in feats {
                 if !selections::in_bbox(lng, lat, bb) {
                     continue;
                 }

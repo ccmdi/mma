@@ -222,6 +222,7 @@ pub async fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
 /// the map afterwards (undo/redo is cleared).
 // Materializes the commit by replaying ancestor deltas, rewrites the base Arrow file,
 // and clears the uncommitted delta.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_checkout_commit(map_id: String, commit_id: String) -> AppResult<()> {
@@ -256,6 +257,7 @@ pub(crate) fn read_commit_delta(
 }
 
 /// Read a single commit's delta (created/removed locations) for the diff viewer.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_get_commit_delta(map_id: String, commit_id: String) -> AppResult<CommitDelta> {

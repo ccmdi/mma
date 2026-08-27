@@ -145,14 +145,14 @@ fn fetch_expected_sha(
     None
 }
 
-fn install_blocking(plugin_id: String, name: String, version: String) -> AppResult<()> {
+fn install_blocking(plugin_id: &str, name: &str, version: &str) -> AppResult<()> {
     let platform = platform_tag()?;
     let asset = format!("{name}-{platform}.zip");
     let url =
         format!("https://github.com/ccmdi/mma/releases/download/{plugin_id}-v{version}/{asset}");
     log::info!("[sidecar] downloading {url}");
 
-    let final_dir = sidecar_dir(&plugin_id)?;
+    let final_dir = sidecar_dir(plugin_id)?;
     let plugin_root = final_dir.parent().unwrap().to_path_buf();
     fs::create_dir_all(&plugin_root)?;
 
@@ -163,7 +163,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
 
     // checksums.txt (per-release, computed from the shipped zips) is the sole source
     // of truth for integrity. Absent (older releases) -> no verification.
-    let expected_sha256 = fetch_expected_sha(&client, &plugin_id, &version, &asset);
+    let expected_sha256 = fetch_expected_sha(&client, plugin_id, version, &asset);
     let mut resp = client.get(&url).send()?.error_for_status()?;
     let total = resp.content_length().unwrap_or(0);
 
@@ -184,7 +184,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
         downloaded += n as u64;
         if downloaded - last_emit >= 262_144 {
             emit_event(SidecarProgress {
-                plugin_id: plugin_id.clone(),
+                plugin_id: plugin_id.to_owned(),
                 downloaded,
                 total,
             });
@@ -195,7 +195,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
     drop(zip_file);
 
     emit_event(SidecarProgress {
-        plugin_id: plugin_id.clone(),
+        plugin_id: plugin_id.to_owned(),
         downloaded,
         total: total.max(downloaded),
     });
@@ -241,7 +241,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
     drop(archive);
     let _ = fs::remove_file(&zip_path);
 
-    fs::write(tmp_dir.join("version.txt"), &version)?;
+    fs::write(tmp_dir.join("version.txt"), version)?;
 
     #[cfg(unix)]
     {
@@ -255,7 +255,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
     // Swap under the plugin's process lock: a live process holds its cwd and dlls
     // open (fatal to the delete on Windows), and the lock keeps a concurrent request
     // from starting one mid-replace.
-    with_plugin_stopped(&plugin_id, || {
+    with_plugin_stopped(plugin_id, || {
         if final_dir.exists() {
             fs::remove_dir_all(&final_dir)?;
         }
@@ -273,12 +273,13 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
 pub async fn sidecar_install(plugin_id: String, name: String, version: String) -> AppResult<()> {
     validate_plugin_id(&plugin_id)?;
     validate_sidecar_name(&name)?;
-    task::spawn_blocking(move || install_blocking(plugin_id, name, version))
+    task::spawn_blocking(move || install_blocking(&plugin_id, &name, &version))
         .await
         .map_err(|e| AppError(format!("sidecar install task failed: {e}")))?
 }
 
 /// Installed sidecar version for a plugin (from `sidecar/version.txt`), or `None`.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn sidecar_installed_version(plugin_id: String) -> AppResult<Option<String>> {
