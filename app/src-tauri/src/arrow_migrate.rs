@@ -16,6 +16,7 @@ use crate::types::{AppError, AppResult};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::util;
 use arrow_array::{Array, ArrayRef, RecordBatch, StringArray, UInt32Array};
 use arrow_schema::{DataType, Field, Schema};
 
@@ -86,7 +87,7 @@ fn v1_to_v2_timestamps(batch: RecordBatch) -> AppResult<RecordBatch> {
             let converted: UInt32Array = strs
                 .iter()
                 .map(|opt| {
-                    let secs = opt.and_then(crate::util::iso_to_unix).map(|s| s as u32);
+                    let secs = opt.and_then(util::iso_to_unix).map(|s| s as u32);
                     if nullable {
                         secs
                     } else {

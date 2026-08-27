@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, HashSet};
 use rusqlite::{params, Connection};
 
 use crate::types::Location;
+use crate::vcs;
 
 /// Ordered chain of commit ids from genesis (first) to `commit_id` (last),
 /// walked via `parent_id` links.
@@ -57,7 +58,7 @@ pub(crate) fn materialize_commit(
     let chain = commit_chain(conn, commit_id)?;
     let mut deltas = Vec::with_capacity(chain.len());
     for id in &chain {
-        deltas.push(crate::vcs::read_commit_delta(map_id, id)?);
+        deltas.push(vcs::read_commit_delta(map_id, id)?);
     }
     Ok(replay_deltas(&deltas))
 }

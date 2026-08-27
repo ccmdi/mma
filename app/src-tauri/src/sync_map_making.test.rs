@@ -1,9 +1,11 @@
 use super::*;
+use crate::sync;
 use crate::sync::{
     IdentityModel, NormalizedSyncLocation, PushBatch, PushedId, SyncProvider, AUTH_PREFIX,
 };
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::env;
 
 // --- builders ---------------------------------------------------------------
 
@@ -584,9 +586,9 @@ fn auth_error_detected_only_for_401() {
 // --- live wire (ignored; needs credentials + network) -----------------------
 
 fn live_creds() -> (String, String) {
-    let key = std::env::var("MMA_API_KEY")
+    let key = env::var("MMA_API_KEY")
         .expect("set MMA_API_KEY / MMA_SYNC_TEST_MAP to run the ignored live tests");
-    let map = std::env::var("MMA_SYNC_TEST_MAP")
+    let map = env::var("MMA_SYNC_TEST_MAP")
         .expect("set MMA_API_KEY / MMA_SYNC_TEST_MAP to run the ignored live tests");
     (key, map)
 }
@@ -675,12 +677,12 @@ fn live_push_remaps_and_round_trips() {
     assert_eq!(pulled.len(), 2);
     let mut got: Vec<_> = pulled
         .iter()
-        .map(|r| crate::sync::sync_key(&p.normalize(r)))
+        .map(|r| sync::sync_key(&p.normalize(r)))
         .collect();
     let mut want: Vec<_> = batch
         .create
         .iter()
-        .map(|(_, item)| crate::sync::sync_key(&p.normalize(item)))
+        .map(|(_, item)| sync::sync_key(&p.normalize(item)))
         .collect();
     got.sort();
     want.sort();

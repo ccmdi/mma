@@ -15,6 +15,14 @@ use std::sync::{Mutex, OnceLock};
 use serde::Deserialize;
 
 use crate::selections::{self, PolygonGeometry};
+use crate::storage;
+use reqwest::blocking::Client;
+use rkyv::vec::ArchivedVec;
+use std::fs;
+use std::fs::File;
+use std::path::PathBuf;
+use std::time::Duration;
+use tokio::task;
 
 struct BorderFeature {
     name: String,
@@ -459,8 +467,8 @@ fn load_dataset(level: &str) -> AppResult<()> {
         Dataset::Owned { features, bboxes }
     } else {
         let path = border_path(level)?;
-        let file = std::fs::File::open(&path)
-            .map_err(|e| format!("Failed to open borders-{level}.rkyv: {e}"))?;
+        let file =
+            File::open(&path).map_err(|e| format!("Failed to open borders-{level}.rkyv: {e}"))?;
         // SAFETY: we own the file; it is not modified while mapped.
         let mmap = unsafe { memmap2::Mmap::map(&file) }
             .map_err(|e| format!("Failed to mmap borders-{level}.rkyv: {e}"))?;
@@ -481,7 +489,7 @@ fn load_dataset(level: &str) -> AppResult<()> {
 
 // --- Archived geometry access (zero-copy over the mmap) ---
 
-type ArchPoly = rkyv::vec::ArchivedVec<rkyv::vec::ArchivedVec<[f64; 2]>>;
+type ArchPoly = ArchivedVec<ArchivedVec<[f64; 2]>>;
 
 /// Rings of an archived polygon as `&[[f64; 2]]` slices.
 fn arch_rings(poly: &ArchPoly) -> impl Iterator<Item = &[[f64; 2]]> {
@@ -516,7 +524,7 @@ fn arch_feature_bbox(f: &ArchivedArchFeature) -> Option<[f64; 4]> {
 /// Only the single matched feature is cloned, so the per-coordinate copy is off the hot path.
 fn arch_to_geometry(f: &ArchivedArchFeature) -> PolygonGeometry {
     let copy_poly = |p: &ArchPoly| p.iter().map(|r| r.as_slice().to_vec()).collect::<Vec<_>>();
-    let extra: Vec<_> = f.extra.iter().map(|p| copy_poly(p)).collect();
+    let extra: Vec<_> = f.extra.iter().map(&copy_poly).collect();
     PolygonGeometry {
         coordinates: copy_poly(&f.rings),
         extra_polygons: if extra.is_empty() { None } else { Some(extra) },
@@ -543,8 +551,8 @@ pub fn check_border_file(level: String) -> AppResult<bool> {
     Ok(border_path(&level)?.exists())
 }
 
-fn border_path(level: &str) -> AppResult<std::path::PathBuf> {
-    Ok(crate::storage::app_data_dir()?
+fn border_path(level: &str) -> AppResult<PathBuf> {
+    Ok(storage::app_data_dir()?
         .join("borders")
         .join(format!("borders-{level}.rkyv")))
 }
@@ -553,12 +561,12 @@ fn border_url(level: &str) -> String {
     format!("https://raw.githubusercontent.com/ccmdi/mma/master/data/borders/borders-{level}.rkyv")
 }
 
-fn border_client() -> reqwest::Result<reqwest::blocking::Client> {
-    reqwest::blocking::Client::builder()
+fn border_client() -> reqwest::Result<Client> {
+    Client::builder()
         .use_rustls_tls()
         // The GitHub API 403s requests without a User-Agent.
         .user_agent("mma")
-        .timeout(std::time::Duration::from_secs(120))
+        .timeout(Duration::from_secs(120))
         .build()
 }
 
@@ -566,9 +574,9 @@ fn border_client() -> reqwest::Result<reqwest::blocking::Client> {
 /// released before the write -- Windows can't overwrite a mapped file.
 fn write_border_file(level: &str, bytes: &[u8]) -> AppResult<()> {
     let path = border_path(level)?;
-    std::fs::create_dir_all(path.parent().unwrap())?;
+    fs::create_dir_all(path.parent().unwrap())?;
     cache().lock().unwrap().remove(level);
-    std::fs::write(&path, bytes)?;
+    fs::write(&path, bytes)?;
     Ok(())
 }
 
@@ -579,7 +587,7 @@ pub async fn download_border_file(level: String) -> AppResult<()> {
     if level == "light" {
         return Ok(());
     }
-    tokio::task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         let bytes = border_client()?
             .get(border_url(&level))
             .send()
@@ -639,7 +647,7 @@ fn fetch_border_shas() -> AppResult<HashMap<String, String>> {
 }
 
 fn update_border_file(level: &str, shas: &HashMap<String, String>) -> AppResult<bool> {
-    let Ok(bytes) = std::fs::read(border_path(level)?) else {
+    let Ok(bytes) = fs::read(border_path(level)?) else {
         return Ok(false); // not installed; the settings download flow owns first install
     };
     match shas.get(&format!("borders-{level}.rkyv")) {
@@ -754,7 +762,7 @@ pub(crate) fn classify_points(
         Dataset::Mapped { mmap, bboxes } => classify_scan(
             zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
             points,
-            |lng, lat, f| arch_point_in_feature(lng, lat, f),
+            arch_point_in_feature,
             |f| f.name.as_str(),
         ),
     })
@@ -825,7 +833,7 @@ pub fn tally_countries(level: &str, coords: &[(f64, f64)]) -> AppResult<Vec<(Str
         Dataset::Mapped { mmap, bboxes } => tally_scan(
             zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
             coords,
-            |lng, lat, f| arch_point_in_feature(lng, lat, f),
+            arch_point_in_feature,
             |f| f.code.as_str(),
         ),
     })

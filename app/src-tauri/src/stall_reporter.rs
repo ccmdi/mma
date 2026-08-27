@@ -9,6 +9,10 @@ use std::sync::{Once, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use std::env;
+use std::mem;
+use std::ptr;
+use std::slice;
 use windows_sys::Win32::Foundation::HANDLE;
 use windows_sys::Win32::System::Diagnostics::Debug::{
     GetThreadContext, RtlLookupFunctionEntry, RtlVirtualUnwind, SymFromAddrW,
@@ -100,7 +104,7 @@ fn open_thread(tid: u32) -> Option<HANDLE> {
 fn init_symbols() {
     static ONCE: Once = Once::new();
     ONCE.call_once(|| unsafe {
-        let exe_dir = std::env::current_exe()
+        let exe_dir = env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
             .unwrap_or_default();
@@ -118,19 +122,19 @@ fn capture(thread: HANDLE) -> Vec<String> {
         if SuspendThread(thread) == u32::MAX {
             return pcs.into_iter().map(symbolize).collect();
         }
-        let mut aligned: AlignedContext = std::mem::zeroed();
+        let mut aligned: AlignedContext = mem::zeroed();
         let ctx = &mut aligned.0;
         ctx.ContextFlags = CONTEXT_FULL_AMD64;
         if GetThreadContext(thread, ctx) != 0 {
             while pcs.len() < MAX_FRAMES && ctx.Rip != 0 && ctx.Rsp != 0 {
                 pcs.push(ctx.Rip);
                 let mut base = 0u64;
-                let entry = RtlLookupFunctionEntry(ctx.Rip, &mut base, std::ptr::null_mut());
+                let entry = RtlLookupFunctionEntry(ctx.Rip, &mut base, ptr::null_mut());
                 if entry.is_null() {
                     ctx.Rip = *(ctx.Rsp as *const u64);
                     ctx.Rsp += 8;
                 } else {
-                    let mut handler_data: *mut c_void = std::ptr::null_mut();
+                    let mut handler_data: *mut c_void = ptr::null_mut();
                     let mut establisher = 0u64;
                     RtlVirtualUnwind(
                         UNW_FLAG_NHANDLER,
@@ -140,7 +144,7 @@ fn capture(thread: HANDLE) -> Vec<String> {
                         ctx,
                         &mut handler_data,
                         &mut establisher,
-                        std::ptr::null_mut(),
+                        ptr::null_mut(),
                     );
                 }
             }
@@ -153,19 +157,19 @@ fn capture(thread: HANDLE) -> Vec<String> {
 fn symbolize(pc: u64) -> String {
     unsafe {
         let process = GetCurrentProcess();
-        let mut buf = [0u64; (std::mem::size_of::<SYMBOL_INFOW>() + MAX_NAME * 2) / 8 + 1];
+        let mut buf = [0u64; (size_of::<SYMBOL_INFOW>() + MAX_NAME * 2) / 8 + 1];
         let sym = buf.as_mut_ptr() as *mut SYMBOL_INFOW;
-        (*sym).SizeOfStruct = std::mem::size_of::<SYMBOL_INFOW>() as u32;
+        (*sym).SizeOfStruct = size_of::<SYMBOL_INFOW>() as u32;
         (*sym).MaxNameLen = MAX_NAME as u32;
         let mut displacement = 0u64;
         let name = if SymFromAddrW(process, pc, &mut displacement, sym) != 0 {
             let len = ((*sym).NameLen as usize).min(MAX_NAME);
-            String::from_utf16_lossy(std::slice::from_raw_parts((*sym).Name.as_ptr(), len))
+            String::from_utf16_lossy(slice::from_raw_parts((*sym).Name.as_ptr(), len))
         } else {
             return format!("{pc:#x}");
         };
-        let mut line: IMAGEHLP_LINEW64 = std::mem::zeroed();
-        line.SizeOfStruct = std::mem::size_of::<IMAGEHLP_LINEW64>() as u32;
+        let mut line: IMAGEHLP_LINEW64 = mem::zeroed();
+        line.SizeOfStruct = size_of::<IMAGEHLP_LINEW64>() as u32;
         let mut line_displacement = 0u32;
         if SymGetLineFromAddrW64(process, pc, &mut line_displacement, &mut line) != 0
             && !line.FileName.is_null()
@@ -174,7 +178,7 @@ fn symbolize(pc: u64) -> String {
             while *line.FileName.add(len) != 0 {
                 len += 1;
             }
-            let file = String::from_utf16_lossy(std::slice::from_raw_parts(line.FileName, len));
+            let file = String::from_utf16_lossy(slice::from_raw_parts(line.FileName, len));
             return format!("{name} ({file}:{})", line.LineNumber);
         }
         name

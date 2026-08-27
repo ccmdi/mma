@@ -1,5 +1,23 @@
 use super::*;
+use crate::export;
+use crate::field_expr;
+use crate::field_expr::Expr;
+use crate::test_util::Fx;
+use crate::test_util::TempDir;
 use crate::test_util::{loc, patch};
+use crate::types::RawExtra;
+use proptest::collection;
+use proptest::prelude::ProptestConfig;
+use proptest::strategy::Strategy;
+use std::array;
+use std::collections::BTreeMap;
+use std::env;
+use std::fs;
+use std::panic;
+use std::path::Path;
+use std::slice;
+use std::sync::atomic::AtomicU64;
+use std::sync::atomic::Ordering;
 
 fn loc_with_tags(id: u32, lat: f64, lng: f64, tags: Vec<u32>) -> Location {
     Location {
@@ -10,7 +28,11 @@ fn loc_with_tags(id: u32, lat: f64, lng: f64, tags: Vec<u32>) -> Location {
 
 /// Member count for a registered tag, `None` when the tag isn't in the registry.
 fn tag_count(store: &Store, id: u32) -> Option<usize> {
-    store.tags.all.contains_key(&id).then(|| store.tag_count(id))
+    store
+        .tags
+        .all
+        .contains_key(&id)
+        .then(|| store.tag_count(id))
 }
 
 fn loc_with_heading(id: u32, lat: f64, lng: f64, heading: f64) -> Location {
@@ -21,15 +43,12 @@ fn loc_with_heading(id: u32, lat: f64, lng: f64, heading: f64) -> Location {
 }
 
 fn setup_store_with(locs: &[Location]) -> Store {
-    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    static SEQ: AtomicU64 = AtomicU64::new(0);
     let mut store = Store::new();
-    store.map_id = Some(format!(
-        "test-{}",
-        SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    ));
+    store.map_id = Some(format!("test-{}", SEQ.fetch_add(1, Ordering::Relaxed)));
     store.batch = Some(empty_batch());
     for l in locs {
-        store.add_tag_counts(std::slice::from_ref(l));
+        store.add_tag_counts(slice::from_ref(l));
         store.overlay_add(vec![l.clone()]);
         let ci = render_cell_idx(l.lat, l.lng);
         store.cell_add_render(ci, l.id);
@@ -122,8 +141,8 @@ fn overlay_update_changes_fields() {
     assert_eq!(got.lng, 20.0); // unchanged
 }
 
-fn raw_extra(s: &str) -> Option<crate::types::RawExtra> {
-    crate::types::RawExtra::from_string(s.to_string())
+fn raw_extra(s: &str) -> Option<RawExtra> {
+    RawExtra::from_string(s.to_string())
 }
 
 #[test]
@@ -765,7 +784,7 @@ fn tag_counts_shipped_only_when_changed() {
     assert!(result.status.tag_counts.is_none());
 
     // A tag-touching edit ships fresh counts again.
-    let changes = store.apply_edit(std::slice::from_ref(&l), &[]);
+    let changes = store.apply_edit(slice::from_ref(&l), &[]);
     let result = store.finish_mutation(&changes);
     assert_eq!(
         result.status.tag_counts.as_ref().unwrap().get(&10),
@@ -1443,7 +1462,7 @@ fn alive_count_stays_correct_through_all_mutations() {
 #[test]
 fn ids_are_never_reused() {
     let mut store = Store::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     for _ in 0..1000 {
         let id = store.alloc_id();
         assert!(!seen.contains(&id), "ID {} was reused", id);
@@ -1454,7 +1473,7 @@ fn ids_are_never_reused() {
 #[test]
 fn tag_ids_are_never_reused() {
     let mut store = Store::new();
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     for _ in 0..1000 {
         let id = store.alloc_tag_id();
         assert!(!seen.contains(&id), "Tag ID {} was reused", id);
@@ -1761,11 +1780,7 @@ fn tag_counts_correct_after_tag_reassignment_undo() {
         removed: vec![old],
     };
     store.apply_edit_reverse(&entry);
-    assert_eq!(
-        tag_count(&store, 5),
-        Some(1),
-        "tag 5 should still be 1"
-    );
+    assert_eq!(tag_count(&store, 5), Some(1), "tag 5 should still be 1");
     assert_eq!(
         tag_count(&store, 10),
         Some(0),
@@ -1868,10 +1883,10 @@ fn push_resolved(store: &mut Store, key: &str, color: [u8; 3], members: &[u32]) 
         set.insert(id);
     }
     store.selections.resolved.push(ResolvedSelection {
-        sel: selections::Selection {
+        sel: Selection {
             key: key.into(),
             color,
-            selector: selections::Selector::Manual {
+            selector: Selector::Manual {
                 locations: members.to_vec(),
             },
         },
@@ -1912,9 +1927,9 @@ fn emit_render_fixture() {
     };
     let buf = build_cell_render_buffers(&mut store, &req);
 
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../test/unit/fixtures");
-    std::fs::create_dir_all(&dir).unwrap();
-    std::fs::write(dir.join("render-buffer.bin"), &buf).unwrap();
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../test/unit/fixtures");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("render-buffer.bin"), &buf).unwrap();
 }
 
 #[test]
@@ -2436,10 +2451,10 @@ fn create_tags_is_idempotent_against_locations_that_already_have_the_tag() {
 
 fn add_tag_selection(store: &mut Store, tag_id: u32, color: [u8; 3]) {
     store.selections.resolved.push(ResolvedSelection {
-        sel: selections::Selection {
+        sel: Selection {
             key: format!("tag:{}", tag_id),
             color,
-            selector: selections::Selector::Tag { tag_id },
+            selector: Selector::Tag { tag_id },
         },
         set: RoaringBitmap::new(),
     });
@@ -2965,8 +2980,8 @@ fn merge_group_extra_survivor_wins_and_unions_keys() {
     assert_eq!(extra.get("x").unwrap(), "y"); // non-conflicting key from other is kept
 }
 
-fn score_expr(src: &str) -> crate::field_expr::Expr {
-    crate::field_expr::parse(src).expect("test expression parses")
+fn score_expr(src: &str) -> Expr {
+    field_expr::parse(src).expect("test expression parses")
 }
 
 #[test]
@@ -3036,7 +3051,7 @@ fn selection_cell_segment_adapts_format() {
 
     // N large enough that a one-element index-list (8 bytes) beats the dense mask.
     let n = 800usize;
-    let mut cells: [Option<CellRender>; 32] = std::array::from_fn(|_| None);
+    let mut cells: [Option<CellRender>; 32] = array::from_fn(|_| None);
     cells[0] = Some(CellRender {
         id_order: (0..n as u32).collect(),
         id_to_index: (0..n as u32)
@@ -3159,7 +3174,7 @@ fn delete_loc(store: &mut Store, id: u32) {
         removed: vec![l.clone()],
     });
     store.edits.redo.clear();
-    store.overlay_remove(std::slice::from_ref(&l));
+    store.overlay_remove(slice::from_ref(&l));
 }
 
 // store_undo / store_redo replay.
@@ -3321,11 +3336,8 @@ fn reconcile_tags_match_by_name_case_insensitive() {
 fn reconcile_tags_create_missing_with_source_color() {
     let mut target_tags: HashMap<u32, Tag> = Default::default();
     let mut next = 10;
-    let (remap, changed) = reconcile_tags_by_name(
-        &[tag(7, "Trekker", "#abcdef")],
-        &mut target_tags,
-        &mut next,
-    );
+    let (remap, changed) =
+        reconcile_tags_by_name(&[tag(7, "Trekker", "#abcdef")], &mut target_tags, &mut next);
     assert!(changed);
     assert_eq!(remap.get(&7), Some(&10));
     assert_eq!(next, 11);
@@ -3554,7 +3566,7 @@ fn spaced_grid_store() -> Store {
     store
 }
 
-fn coord_lookup(store: &Store) -> std::collections::HashMap<u32, (f64, f64)> {
+fn coord_lookup(store: &Store) -> HashMap<u32, (f64, f64)> {
     store
         .selections
         .ids
@@ -3563,7 +3575,7 @@ fn coord_lookup(store: &Store) -> std::collections::HashMap<u32, (f64, f64)> {
         .collect()
 }
 
-fn min_pairwise(ids: &[u32], coords: &std::collections::HashMap<u32, (f64, f64)>) -> f64 {
+fn min_pairwise(ids: &[u32], coords: &HashMap<u32, (f64, f64)>) -> f64 {
     let mut min = f64::MAX;
     for i in 0..ids.len() {
         for j in i + 1..ids.len() {
@@ -3581,7 +3593,7 @@ fn pick_spaced_count_returns_exactly_n_subset() {
         .pick_spaced(Some(&store.selections.ids), Some(8), None)
         .unwrap();
     assert_eq!(res.ids.len(), 8);
-    let uniq: std::collections::HashSet<u32> = res.ids.iter().copied().collect();
+    let uniq: HashSet<u32> = res.ids.iter().copied().collect();
     assert_eq!(uniq.len(), 8, "no duplicates");
     for id in &res.ids {
         assert!(
@@ -3600,7 +3612,7 @@ fn pick_spaced_count_ge_size_returns_all() {
         .unwrap();
     assert_eq!(res.ids.len(), 20);
     assert_eq!(res.distance_m, 0);
-    let uniq: std::collections::HashSet<u32> = res.ids.iter().copied().collect();
+    let uniq: HashSet<u32> = res.ids.iter().copied().collect();
     assert_eq!(uniq.len(), 20);
 }
 
@@ -3706,7 +3718,7 @@ fn store_with_full_overlay() -> Store {
     store.overlay_update(1, &patch!(heading: 99.0));
 
     let l2 = store.get_loc_by_id(2).unwrap();
-    store.overlay_remove(std::slice::from_ref(&l2));
+    store.overlay_remove(slice::from_ref(&l2));
 
     let new_id = store.alloc_id();
     store.overlay_add(vec![loc(new_id, 9.0, 9.0)]);
@@ -3721,7 +3733,7 @@ fn delta_parse_never_panics_on_corrupt_bytes() {
         vec![0xff, 0x00, 0x13, 0x37, 0xde, 0xad, 0xbe, 0xef],
     ];
     for bytes in &cases {
-        let result = std::panic::catch_unwind(|| rmp_serde::from_slice::<Overlay>(bytes));
+        let result = panic::catch_unwind(|| rmp_serde::from_slice::<Overlay>(bytes));
         assert!(result.is_ok(), "parsing must not panic: {:?}", bytes);
         assert!(result.unwrap().is_err(), "must fail to parse: {:?}", bytes);
     }
@@ -3734,7 +3746,7 @@ fn delta_parse_never_panics_on_truncated_bytes() {
     assert!(full_bytes.len() > 1, "sanity: overlay has real content");
     let truncated = &full_bytes[..full_bytes.len() / 2];
 
-    let result = std::panic::catch_unwind(|| rmp_serde::from_slice::<Overlay>(truncated));
+    let result = panic::catch_unwind(|| rmp_serde::from_slice::<Overlay>(truncated));
     assert!(result.is_ok(), "parsing must not panic on truncated bytes");
     assert!(
         result.unwrap().is_err(),
@@ -3770,9 +3782,9 @@ fn delta_bytes_roundtrip_exact() {
 
 #[test]
 fn load_delta_sets_aside_unreadable_file_as_corrupt() {
-    let dir = crate::test_util::TempDir::new("mma_test_load_delta_corrupt");
+    let dir = TempDir::new("mma_test_load_delta_corrupt");
     let path = dir.join("m1_delta.arrow");
-    std::fs::write(&path, b"definitely not msgpack").unwrap();
+    fs::write(&path, b"definitely not msgpack").unwrap();
 
     assert!(load_delta(&path).is_none());
     assert!(!path.exists(), "unreadable delta must not stay in place");
@@ -3784,12 +3796,12 @@ fn load_delta_sets_aside_unreadable_file_as_corrupt() {
 
 #[test]
 fn load_delta_reads_valid_and_missing_files() {
-    let dir = crate::test_util::TempDir::new("mma_test_load_delta_ok");
+    let dir = TempDir::new("mma_test_load_delta_ok");
     let path = dir.join("m1_delta.arrow");
     assert!(load_delta(&path).is_none(), "missing file is no delta");
 
     let bytes = rmp_serde::to_vec(&Overlay::default()).unwrap();
-    std::fs::write(&path, bytes).unwrap();
+    fs::write(&path, bytes).unwrap();
     assert!(load_delta(&path).is_some());
     assert!(path.exists(), "valid delta stays in place");
 }
@@ -3861,36 +3873,33 @@ enum ModelOp {
     },
 }
 
-fn arb_initial() -> impl proptest::strategy::Strategy<Value = Vec<Location>> {
+fn arb_initial() -> impl Strategy<Value = Vec<Location>> {
     use proptest::strategy::Strategy;
-    proptest::collection::btree_set(1u32..40, 0..10)
+    collection::btree_set(1u32..40, 0..10)
         .prop_map(|ids| ids.into_iter().map(|id| loc(id, 0.0, 0.0)).collect())
 }
 
-fn arb_ops() -> impl proptest::strategy::Strategy<Value = Vec<ModelOp>> {
+fn arb_ops() -> impl Strategy<Value = Vec<ModelOp>> {
     use proptest::prelude::*;
     let op = prop_oneof![
         (-90.0f64..90.0, -180.0f64..180.0).prop_map(|(lat, lng)| ModelOp::Add { lat, lng }),
         (0usize..1000).prop_map(|pick| ModelOp::Remove { pick }),
-        (
-            0usize..1000,
-            0.0f64..360.0,
-            proptest::collection::vec(0u32..6, 0..3)
-        )
-            .prop_map(|(pick, heading, tags)| ModelOp::Update {
+        (0usize..1000, 0.0f64..360.0, collection::vec(0u32..6, 0..3)).prop_map(
+            |(pick, heading, tags)| ModelOp::Update {
                 pick,
                 heading,
                 tags
-            }),
+            }
+        ),
     ];
-    proptest::collection::vec(op, 0..15)
+    collection::vec(op, 0..15)
 }
 
 // Apply one op to both the real store (mirroring store_add_locations /
 // store_remove_locations / store_update_locations exactly) and the parallel model.
 fn apply_model_op(
     store: &mut Store,
-    model: &mut std::collections::BTreeMap<u32, Location>,
+    model: &mut BTreeMap<u32, Location>,
     alive_ids: &mut Vec<u32>,
     op: &ModelOp,
 ) {
@@ -3903,7 +3912,7 @@ fn apply_model_op(
                 removed: vec![],
             });
             store.edits.redo.clear();
-            store.add_tag_counts(std::slice::from_ref(&l));
+            store.add_tag_counts(slice::from_ref(&l));
             store.overlay_add(vec![l.clone()]);
             model.insert(id, l);
             let pos = alive_ids.partition_point(|&x| x < id);
@@ -3916,8 +3925,8 @@ fn apply_model_op(
             let idx = pick % alive_ids.len();
             let id = alive_ids[idx];
             let l = store.get_loc_by_id(id).unwrap();
-            store.remove_tag_counts(std::slice::from_ref(&l));
-            store.overlay_remove(std::slice::from_ref(&l));
+            store.remove_tag_counts(slice::from_ref(&l));
+            store.overlay_remove(slice::from_ref(&l));
             store.push_undo(EditEntry {
                 created: vec![],
                 removed: vec![l],
@@ -3939,8 +3948,8 @@ fn apply_model_op(
             let old = store.get_loc_by_id(id).unwrap();
             store.overlay_update(id, &patch!(heading: *heading, tags: tags.clone()));
             let new_loc = store.get_loc_by_id(id).unwrap();
-            store.remove_tag_counts(std::slice::from_ref(&old));
-            store.add_tag_counts(std::slice::from_ref(&new_loc));
+            store.remove_tag_counts(slice::from_ref(&old));
+            store.add_tag_counts(slice::from_ref(&new_loc));
             store.record_update_undo([(old, new_loc.clone())]);
             model.insert(id, new_loc);
         }
@@ -3950,7 +3959,7 @@ fn apply_model_op(
 // modified_at is stamped from the wall clock on a real change; it is not part of
 // the undo/redo correctness invariant under test, so normalize it away before
 // comparing the store snapshot against the hand-rolled model.
-fn model_snapshot(model: &std::collections::BTreeMap<u32, Location>) -> Vec<Location> {
+fn model_snapshot(model: &BTreeMap<u32, Location>) -> Vec<Location> {
     let mut v: Vec<Location> = model.values().cloned().collect();
     v.sort_by_key(|l| l.id);
     for l in &mut v {
@@ -3969,7 +3978,7 @@ fn store_snapshot(store: &Store) -> Vec<Location> {
 }
 
 proptest::proptest! {
-    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(200))]
+    #![proptest_config(ProptestConfig::with_cases(200))]
 
     #[test]
     fn undo_redo_matches_model(
@@ -3981,7 +3990,7 @@ proptest::proptest! {
         let max_initial = initial.iter().map(|l| l.id).max().unwrap_or(0);
         store.next_id = max_initial + 1;
 
-        let mut model: std::collections::BTreeMap<u32, Location> =
+        let mut model: BTreeMap<u32, Location> =
             initial.iter().map(|l| (l.id, l.clone())).collect();
         let mut alive_ids: Vec<u32> = initial.iter().map(|l| l.id).collect();
         alive_ids.sort_unstable();
@@ -4028,7 +4037,7 @@ proptest::proptest! {
 
 fn loc_with_extra(id: u32, json: &str) -> Location {
     Location {
-        extra: crate::types::RawExtra::from_string(json.to_string()),
+        extra: RawExtra::from_string(json.to_string()),
         ..loc(id, 1.0, 1.0)
     }
 }
@@ -4042,7 +4051,7 @@ fn plan(locs: &[Location], op: &FieldOp) -> Vec<Update<LocationPatch>> {
 }
 
 fn plan_full(locs: &[Location], op: &FieldOp) -> FieldPlan {
-    let fx = crate::test_util::Fx::base(locs);
+    let fx = Fx::base(locs);
     plan_field_op(&fx.view(), None, op).unwrap()
 }
 
@@ -4164,8 +4173,8 @@ fn field_op_honours_the_selector() {
         loc_with_extra(1, r#"{"a":5}"#),
         loc_with_extra(2, r#"{"a":6}"#),
     ];
-    let fx = crate::test_util::Fx::base(&locs);
-    let set: roaring::RoaringBitmap = [2u32].into_iter().collect();
+    let fx = Fx::base(&locs);
+    let set: RoaringBitmap = [2u32].into_iter().collect();
     let FieldPlan {
         updates: out,
         forget,
@@ -4188,7 +4197,7 @@ fn field_op_forgets_a_key_only_when_no_row_retains_it() {
         loc_with_extra(1, r#"{"a":5}"#),
         loc_with_extra(2, r#"{"a":6,"x":1}"#),
     ];
-    let fx = crate::test_util::Fx::base(&locs);
+    let fx = Fx::base(&locs);
 
     // Whole-map move erases `a` everywhere.
     let forget = plan_field_op(&fx.view(), None, &move_op("a", "b", MergeWinner::From))
@@ -4251,9 +4260,18 @@ fn expr_op_evaluates_per_row_and_counts_the_rows_it_cannot() {
         loc_with_extra(4, r#"{"a":"ten"}"#),
     ];
     let p = plan_full(&locs, &expr_op("h", "mod(a + 180, 360)"));
-    assert_eq!(p.updates.iter().map(|u| u.id).collect::<Vec<_>>(), vec![1, 2]);
-    assert_eq!(planned_extra(&p.updates[0]), serde_json::json!({ "h": 190 }));
-    assert_eq!(planned_extra(&p.updates[1]), serde_json::json!({ "h": 170 }));
+    assert_eq!(
+        p.updates.iter().map(|u| u.id).collect::<Vec<_>>(),
+        vec![1, 2]
+    );
+    assert_eq!(
+        planned_extra(&p.updates[0]),
+        serde_json::json!({ "h": 190 })
+    );
+    assert_eq!(
+        planned_extra(&p.updates[1]),
+        serde_json::json!({ "h": 170 })
+    );
     assert_eq!(p.skipped, 2);
     assert!(p.forget.is_empty());
 }
@@ -4286,8 +4304,10 @@ fn expr_op_reads_builtin_columns_and_may_write_one() {
 
 #[test]
 fn expr_op_rejects_a_syntax_error_before_touching_rows() {
-    let fx = crate::test_util::Fx::base(&[loc_with_extra(1, r#"{"a":5}"#)]);
-    let err = plan_field_op(&fx.view(), None, &expr_op("a", "a +")).err().unwrap();
+    let fx = Fx::base(&[loc_with_extra(1, r#"{"a":5}"#)]);
+    let err = plan_field_op(&fx.view(), None, &expr_op("a", "a +"))
+        .err()
+        .unwrap();
     assert!(err.0.contains("Unexpected end of expression"), "{}", err.0);
 }
 
@@ -4372,7 +4392,7 @@ fn collect_honours_each_selector_shape() {
 fn concurrent_rows_file_queries_get_distinct_paths() {
     // The rows file is fetched after the store lock is released; queries in flight at the
     // same time must never stage into the same path.
-    let temp = std::env::temp_dir();
+    let temp = env::temp_dir();
     let a = rows_file_path(&temp, "m");
     let b = rows_file_path(&temp, "m");
     assert_ne!(a, b);
@@ -4384,10 +4404,10 @@ fn concurrent_rows_file_queries_get_distinct_paths() {
 
 /// Stage `chunks` into a fresh upload session the way the frontend POSTs them.
 fn stage_chunks(chunks: &[Vec<Location>]) -> String {
-    let session = crate::export::store_upload_begin().unwrap();
+    let session = export::store_upload_begin().unwrap();
     for (i, chunk) in chunks.iter().enumerate() {
-        let path = std::path::Path::new(&session).join(format!("{i}.json"));
-        std::fs::write(path, serde_json::to_vec(chunk).unwrap()).unwrap();
+        let path = Path::new(&session).join(format!("{i}.json"));
+        fs::write(path, serde_json::to_vec(chunk).unwrap()).unwrap();
     }
     session
 }
@@ -4402,7 +4422,7 @@ fn uploaded_add_reads_chunks_in_index_order() {
         vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)],
         vec![loc(0, 3.0, 3.0)],
     ]);
-    let uploaded = crate::export::read_uploaded_chunks::<Location>(&session).unwrap();
+    let uploaded = export::read_uploaded_chunks::<Location>(&session).unwrap();
     assert_eq!(
         uploaded.iter().map(|l| l.lat).collect::<Vec<_>>(),
         vec![1.0, 2.0, 3.0]
@@ -4416,7 +4436,7 @@ fn uploaded_add_echoes_ids_in_staged_order() {
         vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)],
         vec![loc(0, 3.0, 3.0)],
     ]);
-    let uploaded = crate::export::read_uploaded_chunks::<Location>(&session).unwrap();
+    let uploaded = export::read_uploaded_chunks::<Location>(&session).unwrap();
     let result = apply_adds(&mut store, uploaded);
 
     let ids = added_ids(&result);
@@ -4438,7 +4458,7 @@ fn uploaded_add_matches_direct_add() {
     let session = stage_chunks(&[locs[..2].to_vec(), locs[2..].to_vec()]);
     let uploaded = apply_adds(
         &mut uploaded_store,
-        crate::export::read_uploaded_chunks::<Location>(&session).unwrap(),
+        export::read_uploaded_chunks::<Location>(&session).unwrap(),
     );
 
     assert_eq!(
@@ -4459,14 +4479,14 @@ fn uploaded_add_matches_direct_add() {
 fn uploaded_add_rejects_malformed_chunk_before_mutating() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     let session = stage_chunks(&[vec![loc(0, 1.0, 1.0)]]);
-    std::fs::write(
-        std::path::Path::new(&session).join("1.json"),
+    fs::write(
+        Path::new(&session).join("1.json"),
         b"[{\"id\": \"not a number\"}]",
     )
     .unwrap();
 
     // Mirrors the command: parse first, mutate only on Ok.
-    let uploaded = crate::export::read_uploaded_chunks::<Location>(&session);
+    let uploaded = export::read_uploaded_chunks::<Location>(&session);
     assert!(uploaded.is_err());
     if let Ok(locs) = uploaded {
         apply_adds(&mut store, locs);
@@ -4479,27 +4499,27 @@ fn uploaded_add_rejects_malformed_chunk_before_mutating() {
 #[test]
 fn uploaded_add_rejects_missing_chunk() {
     let session = stage_chunks(&[vec![loc(0, 1.0, 1.0)]]);
-    std::fs::write(
-        std::path::Path::new(&session).join("2.json"),
+    fs::write(
+        Path::new(&session).join("2.json"),
         serde_json::to_vec(&vec![loc(0, 2.0, 2.0)]).unwrap(),
     )
     .unwrap();
-    assert!(crate::export::read_uploaded_chunks::<Location>(&session).is_err());
+    assert!(export::read_uploaded_chunks::<Location>(&session).is_err());
 }
 
 #[test]
 fn uploaded_add_rejects_dir_outside_session() {
-    assert!(crate::export::read_uploaded_chunks::<Location>("C:/somewhere/else").is_err());
+    assert!(export::read_uploaded_chunks::<Location>("C:/somewhere/else").is_err());
 }
 
 #[test]
 fn uploaded_add_removes_session_dir() {
     let ok = stage_chunks(&[vec![loc(0, 1.0, 1.0)]]);
-    crate::export::read_uploaded_chunks::<Location>(&ok).unwrap();
-    assert!(!std::path::Path::new(&ok).exists());
+    export::read_uploaded_chunks::<Location>(&ok).unwrap();
+    assert!(!Path::new(&ok).exists());
 
     let bad = stage_chunks(&[]);
-    std::fs::write(std::path::Path::new(&bad).join("junk.json"), b"[]").unwrap();
-    assert!(crate::export::read_uploaded_chunks::<Location>(&bad).is_err());
-    assert!(!std::path::Path::new(&bad).exists());
+    fs::write(Path::new(&bad).join("junk.json"), b"[]").unwrap();
+    assert!(export::read_uploaded_chunks::<Location>(&bad).is_err());
+    assert!(!Path::new(&bad).exists());
 }

@@ -17,12 +17,37 @@ use rayon::prelude::*;
 
 use crate::arrow_bridge;
 use crate::arrow_bridge::{col_heading, col_id, col_lat, col_lng};
+use crate::borders;
+use crate::export;
+use crate::field_expr;
+use crate::field_expr::Expr;
+use crate::import;
 use crate::map_meta;
 use crate::selections::{self, Selection, Selector};
 use crate::spatial;
 use crate::storage;
+use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags, Tag};
 use crate::util;
+use arrow_ord::sort;
+use arrow_select::concat;
+use arrow_select::take;
+use specta::datatype::DataType;
+use specta::function::FunctionArg;
+use std::array;
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
+use std::fs;
+use std::mem;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::atomic;
+use std::sync::atomic::AtomicUsize;
+use std::time::Instant;
+use tauri::ipc::CommandArg;
+use tauri::ipc::CommandItem;
+use tauri::ipc::InvokeError;
+use tokio::task;
 
 const MAX_UNDO_ENTRIES: usize = 1000;
 /// Standard base-32 alphabet (Gustavo Niemeyer geohash variant); render cells are
@@ -101,7 +126,7 @@ fn selection_cell_indices(
     render_size: usize,
     set: &RoaringBitmap,
 ) -> [Vec<u32>; 32] {
-    let mut out: [Vec<u32>; 32] = std::array::from_fn(|_| Vec::new());
+    let mut out: [Vec<u32>; 32] = array::from_fn(|_| Vec::new());
     if (set.len() as usize) <= render_size {
         for id in set {
             let Some(&ci) = render.id_to_cell_idx.get(id as usize) else {
@@ -550,6 +575,12 @@ macro_rules! apply_patch {
     };
 }
 
+impl Default for Store {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Store {
     pub fn new() -> Self {
         Self {
@@ -668,7 +699,7 @@ impl Store {
 
         let mut tags = None;
         let mut vis_changed = false;
-        let touched = std::mem::take(&mut self.tags.touched);
+        let touched = mem::take(&mut self.tags.touched);
         let counts_changed = !touched.is_empty();
         for tag_id in touched {
             let should = self.tag_count(tag_id) > 0;
@@ -905,7 +936,7 @@ impl Store {
         let counts = self.selections.node_counts.clone();
         let selected_count = self.selections.ids.len() as usize;
 
-        let t0 = std::time::Instant::now();
+        let t0 = Instant::now();
         let num_sels = self.selections.resolved.len();
         let (buf, num_cells) = build_selection_buf(&self.render, &self.selections.resolved);
         let bitmask = if num_cells > 0 { Some(buf) } else { None };
@@ -1041,7 +1072,7 @@ impl Store {
     /// Core edit primitive: atomically remove then create locations, updating tags, overlay,
     /// and render cells. Undo/redo swap the arguments. O(R + C) where R = removed, C = created.
     fn apply_edit(&mut self, remove: &[Location], create: &[Location]) -> ChangeSet {
-        let t0 = std::time::Instant::now();
+        let t0 = Instant::now();
         let create_ids: HashSet<u32> = create.iter().map(|l| l.id).collect();
         let remove_by_id: HashMap<u32, &Location> = remove.iter().map(|l| (l.id, l)).collect();
 
@@ -1293,7 +1324,7 @@ impl Store {
                 self.alive_count
             );
         }
-        let _t = std::time::Instant::now();
+        let _t = Instant::now();
         let mut ix = spatial::SpatialIndex::new();
         self.loc_view()
             .for_each(|row| ix.insert(row.id(), row.lat(), row.lng()));
@@ -1612,14 +1643,17 @@ impl Store {
         fresh.sort_unstable_by_key(|l| l.id);
         if cfg!(debug_assertions) {
             if let Some(w) = fresh.windows(2).find(|w| w[0].id == w[1].id) {
-                panic!("overlay_add duplicate id {} -- next_id allocation bug", w[1].id);
+                panic!(
+                    "overlay_add duplicate id {} -- next_id allocation bug",
+                    w[1].id
+                );
             }
         }
         let adds = &mut self.overlay.adds;
         if adds.last().is_none_or(|last| last.id < fresh[0].id) {
             adds.extend(fresh);
         } else {
-            let old = std::mem::take(adds);
+            let old = mem::take(adds);
             let mut merged = Vec::with_capacity(old.len() + fresh.len());
             let mut a = old.into_iter().peekable();
             let mut b = fresh.into_iter().peekable();
@@ -1634,7 +1668,10 @@ impl Store {
             }
             if cfg!(debug_assertions) {
                 if let Some(w) = merged.windows(2).find(|w| w[0].id == w[1].id) {
-                    panic!("overlay_add duplicate id {} -- next_id allocation bug", w[1].id);
+                    panic!(
+                        "overlay_add duplicate id {} -- next_id allocation bug",
+                        w[1].id
+                    );
                 }
             }
             *adds = merged;
@@ -1682,7 +1719,7 @@ impl Store {
                             m.insert(k, val);
                         }
                     }
-                    crate::types::RawExtra::from_map(&m)
+                    RawExtra::from_map(&m)
                 }
             };
         }
@@ -1704,7 +1741,7 @@ impl Store {
         // Stamp only on a real change in every branch
         if let Ok(pos) = self.overlay.adds.binary_search_by_key(&id, |l| l.id) {
             if self.overlay.adds[pos] != loc {
-                loc.modified_at = Some(crate::util::now_unix());
+                loc.modified_at = Some(util::now_unix());
                 self.overlay.adds[pos] = loc.clone();
             }
         } else if self.overlay.patches.contains_key(&id) {
@@ -1713,11 +1750,11 @@ impl Store {
             if self.base_loc_by_id(id).as_ref() == Some(&loc) {
                 self.overlay.patches.remove(&id);
             } else if self.overlay.patches.get(&id) != Some(&loc) {
-                loc.modified_at = Some(crate::util::now_unix());
+                loc.modified_at = Some(util::now_unix());
                 self.overlay.patches.insert(id, loc.clone());
             }
         } else if loc != *old {
-            loc.modified_at = Some(crate::util::now_unix());
+            loc.modified_at = Some(util::now_unix());
             self.overlay.patches.insert(id, loc.clone());
         }
         self.overlay.touch();
@@ -1740,7 +1777,7 @@ impl Store {
         if self.overlay.is_empty() {
             return;
         }
-        let _t = std::time::Instant::now();
+        let _t = Instant::now();
 
         let mut batch = match self.batch.take() {
             Some(b) => b,
@@ -1766,7 +1803,7 @@ impl Store {
                     batch
                         .columns()
                         .iter()
-                        .map(|col| arrow_select::take::take(col.as_ref(), &take_idx, None).unwrap())
+                        .map(|col| take::take(col.as_ref(), &take_idx, None).unwrap())
                         .collect(),
                 )
                 .unwrap();
@@ -1782,8 +1819,7 @@ impl Store {
         if !self.overlay.adds.is_empty() {
             let add_batch = arrow_bridge::locations_to_batch(&self.overlay.adds);
             let s = schema();
-            batch = arrow_select::concat::concat_batches(&s, &[batch, add_batch])
-                .expect("concat failed");
+            batch = concat::concat_batches(&s, &[batch, add_batch]).expect("concat failed");
         }
 
         log::debug!(
@@ -1861,16 +1897,14 @@ pub(crate) use with_store;
 /// the `FunctionArg` impl skips it in the generated bindings.
 pub struct WindowLabel(pub String);
 
-impl<'de, R: tauri::Runtime> tauri::ipc::CommandArg<'de, R> for WindowLabel {
-    fn from_command(
-        command: tauri::ipc::CommandItem<'de, R>,
-    ) -> Result<Self, tauri::ipc::InvokeError> {
+impl<'de, R: tauri::Runtime> CommandArg<'de, R> for WindowLabel {
+    fn from_command(command: CommandItem<'de, R>) -> Result<Self, InvokeError> {
         Ok(Self(command.message.webview_ref().label().to_string()))
     }
 }
 
-impl specta::function::FunctionArg for WindowLabel {
-    fn to_datatype(_: &mut specta::Types) -> Option<specta::datatype::DataType> {
+impl FunctionArg for WindowLabel {
+    fn to_datatype(_: &mut specta::Types) -> Option<DataType> {
         None
     }
 }
@@ -2075,8 +2109,8 @@ pub struct LocationPatch {
     pub flags: Option<u32>,
     pub tags: Option<Vec<u32>>,
     #[serde(default, deserialize_with = "nullable")]
-    #[specta(type = Option<Option<std::collections::HashMap<String, specta_typescript::Unknown>>>)]
-    pub extra: Option<Option<crate::types::RawExtra>>,
+    #[specta(type = Option<Option<HashMap<String, specta_typescript::Unknown>>>)]
+    pub extra: Option<Option<RawExtra>>,
     pub created_at: Option<u32>,
     #[serde(default, deserialize_with = "nullable")]
     #[specta(type = Option<Option<u32>>)]
@@ -2090,19 +2124,19 @@ pub struct LocationPatch {
 /// Load the uncommitted-delta sidecar. An unreadable delta is set aside as a
 /// `.corrupt` sibling - never left in place where the next autosave would
 /// overwrite it - and the user is warned via a `store-warning` event.
-fn load_delta(delta_path: &std::path::Path) -> Option<Overlay> {
+fn load_delta(delta_path: &Path) -> Option<Overlay> {
     if !delta_path.exists() {
         return None;
     }
-    let parsed = std::fs::read(delta_path)
+    let parsed = fs::read(delta_path)
         .map_err(|e| e.to_string())
         .and_then(|d| rmp_serde::from_slice::<Overlay>(&d).map_err(|e| e.to_string()));
     match parsed {
         Ok(p) => Some(p),
         Err(e) => {
             let kept = delta_path.with_extension("corrupt");
-            let _ = std::fs::remove_file(&kept);
-            let moved = std::fs::rename(delta_path, &kept).is_ok();
+            let _ = fs::remove_file(&kept);
+            let moved = fs::rename(delta_path, &kept).is_ok();
             log::error!(
                 "[store_open] unreadable delta ({e}), set aside (moved={moved}) at {kept:?}"
             );
@@ -2125,7 +2159,7 @@ pub async fn store_open_map(
 ) -> AppResult<StoreStatus> {
     let map_id2 = map_id.clone();
 
-    let result = tokio::task::spawn_blocking(move || {
+    let result = task::spawn_blocking(move || {
         use std::time::Instant;
         let t_total = Instant::now();
 
@@ -2162,13 +2196,13 @@ pub async fn store_open_map(
                 (batch, mmap_handle)
             } else {
                 log::info!("[store_open] migrating unsorted Arrow file to sorted ID order");
-                let sort_idx = arrow_ord::sort::sort_to_indices(ids, None, None)?;
+                let sort_idx = sort::sort_to_indices(ids, None, None)?;
                 let sorted_batch = RecordBatch::try_new(
                     batch.schema(),
                     batch
                         .columns()
                         .iter()
-                        .map(|col| arrow_select::take::take(col.as_ref(), &sort_idx, None).unwrap())
+                        .map(|col| take::take(col.as_ref(), &sort_idx, None).unwrap())
                         .collect(),
                 )
                 .unwrap();
@@ -2279,7 +2313,7 @@ pub async fn store_close_map(
         };
         (map_id, store)
     };
-    tokio::task::spawn_blocking(move || flush_closed_store(&map_id, &store)).await?
+    task::spawn_blocking(move || flush_closed_store(&map_id, &store)).await?
 }
 
 fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
@@ -2317,7 +2351,7 @@ fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
 /// field-def registry immediately (no reload needed).
 pub(crate) fn auto_register_extras(
     store: &mut Store,
-    extras: &[&crate::types::RawExtra],
+    extras: &[&RawExtra],
     result: &mut MutationResult,
 ) {
     if extras.is_empty() {
@@ -2333,7 +2367,7 @@ pub(crate) fn auto_register_extras(
 /// source locations (e.g. import's move-into-overlay path) can apply defs afterward.
 pub(crate) fn apply_field_defs(
     store: &mut Store,
-    new_defs: std::collections::HashMap<String, map_meta::ExtraFieldDef>,
+    new_defs: HashMap<String, map_meta::ExtraFieldDef>,
     result: &mut MutationResult,
 ) {
     if let Some(map_id) = &store.map_id {
@@ -2356,7 +2390,7 @@ pub fn store_add_locations(
     state: tauri::State<'_, StoreState>,
     locations: Vec<Location>,
 ) -> AppResult<MutationResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     with_store!(label, state, |store| {
         let _lock = _t.elapsed().as_millis();
         let result = apply_adds(store, locations);
@@ -2390,8 +2424,7 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
         added: added.clone(),
         ..Default::default()
     });
-    let extras: Vec<&crate::types::RawExtra> =
-        added.iter().filter_map(|l| l.extra.as_ref()).collect();
+    let extras: Vec<&RawExtra> = added.iter().filter_map(|l| l.extra.as_ref()).collect();
     auto_register_extras(store, &extras, &mut result);
     result
 }
@@ -2406,11 +2439,10 @@ pub async fn store_add_locations_uploaded(
     state: tauri::State<'_, StoreState>,
     session_dir: String,
 ) -> AppResult<MutationResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     // Parse before taking the store lock: a malformed chunk must leave the store untouched.
     let locations =
-        tokio::task::spawn_blocking(move || crate::export::read_uploaded_chunks(&session_dir))
-            .await??;
+        task::spawn_blocking(move || export::read_uploaded_chunks(&session_dir)).await??;
     let _read = _t.elapsed().as_millis();
     with_store!(label, state, |store| {
         let n = locations.len();
@@ -2433,7 +2465,7 @@ pub fn store_remove_locations(
     state: tauri::State<'_, StoreState>,
     ids: Vec<u32>,
 ) -> AppResult<MutationResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     with_store!(label, state, |store| {
         let mut removed_locs = Vec::new();
         for &id in &ids {
@@ -2475,7 +2507,7 @@ pub async fn store_update_locations(
     record_undo: Option<bool>,
 ) -> AppResult<MutationResult> {
     let record_undo = record_undo.unwrap_or(true);
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     with_store!(label, state, |store| {
         let n = updates.len();
         let result = apply_updates(store, &updates, record_undo);
@@ -2508,7 +2540,7 @@ pub(crate) fn apply_updates(
         store.remove_tag_counts(updated.iter().map(|(o, _)| o));
         store.add_tag_counts(updated.iter().map(|(_, n)| n));
     }
-    let extras: Vec<crate::types::RawExtra> = if any_extras {
+    let extras: Vec<RawExtra> = if any_extras {
         updated
             .iter()
             .filter_map(|(_, n)| n.extra.clone())
@@ -2528,7 +2560,7 @@ pub(crate) fn apply_updates(
         result.status.can_redo = false;
     }
     if any_extras {
-        let refs: Vec<&crate::types::RawExtra> = extras.iter().collect();
+        let refs: Vec<&RawExtra> = extras.iter().collect();
         auto_register_extras(store, &refs, &mut result);
     }
     result
@@ -2616,7 +2648,7 @@ fn assign_patch(key: &str, value: serde_json::Value) -> AppResult<LocationPatch>
         let mut merge = serde_json::Map::new();
         merge.insert(key.to_string(), value);
         Ok(LocationPatch {
-            extra: Some(crate::types::RawExtra::from_map(&merge)),
+            extra: Some(RawExtra::from_map(&merge)),
             ..Default::default()
         })
     }
@@ -2628,7 +2660,7 @@ fn assign_patch(key: &str, value: serde_json::Value) -> AppResult<LocationPatch>
 /// `known_field_keys`, so a later reappearance of the key is re-announced to JS. Pure.
 fn plan_field_op(
     view: &selections::LocView,
-    set: Option<&roaring::RoaringBitmap>,
+    set: Option<&RoaringBitmap>,
     op: &FieldOp,
 ) -> AppResult<FieldPlan> {
     let removed: Vec<String> = match op {
@@ -2638,7 +2670,7 @@ fn plan_field_op(
         FieldOp::Set { .. } | FieldOp::Expr { .. } => Vec::new(),
     };
     let expr = match op {
-        FieldOp::Expr { expr, .. } => Some(crate::field_expr::parse(expr)?),
+        FieldOp::Expr { expr, .. } => Some(field_expr::parse(expr)?),
         _ => None,
     };
     let mut plan = FieldPlan::default();
@@ -2660,7 +2692,7 @@ fn plan_field_op(
                 FieldOp::Expr { key, .. } => {
                     let expr = expr.as_ref().expect("parsed above");
                     let field = |name: &str| row.resolve_field(name).and_then(|v| v.as_f64());
-                    match crate::field_expr::eval(expr, &field) {
+                    match field_expr::eval(expr, &field) {
                         None => plan.skipped += 1,
                         Some(v) => {
                             let value = number_value(v);
@@ -2705,7 +2737,7 @@ fn plan_field_op(
             plan.updates.push(Update {
                 id,
                 patch: LocationPatch {
-                    extra: Some(crate::types::RawExtra::from_map(&merge)),
+                    extra: Some(RawExtra::from_map(&merge)),
                     ..Default::default()
                 },
             });
@@ -2786,7 +2818,7 @@ pub async fn store_apply_field_op(
     op: FieldOp,
     record_undo: Option<bool>,
 ) -> AppResult<FieldOpResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     with_store!(label, state, |store| {
         let result = apply_field_op(store, &selector, &op, record_undo.unwrap_or(true))?;
         log::debug!(
@@ -2839,7 +2871,7 @@ pub async fn store_update_tags(
     state: tauri::State<'_, StoreState>,
     updates: Vec<Update<TagPatch>>,
 ) -> AppResult<MutationResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     with_store!(label, state, |store| {
         let mut all_updated: Vec<(Location, Location)> = Vec::new();
 
@@ -2911,7 +2943,7 @@ pub async fn store_delete_tags(
     state: tauri::State<'_, StoreState>,
     tag_ids: Vec<u32>,
 ) -> AppResult<MutationResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     with_store!(label, state, |store| {
         let tag_set: HashSet<u32> = tag_ids.iter().copied().collect();
         let view = store.loc_view();
@@ -2991,7 +3023,7 @@ pub async fn store_country_distribution(
             .map(|row| (row.lat(), row.lng()))
             .collect()
     });
-    crate::borders::tally_countries(&level, &coords)
+    borders::tally_countries(&level, &coords)
 }
 
 /// Msgpack-serialize the overlay (uncommitted changes) for the `.delta` sidecar.
@@ -3017,7 +3049,7 @@ pub(crate) fn read_full_state_from_disk(map_id: &str) -> AppResult<Vec<Location>
 
     let delta_path = storage::arrow_delta_path(map_id)?;
     if delta_path.exists() {
-        if let Ok(data) = std::fs::read(&delta_path) {
+        if let Ok(data) = fs::read(&delta_path) {
             if let Ok(delta) = rmp_serde::from_slice::<Overlay>(&data) {
                 delta.apply_to(&mut locs);
             }
@@ -3098,7 +3130,7 @@ pub(crate) fn reconcile_tags_by_name(
     let mut created = false;
     let mut adopted_doclinks = false;
     let mut claims: Vec<(u32, u32, String)> = Vec::new();
-    let mut claimed: std::collections::HashSet<u32> = std::collections::HashSet::new();
+    let mut claimed: HashSet<u32> = HashSet::new();
     for tag in source_tags {
         let lower = tag.name.to_lowercase();
         let target_id = match name_to_id.get(&lower) {
@@ -3159,7 +3191,7 @@ pub fn store_copy_locations_to_map(
     target_map_id: String,
     selector: Selector,
 ) -> AppResult<CopyToMapResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     let conn = storage::open_db()?;
     let target_name: String = conn.query_row(
         "SELECT name FROM maps WHERE id = ?1",
@@ -3175,7 +3207,7 @@ pub fn store_copy_locations_to_map(
         return Err(AppError("cannot copy a location into its own map".into()));
     }
 
-    let now = crate::util::now_unix();
+    let now = util::now_unix();
     let mut sources: Vec<Location> = Vec::new();
     let mut source_tags: HashMap<u32, Tag> = HashMap::new();
     {
@@ -3212,15 +3244,15 @@ pub fn store_copy_locations_to_map(
         // MutationResult. The receiving window applies it via the same mutate() flow
         // as a local edit — including the save — so we do NOT persist here.
         let target = mgr.store_for_map(&target_map_id)?;
-        let t_scan = std::time::Instant::now();
+        let t_scan = Instant::now();
         let existing = target.collect(&Selector::Everything);
         let (fresh, skipped) = split_new_locations(sources, &existing);
         let scan_ms = t_scan.elapsed().as_millis();
         let copied = fresh.len() as u32;
         if copied > 0 {
             let tags = used_tags(&fresh);
-            let t_add = std::time::Instant::now();
-            let result = crate::import::add_copied_to_store(target, fresh, tags)?;
+            let t_add = Instant::now();
+            let result = import::add_copied_to_store(target, fresh, tags)?;
             // Force tags dirty so the receiving window's autosave flushes the bumped
             // counts even when no new tag was created.
             target.tags.dirty = true;
@@ -3243,7 +3275,7 @@ pub fn store_copy_locations_to_map(
     }
 
     // Target closed: append to the uncommitted delta sidecar (what autosave writes).
-    let t_read = std::time::Instant::now();
+    let t_read = Instant::now();
     let existing = read_full_state_from_disk(&target_map_id)?;
     let read_ms = t_read.elapsed().as_millis();
     let (mut fresh, skipped) = split_new_locations(sources, &existing);
@@ -3264,8 +3296,7 @@ pub fn store_copy_locations_to_map(
         // Register any extra-field defs the copies introduce. `persist_field_defs`
         // skips keys the target already defines, so an empty known-set is safe.
         {
-            let extras: Vec<&crate::types::RawExtra> =
-                fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
+            let extras: Vec<&RawExtra> = fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
             if let Some(defs) =
                 map_meta::auto_register_field_defs(&HashSet::<String>::new(), &extras)
             {
@@ -3273,7 +3304,7 @@ pub fn store_copy_locations_to_map(
             }
         }
 
-        let t_hist = std::time::Instant::now();
+        let t_hist = Instant::now();
         let (undo, redo) = load_edit_history(&target_map_id)?;
         let hist_ms = t_hist.elapsed().as_millis();
         let base_max = existing.iter().map(|l| l.id).max().unwrap_or(0);
@@ -3281,10 +3312,10 @@ pub fn store_copy_locations_to_map(
         for (loc, id) in fresh.iter_mut().zip(next..) {
             loc.id = id;
         }
-        let t_save = std::time::Instant::now();
+        let t_save = Instant::now();
         let delta_path = storage::arrow_delta_path(&target_map_id)?;
         let mut delta: Overlay = if delta_path.exists() {
-            rmp_serde::from_slice(&std::fs::read(&delta_path)?)?
+            rmp_serde::from_slice(&fs::read(&delta_path)?)?
         } else {
             Overlay::default()
         };
@@ -3343,7 +3374,7 @@ pub async fn store_save_dirty(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<SaveResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     log::debug!("[cmd] store_save_dirty ENTER");
     let (map_id, delta_data, alive, tags_json, rev) = {
         let mut mgr = state.lock()?;
@@ -3376,10 +3407,9 @@ pub async fn store_save_dirty(
     let wrote_delta = delta_data.is_some();
     let wrote_tags = tags_json.is_some();
     let map_id2 = map_id.clone();
-    let write =
-        tokio::task::spawn_blocking(move || persist_dirty(&map_id2, delta_data, alive, tags_json))
-            .await
-            .unwrap_or_else(|e| Err(e.into()));
+    let write = task::spawn_blocking(move || persist_dirty(&map_id2, delta_data, alive, tags_json))
+        .await
+        .unwrap_or_else(|e| Err(e.into()));
     if write.is_err() && wrote_tags {
         if let Ok(store) = state.lock()?.store_for_window(&label.0) {
             store.tags.dirty = true;
@@ -3413,7 +3443,7 @@ pub fn store_get_summary(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<SummaryResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     with_store!(label, state, |store| {
         let count = store.alive_count;
         log::debug!(
@@ -3515,7 +3545,7 @@ pub(crate) fn save_arrow(store: &Store, map_id: &str) -> AppResult<()> {
         let path = storage::arrow_path(map_id)?;
         storage::write_arrow_ipc(&path, batch)?;
         let delta = storage::arrow_delta_path(map_id)?;
-        let _ = std::fs::remove_file(delta);
+        let _ = fs::remove_file(delta);
     }
     Ok(())
 }
@@ -3528,7 +3558,7 @@ pub(crate) fn save_arrow(store: &Store, map_id: &str) -> AppResult<()> {
 /// location count + dirty tags. Used by `store_commit` so a commit builds
 /// the batch only once.
 pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     store.bake_overlay();
     let t_bake = _t.elapsed();
     store.mmap_handle = None;
@@ -3580,7 +3610,7 @@ pub struct RenderRequest {
 /// Build the full render binary: single linear pass over all alive locations, partitioned into
 /// 32 geohash cells. Also rebuilds render_cells index and selection overlay. O(N).
 fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) -> Vec<u8> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     let b = match &store.batch {
         Some(b) => b,
         None if store.overlay.adds.is_empty() => return Vec::new(),
@@ -3791,8 +3821,8 @@ pub async fn store_fill_render_file(
         (build_cell_render_buffers(store, &req), mid)
     };
     let path = storage::temp_dir()?.join(format!("mma_render_{map_id_str}.bin"));
-    tokio::task::spawn_blocking(move || {
-        std::fs::write(&path, &buf)?;
+    task::spawn_blocking(move || {
+        fs::write(&path, &buf)?;
         Ok(path.to_string_lossy().into_owned())
     })
     .await?
@@ -3828,7 +3858,7 @@ pub async fn store_undo(
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
-        let _t = std::time::Instant::now();
+        let _t = Instant::now();
         let entry = store.edits.undo.pop().ok_or("nothing to undo")?;
         log::debug!(
             "[UNDO] stack_depth={} created={} removed={}",
@@ -3857,7 +3887,7 @@ pub async fn store_redo(
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
-        let _t = std::time::Instant::now();
+        let _t = Instant::now();
         let entry = store.edits.redo.pop().ok_or("nothing to redo")?;
         log::debug!(
             "[REDO] stack_depth={} created={} removed={}",
@@ -3909,13 +3939,13 @@ pub fn store_reset_undo(label: WindowLabel, state: tauri::State<'_, StoreState>)
 /// key conflicts; all other survivor fields are kept. `members` must be non-empty. The
 /// returned survivor keeps its original id (so callers represent the merge as an update
 /// of the survivor plus removal of the rest).
-fn merge_group(members: &[Location], score: Option<&crate::field_expr::Expr>) -> Location {
+fn merge_group(members: &[Location], score: Option<&Expr>) -> Location {
     let rank = |l: &Location| -> Option<f64> {
         let Some(expr) = score else {
             return Some(l.tags.len() as f64);
         };
         let row = selections::RowRef::from_loc(l);
-        crate::field_expr::eval(expr, &|name| {
+        field_expr::eval(expr, &|name| {
             row.resolve_field(name).as_ref().and_then(|v| v.as_f64())
         })
     };
@@ -3925,13 +3955,13 @@ fn merge_group(members: &[Location], score: Option<&crate::field_expr::Expr>) ->
             // Option orders None below Some; eval never yields NaN, so partial_cmp is total.
             rank(a)
                 .partial_cmp(&rank(b))
-                .unwrap_or(std::cmp::Ordering::Equal)
+                .unwrap_or(Ordering::Equal)
                 .then_with(|| b.created_at.cmp(&a.created_at))
                 .then_with(|| b.id.cmp(&a.id))
         })
         .expect("merge_group requires a non-empty group");
 
-    let mut tagset: std::collections::BTreeSet<u32> = std::collections::BTreeSet::new();
+    let mut tagset: BTreeSet<u32> = BTreeSet::new();
     for m in members {
         tagset.extend(m.tags.iter().copied());
     }
@@ -3955,8 +3985,8 @@ fn merge_group(members: &[Location], score: Option<&crate::field_expr::Expr>) ->
 
     let mut new_survivor = survivor.clone();
     new_survivor.tags = tagset.into_iter().collect();
-    new_survivor.extra = crate::types::RawExtra::from_map(&merged_extra);
-    new_survivor.modified_at = Some(crate::util::now_unix());
+    new_survivor.extra = RawExtra::from_map(&merged_extra);
+    new_survivor.modified_at = Some(util::now_unix());
     new_survivor
 }
 
@@ -4096,15 +4126,15 @@ pub async fn store_sync_selections(
     state: tauri::State<'_, StoreState>,
     sels: Vec<SelectionInput>,
 ) -> AppResult<SelectionSync> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     let (counts, buf, selected_count, num_cells) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_window(&label.0)?;
 
         // Faithful tree: real keys preserved so per-node counts come back keyed (incl. nested).
-        let sels_full: Vec<selections::Selection> = sels
+        let sels_full: Vec<Selection> = sels
             .iter()
-            .map(|si| selections::Selection {
+            .map(|si| Selection {
                 key: si.key.clone(),
                 color: si.color,
                 selector: si.selector.clone(),
@@ -4189,9 +4219,9 @@ pub enum Rows {
 /// A rotating slot per rows-file query: the file is fetched after the store lock is
 /// released, so two concurrent row reads must not share one path -- while the slot
 /// cycle keeps stale files bounded and self-overwriting like a fixed path.
-fn rows_file_path(temp: &std::path::Path, map_id: &str) -> std::path::PathBuf {
-    static SLOT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let slot = SLOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 8;
+fn rows_file_path(temp: &Path, map_id: &str) -> PathBuf {
+    static SLOT: AtomicUsize = AtomicUsize::new(0);
+    let slot = SLOT.fetch_add(1, atomic::Ordering::Relaxed) % 8;
     temp.join(format!("mma_rows_{map_id}_{slot}.json"))
 }
 
@@ -4392,7 +4422,7 @@ pub fn store_collect(
         }
         let map_id_str = store.map_id.as_deref().unwrap_or("default");
         let path = rows_file_path(&storage::temp_dir()?, map_id_str);
-        std::fs::write(&path, serde_json::to_vec(&locations)?)?;
+        fs::write(&path, serde_json::to_vec(&locations)?)?;
         Ok(Rows::File {
             path: path.to_string_lossy().into_owned(),
         })
@@ -4427,9 +4457,9 @@ pub async fn store_merge_duplicates(
     distance: f64,
     score: Option<String>,
 ) -> AppResult<MutationResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     let score = match score.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        Some(src) => Some(crate::field_expr::parse(src)?),
+        Some(src) => Some(field_expr::parse(src)?),
         None => None,
     };
     with_store!(label, state, |store| {
@@ -4478,7 +4508,7 @@ pub async fn store_prune_duplicates(
     distance: f64,
     keep_tag_ids: Vec<u32>,
 ) -> AppResult<MutationResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     with_store!(label, state, |store| {
         let locs: Vec<Location> = store.collect(&selector);
         let keep: HashSet<u32> = keep_tag_ids.into_iter().collect();
@@ -4514,7 +4544,7 @@ pub fn store_find_nearby(
     radius_m: f64,
 ) -> AppResult<Vec<Location>> {
     with_store!(label, state, |store| {
-        let _t = std::time::Instant::now();
+        let _t = Instant::now();
         let mut ids = store.find_nearby_ids(lat, lng, radius_m);
         ids.sort_unstable();
         let result: Vec<Location> = ids
@@ -4547,7 +4577,7 @@ pub fn store_near_any(
         return Err(AppError::from("store_near_any: lats/lngs length mismatch"));
     }
     with_store!(label, state, |store| {
-        let _t = std::time::Instant::now();
+        let _t = Instant::now();
         let result: Vec<bool> = lats
             .iter()
             .zip(lngs.iter())

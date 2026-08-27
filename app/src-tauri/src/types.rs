@@ -9,6 +9,29 @@
 /// Tags are stored in `MapMeta` and referenced by id in each `Location.tags`.
 /// Member counts are not part of the tag record: `TagState.counts` owns them and
 /// `StoreStatus.tag_counts` is the only channel that ships them.
+use rmp_serde::decode;
+use rmp_serde::encode;
+use serde::de;
+use serde::de::value::MapAccessDeserializer;
+use serde::de::MapAccess;
+use serde::de::Visitor;
+use serde_json::value::RawValue;
+use specta::datatype::DataType;
+use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::error;
+use std::fmt;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::io;
+use std::iter;
+use std::ops::Range;
+use std::sync::Arc;
+use std::sync::PoisonError;
+use tokio::task::JoinError;
+use zip::result::ZipError;
+
 #[derive(serde::Deserialize, serde::Serialize, Clone, Debug, specta::Type)]
 pub struct Tag {
     pub id: u32,
@@ -42,21 +65,21 @@ fn default_visible() -> bool {
 /// when a consumer needs keyed access, via [`RawExtra::to_map`] (deep) or
 /// [`RawExtra::get`]/[`RawExtra::for_each_field`] (zero-alloc byte scan).
 #[derive(Clone, Debug)]
-pub struct RawExtra(std::sync::Arc<Box<serde_json::value::RawValue>>);
+pub struct RawExtra(Arc<Box<RawValue>>);
 
 impl RawExtra {
     /// Share an owned raw value. `Location` clones sit on the bulk-update and undo paths,
     /// so the JSON payload is refcounted rather than copied. `Arc::new` over the existing
     /// `Box` keeps construction to one pointer-sized allocation -- `Arc::from(box)` would
     /// reallocate and copy the payload, which costs more than the clone saves.
-    fn wrap(rv: Box<serde_json::value::RawValue>) -> Self {
-        RawExtra(std::sync::Arc::new(rv))
+    fn wrap(rv: Box<RawValue>) -> Self {
+        RawExtra(Arc::new(rv))
     }
 
     /// Wrap an existing JSON string (e.g. from the Arrow column). Returns `None` for
     /// an empty object or an invalid JSON value, matching the `Option<...>` "no extra".
     pub fn from_string(s: String) -> Option<Self> {
-        let rv = serde_json::value::RawValue::from_string(s).ok()?;
+        let rv = RawValue::from_string(s).ok()?;
         if is_empty_object(rv.get()) {
             return None;
         }
@@ -72,7 +95,7 @@ impl RawExtra {
     /// of blobs written to disk before canonicalization existed.
     #[cfg(test)]
     pub(crate) fn from_string_uncanonicalized(s: &str) -> Option<Self> {
-        serde_json::value::RawValue::from_string(s.to_string())
+        RawValue::from_string(s.to_string())
             .ok()
             .map(RawExtra::wrap)
     }
@@ -83,9 +106,7 @@ impl RawExtra {
             return None;
         }
         let s = serde_json::to_string(m).ok()?;
-        serde_json::value::RawValue::from_string(s)
-            .ok()
-            .map(RawExtra::wrap)
+        RawValue::from_string(s).ok().map(RawExtra::wrap)
     }
 
     /// The raw JSON bytes -- what gets written to the Arrow column.
@@ -120,7 +141,7 @@ impl RawExtra {
 
 /// Decode JSON-escaped member keys (`ensure_ascii` encoders unicode-escape `café`) so
 /// raw-byte key matching sees one spelling. A doc with no escaped key is returned as-is.
-fn canonicalize_keys(rv: Box<serde_json::value::RawValue>) -> Box<serde_json::value::RawValue> {
+fn canonicalize_keys(rv: Box<RawValue>) -> Box<RawValue> {
     if !has_escaped_key(rv.get()) {
         return rv;
     }
@@ -129,7 +150,7 @@ fn canonicalize_keys(rv: Box<serde_json::value::RawValue>) -> Box<serde_json::va
     };
     serde_json::to_string(&m)
         .ok()
-        .and_then(|s| serde_json::value::RawValue::from_string(s).ok())
+        .and_then(|s| RawValue::from_string(s).ok())
         .unwrap_or(rv)
 }
 
@@ -148,13 +169,13 @@ fn has_escaped_key(s: &str) -> bool {
 
 /// Decode a key captured from raw JSON source (e.g. by [`RawExtra::for_each_field`]) into
 /// the text it denotes. Returned unchanged when there is nothing to decode.
-pub(crate) fn decode_json_key(key: &str) -> std::borrow::Cow<'_, str> {
+pub(crate) fn decode_json_key(key: &str) -> Cow<'_, str> {
     if !key.contains('\\') {
-        return std::borrow::Cow::Borrowed(key);
+        return Cow::Borrowed(key);
     }
     match serde_json::from_str::<String>(&format!("\"{key}\"")) {
-        Ok(decoded) => std::borrow::Cow::Owned(decoded),
-        Err(_) => std::borrow::Cow::Borrowed(key),
+        Ok(decoded) => Cow::Owned(decoded),
+        Err(_) => Cow::Borrowed(key),
     }
 }
 
@@ -177,8 +198,8 @@ pub(crate) fn json_field(s: &str, key: &str) -> Option<serde_json::Value> {
 /// One top-level member found by [`scan_fields`]: the key's content bytes (without
 /// quotes; the opening quote is at `key.start - 1`) and the value's exact byte range.
 pub(crate) struct FieldSpan {
-    pub key: std::ops::Range<usize>,
-    pub value: std::ops::Range<usize>,
+    pub key: Range<usize>,
+    pub value: Range<usize>,
 }
 
 /// Walk the top-level members of object JSON `b`, calling `f` for each; `f` returns
@@ -305,7 +326,7 @@ fn is_empty_object(s: &str) -> bool {
 
 impl PartialEq for RawExtra {
     fn eq(&self, other: &Self) -> bool {
-        std::sync::Arc::ptr_eq(&self.0, &other.0) || self.0.get() == other.0.get()
+        Arc::ptr_eq(&self.0, &other.0) || self.0.get() == other.0.get()
     }
 }
 
@@ -327,7 +348,7 @@ impl serde::Serialize for RawExtra {
 impl<'de> serde::Deserialize<'de> for RawExtra {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         if d.is_human_readable() {
-            Box::<serde_json::value::RawValue>::deserialize(d)
+            Box::<RawValue>::deserialize(d)
                 .map(canonicalize_keys)
                 .map(RawExtra::wrap)
         } else {
@@ -338,32 +359,32 @@ impl<'de> serde::Deserialize<'de> for RawExtra {
 
 struct BinRawExtraVisitor;
 
-impl<'de> serde::de::Visitor<'de> for BinRawExtraVisitor {
+impl<'de> Visitor<'de> for BinRawExtraVisitor {
     type Value = RawExtra;
 
-    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn expecting(&self, f: &mut Formatter) -> fmt::Result {
         f.write_str("a raw-JSON extra string or a legacy extra map")
     }
 
-    fn visit_str<E: serde::de::Error>(self, v: &str) -> Result<RawExtra, E> {
+    fn visit_str<E: de::Error>(self, v: &str) -> Result<RawExtra, E> {
         self.visit_string(v.to_owned())
     }
 
-    fn visit_string<E: serde::de::Error>(self, v: String) -> Result<RawExtra, E> {
-        serde_json::value::RawValue::from_string(v)
+    fn visit_string<E: de::Error>(self, v: String) -> Result<RawExtra, E> {
+        RawValue::from_string(v)
             .map(canonicalize_keys)
             .map(RawExtra::wrap)
             .map_err(E::custom)
     }
 
-    fn visit_map<A: serde::de::MapAccess<'de>>(self, map: A) -> Result<RawExtra, A::Error> {
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<RawExtra, A::Error> {
         let m = <serde_json::Map<String, serde_json::Value> as serde::Deserialize>::deserialize(
-            serde::de::value::MapAccessDeserializer::new(map),
+            MapAccessDeserializer::new(map),
         )?;
-        let s = serde_json::to_string(&m).map_err(serde::de::Error::custom)?;
-        serde_json::value::RawValue::from_string(s)
+        let s = serde_json::to_string(&m).map_err(de::Error::custom)?;
+        RawValue::from_string(s)
             .map(RawExtra::wrap)
-            .map_err(serde::de::Error::custom)
+            .map_err(de::Error::custom)
     }
 }
 
@@ -391,7 +412,7 @@ pub struct Location {
     pub tags: Vec<u32>,
     /// Arbitrary key-value metadata
     // Stored as raw JSON bytes; see [`RawExtra`].
-    #[specta(type = Option<std::collections::HashMap<String, specta_typescript::Unknown>>)]
+    #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
     pub extra: Option<RawExtra>,
     /// Unix timestamp (seconds)
     pub created_at: u32,
@@ -434,9 +455,7 @@ fn pascal(name: &str) -> String {
 }
 
 /// The `PascalCase` name -> value map TypeScript mirrors.
-pub fn wire_names<V>(
-    pairs: impl IntoIterator<Item = (&'static str, V)>,
-) -> std::collections::BTreeMap<String, V> {
+pub fn wire_names<V>(pairs: impl IntoIterator<Item = (&'static str, V)>) -> BTreeMap<String, V> {
     pairs.into_iter().map(|(n, v)| (pascal(n), v)).collect()
 }
 
@@ -485,10 +504,9 @@ impl LocationFlags {
     /// The bits a preview carries that a real location must not.
     pub const VIRTUAL: Self = Self::IMPORT_PREVIEW.union(Self::SEEN_OVERLAY);
 
-    pub fn wire_names() -> std::collections::BTreeMap<String, u32> {
+    pub fn wire_names() -> BTreeMap<String, u32> {
         wire_names(
-            std::iter::once(("NONE", 0))
-                .chain(Self::all().iter_names().map(|(n, f)| (n, f.bits()))),
+            iter::once(("NONE", 0)).chain(Self::all().iter_names().map(|(n, f)| (n, f.bits()))),
         )
     }
 }
@@ -508,7 +526,7 @@ impl<'de> serde::Deserialize<'de> for LocationFlags {
 }
 
 impl specta::Type for LocationFlags {
-    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+    fn definition(types: &mut specta::Types) -> DataType {
         <u32 as specta::Type>::definition(types)
     }
 }
@@ -520,13 +538,13 @@ pub struct AppError(pub String);
 /// Result alias for backend operations and commands.
 pub type AppResult<T> = Result<T, AppError>;
 
-impl std::fmt::Display for AppError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for AppError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
 }
 
-impl std::error::Error for AppError {}
+impl error::Error for AppError {}
 
 impl serde::Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -535,7 +553,7 @@ impl serde::Serialize for AppError {
 }
 
 impl specta::Type for AppError {
-    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+    fn definition(types: &mut specta::Types) -> DataType {
         <String as specta::Type>::definition(types)
     }
 }
@@ -561,15 +579,15 @@ macro_rules! impl_app_error_from {
 }
 
 impl_app_error_from!(
-    std::io::Error,
+    io::Error,
     rusqlite::Error,
     serde_json::Error,
     arrow_schema::ArrowError,
-    rmp_serde::encode::Error,
-    rmp_serde::decode::Error,
+    encode::Error,
+    decode::Error,
     tauri::Error,
-    tokio::task::JoinError,
-    zip::result::ZipError,
+    JoinError,
+    ZipError,
     keyring::Error,
 );
 
@@ -578,7 +596,7 @@ impl_app_error_from!(
 impl From<reqwest::Error> for AppError {
     fn from(e: reqwest::Error) -> Self {
         let mut msg = e.to_string();
-        let mut source = std::error::Error::source(&e);
+        let mut source = error::Error::source(&e);
         while let Some(s) = source {
             msg.push_str(": ");
             msg.push_str(&s.to_string());
@@ -589,8 +607,8 @@ impl From<reqwest::Error> for AppError {
 }
 
 // `PoisonError<T>` is generic; Display is unconditional, so one blanket covers all lock types.
-impl<T> From<std::sync::PoisonError<T>> for AppError {
-    fn from(e: std::sync::PoisonError<T>) -> Self {
+impl<T> From<PoisonError<T>> for AppError {
+    fn from(e: PoisonError<T>) -> Self {
         AppError(e.to_string())
     }
 }

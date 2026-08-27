@@ -16,17 +16,28 @@
 //! without the plugin describing it: variable input travels as JSON, never as flags.
 
 use crate::emit_event;
+use crate::storage;
 use crate::types::{AppError, AppResult};
 use crate::user_plugins::{validate_plugin_id, validate_sidecar_command, validate_sidecar_name};
+use reqwest::blocking::Client;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::env;
+use std::env::consts::ARCH;
+use std::env::consts::OS;
+use std::fs;
+use std::fs::File;
+use std::io;
+use std::io::BufWriter;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::thread;
 use std::time::Duration;
+use tokio::task;
 
 /// Subcommand a sidecar implements to run resident.
 const SERVE_COMMAND: &str = "serve";
@@ -72,7 +83,7 @@ pub(crate) struct SidecarDone {
 
 /// GitHub release asset platform tag for the running target.
 pub(crate) fn platform_tag() -> AppResult<&'static str> {
-    Ok(match (std::env::consts::OS, std::env::consts::ARCH) {
+    Ok(match (OS, ARCH) {
         ("windows", "x86_64") => "windows-x64",
         ("macos", "aarch64") => "macos-arm64",
         // No macos-x64: ort ships no prebuilt ONNX Runtime for x86_64-apple-darwin.
@@ -87,9 +98,7 @@ pub(crate) fn platform_tag() -> AppResult<&'static str> {
 }
 
 fn plugin_dir(plugin_id: &str) -> AppResult<PathBuf> {
-    Ok(crate::storage::app_data_dir()?
-        .join("plugins")
-        .join(plugin_id))
+    Ok(storage::app_data_dir()?.join("plugins").join(plugin_id))
 }
 
 fn sidecar_dir(plugin_id: &str) -> AppResult<PathBuf> {
@@ -100,7 +109,7 @@ fn sidecar_dir(plugin_id: &str) -> AppResult<PathBuf> {
 /// `sidecar/`, which an update wipes wholesale.
 fn data_dir(plugin_id: &str) -> AppResult<PathBuf> {
     let dir = plugin_dir(plugin_id)?.join("data");
-    std::fs::create_dir_all(&dir)?;
+    fs::create_dir_all(&dir)?;
     Ok(dir)
 }
 
@@ -109,7 +118,7 @@ fn data_dir(plugin_id: &str) -> AppResult<PathBuf> {
 /// Fetch the expected SHA-256 for `asset` from the release's `checksums.txt`
 /// (lines are `<hash>  <filename>`). None if the file or line is absent.
 fn fetch_expected_sha(
-    client: &reqwest::blocking::Client,
+    client: &Client,
     plugin_id: &str,
     version: &str,
     asset: &str,
@@ -145,9 +154,9 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
 
     let final_dir = sidecar_dir(&plugin_id)?;
     let plugin_root = final_dir.parent().unwrap().to_path_buf();
-    std::fs::create_dir_all(&plugin_root)?;
+    fs::create_dir_all(&plugin_root)?;
 
-    let client = reqwest::blocking::Client::builder()
+    let client = Client::builder()
         .use_rustls_tls()
         .timeout(Duration::from_secs(600))
         .build()?;
@@ -160,7 +169,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
 
     // Stream the download to a temp file instead of buffering in RAM.
     let zip_path = plugin_root.join(".sidecar-download.zip");
-    let mut zip_file = std::io::BufWriter::new(std::fs::File::create(&zip_path)?);
+    let mut zip_file = BufWriter::new(File::create(&zip_path)?);
     let mut hasher = Sha256::new();
     let mut chunk = [0u8; 65536];
     let mut downloaded = 0u64;
@@ -194,7 +203,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
     let actual_sha = format!("{:x}", hasher.finalize());
     if let Some(ref expected) = expected_sha256 {
         if !expected.eq_ignore_ascii_case(&actual_sha) {
-            let _ = std::fs::remove_file(&zip_path);
+            let _ = fs::remove_file(&zip_path);
             return Err(AppError(format!(
                 "Sidecar integrity check failed for {name}: expected {expected}, got {actual_sha}"
             )));
@@ -206,12 +215,12 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
 
     let tmp_dir = plugin_root.join(".sidecar-tmp");
     if tmp_dir.exists() {
-        std::fs::remove_dir_all(&tmp_dir)?;
+        fs::remove_dir_all(&tmp_dir)?;
     }
-    std::fs::create_dir_all(&tmp_dir)?;
+    fs::create_dir_all(&tmp_dir)?;
 
-    let zip_reader = std::fs::File::open(&zip_path)?;
-    let mut archive = zip::ZipArchive::new(std::io::BufReader::new(zip_reader))?;
+    let zip_reader = File::open(&zip_path)?;
+    let mut archive = zip::ZipArchive::new(BufReader::new(zip_reader))?;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
         let rel = match entry.enclosed_name() {
@@ -220,19 +229,19 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
         };
         let out = tmp_dir.join(&rel);
         if entry.is_dir() {
-            std::fs::create_dir_all(&out)?;
+            fs::create_dir_all(&out)?;
             continue;
         }
         if let Some(parent) = out.parent() {
-            std::fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent)?;
         }
-        let mut f = std::fs::File::create(&out)?;
-        std::io::copy(&mut entry, &mut f)?;
+        let mut f = File::create(&out)?;
+        io::copy(&mut entry, &mut f)?;
     }
     drop(archive);
-    let _ = std::fs::remove_file(&zip_path);
+    let _ = fs::remove_file(&zip_path);
 
-    std::fs::write(tmp_dir.join("version.txt"), &version)?;
+    fs::write(tmp_dir.join("version.txt"), &version)?;
 
     #[cfg(unix)]
     {
@@ -248,9 +257,9 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
     // from starting one mid-replace.
     with_plugin_stopped(&plugin_id, || {
         if final_dir.exists() {
-            std::fs::remove_dir_all(&final_dir)?;
+            fs::remove_dir_all(&final_dir)?;
         }
-        std::fs::rename(&tmp_dir, &final_dir)?;
+        fs::rename(&tmp_dir, &final_dir)?;
         Ok(())
     })?;
     log::info!("[sidecar] installed {name} v{version} for {plugin_id}");
@@ -264,7 +273,7 @@ fn install_blocking(plugin_id: String, name: String, version: String) -> AppResu
 pub async fn sidecar_install(plugin_id: String, name: String, version: String) -> AppResult<()> {
     validate_plugin_id(&plugin_id)?;
     validate_sidecar_name(&name)?;
-    tokio::task::spawn_blocking(move || install_blocking(plugin_id, name, version))
+    task::spawn_blocking(move || install_blocking(plugin_id, name, version))
         .await
         .map_err(|e| AppError(format!("sidecar install task failed: {e}")))?
 }
@@ -275,9 +284,7 @@ pub async fn sidecar_install(plugin_id: String, name: String, version: String) -
 pub fn sidecar_installed_version(plugin_id: String) -> AppResult<Option<String>> {
     validate_plugin_id(&plugin_id)?;
     let path = sidecar_dir(&plugin_id)?.join("version.txt");
-    Ok(std::fs::read_to_string(&path)
-        .ok()
-        .map(|s| s.trim().to_string()))
+    Ok(fs::read_to_string(&path).ok().map(|s| s.trim().to_string()))
 }
 
 // --- Spec ---
@@ -324,7 +331,7 @@ impl SidecarSpec {
 
 fn read_spec(plugin_id: &str) -> AppResult<SidecarSpec> {
     let path = plugin_dir(plugin_id)?.join("manifest.json");
-    let text = std::fs::read_to_string(&path)
+    let text = fs::read_to_string(&path)
         .map_err(|e| AppError(format!("Cannot read manifest for {plugin_id}: {e}")))?;
     SidecarSpec::from_manifest(&serde_json::from_str(&text)?)
 }
@@ -481,10 +488,10 @@ pub fn kill_all_sidecars() {
 
 // --- Resident transport ---
 
-fn http() -> &'static reqwest::blocking::Client {
-    static C: OnceLock<reqwest::blocking::Client> = OnceLock::new();
+fn http() -> &'static Client {
+    static C: OnceLock<Client> = OnceLock::new();
     C.get_or_init(|| {
-        reqwest::blocking::Client::builder()
+        Client::builder()
             .no_proxy()
             .timeout(Duration::from_secs(300))
             .build()
@@ -506,9 +513,9 @@ fn spawn_resident(plugin_id: &str, spec: &SidecarSpec, epoch: u64) -> AppResult<
 
     // First stdout line is the port handshake; the rest is drained so a chatty
     // sidecar can never block on a full pipe.
-    let (tx, rx) = std::sync::mpsc::channel::<String>();
+    let (tx, rx) = mpsc::channel::<String>();
     let log_id = plugin_id.to_string();
-    std::thread::spawn(move || {
+    thread::spawn(move || {
         let mut lines = BufReader::new(stdout).lines().map_while(Result::ok);
         if let Some(first) = lines.next() {
             let _ = tx.send(first);
@@ -519,7 +526,7 @@ fn spawn_resident(plugin_id: &str, spec: &SidecarSpec, epoch: u64) -> AppResult<
     });
     if let Some(stderr) = stderr {
         let log_id = plugin_id.to_string();
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                 log::info!("[sidecar:{log_id}] {line}");
             }
@@ -658,8 +665,8 @@ fn run_resident(
 // --- One-shot transport ---
 
 fn write_input(req_id: u32, payload: &str) -> AppResult<PathBuf> {
-    let path = std::env::temp_dir().join(format!("mma_sidecar_{req_id}.json"));
-    std::fs::write(&path, payload)?;
+    let path = env::temp_dir().join(format!("mma_sidecar_{req_id}.json"));
+    fs::write(&path, payload)?;
     Ok(path)
 }
 
@@ -674,7 +681,7 @@ fn run_oneshot(
     let input = payload.map(|p| write_input(req_id, p)).transpose()?;
     let result = run_oneshot_inner(plugin_id, spec, command, input.as_deref(), req_id, on_line);
     if let Some(path) = input {
-        let _ = std::fs::remove_file(path);
+        let _ = fs::remove_file(path);
     }
     result
 }
@@ -711,7 +718,7 @@ fn run_oneshot_inner(
 
     let errors = stderr.map(|stderr| {
         let log_id = plugin_id.to_string();
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                 log::info!("[sidecar:{log_id}] {line}");
                 emit_event(SidecarLog { req_id, line });
@@ -732,7 +739,7 @@ fn run_oneshot_inner(
         let polled = lock(&child).try_wait();
         match polled {
             Ok(Some(status)) => break status,
-            Ok(None) => std::thread::sleep(Duration::from_millis(5)),
+            Ok(None) => thread::sleep(Duration::from_millis(5)),
             Err(e) => {
                 lock(&slot).children.remove(&req_id);
                 return Err(e.into());
@@ -775,7 +782,7 @@ pub fn sidecar_request(
     let spec = read_spec(&plugin_id)?;
     let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
 
-    std::thread::spawn(move || {
+    thread::spawn(move || {
         let result = if spec.is_resident(&command) {
             run_resident(&plugin_id, &spec, &command, payload.as_deref(), req_id)
         } else {
@@ -827,7 +834,7 @@ pub(crate) fn sidecar_call_stream(
         command.to_string(),
         payload.to_string(),
     );
-    std::thread::spawn(move || {
+    thread::spawn(move || {
         let result = if spec.is_resident(&command) {
             post_resident(&plugin_id, &spec, &command, Some(&payload)).map(|text| {
                 let _ = tx.send(Ok(text));
@@ -858,7 +865,7 @@ pub(crate) fn sidecar_call_stream(
 #[specta::specta]
 pub async fn sidecar_stop(plugin_id: String) -> AppResult<()> {
     validate_plugin_id(&plugin_id)?;
-    tokio::task::spawn_blocking(move || kill_plugin(&plugin_id)).await?;
+    task::spawn_blocking(move || kill_plugin(&plugin_id)).await?;
     Ok(())
 }
 
@@ -867,7 +874,7 @@ pub async fn sidecar_stop(plugin_id: String) -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub async fn sidecar_stop_all() -> AppResult<()> {
-    tokio::task::spawn_blocking(kill_all_sidecars).await?;
+    task::spawn_blocking(kill_all_sidecars).await?;
     Ok(())
 }
 
@@ -877,7 +884,7 @@ pub async fn sidecar_stop_all() -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub async fn sidecar_cancel(req_id: u32) -> AppResult<()> {
-    tokio::task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
         for slot in slots {
             if let Some(child) = lock(&slot).children.get(&req_id) {

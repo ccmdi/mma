@@ -21,21 +21,37 @@ use uuid::Uuid;
 use crate::arrow_bridge;
 use crate::location_store;
 use crate::location_store::WindowLabel;
+use crate::map_meta;
+use crate::map_meta::MapSettings;
 use crate::storage;
+use crate::types;
+use crate::types::RawExtra;
 use crate::types::{is_ws, scan_fields_from, skip_string, Location, LocationFlags, Tag};
+use memchr::memmem;
+use serde_json::value::RawValue;
+use std::collections::HashSet;
+use std::env;
+use std::fs;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io;
+use std::mem;
+use std::path::Path;
+use std::time::Instant;
+use tokio::task;
 
 /// Read a file with sequential-scan hints for better OS prefetch on cold reads.
-fn read_sequential(path: &str) -> std::io::Result<Vec<u8>> {
+fn read_sequential(path: &str) -> io::Result<Vec<u8>> {
     #[cfg(windows)]
     {
         use std::os::windows::fs::OpenOptionsExt;
         const FILE_FLAG_SEQUENTIAL_SCAN: u32 = 0x0800_0000;
-        let mut file = std::fs::OpenOptions::new()
+        let mut file = OpenOptions::new()
             .read(true)
             .custom_flags(FILE_FLAG_SEQUENTIAL_SCAN)
             .open(path)?;
         let mut buf = Vec::with_capacity(file.metadata()?.len() as usize);
-        std::io::Read::read_to_end(&mut file, &mut buf)?;
+        Read::read_to_end(&mut file, &mut buf)?;
         Ok(buf)
     }
     #[cfg(not(windows))]
@@ -235,7 +251,7 @@ struct ExtraTagMeta {
 /// the coordinate array ends pass
 /// `start` (just past the last object) + `start_depth` (2, still inside the array)
 /// so we scan only the tiny tail. Shared by tag-meta and settings extraction.
-fn find_top_level_extra(buf: &[u8], start: usize, start_depth: i32) -> Option<serde_json::Value> {
+fn find_top_level_extra(buf: &[u8], start: usize, start_depth: i32) -> Option<Value> {
     let mut out = None;
     scan_fields_from(buf, start, start_depth, |fs| {
         if &buf[fs.key.clone()] == b"extra" {
@@ -249,7 +265,7 @@ fn find_top_level_extra(buf: &[u8], start: usize, start_depth: i32) -> Option<se
 }
 
 /// Tag color/order metadata from a parsed top-level `"extra"."tags"` block.
-fn tag_meta_from_extra(extra: &serde_json::Value) -> HashMap<String, ExtraTagMeta> {
+fn tag_meta_from_extra(extra: &Value) -> HashMap<String, ExtraTagMeta> {
     let mut meta = HashMap::new();
     if let Some(tags_obj) = extra.get("tags").and_then(|t| t.as_object()) {
         for (name, entry) in tags_obj {
@@ -296,7 +312,7 @@ fn tag_meta_from_extra(extra: &serde_json::Value) -> HashMap<String, ExtraTagMet
 }
 
 /// Map settings carried by an import, from a parsed top-level `"extra"."settings"` block.
-fn settings_from_extra(extra: &serde_json::Value) -> serde_json::Map<String, Value> {
+fn settings_from_extra(extra: &Value) -> serde_json::Map<String, Value> {
     extra
         .get("settings")
         .and_then(|v| v.as_object())
@@ -553,10 +569,10 @@ fn strip_tags_fast(
     names: &mut Vec<String>,
     name_to_local: &mut rustc_hash::FxHashMap<String, u32>,
     tags: &mut Vec<u32>,
-) -> Result<Option<crate::types::RawExtra>, ()> {
+) -> Result<Option<RawExtra>, ()> {
     let b = s.as_bytes();
     let mut span: Option<(usize, usize, usize)> = None;
-    crate::types::scan_fields(b, |fs| {
+    types::scan_fields(b, |fs| {
         let hit = &b[fs.key.clone()] == b"tags";
         if hit {
             span = Some((fs.key.start - 1, fs.value.start, fs.value.end));
@@ -565,7 +581,7 @@ fn strip_tags_fast(
     });
     let Some((kstart, vstart, vend)) = span else {
         // No tags key: keep the extra bytes verbatim.
-        return Ok(crate::types::RawExtra::from_string(s.to_owned()));
+        return Ok(RawExtra::from_string(s.to_owned()));
     };
     if b.get(vstart) != Some(&b'[') {
         return Err(());
@@ -596,7 +612,7 @@ fn strip_tags_fast(
     let mut out = String::with_capacity(s.len() - (mend - mstart));
     out.push_str(&s[..mstart]);
     out.push_str(&s[mend..]);
-    Ok(crate::types::RawExtra::from_string(out))
+    Ok(RawExtra::from_string(out))
 }
 
 fn intern_tag_name(
@@ -620,13 +636,13 @@ fn intern_tag_name(
 /// into `out_pano`. Used only when the fast byte path can't apply (rare).
 fn build_extra_via_map(
     extra_str: Option<&str>,
-    country_code: Option<&serde_json::value::RawValue>,
-    state_code: Option<&serde_json::value::RawValue>,
+    country_code: Option<&RawValue>,
+    state_code: Option<&RawValue>,
     names: &mut Vec<String>,
     name_to_local: &mut rustc_hash::FxHashMap<String, u32>,
     tags: &mut Vec<u32>,
     out_pano: &mut Option<String>,
-) -> Option<crate::types::RawExtra> {
+) -> Option<RawExtra> {
     let mut m: serde_json::Map<String, Value> = extra_str
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or_default();
@@ -648,7 +664,7 @@ fn build_extra_via_map(
         Value::String(s) => Some(s),
         _ => None,
     });
-    crate::types::RawExtra::from_map(&m)
+    RawExtra::from_map(&m)
 }
 
 /// Core JSON parser. Three-phase pipeline:
@@ -663,7 +679,7 @@ fn build_extra_via_map(
 /// metadata (colors, order) is extracted separately from the top-level `extra`.
 fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     let mut warnings = Vec::new();
-    let t0 = std::time::Instant::now();
+    let t0 = Instant::now();
 
     // Single pass: find top-level keys and the coordinate array.
     // Only scan until we find what we need — once we hit the array,
@@ -807,11 +823,11 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
         // Raw slices (no value tree). `null` deserializes to `None`, so `Some` means a
         // real value that must be folded into `extra`.
         #[serde(borrow, rename = "countryCode")]
-        country_code: Option<&'a serde_json::value::RawValue>,
+        country_code: Option<&'a RawValue>,
         #[serde(borrow, rename = "stateCode")]
-        state_code: Option<&'a serde_json::value::RawValue>,
+        state_code: Option<&'a RawValue>,
         #[serde(borrow)]
-        extra: Option<&'a serde_json::value::RawValue>,
+        extra: Option<&'a RawValue>,
     }
 
     // Each worker parses a contiguous chunk and dedups tag names *locally*: the
@@ -851,9 +867,8 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                 // non-null top-level country/state code, or a `panoId` nested in `extra`.
                 let need_map = raw.country_code.is_some()
                     || raw.state_code.is_some()
-                    || extra_str.is_some_and(|s| {
-                        memchr::memmem::find(s.as_bytes(), b"\"panoId\"").is_some()
-                    });
+                    || extra_str
+                        .is_some_and(|s| memmem::find(s.as_bytes(), b"\"panoId\"").is_some());
 
                 let mut tags: Vec<u32> = Vec::new();
                 let mut extra_pano: Option<String> = None;
@@ -1012,7 +1027,7 @@ fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
 // ---------------------------------------------------------------------------
 
 fn read_zip_entries(path: &str) -> AppResult<Vec<(String, String)>> {
-    let file = std::fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
+    let file = File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
     let mut archive =
         zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {}", e))?;
 
@@ -1032,8 +1047,8 @@ fn read_zip_entries(path: &str) -> AppResult<Vec<(String, String)>> {
 }
 
 fn read_single_json(path: &str) -> AppResult<Vec<(String, String)>> {
-    let text = std::fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
-    let filename = std::path::Path::new(path)
+    let text = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
+    let filename = Path::new(path)
         .file_name()
         .map(|f| f.to_string_lossy().to_string())
         .unwrap_or_default();
@@ -1047,10 +1062,7 @@ fn read_single_json(path: &str) -> AppResult<Vec<(String, String)>> {
 /// Sole place an import's settings become `MapSettings`. Overlays the import's
 /// settings keys (`extra.settings`) onto `base` (defaults for a new map, the open
 /// map's current settings for editor import)
-fn merge_settings(
-    base: crate::map_meta::MapSettings,
-    overlay: &serde_json::Map<String, Value>,
-) -> crate::map_meta::MapSettings {
+fn merge_settings(base: MapSettings, overlay: &serde_json::Map<String, Value>) -> MapSettings {
     if overlay.is_empty() {
         return base;
     }
@@ -1096,9 +1108,9 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
         "{}".to_string()
     };
 
-    let settings = merge_settings(crate::map_meta::MapSettings::default(), &map.settings);
-    let settings_json = serde_json::to_string(&settings)
-        .unwrap_or_else(|_| crate::map_meta::default_settings_json());
+    let settings = merge_settings(MapSettings::default(), &map.settings);
+    let settings_json =
+        serde_json::to_string(&settings).unwrap_or_else(|_| map_meta::default_settings_json());
 
     // Assign sequential u32 IDs
     for (i, loc) in map.locations.iter_mut().enumerate() {
@@ -1117,7 +1129,7 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
         for tag in &map.tags {
             tag_map.insert(tag.id.to_string(), serde_json::to_value(tag).unwrap());
         }
-        serde_json::Value::Object(tag_map).to_string()
+        Value::Object(tag_map).to_string()
     };
 
     tx.execute(
@@ -1145,7 +1157,7 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
 #[tauri::command]
 #[specta::specta]
 pub async fn bulk_import_preview(path: String) -> AppResult<Vec<ImportPreviewEntry>> {
-    tokio::task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         let entries = if path.ends_with(".zip") {
             read_zip_entries(&path)?
         } else {
@@ -1200,7 +1212,7 @@ pub async fn bulk_import_confirm(
 ) -> AppResult<Vec<ImportedMapInfo>> {
     let main_path = storage::db_path()?;
 
-    tokio::task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         let all_maps = {
             let mut cache = CACHED_PARSE.lock().unwrap();
             if cache.as_ref().map(|c| c.path.as_str()) == Some(path.as_str()) {
@@ -1219,7 +1231,7 @@ pub async fn bulk_import_confirm(
             }
         };
 
-        let selected_set: std::collections::HashSet<u32> = selected_indices.into_iter().collect();
+        let selected_set: HashSet<u32> = selected_indices.into_iter().collect();
         let parsed_maps: Vec<ParsedMap> = all_maps
             .into_iter()
             .enumerate()
@@ -1370,8 +1382,8 @@ fn build_preview(parsed: ParsedMap) -> AppResult<EditorImportPreview> {
         });
     }
 
-    let path = std::env::temp_dir().join("mma_import_preview.bin");
-    std::fs::write(&path, &pos_buf)?;
+    let path = env::temp_dir().join("mma_import_preview.bin");
+    fs::write(&path, &pos_buf)?;
 
     let preview = EditorImportPreview {
         location_count: n as u32,
@@ -1414,8 +1426,8 @@ pub fn store_import_staged_location(index: u32) -> AppResult<Location> {
 pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview> {
     // CPU-bound parse runs on a blocking thread so it never stalls the main/event-loop
     // thread (which the webview shares — a sync command here freezes the window).
-    tokio::task::spawn_blocking(move || {
-        let t0 = std::time::Instant::now();
+    task::spawn_blocking(move || {
+        let t0 = Instant::now();
         let mut buf = read_sequential(&path)?;
         let t_read = t0.elapsed();
         let parsed = parse_file(&mut buf);
@@ -1438,8 +1450,8 @@ pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview
 #[tauri::command]
 #[specta::specta]
 pub async fn store_import_paste_preview(text: String) -> AppResult<EditorImportPreview> {
-    tokio::task::spawn_blocking(move || {
-        let t0 = std::time::Instant::now();
+    task::spawn_blocking(move || {
+        let t0 = Instant::now();
         let mut buf = text.into_bytes();
         let parsed = parse_file(&mut buf);
         if parsed.locations.is_empty() {
@@ -1467,7 +1479,7 @@ pub struct EditorImportResult {
     /// True when the import was large enough to autocommit; the caller commits it.
     pub auto_commit: bool,
     /// Settings carried by the import (`extra.settings`)
-    #[specta(type = std::collections::HashMap<String, specta_typescript::Any>)]
+    #[specta(type = HashMap<String, specta_typescript::Any>)]
     pub settings: serde_json::Map<String, Value>,
 }
 
@@ -1501,7 +1513,7 @@ fn add_parsed_to_store(
     parsed: &mut ParsedMap,
     bulk_tag: Option<&str>,
 ) -> AppResult<location_store::MutationResult> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     let n = parsed.locations.len();
     let tag_id_remap = {
         let tags = &mut store.tags;
@@ -1538,7 +1550,7 @@ fn add_parsed_to_store(
                     Tag {
                         id,
                         name: name.to_string(),
-                        color: crate::util::color_for_name(name),
+                        color: color_for_name(name),
                         visible: true,
                         order: None,
                         doclinks: Vec::new(),
@@ -1559,12 +1571,12 @@ fn add_parsed_to_store(
 
     // Discover new extra-field defs from the locations now, before we consume them.
     let new_field_defs = {
-        let extras: Vec<&crate::types::RawExtra> = parsed
+        let extras: Vec<&RawExtra> = parsed
             .locations
             .iter()
             .filter_map(|l| l.extra.as_ref())
             .collect();
-        crate::map_meta::auto_register_field_defs(&store.known_field_keys, &extras)
+        map_meta::auto_register_field_defs(&store.known_field_keys, &extras)
     };
     let t_autoreg = _t.elapsed();
 
@@ -1581,7 +1593,7 @@ fn add_parsed_to_store(
 
     let t_undo = _t.elapsed();
 
-    for loc in std::mem::take(&mut parsed.locations) {
+    for loc in mem::take(&mut parsed.locations) {
         let ci = location_store::render_cell_idx(loc.lat, loc.lng);
         store.cell_add_render(ci, loc.id);
         store.overlay_add(vec![loc]);
@@ -1617,15 +1629,14 @@ pub async fn store_import_file(
     dropped_fields: Vec<String>,
     tag_name: Option<String>,
 ) -> AppResult<EditorImportResult> {
-    let t0 = std::time::Instant::now();
+    let t0 = Instant::now();
     let mut parsed = EDITOR_IMPORT_CACHE
         .lock()
         .unwrap()
         .take()
         .ok_or("no cached import — call store_import_preview first")?;
 
-    let drop_set: std::collections::HashSet<&str> =
-        dropped_fields.iter().map(|s| s.as_str()).collect();
+    let drop_set: HashSet<&str> = dropped_fields.iter().map(|s| s.as_str()).collect();
     if !drop_set.is_empty() {
         for loc in &mut parsed.locations {
             if drop_set.contains("heading") {
@@ -1647,7 +1658,7 @@ pub async fn store_import_file(
             if let Some(extra) = &loc.extra {
                 let mut m = extra.to_map();
                 m.retain(|k, _| !drop_set.contains(format!("extra.{k}").as_str()));
-                loc.extra = crate::types::RawExtra::from_map(&m);
+                loc.extra = RawExtra::from_map(&m);
             }
         }
         if drop_set.contains("tags") {

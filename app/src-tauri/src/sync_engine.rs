@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
+use crate::location_store::StoreState;
 use crate::remote_mapping::{self, RemoteMappingRow};
 use crate::storage;
 use crate::sync::{
@@ -26,6 +27,9 @@ use crate::sync_geoguessr::GeoGuessrProvider;
 use crate::sync_keying::{build_keyed_inputs, KeyedInputs};
 use crate::sync_map_making::MapMakingProvider;
 use crate::types::{AppError, AppResult};
+use std::mem;
+use std::time::Instant;
+use tauri::async_runtime;
 
 // --- result types (IPC contract) --------------------------------------------
 
@@ -235,7 +239,7 @@ pub(crate) fn plan<P: SyncProvider>(input: &ReconcileInput<P>) -> PlannedReconci
         let res: HashMap<&IdentityKey, ResolutionSide> =
             input.resolutions.iter().map(|(k, s)| (k, *s)).collect();
         let mut resolved: HashSet<IdentityKey> = HashSet::new();
-        let conflicts = std::mem::take(&mut plan.conflicts);
+        let conflicts = mem::take(&mut plan.conflicts);
         for c in &conflicts {
             let Some(&side) = res.get(&c.key) else {
                 continue;
@@ -625,7 +629,7 @@ fn reconcile_with<P: SyncProvider>(
     provider_id: &str,
     map_id: &str,
 ) -> AppResult<SyncReconcileResult> {
-    let t = std::time::Instant::now();
+    let t = Instant::now();
     let snapshot = provider.pull(remote_map_id)?;
     log::info!(
         "[sync] pull: {} remote locations in {:.1}s",
@@ -642,7 +646,7 @@ fn reconcile_with<P: SyncProvider>(
         first_sync,
         resolutions,
     };
-    let t = std::time::Instant::now();
+    let t = Instant::now();
     let planned = plan(&input);
     log::info!(
         "[sync] plan: push {}+{}+{} pull {}+{}+{} adopted {} conflicts {} rows {} in {:.1}s",
@@ -662,7 +666,7 @@ fn reconcile_with<P: SyncProvider>(
         provider: provider_id,
         map_id,
     };
-    let t = std::time::Instant::now();
+    let t = Instant::now();
     let result = execute(provider, remote_map_id, planned, token, &mut sink);
     log::info!("[sync] execute: {:.1}s", t.elapsed().as_secs_f64());
     result
@@ -722,7 +726,7 @@ fn run_reconcile(
 #[tauri::command]
 #[specta::specta]
 pub async fn sync_reconcile(
-    state: tauri::State<'_, crate::location_store::StoreState>,
+    state: tauri::State<'_, StoreState>,
     provider: String,
     map_id: String,
     remote_map_id: String,
@@ -735,7 +739,7 @@ pub async fn sync_reconcile(
         let store = mgr.store_for_map(&map_id)?;
         // Stream rows into the slim sync shape so each full Location (with its arbitrarily large
         // `extra`) is dropped immediately - never a whole-map copy of fields sync cannot see.
-        let t = std::time::Instant::now();
+        let t = Instant::now();
         let mut pins: Vec<SyncLocalPin> = Vec::new();
         store
             .loc_view()
@@ -755,7 +759,7 @@ pub async fn sync_reconcile(
     };
     let resolutions = resolutions.unwrap_or_default();
 
-    tauri::async_runtime::spawn_blocking(move || {
+    async_runtime::spawn_blocking(move || {
         run_reconcile(
             &provider,
             &map_id,

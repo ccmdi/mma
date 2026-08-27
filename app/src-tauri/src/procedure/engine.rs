@@ -3,16 +3,34 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
+use crate::borders;
 use crate::location_store::{
     apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
 };
 use crate::selections::{ids_within, narrow, Selector};
+use crate::sidecar;
 use crate::sidecar::SidecarStream;
 use crate::types::{AppError, AppResult, Location};
+use futures::executor;
+use futures::future;
+use serde_json::value::RawValue;
 use std::collections::HashMap;
+use std::future::Future;
+use std::path::Path;
+use std::path::PathBuf;
+use std::pin::Pin;
+use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::OnceLock;
 use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
 use std::time::{Duration, Instant};
+use tokio::runtime::Builder;
+use tokio::runtime::Runtime;
+use tokio::sync::Semaphore;
+use tokio::sync::SemaphorePermit;
+use tokio::task;
+use tokio::time;
 
 /// Locations materialized per lock acquisition. The engine never holds more than
 /// one page of rows in memory per provider.
@@ -30,7 +48,7 @@ const MAX_INFLIGHT: u32 = 1024;
 /// themselves -- one sidecar process, one large model in memory; everything else takes
 /// one per logical CPU and draws its throughput from `inflight` instead.
 fn instance_count(decl: &ProviderDecl) -> usize {
-    let default = std::thread::available_parallelism().map_or(4, |n| n.get() as u32);
+    let default = thread::available_parallelism().map_or(4, |n| n.get() as u32);
     decl.instances.unwrap_or(default).clamp(1, MAX_INSTANCES) as usize
 }
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
@@ -181,8 +199,7 @@ pub type ProcedureFactory =
     Box<dyn Fn(&ProviderDecl) -> AppResult<Box<dyn Procedure>> + Send + Sync>;
 /// One request, in flight. Async because a provider's width is counted in requests and
 /// not in threads: hundreds of these can be pending on the http runtime at once.
-pub type FetchFuture =
-    std::pin::Pin<Box<dyn std::future::Future<Output = AppResult<HttpResponse>> + Send>>;
+pub type FetchFuture = Pin<Box<dyn Future<Output = AppResult<HttpResponse>> + Send>>;
 pub type FetchFn = Box<dyn Fn(HttpRequestSpec) -> FetchFuture + Send + Sync>;
 pub type ProgressSink = Box<dyn Fn(ProcedureProgress) + Send + Sync>;
 /// Where a `Collect` provider's pages go. Production emits them; tests record them.
@@ -208,7 +225,7 @@ impl EngineDeps {
                     ))
                 })?;
                 let proc = super::quickjs::checkout(&resolve_entry(path)?)?;
-                Ok(Box::new(proc) as Box<dyn super::Procedure>)
+                Ok(Box::new(proc) as Box<dyn Procedure>)
             }),
             fetch: Box::new(|req| Box::pin(http_fetch(req))),
             backoff: DEFAULT_BACKOFF,
@@ -219,12 +236,12 @@ impl EngineDeps {
 /// `res://<rel>` names a module bundled with the app; anything else is a filesystem path.
 /// A dev build reads the bundle from the crate: nothing copies `bundle.resources` beside
 /// the dev exe, so the resource dir there is whatever an earlier build left behind.
-fn resolve_entry(spec: &str) -> AppResult<std::path::PathBuf> {
+fn resolve_entry(spec: &str) -> AppResult<PathBuf> {
     let Some(rel) = spec.strip_prefix("res://") else {
-        return Ok(std::path::PathBuf::from(spec));
+        return Ok(PathBuf::from(spec));
     };
     if tauri::is_dev() {
-        return Ok(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(rel));
+        return Ok(Path::new(env!("CARGO_MANIFEST_DIR")).join(rel));
     }
     let app = crate::app_handle()
         .ok_or_else(|| AppError("procedure: no app handle for resource lookup".to_string()))?;
@@ -235,7 +252,7 @@ fn resolve_entry(spec: &str) -> AppResult<std::path::PathBuf> {
 }
 
 fn http_client() -> &'static reqwest::Client {
-    static C: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    static C: OnceLock<reqwest::Client> = OnceLock::new();
     C.get_or_init(|| {
         reqwest::Client::builder()
             .use_rustls_tls()
@@ -303,8 +320,7 @@ async fn http_fetch(req: HttpRequestSpec) -> AppResult<HttpResponse> {
 // ---------------------------------------------------------------------------
 
 fn runs() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
-    static R: std::sync::OnceLock<Mutex<HashMap<u32, Arc<AtomicBool>>>> =
-        std::sync::OnceLock::new();
+    static R: OnceLock<Mutex<HashMap<u32, Arc<AtomicBool>>>> = OnceLock::new();
     R.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -392,7 +408,7 @@ impl RateLimiter {
                 }
                 Duration::from_secs_f64((want - st.0) / self.per_ms / 1000.0)
             };
-            tokio::time::sleep(wait.max(Duration::from_micros(200))).await;
+            time::sleep(wait.max(Duration::from_micros(200))).await;
         }
     }
 }
@@ -409,7 +425,7 @@ pub(super) const CANCELLED: &str = "procedure: run cancelled";
 /// draws on the same budget, so throughput is a property of the provider rather than of
 /// how many instances happen to be running.
 struct FetchBudget {
-    slots: tokio::sync::Semaphore,
+    slots: Semaphore,
     limiter: Option<RateLimiter>,
 }
 
@@ -417,14 +433,14 @@ impl FetchBudget {
     fn new(inflight: Option<u32>, rate: Option<RateSpec>) -> Self {
         let width = inflight.unwrap_or(DEFAULT_INFLIGHT).clamp(1, MAX_INFLIGHT);
         FetchBudget {
-            slots: tokio::sync::Semaphore::new(width as usize),
+            slots: Semaphore::new(width as usize),
             limiter: rate.and_then(RateLimiter::new),
         }
     }
 
     /// Waits for the rate bucket, then for a slot. The slot is held until the response
     /// lands, so `inflight` counts requests actually outstanding.
-    async fn admit(&self, cost: u32) -> tokio::sync::SemaphorePermit<'_> {
+    async fn admit(&self, cost: u32) -> SemaphorePermit<'_> {
         if let Some(l) = &self.limiter {
             l.acquire(cost).await;
         }
@@ -437,10 +453,10 @@ impl FetchBudget {
 
 /// The runtime every procedure request runs on. Requests are futures here, not threads,
 /// which is what lets `inflight` be hundreds while `instances` stays near the core count.
-fn http_runtime() -> &'static tokio::runtime::Runtime {
-    static RT: std::sync::OnceLock<tokio::runtime::Runtime> = std::sync::OnceLock::new();
+fn http_runtime() -> &'static Runtime {
+    static RT: OnceLock<Runtime> = OnceLock::new();
     RT.get_or_init(|| {
-        tokio::runtime::Builder::new_multi_thread()
+        Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
             .thread_name("procedure-http")
@@ -452,9 +468,9 @@ fn http_runtime() -> &'static tokio::runtime::Runtime {
 /// Drive `f` on the calling thread with the http runtime entered, so the requests and
 /// timers inside it reach that runtime's driver. Entering rather than `Runtime::block_on`
 /// keeps this callable from a thread that is already inside a runtime.
-fn drive<T>(f: impl std::future::Future<Output = T>) -> T {
+fn drive<T>(f: impl Future<Output = T>) -> T {
     let _entered = http_runtime().enter();
-    futures::executor::block_on(f)
+    executor::block_on(f)
 }
 
 /// One request under a retry policy: `attempts` total tries, sleeping `backoff` and
@@ -483,7 +499,7 @@ async fn fetch_one(
         if !retry_on.contains(&resp.status) || attempt + 1 == attempts {
             return Ok(resp);
         }
-        tokio::time::sleep(delay).await;
+        time::sleep(delay).await;
         delay *= 2;
     }
     unreachable!("attempts is at least 1")
@@ -500,7 +516,7 @@ fn fetch_all(
     aborted: &(dyn Fn() -> bool + Sync),
     reqs: &[HttpRequestSpec],
 ) -> Vec<AppResult<HttpResponse>> {
-    drive(futures::future::join_all(reqs.iter().map(|req| {
+    drive(future::join_all(reqs.iter().map(|req| {
         fetch_one(deps, budget, cost, attempts, retry_on, aborted, req)
     })))
 }
@@ -646,7 +662,7 @@ pub(crate) fn run_all(
         if cancel.load(Ordering::Relaxed) {
             break;
         }
-        std::thread::scope(|s| {
+        thread::scope(|s| {
             for idx in wave {
                 let decl = &providers[idx];
                 let ctx = RunCtx {
@@ -714,7 +730,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let (batch_tx, batch_rx) = mpsc::sync_channel::<Tagged>(instances * 2);
     let batch_rx = Mutex::new(batch_rx);
     let (out_tx, out_rx) = mpsc::channel::<Produced>();
-    let outcome = std::thread::scope(|s| {
+    let outcome = thread::scope(|s| {
         for _ in 0..instances {
             let out_tx = out_tx.clone();
             let (batch_rx, budget, prog, config) = (&batch_rx, &budget, &prog, config.as_str());
@@ -1011,8 +1027,7 @@ fn split_batches(mode: &BatchMode, rows: Vec<Location>) -> AppResult<Vec<WorkBat
 /// opaque config, spliced in verbatim. Unparseable provider config reads as null
 /// rather than failing the run.
 fn configure_json(fields: &[String], force: bool, config: Option<&str>) -> String {
-    let config =
-        config.and_then(|s| serde_json::from_str::<Box<serde_json::value::RawValue>>(s).ok());
+    let config = config.and_then(|s| serde_json::from_str::<Box<RawValue>>(s).ok());
     serde_json::json!({ "fields": fields, "force": force, "config": config }).to_string()
 }
 
@@ -1131,7 +1146,7 @@ fn run_batch(
 /// the two cannot drift. A patch entry carrying anything else fails its batch rather than
 /// being silently ignored.
 fn patch_keys() -> &'static [String] {
-    static KEYS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    static KEYS: OnceLock<Vec<String>> = OnceLock::new();
     KEYS.get_or_init(|| match serde_json::to_value(LocationPatch::default()) {
         Ok(serde_json::Value::Object(map)) => map.into_iter().map(|(k, _)| k).collect(),
         _ => unreachable!("LocationPatch serializes as an object"),
@@ -1220,7 +1235,7 @@ impl EngineHost<'_> {
 
 impl ProcHost for EngineHost<'_> {
     fn fetch(&mut self, req: &HttpRequestSpec) -> AppResult<HttpResponse> {
-        self.fetch_many(std::slice::from_ref(req))
+        self.fetch_many(slice::from_ref(req))
             .pop()
             .expect("one request answers once")
     }
@@ -1240,7 +1255,7 @@ impl ProcHost for EngineHost<'_> {
     }
 
     fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>> {
-        Ok(crate::borders::classify_points(dataset, &[(lat, lng)])?
+        Ok(borders::classify_points(dataset, &[(lat, lng)])?
             .into_iter()
             .next()
             .flatten())
@@ -1252,7 +1267,7 @@ impl ProcHost for EngineHost<'_> {
         command: &str,
         payload_json: &str,
     ) -> AppResult<SidecarStream> {
-        crate::sidecar::sidecar_call_stream(plugin_id, command, payload_json)
+        sidecar::sidecar_call_stream(plugin_id, command, payload_json)
     }
 
     fn progress(&mut self, units: u32) {
@@ -1290,7 +1305,7 @@ struct QueryHost<'a> {
 
 impl ProcHost for QueryHost<'_> {
     fn fetch(&mut self, req: &HttpRequestSpec) -> AppResult<HttpResponse> {
-        self.fetch_many(std::slice::from_ref(req))
+        self.fetch_many(slice::from_ref(req))
             .pop()
             .expect("one request answers once")
     }
@@ -1308,7 +1323,7 @@ impl ProcHost for QueryHost<'_> {
     }
 
     fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>> {
-        Ok(crate::borders::classify_points(dataset, &[(lat, lng)])?
+        Ok(borders::classify_points(dataset, &[(lat, lng)])?
             .into_iter()
             .next()
             .flatten())
@@ -1320,7 +1335,7 @@ impl ProcHost for QueryHost<'_> {
         command: &str,
         payload_json: &str,
     ) -> AppResult<SidecarStream> {
-        crate::sidecar::sidecar_call_stream(plugin_id, command, payload_json)
+        sidecar::sidecar_call_stream(plugin_id, command, payload_json)
     }
 
     fn progress(&mut self, _units: u32) {}
@@ -1388,7 +1403,7 @@ pub async fn procedure_run(
 ) -> AppResult<u32> {
     let map_id = state.lock()?.map_id_for_window(&label.0)?;
     let (run_id, cancel) = register_run()?;
-    tokio::task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         let Some(app) = crate::app_handle() else {
             log::error!("[procedure] no app handle; run {run_id} aborted");
             unregister_run(run_id);
@@ -1427,8 +1442,7 @@ pub async fn procedure_cancel(run_id: u32) -> AppResult<()> {
 /// Cancel flags for queries in flight, keyed by the token the caller chose. A query
 /// answers only when it is over, so the caller has to name it up front to cancel it.
 fn query_tokens() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
-    static T: std::sync::OnceLock<Mutex<HashMap<u32, Arc<AtomicBool>>>> =
-        std::sync::OnceLock::new();
+    static T: OnceLock<Mutex<HashMap<u32, Arc<AtomicBool>>>> = OnceLock::new();
     T.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -1447,7 +1461,7 @@ pub async fn procedure_query(
     if let Some(token) = cancel {
         query_tokens().lock()?.insert(token, flag.clone());
     }
-    let out = tokio::task::spawn_blocking(move || {
+    let out = task::spawn_blocking(move || {
         let deps = EngineDeps::production();
         run_query(&deps, &entry, &input, config, &|| {
             flag.load(Ordering::Relaxed)

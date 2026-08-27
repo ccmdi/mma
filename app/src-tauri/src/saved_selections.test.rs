@@ -1,4 +1,5 @@
 use super::*;
+use crate::selections::PolygonGeometry;
 use crate::selections::Selection;
 use rusqlite::Connection;
 
@@ -125,7 +126,7 @@ fn the_index_carries_identity_without_reading_any_tree() {
         &conn,
         "heavy".into(),
         Selector::Polygon {
-            polygon: crate::selections::PolygonGeometry {
+            polygon: PolygonGeometry {
                 coordinates: vec![vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]],
                 extra_polygons: None,
                 properties: None,

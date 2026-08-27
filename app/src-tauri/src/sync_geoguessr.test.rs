@@ -1,5 +1,9 @@
 use super::*;
+use crate::proxy;
 use crate::sync::sync_key;
+use crate::sync::AUTH_PREFIX;
+use reqwest::blocking::Response;
+use std::env;
 
 // --- fixtures ---------------------------------------------------------------
 
@@ -279,9 +283,7 @@ fn gg_coordinate_deserializes_null_and_absent_codes_alike() {
 #[test]
 fn classifies_auth_and_version_conflict_errors() {
     assert_eq!(http_error("read", 401).0, "auth: read: HTTP 401");
-    assert!(!http_error("read", 409)
-        .0
-        .starts_with(crate::sync::AUTH_PREFIX));
+    assert!(!http_error("read", 409).0.starts_with(AUTH_PREFIX));
     assert!(is_version_conflict(&http_error("write", 409)));
     assert!(is_version_conflict(&http_error("write", 412)));
     assert!(!is_version_conflict(&http_error("write", 401)));
@@ -311,9 +313,9 @@ mod live {
     use crate::sync::DesiredEntry;
 
     fn creds() -> (String, String) {
-        let ncfa = std::env::var("GG_NCFA")
+        let ncfa = env::var("GG_NCFA")
             .expect("GG_NCFA (a _ncfa session cookie) is required for the live GeoGuessr tests");
-        let map = std::env::var("GG_SYNC_TEST_MAP").expect(
+        let map = env::var("GG_SYNC_TEST_MAP").expect(
             "GG_SYNC_TEST_MAP (a throwaway draft slug) is required; its coordinates are WIPED",
         );
         (ncfa, map)
@@ -321,7 +323,7 @@ mod live {
 
     fn get_draft(ncfa: &str, map: &str) -> serde_json::Value {
         let url = upstream_url(&format!("api/v4/user-maps/drafts/{map}"), None);
-        let mut req = crate::proxy::proxy_client().get(&url);
+        let mut req = proxy::proxy_client().get(&url);
         for (k, v) in proxy_headers(ncfa, None) {
             req = req.header(k, v);
         }
@@ -335,10 +337,10 @@ mod live {
     }
 
     /// PUT an arbitrary write body; returns the raw response so callers can assert on failures.
-    fn put_body(ncfa: &str, map: &str, body: &serde_json::Value) -> reqwest::blocking::Response {
+    fn put_body(ncfa: &str, map: &str, body: &serde_json::Value) -> Response {
         let url = upstream_url(&format!("api/v4/user-maps/drafts/{map}"), None);
         let bytes = serde_json::to_vec(body).unwrap();
-        let mut req = crate::proxy::proxy_client().put(&url).body(bytes);
+        let mut req = proxy::proxy_client().put(&url).body(bytes);
         for (k, v) in proxy_headers(ncfa, Some("application/json")) {
             req = req.header(k, v);
         }
@@ -346,12 +348,7 @@ mod live {
     }
 
     /// PUT `coords` at an exact `version` (no implicit +1).
-    fn put_coords(
-        ncfa: &str,
-        map: &str,
-        coords: &[GgCoordinate],
-        version: i64,
-    ) -> reqwest::blocking::Response {
+    fn put_coords(ncfa: &str, map: &str, coords: &[GgCoordinate], version: i64) -> Response {
         let body = GgDraftWrite {
             mode: "coordinates".into(),
             version,

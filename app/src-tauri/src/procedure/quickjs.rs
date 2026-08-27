@@ -33,6 +33,16 @@ use rquickjs::{
     Array, ArrayBuffer, CatchResultExt, CaughtError, Context, Ctx, Function, Module, Object,
     Runtime, TypedArray, Value,
 };
+#[cfg(test)]
+use std::cell::Cell;
+use std::fmt;
+use std::fmt::Debug;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fs;
+use std::mem;
+use std::sync::OnceLock;
+use std::thread;
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
 use crate::sidecar::SidecarStream;
@@ -53,7 +63,7 @@ const EXPORTS: &str = "__mma_exports";
 // loads from tests running beside them.
 #[cfg(test)]
 thread_local! {
-    pub(crate) static LOADS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    pub(crate) static LOADS: Cell<u32> = const { Cell::new(0) };
 }
 
 /// Globals bare QuickJS does not provide but bundled procedure code expects.
@@ -305,7 +315,7 @@ impl ProcHost for NoHost {
 // Value marshalling
 // ---------------------------------------------------------------------------
 
-fn throw(ctx: &Ctx<'_>, msg: impl std::fmt::Display) -> rquickjs::Error {
+fn throw(ctx: &Ctx<'_>, msg: impl Display) -> rquickjs::Error {
     match rquickjs::String::from_str(ctx.clone(), &msg.to_string()) {
         Ok(s) => ctx.throw(s.into_value()),
         Err(e) => e,
@@ -694,8 +704,8 @@ pub struct JsProcedure {
     config: Option<String>,
 }
 
-impl std::fmt::Debug for JsProcedure {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for JsProcedure {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("JsProcedure")
             .field("origin", &self.origin)
             .field("shape", &self.shape)
@@ -705,7 +715,7 @@ impl std::fmt::Debug for JsProcedure {
 
 impl JsProcedure {
     pub fn load(path: &Path) -> AppResult<JsProcedure> {
-        let src = std::fs::read_to_string(path)?;
+        let src = fs::read_to_string(path)?;
         JsProcedure::load_source(&src, &path.display().to_string())
     }
 
@@ -749,7 +759,7 @@ impl JsProcedure {
         })
     }
 
-    fn err(&self, msg: impl std::fmt::Display) -> AppError {
+    fn err(&self, msg: impl Display) -> AppError {
         AppError(format!("{}: {msg}", self.origin))
     }
 
@@ -766,7 +776,7 @@ impl JsProcedure {
         let bridge_tx = msg_tx.clone();
         let config = self.config.clone();
 
-        let joined = std::thread::scope(|scope| {
+        let joined = thread::scope(|scope| {
             let worker = scope.spawn(move || {
                 let _done = DoneGuard(msg_tx);
                 self.context.with(|ctx| {
@@ -970,12 +980,12 @@ struct PoolEntry {
 type Stamp = (Option<SystemTime>, u64);
 
 fn pool() -> &'static Mutex<HashMap<PathBuf, PoolEntry>> {
-    static P: std::sync::OnceLock<Mutex<HashMap<PathBuf, PoolEntry>>> = std::sync::OnceLock::new();
+    static P: OnceLock<Mutex<HashMap<PathBuf, PoolEntry>>> = OnceLock::new();
     P.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn stamp(path: &Path) -> Stamp {
-    match std::fs::metadata(path) {
+    match fs::metadata(path) {
         Ok(m) => (m.modified().ok(), m.len()),
         Err(_) => (None, 0),
     }
@@ -1036,12 +1046,10 @@ impl Drop for PooledProcedure {
         let Ok(mut pool) = pool().lock() else {
             return;
         };
-        let entry = pool
-            .entry(std::mem::take(&mut self.path))
-            .or_insert(PoolEntry {
-                stamp: self.stamp,
-                idle: Vec::new(),
-            });
+        let entry = pool.entry(mem::take(&mut self.path)).or_insert(PoolEntry {
+            stamp: self.stamp,
+            idle: Vec::new(),
+        });
         // The file changed while this was on loan: it was loaded from bytes that are
         // no longer there, so it retires instead of being pooled.
         if entry.stamp == self.stamp {

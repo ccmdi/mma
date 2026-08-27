@@ -1,6 +1,9 @@
 use super::*;
 use crate::arrow_bridge;
 use crate::test_util::TempDir;
+use crate::types::LocationFlags;
+use crate::types::RawExtra;
+use crate::util;
 use std::collections::BTreeMap;
 
 fn loc(id: u32, lat: f64, lng: f64) -> Location {
@@ -9,7 +12,7 @@ fn loc(id: u32, lat: f64, lng: f64) -> Location {
         lat,
         lng,
         zoom: 1.0,
-        created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
+        created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
         ..Default::default()
     }
 }
@@ -97,7 +100,7 @@ fn delta_batch_round_trip_preserves_all_fields() {
     l.tags = vec![1, 5, 9];
     let mut extra = serde_json::Map::new();
     extra.insert("note".into(), serde_json::Value::String("hi".into()));
-    l.extra = crate::types::RawExtra::from_map(&extra);
+    l.extra = RawExtra::from_map(&extra);
     let removed = loc(3, 1.0, 2.0);
 
     let batch = arrow_bridge::delta_to_batch(&[l.clone()], &[removed.clone()]);
@@ -226,10 +229,10 @@ fn arb_extra_map() -> impl Strategy<Value = serde_json::Map<String, serde_json::
     })
 }
 
-fn arb_extra() -> impl Strategy<Value = Option<crate::types::RawExtra>> {
+fn arb_extra() -> impl Strategy<Value = Option<RawExtra>> {
     prop_oneof![
         1 => Just(None),
-        3 => arb_extra_map().prop_map(|m| crate::types::RawExtra::from_map(&m)),
+        3 => arb_extra_map().prop_map(|m| RawExtra::from_map(&m)),
     ]
 }
 
@@ -246,7 +249,7 @@ fn arb_location_body() -> impl Strategy<Value = Location> {
         finite_f64(),
         finite_f64(),
         arb_pano_id(),
-        any::<u32>().prop_map(crate::types::LocationFlags::from_bits_retain),
+        any::<u32>().prop_map(LocationFlags::from_bits_retain),
         arb_tags(),
         arb_extra(),
         any::<u32>(),

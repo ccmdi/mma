@@ -7,6 +7,7 @@
 use crate::storage;
 use crate::types::AppResult;
 use rusqlite::params_from_iter;
+use rusqlite::types::ToSql;
 
 /// A panorama visit record as returned to the frontend.
 #[derive(serde::Serialize, specta::Type)]
@@ -90,11 +91,9 @@ fn row_to_seen(row: &rusqlite::Row) -> rusqlite::Result<SeenEntry> {
 
 /// Builds a SQL WHERE clause and parameter list from the optional filter.
 /// Returns an empty string (no WHERE) when no filter fields are set.
-fn build_where_clause(
-    filter: &Option<SeenFilter>,
-) -> (String, Vec<Box<dyn rusqlite::types::ToSql>>) {
+fn build_where_clause(filter: &Option<SeenFilter>) -> (String, Vec<Box<dyn ToSql>>) {
     let mut conditions: Vec<&str> = Vec::new();
-    let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+    let mut params: Vec<Box<dyn ToSql>> = Vec::new();
     let f = filter.as_ref();
 
     for (cond, value) in [

@@ -8,13 +8,15 @@ use discord_rich_presence::{
     activity::{Activity, Assets, Timestamps},
     DiscordIpc, DiscordIpcClient,
 };
+use std::error;
 use std::sync::mpsc::{channel, Sender};
 use std::sync::OnceLock;
+use std::thread;
 use std::time::Duration;
 
 const CLIENT_ID: &str = "1525958540181901475";
 
-type Job<C> = Box<dyn FnOnce(&mut C) -> Result<(), Box<dyn std::error::Error>> + Send>;
+type Job<C> = Box<dyn FnOnce(&mut C) -> Result<(), Box<dyn error::Error>> + Send>;
 
 /// Serial executor owning the lazily connected client; IPC never runs on a command thread.
 struct Worker<C> {
@@ -24,7 +26,7 @@ struct Worker<C> {
 impl<C: Send + 'static> Worker<C> {
     fn spawn(connect: impl Fn() -> Option<C> + Send + 'static) -> Self {
         let (tx, rx) = channel::<(bool, Job<C>)>();
-        std::thread::spawn(move || {
+        thread::spawn(move || {
             let mut client: Option<C> = None;
             for (may_connect, job) in rx {
                 if client.is_none() {
@@ -47,7 +49,7 @@ impl<C: Send + 'static> Worker<C> {
     fn submit(
         &self,
         may_connect: bool,
-        job: impl FnOnce(&mut C) -> Result<(), Box<dyn std::error::Error>> + Send + 'static,
+        job: impl FnOnce(&mut C) -> Result<(), Box<dyn error::Error>> + Send + 'static,
     ) {
         let _ = self.tx.send((may_connect, Box::new(job)));
     }

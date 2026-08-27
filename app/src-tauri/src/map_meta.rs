@@ -7,11 +7,17 @@
 
 use crate::location_store::StoreState;
 use crate::storage::{self, push_field};
+use crate::types;
 use crate::types::AppResult;
+use crate::types::PanoType;
+use crate::types::RawExtra;
 use crate::types::Tag;
 use crate::util::now_iso;
+use rusqlite::types::ToSql;
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fs;
 
 // ---------------------------------------------------------------------------
 // Typed sub-structs for MapMeta
@@ -174,7 +180,7 @@ impl MapExtra {
             extra.fields = Some(
                 fields
                     .into_iter()
-                    .map(|(k, v)| (crate::types::decode_json_key(&k).into_owned(), v))
+                    .map(|(k, v)| (types::decode_json_key(&k).into_owned(), v))
                     .collect(),
             );
         }
@@ -273,8 +279,8 @@ pub static KNOWN_FIELDS: &[KnownField] = &[
         key: "panoType",
         field_type: ExtraFieldType::Enum,
         label: "Pano type",
-        values: crate::types::PanoType::VALUES,
-        labels: crate::types::PanoType::LABELS,
+        values: PanoType::VALUES,
+        labels: PanoType::LABELS,
         circular_period: None,
         default_off: false,
     },
@@ -355,8 +361,8 @@ pub fn infer_field_type(value: &serde_json::Value) -> ExtraFieldType {
 /// Known SV metadata keys get curated definitions; unknown keys get type-inferred ones.
 /// Returns `None` if no new fields are discovered.
 pub fn auto_register_field_defs(
-    known_keys: &std::collections::HashSet<String>,
-    extras: &[&crate::types::RawExtra],
+    known_keys: &HashSet<String>,
+    extras: &[&RawExtra],
 ) -> Option<HashMap<String, ExtraFieldDef>> {
     let mut new_defs: HashMap<String, ExtraFieldDef> = HashMap::new();
     for extra in extras {
@@ -389,7 +395,7 @@ pub fn auto_register_field_defs(
 
 /// Persist new field defs — skips keys that already exist. Used for auto-registration.
 pub fn persist_field_defs(
-    conn: &rusqlite::Connection,
+    conn: &Connection,
     map_id: &str,
     new_defs: &HashMap<String, ExtraFieldDef>,
 ) -> AppResult<()> {
@@ -581,14 +587,14 @@ fn delete_map_data(conn: &Connection, id: &str) -> AppResult<bool> {
     conn.execute("DELETE FROM commits WHERE map_id = ?1", params![id])?;
 
     if let Ok(path) = storage::arrow_path(id) {
-        let _ = std::fs::remove_file(path);
+        let _ = fs::remove_file(path);
     }
     if let Ok(path) = storage::arrow_delta_path(id) {
-        let _ = std::fs::remove_file(path);
+        let _ = fs::remove_file(path);
     }
     // Remove the map's per-commit VCS delta files.
     if let Ok(dir) = storage::arrow_dir() {
-        let _ = std::fs::remove_dir_all(dir.join("commits").join(id));
+        let _ = fs::remove_dir_all(dir.join("commits").join(id));
     }
     Ok(removed > 0)
 }
@@ -648,7 +654,7 @@ fn update_map_meta_row(
     patch: MapMetaPatch,
 ) -> AppResult<Option<MapExtra>> {
     let mut sets: Vec<&str> = Vec::new();
-    let mut values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+    let mut values: Vec<Box<dyn ToSql>> = Vec::new();
 
     push_field!(sets, values, patch, "name", name);
     push_field!(sets, values, patch, "description", description);
@@ -669,7 +675,7 @@ fn update_map_meta_row(
     values.push(Box::new(id.to_string()));
 
     let sql = format!("UPDATE maps SET {} WHERE id = ?", sets.join(", "));
-    let param_refs: Vec<&dyn rusqlite::types::ToSql> = values.iter().map(|b| b.as_ref()).collect();
+    let param_refs: Vec<&dyn ToSql> = values.iter().map(|b| b.as_ref()).collect();
     let old_extra = if patch.extra.is_some() {
         let s: String = conn
             .query_row("SELECT extra FROM maps WHERE id = ?", [id], |r| r.get(0))
@@ -1001,8 +1007,8 @@ mod tests {
         ));
     }
 
-    fn raw(json: &str) -> crate::types::RawExtra {
-        crate::types::RawExtra::from_string(json.to_string()).unwrap()
+    fn raw(json: &str) -> RawExtra {
+        RawExtra::from_string(json.to_string()).unwrap()
     }
 
     #[test]
@@ -1231,8 +1237,8 @@ mod tests {
     // --- scratch map ---
 
     /// A real schema in memory, plus one ordinary map to prove nothing else is touched.
-    fn setup_real_db() -> rusqlite::Connection {
-        let conn = rusqlite::Connection::open_in_memory().unwrap();
+    fn setup_real_db() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
         storage::run_migrations_on(&conn).unwrap();
         conn.execute(
             "INSERT INTO maps (id, name, settings, created_at, updated_at)
@@ -1283,8 +1289,8 @@ mod tests {
         assert_eq!(list_map_rows(&conn).unwrap().len(), 1);
     }
 
-    fn setup_maps_table() -> rusqlite::Connection {
-        let conn = rusqlite::Connection::open_in_memory().unwrap();
+    fn setup_maps_table() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
         conn.execute(
             "CREATE TABLE maps (id TEXT PRIMARY KEY, extra TEXT NOT NULL)",
             [],

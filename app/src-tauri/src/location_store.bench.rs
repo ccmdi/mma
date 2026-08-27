@@ -10,6 +10,10 @@
 
 use super::*;
 use crate::types::RawExtra;
+use std::env;
+use tauri::async_runtime;
+use tauri::test;
+use tauri::test::MockRuntime;
 
 pub use crate::location_store::{
     LocationPatch, MutationResult, RenderRequest, SelectionInput, Store, Update,
@@ -20,7 +24,7 @@ pub use crate::types::{Location, Tag};
 /// Row count for the scale-parameterized benches. `MMA_BENCH_SCALE=200000` for a
 /// full-size run; the default is a smoke-sized store.
 pub fn scale() -> usize {
-    std::env::var("MMA_BENCH_SCALE")
+    env::var("MMA_BENCH_SCALE")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(10_000)
@@ -206,18 +210,24 @@ pub fn render_request() -> RenderRequest {
 /// through this, exactly as IPC would (minus serialization). The app exists only
 /// because `tauri::State` can't be constructed by hand.
 pub struct BenchApp {
-    app: tauri::App<tauri::test::MockRuntime>,
+    app: tauri::App<MockRuntime>,
 }
 
 fn label() -> WindowLabel {
     WindowLabel("bench".into())
 }
 
+impl Default for BenchApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BenchApp {
     pub fn new() -> Self {
         use tauri::Manager;
-        let app = tauri::test::mock_builder()
-            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        let app = test::mock_builder()
+            .build(test::mock_context(test::noop_assets()))
             .expect("mock app");
         storage::init_paths(app.handle()).expect("init app paths");
         let mut mgr = StoreManager::new();
@@ -251,22 +261,22 @@ impl BenchApp {
     }
 
     pub fn undo(&self) -> MutationResult {
-        tauri::async_runtime::block_on(store_undo(label(), self.state())).expect("undo")
+        async_runtime::block_on(store_undo(label(), self.state())).expect("undo")
     }
 
     pub fn redo(&self) -> MutationResult {
-        tauri::async_runtime::block_on(store_redo(label(), self.state())).expect("redo")
+        async_runtime::block_on(store_redo(label(), self.state())).expect("redo")
     }
 
     pub fn sync_selections(&self, sels: Vec<SelectionInput>) -> usize {
-        tauri::async_runtime::block_on(store_sync_selections(label(), self.state(), sels))
+        async_runtime::block_on(store_sync_selections(label(), self.state(), sels))
             .expect("sync_selections")
             .selected_count
     }
 
     /// Full render via the real command, temp-file write included.
     pub fn fill_render(&self) -> String {
-        tauri::async_runtime::block_on(store_fill_render_file(
+        async_runtime::block_on(store_fill_render_file(
             label(),
             self.state(),
             render_request(),
@@ -362,14 +372,14 @@ pub fn rebuild_tag_sets(store: &mut Store) {
 // ---------------------------------------------------------------------------
 
 /// Write a population to a real Arrow IPC file, for the map-open bench to read back.
-pub fn write_arrow(path: &std::path::Path, batch: &RecordBatch) {
+pub fn write_arrow(path: &Path, batch: &RecordBatch) {
     storage::write_arrow_ipc(path, batch).expect("write arrow");
 }
 
 /// The in-process half of `store_open_map`: mmap the Arrow file, then rebuild the
 /// derived state (alive count, tag counts, bounds, tag membership index). The
 /// SQLite and edit-history halves are left out -- they need an app data dir.
-pub fn open_from_arrow(path: &std::path::Path, tags: &HashMap<u32, Tag>) -> Store {
+pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, Tag>) -> Store {
     let (batch, handle) = storage::read_arrow_ipc_mmap(path).expect("read arrow");
     let n = batch.num_rows();
     let max_id = if n > 0 {

@@ -5,13 +5,34 @@
 //! because unbuffered `File` writes are ~15x slower.
 
 use crate::arrow_bridge;
+use crate::arrow_migrate;
 use crate::types::{AppError, AppResult};
+use arrow_ipc::reader::FileReader;
+use arrow_ipc::writer::FileWriter;
+use arrow_select::concat;
 use rusqlite::Connection;
+use serde::de::DeserializeOwned;
+use std::collections::HashSet;
+use std::env;
+use std::fs;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::BufWriter;
+use std::panic;
+use std::panic::AssertUnwindSafe;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::OnceLock;
+use std::time::Duration;
 use tauri::Manager;
+use tokio::task;
 
 /// Deserialize a JSON text column from a SQLite row, falling back to `T::default()`
 /// on parse failure (forward-compatible with schema evolution).
-pub(crate) fn json_col<T: Default + serde::de::DeserializeOwned>(
+pub(crate) fn json_col<T: Default + DeserializeOwned>(
     row: &rusqlite::Row,
     col: &str,
 ) -> rusqlite::Result<T> {
@@ -41,7 +62,7 @@ pub(crate) use push_field;
 /// Controls which database file and Arrow directory are used, keeping
 /// test data isolated from production.
 fn is_test_mode() -> bool {
-    cfg!(feature = "e2e") || std::env::var("MMA_TEST_DB").is_ok()
+    cfg!(feature = "e2e") || env::var("MMA_TEST_DB").is_ok()
 }
 
 fn db_filename() -> &'static str {
@@ -55,10 +76,10 @@ fn db_filename() -> &'static str {
 /// Process-constant directories, resolved once at startup. Lets every path helper
 /// (db, arrow, plugins, temp) be zero-arg instead of threading an `AppHandle`
 /// through functions whose only use for it is path resolution.
-static APP_DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
-static DEFAULT_DATA_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
-static CONFIG_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
-static TEMP_DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+static APP_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+static DEFAULT_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
+static TEMP_DIR: OnceLock<PathBuf> = OnceLock::new();
 
 /// Bootstrap pointer file (in `app_config_dir`, never relocatable) naming the
 /// user's chosen data folder. Absent/empty means "use the OS default".
@@ -87,7 +108,7 @@ pub(crate) fn init_paths<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> AppRes
 
 /// The effective app data directory (default or user override). Errors if
 /// `init_paths` has not run.
-pub(crate) fn app_data_dir() -> AppResult<std::path::PathBuf> {
+pub(crate) fn app_data_dir() -> AppResult<PathBuf> {
     APP_DATA_DIR
         .get()
         .cloned()
@@ -96,7 +117,7 @@ pub(crate) fn app_data_dir() -> AppResult<std::path::PathBuf> {
 
 /// The OS default data directory, ignoring any override. Used to reset the
 /// data-folder setting and to tell the UI what "default" resolves to.
-pub(crate) fn default_data_dir() -> AppResult<std::path::PathBuf> {
+pub(crate) fn default_data_dir() -> AppResult<PathBuf> {
     DEFAULT_DATA_DIR
         .get()
         .cloned()
@@ -105,22 +126,22 @@ pub(crate) fn default_data_dir() -> AppResult<std::path::PathBuf> {
 
 /// Parse the raw pointer-file contents into an override path. Pure: trims
 /// whitespace, treats empty as "no override". Does not touch disk.
-fn parse_data_location(raw: &str) -> Option<std::path::PathBuf> {
+fn parse_data_location(raw: &str) -> Option<PathBuf> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         None
     } else {
-        Some(std::path::PathBuf::from(trimmed))
+        Some(PathBuf::from(trimmed))
     }
 }
 
 /// Read and validate the data-folder override from `<config_dir>/data_location.txt`.
 /// Returns `None` (falling back to default) if the file is absent, empty, or names
 /// a folder that cannot be created/used.
-fn read_data_location_override(config_dir: &std::path::Path) -> Option<std::path::PathBuf> {
-    let raw = std::fs::read_to_string(config_dir.join(DATA_LOCATION_FILE)).ok()?;
+fn read_data_location_override(config_dir: &Path) -> Option<PathBuf> {
+    let raw = fs::read_to_string(config_dir.join(DATA_LOCATION_FILE)).ok()?;
     let path = parse_data_location(&raw)?;
-    if let Err(e) = std::fs::create_dir_all(&path) {
+    if let Err(e) = fs::create_dir_all(&path) {
         log::warn!(
             "configured data folder '{}' is unusable ({e}); using default",
             path.display()
@@ -133,33 +154,33 @@ fn read_data_location_override(config_dir: &std::path::Path) -> Option<std::path
 /// Persist (or clear) the data-folder override. `Some(path)` validates the folder
 /// is creatable then writes the pointer; `None` removes it (revert to default).
 /// Takes effect on next launch -- the active paths are fixed for the process.
-pub(crate) fn set_data_location_override(path: Option<&std::path::Path>) -> AppResult<()> {
+pub(crate) fn set_data_location_override(path: Option<&Path>) -> AppResult<()> {
     let config_dir = CONFIG_DIR
         .get()
         .ok_or_else(|| AppError::from("app paths not initialized".to_string()))?;
-    std::fs::create_dir_all(config_dir)?;
+    fs::create_dir_all(config_dir)?;
     let file = config_dir.join(DATA_LOCATION_FILE);
     match path {
         Some(p) => {
-            std::fs::create_dir_all(p)?;
-            std::fs::write(&file, p.to_string_lossy().as_bytes())?;
+            fs::create_dir_all(p)?;
+            fs::write(&file, p.to_string_lossy().as_bytes())?;
         }
         None => {
-            let _ = std::fs::remove_file(&file);
+            let _ = fs::remove_file(&file);
         }
     }
     Ok(())
 }
 
 /// The OS temp directory (resolved via Tauri at startup).
-pub(crate) fn temp_dir() -> AppResult<std::path::PathBuf> {
+pub(crate) fn temp_dir() -> AppResult<PathBuf> {
     TEMP_DIR
         .get()
         .cloned()
         .ok_or_else(|| AppError::from("app paths not initialized".to_string()))
 }
 
-pub(crate) fn db_path() -> AppResult<std::path::PathBuf> {
+pub(crate) fn db_path() -> AppResult<PathBuf> {
     Ok(app_data_dir()?.join(db_filename()))
 }
 
@@ -170,14 +191,13 @@ pub(crate) fn db_path() -> AppResult<std::path::PathBuf> {
 pub(crate) async fn with_db<T: Send + 'static>(
     f: impl FnOnce(&mut Connection) -> AppResult<T> + Send + 'static,
 ) -> AppResult<T> {
-    tokio::task::spawn_blocking(move || f(&mut open_db()?)).await?
+    task::spawn_blocking(move || f(&mut open_db()?)).await?
 }
 
 pub(crate) fn open_db() -> AppResult<Connection> {
     let path = db_path()?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("failed to create app data dir: {e}"))?;
+        fs::create_dir_all(parent).map_err(|e| format!("failed to create app data dir: {e}"))?;
     }
     let conn = Connection::open(path)?;
     configure_connection(&conn)?;
@@ -189,7 +209,7 @@ pub(crate) fn open_db() -> AppResult<Connection> {
 fn configure_connection(conn: &Connection) -> AppResult<()> {
     // Default busy timeout is 0: any write-lock contention (second window, lingering
     // process) fails instantly with "database is locked" instead of waiting.
-    conn.busy_timeout(std::time::Duration::from_secs(5))?;
+    conn.busy_timeout(Duration::from_secs(5))?;
     conn.pragma_update(None, "foreign_keys", true)?;
     Ok(())
 }
@@ -214,7 +234,7 @@ pub(crate) fn run_migrations() -> AppResult<()> {
     if wiped_blobs {
         let blobs = arrow_dir()?.join("blobs");
         if blobs.exists() {
-            if let Err(e) = std::fs::remove_dir_all(&blobs) {
+            if let Err(e) = fs::remove_dir_all(&blobs) {
                 log::warn!("[migrations] failed to remove old blob store {blobs:?}: {e}");
             } else {
                 log::info!("[migrations] removed retired blob store {blobs:?}");
@@ -256,7 +276,7 @@ pub(crate) fn run_migrations_on(conn: &Connection) -> AppResult<bool> {
         .ok();
     }
 
-    let applied: std::collections::HashSet<u32> = conn
+    let applied: HashSet<u32> = conn
         .prepare("SELECT version FROM _mma_migrations")?
         .query_map([], |row| row.get(0))?
         .filter_map(|r| r.ok())
@@ -620,14 +640,14 @@ pub(crate) mod secret {
 /// for the process lifetime. Outer `None` = not yet read; inner `None` = no session.
 pub(crate) struct SessionCell {
     name: &'static str,
-    cached: std::sync::Mutex<Option<Option<String>>>,
+    cached: Mutex<Option<Option<String>>>,
 }
 
 impl SessionCell {
     pub(crate) const fn new(name: &'static str) -> Self {
         Self {
             name,
-            cached: std::sync::Mutex::new(None),
+            cached: Mutex::new(None),
         }
     }
 
@@ -657,7 +677,7 @@ impl SessionCell {
 
 /// Root directory for all Arrow IPC files (`arrow/` or `arrow_test/`).
 /// Created on first access.
-pub(crate) fn arrow_dir() -> AppResult<std::path::PathBuf> {
+pub(crate) fn arrow_dir() -> AppResult<PathBuf> {
     let subdir = if is_test_mode() {
         "arrow_test"
     } else {
@@ -665,33 +685,33 @@ pub(crate) fn arrow_dir() -> AppResult<std::path::PathBuf> {
     };
     let dir = app_data_dir()?.join(subdir);
     if !dir.exists() {
-        std::fs::create_dir_all(&dir)?;
+        fs::create_dir_all(&dir)?;
     }
     Ok(dir)
 }
 
 /// Path to a map's base Arrow IPC snapshot: `<arrow_dir>/<map_id>.arrow`.
-pub(crate) fn arrow_path(map_id: &str) -> AppResult<std::path::PathBuf> {
+pub(crate) fn arrow_path(map_id: &str) -> AppResult<PathBuf> {
     Ok(arrow_dir()?.join(format!("{map_id}.arrow")))
 }
 
 /// Path to a map's uncommitted delta file: `<arrow_dir>/<map_id>_delta.arrow`.
 /// Contains overlay mutations not yet baked into the base snapshot.
-pub(crate) fn arrow_delta_path(map_id: &str) -> AppResult<std::path::PathBuf> {
+pub(crate) fn arrow_delta_path(map_id: &str) -> AppResult<PathBuf> {
     Ok(arrow_dir()?.join(format!("{map_id}_delta.arrow")))
 }
 
 /// Directory holding a map's per-commit VCS delta files. Created on first access.
-pub(crate) fn commit_dir(map_id: &str) -> AppResult<std::path::PathBuf> {
+pub(crate) fn commit_dir(map_id: &str) -> AppResult<PathBuf> {
     let dir = arrow_dir()?.join("commits").join(map_id);
     if !dir.exists() {
-        std::fs::create_dir_all(&dir)?;
+        fs::create_dir_all(&dir)?;
     }
     Ok(dir)
 }
 
 /// Path to a single commit's Arrow delta file: `<arrow_dir>/commits/<map_id>/<commit_id>.arrow`.
-pub(crate) fn commit_delta_path(map_id: &str, commit_id: &str) -> AppResult<std::path::PathBuf> {
+pub(crate) fn commit_delta_path(map_id: &str, commit_id: &str) -> AppResult<PathBuf> {
     Ok(commit_dir(map_id)?.join(format!("{commit_id}.arrow")))
 }
 
@@ -700,13 +720,10 @@ pub(crate) fn commit_delta_path(map_id: &str, commit_id: &str) -> AppResult<std:
 /// Uses a 1 MB `BufWriter` (unbuffered writes are ~15x slower on Windows).
 /// The write targets a `.tmp` sibling then renames, so readers never see
 /// a partial file.
-pub(crate) fn write_arrow_ipc(
-    path: &std::path::Path,
-    batch: &arrow_array::RecordBatch,
-) -> AppResult<()> {
+pub(crate) fn write_arrow_ipc(path: &Path, batch: &arrow_array::RecordBatch) -> AppResult<()> {
     atomic_write(path, |file| {
-        let buf = std::io::BufWriter::with_capacity(1 << 20, file);
-        let mut writer = arrow_ipc::writer::FileWriter::try_new(buf, &batch.schema())?;
+        let buf = BufWriter::with_capacity(1 << 20, file);
+        let mut writer = FileWriter::try_new(buf, &batch.schema())?;
         writer.write(batch)?;
         writer.finish()?;
         Ok(())
@@ -716,19 +733,16 @@ pub(crate) fn write_arrow_ipc(
 /// Write to `path` via a temporary `.tmp` sibling, then atomically rename.
 /// Guarantees readers never observe a partially-written file.
 pub(crate) fn atomic_write(
-    path: &std::path::Path,
-    write_fn: impl FnOnce(std::fs::File) -> AppResult<()>,
+    path: &Path,
+    write_fn: impl FnOnce(File) -> AppResult<()>,
 ) -> AppResult<()> {
     let tmp = path.with_extension("tmp");
-    let file = std::fs::File::create(&tmp)?;
+    let file = File::create(&tmp)?;
     write_fn(file)?;
     // write_fn consumed the handle; reopen to fsync - without it the rename can
     // become durable before the data, losing the file on power cut.
-    std::fs::OpenOptions::new()
-        .write(true)
-        .open(&tmp)?
-        .sync_all()?;
-    std::fs::rename(&tmp, path)?;
+    OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
+    fs::rename(&tmp, path)?;
     Ok(())
 }
 
@@ -739,8 +753,8 @@ pub(crate) fn sweep_orphaned_tmp() -> usize {
 }
 
 /// Recursively delete `*.tmp` files under `dir`; returns the number removed.
-pub(crate) fn sweep_tmp_under(dir: &std::path::Path) -> usize {
-    let Ok(entries) = std::fs::read_dir(dir) else {
+pub(crate) fn sweep_tmp_under(dir: &Path) -> usize {
+    let Ok(entries) = fs::read_dir(dir) else {
         return 0;
     };
     let mut n = 0;
@@ -748,7 +762,7 @@ pub(crate) fn sweep_tmp_under(dir: &std::path::Path) -> usize {
         let p = e.path();
         if p.is_dir() {
             n += sweep_tmp_under(&p);
-        } else if p.extension().is_some_and(|x| x == "tmp") && std::fs::remove_file(&p).is_ok() {
+        } else if p.extension().is_some_and(|x| x == "tmp") && fs::remove_file(&p).is_ok() {
             n += 1;
         }
     }
@@ -759,23 +773,23 @@ pub(crate) fn sweep_tmp_under(dir: &std::path::Path) -> usize {
 ///
 /// If the file contains multiple batches they are concatenated. An empty or
 /// missing-batch file returns an empty batch with the location schema.
-pub(crate) fn read_arrow_ipc(path: &std::path::Path) -> AppResult<arrow_array::RecordBatch> {
-    let file = std::fs::File::open(path)?;
-    let reader = arrow_ipc::reader::FileReader::try_new(file, None)?;
+pub(crate) fn read_arrow_ipc(path: &Path) -> AppResult<arrow_array::RecordBatch> {
+    let file = File::open(path)?;
+    let reader = FileReader::try_new(file, None)?;
     let mut batches = Vec::new();
     for batch in reader {
-        batches.push(crate::arrow_migrate::migrate(batch?)?);
+        batches.push(arrow_migrate::migrate(batch?)?);
     }
     if batches.is_empty() {
-        return Ok(arrow_array::RecordBatch::new_empty(std::sync::Arc::new(
+        return Ok(arrow_array::RecordBatch::new_empty(Arc::new(
             arrow_bridge::location_schema(),
         )));
     }
     if batches.len() == 1 {
         return Ok(batches.into_iter().next().unwrap());
     }
-    let schema = std::sync::Arc::new(arrow_bridge::location_schema());
-    arrow_select::concat::concat_batches(&schema, &batches).map_err(AppError::from)
+    let schema = Arc::new(arrow_bridge::location_schema());
+    concat::concat_batches(&schema, &batches).map_err(AppError::from)
 }
 
 /// Keeps the mmap alive for as long as the RecordBatch references it.
@@ -790,14 +804,14 @@ pub(crate) struct MmapHandle {
 /// footer and record-batch blocks directly from the mmap buffer, avoiding
 /// any heap allocation for the raw column data.
 pub(crate) fn read_arrow_ipc_mmap(
-    path: &std::path::Path,
+    path: &Path,
 ) -> AppResult<(arrow_array::RecordBatch, MmapHandle)> {
     use arrow_buffer::Buffer;
     use arrow_ipc::reader::{read_footer_length, FileDecoder};
     use arrow_ipc::{convert::fb_to_schema, root_as_footer};
     use std::sync::Arc;
 
-    let file = std::fs::File::open(path)?;
+    let file = File::open(path)?;
     // SAFETY: we own the file exclusively; no other process modifies it while mapped.
     // On Windows, the mmap holds an exclusive lock preventing external modification.
     let mmap = unsafe { memmap2::Mmap::map(&file) }?;
@@ -822,7 +836,7 @@ pub(crate) fn read_arrow_ipc_mmap(
         ))
     })?;
     // fb_to_schema panics (not Errs) on out-of-range enum values in a corrupted footer.
-    let schema = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| fb_to_schema(fb_schema)))
+    let schema = panic::catch_unwind(AssertUnwindSafe(|| fb_to_schema(fb_schema)))
         .map_err(|_| AppError(format!("Arrow file {}: corrupted footer", path.display())))?;
     let schema = Arc::new(schema);
     let mut decoder = FileDecoder::new(schema.clone(), footer.version());
@@ -831,7 +845,7 @@ pub(crate) fn read_arrow_ipc_mmap(
     for block in footer.dictionaries().iter().flatten() {
         let block_len = block.bodyLength() as usize + block.metaDataLength() as usize;
         let data = buffer.slice_with_length(block.offset() as usize, block_len);
-        decoder.read_dictionary(&block, &data)?;
+        decoder.read_dictionary(block, &data)?;
     }
 
     let blocks = footer.recordBatches();
@@ -849,10 +863,10 @@ pub(crate) fn read_arrow_ipc_mmap(
         let block_len = block.bodyLength() as usize + block.metaDataLength() as usize;
         let data = buffer.slice_with_length(block.offset() as usize, block_len);
         let batch = decoder
-            .read_record_batch(&block, &data)?
+            .read_record_batch(block, &data)?
             .unwrap_or_else(|| arrow_array::RecordBatch::new_empty(schema));
         Ok((
-            crate::arrow_migrate::migrate(batch)?,
+            arrow_migrate::migrate(batch)?,
             MmapHandle { _buffer: buffer },
         ))
     } else {
@@ -861,13 +875,13 @@ pub(crate) fn read_arrow_ipc_mmap(
             let block = blocks.get(i);
             let block_len = block.bodyLength() as usize + block.metaDataLength() as usize;
             let data = buffer.slice_with_length(block.offset() as usize, block_len);
-            if let Some(batch) = decoder.read_record_batch(&block, &data)? {
+            if let Some(batch) = decoder.read_record_batch(block, &data)? {
                 batches.push(batch);
             }
         }
-        let merged = arrow_select::concat::concat_batches(&schema, &batches)?;
+        let merged = concat::concat_batches(&schema, &batches)?;
         Ok((
-            crate::arrow_migrate::migrate(merged)?,
+            arrow_migrate::migrate(merged)?,
             MmapHandle { _buffer: buffer },
         ))
     }
@@ -878,8 +892,8 @@ pub(crate) fn read_arrow_ipc_mmap(
 #[tauri::command]
 #[specta::specta]
 pub fn write_temp_file(name: String, content: String) -> AppResult<String> {
-    let path = std::env::temp_dir().join(format!("mma_{name}"));
-    std::fs::write(&path, &content)?;
+    let path = env::temp_dir().join(format!("mma_{name}"));
+    fs::write(&path, &content)?;
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -887,7 +901,7 @@ pub fn write_temp_file(name: String, content: String) -> AppResult<String> {
 #[tauri::command]
 #[specta::specta]
 pub fn read_file(path: String) -> AppResult<String> {
-    Ok(std::fs::read_to_string(&path)?)
+    Ok(fs::read_to_string(&path)?)
 }
 
 #[tauri::command]
@@ -922,18 +936,18 @@ pub fn get_data_location() -> AppResult<DataLocation> {
 #[tauri::command]
 #[specta::specta]
 pub fn set_data_location(path: Option<String>) -> AppResult<()> {
-    set_data_location_override(path.as_deref().map(std::path::Path::new))
+    set_data_location_override(path.as_deref().map(Path::new))
 }
 
 /// Hand a path to the OS shell (file explorer / default handler).
-fn os_open(path: &std::path::Path) -> AppResult<()> {
+fn os_open(path: &Path) -> AppResult<()> {
     #[cfg(target_os = "windows")]
     let program = "explorer";
     #[cfg(target_os = "macos")]
     let program = "open";
     #[cfg(target_os = "linux")]
     let program = "xdg-open";
-    std::process::Command::new(program).arg(path).spawn()?;
+    Command::new(program).arg(path).spawn()?;
     Ok(())
 }
 

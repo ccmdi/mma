@@ -4,9 +4,15 @@
 //! without an account go through a small Cloudflare Worker (`workers/feedback/`) that holds
 //! the GitHub App installation key and files the issue on their behalf.
 
+use crate::export;
 use crate::github::IssueThread;
+use crate::proxy;
 use crate::types::AppResult;
+use crate::util;
 use crate::util::{blocking, sha256};
+use std::fs;
+use std::fs::File;
+use std::path::Path;
 
 /// Empty disables the anonymous tier rather than failing it.
 const WORKER_URL: &str = "https://feedback.ccmdi.com";
@@ -118,7 +124,7 @@ fn fetch_challenge() -> AppResult<String> {
     struct ChallengeResp {
         challenge: String,
     }
-    let resp = crate::proxy::proxy_client()
+    let resp = proxy::proxy_client()
         .get(format!("{WORKER_URL}/challenge"))
         .send()?;
     if !resp.status().is_success() {
@@ -140,7 +146,7 @@ pub async fn feedback_log_tail(app: tauri::AppHandle) -> AppResult<String> {
 
     let path = app.path().app_log_dir()?.join("mma.log");
     blocking(move || {
-        let Ok(mut f) = std::fs::File::open(&path) else {
+        let Ok(mut f) = File::open(&path) else {
             return Ok(String::new());
         };
         let len = f.metadata()?.len();
@@ -182,9 +188,9 @@ pub async fn feedback_submit_anonymous(
         let title = scrub(&title);
         let body = scrub(&body);
         let challenge = fetch_challenge()?;
-        let content = crate::util::sha256_hex(format!("{title}\0{body}").as_bytes());
+        let content = util::sha256_hex(format!("{title}\0{body}").as_bytes());
         let nonce = solve_pow(&format!("{challenge}:{content}"), POW_BITS);
-        let resp = crate::proxy::proxy_client()
+        let resp = proxy::proxy_client()
             .post(format!("{WORKER_URL}/reports"))
             .json(&serde_json::json!({
                 "title": title,
@@ -230,10 +236,10 @@ fn is_image(bytes: &[u8]) -> bool {
 /// Whether `path` is a file the report dialog staged: a direct child of a valid upload
 /// session dir (see [`crate::export::upload_session_dir`]). The upload command is reachable
 /// from plugins, so an unconstrained path would read -- and then delete -- anything on disk.
-pub(crate) fn is_staged_upload(path: &std::path::Path) -> bool {
+pub(crate) fn is_staged_upload(path: &Path) -> bool {
     path.parent()
         .and_then(|p| p.to_str())
-        .is_some_and(|p| crate::export::upload_session_dir(p).is_ok())
+        .is_some_and(|p| export::upload_session_dir(p).is_ok())
 }
 
 /// Store an image and return the URL a report body can reference it by.
@@ -247,23 +253,23 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
         return Err("attachments are not configured in this build".into());
     }
     blocking(move || {
-        if !is_staged_upload(std::path::Path::new(&path)) {
+        if !is_staged_upload(Path::new(&path)) {
             return Err("attachment is not a staged upload".into());
         }
-        let meta = std::fs::metadata(&path)?;
+        let meta = fs::metadata(&path)?;
         if meta.len() > MAX_ATTACHMENT {
             return Err("image is too large (5 MB maximum)".into());
         }
-        let bytes = std::fs::read(&path)?;
+        let bytes = fs::read(&path)?;
         if !is_image(&bytes) {
             return Err("that file is not a PNG, JPEG, GIF or WebP".into());
         }
         let challenge = fetch_challenge()?;
-        let digest = crate::util::sha256_hex(&bytes);
+        let digest = util::sha256_hex(&bytes);
         let nonce = solve_pow(&format!("{challenge}:{digest}"), POW_BITS);
         let name = percent_encoding::utf8_percent_encode(&name, percent_encoding::NON_ALPHANUMERIC)
             .to_string();
-        let resp = crate::proxy::proxy_client()
+        let resp = proxy::proxy_client()
             .post(format!(
                 "{WORKER_URL}/uploads?name={name}&challenge={challenge}&nonce={nonce}"
             ))
@@ -277,7 +283,7 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
         }
         let uploaded = resp.json::<AttachmentRef>()?;
         // The staged copy has served its purpose; leaving it would keep a screenshot in temp.
-        let _ = std::fs::remove_file(&path);
+        let _ = fs::remove_file(&path);
         Ok(uploaded)
     })
     .await?
@@ -298,7 +304,7 @@ pub async fn feedback_request_label(number: u32) -> AppResult<()> {
         let request = || -> AppResult<()> {
             let challenge = fetch_challenge()?;
             let nonce = solve_pow(&format!("{challenge}:label:{number}"), POW_BITS);
-            let resp = crate::proxy::proxy_client()
+            let resp = proxy::proxy_client()
                 .post(format!(
                     "{WORKER_URL}/reports/{number}/label?challenge={challenge}&nonce={nonce}"
                 ))
@@ -325,7 +331,7 @@ pub async fn feedback_anonymous_thread(number: u32, token: String) -> AppResult<
     }
     blocking(move || {
         // In a header rather than the URL, which lands in request logs along the way.
-        let resp = crate::proxy::proxy_client()
+        let resp = proxy::proxy_client()
             .get(format!("{WORKER_URL}/reports/{number}"))
             .header("Authorization", format!("Bearer {token}"))
             .send()?;

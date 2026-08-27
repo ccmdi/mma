@@ -1,6 +1,7 @@
 use super::*;
 use crate::arrow_bridge;
 use crate::types::Location;
+use crate::util;
 use arrow_array::{Array, ArrayRef, RecordBatch, StringArray, UInt32Array, UInt8Array};
 use arrow_schema::{DataType, Field, Schema};
 use std::collections::HashMap;
@@ -12,7 +13,7 @@ fn loc(id: u32) -> Location {
         lat: 1.0,
         lng: 2.0,
         tags: vec![1],
-        created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
+        created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
         ..Default::default()
     }
 }
@@ -80,17 +81,17 @@ fn migrate_v1_converts_timestamps_to_epoch() {
         .unwrap();
     assert_eq!(
         created.value(0),
-        crate::util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32
+        util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32
     );
     // sub-second precision is dropped (second resolution)
     assert_eq!(
         created.value(1),
-        crate::util::iso_to_unix("2024-06-20T15:00:00Z").unwrap() as u32
+        util::iso_to_unix("2024-06-20T15:00:00Z").unwrap() as u32
     );
     assert!(modified.is_null(0));
     assert_eq!(
         modified.value(1),
-        crate::util::iso_to_unix("2024-06-20T16:00:00Z").unwrap() as u32
+        util::iso_to_unix("2024-06-20T16:00:00Z").unwrap() as u32
     );
 }
 

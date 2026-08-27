@@ -1,7 +1,13 @@
 use super::*;
+use crate::arrow_bridge;
 use crate::location_store::{render_cell_idx, Store, StoreManager};
+use crate::procedure::quickjs::JsProcedure;
 use crate::test_util::loc;
+use crate::types::LocationFlags;
 use crate::types::RawExtra;
+use std::env;
+use std::thread;
+use tokio::time;
 
 // -----------------------------------------------------------------------
 // Fixtures
@@ -12,7 +18,7 @@ fn setup(locs: &[Location]) -> (StoreState, String) {
     let map_id = format!("procedure-test-{}", SEQ.fetch_add(1, Ordering::Relaxed));
     let mut store = Store::new();
     store.map_id = Some(map_id.clone());
-    store.batch = Some(crate::arrow_bridge::locations_to_batch(&[]));
+    store.batch = Some(arrow_bridge::locations_to_batch(&[]));
     for l in locs {
         store.overlay_add(vec![l.clone()]);
         let ci = render_cell_idx(l.lat, l.lng);
@@ -363,9 +369,9 @@ fn a_page_boundary_does_not_drain_the_pipeline() {
         ProcShape::Run,
         Arc::new(move |_| {
             r.fetch_add(1, Ordering::SeqCst);
-            let t0 = std::time::Instant::now();
+            let t0 = Instant::now();
             while r.load(Ordering::SeqCst) < 2 && t0.elapsed() < Duration::from_secs(3) {
-                std::thread::sleep(Duration::from_millis(5));
+                thread::sleep(Duration::from_millis(5));
             }
             if r.load(Ordering::SeqCst) >= 2 {
                 o.store(true, Ordering::SeqCst);
@@ -1080,7 +1086,7 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
             tags: vec![4, 9],
             extra: RawExtra::from_string(r#"{"k":"v"}"#.into()),
             modified_at: Some(1234),
-            flags: crate::types::LocationFlags::INFORMATIONAL,
+            flags: LocationFlags::INFORMATIONAL,
             ..loc(1, 1.5, 2.5)
         },
         loc(2, 3.5, 4.5),
@@ -1088,7 +1094,7 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
     let (state, map_id) = setup(&rows);
     let deps = EngineDeps {
         factory: Box::new(|_| {
-            let p = crate::procedure::quickjs::JsProcedure::load_source(SRC, "fixture.js")?;
+            let p = JsProcedure::load_source(SRC, "fixture.js")?;
             Ok(Box::new(p) as Box<dyn Procedure>)
         }),
         fetch: sync_fetch(|_| Err(AppError("no fetch expected".into()))),
@@ -1179,7 +1185,7 @@ fn request_map_chunks_keep_the_declared_size() {
 #[test]
 #[ignore]
 fn engine_throughput_probe() {
-    let n: u32 = std::env::var("N")
+    let n: u32 = env::var("N")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(100_000);
@@ -1190,7 +1196,7 @@ fn engine_throughput_probe() {
                 -60.0 + (i as f64 % 1200.0) * 0.1,
                 -180.0 + (i as f64 % 3600.0) * 0.1,
             );
-            l.extra = crate::types::RawExtra::from_string(format!(
+            l.extra = RawExtra::from_string(format!(
                 r#"{{"datetime":{},"countryCode":"US"}}"#,
                 1_700_000_000 + i * 60
             ));
@@ -1209,22 +1215,22 @@ fn engine_throughput_probe() {
         }));
       }
     "#;
-    let ws: Vec<u32> = std::env::var("INSTANCES")
+    let ws: Vec<u32> = env::var("INSTANCES")
         .map(|v| v.split(',').map(|x| x.parse().unwrap()).collect())
         .unwrap_or(vec![4, 8]);
-    let chunk: u32 = std::env::var("CHUNK")
+    let chunk: u32 = env::var("CHUNK")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(1000);
     for workers in ws {
         d.instances = if workers == 0 { None } else { Some(workers) };
         d.batch = BatchMode::Chunk { size: chunk };
-        if std::env::var_os("SKIP_MOCK").is_none() {
+        if env::var_os("SKIP_MOCK").is_none() {
             let (state, map_id) = setup(&locs);
             let h = Harness::map_only(patch_extra_all(
                 r#"{"sunAzimuth":20.1,"sunAltitude":-54.8}"#,
             ));
-            let t = std::time::Instant::now();
+            let t = Instant::now();
             run_provider(&h.ctx(&state, &map_id), &d).unwrap();
             let s = t.elapsed().as_secs_f64();
             eprintln!(
@@ -1236,7 +1242,7 @@ fn engine_throughput_probe() {
         let (state, map_id) = setup(&locs);
         let deps = EngineDeps {
             factory: Box::new(move |_| {
-                let p = crate::procedure::quickjs::JsProcedure::load_source(SRC, "probe.js")?;
+                let p = JsProcedure::load_source(SRC, "probe.js")?;
                 Ok(Box::new(p) as Box<dyn Procedure>)
             }),
             fetch: sync_fetch(|_| Err(AppError("no fetch".into()))),
@@ -1252,7 +1258,7 @@ fn engine_throughput_probe() {
             progress: Arc::new(Box::new(|_| {})),
             results: Arc::new(Box::new(|_| {})),
         };
-        let t = std::time::Instant::now();
+        let t = Instant::now();
         run_provider(&ctx, &d).unwrap();
         let s = t.elapsed().as_secs_f64();
         eprintln!(
@@ -1478,7 +1484,7 @@ fn barrier_fetch(target: u32, wait: Duration, peak: Arc<AtomicU32>) -> FetchFn {
             peak.fetch_max(n, Ordering::SeqCst);
             let deadline = Instant::now() + wait;
             while live.load(Ordering::SeqCst) < target && Instant::now() < deadline {
-                tokio::time::sleep(Duration::from_millis(1)).await;
+                time::sleep(Duration::from_millis(1)).await;
             }
             live.fetch_sub(1, Ordering::SeqCst);
             Ok(HttpResponse {
@@ -1590,7 +1596,7 @@ fn instances_sharing_a_budget_do_not_widen_it() {
     let prog = ProviderProgress::new(1, d.id.clone(), 1, Arc::new(Box::new(|_| {})));
     let budget = FetchBudget::new(Some(6), None);
     let reqs = gets(10);
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for _ in 0..2 {
             let (budget, prog, ctx, d, reqs) = (&budget, &prog, &ctx, &d, &reqs);
             s.spawn(move || {

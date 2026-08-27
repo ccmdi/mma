@@ -13,9 +13,15 @@
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::feedback;
+use crate::proxy;
 use crate::storage;
+use crate::types::AppError;
 use crate::types::AppResult;
 use crate::util::blocking;
+use reqwest::blocking::RequestBuilder;
+use reqwest::blocking::Response;
+use std::thread;
 
 pub(crate) const CLIENT_ID: &str = "Iv23liRIs8ykMt8IFai2";
 
@@ -110,7 +116,7 @@ fn renew(stale: &str) -> AppResult<Option<String>> {
         store_session(None)?;
         return Ok(None);
     };
-    let resp = crate::proxy::proxy_client()
+    let resp = proxy::proxy_client()
         .post(TOKEN_URL)
         .header("Accept", "application/json")
         .header("User-Agent", user_agent())
@@ -268,7 +274,7 @@ fn request_device_code() -> AppResult<DeviceCodeResponse> {
     if CLIENT_ID.is_empty() {
         return Err("GitHub sign-in is not configured in this build".into());
     }
-    let resp = crate::proxy::proxy_client()
+    let resp = proxy::proxy_client()
         .post(DEVICE_CODE_URL)
         .header("Accept", "application/json")
         .header("User-Agent", user_agent())
@@ -281,7 +287,7 @@ fn request_device_code() -> AppResult<DeviceCodeResponse> {
 }
 
 fn poll_once(device_code: &str) -> AppResult<Poll> {
-    let resp = crate::proxy::proxy_client()
+    let resp = proxy::proxy_client()
         .post(TOKEN_URL)
         .header("Accept", "application/json")
         .header("User-Agent", user_agent())
@@ -301,7 +307,7 @@ fn poll_once(device_code: &str) -> AppResult<Poll> {
 
 /// GitHub's own explanation of a failure. A 422 carries an `errors` array naming the offending
 /// field, which is the only thing that makes a validation failure actionable.
-fn error_detail(resp: reqwest::blocking::Response) -> String {
+fn error_detail(resp: Response) -> String {
     let status = resp.status().to_string();
     match resp.json::<serde_json::Value>() {
         Ok(body) => detail_from(&body, &status),
@@ -340,9 +346,7 @@ fn detail_from(body: &serde_json::Value, status: &str) -> String {
 }
 
 /// Send an authenticated request, renewing the session once if GitHub rejects the token.
-fn authed(
-    build: impl Fn(&str) -> reqwest::blocking::RequestBuilder,
-) -> AppResult<reqwest::blocking::Response> {
+fn authed(build: impl Fn(&str) -> RequestBuilder) -> AppResult<Response> {
     let token = require_token()?;
     let resp = build(&token).send()?;
     if resp.status() != reqwest::StatusCode::UNAUTHORIZED {
@@ -361,7 +365,7 @@ fn authed(
 
 fn get(url: &str) -> AppResult<serde_json::Value> {
     let resp = authed(|token| {
-        crate::proxy::proxy_client()
+        proxy::proxy_client()
             .get(url)
             .header("Accept", "application/vnd.github+json")
             .header("Authorization", format!("Bearer {token}"))
@@ -467,9 +471,9 @@ pub async fn github_poll_login() -> AppResult<GhUser> {
             if Instant::now() >= deadline {
                 return Err("timed out waiting for GitHub sign-in".into());
             }
-            std::thread::sleep(interval);
+            thread::sleep(interval);
             match poll_once(&device_code)? {
-                Poll::Token(t) => return Ok::<Tokens, crate::types::AppError>(t),
+                Poll::Token(t) => return Ok::<Tokens, AppError>(t),
                 Poll::Pending => {}
                 Poll::SlowDown => interval += Duration::from_secs(5),
                 Poll::Failed(msg) => return Err(msg.into()),
@@ -521,11 +525,11 @@ pub async fn github_create_issue(
     blocking(move || {
         // Scrubbed on this transport too: the log tail is pre-scrubbed, but diagnostics
         // values can carry home-directory paths.
-        let title = crate::feedback::scrub(&title);
-        let body = crate::feedback::scrub(&body);
+        let title = feedback::scrub(&title);
+        let body = feedback::scrub(&body);
         let payload = serde_json::json!({ "title": title, "body": body, "labels": labels });
         let resp = authed(|token| {
-            crate::proxy::proxy_client()
+            proxy::proxy_client()
                 .post(format!("{API}/repos/{REPO}/issues"))
                 .header("Accept", "application/vnd.github+json")
                 .header("Authorization", format!("Bearer {token}"))

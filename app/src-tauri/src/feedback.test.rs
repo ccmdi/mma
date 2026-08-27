@@ -1,4 +1,6 @@
 use super::*;
+use crate::util;
+use std::env;
 
 #[test]
 fn scrub_redacts_the_windows_home_directory() {
@@ -60,15 +62,15 @@ fn scrub_survives_text_whose_lowercase_changes_length() {
 #[test]
 fn solved_nonce_satisfies_the_difficulty() {
     // Low difficulty so the test stays fast; the predicate is what is under test, not the cost.
-    let challenge = crate::util::sha256_hex(b"a report body");
+    let challenge = util::sha256_hex(b"a report body");
     let nonce = solve_pow(&challenge, 12);
     assert!(verify_pow(&challenge, nonce, 12));
 }
 
 #[test]
 fn a_nonce_is_bound_to_its_own_challenge() {
-    let a = crate::util::sha256_hex(b"report a");
-    let b = crate::util::sha256_hex(b"report b");
+    let a = util::sha256_hex(b"report a");
+    let b = util::sha256_hex(b"report b");
     let nonce = solve_pow(&a, 12);
     // Replaying a solved nonce against different body text must not pass, or the work could be
     // solved once and reused for unlimited submissions.
@@ -77,7 +79,7 @@ fn a_nonce_is_bound_to_its_own_challenge() {
 
 #[test]
 fn verify_rejects_insufficient_work() {
-    let challenge = crate::util::sha256_hex(b"x");
+    let challenge = util::sha256_hex(b"x");
     let nonce = solve_pow(&challenge, 8);
     assert!(verify_pow(&challenge, nonce, 8));
     // The first nonce meeting 8 bits is overwhelmingly unlikely to meet 24.
@@ -96,15 +98,15 @@ fn leading_zero_bits_counts_across_bytes() {
 #[test]
 fn image_sniffing_ignores_what_the_file_is_called() {
     // The name reaches the issue as alt text, but never decides whether bytes are an image.
-    assert!(super::is_image(&[
+    assert!(is_image(&[
         0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0
     ]));
-    assert!(super::is_image(&[0xff, 0xd8, 0xff, 0xe0]));
-    assert!(super::is_image(b"GIF89a...."));
-    assert!(super::is_image(b"RIFF\0\0\0\0WEBPVP8 "));
-    assert!(!super::is_image(b"RIFF\0\0\0\0WAVEfmt "));
-    assert!(!super::is_image(b"<html>hi</html>"));
-    assert!(!super::is_image(b""));
+    assert!(is_image(&[0xff, 0xd8, 0xff, 0xe0]));
+    assert!(is_image(b"GIF89a...."));
+    assert!(is_image(b"RIFF\0\0\0\0WEBPVP8 "));
+    assert!(!is_image(b"RIFF\0\0\0\0WAVEfmt "));
+    assert!(!is_image(b"<html>hi</html>"));
+    assert!(!is_image(b""));
 }
 
 #[test]
@@ -114,8 +116,8 @@ fn attachment_uploads_only_accept_staged_files() {
         "C:/Users/x/Pictures/photo.png"
     )));
     assert!(!is_staged_upload(Path::new("/etc/passwd")));
-    let outside = std::env::temp_dir().join("not_a_session").join("a.png");
+    let outside = env::temp_dir().join("not_a_session").join("a.png");
     assert!(!is_staged_upload(&outside));
-    let staged = std::env::temp_dir().join("mma_upload_1_1").join("a.png");
+    let staged = env::temp_dir().join("mma_upload_1_1").join("a.png");
     assert!(is_staged_upload(&staged));
 }

@@ -5,11 +5,14 @@
 
 use std::sync::Arc;
 
+use crate::arrow_migrate;
+use crate::types::RawExtra;
 use arrow_array::{
     builder::{GenericListBuilder, UInt32Builder},
     Array, ArrayRef, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array, UInt8Array,
 };
 use arrow_schema::{DataType, Field, Schema};
+use std::collections::HashMap;
 
 use crate::types::{Location, LocationFlags};
 
@@ -124,13 +127,10 @@ fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
 /// patch actually changed are rebuilt; untouched columns are reused via Arc clone.
 /// Row order is preserved (sorted id invariant). Patch ids absent from the batch
 /// are ignored.
-pub fn patch_batch(
-    batch: &RecordBatch,
-    patches: &std::collections::HashMap<u32, Location>,
-) -> RecordBatch {
+pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<u32, Location>) -> RecordBatch {
     let n = batch.num_rows();
     let ids = col_id(batch);
-    let hits: std::collections::HashMap<usize, &Location> = (0..n)
+    let hits: HashMap<usize, &Location> = (0..n)
         .filter_map(|i| patches.get(&ids.value(i)).map(|p| (i, p)))
         .collect();
     if hits.is_empty() {
@@ -273,7 +273,7 @@ pub fn row_to_location(batch: &RecordBatch, idx: usize) -> Location {
     let extra = if extra_col.is_null(idx) {
         None
     } else {
-        crate::types::RawExtra::from_string(extra_col.value(idx).to_owned())
+        RawExtra::from_string(extra_col.value(idx).to_owned())
     };
 
     let modified_at = {
@@ -323,7 +323,7 @@ pub fn delta_schema() -> Schema {
     let mut fields: Vec<arrow_schema::FieldRef> =
         location_schema().fields().iter().cloned().collect();
     fields.push(Arc::new(Field::new("op", DataType::UInt8, false)));
-    Schema::new_with_metadata(fields, crate::arrow_migrate::version_metadata())
+    Schema::new_with_metadata(fields, arrow_migrate::version_metadata())
 }
 
 /// Serialize a commit delta (`created` + `removed` locations) into one delta batch.

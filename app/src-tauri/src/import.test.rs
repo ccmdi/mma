@@ -1,5 +1,14 @@
 use super::*;
 use crate::location_store::Store;
+use crate::map_meta;
+use crate::map_meta::MapSettings;
+use crate::map_meta::VirtualTag;
+use crate::selections::Selector;
+use crate::types::RawExtra;
+use std::collections::HashSet;
+use std::env;
+use std::fs;
+use std::time::Instant;
 
 fn tag(id: u32, name: &str) -> Tag {
     Tag {
@@ -286,7 +295,7 @@ fn parse_captures_settings_overlay() {
     let parsed = parse_single_json_mut(&mut buf);
     assert!(parsed.settings.contains_key("virtualTags"));
 
-    let merged = merge_settings(crate::map_meta::MapSettings::default(), &parsed.settings);
+    let merged = merge_settings(MapSettings::default(), &parsed.settings);
     assert_eq!(
         merged.virtual_tags["Europe"].color.as_deref(),
         Some("#c0f0f8")
@@ -311,11 +320,11 @@ fn merge_settings_overlays_present_keys_only() {
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
 
-    let mut base = crate::map_meta::MapSettings::default();
+    let mut base = MapSettings::default();
     base.point_along_road = false; // non-default, unrelated key
     base.virtual_tags.insert(
         "Europe".into(),
-        crate::map_meta::VirtualTag {
+        VirtualTag {
             color: Some("#existing".into()),
         },
     );
@@ -339,7 +348,7 @@ fn merge_settings_overlays_present_keys_only() {
 
 #[test]
 fn merge_settings_empty_overlay_is_base() {
-    let base = crate::map_meta::MapSettings::default();
+    let base = MapSettings::default();
     let merged = merge_settings(base, &serde_json::Map::new());
     assert!(
         merged.point_along_road,
@@ -507,14 +516,12 @@ fn ascii_escaped_field_names_survive_both_paths() {
         );
     }
 
-    let extras: Vec<&crate::types::RawExtra> = parsed
+    let extras: Vec<&RawExtra> = parsed
         .locations
         .iter()
         .filter_map(|l| l.extra.as_ref())
         .collect();
-    let defs =
-        crate::map_meta::auto_register_field_defs(&std::collections::HashSet::new(), &extras)
-            .unwrap();
+    let defs = map_meta::auto_register_field_defs(&HashSet::new(), &extras).unwrap();
     let mut keys: Vec<&str> = defs.keys().map(|k| k.as_str()).collect();
     keys.sort();
     assert_eq!(keys, vec!["café", "countryCode"]);
@@ -703,7 +710,7 @@ static STDERR_LOG: StderrLog = StderrLog;
 fn bench_parse_real() {
     let _ = log::set_logger(&STDERR_LOG);
     log::set_max_level(log::LevelFilter::Debug);
-    let path = match std::env::var("MMA_BENCH_FILE") {
+    let path = match env::var("MMA_BENCH_FILE") {
         Ok(p) => p,
         Err(_) => {
             eprintln!("SKIP bench: MMA_BENCH_FILE not set");
@@ -711,7 +718,7 @@ fn bench_parse_real() {
         }
     };
 
-    let bytes = match std::fs::read(&path) {
+    let bytes = match fs::read(&path) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("SKIP bench: cannot read {path}: {e}");
@@ -726,12 +733,12 @@ fn bench_parse_real() {
     let mut locs = 0usize;
     for i in 0..iters {
         let mut buf = bytes.clone();
-        let t0 = std::time::Instant::now();
+        let t0 = Instant::now();
         let parsed = parse_file(&mut buf);
         let t_parse = t0.elapsed().as_secs_f64() * 1e3;
         locs = parsed.locations.len();
 
-        let t1 = std::time::Instant::now();
+        let t1 = Instant::now();
         let _preview = build_preview(parsed).expect("build_preview");
         let t_build = t1.elapsed().as_secs_f64() * 1e3;
 
@@ -788,7 +795,7 @@ fn add_copied_reconciles_tags_and_reports_counts() {
 
     // Both copies landed in the target store.
     assert_eq!(r.status.location_count, 2);
-    let stored = store.collect(&crate::selections::Selector::Everything);
+    let stored = store.collect(&Selector::Everything);
     assert_eq!(stored.len(), 2);
 
     // "Shared" reconciled to the target's existing id 5 (no duplicate tag created).

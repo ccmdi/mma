@@ -8,6 +8,7 @@
 //!
 //! The token lives in the OS credential store, never the app DB.
 
+use crate::proxy;
 use std::time::Duration;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
@@ -15,6 +16,12 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use crate::storage;
 use crate::types::AppResult;
 use crate::util::blocking;
+use std::panic;
+use std::panic::AssertUnwindSafe;
+use std::thread;
+use std::time::Instant;
+use tauri::http::Response;
+use tauri::webview::NewWindowResponse;
 
 pub(crate) const ORIGIN: &str = "https://www.geoguessr.com";
 const SECRET_NAME: &str = "geoguessr";
@@ -76,8 +83,8 @@ pub(crate) fn proxy_headers(ncfa: &str, content_type: Option<&str>) -> Vec<(&'st
     h
 }
 
-fn no_session_response() -> tauri::http::Response<Vec<u8>> {
-    tauri::http::Response::builder()
+fn no_session_response() -> Response<Vec<u8>> {
+    Response::builder()
         .status(401)
         .header("Content-Type", "application/json")
         .header("Access-Control-Allow-Origin", "*")
@@ -93,15 +100,15 @@ pub(crate) fn proxy(
     query: Option<&str>,
     content_type: Option<String>,
     body: Vec<u8>,
-) -> tauri::http::Response<Vec<u8>> {
+) -> Response<Vec<u8>> {
     let ncfa = match session() {
         Ok(Some(v)) => v,
         Ok(None) => return no_session_response(),
-        Err(e) => return crate::proxy::proxy_error(format!("ggapi session error: {e}")),
+        Err(e) => return proxy::proxy_error(format!("ggapi session error: {e}")),
     };
     let url = upstream_url(path, query);
     let has_body = !body.is_empty();
-    let mut req = crate::proxy::proxy_client().request(method, &url);
+    let mut req = proxy::proxy_client().request(method, &url);
     for (k, v) in proxy_headers(&ncfa, content_type.as_deref().filter(|_| has_body)) {
         req = req.header(k, v);
     }
@@ -109,8 +116,8 @@ pub(crate) fn proxy(
         req = req.body(body);
     }
     match req.send() {
-        Ok(resp) => crate::proxy::relay(resp, "application/json"),
-        Err(e) => crate::proxy::proxy_error(format!("ggapi fetch error: {e}")),
+        Ok(resp) => proxy::relay(resp, "application/json"),
+        Err(e) => proxy::proxy_error(format!("ggapi fetch error: {e}")),
     }
 }
 
@@ -139,7 +146,7 @@ fn fetch_me() -> AppResult<Option<GgUser>> {
     let Some(ncfa) = session()? else {
         return Ok(None);
     };
-    let mut req = crate::proxy::proxy_client().get(upstream_url("api/v3/profiles", None));
+    let mut req = proxy::proxy_client().get(upstream_url("api/v3/profiles", None));
     for (k, v) in proxy_headers(&ncfa, None) {
         req = req.header(k, v);
     }
@@ -205,7 +212,7 @@ pub async fn geoguessr_login(app: tauri::AppHandle) -> AppResult<String> {
         // must be a real window.
         .on_new_window(|url, _features| {
             log::debug!("[geoguessr] popup -> {}", url.host_str().unwrap_or("?"));
-            tauri::webview::NewWindowResponse::Allow
+            NewWindowResponse::Allow
         })
         .on_navigation(|u| {
             let allowed = login_nav_allowed(u);
@@ -248,7 +255,7 @@ pub async fn geoguessr_login(app: tauri::AppHandle) -> AppResult<String> {
 /// gone, so the task cannot outlive the window the user closed.
 fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
     let url: tauri::Url = ORIGIN.parse().map_err(|e| format!("bad origin: {e}"))?;
-    let deadline = std::time::Instant::now() + LOGIN_TIMEOUT;
+    let deadline = Instant::now() + LOGIN_TIMEOUT;
     let mut seen = String::new();
     loop {
         let Some(win) = app.get_webview_window(LOGIN_LABEL) else {
@@ -257,9 +264,7 @@ fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
         // The window can be destroyed between the check above and this call, and cookies_for_url
         // unwraps its internal channel -- so a close mid-read panics inside Tauri rather than
         // returning Err. Absorb it and treat it as the close it is.
-        let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            win.cookies_for_url(url.clone())
-        }));
+        let read = panic::catch_unwind(AssertUnwindSafe(|| win.cookies_for_url(url.clone())));
         match read {
             Ok(Ok(cookies)) => {
                 if let Some(c) = cookies.iter().find(|c| c.name() == "_ncfa") {
@@ -277,10 +282,10 @@ fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
             Ok(Err(e)) => log::debug!("[geoguessr] cookie read: {e}"),
             Err(_) => return Err("login window was closed".into()),
         }
-        if std::time::Instant::now() >= deadline {
+        if Instant::now() >= deadline {
             return Err("timed out waiting for GeoGuessr sign-in".into());
         }
-        std::thread::sleep(POLL_INTERVAL);
+        thread::sleep(POLL_INTERVAL);
     }
 }
 

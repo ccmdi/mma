@@ -6,6 +6,8 @@ use super::{
     convert_dataset, git_blob_sha1, parse_border_shas, ArchDataset, ArchFeature,
 };
 use crate::selections::{self, PolygonGeometry};
+use std::fs;
+use std::path::Path;
 
 fn sample() -> (PolygonGeometry, ArchFeature) {
     // Outer square [0,10]^2 with a hole [3,7]^2, plus a detached extra square [20,30]x[0,10].
@@ -159,13 +161,13 @@ fn bbox_prefilter_does_not_change_lookup() {
 #[test]
 #[ignore]
 fn gen_rkyv_artifacts() {
-    let repo_borders = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/borders");
+    let repo_borders = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/borders");
     for level in ["medium", "heavy", "adm1"] {
-        let json = std::fs::read_to_string(repo_borders.join(format!("borders-{level}.json")))
+        let json = fs::read_to_string(repo_borders.join(format!("borders-{level}.json")))
             .unwrap_or_else(|e| panic!("read borders-{level}.json: {e}"));
         let bytes = convert_dataset(&json).unwrap();
         let out = repo_borders.join(format!("borders-{level}.rkyv"));
-        std::fs::write(&out, &bytes).unwrap();
+        fs::write(&out, &bytes).unwrap();
         println!(
             "borders-{level}: {:.1}MB JSON -> {:.1}MB rkyv",
             json.len() as f64 / 1e6,

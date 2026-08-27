@@ -11,6 +11,7 @@
 use crate::storage::{self, push_field};
 use crate::types::AppResult;
 use crate::util::now_iso;
+use rusqlite::types::ToSql;
 use rusqlite::Connection;
 
 /// A review session as returned to the frontend. `order`/`reviewed` are decoded from the
@@ -137,7 +138,7 @@ pub(crate) fn list(
     map_id: &str,
     status: Option<&str>,
 ) -> AppResult<Vec<ReviewSession>> {
-    let (sql, params): (String, Vec<Box<dyn rusqlite::types::ToSql>>) = match status {
+    let (sql, params): (String, Vec<Box<dyn ToSql>>) = match status {
         Some(s) => (
             format!("SELECT {COLS} FROM review_sessions WHERE map_id = ? AND status = ? ORDER BY updated_at DESC"),
             vec![Box::new(map_id.to_string()), Box::new(s.to_string())],
@@ -162,7 +163,7 @@ pub(crate) fn list(
 /// Applies a partial update. Only `Some` fields are written. Always bumps `updated_at`.
 pub(crate) fn update(conn: &Connection, update: ReviewUpdate) -> AppResult<()> {
     let mut sets: Vec<&str> = Vec::new();
-    let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+    let mut params: Vec<Box<dyn ToSql>> = Vec::new();
 
     push_field!(sets, params, update, "name", name);
     push_field!(sets, params, update, "cursor_id", cursor_id);

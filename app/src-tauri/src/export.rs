@@ -2,13 +2,27 @@
 //! All exports write to temp files and return the path -- the frontend
 //! triggers a native save dialog to move the file to its final destination.
 
+use crate::location_store;
 use crate::location_store::{with_store, StoreState, WindowLabel};
 use crate::selections::Selector;
 use crate::storage;
+use crate::types::Location;
 use crate::types::LocationFlags;
 use crate::types::{AppError, AppResult};
 use crate::util::hex_to_rgb;
+use serde::de::DeserializeOwned;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::env;
+use std::fs;
+use std::fs::File;
+use std::io::BufWriter;
 use std::io::Write;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process;
+use tokio::task;
+use zip::write::SimpleFileOptions;
 
 /// Configuration for JSON export. Controls which fields are included and
 /// whether the export covers all locations or a specific selection.
@@ -33,21 +47,16 @@ mod tests;
 
 /// Unique temp path for an export file. A process-wide counter disambiguates
 /// concurrent exports (PID alone collides).
-fn export_temp_path(stem: &str, ext: &str) -> std::path::PathBuf {
+fn export_temp_path(stem: &str, ext: &str) -> PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    std::env::temp_dir().join(format!("{stem}_{}_{n}.{ext}", std::process::id()))
+    env::temp_dir().join(format!("{stem}_{}_{n}.{ext}", process::id()))
 }
 
 /// Parse `{id: {name, color}}` tag definitions JSON into the raw defs map plus an id -> name lookup.
-fn parse_tag_defs(
-    tags_json: &str,
-) -> (
-    std::collections::HashMap<String, serde_json::Value>,
-    std::collections::HashMap<u32, String>,
-) {
-    let tag_defs: std::collections::HashMap<String, serde_json::Value> =
+fn parse_tag_defs(tags_json: &str) -> (HashMap<String, serde_json::Value>, HashMap<u32, String>) {
+    let tag_defs: HashMap<String, serde_json::Value> =
         serde_json::from_str(tags_json).unwrap_or_default();
     let id_to_name = tag_defs
         .iter()
@@ -62,7 +71,7 @@ fn parse_tag_defs(
 
 /// Convert tag defs to the export metadata shape `{name: {color: [r,g,b], order}}`.
 fn tag_color_meta(
-    tag_defs: &std::collections::HashMap<String, serde_json::Value>,
+    tag_defs: &HashMap<String, serde_json::Value>,
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut converted = serde_json::Map::new();
     for v in tag_defs.values() {
@@ -100,8 +109,8 @@ struct CoordOpts {
 /// `countryCode`/`stateCode` are always hoisted to the top level; all other
 /// `extra` fields nest under `extra`.
 fn location_to_coord(
-    loc: &crate::types::Location,
-    id_to_name: &std::collections::HashMap<u32, String>,
+    loc: &Location,
+    id_to_name: &HashMap<u32, String>,
     opts: &CoordOpts,
 ) -> serde_json::Value {
     use serde_json::{json, Value};
@@ -224,7 +233,7 @@ pub fn store_export_json(
         let json = serde_json::to_string(&serde_json::Value::Object(parts))?;
 
         let path = export_temp_path("mma_export", "json");
-        std::fs::write(&path, &json)?;
+        fs::write(&path, &json)?;
         Ok(path.to_string_lossy().into_owned())
     })
 }
@@ -247,7 +256,7 @@ pub fn store_export_csv(
         }
 
         let path = export_temp_path("mma_export", "csv");
-        std::fs::write(&path, &buf)?;
+        fs::write(&path, &buf)?;
         Ok(path.to_string_lossy().into_owned())
     })
 }
@@ -291,7 +300,7 @@ pub fn store_export_geojson(
         let json = serde_json::to_string(&geojson)?;
 
         let path = export_temp_path("mma_export", "geojson");
-        std::fs::write(&path, &json)?;
+        fs::write(&path, &json)?;
         Ok(path.to_string_lossy().into_owned())
     })
 }
@@ -301,17 +310,17 @@ pub fn store_export_geojson(
 #[tauri::command]
 #[specta::specta]
 pub fn store_save_export_file(src_path: String, dest_path: String) -> AppResult<()> {
-    std::fs::copy(&src_path, &dest_path)?;
-    let _ = std::fs::remove_file(&src_path);
+    fs::copy(&src_path, &dest_path)?;
+    let _ = fs::remove_file(&src_path);
     Ok(())
 }
 
 /// Validate that `path` is an upload session dir: a direct child of the
 /// system temp dir named `mma_upload_*`. Guards both the session commands and
 /// the `mma-buf` POST handler against arbitrary file writes.
-pub(crate) fn upload_session_dir(path: &str) -> AppResult<std::path::PathBuf> {
-    let p = std::path::PathBuf::from(path);
-    let valid = p.parent() == Some(std::env::temp_dir().as_path())
+pub(crate) fn upload_session_dir(path: &str) -> AppResult<PathBuf> {
+    let p = PathBuf::from(path);
+    let valid = p.parent() == Some(env::temp_dir().as_path())
         && p.file_name()
             .and_then(|n| n.to_str())
             .is_some_and(|n| n.starts_with("mma_upload_"));
@@ -329,8 +338,8 @@ pub fn store_upload_begin() -> AppResult<String> {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let dir = std::env::temp_dir().join(format!("mma_upload_{}_{n}", std::process::id()));
-    std::fs::create_dir_all(&dir)?;
+    let dir = env::temp_dir().join(format!("mma_upload_{}_{n}", process::id()));
+    fs::create_dir_all(&dir)?;
     Ok(dir.to_string_lossy().into_owned())
 }
 
@@ -341,7 +350,7 @@ pub fn store_upload_begin() -> AppResult<String> {
 #[specta::specta]
 pub fn store_upload_finish(session_dir: String) -> AppResult<String> {
     let dir = upload_session_dir(&session_dir)?;
-    let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)?
+    let mut files: Vec<PathBuf> = fs::read_dir(&dir)?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
         .filter(|p| p.is_file())
@@ -349,7 +358,7 @@ pub fn store_upload_finish(session_dir: String) -> AppResult<String> {
     files.sort();
 
     if files.is_empty() {
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&dir);
         return Err("no files in session".into());
     }
 
@@ -360,41 +369,39 @@ pub fn store_upload_finish(session_dir: String) -> AppResult<String> {
             .unwrap_or("bin")
             .to_string();
         let out = export_temp_path("mma_upload_file", &ext);
-        std::fs::rename(single, &out)?;
+        fs::rename(single, &out)?;
         out
     } else {
         let out = export_temp_path("mma_upload", "zip");
-        let mut zip = zip::ZipWriter::new(std::io::BufWriter::new(std::fs::File::create(&out)?));
-        let options = zip::write::SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Stored);
+        let mut zip = zip::ZipWriter::new(BufWriter::new(File::create(&out)?));
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
         for f in &files {
             let name = f.file_name().unwrap_or_default().to_string_lossy();
             zip.start_file(name, options)?;
-            zip.write_all(&std::fs::read(f)?)?;
+            zip.write_all(&fs::read(f)?)?;
         }
         zip.finish()?.flush()?;
         out
     };
 
-    let _ = std::fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(&dir);
     Ok(out.to_string_lossy().into_owned())
 }
 
 /// Read a session's `<n>.json` chunks in index order, concatenated. Indices must run
 /// 0..len-1 with no gaps -- a chunk whose POST was dropped would otherwise silently
 /// truncate the result. The dir is removed either way.
-pub(crate) fn read_uploaded_chunks<T: serde::de::DeserializeOwned>(
-    session_dir: &str,
-) -> AppResult<Vec<T>> {
+pub(crate) fn read_uploaded_chunks<T: DeserializeOwned>(session_dir: &str) -> AppResult<Vec<T>> {
     let dir = upload_session_dir(session_dir)?;
     let result = collect_chunks(&dir);
-    let _ = std::fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(&dir);
     result
 }
 
-fn collect_chunks<T: serde::de::DeserializeOwned>(dir: &std::path::Path) -> AppResult<Vec<T>> {
-    let mut chunks: Vec<(u32, std::path::PathBuf)> = Vec::new();
-    for entry in std::fs::read_dir(dir)? {
+fn collect_chunks<T: DeserializeOwned>(dir: &Path) -> AppResult<Vec<T>> {
+    let mut chunks: Vec<(u32, PathBuf)> = Vec::new();
+    for entry in fs::read_dir(dir)? {
         let path = entry?.path();
         let index = path
             .file_stem()
@@ -410,9 +417,7 @@ fn collect_chunks<T: serde::de::DeserializeOwned>(dir: &std::path::Path) -> AppR
 
     let mut out = Vec::new();
     for (_, path) in &chunks {
-        out.append(&mut serde_json::from_slice::<Vec<T>>(&std::fs::read(
-            path,
-        )?)?);
+        out.append(&mut serde_json::from_slice::<Vec<T>>(&fs::read(path)?)?);
     }
     Ok(out)
 }
@@ -422,7 +427,7 @@ fn collect_chunks<T: serde::de::DeserializeOwned>(dir: &std::path::Path) -> AppR
 #[specta::specta]
 pub fn store_upload_abort(session_dir: String) -> AppResult<()> {
     let dir = upload_session_dir(&session_dir)?;
-    let _ = std::fs::remove_dir_all(&dir);
+    let _ = fs::remove_dir_all(&dir);
     Ok(())
 }
 
@@ -442,7 +447,7 @@ pub struct ExportProgress {
 #[tauri::command]
 #[specta::specta]
 pub async fn store_export_bulk_zip() -> AppResult<String> {
-    let path = tokio::task::spawn_blocking(move || {
+    let path = task::spawn_blocking(move || {
         use std::io::Cursor;
 
         let conn = storage::open_db()?;
@@ -464,10 +469,10 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
         let mut buf = Cursor::new(Vec::new());
         {
             let mut zip = zip::ZipWriter::new(&mut buf);
-            let options = zip::write::SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Deflated);
+            let options =
+                SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
-            let mut used_names = std::collections::HashSet::new();
+            let mut used_names = HashSet::new();
             let total = maps.len();
 
             for (i, (map_id, name, _folder, tags_json, extra_json)) in maps.iter().enumerate() {
@@ -477,7 +482,7 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
                     map_name: name.clone(),
                 });
                 // Base file + uncommitted delta sidecar = the map's full current state.
-                let locs = crate::location_store::read_full_state_from_disk(map_id)?;
+                let locs = location_store::read_full_state_from_disk(map_id)?;
 
                 let (tag_defs, id_to_name) = parse_tag_defs(tags_json);
 
@@ -526,7 +531,7 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
         }
 
         let path = export_temp_path("mma_backup", "zip");
-        std::fs::write(&path, buf.into_inner())?;
+        fs::write(&path, buf.into_inner())?;
         Ok::<_, AppError>(path.to_string_lossy().into_owned())
     })
     .await??;

@@ -3,8 +3,12 @@
 //! Provides timestamps, color math, hashing, and deterministic tag color
 //! assignment. No I/O, no state -- safe to call from any context.
 
+use crate::types::AppResult;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use sha2::{Digest, Sha256};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use tauri::async_runtime;
 
 /// The ISO 8601 form every SQLite timestamp column is written in.
 const ISO_FMT: &str = "%Y-%m-%dT%H:%M:%S%.3fZ";
@@ -53,8 +57,8 @@ pub fn unix_to_hour_min(ts: f64) -> (u32, u32) {
 pub fn tz_offset_seconds(tz_name: &str, ts: f64) -> Option<i32> {
     use chrono::{Offset, TimeZone};
     thread_local! {
-        static TZ_CACHE: std::cell::RefCell<std::collections::HashMap<String, Option<chrono_tz::Tz>>> =
-            std::cell::RefCell::new(std::collections::HashMap::new());
+        static TZ_CACHE: RefCell<HashMap<String, Option<chrono_tz::Tz>>> =
+            RefCell::new(HashMap::new());
     }
     let tz = TZ_CACHE.with(|c| {
         let mut m = c.borrow_mut();
@@ -132,10 +136,8 @@ pub fn sha256(bytes: &[u8]) -> [u8; 32] {
 ///
 /// The HTTP clients are `reqwest::blocking`, so every command that reaches the network needs
 /// this; awaiting one inline would stall the runtime.
-pub async fn blocking<T: Send + 'static>(
-    f: impl FnOnce() -> T + Send + 'static,
-) -> crate::types::AppResult<T> {
-    tauri::async_runtime::spawn_blocking(f)
+pub async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> AppResult<T> {
+    async_runtime::spawn_blocking(f)
         .await
         .map_err(|e| format!("task failed: {e}").into())
 }

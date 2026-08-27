@@ -102,6 +102,12 @@ lto = true
 codegen-units = 1
 strip = true
 
+[lints.rust]
+unused_qualifications = "warn"
+
+[lints.clippy]
+absolute_paths = "warn"
+
 [features]
 # Exposes `app_lib::bench_api` (fixtures + store-internals access) for benches/store.rs.
 bench = ["tauri/test"]

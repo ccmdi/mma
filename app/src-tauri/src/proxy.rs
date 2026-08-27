@@ -1,7 +1,19 @@
 //! Outbound HTTP clients and the custom URI schemes that proxy the webview's
 //! cross-origin requests (tiles, Google RPCs, GeoGuessr, short links, local files).
 
+use crate::export;
+use crate::gdoc;
+use crate::geoguessr;
+use crate::user_plugins;
 use reqwest::blocking::{Client, Response};
+use reqwest::redirect::Policy;
+use std::fs;
+use std::path::Path;
+use std::sync::OnceLock;
+use std::thread;
+use std::time::Duration;
+use std::time::Instant;
+use tauri::http::response::Builder;
 use tauri::http::{header, Method, Request, Response as HttpResponse};
 use tauri::UriSchemeResponder;
 
@@ -9,33 +21,33 @@ type Reply = HttpResponse<Vec<u8>>;
 
 fn build_client(follow_redirects: bool) -> Client {
     let redirect = if follow_redirects {
-        reqwest::redirect::Policy::default()
+        Policy::default()
     } else {
-        reqwest::redirect::Policy::none()
+        Policy::none()
     };
     Client::builder()
         .use_rustls_tls()
         .redirect(redirect)
-        .timeout(std::time::Duration::from_secs(15))
+        .timeout(Duration::from_secs(15))
         .build()
         .expect("failed to build http client")
 }
 
 /// Follows redirects (svtile tiles, gmaps RPC, gdoc).
 pub(crate) fn proxy_client() -> &'static Client {
-    static C: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
+    static C: OnceLock<Client> = OnceLock::new();
     C.get_or_init(|| build_client(true))
 }
 
 /// Sync transfers move whole maps, far past the proxy client's 15s total cap, so this client
 /// bounds the CONNECT, not the transfer.
 pub(crate) fn sync_client() -> &'static Client {
-    static C: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
+    static C: OnceLock<Client> = OnceLock::new();
     C.get_or_init(|| {
         Client::builder()
             .use_rustls_tls()
-            .connect_timeout(std::time::Duration::from_secs(20))
-            .timeout(std::time::Duration::from_secs(300))
+            .connect_timeout(Duration::from_secs(20))
+            .timeout(Duration::from_secs(300))
             .build()
             .expect("failed to build sync http client")
     })
@@ -43,12 +55,12 @@ pub(crate) fn sync_client() -> &'static Client {
 
 /// Does NOT follow redirects, so the `Location` header is readable (googl).
 fn resolve_client() -> &'static Client {
-    static C: std::sync::OnceLock<Client> = std::sync::OnceLock::new();
+    static C: OnceLock<Client> = OnceLock::new();
     C.get_or_init(|| build_client(false))
 }
 
 /// Response builder pre-seeded with the CORS header every scheme handler sends.
-pub(crate) fn cors() -> tauri::http::response::Builder {
+pub(crate) fn cors() -> Builder {
     HttpResponse::builder().header("Access-Control-Allow-Origin", "*")
 }
 
@@ -84,7 +96,7 @@ fn path_and_query(req: &Request<Vec<u8>>) -> (String, String) {
 
 /// Run a blocking scheme-handler body off the webview thread.
 fn respond_async(responder: UriSchemeResponder, f: impl FnOnce() -> Reply + Send + 'static) {
-    std::thread::spawn(move || responder.respond(f()));
+    thread::spawn(move || responder.respond(f()));
 }
 
 /// Relays an upstream response body + content-type back to the webview with CORS.
@@ -92,7 +104,7 @@ pub(crate) fn relay(resp: Response, default_ct: &str) -> Reply {
     let status = resp.status().as_u16();
     let content_type = resp
         .headers()
-        .get(reqwest::header::CONTENT_TYPE)
+        .get(header::CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or(default_ct)
         .to_string();
@@ -110,15 +122,15 @@ pub(crate) fn relay(resp: Response, default_ct: &str) -> Reply {
 /// sit directly inside a valid `mma_upload_*` session dir (see
 /// [`crate::export::upload_session_dir`]) -- anything else is rejected.
 pub(crate) fn write_upload(path: &str, body: &[u8]) -> Reply {
-    let target = std::path::Path::new(path);
+    let target = Path::new(path);
     let session_ok = target
         .parent()
         .and_then(|p| p.to_str())
-        .is_some_and(|p| crate::export::upload_session_dir(p).is_ok());
+        .is_some_and(|p| export::upload_session_dir(p).is_ok());
     if !session_ok {
         return cors_resp(403, b"upload outside session dir".to_vec());
     }
-    match std::fs::write(target, body) {
+    match fs::write(target, body) {
         Ok(()) => cors_resp(200, vec![]),
         Err(e) => cors_resp(500, format!("upload write failed: {e}").into_bytes()),
     }
@@ -137,8 +149,8 @@ fn local_path(raw: &str) -> &str {
 }
 
 fn read_local(clean: &str) -> Reply {
-    let t = std::time::Instant::now();
-    match std::fs::read(clean) {
+    let t = Instant::now();
+    match fs::read(clean) {
         Ok(data) => {
             log::debug!(
                 "[mma-buf] read {} bytes in {:.1}ms",
@@ -170,7 +182,7 @@ pub(crate) fn fetch_svtile(url: &str) -> Reply {
 
 /// gmaps: forward a request (POST batchexecute etc.) to www.google.com.
 pub(crate) fn proxy_gmaps(
-    method: reqwest::Method,
+    method: Method,
     url: &str,
     content_type: String,
     user_agent: String,
@@ -178,8 +190,8 @@ pub(crate) fn proxy_gmaps(
 ) -> Reply {
     match proxy_client()
         .request(method, url)
-        .header(reqwest::header::CONTENT_TYPE, content_type)
-        .header(reqwest::header::USER_AGENT, user_agent)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::USER_AGENT, user_agent)
         .body(body)
         .send()
     {
@@ -199,7 +211,7 @@ pub(crate) fn resolve_googl(id: &str, mapsapp: bool) -> Reply {
     match resolve_client().get(&url).send() {
         Ok(resp) => match resp
             .headers()
-            .get(reqwest::header::LOCATION)
+            .get(header::LOCATION)
             .and_then(|v| v.to_str().ok())
         {
             Some(location) => cors()
@@ -237,7 +249,7 @@ pub(crate) fn register_schemes(builder: tauri::Builder<tauri::Wry>) -> tauri::Bu
             let path = percent_encoding::percent_decode_str(req.uri().path())
                 .decode_utf8_lossy()
                 .into_owned();
-            respond_async(responder, move || crate::user_plugins::serve_file(&path));
+            respond_async(responder, move || user_plugins::serve_file(&path));
         })
         .register_asynchronous_uri_scheme_protocol("svtile", |_ctx, req, responder| {
             let (path, query) = path_and_query(&req);
@@ -272,12 +284,12 @@ pub(crate) fn register_schemes(builder: tauri::Builder<tauri::Wry>) -> tauri::Bu
             let content_type = header_str(&req, header::CONTENT_TYPE).map(str::to_string);
             let body = req.body().clone();
             respond_async(responder, move || {
-                crate::geoguessr::proxy(method, &path, query.as_deref(), content_type, body)
+                geoguessr::proxy(method, &path, query.as_deref(), content_type, body)
             });
         })
         .register_asynchronous_uri_scheme_protocol("gdoc", |_ctx, req, responder| {
             let doc_id = req.uri().path().trim_start_matches('/').to_string();
-            respond_async(responder, move || crate::gdoc::fetch_gdoc(&doc_id));
+            respond_async(responder, move || gdoc::fetch_gdoc(&doc_id));
         })
         .register_asynchronous_uri_scheme_protocol("googl", |_ctx, req, responder| {
             let id = req.uri().path().trim_start_matches('/').to_string();

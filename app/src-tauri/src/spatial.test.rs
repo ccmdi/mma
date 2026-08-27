@@ -1,4 +1,5 @@
 use super::*;
+use crate::selections;
 
 fn ids(mut v: Vec<u32>) -> Vec<u32> {
     v.sort_unstable();
@@ -62,7 +63,7 @@ fn candidates_are_superset_never_missing() {
     for r in [5.0, 50.0, 300.0] {
         let cand = query(&ix, plat, plng, r);
         for &(id, lat, lng) in &pts {
-            let d = crate::selections::haversine_m(plat, plng, lat, lng);
+            let d = selections::haversine_m(plat, plng, lat, lng);
             if d <= r {
                 assert!(
                     cand.contains(&id),

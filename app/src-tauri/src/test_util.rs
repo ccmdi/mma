@@ -1,10 +1,16 @@
 //! Shared fixtures for the `*.test.rs` modules.
 
+use crate::arrow_bridge;
 use crate::selections::LocView;
 use crate::types::Location;
 use arrow_array::RecordBatch;
 use roaring::RoaringBitmap;
 use std::collections::{HashMap, HashSet};
+use std::env;
+use std::fs;
+use std::ops::Deref;
+use std::path::Path;
+use std::path::PathBuf;
 
 /// A location at `(lat, lng)` with default everything else.
 pub(crate) fn loc(id: u32, lat: f64, lng: f64) -> Location {
@@ -19,34 +25,34 @@ pub(crate) fn loc(id: u32, lat: f64, lng: f64) -> Location {
 
 /// A directory under the system temp dir, removed on drop so a panicking test
 /// leaves nothing behind. Derefs to its path.
-pub(crate) struct TempDir(std::path::PathBuf);
+pub(crate) struct TempDir(PathBuf);
 
 impl TempDir {
     /// Fresh empty directory.
     pub(crate) fn new(name: &str) -> Self {
         let d = TempDir::slot(name);
-        std::fs::create_dir_all(&d.0).unwrap();
+        fs::create_dir_all(&d.0).unwrap();
         d
     }
 
     /// Path cleared but not created, for code under test that must create it.
     pub(crate) fn slot(name: &str) -> Self {
-        let path = std::env::temp_dir().join(name);
-        let _ = std::fs::remove_dir_all(&path);
+        let path = env::temp_dir().join(name);
+        let _ = fs::remove_dir_all(&path);
         TempDir(path)
     }
 }
 
-impl std::ops::Deref for TempDir {
-    type Target = std::path::Path;
-    fn deref(&self) -> &std::path::Path {
+impl Deref for TempDir {
+    type Target = Path;
+    fn deref(&self) -> &Path {
         &self.0
     }
 }
 
 impl Drop for TempDir {
     fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        let _ = fs::remove_dir_all(&self.0);
     }
 }
 
@@ -71,7 +77,7 @@ impl Fx {
 
     /// Committed batch built from `locs`.
     pub(crate) fn base(locs: &[Location]) -> Self {
-        Fx::batch(crate::arrow_bridge::locations_to_batch(locs))
+        Fx::batch(arrow_bridge::locations_to_batch(locs))
     }
 
     pub(crate) fn batch(batch: RecordBatch) -> Self {

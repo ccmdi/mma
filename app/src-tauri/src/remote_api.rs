@@ -18,6 +18,11 @@ use std::time::Duration;
 use tauri::{Emitter, Manager};
 
 use crate::types::AppResult;
+use std::env;
+use std::io::Cursor;
+use std::io::Read;
+use std::thread;
+use tokio::task;
 
 const DEFAULT_ADDR: &str = "127.0.0.1:1429";
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
@@ -42,7 +47,7 @@ fn state() -> &'static State {
 }
 
 fn addr() -> String {
-    std::env::var("MMA_REMOTE_API_ADDR").unwrap_or_else(|_| DEFAULT_ADDR.to_string())
+    env::var("MMA_REMOTE_API_ADDR").unwrap_or_else(|_| DEFAULT_ADDR.to_string())
 }
 
 /// Start (or re-key) the remote API server. Idempotent: a running server just
@@ -50,7 +55,7 @@ fn addr() -> String {
 #[tauri::command]
 #[specta::specta]
 pub async fn remote_api_start(key: String) -> AppResult<String> {
-    tokio::task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         let s = state();
         *s.key.lock().unwrap() = key;
         let mut server = s.server.lock().unwrap();
@@ -61,7 +66,7 @@ pub async fn remote_api_start(key: String) -> AppResult<String> {
                     .map_err(|e| format!("remote api bind {addr}: {e}"))?,
             );
             *server = Some(srv.clone());
-            std::thread::spawn(move || accept_loop(srv));
+            thread::spawn(move || accept_loop(srv));
             log::info!("[remote-api] listening on http://{addr}");
         }
         Ok(format!("http://{}", addr()))
@@ -94,7 +99,7 @@ pub fn remote_api_respond(id: u32, ok: bool, payload: String) {
 fn accept_loop(server: Arc<tiny_http::Server>) {
     for req in server.incoming_requests() {
         // Per-request thread: a parked MMA call must not block other requests.
-        std::thread::spawn(move || handle(req));
+        thread::spawn(move || handle(req));
     }
 }
 
@@ -221,7 +226,7 @@ pub(crate) fn pick_target(labels: &[String], map_id: Option<&str>) -> Result<Str
     }
 }
 
-fn json_response(status: u16, body: String) -> tiny_http::Response<std::io::Cursor<Vec<u8>>> {
+fn json_response(status: u16, body: String) -> tiny_http::Response<Cursor<Vec<u8>>> {
     with_cors(
         tiny_http::Response::from_string(body)
             .with_status_code(status)
@@ -236,7 +241,7 @@ fn json_response(status: u16, body: String) -> tiny_http::Response<std::io::Curs
 /// `fetch` from userscripts can reach us.
 fn with_cors<D>(resp: tiny_http::Response<D>) -> tiny_http::Response<D>
 where
-    D: std::io::Read,
+    D: Read,
 {
     resp.with_header(
         tiny_http::Header::from_bytes(&b"Access-Control-Allow-Origin"[..], &b"*"[..]).unwrap(),

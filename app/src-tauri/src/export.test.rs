@@ -1,12 +1,19 @@
 use super::*;
+use crate::types::Location;
+use crate::types::RawExtra;
 use serde_json::json;
+use std::collections::HashMap;
+use std::env;
+use std::fs;
+use std::fs::File;
+use std::path::PathBuf;
 
 fn make_loc(
     flags: LocationFlags,
     tags: Vec<u32>,
     extra: Option<serde_json::Map<String, serde_json::Value>>,
-) -> crate::types::Location {
-    crate::types::Location {
+) -> Location {
+    Location {
         id: 1,
         lat: 10.0,
         lng: 20.0,
@@ -15,7 +22,7 @@ fn make_loc(
         pano_id: Some("PANO".into()),
         flags,
         tags,
-        extra: extra.as_ref().and_then(crate::types::RawExtra::from_map),
+        extra: extra.as_ref().and_then(RawExtra::from_map),
         ..Default::default()
     }
 }
@@ -58,7 +65,7 @@ fn coord_hoists_country_state_and_nests_other_extra() {
     extra.insert("stateCode".into(), json!("CA"));
     extra.insert("note".into(), json!("hi"));
     let l = make_loc(LocationFlags::empty(), vec![1, 99], Some(extra));
-    let id_to_name = std::collections::HashMap::from([(1u32, "red".to_string())]);
+    let id_to_name = HashMap::from([(1u32, "red".to_string())]);
     let co = CoordOpts {
         export_zoom: false,
         export_unpanned: true,
@@ -82,7 +89,7 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
     let mut extra = serde_json::Map::new();
     extra.insert("note".into(), json!("hi"));
     let l = make_loc(LocationFlags::LOAD_AS_PANO_ID, vec![1], Some(extra));
-    let id_to_name = std::collections::HashMap::from([(1u32, "red".to_string())]);
+    let id_to_name = HashMap::from([(1u32, "red".to_string())]);
     let co = CoordOpts {
         export_zoom: true,
         export_unpanned: false,
@@ -102,7 +109,7 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
 #[test]
 fn unknown_tag_id_falls_back_to_stringified_id() {
     let l = make_loc(LocationFlags::empty(), vec![7], None);
-    let id_to_name = std::collections::HashMap::new();
+    let id_to_name = HashMap::new();
     let co = CoordOpts {
         export_zoom: true,
         export_unpanned: false,
@@ -141,27 +148,27 @@ fn tag_meta_roundtrips_doclinks() {
 #[test]
 fn upload_session_dir_rejects_outside_paths() {
     assert!(upload_session_dir("C:/somewhere/mma_upload_1_1").is_err());
-    let not_pano = std::env::temp_dir().join("other_dir");
+    let not_pano = env::temp_dir().join("other_dir");
     assert!(upload_session_dir(&not_pano.to_string_lossy()).is_err());
-    let nested = std::env::temp_dir().join("nested").join("mma_upload_1_1");
+    let nested = env::temp_dir().join("nested").join("mma_upload_1_1");
     assert!(upload_session_dir(&nested.to_string_lossy()).is_err());
 }
 
 #[test]
 fn upload_session_begin_finish_multiple_zips_stored() {
     let session = store_upload_begin().unwrap();
-    let dir = std::path::PathBuf::from(&session);
+    let dir = PathBuf::from(&session);
     assert!(dir.is_dir());
     assert!(upload_session_dir(&session).is_ok());
 
-    std::fs::write(dir.join("1.jpg"), b"aaa").unwrap();
-    std::fs::write(dir.join("2.jpg"), b"bbbb").unwrap();
+    fs::write(dir.join("1.jpg"), b"aaa").unwrap();
+    fs::write(dir.join("2.jpg"), b"bbbb").unwrap();
 
     let out = store_upload_finish(session).unwrap();
     assert!(out.ends_with(".zip"));
     assert!(!dir.exists(), "session dir removed after finish");
 
-    let file = std::fs::File::open(&out).unwrap();
+    let file = File::open(&out).unwrap();
     let mut zip = zip::ZipArchive::new(file).unwrap();
     let names: Vec<String> = (0..zip.len())
         .map(|i| zip.by_index(i).unwrap().name().to_string())
@@ -175,26 +182,26 @@ fn upload_session_begin_finish_multiple_zips_stored() {
         entry.read_to_end(&mut buf).unwrap();
         assert_eq!(buf, b"bbbb");
     }
-    let _ = std::fs::remove_file(&out);
+    let _ = fs::remove_file(&out);
 }
 
 #[test]
 fn upload_session_finish_single_file_passes_through() {
     let session = store_upload_begin().unwrap();
-    let dir = std::path::PathBuf::from(&session);
-    std::fs::write(dir.join("42.png"), b"img").unwrap();
+    let dir = PathBuf::from(&session);
+    fs::write(dir.join("42.png"), b"img").unwrap();
 
     let out = store_upload_finish(session).unwrap();
     assert!(out.ends_with(".png"));
     assert!(!dir.exists());
-    assert_eq!(std::fs::read(&out).unwrap(), b"img");
-    let _ = std::fs::remove_file(&out);
+    assert_eq!(fs::read(&out).unwrap(), b"img");
+    let _ = fs::remove_file(&out);
 }
 
 #[test]
 fn upload_session_finish_empty_errors_and_cleans_up() {
     let session = store_upload_begin().unwrap();
-    let dir = std::path::PathBuf::from(&session);
+    let dir = PathBuf::from(&session);
     assert!(store_upload_finish(session).is_err());
     assert!(!dir.exists());
 }
@@ -202,8 +209,8 @@ fn upload_session_finish_empty_errors_and_cleans_up() {
 #[test]
 fn upload_session_abort_removes_dir() {
     let session = store_upload_begin().unwrap();
-    let dir = std::path::PathBuf::from(&session);
-    std::fs::write(dir.join("1.jpg"), b"x").unwrap();
+    let dir = PathBuf::from(&session);
+    fs::write(dir.join("1.jpg"), b"x").unwrap();
     store_upload_abort(session).unwrap();
     assert!(!dir.exists());
 }

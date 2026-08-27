@@ -1,4 +1,7 @@
 use super::*;
+use crate::types::RawExtra;
+use crate::util;
+use std::collections::HashMap;
 
 fn sample_locations() -> Vec<Location> {
     vec![
@@ -10,18 +13,18 @@ fn sample_locations() -> Vec<Location> {
             pitch: 5.0,
             zoom: 1.5,
             pano_id: Some("CAoSLEF...".into()),
-            flags: crate::types::LocationFlags::LOAD_AS_PANO_ID,
+            flags: LocationFlags::LOAD_AS_PANO_ID,
             tags: vec![1, 2],
             extra: Some(serde_json::from_str(r#"{"countryCode":"FR","altitude":35.2}"#).unwrap()),
-            created_at: crate::util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32,
-            modified_at: Some(crate::util::iso_to_unix("2024-01-15T11:00:00Z").unwrap() as u32),
+            created_at: util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32,
+            modified_at: Some(util::iso_to_unix("2024-01-15T11:00:00Z").unwrap() as u32),
         },
         Location {
             id: 2,
             lat: -33.8688,
             lng: 151.2093,
             zoom: 1.0,
-            created_at: crate::util::iso_to_unix("2024-06-20T15:00:00Z").unwrap() as u32,
+            created_at: util::iso_to_unix("2024-06-20T15:00:00Z").unwrap() as u32,
             ..Default::default()
         },
     ]
@@ -115,7 +118,7 @@ fn patch_batch_applies_values_and_reuses_untouched_columns() {
     let mut patched = locs[0].clone();
     patched.heading = 270.0;
     patched.tags = vec![7];
-    let patches = std::collections::HashMap::from([(1u32, patched)]);
+    let patches = HashMap::from([(1u32, patched)]);
 
     let out = patch_batch(&batch, &patches);
     assert_eq!(out.num_rows(), 2);
@@ -142,7 +145,7 @@ fn patch_batch_applies_values_and_reuses_untouched_columns() {
 fn patch_batch_noop_when_no_patch_id_matches() {
     let locs = sample_locations();
     let batch = locations_to_batch(&locs);
-    let patches = std::collections::HashMap::from([(99u32, locs[0].clone())]);
+    let patches = HashMap::from([(99u32, locs[0].clone())]);
     let out = patch_batch(&batch, &patches);
     for ci in 0..out.num_columns() {
         assert!(Arc::ptr_eq(batch.column(ci), out.column(ci)));
@@ -155,7 +158,7 @@ fn patch_batch_identical_patch_rebuilds_nothing() {
     let batch = locations_to_batch(&locs);
     // patch present but equal to the stored row: no column is "touched"
     let stored = row_to_location(&batch, 0);
-    let patches = std::collections::HashMap::from([(1u32, stored)]);
+    let patches = HashMap::from([(1u32, stored)]);
     let out = patch_batch(&batch, &patches);
     for ci in 0..out.num_columns() {
         assert!(Arc::ptr_eq(batch.column(ci), out.column(ci)));
@@ -178,7 +181,7 @@ fn patch_batch_nullable_transitions() {
     p1.extra = None;
     p1.modified_at = None;
 
-    let patches = std::collections::HashMap::from([(1u32, p1), (2u32, p2)]);
+    let patches = HashMap::from([(1u32, p1), (2u32, p2)]);
     let restored = batch_to_locations(&patch_batch(&batch, &patches));
 
     assert_eq!(restored[0].pano_id, None);
@@ -284,10 +287,10 @@ fn arb_extra_map() -> impl Strategy<Value = serde_json::Map<String, serde_json::
     })
 }
 
-fn arb_extra() -> impl Strategy<Value = Option<crate::types::RawExtra>> {
+fn arb_extra() -> impl Strategy<Value = Option<RawExtra>> {
     prop_oneof![
         1 => Just(None),
-        3 => arb_extra_map().prop_map(|m| crate::types::RawExtra::from_map(&m)),
+        3 => arb_extra_map().prop_map(|m| RawExtra::from_map(&m)),
     ]
 }
 

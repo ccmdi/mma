@@ -1,10 +1,11 @@
 use super::*;
+use serde_json::value::RawValue;
 
 // The delta sidecar / undo-blob field that actually hit the wire: Option<Option<RawExtra>>.
 type ExtraField = Option<Option<RawExtra>>;
 
 fn extra(json: &str) -> RawExtra {
-    RawExtra::wrap(serde_json::value::RawValue::from_string(json.to_owned()).unwrap())
+    RawExtra::wrap(RawValue::from_string(json.to_owned()).unwrap())
 }
 
 #[test]

@@ -2,16 +2,18 @@
 //! trait. The engine (sync_engine.rs) is generic over [`SyncProvider`]; diff/keying are pure.
 //! The TS side keeps UI, scheduling and auth.
 
+use crate::types::AppResult;
 use crate::types::{AppError, Location, LocationFlags};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
+use std::fmt::Display;
 
 /// The one encoding of "this provider rejected our credentials". Providers stamp it where the
 /// 401 is seen; the prefix is the wire contract the TS sync UI classifies on
 /// (`lib/sync/provider.ts`), which strips it before display.
 pub const AUTH_PREFIX: &str = "auth: ";
 
-pub fn auth_error(message: impl std::fmt::Display) -> AppError {
+pub fn auth_error(message: impl Display) -> AppError {
     AppError(format!("{AUTH_PREFIX}{message}"))
 }
 
@@ -286,7 +288,7 @@ pub trait SyncProvider {
     fn materialize(&self, n: &NormalizedSyncLocation) -> Self::Raw;
 
     /// Blocking network read of the whole remote side.
-    fn pull(&self, remote_map_id: &str) -> crate::types::AppResult<RemoteSnapshot<Self::Raw>>;
+    fn pull(&self, remote_map_id: &str) -> AppResult<RemoteSnapshot<Self::Raw>>;
 
     /// Blocking network write. `commit` persists confirmed ids as they land, so a provider
     /// that writes in several requests makes a part-way failure resumable; providers that
@@ -296,8 +298,8 @@ pub trait SyncProvider {
         remote_map_id: &str,
         batch: &PushBatch<Self::Raw>,
         token: Option<i64>,
-        commit: &mut dyn FnMut(&[PushedId]) -> crate::types::AppResult<()>,
-    ) -> crate::types::AppResult<Vec<PushedId>>;
+        commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
+    ) -> AppResult<Vec<PushedId>>;
 }
 
 #[cfg(test)]

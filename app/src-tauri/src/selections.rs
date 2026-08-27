@@ -5,6 +5,8 @@
 //! unified `LocView` (batch + overlay); composites (Intersection, Union, Invert) combine
 //! their children's sets.
 
+use crate::arrow_bridge;
+use crate::types;
 use crate::types::{Location, LocationFlags};
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
 use arrow_array::{Array, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array};
@@ -18,6 +20,8 @@ pub(crate) use mma_geo::{point_in_ring, unwrap_ring};
 use rayon::prelude::*;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 
 /// Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
@@ -294,8 +298,8 @@ impl<'a, 'v> RowRef<'a, 'v> {
                     return;
                 }
                 let s = extras.value(*i);
-                crate::types::scan_fields(s.as_bytes(), |fs| {
-                    f(&crate::types::decode_json_key(&s[fs.key.clone()]));
+                types::scan_fields(s.as_bytes(), |fs| {
+                    f(&types::decode_json_key(&s[fs.key.clone()]));
                     false
                 });
             }
@@ -319,7 +323,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
                 let mut tz: Option<String> = None;
                 if let Some(s) = v.extras.and_then(|c| (!c.is_null(*i)).then(|| c.value(*i))) {
                     let b = s.as_bytes();
-                    crate::types::scan_fields(b, |fs| {
+                    types::scan_fields(b, |fs| {
                         let k = &b[fs.key.clone()];
                         // Not else-if: `field` may itself be "timezone".
                         if tz.is_none() && k == b"timezone" {
@@ -443,7 +447,7 @@ impl<'a> LocView<'a> {
     }
 
     pub fn loc_at(&self, i: usize) -> Location {
-        crate::arrow_bridge::row_to_location(self.batch.unwrap(), i)
+        arrow_bridge::row_to_location(self.batch.unwrap(), i)
     }
 
     /// Every alive location once, overlay applied: dead rows skipped, patched rows
@@ -791,7 +795,7 @@ fn resolve_leaf_mask(view: &LocView, selector: &Selector) -> Vec<bool> {
             }
             let k = *k as usize;
             let asc = |a: &(usize, f64), b: &(usize, f64)| {
-                a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal)
+                a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal)
             };
             if k > 0 && k < entries.len() {
                 if *ascending {
@@ -1237,7 +1241,7 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
 /// - <= 25 m: relevance prune — each radius cluster keeps its best-scored location
 ///   (see [`prune_score`]; tie: oldest `created_at`, then lowest id), rest pruned.
 /// - > 25 m: greedy max-thinning — repeatedly drop the location with the most in-range
-///   neighbours until no two survivors are within `distance_m`.
+///   > neighbours until no two survivors are within `distance_m`.
 pub fn prune_duplicates(
     locs: &[Location],
     distance_m: f64,
@@ -1384,9 +1388,9 @@ pub struct BuiltinField {
     pub key: &'static str,
     pub label: &'static str,
     #[serde(rename = "type")]
-    pub field_type: crate::map_meta::ExtraFieldType,
+    pub field_type: ExtraFieldType,
     pub kind: Option<BuiltinFieldKind>,
-    pub comparison: Option<crate::map_meta::ComparisonType>,
+    pub comparison: Option<ComparisonType>,
 }
 
 /// Single source of truth for the built-in field vocabulary: the exported table, the two
@@ -1718,7 +1722,7 @@ pub enum DatePart {
 #[serde(rename_all = "camelCase")]
 pub struct Projection {
     pub id: &'static str,
-    pub applies_to: &'static [crate::map_meta::ExtraFieldType],
+    pub applies_to: &'static [ExtraFieldType],
     /// Date projections read in the location's own timezone when asked to.
     pub needs_tz: bool,
 }
@@ -1945,7 +1949,7 @@ pub fn ids_within(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<u32> {
 /// Distinct values of `field` across the selected set, sorted. Scalars stringify so they
 /// match the string-typed options they populate; null and containers are skipped.
 pub fn distinct_values(view: &LocView, field: &str, set: Option<&RoaringBitmap>) -> Vec<String> {
-    let mut seen = std::collections::BTreeSet::new();
+    let mut seen = BTreeSet::new();
     for row in view.within(set) {
         match row.resolve_field(field) {
             Some(serde_json::Value::String(s)) if !s.is_empty() => {

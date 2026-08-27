@@ -11,11 +11,15 @@ use rusqlite::params;
 use tauri::State;
 
 use crate::arrow_bridge;
+use crate::location_store;
 use crate::location_store::StoreState;
+use crate::selections::Selector;
 use crate::storage;
 use crate::types::Location;
 use crate::util::{now_iso, sha256_hex};
 use crate::vcs_delta;
+use std::fs;
+use std::time::Instant;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,7 +90,7 @@ pub async fn store_commit(
     map_id: String,
     message: Option<String>,
 ) -> AppResult<String> {
-    let _t = std::time::Instant::now();
+    let _t = Instant::now();
     let conn = storage::open_db()?;
 
     let parent_id: Option<String> = conn
@@ -112,7 +116,7 @@ pub async fn store_commit(
         };
 
         // Build the canonical full batch ONCE (bake), write the base, re-mmap, flush tags.
-        crate::location_store::bake_and_save(store, &map_id)?;
+        location_store::bake_and_save(store, &map_id)?;
 
         store.edits.undo.clear();
         store.edits.redo.clear();
@@ -120,7 +124,7 @@ pub async fn store_commit(
         // Clean overlay + existing parent (checkout/revert commit): capture the current
         // baked state to diff against the parent below.
         let current_fallback = if pre_bake.is_none() && !genesis {
-            store.collect(&crate::selections::Selector::Everything)
+            store.collect(&Selector::Everything)
         } else {
             Vec::new()
         };
@@ -146,7 +150,7 @@ pub async fn store_commit(
             // snapshot by copying the base (one serialization, not two); batch_to_delta
             // reads a 12-column snapshot as all-created.
             let base_path = storage::arrow_path(&map_id)?;
-            std::fs::copy(&base_path, &path)?;
+            fs::copy(&base_path, &path)?;
             (location_count, 0, 0)
         }
         None => {
@@ -168,7 +172,7 @@ pub async fn store_commit(
         "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, tree_hash, added, removed, modified) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![id, map_id, parent_id, message, location_count, now, Option::<String>::None, added, removed_n, modified],
     )?;
-    crate::storage::set_location_count(&conn, &map_id, location_count as usize)?;
+    storage::set_location_count(&conn, &map_id, location_count as usize)?;
 
     log::info!(
         "[vcs] commit {} locs={} +{} -{} ~{} in {}ms (bake+base-write={:.0}ms delta-write={:.0}ms sqlite={:.0}ms genesis={})",
@@ -231,7 +235,7 @@ pub fn store_checkout_commit(map_id: String, commit_id: String) -> AppResult<()>
     let path = storage::arrow_path(&map_id)?;
     storage::write_arrow_ipc(&path, &batch)?;
     let delta = storage::arrow_delta_path(&map_id)?;
-    let _ = std::fs::remove_file(delta);
+    let _ = fs::remove_file(delta);
 
     log::info!(
         "[vcs] checkout {} on map {} ({} locs)",

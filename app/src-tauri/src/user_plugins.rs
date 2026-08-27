@@ -5,7 +5,11 @@
 use crate::proxy::{cors, proxy_client};
 use crate::types::{AppError, AppResult};
 use crate::{sidecar, storage};
+use std::collections::HashMap;
+use std::fs;
 use std::path::{Path, PathBuf};
+use tauri::http::Response;
+use tokio::task;
 
 const REPO_BASE: &str = "https://raw.githubusercontent.com/ccmdi/mma/master/plugins";
 
@@ -25,7 +29,7 @@ struct RawSidecar {
     name: String,
     version: String,
     #[serde(flatten)]
-    digests: std::collections::HashMap<String, serde_json::Value>,
+    digests: HashMap<String, serde_json::Value>,
 }
 
 impl<'de> serde::Deserialize<'de> for PluginSidecar {
@@ -128,7 +132,7 @@ fn plugins_dir() -> AppResult<PathBuf> {
 
 fn read_manifest(dir: &Path) -> Option<PluginManifest> {
     let path = dir.join("manifest.json");
-    let content = std::fs::read_to_string(&path).ok()?;
+    let content = fs::read_to_string(&path).ok()?;
     match serde_json::from_str::<PluginManifest>(&content) {
         Ok(m) => Some(m.with_fallback(dir.file_name()?.to_str()?)),
         Err(e) => {
@@ -142,7 +146,7 @@ fn read_manifest(dir: &Path) -> Option<PluginManifest> {
 #[tauri::command]
 #[specta::specta]
 pub fn list_user_plugins() -> Vec<PluginManifest> {
-    let Ok(entries) = plugins_dir().and_then(|d| Ok(std::fs::read_dir(d)?)) else {
+    let Ok(entries) = plugins_dir().and_then(|d| Ok(fs::read_dir(d)?)) else {
         return vec![];
     };
     entries
@@ -186,20 +190,20 @@ fn install_files(manifest: &PluginManifest) -> AppResult<Vec<&str>> {
 #[specta::specta]
 pub async fn install_plugin(id: String) -> AppResult<PluginManifest> {
     validate_plugin_id(&id)?;
-    tokio::task::spawn_blocking(move || install(id)).await?
+    task::spawn_blocking(move || install(id)).await?
 }
 
 fn install(id: String) -> AppResult<PluginManifest> {
     let dir = plugins_dir()?.join(&id);
-    std::fs::create_dir_all(&dir)?;
+    fs::create_dir_all(&dir)?;
 
     let manifest_bytes = fetch(&format!("{REPO_BASE}/{id}/manifest.json"), "manifest")?;
-    std::fs::write(dir.join("manifest.json"), &manifest_bytes)?;
+    fs::write(dir.join("manifest.json"), &manifest_bytes)?;
     let manifest: PluginManifest = serde_json::from_slice(&manifest_bytes)
         .map_err(|e| format!("Invalid manifest JSON: {e}"))?;
 
     for file in install_files(&manifest)? {
-        std::fs::write(
+        fs::write(
             dir.join(file),
             fetch(&format!("{REPO_BASE}/{id}/{file}"), file)?,
         )?;
@@ -218,10 +222,10 @@ pub async fn uninstall_plugin(id: String) -> AppResult<()> {
     let dir = plugins_dir()?.join(&id);
     // A live sidecar holds the directory open on Windows, so delete under the
     // plugin's process lock with everything stopped.
-    tokio::task::spawn_blocking(move || {
+    task::spawn_blocking(move || {
         sidecar::with_plugin_stopped(&id, || {
             if dir.exists() {
-                std::fs::remove_dir_all(&dir)?;
+                fs::remove_dir_all(&dir)?;
             }
             Ok(())
         })
@@ -230,13 +234,8 @@ pub async fn uninstall_plugin(id: String) -> AppResult<()> {
 }
 
 /// `mma-plugin://` handler: a file from inside the plugins dir, nothing outside it.
-pub(crate) fn serve_file(path: &str) -> tauri::http::Response<Vec<u8>> {
-    let status = |code: u16| {
-        tauri::http::Response::builder()
-            .status(code)
-            .body(vec![])
-            .unwrap()
-    };
+pub(crate) fn serve_file(path: &str) -> Response<Vec<u8>> {
+    let status = |code: u16| Response::builder().status(code).body(vec![]).unwrap();
     let root = plugins_dir().unwrap_or_default();
     let canonical = root
         .join(path.trim_start_matches('/'))
@@ -245,7 +244,7 @@ pub(crate) fn serve_file(path: &str) -> tauri::http::Response<Vec<u8>> {
     if !canonical.starts_with(&root) {
         return status(403);
     }
-    let Ok(data) = std::fs::read(&canonical) else {
+    let Ok(data) = fs::read(&canonical) else {
         return status(404);
     };
     let mime = match canonical.extension().and_then(|e| e.to_str()) {

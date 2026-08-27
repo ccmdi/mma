@@ -6,7 +6,14 @@
 //! streamed to the frontend as `vali-progress` events.
 
 use crate::types::{AppError, AppResult};
+use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::Duration;
+use tokio::task;
+use vali_data::paths;
+use vali_generate::download;
+use vali_generate::export;
+use vali_generate::names;
 use vali_generate::{generate_output, prepare, CancelToken, GeoMapLocation, ProgressEvent};
 
 pub struct ValiState {
@@ -125,8 +132,8 @@ fn emit_progress(e: ProgressEvent) {
     crate::emit_event(ValiProgress::from(e));
 }
 
-fn data_root() -> AppResult<std::path::PathBuf> {
-    vali_data::paths::data_root().map_err(|e| AppError(format!("{e:#}")))
+fn data_root() -> AppResult<PathBuf> {
+    paths::data_root().map_err(|e| AppError(format!("{e:#}")))
 }
 
 /// Generate locations from a Vali map definition (JSON/JSONC text). Missing country
@@ -139,7 +146,7 @@ pub async fn vali_generate(
 ) -> AppResult<Vec<ValiLocation>> {
     let token = CancelToken::new();
     *state.cancel.lock().unwrap() = Some(token.clone());
-    let result = tokio::task::spawn_blocking(move || {
+    let result = task::spawn_blocking(move || {
         let def: vali_core::MapDefinition = json5::from_str(&definition)
             .map_err(|e| AppError(format!("The map definition is not valid JSON: {e}")))?;
         let prepared = prepare(&def).map_err(AppError)?;
@@ -170,8 +177,8 @@ pub async fn vali_download(
 ) -> AppResult<()> {
     let token = CancelToken::new();
     *state.cancel.lock().unwrap() = Some(token.clone());
-    let result = tokio::task::spawn_blocking(move || {
-        vali_generate::download::download_files(
+    let result = task::spawn_blocking(move || {
+        download::download_files(
             &data_root()?,
             country.as_deref(),
             full,
@@ -194,19 +201,15 @@ pub async fn vali_download(
 pub async fn vali_download_stale(state: tauri::State<'_, ValiState>) -> AppResult<()> {
     let token = CancelToken::new();
     *state.cancel.lock().unwrap() = Some(token.clone());
-    let result = tokio::task::spawn_blocking(move || {
+    let result = task::spawn_blocking(move || {
         let root = data_root()?;
-        let stale = vali_generate::download::stale_countries(
-            &root,
-            std::time::Duration::from_secs(30),
-            Some(&token),
-        )
-        .map_err(|e| AppError(format!("{e:#}")))?;
+        let stale = download::stale_countries(&root, Duration::from_secs(30), Some(&token))
+            .map_err(|e| AppError(format!("{e:#}")))?;
         let codes: Vec<String> = stale.into_iter().map(|c| c.country_code).collect();
         if codes.is_empty() {
             return Ok(());
         }
-        vali_generate::download::download_codes(
+        download::download_codes(
             &root,
             &codes,
             false,
@@ -235,7 +238,7 @@ pub fn vali_cancel(state: tauri::State<'_, ValiState>) {
 #[tauri::command]
 #[specta::specta]
 pub fn vali_subdivisions(country: String) -> AppResult<String> {
-    vali_generate::export::subdivisions_export(&country, false).map_err(AppError)
+    export::subdivisions_export(&country, false).map_err(AppError)
 }
 
 /// How far behind one country's downloaded coverage data is.
@@ -253,13 +256,9 @@ pub struct ValiCountryStatus {
 #[tauri::command]
 #[specta::specta]
 pub async fn vali_data_status() -> AppResult<Vec<ValiCountryStatus>> {
-    tokio::task::spawn_blocking(move || {
-        let stale = vali_generate::download::stale_countries(
-            &data_root()?,
-            std::time::Duration::from_secs(30),
-            None,
-        )
-        .map_err(|e| AppError(format!("{e:#}")))?;
+    task::spawn_blocking(move || {
+        let stale = download::stale_countries(&data_root()?, Duration::from_secs(30), None)
+            .map_err(|e| AppError(format!("{e:#}")))?;
         Ok(stale
             .into_iter()
             .map(|c| ValiCountryStatus {
@@ -278,7 +277,7 @@ pub async fn vali_data_status() -> AppResult<Vec<ValiCountryStatus>> {
 #[tauri::command]
 #[specta::specta]
 pub fn vali_countries() -> Vec<String> {
-    vali_generate::names::country_names()
+    names::country_names()
         .iter()
         .map(|(code, _)| code.to_string())
         .collect()

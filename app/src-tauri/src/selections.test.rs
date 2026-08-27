@@ -2,7 +2,10 @@ use super::*;
 use crate::arrow_bridge::locations_to_batch;
 use crate::test_util::{loc, Fx};
 use crate::types::Location;
+use crate::types::RawExtra;
 use chrono::TimeZone;
+use std::iter;
+use std::slice;
 
 // for_each must visit every alive location exactly once, overlay applied: dead rows
 // skipped, patched rows surfaced with the patch's coordinates, then the overlay adds.
@@ -840,14 +843,14 @@ fn builtin_fields_resolve_on_every_path() {
     let shadow: serde_json::Map<String, serde_json::Value> = BUILTIN_FIELDS
         .iter()
         .map(|f| (f.key.to_string(), serde_json::json!("SHADOW")))
-        .chain(std::iter::once((
+        .chain(iter::once((
             "timezone".to_string(),
             serde_json::json!("UTC"),
         )))
         .collect();
-    l.extra = crate::types::RawExtra::from_map(&shadow);
+    l.extra = RawExtra::from_map(&shadow);
 
-    let fx = Fx::batch(locations_to_batch(std::slice::from_ref(&l)));
+    let fx = Fx::batch(locations_to_batch(slice::from_ref(&l)));
     let view = fx.view();
     let base_row = RowRef {
         inner: RowInner::Base(&view, 0),
@@ -1111,7 +1114,7 @@ fn resolve_unpanned() {
 #[test]
 fn resolve_panoids() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.flags = crate::types::LocationFlags::LOAD_AS_PANO_ID;
+    l1.flags = LocationFlags::LOAD_AS_PANO_ID;
     let l2 = loc(2, 0.0, 0.0);
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
@@ -1153,11 +1156,11 @@ fn resolve_with_patched_tags() {
 fn resolve_intersection() {
     let mut l1 = loc(1, 0.0, 0.0);
     l1.tags = vec![10];
-    l1.flags = crate::types::LocationFlags::LOAD_AS_PANO_ID;
+    l1.flags = LocationFlags::LOAD_AS_PANO_ID;
     let mut l2 = loc(2, 0.0, 0.0);
     l2.tags = vec![10];
     let mut l3 = loc(3, 0.0, 0.0);
-    l3.flags = crate::types::LocationFlags::LOAD_AS_PANO_ID;
+    l3.flags = LocationFlags::LOAD_AS_PANO_ID;
     let adds = vec![l1, l2, l3];
     let fx = Fx::adds(adds);
     let view = fx.view();
@@ -1184,7 +1187,7 @@ fn resolve_union() {
     let mut l1 = loc(1, 0.0, 0.0);
     l1.tags = vec![10];
     let mut l2 = loc(2, 0.0, 0.0);
-    l2.flags = crate::types::LocationFlags::LOAD_AS_PANO_ID;
+    l2.flags = LocationFlags::LOAD_AS_PANO_ID;
     let l3 = loc(3, 0.0, 0.0);
     let adds = vec![l1, l2, l3];
     let fx = Fx::adds(adds);
@@ -1212,7 +1215,7 @@ fn resolve_union() {
 #[test]
 fn resolve_invert() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.flags = crate::types::LocationFlags::LOAD_AS_PANO_ID;
+    l1.flags = LocationFlags::LOAD_AS_PANO_ID;
     let l2 = loc(2, 0.0, 0.0);
     let l3 = loc(3, 0.0, 0.0);
     let adds = vec![l1, l2, l3];
@@ -1626,7 +1629,7 @@ fn prune_relevance_tie_keeps_oldest() {
 #[test]
 fn prune_never_touches_informational() {
     let mut info = loc(1, 0.00000, 0.0);
-    info.flags = crate::types::LocationFlags::INFORMATIONAL;
+    info.flags = LocationFlags::INFORMATIONAL;
     let locs = vec![info, loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
     let removed = prune_duplicates(&locs, 10.0, &no_keep());
     assert_eq!(removed.len(), 1);
@@ -1765,7 +1768,7 @@ fn extra_filter_scans_base_batch_top_level_only() {
 fn extra_filter_matches_ascii_escaped_field_name() {
     let bs = '\\';
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.extra = crate::types::RawExtra::from_string(format!("{{\"caf{bs}u00e9\":\"noir\"}}"));
+    l1.extra = RawExtra::from_string(format!("{{\"caf{bs}u00e9\":\"noir\"}}"));
     let fx = Fx::batch(locations_to_batch(&[l1]));
     let view = fx.view();
 
@@ -1793,15 +1796,14 @@ fn tz_fixture() -> Vec<Location> {
     // 2020-03-01 00:00:00 UTC. In Tokyo that's Mar 1 09:00; in New York Feb 29 19:00.
     let ts = 1583020800u64;
     let mut tokyo = loc(1, 0.0, 0.0);
-    tokyo.extra = crate::types::RawExtra::from_value(
-        &serde_json::json!({ "datetime": ts, "timezone": "Asia/Tokyo" }),
-    );
+    tokyo.extra =
+        RawExtra::from_value(&serde_json::json!({ "datetime": ts, "timezone": "Asia/Tokyo" }));
     let mut newyork = loc(2, 0.0, 0.0);
-    newyork.extra = crate::types::RawExtra::from_value(
+    newyork.extra = RawExtra::from_value(
         &serde_json::json!({ "datetime": ts, "timezone": "America/New_York" }),
     );
     let mut no_tz = loc(3, 0.0, 0.0);
-    no_tz.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": ts }));
+    no_tz.extra = RawExtra::from_value(&serde_json::json!({ "datetime": ts }));
     vec![tokyo, newyork, no_tz]
 }
 
@@ -1892,7 +1894,7 @@ fn filter_tz_local_anytime_uses_local_clock() {
 #[test]
 fn filter_tz_local_ignored_for_nothas() {
     let mut with_field = loc(1, 0.0, 0.0);
-    with_field.extra = crate::types::RawExtra::from_value(&serde_json::json!({ "datetime": 100 }));
+    with_field.extra = RawExtra::from_value(&serde_json::json!({ "datetime": 100 }));
     let without = loc(2, 0.0, 0.0);
     let adds = vec![with_field, without];
     let fx = Fx::adds(adds);
@@ -1916,7 +1918,7 @@ fn filter_tz_local_ignored_for_nothas() {
 
 fn loc_extra(id: u32, extra: serde_json::Value) -> Location {
     Location {
-        extra: crate::types::RawExtra::from_value(&extra),
+        extra: RawExtra::from_value(&extra),
         ..loc(id, 0.0, 0.0)
     }
 }
@@ -2608,7 +2610,7 @@ fn sample_draws_n_distinct_ids_and_clamps_to_the_pool() {
 
     let drawn = sample(pool.clone(), 5);
     assert_eq!(drawn.len(), 5);
-    let unique: std::collections::HashSet<u32> = drawn.iter().copied().collect();
+    let unique: HashSet<u32> = drawn.iter().copied().collect();
     assert_eq!(unique.len(), 5, "sample returned duplicates");
     assert!(drawn.iter().all(|id| pool.contains(id)));
 
@@ -2620,7 +2622,7 @@ fn sample_draws_n_distinct_ids_and_clamps_to_the_pool() {
 #[test]
 fn sample_reaches_every_member_of_the_pool() {
     // Uniformity isn't asserted, but a draw that can't reach an element is a bug.
-    let mut seen = std::collections::HashSet::new();
+    let mut seen = HashSet::new();
     for _ in 0..200 {
         seen.extend(sample(vec![1, 2, 3, 4], 1));
     }
@@ -2734,10 +2736,38 @@ fn columns_within_projects_one_value_per_row_per_field() {
         .map(|s| s.to_string())
         .collect();
     let cols = columns_within(&fx.view(), None, &fields);
-    assert_eq!(cols[0], vec![serde_json::json!(1), serde_json::json!("x"), serde_json::Value::Null]);
-    assert_eq!(cols[1], vec![serde_json::json!(2), serde_json::Value::Null, serde_json::json!(3)]);
-    assert_eq!(cols[2], vec![serde_json::json!(0.0), serde_json::json!(45.0), serde_json::json!(0.0)]);
-    assert_eq!(cols[3], vec![serde_json::json!([]), serde_json::json!([7, 9]), serde_json::json!([])]);
+    assert_eq!(
+        cols[0],
+        vec![
+            serde_json::json!(1),
+            serde_json::json!("x"),
+            serde_json::Value::Null
+        ]
+    );
+    assert_eq!(
+        cols[1],
+        vec![
+            serde_json::json!(2),
+            serde_json::Value::Null,
+            serde_json::json!(3)
+        ]
+    );
+    assert_eq!(
+        cols[2],
+        vec![
+            serde_json::json!(0.0),
+            serde_json::json!(45.0),
+            serde_json::json!(0.0)
+        ]
+    );
+    assert_eq!(
+        cols[3],
+        vec![
+            serde_json::json!([]),
+            serde_json::json!([7, 9]),
+            serde_json::json!([])
+        ]
+    );
     assert_eq!(cols[4], vec![serde_json::Value::Null; 3]);
 
     let set: RoaringBitmap = [2u32].into_iter().collect();
@@ -2750,7 +2780,7 @@ fn extra_key_coverage_decodes_escaped_base_row_keys() {
     // Blobs baked before key canonicalization can still carry `café` on disk; coverage
     // must report the decoded spelling, matching overlay rows and the field-def registry.
     let mut l = loc(1, 0.0, 0.0);
-    l.extra = crate::types::RawExtra::from_string_uncanonicalized("{\"caf\\u00e9\":1}");
+    l.extra = RawExtra::from_string_uncanonicalized("{\"caf\\u00e9\":1}");
     let fx = Fx::base(&[l]);
     assert_eq!(
         extra_key_coverage(&fx.view(), None),
@@ -2848,7 +2878,7 @@ fn intersect(selector: Vec<Selector>) -> Selector {
 fn pano_id_filter_counts_base_and_overlay_rows_and_skips_dead_ones() {
     let fx = pano_fx();
     let view = fx.view();
-    let none = RoaringBitmap::new();
+    let _none = RoaringBitmap::new();
 
     assert_eq!(count_selector(&view, pano_filter(FilterOp::Has)), 3);
     assert_eq!(count_selector(&view, pano_filter(FilterOp::Nothas)), 1);
@@ -2867,7 +2897,7 @@ fn pano_id_filter_counts_base_and_overlay_rows_and_skips_dead_ones() {
 fn pano_id_filter_intersected_with_pano_ids_is_the_pinned_count() {
     let fx = pano_fx();
     let view = fx.view();
-    let none = RoaringBitmap::new();
+    let _none = RoaringBitmap::new();
     let pinned = intersect(vec![pano_filter(FilterOp::Has), Selector::PanoIds]);
 
     // 1 and 5 carry a pano ID and the flag; 3 has the flag but no pano ID.

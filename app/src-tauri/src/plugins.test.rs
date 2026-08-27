@@ -1,7 +1,8 @@
 use super::*;
+use vali_data::paths;
 
 fn have_vali_data() -> bool {
-    vali_data::paths::data_root()
+    paths::data_root()
         .map(|r| r.join("RU").join("RU+RU-AL.bin").exists())
         .unwrap_or(false)
 }
@@ -20,8 +21,8 @@ fn vali_generate_produces_locations() {
     }"#;
     let def: vali_core::MapDefinition = json5::from_str(definition).unwrap();
     let prepared = prepare(&def).unwrap();
-    let root = vali_data::paths::data_root().unwrap();
-    let events = std::sync::Mutex::new(Vec::new());
+    let root = paths::data_root().unwrap();
+    let events = Mutex::new(Vec::new());
     let on_event = |e: ProgressEvent| events.lock().unwrap().push(e);
     let output = generate_output(&prepared, &root, true, Some(&on_event), None).unwrap();
 

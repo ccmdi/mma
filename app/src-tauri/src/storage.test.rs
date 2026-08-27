@@ -2,7 +2,15 @@ use super::*;
 use crate::arrow_bridge;
 use crate::test_util::TempDir;
 use crate::types::Location;
+use crate::types::LocationFlags;
+use crate::util;
 use crate::util::sha256_hex;
+use std::collections::BTreeSet;
+use std::collections::HashSet;
+use std::fs;
+use std::panic;
+use std::panic::AssertUnwindSafe;
+use std::path::PathBuf;
 
 fn sample_loc() -> Location {
     Location {
@@ -13,11 +21,11 @@ fn sample_loc() -> Location {
         pitch: 5.0,
         zoom: 1.5,
         pano_id: Some("CAoSLEF".into()),
-        flags: crate::types::LocationFlags::LOAD_AS_PANO_ID,
+        flags: LocationFlags::LOAD_AS_PANO_ID,
         tags: vec![1, 2, 3],
         extra: Some(serde_json::from_str(r#"{"country":"FR"}"#).unwrap()),
-        created_at: crate::util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32,
-        modified_at: Some(crate::util::iso_to_unix("2024-01-15T11:00:00Z").unwrap() as u32),
+        created_at: util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32,
+        modified_at: Some(util::iso_to_unix("2024-01-15T11:00:00Z").unwrap() as u32),
     }
 }
 
@@ -142,7 +150,7 @@ fn parse_data_location_trims_and_rejects_empty() {
     assert_eq!(parse_data_location("   \n\t "), None);
     assert_eq!(
         parse_data_location("  D:/maps  \n"),
-        Some(std::path::PathBuf::from("D:/maps"))
+        Some(PathBuf::from("D:/maps"))
     );
 }
 
@@ -155,7 +163,7 @@ fn read_data_location_override_round_trip() {
     assert_eq!(read_data_location_override(&cfg), None);
 
     // Written pointer to a valid (creatable) folder -> that folder, and it now exists.
-    std::fs::write(
+    fs::write(
         cfg.join(DATA_LOCATION_FILE),
         target.to_string_lossy().as_bytes(),
     )
@@ -167,7 +175,7 @@ fn read_data_location_override_round_trip() {
     assert!(target.exists());
 
     // Empty pointer -> no override.
-    std::fs::write(cfg.join(DATA_LOCATION_FILE), b"").unwrap();
+    fs::write(cfg.join(DATA_LOCATION_FILE), b"").unwrap();
     assert_eq!(read_data_location_override(&cfg), None);
 }
 
@@ -185,7 +193,7 @@ fn make_test_batch(ids: &[u32]) -> arrow_array::RecordBatch {
             zoom: 1.0,
             pano_id: Some(format!("pano_{id}").into()),
             tags: vec![1],
-            created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
+            created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
             ..Default::default()
         })
         .collect();
@@ -275,7 +283,7 @@ fn mmap_preserves_nullable_fields() {
     let locs = vec![
         Location {
             id: 1,
-            created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
+            created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
             ..Default::default()
         },
         Location {
@@ -285,8 +293,8 @@ fn mmap_preserves_nullable_fields() {
             pano_id: Some("abc".into()),
             tags: vec![1, 2],
             extra: Some(serde_json::from_str(r#"{"key":"val"}"#).unwrap()),
-            created_at: crate::util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
-            modified_at: Some(crate::util::iso_to_unix("2024-06-01T00:00:00Z").unwrap() as u32),
+            created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
+            modified_at: Some(util::iso_to_unix("2024-06-01T00:00:00Z").unwrap() as u32),
             ..Default::default()
         },
     ];
@@ -343,14 +351,13 @@ fn truncation_sweep_heap_reader_never_panics() {
     let dir = TempDir::new("mma_test_crash_trunc_heap");
     let valid_path = dir.join("valid.arrow");
     write_arrow_ipc(&valid_path, &batch).unwrap();
-    let full_bytes = std::fs::read(&valid_path).unwrap();
+    let full_bytes = fs::read(&valid_path).unwrap();
 
     for len in truncation_lengths(full_bytes.len()) {
         let path = dir.join(format!("trunc_{len}.arrow"));
-        std::fs::write(&path, &full_bytes[..len]).unwrap();
+        fs::write(&path, &full_bytes[..len]).unwrap();
 
-        let result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| read_arrow_ipc(&path)));
+        let result = panic::catch_unwind(AssertUnwindSafe(|| read_arrow_ipc(&path)));
         assert!(
             result.is_ok(),
             "read_arrow_ipc panicked at truncation len {len}"
@@ -369,14 +376,13 @@ fn truncation_sweep_mmap_reader_never_panics() {
     let dir = TempDir::new("mma_test_crash_trunc_mmap");
     let valid_path = dir.join("valid.arrow");
     write_arrow_ipc(&valid_path, &batch).unwrap();
-    let full_bytes = std::fs::read(&valid_path).unwrap();
+    let full_bytes = fs::read(&valid_path).unwrap();
 
     for len in truncation_lengths(full_bytes.len()) {
         let path = dir.join(format!("trunc_{len}.arrow"));
-        std::fs::write(&path, &full_bytes[..len]).unwrap();
+        fs::write(&path, &full_bytes[..len]).unwrap();
 
-        let result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| read_arrow_ipc_mmap(&path)));
+        let result = panic::catch_unwind(AssertUnwindSafe(|| read_arrow_ipc_mmap(&path)));
         assert!(
             result.is_ok(),
             "read_arrow_ipc_mmap panicked at truncation len {len}"
@@ -400,7 +406,7 @@ fn mmap_sub_10_byte_file_errs_as_truncated() {
     let path = dir.join("sub10.arrow");
 
     for len in [0usize, 1, 5, 9] {
-        std::fs::write(&path, vec![0xABu8; len]).unwrap();
+        fs::write(&path, vec![0xABu8; len]).unwrap();
         assert!(
             read_arrow_ipc_mmap(&path).is_err(),
             "len {len} must Err, not read as an empty map"
@@ -414,7 +420,7 @@ fn garbage_bytes_heap_and_mmap_no_panic() {
     let dir = TempDir::new("mma_test_crash_garbage");
     let valid_path = dir.join("valid.arrow");
     write_arrow_ipc(&valid_path, &batch).unwrap();
-    let mut valid_bytes = std::fs::read(&valid_path).unwrap();
+    let mut valid_bytes = fs::read(&valid_path).unwrap();
     let tail_start = valid_bytes.len().saturating_sub(100);
     for b in &mut valid_bytes[tail_start..] {
         *b = 0xFF;
@@ -431,17 +437,15 @@ fn garbage_bytes_heap_and_mmap_no_panic() {
 
     for (name, bytes) in patterns {
         let path = dir.join(format!("garbage_{name}.arrow"));
-        std::fs::write(&path, &bytes).unwrap();
+        fs::write(&path, &bytes).unwrap();
 
-        let heap_result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| read_arrow_ipc(&path)));
+        let heap_result = panic::catch_unwind(AssertUnwindSafe(|| read_arrow_ipc(&path)));
         assert!(
             heap_result.is_ok(),
             "read_arrow_ipc panicked on pattern {name}"
         );
 
-        let mmap_result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| read_arrow_ipc_mmap(&path)));
+        let mmap_result = panic::catch_unwind(AssertUnwindSafe(|| read_arrow_ipc_mmap(&path)));
         assert!(
             mmap_result.is_ok(),
             "read_arrow_ipc_mmap panicked on pattern {name}"
@@ -459,7 +463,7 @@ fn footer_region_corruption_does_not_panic() {
     let dir = TempDir::new("mma_test_crash_footer");
     let valid_path = dir.join("valid.arrow");
     write_arrow_ipc(&valid_path, &batch).unwrap();
-    let full_bytes = std::fs::read(&valid_path).unwrap();
+    let full_bytes = fs::read(&valid_path).unwrap();
 
     let len = full_bytes.len();
     let trailer: [u8; 10] = full_bytes[len - 10..].try_into().unwrap();
@@ -472,10 +476,9 @@ fn footer_region_corruption_does_not_panic() {
         let mut corrupted = full_bytes.clone();
         corrupted[offset] = corrupted[offset].wrapping_add(0x55);
         let path = dir.join(format!("footer_corrupt_{offset}.arrow"));
-        std::fs::write(&path, &corrupted).unwrap();
+        fs::write(&path, &corrupted).unwrap();
 
-        let result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| read_arrow_ipc_mmap(&path)));
+        let result = panic::catch_unwind(AssertUnwindSafe(|| read_arrow_ipc_mmap(&path)));
         if result.is_err() {
             any_panicked = true;
         }
@@ -499,10 +502,10 @@ fn atomic_write_leaves_no_tmp_on_success() {
 #[test]
 fn sweep_tmp_under_removes_only_tmp_recursively() {
     let dir = TempDir::new("mma_test_sweep_tmp");
-    std::fs::create_dir_all(dir.join("commits").join("m1")).unwrap();
-    std::fs::write(dir.join("a.tmp"), b"x").unwrap();
-    std::fs::write(dir.join("commits").join("m1").join("b.tmp"), b"x").unwrap();
-    std::fs::write(dir.join("keep.arrow"), b"x").unwrap();
+    fs::create_dir_all(dir.join("commits").join("m1")).unwrap();
+    fs::write(dir.join("a.tmp"), b"x").unwrap();
+    fs::write(dir.join("commits").join("m1").join("b.tmp"), b"x").unwrap();
+    fs::write(dir.join("keep.arrow"), b"x").unwrap();
     assert_eq!(sweep_tmp_under(&dir), 2);
     assert!(!dir.join("a.tmp").exists());
     assert!(!dir.join("commits").join("m1").join("b.tmp").exists());
@@ -516,14 +519,14 @@ fn atomic_write_failure_leaves_dest_unchanged() {
 
     let batch = make_test_batch(&[1, 2, 3]);
     write_arrow_ipc(&path, &batch).unwrap();
-    let before = std::fs::read(&path).unwrap();
+    let before = fs::read(&path).unwrap();
 
     let err_result = atomic_write(&path, |_file| {
         Err(AppError("simulated write failure".into()))
     });
     assert!(err_result.is_err());
 
-    let after = std::fs::read(&path).unwrap();
+    let after = fs::read(&path).unwrap();
     assert_eq!(
         before, after,
         "dest content must be unchanged after a failed atomic_write"
@@ -563,7 +566,7 @@ fn stale_tmp_sibling_does_not_affect_reads() {
 
     let batch = make_test_batch(&[1, 2]);
     write_arrow_ipc(&path, &batch).unwrap();
-    std::fs::write(&tmp_path, vec![0xABu8; 64]).unwrap();
+    fs::write(&tmp_path, vec![0xABu8; 64]).unwrap();
 
     let heap = read_arrow_ipc(&path).unwrap();
     assert_eq!(heap.num_rows(), 2);
@@ -644,7 +647,7 @@ fn table_exists(conn: &Connection, name: &str) -> bool {
     .unwrap()
 }
 
-fn migration_versions(conn: &Connection) -> std::collections::HashSet<u32> {
+fn migration_versions(conn: &Connection) -> HashSet<u32> {
     conn.prepare("SELECT version FROM _mma_migrations")
         .unwrap()
         .query_map([], |r| r.get(0))
@@ -655,7 +658,7 @@ fn migration_versions(conn: &Connection) -> std::collections::HashSet<u32> {
 
 /// Every version in the chain, derived from MIGRATIONS so adding one doesn't
 /// require touching each test.
-fn all_versions() -> std::collections::HashSet<u32> {
+fn all_versions() -> HashSet<u32> {
     MIGRATIONS.iter().map(|(v, _)| *v).collect()
 }
 
@@ -666,7 +669,7 @@ fn count_rows(conn: &Connection, table: &str) -> i64 {
 
 /// (type, name) pairs from sqlite_master, ignoring sql text, internal `_mma_migrations`
 /// bookkeeping, and autoindex entries -- for comparing schema shape between two DBs.
-fn schema_signature(conn: &Connection) -> std::collections::BTreeSet<(String, String)> {
+fn schema_signature(conn: &Connection) -> BTreeSet<(String, String)> {
     conn.prepare(
         "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_autoindex%' AND name != '_mma_migrations'",
     )

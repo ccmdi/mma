@@ -48,6 +48,8 @@
 use app_lib::bench_api as bench;
 use bench::{LocationPatch, Selection, SelectionInput, Selector};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
+use std::env;
+use std::fs;
 use std::hint::black_box;
 
 /// Rows in the fixture population. `MMA_BENCH_SCALE` overrides.
@@ -361,8 +363,8 @@ fn render(c: &mut Criterion) {
 fn map_open(c: &mut Criterion) {
     let n = n();
     let fx = bench::Fixture::new(n);
-    let dir = std::env::temp_dir().join("mma_bench_open");
-    std::fs::create_dir_all(&dir).expect("temp dir");
+    let dir = env::temp_dir().join("mma_bench_open");
+    fs::create_dir_all(&dir).expect("temp dir");
     let path = dir.join(format!("bench_{n}.arrow"));
     bench::write_arrow(&path, &fx.batch);
 
@@ -374,8 +376,8 @@ fn map_open(c: &mut Criterion) {
         b.iter(|| black_box(bench::alive(&bench::open_from_arrow(&path, &fx.tags))));
     });
     g.finish();
-    std::fs::remove_file(&path).ok();
-    std::fs::remove_dir(&dir).ok();
+    fs::remove_file(&path).ok();
+    fs::remove_dir(&dir).ok();
 }
 
 criterion_group!(

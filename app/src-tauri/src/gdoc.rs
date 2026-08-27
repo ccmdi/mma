@@ -2,6 +2,7 @@
 //! Google Doc id to its static HTML.
 
 use crate::proxy::{proxy_client, proxy_error, relay};
+use tauri::http::Response;
 
 /// Only a bare doc id may reach the gdoc proxy, so it can't be used as an open proxy.
 pub(crate) fn valid_gdoc_id(doc_id: &str) -> bool {
@@ -15,7 +16,7 @@ pub(crate) fn valid_gdoc_id(doc_id: &str) -> bool {
 /// pre-rendered (~1s even for 100+ page docs) with the same `h.xxxx` heading
 /// anchors. `export?format=html` is generated per request -- it can take 30s+,
 /// time out, or 413 on large docs -- so it's only a fallback.
-pub(crate) fn fetch_gdoc(doc_id: &str) -> tauri::http::Response<Vec<u8>> {
+pub(crate) fn fetch_gdoc(doc_id: &str) -> Response<Vec<u8>> {
     if !valid_gdoc_id(doc_id) {
         return proxy_error("invalid doc id".into());
     }

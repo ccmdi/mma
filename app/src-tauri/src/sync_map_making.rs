@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 use vali_data::decode::Reader;
 
+use crate::proxy;
 use crate::sync::{
     auth_error, canon_tags, sync_flags, IdentityModel, NormalizedSyncLocation, PushBatch, PushedId,
     RemoteSnapshot, SyncProvider,
@@ -160,7 +161,7 @@ impl SyncProvider for MapMakingProvider {
 
     fn pull(&self, remote_map_id: &str) -> AppResult<RemoteSnapshot<MmLocation>> {
         let url = format!("{BASE_URL}/api/maps/{remote_map_id}/locations");
-        let resp = crate::proxy::sync_client()
+        let resp = proxy::sync_client()
             .get(&url)
             .header("authorization", format!("API {}", self.api_key))
             .header("accept", "application/protobuf")
@@ -201,7 +202,7 @@ impl MapMakingProvider {
                 remove: part.remove.clone(),
             }],
         };
-        let resp = crate::proxy::sync_client()
+        let resp = proxy::sync_client()
             .post(&url)
             .header("authorization", format!("API {}", self.api_key))
             .header("accept", "application/json")
