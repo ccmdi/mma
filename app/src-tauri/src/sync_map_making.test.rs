@@ -547,7 +547,7 @@ fn decode_skips_unknown_fields() {
     wr_varint_field(&mut loc, 1, 9); // id
     wr_varint_field(&mut loc, 99, 123); // unknown varint field
     wr_string_field(&mut loc, 77, "junk"); // unknown length-delimited field
-    wr_double_field(&mut loc, 55, 3.14); // unknown 64-bit field
+    wr_double_field(&mut loc, 55, 2.5); // unknown 64-bit field
 
     let mut resp = Vec::new();
     wr_varint_field(&mut resp, 88, 1); // unknown top-level field
