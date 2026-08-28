@@ -41,7 +41,7 @@ function yearFitsCapture(extra: Record<string, unknown> | null, year: number): b
 export function run(rows: Location[]): Update<LocationPatch>[] {
 	if (mma.aborted()) return [];
 
-	const byPano = new Map<string[]>();
+	const byPano = new Map<string, Location[]>();
 	for (const row of rows) {
 		if (!row.panoId) continue;
 		const group = byPano.get(row.panoId);
