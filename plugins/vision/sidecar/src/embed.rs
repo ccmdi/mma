@@ -362,15 +362,22 @@ pub fn run(
         const BATCH_SIZE: usize = 32;
         let mut pid_offset = 0usize;
         let mut all_embs: Vec<[f32; EMBED_DIM]> = Vec::with_capacity(batch_crops.len());
+        // Parallel to all_embs: marks entries from a failed inference batch, so
+        // they can be excluded from the cache instead of poisoning it with zeros.
+        let mut failed: Vec<bool> = Vec::with_capacity(batch_crops.len());
         let t_infer = std::time::Instant::now();
 
         for crop_batch in batch_crops.chunks(BATCH_SIZE) {
             match embed_image_batch(&mut session, crop_batch) {
-                Ok(embs) => all_embs.extend_from_slice(&embs),
+                Ok(embs) => {
+                    all_embs.extend_from_slice(&embs);
+                    failed.extend(std::iter::repeat(false).take(crop_batch.len()));
+                }
                 Err(e) => {
-                    // Fill with zeros so indexing stays aligned
+                    // Zero-fill so indexing stays aligned; `failed` keeps these out of the cache.
                     for _ in 0..crop_batch.len() {
                         all_embs.push([0f32; EMBED_DIM]);
+                        failed.push(true);
                     }
                     eprintln!("batch inference error: {e}");
                 }
@@ -379,14 +386,22 @@ pub fn run(
             while pid_offset < batch_pids.len() && (pid_offset + 1) * NUM_CROPS <= all_embs.len() {
                 let pid = batch_pids[pid_offset];
                 let start = pid_offset * NUM_CROPS;
-                let crop_embs: Vec<[f32; EMBED_DIM]> = all_embs[start..start + NUM_CROPS].to_vec();
-                cache.entries.insert(pid.to_string(), crop_embs);
+                let pano_failed = failed[start..start + NUM_CROPS].iter().any(|&f| f);
                 done += 1;
                 pid_offset += 1;
-                emit(EmbedStatus {
-                    pano_id: pid.to_string(), status: "computed".into(),
-                    error: None, done: Some(done), total: Some(total),
-                });
+                if pano_failed {
+                    emit(EmbedStatus {
+                        pano_id: pid.to_string(), status: "error".into(),
+                        error: Some("inference failed".into()), done: Some(done), total: Some(total),
+                    });
+                } else {
+                    let crop_embs: Vec<[f32; EMBED_DIM]> = all_embs[start..start + NUM_CROPS].to_vec();
+                    cache.entries.insert(pid.to_string(), crop_embs);
+                    emit(EmbedStatus {
+                        pano_id: pid.to_string(), status: "computed".into(),
+                        error: None, done: Some(done), total: Some(total),
+                    });
+                }
             }
         }
         // Handle any remaining (shouldn't happen if math is right, but be safe)
