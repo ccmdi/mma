@@ -142,19 +142,56 @@ pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<u32, Location>) -> Rec
     }
 
     let mut touched = [false; 12];
+    let lats = col_lat(batch);
+    let lngs = col_lng(batch);
+    let headings = col_heading(batch);
+    let pitches = col_pitch(batch);
+    let zooms = col_zoom(batch);
+    let pano_ids = col_pano_id(batch);
+    let flags = col_flags(batch);
+    let tags = col_tags(batch);
+    let tag_values = tags
+        .values()
+        .as_any()
+        .downcast_ref::<UInt32Array>()
+        .unwrap()
+        .values();
+    let tag_offsets = tags.value_offsets();
+    let extras = col_extra(batch);
+    let created_ats = col_created_at(batch);
+    let modified_ats = col_modified_at(batch);
     for (&i, p) in &hits {
-        let old = row_to_location(batch, i);
-        touched[COL_LAT] |= old.lat != p.lat;
-        touched[COL_LNG] |= old.lng != p.lng;
-        touched[COL_HEADING] |= old.heading != p.heading;
-        touched[COL_PITCH] |= old.pitch != p.pitch;
-        touched[COL_ZOOM] |= old.zoom != p.zoom;
-        touched[COL_PANO_ID] |= old.pano_id != p.pano_id;
-        touched[COL_FLAGS] |= old.flags != p.flags;
-        touched[COL_TAGS] |= old.tags != p.tags;
-        touched[COL_EXTRA] |= old.extra != p.extra;
-        touched[COL_CREATED_AT] |= old.created_at != p.created_at;
-        touched[COL_MODIFIED_AT] |= old.modified_at != p.modified_at;
+        touched[COL_LAT] |= lats.value(i) != p.lat;
+        touched[COL_LNG] |= lngs.value(i) != p.lng;
+        touched[COL_HEADING] |= headings.value(i) != p.heading;
+        touched[COL_PITCH] |= pitches.value(i) != p.pitch;
+        touched[COL_ZOOM] |= zooms.value(i) != p.zoom;
+        touched[COL_PANO_ID] |= if pano_ids.is_null(i) {
+            p.pano_id.is_some()
+        } else {
+            p.pano_id.as_deref() != Some(pano_ids.value(i))
+        };
+        touched[COL_FLAGS] |= flags.value(i) != p.flags.bits();
+        touched[COL_TAGS] |=
+            tag_values[tag_offsets[i] as usize..tag_offsets[i + 1] as usize] != p.tags;
+        touched[COL_EXTRA] |= if extras.is_null(i) {
+            p.extra.is_some()
+        } else if p
+            .extra
+            .as_ref()
+            .is_some_and(|e| e.as_str() == extras.value(i))
+        {
+            false
+        } else {
+            crate::types::RawExtra::from_string(extras.value(i).to_owned()).as_ref()
+                != p.extra.as_ref()
+        };
+        touched[COL_CREATED_AT] |= created_ats.value(i) != p.created_at;
+        touched[COL_MODIFIED_AT] |= if modified_ats.is_null(i) {
+            p.modified_at.is_some()
+        } else {
+            p.modified_at != Some(modified_ats.value(i))
+        };
     }
 
     let f64_col =

@@ -166,6 +166,28 @@ fn patch_batch_identical_patch_rebuilds_nothing() {
 }
 
 #[test]
+fn patch_batch_preserves_equivalent_stored_extras() {
+    let mut locs = sample_locations();
+    locs[0].extra = None;
+    locs[1].extra = None;
+    let batch = locations_to_batch(&locs);
+    let mut columns = batch.columns().to_vec();
+    columns[COL_EXTRA] = Arc::new(StringArray::from(vec![
+        Some("{invalid"),
+        Some(r#"{"caf\u00e9":1}"#),
+    ]));
+    let batch = RecordBatch::try_new(batch.schema(), columns).unwrap();
+    let patches = HashMap::from([
+        (1, row_to_location(&batch, 0)),
+        (2, row_to_location(&batch, 1)),
+    ]);
+
+    let out = patch_batch(&batch, &patches);
+
+    assert!(Arc::ptr_eq(batch.column(COL_EXTRA), out.column(COL_EXTRA)));
+}
+
+#[test]
 fn patch_batch_nullable_transitions() {
     let locs = sample_locations();
     let batch = locations_to_batch(&locs);
