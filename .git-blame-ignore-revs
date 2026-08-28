@@ -1,2 +1,7 @@
 # chore: format codebase with prettier + rustfmt
 b5f3246186ec522698e995cd20758f6c3b64ae1d
+
+# chore: lint absolute paths and unused qualifications, import what is reached
+6274e5c77180547b93792c178f359dd0cb0d8727
+# chore: pedantic clippy picks, prints and dbg denied, mechanical fixes applied
+efae6ab3cc9bedd594781aeda58170f6736d7c9f
