@@ -4,14 +4,14 @@
 //! corruption on crash. Arrow IPC writes go through [`BufWriter`](std::io::BufWriter)
 //! because unbuffered `File` writes are ~15x slower.
 
-mod arrow_io;
 mod commands;
 mod db;
+mod files;
 mod paths;
 mod secrets;
-pub(crate) use arrow_io::*;
 pub(crate) use commands::*;
 pub(crate) use db::*;
+pub(crate) use files::*;
 pub(crate) use paths::*;
 pub(crate) use secrets::*;
 

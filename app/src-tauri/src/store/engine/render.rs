@@ -1,8 +1,8 @@
 //! Cell render buffers: geohash binning, the wire format JS parses into `CellManager`, and the per-mutation deltas.
 
 use super::*;
-use crate::store::arrow_bridge;
-use crate::store::arrow_bridge::{col_heading, col_id, col_lat, col_lng};
+use crate::store::arrow;
+use crate::store::arrow::{col_heading, col_id, col_lat, col_lng};
 use roaring::RoaringBitmap;
 use std::array;
 use std::collections::{HashMap, HashSet};
@@ -291,7 +291,7 @@ pub(crate) fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) 
         Some(b) => b,
         None if store.overlay.adds.is_empty() => return Vec::new(),
         None => {
-            let empty = arrow_bridge::locations_to_batch(&[]);
+            let empty = arrow::locations_to_batch(&[]);
             store.batch = Some(empty);
             store.batch.as_ref().unwrap()
         }

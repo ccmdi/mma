@@ -1,7 +1,7 @@
 //! Shared fixtures for the `*.test.rs` modules.
 
 use crate::selections::LocView;
-use crate::store::arrow_bridge;
+use crate::store::arrow;
 use crate::types::Location;
 use arrow_array::RecordBatch;
 use roaring::RoaringBitmap;
@@ -77,7 +77,7 @@ impl Fx {
 
     /// Committed batch built from `locs`.
     pub(crate) fn base(locs: &[Location]) -> Self {
-        Fx::batch(arrow_bridge::locations_to_batch(locs))
+        Fx::batch(arrow::locations_to_batch(locs))
     }
 
     pub(crate) fn batch(batch: RecordBatch) -> Self {
@@ -122,12 +122,12 @@ impl Fx {
     }
 }
 
-/// Build a [`crate::store::location_store::LocationPatch`] from only the fields it sets.
+/// Build a [`crate::store::engine::LocationPatch`] from only the fields it sets.
 /// Each value is wrapped in one `Some`, so nullable fields take the inner option:
 /// `patch!(pano_id: None)` clears the pano id.
 macro_rules! patch {
     ($($field:ident: $value:expr),* $(,)?) => {
-        crate::store::location_store::LocationPatch {
+        crate::store::engine::LocationPatch {
             $($field: Some($value),)*
             ..Default::default()
         }

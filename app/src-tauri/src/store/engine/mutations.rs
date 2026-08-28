@@ -4,7 +4,7 @@ use super::*;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::{self, Selector};
-use crate::store::map_meta;
+use crate::store::maps;
 use crate::store::storage;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
@@ -51,7 +51,7 @@ pub struct MutationResult {
     pub status: StoreStatus,
     pub delta: RenderDelta,
     pub selection_sync: Option<SelectionSync>,
-    pub new_field_defs: Option<HashMap<String, map_meta::ExtraFieldDef>>,
+    pub new_field_defs: Option<HashMap<String, maps::ExtraFieldDef>>,
     pub tags: Option<HashMap<u32, Tag>>,
 }
 
@@ -120,7 +120,7 @@ pub(crate) fn auto_register_extras(
     if extras.is_empty() {
         return;
     }
-    if let Some(new_defs) = map_meta::auto_register_field_defs(&store.known_field_keys, extras) {
+    if let Some(new_defs) = maps::auto_register_field_defs(&store.known_field_keys, extras) {
         apply_field_defs(store, new_defs, result);
     }
 }
@@ -130,12 +130,12 @@ pub(crate) fn auto_register_extras(
 /// source locations (e.g. import's move-into-overlay path) can apply defs afterward.
 pub(crate) fn apply_field_defs(
     store: &mut Store,
-    new_defs: HashMap<String, map_meta::ExtraFieldDef>,
+    new_defs: HashMap<String, maps::ExtraFieldDef>,
     result: &mut MutationResult,
 ) {
     if let Some(map_id) = &store.map_id {
         if let Ok(conn) = storage::open_db() {
-            let _ = map_meta::persist_field_defs(&conn, map_id, &new_defs);
+            let _ = maps::persist_field_defs(&conn, map_id, &new_defs);
         }
     }
     for key in new_defs.keys() {

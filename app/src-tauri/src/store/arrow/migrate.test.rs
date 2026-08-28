@@ -1,6 +1,6 @@
 #![allow(clippy::needless_pass_by_value)]
 use super::*;
-use crate::store::arrow_bridge;
+use crate::store::arrow;
 use crate::types::Location;
 use crate::util;
 use arrow_array::{Array, ArrayRef, RecordBatch, StringArray, UInt32Array, UInt8Array};
@@ -56,7 +56,7 @@ fn version_defaults_to_one_when_unstamped() {
 
 #[test]
 fn migrate_v1_converts_timestamps_to_epoch() {
-    let v2 = arrow_bridge::locations_to_batch(&[loc(1), loc(2)]);
+    let v2 = arrow::locations_to_batch(&[loc(1), loc(2)]);
     let v1 = downgrade_to_v1(
         &v2,
         vec![
@@ -98,7 +98,7 @@ fn migrate_v1_converts_timestamps_to_epoch() {
 
 #[test]
 fn migrate_v1_unparseable_created_falls_back_to_zero() {
-    let v2 = arrow_bridge::locations_to_batch(&[loc(1)]);
+    let v2 = arrow::locations_to_batch(&[loc(1)]);
     let v1 = downgrade_to_v1(&v2, vec![Some("garbage")], vec![None]);
     let out = migrate(v1).unwrap();
     let created = out
@@ -112,7 +112,7 @@ fn migrate_v1_unparseable_created_falls_back_to_zero() {
 
 #[test]
 fn migrate_v2_is_noop() {
-    let v2 = arrow_bridge::locations_to_batch(&[loc(1)]);
+    let v2 = arrow::locations_to_batch(&[loc(1)]);
     let out = migrate(v2.clone()).unwrap();
     assert_eq!(out.schema(), v2.schema());
     assert_eq!(out.num_rows(), v2.num_rows());
@@ -120,7 +120,7 @@ fn migrate_v2_is_noop() {
 
 #[test]
 fn migrate_preserves_delta_op_column() {
-    let delta = arrow_bridge::delta_to_batch(&[loc(1)], &[loc(2)]);
+    let delta = arrow::delta_to_batch(&[loc(1)], &[loc(2)]);
     let v1 = downgrade_to_v1(
         &delta,
         vec![Some("2024-01-01T00:00:00Z"), Some("2024-01-01T00:00:00Z")],
@@ -134,8 +134,8 @@ fn migrate_preserves_delta_op_column() {
         .as_any()
         .downcast_ref::<UInt8Array>()
         .unwrap();
-    assert_eq!(op.value(0), arrow_bridge::OP_REMOVED);
-    assert_eq!(op.value(1), arrow_bridge::OP_CREATED);
+    assert_eq!(op.value(0), arrow::OP_REMOVED);
+    assert_eq!(op.value(1), arrow::OP_CREATED);
     assert!(out
         .column(10)
         .as_any()

@@ -5,7 +5,7 @@
 //! and deleting maps, plus the auto-registration logic that discovers new
 //! `Location.extra` fields and persists their type definitions.
 
-use crate::store::location_store::StoreState;
+use crate::store::engine::StoreState;
 use crate::store::storage::{self, push_field};
 use crate::types;
 use crate::types::AppResult;
@@ -812,5 +812,5 @@ pub async fn store_db_stats() -> AppResult<DbStats> {
 }
 
 #[cfg(test)]
-#[path = "map_meta.test.rs"]
+#[path = "maps.test.rs"]
 mod tests;

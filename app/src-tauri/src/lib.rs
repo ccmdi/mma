@@ -28,7 +28,7 @@ mod util;
 #[cfg(feature = "web-serve")]
 pub use net::serve;
 #[cfg(feature = "bench")]
-pub use store::location_store::bench as bench_api;
+pub use store::engine::bench as bench_api;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -83,9 +83,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
         .semantic_types(Configuration::default().enable_lossless_floats())
         // Exported for TS but not carried by any command signature.
-        .typ::<store::map_meta::CameraType>()
-        .constant("KNOWN_FIELDS", store::map_meta::KNOWN_FIELDS)
-        .constant("SCRATCH_MAP_ID", store::map_meta::SCRATCH_MAP_ID)
+        .typ::<store::maps::CameraType>()
+        .constant("KNOWN_FIELDS", store::maps::KNOWN_FIELDS)
+        .constant("SCRATCH_MAP_ID", store::maps::SCRATCH_MAP_ID)
         .constant("BUILTIN_FIELDS", selections::BUILTIN_FIELDS)
         .constant("PROJECTIONS", selections::PROJECTIONS)
         .commands(tauri_specta::collect_commands![
@@ -172,16 +172,16 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             store::commands::store_prune_duplicates,
             store::commands::store_fill_render_file,
             store::commands::store_resolve_pick,
-            store::map_meta::store_list_maps,
-            store::map_meta::store_get_map,
-            store::map_meta::store_create_map,
-            store::map_meta::store_scratch_map,
-            store::map_meta::store_delete_map,
-            store::map_meta::store_update_map_meta,
-            store::map_meta::store_touch_map_opened,
-            store::map_meta::store_rename_folder,
-            store::map_meta::store_delete_folder,
-            store::map_meta::store_db_stats,
+            store::maps::store_list_maps,
+            store::maps::store_get_map,
+            store::maps::store_create_map,
+            store::maps::store_scratch_map,
+            store::maps::store_delete_map,
+            store::maps::store_update_map_meta,
+            store::maps::store_touch_map_opened,
+            store::maps::store_rename_folder,
+            store::maps::store_delete_folder,
+            store::maps::store_db_stats,
             io::import::bulk_import_preview,
             io::import::bulk_import_confirm,
             io::import::bulk_import_cancel,
@@ -245,8 +245,8 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             plugins::sidecar::SidecarDone,
             io::import::ImportProgress,
             io::export::ExportProgress,
-            store::location_store::ExternalMutation,
-            store::location_store::StoreWarning,
+            store::engine::ExternalMutation,
+            store::engine::StoreWarning,
             plugins::vali::ValiProgress,
             procedure::engine::ProcedureProgress,
             procedure::engine::ProcedureResult,
@@ -364,7 +364,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
     if swept > 0 {
         log::info!("[startup] swept {swept} orphaned .tmp files");
     }
-    match store::map_meta::purge_scratch_map() {
+    match store::maps::purge_scratch_map() {
         Ok(true) => log::info!("[startup] dropped last session's scratch map"),
         Ok(false) => {}
         Err(e) => log::warn!("[startup] scratch map purge failed: {e}"),
@@ -433,8 +433,8 @@ pub fn run() {
                 )
                 .build(),
         )
-        .manage(store::location_store::StoreState::new(
-            store::location_store::StoreManager::new(),
+        .manage(store::engine::StoreState::new(
+            store::engine::StoreManager::new(),
         ))
         .manage(plugins::vali::ValiState::new())
         .invoke_handler(specta_builder().invoke_handler())

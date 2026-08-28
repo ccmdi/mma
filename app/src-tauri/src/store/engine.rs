@@ -10,11 +10,11 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 
 pub use history::*;
+pub use membership::*;
 pub use mutations::*;
 pub use persist::*;
 pub use query::*;
 pub use render::*;
-pub use selection::*;
 pub use tags::*;
 
 use roaring::RoaringBitmap;
@@ -22,10 +22,9 @@ use roaring::RoaringBitmap;
 use arrow_array::RecordBatch;
 use rayon::prelude::*;
 
-use crate::store::arrow_bridge;
-use crate::store::arrow_bridge::{batch_row_for_id, col_id, schema};
+use crate::store::arrow;
+use crate::store::arrow::{batch_row_for_id, col_id, schema};
 use crate::store::spatial;
-use crate::store::storage;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
 use crate::util;
@@ -99,7 +98,7 @@ pub struct Store {
     pub(crate) map_id: Option<String>,
     // batch is declared before mmap_handle so it drops first (columns reference the mmap).
     pub(crate) batch: Option<RecordBatch>,
-    pub(crate) mmap_handle: Option<storage::MmapHandle>,
+    pub(crate) mmap_handle: Option<arrow::MmapHandle>,
     pub(crate) next_id: u32,
     pub(crate) version: u64,
     pub(crate) alive_count: usize,
@@ -306,7 +305,7 @@ impl Store {
         }
         if let Some(ref b) = self.batch {
             if let Some(idx) = batch_row_for_id(b, id) {
-                return Some(arrow_bridge::row_to_location(b, idx));
+                return Some(arrow::row_to_location(b, idx));
             }
         }
         None
@@ -317,7 +316,7 @@ impl Store {
     fn base_loc_by_id(&self, id: u32) -> Option<Location> {
         let b = self.batch.as_ref()?;
         let idx = batch_row_for_id(b, id)?;
-        Some(arrow_bridge::row_to_location(b, idx))
+        Some(arrow::row_to_location(b, idx))
     }
 
     /// Build a commit delta directly from the overlay — the in-memory changeset
@@ -549,7 +548,7 @@ impl Store {
         let mut batch = match self.batch.take() {
             Some(b) => b,
             None => {
-                let b = arrow_bridge::locations_to_batch(&self.overlay.adds);
+                let b = arrow::locations_to_batch(&self.overlay.adds);
                 self.clear_overlay();
                 self.batch = Some(b);
                 return;
@@ -579,12 +578,12 @@ impl Store {
 
         // Step 2: apply patches column-wise (preserves row order for sorted ID invariant)
         if !self.overlay.patches.is_empty() {
-            batch = arrow_bridge::patch_batch(&batch, &self.overlay.patches);
+            batch = arrow::patch_batch(&batch, &self.overlay.patches);
         }
 
         // Step 3: concat adds
         if !self.overlay.adds.is_empty() {
-            let add_batch = arrow_bridge::locations_to_batch(&self.overlay.adds);
+            let add_batch = arrow::locations_to_batch(&self.overlay.adds);
             let s = schema();
             batch = concat::concat_batches(&s, &[batch, add_batch]).expect("concat failed");
         }
@@ -756,17 +755,17 @@ mod patches_as_seq {
 }
 
 mod history;
+mod membership;
 mod mutations;
 mod persist;
 mod query;
 mod render;
-mod selection;
 mod tags;
 
 #[cfg(test)]
-#[path = "location_store.test.rs"]
+#[path = "engine.test.rs"]
 mod tests;
 
 #[cfg(feature = "bench")]
-#[path = "location_store.bench.rs"]
+#[path = "engine.bench.rs"]
 pub mod bench;

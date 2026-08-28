@@ -4,18 +4,19 @@
 //! (`arrow/commits/<map_id>/<commit_id>.arrow`) holding the locations created and
 //! removed relative to its parent; SQL's `commits` table only tracks the commit
 //! graph. A commit's full state is materialized by replaying its ancestor deltas
-//! from genesis forward (see [`crate::store::vcs_delta`]).
+//! from genesis forward (see [`crate::store::vcs::delta`]).
 
 use crate::types::AppResult;
 use rusqlite::params;
 use tauri::State;
 
+pub(crate) mod delta;
+
 use crate::selections::Selector;
-use crate::store::arrow_bridge;
-use crate::store::location_store;
-use crate::store::location_store::StoreState;
+use crate::store::arrow;
+use crate::store::engine;
+use crate::store::engine::StoreState;
 use crate::store::storage;
-use crate::store::vcs_delta;
 use crate::types::Location;
 use crate::util::{now_iso, sha256_hex};
 use std::fs;
@@ -116,7 +117,7 @@ pub async fn store_commit(
         };
 
         // Build the canonical full batch ONCE (bake), write the base, re-mmap, flush tags.
-        location_store::bake_and_save(store, &map_id)?;
+        engine::bake_and_save(store, &map_id)?;
 
         store.edits.undo.clear();
         store.edits.redo.clear();
@@ -142,7 +143,7 @@ pub async fn store_commit(
     let path = storage::commit_delta_path(&map_id, &id)?;
     let (added, removed_n, modified) = match pre_bake {
         Some((created, removed, a, r, m)) => {
-            storage::write_arrow_ipc(&path, &arrow_bridge::delta_to_batch(&created, &removed))?;
+            arrow::write_arrow_ipc(&path, &arrow::delta_to_batch(&created, &removed))?;
             (a, r, m)
         }
         None if genesis => {
@@ -156,10 +157,9 @@ pub async fn store_commit(
         None => {
             // Clean overlay with a parent (revert/no-op commit): diff current vs parent.
             let parent_state =
-                vcs_delta::materialize_commit(&conn, &map_id, parent_id.as_ref().unwrap())?;
-            let (created, removed, a, r, m) =
-                vcs_delta::diff_states(&parent_state, &current_fallback);
-            storage::write_arrow_ipc(&path, &arrow_bridge::delta_to_batch(&created, &removed))?;
+                delta::materialize_commit(&conn, &map_id, parent_id.as_ref().unwrap())?;
+            let (created, removed, a, r, m) = delta::diff_states(&parent_state, &current_fallback);
+            arrow::write_arrow_ipc(&path, &arrow::delta_to_batch(&created, &removed))?;
             (a, r, m)
         }
     };
@@ -227,14 +227,14 @@ pub async fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
 #[specta::specta]
 pub fn store_checkout_commit(map_id: String, commit_id: String) -> AppResult<()> {
     let conn = storage::open_db()?;
-    let materialized = vcs_delta::materialize_commit(&conn, &map_id, &commit_id)?;
+    let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
     // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
     // base batch requires.
     let locs: Vec<Location> = materialized.into_values().collect();
-    let batch = arrow_bridge::locations_to_batch(&locs);
+    let batch = arrow::locations_to_batch(&locs);
 
     let path = storage::arrow_path(&map_id)?;
-    storage::write_arrow_ipc(&path, &batch)?;
+    arrow::write_arrow_ipc(&path, &batch)?;
     let delta = storage::arrow_delta_path(&map_id)?;
     let _ = fs::remove_file(delta);
 
@@ -252,8 +252,8 @@ pub(crate) fn read_commit_delta(
     commit_id: &str,
 ) -> AppResult<(Vec<Location>, Vec<Location>)> {
     let path = storage::commit_delta_path(map_id, commit_id)?;
-    let batch = storage::read_arrow_ipc(&path)?;
-    Ok(arrow_bridge::batch_to_delta(&batch))
+    let batch = arrow::read_arrow_ipc(&path)?;
+    Ok(arrow::batch_to_delta(&batch))
 }
 
 /// Read a single commit's delta (created/removed locations) for the diff viewer.

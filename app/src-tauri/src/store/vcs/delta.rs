@@ -101,5 +101,5 @@ pub(crate) fn diff_states(
 }
 
 #[cfg(test)]
-#[path = "vcs_delta.test.rs"]
+#[path = "delta.test.rs"]
 mod tests;

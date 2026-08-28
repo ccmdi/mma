@@ -8,7 +8,7 @@
 pub(crate) mod field_expr;
 pub(crate) mod saved;
 
-use crate::store::arrow_bridge;
+use crate::store::arrow;
 use crate::types;
 use crate::types::{Location, LocationFlags};
 use arrow_array::{Array, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array};
@@ -380,7 +380,7 @@ impl<'a> LocView<'a> {
         adds: &'a [Location],
         tag_sets: Option<&'a HashMap<u32, RoaringBitmap>>,
     ) -> Self {
-        use crate::store::arrow_bridge::{
+        use crate::store::arrow::{
             col_created_at, col_extra, col_flags, col_heading, col_id, col_lat, col_lng,
             col_modified_at, col_pano_id, col_pitch, col_tags, col_zoom,
         };
@@ -456,7 +456,7 @@ impl<'a> LocView<'a> {
     }
 
     pub fn loc_at(&self, i: usize) -> Location {
-        arrow_bridge::row_to_location(self.batch.unwrap(), i)
+        arrow::row_to_location(self.batch.unwrap(), i)
     }
 
     /// Every alive location once, overlay applied: dead rows skipped, patched rows

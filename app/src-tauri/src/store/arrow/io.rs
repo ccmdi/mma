@@ -1,15 +1,13 @@
 //! Arrow IPC files: buffered atomic writes, mmap reads, orphaned temp sweep.
 
 use super::*;
-use crate::store::arrow_bridge;
-use crate::store::arrow_migrate;
+use crate::store::arrow::migrate;
+use crate::store::storage::atomic_write;
 use crate::types::{AppError, AppResult};
 use arrow_ipc::reader::FileReader;
 use arrow_ipc::writer::FileWriter;
 use arrow_select::concat;
-use std::fs;
 use std::fs::File;
-use std::fs::OpenOptions;
 use std::io::BufWriter;
 use std::panic;
 use std::panic::AssertUnwindSafe;
@@ -21,7 +19,7 @@ use std::sync::Arc;
 /// Uses a 1 MB `BufWriter` (unbuffered writes are ~15x slower on Windows).
 /// The write targets a `.tmp` sibling then renames, so readers never see
 /// a partial file.
-pub(crate) fn write_arrow_ipc(path: &Path, batch: &arrow_array::RecordBatch) -> AppResult<()> {
+pub(crate) fn write_arrow_ipc(path: &Path, batch: &RecordBatch) -> AppResult<()> {
     atomic_write(path, |file| {
         let buf = BufWriter::with_capacity(1 << 20, file);
         let mut writer = FileWriter::try_new(buf, &batch.schema())?;
@@ -31,65 +29,24 @@ pub(crate) fn write_arrow_ipc(path: &Path, batch: &arrow_array::RecordBatch) -> 
     })
 }
 
-/// Write to `path` via a temporary `.tmp` sibling, then atomically rename.
-/// Guarantees readers never observe a partially-written file.
-pub(crate) fn atomic_write(
-    path: &Path,
-    write_fn: impl FnOnce(File) -> AppResult<()>,
-) -> AppResult<()> {
-    let tmp = path.with_extension("tmp");
-    let file = File::create(&tmp)?;
-    write_fn(file)?;
-    // write_fn consumed the handle; reopen to fsync - without it the rename can
-    // become durable before the data, losing the file on power cut.
-    OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
-    fs::rename(&tmp, path)?;
-    Ok(())
-}
-
-/// Delete orphaned `.tmp` files left under the Arrow root by interrupted
-/// [`atomic_write`]s. Returns the number removed. Called once at startup.
-pub(crate) fn sweep_orphaned_tmp() -> usize {
-    arrow_dir().map(|d| sweep_tmp_under(&d)).unwrap_or(0)
-}
-
-/// Recursively delete `*.tmp` files under `dir`; returns the number removed.
-pub(crate) fn sweep_tmp_under(dir: &Path) -> usize {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return 0;
-    };
-    let mut n = 0;
-    for e in entries.flatten() {
-        let p = e.path();
-        if p.is_dir() {
-            n += sweep_tmp_under(&p);
-        } else if p.extension().is_some_and(|x| x == "tmp") && fs::remove_file(&p).is_ok() {
-            n += 1;
-        }
-    }
-    n
-}
-
 /// Read an Arrow IPC file into a single RecordBatch.
 ///
 /// If the file contains multiple batches they are concatenated. An empty or
 /// missing-batch file returns an empty batch with the location schema.
-pub(crate) fn read_arrow_ipc(path: &Path) -> AppResult<arrow_array::RecordBatch> {
+pub(crate) fn read_arrow_ipc(path: &Path) -> AppResult<RecordBatch> {
     let file = File::open(path)?;
     let reader = FileReader::try_new(file, None)?;
     let mut batches = Vec::new();
     for batch in reader {
-        batches.push(arrow_migrate::migrate(batch?)?);
+        batches.push(migrate::migrate(batch?)?);
     }
     if batches.is_empty() {
-        return Ok(arrow_array::RecordBatch::new_empty(Arc::new(
-            arrow_bridge::location_schema(),
-        )));
+        return Ok(RecordBatch::new_empty(Arc::new(location_schema())));
     }
     if batches.len() == 1 {
         return Ok(batches.into_iter().next().unwrap());
     }
-    let schema = Arc::new(arrow_bridge::location_schema());
+    let schema = Arc::new(location_schema());
     concat::concat_batches(&schema, &batches).map_err(AppError::from)
 }
 
@@ -104,9 +61,7 @@ pub(crate) struct MmapHandle {
 /// as long as any array data from the batch is referenced. Parses the IPC
 /// footer and record-batch blocks directly from the mmap buffer, avoiding
 /// any heap allocation for the raw column data.
-pub(crate) fn read_arrow_ipc_mmap(
-    path: &Path,
-) -> AppResult<(arrow_array::RecordBatch, MmapHandle)> {
+pub(crate) fn read_arrow_ipc_mmap(path: &Path) -> AppResult<(RecordBatch, MmapHandle)> {
     use arrow_buffer::Buffer;
     use arrow_ipc::reader::{read_footer_length, FileDecoder};
     use arrow_ipc::{convert::fb_to_schema, root_as_footer};
@@ -155,7 +110,7 @@ pub(crate) fn read_arrow_ipc_mmap(
     let empty = blocks.map_or(true, |b| b.is_empty());
     if empty {
         return Ok((
-            arrow_array::RecordBatch::new_empty(schema),
+            RecordBatch::new_empty(schema),
             MmapHandle { _buffer: buffer },
         ));
     }
@@ -167,11 +122,8 @@ pub(crate) fn read_arrow_ipc_mmap(
         let data = buffer.slice_with_length(block.offset() as usize, block_len);
         let batch = decoder
             .read_record_batch(block, &data)?
-            .unwrap_or_else(|| arrow_array::RecordBatch::new_empty(schema));
-        Ok((
-            arrow_migrate::migrate(batch)?,
-            MmapHandle { _buffer: buffer },
-        ))
+            .unwrap_or_else(|| RecordBatch::new_empty(schema));
+        Ok((migrate::migrate(batch)?, MmapHandle { _buffer: buffer }))
     } else {
         let mut batches = Vec::with_capacity(blocks.len());
         for i in 0..blocks.len() {
@@ -183,9 +135,6 @@ pub(crate) fn read_arrow_ipc_mmap(
             }
         }
         let merged = concat::concat_batches(&schema, &batches)?;
-        Ok((
-            arrow_migrate::migrate(merged)?,
-            MmapHandle { _buffer: buffer },
-        ))
+        Ok((migrate::migrate(merged)?, MmapHandle { _buffer: buffer }))
     }
 }

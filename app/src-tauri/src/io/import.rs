@@ -19,9 +19,9 @@ use rusqlite::Connection;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::store::arrow_bridge;
-use crate::store::map_meta;
-use crate::store::map_meta::MapSettings;
+use crate::store::arrow;
+use crate::store::maps;
+use crate::store::maps::MapSettings;
 use crate::store::storage;
 use std::collections::HashSet;
 use tokio::task;
@@ -110,16 +110,16 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
 
     let settings = merge_settings(MapSettings::default(), &map.settings);
     let settings_json =
-        serde_json::to_string(&settings).unwrap_or_else(|_| map_meta::default_settings_json());
+        serde_json::to_string(&settings).unwrap_or_else(|_| maps::default_settings_json());
 
     // Assign sequential u32 IDs
     for (i, loc) in map.locations.iter_mut().enumerate() {
         loc.id = (i as u32) + 1;
     }
 
-    let batch = arrow_bridge::locations_to_batch(&map.locations);
+    let batch = arrow::locations_to_batch(&map.locations);
     let arrow_path = storage::arrow_path(&map_id)?;
-    storage::write_arrow_ipc(&arrow_path, &batch)?;
+    arrow::write_arrow_ipc(&arrow_path, &batch)?;
 
     let tx = conn.unchecked_transaction()?;
 

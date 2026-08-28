@@ -1,5 +1,6 @@
 use super::*;
-use crate::store::arrow_bridge;
+use crate::store::arrow;
+use crate::store::arrow::{read_arrow_ipc, read_arrow_ipc_mmap, write_arrow_ipc};
 use crate::test_util::TempDir;
 use crate::types::AppError;
 use crate::types::Location;
@@ -199,7 +200,7 @@ fn make_test_batch(ids: &[u32]) -> arrow_array::RecordBatch {
             ..Default::default()
         })
         .collect();
-    arrow_bridge::locations_to_batch(&locs)
+    arrow::locations_to_batch(&locs)
 }
 
 #[test]
@@ -232,7 +233,7 @@ fn mmap_round_trip_preserves_data() {
 
 #[test]
 fn mmap_empty_file() {
-    let batch = arrow_bridge::locations_to_batch(&[]);
+    let batch = arrow::locations_to_batch(&[]);
     let dir = TempDir::new("mma_test_mmap_empty");
     let path = dir.join("empty.arrow");
 
@@ -300,7 +301,7 @@ fn mmap_preserves_nullable_fields() {
             ..Default::default()
         },
     ];
-    let batch = arrow_bridge::locations_to_batch(&locs);
+    let batch = arrow::locations_to_batch(&locs);
     let dir = TempDir::new("mma_test_mmap_null");
     let path = dir.join("nullable.arrow");
 

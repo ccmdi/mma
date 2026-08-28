@@ -5,7 +5,10 @@
 
 use std::sync::Arc;
 
-use crate::store::arrow_migrate;
+pub(crate) mod io;
+pub(crate) mod migrate;
+pub(crate) use io::*;
+
 use crate::types::RawExtra;
 use arrow_array::{
     builder::{GenericListBuilder, UInt32Builder},
@@ -33,11 +36,11 @@ macro_rules! columns {
 
         /// The canonical Arrow schema for location data. Column order is generated
         /// from the same table as the positional `COL_*` indices, so the two cannot
-        /// desync. Metadata carries the format version stamp (see [`crate::store::arrow_migrate`]).
+        /// desync. Metadata carries the format version stamp (see [`crate::store::arrow::migrate`]).
         pub fn location_schema() -> Schema {
             Schema::new_with_metadata(
                 vec![ $( Field::new($name, $dtype, $nullable) ),+ ],
-                crate::store::arrow_migrate::version_metadata(),
+                crate::store::arrow::migrate::version_metadata(),
             )
         }
     };
@@ -324,7 +327,7 @@ pub fn delta_schema() -> Schema {
     let mut fields: Vec<arrow_schema::FieldRef> =
         location_schema().fields().iter().cloned().collect();
     fields.push(Arc::new(Field::new("op", DataType::UInt8, false)));
-    Schema::new_with_metadata(fields, arrow_migrate::version_metadata())
+    Schema::new_with_metadata(fields, migrate::version_metadata())
 }
 
 /// Serialize a commit delta (`created` + `removed` locations) into one delta batch.
@@ -371,7 +374,7 @@ pub fn batch_to_delta(batch: &RecordBatch) -> (Vec<Location>, Vec<Location>) {
 }
 
 #[cfg(test)]
-#[path = "arrow_bridge.test.rs"]
+#[path = "arrow.test.rs"]
 mod tests;
 
 /// Binary search for a location ID in a sorted batch. O(log n).

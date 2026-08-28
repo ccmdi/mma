@@ -1,7 +1,7 @@
 use super::*;
 use crate::procedure::quickjs::JsProcedure;
-use crate::store::arrow_bridge;
-use crate::store::location_store::{render_cell_idx, Store, StoreManager};
+use crate::store::arrow;
+use crate::store::engine::{render_cell_idx, Store, StoreManager};
 use crate::test_util::loc;
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
@@ -18,7 +18,7 @@ fn setup(locs: &[Location]) -> (StoreState, String) {
     let map_id = format!("procedure-test-{}", SEQ.fetch_add(1, Ordering::Relaxed));
     let mut store = Store::new();
     store.map_id = Some(map_id.clone());
-    store.batch = Some(arrow_bridge::locations_to_batch(&[]));
+    store.batch = Some(arrow::locations_to_batch(&[]));
     for l in locs {
         store.overlay_add(vec![l.clone()]);
         let ci = render_cell_idx(l.lat, l.lng);

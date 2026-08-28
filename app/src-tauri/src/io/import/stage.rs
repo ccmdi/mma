@@ -1,10 +1,10 @@
 //! Editor import: preview a parsed file, stage its rows as virtual locations, then add them to the open store.
 
 use super::*;
-use crate::store::location_store;
-use crate::store::location_store::with_store;
-use crate::store::location_store::WindowLabel;
-use crate::store::map_meta;
+use crate::store::engine;
+use crate::store::engine::with_store;
+use crate::store::engine::WindowLabel;
+use crate::store::maps;
 use crate::types::AppResult;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags, Tag};
@@ -213,7 +213,7 @@ pub async fn store_import_paste_preview(text: String) -> AppResult<EditorImportP
 #[serde(rename_all = "camelCase")]
 pub struct EditorImportResult {
     #[serde(flatten)]
-    pub mutation: location_store::MutationResult,
+    pub mutation: engine::MutationResult,
     pub imported_count: u32,
     pub warnings: Vec<String>,
     /// True when the import was large enough to autocommit; the caller commits it.
@@ -228,10 +228,10 @@ pub struct EditorImportResult {
 /// and render cell registration. `tags` are the source tag defs referenced by
 /// `locations`.
 pub(crate) fn add_copied_to_store(
-    store: &mut location_store::Store,
+    store: &mut engine::Store,
     locations: Vec<Location>,
     tags: Vec<Tag>,
-) -> AppResult<location_store::MutationResult> {
+) -> AppResult<engine::MutationResult> {
     let mut parsed = ParsedMap {
         locations,
         tags,
@@ -249,16 +249,16 @@ pub(crate) fn add_copied_to_store(
 /// Tag reconciliation, render cell registration, and extra-field auto-registration
 /// happen regardless of size.
 pub(super) fn add_parsed_to_store(
-    store: &mut location_store::Store,
+    store: &mut engine::Store,
     parsed: &mut ParsedMap,
     bulk_tag: Option<&str>,
-) -> AppResult<location_store::MutationResult> {
+) -> AppResult<engine::MutationResult> {
     let _t = Instant::now();
     let n = parsed.locations.len();
     let tag_id_remap = {
         let tags = &mut store.tags;
         let (remap, changed) =
-            location_store::reconcile_tags_by_name(&parsed.tags, &mut tags.all, &mut tags.next_id);
+            engine::reconcile_tags_by_name(&parsed.tags, &mut tags.all, &mut tags.next_id);
         if changed {
             tags.dirty = true;
         }
@@ -316,7 +316,7 @@ pub(super) fn add_parsed_to_store(
             .iter()
             .filter_map(|l| l.extra.as_ref())
             .collect();
-        map_meta::auto_register_field_defs(&store.known_field_keys, &extras)
+        maps::auto_register_field_defs(&store.known_field_keys, &extras)
     };
     let t_autoreg = _t.elapsed();
 
@@ -324,7 +324,7 @@ pub(super) fn add_parsed_to_store(
     // imports autocommit and skip undo, so the locations are MOVED into the overlay
     // below instead of cloning each one.
     if parsed.locations.len() <= IMPORT_AUTOCOMMIT_THRESHOLD {
-        store.push_undo(location_store::EditEntry {
+        store.push_undo(engine::EditEntry {
             created: parsed.locations.clone(),
             removed: Vec::new(),
         });
@@ -334,20 +334,20 @@ pub(super) fn add_parsed_to_store(
     let t_undo = _t.elapsed();
 
     for loc in mem::take(&mut parsed.locations) {
-        let ci = location_store::render_cell_idx(loc.lat, loc.lng);
+        let ci = engine::render_cell_idx(loc.lat, loc.lng);
         store.cell_add_render(ci, loc.id);
         store.overlay_add(vec![loc]);
     }
     let t_overlay = _t.elapsed();
 
-    let mut result = store.finish_mutation(&location_store::ChangeSet {
+    let mut result = store.finish_mutation(&engine::ChangeSet {
         full_reset: true,
         ..Default::default()
     });
     result.tags = Some(store.tags.all.clone());
 
     if let Some(new_defs) = new_field_defs {
-        location_store::apply_field_defs(store, new_defs, &mut result);
+        engine::apply_field_defs(store, new_defs, &mut result);
     }
     log::debug!("[import-insert] n={n} reconcile+alloc={:.0}ms counts={:.0}ms auto_reg={:.0}ms undo={:.0}ms overlay_add={:.0}ms finish={:.0}ms total={:.0}ms",
         t_reconcile.as_millis(), (t_counts - t_reconcile).as_millis(), (t_autoreg - t_counts).as_millis(),
@@ -365,7 +365,7 @@ pub(super) fn add_parsed_to_store(
 #[specta::specta]
 pub async fn store_import_file(
     label: WindowLabel,
-    state: tauri::State<'_, location_store::StoreState>,
+    state: tauri::State<'_, engine::StoreState>,
     dropped_fields: Vec<String>,
     tag_name: Option<String>,
 ) -> AppResult<EditorImportResult> {

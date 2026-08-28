@@ -1,6 +1,6 @@
 #![allow(clippy::needless_pass_by_value)]
 use super::*;
-use crate::store::arrow_bridge::locations_to_batch;
+use crate::store::arrow::locations_to_batch;
 use crate::test_util::{loc, Fx};
 use crate::types::Location;
 use crate::types::RawExtra;

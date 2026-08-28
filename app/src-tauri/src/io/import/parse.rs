@@ -1,6 +1,6 @@
 //! Turning a file into a `ParsedMap`: SIMD JSON object scanning, CSV, zip, tag interning.
 
-use crate::store::map_meta::MapSettings;
+use crate::store::maps::MapSettings;
 use crate::types;
 use crate::types::AppResult;
 use crate::types::RawExtra;

@@ -7,7 +7,7 @@ use crate::plugins::borders;
 use crate::plugins::sidecar;
 use crate::plugins::sidecar::SidecarStream;
 use crate::selections::{ids_within, narrow, Selector};
-use crate::store::location_store::{
+use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
 };
 use crate::types::{AppError, AppResult, Location};

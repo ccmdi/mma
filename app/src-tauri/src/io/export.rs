@@ -3,8 +3,8 @@
 //! triggers a native save dialog to move the file to its final destination.
 
 use crate::selections::Selector;
-use crate::store::location_store;
-use crate::store::location_store::{with_store, StoreState, WindowLabel};
+use crate::store::engine;
+use crate::store::engine::{with_store, StoreState, WindowLabel};
 use crate::store::storage;
 use crate::types::Location;
 use crate::types::LocationFlags;
@@ -488,7 +488,7 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
                     map_name: name.clone(),
                 });
                 // Base file + uncommitted delta sidecar = the map's full current state.
-                let locs = location_store::read_full_state_from_disk(map_id)?;
+                let locs = engine::read_full_state_from_disk(map_id)?;
 
                 let (tag_defs, id_to_name) = parse_tag_defs(tags_json);
 

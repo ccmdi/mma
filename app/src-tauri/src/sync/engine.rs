@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::store::location_store::StoreState;
+use crate::store::engine::StoreState;
 use crate::store::storage;
 use crate::sync::diff::{compute_sync_plan, summarize};
 use crate::sync::geoguessr::GeoGuessrProvider;

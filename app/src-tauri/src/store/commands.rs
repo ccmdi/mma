@@ -7,9 +7,10 @@ use crate::io::import;
 use crate::plugins::borders;
 use crate::selections::field_expr;
 use crate::selections::{self, Selection, Selector};
-use crate::store::arrow_bridge::{col_id, schema};
-use crate::store::location_store::*;
-use crate::store::map_meta;
+use crate::store::arrow;
+use crate::store::arrow::{col_id, schema};
+use crate::store::engine::*;
+use crate::store::maps;
 use crate::store::storage;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
@@ -76,7 +77,7 @@ pub async fn store_open_map(
             // the base zero-copy and leave it untouched; load the delta into the overlay
             // regardless of whether a base file exists (never folded into the base).
             let (batch, handle) = if path.exists() {
-                let (b, h) = storage::read_arrow_ipc_mmap(&path)?;
+                let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
                 log::debug!(
                     "[store_open] mmap_read={}ms rows={}",
                     t0.elapsed().as_millis(),
@@ -112,9 +113,9 @@ pub async fn store_open_map(
                 drop(batch);
                 drop(mmap_handle);
                 let path = storage::arrow_path(&map_id2)?;
-                storage::write_arrow_ipc(&path, &sorted_batch)?;
+                arrow::write_arrow_ipc(&path, &sorted_batch)?;
                 drop(sorted_batch);
-                let (b, h) = storage::read_arrow_ipc_mmap(&path)?;
+                let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
                 log::info!("[store_open] migration complete, re-mmap'd sorted file");
                 (b, Some(h))
             }
@@ -175,7 +176,7 @@ pub async fn store_open_map(
                 |row| row.get(0),
             )
             .unwrap_or_default();
-        let extra = map_meta::MapExtra::from_json(&extra_str);
+        let extra = maps::MapExtra::from_json(&extra_str);
         store.known_field_keys = extra
             .fields
             .as_ref()
@@ -636,10 +637,8 @@ pub fn store_copy_locations_to_map(
         // skips keys the target already defines, so an empty known-set is safe.
         {
             let extras: Vec<&RawExtra> = fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
-            if let Some(defs) =
-                map_meta::auto_register_field_defs(&HashSet::<String>::new(), &extras)
-            {
-                map_meta::persist_field_defs(&conn, &target_map_id, &defs)?;
+            if let Some(defs) = maps::auto_register_field_defs(&HashSet::<String>::new(), &extras) {
+                maps::persist_field_defs(&conn, &target_map_id, &defs)?;
             }
         }
 

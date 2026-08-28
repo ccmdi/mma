@@ -1,7 +1,7 @@
 //! Grouping a set by field: key projection, date parts, numeric binning, count-by.
 
 use super::*;
-use crate::store::map_meta::ExtraFieldType;
+use crate::store::maps::ExtraFieldType;
 use crate::util::tz_offset_seconds;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use roaring::RoaringBitmap;
@@ -56,7 +56,7 @@ pub struct Projection {
 }
 
 pub const PROJECTIONS: &[Projection] = {
-    use crate::store::map_meta::ExtraFieldType::*;
+    use crate::store::maps::ExtraFieldType::*;
     &[
         Projection {
             id: "value",

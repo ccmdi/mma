@@ -8,7 +8,7 @@
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_webserve::{register_scheme, SchemeRequest, SchemeResponse};
 
-use crate::store::location_store;
+use crate::store::engine;
 use crate::store::storage;
 
 pub fn run_server() {
@@ -18,9 +18,7 @@ pub fn run_server() {
     ctx.config_mut().app.windows.clear();
 
     tauri::Builder::default()
-        .manage(location_store::StoreState::new(
-            location_store::StoreManager::new(),
-        ))
+        .manage(engine::StoreState::new(engine::StoreManager::new()))
         .invoke_handler(crate::specta_builder().invoke_handler())
         .plugin(tauri_plugin_webserve::init())
         .setup(|app| {

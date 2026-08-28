@@ -1,7 +1,7 @@
 //! Field filters: the built-in field table and value comparison rules.
 
 use super::*;
-use crate::store::map_meta::{ComparisonType, ExtraFieldType};
+use crate::store::maps::{ComparisonType, ExtraFieldType};
 use crate::types::Location;
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
 use arrow_array::Array;

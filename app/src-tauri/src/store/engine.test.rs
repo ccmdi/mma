@@ -4,7 +4,7 @@ use crate::io::export;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::{self, Selection, Selector};
-use crate::store::arrow_bridge::empty_batch;
+use crate::store::arrow::empty_batch;
 use crate::store::commands::rows_file_path;
 use crate::test_util::Fx;
 use crate::test_util::TempDir;
@@ -3715,7 +3715,7 @@ fn store_with_full_overlay() -> Store {
     let base = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)];
     let mut store = Store::new();
     store.map_id = Some("test-full-overlay".to_string());
-    store.batch = Some(arrow_bridge::locations_to_batch(&base));
+    store.batch = Some(arrow::locations_to_batch(&base));
     store.alive_count = base.len();
     store.next_id = 10;
 
@@ -3815,7 +3815,7 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
     let x = vec![loc(5, 5.0, 5.0), loc(6, 6.0, 6.0)];
     let mut store = Store::new();
     store.map_id = Some("test-crash-window".to_string());
-    store.batch = Some(arrow_bridge::locations_to_batch(&x));
+    store.batch = Some(arrow::locations_to_batch(&x));
     store.alive_count = x.len();
 
     // Stale delta from before the bake: re-adds the same ids the base now already has.

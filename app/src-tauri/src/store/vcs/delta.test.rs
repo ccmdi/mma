@@ -1,5 +1,5 @@
 use super::*;
-use crate::store::arrow_bridge;
+use crate::store::arrow;
 use crate::test_util::TempDir;
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
@@ -103,8 +103,8 @@ fn delta_batch_round_trip_preserves_all_fields() {
     l.extra = RawExtra::from_map(&extra);
     let removed = loc(3, 1.0, 2.0);
 
-    let batch = arrow_bridge::delta_to_batch(&[l.clone()], &[removed.clone()]);
-    let (created_out, removed_out) = arrow_bridge::batch_to_delta(&batch);
+    let batch = arrow::delta_to_batch(&[l.clone()], &[removed.clone()]);
+    let (created_out, removed_out) = arrow::batch_to_delta(&batch);
 
     assert_eq!(created_out, vec![l]);
     assert_eq!(removed_out, vec![removed]);
@@ -114,7 +114,7 @@ fn delta_batch_round_trip_preserves_all_fields() {
 /// to a real Arrow file, read them back, replay, and materialize the checkout batch.
 #[test]
 fn deltas_round_trip_through_disk_and_replay() {
-    use crate::store::storage::{read_arrow_ipc, write_arrow_ipc};
+    use crate::store::arrow::{read_arrow_ipc, write_arrow_ipc};
 
     // genesis: add 1,2,3 ; c2: modify 1, remove 2 ; c3: add 4
     let mut one_v2 = loc(1, 10.0, 20.0);
@@ -131,14 +131,14 @@ fn deltas_round_trip_through_disk_and_replay() {
     let dir = TempDir::new("mma_test_vcs_delta_disk");
 
     for (i, (created, removed)) in commits.iter().enumerate() {
-        let batch = arrow_bridge::delta_to_batch(created, removed);
+        let batch = arrow::delta_to_batch(created, removed);
         write_arrow_ipc(&dir.join(format!("c{i}.arrow")), &batch).unwrap();
     }
 
     let mut deltas = Vec::new();
     for i in 0..commits.len() {
         let batch = read_arrow_ipc(&dir.join(format!("c{i}.arrow"))).unwrap();
-        deltas.push(arrow_bridge::batch_to_delta(&batch));
+        deltas.push(arrow::batch_to_delta(&batch));
     }
     let state = replay_deltas(&deltas);
 
@@ -148,7 +148,7 @@ fn deltas_round_trip_through_disk_and_replay() {
 
     // Checkout path: materialized base batch round-trips with strictly sorted ids.
     let locs: Vec<Location> = state.into_values().collect();
-    let back = arrow_bridge::batch_to_locations(&arrow_bridge::locations_to_batch(&locs));
+    let back = arrow::batch_to_locations(&arrow::locations_to_batch(&locs));
     assert_eq!(back.iter().map(|l| l.id).collect::<Vec<_>>(), vec![1, 3, 4]);
 }
 

@@ -11,6 +11,7 @@
 use super::*;
 use crate::selections;
 use crate::store::commands::*;
+use crate::store::storage;
 use crate::types::RawExtra;
 use std::env;
 use std::path::Path;
@@ -19,7 +20,7 @@ use tauri::test;
 use tauri::test::MockRuntime;
 
 pub use crate::selections::{Selection, Selector};
-pub use crate::store::location_store::{
+pub use crate::store::engine::{
     LocationPatch, MutationResult, RenderRequest, SelectionInput, Store, Update,
 };
 pub use crate::types::{Location, Tag};
@@ -142,7 +143,7 @@ impl Fixture {
         .map(std::string::ToString::to_string)
         .collect();
         Fixture {
-            batch: arrow_bridge::locations_to_batch(&locs),
+            batch: arrow::locations_to_batch(&locs),
             tags,
             counts,
             sets,
@@ -376,14 +377,14 @@ pub fn rebuild_tag_sets(store: &mut Store) {
 
 /// Write a population to a real Arrow IPC file, for the map-open bench to read back.
 pub fn write_arrow(path: &Path, batch: &RecordBatch) {
-    storage::write_arrow_ipc(path, batch).expect("write arrow");
+    arrow::write_arrow_ipc(path, batch).expect("write arrow");
 }
 
 /// The in-process half of `store_open_map`: mmap the Arrow file, then rebuild the
 /// derived state (alive count, tag counts, bounds, tag membership index). The
 /// SQLite and edit-history halves are left out -- they need an app data dir.
 pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, Tag>) -> Store {
-    let (batch, handle) = storage::read_arrow_ipc_mmap(path).expect("read arrow");
+    let (batch, handle) = arrow::read_arrow_ipc_mmap(path).expect("read arrow");
     let n = batch.num_rows();
     let max_id = if n > 0 {
         col_id(&batch).value(n - 1)

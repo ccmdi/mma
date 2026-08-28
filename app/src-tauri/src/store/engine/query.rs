@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::selections::{self, Selector};
-use crate::store::arrow_bridge::{col_lat, col_lng};
+use crate::store::arrow::{col_lat, col_lng};
 use crate::store::spatial;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};

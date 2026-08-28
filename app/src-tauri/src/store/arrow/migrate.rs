@@ -6,7 +6,7 @@
 //!
 //! [`migrate`] runs the registered `vN -> vN+1` steps in order until the batch
 //! reaches [`CURRENT_VERSION`]. It is applied in the read chokepoints
-//! (`storage::read_arrow_ipc` / `read_arrow_ipc_mmap`) so every loaded batch is
+//! (`arrow::read_arrow_ipc` / `read_arrow_ipc_mmap`) so every loaded batch is
 //! normalized to the current schema before any `concat_batches` or column access.
 //!
 //! Steps operate by column *name*, so the same step handles both the base schema
@@ -112,5 +112,5 @@ fn v1_to_v2_timestamps(batch: &RecordBatch) -> AppResult<RecordBatch> {
 }
 
 #[cfg(test)]
-#[path = "arrow_migrate.test.rs"]
+#[path = "migrate.test.rs"]
 mod tests;

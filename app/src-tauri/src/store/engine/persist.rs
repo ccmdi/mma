@@ -1,7 +1,7 @@
 //! Everything that touches disk or SQLite for an open store: Arrow snapshots, msgpack deltas, edit history, the tag registry.
 
 use super::*;
-use crate::store::arrow_bridge;
+use crate::store::arrow;
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
 use crate::types::{Location, Tag};
@@ -91,7 +91,7 @@ pub(crate) fn read_full_state_from_disk(map_id: &str) -> AppResult<Vec<Location>
     // The base file may not exist for a map with no commits -- its data then lives entirely
     // in the delta sidecar, so always apply the delta below regardless.
     let mut locs = if path.exists() {
-        arrow_bridge::batch_to_locations(&storage::read_arrow_ipc(&path)?)
+        arrow::batch_to_locations(&arrow::read_arrow_ipc(&path)?)
     } else {
         Vec::new()
     };
@@ -196,7 +196,7 @@ pub(crate) fn load_edit_history(map_id: &str) -> AppResult<(Vec<EditEntry>, Vec<
 pub(crate) fn save_arrow(store: &Store, map_id: &str) -> AppResult<()> {
     if let Some(ref batch) = store.batch {
         let path = storage::arrow_path(map_id)?;
-        storage::write_arrow_ipc(&path, batch)?;
+        arrow::write_arrow_ipc(&path, batch)?;
         let delta = storage::arrow_delta_path(map_id)?;
         let _ = fs::remove_file(delta);
     }
@@ -215,7 +215,7 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
     let t_write = _t.elapsed();
     let path = storage::arrow_path(map_id)?;
     if path.exists() {
-        let (batch, handle) = storage::read_arrow_ipc_mmap(&path)?;
+        let (batch, handle) = arrow::read_arrow_ipc_mmap(&path)?;
         store.batch = Some(batch);
         store.mmap_handle = Some(handle);
     }
