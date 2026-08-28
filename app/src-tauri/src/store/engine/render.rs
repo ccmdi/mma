@@ -499,8 +499,10 @@ impl Store {
         membership_changed: &HashSet<u32>,
     ) -> RenderDelta {
         let mut delta = RenderDelta {
+            added: Vec::with_capacity(changes.added.len()),
+            updated: Vec::with_capacity(changes.updated.len()),
+            removed: Vec::with_capacity(changes.removed.len()),
             full_reset: changes.full_reset,
-            ..Default::default()
         };
 
         for &id in &changes.removed {
