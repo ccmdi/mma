@@ -54,7 +54,11 @@ describe("action handler registry", () => {
 
 	it("executes a registered handler and reports consumption", () => {
 		const seen: number[] = [];
-		cleanups.push(registerMapKeyActionHandler("applyTag", (a) => seen.push(a.tagId)));
+		cleanups.push(
+			registerMapKeyActionHandler("applyTag", (a) => {
+				seen.push(a.tagId);
+			}),
+		);
 		expect(executeMapKeyAction(applyTag(7))).toBe(true);
 		expect(seen).toEqual([7]);
 	});
@@ -104,7 +108,9 @@ describe("tag binding helpers", () => {
 	it("a tag holds one key: reassigning drops its previous key", () => {
 		const next = withTagKeyBinding(base, 1, "z");
 		expect(getTagBindingKey(next, 1)).toBe("z");
-		expect(next.filter((b) => b.action.tagId === 1)).toHaveLength(1);
+		expect(
+			next.filter((b) => b.action.type === "applyTag" && b.action.tagId === 1),
+		).toHaveLength(1);
 	});
 
 	it("empty key clears the tag's binding", () => {
@@ -202,7 +208,9 @@ describe("precedence over global hotkey layer", () => {
 		};
 		// Register the global (document, capture) handler FIRST to prove order independence.
 		document.addEventListener("keydown", globalHandler, true);
-		const unregister = registerMapKeyActionHandler("applyTag", () => order.push("map"));
+		const unregister = registerMapKeyActionHandler("applyTag", () => {
+			order.push("map");
+		});
 		const mapHandler = (e: KeyboardEvent) => {
 			handleMapKeyEvent(e, [{ key: "m", action: applyTag(1) }]);
 		};

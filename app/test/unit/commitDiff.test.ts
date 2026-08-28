@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { categorizeCommitDelta, diffPositions } from "@/store/commitDiff";
+import type { Location } from "@/bindings.gen";
 
-const loc = (id: number, lat: number, lng: number) => ({ id, lat, lng });
+const loc = (id: number, lat: number, lng: number) => ({ id, lat, lng }) as Location;
 
 describe("categorizeCommitDelta", () => {
 	it("classifies pure adds, pure removes, and modifications by id", () => {

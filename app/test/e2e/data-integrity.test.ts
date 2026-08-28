@@ -187,7 +187,7 @@ describe("Data integrity - extras", () => {
 		await openMap(map.id);
 
 		const loc = await getLoc(ids[0]);
-		expect(loc.extra.country).toBe("United States of America");
+		expect(loc.extra?.country).toBe("United States of America");
 	});
 
 	it("numeric extra survives", async () => {
@@ -204,9 +204,9 @@ describe("Data integrity - extras", () => {
 		await openMap(map.id);
 
 		const loc = await getLoc(ids[0]);
-		expect(loc.extra.altitude).toBeCloseTo(8848.86, 2);
-		expect(loc.extra.population).toBe(0);
-		expect(loc.extra.negative).toBe(-42);
+		expect(loc.extra?.altitude).toBeCloseTo(8848.86, 2);
+		expect(loc.extra?.population).toBe(0);
+		expect(loc.extra?.negative).toBe(-42);
 	});
 
 	it("nested extra object survives", async () => {
@@ -223,9 +223,9 @@ describe("Data integrity - extras", () => {
 		await openMap(map.id);
 
 		const loc = await getLoc(ids[0]);
-		expect(loc.extra.meta.source).toBe("import");
-		expect(loc.extra.meta.version).toBe(2);
-		expect(loc.extra.arr).toEqual([1, 2, 3]);
+		expect((loc.extra?.meta as { source: string; version: number }).source).toBe("import");
+		expect((loc.extra?.meta as { source: string; version: number }).version).toBe(2);
+		expect(loc.extra?.arr).toEqual([1, 2, 3]);
 	});
 
 	it("empty extra object survives", async () => {

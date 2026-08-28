@@ -157,10 +157,11 @@ describe("searchCoverage growSession", () => {
 	// The module builds its output through ImageData, which neither node nor jsdom provides.
 	class StubImageData {
 		data: Uint8ClampedArray;
-		constructor(
-			readonly width: number,
-			readonly height: number,
-		) {
+		width: number;
+		height: number;
+		constructor(width: number, height: number) {
+			this.width = width;
+			this.height = height;
 			this.data = new Uint8ClampedArray(width * height * 4);
 		}
 	}

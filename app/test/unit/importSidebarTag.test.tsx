@@ -7,7 +7,9 @@ import type { EditorImportPreview, Tag } from "@/bindings.gen";
 // trace().end() logs through tauri-plugin-log, which needs a host.
 Object.assign(window, { __TAURI_INTERNALS__: { invoke: async () => {} } });
 
-const confirmImport = vi.fn(async () => ({ importedCount: 1 }));
+const confirmImport = vi.fn(async (_dropped?: string[], _tagName?: string) => ({
+	importedCount: 1,
+}));
 let staging: { preview: EditorImportPreview; source: "file" } | null = null;
 let tags: Tag[] = [];
 

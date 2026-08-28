@@ -25,6 +25,7 @@ import {
 	rewriteSelectionFields,
 } from "@/store/selections";
 import { ValidationState } from "@/bindings.consts";
+import type { PolygonGeometry } from "@/bindings.gen";
 import { setUserFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { setSetting } from "@/store/settings";
 
@@ -77,7 +78,7 @@ describe("colorForKey", () => {
 });
 
 describe("polygon color mode", () => {
-	const polygon = {
+	const polygon: PolygonGeometry = {
 		coordinates: [
 			[
 				[0, 0],
@@ -128,8 +129,15 @@ describe("polygon color mode", () => {
 });
 
 describe("polygon selection keys", () => {
-	const square = (o: number) => ({
-		coordinates: [[[o, o], [o + 1, o], [o + 1, o + 1], [o, o] as [number, number]]],
+	const square = (o: number): PolygonGeometry => ({
+		coordinates: [
+			[
+				[o, o],
+				[o + 1, o],
+				[o + 1, o + 1],
+				[o, o],
+			],
+		],
 	});
 	const build = (polygon: ReturnType<typeof square>) =>
 		buildSelection({ type: "Polygon", polygon, includeInformational: false });
@@ -1013,7 +1021,7 @@ describe("replaceSelection", () => {
 	const filterA = {
 		type: "Filter" as const,
 		field: "year",
-		op: "between",
+		op: "between" as const,
 		value: 2010,
 		value2: 2015,
 	};
@@ -1174,7 +1182,7 @@ describe("isolateGhostKeys", () => {
 });
 
 describe("polygonSelectionsContaining", () => {
-	const square = (key: string, ox: number, oy: number) =>
+	const square = (_key: string, ox: number, oy: number) =>
 		buildSelection({
 			type: "Polygon",
 			polygon: {

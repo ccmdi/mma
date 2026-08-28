@@ -178,7 +178,7 @@ describe("svMetadata", () => {
 		);
 		// Plain JSON, not a live opensv object: no accessors, no Dates.
 		expect(data).toEqual(ANSWER);
-		expect(data!.location.latLng).toEqual({ lat: 52.5, lng: 13.4 });
+		expect((data as any)!.location.latLng).toEqual({ lat: 52.5, lng: 13.4 });
 		expect(data!.time[0].date).toBe("2019-06-01");
 	});
 
@@ -190,7 +190,7 @@ describe("svMetadata", () => {
 		procedureQuery.mockResolvedValue(JSON.stringify([null, ANSWER]));
 		const out = await svMetadata(["dead", "pA"]);
 		expect(out[0]).toBeNull();
-		expect(out[1]!.location.pano).toBe("pA");
+		expect((out[1] as any)!.location.pano).toBe("pA");
 	});
 
 	it("rejects an answer that is not an array", async () => {
@@ -209,6 +209,6 @@ describe("svMetadata", () => {
 		expect(out).toHaveLength(500);
 		expect(procedureQuery).toHaveBeenCalledTimes(1);
 		expect(JSON.parse(procedureQuery.mock.calls[0][1]).panoIds).toHaveLength(500);
-		expect(out.every((d) => d?.location.pano === "pA")).toBe(true);
+		expect(out.every((d) => (d as any)?.location.pano === "pA")).toBe(true);
 	});
 });

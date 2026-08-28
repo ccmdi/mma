@@ -134,7 +134,7 @@ describe("svStubServer", () => {
 			const base = `http://127.0.0.1:${stub.port}`;
 			const meta = await fetch(
 				`${base}/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/GetMetadata?alt=proto`,
-				{ method: "POST", body: request([RU_PANO]) },
+				{ method: "POST", body: request([RU_PANO]) as BodyInit },
 			);
 			const served: ImageMetadata = decode(new Uint8Array(await meta.arrayBuffer())).metadata[0];
 			expect(served.pano?.id).toBe(RU_PANO);
@@ -148,7 +148,10 @@ describe("svStubServer", () => {
 
 			const search = await fetch(
 				`${base}/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/SingleImageSearch`,
-				{ method: "POST", body: locationSearch(52.10947502806108, 34.90131410856584) },
+				{
+					method: "POST",
+					body: locationSearch(52.10947502806108, 34.90131410856584) as BodyInit,
+				},
 			);
 			expect(locationSearchPanoId(await search.text())).toBe(RU_PANO);
 

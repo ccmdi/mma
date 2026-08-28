@@ -41,6 +41,7 @@ import type {
 	GeneratorSettings,
 	GeneratorRegion,
 	GenerationCallbacks,
+	GeneratedLocation,
 } from "@/plugins/generator/engine/types";
 import type { Pano } from "@/types";
 

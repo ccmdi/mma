@@ -20,10 +20,9 @@ describe("Tag CRUD", () => {
 		const result = await withApi(async (api) => {
 			const resolved = await api.createTags(["Red Tag"]);
 			const tagInfo = resolved[0];
-			const tagKey = String(tagInfo.id);
 			return {
 				count: Object.keys(api.getMapState().tags).length,
-				tag: api.getMapState().tags[tagKey],
+				tag: api.getMapState().tags[tagInfo.id],
 				tagId: tagInfo.id,
 			};
 		});
@@ -48,7 +47,7 @@ describe("Tag CRUD", () => {
 	it("update tag name", async () => {
 		const result = await withApi(async (api, tagId) => {
 			await api.updateTags([{ id: tagId, patch: { name: "Renamed Red" } }]);
-			return api.getMapState().tags[String(tagId)].name;
+			return api.getMapState().tags[tagId].name;
 		}, t1Id);
 		expect(result).toBe("Renamed Red");
 	});
@@ -56,7 +55,7 @@ describe("Tag CRUD", () => {
 	it("update tag color", async () => {
 		const result = await withApi(async (api, tagId) => {
 			await api.updateTags([{ id: tagId, patch: { color: "#ff8800" } }]);
-			return api.getMapState().tags[String(tagId)].color;
+			return api.getMapState().tags[tagId].color;
 		}, t1Id);
 		expect(result).toBe("#ff8800");
 	});
@@ -68,7 +67,7 @@ describe("Tag CRUD", () => {
 			return {
 				count: Object.keys(tags).length,
 				hasTag: String(tagId) in tags,
-				visible: tags[String(tagId)]?.visible,
+				visible: tags[tagId]?.visible,
 			};
 		}, t3Id);
 		expect(result.count).toBe(3);
@@ -196,12 +195,10 @@ describe("Tag persistence", () => {
 		const tags = await withApi((api) => {
 			return api.getMapState().tags;
 		});
-		const pt1Key = String(pt1Id);
-		const pt2Key = String(pt2Id);
-		expect(tags[pt1Key].name).toBe("Persist Tag");
-		expect(tags[pt1Key].color).toBe("#112233");
-		expect(tags[pt2Key].name).toBe("Persist Tag 2");
-		expect(tags[pt2Key].color).toBe("#445566");
+		expect(tags[pt1Id].name).toBe("Persist Tag");
+		expect(tags[pt1Id].color).toBe("#112233");
+		expect(tags[pt2Id].name).toBe("Persist Tag 2");
+		expect(tags[pt2Id].color).toBe("#445566");
 	});
 
 	it("tag assignments on locations survive save/load", async () => {
@@ -238,10 +235,8 @@ describe("Tag persistence", () => {
 		const tags = await withApi((api) => {
 			return api.getMapState().tags;
 		});
-		const pt1Key = String(pt1Id);
-		const pt2Key = String(pt2Id);
 		// pt2 should come before pt1 now
-		expect(tags[pt2Key].order!).toBeLessThan(tags[pt1Key].order!);
+		expect(tags[pt2Id].order!).toBeLessThan(tags[pt1Id].order!);
 	});
 });
 
@@ -275,8 +270,8 @@ describe("Tag merge on rename collision", () => {
 				await api.updateTags([{ id: aId, patch: { name: "Beta" } }]);
 				const tags = api.getMapState().tags;
 				return {
-					aVisible: tags[String(aId)]?.visible,
-					bVisible: tags[String(bId)]?.visible,
+					aVisible: tags[aId]?.visible,
+					bVisible: tags[bId]?.visible,
 					visibleCount: Object.values(tags).filter((t: any) => t.visible !== false).length,
 				};
 			},
@@ -321,8 +316,8 @@ describe("Tag merge on rename collision", () => {
 			async (api, aId, bId) => {
 				await api.undo();
 				const tags = api.getMapState().tags;
-				const aVisible = tags[String(aId)]?.visible;
-				const bVisible = tags[String(bId)]?.visible;
+				const aVisible = tags[aId]?.visible;
+				const bVisible = tags[bId]?.visible;
 				const locs = await api.fetchAllLocations();
 				const withA = locs.filter((l: any) => l.tags.includes(aId)).length;
 				const withB = locs.filter((l: any) => l.tags.includes(bId)).length;
@@ -373,8 +368,8 @@ describe("Tag merge persists across save/load", () => {
 				const tags = api.getMapState().tags;
 				const locs = await api.fetchAllLocations();
 				return {
-					xVisible: tags[String(xId)]?.visible,
-					yVisible: tags[String(yId)]?.visible,
+					xVisible: tags[xId]?.visible,
+					yVisible: tags[yId]?.visible,
 					allHaveY: locs.every((l: any) => l.tags.includes(yId)),
 					noneHaveX: locs.every((l: any) => !l.tags.includes(xId)),
 				};
@@ -417,10 +412,10 @@ describe("Tag name dedup on creation", () => {
 			const [created] = await api.createTags(["Revive"]);
 			await api.deleteTags([created.id]);
 			const tagsAfterDelete = api.getMapState().tags;
-			const hiddenAfterDelete = tagsAfterDelete[String(created.id)]?.visible;
+			const hiddenAfterDelete = tagsAfterDelete[created.id]?.visible;
 			const [resolved] = await api.createTags(["Revive"]);
 			const tagsAfterResolve = api.getMapState().tags;
-			const visibleAfterResolve = tagsAfterResolve[String(created.id)]?.visible;
+			const visibleAfterResolve = tagsAfterResolve[created.id]?.visible;
 			return {
 				originalId: created.id,
 				resolvedId: resolved.id,
@@ -449,9 +444,9 @@ describe("Tag visibility lifecycle", () => {
 		await openMap(map.id);
 
 		const result = await withApi(async (api, id) => {
-			const before = api.getMapState().tags[String(id)]?.visible;
+			const before = api.getMapState().tags[id]?.visible;
 			await api.createTags(["Phoenix"]);
-			const after = api.getMapState().tags[String(id)]?.visible;
+			const after = api.getMapState().tags[id]?.visible;
 			return { before, after };
 		}, tagId);
 		expect(result.before).toBe(false);
@@ -480,10 +475,10 @@ describe("Tag visibility lifecycle", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.createTags(["Zombie"]);
 			await api.deleteTags([tag.id]);
-			const hiddenInJs = api.getMapState().tags[String(tag.id)]?.visible;
+			const hiddenInJs = api.getMapState().tags[tag.id]?.visible;
 			// Re-resolve (simulates typing the name in the tag input)
 			await api.createTags(["Zombie"]);
-			const visibleInJs = api.getMapState().tags[String(tag.id)]?.visible;
+			const visibleInJs = api.getMapState().tags[tag.id]?.visible;
 			return { hiddenInJs, visibleInJs };
 		});
 		expect(result.hiddenInJs).toBe(false);
@@ -502,7 +497,7 @@ describe("Tag visibility lifecycle", () => {
 		await openMap(map.id);
 
 		const result = await withApi(async (api, id) => {
-			return api.getMapState().tags[String(id)]?.color;
+			return api.getMapState().tags[id]?.color;
 		}, tagId);
 		expect(result).toBe("#abcdef");
 	});
@@ -519,7 +514,7 @@ describe("Tag visibility lifecycle", () => {
 		await openMap(map.id);
 
 		const result = await withApi(async (api, id) => {
-			return api.getMapState().tags[String(id)]?.name;
+			return api.getMapState().tags[id]?.name;
 		}, tagId);
 		expect(result).toBe("NewName");
 	});
@@ -544,7 +539,7 @@ describe("Tag edge cases", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.createTags(["lowercase"]);
 			await api.updateTags([{ id: tag.id, patch: { name: "Lowercase" } }]);
-			const updated = api.getMapState().tags[String(tag.id)];
+			const updated = api.getMapState().tags[tag.id];
 			return { name: updated?.name };
 		});
 		expect(result.name).toBe("Lowercase");
@@ -555,7 +550,7 @@ describe("Tag edge cases", () => {
 			const [tag] = await api.createTags(["DoubleDelete"]);
 			await api.deleteTags([tag.id]);
 			await api.deleteTags([tag.id]);
-			const t = api.getMapState().tags[String(tag.id)];
+			const t = api.getMapState().tags[tag.id];
 			return { visible: t?.visible, exists: !!t };
 		});
 		expect(result.exists).toBe(true);
@@ -566,7 +561,7 @@ describe("Tag edge cases", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.createTags(["KeepMyName"]);
 			await api.updateTags([{ id: tag.id, patch: { name: "" } }]);
-			return api.getMapState().tags[String(tag.id)]?.name;
+			return api.getMapState().tags[tag.id]?.name;
 		});
 		// Should either keep old name or reject — never become ""
 		expect(result).toBe("KeepMyName");
@@ -576,7 +571,7 @@ describe("Tag edge cases", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.createTags(["KeepMe"]);
 			await api.updateTags([{ id: tag.id, patch: { name: "   " } }]);
-			return api.getMapState().tags[String(tag.id)]?.name;
+			return api.getMapState().tags[tag.id]?.name;
 		});
 		expect(result).toBe("KeepMe");
 	});
@@ -650,7 +645,7 @@ describe("Tag merge advanced", () => {
 				const tags = api.getMapState().tags;
 				const counts = api.getMapState().tagCounts;
 				return {
-					cVisible: tags[String(cId)]?.visible,
+					cVisible: tags[cId]?.visible,
 					bCount: counts[bId] ?? 0,
 					cCount: counts[cId] ?? 0,
 				};
@@ -672,7 +667,7 @@ describe("Tag merge advanced", () => {
 				const tags = api.getMapState().tags;
 				const counts = api.getMapState().tagCounts;
 				return {
-					cVisible: tags[String(cId)]?.visible,
+					cVisible: tags[cId]?.visible,
 					bCount: counts[bId] ?? 0,
 					cCount: counts[cId] ?? 0,
 				};

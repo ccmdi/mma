@@ -205,9 +205,10 @@ describe("parsedLocationsToImportJson", () => {
 
 	it("carries tags through extra.tags", () => {
 		const json = JSON.parse(
-			parsedLocationsToImportJson([
-				{ ...base, tags: ["red", "blue"], panoId: null, flags: LocationFlag.None },
-			]),
+			parsedLocationsToImportJson(
+				[{ ...base, tags: ["red", "blue"], panoId: null, flags: LocationFlag.None }],
+				"x",
+			),
 		);
 		expect(json.customCoordinates[0].extra).toEqual({ tags: ["red", "blue"] });
 	});

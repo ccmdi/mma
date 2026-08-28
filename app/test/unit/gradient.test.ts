@@ -6,7 +6,7 @@ import {
 	fieldScale,
 	colorPartition,
 } from "@/plugins/gradient/gradientMath";
-import type { PartitionGroup } from "@/lib/data/fieldOps";
+import type { PartitionBucket } from "@/bindings.gen";
 
 describe("lerp", () => {
 	it("t=0 returns first color", () => {
@@ -155,13 +155,13 @@ describe("colorPartition", () => {
 		[0, 0, 0],
 		[255, 255, 255],
 	];
-	const numericBins: PartitionGroup[] = [
+	const numericBins: PartitionBucket[] = [
 		{ key: "0–50", ids: [1, 2], bin: [0, 50] },
 		{ key: "50–100", ids: [3], bin: [50, 100] },
 	];
 
 	it("skips the empty bins the pivot keeps, so no selection selects nothing", () => {
-		const withGap: PartitionGroup[] = [
+		const withGap: PartitionBucket[] = [
 			{ key: "0–50", ids: [1, 2], bin: [0, 50] },
 			{ key: "50–100", ids: [], bin: [50, 100] },
 			{ key: "100–150", ids: [3], bin: [100, 150] },
@@ -213,7 +213,7 @@ describe("colorPartition", () => {
 	});
 
 	it("whole-map value groups emit live Filter `eq` selections", () => {
-		const groups: PartitionGroup[] = [
+		const groups: PartitionBucket[] = [
 			{ key: "a", ids: [1, 3], bin: null },
 			{ key: "b", ids: [2], bin: null },
 		];
@@ -230,7 +230,7 @@ describe("colorPartition", () => {
 	});
 
 	it("whole-map projection groups (no eqFilter, no bin) fall back to static Locations", () => {
-		const groups: PartitionGroup[] = [
+		const groups: PartitionBucket[] = [
 			{ key: "2020-01-01", ids: [1, 2], bin: null },
 			{ key: "2020-01-02", ids: [3], bin: null },
 		];

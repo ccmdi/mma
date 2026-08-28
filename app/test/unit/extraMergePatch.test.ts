@@ -42,7 +42,7 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 
 import { openMap, openDuplicateLocation, updateLocations, getMapState } from "@/store/useMapStore";
 import { createLocation, applyLocationPatch } from "@/types";
-import type { Location } from "@/types";
+import type { Location } from "@/bindings.gen";
 
 function makeLoc(extra: Record<string, unknown> | null = null): Location {
 	return { ...createLocation({ lat: 1, lng: 2 }), id: 7, extra };

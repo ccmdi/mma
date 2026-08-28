@@ -2,7 +2,7 @@
 // computeDivergence path and the statistical/labeling helpers — no store needed.
 
 import { describe, it, expect } from "vitest";
-import type { ExtraFieldDef } from "@/types";
+import type { ExtraFieldDef } from "@/bindings.gen";
 import {
 	computeDivergence,
 	soleGroup,

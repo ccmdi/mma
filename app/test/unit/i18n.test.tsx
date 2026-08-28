@@ -103,7 +103,7 @@ const forms = (entry: string | Record<string, string>) =>
 
 describe("i18n catalogs", () => {
 	it("are regenerated from the current source tree", () => {
-		expect(staleCatalogs().map(([f]: [string]) => path.basename(f))).toEqual([]);
+		expect(staleCatalogs().map(([f]: string[]) => path.basename(f))).toEqual([]);
 	});
 
 	it("leave no user-visible string unwrapped", () => {

@@ -8,7 +8,7 @@
 	},
 	"scripts": {
 		"gen:plugin-types": "node ../plugins/types/generate.js",
-		"typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.procedures.json",
+		"typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.procedures.json && tsc --noEmit -p test/tsconfig.json",
 		"gen:plugin-registry": "node ../plugins/generate-registry.js",
 		"gen:image-dims": "node scripts/gen-image-dims.mjs",
 		"gen:i18n": "node scripts/i18n-extract.mjs",

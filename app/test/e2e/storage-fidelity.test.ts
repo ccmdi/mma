@@ -161,9 +161,9 @@ describe("Field fidelity across multiple save cycles", () => {
 		expect(loaded.panoId).toBe("CAoSK0FGMVFpcE1XRGU");
 		expect(loaded.flags).toBe(3);
 		expect(loaded.createdAt).toBe(1736929800);
-		expect(loaded.extra.country).toBe("AU");
-		expect(loaded.extra.altitude).toBeCloseTo(58.2, 1);
-		expect(loaded.extra.nested.a).toBe(1);
+		expect(loaded.extra?.country).toBe("AU");
+		expect(loaded.extra?.altitude).toBeCloseTo(58.2, 1);
+		expect((loaded.extra?.nested as { a: number }).a).toBe(1);
 	});
 
 	it("updated fields survive save/load without corrupting other fields", async () => {
@@ -186,7 +186,7 @@ describe("Field fidelity across multiple save cycles", () => {
 		expect(loaded.lng).toBeCloseTo(151.2093, 4);
 		expect(loaded.panoId).toBe("CAoSK0FGMVFpcE1XRGU");
 		expect(loaded.flags).toBe(3);
-		expect(loaded.extra.country).toBe("AU");
+		expect(loaded.extra?.country).toBe("AU");
 	});
 
 	it("null panoId and zero flags survive save/load", async () => {
@@ -335,7 +335,7 @@ describe("Large dataset save/load fidelity", () => {
 		expect(loc0.heading).toBe(0);
 		expect(loc0.flags).toBe(1); // 0 % 4 === 0
 		expect(loc0.panoId).toBe("pano_0"); // 0 % 3 === 0
-		expect(loc0.extra.idx).toBe(0); // 0 % 10 === 0
+		expect(loc0.extra?.idx).toBe(0); // 0 % 10 === 0
 
 		const loc500 = await getLoc(result.idMap[500]);
 		expect(loc500.heading).toBe(140); // 500 % 360

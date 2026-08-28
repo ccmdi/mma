@@ -190,9 +190,9 @@ describe("Bulk operations -- needsEnrichment", () => {
 				modifiedAt: null,
 			};
 			return [
-				api.needsEnrichment({ ...base, extra: undefined }),
-				api.needsEnrichment({ ...base, extra: {} }),
-				api.needsEnrichment({ ...base, extra: { altitude: 100 } }),
+				api.needsEnrichment({ ...base, extra: undefined } as unknown as Location),
+				api.needsEnrichment({ ...base, extra: {} } as unknown as Location),
+				api.needsEnrichment({ ...base, extra: { altitude: 100 } } as unknown as Location),
 			];
 		});
 		expect(result).toEqual([true, true, true]);

@@ -26,7 +26,11 @@ import {
 } from "@/lib/data/fieldDefs";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 
-function makePlugin(id: string, name: string, activate = vi.fn()): Plugin {
+function makePlugin(
+	id: string,
+	name: string,
+	activate: Plugin["activate"] = vi.fn(),
+): Plugin {
 	return { id, name, icon: "test", activate };
 }
 
@@ -54,6 +58,7 @@ describe("registerPlugin", () => {
 			description: "From manifest",
 			icon: "manifest-icon",
 			main: "index.js",
+			version: "1.0.0",
 		});
 		const activate = vi.fn();
 		registerPlugin({ activate });
@@ -73,6 +78,7 @@ describe("registerPlugin", () => {
 			description: "",
 			icon: "x",
 			main: "index.js",
+			version: "1.0.0",
 		});
 		registerPlugin({ activate: vi.fn() });
 

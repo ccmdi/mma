@@ -248,7 +248,6 @@ describe("doclinkedTags", () => {
 		color: "#fff",
 		visible: true,
 		order: null,
-		count: 0,
 		doclinks,
 	});
 
@@ -269,7 +268,6 @@ describe("matchTagsToHeadings", () => {
 		color: "#fff",
 		visible: true,
 		order: null,
-		count: 0,
 		doclinks,
 	});
 	const h = (anchor: string, text: string) => ({ anchor, text, level: 2 });

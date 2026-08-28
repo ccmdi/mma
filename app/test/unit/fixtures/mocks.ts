@@ -30,13 +30,18 @@ export function logMock() {
 
 export function googleMapsMock() {
 	class Size {
-		constructor(
-			public w: number,
-			public h: number,
-		) {}
+		w: number;
+		h: number;
+		constructor(w: number, h: number) {
+			this.w = w;
+			this.h = h;
+		}
 	}
 	class ImageMapType {
-		constructor(public opts: { getTileUrl(c: { x: number; y: number }, z: number): string }) {}
+		opts: { getTileUrl(c: { x: number; y: number }, z: number): string };
+		constructor(opts: { getTileUrl(c: { x: number; y: number }, z: number): string }) {
+			this.opts = opts;
+		}
 		getTile(_coord: unknown, _zoom: number, doc: Document) {
 			return doc.createElement("div");
 		}
@@ -49,10 +54,12 @@ export function googleMapsMock() {
 			},
 		};
 		private div = document.createElement("div");
-		constructor(
-			public container: HTMLElement,
-			public opts: unknown,
-		) {}
+		container: HTMLElement;
+		opts: unknown;
+		constructor(container: HTMLElement, opts: unknown) {
+			this.container = container;
+			this.opts = opts;
+		}
 		setOptions() {}
 		setMapTypeId() {}
 		getDiv() {

@@ -162,7 +162,7 @@ describe("Multi-map metadata isolation", () => {
 	});
 
 	it("renaming one map does not affect the other", async () => {
-		await withApi(async (api, id) => api.renameMap(id, "Renamed Map 1"), map1Id);
+		await withApi(async (api, id) => api.patchMapMeta(id, { name: "Renamed Map 1" }), map1Id);
 
 		const maps = await withApi(async (api) => api.cmd.storeListMaps());
 		const m1 = maps.find((m: any) => m.id === map1Id);

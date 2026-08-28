@@ -16,7 +16,7 @@ describe("Map rename", () => {
 
 	it("rename open map updates in-memory name", async () => {
 		await withApi(async (api, id) => {
-			await api.renameMap(id, "Renamed Map");
+			await api.patchMapMeta(id, { name: "Renamed Map" });
 		}, map.id);
 
 		const name = await withApi(async (api) => api.getMapState().map?.name);
@@ -302,8 +302,8 @@ describe("Extra field definitions", () => {
 		});
 
 		const known = await withApi(async (api) => ({
-			countryCode: api.getMapState().knownFieldKeys.has("countryCode"),
-			imageDate: api.getMapState().knownFieldKeys.has("imageDate"),
+			countryCode: api.getKnownFieldKeys().has("countryCode"),
+			imageDate: api.getKnownFieldKeys().has("imageDate"),
 		}));
 		expect(known.countryCode).toBe(true);
 		expect(known.imageDate).toBe(true);

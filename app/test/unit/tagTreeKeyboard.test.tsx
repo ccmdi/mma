@@ -36,7 +36,7 @@ function render(onReorder: (ids: number[]) => void) {
 				selectedTagIds={new Set()}
 				tagCounts={{ 1: 1, 2: 1, 3: 1 }}
 				sortMode="default"
-				virtualTags={[]}
+				virtualTags={{}}
 				aliases={{}}
 				onEditTag={() => {}}
 				onEditVirtual={() => {}}

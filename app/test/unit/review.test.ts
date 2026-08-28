@@ -21,8 +21,8 @@ import {
 	isAtStart,
 	isCurrentReviewed,
 	reviewedHistoryIds,
-	type ReviewSession,
 } from "@/lib/review/review";
+import type { ReviewSession } from "@/bindings.gen";
 
 function mk(order: number[], cursorId: number, reviewed: number[] = []): ReviewSession {
 	return {

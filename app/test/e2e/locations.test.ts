@@ -124,8 +124,8 @@ describe("Location CRUD", () => {
 			await api.updateLocations([{ id: id, patch: { extra: merged } }], { undoable: false });
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
-		expect(loc.extra.altitude).toBe(150);
-		expect(loc.extra.country).toBe("GB");
+		expect(loc.extra?.altitude).toBe(150);
+		expect(loc.extra?.country).toBe("GB");
 	});
 
 	it("patch extra merges with existing", async () => {
@@ -135,8 +135,8 @@ describe("Location CRUD", () => {
 			await api.updateLocations([{ id: id, patch: { extra: merged } }], { undoable: false });
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
-		expect(loc.extra.altitude).toBe(150);
-		expect(loc.extra.city).toBe("London");
+		expect(loc.extra?.altitude).toBe(150);
+		expect(loc.extra?.city).toBe("London");
 	});
 
 	it("patch extra deletes key with null", async () => {
@@ -146,8 +146,8 @@ describe("Location CRUD", () => {
 			});
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
-		expect(loc.extra.altitude).toBeUndefined();
-		expect(loc.extra.city).toBe("London");
+		expect(loc.extra?.altitude).toBeUndefined();
+		expect(loc.extra?.city).toBe("London");
 	});
 
 	// --- Duplicate ---
@@ -263,9 +263,9 @@ describe("Location persistence", () => {
 			return loc?.extra ?? null;
 		}, persistLocIds[0]);
 		expect(extra).not.toBeNull();
-		expect(extra.altitude).toBe(42);
-		expect(extra.country).toBe("US");
-		expect(extra.note).toBe("test");
+		expect(extra?.altitude).toBe(42);
+		expect(extra?.country).toBe("US");
+		expect(extra?.note).toBe("test");
 	});
 
 	it("tags on locations survive save/load", async () => {

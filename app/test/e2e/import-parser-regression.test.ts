@@ -252,12 +252,15 @@ describe("Import — nested objects in extra", () => {
 			await api.cmd.storeImportPreview(path);
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
+			const meta = locs[0]?.extra?.meta as
+				| { source?: { name?: string; version?: number }; flags?: number[] }
+				| undefined;
 			return {
 				count: locs.length,
 				label: locs[0]?.extra?.label,
-				sourceName: locs[0]?.extra?.meta?.source?.name,
-				sourceVersion: locs[0]?.extra?.meta?.source?.version,
-				flags: locs[0]?.extra?.meta?.flags,
+				sourceName: meta?.source?.name,
+				sourceVersion: meta?.source?.version,
+				flags: meta?.flags,
 			};
 		});
 
@@ -304,9 +307,10 @@ describe("Import — nested objects in extra", () => {
 			const flat = locs.find((l: any) => Math.abs(l.lat - 1) < 0.01);
 			const deep = locs.find((l: any) => Math.abs(l.lat - 2) < 0.01);
 			const none = locs.find((l: any) => Math.abs(l.lat - 3) < 0.01);
+			const deepNested = deep?.extra?.deep as { a?: { b?: { c?: string } } } | undefined;
 			return {
 				flatVal: flat?.extra?.simple,
-				deepVal: deep?.extra?.deep?.a?.b?.c,
+				deepVal: deepNested?.a?.b?.c,
 				noneExtra: none?.extra,
 				allFound: !!flat && !!deep && !!none,
 			};

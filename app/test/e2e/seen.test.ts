@@ -13,7 +13,7 @@ import {
 	waitForWorkArea,
 	withApi,
 } from "./helpers";
-import { LocationFlag } from "../../src/types";
+import { LocationFlag } from "../../src/bindings.consts";
 import type { SeenEntry } from "../../src/bindings.gen";
 
 const OFFICIAL_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";

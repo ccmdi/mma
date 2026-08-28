@@ -46,7 +46,7 @@ import {
 } from "@/lib/sv/enrich";
 import { getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { createLocation } from "@/types";
-import type { Location } from "@/types";
+import type { Location } from "@/bindings.gen";
 import type { Pano } from "@/types";
 
 /** The `metadata` query's answer for a pano: one decoded image, nothing derived. */

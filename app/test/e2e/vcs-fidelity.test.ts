@@ -141,7 +141,7 @@ describe("VCS data fidelity — exact restoration through checkout", () => {
 		expect(byId[ids[0]].panoId).toBe("PANO_A2");
 		// loc2 retagged + extra changed
 		expect([...byId[ids[2]].tags].sort()).toContain(tagId);
-		expect(byId[ids[2]].extra.note).toBe("changed");
+		expect(byId[ids[2]].extra?.note).toBe("changed");
 		// loc3 deleted, plus the new loc present
 		expect(byId[ids[3]]).toBeUndefined();
 		const newLoc = Object.values(byId).find((l: any) => l.panoId === "NEW");

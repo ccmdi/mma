@@ -582,7 +582,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 							metrics: { selected },
 						};
 					},
-					props,
+					selector,
 					minimumSelected,
 				),
 		});

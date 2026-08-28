@@ -442,7 +442,7 @@ describe("Null vs absent field round-trip", () => {
 
 		const l2 = await getLoc(id2);
 		expect(l2.panoId).toBe("ABC");
-		expect(l2.extra.foo).toBe("bar");
+		expect(l2.extra?.foo).toBe("bar");
 
 		const l3 = await getLoc(id3);
 		expect(l3.panoId).toBeNull();
@@ -494,9 +494,9 @@ describe("Unicode in all fields", () => {
 
 		const loc = await getLoc(result.locId);
 		expect(loc.panoId).toBe("CAoSK0FG_東京_éè");
-		expect(loc.extra["地名"]).toBe("東京タワー");
-		expect(loc.extra["straße"]).toBe("café");
-		expect(loc.extra.nested["Адрес"]).toBe("Москва");
+		expect(loc.extra?.["地名"]).toBe("東京タワー");
+		expect(loc.extra?.["straße"]).toBe("café");
+		expect((loc.extra?.nested as { Адрес: string })["Адрес"]).toBe("Москва");
 
 		// Verify tags survived
 		expect(loc.tags).toContain(result.tagIds[0]);

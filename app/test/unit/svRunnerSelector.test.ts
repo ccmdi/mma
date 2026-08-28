@@ -185,7 +185,7 @@ describe("a collect provider's answers reach the caller", () => {
 
 	it("runProcedure borrows a writing procedure for its answers alone, typed by its spec", async () => {
 		h.answers = { core: [{ id: 1, json: '{"panoId":"ABC"}' }] };
-		const spec: ProcedureSpec<{ panoId: string }> = coreProvider.procedure;
+		const spec = coreProvider.procedure as ProcedureSpec<{ panoId: string }>;
 		const run = await runProcedure(spec, { type: "Everything" }, { id: "core", sink: "collect" });
 		expect(h.decls[0]).toMatchObject({ id: "core", sink: "collect", fields: [] });
 		expect(run.collected?.[0].value.panoId).toBe("ABC");

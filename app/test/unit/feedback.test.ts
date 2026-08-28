@@ -94,7 +94,7 @@ describe("issue body", () => {
 		// An unescaped "-->" inside the JSON would terminate the comment and split the payload.
 		const hostile = { ...diagnostics, webglRenderer: "evil --> renderer" };
 		const body = buildIssueBody(input, hostile, { anonymous: false, attach: ALL });
-		expect(parseReportBody(body)?.diagnostics.webglRenderer).toBe("evil --> renderer");
+		expect(parseReportBody(body)?.diagnostics?.webglRenderer).toBe("evil --> renderer");
 	});
 
 	it("carries the description, steps and diagnostics for a human reader", () => {
