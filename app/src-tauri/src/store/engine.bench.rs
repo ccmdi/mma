@@ -10,7 +10,9 @@
 
 use super::*;
 use crate::selections;
+use crate::store::arrow::{col_heading, col_lat, col_lng};
 use crate::store::commands::*;
+use crate::store::engine::persist::overlay_delta_bytes;
 use crate::store::storage;
 use crate::types::RawExtra;
 use std::env;
@@ -199,6 +201,32 @@ impl Fixture {
             })
             .collect()
     }
+
+    /// `count` exact no-op heading patches spread across the population.
+    pub fn noop_heading_updates(&self, count: usize) -> Vec<Update<LocationPatch>> {
+        let headings = col_heading(&self.batch);
+        let step = (self.n / count.max(1)).max(1);
+        (0..count)
+            .map(|i| {
+                let row = (i * step).min(self.n - 1);
+                Update {
+                    id: row as u32 + 1,
+                    patch: LocationPatch {
+                        heading: Some(headings.value(row)),
+                        ..Default::default()
+                    },
+                }
+            })
+            .collect()
+    }
+
+    pub fn coords(&self, id: u32) -> (f64, f64) {
+        let row = id as usize - 1;
+        (
+            col_lat(&self.batch).value(row),
+            col_lng(&self.batch).value(row),
+        )
+    }
 }
 
 /// The default render request: pin markers, whole world, no explicit selection.
@@ -273,6 +301,20 @@ impl BenchApp {
         store_remove_locations(label(), self.state(), ids).expect("remove_locations")
     }
 
+    pub fn update_locations(
+        &self,
+        updates: Vec<Update<LocationPatch>>,
+        record_undo: bool,
+    ) -> MutationResult {
+        async_runtime::block_on(store_update_locations(
+            label(),
+            self.state(),
+            updates,
+            Some(record_undo),
+        ))
+        .expect("update_locations")
+    }
+
     pub fn undo(&self) -> MutationResult {
         async_runtime::block_on(store_undo(label(), self.state())).expect("undo")
     }
@@ -295,6 +337,14 @@ impl BenchApp {
             render_request(),
         ))
         .expect("fill_render")
+    }
+
+    pub fn find_nearby(&self, lat: f64, lng: f64, radius_m: f64) -> Vec<Location> {
+        store_find_nearby(label(), self.state(), lat, lng, radius_m).expect("find_nearby")
+    }
+
+    pub fn near_any(&self, lats: Vec<f64>, lngs: Vec<f64>, radius_m: f64) -> Vec<bool> {
+        store_near_any(label(), self.state(), lats, lngs, radius_m).expect("near_any")
     }
 }
 
@@ -322,6 +372,37 @@ pub fn update_locations(
 pub fn resolve_selection(store: &Store, selector: &Selector) -> usize {
     let view = store.loc_view();
     selections::resolve(&view, selector).len() as usize
+}
+
+pub fn traverse_scope(store: &Store, set: &RoaringBitmap) -> (usize, f64) {
+    store
+        .loc_view()
+        .within(Some(set))
+        .fold((0, 0.0), |(count, sum), row| {
+            (count + 1, sum + row.lat() + row.lng())
+        })
+}
+
+pub fn extend_tag_registry(store: &mut Store, total: u32) {
+    let tags = store.tags.all.edit();
+    for id in store.tags.next_id..=total {
+        tags.insert(
+            id,
+            Tag {
+                id,
+                name: format!("tag{id}"),
+                color: "#3a7fc2".into(),
+                visible: true,
+                order: Some(id),
+                doclinks: Vec::new(),
+            },
+        );
+    }
+    store.tags.next_id = total.saturating_add(1);
+}
+
+pub fn serialize_overlay(store: &Store) -> Vec<u8> {
+    overlay_delta_bytes(&store.overlay).expect("serialize overlay")
 }
 
 /// Setup-only population of the overlay (id alloc + add + tag counts). Fixture
@@ -378,6 +459,12 @@ pub fn bake_overlay(store: &mut Store) {
 
 pub fn rebuild_tag_sets(store: &mut Store) {
     store.rebuild_tag_sets();
+}
+
+pub fn derived_state_two_pass(store: &mut Store) -> usize {
+    let alive = store.scan_locations().alive;
+    store.rebuild_tag_sets();
+    alive
 }
 
 // ---------------------------------------------------------------------------

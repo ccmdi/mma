@@ -48,6 +48,7 @@
 use app_lib::bench_api as bench;
 use bench::{LocationPatch, Selection, SelectionInput, Selector};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
+use roaring::RoaringBitmap;
 use std::env;
 use std::fs;
 use std::hint::black_box;
@@ -60,22 +61,27 @@ fn n() -> usize {
 fn add_locations(c: &mut Criterion) {
     let n = n();
     let fx = bench::Fixture::new(n);
-    let incoming = bench::locations(n, 0xADD5);
     let app = bench::BenchApp::new();
 
     let mut g = c.benchmark_group("add_locations");
-    g.sample_size(10);
-    g.throughput(Throughput::Elements(n as u64));
-    g.bench_function(BenchmarkId::from_parameter(n), |b| {
-        b.iter_batched(
-            || {
-                app.set_store(fx.store());
-                incoming.clone()
-            },
-            |locs| black_box(app.add_locations(locs)),
-            BatchSize::PerIteration,
-        );
-    });
+    g.sample_size(30);
+    let mut sizes = vec![1, 100, n.min(10_000), n];
+    sizes.sort_unstable();
+    sizes.dedup();
+    for batch_size in sizes {
+        let incoming = bench::locations(batch_size, 0xADD5);
+        g.throughput(Throughput::Elements(batch_size as u64));
+        g.bench_function(BenchmarkId::from_parameter(batch_size), |b| {
+            b.iter_batched(
+                || {
+                    app.set_store(fx.store());
+                    incoming.clone()
+                },
+                |locs| black_box(app.add_locations(locs)),
+                BatchSize::PerIteration,
+            );
+        });
+    }
     g.finish();
 }
 
@@ -93,6 +99,46 @@ fn update_locations(c: &mut Criterion) {
             b.iter_batched_ref(
                 || fx.store(),
                 |store| black_box(bench::update_locations(store, &updates, record_undo)),
+                BatchSize::PerIteration,
+            );
+        });
+    }
+    g.finish();
+}
+
+fn noop_updates(c: &mut Criterion) {
+    let n = n();
+    let fx = bench::Fixture::new(n);
+    let app = bench::BenchApp::new();
+
+    let mut g = c.benchmark_group("noop_updates");
+    g.sample_size(10);
+    g.throughput(Throughput::Elements(n as u64));
+    g.bench_function(format!("{n}/no_selection/{n}"), |b| {
+        b.iter_batched(
+            || {
+                app.set_store(fx.rendered_store());
+                fx.noop_heading_updates(n)
+            },
+            |updates| black_box(app.update_locations(updates, false)),
+            BatchSize::PerIteration,
+        );
+    });
+    for count in [100, 101] {
+        g.throughput(Throughput::Elements(count as u64));
+        g.bench_function(format!("{n}/tag_selection/{count}"), |b| {
+            b.iter_batched(
+                || {
+                    app.set_store(fx.rendered_store());
+                    app.sync_selections(vec![SelectionInput {
+                        key: "tag:3".into(),
+                        selector: Selector::Tag { tag_id: 3 },
+                        color: [255, 0, 0],
+                        ghosted: false,
+                    }]);
+                    fx.noop_heading_updates(count)
+                },
+                |updates| black_box(app.update_locations(updates, false)),
                 BatchSize::PerIteration,
             );
         });
@@ -217,6 +263,98 @@ fn selections(c: &mut Criterion) {
     g.bench_function(format!("{n}/sync/intersection"), |b| {
         b.iter(|| black_box(app.sync_selections(vec![input("int:1+2", &composite)])));
     });
+    g.finish();
+}
+
+fn scope_traversal(c: &mut Criterion) {
+    let n = n();
+    let fx = bench::Fixture::new(n);
+    let store = fx.store();
+    let sparse: RoaringBitmap = (1..=100)
+        .map(|i| ((i * n / 100).max(1).min(n)) as u32)
+        .collect();
+    let dense: RoaringBitmap = (1..=n as u32).step_by(2).collect();
+
+    let mut g = c.benchmark_group("scope_traversal");
+    g.sample_size(20);
+    for (name, set) in [("sparse_100", sparse), ("dense_50pct", dense)] {
+        g.throughput(Throughput::Elements(set.len()));
+        g.bench_function(format!("{n}/{name}"), |b| {
+            b.iter(|| black_box(bench::traverse_scope(&store, &set)));
+        });
+    }
+    g.finish();
+}
+
+fn spatial_queries(c: &mut Criterion) {
+    let n = n();
+    let fx = bench::Fixture::new(n);
+    let app = bench::BenchApp::new();
+    app.set_store(fx.store());
+    app.near_any(vec![80.0], vec![0.0], 2.0);
+
+    let hit = fx.coords((n / 2).max(1) as u32);
+    let mut g = c.benchmark_group("find_nearby");
+    g.sample_size(20);
+    g.bench_function(format!("{n}/hit_2m"), |b| {
+        b.iter(|| black_box(app.find_nearby(hit.0, hit.1, 2.0)));
+    });
+    g.bench_function(format!("{n}/miss_2m"), |b| {
+        b.iter(|| black_box(app.find_nearby(80.0, 0.0, 2.0)));
+    });
+    g.bench_function(format!("{n}/dense_1000km"), |b| {
+        b.iter(|| black_box(app.find_nearby(0.0, 0.0, 1_000_000.0)));
+    });
+    g.finish();
+
+    let count = 1_000usize.min(n);
+    let ids = (1..=count).map(|i| ((i * n / count).max(1)) as u32);
+    let (hit_lats, hit_lngs): (Vec<_>, Vec<_>) = ids.map(|id| fx.coords(id)).unzip();
+    let miss_lats = vec![80.0; count];
+    let miss_lngs: Vec<f64> = (0..count)
+        .map(|i| i as f64 * 360.0 / count as f64 - 180.0)
+        .collect();
+    let mut g = c.benchmark_group("near_any");
+    g.sample_size(20);
+    g.throughput(Throughput::Elements(count as u64));
+    for (name, lats, lngs) in [
+        ("hit_100m", hit_lats, hit_lngs),
+        ("miss_100m", miss_lats, miss_lngs),
+    ] {
+        g.bench_function(format!("{n}/{name}/{count}"), |b| {
+            b.iter_batched(
+                || (lats.clone(), lngs.clone()),
+                |(lats, lngs)| black_box(app.near_any(lats, lngs, 100.0)),
+                BatchSize::SmallInput,
+            );
+        });
+    }
+    g.finish();
+}
+
+fn autosave_serialize(c: &mut Criterion) {
+    let n = n();
+    let fx = bench::Fixture::new(n);
+    let patch_count = n / 10;
+    let updates = fx.heading_updates(patch_count);
+    let adds = bench::locations(patch_count, 0x5A7E);
+    let mut patched = fx.store();
+    bench::update_locations(&mut patched, &updates, false);
+    let mut mixed = fx.store();
+    bench::update_locations(&mut mixed, &updates, false);
+    bench::seed_adds(&mut mixed, adds);
+
+    let mut g = c.benchmark_group("autosave_serialize");
+    g.sample_size(10);
+    for (name, rows, store) in [
+        ("patches_10pct", patch_count, patched),
+        ("patched_10pct_added_10pct", patch_count * 2, mixed),
+    ] {
+        g.throughput(Throughput::Elements(rows as u64));
+        g.bench_function(format!("{n}/{name}"), |b| {
+            b.iter(|| black_box(bench::serialize_overlay(&store).len()));
+        });
+    }
     g.finish();
 }
 
@@ -357,6 +495,14 @@ fn render(c: &mut Criterion) {
             BatchSize::PerIteration,
         );
     });
+    let all_updates = fx.heading_updates(n);
+    g.bench_function(format!("{n}/delta_{n}"), |b| {
+        b.iter_batched_ref(
+            || fx.rendered_store(),
+            |store| black_box(bench::update_locations(store, &all_updates, false)),
+            BatchSize::PerIteration,
+        );
+    });
     g.finish();
 }
 
@@ -375,6 +521,30 @@ fn map_open(c: &mut Criterion) {
     g.bench_function(format!("{n}/arrow_mmap_and_index"), |b| {
         b.iter(|| black_box(bench::alive(&bench::open_from_arrow(&path, &fx.tags))));
     });
+    g.bench_function(format!("{n}/scan_aggregates"), |b| {
+        b.iter_batched_ref(
+            || fx.store(),
+            |store| black_box(bench::scan(store)),
+            BatchSize::PerIteration,
+        );
+    });
+    g.bench_function(format!("{n}/rebuild_tag_sets"), |b| {
+        b.iter_batched_ref(
+            || fx.store(),
+            |store| {
+                bench::rebuild_tag_sets(store);
+                black_box(())
+            },
+            BatchSize::PerIteration,
+        );
+    });
+    g.bench_function(format!("{n}/derived_state_two_pass"), |b| {
+        b.iter_batched_ref(
+            || fx.store(),
+            |store| black_box(bench::derived_state_two_pass(store)),
+            BatchSize::PerIteration,
+        );
+    });
     g.finish();
     fs::remove_file(&path).ok();
     fs::remove_dir(&dir).ok();
@@ -384,8 +554,12 @@ criterion_group!(
     benches,
     add_locations,
     update_locations,
+    noop_updates,
     row_ops,
     selections,
+    scope_traversal,
+    spatial_queries,
+    autosave_serialize,
     removes,
     undo_redo,
     bake,
