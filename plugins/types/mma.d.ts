@@ -2090,29 +2090,27 @@ type VirtualTag = {
     color?: string | null;
 };
 
-/** The value union of a `const` object. */
-export type EnumOf<T> = T[keyof T];
-
-declare const PanoType$1: {
+/** Panorama source type, as Google's metadata reports it. */
+declare const PanoType: {
     readonly Official: 2;
     readonly Unknown: 3;
     readonly UserUploaded: 10;
 };
+type PanoType = (typeof PanoType)[keyof typeof PanoType];
+/** Outcome of a Street View coverage check, as `validate` answers it per row. */
+declare const ValidationState: {
+    readonly GoodcamAvailable: 6;
+    readonly NotFound: 3;
+    readonly Ok: 0;
+    readonly PanoIdBroke: 4;
+    readonly Unofficial: 5;
+    readonly UpdateApplied: 2;
+    readonly UpdateAvailable: 1;
+};
+type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
 
 export type LatLng = google.maps.LatLngLiteral;
 export type Bounds = google.maps.LatLngBoundsLiteral;
-type PanoType = EnumOf<typeof PanoType$1>;
-/** Outcome of a Street View coverage check, as `validate` answers it per row. */
-declare const ValidationState: {
-    readonly Ok: 0;
-    readonly UpdateAvailable: 1;
-    readonly UpdateApplied: 2;
-    readonly NotFound: 3;
-    readonly PanoIdBroke: 4;
-    readonly Unofficial: 5;
-    readonly GoodcamAvailable: 6;
-};
-export type ValidationState = EnumOf<typeof ValidationState>;
 /** One decoded GetMetadata image: flat, plain JSON, no live objects. This is the app's
  *  panorama, not a transcription of the Maps JS API's. Anything derivable from these
  *  fields is a function in `@/lib/sv/getMetadata`, not a field here. */
@@ -2208,16 +2206,13 @@ export interface ReadonlyIdSet extends Iterable<number> {
  * selected ids from the overlay's id array. Exposes the Set-like surface its consumers use.
  */
 declare class SelectedIds {
+    /** Shared empty selection (no map open / cleared). */
+    static readonly EMPTY: SelectedIds;
     private readonly bits;
     /** Count of distinct selected ids (not overlay entries — an id selected by N
      *  overlapping selections still counts once). */
     readonly size: number;
-    /** Shared empty selection (no map open / cleared). */
-    static readonly EMPTY: SelectedIds;
-    constructor(bits: Uint8Array, 
-    /** Count of distinct selected ids (not overlay entries — an id selected by N
-     *  overlapping selections still counts once). */
-    size: number);
+    constructor(bits: Uint8Array, size: number);
     has(id: number): boolean;
     /** Yields each selected id once, ascending. Scans the bit array, so it's O(maxId/8);
      *  used by deliberate bulk consumers (export, bulk-tag, delete), not the per-frame path. */
@@ -4604,5 +4599,5 @@ declare global {
     const MMA: MMA;
 }
 
-export { BUILTIN_FIELDS, KNOWN_FIELDS, MMA as MMAApi, PROJECTIONS, SCRATCH_MAP_ID, commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PanoType, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export { BUILTIN_FIELDS, KNOWN_FIELDS, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, ValidationState, commands, events };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

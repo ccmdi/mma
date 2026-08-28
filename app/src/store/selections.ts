@@ -6,7 +6,7 @@ import { hslToRgb } from "@/lib/util/color";
 import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
 import { localDateTime, utcDateTime } from "@/lib/util/format";
 import { clamp, isVariant, unionTuple, type Variant } from "@/types/util";
-import { ValidationState } from "@/types";
+import { ValidationState } from "@/bindings.consts";
 import { pointInPolygon } from "@/lib/geo/geo";
 import { getSettings } from "@/store/settings";
 import { dayMonthFmt } from "@/lib/util/format";

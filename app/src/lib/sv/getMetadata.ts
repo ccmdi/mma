@@ -19,7 +19,6 @@ import {
 } from "@/lib/proto/getmetadata.gen";
 import { type Pano, type PanoExtra } from "@/types";
 import { PanoType } from "@/bindings.consts";
-import type { EnumOf } from "@/types/util";
 import { readImageMetadata as readImageMetadataArray } from "@/lib/proto/getmetadata.array.gen";
 import { imageKeyToPanoId, isOfficialPano, panoIdToImageKey } from "@/lib/sv/panoId";
 import type { ProcedureRequest } from "@/lib/data/procedureHost";
@@ -73,7 +72,7 @@ function parseImage(m: ImageMetadata): Pano | null {
 		pano,
 		// An image with no key of its own is official coverage. Google can report a frontend
 		// outside the three we name, so this is an assertion, not a guarantee.
-		panoFrontend: (m.pano?.frontend || PanoType.Official) as EnumOf<typeof PanoType>,
+		panoFrontend: (m.pano?.frontend || PanoType.Official) as PanoType,
 		worldSize: {
 			width: m.tiles?.worldSize?.width ?? 0,
 			height: m.tiles?.worldSize?.height ?? 0,

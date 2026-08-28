@@ -25,7 +25,7 @@ import {
 } from "@/lib/data/fieldDefRegistry";
 import { cmd } from "@/lib/commands";
 import { buildSelection } from "@/store/selections";
-import { ValidationState } from "@/types";
+import { ValidationState } from "@/bindings.consts";
 import { validateLocations } from "@/lib/sv/validate";
 import { enrichAll, type EnrichResult } from "@/lib/sv/enrich";
 import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";

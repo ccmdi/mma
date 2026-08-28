@@ -124,19 +124,29 @@ pub fn wire_names<V>(pairs: impl IntoIterator<Item = (&'static str, V)>) -> BTre
 /// A closed set of numeric values Rust owns: the constants, the enum-field catalogue
 /// entries built from them, and the map TypeScript mirrors, all from one list.
 macro_rules! wire_enum {
-    ($(#[$m:meta])* $name:ident : $repr:ty { $($konst:ident = $val:expr => $label:literal),* $(,)? }) => {
-        $(#[$m])*
+    (@base $(#[doc = $doc:literal])* $name:ident : $repr:ty { $($konst:ident = $val:expr),* }) => {
+        $(#[doc = $doc])*
         pub struct $name;
         impl $name {
             $(pub const $konst: $repr = $val;)*
-            /// Values as the `extra` column stores them.
-            pub const VALUES: &'static [&'static str] = &[$(stringify!($val)),*];
-            pub const LABELS: &'static [(&'static str, &'static str)] =
-                &[$((stringify!($val), $label)),*];
+            /// The rustdoc above, one entry per line, for the TypeScript mirror.
+            pub const DOC: &'static [&'static str] = &[$($doc),*];
             pub fn wire_names() -> std::collections::BTreeMap<String, $repr> {
                 wire_names([$((stringify!($konst), $val)),*])
             }
         }
+    };
+    ($(#[doc = $doc:literal])* $name:ident : $repr:ty { $($konst:ident = $val:expr => $label:literal),* $(,)? }) => {
+        wire_enum!(@base $(#[doc = $doc])* $name : $repr { $($konst = $val),* });
+        impl $name {
+            /// Values as the `extra` column stores them.
+            pub const VALUES: &'static [&'static str] = &[$(stringify!($val)),*];
+            pub const LABELS: &'static [(&'static str, &'static str)] =
+                &[$((stringify!($val), $label)),*];
+        }
+    };
+    ($(#[doc = $doc:literal])* $name:ident : $repr:ty { $($konst:ident = $val:expr),* $(,)? }) => {
+        wire_enum!(@base $(#[doc = $doc])* $name : $repr { $($konst = $val),* });
     };
 }
 
@@ -146,6 +156,19 @@ wire_enum! {
         OFFICIAL = 2 => "Official",
         UNKNOWN = 3 => "Unknown",
         USER_UPLOADED = 10 => "User uploaded",
+    }
+}
+
+wire_enum! {
+    /// Outcome of a Street View coverage check, as `validate` answers it per row.
+    ValidationState: u8 {
+        OK = 0,
+        UPDATE_AVAILABLE = 1,
+        UPDATE_APPLIED = 2,
+        NOT_FOUND = 3,
+        PANO_ID_BROKE = 4,
+        UNOFFICIAL = 5,
+        GOODCAM_AVAILABLE = 6,
     }
 }
 
@@ -163,6 +186,10 @@ bitflags::bitflags! {
 }
 
 impl LocationFlags {
+    /// Mirrors the struct's rustdoc: `bitflags!` puts it out of a macro's reach.
+    pub const DOC: &'static [&'static str] =
+        &["Per-location bitfield, serialized as a plain `u32` over IPC and Arrow."];
+
     /// The bits a preview carries that a real location must not.
     pub const VIRTUAL: Self = Self::IMPORT_PREVIEW.union(Self::SEEN_OVERLAY);
 

@@ -4,8 +4,8 @@ import type {
 	LocationPatch_Deserialize as LocationPatch,
 } from "@/bindings.gen";
 import { nowUnix } from "@/lib/util/util";
-import type { RequireNonNull, EnumOf } from "@/types/util";
-import { LocationFlag, PanoType as PanoTypeValues } from "@/bindings.consts";
+import type { RequireNonNull } from "@/types/util";
+import { LocationFlag, PanoType } from "@/bindings.consts";
 
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
@@ -31,20 +31,6 @@ export function bboxTupleToBounds(t: [number, number, number, number] | null): B
 export function boundsToScoreTuple(b: Bounds): [number, number, number, number] {
 	return [b.south, b.west, b.north, b.east];
 }
-
-export type PanoType = EnumOf<typeof PanoTypeValues>;
-
-/** Outcome of a Street View coverage check, as `validate` answers it per row. */
-export const ValidationState = {
-	Ok: 0,
-	UpdateAvailable: 1,
-	UpdateApplied: 2,
-	NotFound: 3,
-	PanoIdBroke: 4,
-	Unofficial: 5,
-	GoodcamAvailable: 6,
-} as const;
-export type ValidationState = EnumOf<typeof ValidationState>;
 
 /** The `extra` fields an enrichment run derives for a pano, from `panoFields`. */
 export interface PanoExtra {

@@ -65,7 +65,7 @@ export const SearchPreference = { Best: 1, Nearest: 2 } as const;
 export type SearchPreference = EnumOf<typeof SearchPreference>;
 
 export interface SearchOpts {
-	sources?: EnumOf<typeof PanoType>[];
+	sources?: PanoType[];
 	preference?: SearchPreference;
 }
 
@@ -74,7 +74,7 @@ export interface SearchOpts {
  *  API's cold answer is this search's nearest pano each time, and the official frontend on
  *  its own misses user coverage entirely. (The API's answer drifts with its session -- it
  *  sends a session id this search does not -- so only cold calls compare.) */
-export const ALL_SOURCES: EnumOf<typeof PanoType>[] = [
+export const ALL_SOURCES: PanoType[] = [
 	PanoType.Official,
 	PanoType.Unknown,
 	PanoType.UserUploaded,

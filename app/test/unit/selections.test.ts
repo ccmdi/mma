@@ -24,7 +24,7 @@ import {
 	isolateGhostKeys,
 	rewriteSelectionFields,
 } from "@/store/selections";
-import { ValidationState } from "@/types";
+import { ValidationState } from "@/bindings.consts";
 import { setUserFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { setSetting } from "@/store/settings";
 

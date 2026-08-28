@@ -288,24 +288,50 @@ fn export_consts() -> Result<(), String> {
 // No imports, ever: procedures bundle this file and must not reach Tauri.
 ",
     );
-    let mut put = |name: &str, value: String| {
-        ts.push_str(&format!(
-            "
-export const {name} = {value} as const;
-"
-        ));
+    // A name -> value map also carries its value union, so one import spells both.
+    let mut put = |name: &str, doc: &[&str], value: String, union: bool| {
+        ts.push('\n');
+        match doc {
+            [] => {}
+            [one] => ts.push_str(&format!("/** {} */\n", one.trim())),
+            many => {
+                ts.push_str("/**\n");
+                for line in many {
+                    ts.push_str(&format!(" * {}\n", line.trim()));
+                }
+                ts.push_str(" */\n");
+            }
+        }
+        ts.push_str(&format!("export const {name} = {value} as const;\n"));
+        if union {
+            ts.push_str(&format!(
+                "export type {name} = (typeof {name})[keyof typeof {name}];\n"
+            ));
+        }
     };
     put(
         "LocationFlag",
+        types::LocationFlags::DOC,
         serde_json::to_string(&types::LocationFlags::wire_names()).map_err(|e| e.to_string())?,
+        true,
     );
     put(
         "PanoType",
+        types::PanoType::DOC,
         serde_json::to_string(&types::PanoType::wire_names()).map_err(|e| e.to_string())?,
+        true,
+    );
+    put(
+        "ValidationState",
+        types::ValidationState::DOC,
+        serde_json::to_string(&types::ValidationState::wire_names()).map_err(|e| e.to_string())?,
+        true,
     );
     put(
         "VIRTUAL_FLAGS",
+        &["The preview bits a real location must never carry."],
         types::LocationFlags::VIRTUAL.bits().to_string(),
+        false,
     );
     fs::write(&out, ts).map_err(|e| e.to_string())?;
     eprintln!("[specta] constants exported to {}", out.display());

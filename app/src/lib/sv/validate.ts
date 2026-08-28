@@ -1,5 +1,5 @@
 import type { Selector } from "@/bindings.gen";
-import { ValidationState } from "@/types";
+import { ValidationState } from "@/bindings.consts";
 import type { ProcedureSpec } from "@/lib/data/fieldDefs";
 import { procedureEntry, runProcedure } from "@/lib/data/procedures";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
