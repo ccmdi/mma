@@ -3,15 +3,25 @@
   "version": "0.1.0",
   "description": "Type declarations for MMA plugin development",
   "types": "mma.d.ts",
-  "files": ["mma.d.ts", "google-maps.d.ts"],
+  "files": [
+    "mma.d.ts",
+    "google-maps.d.ts",
+    "tsconfig.base.json"
+  ],
   "dependencies": {
-    "@deck.gl/core": "^9.3.1",
+    "@deck.gl/core": "9.3.10",
+    "@deck.gl/google-maps": "9.3.10",
+    "@deck.gl/layers": "9.3.10",
+    "@luma.gl/core": "9.3.6",
+    "@luma.gl/engine": "9.3.6",
+    "@luma.gl/shadertools": "9.3.6",
+    "@luma.gl/webgl": "9.3.6",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@types/google.maps": "^3.64.0",
-    "maplibre-gl": "^5.24.0",
     "@types/react": "^19.2.14",
+    "maplibre-gl": "^5.24.0",
     "react": "^19.2.5"
   }
 }
