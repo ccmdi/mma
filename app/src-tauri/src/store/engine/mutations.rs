@@ -149,9 +149,7 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
     store.edits.redo.clear();
     store.add_tag_counts(&locations);
     let added = locations.clone();
-    for loc in locations {
-        store.overlay_add(vec![loc]);
-    }
+    store.overlay_add(locations);
     let extras: Vec<&RawExtra> = added.iter().filter_map(|l| l.extra.as_ref()).collect();
     auto_register_extras(store, &extras);
     store.finish_mutation(&ChangeSet {
