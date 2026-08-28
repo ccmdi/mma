@@ -10,13 +10,11 @@ pub(crate) struct TagState {
     pub all: Tracked<HashMap<u32, Tag>>,
     /// `tag_id -> number of locations carrying it`. The sole owner of tag counts;
     /// `MutationResult.tag_counts` is their only channel to JS, so nothing on the wire-facing
-    /// `Tag` can disagree. Maintained in `update_tag_counts`, rebuilt on map open.
-    pub counts: HashMap<u32, usize>,
-    /// Tags whose count moved since the last `finish_mutation`, which drains it. Decides
-    /// both which tags get their visibility re-derived (scanning all of them instead would
-    /// hide any tag merely sitting at zero, including one just created) and whether the
-    /// result carries `tag_counts` at all.
-    pub touched: HashSet<u32>,
+    /// `Tag` can disagree. Maintained in `update_tag_counts`, rebuilt on map open. The keys
+    /// touched since the last `finish_mutation` decide which tags get their visibility
+    /// re-derived (scanning all of them would hide any tag merely sitting at zero, including
+    /// one just created) and whether the result carries `tag_counts` at all.
+    pub counts: Touched<u32, usize>,
     pub next_id: u32,
     /// `tag_id -> set of member location ids`. Lets a `Tag` selection resolve by
     /// cloning a set instead of scanning every row's tag list. Maintained
@@ -150,14 +148,13 @@ impl Store {
                         },
                     );
                 }
-                let count = self.tags.counts.entry(tag_id).or_default();
+                let count = self.tags.counts.edit(tag_id);
                 if delta < 0 {
                     *count = count.saturating_sub((-delta) as usize);
                 } else {
                     *count += delta as usize;
                 }
                 members.entry(tag_id).or_default().push(loc.id);
-                self.tags.touched.insert(tag_id);
             }
         }
         for (tag_id, mut ids) in members {

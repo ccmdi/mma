@@ -151,8 +151,7 @@ impl Store {
             },
             tags: TagState {
                 all: Tracked::default(),
-                counts: HashMap::new(),
-                touched: HashSet::new(),
+                counts: Touched::default(),
                 next_id: 1,
                 sets: HashMap::new(),
             },
@@ -271,7 +270,7 @@ impl Store {
         };
 
         // A tag is visible exactly while something carries it.
-        let touched = mem::take(&mut self.tags.touched);
+        let touched = self.tags.counts.drain_touched();
         for &tag_id in &touched {
             let should = self.tag_count(tag_id) > 0;
             if self
@@ -836,6 +835,44 @@ impl<T> std::ops::Deref for Tracked<T> {
     type Target = T;
     fn deref(&self) -> &T {
         &self.value
+    }
+}
+
+/// A map that remembers which keys were written since the last drain. The only `&mut`
+/// into an entry is [`Touched::edit`], so a moved entry cannot fail to be announced.
+#[derive(Debug, Default)]
+pub(crate) struct Touched<K, V> {
+    map: HashMap<K, V>,
+    touched: HashSet<K>,
+}
+
+impl<K: Eq + std::hash::Hash + Copy, V: Default> Touched<K, V> {
+    pub(crate) fn new(map: HashMap<K, V>) -> Self {
+        Self {
+            map,
+            touched: HashSet::new(),
+        }
+    }
+
+    pub(crate) fn edit(&mut self, key: K) -> &mut V {
+        self.touched.insert(key);
+        self.map.entry(key).or_default()
+    }
+
+    /// Announce a key without writing it (a tag that sits at zero still needs a look).
+    pub(crate) fn touch(&mut self, key: K) {
+        self.touched.insert(key);
+    }
+
+    pub(crate) fn drain_touched(&mut self) -> HashSet<K> {
+        mem::take(&mut self.touched)
+    }
+}
+
+impl<K, V> std::ops::Deref for Touched<K, V> {
+    type Target = HashMap<K, V>;
+    fn deref(&self) -> &HashMap<K, V> {
+        &self.map
     }
 }
 

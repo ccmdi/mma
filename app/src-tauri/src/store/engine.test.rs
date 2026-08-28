@@ -532,7 +532,7 @@ fn tag_counts_correct_after_undo_tag_change() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![20]);
     let mut store = setup_store_with(&[new.clone()]);
-    store.tags.counts.clear();
+    store.tags.counts = Touched::default();
     store.add_tag_counts(&[new.clone()]);
     assert_eq!(tag_count(&store, 20), Some(1));
     assert_eq!(tag_count(&store, 10), None);
@@ -1793,7 +1793,7 @@ fn tag_counts_correct_after_tag_reassignment_undo() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![5]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![5, 10]);
     let mut store = setup_store_with(&[new.clone()]);
-    store.tags.counts.clear();
+    store.tags.counts = Touched::default();
     store.add_tag_counts(&[new.clone()]);
     assert_eq!(tag_count(&store, 5), Some(1));
     assert_eq!(tag_count(&store, 10), Some(1));
@@ -2620,7 +2620,7 @@ fn insert_tag(store: &mut Store, id: u32, count: usize) {
             doclinks: Vec::new(),
         },
     );
-    store.tags.counts.insert(id, count);
+    *store.tags.counts.edit(id) = count;
 }
 
 #[test]
@@ -2932,7 +2932,7 @@ fn touched_zero_member_tag_is_hidden_by_finish_mutation() {
     // on: a touched count-0 tag gets visible=false and the result ships tags.
     let mut store = setup_store_with(&[]);
     insert_tag(&mut store, 1, 0);
-    store.tags.touched.insert(1);
+    store.tags.counts.touch(1);
 
     let result = store.finish_mutation(&ChangeSet::default());
 

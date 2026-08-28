@@ -163,7 +163,7 @@ pub async fn store_open_map(
         let mut tags = read_tags_json(&conn, &map_id);
         let (max_tag_id, healed) = reconcile_tag_registry(&mut tags, &tag_counts);
         store.tags.all = Tracked::new(tags);
-        store.tags.counts = tag_counts;
+        store.tags.counts = Touched::new(tag_counts);
         if healed {
             store.tags.all.touch();
         }
@@ -453,9 +453,11 @@ pub async fn store_delete_tags(
             affected_ids.len(),
             _t.elapsed().as_millis()
         );
-        // A zero-member tag never passes through update_tag_counts, so mark it touched
+        // A zero-member tag never passes through update_tag_counts, so announce it
         // directly or finish_mutation skips the visible=false flip and the delete no-ops.
-        store.tags.touched.extend(tag_set.iter().copied());
+        for &id in &tag_set {
+            store.tags.counts.touch(id);
+        }
         let changeset = store.commit_tag_update(updated);
         Ok(store.finish_mutation(&changeset))
     })
