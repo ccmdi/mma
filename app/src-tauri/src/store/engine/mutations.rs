@@ -38,21 +38,33 @@ impl ChangeSet {
     }
 }
 
-/// Unified response for every mutation IPC. Bundles the store status, render delta,
-/// optional selection sync, optional newly-discovered extra-field keys, and optional
-/// updated tags. JS applies all of these atomically to stay in sync with the Rust state.
-/// `new_field_defs` carries the inferred/known field definitions for extra-field keys
-/// discovered for the first time in this mutation. JS merges them straight into the
-/// field-def registry, so field metadata is live without a reload.
+/// What one mutation changed, and nothing else: every field but `version` and `delta`
+/// is `None` when that part of the world did not move. JS merges each present field
+/// into its state, so an untouched slice keeps its reference and its subscribers sleep.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MutationResult {
-    #[serde(flatten)]
-    pub status: StoreStatus,
+    pub version: u64,
     pub delta: RenderDelta,
     pub selection_sync: Option<SelectionSync>,
-    pub new_field_defs: Option<HashMap<String, maps::ExtraFieldDef>>,
+    pub location_count: Option<usize>,
+    pub can_undo: Option<bool>,
+    pub can_redo: Option<bool>,
+    /// Every tag's count, when any count moved.
+    pub tag_counts: Option<HashMap<u32, usize>>,
+    /// The whole registry, when any tag was created, edited, deleted, or flipped visible.
     pub tags: Option<HashMap<u32, Tag>>,
+    /// Every known extra-field key, when one was seen for the first time or erased.
+    pub known_field_keys: Option<Vec<String>>,
+    /// Definitions for the keys seen for the first time in this mutation.
+    pub new_field_defs: Option<HashMap<String, maps::ExtraFieldDef>>,
+}
+
+impl MutationResult {
+    /// The key set changed (a first-seen key, or an erased one): ship it whole.
+    pub(crate) fn announce_field_keys(&mut self, store: &Store) {
+        self.known_field_keys = Some(store.known_field_keys.iter().cloned().collect());
+    }
 }
 
 /// User-facing warning toast.
@@ -163,6 +175,9 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
         added: added.clone(),
         ..Default::default()
     });
+    if new_field_defs.is_some() {
+        result.announce_field_keys(store);
+    }
     result.new_field_defs = new_field_defs;
     result
 }
@@ -205,12 +220,14 @@ pub(crate) fn apply_updates(
         ..Default::default()
     };
     let mut result = store.finish_mutation(&changes);
+    if new_field_defs.is_some() {
+        result.announce_field_keys(store);
+    }
     result.new_field_defs = new_field_defs;
     // Undo is recorded after the mutation is finished so the pairs move into the entry
-    // instead of being cloned; the status was read before the push, so patch it.
+    // instead of being cloned; report again so the stack change rides along.
     if record_undo && store.record_update_undo(changes.updated) {
-        result.status.can_undo = true;
-        result.status.can_redo = false;
+        store.report(&mut result);
     }
     result
 }
@@ -454,10 +471,14 @@ pub(crate) fn apply_field_op(
     for k in &plan.forget {
         store.known_field_keys.remove(k);
     }
+    let mut mutation = apply_updates(store, &plan.updates, record_undo);
+    if !plan.forget.is_empty() {
+        mutation.announce_field_keys(store);
+    }
     Ok(FieldOpResult {
         changed: plan.updates.len() as u32,
         skipped: plan.skipped,
-        mutation: apply_updates(store, &plan.updates, record_undo),
+        mutation,
     })
 }
 

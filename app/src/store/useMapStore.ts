@@ -284,7 +284,7 @@ function openedMapState(meta: MapMeta | null, status: StoreStatus) {
 		map: meta,
 		locationCount: meta?.locationCount ?? 0,
 		tags: meta?.tags ?? {},
-		tagCounts: status.tagCounts ?? {},
+		tagCounts: status.tagCounts,
 		canUndo: status.canUndo,
 		canRedo: status.canRedo,
 		knownFieldKeys: new Set(status.knownFieldKeys),
@@ -495,8 +495,8 @@ function deadTagKeys(oldTags: Record<number, Tag>, newTags: Record<number, Tag>)
 	return keys;
 }
 
-/** Merge a Rust MutationResult into the state: present fields are set, null
- *  fields were unchanged and are skipped (JSON-merge-patch semantics). */
+/** A MutationResult carries only what moved: every present field replaces its slice,
+ *  every null field was untouched and keeps its reference. */
 function applyMutation(r: MutationResult) {
 	if (!state.map) return;
 	const oldTags = state.tags;
@@ -504,9 +504,9 @@ function applyMutation(r: MutationResult) {
 		locationCount: r.locationCount,
 		canUndo: r.canUndo,
 		canRedo: r.canRedo,
-		tagCounts: r.tagCounts,
 		tags: r.tags,
-		knownFieldKeys: new Set(r.knownFieldKeys),
+		tagCounts: r.tagCounts,
+		knownFieldKeys: r.knownFieldKeys && new Set(r.knownFieldKeys),
 	});
 	if (r.newFieldDefs) mergeUserFieldDefs(r.newFieldDefs);
 	if (r.tags) void removeSelections(deadTagKeys(oldTags, r.tags));
@@ -531,16 +531,16 @@ function applySelectionSync(sync: SelectionSync) {
 }
 
 const EMPTY_MUTATION: MutationResult = {
+	version: 0,
 	delta: { added: [], updated: [], removed: [], fullReset: false },
 	selectionSync: null,
-	newFieldDefs: null,
-	tags: null,
-	version: 0,
-	locationCount: 0,
-	canUndo: false,
-	canRedo: false,
+	locationCount: null,
+	canUndo: null,
+	canRedo: null,
 	tagCounts: null,
-	knownFieldKeys: [],
+	tags: null,
+	knownFieldKeys: null,
+	newFieldDefs: null,
 };
 
 /** Run a mutation IPC, emit its render delta, sync JS state, and schedule a save. */

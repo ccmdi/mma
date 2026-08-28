@@ -797,7 +797,7 @@ fn add_copied_reconciles_tags_and_reports_counts() {
     let r = add_copied_to_store(&mut store, copies, source_tags).unwrap();
 
     // Both copies landed in the target store.
-    assert_eq!(r.status.location_count, 2);
+    assert_eq!(r.location_count, Some(2));
     let stored = store.collect(&Selector::Everything);
     assert_eq!(stored.len(), 2);
 
@@ -825,7 +825,7 @@ fn add_copied_reconciles_tags_and_reports_counts() {
     assert!(two_tag.tags.contains(&unique.id));
 
     // Counts in the result match membership: Shared on both copies, Unique on one.
-    let counts = r.status.tag_counts.as_ref().expect("import changes counts");
+    let counts = r.tag_counts.as_ref().expect("import changes counts");
     assert_eq!(counts[&5], 2);
     assert_eq!(counts[&unique.id], 1);
 

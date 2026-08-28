@@ -729,11 +729,11 @@ fn samey_tag_only_change_skips_render() {
 // -----------------------------------------------------------------------
 
 #[test]
-fn store_status_reflects_undo_redo() {
+fn open_status_reflects_undo_redo() {
     let l = loc(1, 0.0, 0.0);
     let mut store = setup_store_with(&[l]);
 
-    let s = store.store_status();
+    let s = store.open_status();
     assert!(!s.can_undo);
     assert!(!s.can_redo);
 
@@ -741,7 +741,7 @@ fn store_status_reflects_undo_redo() {
         created: vec![],
         removed: vec![],
     });
-    let s = store.store_status();
+    let s = store.open_status();
     assert!(s.can_undo);
     assert!(!s.can_redo);
 
@@ -749,7 +749,7 @@ fn store_status_reflects_undo_redo() {
         created: vec![],
         removed: vec![],
     });
-    let s = store.store_status();
+    let s = store.open_status();
     assert!(s.can_undo);
     assert!(s.can_redo);
 }
@@ -764,15 +764,17 @@ fn finish_mutation_reports_correct_state() {
     });
 
     let result = store.finish_mutation(&ChangeSet::default());
-    assert_eq!(result.status.location_count, 1);
-    assert!(result.status.can_undo);
-    assert!(!result.status.can_redo);
+    assert_eq!(result.location_count, Some(1));
+    assert_eq!(result.can_undo, Some(true));
+    assert_eq!(result.can_redo, None, "never true, so never reported");
     // Setup added tagged locations, so this first mutation ships counts.
-    assert_eq!(
-        result.status.tag_counts.as_ref().unwrap().get(&10),
-        Some(&1)
-    );
-    assert_eq!(result.status.version, 1);
+    assert_eq!(result.tag_counts.as_ref().unwrap().get(&10), Some(&1));
+    assert_eq!(result.version, 1);
+
+    // Nothing moved since: the next result reports none of it again.
+    let result = store.finish_mutation(&ChangeSet::default());
+    assert_eq!(result.location_count, None);
+    assert_eq!(result.can_undo, None);
 }
 
 #[test]
@@ -782,19 +784,16 @@ fn tag_counts_shipped_only_when_changed() {
 
     // Setup's add_tag_counts left counts dirty: first mutation ships them once.
     let result = store.finish_mutation(&ChangeSet::default());
-    assert!(result.status.tag_counts.is_some());
+    assert!(result.tag_counts.is_some());
 
     // A mutation that touches no tags must not ship counts.
     let result = store.finish_mutation(&ChangeSet::default());
-    assert!(result.status.tag_counts.is_none());
+    assert!(result.tag_counts.is_none());
 
     // A tag-touching edit ships fresh counts again.
     let changes = store.apply_edit(slice::from_ref(&l), &[]);
     let result = store.finish_mutation(&changes);
-    assert_eq!(
-        result.status.tag_counts.as_ref().unwrap().get(&10),
-        Some(&0)
-    );
+    assert_eq!(result.tag_counts.as_ref().unwrap().get(&10), Some(&0));
 }
 
 #[test]
@@ -2353,7 +2352,7 @@ fn create_tags_with_locations_never_leaves_the_tag_at_zero() {
         assert!(store.get_loc_by_id(id).unwrap().tags.contains(&tag.id));
     }
     assert_eq!(
-        result.status.tag_counts.unwrap().get(&tag.id),
+        result.tag_counts.unwrap().get(&tag.id),
         Some(&2),
         "the same mutation reports the count to JS"
     );
@@ -4329,13 +4328,15 @@ fn field_op_check_guards_builtin_names() {
     .is_err());
 }
 
-// A key a mutation introduces is in that same result's status snapshot: JS reads
-// `knownFieldKeys` straight from the result, with no union over `new_field_defs`.
+// A key a mutation introduces is announced by that same result, and the store knows
+// it from then on; JS grows its key set from `new_field_defs` alone.
 #[test]
-fn new_extra_key_is_known_in_the_same_result() {
+fn new_extra_key_is_announced_in_the_same_result() {
     let mut store = setup_store_with(&[]);
     let r = apply_adds(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
-    assert!(r.status.known_field_keys.contains(&"zz".to_string()));
+    assert!(r
+        .known_field_keys
+        .is_some_and(|k| k.contains(&"zz".to_string())));
     assert!(r.new_field_defs.is_some_and(|d| d.contains_key("zz")));
 
     let r = apply_updates(
@@ -4349,7 +4350,9 @@ fn new_extra_key_is_known_in_the_same_result() {
         }],
         false,
     );
-    assert!(r.status.known_field_keys.contains(&"yy".to_string()));
+    assert!(r
+        .known_field_keys
+        .is_some_and(|k| k.contains(&"yy".to_string())));
     assert!(r.new_field_defs.is_some_and(|d| d.contains_key("yy")));
 }
 
@@ -4376,7 +4379,12 @@ fn field_op_round_trip_rename_reannounces_the_key() {
     assert!(r1.delta.updated.is_empty(), "extra-only: no render delta");
     assert!(!store.known_field_keys.contains("a"), "a erased, forgotten");
     assert!(store.known_field_keys.contains("b"), "b auto-registered");
-    assert!(!r1.status.known_field_keys.contains(&"a".to_string()));
+    assert!(
+        r1.known_field_keys
+            .as_ref()
+            .is_some_and(|k| !k.contains(&"a".to_string())),
+        "the result ships the key set without a"
+    );
 
     let r2 = apply_field_op(
         &mut store,

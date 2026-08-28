@@ -9,7 +9,7 @@ use std::collections::{HashMap, HashSet};
 pub(crate) struct TagState {
     pub all: HashMap<u32, Tag>,
     /// `tag_id -> number of locations carrying it`. The sole owner of tag counts;
-    /// `StoreStatus.tag_counts` is their only channel to JS, so nothing on the wire-facing
+    /// `MutationResult.tag_counts` is their only channel to JS, so nothing on the wire-facing
     /// `Tag` can disagree. Maintained in `update_tag_counts`, rebuilt on map open.
     pub counts: HashMap<u32, usize>,
     pub dirty: bool,

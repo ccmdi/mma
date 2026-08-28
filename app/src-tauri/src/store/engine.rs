@@ -102,6 +102,8 @@ pub struct Store {
     pub(crate) next_id: u32,
     pub(crate) version: u64,
     pub(crate) alive_count: usize,
+    /// What JS was last told, so a mutation result carries only the fields that moved.
+    pub(crate) reported: Reported,
     pub(crate) known_field_keys: HashSet<String>,
 
     pub(crate) overlay: Overlay,
@@ -145,6 +147,7 @@ impl Store {
             next_id: 1,
             version: 0,
             alive_count: 0,
+            reported: Reported::default(),
             known_field_keys: HashSet::new(),
             overlay: Overlay::default(),
             render: RenderState {
@@ -185,20 +188,51 @@ impl Store {
     }
 
     /// Snapshot current store metadata for the frontend: version, counts, undo/redo availability.
-    pub(crate) fn store_status(&self) -> StoreStatus {
+    /// The full picture, for a window that has nothing yet. Every later mutation result
+    /// is a delta against this, so it also resets what counts as "already reported".
+    pub(crate) fn open_status(&mut self) -> StoreStatus {
+        let now = self.current();
+        self.reported = now;
         StoreStatus {
             version: self.version,
+            location_count: now.location_count,
+            can_undo: now.can_undo,
+            can_redo: now.can_redo,
+            tag_counts: self.tag_counts(),
+            known_field_keys: self.known_field_keys.iter().cloned().collect(),
+        }
+    }
+
+    fn tag_counts(&self) -> HashMap<u32, usize> {
+        self.tags
+            .all
+            .keys()
+            .map(|&id| (id, self.tag_count(id)))
+            .collect()
+    }
+
+    fn current(&self) -> Reported {
+        Reported {
             location_count: self.alive_count,
             can_undo: !self.edits.undo.is_empty(),
             can_redo: !self.edits.redo.is_empty(),
-            tag_counts: Some(
-                self.tags
-                    .all
-                    .keys()
-                    .map(|&id| (id, self.tag_count(id)))
-                    .collect(),
-            ),
-            known_field_keys: self.known_field_keys.iter().cloned().collect(),
+        }
+    }
+
+    /// Put on `result` every scalar JS has not seen at its current value, and remember
+    /// that it has now. Idempotent: a second call in the same mutation adds only what
+    /// moved in between (an undo entry pushed after `finish_mutation`, say).
+    pub(crate) fn report(&mut self, result: &mut MutationResult) {
+        let now = self.current();
+        let was = mem::replace(&mut self.reported, now);
+        if now.location_count != was.location_count {
+            result.location_count = Some(now.location_count);
+        }
+        if now.can_undo != was.can_undo {
+            result.can_undo = Some(now.can_undo);
+        }
+        if now.can_redo != was.can_redo {
+            result.can_redo = Some(now.can_redo);
         }
     }
 
@@ -255,8 +289,7 @@ impl Store {
         let mut tags = None;
         let mut vis_changed = false;
         let touched = mem::take(&mut self.tags.touched);
-        let counts_changed = !touched.is_empty();
-        for tag_id in touched {
+        for &tag_id in &touched {
             let should = self.tag_count(tag_id) > 0;
             let Some(tag) = self.tags.all.get_mut(&tag_id) else {
                 continue;
@@ -271,18 +304,22 @@ impl Store {
             tags = Some(self.tags.all.clone());
         }
 
-        let mut status = self.store_status();
-        if !counts_changed {
-            status.tag_counts = None;
-        }
+        let tag_counts = (!touched.is_empty()).then(|| self.tag_counts());
 
-        MutationResult {
-            status,
+        let mut result = MutationResult {
+            version: self.version,
             delta,
             selection_sync,
-            new_field_defs: None,
+            location_count: None,
+            can_undo: None,
+            can_redo: None,
+            tag_counts,
             tags,
-        }
+            known_field_keys: None,
+            new_field_defs: None,
+        };
+        self.report(&mut result);
+        result
     }
 
     /// Allocate the next monotonically increasing location ID.
@@ -691,10 +728,16 @@ pub struct StoreStatus {
     pub location_count: usize,
     pub can_undo: bool,
     pub can_redo: bool,
-    /// `None` when the mutation did not change any tag count (`finish_mutation`
-    /// strips it), so JS keeps its reference and consumers skip re-rendering.
-    pub tag_counts: Option<HashMap<u32, usize>>,
+    pub tag_counts: HashMap<u32, usize>,
     pub known_field_keys: Vec<String>,
+}
+
+/// The scalars a mutation result reports by change, not by value.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Reported {
+    pub location_count: usize,
+    pub can_undo: bool,
+    pub can_redo: bool,
 }
 
 /// Lightweight status for polling: count, version, and whether unsaved changes exist.

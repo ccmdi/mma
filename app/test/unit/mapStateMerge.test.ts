@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Pins the applyMutation contract: a MutationResult is a JSON merge patch onto
-// MapState — present fields are set, null fields were unchanged and must be
-// skipped so untouched slices keep their reference (the render gate for
-// useMapState selectors is reference identity).
+// Pins the applyMutation contract: a MutationResult carries only what moved. A present
+// field replaces its slice; a null field was untouched and must keep its reference (the
+// render gate for useMapState selectors is reference identity).
 
 vi.mock("@/lib/commands", async () => {
 	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
@@ -22,16 +21,16 @@ import { openMap, mutate, getMapState } from "@/store/useMapStore";
 import type { MutationResult, Tag } from "@/bindings.gen";
 
 const result = (over: Partial<MutationResult> = {}): MutationResult => ({
+	version: 0,
 	delta: { added: [], updated: [], removed: [], fullReset: false },
 	selectionSync: null,
-	newFieldDefs: null,
-	tags: null,
-	version: 0,
-	locationCount: 3,
-	canUndo: true,
-	canRedo: false,
+	locationCount: null,
+	canUndo: null,
+	canRedo: null,
 	tagCounts: null,
-	knownFieldKeys: [],
+	tags: null,
+	knownFieldKeys: null,
+	newFieldDefs: null,
 	...over,
 });
 
@@ -49,14 +48,19 @@ describe("applyMutation merge semantics", () => {
 		expect(after.map).toBe(before.map);
 	});
 
-	it("scalars always track the result", async () => {
+	it("present scalars replace, absent ones hold", async () => {
 		await mutate(() =>
 			Promise.resolve(result({ locationCount: 42, canUndo: true, canRedo: true })),
 		);
-		const s = getMapState();
+		let s = getMapState();
 		expect(s.locationCount).toBe(42);
 		expect(s.canUndo).toBe(true);
 		expect(s.canRedo).toBe(true);
+		await mutate(() => Promise.resolve(result({ canRedo: false })));
+		s = getMapState();
+		expect(s.locationCount).toBe(42);
+		expect(s.canUndo).toBe(true);
+		expect(s.canRedo).toBe(false);
 	});
 
 	it("present fields replace their slice; a tag change never re-mints the map", async () => {
@@ -72,9 +76,8 @@ describe("applyMutation merge semantics", () => {
 		expect(s.map).toBe(mapBefore);
 	});
 
-	// knownFieldKeys is a wholesale mirror of the status snapshot: Rust registers a
-	// mutation's new keys before it snapshots, and forgets erased ones, so JS never unions.
-	it("knownFieldKeys mirrors the status snapshot", async () => {
+	// knownFieldKeys ships whole when it changed, and holds its reference when it didn't.
+	it("knownFieldKeys replaces when present and holds when absent", async () => {
 		expect([...getMapState().knownFieldKeys]).toEqual(["alt"]);
 		await mutate(() =>
 			Promise.resolve(
@@ -83,9 +86,12 @@ describe("applyMutation merge semantics", () => {
 		);
 		expect([...getMapState().knownFieldKeys].sort()).toEqual(["alt", "foo"]);
 
-		// A snapshot that no longer lists a key drops it from the mirror.
 		await mutate(() => Promise.resolve(result({ knownFieldKeys: ["foo"] })));
 		expect([...getMapState().knownFieldKeys]).toEqual(["foo"]);
+
+		const held = getMapState().knownFieldKeys;
+		await mutate(() => Promise.resolve(result()));
+		expect(getMapState().knownFieldKeys).toBe(held);
 	});
 
 	it("selectionSync refreshes selectionCounts", async () => {

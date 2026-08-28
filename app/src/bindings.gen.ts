@@ -1091,19 +1091,26 @@ export type MapSettings = {
 export type MergeWinner = "from" | "to";
 
 /**
- *  Unified response for every mutation IPC. Bundles the store status, render delta,
- *  optional selection sync, optional newly-discovered extra-field keys, and optional
- *  updated tags. JS applies all of these atomically to stay in sync with the Rust state.
- *  `new_field_defs` carries the inferred/known field definitions for extra-field keys
- *  discovered for the first time in this mutation. JS merges them straight into the
- *  field-def registry, so field metadata is live without a reload.
+ *  What one mutation changed, and nothing else: every field but `version` and `delta`
+ *  is `None` when that part of the world did not move. JS merges each present field
+ *  into its state, so an untouched slice keeps its reference and its subscribers sleep.
  */
 export type MutationResult = {
+	version: number,
 	delta: RenderDelta,
 	selectionSync: SelectionSync | null,
-	newFieldDefs: { [key in string]: ExtraFieldDef } | null,
+	locationCount: number | null,
+	canUndo: boolean | null,
+	canRedo: boolean | null,
+	/**  Every tag's count, when any count moved. */
+	tagCounts: { [key in number]: number } | null,
+	/**  The whole registry, when any tag was created, edited, deleted, or flipped visible. */
 	tags: { [key in number]: Tag } | null,
-} & StoreStatus;
+	/**  Every known extra-field key, when one was seen for the first time or erased. */
+	knownFieldKeys: string[] | null,
+	/**  Definitions for the keys seen for the first time in this mutation. */
+	newFieldDefs: { [key in string]: ExtraFieldDef } | null,
+};
 
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
@@ -1625,11 +1632,7 @@ export type StoreStatus = {
 	locationCount: number,
 	canUndo: boolean,
 	canRedo: boolean,
-	/**
-	 *  `None` when the mutation did not change any tag count (`finish_mutation`
-	 *  strips it), so JS keeps its reference and consumers skip re-rendering.
-	 */
-	tagCounts: { [key in number]: number } | null,
+	tagCounts: { [key in number]: number },
 	knownFieldKeys: string[],
 };
 
@@ -1675,13 +1678,6 @@ export type SyncReconcileResult = {
 	mirrorLocalDeleteIds: number[],
 };
 
-/**
- *  A user-defined label that can be applied to any number of locations.
- * 
- *  Tags are stored in `MapMeta` and referenced by id in each `Location.tags`.
- *  Member counts are not part of the tag record: `TagState.counts` owns them and
- *  `StoreStatus.tag_counts` is the only channel that ships them.
- */
 export type Tag = {
 	id: number,
 	name: string,

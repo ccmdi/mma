@@ -17,14 +17,16 @@ const wire = vi.hoisted(() => ({
 vi.mock("@/lib/commands", async () => {
 	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
 	const mutationResult = () => ({
+		version: 0,
 		delta: { added: [], updated: [], removed: [], fullReset: false },
+		selectionSync: null,
 		locationCount: 1,
 		canUndo: true,
-		canRedo: false,
-		newFieldDefs: null,
-		tags: null,
+		canRedo: null,
 		tagCounts: null,
-		knownFieldKeys: [],
+		tags: null,
+		knownFieldKeys: null,
+		newFieldDefs: null,
 	});
 	return cmdProxy({
 		storeGetMap: async () => testMap({ locationCount: 0 }),

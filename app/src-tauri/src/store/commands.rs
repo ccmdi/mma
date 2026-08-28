@@ -186,7 +186,7 @@ pub async fn store_open_map(
     store.edits.undo = undo;
     store.edits.redo = redo;
 
-    let status = store.store_status();
+    let status = store.open_status();
     let mut mgr = state.lock()?;
     mgr.window_map.insert(label.0.clone(), map_id.clone());
     mgr.stores.insert(map_id, store);

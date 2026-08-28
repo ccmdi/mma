@@ -346,6 +346,9 @@ pub(super) fn add_parsed_to_store(
         ..Default::default()
     });
     result.tags = Some(store.tags.all.clone());
+    if new_field_defs.is_some() {
+        result.announce_field_keys(store);
+    }
     result.new_field_defs = new_field_defs;
     log::debug!("[import-insert] n={n} reconcile+alloc={:.0}ms counts={:.0}ms auto_reg={:.0}ms undo={:.0}ms overlay_add={:.0}ms finish={:.0}ms total={:.0}ms",
         t_reconcile.as_millis(), (t_counts - t_reconcile).as_millis(), (t_autoreg - t_counts).as_millis(),
