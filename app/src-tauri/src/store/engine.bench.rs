@@ -375,12 +375,12 @@ pub fn resolve_selection(store: &Store, selector: &Selector) -> usize {
 }
 
 pub fn traverse_scope(store: &Store, set: &RoaringBitmap) -> (usize, f64) {
-    store
-        .loc_view()
-        .within(Some(set))
-        .fold((0, 0.0), |(count, sum), row| {
-            (count + 1, sum + row.lat() + row.lng())
-        })
+    let (mut count, mut sum) = (0, 0.0);
+    store.loc_view().for_each_within(Some(set), |row| {
+        count += 1;
+        sum += row.lat() + row.lng();
+    });
+    (count, sum)
 }
 
 pub fn extend_tag_registry(store: &mut Store, total: u32) {

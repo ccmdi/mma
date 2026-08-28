@@ -48,6 +48,22 @@ fn within_iterates_resolved_set_in_view_order() {
     assert_eq!(ids(Some(&RoaringBitmap::new())), Vec::<u32>::new());
 }
 
+#[test]
+fn within_sparse_applies_overlay_and_preserves_view_order() {
+    let base: Vec<Location> = (1..=1_000).map(|id| loc(id, id as f64, 0.0)).collect();
+    let fx = Fx::base(&base)
+        .with_adds(vec![loc(1_001, 1_001.0, 0.0)])
+        .with_dead([500])
+        .with_patch(750, loc(750, 7_500.0, 0.0));
+    let view = fx.view();
+    let set: RoaringBitmap = [1, 500, 750, 1_001, 9_999].into_iter().collect();
+
+    let mut rows = Vec::new();
+    view.for_each_within(Some(&set), |row| rows.push((row.id(), row.lat())));
+
+    assert_eq!(rows, vec![(1, 1.0), (750, 7_500.0), (1_001, 1_001.0)]);
+}
+
 // -----------------------------------------------------------------------
 // Geometry: point_in_ring / point_in_polygon
 // -----------------------------------------------------------------------

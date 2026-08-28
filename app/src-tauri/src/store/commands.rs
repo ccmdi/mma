@@ -507,9 +507,9 @@ pub async fn store_country_distribution(
     let coords: Vec<(f64, f64)> = with_store!(label, state, |store| {
         let view = store.loc_view();
         let resolved = selections::narrow(&view, &selector);
-        view.within(resolved.as_ref())
-            .map(|row| (row.lat(), row.lng()))
-            .collect()
+        let mut coords = Vec::new();
+        view.for_each_within(resolved.as_ref(), |row| coords.push((row.lat(), row.lng())));
+        coords
     });
     borders::tally_countries(&level, &coords)
 }

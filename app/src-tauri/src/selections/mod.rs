@@ -485,6 +485,53 @@ impl<'a> LocView<'a> {
             .filter(move |r| set.is_none_or(|s| s.contains(r.id())))
     }
 
+    /// `within` as a visitor. A set small enough that seeking each id beats one
+    /// sequential pass is walked by id (sorted ids on both the batch and the adds keep
+    /// view order); anything larger takes the dense walk.
+    #[inline]
+    pub fn for_each_within<'v>(
+        &'v self,
+        set: Option<&'v RoaringBitmap>,
+        mut f: impl FnMut(RowRef<'a, 'v>),
+    ) {
+        let physical_rows = self.batch_rows + self.adds.len();
+        let sparse = set.is_some_and(|set| {
+            let search_steps = self.batch_rows.checked_ilog2().unwrap_or(0)
+                + self.adds.len().checked_ilog2().unwrap_or(0)
+                + 2;
+            set.len().saturating_mul(u64::from(search_steps)) < physical_rows as u64
+        });
+        if !sparse {
+            self.within(set).for_each(f);
+            return;
+        }
+
+        let set = set.unwrap();
+        for id in set.iter() {
+            let Some(i) = self
+                .batch
+                .and_then(|batch| arrow::batch_row_for_id(batch, id))
+            else {
+                continue;
+            };
+            if !self.is_alive(i) {
+                continue;
+            }
+            let row = match self.patch_at(i) {
+                Some(p) => RowRef::from_loc(p),
+                None => RowRef {
+                    inner: RowInner::Base(self, i),
+                },
+            };
+            f(row);
+        }
+        for id in set.iter() {
+            if let Ok(i) = self.adds.binary_search_by_key(&id, |loc| loc.id) {
+                f(RowRef::from_loc(&self.adds[i]));
+            }
+        }
+    }
+
     #[inline]
     pub fn for_each(&self, f: impl FnMut(RowRef)) {
         self.iter().for_each(f);
@@ -856,14 +903,14 @@ pub fn narrow(view: &LocView, selector: &Selector) -> Option<RoaringBitmap> {
 /// fields does this map actually have, and how covered are they" in one pass.
 pub fn extra_key_coverage(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<(String, u32)> {
     let mut counts: HashMap<String, u32> = HashMap::new();
-    for row in view.within(set) {
+    view.for_each_within(set, |row| {
         row.for_each_extra_key(|key| match counts.get_mut(key) {
             Some(c) => *c += 1,
             None => {
                 counts.insert(key.to_string(), 1);
             }
         });
-    }
+    });
     let mut out: Vec<(String, u32)> = counts.into_iter().collect();
     out.sort_by(|a, b| a.0.cmp(&b.0));
     out
@@ -878,7 +925,7 @@ pub fn columns_within(
     fields: &[String],
 ) -> Vec<Vec<serde_json::Value>> {
     let mut out: Vec<Vec<serde_json::Value>> = fields.iter().map(|_| Vec::new()).collect();
-    for row in view.within(set) {
+    view.for_each_within(set, |row| {
         for (col, field) in out.iter_mut().zip(fields) {
             col.push(if field == "tags" {
                 let mut tags = Vec::new();
@@ -888,35 +935,37 @@ pub fn columns_within(
                 row.resolve_field(field).unwrap_or(serde_json::Value::Null)
             });
         }
-    }
+    });
     out
 }
 
 /// Size of the selected set. Counts rows, never materializes them.
 pub fn count_within(view: &LocView, set: Option<&RoaringBitmap>) -> u32 {
-    view.within(set).count() as u32
+    let mut count = 0;
+    view.for_each_within(set, |_| count += 1);
+    count
 }
 
 /// Ids of every alive location in the set, in view order (batch rows, then overlay adds).
 pub fn ids_within(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<u32> {
-    view.within(set).map(|row| row.id()).collect()
+    let mut ids = Vec::new();
+    view.for_each_within(set, |row| ids.push(row.id()));
+    ids
 }
 
 /// Distinct values of `field` across the selected set, sorted. Scalars stringify so they
 /// match the string-typed options they populate; null and containers are skipped.
 pub fn distinct_values(view: &LocView, field: &str, set: Option<&RoaringBitmap>) -> Vec<String> {
     let mut seen = BTreeSet::new();
-    for row in view.within(set) {
-        match row.resolve_field(field) {
-            Some(serde_json::Value::String(s)) if !s.is_empty() => {
-                seen.insert(s);
-            }
-            Some(v @ (serde_json::Value::Number(_) | serde_json::Value::Bool(_))) => {
-                seen.insert(v.to_string());
-            }
-            _ => {}
+    view.for_each_within(set, |row| match row.resolve_field(field) {
+        Some(serde_json::Value::String(s)) if !s.is_empty() => {
+            seen.insert(s);
         }
-    }
+        Some(v @ (serde_json::Value::Number(_) | serde_json::Value::Bool(_))) => {
+            seen.insert(v.to_string());
+        }
+        _ => {}
+    });
     seen.into_iter().collect()
 }
 

@@ -270,16 +270,18 @@ impl Store {
         let view = self.loc_view();
         let resolved = selections::narrow(&view, selector);
         let mut locs = Vec::with_capacity(self.alive_count);
-        locs.extend(view.within(resolved.as_ref()).map(|row| row.to_location()));
+        view.for_each_within(resolved.as_ref(), |row| locs.push(row.to_location()));
         locs
     }
 
     /// Full O(N) bounds scan, optionally narrowed to an id set. Returns the raw
     /// accumulator; callers `.resolve()` it to `[w,s,e,n]`.
     pub(super) fn scan_bounds(&self, set: Option<&RoaringBitmap>) -> Option<BoundsAcc> {
-        self.loc_view().within(set).fold(None, |acc, row| {
-            Some(BoundsAcc::fold(acc, row.lat(), row.lng()))
-        })
+        let mut bounds = None;
+        self.loc_view().for_each_within(set, |row| {
+            bounds = Some(BoundsAcc::fold(bounds, row.lat(), row.lng()));
+        });
+        bounds
     }
 
     pub(crate) fn compute_bounds(&self, set: Option<&RoaringBitmap>) -> Option<[f64; 4]> {

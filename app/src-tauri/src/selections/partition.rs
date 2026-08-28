@@ -140,11 +140,11 @@ pub(super) fn partition_numeric(
     set: Option<&RoaringBitmap>,
 ) -> Vec<PartitionBucket> {
     let mut vals: Vec<(u32, f64)> = Vec::new();
-    for row in view.within(set) {
+    view.for_each_within(set, |row| {
         if let Some(n) = row.resolve_field(field).as_ref().and_then(as_f64) {
             vals.push((row.id(), n));
         }
-    }
+    });
     let nums: Vec<f64> = vals.iter().map(|(_, n)| *n).collect();
     let buckets = match bin_numeric(&nums, binning) {
         Some(b) => b,
@@ -176,7 +176,7 @@ pub(super) fn partition_keyed(
 ) -> Vec<PartitionBucket> {
     let mut index: HashMap<String, usize> = HashMap::new();
     let mut groups: Vec<PartitionBucket> = Vec::new();
-    for row in view.within(set) {
+    view.for_each_within(set, |row| {
         let id = row.id();
         let key = match spec {
             KeySpec::Value => row.resolve_field(field).and_then(|v| value_key(&v)),
@@ -191,22 +191,21 @@ pub(super) fn partition_keyed(
             KeySpec::NumericBin { .. } => None,
         };
         if let Some(k) = key {
-            if k.is_empty() {
-                continue;
-            }
-            match index.get(&k) {
-                Some(&i) => groups[i].ids.push(id),
-                None => {
-                    index.insert(k.clone(), groups.len());
-                    groups.push(PartitionBucket {
-                        key: k,
-                        ids: vec![id],
-                        bin: None,
-                    });
+            if !k.is_empty() {
+                match index.get(&k) {
+                    Some(&i) => groups[i].ids.push(id),
+                    None => {
+                        index.insert(k.clone(), groups.len());
+                        groups.push(PartitionBucket {
+                            key: k,
+                            ids: vec![id],
+                            bin: None,
+                        });
+                    }
                 }
             }
         }
-    }
+    });
     groups
 }
 
