@@ -89,7 +89,7 @@ jobs:
           settings: '{"attribution":{"commit":"","pr":""}}'
           claude_args: |
             --model claude-sonnet-5
-            --allowedTools "Read,Grep,Glob,Write,Bash(gh issue view:*),Bash(gh issue list:*)"
+            --allowedTools "Read,Grep,Glob,Write,Bash(gh issue view:*)"
             --disallowedTools "Agent"
           prompt: |
             You are triaging issue #${{ matrix.issue }} on this repository (a Tauri desktop app:
@@ -112,21 +112,39 @@ jobs:
                - enhancement: a request for new or changed behavior
                - documentation: about the manual, README, or other docs
 
-            3. Decide the effort, only if no "effort:" label is present yet. Calibrate
-               against how the maintainer has used these before -- read a sample of past
-               labeled issues and match their sense of scale, not your own:
-               gh issue list --state all --label "effort: small" --limit 15 --json number,title
-               gh issue list --state all --label "effort: medium" --limit 15 --json number,title
-               gh issue list --state all --label "effort: large" --limit 15 --json number,title
-               Then explore the codebase (Grep/Glob/Read) enough to see what the change
-               would actually touch: one component, one subsystem, or a cross-cutting
-               invariant. As a baseline:
-               - effort: small -- a contained change in one file or component
-               - effort: medium -- one subsystem, some unknowns, or Rust+TS coordination
-               - effort: large -- cross-cutting or architectural
-               - effort: unknown -- too vague or underspecified to scope at all
-               Always choose exactly one. "unknown" is the honest answer when the issue
-               does not say enough to size it.
+            3. Decide the effort, only if no "effort:" label is present yet. Explore the
+               codebase (Grep/Glob/Read) enough to see what the change would actually
+               touch, then match the maintainer's sense of scale, calibrated by these
+               past verdicts. Most issues are small; medium is not a default.
+               - effort: small -- a contained change in one file or component. Includes
+                 fixes that sound scary but land in one place:
+                   "Restoring a previous commit doesn't bring back deleted tags"
+                   "Saves aren't fsynced and orphaned .tmp files are never cleaned"
+                   "Truncated map file silently opens as an empty map"
+                   "Hovering the map/satellite buttons with LMB down opens the menu"
+                   "Mode toggle hotkey" / "Keyboard shortcut for X"
+                   "Tags can only be reordered with a mouse"
+                   "Measure tool: click after dragging is swallowed"
+                   "Commit message modal opens on every commit"
+               - effort: medium -- one subsystem with real unknowns, a new UI surface, or
+                 Rust+TS coordination:
+                   "Global settings don't propagate to open maps"
+                   "Corrupted map file crashes the app on open"
+                   "Crash at the wrong moment can double-apply uncommitted changes"
+                   "Move saved selections off localStorage"
+                   "Markers overlap in singles instead of in layers"
+                   "Spin out feedback in a separate window"
+               - effort: large -- cross-cutting, architectural, or a whole new feature area:
+                   "Support syncing to map-making.app via API"
+                   "Pop-out street view"
+                   "LocalGuessr: make places and guesses clickable"
+               - effort: unknown -- the report does not say enough to size it. Typical:
+                 a misbehavior with no repro and no clear component ("vision returns
+                 zero confidence, idk why"), "X doesn't catch everything" with no
+                 example, an update or install problem with no log line, or a design
+                 question rather than a request.
+               Always choose exactly one. Do not reach for medium when the honest
+               answer is small or unknown.
 
             4. Write your verdict to labels.txt in the working directory. You MUST always
                write the file, even when there is nothing to report -- write an empty
