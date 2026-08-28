@@ -156,8 +156,7 @@ pub async fn store_open_map(
         bounds,
     } = store.scan_locations();
     store.alive_count = alive;
-    store.bounds_cache = bounds;
-    store.bounds_dirty = false;
+    store.bounds = Some(At::new(store.version, bounds));
     {
         let conn = storage::open_db()?;
         storage::set_location_count(&conn, &map_id, alive)?;
@@ -682,51 +681,53 @@ pub async fn store_save_dirty(
 ) -> AppResult<SaveResult> {
     let _t = Instant::now();
     log::debug!("[cmd] store_save_dirty ENTER");
-    let (map_id, delta_data, alive, tags_json, overlay_rev, tags_rev) = {
+    // Each snapshot carries the revision it serialized, so the store can be told exactly
+    // what disk holds once the write lands, however many edits arrived meanwhile.
+    let (map_id, delta, alive, tags) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_window(&label.0)?;
         let map_id = store.map_id.clone().ok_or("no map open")?;
         if !store.overlay.is_unsaved() && !store.tags.all.is_unsaved() {
             return Ok(SaveResult { saved_bytes: 0 });
         }
-        let delta_data = store
+        let delta = store
             .overlay
             .is_unsaved()
-            .then(|| overlay_delta_bytes(store))
+            .then(|| overlay_delta_bytes(&store.overlay).map(|b| store.overlay.stamp(b)))
             .transpose()?;
-        let tags_json = store
+        let tags = store
             .tags
             .all
             .is_unsaved()
-            .then(|| serialize_tags_json(&store.tags.all));
-        (
-            map_id,
-            delta_data,
-            store.alive_count,
-            tags_json,
-            store.overlay.rev(),
-            store.tags.all.rev(),
-        )
+            .then(|| store.tags.all.stamp(serialize_tags_json(&store.tags.all)));
+        (map_id, delta, store.alive_count, tags)
     };
 
-    let size = delta_data.as_ref().map_or(0, Vec::len);
-    let wrote_delta = delta_data.is_some();
-    let wrote_tags = tags_json.is_some();
+    let size = delta.as_ref().map_or(0, |d| d.value().len());
+    let delta_rev = delta.as_ref().map(At::rev);
+    let tags_rev = tags.as_ref().map(At::rev);
     let map_id2 = map_id.clone();
-    task::spawn_blocking(move || persist_dirty(&map_id2, delta_data, alive, tags_json))
-        .await
-        .unwrap_or_else(|e| Err(e.into()))?;
+    task::spawn_blocking(move || {
+        persist_dirty(
+            &map_id2,
+            delta.map(At::into_value),
+            alive,
+            tags.map(At::into_value),
+        )
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.into()))?;
 
     // The window may have closed or switched maps during the write; the map_id check
     // stops a fresh store from being marked saved by a stale write.
     let mut mgr = state.lock()?;
     if let Ok(store) = mgr.store_for_window(&label.0) {
         if store.map_id.as_deref() == Some(map_id.as_str()) {
-            if wrote_delta {
-                store.overlay.saved_at(overlay_rev);
+            if let Some(rev) = delta_rev {
+                store.overlay.saved_at(rev);
             }
-            if wrote_tags {
-                store.tags.all.saved_at(tags_rev);
+            if let Some(rev) = tags_rev {
+                store.tags.all.saved_at(rev);
             }
         }
     }

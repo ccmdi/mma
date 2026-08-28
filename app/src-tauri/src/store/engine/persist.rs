@@ -52,7 +52,7 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
             // Persist uncommitted edits to the delta sidecar. The base file stays pinned
             // at the last committed state -- it only advances on commit/checkout -- so the
             // overlay remains a faithful changeset-since-last-commit for the next commit.
-            let bytes = overlay_delta_bytes(store)?;
+            let bytes = overlay_delta_bytes(&store.overlay)?;
             let path = storage::arrow_delta_path(map_id)?;
             storage::atomic_write(&path, |mut file| {
                 use std::io::Write;
@@ -79,8 +79,8 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
 /// This is what lets the base file stay pinned at the last commit: on next
 /// `store_open_map` the blob is loaded straight back into the overlay, and a commit
 /// bakes it into the base and deletes the file.
-pub(crate) fn overlay_delta_bytes(store: &Store) -> AppResult<Vec<u8>> {
-    rmp_serde::to_vec_named(&*store.overlay).map_err(AppError::from)
+pub(crate) fn overlay_delta_bytes(overlay: &Overlay) -> AppResult<Vec<u8>> {
+    rmp_serde::to_vec_named(overlay).map_err(AppError::from)
 }
 
 /// Read a map's full current state from disk = base file + uncommitted delta sidecar.

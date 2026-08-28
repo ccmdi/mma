@@ -290,33 +290,32 @@ impl Store {
     /// removal or bulk change); otherwise O(1). The scoring UI refreshes this on
     /// every edit, so it must not scan the whole map per mutation.
     pub(crate) fn cached_bounds(&mut self) -> Option<[f64; 4]> {
-        if self.bounds_dirty {
-            self.bounds_cache = self.scan_bounds(None);
-            self.bounds_dirty = false;
+        let version = self.version;
+        if !self.bounds.is_some_and(|b| b.current(version)) {
+            self.bounds = Some(At::new(version, self.scan_bounds(None)));
         }
-        self.bounds_cache.map(BoundsAcc::resolve)
+        self.bounds.and_then(|b| b.value().map(BoundsAcc::resolve))
     }
 
-    /// Keep the cached bounds current for one mutation. Added / updated-new
-    /// positions can only grow the box (O(changed)). A removal — or an update
-    /// whose OLD position sat on an edge — can shrink it, which needs the next
-    /// extreme point, so we just mark dirty and recompute lazily on next read.
+    /// Carry the bounds from `before` to the current version when this mutation can only
+    /// have grown the box (added / updated-new positions, O(changed)). A removal, or an
+    /// update whose OLD position sat on an edge, can shrink it, which needs the next
+    /// extreme point: the bounds are left at `before` and the next read rescans.
     /// `removed` carries ids only (no coords), so any removal is conservative.
-    pub(super) fn update_bounds(&mut self, changes: &ChangeSet) {
-        if self.bounds_dirty {
+    pub(super) fn update_bounds(&mut self, changes: &ChangeSet, before: u64) {
+        let Some(at) = self.bounds.filter(|b| b.current(before)) else {
             return;
-        }
+        };
         if changes.full_reset || !changes.removed.is_empty() {
-            self.bounds_dirty = true;
             return;
         }
-        if let Some(acc) = self.bounds_cache {
+        let mut acc = *at.value();
+        if let Some(a) = acc {
             if changes
                 .updated
                 .iter()
-                .any(|(old, _)| acc.on_edge(old.lat, old.lng))
+                .any(|(old, _)| a.on_edge(old.lat, old.lng))
             {
-                self.bounds_dirty = true;
                 return;
             }
         }
@@ -326,8 +325,9 @@ impl Store {
             .map(|l| (l.lat, l.lng))
             .chain(changes.updated.iter().map(|(_, nw)| (nw.lat, nw.lng)))
         {
-            self.bounds_cache = Some(BoundsAcc::fold(self.bounds_cache, lat, lng));
+            acc = Some(BoundsAcc::fold(acc, lat, lng));
         }
+        self.bounds = Some(At::new(self.version, acc));
     }
 
     /// Single O(N) pass over all alive locations deriving every open-time

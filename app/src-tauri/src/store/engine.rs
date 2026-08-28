@@ -98,11 +98,10 @@ pub struct Store {
     pub(crate) selections: SelectionState,
     pub(crate) tags: TagState,
     pub(crate) edits: EditStacks,
-    /// Cached whole-map bounds accumulator. Maintained incrementally on add/update
-    /// (which can only grow it); `bounds_dirty` forces an O(N) recompute on the
-    /// next read after a removal or bulk change. Resolved to `[w,s,e,n]` on read.
-    pub(crate) bounds_cache: Option<BoundsAcc>,
-    pub(crate) bounds_dirty: bool,
+    /// Whole-map bounds as of a store version. `update_bounds` carries it across a
+    /// mutation when the change can only grow the box; otherwise it is left behind and
+    /// the next read rescans. `None` until first read. Resolved to `[w,s,e,n]` on read.
+    pub(crate) bounds: Option<At<Option<BoundsAcc>>>,
     /// Lazy spatial index over alive locations. Built on the first radius query,
     /// then maintained incrementally by the overlay mutation functions. A length
     /// mismatch against `alive_count` at query time forces a rebuild, so any bulk
@@ -161,8 +160,7 @@ impl Store {
                 undo: Vec::new(),
                 redo: Vec::new(),
             },
-            bounds_cache: None,
-            bounds_dirty: true,
+            bounds: None,
             spatial: None,
         }
     }
@@ -225,8 +223,9 @@ impl Store {
     /// changeset, and return the full mutation result. The changeset is the single
     /// source of truth; the render delta and selection sync are two projections of it.
     pub(crate) fn finish_mutation(&mut self, changes: &ChangeSet) -> MutationResult {
+        let before = self.version;
         self.bump();
-        self.update_bounds(changes);
+        self.update_bounds(changes, before);
 
         // A metadata-only mutation (tag rename, reorder, a create with nothing to assign)
         // moves no rows, so there is no membership to re-test and no delta to derive.
@@ -713,16 +712,52 @@ pub struct StoreStatus {
     pub tag_counts: HashMap<u32, usize>,
 }
 
-/// State with two consumers, JS and disk, each of which has seen it up to some revision.
-/// Every edit bumps `rev`; reads deref; the only `&mut` is [`Tracked::edit`], so an edit
-/// that forgot to mark itself cannot be written. `finish_mutation` ships what JS has not
-/// seen; a save records the rev it wrote, so an edit racing an async write stays unsaved.
+/// Something that was correct at revision `rev` of its source: a consumer's watermark
+/// (`At<()>`, satisfied by any later revision) or a derived cache (valid at exactly one).
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct At<T> {
+    rev: u64,
+    value: T,
+}
+
+impl<T> At<T> {
+    pub(crate) fn new(rev: u64, value: T) -> Self {
+        Self { rev, value }
+    }
+
+    /// A derived value is right only for the revision it was computed at.
+    pub(crate) fn current(&self, rev: u64) -> bool {
+        self.rev == rev
+    }
+
+    /// A consumer that has seen `self.rev` has seen everything up to it.
+    pub(crate) fn covers(&self, rev: u64) -> bool {
+        self.rev >= rev
+    }
+
+    pub(crate) fn rev(&self) -> u64 {
+        self.rev
+    }
+
+    pub(crate) fn value(&self) -> &T {
+        &self.value
+    }
+
+    pub(crate) fn into_value(self) -> T {
+        self.value
+    }
+}
+
+/// State with two consumers, JS and disk, each holding it as of some revision. Every edit
+/// bumps `rev`; reads deref; the only `&mut` is [`Tracked::edit`], so an edit that forgot
+/// to mark itself cannot be written. `finish_mutation` ships what JS has not seen; a save
+/// records the rev it wrote, so an edit racing an async write stays unsaved.
 #[derive(Debug, Default)]
 pub(crate) struct Tracked<T> {
     value: T,
     rev: u64,
-    shipped: u64,
-    saved: u64,
+    shipped: At<()>,
+    saved: At<()>,
 }
 
 impl<T> Tracked<T> {
@@ -731,8 +766,8 @@ impl<T> Tracked<T> {
         Self {
             value,
             rev: 0,
-            shipped: 0,
-            saved: 0,
+            shipped: At::new(0, ()),
+            saved: At::new(0, ()),
         }
     }
 
@@ -741,8 +776,8 @@ impl<T> Tracked<T> {
         Self {
             value,
             rev: 1,
-            shipped: 1,
-            saved: 0,
+            shipped: At::new(1, ()),
+            saved: At::new(0, ()),
         }
     }
 
@@ -765,28 +800,35 @@ impl<T> Tracked<T> {
         self.rev
     }
 
+    /// Something derived from the value now, stamped with the revision it reflects.
+    pub(crate) fn stamp<R>(&self, derived: R) -> At<R> {
+        At::new(self.rev, derived)
+    }
+
     /// The value if edited since JS last saw it.
     pub(crate) fn take_changed(&mut self) -> Option<T>
     where
         T: Clone,
     {
-        (self.rev > self.shipped).then(|| {
-            self.shipped = self.rev;
+        (!self.shipped.covers(self.rev)).then(|| {
+            self.shipped = At::new(self.rev, ());
             self.value.clone()
         })
     }
 
     pub(crate) fn is_unsaved(&self) -> bool {
-        self.rev > self.saved
+        !self.saved.covers(self.rev)
     }
 
     /// Disk now holds revision `rev`. A later edit keeps the value unsaved.
     pub(crate) fn saved_at(&mut self, rev: u64) {
-        self.saved = self.saved.max(rev);
+        if !self.saved.covers(rev) {
+            self.saved = At::new(rev, ());
+        }
     }
 
     pub(crate) fn mark_saved(&mut self) {
-        self.saved = self.rev;
+        self.saved = At::new(self.rev, ());
     }
 }
 

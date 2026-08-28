@@ -805,29 +805,50 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
     // Add outside the box -> grows incrementally, no recompute.
     let a = loc(2, 10.0, 10.0);
     store.overlay_add(vec![a.clone()]);
-    store.update_bounds(&ChangeSet {
-        added: vec![a],
-        ..Default::default()
-    });
-    assert!(!store.bounds_dirty, "add must not dirty the cache");
+    let before = store.version;
+    store.bump();
+    store.update_bounds(
+        &ChangeSet {
+            added: vec![a],
+            ..Default::default()
+        },
+        before,
+    );
+    assert!(
+        store.bounds.is_some_and(|b| b.current(store.version)),
+        "add carries the cache forward"
+    );
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 10.0, 10.0]));
 
     // Add inside the box -> no change.
     let b = loc(3, 5.0, 5.0);
     store.overlay_add(vec![b.clone()]);
-    store.update_bounds(&ChangeSet {
-        added: vec![b],
-        ..Default::default()
-    });
+    let before = store.version;
+    store.bump();
+    store.update_bounds(
+        &ChangeSet {
+            added: vec![b],
+            ..Default::default()
+        },
+        before,
+    );
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 10.0, 10.0]));
 
     // Remove the extreme point -> invalidates, recompute shrinks the box.
     store.overlay_remove(&[loc(2, 10.0, 10.0)]);
-    store.update_bounds(&ChangeSet {
-        removed: vec![2],
-        ..Default::default()
-    });
-    assert!(store.bounds_dirty, "removal must invalidate the cache");
+    let before = store.version;
+    store.bump();
+    store.update_bounds(
+        &ChangeSet {
+            removed: vec![2],
+            ..Default::default()
+        },
+        before,
+    );
+    assert!(
+        !store.bounds.is_some_and(|b| b.current(store.version)),
+        "removal leaves the cache behind"
+    );
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 5.0, 5.0]));
 
     // The cache must never diverge from a fresh O(N) compute.
@@ -1806,7 +1827,7 @@ fn delta_overlay_only_includes_actual_changes() {
     store.overlay_update(1, &patch!(heading: 90.0));
 
     // The delta is the overlay itself.
-    let bytes = overlay_delta_bytes(&store).unwrap();
+    let bytes = overlay_delta_bytes(&store.overlay).unwrap();
     let overlay: Overlay = rmp_serde::from_slice(&bytes).unwrap();
     assert!(overlay.adds.is_empty(), "no new locations added");
     assert!(overlay.dead.is_empty(), "no locations deleted");
@@ -1833,7 +1854,7 @@ fn delta_overlay_round_trip_preserves_store_state() {
     store.overlay_update(2, &patch!(heading: 180.0));
 
     // Serialize
-    let bytes = overlay_delta_bytes(&store).unwrap();
+    let bytes = overlay_delta_bytes(&store.overlay).unwrap();
 
     // Simulate reopen: deserialize and verify
     let restored: Overlay = rmp_serde::from_slice(&bytes).unwrap();
@@ -3135,7 +3156,7 @@ fn history_max_id_spans_both_stacks_and_both_sides() {
 // (store_open_map's delta/history load + next_id seeding) at the Store level,
 // using the same serialization roundtrips the app uses.
 fn close_and_reopen(store: &Store) -> Store {
-    let delta_bytes = overlay_delta_bytes(store).unwrap();
+    let delta_bytes = overlay_delta_bytes(&store.overlay).unwrap();
     let undo_bytes = rmp_serde::to_vec_named(&store.edits.undo).unwrap();
     let redo_bytes = rmp_serde::to_vec_named(&store.edits.redo).unwrap();
 
@@ -3742,7 +3763,7 @@ fn delta_parse_never_panics_on_corrupt_bytes() {
 #[test]
 fn delta_parse_never_panics_on_truncated_bytes() {
     let store = store_with_full_overlay();
-    let full_bytes = overlay_delta_bytes(&store).unwrap();
+    let full_bytes = overlay_delta_bytes(&store.overlay).unwrap();
     assert!(full_bytes.len() > 1, "sanity: overlay has real content");
     let truncated = &full_bytes[..full_bytes.len() / 2];
 
@@ -3757,7 +3778,7 @@ fn delta_parse_never_panics_on_truncated_bytes() {
 #[test]
 fn delta_bytes_roundtrip_exact() {
     let store = store_with_full_overlay();
-    let bytes = overlay_delta_bytes(&store).unwrap();
+    let bytes = overlay_delta_bytes(&store.overlay).unwrap();
     let parsed: Overlay = rmp_serde::from_slice(&bytes).unwrap();
 
     assert_eq!(parsed.adds, store.overlay.adds, "adds preserved exactly");

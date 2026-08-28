@@ -173,7 +173,7 @@ impl Fixture {
         store.tags.counts = self.counts.clone();
         store.tags.sets = self.sets.clone();
         store.tags.next_id = TAG_COUNT + 1;
-        store.bounds_dirty = true;
+        store.bounds = None;
         store
     }
 
@@ -407,8 +407,7 @@ pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, Tag>) -> Store {
     store.next_id = max_id + 1;
     let agg = store.scan_locations();
     store.alive_count = agg.alive;
-    store.bounds_cache = agg.bounds;
-    store.bounds_dirty = false;
+    store.bounds = Some(At::new(store.version, agg.bounds));
     store.tags.all = Tracked::new(tags.clone());
     store.tags.counts = agg.tag_counts;
     store.tags.next_id = TAG_COUNT + 1;
