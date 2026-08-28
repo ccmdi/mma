@@ -100,6 +100,47 @@ impl SpatialIndex {
             }
         }
     }
+
+    /// `candidates` with an early exit: true as soon as `predicate` accepts one. The
+    /// center cell goes first because that is where a hit almost always is. Kept apart
+    /// from `candidates` so the exhaustive walk stays branch-free.
+    pub(crate) fn any_candidate(
+        &self,
+        lat: f64,
+        lng: f64,
+        radius_m: f64,
+        mut predicate: impl FnMut(u32) -> bool,
+    ) -> bool {
+        let cover = mma_geo::covering_cells(lat, lng, radius_m, CELL_DEG);
+        if cover.len() > self.cells.len() as u64 {
+            for (&(cx, cy), v) in &self.cells {
+                if cover.contains(cx, cy) && v.iter().copied().any(&mut predicate) {
+                    return true;
+                }
+            }
+        } else {
+            let center = cell_for(lat, lng);
+            if cover.contains(center.0, center.1)
+                && self
+                    .cells
+                    .get(&center)
+                    .is_some_and(|ids| ids.iter().copied().any(&mut predicate))
+            {
+                return true;
+            }
+            for (cx, cy) in cover.cells() {
+                if (cx, cy) == center {
+                    continue;
+                }
+                if let Some(v) = self.cells.get(&(cx, cy)) {
+                    if v.iter().copied().any(&mut predicate) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
 #[cfg(test)]

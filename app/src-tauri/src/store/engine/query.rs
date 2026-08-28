@@ -117,18 +117,24 @@ pub struct SpacedPickResult {
 
 impl Store {
     /// Current coordinates of an alive location, without cloning the full Location.
+    #[inline]
     pub(super) fn coords_of(&self, id: u32) -> Option<(f64, f64)> {
-        if self.overlay.dead.contains(&id) {
+        Self::coords_from(&self.overlay, self.batch.as_ref(), id)
+    }
+
+    #[inline]
+    fn coords_from(overlay: &Overlay, batch: Option<&RecordBatch>, id: u32) -> Option<(f64, f64)> {
+        if overlay.dead.contains(&id) {
             return None;
         }
-        if let Some(p) = self.overlay.patches.get(&id) {
+        if let Some(p) = overlay.patches.get(&id) {
             return Some((p.lat, p.lng));
         }
-        if let Ok(i) = self.overlay.adds.binary_search_by_key(&id, |l| l.id) {
-            let l = &self.overlay.adds[i];
+        if let Ok(i) = overlay.adds.binary_search_by_key(&id, |l| l.id) {
+            let l = &overlay.adds[i];
             return Some((l.lat, l.lng));
         }
-        if let Some(ref b) = self.batch {
+        if let Some(b) = batch {
             if let Some(idx) = batch_row_for_id(b, id) {
                 return Some((col_lat(b).value(idx), col_lng(b).value(idx)));
             }
@@ -180,15 +186,15 @@ impl Store {
     /// Whether any alive location lies within `radius_m` metres of the point.
     pub(crate) fn any_within(&mut self, lat: f64, lng: f64, radius_m: f64) -> bool {
         self.ensure_spatial();
-        let mut cand = Vec::new();
+        let overlay = &self.overlay;
+        let batch = self.batch.as_ref();
         self.spatial
             .as_ref()
             .unwrap()
-            .candidates(lat, lng, radius_m, &mut cand);
-        cand.iter().any(|&id| {
-            self.coords_of(id)
-                .is_some_and(|(la, ln)| selections::haversine_m(lat, lng, la, ln) <= radius_m)
-        })
+            .any_candidate(lat, lng, radius_m, |id| {
+                Self::coords_from(overlay, batch, id)
+                    .is_some_and(|(la, ln)| selections::haversine_m(lat, lng, la, ln) <= radius_m)
+            })
     }
 
     /// Evenly spaced subset of `set` (`None` = whole map): `target_count` thins to

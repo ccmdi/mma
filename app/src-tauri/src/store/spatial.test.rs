@@ -14,6 +14,66 @@ fn query(ix: &SpatialIndex, lat: f64, lng: f64, r: f64) -> Vec<u32> {
 }
 
 #[test]
+fn any_candidate_stops_after_the_first_match() {
+    let mut ix = SpatialIndex::new();
+    ix.insert(1, 10.0, 10.0);
+    ix.insert(2, 10.0, 10.0);
+    ix.insert(3, 10.0, 10.0);
+    let mut visited = Vec::new();
+
+    let found = ix.any_candidate(10.0, 10.0, 1.0, |id| {
+        visited.push(id);
+        id == 2
+    });
+
+    assert!(found);
+    assert_eq!(visited, vec![1, 2]);
+}
+
+#[test]
+fn any_candidate_visits_every_candidate_on_a_miss() {
+    let mut ix = SpatialIndex::new();
+    ix.insert(1, 10.0, 10.0);
+    ix.insert(2, 10.0, 10.0);
+    let mut visited = Vec::new();
+
+    let found = ix.any_candidate(10.0, 10.0, 1.0, |id| {
+        visited.push(id);
+        false
+    });
+
+    assert!(!found);
+    assert_eq!(visited, vec![1, 2]);
+}
+
+#[test]
+fn any_candidate_matches_exhaustive_candidates() {
+    let mut ix = SpatialIndex::new();
+    for (id, lat, lng) in [
+        (1, 0.0, 179.999),
+        (2, 0.0, -179.999),
+        (3, 89.9, 45.0),
+        (4, -45.0, 0.0),
+    ] {
+        ix.insert(id, lat, lng);
+    }
+
+    for (lat, lng, radius) in [
+        (0.0, 180.0, 500.0),
+        (89.9, 0.0, 20_000.0),
+        (0.0, 0.0, 20_000_000.0),
+    ] {
+        let candidates = query(&ix, lat, lng, radius);
+        for target in 1..=4 {
+            assert_eq!(
+                ix.any_candidate(lat, lng, radius, |id| id == target),
+                candidates.contains(&target)
+            );
+        }
+    }
+}
+
+#[test]
 fn insert_then_query_finds_point() {
     let mut ix = SpatialIndex::new();
     ix.insert(1, 51.5074, -0.1278);
