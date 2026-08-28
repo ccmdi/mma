@@ -27,5 +27,5 @@ export const ValidationState = {
 } as const;
 export type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
 
-/** The preview bits a real location must never carry. */
+/** The bits a preview carries that a real location must not. */
 export const VIRTUAL_FLAGS = 12 as const;

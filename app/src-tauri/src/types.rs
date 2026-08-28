@@ -172,10 +172,37 @@ wire_enum! {
     }
 }
 
-bitflags::bitflags! {
+/// A bitflags set Rust owns, plus the composite constants TypeScript mirrors. Docs are
+/// captured once here and travel with the value to the wire.
+macro_rules! wire_bitflags {
+    (
+        $(#[doc = $doc:literal])*
+        $name:ident : $repr:ty { $($body:tt)* }
+        consts { $($(#[doc = $cdoc:literal])* $konst:ident as $ts:literal = $val:expr;)* }
+    ) => {
+        bitflags::bitflags! {
+            $(#[doc = $doc])*
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+            pub struct $name: $repr { $($body)* }
+        }
+
+        impl $name {
+            /// The rustdoc above, one entry per line, for the TypeScript mirror.
+            pub const DOC: &'static [&'static str] = &[$($doc),*];
+            $(
+                $(#[doc = $cdoc])*
+                pub const $konst: Self = $val;
+            )*
+            /// Each composite constant as TypeScript spells it: name, value, docs.
+            pub const WIRE_CONSTS: &'static [(&'static str, $repr, &'static [&'static str])] =
+                &[$(($ts, Self::$konst.bits(), &[$($cdoc),*])),*];
+        }
+    };
+}
+
+wire_bitflags! {
     /// Per-location bitfield, serialized as a plain `u32` over IPC and Arrow.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub struct LocationFlags: u32 {
+    LocationFlags: u32 {
         const LOAD_AS_PANO_ID = 1;
         const INFORMATIONAL = 2;
         /// Preview kinds, set only on the ephemeral active-location preview and stripped
@@ -183,16 +210,13 @@ bitflags::bitflags! {
         const IMPORT_PREVIEW = 4;
         const SEEN_OVERLAY = 8;
     }
+    consts {
+        /// The bits a preview carries that a real location must not.
+        VIRTUAL as "VIRTUAL_FLAGS" = Self::IMPORT_PREVIEW.union(Self::SEEN_OVERLAY);
+    }
 }
 
 impl LocationFlags {
-    /// Mirrors the struct's rustdoc: `bitflags!` puts it out of a macro's reach.
-    pub const DOC: &'static [&'static str] =
-        &["Per-location bitfield, serialized as a plain `u32` over IPC and Arrow."];
-
-    /// The bits a preview carries that a real location must not.
-    pub const VIRTUAL: Self = Self::IMPORT_PREVIEW.union(Self::SEEN_OVERLAY);
-
     pub fn wire_names() -> BTreeMap<String, u32> {
         wire_names(
             iter::once(("NONE", 0)).chain(Self::all().iter_names().map(|(n, f)| (n, f.bits()))),

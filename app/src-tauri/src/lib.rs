@@ -327,12 +327,9 @@ fn export_consts() -> Result<(), String> {
         serde_json::to_string(&types::ValidationState::wire_names()).map_err(|e| e.to_string())?,
         true,
     );
-    put(
-        "VIRTUAL_FLAGS",
-        &["The preview bits a real location must never carry."],
-        types::LocationFlags::VIRTUAL.bits().to_string(),
-        false,
-    );
+    for (name, value, doc) in types::LocationFlags::WIRE_CONSTS {
+        put(name, doc, value.to_string(), false);
+    }
     fs::write(&out, ts).map_err(|e| e.to_string())?;
     eprintln!("[specta] constants exported to {}", out.display());
     Ok(())
