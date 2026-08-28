@@ -461,6 +461,14 @@ pub fn derived_state(store: &mut Store) -> usize {
     store.scan_locations().alive
 }
 
+pub fn build_spatial(store: &Store) -> usize {
+    let mut index = spatial::SpatialIndex::new();
+    store
+        .loc_view()
+        .for_each(|row| index.insert(row.id(), row.lat(), row.lng()));
+    index.len()
+}
+
 // ---------------------------------------------------------------------------
 // Map open (Arrow IPC round trip)
 // ---------------------------------------------------------------------------

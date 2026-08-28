@@ -289,6 +289,18 @@ fn scope_traversal(c: &mut Criterion) {
 fn spatial_queries(c: &mut Criterion) {
     let n = n();
     let fx = bench::Fixture::new(n);
+    let mut g = c.benchmark_group("spatial_build");
+    g.sample_size(20);
+    g.throughput(Throughput::Elements(n as u64));
+    g.bench_function(n.to_string(), |b| {
+        b.iter_batched(
+            || fx.store(),
+            |store| black_box(bench::build_spatial(&store)),
+            BatchSize::SmallInput,
+        );
+    });
+    g.finish();
+
     let app = bench::BenchApp::new();
     app.set_store(fx.store());
     app.near_any(vec![80.0], vec![0.0], 2.0);
