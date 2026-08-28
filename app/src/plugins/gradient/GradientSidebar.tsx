@@ -4,9 +4,9 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import type { ExtraFieldType, KeySpec, DatePart } from "@/bindings.gen";
-import { getFieldDef } from "@/lib/data/fieldDefRegistry";
+import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";
-import { useMapState, partition } from "@/store/useMapStore";
+import { partition } from "@/store/useMapStore";
 import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
@@ -113,7 +113,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 	const map = MMA.getMapState().map;
 
 	const allFields = useExtraFieldKeys();
-	const knownKeys = useMapState((s) => s.knownFieldKeys);
+	const knownKeys = getKnownFieldKeys();
 	const fields = useMemo(() => gradientFields(allFields, knownKeys), [allFields, knownKeys]);
 
 	// Persisted values are global; fall back when they don't resolve on this map.

@@ -46,11 +46,6 @@ export function getTagCounts() {
 	return getMapState().tagCounts;
 }
 
-/** @deprecated v0.8.2. Read `MMA.getMapState().knownFieldKeys`. */
-export function getKnownFieldKeys() {
-	return getMapState().knownFieldKeys;
-}
-
 /** @deprecated v0.8.2. Read `MMA.getMapState().selections`. */
 export function getAllSelections() {
 	return getMapState().selections;
@@ -85,5 +80,3 @@ export function fetchLocationsByIds(ids: number[]) {
 export function fetchAllLocations() {
 	return fetchLocations({ type: "Everything" });
 }
-
-

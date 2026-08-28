@@ -7,10 +7,11 @@ import {
 	fieldValueLabel,
 	getAllFieldDefs,
 	isListableField,
+	getKnownFieldKeys,
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
-import { addSelections, fieldValues, useMapState } from "@/store/useMapStore";
+import { addSelections, fieldValues } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { OP_LABELS } from "@/store/selections";
 import { DatePicker } from "@/components/primitives/DatePicker";
@@ -72,13 +73,12 @@ export interface FieldEntry {
 }
 
 export function useExtraFieldKeys(): FieldEntry[] {
-	const keys = useMapState((s) => s.knownFieldKeys);
 	const defsVersion = useEvent("fields:changed");
 	return useMemo(() => {
 		const allDefs = getAllFieldDefs();
 		const seen = new Set<string>();
 		const entries: FieldEntry[] = [];
-		for (const key of keys) {
+		for (const key of getKnownFieldKeys()) {
 			seen.add(key);
 			entries.push({ key, label: fieldLabel(key), def: allDefs[key] ?? { type: "string" } });
 		}
@@ -88,7 +88,8 @@ export function useExtraFieldKeys(): FieldEntry[] {
 		}
 		entries.sort((a, b) => a.label.localeCompare(b.label));
 		return entries;
-	}, [keys, defsVersion]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- the registry's change signal
+	}, [defsVersion]);
 }
 
 const TIMEZONE_VALUES = Intl.supportedValuesOf("timeZone");

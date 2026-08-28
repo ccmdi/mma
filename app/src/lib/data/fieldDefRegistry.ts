@@ -1,14 +1,14 @@
 /*
  * Unified field-definition registry.
  *
- * Field **existence** (which keys have data) is tracked separately by
- * `knownFieldKeys` in `useMapStore`. This module handles field **metadata**
- * (type, label, enum values) from two sources, in priority order:
+ * Field **metadata** (type, label, enum values) from two sources, in priority order:
  *
  *   1. **User overrides** — persisted in `MapMeta.extra.fields`, editable via
- *      ManageFields. Loaded on map open, updated on save. Curated defs for
- *      well-known SV keys are written here by Rust (`known_field_def`) when the
- *      key first appears in location data, so they show up the same way.
+ *      ManageFields. Loaded on map open, replaced whole whenever a mutation result
+ *      carries `fieldDefs`. Curated defs for well-known SV keys are written here by
+ *      Rust (`known_field_def`) when the key first appears in location data, so they
+ *      show up the same way. This layer is also field **existence**: a key is in it
+ *      exactly when some location carries it (`getKnownFieldKeys`).
  *   2. **Plugin defs** — declared by `EnrichmentProvider.fieldDefs` at
  *      registration time. Available as long as the plugin is active.
  *
@@ -92,24 +92,19 @@ export function unregisterPluginFieldDefs(keys: string[]) {
 	emit("fields:changed");
 }
 
-/** Load user-customized field definitions from `MapMeta.extra.fields` (called on map open). */
+let knownKeys: ReadonlySet<string> = new Set();
+
+/** Replace the user layer: on map open from `MapMeta.extra.fields`, and from every
+ *  mutation result that carries `fieldDefs`. Rust owns this map; JS never merges into it. */
 export function setUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
 	userDefs = defs;
+	knownKeys = new Set(Object.keys(defs));
 	emit("fields:changed");
 }
 
-/** Merge auto-registered/inferred defs into the user layer (e.g. after a mutation
- *  discovers new extra keys). Existing entries win, so user edits and previously-loaded
- *  defs are never clobbered. Keeps the registry the live source of truth without a reload. */
-export function mergeUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
-	userDefs = { ...defs, ...userDefs };
-	emit("fields:changed");
-}
-
-/** Clear per-map state on map close. Plugin defs persist across maps. */
-export function resetForMapChange() {
-	userDefs = {};
-	emit("fields:changed");
+/** Keys some location on this map carries. Same reference until `fields:changed`. */
+export function getKnownFieldKeys(): ReadonlySet<string> {
+	return knownKeys;
 }
 
 /** Compose two layers per-attribute: the user value wins when present, falling

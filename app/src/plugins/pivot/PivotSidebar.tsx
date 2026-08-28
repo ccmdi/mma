@@ -7,10 +7,9 @@ import { selectionDisplayName, buildSelection } from "@/store/selections";
 import { loadSavedSelections, savedParts, useSavedSelectionIndex } from "@/store/savedSelections";
 import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import type { ExtraFieldDef } from "@/bindings.gen";
-import { getFieldDef } from "@/lib/data/fieldDefRegistry";
+import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
-import { useMapState } from "@/store/useMapStore";
 import { compareNatural } from "@/lib/util/util";
 import { usePluginState } from "@/plugins/registry";
 import {
@@ -202,7 +201,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	const [loading, setLoading] = useState(false);
 
 	const allFields = useExtraFieldKeys();
-	const knownKeys = useMapState((s) => s.knownFieldKeys);
+	const knownKeys = getKnownFieldKeys();
 	const fields = useMemo(() => pivotFields(allFields, knownKeys), [allFields, knownKeys]);
 
 	const savedSelections = useSavedSelectionIndex();

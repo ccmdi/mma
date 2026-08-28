@@ -25,8 +25,7 @@ vi.mock("@/lib/commands", async () => {
 		canRedo: null,
 		tagCounts: null,
 		tags: null,
-		knownFieldKeys: null,
-		newFieldDefs: null,
+		fieldDefs: null,
 	});
 	return cmdProxy({
 		storeGetMap: async () => testMap({ locationCount: 0 }),

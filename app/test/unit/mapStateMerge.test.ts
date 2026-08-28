@@ -11,13 +11,15 @@ vi.mock("@/lib/commands", async () => {
 			testMap({
 				locationCount: 2,
 				tags: { 1: { id: 1, name: "red", color: "#ff0000", visible: true } },
+				extra: { fields: { alt: { type: "number" } } },
 			}),
-		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 2 }, knownFieldKeys: ["alt"] }),
+		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 2 } }),
 	});
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { openMap, mutate, getMapState } from "@/store/useMapStore";
+import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import type { MutationResult, Tag } from "@/bindings.gen";
 
 const result = (over: Partial<MutationResult> = {}): MutationResult => ({
@@ -29,8 +31,7 @@ const result = (over: Partial<MutationResult> = {}): MutationResult => ({
 	canRedo: null,
 	tagCounts: null,
 	tags: null,
-	knownFieldKeys: null,
-	newFieldDefs: null,
+	fieldDefs: null,
 	...over,
 });
 
@@ -76,22 +77,21 @@ describe("applyMutation merge semantics", () => {
 		expect(s.map).toBe(mapBefore);
 	});
 
-	// knownFieldKeys ships whole when it changed, and holds its reference when it didn't.
-	it("knownFieldKeys replaces when present and holds when absent", async () => {
-		expect([...getMapState().knownFieldKeys]).toEqual(["alt"]);
+	// The field registry ships whole when it changed; the known-key set is its key set
+	// and holds its reference when nothing arrived.
+	it("fieldDefs replace the registry when present and hold when absent", async () => {
+		expect([...getKnownFieldKeys()]).toEqual(["alt"]);
 		await mutate(() =>
-			Promise.resolve(
-				result({ knownFieldKeys: ["alt", "foo"], newFieldDefs: { foo: { type: "string" } } }),
-			),
+			Promise.resolve(result({ fieldDefs: { alt: { type: "number" }, foo: { type: "string" } } })),
 		);
-		expect([...getMapState().knownFieldKeys].sort()).toEqual(["alt", "foo"]);
+		expect([...getKnownFieldKeys()].sort()).toEqual(["alt", "foo"]);
 
-		await mutate(() => Promise.resolve(result({ knownFieldKeys: ["foo"] })));
-		expect([...getMapState().knownFieldKeys]).toEqual(["foo"]);
+		await mutate(() => Promise.resolve(result({ fieldDefs: { foo: { type: "string" } } })));
+		expect([...getKnownFieldKeys()]).toEqual(["foo"]);
 
-		const held = getMapState().knownFieldKeys;
+		const held = getKnownFieldKeys();
 		await mutate(() => Promise.resolve(result()));
-		expect(getMapState().knownFieldKeys).toBe(held);
+		expect(getKnownFieldKeys()).toBe(held);
 	});
 
 	it("selectionSync refreshes selectionCounts", async () => {

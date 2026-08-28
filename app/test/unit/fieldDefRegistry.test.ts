@@ -5,8 +5,6 @@ import {
 	registerPluginFieldDefs,
 	unregisterPluginFieldDefs,
 	setUserFieldDefs,
-	mergeUserFieldDefs,
-	resetForMapChange,
 	isBuiltinField,
 	isWritableField,
 	projectionsForType,
@@ -16,7 +14,7 @@ import {
 import { getEventVersion } from "@/lib/events";
 
 beforeEach(() => {
-	resetForMapChange();
+	setUserFieldDefs({});
 });
 
 // SV field defs live in Rust (`known_field_def`) and reach the registry via the user
@@ -76,11 +74,11 @@ describe("plugin defs", () => {
 		expect(def!.label).toBe("Sun azimuth");
 	});
 
-	it("plugin defs survive resetForMapChange", () => {
+	it("plugin defs survive a map change", () => {
 		registerPluginFieldDefs({
 			sunAzimuth: { type: "number", label: "Sun azimuth" },
 		});
-		resetForMapChange();
+		setUserFieldDefs({});
 		expect(getFieldDef("sunAzimuth")).toBeDefined();
 	});
 });
@@ -96,13 +94,13 @@ describe("user defs (highest priority)", () => {
 		expect(getFieldDef("sunAzimuth")!.label).toBe("My custom label");
 	});
 
-	it("cleared by resetForMapChange", () => {
+	it("cleared on map change", () => {
 		const key = "userOnly_" + Math.random().toString(36).slice(2);
 		setUserFieldDefs({
 			[key]: { type: "number", label: "Custom" },
 		});
 		expect(getFieldDef(key)!.label).toBe("Custom");
-		resetForMapChange();
+		setUserFieldDefs({});
 		expect(getFieldDef(key)).toBeUndefined();
 	});
 });
@@ -122,10 +120,10 @@ describe("getAllFieldDefs", () => {
 		expect(all.userField.label).toBe("Custom");
 	});
 
-	it("drops user defs after resetForMapChange", () => {
+	it("drops user defs on map change", () => {
 		setUserFieldDefs({ onlyUser: { type: "string", label: "User" } });
 		expect(getAllFieldDefs().onlyUser).toBeDefined();
-		resetForMapChange();
+		setUserFieldDefs({});
 		expect(getAllFieldDefs().onlyUser).toBeUndefined();
 	});
 });
@@ -142,7 +140,7 @@ describe("priority order", () => {
 		});
 		expect(getFieldDef("altitude")!.label).toBe("User alt");
 
-		resetForMapChange();
+		setUserFieldDefs({});
 		expect(getFieldDef("altitude")!.label).toBe("Plugin alt");
 	});
 });
@@ -160,7 +158,7 @@ describe("placeholder does not shadow plugin def", () => {
 			},
 		});
 		// Simulates Rust's inferred placeholder landing in the user layer on first write.
-		mergeUserFieldDefs({ sunAzimuth: { type: "number", label: null, comparison: null } });
+		setUserFieldDefs({ sunAzimuth: { type: "number", label: null, comparison: null } });
 
 		const def = getFieldDef("sunAzimuth")!;
 		expect(def.label).toBe("Sun azimuth");
@@ -169,7 +167,7 @@ describe("placeholder does not shadow plugin def", () => {
 
 	it("a real user label still wins over the plugin label", () => {
 		registerPluginFieldDefs({ sunAzimuth: { type: "number", label: "Sun azimuth" } });
-		mergeUserFieldDefs({ sunAzimuth: { type: "number", label: "Solar bearing" } });
+		setUserFieldDefs({ sunAzimuth: { type: "number", label: "Solar bearing" } });
 		expect(getFieldDef("sunAzimuth")!.label).toBe("Solar bearing");
 	});
 
@@ -181,7 +179,7 @@ describe("placeholder does not shadow plugin def", () => {
 				comparison: { type: "circular", period: 360 },
 			},
 		});
-		mergeUserFieldDefs({ sunAzimuth: { type: "number", label: null, comparison: null } });
+		setUserFieldDefs({ sunAzimuth: { type: "number", label: null, comparison: null } });
 		const all = getAllFieldDefs();
 		expect(all.sunAzimuth.label).toBe("Sun azimuth");
 		expect(all.sunAzimuth.comparison).toEqual({ type: "circular", period: 360 });
@@ -202,19 +200,15 @@ describe("def-change version", () => {
 		expect(getEventVersion("fields:changed")).toBeGreaterThan(v1);
 
 		const v2 = getEventVersion("fields:changed");
-		mergeUserFieldDefs({ b: { type: "string", label: "B" } });
-		expect(getEventVersion("fields:changed")).toBeGreaterThan(v2);
-
-		const v3 = getEventVersion("fields:changed");
 		registerPluginFieldDefs({ p: { type: "number", label: "P" } });
-		expect(getEventVersion("fields:changed")).toBeGreaterThan(v3);
+		expect(getEventVersion("fields:changed")).toBeGreaterThan(v2);
 
 		const v4 = getEventVersion("fields:changed");
 		unregisterPluginFieldDefs(["p"]);
 		expect(getEventVersion("fields:changed")).toBeGreaterThan(v4);
 
 		const v5 = getEventVersion("fields:changed");
-		resetForMapChange();
+		setUserFieldDefs({});
 		expect(getEventVersion("fields:changed")).toBeGreaterThan(v5);
 	});
 
@@ -222,28 +216,6 @@ describe("def-change version", () => {
 		const v = getEventVersion("fields:changed");
 		unregisterPluginFieldDefs([]);
 		expect(getEventVersion("fields:changed")).toBe(v);
-	});
-});
-
-describe("mergeUserFieldDefs (auto-register merge)", () => {
-	it("adds new defs to the live user layer", () => {
-		mergeUserFieldDefs({ plumbus: { type: "number", label: "Plumbus" } });
-		expect(getFieldDef("plumbus")!.type).toBe("number");
-	});
-
-	it("does not clobber an existing user def -- existing wins", () => {
-		setUserFieldDefs({ plumbus: { type: "string", label: "User edited" } });
-		// A later auto-registered def for the same key must NOT overwrite the user's edit.
-		mergeUserFieldDefs({ plumbus: { type: "number", label: "Inferred" } });
-		expect(getFieldDef("plumbus")!.type).toBe("string");
-		expect(getFieldDef("plumbus")!.label).toBe("User edited");
-	});
-
-	it("keeps existing defs while merging in new keys", () => {
-		setUserFieldDefs({ existing: { type: "string", label: "Existing" } });
-		mergeUserFieldDefs({ fresh: { type: "number", label: "Fresh" } });
-		expect(getFieldDef("existing")!.label).toBe("Existing");
-		expect(getFieldDef("fresh")!.label).toBe("Fresh");
 	});
 });
 

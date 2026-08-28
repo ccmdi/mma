@@ -294,15 +294,15 @@ fn named_id_ordering_is_consumer_defined() {
 #[test]
 fn overlay_rev_bumps_on_every_mutation() {
     let mut store = setup_store_with(&[]);
-    let r0 = store.overlay.rev;
+    let r0 = store.overlay.rev();
     store.overlay_add(vec![loc(1, 0.0, 0.0)]);
-    let r1 = store.overlay.rev;
+    let r1 = store.overlay.rev();
     assert!(r1 > r0);
     store.overlay_update(1, &patch!(lat: 5.0));
-    let r2 = store.overlay.rev;
+    let r2 = store.overlay.rev();
     assert!(r2 > r1);
     store.overlay_remove(&[store.get_loc_by_id(1).unwrap()]);
-    assert!(store.overlay.rev > r2);
+    assert!(store.overlay.rev() > r2);
 }
 
 #[test]
@@ -310,7 +310,7 @@ fn bake_proceeds_when_clean_but_nonempty() {
     // Simulate a completed autosave (dirty cleared) with content still in the
     // overlay: a commit's bake must still fold it into the base batch.
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    store.overlay.dirty = false;
+    store.overlay.mark_saved();
     assert!(!store.overlay.is_empty());
     store.bake_overlay();
     assert!(store.overlay.is_empty());
@@ -322,7 +322,7 @@ fn bake_skips_empty_overlay() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
     store.bake_overlay();
     let rows_before = store.batch.as_ref().unwrap().num_rows();
-    store.overlay.dirty = true; // stale flag with no content must not re-bake
+    store.overlay.touch(); // stale flag with no content must not re-bake
     store.bake_overlay();
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), rows_before);
 }
@@ -1370,8 +1370,6 @@ fn delta_overlay_wire_format_is_stable() {
     assert_eq!(restored.adds, vec![l1]);
     assert!(restored.dead.contains(&7));
     assert_eq!(restored.patches[&3], l3);
-    assert!(!restored.dirty, "dirty is not carried by the file");
-    assert_eq!(restored.rev, 0);
 }
 
 // -----------------------------------------------------------------------
@@ -2590,7 +2588,7 @@ fn reconcile_clean_registry_needs_no_persist() {
 
 /// Insert tag `id` with `count` members so selection resolution can see it.
 fn insert_tag(store: &mut Store, id: u32, count: usize) {
-    store.tags.all.insert(
+    store.tags.all.edit().insert(
         id,
         Tag {
             id,
@@ -2672,7 +2670,7 @@ fn full_resolve_ships_a_bitmask_for_every_cell() {
 fn membership_delta_reports_gained_on_tag_add() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![]);
     let mut store = setup_store_with(&[l1.clone()]);
-    store.tags.all.insert(
+    store.tags.all.edit().insert(
         1,
         Tag {
             id: 1,
@@ -2821,7 +2819,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
 fn membership_delta_no_patch_when_nothing_changed() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![1]);
     let mut store = setup_store_with(&[l1.clone()]);
-    store.tags.all.insert(
+    store.tags.all.edit().insert(
         1,
         Tag {
             id: 1,
@@ -3148,8 +3146,7 @@ fn close_and_reopen(store: &Store) -> Store {
     let mut reopened = Store::new();
     reopened.map_id = store.map_id.clone();
     reopened.batch = Some(empty_batch());
-    reopened.overlay = delta;
-    reopened.overlay.dirty = true;
+    reopened.overlay = Tracked::unsaved(delta);
     reopened.next_id = seed_next_id(0, &reopened.overlay.adds, &undo, &redo);
     reopened.alive_count = reopened.overlay.adds.len();
     reopened.edits.undo = undo;
@@ -3534,7 +3531,7 @@ fn spatial_rebuilds_when_alive_count_drifts() {
     // Simulate a bulk path bypassing the overlay fns: the len/alive mismatch
     // must force a rebuild instead of returning stale results.
     let pos = store.overlay.adds.partition_point(|l| l.id < 2);
-    store.overlay.adds.insert(pos, loc(2, 10.0, 10.0));
+    store.overlay.edit().adds.insert(pos, loc(2, 10.0, 10.0));
     store.alive_count += 1;
     assert_eq!(indexed_nearby(&mut store, 10.0, 10.0, 5.0), vec![1, 2]);
 }
@@ -3821,8 +3818,7 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
     let delta = delta_overlay(x.clone(), &[], vec![]);
 
     // Mirror store_open_map's delta-application block exactly.
-    store.overlay = delta;
-    store.overlay.dirty = true;
+    store.overlay = Tracked::unsaved(delta);
 
     // Mirror the post-load alive_count recompute via scan_locations.
     let LocationAggregates { alive, .. } = store.scan_locations();
@@ -4037,6 +4033,16 @@ proptest::proptest! {
 // ---------------------------------------------------------------------------
 // plan_field_op: the map-wide `extra` rewrites, previously planned in JS
 // ---------------------------------------------------------------------------
+
+fn def_of(key: &str) -> maps::ExtraFieldDef {
+    maps::auto_register_field_defs(
+        |_| false,
+        &[&raw_extra(&format!(r#"{{"{key}":1}}"#)).unwrap()],
+    )
+    .unwrap()
+    .remove(key)
+    .unwrap()
+}
 
 fn loc_with_extra(id: u32, json: &str) -> Location {
     Location {
@@ -4328,16 +4334,16 @@ fn field_op_check_guards_builtin_names() {
     .is_err());
 }
 
-// A key a mutation introduces is announced by that same result, and the store knows
-// it from then on; JS grows its key set from `new_field_defs` alone.
+// A key a mutation introduces lands in the store's registry and the same result ships
+// the whole registry; a mutation that adds no key ships nothing.
 #[test]
 fn new_extra_key_is_announced_in_the_same_result() {
     let mut store = setup_store_with(&[]);
     let r = apply_adds(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
-    assert!(r
-        .known_field_keys
-        .is_some_and(|k| k.contains(&"zz".to_string())));
-    assert!(r.new_field_defs.is_some_and(|d| d.contains_key("zz")));
+    assert!(store.field_defs.contains_key("zz"));
+    assert!(r.field_defs.is_some_and(|d| d.contains_key("zz")));
+    let r = apply_adds(&mut store, vec![loc_with_extra(2, r#"{"zz":2}"#)]);
+    assert!(r.field_defs.is_none());
 
     let r = apply_updates(
         &mut store,
@@ -4351,14 +4357,24 @@ fn new_extra_key_is_announced_in_the_same_result() {
         false,
     );
     assert!(r
-        .known_field_keys
-        .is_some_and(|k| k.contains(&"yy".to_string())));
-    assert!(r.new_field_defs.is_some_and(|d| d.contains_key("yy")));
+        .field_defs
+        .is_some_and(|d| d.contains_key("yy") && d.contains_key("zz")));
+}
+
+// A def the map already holds is never overwritten by a later inference for the same key.
+#[test]
+fn apply_field_defs_keeps_the_existing_def() {
+    let mut store = setup_store_with(&[]);
+    let mut user = def_of("k");
+    user.label = Some("User edited".into());
+    store.field_defs.edit().insert("k".into(), user);
+    apply_field_defs(&mut store, HashMap::from([("k".to_string(), def_of("k"))]));
+    assert_eq!(store.field_defs["k"].label.as_deref(), Some("User edited"));
 }
 
 // The round-trip rename invariant: a->b then b->a. The render delta never carries
 // extra-only rewrites, so knownness must flow through the registry channel: the store
-// forgets `a` when the move erases it, and re-announces it via new_field_defs when
+// forgets `a` when the move erases it, and re-announces it via field_defs when
 // the reverse move brings it back.
 #[test]
 fn field_op_round_trip_rename_reannounces_the_key() {
@@ -4366,7 +4382,7 @@ fn field_op_round_trip_rename_reannounces_the_key() {
         loc_with_extra(1, r#"{"a":5}"#),
         loc_with_extra(2, r#"{"a":6}"#),
     ]);
-    store.known_field_keys.insert("a".into());
+    store.field_defs.edit().insert("a".into(), def_of("a"));
 
     let r1 = apply_field_op(
         &mut store,
@@ -4377,13 +4393,11 @@ fn field_op_round_trip_rename_reannounces_the_key() {
     .unwrap()
     .mutation;
     assert!(r1.delta.updated.is_empty(), "extra-only: no render delta");
-    assert!(!store.known_field_keys.contains("a"), "a erased, forgotten");
-    assert!(store.known_field_keys.contains("b"), "b auto-registered");
+    assert!(!store.field_defs.contains_key("a"), "a erased, forgotten");
+    assert!(store.field_defs.contains_key("b"), "b auto-registered");
     assert!(
-        r1.known_field_keys
-            .as_ref()
-            .is_some_and(|k| !k.contains(&"a".to_string())),
-        "the result ships the key set without a"
+        r1.field_defs.as_ref().is_some_and(|d| !d.contains_key("a")),
+        "the result ships the registry without a"
     );
 
     let r2 = apply_field_op(
@@ -4394,10 +4408,10 @@ fn field_op_round_trip_rename_reannounces_the_key() {
     )
     .unwrap()
     .mutation;
-    assert!(store.known_field_keys.contains("a"));
-    assert!(!store.known_field_keys.contains("b"));
+    assert!(store.field_defs.contains_key("a"));
+    assert!(!store.field_defs.contains_key("b"));
     assert!(
-        r2.new_field_defs.is_some_and(|d| d.contains_key("a")),
+        r2.field_defs.is_some_and(|d| d.contains_key("a")),
         "reappearing key is re-announced"
     );
 }

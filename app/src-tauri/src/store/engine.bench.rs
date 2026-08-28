@@ -97,7 +97,7 @@ pub struct Fixture {
     pub tags: HashMap<u32, Tag>,
     pub counts: HashMap<u32, usize>,
     pub sets: HashMap<u32, RoaringBitmap>,
-    pub known_field_keys: HashSet<String>,
+    pub field_defs: HashMap<String, maps::ExtraFieldDef>,
     pub n: usize,
 }
 
@@ -130,7 +130,7 @@ impl Fixture {
                 *counts.entry(*t).or_default() += 1;
             }
         }
-        let known_field_keys = [
+        let field_defs = [
             "countryCode",
             "subdivisionCode",
             "source",
@@ -140,14 +140,23 @@ impl Fixture {
             "cameraGen",
         ]
         .iter()
-        .map(std::string::ToString::to_string)
+        .map(|k| {
+            let def = maps::known_field_def(k).unwrap_or(maps::ExtraFieldDef {
+                field_type: maps::ExtraFieldType::String,
+                label: None,
+                values: None,
+                labels: None,
+                comparison: None,
+            });
+            ((*k).to_string(), def)
+        })
         .collect();
         Fixture {
             batch: arrow::locations_to_batch(&locs),
             tags,
             counts,
             sets,
-            known_field_keys,
+            field_defs,
             n,
         }
     }
@@ -159,8 +168,8 @@ impl Fixture {
         store.batch = Some(self.batch.clone());
         store.next_id = self.n as u32 + 1;
         store.alive_count = self.n;
-        store.known_field_keys = self.known_field_keys.clone();
-        store.tags.all = self.tags.clone();
+        store.field_defs = Tracked::new(self.field_defs.clone());
+        store.tags.all = Tracked::new(self.tags.clone());
         store.tags.counts = self.counts.clone();
         store.tags.sets = self.sets.clone();
         store.tags.next_id = TAG_COUNT + 1;
@@ -400,7 +409,7 @@ pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, Tag>) -> Store {
     store.alive_count = agg.alive;
     store.bounds_cache = agg.bounds;
     store.bounds_dirty = false;
-    store.tags.all = tags.clone();
+    store.tags.all = Tracked::new(tags.clone());
     store.tags.counts = agg.tag_counts;
     store.tags.next_id = TAG_COUNT + 1;
     store.rebuild_tag_sets();

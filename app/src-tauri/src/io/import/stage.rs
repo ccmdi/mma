@@ -257,11 +257,8 @@ pub(super) fn add_parsed_to_store(
     let n = parsed.locations.len();
     let tag_id_remap = {
         let tags = &mut store.tags;
-        let (remap, changed) =
-            engine::reconcile_tags_by_name(&parsed.tags, &mut tags.all, &mut tags.next_id);
-        if changed {
-            tags.dirty = true;
-        }
+        let (remap, _) =
+            engine::reconcile_tags_by_name(&parsed.tags, tags.all.edit(), &mut tags.next_id);
         remap
     };
 
@@ -285,7 +282,7 @@ pub(super) fn add_parsed_to_store(
             .map(|t| t.id)
             .unwrap_or_else(|| {
                 let id = store.alloc_tag_id();
-                store.tags.all.insert(
+                store.tags.all.edit().insert(
                     id,
                     Tag {
                         id,
@@ -296,7 +293,6 @@ pub(super) fn add_parsed_to_store(
                         doclinks: Vec::new(),
                     },
                 );
-                store.tags.dirty = true;
                 id
             });
         for loc in &mut parsed.locations {
@@ -316,7 +312,7 @@ pub(super) fn add_parsed_to_store(
             .iter()
             .filter_map(|l| l.extra.as_ref())
             .collect();
-        maps::auto_register_field_defs(&store.known_field_keys, &extras)
+        maps::auto_register_field_defs(|k| store.field_defs.contains_key(k), &extras)
     };
     let t_autoreg = _t.elapsed();
 
@@ -340,16 +336,13 @@ pub(super) fn add_parsed_to_store(
     }
     let t_overlay = _t.elapsed();
 
-    let new_field_defs = new_field_defs.map(|defs| engine::apply_field_defs(store, defs));
-    let mut result = store.finish_mutation(&engine::ChangeSet {
+    if let Some(defs) = new_field_defs {
+        engine::apply_field_defs(store, defs);
+    }
+    let result = store.finish_mutation(&engine::ChangeSet {
         full_reset: true,
         ..Default::default()
     });
-    result.tags = Some(store.tags.all.clone());
-    if new_field_defs.is_some() {
-        result.announce_field_keys(store);
-    }
-    result.new_field_defs = new_field_defs;
     log::debug!("[import-insert] n={n} reconcile+alloc={:.0}ms counts={:.0}ms auto_reg={:.0}ms undo={:.0}ms overlay_add={:.0}ms finish={:.0}ms total={:.0}ms",
         t_reconcile.as_millis(), (t_counts - t_reconcile).as_millis(), (t_autoreg - t_counts).as_millis(),
         (t_undo - t_autoreg).as_millis(), (t_overlay - t_undo).as_millis(), (_t.elapsed() - t_overlay).as_millis(), _t.elapsed().as_millis());

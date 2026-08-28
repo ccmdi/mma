@@ -54,7 +54,7 @@ async function waitForEnrichment(locId: number, field = "countryCode") {
 async function waitForFieldKeys(timeoutMs: number, ...wanted: string[]) {
 	await browser.waitUntil(
 		async () => {
-			const keys = await withApi((api) => [...api.getMapState().knownFieldKeys]);
+			const keys = await withApi((api) => [...api.getKnownFieldKeys()]);
 			return wanted.every((k) => keys.includes(k));
 		},
 		{

@@ -54,17 +54,8 @@ pub struct MutationResult {
     pub tag_counts: Option<HashMap<u32, usize>>,
     /// The whole registry, when any tag was created, edited, deleted, or flipped visible.
     pub tags: Option<HashMap<u32, Tag>>,
-    /// Every known extra-field key, when one was seen for the first time or erased.
-    pub known_field_keys: Option<Vec<String>>,
-    /// Definitions for the keys seen for the first time in this mutation.
-    pub new_field_defs: Option<HashMap<String, maps::ExtraFieldDef>>,
-}
-
-impl MutationResult {
-    /// The key set changed (a first-seen key, or an erased one): ship it whole.
-    pub(crate) fn announce_field_keys(&mut self, store: &Store) {
-        self.known_field_keys = Some(store.known_field_keys.iter().cloned().collect());
-    }
+    /// The whole extra-field registry, when a key was seen for the first time or erased.
+    pub field_defs: Option<HashMap<String, maps::ExtraFieldDef>>,
 }
 
 /// User-facing warning toast.
@@ -120,36 +111,28 @@ pub struct LocationPatch {
     pub modified_at: Option<Option<u32>>,
 }
 
-/// Scan `extra` JSON maps for keys not yet in `known_field_keys`, persist inferred
-/// field definitions to SQLite (for export and cross-session survival), and return
-/// them for `MutationResult::new_field_defs` so JS lands them in its live registry.
-/// Runs before `finish_mutation` so the status snapshot already knows the keys.
-pub(crate) fn auto_register_extras(
-    store: &mut Store,
-    extras: &[&RawExtra],
-) -> Option<HashMap<String, maps::ExtraFieldDef>> {
-    if extras.is_empty() {
-        return None;
+/// Register every `extra` key the store has not seen, with an inferred definition.
+pub(crate) fn auto_register_extras(store: &mut Store, extras: &[&RawExtra]) {
+    if let Some(new_defs) =
+        maps::auto_register_field_defs(|k| store.field_defs.contains_key(k), extras)
+    {
+        apply_field_defs(store, new_defs);
     }
-    maps::auto_register_field_defs(&store.known_field_keys, extras)
-        .map(|new_defs| apply_field_defs(store, new_defs))
 }
 
-/// Persist newly-discovered extra-field definitions to SQLite and make the store know
-/// their keys; hands the defs back for the mutation result.
-pub(crate) fn apply_field_defs(
-    store: &mut Store,
-    new_defs: HashMap<String, maps::ExtraFieldDef>,
-) -> HashMap<String, maps::ExtraFieldDef> {
+/// Persist newly-discovered extra-field definitions to SQLite and into the store's
+/// registry. An existing definition is never overwritten, on disk or in memory.
+pub(crate) fn apply_field_defs(store: &mut Store, new_defs: HashMap<String, maps::ExtraFieldDef>) {
     if let Some(map_id) = &store.map_id {
         if let Ok(conn) = storage::open_db() {
             let _ = maps::persist_field_defs(&conn, map_id, &new_defs);
         }
     }
-    for key in new_defs.keys() {
-        store.known_field_keys.insert(key.clone());
+    for (key, def) in new_defs {
+        if !store.field_defs.contains_key(&key) {
+            store.field_defs.edit().insert(key, def);
+        }
     }
-    new_defs
 }
 
 /// Allocate IDs for `locations`, insert them, and record the undo entry. The one place a
@@ -170,16 +153,11 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
         store.overlay_add(vec![loc]);
     }
     let extras: Vec<&RawExtra> = added.iter().filter_map(|l| l.extra.as_ref()).collect();
-    let new_field_defs = auto_register_extras(store, &extras);
-    let mut result = store.finish_mutation(&ChangeSet {
+    auto_register_extras(store, &extras);
+    store.finish_mutation(&ChangeSet {
         added: added.clone(),
         ..Default::default()
-    });
-    if new_field_defs.is_some() {
-        result.announce_field_keys(store);
-    }
-    result.new_field_defs = new_field_defs;
-    result
+    })
 }
 
 /// Apply `{id, patch}` updates: overlay, tag counts, undo, extras registration. The one
@@ -209,21 +187,15 @@ pub(crate) fn apply_updates(
     } else {
         Vec::new()
     };
-    let new_field_defs = if any_extras {
+    if any_extras {
         let refs: Vec<&RawExtra> = extras.iter().collect();
-        auto_register_extras(store, &refs)
-    } else {
-        None
-    };
+        auto_register_extras(store, &refs);
+    }
     let changes = ChangeSet {
         updated,
         ..Default::default()
     };
     let mut result = store.finish_mutation(&changes);
-    if new_field_defs.is_some() {
-        result.announce_field_keys(store);
-    }
-    result.new_field_defs = new_field_defs;
     // Undo is recorded after the mutation is finished so the pairs move into the entry
     // instead of being cloned; report again so the stack change rides along.
     if record_undo && store.record_update_undo(changes.updated) {
@@ -469,16 +441,14 @@ pub(crate) fn apply_field_op(
         plan_field_op(&view, resolved.as_ref(), op)?
     };
     for k in &plan.forget {
-        store.known_field_keys.remove(k);
-    }
-    let mut mutation = apply_updates(store, &plan.updates, record_undo);
-    if !plan.forget.is_empty() {
-        mutation.announce_field_keys(store);
+        if store.field_defs.contains_key(k) {
+            store.field_defs.edit().remove(k);
+        }
     }
     Ok(FieldOpResult {
         changed: plan.updates.len() as u32,
         skipped: plan.skipped,
-        mutation,
+        mutation: apply_updates(store, &plan.updates, record_undo),
     })
 }
 

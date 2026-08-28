@@ -146,8 +146,7 @@ pub async fn store_open_map(
     // Load uncommitted edits into the overlay; the base batch stays at the last commit.
     // `adds` are persisted in sorted-id order.
     if let Some(d) = delta {
-        store.overlay = d;
-        store.overlay.dirty = true;
+        store.overlay = Tracked::unsaved(d);
     }
     store.next_id = seed_next_id(max_id, &store.overlay.adds, &undo, &redo);
 
@@ -164,9 +163,11 @@ pub async fn store_open_map(
         storage::set_location_count(&conn, &map_id, alive)?;
         let mut tags = read_tags_json(&conn, &map_id);
         let (max_tag_id, healed) = reconcile_tag_registry(&mut tags, &tag_counts);
-        store.tags.all = tags;
+        store.tags.all = Tracked::new(tags);
         store.tags.counts = tag_counts;
-        store.tags.dirty = healed;
+        if healed {
+            store.tags.all.touch();
+        }
         store.tags.next_id = max_tag_id + 1;
         store.rebuild_tag_sets();
         let extra_str: String = conn
@@ -177,11 +178,7 @@ pub async fn store_open_map(
             )
             .unwrap_or_default();
         let extra = maps::MapExtra::from_json(&extra_str);
-        store.known_field_keys = extra
-            .fields
-            .as_ref()
-            .map(|f| f.keys().cloned().collect())
-            .unwrap_or_default();
+        store.field_defs = Tracked::new(extra.fields.unwrap_or_default());
     }
     store.edits.undo = undo;
     store.edits.redo = redo;
@@ -407,17 +404,14 @@ pub async fn store_update_tags(
                     }
                 }
                 all_updated.extend(store.commit_tag_update(updated).updated);
-            } else if let Some(t) = store.tags.all.get_mut(&u.id) {
+            } else if let Some(t) = store.tags.all.edit().get_mut(&u.id) {
                 apply_tag_patch(t, &u.patch);
             }
         }
-
-        store.tags.dirty = true;
-        let mut result = store.finish_mutation(&ChangeSet {
+        let result = store.finish_mutation(&ChangeSet {
             updated: all_updated,
             ..Default::default()
         });
-        result.tags = Some(store.tags.all.clone());
         log::debug!(
             "[cmd] store_update_tags n={} total={}ms",
             updates.len(),
@@ -593,9 +587,9 @@ pub fn store_copy_locations_to_map(
             let tags = used_tags(&fresh);
             let t_add = Instant::now();
             let result = import::add_copied_to_store(target, fresh, tags)?;
-            // Force tags dirty so the receiving window's autosave flushes the bumped
-            // counts even when no new tag was created.
-            target.tags.dirty = true;
+            // The receiving window's autosave must flush the bumped counts even when no
+            // new tag was created.
+            target.tags.all.touch();
             log::debug!(
                 "[cmd] store_copy_locations_to_map open-target scan={}ms add={}ms total={}ms",
                 scan_ms,
@@ -637,7 +631,7 @@ pub fn store_copy_locations_to_map(
         // skips keys the target already defines, so an empty known-set is safe.
         {
             let extras: Vec<&RawExtra> = fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
-            if let Some(defs) = maps::auto_register_field_defs(&HashSet::<String>::new(), &extras) {
+            if let Some(defs) = maps::auto_register_field_defs(|_| false, &extras) {
                 maps::persist_field_defs(&conn, &target_map_id, &defs)?;
             }
         }
@@ -688,30 +682,30 @@ pub async fn store_save_dirty(
 ) -> AppResult<SaveResult> {
     let _t = Instant::now();
     log::debug!("[cmd] store_save_dirty ENTER");
-    let (map_id, delta_data, alive, tags_json, rev) = {
+    let (map_id, delta_data, alive, tags_json, overlay_rev, tags_rev) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_window(&label.0)?;
         let map_id = store.map_id.clone().ok_or("no map open")?;
-        if !store.overlay.dirty && !store.tags.dirty {
+        if !store.overlay.is_unsaved() && !store.tags.all.is_unsaved() {
             return Ok(SaveResult { saved_bytes: 0 });
         }
         let delta_data = store
             .overlay
-            .dirty
+            .is_unsaved()
             .then(|| overlay_delta_bytes(store))
             .transpose()?;
-        let tags_json = if store.tags.dirty {
-            store.tags.dirty = false;
-            Some(serialize_tags_json(&store.tags.all))
-        } else {
-            None
-        };
+        let tags_json = store
+            .tags
+            .all
+            .is_unsaved()
+            .then(|| serialize_tags_json(&store.tags.all));
         (
             map_id,
             delta_data,
             store.alive_count,
             tags_json,
-            store.overlay.rev,
+            store.overlay.rev(),
+            store.tags.all.rev(),
         )
     };
 
@@ -719,23 +713,20 @@ pub async fn store_save_dirty(
     let wrote_delta = delta_data.is_some();
     let wrote_tags = tags_json.is_some();
     let map_id2 = map_id.clone();
-    let write = task::spawn_blocking(move || persist_dirty(&map_id2, delta_data, alive, tags_json))
+    task::spawn_blocking(move || persist_dirty(&map_id2, delta_data, alive, tags_json))
         .await
-        .unwrap_or_else(|e| Err(e.into()));
-    if write.is_err() && wrote_tags {
-        if let Ok(store) = state.lock()?.store_for_window(&label.0) {
-            store.tags.dirty = true;
-        }
-    }
-    write?;
+        .unwrap_or_else(|e| Err(e.into()))?;
 
-    if wrote_delta {
-        let mut mgr = state.lock()?;
-        // The window may have closed or switched maps during the write; the map_id
-        // check stops a fresh store (rev 0) from being cleared by a stale save.
-        if let Ok(store) = mgr.store_for_window(&label.0) {
-            if store.overlay.rev == rev && store.map_id.as_deref() == Some(map_id.as_str()) {
-                store.overlay.dirty = false;
+    // The window may have closed or switched maps during the write; the map_id check
+    // stops a fresh store from being marked saved by a stale write.
+    let mut mgr = state.lock()?;
+    if let Ok(store) = mgr.store_for_window(&label.0) {
+        if store.map_id.as_deref() == Some(map_id.as_str()) {
+            if wrote_delta {
+                store.overlay.saved_at(overlay_rev);
+            }
+            if wrote_tags {
+                store.tags.all.saved_at(tags_rev);
             }
         }
     }
@@ -766,7 +757,7 @@ pub fn store_get_summary(
         Ok(SummaryResult {
             location_count: count,
             version: store.version,
-            dirty_count: if store.overlay.dirty { 1 } else { 0 },
+            dirty_count: usize::from(store.overlay.is_unsaved()),
         })
     })
 }
@@ -933,14 +924,11 @@ pub fn store_reorder_tags(
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         for (i, &id) in ordered_ids.iter().enumerate() {
-            if let Some(tag) = store.tags.all.get_mut(&id) {
+            if let Some(tag) = store.tags.all.edit().get_mut(&id) {
                 tag.order = Some(i as u32);
             }
         }
-        store.tags.dirty = true;
-        let mut result = store.finish_mutation(&ChangeSet::default());
-        result.tags = Some(store.tags.all.clone());
-        Ok(result)
+        Ok(store.finish_mutation(&ChangeSet::default()))
     })
 }
 

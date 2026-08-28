@@ -24,6 +24,7 @@ use rayon::prelude::*;
 
 use crate::store::arrow;
 use crate::store::arrow::{batch_row_for_id, col_id, schema};
+use crate::store::maps;
 use crate::store::spatial;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
@@ -58,15 +59,6 @@ pub(crate) struct Overlay {
     pub dead: HashSet<u32>,
     #[serde(with = "patches_as_seq")]
     pub patches: HashMap<u32, Location>,
-    /// Unsaved since the last autosave. Cleared by `store_save_dirty` after a
-    /// confirmed write (rev-guarded); NOT a "has uncommitted content" flag — that
-    /// is [`Overlay::is_empty`].
-    #[serde(skip)]
-    pub dirty: bool,
-    /// Bumped on every overlay mutation. `store_save_dirty` clears `dirty` only if
-    /// the rev it serialized is still current once the async write lands.
-    #[serde(skip)]
-    pub rev: u64,
 }
 
 impl Overlay {
@@ -86,12 +78,6 @@ impl Overlay {
         }
         locs.extend(self.adds);
     }
-
-    /// Mark the overlay mutated: flag it unsaved and invalidate in-flight saves.
-    fn touch(&mut self) {
-        self.dirty = true;
-        self.rev += 1;
-    }
 }
 
 pub struct Store {
@@ -104,9 +90,10 @@ pub struct Store {
     pub(crate) alive_count: usize,
     /// What JS was last told, so a mutation result carries only the fields that moved.
     pub(crate) reported: Reported,
-    pub(crate) known_field_keys: HashSet<String>,
+    /// The map's extra-field registry, mirroring `maps.extra.fields` on disk.
+    pub(crate) field_defs: Tracked<HashMap<String, maps::ExtraFieldDef>>,
 
-    pub(crate) overlay: Overlay,
+    pub(crate) overlay: Tracked<Overlay>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
     pub(crate) tags: TagState,
@@ -148,8 +135,8 @@ impl Store {
             version: 0,
             alive_count: 0,
             reported: Reported::default(),
-            known_field_keys: HashSet::new(),
-            overlay: Overlay::default(),
+            field_defs: Tracked::default(),
+            overlay: Tracked::default(),
             render: RenderState {
                 cells: [const { None }; 32],
                 id_to_cell_idx: Vec::new(),
@@ -164,9 +151,8 @@ impl Store {
                 active_id: None,
             },
             tags: TagState {
-                all: HashMap::new(),
+                all: Tracked::default(),
                 counts: HashMap::new(),
-                dirty: false,
                 touched: HashSet::new(),
                 next_id: 1,
                 sets: HashMap::new(),
@@ -199,7 +185,6 @@ impl Store {
             can_undo: now.can_undo,
             can_redo: now.can_redo,
             tag_counts: self.tag_counts(),
-            known_field_keys: self.known_field_keys.iter().cloned().collect(),
         }
     }
 
@@ -286,25 +271,22 @@ impl Store {
             None
         };
 
-        let mut tags = None;
-        let mut vis_changed = false;
+        // A tag is visible exactly while something carries it.
         let touched = mem::take(&mut self.tags.touched);
         for &tag_id in &touched {
             let should = self.tag_count(tag_id) > 0;
-            let Some(tag) = self.tags.all.get_mut(&tag_id) else {
-                continue;
-            };
-            if tag.visible != should {
-                tag.visible = should;
-                vis_changed = true;
+            if self
+                .tags
+                .all
+                .get(&tag_id)
+                .is_some_and(|t| t.visible != should)
+            {
+                self.tags.all.edit().get_mut(&tag_id).unwrap().visible = should;
             }
         }
-        if vis_changed {
-            self.tags.dirty = true;
-            tags = Some(self.tags.all.clone());
-        }
-
         let tag_counts = (!touched.is_empty()).then(|| self.tag_counts());
+        let tags = self.tags.all.take_changed();
+        let field_defs = self.field_defs.take_changed();
 
         let mut result = MutationResult {
             version: self.version,
@@ -315,8 +297,7 @@ impl Store {
             can_redo: None,
             tag_counts,
             tags,
-            known_field_keys: None,
-            new_field_defs: None,
+            field_defs,
         };
         self.report(&mut result);
         result
@@ -421,12 +402,11 @@ impl Store {
     pub(crate) fn overlay_add(&mut self, locs: Vec<Location>) {
         let mut fresh: Vec<Location> = Vec::with_capacity(locs.len());
         for loc in locs {
-            self.overlay.touch();
             self.alive_count += 1;
             if let Some(ix) = self.spatial.as_mut() {
                 ix.insert(loc.id, loc.lat, loc.lng);
             }
-            self.overlay.dead.remove(&loc.id);
+            self.overlay.edit().dead.remove(&loc.id);
             let in_batch = self
                 .batch
                 .as_ref()
@@ -435,9 +415,9 @@ impl Store {
             if !in_batch {
                 fresh.push(loc);
             } else if self.base_loc_by_id(loc.id).as_ref() == Some(&loc) {
-                self.overlay.patches.remove(&loc.id);
+                self.overlay.edit().patches.remove(&loc.id);
             } else {
-                self.overlay.patches.insert(loc.id, loc);
+                self.overlay.edit().patches.insert(loc.id, loc);
             }
         }
         if fresh.is_empty() {
@@ -452,7 +432,7 @@ impl Store {
                 );
             }
         }
-        let adds = &mut self.overlay.adds;
+        let adds = &mut self.overlay.edit().adds;
         if adds.last().is_none_or(|last| last.id < fresh[0].id) {
             adds.extend(fresh);
         } else {
@@ -492,11 +472,13 @@ impl Store {
             if let Some(ix) = self.spatial.as_mut() {
                 ix.remove(loc.id, lat, lng);
             }
-            self.overlay.patches.remove(&loc.id);
+            self.overlay.edit().patches.remove(&loc.id);
         }
-        self.overlay.dead.extend(&remove_set);
-        self.overlay.adds.retain(|l| !remove_set.contains(&l.id));
-        self.overlay.touch();
+        self.overlay.edit().dead.extend(&remove_set);
+        self.overlay
+            .edit()
+            .adds
+            .retain(|l| !remove_set.contains(&l.id));
     }
 
     /// Apply a partial patch to an existing location. Reads the current state, merges
@@ -545,31 +527,31 @@ impl Store {
         if let Ok(pos) = self.overlay.adds.binary_search_by_key(&id, |l| l.id) {
             if self.overlay.adds[pos] != loc {
                 loc.modified_at = Some(util::now_unix());
-                self.overlay.adds[pos] = loc.clone();
+                self.overlay.edit().adds[pos] = loc.clone();
             }
         } else if self.overlay.patches.contains_key(&id) {
             // A patched row: `old` is the patched state, so reverting to the base row
             // exactly is the one case that still has to materialize it.
             if self.base_loc_by_id(id).as_ref() == Some(&loc) {
-                self.overlay.patches.remove(&id);
+                self.overlay.edit().patches.remove(&id);
             } else if self.overlay.patches.get(&id) != Some(&loc) {
                 loc.modified_at = Some(util::now_unix());
-                self.overlay.patches.insert(id, loc.clone());
+                self.overlay.edit().patches.insert(id, loc.clone());
             }
         } else if loc != *old {
             loc.modified_at = Some(util::now_unix());
-            self.overlay.patches.insert(id, loc.clone());
+            self.overlay.edit().patches.insert(id, loc.clone());
         }
-        self.overlay.touch();
         loc
     }
 
     /// Reset overlay state. Called after bake or on map close.
     fn clear_overlay(&mut self) {
-        self.overlay.adds.clear();
-        self.overlay.dead.clear();
-        self.overlay.patches.clear();
-        self.overlay.dirty = false;
+        let overlay = self.overlay.edit();
+        overlay.adds.clear();
+        overlay.dead.clear();
+        overlay.patches.clear();
+        self.overlay.mark_saved();
     }
 
     /// Merge overlay (adds, patches, dead) into the Arrow batch. O(N) where N = batch rows.
@@ -729,7 +711,90 @@ pub struct StoreStatus {
     pub can_undo: bool,
     pub can_redo: bool,
     pub tag_counts: HashMap<u32, usize>,
-    pub known_field_keys: Vec<String>,
+}
+
+/// State with two consumers, JS and disk, each of which has seen it up to some revision.
+/// Every edit bumps `rev`; reads deref; the only `&mut` is [`Tracked::edit`], so an edit
+/// that forgot to mark itself cannot be written. `finish_mutation` ships what JS has not
+/// seen; a save records the rev it wrote, so an edit racing an async write stays unsaved.
+#[derive(Debug, Default)]
+pub(crate) struct Tracked<T> {
+    value: T,
+    rev: u64,
+    shipped: u64,
+    saved: u64,
+}
+
+impl<T> Tracked<T> {
+    /// A value both JS and disk already hold (map open).
+    pub(crate) fn new(value: T) -> Self {
+        Self {
+            value,
+            rev: 0,
+            shipped: 0,
+            saved: 0,
+        }
+    }
+
+    /// A value disk does not hold yet.
+    pub(crate) fn unsaved(value: T) -> Self {
+        Self {
+            value,
+            rev: 1,
+            shipped: 1,
+            saved: 0,
+        }
+    }
+
+    pub(crate) fn edit(&mut self) -> &mut T {
+        self.rev += 1;
+        &mut self.value
+    }
+
+    /// An edit with nothing to write: the value is unchanged but must ship and save again.
+    pub(crate) fn touch(&mut self) {
+        self.rev += 1;
+    }
+
+    pub(crate) fn replace(&mut self, value: T) {
+        self.value = value;
+        self.rev += 1;
+    }
+
+    pub(crate) fn rev(&self) -> u64 {
+        self.rev
+    }
+
+    /// The value if edited since JS last saw it.
+    pub(crate) fn take_changed(&mut self) -> Option<T>
+    where
+        T: Clone,
+    {
+        (self.rev > self.shipped).then(|| {
+            self.shipped = self.rev;
+            self.value.clone()
+        })
+    }
+
+    pub(crate) fn is_unsaved(&self) -> bool {
+        self.rev > self.saved
+    }
+
+    /// Disk now holds revision `rev`. A later edit keeps the value unsaved.
+    pub(crate) fn saved_at(&mut self, rev: u64) {
+        self.saved = self.saved.max(rev);
+    }
+
+    pub(crate) fn mark_saved(&mut self) {
+        self.saved = self.rev;
+    }
+}
+
+impl<T> std::ops::Deref for Tracked<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.value
+    }
 }
 
 /// The scalars a mutation result reports by change, not by value.

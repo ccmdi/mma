@@ -16,7 +16,6 @@ use crate::util::now_iso;
 use rusqlite::types::ToSql;
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fs;
 
 // ---------------------------------------------------------------------------
@@ -361,7 +360,7 @@ pub fn infer_field_type(value: &serde_json::Value) -> ExtraFieldType {
 /// Known SV metadata keys get curated definitions; unknown keys get type-inferred ones.
 /// Returns `None` if no new fields are discovered.
 pub fn auto_register_field_defs(
-    known_keys: &HashSet<String>,
+    is_known: impl Fn(&str) -> bool,
     extras: &[&RawExtra],
 ) -> Option<HashMap<String, ExtraFieldDef>> {
     let mut new_defs: HashMap<String, ExtraFieldDef> = HashMap::new();
@@ -369,7 +368,7 @@ pub fn auto_register_field_defs(
         // Byte key-scan (no per-loc map alloc). A value is only deep-parsed for genuinely
         // new keys — the common case short-circuits on known_keys.
         extra.for_each_field(|key, raw_value| {
-            if known_keys.contains(key) || new_defs.contains_key(key) {
+            if is_known(key) || new_defs.contains_key(key) {
                 return;
             }
             let def = known_field_def(key).unwrap_or_else(|| {
@@ -617,7 +616,7 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
 }
 
 /// Apply a partial update to a map's metadata; `None` fields are left unchanged.
-// Also syncs known_field_keys on the in-memory store when extra fields change, so
+// Also replaces the in-memory store's field registry when extra fields change, so
 // auto-registration doesn't re-discover fields the user explicitly defined.
 #[tauri::command]
 #[specta::specta]
@@ -628,33 +627,19 @@ pub async fn store_update_map_meta(
 ) -> AppResult<()> {
     let new_fields = patch.extra.as_ref().and_then(|e| e.fields.clone());
     let row_id = id.clone();
-    let old_extra =
-        storage::with_db(move |conn| update_map_meta_row(conn, &row_id, &patch)).await?;
+    storage::with_db(move |conn| update_map_meta_row(conn, &row_id, &patch)).await?;
     let Some(new_fields) = new_fields else {
         return Ok(());
     };
     let mut mgr = state.lock()?;
     if let Ok(store) = mgr.store_for_map(&id) {
-        if let Some(old_fields) = old_extra.and_then(|e| e.fields) {
-            for key in old_fields.keys() {
-                if !new_fields.contains_key(key) {
-                    store.known_field_keys.remove(key);
-                }
-            }
-        }
-        for key in new_fields.keys() {
-            store.known_field_keys.insert(key.clone());
-        }
+        store.field_defs.replace(new_fields);
     }
     Ok(())
 }
 
-/// Apply the patch to the `maps` row; returns the previous `extra` when the patch touches it.
-fn update_map_meta_row(
-    conn: &Connection,
-    id: &str,
-    patch: &MapMetaPatch,
-) -> AppResult<Option<MapExtra>> {
+/// Apply the patch to the `maps` row.
+fn update_map_meta_row(conn: &Connection, id: &str, patch: &MapMetaPatch) -> AppResult<()> {
     let mut sets: Vec<&str> = Vec::new();
     let mut values: Vec<Box<dyn ToSql>> = Vec::new();
 
@@ -668,7 +653,7 @@ fn update_map_meta_row(
     push_field!(json sets, values, patch, "labels", labels);
 
     if sets.is_empty() {
-        return Ok(None);
+        return Ok(());
     }
 
     let now = now_iso();
@@ -678,16 +663,8 @@ fn update_map_meta_row(
 
     let sql = format!("UPDATE maps SET {} WHERE id = ?", sets.join(", "));
     let param_refs: Vec<&dyn ToSql> = values.iter().map(AsRef::as_ref).collect();
-    let old_extra = if patch.extra.is_some() {
-        let s: String = conn
-            .query_row("SELECT extra FROM maps WHERE id = ?", [id], |r| r.get(0))
-            .unwrap_or_default();
-        Some(MapExtra::from_json(&s))
-    } else {
-        None
-    };
     conn.execute(&sql, param_refs.as_slice())?;
-    Ok(old_extra)
+    Ok(())
 }
 
 /// Update `last_opened_at` to the current timestamp. Used to sort the map

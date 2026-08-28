@@ -8,7 +8,6 @@ use crate::store::maps::VirtualTag;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags, Tag};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::time::Instant;
@@ -41,7 +40,7 @@ fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
 /// Run the core against a store's tag table, as add_parsed_to_store does.
 fn reconcile(store: &mut Store, tags: &[Tag]) -> HashMap<u32, u32> {
     let t = &mut store.tags;
-    engine::reconcile_tags_by_name(tags, &mut t.all, &mut t.next_id).0
+    engine::reconcile_tags_by_name(tags, t.all.edit(), &mut t.next_id).0
 }
 
 fn ordered_tag(id: u32, name: &str, order: u32) -> Tag {
@@ -55,7 +54,7 @@ fn store_with_tags(tags: &[Tag]) -> Store {
     let mut store = Store::new();
     store.map_id = Some("test".into());
     for t in tags {
-        store.tags.all.insert(t.id, t.clone());
+        store.tags.all.edit().insert(t.id, t.clone());
     }
     store.tags.next_id = store.tags.all.keys().max().copied().unwrap_or(0) + 1;
     store
@@ -524,7 +523,7 @@ fn ascii_escaped_field_names_survive_both_paths() {
         .iter()
         .filter_map(|l| l.extra.as_ref())
         .collect();
-    let defs = maps::auto_register_field_defs(&HashSet::new(), &extras).unwrap();
+    let defs = maps::auto_register_field_defs(|_| false, &extras).unwrap();
     let mut keys: Vec<&str> = defs.keys().map(String::as_str).collect();
     keys.sort();
     assert_eq!(keys, vec!["café", "countryCode"]);

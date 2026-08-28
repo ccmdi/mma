@@ -48,7 +48,7 @@ pub(crate) fn load_delta(delta_path: &Path) -> Option<Overlay> {
 
 pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
     {
-        if store.overlay.dirty {
+        if store.overlay.is_unsaved() {
             // Persist uncommitted edits to the delta sidecar. The base file stays pinned
             // at the last committed state -- it only advances on commit/checkout -- so the
             // overlay remains a faithful changeset-since-last-commit for the next commit.
@@ -62,7 +62,7 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
         let count = store.alive_count;
         let conn = storage::open_db()?;
         storage::set_location_count(&conn, map_id, count)?;
-        if store.tags.dirty {
+        if store.tags.all.is_unsaved() {
             write_tags_json(&conn, map_id, &store.tags.all)?;
         }
         save_edit_history(map_id, &store.edits.undo, &store.edits.redo)?;
@@ -80,7 +80,7 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
 /// `store_open_map` the blob is loaded straight back into the overlay, and a commit
 /// bakes it into the base and deletes the file.
 pub(crate) fn overlay_delta_bytes(store: &Store) -> AppResult<Vec<u8>> {
-    rmp_serde::to_vec_named(&store.overlay).map_err(AppError::from)
+    rmp_serde::to_vec_named(&*store.overlay).map_err(AppError::from)
 }
 
 /// Read a map's full current state from disk = base file + uncommitted delta sidecar.
@@ -230,9 +230,9 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
     let count = store.batch.as_ref().map_or(0, RecordBatch::num_rows);
     let conn = storage::open_db()?;
     storage::set_location_count(&conn, map_id, count)?;
-    if store.tags.dirty {
+    if store.tags.all.is_unsaved() {
         write_tags_json(&conn, map_id, &store.tags.all)?;
-        store.tags.dirty = false;
+        store.tags.all.mark_saved();
     }
     Ok(())
 }

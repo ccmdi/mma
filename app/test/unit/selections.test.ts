@@ -25,7 +25,7 @@ import {
 	rewriteSelectionFields,
 } from "@/store/selections";
 import { ValidationState } from "@/types";
-import { setUserFieldDefs, resetForMapChange } from "@/lib/data/fieldDefRegistry";
+import { setUserFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { setSetting } from "@/store/settings";
 
 // The store binds tag lookups internally; back them with a settable fake tag set.
@@ -444,7 +444,7 @@ describe("selectionDisplayName", () => {
 		});
 	});
 	afterEach(() => {
-		resetForMapChange();
+		setUserFieldDefs({});
 	});
 
 	it("returns type name for simple types", () => {

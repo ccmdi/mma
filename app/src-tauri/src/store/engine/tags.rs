@@ -7,12 +7,11 @@ use roaring::RoaringBitmap;
 use std::collections::{HashMap, HashSet};
 
 pub(crate) struct TagState {
-    pub all: HashMap<u32, Tag>,
+    pub all: Tracked<HashMap<u32, Tag>>,
     /// `tag_id -> number of locations carrying it`. The sole owner of tag counts;
     /// `MutationResult.tag_counts` is their only channel to JS, so nothing on the wire-facing
     /// `Tag` can disagree. Maintained in `update_tag_counts`, rebuilt on map open.
     pub counts: HashMap<u32, usize>,
-    pub dirty: bool,
     /// Tags whose count moved since the last `finish_mutation`, which drains it. Decides
     /// both which tags get their visibility re-derived (scanning all of them instead would
     /// hide any tag merely sitting at zero, including one just created) and whether the
@@ -139,7 +138,7 @@ impl Store {
         for loc in locs {
             for &tag_id in &loc.tags {
                 if delta > 0 && !self.tags.all.contains_key(&tag_id) {
-                    self.tags.all.insert(
+                    self.tags.all.edit().insert(
                         tag_id,
                         Tag {
                             id: tag_id,
@@ -150,7 +149,6 @@ impl Store {
                             doclinks: Vec::new(),
                         },
                     );
-                    self.tags.dirty = true;
                 }
                 let count = self.tags.counts.entry(tag_id).or_default();
                 if delta < 0 {
@@ -228,20 +226,19 @@ impl Store {
     /// duplicated. An empty `location_ids` just creates them.
     pub(crate) fn create_tags(&mut self, names: &[String], location_ids: &[u32]) -> MutationResult {
         let mut name_to_id: HashMap<String, u32> = HashMap::new();
-        for (&id, entry) in &self.tags.all {
+        for (&id, entry) in self.tags.all.iter() {
             name_to_id.insert(entry.name.to_lowercase(), id);
         }
 
         let mut tag_ids: Vec<u32> = Vec::with_capacity(names.len());
         for name in names {
             if let Some(&id) = name_to_id.get(&name.to_lowercase()) {
-                let tag = self.tags.all.get_mut(&id).unwrap();
-                tag.visible = true;
+                self.tags.all.edit().get_mut(&id).unwrap().visible = true;
                 tag_ids.push(id);
             } else {
                 let id = self.alloc_tag_id();
                 let order = self.tags.all.values().filter_map(|t| t.order).max();
-                self.tags.all.insert(
+                self.tags.all.edit().insert(
                     id,
                     Tag {
                         id,
@@ -255,10 +252,6 @@ impl Store {
                 name_to_id.insert(name.to_lowercase(), id);
                 tag_ids.push(id);
             }
-        }
-
-        if !names.is_empty() {
-            self.tags.dirty = true;
         }
 
         let mut updated: Vec<(Location, Location)> = Vec::new();
@@ -281,9 +274,7 @@ impl Store {
         }
 
         let changeset = self.commit_tag_update(updated);
-        let mut result = self.finish_mutation(&changeset);
-        result.tags = Some(self.tags.all.clone());
-        result
+        self.finish_mutation(&changeset)
     }
 
     /// Allocate the next monotonically increasing tag ID.

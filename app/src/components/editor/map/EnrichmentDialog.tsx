@@ -11,7 +11,7 @@ import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { openManual } from "@/store/router";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
-import { getFieldDef, fieldLabel } from "@/lib/data/fieldDefRegistry";
+import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import {
 	deleteField,
 	fieldCoverage,
@@ -76,7 +76,7 @@ interface FieldRow {
 
 /** Fields that exist on this map: the only ones with a schema to edit. */
 function buildRows(): FieldRow[] {
-	return [...getMapState().knownFieldKeys].sort().map((key) => {
+	return [...getKnownFieldKeys()].sort().map((key) => {
 		const def = getFieldDef(key);
 		return {
 			key,

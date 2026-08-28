@@ -16,11 +16,7 @@ import { hexToRgb } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
-import {
-	setUserFieldDefs,
-	mergeUserFieldDefs,
-	resetForMapChange,
-} from "@/lib/data/fieldDefRegistry";
+import { setUserFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
 import { compareMonthOrder } from "@/lib/util/date";
@@ -70,7 +66,6 @@ export interface MapState {
 	/** Extra-field keys known to exist in location data on the current map. A mirror of
 	 *  Rust's registry: refreshed wholesale from `StoreStatus.knownFieldKeys` on open and
 	 *  on every mutation (plus that mutation's `newFieldDefs`), never maintained JS-side. */
-	knownFieldKeys: ReadonlySet<string>;
 	selections: Selection[];
 	/** Keys of selections that are "ghosted": kept in the list but excluded from the
 	 *  Rust sync, so they neither render nor count toward the selected set. Ephemeral. */
@@ -94,7 +89,6 @@ const INITIAL_STATE: MapState = {
 	tags: {},
 	tagCounts: {},
 	selectionCounts: {},
-	knownFieldKeys: new Set(),
 	selections: [],
 	ghostedSelections: new Set(),
 	selectedLocationIds: SelectedIds.EMPTY,
@@ -287,7 +281,6 @@ function openedMapState(meta: MapMeta | null, status: StoreStatus) {
 		tagCounts: status.tagCounts,
 		canUndo: status.canUndo,
 		canRedo: status.canRedo,
-		knownFieldKeys: new Set(status.knownFieldKeys),
 	};
 }
 
@@ -333,8 +326,7 @@ function resetMapState() {
 	setState({ mapId: null, map: null });
 
 	clearEditState();
-	setState({ knownFieldKeys: new Set() });
-	resetForMapChange();
+	setUserFieldDefs({});
 
 	emitEvent("render:delta", { added: [], updated: [], removed: [], fullReset: true });
 	setState({ canUndo: false, canRedo: false, tags: {}, tagCounts: {}, locationCount: 0 });
@@ -506,9 +498,8 @@ function applyMutation(r: MutationResult) {
 		canRedo: r.canRedo,
 		tags: r.tags,
 		tagCounts: r.tagCounts,
-		knownFieldKeys: r.knownFieldKeys && new Set(r.knownFieldKeys),
 	});
-	if (r.newFieldDefs) mergeUserFieldDefs(r.newFieldDefs);
+	if (r.fieldDefs) setUserFieldDefs(r.fieldDefs);
 	if (r.tags) void removeSelections(deadTagKeys(oldTags, r.tags));
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
 }
@@ -539,8 +530,7 @@ const EMPTY_MUTATION: MutationResult = {
 	canRedo: null,
 	tagCounts: null,
 	tags: null,
-	knownFieldKeys: null,
-	newFieldDefs: null,
+	fieldDefs: null,
 };
 
 /** Run a mutation IPC, emit its render delta, sync JS state, and schedule a save. */

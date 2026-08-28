@@ -43,6 +43,7 @@ import { svMetadata } from "@/lib/sv/query";
 import { mmaBufUrl } from "@/lib/util/util";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { getScene } from "@/lib/render/sceneStore";
+import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import * as legacy from "@/legacy";
 import * as testApi from "@/testApi";
 
@@ -263,6 +264,7 @@ type MapListApi = typeof mapList;
 type ReviewApi = typeof review;
 type SurfaceApi = typeof surface;
 type LegacyApi = typeof legacy;
+type FieldsApi = { getKnownFieldKeys: typeof getKnownFieldKeys };
 
 export interface MMA
 	extends
@@ -273,6 +275,7 @@ export interface MMA
 		MapListApi,
 		ReviewApi,
 		SurfaceApi,
+		FieldsApi,
 		LegacyApi {}
 
 const mma: MMA = {
@@ -283,6 +286,7 @@ const mma: MMA = {
 	...mapList,
 	...review,
 	...surface,
+	getKnownFieldKeys,
 	...legacy,
 };
 
