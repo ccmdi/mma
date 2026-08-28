@@ -4329,6 +4329,30 @@ fn field_op_check_guards_builtin_names() {
     .is_err());
 }
 
+// A key a mutation introduces is in that same result's status snapshot: JS reads
+// `knownFieldKeys` straight from the result, with no union over `new_field_defs`.
+#[test]
+fn new_extra_key_is_known_in_the_same_result() {
+    let mut store = setup_store_with(&[]);
+    let r = apply_adds(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
+    assert!(r.status.known_field_keys.contains(&"zz".to_string()));
+    assert!(r.new_field_defs.is_some_and(|d| d.contains_key("zz")));
+
+    let r = apply_updates(
+        &mut store,
+        &[Update {
+            id: 1,
+            patch: LocationPatch {
+                extra: Some(RawExtra::from_string(r#"{"zz":1,"yy":2}"#.into())),
+                ..Default::default()
+            },
+        }],
+        false,
+    );
+    assert!(r.status.known_field_keys.contains(&"yy".to_string()));
+    assert!(r.new_field_defs.is_some_and(|d| d.contains_key("yy")));
+}
+
 // The round-trip rename invariant: a->b then b->a. The render delta never carries
 // extra-only rewrites, so knownness must flow through the registry channel: the store
 // forgets `a` when the move erases it, and re-announces it via new_field_defs when

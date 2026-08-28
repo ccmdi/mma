@@ -72,13 +72,13 @@ describe("applyMutation merge semantics", () => {
 		expect(s.map).toBe(mapBefore);
 	});
 
-	// knownFieldKeys is a wholesale mirror of the status snapshot (Rust forgets erased
-	// keys), extended by the same mutation's newFieldDefs (registered after the snapshot).
-	it("knownFieldKeys mirrors the status snapshot plus newFieldDefs", async () => {
+	// knownFieldKeys is a wholesale mirror of the status snapshot: Rust registers a
+	// mutation's new keys before it snapshots, and forgets erased ones, so JS never unions.
+	it("knownFieldKeys mirrors the status snapshot", async () => {
 		expect([...getMapState().knownFieldKeys]).toEqual(["alt"]);
 		await mutate(() =>
 			Promise.resolve(
-				result({ knownFieldKeys: ["alt"], newFieldDefs: { foo: { type: "string" } } }),
+				result({ knownFieldKeys: ["alt", "foo"], newFieldDefs: { foo: { type: "string" } } }),
 			),
 		);
 		expect([...getMapState().knownFieldKeys].sort()).toEqual(["alt", "foo"]);

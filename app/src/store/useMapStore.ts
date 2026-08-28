@@ -506,7 +506,7 @@ function applyMutation(r: MutationResult) {
 		canRedo: r.canRedo,
 		tagCounts: r.tagCounts,
 		tags: r.tags,
-		knownFieldKeys: new Set([...r.knownFieldKeys, ...Object.keys(r.newFieldDefs ?? {})]),
+		knownFieldKeys: new Set(r.knownFieldKeys),
 	});
 	if (r.newFieldDefs) mergeUserFieldDefs(r.newFieldDefs);
 	if (r.tags) void removeSelections(deadTagKeys(oldTags, r.tags));

@@ -110,29 +110,25 @@ pub struct LocationPatch {
 
 /// Scan `extra` JSON maps for keys not yet in `known_field_keys`, persist inferred
 /// field definitions to SQLite (for export and cross-session survival), and return
-/// those definitions to JS via `result.new_field_defs` so they land in the live
-/// field-def registry immediately (no reload needed).
+/// them for `MutationResult::new_field_defs` so JS lands them in its live registry.
+/// Runs before `finish_mutation` so the status snapshot already knows the keys.
 pub(crate) fn auto_register_extras(
     store: &mut Store,
     extras: &[&RawExtra],
-    result: &mut MutationResult,
-) {
+) -> Option<HashMap<String, maps::ExtraFieldDef>> {
     if extras.is_empty() {
-        return;
+        return None;
     }
-    if let Some(new_defs) = maps::auto_register_field_defs(&store.known_field_keys, extras) {
-        apply_field_defs(store, new_defs, result);
-    }
+    maps::auto_register_field_defs(&store.known_field_keys, extras)
+        .map(|new_defs| apply_field_defs(store, new_defs))
 }
 
-/// Persist newly-discovered extra-field definitions to SQLite and surface them on the
-/// mutation result. Split out so callers that scan `extras` before consuming the
-/// source locations (e.g. import's move-into-overlay path) can apply defs afterward.
+/// Persist newly-discovered extra-field definitions to SQLite and make the store know
+/// their keys; hands the defs back for the mutation result.
 pub(crate) fn apply_field_defs(
     store: &mut Store,
     new_defs: HashMap<String, maps::ExtraFieldDef>,
-    result: &mut MutationResult,
-) {
+) -> HashMap<String, maps::ExtraFieldDef> {
     if let Some(map_id) = &store.map_id {
         if let Ok(conn) = storage::open_db() {
             let _ = maps::persist_field_defs(&conn, map_id, &new_defs);
@@ -141,7 +137,7 @@ pub(crate) fn apply_field_defs(
     for key in new_defs.keys() {
         store.known_field_keys.insert(key.clone());
     }
-    result.new_field_defs = Some(new_defs);
+    new_defs
 }
 
 /// Allocate IDs for `locations`, insert them, and record the undo entry. The one place a
@@ -161,12 +157,13 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
     for loc in locations {
         store.overlay_add(vec![loc]);
     }
+    let extras: Vec<&RawExtra> = added.iter().filter_map(|l| l.extra.as_ref()).collect();
+    let new_field_defs = auto_register_extras(store, &extras);
     let mut result = store.finish_mutation(&ChangeSet {
         added: added.clone(),
         ..Default::default()
     });
-    let extras: Vec<&RawExtra> = added.iter().filter_map(|l| l.extra.as_ref()).collect();
-    auto_register_extras(store, &extras, &mut result);
+    result.new_field_defs = new_field_defs;
     result
 }
 
@@ -197,20 +194,23 @@ pub(crate) fn apply_updates(
     } else {
         Vec::new()
     };
+    let new_field_defs = if any_extras {
+        let refs: Vec<&RawExtra> = extras.iter().collect();
+        auto_register_extras(store, &refs)
+    } else {
+        None
+    };
     let changes = ChangeSet {
         updated,
         ..Default::default()
     };
     let mut result = store.finish_mutation(&changes);
+    result.new_field_defs = new_field_defs;
     // Undo is recorded after the mutation is finished so the pairs move into the entry
     // instead of being cloned; the status was read before the push, so patch it.
     if record_undo && store.record_update_undo(changes.updated) {
         result.status.can_undo = true;
         result.status.can_redo = false;
-    }
-    if any_extras {
-        let refs: Vec<&RawExtra> = extras.iter().collect();
-        auto_register_extras(store, &refs, &mut result);
     }
     result
 }

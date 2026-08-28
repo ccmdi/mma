@@ -340,15 +340,13 @@ pub(super) fn add_parsed_to_store(
     }
     let t_overlay = _t.elapsed();
 
+    let new_field_defs = new_field_defs.map(|defs| engine::apply_field_defs(store, defs));
     let mut result = store.finish_mutation(&engine::ChangeSet {
         full_reset: true,
         ..Default::default()
     });
     result.tags = Some(store.tags.all.clone());
-
-    if let Some(new_defs) = new_field_defs {
-        engine::apply_field_defs(store, new_defs, &mut result);
-    }
+    result.new_field_defs = new_field_defs;
     log::debug!("[import-insert] n={n} reconcile+alloc={:.0}ms counts={:.0}ms auto_reg={:.0}ms undo={:.0}ms overlay_add={:.0}ms finish={:.0}ms total={:.0}ms",
         t_reconcile.as_millis(), (t_counts - t_reconcile).as_millis(), (t_autoreg - t_counts).as_millis(),
         (t_undo - t_autoreg).as_millis(), (t_overlay - t_undo).as_millis(), (_t.elapsed() - t_overlay).as_millis(), _t.elapsed().as_millis());
