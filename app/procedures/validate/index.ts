@@ -17,8 +17,8 @@ import {
 import { isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { panosAtCoords } from "@/lib/sv/singleImageSearch";
-import { ValidationState, type Pano } from "@/types";
-import { LocationFlag } from "@/bindings.consts";
+import type { Pano } from "@/types";
+import { LocationFlag, ValidationState } from "@/bindings.consts";
 
 interface RunConfig {
 	config?: { radius?: number } | null;
