@@ -832,3 +832,14 @@ fn add_copied_reconciles_tags_and_reports_counts() {
     // The new tag def is shipped on the result (the receiver needs it to render).
     assert!(r.tags.as_ref().and_then(|m| m.get(&unique.id)).is_some());
 }
+
+#[test]
+fn header_keys_are_read_as_fields_not_substrings() {
+    // A name that quotes the array key, and an escaped quote inside it, must not fool the
+    // header scan: the array is the `customCoordinates` field, not the first matching bytes.
+    let mut buf = br#"{"name":"say \"customCoordinates\" here","folder":"f","customCoordinates":[{"lat":1,"lng":2}]}"#.to_vec();
+    let parsed = parse_single_json_mut(&mut buf);
+    assert_eq!(parsed.name, "say \"customCoordinates\" here");
+    assert_eq!(parsed.folder.as_deref(), Some("f"));
+    assert_eq!(parsed.locations.len(), 1);
+}

@@ -599,106 +599,30 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     let mut warnings = Vec::new();
     let t0 = Instant::now();
 
-    // Single pass: find top-level keys and the coordinate array.
-    // Only scan until we find what we need — once we hit the array,
-    // we know the rest is coordinates and can stop scanning keys.
+    // Top-level metadata and the coordinate array key sit in the first few KB, so the
+    // field scan runs over that prefix only: the array value would otherwise be walked
+    // to its end here and again by the boundary pass.
     let mut name = String::new();
     let mut folder: Option<String> = None;
     let mut arr_range: Option<(usize, usize)> = None;
-    fn find_key_value_fast(buf: &[u8], key: &[u8]) -> Option<usize> {
-        let mut i = 0;
-        while i + key.len() + 3 < buf.len() {
-            if buf[i] == b'"' && buf[i + 1..].starts_with(key) && buf[i + 1 + key.len()] == b'"' {
-                return Some(i + key.len() + 2);
+    let header = &buf[..buf.len().min(8192)];
+    types::scan_fields(header, |fs| {
+        let value = &header[fs.value.clone()];
+        match &header[fs.key.clone()] {
+            b"name" => name = serde_json::from_slice(value).unwrap_or_default(),
+            b"folder" => folder = serde_json::from_slice(value).ok(),
+            b"customCoordinates" | b"locations" if value.first() == Some(&b'[') => {
+                arr_range = Some((fs.value.start + 1, buf.len()));
             }
-            i += 1;
+            _ => {}
         }
-        None
-    }
-
-    fn read_string_at(buf: &[u8], pos: usize) -> Option<(String, usize)> {
-        let mut i = pos;
-        while i < buf.len()
-            && (buf[i] == b' '
-                || buf[i] == b':'
-                || buf[i] == b'\n'
-                || buf[i] == b'\r'
-                || buf[i] == b'\t')
-        {
-            i += 1;
-        }
-        if i >= buf.len() || buf[i] != b'"' {
-            return None;
-        }
-        i += 1;
-        let start = i;
-        let mut esc = false;
-        while i < buf.len() {
-            if esc {
-                esc = false;
-                i += 1;
-                continue;
-            }
-            if buf[i] == b'\\' {
-                esc = true;
-                i += 1;
-                continue;
-            }
-            if buf[i] == b'"' {
-                return Some((String::from_utf8_lossy(&buf[start..i]).to_string(), i + 1));
-            }
-            i += 1;
-        }
-        None
-    }
-
-    fn find_array_start(buf: &[u8], pos: usize) -> Option<usize> {
-        let mut i = pos;
-        while i < buf.len()
-            && (buf[i] == b' '
-                || buf[i] == b':'
-                || buf[i] == b'\n'
-                || buf[i] == b'\r'
-                || buf[i] == b'\t')
-        {
-            i += 1;
-        }
-        if i >= buf.len() || buf[i] != b'[' {
-            return None;
-        }
-        Some(i + 1)
-    }
-
-    // Top-level metadata keys are always in the first few KB
-    let header = &buf[..buf.len().min(4096)];
-    if let Some(pos) = find_key_value_fast(header, b"name") {
-        if let Some((s, _)) = read_string_at(header, pos) {
-            name = s;
-        }
-    }
-    if let Some(pos) = find_key_value_fast(header, b"folder") {
-        if let Some((s, _)) = read_string_at(header, pos) {
-            folder = Some(s);
-        }
-    }
-
-    // Array key is also near the top — search first 8KB, fall back to full scan
-    let key_search = &buf[..buf.len().min(8192)];
-    if let Some(pos) = find_key_value_fast(key_search, b"customCoordinates") {
-        if let Some(s) = find_array_start(buf, pos) {
-            arr_range = Some((s, buf.len()));
-        }
-    }
+        arr_range.is_some()
+    });
     if arr_range.is_none() {
-        if let Some(pos) = find_key_value_fast(key_search, b"locations") {
-            if let Some(s) = find_array_start(buf, pos) {
-                arr_range = Some((s, buf.len()));
-            }
-        }
-    }
-    if arr_range.is_none() {
-        if let Some(s) = find_array_start(buf, 0) {
-            arr_range = Some((s, buf.len()));
+        // A bare array file.
+        let first = buf.iter().position(|&c| !is_ws(c));
+        if let Some(i) = first.filter(|&i| buf[i] == b'[') {
+            arr_range = Some((i + 1, buf.len()));
         }
     }
 
