@@ -57,6 +57,10 @@ const RESTRICTED_SYNTAX = [
 			'Use <Checkbox> (@/components/primitives/Checkbox) instead of a raw <input type="checkbox">.',
 	},
 	{
+		selector: "TSEnumDeclaration",
+		message: "No enum - use `as const` plus EnumOf<typeof X> (@/types/util).",
+	},
+	{
 		selector: "AssignmentExpression[left.property.name='innerHTML']",
 		message: "No raw innerHTML - use React or textContent.",
 	},

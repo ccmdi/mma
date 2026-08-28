@@ -147,7 +147,7 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	},
 	ValidationState: {
 		key: (s) => `validation:${s.state}`,
-		label: (s) => t(validationStateLabel(s.state)),
+		label: (s) => t(validationStateLabel(s.state as ValidationState)),
 		locations: ownLocations,
 	},
 	Reviewed: {

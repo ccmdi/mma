@@ -61,10 +61,8 @@ export function buildTimestampSearchBody(
 
 /** Which pano a location search picks. An omitted preference goes on the wire as
  *  `Nearest`; the Maps JS API's encoder has no other default, whatever its docs say. */
-export const enum SearchPreference {
-	Best = 1,
-	Nearest = 2,
-}
+export const SearchPreference = { Best: 1, Nearest: 2 } as const;
+export type SearchPreference = EnumOf<typeof SearchPreference>;
 
 export interface SearchOpts {
 	sources?: EnumOf<typeof PanoType>[];

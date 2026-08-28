@@ -1378,23 +1378,30 @@ type MapSettings = {
 /**  When a move target already holds a value, which side survives. */
 type MergeWinner = "from" | "to";
 /**
- *  Unified response for every mutation IPC. Bundles the store status, render delta,
- *  optional selection sync, optional newly-discovered extra-field keys, and optional
- *  updated tags. JS applies all of these atomically to stay in sync with the Rust state.
- *  `new_field_defs` carries the inferred/known field definitions for extra-field keys
- *  discovered for the first time in this mutation. JS merges them straight into the
- *  field-def registry, so field metadata is live without a reload.
+ *  What one mutation changed, and nothing else: every field but `version` and `delta`
+ *  is `None` when that part of the world did not move. JS merges each present field
+ *  into its state, so an untouched slice keeps its reference and its subscribers sleep.
  */
 type MutationResult = {
+    version: number;
     delta: RenderDelta;
     selectionSync: SelectionSync | null;
-    newFieldDefs: {
-        [key in string]: ExtraFieldDef;
+    locationCount: number | null;
+    canUndo: boolean | null;
+    canRedo: boolean | null;
+    /**  Every tag's count, when any count moved. */
+    tagCounts: {
+        [key in number]: number;
     } | null;
+    /**  The whole registry, when any tag was created, edited, deleted, or flipped visible. */
     tags: {
         [key in number]: Tag;
     } | null;
-} & StoreStatus;
+    /**  The whole extra-field registry, when a key was seen for the first time or erased. */
+    fieldDefs: {
+        [key in string]: ExtraFieldDef;
+    } | null;
+};
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
  *  owned by exactly one side and would register as a phantom change.
@@ -1940,14 +1947,9 @@ type StoreStatus = {
     locationCount: number;
     canUndo: boolean;
     canRedo: boolean;
-    /**
-     *  `None` when the mutation did not change any tag count (`finish_mutation`
-     *  strips it), so JS keeps its reference and consumers skip re-rendering.
-     */
     tagCounts: {
         [key in number]: number;
-    } | null;
-    knownFieldKeys: string[];
+    };
 };
 /**  User-facing warning toast. */
 type StoreWarning = string;
@@ -1987,13 +1989,6 @@ type SyncReconcileResult = {
     pullDeleteIds: number[];
     mirrorLocalDeleteIds: number[];
 };
-/**
- *  A user-defined label that can be applied to any number of locations.
- *
- *  Tags are stored in `MapMeta` and referenced by id in each `Location.tags`.
- *  The `count` field is maintained by callers during batch mutations, not by
- *  the overlay add/remove methods.
- */
 type Tag = {
     id: number;
     name: string;
@@ -2009,18 +2004,13 @@ type Tag = {
      */
     order?: number | null;
     /**
-     *  Number of locations currently carrying this tag. Denormalized for
-     *  fast sidebar display -- kept in sync by callers after batch edits.
-     */
-    count?: number;
-    /**
      *  Document links from the map JSON's `extra.tags[name].doclinks` --
      *  URLs into external docs (e.g. Google Docs heading links). Read-only
      *  in the app; round-trips through import/export.
      */
     doclinks?: string[];
 };
-/**  Patchable fields of a `Tag`. Subset by design: id/count/visible aren't editable here. */
+/**  Patchable fields of a `Tag`. Subset by design: id/visible aren't editable here. */
 type TagPatch = {
     name?: string | null;
     color?: string | null;
@@ -2100,24 +2090,29 @@ type VirtualTag = {
     color?: string | null;
 };
 
+/** The value union of a `const` object. */
+export type EnumOf<T> = T[keyof T];
+
+declare const PanoType$1: {
+    readonly Official: 2;
+    readonly Unknown: 3;
+    readonly UserUploaded: 10;
+};
+
 export type LatLng = google.maps.LatLngLiteral;
 export type Bounds = google.maps.LatLngBoundsLiteral;
-/** Panorama source type from Google's internal metadata. */
-declare const enum PanoType {
-    Official = 2,
-    Unknown = 3,
-    UserUploaded = 10
-}
+type PanoType = EnumOf<typeof PanoType$1>;
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
-declare enum ValidationState {
-    Ok = 0,
-    UpdateAvailable = 1,
-    UpdateApplied = 2,
-    NotFound = 3,
-    PanoIdBroke = 4,
-    Unofficial = 5,
-    GoodcamAvailable = 6
-}
+declare const ValidationState: {
+    readonly Ok: 0;
+    readonly UpdateAvailable: 1;
+    readonly UpdateApplied: 2;
+    readonly NotFound: 3;
+    readonly PanoIdBroke: 4;
+    readonly Unofficial: 5;
+    readonly GoodcamAvailable: 6;
+};
+export type ValidationState = EnumOf<typeof ValidationState>;
 /** One decoded GetMetadata image: flat, plain JSON, no live objects. This is the app's
  *  panorama, not a transcription of the Maps JS API's. Anything derivable from these
  *  fields is a function in `@/lib/sv/getMetadata`, not a field here. */
@@ -2258,7 +2253,6 @@ export interface MapState {
     /** Extra-field keys known to exist in location data on the current map. A mirror of
      *  Rust's registry: refreshed wholesale from `StoreStatus.knownFieldKeys` on open and
      *  on every mutation (plus that mutation's `newFieldDefs`), never maintained JS-side. */
-    knownFieldKeys: ReadonlySet<string>;
     selections: Selection[];
     /** Keys of selections that are "ghosted": kept in the list but excluded from the
      *  Rust sync, so they neither render nor count toward the selected set. Ephemeral. */
@@ -3999,6 +3993,8 @@ export interface EnrichmentProvider {
  *  Unregistered when the plugin deactivates. */
 declare function registerEnrichmentProvider(provider: EnrichmentProvider): void;
 
+/** Keys some location on this map carries. Same reference until `fields:changed`. */
+declare function getKnownFieldKeys(): ReadonlySet<string>;
 /** Look up metadata for a single field key. Returns `undefined` if no metadata exists. */
 declare function getFieldDef(key: string): ExtraFieldDef | undefined;
 /** Merged view of all field definitions across all layers. */
@@ -4353,8 +4349,6 @@ declare function getSelectedLocationIds(): SelectedIds;
 declare function getWorkArea(): WorkArea;
 /** @deprecated v0.8.2. Read `MMA.getMapState().tagCounts`. */
 declare function getTagCounts(): Record<number, number>;
-/** @deprecated v0.8.2. Read `MMA.getMapState().knownFieldKeys`. */
-declare function getKnownFieldKeys(): ReadonlySet<string>;
 /** @deprecated v0.8.2. Read `MMA.getMapState().selections`. */
 declare function getAllSelections(): Selection[];
 /** @deprecated v0.8.2. Read `MMA.getMapState().ghostedSelections`. */
@@ -4380,7 +4374,6 @@ declare const legacy_getCurrentMapId: typeof getCurrentMapId;
 declare const legacy_getDirtyCount: typeof getDirtyCount;
 declare const legacy_getGhostedSelections: typeof getGhostedSelections;
 declare const legacy_getGoogleMap: typeof getGoogleMap;
-declare const legacy_getKnownFieldKeys: typeof getKnownFieldKeys;
 declare const legacy_getSelectedLocationIds: typeof getSelectedLocationIds;
 declare const legacy_getSelections: typeof getSelections;
 declare const legacy_getTagCounts: typeof getTagCounts;
@@ -4398,7 +4391,6 @@ declare namespace legacy {
     legacy_getDirtyCount as getDirtyCount,
     legacy_getGhostedSelections as getGhostedSelections,
     legacy_getGoogleMap as getGoogleMap,
-    legacy_getKnownFieldKeys as getKnownFieldKeys,
     legacy_getSelectedLocationIds as getSelectedLocationIds,
     legacy_getSelections as getSelections,
     legacy_getTagCounts as getTagCounts,
@@ -4600,7 +4592,10 @@ export type MapListApi = typeof mapList;
 export type ReviewApi = typeof review;
 export type SurfaceApi = typeof surface;
 export type LegacyApi = typeof legacy;
-export interface MMA extends StoreApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, SurfaceApi, LegacyApi {
+export type FieldsApi = {
+    getKnownFieldKeys: typeof getKnownFieldKeys;
+};
+export interface MMA extends StoreApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, SurfaceApi, FieldsApi, LegacyApi {
 }
 declare global {
     interface Window {
@@ -4609,5 +4604,5 @@ declare global {
     const MMA: MMA;
 }
 
-export { BUILTIN_FIELDS, KNOWN_FIELDS, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export { BUILTIN_FIELDS, KNOWN_FIELDS, MMA as MMAApi, PROJECTIONS, SCRATCH_MAP_ID, commands, events };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PanoType, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

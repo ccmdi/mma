@@ -25,9 +25,7 @@ export const validateSpec: ProcedureSpec<ValidationState> = {
 	config: { radius: SV_SEARCH_RADIUS } satisfies ValidateConfig,
 };
 
-const STATES = new Set<number>(
-	Object.values(ValidationState).filter((v): v is number => typeof v === "number"),
-);
+const STATES = new Set<number>(Object.values(ValidationState));
 
 /** Check that each location's Street View coverage still exists; returns the location
  *  ids grouped by the state they validated to. */
