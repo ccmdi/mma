@@ -10,7 +10,6 @@ use reqwest::redirect::Policy;
 use std::fs;
 use std::path::Path;
 use std::sync::OnceLock;
-use std::thread;
 use std::time::Duration;
 use std::time::Instant;
 use tauri::http::response::Builder;
@@ -94,9 +93,10 @@ fn path_and_query(req: &Request<Vec<u8>>) -> (String, String) {
     (req.uri().path().to_string(), query)
 }
 
-/// Run a blocking scheme-handler body off the webview thread.
+/// Run a blocking scheme-handler body off the webview thread, on Tauri's bounded
+/// blocking thread pool rather than an unbounded OS thread per request.
 fn respond_async(responder: UriSchemeResponder, f: impl FnOnce() -> Reply + Send + 'static) {
-    thread::spawn(move || responder.respond(f()));
+    tauri::async_runtime::spawn_blocking(move || responder.respond(f()));
 }
 
 /// Relays an upstream response body + content-type back to the webview with CORS.
