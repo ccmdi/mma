@@ -223,8 +223,24 @@ fn overlay_update_noop_does_not_stamp_session_added_row() {
     // A patch that changes nothing must not stamp (or it fabricates undo entries).
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(&[l]);
+    let rev = store.overlay.rev();
     store.overlay_update(1, &patch!(lat: 10.0));
     assert!(store.get_loc_by_id(1).unwrap().modified_at.is_none());
+    assert_eq!(store.overlay.rev(), rev);
+}
+
+#[test]
+fn overlay_update_noop_on_base_row_does_not_touch_overlay() {
+    let l = loc(1, 10.0, 20.0);
+    let mut store = setup_store_with(&[l]);
+    store.bake_overlay();
+    let rev = store.overlay.rev();
+    assert!(!store.overlay.is_unsaved());
+
+    store.overlay_update(1, &patch!(lat: 10.0));
+
+    assert_eq!(store.overlay.rev(), rev);
+    assert!(!store.overlay.is_unsaved());
 }
 
 #[test]
@@ -257,9 +273,11 @@ fn overlay_update_noop_on_patched_row_stays_a_noop() {
     // Re-applying the identical patch must return an equal pair (no undo entry) and leave
     // the stored row untouched.
     let stored = store.get_loc_by_id(1).unwrap();
+    let rev = store.overlay.rev();
     let (old, new_loc) = store.overlay_update(1, &patch!(lat: 50.0)).unwrap();
     assert_eq!(old, new_loc);
     assert_eq!(store.get_loc_by_id(1).unwrap(), stored);
+    assert_eq!(store.overlay.rev(), rev);
 }
 
 #[test]
@@ -1020,6 +1038,34 @@ fn batch_update_mixed_changed_unchanged() {
     assert_eq!(changed_old.len(), 1, "only l1 should be in undo");
     assert_eq!(changed_old[0].id, 1);
     assert_eq!(changed_new[0].heading, 180.0);
+}
+
+#[test]
+fn noop_batch_is_removed_before_selection_and_render_work() {
+    let rows: Vec<Location> = (1..=101)
+        .map(|id| loc_with_heading(id, id as f64 / 10.0, 0.0, 45.0))
+        .collect();
+    let mut store = setup_store_with(&rows);
+    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    store.resolve_selection_membership();
+    let rev = store.overlay.rev();
+    let undo_len = store.edits.undo.len();
+    let updates: Vec<Update<LocationPatch>> = rows
+        .iter()
+        .map(|row| Update {
+            id: row.id,
+            patch: patch!(heading: row.heading),
+        })
+        .collect();
+
+    let result = apply_updates(&mut store, &updates, true);
+
+    assert_eq!(store.overlay.rev(), rev);
+    assert_eq!(store.edits.undo.len(), undo_len);
+    assert!(result.delta.added.is_empty());
+    assert!(result.delta.updated.is_empty());
+    assert!(result.delta.removed.is_empty());
+    assert!(result.selection_sync.is_none());
 }
 
 // -----------------------------------------------------------------------

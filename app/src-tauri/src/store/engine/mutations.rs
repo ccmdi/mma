@@ -169,8 +169,10 @@ pub(crate) fn apply_updates(
     let any_tags = updates.iter().any(|u| u.patch.tags.is_some());
     let any_extras = updates.iter().any(|u| u.patch.extra.is_some());
     for u in updates {
-        if let Some(pair) = store.overlay_update(u.id, &u.patch) {
-            updated.push(pair);
+        if let Some((old, new)) = store.overlay_update(u.id, &u.patch) {
+            if old != new {
+                updated.push((old, new));
+            }
         }
     }
     if any_tags {
