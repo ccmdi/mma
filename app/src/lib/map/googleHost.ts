@@ -44,12 +44,11 @@ class GoogleDeckOverlay implements DeckOverlayHandle {
 	private raf = 0;
 	private finalized = false;
 	private unregisterStats: () => void;
+	private onFinalize: (self: GoogleDeckOverlay) => void;
 	props: Partial<DeckOverlayProps> = {};
 
-	constructor(
-		map: google.maps.Map,
-		private onFinalize: (self: GoogleDeckOverlay) => void,
-	) {
+	constructor(map: google.maps.Map, onFinalize: (self: GoogleDeckOverlay) => void) {
+		this.onFinalize = onFinalize;
 		this.unregisterStats = registerDeckStats({
 			getLayerCount: () => this.props.layers?.length ?? 0,
 			getMetrics: () =>

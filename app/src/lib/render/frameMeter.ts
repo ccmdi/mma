@@ -29,8 +29,10 @@ export class FrameMeterCore {
 	private longTasks = 0;
 	private longTaskMs = 0;
 	private startedAt: number;
+	private now: () => number;
 
-	constructor(private now: () => number = () => performance.now()) {
+	constructor(now: () => number = () => performance.now()) {
+		this.now = now;
 		this.startedAt = this.now();
 	}
 

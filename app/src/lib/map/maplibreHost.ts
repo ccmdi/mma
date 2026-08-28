@@ -67,11 +67,12 @@ class MapLibreDeckOverlay implements DeckOverlayHandle {
 	overlay: MapboxOverlay;
 	props: Partial<DeckOverlayProps> = {};
 	private finalized = false;
+	private map: maplibregl.Map;
+	private onFinalize: (self: MapLibreDeckOverlay) => void;
 
-	constructor(
-		private map: maplibregl.Map,
-		private onFinalize: (self: MapLibreDeckOverlay) => void,
-	) {
+	constructor(map: maplibregl.Map, onFinalize: (self: MapLibreDeckOverlay) => void) {
+		this.map = map;
+		this.onFinalize = onFinalize;
 		this.overlay = new MapboxOverlay({ interleaved: false, layers: [], pickingRadius: 2 });
 		map.addControl(this.overlay);
 	}

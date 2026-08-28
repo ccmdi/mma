@@ -83,12 +83,15 @@ export class SelectedIds {
 	/** Shared empty selection (no map open / cleared). */
 	static readonly EMPTY = new SelectedIds(new Uint8Array(0), 0);
 
-	constructor(
-		private readonly bits: Uint8Array,
-		/** Count of distinct selected ids (not overlay entries — an id selected by N
-		 *  overlapping selections still counts once). */
-		readonly size: number,
-	) {}
+	private readonly bits: Uint8Array;
+	/** Count of distinct selected ids (not overlay entries — an id selected by N
+	 *  overlapping selections still counts once). */
+	readonly size: number;
+
+	constructor(bits: Uint8Array, size: number) {
+		this.bits = bits;
+		this.size = size;
+	}
 
 	has(id: number): boolean {
 		const w = id >>> 3;
