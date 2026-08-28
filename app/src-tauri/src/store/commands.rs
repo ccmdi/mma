@@ -153,6 +153,7 @@ pub async fn store_open_map(
     let LocationAggregates {
         alive,
         tag_counts,
+        tag_sets,
         bounds,
     } = store.scan_locations();
     store.alive_count = alive;
@@ -168,7 +169,7 @@ pub async fn store_open_map(
             store.tags.all.touch();
         }
         store.tags.next_id = max_tag_id + 1;
-        store.rebuild_tag_sets();
+        store.tags.sets = tag_sets;
         let extra_str: String = conn
             .query_row(
                 "SELECT extra FROM maps WHERE id = ?1",

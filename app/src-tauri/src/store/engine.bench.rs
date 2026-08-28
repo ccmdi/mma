@@ -418,7 +418,7 @@ pub fn seed_adds(store: &mut Store, mut locs: Vec<Location>) {
     }
 }
 
-/// The open-time O(N) pass: alive count, tag counts, bounds.
+/// The open-time O(N) pass: alive count, tag counts and sets, bounds.
 pub fn scan(store: &Store) -> usize {
     store.scan_locations().alive
 }
@@ -457,14 +457,8 @@ pub fn bake_overlay(store: &mut Store) {
     store.bake_overlay();
 }
 
-pub fn rebuild_tag_sets(store: &mut Store) {
-    store.rebuild_tag_sets();
-}
-
-pub fn derived_state_two_pass(store: &mut Store) -> usize {
-    let alive = store.scan_locations().alive;
-    store.rebuild_tag_sets();
-    alive
+pub fn derived_state(store: &mut Store) -> usize {
+    store.scan_locations().alive
 }
 
 // ---------------------------------------------------------------------------
@@ -498,6 +492,6 @@ pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, Tag>) -> Store {
     store.tags.all = Tracked::new(tags.clone());
     store.tags.counts = Touched::new(agg.tag_counts);
     store.tags.next_id = TAG_COUNT + 1;
-    store.rebuild_tag_sets();
+    store.tags.sets = agg.tag_sets;
     store
 }

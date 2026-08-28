@@ -15,7 +15,13 @@ use std::time::Instant;
 pub(crate) struct LocationAggregates {
     pub(crate) alive: usize,
     pub(crate) tag_counts: HashMap<u32, usize>,
+    pub(crate) tag_sets: HashMap<u32, RoaringBitmap>,
     pub(crate) bounds: Option<BoundsAcc>,
+}
+
+struct TagAggregate {
+    count: usize,
+    ids: RoaringBitmap,
 }
 
 /// Incremental bounding-box accumulator. Tracks latitude min/max plus longitude
@@ -333,24 +339,37 @@ impl Store {
     }
 
     /// Single O(N) pass over all alive locations deriving every open-time
-    /// aggregate: alive count, tag counts, and the bounding box. Seeding the
+    /// aggregate: alive count, tag counts and sets, and the bounding box. Seeding the
     /// bbox here means the first `store_bounds` after open is an O(1) cache hit
     /// instead of a second full scan.
     pub(crate) fn scan_locations(&self) -> LocationAggregates {
         let view = self.loc_view();
-        let mut tag_counts: HashMap<u32, usize> = HashMap::new();
+        let mut tags: HashMap<u32, TagAggregate> = HashMap::new();
         let mut alive = 0usize;
         let mut bounds: Option<BoundsAcc> = None;
         view.for_each(|row| {
             alive += 1;
             bounds = Some(BoundsAcc::fold(bounds, row.lat(), row.lng()));
+            let id = row.id();
             row.for_each_tag(|tid| {
-                *tag_counts.entry(tid).or_default() += 1;
+                let tag = tags.entry(tid).or_insert_with(|| TagAggregate {
+                    count: 0,
+                    ids: RoaringBitmap::new(),
+                });
+                tag.count += 1;
+                tag.ids.insert(id);
             });
         });
+        let mut tag_counts = HashMap::with_capacity(tags.len());
+        let mut tag_sets = HashMap::with_capacity(tags.len());
+        for (id, tag) in tags {
+            tag_counts.insert(id, tag.count);
+            tag_sets.insert(id, tag.ids);
+        }
         LocationAggregates {
             alive,
             tag_counts,
+            tag_sets,
             bounds,
         }
     }

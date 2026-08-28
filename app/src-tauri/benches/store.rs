@@ -528,20 +528,10 @@ fn map_open(c: &mut Criterion) {
             BatchSize::PerIteration,
         );
     });
-    g.bench_function(format!("{n}/rebuild_tag_sets"), |b| {
+    g.bench_function(format!("{n}/derived_state"), |b| {
         b.iter_batched_ref(
             || fx.store(),
-            |store| {
-                bench::rebuild_tag_sets(store);
-                black_box(())
-            },
-            BatchSize::PerIteration,
-        );
-    });
-    g.bench_function(format!("{n}/derived_state_two_pass"), |b| {
-        b.iter_batched_ref(
-            || fx.store(),
-            |store| black_box(bench::derived_state_two_pass(store)),
+            |store| black_box(bench::derived_state(store)),
             BatchSize::PerIteration,
         );
     });

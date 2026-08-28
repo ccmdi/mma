@@ -3919,6 +3919,35 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
     assert_eq!(store.get_loc_by_id(5), Some(loc(5, 5.0, 5.0)));
 }
 
+#[test]
+fn location_aggregates_include_effective_tag_membership() {
+    let base = vec![
+        loc_with_tags(1, 10.0, 20.0, vec![1]),
+        loc_with_tags(2, 30.0, 40.0, vec![2]),
+    ];
+    let mut store = setup_store_with(&base);
+    store.bake_overlay();
+    store.overlay_update(1, &patch!(tags: vec![2]));
+    store.overlay_remove(&[base[1].clone()]);
+    store.overlay_add(vec![loc_with_tags(3, -5.0, -10.0, vec![1, 2])]);
+
+    let LocationAggregates {
+        alive,
+        tag_counts,
+        tag_sets,
+        bounds,
+    } = store.scan_locations();
+
+    assert_eq!(alive, 2);
+    assert_eq!(tag_counts, HashMap::from([(1, 1), (2, 2)]));
+    assert_eq!(tag_sets[&1].iter().collect::<Vec<_>>(), vec![3]);
+    assert_eq!(tag_sets[&2].iter().collect::<Vec<_>>(), vec![1, 3]);
+    assert_eq!(
+        bounds.map(BoundsAcc::resolve),
+        Some([-10.0, -5.0, 20.0, 10.0])
+    );
+}
+
 // -----------------------------------------------------------------------
 // Model-based undo/redo (proptest)
 // -----------------------------------------------------------------------

@@ -19,8 +19,7 @@ pub(crate) struct TagState {
     /// `tag_id -> set of member location ids`. Lets a `Tag` selection resolve by
     /// cloning a set instead of scanning every row's tag list. Maintained
     /// incrementally in `update_tag_counts` (the single choke point for tag
-    /// membership changes) and rebuilt from the batch on map open. Covers committed
-    /// base rows + overlay adds; patched/dead rows are reconciled at resolve time.
+    /// membership changes) and rebuilt from the effective live view on map open.
     pub sets: HashMap<u32, RoaringBitmap>,
 }
 
@@ -167,21 +166,6 @@ impl Store {
                 }
             }
         }
-    }
-
-    /// Rebuild the `tag_id -> member ids` index from scratch over the live data
-    /// (alive base rows + overlay adds, with patches applied). O(N * tags/loc). Called
-    /// on map open; incremental edits maintain it via `update_tag_counts`.
-    pub(crate) fn rebuild_tag_sets(&mut self) {
-        let view = self.loc_view();
-        let mut sets: HashMap<u32, RoaringBitmap> = HashMap::new();
-        view.for_each(|row| {
-            let id = row.id();
-            row.for_each_tag(|tid| {
-                sets.entry(tid).or_default().insert(id);
-            });
-        });
-        self.tags.sets = sets;
     }
 
     /// Locations currently carrying `tag_id`.
