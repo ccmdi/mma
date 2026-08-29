@@ -18,6 +18,7 @@ import type { PickingInfo } from "@deck.gl/core";
 import { createSvTileSource, type SvTileSource } from "@/lib/geo/mapStack";
 import { vectorStyleUrl } from "@/lib/geo/mapStyles";
 import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
+import { log } from "@/lib/util/log";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import type { LatLng, Bounds } from "@/types";
 import type {
@@ -169,6 +170,7 @@ class MapLibreHost implements MapHostContract<"maplibre"> {
 		this.map.getCanvas().classList.add("mma-vector-canvas");
 		// Re-add the SV overlay after every style (re)load: setStyle wipes custom sources.
 		this.map.on("style.load", () => this.addSvLayer());
+		this.map.on("error", (e) => log.error("[maplibre]", e.error?.message ?? e));
 
 		this.map.on("contextmenu", (e) => {
 			e.preventDefault();
