@@ -12,6 +12,7 @@
 import * as maplibregl from "maplibre-gl";
 import { type MapMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { PickingInfo } from "@deck.gl/core";
 import { createSvTileSource, type SvTileSource } from "@/lib/geo/mapStack";
@@ -34,6 +35,10 @@ const SV_SOURCE = "mma-sv";
 const SV_SCHEME = "mma-sv://";
 
 const PREFETCH_MARGIN = 128;
+
+// v6 ships the worker as a separate module; bundlers can't resolve it from
+// import.meta.url, so without this no vector tiles are ever requested.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
 
 // Raster (SV) tiles queue behind MapLibre's global image-request cap (default 16);
 // vector tiles don't, so the basemap outruns SV coverage without this.
