@@ -16,6 +16,9 @@ pub enum BuiltinFieldKind {
     Identity,
     /// Derived, not stored on the location. Never writable.
     Virtual,
+    /// Only a term in a field expression. Never writable, never offered in pickers: a
+    /// selection type already answers this question, and better.
+    Term,
     /// Explicitly bulk-editable top-level field.
     Writable,
 }
@@ -126,6 +129,20 @@ builtin_fields! {
     "tagCount", "Tag count", ExtraFieldType::Number, Some(BuiltinFieldKind::Virtual), None,
         |l| Some(serde_json::json!(l.tags.len())),
         |v, i| v.tags.map(|c| serde_json::json!(c.value(i).len()));
+    "loadAsPanoId", "Load as pano ID", ExtraFieldType::Number, Some(BuiltinFieldKind::Term), None,
+        |l| Some(flag_value(l.flags, LocationFlags::LOAD_AS_PANO_ID)),
+        |v, i| v.flags.map(|c| flag_value(LocationFlags::from_bits_retain(c.value(i)),
+            LocationFlags::LOAD_AS_PANO_ID));
+    "informational", "Informational", ExtraFieldType::Number, Some(BuiltinFieldKind::Term), None,
+        |l| Some(flag_value(l.flags, LocationFlags::INFORMATIONAL)),
+        |v, i| v.flags.map(|c| flag_value(LocationFlags::from_bits_retain(c.value(i)),
+            LocationFlags::INFORMATIONAL));
+}
+
+/// Flags read as 0/1 numbers: the expression language has no booleans, so a flag term
+/// adds itself to a score directly.
+fn flag_value(flags: LocationFlags, bit: LocationFlags) -> serde_json::Value {
+    serde_json::json!(u8::from(flags.contains(bit)))
 }
 
 /// Core comparison dispatch. Supports eq, neq, has, nothas, gt, lt, gte, lte, between,

@@ -105,7 +105,7 @@ pub enum Selector {
 
 /// Filter comparison operator. Single source of truth: specta renders the literal
 /// union, so the TS `FilterOp` type and `OP_LABELS` derive from this enum.
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum FilterOp {
     Eq,

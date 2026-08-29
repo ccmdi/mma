@@ -332,7 +332,7 @@ pub(super) fn plan_field_op(
                 }
                 FieldOp::Expr { key, .. } => {
                     let expr = expr.as_ref().expect("parsed above");
-                    let field = |name: &str| row.resolve_field(name).and_then(|v| v.as_f64());
+                    let field = |name: &str| row.resolve_field(name);
                     match field_expr::eval(expr, &field) {
                         None => plan.skipped += 1,
                         Some(v) => {
@@ -519,11 +519,7 @@ pub(crate) fn merge_group(members: &[Location], score: Option<&Expr>) -> Locatio
             return Some(l.tags.len() as f64);
         };
         let row = selections::RowRef::from_loc(l);
-        field_expr::eval(expr, &|name| {
-            row.resolve_field(name)
-                .as_ref()
-                .and_then(serde_json::Value::as_f64)
-        })
+        field_expr::eval(expr, &|name| row.resolve_field(name))
     };
     let survivor = members
         .iter()

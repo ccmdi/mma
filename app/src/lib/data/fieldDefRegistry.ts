@@ -33,11 +33,13 @@ import { msg, t } from "@/lib/i18n";
  * - "identity": composes the location itself (position). Never writable through the
  *   field system, never offered in pickers; resolvable by exact key only.
  * - "virtual": derived, not stored on the location. Never writable.
+ * - "term": only a term in a field expression. Never writable, never offered in pickers:
+ *   a selection type already answers it, and better.
  * - "writable": explicitly bulk-editable top-level field.
  * - undefined: on the location, listable and filterable, but read-only.
  * Extra (user/plugin) fields live outside this map and are always writable and listable.
  */
-type FieldKind = "identity" | "virtual" | "writable";
+type FieldKind = NonNullable<(typeof BUILTIN_FIELDS)[number]["kind"]>;
 
 interface RegistryFieldDef extends ExtraFieldDef {
 	kind?: FieldKind;
@@ -58,16 +60,21 @@ const FIELDS: Record<string, RegistryFieldDef> = Object.fromEntries(
 
 /** True when `key` is a built-in Location field (stored top-level, not under `extra`). */
 export function isBuiltinField(key: string): boolean {
-	return key in FIELDS && FIELDS[key].kind !== "virtual";
+	return key in FIELDS && !isDerived(FIELDS[key].kind);
+}
+
+/** Derived from the location rather than stored on it, so never a column to assign. */
+function isDerived(kind: FieldKind | undefined): boolean {
+	return kind === "virtual" || kind === "term";
 }
 
 export function isWritableField(key: string): boolean {
 	return key in FIELDS ? FIELDS[key].kind === "writable" : true;
 }
 
-/** False only for identity fields (lat/lng), which pickers must not offer. */
+/** False for identity fields (lat/lng) and expression terms, which pickers must not offer. */
 export function isListableField(key: string): boolean {
-	return key in FIELDS ? FIELDS[key].kind !== "identity" : true;
+	return key in FIELDS ? !["identity", "term"].includes(FIELDS[key].kind ?? "") : true;
 }
 
 /** All built-in field keys (excluding virtual). */
