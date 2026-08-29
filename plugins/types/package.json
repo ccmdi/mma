@@ -23,5 +23,8 @@
     "@types/react": "^19.2.14",
     "maplibre-gl": "^5.24.0",
     "react": "^19.2.5"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3"
   }
 }

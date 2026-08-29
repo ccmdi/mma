@@ -1,4 +1,5 @@
 {
+  "extends": "mma-plugin-types/tsconfig.base.json",
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -8,5 +9,8 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "../types/mma.d.ts"
+  ]
 }

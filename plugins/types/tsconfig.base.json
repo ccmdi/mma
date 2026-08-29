@@ -1,7 +1,9 @@
 {
-	"//": "Extend this from a plugin tsconfig. The app hands plugins its own deck.gl and luma.gl at runtime, so their types must resolve to the SDK's single copy - a second copy on disk is a second set of class declarations that will not satisfy the first.",
+	"//": "Extend this from a plugin tsconfig. The app hands plugins its own React, deck.gl and luma.gl at runtime, so their types must resolve to the SDK's single copy - a second copy on disk is a second set of class declarations that will not satisfy the first.",
 	"compilerOptions": {
 		"paths": {
+			"react": ["./node_modules/@types/react"],
+			"react/*": ["./node_modules/@types/react/*"],
 			"@deck.gl/*": ["./node_modules/@deck.gl/*"],
 			"@luma.gl/*": ["./node_modules/@luma.gl/*"]
 		}

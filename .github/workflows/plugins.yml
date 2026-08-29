@@ -12,12 +12,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # The floor check reads mma.d.ts out of app release tags.
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
       - run: node plugins/build-all.mjs
       # Fail if the committed build artifacts (index.js, registry.json) are stale.
       - run: git diff --exit-code -- plugins/
+      # Every plugin typechecks against the current SDK and against the SDK at its minAppVersion.
+      - run: node plugins/check-floors.mjs
 
   sidecar-version-guard:
     runs-on: ubuntu-latest
