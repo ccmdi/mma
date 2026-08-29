@@ -1,5 +1,5 @@
 {
-  "extends": "mma-plugin-types/tsconfig.base.json",
+  "extends": "../types/tsconfig.base.json",
   "compilerOptions": {
     "strict": true,
     "target": "ES2022",
