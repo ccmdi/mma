@@ -3,10 +3,10 @@
 
 /** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
 export const LocationFlag = {
-	ImportPreview: 4,
-	Informational: 2,
-	LoadAsPanoId: 1,
 	None: 0,
+	LoadAsPanoId: 1,
+	Informational: 2,
+	ImportPreview: 4,
 	SeenOverlay: 8,
 } as const;
 export type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
@@ -17,13 +17,13 @@ export type PanoType = (typeof PanoType)[keyof typeof PanoType];
 
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
 export const ValidationState = {
-	GoodcamAvailable: 6,
-	NotFound: 3,
 	Ok: 0,
+	UpdateAvailable: 1,
+	UpdateApplied: 2,
+	GoodcamAvailable: 6,
 	PanoIdBroke: 4,
 	Unofficial: 5,
-	UpdateApplied: 2,
-	UpdateAvailable: 1,
+	NotFound: 3,
 } as const;
 export type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
 

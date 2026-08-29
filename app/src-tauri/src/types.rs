@@ -12,7 +12,6 @@
 use rmp_serde::decode;
 use rmp_serde::encode;
 use specta::datatype::DataType;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::error;
 use std::fmt;
@@ -116,9 +115,19 @@ fn pascal(name: &str) -> String {
         .collect()
 }
 
-/// The `PascalCase` name -> value map TypeScript mirrors.
-pub fn wire_names<V>(pairs: impl IntoIterator<Item = (&'static str, V)>) -> BTreeMap<String, V> {
+/// The `PascalCase` name -> value pairs TypeScript mirrors, in declaration order.
+pub fn wire_names<V>(pairs: impl IntoIterator<Item = (&'static str, V)>) -> Vec<(String, V)> {
     pairs.into_iter().map(|(n, v)| (pascal(n), v)).collect()
+}
+
+/// Those pairs as the TypeScript object literal the mirror declares.
+pub fn wire_object<V: std::fmt::Display>(pairs: impl IntoIterator<Item = (String, V)>) -> String {
+    let body = pairs
+        .into_iter()
+        .map(|(n, v)| format!("{n}: {v}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!("{{ {body} }}")
 }
 
 /// A closed set of numeric values Rust owns: the constants, the enum-field catalogue
@@ -131,7 +140,7 @@ macro_rules! wire_enum {
             $(pub const $konst: $repr = $val;)*
             /// The rustdoc above, one entry per line, for the TypeScript mirror.
             pub const DOC: &'static [&'static str] = &[$($doc),*];
-            pub fn wire_names() -> std::collections::BTreeMap<String, $repr> {
+            pub fn wire_names() -> Vec<(String, $repr)> {
                 wire_names([$((stringify!($konst), $val)),*])
             }
         }
@@ -165,10 +174,10 @@ wire_enum! {
         OK = 0,
         UPDATE_AVAILABLE = 1,
         UPDATE_APPLIED = 2,
-        NOT_FOUND = 3,
+        GOODCAM_AVAILABLE = 6,
         PANO_ID_BROKE = 4,
         UNOFFICIAL = 5,
-        GOODCAM_AVAILABLE = 6,
+        NOT_FOUND = 3,
     }
 }
 
@@ -217,7 +226,7 @@ wire_bitflags! {
 }
 
 impl LocationFlags {
-    pub fn wire_names() -> BTreeMap<String, u32> {
+    pub fn wire_names() -> Vec<(String, u32)> {
         wire_names(
             iter::once(("NONE", 0)).chain(Self::all().iter_names().map(|(n, f)| (n, f.bits()))),
         )

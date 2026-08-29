@@ -127,16 +127,7 @@ function ValidateSetup({ picker, onReady }: SetupProps) {
 					onClick={() =>
 						onReady(async ({ selector, signal, onProgress }) => {
 							const results = await validateLocations(selector, { signal, onProgress });
-							const stateOrder = [
-								ValidationState.Ok,
-								ValidationState.UpdateAvailable,
-								ValidationState.UpdateApplied,
-								ValidationState.GoodcamAvailable,
-								ValidationState.PanoIdBroke,
-								ValidationState.Unofficial,
-								ValidationState.NotFound,
-							];
-							const batch = stateOrder
+							const batch = Object.values(ValidationState)
 								.filter((state) => (results.get(state)?.length ?? 0) > 0)
 								.map((state) => ({
 									type: "ValidationState" as const,

@@ -312,19 +312,19 @@ fn export_consts() -> Result<(), String> {
     put(
         "LocationFlag",
         types::LocationFlags::DOC,
-        serde_json::to_string(&types::LocationFlags::wire_names()).map_err(|e| e.to_string())?,
+        types::wire_object(types::LocationFlags::wire_names()),
         true,
     );
     put(
         "PanoType",
         types::PanoType::DOC,
-        serde_json::to_string(&types::PanoType::wire_names()).map_err(|e| e.to_string())?,
+        types::wire_object(types::PanoType::wire_names()),
         true,
     );
     put(
         "ValidationState",
         types::ValidationState::DOC,
-        serde_json::to_string(&types::ValidationState::wire_names()).map_err(|e| e.to_string())?,
+        types::wire_object(types::ValidationState::wire_names()),
         true,
     );
     for (name, value, doc) in types::LocationFlags::WIRE_CONSTS {
