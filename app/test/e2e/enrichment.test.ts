@@ -367,15 +367,17 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	});
 
 	it("addLocations auto-registers known field keys", async () => {
-		await addLocs([loc({ lat: 10, lng: 20, extra: { altitude: 100, countryCode: "US" } })]);
+		// countryCode carries the custom enum def from the clobber test above, so probe a
+		// known string field nothing in this map has touched.
+		await addLocs([loc({ lat: 10, lng: 20, extra: { altitude: 100, uploaderName: "Google" } })]);
 
-		await waitForFieldKeys(PANO_TIMEOUT, "altitude", "countryCode");
+		await waitForFieldKeys(PANO_TIMEOUT, "altitude", "uploaderName");
 		const defs = await withApi((api) => ({
 			altitude: api.getFieldDef("altitude"),
-			countryCode: api.getFieldDef("countryCode"),
+			uploaderName: api.getFieldDef("uploaderName"),
 		}));
 		expect(defs.altitude?.type).toBe("number");
-		expect(defs.countryCode?.type).toBe("string");
+		expect(defs.uploaderName?.type).toBe("string");
 	});
 
 	it("unknown extra fields get auto-registered as known keys", async () => {
