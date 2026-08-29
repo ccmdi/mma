@@ -1,3 +1,24 @@
+## v0.10.1 - 2026-08-28
+- Distance unit setting: metric, imperial, or automatic from your system locale. Applies everywhere a distance is shown or typed: the measure bar, map overview, score bounds, merge distance, generator spacing, LocalGuessr results
+- Scratch map: a throwaway map for the session, opened from the map list toolbar and wiped on the next launch
+- Duplicate preference: a per-map formula in map settings decides which location survives a merge, defaulting to the most tags
+- Map settings dialog now holds name, description, labels and duplicate preference in one place
+- Faster store operations: pivots and field lookups on a selection up to 300x faster, bulk adds and map open about 1.3x faster, and proximity checks and commits are 2-3x faster
+- Score bounds moved from the layers popup into map settings
+- Enrichment dialog splits into an Enrich tab and a Fields tab
+- Apply-as-tags names come from a template, so Camera/{value} files them in a folder
+- Hotkeys to open settings (Mod+,) and plugins (Mod+Shift+P)
+- Settings opens with search focused, and search also matches section paths and dropdown option values
+- Launching the app a second time focuses the running window instead of starting a second copy that could clobber its saves
+- Numeric pivots keep their empty bins, so gaps in the data stay visible
+- Fixed the map not zooming while a drawing tool was active
+- Fixed tags and folders not being draggable back to the top level
+- Fixed the LocalGuessr minimap and the fullscreen mini map opening while a mouse button was held
+- Fixed dialogs shifting and flashing as they open
+- Fixed a tooltip reopening on its button after closing a dialog
+- Fixed a failed plugin update leaving the plugin unloaded instead of running the old version
+- Fixed enum field values showing untranslated in the bulk operation dialog
+
 ## v0.10.0 - 2026-08-26
 - **Enrichment can now reliably scale to millions of locations**
 - Enrichment now uses significantly less memory
