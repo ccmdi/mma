@@ -1,15 +1,8 @@
 import { waitForReady, createAndOpenMap, closeMap, deleteMap } from "./helpers";
 
 const CONTROL = ".map-type-control";
-const VISIBLE_ROW = `${CONTROL}__row:not(${CONTROL}__row--measure)`;
+const TRIGGER = `${CONTROL} .map-control__menu-button`;
 const PANEL = `${CONTROL} .settings-popup`;
-
-/** The control collapses to a single menu button when the basemap row would overlap the
- * top-right controls, so the trigger depends on window width. */
-async function triggerSelector(): Promise<string> {
-	const toggle = `${VISIBLE_ROW} ${CONTROL}__toggle`;
-	return (await browser.$(toggle).isExisting()) ? toggle : `${CONTROL} .map-control__menu-button`;
-}
 
 async function panelOpen(): Promise<boolean> {
 	return browser.$(PANEL).isExisting();
@@ -24,7 +17,7 @@ async function waitForPanel(open: boolean, msg: string) {
 
 async function setPanel(open: boolean) {
 	if ((await panelOpen()) === open) return;
-	await browser.$(await triggerSelector()).click();
+	await browser.$(TRIGGER).click();
 	await waitForPanel(open, `panel never became ${open ? "open" : "closed"}`);
 }
 
@@ -47,32 +40,33 @@ describe("Map type control", () => {
 	});
 
 	it("does not open on hover", async () => {
-		const row = await browser.$(VISIBLE_ROW);
-		const target = (await row.isExisting())
-			? await browser.$(`${VISIBLE_ROW} ${CONTROL}__button[data-state="on"]`)
-			: await browser.$(await triggerSelector());
-		await target.moveTo();
+		await browser.$(TRIGGER).moveTo();
 		// eslint-disable-next-line no-restricted-syntax -- settle: asserting the panel never opens
 		await browser.pause(500);
 		expect(await panelOpen()).toBe(false);
 	});
 
 	it("opens and closes from the trigger", async () => {
-		const trigger = await triggerSelector();
-		await browser.$(trigger).click();
+		await browser.$(TRIGGER).click();
 		await waitForPanel(true, "panel did not open");
 
-		await browser.$(trigger).click();
+		await browser.$(TRIGGER).click();
 		await waitForPanel(false, "panel did not close");
 	});
 
-	it("clicking the active basemap does not open the panel", async () => {
-		const row = await browser.$(VISIBLE_ROW);
-		if (!(await row.isExisting())) return; // compact mode: basemaps live inside the panel
-		await browser.$(`${VISIBLE_ROW} ${CONTROL}__button[data-state="on"]`).click();
-		// eslint-disable-next-line no-restricted-syntax -- settle: asserting the panel never opens
+	it("the basemap quartet lives inside the panel", async () => {
+		await setPanel(true);
+		const buttons = await browser.$$(`${PANEL} ${CONTROL}__button`);
+		expect(buttons).toHaveLength(4);
+		expect(await browser.$$(`${PANEL} ${CONTROL}__button[data-state="on"]`)).toHaveLength(1);
+	});
+
+	it("selecting a basemap keeps the panel open", async () => {
+		await setPanel(true);
+		await browser.$(`${PANEL} ${CONTROL}__button[data-state="off"]`).click();
+		// eslint-disable-next-line no-restricted-syntax -- settle: asserting the panel stays open
 		await browser.pause(300);
-		expect(await panelOpen()).toBe(false);
+		expect(await panelOpen()).toBe(true);
 	});
 
 	it("closes on Escape", async () => {

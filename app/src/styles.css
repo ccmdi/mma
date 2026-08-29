@@ -2215,57 +2215,50 @@ input[type="range"]:disabled {
 .map-type-control {
 	padding: 0;
 }
-.map-type-control__row {
-	display: flex;
-}
-.map-type-control__row .map-type-control__basemap {
-	flex: 1;
-}
-.map-type-control__row--measure {
-	position: fixed;
-	left: -9999px;
-	top: 0;
-	visibility: hidden;
-	pointer-events: none;
-	width: max-content;
-	height: auto;
-	overflow: visible;
-}
-.map-type-control__row--measure .map-type-control__button span {
-	font-weight: 700;
-}
-.map-type-control__toggle {
-	color: #000;
-	cursor: pointer;
-	background: #fff;
-	border: none;
-	border-left: 1px solid #0000001f;
-	flex: none;
-	place-content: center;
-	width: 34px;
-	height: 40px;
-	display: grid;
-	transition: background 0.12s ease;
-}
-.map-type-control__toggle:hover,
-.map-type-control__toggle[data-state="open"] {
-	background: #ebebeb;
-}
-.map-type-control__toggle svg {
-	transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.map-type-control__toggle[data-state="open"] svg {
-	transform: rotate(180deg);
-}
 .map-type-control__basemap {
 	grid-auto-flow: column;
 	grid-auto-columns: 1fr;
 	display: grid;
 	min-width: 200px;
 }
-.settings-popup .map-type-control__basemap {
-	width: 100%;
+/* The quartet caps the popup: full-bleed past the popup's padding so it hugs the top
+   edge, then a gap before the settings groups. */
+.settings-popup__cap {
 	min-width: 0;
+	margin: 0 -1rem 0.75rem;
+	border-bottom: 1px solid var(--border-subtle);
+	overflow: hidden;
+}
+.settings-popup__cap .map-type-control__button {
+	color: var(--text-2);
+	background: var(--surface-2);
+	text-shadow: 0 1px 3px #000000b3;
+	font-family: inherit;
+	font-size: 0.85rem;
+	line-height: 1;
+	height: 54px;
+	place-items: center;
+	display: grid;
+	transition: color 0.12s ease;
+}
+.settings-popup__cap .map-type-control__button + .map-type-control__button {
+	border-left: 1px solid var(--border-subtle);
+}
+.settings-popup__cap .map-type-control__button span {
+	margin: 0;
+}
+.settings-popup__cap .map-type-control__button[data-state="on"] {
+	color: var(--text-1);
+	box-shadow: inset 0 -2px 0 var(--accent);
+}
+.settings-popup__cap .map-type-control__background {
+	opacity: 0.28;
+}
+.settings-popup__cap .map-type-control__button:hover .map-type-control__background {
+	opacity: 0.45;
+}
+.settings-popup__cap .map-type-control__button[data-state="on"] .map-type-control__background {
+	opacity: 0.55;
 }
 .map-type-control__button {
 	cursor: pointer;
@@ -2312,8 +2305,7 @@ input[type="range"]:disabled {
 	user-select: none;
 }
 @media (prefers-reduced-motion) {
-	.map-type-control__toggle,
-	.map-type-control__toggle svg,
+	.map-type-control__button,
 	.map-type-control__background {
 		transition: none;
 	}
@@ -4576,6 +4568,10 @@ body {
 	transform-origin: top;
 	animation: 0.15s cubic-bezier(0.16, 1, 0.3, 1) popoverShow;
 	display: flex;
+}
+/* Variant whose first child is a full-bleed cap, flush against the top edge. */
+.settings-popup--capped {
+	padding-top: 0;
 }
 .settings-popup input:where([type="checkbox"], [type="radio"]) {
 	margin-right: 0.25rem;

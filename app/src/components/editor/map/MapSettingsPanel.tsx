@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type RefObject } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { Button } from "@/components/primitives/Button";
@@ -11,7 +11,7 @@ import {
 } from "@/lib/geo/mapStyles";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { Icon } from "@/components/primitives/Icon";
-import { mdiChevronDown, mdiCogOutline } from "@mdi/js";
+import { mdiCogOutline } from "@mdi/js";
 import type { MapTypeKey, SvCoverageType, MarkerStyle } from "@/types";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
@@ -291,7 +291,7 @@ function BasemapSelector({
 	onSelect: (type: MapTypeKey) => void;
 }) {
 	return (
-		<div className="map-type-control__basemap">
+		<div className="map-type-control__basemap settings-popup__cap">
 			{MAP_TYPES.map((type) => (
 				<button
 					key={type}
@@ -310,22 +310,6 @@ function BasemapSelector({
 	);
 }
 
-function LayerConfigToggle({ open, onClick }: { open: boolean; onClick: () => void }) {
-	return (
-		<button
-			type="button"
-			className="map-type-control__toggle"
-			data-state={open ? "open" : "closed"}
-			aria-expanded={open}
-			aria-label={t("Layers and map style")}
-			title={t("Layers and map style")}
-			onClick={onClick}
-		>
-			<Icon path={mdiChevronDown} size={20} />
-		</button>
-	);
-}
-
 function useCloseOnEscape(close: () => void, enabled: boolean) {
 	const handler = useStableHandler(close);
 	useEffect(() => {
@@ -338,92 +322,10 @@ function useCloseOnEscape(close: () => void, enabled: boolean) {
 	}, [handler, enabled]);
 }
 
-/** Collapse to a single menu button when the expanded basemap would overlap top-right controls. */
-function useMapTypeCompact(
-	containerRef: RefObject<HTMLDivElement | null>,
-	rowMeasureRef: RefObject<HTMLDivElement | null>,
-) {
-	const [compact, setCompact] = useState(false);
-
-	useEffect(() => {
-		const el = containerRef.current;
-		const measure = rowMeasureRef.current;
-		if (!el) return;
-		const root = el.closest(".embed-controls");
-		const leftGroup = el.closest(".embed-controls__control");
-		if (!root || !leftGroup) return;
-
-		const check = () => {
-			const rowWidth = measure?.scrollWidth ?? 0;
-			if (rowWidth === 0) return;
-
-			const rootRect = root.getBoundingClientRect();
-			const leftEdge = rootRect.left + 8;
-			const topBandBottom = rootRect.top + 52;
-			let conflictLeft = rootRect.right - 8;
-
-			for (const control of Array.from(root.querySelectorAll(".embed-controls__control"))) {
-				if (control === leftGroup) continue;
-				const rect = control.getBoundingClientRect();
-				if (rect.top >= topBandBottom || rect.bottom <= rootRect.top) continue;
-				if (rect.left > leftEdge + 80) {
-					conflictLeft = Math.min(conflictLeft, rect.left);
-				}
-			}
-
-			const marginX = (n: HTMLElement) => {
-				const s = getComputedStyle(n);
-				return (parseFloat(s.marginLeft) || 0) + (parseFloat(s.marginRight) || 0);
-			};
-			let siblingsWidth = 0;
-			for (const child of Array.from(leftGroup.children)) {
-				if (child !== el && child instanceof HTMLElement) {
-					siblingsWidth += child.getBoundingClientRect().width + marginX(child);
-				}
-			}
-
-			const available = conflictLeft - leftEdge - 8;
-			const needed = rowWidth + marginX(el) + siblingsWidth;
-			setCompact((prev) => {
-				// Hysteresis avoids flip-flopping at the breakpoint.
-				if (prev) return needed > available;
-				return needed > available + 8;
-			});
-		};
-
-		const obs = new ResizeObserver(check);
-		obs.observe(root);
-		if (measure) obs.observe(measure);
-		for (const child of Array.from(leftGroup.children)) {
-			if (child !== el && child instanceof HTMLElement) obs.observe(child);
-		}
-		check();
-		return () => obs.disconnect();
-	}, [containerRef, rowMeasureRef]);
-
-	return compact;
-}
-
 export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 	const [isOpen, setIsOpen] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
-	const rowMeasureRef = useRef<HTMLDivElement>(null);
-	const rowRef = useRef<HTMLDivElement>(null);
-	const compact = useMapTypeCompact(containerRef, rowMeasureRef);
 	const mapPreviewUrl = useMemo(() => buildTileUrl(createRoadmapTileConfig(), 0, 0, 0), []);
-
-	useEffect(() => {
-		const measure = rowMeasureRef.current;
-		const visible = rowRef.current;
-		if (!measure || !visible) return;
-		const sync = () => {
-			visible.style.width = `${measure.scrollWidth}px`;
-		};
-		const obs = new ResizeObserver(sync);
-		obs.observe(measure);
-		sync();
-		return () => obs.disconnect();
-	}, [compact]);
 
 	useClickOutside(containerRef, () => setIsOpen(false), isOpen);
 	useCloseOnEscape(() => setIsOpen(false), isOpen);
@@ -435,72 +337,34 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 		vector: MAP_TYPE_PREVIEW_STATIC.vector!,
 	};
 
-	const settingsPopup = isOpen && (
-		<div
-			className="settings-popup"
-			style={{
-				position: "absolute",
-				top: "100%",
-				left: 0,
-				zIndex: 3,
-				width: compact ? undefined : "100%",
-				boxSizing: "border-box",
-				maxHeight: "calc(100vh - 80px)",
-				overflowY: "auto",
-			}}
-		>
-			{compact && (
-				<BasemapSelector
-					previewUrls={previewUrls}
-					selected={layerConfig.prefs.mapType}
-					onSelect={(t) => layerConfig.setPref("mapType")(t)}
-				/>
-			)}
-			<SettingsPopup layerConfig={layerConfig} />
-		</div>
-	);
-
 	return (
 		<div
 			className="map-control map-type-control"
 			ref={containerRef}
 			style={{ position: "relative" }}
 		>
-			<div
-				ref={rowMeasureRef}
-				className="map-type-control__row map-type-control__row--measure"
-				aria-hidden
-			>
-				<BasemapSelector
-					previewUrls={previewUrls}
-					selected={layerConfig.prefs.mapType}
-					onSelect={() => {}}
-				/>
-				<LayerConfigToggle open={false} onClick={() => {}} />
-			</div>
-			{compact ? (
-				<>
-					<button
-						type="button"
-						className="map-control__menu-button"
-						onClick={() => setIsOpen(!isOpen)}
-					>
-						{t(MAP_TYPE_LABELS[layerConfig.prefs.mapType])}
-					</button>
-					{settingsPopup}
-				</>
-			) : (
-				<>
-					<div ref={rowRef} className="map-type-control__row">
-						<BasemapSelector
-							previewUrls={previewUrls}
-							selected={layerConfig.prefs.mapType}
-							onSelect={(t) => layerConfig.setPref("mapType")(t)}
-						/>
-						<LayerConfigToggle open={isOpen} onClick={() => setIsOpen((v) => !v)} />
-					</div>
-					{settingsPopup}
-				</>
+			<button type="button" className="map-control__menu-button" onClick={() => setIsOpen(!isOpen)}>
+				{t("Map style")}
+			</button>
+			{isOpen && (
+				<div
+					className="settings-popup settings-popup--capped"
+					style={{
+						position: "absolute",
+						top: "100%",
+						left: 0,
+						zIndex: 3,
+						maxHeight: "calc(100vh - 80px)",
+						overflowY: "auto",
+					}}
+				>
+					<BasemapSelector
+						previewUrls={previewUrls}
+						selected={layerConfig.prefs.mapType}
+						onSelect={(type) => layerConfig.setPref("mapType")(type)}
+					/>
+					<SettingsPopup layerConfig={layerConfig} />
+				</div>
 			)}
 		</div>
 	);
