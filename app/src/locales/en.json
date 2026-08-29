@@ -548,7 +548,7 @@
 	"High": "High",
 	"High (640x360)": "High (640x360)",
 	"High (~10MB)": "High (~10MB)",
-	"Highest score survives a merge; ties go to the oldest.": "Highest score survives a merge; ties go to the oldest.",
+	"Highest score supplies the merged position and view; all tags are kept. Ties go to the oldest.": "Highest score supplies the merged position and view; all tags are kept. Ties go to the oldest.",
 	"History": "History",
 	"Hold + click for country (+Shift for subdivision)": "Hold + click for country (+Shift for subdivision)",
 	"Hold + click to delete polygon": "Hold + click to delete polygon",

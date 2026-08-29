@@ -182,7 +182,9 @@ function DuplicatesSection({ draft, edit, block }: SectionProps) {
 			<p className="edit-map-modal__hint">
 				{error
 					? t("Invalid expression: {error}", { error })
-					: t("Highest score survives a merge; ties go to the oldest.")}
+					: t(
+							"Highest score supplies the merged position and view; all tags are kept. Ties go to the oldest.",
+						)}
 			</p>
 		</>
 	);

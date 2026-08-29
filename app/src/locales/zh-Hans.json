@@ -533,7 +533,7 @@
 	"High": "高",
 	"High (640x360)": "高（640x360）",
 	"High (~10MB)": "高（约 10MB）",
-	"Highest score survives a merge; ties go to the oldest.": "合并时分数最高者保留；分数相同则保留更早的。",
+	"Highest score supplies the merged position and view; all tags are kept. Ties go to the oldest.": "由得分最高的位置提供合并后的坐标和视角；所有标签都会保留。得分相同时以最早的为准。",
 	"History": "历史",
 	"Hold + click for country (+Shift for subdivision)": "按住 + 点击选国家（+Shift 选行政区）",
 	"Hold + click to delete polygon": "按住 + 点击删除多边形",

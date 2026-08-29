@@ -578,7 +578,7 @@
 	"High": "Высокое",
 	"High (640x360)": "Высокое (640x360)",
 	"High (~10MB)": "Высокая (~10MB)",
-	"Highest score survives a merge; ties go to the oldest.": "После объединения остаётся наибольшая оценка; при равенстве — более старый.",
+	"Highest score supplies the merged position and view; all tags are kept. Ties go to the oldest.": "Позиция и вид берутся у записи с наибольшим счётом; все теги сохраняются. При равенстве побеждает самая старая.",
 	"History": "История",
 	"Hold + click for country (+Shift for subdivision)": "Зажмите + клик для страны (+Shift для региона)",
 	"Hold + click to delete polygon": "Зажмите + клик, чтобы удалить полигон",

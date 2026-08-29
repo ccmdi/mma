@@ -533,7 +533,7 @@
 	"High": "高",
 	"High (640x360)": "高（640x360）",
 	"High (~10MB)": "高（約 10MB）",
-	"Highest score survives a merge; ties go to the oldest.": "統合ではスコアが最も高いものが残ります。同点の場合は古いものが残ります。",
+	"Highest score supplies the merged position and view; all tags are kept. Ties go to the oldest.": "最高スコアの位置とビューが統合結果になります。タグはすべて保持されます。同点の場合は最も古いものが優先されます。",
 	"History": "履歴",
 	"Hold + click for country (+Shift for subdivision)": "押しながらクリックで国を選択（+Shift で行政区画）",
 	"Hold + click to delete polygon": "押しながらクリックでポリゴンを削除",

@@ -578,7 +578,7 @@
 	"High": "Wysokie",
 	"High (640x360)": "Wysoka (640x360)",
 	"High (~10MB)": "Wysoka (~10MB)",
-	"Highest score survives a merge; ties go to the oldest.": "Scalenie przetrwa najwyższy wynik; przy remisie wygrywa starszy.",
+	"Highest score supplies the merged position and view; all tags are kept. Ties go to the oldest.": "Najwyższy wynik dostarcza scaloną pozycję i widok; wszystkie tagi zostają zachowane. Przy remisie wygrywa najstarsza lokalizacja.",
 	"History": "Historia",
 	"Hold + click for country (+Shift for subdivision)": "Przytrzymaj + kliknij, aby wybrać kraj (+Shift dla jednostki administracyjnej)",
 	"Hold + click to delete polygon": "Przytrzymaj + kliknij, aby usunąć wielokąt",
