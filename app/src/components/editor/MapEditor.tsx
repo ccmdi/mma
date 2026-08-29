@@ -344,7 +344,7 @@ export function MapEditor() {
 											</button>
 										</DialogTrigger>
 									</Tooltip>
-									<DialogContent title={t("Map settings")} className="edit-map-modal">
+									<DialogContent title={t("Edit map")} className="edit-map-modal">
 										<MapSettingsForm map={map} context="editor" />
 									</DialogContent>
 								</Dialog>
