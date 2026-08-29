@@ -1,4 +1,4 @@
-import { getLocale, t } from "@/lib/i18n";
+import { getLocale, msg, t } from "@/lib/i18n";
 import { getSettings } from "@/store/settings";
 
 /** Product name -- never translated. */
@@ -81,8 +81,28 @@ export function utcDateTime(secs: number): string {
 
 // --- Distances ---
 
-const FEET_PER_METER = 3.280839895;
-const METERS_PER_MILE = 1609.344;
+/** Units a stored distance can be held in. Every distance in the app is stored in one of these. */
+export type MetricUnit = "m" | "km";
+export type DistanceUnit = MetricUnit | "ft" | "mi";
+
+/** The one table: what each unit is worth, what Intl calls it, and how it is labelled on a
+ *  field. `decimals` is what a value in that unit reads to when nothing overrides it. */
+const UNITS: Record<
+	DistanceUnit,
+	{ meters: number; intl: string; label: string; decimals: number }
+> = {
+	m: { meters: 1, intl: "meter", label: msg("m"), decimals: 0 },
+	km: { meters: 1000, intl: "kilometer", label: msg("km"), decimals: 2 },
+	ft: { meters: 0.3048, intl: "foot", label: msg("ft"), decimals: 0 },
+	mi: { meters: 1609.344, intl: "mile", label: msg("mi"), decimals: 2 },
+};
+
+/** The imperial unit each metric one becomes, small and large. */
+const IMPERIAL_OF: Record<MetricUnit, DistanceUnit> = { m: "ft", km: "mi" };
+
+/** A unit switches to the larger one of its system at a thousand of itself: 1000 m, 1000 ft. */
+const LARGE_AT = 1000;
+
 /** Regions that still measure road distance in miles (CLDR's `us`/`uk` measurement systems). */
 const IMPERIAL_REGIONS = new Set(["US", "GB", "LR", "MM"]);
 
@@ -105,42 +125,45 @@ export function unitSystem(): "metric" | "imperial" {
 	return (inferredUnits ??= localeUnits());
 }
 
+/** The unit a stored `base` value is shown in: itself under metric, its imperial twin otherwise. */
+function displayUnit(base: MetricUnit): DistanceUnit {
+	return unitSystem() === "imperial" ? IMPERIAL_OF[base] : base;
+}
+
 const unitFmts = new Map<string, { locale: string; formatter: Intl.NumberFormat }>();
 
-function unitFmt(unit: string, maximumFractionDigits: number): Intl.NumberFormat {
+function unitFmt(unit: DistanceUnit, maximumFractionDigits: number): Intl.NumberFormat {
 	const key = `${unit}:${maximumFractionDigits}`;
 	const locale = getLocale();
 	let cached = unitFmts.get(key);
 	if (cached?.locale !== locale) {
 		cached = {
 			locale,
-			formatter: new Intl.NumberFormat(locale, { style: "unit", unit, maximumFractionDigits }),
+			formatter: new Intl.NumberFormat(locale, {
+				style: "unit",
+				unit: UNITS[unit].intl,
+				maximumFractionDigits,
+			}),
 		};
 		unitFmts.set(key, cached);
 	}
 	return cached.formatter;
 }
 
-/** Every distance the UI displays, in the user's unit system. Small distances read in
- *  metres/feet, larger ones in kilometres/miles. Left alone, the large unit keeps two
- *  decimals and the small one is whole; `maximumFractionDigits` overrides whichever
- *  unit the magnitude picks. */
+/** Every distance the UI displays, in the user's unit system: metres/feet up to a thousand of
+ *  them, kilometres/miles above. `maximumFractionDigits` overrides whichever unit the magnitude
+ *  picks; left alone each unit uses its own default. */
 export function formatDistance(meters: number, maximumFractionDigits?: number): string {
-	const large = maximumFractionDigits ?? 2;
-	const small = maximumFractionDigits ?? 0;
-	if (unitSystem() === "imperial") {
-		const feet = meters * FEET_PER_METER;
-		return feet < 1000
-			? unitFmt("foot", small).format(feet)
-			: unitFmt("mile", large).format(meters / METERS_PER_MILE);
-	}
-	return meters >= 1000
-		? unitFmt("kilometer", large).format(meters / 1000)
-		: unitFmt("meter", small).format(meters);
+	const small = displayUnit("m");
+	const unit = meters / UNITS[small].meters >= LARGE_AT ? displayUnit("km") : small;
+	return unitFmt(unit, maximumFractionDigits ?? UNITS[unit].decimals).format(
+		meters / UNITS[unit].meters,
+	);
 }
 
-export interface DistanceUnit {
-	/** Short label for the field ("m", "km", "ft", "mi"). */
+export interface DistanceField {
+	unit: DistanceUnit;
+	/** Localised short label for the field ("m", "km", "ft", "mi"). */
 	label: string;
 	/** Stored metric value -> the number the field shows. */
 	toDisplay(value: number): number;
@@ -148,31 +171,20 @@ export interface DistanceUnit {
 	fromDisplay(value: number): number;
 }
 
-const round = (value: number, digits: number) => {
-	const scale = 10 ** digits;
-	return Math.round(value * scale) / scale;
-};
-
 /** Fixed-unit conversion for a distance *input* whose stored value is in `base`. Unlike
- *  {@link formatDistance} the unit never changes with magnitude, so the field keeps one label. */
-export function distanceUnit(base: "m" | "km"): DistanceUnit {
-	const identity = (v: number) => v;
-	if (unitSystem() === "metric") {
-		return { label: base === "m" ? t("m") : t("km"), toDisplay: identity, fromDisplay: identity };
-	}
-	// Only the displayed number is rounded; the stored value keeps the exact conversion, so
-	// re-displaying it gives back the number that was typed.
-	return base === "m"
-		? {
-				label: t("ft"),
-				toDisplay: (v) => Math.round(v * FEET_PER_METER),
-				fromDisplay: (v) => v / FEET_PER_METER,
-			}
-		: {
-				label: t("mi"),
-				toDisplay: (v) => round((v * 1000) / METERS_PER_MILE, 2),
-				fromDisplay: (v) => (v * METERS_PER_MILE) / 1000,
-			};
+ *  {@link formatDistance} the unit never changes with magnitude, so the field keeps one label.
+ *  Only the displayed number is rounded -- the stored value keeps the exact conversion, so
+ *  re-displaying it gives back the number that was typed. */
+export function distanceUnit(base: MetricUnit): DistanceField {
+	const unit = displayUnit(base);
+	const perStored = UNITS[base].meters / UNITS[unit].meters;
+	const scale = 10 ** UNITS[unit].decimals;
+	return {
+		unit,
+		label: t(UNITS[unit].label),
+		toDisplay: (v) => Math.round(v * perStored * scale) / scale,
+		fromDisplay: (v) => v / perStored,
+	};
 }
 
 const MINUTE = 60_000;
