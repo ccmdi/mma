@@ -38,6 +38,8 @@ import {
 	mdiBookmarkCheckOutline,
 	mdiSelectAll,
 	mdiTagOffOutline,
+	mdiLayersOutline,
+	mdiLayersTripleOutline,
 	mdiCompassOffOutline,
 	mdiImageOutline,
 	mdiImageOffOutline,
@@ -63,6 +65,8 @@ import {
 	toggleGhostAllSelections,
 } from "./useMapStore";
 import { hasCommitDiff } from "./commitDiff";
+import { MAP_EMBED_PREFS, MAP_TYPES } from "./mapEmbedPrefs";
+import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { isReservedMap } from "./mapList";
 import { loadGeoJSON } from "@/lib/util/loadGeoJSON";
 import { downloadBlob } from "@/lib/util/util";
@@ -79,6 +83,14 @@ const hasAnySelections = () => getMapState().selections.length > 0;
 const openBulkOp = (op: string) => () => openDialog("bulk-op", op);
 const openInlinePanel = (id: string) => () => openDialog("inline-panel", id);
 
+/** Step `n` places through the basemap order, wrapping at both ends. */
+const stepBasemap = (n: number) => () => {
+	const prefs = getLocal(MAP_EMBED_PREFS);
+	const i = MAP_TYPES.indexOf(prefs.mapType);
+	const len = MAP_TYPES.length;
+	setLocal(MAP_EMBED_PREFS, { ...prefs, mapType: MAP_TYPES[(i + n + len) % len] });
+};
+
 /** Every editor command (palette entries; all are hotkey-bindable in Settings). */
 const COMMANDS = {
 	save: {
@@ -89,6 +101,22 @@ const COMMANDS = {
 		aliases: ["save", "snapshot"],
 		execute: () => openDialog("commit"),
 		enabled: () => requiresVersioning() && hasCommitDiff(),
+	},
+	basemapPrev: {
+		label: msg("Previous basemap"),
+		icon: mdiLayersTripleOutline,
+		group: msg("Map"),
+		defaultBinding: "j",
+		execute: stepBasemap(-1),
+		enabled: requiresMap,
+	},
+	basemapNext: {
+		label: msg("Next basemap"),
+		icon: mdiLayersOutline,
+		group: msg("Map"),
+		defaultBinding: "k",
+		execute: stepBasemap(1),
+		enabled: requiresMap,
 	},
 	import: {
 		label: msg("Import file"),

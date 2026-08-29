@@ -1,6 +1,17 @@
 import type { SvColor, MapTypeKey, SvCoverageType, SvThickness, MarkerStyle } from "@/types";
 import type { OpacityToggleMode } from "./settings";
 import { persisted } from "@/lib/hooks/useLocalStorage";
+import { msg } from "@/lib/i18n";
+
+/** Basemap order: also the order the previous/next basemap commands step through. */
+export const MAP_TYPES: readonly MapTypeKey[] = ["map", "satellite", "osm", "vector"];
+
+export const MAP_TYPE_LABELS: Record<MapTypeKey, string> = {
+	map: msg("Map"),
+	satellite: msg("Satellite"),
+	osm: msg("OSM"),
+	vector: msg("Vector"),
+};
 
 export interface MapEmbedPrefs {
 	svOpacity: number;

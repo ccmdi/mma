@@ -9,7 +9,7 @@ import {
 	VECTOR_STYLE_KEYS,
 	VECTOR_STYLE_LABELS,
 } from "@/lib/geo/mapStyles";
-import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
+import { MAP_TYPES, MAP_TYPE_LABELS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiCogOutline } from "@mdi/js";
 import type { MapTypeKey, SvCoverageType, MarkerStyle } from "@/types";
@@ -21,14 +21,7 @@ import { hexToRgb, rgbToHex, resolveSvColorHex } from "@/lib/util/color";
 import { useMapSetting } from "@/store/useMapSetting";
 import { formatDistance } from "@/lib/util/format";
 import { useSetting } from "@/store/settings";
-import { t, msg } from "@/lib/i18n";
-
-const MAP_TYPE_LABELS: Record<MapTypeKey, string> = {
-	map: msg("Map"),
-	satellite: msg("Satellite"),
-	osm: msg("OSM"),
-	vector: msg("Vector"),
-};
+import { t } from "@/lib/i18n";
 
 export interface LayerConfig {
 	prefs: MapEmbedPrefs;
@@ -278,8 +271,6 @@ const MAP_TYPE_PREVIEW_STATIC: Partial<Record<MapTypeKey, string>> = {
 	// raster style endpoint, so its Natural Earth layer stands in for the preview.
 	vector: "https://tiles.openfreemap.org/natural_earth/ne2sr/0/0/0.png",
 };
-
-const MAP_TYPES: MapTypeKey[] = ["map", "satellite", "osm", "vector"];
 
 function BasemapSelector({
 	previewUrls,
