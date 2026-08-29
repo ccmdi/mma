@@ -3008,7 +3008,7 @@ fn loc_full(id: u32, tags: Vec<u32>, created_at: u32) -> Location {
 fn merge_group_survivor_is_most_tags() {
     let a = loc_full(1, vec![1], 2020);
     let b = loc_full(2, vec![1, 2, 3], 2021);
-    let s = merge_group(&[a, b], None);
+    let s = merge_group(&[a, b], &default_score());
     assert_eq!(s.id, 2);
     assert_eq!(s.tags, vec![1, 2, 3]);
 }
@@ -3017,7 +3017,7 @@ fn merge_group_survivor_is_most_tags() {
 fn merge_group_tie_breaks_on_earliest_created() {
     let a = loc_full(1, vec![1], 2021);
     let b = loc_full(2, vec![9], 2019); // fewer-tag tie, but earlier
-    let s = merge_group(&[a, b], None);
+    let s = merge_group(&[a, b], &default_score());
     assert_eq!(s.id, 2);
 }
 
@@ -3025,7 +3025,7 @@ fn merge_group_tie_breaks_on_earliest_created() {
 fn merge_group_tie_breaks_on_lowest_id() {
     let a = loc_full(5, vec![1], 2020);
     let b = loc_full(2, vec![9], 2020); // same tags+created, lower id
-    let s = merge_group(&[a, b], None);
+    let s = merge_group(&[a, b], &default_score());
     assert_eq!(s.id, 2);
 }
 
@@ -3033,7 +3033,7 @@ fn merge_group_tie_breaks_on_lowest_id() {
 fn merge_group_unions_and_dedupes_tags() {
     let a = loc_full(1, vec![1, 2], 2020);
     let b = loc_full(2, vec![2, 3], 2020);
-    let s = merge_group(&[a, b], None);
+    let s = merge_group(&[a, b], &default_score());
     assert_eq!(s.tags, vec![1, 2, 3]);
 }
 
@@ -3043,7 +3043,7 @@ fn merge_group_extra_survivor_wins_and_unions_keys() {
     a.extra = Some(serde_json::from_str(r#"{"k":"survivor"}"#).unwrap());
     let mut b = loc_full(2, vec![3], 2020);
     b.extra = Some(serde_json::from_str(r#"{"k":"other","x":"y"}"#).unwrap());
-    let s = merge_group(&[a, b], None);
+    let s = merge_group(&[a, b], &default_score());
     let extra = s.extra.unwrap();
     assert_eq!(extra.get("k").unwrap(), "survivor"); // conflict -> survivor wins
     assert_eq!(extra.get("x").unwrap(), "y"); // non-conflicting key from other is kept
@@ -3053,20 +3053,29 @@ fn score_expr(src: &str) -> Expr {
     field_expr::parse(src).expect("test expression parses")
 }
 
+/// What a map with no duplicate preference of its own ranks by.
+fn default_score() -> Expr {
+    selections::parse_duplicate_score(None).expect("default expression parses")
+}
+
 #[test]
-fn merge_group_tag_count_expression_matches_the_builtin() {
-    // The preference field shows `tagCount` as the default; it must be the real one.
-    let a = loc_full(1, vec![1], 2020);
-    let b = loc_full(2, vec![1, 2, 3], 2021);
-    let scored = merge_group(&[a.clone(), b.clone()], Some(&score_expr("tagCount")));
-    assert_eq!(scored.id, merge_group(&[a, b], None).id);
+fn merge_group_default_scores_more_than_tag_count() {
+    // A finished location beats a bare one carrying more tags.
+    let mut finished = loc_full(1, vec![7], 2020);
+    finished.pano_id = Some("p".into());
+    finished.flags = LocationFlags::LOAD_AS_PANO_ID;
+    finished.heading = 90.0;
+    let bare = loc_full(2, vec![1, 2, 3], 2021);
+    let group = [finished, bare];
+    assert_eq!(merge_group(&group, &default_score()).id, 1);
+    assert_eq!(merge_group(&group, &score_expr("tagCount")).id, 2);
 }
 
 #[test]
 fn merge_group_score_expression_replaces_tag_count() {
     let a = loc_full(1, vec![1, 2, 3], 2020);
     let b = loc_full(2, vec![], 2021);
-    let s = merge_group(&[a, b], Some(&score_expr("id")));
+    let s = merge_group(&[a, b], &score_expr("id"));
     assert_eq!(s.id, 2); // highest id wins despite having no tags at all
 }
 
@@ -3074,7 +3083,7 @@ fn merge_group_score_expression_replaces_tag_count() {
 fn merge_group_score_ties_still_fall_to_created_then_id() {
     let a = loc_full(1, vec![1], 2021);
     let b = loc_full(2, vec![9], 2019);
-    let s = merge_group(&[a, b], Some(&score_expr("1")));
+    let s = merge_group(&[a, b], &score_expr("1"));
     assert_eq!(s.id, 2); // only the earlier created_at explains this: a has the lower id
 }
 
@@ -3083,7 +3092,7 @@ fn merge_group_unscorable_member_ranks_below_a_scored_one() {
     let a = loc_full(1, vec![1, 2, 3], 2019); // wins on every built-in key
     let mut b = loc_full(2, vec![], 2021);
     b.extra = Some(serde_json::from_str(r#"{"q":1}"#).unwrap());
-    let s = merge_group(&[a, b], Some(&score_expr("q")));
+    let s = merge_group(&[a, b], &score_expr("q"));
     assert_eq!(s.id, 2);
 }
 
@@ -3095,7 +3104,7 @@ fn merge_group_applies_and_undo_restores() {
     assert_eq!(store.alive_count, 2);
 
     let members = vec![a.clone(), b.clone()];
-    let survivor = merge_group(&members, None);
+    let survivor = merge_group(&members, &default_score());
     assert_eq!(survivor.id, 1); // tie on tags+created -> lowest id survives
     let entry = EditEntry {
         created: vec![survivor],

@@ -11,7 +11,6 @@ use crate::types::{AppError, AppResult};
 use crate::types::{Location, Tag};
 use crate::util;
 use roaring::RoaringBitmap;
-use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 
@@ -505,32 +504,15 @@ pub(crate) fn split_new_locations(
     (fresh, skipped)
 }
 
-/// Fold a duplicate group into one survivor. Survivor = highest `score` (the map's
-/// duplicate preference expression, or tag count when it has none), then earliest
-/// `created_at`, then lowest id (`max_by` picks the greatest, so created_at/id are
-/// reversed to favour smaller). A location the expression can't evaluate ranks below
-/// every one it can. Tags are set-unioned; `extra` is merged with the survivor winning
-/// key conflicts; all other survivor fields are kept. `members` must be non-empty. The
-/// returned survivor keeps its original id (so callers represent the merge as an update
-/// of the survivor plus removal of the rest).
-pub(crate) fn merge_group(members: &[Location], score: Option<&Expr>) -> Location {
-    let rank = |l: &Location| -> Option<f64> {
-        let Some(expr) = score else {
-            return Some(l.tags.len() as f64);
-        };
-        let row = selections::RowRef::from_loc(l);
-        field_expr::eval(expr, &|name| row.resolve_field(name))
-    };
+/// Fold a duplicate group into one survivor, picked by [`selections::better`]. Tags are
+/// set-unioned; `extra` is merged with the survivor winning key conflicts; all other
+/// survivor fields are kept. `members` must be non-empty. The returned survivor keeps
+/// its original id (so callers represent the merge as an update of the survivor plus
+/// removal of the rest).
+pub(crate) fn merge_group(members: &[Location], score: &Expr) -> Location {
     let survivor = members
         .iter()
-        .max_by(|a, b| {
-            // Option orders None below Some; eval never yields NaN, so partial_cmp is total.
-            rank(a)
-                .partial_cmp(&rank(b))
-                .unwrap_or(Ordering::Equal)
-                .then_with(|| b.created_at.cmp(&a.created_at))
-                .then_with(|| b.id.cmp(&a.id))
-        })
+        .max_by(|a, b| selections::better(a, b, score))
         .expect("merge_group requires a non-empty group");
 
     let mut tagset: BTreeSet<u32> = BTreeSet::new();

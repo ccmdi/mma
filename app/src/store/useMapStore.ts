@@ -885,7 +885,9 @@ export async function mergeDuplicates(distance: number) {
  */
 export async function pruneDuplicates(selector: Selector, distance: number): Promise<number> {
 	if (!state.map) return 0;
-	const r = await mutate(() => cmd.storePruneDuplicates(selector, distance));
+	const r = await mutate(() =>
+		cmd.storePruneDuplicates(selector, distance, state.map?.settings.duplicateScore ?? null),
+	);
 	return r.delta.removed.length;
 }
 

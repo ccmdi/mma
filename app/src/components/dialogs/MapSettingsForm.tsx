@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { mdiRestore, mdiClose } from "@mdi/js";
+import { DEFAULT_DUPLICATE_SCORE } from "@/bindings.gen";
 import type { MapMeta } from "@/bindings.gen";
 import { patchMapMeta } from "@/store/useMapStore";
 import { deleteMap } from "@/store/mapList";
@@ -36,7 +37,6 @@ interface Section {
 
 /** The built-in duplicate ranking, written in the expression syntax. Shown as the
  *  placeholder; leaving the field blank is what actually selects it. */
-const DEFAULT_DUPLICATE_SCORE = "tagCount";
 
 function NameSection({ draft, edit, block }: SectionProps) {
 	const id = useId();
@@ -183,7 +183,7 @@ function DuplicatesSection({ draft, edit, block }: SectionProps) {
 				{error
 					? t("Invalid expression: {error}", { error })
 					: t(
-							"Highest score supplies the merged position and view; all tags are kept. Ties go to the oldest.",
+							"Scores every duplicate; the highest is the one kept when duplicates are merged or pruned. Merging keeps all tags either way, and ties go to the oldest.",
 						)}
 			</p>
 		</>

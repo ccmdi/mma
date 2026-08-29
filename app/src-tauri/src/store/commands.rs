@@ -5,7 +5,6 @@
 use crate::io::export;
 use crate::io::import;
 use crate::plugins::borders;
-use crate::selections::field_expr;
 use crate::selections::{self, Selection, Selector};
 use crate::store::arrow;
 use crate::store::arrow::{col_id, schema};
@@ -1207,9 +1206,8 @@ pub fn store_duplicate_groups(
 
 /// Merge each duplicate group within `distance` metres into one survivor location, unioning
 /// tags and extra fields. `score` is the map's duplicate preference expression; blank or
-/// absent keeps the built-in ranking. One undoable edit.
-// Survivor = highest score, then earliest created_at, then lowest id; extra merges
-// survivor-wins.
+/// absent uses [`selections::DEFAULT_DUPLICATE_SCORE`]. One undoable edit.
+// Extra merges survivor-wins.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_merge_duplicates(
@@ -1219,10 +1217,7 @@ pub async fn store_merge_duplicates(
     score: Option<String>,
 ) -> AppResult<MutationResult> {
     let _t = Instant::now();
-    let score = match score.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
-        Some(src) => Some(field_expr::parse(src)?),
-        None => None,
-    };
+    let score = selections::parse_duplicate_score(score.as_deref())?;
     with_store!(label, state, |store| {
         let groups = {
             let view = store.loc_view();
@@ -1240,7 +1235,7 @@ pub async fn store_merge_duplicates(
             if members.len() < 2 {
                 continue;
             }
-            create.push(merge_group(&members, score.as_ref()));
+            create.push(merge_group(&members, &score));
             for m in members {
                 remove.push(m);
             }
@@ -1257,9 +1252,10 @@ pub async fn store_merge_duplicates(
 }
 
 /// Thin duplicates among `ids` within `distance` metres, keeping the best location per
-/// cluster. Informational locations are never pruned. One undoable edit.
-// <= 25m: best-scored per cluster (see selections::prune_score); > 25m: greedy thinning
-// so no two survivors remain in range.
+/// cluster. `score` is the map's duplicate preference expression, the same one a merge
+/// ranks by. Informational locations are never pruned. One undoable edit.
+// <= 25m: best-scored per cluster; > 25m: greedy thinning so no two survivors remain in
+// range.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_prune_duplicates(
@@ -1267,11 +1263,13 @@ pub async fn store_prune_duplicates(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
     distance: f64,
+    score: Option<String>,
 ) -> AppResult<MutationResult> {
     let _t = Instant::now();
+    let score = selections::parse_duplicate_score(score.as_deref())?;
     with_store!(label, state, |store| {
         let locs: Vec<Location> = store.collect(&selector);
-        let prune_ids: HashSet<u32> = selections::prune_duplicates(&locs, distance)
+        let prune_ids: HashSet<u32> = selections::prune_duplicates(&locs, distance, &score)
             .into_iter()
             .collect();
         let total = locs.len();

@@ -1,7 +1,8 @@
 //! Near-duplicate detection and pruning over a location view.
 
 use super::*;
-use crate::types::{Location, LocationFlags};
+use crate::selections::field_expr::{self, Expr};
+use crate::types::{AppResult, Location, LocationFlags};
 use mma_geo::equirect_m2;
 use std::collections::HashMap;
 
@@ -341,13 +342,42 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
     groups
 }
 
+/// The default duplicate score: how finished a location is. Doubles as the placeholder
+/// the map settings input shows when a map states no preference of its own.
+pub const DEFAULT_DUPLICATE_SCORE: &str =
+    "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
+
+/// The map's duplicate preference, or the built-in default when it states none. Merge
+/// and prune both rank through this, so a map has one answer to "which duplicate is the
+/// better one", not two.
+pub fn parse_duplicate_score(src: Option<&str>) -> AppResult<Expr> {
+    let src = src.map(str::trim).filter(|s| !s.is_empty());
+    field_expr::parse(src.unwrap_or(DEFAULT_DUPLICATE_SCORE))
+}
+
+/// Which of two duplicates is the better one to keep, greatest first. `created_at` and
+/// `id` are reversed so the older and the lower win ties. A location the expression
+/// cannot score ranks below every one it can.
+pub fn better(a: &Location, b: &Location, score: &Expr) -> Ordering {
+    let rank = |l: &Location| {
+        let row = RowRef::from_loc(l);
+        field_expr::eval(score, &|name| row.resolve_field(name))
+    };
+    // eval never yields NaN, so partial_cmp is total.
+    rank(a)
+        .partial_cmp(&rank(b))
+        .unwrap_or(Ordering::Equal)
+        .then_with(|| b.created_at.cmp(&a.created_at))
+        .then_with(|| b.id.cmp(&a.id))
+}
+
 /// Prune duplicates. `locs` is the resolved selection; informational locations are
 /// never pruned and never count as neighbours. Returns ids to remove.
 /// - <= 25 m: relevance prune — each radius cluster keeps its best-scored location
-///   (see [`prune_score`]; tie: oldest `created_at`, then lowest id), rest pruned.
+///   (see [`better`]), rest pruned.
 /// - > 25 m: greedy max-thinning — repeatedly drop the location with the most in-range
 ///   > neighbours until no two survivors are within `distance_m`.
-pub fn prune_duplicates(locs: &[Location], distance_m: f64) -> Vec<u32> {
+pub fn prune_duplicates(locs: &[Location], distance_m: f64, score: &Expr) -> Vec<u32> {
     let locs: Vec<&Location> = locs
         .iter()
         .filter(|l| !l.flags.contains(LocationFlags::INFORMATIONAL))
@@ -358,23 +388,8 @@ pub fn prune_duplicates(locs: &[Location], distance_m: f64) -> Vec<u32> {
     if distance_m > 25.0 {
         prune_thinning(&locs, distance_m)
     } else {
-        prune_relevance(&locs, distance_m)
+        prune_relevance(&locs, distance_m, score)
     }
-}
-
-/// Relevance score: +1 pano, +1 per tag, +1 LoadAsPanoId, +1 nonzero heading.
-pub(super) fn prune_score(l: &Location) -> i64 {
-    let mut s = l.tags.len() as i64;
-    if l.pano_id.is_some() {
-        s += 1;
-    }
-    if l.flags.contains(LocationFlags::LOAD_AS_PANO_ID) {
-        s += 1;
-    }
-    if l.heading != 0.0 {
-        s += 1;
-    }
-    s
 }
 
 /// Symmetric within-distance neighbour lists (indices into `locs`).
@@ -393,7 +408,7 @@ pub(super) fn neighbor_lists(locs: &[&Location], distance_m: f64) -> Vec<Vec<usi
     out
 }
 
-pub(super) fn prune_relevance(locs: &[&Location], distance_m: f64) -> Vec<u32> {
+pub(super) fn prune_relevance(locs: &[&Location], distance_m: f64, score: &Expr) -> Vec<u32> {
     let neighbors = neighbor_lists(locs, distance_m);
     let mut pruned = vec![false; locs.len()];
     let mut out = Vec::new();
@@ -408,12 +423,7 @@ pub(super) fn prune_relevance(locs: &[&Location], distance_m: f64) -> Vec<u32> {
         }
         let survivor = *cluster
             .iter()
-            .max_by(|&&a, &&b| {
-                prune_score(locs[a])
-                    .cmp(&prune_score(locs[b]))
-                    .then_with(|| locs[b].created_at.cmp(&locs[a].created_at)) // older wins ties
-                    .then_with(|| locs[b].id.cmp(&locs[a].id))
-            })
+            .max_by(|&&a, &&b| better(locs[a], locs[b], score))
             .unwrap();
         for &j in &cluster {
             if j != survivor {

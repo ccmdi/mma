@@ -88,6 +88,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .constant("SCRATCH_MAP_ID", store::maps::SCRATCH_MAP_ID)
         .constant("BUILTIN_FIELDS", selections::BUILTIN_FIELDS)
         .constant("PROJECTIONS", selections::PROJECTIONS)
+        .constant("DEFAULT_DUPLICATE_SCORE", selections::DEFAULT_DUPLICATE_SCORE)
         .commands(tauri_specta::collect_commands![
             app_ready,
             store::storage::write_temp_file,

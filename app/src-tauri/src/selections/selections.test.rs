@@ -1604,6 +1604,10 @@ fn duplicate_groups_empty_when_all_far() {
 // prune_duplicates
 // -----------------------------------------------------------------------
 
+fn default_score() -> field_expr::Expr {
+    parse_duplicate_score(None).expect("default expression parses")
+}
+
 // <= 25m relevance mode: the best-scored location in a cluster survives.
 #[test]
 fn prune_relevance_keeps_highest_score() {
@@ -1611,7 +1615,7 @@ fn prune_relevance_keeps_highest_score() {
     best.pano_id = Some("p".into());
     best.tags = vec![7];
     let locs = vec![best, loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
-    let mut removed = prune_duplicates(&locs, 10.0);
+    let mut removed = prune_duplicates(&locs, 10.0, &default_score());
     removed.sort_unstable();
     assert_eq!(removed, vec![2, 3]);
 }
@@ -1623,7 +1627,7 @@ fn prune_relevance_tie_keeps_oldest() {
     old.created_at = 100;
     let mut new = loc(2, 0.00001, 0.0);
     new.created_at = 200;
-    let removed = prune_duplicates(&[new, old], 10.0);
+    let removed = prune_duplicates(&[new, old], 10.0, &default_score());
     assert_eq!(removed, vec![2]);
 }
 
@@ -1633,7 +1637,7 @@ fn prune_never_touches_informational() {
     let mut info = loc(1, 0.00000, 0.0);
     info.flags = LocationFlags::INFORMATIONAL;
     let locs = vec![info, loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
-    let removed = prune_duplicates(&locs, 10.0);
+    let removed = prune_duplicates(&locs, 10.0, &default_score());
     assert_eq!(removed.len(), 1);
     assert!(!removed.contains(&1));
 }
@@ -1647,7 +1651,7 @@ fn prune_relevance_is_radius_scoped_not_transitive() {
         loc(2, 0.00001, 0.0),
         loc(3, 0.00002, 0.0),
     ];
-    let removed = prune_duplicates(&locs, 2.0);
+    let removed = prune_duplicates(&locs, 2.0, &default_score());
     assert_eq!(removed, vec![2]);
 }
 
@@ -1660,7 +1664,7 @@ fn prune_thinning_drops_hub_keeps_endpoints() {
         loc(2, 0.0003, 0.0),
         loc(3, 0.0006, 0.0),
     ];
-    let removed = prune_duplicates(&locs, 40.0);
+    let removed = prune_duplicates(&locs, 40.0, &default_score());
     assert_eq!(removed, vec![2]);
 }
 
@@ -1671,7 +1675,7 @@ fn prune_thinning_no_survivors_in_range() {
     for i in 0..12u32 {
         locs.push(loc(i + 1, 0.0003 * f64::from(i), 0.0)); // ~33m spacing
     }
-    let removed = prune_duplicates(&locs, 40.0);
+    let removed = prune_duplicates(&locs, 40.0, &default_score());
     let removed_set: HashSet<u32> = removed.iter().copied().collect();
     let survivors: Vec<&Location> = locs
         .iter()
@@ -3023,4 +3027,26 @@ fn has_pano_id_matches_a_pinned_row_in_base_and_overlay() {
     // Pinned after a commit: the base row is bare, the pano lives in a patch.
     let patched = Fx::base(&[bare.clone(), loc(1, 0.0, 0.0)]).with_patch(1, pinned);
     assert_eq!(ids_of(&patched.view(), &filter), vec![1]);
+}
+
+// Merge and prune answer "which duplicate is the better one" with the same expression.
+#[test]
+fn prune_and_merge_keep_the_same_survivor() {
+    let mut finished = loc(1, 0.00000, 0.0);
+    finished.pano_id = Some("p".into());
+    finished.flags = LocationFlags::LOAD_AS_PANO_ID;
+    finished.heading = 90.0;
+    let mut bare = loc(2, 0.00001, 0.0);
+    bare.tags = vec![1, 2, 3];
+    let group = vec![finished, bare];
+
+    let removed = prune_duplicates(&group, 10.0, &default_score());
+    let kept = *group
+        .iter()
+        .map(|l| l.id)
+        .find(|id| !removed.contains(id))
+        .as_ref()
+        .expect("one survivor");
+    let merged = crate::store::engine::merge_group(&group, &default_score());
+    assert_eq!(kept, merged.id);
 }
