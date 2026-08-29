@@ -297,7 +297,7 @@ export const commands = {
 	 *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
 	 *  cluster. Informational locations are never pruned. One undoable edit.
 	 */
-	storePruneDuplicates: (selector: Selector, distance: number, keepTagIds: number[]) => __TAURI_INVOKE<MutationResult>("store_prune_duplicates", { selector, distance, keepTagIds }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),fieldDefs:v.fieldDefs==null?v.fieldDefs:Object.fromEntries(Object.entries(v.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
+	storePruneDuplicates: (selector: Selector, distance: number) => __TAURI_INVOKE<MutationResult>("store_prune_duplicates", { selector, distance }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),fieldDefs:v.fieldDefs==null?v.fieldDefs:Object.fromEntries(Object.entries(v.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
 	/**
 	 *  Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
 	 *  Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.

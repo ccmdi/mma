@@ -881,15 +881,11 @@ export async function mergeDuplicates(distance: number) {
 
 /**
  * Prune duplicates within a resolved selection: keeps the most relevant location per
- * cluster (<= 25m) or thins to enforce spacing (> 25m). Locations tagged "keep pano"
- * get a +5 score bonus. Returns the number pruned.
+ * cluster (<= 25m) or thins to enforce spacing (> 25m). Returns the number pruned.
  */
 export async function pruneDuplicates(selector: Selector, distance: number): Promise<number> {
 	if (!state.map) return 0;
-	const keepTagIds = getVisibleTags()
-		.filter((t) => t.name === "keep pano")
-		.map((t) => t.id);
-	const r = await mutate(() => cmd.storePruneDuplicates(selector, distance, keepTagIds));
+	const r = await mutate(() => cmd.storePruneDuplicates(selector, distance));
 	return r.delta.removed.length;
 }
 

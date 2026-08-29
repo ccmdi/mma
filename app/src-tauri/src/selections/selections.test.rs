@@ -1604,10 +1604,6 @@ fn duplicate_groups_empty_when_all_far() {
 // prune_duplicates
 // -----------------------------------------------------------------------
 
-fn no_keep() -> HashSet<u32> {
-    HashSet::new()
-}
-
 // <= 25m relevance mode: the best-scored location in a cluster survives.
 #[test]
 fn prune_relevance_keeps_highest_score() {
@@ -1615,21 +1611,9 @@ fn prune_relevance_keeps_highest_score() {
     best.pano_id = Some("p".into());
     best.tags = vec![7];
     let locs = vec![best, loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
-    let mut removed = prune_duplicates(&locs, 10.0, &no_keep());
+    let mut removed = prune_duplicates(&locs, 10.0);
     removed.sort_unstable();
     assert_eq!(removed, vec![2, 3]);
-}
-
-// Keep-tag bonus (+5) outweighs raw tag count.
-#[test]
-fn prune_relevance_keep_tag_beats_tag_count() {
-    let mut tagged = loc(1, 0.00000, 0.0);
-    tagged.tags = vec![1, 2, 3];
-    let mut keep = loc(2, 0.00001, 0.0);
-    keep.tags = vec![9];
-    let keep_ids: HashSet<u32> = [9].into_iter().collect();
-    let removed = prune_duplicates(&[tagged, keep], 10.0, &keep_ids);
-    assert_eq!(removed, vec![1]);
 }
 
 // Score tie: the oldest location survives.
@@ -1639,7 +1623,7 @@ fn prune_relevance_tie_keeps_oldest() {
     old.created_at = 100;
     let mut new = loc(2, 0.00001, 0.0);
     new.created_at = 200;
-    let removed = prune_duplicates(&[new, old], 10.0, &no_keep());
+    let removed = prune_duplicates(&[new, old], 10.0);
     assert_eq!(removed, vec![2]);
 }
 
@@ -1649,7 +1633,7 @@ fn prune_never_touches_informational() {
     let mut info = loc(1, 0.00000, 0.0);
     info.flags = LocationFlags::INFORMATIONAL;
     let locs = vec![info, loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
-    let removed = prune_duplicates(&locs, 10.0, &no_keep());
+    let removed = prune_duplicates(&locs, 10.0);
     assert_eq!(removed.len(), 1);
     assert!(!removed.contains(&1));
 }
@@ -1663,7 +1647,7 @@ fn prune_relevance_is_radius_scoped_not_transitive() {
         loc(2, 0.00001, 0.0),
         loc(3, 0.00002, 0.0),
     ];
-    let removed = prune_duplicates(&locs, 2.0, &no_keep());
+    let removed = prune_duplicates(&locs, 2.0);
     assert_eq!(removed, vec![2]);
 }
 
@@ -1676,7 +1660,7 @@ fn prune_thinning_drops_hub_keeps_endpoints() {
         loc(2, 0.0003, 0.0),
         loc(3, 0.0006, 0.0),
     ];
-    let removed = prune_duplicates(&locs, 40.0, &no_keep());
+    let removed = prune_duplicates(&locs, 40.0);
     assert_eq!(removed, vec![2]);
 }
 
@@ -1687,7 +1671,7 @@ fn prune_thinning_no_survivors_in_range() {
     for i in 0..12u32 {
         locs.push(loc(i + 1, 0.0003 * f64::from(i), 0.0)); // ~33m spacing
     }
-    let removed = prune_duplicates(&locs, 40.0, &no_keep());
+    let removed = prune_duplicates(&locs, 40.0);
     let removed_set: HashSet<u32> = removed.iter().copied().collect();
     let survivors: Vec<&Location> = locs
         .iter()

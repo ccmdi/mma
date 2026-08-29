@@ -1258,8 +1258,8 @@ pub async fn store_merge_duplicates(
 
 /// Thin duplicates among `ids` within `distance` metres, keeping the best location per
 /// cluster. Informational locations are never pruned. One undoable edit.
-// <= 25m: best-scored per cluster (keep_tag_ids +5, see selections::prune_score);
-// > 25m: greedy thinning so no two survivors remain in range.
+// <= 25m: best-scored per cluster (see selections::prune_score); > 25m: greedy thinning
+// so no two survivors remain in range.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_prune_duplicates(
@@ -1267,13 +1267,11 @@ pub async fn store_prune_duplicates(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
     distance: f64,
-    keep_tag_ids: Vec<u32>,
 ) -> AppResult<MutationResult> {
     let _t = Instant::now();
     with_store!(label, state, |store| {
         let locs: Vec<Location> = store.collect(&selector);
-        let keep: HashSet<u32> = keep_tag_ids.into_iter().collect();
-        let prune_ids: HashSet<u32> = selections::prune_duplicates(&locs, distance, &keep)
+        let prune_ids: HashSet<u32> = selections::prune_duplicates(&locs, distance)
             .into_iter()
             .collect();
         let total = locs.len();

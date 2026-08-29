@@ -3,7 +3,7 @@
 use super::*;
 use crate::types::{Location, LocationFlags};
 use mma_geo::equirect_m2;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Cell-hashed spatial grid in CSR layout (Müller, "Blazing Fast Neighbor Search
 /// with Spatial Hashing"). Cells are hashed into a fixed table sized to the point
@@ -347,11 +347,7 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
 ///   (see [`prune_score`]; tie: oldest `created_at`, then lowest id), rest pruned.
 /// - > 25 m: greedy max-thinning — repeatedly drop the location with the most in-range
 ///   > neighbours until no two survivors are within `distance_m`.
-pub fn prune_duplicates(
-    locs: &[Location],
-    distance_m: f64,
-    keep_tag_ids: &HashSet<u32>,
-) -> Vec<u32> {
+pub fn prune_duplicates(locs: &[Location], distance_m: f64) -> Vec<u32> {
     let locs: Vec<&Location> = locs
         .iter()
         .filter(|l| !l.flags.contains(LocationFlags::INFORMATIONAL))
@@ -362,21 +358,18 @@ pub fn prune_duplicates(
     if distance_m > 25.0 {
         prune_thinning(&locs, distance_m)
     } else {
-        prune_relevance(&locs, distance_m, keep_tag_ids)
+        prune_relevance(&locs, distance_m)
     }
 }
 
-/// Relevance score: +1 pano, +1 per tag, +1 LoadAsPanoId, +5 keep-tag, +1 nonzero heading.
-pub(super) fn prune_score(l: &Location, keep_tag_ids: &HashSet<u32>) -> i64 {
+/// Relevance score: +1 pano, +1 per tag, +1 LoadAsPanoId, +1 nonzero heading.
+pub(super) fn prune_score(l: &Location) -> i64 {
     let mut s = l.tags.len() as i64;
     if l.pano_id.is_some() {
         s += 1;
     }
     if l.flags.contains(LocationFlags::LOAD_AS_PANO_ID) {
         s += 1;
-    }
-    if l.tags.iter().any(|t| keep_tag_ids.contains(t)) {
-        s += 5;
     }
     if l.heading != 0.0 {
         s += 1;
@@ -400,11 +393,7 @@ pub(super) fn neighbor_lists(locs: &[&Location], distance_m: f64) -> Vec<Vec<usi
     out
 }
 
-pub(super) fn prune_relevance(
-    locs: &[&Location],
-    distance_m: f64,
-    keep_tag_ids: &HashSet<u32>,
-) -> Vec<u32> {
+pub(super) fn prune_relevance(locs: &[&Location], distance_m: f64) -> Vec<u32> {
     let neighbors = neighbor_lists(locs, distance_m);
     let mut pruned = vec![false; locs.len()];
     let mut out = Vec::new();
@@ -420,8 +409,8 @@ pub(super) fn prune_relevance(
         let survivor = *cluster
             .iter()
             .max_by(|&&a, &&b| {
-                prune_score(locs[a], keep_tag_ids)
-                    .cmp(&prune_score(locs[b], keep_tag_ids))
+                prune_score(locs[a])
+                    .cmp(&prune_score(locs[b]))
                     .then_with(|| locs[b].created_at.cmp(&locs[a].created_at)) // older wins ties
                     .then_with(|| locs[b].id.cmp(&locs[a].id))
             })
