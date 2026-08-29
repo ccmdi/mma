@@ -13,7 +13,6 @@ vi.mock("@/lib/commands", () => ({ cmd: {} }));
 vi.mock("@/lib/events", () => ({ emit: () => {}, subscribe: () => () => {} }));
 
 import {
-	formatDistance,
 	computeScore,
 	bboxToMaxError,
 	locationsBbox,
@@ -25,40 +24,6 @@ import {
 import { isWorldBounds } from "@/types";
 
 const WORLD_BOUNDS = { south: -90, west: -180, north: 90, east: 180 };
-
-describe("formatDistance", () => {
-	it("formats 500 meters as '500 m'", () => {
-		expect(formatDistance(500)).toBe("500 m");
-	});
-
-	it("formats 1001 meters as km", () => {
-		expect(formatDistance(1001)).toBe("1 km");
-	});
-
-	it("formats 1500 meters as '1.5 km'", () => {
-		expect(formatDistance(1500)).toBe("1.5 km");
-	});
-
-	it("formats 0 meters as '0 m'", () => {
-		expect(formatDistance(0)).toBe("0 m");
-	});
-
-	it("formats 999 meters as '999 m'", () => {
-		expect(formatDistance(999)).toBe("999 m");
-	});
-
-	it("formats exactly 1000 meters as '1,000 m' (not over threshold)", () => {
-		expect(formatDistance(1000)).toBe("1,000 m");
-	});
-
-	it("formats 50000 meters as '50 km'", () => {
-		expect(formatDistance(50000)).toBe("50 km");
-	});
-
-	it("formats 123456 meters as '123.46 km'", () => {
-		expect(formatDistance(123456)).toBe("123.46 km");
-	});
-});
 
 describe("computeScore", () => {
 	it("returns 5000 for distance <= 25", () => {

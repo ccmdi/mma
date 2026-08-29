@@ -19,10 +19,10 @@ import { getSettings, setSetting, useSettings } from "@/store/settings";
 import { sendHideCar, Compass, CompassTape } from "@/components/editor/location/PanoControls";
 import { usePluginState } from "@/plugins/registry";
 import { t } from "@/lib/i18n";
+import { formatDistance } from "@/lib/util/format";
 import type { LatLng } from "@/types";
 import {
 	currentRound,
-	formatRoundDistance,
 	isLastRound,
 	scoreGuess,
 	streakBeforeLast,
@@ -408,7 +408,7 @@ export function RoundPlayer({
 							<div className="lg-result-bar__stat lg-result-bar__stat--distance">
 								<span className="lg-result-bar__value">
 									{lastResult.distanceMeters != null
-										? formatRoundDistance(lastResult.distanceMeters)
+										? formatDistance(lastResult.distanceMeters, 0)
 										: "—"}
 								</span>
 								<span className="lg-result-bar__label">

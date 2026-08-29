@@ -19,6 +19,8 @@ import { useStableHandler } from "@/lib/hooks/useStableHandler";
 import { Slider } from "@/components/primitives/Slider";
 import { hexToRgb, rgbToHex, resolveSvColorHex } from "@/lib/util/color";
 import { useMapSetting } from "@/store/useMapSetting";
+import { formatDistance } from "@/lib/util/format";
+import { useSetting } from "@/store/settings";
 import { t, msg } from "@/lib/i18n";
 
 const MAP_TYPE_LABELS: Record<MapTypeKey, string> = {
@@ -48,6 +50,7 @@ function SearchRadiusSlider({
 }) {
 	const [dragging, setDragging] = useState<number | null>(null);
 	const display = dragging ?? value ?? 50;
+	useSetting("units");
 	return (
 		<label className="settings-popup__item settings-popup__select">
 			{t("Min search radius:")}{" "}
@@ -66,7 +69,7 @@ function SearchRadiusSlider({
 				}}
 				style={{ width: 80, verticalAlign: "middle" }}
 			/>{" "}
-			<span className="mono">{display}m</span>
+			<span className="mono">{formatDistance(display)}</span>
 		</label>
 	);
 }

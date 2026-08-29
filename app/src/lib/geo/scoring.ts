@@ -6,20 +6,6 @@ import { fetchBounds, useMapState } from "@/store/useMapStore";
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
 import { distMeters } from "@/lib/geo/geo";
 import { boundsOfCoords } from "@/lib/map/host";
-import { localeFormat } from "@/lib/util/format";
-
-// --- Formatting utilities ---
-
-const kmFmt = localeFormat<number>(
-	(l) => new Intl.NumberFormat(l, { style: "unit", unit: "kilometer", maximumFractionDigits: 2 }),
-);
-const mFmt = localeFormat<number>(
-	(l) => new Intl.NumberFormat(l, { style: "unit", unit: "meter", maximumFractionDigits: 0 }),
-);
-
-export function formatDistance(meters: number): string {
-	return meters > 1000 ? kmFmt.format(meters / 1000) : mFmt.format(meters);
-}
 
 const SCORE_BASE = 0.99866017;
 const DEFAULT_MAX_ERROR = 185.34781;

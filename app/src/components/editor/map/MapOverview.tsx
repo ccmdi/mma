@@ -30,7 +30,7 @@ import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { TextInput } from "@/components/primitives/TextInput";
 import { PluginToolbar } from "@/plugins/PluginPanels";
-import { fmt } from "@/lib/util/format";
+import { fmt, distanceUnit, formatDistance } from "@/lib/util/format";
 import { useDialog, useDialogState, openDialog } from "@/store/dialogBus";
 import { SelectionRow } from "./SelectionRow";
 import { PinnedToolbar } from "./PinnedToolbar";
@@ -118,12 +118,14 @@ function SpacedPickPanel() {
 	const total = useMapState((s) => s.selectedLocationIds).size;
 	const parsed = Math.floor(Number(value));
 	const valid = value.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
+	useSetting("units");
+	const unit = distanceUnit("m");
 
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!valid) return;
 		const count = perSelection ? parsed : Math.min(parsed, total);
-		const opts = mode === "count" ? { count } : { minDistanceM: parsed };
+		const opts = mode === "count" ? { count } : { minDistanceM: unit.fromDisplay(parsed) };
 		selectSpacedFromSelection(opts, perSelection)
 			.then(({ picked, distanceM }) => {
 				if (picked === 0) return;
@@ -138,7 +140,7 @@ function SpacedPickPanel() {
 					: t({ one: "Selected {n} location", other: "Selected {n} locations" }, { n: picked });
 				const spacing =
 					distanceM > 0
-						? t(", at least {distance}m apart", { distance: fmt.format(distanceM) })
+						? t(", at least {distance} apart", { distance: formatDistance(distanceM) })
 						: "";
 				toast(base + spacing);
 			})
@@ -149,13 +151,13 @@ function SpacedPickPanel() {
 		<form className="selection-manager__inline-form" onSubmit={handleSubmit}>
 			<NSelect value={mode} onChange={(e) => setMode(e.target.value as "count" | "distance")}>
 				<option value="count">{t("Count")}</option>
-				<option value="distance">{t("Min distance (m)")}</option>
+				<option value="distance">{t("Min distance ({unit})", { unit: unit.label })}</option>
 			</NSelect>
 			<TextInput
 				type="number"
 				min={1}
 				style={{ width: "7rem" }}
-				placeholder={mode === "count" ? t("Count") : t("Meters")}
+				placeholder={mode === "count" ? t("Count") : unit.label}
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
 			/>
@@ -301,8 +303,10 @@ function BulkTagForm() {
 
 export function MapOverview({ hidden }: { hidden?: boolean }) {
 	const map = useMapState((s) => s.map);
+	useSetting("units");
 	const [selectionsCollapsed, setSelectionsCollapsed] = useState(false);
 	const [dupDistance, setDupDistance] = useState(1);
+	const dupUnit = distanceUnit("m");
 	const [topKField, setTopKField] = useState("");
 	const [topKCount, setTopKCount] = useState(10);
 	const [topKAscending, setTopKAscending] = useState(false);
@@ -363,13 +367,13 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									}}
 								>
 									<label>
-										{t("Distance (m):")}{" "}
+										{t("Distance ({unit}):", { unit: dupUnit.label })}{" "}
 										<TextInput
 											type="number"
 											min="0"
 											style={{ width: "5rem" }}
-											value={dupDistance}
-											onChange={(e) => setDupDistance(Number(e.target.value))}
+											value={dupUnit.toDisplay(dupDistance)}
+											onChange={(e) => setDupDistance(dupUnit.fromDisplay(Number(e.target.value)))}
 										/>
 									</label>
 									<Button type="submit">{t("Find")}</Button>

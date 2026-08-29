@@ -4,7 +4,7 @@ import type { FilterOp, PolygonGeometry, Tag } from "@/bindings.gen";
 import { getVisibleTags, getTag } from "@/store/useMapStore";
 import { hslToRgb } from "@/lib/util/color";
 import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
-import { localDateTime, utcDateTime } from "@/lib/util/format";
+import { formatDistance, localDateTime, utcDateTime } from "@/lib/util/format";
 import { clamp, isVariant, unionTuple, type Variant } from "@/types/util";
 import { ValidationState } from "@/bindings.consts";
 import { pointInPolygon } from "@/lib/geo/geo";
@@ -138,7 +138,7 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	},
 	Duplicates: {
 		key: (s) => `duplicates:${s.distance}`,
-		label: (s) => t("Duplicates ({distance}m)", { distance: s.distance }),
+		label: (s) => t("Duplicates ({distance})", { distance: formatDistance(s.distance) }),
 	},
 	Manual: {
 		key: () => "manual",

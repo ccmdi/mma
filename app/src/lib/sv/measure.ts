@@ -4,7 +4,7 @@ import type { MapHost } from "@/lib/map/host";
 import { addClickInterceptor } from "@/lib/map/mapState";
 import { latLngToWorld } from "@/lib/geo/mercator";
 import { distMeters } from "@/lib/geo/geo";
-import { formatDistance } from "@/lib/geo/scoring";
+import { formatDistance } from "@/lib/util/format";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 
 // --- Measure tool state ---

@@ -20,6 +20,7 @@ import { createPluginStorage } from "@/plugins/registry";
 import { Sidebar, Section } from "@/components/primitives/Sidebar";
 import { searchCoverage } from "../searchCoverage";
 import { MONTHS, ymParse } from "@/lib/util/date";
+import { formatDistance } from "@/lib/util/format";
 import "./generator.css";
 import { t } from "@/lib/i18n";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -119,7 +120,7 @@ function summarizeSettings(s: GeneratorSettings): string {
 	if (s.adjustZoom) parts.push(`zoom ${s.zoomLevel}`);
 
 	// Radius
-	parts.push(s.radius >= 1000 ? `${s.radius / 1000}km radius` : `${s.radius}m radius`);
+	parts.push(`${formatDistance(s.radius)} radius`);
 	if (s.samplingMode !== "random") parts.push(`${s.samplingMode} sampling`);
 
 	// Date behavior
@@ -132,11 +133,11 @@ function summarizeSettings(s: GeneratorSettings): string {
 	if (s.onlyOneInTimeframe) parts.push("unique in timeframe");
 
 	// Search strategy
-	if (s.skipExisting) parts.push(`skipping existing (${s.skipExistingRadius}m)`);
+	if (s.skipExisting) parts.push(`skipping existing (${formatDistance(s.skipExistingRadius)})`);
 	if (s.getIntersection) parts.push("intersections");
 	if (s.pinpointSearch) parts.push(`curves >${s.pinpointAngle}°`);
 	if (s.checkLinks) parts.push(`checking ${s.linksDepth} link hops`);
-	if (s.findRegions) parts.push(`${s.regionRadius}km from existing`);
+	if (s.findRegions) parts.push(`${formatDistance(s.regionRadius * 1000)} from existing`);
 	if (s.filterByLinks) parts.push(`${s.minLinks}–${s.maxLinks} links`);
 	if (s.searchInDescription && s.searchTerms) {
 		const verb = s.searchFilterType === "include" ? "matching" : "excluding";

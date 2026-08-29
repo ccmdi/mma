@@ -6,6 +6,8 @@ import { Checkbox } from "@/components/primitives/Checkbox";
 import { Section, SegmentedControl } from "@/components/primitives/Sidebar";
 import { t } from "@/lib/i18n";
 import { TextInput } from "@/components/primitives/TextInput";
+import { distanceUnit } from "@/lib/util/format";
+import { useSetting } from "@/store/settings";
 
 function Check({
 	label,
@@ -55,6 +57,39 @@ function NumberInput({
 				step={step}
 			/>
 		</label>
+	);
+}
+
+/** A metric-stored distance field shown in the user's units. `base` is the unit the setting
+ *  is stored in, never what the field displays. */
+function DistanceInput({
+	label,
+	base,
+	value,
+	onChange,
+	min,
+	max,
+	indent,
+}: {
+	label?: string;
+	base: "m" | "km";
+	value: number;
+	onChange: (v: number) => void;
+	min?: number;
+	max?: number;
+	indent?: boolean;
+}) {
+	useSetting("units");
+	const unit = distanceUnit(base);
+	return (
+		<NumberInput
+			label={label ? `${label} (${unit.label})` : unit.label}
+			value={unit.toDisplay(value)}
+			onChange={(v) => onChange(unit.fromDisplay(v))}
+			min={min != null ? unit.toDisplay(min) : undefined}
+			max={max != null ? unit.toDisplay(max) : undefined}
+			indent={indent}
+		/>
 	);
 }
 
@@ -278,8 +313,9 @@ export function SettingsPanel({
 			</Section>
 
 			<Section title={t("General settings")}>
-				<NumberInput
+				<DistanceInput
 					label={t("Radius")}
+					base="m"
 					value={settings.radius}
 					onChange={(v) => set("radius", v)}
 					min={10}
@@ -390,8 +426,8 @@ export function SettingsPanel({
 							onChange={(v) => set("findRegions", v)}
 						/>
 						{settings.findRegions && (
-							<NumberInput
-								label="km"
+							<DistanceInput
+								base="km"
 								value={settings.regionRadius}
 								onChange={(v) => set("regionRadius", v)}
 								min={1}
@@ -406,8 +442,8 @@ export function SettingsPanel({
 					onChange={(v) => set("skipExisting", v)}
 				/>
 				{settings.skipExisting && (
-					<NumberInput
-						label="m"
+					<DistanceInput
+						base="m"
 						value={settings.skipExistingRadius}
 						onChange={(v) => set("skipExistingRadius", v)}
 						min={1}

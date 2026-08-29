@@ -57,6 +57,7 @@ import {
 	type BorderDetail,
 	type SubdivisionDetail,
 	type Language,
+	UNIT_SYSTEMS,
 	LANGUAGES,
 	MOVEMENT_MODES,
 	SEEN_RESOLUTIONS,
@@ -499,9 +500,15 @@ function StreetViewBody() {
 					}
 				/>
 				<SettingRow setting="showFullscreenTagbar" label={t("Show tag bar in fullscreen")} />
-				<SettingRow setting="showFullscreenDatePicker" label={t("Show date picker in fullscreen")} />
+				<SettingRow
+					setting="showFullscreenDatePicker"
+					label={t("Show date picker in fullscreen")}
+				/>
 				<SettingRow setting="showFullscreenReviewBar" label={t("Show review bar in fullscreen")} />
-				<SettingRow setting="showFullscreenGeocode" label={t("Show geocoding info in fullscreen")} />
+				<SettingRow
+					setting="showFullscreenGeocode"
+					label={t("Show geocoding info in fullscreen")}
+				/>
 			</SettingsGroup>
 
 			<SettingsGroup title={t("Date picker")}>
@@ -579,7 +586,9 @@ function MapBody() {
 				<SettingRow
 					setting="enterOpensCenter"
 					label={t("Enter opens location at map center")}
-					description={t("With no location open, Enter opens the location at the center of the map.")}
+					description={t(
+						"With no location open, Enter opens the location at the center of the map.",
+					)}
 				/>
 			</SettingsGroup>
 
@@ -1136,6 +1145,15 @@ function ApplicationBody() {
 				<LanguageRow />
 			</SettingsGroup>
 
+			<SettingsGroup title={t("Units")}>
+				<SettingRow
+					label={t("Distance")}
+					description={t("Automatic follows the system locale")}
+					keywords={optionLabels(UNIT_SYSTEMS)}
+					control={<SettingSelect setting="units" options={UNIT_SYSTEMS} />}
+				/>
+			</SettingsGroup>
+
 			<SettingsGroup title={t("Startup")}>
 				<SettingRow setting="restoreSession" label={t("Restore open maps on startup")} />
 			</SettingsGroup>
@@ -1429,7 +1447,9 @@ function FeedbackBody() {
 										{r.replies > r.seenReplies && (
 											<span className="feedback-reports__badge">{r.replies - r.seenReplies}</span>
 										)}
-										<span className="text-muted">{new Date(r.submittedAt).toLocaleDateString()}</span>
+										<span className="text-muted">
+											{new Date(r.submittedAt).toLocaleDateString()}
+										</span>
 									</li>
 								);
 							})}
@@ -1494,7 +1514,12 @@ function SectionShell({
 	const Body = section.Body;
 	return (
 		<SettingsSearchContext.Provider
-			value={{ query, searching: mode === "search", sectionMatched, sectionTitle: t(section.title) }}
+			value={{
+				query,
+				searching: mode === "search",
+				sectionMatched,
+				sectionTitle: t(section.title),
+			}}
 		>
 			<section
 				className={`settings-section${mode === "search" ? " settings-section--search" : ""}`}

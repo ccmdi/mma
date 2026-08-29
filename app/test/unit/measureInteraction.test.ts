@@ -7,6 +7,7 @@ vi.mock("@/lib/events", () => ({
 	emit: () => {},
 	useEventValue: (_: string, get: () => unknown) => get(),
 	subscribeMany: () => () => {},
+	bridgeAcrossWindows: () => {},
 	LOCATION_DATA_EVENTS: [],
 }));
 vi.mock("@/store/useMapStore", () => ({

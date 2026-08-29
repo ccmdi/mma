@@ -2,12 +2,8 @@ import { Fragment, useState, useEffect, useRef } from "react";
 import type { ScoreBounds } from "@/bindings.gen";
 import type { Bounds } from "@/types";
 import { isWorldBounds, scoreTupleToBounds, boundsToScoreTuple } from "@/types";
-import {
-	resolveScoreMaxError,
-	formatDistance,
-	useScoreMaxError,
-	WORLD_MAX_ERROR,
-} from "@/lib/geo/scoring";
+import { resolveScoreMaxError, useScoreMaxError, WORLD_MAX_ERROR } from "@/lib/geo/scoring";
+import { formatDistance } from "@/lib/util/format";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Radio } from "@/components/primitives/Radio";
 import { t } from "@/lib/i18n";

@@ -719,7 +719,11 @@ describe("selectionDisplayName", () => {
 
 	it("display name for Duplicates", () => {
 		const sel = buildSelection({ type: "Duplicates", distance: 100 });
-		expect(selectionDisplayName(sel)).toBe("Duplicates (100m)");
+		setSetting("units", "metric");
+		expect(selectionDisplayName(sel)).toBe("Duplicates (100 m)");
+		setSetting("units", "imperial");
+		expect(selectionDisplayName(sel)).toBe("Duplicates (328 ft)");
+		setSetting("units", "auto");
 	});
 
 	it("display name for Manual", () => {

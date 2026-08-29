@@ -5,7 +5,6 @@ import {
 	bestStreak,
 	currentRound,
 	formatElapsed,
-	formatRoundDistance,
 	isLastRound,
 	reduce,
 	sampleN,
@@ -119,20 +118,6 @@ describe("scoreGuess", () => {
 		const near = scoreGuess({ lat: 1, lng: 0 }, truth, 185).score;
 		const far = scoreGuess({ lat: 40, lng: 0 }, truth, 185).score;
 		expect(near).toBeGreaterThan(far);
-	});
-});
-
-describe("formatRoundDistance", () => {
-	it("rounds to whole kilometres past 1 km", () => {
-		expect(formatRoundDistance(12_340)).toBe("12 km");
-		expect(formatRoundDistance(12_600)).toBe("13 km");
-		expect(formatRoundDistance(1000)).toBe("1 km");
-	});
-
-	it("stays in whole metres below a kilometre", () => {
-		expect(formatRoundDistance(999)).toBe("999 m");
-		expect(formatRoundDistance(12.4)).toBe("12 m");
-		expect(formatRoundDistance(0)).toBe("0 m");
 	});
 });
 

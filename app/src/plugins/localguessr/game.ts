@@ -150,22 +150,6 @@ export function scoreGuess(
 	return { distanceMeters, score: computeScore(distanceMeters, maxError) };
 }
 
-const KM = new Intl.NumberFormat(["en"], {
-	style: "unit",
-	unit: "kilometer",
-	maximumFractionDigits: 0,
-});
-const M = new Intl.NumberFormat(["en"], {
-	style: "unit",
-	unit: "meter",
-	maximumFractionDigits: 0,
-});
-
-/** Whole km past 1 km, whole metres below. The app's `formatDistance` keeps decimals. */
-export function formatRoundDistance(meters: number): string {
-	return meters >= 1000 ? KM.format(meters / 1000) : M.format(meters);
-}
-
 export function formatElapsed(ms: number): string {
 	const secs = Math.round(ms / 1000);
 	if (secs < 60) return `${secs}s`;

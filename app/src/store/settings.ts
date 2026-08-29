@@ -60,6 +60,12 @@ export const GEOCODE_PROVIDER_LABELS: Record<keyof typeof GEOCODE_PROVIDERS, str
 	nominatim: msg("OpenStreetMap (Nominatim)"),
 	google: msg("Google Street View"),
 };
+/** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. */
+export const UNIT_SYSTEMS = {
+	auto: msg("Automatic"),
+	metric: msg("Metric (m / km)"),
+	imperial: msg("Imperial (ft / mi)"),
+} as const;
 export const TAG_VIEW_MODES = {
 	flat: msg("Flat"),
 	tree: msg("Tree"),
@@ -106,6 +112,7 @@ export type SeenResolution = keyof typeof SEEN_RESOLUTIONS;
 export type MapListField = keyof typeof MAP_LIST_FIELDS;
 export type DiscordPresenceMode = keyof typeof DISCORD_PRESENCE_MODES;
 export type GeocodeProvider = keyof typeof GEOCODE_PROVIDERS;
+export type UnitSystem = keyof typeof UNIT_SYSTEMS;
 export type TagViewMode = keyof typeof TAG_VIEW_MODES;
 export type TagFolderColorMode = keyof typeof TAG_FOLDER_COLOR_MODES;
 export type OpacityToggleMode = keyof typeof OPACITY_TOGGLE_MODES;
@@ -164,6 +171,8 @@ export const DEFAULTS = {
 	mapListFields: ["locationCount"] as MapListField[],
 	/** Read once at boot; changing it relaunches the app rather than re-rendering. */
 	language: "en" as Language,
+	/** Every distance the UI shows or accepts; stored values stay metric. */
+	units: "auto" as UnitSystem,
 	/** Reopen the maps that were open when the session last ended (main window closed). */
 	restoreSession: true,
 	/** Offer pre-release builds to the updater as well as full releases. */

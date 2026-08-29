@@ -2,7 +2,8 @@ import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiCheckCircle, mdiCloseCircle } from "@mdi/js";
 import { t } from "@/lib/i18n";
-import { formatElapsed, formatRoundDistance, type Session } from "./game";
+import { formatElapsed, type Session } from "./game";
+import { formatDistance } from "@/lib/util/format";
 import { Flag } from "@/components/primitives/Flag";
 import { TagButton } from "./TagButton";
 
@@ -39,7 +40,7 @@ export function Summary({
 						<span className="lg-summary__row-n">#{i + 1}</span>
 						<span className="lg-summary__row-score">{r.score.toLocaleString()}</span>
 						<span className="lg-summary__row-dist">
-							{r.distanceMeters != null ? formatRoundDistance(r.distanceMeters) : "—"}
+							{r.distanceMeters != null ? formatDistance(r.distanceMeters, 0) : "—"}
 						</span>
 						<span className="lg-summary__row-time">{formatElapsed(r.elapsedMs)}</span>
 						<span className="lg-summary__row-place">

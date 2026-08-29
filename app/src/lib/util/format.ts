@@ -1,4 +1,5 @@
 import { getLocale, t } from "@/lib/i18n";
+import { getSettings } from "@/store/settings";
 
 /** Product name -- never translated. */
 export const APP_NAME = "Map Making App";
@@ -76,6 +77,102 @@ export function localDateTime(secs: number): string {
  *  that encode the picked numbers as a UTC epoch (DatePicker `wallClock` mode). */
 export function utcDateTime(secs: number): string {
 	return new Date(secs * 1000).toISOString().slice(0, 16).replace("T", " ");
+}
+
+// --- Distances ---
+
+const FEET_PER_METER = 3.280839895;
+const METERS_PER_MILE = 1609.344;
+/** Regions that still measure road distance in miles (CLDR's `us`/`uk` measurement systems). */
+const IMPERIAL_REGIONS = new Set(["US", "GB", "LR", "MM"]);
+
+let inferredUnits: "metric" | "imperial" | null = null;
+
+/** The `auto` setting reads the *system* locale, not the app language: the language code
+ *  carries no region, and `maximize()` supplies CLDR's likely one for a bare tag. */
+function localeUnits(): "metric" | "imperial" {
+	try {
+		const region = new Intl.Locale(navigator.language).maximize().region;
+		return region && IMPERIAL_REGIONS.has(region) ? "imperial" : "metric";
+	} catch {
+		return "metric";
+	}
+}
+
+export function unitSystem(): "metric" | "imperial" {
+	const pref = getSettings().units;
+	if (pref !== "auto") return pref;
+	return (inferredUnits ??= localeUnits());
+}
+
+const unitFmts = new Map<string, { locale: string; formatter: Intl.NumberFormat }>();
+
+function unitFmt(unit: string, maximumFractionDigits: number): Intl.NumberFormat {
+	const key = `${unit}:${maximumFractionDigits}`;
+	const locale = getLocale();
+	let cached = unitFmts.get(key);
+	if (cached?.locale !== locale) {
+		cached = {
+			locale,
+			formatter: new Intl.NumberFormat(locale, { style: "unit", unit, maximumFractionDigits }),
+		};
+		unitFmts.set(key, cached);
+	}
+	return cached.formatter;
+}
+
+/** Every distance the UI displays, in the user's unit system. Small distances read in
+ *  metres/feet, larger ones in kilometres/miles. Left alone, the large unit keeps two
+ *  decimals and the small one is whole; `maximumFractionDigits` overrides whichever
+ *  unit the magnitude picks. */
+export function formatDistance(meters: number, maximumFractionDigits?: number): string {
+	const large = maximumFractionDigits ?? 2;
+	const small = maximumFractionDigits ?? 0;
+	if (unitSystem() === "imperial") {
+		const feet = meters * FEET_PER_METER;
+		return feet < 1000
+			? unitFmt("foot", small).format(feet)
+			: unitFmt("mile", large).format(meters / METERS_PER_MILE);
+	}
+	return meters >= 1000
+		? unitFmt("kilometer", large).format(meters / 1000)
+		: unitFmt("meter", small).format(meters);
+}
+
+export interface DistanceUnit {
+	/** Short label for the field ("m", "km", "ft", "mi"). */
+	label: string;
+	/** Stored metric value -> the number the field shows. */
+	toDisplay(value: number): number;
+	/** A number typed into the field -> the metric value to store. */
+	fromDisplay(value: number): number;
+}
+
+const round = (value: number, digits: number) => {
+	const scale = 10 ** digits;
+	return Math.round(value * scale) / scale;
+};
+
+/** Fixed-unit conversion for a distance *input* whose stored value is in `base`. Unlike
+ *  {@link formatDistance} the unit never changes with magnitude, so the field keeps one label. */
+export function distanceUnit(base: "m" | "km"): DistanceUnit {
+	const identity = (v: number) => v;
+	if (unitSystem() === "metric") {
+		return { label: base === "m" ? t("m") : t("km"), toDisplay: identity, fromDisplay: identity };
+	}
+	// Only the displayed number is rounded; the stored value keeps the exact conversion, so
+	// re-displaying it gives back the number that was typed.
+	return base === "m"
+		? {
+				label: t("ft"),
+				toDisplay: (v) => Math.round(v * FEET_PER_METER),
+				fromDisplay: (v) => v / FEET_PER_METER,
+			}
+		: {
+				label: t("mi"),
+				toDisplay: (v) => round((v * 1000) / METERS_PER_MILE, 2),
+				fromDisplay: (v) => (v * METERS_PER_MILE) / 1000,
+			};
 }
 
 const MINUTE = 60_000;

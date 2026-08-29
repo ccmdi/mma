@@ -13,7 +13,7 @@ import { google } from "@/lib/sv/opensv";
 import { wrapDeg } from "@/lib/geo/geo";
 import { lookupStreetView } from "@/lib/sv/lookup";
 import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
-import { fileTimestamp } from "@/lib/util/format";
+import { fileTimestamp, formatDistance } from "@/lib/util/format";
 import { useSettings } from "@/store/settings";
 import { getMapState, useMapState } from "@/store/useMapStore";
 import { getPanoAltitude } from "./PanoViewerContext";
@@ -417,7 +417,7 @@ function CoordinateControl({ panorama }: { panorama: google.maps.StreetViewPanor
 			textRef.current.textContent =
 				altitude === 0
 					? " " + t("zoom {zoom}", { zoom })
-					: ` ${altitude.toFixed(2)}m · ` + t("zoom {zoom}", { zoom });
+					: ` ${formatDistance(altitude, 2)} · ` + t("zoom {zoom}", { zoom });
 	}, [panorama]);
 	usePanoEvent(panorama, "zoom_changed", updateDisplay);
 	useEffect(() => subscribeEvent("altitude:changed", updateDisplay), [updateDisplay]);
