@@ -274,8 +274,9 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 const MAP_TYPE_PREVIEW_STATIC: Partial<Record<MapTypeKey, string>> = {
 	satellite: "https://mts1.googleapis.com/vt?hl=en-US&lyrs=s&x=0&y=0&z=0",
 	osm: "https://tile.openstreetmap.org/0/0/0.png",
-	// No raster endpoint for OpenFreeMap styles; Carto's voyager raster is a close stand-in.
-	vector: "https://basemaps.cartocdn.com/rastertiles/voyager/0/0/0.png",
+	// Carto's raster tiles are watermarked without an API key; OpenFreeMap has no
+	// raster style endpoint, so its Natural Earth layer stands in for the preview.
+	vector: "https://tiles.openfreemap.org/natural_earth/ne2sr/0/0/0.png",
 };
 
 const MAP_TYPES: MapTypeKey[] = ["map", "satellite", "osm", "vector"];
