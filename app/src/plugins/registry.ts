@@ -38,9 +38,9 @@ export type PluginBehavior = Partial<Plugin> & {
 	activate(): void | (() => void);
 };
 
-// The registry serves only the latest build of each plugin, so a stale app offered a
-// fresh plugin has exactly two options: take it or keep what it has. `minAppVersion`
-// lets the plugin declare when "take it" would break.
+// `minAppVersion` declares the app version a build needs. The registry pairs it with a
+// list of older builds, so an app under the latest floor is offered the newest build it
+// can actually run instead of being stranded on whatever it already has.
 export function isPluginCompatible(
 	minAppVersion: string | null | undefined,
 	appVersion: string,
@@ -71,6 +71,47 @@ export function needsUpdate(
 	return !!latestSidecarVersion && installedSidecarVersion !== latestSidecarVersion;
 }
 
+/** The build of a plugin an app should install: `ref` is the commit it ships at, null for
+ *  the registry's latest (master). */
+export interface ResolvedBuild {
+	version: string;
+	ref: string | null;
+	minAppVersion: string | null;
+}
+
+/** The newest build of a plugin this app version can run -- the registry's latest when
+ *  compatible, else the newest pinned fallback that is. Null when no published build
+ *  supports this app at all. `builds` is ordered newest-first. */
+export function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null {
+	if (isPluginCompatible(entry.minAppVersion, appVersion)) {
+		return { version: entry.version, ref: null, minAppVersion: entry.minAppVersion ?? null };
+	}
+	for (const b of entry.builds ?? []) {
+		if (isPluginCompatible(b.minAppVersion, appVersion)) {
+			return { version: b.version, ref: b.ref, minAppVersion: b.minAppVersion ?? null };
+		}
+	}
+	return null;
+}
+
+/** Whether an install should be refreshed to `target`. A pinned build's sidecar version
+ *  lives in its own manifest, so only the latest build's sidecar can be compared before
+ *  downloading; for a pinned one the install itself reconciles it. */
+export function needsBuildUpdate(
+	installedVersion: string | undefined,
+	target: ResolvedBuild,
+	installedSidecarVersion: string | null | undefined,
+	latestSidecarVersion: string | undefined,
+): boolean {
+	if (target.ref) return isPluginUpdatable(installedVersion, target.version);
+	return needsUpdate(
+		installedVersion,
+		target.version,
+		installedSidecarVersion,
+		latestSidecarVersion,
+	);
+}
+
 const REGISTRY_URL = "https://raw.githubusercontent.com/ccmdi/mma/master/plugins/registry.json";
 
 let registryPromise: Promise<PluginManifest[]> | null = null;
@@ -93,19 +134,21 @@ export function fetchPluginRegistry(): Promise<PluginManifest[]> {
 /** Refresh a stale install before it loads. Nothing is registered yet at startup, so an
  *  update is just re-downloading the files the normal load then picks up; any failure
  *  falls back to loading what's on disk. Plugins absent from the registry (hand-installed
- *  dev plugins) and registry builds requiring a newer app are never touched. */
+ *  dev plugins) and plugins with no build this app can run are never touched. */
 export async function autoUpdatePlugin(
 	m: PluginManifest,
 	latest: PluginManifest | undefined,
 	appVersion: string,
 ): Promise<PluginManifest> {
-	if (!latest || !isPluginCompatible(latest.minAppVersion, appVersion)) return m;
+	if (!latest) return m;
+	const target = resolveBuild(latest, appVersion);
+	if (!target) return m;
 	const sidecarVersion = latest.sidecar
 		? await cmd.sidecarInstalledVersion(m.id).catch(() => null)
 		: null;
-	if (!needsUpdate(m.version, latest.version, sidecarVersion, latest.sidecar?.version)) return m;
+	if (!needsBuildUpdate(m.version, target, sidecarVersion, latest.sidecar?.version)) return m;
 	try {
-		const fresh = await cmd.installPlugin(m.id);
+		const fresh = await cmd.installPlugin(m.id, target.ref);
 		if (fresh.sidecar) {
 			await cmd.sidecarInstall(fresh.id, fresh.sidecar.name, fresh.sidecar.version);
 		}

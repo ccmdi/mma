@@ -13,7 +13,20 @@ use std::path::{Path, PathBuf};
 use tauri::http::Response;
 use tokio::task;
 
-const REPO_BASE: &str = "https://raw.githubusercontent.com/ccmdi/mma/master/plugins";
+/// Marketplace files for one git ref. The registry pins older builds to the commit they
+/// shipped at, so an app under a plugin's `minAppVersion` floor installs from there
+/// instead of `master`.
+fn repo_base(git_ref: &str) -> String {
+    format!("https://raw.githubusercontent.com/ccmdi/mma/{git_ref}/plugins")
+}
+
+/// Refs come from the registry, which only ever emits full commit hashes. Anything else
+/// could reshape the URL.
+fn validate_git_ref(git_ref: &str) -> AppResult<()> {
+    let ok = git_ref.len() == 40 && git_ref.bytes().all(|b| b.is_ascii_hexdigit());
+    ok.then_some(())
+        .ok_or_else(|| AppError(format!("Invalid plugin ref: {git_ref}")))
+}
 
 /// A plugin's declared sidecar binary (downloaded from GitHub Releases on install).
 #[derive(serde::Serialize, Clone, specta::Type)]
@@ -72,6 +85,22 @@ pub struct PluginManifest {
     min_app_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     sidecar: Option<PluginSidecar>,
+    /// Registry-only: prior builds an app under `min_app_version` can fall back to.
+    /// An installed manifest never carries these.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    builds: Vec<PluginBuild>,
+}
+
+/// A published build of a plugin, pinned to the commit its files live at. Carries only
+/// what picking a build needs -- the rest comes from the manifest at `git_ref`.
+#[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginBuild {
+    version: String,
+    #[serde(rename = "ref")]
+    git_ref: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    min_app_version: Option<String>,
 }
 
 impl Default for PluginManifest {
@@ -88,6 +117,7 @@ impl Default for PluginManifest {
             coming_soon: false,
             min_app_version: None,
             sidecar: None,
+            builds: Vec::new(),
         }
     }
 }
@@ -187,28 +217,29 @@ fn install_files(manifest: &PluginManifest) -> AppResult<Vec<&str>> {
 }
 
 /// Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
-/// the procedure module it declares.
+/// the procedure module it declares. `git_ref` pins an older build; `None` takes master.
 #[tauri::command]
 #[specta::specta]
-pub async fn install_plugin(id: String) -> AppResult<PluginManifest> {
+pub async fn install_plugin(id: String, git_ref: Option<String>) -> AppResult<PluginManifest> {
     validate_plugin_id(&id)?;
-    task::spawn_blocking(move || install(id)).await?
+    if let Some(r) = &git_ref {
+        validate_git_ref(r)?;
+    }
+    task::spawn_blocking(move || install(id, git_ref.as_deref())).await?
 }
 
-fn install(id: String) -> AppResult<PluginManifest> {
+fn install(id: String, git_ref: Option<&str>) -> AppResult<PluginManifest> {
+    let base = repo_base(git_ref.unwrap_or("master"));
     let dir = plugins_dir()?.join(&id);
     fs::create_dir_all(&dir)?;
 
-    let manifest_bytes = fetch(&format!("{REPO_BASE}/{id}/manifest.json"), "manifest")?;
+    let manifest_bytes = fetch(&format!("{base}/{id}/manifest.json"), "manifest")?;
     fs::write(dir.join("manifest.json"), &manifest_bytes)?;
     let manifest: PluginManifest = serde_json::from_slice(&manifest_bytes)
         .map_err(|e| format!("Invalid manifest JSON: {e}"))?;
 
     for file in install_files(&manifest)? {
-        fs::write(
-            dir.join(file),
-            fetch(&format!("{REPO_BASE}/{id}/{file}"), file)?,
-        )?;
+        fs::write(dir.join(file), fetch(&format!("{base}/{id}/{file}"), file)?)?;
     }
 
     let mut manifest = manifest.with_fallback(&id);

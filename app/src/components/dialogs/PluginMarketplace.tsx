@@ -14,8 +14,8 @@ import {
 	activatePlugin,
 	deactivatePlugin,
 	unregisterPlugin,
-	needsUpdate,
-	isPluginCompatible,
+	resolveBuild,
+	needsBuildUpdate,
 	isBackgroundPlugin,
 	fetchPluginRegistry,
 } from "@/plugins/registry";
@@ -108,6 +108,8 @@ interface PluginEntry {
 	enabled: boolean;
 	updatable?: boolean;
 	latestVersion?: string;
+	/** Commit the offered build ships at; null for the registry's latest. */
+	ref?: string | null;
 	comingSoon?: boolean;
 	experimental?: boolean;
 	requiresApp?: string | null;
@@ -138,11 +140,11 @@ const CARD_LABELS: {
 interface PluginCardProps {
 	entry: PluginEntry;
 	installProgress?: number;
-	onInstall: (id: string) => void;
+	onInstall: (id: string, ref: string | null) => void;
 	onEnable: (id: string) => void;
 	onDisable: (id: string) => void;
 	onUninstall: (id: string) => void;
-	onUpdate: (id: string) => void;
+	onUpdate: (id: string, ref: string | null) => void;
 }
 
 function PluginCard({
@@ -157,11 +159,11 @@ function PluginCard({
 	const { id, name, description, icon, core, installed, enabled, comingSoon, requiresApp } = entry;
 	const [busy, setBusy] = useState(false);
 
-	const run = (fn: (id: string) => void | Promise<void>) => () => {
+	const run = (fn: (id: string, ref: string | null) => void | Promise<void>) => () => {
 		void (async () => {
 			setBusy(true);
 			try {
-				await fn(id);
+				await fn(id, entry.ref ?? null);
 			} finally {
 				setBusy(false);
 			}
@@ -309,9 +311,12 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 			for (const r of registry) {
 				const manifest = installedById.get(r.id);
 				const isInstalled = !!manifest;
+				// Same build the startup update pass would pick.
+				const target = resolveBuild(r, appVersion() ?? "0");
 				const updatable =
 					isInstalled &&
-					needsUpdate(manifest.version, r.version, sidecarVersions[r.id], r.sidecar?.version);
+					!!target &&
+					needsBuildUpdate(manifest.version, target, sidecarVersions[r.id], r.sidecar?.version);
 				const entry: PluginEntry = {
 					id: r.id,
 					name: r.name,
@@ -320,12 +325,11 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 					installed: isInstalled,
 					enabled: isPluginEnabled(r.id),
 					updatable,
-					latestVersion: r.version,
+					latestVersion: target?.version ?? r.version,
+					ref: target?.ref,
 					comingSoon: r.comingSoon,
 					experimental: r.experimental ?? manifest?.experimental,
-					requiresApp: isPluginCompatible(r.minAppVersion, appVersion() ?? "0")
-						? undefined
-						: r.minAppVersion,
+					requiresApp: target ? undefined : r.minAppVersion,
 				};
 				if (isInstalled) installed.push(entry);
 				else fromRegistry.push(entry);
@@ -361,9 +365,9 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 	}, []);
 
 	const handleInstall = useCallback(
-		async (id: string) => {
+		async (id: string, ref: string | null) => {
 			try {
-				const manifest = await cmd.installPlugin(id);
+				const manifest = await cmd.installPlugin(id, ref);
 				try {
 					await installSidecar(manifest, (pct) => setProgress(id, pct));
 				} finally {
@@ -410,12 +414,12 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 	);
 
 	const handleUpdate = useCallback(
-		async (id: string) => {
+		async (id: string, ref: string | null) => {
 			const wasEnabled = isPluginEnabled(id);
 			// Download before tearing down, so a failed fetch leaves the plugin running.
 			let manifest: PluginManifest;
 			try {
-				manifest = await cmd.installPlugin(id);
+				manifest = await cmd.installPlugin(id, ref);
 				try {
 					await installSidecar(manifest, (pct) => setProgress(id, pct));
 				} finally {

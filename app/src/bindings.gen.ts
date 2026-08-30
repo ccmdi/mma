@@ -27,9 +27,9 @@ export const commands = {
 	listUserPlugins: () => __TAURI_INVOKE<PluginManifest[]>("list_user_plugins"),
 	/**
 	 *  Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
-	 *  the procedure module it declares.
+	 *  the procedure module it declares. `git_ref` pins an older build; `None` takes master.
 	 */
-	installPlugin: (id: string) => __TAURI_INVOKE<PluginManifest>("install_plugin", { id }),
+	installPlugin: (id: string, gitRef: string | null) => __TAURI_INVOKE<PluginManifest>("install_plugin", { id, gitRef }),
 	/**  Delete a plugin's directory. */
 	uninstallPlugin: (id: string) => __TAURI_INVOKE<null>("uninstall_plugin", { id }),
 	/**
@@ -1132,6 +1132,31 @@ export type PartitionBucket = {
 	bin: [number, number] | null,
 };
 
+/**
+ *  A published build of a plugin, pinned to the commit its files live at. Carries only
+ *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
+ */
+
+/**
+ *  A published build of a plugin, pinned to the commit its files live at. Carries only
+ *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
+ */
+export type PluginBuild_Deserialize = {
+	version: string,
+	ref: string,
+	minAppVersion: string | null,
+};
+
+/**
+ *  A published build of a plugin, pinned to the commit its files live at. Carries only
+ *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
+ */
+export type PluginBuild = {
+	version: string,
+	ref: string,
+	minAppVersion?: string | null,
+};
+
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
 
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
@@ -1148,6 +1173,11 @@ export type PluginManifest_Deserialize = {
 	comingSoon?: boolean,
 	minAppVersion?: string | null,
 	sidecar?: PluginSidecar_Deserialize | null,
+	/**
+	 *  Registry-only: prior builds an app under `min_app_version` can fall back to.
+	 *  An installed manifest never carries these.
+	 */
+	builds?: PluginBuild_Deserialize[],
 };
 
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
@@ -1164,6 +1194,11 @@ export type PluginManifest = {
 	comingSoon?: boolean,
 	minAppVersion?: string | null,
 	sidecar?: PluginSidecar | null,
+	/**
+	 *  Registry-only: prior builds an app under `min_app_version` can fall back to.
+	 *  An installed manifest never carries these.
+	 */
+	builds?: PluginBuild[],
 };
 
 /**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */

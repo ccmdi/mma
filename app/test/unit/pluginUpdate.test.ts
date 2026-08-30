@@ -15,7 +15,13 @@ const toast = vi.fn();
 vi.mock("@/lib/util/toast", () => ({ toast: (...a: unknown[]) => toast(...a) }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import { isPluginUpdatable, needsUpdate, autoUpdatePlugin } from "@/plugins/registry";
+import {
+	isPluginUpdatable,
+	needsUpdate,
+	needsBuildUpdate,
+	resolveBuild,
+	autoUpdatePlugin,
+} from "@/plugins/registry";
 
 describe("isPluginUpdatable", () => {
 	it("flags an update when versions differ", () => {
@@ -65,6 +71,79 @@ describe("needsUpdate (sidecar-aware)", () => {
 	});
 });
 
+const REF = "471972e1b93fb7bb10dc6ce5f786c223a1f59120";
+
+describe("resolveBuild", () => {
+	const entry = (over: Partial<PluginManifest> = {}): PluginManifest => ({
+		id: "p",
+		name: "P",
+		description: "",
+		icon: "",
+		main: "index.js",
+		version: "2.0.0",
+		...over,
+	});
+
+	it("takes the registry's latest when the app satisfies its floor", () => {
+		expect(resolveBuild(entry({ minAppVersion: "1.0.0" }), "1.0.0")).toEqual({
+			version: "2.0.0",
+			ref: null,
+			minAppVersion: "1.0.0",
+		});
+	});
+
+	it("falls back to the newest build the app can run", () => {
+		const e = entry({
+			minAppVersion: "9.0.0",
+			builds: [
+				{ version: "1.5.0", ref: REF, minAppVersion: "1.0.0" },
+				{ version: "1.0.0", ref: "a".repeat(40) },
+			],
+		});
+		expect(resolveBuild(e, "1.0.0")).toEqual({
+			version: "1.5.0",
+			ref: REF,
+			minAppVersion: "1.0.0",
+		});
+	});
+
+	// builds are newest-first, so the first compatible one is the answer.
+	it("skips fallbacks that also require a newer app", () => {
+		const e = entry({
+			minAppVersion: "9.0.0",
+			builds: [
+				{ version: "1.5.0", ref: REF, minAppVersion: "5.0.0" },
+				{ version: "1.0.0", ref: "a".repeat(40) },
+			],
+		});
+		expect(resolveBuild(e, "1.0.0")?.version).toBe("1.0.0");
+	});
+
+	it("is null when no published build supports this app", () => {
+		expect(resolveBuild(entry({ minAppVersion: "9.0.0" }), "1.0.0")).toBeNull();
+		const e = entry({
+			minAppVersion: "9.0.0",
+			builds: [{ version: "1.5.0", ref: REF, minAppVersion: "5.0.0" }],
+		});
+		expect(resolveBuild(e, "1.0.0")).toBeNull();
+	});
+});
+
+describe("needsBuildUpdate", () => {
+	it("compares versions only for a pinned build", () => {
+		const target = { version: "1.5.0", ref: REF, minAppVersion: null };
+		expect(needsBuildUpdate("1.0.0", target, "0.1.0", "0.9.0")).toBe(true);
+		// Sidecar drift against the latest build says nothing about a pinned one.
+		expect(needsBuildUpdate("1.5.0", target, "0.1.0", "0.9.0")).toBe(false);
+	});
+
+	it("stays sidecar-aware for the latest build", () => {
+		const target = { version: "1.0.0", ref: null, minAppVersion: null };
+		expect(needsBuildUpdate("1.0.0", target, "0.1.0", "0.2.0")).toBe(true);
+		expect(needsBuildUpdate("1.0.0", target, "0.2.0", "0.2.0")).toBe(false);
+	});
+});
+
 describe("autoUpdatePlugin (startup silent refresh)", () => {
 	const manifest = (over: Partial<PluginManifest> = {}): PluginManifest => ({
 		id: "p",
@@ -93,6 +172,45 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 		expect(installPlugin).not.toHaveBeenCalled();
 	});
 
+	it("installs the newest compatible build from its ref when latest is out of reach", async () => {
+		const fresh = manifest({ version: "1.5.0" });
+		installPlugin.mockResolvedValue(fresh);
+		const latest = manifest({
+			version: "2.0.0",
+			minAppVersion: "9.0.0",
+			builds: [{ version: "1.5.0", ref: REF }],
+		});
+		expect(await autoUpdatePlugin(manifest(), latest, "1.0.0")).toBe(fresh);
+		expect(installPlugin).toHaveBeenCalledWith("p", REF);
+	});
+
+	// The fallback's sidecar version is only knowable from its own manifest, so the
+	// pre-download check can't compare it -- install reconciles it after.
+	it("installs a pinned build's sidecar from the manifest it downloads", async () => {
+		sidecarInstalledVersion.mockResolvedValue("0.9.0");
+		installPlugin.mockResolvedValue(manifest({ sidecar: { name: "mma-x", version: "0.1.0" } }));
+		const latest = manifest({
+			version: "2.0.0",
+			minAppVersion: "9.0.0",
+			sidecar: { name: "mma-x", version: "0.9.0" },
+			builds: [{ version: "1.5.0", ref: REF }],
+		});
+		await autoUpdatePlugin(manifest(), latest, "1.0.0");
+		expect(installPlugin).toHaveBeenCalledWith("p", REF);
+		expect(sidecarInstall).toHaveBeenCalledWith("p", "mma-x", "0.1.0");
+	});
+
+	it("leaves the install alone when it already is the newest compatible build", async () => {
+		const m = manifest({ version: "1.5.0" });
+		const latest = manifest({
+			version: "2.0.0",
+			minAppVersion: "9.0.0",
+			builds: [{ version: "1.5.0", ref: REF }],
+		});
+		expect(await autoUpdatePlugin(m, latest, "1.0.0")).toBe(m);
+		expect(installPlugin).not.toHaveBeenCalled();
+	});
+
 	it("leaves a current install alone", async () => {
 		const m = manifest();
 		expect(await autoUpdatePlugin(m, manifest(), "1.0.0")).toBe(m);
@@ -104,7 +222,7 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 		installPlugin.mockResolvedValue(fresh);
 		const got = await autoUpdatePlugin(manifest(), manifest({ version: "2.0.0" }), "1.0.0");
 		expect(got).toBe(fresh);
-		expect(installPlugin).toHaveBeenCalledWith("p");
+		expect(installPlugin).toHaveBeenCalledWith("p", null);
 		expect(sidecarInstall).not.toHaveBeenCalled();
 		expect(toast).toHaveBeenCalled();
 	});
@@ -118,7 +236,7 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 			manifest({ sidecar }),
 			"1.0.0",
 		);
-		expect(installPlugin).toHaveBeenCalledWith("p");
+		expect(installPlugin).toHaveBeenCalledWith("p", null);
 		expect(sidecarInstall).toHaveBeenCalledWith("p", "mma-x", "0.2.0");
 	});
 
