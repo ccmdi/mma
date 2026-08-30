@@ -348,7 +348,7 @@ export const SelectionRow = memo(function SelectionRow({
 							</button>
 						</>
 					)}
-					<Menu.Root onOpenChange={(open) => !open && setView("contextmenu")}>
+					<Menu.Root modal={false} onOpenChange={(open) => !open && setView("contextmenu")}>
 						<Menu.Trigger
 							render={
 								<button className="icon-button" type="button" aria-label={t("Selection options")}>
