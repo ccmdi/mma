@@ -366,9 +366,10 @@ function findByPath(tree: TagTreeNode[], path: string): TagTreeNode | null {
 }
 
 /** Whether the sibling block `dragPaths` may drop INTO folder `targetPath`: the target is
- *  a folder (branch or declared empty folder) outside the block and its subtrees, isn't
- *  the block's current parent (no-op), and none of its children collide with a dragged
- *  node's segment. */
+ *  a folder (branch or declared empty folder) outside the block and its subtrees, and
+ *  isn't the block's current parent (no-op). A name already taken in the target is
+ *  allowed -- the rename that follows merges the two tags, as typing the same path in
+ *  the rename dialog does. */
 export function canDropInto(tree: TagTreeNode[], dragPaths: string[], targetPath: string): boolean {
 	const targetChildren = targetPath === "" ? tree : findByPath(tree, targetPath)?.children;
 	if (!targetChildren) return false;
@@ -379,9 +380,7 @@ export function canDropInto(tree: TagTreeNode[], dragPaths: string[], targetPath
 	const nodes = dragPaths.map((p) => findByPath(tree, p));
 	if (nodes.length === 0 || nodes.some((n) => !n || n.isAlias)) return false;
 	if (dragPaths.some((p) => targetPath === p || targetPath.startsWith(`${p}/`))) return false;
-	if (nodes[0]!.parentPath === targetPath) return false;
-	const childSegments = new Set(targetChildren.map((c) => c.segment));
-	return !nodes.some((n) => childSegments.has(n!.segment));
+	return nodes[0]!.parentPath !== targetPath;
 }
 
 export interface TagMoveResult {

@@ -524,9 +524,12 @@ describe("canDropInto / moveIntoFolder", () => {
 		expect(canDropInto(tree(), ["Cars"], "Cars/Old")).toBe(false); // own descendant
 	});
 
-	it("rejects a segment collision with the target's children", () => {
+	// The rename that follows merges the two tags, as the rename dialog already does.
+	it("allows a segment collision with the target's children", () => {
 		const tags = [...baseTags, mkTag(6, "Cars/Red")];
-		expect(canDropInto(tree(tags), ["Red"], "Cars")).toBe(false);
+		expect(canDropInto(tree(tags), ["Red"], "Cars")).toBe(true);
+		const move = moveIntoFolder(tree(tags), ["Red"], "Cars", tags, {}, {});
+		expect(move?.tagRenames).toContainEqual({ id: 1, name: "Cars/Red" });
 	});
 
 	it("rejects pills as targets", () => {
@@ -538,9 +541,9 @@ describe("canDropInto / moveIntoFolder", () => {
 		expect(canDropInto(tree(), ["Cars/Old"], "")).toBe(true);
 		expect(canDropInto(tree(), ["Red"], "")).toBe(false); // no-op: already top level
 		expect(canDropInto(tree(), ["Cars"], "")).toBe(false);
-		// A top-level segment collision is refused like any other.
+		// A top-level segment collision merges, like any other.
 		const tags = [...baseTags, mkTag(6, "Cars/Red")];
-		expect(canDropInto(tree(tags), ["Cars/Red"], "")).toBe(false);
+		expect(canDropInto(tree(tags), ["Cars/Red"], "")).toBe(true);
 	});
 
 	it("moves a folder's tag to the top level: bare name, ordered after the last root node", () => {
