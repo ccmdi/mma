@@ -46,107 +46,116 @@ import * as sidecar from "@/plugins/sidecar";
 import * as legacy from "@/legacy";
 import * as testApi from "@/testApi";
 
-/** Explicitly exposed functions not in other APIs. */
-const surface = {
-	ready: false,
-
-	/** Every Rust command, typed. Generated from the backend, so it tracks the app rather
-	 *  than this API: a command can change or disappear in any release. Anything worth
-	 *  relying on is exposed as a function here instead. @unstable */
-	cmd: commands as Cmd,
-
-	// --- Tauri primitives (for plugins) ---
+/** Tauri primitives, handed to plugins as-is. */
+const tauri = {
 	invoke,
 	shell: { Command },
 	dialog: { open: dialogOpen, save: dialogSave },
+};
 
-	/** Run work on the plugin's own sidecar binary, downloaded from GitHub Releases on
-	 *  install. `request` streams the sidecar's JSON output and resolves with its last
-	 *  object. */
-	sidecar,
-
-	// --- Bootstrap (for plugins) ---
+/** Registering a plugin and the per-plugin runtime it gets. */
+const plugin = {
 	registerPlugin,
-	registerEnrichFields,
-	registerEnrichmentProvider,
-	preloadModules,
-	getAvailableExternals,
-
-	// --- UI primitives (for plugins) ---
-	ui,
-
-	// --- Notifications ---
-	toast,
-
-	// --- Namespaced per-plugin storage ---
 	storage: createPluginStorage,
 	usePluginState,
 	useJob,
+	preloadModules,
+	getAvailableExternals,
+};
 
-	// --- Field definitions ---
+/** Field definitions: what a location can carry beyond its columns. */
+const fields = {
 	getFieldDef,
 	getAllFieldDefs,
 	getKnownFieldKeys,
+	registerEnrichFields,
+	registerEnrichmentProvider,
+};
 
-	// --- Types ---
-	createLocation,
-
-	// --- Map host ---
-	getMapHost,
-	waitForMapHost,
-
-	// --- Render ---
-	getScenePositions,
-
-	// --- Settings ---
-	setSetting,
-	getSettings: () => ({ ...getSettings() }),
-
-	// --- Saved selections ---
-	getSavedSelectionIndex,
-	loadSavedSelections,
-	savedParts,
-	savedSelector,
-
-	// --- Events (for plugins) ---
-	on<E extends EditorEvent>(event: E, handler: EventHandler<E>) {
-		const unsub = subscribe(event, handler);
-		trackDisposable(unsub); // auto-removed on plugin deactivation
-		return unsub;
-	},
-
-	// --- Seen ---
+/** Panoramas the user has already seen. */
+const seen = {
 	getSeenEntries,
 	getSeenCount,
 	clearSeen,
 	loadSeenPano,
+};
 
-	// --- Enrichment ---
+/** Street View: filling locations in from Google, and checking them against it. */
+const sv = {
 	enrichAll,
 	bulkPinToPano,
 	validateLocations,
 	needsEnrichment,
-
-	// --- SV metadata ---
 	svMetadata,
+};
 
-	// --- Util ---
+/** The live map and what it is currently drawing. */
+const map = {
+	getMapHost,
+	waitForMapHost,
+	getScenePositions,
+};
+
+/** Selections saved on the map, and the rules behind them. */
+const saved = {
+	getSavedSelectionIndex,
+	loadSavedSelections,
+	savedParts,
+	savedSelector,
+};
+
+/** App settings. Per-map settings live on `MapMeta.settings`. */
+const settings = {
+	setSetting,
+	getSettings: () => ({ ...getSettings() }),
+};
+
+/** What belongs to no single domain. */
+const surface = {
+	ready: false,
+
+	/** Every Rust command, typed. Any of them can change in a release. @unstable */
+	cmd: commands as Cmd,
+
+	/** Run work on the plugin's own sidecar binary. */
+	sidecar,
+
+	/** React components the editor is built from. */
+	ui,
+
+	toast,
+	createLocation,
 	mmaBufUrl,
 
-	// --- Test-only convenience ---
+	/** Subscribe to an editor event. The returned unsubscribe also runs when the plugin
+	 *  deactivates. */
+	on<E extends EditorEvent>(event: E, handler: EventHandler<E>) {
+		const unsub = subscribe(event, handler);
+		trackDisposable(unsub);
+		return unsub;
+	},
+
 	/** @unstable */
 	_test: testApi,
 };
 
 type StoreApi = typeof store;
-/** One dialog's own state machine, exposed only because the surface is flat. @unstable */
+/** Import dialog internals. @unstable */
 type ImportStagingApi = typeof importStaging;
-/** One dialog's own state machine, exposed only because the surface is flat. @unstable */
+/** Commit diff internals. @unstable */
 type CommitDiffApi = typeof commitDiff;
 type SelectorPickApi = typeof picker;
 type MapListApi = typeof mapList;
-/** The review screen driving itself. @unstable */
+/** Review screen internals. @unstable */
 type ReviewApi = typeof review;
+type TauriApi = typeof tauri;
+type PluginApi = typeof plugin;
+type FieldsApi = typeof fields;
+type SeenApi = typeof seen;
+type SvApi = typeof sv;
+type MapApi = typeof map;
+type SavedSelectionsApi = typeof saved;
+type SettingsApi = typeof settings;
 type SurfaceApi = typeof surface;
 type LegacyApi = typeof legacy;
 
@@ -158,6 +167,14 @@ export interface MMA
 		SelectorPickApi,
 		MapListApi,
 		ReviewApi,
+		TauriApi,
+		PluginApi,
+		FieldsApi,
+		SeenApi,
+		SvApi,
+		MapApi,
+		SavedSelectionsApi,
+		SettingsApi,
 		SurfaceApi,
 		LegacyApi {}
 
@@ -168,6 +185,14 @@ const mma: MMA = {
 	...picker,
 	...mapList,
 	...review,
+	...tauri,
+	...plugin,
+	...fields,
+	...seen,
+	...sv,
+	...map,
+	...saved,
+	...settings,
 	...surface,
 	...legacy,
 };

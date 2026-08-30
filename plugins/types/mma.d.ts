@@ -4398,7 +4398,7 @@ declare function waitForMapHost(): Promise<MapHost>;
 
 /** Snapshot of every rendered location: `ids` plus interleaved `[lng, lat, ...]`, read
  *  from the render buffers the app already keeps current. Lets an overlay that draws all
- *  locations see the map without a store round trip; refresh on `scene:changed`. */
+ *  locations see the map without a store round trip. */
 declare function getScenePositions(): {
     ids: Uint32Array;
     positions: Float32Array;
@@ -4527,13 +4527,8 @@ declare namespace testApi {
   };
 }
 
-/** Explicitly exposed functions not in other APIs. */
-declare const surface: {
-    ready: boolean;
-    /** Every Rust command, typed. Generated from the backend, so it tracks the app rather
-     *  than this API: a command can change or disappear in any release. Anything worth
-     *  relying on is exposed as a function here instead. @unstable */
-    cmd: Cmd;
+/** Tauri primitives, handed to plugins as-is. */
+declare const tauri: {
     invoke: typeof invoke;
     shell: {
         Command: typeof Command;
@@ -4542,27 +4537,54 @@ declare const surface: {
         open: typeof open;
         save: typeof save;
     };
-    /** Run work on the plugin's own sidecar binary, downloaded from GitHub Releases on
-     *  install. `request` streams the sidecar's JSON output and resolves with its last
-     *  object. */
-    sidecar: typeof sidecar;
+};
+/** Registering a plugin and the per-plugin runtime it gets. */
+declare const plugin: {
     registerPlugin: typeof registerPlugin;
-    registerEnrichFields: typeof registerEnrichFields;
-    registerEnrichmentProvider: typeof registerEnrichmentProvider;
-    preloadModules: typeof preloadModules;
-    getAvailableExternals: typeof getAvailableExternals;
-    ui: typeof ui;
-    toast: typeof toast;
     storage: typeof createPluginStorage;
     usePluginState: typeof usePluginState;
     useJob: typeof useJob;
+    preloadModules: typeof preloadModules;
+    getAvailableExternals: typeof getAvailableExternals;
+};
+/** Field definitions: what a location can carry beyond its columns. */
+declare const fields: {
     getFieldDef: typeof getFieldDef;
     getAllFieldDefs: typeof getAllFieldDefs;
     getKnownFieldKeys: typeof getKnownFieldKeys;
-    createLocation: typeof createLocation;
+    registerEnrichFields: typeof registerEnrichFields;
+    registerEnrichmentProvider: typeof registerEnrichmentProvider;
+};
+/** Panoramas the user has already seen. */
+declare const seen: {
+    getSeenEntries: typeof getSeenEntries;
+    getSeenCount: typeof getSeenCount;
+    clearSeen: typeof clearSeen;
+    loadSeenPano: typeof loadSeenPano;
+};
+/** Street View: filling locations in from Google, and checking them against it. */
+declare const sv: {
+    enrichAll: typeof enrichAll;
+    bulkPinToPano: typeof bulkPinToPano;
+    validateLocations: typeof validateLocations;
+    needsEnrichment: typeof needsEnrichment;
+    svMetadata: typeof svMetadata;
+};
+/** The live map and what it is currently drawing. */
+declare const map: {
     getMapHost: typeof getMapHost;
     waitForMapHost: typeof waitForMapHost;
     getScenePositions: typeof getScenePositions;
+};
+/** Selections saved on the map, and the rules behind them. */
+declare const saved: {
+    getSavedSelectionIndex: typeof getSavedSelectionIndex;
+    loadSavedSelections: typeof loadSavedSelections;
+    savedParts: typeof savedParts;
+    savedSelector: typeof savedSelector;
+};
+/** App settings. Per-map settings live on `MapMeta.settings`. */
+declare const settings: {
     setSetting: typeof setSetting;
     getSettings: () => {
         showCameraBadges: boolean;
@@ -4646,36 +4668,45 @@ declare const surface: {
         pinnedCommands: PinnedEntry[];
         hasSeenWelcome: boolean;
     };
-    getSavedSelectionIndex: typeof getSavedSelectionIndex;
-    loadSavedSelections: typeof loadSavedSelections;
-    savedParts: typeof savedParts;
-    savedSelector: typeof savedSelector;
-    on<E extends EditorEvent>(event: E, handler: EventHandler<E>): () => void;
-    getSeenEntries: typeof getSeenEntries;
-    getSeenCount: typeof getSeenCount;
-    clearSeen: typeof clearSeen;
-    loadSeenPano: typeof loadSeenPano;
-    enrichAll: typeof enrichAll;
-    bulkPinToPano: typeof bulkPinToPano;
-    validateLocations: typeof validateLocations;
-    needsEnrichment: typeof needsEnrichment;
-    svMetadata: typeof svMetadata;
+};
+/** What belongs to no single domain. */
+declare const surface: {
+    ready: boolean;
+    /** Every Rust command, typed. Any of them can change in a release. @unstable */
+    cmd: Cmd;
+    /** Run work on the plugin's own sidecar binary. */
+    sidecar: typeof sidecar;
+    /** React components the editor is built from. */
+    ui: typeof ui;
+    toast: typeof toast;
+    createLocation: typeof createLocation;
     mmaBufUrl: typeof mmaBufUrl;
+    /** Subscribe to an editor event. The returned unsubscribe also runs when the plugin
+     *  deactivates. */
+    on<E extends EditorEvent>(event: E, handler: EventHandler<E>): () => void;
     /** @unstable */
     _test: typeof testApi;
 };
 export type StoreApi = typeof store;
-/** One dialog's own state machine, exposed only because the surface is flat. @unstable */
+/** Import dialog internals. @unstable */
 export type ImportStagingApi = typeof importStaging;
-/** One dialog's own state machine, exposed only because the surface is flat. @unstable */
+/** Commit diff internals. @unstable */
 export type CommitDiffApi = typeof commitDiff;
 export type SelectorPickApi = typeof picker;
 export type MapListApi = typeof mapList;
-/** The review screen driving itself. @unstable */
+/** Review screen internals. @unstable */
 export type ReviewApi = typeof review;
+export type TauriApi = typeof tauri;
+export type PluginApi = typeof plugin;
+export type FieldsApi = typeof fields;
+export type SeenApi = typeof seen;
+export type SvApi = typeof sv;
+export type MapApi = typeof map;
+export type SavedSelectionsApi = typeof saved;
+export type SettingsApi = typeof settings;
 export type SurfaceApi = typeof surface;
 export type LegacyApi = typeof legacy;
-export interface MMA extends StoreApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, SurfaceApi, LegacyApi {
+export interface MMA extends StoreApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, TauriApi, PluginApi, FieldsApi, SeenApi, SvApi, MapApi, SavedSelectionsApi, SettingsApi, SurfaceApi, LegacyApi {
 }
 declare global {
     interface Window {
