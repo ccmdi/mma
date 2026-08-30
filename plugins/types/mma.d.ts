@@ -14,93 +14,115 @@ import * as maplibregl from 'maplibre-gl';
 
 /** Commands */
 declare const commands: {
-    /**  Milliseconds from `run()` to the frontend's first call; logged once. */
+    /**  Milliseconds from `run()` to the frontend's first call; logged once. @unstable */
     appReady: () => Promise<number>;
     /**
      *  Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
      *  large payloads over by file instead of IPC serialization.
+     *  @unstable
      */
     writeTempFile: (name: string, content: string) => Promise<string>;
-    /**  Read a file as UTF-8 text (temp files, plugin sources). */
+    /**  Read a file as UTF-8 text (temp files, plugin sources). @unstable */
     readFile: (path: string) => Promise<string>;
+    /** @unstable */
     getAppDataDir: () => Promise<string>;
+    /** @unstable */
     getDataLocation: () => Promise<DataLocation>;
     /**
      *  Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
      *  and does not move existing data.
+     *  @unstable
      */
     setDataLocation: (path: string | null) => Promise<null>;
+    /** @unstable */
     openDataFolder: () => Promise<null>;
+    /** @unstable */
     openLogFile: () => Promise<null>;
-    /**  Manifests of every installed plugin. */
+    /**  Manifests of every installed plugin. @unstable */
     listUserPlugins: () => Promise<PluginManifest[]>;
     /**
      *  Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
      *  the procedure module it declares. `git_ref` pins an older build; `None` takes master.
+     *  @unstable
      */
     installPlugin: (id: string, gitRef: string | null) => Promise<PluginManifest>;
-    /**  Delete a plugin's directory. */
+    /**  Delete a plugin's directory. @unstable */
     uninstallPlugin: (id: string) => Promise<null>;
     /**
      *  Download a plugin's sidecar bundle from GitHub Releases and extract it under
      *  `{appData}/plugins/{plugin_id}/sidecar/`. Emits `sidecar-install-progress`.
+     *  @unstable
      */
     sidecarInstall: (pluginId: string, name: string, version: string) => Promise<null>;
-    /**  Installed sidecar version for a plugin (from `sidecar/version.txt`), or `None`. */
+    /**  Installed sidecar version for a plugin (from `sidecar/version.txt`), or `None`. @unstable */
     sidecarInstalledVersion: (pluginId: string) => Promise<string | null>;
     /**
      *  Run one unit of work on a plugin's sidecar. Commands the manifest lists under
      *  `serve` go to the plugin's resident process; the rest get a one-shot child.
      *  Streams `sidecar-line` (one JSON object per unit) and `sidecar-log` (stderr),
      *  then exactly one `sidecar-done`, all keyed by the returned request id.
+     *  @unstable
      */
     sidecarRequest: (pluginId: string, command: string, payload: string | null) => Promise<number>;
     /**
      *  Stop everything a plugin has running. Called when the plugin is disabled or
      *  uninstalled, so a resident process never outlives the plugin that wanted it.
+     *  @unstable
      */
     sidecarStop: (pluginId: string) => Promise<null>;
     /**
      *  Stop every plugin's sidecar processes. Used when the editor tears all plugins
      *  down at once (map close), where nothing should still be running afterwards.
+     *  @unstable
      */
     sidecarStopAll: () => Promise<null>;
     /**
      *  Kill the process behind a one-shot request (no-op if it already finished).
      *  Resident-served requests have no process of their own, so this does not
      *  interrupt them -- the caller simply stops listening.
+     *  @unstable
      */
     sidecarCancel: (reqId: number) => Promise<null>;
+    /** @unstable */
     checkBorderFile: (level: string) => Promise<boolean>;
+    /** @unstable */
     downloadBorderFile: (level: string) => Promise<null>;
+    /** @unstable */
     borderLookup: (lat: number, lng: number, level: string) => Promise<PolygonGeometry | null>;
     /**
      *  Classify each `(lat, lng)` to the name of its containing feature at `level`
      *  (subdivision names for "adm1"). `None` for points outside every feature.
      *  Same bbox-prefiltered parallel scan as `tally_countries`, but per-point names.
+     *  @unstable
      */
     borderClassify: (level: string, points: ([number, number])[]) => Promise<(string | null)[]>;
     /**
      *  Finds the nearest city/country for a coordinate. O(log n) k-d tree lookup.
      *  Always returns `Some` -- the GeoNames dataset covers every landmass.
+     *  @unstable
      */
     reverseGeocode: (lat: number, lng: number) => Promise<GeoResult | null>;
+    /** @unstable */
     discordPresenceSet: (activity: PresenceActivity) => Promise<null>;
+    /** @unstable */
     discordPresenceClear: () => Promise<null>;
     /**
      *  Begin device-flow sign-in. Returns the code to show the user; call
      *  [`github_poll_login`] afterwards to wait for them to finish authorizing.
+     *  @unstable
      */
     githubStartLogin: () => Promise<DeviceCodeInfo>;
     /**
      *  Wait for the user to authorize the code from [`github_start_login`], then store the token.
      *  Resolves with the signed-in account.
+     *  @unstable
      */
     githubPollLogin: () => Promise<GhUser>;
-    /**  The signed-in user, or `None` when there is no session (or it was rejected). */
+    /**  The signed-in user, or `None` when there is no session (or it was rejected). @unstable */
     githubMe: () => Promise<GhUser | null>;
+    /** @unstable */
     githubLogout: () => Promise<null>;
-    /**  Local-only check: is a token stored? Says nothing about its validity. */
+    /**  Local-only check: is a token stored? Says nothing about its validity. @unstable */
     githubHasSession: () => Promise<boolean>;
     /**
      *  File an issue as the signed-in user.
@@ -108,17 +130,19 @@ declare const commands: {
      *  Labels are sent even though only accounts with push access may set them: GitHub drops them
      *  silently for everyone else rather than failing, so sending costs nothing and they land for
      *  maintainers. Closing the gap for outside reporters is the worker's job.
+     *  @unstable
      */
     githubCreateIssue: (title: string, body: string, labels: string[]) => Promise<IssueRef>;
-    /**  One of our issues and its comments, read as the signed-in user. */
+    /**  One of our issues and its comments, read as the signed-in user. @unstable */
     githubIssueThread: (number: number) => Promise<IssueThread>;
-    /**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. */
+    /**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. @unstable */
     feedbackLogTail: () => Promise<string>;
-    /**  Whether the anonymous tier is available in this build. */
+    /**  Whether the anonymous tier is available in this build. @unstable */
     feedbackAnonymousAvailable: () => Promise<boolean>;
     /**
      *  File an issue through the worker, without any account. The worker applies the labels
      *  (a bot has push access, so it can) and returns the reply token.
+     *  @unstable
      */
     feedbackSubmitAnonymous: (title: string, body: string, installId: string) => Promise<AnonIssueRef>;
     /**
@@ -126,6 +150,7 @@ declare const commands: {
      *
      *  The proof of work is bound to the bytes, so it costs the same per image as a report costs
      *  per body -- which is what keeps an open upload route from being free hosting.
+     *  @unstable
      */
     feedbackUploadAttachment: (path: string, name: string) => Promise<AttachmentRef>;
     /**
@@ -134,123 +159,142 @@ declare const commands: {
      *  GitHub drops labels sent by a reporter without push access, so a signed-in outside
      *  contributor's report arrives bare. The worker's installation token has push access and
      *  re-applies them. Best-effort: a report that is filed but unlabelled is not worth failing.
+     *  @unstable
      */
     feedbackRequestLabel: (number: number) => Promise<null>;
-    /**  State and replies for an anonymous report, relayed by the worker. */
+    /**  State and replies for an anonymous report, relayed by the worker. @unstable */
     feedbackAnonymousThread: (number: number, token: string) => Promise<IssueThread>;
     /**
      *  Look for an update at `endpoint` (a release's `latest.json`). `None` means the announced
      *  version is not newer than the running one, which is the plugin's own comparison.
+     *  @unstable
      */
     updateCheck: (endpoint: string) => Promise<UpdateAvailable | null>;
     /**
      *  Download and install whatever the last [`update_check`] found. The installer replaces the
      *  running app, so nothing after this is guaranteed to run -- the caller saves its state first.
+     *  @unstable
      */
     updateInstall: () => Promise<null>;
     /**
      *  Start (or re-key) the remote API server. Idempotent: a running server just
      *  picks up the new key. Returns the base URL.
+     *  @unstable
      */
     remoteApiStart: (key: string) => Promise<string>;
+    /** @unstable */
     remoteApiStop: () => Promise<null>;
     /**
      *  Webview -> HTTP reply path: resolves the parked request for `id`.
      *  `payload` is JSON text, not a typed value -- specta cannot export the
      *  recursive `serde_json::Value` type (stack overflow at bindings export).
+     *  @unstable
      */
     remoteApiRespond: (id: number, ok: boolean, payload: string) => Promise<void>;
     /**
      *  Load a map's Arrow data from disk, rebuild all indexes, and return initial state
      *  (tag counts, undo/redo availability). Must be called before any other store commands.
+     *  @unstable
      */
     storeOpenMap: (mapId: string) => Promise<StoreStatus>;
     /**
      *  Close the current map: bake overlay, flush Arrow + tags + edit history to disk, then
      *  release all in-memory state (batch, mmap, indexes, selections, undo stacks).
+     *  @unstable
      */
     storeCloseMap: () => Promise<null>;
-    /**  Autosave uncommitted changes to the delta sidecar. No-op when nothing changed. */
+    /**  Autosave uncommitted changes to the delta sidecar. No-op when nothing changed. @unstable */
     storeSaveDirty: () => Promise<SaveResult>;
     /**
      *  Copy locations into another map, skipping ones the target already has. Tags and extra
      *  fields carry over.
+     *  @unstable
      */
     storeCopyLocationsToMap: (targetMapId: string, selector: Selector) => Promise<CopyToMapResult>;
-    /**  Lightweight status query: location count, version, and dirty flag. */
+    /**  Lightweight status query: location count, version, and dirty flag. @unstable */
     storeGetSummary: () => Promise<SummaryResult>;
     /**
      *  Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
      *  and clears the redo stack.
+     *  @unstable
      */
     storeAddLocations: (locations: Location[]) => Promise<MutationResult>;
     /**
      *  Add locations uploaded as chunked JSON in an upload session dir (see `store_upload_begin`),
      *  so the frontend never serializes the whole batch at once. Otherwise identical to
      *  [`store_add_locations`]: one atomic mutation, one undo entry, IDs in uploaded order.
+     *  @unstable
      */
     storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult>;
-    /**  Remove locations by ID. Snapshots the full location data for undo before deleting. */
+    /**  Remove locations by ID. Snapshots the full location data for undo before deleting. @unstable */
     storeRemoveLocations: (ids: number[]) => Promise<MutationResult>;
     /**
      *  Apply partial patches to existing locations. `record_undo` defaults to true;
      *  set to false for ephemeral updates (e.g., plugin-driven batch modifications
      *  that manage their own undo).
+     *  @unstable
      */
     storeUpdateLocations: (updates: Update<LocationPatch_Deserialize>[], recordUndo: boolean | null) => Promise<MutationResult>;
     /**
      *  Set (or clear) the active location. Fire-and-forget from JS; no re-render triggered.
      *  JS patches the cell buffer synchronously to hide/show the active marker.
+     *  @unstable
      */
     storeSetActive: (id: number | null) => Promise<null>;
     /**
      *  Set the default marker color used by the render delta path. Fire-and-forget from JS;
      *  the JS side recolors its cell buffers in place (no full rebuild).
+     *  @unstable
      */
     storeSetMarkerColor: (color: [number, number, number]) => Promise<null>;
-    /**  Ids of every location the selector resolves to, ascending. */
+    /**  Ids of every location the selector resolves to, ascending. @unstable */
     storeResolve: (selector: Selector) => Promise<number[]>;
-    /**  How many locations the selector resolves to. Counts rows, never materializes them. */
+    /**  How many locations the selector resolves to. Counts rows, never materializes them. @unstable */
     storeCount: (selector: Selector) => Promise<number>;
-    /**  `n` ids drawn uniformly at random from the selected set, without replacement. */
+    /**  `n` ids drawn uniformly at random from the selected set, without replacement. @unstable */
     storeSample: (selector: Selector, n: number) => Promise<number[]>;
     /**
      *  An evenly spaced subset: exactly one of `target_count` (thin to N, maximizing
      *  spacing) or `min_distance_m` (keep as many as fit at that spacing).
+     *  @unstable
      */
     storeSpaced: (selector: Selector, targetCount: number | null, minDistanceM: number | null) => Promise<SpacedPickResult>;
-    /**  Group by a derived key, returning `{ key, ids, bin }` per group. */
+    /**  Group by a derived key, returning `{ key, ids, bin }` per group. @unstable */
     storeGroupBy: (selector: Selector, field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-    /**  Group by a derived key, returning counts only -- no member ids on the wire. */
+    /**  Group by a derived key, returning counts only -- no member ids on the wire. @unstable */
     storeCountBy: (selector: Selector, field: string, key: KeySpec) => Promise<[string, number][]>;
-    /**  Distinct values of `field` across the selected set, sorted. */
+    /**  Distinct values of `field` across the selected set, sorted. @unstable */
     storeValues: (selector: Selector, field: string) => Promise<string[]>;
-    /**  How many rows carry each top-level `extra` key, key-sorted. */
+    /**  How many rows carry each top-level `extra` key, key-sorted. @unstable */
     storeCoverage: (selector: Selector) => Promise<[string, number][]>;
-    /**  Values, never rows: the projection for a scan that reads fields across a set. */
+    /**  Values, never rows: the projection for a scan that reads fields across a set. @unstable */
     storeColumns: (selector: Selector, fields: string[]) => Promise<Columns>;
-    /**  Bounding box `[west, south, east, north]`, or `None` when the set is empty. */
+    /**  Bounding box `[west, south, east, north]`, or `None` when the set is empty. @unstable */
     storeBounds: (selector: Selector) => Promise<[number, number, number, number] | null>;
     /**
      *  Full rows. The last resort -- prefer a projection. Every row is materialized in
      *  webview memory, so an `Everything` call costs O(map). Large answers are staged to a file
      *  rather than pushed through the IPC channel.
+     *  @unstable
      */
     storeCollect: (selector: Selector) => Promise<Rows>;
+    /** @unstable */
     storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => Promise<FieldOpResult>;
-    /**  The parse error for `src`, or nothing when it parses. For the dialog's live check. */
+    /**  The parse error for `src`, or nothing when it parses. For the dialog's live check. @unstable */
     fieldExprError: (src: string) => Promise<string | null>;
     /**
      *  Count locations by country (offline point-in-polygon). Returns unsorted (ISO-A2, count) pairs.
      *  `level` selects border precision, falling back to "light" if unavailable.
+     *  @unstable
      */
     storeCountryDistribution: (selector: Selector, level: string) => Promise<[string, number][]>;
-    /**  Find all locations within `radius_m` metres of (`lat`, `lng`). */
+    /**  Find all locations within `radius_m` metres of (`lat`, `lng`). @unstable */
     storeFindNearby: (lat: number, lng: number, radiusM: number) => Promise<Location[]>;
     /**
      *  For each input point, whether any existing location lies within `radius_m` metres.
      *  Bulk form so callers probing many coordinates (e.g. the map generator skipping
      *  already-covered spots) pay one IPC round-trip, not one per point.
+     *  @unstable
      */
     storeNearAny: (lats: number[], lngs: number[], radiusM: number) => Promise<boolean[]>;
     /**
@@ -261,122 +305,141 @@ declare const commands: {
      *  Doing both here is not a convenience: creating and assigning as two commands leaves the
      *  tag visible at count 0 for the round trip in between, and makes the caller fetch every
      *  location into JS just to append an id Rust already has.
+     *  @unstable
      */
     storeCreateTags: (names: string[], selector: Selector) => Promise<MutationResult>;
     /**
      *  Rename and/or recolor tags in one batch. Renaming onto an existing name (case-insensitive)
      *  merges the two tags.
+     *  @unstable
      */
     storeUpdateTags: (updates: Update<TagPatch>[]) => Promise<MutationResult>;
     /**
      *  Strip tags from all locations. Tags stay in `store.tags` with count=0 /
      *  visible=false so undo can revive them. Returns MutationResult with `tags`.
+     *  @unstable
      */
     storeDeleteTags: (tagIds: number[]) => Promise<MutationResult>;
     /**
      *  Persist tag ordering. `ordered_ids` specifies the desired order; each tag's
      *  `order` field is set to its index in the list.
+     *  @unstable
      */
     storeReorderTags: (orderedIds: number[]) => Promise<MutationResult>;
-    /**  Pop the undo stack and reverse the last edit. Pushes the entry onto the redo stack. */
+    /**  Pop the undo stack and reverse the last edit. Pushes the entry onto the redo stack. @unstable */
     storeUndo: () => Promise<MutationResult>;
-    /**  Pop the redo stack and replay the edit forward. Pushes the entry back onto undo. */
+    /**  Pop the redo stack and replay the edit forward. Pushes the entry back onto undo. @unstable */
     storeRedo: () => Promise<MutationResult>;
-    /**  Clear both undo and redo stacks. Called after a commit to start fresh. */
+    /**  Clear both undo and redo stacks. Called after a commit to start fresh. @unstable */
     storeResetUndo: () => Promise<null>;
-    /**  The uncommitted changes since the last commit -- the same changeset `store_commit` will record. */
+    /**  The uncommitted changes since the last commit -- the same changeset `store_commit` will record. @unstable */
     storeCommitDiff: () => Promise<[number, number, number]>;
     /**
      *  Replace all selections, resolve bitmasks against current data, and write a binary
      *  patch file for JS to apply to the render overlay. Returns per-selection counts.
+     *  @unstable
      */
     storeSyncSelections: (sels: SelectionInput[]) => Promise<SelectionSync>;
     /**
      *  Transitive spatial duplicate groups (connected components, size >= 2) within `distance`
      *  metres. Read-only; used to preview a merge. Returns groups of location IDs.
+     *  @unstable
      */
     storeDuplicateGroups: (distance: number) => Promise<number[][]>;
     /**
      *  Merge each duplicate group within `distance` metres into one survivor location, unioning
      *  tags and extra fields. `score` is the map's duplicate preference expression; blank or
      *  absent uses [`selections::DEFAULT_DUPLICATE_SCORE`]. One undoable edit.
+     *  @unstable
      */
     storeMergeDuplicates: (distance: number, score: string | null) => Promise<MutationResult>;
     /**
      *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
      *  cluster. `score` is the map's duplicate preference expression, the same one a merge
      *  ranks by. Informational locations are never pruned. One undoable edit.
+     *  @unstable
      */
     storePruneDuplicates: (selector: Selector, distance: number, score: string | null) => Promise<MutationResult>;
     /**
      *  Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
      *  Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.
+     *  @unstable
      */
     storeFillRenderFile: (req: RenderRequest) => Promise<string>;
     /**
      *  Resolve a deck.gl pick result (cell key + index within cell) to a location ID.
      *  Called on marker click to map the GPU pick back to a logical location.
+     *  @unstable
      */
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
-    /**  Return metadata for every map in the database. */
+    /**  Return metadata for every map in the database. @unstable */
     storeListMaps: () => Promise<MapMeta[]>;
-    /**  Fetch a single map's metadata by ID. Returns `None` if not found. */
+    /**  Fetch a single map's metadata by ID. Returns `None` if not found. @unstable */
     storeGetMap: (id: string) => Promise<MapMeta | null>;
     /**
      *  Create a new empty map with default settings. Returns the full metadata
      *  (including the generated UUID) so the frontend can navigate to it immediately.
+     *  @unstable
      */
     storeCreateMap: (name: string, folder: string | null) => Promise<MapMeta>;
     /**
      *  Open the scratch map, creating it if this is its first use. Ordinary in every way
      *  except that [`store_list_maps`] hides it and startup wipes it.
+     *  @unstable
      */
     storeScratchMap: () => Promise<MapMeta>;
-    /**  Delete a map and all its data: database rows and files on disk. */
+    /**  Delete a map and all its data: database rows and files on disk. @unstable */
     storeDeleteMap: (id: string) => Promise<null>;
-    /**  Apply a partial update to a map's metadata; `None` fields are left unchanged. */
+    /**  Apply a partial update to a map's metadata; `None` fields are left unchanged. @unstable */
     storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => Promise<null>;
     /**
      *  Update `last_opened_at` to the current timestamp. Used to sort the map
      *  list by recency in the dashboard.
+     *  @unstable
      */
     storeTouchMapOpened: (mapId: string) => Promise<null>;
-    /**  Rename a folder across all maps that reference it. */
+    /**  Rename a folder across all maps that reference it. @unstable */
     storeRenameFolder: (from: string, to: string) => Promise<null>;
-    /**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). */
+    /**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). @unstable */
     storeDeleteFolder: (name: string) => Promise<null>;
     /**
      *  Compute aggregate database statistics (map/location/tag/commit counts,
      *  database file size, journal mode). Tag count is summed across all maps
      *  by parsing each map's tags JSON column.
+     *  @unstable
      */
     storeDbStats: () => Promise<DbStats>;
     /**
      *  Parse a file (JSON or ZIP of JSONs) and return previews without persisting.
      *  Results are cached in `CACHED_PARSE` so `bulk_import_confirm` can skip re-parsing.
      *  ZIP files have each `.json` entry parsed in parallel via rayon.
+     *  @unstable
      */
     bulkImportPreview: (path: string) => Promise<ImportPreviewEntry[]>;
-    /**  Import the selected maps from a previously previewed file. Emits `bulk-import-progress` per map. */
+    /**  Import the selected maps from a previously previewed file. Emits `bulk-import-progress` per map. @unstable */
     bulkImportConfirm: (path: string, selectedIndices: number[]) => Promise<ImportedMapInfo[]>;
     /**
      *  Drop the cached parse from `bulk_import_preview` when the user dismisses the
      *  import dialog without confirming, instead of holding it until the next preview.
+     *  @unstable
      */
     bulkImportCancel: () => Promise<null>;
     /**
      *  Parse a file and return field-level statistics + preview positions for the editor
      *  import sidebar. Caches the parse result for `store_import_file` to consume on commit.
+     *  @unstable
      */
     storeImportPreview: (path: string) => Promise<EditorImportPreview>;
     /**
      *  Parse pasted text (JSON or CSV) and stage it for preview, exactly like
      *  `store_import_preview` does for a file. Caches the parse for `store_import_file`.
+     *  @unstable
      */
     storeImportPastePreview: (text: string) => Promise<EditorImportPreview>;
     /**
      *  Fetch one staged (not yet imported) location by its preview index, for read-only
      *  preview in the editor. Indexes follow the preview positions order.
+     *  @unstable
      */
     storeImportStagedLocation: (index: number) => Promise<Location>;
     /**
@@ -384,138 +447,170 @@ declare const commands: {
      *  applying a bulk tag to every imported location. Consumes the cached parse from
      *  `store_import_preview`/`store_import_paste_preview`. Fields in `dropped_fields`
      *  (e.g. `"heading"`, `"extra.countryCode"`) are zeroed/removed.
+     *  @unstable
      */
     storeImportFile: (droppedFields: string[], tagName: string | null) => Promise<EditorImportResult>;
-    /**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. */
+    /**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. @unstable */
     storeExportJson: (opts: ExportOpts) => Promise<string>;
-    /**  Export locations as a minimal lat/lng CSV file. */
+    /**  Export locations as a minimal lat/lng CSV file. @unstable */
     storeExportCsv: (selector: Selector) => Promise<string>;
     /**
      *  Export locations as a GeoJSON FeatureCollection of Point features.
      *  Each feature carries its tag names in `properties.tags`.
+     *  @unstable
      */
     storeExportGeojson: (selector: Selector, tagsJson: string) => Promise<string>;
     /**
      *  Copy a temp export file to the destination chosen via the native save dialog,
      *  then remove the temp source. `dest_path` comes from the frontend save dialog.
+     *  @unstable
      */
     storeSaveExportFile: (srcPath: string, destPath: string) => Promise<null>;
-    /**  Export every map in the database as a ZIP of JSON files. Duplicate map names get a numeric suffix. */
+    /**  Export every map in the database as a ZIP of JSON files. Duplicate map names get a numeric suffix. @unstable */
     storeExportBulkZip: () => Promise<string>;
     /**
      *  Create a temp session dir for binary uploads from the frontend. Files are
      *  written into it via `mma-buf://` POST, then packaged by [`store_upload_finish`].
+     *  @unstable
      */
     storeUploadBegin: () => Promise<string>;
     /**
      *  Package an upload session and remove its dir: a single file is moved out
      *  as-is, multiple are packed into a Stored ZIP (entries like JPEG/PNG are
      *  already compressed). Returns a temp path for [`store_save_export_file`].
+     *  @unstable
      */
     storeUploadFinish: (sessionDir: string) => Promise<string>;
-    /**  Remove an abandoned upload session dir (e.g. cancelled operation). */
+    /**  Remove an abandoned upload session dir (e.g. cancelled operation). @unstable */
     storeUploadAbort: (sessionDir: string) => Promise<null>;
     /**
      *  Commit the map's uncommitted changes and return the new commit id.
      *  `message` None auto-generates a `+a -r ~m` summary.
+     *  @unstable
      */
     storeCommit: (mapId: string, message: string | null) => Promise<string>;
-    /**  List all commits for a map, newest first. */
+    /**  List all commits for a map, newest first. @unstable */
     storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
     /**
      *  Restore a map to the state captured by a previous commit. The caller must reopen
      *  the map afterwards (undo/redo is cleared).
+     *  @unstable
      */
     storeCheckoutCommit: (mapId: string, commitId: string) => Promise<null>;
-    /**  Read a single commit's delta (created/removed locations) for the diff viewer. */
+    /**  Read a single commit's delta (created/removed locations) for the diff viewer. @unstable */
     storeGetCommitDelta: (mapId: string, commitId: string) => Promise<CommitDelta>;
-    /**  Record a panorama visit. Oldest entries beyond `MAX_SEEN` are evicted. */
+    /**  Record a panorama visit. Oldest entries beyond `MAX_SEEN` are evicted. @unstable */
     storeSeenWrite: (entry: SeenWriteEntry) => Promise<null>;
-    /**  Returns a page of seen entries, newest first, with optional filtering. */
+    /**  Returns a page of seen entries, newest first, with optional filtering. @unstable */
     storeSeenList: (limit: number, offset: number, filter: SeenFilter | null, thumbnails: boolean) => Promise<SeenEntry[]>;
-    /**  Returns the total number of seen entries matching the filter (for pagination). */
+    /**  Returns the total number of seen entries matching the filter (for pagination). @unstable */
     storeSeenCount: (filter: SeenFilter | null) => Promise<number>;
     /**
      *  Returns all distinct country codes present in the seen table, sorted alphabetically.
      *  Used to populate the country filter dropdown.
+     *  @unstable
      */
     storeSeenCountries: () => Promise<string[]>;
-    /**  Returns all distinct maps that have seen entries, with resolved display names. */
+    /**  Returns all distinct maps that have seen entries, with resolved display names. @unstable */
     storeSeenMaps: () => Promise<SeenMapInfo[]>;
-    /**  Deletes all seen history entries. */
+    /**  Deletes all seen history entries. @unstable */
     storeSeenClear: () => Promise<null>;
+    /** @unstable */
     storeReviewCreate: (session: ReviewCreate) => Promise<ReviewSession>;
+    /** @unstable */
     storeReviewGet: (mapId: string, sourceKey: string) => Promise<ReviewSession | null>;
+    /** @unstable */
     storeReviewList: (mapId: string, status: string | null) => Promise<ReviewSession[]>;
+    /** @unstable */
     storeReviewUpdate: (update: ReviewUpdate) => Promise<null>;
+    /** @unstable */
     storeReviewDelete: (id: string) => Promise<null>;
+    /** @unstable */
     storeListSavedSelections: () => Promise<SavedSelectionInfo[]>;
+    /** @unstable */
     storeGetSavedSelections: (ids: string[]) => Promise<SavedSelection[]>;
+    /** @unstable */
     storeSaveSelection: (name: string, selector: Selector, tagNames: { [key in number]: string; }, color: [number, number, number]) => Promise<SavedSelection>;
+    /** @unstable */
     storeDeleteSavedSelection: (id: string) => Promise<null>;
+    /** @unstable */
     storeImportLegacySavedSelections: (json: string) => Promise<number>;
+    /** @unstable */
     remoteMappingGet: (provider: string, mapId: string) => Promise<RemoteMappingRow[]>;
+    /** @unstable */
     remoteMappingUpsert: (provider: string, mapId: string, rows: RemoteMappingRow[]) => Promise<null>;
+    /** @unstable */
     remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => Promise<null>;
+    /** @unstable */
     remoteMappingClear: (provider: string, mapId: string) => Promise<null>;
     /**
      *  Reconcile a linked, open map against its remote. Snapshots local state under the store lock,
      *  drops the lock, then does all network + persistence off the async thread.
+     *  @unstable
      */
     syncReconcile: (provider: string, mapId: string, remoteMapId: string, apiKey: string | null, firstSync: FirstSyncMode | null, resolutions: ([string, ResolutionSide])[] | null) => Promise<SyncReconcileResult>;
     /**
      *  Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
      *  Returns the signed-in nickname.
+     *  @unstable
      */
     geoguessrLogin: () => Promise<string>;
-    /**  The signed-in user, or `None` when there is no session (or it was rejected). */
+    /**  The signed-in user, or `None` when there is no session (or it was rejected). @unstable */
     geoguessrMe: () => Promise<GgUser | null>;
+    /** @unstable */
     geoguessrLogout: () => Promise<null>;
-    /**  Local-only check: is a token stored? Says nothing about its validity. */
+    /**  Local-only check: is a token stored? Says nothing about its validity. @unstable */
     geoguessrHasSession: () => Promise<boolean>;
     /**
      *  Generate locations from a Vali map definition (JSON/JSONC text). Missing country
      *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
+     *  @unstable
      */
     valiGenerate: (definition: string) => Promise<ValiLocation[]>;
-    /**  Download Vali coverage data. `country` = code/continent alias/None for all. */
+    /**  Download Vali coverage data. `country` = code/continent alias/None for all. @unstable */
     valiDownload: (country: string | null, full: boolean, updates: boolean) => Promise<null>;
-    /**  Cancel an in-flight vali generate or download. */
+    /**  Cancel an in-flight vali generate or download. @unstable */
     valiCancel: () => Promise<void>;
-    /**  Subdivision weights for a country (JSON text, same shape as `vali subdivisions`). */
+    /**  Subdivision weights for a country (JSON text, same shape as `vali subdivisions`). @unstable */
     valiSubdivisions: (country: string) => Promise<string>;
     /**
      *  Country codes Vali has coverage data for, i.e. the set `vali download` iterates
      *  when no country is given. Display names are the caller's job.
+     *  @unstable
      */
     valiCountries: () => Promise<string[]>;
     /**
      *  Countries whose downloaded coverage data is older than the remote copy. Object metadata
      *  only -- nothing is fetched. Errors while offline, which callers should read as "unknown"
      *  rather than "up to date".
+     *  @unstable
      */
     valiDataStatus: () => Promise<ValiCountryStatus[]>;
     /**
      *  Download exactly the countries `vali_data_status` reports as behind. No-op when nothing
      *  is stale, so the caller can fire it without checking first.
+     *  @unstable
      */
     valiDownloadStale: () => Promise<null>;
     /**
      *  Start a procedure run. Returns immediately with the run id; the work continues
      *  on a background thread and reports through `procedure-progress`.
+     *  @unstable
      */
     procedureRun: (providers: ProviderDecl[], force: boolean) => Promise<number>;
-    /**  Stop a run before its next batch. Already-applied patches stay applied. */
+    /**  Stop a run before its next batch. Already-applied patches stay applied. @unstable */
     procedureCancel: (runId: number) => Promise<null>;
     /**
      *  Ask a procedure a read-only question. `input` and the result are whatever the
      *  module's `query` export agrees with its caller; the engine only carries the bytes.
      *  `cancel` is a token the caller may later hand to `procedure_query_cancel`.
+     *  @unstable
      */
     procedureQuery: (entry: string, input: string, config: string | null, cancel: number | null) => Promise<string>;
     /**
      *  Decline every request a query still has to make. The query then answers whatever
      *  its module answers for declined requests, which the caller discards.
+     *  @unstable
      */
     procedureQueryCancel: (cancel: number) => Promise<null>;
 };
@@ -3214,17 +3309,19 @@ export interface ImportStaging {
     preview: EditorImportPreview;
     source: "file" | "paste";
 }
+/** @unstable */
 declare function getImportPreviewPositions(): Float32Array<ArrayBufferLike>;
+/** @unstable */
 declare function getImportStaging(): ImportStaging | null;
-/** Reset import state (called when map edit state is cleared). */
+/** Reset import state (called when map edit state is cleared). @unstable */
 declare function resetImportState(): void;
-/** Import from a known file path. Used by file picker and drag-and-drop. */
+/** Import from a known file path. Used by file picker and drag-and-drop. @unstable */
 declare function beginImportFromPath(path: string): Promise<void>;
-/** Stage pasted text for preview. Throws if no locations are found. */
+/** Stage pasted text for preview. Throws if no locations are found. @unstable */
 declare function beginImportPaste(text: string): Promise<void>;
-/** Commit the staged import, optionally dropping fields and applying a bulk tag. */
+/** Commit the staged import, optionally dropping fields and applying a bulk tag. @unstable */
 declare function confirmImport(droppedFields: string[], tagName?: string): Promise<EditorImportResult | null>;
-/** Discard the staged import without committing. */
+/** Discard the staged import without committing. @unstable */
 declare function cancelImport(): void;
 
 export type importStaging_ImportStaging = ImportStaging;
@@ -3240,9 +3337,11 @@ declare namespace importStaging {
   export type { importStaging_ImportStaging as ImportStaging };
 }
 
+/** @unstable */
 declare function hasCommitDiff(): boolean;
-/** Zero the cached counts (a commit just cleared the overlay). */
+/** Zero the cached counts (a commit just cleared the overlay). @unstable */
 declare function resetCommitDiffCounts(): void;
+/** @unstable */
 declare function useCommitDiff(): CommitDiff;
 /** Ephemeral commit-diff overlay shown while `workArea === "diff"`. Position arrays are
  *  interleaved `[lng, lat]` f32; `diff-markers:changed` fires to rebuild the layers. */
@@ -3254,22 +3353,23 @@ export interface CommitDiffPreview {
     removed: Float32Array;
     modified: Float32Array;
 }
+/** @unstable */
 declare function getCommitDiffPreview(): CommitDiffPreview | null;
-/** Reset diff state (called when map edit state is cleared). */
+/** Reset diff state (called when map edit state is cleared). @unstable */
 declare function resetCommitDiffState(): void;
-/** Interleave `[lng, lat]` pairs into an f32 buffer for deck.gl. */
+/** Interleave `[lng, lat]` pairs into an f32 buffer for deck.gl. @unstable */
 declare function diffPositions(locs: LatLng[]): Float32Array;
 /** Split a commit delta into added / removed / modified. An updated location appears in
- *  both `created` (new) and `removed` (old), keyed by id. */
+ *  both `created` (new) and `removed` (old), keyed by id. @unstable */
 declare function categorizeCommitDelta(delta: CommitDelta): {
     added: Location[];
     removed: Location[];
     modified: Location[];
 };
 /** Fetch a commit's delta and overlay its added/removed/modified locations on the map,
- *  temporarily replacing the regular markers. */
+ *  temporarily replacing the regular markers. @unstable */
 declare function beginCommitDiffPreview(commit: CommitInfo): Promise<void>;
-/** Leave commit-diff preview and restore the regular markers. */
+/** Leave commit-diff preview and restore the regular markers. @unstable */
 declare function endCommitDiffPreview(): void;
 
 export type commitDiff_CommitDiffPreview = CommitDiffPreview;
@@ -3397,56 +3497,56 @@ export interface PruneResult {
 }
 /** Remove `removed` ids from a session's worklist + reviewed set. The cursor only
  *  moves if the cursor id itself was removed (advancing to the next survivor by old
- *  position). Returns the same session reference untouched if nothing overlapped. */
+ *  position). Returns the same session reference untouched if nothing overlapped. @unstable */
 declare function pruneSession(s: ReviewSession, removed: Set<number>): PruneResult;
 /** Mark the current cursor reviewed and step forward. `done` when the cursor was the
- *  last item (status flips to "done"). */
+ *  last item (status flips to "done"). @unstable */
 declare function advance(s: ReviewSession): {
     session: ReviewSession;
     done: boolean;
 };
-/** Step backward without marking anything reviewed. Null when already at the start. */
+/** Step backward without marking anything reviewed. Null when already at the start. @unstable */
 declare function retreat(s: ReviewSession): ReviewSession | null;
-/** Position of the session cursor within its review order. */
+/** Position of the session cursor within its review order. @unstable */
 declare function reviewIndex(s: ReviewSession): number;
-/** Union of reviewed ids across sessions, de-duplicated. Pure (unit-tested). */
+/** Union of reviewed ids across sessions, de-duplicated. Pure (unit-tested). @unstable */
 declare function reviewedHistoryIds(sessions: ReviewSession[]): number[];
-/** True when the cursor is on the session's first location. */
+/** True when the cursor is on the session's first location. @unstable */
 declare function isAtStart(s: ReviewSession): boolean;
-/** Current cursor location is in the reviewed set. */
+/** Current cursor location is in the reviewed set. @unstable */
 declare function isCurrentReviewed(s: ReviewSession): boolean;
-/** Reactive active review session, or null. */
+/** Reactive active review session, or null. @unstable */
 declare function useReviewSession(): ReviewSession | null;
-/** The active review session, or null. */
+/** The active review session, or null. @unstable */
 declare function getReviewSession(): ReviewSession | null;
 /** Start (or resume) a review over `ids`. When `source` is a real selection, the session
- *  is keyed by it so re-reviewing that selection resumes the in-progress session. */
+ *  is keyed by it so re-reviewing that selection resumes the in-progress session. @unstable */
 declare function beginReview(ids: number[], source?: Selection): Promise<void>;
-/** Resume a session picked from the resume modal. */
+/** Resume a session picked from the resume modal. @unstable */
 declare function resumeReview(s: ReviewSession): Promise<void>;
-/** Mark the current location reviewed and step to the next one. */
+/** Mark the current location reviewed and step to the next one. @unstable */
 declare function reviewNext(): Promise<void>;
-/** Step back to the previous location in the session. */
+/** Step back to the previous location in the session. @unstable */
 declare function reviewPrev(): Promise<void>;
 /** Delete the current location and advance FORWARD (like reviewNext) — to the item that
  *  followed it, or exit the pass if it was the last one. We navigate off the doomed location
  *  first so the shared `removeLocations` doesn't bounce us to the overview; its emitted
- *  `location:remove` is then a no-op for our reconcile listener (already pruned). */
+ *  `location:remove` is then a no-op for our reconcile listener (already pruned). @unstable */
 declare function reviewDelete(): Promise<void>;
-/** Exit the review UI but keep the session resumable (persisted as active). */
+/** Exit the review UI but keep the session resumable (persisted as active). @unstable */
 declare function cancelReview(): void;
 /** Rename a session (custom label over the auto-derived selection name). Persists immediately;
- *  also patches the live session if it's the one being renamed. */
+ *  also patches the live session if it's the one being renamed. @unstable */
 declare function renameReview(id: string, name: string): Promise<void>;
-/** Delete a review session (its progress, not the locations). */
+/** Delete a review session (its progress, not the locations). @unstable */
 declare function deleteSession(id: string): Promise<void>;
-/** Review sessions for the open map, optionally filtered by status. */
+/** Review sessions for the open map, optionally filtered by status. @unstable */
 declare function listSessions(status?: "active" | "done"): Promise<ReviewSession[]>;
 /** Select every location marked reviewed across all review sessions on this map (active + done).
- *  A snapshot; re-running refreshes it in place (deterministic key). */
+ *  A snapshot; re-running refreshes it in place (deterministic key). @unstable */
 declare function selectReviewedHistory(): Promise<void>;
 /** Add a reviewed/unreviewed overlay selection for an arbitrary session (resume modal). Mirrors
- *  refreshProjection's selector so the key and color match an in-progress projection. */
+ *  refreshProjection's selector so the key and color match an in-progress projection. @unstable */
 declare function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed"): Promise<void>;
 
 export type review_PruneResult = PruneResult;
@@ -4197,7 +4297,7 @@ export interface DeclOpts {
 }
 /** Run one procedure over `selector`, on its own. The primitive: a consumer that is not
  *  enrichment (validation, a download resolving pano ids) declares a spec and calls this,
- *  and gets its collected answers typed by the spec. */
+ *  and gets its collected answers typed by the spec. @unstable */
 declare function runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: RunOpts & Omit<DeclOpts, "fields" | "requires"> & {
     id: string;
 }): Promise<ResolverOutcome<T>>;
@@ -4496,14 +4596,19 @@ declare namespace legacy {
 
 /** Forces a full selection re-resolve in Rust and returns the raw selected IDs.
  *  App code reads `getMapState().selectedLocationIds` — mutations already sync
- *  selections via MutationResult. */
+ *  selections via MutationResult. @unstable */
 declare function syncSelections(): Promise<{
     ids: number[];
 }>;
+/** @unstable */
 declare function openMap(id: string): Promise<void>;
+/** @unstable */
 declare function closeMap(): Promise<void>;
+/** @unstable */
 declare function deleteMap(id: string): Promise<void>;
+/** @unstable */
 declare function importPaste(text: string): Promise<EditorImportResult[]>;
+/** @unstable */
 declare function importFile(droppedFields: string[], tagName?: string): Promise<EditorImportResult>;
 
 declare const testApi_closeMap: typeof closeMap;
