@@ -46,7 +46,7 @@ vi.mock("@/store/useMapStore", () => ({
 }));
 
 // The real fieldDefs module runs here, so the field catalog it reads has to be present.
-vi.mock("@/bindings.gen", () => ({
+vi.mock("@/bindings.consts", () => ({
 	BUILTIN_FIELDS: [
 		{ key: "panoId", label: "Pano ID", type: "string", kind: null, comparison: null },
 		{ key: "heading", label: "Heading", type: "number", kind: "writable", comparison: null },
@@ -64,6 +64,9 @@ vi.mock("@/bindings.gen", () => ({
 		{ key: "coverageDates", type: "array", label: "Coverage dates", defaultOff: true },
 		{ key: "subdivision", type: "string", label: "Subdivision", defaultOff: true },
 	].map((f) => ({ ...f, values: [], labels: [], circularPeriod: null })),
+}));
+
+vi.mock("@/bindings.gen", () => ({
 	events: {
 		procedureProgress: {
 			listen: (cb: (e: { payload: unknown }) => void) => {

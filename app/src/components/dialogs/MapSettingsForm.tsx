@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { mdiRestore, mdiClose } from "@mdi/js";
-import { DEFAULT_DUPLICATE_SCORE } from "@/bindings.gen";
+import { DEFAULT_DUPLICATE_SCORE } from "@/bindings.consts";
 import type { MapMeta } from "@/bindings.gen";
 import { patchMapMeta } from "@/store/useMapStore";
 import { deleteMap } from "@/store/mapList";

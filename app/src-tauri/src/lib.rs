@@ -1,6 +1,7 @@
 //! Application entry point: module tree, the IPC command surface (tauri-specta),
 //! Tauri plugin setup, and the event loop. No business logic lives here.
 
+use crate::types::TsConst;
 use specta_typescript::semantic::Configuration;
 use std::error;
 use std::fs;
@@ -84,11 +85,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .semantic_types(Configuration::default().enable_lossless_floats())
         // Exported for TS but not carried by any command signature.
         .typ::<store::maps::CameraType>()
-        .constant("KNOWN_FIELDS", store::maps::KNOWN_FIELDS)
-        .constant("SCRATCH_MAP_ID", store::maps::SCRATCH_MAP_ID)
-        .constant("BUILTIN_FIELDS", selections::BUILTIN_FIELDS)
-        .constant("PROJECTIONS", selections::PROJECTIONS)
-        .constant("DEFAULT_DUPLICATE_SCORE", selections::DEFAULT_DUPLICATE_SCORE)
         .commands(tauri_specta::collect_commands![
             app_ready,
             store::storage::write_temp_file,
@@ -289,47 +285,23 @@ fn export_consts() -> Result<(), String> {
 // No imports, ever: procedures bundle this file and must not reach Tauri.
 ",
     );
-    // A name -> value map also carries its value union, so one import spells both.
-    let mut put = |name: &str, doc: &[&str], value: String, union: bool| {
-        ts.push('\n');
-        match doc {
-            [] => {}
-            [one] => ts.push_str(&format!("/** {} */\n", one.trim())),
-            many => {
-                ts.push_str("/**\n");
-                for line in many {
-                    ts.push_str(&format!(" * {}\n", line.trim()));
-                }
-                ts.push_str(" */\n");
-            }
-        }
-        ts.push_str(&format!("export const {name} = {value} as const;\n"));
-        if union {
-            ts.push_str(&format!(
-                "export type {name} = (typeof {name})[keyof typeof {name}];\n"
-            ));
-        }
-    };
-    put(
-        "LocationFlag",
-        types::LocationFlags::DOC,
-        types::wire_object(types::LocationFlags::wire_names()),
-        true,
-    );
-    put(
-        "PanoType",
-        types::PanoType::DOC,
-        types::wire_object(types::PanoType::wire_names()),
-        true,
-    );
-    put(
-        "ValidationState",
-        types::ValidationState::DOC,
-        types::wire_object(types::ValidationState::wire_names()),
-        true,
-    );
+    for (name, konst) in [
+        ("LocationFlag", types::LocationFlags::ts_const()),
+        ("PanoType", types::PanoType::ts_const()),
+        ("ValidationState", types::ValidationState::ts_const()),
+        ("BUILTIN_FIELDS", TsConst::value(selections::BUILTIN_FIELDS)),
+        (
+            "DEFAULT_DUPLICATE_SCORE",
+            TsConst::value(selections::DEFAULT_DUPLICATE_SCORE),
+        ),
+        ("KNOWN_FIELDS", TsConst::value(store::maps::KNOWN_FIELDS)),
+        ("PROJECTIONS", TsConst::value(selections::PROJECTIONS)),
+        ("SCRATCH_MAP_ID", TsConst::value(store::maps::SCRATCH_MAP_ID)),
+    ] {
+        ts.push_str(&konst.render(name));
+    }
     for (name, value, doc) in types::LocationFlags::WIRE_CONSTS {
-        put(name, doc, value.to_string(), false);
+        ts.push_str(&TsConst::value(value).with_doc(doc).render(name));
     }
     fs::write(&out, ts).map_err(|e| e.to_string())?;
     eprintln!("[specta] constants exported to {}", out.display());

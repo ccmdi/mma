@@ -4,7 +4,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { emit } from "@/lib/events";
 import { useMapList, setCachedMapList, isReservedMap } from "@/store/mapList";
-import { SCRATCH_MAP_ID, type MapMeta } from "@/bindings.gen";
+import { SCRATCH_MAP_ID } from "@/bindings.consts";
+import { type MapMeta } from "@/bindings.gen";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 

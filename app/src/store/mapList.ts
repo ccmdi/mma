@@ -1,4 +1,5 @@
-﻿import { SCRATCH_MAP_ID, type MapMeta } from "@/bindings.gen";
+﻿import { SCRATCH_MAP_ID } from "@/bindings.consts";
+import { type MapMeta } from "@/bindings.gen";
 import { emit as tauriEmit } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import { emit as emitEvent, useEventValue } from "@/lib/events";

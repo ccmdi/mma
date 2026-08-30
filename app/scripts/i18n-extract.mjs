@@ -24,7 +24,7 @@ function sourceFiles(dir, out = []) {
 		const p = path.join(dir, e.name);
 		if (e.isDirectory()) {
 			if (e.name !== "locales") sourceFiles(p, out);
-		} else if (/\.tsx?$/.test(e.name) && !/\.(gen|d)\.tsx?$/.test(e.name)) {
+		} else if (/\.tsx?$/.test(e.name) && !/^bindings\.|\.(gen|d)\.tsx?$/.test(e.name)) {
 			out.push(p);
 		}
 	}
@@ -134,7 +134,7 @@ export function extract(files) {
 /** Field and enum labels defined on the Rust side reach the UI through the generated
  *  bindings, so extraction reads them from there -- the bindings stay the single source. */
 function bindingLabels() {
-	const file = path.join(SRC, "bindings.gen.ts");
+	const file = path.join(SRC, "bindings.consts.ts");
 	const sf = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
 	const labels = [];
 	for (const st of sf.statements) {
@@ -145,7 +145,8 @@ function bindingLabels() {
 			const init = ts.isAsExpression(decl.initializer)
 				? decl.initializer.expression
 				: decl.initializer;
-			for (const f of JSON.parse(init.getText(sf))) {
+			// The file is prettier-formatted, so its literals are JS objects, not JSON.
+			for (const f of new Function(`return ${init.getText(sf)}`)()) {
 				if (f.label) labels.push(f.label);
 				for (const [, label] of f.labels ?? []) labels.push(label);
 			}

@@ -24,7 +24,7 @@
  */
 
 import { emit } from "@/lib/events";
-import { BUILTIN_FIELDS, PROJECTIONS } from "@/bindings.gen";
+import { BUILTIN_FIELDS, PROJECTIONS } from "@/bindings.consts";
 import type { ExtraFieldDef, ExtraFieldType } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
 

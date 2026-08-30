@@ -120,14 +120,75 @@ pub fn wire_names<V>(pairs: impl IntoIterator<Item = (&'static str, V)>) -> Vec<
     pairs.into_iter().map(|(n, v)| (pascal(n), v)).collect()
 }
 
-/// Those pairs as the TypeScript object literal the mirror declares.
-pub fn wire_object<V: std::fmt::Display>(pairs: impl IntoIterator<Item = (String, V)>) -> String {
-    let body = pairs
-        .into_iter()
-        .map(|(n, v)| format!("{n}: {v}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!("{{ {body} }}")
+/// One constant the TypeScript mirror declares: its docs, its literal, and whether it
+/// also carries the value union.
+pub struct TsConst {
+    doc: &'static [&'static str],
+    literal: String,
+    union: bool,
+}
+
+impl TsConst {
+    /// Any serializable value, spelled as its JSON literal.
+    pub fn value<T: serde::Serialize>(v: T) -> Self {
+        Self {
+            doc: &[],
+            literal: serde_json::to_string(&v).expect("constant serializes"),
+            union: false,
+        }
+    }
+
+    /// A name -> value object in declaration order, which also gets its value union.
+    pub fn names<V: fmt::Display>(pairs: impl IntoIterator<Item = (String, V)>) -> Self {
+        let body = pairs
+            .into_iter()
+            .map(|(n, v)| format!("{n}: {v}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        Self {
+            doc: &[],
+            literal: format!("{{ {body} }}"),
+            union: true,
+        }
+    }
+
+    pub fn with_doc(mut self, doc: &'static [&'static str]) -> Self {
+        self.doc = doc;
+        self
+    }
+
+    /// The declaration as it lands in the file.
+    pub fn render(&self, name: &str) -> String {
+        let mut ts = String::from("
+");
+        match self.doc {
+            [] => {}
+            [one] => ts.push_str(&format!("/** {} */
+", one.trim())),
+            many => {
+                ts.push_str("/**
+");
+                for line in many {
+                    ts.push_str(&format!(" * {}
+", line.trim()));
+                }
+                ts.push_str(" */
+");
+            }
+        }
+        ts.push_str(&format!(
+            "export const {name} = {} as const;
+",
+            self.literal
+        ));
+        if self.union {
+            ts.push_str(&format!(
+                "export type {name} = (typeof {name})[keyof typeof {name}];
+"
+            ));
+        }
+        ts
+    }
 }
 
 /// A closed set of numeric values Rust owns: the constants, the enum-field catalogue
@@ -142,6 +203,9 @@ macro_rules! wire_enum {
             pub const DOC: &'static [&'static str] = &[$($doc),*];
             pub fn wire_names() -> Vec<(String, $repr)> {
                 wire_names([$((stringify!($konst), $val)),*])
+            }
+            pub fn ts_const() -> TsConst {
+                TsConst::names(Self::wire_names()).with_doc(Self::DOC)
             }
         }
     };
@@ -226,10 +290,11 @@ wire_bitflags! {
 }
 
 impl LocationFlags {
-    pub fn wire_names() -> Vec<(String, u32)> {
-        wire_names(
+    pub fn ts_const() -> TsConst {
+        let names = wire_names(
             iter::once(("NONE", 0)).chain(Self::all().iter_names().map(|(n, f)| (n, f.bits()))),
-        )
+        );
+        TsConst::names(names).with_doc(Self::DOC)
     }
 }
 

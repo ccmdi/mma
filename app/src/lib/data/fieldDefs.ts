@@ -1,5 +1,5 @@
+import { KNOWN_FIELDS } from "@/bindings.consts";
 import {
-	KNOWN_FIELDS,
 	type BatchMode,
 	type ExtraFieldDef,
 	type RateSpec,
