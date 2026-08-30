@@ -157,7 +157,7 @@ let autosaveHolds = 0;
 let saveDeferred = false;
 
 /** Defer autosave until the returned release runs. A bulk run that lands many mutations
- *  would otherwise re-serialize the whole overlay on each one; one save at the end is enough. */
+ *  would otherwise re-serialize the whole overlay on each one; one save at the end is enough. @unstable */
 export function holdAutosave(): () => void {
 	autosaveHolds++;
 	return () => {
@@ -169,6 +169,7 @@ export function holdAutosave(): () => void {
 	};
 }
 
+/** @unstable */
 export function scheduleSave() {
 	if (autosaveHolds > 0) {
 		saveDeferred = true;
@@ -181,6 +182,7 @@ export function scheduleSave() {
 	}, AUTOSAVE_DELAY_MS);
 }
 
+/** @unstable */
 export function cancelAutosave() {
 	if (autosaveTimer) {
 		clearTimeout(autosaveTimer);
@@ -188,11 +190,12 @@ export function cancelAutosave() {
 	}
 }
 
+/** @unstable */
 export function waitForInflightPersist() {
 	return inflightPersist;
 }
 
-/** Background auto-commit after an import with autoCommit set. */
+/** Background auto-commit after an import with autoCommit set. @unstable */
 export function scheduleAutoCommit(mapId: string, importedCount: number) {
 	inflightPersist = cmd
 		.storeCommit(mapId, `Import ${importedCount} locations`)
@@ -228,14 +231,14 @@ async function doSave(): Promise<void> {
 	await inflightPersist;
 }
 
-/** Save any unsaved changes now instead of waiting for the autosave timer. */
+/** Save any unsaved changes now instead of waiting for the autosave timer. @unstable */
 export async function flushSave(): Promise<void> {
 	cancelAutosave();
 	await doSave();
 }
 
 // --- Init (called once at startup) ---
-/** One-time store startup. The app calls this; plugins never need to. */
+/** One-time store startup. The app calls this; plugins never need to. @unstable */
 export async function initStore() {
 	setCachedMapList(await cmd.storeListMaps());
 	emitEvent("store:changed");
@@ -340,7 +343,7 @@ export async function closeMap() {
 	await cmd.storeCloseMap();
 }
 
-/** Drop the open map without persisting anything */
+/** Drop the open map without persisting anything @unstable */
 export function discardOpenMap() {
 	cancelAutosave();
 	resetMapState();
@@ -504,7 +507,7 @@ function applyMutation(r: MutationResult) {
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
 }
 
-/** Decode the inline bitmask bytes from Rust and emit to the event bus. */
+/** Decode the inline bitmask bytes from Rust and emit to the event bus. @unstable */
 export function emitBitmask(bytes: number[]) {
 	const { selColors, cellEntries } = decodeSelectionBitmask(bytes);
 	emitEvent("render:selection", {
@@ -866,13 +869,13 @@ export async function selectSpacedFromSelection(
 	return { picked: ids.length, distanceM };
 }
 
-/** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. */
+/** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
 export function previewDuplicateGroups(distance: number): Promise<number[][]> {
 	return cmd.storeDuplicateGroups(distance);
 }
 
 /** Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
- *  map's duplicate preference. One undoable edit. */
+ *  map's duplicate preference. One undoable edit. @unstable */
 export async function mergeDuplicates(distance: number) {
 	await mutate(() =>
 		cmd.storeMergeDuplicates(distance, state.map?.settings.duplicateScore ?? null),
@@ -882,6 +885,7 @@ export async function mergeDuplicates(distance: number) {
 /**
  * Prune duplicates within a resolved selection: keeps the most relevant location per
  * cluster (<= 25m) or thins to enforce spacing (> 25m). Returns the number pruned.
+ *  @unstable
  */
 export async function pruneDuplicates(selector: Selector, distance: number): Promise<number> {
 	if (!state.map) return 0;
@@ -1017,7 +1021,7 @@ let virtualIdSeq = 0;
 const freshVirtualId = () => --virtualIdSeq;
 
 /** Open a staged-import location read-only, "as if" it were active. The location becomes
- *  virtual (negative id; ImportPreview flag) so identity and mutate-guards derive from it. */
+ *  virtual (negative id; ImportPreview flag) so identity and mutate-guards derive from it. @unstable */
 export async function openStagedLocation(index: number) {
 	const loc = await cmd.storeImportStagedLocation(index);
 	// Rust's active_id must not stay pinned to the previous real location.
@@ -1037,7 +1041,7 @@ export async function openStagedLocation(index: number) {
 }
 
 /** Open an arbitrary location read-only as a virtual seen-preview: loads its pano without
- *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. */
+ *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
 export function previewVirtualLocation(loc: Location) {
 	void cmd.storeSetActive(null);
 	setState({
@@ -1117,20 +1121,20 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 	t.end();
 }
 
-/** Open one location from the duplicate-resolution panel in the editor. */
+/** Open one location from the duplicate-resolution panel in the editor. @unstable */
 export function openDuplicateLocation(loc: Location) {
 	setState({ activeLocationId: loc.id, activeLocation: loc, workArea: "location" });
 	void cmd.storeSetActive(loc.id);
 	emitEvent("store:changed");
 }
 
-/** Drop a location from the duplicate-resolution panel (does not delete it). */
+/** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
 export function removeDuplicate(id: number) {
 	setState({ duplicateLocations: state.duplicateLocations.filter((l) => l.id !== id) });
 	emitEvent("store:changed");
 }
 
-/** Close the duplicate-resolution panel and return to the overview. */
+/** Close the duplicate-resolution panel and return to the overview. @unstable */
 export function closeDuplicates() {
 	setState({ duplicateLocations: [] });
 	setWorkArea("overview");

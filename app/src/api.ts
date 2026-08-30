@@ -157,6 +157,9 @@ const surface = {
 	ready: false,
 
 	// --- Rust IPC commands ---
+	/** Generated from the Rust command set, so it moves whenever the backend does.
+	 *  A command plugins should be able to rely on gets a wrapper here instead.
+	 *  @unstable */
 	cmd: commands as Cmd,
 
 	// --- Tauri primitives (for plugins) ---
@@ -253,14 +256,18 @@ const surface = {
 	mmaBufUrl,
 
 	// --- Test-only convenience ---
+	/** @unstable */
 	_test: testApi,
 };
 
 type StoreApi = typeof store;
+/** One dialog's own state machine, exposed only because the surface is flat. @unstable */
 type ImportStagingApi = typeof importStaging;
+/** One dialog's own state machine, exposed only because the surface is flat. @unstable */
 type CommitDiffApi = typeof commitDiff;
 type SelectorPickApi = typeof picker;
 type MapListApi = typeof mapList;
+/** The review screen driving itself. @unstable */
 type ReviewApi = typeof review;
 type SurfaceApi = typeof surface;
 type LegacyApi = typeof legacy;

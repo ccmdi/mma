@@ -171,7 +171,7 @@ async function sourceData(source: SelectorPick): Promise<LatLng[]> {
   const ids =
     source.pick === "all"
       ? null
-      : new Set(await MMA.cmd.storeResolve(MMA.selectorForPick(source)));
+      : new Set(await MMA.resolveIds(MMA.selectorForPick(source)));
   const scene = MMA.getScenePositions();
   const out: LatLng[] = [];
   for (let i = 0; i < scene.ids.length; i++) {

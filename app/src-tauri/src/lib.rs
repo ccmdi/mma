@@ -259,15 +259,32 @@ pub fn export_bindings() -> Result<(), String> {
     specta_builder()
         .export(specta_typescript::Typescript::default(), &out)
         .map_err(|e| format!("{e:?}"))?;
-    // Collapse specta's `Foo_Serialize | Foo_Deserialize` unions into one `Foo`.
+    // Collapse specta's `Foo_Serialize | Foo_Deserialize` unions into one `Foo`. The
+    // union line carries its own copy of the type's doc comment, which would be left
+    // orphaned above the real declaration, so it goes with the line.
     let src = fs::read_to_string(&out).expect("read bindings");
-    let promoted: String = src
-        .lines()
-        .filter(|l| {
-            !(l.starts_with("export type ")
-                && l.contains("_Serialize | ")
-                && l.contains("_Deserialize;"))
-        })
+    let mut kept: Vec<&str> = Vec::new();
+    for line in src.lines() {
+        let is_union = line.starts_with("export type ")
+            && line.contains("_Serialize | ")
+            && line.contains("_Deserialize;");
+        if !is_union {
+            kept.push(line);
+            continue;
+        }
+        while kept.last().is_some_and(|l| l.trim().is_empty()) {
+            kept.pop();
+        }
+        if kept.last().is_some_and(|l| l.trim_end().ends_with("*/")) {
+            while let Some(l) = kept.pop() {
+                if l.trim_start().starts_with("/**") {
+                    break;
+                }
+            }
+        }
+    }
+    let promoted: String = kept
+        .iter()
         .map(|l| l.replace("_Serialize", "") + "\n")
         .collect();
     fs::write(&out, promoted).expect("write bindings");

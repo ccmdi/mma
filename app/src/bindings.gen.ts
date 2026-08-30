@@ -924,11 +924,6 @@ export type Location = {
 	modifiedAt: number | null,
 };
 
-/**
- *  Partial location update from JS. `None` fields are unchanged; `Some(None)` on
- *  nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
- *  `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
- */
 
 /**
  *  Partial location update from JS. `None` fields are unchanged; `Some(None)` on
@@ -1011,10 +1006,6 @@ export type MapMeta = {
 	lastOpenedAt: string | null,
 };
 
-/**
- *  Partial update for map metadata. Only non-`None` fields are written.
- *  `folder: Some(None)` explicitly unsets the folder (moves to root).
- */
 
 /**
  *  Partial update for map metadata. Only non-`None` fields are written.
@@ -1132,10 +1123,6 @@ export type PartitionBucket = {
 	bin: [number, number] | null,
 };
 
-/**
- *  A published build of a plugin, pinned to the commit its files live at. Carries only
- *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
- */
 
 /**
  *  A published build of a plugin, pinned to the commit its files live at. Carries only
@@ -1157,7 +1144,6 @@ export type PluginBuild = {
 	minAppVersion?: string | null,
 };
 
-/**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
 
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
 export type PluginManifest_Deserialize = {
@@ -1201,7 +1187,6 @@ export type PluginManifest = {
 	builds?: PluginBuild[],
 };
 
-/**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
 
 /**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
 export type PluginSidecar_Deserialize = {
@@ -1760,7 +1745,6 @@ export type ValiCountryStatus = {
 	files: number,
 	bytes: number,
 };
-
 
 export type ValiLocation_Deserialize = {
 	lat: number,

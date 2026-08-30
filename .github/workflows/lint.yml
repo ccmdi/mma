@@ -115,3 +115,25 @@ jobs:
         working-directory: app
       - name: Fail if image dimensions are stale (run npm run gen:image-dims)
         run: git diff --exit-code -- app/src/components/manual/manual-img-dims.gen.ts
+
+  legacy-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The check reads mma.d.ts out of the support floor's release tag.
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
+      # The API surface is read off mma.d.ts, so a stale one would check nothing.
+      - run: npm run gen:plugin-types
+        working-directory: app
+      - name: Fail if the plugin SDK types are stale (run npm run gen:plugin-types)
+        run: git diff --exit-code -- plugins/types/mma.d.ts plugins/types/google-maps.d.ts
+      - name: Fail if a stable plugin-visible API was removed without a legacy shim
+        run: node plugins/check-legacy.mjs

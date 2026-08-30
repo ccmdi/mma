@@ -36,9 +36,9 @@ declare const commands: {
     listUserPlugins: () => Promise<PluginManifest[]>;
     /**
      *  Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
-     *  the procedure module it declares.
+     *  the procedure module it declares. `git_ref` pins an older build; `None` takes master.
      */
-    installPlugin: (id: string) => Promise<PluginManifest>;
+    installPlugin: (id: string, gitRef: string | null) => Promise<PluginManifest>;
     /**  Delete a plugin's directory. */
     uninstallPlugin: (id: string) => Promise<null>;
     /**
@@ -1036,11 +1036,6 @@ type Location = {
  *  nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
  *  `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
  */
-/**
- *  Partial location update from JS. `None` fields are unchanged; `Some(None)` on
- *  nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
- *  `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
- */
 type LocationPatch_Deserialize = {
     lat?: number | null;
     lng?: number | null;
@@ -1125,10 +1120,6 @@ type MapMeta = {
     updatedAt: string;
     lastOpenedAt: string | null;
 };
-/**
- *  Partial update for map metadata. Only non-`None` fields are written.
- *  `folder: Some(None)` explicitly unsets the folder (moves to root).
- */
 /**
  *  Partial update for map metadata. Only non-`None` fields are written.
  *  `folder: Some(None)` explicitly unsets the folder (moves to root).
@@ -1257,7 +1248,24 @@ type PartitionBucket = {
     ids: number[];
     bin: [number, number] | null;
 };
-/**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
+/**
+ *  A published build of a plugin, pinned to the commit its files live at. Carries only
+ *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
+ */
+type PluginBuild_Deserialize = {
+    version: string;
+    ref: string;
+    minAppVersion: string | null;
+};
+/**
+ *  A published build of a plugin, pinned to the commit its files live at. Carries only
+ *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
+ */
+type PluginBuild = {
+    version: string;
+    ref: string;
+    minAppVersion?: string | null;
+};
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
 type PluginManifest_Deserialize = {
     id?: string;
@@ -1272,6 +1280,11 @@ type PluginManifest_Deserialize = {
     comingSoon?: boolean;
     minAppVersion?: string | null;
     sidecar?: PluginSidecar_Deserialize | null;
+    /**
+     *  Registry-only: prior builds an app under `min_app_version` can fall back to.
+     *  An installed manifest never carries these.
+     */
+    builds?: PluginBuild_Deserialize[];
 };
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
 type PluginManifest = {
@@ -1287,8 +1300,12 @@ type PluginManifest = {
     comingSoon?: boolean;
     minAppVersion?: string | null;
     sidecar?: PluginSidecar | null;
+    /**
+     *  Registry-only: prior builds an app under `min_app_version` can fall back to.
+     *  An installed manifest never carries these.
+     */
+    builds?: PluginBuild[];
 };
-/**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
 /**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
 type PluginSidecar_Deserialize = {
     name: string;
@@ -2301,16 +2318,19 @@ declare function getTag(id: number): Tag | undefined;
  *  name rather than id, because a staged tag may not exist yet. */
 declare function tagIdsToNames(ids: number[]): string[];
 /** Defer autosave until the returned release runs. A bulk run that lands many mutations
- *  would otherwise re-serialize the whole overlay on each one; one save at the end is enough. */
+ *  would otherwise re-serialize the whole overlay on each one; one save at the end is enough. @unstable */
 declare function holdAutosave(): () => void;
+/** @unstable */
 declare function scheduleSave(): void;
+/** @unstable */
 declare function cancelAutosave(): void;
+/** @unstable */
 declare function waitForInflightPersist(): Promise<void> | null;
-/** Background auto-commit after an import with autoCommit set. */
+/** Background auto-commit after an import with autoCommit set. @unstable */
 declare function scheduleAutoCommit(mapId: string, importedCount: number): void;
-/** Save any unsaved changes now instead of waiting for the autosave timer. */
+/** Save any unsaved changes now instead of waiting for the autosave timer. @unstable */
 declare function flushSave(): Promise<void>;
-/** One-time store startup. The app calls this; plugins never need to. */
+/** One-time store startup. The app calls this; plugins never need to. @unstable */
 declare function initStore(): Promise<void>;
 /** Cross-module stopwatch for map-open latency. */
 declare const mapOpen: {
@@ -2323,7 +2343,7 @@ declare const mapOpen: {
 declare function openMap$1(id: string): Promise<void>;
 /** Close the open map, saving unsaved changes first. */
 declare function closeMap$1(): Promise<void>;
-/** Drop the open map without persisting anything */
+/** Drop the open map without persisting anything @unstable */
 declare function discardOpenMap(): void;
 /** Ids of every location the selector resolves to. */
 declare function resolveIds(selector: Selector): Promise<number[]>;
@@ -2368,7 +2388,7 @@ declare function patchMapMeta(id: string, patch: MapMetaPatch_Deserialize): Prom
 declare function updateMapMeta(patch: MapMetaPatch_Deserialize): Promise<void> | undefined;
 /** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
 declare function setMapExtraFields(fields: Record<string, ExtraFieldDef>): Promise<void>;
-/** Decode the inline bitmask bytes from Rust and emit to the event bus. */
+/** Decode the inline bitmask bytes from Rust and emit to the event bus. @unstable */
 declare function emitBitmask(bytes: number[]): void;
 /** Run a mutation IPC, emit its render delta, sync JS state, and schedule a save. */
 declare function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
@@ -2432,14 +2452,15 @@ declare function selectSpacedFromSelection(opts: {
     picked: number;
     distanceM: number;
 }>;
-/** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. */
+/** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
 declare function previewDuplicateGroups(distance: number): Promise<number[][]>;
 /** Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
- *  map's duplicate preference. One undoable edit. */
+ *  map's duplicate preference. One undoable edit. @unstable */
 declare function mergeDuplicates(distance: number): Promise<void>;
 /**
  * Prune duplicates within a resolved selection: keeps the most relevant location per
  * cluster (<= 25m) or thins to enforce spacing (> 25m). Returns the number pruned.
+ *  @unstable
  */
 declare function pruneDuplicates(selector: Selector, distance: number): Promise<number>;
 /** Edit an existing filter (or any selection) in place by key, preserving its
@@ -2470,21 +2491,21 @@ declare const getSelectedTagIds: () => ReadonlySet<number>;
  *  Deep counterpart of getSelectedTagIds (top-level only, as a set). */
 declare const getSelectedTagIdsDeep: () => readonly number[];
 /** Open a staged-import location read-only, "as if" it were active. The location becomes
- *  virtual (negative id; ImportPreview flag) so identity and mutate-guards derive from it. */
+ *  virtual (negative id; ImportPreview flag) so identity and mutate-guards derive from it. @unstable */
 declare function openStagedLocation(index: number): Promise<void>;
 /** Open an arbitrary location read-only as a virtual seen-preview: loads its pano without
- *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. */
+ *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
 declare function previewVirtualLocation(loc: Location): void;
 /** Materialize a `MaybeLocation`. */
 declare function resolveLocation(m: MaybeLocation): Promise<Location | null>;
 /** Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
  *  with 2+ locations within 2m opens the duplicate-resolution panel instead. */
 declare function setActiveLocation(target: MaybeLocation | null, checkDuplicates?: boolean): Promise<void>;
-/** Open one location from the duplicate-resolution panel in the editor. */
+/** Open one location from the duplicate-resolution panel in the editor. @unstable */
 declare function openDuplicateLocation(loc: Location): void;
-/** Drop a location from the duplicate-resolution panel (does not delete it). */
+/** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
 declare function removeDuplicate(id: number): void;
-/** Close the duplicate-resolution panel and return to the overview. */
+/** Close the duplicate-resolution panel and return to the overview. @unstable */
 declare function closeDuplicates(): void;
 /** Transition the editor pane, enforcing state invariants:
  *  leaving "location" clears the active location, leaving "plugin" clears the plugin id. */
@@ -4490,6 +4511,9 @@ declare function sidecarRequest<T>(pluginId: string, command: string, payload?: 
 /** Explicitly exposed functions not in other APIs. */
 declare const surface: {
     ready: boolean;
+    /** Generated from the Rust command set, so it moves whenever the backend does.
+     *  A command plugins should be able to rely on gets a wrapper here instead.
+     *  @unstable */
     cmd: Cmd;
     invoke: typeof invoke;
     shell: {
@@ -4624,13 +4648,17 @@ declare const surface: {
     needsEnrichment: typeof needsEnrichment;
     svMetadata: typeof svMetadata;
     mmaBufUrl: typeof mmaBufUrl;
+    /** @unstable */
     _test: typeof testApi;
 };
 export type StoreApi = typeof store;
+/** One dialog's own state machine, exposed only because the surface is flat. @unstable */
 export type ImportStagingApi = typeof importStaging;
+/** One dialog's own state machine, exposed only because the surface is flat. @unstable */
 export type CommitDiffApi = typeof commitDiff;
 export type SelectorPickApi = typeof picker;
 export type MapListApi = typeof mapList;
+/** The review screen driving itself. @unstable */
 export type ReviewApi = typeof review;
 export type SurfaceApi = typeof surface;
 export type LegacyApi = typeof legacy;
@@ -4647,4 +4675,4 @@ declare global {
 }
 
 export { BUILTIN_FIELDS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
