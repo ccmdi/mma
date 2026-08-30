@@ -1,7 +1,7 @@
 // The mirror of check-floors.mjs: that one catches a plugin reaching for an API newer
 // than it claims to support, this one catches the app deleting an API that shipped
-// plugins still call. Every member of the MMA surface at the support floor must still
-// exist today, unless it was marked `@unstable` back then.
+// plugins still call. Every member the MMA surface shipped stable in any release since
+// the support floor must still exist today.
 //
 // Stable  -> a rename or removal needs a shim in app/src/legacy.ts.
 // @unstable -> reachable and documented, but no guarantee; delete it freely.
@@ -14,7 +14,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // How far back the promise reaches: the first release whose mma.d.ts carries @unstable
-// tags. Raising it ages out every older guarantee at once.
+// tags. Every release from here to HEAD is checked -- an API that shipped stable in any
+// of them is a promise. Raising the floor ages out every older guarantee at once.
 const SUPPORT_FLOOR = "0.10.2";
 
 const pluginsDir = dirname(fileURLToPath(import.meta.url));
@@ -29,10 +30,24 @@ if (!existsSync(join(typesDir, "node_modules"))) {
 }
 const ts = createRequire(join(typesDir, "package.json"))("typescript");
 
-/** `mma.d.ts` as committed at tag `v<version>`, or null when no such tag exists. */
-function sdkAt(version) {
-	const r = spawnSync("git", ["show", `v${version}:plugins/types/mma.d.ts`], { cwd: pluginsDir });
-	return r.status === 0 ? r.stdout : null;
+const gitOk = (args) => {
+	const r = spawnSync("git", args, { cwd: pluginsDir, encoding: "utf-8" });
+	return r.status === 0 ? r.stdout.trim() : null;
+};
+
+const cmpVer = (a, b) => {
+	const [x, y] = [a.split(".").map(Number), b.split(".").map(Number)];
+	for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0);
+	return 0;
+};
+
+/** Release tags (vX.Y.Z) at or above the floor, oldest first. */
+function supportedTags() {
+	return (gitOk(["tag", "--list", "v*"]) || "")
+		.split("\n")
+		.filter((t) => /^v\d+\.\d+\.\d+$/.test(t))
+		.filter((t) => cmpVer(t.slice(1), SUPPORT_FLOOR) >= 0)
+		.sort((a, b) => cmpVer(a.slice(1), b.slice(1)));
 }
 
 /** Every dotted member path on the `MMA` interface (`sidecar.request`), mapped to whether
@@ -94,36 +109,54 @@ function surfaceOf(dtsPath) {
 	return surface;
 }
 
-const floorSrc = sdkAt(SUPPORT_FLOOR);
-if (!floorSrc) {
+const tags = supportedTags();
+if (!tags.length) {
 	console.log(`Support floor v${SUPPORT_FLOOR} is unreleased -- nothing to compare against yet.`);
 	process.exit(0);
 }
 
-let head, floor;
+// Most releases do not touch the API, so their mma.d.ts blob is identical to the
+// previous tag's -- parse each distinct blob once, attributed to its oldest tag.
+const blobTags = new Map();
+for (const tag of tags) {
+	const blob = gitOk(["rev-parse", `${tag}:plugins/types/mma.d.ts`]);
+	if (blob && !blobTags.has(blob)) blobTags.set(blob, tag);
+}
+
+// A member is promised when any release in the window shipped it stable; `tag` is the
+// oldest release that did.
+const promised = new Map();
+let head;
 try {
-	writeFileSync(floorDts, floorSrc);
 	head = surfaceOf(sdkDts);
-	floor = surfaceOf(floorDts);
+	for (const [blob, tag] of blobTags) {
+		writeFileSync(floorDts, spawnSync("git", ["show", blob], { cwd: pluginsDir }).stdout);
+		for (const [p, unstable] of surfaceOf(floorDts)) {
+			const prev = promised.get(p);
+			if (prev && !prev.unstable) continue;
+			promised.set(p, { unstable, tag });
+		}
+	}
 } finally {
 	rmSync(floorDts, { force: true });
 }
 
-const gone = [...floor.keys()].filter((p) => !head.has(p));
+const gone = [...promised.keys()].filter((p) => !head.has(p));
 // A removed namespace implies its members; reporting both is noise.
 const removed = gone.filter((p) => !p.includes(".") || !gone.includes(p.slice(0, p.lastIndexOf("."))));
-const broken = removed.filter((p) => !floor.get(p)).sort();
+const broken = removed.filter((p) => !promised.get(p).unstable).sort();
 
-const unstableCount = [...floor.values()].filter(Boolean).length;
+const stableCount = [...promised.values()].filter((v) => !v.unstable).length;
 console.log(
-	`Support floor v${SUPPORT_FLOOR}: ${floor.size} members (${unstableCount} unstable), ` +
+	`Support window ${tags[0]}..${tags[tags.length - 1]}: ${tags.length} release(s), ` +
+		`${blobTags.size} distinct surface(s), ${promised.size} members (${promised.size - stableCount} unstable), ` +
 		`${head.size} today, ${removed.length} removed.`,
 );
 
 if (broken.length) {
 	console.error(
-		`\nFAIL: ${broken.length} stable API member(s) plugins built against v${SUPPORT_FLOOR} can still call were removed:\n` +
-			broken.map((p) => `  MMA.${p}`).join("\n") +
+		`\nFAIL: ${broken.length} stable API member(s) shipped plugins can still call were removed:\n` +
+			broken.map((p) => `  MMA.${p} (stable since ${promised.get(p).tag})`).join("\n") +
 			`\n\nAdd a shim in app/src/legacy.ts, or mark it @unstable before removing it.`,
 	);
 	process.exit(1);
