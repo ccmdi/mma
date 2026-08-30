@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TagTreeView } from "@/components/editor/tags/TagTree";
 import type { Tag } from "@/bindings.gen";
+import type { TagSortMode } from "@/types";
 
 const tags: Tag[] = [
 	{ id: 1, name: "alpha", color: "#ff0000", visible: true },
@@ -27,7 +28,7 @@ afterEach(() => {
 	container.remove();
 });
 
-function render(onReorder: (ids: number[]) => void) {
+function render(onReorder: (ids: number[]) => void, sortMode: TagSortMode = "default") {
 	act(() =>
 		root.render(
 			<TagTreeView
@@ -35,7 +36,7 @@ function render(onReorder: (ids: number[]) => void) {
 				split={true}
 				selectedTagIds={new Set()}
 				tagCounts={{ 1: 1, 2: 1, 3: 1 }}
-				sortMode="default"
+				sortMode={sortMode}
 				virtualTags={{}}
 				aliases={{}}
 				onEditTag={() => {}}
@@ -80,6 +81,20 @@ describe("TagTreeView keyboard reorder", () => {
 		act(() => first.focus());
 		act(() => {
 			first.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+		});
+		expect(onReorder).not.toHaveBeenCalled();
+	});
+
+	// A derived sort has no order a reorder could rewrite; moving into a folder still does.
+	it("ignores alt+arrow outside the default sort", () => {
+		const onReorder = vi.fn();
+		render(onReorder, "name");
+		const first = container.querySelector<HTMLElement>("[data-tag-id]")!;
+		act(() => first.focus());
+		act(() => {
+			first.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "ArrowDown", altKey: true, bubbles: true }),
+			);
 		});
 		expect(onReorder).not.toHaveBeenCalled();
 	});

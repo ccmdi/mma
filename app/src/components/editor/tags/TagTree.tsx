@@ -211,11 +211,15 @@ export function TagTreeView({
 
 	const anchorPathRef = useRef<string | null>(null);
 
-	// --- In-level drag reorder (only in "default" sort, not while filtering) ---
+	// --- Drag: move into a folder, and reorder within a level ---
 	// Plain drag moves the grabbed node; ctrl+drag also carries its selected siblings.
 	const [dragPaths, setDragPaths] = useState<ReadonlySet<string> | null>(null);
 	const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
-	const dragEnabled = sortMode === "default" && !filterText;
+	// A filtered tree hides the neighbours a drop reads its position from, so no drag at all.
+	const dragEnabled = !filterText;
+	// Only "default" has an order a drag can rewrite; every other sort derives one, so
+	// dropping between two siblings would be a no-op. Moving into a folder still works.
+	const reorderEnabled = sortMode === "default";
 	const draggedRef = useRef(false);
 	const dragNodeRef = useRef<TagTreeNode | null>(null);
 	const dragBlockRef = useRef<Set<string> | null>(null);
@@ -349,6 +353,7 @@ export function TagTreeView({
 			// Empty folders sit outside the persisted tag order, so they neither reorder
 			// nor serve as before/after targets — for them only "into" applies.
 			if (
+				reorderEnabled &&
 				src.parentPath === node.parentPath &&
 				isLeafTag(src) === isLeafTag(node) &&
 				src.descendantTagIds.length > 0 &&
@@ -390,7 +395,7 @@ export function TagTreeView({
 	// Alt+Arrow is the keyboard route through the same reorder the drag commits.
 	const handleDragKeyDown = useStableHandler((e: React.KeyboardEvent, node: TagTreeNode) => {
 		if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
-		if (!dragEnabled || node.isAlias) return;
+		if (!dragEnabled || !reorderEnabled || node.isAlias) return;
 		const order = stepSiblingFlatOrder(
 			treeRef.current,
 			node.fullPath,
