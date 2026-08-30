@@ -157,6 +157,8 @@ type MapApi = typeof map;
 type SavedSelectionsApi = typeof saved;
 type SettingsApi = typeof settings;
 type SurfaceApi = typeof surface;
+/** Shims for removed APIs: they serve plugins built before the support floor and are
+ *  never a promise to newer ones -- each dies when the floor passes its removal. @unstable */
 type LegacyApi = typeof legacy;
 
 export interface MMA

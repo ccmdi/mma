@@ -4528,35 +4528,35 @@ declare namespace sidecar {
   export type { sidecar_SidecarOptions as SidecarOptions };
 }
 
-/** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
+/** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. @unstable */
 declare function getGoogleMap(): google.maps.Map | null;
-/** @deprecated v0.8.1. Use `MMA.waitForMapHost()`. */
+/** @deprecated v0.8.1. Use `MMA.waitForMapHost()`. @unstable */
 declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
-/** @deprecated v0.8.2. Read `MMA.getMapState().map`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().map`. @unstable */
 declare function getCurrentMap(): MapMeta | null;
-/** @deprecated v0.8.2. Read `MMA.getMapState().mapId`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().mapId`. @unstable */
 declare function getCurrentMapId(): string | null;
-/** @deprecated v0.8.2. Read `MMA.getMapState().activeLocation`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().activeLocation`. @unstable */
 declare function getActiveLocation(): Location | null;
-/** @deprecated v0.8.2. Read `MMA.getMapState().selectedLocationIds`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().selectedLocationIds`. @unstable */
 declare function getSelectedLocationIds(): SelectedIds;
-/** @deprecated v0.8.2. Read `MMA.getMapState().workArea`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().workArea`. @unstable */
 declare function getWorkArea(): WorkArea;
-/** @deprecated v0.8.2. Read `MMA.getMapState().tagCounts`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().tagCounts`. @unstable */
 declare function getTagCounts(): Record<number, number>;
-/** @deprecated v0.8.2. Read `MMA.getMapState().selections`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().selections`. @unstable */
 declare function getAllSelections(): Selection[];
-/** @deprecated v0.8.2. Read `MMA.getMapState().ghostedSelections`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().ghostedSelections`. @unstable */
 declare function getGhostedSelections(): ReadonlySet<string>;
-/** @deprecated v0.8.2. Use `MMA.getActiveSelections()`. */
+/** @deprecated v0.8.2. Use `MMA.getActiveSelections()`. @unstable */
 declare function getSelections(): Selection[];
-/** @deprecated v0.8.2. Read `(await MMA.cmd.storeGetSummary()).dirtyCount`. */
+/** @deprecated v0.8.2. Read `(await MMA.cmd.storeGetSummary()).dirtyCount`. @unstable */
 declare function getDirtyCount(): Promise<number>;
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Locations", locations: [id], name: null })`. */
+/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Locations", locations: [id], name: null })`. @unstable */
 declare function fetchLocation(id: number): Promise<Location>;
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Locations", locations: ids, name: null })`. */
+/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Locations", locations: ids, name: null })`. @unstable */
 declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Everything" })`. */
+/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Everything" })`. @unstable */
 declare function fetchAllLocations(): Promise<Location[]>;
 
 declare const legacy_fetchAllLocations: typeof fetchAllLocations;
@@ -4810,6 +4810,8 @@ export type MapApi = typeof map;
 export type SavedSelectionsApi = typeof saved;
 export type SettingsApi = typeof settings;
 export type SurfaceApi = typeof surface;
+/** Shims for removed APIs: they serve plugins built before the support floor and are
+ *  never a promise to newer ones -- each dies when the floor passes its removal. @unstable */
 export type LegacyApi = typeof legacy;
 export interface MMA extends StoreApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, TauriApi, PluginApi, FieldsApi, SeenApi, SvApi, MapApi, SavedSelectionsApi, SettingsApi, SurfaceApi, LegacyApi {
 }
