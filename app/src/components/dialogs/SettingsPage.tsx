@@ -988,12 +988,16 @@ const UPDATE_STATUS: Record<string, string> = {
 	ready: msg("Update installed. Restart to apply."),
 };
 
+/** Phases where an update is waiting on the user, so the version badge earns the accent. */
+const UPDATE_PENDING_PHASES: ReadonlySet<string> = new Set(["available", "downloading", "ready"]);
+
 function UpdateBlock() {
 	const update = useUpdateState();
 	const version = appVersion() ?? "dev";
 	const onPrerelease = isPrereleaseVersion(version);
 	const checking = update.phase === "checking";
-	const badgeMod = update.phase === "up-to-date" ? " settings-updates__version--latest" : "";
+	const pendingUpdate = UPDATE_PENDING_PHASES.has(update.phase);
+	const badgeMod = pendingUpdate ? " settings-updates__version--update" : "";
 	const status =
 		update.phase === "available"
 			? t("Version {version} is available.", { version: update.version ?? "" })

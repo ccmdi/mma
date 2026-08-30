@@ -5095,7 +5095,9 @@ body {
 	background: #ffffff14;
 	cursor: default;
 }
-.settings-updates__version--latest {
+/* Quiet while current: the accent means there is something to act on, not that a
+   version exists. */
+.settings-updates__version--update {
 	background: var(--accent-muted);
 	color: var(--accent);
 }
