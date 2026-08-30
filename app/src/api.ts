@@ -12,7 +12,6 @@ import * as commitDiff from "@/store/commitDiff";
 import * as picker from "@/store/selectorPick";
 import * as mapList from "@/store/mapList";
 import * as review from "@/lib/review/review";
-import { events } from "@/bindings.gen";
 import { cmd as commands, type Cmd } from "@/lib/commands";
 import { createLocation } from "@/types";
 import { registerPlugin, createPluginStorage, usePluginState } from "@/plugins/registry";
@@ -22,7 +21,7 @@ import * as ui from "@/components/primitives";
 import { toast } from "@/lib/util/toast";
 import { preloadModules, getAvailableExternals } from "@/plugins/externals";
 import { registerEnrichFields, registerEnrichmentProvider } from "@/lib/data/fieldDefs";
-import { getFieldDef, getAllFieldDefs } from "@/lib/data/fieldDefRegistry";
+import { getFieldDef, getAllFieldDefs, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { invoke } from "@tauri-apps/api/core";
 import { Command } from "@tauri-apps/plugin-shell";
 import { open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
@@ -42,124 +41,18 @@ import { validateLocations } from "@/lib/sv/validate";
 import { svMetadata } from "@/lib/sv/query";
 import { mmaBufUrl } from "@/lib/util/util";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
-import { getScene } from "@/lib/render/sceneStore";
-import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
+import { getScenePositions } from "@/lib/render/sceneStore";
+import * as sidecar from "@/plugins/sidecar";
 import * as legacy from "@/legacy";
 import * as testApi from "@/testApi";
-
-// --- Sidecar requests ---
-// One set of listeners for every request, demultiplexed by request id. Events can
-// land before `sidecarRequest` learns its id (a resident-served request finishes in
-// a millisecond), so unclaimed events are buffered until their caller arrives.
-
-type SidecarEvent =
-	| { kind: "line"; line: string }
-	| { kind: "log"; line: string }
-	| { kind: "done"; error: string | null };
-
-const sidecarHandlers = new Map<number, (ev: SidecarEvent) => void>();
-const sidecarPending = new Map<number, SidecarEvent[]>();
-let sidecarListeners: Promise<void> | null = null;
-
-function routeSidecarEvent(reqId: number, ev: SidecarEvent) {
-	const handler = sidecarHandlers.get(reqId);
-	if (handler) {
-		handler(ev);
-		return;
-	}
-	const buffered = sidecarPending.get(reqId);
-	if (buffered) buffered.push(ev);
-	else sidecarPending.set(reqId, [ev]);
-}
-
-function listenForSidecarEvents(): Promise<void> {
-	sidecarListeners ??= (async () => {
-		await events.sidecarLine.listen((ev) =>
-			routeSidecarEvent(ev.payload.reqId, { kind: "line", line: ev.payload.line }),
-		);
-		await events.sidecarLog.listen((ev) =>
-			routeSidecarEvent(ev.payload.reqId, { kind: "log", line: ev.payload.line }),
-		);
-		await events.sidecarDone.listen((ev) =>
-			routeSidecarEvent(ev.payload.reqId, { kind: "done", error: ev.payload.error }),
-		);
-	})();
-	return sidecarListeners;
-}
-
-export interface SidecarOptions<T> {
-	/** Fires once per JSON object the sidecar emits, in order. */
-	onLine?(item: T): void;
-	/** Sidecar diagnostics (stderr), one-shot runs only. Resident-served commands
-	 *  write theirs to the app log instead. */
-	onLog?(line: string): void;
-	signal?: AbortSignal;
-}
-
-/** Run one unit of work on a plugin's sidecar and resolve with its last emitted
- *  object (null if it emitted none). The app owns the process: commands the manifest
- *  lists under `serve` are answered by the plugin's resident sidecar, the rest by a
- *  one-shot run. `payload` is handed to the sidecar as JSON. */
-async function sidecarRequest<T>(
-	pluginId: string,
-	command: string,
-	payload?: unknown,
-	opts?: SidecarOptions<T>,
-): Promise<T | null> {
-	await listenForSidecarEvents();
-	const reqId = await commands.sidecarRequest(
-		pluginId,
-		command,
-		payload === undefined ? null : JSON.stringify(payload),
-	);
-
-	return new Promise<T | null>((resolve, reject) => {
-		let last: T | null = null;
-		// Abort kills the run but leaves the handler installed, so the `done` that
-		// follows still cleans up. Resident-served work has no process to kill.
-		const onAbort = () => {
-			commands.sidecarCancel(reqId).catch(() => {});
-			reject(new DOMException(`Sidecar ${command} aborted`, "AbortError"));
-		};
-		sidecarHandlers.set(reqId, (ev) => {
-			if (ev.kind === "line") {
-				let item: T;
-				try {
-					item = JSON.parse(ev.line) as T;
-				} catch {
-					return;
-				}
-				last = item;
-				opts?.onLine?.(item);
-			} else if (ev.kind === "log") {
-				opts?.onLog?.(ev.line);
-			} else {
-				sidecarHandlers.delete(reqId);
-				opts?.signal?.removeEventListener("abort", onAbort);
-				if (ev.error) reject(new Error(ev.error));
-				else resolve(last);
-			}
-		});
-
-		const buffered = sidecarPending.get(reqId);
-		if (buffered) {
-			sidecarPending.delete(reqId);
-			for (const ev of buffered) sidecarHandlers.get(reqId)?.(ev);
-		}
-
-		if (opts?.signal?.aborted) onAbort();
-		else opts?.signal?.addEventListener("abort", onAbort);
-	});
-}
 
 /** Explicitly exposed functions not in other APIs. */
 const surface = {
 	ready: false,
 
-	// --- Rust IPC commands ---
-	/** Generated from the Rust command set, so it moves whenever the backend does.
-	 *  A command plugins should be able to rely on gets a wrapper here instead.
-	 *  @unstable */
+	/** Every Rust command, typed. Generated from the backend, so it tracks the app rather
+	 *  than this API: a command can change or disappear in any release. Anything worth
+	 *  relying on is exposed as a function here instead. @unstable */
 	cmd: commands as Cmd,
 
 	// --- Tauri primitives (for plugins) ---
@@ -167,11 +60,10 @@ const surface = {
 	shell: { Command },
 	dialog: { open: dialogOpen, save: dialogSave },
 
-	// --- Sidecar binaries (distributed via GitHub Releases on install) ---
-	sidecar: {
-		installedVersion: (pluginId: string) => commands.sidecarInstalledVersion(pluginId),
-		request: sidecarRequest,
-	},
+	/** Run work on the plugin's own sidecar binary, downloaded from GitHub Releases on
+	 *  install. `request` streams the sidecar's JSON output and resolves with its last
+	 *  object. */
+	sidecar,
 
 	// --- Bootstrap (for plugins) ---
 	registerPlugin,
@@ -194,6 +86,7 @@ const surface = {
 	// --- Field definitions ---
 	getFieldDef,
 	getAllFieldDefs,
+	getKnownFieldKeys,
 
 	// --- Types ---
 	createLocation,
@@ -202,23 +95,8 @@ const surface = {
 	getMapHost,
 	waitForMapHost,
 
-	/** Snapshot of every rendered location: `ids` plus interleaved `[lng, lat, ...]`, read
-	 *  from the render buffers the app already keeps current. The way for an overlay that
-	 *  draws all locations to see the map without a store round trip; refresh on
-	 *  `scene:changed`. */
-	getScenePositions(): { ids: Uint32Array; positions: Float32Array } {
-		const scene = getScene();
-		const ids = new Uint32Array(scene.totalCount);
-		const positions = new Float32Array(scene.totalCount * 2);
-		let n = 0;
-		scene.forEachPosition((id, lng, lat) => {
-			ids[n] = id;
-			positions[n * 2] = lng;
-			positions[n * 2 + 1] = lat;
-			n++;
-		});
-		return { ids, positions };
-	},
+	// --- Render ---
+	getScenePositions,
 
 	// --- Settings ---
 	setSetting,
@@ -271,7 +149,6 @@ type MapListApi = typeof mapList;
 type ReviewApi = typeof review;
 type SurfaceApi = typeof surface;
 type LegacyApi = typeof legacy;
-type FieldsApi = { getKnownFieldKeys: typeof getKnownFieldKeys };
 
 export interface MMA
 	extends
@@ -282,7 +159,6 @@ export interface MMA
 		MapListApi,
 		ReviewApi,
 		SurfaceApi,
-		FieldsApi,
 		LegacyApi {}
 
 const mma: MMA = {
@@ -293,7 +169,6 @@ const mma: MMA = {
 	...mapList,
 	...review,
 	...surface,
-	getKnownFieldKeys,
 	...legacy,
 };
 

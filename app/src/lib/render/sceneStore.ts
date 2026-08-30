@@ -23,6 +23,22 @@ export function getScene(): CellManager {
 	return scene;
 }
 
+/** Snapshot of every rendered location: `ids` plus interleaved `[lng, lat, ...]`, read
+ *  from the render buffers the app already keeps current. Lets an overlay that draws all
+ *  locations see the map without a store round trip. */
+export function getScenePositions(): { ids: Uint32Array; positions: Float32Array } {
+	const ids = new Uint32Array(scene.totalCount);
+	const positions = new Float32Array(scene.totalCount * 2);
+	let n = 0;
+	scene.forEachPosition((id, lng, lat) => {
+		ids[n] = id;
+		positions[n * 2] = lng;
+		positions[n * 2 + 1] = lat;
+		n++;
+	});
+	return { ids, positions };
+}
+
 function syncActive(): boolean {
 	return scene.setActive(getMapState().activeLocation?.id ?? null);
 }

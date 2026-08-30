@@ -4396,6 +4396,38 @@ declare function getMapHost(): MapHost | null;
  */
 declare function waitForMapHost(): Promise<MapHost>;
 
+/** Snapshot of every rendered location: `ids` plus interleaved `[lng, lat, ...]`, read
+ *  from the render buffers the app already keeps current. Lets an overlay that draws all
+ *  locations see the map without a store round trip; refresh on `scene:changed`. */
+declare function getScenePositions(): {
+    ids: Uint32Array;
+    positions: Float32Array;
+};
+
+export interface SidecarOptions<T> {
+    /** Fires once per JSON object the sidecar emits, in order. */
+    onLine?(item: T): void;
+    /** Sidecar diagnostics (stderr), one-shot runs only. Resident-served commands
+     *  write theirs to the app log instead. */
+    onLog?(line: string): void;
+    signal?: AbortSignal;
+}
+/** Run one unit of work on a plugin's sidecar and resolve with its last emitted
+ *  object (null if it emitted none). The app owns the process: commands the manifest
+ *  lists under `serve` are answered by the plugin's resident sidecar, the rest by a
+ *  one-shot run. `payload` is handed to the sidecar as JSON. */
+declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
+/** The sidecar version installed for a plugin, or null when it has none yet. */
+declare function installedVersion(pluginId: string): Promise<string | null>;
+
+export type sidecar_SidecarOptions<T> = SidecarOptions<T>;
+declare const sidecar_installedVersion: typeof installedVersion;
+declare const sidecar_request: typeof request;
+declare namespace sidecar {
+  export { sidecar_installedVersion as installedVersion, sidecar_request as request };
+  export type { sidecar_SidecarOptions as SidecarOptions };
+}
+
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
 declare function getGoogleMap(): google.maps.Map | null;
 /** @deprecated v0.8.1. Use `MMA.waitForMapHost()`. */
@@ -4495,25 +4527,12 @@ declare namespace testApi {
   };
 }
 
-export interface SidecarOptions<T> {
-    /** Fires once per JSON object the sidecar emits, in order. */
-    onLine?(item: T): void;
-    /** Sidecar diagnostics (stderr), one-shot runs only. Resident-served commands
-     *  write theirs to the app log instead. */
-    onLog?(line: string): void;
-    signal?: AbortSignal;
-}
-/** Run one unit of work on a plugin's sidecar and resolve with its last emitted
- *  object (null if it emitted none). The app owns the process: commands the manifest
- *  lists under `serve` are answered by the plugin's resident sidecar, the rest by a
- *  one-shot run. `payload` is handed to the sidecar as JSON. */
-declare function sidecarRequest<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
 /** Explicitly exposed functions not in other APIs. */
 declare const surface: {
     ready: boolean;
-    /** Generated from the Rust command set, so it moves whenever the backend does.
-     *  A command plugins should be able to rely on gets a wrapper here instead.
-     *  @unstable */
+    /** Every Rust command, typed. Generated from the backend, so it tracks the app rather
+     *  than this API: a command can change or disappear in any release. Anything worth
+     *  relying on is exposed as a function here instead. @unstable */
     cmd: Cmd;
     invoke: typeof invoke;
     shell: {
@@ -4523,10 +4542,10 @@ declare const surface: {
         open: typeof open;
         save: typeof save;
     };
-    sidecar: {
-        installedVersion: (pluginId: string) => Promise<string | null>;
-        request: typeof sidecarRequest;
-    };
+    /** Run work on the plugin's own sidecar binary, downloaded from GitHub Releases on
+     *  install. `request` streams the sidecar's JSON output and resolves with its last
+     *  object. */
+    sidecar: typeof sidecar;
     registerPlugin: typeof registerPlugin;
     registerEnrichFields: typeof registerEnrichFields;
     registerEnrichmentProvider: typeof registerEnrichmentProvider;
@@ -4539,17 +4558,11 @@ declare const surface: {
     useJob: typeof useJob;
     getFieldDef: typeof getFieldDef;
     getAllFieldDefs: typeof getAllFieldDefs;
+    getKnownFieldKeys: typeof getKnownFieldKeys;
     createLocation: typeof createLocation;
     getMapHost: typeof getMapHost;
     waitForMapHost: typeof waitForMapHost;
-    /** Snapshot of every rendered location: `ids` plus interleaved `[lng, lat, ...]`, read
-     *  from the render buffers the app already keeps current. The way for an overlay that
-     *  draws all locations to see the map without a store round trip; refresh on
-     *  `scene:changed`. */
-    getScenePositions(): {
-        ids: Uint32Array;
-        positions: Float32Array;
-    };
+    getScenePositions: typeof getScenePositions;
     setSetting: typeof setSetting;
     getSettings: () => {
         showCameraBadges: boolean;
@@ -4662,10 +4675,7 @@ export type MapListApi = typeof mapList;
 export type ReviewApi = typeof review;
 export type SurfaceApi = typeof surface;
 export type LegacyApi = typeof legacy;
-export type FieldsApi = {
-    getKnownFieldKeys: typeof getKnownFieldKeys;
-};
-export interface MMA extends StoreApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, SurfaceApi, FieldsApi, LegacyApi {
+export interface MMA extends StoreApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, SurfaceApi, LegacyApi {
 }
 declare global {
     interface Window {
