@@ -299,14 +299,15 @@ declare const commands: {
     /**
      *  Merge each duplicate group within `distance` metres into one survivor location, unioning
      *  tags and extra fields. `score` is the map's duplicate preference expression; blank or
-     *  absent keeps the built-in ranking. One undoable edit.
+     *  absent uses [`selections::DEFAULT_DUPLICATE_SCORE`]. One undoable edit.
      */
     storeMergeDuplicates: (distance: number, score: string | null) => Promise<MutationResult>;
     /**
      *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
-     *  cluster. Informational locations are never pruned. One undoable edit.
+     *  cluster. `score` is the map's duplicate preference expression, the same one a merge
+     *  ranks by. Informational locations are never pruned. One undoable edit.
      */
-    storePruneDuplicates: (selector: Selector, distance: number) => Promise<MutationResult>;
+    storePruneDuplicates: (selector: Selector, distance: number, score: string | null) => Promise<MutationResult>;
     /**
      *  Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
      *  Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.
@@ -629,197 +630,6 @@ declare const events: {
         emit: (payload: ValiProgress) => Promise<void>;
     };
 };
-declare const BUILTIN_FIELDS: readonly [{
-    readonly key: "lat";
-    readonly label: "Latitude";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-}, {
-    readonly key: "lng";
-    readonly label: "Longitude";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-}, {
-    readonly key: "heading";
-    readonly label: "Heading";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: {
-        readonly type: "circular";
-        readonly period: 360;
-    };
-}, {
-    readonly key: "pitch";
-    readonly label: "Pitch";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: null;
-}, {
-    readonly key: "zoom";
-    readonly label: "Zoom";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: null;
-}, {
-    readonly key: "id";
-    readonly label: "ID";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-}, {
-    readonly key: "createdAt";
-    readonly label: "Created";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-}, {
-    readonly key: "modifiedAt";
-    readonly label: "Modified";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-}, {
-    readonly key: "panoId";
-    readonly label: "Pano ID";
-    readonly type: "string";
-    readonly kind: null;
-    readonly comparison: null;
-}, {
-    readonly key: "tagCount";
-    readonly label: "Tag count";
-    readonly type: "number";
-    readonly kind: "virtual";
-    readonly comparison: null;
-}, {
-    readonly key: "loadAsPanoId";
-    readonly label: "Load as pano ID";
-    readonly type: "number";
-    readonly kind: "term";
-    readonly comparison: null;
-}, {
-    readonly key: "informational";
-    readonly label: "Informational";
-    readonly type: "number";
-    readonly kind: "term";
-    readonly comparison: null;
-}];
-declare const KNOWN_FIELDS: readonly [{
-    readonly key: "altitude";
-    readonly type: "number";
-    readonly label: "Altitude";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "countryCode";
-    readonly type: "string";
-    readonly label: "Country code";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "cameraType";
-    readonly type: "enum";
-    readonly label: "Camera type";
-    readonly values: readonly ["gen1", "gen2", "gen4", "badcam", "tripod", "trekker"];
-    readonly labels: readonly [readonly ["gen1", "Gen 1"], readonly ["gen2", "Gen 2/3"], readonly ["gen4", "Gen 4"], readonly ["badcam", "Bad cam"], readonly ["tripod", "Tripod"], readonly ["trekker", "Trekker"]];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "panoType";
-    readonly type: "enum";
-    readonly label: "Pano type";
-    readonly values: readonly ["2", "3", "10"];
-    readonly labels: readonly [readonly ["2", "Official"], readonly ["3", "Unknown"], readonly ["10", "User uploaded"]];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "imageDate";
-    readonly type: "month";
-    readonly label: "Image date";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "datetime";
-    readonly type: "date";
-    readonly label: "Exact date";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}, {
-    readonly key: "timezone";
-    readonly type: "enum";
-    readonly label: "Timezone";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}, {
-    readonly key: "drivingDirection";
-    readonly type: "number";
-    readonly label: "Driving direction";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: 360;
-    readonly defaultOff: true;
-}, {
-    readonly key: "uploaderName";
-    readonly type: "string";
-    readonly label: "Uploader";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}, {
-    readonly key: "coverageDates";
-    readonly type: "array";
-    readonly label: "Coverage dates";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}, {
-    readonly key: "subdivision";
-    readonly type: "string";
-    readonly label: "Subdivision";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}];
-declare const PROJECTIONS: readonly [{
-    readonly id: "value";
-    readonly appliesTo: readonly ["string", "enum", "number", "month"];
-    readonly needsTz: false;
-}, {
-    readonly id: "year";
-    readonly appliesTo: readonly ["date", "month"];
-    readonly needsTz: true;
-}, {
-    readonly id: "yearMonth";
-    readonly appliesTo: readonly ["date"];
-    readonly needsTz: true;
-}, {
-    readonly id: "day";
-    readonly appliesTo: readonly ["date"];
-    readonly needsTz: true;
-}, {
-    readonly id: "monthOfYear";
-    readonly appliesTo: readonly ["date", "month"];
-    readonly needsTz: true;
-}, {
-    readonly id: "hourOfDay";
-    readonly appliesTo: readonly ["date"];
-    readonly needsTz: true;
-}];
-declare const SCRATCH_MAP_ID: "scratch";
 type AnonIssueRef = {
     number: number;
     url: string;
@@ -2102,6 +1912,15 @@ type VirtualTag = {
     color?: string | null;
 };
 
+/** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
+declare const LocationFlag: {
+    readonly None: 0;
+    readonly LoadAsPanoId: 1;
+    readonly Informational: 2;
+    readonly ImportPreview: 4;
+    readonly SeenOverlay: 8;
+};
+type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
 /** Panorama source type, as Google's metadata reports it. */
 declare const PanoType: {
     readonly Official: 2;
@@ -2111,15 +1930,209 @@ declare const PanoType: {
 type PanoType = (typeof PanoType)[keyof typeof PanoType];
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
 declare const ValidationState: {
-    readonly GoodcamAvailable: 6;
-    readonly NotFound: 3;
     readonly Ok: 0;
+    readonly UpdateAvailable: 1;
+    readonly UpdateApplied: 2;
+    readonly GoodcamAvailable: 6;
     readonly PanoIdBroke: 4;
     readonly Unofficial: 5;
-    readonly UpdateApplied: 2;
-    readonly UpdateAvailable: 1;
+    readonly NotFound: 3;
 };
 type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
+declare const BUILTIN_FIELDS: readonly [{
+    readonly key: "lat";
+    readonly label: "Latitude";
+    readonly type: "number";
+    readonly kind: "identity";
+    readonly comparison: null;
+}, {
+    readonly key: "lng";
+    readonly label: "Longitude";
+    readonly type: "number";
+    readonly kind: "identity";
+    readonly comparison: null;
+}, {
+    readonly key: "heading";
+    readonly label: "Heading";
+    readonly type: "number";
+    readonly kind: "writable";
+    readonly comparison: {
+        readonly type: "circular";
+        readonly period: 360;
+    };
+}, {
+    readonly key: "pitch";
+    readonly label: "Pitch";
+    readonly type: "number";
+    readonly kind: "writable";
+    readonly comparison: null;
+}, {
+    readonly key: "zoom";
+    readonly label: "Zoom";
+    readonly type: "number";
+    readonly kind: "writable";
+    readonly comparison: null;
+}, {
+    readonly key: "id";
+    readonly label: "ID";
+    readonly type: "number";
+    readonly kind: "identity";
+    readonly comparison: null;
+}, {
+    readonly key: "createdAt";
+    readonly label: "Created";
+    readonly type: "date";
+    readonly kind: null;
+    readonly comparison: null;
+}, {
+    readonly key: "modifiedAt";
+    readonly label: "Modified";
+    readonly type: "date";
+    readonly kind: null;
+    readonly comparison: null;
+}, {
+    readonly key: "panoId";
+    readonly label: "Pano ID";
+    readonly type: "string";
+    readonly kind: null;
+    readonly comparison: null;
+}, {
+    readonly key: "tagCount";
+    readonly label: "Tag count";
+    readonly type: "number";
+    readonly kind: "virtual";
+    readonly comparison: null;
+}, {
+    readonly key: "loadAsPanoId";
+    readonly label: "Load as pano ID";
+    readonly type: "number";
+    readonly kind: "term";
+    readonly comparison: null;
+}, {
+    readonly key: "informational";
+    readonly label: "Informational";
+    readonly type: "number";
+    readonly kind: "term";
+    readonly comparison: null;
+}];
+declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
+declare const KNOWN_FIELDS: readonly [{
+    readonly key: "altitude";
+    readonly type: "number";
+    readonly label: "Altitude";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "countryCode";
+    readonly type: "string";
+    readonly label: "Country code";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "cameraType";
+    readonly type: "enum";
+    readonly label: "Camera type";
+    readonly values: readonly ["gen1", "gen2", "gen4", "badcam", "tripod", "trekker"];
+    readonly labels: readonly [readonly ["gen1", "Gen 1"], readonly ["gen2", "Gen 2/3"], readonly ["gen4", "Gen 4"], readonly ["badcam", "Bad cam"], readonly ["tripod", "Tripod"], readonly ["trekker", "Trekker"]];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "panoType";
+    readonly type: "enum";
+    readonly label: "Pano type";
+    readonly values: readonly ["2", "3", "10"];
+    readonly labels: readonly [readonly ["2", "Official"], readonly ["3", "Unknown"], readonly ["10", "User uploaded"]];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "imageDate";
+    readonly type: "month";
+    readonly label: "Image date";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "datetime";
+    readonly type: "date";
+    readonly label: "Exact date";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}, {
+    readonly key: "timezone";
+    readonly type: "enum";
+    readonly label: "Timezone";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}, {
+    readonly key: "drivingDirection";
+    readonly type: "number";
+    readonly label: "Driving direction";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: 360;
+    readonly defaultOff: true;
+}, {
+    readonly key: "uploaderName";
+    readonly type: "string";
+    readonly label: "Uploader";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}, {
+    readonly key: "coverageDates";
+    readonly type: "array";
+    readonly label: "Coverage dates";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}, {
+    readonly key: "subdivision";
+    readonly type: "string";
+    readonly label: "Subdivision";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}];
+declare const PROJECTIONS: readonly [{
+    readonly id: "value";
+    readonly appliesTo: readonly ["string", "enum", "number", "month"];
+    readonly needsTz: false;
+}, {
+    readonly id: "year";
+    readonly appliesTo: readonly ["date", "month"];
+    readonly needsTz: true;
+}, {
+    readonly id: "yearMonth";
+    readonly appliesTo: readonly ["date"];
+    readonly needsTz: true;
+}, {
+    readonly id: "day";
+    readonly appliesTo: readonly ["date"];
+    readonly needsTz: true;
+}, {
+    readonly id: "monthOfYear";
+    readonly appliesTo: readonly ["date", "month"];
+    readonly needsTz: true;
+}, {
+    readonly id: "hourOfDay";
+    readonly appliesTo: readonly ["date"];
+    readonly needsTz: true;
+}];
+declare const SCRATCH_MAP_ID: "scratch";
+/** The bits a preview carries that a real location must not. */
+declare const VIRTUAL_FLAGS: 12;
 
 export type LatLng = google.maps.LatLngLiteral;
 export type Bounds = google.maps.LatLngBoundsLiteral;
@@ -2621,6 +2634,22 @@ declare const COMMANDS: {
         aliases: string[];
         execute: () => void;
         enabled: () => boolean;
+    };
+    basemapPrev: {
+        label: "Previous basemap";
+        icon: string;
+        group: "Map";
+        defaultBinding: string;
+        execute: () => void;
+        enabled: typeof requiresMap;
+    };
+    basemapNext: {
+        label: "Next basemap";
+        icon: string;
+        group: "Map";
+        defaultBinding: string;
+        execute: () => void;
+        enabled: typeof requiresMap;
     };
     import: {
         label: "Import file";
@@ -3155,8 +3184,6 @@ declare const DEFAULTS: {
     remoteApiKey: string;
     pinnedCommands: PinnedEntry[];
     hasSeenWelcome: boolean;
-    /** Off = Commit applies immediately with no message prompt. */
-    askCommitMessage: boolean;
 };
 export type AppSettings = typeof DEFAULTS;
 declare function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void;
@@ -4581,7 +4608,6 @@ declare const surface: {
         remoteApiKey: string;
         pinnedCommands: PinnedEntry[];
         hasSeenWelcome: boolean;
-        askCommitMessage: boolean;
     };
     getSavedSelectionIndex: typeof getSavedSelectionIndex;
     loadSavedSelections: typeof loadSavedSelections;
@@ -4620,5 +4646,5 @@ declare global {
     const MMA: MMA;
 }
 
-export { BUILTIN_FIELDS, KNOWN_FIELDS, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, ValidationState, commands, events };
+export { BUILTIN_FIELDS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands, events };
 export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
