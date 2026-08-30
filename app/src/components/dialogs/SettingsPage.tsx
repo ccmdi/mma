@@ -912,9 +912,6 @@ function EditingBody() {
 				)}
 			</SettingsGroup>
 
-			<SettingsGroup title={t("Version control")}>
-				<SettingRow setting="askCommitMessage" label={t("Ask for a commit message")} />
-			</SettingsGroup>
 
 			<SettingsGroup title={t("Geocoding")}>
 				<SettingRow
