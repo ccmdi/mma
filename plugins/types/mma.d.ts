@@ -306,7 +306,7 @@ declare const commands: {
      *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
      *  cluster. Informational locations are never pruned. One undoable edit.
      */
-    storePruneDuplicates: (selector: Selector, distance: number, keepTagIds: number[]) => Promise<MutationResult>;
+    storePruneDuplicates: (selector: Selector, distance: number) => Promise<MutationResult>;
     /**
      *  Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
      *  Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.
@@ -691,6 +691,18 @@ declare const BUILTIN_FIELDS: readonly [{
     readonly label: "Tag count";
     readonly type: "number";
     readonly kind: "virtual";
+    readonly comparison: null;
+}, {
+    readonly key: "loadAsPanoId";
+    readonly label: "Load as pano ID";
+    readonly type: "number";
+    readonly kind: "term";
+    readonly comparison: null;
+}, {
+    readonly key: "informational";
+    readonly label: "Informational";
+    readonly type: "number";
+    readonly kind: "term";
     readonly comparison: null;
 }];
 declare const KNOWN_FIELDS: readonly [{
@@ -2414,8 +2426,7 @@ declare function previewDuplicateGroups(distance: number): Promise<number[][]>;
 declare function mergeDuplicates(distance: number): Promise<void>;
 /**
  * Prune duplicates within a resolved selection: keeps the most relevant location per
- * cluster (<= 25m) or thins to enforce spacing (> 25m). Locations tagged "keep pano"
- * get a +5 score bonus. Returns the number pruned.
+ * cluster (<= 25m) or thins to enforce spacing (> 25m). Returns the number pruned.
  */
 declare function pruneDuplicates(selector: Selector, distance: number): Promise<number>;
 /** Edit an existing filter (or any selection) in place by key, preserving its
@@ -2985,6 +2996,12 @@ declare const GEOCODE_PROVIDERS: {
     readonly nominatim: "Nominatim";
     readonly google: "Google (from panorama)";
 };
+/** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. */
+declare const UNIT_SYSTEMS: {
+    readonly auto: "Automatic";
+    readonly metric: "Metric (m / km)";
+    readonly imperial: "Imperial (ft / mi)";
+};
 declare const TAG_VIEW_MODES: {
     readonly flat: "Flat";
     readonly tree: "Tree";
@@ -3026,6 +3043,7 @@ export type SeenResolution = keyof typeof SEEN_RESOLUTIONS;
 export type MapListField = keyof typeof MAP_LIST_FIELDS;
 export type DiscordPresenceMode = keyof typeof DISCORD_PRESENCE_MODES;
 export type GeocodeProvider = keyof typeof GEOCODE_PROVIDERS;
+export type UnitSystem = keyof typeof UNIT_SYSTEMS;
 export type TagViewMode = keyof typeof TAG_VIEW_MODES;
 export type TagFolderColorMode = keyof typeof TAG_FOLDER_COLOR_MODES;
 export type OpacityToggleMode = keyof typeof OPACITY_TOGGLE_MODES;
@@ -3083,6 +3101,8 @@ declare const DEFAULTS: {
     mapListFields: MapListField[];
     /** Read once at boot; changing it relaunches the app rather than re-rendering. */
     language: Language;
+    /** Every distance the UI shows or accepts; stored values stay metric. */
+    units: UnitSystem;
     /** Reopen the maps that were open when the session last ended (main window closed). */
     restoreSession: boolean;
     /** Offer pre-release builds to the updater as well as full releases. */
@@ -4526,6 +4546,7 @@ declare const surface: {
         showFps: boolean;
         mapListFields: MapListField[];
         language: Language;
+        units: UnitSystem;
         restoreSession: boolean;
         prereleaseUpdates: boolean;
         discordPresence: DiscordPresenceMode;
