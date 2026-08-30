@@ -151,14 +151,23 @@ describe("Version control - checkout revives soft-deleted tags", () => {
 	});
 });
 
-// Commit dialog: the Commit button opens a dialog whose typed message must land
-// on the commit; the dialog closes after committing.
+// Commit dialog: shift+click opens a dialog whose typed message must land on the
+// commit; a plain click commits silently.
 describe("Version control - commit message dialog", () => {
 	const map = useMap("E2E VCS Message UI");
 
-	it("typed message lands on the commit", async () => {
+	/** Shift+click the Commit button. The handler reads `shiftKey` off the click event,
+	 *  which a dispatched MouseEvent carries without holding a modifier across commands. */
+	async function shiftClickCommit() {
+		await browser.execute(() => {
+			const btn = [...document.querySelectorAll("button")].find((b) => b.textContent === "Commit");
+			btn?.dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey: true }));
+		});
+	}
+
+	it("a shift+click types a message onto the commit", async () => {
 		await addLocs([createLocation({ lat: 5, lng: 5, heading: 0, panoId: null, flags: 0 })]);
-		await browser.$("button=Commit").click();
+		await shiftClickCommit();
 		const input = await browser.$(".commit-dialog__message");
 		await input.waitForExist();
 		await input.setValue("from the commit dialog");
@@ -170,28 +179,14 @@ describe("Version control - commit message dialog", () => {
 		await input.waitForExist({ reverse: true });
 	});
 
-	it("commits immediately when the message prompt is off", async () => {
+	it("a plain click commits with no dialog", async () => {
 		await addLocs([createLocation({ lat: 6, lng: 6, heading: 0, panoId: null, flags: 0 })]);
-		await withApi(async (api) => api.setSetting("askCommitMessage", false));
-		try {
-			// The button's handler reads the setting through React state; until the
-			// re-render flushes, a click still opens the dialog. Dismiss and retry.
-			await browser.waitUntil(
-				async () => {
-					await browser.$("button=Commit").click();
-					const dialog = await browser.$(".commit-dialog");
-					if (!(await dialog.isExisting())) return true;
-					await (await dialog.$("button=Cancel")).click();
-					return false;
-				},
-				{ timeout: 10000, interval: 500, timeoutMsg: "commit dialog kept opening with prompt off" },
-			);
-			await browser.waitUntil(async () => {
-				const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
-				return commits.length >= 1;
-			});
-		} finally {
-			await withApi(async (api) => api.setSetting("askCommitMessage", true));
-		}
+		const before = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
+		await browser.$("button=Commit").click();
+		await browser.waitUntil(async () => {
+			const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
+			return commits.length > before.length;
+		});
+		expect(await browser.$(".commit-dialog").isExisting()).toBe(false);
 	});
 });

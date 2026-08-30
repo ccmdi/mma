@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { distanceUnit, fillTemplate, formatDistance, unitSystem } from "@/lib/util/format";
 import { setSetting } from "@/store/settings";
 
