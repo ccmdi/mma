@@ -2,13 +2,7 @@
 // No imports, ever: procedures bundle this file and must not reach Tauri.
 
 /** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
-export const LocationFlag = {
-	None: 0,
-	LoadAsPanoId: 1,
-	Informational: 2,
-	ImportPreview: 4,
-	SeenOverlay: 8,
-} as const;
+export const LocationFlag = { None: 0, LoadAsPanoId: 1, Informational: 2, ImportPreview: 4, SeenOverlay: 8 } as const;
 export type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
 
 /** Panorama source type, as Google's metadata reports it. */
@@ -16,162 +10,16 @@ export const PanoType = { Official: 2, Unknown: 3, UserUploaded: 10 } as const;
 export type PanoType = (typeof PanoType)[keyof typeof PanoType];
 
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
-export const ValidationState = {
-	Ok: 0,
-	UpdateAvailable: 1,
-	UpdateApplied: 2,
-	GoodcamAvailable: 6,
-	PanoIdBroke: 4,
-	Unofficial: 5,
-	NotFound: 3,
-} as const;
+export const ValidationState = { Ok: 0, UpdateAvailable: 1, UpdateApplied: 2, GoodcamAvailable: 6, PanoIdBroke: 4, Unofficial: 5, NotFound: 3 } as const;
 export type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
 
-export const BUILTIN_FIELDS = [
-	{ key: "lat", label: "Latitude", type: "number", kind: "identity", comparison: null },
-	{ key: "lng", label: "Longitude", type: "number", kind: "identity", comparison: null },
-	{
-		key: "heading",
-		label: "Heading",
-		type: "number",
-		kind: "writable",
-		comparison: { type: "circular", period: 360.0 },
-	},
-	{ key: "pitch", label: "Pitch", type: "number", kind: "writable", comparison: null },
-	{ key: "zoom", label: "Zoom", type: "number", kind: "writable", comparison: null },
-	{ key: "id", label: "ID", type: "number", kind: "identity", comparison: null },
-	{ key: "createdAt", label: "Created", type: "date", kind: null, comparison: null },
-	{ key: "modifiedAt", label: "Modified", type: "date", kind: null, comparison: null },
-	{ key: "panoId", label: "Pano ID", type: "string", kind: null, comparison: null },
-	{ key: "tagCount", label: "Tag count", type: "number", kind: "virtual", comparison: null },
-	{ key: "loadAsPanoId", label: "Load as pano ID", type: "number", kind: "term", comparison: null },
-	{ key: "informational", label: "Informational", type: "number", kind: "term", comparison: null },
-] as const;
+export const BUILTIN_FIELDS = [{"key":"lat","label":"Latitude","type":"number","kind":"identity","comparison":null},{"key":"lng","label":"Longitude","type":"number","kind":"identity","comparison":null},{"key":"heading","label":"Heading","type":"number","kind":"writable","comparison":{"type":"circular","period":360.0}},{"key":"pitch","label":"Pitch","type":"number","kind":"writable","comparison":null},{"key":"zoom","label":"Zoom","type":"number","kind":"writable","comparison":null},{"key":"id","label":"ID","type":"number","kind":"identity","comparison":null},{"key":"createdAt","label":"Created","type":"date","kind":null,"comparison":null},{"key":"modifiedAt","label":"Modified","type":"date","kind":null,"comparison":null},{"key":"panoId","label":"Pano ID","type":"string","kind":null,"comparison":null},{"key":"tagCount","label":"Tag count","type":"number","kind":"virtual","comparison":null},{"key":"loadAsPanoId","label":"Load as pano ID","type":"number","kind":"term","comparison":null},{"key":"informational","label":"Informational","type":"number","kind":"term","comparison":null}] as const;
 
-export const DEFAULT_DUPLICATE_SCORE =
-	"tagCount + has(panoId) + loadAsPanoId + (heading != 0)" as const;
+export const DEFAULT_DUPLICATE_SCORE = "tagCount + has(panoId) + loadAsPanoId + (heading != 0)" as const;
 
-export const KNOWN_FIELDS = [
-	{
-		key: "altitude",
-		type: "number",
-		label: "Altitude",
-		values: [],
-		labels: [],
-		circularPeriod: null,
-		defaultOff: false,
-	},
-	{
-		key: "countryCode",
-		type: "string",
-		label: "Country code",
-		values: [],
-		labels: [],
-		circularPeriod: null,
-		defaultOff: false,
-	},
-	{
-		key: "cameraType",
-		type: "enum",
-		label: "Camera type",
-		values: ["gen1", "gen2", "gen4", "badcam", "tripod", "trekker"],
-		labels: [
-			["gen1", "Gen 1"],
-			["gen2", "Gen 2/3"],
-			["gen4", "Gen 4"],
-			["badcam", "Bad cam"],
-			["tripod", "Tripod"],
-			["trekker", "Trekker"],
-		],
-		circularPeriod: null,
-		defaultOff: false,
-	},
-	{
-		key: "panoType",
-		type: "enum",
-		label: "Pano type",
-		values: ["2", "3", "10"],
-		labels: [
-			["2", "Official"],
-			["3", "Unknown"],
-			["10", "User uploaded"],
-		],
-		circularPeriod: null,
-		defaultOff: false,
-	},
-	{
-		key: "imageDate",
-		type: "month",
-		label: "Image date",
-		values: [],
-		labels: [],
-		circularPeriod: null,
-		defaultOff: false,
-	},
-	{
-		key: "datetime",
-		type: "date",
-		label: "Exact date",
-		values: [],
-		labels: [],
-		circularPeriod: null,
-		defaultOff: true,
-	},
-	{
-		key: "timezone",
-		type: "enum",
-		label: "Timezone",
-		values: [],
-		labels: [],
-		circularPeriod: null,
-		defaultOff: true,
-	},
-	{
-		key: "drivingDirection",
-		type: "number",
-		label: "Driving direction",
-		values: [],
-		labels: [],
-		circularPeriod: 360.0,
-		defaultOff: true,
-	},
-	{
-		key: "uploaderName",
-		type: "string",
-		label: "Uploader",
-		values: [],
-		labels: [],
-		circularPeriod: null,
-		defaultOff: true,
-	},
-	{
-		key: "coverageDates",
-		type: "array",
-		label: "Coverage dates",
-		values: [],
-		labels: [],
-		circularPeriod: null,
-		defaultOff: true,
-	},
-	{
-		key: "subdivision",
-		type: "string",
-		label: "Subdivision",
-		values: [],
-		labels: [],
-		circularPeriod: null,
-		defaultOff: true,
-	},
-] as const;
+export const KNOWN_FIELDS = [{"key":"altitude","type":"number","label":"Altitude","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"countryCode","type":"string","label":"Country code","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"cameraType","type":"enum","label":"Camera type","values":["gen1","gen2","gen4","badcam","tripod","trekker"],"labels":[["gen1","Gen 1"],["gen2","Gen 2/3"],["gen4","Gen 4"],["badcam","Bad cam"],["tripod","Tripod"],["trekker","Trekker"]],"circularPeriod":null,"defaultOff":false},{"key":"panoType","type":"enum","label":"Pano type","values":["2","3","10"],"labels":[["2","Official"],["3","Unknown"],["10","User uploaded"]],"circularPeriod":null,"defaultOff":false},{"key":"imageDate","type":"month","label":"Image date","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"datetime","type":"date","label":"Exact date","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"timezone","type":"enum","label":"Timezone","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"drivingDirection","type":"number","label":"Driving direction","values":[],"labels":[],"circularPeriod":360.0,"defaultOff":true},{"key":"uploaderName","type":"string","label":"Uploader","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"coverageDates","type":"array","label":"Coverage dates","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"subdivision","type":"string","label":"Subdivision","values":[],"labels":[],"circularPeriod":null,"defaultOff":true}] as const;
 
-export const PROJECTIONS = [
-	{ id: "value", appliesTo: ["string", "enum", "number", "month"], needsTz: false },
-	{ id: "year", appliesTo: ["date", "month"], needsTz: true },
-	{ id: "yearMonth", appliesTo: ["date"], needsTz: true },
-	{ id: "day", appliesTo: ["date"], needsTz: true },
-	{ id: "monthOfYear", appliesTo: ["date", "month"], needsTz: true },
-	{ id: "hourOfDay", appliesTo: ["date"], needsTz: true },
-] as const;
+export const PROJECTIONS = [{"id":"value","appliesTo":["string","enum","number","month"],"needsTz":false},{"id":"year","appliesTo":["date","month"],"needsTz":true},{"id":"yearMonth","appliesTo":["date"],"needsTz":true},{"id":"day","appliesTo":["date"],"needsTz":true},{"id":"monthOfYear","appliesTo":["date","month"],"needsTz":true},{"id":"hourOfDay","appliesTo":["date"],"needsTz":true}] as const;
 
 export const SCRATCH_MAP_ID = "scratch" as const;
 
