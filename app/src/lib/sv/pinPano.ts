@@ -56,24 +56,49 @@ export async function bulkPinToPano(
 ): Promise<number> {
 	const { useLatest, force = false, ...runOpts } = opts;
 	const target = force ? undefined : unpinnedIn(selector);
-	const result = await runProviders(
+	// Pinning resolves the panorama, it does not merely fill a missing one: a row that
+	// already carries a stale pano id is re-resolved to what is at its coordinates now,
+	// which is what the operation means.
+	const resolve = await runProviders(
 		[
 			{
-				// Pinning resolves the panorama, it does not merely fill a missing one: a row
-				// that already carries a stale pano id is re-resolved to what is at its
-				// coordinates now, which is what the operation means.
 				provider: {
 					...panoResolveProvider,
 					procedure: { ...panoResolveProvider.procedure, select: target },
 				},
 				force: true,
 			},
+		],
+		selector,
+		{ ...runOpts, force },
+	);
+	// Its own run, after the resolve verdicts are in: a row whose re-resolve failed keeps
+	// what it had and is not pinned -- a stale, possibly dead pano must not gain the flag.
+	const unresolved = resolve.panoResolve?.failed ?? [];
+	const base = target ?? selector;
+	const pinTarget: Selector =
+		unresolved.length === 0
+			? base
+			: {
+					type: "Intersection",
+					selections: [
+						base,
+						{
+							type: "Invert",
+							selections: [
+								buildSelection({ type: "Locations", locations: unresolved, name: null }),
+							],
+						} as Selector,
+					].map(buildSelection),
+				};
+	const result = await runProviders(
+		[
 			{
 				provider: {
 					...pinPanoProvider,
 					// Without force the engine only ever sees rows that need pinning, so what
 					// it reports is the count of locations actually pinned.
-					procedure: { ...pinPanoProvider.procedure, select: target },
+					procedure: { ...pinPanoProvider.procedure, select: pinTarget },
 				},
 				config: { useLatest: !!useLatest } satisfies PinPanoConfig,
 			},
