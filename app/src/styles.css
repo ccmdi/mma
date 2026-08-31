@@ -2774,6 +2774,12 @@ input[type="range"]:disabled {
 	justify-content: flex-end;
 	gap: 0.5rem;
 }
+.bulk-operation__meter {
+	margin-right: auto;
+	align-self: center;
+	font-size: 0.8125rem;
+	color: var(--stone-7, #888);
+}
 
 .merge-duplicates__status {
 	font-size: 0.875rem;

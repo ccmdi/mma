@@ -132,6 +132,7 @@ import {
 	runProvidersForIds,
 	queryProcedure,
 	resolveFieldLabels,
+	type PhasePart,
 } from "@/lib/data/procedures";
 import { registerEnrichmentProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { enrichAll, panoResolveProvider } from "@/lib/sv/enrich";
@@ -548,7 +549,7 @@ describe("the progress bar is phase-relative", () => {
 		]);
 	});
 
-	it("sums the providers of one wave, keeping a finished member until the wave ends", async () => {
+	it("combines a wave's providers as min/max over one row universe, never a sum", async () => {
 		expect(
 			await ticks(
 				[waveA, { ...waveB, requires: [], provides: ["heading"] }],
@@ -562,10 +563,37 @@ describe("the progress bar is phase-relative", () => {
 			),
 		).toEqual([
 			[2, 10, "Wave A"],
-			[3, 20, "Enriching fields"],
-			[11, 20, "Wave B"],
-			[15, 20, "Wave B"],
-			[20, 20, undefined],
+			// A row counts done once its slowest provider has passed it; the total stays
+			// the wave's row count, so two providers over 10 rows never read as 20.
+			[1, 10, "Enriching fields"],
+			[1, 10, "Wave B"],
+			[5, 10, "Wave B"],
+			[10, 10, undefined],
+		]);
+	});
+
+	it("hands each wave member's own counts to the caller alongside the combined bar", async () => {
+		h.script = [
+			step("waveA", 2, 10),
+			step("waveB", 1, 10),
+			step("waveA", 10, 10, { finished: true }),
+			step("waveB", 10, 10, { finished: true }),
+		];
+		const parts: (PhasePart[] | undefined)[] = [];
+		await runProviders(
+			[waveA, { ...waveB, requires: [], provides: ["heading"] }].map((provider) => ({ provider })),
+			{ type: "Everything" },
+			{ onProgress: (_d, _t, _label, p) => parts.push(p) },
+		);
+		// A lone member reports no parts; a multi-member wave names every member.
+		expect(parts[0]).toBeUndefined();
+		expect(parts[1]).toEqual([
+			{ label: "Wave A", done: 2, total: 10, finished: false },
+			{ label: "Wave B", done: 1, total: 10, finished: false },
+		]);
+		expect(parts[2]).toEqual([
+			{ label: "Wave A", done: 10, total: 10, finished: true },
+			{ label: "Wave B", done: 1, total: 10, finished: false },
 		]);
 	});
 

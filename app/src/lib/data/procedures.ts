@@ -111,6 +111,15 @@ function parseAnswer(providerId: string, json: string): unknown {
 	}
 }
 
+/** One wave member's own progress, for a caller that shows the providers of a
+ *  multi-provider wave individually. Counts are net of skipped rows. */
+export interface PhasePart {
+	label: string;
+	done: number;
+	total: number;
+	finished: boolean;
+}
+
 export interface RunOpts {
 	signal?: AbortSignal;
 	force?: boolean;
@@ -118,8 +127,10 @@ export interface RunOpts {
 	enrichFields?: string[] | null;
 	/** `label` names the current phase; undefined = no labelled provider is running.
 	 *  `done`/`total` are phase-relative and net of skipped rows, so they reset as each
-	 *  dependency wave begins. */
-	onProgress?: (done: number, total: number, label?: string) => void;
+	 *  dependency wave begins. A wave of several providers combines as min/max -- a row
+	 *  counts done once its slowest provider has passed it, over the wave's row universe,
+	 *  never a per-provider sum -- and `parts` then carries each member's own counts. */
+	onProgress?: (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
 }
 
 /** A provider to run, optionally overriding the config its procedure declares. */
@@ -257,23 +268,44 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<SvRunResu
 			if (phase.every((id) => seen.get(id)?.finished)) phase = [];
 			phase.push(p.providerId);
 		}
+		// A member that skipped every row carries no work and would pin the min at zero.
+		const members = phase
+			.map((id) => seen.get(id))
+			.filter((s): s is ProcedureProgress => s !== undefined && s.total - s.skipped > 0);
+		// Skipped rows were never work, so a lone member nets them off both sides of the
+		// bar (each page discovers more, which is why the denominator shrinks as a run
+		// goes). Several members combine as min/max over raw counts: a row is done once
+		// the slowest provider has passed it, over the wave's one row universe -- the
+		// same location is never summed per provider.
 		let done = 0;
 		let total = 0;
-		const running: string[] = [];
-		for (const id of phase) {
-			const s = seen.get(id);
-			if (!s) continue;
-			// Skipped rows were never work, so they leave both sides of the bar. Each page
-			// discovers more of them, which is why the denominator shrinks as a run goes.
-			done += s.done - s.skipped;
-			total += s.total - s.skipped;
-			const label = labels.get(id);
-			if (!s.finished && label) running.push(label);
+		if (members.length === 1) {
+			done = members[0].done - members[0].skipped;
+			total = members[0].total - members[0].skipped;
+		} else if (members.length > 1) {
+			done = Math.min(...members.map((s) => s.done));
+			total = Math.max(...members.map((s) => s.total));
 		}
+		const labeled = members.filter((s) => labels.get(s.providerId) !== undefined);
+		const parts =
+			labeled.length > 1
+				? labeled.map((s) => ({
+						label: labels.get(s.providerId) as string,
+						done: s.done - s.skipped,
+						total: s.total - s.skipped,
+						finished: s.finished,
+					}))
+				: undefined;
+		const running = labeled.filter((s) => !s.finished);
 		onProgress?.(
 			done,
 			total,
-			running.length === 1 ? running[0] : running.length > 1 ? msg("Enriching fields") : undefined,
+			running.length === 1
+				? labels.get(running[0].providerId)
+				: running.length > 1
+					? msg("Enriching fields")
+					: undefined,
+			parts,
 		);
 		if (seen.size === decls.length && [...seen.values()].every((s) => s.finished)) settle();
 	};

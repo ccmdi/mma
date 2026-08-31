@@ -40,6 +40,7 @@ import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
 import { fmt } from "@/lib/util/format";
 import { waveRate, type WaveRate } from "@/lib/util/util";
+import type { PhasePart } from "@/lib/data/procedures";
 import { toast } from "@/lib/util/toast";
 import { t, msg } from "@/lib/i18n";
 
@@ -54,7 +55,7 @@ const TITLES = {
 } as const;
 export type BulkOperation = keyof typeof TITLES;
 
-type ProgressFn = (done: number, total: number, label?: string) => void;
+type ProgressFn = (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
 
 interface BulkRunContext {
 	selector: Selector;
@@ -783,6 +784,7 @@ function BulkProgress({
 	const [rate, setRate] = useState<number | null>(null);
 	const [elapsed, setElapsed] = useState<number | null>(null);
 	const [phaseLabel, setPhaseLabel] = useState<string | null>(null);
+	const [phaseParts, setPhaseParts] = useState<PhasePart[] | null>(null);
 	const [status, setStatus] = useState<"running" | "done" | "cancelled" | "error">("running");
 	const [error, setError] = useState<string | null>(null);
 	const [result, setResult] = useState<BulkRunResult>({});
@@ -801,8 +803,9 @@ function BulkProgress({
 		setRate(null);
 		setElapsed(null);
 
-		const onProgress: ProgressFn = (d, t, label) => {
+		const onProgress: ProgressFn = (d, t, label, parts) => {
 			setPhaseLabel(label ?? null);
+			setPhaseParts(parts ?? null);
 			setTotal(t);
 			setDone(d);
 			setProgress(t > 0 ? d / t : 1);
@@ -841,13 +844,13 @@ function BulkProgress({
 		<div className="bulk-operation">
 			<div className="bulk-operation__status">
 				{status === "running" &&
-					(phaseLabel ? `${t(phaseLabel)}${t(":")} ` : "") +
-						t("{done} / {total} ({pct}%)", {
-							done: fmt.format(done),
-							total: fmt.format(total),
-							pct,
-						}) +
-						(rate != null ? t(" -- {rate}/s", { rate: fmt.format(Math.round(rate)) }) : "")}
+					(phaseParts
+						? phaseParts
+								.map((p) => `${t(p.label)} ${fmt.format(p.done)}/${fmt.format(p.total)}`)
+								.join(" · ")
+						: phaseLabel
+							? t(phaseLabel)
+							: "")}
 				{status === "done" &&
 					(result.doneContent ??
 						result.doneMessage ??
@@ -875,9 +878,19 @@ function BulkProgress({
 			<progress className="bulk-operation__bar" value={progress} max={1} />
 			<div className="bulk-operation__actions">
 				{status === "running" ? (
-					<Button variant="destructive" onClick={() => controllerRef.current?.abort()}>
-						{t("Cancel")}
-					</Button>
+					<>
+						<span className="bulk-operation__meter">
+							{t("{done} / {total} ({pct}%)", {
+								done: fmt.format(done),
+								total: fmt.format(total),
+								pct,
+							}) +
+								(rate != null ? t(" -- {rate}/s", { rate: fmt.format(Math.round(rate)) }) : "")}
+						</span>
+						<Button variant="destructive" onClick={() => controllerRef.current?.abort()}>
+							{t("Cancel")}
+						</Button>
+					</>
 				) : (
 					<>
 						{status === "done" && result.doneActions}
