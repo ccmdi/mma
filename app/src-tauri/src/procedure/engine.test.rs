@@ -1069,6 +1069,75 @@ fn every_procedure_the_engine_creates_is_configured() {
     );
 }
 
+// Instances are created before any batch is queued: a provider that cannot start one
+// must fail the run rather than strand the producer on a queue nobody drains (or, on a
+// small map, complete as a silent no-op).
+
+#[test]
+fn a_provider_with_no_startable_instance_fails_the_run() {
+    // Enough rows that a stranded producer would block forever on the batch queue.
+    let locs: Vec<Location> = (1..=100u32).map(|i| loc(i, i as f64 / 10.0, 0.0)).collect();
+    let (state, map_id) = setup(&locs);
+    let mut h = Harness::map_only(patch_all("{}"));
+    h.deps.factory = Box::new(|_| Err(AppError("no interpreter".into())));
+    let err = run_provider(&h.ctx(&state, &map_id), &decl("dead", BatchMode::PerRow)).unwrap_err();
+    assert!(err.to_string().contains("no interpreter"), "{err}");
+}
+
+struct BadCfgProc;
+
+impl Procedure for BadCfgProc {
+    fn shape(&self) -> ProcShape {
+        ProcShape::MapOnly
+    }
+    fn configure(&mut self, _config_json: &str) -> AppResult<()> {
+        Err(AppError("config rejected".into()))
+    }
+    fn map(
+        &mut self,
+        _batch: &[u8],
+        _response: &HttpResponse,
+        _host: &mut dyn ProcHost,
+    ) -> AppResult<Vec<PatchEntry>> {
+        Ok(Vec::new())
+    }
+}
+
+#[test]
+fn a_procedure_whose_configure_fails_fails_the_run() {
+    let locs: Vec<Location> = (1..=100u32).map(|i| loc(i, i as f64 / 10.0, 0.0)).collect();
+    let (state, map_id) = setup(&locs);
+    let mut h = Harness::map_only(patch_all("{}"));
+    h.deps.factory = Box::new(|_| Ok(Box::new(BadCfgProc) as Box<dyn Procedure>));
+    let err = run_provider(&h.ctx(&state, &map_id), &decl("cfg", BatchMode::PerRow)).unwrap_err();
+    assert!(err.to_string().contains("config rejected"), "{err}");
+}
+
+#[test]
+fn a_partly_started_provider_runs_on_the_instances_that_did_start() {
+    let locs: Vec<Location> = (1..=10u32).map(|i| loc(i, i as f64, 0.0)).collect();
+    let (state, map_id) = setup(&locs);
+    let mut h = Harness::map_only(patch_all("{}"));
+    let seen = h.seen.clone();
+    let calls = Arc::new(AtomicU32::new(0));
+    h.deps.factory = Box::new(move |_| {
+        if calls.fetch_add(1, Ordering::Relaxed) == 0 {
+            return Err(AppError("first instance dies".into()));
+        }
+        Ok(Box::new(MockProc {
+            shape: ProcShape::MapOnly,
+            seen: seen.clone(),
+            on_map: patch_all("{}"),
+            fail_id: None,
+        }) as Box<dyn Procedure>)
+    });
+    let mut d = decl("half", BatchMode::PerRow);
+    d.instances = Some(2);
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
+    let worked: usize = h.seen.lock().unwrap().iter().map(Vec::len).sum();
+    assert_eq!(worked, 10);
+}
+
 /// The batch a real procedure sees, end to end through `run_provider`: the engine
 /// serializes rows as JSON and the QuickJS host parses them. Pins the wire shape --
 /// camelCase names, `flags` as a number, `extra` as an object, absent `panoId` and

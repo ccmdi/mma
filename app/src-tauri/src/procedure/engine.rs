@@ -725,17 +725,38 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     // procedure per core.
     let instances = instance_count(decl).min(batch_ceiling(&batch_mode, total).max(1));
 
+    // Created and configured before any batch is queued: with no live consumer the
+    // producer would block forever on a full queue, so a provider that cannot start a
+    // single instance fails the run instead of stranding it.
+    let mut procs: Vec<Box<dyn Procedure>> = Vec::with_capacity(instances);
+    let mut create_err: Option<AppError> = None;
+    for _ in 0..instances {
+        match (ctx.deps.factory)(decl).and_then(|mut p| p.configure(&config).map(|_| p)) {
+            Ok(p) => procs.push(p),
+            Err(e) => create_err = Some(e),
+        }
+    }
+    if let Some(e) = create_err {
+        if procs.is_empty() {
+            return Err(e);
+        }
+        log::warn!(
+            "[procedure] provider '{}': some instances failed to start: {e}",
+            decl.id
+        );
+    }
+
     // Three roles, so a page boundary never drains the pipeline: this thread pages rows
     // into a bounded queue (at most a couple of pages ahead), the instances pull batches
     // across page boundaries, and one applier writes each page as its last batch lands.
-    let (batch_tx, batch_rx) = mpsc::sync_channel::<Tagged>(instances * 2);
+    let (batch_tx, batch_rx) = mpsc::sync_channel::<Tagged>(procs.len() * 2);
     let batch_rx = Mutex::new(batch_rx);
     let (out_tx, out_rx) = mpsc::channel::<Produced>();
     let outcome = thread::scope(|s| {
-        for _ in 0..instances {
+        for mut proc in procs {
             let out_tx = out_tx.clone();
-            let (batch_rx, budget, prog, config) = (&batch_rx, &budget, &prog, config.as_str());
-            s.spawn(move || run_instance(ctx, decl, budget, prog, config, batch_rx, &out_tx));
+            let (batch_rx, budget, prog) = (&batch_rx, &budget, &prog);
+            s.spawn(move || run_instance(ctx, decl, budget, prog, &mut *proc, batch_rx, &out_tx));
         }
         let applier = s.spawn(|| apply_pages(ctx, decl, out_rx));
 
@@ -1050,18 +1071,10 @@ fn run_instance(
     decl: &ProviderDecl,
     budget: &FetchBudget,
     prog: &ProviderProgress,
-    config: &str,
+    proc: &mut dyn Procedure,
     batches: &Mutex<mpsc::Receiver<Tagged>>,
     out: &mpsc::Sender<Produced>,
 ) {
-    let created = (ctx.deps.factory)(decl).and_then(|mut p| p.configure(config).map(|_| p));
-    let mut proc = match created {
-        Ok(p) => p,
-        Err(e) => {
-            log::error!("[procedure] provider '{}': {e}", decl.id);
-            return;
-        }
-    };
     loop {
         if ctx.aborted() {
             return;
@@ -1085,7 +1098,7 @@ fn run_instance(
             reported: 0,
             failed: Vec::new(),
         };
-        let result = run_batch(&mut *proc, &batch, &mut host)
+        let result = run_batch(proc, &batch, &mut host)
             .map(|entries| fan_out(entries, batch.fanout.as_ref()))
             .and_then(|entries| match decl.sink {
                 // Only the patch sink parses: a collected answer is the module's
