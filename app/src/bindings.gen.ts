@@ -163,11 +163,14 @@ export const commands = {
 	storeCloseMap: () => __TAURI_INVOKE<null>("store_close_map"),
 	/**  Autosave uncommitted changes to the delta sidecar. No-op when nothing changed. */
 	storeSaveDirty: () => __TAURI_INVOKE<SaveResult>("store_save_dirty"),
-	/**
-	 *  Copy locations into another map, skipping ones the target already has. Tags and extra
-	 *  fields carry over.
-	 */
+	/**  Copy locations already stored in this map into another map. */
 	storeCopyLocationsToMap: (targetMapId: string, selector: Selector) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
+	/**
+	 *  Copy caller-supplied location data into another map. Tag ids are read against this
+	 *  map's tag table, so the values may differ from any row it holds -- that is how the
+	 *  editor sends the pano you are currently looking at rather than the one on disk.
+	 */
+	storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => __TAURI_INVOKE<CopyToMapResult>("store_add_locations_to_map", { targetMapId, locations: locations.map(i=>i) }),
 	/**  Lightweight status query: location count, version, and dirty flag. */
 	storeGetSummary: () => __TAURI_INVOKE<SummaryResult>("store_get_summary"),
 	/**

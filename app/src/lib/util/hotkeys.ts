@@ -142,7 +142,7 @@ const STATIC_HOTKEY_DEFS = [
 	},
 	{
 		action: "duplicateLocation",
-		label: msg("Duplicate location"),
+		label: msg("Drop marker"),
 		group: msg("Location Editor"),
 		defaultBinding: "c",
 	},

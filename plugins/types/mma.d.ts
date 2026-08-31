@@ -205,12 +205,15 @@ declare const commands: {
     storeCloseMap: () => Promise<null>;
     /**  Autosave uncommitted changes to the delta sidecar. No-op when nothing changed. @unstable */
     storeSaveDirty: () => Promise<SaveResult>;
+    /**  Copy locations already stored in this map into another map. @unstable */
+    storeCopyLocationsToMap: (targetMapId: string, selector: Selector) => Promise<CopyToMapResult>;
     /**
-     *  Copy locations into another map, skipping ones the target already has. Tags and extra
-     *  fields carry over.
+     *  Copy caller-supplied location data into another map. Tag ids are read against this
+     *  map's tag table, so the values may differ from any row it holds -- that is how the
+     *  editor sends the pano you are currently looking at rather than the one on disk.
      *  @unstable
      */
-    storeCopyLocationsToMap: (targetMapId: string, selector: Selector) => Promise<CopyToMapResult>;
+    storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => Promise<CopyToMapResult>;
     /**  Lightweight status query: location count, version, and dirty flag. @unstable */
     storeGetSummary: () => Promise<SummaryResult>;
     /**

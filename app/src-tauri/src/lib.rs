@@ -132,6 +132,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             store::commands::store_close_map,
             store::commands::store_save_dirty,
             store::commands::store_copy_locations_to_map,
+            store::commands::store_add_locations_to_map,
             store::commands::store_get_summary,
             store::commands::store_add_locations,
             store::commands::store_add_locations_uploaded,

@@ -14,7 +14,7 @@ import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
-import { SV_SEARCH_RADIUS, storedZoom } from "@/lib/sv/constants";
+import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import type { Tag } from "@/bindings.gen";
 import {
 	useMapState,
@@ -74,7 +74,14 @@ import { FullscreenMiniLocationPreview } from "./FullscreenMiniLocationPreview";
 import { applyViewportLock, getViewportLockInfo } from "@/lib/sv/viewportLock";
 import { useEvent } from "@/lib/events";
 import { resetTrail, pushTrail, clearTrail } from "@/lib/sv/svTrail";
-import { singletonPano, singletonDiv, getPanorama, applyResolved } from "@/lib/sv/panoSingleton";
+import {
+	singletonPano,
+	singletonDiv,
+	getPanorama,
+	applyResolved,
+	capturePano,
+	capturePov,
+} from "@/lib/sv/panoSingleton";
 import { PanoDatePicker } from "./PanoDatePicker";
 import { usePanoNavigation } from "./usePanoNavigation";
 import { useLocationHotkeys } from "./useLocationHotkeys";
@@ -337,11 +344,7 @@ export function LocationPreview() {
 									? activeForSeen.extra.countryCode
 									: geo.countryCode,
 						},
-						() => ({
-							heading: pano.getPov().heading,
-							pitch: pano.getPov().pitch,
-							zoom: pano.getZoom(),
-						}),
+						capturePov,
 					);
 				}
 			});
@@ -379,14 +382,7 @@ export function LocationPreview() {
 			clearTrail();
 			if (statusListener) google?.maps?.event?.removeListener(statusListener);
 			if (lockListener) google?.maps?.event?.removeListener(lockListener);
-			const pano = singletonPano;
-			if (pano) {
-				seenFlush(() => ({
-					heading: pano.getPov().heading,
-					pitch: pano.getPov().pitch,
-					zoom: pano.getZoom(),
-				}));
-			}
+			if (singletonPano) seenFlush(capturePov);
 		};
 	}, [location?.id]);
 
@@ -465,21 +461,15 @@ export function LocationPreview() {
 		if (!location || !singletonPano) return;
 		// Staged (virtual) location: updateLocation no-ops, cursorId can't match a
 		// negative id, so this falls through to setActiveLocation(null) = close.
-		const pov = singletonPano.getPov();
-		const zoom = storedZoom(singletonPano.getZoom());
-		const pano = singletonPano.getPano();
-		const pos = singletonPano.getPosition();
+		const live = capturePano();
+		if (!live) return;
 
-		const savedPanoId = selectedPanoId ?? pano ?? location.panoId;
+		const savedPanoId = selectedPanoId ?? live.panoId ?? location.panoId;
 
 		if (isSeenPreview(location)) {
 			await addLocations([
 				createLocation({
-					lat: pos?.lat() ?? location.lat,
-					lng: pos?.lng() ?? location.lng,
-					heading: pov.heading,
-					pitch: pov.pitch,
-					zoom,
+					...live,
 					panoId: savedPanoId,
 					flags: location.flags & ~VIRTUAL_FLAGS, // keep LoadAsPanoId; drop the preview-kind bits
 					tags: (await createTags(pendingTags)).map((t) => t.id),
@@ -494,12 +484,8 @@ export function LocationPreview() {
 			{
 				id: location.id,
 				patch: {
-					heading: pov.heading,
-					pitch: pov.pitch,
-					zoom: zoom,
+					...live,
 					panoId: savedPanoId,
-					lat: pos?.lat() ?? location.lat,
-					lng: pos?.lng() ?? location.lng,
 					tags: (await createTags(pendingTags)).map((t) => t.id),
 					extra: panoChanged ? {} : location.extra,
 				},

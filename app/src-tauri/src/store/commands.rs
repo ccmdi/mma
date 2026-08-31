@@ -514,10 +514,7 @@ pub async fn store_country_distribution(
     borders::tally_countries(&level, &coords)
 }
 
-/// Copy locations into another map, skipping ones the target already has. Tags and extra
-/// fields carry over.
-// If the target is open in any window its live store is mutated and `store-external-mutation`
-// tells its windows to resync; either way the result is persisted immediately.
+/// Copy locations already stored in this map into another map.
 #[tauri::command]
 #[specta::specta]
 pub fn store_copy_locations_to_map(
@@ -525,6 +522,33 @@ pub fn store_copy_locations_to_map(
     state: tauri::State<'_, StoreState>,
     target_map_id: String,
     selector: Selector,
+) -> AppResult<CopyToMapResult> {
+    copy_to_map(label, state, target_map_id, |src| src.collect(&selector))
+}
+
+/// Copy caller-supplied location data into another map. Tag ids are read against this
+/// map's tag table, so the values may differ from any row it holds -- that is how the
+/// editor sends the pano you are currently looking at rather than the one on disk.
+#[tauri::command]
+#[specta::specta]
+pub fn store_add_locations_to_map(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    target_map_id: String,
+    locations: Vec<Location>,
+) -> AppResult<CopyToMapResult> {
+    copy_to_map(label, state, target_map_id, |_| locations)
+}
+
+/// Insert `collect`'s locations into another map, skipping ones the target already has.
+/// Tags and extra fields carry over.
+// If the target is open in any window its live store is mutated and `store-external-mutation`
+// tells its windows to resync; either way the result is persisted immediately.
+fn copy_to_map(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    target_map_id: String,
+    collect: impl FnOnce(&mut Store) -> Vec<Location>,
 ) -> AppResult<CopyToMapResult> {
     let _t = Instant::now();
     let conn = storage::open_db()?;
@@ -547,7 +571,7 @@ pub fn store_copy_locations_to_map(
     let mut source_tags: HashMap<u32, Tag> = HashMap::new();
     {
         let src = mgr.store_for_map(&source_map_id)?;
-        for mut loc in src.collect(&selector) {
+        for mut loc in collect(src) {
             loc.created_at = now;
             loc.modified_at = Some(now);
             for &t in &loc.tags {
@@ -592,7 +616,7 @@ pub fn store_copy_locations_to_map(
             // new tag was created.
             target.tags.all.touch();
             log::debug!(
-                "[cmd] store_copy_locations_to_map open-target scan={}ms add={}ms total={}ms",
+                "[cmd] copy_to_map open-target scan={}ms add={}ms total={}ms",
                 scan_ms,
                 t_add.elapsed().as_millis(),
                 _t.elapsed().as_millis()
@@ -661,7 +685,7 @@ pub fn store_copy_locations_to_map(
             alive,
             Some(serialize_tags_json(&target_tags)),
         )?;
-        log::debug!("[cmd] store_copy_locations_to_map closed-target read={}ms history={}ms save={}ms total={}ms",
+        log::debug!("[cmd] copy_to_map closed-target read={}ms history={}ms save={}ms total={}ms",
             read_ms, hist_ms, t_save.elapsed().as_millis(), _t.elapsed().as_millis());
     }
     Ok(CopyToMapResult {

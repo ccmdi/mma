@@ -6,7 +6,7 @@ import {
 	type SetStateAction,
 } from "react";
 import type { Location } from "@/bindings.gen";
-import { getMapState, getVisibleTags, duplicateLocation, addLocations } from "@/store/useMapStore";
+import { getMapState, getVisibleTags, addLocations, createTags } from "@/store/useMapStore";
 import { sortTagsByMode } from "@/lib/util/util";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
@@ -18,17 +18,22 @@ import type { Pano } from "@/types";
 import { reverseHeading } from "@/lib/geo/geo";
 import type { ViewerPano } from "./PanoViewerContext";
 import { toast } from "@/lib/util/toast";
+import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
 import { downloadPano } from "@/lib/sv/panoDownload";
-import { isVirtualLocation } from "@/types";
+import { isVirtualLocation, dropLocation } from "@/types";
 import { cycle } from "@/types/util";
 import { reviewNext, reviewPrev } from "@/lib/review/review";
 import { registerMapKeyActionHandler } from "@/lib/map/mapKeyBindings";
-import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { toggleViewportLock } from "@/lib/sv/viewportLock";
 import { sendHideCar } from "./PanoControls";
-import { singletonPano, getPanorama, clearSingletonPano } from "@/lib/sv/panoSingleton";
+import {
+	singletonPano,
+	getPanorama,
+	clearSingletonPano,
+	capturePano,
+} from "@/lib/sv/panoSingleton";
 import { google } from "@/lib/sv/opensv";
 
 interface LocationHotkeyDeps {
@@ -162,8 +167,22 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 		if (container) toast(t(MOVEMENT_MODES[mode]), 1200, container);
 	});
+	/** The open location as it is right now: live camera, staged tags. */
+	const buildDrop = async (): Promise<Location | null> => {
+		if (!location || isVirtualLocation(location)) return null;
+		const live = capturePano();
+		if (!live) return null;
+		const tags = (await createTags(pendingTags)).map((tag) => tag.id);
+		return dropLocation(location, live, selectedPanoId ?? live.panoId ?? location.panoId, tags);
+	};
+
 	useHotkey(useBinding("duplicateLocation"), () => {
-		if (location) void duplicateLocation(location.id);
+		void buildDrop().then(async (drop) => {
+			if (!drop) return;
+			await addLocations([drop]);
+			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
+			if (container) toast(t("Marker dropped"), 1200, container);
+		});
 	});
 
 	useHotkey(useBinding("downloadPanoTile"), () => {
@@ -249,6 +268,11 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		);
 	});
 
+	const onDropToMap = useEffectEvent(async (mapId: string) => {
+		const drop = await buildDrop();
+		return drop && cmd.storeAddLocationsToMap(mapId, [drop]);
+	});
+
 	const hasLocation = location != null;
 	useEffect(() => {
 		if (!hasLocation) return;
@@ -258,11 +282,10 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 			if (!loc || isVirtualLocation(loc)) return false;
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 			const t0 = performance.now();
-			cmd
-				.storeCopyLocationsToMap(mapId, { type: "Locations", locations: [loc.id], name: null })
+			onDropToMap(mapId)
 				.then((res) => {
 					log.debug(`[copyToMap] ipc=${Math.round(performance.now() - t0)}ms`);
-					if (!container) return;
+					if (!res || !container) return;
 					toast(
 						res.copied > 0
 							? t('Copied to "{name}"', { name: res.targetName })

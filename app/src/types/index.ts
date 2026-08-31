@@ -11,6 +11,8 @@ import { LocationFlag, PanoType } from "@/bindings.consts";
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
 /** A view on a specific panorama. */
 export type PanoView = LocationPOV & RequireNonNull<Pick<Location, "panoId">>;
+/** The camera fields a Location and the live Street View viewer share. */
+export type PanoCapture = LocationPOV & Pick<Location, "lat" | "lng" | "panoId">;
 
 export type LatLng = google.maps.LatLngLiteral;
 export type Bounds = google.maps.LatLngBoundsLiteral;
@@ -135,6 +137,24 @@ export function createLocation(partial: Partial<Location> & LatLng): Location {
 		modifiedAt: null,
 		...partial,
 	};
+}
+
+/** A new Location at the viewer's live camera, carrying `source`'s flags and the given
+ *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
+ *  stayed on that pano. */
+export function dropLocation(
+	source: Location,
+	live: PanoCapture,
+	panoId: string | null,
+	tags: number[],
+): Location {
+	return createLocation({
+		...live,
+		panoId,
+		flags: source.flags,
+		tags,
+		extra: panoId === source.panoId ? source.extra : null,
+	});
 }
 
 /** Apply a LocationPatch JS-side, mirroring Rust's `overlay_update`: `extra` is a
