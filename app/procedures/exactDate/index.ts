@@ -101,9 +101,27 @@ function absorb(s: Search, results: number[]): void {
 
 /** Drive every search to a verdict as one wavefront. Invariant per live row: an image
  *  exists in (lo, hi]. probe(lo, c) is monotone in c, so a round's results are a prefix
- *  of falses then trues. */
+ *  of falses then trues.
+ *
+ *  Every window is the same size, so every surviving row needs the same number of rounds
+ *  and they would all finish in the same instant. Progress therefore credits partial work
+ *  per round -- a live row `r` rounds into an estimated `est` counts as r/est of a row --
+ *  which is what makes the bar ramp instead of cliff. */
 function narrow(batch: Search[]): void {
 	if (batch.length === 0 || mma.aborted()) return;
+
+	const range = Math.max(...batch.map((s) => s.hi - s.lo), ACCURACY + 1);
+	const est = Math.max(1, Math.ceil(Math.log(range / ACCURACY) / Math.log(BRANCH + 1)));
+	let reported = 0;
+	const report = (round: number) => {
+		const settled = batch.reduce((n, s) => n + (s.settled ? 1 : 0), 0);
+		const partial = ((batch.length - settled) * Math.min(round, est - 1)) / est;
+		const target = Math.floor(settled + partial);
+		if (target > reported) {
+			mma.progress(target - reported);
+			reported = target;
+		}
+	};
 
 	// One query over each whole window first: a pano that is not a candidate at all
 	// costs one request instead of twenty.
@@ -113,7 +131,9 @@ function narrow(batch: Search[]): void {
 	batch.forEach((s, i) => {
 		if (verdict(seed[i]) !== 1) settle(s, null);
 	});
+	report(0);
 
+	let round = 0;
 	while (!mma.aborted()) {
 		const live = batch.filter((s) => !s.settled);
 		if (live.length === 0) break;
@@ -131,6 +151,7 @@ function narrow(batch: Search[]): void {
 			for (let j = 0; j < s.cuts.length; j++) results.push(verdict(res[at++]));
 			absorb(s, results);
 		}
+		report(++round);
 	}
 }
 
@@ -151,12 +172,11 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 
 	const out: Update<LocationPatch>[] = [];
 	for (const s of batch) {
-		// A row cut short by an abort is neither a result nor a failure, so it reports
-		// nothing and the engine counts it as untouched.
+		// A row cut short by an abort is neither a result nor a failure; beyond any
+		// partial credit already reported, the engine counts it as untouched.
 		if (!s.settled) continue;
 		if (s.ts !== null) out.push({ id: s.id, patch: { extra: { datetime: s.ts } } });
 		else mma.fail(s.id);
-		mma.progress(1);
 	}
 	return out;
 }
