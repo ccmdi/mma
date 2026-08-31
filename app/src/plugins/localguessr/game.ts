@@ -1,5 +1,5 @@
 import type { GeoResult, Location } from "@/bindings.gen";
-import type { LatLng } from "@/types";
+import type { LatLng, PanoCapture } from "@/types";
 import { distMeters } from "@/lib/geo/geo";
 import { computeScore } from "@/lib/geo/scoring";
 
@@ -32,15 +32,7 @@ export const DEFAULT_CONFIG: GameConfig = {
 export const INFINITE_BATCH = 500;
 
 /** The subset of a Location a round needs. Kept narrow so a saved game stays small. */
-export interface RoundLocation {
-	id: number;
-	lat: number;
-	lng: number;
-	heading: number;
-	pitch: number;
-	zoom: number;
-	panoId: string | null;
-}
+export type RoundLocation = PanoCapture & Pick<Location, "id">;
 
 export interface RoundResult {
 	location: RoundLocation;
@@ -91,16 +83,16 @@ export type GameAction =
 	| { type: "finish" }
 	| { type: "exit" };
 
-export function toRoundLocation(loc: Location): RoundLocation {
-	return {
-		id: loc.id,
-		lat: loc.lat,
-		lng: loc.lng,
-		heading: loc.heading,
-		pitch: loc.pitch,
-		zoom: loc.zoom,
-		panoId: loc.panoId,
-	};
+export function toRoundLocation({
+	id,
+	lat,
+	lng,
+	heading,
+	pitch,
+	zoom,
+	panoId,
+}: Location): RoundLocation {
+	return { id, lat, lng, heading, pitch, zoom, panoId };
 }
 
 /** Uniform sample of `n` distinct items in O(n). Partial Fisher-Yates over a sparse

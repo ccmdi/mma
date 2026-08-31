@@ -37,17 +37,12 @@ function saveSettings(s: GeneratorSettings) {
 	genStore.set("settings", s);
 }
 
-function generatedToLocation(loc: GeneratedLocation, tagId: number | null) {
+function generatedToLocation({ imageDate, ...pano }: GeneratedLocation, tagId: number | null) {
 	return createLocation({
-		lat: loc.lat,
-		lng: loc.lng,
-		heading: loc.heading,
-		pitch: loc.pitch,
-		zoom: loc.zoom,
-		panoId: loc.panoId,
+		...pano,
 		flags: LocationFlag.LoadAsPanoId,
 		...(tagId != null ? { tags: [tagId] } : {}),
-		...(loc.imageDate ? { extra: { imageDate: loc.imageDate } } : {}),
+		...(imageDate ? { extra: { imageDate } } : {}),
 	});
 }
 

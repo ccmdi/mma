@@ -1,3 +1,6 @@
+import type { Location } from "@/bindings.gen";
+import type { PanoView } from "@/types";
+
 export interface GeneratorSettings {
 	defaultTarget: number;
 	radius: number;
@@ -125,15 +128,8 @@ export interface GeneratorRegion {
 	isProcessing: boolean;
 }
 
-export interface GeneratedLocation {
-	panoId: string;
-	lat: number;
-	lng: number;
-	heading: number;
-	pitch: number;
-	zoom: number;
-	imageDate: string | null;
-}
+export type GeneratedLocation = PanoView &
+	Pick<Location, "lat" | "lng"> & { imageDate: string | null };
 
 export interface GenerationCallbacks {
 	onLocationsFound: (locs: GeneratedLocation[]) => void;
