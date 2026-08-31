@@ -144,3 +144,30 @@ export function fovToZoom(fov: number): number {
 export function nowUnix(): number {
 	return Math.floor(Date.now() / 1000);
 }
+
+/** Rolling anchor for a phase-relative locations/second average. */
+export interface WaveRate {
+	t0: number;
+	done0: number;
+	done: number;
+	total: number;
+}
+
+/** Locations/second averaged over the progress wave in flight. A done that went backward
+ *  or a total that grew means a new wave began (within one wave done only grows and the
+ *  total only shrinks as skips are found), so the average re-anchors there instead of
+ *  carrying the previous wave's speed. Null until the wave shows a quarter second of work. */
+export function waveRate(
+	prev: WaveRate | null,
+	done: number,
+	total: number,
+	now: number,
+): { state: WaveRate; rate: number | null } {
+	const state =
+		!prev || done < prev.done || total > prev.total
+			? { t0: now, done0: done, done, total }
+			: { ...prev, done, total };
+	const dt = (now - state.t0) / 1000;
+	const dd = state.done - state.done0;
+	return { state, rate: dt >= 0.25 && dd > 0 ? dd / dt : null };
+}

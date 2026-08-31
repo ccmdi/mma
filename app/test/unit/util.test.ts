@@ -5,6 +5,8 @@ import {
 	sortTagsByMode,
 	tagColorFor,
 	appendTagName,
+	waveRate,
+	type WaveRate,
 } from "@/lib/util/util";
 import { colorForName } from "@/lib/util/color";
 import { relativeTime } from "@/lib/util/format";
@@ -180,5 +182,51 @@ describe("cycle", () => {
 		const seen = [MOVEMENT_CYCLE[0]];
 		for (let i = 0; i < MOVEMENT_CYCLE.length; i++) seen.push(cycle(MOVEMENT_CYCLE, seen[i]));
 		expect(seen).toEqual([...MOVEMENT_CYCLE, MOVEMENT_CYCLE[0]]);
+	});
+});
+
+describe("waveRate", () => {
+	function feed(ticks: [done: number, total: number, at: number][]) {
+		let state: WaveRate | null = null;
+		let rate: number | null = null;
+		for (const [done, total, at] of ticks) {
+			({ state, rate } = waveRate(state, done, total, at));
+		}
+		return rate;
+	}
+
+	it("averages over the wave, not instantaneously", () => {
+		// 100 rows in 1s, then a burst of 300 in the next second: average, not the burst.
+		expect(feed([[0, 1000, 0], [100, 1000, 1000], [400, 1000, 2000]])).toBe(200);
+	});
+
+	it("is null until the wave shows work", () => {
+		expect(feed([[0, 1000, 0]])).toBeNull();
+		expect(feed([[0, 1000, 0], [0, 1000, 5000]])).toBeNull();
+	});
+
+	it("re-anchors when done resets for the next wave instead of carrying the old speed", () => {
+		const rate = feed([
+			[0, 100, 0],
+			[100, 100, 100], // wave 1: 1000/s
+			[0, 5000, 200], // wave 2 begins
+			[50, 5000, 1200], // 50 rows in 1s of wave 2
+		]);
+		expect(rate).toBe(50);
+	});
+
+	it("re-anchors when the total grows, which only a new wave does", () => {
+		const rate = feed([
+			[10, 10, 0],
+			[10, 10, 1000], // wave 1 finished at 10/10
+			[20, 5000, 2000], // wave 2's counts arrive without ever dipping below 10
+			[120, 5000, 3000],
+		]);
+		expect(rate).toBe(100);
+	});
+
+	it("a shrinking total stays inside the wave", () => {
+		// Skips shrink the denominator mid-wave; the anchor must survive that.
+		expect(feed([[0, 1000, 0], [100, 900, 1000], [200, 800, 2000]])).toBe(100);
 	});
 });

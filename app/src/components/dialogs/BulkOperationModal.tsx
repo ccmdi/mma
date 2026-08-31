@@ -39,6 +39,7 @@ import {
 import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
 import { fmt } from "@/lib/util/format";
+import { waveRate, type WaveRate } from "@/lib/util/util";
 import { toast } from "@/lib/util/toast";
 import { t, msg } from "@/lib/i18n";
 
@@ -789,18 +790,14 @@ function BulkProgress({
 	// itself adds selections, and re-running on that would loop.
 	const [target] = useState(selector);
 	const controllerRef = useRef<AbortController | null>(null);
-	const rateRef = useRef<{ t: number; done: number; ema: number | null }>({
-		t: 0,
-		done: 0,
-		ema: null,
-	});
+	const rateRef = useRef<WaveRate | null>(null);
 
 	const run = useCallback(async () => {
 		const controller = new AbortController();
 		controllerRef.current = controller;
 
 		const runStart = performance.now();
-		rateRef.current = { t: runStart, done: 0, ema: null };
+		rateRef.current = null;
 		setRate(null);
 		setElapsed(null);
 
@@ -810,20 +807,9 @@ function BulkProgress({
 			setDone(d);
 			setProgress(t > 0 ? d / t : 1);
 
-			// Smoothed items/s. `d` resets between enrich waves; on a reset just
-			// re-anchor rather than emit a negative spike.
-			const now = performance.now();
-			const prev = rateRef.current;
-			const dd = d - prev.done;
-			const dt = (now - prev.t) / 1000;
-			if (dd < 0) {
-				rateRef.current = { ...prev, t: now, done: d };
-			} else if (dt >= 0.25 && dd > 0) {
-				const inst = dd / dt;
-				const ema = prev.ema == null ? inst : prev.ema * 0.7 + inst * 0.3;
-				rateRef.current = { t: now, done: d, ema };
-				setRate(ema);
-			}
+			const { state, rate } = waveRate(rateRef.current, d, t, performance.now());
+			rateRef.current = state;
+			setRate(rate);
 		};
 
 		try {
