@@ -1,4 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { errText } from "@/lib/util/util";
@@ -50,9 +50,11 @@ async function handleRemoteCall({ id, path, args }: RemoteCall): Promise<void> {
 	}
 }
 
-/** Listen for remote API calls targeted at this window. Installed once at startup. */
+/** Listen for remote API calls targeted at this window. Installed once at startup.
+ *  Window-scoped listen: a global `listen` receives `emit_to` events in every window,
+ *  so all windows would execute the call and race to respond. */
 export function initRemoteHost(): void {
-	void listen<RemoteCall>("mma-remote:call", (ev) => {
+	void getCurrentWebviewWindow().listen<RemoteCall>("mma-remote:call", (ev) => {
 		void handleRemoteCall(ev.payload);
 	});
 }
