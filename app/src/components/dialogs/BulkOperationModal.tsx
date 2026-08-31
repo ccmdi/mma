@@ -661,8 +661,8 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 
 /** Prompt for a destination and move the packaged download there. False = cancelled. */
 async function saveDownloadResult(result: BulkDownloadResult): Promise<boolean> {
-	if (!result.outputPath || !result.suggestedName) return false;
-	const ok = await saveExportTempFile(result.outputPath, result.suggestedName);
+	if (!result.output) return false;
+	const ok = await saveExportTempFile(result.output.path, result.output.name);
 	if (ok) {
 		toast(
 			result.succeeded === 1
@@ -696,7 +696,7 @@ function DownloadDoneActions({
 
 	return (
 		<>
-			{result.outputPath != null && !saved && (
+			{result.output != null && !saved && (
 				<Button variant="primary" onClick={() => void save()}>
 					{result.succeeded === 1 ? t("Save image") : t("Save ZIP")}
 				</Button>

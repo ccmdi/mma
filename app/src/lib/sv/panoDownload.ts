@@ -137,8 +137,7 @@ export interface PanoDownloadConfig {
 
 export interface BulkDownloadResult extends BatchOutcome {
 	/** Temp file (single image or ZIP) ready for the export save dialog; null when nothing downloaded. */
-	outputPath: string | null;
-	suggestedName: string | null;
+	output: { path: string; name: string } | null;
 }
 
 const DOWNLOAD_CONCURRENCY = 4;
@@ -364,7 +363,7 @@ export async function bulkDownloadPanoramas(
 		return panoId ? [{ loc, panoId }] : [];
 	});
 	if (pending.length === 0) {
-		return { succeeded: saved.length, failed, outputPath: null, suggestedName: null };
+		return { succeeded: saved.length, failed, output: null };
 	}
 
 	// Metadata drives tile layout and center heading; thumbnail/tile modes need neither.
@@ -432,12 +431,11 @@ export async function bulkDownloadPanoramas(
 
 	if (saved.length === 0) {
 		await cmd.storeUploadAbort(session).catch(() => {});
-		return { succeeded: saved.length, failed, outputPath: null, suggestedName: null };
+		return { succeeded: saved.length, failed, output: null };
 	}
 
-	const outputPath = await cmd.storeUploadFinish(session);
+	const path = await cmd.storeUploadFinish(session);
 	const stamp = fileTimestamp();
-	const suggestedName =
-		saved.length === 1 && singleName ? singleName : `panoramas-${stamp}.zip`;
-	return { succeeded: saved.length, failed, outputPath, suggestedName };
+	const name = saved.length === 1 && singleName ? singleName : `panoramas-${stamp}.zip`;
+	return { succeeded: saved.length, failed, output: { path, name } };
 }
