@@ -14,7 +14,7 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { t } from "@/lib/i18n";
 import { fillTemplate } from "@/lib/util/format";
-import { countMissingTimezone } from "@/lib/util/timezone";
+import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 
 /** `{value}` alone keeps today's names; a prefix such as `Camera/{value}` files them in a folder. */
 const DEFAULT_TEMPLATE = "{value}";
@@ -185,14 +185,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 					)}
 					{tzGap > 0 && (
 						<div className="bulk-operation__status">
-							{t(
-								{
-									one: "{n} location skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
-									other:
-										"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
-								},
-								{ n: tzGap },
-							)}
+							{missingTimezoneMessage(tzGap)}
 						</div>
 					)}
 					{field && (

@@ -6,12 +6,15 @@ import {
 	fieldLabel,
 	fieldValueLabel,
 	getAllFieldDefs,
+	getFieldDef,
 	isListableField,
 	getKnownFieldKeys,
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
 import { addSelections, fieldValues } from "@/store/useMapStore";
+import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
+import { toast } from "@/lib/util/toast";
 import { useSetting } from "@/store/settings";
 import { OP_LABELS } from "@/store/selections";
 import { DatePicker, type DateFlagProps } from "@/components/primitives/DatePicker";
@@ -535,9 +538,16 @@ export function FilterBuilder({ mapId }: { mapId: string }) {
 		<FilterForm
 			persistKey={mapId}
 			submitLabel={t("Add filter")}
-			onSubmit={(field, op, value, value2, tzLocal) =>
-				void addSelections([{ type: "Filter", field, op, value, value2, tzLocal }])
-			}
+			onSubmit={(field, op, value, value2, tzLocal) => {
+				void addSelections([{ type: "Filter", field, op, value, value2, tzLocal }]);
+				const type = getFieldDef(field)?.type;
+				if (type && value != null)
+					void countMissingTimezone({ type: "Everything" }, field, type, tzLocal === true).then(
+						(n) => {
+							if (n > 0) toast(missingTimezoneMessage(n), 6000);
+						},
+					);
+			}}
 		/>
 	);
 }

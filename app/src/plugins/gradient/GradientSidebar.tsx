@@ -10,7 +10,7 @@ import { partition } from "@/store/useMapStore";
 import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
-import { countMissingTimezone } from "@/lib/util/timezone";
+import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { usePluginState } from "@/plugins/registry";
 import { useSetting } from "@/store/settings";
 import "./gradient.css";
@@ -315,14 +315,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 					</div>
 					{lastResult != null && lastResult.skipped > 0 && (
 						<div className="gradient-sidebar__skipped">
-							{t(
-								{
-									one: "{n} location skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
-									other:
-										"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
-								},
-								{ n: lastResult.skipped },
-							)}
+							{missingTimezoneMessage(lastResult.skipped)}
 						</div>
 					)}
 				</>
