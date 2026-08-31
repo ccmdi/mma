@@ -136,6 +136,8 @@ export interface RunOpts {
 	onProgress?: (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
 }
 
+export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
+
 /** A provider to run, optionally overriding the config its procedure declares. */
 export interface ProviderRun {
 	provider: EnrichmentProvider;

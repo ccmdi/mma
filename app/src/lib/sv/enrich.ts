@@ -17,6 +17,8 @@ import {
 	outcomeDidWork,
 	procedureEntry,
 	type ResolverOutcome,
+	type BulkOpts,
+	type RunOpts,
 } from "@/lib/data/procedures";
 import {
 	GET_METADATA_INFLIGHT,
@@ -182,11 +184,7 @@ export type EnrichResult = EnrichOutcome[];
  *  provider (metadata, exact date, timezone, subdivision) through the Rust engine. */
 export async function enrichAll(
 	selector: Selector,
-	opts: {
-		signal?: AbortSignal;
-		force?: boolean;
-		onProgress?: (done: number, total: number, label?: string) => void;
-	} = {},
+	opts: BulkOpts & Pick<RunOpts, "force"> = {},
 ): Promise<EnrichResult> {
 	const map = getMapState().map;
 	if (!map) return [];

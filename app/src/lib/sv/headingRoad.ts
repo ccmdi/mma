@@ -1,5 +1,5 @@
 import type { Selector } from "@/bindings.gen";
-import { procedureEntry, runProviders } from "@/lib/data/procedures";
+import { procedureEntry, runProviders, type BulkOpts } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
 import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
 import { registerEnrichmentProvider, type EnrichmentProvider } from "@/lib/data/fieldDefs";
@@ -32,10 +32,7 @@ registerEnrichmentProvider(headingRoadProvider);
 export async function bulkPanHeading(
 	selector: Selector,
 	direction: RoadDirection,
-	opts: {
-		signal?: AbortSignal;
-		onProgress?: (done: number, total: number) => void;
-	} = {},
+	opts: BulkOpts = {},
 ): Promise<number> {
 	const result = await runProviders(
 		[

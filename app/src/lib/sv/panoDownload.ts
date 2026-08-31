@@ -5,7 +5,7 @@ import { svMetadata } from "@/lib/sv/query";
 import type { Pano } from "@/types";
 import { centerHeading } from "@/lib/sv/getMetadata";
 import { panoResolveSpec } from "@/lib/sv/enrich";
-import { runProcedure, type BatchOutcome } from "@/lib/data/procedures";
+import { runProcedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { fileTimestamp } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
@@ -326,10 +326,7 @@ async function fetchMetadataMap(
 export async function bulkDownloadPanoramas(
 	locations: Location[],
 	config: PanoDownloadConfig,
-	opts: {
-		signal?: AbortSignal;
-		onProgress?: (done: number, total: number, label?: string) => void;
-	} = {},
+	opts: BulkOpts = {},
 ): Promise<BulkDownloadResult> {
 	const { signal, onProgress } = opts;
 	const saved: number[] = [];

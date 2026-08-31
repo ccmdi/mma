@@ -1,6 +1,6 @@
 import type { Selector } from "@/bindings.gen";
 import { buildSelection } from "@/store/selections";
-import { procedureEntry, runProviders } from "@/lib/data/procedures";
+import { procedureEntry, runProviders, type BulkOpts, type RunOpts } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
 import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
 import { registerEnrichmentProvider, type EnrichmentProvider } from "@/lib/data/fieldDefs";
@@ -47,12 +47,7 @@ function unpinnedIn(selector: Selector): Selector {
  *  loads the same pano. Returns the number of locations pinned. */
 export async function bulkPinToPano(
 	selector: Selector,
-	opts: {
-		signal?: AbortSignal;
-		force?: boolean;
-		useLatest?: boolean;
-		onProgress?: (done: number, total: number) => void;
-	} = {},
+	opts: BulkOpts & Pick<RunOpts, "force"> & { useLatest?: boolean } = {},
 ): Promise<number> {
 	const { useLatest, force = false, ...runOpts } = opts;
 	const target = force ? undefined : unpinnedIn(selector);

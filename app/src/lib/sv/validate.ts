@@ -1,7 +1,7 @@
 import type { Selector } from "@/bindings.gen";
 import { ValidationState } from "@/bindings.consts";
 import type { ProcedureSpec } from "@/lib/data/fieldDefs";
-import { procedureEntry, runProcedure } from "@/lib/data/procedures";
+import { procedureEntry, runProcedure, type BulkOpts } from "@/lib/data/procedures";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { log } from "@/lib/util/log";
 import { msg } from "@/lib/i18n";
@@ -31,16 +31,12 @@ const STATES = new Set<number>(Object.values(ValidationState));
  *  ids grouped by the state they validated to. */
 export async function validateLocations(
 	selector: Selector,
-	opts: {
-		signal?: AbortSignal;
-		onProgress?: (done: number, total: number) => void;
-	} = {},
+	opts: BulkOpts = {},
 ): Promise<Map<ValidationState, number[]>> {
 	const run = await runProcedure(validateSpec, selector, {
 		id: "validate",
 		label: msg("Validating"),
-		signal: opts.signal,
-		onProgress: (done, total) => opts.onProgress?.(done, total),
+		...opts,
 	});
 
 	const results = new Map<ValidationState, number[]>();
