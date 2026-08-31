@@ -4298,6 +4298,7 @@ export interface RunOpts {
      *  never a per-provider sum -- and `parts` then carries each member's own counts. */
     onProgress?: (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
 }
+export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
 /** What a run may set on top of what the spec declares. */
 export interface DeclOpts {
     label?: string;
@@ -4328,27 +4329,17 @@ export interface EnrichOutcome extends ResolverOutcome {
 export type EnrichResult = EnrichOutcome[];
 /** Bulk enrich a selector: resolve missing pano ids, then run every field-producing
  *  provider (metadata, exact date, timezone, subdivision) through the Rust engine. */
-declare function enrichAll(selector: Selector, opts?: {
-    signal?: AbortSignal;
-    force?: boolean;
-    onProgress?: (done: number, total: number, label?: string) => void;
-}): Promise<EnrichResult>;
+declare function enrichAll(selector: Selector, opts?: BulkOpts & Pick<RunOpts, "force">): Promise<EnrichResult>;
 
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
  *  loads the same pano. Returns the number of locations pinned. */
-declare function bulkPinToPano(selector: Selector, opts?: {
-    signal?: AbortSignal;
-    force?: boolean;
+declare function bulkPinToPano(selector: Selector, opts?: BulkOpts & Pick<RunOpts, "force"> & {
     useLatest?: boolean;
-    onProgress?: (done: number, total: number) => void;
 }): Promise<number>;
 
 /** Check that each location's Street View coverage still exists; returns the location
  *  ids grouped by the state they validated to. */
-declare function validateLocations(selector: Selector, opts?: {
-    signal?: AbortSignal;
-    onProgress?: (done: number, total: number) => void;
-}): Promise<Map<ValidationState, number[]>>;
+declare function validateLocations(selector: Selector, opts?: BulkOpts): Promise<Map<ValidationState, number[]>>;
 
 /**
  * The surface a procedure module runs against: the global `mma` object and the values

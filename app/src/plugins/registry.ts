@@ -16,6 +16,15 @@ export interface PluginSettingDef {
 	default: unknown;
 }
 
+export interface PluginIdentity {
+	id: string;
+	name: string;
+	description: string;
+	icon: string;
+	comingSoon?: boolean;
+	experimental?: boolean;
+}
+
 export interface Plugin {
 	id: string;
 	name: string;

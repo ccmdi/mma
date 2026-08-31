@@ -18,6 +18,8 @@ import {
 	needsBuildUpdate,
 	isBackgroundPlugin,
 	fetchPluginRegistry,
+	type Plugin,
+	type PluginIdentity,
 } from "@/plugins/registry";
 import { events, type PluginManifest } from "@/bindings.gen";
 import { loadAndActivatePlugin, loadUserPlugin } from "@/plugins/index";
@@ -97,11 +99,7 @@ import { t, msg } from "@/lib/i18n";
 
 /** One card's worth of state. Core plugins are just entries that ship installed and
  *  can't be uninstalled or updated independently of the app. */
-interface PluginEntry {
-	id: string;
-	name: string;
-	description: string;
-	icon: string;
+interface PluginEntry extends PluginIdentity {
 	/** Built in — no install/uninstall/update affordances. */
 	core?: boolean;
 	installed: boolean;
@@ -110,9 +108,18 @@ interface PluginEntry {
 	latestVersion?: string;
 	/** Commit the offered build ships at; null for the registry's latest. */
 	ref?: string | null;
-	comingSoon?: boolean;
-	experimental?: boolean;
 	requiresApp?: string | null;
+}
+
+function identity(p: Plugin | PluginManifest): PluginIdentity {
+	return {
+		id: p.id,
+		name: p.name,
+		description: p.description || "",
+		icon: p.icon,
+		comingSoon: p.comingSoon,
+		experimental: p.experimental,
+	};
 }
 
 /** Small hover-explained markers on a card. Each either derives from the loaded
@@ -262,15 +269,10 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 	const coreEntries: PluginEntry[] = getPlugins()
 		.filter((p) => p.core)
 		.map((p) => ({
-			id: p.id,
-			name: p.name,
-			description: p.description || "",
-			icon: p.icon,
+			...identity(p),
 			core: true,
 			installed: true,
 			enabled: isPluginEnabled(p.id),
-			comingSoon: p.comingSoon,
-			experimental: p.experimental,
 		}));
 
 	const refreshInstalled = useCallback(async () => {
@@ -318,16 +320,12 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 					!!target &&
 					needsBuildUpdate(manifest.version, target, sidecarVersions[r.id], r.sidecar?.version);
 				const entry: PluginEntry = {
-					id: r.id,
-					name: r.name,
-					description: r.description,
-					icon: r.icon,
+					...identity(r),
 					installed: isInstalled,
 					enabled: isPluginEnabled(r.id),
 					updatable,
 					latestVersion: target?.version ?? r.version,
 					ref: target?.ref,
-					comingSoon: r.comingSoon,
 					experimental: r.experimental ?? manifest?.experimental,
 					requiresApp: target ? undefined : r.minAppVersion,
 				};
@@ -339,14 +337,10 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 		for (const m of installedManifests) {
 			if (registry && installed.some((e) => e.id === m.id)) continue;
 			installed.push({
-				id: m.id,
-				name: m.name,
-				description: m.description || "",
-				icon: m.icon,
+				...identity(m),
 				installed: true,
 				enabled: isPluginEnabled(m.id),
 				updatable: false,
-				experimental: m.experimental,
 			});
 		}
 
