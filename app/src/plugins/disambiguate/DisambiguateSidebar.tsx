@@ -4,12 +4,7 @@ import { useEvent, SELECTION_EVENTS } from "@/lib/events";
 import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
 import type { Selection, ExtraFieldDef } from "@/bindings.gen";
 import { analysisColumns, computeDivergence, soleGroup, type GroupColumns } from "./engine";
-import type {
-	DisambiguateResult,
-	FieldDivergence,
-	GroupSummary,
-	ValueFormat,
-} from "./engine";
+import type { DisambiguateResult, FieldDivergence, GroupSummary, ValueFormat } from "./engine";
 import "./disambiguate.css";
 import { t } from "@/lib/i18n";
 
@@ -177,7 +172,10 @@ async function analyze(): Promise<Analysis> {
 	);
 	const groups: GroupColumns[] = await Promise.all(
 		groupIds.map(async (ids) => {
-			const cols = await MMA.fetchColumns({ type: "Locations", locations: ids, name: null }, fields);
+			const cols = await MMA.fetchColumns(
+				{ type: "Locations", locations: ids, name: null },
+				fields,
+			);
 			return { size: ids.length, columns: Object.fromEntries(fields.map((f, i) => [f, cols[i]])) };
 		}),
 	);

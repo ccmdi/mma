@@ -207,12 +207,7 @@ interface DeclOpts {
 	requires?: string[];
 }
 
-function declare(
-	id: string,
-	spec: ProcedureSpec,
-	selector: Selector,
-	o: DeclOpts,
-): ProviderDecl {
+function declare(id: string, spec: ProcedureSpec, selector: Selector, o: DeclOpts): ProviderDecl {
 	return {
 		id,
 		label: o.label ?? null,

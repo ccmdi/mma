@@ -38,10 +38,7 @@ export function derivePanoDateState(
 			? ymToDate(imageDateOf(currentPano))
 			: null;
 	const triggerPanoId =
-		currentEntry?.pano ??
-		currentPano?.pano ??
-		sorted[sorted.length - 1]?.pano ??
-		defaultPanoId;
+		currentEntry?.pano ?? currentPano?.pano ?? sorted[sorted.length - 1]?.pano ?? defaultPanoId;
 	const yearMonth = displayDate ? ymFromDate(displayDate) : null;
 	return { defaultEntry, sorted, currentEntry, isDefault, displayDate, triggerPanoId, yearMonth };
 }

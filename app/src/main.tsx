@@ -48,8 +48,6 @@ async function boot() {
 	if (window.MMA) window.MMA.ready = true;
 	log.info("App booted");
 
-	
-
 	void appWindow.onCloseRequested(async (event) => {
 		event.preventDefault();
 		log.info("Window close requested, closing map...");

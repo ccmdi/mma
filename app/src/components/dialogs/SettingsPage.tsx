@@ -912,7 +912,6 @@ function EditingBody() {
 				)}
 			</SettingsGroup>
 
-
 			<SettingsGroup title={t("Geocoding")}>
 				<SettingRow
 					label={t("Provider")}

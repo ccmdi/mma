@@ -706,7 +706,13 @@ function DownloadDoneActions({
 	);
 }
 
-function SelectFailedButton({ outcome, style }: { outcome: BatchOutcome; style?: React.CSSProperties }) {
+function SelectFailedButton({
+	outcome,
+	style,
+}: {
+	outcome: BatchOutcome;
+	style?: React.CSSProperties;
+}) {
 	if (outcome.failed.length === 0) return null;
 	return (
 		<Button
@@ -868,8 +874,7 @@ function BulkProgress({
 								done: fmt.format(done),
 								total: fmt.format(total),
 								pct,
-							}) +
-								(rate != null ? t(" -- {rate}/s", { rate: fmt.format(Math.round(rate)) }) : "")}
+							}) + (rate != null ? t(" -- {rate}/s", { rate: fmt.format(Math.round(rate)) }) : "")}
 						</span>
 						<Button variant="destructive" onClick={() => controllerRef.current?.abort()}>
 							{t("Cancel")}

@@ -59,9 +59,7 @@ async function computePivot(
 			color: s.color,
 		}));
 		idSets = await Promise.all(
-			sels.map((s: Selection) =>
-				MMA.resolveIds(s.selector).then((ids) => new Set(ids)),
-			),
+			sels.map((s: Selection) => MMA.resolveIds(s.selector).then((ids) => new Set(ids))),
 		);
 	} else {
 		const [entry] = await loadSavedSelections([rowSource]);

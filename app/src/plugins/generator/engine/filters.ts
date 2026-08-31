@@ -80,16 +80,10 @@ function entryMonth(entry: { date: string }): number {
 
 export function passesInitialFilters(res: Pano, s: GeneratorSettings): boolean {
 	if (s.rejectUnofficial && !s.rejectOfficial) {
-		if (
-			s.rejectNoDescription &&
-			!s.rejectDescription &&
-			!res.description &&
-			!res.shortDescription
-		)
+		if (s.rejectNoDescription && !s.rejectDescription && !res.description && !res.shortDescription)
 			return false;
 		if (s.getIntersection && res.links.length < 3) return false;
-		if (s.rejectDescription && (res.description || res.shortDescription))
-			return false;
+		if (s.rejectDescription && (res.description || res.shortDescription)) return false;
 		if (s.pinpointSearch && res.links.length < 2) return false;
 		if (s.getIntersection && !s.pinpointSearch && res.links.length < 3) return false;
 		if (
@@ -160,8 +154,7 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 		)
 			return false;
 		if (s.getIntersection && pano.links.length < 3) return false;
-		if (s.rejectDescription && (pano.description || pano.shortDescription))
-			return false;
+		if (s.rejectDescription && (pano.description || pano.shortDescription)) return false;
 		if (s.pinpointSearch && pano.links.length < 2) return false;
 		if (s.getIntersection && !s.pinpointSearch && pano.links.length < 3) return false;
 		if (

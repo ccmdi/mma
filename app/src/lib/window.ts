@@ -28,10 +28,14 @@ export const WINDOWS: { [K in WindowType]: WindowDef<Of<K>> } = {
 	editor: {
 		label: (w) => `map-${w.mapId}`,
 		fromLabel: (label) =>
-			label.startsWith("map-") && label.length > 4 ? { type: "editor", mapId: label.slice(4) } : null,
+			label.startsWith("map-") && label.length > 4
+				? { type: "editor", mapId: label.slice(4) }
+				: null,
 		hash: (w) => ["map", w.mapId],
 		fromHash: (parts) =>
-			parts[0] === "map" && parts[1] ? { window: { type: "editor", mapId: parts[1] }, rest: parts.slice(2) } : null,
+			parts[0] === "map" && parts[1]
+				? { window: { type: "editor", mapId: parts[1] }, rest: parts.slice(2) }
+				: null,
 		title: (_w, mapName) => (mapName ? withApp(mapName) : t("Map Editor")),
 	},
 	list: {
@@ -162,6 +166,8 @@ const WINDOW_STATE_FLAGS = 0b110111;
 export async function closeAndDestroy(): Promise<void> {
 	await focusWindow({ type: "list" });
 	const { invoke } = await import("@tauri-apps/api/core");
-	await invoke("plugin:window-state|save_window_state", { flags: WINDOW_STATE_FLAGS }).catch(() => {});
+	await invoke("plugin:window-state|save_window_state", { flags: WINDOW_STATE_FLAGS }).catch(
+		() => {},
+	);
 	void appWindow.destroy();
 }
