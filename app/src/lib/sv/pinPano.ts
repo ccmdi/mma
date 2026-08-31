@@ -106,5 +106,5 @@ export async function bulkPinToPano(
 		selector,
 		{ ...runOpts, force },
 	);
-	return result.pinPano?.success ?? 0;
+	return result.pinPano?.succeeded ?? 0;
 }

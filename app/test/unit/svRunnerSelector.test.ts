@@ -263,7 +263,7 @@ describe("runProviders hands the engine the caller's selector", () => {
 		h.failed = 3;
 		h.failedIds = { prov: [4, 8, 9] };
 		const result = await runProviders([{ provider: plainProvider }], { type: "Everything" });
-		expect(result.prov).toMatchObject({ success: 7, failed: [4, 8, 9] });
+		expect(result.prov).toMatchObject({ succeeded: 7, failed: [4, 8, 9] });
 	});
 });
 
@@ -620,6 +620,6 @@ describe("the progress bar is phase-relative", () => {
 	it("keeps success counts on raw engine totals, not the bar's net ones", async () => {
 		h.script = [step("waveA", 10, 10, { failed: 3, skipped: 2, finished: true })];
 		const result = await runProviders([{ provider: waveA }], { type: "Everything" });
-		expect(result.waveA).toMatchObject({ success: 5 });
+		expect(result.waveA).toMatchObject({ succeeded: 5 });
 	});
 });

@@ -17,7 +17,7 @@ vi.mock("@/lib/data/procedures", () => ({
 	procedureEntry: (name: string) => `res://procedures/${name}.js`,
 	runProcedure: (spec: ProcedureSpec, selector: Selector, opts: Record<string, unknown>) => {
 		h.runs.push({ spec, selector, opts });
-		return Promise.resolve({ success: h.answers.length, failed: [], collected: h.answers });
+		return Promise.resolve({ succeeded: h.answers.length, failed: [], collected: h.answers });
 	},
 }));
 
@@ -95,7 +95,7 @@ describe("bulk pano download resolves through the engine", () => {
 		const result = await bulkDownloadPanoramas([loc(2)], thumbnail);
 
 		expect(h.uploaded).toEqual(["RESOLVED_PANO.png"]);
-		expect(result.succeeded).toEqual([2]);
+		expect(result.succeeded).toBe(1);
 		expect(h.finished).toBe(true);
 	});
 
@@ -104,7 +104,7 @@ describe("bulk pano download resolves through the engine", () => {
 		const result = await bulkDownloadPanoramas([loc(2), loc(3)], thumbnail);
 
 		expect(result.failed).toEqual([3]);
-		expect(result.succeeded).toEqual([2]);
+		expect(result.succeeded).toBe(1);
 	});
 
 	it("runs nothing when every row already has a pano", async () => {
@@ -112,7 +112,7 @@ describe("bulk pano download resolves through the engine", () => {
 
 		expect(h.runs).toEqual([]);
 		expect(h.uploaded).toEqual(["HAS_PANO.png"]);
-		expect(result.succeeded).toEqual([1]);
+		expect(result.succeeded).toBe(1);
 	});
 
 	it("ignores an answer that names no pano", async () => {

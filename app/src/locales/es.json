@@ -1452,7 +1452,6 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: local {local} · remoto {remote}",
 	"{field}’s values": "Valores de {field}",
-	"{label} failed": "{label} falló",
 	"{maps} maps · {locations} locations": "{maps} mapas · {locations} ubicaciones",
 	"{name} - round {n}": "{name} - ronda {n}",
 	"{name} updated to v{version}": "{name} actualizado a v{version}",

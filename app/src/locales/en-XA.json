@@ -1416,7 +1416,6 @@
 	"{field} {op} {value}": "[{field} {op} {value} å]",
 	"{field}: local {local} · remote {remote}": "[{field}: ĺöçåĺ {local} · ŕéɱöţé {remote} åéîöüåéî]",
 	"{field}’s values": "[{field}’ş ṽåĺüéş åéîö]",
-	"{label} failed": "[{label} ƒåîĺéð åéî]",
 	"{maps} maps · {locations} locations": "[{maps} ɱåƥş · {locations} ĺöçåţîöñş åéîöüåéî]",
 	"{name} - round {n}": "[{name} - ŕöüñð {n} åéîö]",
 	"{name} updated to v{version}": "[{name} üƥðåţéð ţö ṽ{version} åéîöüå]",

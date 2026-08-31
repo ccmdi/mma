@@ -5,7 +5,7 @@ import { svMetadata } from "@/lib/sv/query";
 import type { Pano } from "@/types";
 import { centerHeading } from "@/lib/sv/getMetadata";
 import { panoResolveSpec } from "@/lib/sv/enrich";
-import { runProcedure } from "@/lib/data/procedures";
+import { runProcedure, type BatchOutcome } from "@/lib/data/procedures";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { fileTimestamp } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
@@ -135,13 +135,10 @@ export interface PanoDownloadConfig {
 	tileY: number;
 }
 
-export interface BulkDownloadResult {
-	succeeded: number[];
-	failed: number[];
+export interface BulkDownloadResult extends BatchOutcome {
 	/** Temp file (single image or ZIP) ready for the export save dialog; null when nothing downloaded. */
 	outputPath: string | null;
 	suggestedName: string | null;
-	fileCount: number;
 }
 
 const DOWNLOAD_CONCURRENCY = 4;
@@ -336,7 +333,7 @@ export async function bulkDownloadPanoramas(
 	} = {},
 ): Promise<BulkDownloadResult> {
 	const { signal, onProgress } = opts;
-	const succeeded: number[] = [];
+	const saved: number[] = [];
 	const failed: number[] = [];
 
 	const needResolve = locations.filter((l) => !l.panoId);
@@ -367,7 +364,7 @@ export async function bulkDownloadPanoramas(
 		return panoId ? [{ loc, panoId }] : [];
 	});
 	if (pending.length === 0) {
-		return { succeeded, failed, outputPath: null, suggestedName: null, fileCount: 0 };
+		return { succeeded: saved.length, failed, outputPath: null, suggestedName: null };
 	}
 
 	// Metadata drives tile layout and center heading; thumbnail/tile modes need neither.
@@ -422,7 +419,7 @@ export async function bulkDownloadPanoramas(
 					ok = res.ok;
 					if (ok) singleName = fileName;
 				}
-				(ok ? succeeded : failed).push(loc.id);
+				(ok ? saved : failed).push(loc.id);
 				done++;
 				onProgress?.(done, pending.length, t("Downloading"));
 			},
@@ -433,14 +430,14 @@ export async function bulkDownloadPanoramas(
 		throw e;
 	}
 
-	if (succeeded.length === 0) {
+	if (saved.length === 0) {
 		await cmd.storeUploadAbort(session).catch(() => {});
-		return { succeeded, failed, outputPath: null, suggestedName: null, fileCount: 0 };
+		return { succeeded: saved.length, failed, outputPath: null, suggestedName: null };
 	}
 
 	const outputPath = await cmd.storeUploadFinish(session);
 	const stamp = fileTimestamp();
 	const suggestedName =
-		succeeded.length === 1 && singleName ? singleName : `panoramas-${stamp}.zip`;
-	return { succeeded, failed, outputPath, suggestedName, fileCount: succeeded.length };
+		saved.length === 1 && singleName ? singleName : `panoramas-${stamp}.zip`;
+	return { succeeded: saved.length, failed, outputPath, suggestedName };
 }

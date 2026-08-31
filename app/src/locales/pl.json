@@ -1488,7 +1488,6 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: lokalnie {local} · zdalnie {remote}",
 	"{field}’s values": "Wartości pola {field}",
-	"{label} failed": "{label} nieudane",
 	"{maps} maps · {locations} locations": "Mapy: {maps} · Lokalizacje: {locations}",
 	"{name} - round {n}": "{name} - runda {n}",
 	"{name} updated to v{version}": "{name} zaktualizowano do v{version}",

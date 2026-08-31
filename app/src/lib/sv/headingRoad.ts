@@ -45,5 +45,5 @@ export async function bulkPanHeading(
 		selector,
 		opts,
 	);
-	return result.headingRoad?.success ?? 0;
+	return result.headingRoad?.succeeded ?? 0;
 }

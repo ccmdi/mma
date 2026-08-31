@@ -4265,16 +4265,26 @@ export interface CollectedEntry<T = unknown> {
     id: number;
     value: T;
 }
-export interface ResolverOutcome<TCollected = unknown> {
+export interface BatchOutcome {
     /** Rows the procedure worked and did not fail. A count: the engine never ships the
      *  ids of what went right. */
-    success: number;
+    succeeded: number;
     /** Rows the procedure failed, by id, so a caller can select them. */
     failed: number[];
+}
+export interface ResolverOutcome<TCollected = unknown> extends BatchOutcome {
     /** Answers from a `collect` run, in page order. Absent for a run whose results were
      *  written as patches. Typed by the spec's declaration, not checked: the value still
      *  crosses a JSON boundary, so a reader guards it. */
     collected?: CollectedEntry<TCollected>[];
+}
+/** One wave member's own progress, for a caller that shows the providers of a
+ *  multi-provider wave individually. Counts are net of skipped rows. */
+export interface PhasePart {
+    label: string;
+    done: number;
+    total: number;
+    finished: boolean;
 }
 export interface RunOpts {
     signal?: AbortSignal;
@@ -4283,8 +4293,10 @@ export interface RunOpts {
     enrichFields?: string[] | null;
     /** `label` names the current phase; undefined = no labelled provider is running.
      *  `done`/`total` are phase-relative and net of skipped rows, so they reset as each
-     *  dependency wave begins. */
-    onProgress?: (done: number, total: number, label?: string) => void;
+     *  dependency wave begins. A wave of several providers combines as min/max -- a row
+     *  counts done once its slowest provider has passed it, over the wave's row universe,
+     *  never a per-provider sum -- and `parts` then carries each member's own counts. */
+    onProgress?: (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
 }
 /** What a run may set on top of what the spec declares. */
 export interface DeclOpts {

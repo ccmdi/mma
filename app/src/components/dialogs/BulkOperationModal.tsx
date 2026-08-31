@@ -40,7 +40,7 @@ import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
 import { fmt } from "@/lib/util/format";
 import { waveRate, type WaveRate } from "@/lib/util/util";
-import type { PhasePart } from "@/lib/data/procedures";
+import type { BatchOutcome, PhasePart } from "@/lib/data/procedures";
 import { toast } from "@/lib/util/toast";
 import { t, msg } from "@/lib/i18n";
 
@@ -229,12 +229,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 						onReady(async ({ selector, signal, onProgress }) => {
 							const er = await enrichAll(selector, { signal, force, onProgress });
 							return {
-								doneContent: (
-									<EnrichSummary
-										result={er}
-										onSelect={(ids) => void addSelections([{ type: "Manual", locations: ids }])}
-									/>
-								),
+								doneContent: <EnrichSummary result={er} />,
 							};
 						})
 					}
@@ -641,7 +636,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 							}
 							return {
 								doneMessage:
-									t("Done -- {n} downloaded", { n: result.succeeded.length }) +
+									t("Done -- {n} downloaded", { n: result.succeeded }) +
 									(result.failed.length > 0
 										? t(
 												{ one: ", {n} failed.", other: ", {n} failed." },
@@ -670,11 +665,11 @@ async function saveDownloadResult(result: BulkDownloadResult): Promise<boolean> 
 	const ok = await saveExportTempFile(result.outputPath, result.suggestedName);
 	if (ok) {
 		toast(
-			result.fileCount === 1
+			result.succeeded === 1
 				? t("Panorama saved")
 				: t(
 						{ one: "Saved {n} panorama as ZIP", other: "Saved {n} panoramas as ZIP" },
-						{ n: result.fileCount },
+						{ n: result.succeeded },
 					),
 		);
 	}
@@ -703,38 +698,35 @@ function DownloadDoneActions({
 		<>
 			{result.outputPath != null && !saved && (
 				<Button variant="primary" onClick={() => void save()}>
-					{result.fileCount === 1 ? t("Save image") : t("Save ZIP")}
+					{result.succeeded === 1 ? t("Save image") : t("Save ZIP")}
 				</Button>
 			)}
-			{result.failed.length > 0 && (
-				<Button
-					onClick={() => {
-						void addSelections([{ type: "Manual", locations: result.failed }]);
-						toast(
-							t(
-								{
-									one: "Selected {n} failed location",
-									other: "Selected {n} failed locations",
-								},
-								{ n: result.failed.length },
-							),
-						);
-					}}
-				>
-					{t("Select failed")}
-				</Button>
-			)}
+			<SelectFailedButton outcome={result} />
 		</>
 	);
 }
 
-function EnrichSummary({
-	result,
-	onSelect,
-}: {
-	result: EnrichResult;
-	onSelect: (ids: number[], label: string) => void;
-}) {
+function SelectFailedButton({ outcome, style }: { outcome: BatchOutcome; style?: React.CSSProperties }) {
+	if (outcome.failed.length === 0) return null;
+	return (
+		<Button
+			style={style}
+			onClick={() => {
+				void addSelections([{ type: "Manual", locations: outcome.failed }]);
+				toast(
+					t(
+						{ one: "Selected {n} failed location", other: "Selected {n} failed locations" },
+						{ n: outcome.failed.length },
+					),
+				);
+			}}
+		>
+			{t("Select failed")}
+		</Button>
+	);
+}
+
+function EnrichSummary({ result }: { result: EnrichResult }) {
 	if (result.length === 0) {
 		return (
 			<div>
@@ -747,18 +739,10 @@ function EnrichSummary({
 			{result.map((r) => (
 				<div key={r.id}>
 					{t(r.label)}
-					{t(":")} {t({ one: "{n} updated", other: "{n} updated" }, { n: r.success })}
-					{r.failed.length > 0 && (
-						<>
-							{t({ one: ", {n} failed", other: ", {n} failed" }, { n: r.failed.length })}
-							<Button
-								style={{ marginLeft: 8 }}
-								onClick={() => onSelect(r.failed, t("{label} failed", { label: t(r.label) }))}
-							>
-								{t("Select failed")}
-							</Button>
-						</>
-					)}
+					{t(":")} {t({ one: "{n} updated", other: "{n} updated" }, { n: r.succeeded })}
+					{r.failed.length > 0 &&
+						t({ one: ", {n} failed", other: ", {n} failed" }, { n: r.failed.length })}
+					<SelectFailedButton outcome={r} style={{ marginLeft: 8 }} />
 				</div>
 			))}
 		</div>

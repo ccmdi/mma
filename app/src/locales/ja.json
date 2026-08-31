@@ -1380,7 +1380,6 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: ローカル {local}・リモート {remote}",
 	"{field}’s values": "{field} の値",
-	"{label} failed": "{label} 失敗",
 	"{maps} maps · {locations} locations": "{maps} マップ・{locations} 地点",
 	"{name} - round {n}": "{name} - ラウンド {n}",
 	"{name} updated to v{version}": "{name} を v{version} に更新しました",

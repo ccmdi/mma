@@ -1416,7 +1416,6 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: lokal {local} · remote {remote}",
 	"{field}’s values": "Werte von {field}",
-	"{label} failed": "{label} fehlgeschlagen",
 	"{maps} maps · {locations} locations": "{maps} Karten · {locations} Standorte",
 	"{name} - round {n}": "{name} - Runde {n}",
 	"{name} updated to v{version}": "{name} auf v{version} aktualisiert",

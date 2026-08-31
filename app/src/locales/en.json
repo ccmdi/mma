@@ -1416,7 +1416,6 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: local {local} · remote {remote}",
 	"{field}’s values": "{field}’s values",
-	"{label} failed": "{label} failed",
 	"{maps} maps · {locations} locations": "{maps} maps · {locations} locations",
 	"{name} - round {n}": "{name} - round {n}",
 	"{name} updated to v{version}": "{name} updated to v{version}",

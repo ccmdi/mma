@@ -82,12 +82,15 @@ export interface CollectedEntry<T = unknown> {
 	value: T;
 }
 
-export interface ResolverOutcome<TCollected = unknown> {
+export interface BatchOutcome {
 	/** Rows the procedure worked and did not fail. A count: the engine never ships the
 	 *  ids of what went right. */
-	success: number;
+	succeeded: number;
 	/** Rows the procedure failed, by id, so a caller can select them. */
 	failed: number[];
+}
+
+export interface ResolverOutcome<TCollected = unknown> extends BatchOutcome {
 	/** Answers from a `collect` run, in page order. Absent for a run whose results were
 	 *  written as patches. Typed by the spec's declaration, not checked: the value still
 	 *  crosses a JSON boundary, so a reader guards it. */
@@ -95,8 +98,8 @@ export interface ResolverOutcome<TCollected = unknown> {
 }
 
 /** Whether a pass did anything worth a summary row. */
-export function outcomeDidWork(o: ResolverOutcome): boolean {
-	return o.success > 0 || o.failed.length > 0;
+export function outcomeDidWork(o: BatchOutcome): boolean {
+	return o.succeeded > 0 || o.failed.length > 0;
 }
 export type SvRunResult = Record<string, ResolverOutcome>;
 
@@ -237,10 +240,10 @@ export async function runProcedure<T>(
 	opts: RunOpts & Omit<DeclOpts, "fields" | "requires"> & { id: string },
 ): Promise<ResolverOutcome<T>> {
 	const { id, label, config, sink, force: specForce, ...run } = opts;
-	if (spec.prepare && !(await spec.prepare())) return { success: 0, failed: [] };
+	if (spec.prepare && !(await spec.prepare())) return { succeeded: 0, failed: [] };
 	const decl = declare(id, spec, selector, { label, config, sink, force: specForce });
 	const result = await runDecls([decl], run);
-	return (result[id] as ResolverOutcome<T> | undefined) ?? { success: 0, failed: [] };
+	return (result[id] as ResolverOutcome<T> | undefined) ?? { succeeded: 0, failed: [] };
 }
 
 /** Drive declared procedures through the engine as one run and gather what comes back. */
@@ -360,7 +363,7 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<SvRunResu
 		result[id] = {
 			// Rows the engine skipped needed nothing; counting them would report work the
 			// run never did, and a provider with nothing to do drops out of the summary.
-			success: Math.max(0, s.done - s.failed - s.skipped),
+			succeeded: Math.max(0, s.done - s.failed - s.skipped),
 			failed: failed.get(id) ?? [],
 			...(collected.has(id) ? { collected: collected.get(id) } : {}),
 		};

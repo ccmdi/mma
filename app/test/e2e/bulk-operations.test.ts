@@ -37,14 +37,14 @@ describe("Bulk operations -- enrichAll", () => {
 	it("resolves panoIds and reports a success count plus the failed ids", async () => {
 		const summary = await withApi(async (api) => {
 			const res = await api.enrichAll({ type: "Everything" }, { force: true });
-			return res.map((o) => ({ id: o.id, success: o.success, failed: o.failed }));
+			return res.map((o) => ({ id: o.id, succeeded: o.succeeded, failed: o.failed }));
 		});
 
 		// Only passes that did work are reported. Every fixture location resolves and
 		// enriches under the mock, so nothing fails.
 		expect(summary.length).toBeGreaterThan(0);
 		for (const s of summary) {
-			expect(s.success).toBeGreaterThan(0);
+			expect(s.succeeded).toBeGreaterThan(0);
 			expect(s.failed).toEqual([]);
 		}
 
