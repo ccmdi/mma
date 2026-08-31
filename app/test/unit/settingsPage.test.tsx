@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { act, type ReactNode } from "react";
-import { createRoot } from "react-dom/client";
+import { mountAsync } from "./fixtures/harness";
 import { initLocale } from "@/lib/i18n";
 import { setLocal } from "@/lib/hooks/useLocalStorage";
 import type { SubmittedReport } from "@/store/feedback";
 
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 vi.stubGlobal("__APP_VERSION__", "0.0.0-test");
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -40,16 +39,8 @@ let unmount: (() => void) | null = null;
 /** Queries run against the whole document, so a leaked dialog would be read as the next
  *  test's DOM. Unmount from afterEach rather than at the end of each test body. */
 async function mount(node: ReactNode = <SettingsPage open onOpenChange={() => {}} />) {
-	const container = document.createElement("div");
-	document.body.appendChild(container);
-	const root = createRoot(container);
-	act(() => root.render(node));
 	// Border/data-location effects resolve their mocked IPC on the microtask queue.
-	await act(async () => {});
-	unmount = () => {
-		act(() => root.unmount());
-		container.remove();
-	};
+	unmount = (await mountAsync(node)).unmount;
 }
 
 afterEach(() => {

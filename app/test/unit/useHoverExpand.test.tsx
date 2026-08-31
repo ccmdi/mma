@@ -2,10 +2,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type React from "react";
 import { act, useRef } from "react";
-import { createRoot } from "react-dom/client";
+import { mount as mountRoot } from "./fixtures/harness";
 import { useHoverExpand } from "@/lib/hooks/useHoverExpand";
-
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const DELAY = 250;
 const BOX = { left: 0, top: 0, right: 100, bottom: 100 } as DOMRect;
@@ -22,13 +20,10 @@ let unmount: () => void;
 
 beforeEach(() => {
 	vi.useFakeTimers();
-	const container = document.createElement("div");
-	document.body.appendChild(container);
-	const root = createRoot(container);
-	act(() => root.render(<Probe />));
-	const box = container.querySelector("div")!;
+	const mounted = mountRoot(<Probe />);
+	const box = mounted.container.querySelector("div")!;
 	box.getBoundingClientRect = () => BOX;
-	unmount = () => act(() => root.unmount());
+	unmount = mounted.unmount;
 });
 
 afterEach(() => {

@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { createElement, act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { mount as mountRoot } from "./fixtures/harness";
 import { usePluginState, createPluginStorage } from "@/plugins/registry";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type AnyResult = readonly [unknown, (v: unknown) => void];
 
@@ -15,11 +13,8 @@ function Probe({ pid, k, init }: { pid: string; k: string; init: unknown }) {
 	return null;
 }
 
-const roots: Root[] = [];
 function mount(pid: string, k: string, init: unknown): AnyResult {
-	const root = createRoot(document.createElement("div"));
-	act(() => root.render(createElement(Probe, { pid, k, init })));
-	roots.push(root);
+	mountRoot(createElement(Probe, { pid, k, init }), { attach: false });
 	return result;
 }
 
@@ -27,9 +22,6 @@ beforeEach(() => {
 	localStorage.clear();
 });
 
-afterEach(() => {
-	for (const root of roots.splice(0)) act(() => root.unmount());
-});
 
 describe("usePluginState", () => {
 	it("returns the initial value when nothing is stored", () => {
@@ -50,10 +42,11 @@ describe("usePluginState", () => {
 	});
 
 	it("state survives unmount and remount", () => {
-		const root = createRoot(document.createElement("div"));
-		act(() => root.render(createElement(Probe, { pid: "p1", k: "k", init: "default" })));
+		const first = mountRoot(createElement(Probe, { pid: "p1", k: "k", init: "default" }), {
+			attach: false,
+		});
 		act(() => result[1]("chosen"));
-		act(() => root.unmount());
+		first.unmount();
 
 		const [value] = mount("p1", "k", "default");
 		expect(value).toBe("chosen");

@@ -1,22 +1,8 @@
 // @vitest-environment jsdom
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { mount } from "./fixtures/harness";
 import { DatePicker } from "@/components/primitives/DatePicker";
-
-let container: HTMLDivElement;
-let root: Root;
-
-beforeEach(() => {
-	container = document.createElement("div");
-	document.body.appendChild(container);
-	root = createRoot(container);
-});
-
-afterEach(() => {
-	act(() => root.unmount());
-	container.remove();
-});
 
 function type(input: HTMLInputElement, text: string) {
 	const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
@@ -28,7 +14,7 @@ function type(input: HTMLInputElement, text: string) {
 
 describe("DatePicker", () => {
 	function render() {
-		act(() => root.render(<DatePicker mode="date" value="2019-06-03" onChange={() => {}} />));
+		const { container } = mount(<DatePicker mode="date" value="2019-06-03" onChange={() => {}} />);
 		return container.querySelector("input") as HTMLInputElement;
 	}
 

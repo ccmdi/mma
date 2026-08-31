@@ -6,8 +6,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { PolygonTools } from "@/components/editor/PolygonTools";
 import type { MapHost } from "@/lib/map/host";
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
 // px <-> latlng mapping: lat = y/1000, lng = x/1000. jsdom rects are all-zero, so
 // clientX/clientY are container coordinates directly.
 const div = document.createElement("div");

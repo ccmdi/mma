@@ -1,22 +1,18 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createElement, act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { mount as mountRoot } from "./fixtures/harness";
 import { useJob, type Job, type JobContext } from "@/lib/hooks/useJob";
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
 let job: Job<unknown, unknown>;
-const roots: Root[] = [];
+const mounts: Array<() => void> = [];
 
 function mount<R, P>(fn: (ctx: JobContext<P>) => Promise<R>) {
 	function Probe() {
 		job = useJob(fn) as Job<unknown, unknown>;
 		return null;
 	}
-	const root = createRoot(document.createElement("div"));
-	act(() => root.render(createElement(Probe)));
-	roots.push(root);
+	mounts.push(mountRoot(createElement(Probe), { attach: false }).unmount);
 }
 
 function deferred<T>() {
@@ -31,9 +27,6 @@ function deferred<T>() {
 
 const flush = () => act(async () => {});
 
-afterEach(() => {
-	act(() => roots.splice(0).forEach((r) => r.unmount()));
-});
 
 describe("useJob", () => {
 	it("reports progress and the final result", async () => {
@@ -143,7 +136,7 @@ describe("useJob", () => {
 		act(() => job.run());
 		expect(signal.aborted).toBe(false);
 
-		act(() => roots.splice(0).forEach((r) => r.unmount()));
+		for (const unmount of mounts.splice(0)) unmount();
 		expect(signal.aborted).toBe(true);
 	});
 

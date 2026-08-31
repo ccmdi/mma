@@ -13,8 +13,6 @@ import {
 	catalogTargets,
 } from "../../scripts/i18n-extract.mjs";
 
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
 const TAGS = { one: "{n} tag", other: "{n} tags" };
 
 function renderToText(node: React.ReactNode): string {

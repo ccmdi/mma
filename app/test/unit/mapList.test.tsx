@@ -1,13 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
 import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { mount as mountRoot } from "./fixtures/harness";
 import { emit } from "@/lib/events";
 import { useMapList, setCachedMapList, isReservedMap } from "@/store/mapList";
 import { SCRATCH_MAP_ID } from "@/bindings.consts";
 import { type MapMeta } from "@/bindings.gen";
-
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const meta = (id: string) => ({ id, name: id }) as MapMeta;
 
@@ -21,11 +19,7 @@ function Probe() {
 }
 
 function mount() {
-	const container = document.createElement("div");
-	document.body.appendChild(container);
-	const root = createRoot(container);
-	act(() => root.render(<Probe />));
-	return () => act(() => root.unmount());
+	return mountRoot(<Probe />).unmount;
 }
 
 beforeEach(() => {

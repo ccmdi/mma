@@ -1,25 +1,11 @@
 // @vitest-environment jsdom
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { mount } from "./fixtures/harness";
 import { HotkeyInput } from "@/components/primitives/HotkeyInput";
 
-let container: HTMLDivElement;
-let root: Root;
-
-beforeEach(() => {
-	container = document.createElement("div");
-	document.body.appendChild(container);
-	root = createRoot(container);
-});
-
-afterEach(() => {
-	act(() => root.unmount());
-	container.remove();
-});
-
 function render(onChange: (combo: string) => void) {
-	act(() => root.render(<HotkeyInput value="" onChange={onChange} />));
+	const { container } = mount(<HotkeyInput value="" onChange={onChange} />);
 	return container.querySelector("input") as HTMLInputElement;
 }
 

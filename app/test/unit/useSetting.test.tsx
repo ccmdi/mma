@@ -1,10 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
 import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { mount as mountRoot } from "./fixtures/harness";
 import { useSetting, setSetting, getSettings, type AppSettings } from "@/store/settings";
-
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const renders: Record<string, number> = {};
 
@@ -19,11 +17,7 @@ beforeEach(() => {
 });
 
 function mount(...probes: React.ReactElement[]) {
-	const container = document.createElement("div");
-	document.body.appendChild(container);
-	const root = createRoot(container);
-	act(() => root.render(<>{probes}</>));
-	return () => act(() => root.unmount());
+	return mountRoot(<>{probes}</>).unmount;
 }
 
 describe("useSetting per-key granularity", () => {

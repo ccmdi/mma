@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { mount as mountRoot } from "./fixtures/harness";
 
 const pano = vi.hoisted(() => ({
 	setPano: vi.fn(),
@@ -14,22 +14,13 @@ vi.mock("@/lib/sv/panoSingleton", () => ({ singletonPano: pano }));
 import { usePanoNavigation } from "@/components/editor/location/usePanoNavigation";
 import { getSettings, type MovementMode } from "@/store/settings";
 
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
 function Harness({ mode }: { mode: MovementMode }) {
 	usePanoNavigation({ ...getSettings(), defaultMovementMode: mode });
 	return null;
 }
 
 function mount(mode: MovementMode) {
-	const container = document.createElement("div");
-	document.body.appendChild(container);
-	const root = createRoot(container);
-	act(() => root.render(<Harness mode={mode} />));
-	return () => {
-		act(() => root.unmount());
-		container.remove();
-	};
+	return mountRoot(<Harness mode={mode} />).unmount;
 }
 
 const press = (key: string, init: KeyboardEventInit = {}) =>

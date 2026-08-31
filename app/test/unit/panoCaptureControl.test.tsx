@@ -48,8 +48,6 @@ vi.mock("@/components/primitives/Tooltip", () => ({
 
 import { PanoControls } from "@/components/editor/location/PanoControls";
 
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
 const panorama = {} as google.maps.StreetViewPanorama;
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;

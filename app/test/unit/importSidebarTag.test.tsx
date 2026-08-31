@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { mount as mountRoot } from "./fixtures/harness";
 import type { EditorImportPreview, Tag } from "@/bindings.gen";
 
 // trace().end() logs through tauri-plugin-log, which needs a host.
@@ -26,8 +26,6 @@ vi.mock("@/store/useMapStore", () => ({
 
 const { ImportSidebar } = await import("@/components/editor/ImportSidebar");
 
-Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-
 const preview: EditorImportPreview = {
 	locationCount: 3,
 	tags: [],
@@ -41,11 +39,9 @@ const preview: EditorImportPreview = {
 let container: HTMLDivElement;
 
 function mount() {
-	container = document.createElement("div");
-	document.body.appendChild(container);
-	const root = createRoot(container);
-	act(() => root.render(<ImportSidebar />));
-	return () => act(() => root.unmount());
+	const mounted = mountRoot(<ImportSidebar />);
+	container = mounted.container;
+	return mounted.unmount;
 }
 
 function type(text: string) {

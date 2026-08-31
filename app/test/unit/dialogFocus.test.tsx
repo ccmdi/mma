@@ -1,23 +1,9 @@
 // @vitest-environment jsdom
 import { act, useState } from "react";
 import type React from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { mount } from "./fixtures/harness";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/primitives/Dialog";
-
-let container: HTMLDivElement;
-let root: Root;
-
-beforeEach(() => {
-	container = document.createElement("div");
-	document.body.appendChild(container);
-	root = createRoot(container);
-});
-
-afterEach(() => {
-	act(() => root.unmount());
-	container.remove();
-});
 
 function Harness({ body = "body" }: { body?: React.ReactNode }) {
 	const [open, setOpen] = useState(false);
@@ -29,7 +15,7 @@ function Harness({ body = "body" }: { body?: React.ReactNode }) {
 	);
 }
 
-function openDialog() {
+function openDialog(container: HTMLElement) {
 	const trigger = container.querySelector("button") as HTMLButtonElement;
 	act(() => {
 		trigger.focus();
@@ -40,19 +26,17 @@ function openDialog() {
 
 describe("Dialog focus", () => {
 	it("opens with focus parked on the content, not a ring on the close button", () => {
-		act(() => root.render(<Harness />));
-		openDialog();
+		openDialog(mount(<Harness />).container);
 		expect(document.activeElement).toBe(document.querySelector(".modal"));
 	});
 
 	it("lets a child that asks for focus keep it", () => {
-		act(() => root.render(<Harness body={<input autoFocus data-qa="first" />} />));
-		openDialog();
+		openDialog(mount(<Harness body={<input autoFocus data-qa="first" />} />).container);
 		expect(document.activeElement).toBe(document.querySelector('[data-qa="first"]'));
 	});
 
 	it("returns focus to the trigger on close", async () => {
-		act(() => root.render(<Harness />));
+		const { container } = mount(<Harness />);
 		const trigger = container.querySelector("button") as HTMLButtonElement;
 
 		// jsdom's click() does not move focus the way a real one does
