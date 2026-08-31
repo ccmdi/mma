@@ -107,7 +107,7 @@ async function main() {
 // but a plugin author hovers the member, not the surface. Stamp it onto every member the
 // tag covers so the warning is visible where the call is written.
 function propagateUnstable() {
-  const ts = require(path.join(__dirname, "node_modules", "typescript"));
+  const ts = require(path.join(appDir, "node_modules", "typescript"));
   const program = ts.createProgram([out], { skipLibCheck: true, target: ts.ScriptTarget.ESNext });
   const checker = program.getTypeChecker();
   const source = program.getSourceFile(out);
