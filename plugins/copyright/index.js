@@ -12,6 +12,7 @@ MMA.registerPlugin({
     MMA.registerEnrichmentProvider({
       id: "copyright",
       label: "Copyright year",
+      requires: ["panoId"],
       fieldDefs: FIELD_DEFS,
       procedure: {
         entry: "procedure.js",
