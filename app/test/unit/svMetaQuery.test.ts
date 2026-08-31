@@ -24,7 +24,7 @@ import {
 const app = fileURLToPath(new URL("../..", import.meta.url));
 // The bundle is a build artifact, not a checked-in one.
 execFileSync(process.execPath, ["scripts/build-procedures.mjs", "svMeta"], { cwd: app });
-const { query } = await import(
+const { query, run, configure } = await import(
 	new URL("../../src-tauri/procedures/svMeta.js", import.meta.url).href
 );
 
@@ -210,5 +210,47 @@ describe("svMetadata", () => {
 		expect(procedureQuery).toHaveBeenCalledTimes(1);
 		expect(JSON.parse(procedureQuery.mock.calls[0][1]).panoIds).toHaveLength(500);
 		expect(out.every((d) => (d as any)?.location.pano === "pA")).toBe(true);
+	});
+});
+
+describe("the svMeta run pass", () => {
+	it("fails a row whose pano no longer exists instead of silently retrying it forever", () => {
+		const failed: number[] = [];
+		(globalThis as any).mma = {
+			fetchMany: (reqs: unknown[]) => reqs.map(() => ({ status: 200, body: b64Bytes(BIN_DEAD) })),
+			log: () => {},
+			progress: () => {},
+			fail: (id: number) => failed.push(id),
+			aborted: () => false,
+		};
+		configure(null);
+		const out = run([{ id: 4, lat: 0, lng: 0, panoId: "gone", extra: null }]);
+		expect(out).toEqual([]);
+		expect(failed).toEqual([4]);
+	});
+
+	it("fails rows without a pano id instead of silently passing them as successes", () => {
+		const failed: number[] = [];
+		let ticks = 0;
+		(globalThis as any).mma = {
+			fetchMany: (reqs: unknown[]) => reqs.map(() => ({ status: 200, body: b64Bytes(BIN_CAR) })),
+			log: () => {},
+			progress: (n: number) => {
+				ticks += n;
+			},
+			fail: (id: number) => failed.push(id),
+			aborted: () => false,
+		};
+		configure(null);
+		const out = run([
+			{ id: 1, lat: 0, lng: 0, panoId: "hasOne", extra: null },
+			{ id: 2, lat: 0, lng: 0, panoId: null, extra: null },
+			{ id: 3, lat: 0, lng: 0, panoId: "", extra: null },
+		]) as { id: number }[];
+
+		expect(failed).toEqual([2, 3]);
+		expect(out.some((u) => u.id === 1)).toBe(true);
+		expect(out.some((u) => u.id === 2 || u.id === 3)).toBe(false);
+		expect(ticks).toBe(3);
 	});
 });

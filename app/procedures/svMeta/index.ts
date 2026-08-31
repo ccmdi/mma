@@ -35,6 +35,12 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 	const rowsFor: number[][] = index.unique.map(() => []);
 	index.slot.forEach((slot, i) => {
 		if (slot >= 0) rowsFor[slot].push(i);
+		else {
+			// No pano id means no metadata to fetch: a failure, not a silent pass that
+			// would be booked as success.
+			mma.fail(rows[i].id);
+			mma.progress(1);
+		}
 	});
 
 	const fetched = fetchMetadata(index.unique);
@@ -44,8 +50,10 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 		const meta = fetched.metas[k];
 		for (const i of rowsFor[k]) {
 			const row = rows[i];
-			if (fetched.failed[k]) mma.fail(row.id);
-			else if (meta) {
+			// A null answer on a completed request is a pano that no longer exists: a
+			// failure, or the row would be silently retried on every run forever.
+			if (fetched.failed[k] || !meta) mma.fail(row.id);
+			else {
 				const extra = metadataPatch(meta, row.extra, fields);
 				if (Object.keys(extra).length > 0) out.push({ id: row.id, patch: { extra } });
 			}
