@@ -31,6 +31,20 @@ interface DatePickerProps {
 	wallClock?: boolean;
 }
 
+export type DateFlagProps = Pick<
+	DatePickerProps,
+	| "anyYear"
+	| "onAnyYearToggle"
+	| "showAnyYear"
+	| "anyTime"
+	| "onAnyTimeToggle"
+	| "showAnyTime"
+	| "tzLocal"
+	| "onTzLocalToggle"
+	| "showTzLocal"
+	| "onYearSelect"
+>;
+
 function pad2(n: number): string {
 	return n < 10 ? `0${n}` : String(n);
 }

@@ -14,7 +14,7 @@ import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util
 import { addSelections, fieldValues } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { OP_LABELS } from "@/store/selections";
-import { DatePicker } from "@/components/primitives/DatePicker";
+import { DatePicker, type DateFlagProps } from "@/components/primitives/DatePicker";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -124,33 +124,14 @@ function FilterValueInput({
 	value,
 	onChange,
 	placeholder,
-	anyYear,
-	onAnyYearToggle,
-	showAnyYear,
-	anyTime,
-	onAnyTimeToggle,
-	showAnyTime,
-	tzLocal,
-	onTzLocalToggle,
-	showTzLocal,
-	onYearSelect,
+	...dateFlags
 }: {
 	fieldEntry: FieldEntry | undefined;
 	op?: FilterOp;
 	value: string;
 	onChange: (v: string) => void;
 	placeholder?: string;
-	anyYear?: boolean;
-	onAnyYearToggle?: (v: boolean) => void;
-	showAnyYear?: boolean;
-	anyTime?: boolean;
-	onAnyTimeToggle?: (v: boolean) => void;
-	showAnyTime?: boolean;
-	tzLocal?: boolean;
-	onTzLocalToggle?: (v: boolean) => void;
-	showTzLocal?: boolean;
-	onYearSelect?: (year: number) => void;
-}) {
+} & DateFlagProps) {
 	const type = fieldEntry?.def.type;
 	const def = fieldEntry?.def;
 	const enumValues = useEnumValues(fieldEntry?.key, def);
@@ -172,21 +153,12 @@ function FilterValueInput({
 	if (type === "date" || type === "month") {
 		return (
 			<DatePicker
+				{...dateFlags}
 				mode={type}
 				value={value}
 				onChange={onChange}
-				anyYear={anyYear}
-				onAnyYearToggle={onAnyYearToggle}
-				showAnyYear={showAnyYear}
 				showTime={type === "date" && exactDateFormat === "datetime"}
-				anyTime={anyTime}
-				onAnyTimeToggle={onAnyTimeToggle}
-				showAnyTime={showAnyTime}
-				tzLocal={tzLocal}
-				onTzLocalToggle={onTzLocalToggle}
-				showTzLocal={showTzLocal}
-				wallClock={tzLocal}
-				onYearSelect={onYearSelect}
+				wallClock={dateFlags.tzLocal}
 			/>
 		);
 	}
