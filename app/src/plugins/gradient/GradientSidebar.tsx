@@ -10,6 +10,7 @@ import { partition } from "@/store/useMapStore";
 import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
+import { countMissingTimezone } from "@/lib/util/timezone";
 import { usePluginState } from "@/plugins/registry";
 import { useSetting } from "@/store/settings";
 import "./gradient.css";
@@ -106,7 +107,11 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 	const [bucketCount, setBucketCount] = usePluginState("gradient", "bucketCount", 10);
 	const [reversed, setReversed] = usePluginState("gradient", "reversed", false);
 	const [applying, setApplying] = useState(false);
-	const [lastResult, setLastResult] = useState<{ groups: number; applied: boolean } | null>(null);
+	const [lastResult, setLastResult] = useState<{
+		groups: number;
+		applied: boolean;
+		skipped: number;
+	} | null>(null);
 	const picker = useSelectorPick();
 	const dateTimezone = useSetting("dateTimezone");
 
@@ -146,11 +151,17 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 							};
 
 			const groups = await partition(fieldKey, key, picker.selector);
+			const skipped = await countMissingTimezone(
+				picker.selector,
+				fieldKey,
+				fieldType,
+				key.kind === "datePart" && key.tzLocal,
+			);
 			if (groups.length > MAX_GROUPS) {
-				setLastResult({ groups: groups.length, applied: false });
+				setLastResult({ groups: groups.length, applied: false, skipped });
 				return;
 			}
-			setLastResult({ groups: groups.length, applied: true });
+			setLastResult({ groups: groups.length, applied: true, skipped });
 			if (groups.length === 0) return;
 
 			const sels = colorPartition(groups, {
@@ -302,6 +313,18 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 							</span>
 						)}
 					</div>
+					{lastResult != null && lastResult.skipped > 0 && (
+						<div className="gradient-sidebar__skipped">
+							{t(
+								{
+									one: "{n} location skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
+									other:
+										"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
+								},
+								{ n: lastResult.skipped },
+							)}
+						</div>
+					)}
 				</>
 			)}
 		</Sidebar>

@@ -1403,6 +1403,9 @@
 	"{n} locations not pinned to a pano ID.": {
 		"other": "{n} 件の地点が Pano ID にピン留めされていません。"
 	},
+	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
+		"other": "{n} 件の地点をスキップしました：タイムゾーンがありません。タイムゾーンをエンリッチするか、日付のタイムゾーンを UTC に設定してください。"
+	},
 	"{n} maps": {
 		"other": "{n} 件のマップ"
 	},

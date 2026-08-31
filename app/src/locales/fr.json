@@ -1487,6 +1487,11 @@
 		"many": "{n} lieux ne sont pas épinglés à un pano ID.",
 		"other": "{n} lieux ne sont pas épinglés à un pano ID."
 	},
+	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
+		"one": "{n} lieu ignoré : pas de fuseau horaire. Enrichissez les fuseaux horaires, ou passez le fuseau horaire de la date en UTC.",
+		"many": "{n} lieux ignorés : pas de fuseau horaire. Enrichissez les fuseaux horaires, ou passez le fuseau horaire de la date en UTC.",
+		"other": "{n} lieux ignorés : pas de fuseau horaire. Enrichissez les fuseaux horaires, ou passez le fuseau horaire de la date en UTC."
+	},
 	"{n} maps": {
 		"one": "{n} carte",
 		"many": "{n} cartes",

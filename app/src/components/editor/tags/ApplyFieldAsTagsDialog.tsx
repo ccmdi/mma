@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import type { KeySpec, DatePart } from "@/bindings.gen";
 import { resolveFieldLabels } from "@/lib/data/procedures";
@@ -14,6 +14,7 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { t } from "@/lib/i18n";
 import { fillTemplate } from "@/lib/util/format";
+import { countMissingTimezone } from "@/lib/util/timezone";
 
 /** `{value}` alone keeps today's names; a prefix such as `Camera/{value}` files them in a folder. */
 const DEFAULT_TEMPLATE = "{value}";
@@ -35,6 +36,18 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const selectedProj = projectionsForType(fieldType).find((p) => p.id === projectionId);
 	const hasTzData = fields.some((f) => f.key === "timezone");
 	const showTz = !isRange && selectedProj?.needsTz === true && fieldType === "date";
+	const useRowTz = showTz && tzLocal && hasTzData;
+	const [tzGap, setTzGap] = useState(0);
+
+	useEffect(() => {
+		let live = true;
+		void countMissingTimezone(picker.selector, field, fieldType, useRowTz).then((n) => {
+			if (live) setTzGap(n);
+		});
+		return () => {
+			live = false;
+		};
+	}, [picker.selector, field, fieldType, useRowTz]);
 	const showWidth = isRange;
 	const widthValid = !showWidth || Number(width) > 0;
 
@@ -169,6 +182,18 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 
 							{t("Location timezone")}
 						</label>
+					)}
+					{tzGap > 0 && (
+						<div className="bulk-operation__status">
+							{t(
+								{
+									one: "{n} location skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
+									other:
+										"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
+								},
+								{ n: tzGap },
+							)}
+						</div>
 					)}
 					{field && (
 						<label className="bulk-operation__option">

@@ -1529,6 +1529,12 @@
 		"many": "{n} lokalizacji nie jest przypiętych do pano ID.",
 		"other": "{n} lokalizacji nie jest przypiętych do pano ID."
 	},
+	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
+		"one": "Pominięto {n} lokalizację: brak strefy czasowej. Wzbogać strefy czasowe lub ustaw strefę czasową daty na UTC.",
+		"few": "Pominięto {n} lokalizacje: brak strefy czasowej. Wzbogać strefy czasowe lub ustaw strefę czasową daty na UTC.",
+		"many": "Pominięto {n} lokalizacji: brak strefy czasowej. Wzbogać strefy czasowe lub ustaw strefę czasową daty na UTC.",
+		"other": "Pominięto {n} lokalizacji: brak strefy czasowej. Wzbogać strefy czasowe lub ustaw strefę czasową daty na UTC."
+	},
 	"{n} maps": {
 		"one": "{n} mapa",
 		"few": "{n} mapy",

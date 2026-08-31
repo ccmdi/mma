@@ -1487,6 +1487,11 @@
 		"many": "{n} ubicaciones no están fijadas a un pano ID.",
 		"other": "{n} ubicaciones no están fijadas a un pano ID."
 	},
+	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
+		"one": "{n} ubicación omitida: sin zona horaria. Enriquece las zonas horarias o cambia la zona horaria de la fecha a UTC.",
+		"many": "{n} ubicaciones omitidas: sin zona horaria. Enriquece las zonas horarias o cambia la zona horaria de la fecha a UTC.",
+		"other": "{n} ubicaciones omitidas: sin zona horaria. Enriquece las zonas horarias o cambia la zona horaria de la fecha a UTC."
+	},
 	"{n} maps": {
 		"one": "{n} mapa",
 		"many": "{n} mapas",

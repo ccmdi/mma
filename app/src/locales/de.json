@@ -1445,6 +1445,10 @@
 		"one": "{n} Standort ist an keine Pano ID angeheftet.",
 		"other": "{n} Standorte sind an keine Pano ID angeheftet."
 	},
+	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
+		"one": "{n} Standort übersprungen: keine Zeitzone. Zeitzonen anreichern oder die Zeitzone des exakten Datums auf UTC setzen.",
+		"other": "{n} Standorte übersprungen: keine Zeitzone. Zeitzonen anreichern oder die Zeitzone des exakten Datums auf UTC setzen."
+	},
 	"{n} maps": {
 		"one": "{n} Karte",
 		"other": "{n} Karten"

@@ -1403,6 +1403,9 @@
 	"{n} locations not pinned to a pano ID.": {
 		"other": "{n} 个位置未固定到全景 ID。"
 	},
+	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
+		"other": "已跳过 {n} 个位置：没有时区。请先丰富时区，或将日期时区设为 UTC。"
+	},
 	"{n} maps": {
 		"other": "{n} 张地图"
 	},

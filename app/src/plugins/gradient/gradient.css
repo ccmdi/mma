@@ -65,3 +65,10 @@
 	font-size: 12px;
 	opacity: 0.7;
 }
+
+.gradient-sidebar__skipped {
+	font-size: 12px;
+	line-height: 1.4;
+	margin-top: 6px;
+	color: var(--text-2);
+}

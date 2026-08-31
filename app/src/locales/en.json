@@ -1445,6 +1445,10 @@
 		"one": "{n} location not pinned to a pano ID.",
 		"other": "{n} locations not pinned to a pano ID."
 	},
+	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
+		"one": "{n} location skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
+		"other": "{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC."
+	},
 	"{n} maps": {
 		"one": "{n} map",
 		"other": "{n} maps"
