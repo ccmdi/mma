@@ -21,10 +21,10 @@ function run(rows) {
   if (mma.aborted()) return [];
   const byPano = /* @__PURE__ */ new Map();
   for (const row of rows) {
-    if (!row.panoId) continue;
-    const group = byPano.get(row.panoId);
+    const panoId = row.panoId ?? "";
+    const group = byPano.get(panoId);
     if (group) group.push(row);
-    else byPano.set(row.panoId, [row]);
+    else byPano.set(panoId, [row]);
   }
   if (byPano.size === 0) return [];
   const payload = JSON.stringify({ panoIds: [...byPano.keys()] });

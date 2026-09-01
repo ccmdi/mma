@@ -151,16 +151,18 @@ test("a single-coordinate response arrives unwrapped", () => {
 	assert.equal(patches[0].patch.temperature2m, 12);
 });
 
-test("an hour missing from hourly.time yields no patch", () => {
+test("an hour missing from hourly.time fails the row", () => {
 	// The response covers the day before, so 2024-07-01T12:00 is not in it.
-	const { patches } = runMap([THREE[0]], 200, JSON.stringify([coordResult("2024-06-30")]));
+	const { patches, failed } = runMap([THREE[0]], 200, JSON.stringify([coordResult("2024-06-30")]));
 	assert.equal(patches.length, 0);
+	assert.deepEqual(failed, [1]);
 });
 
-test("a result with no hourly block yields no patch", () => {
+test("a result with no hourly block fails the row", () => {
 	const body = JSON.stringify([{ error: true, reason: "out of range" }]);
-	const { patches } = runMap([THREE[0]], 200, body);
+	const { patches, failed } = runMap([THREE[0]], 200, body);
 	assert.equal(patches.length, 0);
+	assert.deepEqual(failed, [1]);
 });
 
 test("a non-200 emits no patches and fails every row", () => {
@@ -169,11 +171,12 @@ test("a non-200 emits no patches and fails every row", () => {
 	assert.deepEqual(failed, [1, 2, 3]);
 });
 
-test("unusable rows never shift the response index", () => {
-	const locs = [{ id: 8, lat: 1, lng: 2, extra: { note: "skip me" } }, THREE[0]];
-	const { patches } = runMap(locs, 200, JSON.stringify([coordResult("2024-07-01")]));
+test("an unusable datetime fails the row and never shifts the response index", () => {
+	const locs = [{ id: 8, lat: 1, lng: 2, extra: { note: "no datetime" } }, THREE[0]];
+	const { patches, failed } = runMap(locs, 200, JSON.stringify([coordResult("2024-07-01")]));
 	assert.deepEqual(patches.map((p) => p.id), [1]);
 	assert.equal(patches[0].patch.temperature2m, 12);
+	assert.deepEqual(failed, [8]);
 });
 
 test("a filtered field set shrinks the request to those hourly params", () => {

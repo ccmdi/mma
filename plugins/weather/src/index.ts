@@ -30,7 +30,7 @@ const ENRICH_OPTIONS: EnrichFieldOption[] = WEATHER_FIELDS.map((f) => ({
 MMA.registerPlugin({
 	activate() {
 		MMA.registerEnrichFields(ENRICH_OPTIONS);
-		MMA.registerEnrichmentProvider({
+		MMA.registerProvider({
 			id: "weather",
 			label: "Weather",
 			fieldDefs: FIELD_DEFS,

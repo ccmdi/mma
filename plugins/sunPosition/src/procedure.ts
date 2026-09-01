@@ -25,9 +25,15 @@ export function map(rows: Location[]): Update<LocationPatch>[] {
 	const out: Update<LocationPatch>[] = [];
 	for (const row of rows) {
 		const secs = row.extra?.datetime;
-		if (typeof secs !== "number") continue;
+		if (typeof secs !== "number") {
+			mma.fail(row.id);
+			continue;
+		}
 		const ms = Math.trunc(secs * 1000); // `new Date(x)` truncates to integer ms
-		if (!isFinite(ms) || Math.abs(ms) > MAX_TIME_MS) continue;
+		if (!isFinite(ms) || Math.abs(ms) > MAX_TIME_MS) {
+			mma.fail(row.id);
+			continue;
+		}
 
 		const pos = SunCalc.getPosition(new Date(ms), row.lat, row.lng);
 		const patch: Record<string, number> = {};

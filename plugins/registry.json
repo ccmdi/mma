@@ -4,16 +4,21 @@
 		"name": "Copyright Year",
 		"description": "Detect the Google copyright year baked into Street View pano tiles",
 		"icon": "M11.5,9A2.5,2.5 0 0,0 9,11.5A2.5,2.5 0 0,0 11.5,14C12.35,14 13.11,13.55 13.53,12.86L14.87,13.65C14.19,14.76 12.94,15.5 11.5,15.5A4,4 0 0,1 7.5,11.5A4,4 0 0,1 11.5,7.5C12.94,7.5 14.19,8.24 14.87,9.35L13.53,10.14C13.11,9.45 12.35,9 11.5,9M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z",
-		"version": "0.3.10",
+		"version": "0.3.11",
 		"main": "index.js",
 		"procedure": "procedure.js",
 		"experimental": true,
-		"minAppVersion": "0.10.0",
+		"minAppVersion": "0.10.2",
 		"sidecar": {
 			"name": "mma-copyright",
 			"version": "0.3.0"
 		},
 		"builds": [
+			{
+				"version": "0.3.10",
+				"ref": "127f381a1e5817fb8b480a63a29674c0bbfe536a",
+				"minAppVersion": "0.10.0"
+			},
 			{
 				"version": "0.3.1",
 				"ref": "471972e1b93fb7bb10dc6ce5f786c223a1f59120"
@@ -49,11 +54,16 @@
 		"name": "Sun Position",
 		"description": "Calculate sun azimuth and altitude from exact capture date",
 		"icon": "M13.8 5.2C13 5 12.2 5 11.4 5L14.6 2.3L16 6.3C15.3 5.8 14.6 5.5 13.8 5.2M7 7.1C7.6 6.5 8.3 6 9 5.7L4.9 4.9L5.6 9C6 8.3 6.4 7.6 7 7.1M5.2 13.8C5 13 5 12.2 5 11.4L2.3 14.6L6.3 16C5.8 15.4 5.4 14.6 5.2 13.8M22 19V21H3L8.4 15.5C6.5 13.5 6.5 10.4 8.4 8.4C10.3 6.5 13.5 6.5 15.4 8.4L18.4 5.4L19.8 6.8L7.7 19H22Z",
-		"version": "1.0.5",
+		"version": "1.0.6",
 		"main": "index.js",
 		"procedure": "procedure.js",
-		"minAppVersion": "0.10.0",
+		"minAppVersion": "0.10.2",
 		"builds": [
+			{
+				"version": "1.0.5",
+				"ref": "debb4fbf5a756c245d98603f50e5d5e8fe7b7150",
+				"minAppVersion": "0.10.0"
+			},
 			{
 				"version": "1.0.0",
 				"ref": "471972e1b93fb7bb10dc6ce5f786c223a1f59120"
@@ -79,11 +89,16 @@
 		"name": "Weather",
 		"description": "Enrich locations with historical weather at their capture time via the Open-Meteo archive (requires exact date)",
 		"icon": "M6,19A5,5 0 0,1 1,14A5,5 0 0,1 6,9C7,6.65 9.3,5 12,5C15.43,5 18.24,7.66 18.5,11.03L19,11A4,4 0 0,1 23,15A4,4 0 0,1 19,19H6M19,13H17V12A5,5 0 0,0 12,7C9.5,7 7.45,8.82 7.06,11.19C6.73,11.07 6.37,11 6,11A3,3 0 0,0 3,14A3,3 0 0,0 6,17H19A2,2 0 0,0 21,15A2,2 0 0,0 19,13Z",
-		"version": "1.1.5",
+		"version": "1.1.6",
 		"main": "index.js",
 		"procedure": "procedure.js",
-		"minAppVersion": "0.10.0",
+		"minAppVersion": "0.10.2",
 		"builds": [
+			{
+				"version": "1.1.5",
+				"ref": "debb4fbf5a756c245d98603f50e5d5e8fe7b7150",
+				"minAppVersion": "0.10.0"
+			},
 			{
 				"version": "1.0.1",
 				"ref": "471972e1b93fb7bb10dc6ce5f786c223a1f59120"

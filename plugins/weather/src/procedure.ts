@@ -103,11 +103,20 @@ export function map(rows: Location[], response: ProcedureResponse): Update<Locat
 	let pos = 0;
 	for (const row of rows) {
 		const secs = usableSeconds(row);
-		if (secs === null) continue;
+		if (secs === null) {
+			mma.fail(row.id);
+			continue;
+		}
 		const hourly = results[pos++]?.hourly;
-		if (!hourly || !Array.isArray(hourly.time)) continue;
+		if (!hourly || !Array.isArray(hourly.time)) {
+			mma.fail(row.id);
+			continue;
+		}
 		const idx = hourly.time.indexOf(utcParts(secs).hourKey);
-		if (idx < 0) continue;
+		if (idx < 0) {
+			mma.fail(row.id);
+			continue;
+		}
 
 		const patch: Record<string, unknown> = {};
 		for (const [key, param] of HOURLY) {

@@ -44,7 +44,6 @@ test("one sidecar call per batch, over the distinct panoIds", () => {
 			{ id: 1, panoId: "pA" },
 			{ id: 2, panoId: "pB" },
 			{ id: 3, panoId: "pA" },
-			{ id: 4 },
 		],
 		[
 			JSON.stringify({ panoId: "pA", year: 2019 }),
@@ -58,7 +57,6 @@ test("one sidecar call per batch, over the distinct panoIds", () => {
 		command: "detect",
 		payload: '{"panoIds":["pA","pB"]}',
 	});
-	// Rows without a panoId never reach the sidecar and never get a patch.
 	assert.deepEqual(patches, [
 		{ id: 1, patch: { copyrightYear: 2019 } },
 		{ id: 3, patch: { copyrightYear: 2019 } },
@@ -108,8 +106,8 @@ test("a line that is not JSON is skipped, not thrown on", () => {
 	assert.deepEqual(progress, [1]);
 });
 
-test("no usable rows means no sidecar call", () => {
-	const { calls, patches } = runProc([{ id: 1 }, { id: 2 }], []);
+test("an empty batch means no sidecar call", () => {
+	const { calls, patches } = runProc([], []);
 	assert.deepEqual(calls, []);
 	assert.deepEqual(patches, []);
 });

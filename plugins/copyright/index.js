@@ -9,7 +9,7 @@ MMA.registerPlugin({
     MMA.registerEnrichFields([
       { key: "copyrightYear", label: "Copyright year" }
     ]);
-    MMA.registerEnrichmentProvider({
+    MMA.registerProvider({
       id: "copyright",
       label: "Copyright year",
       requires: ["panoId"],

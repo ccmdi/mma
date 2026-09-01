@@ -222,9 +222,15 @@ function map(rows) {
   const out = [];
   for (const row of rows) {
     const secs = row.extra?.datetime;
-    if (typeof secs !== "number") continue;
+    if (typeof secs !== "number") {
+      mma.fail(row.id);
+      continue;
+    }
     const ms = Math.trunc(secs * 1e3);
-    if (!isFinite(ms) || Math.abs(ms) > MAX_TIME_MS) continue;
+    if (!isFinite(ms) || Math.abs(ms) > MAX_TIME_MS) {
+      mma.fail(row.id);
+      continue;
+    }
     const pos = import_suncalc.default.getPosition(new Date(ms), row.lat, row.lng);
     const patch = {};
     if (wantAz) patch.sunAzimuth = round2(((pos.azimuth * DEG + 180) % 360 + 360) % 360);

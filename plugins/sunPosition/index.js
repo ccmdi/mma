@@ -9,7 +9,7 @@ MMA.registerPlugin({
       { key: "sunAzimuth", label: "Sun azimuth" },
       { key: "sunAltitude", label: "Sun altitude" }
     ]);
-    MMA.registerEnrichmentProvider({
+    MMA.registerProvider({
       id: "sunPosition",
       fieldDefs: FIELDS,
       requires: ["datetime"],

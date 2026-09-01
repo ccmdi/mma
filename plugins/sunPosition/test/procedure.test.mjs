@@ -69,7 +69,7 @@ test("both values are rounded to two decimals", () => {
 	}
 });
 
-test("only rows with a numeric top-level datetime are patched", () => {
+test("a datetime that is not a number is failed, not skipped", () => {
 	const patches = runMap([
 		row(1, 47.3769, 8.5417),
 		row(2, 47.3769, 8.5417, null),
@@ -81,10 +81,10 @@ test("only rows with a numeric top-level datetime are patched", () => {
 		patches.map((p) => p.id),
 		[1],
 	);
-	assert.deepEqual(failed, []);
+	assert.deepEqual(failed, [2, 3, 4, 5]);
 });
 
-test("a datetime outside the JS Date range is skipped, not failed", () => {
+test("a datetime outside the JS Date range fails the row", () => {
 	const patches = runMap([
 		row(1, 47.3769, 8.5417, { datetime: 9e12 }), // 9e15 ms, past the Date limit
 		row(2, 47.3769, 8.5417, { datetime: -9e12 }),
@@ -96,7 +96,7 @@ test("a datetime outside the JS Date range is skipped, not failed", () => {
 		patches.map((p) => p.id),
 		[5],
 	);
-	assert.deepEqual(failed, []);
+	assert.deepEqual(failed, [1, 2, 3, 4]);
 });
 
 test("only the configured fields are emitted", () => {
