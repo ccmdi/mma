@@ -17,7 +17,6 @@ export interface Diagnostics {
 	startupMs: number;
 	uptimeSecs: number;
 	jsHeap: { usedBytes: number; limitBytes: number } | null;
-	panoSingleton: boolean;
 	db: {
 		maps: number;
 		locations: number;
@@ -147,7 +146,6 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
 		jsHeap: perfMem
 			? { usedBytes: perfMem.usedJSHeapSize, limitBytes: perfMem.jsHeapSizeLimit }
 			: null,
-		panoSingleton: !!google?.maps?.StreetViewPanorama,
 		db: {
 			maps: db.maps,
 			locations: db.locations,

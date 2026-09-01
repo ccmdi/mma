@@ -50,7 +50,6 @@ const diagnostics: Diagnostics = {
 	startupMs: 1600,
 	uptimeSecs: 3720,
 	jsHeap: { usedBytes: 120_000_000, limitBytes: 4_294_967_296 },
-	panoSingleton: true,
 	db: {
 		maps: 3,
 		locations: 12000,
