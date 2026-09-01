@@ -193,8 +193,17 @@ pub struct ProcedureResult {
 // Injected dependencies
 // ---------------------------------------------------------------------------
 
-pub type ProcedureFactory =
-    Box<dyn Fn(&ProviderDecl) -> AppResult<Box<dyn Procedure>> + Send + Sync>;
+pub type ProcedureFactory = Box<dyn Fn(&str) -> AppResult<Box<dyn Procedure>> + Send + Sync>;
+
+/// The procedure module a provider names, or the error naming the provider that lacks one.
+pub fn entry_of(decl: &ProviderDecl) -> AppResult<&str> {
+    decl.entry.as_deref().ok_or_else(|| {
+        AppError(format!(
+            "provider '{}' declares no procedure module",
+            decl.id
+        ))
+    })
+}
 /// One request, in flight. Async because a provider's width is counted in requests and
 /// not in threads: hundreds of these can be pending on the http runtime at once.
 pub type FetchFuture = Pin<Box<dyn Future<Output = AppResult<HttpResponse>> + Send>>;
@@ -215,14 +224,8 @@ pub struct EngineDeps {
 impl EngineDeps {
     pub fn production() -> Self {
         EngineDeps {
-            factory: Box::new(|decl| {
-                let path = decl.entry.as_deref().ok_or_else(|| {
-                    AppError(format!(
-                        "provider '{}' declares no procedure module",
-                        decl.id
-                    ))
-                })?;
-                let proc = super::quickjs::checkout(&resolve_entry(path)?)?;
+            factory: Box::new(|entry| {
+                let proc = super::quickjs::checkout(&resolve_entry(entry)?)?;
                 Ok(Box::new(proc) as Box<dyn Procedure>)
             }),
             fetch: Box::new(|req| Box::pin(http_fetch(req))),
@@ -728,7 +731,10 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let mut procs: Vec<Box<dyn Procedure>> = Vec::with_capacity(instances);
     let mut create_err: Option<AppError> = None;
     for _ in 0..instances {
-        match (ctx.deps.factory)(decl).and_then(|mut p| p.configure(&config).map(|_| p)) {
+        match entry_of(decl)
+            .and_then(&ctx.deps.factory)
+            .and_then(|mut p| p.configure(&config).map(|_| p))
+        {
             Ok(p) => procs.push(p),
             Err(e) => create_err = Some(e),
         }
@@ -974,7 +980,7 @@ fn effective_batch_mode(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<BatchMod
     let BatchMode::Chunk { size } = &decl.batch else {
         return Ok(decl.batch.clone());
     };
-    if (ctx.deps.factory)(decl)?.shape() != ProcShape::MapOnly {
+    if (ctx.deps.factory)(entry_of(decl)?)?.shape() != ProcShape::MapOnly {
         return Ok(decl.batch.clone());
     }
     let per_instance = (PAGE_SIZE as u32).div_ceil(instance_count(decl) as u32);
@@ -1329,27 +1335,6 @@ impl ProcHost for QueryHost<'_> {
     }
 }
 
-/// The declaration a query synthesizes so it can reach a procedure through the same
-/// factory a run uses. Only `entry` and `config` carry meaning.
-fn query_decl(entry: &str, config: Option<String>) -> ProviderDecl {
-    ProviderDecl {
-        id: "query".into(),
-        label: None,
-        entry: Some(entry.to_string()),
-        fields: Vec::new(),
-        requires: Vec::new(),
-        select: Selector::Everything,
-        batch: BatchMode::PerRow,
-        sink: Sink::Patch,
-        rate: None,
-        retry: None,
-        force: None,
-        inflight: None,
-        instances: None,
-        config,
-    }
-}
-
 /// Load a procedure and run its `query` export over `input`. Read-only: no store, no
 /// patches, no progress events.
 pub fn run_query(
@@ -1359,9 +1344,8 @@ pub fn run_query(
     config: Option<String>,
     aborted: &(dyn Fn() -> bool + Sync),
 ) -> AppResult<String> {
-    let decl = query_decl(entry, config);
-    let mut proc = (deps.factory)(&decl)?;
-    proc.configure(&configure_json(&[], false, decl.config.as_deref()))?;
+    let mut proc = (deps.factory)(entry)?;
+    proc.configure(&configure_json(&[], false, config.as_deref()))?;
     let mut host = QueryHost {
         deps,
         budget: FetchBudget::new(None, None),

@@ -58,7 +58,7 @@ fn decl(id: &str, batch: BatchMode) -> ProviderDecl {
     ProviderDecl {
         id: id.into(),
         label: None,
-        entry: None,
+        entry: Some("mock".into()),
         fields: Vec::new(),
         requires: Vec::new(),
         select: Selector::Everything,
@@ -1084,6 +1084,19 @@ fn a_provider_with_no_startable_instance_fails_the_run() {
     assert!(err.to_string().contains("no interpreter"), "{err}");
 }
 
+#[test]
+fn a_provider_declaring_no_procedure_module_fails_the_run() {
+    let (state, map_id) = setup(&[loc(1, 0.0, 0.0)]);
+    let h = Harness::map_only(patch_all("{}"));
+    let mut d = decl("moduleless", BatchMode::PerRow);
+    d.entry = None;
+    let err = run_provider(&h.ctx(&state, &map_id), &d).unwrap_err();
+    assert!(
+        err.to_string().contains("declares no procedure module"),
+        "{err}"
+    );
+}
+
 struct BadCfgProc;
 
 impl Procedure for BadCfgProc {
@@ -1426,10 +1439,10 @@ impl Procedure for QueryProc {
 
 fn query_deps(fetch: FetchFn) -> EngineDeps {
     EngineDeps {
-        factory: Box::new(|decl| {
+        factory: Box::new(|entry| {
             Ok(Box::new(QueryProc {
                 config: "null".into(),
-                entry: decl.entry.clone().unwrap_or_default(),
+                entry: entry.to_string(),
             }) as Box<dyn Procedure>)
         }),
         fetch,
