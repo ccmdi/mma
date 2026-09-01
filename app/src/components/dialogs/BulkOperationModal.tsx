@@ -764,7 +764,7 @@ function EnrichSummary({ result }: { result: EnrichResult }) {
 // Progress — runs the BulkRunner and shows progress/results
 // ---------------------------------------------------------------------------
 
-function BulkProgress({
+export function BulkProgress({
 	runner,
 	selector,
 	onClose,

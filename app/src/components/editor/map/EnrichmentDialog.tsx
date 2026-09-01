@@ -172,7 +172,7 @@ export function EnrichmentButton() {
 }
 
 /** The everyday view: one switch per enrichable field, and nothing about schema. */
-function EnrichTab({
+export function EnrichTab({
 	enrichMetadata,
 	setEnrichMetadata,
 	enrichFields,
