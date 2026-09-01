@@ -812,7 +812,8 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
 }
 
 /// The rows of one page the procedure still has to work, cut into batches. Rows already
-/// holding every field the provider produces are counted as skipped and dropped here.
+/// holding every field the provider produces are counted as skipped and dropped here; rows
+/// missing a field it `requires` are failed here, since no procedure body can work them.
 fn page_batches(
     ctx: &RunCtx,
     decl: &ProviderDecl,
@@ -838,6 +839,26 @@ fn page_batches(
             .collect()
     };
     prog.add_skipped(before - rows.len() as u32);
+
+    // A row missing a field the provider requires cannot be worked by any procedure: its
+    // producer either never ran or could not answer for that row. Failing it here is what
+    // keeps the verdict one rule instead of one per procedure body, and `force` does not
+    // apply -- it re-derives an output that exists, it cannot conjure a missing input.
+    let (rows, unmet): (Vec<Location>, Vec<Location>) = rows
+        .into_iter()
+        .partition(|l| decl.requires.iter().all(|f| field_present(l, f)));
+    if !unmet.is_empty() {
+        prog.add_failed(unmet.len() as u32);
+        deliver_page(
+            ctx,
+            decl,
+            PageOutput {
+                failed: unmet.iter().map(|l| l.id).collect(),
+                ..PageOutput::default()
+            },
+        )?;
+    }
+
     if rows.is_empty() {
         return Ok(Vec::new());
     }

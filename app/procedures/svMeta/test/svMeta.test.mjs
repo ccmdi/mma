@@ -441,33 +441,6 @@ test("rows sharing a pano are fetched once and fanned out", () => {
   assert.equal(progress, 3);
 });
 
-test("a row without a pano id is failed, not silently passed", () => {
-  const rows = [
-    { id: 1, panoId: "" },
-    { id: 2, panoId: CLASSIC_A },
-  ];
-  const { patches, calls, progress, failed } = runProcedure(rows, () =>
-    responseBytes({ metadata: [meta()] }),
-  );
-  assert.deepEqual(calls[0].keys.length, 1);
-  assert.deepEqual(
-    patches.map((p) => p.id),
-    [2],
-  );
-  assert.equal(progress, 2);
-  assert.deepEqual(failed, [1]);
-});
-
-test("no rows with panos means no requests at all", () => {
-  const { patches, calls, progress, failed } = runProcedure([{ id: 1, panoId: "" }], () => {
-    throw new Error("must not fetch");
-  });
-  assert.deepEqual(patches, []);
-  assert.equal(calls.length, 0);
-  assert.equal(progress, 1);
-  assert.deepEqual(failed, [1]);
-});
-
 // --- Staleness ---
 
 const stale = (extra) =>

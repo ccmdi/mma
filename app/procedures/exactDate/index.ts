@@ -34,9 +34,9 @@ interface Search {
 }
 
 /** A search over the `(lo, hi]` window a `YYYY-MM` capture month spans, or null when the
- *  string is not one. */
-function newSearch(id: number, lat: number, lng: number, yearMonth: string): Search | null {
-	const m = /^(\d{4})-(\d{2})$/.exec(yearMonth);
+ *  value is not one. */
+function newSearch(id: number, lat: number, lng: number, yearMonth: unknown): Search | null {
+	const m = /^(\d{4})-(\d{2})$/.exec(String(yearMonth));
 	if (!m) return null;
 	const month = Number(m[2]);
 	if (month < 1 || month > 12) return null;
@@ -158,9 +158,7 @@ function narrow(batch: Search[], counts = true): void {
 export function run(rows: Location[]): Update<LocationPatch>[] {
 	const batch: Search[] = [];
 	for (const row of rows) {
-		const imageDate = row.extra?.imageDate;
-		if (typeof imageDate !== "string") continue;
-		const s = newSearch(row.id, row.lat, row.lng, imageDate);
+		const s = newSearch(row.id, row.lat, row.lng, row.extra?.imageDate);
 		if (!s) {
 			mma.fail(row.id);
 			mma.progress(1);

@@ -35,12 +35,6 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 	const rowsFor: number[][] = index.unique.map(() => []);
 	index.slot.forEach((slot, i) => {
 		if (slot >= 0) rowsFor[slot].push(i);
-		else {
-			// No pano id means no metadata to fetch: a failure, not a silent pass that
-			// would be booked as success.
-			mma.fail(rows[i].id);
-			mma.progress(1);
-		}
 	});
 
 	const fetched = fetchMetadata(index.unique);

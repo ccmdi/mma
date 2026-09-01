@@ -181,21 +181,6 @@ test("a round asks for every live row at once", () => {
 	assert.equal(widths.length, alone.length);
 });
 
-test("rows without a usable imageDate are skipped silently", () => {
-	const { patches, calls, failed, progress } = runProcedure(
-		[
-			row(31, 1, 2, null),
-			row(32, 1, 2, { imageDate: null, panoType: "x" }),
-			row(33, 1, 2, { imageDate: 202106 }),
-		],
-		() => FOUND,
-	);
-	assert.deepEqual(patches, []);
-	assert.deepEqual(failed, []);
-	assert.equal(calls.length, 0);
-	assert.equal(progress, 0);
-});
-
 test("a malformed imageDate fails the row without a request", () => {
 	const { calls, failed } = runProcedure([row(34, 1, 2, { imageDate: "2021-13" })], () => FOUND);
 	assert.equal(calls.length, 0);

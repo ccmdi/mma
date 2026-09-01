@@ -25,22 +25,6 @@ function runMap(rows) {
 
 const row = (id, lat, lng, extra = { datetime: 1719835200 }) => ({ id, lat, lng, extra });
 
-test("rows without a numeric datetime are skipped", () => {
-	const { patches, failed } = runMap([
-		row(1, 47.3769, 8.5417),
-		row(2, 47.3769, 8.5417, null),
-		row(3, 47.3769, 8.5417, { note: "no datetime" }),
-		row(4, 47.3769, 8.5417, { datetime: "2024-07-01" }),
-		row(5, 47.3769, 8.5417, { nested: { datetime: 1 }, other: 2 }),
-	]);
-	assert.deepEqual(failed, []);
-	assert.deepEqual(
-		patches.map((p) => p.id),
-		[1],
-	);
-	assert.deepEqual(patches[0].patch, { timezone: "Europe/Zurich" });
-});
-
 test("out-of-range coordinates fail the row instead of patching it", () => {
 	const { patches, failed } = runMap([
 		row(1, 91, 0),

@@ -8,7 +8,6 @@ const inRange = (lat: number, lng: number) => lat >= -90 && lat <= 90 && lng >= 
 export function map(rows: Location[]): Update<LocationPatch>[] {
 	const out: Update<LocationPatch>[] = [];
 	for (const row of rows) {
-		if (typeof row.extra?.datetime !== "number") continue;
 		// Out-of-range coordinates are a row failure, matching the JS provider's throw.
 		if (!inRange(row.lat, row.lng)) {
 			mma.fail(row.id);

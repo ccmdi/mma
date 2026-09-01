@@ -961,6 +961,64 @@ fn a_row_the_procedure_fails_is_delivered_by_id() {
 }
 
 #[test]
+fn a_row_missing_a_required_field_is_failed_before_the_procedure_sees_it() {
+    let mut pinned = loc(1, 1.0, 0.0);
+    pinned.pano_id = Some("ABC".into());
+    let (state, map_id) = setup(&[pinned, loc(2, 2.0, 0.0)]);
+    let mut d = decl("svMeta", BatchMode::PerRow);
+    d.requires = vec!["panoId".into()];
+    let h = Harness::map_only(patch_extra_all(r#"{"a":1}"#));
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
+
+    // Row 2 never reaches the procedure, and comes back as a failure rather than a pass.
+    assert_eq!(*h.seen.lock().unwrap(), vec![vec![1]]);
+    let failed: Vec<u32> = delivered(&h).iter().flat_map(|p| p.failed.clone()).collect();
+    assert_eq!(failed, vec![2]);
+}
+
+#[test]
+fn an_unmet_requirement_counts_as_failed_not_skipped() {
+    let (state, map_id) = setup(&[loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]);
+    let mut d = decl("svMeta", BatchMode::PerRow);
+    d.requires = vec!["panoId".into()];
+    let (sink, events) = recording_sink();
+    let h = Harness::map_only(patch_extra_all(r#"{"a":1}"#));
+    let mut ctx = h.ctx(&state, &map_id);
+    ctx.progress = sink;
+    run_provider(&ctx, &d).unwrap();
+
+    let events = events.lock().unwrap();
+    let last = events.last().unwrap();
+    assert_eq!((last.total, last.failed), (2, 2));
+}
+
+#[test]
+fn force_does_not_conjure_a_missing_requirement() {
+    let (state, map_id) = setup(&[loc(1, 1.0, 0.0)]);
+    let mut d = decl("svMeta", BatchMode::PerRow);
+    d.requires = vec!["panoId".into()];
+    let h = Harness::map_only(patch_extra_all(r#"{"a":1}"#));
+    let mut ctx = h.ctx(&state, &map_id);
+    ctx.force = true;
+    run_provider(&ctx, &d).unwrap();
+
+    assert!(h.seen.lock().unwrap().is_empty());
+    let failed: Vec<u32> = delivered(&h).iter().flat_map(|p| p.failed.clone()).collect();
+    assert_eq!(failed, vec![1]);
+}
+
+#[test]
+fn a_provider_requiring_nothing_works_every_row() {
+    let (state, map_id) = setup(&[loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]);
+    let d = decl("subdivision", BatchMode::PerRow);
+    let h = Harness::map_only(patch_extra_all(r#"{"a":1}"#));
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
+
+    assert_eq!(*h.seen.lock().unwrap(), vec![vec![1], vec![2]]);
+    assert!(delivered(&h).iter().all(|p| p.failed.is_empty()));
+}
+
+#[test]
 fn a_map_only_procedure_reaches_the_real_host() {
     let locs: Vec<Location> = (1..=2u32).map(|i| loc(i, i as f64, 0.0)).collect();
     let (state, map_id) = setup(&locs);
