@@ -972,7 +972,10 @@ fn a_row_missing_a_required_field_is_failed_before_the_procedure_sees_it() {
 
     // Row 2 never reaches the procedure, and comes back as a failure rather than a pass.
     assert_eq!(*h.seen.lock().unwrap(), vec![vec![1]]);
-    let failed: Vec<u32> = delivered(&h).iter().flat_map(|p| p.failed.clone()).collect();
+    let failed: Vec<u32> = delivered(&h)
+        .iter()
+        .flat_map(|p| p.failed.clone())
+        .collect();
     assert_eq!(failed, vec![2]);
 }
 
@@ -989,7 +992,7 @@ fn an_unmet_requirement_counts_as_failed_not_skipped() {
 
     let events = events.lock().unwrap();
     let last = events.last().unwrap();
-    assert_eq!((last.total, last.failed), (2, 2));
+    assert_eq!((last.total, last.done, last.failed), (2, 2, 2));
 }
 
 #[test]
@@ -1003,7 +1006,10 @@ fn force_does_not_conjure_a_missing_requirement() {
     run_provider(&ctx, &d).unwrap();
 
     assert!(h.seen.lock().unwrap().is_empty());
-    let failed: Vec<u32> = delivered(&h).iter().flat_map(|p| p.failed.clone()).collect();
+    let failed: Vec<u32> = delivered(&h)
+        .iter()
+        .flat_map(|p| p.failed.clone())
+        .collect();
     assert_eq!(failed, vec![1]);
 }
 

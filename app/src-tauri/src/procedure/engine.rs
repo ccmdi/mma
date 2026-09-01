@@ -840,15 +840,13 @@ fn page_batches(
     };
     prog.add_skipped(before - rows.len() as u32);
 
-    // A row missing a field the provider requires cannot be worked by any procedure: its
-    // producer either never ran or could not answer for that row. Failing it here is what
-    // keeps the verdict one rule instead of one per procedure body, and `force` does not
-    // apply -- it re-derives an output that exists, it cannot conjure a missing input.
+    // `force` re-derives an output; it cannot supply a missing input, so the gate holds.
     let (rows, unmet): (Vec<Location>, Vec<Location>) = rows
         .into_iter()
         .partition(|l| decl.requires.iter().all(|f| field_present(l, f)));
     if !unmet.is_empty() {
         prog.add_failed(unmet.len() as u32);
+        prog.add_done(unmet.len() as u32);
         deliver_page(
             ctx,
             decl,
