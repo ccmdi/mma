@@ -49,6 +49,9 @@ interface Report {
 	surface: string;
 	net: Record<string, number>;
 	requestsPerRow: number;
+	/** Resolved timestamp per row, so two runs can be compared for the value and not
+	 *  only the speed. */
+	rowDates: Record<string, number>;
 	projection: {
 		roundsSecond: number;
 		roundsDay: number;
@@ -91,6 +94,12 @@ describe("procedure bench: exactDate throughput", () => {
 			return typeof extra.datetime === "number";
 		}).length;
 
+		const rowDates: Record<string, number> = {};
+		for (const r of rows) {
+			const ts = (r.extra as Record<string, unknown>).datetime;
+			if (typeof ts === "number") rowDates[`${r.lat},${r.lng}`] = ts;
+		}
+
 		const perRow = enriched > 0 ? net.stats.requests / enriched : 0;
 		const roundsSecond = roundsFor(1);
 		const roundsDay = roundsFor(86400);
@@ -105,6 +114,7 @@ describe("procedure bench: exactDate throughput", () => {
 			surface: net.surface,
 			net: { ...net.stats } as unknown as Record<string, number>,
 			requestsPerRow: Number(perRow.toFixed(2)),
+			rowDates,
 			projection: {
 				roundsSecond,
 				roundsDay,
@@ -113,7 +123,7 @@ describe("procedure bench: exactDate throughput", () => {
 				),
 			},
 		};
-		console.log("[pbench] " + JSON.stringify(report, null, 1));
+		console.log("[pbench] " + JSON.stringify({ ...report, rowDates: undefined }, null, 1));
 		writeReport(report);
 
 		if (enriched === 0) throw new Error("no row resolved a datetime: the bench measured nothing");

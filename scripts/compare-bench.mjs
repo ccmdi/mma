@@ -73,6 +73,21 @@ function main() {
 			`${label.padEnd(22)}${String(av).padStart(12)}${String(bv).padStart(12)}${delta.padStart(12)}`,
 		);
 	}
+	const aDates = a.rowDates ?? {};
+	const bDates = b.rowDates ?? {};
+	const shared = Object.keys(aDates).filter((k) => k in bDates);
+	if (shared.length) {
+		const day = (t) => Math.floor(t / 86400);
+		const sameDay = shared.filter((k) => day(aDates[k]) === day(bDates[k])).length;
+		const drift = shared.map((k) => Math.abs(aDates[k] - bDates[k]));
+		const meanDrift = Math.round(drift.reduce((x, y) => x + y, 0) / drift.length);
+		console.log(
+			`\nresolved values: ${shared.length} shared rows, ` +
+				`${sameDay} on the same calendar day (${((sameDay / shared.length) * 100).toFixed(1)}%), ` +
+				`mean |drift| ${meanDrift}s, max ${Math.max(...drift)}s`,
+		);
+	}
+
 	console.log(
 		`\nserved/offered: v0.9.2 ${(a.net.meanInflight / (a.net.meanOffered || 1)).toFixed(2)}, ` +
 			`current ${(b.net.meanInflight / (b.net.meanOffered || 1)).toFixed(2)} ` +
