@@ -270,7 +270,7 @@ declare const commands: {
     storeValues: (selector: Selector, field: string) => Promise<string[]>;
     /**
      *  How many rows hold a value for each field, key-sorted: `extra` keys and the built-in
-     *  columns an op can write.
+     *  columns a row can lack.
      *  @unstable
      */
     storeCoverage: (selector: Selector) => Promise<[string, number][]>;
