@@ -27,7 +27,14 @@ function run(rows) {
     else byPano.set(panoId, [row]);
   }
   if (byPano.size === 0) return [];
-  const payload = JSON.stringify({ panoIds: [...byPano.keys()] });
+  const minYears = {};
+  for (const [panoId, group] of byPano) {
+    for (const row of group) {
+      const y = leadingYear(row.extra?.imageDate);
+      if (y > 0 && y > (minYears[panoId] ?? 0)) minYears[panoId] = y;
+    }
+  }
+  const payload = JSON.stringify({ panoIds: [...byPano.keys()], minYears });
   const out = [];
   mma.sidecar(PLUGIN_ID, COMMAND, payload, (line) => {
     const parsed = parseLine(line);

@@ -57,6 +57,7 @@ plugins/copyright/sidecar/verify_parity.py
 
 !plugins/copyright/sidecar/models/wm_cls.onnx
 !plugins/copyright/sidecar/models/wm_template.bin
+!plugins/copyright/sidecar/models/wm_profile.json
 
 # render-binary layout fixture, emitted by the Rust writer (emit_render_fixture)
 !app/test/unit/fixtures/render-buffer.bin

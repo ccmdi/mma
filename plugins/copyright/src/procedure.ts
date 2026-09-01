@@ -50,7 +50,16 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 	}
 	if (byPano.size === 0) return [];
 
-	const payload = JSON.stringify({ panoIds: [...byPano.keys()] });
+	// Capture year, where a row already knows it, floors the sidecar's vote: Google
+	// only re-stamps forward, so a year behind the capture is a misread.
+	const minYears: Record<string, number> = {};
+	for (const [panoId, group] of byPano) {
+		for (const row of group) {
+			const y = leadingYear(row.extra?.imageDate);
+			if (y > 0 && y > (minYears[panoId] ?? 0)) minYears[panoId] = y;
+		}
+	}
+	const payload = JSON.stringify({ panoIds: [...byPano.keys()], minYears });
 	const out: Update<LocationPatch>[] = [];
 	mma.sidecar(PLUGIN_ID, COMMAND, payload, (line) => {
 		const parsed = parseLine(line);

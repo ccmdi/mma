@@ -40,7 +40,8 @@ jobs:
         run: |
           mkdir -p bundle/models
           cp plugins/copyright/sidecar/models/wm_cls.onnx \
-             plugins/copyright/sidecar/models/wm_template.bin bundle/models/
+             plugins/copyright/sidecar/models/wm_template.bin \
+             plugins/copyright/sidecar/models/wm_profile.json bundle/models/
 
       - name: Create archive
         run: |

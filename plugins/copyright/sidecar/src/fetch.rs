@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 use tokio::sync::Semaphore;
 
@@ -63,100 +62,74 @@ async fn fetch_one(cl: &reqwest::Client, url: &str) -> Result<Vec<u8>, String> {
     }
 }
 
-// Streaming variant: returns a receiver that yields each (pano_id, result) the
-// moment its fetch completes, so callers can classify/emit without waiting for the
-// whole batch. Kills the per-chunk fetch barrier.
-pub fn fetch_tiles_streaming(
-    pano_ids: &[&str],
-    zoom: u32,
-    x: u32,
-    y: u32,
-) -> std::sync::mpsc::Receiver<(String, Result<Vec<u8>, String>)> {
-    let rt = runtime();
-    let cl = client();
-    let sem = Arc::new(Semaphore::new(CONCURRENCY));
-    let (tx, rx) = std::sync::mpsc::channel();
-    let ids: Vec<String> = pano_ids.iter().map(|s| s.to_string()).collect();
-
-    rt.spawn(async move {
-        let mut handles = Vec::with_capacity(ids.len());
-        for pid in ids {
-            let sem = sem.clone();
-            let tx = tx.clone();
-            handles.push(tokio::spawn(async move {
-                let cache = cache_path(&pid, zoom, x, y);
-                if let Some(ref p) = cache
-                    && let Ok(data) = std::fs::read(p)
-                {
-                    let _ = tx.send((pid, Ok(data)));
-                    return;
-                }
-                let result = match sem.acquire().await {
-                    Ok(_permit) => {
-                        let url = format!(
-                            "{TILE_URL}?cb_client=apiv3&panoid={pid}&output=tile&x={x}&y={y}&zoom={zoom}"
-                        );
-                        fetch_one(cl, &url).await
-                    }
-                    Err(e) => Err(e.to_string()),
-                };
-                if let (Some(p), Ok(data)) = (&cache, &result) {
-                    std::fs::write(p, data).ok();
-                }
-                let _ = tx.send((pid, result));
-            }));
-        }
-        for h in handles {
-            let _ = h.await;
-        }
-    });
-    rx
+/// One tile request; workers route the result by zoom (5 = fixed-spot rung, 4 = band cell).
+pub struct TileJob {
+    pub pano_id: String,
+    pub zoom: u32,
+    pub x: u32,
+    pub y: u32,
 }
 
-pub fn fetch_tiles_concurrent(
-    pano_ids: &[&str],
-    zoom: u32,
-    x: u32,
-    y: u32,
-) -> HashMap<String, Result<Vec<u8>, String>> {
+pub type TileResult = (TileJob, Result<Vec<u8>, String>);
+
+/// Handle for enqueueing tile fetches; dropping every clone (after the queue drains)
+/// closes the result channel.
+#[derive(Clone)]
+pub struct JobSender(tokio::sync::mpsc::UnboundedSender<TileJob>);
+
+impl JobSender {
+    pub fn send(&self, job: TileJob) {
+        let _ = self.0.send(job);
+    }
+}
+
+/// Streaming fetch pump: jobs go in at any time, each result comes out the moment its
+/// fetch completes. Lets escalation fetches overlap classification with no phase barrier.
+pub fn start_fetcher() -> (JobSender, std::sync::mpsc::Receiver<TileResult>) {
     let rt = runtime();
     let cl = client();
     let sem = Arc::new(Semaphore::new(CONCURRENCY));
+    let (job_tx, mut job_rx) = tokio::sync::mpsc::unbounded_channel::<TileJob>();
+    let (res_tx, res_rx) = std::sync::mpsc::channel::<TileResult>();
 
-    rt.block_on(async {
-        let mut handles = Vec::with_capacity(pano_ids.len());
-        for &pid in pano_ids {
-            let sem = sem.clone();
-            let pid = pid.to_string();
-            handles.push(tokio::spawn(async move {
-                let cache = cache_path(&pid, zoom, x, y);
-                if let Some(ref p) = cache
-                    && let Ok(data) = std::fs::read(p)
-                {
-                    return (pid, Ok(data));
-                }
-                let result = match sem.acquire().await {
-                    Ok(_permit) => {
-                        let url = format!(
-                            "{TILE_URL}?cb_client=apiv3&panoid={pid}&output=tile&x={x}&y={y}&zoom={zoom}"
-                        );
-                        fetch_one(cl, &url).await
+    rt.spawn(async move {
+        let mut set = tokio::task::JoinSet::new();
+        loop {
+            tokio::select! {
+                job = job_rx.recv() => match job {
+                    Some(job) => {
+                        let sem = sem.clone();
+                        let res_tx = res_tx.clone();
+                        set.spawn(async move {
+                            let (pid, zoom, x, y) = (&job.pano_id, job.zoom, job.x, job.y);
+                            let cache = cache_path(pid, zoom, x, y);
+                            if let Some(ref p) = cache
+                                && let Ok(data) = std::fs::read(p)
+                            {
+                                let _ = res_tx.send((job, Ok(data)));
+                                return;
+                            }
+                            let result = match sem.acquire().await {
+                                Ok(_permit) => {
+                                    let url = format!(
+                                        "{TILE_URL}?cb_client=apiv3&panoid={pid}&output=tile&x={x}&y={y}&zoom={zoom}"
+                                    );
+                                    fetch_one(cl, &url).await
+                                }
+                                Err(e) => Err(e.to_string()),
+                            };
+                            if let (Some(p), Ok(data)) = (&cache, &result) {
+                                std::fs::write(p, data).ok();
+                            }
+                            let _ = res_tx.send((job, result));
+                        });
                     }
-                    Err(e) => Err(e.to_string()),
-                };
-                if let (Some(p), Ok(data)) = (&cache, &result) {
-                    std::fs::write(p, data).ok();
-                }
-                (pid, result)
-            }));
-        }
-
-        let mut results = HashMap::with_capacity(pano_ids.len());
-        for handle in handles {
-            if let Ok((pid, result)) = handle.await {
-                results.insert(pid, result);
+                    None => break,
+                },
+                Some(_) = set.join_next(), if !set.is_empty() => {}
             }
         }
-        results
-    })
+        while set.join_next().await.is_some() {}
+    });
+    (JobSender(job_tx), res_rx)
 }

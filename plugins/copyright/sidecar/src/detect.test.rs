@@ -46,35 +46,35 @@ fn softmax_sums_to_one_and_peaks_at_argmax() {
 #[test]
 fn tier_a_fires_on_two_votes() {
     let probs = vec![win(2, 0.6), win(2, 0.7), win(5, 0.55)];
-    assert_eq!(tier_a_vote(&probs), Some(2018));
+    assert_eq!(tier_a_vote(&probs, 1), Some(2018));
 }
 
 #[test]
 fn tier_a_fires_on_solo_threshold() {
     // single window, one class above solo_thresh (0.9)
     let probs = vec![win(3, 0.95)];
-    assert_eq!(tier_a_vote(&probs), Some(2019));
+    assert_eq!(tier_a_vote(&probs, 1), Some(2019));
 }
 
 #[test]
 fn tier_a_falls_through_without_votes_or_solo() {
     // single mid-confidence window: one vote, solo below 0.9
-    assert_eq!(tier_a_vote(&[win(4, 0.6)]), None);
+    assert_eq!(tier_a_vote(&[win(4, 0.6)], 1), None);
     // nothing above thresh at all
-    assert_eq!(tier_a_vote(&[win(4, 0.4)]), None);
-    assert_eq!(tier_a_vote(&[]), None);
+    assert_eq!(tier_a_vote(&[win(4, 0.4)], 1), None);
+    assert_eq!(tier_a_vote(&[], 1), None);
 }
 
 #[test]
 fn tier_a_picks_year_with_most_votes() {
     let probs = vec![win(2, 0.6), win(5, 0.9), win(5, 0.8)];
-    assert_eq!(tier_a_vote(&probs), Some(2021));
+    assert_eq!(tier_a_vote(&probs, 1), Some(2021));
 }
 
 #[test]
 fn tier_b_requires_two_votes() {
-    assert_eq!(tier_b_vote(&[win(2, 0.6)]), None);
-    assert_eq!(tier_b_vote(&[win(2, 0.6), win(2, 0.7)]), Some(2018));
+    assert_eq!(tier_b_vote(&[win(2, 0.6)], 1), None);
+    assert_eq!(tier_b_vote(&[win(2, 0.6), win(2, 0.7)], 1), Some(2018));
 }
 
 #[test]
@@ -83,9 +83,81 @@ fn tier_b_skips_none_predictions_and_low_conf() {
     let mut none_win = [0.0f32; NUM_CLASSES];
     none_win[0] = 0.9;
     none_win[6] = 0.05;
-    assert_eq!(tier_b_vote(&[none_win, none_win]), None);
+    assert_eq!(tier_b_vote(&[none_win, none_win], 1), None);
     // year predicted but below thresh -> skipped
-    assert_eq!(tier_b_vote(&[win(6, 0.4), win(6, 0.45)]), None);
+    assert_eq!(tier_b_vote(&[win(6, 0.4), win(6, 0.45)], 1), None);
+}
+
+#[test]
+fn class_floor_maps_min_year_to_first_allowed_index() {
+    assert_eq!(class_floor(None), 1);
+    assert_eq!(class_floor(Some(2016)), 1);
+    assert_eq!(class_floor(Some(2017)), 1);
+    assert_eq!(class_floor(Some(2018)), 2);
+    assert_eq!(class_floor(Some(2026)), 10);
+    assert_eq!(class_floor(Some(2027)), NUM_CLASSES);
+}
+
+#[test]
+fn vote_floor_excludes_years_below_capture() {
+    // strong 2018 votes, capture year 2021 (floor 5): 2018 is a misread, not a fact
+    let probs = vec![win(2, 0.9), win(2, 0.9)];
+    assert_eq!(tier_a_vote(&probs, 1), Some(2018));
+    assert_eq!(tier_a_vote(&probs, 5), None);
+    assert_eq!(tier_b_vote(&probs, 1), Some(2018));
+    assert_eq!(tier_b_vote(&probs, 5), None);
+    // floor past the last year never fires
+    assert_eq!(tier_a_vote(&probs, NUM_CLASSES), None);
+}
+
+#[test]
+fn vote_floor_picks_next_best_allowed_year() {
+    // windows where 2018 peaks but an allowed 2022 is also above thresh
+    let mut w = [0.0f32; NUM_CLASSES];
+    w[2] = 0.55;
+    w[6] = 0.52;
+    assert_eq!(tier_a_vote(&[w, w], 1), Some(2018));
+    assert_eq!(tier_a_vote(&[w, w], 5), Some(2022));
+    assert_eq!(tier_b_vote(&[w, w], 5), Some(2022));
+}
+
+fn jpeg_bytes(luma: u8, size: u32) -> Vec<u8> {
+    let img = image::RgbImage::from_pixel(size, size, image::Rgb([luma, luma, luma]));
+    let mut buf = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::ImageRgb8(img)
+        .write_to(&mut buf, image::ImageFormat::Jpeg)
+        .unwrap();
+    buf.into_inner()
+}
+
+#[test]
+fn decode_gray_rejects_black_dead_tiles_only() {
+    // uniform black = dead coverage
+    assert!(decode_gray(&jpeg_bytes(0, TILE as u32)).is_none());
+    // bright near-flat (hazy scene) is alive even below the std floor
+    assert!(decode_gray(&jpeg_bytes(200, TILE as u32)).is_some());
+    // wrong dimensions still rejected
+    assert!(decode_gray(&jpeg_bytes(200, 256)).is_none());
+}
+
+#[test]
+fn fallback_profile_is_valid() {
+    let cells = fallback_profile();
+    assert!(cells.iter().any(|c| c.primary), "at least one primary cell");
+    for c in &cells {
+        assert!(c.x < 16 && (c.y == 6 || c.y == 7), "cell ({},{}) outside z4 nadir band", c.x, c.y);
+        assert!(!c.boxes.is_empty());
+        for &(x0, y0, w, h) in &c.boxes {
+            assert!(w > 0 && h > 0 && x0 + w <= TILE && y0 + h <= TILE,
+                "box ({x0},{y0},{w},{h}) exceeds tile bounds");
+        }
+    }
+}
+
+#[test]
+fn load_profile_falls_back_when_file_absent() {
+    let cells = load_profile("nonexistent-dir");
+    assert_eq!(cells.len(), fallback_profile().len());
 }
 
 #[test]
