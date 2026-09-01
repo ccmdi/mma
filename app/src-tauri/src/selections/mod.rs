@@ -899,9 +899,11 @@ pub fn narrow(view: &LocView, selector: &Selector) -> Option<RoaringBitmap> {
     }
 }
 
-/// How many selected rows carry each top-level `extra` key, key-sorted. Answers "which
-/// fields does this map actually have, and how covered are they" in one pass.
-pub fn extra_key_coverage(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<(String, u32)> {
+/// How many selected rows hold a value for each field, key-sorted: `extra` keys and the
+/// built-in columns a row can lack. A column that is always present would report every
+/// row and say nothing, so only the optional ones are counted.
+pub fn coverage(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<(String, u32)> {
+    let columns = optional_builtins();
     let mut counts: HashMap<String, u32> = HashMap::new();
     view.for_each_within(set, |row| {
         row.for_each_extra_key(|key| match counts.get_mut(key) {
@@ -910,6 +912,11 @@ pub fn extra_key_coverage(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<(S
                 counts.insert(key.to_string(), 1);
             }
         });
+        for key in columns {
+            if row.resolve_field(key).is_some() {
+                *counts.entry((*key).to_string()).or_insert(0) += 1;
+            }
+        }
     });
     let mut out: Vec<(String, u32)> = counts.into_iter().collect();
     out.sort_by(|a, b| a.0.cmp(&b.0));

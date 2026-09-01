@@ -2694,7 +2694,7 @@ fn count_by_matches_the_group_sizes_partition_reports() {
 }
 
 #[test]
-fn extra_key_coverage_counts_rows_per_key_across_the_overlay() {
+fn coverage_counts_rows_per_key_across_the_overlay() {
     let base = vec![
         loc_extra(1, serde_json::json!({"a":1,"b":2})),
         loc_extra(2, serde_json::json!({"a":1})),
@@ -2708,7 +2708,7 @@ fn extra_key_coverage_counts_rows_per_key_across_the_overlay() {
         .with_dead([3]);
 
     assert_eq!(
-        extra_key_coverage(&fx.view(), None),
+        coverage(&fx.view(), None),
         vec![
             ("a".to_string(), 3u32),
             ("b".to_string(), 1),
@@ -2782,24 +2782,61 @@ fn columns_within_projects_one_value_per_row_per_field() {
 }
 
 #[test]
-fn extra_key_coverage_decodes_escaped_base_row_keys() {
+fn optional_builtins_are_the_columns_a_row_can_lack() {
+    assert_eq!(optional_builtins(), &["modifiedAt", "panoId"]);
+}
+
+#[test]
+fn coverage_counts_an_optional_column_beside_the_extra_keys() {
+    let locs = [
+        Location {
+            pano_id: Some("abc".into()),
+            modified_at: Some(7),
+            ..loc_extra(1, serde_json::json!({"a": 1}))
+        },
+        loc_extra(2, serde_json::json!({"a": 2})),
+    ];
+    let fx = Fx::base(&locs);
+    assert_eq!(
+        coverage(&fx.view(), None),
+        vec![
+            ("a".to_string(), 2),
+            ("modifiedAt".to_string(), 1),
+            ("panoId".to_string(), 1)
+        ]
+    );
+}
+
+#[test]
+fn coverage_leaves_out_a_column_every_row_holds() {
+    let fx = Fx::base(&[loc(1, 1.0, 1.0)]);
+    let keys: Vec<String> = coverage(&fx.view(), None)
+        .into_iter()
+        .map(|(k, _)| k)
+        .collect();
+    // lat/lng/heading/pitch/zoom always hold a value, so counting them says nothing.
+    assert!(keys.is_empty(), "{keys:?}");
+}
+
+#[test]
+fn coverage_decodes_escaped_base_row_keys() {
     // Blobs baked before key canonicalization can still carry `café` on disk; coverage
     // must report the decoded spelling, matching overlay rows and the field-def registry.
     let mut l = loc(1, 0.0, 0.0);
     l.extra = RawExtra::from_string_uncanonicalized("{\"caf\\u00e9\":1}");
     let fx = Fx::base(&[l]);
     assert_eq!(
-        extra_key_coverage(&fx.view(), None),
+        coverage(&fx.view(), None),
         vec![("café".to_string(), 1u32)]
     );
 }
 
 #[test]
-fn extra_key_coverage_does_not_descend_into_nested_objects() {
+fn coverage_does_not_descend_into_nested_objects() {
     let locs = vec![loc_extra(1, serde_json::json!({"outer":{"inner":1}}))];
     let fx = Fx::base(&locs);
     assert_eq!(
-        extra_key_coverage(&fx.view(), None),
+        coverage(&fx.view(), None),
         vec![("outer".to_string(), 1u32)]
     );
 }
@@ -3003,7 +3040,7 @@ fn every_projection_honours_a_named_id_list() {
         vec![("FR".to_string(), 2u32)]
     );
     assert_eq!(
-        extra_key_coverage(&view, set),
+        coverage(&view, set),
         vec![("c".to_string(), 2u32)]
     );
 }

@@ -268,7 +268,11 @@ declare const commands: {
     storeCountBy: (selector: Selector, field: string, key: KeySpec) => Promise<[string, number][]>;
     /**  Distinct values of `field` across the selected set, sorted. @unstable */
     storeValues: (selector: Selector, field: string) => Promise<string[]>;
-    /**  How many rows carry each top-level `extra` key, key-sorted. @unstable */
+    /**
+     *  How many rows hold a value for each field, key-sorted: `extra` keys and the built-in
+     *  columns an op can write.
+     *  @unstable
+     */
     storeCoverage: (selector: Selector) => Promise<[string, number][]>;
     /**  Values, never rows: the projection for a scan that reads fields across a set. @unstable */
     storeColumns: (selector: Selector, fields: string[]) => Promise<Columns>;
@@ -2456,8 +2460,9 @@ declare function sampleFrom(selector: Selector, n: number): Promise<number[]>;
 declare function fieldValues(selector: Selector, field: string): Promise<string[]>;
 /** Group by a derived key and count, without shipping member ids. */
 declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<[string, number][]>;
-/** How many locations carry each `extra` key, key-sorted. */
-declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
+/** How many locations hold a value for each field, key-sorted: `extra` keys and the
+ *  built-in columns a row can lack. */
+declare function coverage(selector: Selector): Promise<[string, number][]>;
 /** One column per field over the selected set: values, never rows. `null` where a row
  *  lacks the field; `"tags"` is a column of tag-id arrays. */
 declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
@@ -2656,6 +2661,7 @@ declare const store_commitMap: typeof commitMap;
 declare const store_composeSelections: typeof composeSelections;
 declare const store_countBy: typeof countBy;
 declare const store_countIn: typeof countIn;
+declare const store_coverage: typeof coverage;
 declare const store_createTags: typeof createTags;
 declare const store_currentSelection: typeof currentSelection;
 declare const store_decomposeChild: typeof decomposeChild;
@@ -2668,7 +2674,6 @@ declare const store_exitPluginMode: typeof exitPluginMode;
 declare const store_fetchBounds: typeof fetchBounds;
 declare const store_fetchColumns: typeof fetchColumns;
 declare const store_fetchLocations: typeof fetchLocations;
-declare const store_fieldCoverage: typeof fieldCoverage;
 declare const store_fieldValues: typeof fieldValues;
 declare const store_flushSave: typeof flushSave;
 declare const store_getActiveSelections: typeof getActiveSelections;
@@ -2731,7 +2736,7 @@ declare const store_updateTags: typeof updateTags;
 declare const store_useMapState: typeof useMapState;
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
-  export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_composeSelections as composeSelections, store_countBy as countBy, store_countIn as countIn, store_createTags as createTags, store_currentSelection as currentSelection, store_decomposeChild as decomposeChild, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldCoverage as fieldCoverage, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_isolateSelection as isolateSelection, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeChildFromSelection as removeChildFromSelection, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderSelection as reorderSelection, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectIntersection as selectIntersection, store_selectInverse as selectInverse, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_selectUnion as selectUnion, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setPolygonName as setPolygonName, store_setSelectedLocationIds as setSelectedLocationIds, store_setSelectionColors as setSelectionColors, store_setWorkArea as setWorkArea, store_tagIdsToNames as tagIdsToNames, store_toggleGhostAllSelections as toggleGhostAllSelections, store_toggleGhostSelection as toggleGhostSelection, store_toggleManualSelection as toggleManualSelection, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
+  export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_composeSelections as composeSelections, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_decomposeChild as decomposeChild, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_isolateSelection as isolateSelection, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeChildFromSelection as removeChildFromSelection, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderSelection as reorderSelection, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectIntersection as selectIntersection, store_selectInverse as selectInverse, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_selectUnion as selectUnion, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setPolygonName as setPolygonName, store_setSelectedLocationIds as setSelectedLocationIds, store_setSelectionColors as setSelectionColors, store_setWorkArea as setWorkArea, store_tagIdsToNames as tagIdsToNames, store_toggleGhostAllSelections as toggleGhostAllSelections, store_toggleGhostSelection as toggleGhostSelection, store_toggleManualSelection as toggleManualSelection, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
   export type { store_MapState as MapState };
 }
 
@@ -4564,10 +4569,13 @@ declare function fetchLocation(id: number): Promise<Location>;
 declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
 /** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Everything" })`. @unstable */
 declare function fetchAllLocations(): Promise<Location[]>;
+/** @deprecated v0.10.2. Use `MMA.coverage()`. @unstable */
+declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
 
 declare const legacy_fetchAllLocations: typeof fetchAllLocations;
 declare const legacy_fetchLocation: typeof fetchLocation;
 declare const legacy_fetchLocationsByIds: typeof fetchLocationsByIds;
+declare const legacy_fieldCoverage: typeof fieldCoverage;
 declare const legacy_getActiveLocation: typeof getActiveLocation;
 declare const legacy_getAllSelections: typeof getAllSelections;
 declare const legacy_getCurrentMap: typeof getCurrentMap;
@@ -4585,6 +4593,7 @@ declare namespace legacy {
     legacy_fetchAllLocations as fetchAllLocations,
     legacy_fetchLocation as fetchLocation,
     legacy_fetchLocationsByIds as fetchLocationsByIds,
+    legacy_fieldCoverage as fieldCoverage,
     legacy_getActiveLocation as getActiveLocation,
     legacy_getAllSelections as getAllSelections,
     legacy_getCurrentMap as getCurrentMap,

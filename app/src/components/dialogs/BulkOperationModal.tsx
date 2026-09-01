@@ -10,7 +10,7 @@ import {
 	applyFieldOp,
 	countIn,
 	fetchLocations,
-	fieldCoverage,
+	coverage,
 	getMapState,
 } from "@/store/useMapStore";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
@@ -78,12 +78,14 @@ interface Props {
 }
 
 /** Everything the setup screens display about the current selector, read as projections --
- *  no location rows. `coverage` maps an `extra` key to how many selected rows carry it. */
+ *  no location rows. */
 interface TargetInfo {
 	total: number;
-	noPano: number;
 	pinned: number;
-	coverage: Map<string, number>;
+	/** Selected rows holding a value for `key`. */
+	have: (key: string) => number;
+	/** Selected rows lacking one. */
+	missing: (key: string) => number;
 }
 
 interface SetupProps {
@@ -105,14 +107,19 @@ async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
 		type: "Intersection",
 		selections: [selector, ...extra].map(buildSelection),
 	});
-	const [total, noPano, pinned, coverage] = await Promise.all([
+	const [total, pinned, counts] = await Promise.all([
 		countIn(selector),
-		countIn(narrowed(panoFilter("nothas"))),
 		// Pinned is a pano ID *and* the flag: the flag alone can outlive the id.
 		countIn(narrowed(panoFilter("has"), { type: "PanoIds" })),
-		fieldCoverage(selector),
+		coverage(selector),
 	]);
-	return { total, noPano, pinned, coverage: new Map(coverage) };
+	const have = new Map(counts);
+	return {
+		total,
+		pinned,
+		have: (key) => have.get(key) ?? 0,
+		missing: (key) => total - (have.get(key) ?? 0),
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -169,7 +176,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 	const coverage = enabledFields.map((f) => ({
 		key: f.key,
 		label: f.label,
-		have: info.coverage.get(f.key) ?? 0,
+		have: info.have(f.key),
 	}));
 	const needsAny = coverage.some((c) => c.have < total);
 
@@ -206,14 +213,14 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 					</tbody>
 				</table>
 			)}
-			{info.noPano > 0 && (
+			{info.missing("panoId") > 0 && (
 				<div className="bulk-operation__status">
 					{t(
 						{
 							one: "{n} without pano ID will be resolved from coordinates.",
 							other: "{n} without pano ID will be resolved from coordinates.",
 						},
-						{ n: info.noPano },
+						{ n: info.missing("panoId") },
 					)}
 				</div>
 			)}
@@ -309,8 +316,6 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 		});
 	};
 
-	const withData = (key: string) => info.coverage.get(key) ?? 0;
-
 	return (
 		<div className="bulk-operation">
 			<SelectorPicker ctl={picker} />
@@ -320,7 +325,7 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 				<div className="bulk-operation__field-list">
 					{fieldKeys.map((key) => {
 						const def = getFieldDef(key);
-						const count = withData(key);
+						const count = info.have(key);
 						return (
 							<label key={key} className="bulk-operation__field-item">
 								<Checkbox checked={selected.has(key)} onChange={() => toggle(key)} />
@@ -370,7 +375,7 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 	const sortedKeys = useMemo(() => {
 		const known = new Set<string>(Object.keys(getAllFieldDefs()).filter(isWritableField));
-		for (const k of fieldKeys) known.add(k);
+		for (const k of fieldKeys) if (isWritableField(k)) known.add(k);
 		return [...known].sort();
 	}, [fieldKeys]);
 
@@ -553,14 +558,14 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 	return (
 		<div className="bulk-operation">
 			<SelectorPicker ctl={picker} />
-			{info.noPano > 0 && (
+			{info.missing("panoId") > 0 && (
 				<div className="bulk-operation__status">
 					{t(
 						{
 							one: "{n} without pano ID will be resolved from coordinates.",
 							other: "{n} without pano ID will be resolved from coordinates.",
 						},
-						{ n: info.noPano },
+						{ n: info.missing("panoId") },
 					)}
 				</div>
 			)}
@@ -910,7 +915,7 @@ const SETUPS: Record<BulkOperation, React.ComponentType<SetupProps>> = {
 export function BulkOperationModal({ operation, onClose }: Props) {
 	const [runner, setRunner] = useState<BulkRunner | null>(null);
 	const picker = useSelectorPick();
-	const { data: allKeys } = useAsync(() => fieldCoverage({ type: "Everything" }), []);
+	const { data: allKeys } = useAsync(() => coverage({ type: "Everything" }), []);
 	const info = useAsyncSticky(() => readTargetInfo(picker.selector), [picker.selector]);
 
 	if (allKeys === null || info === null) return null;

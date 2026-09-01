@@ -4365,6 +4365,85 @@ fn set_op_patches_a_writable_builtin_column() {
     assert!(out[0].patch.extra.is_none());
 }
 
+fn pinned_loc(id: u32, pano: &str) -> Location {
+    Location {
+        pano_id: Some(pano.into()),
+        ..loc(id, 1.0, 1.0)
+    }
+}
+
+/// The message a rejected op answers with, or a panic naming what was wrongly accepted.
+fn plan_err(locs: &[Location], op: &FieldOp) -> String {
+    let fx = Fx::base(locs);
+    match plan_field_op(&fx.view(), None, op) {
+        Err(e) => e.to_string(),
+        Ok(_) => panic!("op was accepted"),
+    }
+}
+
+fn del_op(keys: &[&str]) -> FieldOp {
+    FieldOp::Delete {
+        keys: keys.iter().map(|k| (*k).to_string()).collect(),
+    }
+}
+
+#[test]
+fn delete_clears_a_nullable_builtin_column_rather_than_a_phantom_extra_key() {
+    let locs = [pinned_loc(1, "abc"), pinned_loc(2, "def")];
+    let out = plan(&locs, &del_op(&["panoId"]));
+    assert_eq!(out.len(), 2);
+    assert_eq!(out[0].patch.pano_id, Some(None), "the column is cleared");
+    assert!(out[0].patch.extra.is_none(), "nothing lands in extra");
+}
+
+#[test]
+fn delete_leaves_a_row_that_has_no_pano_alone() {
+    let locs = [pinned_loc(1, "abc"), loc(2, 1.0, 1.0)];
+    let out = plan(&locs, &del_op(&["panoId"]));
+    assert_eq!(out.iter().map(|u| u.id).collect::<Vec<_>>(), vec![1]);
+}
+
+#[test]
+fn one_delete_of_a_column_and_an_extra_key_is_one_patch() {
+    let locs = [Location {
+        pano_id: Some("abc".into()),
+        ..loc_with_extra(1, r#"{"a":1}"#)
+    }];
+    let out = plan(&locs, &del_op(&["panoId", "a"]));
+    assert_eq!(out.len(), 1);
+    assert_eq!(out[0].patch.pano_id, Some(None));
+    assert_eq!(planned_extra(&out[0]), serde_json::json!({ "a": null }));
+}
+
+#[test]
+fn a_nullable_builtin_may_be_cleared_but_never_assigned() {
+    let locs = [pinned_loc(1, "abc")];
+    assert!(plan(&locs, &del_op(&["panoId"])).len() == 1);
+    let err = plan_err(&locs, &set_op("panoId", serde_json::json!("x")));
+    assert!(err.contains("cannot be assigned"), "{err}");
+}
+
+#[test]
+fn an_op_that_cannot_write_a_builtin_fails_instead_of_reporting_rows_changed() {
+    let locs = [loc(1, 1.0, 1.0)];
+    // A column that cannot hold null reads a null patch as "unchanged", so clearing one
+    // would report the row changed and leave it standing. Writable is not clearable.
+    for key in ["lat", "id", "tagCount", "loadAsPanoId", "heading", "zoom"] {
+        let err = plan_err(&locs, &del_op(&[key]));
+        assert!(err.contains("cannot be removed"), "{key}: {err}");
+    }
+}
+
+#[test]
+fn a_move_may_take_a_nullable_column_but_never_fill_one() {
+    let locs = [pinned_loc(1, "abc")];
+    let moved = plan(&locs, &move_op("panoId", "oldPano", MergeWinner::From));
+    assert_eq!(moved[0].patch.pano_id, Some(None));
+    assert_eq!(planned_extra(&moved[0]), serde_json::json!({ "oldPano": "abc" }));
+    let err = plan_err(&locs, &move_op("a", "panoId", MergeWinner::From));
+    assert!(err.contains("cannot be assigned"), "{err}");
+}
+
 #[test]
 fn expr_op_evaluates_per_row_and_counts_the_rows_it_cannot() {
     let locs = [

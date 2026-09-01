@@ -38,6 +38,12 @@ describe("field kinds", () => {
 		expect(getBuiltinKeys()).not.toContain("tagCount");
 	});
 
+	it("panoId is readable and listable but never a bulk-set target", () => {
+		expect(isBuiltinField("panoId")).toBe(true);
+		expect(isWritableField("panoId")).toBe(false);
+		expect(isListableField("panoId")).toBe(true);
+	});
+
 	it("kindless builtins are listable and readable but not writable", () => {
 		for (const key of ["createdAt", "modifiedAt"]) {
 			expect(isBuiltinField(key)).toBe(true);

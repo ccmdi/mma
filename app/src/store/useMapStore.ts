@@ -384,8 +384,9 @@ export function countBy(
 	return cmd.storeCountBy(selector, field, key);
 }
 
-/** How many locations carry each `extra` key, key-sorted. */
-export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
+/** How many locations hold a value for each field, key-sorted: `extra` keys and the
+ *  built-in columns a row can lack. */
+export function coverage(selector: Selector): Promise<[string, number][]> {
 	return cmd.storeCoverage(selector);
 }
 

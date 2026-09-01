@@ -14,7 +14,7 @@ import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDef
 import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import {
 	deleteField,
-	fieldCoverage,
+	coverage as readCoverage,
 	fieldValues,
 	getMapState,
 	renameField,
@@ -95,7 +95,7 @@ function useCoverage(epoch: number): Map<string, number> {
 	useEffect(() => {
 		const total = getMapState().locationCount;
 		if (total === 0) return;
-		void fieldCoverage({ type: "Everything" }).then((counts) => {
+		void readCoverage({ type: "Everything" }).then((counts) => {
 			setCoverage(new Map(counts.map(([key, n]) => [key, n / total])));
 		});
 	}, [epoch]);
@@ -301,7 +301,7 @@ function FieldsTab() {
 
 	const proposeRename = async (target: string) => {
 		if (!row || !target || target === row.key) return;
-		const counts = await fieldCoverage({ type: "Everything" });
+		const counts = await readCoverage({ type: "Everything" });
 		const affected = counts.find(([key]) => key === row.key)?.[1] ?? 0;
 		setRenamePrompt({
 			key: row.key,

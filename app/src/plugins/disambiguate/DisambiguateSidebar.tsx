@@ -165,7 +165,7 @@ async function analyze(): Promise<Analysis> {
 	for (const [id, t] of Object.entries(MMA.getMapState().tags))
 		tagNames[Number(id)] = (t as { name: string }).name;
 
-	const present = await MMA.fieldCoverage({ type: "Locations", locations: unionIds, name: null });
+	const present = await MMA.coverage({ type: "Locations", locations: unionIds, name: null });
 	const fields = analysisColumns(
 		fieldDefs,
 		present.map(([k]) => k),

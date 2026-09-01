@@ -12,12 +12,11 @@ use serde::Serialize;
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "lowercase")]
 pub enum BuiltinFieldKind {
-    /// Composes the location itself: never writable, never offered in pickers.
+    /// Composes the location itself. Never writable, never offered in pickers.
     Identity,
     /// Derived, not stored on the location. Never writable.
     Virtual,
-    /// Only a term in a field expression. Never writable, never offered in pickers: a
-    /// selection type already answers this question, and better.
+    /// Only a term in a field expression. Never writable, never offered in pickers.
     Term,
     /// Explicitly bulk-editable top-level field.
     Writable,
@@ -63,6 +62,21 @@ macro_rules! builtin_fields {
             BUILTIN_FIELDS
                 .iter()
                 .any(|f| f.key == field && matches!(f.kind, Some(BuiltinFieldKind::Writable)))
+        }
+
+        /// The columns a row can lack, derived from the resolvers rather than declared
+        /// beside them: a default location holds every always-present field, so whatever
+        /// it answers `None` for is a column an op may clear.
+        pub fn optional_builtins() -> &'static [&'static str] {
+            static KEYS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+            KEYS.get_or_init(|| {
+                let empty = Location::default();
+                BUILTIN_FIELDS
+                    .iter()
+                    .filter(|f| resolve_field_loc(&empty, f.key).is_none())
+                    .map(|f| f.key)
+                    .collect()
+            })
         }
 
         /// Resolve a field name to its JSON value from a `Location` struct.

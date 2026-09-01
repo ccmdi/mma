@@ -219,7 +219,10 @@ export const commands = {
 	storeCountBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<([string, number])[]>("store_count_by", { selector, field, key }),
 	/**  Distinct values of `field` across the selected set, sorted. */
 	storeValues: (selector: Selector, field: string) => __TAURI_INVOKE<string[]>("store_values", { selector, field }),
-	/**  How many rows carry each top-level `extra` key, key-sorted. */
+	/**
+	 *  How many rows hold a value for each field, key-sorted: `extra` keys and the built-in
+	 *  columns a row can lack.
+	 */
 	storeCoverage: (selector: Selector) => __TAURI_INVOKE<([string, number])[]>("store_coverage", { selector }),
 	/**  Values, never rows: the projection for a scan that reads fields across a set. */
 	storeColumns: (selector: Selector, fields: string[]) => __TAURI_INVOKE<Columns>("store_columns", { selector, fields }),

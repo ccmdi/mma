@@ -29,7 +29,7 @@ const MIN_PRESENT = 8;
 const TOP_N = 3;
 /** Fields excluded from analysis: they encode the location/answer itself rather
  *  than an in-round visual tell, so flagging them as "divergent" is pointless. */
-const EXCLUDED_FIELDS = new Set(["countryCode", "timezone"]);
+const EXCLUDED_FIELDS = new Set(["countryCode", "timezone", "panoId"]);
 /** The column carrying each row's tag ids. */
 export const TAGS_COLUMN = "tags";
 

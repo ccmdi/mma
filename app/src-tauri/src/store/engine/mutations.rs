@@ -279,19 +279,50 @@ pub(super) fn number_value(v: f64) -> serde_json::Value {
     }
 }
 
-/// The patch assigning `value` to `key`: a writable built-in column directly, anything
-/// else as an `extra` merge.
-pub(super) fn assign_patch(key: &str, value: serde_json::Value) -> AppResult<LocationPatch> {
-    if selections::is_writable_builtin(key) {
-        Ok(serde_json::from_value(serde_json::json!({ key: value }))?)
-    } else {
-        let mut merge = serde_json::Map::new();
-        merge.insert(key.to_string(), value);
-        Ok(LocationPatch {
-            extra: Some(RawExtra::from_map(&merge)),
-            ..Default::default()
-        })
+/// The patch applying one row's assignments: a built-in column is set directly, anything
+/// else merges into `extra` (null deletes). Every field op writes through here, so what
+/// `set` targets and what `delete` targets cannot drift apart.
+pub(super) fn assign_patch(
+    assignments: &serde_json::Map<String, serde_json::Value>,
+) -> AppResult<LocationPatch> {
+    let mut columns = serde_json::Map::new();
+    let mut extra = serde_json::Map::new();
+    for (key, value) in assignments {
+        let dest = if selections::is_builtin_field(key) {
+            &mut columns
+        } else {
+            &mut extra
+        };
+        dest.insert(key.clone(), value.clone());
     }
+    let mut patch: LocationPatch = serde_json::from_value(columns.into())?;
+    if !extra.is_empty() {
+        patch.extra = Some(RawExtra::from_map(&extra));
+    }
+    Ok(patch)
+}
+
+/// Reject a key an op cannot actually write, rather than reporting rows changed and
+/// leaving the column standing. An `extra` key is always both. A built-in is assignable
+/// when it is declared writable, and clearable when its column is nullable -- writing
+/// null to a column that cannot hold it reads as "unchanged", which is the silent no-op
+/// this guards.
+fn check_target(key: &str, assigning: bool) -> AppResult<()> {
+    if !selections::is_builtin_field(key) {
+        return Ok(());
+    }
+    let ok = if assigning {
+        selections::is_writable_builtin(key)
+    } else {
+        selections::optional_builtins().contains(&key)
+    };
+    if ok {
+        return Ok(());
+    }
+    Err(AppError(format!(
+        "'{key}' cannot be {}",
+        if assigning { "assigned" } else { "removed" }
+    )))
 }
 
 /// Derive the patch each selected row needs for `op`. Rows the op wouldn't change yield
@@ -313,6 +344,14 @@ pub(super) fn plan_field_op(
         FieldOp::Expr { expr, .. } => Some(field_expr::parse(expr)?),
         _ => None,
     };
+    match op {
+        FieldOp::Set { key, .. } | FieldOp::Expr { key, .. } => check_target(key, true)?,
+        FieldOp::Delete { keys } => keys.iter().try_for_each(|k| check_target(k, false))?,
+        FieldOp::Move { from, to, .. } => {
+            check_target(from, false)?;
+            check_target(to, true)?;
+        }
+    }
     let mut plan = FieldPlan::default();
     let mut survives: HashSet<String> = HashSet::new();
     let mut failed: Option<AppError> = None;
@@ -323,10 +362,7 @@ pub(super) fn plan_field_op(
             match op {
                 FieldOp::Set { key, value } => {
                     if !same_field_value(row.resolve_field(key).as_ref(), value) {
-                        match assign_patch(key, value.clone()) {
-                            Ok(patch) => plan.updates.push(Update { id, patch }),
-                            Err(e) => failed = Some(e),
-                        }
+                        merge.insert(key.clone(), value.clone());
                     }
                 }
                 FieldOp::Expr { key, .. } => {
@@ -337,10 +373,7 @@ pub(super) fn plan_field_op(
                         Some(v) => {
                             let value = number_value(v);
                             if !same_field_value(row.resolve_field(key).as_ref(), &value) {
-                                match assign_patch(key, value) {
-                                    Ok(patch) => plan.updates.push(Update { id, patch }),
-                                    Err(e) => failed = Some(e),
-                                }
+                                merge.insert(key.clone(), value);
                             }
                         }
                     }
@@ -374,13 +407,10 @@ pub(super) fn plan_field_op(
             }
         }
         if !merge.is_empty() {
-            plan.updates.push(Update {
-                id,
-                patch: LocationPatch {
-                    extra: Some(RawExtra::from_map(&merge)),
-                    ..Default::default()
-                },
-            });
+            match assign_patch(&merge) {
+                Ok(patch) => plan.updates.push(Update { id, patch }),
+                Err(e) => failed = Some(e),
+            }
         }
     });
     if let Some(e) = failed {

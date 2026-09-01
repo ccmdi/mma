@@ -1139,7 +1139,8 @@ pub fn store_values(
     })
 }
 
-/// How many rows carry each top-level `extra` key, key-sorted.
+/// How many rows hold a value for each field, key-sorted: `extra` keys and the built-in
+/// columns a row can lack.
 #[tauri::command]
 #[specta::specta]
 pub fn store_coverage(
@@ -1148,7 +1149,7 @@ pub fn store_coverage(
     selector: Selector,
 ) -> AppResult<Vec<(String, u32)>> {
     selector_read!(label, state, selector, |view, set| {
-        selections::extra_key_coverage(&view, set)
+        selections::coverage(&view, set)
     })
 }
 
