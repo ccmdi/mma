@@ -27,7 +27,6 @@ const uptimeFmt = localeFormat<Partial<Record<Intl.DurationFormatUnit, number>>>
 	(l) => new Intl.DurationFormat(l, { style: "narrow" }),
 );
 const fmtInt = (n: number) => fmt.format(Math.round(n));
-const fmtMB = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
 function statsRows(d: Diagnostics): [string, string | number][] {
 	return [
@@ -45,7 +44,10 @@ function statsRows(d: Diagnostics): [string, string | number][] {
 		["WebGL", d.webglRenderer],
 		["DPR", d.devicePixelRatio],
 		["Viewport", d.viewport],
-		["JS heap", d.jsHeap ? `${fmtMB(d.jsHeap.usedBytes)} / ${fmtMB(d.jsHeap.limitBytes)}` : "N/A"],
+		[
+			"JS heap",
+			d.jsHeap ? `${formatBytes(d.jsHeap.usedBytes)} / ${formatBytes(d.jsHeap.limitBytes)}` : "N/A",
+		],
 		["Startup", `${d.startupMs} ms`],
 		[
 			"Uptime",
@@ -87,7 +89,7 @@ function liveRows(live: LiveStats): [string, string][] {
 			["GPU / frame", deck.gpuTimePerFrame > 0 ? `${deck.gpuTimePerFrame.toFixed(2)} ms` : "n/a"],
 			[
 				"GPU memory",
-				`${fmtMB(deck.gpuMemory)} (buf ${fmtMB(deck.bufferMemory)}, tex ${fmtMB(deck.textureMemory)})`,
+				`${formatBytes(deck.gpuMemory)} (buf ${formatBytes(deck.bufferMemory)}, tex ${formatBytes(deck.textureMemory)})`,
 			],
 		);
 	}
