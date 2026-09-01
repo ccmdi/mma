@@ -204,7 +204,13 @@ export default defineConfig([
 		},
 	},
 	{
-		files: ["test/e2e/bulk-import-rust.test.ts"],
+		// Reporting suites: their stdout is the deliverable, read back from the run log.
+		files: [
+			"test/e2e/bulk-import-rust.test.ts",
+			"test/e2e/procedure-bench.test.ts",
+			"test/e2e/procedure-parity.test.ts",
+			"test/e2e/parity-probe.test.ts",
+		],
 		rules: { "no-console": "off" },
 	},
 	{

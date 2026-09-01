@@ -9,7 +9,8 @@
  */
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { svMockCore } from "./svMockCore";
+import { svMockCore, type SvMockConfig } from "./svMockCore";
+import { loadNetModel } from "./svLatency";
 
 export const SV_STUB_DEFAULT_PORT = 4599;
 
@@ -32,6 +33,17 @@ export function svStubPort(): number {
 	return Number(process.env.MMA_E2E_SV_PORT) || SV_STUB_DEFAULT_PORT;
 }
 
+/** The one mock configuration both surfaces run on: the webview patch is handed this
+ *  serialized, the stub builds it here. An A/B is only fair while they agree. */
+export function svMockConfig(): SvMockConfig {
+	return {
+		net: loadNetModel(),
+		fixedMs: svStubLatencyMs(),
+		hiddenCapture: !!process.env.MMA_E2E_SV_HIDDEN_CAPTURE,
+		maxInflight: Number(process.env.MMA_E2E_SV_MAX_INFLIGHT ?? 0),
+	};
+}
+
 export interface SvStub {
 	port: number;
 	/** One line per served request, in arrival order. */
@@ -39,19 +51,32 @@ export interface SvStub {
 	close: () => Promise<void>;
 }
 
+/** Control paths the stub answers on its own behalf, so a spec worker can read the
+ *  request timeline the launcher process owns. */
+export const SV_STUB_TIMELINE_PATH = "/__mma/timeline";
+
 export async function startSvStub(
 	port = svStubPort(),
 	log: (line: string) => void = (line) => process.stdout.write(line + "\n"),
 ): Promise<SvStub> {
-	const core = svMockCore();
+	const core = svMockCore(svMockConfig());
 	const hits: string[] = [];
-	const latency = svStubLatencyMs();
 
 	const server = http.createServer((req, res) => {
 		const chunks: Buffer[] = [];
 		req.on("data", (c: Buffer) => chunks.push(c));
 		req.on("end", () => {
 			const url = req.url ?? "";
+			if (url.startsWith(SV_STUB_TIMELINE_PATH)) {
+				if (req.method === "DELETE") core.net.timeline.length = 0;
+				const payload = Buffer.from(JSON.stringify(core.net.timeline), "utf-8");
+				res.writeHead(200, {
+					"content-type": "application/json",
+					"content-length": String(payload.length),
+				});
+				res.end(payload);
+				return;
+			}
 			const body = chunks.length ? new Uint8Array(Buffer.concat(chunks)) : null;
 			const reply = core.respond(url, body);
 			const line = `[sv-stub] ${req.method} ${reply ? reply.kind : "404"} ${url.slice(0, 120)}`;
@@ -63,15 +88,13 @@ export async function startSvStub(
 			}
 			const payload =
 				typeof reply.body === "string" ? Buffer.from(reply.body, "utf-8") : Buffer.from(reply.body);
-			const send = () => {
+			void core.net.serve(reply.kind).then(() => {
 				res.writeHead(reply.status, {
 					"content-type": reply.contentType,
 					"content-length": String(payload.length),
 				});
 				res.end(payload);
-			};
-			if (latency > 0) setTimeout(send, latency);
-			else send();
+			});
 		});
 	});
 

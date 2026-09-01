@@ -54,6 +54,14 @@ while :; do
 	esac
 done
 
+# Knobs the harness reads inside the container: the mock's replay model and the engine
+# A/B suites' own settings. Absent ones are not forwarded, so defaults stay in one place.
+FWD_ENV=()
+for var in MMA_E2E_SV_REPLAY MMA_E2E_SV_HIDDEN_CAPTURE MMA_E2E_SV_MAX_INFLIGHT MMA_PBENCH_ROWS MMA_PBENCH_LABEL \
+	MMA_PARITY_ROWS MMA_PARITY_OUT; do
+	if [ -n "${!var:-}" ]; then FWD_ENV+=(-e "$var=${!var}"); fi
+done
+
 # A benchmark measures the release binary: a debug build handicaps only the Rust side.
 if [ "$BENCH" = "1" ]; then export MMA_E2E_PROFILE="${MMA_E2E_PROFILE:-release}"; fi
 . scripts/internal/e2e-image.sh
@@ -118,7 +126,7 @@ if [ "$BENCH" = "1" ]; then
 		if [ -n "${!var:-}" ]; then BENCH_ENV+=(-e "$var=${!var}"); fi
 	done
 	# --exclude overrides the config's exclude list, which otherwise also blocks --spec.
-	run_logged "$(log_name)" "${MOCK_ENV[@]}" "${BENCH_ENV[@]}" --rm e2e $RUNNER \
+	run_logged "$(log_name)" "${MOCK_ENV[@]}" "${FWD_ENV[@]}" "${BENCH_ENV[@]}" --rm e2e $RUNNER \
 		--spec ./test/e2e/performance.test.ts --exclude ./test/e2e/scratch.test.ts
 	exit $?
 fi
@@ -131,7 +139,7 @@ if [ "${1:-}" = "--shard" ]; then
 	for i in $(seq 1 "$N"); do
 		name=$(log_name "shard${i}of${N}")
 		names+=("$name")
-		$COMPOSE run -e NO_COLOR=1 -e "MMA_E2E_LOG_PATH=/repo/$LOG_DIR/$name" "${MOCK_ENV[@]}" \
+		$COMPOSE run -e NO_COLOR=1 -e "MMA_E2E_LOG_PATH=/repo/$LOG_DIR/$name" "${MOCK_ENV[@]}" "${FWD_ENV[@]}" \
 			--rm e2e $RUNNER --shard "$i/$N" >"$LOG_DIR/$name" 2>&1 &
 		pids+=("$!")
 	done
@@ -156,4 +164,4 @@ fi
 args=()
 for s in "$@"; do args+=(--spec "$s"); done
 [ ${#args[@]} -gt 0 ] && args+=(--exclude ./test/e2e/scratch.test.ts)
-run_logged "$(log_name)" "${MOCK_ENV[@]}" --rm e2e $RUNNER "${args[@]}"
+run_logged "$(log_name)" "${MOCK_ENV[@]}" "${FWD_ENV[@]}" --rm e2e $RUNNER "${args[@]}"

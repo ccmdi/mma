@@ -12,7 +12,20 @@
  * the page as a string and re-evaluated there. That is why nothing below may reference
  * an import or an outer binding.
  */
-export function svMockCore() {
+export interface SvNetModel {
+	depths: { inflight: number; ms: number[] }[];
+}
+
+export interface SvMockConfig {
+	net?: SvNetModel | null;
+	fixedMs?: number;
+	hiddenCapture?: boolean;
+	/** Requests served at once; the rest queue. 0 = unbounded, which lets an engine
+	 *  claim width no real endpoint would grant it. */
+	maxInflight?: number;
+}
+
+export function svMockCore(cfg: SvMockConfig = {}) {
 	interface Fix {
 		lat: number;
 		lng: number;
@@ -255,6 +268,80 @@ export function svMockCore() {
 		};
 	};
 
+	const depths = (cfg.net?.depths ?? []).slice().sort((a, b) => a.inflight - b.inflight);
+	const fixedMs = cfg.fixedMs ?? 0;
+	let live = 0;
+	let rnd = 1;
+	const pickMs = (depth: number): number => {
+		if (!depths.length) return fixedMs;
+		let best = depths[0];
+		for (const d of depths) {
+			if (Math.abs(d.inflight - depth) < Math.abs(best.inflight - depth)) best = d;
+		}
+		rnd = (rnd * 1103515245 + 12345) & 0x7fffffff;
+		return best.ms[rnd % best.ms.length];
+	};
+
+	interface NetEntry {
+		kind: string;
+		/** When the caller asked. `start` is when a slot opened: the gap is queueing. */
+		queued: number;
+		start: number;
+		end: number;
+		depth: number;
+		ms: number;
+	}
+	const timeline: NetEntry[] = [];
+	const cap = cfg.maxInflight && cfg.maxInflight > 0 ? cfg.maxInflight : Infinity;
+	const waiting: (() => void)[] = [];
+	const pump = (): void => {
+		while (live < cap && waiting.length) {
+			const next = waiting.shift();
+			if (next) next();
+		}
+	};
+	const serve = (kind: string): Promise<void> =>
+		new Promise<void>((resolve) => {
+			const e: NetEntry = {
+				kind,
+				queued: Date.now(),
+				start: 0,
+				end: 0,
+				depth: 0,
+				ms: 0,
+			};
+			timeline.push(e);
+			const begin = () => {
+				live++;
+				e.start = Date.now();
+				e.depth = live;
+				e.ms = pickMs(live);
+				setTimeout(() => {
+					e.end = Date.now();
+					live--;
+					resolve();
+					pump();
+				}, e.ms);
+			};
+			waiting.push(begin);
+			pump();
+		});
+	const net = { serve, timeline };
+
+	/** The pano's true capture second, hashed into the month its newest date names, so a
+	 *  range probe can answer honestly and a bisection converges on a real value. */
+	const captureTs = (pano: string, f: Fix): number => {
+		const ym = f.dates[f.dates.length - 1];
+		const [y, mo] = ym.split("-").map(Number);
+		let h = 2166136261;
+		for (let i = 0; i < pano.length; i++) {
+			h = ((h ^ pano.charCodeAt(i)) * 16777619) >>> 0;
+		}
+		const first = Date.UTC(y, (mo ?? 1) - 1, 1) / 1000;
+		const days = new Date(Date.UTC(y, mo ?? 1, 0)).getUTCDate();
+		return first + (h % (days * 86400));
+	};
+
 	interface MockReply {
 		kind: "GetMetadata" | "photometa" | "SingleImageSearch";
 		status: number;
@@ -328,6 +415,21 @@ export function svMockCore() {
 						: JSON.stringify([[5, "generic", "Search returned no images."]]),
 				};
 			}
+			const range = r?.[2]?.[0]?.[10];
+			if (cfg.hiddenCapture && located && Array.isArray(range)) {
+				const pano = panoAtCoords(ll[2], ll[3]);
+				const f = pano ? fixFor(pano, ll[2], ll[3]) : null;
+				const ts = pano && f ? captureTs(pano, f) : null;
+				const hit = ts != null && ts > Number(range[0]) && ts <= Number(range[1]);
+				return {
+					kind: "SingleImageSearch",
+					status: 200,
+					contentType: "application/json",
+					body: hit
+						? JSON.stringify([["img"]])
+						: JSON.stringify([[5, "generic", "Search returned no images."]]),
+				};
+			}
 			// Any non-"no images" body counts as "image found", so the exactDate procedure's
 			// binary search always narrows downward and converges to a valid timestamp.
 			return {
@@ -340,7 +442,7 @@ export function svMockCore() {
 		return null;
 	};
 
-	return { FIX, isDead, fixFor, panoAtCoords, ymDate, viewerData, respond };
+	return { FIX, isDead, fixFor, panoAtCoords, ymDate, viewerData, respond, net, captureTs };
 }
 
 export type SvMockCore = ReturnType<typeof svMockCore>;

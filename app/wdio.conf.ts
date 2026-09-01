@@ -2,7 +2,7 @@ import path from "path";
 import fs from "fs";
 import { installSvMock } from "./test/e2e/svMock";
 import { svMockCore } from "./test/e2e/svMockCore";
-import { startSvStub, svStubLatencyMs, type SvStub } from "./test/e2e/svStubServer";
+import { startSvStub, svMockConfig, type SvStub } from "./test/e2e/svStubServer";
 
 process.env.MMA_TEST_DB = "1";
 process.env.TSX_TSCONFIG_PATH = path.resolve("tsconfig.app.json");
@@ -40,6 +40,10 @@ export const SHARED_EXCLUDES = [
 	"./test/e2e/performance.test.ts",
 	// Wipes every map in the list during cleanup, so it can't share a run with other specs.
 	"./test/e2e/bulk-import-rust.test.ts",
+	// Engine A/B suites: driven explicitly against two images, never part of a suite run.
+	"./test/e2e/procedure-bench.test.ts",
+	"./test/e2e/procedure-parity.test.ts",
+	"./test/e2e/parity-probe.test.ts",
 ];
 
 export const config: WebdriverIO.Config = {
@@ -87,7 +91,7 @@ export const config: WebdriverIO.Config = {
 	beforeSuite: async () => {
 		if (process.env.MMA_TEST_MOCK_SV) {
 			try {
-				await browser.execute(installSvMock, svMockCore.toString(), svStubLatencyMs());
+				await browser.execute(installSvMock, svMockCore.toString(), JSON.stringify(svMockConfig()));
 			} catch (e) {
 				console.log("[sv-mock] install failed:", (e as Error).message);
 			}

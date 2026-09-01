@@ -18,9 +18,11 @@
  * The function below is serialized and run in the webview via browser.execute, so it
  * must be entirely self-contained (no imports, no outer references). The shared
  * fixtures arrive as `coreSrc`, the source text of `svMockCore`, re-evaluated here.
- * `latencyMs` delays every mocked answer, matching what the Node stub serves the engine.
+ * `configJson` is the SvMockConfig the Node stub also builds (recorded-latency replay,
+ * hidden capture timestamps), so both surfaces answer on the same modelled network. The
+ * request timeline is left on `window.__mmaSvTimeline` for a benchmark to read back.
  */
-export function installSvMock(coreSrc: string, latencyMs = 0): void {
+export function installSvMock(coreSrc: string, configJson = "{}"): void {
 	type ViewerInst = { __mp?: string; __mpos?: { lat: number; lng: number } | null };
 	type ProtoBag = Record<string, unknown> & { __mmaMocked?: boolean };
 	interface Fix {
@@ -47,18 +49,37 @@ export function installSvMock(coreSrc: string, latencyMs = 0): void {
 			event?: { trigger: (target: unknown, name: string) => void };
 		};
 	}
+	interface NetEntry {
+		kind: string;
+		queued: number;
+		start: number;
+		end: number;
+		depth: number;
+		ms: number;
+	}
+	interface Net {
+		serve: (kind: string) => Promise<void>;
+		timeline: NetEntry[];
+	}
 	const w = window as unknown as {
 		fetch: typeof fetch;
 		google?: GoogleLike;
 		__mmaSvMocked?: boolean;
+		__mmaSvTimeline?: NetEntry[];
 	};
 	if (w.__mmaSvMocked) return;
 	w.__mmaSvMocked = true;
 
 	// esbuild's keepNames wraps every nested function in a `__name` helper that only
 	// exists at the top of the emitted module, so the eval'd source needs its own.
-	const core = (new Function(`var __name = (f) => f; return (${coreSrc})`)() as () => Core)();
+	const core = (
+		new Function(
+			"cfg",
+			`var __name = (f) => f; return (${coreSrc})(cfg)`,
+		) as (cfg: unknown) => Core & { net: Net }
+	)(JSON.parse(configJson));
 	const { isDead, fixFor, panoAtCoords, viewerData } = core;
+	w.__mmaSvTimeline = core.net.timeline;
 
 	// --- window.fetch -------------------------------------------------------
 	const origFetch = w.fetch.bind(w);
@@ -68,10 +89,16 @@ export function installSvMock(coreSrc: string, latencyMs = 0): void {
 			typeof input === "string" ? input : input instanceof URL ? input.href : (input?.url ?? "");
 		const body = init?.body;
 		const bytes =
-			body instanceof Uint8Array ? body : body instanceof ArrayBuffer ? new Uint8Array(body) : null;
+			body instanceof Uint8Array
+				? body
+				: body instanceof ArrayBuffer
+					? new Uint8Array(body)
+					: typeof body === "string"
+						? new TextEncoder().encode(body)
+						: null;
 		const reply = core.respond(url, bytes);
 		if (reply) {
-			if (latencyMs > 0) await new Promise((r) => setTimeout(r, latencyMs));
+			await core.net.serve(reply.kind);
 			return new Response(reply.body as BodyInit, { status: reply.status });
 		}
 		return origFetch(input, init);
