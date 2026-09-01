@@ -115,7 +115,7 @@ function identity(p: Plugin | PluginManifest): PluginIdentity {
 	return {
 		id: p.id,
 		name: p.name,
-		description: p.description || "",
+		description: p.description,
 		icon: p.icon,
 		comingSoon: p.comingSoon,
 		experimental: p.experimental,

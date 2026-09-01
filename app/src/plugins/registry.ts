@@ -19,20 +19,14 @@ export interface PluginSettingDef {
 export interface PluginIdentity {
 	id: string;
 	name: string;
-	description: string;
+	description?: string;
 	icon: string;
 	comingSoon?: boolean;
 	experimental?: boolean;
 }
 
-export interface Plugin {
-	id: string;
-	name: string;
-	description?: string;
-	icon: string;
-	comingSoon?: boolean;
+export interface Plugin extends PluginIdentity {
 	core?: boolean;
-	experimental?: boolean;
 	settings?: PluginSettingDef[];
 	/** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
 	 *  Only for plugins whose state can't be serialized (e.g. an iframe). */
