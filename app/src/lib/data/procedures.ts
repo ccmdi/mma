@@ -101,7 +101,8 @@ export interface ResolverOutcome<TCollected = unknown> extends BatchOutcome {
 export function outcomeDidWork(o: BatchOutcome): boolean {
 	return o.succeeded > 0 || o.failed.length > 0;
 }
-export type SvRunResult = Record<string, ResolverOutcome>;
+/** Every declaration a run scheduled, by provider id. */
+export type ProviderOutcomes = Record<string, ResolverOutcome>;
 
 /** A collected answer is the module's own JSON; a module that emits something else
  *  loses that entry rather than the run. */
@@ -171,7 +172,7 @@ export async function runProviders(
 	items: ProviderRun[],
 	selector: Selector,
 	opts: RunOpts = {},
-): Promise<SvRunResult> {
+): Promise<ProviderOutcomes> {
 	const { enrichFields = null } = opts;
 	const selectable = new Set(getAllEnrichKeys());
 	const active = new Set(enrichFields ?? getDefaultEnrichKeys());
@@ -244,9 +245,9 @@ export async function runProcedure<T>(
 }
 
 /** Drive declared procedures through the engine as one run and gather what comes back. */
-async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<SvRunResult> {
+async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderOutcomes> {
 	const { signal, force = false, onProgress } = opts;
-	const result: SvRunResult = {};
+	const result: ProviderOutcomes = {};
 	if (decls.length === 0) return result;
 	const labels = new Map(decls.map((d) => [d.id, d.label ?? undefined]));
 

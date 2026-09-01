@@ -59,5 +59,5 @@ export async function validateLocations(
 		if (list) list.push(id);
 		else results.set(state, [id]);
 	}
-	return { ...run, states: results };
+	return { succeeded: run.succeeded, failed: run.failed, states: results };
 }
