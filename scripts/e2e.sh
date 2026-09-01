@@ -58,7 +58,7 @@ done
 # A/B suites' own settings. Absent ones are not forwarded, so defaults stay in one place.
 FWD_ENV=()
 for var in MMA_E2E_SV_REPLAY MMA_E2E_SV_HIDDEN_CAPTURE MMA_E2E_SV_MAX_INFLIGHT MMA_PBENCH_ROWS MMA_PBENCH_LABEL \
-	MMA_PARITY_ROWS MMA_PARITY_OUT; do
+	MMA_PARITY_ROWS MMA_PARITY_OUT MMA_PARITY_UPDATE_GOLDEN MMA_E2E_SV_FAULTS \n	MMA_SCALE_ROWS MMA_SCALE_FIELDS; do
 	if [ -n "${!var:-}" ]; then FWD_ENV+=(-e "$var=${!var}"); fi
 done
 

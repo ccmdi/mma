@@ -16,6 +16,11 @@ export interface SvNetModel {
 	depths: { inflight: number; ms: number[] }[];
 }
 
+/** A deterministic fault script for one key (a "lat,lng" to 4dp, or a pano id): the
+ *  statuses to answer with on successive requests before behaving normally. 0 means a
+ *  200 whose body is truncated garbage. */
+export type SvFaults = Record<string, number[]>;
+
 export interface SvMockConfig {
 	net?: SvNetModel | null;
 	fixedMs?: number;
@@ -23,6 +28,7 @@ export interface SvMockConfig {
 	/** Requests served at once; the rest queue. 0 = unbounded, which lets an engine
 	 *  claim width no real endpoint would grant it. */
 	maxInflight?: number;
+	faults?: SvFaults;
 }
 
 export function svMockCore(cfg: SvMockConfig = {}) {
@@ -342,6 +348,41 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 		return first + (h % (days * 86400));
 	};
 
+	let faults: SvFaults = cfg.faults ?? {};
+	let faultSeen: Record<string, number> = {};
+	/** Replaces the fault script mid-run and forgets what each key has already been
+	 *  served, so one spec can set up a case without restarting the stub. */
+	const setFaults = (next: SvFaults): void => {
+		faults = next ?? {};
+		faultSeen = {};
+	};
+	/** The status this key owes on its next request, or null once its script is spent.
+	 *  Every consumer of a fault must call this exactly once per served request. */
+	const nextFault = (key: string | null): number | null => {
+		if (!key) return null;
+		const script = faults[key];
+		if (!script || !script.length) return null;
+		const n = faultSeen[key] ?? 0;
+		if (n >= script.length) return null;
+		faultSeen[key] = n + 1;
+		return script[n];
+	};
+	const faultReply = (kind: MockReply["kind"], status: number): MockReply =>
+		status === 0
+			? {
+					kind,
+					status: 200,
+					contentType: "application/json",
+					body: '[[0,"trunc',
+				}
+			: {
+					kind,
+					status,
+					contentType: "text/plain",
+					body: `mock fault ${status}`,
+				};
+	const coordKey = (lat: number, lng: number) => `${lat.toFixed(4)},${lng.toFixed(4)}`;
+
 	interface MockReply {
 		kind: "GetMetadata" | "photometa" | "SingleImageSearch";
 		status: number;
@@ -356,7 +397,12 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 	 */
 	const respond = (url: string, body: Uint8Array | null): MockReply | null => {
 		if (url.includes("GetMetadata")) {
-			const results = requestKeys(body).flatMap((k) => fMsg(2, metaResult(k)));
+			const keys = requestKeys(body);
+			for (const k of keys) {
+				const status = nextFault(k);
+				if (status !== null) return faultReply("GetMetadata", status);
+			}
+			const results = keys.flatMap((k) => fMsg(2, metaResult(k)));
 			return {
 				kind: "GetMetadata",
 				status: 200,
@@ -402,6 +448,8 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 			const r = req as any;
 			const ll = r?.[1]?.[0];
 			const located = Array.isArray(ll) && typeof ll[2] === "number" && typeof ll[3] === "number";
+			const status = nextFault(located ? coordKey(ll[2], ll[3]) : null);
+			if (status !== null) return faultReply("SingleImageSearch", status);
 			if (located && !r?.[2]?.[0]?.[10]) {
 				const pano = panoAtCoords(ll[2], ll[3]);
 				const meta = pano ? metaArray(pano, ll[2], ll[3]) : null;
@@ -442,7 +490,18 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 		return null;
 	};
 
-	return { FIX, isDead, fixFor, panoAtCoords, ymDate, viewerData, respond, net, captureTs };
+	return {
+		FIX,
+		isDead,
+		fixFor,
+		panoAtCoords,
+		ymDate,
+		viewerData,
+		respond,
+		net,
+		captureTs,
+		setFaults,
+	};
 }
 
 export type SvMockCore = ReturnType<typeof svMockCore>;

@@ -1,7 +1,8 @@
 import http from "node:http";
 import { withApi } from "./helpers";
-import { SV_STUB_TIMELINE_PATH, svStubPort } from "./svStubServer";
+import { SV_STUB_FAULTS_PATH, SV_STUB_TIMELINE_PATH, svStubPort } from "./svStubServer";
 import { analyzeTimeline, type NetEntry, type NetStats } from "./svLatency";
+import { MOCK_GENERIC_IMAGE_DATE } from "./parityFixture";
 
 /**
  * One driver, two engines. v0.9.2 ran enrichment in the webview off a Location[]; the
@@ -38,11 +39,6 @@ export interface SeedRow {
 	lng: number;
 	imageDate: string;
 }
-
-/** The capture month the mock reports for a coordinate it has no fixture for. A seeded
- *  row must carry it, or the hidden capture second falls outside the searched window and
- *  every probe honestly answers "no coverage". */
-export const MOCK_GENERIC_IMAGE_DATE = "2022-06";
 
 /** Deterministic rows spread over land coordinates the mock answers for. */
 export function seedRows(n: number, seed = 1): SeedRow[] {
@@ -276,6 +272,43 @@ export async function dumpRows(legacy = false): Promise<Record<string, unknown>[
 			}))
 			.sort((x, y) => (x.lat as number) - (y.lat as number) || (x.lng as number) - (y.lng as number));
 	}, everything(legacy));
+}
+
+function stubPost(path: string, payload: string): Promise<number> {
+	return new Promise((resolve) => {
+		const req = http.request(
+			{
+				host: "127.0.0.1",
+				port: svStubPort(),
+				path,
+				method: "POST",
+				timeout: 5000,
+				headers: { "content-type": "application/json", "content-length": Buffer.byteLength(payload) },
+			},
+			(res) => {
+				res.resume();
+				res.on("end", () => resolve(res.statusCode ?? 0));
+			},
+		);
+		req.on("error", () => resolve(0));
+		req.on("timeout", () => {
+			req.destroy();
+			resolve(0);
+		});
+		req.end(payload);
+	});
+}
+
+/** Arms the same fault script on both mock surfaces, so a case behaves identically
+ *  whichever side of the process boundary the engine fetches from. */
+export async function setFaults(faults: Record<string, number[]>): Promise<void> {
+	const status = await stubPost(SV_STUB_FAULTS_PATH, JSON.stringify(faults));
+	// A fault case that silently fails to arm passes for the wrong reason.
+	if (status !== 200) throw new Error(`sv stub refused the fault script (HTTP ${status})`);
+	await browser.execute((f: Record<string, number[]>) => {
+		const w = window as unknown as { __mmaSvSetFaults?: (x: Record<string, number[]>) => void };
+		w.__mmaSvSetFaults?.(f);
+	}, faults);
 }
 
 async function stubTimeline(reset: boolean): Promise<NetEntry[]> {

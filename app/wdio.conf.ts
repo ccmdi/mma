@@ -43,6 +43,8 @@ export const SHARED_EXCLUDES = [
 	// Engine A/B suites: driven explicitly against two images, never part of a suite run.
 	"./test/e2e/procedure-bench.test.ts",
 	"./test/e2e/procedure-parity.test.ts",
+	"./test/e2e/procedure-faults.test.ts",
+	"./test/e2e/procedure-scale.test.ts",
 	"./test/e2e/parity-probe.test.ts",
 ];
 

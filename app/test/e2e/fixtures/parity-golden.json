@@ -1,0 +1,1818 @@
+{
+	"phases": [
+		{
+			"name": "enrich",
+			"outcomes": [
+				{
+					"failed": 0,
+					"id": "subdivision",
+					"success": 0
+				},
+				{
+					"failed": 0,
+					"id": "timezone",
+					"success": 0
+				},
+				{
+					"failed": 1,
+					"id": "exactDate",
+					"success": 0
+				},
+				{
+					"failed": 1,
+					"id": "panoResolve",
+					"success": 0
+				},
+				{
+					"failed": 3,
+					"id": "svMeta",
+					"success": 0
+				}
+			],
+			"rows": [
+				{
+					"key": "-89.9999,-0.5",
+					"kind": "south-pole",
+					"panoId": "MOCK_-89.9999_-0.5000",
+					"flags": 0,
+					"lat": -89.9999,
+					"lng": -0.5,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1655962927,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Antarctica/McMurdo",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "-34.6037,-58.3816",
+					"kind": "january",
+					"panoId": "MOCK_-34.6037_-58.3816",
+					"flags": 0,
+					"lat": -34.6037,
+					"lng": -58.3816,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Autonomous City of Buenos Aires",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Argentina/Buenos_Aires",
+						"panoType": 2,
+						"datetime": 1654083533
+					}
+				},
+				{
+					"key": "-33.8568,151.2153",
+					"kind": "already-enriched",
+					"panoId": "MOCK_-33.8568_151.2153",
+					"flags": 0,
+					"lat": -33.8568,
+					"lng": 151.2153,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "New South Wales",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Australia/Sydney",
+						"panoType": 2,
+						"datetime": 1654126456
+					}
+				},
+				{
+					"key": "-22.9519,-43.2105",
+					"kind": "leap-february",
+					"panoId": "MOCK_-22.9519_-43.2105",
+					"flags": 0,
+					"lat": -22.9519,
+					"lng": -43.2105,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Rio de Janeiro",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Sao_Paulo",
+						"panoType": 2,
+						"datetime": 1656504675
+					}
+				},
+				{
+					"key": "0,42.1234",
+					"kind": "equator",
+					"panoId": "MOCK_0.0000_42.1234",
+					"flags": 0,
+					"lat": 0,
+					"lng": 42.1234,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Lower Juba",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Africa/Mogadishu",
+						"panoType": 2,
+						"datetime": 1656151851
+					}
+				},
+				{
+					"key": "0.0005,0.0005",
+					"kind": "no-coverage",
+					"panoId": null,
+					"flags": 0,
+					"lat": 0.0005,
+					"lng": 0.0005,
+					"heading": 0,
+					"extra": {}
+				},
+				{
+					"key": "1.2834,103.8607",
+					"kind": "dateless-pinned",
+					"panoId": "MOCK_1.2834_103.8607",
+					"flags": 1,
+					"lat": 1.2834,
+					"lng": 103.8607,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Central Region",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Singapore",
+						"panoType": 2,
+						"datetime": 1655035079
+					}
+				},
+				{
+					"key": "12.3456,179.9999",
+					"kind": "antimeridian-east",
+					"panoId": "MOCK_12.3456_179.9999",
+					"flags": 0,
+					"lat": 12.3456,
+					"lng": 179.9999,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1654375519,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT-12",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "12.3457,-179.9999",
+					"kind": "antimeridian-west",
+					"panoId": "MOCK_12.3457_-179.9999",
+					"flags": 0,
+					"lat": 12.3457,
+					"lng": -179.9999,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1656242006,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT+12",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "13.7563,100.5018",
+					"kind": "future-month",
+					"panoId": "MOCK_13.7563_100.5018",
+					"flags": 0,
+					"lat": 13.7563,
+					"lng": 100.5018,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Bangkok",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Bangkok",
+						"panoType": 2,
+						"datetime": 1654556107
+					}
+				},
+				{
+					"key": "19.4326,-99.1332",
+					"kind": "mismatched-pano",
+					"panoId": "-zrYsLR4Fh-cfJG_EMZ1-A",
+					"flags": 0,
+					"lat": 19.4326,
+					"lng": -99.1332,
+					"heading": 0,
+					"extra": {
+						"altitude": 142,
+						"countryCode": "RU",
+						"subdivision": "Mexico City",
+						"imageDate": "2021-09",
+						"cameraType": "gen4",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "25.1972,55.2744",
+					"kind": "month-not-a-month",
+					"panoId": "MOCK_25.1972_55.2744",
+					"flags": 0,
+					"lat": 25.1972,
+					"lng": 55.2744,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Dubai Emirate",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Dubai",
+						"panoType": 2,
+						"datetime": 1654945675
+					}
+				},
+				{
+					"key": "30.0444,31.2357",
+					"kind": "ancient-month",
+					"panoId": "MOCK_30.0444_31.2357",
+					"flags": 0,
+					"lat": 30.0444,
+					"lng": 31.2357,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Cairo",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Africa/Cairo",
+						"panoType": 2,
+						"datetime": 1655433247
+					}
+				},
+				{
+					"key": "35,135",
+					"kind": "dup-a",
+					"panoId": "MOCK_35.0000_135.0000",
+					"flags": 0,
+					"lat": 35,
+					"lng": 135,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Hyogo Prefecture",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Tokyo",
+						"panoType": 2,
+						"datetime": 1655956895
+					}
+				},
+				{
+					"key": "35,135.000001",
+					"kind": "dup-b",
+					"panoId": "MOCK_35.0000_135.0000",
+					"flags": 0,
+					"lat": 35,
+					"lng": 135.000001,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Hyogo Prefecture",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Tokyo",
+						"panoType": 2,
+						"datetime": 1655956895
+					}
+				},
+				{
+					"key": "35.6595,139.7005",
+					"kind": "dead-pano-pinned",
+					"panoId": "DOES_NOT_EXIST_2",
+					"flags": 1,
+					"lat": 35.6595,
+					"lng": 139.7005,
+					"heading": 0,
+					"extra": {
+						"subdivision": "Tokyo"
+					}
+				},
+				{
+					"key": "37.8199,-122.4783",
+					"kind": "stale-datetime",
+					"panoId": "MOCK_37.8199_-122.4783",
+					"flags": 0,
+					"lat": 37.8199,
+					"lng": -122.4783,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1,
+						"imageDate": "2022-06",
+						"timezone": "Fake/Zone",
+						"cameraType": "gen4",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "40.758,-73.9855",
+					"kind": "plain",
+					"panoId": "MOCK_40.7580_-73.9855",
+					"flags": 0,
+					"lat": 40.758,
+					"lng": -73.9855,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "New York",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/New_York",
+						"panoType": 2,
+						"datetime": 1654660415
+					}
+				},
+				{
+					"key": "41.8902,12.4922",
+					"kind": "undated",
+					"panoId": "MOCK_41.8902_12.4922",
+					"flags": 0,
+					"lat": 41.8902,
+					"lng": 12.4922,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Lazio",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Rome",
+						"panoType": 2,
+						"datetime": 1655419599
+					}
+				},
+				{
+					"key": "43.6426,-79.3871",
+					"kind": "typed-extras",
+					"panoId": "MOCK_43.6426_-79.3871",
+					"flags": 0,
+					"lat": 43.6426,
+					"lng": -79.3871,
+					"heading": 0,
+					"extra": {
+						"timezone": "America/Toronto",
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Ontario",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"nested": {
+							"a": [
+								1,
+								2
+							]
+						},
+						"panoType": 2,
+						"datetime": 1654411158
+					}
+				},
+				{
+					"key": "45.123456789,-93.987654321",
+					"kind": "high-precision",
+					"panoId": "MOCK_45.1235_-93.9877",
+					"flags": 0,
+					"lat": 45.123456789,
+					"lng": -93.987654321,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Minnesota",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Chicago",
+						"panoType": 2,
+						"datetime": 1654437556
+					}
+				},
+				{
+					"key": "47.6062,-122.3321",
+					"kind": "informational",
+					"panoId": "MOCK_47.6062_-122.3321",
+					"flags": 2,
+					"lat": 47.6062,
+					"lng": -122.3321,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Washington",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Los_Angeles",
+						"panoType": 2,
+						"datetime": 1654544626
+					}
+				},
+				{
+					"key": "48.8584,2.2945",
+					"kind": "plain-2",
+					"panoId": "MOCK_48.8584_2.2945",
+					"flags": 0,
+					"lat": 48.8584,
+					"lng": 2.2945,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Ile-de-France",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Paris",
+						"panoType": 2,
+						"datetime": 1655999951
+					}
+				},
+				{
+					"key": "49.2827,-123.1207",
+					"kind": "informational-pinned",
+					"panoId": "MOCK_49.2827_-123.1207",
+					"flags": 3,
+					"lat": 49.2827,
+					"lng": -123.1207,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "British Columbia",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Vancouver",
+						"panoType": 2,
+						"datetime": 1654994780
+					}
+				},
+				{
+					"key": "51.5007,-0.1246",
+					"kind": "dead-pano",
+					"panoId": "DEAD_PANO_1",
+					"flags": 0,
+					"lat": 51.5007,
+					"lng": -0.1246,
+					"heading": 0,
+					"extra": {
+						"subdivision": "England"
+					}
+				},
+				{
+					"key": "52.10947502806108,34.90131410856584",
+					"kind": "known-pano",
+					"panoId": "-zrYsLR4Fh-cfJG_EMZ1-A",
+					"flags": 0,
+					"lat": 52.10947502806108,
+					"lng": 34.90131410856584,
+					"heading": 0,
+					"extra": {
+						"altitude": 142,
+						"countryCode": "RU",
+						"subdivision": "Kursk Oblast",
+						"imageDate": "2021-09",
+						"cameraType": "gen4",
+						"timezone": "Europe/Moscow",
+						"panoType": 2,
+						"datetime": 1632860335
+					}
+				},
+				{
+					"key": "52.5163,13.3777",
+					"kind": "malformed-month",
+					"panoId": "MOCK_52.5163_13.3777",
+					"flags": 0,
+					"lat": 52.5163,
+					"lng": 13.3777,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Berlin",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Berlin",
+						"panoType": 2,
+						"datetime": 1655128231
+					}
+				},
+				{
+					"key": "55.510656,157.636627",
+					"kind": "known-pano-pinned",
+					"panoId": "5upMz1_zTGPdkIXG6_QM3g",
+					"flags": 1,
+					"lat": 55.510656,
+					"lng": 157.636627,
+					"heading": 0,
+					"extra": {
+						"altitude": 30,
+						"countryCode": "RU",
+						"subdivision": "Kamchatka Krai",
+						"imageDate": "2018-05",
+						"cameraType": "gen4",
+						"timezone": "Asia/Kamchatka",
+						"panoType": 2,
+						"datetime": 1525206451
+					}
+				},
+				{
+					"key": "55.7558,37.6176",
+					"kind": "custom-extra",
+					"panoId": "MOCK_55.7558_37.6176",
+					"flags": 0,
+					"lat": 55.7558,
+					"lng": 37.6176,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Moscow",
+						"imageDate": "2022-06",
+						"userField": "keep me",
+						"cameraType": "gen4",
+						"timezone": "Europe/Moscow",
+						"panoType": 2,
+						"datetime": 1655471071
+					}
+				},
+				{
+					"key": "59.9139,10.7522",
+					"kind": "empty-extra-object",
+					"panoId": "MOCK_59.9139_10.7522",
+					"flags": 0,
+					"lat": 59.9139,
+					"lng": 10.7522,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Oslo",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Oslo",
+						"panoType": 2,
+						"datetime": 1654759895
+					}
+				},
+				{
+					"key": "60.1699,24.9384",
+					"kind": "december",
+					"panoId": "MOCK_60.1699_24.9384",
+					"flags": 0,
+					"lat": 60.1699,
+					"lng": 24.9384,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Uusimaa",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Helsinki",
+						"panoType": 2,
+						"datetime": 1655934235
+					}
+				},
+				{
+					"key": "89.9999,0.5",
+					"kind": "north-pole",
+					"panoId": "MOCK_89.9999_0.5000",
+					"flags": 0,
+					"lat": 89.9999,
+					"lng": 0.5,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1655846459,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT",
+						"panoType": 2
+					}
+				}
+			]
+		},
+		{
+			"name": "pin",
+			"outcomes": [
+				{
+					"failed": 0,
+					"id": "pinPano",
+					"success": 31
+				}
+			],
+			"rows": [
+				{
+					"key": "-89.9999,-0.5",
+					"kind": "south-pole",
+					"panoId": "MOCK_-89.9999_-0.5000",
+					"flags": 1,
+					"lat": -89.9999,
+					"lng": -0.5,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1655962927,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Antarctica/McMurdo",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "-34.6037,-58.3816",
+					"kind": "january",
+					"panoId": "MOCK_-34.6037_-58.3816",
+					"flags": 1,
+					"lat": -34.6037,
+					"lng": -58.3816,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Autonomous City of Buenos Aires",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Argentina/Buenos_Aires",
+						"panoType": 2,
+						"datetime": 1654083533
+					}
+				},
+				{
+					"key": "-33.8568,151.2153",
+					"kind": "already-enriched",
+					"panoId": "MOCK_-33.8568_151.2153",
+					"flags": 1,
+					"lat": -33.8568,
+					"lng": 151.2153,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "New South Wales",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Australia/Sydney",
+						"panoType": 2,
+						"datetime": 1654126456
+					}
+				},
+				{
+					"key": "-22.9519,-43.2105",
+					"kind": "leap-february",
+					"panoId": "MOCK_-22.9519_-43.2105",
+					"flags": 1,
+					"lat": -22.9519,
+					"lng": -43.2105,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Rio de Janeiro",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Sao_Paulo",
+						"panoType": 2,
+						"datetime": 1656504675
+					}
+				},
+				{
+					"key": "0,42.1234",
+					"kind": "equator",
+					"panoId": "MOCK_0.0000_42.1234",
+					"flags": 1,
+					"lat": 0,
+					"lng": 42.1234,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Lower Juba",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Africa/Mogadishu",
+						"panoType": 2,
+						"datetime": 1656151851
+					}
+				},
+				{
+					"key": "0.0005,0.0005",
+					"kind": "no-coverage",
+					"panoId": null,
+					"flags": 0,
+					"lat": 0.0005,
+					"lng": 0.0005,
+					"heading": 0,
+					"extra": {}
+				},
+				{
+					"key": "1.2834,103.8607",
+					"kind": "dateless-pinned",
+					"panoId": "MOCK_1.2834_103.8607",
+					"flags": 1,
+					"lat": 1.2834,
+					"lng": 103.8607,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Central Region",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Singapore",
+						"panoType": 2,
+						"datetime": 1655035079
+					}
+				},
+				{
+					"key": "12.3456,179.9999",
+					"kind": "antimeridian-east",
+					"panoId": "MOCK_12.3456_179.9999",
+					"flags": 1,
+					"lat": 12.3456,
+					"lng": 179.9999,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1654375519,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT-12",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "12.3457,-179.9999",
+					"kind": "antimeridian-west",
+					"panoId": "MOCK_12.3457_-179.9999",
+					"flags": 1,
+					"lat": 12.3457,
+					"lng": -179.9999,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1656242006,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT+12",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "13.7563,100.5018",
+					"kind": "future-month",
+					"panoId": "MOCK_13.7563_100.5018",
+					"flags": 1,
+					"lat": 13.7563,
+					"lng": 100.5018,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Bangkok",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Bangkok",
+						"panoType": 2,
+						"datetime": 1654556107
+					}
+				},
+				{
+					"key": "19.4326,-99.1332",
+					"kind": "mismatched-pano",
+					"panoId": "MOCK_19.4326_-99.1332",
+					"flags": 1,
+					"lat": 19.4326,
+					"lng": -99.1332,
+					"heading": 0,
+					"extra": {
+						"altitude": 142,
+						"countryCode": "RU",
+						"subdivision": "Mexico City",
+						"imageDate": "2021-09",
+						"cameraType": "gen4",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "25.1972,55.2744",
+					"kind": "month-not-a-month",
+					"panoId": "MOCK_25.1972_55.2744",
+					"flags": 1,
+					"lat": 25.1972,
+					"lng": 55.2744,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Dubai Emirate",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Dubai",
+						"panoType": 2,
+						"datetime": 1654945675
+					}
+				},
+				{
+					"key": "30.0444,31.2357",
+					"kind": "ancient-month",
+					"panoId": "MOCK_30.0444_31.2357",
+					"flags": 1,
+					"lat": 30.0444,
+					"lng": 31.2357,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Cairo",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Africa/Cairo",
+						"panoType": 2,
+						"datetime": 1655433247
+					}
+				},
+				{
+					"key": "35,135",
+					"kind": "dup-a",
+					"panoId": "MOCK_35.0000_135.0000",
+					"flags": 1,
+					"lat": 35,
+					"lng": 135,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Hyogo Prefecture",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Tokyo",
+						"panoType": 2,
+						"datetime": 1655956895
+					}
+				},
+				{
+					"key": "35,135.000001",
+					"kind": "dup-b",
+					"panoId": "MOCK_35.0000_135.0000",
+					"flags": 1,
+					"lat": 35,
+					"lng": 135.000001,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Hyogo Prefecture",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Tokyo",
+						"panoType": 2,
+						"datetime": 1655956895
+					}
+				},
+				{
+					"key": "35.6595,139.7005",
+					"kind": "dead-pano-pinned",
+					"panoId": "MOCK_35.6595_139.7005",
+					"flags": 1,
+					"lat": 35.6595,
+					"lng": 139.7005,
+					"heading": 0,
+					"extra": {
+						"subdivision": "Tokyo"
+					}
+				},
+				{
+					"key": "37.8199,-122.4783",
+					"kind": "stale-datetime",
+					"panoId": "MOCK_37.8199_-122.4783",
+					"flags": 1,
+					"lat": 37.8199,
+					"lng": -122.4783,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1,
+						"imageDate": "2022-06",
+						"timezone": "Fake/Zone",
+						"cameraType": "gen4",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "40.758,-73.9855",
+					"kind": "plain",
+					"panoId": "MOCK_40.7580_-73.9855",
+					"flags": 1,
+					"lat": 40.758,
+					"lng": -73.9855,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "New York",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/New_York",
+						"panoType": 2,
+						"datetime": 1654660415
+					}
+				},
+				{
+					"key": "41.8902,12.4922",
+					"kind": "undated",
+					"panoId": "MOCK_41.8902_12.4922",
+					"flags": 1,
+					"lat": 41.8902,
+					"lng": 12.4922,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Lazio",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Rome",
+						"panoType": 2,
+						"datetime": 1655419599
+					}
+				},
+				{
+					"key": "43.6426,-79.3871",
+					"kind": "typed-extras",
+					"panoId": "MOCK_43.6426_-79.3871",
+					"flags": 1,
+					"lat": 43.6426,
+					"lng": -79.3871,
+					"heading": 0,
+					"extra": {
+						"timezone": "America/Toronto",
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Ontario",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"nested": {
+							"a": [
+								1,
+								2
+							]
+						},
+						"panoType": 2,
+						"datetime": 1654411158
+					}
+				},
+				{
+					"key": "45.123456789,-93.987654321",
+					"kind": "high-precision",
+					"panoId": "MOCK_45.1235_-93.9877",
+					"flags": 1,
+					"lat": 45.123456789,
+					"lng": -93.987654321,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Minnesota",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Chicago",
+						"panoType": 2,
+						"datetime": 1654437556
+					}
+				},
+				{
+					"key": "47.6062,-122.3321",
+					"kind": "informational",
+					"panoId": "MOCK_47.6062_-122.3321",
+					"flags": 3,
+					"lat": 47.6062,
+					"lng": -122.3321,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Washington",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Los_Angeles",
+						"panoType": 2,
+						"datetime": 1654544626
+					}
+				},
+				{
+					"key": "48.8584,2.2945",
+					"kind": "plain-2",
+					"panoId": "MOCK_48.8584_2.2945",
+					"flags": 1,
+					"lat": 48.8584,
+					"lng": 2.2945,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Ile-de-France",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Paris",
+						"panoType": 2,
+						"datetime": 1655999951
+					}
+				},
+				{
+					"key": "49.2827,-123.1207",
+					"kind": "informational-pinned",
+					"panoId": "MOCK_49.2827_-123.1207",
+					"flags": 3,
+					"lat": 49.2827,
+					"lng": -123.1207,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "British Columbia",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Vancouver",
+						"panoType": 2,
+						"datetime": 1654994780
+					}
+				},
+				{
+					"key": "51.5007,-0.1246",
+					"kind": "dead-pano",
+					"panoId": "MOCK_51.5007_-0.1246",
+					"flags": 1,
+					"lat": 51.5007,
+					"lng": -0.1246,
+					"heading": 0,
+					"extra": {
+						"subdivision": "England"
+					}
+				},
+				{
+					"key": "52.10947502806108,34.90131410856584",
+					"kind": "known-pano",
+					"panoId": "-zrYsLR4Fh-cfJG_EMZ1-A",
+					"flags": 1,
+					"lat": 52.10947502806108,
+					"lng": 34.90131410856584,
+					"heading": 0,
+					"extra": {
+						"altitude": 142,
+						"countryCode": "RU",
+						"subdivision": "Kursk Oblast",
+						"imageDate": "2021-09",
+						"cameraType": "gen4",
+						"timezone": "Europe/Moscow",
+						"panoType": 2,
+						"datetime": 1632860335
+					}
+				},
+				{
+					"key": "52.5163,13.3777",
+					"kind": "malformed-month",
+					"panoId": "MOCK_52.5163_13.3777",
+					"flags": 1,
+					"lat": 52.5163,
+					"lng": 13.3777,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Berlin",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Berlin",
+						"panoType": 2,
+						"datetime": 1655128231
+					}
+				},
+				{
+					"key": "55.510656,157.636627",
+					"kind": "known-pano-pinned",
+					"panoId": "5upMz1_zTGPdkIXG6_QM3g",
+					"flags": 1,
+					"lat": 55.510656,
+					"lng": 157.636627,
+					"heading": 0,
+					"extra": {
+						"altitude": 30,
+						"countryCode": "RU",
+						"subdivision": "Kamchatka Krai",
+						"imageDate": "2018-05",
+						"cameraType": "gen4",
+						"timezone": "Asia/Kamchatka",
+						"panoType": 2,
+						"datetime": 1525206451
+					}
+				},
+				{
+					"key": "55.7558,37.6176",
+					"kind": "custom-extra",
+					"panoId": "MOCK_55.7558_37.6176",
+					"flags": 1,
+					"lat": 55.7558,
+					"lng": 37.6176,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Moscow",
+						"imageDate": "2022-06",
+						"userField": "keep me",
+						"cameraType": "gen4",
+						"timezone": "Europe/Moscow",
+						"panoType": 2,
+						"datetime": 1655471071
+					}
+				},
+				{
+					"key": "59.9139,10.7522",
+					"kind": "empty-extra-object",
+					"panoId": "MOCK_59.9139_10.7522",
+					"flags": 1,
+					"lat": 59.9139,
+					"lng": 10.7522,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Oslo",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Oslo",
+						"panoType": 2,
+						"datetime": 1654759895
+					}
+				},
+				{
+					"key": "60.1699,24.9384",
+					"kind": "december",
+					"panoId": "MOCK_60.1699_24.9384",
+					"flags": 1,
+					"lat": 60.1699,
+					"lng": 24.9384,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Uusimaa",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Helsinki",
+						"panoType": 2,
+						"datetime": 1655934235
+					}
+				},
+				{
+					"key": "89.9999,0.5",
+					"kind": "north-pole",
+					"panoId": "MOCK_89.9999_0.5000",
+					"flags": 1,
+					"lat": 89.9999,
+					"lng": 0.5,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1655846459,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT",
+						"panoType": 2
+					}
+				}
+			]
+		},
+		{
+			"name": "validate",
+			"outcomes": [
+				[
+					0,
+					31
+				],
+				[
+					3,
+					1
+				]
+			],
+			"rows": [
+				{
+					"key": "-89.9999,-0.5",
+					"kind": "south-pole",
+					"panoId": "MOCK_-89.9999_-0.5000",
+					"flags": 1,
+					"lat": -89.9999,
+					"lng": -0.5,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1655962927,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Antarctica/McMurdo",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "-34.6037,-58.3816",
+					"kind": "january",
+					"panoId": "MOCK_-34.6037_-58.3816",
+					"flags": 1,
+					"lat": -34.6037,
+					"lng": -58.3816,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Autonomous City of Buenos Aires",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Argentina/Buenos_Aires",
+						"panoType": 2,
+						"datetime": 1654083533
+					}
+				},
+				{
+					"key": "-33.8568,151.2153",
+					"kind": "already-enriched",
+					"panoId": "MOCK_-33.8568_151.2153",
+					"flags": 1,
+					"lat": -33.8568,
+					"lng": 151.2153,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "New South Wales",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Australia/Sydney",
+						"panoType": 2,
+						"datetime": 1654126456
+					}
+				},
+				{
+					"key": "-22.9519,-43.2105",
+					"kind": "leap-february",
+					"panoId": "MOCK_-22.9519_-43.2105",
+					"flags": 1,
+					"lat": -22.9519,
+					"lng": -43.2105,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Rio de Janeiro",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Sao_Paulo",
+						"panoType": 2,
+						"datetime": 1656504675
+					}
+				},
+				{
+					"key": "0,42.1234",
+					"kind": "equator",
+					"panoId": "MOCK_0.0000_42.1234",
+					"flags": 1,
+					"lat": 0,
+					"lng": 42.1234,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Lower Juba",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Africa/Mogadishu",
+						"panoType": 2,
+						"datetime": 1656151851
+					}
+				},
+				{
+					"key": "0.0005,0.0005",
+					"kind": "no-coverage",
+					"panoId": null,
+					"flags": 0,
+					"lat": 0.0005,
+					"lng": 0.0005,
+					"heading": 0,
+					"extra": {}
+				},
+				{
+					"key": "1.2834,103.8607",
+					"kind": "dateless-pinned",
+					"panoId": "MOCK_1.2834_103.8607",
+					"flags": 1,
+					"lat": 1.2834,
+					"lng": 103.8607,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Central Region",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Singapore",
+						"panoType": 2,
+						"datetime": 1655035079
+					}
+				},
+				{
+					"key": "12.3456,179.9999",
+					"kind": "antimeridian-east",
+					"panoId": "MOCK_12.3456_179.9999",
+					"flags": 1,
+					"lat": 12.3456,
+					"lng": 179.9999,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1654375519,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT-12",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "12.3457,-179.9999",
+					"kind": "antimeridian-west",
+					"panoId": "MOCK_12.3457_-179.9999",
+					"flags": 1,
+					"lat": 12.3457,
+					"lng": -179.9999,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1656242006,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT+12",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "13.7563,100.5018",
+					"kind": "future-month",
+					"panoId": "MOCK_13.7563_100.5018",
+					"flags": 1,
+					"lat": 13.7563,
+					"lng": 100.5018,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Bangkok",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Bangkok",
+						"panoType": 2,
+						"datetime": 1654556107
+					}
+				},
+				{
+					"key": "19.4326,-99.1332",
+					"kind": "mismatched-pano",
+					"panoId": "MOCK_19.4326_-99.1332",
+					"flags": 1,
+					"lat": 19.4326,
+					"lng": -99.1332,
+					"heading": 0,
+					"extra": {
+						"altitude": 142,
+						"countryCode": "RU",
+						"subdivision": "Mexico City",
+						"imageDate": "2021-09",
+						"cameraType": "gen4",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "25.1972,55.2744",
+					"kind": "month-not-a-month",
+					"panoId": "MOCK_25.1972_55.2744",
+					"flags": 1,
+					"lat": 25.1972,
+					"lng": 55.2744,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Dubai Emirate",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Dubai",
+						"panoType": 2,
+						"datetime": 1654945675
+					}
+				},
+				{
+					"key": "30.0444,31.2357",
+					"kind": "ancient-month",
+					"panoId": "MOCK_30.0444_31.2357",
+					"flags": 1,
+					"lat": 30.0444,
+					"lng": 31.2357,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Cairo",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Africa/Cairo",
+						"panoType": 2,
+						"datetime": 1655433247
+					}
+				},
+				{
+					"key": "35,135",
+					"kind": "dup-a",
+					"panoId": "MOCK_35.0000_135.0000",
+					"flags": 1,
+					"lat": 35,
+					"lng": 135,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Hyogo Prefecture",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Tokyo",
+						"panoType": 2,
+						"datetime": 1655956895
+					}
+				},
+				{
+					"key": "35,135.000001",
+					"kind": "dup-b",
+					"panoId": "MOCK_35.0000_135.0000",
+					"flags": 1,
+					"lat": 35,
+					"lng": 135.000001,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Hyogo Prefecture",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Asia/Tokyo",
+						"panoType": 2,
+						"datetime": 1655956895
+					}
+				},
+				{
+					"key": "35.6595,139.7005",
+					"kind": "dead-pano-pinned",
+					"panoId": "MOCK_35.6595_139.7005",
+					"flags": 1,
+					"lat": 35.6595,
+					"lng": 139.7005,
+					"heading": 0,
+					"extra": {
+						"subdivision": "Tokyo"
+					}
+				},
+				{
+					"key": "37.8199,-122.4783",
+					"kind": "stale-datetime",
+					"panoId": "MOCK_37.8199_-122.4783",
+					"flags": 1,
+					"lat": 37.8199,
+					"lng": -122.4783,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1,
+						"imageDate": "2022-06",
+						"timezone": "Fake/Zone",
+						"cameraType": "gen4",
+						"panoType": 2
+					}
+				},
+				{
+					"key": "40.758,-73.9855",
+					"kind": "plain",
+					"panoId": "MOCK_40.7580_-73.9855",
+					"flags": 1,
+					"lat": 40.758,
+					"lng": -73.9855,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "New York",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/New_York",
+						"panoType": 2,
+						"datetime": 1654660415
+					}
+				},
+				{
+					"key": "41.8902,12.4922",
+					"kind": "undated",
+					"panoId": "MOCK_41.8902_12.4922",
+					"flags": 1,
+					"lat": 41.8902,
+					"lng": 12.4922,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Lazio",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Rome",
+						"panoType": 2,
+						"datetime": 1655419599
+					}
+				},
+				{
+					"key": "43.6426,-79.3871",
+					"kind": "typed-extras",
+					"panoId": "MOCK_43.6426_-79.3871",
+					"flags": 1,
+					"lat": 43.6426,
+					"lng": -79.3871,
+					"heading": 0,
+					"extra": {
+						"timezone": "America/Toronto",
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Ontario",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"nested": {
+							"a": [
+								1,
+								2
+							]
+						},
+						"panoType": 2,
+						"datetime": 1654411158
+					}
+				},
+				{
+					"key": "45.123456789,-93.987654321",
+					"kind": "high-precision",
+					"panoId": "MOCK_45.1235_-93.9877",
+					"flags": 1,
+					"lat": 45.123456789,
+					"lng": -93.987654321,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Minnesota",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Chicago",
+						"panoType": 2,
+						"datetime": 1654437556
+					}
+				},
+				{
+					"key": "47.6062,-122.3321",
+					"kind": "informational",
+					"panoId": "MOCK_47.6062_-122.3321",
+					"flags": 3,
+					"lat": 47.6062,
+					"lng": -122.3321,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Washington",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Los_Angeles",
+						"panoType": 2,
+						"datetime": 1654544626
+					}
+				},
+				{
+					"key": "48.8584,2.2945",
+					"kind": "plain-2",
+					"panoId": "MOCK_48.8584_2.2945",
+					"flags": 1,
+					"lat": 48.8584,
+					"lng": 2.2945,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Ile-de-France",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Paris",
+						"panoType": 2,
+						"datetime": 1655999951
+					}
+				},
+				{
+					"key": "49.2827,-123.1207",
+					"kind": "informational-pinned",
+					"panoId": "MOCK_49.2827_-123.1207",
+					"flags": 3,
+					"lat": 49.2827,
+					"lng": -123.1207,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "British Columbia",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "America/Vancouver",
+						"panoType": 2,
+						"datetime": 1654994780
+					}
+				},
+				{
+					"key": "51.5007,-0.1246",
+					"kind": "dead-pano",
+					"panoId": "MOCK_51.5007_-0.1246",
+					"flags": 1,
+					"lat": 51.5007,
+					"lng": -0.1246,
+					"heading": 0,
+					"extra": {
+						"subdivision": "England"
+					}
+				},
+				{
+					"key": "52.10947502806108,34.90131410856584",
+					"kind": "known-pano",
+					"panoId": "-zrYsLR4Fh-cfJG_EMZ1-A",
+					"flags": 1,
+					"lat": 52.10947502806108,
+					"lng": 34.90131410856584,
+					"heading": 0,
+					"extra": {
+						"altitude": 142,
+						"countryCode": "RU",
+						"subdivision": "Kursk Oblast",
+						"imageDate": "2021-09",
+						"cameraType": "gen4",
+						"timezone": "Europe/Moscow",
+						"panoType": 2,
+						"datetime": 1632860335
+					}
+				},
+				{
+					"key": "52.5163,13.3777",
+					"kind": "malformed-month",
+					"panoId": "MOCK_52.5163_13.3777",
+					"flags": 1,
+					"lat": 52.5163,
+					"lng": 13.3777,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Berlin",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Berlin",
+						"panoType": 2,
+						"datetime": 1655128231
+					}
+				},
+				{
+					"key": "55.510656,157.636627",
+					"kind": "known-pano-pinned",
+					"panoId": "5upMz1_zTGPdkIXG6_QM3g",
+					"flags": 1,
+					"lat": 55.510656,
+					"lng": 157.636627,
+					"heading": 0,
+					"extra": {
+						"altitude": 30,
+						"countryCode": "RU",
+						"subdivision": "Kamchatka Krai",
+						"imageDate": "2018-05",
+						"cameraType": "gen4",
+						"timezone": "Asia/Kamchatka",
+						"panoType": 2,
+						"datetime": 1525206451
+					}
+				},
+				{
+					"key": "55.7558,37.6176",
+					"kind": "custom-extra",
+					"panoId": "MOCK_55.7558_37.6176",
+					"flags": 1,
+					"lat": 55.7558,
+					"lng": 37.6176,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Moscow",
+						"imageDate": "2022-06",
+						"userField": "keep me",
+						"cameraType": "gen4",
+						"timezone": "Europe/Moscow",
+						"panoType": 2,
+						"datetime": 1655471071
+					}
+				},
+				{
+					"key": "59.9139,10.7522",
+					"kind": "empty-extra-object",
+					"panoId": "MOCK_59.9139_10.7522",
+					"flags": 1,
+					"lat": 59.9139,
+					"lng": 10.7522,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Oslo",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Oslo",
+						"panoType": 2,
+						"datetime": 1654759895
+					}
+				},
+				{
+					"key": "60.1699,24.9384",
+					"kind": "december",
+					"panoId": "MOCK_60.1699_24.9384",
+					"flags": 1,
+					"lat": 60.1699,
+					"lng": 24.9384,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"subdivision": "Uusimaa",
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Europe/Helsinki",
+						"panoType": 2,
+						"datetime": 1655934235
+					}
+				},
+				{
+					"key": "89.9999,0.5",
+					"kind": "north-pole",
+					"panoId": "MOCK_89.9999_0.5000",
+					"flags": 1,
+					"lat": 89.9999,
+					"lng": 0.5,
+					"heading": 0,
+					"extra": {
+						"altitude": 100,
+						"countryCode": "US",
+						"datetime": 1655846459,
+						"imageDate": "2022-06",
+						"cameraType": "gen4",
+						"timezone": "Etc/GMT",
+						"panoType": 2
+					}
+				}
+			]
+		}
+	]
+}

@@ -41,6 +41,7 @@ export function svMockConfig(): SvMockConfig {
 		fixedMs: svStubLatencyMs(),
 		hiddenCapture: !!process.env.MMA_E2E_SV_HIDDEN_CAPTURE,
 		maxInflight: Number(process.env.MMA_E2E_SV_MAX_INFLIGHT ?? 0),
+		faults: process.env.MMA_E2E_SV_FAULTS ? JSON.parse(process.env.MMA_E2E_SV_FAULTS) : undefined,
 	};
 }
 
@@ -54,6 +55,7 @@ export interface SvStub {
 /** Control paths the stub answers on its own behalf, so a spec worker can read the
  *  request timeline the launcher process owns. */
 export const SV_STUB_TIMELINE_PATH = "/__mma/timeline";
+export const SV_STUB_FAULTS_PATH = "/__mma/faults";
 
 export async function startSvStub(
 	port = svStubPort(),
@@ -67,6 +69,16 @@ export async function startSvStub(
 		req.on("data", (c: Buffer) => chunks.push(c));
 		req.on("end", () => {
 			const url = req.url ?? "";
+			const body = chunks.length ? new Uint8Array(Buffer.concat(chunks)) : null;
+			if (url.startsWith(SV_STUB_FAULTS_PATH)) {
+				try {
+					core.setFaults(body ? JSON.parse(Buffer.from(body).toString("utf8")) : {});
+					res.writeHead(200, { "content-type": "application/json" }).end("{}");
+				} catch (e) {
+					res.writeHead(400).end(String(e));
+				}
+				return;
+			}
 			if (url.startsWith(SV_STUB_TIMELINE_PATH)) {
 				if (req.method === "DELETE") core.net.timeline.length = 0;
 				const payload = Buffer.from(JSON.stringify(core.net.timeline), "utf-8");
@@ -77,7 +89,6 @@ export async function startSvStub(
 				res.end(payload);
 				return;
 			}
-			const body = chunks.length ? new Uint8Array(Buffer.concat(chunks)) : null;
 			const reply = core.respond(url, body);
 			const line = `[sv-stub] ${req.method} ${reply ? reply.kind : "404"} ${url.slice(0, 120)}`;
 			hits.push(line);

@@ -209,6 +209,8 @@ export default defineConfig([
 			"test/e2e/bulk-import-rust.test.ts",
 			"test/e2e/procedure-bench.test.ts",
 			"test/e2e/procedure-parity.test.ts",
+			"test/e2e/procedure-faults.test.ts",
+			"test/e2e/procedure-scale.test.ts",
 			"test/e2e/parity-probe.test.ts",
 		],
 		rules: { "no-console": "off" },

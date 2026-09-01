@@ -61,11 +61,13 @@ export function installSvMock(coreSrc: string, configJson = "{}"): void {
 		serve: (kind: string) => Promise<void>;
 		timeline: NetEntry[];
 	}
+	type Faults = Record<string, number[]>;
 	const w = window as unknown as {
 		fetch: typeof fetch;
 		google?: GoogleLike;
 		__mmaSvMocked?: boolean;
 		__mmaSvTimeline?: NetEntry[];
+		__mmaSvSetFaults?: (f: Faults) => void;
 	};
 	if (w.__mmaSvMocked) return;
 	w.__mmaSvMocked = true;
@@ -76,10 +78,11 @@ export function installSvMock(coreSrc: string, configJson = "{}"): void {
 		new Function(
 			"cfg",
 			`var __name = (f) => f; return (${coreSrc})(cfg)`,
-		) as (cfg: unknown) => Core & { net: Net }
+		) as (cfg: unknown) => Core & { net: Net; setFaults: (f: Faults) => void }
 	)(JSON.parse(configJson));
 	const { isDead, fixFor, panoAtCoords, viewerData } = core;
 	w.__mmaSvTimeline = core.net.timeline;
+	w.__mmaSvSetFaults = core.setFaults;
 
 	// --- window.fetch -------------------------------------------------------
 	const origFetch = w.fetch.bind(w);
