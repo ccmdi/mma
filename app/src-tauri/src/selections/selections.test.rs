@@ -3081,3 +3081,22 @@ fn prune_and_merge_keep_the_same_survivor() {
     let merged = crate::store::engine::merge_group(&group, &default_score());
     assert_eq!(kept, merged.id);
 }
+
+#[test]
+fn pinned_needs_the_pano_id_as_well_as_the_flag() {
+    let fx = Fx::adds(vec![
+        pinned(1, Some("a"), true),
+        pinned(2, None, true),
+        pinned(3, Some(""), true),
+        pinned(4, Some("d"), false),
+    ]);
+    let view = fx.view();
+    let pinned_sel = intersect(vec![pano_filter(FilterOp::Has), Selector::PanoIds]);
+
+    assert_eq!(ids_of(&view, &pinned_sel), vec![1]);
+
+    let unpinned = Selector::Invert {
+        selections: vec![leaf("pinned", pinned_sel)],
+    };
+    assert_eq!(ids_of(&view, &unpinned), vec![2, 3, 4]);
+}

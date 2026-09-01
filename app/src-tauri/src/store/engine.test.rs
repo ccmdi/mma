@@ -4786,3 +4786,18 @@ fn uploaded_add_removes_session_dir() {
     assert!(export::read_uploaded_chunks::<Location>(&bad).is_err());
     assert!(!Path::new(&bad).exists());
 }
+
+#[test]
+fn a_save_stamped_with_an_older_rev_leaves_the_value_unsaved() {
+    let mut tracked = Tracked::new(0u32);
+    *tracked.edit() = 1;
+    let stale = tracked.rev();
+    *tracked.edit() = 2;
+
+    tracked.saved_at(stale);
+    assert!(tracked.is_unsaved());
+
+    let current = tracked.rev();
+    tracked.saved_at(current);
+    assert!(!tracked.is_unsaved());
+}

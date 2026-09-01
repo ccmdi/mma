@@ -709,7 +709,7 @@ function DownloadDoneActions({
 	);
 }
 
-function SelectFailedButton({
+export function SelectFailedButton({
 	outcome,
 	style,
 }: {
