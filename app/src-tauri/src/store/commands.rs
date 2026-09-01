@@ -276,31 +276,17 @@ pub fn store_remove_locations(
 ) -> AppResult<MutationResult> {
     let _t = Instant::now();
     with_store!(label, state, |store| {
-        let mut removed_locs = Vec::new();
-        for &id in &ids {
-            if let Some(loc) = store.get_loc_by_id(id) {
-                removed_locs.push(loc);
-            }
-        }
-        store.remove_tag_counts(&removed_locs);
-        store.overlay_remove(&removed_locs);
-
-        let removed_ids: Vec<u32> = removed_locs.iter().map(|l| l.id).collect();
-        store.push_undo(EditEntry {
-            created: Vec::new(),
-            removed: removed_locs,
-        });
-        store.edits.redo.clear();
-
+        let removed: Vec<Location> = ids
+            .iter()
+            .filter_map(|&id| store.get_loc_by_id(id))
+            .collect();
+        let result = store.apply_undoable(removed, Vec::new());
         log::debug!(
             "[cmd] store_remove_locations total={}ms ids={}",
             _t.elapsed().as_millis(),
             ids.len()
         );
-        Ok(store.finish_mutation(&ChangeSet {
-            removed: removed_ids,
-            ..Default::default()
-        }))
+        Ok(result)
     })
 }
 

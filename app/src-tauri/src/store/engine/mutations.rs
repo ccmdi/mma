@@ -151,10 +151,7 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
     store.overlay_add(locations);
     let extras: Vec<&RawExtra> = added.iter().filter_map(|l| l.extra.as_ref()).collect();
     auto_register_extras(store, &extras);
-    store.finish_mutation(&ChangeSet {
-        added: added.clone(),
-        ..Default::default()
-    })
+    store.apply_undoable(Vec::new(), locations)
 }
 
 /// Apply `{id, patch}` updates: overlay, tag counts, undo, extras registration. The one
