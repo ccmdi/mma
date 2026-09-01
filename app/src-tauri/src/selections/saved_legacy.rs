@@ -1,4 +1,4 @@
-//! One-time import of the pre-0.9.3 localStorage `savedSelections` array.
+//! One-time import of the pre-0.10 localStorage `savedSelections` array.
 //!
 //! Self-contained and disposable: nothing outside this file knows the old shape, and the
 //! parent module reaches in only through [`store_import_legacy_saved_selections`]. When

@@ -61,14 +61,6 @@ export const MIGRATIONS: StoredMigration[] = [
 			}
 		},
 	},
-	{
-		since: "0.9.3",
-		key: "appSettings",
-		describe: "savedSelections moved to SQLite; drop from localStorage",
-		apply: (stored) => {
-			delete stored.savedSelections;
-		},
-	},
 ];
 
 export function migrationsFor(key: string): Migration[] {
@@ -79,9 +71,11 @@ export function migrationsFor(key: string): Migration[] {
 
 let importedSavedSelections = false;
 
-/** Hands the pre-0.9.3 `savedSelections` array to Rust, once per window. Reads the raw
- *  blob rather than going through settings, whose migrations have already dropped the key
- *  from the parsed value. Rust ignores the payload if it already holds any rules. */
+/** Hands the pre-0.10 `savedSelections` array to Rust, once per window, and only then drops
+ *  the key. A migration cannot do the dropping: settings init writes the migrated blob back
+ *  to disk at boot, while this runs lazily from a render path, so the key would be gone
+ *  before it was ever read. Rust ignores the payload once it holds rules, so re-reading a
+ *  resurrected key costs one no-op call. */
 export async function importLegacySavedSelections(): Promise<void> {
 	if (importedSavedSelections) return;
 	importedSavedSelections = true;
@@ -95,7 +89,20 @@ export async function importLegacySavedSelections(): Promise<void> {
 		log.warn("[saved-selections] unreadable legacy blob:", e);
 		return;
 	}
-	await cmd
-		.storeImportLegacySavedSelections(json)
-		.catch((e) => log.error("[saved-selections] legacy import failed:", e));
+	try {
+		await cmd.storeImportLegacySavedSelections(json);
+	} catch (e) {
+		// Left in place so the next launch retries.
+		log.error("[saved-selections] legacy import failed:", e);
+		return;
+	}
+	try {
+		const raw = localStorage.getItem("appSettings");
+		if (raw === null) return;
+		const blob = JSON.parse(raw) as Record<string, unknown>;
+		delete blob.savedSelections;
+		localStorage.setItem("appSettings", JSON.stringify(blob));
+	} catch (e) {
+		log.warn("[saved-selections] imported but could not drop the legacy key:", e);
+	}
 }
