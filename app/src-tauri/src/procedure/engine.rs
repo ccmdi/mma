@@ -3,7 +3,7 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::selections::{ids_within, narrow, Selector};
+use crate::selections::{ids_within, narrow, resolve_field_loc, Selector};
 use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
 };
@@ -973,14 +973,7 @@ fn apply_pages(ctx: &RunCtx, decl: &ProviderDecl, rx: mpsc::Receiver<Produced>) 
 /// A field name is a core column when the store holds it outside `extra`. A provider
 /// declaring one both produces it for the wave graph and is skipped once it is set.
 fn field_present(loc: &Location, field: &str) -> bool {
-    match field {
-        "panoId" => loc.pano_id.as_ref().is_some_and(|p| !p.is_empty()),
-        _ => loc
-            .extra
-            .as_ref()
-            .and_then(|e| e.get(field))
-            .is_some_and(|v| !v.is_null()),
-    }
+    resolve_field_loc(loc, field).is_some_and(|v| !v.is_null())
 }
 
 /// A field counts as present only when it holds a non-null value. A provider that

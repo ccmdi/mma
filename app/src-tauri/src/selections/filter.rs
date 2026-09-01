@@ -81,7 +81,7 @@ macro_rules! builtin_fields {
 
         /// Resolve a field name to its JSON value from a `Location` struct.
         /// Unknown fields fall through to `loc.extra`.
-        pub(super) fn resolve_field_loc(loc: &Location, field: &str) -> Option<serde_json::Value> {
+        pub(crate) fn resolve_field_loc(loc: &Location, field: &str) -> Option<serde_json::Value> {
             match field {
                 $($key => { let $l = loc; $loc_expr })*
                 _ => loc.extra.as_ref().and_then(|e| e.get(field)),
@@ -136,9 +136,9 @@ builtin_fields! {
             (!c.is_null(i)).then(|| serde_json::json!(c.value(i) as f64))
         });
     "panoId", "Pano ID", ExtraFieldType::String, None, None,
-        |l| l.pano_id.as_deref().map(|p| serde_json::json!(p)),
+        |l| l.pano_id.as_deref().filter(|p| !p.is_empty()).map(|p| serde_json::json!(p)),
         |v, i| v.pano_ids.and_then(|c| {
-            (!c.is_null(i)).then(|| serde_json::json!(c.value(i)))
+            (!c.is_null(i) && !c.value(i).is_empty()).then(|| serde_json::json!(c.value(i)))
         });
     "tagCount", "Tag count", ExtraFieldType::Number, Some(BuiltinFieldKind::Virtual), None,
         |l| Some(serde_json::json!(l.tags.len())),
