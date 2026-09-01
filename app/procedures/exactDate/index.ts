@@ -107,7 +107,7 @@ function absorb(s: Search, results: number[]): void {
  *  and they would all finish in the same instant. Progress therefore credits partial work
  *  per round -- a live row `r` rounds into an estimated `est` counts as r/est of a row --
  *  which is what makes the bar ramp instead of cliff. */
-function narrow(batch: Search[]): void {
+function narrow(batch: Search[], counts = true): void {
 	if (batch.length === 0 || mma.aborted()) return;
 
 	const range = Math.max(...batch.map((s) => s.hi - s.lo), ACCURACY + 1);
@@ -117,7 +117,7 @@ function narrow(batch: Search[]): void {
 		const settled = batch.reduce((n, s) => n + (s.settled ? 1 : 0), 0);
 		const partial = ((batch.length - settled) * Math.min(round, est - 1)) / est;
 		const target = Math.floor(settled + partial);
-		if (target > reported) {
+		if (counts && target > reported) {
 			mma.progress(target - reported);
 			reported = target;
 		}
@@ -192,6 +192,6 @@ export function query(input: {
 	if (input.op !== "resolve") throw new Error(`exactDate: unknown query op "${input.op}"`);
 	const s = newSearch(0, input.lat, input.lng, input.imageDate);
 	if (!s) throw new Error(`exactDate: bad imageDate "${input.imageDate}"`);
-	narrow([s]);
+	narrow([s], false);
 	return s.ts;
 }
