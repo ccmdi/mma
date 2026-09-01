@@ -2,13 +2,11 @@ import { waitForReady } from "./helpers";
 import {
 	addFixture,
 	createMap,
-	detectBuild,
 	dropMap,
 	dumpRows,
 	runEnrich,
 	setEnrich,
 	setFaults,
-	type Build,
 } from "./parityDriver";
 import { faultRows, faultScript, fixtureRows, key, kindOf } from "./parityFixture";
 
@@ -43,7 +41,6 @@ function windowFor(imageDate: string): [number, number] | null {
 type Row = Record<string, unknown> & { extra: Record<string, unknown> };
 
 describe("procedure faults: what a misbehaving network does to the data", () => {
-	let build: Build;
 	const maps: string[] = [];
 	let rows: Row[] = [];
 	let clean: Row[] = [];
@@ -54,16 +51,15 @@ describe("procedure faults: what a misbehaving network does to the data", () => 
 		const id = await createMap(`Faults ${maps.length} ${Date.now()}`);
 		maps.push(id);
 		await setEnrich(FIELDS);
-		await addFixture([...fixtureRows(), ...faultRows()], build.legacy);
+		await addFixture([...fixtureRows(), ...faultRows()]);
 		await setFaults(faults);
-		await runEnrich(build, true);
-		return (await dumpRows(build.legacy)) as Row[];
+		await runEnrich(true);
+		return (await dumpRows()) as Row[];
 	};
 
 	before(async () => {
 		await waitForReady();
 		await browser.setTimeout({ script: 900_000 });
-		build = await detectBuild();
 		clean = await run({});
 		rows = await run(faultScript());
 		for (const r of rows) byKind.set(kindOf(key(r as { lat: unknown; lng: unknown })), r);

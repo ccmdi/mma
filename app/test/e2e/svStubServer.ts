@@ -47,10 +47,16 @@ export function svMockConfig(): SvMockConfig {
 
 export interface SvStub {
 	port: number;
-	/** One line per served request, in arrival order. */
+	/** One line per served request, in arrival order, up to `LOG_LIMIT`. */
 	hits: string[];
+	/** Every request served, logged or not. */
+	served: () => number;
 	close: () => Promise<void>;
 }
+
+/** A scale run serves hundreds of thousands of requests; logging each one costs more
+ *  than answering it, and would be the thing a throughput number measured. */
+const LOG_LIMIT = 200;
 
 /** Control paths the stub answers on its own behalf, so a spec worker can read the
  *  request timeline the launcher process owns. */
@@ -63,6 +69,7 @@ export async function startSvStub(
 ): Promise<SvStub> {
 	const core = svMockCore(svMockConfig());
 	const hits: string[] = [];
+	let served = 0;
 
 	const server = http.createServer((req, res) => {
 		const chunks: Buffer[] = [];
@@ -90,9 +97,13 @@ export async function startSvStub(
 				return;
 			}
 			const reply = core.respond(url, body);
-			const line = `[sv-stub] ${req.method} ${reply ? reply.kind : "404"} ${url.slice(0, 120)}`;
-			hits.push(line);
-			log(line);
+			served++;
+			if (served <= LOG_LIMIT) {
+				const line = `[sv-stub] ${req.method} ${reply ? reply.kind : "404"} ${url.slice(0, 120)}`;
+				hits.push(line);
+				log(line);
+				if (served === LOG_LIMIT) log(`[sv-stub] ${LOG_LIMIT} requests logged; muting the rest`);
+			}
 			if (!reply) {
 				res.writeHead(404).end();
 				return;
@@ -119,6 +130,7 @@ export async function startSvStub(
 	return {
 		port: actual,
 		hits,
+		served: () => served,
 		close: () => new Promise<void>((resolve) => server.close(() => resolve())),
 	};
 }

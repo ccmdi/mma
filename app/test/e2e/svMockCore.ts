@@ -13,7 +13,7 @@
  * an import or an outer binding.
  */
 export interface SvNetModel {
-	depths: { inflight: number; ms: number[] }[];
+	depths: { inflight: number; n?: number; ms: number[] }[];
 }
 
 /** A deterministic fault script for one key (a "lat,lng" to 4dp, or a pano id): the
@@ -278,10 +278,20 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 	const fixedMs = cfg.fixedMs ?? 0;
 	let live = 0;
 	let rnd = 1;
+	// The recording shows latency flat against concurrency, so a depth bucket holding a
+	// handful of cold-start samples describes the ramp, not that depth. Sample from the
+	// nearest well-populated bucket instead, falling back to the best-populated one.
+	const MIN_SAMPLES = 200;
+	const solid = depths.filter((d) => (d.n ?? d.ms.length) >= MIN_SAMPLES);
+	const pool = solid.length ? solid : depths;
+	const fallback = pool.reduce(
+		(a, b) => ((a.n ?? a.ms.length) >= (b.n ?? b.ms.length) ? a : b),
+		pool[0],
+	);
 	const pickMs = (depth: number): number => {
 		if (!depths.length) return fixedMs;
-		let best = depths[0];
-		for (const d of depths) {
+		let best = fallback;
+		for (const d of pool) {
 			if (Math.abs(d.inflight - depth) < Math.abs(best.inflight - depth)) best = d;
 		}
 		rnd = (rnd * 1103515245 + 12345) & 0x7fffffff;

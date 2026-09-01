@@ -12,7 +12,7 @@ export function loadNetModel(force = false): SvNetModel | null {
 	if (!force && !process.env.MMA_E2E_SV_REPLAY) return null;
 	if (!fs.existsSync(SIS_LATENCY_FIXTURE)) return null;
 	const doc = JSON.parse(fs.readFileSync(SIS_LATENCY_FIXTURE, "utf8")) as {
-		depths?: { inflight: number; ms: number[] }[];
+		depths?: { inflight: number; n?: number; ms: number[] }[];
 	};
 	const depths = (doc.depths ?? []).filter((d) => d.ms.length > 0);
 	return depths.length ? { depths } : null;

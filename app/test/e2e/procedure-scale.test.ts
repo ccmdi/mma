@@ -5,12 +5,12 @@ import { waitForReady } from "./helpers";
 import {
 	addFixture,
 	createMap,
-	detectBuild,
 	dropMap,
 	dumpRows,
 	runEnrich,
+	runPin,
+	runValidate,
 	setEnrich,
-	type Build,
 } from "./parityDriver";
 import { MOCK_GENERIC_IMAGE_DATE } from "./parityFixture";
 
@@ -70,24 +70,34 @@ function windowFor(imageDate: string): [number, number] | null {
 }
 
 describe(`procedure scale: ${ROWS} rows`, () => {
-	let build: Build;
 	let mapId = "";
 	let rows: Record<string, unknown>[] = [];
 	let enrichMs = 0;
+	let pinMs = 0;
+	let validateMs = 0;
+	let enrichOutcomes: unknown = null;
+	let pinOutcomes: unknown = null;
+	let validateStates: unknown = null;
 
 	before(async () => {
 		await waitForReady();
 		await browser.setTimeout({ script: 3_600_000 });
-		build = await detectBuild();
 		mapId = await createMap(`Scale ${ROWS} ${Date.now()}`);
 		await setEnrich(FIELDS);
 		const all = scaleRows(ROWS);
 		for (let i = 0; i < all.length; i += CHUNK) {
-			await addFixture(all.slice(i, i + CHUNK), build.legacy);
+			await addFixture(all.slice(i, i + CHUNK));
 		}
-		const run = await runEnrich(build, false);
-		enrichMs = run.durationMs;
-		rows = await dumpRows(build.legacy);
+		const enrich = await runEnrich(false);
+		enrichMs = enrich.durationMs;
+		enrichOutcomes = enrich.outcomes;
+		const pin = await runPin(true);
+		pinMs = pin.durationMs;
+		pinOutcomes = pin.outcomes;
+		const validate = await runValidate();
+		validateMs = validate.durationMs;
+		validateStates = validate.states;
+		rows = await dumpRows();
 	});
 
 	after(async () => {
@@ -133,21 +143,25 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 		const withCountry = rows.filter(
 			(r) => typeof (r.extra as Record<string, unknown>).countryCode === "string",
 		).length;
-		const side = build.legacy ? "v092" : "head";
 		const report = {
-			side,
-			build,
 			rows: ROWS,
 			fields: FIELDS,
 			enrichMs,
+			pinMs,
+			validateMs,
 			rowsPerSecond: Number((ROWS / (enrichMs / 1000)).toFixed(2)),
+			pinRowsPerSecond: Number((ROWS / (pinMs / 1000)).toFixed(2)),
+			validateRowsPerSecond: Number((ROWS / (validateMs / 1000)).toFixed(2)),
+			enrichOutcomes,
+			pinOutcomes,
+			validateStates,
 			withDate,
 			withCountry,
 			digest,
 		};
 		fs.mkdirSync(RESULT_DIR, { recursive: true });
 		fs.writeFileSync(
-			path.join(RESULT_DIR, `scale-${side}-${ROWS}.json`),
+			path.join(RESULT_DIR, `scale-${ROWS}.json`),
 			JSON.stringify(report, null, "\t") + "\n",
 		);
 		console.log("[scale] " + JSON.stringify(report));

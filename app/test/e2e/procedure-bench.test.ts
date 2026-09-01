@@ -5,25 +5,22 @@ import {
 	addRows,
 	collectNet,
 	createMap,
-	detectBuild,
 	dropMap,
 	dumpRows,
 	resetTimelines,
 	runEnrich,
 	seedRows,
 	setEnrich,
-	type Build,
 } from "./parityDriver";
 
 /**
  * exactDate throughput, measured against the recorded network rather than a guess.
  *
- *   MMA_E2E_SV_REPLAY=1 MMA_E2E_SV_HIDDEN_CAPTURE=1 bash scripts/e2e.sh --mock \
- *     test/e2e/procedure-bench.test.ts
- *   MMA_E2E_IMAGE=mma-v092-e2e:latest ... (the same command drives the old engine)
+ *   MMA_E2E_SV_REPLAY=1 MMA_E2E_SV_HIDDEN_CAPTURE=1 MMA_E2E_SV_MAX_INFLIGHT=100 \
+ *     bash scripts/e2e.sh --mock test/e2e/procedure-bench.test.ts
  *
  * Nothing is asserted beyond "the run actually enriched": the point is the report, and
- * a comparison is always between two of them.
+ * a comparison is always between two of them (scripts/compare-bench.mjs).
  */
 
 const ROWS = Number(process.env.MMA_PBENCH_ROWS ?? 200);
@@ -40,7 +37,6 @@ const roundsFor = (accuracy: number) =>
 
 interface Report {
 	label: string;
-	build: Build;
 	rows: number;
 	enrichedRows: number;
 	durationMs: number;
@@ -62,22 +58,20 @@ interface Report {
 function writeReport(r: Report): void {
 	fs.mkdirSync(RESULT_DIR, { recursive: true });
 	const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-	const name = `procedure-bench-${r.build.legacy ? "v092" : "head"}${r.label ? `-${r.label}` : ""}-${stamp}.json`;
+	const name = `procedure-bench${r.label ? `-${r.label}` : ""}-${stamp}.json`;
 	fs.writeFileSync(path.join(RESULT_DIR, name), JSON.stringify(r, null, "\t") + "\n");
 	console.log(`[pbench] wrote test/perf/results/${name}`);
 }
 
 describe("procedure bench: exactDate throughput", () => {
-	let build: Build;
 	let mapId = "";
 
 	before(async () => {
 		await waitForReady();
 		await browser.setTimeout({ script: 900_000 });
-		build = await detectBuild();
 		mapId = await createMap(`PBench ${Date.now()}`);
 		await setEnrich(["datetime"]);
-		await addRows(seedRows(ROWS), build.legacy);
+		await addRows(seedRows(ROWS));
 	});
 
 	after(async () => {
@@ -86,9 +80,9 @@ describe("procedure bench: exactDate throughput", () => {
 
 	it(`resolves ${ROWS} exact dates and reports the load it made`, async () => {
 		await resetTimelines();
-		const run = await runEnrich(build, false);
+		const run = await runEnrich(false);
 		const net = await collectNet();
-		const rows = await dumpRows(build.legacy);
+		const rows = await dumpRows();
 		const enriched = rows.filter((r) => {
 			const extra = r.extra as Record<string, unknown>;
 			return typeof extra.datetime === "number";
@@ -105,7 +99,6 @@ describe("procedure bench: exactDate throughput", () => {
 		const roundsDay = roundsFor(86400);
 		const report: Report = {
 			label: LABEL,
-			build,
 			rows: ROWS,
 			enrichedRows: enriched,
 			durationMs: run.durationMs,

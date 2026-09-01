@@ -4,35 +4,27 @@ import { waitForReady } from "./helpers";
 import {
 	addFixture,
 	createMap,
-	detectBuild,
 	dropMap,
 	dumpRows,
 	runEnrich,
 	runPin,
 	runValidate,
 	setEnrich,
-	type Build,
 } from "./parityDriver";
 import { fixtureRows, key, kindOf } from "./parityFixture";
 
 /**
- * Drives one build over the hostile fixture, one procedure at a time, and dumps what it
- * left behind after each. It asserts almost nothing on its own: run it against both
- * images and diff the two dumps with scripts/compare-parity.mjs, which owns the list of
- * divergences we intend.
+ * Every procedure over the hostile fixture, one phase at a time, asserted against a
+ * pinned golden. Phases run in a fixed order on one map, so each dump is what the
+ * previous phase left plus this phase's work, and a mismatch names the phase that
+ * introduced it.
  *
  *   MMA_E2E_SV_HIDDEN_CAPTURE=1 bash scripts/e2e.sh --mock test/e2e/procedure-parity.test.ts
- *   MMA_E2E_IMAGE=mma-v092-e2e:latest MMA_E2E_SV_HIDDEN_CAPTURE=1 bash scripts/e2e.sh --mock \
- *     test/e2e/procedure-parity.test.ts
  *
- * Phases run in a fixed order on one map, so each dump is what the previous phase left
- * plus this phase's work -- a divergence is attributed to the phase that introduced it.
- * `bulkPanHeading` is deliberately absent: neither build exposes it on the API, so
- * driving it would mean driving two different bulk dialogs.
+ * `bulkPanHeading` is absent because the app does not expose it outside its bulk
+ * dialog; put it on the API and it joins this list for free.
  */
 
-/** Fields both builds know. A field only one side has would read as a divergence for
- *  every row, drowning the ones that matter. */
 const FIELDS = [
 	"countryCode",
 	"altitude",
@@ -47,10 +39,8 @@ const FIELDS = [
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const RESULT_DIR = path.join(HERE, "../perf/results");
-/** The pinned answer. Derived from a run that v0.9.2 agreed with row for row, so it
- *  outlives the ability to build the old tag - and unlike a two-build diff, it still
- *  fails when both sides regress the same way. Rewrite with MMA_PARITY_UPDATE_GOLDEN=1,
- *  and only with a reason. */
+/** The pinned answer: the oracle every run is measured against. Rewrite it with
+ *  MMA_PARITY_UPDATE_GOLDEN=1, and only with a reason. */
 const GOLDEN = path.join(HERE, "fixtures/parity-golden.json");
 
 interface Phase {
@@ -61,7 +51,6 @@ interface Phase {
 }
 
 describe("procedure parity: every procedure over the hostile fixture", () => {
-	let build: Build;
 	let mapId = "";
 	const phases: Phase[] = [];
 
@@ -73,7 +62,7 @@ describe("procedure parity: every procedure over the hostile fixture", () => {
 			: outcomes;
 
 	const snapshot = async (name: string, durationMs: number, outcomes: unknown) => {
-		const rows = await dumpRows(build.legacy);
+		const rows = await dumpRows();
 		phases.push({
 			name,
 			durationMs,
@@ -91,10 +80,9 @@ describe("procedure parity: every procedure over the hostile fixture", () => {
 	before(async () => {
 		await waitForReady();
 		await browser.setTimeout({ script: 900_000 });
-		build = await detectBuild();
 		mapId = await createMap(`Parity ${Date.now()}`);
 		await setEnrich(FIELDS);
-		await addFixture(fixtureRows(), build.legacy);
+		await addFixture(fixtureRows());
 	});
 
 	after(async () => {
@@ -102,22 +90,21 @@ describe("procedure parity: every procedure over the hostile fixture", () => {
 	});
 
 	it("enriches", async () => {
-		const run = await runEnrich(build, false);
+		const run = await runEnrich(false);
 		await snapshot("enrich", run.durationMs, run.outcomes);
 	});
 
 	it("pins to panoramas", async () => {
-		const run = await runPin(build, true);
+		const run = await runPin(true);
 		await snapshot("pin", run.durationMs, run.outcomes);
 	});
 
 	it("validates", async () => {
-		const run = await runValidate(build);
+		const run = await runValidate();
 		await snapshot("validate", run.durationMs, run.states);
 	});
 
-	it("matches the pinned golden", function () {
-		if (build.legacy) this.skip();
+	it("matches the pinned golden", () => {
 		const mine = phases.map((p) => ({ name: p.name, outcomes: p.outcomes, rows: p.rows }));
 		if (process.env.MMA_PARITY_UPDATE_GOLDEN) {
 			fs.mkdirSync(path.dirname(GOLDEN), { recursive: true });
@@ -130,13 +117,12 @@ describe("procedure parity: every procedure over the hostile fixture", () => {
 		expect(mine).toEqual(golden.phases);
 	});
 
-	it("writes the dump", async () => {
-		const side = build.legacy ? "v092" : "head";
-		const dump = { side, build, fields: FIELDS, phases };
+	it("writes the dump", () => {
+		const dump = { fields: FIELDS, phases };
 		fs.mkdirSync(RESULT_DIR, { recursive: true });
-		const out = process.env.MMA_PARITY_OUT ?? path.join(RESULT_DIR, `parity-${side}.json`);
+		const out = process.env.MMA_PARITY_OUT ?? path.join(RESULT_DIR, "parity.json");
 		fs.writeFileSync(out, JSON.stringify(dump, null, "\t") + "\n");
-		console.log(`[parity] ${side}: ${phases.length} phases -> ${out}`);
+		console.log(`[parity] ${phases.length} phases -> ${out}`);
 		for (const p of phases) {
 			console.log(`[parity]   ${p.name} ${p.durationMs}ms ${JSON.stringify(p.outcomes)}`);
 		}

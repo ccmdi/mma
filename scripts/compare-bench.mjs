@@ -8,10 +8,9 @@ const RESULTS = path.join(ROOT, "app/test/perf/results");
 
 const HELP = `compare-bench -- put two exactDate bench reports side by side.
 
-  node scripts/compare-bench.mjs [label]
-  node scripts/compare-bench.mjs <old.json> <new.json>
+  node scripts/compare-bench.mjs <baseline.json> <candidate.json>
 
-With a label (e.g. cap100) it picks the newest v092 and head report carrying it.`;
+Reports live in app/test/perf/results; names may be given bare.`;
 
 function newest(match) {
 	const files = fs
@@ -46,21 +45,18 @@ function main() {
 		return;
 	}
 	const args = process.argv.slice(2).filter((a) => !a.startsWith("-"));
-	let oldPath;
-	let newPath;
-	if (args.length >= 2) {
-		[oldPath, newPath] = args.map((a) => (path.isAbsolute(a) ? a : path.join(RESULTS, a)));
-	} else {
-		const label = args[0] ?? "";
-		oldPath = newest(`v092${label ? `-${label}` : ""}`);
-		newPath = newest(`head${label ? `-${label}` : ""}`);
+	if (args.length < 2) {
+		console.log(HELP);
+		process.exitCode = 1;
+		return;
 	}
+	const [oldPath, newPath] = args.map((a) => (path.isAbsolute(a) ? a : path.join(RESULTS, a)));
 	const a = load(oldPath);
 	const b = load(newPath);
 
-	console.log(`v0.9.2 : ${path.basename(oldPath)}`);
-	console.log(`current: ${path.basename(newPath)}\n`);
-	console.log(`${"".padEnd(22)}${"v0.9.2".padStart(12)}${"current".padStart(12)}${"delta".padStart(12)}`);
+	console.log(`baseline : ${path.basename(oldPath)}`);
+	console.log(`candidate: ${path.basename(newPath)}\n`);
+	console.log(`${"".padEnd(22)}${"baseline".padStart(12)}${"candidate".padStart(12)}${"delta".padStart(12)}`);
 	for (const [label, get] of ROWS) {
 		const av = get(a);
 		const bv = get(b);
@@ -89,8 +85,8 @@ function main() {
 	}
 
 	console.log(
-		`\nserved/offered: v0.9.2 ${(a.net.meanInflight / (a.net.meanOffered || 1)).toFixed(2)}, ` +
-			`current ${(b.net.meanInflight / (b.net.meanOffered || 1)).toFixed(2)} ` +
+		`\nserved/offered: baseline ${(a.net.meanInflight / (a.net.meanOffered || 1)).toFixed(2)}, ` +
+			`candidate ${(b.net.meanInflight / (b.net.meanOffered || 1)).toFixed(2)} ` +
 			`(1.00 = every request the engine offered was being served; lower = queueing)`,
 	);
 }

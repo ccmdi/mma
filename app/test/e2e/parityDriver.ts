@@ -5,34 +5,12 @@ import { analyzeTimeline, type NetEntry, type NetStats } from "./svLatency";
 import { MOCK_GENERIC_IMAGE_DATE } from "./parityFixture";
 
 /**
- * One driver, two engines. v0.9.2 ran enrichment in the webview off a Location[]; the
- * current build runs it in Rust off a Selector, and the map metadata moved from
- * `map.meta.settings` to `map.settings`. Every difference the harness must know about
- * lives here, so the bench and the parity diff stay one script each.
+ * The one place the procedure suites talk to the app: seed a fixture, run a procedure,
+ * read every row back. Keeping it here is what lets the bench, the parity golden, the
+ * fault cases and the scale digest stay one short script each.
  */
 
-export interface Build {
-	legacy: boolean;
-	version: string;
-}
-
-/** "Every location" is a `Scope` on v0.9.2 and a `Selector` on the current build. */
-export const everything = (legacy: boolean): unknown => (legacy ? { kind: "all" } : { type: "Everything" });
-
-/** Detected from the API itself rather than an env flag: the harness cannot mislabel
- *  which binary it is actually driving. */
-export async function detectBuild(): Promise<Build> {
-	return withApi(async (api) => {
-		const a = api as unknown as Record<string, unknown>;
-		const cmd = a.cmd as Record<string, (...x: unknown[]) => Promise<unknown>>;
-		const created = (await cmd.storeCreateMap("__probe__", null)) as Record<string, unknown>;
-		const legacy = !!created && "meta" in created;
-		const meta = (created.meta ?? created) as Record<string, unknown>;
-		await (a.deleteMap as (id: string) => Promise<void>)(String(meta.id));
-		const version = String((a.version as string | undefined) ?? (legacy ? "0.9.2" : "head"));
-		return { legacy, version };
-	});
-}
+const EVERYTHING = { type: "Everything" };
 
 export interface SeedRow {
 	lat: number;
@@ -60,8 +38,7 @@ export async function createMap(name: string): Promise<string> {
 	return withApi(async (api, n) => {
 		const a = api as unknown as Record<string, unknown>;
 		const cmd = a.cmd as Record<string, (...x: unknown[]) => Promise<unknown>>;
-		const created = (await cmd.storeCreateMap(n, null)) as Record<string, unknown>;
-		const meta = (created.meta ?? created) as Record<string, unknown>;
+		const meta = (await cmd.storeCreateMap(n, null)) as Record<string, unknown>;
 		const test = a._test as Record<string, (...x: unknown[]) => Promise<unknown>> | undefined;
 		const id = String(meta.id);
 		if (test?.openMap) await test.openMap(id);
@@ -82,21 +59,19 @@ export async function dropMap(id: string): Promise<void> {
 	}, id);
 }
 
-/** Enrichment settings live at a different depth per build; both are written here. */
 export async function setEnrich(fields: string[]): Promise<void> {
 	await withApi(async (api, f) => {
 		const a = api as unknown as Record<string, unknown>;
 		const state = (a.getMapState as () => Record<string, unknown>)();
 		const map = state.map as Record<string, unknown>;
-		const holder = ("meta" in map ? map.meta : map) as Record<string, unknown>;
-		const settings = { ...(holder.settings as object), enrichMetadata: true, enrichFields: f };
+		const settings = { ...(map.settings as object), enrichMetadata: true, enrichFields: f };
 		await (a.updateMapMeta as (p: unknown) => Promise<unknown>)({ settings });
 		const persist = a.waitForInflightPersist as (() => Promise<void>) | undefined;
 		if (persist) await persist();
 	}, fields);
 }
 
-export async function addRows(rows: SeedRow[], legacy = false): Promise<number[]> {
+export async function addRows(rows: SeedRow[]): Promise<number[]> {
 	return withApi(async (api, batch, scope) => {
 		const a = api as unknown as Record<string, unknown>;
 		const make = a.createLocation as ((lat: number, lng: number) => Record<string, unknown>) | undefined;
@@ -123,14 +98,13 @@ export async function addRows(rows: SeedRow[], legacy = false): Promise<number[]
 			scope,
 		)) as Record<string, unknown>[];
 		return all.map((l) => Number(l.id));
-	}, rows, everything(legacy));
+	}, rows, EVERYTHING);
 }
 
 /** Fixture rows carry a pano, flags and pre-existing extras; `addRows` only carries a
  *  capture month. Both land through the same add call. */
 export async function addFixture(
 	rows: { lat: number; lng: number; panoId?: string | null; flags?: number; extra?: Record<string, unknown> }[],
-	legacy = false,
 ): Promise<number[]> {
 	return withApi(async (api, batch, scope) => {
 		const a = api as unknown as Record<string, unknown>;
@@ -169,7 +143,7 @@ export async function addFixture(
 			scope,
 		)) as Record<string, unknown>[];
 		return all.map((l) => Number(l.id));
-	}, rows, everything(legacy));
+	}, rows, EVERYTHING);
 }
 
 export interface EnrichRun {
@@ -178,16 +152,13 @@ export interface EnrichRun {
 }
 
 /** Runs the build's own enrichment over the whole map and times it end to end. */
-export async function runEnrich(build: Build, force = true): Promise<EnrichRun> {
+export async function runEnrich(force = true): Promise<EnrichRun> {
 	return withApi(
-		async (api, legacy, doForce, scope) => {
+		async (api, doForce, scope) => {
 			const a = api as unknown as Record<string, unknown>;
 			const enrichAll = a.enrichAll as (t: unknown, o: unknown) => Promise<unknown>;
-			const target = legacy
-				? await (a.fetchLocations as (s: unknown) => Promise<unknown[]>)(scope)
-				: scope;
 			const start = Date.now();
-			const res = (await enrichAll(target, { force: doForce })) as
+			const res = (await enrichAll(scope, { force: doForce })) as
 				| { id?: string; success?: unknown[]; failed?: unknown[] }[]
 				| undefined;
 			const durationMs = Date.now() - start;
@@ -198,64 +169,52 @@ export async function runEnrich(build: Build, force = true): Promise<EnrichRun> 
 			}));
 			return { durationMs, outcomes };
 		},
-		build.legacy,
 		force,
-		everything(build.legacy),
+		EVERYTHING,
 	);
 }
 
-/** Pin every row to a resolved panorama. Same split as enrichment: v0.9.2 takes rows,
- *  the current build takes a selector. */
-export async function runPin(build: Build, force = true): Promise<EnrichRun> {
+/** Pin every row to a resolved panorama. */
+export async function runPin(force = true): Promise<EnrichRun> {
 	return withApi(
-		async (api, legacy, doForce, scope) => {
+		async (api, doForce, scope) => {
 			const a = api as unknown as Record<string, unknown>;
 			const pin = a.bulkPinToPano as (t: unknown, o: unknown) => Promise<number>;
-			const target = legacy
-				? await (a.fetchLocations as (s: unknown) => Promise<unknown[]>)(scope)
-				: scope;
 			const start = Date.now();
-			const pinned = await pin(target, { force: doForce });
+			const pinned = await pin(scope, { force: doForce });
 			return {
 				durationMs: Date.now() - start,
 				outcomes: [{ id: "pinPano", success: Number(pinned ?? 0), failed: 0 }],
 			};
 		},
-		build.legacy,
 		force,
-		everything(build.legacy),
+		EVERYTHING,
 	);
 }
 
-/** Validation state per row. Both builds answer with a Map keyed by state; v0.9.2's
- *  values are whole locations, the current build's are ids, so both are reduced to
- *  counts plus the ids that landed in each state. */
-export async function runValidate(build: Build): Promise<{
+/** Validation state per row, reduced to a count per state. */
+export async function runValidate(): Promise<{
 	durationMs: number;
 	states: [number, number][];
 }> {
 	return withApi(
-		async (api, legacy, scope) => {
+		async (api, scope) => {
 			const a = api as unknown as Record<string, unknown>;
 			const validate = a.validateLocations as (t: unknown, o: unknown) => Promise<unknown>;
-			const target = legacy
-				? await (a.fetchLocations as (s: unknown) => Promise<unknown[]>)(scope)
-				: scope;
 			const start = Date.now();
-			const res = (await validate(target, {})) as Map<number, unknown[]> | undefined;
+			const res = (await validate(scope, {})) as Map<number, unknown[]> | undefined;
 			const states: [number, number][] = res
 				? [...res.entries()].map(([state, rows]) => [Number(state), rows.length])
 				: [];
 			states.sort((x, y) => x[0] - y[0]);
 			return { durationMs: Date.now() - start, states };
 		},
-		build.legacy,
-		everything(build.legacy),
+		EVERYTHING,
 	);
 }
 
 /** Every row as the build left it: the parity diff's raw material. */
-export async function dumpRows(legacy = false): Promise<Record<string, unknown>[]> {
+export async function dumpRows(): Promise<Record<string, unknown>[]> {
 	return withApi(async (api, scope) => {
 		const a = api as unknown as Record<string, unknown>;
 		const rows = (await (a.fetchLocations as (s: unknown) => Promise<Record<string, unknown>[]>)(
@@ -271,7 +230,7 @@ export async function dumpRows(legacy = false): Promise<Record<string, unknown>[
 				extra: (l.extra ?? {}) as Record<string, unknown>,
 			}))
 			.sort((x, y) => (x.lat as number) - (y.lat as number) || (x.lng as number) - (y.lng as number));
-	}, everything(legacy));
+	}, EVERYTHING);
 }
 
 function stubPost(path: string, payload: string): Promise<number> {
@@ -362,8 +321,8 @@ export interface SidedStats {
 	stats: NetStats;
 }
 
-/** Whichever surface served the run is the one that did the work: the Rust engine goes
- *  through the HTTP stub, the v0.9.2 runner through the patched window.fetch. */
+/** The engine fetches through the HTTP stub; anything a page fetches is patched in
+ *  process. Whichever surface carries the requests is the one that did the work. */
 export async function collectNet(): Promise<SidedStats> {
 	const engine = (await stubTimeline(false)).filter((e) => e.kind === "SingleImageSearch");
 	const webview = (await webviewTimeline(false)).filter((e) => e.kind === "SingleImageSearch");
