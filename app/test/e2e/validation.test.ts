@@ -78,7 +78,10 @@ describe("Validation - coverage states come back from the procedure", () => {
 				{ type: "Locations", locations: locIds, name: null },
 				{ onProgress: (done: number, total: number) => ticks.push([done, total]) },
 			);
-			const answered = [...grouped.values()].reduce((n: number, l: number[]) => n + l.length, 0);
+			const answered = [...grouped.states.values()].reduce(
+				(n: number, l: number[]) => n + l.length,
+				0,
+			);
 			return { answered, last: ticks.at(-1) ?? null };
 		}, ids)) as any;
 

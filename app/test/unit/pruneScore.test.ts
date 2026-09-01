@@ -17,7 +17,8 @@ vi.mock("@/lib/commands", async () => {
 			settings: h.duplicateScore === null ? {} : { duplicateScore: h.duplicateScore },
 		}),
 		storeOpenMap: async () => openMapResult(),
-		storePruneDuplicates: async (selector: Selector, distance: number, score: string | null) => {
+		storePruneDuplicates: async (...args: unknown[]) => {
+			const [selector, distance, score] = args as [Selector, number, string | null];
 			h.calls.push({ selector, distance, score });
 			return {
 				version: 0,
