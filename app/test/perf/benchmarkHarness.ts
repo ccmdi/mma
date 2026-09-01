@@ -383,12 +383,8 @@ interface EnrichFixtureMetadata {
 	schemaVersion: typeof SCHEMA_VERSION;
 	seed: number;
 	count: number;
-	variant: "enrich" | "exactdate";
+	variant: "enrich";
 }
-
-/** The capture month every exact-date fixture row carries. One month for all of them so
- *  the search window, and therefore the round count, is identical on every row. */
-export const EXACT_DATE_MONTH = "2021-06";
 
 /** Write (or reuse) a fixture of `count` world-spread points, each finished by `row`,
  *  under `variant`. The seed comes from `benchSeed`, so the same count and variant
@@ -443,15 +439,6 @@ export function writeEnrichFixture(count: number): Promise<string> {
 	return writeSpreadFixture("enrich", count, (index) => ({
 		// Spread over a year so the sun math walks the whole seasonal range.
 		extra: { datetime: 1_700_000_000 + ((index * 3600) % 31_536_000) },
-	}));
-}
-
-/** The exact-date fixture: every row already carries a `panoId` and an `extra.imageDate`
- *  and no `datetime`, so only the exact-date search is left to do. */
-export function writeExactDateFixture(count: number): Promise<string> {
-	return writeSpreadFixture("exactdate", count, (index) => ({
-		panoId: `bench${index.toString(36).padStart(17, "0")}`,
-		extra: { imageDate: EXACT_DATE_MONTH },
 	}));
 }
 

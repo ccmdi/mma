@@ -22,7 +22,6 @@ import {
 	runBenchmark,
 	writeBenchmarkReport,
 	writeEnrichFixture,
-	writeExactDateFixture,
 	writeFixture,
 	type BenchmarkCase,
 	type BenchmarkReport,
@@ -65,7 +64,6 @@ const ROUTES: Record<string, string> = {
 	// Opt-in: each needs its own fixture and map, so they only run when named in
 	// MMA_BENCH_ROUTES.
 	"enrich-sun": "enrichment",
-	"enrich-exactdate": "enrichment",
 	validate: "enrichment",
 	// Frame-rate scenarios: only meaningful on a real GPU, so opt in with MMA_BENCH_GPU=1.
 	"render-idle": "render",
@@ -75,7 +73,7 @@ const ROUTES: Record<string, string> = {
 };
 
 const GPU_ROUTES = ["render-idle", "render-pan-dense", "render-pan-wide", "render-zoom-sweep"];
-const OPT_IN_ROUTES = ["enrich-sun", "enrich-exactdate", "validate"];
+const OPT_IN_ROUTES = ["enrich-sun", "validate"];
 
 /** The sun-position procedure, at the path Dockerfile.e2e bakes it to
  *  (`WORKDIR /repo` then `COPY plugins/ ./plugins/`). */
@@ -359,7 +357,6 @@ describe("Performance benchmarks", () => {
 async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 	// Own fixture and own map: the enrichment rows carry a datetime and no panoId.
 	if (enabled("enrich-sun")) await runEnrichSun(scale, scaleMaps);
-	if (enabled("enrich-exactdate")) await runEnrichExactDate(scale, scaleMaps);
 	if (enabled("validate")) await runValidate(scale, scaleMaps);
 	if (
 		!Object.keys(ROUTES).some((r) => r !== "app-idle" && !OPT_IN_ROUTES.includes(r) && enabled(r))
@@ -1092,84 +1089,6 @@ async function runValidate(scale: number, scaleMaps: Set<string>): Promise<void>
 					metrics: { rows, rowsPerSecond: rows / (durationMs / 1000), checked },
 				};
 			}, scale),
-	});
-
-	await deleteOwnedMap(mapId);
-	scaleMaps.delete(mapId);
-}
-
-async function runEnrichExactDate(scale: number, scaleMaps: Set<string>): Promise<void> {
-	const fixture = await writeExactDateFixture(scale);
-	const mapId = await createOpenMap(`Bench exactdate ${scale} ${Date.now()}`);
-	scaleMaps.add(mapId);
-
-	const sentinels = await withApi(
-		async (api, path, target, sentinelCount) => {
-			await api.beginImportFromPath(path);
-			const result = await api.confirmImport([], undefined);
-			if (!result || result.importedCount !== target) {
-				throw new Error(
-					`exact-date fixture imported ${result?.importedCount ?? 0}, expected ${target}`,
-				);
-			}
-			const map = api.getMapState().map;
-			if (!map) throw new Error("no map open for the exact-date fixture");
-			await api.updateMapMeta({
-				settings: { ...map.settings, enrichMetadata: true, enrichFields: ["datetime"] },
-			});
-			await api.waitForInflightPersist();
-			const rows = await api.fetchLocations({ type: "Everything" } as never);
-			const ids = rows.map((l) => l.id);
-			if (ids.length < sentinelCount) throw new Error(`exact-date fixture has ${ids.length} rows`);
-			return Array.from(
-				{ length: sentinelCount },
-				(_, i) => ids[Math.round((i * (ids.length - 1)) / (sentinelCount - 1))],
-			);
-		},
-		fixture,
-		scale,
-		SENTINEL_COUNT,
-	);
-	await waitForScene(scale);
-
-	await bench("enrich-exactdate", scale, {
-		setup: () => ensureOpen(mapId, scale),
-		run: () =>
-			withApi(
-				async (api, ids, rows) => {
-					const everything = { type: "Everything" } as never;
-
-					// Untimed: clear what the last sample wrote, so every sample searches.
-					const before = await api.fetchLocations(everything);
-					await api.updateLocations(
-						before.map((l) => ({ id: l.id, patch: { extra: { datetime: null } } })),
-						{ undoable: false },
-					);
-					api.cancelAutosave();
-
-					const start = performance.now();
-					await api.enrichAll(everything, { force: false });
-					const durationMs = performance.now() - start;
-
-					const seen = await api.fetchLocations({
-						type: "Locations",
-						locations: ids,
-						name: null,
-					} as never);
-					const written = seen.filter((l) => typeof l.extra?.datetime === "number").length;
-					if (written !== ids.length) {
-						throw new Error(`exact-date run wrote ${written}/${ids.length} sentinels`);
-					}
-					api.cancelAutosave();
-					return {
-						durationMs,
-						operationMs: durationMs,
-						metrics: { rows, rowsPerSecond: rows / (durationMs / 1000) },
-					};
-				},
-				sentinels,
-				scale,
-			),
 	});
 
 	await deleteOwnedMap(mapId);
