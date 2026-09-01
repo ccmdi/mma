@@ -9,7 +9,7 @@ import type { Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
 import {
 	getProviderForField,
-	type EnrichmentProvider,
+	type Provider,
 	type ProcedureSpec,
 } from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";
@@ -134,7 +134,7 @@ export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
 
 /** A provider to run, optionally overriding the config its procedure declares. */
 export interface ProviderRun {
-	provider: EnrichmentProvider;
+	provider: Provider;
 	config?: unknown;
 	/** Re-derive this provider's fields even on an unforced run. For an operation whose
 	 *  point is to recompute one provider rather than fill in what is missing. */

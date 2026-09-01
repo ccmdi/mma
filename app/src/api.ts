@@ -20,7 +20,7 @@ import { trackDisposable } from "@/plugins/scope";
 import * as ui from "@/components/primitives";
 import { toast } from "@/lib/util/toast";
 import { preloadModules, getAvailableExternals } from "@/plugins/externals";
-import { registerEnrichFields, registerEnrichmentProvider } from "@/lib/data/fieldDefs";
+import { registerEnrichFields, registerProvider } from "@/lib/data/fieldDefs";
 import { getFieldDef, getAllFieldDefs, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { invoke } from "@tauri-apps/api/core";
 import { Command } from "@tauri-apps/plugin-shell";
@@ -69,7 +69,7 @@ const fields = {
 	getAllFieldDefs,
 	getKnownFieldKeys,
 	registerEnrichFields,
-	registerEnrichmentProvider,
+	registerProvider,
 };
 
 /** Panoramas the user has already seen. */

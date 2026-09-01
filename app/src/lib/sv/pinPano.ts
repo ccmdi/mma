@@ -10,7 +10,7 @@ import {
 } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
 import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
-import { registerEnrichmentProvider, type EnrichmentProvider } from "@/lib/data/fieldDefs";
+import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
 import { msg } from "@/lib/i18n";
 
 export interface PinPanoConfig {
@@ -20,7 +20,7 @@ export interface PinPanoConfig {
 /** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
  *  panorama. With `useLatest`, move it to the newest official pano in the timeline
  *  first. The pano id itself comes from `panoResolve`, an earlier wave. */
-export const pinPanoProvider: EnrichmentProvider = {
+export const pinPanoProvider: Provider = {
 	id: "pinPano",
 	label: msg("Pin to pano ID"),
 	requires: ["panoId"],
@@ -32,7 +32,7 @@ export const pinPanoProvider: EnrichmentProvider = {
 	},
 };
 
-registerEnrichmentProvider(pinPanoProvider);
+registerProvider(pinPanoProvider);
 
 /** Pinned is a pano ID *and* the flag: the flag alone can outlive the id. */
 export const PINNED: Selector = {

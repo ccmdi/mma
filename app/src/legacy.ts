@@ -3,13 +3,9 @@
 
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { hostInstance } from "@/lib/map/host";
-import {
-	getMapState,
-	getActiveSelections,
-	fetchLocations,
-	coverage,
-} from "@/store/useMapStore";
+import { getMapState, getActiveSelections, fetchLocations, coverage } from "@/store/useMapStore";
 import { cmd } from "@/lib/commands";
+import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
 import type { Selector } from "@/bindings.gen";
 
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
@@ -90,4 +86,9 @@ export function fetchAllLocations() {
 /** @deprecated v0.10.2. Use `MMA.coverage()`. */
 export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
 	return coverage(selector);
+}
+
+/** @deprecated v0.10.2. Use `MMA.registerProvider()`. */
+export function registerEnrichmentProvider(provider: Provider): void {
+	registerProvider(provider);
 }

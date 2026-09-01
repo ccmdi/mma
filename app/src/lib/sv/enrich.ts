@@ -4,11 +4,11 @@ import { metadataPatch, SVMETA_FIELDS } from "@/lib/sv/getMetadata";
 import { getMapState, updateLocations } from "@/store/useMapStore";
 import {
 	getAllEnrichKeys,
-	getEnrichmentProviders,
+	getProviders,
 	getDefaultEnrichKeys,
 	knownFieldDefs,
-	registerEnrichmentProvider,
-	type EnrichmentProvider,
+	registerProvider,
+	type Provider,
 	type ProcedureSpec,
 } from "@/lib/data/fieldDefs";
 import {
@@ -67,7 +67,7 @@ export async function enrich(loc: Location, data?: Pano | null): Promise<boolean
 export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []): ProviderRun[] {
 	const selectable = new Set(getAllEnrichKeys());
 	const active = new Set(enrichFields ?? getDefaultEnrichKeys());
-	return getEnrichmentProviders()
+	return getProviders()
 		.filter((p) => p.fieldDefs && !exclude.includes(p.id))
 		.map((provider) => ({
 			provider,
@@ -102,7 +102,7 @@ export const panoResolveSpec: ProcedureSpec<{ panoId: string }> = {
 
 /** `panoResolveSpec` as enrichment schedules it: it writes the `panoId` column, so every
  *  provider that reads a panorama requires it and the engine puts it in the first wave. */
-export const panoResolveProvider: EnrichmentProvider = {
+export const panoResolveProvider: Provider = {
 	id: "panoResolve",
 	label: msg("Resolving panoramas"),
 	provides: ["panoId"],
@@ -111,7 +111,7 @@ export const panoResolveProvider: EnrichmentProvider = {
 
 /** Exact capture timestamp: the procedure narrows the `imageDate` month against
  *  Google's SingleImageSearch per location. */
-export const exactDateProvider: EnrichmentProvider = {
+export const exactDateProvider: Provider = {
 	id: "exactDate",
 	label: msg("Exact dates"),
 	requires: ["imageDate"],
@@ -127,7 +127,7 @@ export const exactDateProvider: EnrichmentProvider = {
 
 /** Timezone at the location, once a `datetime` exists to interpret. The tz-lookup
  *  quadtree ships inside the module. */
-export const timezoneProvider: EnrichmentProvider = {
+export const timezoneProvider: Provider = {
 	id: "timezone",
 	label: msg("Timezone"),
 	requires: ["datetime"],
@@ -157,7 +157,7 @@ function ensureAdm1(): Promise<boolean> {
 
 /** Subdivision (adm1) via offline point-in-polygon against the local border dataset.
  *  No Google dependency; downloads the adm1 archive on first use. */
-export const subdivisionProvider: EnrichmentProvider = {
+export const subdivisionProvider: Provider = {
 	id: "subdivision",
 	label: msg("Subdivision"),
 	fieldDefs: {
@@ -171,7 +171,7 @@ export const subdivisionProvider: EnrichmentProvider = {
 };
 
 /** Core pano metadata via Google's GetMetadata RPC, decoded inside the module. */
-export const svMetaProvider: EnrichmentProvider = {
+export const svMetaProvider: Provider = {
 	id: "svMeta",
 	label: msg("Metadata"),
 	requires: ["panoId"],
@@ -184,11 +184,11 @@ export const svMetaProvider: EnrichmentProvider = {
 	},
 };
 
-registerEnrichmentProvider(panoResolveProvider);
-registerEnrichmentProvider(svMetaProvider);
-registerEnrichmentProvider(exactDateProvider);
-registerEnrichmentProvider(timezoneProvider);
-registerEnrichmentProvider(subdivisionProvider);
+registerProvider(panoResolveProvider);
+registerProvider(svMetaProvider);
+registerProvider(exactDateProvider);
+registerProvider(timezoneProvider);
+registerProvider(subdivisionProvider);
 
 /** One summary row per pass that did work: the core metadata pass, then every
  *  provider that updated or failed at least one location. */
@@ -223,7 +223,7 @@ export async function enrichAll(
 		selector,
 		opts,
 	);
-	const labelOf = (id: string) => getEnrichmentProviders().find((p) => p.id === id)?.label ?? id;
+	const labelOf = (id: string) => getProviders().find((p) => p.id === id)?.label ?? id;
 	return Object.entries(run)
 		.filter(([, o]) => o.succeeded > 0 || o.failed.length > 0)
 		.map(([id, o]) => ({ id, label: labelOf(id), ...o }));

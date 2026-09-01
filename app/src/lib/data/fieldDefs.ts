@@ -108,12 +108,12 @@ export interface ProcedureSpec<TCollected = unknown> {
 	prepare?: () => Promise<boolean>;
 }
 
-/** What the enrichment scheduler needs on top of a procedure: the fields it produces
- *  (which the field picker offers and the skip-if-present check reads), the columns it
- *  writes, and what it must wait for. Only the enrichment path registers these; a
- *  consumer that just wants a procedure run declares a `ProcedureSpec` and calls
- *  `runProcedure`. */
-export interface EnrichmentProvider {
+/** A procedure with a place in the dependency graph: what it produces (`fieldDefs`,
+ *  `provides`) and what it must wait for (`requires`), so `runProviders` can schedule
+ *  several together. One that declares `fieldDefs` is an enrichment provider: its fields
+ *  are selectable and `enrichAll` runs it implicitly. A consumer that just wants one
+ *  procedure run declares a `ProcedureSpec` and calls `runProcedure`. */
+export interface Provider {
 	id: string;
 	/** Bulk progress label for slow providers; omit for instant ones. */
 	label?: string;
@@ -131,11 +131,11 @@ export interface EnrichmentProvider {
 	requires?: string[];
 }
 
-const providers: EnrichmentProvider[] = [];
+const providers: Provider[] = [];
 
-/** Register a provider that computes extra fields during enrichment (e.g. sun position).
- *  Unregistered when the plugin deactivates. */
-export function registerEnrichmentProvider(provider: EnrichmentProvider) {
+/** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
+ *  deactivates. */
+export function registerProvider(provider: Provider) {
 	if (!provider.procedure) {
 		log.error(`[procedure] provider "${provider.id}" declares no procedure; ignored`);
 		return;
@@ -153,11 +153,11 @@ export function registerEnrichmentProvider(provider: EnrichmentProvider) {
 	}
 }
 
-export function getEnrichmentProviders(): EnrichmentProvider[] {
+export function getProviders(): Provider[] {
 	return providers;
 }
 
-export function getProviderForField(field: string): EnrichmentProvider | undefined {
+export function getProviderForField(field: string): Provider | undefined {
 	return providers.find((p) => p.fieldDefs != null && field in p.fieldDefs);
 }
 

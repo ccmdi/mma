@@ -9,7 +9,7 @@
  *      Rust (`known_field_def`) when the key first appears in location data, so they
  *      show up the same way. This layer is also field **existence**: a key is in it
  *      exactly when some location carries it (`getKnownFieldKeys`).
- *   2. **Plugin defs** — declared by `EnrichmentProvider.fieldDefs` at
+ *   2. **Plugin defs** — declared by `Provider.fieldDefs` at
  *      registration time. Available as long as the plugin is active.
  *
  * `getFieldDef(key)` composes the layers **per-attribute**, not whole-object: the

@@ -5,8 +5,8 @@ vi.mock("@/lib/util/log", () => ({
 }));
 
 import {
-	registerEnrichmentProvider,
-	getEnrichmentProviders,
+	registerProvider,
+	getProviders,
 	registerEnrichFields,
 	getEnrichFieldOptions,
 	getAllEnrichKeys,
@@ -21,37 +21,37 @@ const procedure: ProcedureSpec = { entry: "res://procedures/test.js", batch: { m
 // The providers array is module-level and accumulates, so tests see
 // providers from prior registrations. We test behavior, not count.
 
-describe("registerEnrichmentProvider", () => {
-	it("registers a provider that appears in getEnrichmentProviders", () => {
+describe("registerProvider", () => {
+	it("registers a provider that appears in getProviders", () => {
 		const provider = {
 			id: "test-provider-" + Math.random(),
 			procedure: { ...procedure },
 			fieldDefs: { testField: { type: "number" as const, label: "Test" } },
 		};
-		registerEnrichmentProvider(provider);
-		expect(getEnrichmentProviders()).toContain(provider);
+		registerProvider(provider);
+		expect(getProviders()).toContain(provider);
 	});
 
 	it("does not register duplicate providers", () => {
 		const id = "dedup-test-" + Math.random();
 		const p1 = { id, procedure: { ...procedure }, fieldDefs: {} };
 		const p2 = { id, procedure: { ...procedure }, fieldDefs: {} };
-		registerEnrichmentProvider(p1);
-		registerEnrichmentProvider(p2);
-		expect(getEnrichmentProviders().filter((p) => p.id === id)).toHaveLength(1);
+		registerProvider(p1);
+		registerProvider(p2);
+		expect(getProviders().filter((p) => p.id === id)).toHaveLength(1);
 	});
 
 	it("ignores a provider that declares no procedure", () => {
 		const id = "no-procedure-" + Math.random();
 		// @ts-expect-error procedure is required; this is the runtime guard for plugins.
-		registerEnrichmentProvider({ id, fieldDefs: {} });
-		expect(getEnrichmentProviders().some((p) => p.id === id)).toBe(false);
+		registerProvider({ id, fieldDefs: {} });
+		expect(getProviders().some((p) => p.id === id)).toBe(false);
 	});
 
 	it("registers plugin fieldDefs into the registry", () => {
 		const id = "registry-test-" + Math.random();
 		const key = "registryTestField_" + Math.random().toString(36).slice(2);
-		registerEnrichmentProvider({
+		registerProvider({
 			id,
 			procedure: { ...procedure },
 			fieldDefs: { [key]: { type: "number" as const, label: "Registered" } },
@@ -108,4 +108,3 @@ describe("isFieldEnabled", () => {
 		expect(isFieldEnabled(["altitude"], "datetime")).toBe(false);
 	});
 });
-

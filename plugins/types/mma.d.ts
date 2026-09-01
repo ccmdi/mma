@@ -4133,12 +4133,12 @@ export interface ProcedureSpec<TCollected = unknown> {
     /** Awaited before the provider joins a run; false drops it (e.g. a dataset download failed). */
     prepare?: () => Promise<boolean>;
 }
-/** What the enrichment scheduler needs on top of a procedure: the fields it produces
- *  (which the field picker offers and the skip-if-present check reads), the columns it
- *  writes, and what it must wait for. Only the enrichment path registers these; a
- *  consumer that just wants a procedure run declares a `ProcedureSpec` and calls
- *  `runProcedure`. */
-export interface EnrichmentProvider {
+/** A procedure with a place in the dependency graph: what it produces (`fieldDefs`,
+ *  `provides`) and what it must wait for (`requires`), so `runProviders` can schedule
+ *  several together. One that declares `fieldDefs` is an enrichment provider: its fields
+ *  are selectable and `enrichAll` runs it implicitly. A consumer that just wants one
+ *  procedure run declares a `ProcedureSpec` and calls `runProcedure`. */
+export interface Provider {
     id: string;
     /** Bulk progress label for slow providers; omit for instant ones. */
     label?: string;
@@ -4155,9 +4155,9 @@ export interface EnrichmentProvider {
      *  wave than any provider producing them. */
     requires?: string[];
 }
-/** Register a provider that computes extra fields during enrichment (e.g. sun position).
- *  Unregistered when the plugin deactivates. */
-declare function registerEnrichmentProvider(provider: EnrichmentProvider): void;
+/** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
+ *  deactivates. */
+declare function registerProvider(provider: Provider): void;
 
 /** Keys some location on this map carries. Same reference until `fields:changed`. */
 declare function getKnownFieldKeys(): ReadonlySet<string>;
@@ -4568,6 +4568,8 @@ declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
 declare function fetchAllLocations(): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.coverage()`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
+/** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
+declare function registerEnrichmentProvider(provider: Provider): void;
 
 declare const legacy_fetchAllLocations: typeof fetchAllLocations;
 declare const legacy_fetchLocation: typeof fetchLocation;
@@ -4584,6 +4586,7 @@ declare const legacy_getSelectedLocationIds: typeof getSelectedLocationIds;
 declare const legacy_getSelections: typeof getSelections;
 declare const legacy_getTagCounts: typeof getTagCounts;
 declare const legacy_getWorkArea: typeof getWorkArea;
+declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
 declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
 declare namespace legacy {
   export {
@@ -4602,6 +4605,7 @@ declare namespace legacy {
     legacy_getSelections as getSelections,
     legacy_getTagCounts as getTagCounts,
     legacy_getWorkArea as getWorkArea,
+    legacy_registerEnrichmentProvider as registerEnrichmentProvider,
     legacy_waitForGoogleMap as waitForGoogleMap,
   };
 }
@@ -4670,7 +4674,7 @@ declare const fields: {
     getAllFieldDefs: typeof getAllFieldDefs;
     getKnownFieldKeys: typeof getKnownFieldKeys;
     registerEnrichFields: typeof registerEnrichFields;
-    registerEnrichmentProvider: typeof registerEnrichmentProvider;
+    registerProvider: typeof registerProvider;
 };
 /** Panoramas the user has already seen. */
 declare const seen: {

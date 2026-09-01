@@ -137,13 +137,13 @@ import {
 	resolveFieldLabels,
 	type PhasePart,
 } from "@/lib/data/procedures";
-import { registerEnrichmentProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
+import { registerProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { enrichAll, enrichRuns, panoResolveProvider } from "@/lib/sv/enrich";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
-import type { EnrichmentProvider, ProcedureSpec } from "@/lib/data/fieldDefs";
+import type { Provider, ProcedureSpec } from "@/lib/data/fieldDefs";
 
-const plainProvider: EnrichmentProvider = {
+const plainProvider: Provider = {
 	id: "prov",
 	label: "Prov",
 	fieldDefs: {
@@ -152,7 +152,7 @@ const plainProvider: EnrichmentProvider = {
 	procedure: { entry: "res://p.js", batch: { mode: "chunk", size: 10 } },
 };
 
-const coreProvider: EnrichmentProvider = {
+const coreProvider: Provider = {
 	id: "core",
 	provides: ["panoId"],
 	procedure: { entry: "res://procedures/c.js", batch: { mode: "chunk", size: 10 } },
@@ -174,7 +174,7 @@ beforeEach(() => {
 
 const ids = () => h.decls.map((d) => d.id);
 
-const collectProvider: EnrichmentProvider = {
+const collectProvider: Provider = {
 	id: "collect",
 	procedure: { entry: "res://q.js", batch: { mode: "perRow" }, sink: "collect" },
 };
@@ -245,7 +245,7 @@ describe("runProviders hands the engine the caller's selector", () => {
 	});
 
 	it("lets the caller override the config the procedure declares", async () => {
-		const withConfig: EnrichmentProvider = {
+		const withConfig: Provider = {
 			...coreProvider,
 			procedure: { ...coreProvider.procedure, config: { radius: 50 } },
 		};
@@ -392,7 +392,7 @@ describe("the query surface", () => {
 	});
 
 	it("asks the field's provider for display labels", async () => {
-		registerEnrichmentProvider({
+		registerProvider({
 			id: "labelled",
 			procedure: { entry: "res://procedures/labelled.js", batch: { mode: "perRow" } },
 			fieldDefs: {
@@ -433,10 +433,10 @@ describe("the query surface", () => {
 	});
 
 	it("has no per-row transform hook: display formatting is a module query", () => {
-		const provider: EnrichmentProvider = {
+		const provider: Provider = {
 			id: "no-transform",
 			procedure: { entry: "res://procedures/x.js", batch: { mode: "perRow" } },
-			// @ts-expect-error EnrichmentProvider.transform was deleted in favour of `query`.
+			// @ts-expect-error Provider.transform was deleted in favour of `query`.
 			transform: () => null,
 		};
 		expect(provider.id).toBe("no-transform");
@@ -447,14 +447,14 @@ describe("the query surface", () => {
 // The bar reports real work in the wave that is running: skipped rows leave both sides
 // of the fraction, and a finished wave stops counting once the next one reports in.
 
-const waveA: EnrichmentProvider = {
+const waveA: Provider = {
 	id: "waveA",
 	label: "Wave A",
 	provides: ["panoId"],
 	procedure: { entry: "res://a.js", batch: { mode: "perRow" } },
 };
 
-const waveB: EnrichmentProvider = {
+const waveB: Provider = {
 	id: "waveB",
 	label: "Wave B",
 	requires: ["panoId"],
@@ -465,7 +465,7 @@ const waveB: EnrichmentProvider = {
 type Tick = [number, number, string | undefined];
 
 /** Run `providers` against a scripted engine event stream, collecting every `onProgress`. */
-async function ticks(providers: EnrichmentProvider[], script: Omit<ProcedureProgress, "runId">[]) {
+async function ticks(providers: Provider[], script: Omit<ProcedureProgress, "runId">[]) {
 	h.script = script;
 	const seen: Tick[] = [];
 	await runProviders(

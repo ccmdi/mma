@@ -8,7 +8,7 @@ import {
 } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
 import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
-import { registerEnrichmentProvider, type EnrichmentProvider } from "@/lib/data/fieldDefs";
+import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
 import { msg } from "@/lib/i18n";
 
 export type RoadDirection = "forwards" | "backwards";
@@ -20,7 +20,7 @@ export interface HeadingRoadConfig {
 /** Pan a location's heading along the road. The driving direction is GetMetadata's
  *  `pov.heading` (this source has no `tiles.centerHeading`); "forwards" faces it,
  *  "backwards" faces the opposite. */
-export const headingRoadProvider: EnrichmentProvider = {
+export const headingRoadProvider: Provider = {
 	id: "headingRoad",
 	label: msg("Pan heading along road"),
 	requires: ["panoId"],
@@ -32,7 +32,7 @@ export const headingRoadProvider: EnrichmentProvider = {
 	},
 };
 
-registerEnrichmentProvider(headingRoadProvider);
+registerProvider(headingRoadProvider);
 
 /** Pan every heading in the selector along the road. */
 export async function bulkPanHeading(

@@ -19,18 +19,14 @@ import {
 } from "@/plugins/registry";
 import { subscribe } from "@/lib/events";
 import {
-	registerEnrichmentProvider,
-	getEnrichmentProviders,
+	registerProvider,
+	getProviders,
 	registerEnrichFields,
 	getEnrichFieldOptions,
 } from "@/lib/data/fieldDefs";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 
-function makePlugin(
-	id: string,
-	name: string,
-	activate: Plugin["activate"] = vi.fn(),
-): Plugin {
+function makePlugin(id: string, name: string, activate: Plugin["activate"] = vi.fn()): Plugin {
 	return { id, name, icon: "test", activate };
 }
 
@@ -285,7 +281,7 @@ describe("plugin deactivation tears down enrichment registrations", () => {
 		registerPlugin(
 			makePlugin(pid, "Enrich " + sfx, () => {
 				registerEnrichFields([{ key: fieldKey, label: "WX", defaultOff: true }]);
-				registerEnrichmentProvider({
+				registerProvider({
 					id: provId,
 					procedure: { entry: "res://procedures/test.js", batch: { mode: "perRow" } },
 					fieldDefs: { [fieldKey]: { type: "number" as const, label: "WX" } },
@@ -295,13 +291,13 @@ describe("plugin deactivation tears down enrichment registrations", () => {
 		setPluginEnabled(pid, true);
 		activatePlugin(pid);
 
-		expect(getEnrichmentProviders().some((p) => p.id === provId)).toBe(true);
+		expect(getProviders().some((p) => p.id === provId)).toBe(true);
 		expect(getEnrichFieldOptions().some((o) => o.key === fieldKey)).toBe(true);
 		expect(getFieldDef(fieldKey)).toBeDefined();
 
 		deactivatePlugin(pid);
 
-		expect(getEnrichmentProviders().some((p) => p.id === provId)).toBe(false);
+		expect(getProviders().some((p) => p.id === provId)).toBe(false);
 		expect(getEnrichFieldOptions().some((o) => o.key === fieldKey)).toBe(false);
 		expect(getFieldDef(fieldKey)).toBeUndefined();
 	});

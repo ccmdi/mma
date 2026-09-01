@@ -509,7 +509,7 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 		// `select` to these ids is what keeps it off every other suite's locations.
 		await withApi(
 			async (api, ids, entry) => {
-				api.registerEnrichmentProvider({
+				api.registerProvider({
 					id: "e2e-sun",
 					requires: ["datetime"],
 					fieldDefs: {
