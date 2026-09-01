@@ -192,6 +192,68 @@ export async function runPin(force = true): Promise<EnrichRun> {
 	);
 }
 
+/** The engine's compute path: a procedure that only calculates, so nothing is waiting
+ *  on the network. `entry` is a bundled plugin procedure; rows are polled until the
+ *  fields land, because the run itself is fire-and-forget. */
+export async function runCompute(
+	entry: string,
+	fields: string[],
+	timeoutMs = 20 * 60 * 1000,
+): Promise<{ durationMs: number; written: number }> {
+	return withApi(
+		async (api, procEntry, procFields, deadlineMs, scope) => {
+			const a = api as unknown as Record<string, unknown>;
+			const cmd = a.cmd as Record<string, (...x: unknown[]) => Promise<unknown>>;
+			const start = Date.now();
+			await cmd.procedureRun(
+				[
+					{
+						id: "scaleCompute",
+						label: null,
+						entry: procEntry,
+						fields: procFields,
+						requires: [],
+						select: scope,
+						batch: { mode: "chunk", size: 10_000 },
+						rate: null,
+						retry: null,
+						inflight: null,
+						instances: null,
+						config: null,
+					},
+				],
+				true,
+			);
+			// Not every row can produce the field (a compute pass needs its input), so the
+			// run is done when the count stops moving, not when it reaches the row count.
+			const key = (procFields as string[])[0];
+			const deadline = Date.now() + (deadlineMs as number);
+			let previous = -1;
+			let stable = 0;
+			for (;;) {
+				const rows = (await (
+					a.fetchLocations as (s: unknown) => Promise<Record<string, unknown>[]>
+				)(scope)) as Record<string, unknown>[];
+				const written = rows.filter(
+					(l) => typeof (l.extra as Record<string, unknown> | undefined)?.[key] === "number",
+				).length;
+				if (written === rows.length) return { durationMs: Date.now() - start, written };
+				stable = written === previous ? stable + 1 : 0;
+				previous = written;
+				if (stable >= 3 && written > 0) return { durationMs: Date.now() - start, written };
+				if (Date.now() >= deadline) {
+					throw new Error(`compute run stalled at ${written}/${rows.length}`);
+				}
+				await new Promise<void>((resolve) => setTimeout(resolve, 250));
+			}
+		},
+		entry,
+		fields,
+		timeoutMs,
+		EVERYTHING,
+	);
+}
+
 /** Validation state per row, reduced to a count per state. */
 export async function runValidate(): Promise<{
 	durationMs: number;

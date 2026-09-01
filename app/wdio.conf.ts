@@ -38,8 +38,6 @@ if (!isWorker && !process.env.MMA_E2E_LOG_PATH) {
 export const SHARED_EXCLUDES = [
 	"./test/e2e/scratch.test.ts",
 	"./test/e2e/performance.test.ts",
-	// Wipes every map in the list during cleanup, so it can't share a run with other specs.
-	"./test/e2e/bulk-import-rust.test.ts",
 	// Engine A/B suites: driven explicitly against two images, never part of a suite run.
 	"./test/e2e/procedure-bench.test.ts",
 	"./test/e2e/procedure-parity.test.ts",

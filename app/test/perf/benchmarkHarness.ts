@@ -379,69 +379,6 @@ export function benchSeed(): number {
 	return Number(process.env.MMA_BENCH_SEED ?? 1337);
 }
 
-interface EnrichFixtureMetadata {
-	schemaVersion: typeof SCHEMA_VERSION;
-	seed: number;
-	count: number;
-	variant: "enrich";
-}
-
-/** Write (or reuse) a fixture of `count` world-spread points, each finished by `row`,
- *  under `variant`. The seed comes from `benchSeed`, so the same count and variant
- *  reuse the file. */
-async function writeSpreadFixture(
-	variant: EnrichFixtureMetadata["variant"],
-	count: number,
-	row: (index: number) => Record<string, unknown>,
-): Promise<string> {
-	if (!Number.isInteger(count) || count < 0) {
-		throw new Error("Fixture count must be a non-negative integer");
-	}
-	const seed = benchSeed();
-	const file = path.join(tmpdir(), `mma-bench-${variant}-${count}-${seed}.json`);
-	const metadata: EnrichFixtureMetadata = { schemaVersion: SCHEMA_VERSION, seed, count, variant };
-	if (await reusableFixture(file, metadata)) return file;
-
-	await fs.mkdir(path.dirname(file), { recursive: true });
-	const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
-	const stream = createWriteStream(temporary, { encoding: "utf8" });
-	const random = createPrng(seed);
-	const write = async (contents: string): Promise<void> => {
-		if (!stream.write(contents)) await once(stream, "drain");
-	};
-
-	try {
-		await write('{"customCoordinates":[');
-		for (let index = 0; index < count; index += 1) {
-			const location = {
-				lat: Number((-85 + random() * 170).toFixed(6)),
-				lng: Number((-180 + random() * 360).toFixed(6)),
-				heading: Number((0.001 + random() * 359.998).toFixed(3)),
-				...row(index),
-			};
-			await write(`${index === 0 ? "" : ","}${JSON.stringify(location)}`);
-		}
-		stream.end("]}");
-		await once(stream, "finish");
-		await fs.rename(temporary, file);
-		await atomicWrite(`${file}.meta.json`, `${JSON.stringify(metadata, null, 2)}\n`);
-	} catch (error) {
-		stream.destroy();
-		await fs.rm(temporary, { force: true });
-		throw error;
-	}
-	return file;
-}
-
-/** The enrichment fixture: no panoId on any row (so the resolver has nothing to do) and
- *  an `extra.datetime` on every row, which is the only input a sun-position pass consumes. */
-export function writeEnrichFixture(count: number): Promise<string> {
-	return writeSpreadFixture("enrich", count, (index) => ({
-		// Spread over a year so the sun math walks the whole seasonal range.
-		extra: { datetime: 1_700_000_000 + ((index * 3600) % 31_536_000) },
-	}));
-}
-
 export async function writeFixture(
 	count: number,
 	cluster?: BenchmarkFixtureOptions["cluster"],

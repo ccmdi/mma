@@ -7,6 +7,17 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const FIXTURE_ZIP = resolve(__dirname, "../fixtures/mma-export-sample.zip");
 
+const mapIds = (): Promise<string[]> =>
+	withApi(async (api) => (await api.cmd.storeListMaps()).map((m: MapMeta) => m.id));
+
+/** Delete only what this block imported. The suite shares one app, so a cleanup that
+ *  walks the whole map list takes other specs' maps with it. */
+async function dropImported(before: string[]): Promise<void> {
+	for (const id of await mapIds()) {
+		if (!before.includes(id)) await deleteMap(id);
+	}
+}
+
 // ============================================================================
 // Rust bulk import — preview
 // ============================================================================
@@ -61,8 +72,11 @@ describe("Rust bulk import — preview", () => {
 // ============================================================================
 
 describe("Rust bulk import — confirm and verify", () => {
+	let existing: string[] = [];
+
 	before(async () => {
 		await waitForReady();
+		existing = await mapIds();
 	});
 
 	it("imports selected maps into DB", async () => {
@@ -172,12 +186,7 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	after(async () => {
 		await closeMap();
-		const maps = await withApi(async (api) => {
-			return await api.cmd.storeListMaps();
-		});
-		for (const m of maps) {
-			await deleteMap(m.id);
-		}
+		await dropImported(existing);
 	});
 });
 
@@ -186,27 +195,27 @@ describe("Rust bulk import — confirm and verify", () => {
 // ============================================================================
 
 describe("Rust bulk import — selective import", () => {
+	let existing: string[] = [];
+
 	before(async () => {
 		await waitForReady();
+		existing = await mapIds();
 	});
 
 	it("imports only selected indices", async () => {
-		const result = await withApi(async (api, p) => {
+		const importedCount = await withApi(async (api, p) => {
 			await api.cmd.bulkImportPreview(p);
 			const imported = await api.cmd.bulkImportConfirm(p, [0, 2]);
 			await api.invalidateMapList();
-			const maps = await api.cmd.storeListMaps();
-			return { importedCount: imported.length, mapCount: maps.length };
+			return imported.length;
 		}, FIXTURE_ZIP);
 
-		expect(result.importedCount).toBe(2);
-		expect(result.mapCount).toBe(2);
+		expect(importedCount).toBe(2);
+		const added = (await mapIds()).filter((id) => !existing.includes(id));
+		expect(added.length).toBe(2);
 	});
 
 	after(async () => {
-		const maps = await withApi(async (api) => {
-			return await api.cmd.storeListMaps();
-		});
-		for (const m of maps) await deleteMap(m.id);
+		await dropImported(existing);
 	});
 });

@@ -7,12 +7,14 @@ import {
 	createMap,
 	dropMap,
 	dumpRows,
+	runCompute,
 	runEnrich,
 	runPin,
 	runValidate,
 	setEnrich,
 } from "./parityDriver";
 import { MOCK_GENERIC_IMAGE_DATE } from "./parityFixture";
+import { measureProcessTree } from "../perf/processTelemetry";
 
 /**
  * The procedures at the scale people actually run them: 10k-100k rows, mixed with the
@@ -36,6 +38,10 @@ const FIELDS = METADATA_ONLY
 
 const DAY = 86400;
 const CHUNK = 5000;
+/** A bundled plugin procedure that only computes: the engine's compute path with no
+ *  network in it at all. */
+const COMPUTE_ENTRY = "/repo/plugins/sunPosition/procedure.js";
+const COMPUTE_FIELDS = ["sunAzimuth", "sunAltitude"];
 const RESULT_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), "../perf/results");
 
 /** One in every N rows is a hostile shape, so paging never sees a uniform batch. */
@@ -75,6 +81,8 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 	let enrichMs = 0;
 	let pinMs = 0;
 	let validateMs = 0;
+	let computeMs = 0;
+	let peakRssMb: number | null = null;
 	let enrichOutcomes: unknown = null;
 	let pinOutcomes: unknown = null;
 	let validateStates: unknown = null;
@@ -88,15 +96,22 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 		for (let i = 0; i < all.length; i += CHUNK) {
 			await addFixture(all.slice(i, i + CHUNK));
 		}
-		const enrich = await runEnrich(false);
-		enrichMs = enrich.durationMs;
-		enrichOutcomes = enrich.outcomes;
-		const pin = await runPin(true);
-		pinMs = pin.durationMs;
-		pinOutcomes = pin.outcomes;
-		const validate = await runValidate();
-		validateMs = validate.durationMs;
-		validateStates = validate.states;
+		// One telemetry window over every phase: peak memory is the whole run's, which is
+		// the number a scale question actually asks.
+		const measured = await measureProcessTree(async () => {
+			const enrich = await runEnrich(false);
+			enrichMs = enrich.durationMs;
+			enrichOutcomes = enrich.outcomes;
+			const pin = await runPin(true);
+			pinMs = pin.durationMs;
+			pinOutcomes = pin.outcomes;
+			const validate = await runValidate();
+			validateMs = validate.durationMs;
+			validateStates = validate.states;
+			computeMs = (await runCompute(COMPUTE_ENTRY, COMPUTE_FIELDS)).durationMs;
+		});
+		const rss = measured.telemetry.peakRssBytes;
+		peakRssMb = typeof rss === "number" ? Math.round(rss / 1024 / 1024) : null;
 		rows = await dumpRows();
 	});
 
@@ -149,9 +164,12 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 			enrichMs,
 			pinMs,
 			validateMs,
+			computeMs,
+			peakRssMb,
 			rowsPerSecond: Number((ROWS / (enrichMs / 1000)).toFixed(2)),
 			pinRowsPerSecond: Number((ROWS / (pinMs / 1000)).toFixed(2)),
 			validateRowsPerSecond: Number((ROWS / (validateMs / 1000)).toFixed(2)),
+			computeRowsPerSecond: Number((ROWS / (computeMs / 1000)).toFixed(2)),
 			enrichOutcomes,
 			pinOutcomes,
 			validateStates,
