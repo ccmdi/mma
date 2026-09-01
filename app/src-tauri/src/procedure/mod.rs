@@ -51,7 +51,12 @@ pub trait ProcHost {
         reqs.iter().map(|r| self.fetch(r)).collect()
     }
     /// Point-in-polygon lookup against a local border dataset. `None` outside every feature.
-    fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>>;
+    fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>> {
+        Ok(crate::plugins::borders::classify_points(dataset, &[(lat, lng)])?
+            .into_iter()
+            .next()
+            .flatten())
+    }
     /// Start one sidecar command; its output lines are pulled from the stream as they
     /// arrive, so the caller can report progress while the command still runs.
     fn sidecar(
@@ -59,7 +64,9 @@ pub trait ProcHost {
         plugin_id: &str,
         command: &str,
         payload_json: &str,
-    ) -> AppResult<SidecarStream>;
+    ) -> AppResult<SidecarStream> {
+        crate::plugins::sidecar::sidecar_call_stream(plugin_id, command, payload_json)
+    }
     fn progress(&mut self, units: u32);
     fn fail(&mut self, id: u32);
     fn aborted(&self) -> bool;

@@ -3,9 +3,6 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::plugins::borders;
-use crate::plugins::sidecar;
-use crate::plugins::sidecar::SidecarStream;
 use crate::selections::{ids_within, narrow, Selector};
 use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
@@ -1273,22 +1270,6 @@ impl ProcHost for EngineHost<'_> {
         )
     }
 
-    fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>> {
-        Ok(borders::classify_points(dataset, &[(lat, lng)])?
-            .into_iter()
-            .next()
-            .flatten())
-    }
-
-    fn sidecar(
-        &mut self,
-        plugin_id: &str,
-        command: &str,
-        payload_json: &str,
-    ) -> AppResult<SidecarStream> {
-        sidecar::sidecar_call_stream(plugin_id, command, payload_json)
-    }
-
     fn progress(&mut self, units: u32) {
         self.reported += units;
         self.prog.add_done(units);
@@ -1339,22 +1320,6 @@ impl ProcHost for QueryHost<'_> {
             self.aborted,
             reqs,
         )
-    }
-
-    fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>> {
-        Ok(borders::classify_points(dataset, &[(lat, lng)])?
-            .into_iter()
-            .next()
-            .flatten())
-    }
-
-    fn sidecar(
-        &mut self,
-        plugin_id: &str,
-        command: &str,
-        payload_json: &str,
-    ) -> AppResult<SidecarStream> {
-        sidecar::sidecar_call_stream(plugin_id, command, payload_json)
     }
 
     fn progress(&mut self, _units: u32) {}
