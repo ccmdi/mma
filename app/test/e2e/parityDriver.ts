@@ -179,9 +179,9 @@ export async function runPin(force = true): Promise<EnrichRun> {
 	return withApi(
 		async (api, doForce, scope) => {
 			const a = api as unknown as Record<string, unknown>;
-			const pin = a.bulkPinToPano as (t: unknown, o: unknown) => Promise<number>;
+			const pin = a.bulkPinToPano as (t: unknown, o: unknown) => Promise<{ succeeded: number }>;
 			const start = Date.now();
-			const pinned = await pin(scope, { force: doForce });
+			const pinned = (await pin(scope, { force: doForce })).succeeded;
 			return {
 				durationMs: Date.now() - start,
 				outcomes: [{ id: "pinPano", success: Number(pinned ?? 0), failed: 0 }],
@@ -264,7 +264,8 @@ export async function runValidate(): Promise<{
 			const a = api as unknown as Record<string, unknown>;
 			const validate = a.validateLocations as (t: unknown, o: unknown) => Promise<unknown>;
 			const start = Date.now();
-			const res = (await validate(scope, {})) as Map<number, unknown[]> | undefined;
+			const res = ((await validate(scope, {})) as { states?: Map<number, unknown[]> } | undefined)
+				?.states;
 			const states: [number, number][] = res
 				? [...res.entries()].map(([state, rows]) => [Number(state), rows.length])
 				: [];

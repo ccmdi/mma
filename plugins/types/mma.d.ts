@@ -4337,14 +4337,18 @@ export type EnrichResult = EnrichOutcome[];
 declare function enrichAll(selector: Selector, opts?: BulkOpts & Pick<RunOpts, "force">): Promise<EnrichResult>;
 
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
- *  loads the same pano. Returns the number of locations pinned. */
+ *  loads the same pano. */
 declare function bulkPinToPano(selector: Selector, opts?: BulkOpts & Pick<RunOpts, "force"> & {
     useLatest?: boolean;
-}): Promise<number>;
+}): Promise<BatchOutcome>;
 
-/** Check that each location's Street View coverage still exists; returns the location
- *  ids grouped by the state they validated to. */
-declare function validateLocations(selector: Selector, opts?: BulkOpts): Promise<Map<ValidationState, number[]>>;
+/** What a validation run answered: the ids grouped by the state they validated to, over
+ *  the outcome every run reports. */
+export interface ValidationOutcome extends BatchOutcome {
+    states: Map<ValidationState, number[]>;
+}
+/** Check that each location's Street View coverage still exists. */
+declare function validateLocations(selector: Selector, opts?: BulkOpts): Promise<ValidationOutcome>;
 
 /**
  * The surface a procedure module runs against: the global `mma` object and the values

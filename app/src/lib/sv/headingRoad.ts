@@ -1,5 +1,10 @@
 import type { Selector } from "@/bindings.gen";
-import { procedureEntry, runProviders, type BulkOpts } from "@/lib/data/procedures";
+import {
+	procedureEntry,
+	runProviders,
+	type BatchOutcome,
+	type BulkOpts,
+} from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
 import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
 import { registerEnrichmentProvider, type EnrichmentProvider } from "@/lib/data/fieldDefs";
@@ -28,12 +33,12 @@ export const headingRoadProvider: EnrichmentProvider = {
 
 registerEnrichmentProvider(headingRoadProvider);
 
-/** Pan every heading in the selector along the road. Returns the number panned. */
+/** Pan every heading in the selector along the road. */
 export async function bulkPanHeading(
 	selector: Selector,
 	direction: RoadDirection,
 	opts: BulkOpts = {},
-): Promise<number> {
+): Promise<BatchOutcome> {
 	const result = await runProviders(
 		[
 			{ provider: panoResolveProvider },
@@ -42,5 +47,5 @@ export async function bulkPanHeading(
 		selector,
 		opts,
 	);
-	return result.headingRoad?.succeeded ?? 0;
+	return result.headingRoad ?? { succeeded: 0, failed: [] };
 }

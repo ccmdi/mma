@@ -1,6 +1,12 @@
 import type { Selector } from "@/bindings.gen";
 import { buildSelection } from "@/store/selections";
-import { procedureEntry, runProviders, type BulkOpts, type RunOpts } from "@/lib/data/procedures";
+import {
+	procedureEntry,
+	runProviders,
+	type BatchOutcome,
+	type BulkOpts,
+	type RunOpts,
+} from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
 import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
 import { registerEnrichmentProvider, type EnrichmentProvider } from "@/lib/data/fieldDefs";
@@ -44,11 +50,11 @@ function unpinnedIn(selector: Selector): Selector {
 }
 
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
- *  loads the same pano. Returns the number of locations pinned. */
+ *  loads the same pano. */
 export async function bulkPinToPano(
 	selector: Selector,
 	opts: BulkOpts & Pick<RunOpts, "force"> & { useLatest?: boolean } = {},
-): Promise<number> {
+): Promise<BatchOutcome> {
 	const { useLatest, force = false, ...runOpts } = opts;
 	const target = force ? undefined : unpinnedIn(selector);
 	// Pinning resolves the panorama, it does not merely fill a missing one: a row that
@@ -101,5 +107,5 @@ export async function bulkPinToPano(
 		selector,
 		{ ...runOpts, force },
 	);
-	return result.pinPano?.succeeded ?? 0;
+	return result.pinPano ?? { succeeded: 0, failed: [] };
 }

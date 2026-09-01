@@ -65,6 +65,8 @@ interface BulkRunContext {
 
 interface BulkRunResult {
 	doneMessage?: string;
+	/** What the run did, so one button can offer back the rows it could not work. */
+	outcome?: BatchOutcome;
 	doneContent?: React.ReactNode;
 	/** Extra buttons rendered in the actions row next to Close when done. */
 	doneActions?: React.ReactNode;
@@ -135,17 +137,18 @@ function ValidateSetup({ picker, onReady }: SetupProps) {
 					variant="primary"
 					onClick={() =>
 						onReady(async ({ selector, signal, onProgress }) => {
-							const results = await validateLocations(selector, { signal, onProgress });
+							const result = await validateLocations(selector, { signal, onProgress });
 							const batch = Object.values(ValidationState)
-								.filter((state) => (results.get(state)?.length ?? 0) > 0)
+								.filter((state) => (result.states.get(state)?.length ?? 0) > 0)
 								.map((state) => ({
 									type: "ValidationState" as const,
-									locations: results.get(state)!,
+									locations: result.states.get(state)!,
 									state,
 								}));
 							if (batch.length > 0) void addSelections(batch);
 							const n = batch.reduce((total, b) => total + b.locations.length, 0);
 							return {
+								outcome: result,
 								doneMessage: t(
 									{
 										one: "Done -- {n} location validated.",
@@ -281,16 +284,17 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 					variant="primary"
 					onClick={() =>
 						onReady(async ({ selector, signal, onProgress }) => {
-							const count = await bulkPinToPano(selector, {
+							const outcome = await bulkPinToPano(selector, {
 								signal,
 								force: force || useLatest,
 								useLatest,
 								onProgress,
 							});
 							return {
+								outcome,
 								doneMessage: t(
 									{ one: "Done -- {n} location pinned.", other: "Done -- {n} locations pinned." },
-									{ n: count },
+									{ n: outcome.succeeded },
 								),
 							};
 						})
@@ -532,11 +536,12 @@ function HeadingRoadSetup({ picker, onReady }: SetupProps) {
 					variant="primary"
 					onClick={() =>
 						onReady(async ({ selector, signal, onProgress }) => {
-							const count = await bulkPanHeading(selector, direction, { signal, onProgress });
+							const outcome = await bulkPanHeading(selector, direction, { signal, onProgress });
 							return {
+								outcome,
 								doneMessage: t(
 									{ one: "Panned {n} heading.", other: "Panned {n} headings." },
-									{ n: count },
+									{ n: outcome.succeeded },
 								),
 							};
 						})
@@ -640,6 +645,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 								toast(t("Save failed"));
 							}
 							return {
+								outcome: result,
 								doneMessage:
 									t("Done -- {n} downloaded", { n: result.succeeded }) +
 									(result.failed.length > 0
@@ -706,7 +712,6 @@ function DownloadDoneActions({
 					{result.succeeded === 1 ? t("Save image") : t("Save ZIP")}
 				</Button>
 			)}
-			<SelectFailedButton outcome={result} />
 		</>
 	);
 }
@@ -888,6 +893,9 @@ export function BulkProgress({
 				) : (
 					<>
 						{status === "done" && result.doneActions}
+						{status === "done" && result.outcome != null && (
+							<SelectFailedButton outcome={result.outcome} />
+						)}
 						<Button variant="primary" onClick={onClose}>
 							{t("Close")}
 						</Button>

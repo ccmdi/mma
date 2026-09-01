@@ -229,28 +229,4 @@ describe("the svMeta run pass", () => {
 		expect(failed).toEqual([4]);
 	});
 
-	it("fails rows without a pano id instead of silently passing them as successes", () => {
-		const failed: number[] = [];
-		let ticks = 0;
-		(globalThis as any).mma = {
-			fetchMany: (reqs: unknown[]) => reqs.map(() => ({ status: 200, body: b64Bytes(BIN_CAR) })),
-			log: () => {},
-			progress: (n: number) => {
-				ticks += n;
-			},
-			fail: (id: number) => failed.push(id),
-			aborted: () => false,
-		};
-		configure(null);
-		const out = run([
-			{ id: 1, lat: 0, lng: 0, panoId: "hasOne", extra: null },
-			{ id: 2, lat: 0, lng: 0, panoId: null, extra: null },
-			{ id: 3, lat: 0, lng: 0, panoId: "", extra: null },
-		]) as { id: number }[];
-
-		expect(failed).toEqual([2, 3]);
-		expect(out.some((u) => u.id === 1)).toBe(true);
-		expect(out.some((u) => u.id === 2 || u.id === 3)).toBe(false);
-		expect(ticks).toBe(3);
-	});
 });

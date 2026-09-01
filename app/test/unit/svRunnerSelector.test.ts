@@ -316,13 +316,13 @@ describe("the implicit provider set", () => {
 
 describe("the bulk operations name their own providers", () => {
 	it("bulkPinToPano runs panoResolve then pinPano, with the useLatest config", async () => {
-		const count = await bulkPinToPano({ type: "Everything" }, { useLatest: true, force: true });
+		const out = await bulkPinToPano({ type: "Everything" }, { useLatest: true, force: true });
 		expect(ids()).toEqual(["panoResolve", "pinPano"]);
 		const pin = h.decls[1];
 		expect(pin.config).toBe(JSON.stringify({ useLatest: true }));
 		// Forced, so the run is not narrowed away from the caller's selector.
 		expect(pin.select).toEqual({ type: "Everything" });
-		expect(count).toBe(5);
+		expect(out.succeeded).toBe(5);
 	});
 
 	it("without force pinPano only sees rows that are not already pinned", async () => {
@@ -345,10 +345,10 @@ describe("the bulk operations name their own providers", () => {
 	});
 
 	it("bulkPanHeading runs panoResolve then headingRoad, with the direction", async () => {
-		const count = await bulkPanHeading({ type: "Everything" }, "backwards");
+		const out = await bulkPanHeading({ type: "Everything" }, "backwards");
 		expect(ids()).toEqual(["panoResolve", "headingRoad"]);
 		expect(h.decls[1].config).toBe(JSON.stringify({ direction: "backwards" }));
-		expect(count).toBe(5);
+		expect(out.succeeded).toBe(5);
 	});
 
 	it("panoResolve declares panoId, so the engine schedules it before its consumers", () => {

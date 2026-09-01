@@ -21,7 +21,7 @@ async function validate(ids: number[]): Promise<Map<number, number[]>> {
 			locations: locIds,
 			name: null,
 		});
-		return [...grouped.entries()];
+		return [...grouped.states.entries()];
 	}, ids)) as [number, number[]][];
 	return new Map(pairs);
 }

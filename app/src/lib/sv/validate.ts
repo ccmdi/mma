@@ -1,7 +1,12 @@
 import type { Selector } from "@/bindings.gen";
 import { ValidationState } from "@/bindings.consts";
 import type { ProcedureSpec } from "@/lib/data/fieldDefs";
-import { procedureEntry, runProcedure, type BulkOpts } from "@/lib/data/procedures";
+import {
+	procedureEntry,
+	runProcedure,
+	type BatchOutcome,
+	type BulkOpts,
+} from "@/lib/data/procedures";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { log } from "@/lib/util/log";
 import { msg } from "@/lib/i18n";
@@ -27,12 +32,17 @@ export const validateSpec: ProcedureSpec<ValidationState> = {
 
 const STATES = new Set<number>(Object.values(ValidationState));
 
-/** Check that each location's Street View coverage still exists; returns the location
- *  ids grouped by the state they validated to. */
+/** What a validation run answered: the ids grouped by the state they validated to, over
+ *  the outcome every run reports. */
+export interface ValidationOutcome extends BatchOutcome {
+	states: Map<ValidationState, number[]>;
+}
+
+/** Check that each location's Street View coverage still exists. */
 export async function validateLocations(
 	selector: Selector,
 	opts: BulkOpts = {},
-): Promise<Map<ValidationState, number[]>> {
+): Promise<ValidationOutcome> {
 	const run = await runProcedure(validateSpec, selector, {
 		id: "validate",
 		label: msg("Validating"),
@@ -49,5 +59,5 @@ export async function validateLocations(
 		if (list) list.push(id);
 		else results.set(state, [id]);
 	}
-	return results;
+	return { ...run, states: results };
 }
