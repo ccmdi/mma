@@ -6,26 +6,21 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const RESULTS = path.join(ROOT, "app/test/perf/results");
 
-const HELP = `compare-bench -- put two exactDate bench reports side by side.
+const HELP = `compare-bench -- put two procedure scale reports side by side.
 
-  node scripts/compare-bench.mjs <baseline.json> <candidate.json>
+  node scripts/compare-bench.mjs <baseline.json> <candidate.json>   # scale-<rows>-*.json
 
 Reports live in app/test/perf/results; names may be given bare.`;
-
-function newest(match) {
-	const files = fs
-		.readdirSync(RESULTS)
-		.filter((f) => f.startsWith("procedure-bench-") && f.includes(match))
-		.sort();
-	if (!files.length) throw new Error(`no bench report matching "${match}" in ${RESULTS}`);
-	return path.join(RESULTS, files[files.length - 1]);
-}
 
 const load = (p) => JSON.parse(fs.readFileSync(p, "utf8"));
 
 const ROWS = [
-	["rows enriched", (r) => `${r.enrichedRows}/${r.rows}`],
-	["duration ms", (r) => r.durationMs],
+	["rows enriched", (r) => `${r.withDate}/${r.rows}`],
+	["enrich ms", (r) => r.enrichMs],
+	["pin ms", (r) => r.pinMs],
+	["validate ms", (r) => r.validateMs],
+	["compute ms", (r) => r.computeMs],
+	["peak rss mb", (r) => r.peakRssMb],
 	["rows/s", (r) => r.rowsPerSecond],
 	["requests", (r) => r.net.requests],
 	["requests/row", (r) => r.requestsPerRow],

@@ -23,7 +23,6 @@ export type SvFaults = Record<string, number[]>;
 
 export interface SvMockConfig {
 	net?: SvNetModel | null;
-	fixedMs?: number;
 	hiddenCapture?: boolean;
 	/** Requests served at once; the rest queue. 0 = unbounded, which lets an engine
 	 *  claim width no real endpoint would grant it. */
@@ -275,7 +274,6 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 	};
 
 	const depths = (cfg.net?.depths ?? []).slice().sort((a, b) => a.inflight - b.inflight);
-	const fixedMs = cfg.fixedMs ?? 0;
 	let live = 0;
 	let rnd = 1;
 	// The recording shows latency flat against concurrency, so a depth bucket holding a
@@ -289,7 +287,7 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 		pool[0],
 	);
 	const pickMs = (depth: number): number => {
-		if (!depths.length) return fixedMs;
+		if (!depths.length) return 0;
 		let best = fallback;
 		for (const d of pool) {
 			if (Math.abs(d.inflight - depth) < Math.abs(best.inflight - depth)) best = d;

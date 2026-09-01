@@ -207,7 +207,6 @@ export default defineConfig([
 		// Reporting suites: their stdout is the deliverable, read back from the run log.
 		files: [
 			"test/e2e/bulk-import-rust.test.ts",
-			"test/e2e/procedure-bench.test.ts",
 			"test/e2e/procedure-parity.test.ts",
 			"test/e2e/procedure-faults.test.ts",
 			"test/e2e/procedure-scale.test.ts",

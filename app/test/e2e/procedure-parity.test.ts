@@ -120,7 +120,7 @@ describe("procedure parity: every procedure over the hostile fixture", () => {
 	it("writes the dump", () => {
 		const dump = { fields: FIELDS, phases };
 		fs.mkdirSync(RESULT_DIR, { recursive: true });
-		const out = process.env.MMA_PARITY_OUT ?? path.join(RESULT_DIR, "parity.json");
+		const out = path.join(RESULT_DIR, "parity.json");
 		fs.writeFileSync(out, JSON.stringify(dump, null, "\t") + "\n");
 		console.log(`[parity] ${phases.length} phases -> ${out}`);
 		for (const p of phases) {

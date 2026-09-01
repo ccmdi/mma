@@ -14,15 +14,6 @@ import { loadNetModel } from "./svLatency";
 
 export const SV_STUB_DEFAULT_PORT = 4599;
 
-/** Milliseconds every mocked Street View answer waits before it is sent. Zero by default,
- *  so specs stay fast; a benchmark sets it, because a provider's width only shows up
- *  against a request that takes time. Read by both mock surfaces (this server for the
- *  engine, `installSvMock` for the webview) so an A/B measures the same network. */
-export function svStubLatencyMs(): number {
-	const raw = Number(process.env.MMA_E2E_SV_LATENCY_MS);
-	return Number.isFinite(raw) && raw > 0 ? raw : 0;
-}
-
 /** Port the harness serves on: from MMA_E2E_SV_ORIGIN if the launcher set one. */
 export function svStubPort(): number {
 	const origin = process.env.MMA_E2E_SV_ORIGIN;
@@ -38,7 +29,6 @@ export function svStubPort(): number {
 export function svMockConfig(): SvMockConfig {
 	return {
 		net: loadNetModel(),
-		fixedMs: svStubLatencyMs(),
 		hiddenCapture: !!process.env.MMA_E2E_SV_HIDDEN_CAPTURE,
 		maxInflight: Number(process.env.MMA_E2E_SV_MAX_INFLIGHT ?? 0),
 		faults: process.env.MMA_E2E_SV_FAULTS ? JSON.parse(process.env.MMA_E2E_SV_FAULTS) : undefined,

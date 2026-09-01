@@ -7,6 +7,8 @@ import {
 	createMap,
 	dropMap,
 	dumpRows,
+	collectNet,
+	resetTimelines,
 	runCompute,
 	runEnrich,
 	runPin,
@@ -31,6 +33,7 @@ import { measureProcessTree } from "../perf/processTelemetry";
  */
 
 const ROWS = Number(process.env.MMA_SCALE_ROWS ?? 10000);
+const LABEL = process.env.MMA_SCALE_LABEL ?? "";
 const METADATA_ONLY = process.env.MMA_SCALE_FIELDS === "metadata";
 const FIELDS = METADATA_ONLY
 	? ["countryCode", "altitude", "cameraType", "panoType", "imageDate"]
@@ -38,6 +41,13 @@ const FIELDS = METADATA_ONLY
 
 const DAY = 86400;
 const CHUNK = 5000;
+/** The exact-date search's own shape: BRANCH interior probes per round over a 33-day
+ *  window, so the day-precision projection below is arithmetic on measured rounds
+ *  rather than a second implementation of the search. */
+const BRANCH = 4;
+const WINDOW_S = 33 * DAY;
+const roundsFor = (accuracy: number) =>
+	Math.max(1, Math.ceil(Math.log(WINDOW_S / accuracy) / Math.log(BRANCH + 1)));
 /** A bundled plugin procedure that only computes: the engine's compute path with no
  *  network in it at all. */
 const COMPUTE_ENTRY = "/repo/plugins/sunPosition/procedure.js";
@@ -83,6 +93,7 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 	let validateMs = 0;
 	let computeMs = 0;
 	let peakRssMb: number | null = null;
+	let net: Awaited<ReturnType<typeof collectNet>> | null = null;
 	let enrichOutcomes: unknown = null;
 	let pinOutcomes: unknown = null;
 	let validateStates: unknown = null;
@@ -96,6 +107,7 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 		for (let i = 0; i < all.length; i += CHUNK) {
 			await addFixture(all.slice(i, i + CHUNK));
 		}
+		await resetTimelines();
 		// One telemetry window over every phase: peak memory is the whole run's, which is
 		// the number a scale question actually asks.
 		const measured = await measureProcessTree(async () => {
@@ -110,6 +122,7 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 			validateStates = validate.states;
 			computeMs = (await runCompute(COMPUTE_ENTRY, COMPUTE_FIELDS)).durationMs;
 		});
+		net = await collectNet();
 		const rss = measured.telemetry.peakRssBytes;
 		peakRssMb = typeof rss === "number" ? Math.round(rss / 1024 / 1024) : null;
 		rows = await dumpRows();
@@ -152,13 +165,22 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 			.sort();
 		const digest = crypto.createHash("sha256").update(lines.join("\n")).digest("hex");
 
+		const rowDates: Record<string, number> = {};
+		for (const r of rows) {
+			const ts = (r.extra as Record<string, unknown>).datetime;
+			if (typeof ts === "number") rowDates[`${r.lat},${r.lng}`] = ts;
+		}
 		const withDate = rows.filter(
 			(r) => typeof (r.extra as Record<string, unknown>).datetime === "number",
 		).length;
 		const withCountry = rows.filter(
 			(r) => typeof (r.extra as Record<string, unknown>).countryCode === "string",
 		).length;
+		const enrichedRows = Object.keys(rowDates).length;
+		const requests = net?.stats.requests ?? 0;
+		const rowsPerSecond = ROWS / (enrichMs / 1000);
 		const report = {
+			label: LABEL,
 			rows: ROWS,
 			fields: FIELDS,
 			enrichMs,
@@ -175,13 +197,24 @@ describe(`procedure scale: ${ROWS} rows`, () => {
 			validateStates,
 			withDate,
 			withCountry,
+			surface: net?.surface ?? "none",
+			net: net?.stats ?? null,
+			requestsPerRow: enrichedRows > 0 ? Number((requests / enrichedRows).toFixed(2)) : 0,
+			projection: {
+				roundsSecond: roundsFor(1),
+				roundsDay: roundsFor(DAY),
+				projectedRowsPerSecondAtDay: Number(
+					(rowsPerSecond * (roundsFor(1) / roundsFor(DAY))).toFixed(2),
+				),
+			},
 			digest,
+			rowDates,
 		};
 		fs.mkdirSync(RESULT_DIR, { recursive: true });
 		fs.writeFileSync(
-			path.join(RESULT_DIR, `scale-${ROWS}.json`),
+			path.join(RESULT_DIR, `scale-${ROWS}${LABEL ? `-${LABEL}` : ""}-${Date.now()}.json`),
 			JSON.stringify(report, null, "\t") + "\n",
 		);
-		console.log("[scale] " + JSON.stringify(report));
+		console.log("[scale] " + JSON.stringify({ ...report, rowDates: undefined }));
 	});
 });
