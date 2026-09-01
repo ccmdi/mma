@@ -6,13 +6,14 @@
 import type { ExtraFieldDef, ComparisonType } from "@/bindings.gen";
 import {
 	getFieldDef,
+	fieldLabel,
 	fieldValueLabel,
 	isWritableField,
 	isBuiltinField,
 	getBuiltinKeys,
 } from "@/lib/data/fieldDefRegistry";
 import { ymOrdinal } from "@/lib/util/date";
-import { t, msg } from "@/lib/i18n";
+import { t } from "@/lib/i18n";
 import {
 	kruskalEps2,
 	circularEta2,
@@ -179,14 +180,6 @@ function categoryValue(v: unknown): string | null {
 	return JSON.stringify(v);
 }
 
-function fieldLabel(key: string, def: ExtraFieldDef | undefined): string {
-	if (def?.label) return def.label;
-	if (key === "heading") return msg("Heading");
-	if (key === "pitch") return msg("Pitch");
-	if (key === "zoom") return msg("Zoom");
-	return key;
-}
-
 function isLowConfidence(present: number[]): boolean {
 	return present.some((p) => p < MIN_PRESENT);
 }
@@ -233,7 +226,7 @@ function numericField(
 		def?.type === "month" ? "month" : def?.type === "date" ? "dateTime" : "number";
 	return {
 		key,
-		label: fieldLabel(key, def),
+		label: fieldLabel(key),
 		comparison,
 		format,
 		valueScore,
@@ -293,7 +286,7 @@ function categoricalField(
 	def: ExtraFieldDef | undefined,
 ): FieldDivergence {
 	const perGroup = groups.map((g) => countValues(column(g, key).map(categoryValue)));
-	return finishCategorical(key, fieldLabel(key, def), perGroup, groupSizes, def);
+	return finishCategorical(key, fieldLabel(key), perGroup, groupSizes, def);
 }
 
 function tagIdsOf(group: GroupColumns): number[][] {
