@@ -16,14 +16,11 @@ export interface PluginSettingDef {
 	default: unknown;
 }
 
-export interface PluginIdentity {
-	id: string;
-	name: string;
-	description?: string;
-	icon: string;
-	comingSoon?: boolean;
-	experimental?: boolean;
-}
+/** The fields a plugin shows as itself, declared once by its manifest. */
+export type PluginIdentity = Pick<
+	PluginManifest,
+	"id" | "name" | "description" | "icon" | "comingSoon" | "experimental"
+>;
 
 export interface Plugin extends PluginIdentity {
 	core?: boolean;
@@ -186,7 +183,7 @@ export function registerPlugin(plugin: Plugin | PluginBehavior) {
 		const merged: Plugin = {
 			id: pendingManifest.id,
 			name: pendingManifest.name,
-			description: pendingManifest.description || undefined,
+			description: pendingManifest.description,
 			icon: pendingManifest.icon,
 			experimental: pendingManifest.experimental,
 			...plugin,

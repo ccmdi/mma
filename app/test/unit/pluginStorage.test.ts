@@ -57,6 +57,7 @@ describe("plugin settings", () => {
 	const plugin: Plugin = {
 		id: "settings-plugin",
 		name: "Settings Plugin",
+		description: "settings",
 		icon: "x",
 		activate: () => {},
 		settings: [

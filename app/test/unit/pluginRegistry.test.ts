@@ -27,7 +27,7 @@ import {
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 
 function makePlugin(id: string, name: string, activate: Plugin["activate"] = vi.fn()): Plugin {
-	return { id, name, icon: "test", activate };
+	return { id, name, description: "test", icon: "test", activate };
 }
 
 beforeEach(() => {

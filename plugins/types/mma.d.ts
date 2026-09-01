@@ -3585,14 +3585,8 @@ export interface PluginSettingDef {
     type: "boolean" | "string" | "number";
     default: unknown;
 }
-export interface PluginIdentity {
-    id: string;
-    name: string;
-    description?: string;
-    icon: string;
-    comingSoon?: boolean;
-    experimental?: boolean;
-}
+/** The fields a plugin shows as itself, declared once by its manifest. */
+export type PluginIdentity = Pick<PluginManifest, "id" | "name" | "description" | "icon" | "comingSoon" | "experimental">;
 export interface Plugin extends PluginIdentity {
     core?: boolean;
     settings?: PluginSettingDef[];
