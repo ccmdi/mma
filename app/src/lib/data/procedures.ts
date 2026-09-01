@@ -90,19 +90,17 @@ export interface BatchOutcome {
 	failed: number[];
 }
 
-export interface ResolverOutcome<TCollected = unknown> extends BatchOutcome {
+export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
 	/** Answers from a `collect` run, in page order. Absent for a run whose results were
 	 *  written as patches. Typed by the spec's declaration, not checked: the value still
 	 *  crosses a JSON boundary, so a reader guards it. */
 	collected?: CollectedEntry<TCollected>[];
 }
 
-/** Whether a pass did anything worth a summary row. */
-export function outcomeDidWork(o: BatchOutcome): boolean {
-	return o.succeeded > 0 || o.failed.length > 0;
-}
 /** Every declaration a run scheduled, by provider id. */
-export type ProviderOutcomes = Record<string, ResolverOutcome>;
+export type ProviderOutcomes = Record<string, ProcedureOutcome>;
+
+export const noWork = (): BatchOutcome => ({ succeeded: 0, failed: [] });
 
 /** A collected answer is the module's own JSON; a module that emits something else
  *  loses that entry rather than the run. */
@@ -127,8 +125,6 @@ export interface PhasePart {
 export interface RunOpts {
 	signal?: AbortSignal;
 	force?: boolean;
-	/** The `extra` keys the run should produce; null means the default set. */
-	enrichFields?: string[] | null;
 	/** `label` names the current phase; undefined = no labelled provider is running.
 	 *  `done`/`total` are phase-relative and net of skipped rows, so they reset as each
 	 *  dependency wave begins. A wave of several providers combines as min/max -- a row
@@ -171,9 +167,10 @@ function activeProviderFields(
 export async function runProviders(
 	items: ProviderRun[],
 	selector: Selector,
-	opts: RunOpts = {},
+	/** `enrichFields`: the `extra` keys the run should produce; null means the default set. */
+	opts: RunOpts & { enrichFields?: string[] | null } = {},
 ): Promise<ProviderOutcomes> {
-	const { enrichFields = null } = opts;
+	const { enrichFields = null, ...run } = opts;
 	const selectable = new Set(getAllEnrichKeys());
 	const active = new Set(enrichFields ?? getDefaultEnrichKeys());
 	const decls: ProviderDecl[] = [];
@@ -182,19 +179,16 @@ export async function runProviders(
 		// A provider with `fieldDefs` and no active field was fully deselected; one with
 		// no `fieldDefs` writes core columns and has nothing to deselect.
 		if (p.fieldDefs && fields.length === 0) continue;
-		const spec = p.procedure;
-		if (spec.prepare && !(await spec.prepare())) continue;
-		decls.push(
-			declare(p.id, spec, selector, {
-				label: p.label,
-				config,
-				force: providerForce,
-				fields: [...fields, ...(p.provides ?? [])],
-				requires: p.requires,
-			}),
-		);
+		const decl = await declare(p.id, p.procedure, selector, {
+			label: p.label,
+			config,
+			force: providerForce,
+			fields: [...fields, ...(p.provides ?? [])],
+			requires: p.requires,
+		});
+		if (decl) decls.push(decl);
 	}
-	return runDecls(decls, opts);
+	return runDecls(decls, run);
 }
 
 /** What a run may set on top of what the spec declares. */
@@ -210,7 +204,14 @@ interface DeclOpts {
 	requires?: string[];
 }
 
-function declare(id: string, spec: ProcedureSpec, selector: Selector, o: DeclOpts): ProviderDecl {
+/** Null when the spec's `prepare` gate declines, dropping it from the run. */
+async function declare(
+	id: string,
+	spec: ProcedureSpec,
+	selector: Selector,
+	o: DeclOpts,
+): Promise<ProviderDecl | null> {
+	if (spec.prepare && !(await spec.prepare())) return null;
 	return {
 		id,
 		label: o.label ?? null,
@@ -236,12 +237,12 @@ export async function runProcedure<T>(
 	spec: ProcedureSpec<T>,
 	selector: Selector,
 	opts: RunOpts & Omit<DeclOpts, "fields" | "requires"> & { id: string },
-): Promise<ResolverOutcome<T>> {
+): Promise<ProcedureOutcome<T>> {
 	const { id, label, config, sink, force: specForce, ...run } = opts;
-	if (spec.prepare && !(await spec.prepare())) return { succeeded: 0, failed: [] };
-	const decl = declare(id, spec, selector, { label, config, sink, force: specForce });
+	const decl = await declare(id, spec, selector, { label, config, sink, force: specForce });
+	if (!decl) return noWork();
 	const result = await runDecls([decl], run);
-	return (result[id] as ResolverOutcome<T> | undefined) ?? { succeeded: 0, failed: [] };
+	return (result[id] as ProcedureOutcome<T> | undefined) ?? noWork();
 }
 
 /** Drive declared procedures through the engine as one run and gather what comes back. */
@@ -273,11 +274,8 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 		const members = phase
 			.map((id) => seen.get(id))
 			.filter((s): s is ProcedureProgress => s !== undefined && s.total - s.skipped > 0);
-		// Skipped rows were never work, so a lone member nets them off both sides of the
-		// bar (each page discovers more, which is why the denominator shrinks as a run
-		// goes). Several members combine as min/max over raw counts: a row is done once
-		// the slowest provider has passed it, over the wave's one row universe -- the
-		// same location is never summed per provider.
+		// A lone member nets skipped rows off both sides; several combine as min/max over
+		// the wave's one row universe.
 		let done = 0;
 		let total = 0;
 		if (members.length === 1) {
@@ -359,8 +357,7 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 
 	for (const [id, s] of seen) {
 		result[id] = {
-			// Rows the engine skipped needed nothing; counting them would report work the
-			// run never did, and a provider with nothing to do drops out of the summary.
+			// Skipped rows were not work.
 			succeeded: Math.max(0, s.done - s.failed - s.skipped),
 			failed: failed.get(id) ?? [],
 			...(collected.has(id) ? { collected: collected.get(id) } : {}),
@@ -373,17 +370,12 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 /** Every field-producing provider over a fixed id set, with no progress reporting. */
 export async function runProvidersForIds(
 	ids: number[],
-	opts: {
-		enrichFields: string[] | null;
-		force?: boolean;
-		signal?: AbortSignal;
-		excludeIds?: string[];
-	},
+	opts: { enrichFields: string[] | null; signal?: AbortSignal; excludeIds?: string[] },
 ): Promise<void> {
 	const providers = enrichFieldProviders().filter((p) => !opts.excludeIds?.includes(p.id));
 	await runProviders(
 		providers.map((provider) => ({ provider })),
 		{ type: "Locations", locations: ids, name: null },
-		{ enrichFields: opts.enrichFields, force: opts.force, signal: opts.signal },
+		{ enrichFields: opts.enrichFields, signal: opts.signal },
 	);
 }

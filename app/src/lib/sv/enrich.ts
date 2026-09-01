@@ -14,9 +14,8 @@ import {
 	enrichFieldProviders,
 	runProviders,
 	runProvidersForIds,
-	outcomeDidWork,
 	procedureEntry,
-	type ResolverOutcome,
+	type ProcedureOutcome,
 	type BulkOpts,
 	type RunOpts,
 } from "@/lib/data/procedures";
@@ -174,7 +173,7 @@ registerEnrichmentProvider(subdivisionProvider);
 
 /** One summary row per pass that did work: the core metadata pass, then every
  *  provider that updated or failed at least one location. */
-export interface EnrichOutcome extends ResolverOutcome {
+export interface EnrichOutcome extends ProcedureOutcome {
 	id: string;
 	label: string;
 }
@@ -207,6 +206,6 @@ export async function enrichAll(
 	);
 	const labelOf = (id: string) => getEnrichmentProviders().find((p) => p.id === id)?.label ?? id;
 	return Object.entries(run)
-		.filter(([, o]) => outcomeDidWork(o))
+		.filter(([, o]) => o.succeeded > 0 || o.failed.length > 0)
 		.map(([id, o]) => ({ id, label: labelOf(id), ...o }));
 }

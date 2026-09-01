@@ -22,7 +22,6 @@ vi.mock("@/lib/data/procedures", () => ({
 	runProvidersForIds: async () => {},
 	runProviders: async () => ({}),
 	enrichFieldProviders: () => [],
-	outcomeDidWork: () => false,
 }));
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => "America/New_York" }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());

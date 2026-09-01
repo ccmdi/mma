@@ -114,7 +114,12 @@ vi.mock("@/lib/commands", () => ({
 			return Promise.resolve(7);
 		},
 		procedureCancel: () => Promise.resolve(),
-		procedureQuery: (entry: string, input: string, _config: string | null, cancel: number | null) => {
+		procedureQuery: (
+			entry: string,
+			input: string,
+			_config: string | null,
+			cancel: number | null,
+		) => {
 			h.queries.push({ entry, input, cancel });
 			return h.queryAnswer(input);
 		},

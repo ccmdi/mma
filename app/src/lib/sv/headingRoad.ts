@@ -1,5 +1,6 @@
 import type { Selector } from "@/bindings.gen";
 import {
+	noWork,
 	procedureEntry,
 	runProviders,
 	type BatchOutcome,
@@ -47,5 +48,5 @@ export async function bulkPanHeading(
 		selector,
 		opts,
 	);
-	return result.headingRoad ?? { succeeded: 0, failed: [] };
+	return result.headingRoad ?? noWork();
 }

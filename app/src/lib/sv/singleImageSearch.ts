@@ -9,7 +9,7 @@
  * enabled). Field 4 is the component mask. Locale and region are
  * omitted -- they only localize descriptions nothing here reads.
  *
- * Leaf module: `panoAtCoords`/`panosAtCoords` run against the procedure host (`mma`)
+ * Leaf module: `panosAtCoords` runs against the procedure host (`mma`)
  * and only work inside a procedure. The body builders and the reader are pure.
  */
 
@@ -134,9 +134,10 @@ export function timestampSearchRequest(
 
 const decoder = new TextDecoder();
 
-/** `panoAtCoords` for many points at once, answered in input order. One host call, so
- *  how many run concurrently stays the host's decision rather than the procedure's. The
- *  response carries the pano's metadata, so nothing needs a second lookup. */
+/** The nearest pano within `radius` metres of each point, in input order; null for no
+ *  coverage and for a failed request alike. One host call, so how many run concurrently
+ *  stays the host's decision. The response carries the pano's metadata, so nothing needs
+ *  a second lookup. */
 export function panosAtCoords(
 	points: { lat: number; lng: number }[],
 	radius: number,
@@ -149,15 +150,4 @@ export function panosAtCoords(
 		const r = res[i];
 		return r && r.status >= 200 && r.status < 300 ? parseSearch(decoder.decode(r.body)) : null;
 	});
-}
-
-/** The nearest pano within `radius` metres, or null when there is no coverage and when the
- *  request failed -- every caller treats the two the same. */
-export function panoAtCoords(
-	lat: number,
-	lng: number,
-	radius: number,
-	opts?: SearchOpts,
-): Pano | null {
-	return panosAtCoords([{ lat, lng }], radius, opts)[0];
 }

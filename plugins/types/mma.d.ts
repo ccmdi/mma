@@ -2353,7 +2353,7 @@ declare class SelectedIds {
     /** Shared empty selection (no map open / cleared). */
     static readonly EMPTY: SelectedIds;
     private readonly bits;
-    /** Count of distinct selected ids (not overlay entries — an id selected by N
+    /** Count of distinct selected ids (not overlay entries - an id selected by N
      *  overlapping selections still counts once). */
     readonly size: number;
     constructor(bits: Uint8Array, size: number);
@@ -2389,9 +2389,6 @@ export interface MapState {
     /** Resolved count per selection node (top-level and nested), keyed by `Selection.key`.
      *  The sole source for sidebar counts — refreshed wholesale from Rust on every sync. */
     selectionCounts: Record<string, number>;
-    /** Extra-field keys known to exist in location data on the current map. A mirror of
-     *  Rust's registry: refreshed wholesale from `StoreStatus.knownFieldKeys` on open and
-     *  on every mutation (plus that mutation's `newFieldDefs`), never maintained JS-side. */
     selections: Selection[];
     /** Keys of selections that are "ghosted": kept in the list but excluded from the
      *  Rust sync, so they neither render nor count toward the selected set. Ephemeral. */
@@ -3591,14 +3588,16 @@ export interface PluginSettingDef {
     type: "boolean" | "string" | "number";
     default: unknown;
 }
-export interface Plugin {
+export interface PluginIdentity {
     id: string;
     name: string;
     description?: string;
     icon: string;
     comingSoon?: boolean;
-    core?: boolean;
     experimental?: boolean;
+}
+export interface Plugin extends PluginIdentity {
+    core?: boolean;
     settings?: PluginSettingDef[];
     /** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
      *  Only for plugins whose state can't be serialized (e.g. an iframe). */
@@ -3645,8 +3644,7 @@ export interface Job<R, P> {
     run: () => void;
     cancel: () => void;
 }
-/** A user-triggered async job that reports progress and can be cancelled -- the
- *  run/cancel/progress/error state every long plugin action was keeping by hand.
+/** A user-triggered async job that reports progress and can be cancelled.
  *  Cancelling aborts the signal and stops the UI immediately; nothing the job does
  *  afterwards can write back. Unmounting cancels. `run` while running is a no-op,
  *  so a double-clicked button cannot start two.
@@ -4277,7 +4275,7 @@ export interface BatchOutcome {
     /** Rows the procedure failed, by id, so a caller can select them. */
     failed: number[];
 }
-export interface ResolverOutcome<TCollected = unknown> extends BatchOutcome {
+export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
     /** Answers from a `collect` run, in page order. Absent for a run whose results were
      *  written as patches. Typed by the spec's declaration, not checked: the value still
      *  crosses a JSON boundary, so a reader guards it. */
@@ -4294,8 +4292,6 @@ export interface PhasePart {
 export interface RunOpts {
     signal?: AbortSignal;
     force?: boolean;
-    /** The `extra` keys the run should produce; null means the default set. */
-    enrichFields?: string[] | null;
     /** `label` names the current phase; undefined = no labelled provider is running.
      *  `done`/`total` are phase-relative and net of skipped rows, so they reset as each
      *  dependency wave begins. A wave of several providers combines as min/max -- a row
@@ -4321,13 +4317,13 @@ export interface DeclOpts {
  *  and gets its collected answers typed by the spec. @unstable */
 declare function runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: RunOpts & Omit<DeclOpts, "fields" | "requires"> & {
     id: string;
-}): Promise<ResolverOutcome<T>>;
+}): Promise<ProcedureOutcome<T>>;
 
 /** True when the location is missing any of the given enrich fields (default: the enabled set). */
 declare function needsEnrichment(loc: Location, enrichFields?: string[]): boolean;
 /** One summary row per pass that did work: the core metadata pass, then every
  *  provider that updated or failed at least one location. */
-export interface EnrichOutcome extends ResolverOutcome {
+export interface EnrichOutcome extends ProcedureOutcome {
     id: string;
     label: string;
 }

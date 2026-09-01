@@ -1,6 +1,7 @@
 import type { Selector } from "@/bindings.gen";
 import { buildSelection } from "@/store/selections";
 import {
+	noWork,
 	procedureEntry,
 	runProviders,
 	type BatchOutcome,
@@ -105,5 +106,5 @@ export async function bulkPinToPano(
 		selector,
 		{ ...runOpts, force },
 	);
-	return result.pinPano ?? { succeeded: 0, failed: [] };
+	return result.pinPano ?? noWork();
 }
