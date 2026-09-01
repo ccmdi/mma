@@ -8,9 +8,6 @@
 import type { Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
 import {
-	getAllEnrichKeys,
-	getDefaultEnrichKeys,
-	getEnrichmentProviders,
 	getProviderForField,
 	type EnrichmentProvider,
 	type ProcedureSpec,
@@ -142,24 +139,11 @@ export interface ProviderRun {
 	/** Re-derive this provider's fields even on an unforced run. For an operation whose
 	 *  point is to recompute one provider rather than fill in what is missing. */
 	force?: boolean;
+	/** The `fieldDefs` keys to produce; omitted, every key it declares. */
+	fields?: string[];
 }
 
-/** Providers `enrichAll` runs implicitly: the ones producing selectable `extra` fields. */
-export function enrichFieldProviders(): EnrichmentProvider[] {
-	return getEnrichmentProviders().filter((p) => p.fieldDefs);
-}
-
-/** Fields a provider should produce in this run: everything it declares, minus the
- *  ones the user deselected. Keys the enrichment UI never offers are always produced. */
-function activeProviderFields(
-	p: EnrichmentProvider,
-	selectable: Set<string>,
-	active: Set<string>,
-): string[] {
-	return Object.keys(p.fieldDefs ?? {}).filter((k) => !selectable.has(k) || active.has(k));
-}
-
-/** Drive a set of enrichment providers through the engine as one run.
+/** Drive a set of providers through the engine as one run.
  *  Locations never reach JS: the engine pages them, calls each procedure and writes the
  *  patches itself, reporting per-provider progress that this narrows to the wave in
  *  flight for the caller's bar. Resolves once every declared provider reports finished,
@@ -167,16 +151,12 @@ function activeProviderFields(
 export async function runProviders(
 	items: ProviderRun[],
 	selector: Selector,
-	/** `enrichFields`: the `extra` keys the run should produce; null means the default set. */
-	opts: RunOpts & { enrichFields?: string[] | null } = {},
+	opts: RunOpts = {},
 ): Promise<ProviderOutcomes> {
-	const { enrichFields = null, ...run } = opts;
-	const selectable = new Set(getAllEnrichKeys());
-	const active = new Set(enrichFields ?? getDefaultEnrichKeys());
 	const decls: ProviderDecl[] = [];
-	for (const { provider: p, config, force: providerForce } of items) {
-		const fields = activeProviderFields(p, selectable, active);
-		// A provider with `fieldDefs` and no active field was fully deselected; one with
+	for (const { provider: p, config, force: providerForce, fields: wanted } of items) {
+		const fields = wanted ?? Object.keys(p.fieldDefs ?? {});
+		// A provider with `fieldDefs` and no field to produce has nothing to do; one with
 		// no `fieldDefs` writes core columns and has nothing to deselect.
 		if (p.fieldDefs && fields.length === 0) continue;
 		const decl = await declare(p.id, p.procedure, selector, {
@@ -188,7 +168,7 @@ export async function runProviders(
 		});
 		if (decl) decls.push(decl);
 	}
-	return runDecls(decls, run);
+	return runDecls(decls, opts);
 }
 
 /** What a run may set on top of what the spec declares. */
@@ -365,17 +345,4 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 	}
 	signal?.throwIfAborted();
 	return result;
-}
-
-/** Every field-producing provider over a fixed id set, with no progress reporting. */
-export async function runProvidersForIds(
-	ids: number[],
-	opts: { enrichFields: string[] | null; signal?: AbortSignal; excludeIds?: string[] },
-): Promise<void> {
-	const providers = enrichFieldProviders().filter((p) => !opts.excludeIds?.includes(p.id));
-	await runProviders(
-		providers.map((provider) => ({ provider })),
-		{ type: "Locations", locations: ids, name: null },
-		{ enrichFields: opts.enrichFields, signal: opts.signal },
-	);
 }

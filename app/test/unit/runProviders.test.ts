@@ -133,14 +133,12 @@ vi.mock("@/lib/commands", () => ({
 import {
 	runProcedure,
 	runProviders,
-	enrichFieldProviders,
-	runProvidersForIds,
 	queryProcedure,
 	resolveFieldLabels,
 	type PhasePart,
 } from "@/lib/data/procedures";
 import { registerEnrichmentProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
-import { enrichAll, panoResolveProvider } from "@/lib/sv/enrich";
+import { enrichAll, enrichRuns, panoResolveProvider } from "@/lib/sv/enrich";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
 import type { EnrichmentProvider, ProcedureSpec } from "@/lib/data/fieldDefs";
@@ -236,16 +234,12 @@ describe("runProviders hands the engine the caller's selector", () => {
 	});
 
 	it("drops a provider whose every field was deselected", async () => {
-		await runProviders(
-			[{ provider: plainProvider }],
-			{ type: "Everything" },
-			{ enrichFields: ["timezone"] },
-		);
+		await runProviders([{ provider: plainProvider, fields: [] }], { type: "Everything" });
 		expect(h.decls).toEqual([]);
 	});
 
 	it("keeps a provider with no fieldDefs whatever the field selection is", async () => {
-		await runProviders([{ provider: coreProvider }], { type: "Everything" }, { enrichFields: [] });
+		await runProviders([{ provider: coreProvider, fields: [] }], { type: "Everything" });
 		expect(ids()).toEqual(["core"]);
 		expect(h.decls[0].fields).toEqual(["panoId"]);
 	});
@@ -274,7 +268,7 @@ describe("runProviders hands the engine the caller's selector", () => {
 
 describe("the implicit provider set", () => {
 	it("holds every field-producing provider and no core-column one", () => {
-		const set = enrichFieldProviders().map((p) => p.id);
+		const set = enrichRuns(null).map((r) => r.provider.id);
 		expect(set).toEqual(expect.arrayContaining(["svMeta", "exactDate", "timezone", "subdivision"]));
 		expect(set).not.toContain("panoResolve");
 		expect(set).not.toContain("pinPano");
@@ -310,7 +304,11 @@ describe("the implicit provider set", () => {
 	});
 
 	it("the single-location path runs no core-column provider", async () => {
-		await runProvidersForIds([42], { enrichFields: null, excludeIds: ["svMeta"] });
+		await runProviders(enrichRuns(null, ["svMeta"]), {
+			type: "Locations",
+			locations: [42],
+			name: null,
+		});
 		expect(ids()).not.toContain("panoResolve");
 		expect(ids()).not.toContain("pinPano");
 		expect(ids()).not.toContain("svMeta");
@@ -534,12 +532,9 @@ describe("the progress bar counts real work", () => {
 		const seen: Tick[] = [];
 		// Every field of the only provider was deselected, so no provider ever starts.
 		const result = await runProviders(
-			[{ provider: plainProvider }],
+			[{ provider: plainProvider, fields: [] }],
 			{ type: "Everything" },
-			{
-				enrichFields: ["timezone"],
-				onProgress: (done, total, label) => seen.push([done, total, label]),
-			},
+			{ onProgress: (done, total, label) => seen.push([done, total, label]) },
 		);
 		expect(seen).toEqual([]);
 		expect(result).toEqual({});

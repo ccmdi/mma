@@ -214,7 +214,7 @@ declare const commands: {
      *  @unstable
      */
     storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => Promise<CopyToMapResult>;
-    /**  Lightweight status query: location count, version, and dirty flag. @unstable */
+    /** @unstable */
     storeGetSummary: () => Promise<SummaryResult>;
     /**
      *  Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
@@ -1734,7 +1734,7 @@ type SeenWriteEntry = {
 };
 /**
  *  The selection drawing a row: its colour, and its index in `SelectionState::resolved`.
- *  The index is the draw order — a later selection overdraws an earlier one — so the
+ *  The index is the draw order - a later selection overdraws an earlier one - so the
  *  overlay can be ordered by it instead of by whatever order rows happen to arrive in.
  *  Every marker sits at z=0 in one deck.gl layer, so buffer order is the only z there is.
  */
@@ -1879,9 +1879,6 @@ type SpacedPickResult = {
 /**
  *  Metadata snapshot returned to JS after every mutation. JS uses `version` to
  *  detect stale responses and `canUndo`/`canRedo` for toolbar button state.
- *  `known_field_keys` lists every extra-field key that exists in location data
- *  on this map. Add-only within a session; seeded from `MapMeta.extra.fields`
- *  on map open.
  */
 type StoreStatus = {
     version: number;
@@ -2023,7 +2020,7 @@ type ValiProgress = {
     bytes: number;
 };
 /**
- *  Per-map config for a virtual tag-tree node — a folder node with no underlying
+ *  Per-map config for a virtual tag-tree node - a folder node with no underlying
  *  tag (e.g. "a" when only "a/b" and "a/c" exist). Keyed by the node's full slash
  *  path in `MapSettings::virtual_tags`. Tree-view only; never creates a real tag.
  */

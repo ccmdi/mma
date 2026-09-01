@@ -3,6 +3,7 @@ import type { Pano } from "@/types";
 import { metadataPatch, SVMETA_FIELDS } from "@/lib/sv/getMetadata";
 import { getMapState, updateLocations } from "@/store/useMapStore";
 import {
+	getAllEnrichKeys,
 	getEnrichmentProviders,
 	getDefaultEnrichKeys,
 	knownFieldDefs,
@@ -11,11 +12,10 @@ import {
 	type ProcedureSpec,
 } from "@/lib/data/fieldDefs";
 import {
-	enrichFieldProviders,
 	runProviders,
-	runProvidersForIds,
 	procedureEntry,
 	type ProcedureOutcome,
+	type ProviderRun,
 	type BulkOpts,
 	type RunOpts,
 } from "@/lib/data/procedures";
@@ -54,8 +54,27 @@ export async function enrich(loc: Location, data?: Pano | null): Promise<boolean
 	}
 
 	// svMeta is excluded: its fields are the answer this was handed.
-	await runProvidersForIds([loc.id], { enrichFields, excludeIds: ["svMeta"] });
+	await runProviders(enrichRuns(enrichFields, ["svMeta"]), {
+		type: "Locations",
+		locations: [loc.id],
+		name: null,
+	});
 	return true;
+}
+
+/** The field-producing providers as enrichment runs them, each narrowed to the keys the
+ *  user picked. Keys the enrichment UI never offers are always produced. */
+export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []): ProviderRun[] {
+	const selectable = new Set(getAllEnrichKeys());
+	const active = new Set(enrichFields ?? getDefaultEnrichKeys());
+	return getEnrichmentProviders()
+		.filter((p) => p.fieldDefs && !exclude.includes(p.id))
+		.map((provider) => ({
+			provider,
+			fields: Object.keys(provider.fieldDefs ?? {}).filter(
+				(k) => !selectable.has(k) || active.has(k),
+			),
+		}));
 }
 
 // --- Providers ---
@@ -199,10 +218,10 @@ export async function enrichAll(
 				force: false,
 				config: { radius: SV_SEARCH_RADIUS, needs } satisfies PanoResolveConfig,
 			},
-			...enrichFieldProviders().map((provider) => ({ provider })),
+			...enrichRuns(enrichFields),
 		],
 		selector,
-		{ ...opts, enrichFields },
+		opts,
 	);
 	const labelOf = (id: string) => getEnrichmentProviders().find((p) => p.id === id)?.label ?? id;
 	return Object.entries(run)

@@ -19,9 +19,7 @@ vi.mock("@/store/useMapStore", () => ({
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 vi.mock("@/lib/data/procedures", () => ({
 	procedureEntry: (name: string) => `res://procedures/${name}.js`,
-	runProvidersForIds: async () => {},
 	runProviders: async () => ({}),
-	enrichFieldProviders: () => [],
 }));
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => "America/New_York" }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
