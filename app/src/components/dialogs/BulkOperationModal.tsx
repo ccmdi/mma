@@ -14,7 +14,7 @@ import {
 	getMapState,
 } from "@/store/useMapStore";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
-import type { Selector, FieldOp, FilterOp } from "@/bindings.gen";
+import type { Selector, FieldOp } from "@/bindings.gen";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import {
 	getFieldDef,
@@ -29,7 +29,7 @@ import { ValidationState } from "@/bindings.consts";
 import { validateLocations } from "@/lib/sv/validate";
 import { enrichAll, type EnrichResult } from "@/lib/sv/enrich";
 import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
-import { bulkPinToPano } from "@/lib/sv/pinPano";
+import { bulkPinToPano, PINNED } from "@/lib/sv/pinPano";
 import { bulkPanHeading, type RoadDirection } from "@/lib/sv/headingRoad";
 import {
 	bulkDownloadPanoramas,
@@ -99,20 +99,13 @@ interface SetupProps {
 }
 
 async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
-	const panoFilter = (op: FilterOp): Selector => ({
-		type: "Filter",
-		field: "panoId",
-		op,
-		value: null,
-	});
 	const narrowed = (...extra: Selector[]): Selector => ({
 		type: "Intersection",
 		selections: [selector, ...extra].map(buildSelection),
 	});
 	const [total, pinned, counts] = await Promise.all([
 		countIn(selector),
-		// Pinned is a pano ID *and* the flag: the flag alone can outlive the id.
-		countIn(narrowed(panoFilter("has"), { type: "PanoIds" })),
+		countIn(narrowed(PINNED)),
 		coverage(selector),
 	]);
 	const have = new Map(counts);

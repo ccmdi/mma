@@ -33,20 +33,18 @@ export const pinPanoProvider: EnrichmentProvider = {
 
 registerEnrichmentProvider(pinPanoProvider);
 
-/** `selector` minus rows that are already pinned: a pano ID *and* the flag, since the
- *  flag alone can outlive the id. */
+/** Pinned is a pano ID *and* the flag: the flag alone can outlive the id. */
+export const PINNED: Selector = {
+	type: "Intersection",
+	selections: [
+		buildSelection({ type: "Filter", field: "panoId", op: "has", value: null }),
+		buildSelection({ type: "PanoIds" }),
+	],
+};
+
 function unpinnedIn(selector: Selector): Selector {
-	const notPinned: Selector = {
-		type: "Union",
-		selections: [
-			buildSelection({ type: "Filter", field: "panoId", op: "nothas", value: null }),
-			buildSelection({ type: "NotPanoIds" }),
-		],
-	};
-	return {
-		type: "Intersection",
-		selections: [selector, notPinned].map(buildSelection),
-	};
+	const notPinned: Selector = { type: "Invert", selections: [buildSelection(PINNED)] };
+	return { type: "Intersection", selections: [selector, notPinned].map(buildSelection) };
 }
 
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
