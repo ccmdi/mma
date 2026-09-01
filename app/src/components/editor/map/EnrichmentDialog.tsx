@@ -90,7 +90,7 @@ function buildRows(): FieldRow[] {
 }
 
 /** Share of the map's locations carrying each field. Refetched when `epoch` bumps. */
-function useCoverage(epoch: number): Map<string, number> {
+function useCoverage(epoch = 0): Map<string, number> {
 	const [coverage, setCoverage] = useState<Map<string, number>>(new Map());
 	useEffect(() => {
 		const total = getMapState().locationCount;
@@ -185,7 +185,7 @@ export function EnrichTab({
 	setEnrichFields: (v: string[] | null) => void;
 	onOpenManual: () => void;
 }) {
-	const coverage = useCoverage(0);
+	const coverage = useCoverage();
 	// Declaration order, not alphabetical: it already groups the default set first.
 	const options = getEnrichFieldOptions();
 
@@ -542,8 +542,7 @@ function FieldsTab() {
 	);
 }
 
-/** Owns its draft so switching fields remounts it with the new key already in place.
- *  Syncing through an effect instead left the button live for a frame. */
+/** Owns its draft so switching fields remounts it with the new key already in place. */
 function RenameField({
 	fieldKey,
 	taken,
@@ -603,8 +602,7 @@ function PeriodInput({ value, onCommit }: { value: number; onCommit: (v: number)
 	);
 }
 
-/** Allowed values for an enum field, inline. Was a nested dialog purely because a
- *  table cell had nowhere to put it. */
+/** Allowed values for an enum field, inline. */
 function EnumValues({
 	row,
 	onCommit,

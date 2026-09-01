@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 /// Cell-hashed spatial grid in CSR layout (Müller, "Blazing Fast Neighbor Search
 /// with Spatial Hashing"). Cells are hashed into a fixed table sized to the point
-/// count, so the structure is O(n) regardless of spatial extent — no dense world
+/// count, so the structure is O(n) regardless of spatial extent - no dense world
 /// array. Build is two linear passes (count → prefix-sum → scatter); neighbor
 /// iteration walks a contiguous slice. Hash collisions are harmless: distinct cells
 /// may share a bucket, and the caller's distance test rejects any foreign points.
@@ -60,7 +60,7 @@ impl SpatialHash {
     }
 
     /// Point indices in the bucket that `(cx, cy)` hashes to. May include points from
-    /// other cells that collide on the same bucket — caller must distance-filter.
+    /// other cells that collide on the same bucket - caller must distance-filter.
     #[inline]
     fn bucket(&self, cx: i32, cy: i32) -> &[u32] {
         let b = hash_cell(cx, cy, self.table_size);
@@ -102,7 +102,7 @@ pub(super) struct DupGrid {
 }
 
 impl DupGrid {
-    /// `None` for a degenerate radius (distance == 0, or a non-finite cell size) —
+    /// `None` for a degenerate radius (distance == 0, or a non-finite cell size) -
     /// callers fall back to `exact_coord_groups`.
     fn build(pts: &[(f64, f64)], distance_m: f64) -> Option<DupGrid> {
         let cell_deg = distance_m / mma_geo::M_PER_DEG * 1.5;
@@ -200,7 +200,7 @@ pub(super) fn for_pairs_within<S>(
 /// Grid-accelerated spatial duplicate detection: `mask[global_idx] = true` for every
 /// location with at least one other location within `distance_m`. A per-point
 /// predicate rather than a pair sweep: the grid is read-only after build, so points
-/// are tested in parallel, and each test early-exits on its first neighbour — a
+/// are tested in parallel, and each test early-exits on its first neighbour - a
 /// dense cluster costs O(1) per member instead of O(members) pair callbacks.
 pub(super) fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mut [bool]) {
     use rayon::prelude::*;
@@ -344,8 +344,7 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
 
 /// The default duplicate score: how finished a location is. Doubles as the placeholder
 /// the map settings input shows when a map states no preference of its own.
-pub const DEFAULT_DUPLICATE_SCORE: &str =
-    "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
+pub const DEFAULT_DUPLICATE_SCORE: &str = "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
 
 /// The map's duplicate preference, or the built-in default when it states none. Merge
 /// and prune both rank through this, so a map has one answer to "which duplicate is the
@@ -373,9 +372,9 @@ pub fn better(a: &Location, b: &Location, score: &Expr) -> Ordering {
 
 /// Prune duplicates. `locs` is the resolved selection; informational locations are
 /// never pruned and never count as neighbours. Returns ids to remove.
-/// - <= 25 m: relevance prune — each radius cluster keeps its best-scored location
+/// - <= 25 m: relevance prune - each radius cluster keeps its best-scored location
 ///   (see [`better`]), rest pruned.
-/// - > 25 m: greedy max-thinning — repeatedly drop the location with the most in-range
+/// - > 25 m: greedy max-thinning - repeatedly drop the location with the most in-range
 ///   > neighbours until no two survivors are within `distance_m`.
 pub fn prune_duplicates(locs: &[Location], distance_m: f64, score: &Expr) -> Vec<u32> {
     let locs: Vec<&Location> = locs

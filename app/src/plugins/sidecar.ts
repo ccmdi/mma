@@ -1,13 +1,12 @@
-//! The plugin sidecar client: one set of Tauri event listeners for every request,
-//! demultiplexed by request id. The app owns the processes; this is how the webview
-//! talks to them.
+// The plugin sidecar client: one set of Tauri event listeners for every request,
+// demultiplexed by request id. The app owns the processes; this is how the webview
+// talks to them.
 
 import { events } from "@/bindings.gen";
 import { cmd as commands } from "@/lib/commands";
 
-// One set of listeners for every request, demultiplexed by request id. Events can
-// land before `sidecarRequest` learns its id (a resident-served request finishes in
-// a millisecond), so unclaimed events are buffered until their caller arrives.
+// Events can land before `sidecarRequest` learns its id, so unclaimed events are
+// buffered until their caller arrives.
 
 type SidecarEvent =
 	| { kind: "line"; line: string }

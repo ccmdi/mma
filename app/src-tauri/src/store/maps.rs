@@ -42,7 +42,7 @@ pub struct MapKeyBinding {
     pub action: MapKeyAction,
 }
 
-/// Per-map config for a virtual tag-tree node — a folder node with no underlying
+/// Per-map config for a virtual tag-tree node - a folder node with no underlying
 /// tag (e.g. "a" when only "a/b" and "a/c" exist). Keyed by the node's full slash
 /// path in `MapSettings::virtual_tags`. Tree-view only; never creates a real tag.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -366,7 +366,7 @@ pub fn auto_register_field_defs(
     let mut new_defs: HashMap<String, ExtraFieldDef> = HashMap::new();
     for extra in extras {
         // Byte key-scan (no per-loc map alloc). A value is only deep-parsed for genuinely
-        // new keys — the common case short-circuits on known_keys.
+        // new keys - the common case short-circuits on known_keys.
         extra.for_each_field(|key, raw_value| {
             if is_known(key) || new_defs.contains_key(key) {
                 return;
@@ -392,7 +392,7 @@ pub fn auto_register_field_defs(
     }
 }
 
-/// Persist new field defs — skips keys that already exist. Used for auto-registration.
+/// Persist new field defs - skips keys that already exist. Used for auto-registration.
 pub fn persist_field_defs(
     conn: &Connection,
     map_id: &str,

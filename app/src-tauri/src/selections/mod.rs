@@ -628,7 +628,7 @@ const CHUNK_SIZE: usize = 64 * 1024;
 /// Resolve a selection into a `RoaringBitmap` of matching (alive) location **ids**.
 ///
 /// This is the primary resolve path. Composites (`Intersection`/`Union`/`Invert`)
-/// combine child bitmaps with native roaring set ops (`&`/`|`/`Sub`) — branchless,
+/// combine child bitmaps with native roaring set ops (`&`/`|`/`Sub`) - branchless,
 /// sparse-aware, no per-row scanning. A `Tag` leaf hits the membership index when
 /// present (O(1)-ish clone) instead of scanning every row's tag list. Geometric
 /// leaves (`Polygon`/`Filter`/`Duplicates`) still scan, producing a positional mask
@@ -704,7 +704,7 @@ pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
 
 /// Resolve a whole selection forest in one pass: the id-set for each top-level
 /// selection plus the resolved count of every node (top-level and nested), keyed by
-/// `Selection.key`. Each node is resolved exactly once — composites combine their
+/// `Selection.key`. Each node is resolved exactly once - composites combine their
 /// children's already-resolved sets instead of re-resolving them.
 pub fn resolve_forest(
     view: &LocView,
@@ -756,7 +756,7 @@ pub fn resolve_forest(
     (sets, counts)
 }
 
-/// Resolved count of every selection node — top-level and nested — keyed by
+/// Resolved count of every selection node - top-level and nested - keyed by
 /// `Selection.key`. Thin wrapper over [`resolve_forest`] for callers that only
 /// need the counts.
 pub fn resolve_node_counts(view: &LocView, sels: &[Selection]) -> HashMap<String, u32> {
@@ -872,20 +872,6 @@ fn resolve_leaf_mask(view: &LocView, selector: &Selector) -> Vec<bool> {
         _ => view.resolve_mask(|r| test_row(r, selector)),
     }
 }
-
-// --- Geometry (ray-casting point-in-polygon; primitives live in mma-geo) ---
-
-// --- Duplicates (bitmask version) ---
-
-// --- Filter: field-level comparison predicates ---
-
-// ---------------------------------------------------------------------------
-// Partition: group-by aggregation
-// ---------------------------------------------------------------------------
-//
-// `partition` splits the selected location set into groups by a derived key, returning
-// compact `{ key, ids, bin }` per group.
-//
 
 /// The id set a selector narrows to, or `None` for "no narrowing" -- every alive row.
 /// Two selectors answer without resolving: `Everything` is the whole map, and `Locations`

@@ -48,7 +48,7 @@ export function SearchControl({
 							})),
 						);
 					} catch {
-						// ignored
+						// A failed lookup shows no results.
 					}
 				})(),
 			300,

@@ -1005,7 +1005,7 @@ fn resolve_reviewed_on_adds() {
 }
 
 // -----------------------------------------------------------------------
-// Tag membership index (roaring fast-path) — must match the scan path exactly.
+// Tag membership index (roaring fast-path) - must match the scan path exactly.
 // -----------------------------------------------------------------------
 
 // Build a batch of tagged locations + the matching tag index, so the indexed Tag
@@ -1256,7 +1256,7 @@ fn resolve_invert() {
 // Per-node counts (resolve_node_counts)
 // -----------------------------------------------------------------------
 
-// Counts must cover every node — the composite AND its nested children, keyed by key.
+// Counts must cover every node - the composite AND its nested children, keyed by key.
 #[test]
 fn node_counts_cover_nested_children() {
     let mut l1 = loc(1, 0.0, 0.0);
@@ -1322,7 +1322,7 @@ fn node_counts_invert_is_global_complement() {
     assert_eq!(counts.get("inv"), Some(&2)); // NOT tag 10: l2, l3 (universe of 3 minus 1)
 }
 
-// The single-pass forest must produce exactly what per-selection resolve does —
+// The single-pass forest must produce exactly what per-selection resolve does -
 // same top-level sets, same count for every node key.
 #[test]
 fn resolve_forest_matches_individual_resolve() {
@@ -2162,7 +2162,7 @@ fn partition_value_groups_by_distinct() {
 
 #[test]
 fn partition_date_tz_local_matches_js_golden() {
-    // 2019-12-31T20:00:00Z is 2020-01-01 05:00 in Tokyo (UTC+9, no DST) — same vectors as
+    // 2019-12-31T20:00:00Z is 2020-01-01 05:00 in Tokyo (UTC+9, no DST) - same vectors as
     // the JS fieldOps tzLocal test.
     let ts = Utc
         .with_ymd_and_hms(2019, 12, 31, 20, 0, 0)
@@ -2825,10 +2825,7 @@ fn coverage_decodes_escaped_base_row_keys() {
     let mut l = loc(1, 0.0, 0.0);
     l.extra = RawExtra::from_string_uncanonicalized("{\"caf\\u00e9\":1}");
     let fx = Fx::base(&[l]);
-    assert_eq!(
-        coverage(&fx.view(), None),
-        vec![("café".to_string(), 1u32)]
-    );
+    assert_eq!(coverage(&fx.view(), None), vec![("café".to_string(), 1u32)]);
 }
 
 #[test]
@@ -3039,10 +3036,7 @@ fn every_projection_honours_a_named_id_list() {
         count_by(&view, "c", &KeySpec::Value, set),
         vec![("FR".to_string(), 2u32)]
     );
-    assert_eq!(
-        coverage(&view, set),
-        vec![("c".to_string(), 2u32)]
-    );
+    assert_eq!(coverage(&view, set), vec![("c".to_string(), 2u32)]);
 }
 
 #[test]

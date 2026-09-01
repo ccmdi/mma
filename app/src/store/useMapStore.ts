@@ -63,9 +63,6 @@ export interface MapState {
 	/** Resolved count per selection node (top-level and nested), keyed by `Selection.key`.
 	 *  The sole source for sidebar counts — refreshed wholesale from Rust on every sync. */
 	selectionCounts: Record<string, number>;
-	/** Extra-field keys known to exist in location data on the current map. A mirror of
-	 *  Rust's registry: refreshed wholesale from `StoreStatus.knownFieldKeys` on open and
-	 *  on every mutation (plus that mutation's `newFieldDefs`), never maintained JS-side. */
 	selections: Selection[];
 	/** Keys of selections that are "ghosted": kept in the list but excluded from the
 	 *  Rust sync, so they neither render nor count toward the selected set. Ephemeral. */

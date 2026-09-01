@@ -28,7 +28,7 @@ use tokio::task;
 
 /// Cached result from `bulk_import_preview` so `bulk_import_confirm` can
 /// skip re-parsing. Keyed by file path to detect stale caches.
-// TODO: single slot — multi-file bulk import only caches the last file; earlier ones re-parse.
+// TODO: single slot - multi-file bulk import only caches the last file; earlier ones re-parse.
 static CACHED_PARSE: Mutex<Option<CachedImport>> = Mutex::new(None);
 
 struct CachedImport {
@@ -61,36 +61,6 @@ pub struct ImportedMapInfo {
     pub location_count: u32,
     pub tag_count: u32,
 }
-
-// ---------------------------------------------------------------------------
-// Internal parsed structures
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// CSV parsing
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Format detection
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// JSON parsing
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Raw extra fast path: strip `tags` from an object's raw JSON without building a
-// map. All scans are string/escape aware (a `[`/`]`/`"` inside a value never counts
-// as structure), so this is correct on arbitrary extra content.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// Zip orchestration
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// DB write
-// ---------------------------------------------------------------------------
 
 fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedMapInfo> {
     renumber_ordered_tags(&mut map.tags);

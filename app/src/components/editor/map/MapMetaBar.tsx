@@ -64,7 +64,6 @@ function UndoRedoControls() {
 					type="button"
 					className="icon-button"
 					disabled={!canUndo}
-					style={{ color: canUndo ? undefined : "var(--text-3)" }}
 					aria-label={t("Undo")}
 					onClick={() => void undo()}
 				>
@@ -76,7 +75,6 @@ function UndoRedoControls() {
 					type="button"
 					className="icon-button"
 					disabled={!canRedo}
-					style={{ color: canRedo ? undefined : "var(--text-3)" }}
 					aria-label={t("Redo")}
 					onClick={() => void redo()}
 				>

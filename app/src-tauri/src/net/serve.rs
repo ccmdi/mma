@@ -1,6 +1,6 @@
 //! Headless web-serve entry. Builds the real app with the `webserve` plugin and a
 //! hidden `about:blank` webview (the IPC dispatch host), registers the app's URI
-//! schemes for the web, then runs. All HTTP/bridge logic lives in the plugin —
+//! schemes for the web, then runs. All HTTP/bridge logic lives in the plugin -
 //! the only app-facing surface is enabling the plugin + the scheme registrations.
 //!
 //! Gate: `--features web-serve`. Entry: the `mma-serve` bin.
@@ -76,7 +76,7 @@ fn register_web_schemes() {
         }
         match std::fs::read(&path) {
             Ok(data) => SchemeResponse::ok("application/octet-stream", data),
-            Err(e) => SchemeResponse::not_found(format!("file not found: {path} — {e}")),
+            Err(e) => SchemeResponse::not_found(format!("file not found: {path} - {e}")),
         }
     });
     register_scheme("svtile", |req: SchemeRequest| {

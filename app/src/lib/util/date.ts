@@ -1,5 +1,5 @@
-/** Month names and hand-typed date parsing. Epoch encoding routes through the
- *  wall-clock codec in `fieldOps` (`dateParts`/`partsToEpoch`) — never encode here. */
+/** Month names, hand-typed date parsing, and the one wall-clock codec
+ *  (`dateParts`/`partsToEpoch`); never encode an epoch elsewhere. */
 
 
 export const MONTHS = {
@@ -91,7 +91,7 @@ export interface TypedDateOpts {
  *  or a Unix-seconds epoch string (date, encoded via `partsToEpoch`). Liberal input:
  *  ISO ("2019-06-03"), US ("6/3/2019"), month names ("Jun 3 2019", "3 Jun 2019").
  *  Ambiguous all-numeric dates read month-first, matching the en-US display.
- *  Returns null when the text doesn't parse — callers keep the previous value. */
+ *  Returns null when the text doesn't parse - callers keep the previous value. */
 export function parseTypedDate(text: string, opts: TypedDateOpts): string | null {
 	const t = text.trim().replace(/,/g, " ").replace(/\s+/g, " ");
 	if (!t) return null;
@@ -126,7 +126,7 @@ export function parseTypedDate(text: string, opts: TypedDateOpts): string | null
 	if (opts.anyYear) {
 		let mo: number | null = null;
 		let d = NaN;
-		let m = /^(\d{1,2})[-/. ](\d{1,2})$/.exec(t); // 06-03 — month first, matching display
+		let m = /^(\d{1,2})[-/. ](\d{1,2})$/.exec(t); // 06-03 - month first, matching display
 		if (m) {
 			mo = monthToken(m[1]);
 			d = Number(m[2]);
@@ -195,7 +195,7 @@ interface DateParts {
 /** Read a Unix-seconds timestamp as calendar digits. `wallClock` = location-timezone
  *  mode, where the digits are encoded in a UTC frame so they survive unshifted by the
  *  viewer's timezone; otherwise the viewer's local frame. This pair is the ONLY place
- *  the frame fork (UTC vs local getters) may exist — never branch on getters elsewhere:
+ *  the frame fork (UTC vs local getters) may exist - never branch on getters elsewhere:
  *  one wrong getter shifts bounds silently and is invisible on UTC-running CI. */
 export function dateParts(v: number, wallClock: boolean): DateParts {
 	const dt = new Date(v * 1000);
@@ -246,8 +246,8 @@ export function pickPeriodEnd(
 }
 
 /** True when the timestamp carries a time-of-day (is not exactly midnight). A midnight
- *  bound is a day-grain pick — the UI has always displayed midnight as a bare date, and
- *  the picker's cleared-time state encodes midnight — so period expansion treats
+ *  bound is a day-grain pick - the UI has always displayed midnight as a bare date, and
+ *  the picker's cleared-time state encodes midnight - so period expansion treats
  *  midnight as "the day" and anything else as "the minute". */
 export function hasTimeOfDay(v: number, wallClock: boolean): boolean {
 	const p = dateParts(v, wallClock);
@@ -260,7 +260,7 @@ function addDays(v: number, days: number, wallClock: boolean): number {
 }
 
 /** A between filter is a window; stepping translates the window by its own span
- *  (tiling — the next window starts where this one ends, no overlap). Returns the
+ *  (tiling - the next window starts where this one ends, no overlap). Returns the
  *  shifted bounds, or null when the filter isn't a bounded window (gt/has/enum eq,
  *  anyYear/anyTime shapes). Day windows are calendar-aware (DST-safe); month windows
  *  shift the "YYYY-MM" strings; numeric windows translate by span (shared edge). */

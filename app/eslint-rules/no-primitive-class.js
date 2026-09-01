@@ -1,11 +1,7 @@
 /**
  * Flags JSX `className` string literals that hand-write a class a primitive owns.
  *
- * The class strings are the primitives' private implementation detail, but they are
- * reachable from anywhere as plain text, so they drift silently: `.input` and
- * `.button--danger` both shipped against classes that were never defined in
- * styles.css, and the elements simply rendered unstyled. A string has no compiler
- * behind it; this rule is the compiler.
+ * A class string has no compiler behind it, so a typo renders unstyled and silent.
  *
  * Only the element each primitive actually renders is checked. Passing a modifier to
  * the primitive itself (`<NSelect className="nselect--compact">`) is what className is

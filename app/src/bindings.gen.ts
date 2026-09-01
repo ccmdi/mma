@@ -171,7 +171,6 @@ export const commands = {
 	 *  editor sends the pano you are currently looking at rather than the one on disk.
 	 */
 	storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => __TAURI_INVOKE<CopyToMapResult>("store_add_locations_to_map", { targetMapId, locations: locations.map(i=>i) }),
-	/**  Lightweight status query: location count, version, and dirty flag. */
 	storeGetSummary: () => __TAURI_INVOKE<SummaryResult>("store_get_summary"),
 	/**
 	 *  Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
@@ -1543,7 +1542,7 @@ export type SeenWriteEntry = {
 
 /**
  *  The selection drawing a row: its colour, and its index in `SelectionState::resolved`.
- *  The index is the draw order — a later selection overdraws an earlier one — so the
+ *  The index is the draw order - a later selection overdraws an earlier one - so the
  *  overlay can be ordered by it instead of by whatever order rows happen to arrive in.
  *  Every marker sits at z=0 in one deck.gl layer, so buffer order is the only z there is.
  */
@@ -1639,9 +1638,6 @@ export type SpacedPickResult = {
 /**
  *  Metadata snapshot returned to JS after every mutation. JS uses `version` to
  *  detect stale responses and `canUndo`/`canRedo` for toolbar button state.
- *  `known_field_keys` lists every extra-field key that exists in location data
- *  on this map. Add-only within a session; seeded from `MapMeta.extra.fields`
- *  on map open.
  */
 export type StoreStatus = {
 	version: number,
@@ -1775,7 +1771,7 @@ export type ValiLocation = {
 export type ValiProgress = { kind: "workItems"; total: number } | { kind: "workItemDone"; countryCode: string; subdivisionCode: string | null; done: number; total: number } | { kind: "countryDownloadStarted"; countryCode: string; files: number; bytes: number; updates: boolean } | { kind: "fileDownloaded"; countryCode: string; name: string; bytes: number };
 
 /**
- *  Per-map config for a virtual tag-tree node — a folder node with no underlying
+ *  Per-map config for a virtual tag-tree node - a folder node with no underlying
  *  tag (e.g. "a" when only "a/b" and "a/c" exist). Keyed by the node's full slash
  *  path in `MapSettings::virtual_tags`. Tree-view only; never creates a real tag.
  */

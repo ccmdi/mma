@@ -17,7 +17,7 @@ export interface SelCellEntry {
 
 /**
  * Decode the inline selection-bitmask bytes written by Rust's `serialize_cell_bitmask`
- * (location_store.rs). Sole reader of that wire format — all format knowledge lives here
+ * (location_store.rs). Sole reader of that wire format - all format knowledge lives here
  * and in `applySelectionBitmasks`, which consumes the decoded entries.
  */
 export function decodeSelectionBitmask(bytes: number[]): {
@@ -84,7 +84,7 @@ export class SelectedIds {
 	static readonly EMPTY = new SelectedIds(new Uint8Array(0), 0);
 
 	private readonly bits: Uint8Array;
-	/** Count of distinct selected ids (not overlay entries — an id selected by N
+	/** Count of distinct selected ids (not overlay entries - an id selected by N
 	 *  overlapping selections still counts once). */
 	readonly size: number;
 
@@ -118,13 +118,13 @@ const MIN_CAPACITY = 256;
 /**
  * The markers drawn by the selection overlay, keyed by location id.
  *
- * Sole authority on "is this row drawn by the overlay rather than the base layer" — the
+ * Sole authority on "is this row drawn by the overlay rather than the base layer" - the
  * base cells hold no selection state, they derive their visibility byte from `has`.
  * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
  * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
  * alone, and every by-id operation is O(1).
  *
- * Writes swap-remove, so slots land unordered — but the overlay is one deck.gl layer and
+ * Writes swap-remove, so slots land unordered - but the overlay is one deck.gl layer and
  * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
  * puts the slots back in selection order, and the batch entry points call it once they
  * settle. Nothing else may hand these arrays to a layer.
@@ -135,7 +135,7 @@ export class SelectionOverlay {
 	angles = new Float32Array(0);
 	ids = new Uint32Array(0);
 	/** Per-entry index of the selection drawing it, and the sort key `order()` uses.
-	 *  CPU-side bookkeeping like `ids` — never an attribute, never uploaded. */
+	 *  CPU-side bookkeeping like `ids` - never an attribute, never uploaded. */
 	sel = new Uint32Array(0);
 	count = 0;
 	version = 0;
@@ -153,7 +153,7 @@ export class SelectionOverlay {
 	}
 
 	/** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
-	 *  selection's index — the sort key `order()` needs, which no caller can recover from
+	 *  selection's index - the sort key `order()` needs, which no caller can recover from
 	 *  the colour alone once two selections share one. */
 	set(
 		id: number,
@@ -224,7 +224,7 @@ export class SelectionOverlay {
 	 *
 	 * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
 	 * array sized by the selection count. The leading scan makes the cases that need no
-	 * work — already ordered, or one selection in play — a single pass with no allocation,
+	 * work - already ordered, or one selection in play - a single pass with no allocation,
 	 * which covers a plain single-selection map entirely.
 	 */
 	order() {
@@ -456,13 +456,13 @@ export class CellBuffer {
  * Owns all marker render data as 32 geohash-cell CellBuffers plus a selection overlay.
  * Initialized from a binary blob built by Rust (`initFromBinary`), then kept in sync
  * via incremental deltas (`applyDelta`) and selection bitmasks (`applySelectionBitmasks`).
- * deck.gl layers read the typed arrays directly — no JSON serialization in the render loop.
+ * deck.gl layers read the typed arrays directly - no JSON serialization in the render loop.
  */
 export class CellManager {
 	cells = new Map<string, CellBuffer>();
 	totalCount = 0;
 	version = 0;
-	/** Largest location id seen — sizes the selection bitset. Monotonic (never shrinks on
+	/** Largest location id seen - sizes the selection bitset. Monotonic (never shrinks on
 	 *  removal; an overestimate just over-allocates a few bytes). */
 	maxId = 0;
 
@@ -600,7 +600,7 @@ export class CellManager {
 
 		// Entries just added landed at the end of the overlay and deletes swapped the tail
 		// into the hole, so the slots have to be put back in selection order before they
-		// are drawn — otherwise an edited marker jumps in front of everything. Guarded on
+		// are drawn - otherwise an edited marker jumps in front of everything. Guarded on
 		// the overlay having moved at all, so a delta that touches no selected row doesn't
 		// pay a scan over every selected marker on the map.
 		if (this.overlay.version !== overlayBefore) this.overlay.order();
@@ -611,7 +611,7 @@ export class CellManager {
 
 	/** Put the row at `cb[i]` in or out of the selection overlay and set its base visibility.
 	 *  Idempotent, so restating a row's current state costs nothing but is always safe.
-	 *  Takes the buffer and index the caller already has — `syncVisible` is for the
+	 *  Takes the buffer and index the caller already has - `syncVisible` is for the
 	 *  active-location path, which only knows an id. */
 	private setSelection(cb: CellBuffer, i: number, sel: SelColor) {
 		const id = cb.ids[i];

@@ -35,9 +35,6 @@ interface Section {
 	Body: (props: SectionProps) => React.ReactNode;
 }
 
-/** The built-in duplicate ranking, written in the expression syntax. Shown as the
- *  placeholder; leaving the field blank is what actually selects it. */
-
 function NameSection({ draft, edit, block }: SectionProps) {
 	const id = useId();
 	useEffect(() => block(draft.name.trim().length === 0), [draft.name, block]);

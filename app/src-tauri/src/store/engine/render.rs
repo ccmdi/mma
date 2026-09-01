@@ -217,7 +217,7 @@ pub struct RenderDelta {
 }
 
 /// The selection drawing a row: its colour, and its index in `SelectionState::resolved`.
-/// The index is the draw order — a later selection overdraws an earlier one — so the
+/// The index is the draw order - a later selection overdraws an earlier one - so the
 /// overlay can be ordered by it instead of by whatever order rows happen to arrive in.
 /// Every marker sits at z=0 in one deck.gl layer, so buffer order is the only z there is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, specta::Type)]

@@ -9,7 +9,7 @@ export function isOfficialPano(panoId: string): boolean {
 }
 
 /** Newest official pano in a capture timeline, or null if it holds none. Timelines from
- *  `svMetadata` are sorted ascending by date, so "newest" is the last official entry —
+ *  `svMetadata` are sorted ascending by date, so "newest" is the last official entry -
  *  scanning backwards rather than indexing keeps that assumption in one place. */
 export function newestOfficialPano<T extends { pano: string }>(time: readonly T[]): T | null {
 	return time.findLast((t) => isOfficialPano(t.pano)) ?? null;
@@ -27,7 +27,7 @@ export function isUnofficial(p: Pano): boolean {
 export function panoIdToImageKey(panoId: string): [number, string] {
 	if (panoId.startsWith("F:")) return [3, panoId.slice(2)];
 	if (isOfficialPano(panoId)) return [2, panoId];
-	// Base64url-encoded binary protobuf ImageKey (user-uploaded, etc.) — {1: type, 2: id}
+	// Base64url-encoded binary protobuf ImageKey (user-uploaded, etc.) - {1: type, 2: id}
 	try {
 		const b64 = panoId.replace(/\.+$/, "").replace(/-/g, "+").replace(/_/g, "/");
 		const bin = atob(b64);

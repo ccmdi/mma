@@ -15,7 +15,7 @@ use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 
 /// Semantic description of what a mutation changed, independent of any consumer.
-/// `finish_mutation` derives both the render delta and the selection sync from it —
+/// `finish_mutation` derives both the render delta and the selection sync from it -
 /// one source of truth, two projections. `updated` carries `(old, new)` so the
 /// render side can detect cell moves / pos-heading patches and the selection side
 /// can re-test membership.
@@ -141,15 +141,7 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
     for loc in &mut locations {
         loc.id = store.alloc_id();
     }
-    store.push_undo(EditEntry {
-        created: locations.clone(),
-        removed: Vec::new(),
-    });
-    store.edits.redo.clear();
-    store.add_tag_counts(&locations);
-    let added = locations.clone();
-    store.overlay_add(locations);
-    let extras: Vec<&RawExtra> = added.iter().filter_map(|l| l.extra.as_ref()).collect();
+    let extras: Vec<&RawExtra> = locations.iter().filter_map(|l| l.extra.as_ref()).collect();
     auto_register_extras(store, &extras);
     store.apply_undoable(Vec::new(), locations)
 }

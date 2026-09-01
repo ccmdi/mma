@@ -40,7 +40,7 @@ export function Summary({
 						<span className="lg-summary__row-n">#{i + 1}</span>
 						<span className="lg-summary__row-score">{r.score.toLocaleString()}</span>
 						<span className="lg-summary__row-dist">
-							{r.distanceMeters != null ? formatDistance(r.distanceMeters, 0) : "—"}
+							{r.distanceMeters != null ? formatDistance(r.distanceMeters, 0) : "-"}
 						</span>
 						<span className="lg-summary__row-time">{formatElapsed(r.elapsedMs)}</span>
 						<span className="lg-summary__row-place">

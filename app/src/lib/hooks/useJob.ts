@@ -17,8 +17,7 @@ export interface Job<R, P> {
 	cancel: () => void;
 }
 
-/** A user-triggered async job that reports progress and can be cancelled -- the
- *  run/cancel/progress/error state every long plugin action was keeping by hand.
+/** A user-triggered async job that reports progress and can be cancelled.
  *  Cancelling aborts the signal and stops the UI immediately; nothing the job does
  *  afterwards can write back. Unmounting cancels. `run` while running is a no-op,
  *  so a double-clicked button cannot start two.

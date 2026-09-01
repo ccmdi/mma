@@ -970,8 +970,6 @@ fn apply_pages(ctx: &RunCtx, decl: &ProviderDecl, rx: mpsc::Receiver<Produced>) 
     Ok(())
 }
 
-/// A field name is a core column when the store holds it outside `extra`. A provider
-/// declaring one both produces it for the wave graph and is skipped once it is set.
 fn field_present(loc: &Location, field: &str) -> bool {
     resolve_field_loc(loc, field).is_some_and(|v| !v.is_null())
 }

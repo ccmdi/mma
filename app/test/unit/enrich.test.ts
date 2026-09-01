@@ -88,7 +88,7 @@ async function enrichPatch(
 	return h.written[0] ?? null;
 }
 
-describe("single-location enrich — stale datetime/timezone clearing", () => {
+describe("single-location enrich - stale datetime/timezone clearing", () => {
 	beforeEach(() => {
 		h.written = [];
 		h.enrichFields = null;
@@ -201,7 +201,7 @@ describe("panoResolveProvider", () => {
 		expect(panoResolveProvider.provides).toEqual(["panoId"]);
 	});
 
-	it("batches the location search the way the JS prelude did", () => {
+	it("resolves panos in chunks of 200 within the search radius", () => {
 		expect(panoResolveProvider.procedure).toMatchObject({
 			entry: "res://procedures/panoResolve.js",
 			batch: { mode: "chunk", size: 200 },

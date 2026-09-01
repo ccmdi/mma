@@ -279,7 +279,7 @@ pub(super) fn parse_single_json(text: &str) -> ParsedMap {
 ///
 /// SIMD-accelerated via memchr: we jump directly between the structural bytes
 /// (`"`, `{`, `}`) and skip string bodies wholesale, instead of branching on
-/// every byte. This is the precursor to parallel parsing — we find boundaries
+/// every byte. This is the precursor to parallel parsing - we find boundaries
 /// in one pass, then hand each slice to rayon.
 pub(super) fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize) {
     let mut ranges = Vec::with_capacity(bytes.len() / 96);
@@ -310,12 +310,12 @@ pub(super) fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usiz
                 if depth == 0 {
                     ranges.push((obj_start, pos + 1));
                 } else if depth < 0 {
-                    // Root object's `}` after the array — array already ended.
+                    // Root object's `}` after the array - array already ended.
                     let close = array_close(&ranges);
                     return (ranges, close);
                 }
             }
-            // A quote at array level (depth 0) is a sibling key like "extra" —
+            // A quote at array level (depth 0) is a sibling key like "extra" -
             // we've passed the array's `]`. Inside an object, skip the string.
             _ => {
                 if depth == 0 {
@@ -332,7 +332,7 @@ pub(super) fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usiz
 /// Boundary scan of `[start, limit)` for depth-0 `{...}` objects (absolute offsets).
 /// Returns `(ranges, end_depth, terminated_close)`. `terminated_close` is `Some`
 /// only when the array's end is reached (`}` past depth 0, or a depth-0 sibling key
-/// quote) — that happens in the final chunk. A well-formed non-final chunk ends with
+/// quote) - that happens in the final chunk. A well-formed non-final chunk ends with
 /// `end_depth == 0` and `terminated_close == None`; anything else means the chunk's
 /// start landed at a false boundary and the caller falls back to serial.
 pub(super) fn scan_range(
@@ -387,7 +387,7 @@ pub(super) fn scan_range(
 /// newline boundary (a raw newline never appears inside a JSON string, so this is
 /// always a safe split for newline-delimited exports); falls back to a `}`,`{`
 /// separator scan for minified single-line input. A wrong guess can't corrupt the
-/// result — `parallel_find_object_boundaries` validates and falls back to serial.
+/// result - `parallel_find_object_boundaries` validates and falls back to serial.
 pub(super) fn resync_object_start(bytes: &[u8], from: usize) -> usize {
     let len = bytes.len();
     if let Some(nl) = memchr::memchr(b'\n', &bytes[from..]) {
@@ -423,7 +423,7 @@ pub(super) fn resync_object_start(bytes: &[u8], from: usize) -> usize {
 /// Parallel counterpart to `find_object_boundaries`. Splits the array bytes into
 /// per-core ranges, resyncs each range start to a real object boundary, scans them
 /// concurrently, then validates (each non-final range ends at depth 0; no overlaps).
-/// On any inconsistency — or for small inputs — it falls back to the serial scan, so
+/// On any inconsistency - or for small inputs - it falls back to the serial scan, so
 /// the output is always byte-identical to `find_object_boundaries`.
 pub(super) fn parallel_find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usize) {
     let len = bytes.len();
@@ -676,7 +676,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     // ~millions of duplicate tag strings serde allocates are freed inside the
     // parallel region (only the few distinct names per chunk survive), and each
     // Location stores chunk-local tag ids. The serial merge below maps locals to
-    // globals — a cheap pass over u32s, no string work.
+    // globals - a cheap pass over u32s, no string work.
     struct ChunkOut {
         locs: Vec<Location>,
         names: Vec<String>, // local id (index) -> tag name

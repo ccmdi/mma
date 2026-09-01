@@ -1,7 +1,7 @@
 //! In-memory spatial index over the alive location set: a fixed-cell hash grid for
 //! meter-scale radius queries (find-nearby, dedupe, "anything already here?").
 //! Owned by `Store`, built lazily on the first spatial query, and maintained
-//! incrementally by the overlay mutation functions — O(delta) per mutation,
+//! incrementally by the overlay mutation functions - O(delta) per mutation,
 //! O(min(cells in radius, occupied cells)) per query, instead of the O(N) scan per
 //! query it replaces.
 //!
@@ -13,7 +13,7 @@ use std::collections::HashMap;
 
 /// ~25m cells: 1-100m queries walk a handful of cells; a 1km query walks ~80x80.
 /// Longitude cells narrow toward the poles, which only means more (empty) cells
-/// walked there — correctness always comes from the caller's distance test.
+/// walked there - correctness always comes from the caller's distance test.
 const CELL_DEG: f64 = 25.0 / mma_geo::M_PER_DEG;
 
 #[inline]
@@ -65,7 +65,7 @@ impl SpatialIndex {
                 return;
             }
         }
-        log::warn!("[spatial] remove miss for id {id} — falling back to full scan");
+        log::warn!("[spatial] remove miss for id {id} - falling back to full scan");
         for (k, v) in &mut self.cells {
             if let Some(pos) = v.iter().position(|&x| x == id) {
                 v.swap_remove(pos);
@@ -83,7 +83,7 @@ impl SpatialIndex {
     /// wrap included). A superset: the caller must distance-test each candidate
     /// against current coordinates. When the window holds more cells than are
     /// occupied (huge radius, polar latitude), the occupied cells are scanned
-    /// instead — complete at any radius, O(occupied) worst case.
+    /// instead - complete at any radius, O(occupied) worst case.
     pub(crate) fn candidates(&self, lat: f64, lng: f64, radius_m: f64, out: &mut Vec<u32>) {
         let cover = mma_geo::covering_cells(lat, lng, radius_m, CELL_DEG);
         if cover.len() > self.cells.len() as u64 {

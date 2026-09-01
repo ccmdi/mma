@@ -49,7 +49,7 @@ pub(crate) fn apply_tag_patch(t: &mut Tag, patch: &TagPatch) {
 /// matches remap to the existing target id; misses are inserted as a clone of
 /// the source tag (count reset) under a fresh id from `next_id`. Returns the
 /// `{source_id -> target_id}` remap table and whether `target_tags` changed.
-/// Single source of truth for tag reconciliation — used by import and
+/// Single source of truth for tag reconciliation - used by import and
 /// cross-map copy.
 ///
 /// Order semantics: source order values are never stored verbatim. Every

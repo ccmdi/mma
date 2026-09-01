@@ -25,10 +25,10 @@ struct TagAggregate {
 }
 
 /// Incremental bounding-box accumulator. Tracks latitude min/max plus longitude
-/// min/max in *two* framings — raw `[-180,180]` and shifted `[0,360)` — so
+/// min/max in *two* framings - raw `[-180,180]` and shifted `[0,360)` - so
 /// `resolve` can pick the tighter longitude span and emit an antimeridian-crossing
 /// box (`west > east`) when the data straddles 180°. Every field is a plain
-/// min/max, so it grows in O(1) per point with no sort — the cache stays cheap.
+/// min/max, so it grows in O(1) per point with no sort - the cache stays cheap.
 #[derive(Clone, Copy)]
 pub(crate) struct BoundsAcc {
     s: f64,
@@ -82,7 +82,7 @@ impl BoundsAcc {
 
     /// `[west, south, east, north]`, choosing whichever longitude framing is
     /// tighter. The shifted framing winning means the box crosses 180°, which
-    /// maps back to `west > east` — the form Google/deck `fitBounds` zooms to the
+    /// maps back to `west > east` - the form Google/deck `fitBounds` zooms to the
     /// short way (matching the original's `east += 360` handling).
     pub(super) fn resolve(self) -> [f64; 4] {
         if self.es - self.ws < self.e - self.w {
@@ -93,7 +93,7 @@ impl BoundsAcc {
         }
     }
 
-    /// Whether a point sits on any extreme — removing it might shrink the box,
+    /// Whether a point sits on any extreme - removing it might shrink the box,
     /// forcing a recompute.
     pub(super) fn on_edge(self, lat: f64, lng: f64) -> bool {
         let sh = Self::shift(lng);
@@ -143,14 +143,14 @@ impl Store {
     }
 
     /// Build the spatial index if absent or drifted (length mismatch vs alive_count
-    /// catches any bulk path that bypassed the overlay fns — rebuild, never wrong).
+    /// catches any bulk path that bypassed the overlay fns - rebuild, never wrong).
     pub(super) fn ensure_spatial(&mut self) {
         if let Some(ix) = self.spatial.as_ref() {
             if ix.len() == self.alive_count {
                 return;
             }
             log::warn!(
-                "[spatial] index len {} != alive {} — rebuilding",
+                "[spatial] index len {} != alive {} - rebuilding",
                 ix.len(),
                 self.alive_count
             );

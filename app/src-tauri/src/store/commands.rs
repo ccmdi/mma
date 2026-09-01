@@ -587,7 +587,7 @@ fn copy_to_map(
         // Target open in some window: insert through the import path (reconcile,
         // id alloc, counts, field defs, undo, render cells) and emit the resulting
         // MutationResult. The receiving window applies it via the same mutate() flow
-        // as a local edit — including the save — so we do NOT persist here.
+        // as a local edit - including the save - so we do NOT persist here.
         let target = mgr.store_for_map(&target_map_id)?;
         let t_scan = Instant::now();
         let existing = target.collect(&Selector::Everything);
@@ -671,8 +671,13 @@ fn copy_to_map(
             alive,
             Some(serialize_tags_json(&target_tags)),
         )?;
-        log::debug!("[cmd] copy_to_map closed-target read={}ms history={}ms save={}ms total={}ms",
-            read_ms, hist_ms, t_save.elapsed().as_millis(), _t.elapsed().as_millis());
+        log::debug!(
+            "[cmd] copy_to_map closed-target read={}ms history={}ms save={}ms total={}ms",
+            read_ms,
+            hist_ms,
+            t_save.elapsed().as_millis(),
+            _t.elapsed().as_millis()
+        );
     }
     Ok(CopyToMapResult {
         copied,
@@ -682,9 +687,6 @@ fn copy_to_map(
 }
 
 /// Autosave uncommitted changes to the delta sidecar. No-op when nothing changed.
-// Does NOT bake the overlay (store_commit does). `overlay.dirty` is cleared only after the
-// write lands and only if the overlay wasn't mutated in flight (rev guard), so a failed or
-// raced save keeps the data flagged for the next attempt.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_save_dirty(
@@ -752,7 +754,6 @@ pub async fn store_save_dirty(
     Ok(SaveResult { saved_bytes: size })
 }
 
-/// Lightweight status query: location count, version, and dirty flag.
 #[tauri::command]
 #[specta::specta]
 pub fn store_get_summary(

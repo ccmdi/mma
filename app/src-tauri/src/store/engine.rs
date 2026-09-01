@@ -62,8 +62,7 @@ pub(crate) struct Overlay {
 }
 
 impl Overlay {
-    /// No uncommitted content. Distinct from `dirty`: an autosaved overlay is
-    /// clean but stays non-empty until baked by a commit.
+    /// No uncommitted content. An autosaved overlay is clean but stays non-empty until baked.
     pub(crate) fn is_empty(&self) -> bool {
         self.adds.is_empty() && self.dead.is_empty() && self.patches.is_empty()
     }
@@ -335,7 +334,7 @@ impl Store {
         Some(arrow::row_to_location(b, idx))
     }
 
-    /// Build a commit delta directly from the overlay — the in-memory changeset
+    /// Build a commit delta directly from the overlay - the in-memory changeset
     /// since the last commit. O(changeset), no history replay. Old versions of
     /// modified/removed rows come from the committed base batch, so this is only
     /// valid while the base still holds the parent state (i.e. before `bake_overlay`).
@@ -553,9 +552,8 @@ impl Store {
     }
 
     /// Merge overlay (adds, patches, dead) into the Arrow batch. O(N) where N = batch rows.
-    /// Expensive at 10M+ rows — prefer delta saves; full bake only on commit.
-    /// Gated on emptiness, not `dirty`: an autosave clears `dirty` without folding
-    /// anything in, and a clean-but-nonempty overlay must still bake.
+    /// Expensive at 10M+ rows - prefer delta saves; full bake only on commit.
+    /// Gated on emptiness: an autosave folds nothing in, so a saved overlay must still bake.
     pub(crate) fn bake_overlay(&mut self) {
         if self.overlay.is_empty() {
             return;
@@ -698,9 +696,6 @@ impl FunctionArg for WindowLabel {
 
 /// Metadata snapshot returned to JS after every mutation. JS uses `version` to
 /// detect stale responses and `canUndo`/`canRedo` for toolbar button state.
-/// `known_field_keys` lists every extra-field key that exists in location data
-/// on this map. Add-only within a session; seeded from `MapMeta.extra.fields`
-/// on map open.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreStatus {

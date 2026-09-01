@@ -1155,8 +1155,7 @@ input[type="range"]:disabled {
 	resize: vertical;
 	min-height: 4rem;
 }
-/* Own the row rhythm rather than inheriting it: this section used to sit in the settings
-   popup and lean on its line-height, which the modal doesn't set. */
+/* Owns its row rhythm: the modal sets no line-height. */
 .score-bounds__row {
 	align-items: center;
 	gap: 0.5rem;

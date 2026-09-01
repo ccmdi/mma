@@ -108,8 +108,7 @@ pub async fn store_commit(
         let store = mgr.store_for_map(&map_id)?;
         let location_count = store.alive_count as u32;
 
-        // The overlay changeset must be read BEFORE the bake folds it in. Emptiness,
-        // not `dirty`: an autosaved overlay is clean but still holds the changeset.
+        // Read the changeset before the bake folds it in; a saved overlay still holds it.
         let pre_bake = if !genesis && !store.overlay.is_empty() {
             Some(store.build_overlay_delta())
         } else {

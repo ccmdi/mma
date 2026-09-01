@@ -118,7 +118,7 @@ pub(super) const MONTH_NAMES: [&str; 12] = [
 
 /// Partition `view` into groups by `field`. `set` (when Some) restricts to those ids.
 /// Returns groups in a deterministic but unsorted order (numeric: bin order; projection:
-/// first-seen) — the JS caller sorts for display.
+/// first-seen) - the JS caller sorts for display.
 pub fn partition(
     view: &LocView,
     field: &str,

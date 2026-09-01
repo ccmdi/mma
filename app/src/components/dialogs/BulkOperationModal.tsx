@@ -384,7 +384,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 	const effectiveKey = (creatingNew ? newKey : key).trim();
 	const def = effectiveKey ? getFieldDef(effectiveKey) : undefined;
 	const isNumber = def?.type === "number";
-	const isEnum = def?.type === "enum" && def.values;
+	const enumValues = def?.type === "enum" ? def.values : null;
 	const [exprError, setExprError] = useState<string | null>(null);
 	useEffect(() => {
 		if (!isNumber || raw.trim() === "") {
@@ -441,10 +441,10 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 			)}
 			<label className="bulk-operation__option">
 				{t("Value")}
-				{isEnum ? (
+				{enumValues ? (
 					<NSelect value={raw} onChange={(e) => setRaw(e.target.value)}>
 						<option value="" />
-						{def!.values!.map((v) => (
+						{enumValues.map((v) => (
 							<option key={v} value={v}>
 								{fieldValueLabel(def, v)}
 							</option>

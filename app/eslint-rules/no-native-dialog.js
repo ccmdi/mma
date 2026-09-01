@@ -1,13 +1,9 @@
 /**
  * Flags `confirm()` / `alert()` / `prompt()`, however they are reached.
  *
- * These hang WebView2 for 15-20 seconds. A `no-restricted-syntax` selector used to
- * cover this, but it matched on `callee.name`, which only exists on a bare
- * `Identifier` callee -- `window.prompt(...)` is a MemberExpression and sailed
- * straight through it for months while the polygon rename hung the app.
- *
- * Resolving through scope instead of matching shapes also means a local binding
- * (`const prompt = usePrompt()`) is correctly ignored.
+ * These hang WebView2 for 15-20 seconds. Resolved through scope, not callee shape, so
+ * `window.prompt(...)` is caught and a local binding (`const prompt = usePrompt()`) is
+ * correctly ignored.
  *
  * @type {import('eslint').Rule.RuleModule}
  */

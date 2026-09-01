@@ -78,7 +78,7 @@ impl SelectionState {
     }
 }
 
-/// Ids whose selection paint changed in a mutation — including moves between overlapping
+/// Ids whose selection paint changed in a mutation - including moves between overlapping
 /// selections, where union membership never flips but the winning colour does. Carries no
 /// paint: `SelectionState::paint_for` is the one place colour and draw order is decided.
 pub(super) struct MembershipDelta {
@@ -138,7 +138,7 @@ impl Store {
             .chain(changes.updated.iter().map(|(_, n)| n.id))
             .collect();
         // Paint before the mutation, snapshotted while the sets still reflect it. Paint is
-        // the compared fact — not union membership — because a row that moves between
+        // the compared fact - not union membership - because a row that moves between
         // overlapping selections changes colour without ever leaving the union.
         let mut prev_paint: HashMap<u32, Option<SelPaint>> = HashMap::new();
         if !drop_ids.is_empty() {
