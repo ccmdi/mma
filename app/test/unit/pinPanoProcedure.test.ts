@@ -45,16 +45,13 @@ describe("pinPano procedure", () => {
 		expect(fetches()).toBe(0);
 	});
 
-	it("fails a row with no pano id and leaves an already-pinned row alone", () => {
+	it("leaves an already-pinned row alone", () => {
 		mod.configure(null);
 		const { out, failed } = withHost(null, () =>
-			mod.run([
-				{ id: 1, lat: 0, lng: 0, panoId: null, flags: 0 },
-				{ id: 2, lat: 0, lng: 0, panoId: "kept", flags: LOAD_AS_PANO_ID },
-			]),
+			mod.run([{ id: 2, lat: 0, lng: 0, panoId: "kept", flags: LOAD_AS_PANO_ID }]),
 		);
 		expect(out).toEqual([]);
-		expect(failed).toEqual([1]);
+		expect(failed).toEqual([]);
 	});
 
 	it("useLatest moves a forced re-pin to the newest official pano in the timeline", () => {

@@ -116,14 +116,6 @@ test("an unknown direction reads as forwards", () => {
 	assert.deepEqual(patches, [{ id: 1, patch: { heading: 12 } }]);
 });
 
-test("a row without a pano id fails and never reaches a request", () => {
-	const { patches, calls, progress, failed } = runProcedure([row(7)], null);
-	assert.equal(calls.length, 0);
-	assert.deepEqual(patches, []);
-	assert.deepEqual(failed, [7]);
-	assert.equal(progress, 1);
-});
-
 test("metadata with no pov leaves the heading alone without failing", () => {
 	const { patches, progress, failed } = runProcedure([row(1, PANO)], () =>
 		responseBytes({ metadata: [metaWithHeading(PANO, null)] }),

@@ -107,13 +107,6 @@ test("without useLatest a pano-carrying row just gains the flag", () => {
 	assert.deepEqual(failed, []);
 });
 
-test("a row with no pano id fails", () => {
-	const { patches, progress, failed } = runProcedure([row(5)], null);
-	assert.deepEqual(patches, []);
-	assert.deepEqual(failed, [5]);
-	assert.equal(progress, 1);
-});
-
 test("already pinned rows are skipped, and forced ones are not", () => {
 	const skipped = runProcedure([row(1, OFFICIAL_A, LoadAsPanoId)], null);
 	assert.deepEqual(skipped.patches, []);

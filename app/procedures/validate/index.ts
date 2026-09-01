@@ -1,7 +1,6 @@
-// Street View coverage validation, Run shape. Port of `validateOne` in
-// app/src/lib/sv/validate.ts: metadata for the stored pano, a coordinate lookup as
-// fallback (or as the comparison when the row is not pinned), then the unofficial,
-// badcam and timeline checks. It answers with a ValidationState per row and writes
+// Street View coverage validation, Run shape: metadata for the stored pano, a coordinate
+// lookup as fallback (or as the comparison when the row is not pinned), then the
+// unofficial, badcam and timeline checks. It answers with a ValidationState per row and writes
 // nothing -- the run declares the collect sink.
 //
 // The batch moves through four phases, each issuing every request it needs in one
@@ -36,8 +35,7 @@ function isGoodCam(m: Pano): boolean {
 	return cam === "gen4" || cam === "gen2";
 }
 
-/** Metadata at one slot, or null when the pano is unknown or its request failed -- the
- *  two cases the JS `.catch(() => [null])` collapsed together. */
+/** Metadata at one slot, or null when the pano is unknown or its request failed. */
 function metaAt(f: FetchedMetadata, slot: number): Pano | null {
 	return slot >= 0 && f.done[slot] && !f.failed[slot] ? f.metas[slot] : null;
 }
@@ -142,6 +140,5 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 		}
 	}
 
-	mma.progress(items.length);
 	return items.map((it) => ({ id: it.row.id, patch: it.state }));
 }

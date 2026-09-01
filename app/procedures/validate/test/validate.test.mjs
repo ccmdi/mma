@@ -166,12 +166,8 @@ function stateOf(row, opts) {
 // --- Coverage ---
 
 test("an unpinned row whose coordinate agrees is ok", () => {
-	const { state, progress } = stateOf(
-		{ panoId: A },
-		{ panos: { [A]: meta(A) }, coords: { "1,2": A } },
-	);
+	const { state } = stateOf({ panoId: A }, { panos: { [A]: meta(A) }, coords: { "1,2": A } });
 	assert.equal(state, OK);
-	assert.equal(progress, 1);
 });
 
 test("a row with no coverage anywhere is not found", () => {
@@ -343,7 +339,7 @@ test("every row is answered in order, once", () => {
 		{ id: 8, lat: 3, lng: 4, panoId: null },
 		{ id: 9, lat: 1, lng: 2, panoId: A, flags: PINNED },
 	];
-	const { answers, progress } = runProcedure(rows, {
+	const { answers } = runProcedure(rows, {
 		panos: { [A]: meta(A) },
 		coords: { "1,2": A },
 	});
@@ -352,7 +348,6 @@ test("every row is answered in order, once", () => {
 		{ id: 8, patch: NOT_FOUND },
 		{ id: 9, patch: OK },
 	]);
-	assert.equal(progress, 3);
 });
 
 test("a batch costs the same host rounds however many rows it carries", () => {

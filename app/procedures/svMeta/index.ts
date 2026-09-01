@@ -33,9 +33,7 @@ export function query(input: { op?: string; panoIds?: string[] }) {
 export function run(rows: Location[]): Update<LocationPatch>[] {
 	const index = indexPanos(rows.map((r) => r.panoId ?? ""));
 	const rowsFor: number[][] = index.unique.map(() => []);
-	index.slot.forEach((slot, i) => {
-		if (slot >= 0) rowsFor[slot].push(i);
-	});
+	index.slot.forEach((slot, i) => rowsFor[slot].push(i));
 
 	const fetched = fetchMetadata(index.unique);
 	const out: Update<LocationPatch>[] = [];

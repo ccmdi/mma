@@ -20,12 +20,6 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 		if (mma.aborted()) break;
 		const row = rows[i];
 		const slot = index.slot[i];
-		// No pano id means no driving direction to read.
-		if (slot < 0) {
-			mma.fail(row.id);
-			mma.progress(1);
-			continue;
-		}
 		if (!fetched.done[slot]) continue;
 		const meta = fetched.metas[slot];
 		if (fetched.failed[slot] || !meta) {

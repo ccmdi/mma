@@ -30,11 +30,6 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 		if (mma.aborted()) break;
 		const row = rows[i];
 		if (isPinnedToPano(row) && !force) continue;
-		if (!row.panoId) {
-			mma.fail(row.id);
-			mma.progress(1);
-			continue;
-		}
 		const flags = row.flags | LocationFlag.LoadAsPanoId;
 
 		if (!useLatest) {
