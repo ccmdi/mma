@@ -4,6 +4,8 @@
 pub mod engine;
 pub mod quickjs;
 
+use crate::plugins::borders;
+use crate::plugins::sidecar;
 use crate::plugins::sidecar::SidecarStream;
 use crate::types::{AppError, AppResult};
 
@@ -52,7 +54,7 @@ pub trait ProcHost {
     }
     /// Point-in-polygon lookup against a local border dataset. `None` outside every feature.
     fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>> {
-        Ok(crate::plugins::borders::classify_points(dataset, &[(lat, lng)])?
+        Ok(borders::classify_points(dataset, &[(lat, lng)])?
             .into_iter()
             .next()
             .flatten())
@@ -65,7 +67,7 @@ pub trait ProcHost {
         command: &str,
         payload_json: &str,
     ) -> AppResult<SidecarStream> {
-        crate::plugins::sidecar::sidecar_call_stream(plugin_id, command, payload_json)
+        sidecar::sidecar_call_stream(plugin_id, command, payload_json)
     }
     fn progress(&mut self, units: u32);
     fn fail(&mut self, id: u32);
