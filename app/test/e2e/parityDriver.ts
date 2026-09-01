@@ -208,6 +208,56 @@ export async function runEnrich(build: Build, force = true): Promise<EnrichRun> 
 	);
 }
 
+/** Pin every row to a resolved panorama. Same split as enrichment: v0.9.2 takes rows,
+ *  the current build takes a selector. */
+export async function runPin(build: Build, force = true): Promise<EnrichRun> {
+	return withApi(
+		async (api, legacy, doForce, scope) => {
+			const a = api as unknown as Record<string, unknown>;
+			const pin = a.bulkPinToPano as (t: unknown, o: unknown) => Promise<number>;
+			const target = legacy
+				? await (a.fetchLocations as (s: unknown) => Promise<unknown[]>)(scope)
+				: scope;
+			const start = Date.now();
+			const pinned = await pin(target, { force: doForce });
+			return {
+				durationMs: Date.now() - start,
+				outcomes: [{ id: "pinPano", success: Number(pinned ?? 0), failed: 0 }],
+			};
+		},
+		build.legacy,
+		force,
+		everything(build.legacy),
+	);
+}
+
+/** Validation state per row. Both builds answer with a Map keyed by state; v0.9.2's
+ *  values are whole locations, the current build's are ids, so both are reduced to
+ *  counts plus the ids that landed in each state. */
+export async function runValidate(build: Build): Promise<{
+	durationMs: number;
+	states: [number, number][];
+}> {
+	return withApi(
+		async (api, legacy, scope) => {
+			const a = api as unknown as Record<string, unknown>;
+			const validate = a.validateLocations as (t: unknown, o: unknown) => Promise<unknown>;
+			const target = legacy
+				? await (a.fetchLocations as (s: unknown) => Promise<unknown[]>)(scope)
+				: scope;
+			const start = Date.now();
+			const res = (await validate(target, {})) as Map<number, unknown[]> | undefined;
+			const states: [number, number][] = res
+				? [...res.entries()].map(([state, rows]) => [Number(state), rows.length])
+				: [];
+			states.sort((x, y) => x[0] - y[0]);
+			return { durationMs: Date.now() - start, states };
+		},
+		build.legacy,
+		everything(build.legacy),
+	);
+}
+
 /** Every row as the build left it: the parity diff's raw material. */
 export async function dumpRows(legacy = false): Promise<Record<string, unknown>[]> {
 	return withApi(async (api, scope) => {
