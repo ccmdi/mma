@@ -4504,20 +4504,6 @@ fn expr_op_rejects_a_syntax_error_before_touching_rows() {
     assert!(err.0.contains("Unexpected end of expression"), "{}", err.0);
 }
 
-#[test]
-fn field_op_check_guards_builtin_names() {
-    assert!(check_field_op(&set_op("panoId", serde_json::json!("x"))).is_err());
-    assert!(check_field_op(&expr_op("lat", "1")).is_err());
-    assert!(check_field_op(&set_op("heading", serde_json::json!("north"))).is_err());
-    assert!(check_field_op(&set_op("heading", serde_json::json!(90))).is_ok());
-    assert!(check_field_op(&set_op("mine", serde_json::json!("x"))).is_ok());
-    assert!(check_field_op(&move_op("heading", "b", MergeWinner::From)).is_err());
-    assert!(check_field_op(&FieldOp::Delete {
-        keys: vec!["zoom".into()]
-    })
-    .is_err());
-}
-
 // A key a mutation introduces lands in the store's registry and the same result ships
 // the whole registry; a mutation that adds no key ships nothing.
 #[test]
@@ -4560,6 +4546,49 @@ fn apply_field_defs_keeps_the_existing_def() {
 // extra-only rewrites, so knownness must flow through the registry channel: the store
 // forgets `a` when the move erases it, and re-announces it via field_defs when
 // the reverse move brings it back.
+// The command path, not just the plan: a gate that rejected a clearable builtin before
+// `plan_field_op` ran would make every plan-level test above green and the feature dead.
+#[test]
+fn apply_field_op_clears_a_nullable_column() {
+    let mut store = setup_store_with(&[pinned_loc(1, "abc")]);
+    let out = apply_field_op(
+        &mut store,
+        &Selector::Everything,
+        &del_op(&["panoId"]),
+        false,
+    )
+    .unwrap();
+    assert_eq!(out.changed, 1);
+    assert!(store.get_loc_by_id(1).unwrap().pano_id.is_none());
+}
+
+#[test]
+fn apply_field_op_refuses_a_column_it_cannot_clear() {
+    let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
+    let err = match apply_field_op(
+        &mut store,
+        &Selector::Everything,
+        &del_op(&["heading"]),
+        false,
+    ) {
+        Err(e) => e,
+        Ok(_) => panic!("heading is writable, never clearable"),
+    };
+    assert!(err.0.contains("cannot be removed"), "{}", err.0);
+}
+
+#[test]
+fn apply_field_op_refuses_a_non_numeric_assignment() {
+    let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
+    assert!(apply_field_op(
+        &mut store,
+        &Selector::Everything,
+        &set_op("heading", serde_json::json!("north")),
+        false,
+    )
+    .is_err());
+}
+
 #[test]
 fn field_op_round_trip_rename_reannounces_the_key() {
     let mut store = setup_store_with(&[

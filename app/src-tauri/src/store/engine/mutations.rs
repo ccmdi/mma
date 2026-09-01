@@ -423,35 +423,6 @@ pub(super) fn plan_field_op(
     Ok(plan)
 }
 
-/// The keys an op may only reach through `extra`, and the shape a built-in assignment
-/// must have. A built-in name written through `extra` would silently shadow a column.
-pub(super) fn check_field_op(op: &FieldOp) -> AppResult<()> {
-    let extra_keys: Vec<&str> = match op {
-        FieldOp::Move { from, to, .. } => vec![from.as_str(), to.as_str()],
-        FieldOp::Delete { keys } => keys.iter().map(String::as_str).collect(),
-        FieldOp::Set { key, .. } | FieldOp::Expr { key, .. } => {
-            if selections::is_writable_builtin(key) {
-                Vec::new()
-            } else {
-                vec![key.as_str()]
-            }
-        }
-    };
-    if let Some(k) = extra_keys.iter().find(|k| selections::is_builtin_field(k)) {
-        return Err(AppError::from(format!(
-            "store_apply_field_op: {k} is a built-in field"
-        )));
-    }
-    if let FieldOp::Set { key, value } = op {
-        if selections::is_writable_builtin(key) && !value.is_number() {
-            return Err(AppError::from(format!(
-                "store_apply_field_op: {key} takes a number"
-            )));
-        }
-    }
-    Ok(())
-}
-
 /// Rewrite a field across the selected set in one pass. Replaces fetching every location
 /// into JS to derive patches and shipping them all back. Keeps `known_field_keys`
 /// truthful: keys the op erased from every row are forgotten (before the status snapshot),
@@ -463,7 +434,6 @@ pub(crate) fn apply_field_op(
     op: &FieldOp,
     record_undo: bool,
 ) -> AppResult<FieldOpResult> {
-    check_field_op(op)?;
     let plan = {
         let view = store.loc_view();
         let resolved = selections::narrow(&view, selector);
