@@ -25,6 +25,7 @@ import {
 	SV_SEARCH_RADIUS,
 } from "@/lib/sv/constants";
 import { cmd } from "@/lib/commands";
+import { buildSelection } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import type { Location, Selector } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
@@ -81,11 +82,6 @@ export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []
 
 export interface PanoResolveConfig {
 	radius: number;
-	/** The enrich fields the run is after. Set, the prelude resolves a pano only for a
-	 *  row that still lacks one of them: resolving is a means to their metadata, not a
-	 *  goal, so a fully enriched row keeps its coordinates-only state. Unset, every row
-	 *  without a pano is resolved (pinning, heading). */
-	needs?: string[];
 }
 
 /** Pano id from coordinates, via the location search `StreetViewService.getPanorama`
@@ -190,6 +186,17 @@ registerProvider(exactDateProvider);
 registerProvider(timezoneProvider);
 registerProvider(subdivisionProvider);
 
+/** `selector` minus the rows holding every one of `fields`. */
+function lackingAny(selector: Selector, fields: string[]): Selector {
+	const missing: Selector = {
+		type: "Union",
+		selections: fields.map((field) =>
+			buildSelection({ type: "Filter", field, op: "nothas", value: null }),
+		),
+	};
+	return { type: "Intersection", selections: [selector, missing].map(buildSelection) };
+}
+
 /** One summary row per pass that did work: the core metadata pass, then every
  *  provider that updated or failed at least one location. */
 export interface EnrichOutcome extends ProcedureOutcome {
@@ -208,18 +215,16 @@ export async function enrichAll(
 	if (!map) return [];
 	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
 
-	// Force re-derives fields, never panos: a stored pano id is kept, and every row
-	// without one is resolved.
-	const needs = opts.force ? undefined : enrichFields;
+	// Resolving is a means to a row's metadata, not a goal: a row holding every wanted
+	// field keeps its coordinates-only state. Force re-derives fields, never panos.
+	const resolve = opts.force
+		? panoResolveProvider
+		: {
+				...panoResolveProvider,
+				procedure: { ...panoResolveSpec, select: lackingAny(selector, enrichFields) },
+			};
 	const run = await runProviders(
-		[
-			{
-				provider: panoResolveProvider,
-				force: false,
-				config: { radius: SV_SEARCH_RADIUS, needs } satisfies PanoResolveConfig,
-			},
-			...enrichRuns(enrichFields),
-		],
+		[{ provider: resolve, force: false }, ...enrichRuns(enrichFields)],
 		selector,
 		opts,
 	);

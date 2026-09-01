@@ -291,16 +291,20 @@ describe("the implicit provider set", () => {
 		expect(ids()).not.toContain("headingRoad");
 	});
 
-	it("a forced enrichAll re-derives fields but never re-resolves a stored pano", async () => {
+	it("enrichAll resolves a pano only for a row still lacking a wanted field", async () => {
 		await enrichAll({ type: "Everything" });
-		expect(h.decls[0].force).toBe(false);
-		expect(JSON.parse(h.decls[0].config ?? "null").needs).toEqual(getDefaultEnrichKeys());
+		expect(h.decls[0].id).toBe("panoResolve");
+		expect(h.decls[0].select.type).toBe("Intersection");
+		const json = JSON.stringify(h.decls[0].select);
+		for (const key of getDefaultEnrichKeys()) expect(json).toContain(`"${key}"`);
+		expect(json).toContain('"nothas"');
+	});
 
-		h.decls = [];
+	it("a forced enrichAll re-derives fields but never re-resolves a stored pano", async () => {
 		await enrichAll({ type: "Everything" }, { force: true });
 		expect(h.decls[0].id).toBe("panoResolve");
 		expect(h.decls[0].force).toBe(false);
-		expect(JSON.parse(h.decls[0].config ?? "null").needs).toBeUndefined();
+		expect(h.decls[0].select).toEqual({ type: "Everything" });
 	});
 
 	it("the single-location path runs no core-column provider", async () => {
