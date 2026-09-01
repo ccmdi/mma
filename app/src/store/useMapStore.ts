@@ -657,7 +657,7 @@ export async function applyFieldOp(
 	op: FieldOp,
 	recordUndo: boolean,
 ): Promise<FieldOpResult> {
-	let r: FieldOpResult = { mutation: EMPTY_MUTATION, changed: 0, skipped: 0 };
+	let r: FieldOpResult = { mutation: EMPTY_MUTATION, changed: 0, failed: [] };
 	await mutate(async () => {
 		r = await cmd.storeApplyFieldOp(selector, op, recordUndo);
 		return r.mutation;

@@ -784,17 +784,17 @@ export type FieldOp =
 { kind: "set"; key: string; value: unknown } | 
 /**
  *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
- *  missing or non-numeric field, a non-finite result) is skipped and counted.
+ *  missing or non-numeric field, a non-finite result) is reported back by id.
  */
 { kind: "expr"; key: string; expr: string };
 
-/**  The op's outcome for the caller: the mutation plus the counts its message needs. */
+/**  The op's outcome for the caller: the mutation plus what its message needs. */
 export type FieldOpResult = {
 	mutation: MutationResult,
 	/**  Rows the op patched. */
 	changed: number,
 	/**  Rows an expression could not evaluate. */
-	skipped: number,
+	failed: number[],
 };
 
 /**

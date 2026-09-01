@@ -309,7 +309,7 @@ describe("Bulk operations -- field ops", () => {
 		]);
 	});
 
-	it("an expression writes per row, skips rows it cannot evaluate, and undoes as one entry", async () => {
+	it("an expression writes per row, names the rows it cannot evaluate, and undoes as one entry", async () => {
 		const r = await withApi(
 			(api, ids) =>
 				api.applyFieldOp(
@@ -320,7 +320,7 @@ describe("Bulk operations -- field ops", () => {
 			ids,
 		);
 		expect(r.changed).toBe(2);
-		expect(r.skipped).toBe(1);
+		expect(r.failed).toEqual([ids[2]]);
 		expect((await getLoc(ids[0])).extra?.h).toBe(190);
 		expect((await getLoc(ids[1])).extra?.h).toBe(170);
 		expect((await getLoc(ids[2])).extra?.h).toBeUndefined();

@@ -1387,6 +1387,9 @@
 		"other": "{n} 个冲突待处理"
 	},
 	"{n} excluded (in multiple groups)": "已排除 {n} 个（属于多个分组）",
+	"{n} failed.": {
+		"other": "{n} 个失败。"
+	},
 	"{n} groups applied": {
 		"other": "已应用 {n} 个分组"
 	},
@@ -1415,7 +1418,6 @@
 	"{n} not found locally": "{n} 个在本地未找到",
 	"{n} rounds": "{n} 轮",
 	"{n} seconds per round": "每轮 {n} 秒",
-	"{n} skipped (missing source fields).": "已跳过 {n} 个（缺少源字段）。",
 	"{n} tags will be affected:": {
 		"other": "将影响 {n} 个标签："
 	},

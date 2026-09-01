@@ -1461,6 +1461,11 @@
 		"other": "{n} conflictos retenidos para revisión"
 	},
 	"{n} excluded (in multiple groups)": "{n} excluidas (en varios grupos)",
+	"{n} failed.": {
+		"one": "{n} fallida.",
+		"many": "{n} fallidas.",
+		"other": "{n} fallidas."
+	},
 	"{n} groups applied": {
 		"one": "{n} grupo aplicado",
 		"many": "{n} grupos aplicados",
@@ -1505,7 +1510,6 @@
 	"{n} not found locally": "{n} no encontradas localmente",
 	"{n} rounds": "{n} rondas",
 	"{n} seconds per round": "{n} segundos por ronda",
-	"{n} skipped (missing source fields).": "{n} omitidas (faltan campos de origen).",
 	"{n} tags will be affected:": {
 		"one": "Se verá afectada {n} etiqueta:",
 		"many": "Se verán afectadas {n} etiquetas:",

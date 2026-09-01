@@ -222,7 +222,7 @@ pub enum FieldOp {
         value: serde_json::Value,
     },
     /// Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
-    /// missing or non-numeric field, a non-finite result) is skipped and counted.
+    /// missing or non-numeric field, a non-finite result) is reported back by id.
     Expr { key: String, expr: String },
 }
 
@@ -232,10 +232,10 @@ pub enum FieldOp {
 pub(super) struct FieldPlan {
     pub(super) updates: Vec<Update<LocationPatch>>,
     pub(super) forget: Vec<String>,
-    pub(super) skipped: u32,
+    pub(super) failed: Vec<u32>,
 }
 
-/// The op's outcome for the caller: the mutation plus the counts its message needs.
+/// The op's outcome for the caller: the mutation plus what its message needs.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldOpResult {
@@ -243,7 +243,7 @@ pub struct FieldOpResult {
     /// Rows the op patched.
     pub changed: u32,
     /// Rows an expression could not evaluate.
-    pub skipped: u32,
+    pub failed: Vec<u32>,
 }
 
 /// Two field values are the same when JSON says so, except numbers, which compare by
@@ -343,7 +343,7 @@ pub(super) fn plan_field_op(
     }
     let mut plan = FieldPlan::default();
     let mut survives: HashSet<String> = HashSet::new();
-    let mut failed: Option<AppError> = None;
+    let mut err: Option<AppError> = None;
     view.for_each(|row| {
         let id = row.id();
         let mut merge = serde_json::Map::new();
@@ -358,7 +358,7 @@ pub(super) fn plan_field_op(
                     let expr = expr.as_ref().expect("parsed above");
                     let field = |name: &str| row.resolve_field(name);
                     match field_expr::eval(expr, &field) {
-                        None => plan.skipped += 1,
+                        None => plan.failed.push(id),
                         Some(v) => {
                             let value = number_value(v);
                             if !same_field_value(row.resolve_field(key).as_ref(), &value) {
@@ -398,11 +398,11 @@ pub(super) fn plan_field_op(
         if !merge.is_empty() {
             match assign_patch(&merge) {
                 Ok(patch) => plan.updates.push(Update { id, patch }),
-                Err(e) => failed = Some(e),
+                Err(e) => err = Some(e),
             }
         }
     });
-    if let Some(e) = failed {
+    if let Some(e) = err {
         return Err(e);
     }
     plan.forget = removed
@@ -435,7 +435,7 @@ pub(crate) fn apply_field_op(
     }
     Ok(FieldOpResult {
         changed: plan.updates.len() as u32,
-        skipped: plan.skipped,
+        failed: plan.failed,
         mutation: apply_updates(store, &plan.updates, record_undo),
     })
 }

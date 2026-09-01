@@ -4445,7 +4445,7 @@ fn a_move_may_take_a_nullable_column_but_never_fill_one() {
 }
 
 #[test]
-fn expr_op_evaluates_per_row_and_counts_the_rows_it_cannot() {
+fn expr_op_evaluates_per_row_and_names_the_rows_it_cannot() {
     let locs = [
         loc_with_extra(1, r#"{"a":10}"#),
         loc_with_extra(2, r#"{"a":-10}"#),
@@ -4465,7 +4465,7 @@ fn expr_op_evaluates_per_row_and_counts_the_rows_it_cannot() {
         planned_extra(&p.updates[1]),
         serde_json::json!({ "h": 170 })
     );
-    assert_eq!(p.skipped, 2);
+    assert_eq!(p.failed, vec![3, 4]);
     assert!(p.forget.is_empty());
 }
 
@@ -4477,7 +4477,7 @@ fn expr_op_drops_rows_the_result_would_not_change() {
     ];
     let p = plan_full(&locs, &expr_op("a", "a * 1"));
     assert!(p.updates.is_empty());
-    assert_eq!(p.skipped, 0);
+    assert!(p.failed.is_empty());
     // Fractions survive as floats, whole numbers as integers.
     let out = plan(&locs, &expr_op("c", "a / 2"));
     assert_eq!(planned_extra(&out[0]), serde_json::json!({ "c": 2.5 }));
@@ -4559,7 +4559,26 @@ fn apply_field_op_clears_a_nullable_column() {
     )
     .unwrap();
     assert_eq!(out.changed, 1);
+    assert!(out.failed.is_empty());
     assert!(store.get_loc_by_id(1).unwrap().pano_id.is_none());
+}
+
+#[test]
+fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
+    let mut store = setup_store_with(&[
+        loc_with_extra(1, r#"{"a":10}"#),
+        loc_with_extra(2, r#"{"b":1}"#),
+        loc_with_extra(3, r#"{"a":"ten"}"#),
+    ]);
+    let out = apply_field_op(
+        &mut store,
+        &Selector::Everything,
+        &expr_op("h", "a + 1"),
+        false,
+    )
+    .unwrap();
+    assert_eq!(out.changed, 1);
+    assert_eq!(out.failed, vec![2, 3]);
 }
 
 #[test]

@@ -1498,6 +1498,12 @@
 		"other": "{n} konfliktów wstrzymanych do przeglądu"
 	},
 	"{n} excluded (in multiple groups)": "Wykluczono {n} (w wielu grupach)",
+	"{n} failed.": {
+		"one": "{n} nieudana.",
+		"few": "{n} nieudane.",
+		"many": "{n} nieudanych.",
+		"other": "{n} nieudanych."
+	},
 	"{n} groups applied": {
 		"one": "Zastosowano {n} grupę",
 		"few": "Zastosowano {n} grupy",
@@ -1550,7 +1556,6 @@
 	"{n} not found locally": "{n} nie znaleziono lokalnie",
 	"{n} rounds": "{n} rund",
 	"{n} seconds per round": "{n} sekund na rundę",
-	"{n} skipped (missing source fields).": "Pominięto {n} (brak pól źródłowych).",
 	"{n} tags will be affected:": {
 		"one": "Zmiana obejmie {n} tag:",
 		"few": "Zmiana obejmie {n} tagi:",

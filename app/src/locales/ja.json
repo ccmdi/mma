@@ -1387,6 +1387,9 @@
 		"other": "{n} 件の競合をレビュー用に保留"
 	},
 	"{n} excluded (in multiple groups)": "{n} 件を除外（複数グループに所属）",
+	"{n} failed.": {
+		"other": "{n} 件失敗。"
+	},
 	"{n} groups applied": {
 		"other": "{n} 件のグループを適用しました"
 	},
@@ -1415,7 +1418,6 @@
 	"{n} not found locally": "{n} 件がローカルに見つかりません",
 	"{n} rounds": "{n} ラウンド",
 	"{n} seconds per round": "ラウンドあたり {n} 秒",
-	"{n} skipped (missing source fields).": "{n} 件をスキップしました（ソースフィールドがありません）。",
 	"{n} tags will be affected:": {
 		"other": "{n} 件のタグが影響を受けます:"
 	},

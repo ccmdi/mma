@@ -1424,6 +1424,10 @@
 		"other": "{n} conflicts held for review"
 	},
 	"{n} excluded (in multiple groups)": "{n} excluded (in multiple groups)",
+	"{n} failed.": {
+		"one": "{n} failed.",
+		"other": "{n} failed."
+	},
 	"{n} groups applied": {
 		"one": "{n} group applied",
 		"other": "{n} groups applied"
@@ -1460,7 +1464,6 @@
 	"{n} not found locally": "{n} not found locally",
 	"{n} rounds": "{n} rounds",
 	"{n} seconds per round": "{n} seconds per round",
-	"{n} skipped (missing source fields).": "{n} skipped (missing source fields).",
 	"{n} tags will be affected:": {
 		"one": "{n} tag will be affected:",
 		"other": "{n} tags will be affected:"

@@ -1424,6 +1424,10 @@
 		"other": "{n} Konflikte zur Prüfung zurückgestellt"
 	},
 	"{n} excluded (in multiple groups)": "{n} ausgeschlossen (in mehreren Gruppen)",
+	"{n} failed.": {
+		"one": "{n} fehlgeschlagen.",
+		"other": "{n} fehlgeschlagen."
+	},
 	"{n} groups applied": {
 		"one": "{n} Gruppe angewendet",
 		"other": "{n} Gruppen angewendet"
@@ -1460,7 +1464,6 @@
 	"{n} not found locally": "{n} lokal nicht gefunden",
 	"{n} rounds": "{n} Runden",
 	"{n} seconds per round": "{n} Sekunden pro Runde",
-	"{n} skipped (missing source fields).": "{n} übersprungen (Quellfelder fehlen).",
 	"{n} tags will be affected:": {
 		"one": "{n} Tag ist betroffen:",
 		"other": "{n} Tags sind betroffen:"

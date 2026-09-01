@@ -346,8 +346,13 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 					onClick={() => {
 						const keys = [...selected];
 						onReady(async ({ selector }) => {
-							const { changed } = await applyFieldOp(selector, { kind: "delete", keys }, true);
+							const { changed, failed } = await applyFieldOp(
+								selector,
+								{ kind: "delete", keys },
+								true,
+							);
 							return {
+								outcome: { succeeded: changed, failed },
 								doneMessage: t(
 									{
 										one: "Cleared fields from {n} location.",
@@ -478,16 +483,16 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 							const op: FieldOp = useExpr
 								? { kind: "expr", key: ek, expr: rv }
 								: { kind: "set", key: ek, value: rv };
-							const { changed, skipped } = await applyFieldOp(selector, op, true);
+							const { changed, failed } = await applyFieldOp(selector, op, true);
 							const message =
 								t(
 									{ one: "Set field on {n} location.", other: "Set field on {n} locations." },
 									{ n: changed },
 								) +
-								(skipped > 0
-									? " " + t("{n} skipped (missing source fields).", { n: skipped })
+								(failed.length > 0
+									? " " + t({ one: "{n} failed.", other: "{n} failed." }, { n: failed.length })
 									: "");
-							return { doneMessage: message };
+							return { outcome: { succeeded: changed, failed }, doneMessage: message };
 						});
 					}}
 				>
