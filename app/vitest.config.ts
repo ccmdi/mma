@@ -15,5 +15,8 @@ export default defineConfig({
 		// Pinned to a positive half-hour offset: local-vs-UTC frame bugs are invisible when
 		// tests run in UTC, and a whole-hour zone hides sub-hour arithmetic.
 		env: { TZ: "Asia/Kolkata" },
+		// A lazy `import()` inside a test pays the module graph transform against the
+		// test timeout, which a saturated pool blows through at the 5 s default.
+		testTimeout: 30_000,
 	},
 });
