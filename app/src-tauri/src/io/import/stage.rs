@@ -165,7 +165,7 @@ pub fn store_import_staged_location(index: u32) -> AppResult<Location> {
 #[specta::specta]
 pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview> {
     // CPU-bound parse runs on a blocking thread so it never stalls the main/event-loop
-    // thread (which the webview shares — a sync command here freezes the window).
+    // thread (which the webview shares - a sync command here freezes the window).
     task::spawn_blocking(move || {
         let t0 = Instant::now();
         let mut buf = read_sequential(&path)?;
@@ -329,11 +329,10 @@ pub(super) fn add_parsed_to_store(
 
     let t_undo = _t.elapsed();
 
-    for loc in mem::take(&mut parsed.locations) {
-        let ci = engine::render_cell_idx(loc.lat, loc.lng);
-        store.cell_add_render(ci, loc.id);
-        store.overlay_add(vec![loc]);
+    for loc in &parsed.locations {
+        store.cell_add_render(engine::render_cell_idx(loc.lat, loc.lng), loc.id);
     }
+    store.overlay_add(mem::take(&mut parsed.locations));
     let t_overlay = _t.elapsed();
 
     if let Some(defs) = new_field_defs {
@@ -368,7 +367,7 @@ pub async fn store_import_file(
         .lock()
         .unwrap()
         .take()
-        .ok_or("no cached import — call store_import_preview first")?;
+        .ok_or("no cached import - call store_import_preview first")?;
 
     let drop_set: HashSet<&str> = dropped_fields.iter().map(String::as_str).collect();
     if !drop_set.is_empty() {
