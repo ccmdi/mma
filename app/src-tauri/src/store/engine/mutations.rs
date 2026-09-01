@@ -111,7 +111,7 @@ pub struct LocationPatch {
 }
 
 /// Register every `extra` key the store has not seen, with an inferred definition.
-pub(crate) fn auto_register_extras(store: &mut Store, extras: &[&RawExtra]) {
+fn auto_register_extras(store: &mut Store, extras: &[&RawExtra]) {
     if let Some(new_defs) =
         maps::auto_register_field_defs(|k| store.field_defs.contains_key(k), extras)
     {

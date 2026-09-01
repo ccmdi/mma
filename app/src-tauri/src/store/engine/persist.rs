@@ -283,7 +283,7 @@ pub(crate) fn serialize_tags_json(tags: &HashMap<u32, Tag>) -> String {
 }
 
 /// Persist tags to the SQLite `maps.tags` JSON column.
-pub(crate) fn write_tags_json(
+fn write_tags_json(
     conn: &rusqlite::Connection,
     map_id: &str,
     tags: &HashMap<u32, Tag>,
