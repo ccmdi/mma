@@ -130,7 +130,7 @@ function set(patch: Partial<UpdateState>) {
 	emit("update:changed");
 }
 
-const DISMISS_KEY = "mma-update-dismissed-version";
+const dismissedVersion = persisted<string | null>("mma-update-dismissed-version", null);
 
 export async function checkForUpdate(force = false) {
 	set({ phase: "checking", error: null });
@@ -151,7 +151,7 @@ export async function checkForUpdate(force = false) {
 			version: found.version,
 			notes: target.body || found.notes || "",
 			prerelease: target.prerelease,
-			dismissed: localStorage.getItem(DISMISS_KEY) === found.version,
+			dismissed: getLocal(dismissedVersion) === found.version,
 		});
 	} catch (e) {
 		log.warn("[updater] check failed:", e);
@@ -208,7 +208,7 @@ export async function relaunchApp() {
 
 export function dismissUpdate() {
 	if (!state.version) return;
-	localStorage.setItem(DISMISS_KEY, state.version);
+	setLocal(dismissedVersion, state.version);
 	set({ dismissed: true });
 }
 
