@@ -293,7 +293,7 @@ test("missing optional fields collapse to nulls and defaults", () => {
   });
 });
 
-test("a non-OK image status produces no patch and no failure", () => {
+test("a non-OK image status fails the row instead of passing it", () => {
   const { patches, progress, failed } = runProcedure(rowsFor([CLASSIC_A, CLASSIC_B]), () =>
     responseBytes({ metadata: [meta(), meta({ statusCode: 2 })] }),
   );
@@ -301,7 +301,7 @@ test("a non-OK image status produces no patch and no failure", () => {
     patches.map((p) => p.id),
     [1],
   );
-  assert.deepEqual(failed, []);
+  assert.deepEqual(failed, [2]);
   assert.equal(progress, 2);
 });
 
@@ -441,7 +441,7 @@ test("rows sharing a pano are fetched once and fanned out", () => {
   assert.equal(progress, 3);
 });
 
-test("rows without a pano id are skipped entirely", () => {
+test("a row without a pano id is failed, not silently passed", () => {
   const rows = [
     { id: 1, panoId: "" },
     { id: 2, panoId: CLASSIC_A },
@@ -454,17 +454,18 @@ test("rows without a pano id are skipped entirely", () => {
     patches.map((p) => p.id),
     [2],
   );
-  assert.equal(progress, 1);
-  assert.deepEqual(failed, []);
+  assert.equal(progress, 2);
+  assert.deepEqual(failed, [1]);
 });
 
 test("no rows with panos means no requests at all", () => {
-  const { patches, calls, progress } = runProcedure([{ id: 1, panoId: "" }], () => {
+  const { patches, calls, progress, failed } = runProcedure([{ id: 1, panoId: "" }], () => {
     throw new Error("must not fetch");
   });
   assert.deepEqual(patches, []);
   assert.equal(calls.length, 0);
-  assert.equal(progress, 0);
+  assert.equal(progress, 1);
+  assert.deepEqual(failed, [1]);
 });
 
 // --- Staleness ---
