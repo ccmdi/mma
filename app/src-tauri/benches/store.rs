@@ -240,6 +240,14 @@ fn selections(c: &mut Criterion) {
             },
         ],
     };
+    // A page of ids narrowed by a field filter: the procedure engine's per-page gate.
+    let page_and_has = Selector::all([
+        Selector::Locations {
+            locations: (1..=1000).collect(),
+            name: None,
+        },
+        Selector::has("panoId"),
+    ]);
     let input = |key: &str, selector: &Selector| SelectionInput {
         key: key.into(),
         selector: selector.clone(),
@@ -255,6 +263,9 @@ fn selections(c: &mut Criterion) {
     });
     g.bench_function(format!("{n}/resolve/intersection"), |b| {
         b.iter(|| black_box(bench::resolve_selection(&store, &composite)));
+    });
+    g.bench_function(format!("{n}/resolve/page_and_has"), |b| {
+        b.iter(|| black_box(bench::resolve_selection(&store, &page_and_has)));
     });
 
     g.bench_function(format!("{n}/sync/tag"), |b| {

@@ -146,6 +146,44 @@ pub struct Selection {
     pub selector: Selector,
 }
 
+impl Selection {
+    /// A selection nobody displays, for code composing a query. The key is derived from
+    /// the selector so equal queries share it.
+    pub fn of(selector: Selector) -> Self {
+        Selection {
+            key: serde_json::to_string(&selector).unwrap_or_default(),
+            color: [0; 3],
+            selector,
+        }
+    }
+}
+
+impl Selector {
+    /// Rows holding a value for `field`, as a filter's `has` means it.
+    pub fn has(field: &str) -> Selector {
+        Selector::Filter {
+            field: field.into(),
+            op: FilterOp::Has,
+            value: serde_json::Value::Null,
+            value2: None,
+            tz_local: false,
+        }
+    }
+
+    /// Rows every selector keeps. Of none: no rows.
+    pub fn all(selectors: impl IntoIterator<Item = Selector>) -> Selector {
+        Selector::Intersection {
+            selections: selectors.into_iter().map(Selection::of).collect(),
+        }
+    }
+
+    pub fn not(self) -> Selector {
+        Selector::Invert {
+            selections: vec![Selection::of(self)],
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // LocView: unified view over Arrow batch + overlay
 // ---------------------------------------------------------------------------
@@ -665,16 +703,23 @@ pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
             }
             // No index: fall through to the scan path below.
         }
+        Selector::Locations { locations, .. }
+        | Selector::Manual { locations }
+        | Selector::ValidationState { locations, .. }
+        | Selector::Reviewed { locations, .. } => {
+            let ids: RoaringBitmap = locations.iter().copied().collect();
+            return resolve_within(view, &Selector::Everything, &ids);
+        }
         Selector::Intersection { selections } => {
             if selections.is_empty() {
                 return RoaringBitmap::new();
             }
             let mut acc = resolve(view, &selections[0].selector);
             for s in &selections[1..] {
-                acc &= resolve(view, &s.selector);
                 if acc.is_empty() {
                     break;
-                } // short-circuit: nothing left to intersect
+                }
+                acc = resolve_within(view, &s.selector, &acc);
             }
             return acc;
         }
@@ -700,6 +745,57 @@ pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
     // Scan leaves (incl. Tag with no index): build a positional mask, convert to ids.
     let mask = resolve_leaf_mask(view, selector);
     mask_to_set(view, &mask)
+}
+
+/// The rows of `within` a selector keeps. An intersection narrows each leaf to what the
+/// leaves before it left, so `page AND has(field)` costs the page, not the map. Leaves
+/// whose answer depends on rows outside the set (duplicates, top-k), the prepared
+/// polygon scan and an indexed tag resolve whole and intersect; every other leaf is
+/// tested row by row inside the set.
+pub fn resolve_within(
+    view: &LocView,
+    selector: &Selector,
+    within: &RoaringBitmap,
+) -> RoaringBitmap {
+    match selector {
+        Selector::Intersection { selections } => {
+            if selections.is_empty() {
+                return RoaringBitmap::new();
+            }
+            let mut acc = within.clone();
+            for s in selections {
+                if acc.is_empty() {
+                    break;
+                }
+                acc = resolve_within(view, &s.selector, &acc);
+            }
+            acc
+        }
+        Selector::Union { selections } => {
+            let mut acc = RoaringBitmap::new();
+            for s in selections {
+                acc |= resolve_within(view, &s.selector, within);
+            }
+            acc
+        }
+        Selector::Invert { selections } => match selections.first() {
+            Some(first) => within - resolve_within(view, &first.selector, within),
+            None => within.clone(),
+        },
+        Selector::Duplicates { .. } | Selector::TopK { .. } | Selector::Polygon { .. } => {
+            resolve(view, selector) & within
+        }
+        Selector::Tag { .. } if view.tag_sets.is_some() => resolve(view, selector) & within,
+        _ => {
+            let mut set = RoaringBitmap::new();
+            view.for_each_within(Some(within), |row| {
+                if test_row(&row, selector) {
+                    set.insert(row.id());
+                }
+            });
+            set
+        }
+    }
 }
 
 /// Resolve a whole selection forest in one pass: the id-set for each top-level

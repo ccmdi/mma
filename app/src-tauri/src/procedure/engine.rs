@@ -3,7 +3,7 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::selections::{ids_within, narrow, resolve_field_loc, Selector};
+use crate::selections::{ids_within, narrow, resolve, resolve_within, Selector};
 use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
 };
@@ -814,6 +814,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
 /// The rows of one page the procedure still has to work, cut into batches. Rows already
 /// holding every field the provider produces are counted as skipped and dropped here; rows
 /// missing a field it `requires` are failed here, since no procedure body can work them.
+/// Both gates are selectors, so "has this field" means what a filter means.
 fn page_batches(
     ctx: &RunCtx,
     decl: &ProviderDecl,
@@ -822,28 +823,45 @@ fn page_batches(
     batch_mode: &BatchMode,
     prog: &ProviderProgress,
 ) -> AppResult<Vec<WorkBatch>> {
-    let rows = {
+    let has_every = |fields: &[String]| Selector::all(fields.iter().map(|f| Selector::has(f)));
+    let page_sel = Selector::Locations {
+        locations: page.to_vec(),
+        name: None,
+    };
+    // A provider with no outputs never skips a row, and `force` re-derives an output but
+    // cannot supply a missing input, so only the skip gate lifts.
+    let todo = if force || decl.fields.is_empty() {
+        page_sel.clone()
+    } else {
+        Selector::all([page_sel.clone(), has_every(&decl.fields).not()])
+    };
+    let (rows, unmet) = {
         let mut mgr = ctx.state.lock()?;
         let store = mgr.store_for_map(&ctx.map_id)?;
-        store.collect(&Selector::Locations {
-            locations: page.to_vec(),
+        let view = store.loc_view();
+        let alive = resolve(&view, &page_sel);
+        let todo = resolve(&view, &todo);
+        prog.add_skipped((alive.len() - todo.len()) as u32);
+        let workable = if decl.requires.is_empty() {
+            todo.clone()
+        } else {
+            resolve_within(&view, &has_every(&decl.requires), &todo)
+        };
+        let unmet: Vec<u32> = page
+            .iter()
+            .copied()
+            .filter(|id| todo.contains(*id) && !workable.contains(*id))
+            .collect();
+        let rows = store.collect(&Selector::Locations {
+            locations: page
+                .iter()
+                .copied()
+                .filter(|id| workable.contains(*id))
+                .collect(),
             name: None,
-        })
+        });
+        (rows, unmet)
     };
-    let before = rows.len() as u32;
-    let rows: Vec<Location> = if force {
-        rows
-    } else {
-        rows.into_iter()
-            .filter(|l| decl.fields.is_empty() || !has_all_fields(l, &decl.fields))
-            .collect()
-    };
-    prog.add_skipped(before - rows.len() as u32);
-
-    // `force` re-derives an output; it cannot supply a missing input, so the gate holds.
-    let (rows, unmet): (Vec<Location>, Vec<Location>) = rows
-        .into_iter()
-        .partition(|l| has_all_fields(l, &decl.requires));
     if !unmet.is_empty() {
         prog.add_failed(unmet.len() as u32);
         prog.add_done(unmet.len() as u32);
@@ -851,7 +869,7 @@ fn page_batches(
             ctx,
             decl,
             PageOutput {
-                failed: unmet.iter().map(|l| l.id).collect(),
+                failed: unmet,
                 ..PageOutput::default()
             },
         )?;
@@ -968,10 +986,6 @@ fn apply_pages(ctx: &RunCtx, decl: &ProviderDecl, rx: mpsc::Receiver<Produced>) 
         deliver_page(ctx, decl, p.out)?;
     }
     Ok(())
-}
-
-fn has_all_fields(loc: &Location, fields: &[String]) -> bool {
-    fields.iter().all(|f| resolve_field_loc(loc, f).is_some())
 }
 
 /// A chunk only carries meaning when it becomes one request. For a MapOnly procedure
