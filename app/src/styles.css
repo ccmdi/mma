@@ -4510,6 +4510,10 @@ body {
 .map-embed canvas:focus {
 	outline: none !important;
 }
+/* Google Maps fades in its own focus frame, a classless 2px blue div, when the map takes focus after any keydown; a held-key click is one */
+.map-embed .gm-style div[style*="z-index: 1000002"] {
+	display: none;
+}
 .map-embed .loading {
 	color: #000;
 	width: max-content;
