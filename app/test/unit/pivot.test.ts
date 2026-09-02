@@ -47,11 +47,11 @@ describe("stripNa", () => {
 	it("keeps columnProps aligned with the remaining columns", () => {
 		const data: PivotData = {
 			...pivot([row("a", { x: 1, __na__: 2 })], ["x", "__na__"]),
-			columnProps: [{ type: "Filter", field: "f", op: "eq", value: "x", value2: null }, null],
+			columnProps: [{ type: "Filter", field: "f", test: { op: "eq", value: "x" } }, null],
 		};
 		const stripped = stripNa(data);
 		expect(stripped.columnProps).toHaveLength(1);
-		expect(stripped.columnProps![0]).toMatchObject({ op: "eq", value: "x" });
+		expect(stripped.columnProps![0]).toMatchObject({ test: { op: "eq", value: "x" } });
 	});
 });
 

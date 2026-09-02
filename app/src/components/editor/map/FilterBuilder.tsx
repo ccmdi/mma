@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useMemo } from "react";
 import type { Selection, FilterOp, ExtraFieldDef } from "@/bindings.gen";
+import { OP_LABELS, filterIsLocalTime, type FilterOpKind } from "@/store/selections";
 import { NSelect } from "@/components/primitives/NSelect";
 import {
 	fieldLabel,
@@ -16,7 +17,6 @@ import { addSelections, fieldValues } from "@/store/useMapStore";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { toast } from "@/lib/util/toast";
 import { useSetting } from "@/store/settings";
-import { OP_LABELS } from "@/store/selections";
 import { DatePicker, type DateFlagProps } from "@/components/primitives/DatePicker";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -24,10 +24,10 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { mdiArrowRight, mdiArrowLeft } from "@mdi/js";
 import { t, msg } from "@/lib/i18n";
 
-const ALL_OPS: FilterOp[] = ["eq", "neq", "gt", "lt", "gte", "lte", "between", "has", "nothas"];
-const EQUALITY_OPS: FilterOp[] = ["eq", "neq", "has", "nothas"];
-const DATE_OPS: FilterOp[] = ["between", "gt", "lt", "gte", "lte", "has", "nothas"];
-const ARRAY_OPS: FilterOp[] = [
+const ALL_OPS: FilterOpKind[] = ["eq", "neq", "gt", "lt", "gte", "lte", "between", "has", "nothas"];
+const EQUALITY_OPS: FilterOpKind[] = ["eq", "neq", "has", "nothas"];
+const DATE_OPS: FilterOpKind[] = ["between", "gt", "lt", "gte", "lte", "has", "nothas"];
+const ARRAY_OPS: FilterOpKind[] = [
 	"contains",
 	"notcontains",
 	"eq",
@@ -40,7 +40,7 @@ const ARRAY_OPS: FilterOp[] = [
 	"has",
 	"nothas",
 ];
-const ARRAY_OP_LABELS: Partial<Record<FilterOp, string>> = {
+const ARRAY_OP_LABELS: Partial<Record<FilterOpKind, string>> = {
 	eq: msg("length ="),
 	neq: msg("length !="),
 	gt: msg("length >"),
@@ -53,7 +53,7 @@ const filterBuilderState = new Map<
 	string,
 	{
 		field: string;
-		op: FilterOp;
+		op: FilterOpKind;
 		value: string;
 		value2: string;
 		anyYear?: boolean;
@@ -62,7 +62,7 @@ const filterBuilderState = new Map<
 	}
 >();
 
-function opsForType(type: string | undefined): FilterOp[] {
+function opsForType(type: string | undefined): FilterOpKind[] {
 	if (type === "enum") return EQUALITY_OPS;
 	if (type === "date") return DATE_OPS;
 	if (type === "array") return ARRAY_OPS;
@@ -130,7 +130,7 @@ function FilterValueInput({
 	...dateFlags
 }: {
 	fieldEntry: FieldEntry | undefined;
-	op?: FilterOp;
+	op?: FilterOpKind;
 	value: string;
 	onChange: (v: string) => void;
 	placeholder?: string;
@@ -198,7 +198,7 @@ function FilterValueInput({
 
 type FilterFormSeed = {
 	field: string;
-	op: FilterOp;
+	op: FilterOpKind;
 	value: string;
 	value2: string;
 	anyYear?: boolean;
@@ -206,11 +206,41 @@ type FilterFormSeed = {
 	tzLocal?: boolean;
 };
 
-/** Reverse of FilterForm.handleAdd: turn a stored Filter selection back into editable form state. */
+/** The predicate the form's flat pieces spell: the kind, its operand(s), the clock frame. */
+export function filterTest(
+	op: FilterOpKind,
+	value: string | number | null,
+	value2: string | number | undefined,
+	tzLocal: boolean,
+): FilterOp {
+	switch (op) {
+		case "has":
+		case "nothas":
+			return { op };
+		case "eq":
+		case "neq":
+		case "contains":
+		case "notcontains":
+			return { op, value };
+		case "gt":
+		case "lt":
+		case "gte":
+		case "lte":
+			return { op, value, tzLocal };
+		case "between":
+			return { op, lo: value, hi: value2, tzLocal };
+		case "between_anyyear":
+		case "between_anytime":
+			return { op, lo: String(value), hi: String(value2), tzLocal };
+	}
+}
+
+/** Reverse of filterTest: turn a stored Filter selection back into editable form state. */
 export function filterPropsToSeed(
 	p: Extract<Selection["selector"], { type: "Filter" }>,
 ): FilterFormSeed {
-	let op = p.op as FilterOp;
+	const test = p.test;
+	let op: FilterOpKind = test.op;
 	let anyYear = false;
 	let anyTime = false;
 	if (op === "between_anyyear") {
@@ -220,14 +250,15 @@ export function filterPropsToSeed(
 		op = "between";
 		anyTime = true;
 	}
+	const [value, value2] = "lo" in test ? [test.lo, test.hi] : "value" in test ? [test.value] : [];
 	return {
 		field: p.field,
 		op,
-		value: p.value == null ? "" : String(p.value),
-		value2: p.value2 == null ? "" : String(p.value2),
+		value: value == null ? "" : String(value),
+		value2: value2 == null ? "" : String(value2),
 		anyYear,
 		anyTime,
-		tzLocal: p.tzLocal ?? false,
+		tzLocal: filterIsLocalTime(test),
 	};
 }
 
@@ -243,19 +274,13 @@ export function FilterForm({
 	initial?: FilterFormSeed;
 	persistKey?: string;
 	submitLabel: string;
-	onSubmit: (
-		field: string,
-		op: FilterOp,
-		value: string | number | null,
-		value2: string | number | undefined,
-		tzLocal: boolean,
-	) => void;
+	onSubmit: (field: string, test: FilterOp) => void;
 	onClose?: () => void;
 }) {
 	const fields = useExtraFieldKeys();
 	const saved = initial ?? (persistKey ? filterBuilderState.get(persistKey) : undefined);
 	const [field, setField] = useState(() => saved?.field || fields[0]?.key || "");
-	const [op, setOp] = useState<FilterOp>(() => {
+	const [op, setOp] = useState<FilterOpKind>(() => {
 		const initial = saved?.op ?? "eq";
 		const ops = opsForType(
 			fields.find((f) => f.key === (saved?.field || fields[0]?.key))?.def.type,
@@ -299,7 +324,7 @@ export function FilterForm({
 
 	// tzLocal is an independent toggle: it survives op changes (the values' encoding
 	// frame never silently flips) and composes with anyYear/anyTime.
-	const handleOpChange = (newOp: FilterOp) => {
+	const handleOpChange = (newOp: FilterOpKind) => {
 		setOp(newOp);
 		if (newOp !== "between") {
 			setAnyYear(false);
@@ -401,7 +426,7 @@ export function FilterForm({
 	const handleAdd = () => {
 		if (!field) return;
 		if (needsValue && !value) return;
-		let finalOp: FilterOp = op;
+		let finalOp: FilterOpKind = op;
 		if (isBetween && anyYear) finalOp = "between_anyyear";
 		if (isBetween && anyTime) finalOp = "between_anytime";
 		let parsed: string | number | null;
@@ -437,7 +462,7 @@ export function FilterForm({
 				parsed = pickPeriodEnd(parsed, grain(parsed), tzLocal);
 			}
 		}
-		onSubmit(field, finalOp, parsed, parsed2, isExactDate && tzLocal);
+		onSubmit(field, filterTest(finalOp, parsed, parsed2, isExactDate && tzLocal));
 		onClose?.();
 	};
 
@@ -470,7 +495,7 @@ export function FilterForm({
 					</option>
 				))}
 			</NSelect>
-			<NSelect value={op} onChange={(e) => handleOpChange(e.target.value as FilterOp)}>
+			<NSelect value={op} onChange={(e) => handleOpChange(e.target.value as FilterOpKind)}>
 				{availableOps.map((o) => (
 					<option key={o} value={o}>
 						{t((fieldEntry?.def.type === "array" && ARRAY_OP_LABELS[o]) || OP_LABELS[o])}
@@ -538,15 +563,18 @@ export function FilterBuilder({ mapId }: { mapId: string }) {
 		<FilterForm
 			persistKey={mapId}
 			submitLabel={t("Add filter")}
-			onSubmit={(field, op, value, value2, tzLocal) => {
-				void addSelections([{ type: "Filter", field, op, value, value2, tzLocal }]);
+			onSubmit={(field, test) => {
+				void addSelections([{ type: "Filter", field, test }]);
 				const type = getFieldDef(field)?.type;
-				if (type && value != null)
-					void countMissingTimezone({ type: "Everything" }, field, type, tzLocal === true).then(
-						(n) => {
-							if (n > 0) toast(missingTimezoneMessage(n), 6000);
-						},
-					);
+				if (type)
+					void countMissingTimezone(
+						{ type: "Everything" },
+						field,
+						type,
+						filterIsLocalTime(test),
+					).then((n) => {
+						if (n > 0) toast(missingTimezoneMessage(n), 6000);
+					});
 			}}
 		/>
 	);

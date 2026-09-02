@@ -646,8 +646,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 				{
 					type: "Filter",
 					field: "altitude",
-					op: "gt",
-					value: 75,
+					test: { op: "gt", value: 75 },
 				},
 			]);
 			return "ok";
@@ -665,8 +664,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 				{
 					type: "Filter",
 					field: "countryCode",
-					op: "eq",
-					value: "US",
+					test: { op: "eq", value: "US" },
 				},
 			]);
 			return "ok";
@@ -684,9 +682,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 				{
 					type: "Filter",
 					field: "altitude",
-					op: "between",
-					value: 60,
-					value2: 150,
+					test: { op: "between", lo: 60, hi: 150 },
 				},
 			]);
 			return "ok";
@@ -704,8 +700,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 				{
 					type: "Filter",
 					field: "countryCode",
-					op: "neq",
-					value: "US",
+					test: { op: "neq", value: "US" },
 				},
 			]);
 			return "ok";
@@ -723,8 +718,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 				{
 					type: "Filter",
 					field: "imageDate",
-					op: "gte",
-					value: "2024-01",
+					test: { op: "gte", value: "2024-01" },
 				},
 			]);
 			return "ok";
@@ -741,8 +735,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 				{
 					type: "Filter",
 					field: "imageDate",
-					op: "eq",
-					value: "2023-06",
+					test: { op: "eq", value: "2023-06" },
 				},
 			]);
 			return "ok";

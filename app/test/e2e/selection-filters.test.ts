@@ -25,8 +25,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "country",
-					op: "eq",
-					value: "US",
+					test: { op: "eq", value: "US" },
 				},
 			]),
 		);
@@ -40,8 +39,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "country",
-					op: "neq",
-					value: "US",
+					test: { op: "neq", value: "US" },
 				},
 			]),
 		);
@@ -55,8 +53,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "altitude",
-					op: "gt",
-					value: 1000,
+					test: { op: "gt", value: 1000 },
 				},
 			]),
 		);
@@ -71,8 +68,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "altitude",
-					op: "lt",
-					value: 500,
+					test: { op: "lt", value: 500 },
 				},
 			]),
 		);
@@ -87,8 +83,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "altitude",
-					op: "gte",
-					value: 1000,
+					test: { op: "gte", value: 1000 },
 				},
 			]),
 		);
@@ -103,8 +98,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "altitude",
-					op: "lte",
-					value: 500,
+					test: { op: "lte", value: 500 },
 				},
 			]),
 		);
@@ -119,9 +113,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "altitude",
-					op: "between",
-					value: 500,
-					value2: 1500,
+					test: { op: "between", lo: 500, hi: 1500 },
 				},
 			]),
 		);
@@ -136,8 +128,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "country",
-					op: "has",
-					value: "",
+					test: { op: "has" },
 				},
 			]),
 		);
@@ -151,8 +142,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "nonexistent",
-					op: "nothas",
-					value: "",
+					test: { op: "nothas" },
 				},
 			]),
 		);
@@ -166,8 +156,7 @@ describe("Selection filters — extra field operations", () => {
 				{
 					type: "Filter",
 					field: "country",
-					op: "eq",
-					value: "JP",
+					test: { op: "eq", value: "JP" },
 				},
 			]),
 		);
@@ -200,8 +189,7 @@ describe("Selection filters — core field operations", () => {
 				{
 					type: "Filter",
 					field: "heading",
-					op: "gt",
-					value: 180,
+					test: { op: "gt", value: 180 },
 				},
 			]),
 		);
@@ -212,7 +200,7 @@ describe("Selection filters — core field operations", () => {
 
 	it("filter on lat field", async () => {
 		await withApi(async (api) =>
-			api.addSelections([{ type: "Filter", field: "lat", op: "between", value: 0, value2: 30 }]),
+			api.addSelections([{ type: "Filter", field: "lat", test: { op: "between", lo: 0, hi: 30 } }]),
 		);
 		const ids = await refreshSelections();
 		// lat = i*3, 0 <= i*3 <= 30 → i = 0..10, so 11 locations
@@ -225,16 +213,14 @@ describe("Selection filters — core field operations", () => {
 				{
 					type: "Filter",
 					field: "heading",
-					op: "gt",
-					value: 100,
+					test: { op: "gt", value: 100 },
 				},
 			]);
 			await api.addSelections([
 				{
 					type: "Filter",
 					field: "heading",
-					op: "lt",
-					value: 200,
+					test: { op: "lt", value: 200 },
 				},
 			]);
 			await api.selectIntersection();
@@ -251,16 +237,14 @@ describe("Selection filters — core field operations", () => {
 				{
 					type: "Filter",
 					field: "heading",
-					op: "lt",
-					value: 36,
+					test: { op: "lt", value: 36 },
 				},
 			]);
 			await api.addSelections([
 				{
 					type: "Filter",
 					field: "heading",
-					op: "gt",
-					value: 336,
+					test: { op: "gt", value: 336 },
 				},
 			]);
 			await api.selectUnion();

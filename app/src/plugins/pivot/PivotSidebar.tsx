@@ -169,9 +169,9 @@ async function computePivot(
 		if (buckets) {
 			const bin = buckets[i]?.bin;
 			if (!bin) return null;
-			return { type: "Filter", field: fieldKey, op: "between", value: bin[0], value2: bin[1] };
+			return { type: "Filter", field: fieldKey, test: { op: "between", lo: bin[0], hi: bin[1] } };
 		}
-		return { type: "Filter", field: fieldKey, op: "eq", value: col, value2: null };
+		return { type: "Filter", field: fieldKey, test: { op: "eq", value: col } };
 	});
 
 	return { rows: pivotRows, columns, columnLabels, columnTotals, numericDistinct, columnProps };

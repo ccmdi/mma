@@ -27,9 +27,15 @@ const COMPOSITE_TYPES = unionTuple<CompositeType>()(["Intersection", "Union", "I
 const GROUP_TYPES = unionTuple<GroupType>()(["Intersection", "Union"]);
 export const UNARY_TYPES = unionTuple<UnaryType>()(["Invert"]);
 
+export type FilterOpKind = FilterOp["op"];
+
+/** Whether a predicate reads the location's clock in its own timezone. Only a range can. */
+export const filterIsLocalTime = (test: FilterOp): boolean =>
+	"tzLocal" in test && test.tzLocal === true;
+
 /** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
  *  operators are marked for translation. */
-export const OP_LABELS: Record<FilterOp, string> = {
+export const OP_LABELS: Record<FilterOpKind, string> = {
 	eq: "=",
 	neq: "!=",
 	gt: ">",
@@ -171,13 +177,18 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 			t("Invert: {selection}", { selection: selectionDisplayName(s.selections[0], tagNames) }),
 	},
 	Filter: {
-		key: (s) =>
-			`filter:${s.field}:${s.op}:${String(s.value)}${s.value2 != null ? `:${String(s.value2)}` : ""}${s.tzLocal ? ":local" : ""}`,
+		key: (s) => {
+			const t = s.test;
+			const operands = "lo" in t ? [t.lo, t.hi] : "value" in t ? [t.value] : [null];
+			const frame = filterIsLocalTime(t) ? ":local" : "";
+			return `filter:${s.field}:${t.op}:${operands.map(String).join(":")}${frame}`;
+		},
 		label: (p) => {
 			const fieldDef = getFieldDef(p.field);
 			const fieldLabel = fieldDef?.label ? t(fieldDef.label) : p.field;
-			if (p.op === "has") return t("has {field}", { field: fieldLabel });
-			if (p.op === "nothas") return t("missing {field}", { field: fieldLabel });
+			const test = p.test;
+			if (test.op === "has") return t("has {field}", { field: fieldLabel });
+			if (test.op === "nothas") return t("missing {field}", { field: fieldLabel });
 			const fmtMD = (v: unknown) => {
 				const s = String(v);
 				const m = /^(\d{2})-(\d{2})$/.exec(s);
@@ -187,22 +198,23 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 				}
 				return s;
 			};
-			// tzLocal values are wall-clock instants encoded as UTC epochs: render via UTC getters.
+			// Local-time values are wall-clock instants encoded as UTC epochs: render via UTC getters.
+			const local = filterIsLocalTime(test);
 			const fmtVal = (v: unknown) => {
 				if (fieldDef?.type === "date") {
 					const n = Number(v);
-					if (!isNaN(n)) return p.tzLocal ? utcDateTime(n) : localDateTime(n);
+					if (!isNaN(n)) return local ? utcDateTime(n) : localDateTime(n);
 				}
 				return fieldValueLabel(fieldDef, v);
 			};
-			const tzSuffix = p.tzLocal ? " " + t("(location time)") : "";
-			const clause = (op: FilterOp, value: string) =>
-				t("{field} {op} {value}", { field: fieldLabel, op: t(OP_LABELS[op]), value }) + tzSuffix;
-			if (p.op === "between_anyyear") return clause(p.op, `${fmtMD(p.value)}..${fmtMD(p.value2)}`);
-			if (p.op === "between_anytime") return clause(p.op, `${p.value}..${p.value2}`);
-			if (p.op === "between")
-				return clause(p.op as FilterOp, `${fmtVal(p.value)}..${fmtVal(p.value2)}`);
-			return clause(p.op as FilterOp, fmtVal(p.value));
+			const tzSuffix = local ? " " + t("(location time)") : "";
+			const clause = (value: string) =>
+				t("{field} {op} {value}", { field: fieldLabel, op: t(OP_LABELS[test.op]), value }) +
+				tzSuffix;
+			if (test.op === "between_anyyear") return clause(`${fmtMD(test.lo)}..${fmtMD(test.hi)}`);
+			if (test.op === "between_anytime") return clause(`${test.lo}..${test.hi}`);
+			if (test.op === "between") return clause(`${fmtVal(test.lo)}..${fmtVal(test.hi)}`);
+			return clause(fmtVal(test.value));
 		},
 	},
 	TopK: {

@@ -38,7 +38,7 @@ registerProvider(pinPanoProvider);
 export const PINNED: Selector = {
 	type: "Intersection",
 	selections: [
-		buildSelection({ type: "Filter", field: "panoId", op: "has", value: null }),
+		buildSelection({ type: "Filter", field: "panoId", test: { op: "has" } }),
 		buildSelection({ type: "PanoIds" }),
 	],
 };

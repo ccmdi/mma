@@ -102,9 +102,52 @@ fn parse_row(
             color: serde_json::from_str(color)?,
             created_at,
         },
-        selector: serde_json::from_str(selector)?,
+        selector: serde_json::from_value(modernize(serde_json::from_str(selector)?))?,
         tag_names: serde_json::from_str(tag_names)?,
     })
+}
+
+/// Rows written before 0.10.2 spell a filter flat (`op`, `value`, `value2`, `tzLocal`
+/// beside `field`); since then the predicate is one `test` object. Rewritten on read,
+/// so the row itself is never touched.
+pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    let Some(obj) = selector.as_object_mut() else {
+        return selector;
+    };
+    if obj.get("type").and_then(Value::as_str) == Some("Filter") {
+        if let Some(Value::String(op)) = obj.remove("op") {
+            let value = obj.remove("value").unwrap_or(Value::Null);
+            let value2 = obj.remove("value2").unwrap_or(Value::Null);
+            let tz_local = obj.remove("tzLocal").unwrap_or(Value::Bool(false));
+            let mut test = serde_json::Map::new();
+            test.insert("op".into(), Value::String(op.clone()));
+            match op.as_str() {
+                "has" | "nothas" => {}
+                "between" | "between_anyyear" | "between_anytime" => {
+                    test.insert("lo".into(), value);
+                    test.insert("hi".into(), value2);
+                    test.insert("tzLocal".into(), tz_local);
+                }
+                "gt" | "lt" | "gte" | "lte" => {
+                    test.insert("value".into(), value);
+                    test.insert("tzLocal".into(), tz_local);
+                }
+                _ => {
+                    test.insert("value".into(), value);
+                }
+            }
+            obj.insert("test".into(), Value::Object(test));
+        }
+    }
+    if let Some(Value::Array(children)) = obj.get_mut("selections") {
+        for child in children {
+            if let Some(inner) = child.get_mut("selector") {
+                *inner = modernize(inner.take());
+            }
+        }
+    }
+    selector
 }
 
 pub(crate) fn create(

@@ -386,8 +386,8 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 								<FilterForm
 									persistKey={map.id}
 									submitLabel={t("Add filter")}
-									onSubmit={(field, op, value, value2, tzLocal) => {
-										void addSelections([{ type: "Filter", field, op, value, value2, tzLocal }]);
+									onSubmit={(field, test) => {
+										void addSelections([{ type: "Filter", field, test }]);
 									}}
 								/>
 							),

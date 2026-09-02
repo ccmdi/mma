@@ -22,8 +22,8 @@ export async function countMissingTimezone(
 	if (!tzLocal || fieldType !== "date") return 0;
 	const parts: Selector[] = [
 		selector,
-		{ type: "Filter", field, op: "has", value: null },
-		{ type: "Filter", field: "timezone", op: "nothas", value: null },
+		{ type: "Filter", field, test: { op: "has" } },
+		{ type: "Filter", field: "timezone", test: { op: "nothas" } },
 	];
 	return countIn({ type: "Intersection", selections: parts.map(buildSelection) });
 }
@@ -32,7 +32,8 @@ export function missingTimezoneMessage(n: number): string {
 	return t(
 		{
 			one: "{n} location skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
-			other: "{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
+			other:
+				"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
 		},
 		{ n },
 	);

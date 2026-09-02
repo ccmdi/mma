@@ -23,7 +23,7 @@ import { downloadBlob } from "@/lib/util/util";
 import { stepFilterWindow } from "@/lib/util/date";
 import type { RGB } from "@/lib/util/color";
 import type { Selection } from "@/bindings.gen";
-import { selectionDisplayName } from "@/store/selections";
+import { filterIsLocalTime, selectionDisplayName } from "@/store/selections";
 import {
 	FilterForm,
 	filterPropsToSeed,
@@ -160,19 +160,12 @@ export const SelectionRow = memo(function SelectionRow({
 		const p = selection.selector;
 		if (p.type !== "Filter") return null;
 		const ft = fieldEntries.find((f) => f.key === p.field)?.def.type;
-		const wallClock = p.tzLocal ?? false;
-		if (stepFilterWindow(ft, p.op, p.value, p.value2, 1, wallClock) == null) return null;
+		const wallClock = filterIsLocalTime(p.test);
+		if (stepFilterWindow(ft, p.test, 1, wallClock) == null) return null;
 		return (dir: 1 | -1) => {
-			const next = stepFilterWindow(ft, p.op, p.value, p.value2, dir, wallClock);
+			const next = stepFilterWindow(ft, p.test, dir, wallClock);
 			if (next) {
-				void updateFilterSelection(selection.key, {
-					type: "Filter",
-					field: p.field,
-					op: p.op,
-					tzLocal: p.tzLocal,
-					value: next.value,
-					value2: next.value2,
-				});
+				void updateFilterSelection(selection.key, { type: "Filter", field: p.field, test: next });
 			}
 		};
 	})();
@@ -488,15 +481,8 @@ export const SelectionRow = memo(function SelectionRow({
 				<FilterForm
 					initial={filterPropsToSeed(selection.selector)}
 					submitLabel={t("Update filter")}
-					onSubmit={(field, op, value, value2, tzLocal) =>
-						void updateFilterSelection(selection.key, {
-							type: "Filter",
-							field,
-							op,
-							value,
-							value2,
-							tzLocal,
-						})
+					onSubmit={(field, test) =>
+						void updateFilterSelection(selection.key, { type: "Filter", field, test })
 					}
 					onClose={() => setEditingFilter(false)}
 				/>

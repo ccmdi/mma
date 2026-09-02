@@ -798,10 +798,12 @@ export type FieldOpResult = {
 };
 
 /**
- *  Filter comparison operator. Single source of truth: specta renders the literal
- *  union, so the TS `FilterOp` type and `OP_LABELS` derive from this enum.
+ *  A filter's predicate: the operator with its operands. Single source of truth: specta
+ *  renders the tagged union, so the TS `FilterOp` type and `OP_LABELS` derive from it.
+ *  The range operators can read a date in the row's own timezone (`tzLocal`); the
+ *  `between_*` shapes bucket a timestamp by month-day or time-of-day before comparing.
  */
-export type FilterOp = "eq" | "neq" | "gt" | "lt" | "gte" | "lte" | "between" | "between_anyyear" | "between_anytime" | "has" | "nothas" | "contains" | "notcontains";
+export type FilterOp = { op: "has" } | { op: "nothas" } | { op: "eq"; value: any } | { op: "neq"; value: any } | { op: "contains"; value: any } | { op: "notcontains"; value: any } | { op: "gt"; value: any; tzLocal?: boolean } | { op: "lt"; value: any; tzLocal?: boolean } | { op: "gte"; value: any; tzLocal?: boolean } | { op: "lte"; value: any; tzLocal?: boolean } | { op: "between"; lo: any; hi: any; tzLocal?: boolean } | { op: "between_anyyear"; lo: string; hi: string; tzLocal?: boolean } | { op: "between_anytime"; lo: string; hi: string; tzLocal?: boolean };
 
 /**
  *  First-sync seeding when both sides already have pins. Only meaningful on the first sync
@@ -1589,7 +1591,7 @@ export type SelectionSync = {
  *   parallel batch scans. Composites (Intersection, Union, Invert) recursively resolve
  *  children. Duplicates uses a grid-accelerated spatial scan.
  */
-export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry; includeInformational: boolean } | { type: "Tag"; tagId: number } | { type: "Untagged" } | { type: "Unpanned" } | { type: "PanoIds" } | { type: "NotPanoIds" } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; op: FilterOp; value: any; value2?: any | null; tzLocal?: boolean } | { type: "TopK"; field: string; k: number; ascending: boolean };
+export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry; includeInformational: boolean } | { type: "Tag"; tagId: number } | { type: "Untagged" } | { type: "Unpanned" } | { type: "PanoIds" } | { type: "NotPanoIds" } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | { type: "TopK"; field: string; k: number; ascending: boolean };
 
 export type SideCounts = {
 	create: number,

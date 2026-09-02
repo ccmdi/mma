@@ -1005,10 +1005,59 @@ type FieldOpResult = {
     failed: number[];
 };
 /**
- *  Filter comparison operator. Single source of truth: specta renders the literal
- *  union, so the TS `FilterOp` type and `OP_LABELS` derive from this enum.
+ *  A filter's predicate: the operator with its operands. Single source of truth: specta
+ *  renders the tagged union, so the TS `FilterOp` type and `OP_LABELS` derive from it.
+ *  The range operators can read a date in the row's own timezone (`tzLocal`); the
+ *  `between_*` shapes bucket a timestamp by month-day or time-of-day before comparing.
  */
-type FilterOp = "eq" | "neq" | "gt" | "lt" | "gte" | "lte" | "between" | "between_anyyear" | "between_anytime" | "has" | "nothas" | "contains" | "notcontains";
+type FilterOp = {
+    op: "has";
+} | {
+    op: "nothas";
+} | {
+    op: "eq";
+    value: any;
+} | {
+    op: "neq";
+    value: any;
+} | {
+    op: "contains";
+    value: any;
+} | {
+    op: "notcontains";
+    value: any;
+} | {
+    op: "gt";
+    value: any;
+    tzLocal?: boolean;
+} | {
+    op: "lt";
+    value: any;
+    tzLocal?: boolean;
+} | {
+    op: "gte";
+    value: any;
+    tzLocal?: boolean;
+} | {
+    op: "lte";
+    value: any;
+    tzLocal?: boolean;
+} | {
+    op: "between";
+    lo: any;
+    hi: any;
+    tzLocal?: boolean;
+} | {
+    op: "between_anyyear";
+    lo: string;
+    hi: string;
+    tzLocal?: boolean;
+} | {
+    op: "between_anytime";
+    lo: string;
+    hi: string;
+    tzLocal?: boolean;
+};
 /**
  *  First-sync seeding when both sides already have pins. Only meaningful on the first sync
  *  (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
@@ -1829,10 +1878,7 @@ type Selector = {
 } | {
     type: "Filter";
     field: string;
-    op: FilterOp;
-    value: any;
-    value2?: any | null;
-    tzLocal?: boolean;
+    test: FilterOp;
 } | {
     type: "TopK";
     field: string;

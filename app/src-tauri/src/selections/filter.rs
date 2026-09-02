@@ -6,6 +6,7 @@ use crate::types::Location;
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
 use arrow_array::Array;
 use serde::Serialize;
+use std::cmp::Ordering;
 
 /// How a built-in field may be accessed by the field system on the TS side.
 /// `None` means listable and filterable but read-only.
@@ -160,68 +161,33 @@ fn flag_value(flags: LocationFlags, bit: LocationFlags) -> serde_json::Value {
     serde_json::json!(u8::from(flags.contains(bit)))
 }
 
-/// Core comparison dispatch. Supports eq, neq, has, nothas, gt, lt, gte, lte, between,
-/// between_anyyear (month-day range ignoring year), and between_anytime (time-of-day range).
-/// Numeric comparison is attempted first; falls back to lexicographic string comparison.
-pub(super) fn compare_filter(
-    field_val: &serde_json::Value,
-    op: FilterOp,
-    value: &serde_json::Value,
-    value2: Option<&serde_json::Value>,
-) -> bool {
+/// Core comparison dispatch. An array field answers `contains`/`has` itself and is
+/// otherwise compared by length. Ordering is numeric when both sides are numbers, else
+/// lexicographic on their string forms.
+pub(super) fn compare_filter(field_val: &serde_json::Value, op: &FilterOp) -> bool {
     if let Some(arr) = field_val.as_array() {
         return match op {
-            FilterOp::Contains => arr.iter().any(|el| val_eq(el, value)),
-            FilterOp::Notcontains => !arr.iter().any(|el| val_eq(el, value)),
+            FilterOp::Contains { value } => arr.iter().any(|el| val_eq(el, value)),
+            FilterOp::Notcontains { value } => !arr.iter().any(|el| val_eq(el, value)),
             FilterOp::Has => true,
             FilterOp::Nothas => false,
-            _ => {
-                let len_val = serde_json::Value::from(arr.len() as f64);
-                compare_filter(&len_val, op, value, value2)
-            }
+            _ => compare_filter(&serde_json::Value::from(arr.len() as f64), op),
         };
     }
     match op {
-        FilterOp::Eq => val_eq(field_val, value),
-        FilterOp::Neq => !val_eq(field_val, value),
+        FilterOp::Eq { value } => val_eq(field_val, value),
+        FilterOp::Neq { value } => !val_eq(field_val, value),
         FilterOp::Has => true,
         FilterOp::Nothas => false,
-        FilterOp::Contains | FilterOp::Notcontains => false,
-        FilterOp::Gt | FilterOp::Lt | FilterOp::Gte | FilterOp::Lte | FilterOp::Between => {
-            let fv = as_f64(field_val);
-            let cv = as_f64(value);
-            match (fv, cv) {
-                (Some(a), Some(b)) => match op {
-                    FilterOp::Gt => a > b,
-                    FilterOp::Lt => a < b,
-                    FilterOp::Gte => a >= b,
-                    FilterOp::Lte => a <= b,
-                    FilterOp::Between => {
-                        let upper = value2.and_then(as_f64).unwrap_or(f64::MAX);
-                        a >= b && a <= upper
-                    }
-                    _ => false,
-                },
-                _ => {
-                    let fs = field_val.as_str().unwrap_or("");
-                    let vs = value.as_str().unwrap_or("");
-                    match op {
-                        FilterOp::Gt => fs > vs,
-                        FilterOp::Lt => fs < vs,
-                        FilterOp::Gte => fs >= vs,
-                        FilterOp::Lte => fs <= vs,
-                        FilterOp::Between => {
-                            let upper = value2.and_then(|v| v.as_str()).unwrap_or("");
-                            fs >= vs && fs <= upper
-                        }
-                        _ => false,
-                    }
-                }
-            }
+        FilterOp::Contains { .. } | FilterOp::Notcontains { .. } => false,
+        FilterOp::Gt { value, .. } => order(field_val, value) == Ordering::Greater,
+        FilterOp::Lt { value, .. } => order(field_val, value) == Ordering::Less,
+        FilterOp::Gte { value, .. } => order(field_val, value) != Ordering::Less,
+        FilterOp::Lte { value, .. } => order(field_val, value) != Ordering::Greater,
+        FilterOp::Between { lo, hi, .. } => {
+            order(field_val, lo) != Ordering::Less && order(field_val, hi) != Ordering::Greater
         }
-        FilterOp::BetweenAnyyear => {
-            let lo = value.as_str().unwrap_or("");
-            let hi = value2.and_then(|v| v.as_str()).unwrap_or("12-31");
+        FilterOp::BetweenAnyyear { lo, hi, .. } => {
             let fv_md = if let Some(ts) = as_f64(field_val) {
                 let (m, d) = unix_to_month_day(ts);
                 format!("{m:02}-{d:02}")
@@ -238,63 +204,54 @@ pub(super) fn compare_filter(
             } else {
                 return false;
             };
-            if lo <= hi {
-                fv_md.as_str() >= lo && fv_md.as_str() <= hi
-            } else {
-                fv_md.as_str() >= lo || fv_md.as_str() <= hi
-            }
+            wraps(&fv_md, lo, hi)
         }
-        FilterOp::BetweenAnytime => {
-            let lo = value.as_str().unwrap_or("00:00");
-            let hi = value2.and_then(|v| v.as_str()).unwrap_or("23:59");
-            let fv_hm = if let Some(ts) = as_f64(field_val) {
-                let (h, m) = unix_to_hour_min(ts);
-                format!("{h:02}:{m:02}")
-            } else {
+        FilterOp::BetweenAnytime { lo, hi, .. } => {
+            let Some(ts) = as_f64(field_val) else {
                 return false;
             };
-            if lo <= hi {
-                fv_hm.as_str() >= lo && fv_hm.as_str() <= hi
-            } else {
-                fv_hm.as_str() >= lo || fv_hm.as_str() <= hi
-            }
+            let (h, m) = unix_to_hour_min(ts);
+            wraps(&format!("{h:02}:{m:02}"), lo, hi)
         }
     }
 }
 
-/// `tz_local` filters: bucket the location's absolute timestamp into its own timezone's
-/// wall-clock before comparing, for any frame-sensitive op. The shifted value runs
-/// through the normal `compare_filter` dispatch, so range ops compare against wall-clock
-/// instants encoded as UTC-epoch seconds (the picker's wall-clock mode) and the
-/// anyyear/anytime shapes bucket month-day / hour-min in the pano's local clock.
-/// The location's `timezone` (IANA) supplies the DST-correct offset; locations lacking
-/// a resolvable `timezone` or field value are excluded.
-pub(super) fn compare_filter_local_tz(
-    r: &RowRef,
-    field: &str,
-    op: FilterOp,
-    value: &serde_json::Value,
-    value2: Option<&serde_json::Value>,
-) -> bool {
+fn order(a: &serde_json::Value, b: &serde_json::Value) -> Ordering {
+    match (as_f64(a), as_f64(b)) {
+        (Some(x), Some(y)) => x.partial_cmp(&y).unwrap_or(Ordering::Equal),
+        _ => a.as_str().unwrap_or("").cmp(b.as_str().unwrap_or("")),
+    }
+}
+
+/// `lo..=hi` on a cyclic key (month-day, hour-minute): a range past the wrap point
+/// (`12-01..02-01`) is the union of its two arcs.
+fn wraps(v: &str, lo: &str, hi: &str) -> bool {
+    if lo <= hi {
+        v >= lo && v <= hi
+    } else {
+        v >= lo || v <= hi
+    }
+}
+
+/// A local-time filter buckets the location's absolute timestamp into its own timezone's
+/// wall-clock before comparing. The shifted value runs through the normal
+/// `compare_filter` dispatch, so a range compares against wall-clock instants encoded
+/// as UTC-epoch seconds (the picker's wall-clock mode) and the anyyear/anytime shapes
+/// bucket month-day / hour-min in the pano's local clock. The location's `timezone`
+/// (IANA) supplies the DST-correct offset; locations lacking a resolvable `timezone` or
+/// field value are excluded.
+pub(super) fn compare_filter_local_tz(r: &RowRef, field: &str, op: &FilterOp) -> bool {
     let (fv, tz_name) = r.resolve_field_and_tz(field);
-    let ts = match fv.as_ref().and_then(as_f64) {
-        Some(t) => t,
-        None => return false,
+    let Some(ts) = fv.as_ref().and_then(as_f64) else {
+        return false;
     };
-    let tz_name = match tz_name {
-        Some(s) => s,
-        None => return false,
+    let Some(tz_name) = tz_name else {
+        return false;
     };
-    let offset = match tz_offset_seconds(&tz_name, ts) {
-        Some(o) => o,
-        None => return false,
+    let Some(offset) = tz_offset_seconds(&tz_name, ts) else {
+        return false;
     };
-    compare_filter(
-        &serde_json::Value::from(ts + offset as f64),
-        op,
-        value,
-        value2,
-    )
+    compare_filter(&serde_json::Value::from(ts + offset as f64), op)
 }
 
 /// Equality comparison with type coercion: tries numeric, then string, then JSON equality.

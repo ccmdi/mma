@@ -8,6 +8,7 @@
 //! what `>` means in a filter.
 
 use super::{compare_filter, FilterOp};
+
 use crate::types::{AppError, AppResult};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -20,7 +21,7 @@ pub enum Expr {
     Has(String),
     Neg(Box<Expr>),
     Bin(Op, Box<Expr>, Box<Expr>),
-    Cmp(FilterOp, Box<Expr>, Box<Expr>),
+    Cmp(Cmp, Box<Expr>, Box<Expr>),
     /// Lazy: only the taken branch is evaluated, so `if(has(x), x * 2, 0)` is safe.
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     Call(Func, Vec<Expr>),
@@ -87,7 +88,7 @@ enum Token {
     Num(f64),
     Str(String),
     Ident(String),
-    Cmp(FilterOp),
+    Cmp(Cmp),
     Op(char),
 }
 
@@ -157,29 +158,66 @@ fn tokenize(src: &str) -> AppResult<Vec<Token>> {
     Ok(tokens)
 }
 
+/// A comparison between two operands. Its truth is the filter predicate's, so `>` here
+/// means what `>` means in a filter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cmp {
+    Eq,
+    Neq,
+    Gt,
+    Lt,
+    Gte,
+    Lte,
+}
+
+impl Cmp {
+    fn predicate(self, value: serde_json::Value) -> FilterOp {
+        match self {
+            Cmp::Eq => FilterOp::Eq { value },
+            Cmp::Neq => FilterOp::Neq { value },
+            Cmp::Gt => FilterOp::Gt {
+                value,
+                tz_local: false,
+            },
+            Cmp::Lt => FilterOp::Lt {
+                value,
+                tz_local: false,
+            },
+            Cmp::Gte => FilterOp::Gte {
+                value,
+                tz_local: false,
+            },
+            Cmp::Lte => FilterOp::Lte {
+                value,
+                tz_local: false,
+            },
+        }
+    }
+}
+
 /// How a comparison operator spells itself, for error text.
-fn cmp_symbol(op: FilterOp) -> &'static str {
+fn cmp_symbol(op: Cmp) -> &'static str {
     match op {
-        FilterOp::Neq => "!=",
-        FilterOp::Gt => ">",
-        FilterOp::Lt => "<",
-        FilterOp::Gte => ">=",
-        FilterOp::Lte => "<=",
-        _ => "==",
+        Cmp::Eq => "==",
+        Cmp::Neq => "!=",
+        Cmp::Gt => ">",
+        Cmp::Lt => "<",
+        Cmp::Gte => ">=",
+        Cmp::Lte => "<=",
     }
 }
 
 /// The comparison operator starting at `i`, with its width. Two-character forms are
 /// tried first so `>=` never tokenizes as `>` followed by a stray `=`.
-fn cmp_at(chars: &[char], i: usize) -> Option<(FilterOp, usize)> {
+fn cmp_at(chars: &[char], i: usize) -> Option<(Cmp, usize)> {
     let pair = (chars.get(i)?, chars.get(i + 1));
     match pair {
-        ('=', Some('=')) => Some((FilterOp::Eq, 2)),
-        ('!', Some('=')) => Some((FilterOp::Neq, 2)),
-        ('>', Some('=')) => Some((FilterOp::Gte, 2)),
-        ('<', Some('=')) => Some((FilterOp::Lte, 2)),
-        ('>', _) => Some((FilterOp::Gt, 1)),
-        ('<', _) => Some((FilterOp::Lt, 1)),
+        ('=', Some('=')) => Some((Cmp::Eq, 2)),
+        ('!', Some('=')) => Some((Cmp::Neq, 2)),
+        ('>', Some('=')) => Some((Cmp::Gte, 2)),
+        ('<', Some('=')) => Some((Cmp::Lte, 2)),
+        ('>', _) => Some((Cmp::Gt, 1)),
+        ('<', _) => Some((Cmp::Lt, 1)),
         _ => None,
     }
 }
@@ -400,7 +438,7 @@ fn eval_node(expr: &Expr, field: &Resolver) -> Option<f64> {
         // skipping the row: a score term for something absent is 0, not undefined.
         Expr::Cmp(op, l, r) => {
             let held = operand(l, field).zip(operand(r, field));
-            let truth = held.is_some_and(|(l, r)| compare_filter(&l, *op, &r, None));
+            let truth = held.is_some_and(|(l, r)| compare_filter(&l, &op.predicate(r)));
             f64::from(u8::from(truth))
         }
         Expr::If(cond, then, otherwise) => {

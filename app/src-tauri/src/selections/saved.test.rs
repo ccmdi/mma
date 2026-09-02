@@ -1,6 +1,8 @@
 use super::*;
+use crate::selections::FilterOp;
 use crate::selections::PolygonGeometry;
 use crate::selections::Selection;
+use crate::selections::Selector;
 use rusqlite::Connection;
 
 /// In-memory DB with the v21 `saved_selections` schema.
@@ -161,4 +163,39 @@ fn get_ignores_ids_that_are_not_there() {
     let got = get(&conn, &[a.info.id.clone(), "nope".into()]).unwrap();
     assert_eq!(got.len(), 1);
     assert_eq!(got[0].info.id, a.info.id);
+}
+
+#[test]
+fn a_filter_row_written_before_0_10_2_still_reads() {
+    let old = r#"{"type":"Intersection","selections":[
+        {"key":"a","color":[0,0,0],"selector":{"type":"Filter","field":"altitude","op":"between","value":1,"value2":2,"tzLocal":true}},
+        {"key":"b","color":[0,0,0],"selector":{"type":"Filter","field":"panoId","op":"has","value":null,"value2":null,"tzLocal":false}},
+        {"key":"c","color":[0,0,0],"selector":{"type":"Filter","field":"country","op":"neq","value":"US"}}
+    ]}"#;
+    let Selector::Intersection { selections } =
+        serde_json::from_value(modernize(serde_json::from_str(old).unwrap())).unwrap()
+    else {
+        panic!("not an intersection");
+    };
+    let tests: Vec<FilterOp> = selections
+        .into_iter()
+        .map(|s| match s.selector {
+            Selector::Filter { test, .. } => test,
+            _ => panic!("not a filter"),
+        })
+        .collect();
+    assert_eq!(
+        tests,
+        vec![
+            FilterOp::Between {
+                lo: serde_json::json!(1),
+                hi: serde_json::json!(2),
+                tz_local: true
+            },
+            FilterOp::Has,
+            FilterOp::Neq {
+                value: serde_json::json!("US")
+            },
+        ]
+    );
 }

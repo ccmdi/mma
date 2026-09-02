@@ -94,14 +94,14 @@ export function colorPartition(
 		if (!narrowed && g.bin) {
 			const [lo, hi] = g.bin;
 			return {
-				selector: { type: "Filter", field: fieldKey, op: "between", value: lo, value2: hi },
+				selector: { type: "Filter", field: fieldKey, test: { op: "between", lo: lo, hi: hi } },
 				key: `filter:${fieldKey}:between:${lo}:${hi}`,
 				color,
 			};
 		}
 		if (!narrowed && eqFilter) {
 			return {
-				selector: { type: "Filter", field: fieldKey, op: "eq", value: g.key, value2: null },
+				selector: { type: "Filter", field: fieldKey, test: { op: "eq", value: g.key } },
 				key: `filter:${fieldKey}:eq:${g.key}`,
 				color,
 			};

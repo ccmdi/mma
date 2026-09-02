@@ -1,6 +1,6 @@
+import type { FilterOp } from "@/bindings.gen";
 /** Month names, hand-typed date parsing, and the one wall-clock codec
  *  (`dateParts`/`partsToEpoch`); never encode an epoch elsewhere. */
-
 
 export const MONTHS = {
 	short: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
@@ -266,50 +266,51 @@ function addDays(v: number, days: number, wallClock: boolean): number {
  *  shift the "YYYY-MM" strings; numeric windows translate by span (shared edge). */
 export function stepFilterWindow(
 	fieldType: string | undefined,
-	op: string,
-	value: unknown,
-	value2: unknown,
+	test: FilterOp,
 	dir: 1 | -1,
 	wallClock = false,
-): { value: number | string; value2?: number | string } | null {
+): FilterOp | null {
 	const MONTH = /^(\d{4})-(\d{2})$/;
-	if (fieldType === "month" && typeof value === "string") {
-		const lo = MONTH.exec(value);
-		if (!lo) return null;
+	if (fieldType === "month") {
 		const idx = (m: RegExpExecArray) => Number(m[1]) * 12 + (Number(m[2]) - 1);
 		const fmt = (i: number) => `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, "0")}`;
-		if (op === "eq") return { value: fmt(idx(lo) + dir) };
-		if (op === "between" && typeof value2 === "string") {
-			const hi = MONTH.exec(value2);
-			if (!hi) return null;
+		if (test.op === "eq" && typeof test.value === "string") {
+			const lo = MONTH.exec(test.value);
+			return lo ? { op: "eq", value: fmt(idx(lo) + dir) } : null;
+		}
+		if (test.op === "between" && typeof test.lo === "string" && typeof test.hi === "string") {
+			const lo = MONTH.exec(test.lo);
+			const hi = MONTH.exec(test.hi);
+			if (!lo || !hi) return null;
 			const span = idx(hi) - idx(lo) + 1;
 			if (span < 1) return null;
-			return { value: fmt(idx(lo) + dir * span), value2: fmt(idx(hi) + dir * span) };
+			return { ...test, lo: fmt(idx(lo) + dir * span), hi: fmt(idx(hi) + dir * span) };
 		}
 		return null;
 	}
-	if (fieldType === "date" && op === "between") {
-		const lo = Number(value);
-		const hi = Number(value2);
-		if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi < lo) return null;
+	if (test.op !== "between") return null;
+	const lo = Number(test.lo);
+	const hi = Number(test.hi);
+	if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+	if (fieldType === "date") {
+		if (hi < lo) return null;
 		if (!hasTimeOfDay(lo, wallClock) && !hasTimeOfDay(hi + 1, wallClock)) {
 			// Day-grain window: [midnight, day-end]. Shift by its day count.
 			const days = Math.round((hi + 1 - lo) / 86400);
 			const newLo = addDays(lo, dir * days, wallClock);
 			return {
-				value: newLo,
-				value2: pickPeriodEnd(addDays(newLo, days - 1, wallClock), "day", wallClock),
+				...test,
+				lo: newLo,
+				hi: pickPeriodEnd(addDays(newLo, days - 1, wallClock), "day", wallClock),
 			};
 		}
 		const span = hi - lo + 1;
-		return { value: lo + dir * span, value2: hi + dir * span };
+		return { ...test, lo: lo + dir * span, hi: hi + dir * span };
 	}
-	if (fieldType === "number" && op === "between") {
-		const lo = Number(value);
-		const hi = Number(value2);
-		if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi <= lo) return null;
+	if (fieldType === "number") {
+		if (hi <= lo) return null;
 		const span = hi - lo;
-		return { value: lo + dir * span, value2: hi + dir * span };
+		return { ...test, lo: lo + dir * span, hi: hi + dir * span };
 	}
 	return null;
 }

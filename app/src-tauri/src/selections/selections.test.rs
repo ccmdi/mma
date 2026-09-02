@@ -544,15 +544,15 @@ fn geometry_bbox_merges_straddling_parts_into_one_frame() {
 fn filter_eq_string() {
     assert!(compare_filter(
         &serde_json::json!("BR"),
-        FilterOp::Eq,
-        &serde_json::json!("BR"),
-        None
+        &FilterOp::Eq {
+            value: serde_json::json!("BR")
+        }
     ));
     assert!(!compare_filter(
         &serde_json::json!("US"),
-        FilterOp::Eq,
-        &serde_json::json!("BR"),
-        None
+        &FilterOp::Eq {
+            value: serde_json::json!("BR")
+        }
     ));
 }
 
@@ -560,15 +560,15 @@ fn filter_eq_string() {
 fn filter_neq() {
     assert!(compare_filter(
         &serde_json::json!("US"),
-        FilterOp::Neq,
-        &serde_json::json!("BR"),
-        None
+        &FilterOp::Neq {
+            value: serde_json::json!("BR")
+        }
     ));
     assert!(!compare_filter(
         &serde_json::json!("BR"),
-        FilterOp::Neq,
-        &serde_json::json!("BR"),
-        None
+        &FilterOp::Neq {
+            value: serde_json::json!("BR")
+        }
     ));
 }
 
@@ -576,15 +576,17 @@ fn filter_neq() {
 fn filter_gt_numeric() {
     assert!(compare_filter(
         &serde_json::json!(100),
-        FilterOp::Gt,
-        &serde_json::json!(50),
-        None
+        &FilterOp::Gt {
+            value: serde_json::json!(50),
+            tz_local: false
+        }
     ));
     assert!(!compare_filter(
         &serde_json::json!(50),
-        FilterOp::Gt,
-        &serde_json::json!(100),
-        None
+        &FilterOp::Gt {
+            value: serde_json::json!(100),
+            tz_local: false
+        }
     ));
 }
 
@@ -592,15 +594,19 @@ fn filter_gt_numeric() {
 fn filter_between() {
     assert!(compare_filter(
         &serde_json::json!(500),
-        FilterOp::Between,
-        &serde_json::json!(100),
-        Some(&serde_json::json!(1000))
+        &FilterOp::Between {
+            lo: serde_json::json!(100),
+            hi: serde_json::json!(1000),
+            tz_local: false
+        }
     ));
     assert!(!compare_filter(
         &serde_json::json!(50),
-        FilterOp::Between,
-        &serde_json::json!(100),
-        Some(&serde_json::json!(1000))
+        &FilterOp::Between {
+            lo: serde_json::json!(100),
+            hi: serde_json::json!(1000),
+            tz_local: false
+        }
     ));
 }
 
@@ -613,26 +619,32 @@ fn filter_between_anyyear_normal_range() {
     // June 10 2020 00:00 UTC = 1591747200
     let jun10 = serde_json::json!(1591747200.0);
 
-    let lo = serde_json::json!("04-15");
-    let hi = serde_json::json!("05-15");
+    let lo = "04-15".to_string();
+    let hi = "05-15".to_string();
 
     assert!(compare_filter(
         &apr15,
-        FilterOp::BetweenAnyyear,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnyyear {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
     assert!(compare_filter(
         &may1,
-        FilterOp::BetweenAnyyear,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnyyear {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
     assert!(!compare_filter(
         &jun10,
-        FilterOp::BetweenAnyyear,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnyyear {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
 }
 
@@ -645,47 +657,57 @@ fn filter_between_anyyear_wrapping_range() {
     // July 4 2021 00:00 UTC = 1625356800
     let jul4 = serde_json::json!(1625356800.0);
 
-    let lo = serde_json::json!("11-15");
-    let hi = serde_json::json!("02-15");
+    let lo = "11-15".to_string();
+    let hi = "02-15".to_string();
 
     assert!(compare_filter(
         &dec1,
-        FilterOp::BetweenAnyyear,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnyyear {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
     assert!(compare_filter(
         &jan15,
-        FilterOp::BetweenAnyyear,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnyyear {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
     assert!(!compare_filter(
         &jul4,
-        FilterOp::BetweenAnyyear,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnyyear {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
 }
 
 #[test]
 fn filter_between_anyyear_string_field() {
     let ym = serde_json::json!("2023-04");
-    let lo = serde_json::json!("03-01");
-    let hi = serde_json::json!("05-01");
+    let lo = "03-01".to_string();
+    let hi = "05-01".to_string();
     assert!(compare_filter(
         &ym,
-        FilterOp::BetweenAnyyear,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnyyear {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
 
     let ym_out = serde_json::json!("2023-07");
     assert!(!compare_filter(
         &ym_out,
-        FilterOp::BetweenAnyyear,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnyyear {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
 }
 
@@ -698,26 +720,32 @@ fn filter_between_anytime_normal_range() {
     // 2020-06-10 22:00 UTC = 1591826400
     let ts_2200 = serde_json::json!(1591826400.0);
 
-    let lo = serde_json::json!("08:00");
-    let hi = serde_json::json!("15:00");
+    let lo = "08:00".to_string();
+    let hi = "15:00".to_string();
 
     assert!(compare_filter(
         &ts_1430,
-        FilterOp::BetweenAnytime,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnytime {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
     assert!(compare_filter(
         &ts_0800,
-        FilterOp::BetweenAnytime,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnytime {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
     assert!(!compare_filter(
         &ts_2200,
-        FilterOp::BetweenAnytime,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnytime {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
 }
 
@@ -730,39 +758,47 @@ fn filter_between_anytime_wrapping_range() {
     // 2023-01-01 12:00 UTC = 1672574400
     let ts_1200 = serde_json::json!(1672574400.0);
 
-    let lo = serde_json::json!("22:00");
-    let hi = serde_json::json!("06:00");
+    let lo = "22:00".to_string();
+    let hi = "06:00".to_string();
 
     assert!(compare_filter(
         &ts_2300,
-        FilterOp::BetweenAnytime,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnytime {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
     assert!(compare_filter(
         &ts_0200,
-        FilterOp::BetweenAnytime,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnytime {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
     assert!(!compare_filter(
         &ts_1200,
-        FilterOp::BetweenAnytime,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnytime {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
 }
 
 #[test]
 fn filter_between_anytime_string_field_returns_false() {
     let ym = serde_json::json!("2023-04");
-    let lo = serde_json::json!("08:00");
-    let hi = serde_json::json!("15:00");
+    let lo = "08:00".to_string();
+    let hi = "15:00".to_string();
     assert!(!compare_filter(
         &ym,
-        FilterOp::BetweenAnytime,
-        &lo,
-        Some(&hi)
+        &FilterOp::BetweenAnytime {
+            lo: lo.clone(),
+            hi: hi.clone(),
+            tz_local: false
+        }
     ));
 }
 
@@ -770,15 +806,11 @@ fn filter_between_anytime_string_field_returns_false() {
 fn filter_has_nothas() {
     assert!(compare_filter(
         &serde_json::json!("anything"),
-        FilterOp::Has,
-        &serde_json::json!(null),
-        None
+        &FilterOp::Has
     ));
     assert!(!compare_filter(
         &serde_json::json!("anything"),
-        FilterOp::Nothas,
-        &serde_json::json!(null),
-        None
+        &FilterOp::Nothas
     ));
 }
 
@@ -923,28 +955,26 @@ fn resolve_filter_tag_count() {
 
     let eq2 = Selector::Filter {
         field: "tagCount".into(),
-        op: FilterOp::Eq,
-        value: serde_json::json!(2),
-        value2: None,
-        tz_local: false,
+        test: FilterOp::Eq {
+            value: serde_json::json!(2),
+        },
     };
     assert_eq!(ids_of(&view, &eq2), vec![2]);
 
     let gt1 = Selector::Filter {
         field: "tagCount".into(),
-        op: FilterOp::Gt,
-        value: serde_json::json!(1),
-        value2: None,
-        tz_local: false,
+        test: FilterOp::Gt {
+            value: serde_json::json!(1),
+            tz_local: false,
+        },
     };
     assert_eq!(ids_of(&view, &gt1), vec![2, 3]);
 
     let eq0 = Selector::Filter {
         field: "tagCount".into(),
-        op: FilterOp::Eq,
-        value: serde_json::json!(0),
-        value2: None,
-        tz_local: false,
+        test: FilterOp::Eq {
+            value: serde_json::json!(0),
+        },
     };
     assert_eq!(ids_of(&view, &eq0), vec![1]);
 }
@@ -1718,10 +1748,9 @@ fn extra_filter_eq_on_adds() {
         &view,
         &Selector::Filter {
             field: "country".into(),
-            op: FilterOp::Eq,
-            value: serde_json::json!("BR"),
-            value2: None,
-            tz_local: false,
+            test: FilterOp::Eq {
+                value: serde_json::json!("BR"),
+            },
         },
     );
     assert_eq!(ids, vec![1]);
@@ -1739,30 +1768,34 @@ fn extra_filter_scans_base_batch_top_level_only() {
     let fx = Fx::base(&[l1, l2]);
     let view = fx.view();
 
-    let filter = |field: &str, op: FilterOp, value: serde_json::Value| Selector::Filter {
+    let filter = |field: &str, test: FilterOp| Selector::Filter {
         field: field.into(),
-        op,
-        value,
-        value2: None,
-        tz_local: false,
+        test,
     };
     // l1 matches on its top-level alt; l2's nested alt must not count.
     assert_eq!(
-        ids_of(&view, &filter("alt", FilterOp::Eq, serde_json::json!(100))),
-        vec![1]
-    );
-    assert_eq!(
         ids_of(
             &view,
-            &filter("alt", FilterOp::Has, serde_json::Value::Null)
+            &filter(
+                "alt",
+                FilterOp::Eq {
+                    value: serde_json::json!(100)
+                }
+            )
         ),
         vec![1]
     );
+    assert_eq!(ids_of(&view, &filter("alt", FilterOp::Has)), vec![1]);
     // Escaped quote and brace inside a string value must not derail the scan.
     assert_eq!(
         ids_of(
             &view,
-            &filter("note", FilterOp::Eq, serde_json::json!("a\"b}"))
+            &filter(
+                "note",
+                FilterOp::Eq {
+                    value: serde_json::json!("a\"b}")
+                }
+            )
         ),
         vec![1]
     );
@@ -1780,37 +1813,51 @@ fn an_absent_field_matches_only_nothas() {
     added.extra = Some(serde_json::from_str(r#"{"alt":null}"#).unwrap());
     let fx = Fx::base(&[nulled, valued]).with_adds(vec![added]);
     let view = fx.view();
-    let filter = |field: &str, op: FilterOp, value: serde_json::Value| Selector::Filter {
+    let filter = |field: &str, test: FilterOp| Selector::Filter {
         field: field.into(),
-        op,
-        value,
-        value2: None,
-        tz_local: false,
+        test,
     };
-    let null = serde_json::Value::Null;
 
+    assert_eq!(ids_of(&view, &filter("alt", FilterOp::Has)), vec![2]);
+    assert_eq!(ids_of(&view, &filter("alt", FilterOp::Nothas)), vec![1, 3]);
     assert_eq!(
-        ids_of(&view, &filter("alt", FilterOp::Has, null.clone())),
+        ids_of(
+            &view,
+            &filter(
+                "alt",
+                FilterOp::Neq {
+                    value: serde_json::json!(6)
+                }
+            )
+        ),
         vec![2]
     );
     assert_eq!(
-        ids_of(&view, &filter("alt", FilterOp::Nothas, null.clone())),
-        vec![1, 3]
-    );
-    assert_eq!(
-        ids_of(&view, &filter("alt", FilterOp::Neq, serde_json::json!(6))),
+        ids_of(
+            &view,
+            &filter(
+                "alt",
+                FilterOp::Eq {
+                    value: serde_json::json!(5)
+                }
+            )
+        ),
         vec![2]
     );
     assert_eq!(
-        ids_of(&view, &filter("alt", FilterOp::Eq, serde_json::json!(5))),
-        vec![2]
-    );
-    assert_eq!(
-        ids_of(&view, &filter("gone", FilterOp::Nothas, null.clone())),
+        ids_of(&view, &filter("gone", FilterOp::Nothas)),
         vec![1, 2, 3]
     );
     assert_eq!(
-        ids_of(&view, &filter("gone", FilterOp::Neq, serde_json::json!(1))),
+        ids_of(
+            &view,
+            &filter(
+                "gone",
+                FilterOp::Neq {
+                    value: serde_json::json!(1)
+                }
+            )
+        ),
         Vec::<u32>::new()
     );
 }
@@ -1830,10 +1877,9 @@ fn extra_filter_matches_ascii_escaped_field_name() {
             &view,
             &Selector::Filter {
                 field: "café".into(),
-                op: FilterOp::Eq,
-                value: serde_json::json!("noir"),
-                value2: None,
-                tz_local: false,
+                test: FilterOp::Eq {
+                    value: serde_json::json!("noir")
+                },
             }
         ),
         vec![1]
@@ -1873,10 +1919,11 @@ fn filter_tz_local_between_buckets_per_timezone() {
         &view,
         &Selector::Filter {
             field: "datetime".into(),
-            op: FilterOp::Between,
-            value: lo,
-            value2: Some(hi),
-            tz_local: true,
+            test: FilterOp::Between {
+                lo: lo,
+                hi: hi,
+                tz_local: true,
+            },
         },
     );
     // Tokyo lands on Mar 1 -> in; New York is Feb 29 -> out; no timezone -> excluded.
@@ -1893,10 +1940,11 @@ fn filter_tz_local_between_on_base_batch() {
         &view,
         &Selector::Filter {
             field: "datetime".into(),
-            op: FilterOp::Between,
-            value: serde_json::json!(1583020800u64),
-            value2: Some(serde_json::json!(1583107140u64)),
-            tz_local: true,
+            test: FilterOp::Between {
+                lo: serde_json::json!(1583020800u64),
+                hi: serde_json::json!(1583107140u64),
+                tz_local: true,
+            },
         },
     );
     assert_eq!(ids, vec![1]);
@@ -1913,10 +1961,11 @@ fn filter_tz_local_anyyear_uses_local_month_day() {
         &view,
         &Selector::Filter {
             field: "datetime".into(),
-            op: FilterOp::BetweenAnyyear,
-            value: serde_json::json!("02-29"),
-            value2: Some(serde_json::json!("02-29")),
-            tz_local: true,
+            test: FilterOp::BetweenAnyyear {
+                lo: "02-29".into(),
+                hi: "02-29".into(),
+                tz_local: true,
+            },
         },
     );
     assert_eq!(ids, vec![2]);
@@ -1933,10 +1982,11 @@ fn filter_tz_local_anytime_uses_local_clock() {
         &view,
         &Selector::Filter {
             field: "datetime".into(),
-            op: FilterOp::BetweenAnytime,
-            value: serde_json::json!("06:00"),
-            value2: Some(serde_json::json!("12:00")),
-            tz_local: true,
+            test: FilterOp::BetweenAnytime {
+                lo: "06:00".into(),
+                hi: "12:00".into(),
+                tz_local: true,
+            },
         },
     );
     assert_eq!(ids, vec![1]);
@@ -1956,10 +2006,7 @@ fn filter_tz_local_ignored_for_nothas() {
         &view,
         &Selector::Filter {
             field: "datetime".into(),
-            op: FilterOp::Nothas,
-            value: serde_json::Value::Null,
-            value2: None,
-            tz_local: true,
+            test: FilterOp::Nothas,
         },
     );
     assert_eq!(ids, vec![2]);
@@ -2931,13 +2978,10 @@ fn count_is_the_selected_size() {
 
 /// `panoId` is a builtin field: the generic Filter predicate reaches the Arrow column
 /// and the overlay row, so no bespoke selection variant is needed.
-fn pano_filter(op: FilterOp) -> Selector {
+fn pano_filter(test: FilterOp) -> Selector {
     Selector::Filter {
         field: "panoId".into(),
-        op,
-        value: serde_json::Value::Null,
-        value2: None,
-        tz_local: false,
+        test,
     }
 }
 
@@ -3093,10 +3137,7 @@ fn has_pano_id_matches_a_pinned_row_in_base_and_overlay() {
     let bare = loc(2, 0.0, 0.0);
     let filter = Selector::Filter {
         field: "panoId".into(),
-        op: FilterOp::Has,
-        value: serde_json::Value::Null,
-        value2: None,
-        tz_local: false,
+        test: FilterOp::Has,
     };
     let base = Fx::base(&[pinned.clone(), bare.clone()]);
     assert_eq!(ids_of(&base.view(), &filter), vec![1]);

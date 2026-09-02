@@ -243,19 +243,16 @@ describe("buildSelection", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "altitude",
-			op: "gt",
-			value: 500,
+			test: { op: "gt", value: 500 },
 		});
 		expect(sel.key).toBe("filter:altitude:gt:500");
 	});
 
-	it("Filter between includes value2", () => {
+	it("Filter between includes both bounds", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "altitude",
-			op: "between",
-			value: 0,
-			value2: 1000,
+			test: { op: "between", lo: 0, hi: 1000 },
 		});
 		expect(sel.key).toBe("filter:altitude:between:0:1000");
 	});
@@ -475,8 +472,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "label",
-			op: "eq",
-			value: "BR",
+			test: { op: "eq", value: "BR" },
 		});
 		expect(selectionDisplayName(sel)).toBe("Country code = BR");
 	});
@@ -485,9 +481,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "height",
-			op: "between",
-			value: 0,
-			value2: 3000,
+			test: { op: "between", lo: 0, hi: 3000 },
 		});
 		expect(selectionDisplayName(sel)).toBe("Altitude between 0..3000");
 	});
@@ -496,8 +490,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "label",
-			op: "neq",
-			value: "BR",
+			test: { op: "neq", value: "BR" },
 		});
 		expect(selectionDisplayName(sel)).toBe("Country code != BR");
 	});
@@ -506,8 +499,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "height",
-			op: "gt",
-			value: 500,
+			test: { op: "gt", value: 500 },
 		});
 		expect(selectionDisplayName(sel)).toBe("Altitude > 500");
 	});
@@ -516,8 +508,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "height",
-			op: "lt",
-			value: 100,
+			test: { op: "lt", value: 100 },
 		});
 		expect(selectionDisplayName(sel)).toBe("Altitude < 100");
 	});
@@ -526,8 +517,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "height",
-			op: "gte",
-			value: 200,
+			test: { op: "gte", value: 200 },
 		});
 		expect(selectionDisplayName(sel)).toBe("Altitude >= 200");
 	});
@@ -536,8 +526,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "height",
-			op: "lte",
-			value: 300,
+			test: { op: "lte", value: 300 },
 		});
 		expect(selectionDisplayName(sel)).toBe("Altitude <= 300");
 	});
@@ -546,8 +535,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "height",
-			op: "has",
-			value: null,
+			test: { op: "has" },
 		});
 		expect(selectionDisplayName(sel)).toBe("has Altitude");
 	});
@@ -556,8 +544,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "height",
-			op: "nothas",
-			value: null,
+			test: { op: "nothas" },
 		});
 		expect(selectionDisplayName(sel)).toBe("missing Altitude");
 	});
@@ -566,9 +553,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "month",
-			op: "between_anyyear",
-			value: "01-15",
-			value2: "03-20",
+			test: { op: "between_anyyear", lo: "01-15", hi: "03-20" },
 		});
 		expect(selectionDisplayName(sel)).toBe("Image date between (any year) Jan 15..Mar 20");
 	});
@@ -577,9 +562,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "month",
-			op: "between_anytime",
-			value: "08:00",
-			value2: "16:00",
+			test: { op: "between_anytime", lo: "08:00", hi: "16:00" },
 		});
 		expect(selectionDisplayName(sel)).toBe("Image date between (any date) 08:00..16:00");
 	});
@@ -588,8 +571,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "cam",
-			op: "eq",
-			value: "gen4",
+			test: { op: "eq", value: "gen4" },
 		});
 		expect(selectionDisplayName(sel)).toBe("Camera type = Gen 4");
 	});
@@ -598,8 +580,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "exact",
-			op: "gt",
-			value: 1700000000,
+			test: { op: "gt", value: 1700000000 },
 		});
 		// Chip labels render date fields in local time to match the DatePicker.
 		const d = new Date(1700000000 * 1000);
@@ -612,10 +593,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "exact",
-			op: "between",
-			value: 1583020800, // 2020-03-01 00:00 (wall-clock as UTC epoch)
-			value2: 1583107140, // 2020-03-01 23:59
-			tzLocal: true,
+			test: { op: "between", lo: 1583020800, hi: 1583107140, tzLocal: true },
 		});
 		expect(selectionDisplayName(sel)).toBe(
 			"Exact date between 2020-03-01 00:00..2020-03-01 23:59 (location time)",
@@ -626,17 +604,12 @@ describe("selectionDisplayName", () => {
 		const abs = buildSelection({
 			type: "Filter",
 			field: "exact",
-			op: "between",
-			value: 1,
-			value2: 2,
+			test: { op: "between", lo: 1, hi: 2 },
 		});
 		const local = buildSelection({
 			type: "Filter",
 			field: "exact",
-			op: "between",
-			value: 1,
-			value2: 2,
-			tzLocal: true,
+			test: { op: "between", lo: 1, hi: 2, tzLocal: true },
 		});
 		expect(abs.key).not.toBe(local.key);
 		expect(local.key.endsWith(":local")).toBe(true);
@@ -646,8 +619,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "unknownField",
-			op: "eq",
-			value: "test",
+			test: { op: "eq", value: "test" },
 		});
 		expect(selectionDisplayName(sel)).toBe("unknownField = test");
 	});
@@ -664,8 +636,7 @@ describe("selectionDisplayName", () => {
 		const sel = buildSelection({
 			type: "Filter",
 			field: "myCustomField",
-			op: "eq",
-			value: "a",
+			test: { op: "eq", value: "a" },
 		});
 		expect(selectionDisplayName(sel)).toBe("Custom = Alpha");
 	});
@@ -1025,11 +996,9 @@ describe("replaceSelection", () => {
 	const filterA = {
 		type: "Filter" as const,
 		field: "year",
-		op: "between" as const,
-		value: 2010,
-		value2: 2015,
+		test: { op: "between" as const, lo: 2010, hi: 2015 },
 	};
-	const filterAEdited = { ...filterA, value: 2012, value2: 2020 };
+	const filterAEdited = { ...filterA, test: { ...filterA.test, lo: 2012, hi: 2020 } };
 
 	it("replaces a top-level selection and updates its key", () => {
 		const sel = buildSelection(filterA);
@@ -1037,7 +1006,7 @@ describe("replaceSelection", () => {
 		expect(result).toHaveLength(1);
 		expect(result[0].key).toBe(buildSelection(filterAEdited).key);
 		expect(result[0].key).not.toBe(sel.key);
-		expect((result[0].selector as typeof filterAEdited).value).toBe(2012);
+		expect((result[0].selector as typeof filterAEdited).test.lo).toBe(2012);
 	});
 
 	it("preserves the Invert wrapper when editing a child of an inverted group", () => {
@@ -1258,7 +1227,7 @@ describe("polygonSelectionsContaining", () => {
 
 describe("rewriteSelectionFields", () => {
 	const filter = (field: string) =>
-		buildSelection({ type: "Filter", field, op: "eq", value: 1, value2: null });
+		buildSelection({ type: "Filter", field, test: { op: "eq", value: 1 } });
 
 	it("rewrites a Filter field and regenerates its key", () => {
 		const out = rewriteSelectionFields([filter("a")], "a", "b");

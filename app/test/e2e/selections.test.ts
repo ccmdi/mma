@@ -378,22 +378,38 @@ describe("Selection with Filter", () => {
 	});
 
 	it("filter by string equality", async () => {
-		const result = await selectCount({ type: "Filter", field: "country", op: "eq", value: "US" });
+		const result = await selectCount({
+			type: "Filter",
+			field: "country",
+			test: { op: "eq", value: "US" },
+		});
 		expect(result).toBe(25);
 	});
 
 	it("filter by string inequality", async () => {
-		const result = await selectCount({ type: "Filter", field: "country", op: "neq", value: "US" });
+		const result = await selectCount({
+			type: "Filter",
+			field: "country",
+			test: { op: "neq", value: "US" },
+		});
 		expect(result).toBe(25);
 	});
 
 	it("filter by numeric greater than", async () => {
-		const result = await selectCount({ type: "Filter", field: "altitude", op: "gt", value: 200 });
+		const result = await selectCount({
+			type: "Filter",
+			field: "altitude",
+			test: { op: "gt", value: 200 },
+		});
 		expect(result).toBe(29);
 	});
 
 	it("filter by numeric less than", async () => {
-		const result = await selectCount({ type: "Filter", field: "altitude", op: "lt", value: 100 });
+		const result = await selectCount({
+			type: "Filter",
+			field: "altitude",
+			test: { op: "lt", value: 100 },
+		});
 		expect(result).toBe(10);
 	});
 
@@ -401,9 +417,7 @@ describe("Selection with Filter", () => {
 		const result = await selectCount({
 			type: "Filter",
 			field: "altitude",
-			op: "between",
-			value: 100,
-			value2: 200,
+			test: { op: "between", lo: 100, hi: 200 },
 		});
 		expect(result).toBe(11);
 	});

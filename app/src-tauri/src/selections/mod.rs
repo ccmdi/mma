@@ -87,14 +87,7 @@ pub enum Selector {
     },
     Filter {
         field: String,
-        op: FilterOp,
-        #[specta(type = specta_typescript::Any)]
-        value: serde_json::Value,
-        #[serde(default)]
-        #[specta(type = Option<specta_typescript::Any>)]
-        value2: Option<serde_json::Value>,
-        #[serde(default, rename = "tzLocal")]
-        tz_local: bool,
+        test: FilterOp,
     },
     TopK {
         field: String,
@@ -103,24 +96,91 @@ pub enum Selector {
     },
 }
 
-/// Filter comparison operator. Single source of truth: specta renders the literal
-/// union, so the TS `FilterOp` type and `OP_LABELS` derive from this enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "snake_case")]
+/// A filter's predicate: the operator with its operands. Single source of truth: specta
+/// renders the tagged union, so the TS `FilterOp` type and `OP_LABELS` derive from it.
+/// The range operators can read a date in the row's own timezone (`tzLocal`); the
+/// `between_*` shapes bucket a timestamp by month-day or time-of-day before comparing.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(tag = "op", rename_all = "snake_case")]
 pub enum FilterOp {
-    Eq,
-    Neq,
-    Gt,
-    Lt,
-    Gte,
-    Lte,
-    Between,
-    BetweenAnyyear,
-    BetweenAnytime,
     Has,
     Nothas,
-    Contains,
-    Notcontains,
+    Eq {
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+    },
+    Neq {
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+    },
+    Contains {
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+    },
+    Notcontains {
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+    },
+    Gt {
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+        #[serde(default, rename = "tzLocal")]
+        tz_local: bool,
+    },
+    Lt {
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+        #[serde(default, rename = "tzLocal")]
+        tz_local: bool,
+    },
+    Gte {
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+        #[serde(default, rename = "tzLocal")]
+        tz_local: bool,
+    },
+    Lte {
+        #[specta(type = specta_typescript::Any)]
+        value: serde_json::Value,
+        #[serde(default, rename = "tzLocal")]
+        tz_local: bool,
+    },
+    Between {
+        #[specta(type = specta_typescript::Any)]
+        lo: serde_json::Value,
+        #[specta(type = specta_typescript::Any)]
+        hi: serde_json::Value,
+        #[serde(default, rename = "tzLocal")]
+        tz_local: bool,
+    },
+    BetweenAnyyear {
+        lo: String,
+        hi: String,
+        #[serde(default, rename = "tzLocal")]
+        tz_local: bool,
+    },
+    BetweenAnytime {
+        lo: String,
+        hi: String,
+        #[serde(default, rename = "tzLocal")]
+        tz_local: bool,
+    },
+}
+
+impl FilterOp {
+    /// Whether the row's clock is read in its own timezone. Only a range asks.
+    pub fn tz_local(&self) -> bool {
+        match self {
+            FilterOp::Gt { tz_local, .. }
+            | FilterOp::Lt { tz_local, .. }
+            | FilterOp::Gte { tz_local, .. }
+            | FilterOp::Lte { tz_local, .. }
+            | FilterOp::Between { tz_local, .. }
+            | FilterOp::BetweenAnyyear { tz_local, .. }
+            | FilterOp::BetweenAnytime { tz_local, .. } => *tz_local,
+            _ => false,
+        }
+    }
 }
 
 /// GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring +
@@ -163,10 +223,7 @@ impl Selector {
     pub fn has(field: &str) -> Selector {
         Selector::Filter {
             field: field.into(),
-            op: FilterOp::Has,
-            value: serde_json::Value::Null,
-            value2: None,
-            tz_local: false,
+            test: FilterOp::Has,
         }
     }
 
@@ -627,32 +684,13 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
             }
             point_in_geometry(r.lng(), r.lat(), polygon)
         }
-        Selector::Filter {
-            field,
-            op,
-            value,
-            value2,
-            tz_local,
-        } => {
-            // tz_local only applies where a clock frame matters; has/nothas/eq/neq
-            // keep their normal semantics even if the flag is set.
-            if *tz_local
-                && matches!(
-                    op,
-                    FilterOp::Gt
-                        | FilterOp::Lt
-                        | FilterOp::Gte
-                        | FilterOp::Lte
-                        | FilterOp::Between
-                        | FilterOp::BetweenAnyyear
-                        | FilterOp::BetweenAnytime
-                )
-            {
-                return compare_filter_local_tz(r, field, *op, value, value2.as_ref());
+        Selector::Filter { field, test } => {
+            if test.tz_local() {
+                return compare_filter_local_tz(r, field, test);
             }
             match r.resolve_field(field) {
-                Some(ref v) => compare_filter(v, *op, value, value2.as_ref()),
-                None => matches!(op, FilterOp::Nothas),
+                Some(ref v) => compare_filter(v, test),
+                None => matches!(test, FilterOp::Nothas),
             }
         }
         _ => false,

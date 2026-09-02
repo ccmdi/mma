@@ -191,7 +191,7 @@ function lackingAny(selector: Selector, fields: string[]): Selector {
 	const missing: Selector = {
 		type: "Union",
 		selections: fields.map((field) =>
-			buildSelection({ type: "Filter", field, op: "nothas", value: null }),
+			buildSelection({ type: "Filter", field, test: { op: "nothas" } }),
 		),
 	};
 	return { type: "Intersection", selections: [selector, missing].map(buildSelection) };

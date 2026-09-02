@@ -145,7 +145,11 @@ describe("saved selections survive map-local renames untouched", () => {
 	it("a Filter rule outlives its field's deletion in the current map", () => {
 		// JS holds no field registry per rule: the Filter passes through verbatim and Rust
 		// treats a missing field as non-matching. Deletion must not drop the rule.
-		const selector: Selector = { type: "Filter", field: "deleted-everywhere", op: "eq", value: 1 };
+		const selector: Selector = {
+			type: "Filter",
+			field: "deleted-everywhere",
+			test: { op: "eq", value: 1 },
+		};
 		expect(savedParts(rule(selector))[0].selector).toEqual(selector);
 	});
 
@@ -230,7 +234,7 @@ describe("Selector coverage", () => {
 		Intersection: { type: "Intersection", selections: [sel({ type: "Everything" })] },
 		Union: { type: "Union", selections: [sel({ type: "Everything" })] },
 		Invert: { type: "Invert", selections: [sel({ type: "Everything" })] },
-		Filter: { type: "Filter", field: "altitude", op: "gt", value: 1, tzLocal: true },
+		Filter: { type: "Filter", field: "altitude", test: { op: "gt", value: 1, tzLocal: true } },
 		TopK: { type: "TopK", field: "altitude", k: 5, ascending: false },
 	};
 
@@ -266,9 +270,9 @@ describe("Selector coverage", () => {
 			sessionId: "session-1",
 			mode: "unreviewed",
 		};
-		expect(
-			await saveCurrentSelections("mixed", [sel(reviewed), sel({ type: "Untagged" })]),
-		).toBe(true);
+		expect(await saveCurrentSelections("mixed", [sel(reviewed), sel({ type: "Untagged" })])).toBe(
+			true,
+		);
 		expect(JSON.stringify(h.rows)).not.toContain("session-1");
 		expect(h.rows[0].selector).toEqual({ type: "Untagged" });
 	});
