@@ -7,7 +7,7 @@ use super::{
 };
 use crate::selections::{self, PolygonGeometry};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 fn sample() -> (PolygonGeometry, ArchFeature) {
     // Outer square [0,10]^2 with a hole [3,7]^2, plus a detached extra square [20,30]x[0,10].
@@ -228,4 +228,233 @@ fn classify_points_names_a_subdivision_on_adm1() {
         out[0].is_some(),
         "Zurich should land inside an adm1 feature"
     );
+}
+
+// --- Shipped tiers vs the bundled light taxonomy ---
+
+/// (label, lat, lng). The anchor set the tier comparison harness uses: one point per
+/// taxonomy split the light set carries, plus coastal roads that a land-only polygon
+/// misses without seaward padding.
+const ANCHORS: &[(&str, f64, f64)] = &[
+    ("Paris", 48.8566, 2.3522),
+    ("Nice promenade", 43.6947, 7.2653),
+    ("Ajaccio", 41.9192, 8.7386),
+    ("Monaco", 43.7384, 7.4246),
+    ("Cayenne", 4.9224, -52.3135),
+    ("St-Denis Reunion", -20.8789, 55.4481),
+    ("Pointe-a-Pitre", 16.2410, -61.5330),
+    ("Papeete", -17.5350, -149.5696),
+    ("Noumea", -22.2758, 166.4580),
+    ("Nazare", 39.6019, -9.0712),
+    ("Venice S.Marco", 45.4340, 12.3388),
+    ("Amalfi road", 40.6340, 14.6027),
+    ("Dubrovnik", 42.6403, 18.1077),
+    ("Bondi", -33.8908, 151.2743),
+    ("Copacabana", -22.9711, -43.1822),
+    ("Malibu PCH", 34.0370, -118.6770),
+    ("Waikiki", 21.2760, -157.8270),
+    ("Miami Beach", 25.7907, -80.1300),
+    ("Marine Drive", 18.9442, 72.8230),
+    ("Reykjavik Harpa", 64.1503, -21.9325),
+    ("Sea Point", -33.9130, 18.3830),
+    ("Gold Coast", -28.0028, 153.4300),
+    ("Roxas Blvd", 14.5610, 120.9830),
+    ("HK TST", 22.2932, 114.1722),
+    ("Marina Bay", 1.2830, 103.8600),
+    ("Odaiba", 35.6300, 139.7750),
+    ("Alesund", 62.4722, 6.1549),
+    ("Brighton pier", 50.8170, -0.1370),
+    ("Santa Monica pier", 34.0086, -118.4977),
+    ("Anchorage", 61.2181, -149.9003),
+    ("Tenerife", 28.4636, -16.2518),
+    ("Madeira", 32.6669, -16.9241),
+    ("Svalbard", 78.2232, 15.6267),
+    ("Nuuk", 64.1836, -51.7214),
+    ("San Juan PR", 18.4655, -66.1057),
+    ("Kaliningrad", 54.7104, 20.4522),
+    ("Ceuta", 35.8894, -5.3213),
+    ("Pristina", 42.6629, 21.1655),
+    ("Gibraltar", 36.1408, -5.3536),
+    ("Stanley FK", -51.6977, -57.8517),
+    ("Guam", 13.4443, 144.7937),
+    ("Willemstad", 12.1224, -68.8824),
+    ("Taipei", 25.0330, 121.5654),
+    ("Simferopol", 44.9521, 34.1024),
+    ("Okinawa Naha", 26.2124, 127.6809),
+    ("Tasmania Hobart", -42.8821, 147.3272),
+    ("Sardinia Cagliari", 39.2238, 9.1217),
+];
+
+/// Roughly 5 km in degrees of latitude; the margin inside which a light boundary and a
+/// higher-fidelity one are allowed to disagree.
+const INLAND_MARGIN: f64 = 0.045;
+
+fn repo_borders() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/borders")
+}
+
+fn light_features() -> Vec<(super::BorderFeature, Option<[f64; 4]>)> {
+    super::parse_geojson(include_str!("../../data/borders.json"))
+        .unwrap()
+        .into_iter()
+        .map(|f| {
+            let bb = selections::geometry_bbox(&f.geometry);
+            (f, bb)
+        })
+        .collect()
+}
+
+fn light_names(
+    feats: &[(super::BorderFeature, Option<[f64; 4]>)],
+    lat: f64,
+    lng: f64,
+) -> Vec<&str> {
+    feats
+        .iter()
+        .filter(|(f, bb)| {
+            matches!(bb, Some(bb) if selections::in_bbox(lng, lat, bb))
+                && selections::point_in_geometry(lng, lat, &f.geometry)
+        })
+        .map(|(f, _)| f.name.as_str())
+        .collect()
+}
+
+fn distinct<'a>(names: &[&'a str]) -> Vec<&'a str> {
+    let mut out: Vec<&str> = names.to_vec();
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// Squared distance from a point to a ring's segments, in degrees.
+fn ring_dist_sq(lng: f64, lat: f64, ring: &[[f64; 2]]) -> f64 {
+    let mut best = f64::MAX;
+    for w in ring.windows(2) {
+        let (a, b) = (w[0], w[1]);
+        let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+        let len_sq = dx * dx + dy * dy;
+        let t = if len_sq > 0.0 {
+            (((lng - a[0]) * dx + (lat - a[1]) * dy) / len_sq).clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
+        let (px, py) = (a[0] + t * dx, a[1] + t * dy);
+        best = best.min((lng - px).powi(2) + (lat - py).powi(2));
+    }
+    best
+}
+
+fn far_inside(geom: &PolygonGeometry, lng: f64, lat: f64, margin: f64) -> bool {
+    let rings = geom
+        .coordinates
+        .iter()
+        .chain(geom.extra_polygons.iter().flatten().flatten());
+    let m2 = margin * margin;
+    rings.map(|r| ring_dist_sq(lng, lat, r)).all(|d| d > m2)
+}
+
+struct Tier {
+    level: &'static str,
+    bytes: Vec<u8>,
+}
+
+fn tiers() -> Vec<Tier> {
+    ["medium", "heavy"]
+        .into_iter()
+        .filter_map(|level| {
+            fs::read(repo_borders().join(format!("borders-{level}.rkyv")))
+                .ok()
+                .map(|bytes| Tier { level, bytes })
+        })
+        .collect()
+}
+
+/// Both downloadable tiers carry the same taxonomy as the bundled light set: the same
+/// features, the same answer at every anchor, one answer per point, and agreement with
+/// light everywhere further than 5 km from a light boundary.
+#[test]
+fn border_tiers_agree_with_light() {
+    let light = light_features();
+    let tiers = tiers();
+    assert!(!tiers.is_empty(), "no border archives in data/borders");
+
+    for tier in &tiers {
+        let level = tier.level;
+        let archived = rkyv::check_archived_root::<ArchDataset>(&tier.bytes[..])
+            .unwrap_or_else(|e| panic!("borders-{level}.rkyv is corrupt: {e:?}"));
+        let feats: Vec<_> = archived
+            .features
+            .iter()
+            .map(|f| (arch_feature_bbox(f), f))
+            .collect();
+        let names = |lat: f64, lng: f64| -> Vec<&str> {
+            feats
+                .iter()
+                .filter(|(bb, f)| {
+                    matches!(bb, Some(bb) if selections::in_bbox(lng, lat, bb))
+                        && arch_point_in_feature(lng, lat, f)
+                })
+                .map(|(_, f)| f.name.as_str())
+                .collect()
+        };
+
+        for (props, _) in &light {
+            let hit = archived
+                .features
+                .iter()
+                .find(|f| f.name == props.name && f.code == props.code);
+            let hit = hit.unwrap_or_else(|| {
+                panic!(
+                    "{level}: light feature {} ({}) is missing",
+                    props.name, props.code
+                )
+            });
+            assert!(
+                !hit.rings.is_empty() || !hit.extra.is_empty(),
+                "{level}: {} has empty geometry",
+                props.name
+            );
+        }
+
+        for &(label, lat, lng) in ANCHORS {
+            let want = distinct(&light_names(&light, lat, lng));
+            let got = distinct(&names(lat, lng));
+            assert_eq!(got.len(), 1, "{level}: {label} resolves to {got:?}");
+            assert_eq!(got, want, "{level}: {label}");
+        }
+
+        let mut seed = 0x2545_F491_4F6C_DD1Du64;
+        let mut rng = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut checked = 0;
+        for _ in 0..40_000 {
+            let lat = rng() * 140.0 - 60.0;
+            let lng = rng() * 360.0 - 180.0;
+            let hits = light_names(&light, lat, lng);
+            let [want] = distinct(&hits)[..] else {
+                continue;
+            };
+            let inside = light
+                .iter()
+                .find(|(f, _)| f.name == want)
+                .is_some_and(|(f, _)| far_inside(&f.geometry, lng, lat, INLAND_MARGIN));
+            if !inside {
+                continue;
+            }
+            let got = distinct(&names(lat, lng));
+            if got.is_empty() {
+                continue; // light's coastlines reach far out to sea; the tiers stop at the coast
+            }
+            assert_eq!(got, vec![want], "{level}: ({lat:.4}, {lng:.4})");
+            checked += 1;
+            if checked == 400 {
+                break;
+            }
+        }
+        assert!(checked > 200, "{level}: only {checked} deep-inland samples");
+    }
 }
