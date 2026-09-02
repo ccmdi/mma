@@ -1908,7 +1908,8 @@ input[type="range"]:disabled {
 	background: #ffffff0a;
 }
 .nselect option:focus-visible {
-	outline: 2px solid var(--accent);
+	outline: none;
+	background: #ffffff0a;
 }
 .nselect[data-side="top"] {
 	--popover-origin: 1rem;
