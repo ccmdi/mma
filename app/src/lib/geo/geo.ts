@@ -1,4 +1,5 @@
 import type { Bounds, LatLng } from "@/types";
+import type { PolygonGeometry } from "@/bindings.gen";
 
 /** Shift `deg` by whole turns into `[min, min + 360)`. The one circular primitive: every
  *  heading and longitude wrap below is a window on it. */
@@ -92,6 +93,11 @@ export function ringsBbox(rings: number[][][]): Bounds | null {
 	// edges of a full-globe box lands them on the same longitude.
 	if (e - w >= 360) return { west: -180, south: s, east: 180, north: n };
 	return { west: wrapDeg(w, -180), south: s, east: wrapDeg(e, -180), north: n };
+}
+
+/** Bbox over every part of a polygon geometry, the primary rings and the extra polygons alike. */
+export function polygonBbox(geom: PolygonGeometry): Bounds | null {
+	return ringsBbox([geom.coordinates, ...(geom.extraPolygons ?? [])].flat());
 }
 
 /** Width of a box in degrees of longitude; positive on a crossing box, where

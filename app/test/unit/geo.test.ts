@@ -9,6 +9,7 @@ import {
 	lngSpan,
 	pointInPolygon,
 	ringsBbox,
+	polygonBbox,
 	unionBounds,
 	unwrapLng,
 	unwrapRing,
@@ -154,6 +155,18 @@ describe("reverseHeading", () => {
 		for (const h of [0, 37, 90, 179, -179, -90, 270, 359]) {
 			expect(reverseHeading(reverseHeading(h))).toBeCloseTo(normalizeHeading(h));
 		}
+	});
+});
+
+describe("polygonBbox", () => {
+	it("spans the extra polygons, not just the primary one", () => {
+		const bb = polygonBbox({ coordinates: [box(0, 10)], extraPolygons: [[box(40, 50)]] })!;
+		expect([bb.west, bb.east]).toEqual([0, 50]);
+	});
+
+	it("keeps the crossing form when an extra polygon sits past the antimeridian", () => {
+		const bb = polygonBbox({ coordinates: [box(170, 180)], extraPolygons: [[box(-180, -170)]] })!;
+		expect([bb.west, bb.east]).toEqual([170, -170]);
 	});
 });
 
