@@ -556,6 +556,7 @@ export const PanoControls = memo(function PanoControls({
 		[panorama],
 	);
 
+	const jumpDistance = formatDistance(SV_JUMP_RADIUS, 0);
 	const jumpForward = useCallback(() => {
 		jumpPending.current = jump(0);
 	}, [jump]);
@@ -648,29 +649,41 @@ export const PanoControls = memo(function PanoControls({
 				>
 					<div className="map-control map-control--button">
 						<Tooltip
-							content={t("Jump forward 100 metres ({key})", { key: jumpForwardKey })}
+							content={t("Jump forward {distance} ({key})", {
+								distance: jumpDistance,
+								key: jumpForwardKey,
+							})}
 							side="left"
 						>
 							<button
 								ref={jumpForwardRef}
 								disabled={vis.defaultMovementMode !== "moving"}
 								onClick={jumpForward}
-								aria-label={t("Jump forward 100 metres ({key})", { key: jumpForwardKey })}
+								aria-label={t("Jump forward {distance} ({key})", {
+									distance: jumpDistance,
+									key: jumpForwardKey,
+								})}
 							>
-								100m
+								{jumpDistance}
 							</button>
 						</Tooltip>
 						<Tooltip
-							content={t("Jump backward 100 metres ({key})", { key: jumpBackwardKey })}
+							content={t("Jump backward {distance} ({key})", {
+								distance: jumpDistance,
+								key: jumpBackwardKey,
+							})}
 							side="left"
 						>
 							<button
 								ref={jumpBackwardRef}
 								disabled={vis.defaultMovementMode !== "moving"}
 								onClick={jumpBackward}
-								aria-label={t("Jump backward 100 metres ({key})", { key: jumpBackwardKey })}
+								aria-label={t("Jump backward {distance} ({key})", {
+									distance: jumpDistance,
+									key: jumpBackwardKey,
+								})}
 							>
-								-100m
+								-{jumpDistance}
 							</button>
 						</Tooltip>
 					</div>

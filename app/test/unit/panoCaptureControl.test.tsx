@@ -37,7 +37,10 @@ vi.mock("@/lib/util/util", () => ({
 }));
 vi.mock("@/lib/util/toast", () => ({ toast: mocks.toast }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-vi.mock("@/store/settings", () => ({ useSettings: () => mocks.settings }));
+vi.mock("@/store/settings", () => ({
+	useSettings: () => mocks.settings,
+	getSettings: () => ({ units: "metric" }),
+}));
 vi.mock("@/lib/util/hotkeys", () => ({ useBinding: () => "f" }));
 vi.mock("@/lib/hooks/useHotkey", () => ({ useHotkeyRef: () => ({ current: null }) }));
 vi.mock("@/lib/hooks/usePanoEvent", () => ({ usePanoEvent: vi.fn() }));
