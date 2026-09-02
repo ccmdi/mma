@@ -3,6 +3,7 @@ import { useMapState, getActiveSelections } from "@/store/useMapStore";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
+import { Flag } from "@/components/primitives/Flag";
 import type { Selection } from "@/bindings.gen";
 import type { GeneratorRegionMeta } from "../engine/types";
 import { t } from "@/lib/i18n";
@@ -150,15 +151,7 @@ export function RegionSelector({
 						return (
 							<div key={sel.key} className="generator-regions__item">
 								<div className="generator-regions__item-name">
-									{code && (
-										<img
-											src={`/flags/${code.toUpperCase()}.svg`}
-											alt={code}
-											width={20}
-											height={15}
-											style={{ borderRadius: 2, flexShrink: 0 }}
-										/>
-									)}
+									<Flag code={code} className="generator-regions__flag" />
 									<span>{name}</span>
 								</div>
 								<div className="generator-regions__item-count">

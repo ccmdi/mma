@@ -121,6 +121,10 @@
 	min-width: 0;
 }
 
+.generator-regions__flag {
+	flex-shrink: 0;
+}
+
 .generator-regions__item-name > span {
 	overflow: hidden;
 	text-overflow: ellipsis;
