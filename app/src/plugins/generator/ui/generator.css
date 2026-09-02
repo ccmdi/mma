@@ -94,7 +94,7 @@
 }
 
 .generator-regions__list {
-	max-height: 200px;
+	max-height: 50vh;
 	overflow: auto;
 	padding-right: 6px;
 }
