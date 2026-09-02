@@ -289,6 +289,12 @@ export function setSetting<K extends keyof AppSettings>(key: K, value: AppSettin
 	emitEvent("settings:changed");
 }
 
+export function resetSettings(): void {
+	settings = { ...DEFAULTS };
+	setLocal(APP_SETTINGS, settings);
+	emitEvent("settings:changed");
+}
+
 export function useSettings(): AppSettings {
 	return useEventValue("settings:changed", getSettings);
 }

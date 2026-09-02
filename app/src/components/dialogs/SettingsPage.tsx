@@ -74,6 +74,7 @@ import {
 	BORDER_DETAILS,
 	SUBDIVISION_DETAILS,
 	PREVIEW_ASPECT_RATIOS,
+	resetSettings,
 } from "@/store/settings";
 import { formatBinding, buildComboString } from "@/lib/hooks/useHotkey";
 import { cmd } from "@/lib/commands";
@@ -1319,6 +1320,38 @@ function AdvancedBody() {
 					</div>
 				</Aux>
 			</SettingsGroup>
+
+			<SettingsGroup title={t("Reset")}>
+				<Aux match="reset defaults restore">
+					<ResetSettingsButton />
+				</Aux>
+			</SettingsGroup>
+		</>
+	);
+}
+
+function ResetSettingsButton() {
+	const [open, setOpen] = useState(false);
+	return (
+		<>
+			<Button onClick={() => setOpen(true)}>{t("Reset all settings")}</Button>
+			<Dialog open={open} onOpenChange={setOpen}>
+				<DialogContent title={t("Reset all settings")} className="edit-map-modal">
+					<p>{t("Reset every app setting to its default? Key bindings are kept.")}</p>
+					<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
+						<Button onClick={() => setOpen(false)}>{t("Cancel")}</Button>
+						<Button
+							variant="destructive"
+							onClick={() => {
+								resetSettings();
+								setOpen(false);
+							}}
+						>
+							{t("Reset")}
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 }
