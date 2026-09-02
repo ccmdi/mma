@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
 // Throttled progress signal. The engine calls `tickProgress()` per found pano; bursts are
-// coalesced to one render per animation frame, and only ProgressDisplay subscribes — so a
+// coalesced to one render per animation frame, and only the region list subscribes, so a
 // count tick no longer force-re-renders the whole generator sidebar.
 let tick = 0;
 let listeners: (() => void)[] = [];

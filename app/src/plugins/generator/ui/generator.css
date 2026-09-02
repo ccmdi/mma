@@ -11,8 +11,8 @@
 	flex-shrink: 0;
 }
 
-/* Actions + live progress pinned to the bottom of the sidebar, full-bleed over
-   the body padding, so the region list scrolls above without squishing them. */
+/* Actions pinned to the bottom of the sidebar, full-bleed over the body
+   padding, so the region list scrolls above without squishing them. */
 .generator-sidebar__footer {
 	position: sticky;
 	bottom: -0.5rem;
@@ -30,11 +30,6 @@
 	font-size: 0.8rem;
 	opacity: 0.6;
 	line-height: 1.4;
-}
-
-.generator-sidebar__footer .generator-progress {
-	max-height: 30vh;
-	overflow-y: auto;
 }
 
 .generator-settings {
@@ -125,7 +120,7 @@
 	flex-shrink: 0;
 }
 
-.generator-regions__item-name > span {
+.generator-regions__item-name > span:first-of-type {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -139,39 +134,12 @@
 	white-space: nowrap;
 }
 
-/* Progress display */
-.generator-progress__total {
-	margin-bottom: 6px;
+.generator-regions__total {
+	margin-top: 6px;
 	font-weight: 600;
 }
 
-.generator-progress__item {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 2px 0;
-}
-
-.generator-progress__item-name {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	flex: 1;
-	min-width: 0;
-}
-
-.generator-progress__item-name > span:first-of-type {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.generator-progress__count {
-	flex-shrink: 0;
-	opacity: 0.7;
-}
-
-.generator-progress__spinner {
+.generator-regions__spinner {
 	width: 10px;
 	height: 10px;
 	border: 2px solid var(--border-strong);

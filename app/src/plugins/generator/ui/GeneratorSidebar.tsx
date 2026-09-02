@@ -11,7 +11,6 @@ import { DEFAULT_SETTINGS } from "../engine/types";
 import { GenerationEngine } from "../engine/GenerationEngine";
 import { RegionSelector } from "./RegionSelector";
 import { SettingsPanel } from "./SettingsPanel";
-import { ProgressDisplay } from "./ProgressDisplay";
 import { tickProgress } from "./progressSignal";
 import { google } from "@/lib/sv/opensv";
 import { getActiveSelections, useMapState, createTags } from "@/store/useMapStore";
@@ -306,16 +305,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 		onClose();
 	}, [onClose]);
 
-	// Build regions from current selections + meta for progress display
 	const polygonSelections = selections.filter((s) => s.selector.type === "Polygon");
-	const regions: GeneratorRegion[] = [];
-	for (const sel of polygonSelections) {
-		const m = meta.get(sel.key);
-		if (m) {
-			const region = selectionToRegion(sel, m);
-			if (region) regions.push(region);
-		}
-	}
 
 	return (
 		<Sidebar title={t("Map Generator")} onBack={handleClose} className="generator-sidebar">
@@ -348,11 +338,6 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 
 			<div className="generator-sidebar__footer">
 				<p className="generator-sidebar__summary">{summarizeSettings(settings)}</p>
-				{running && regions.length > 0 && (
-					<div className="generator-progress">
-						<ProgressDisplay regions={regions} />
-					</div>
-				)}
 				<div className="generator-sidebar__actions">
 					{!running ? (
 						<Button

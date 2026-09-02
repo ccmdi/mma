@@ -25,12 +25,12 @@ function polygon(key: string, name: string, code?: string): Selection {
 	} as unknown as Selection;
 }
 
-function region(target: number, found: number): GeneratorRegionMeta {
+function region(target: number, found: number, isProcessing = false): GeneratorRegionMeta {
 	return {
 		target,
 		found: Array.from({ length: found }, () => ({}) as never),
 		checkedPanos: new Set<string>(),
-		isProcessing: false,
+		isProcessing,
 	};
 }
 
@@ -60,5 +60,33 @@ describe("the generator region list", () => {
 		expect(rows).toHaveLength(2);
 		expect(rows[0].querySelector("img")?.getAttribute("src")).toBe("/flags/FR.svg");
 		expect(rows[1].querySelector("img")).toBeNull();
+	});
+
+	it("totals found and target across every region", () => {
+		const m = render(
+			[polygon("a", "France", "FR"), polygon("b", "Spain", "ES")],
+			new Map([
+				["a", region(10, 3)],
+				["b", region(25, 7)],
+			]),
+		);
+
+		expect(m.container.querySelector(".generator-regions__total")?.textContent).toBe(
+			"Total: 10 / 35",
+		);
+	});
+
+	it("spins only on the region being processed", () => {
+		const m = render(
+			[polygon("a", "France", "FR"), polygon("b", "Spain", "ES")],
+			new Map([
+				["a", region(10, 3, true)],
+				["b", region(25, 7, false)],
+			]),
+		);
+
+		const rows = [...m.container.querySelectorAll(".generator-regions__item-name")];
+		expect(rows[0].querySelector(".generator-regions__spinner")).not.toBeNull();
+		expect(rows[1].querySelector(".generator-regions__spinner")).toBeNull();
 	});
 });

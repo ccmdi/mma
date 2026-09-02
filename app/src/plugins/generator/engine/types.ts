@@ -120,7 +120,6 @@ export interface GeneratorRegionMeta {
 export interface GeneratorRegion {
 	id: string;
 	name: string;
-	code?: string;
 	feature: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
 	found: GeneratedLocation[];
 	target: number;
