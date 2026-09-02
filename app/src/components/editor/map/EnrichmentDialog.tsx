@@ -205,7 +205,6 @@ export function EnrichTab({
 			key={key}
 			className="enrich-field"
 			checked={isOn(key)}
-			disabled={!enrichMetadata}
 			onChange={(v) => toggle(key, v)}
 			label={label}
 		>
@@ -241,9 +240,7 @@ export function EnrichTab({
 				</button>
 			</div>
 
-			<div className="enrich-fields" aria-disabled={!enrichMetadata || undefined}>
-				{options.map((f) => row(f.key, f.label))}
-			</div>
+			<div className="enrich-fields">{options.map((f) => row(f.key, f.label))}</div>
 		</>
 	);
 }

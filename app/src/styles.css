@@ -2838,9 +2838,6 @@ input[type="range"]:disabled {
 	margin: 0 -0.5rem;
 	padding: 0 0.5rem;
 }
-.enrich-fields[aria-disabled="true"] {
-	opacity: 0.45;
-}
 .enrich-field.switch-row {
 	gap: 0.75rem;
 	padding: 0.5rem;
@@ -2848,9 +2845,6 @@ input[type="range"]:disabled {
 }
 .enrich-field:hover {
 	background: var(--surface-1);
-}
-.enrich-fields[aria-disabled="true"] .enrich-field:hover {
-	background: none;
 }
 .enrich-field__name {
 	margin-right: auto;

@@ -19,11 +19,11 @@ import { EnrichTab } from "@/components/editor/map/EnrichmentDialog";
 import { getDefaultEnrichKeys, getEnrichFieldOptions } from "@/lib/data/fieldDefs";
 import { mount } from "./fixtures/harness";
 
-function renderTab(enrichFields: string[] | null) {
+function renderTab(enrichFields: string[] | null, enrichMetadata = true) {
 	const setEnrichFields = vi.fn();
 	const m = mount(
 		<EnrichTab
-			enrichMetadata={true}
+			enrichMetadata={enrichMetadata}
 			setEnrichMetadata={() => {}}
 			enrichFields={enrichFields}
 			setEnrichFields={setEnrichFields}
@@ -58,6 +58,16 @@ describe("the Enrich tab writes enrichFields", () => {
 		getEnrichFieldOptions().forEach((f, i) => {
 			expect(boxes[i].getAttribute("aria-checked")).toBe(String(defaults.has(f.key)));
 		});
+		m.unmount();
+	});
+
+	it("the master switch off leaves every field switch live", async () => {
+		const { boxes, setEnrichFields, m } = renderTab(null, false);
+		expect(
+			boxes.every((b) => b.getAttribute("aria-disabled") !== "true" && !b.hasAttribute("disabled")),
+		).toBe(true);
+		await click(boxes[0]);
+		expect(setEnrichFields).toHaveBeenCalledTimes(1);
 		m.unmount();
 	});
 
