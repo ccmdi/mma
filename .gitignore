@@ -65,3 +65,6 @@ plugins/copyright/sidecar/verify_parity.py
 !app/src-tauri/crates/vali/vali-geo/tests/fixtures/geo/*.bin
 !app/src-tauri/crates/vali/vali-generate/tests/fixtures/*.bin
 
+
+# local border rebuild tooling
+data/borders/generate.py
