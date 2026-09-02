@@ -21,8 +21,8 @@ import { Manual } from "@/components/manual/Manual";
 import { ManualSearch } from "@/components/manual/ManualSearch";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
-import { useSetting, useSettings, setSetting, CSS_VAR_SETTINGS } from "@/store/settings";
-import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
+import { useSetting, useSettings, CSS_VAR_SETTINGS } from "@/store/settings";
+import { useLocalStorage, persisted } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";
 import "@/lib/render/renderStats"; // installs the window.__mmaPerf harness bridge
 import { applyAccentColor, resolveSvColorHex } from "@/lib/util/color";
@@ -119,7 +119,7 @@ function AppChrome() {
 		if (map) goTo({ type: "list" });
 	});
 
-	const hasSeenWelcome = useSetting("hasSeenWelcome");
+	const [welcomeSeen, setWelcomeSeen] = useLocalStorage(WELCOME_SEEN);
 	const fullscreenMap = useSetting("fullscreenMap");
 
 	return (
@@ -147,10 +147,7 @@ function AppChrome() {
 					</button>
 				</div>
 			)}
-			<WelcomeDialog
-				open={isMapList && !hasSeenWelcome}
-				onDismiss={() => setSetting("hasSeenWelcome", true)}
-			/>
+			<WelcomeDialog open={isMapList && !welcomeSeen} onDismiss={() => setWelcomeSeen(true)} />
 			{!showSettings && !showPlugins && !(map && fullscreenMap) && (
 				<div className="bottom-bar">
 					{update.version && !update.dismissed && (
@@ -281,6 +278,8 @@ function useCustomCss() {
 		};
 	}, [customCss]);
 }
+
+const WELCOME_SEEN = persisted("welcomeSeen", false);
 
 function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => void }) {
 	return (

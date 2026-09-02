@@ -61,6 +61,16 @@ export const MIGRATIONS: StoredMigration[] = [
 			}
 		},
 	},
+	{
+		since: "0.10.2",
+		key: "appSettings",
+		describe: "hasSeenWelcome -> its own welcomeSeen key",
+		apply: (stored) => {
+			if (!("hasSeenWelcome" in stored)) return;
+			if (stored.hasSeenWelcome === true) localStorage.setItem("welcomeSeen", "true");
+			delete stored.hasSeenWelcome;
+		},
+	},
 ];
 
 export function migrationsFor(key: string): Migration[] {
