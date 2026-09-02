@@ -1768,6 +1768,53 @@ fn extra_filter_scans_base_batch_top_level_only() {
     );
 }
 
+// Absence has one meaning on both read paths: a key that is not there and a key holding
+// JSON null. Only `nothas` matches an absent field; `neq` needs a value to differ from.
+#[test]
+fn an_absent_field_matches_only_nothas() {
+    let mut nulled = loc(1, 0.0, 0.0);
+    nulled.extra = Some(serde_json::from_str(r#"{"alt":null}"#).unwrap());
+    let mut valued = loc(2, 0.0, 0.0);
+    valued.extra = Some(serde_json::from_str(r#"{"alt":5}"#).unwrap());
+    let mut added = loc(3, 0.0, 0.0);
+    added.extra = Some(serde_json::from_str(r#"{"alt":null}"#).unwrap());
+    let fx = Fx::base(&[nulled, valued]).with_adds(vec![added]);
+    let view = fx.view();
+    let filter = |field: &str, op: FilterOp, value: serde_json::Value| Selector::Filter {
+        field: field.into(),
+        op,
+        value,
+        value2: None,
+        tz_local: false,
+    };
+    let null = serde_json::Value::Null;
+
+    assert_eq!(
+        ids_of(&view, &filter("alt", FilterOp::Has, null.clone())),
+        vec![2]
+    );
+    assert_eq!(
+        ids_of(&view, &filter("alt", FilterOp::Nothas, null.clone())),
+        vec![1, 3]
+    );
+    assert_eq!(
+        ids_of(&view, &filter("alt", FilterOp::Neq, serde_json::json!(6))),
+        vec![2]
+    );
+    assert_eq!(
+        ids_of(&view, &filter("alt", FilterOp::Eq, serde_json::json!(5))),
+        vec![2]
+    );
+    assert_eq!(
+        ids_of(&view, &filter("gone", FilterOp::Nothas, null.clone())),
+        vec![1, 2, 3]
+    );
+    assert_eq!(
+        ids_of(&view, &filter("gone", FilterOp::Neq, serde_json::json!(1))),
+        Vec::<u32>::new()
+    );
+}
+
 // A field whose name arrived ASCII-escaped (`"café"`) is canonicalized on ingest,
 // so filtering it by name matches instead of silently returning nothing.
 #[test]

@@ -713,7 +713,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 		const ids = await refreshSelections();
 		expect(ids).toContain(filterBId);
 		expect(ids).not.toContain(filterAId);
-		// filter-c has no countryCode, so it's excluded (null != "US" is truthy but field is missing)
+		// filter-c has no countryCode: an absent field matches only nothas
 	});
 
 	it("month comparison filter (imageDate >= 2024-01)", async () => {

@@ -835,7 +835,7 @@ fn page_batches(
         rows
     } else {
         rows.into_iter()
-            .filter(|l| !has_all_fields(l, &decl.fields))
+            .filter(|l| decl.fields.is_empty() || !has_all_fields(l, &decl.fields))
             .collect()
     };
     prog.add_skipped(before - rows.len() as u32);
@@ -843,7 +843,7 @@ fn page_batches(
     // `force` re-derives an output; it cannot supply a missing input, so the gate holds.
     let (rows, unmet): (Vec<Location>, Vec<Location>) = rows
         .into_iter()
-        .partition(|l| decl.requires.iter().all(|f| field_present(l, f)));
+        .partition(|l| has_all_fields(l, &decl.requires));
     if !unmet.is_empty() {
         prog.add_failed(unmet.len() as u32);
         prog.add_done(unmet.len() as u32);
@@ -970,17 +970,8 @@ fn apply_pages(ctx: &RunCtx, decl: &ProviderDecl, rx: mpsc::Receiver<Produced>) 
     Ok(())
 }
 
-fn field_present(loc: &Location, field: &str) -> bool {
-    resolve_field_loc(loc, field).is_some_and(|v| !v.is_null())
-}
-
-/// A field counts as present only when it holds a non-null value. A provider that
-/// declares no output fields can never be skipped.
 fn has_all_fields(loc: &Location, fields: &[String]) -> bool {
-    if fields.is_empty() {
-        return false;
-    }
-    fields.iter().all(|f| field_present(loc, f))
+    fields.iter().all(|f| resolve_field_loc(loc, f).is_some())
 }
 
 /// A chunk only carries meaning when it becomes one request. For a MapOnly procedure

@@ -357,13 +357,8 @@ pub fn parse(src: &str) -> AppResult<Expr> {
     Ok(expr)
 }
 
-/// Resolves a field name to its JSON value for one row. Missing and JSON `null` are
-/// both absence.
+/// Resolves a field name to its JSON value for one row; `None` is absence.
 pub type Resolver<'a> = dyn Fn(&str) -> Option<serde_json::Value> + 'a;
-
-fn present(field: &Resolver, name: &str) -> Option<serde_json::Value> {
-    field(name).filter(|v| !v.is_null())
-}
 
 /// Evaluate against one row. `None` when a referenced field is missing or not a
 /// number, or the result is not finite: that row is skipped.
@@ -377,7 +372,7 @@ pub fn eval(expr: &Expr, field: &Resolver) -> Option<f64> {
 fn operand(expr: &Expr, field: &Resolver) -> Option<serde_json::Value> {
     match expr {
         Expr::Str(text) => Some(serde_json::Value::from(text.clone())),
-        Expr::Field(name) => present(field, name),
+        Expr::Field(name) => field(name),
         other => eval_node(other, field).map(serde_json::Value::from),
     }
 }
@@ -387,8 +382,8 @@ fn eval_node(expr: &Expr, field: &Resolver) -> Option<f64> {
         Expr::Num(v) => *v,
         // Bare strings are comparison operands; there is nothing numeric to yield.
         Expr::Str(_) => return None,
-        Expr::Field(name) => present(field, name)?.as_f64()?,
-        Expr::Has(name) => f64::from(u8::from(present(field, name).is_some())),
+        Expr::Field(name) => field(name)?.as_f64()?,
+        Expr::Has(name) => f64::from(u8::from(field(name).is_some())),
         Expr::Neg(arg) => -eval_node(arg, field)?,
         Expr::Bin(op, l, r) => {
             let l = eval_node(l, field)?;

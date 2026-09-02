@@ -79,12 +79,13 @@ macro_rules! builtin_fields {
             })
         }
 
-        /// Resolve a field name to its JSON value from a `Location` struct.
-        /// Unknown fields fall through to `loc.extra`.
+        /// Resolve a field name to its JSON value from a `Location` struct. Unknown fields
+        /// fall through to `loc.extra`. `None` is the one meaning of absence: a builtin
+        /// without a value and an `extra` key holding JSON null both resolve to it.
         pub(crate) fn resolve_field_loc(loc: &Location, field: &str) -> Option<serde_json::Value> {
             match field {
                 $($key => { let $l = loc; $loc_expr })*
-                _ => loc.extra.as_ref().and_then(|e| e.get(field)),
+                _ => loc.extra.as_ref().and_then(|e| e.get(field)).filter(|v| !v.is_null()),
             }
         }
 
@@ -100,7 +101,7 @@ macro_rules! builtin_fields {
                     }
                     // Byte-scan for the one key; parses only its value slice instead of
                     // the whole extras document per row.
-                    crate::types::json_field(extras.value(idx), field)
+                    crate::types::json_field(extras.value(idx), field).filter(|v| !v.is_null())
                 }
             }
         }

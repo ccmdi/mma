@@ -112,14 +112,9 @@ fn a_comparison_the_row_cannot_answer_is_false_not_a_skip() {
 
 #[test]
 fn has_reports_presence_without_skipping() {
-    let r = json_row(&[
-        ("panoId", json!("abc")),
-        ("blank", Value::Null),
-        ("zero", json!(0)),
-    ]);
+    let r = json_row(&[("panoId", json!("abc")), ("zero", json!(0))]);
     assert_eq!(run("has(panoId)", &r), Some(1.0));
     assert_eq!(run("has(missing)", &r), Some(0.0));
-    assert_eq!(run("has(blank)", &r), Some(0.0));
     assert_eq!(run("has(zero)", &r), Some(1.0));
     // A non-numeric field is still present, which bare arithmetic could never say.
     assert_eq!(run("panoId + 1", &r), None);
@@ -155,7 +150,6 @@ fn the_prune_default_is_expressible() {
     ]);
     let bare = json_row(&[
         ("tagCount", json!(0)),
-        ("panoId", Value::Null),
         ("loadAsPanoId", json!(0)),
         ("heading", json!(0)),
     ]);

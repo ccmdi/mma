@@ -614,7 +614,7 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
             }
             match r.resolve_field(field) {
                 Some(ref v) => compare_filter(v, *op, value, value2.as_ref()),
-                None => matches!(op, FilterOp::Neq | FilterOp::Nothas),
+                None => matches!(op, FilterOp::Nothas),
             }
         }
         _ => false,
