@@ -1784,9 +1784,7 @@ input[type="range"]:disabled {
 	height: 36px;
 	padding: 0 38px 0 16px;
 	overflow: hidden;
-	font-family:
-		Noto Sans,
-		sans-serif;
+	font-family: inherit;
 	font-size: 14px;
 	line-height: 36px;
 	display: block;
@@ -1874,9 +1872,7 @@ input[type="range"]:disabled {
 	outline: none;
 	width: 100%;
 	padding: 8px 16px;
-	font-family:
-		Noto Sans,
-		sans-serif;
+	font-family: inherit;
 	font-size: 14px;
 	display: block;
 }
