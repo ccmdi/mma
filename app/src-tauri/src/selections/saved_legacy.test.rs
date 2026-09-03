@@ -125,3 +125,37 @@ fn import_skips_rules_with_no_items() {
     assert_eq!(n, 0);
     assert!(all(&conn).is_empty());
 }
+
+#[test]
+fn import_reads_flat_filters_and_drops_an_item_it_cannot_read() {
+    use crate::selections::FilterOp;
+    let mut conn = setup();
+    let legacy = r#"[
+        {"id":"f","name":"high","createdAt":1700000000000,"items":[
+            {"props":{"type":"Filter","field":"altitude","op":"gt","value":100},"color":[1,1,1]}]},
+        {"id":"p","name":"area","createdAt":1700000000000,"items":[
+            {"props":{"type":"Polygon","polygon":{"coordinates":[[[0,0],[0,1],[1,1],[0,0]]]},"includeInformational":false},"color":[2,2,2]}]},
+        {"id":"m","name":"mixed","createdAt":1700000000000,"items":[
+            {"props":{"type":"NoSuchThing"},"color":[3,3,3]},
+            {"props":{"type":"Untagged"},"color":[4,4,4]}]},
+        {"id":"u","name":"unreadable","createdAt":1700000000000,"items":[
+            {"props":{"type":"NoSuchThing"},"color":[3,3,3]}]}
+    ]"#;
+    assert_eq!(import(&mut conn, legacy).unwrap(), 3);
+    let rules = all(&conn);
+    let by_name = |n: &str| rules.iter().find(|r| r.info.name == n).map(|r| r.selector.clone());
+    let Some(Selector::Filter { field, test }) = by_name("high") else {
+        panic!("not a filter");
+    };
+    assert_eq!(field, "altitude");
+    assert_eq!(
+        test,
+        FilterOp::Gt {
+            value: serde_json::json!(100),
+            tz_local: false
+        }
+    );
+    assert!(matches!(by_name("area"), Some(Selector::Polygon { .. })));
+    assert!(matches!(by_name("mixed"), Some(Selector::Untagged)));
+    assert!(by_name("unreadable").is_none());
+}

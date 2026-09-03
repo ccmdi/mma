@@ -65,10 +65,12 @@ fn convert(value: &mut serde_json::Value, names: &mut HashMap<u32, String>) {
     }
 }
 
-fn props_to_selector(props: &serde_json::Value, names: &mut HashMap<u32, String>) -> Selector {
+/// `None` for an item the current grammar cannot read: dropping it loses one rule, where a
+/// fallback to `Everything` would hand the user a rule selecting the whole map.
+fn props_to_selector(props: &serde_json::Value, names: &mut HashMap<u32, String>) -> Option<Selector> {
     let mut value = props.clone();
     convert(&mut value, names);
-    serde_json::from_value(value).unwrap_or(Selector::Everything)
+    serde_json::from_value(super::modernize(value)).ok()
 }
 
 /// One legacy rule as a `SavedSelection`: the items become a single `Selector`, unioned
@@ -82,12 +84,17 @@ fn legacy_to_saved(rule: LegacyRule) -> Option<SavedSelection> {
     let mut parts: Vec<Selection> = rule
         .items
         .iter()
-        .map(|item| Selection {
-            key: String::new(),
-            color: item.color.unwrap_or(NO_COLOR),
-            selector: props_to_selector(&item.props, &mut tag_names),
+        .filter_map(|item| {
+            Some(Selection {
+                key: String::new(),
+                color: item.color.unwrap_or(NO_COLOR),
+                selector: props_to_selector(&item.props, &mut tag_names)?,
+            })
         })
         .collect();
+    if parts.is_empty() {
+        return None;
+    }
     let selector = if parts.len() == 1 {
         parts.remove(0).selector
     } else {
