@@ -3347,7 +3347,6 @@ declare const DEFAULTS: {
     remoteApi: boolean;
     remoteApiKey: string;
     pinnedCommands: PinnedEntry[];
-    hasSeenWelcome: boolean;
 };
 export type AppSettings = typeof DEFAULTS;
 declare function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void;
@@ -4240,7 +4239,6 @@ declare const EVENT_DEFS: {
     "anchor:changed": void;
     "viewport-lock:changed": void;
     "trail:changed": void;
-    "altitude:changed": void;
     "seen:changed": void;
     "update:changed": void;
     "review:changed": void;
@@ -4827,7 +4825,6 @@ declare const settings: {
         remoteApi: boolean;
         remoteApiKey: string;
         pinnedCommands: PinnedEntry[];
-        hasSeenWelcome: boolean;
     };
 };
 /** What belongs to no single domain. */
