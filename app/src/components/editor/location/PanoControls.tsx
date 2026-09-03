@@ -16,8 +16,7 @@ import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
 import { fileTimestamp, formatDistance } from "@/lib/util/format";
 import { useSettings } from "@/store/settings";
 import { getMapState, useMapState } from "@/store/useMapStore";
-import { getPanoAltitude } from "./PanoViewerContext";
-import { subscribe as subscribeEvent } from "@/lib/events";
+import { usePanoViewer } from "./PanoViewerContext";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useHotkeyRef } from "@/lib/hooks/useHotkey";
 import { usePanoEvent } from "@/lib/hooks/usePanoEvent";
@@ -410,17 +409,18 @@ function ReturnToSpawnControl({
 
 function CoordinateControl({ panorama }: { panorama: google.maps.StreetViewPanorama }) {
 	const textRef = useRef<HTMLSpanElement>(null);
+	const altitude = usePanoViewer().pano?.altitude ?? 0;
+	// Zoom ticks every frame of a pinch, so the text is written straight to the DOM.
 	const updateDisplay = useCallback(() => {
 		const zoom = (panorama.getZoom() ?? 0).toFixed(2);
-		const altitude = getPanoAltitude();
 		if (textRef.current)
 			textRef.current.textContent =
 				altitude === 0
 					? " " + t("zoom {zoom}", { zoom })
 					: ` ${formatDistance(altitude, 2)} · ` + t("zoom {zoom}", { zoom });
-	}, [panorama]);
+	}, [panorama, altitude]);
 	usePanoEvent(panorama, "zoom_changed", updateDisplay);
-	useEffect(() => subscribeEvent("altitude:changed", updateDisplay), [updateDisplay]);
+	useEffect(updateDisplay, [updateDisplay]);
 
 	return (
 		<div

@@ -20,14 +20,12 @@ type PendingEntry = PendingEntryLocation &
 
 let staged: PendingEntry | null = null;
 let skipNextPanoId: string | null = null;
-let latestGeo: GeoDisplay | null = null;
 
 export function seenSkipNext(panoId: string) {
 	skipNextPanoId = panoId;
 }
 
 export function seenUpdateGeo(geo: GeoDisplay) {
-	latestGeo = geo;
 	if (staged) {
 		if (geo.countryCode) staged.countryCode = geo.countryCode;
 		if (geo.address) staged.address = geo.address;
@@ -55,8 +53,8 @@ export function seenPanoChanged(
 		...location,
 		enteredAt: Date.now(),
 		mapId: getMapState().mapId,
-		countryCode: geo?.countryCode || latestGeo?.countryCode || null,
-		address: geo?.address || latestGeo?.address || null,
+		countryCode: geo?.countryCode || null,
+		address: geo?.address || null,
 	};
 }
 

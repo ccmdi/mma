@@ -208,22 +208,14 @@ export function LocationPreview() {
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { viewer, view, spot, open } = usePanoViewer();
+	const { viewer, view, pano, open } = usePanoViewer();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = useState<string[]>(() =>
 		tagIdsToNames(location?.tags ?? []),
 	);
 	const visibleTags = useMapState(getVisibleTags);
-	const panoGeo = useMemo<GeoDisplay | null>(
-		() =>
-			spot && {
-				address: spot.meta.description || "",
-				countryCode: spot.meta.countryCode?.toUpperCase() ?? null,
-			},
-		[spot],
-	);
 	const geocodeProvider = useSetting("geocodeProvider");
-	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0, panoGeo);
+	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0, pano);
 	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const getGeoResult = useEffectEvent(() => geoResult);
 	useEffect(() => {
@@ -497,8 +489,6 @@ export function LocationPreview() {
 	}, [singletonPano, appSettings.previewAspectRatio]);
 
 	useLocationHotkeys({
-		location,
-		isReviewMode,
 		cancelTweenRef,
 		pendingTags,
 		setPendingTags,

@@ -2,6 +2,7 @@ import { cmd } from "@/lib/commands";
 import { getSettings } from "@/store/settings";
 import { log } from "@/lib/util/log";
 import { useAsync } from "@/lib/hooks/useAsync";
+import type { Pano } from "@/types";
 
 export interface GeoDisplay {
 	address: string;
@@ -16,6 +17,16 @@ async function geocodeLocal(lat: number, lng: number): Promise<GeoDisplay | null
 		address: parts.join(", "),
 		countryCode: result.country_code?.toUpperCase() ?? null,
 	};
+}
+
+/** Google already answered inside the pano's metadata. */
+function geocodeGoogle(pano: Pano | null): GeoDisplay | null {
+	return (
+		pano && {
+			address: pano.description || "",
+			countryCode: pano.countryCode?.toUpperCase() ?? null,
+		}
+	);
 }
 
 async function geocodeNominatim(lat: number, lng: number): Promise<GeoDisplay | null> {
@@ -40,11 +51,7 @@ async function geocodeNominatim(lat: number, lng: number): Promise<GeoDisplay | 
 	};
 }
 
-export function useReverseGeocode(
-	lat: number,
-	lng: number,
-	panoGeo?: GeoDisplay | null,
-): GeoDisplay | null {
+export function useReverseGeocode(lat: number, lng: number, pano: Pano | null): GeoDisplay | null {
 	const provider = getSettings().geocodeProvider;
 
 	const asyncResult = useAsync(async () => {
@@ -58,6 +65,6 @@ export function useReverseGeocode(
 		}
 	}, [lat, lng, provider]).data;
 
-	if (provider === "google") return panoGeo ?? null;
+	if (provider === "google") return geocodeGoogle(pano);
 	return asyncResult;
 }

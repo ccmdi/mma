@@ -52,7 +52,6 @@ const EVENT_DEFS = {
 	"anchor:changed": event<void>(),
 	"viewport-lock:changed": event<void>(),
 	"trail:changed": event<void>(),
-	"altitude:changed": event<void>(),
 	"seen:changed": event<void>(),
 	"update:changed": event<void>(),
 	"review:changed": event<void>(),

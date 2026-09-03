@@ -1,4 +1,4 @@
-import { memo, useRef, useCallback } from "react";
+import { memo, useCallback } from "react";
 import { useSetting } from "@/store/settings";
 import { dateFmt } from "@/lib/util/format";
 import { civilToDate } from "@/lib/util/date";
@@ -7,7 +7,6 @@ import { useCameraType, type FullCameraType } from "./useCameraType";
 import { usePanoViewer, usePanoDates, viewerPosition } from "./PanoViewerContext";
 import { useMapState } from "@/store/useMapStore";
 import { useTimezone } from "@/lib/util/timezone";
-import { hasLoadAsPanoId } from "@/types";
 import { NSelect } from "@/components/primitives/NSelect";
 import { getLocale, t } from "@/lib/i18n";
 
@@ -54,17 +53,15 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 }: {
 	onChange: (panoId: string | null) => void;
 }) {
-	const { viewer, spot, exactDate } = usePanoViewer();
+	const { pano, exactDate } = usePanoViewer();
 	const location = useMapState((s) => s.activeLocation);
-	const { defaultEntry, sorted, isDefault, displayDate, triggerPanoId } = usePanoDates();
-	const chosen = location && hasLoadAsPanoId(location) ? viewer?.viewed : null;
-	const prevLabelRef = useRef("");
+	const { defaultEntry, sorted, currentEntry, isDefault, displayDate, triggerPanoId } =
+		usePanoDates();
 	const displayLabel = displayDate
 		? isDefault
 			? t("Default ({date})", { date: dateFmt.format(displayDate) })
 			: dateFmt.format(displayDate)
-		: prevLabelRef.current;
-	if (displayLabel) prevLabelRef.current = displayLabel;
+		: "";
 
 	const handleValueChange = useCallback(
 		(value: string) => {
@@ -77,9 +74,9 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const showBadges = useSetting("showCameraBadges");
 	const exactDateFormat = useSetting("exactDateFormat");
 	const dateTimezone = useSetting("dateTimezone");
-	const { lat, lng } = viewerPosition(spot, location);
+	const { lat, lng } = viewerPosition(pano, location);
 	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
-	const triggerCameraType = useCameraType(triggerPanoId);
+	const triggerCameraType = useCameraType(triggerPanoId, pano);
 	const tzOption = dateTimezone === "utc" ? "UTC" : (resolvedTz ?? undefined);
 	const exactLabel = exactDate.ts
 		? exactDateFormat === "datetime"
@@ -113,7 +110,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 		<NSelect
 			className="pano-date-select"
 			data-side="top"
-			value={chosen ?? "default"}
+			value={isDefault ? "default" : (currentEntry?.pano ?? "default")}
 			onChange={(e) => {
 				const select = e.currentTarget;
 				handleValueChange(e.target.value);

@@ -6,7 +6,13 @@ import {
 	type SetStateAction,
 } from "react";
 import type { Location } from "@/bindings.gen";
-import { getMapState, getVisibleTags, addLocations, createTags } from "@/store/useMapStore";
+import {
+	getMapState,
+	getVisibleTags,
+	addLocations,
+	createTags,
+	useMapState,
+} from "@/store/useMapStore";
 import { sortTagsByMode } from "@/lib/util/util";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
@@ -21,7 +27,7 @@ import { t } from "@/lib/i18n";
 import { downloadPano } from "@/lib/sv/panoDownload";
 import { isVirtualLocation, dropLocation } from "@/types";
 import { cycle } from "@/types/util";
-import { reviewNext, reviewPrev } from "@/lib/review/review";
+import { reviewNext, reviewPrev, useReviewSession } from "@/lib/review/review";
 import { registerMapKeyActionHandler } from "@/lib/map/mapKeyBindings";
 import { log } from "@/lib/util/log";
 import { toggleViewportLock } from "@/lib/sv/viewportLock";
@@ -36,8 +42,6 @@ import {
 import { google } from "@/lib/sv/opensv";
 
 interface LocationHotkeyDeps {
-	location: Location | null;
-	isReviewMode: boolean;
 	cancelTweenRef: RefObject<(() => void) | null>;
 	pendingTags: string[];
 	setPendingTags: Dispatch<SetStateAction<string[]>>;
@@ -51,10 +55,10 @@ interface LocationHotkeyDeps {
 }
 
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
-	const { viewer, spot } = usePanoViewer();
+	const { viewer, pano } = usePanoViewer();
+	const location = useMapState((s) => s.activeLocation);
+	const isReviewMode = useReviewSession() !== null;
 	const {
-		location,
-		isReviewMode,
 		cancelTweenRef,
 		pendingTags,
 		setPendingTags,
@@ -184,7 +188,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (panoId) void downloadPano(panoId);
 	});
 	const stepPanoDate = (step: 1 | -1) => {
-		const panoDates = spot?.timeline ?? [];
+		const panoDates = pano?.nearby ?? [];
 		if (!panoDates.length) return;
 		const current = viewer?.viewed ?? location?.panoId;
 		void handleDateChange(

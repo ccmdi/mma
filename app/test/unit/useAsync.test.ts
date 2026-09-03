@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { act, createElement, useState } from "react";
-import { makeLatestGate, useAsync } from "@/lib/hooks/useAsync";
+import { makeLatestGate, useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { mount } from "./fixtures/harness";
 
 // The stale-result invariant of useAsync: a run's result is applied only if no
@@ -58,5 +58,34 @@ describe("useAsync signal", () => {
 		expect(signals.map((s) => s.aborted)).toEqual([true, false]);
 		m.unmount();
 		expect(signals[1].aborted).toBe(true);
+	});
+});
+
+describe("useAsyncSticky key", () => {
+	it("holds the last value across runs under one key and drops it when the key changes", async () => {
+		let setDep: (n: number) => void = () => {};
+		let setKey: (k: string) => void = () => {};
+		let seen: string | null = null;
+		const pending: ((v: string) => void)[] = [];
+		function Probe() {
+			const [dep, d] = useState(1);
+			const [key, k] = useState("a");
+			setDep = d;
+			setKey = k;
+			seen = useAsyncSticky(() => new Promise<string>((r) => pending.push(r)), [dep], key);
+			return null;
+		}
+		const m = mount(createElement(Probe));
+		await act(async () => pending.shift()!("v1"));
+		expect(seen).toBe("v1");
+		await act(async () => setDep(2));
+		expect(seen).toBe("v1");
+		await act(async () => pending.shift()!("v2"));
+		expect(seen).toBe("v2");
+		await act(async () => setKey("b"));
+		expect(seen).toBeNull();
+		await act(async () => pending.shift()!("v3"));
+		expect(seen).toBe("v3");
+		m.unmount();
 	});
 });

@@ -18,7 +18,7 @@ vi.mock("@/store/useMapStore", () => ({
 }));
 vi.mock("@/lib/sv/enrich", () => ({ enrich: h.enrich }));
 vi.mock("@/lib/sv/query", () => ({
-	panoSpot: async (pano: string) => ({ meta: meta(pano), timeline: [] }),
+	viewedPano: async (pano: string) => ({ ...meta(pano), nearby: [] }),
 }));
 vi.mock("@/lib/sv/panoSingleton", () => ({ singletonPano: null }));
 vi.mock("@/lib/util/timezone", () => ({ useTimezone: () => null }));
@@ -114,7 +114,7 @@ describe("the viewer enriches a location from its own pano only", () => {
 		h.activeLocation = { ...createLocation({ lat: 3, lng: 4 }), id: 8 } satisfies Location;
 		await act(async () => refresh());
 		expect(viewer.viewer).toBeNull();
-		expect(viewer.spot).toBeNull();
+		expect(viewer.pano).toBeNull();
 		expect(h.enrich).toHaveBeenCalledTimes(1);
 		m.unmount();
 	});

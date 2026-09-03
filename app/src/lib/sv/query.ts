@@ -28,25 +28,23 @@ export async function svMetadata(
 	return panoIds.map((_, i) => answers[i] ?? null);
 }
 
-/** Everything known about the spot a pano stands on: its metadata, and the timeline of
- *  every pano within reach of its coordinate. A partly-official stack picks up the rest
- *  of its history from the neighbour; an all-unofficial one asks for the official stack
- *  outright, last so its entries win. Null when the pano has no metadata. */
-export interface PanoSpot {
-	meta: Pano;
-	timeline: Pano["time"];
-}
-export async function panoSpot(pano: string, signal?: AbortSignal): Promise<PanoSpot | null> {
+/** A pano as the viewer shows it: its metadata, plus `nearby`, the timeline of every pano
+ *  within reach of its coordinate. `time` stays the pano's own stack, which is what
+ *  enrichment writes; a partly-official stack picks up the rest of its history from the
+ *  neighbour, and an all-unofficial one asks for the official stack outright, last so its
+ *  entries win. */
+export type ViewedPano = Pano & { nearby: Pano["time"] };
+export async function viewedPano(pano: string, signal?: AbortSignal): Promise<ViewedPano | null> {
 	const [meta] = await svMetadata([pano], signal);
 	if (!meta) return null;
 	const here = [{ lat: meta.lat, lng: meta.lng }];
 	const [atCoord] = await panosAt(here, SV_SEARCH_RADIUS, undefined, signal);
-	let timeline = mergeTimelines([atCoord, meta]);
-	if (allUnofficial(timeline)) {
+	let nearby = mergeTimelines([atCoord, meta]);
+	if (allUnofficial(nearby)) {
 		const [official] = await panosAt(here, 25, { sources: [PanoType.Official] }, signal);
-		timeline = mergeTimelines([atCoord, meta, official]);
+		nearby = mergeTimelines([atCoord, meta, official]);
 	}
-	return { meta, timeline };
+	return { ...meta, nearby };
 }
 
 const PANORESOLVE_ENTRY = procedureEntry("panoResolve");
