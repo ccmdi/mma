@@ -859,10 +859,10 @@ export function BulkProgress({
 							},
 							{ n: total },
 						) +
-							(elapsed != null && rate != null
+							(elapsed != null && elapsed > 0
 								? t(" in {seconds}s ({rate}/s)", {
 										seconds: elapsed.toFixed(1),
-										rate: fmt.format(Math.round(rate)),
+										rate: fmt.format(Math.round(total / elapsed)),
 									})
 								: "") +
 							".")}
