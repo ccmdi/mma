@@ -7,7 +7,7 @@
 
 use crate::types::{AppError, AppResult};
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 pub use history::*;
 pub use membership::*;
@@ -22,6 +22,7 @@ use roaring::RoaringBitmap;
 use arrow_array::RecordBatch;
 use rayon::prelude::*;
 
+use crate::selections;
 use crate::store::arrow;
 use crate::store::arrow::{batch_row_for_id, col_id, schema};
 use crate::store::maps;
@@ -523,7 +524,7 @@ impl Store {
         // Stamp only on a real change in every branch
         if let Ok(pos) = self.overlay.adds.binary_search_by_key(&id, |l| l.id) {
             if self.overlay.adds[pos] != loc {
-                loc.modified_at = Some(util::now_unix());
+                touch(&mut loc);
                 self.overlay.edit().adds[pos] = loc.clone();
             }
         } else if self.overlay.patches.contains_key(&id) {
@@ -532,11 +533,11 @@ impl Store {
             if self.base_loc_by_id(id).as_ref() == Some(&loc) {
                 self.overlay.edit().patches.remove(&id);
             } else if self.overlay.patches.get(&id) != Some(&loc) {
-                loc.modified_at = Some(util::now_unix());
+                touch(&mut loc);
                 self.overlay.edit().patches.insert(id, loc.clone());
             }
         } else if loc != *old {
-            loc.modified_at = Some(util::now_unix());
+            touch(&mut loc);
             self.overlay.edit().patches.insert(id, loc.clone());
         }
         loc
@@ -951,3 +952,24 @@ mod tests;
 #[cfg(feature = "bench")]
 #[path = "engine.bench.rs"]
 pub mod bench;
+
+/// The engine's own write on every real change to a row.
+fn touch(loc: &mut Location) {
+    loc.modified_at = Some(util::now_unix());
+}
+
+/// The nullable built-in columns a bulk clear can empty: the optional ones that stay empty
+/// through `touch`. Probed, not declared, so a column the engine starts writing is refused
+/// the same day.
+pub fn clearable_builtins() -> &'static [&'static str] {
+    static KEYS: OnceLock<Vec<&'static str>> = OnceLock::new();
+    KEYS.get_or_init(|| {
+        let mut probe = Location::default();
+        touch(&mut probe);
+        selections::optional_builtins()
+            .iter()
+            .copied()
+            .filter(|key| selections::resolve_field_loc(&probe, key).is_none())
+            .collect()
+    })
+}

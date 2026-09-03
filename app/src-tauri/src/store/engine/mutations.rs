@@ -303,7 +303,7 @@ fn check_target(key: &str, assigning: bool) -> AppResult<()> {
     let ok = if assigning {
         selections::is_writable_builtin(key)
     } else {
-        selections::optional_builtins().contains(&key)
+        clearable_builtins().contains(&key)
     };
     if ok {
         return Ok(());

@@ -4439,7 +4439,10 @@ fn a_move_may_take_a_nullable_column_but_never_fill_one() {
     let locs = [pinned_loc(1, "abc")];
     let moved = plan(&locs, &move_op("panoId", "oldPano", MergeWinner::From));
     assert_eq!(moved[0].patch.pano_id, Some(None));
-    assert_eq!(planned_extra(&moved[0]), serde_json::json!({ "oldPano": "abc" }));
+    assert_eq!(
+        planned_extra(&moved[0]),
+        serde_json::json!({ "oldPano": "abc" })
+    );
     let err = plan_err(&locs, &move_op("a", "panoId", MergeWinner::From));
     assert!(err.contains("cannot be assigned"), "{err}");
 }
@@ -4561,6 +4564,25 @@ fn apply_field_op_clears_a_nullable_column() {
     assert_eq!(out.changed, 1);
     assert!(out.failed.is_empty());
     assert!(store.get_loc_by_id(1).unwrap().pano_id.is_none());
+}
+
+#[test]
+fn clearable_builtins_are_the_optional_columns_touch_leaves_empty() {
+    assert_eq!(clearable_builtins(), &["panoId"]);
+}
+
+#[test]
+fn apply_field_op_refuses_to_clear_the_column_the_engine_stamps() {
+    let mut store = setup_store_with(&[pinned_loc(1, "abc")]);
+    let Err(err) = apply_field_op(
+        &mut store,
+        &Selector::Everything,
+        &del_op(&["modifiedAt"]),
+        false,
+    ) else {
+        panic!("cleared the stamped column");
+    };
+    assert!(err.to_string().contains("modifiedAt"));
 }
 
 #[test]

@@ -308,6 +308,7 @@ fn export_consts() -> Result<(), String> {
         ("PanoType", types::PanoType::ts_const()),
         ("ValidationState", types::ValidationState::ts_const()),
         ("BUILTIN_FIELDS", TsConst::value(selections::BUILTIN_FIELDS)),
+        ("CLEARABLE_BUILTINS", TsConst::value(store::engine::clearable_builtins())),
         (
             "DEFAULT_DUPLICATE_SCORE",
             TsConst::value(selections::DEFAULT_DUPLICATE_SCORE),

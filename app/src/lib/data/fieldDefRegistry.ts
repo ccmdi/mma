@@ -25,7 +25,7 @@
 
 import { emit } from "@/lib/events";
 import { createFieldDef } from "@/types";
-import { BUILTIN_FIELDS, PROJECTIONS } from "@/bindings.consts";
+import { BUILTIN_FIELDS, CLEARABLE_BUILTINS, PROJECTIONS } from "@/bindings.consts";
 import type { ExtraFieldDef, ExtraFieldType } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
 
@@ -69,6 +69,12 @@ function isDerived(kind: FieldKind | undefined): boolean {
 
 export function isWritableField(key: string): boolean {
 	return key in FIELDS ? FIELDS[key].kind === "writable" : true;
+}
+
+/** False for a built-in column a bulk clear cannot empty: non-null, or rewritten by the
+ *  engine on every change. */
+export function isClearableField(key: string): boolean {
+	return key in FIELDS ? (CLEARABLE_BUILTINS as readonly string[]).includes(key) : true;
 }
 
 /** False for identity fields (lat/lng) and expression terms, which pickers must not offer. */

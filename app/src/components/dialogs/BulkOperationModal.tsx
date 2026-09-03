@@ -21,6 +21,7 @@ import {
 	fieldLabel,
 	fieldValueLabel,
 	getAllFieldDefs,
+	isClearableField,
 	isWritableField,
 } from "@/lib/data/fieldDefRegistry";
 import { cmd } from "@/lib/commands";
@@ -303,6 +304,7 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 
 function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const clearable = fieldKeys.filter(isClearableField);
 
 	const toggle = (key: string) => {
 		setSelected((prev) => {
@@ -316,11 +318,11 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 	return (
 		<div className="bulk-operation">
 			<SelectorPicker ctl={picker} />
-			{fieldKeys.length === 0 ? (
+			{clearable.length === 0 ? (
 				<div className="bulk-operation__status">{t("No metadata fields on this map.")}</div>
 			) : (
 				<div className="bulk-operation__field-list">
-					{fieldKeys.map((key) => {
+					{clearable.map((key) => {
 						const def = getFieldDef(key);
 						const count = info.have(key);
 						return (
