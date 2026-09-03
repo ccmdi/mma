@@ -289,7 +289,7 @@ export function setSetting<K extends keyof AppSettings>(key: K, value: AppSettin
 }
 
 export function resetSettings(): void {
-	settings = { ...DEFAULTS };
+	settings = { ...DEFAULTS, globalCopyBindings: settings.globalCopyBindings };
 	setLocal(APP_SETTINGS, settings);
 	emitEvent("settings:changed");
 }
