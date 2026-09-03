@@ -158,14 +158,19 @@ describe("reverseHeading", () => {
 	});
 });
 
+const ring = (a: number, b: number) => box(a, b) as [number, number][];
+
 describe("polygonBbox", () => {
 	it("spans the extra polygons, not just the primary one", () => {
-		const bb = polygonBbox({ coordinates: [box(0, 10)], extraPolygons: [[box(40, 50)]] })!;
+		const bb = polygonBbox({ coordinates: [ring(0, 10)], extraPolygons: [[ring(40, 50)]] })!;
 		expect([bb.west, bb.east]).toEqual([0, 50]);
 	});
 
 	it("keeps the crossing form when an extra polygon sits past the antimeridian", () => {
-		const bb = polygonBbox({ coordinates: [box(170, 180)], extraPolygons: [[box(-180, -170)]] })!;
+		const bb = polygonBbox({
+			coordinates: [ring(170, 180)],
+			extraPolygons: [[ring(-180, -170)]],
+		})!;
 		expect([bb.west, bb.east]).toEqual([170, -170]);
 	});
 });

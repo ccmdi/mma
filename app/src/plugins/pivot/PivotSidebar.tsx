@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { createFieldDef } from "@/types";
 import type { KeySpec, PartitionBucket, Selection, Selector } from "@/bindings.gen";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -177,7 +178,11 @@ async function computePivot(
 	return { rows: pivotRows, columns, columnLabels, columnTotals, numericDistinct, columnProps };
 }
 
-const TAGS_FIELD: FieldEntry = { key: TAGS_FIELD_KEY, label: msg("Tags"), def: { type: "enum" } };
+const TAGS_FIELD: FieldEntry = {
+	key: TAGS_FIELD_KEY,
+	label: msg("Tags"),
+	def: createFieldDef("enum"),
+};
 
 // Fields the map actually carries, with a known definition.
 function pivotFields(all: FieldEntry[], knownKeys: ReadonlySet<string>): FieldEntry[] {

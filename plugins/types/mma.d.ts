@@ -934,16 +934,16 @@ type ExternalMutation = {
  */
 type ExtraFieldDef = {
     type: ExtraFieldType;
-    label?: string | null;
-    values?: string[] | null;
-    labels?: {
+    label: string | null;
+    values: string[] | null;
+    labels: {
         [key in string]: string;
     } | null;
     /**
      *  Optional override for how this field is compared during disambiguation.
      *  `None` => inferred from `field_type` on the analysis side.
      */
-    comparison?: ComparisonType | null;
+    comparison: ComparisonType | null;
 };
 /**
  *  Type discriminant for `Location.extra` field definitions.
@@ -1227,7 +1227,7 @@ type LocationPatch = {
  *  but structured as an object to allow future extensions.
  */
 type MapExtra = {
-    fields?: {
+    fields: {
         [key in string]: ExtraFieldDef;
     } | null;
 };
@@ -1477,7 +1477,7 @@ type PluginSidecar = {
  */
 type PolygonGeometry = {
     coordinates: (([number, number])[])[];
-    extraPolygons?: ((([number, number])[])[])[] | null;
+    extraPolygons: ((([number, number])[])[])[] | null;
     properties?: any | null;
 };
 type PresenceActivity = {
@@ -1986,7 +1986,7 @@ type Tag = {
      *  Display order in the sidebar tag list. `None` for legacy tags
      *  that predate ordered insertion.
      */
-    order?: number | null;
+    order: number | null;
     /**
      *  Document links from the map JSON's `extra.tags[name].doclinks` --
      *  URLs into external docs (e.g. Google Docs heading links). Read-only

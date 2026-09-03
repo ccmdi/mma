@@ -4,6 +4,7 @@
 // no location ever reaches JS. Pure; tested in disambiguate.test.ts.
 
 import type { ExtraFieldDef, ComparisonType } from "@/bindings.gen";
+import { createFieldDef } from "@/types";
 import {
 	getFieldDef,
 	fieldLabel,
@@ -149,7 +150,7 @@ function column(group: GroupColumns, key: string): unknown[] {
 function sampleDef(key: string, groups: GroupColumns[]): ExtraFieldDef | undefined {
 	for (const g of groups) {
 		const v = column(g, key).find((x) => x != null);
-		if (v != null) return { type: inferFieldType(v) };
+		if (v != null) return createFieldDef(inferFieldType(v));
 	}
 	return undefined;
 }

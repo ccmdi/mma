@@ -136,15 +136,11 @@ pub enum ExtraFieldType {
 pub struct ExtraFieldDef {
     #[serde(rename = "type")]
     pub field_type: ExtraFieldType,
-    #[serde(default)]
     pub label: Option<String>,
-    #[serde(default)]
     pub values: Option<Vec<String>>,
-    #[serde(default)]
     pub labels: Option<HashMap<String, String>>,
     /// Optional override for how this field is compared during disambiguation.
     /// `None` => inferred from `field_type` on the analysis side.
-    #[serde(default)]
     pub comparison: Option<ComparisonType>,
 }
 
@@ -165,7 +161,6 @@ pub enum ComparisonType {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MapExtra {
-    #[serde(default)]
     pub fields: Option<HashMap<String, ExtraFieldDef>>,
 }
 

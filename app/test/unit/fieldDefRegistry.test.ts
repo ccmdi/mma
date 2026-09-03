@@ -1,3 +1,4 @@
+import { createFieldDef } from "@/types";
 import { describe, it, expect, beforeEach } from "vitest";
 import {
 	getFieldDef,
@@ -73,7 +74,7 @@ describe("lookup", () => {
 describe("plugin defs", () => {
 	it("registers and retrieves plugin field defs", () => {
 		registerPluginFieldDefs({
-			sunAzimuth: { type: "number", label: "Sun azimuth" },
+			sunAzimuth: createFieldDef("number", { label: "Sun azimuth" }),
 		});
 		const def = getFieldDef("sunAzimuth");
 		expect(def).toBeDefined();
@@ -82,7 +83,7 @@ describe("plugin defs", () => {
 
 	it("plugin defs survive a map change", () => {
 		registerPluginFieldDefs({
-			sunAzimuth: { type: "number", label: "Sun azimuth" },
+			sunAzimuth: createFieldDef("number", { label: "Sun azimuth" }),
 		});
 		setUserFieldDefs({});
 		expect(getFieldDef("sunAzimuth")).toBeDefined();
@@ -92,10 +93,10 @@ describe("plugin defs", () => {
 describe("user defs (highest priority)", () => {
 	it("overrides plugin defs", () => {
 		registerPluginFieldDefs({
-			sunAzimuth: { type: "number", label: "Sun azimuth" },
+			sunAzimuth: createFieldDef("number", { label: "Sun azimuth" }),
 		});
 		setUserFieldDefs({
-			sunAzimuth: { type: "number", label: "My custom label" },
+			sunAzimuth: createFieldDef("number", { label: "My custom label" }),
 		});
 		expect(getFieldDef("sunAzimuth")!.label).toBe("My custom label");
 	});
@@ -103,7 +104,7 @@ describe("user defs (highest priority)", () => {
 	it("cleared on map change", () => {
 		const key = "userOnly_" + Math.random().toString(36).slice(2);
 		setUserFieldDefs({
-			[key]: { type: "number", label: "Custom" },
+			[key]: createFieldDef("number", { label: "Custom" }),
 		});
 		expect(getFieldDef(key)!.label).toBe("Custom");
 		setUserFieldDefs({});
@@ -114,11 +115,11 @@ describe("user defs (highest priority)", () => {
 describe("getAllFieldDefs", () => {
 	it("merges user and plugin layers", () => {
 		registerPluginFieldDefs({
-			sunAzimuth: { type: "number", label: "Sun azimuth" },
+			sunAzimuth: createFieldDef("number", { label: "Sun azimuth" }),
 		});
 		setUserFieldDefs({
-			altitude: { type: "number", label: "Custom alt" },
-			userField: { type: "string", label: "Custom" },
+			altitude: createFieldDef("number", { label: "Custom alt" }),
+			userField: createFieldDef("string", { label: "Custom" }),
 		});
 		const all = getAllFieldDefs();
 		expect(all.altitude.label).toBe("Custom alt");
@@ -127,7 +128,7 @@ describe("getAllFieldDefs", () => {
 	});
 
 	it("drops user defs on map change", () => {
-		setUserFieldDefs({ onlyUser: { type: "string", label: "User" } });
+		setUserFieldDefs({ onlyUser: createFieldDef("string", { label: "User" }) });
 		expect(getAllFieldDefs().onlyUser).toBeDefined();
 		setUserFieldDefs({});
 		expect(getAllFieldDefs().onlyUser).toBeUndefined();
@@ -137,12 +138,12 @@ describe("getAllFieldDefs", () => {
 describe("priority order", () => {
 	it("user > plugin", () => {
 		registerPluginFieldDefs({
-			altitude: { type: "number", label: "Plugin alt" },
+			altitude: createFieldDef("number", { label: "Plugin alt" }),
 		});
 		expect(getFieldDef("altitude")!.label).toBe("Plugin alt");
 
 		setUserFieldDefs({
-			altitude: { type: "number", label: "User alt" },
+			altitude: createFieldDef("number", { label: "User alt" }),
 		});
 		expect(getFieldDef("altitude")!.label).toBe("User alt");
 
@@ -157,14 +158,13 @@ describe("priority order", () => {
 describe("placeholder does not shadow plugin def", () => {
 	it("falls through to the plugin label/comparison when the user attr is null", () => {
 		registerPluginFieldDefs({
-			sunAzimuth: {
-				type: "number",
+			sunAzimuth: createFieldDef("number", {
 				label: "Sun azimuth",
 				comparison: { type: "circular", period: 360 },
-			},
+			}),
 		});
 		// Simulates Rust's inferred placeholder landing in the user layer on first write.
-		setUserFieldDefs({ sunAzimuth: { type: "number", label: null, comparison: null } });
+		setUserFieldDefs({ sunAzimuth: createFieldDef("number", { label: null, comparison: null }) });
 
 		const def = getFieldDef("sunAzimuth")!;
 		expect(def.label).toBe("Sun azimuth");
@@ -172,20 +172,19 @@ describe("placeholder does not shadow plugin def", () => {
 	});
 
 	it("a real user label still wins over the plugin label", () => {
-		registerPluginFieldDefs({ sunAzimuth: { type: "number", label: "Sun azimuth" } });
-		setUserFieldDefs({ sunAzimuth: { type: "number", label: "Solar bearing" } });
+		registerPluginFieldDefs({ sunAzimuth: createFieldDef("number", { label: "Sun azimuth" }) });
+		setUserFieldDefs({ sunAzimuth: createFieldDef("number", { label: "Solar bearing" }) });
 		expect(getFieldDef("sunAzimuth")!.label).toBe("Solar bearing");
 	});
 
 	it("getAllFieldDefs composes the same way", () => {
 		registerPluginFieldDefs({
-			sunAzimuth: {
-				type: "number",
+			sunAzimuth: createFieldDef("number", {
 				label: "Sun azimuth",
 				comparison: { type: "circular", period: 360 },
-			},
+			}),
 		});
-		setUserFieldDefs({ sunAzimuth: { type: "number", label: null, comparison: null } });
+		setUserFieldDefs({ sunAzimuth: createFieldDef("number", { label: null, comparison: null }) });
 		const all = getAllFieldDefs();
 		expect(all.sunAzimuth.label).toBe("Sun azimuth");
 		expect(all.sunAzimuth.comparison).toEqual({ type: "circular", period: 360 });
@@ -197,16 +196,16 @@ describe("placeholder does not shadow plugin def", () => {
 describe("def-change version", () => {
 	it("bumps on every layer mutation", () => {
 		const v0 = getEventVersion("fields:changed");
-		setUserFieldDefs({ a: { type: "number", label: "A" } });
+		setUserFieldDefs({ a: createFieldDef("number", { label: "A" }) });
 		const v1 = getEventVersion("fields:changed");
 		expect(v1).toBeGreaterThan(v0);
 
 		// A label-only rename (same key set) must still bump.
-		setUserFieldDefs({ a: { type: "number", label: "A renamed" } });
+		setUserFieldDefs({ a: createFieldDef("number", { label: "A renamed" }) });
 		expect(getEventVersion("fields:changed")).toBeGreaterThan(v1);
 
 		const v2 = getEventVersion("fields:changed");
-		registerPluginFieldDefs({ p: { type: "number", label: "P" } });
+		registerPluginFieldDefs({ p: createFieldDef("number", { label: "P" }) });
 		expect(getEventVersion("fields:changed")).toBeGreaterThan(v2);
 
 		const v4 = getEventVersion("fields:changed");

@@ -1,3 +1,4 @@
+import { createFieldDef } from "@/types";
 import {
 	addLocs,
 	closeMap,
@@ -249,9 +250,9 @@ describe("Extra field definitions", () => {
 					...api.getMapState().map!.extra,
 					fields: {
 						...cur,
-						altitude: { type: "number", label: "Altitude (m)" },
-						country: { type: "string", label: "Country" },
-						region: { type: "enum", label: "Region", values: ["NA", "EU", "AS"] },
+						altitude: createFieldDef("number", { label: "Altitude (m)" }),
+						country: createFieldDef("string", { label: "Country" }),
+						region: createFieldDef("enum", { label: "Region", values: ["NA", "EU", "AS"] }),
 					},
 				},
 			});
@@ -359,7 +360,7 @@ describe("Extra field definitions", () => {
 			await api.updateMapMeta({
 				extra: {
 					...api.getMapState().map!.extra,
-					fields: { ...cur, score: { type: "number", label: "My Score" } },
+					fields: { ...cur, score: createFieldDef("number", { label: "My Score" }) },
 				},
 			});
 		});

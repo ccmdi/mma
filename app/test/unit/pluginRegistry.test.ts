@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { createFieldDef } from "@/types";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Plugin } from "@/plugins/registry";
 import {
@@ -284,7 +285,7 @@ describe("plugin deactivation tears down enrichment registrations", () => {
 				registerProvider({
 					id: provId,
 					procedure: { entry: "res://procedures/test.js", batch: { mode: "perRow" } },
-					fieldDefs: { [fieldKey]: { type: "number" as const, label: "WX" } },
+					fieldDefs: { [fieldKey]: createFieldDef("number", { label: "WX" }) },
 				});
 			}),
 		);

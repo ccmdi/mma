@@ -140,6 +140,7 @@ describe("Selections - basic types", () => {
 						[-180, -10],
 					],
 				],
+				extraPolygons: null,
 			},
 			includeInformational: false,
 		});

@@ -189,7 +189,6 @@ impl FilterOp {
 #[serde(rename_all = "camelCase")]
 pub struct PolygonGeometry {
     pub coordinates: Vec<Vec<[f64; 2]>>,
-    #[serde(default)]
     pub extra_polygons: Option<Vec<Vec<Vec<[f64; 2]>>>>,
     #[serde(default)]
     #[specta(type = Option<specta_typescript::Any>)]

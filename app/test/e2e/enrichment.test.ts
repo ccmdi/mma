@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { createFieldDef } from "@/types";
 import {
 	addLocs,
 	closeLocation,
@@ -327,7 +328,10 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 					...api.getMapState().map!.extra,
 					fields: {
 						...cur,
-						countryCode: { type: "enum", label: "My Custom Country", values: ["US", "RU"] },
+						countryCode: createFieldDef("enum", {
+							label: "My Custom Country",
+							values: ["US", "RU"],
+						}),
 					},
 				},
 			});
@@ -513,8 +517,8 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 					id: "e2e-sun",
 					requires: ["datetime"],
 					fieldDefs: {
-						sunAzimuth: { type: "number", label: "Sun azimuth" },
-						sunAltitude: { type: "number", label: "Sun altitude" },
+						sunAzimuth: createFieldDef("number", { label: "Sun azimuth" }),
+						sunAltitude: createFieldDef("number", { label: "Sun altitude" }),
 					},
 					procedure: {
 						entry,
@@ -631,9 +635,9 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 					...api.getMapState().map!.extra,
 					fields: {
 						...cur,
-						altitude: { type: "number", label: "Altitude" },
-						countryCode: { type: "string", label: "Country code" },
-						imageDate: { type: "month", label: "Image date" },
+						altitude: createFieldDef("number", { label: "Altitude" }),
+						countryCode: createFieldDef("string", { label: "Country code" }),
+						imageDate: createFieldDef("month", { label: "Image date" }),
 					},
 				},
 			});

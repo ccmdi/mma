@@ -2,6 +2,7 @@
 // computeDivergence path and the statistical/labeling helpers — no store needed.
 
 import { describe, it, expect } from "vitest";
+import { createFieldDef } from "@/types";
 import type { ExtraFieldDef } from "@/bindings.gen";
 import {
 	computeDivergence,
@@ -24,7 +25,7 @@ function loc(heading: number, extra: Record<string, unknown>, tags: number[]): R
 }
 
 function numberDef(): ExtraFieldDef {
-	return { type: "number" };
+	return createFieldDef("number");
 }
 
 function defs(pairs: [string, ExtraFieldDef][]): Record<string, ExtraFieldDef> {
@@ -80,7 +81,8 @@ describe("numeric (linear)", () => {
 	it("ranking puts most separating field first", () => {
 		const a = range(12).map((i) => loc(0, { alt: i, noise: i % 3 }, []));
 		const b = range(12).map((i) => loc(0, { alt: 1000 + i, noise: i % 3 }, []));
-		const r = computeDivergence(groups([a, b]),
+		const r = computeDivergence(
+			groups([a, b]),
 			defs([
 				["alt", numberDef()],
 				["noise", numberDef()],
@@ -97,7 +99,7 @@ describe("categorical", () => {
 	it("separated categorical scores high", () => {
 		const a = range(12).map(() => loc(0, { cc: "US" }, []));
 		const b = range(12).map(() => loc(0, { cc: "FR" }, []));
-		const cc: ExtraFieldDef = { type: "string" };
+		const cc: ExtraFieldDef = createFieldDef("string");
 		const r = computeDivergence(groups([a, b]), defs([["cc", cc]]), {});
 		const f = find(r, "cc");
 		expect(f.comparison.type).toBe("categorical");
@@ -108,7 +110,7 @@ describe("categorical", () => {
 		const mk = () => loc(0, { cam: "gen2" }, []);
 		const a = range(12).map(mk);
 		const b = range(12).map(mk);
-		const cam: ExtraFieldDef = { type: "enum" };
+		const cam: ExtraFieldDef = createFieldDef("enum");
 		const r = computeDivergence(groups([a, b]), defs([["cam", cam]]), {});
 		expect(find(r, "cam").valueScore!).toBeLessThan(0.15);
 	});

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { createFieldDef } from "@/types";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
 	colorForKey,
@@ -87,6 +88,7 @@ describe("polygon color mode", () => {
 				[0, 0],
 			],
 		],
+		extraPolygons: null,
 	};
 	const build = () => buildSelection({ type: "Polygon", polygon, includeInformational: false });
 
@@ -106,6 +108,7 @@ describe("polygon color mode", () => {
 						[5, 5],
 					],
 				],
+				extraPolygons: null,
 			},
 			includeInformational: false,
 		});
@@ -138,6 +141,7 @@ describe("polygon selection keys", () => {
 				[o, o],
 			],
 		],
+		extraPolygons: null,
 	});
 	const build = (polygon: ReturnType<typeof square>) =>
 		buildSelection({ type: "Polygon", polygon, includeInformational: false });
@@ -152,6 +156,7 @@ describe("polygon selection keys", () => {
 		expect(build(square(0)).key).not.toBe(build(square(5)).key);
 		const withHole = {
 			coordinates: [...square(0).coordinates, ...square(0.25).coordinates],
+			extraPolygons: null,
 		};
 		expect(build(withHole).key).not.toBe(build(square(0)).key);
 		const multi = {
@@ -441,11 +446,15 @@ describe("selectionDisplayName", () => {
 	// formatting) without depending on any specific real field's catalog entry.
 	beforeEach(() => {
 		setUserFieldDefs({
-			label: { type: "string", label: "Country code" },
-			height: { type: "number", label: "Altitude" },
-			cam: { type: "enum", label: "Camera type", values: ["gen4"], labels: { gen4: "Gen 4" } },
-			month: { type: "month", label: "Image date" },
-			exact: { type: "date", label: "Exact date" },
+			label: createFieldDef("string", { label: "Country code" }),
+			height: createFieldDef("number", { label: "Altitude" }),
+			cam: createFieldDef("enum", {
+				label: "Camera type",
+				values: ["gen4"],
+				labels: { gen4: "Gen 4" },
+			}),
+			month: createFieldDef("month", { label: "Image date" }),
+			exact: createFieldDef("date", { label: "Exact date" }),
 		});
 	});
 	afterEach(() => {
@@ -626,12 +635,11 @@ describe("selectionDisplayName", () => {
 
 	it("display name for Filter enum uses user-defined field defs", () => {
 		setUserFieldDefs({
-			myCustomField: {
-				type: "enum",
+			myCustomField: createFieldDef("enum", {
 				label: "Custom",
 				values: ["a", "b"],
 				labels: { a: "Alpha", b: "Beta" },
-			},
+			}),
 		});
 		const sel = buildSelection({
 			type: "Filter",
@@ -663,6 +671,7 @@ describe("selectionDisplayName", () => {
 						[0, 0],
 					],
 				],
+				extraPolygons: null,
 			},
 			includeInformational: false,
 		});
@@ -681,6 +690,7 @@ describe("selectionDisplayName", () => {
 						[0, 0],
 					],
 				],
+				extraPolygons: null,
 				properties: { name: "Europe" },
 			},
 			includeInformational: false,
@@ -1168,6 +1178,7 @@ describe("polygonSelectionsContaining", () => {
 						[ox, oy],
 					],
 				],
+				extraPolygons: null,
 			},
 			includeInformational: false,
 		});

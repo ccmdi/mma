@@ -36,7 +36,6 @@ pub struct Tag {
     pub visible: bool,
     /// Display order in the sidebar tag list. `None` for legacy tags
     /// that predate ordered insertion.
-    #[serde(default)]
     pub order: Option<u32>,
     /// Document links from the map JSON's `extra.tags[name].doclinks` --
     /// URLs into external docs (e.g. Google Docs heading links). Read-only

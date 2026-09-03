@@ -1,3 +1,4 @@
+import { createFieldDef } from "@/types";
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("@/lib/util/log", () => ({
@@ -26,7 +27,7 @@ describe("registerProvider", () => {
 		const provider = {
 			id: "test-provider-" + Math.random(),
 			procedure: { ...procedure },
-			fieldDefs: { testField: { type: "number" as const, label: "Test" } },
+			fieldDefs: { testField: createFieldDef("number", { label: "Test" }) },
 		};
 		registerProvider(provider);
 		expect(getProviders()).toContain(provider);
@@ -54,7 +55,7 @@ describe("registerProvider", () => {
 		registerProvider({
 			id,
 			procedure: { ...procedure },
-			fieldDefs: { [key]: { type: "number" as const, label: "Registered" } },
+			fieldDefs: { [key]: createFieldDef("number", { label: "Registered" }) },
 		});
 		expect(getFieldDef(key)).toBeDefined();
 		expect(getFieldDef(key)!.label).toBe("Registered");

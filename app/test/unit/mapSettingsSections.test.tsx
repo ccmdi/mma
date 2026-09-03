@@ -29,7 +29,7 @@ const map: MapMeta = {
 	folder: null,
 	settings: {},
 	scoreBounds: "auto",
-	extra: {},
+	extra: { fields: null },
 	tags: {},
 	labels: [],
 	locationCount: 0,

@@ -217,6 +217,7 @@ describe("Selector coverage", () => {
 						[1, 1],
 					],
 				],
+				extraPolygons: null,
 				properties: { name: "P" },
 			},
 			includeInformational: false,

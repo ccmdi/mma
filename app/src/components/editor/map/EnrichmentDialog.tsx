@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { createFieldDef } from "@/types";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/primitives/Dialog";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
@@ -279,11 +280,12 @@ function FieldsTab() {
 	const commitDefs = async (next: FieldRow[]) => {
 		const fields: Record<string, ExtraFieldDef> = {};
 		for (const r of next) {
-			const entry: ExtraFieldDef = { type: r.type, label: r.label };
-			if (r.values) entry.values = r.values;
-			if (r.labels) entry.labels = r.labels;
-			if (r.comparison) entry.comparison = r.comparison;
-			fields[r.key] = entry;
+			fields[r.key] = createFieldDef(r.type, {
+				label: r.label,
+				values: r.values,
+				labels: r.labels,
+				comparison: r.comparison,
+			});
 		}
 		await setMapExtraFields(fields);
 	};

@@ -21,6 +21,7 @@ export async function loadGeoJSON() {
 							type: "Polygon",
 							polygon: {
 								coordinates: f.geometry.coordinates,
+								extraPolygons: null,
 								properties: f.properties ?? undefined,
 							},
 							includeInformational: false,
@@ -30,9 +31,9 @@ export async function loadGeoJSON() {
 						if (!first) continue;
 						const polygon: PolygonGeometry = {
 							coordinates: first,
+							extraPolygons: rest.length ? rest : null,
 							properties: f.properties ?? undefined,
 						};
-						if (rest.length) polygon.extraPolygons = rest;
 						selector.push({ type: "Polygon", polygon, includeInformational: false });
 					}
 				}

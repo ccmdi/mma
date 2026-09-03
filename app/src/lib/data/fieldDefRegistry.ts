@@ -24,6 +24,7 @@
  */
 
 import { emit } from "@/lib/events";
+import { createFieldDef } from "@/types";
 import { BUILTIN_FIELDS, PROJECTIONS } from "@/bindings.consts";
 import type { ExtraFieldDef, ExtraFieldType } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
@@ -50,9 +51,7 @@ const FIELDS: Record<string, RegistryFieldDef> = Object.fromEntries(
 	BUILTIN_FIELDS.map((f) => [
 		f.key,
 		{
-			type: f.type,
-			label: f.label,
-			comparison: f.comparison,
+			...createFieldDef(f.type, { label: f.label, comparison: f.comparison }),
 			kind: f.kind ?? undefined,
 		},
 	]),

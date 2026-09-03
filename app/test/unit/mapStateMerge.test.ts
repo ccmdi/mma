@@ -1,3 +1,4 @@
+import { createFieldDef } from "@/types";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Pins the applyMutation contract: a MutationResult carries only what moved. A present
@@ -11,7 +12,7 @@ vi.mock("@/lib/commands", async () => {
 			testMap({
 				locationCount: 2,
 				tags: { 1: { id: 1, name: "red", color: "#ff0000", visible: true } },
-				extra: { fields: { alt: { type: "number" } } },
+				extra: { fields: { alt: createFieldDef("number") } },
 			}),
 		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 2 } }),
 	});
@@ -66,8 +67,8 @@ describe("applyMutation merge semantics", () => {
 
 	it("present fields replace their slice; a tag change never re-mints the map", async () => {
 		const tags: Record<number, Tag> = {
-			1: { id: 1, name: "red", color: "#ff0000", visible: true },
-			2: { id: 2, name: "blue", color: "#0000ff", visible: true },
+			1: { id: 1, name: "red", color: "#ff0000", visible: true, order: null },
+			2: { id: 2, name: "blue", color: "#0000ff", visible: true, order: null },
 		};
 		const mapBefore = getMapState().map;
 		await mutate(() => Promise.resolve(result({ tags, tagCounts: { 1: 5, 2: 0 } })));
@@ -82,11 +83,13 @@ describe("applyMutation merge semantics", () => {
 	it("fieldDefs replace the registry when present and hold when absent", async () => {
 		expect([...getKnownFieldKeys()]).toEqual(["alt"]);
 		await mutate(() =>
-			Promise.resolve(result({ fieldDefs: { alt: { type: "number" }, foo: { type: "string" } } })),
+			Promise.resolve(
+				result({ fieldDefs: { alt: createFieldDef("number"), foo: createFieldDef("string") } }),
+			),
 		);
 		expect([...getKnownFieldKeys()].sort()).toEqual(["alt", "foo"]);
 
-		await mutate(() => Promise.resolve(result({ fieldDefs: { foo: { type: "string" } } })));
+		await mutate(() => Promise.resolve(result({ fieldDefs: { foo: createFieldDef("string") } })));
 		expect([...getKnownFieldKeys()]).toEqual(["foo"]);
 
 		const held = getKnownFieldKeys();

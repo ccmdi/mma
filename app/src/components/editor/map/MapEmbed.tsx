@@ -379,7 +379,7 @@ export function MapEmbed({
 								void addSelections([
 									{
 										type: "Polygon",
-										polygon: { coordinates: rings as [number, number][][] },
+										polygon: { coordinates: rings as [number, number][][], extraPolygons: null },
 										includeInformational: false,
 									},
 								]);

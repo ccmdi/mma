@@ -1,7 +1,20 @@
-import type { Location, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
+import type {
+	ExtraFieldDef,
+	ExtraFieldType,
+	Location,
+	LocationPatch_Deserialize as LocationPatch,
+} from "@/bindings.gen";
 import { nowUnix } from "@/lib/util/util";
 import type { RequireNonNull } from "@/types/util";
 import { LocationFlag, PanoType } from "@/bindings.consts";
+
+/** A field definition with every optional attribute spelled absent. */
+export function createFieldDef(
+	type: ExtraFieldType,
+	over: Partial<Omit<ExtraFieldDef, "type">> = {},
+): ExtraFieldDef {
+	return { label: null, values: null, labels: null, comparison: null, ...over, type };
+}
 
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;

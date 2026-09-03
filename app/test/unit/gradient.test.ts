@@ -1,3 +1,4 @@
+import { createFieldDef } from "@/types";
 import { describe, it, expect } from "vitest";
 import {
 	lerp,
@@ -109,23 +110,23 @@ describe("isNumericField", () => {
 	});
 
 	it("number type returns true", () => {
-		expect(isNumericField({ type: "number" })).toBe(true);
+		expect(isNumericField(createFieldDef("number"))).toBe(true);
 	});
 
 	it("date type returns true", () => {
-		expect(isNumericField({ type: "date" })).toBe(true);
+		expect(isNumericField(createFieldDef("date"))).toBe(true);
 	});
 
 	it("string type returns false", () => {
-		expect(isNumericField({ type: "string" })).toBe(false);
+		expect(isNumericField(createFieldDef("string"))).toBe(false);
 	});
 
 	it("enum type returns false", () => {
-		expect(isNumericField({ type: "enum" })).toBe(false);
+		expect(isNumericField(createFieldDef("enum"))).toBe(false);
 	});
 
 	it("month type returns false", () => {
-		expect(isNumericField({ type: "month" })).toBe(false);
+		expect(isNumericField(createFieldDef("month"))).toBe(false);
 	});
 });
 

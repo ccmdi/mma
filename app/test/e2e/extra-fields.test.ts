@@ -1,3 +1,4 @@
+import { createFieldDef } from "@/types";
 import {
 	closeMap,
 	addLocs,
@@ -20,8 +21,8 @@ describe("Extra field definitions", () => {
 					...api.getMapState().map!.extra,
 					fields: {
 						...cur,
-						altitude: { label: "Altitude", type: "number" },
-						country: { label: "Country", type: "string" },
+						altitude: createFieldDef("number", { label: "Altitude" }),
+						country: createFieldDef("string", { label: "Country" }),
 					},
 				},
 			});

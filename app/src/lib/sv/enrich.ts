@@ -1,5 +1,5 @@
 import { svMetadata } from "@/lib/sv/query";
-import type { Pano } from "@/types";
+import { createFieldDef, type Pano } from "@/types";
 import { metadataPatch, SVMETA_FIELDS } from "@/lib/sv/getMetadata";
 import { getMapState, updateLocations } from "@/store/useMapStore";
 import {
@@ -163,7 +163,7 @@ export const subdivisionProvider: Provider = {
 	id: "subdivision",
 	label: msg("Subdivision"),
 	fieldDefs: {
-		subdivision: { type: "string", label: msg("Subdivision") },
+		subdivision: createFieldDef("string", { label: msg("Subdivision") }),
 	},
 	procedure: {
 		entry: procedureEntry("subdivision"),

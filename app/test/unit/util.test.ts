@@ -19,7 +19,7 @@ describe("sortTagsByMode", () => {
 		id,
 		name,
 		color: "#000",
-		order,
+		order: order ?? null,
 	});
 	const tags = [tag(1, "bravo", 2), tag(2, "alpha", 1), tag(3, "charlie")];
 	const counts = { 1: 5, 2: 1, 3: 9 };
@@ -46,7 +46,7 @@ describe("sortTagsByMode", () => {
 });
 
 describe("tagColorFor", () => {
-	const tags: Tag[] = [{ id: 1, name: "Red", color: "#ff0000" }];
+	const tags: Tag[] = [{ id: 1, name: "Red", color: "#ff0000", order: null }];
 
 	it("uses an existing tag's stored color, matched case-insensitively", () => {
 		expect(tagColorFor("red", tags)).toBe("#ff0000");
@@ -58,7 +58,7 @@ describe("tagColorFor", () => {
 });
 
 describe("appendTagName", () => {
-	const tags: Tag[] = [{ id: 1, name: "Urban", color: "#000" }];
+	const tags: Tag[] = [{ id: 1, name: "Urban", color: "#000", order: null }];
 
 	it("appends a brand-new name as typed", () => {
 		expect(appendTagName([], "Coastal", tags)).toEqual(["Coastal"]);
@@ -197,12 +197,23 @@ describe("waveRate", () => {
 
 	it("averages over the wave, not instantaneously", () => {
 		// 100 rows in 1s, then a burst of 300 in the next second: average, not the burst.
-		expect(feed([[0, 1000, 0], [100, 1000, 1000], [400, 1000, 2000]])).toBe(200);
+		expect(
+			feed([
+				[0, 1000, 0],
+				[100, 1000, 1000],
+				[400, 1000, 2000],
+			]),
+		).toBe(200);
 	});
 
 	it("is null until the wave shows work", () => {
 		expect(feed([[0, 1000, 0]])).toBeNull();
-		expect(feed([[0, 1000, 0], [0, 1000, 5000]])).toBeNull();
+		expect(
+			feed([
+				[0, 1000, 0],
+				[0, 1000, 5000],
+			]),
+		).toBeNull();
 	});
 
 	it("re-anchors when done resets for the next wave instead of carrying the old speed", () => {
@@ -227,6 +238,12 @@ describe("waveRate", () => {
 
 	it("a shrinking total stays inside the wave", () => {
 		// Skips shrink the denominator mid-wave; the anchor must survive that.
-		expect(feed([[0, 1000, 0], [100, 900, 1000], [200, 800, 2000]])).toBe(100);
+		expect(
+			feed([
+				[0, 1000, 0],
+				[100, 900, 1000],
+				[200, 800, 2000],
+			]),
+		).toBe(100);
 	});
 });
