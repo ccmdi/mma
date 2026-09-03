@@ -138,7 +138,7 @@ impl TsConst {
     }
 
     /// A name -> value object in declaration order, which also gets its value union.
-    pub fn names<V: fmt::Display>(pairs: impl IntoIterator<Item = (String, V)>) -> Self {
+    pub fn names<V: Display>(pairs: impl IntoIterator<Item = (String, V)>) -> Self {
         let body = pairs
             .into_iter()
             .map(|(n, v)| format!("{n}: {v}"))
