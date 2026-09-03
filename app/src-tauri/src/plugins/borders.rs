@@ -666,8 +666,13 @@ fn update_border_file(level: &str, shas: &HashMap<String, String>) -> AppResult<
 }
 
 /// Silently refresh installed border files that changed upstream. Runs on a background
-/// thread at startup; a failed check is logged and retried next launch.
+/// thread at startup; a failed check is logged and retried next launch. A dev build never
+/// syncs: master is what is being worked on, and a hand-copied archive must survive a launch.
 pub fn update_border_files() {
+    if cfg!(debug_assertions) {
+        log::info!("[borders] dev build, skipping the upstream sync");
+        return;
+    }
     let levels = ["medium", "heavy", "adm1"];
     let any_installed = levels
         .iter()
