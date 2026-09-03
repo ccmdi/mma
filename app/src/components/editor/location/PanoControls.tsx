@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, useEffect, useRef, useState, useCallback } from "react";
-import { hasLoadAsPanoId } from "@/types";
+import { hasLoadAsPanoId, type CameraFrame } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import {
 	PANO_ZOOM,
@@ -223,12 +223,10 @@ export function sendHideCar(hide: boolean) {
 function CompassControl({ panorama }: { panorama: google.maps.StreetViewPanorama }) {
 	const [links, setLinks] = useState<google.maps.StreetViewLink[]>([]);
 	const controlRef = useRef<HTMLDivElement>(null);
-	const animRef = useRef<{ stop: () => void; target: { heading: number; pitch: number } } | null>(
-		null,
-	);
+	const animRef = useRef<{ stop: () => void; target: CameraFrame } | null>(null);
 
 	const animatePov = useCallback(
-		(target: { heading: number; pitch: number }) => {
+		(target: CameraFrame) => {
 			animRef.current?.stop();
 			const stop = tweenPov(panorama, target, () => {
 				animRef.current = null;

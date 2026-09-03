@@ -2,11 +2,7 @@ import { normalizeHeading } from "@/lib/geo/geo";
 import { emit as emitEvent } from "@/lib/events";
 import { svMetadata } from "@/lib/sv/query";
 import { cameraFrame } from "@/lib/sv/getMetadata";
-
-interface CameraFrame {
-	heading: number;
-	pitch: number;
-}
+import type { CameraFrame } from "@/types";
 
 let locked = false;
 let relHeading = 0;

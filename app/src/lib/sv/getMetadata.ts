@@ -17,7 +17,7 @@ import {
 	type ImageMetadata,
 	type PanoDate,
 } from "@/lib/proto/getmetadata.gen";
-import { type Pano } from "@/types";
+import type { CameraFrame, Pano } from "@/types";
 import type { KNOWN_FIELDS } from "@/bindings.consts";
 import { PanoType } from "@/bindings.consts";
 import { readImageMetadata as readImageMetadataArray } from "@/lib/proto/getmetadata.array.gen";
@@ -179,7 +179,7 @@ export function centerHeading(p: Pano): number {
 }
 
 /** The camera's frame: the heading it faces and its pitch off level, in degrees. */
-export function cameraFrame(p: Pano): { heading: number; pitch: number } {
+export function cameraFrame(p: Pano): CameraFrame {
 	const heading = centerHeading(p);
 	const pitch = 90 - (p.pov?.tilt ?? 90);
 	return { heading, pitch: pitch * Math.cos(((heading - (p.pov?.roll ?? 0)) * Math.PI) / 180) };

@@ -6,7 +6,7 @@ import { tweenPov } from "@/lib/sv/tweenPov";
 import { normalizeHeading } from "@/lib/geo/geo";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { resolvePano } from "@/lib/sv/lookup";
-import type { Pano } from "@/types";
+import type { CameraFrame, Pano, PanoView as PanoRef } from "@/types";
 import { t } from "@/lib/i18n";
 import type { MovementMode, RoundLocation } from "./game";
 
@@ -67,7 +67,7 @@ export function PanoView({
 	spawnRef.current = round;
 	const stagedRef = useRef<{ round: RoundLocation; resolved: Pano | null } | null>(null);
 	const cancelTweenRef = useRef<(() => void) | null>(null);
-	const checkpointRef = useRef<{ panoId: string; heading: number; pitch: number } | null>(null);
+	const checkpointRef = useRef<(CameraFrame & Pick<PanoRef, "panoId">) | null>(null);
 
 	useImperativeHandle(
 		ref,

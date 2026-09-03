@@ -5,6 +5,8 @@ import { LocationFlag, PanoType } from "@/bindings.consts";
 
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
+/** Where the camera looks: the POV without its zoom. */
+export type CameraFrame = Pick<LocationPOV, "heading" | "pitch">;
 /** A view on a specific panorama. */
 export type PanoView = LocationPOV & RequireNonNull<Pick<Location, "panoId">>;
 /** The camera fields a Location and the live Street View viewer share. */

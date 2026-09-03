@@ -1,10 +1,11 @@
 import { normalizeHeading } from "@/lib/geo/geo";
+import type { CameraFrame } from "@/types";
 
 const TWEEN_DURATION = 160;
 
 export function tweenPov(
 	pano: google.maps.StreetViewPanorama,
-	target: { heading: number; pitch: number },
+	target: CameraFrame,
 	onComplete?: () => void,
 ): () => void {
 	const from = pano.getPov();
