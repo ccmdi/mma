@@ -4,9 +4,7 @@
 
 import { procedureEntry, queryProcedure } from "@/lib/data/procedures";
 import type { LatLng, Pano } from "@/types";
-import { allUnofficial, mergeTimelines } from "@/lib/sv/getMetadata";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { PanoType } from "@/bindings.consts";
 import type { SearchOpts } from "@/lib/sv/singleImageSearch";
 
 const SVMETA_ENTRY = procedureEntry("svMeta");
@@ -33,20 +31,6 @@ export async function svMetadata(
  *  enrichment writes; a partly-official stack picks up the rest of its history from the
  *  neighbour, and an all-unofficial one asks for the official stack outright, last so its
  *  entries win. */
-export type ViewedPano = Pano & { nearby: Pano["time"] };
-export async function viewedPano(pano: string, signal?: AbortSignal): Promise<ViewedPano | null> {
-	const [meta] = await svMetadata([pano], signal);
-	if (!meta) return null;
-	const here = [{ lat: meta.lat, lng: meta.lng }];
-	const [atCoord] = await panosAt(here, SV_SEARCH_RADIUS, undefined, signal);
-	let nearby = mergeTimelines([atCoord, meta]);
-	if (allUnofficial(nearby)) {
-		const [official] = await panosAt(here, 25, { sources: [PanoType.Official] }, signal);
-		nearby = mergeTimelines([atCoord, meta, official]);
-	}
-	return { ...meta, nearby };
-}
-
 const PANORESOLVE_ENTRY = procedureEntry("panoResolve");
 
 /** The nearest pano to each point, aligned to `points`, null where there is no coverage.

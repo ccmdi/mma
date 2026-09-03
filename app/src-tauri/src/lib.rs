@@ -232,6 +232,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             plugins::vali::vali_data_status,
             plugins::vali::vali_download_stale,
             procedure::engine::procedure_run,
+            procedure::engine::procedure_run_rows,
             procedure::engine::procedure_cancel,
             procedure::engine::procedure_query,
             procedure::engine::procedure_query_cancel,

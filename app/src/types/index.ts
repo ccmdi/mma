@@ -87,6 +87,27 @@ export function isPinnedToPano(loc: Location): boolean {
 	return hasLoadAsPanoId(loc) && loc.panoId != null;
 }
 
+/** The `extra` merge patch that turns `before` into `after`: changed keys carry their
+ *  new value, keys `after` lacks carry null. */
+export function extraPatch(
+	before: Record<string, unknown> | null,
+	after: Record<string, unknown> | null,
+): Record<string, unknown> {
+	const patch: Record<string, unknown> = {};
+	for (const [key, value] of Object.entries(after ?? {})) {
+		if (JSON.stringify(before?.[key] ?? null) !== JSON.stringify(value ?? null)) patch[key] = value;
+	}
+	for (const key of Object.keys(before ?? {})) {
+		if (!(key in (after ?? {}))) patch[key] = null;
+	}
+	return patch;
+}
+
+/** The same location on the same pano: what makes one row's answer another row's. */
+export function sameRow(a: Location, b: Location): boolean {
+	return a.id === b.id && a.panoId === b.panoId;
+}
+
 /** Virtual locations exist only ephemerally as the single active-location preview — never in
  *  the map. They display like real locations but every mutate path no-ops. Identity is a unique
  *  negative id (so id-only checks work); the kind rides in `flags` (read where you hold the

@@ -10,6 +10,7 @@ import {
 	updateMapSettings,
 	useMap,
 	waitForPreview,
+	saveLocation,
 	withApi,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
@@ -118,6 +119,7 @@ describe("Enrichment — single location via preview", () => {
 	it("populates all standard enrichment fields", async () => {
 		await openLocation(enrichBasicId);
 		await waitForPreview();
+		await saveLocation();
 		await waitForEnrichment(enrichBasicId);
 
 		const l = await readLocation(enrichBasicId);
@@ -131,6 +133,7 @@ describe("Enrichment — single location via preview", () => {
 	it("preserves custom extra fields during enrichment", async () => {
 		await openLocation(enrichCustomExtraId);
 		await waitForPreview();
+		await saveLocation();
 		await waitForEnrichment(enrichCustomExtraId);
 
 		const l = await readLocation(enrichCustomExtraId);
@@ -142,6 +145,7 @@ describe("Enrichment — single location via preview", () => {
 	it("overwrites stale enrichment fields with fresh data", async () => {
 		await openLocation(enrichExistingMetaId);
 		await waitForPreview();
+		await saveLocation();
 		// Wait for enrichment to overwrite the fake "XX"
 		await browser.waitUntil(
 			async () => {
@@ -159,7 +163,8 @@ describe("Enrichment — single location via preview", () => {
 	it("clears datetime/timezone when imageDate changes", async () => {
 		// Default enrich set excludes datetime/timezone, so no live resolution interferes
 		await updateMapSettings({ enrichFields: undefined });
-		// Pre-seed with stale datetime
+		// Pre-seed with a stale datetime and one metadata field missing: a row holding every
+		// field a provider produces is not derived again, so the gap is what makes it run.
 		const dtLoc = await readLocation(enrichExistingMetaId);
 		await withApi(async (api, l) => {
 			await api.updateLocations(
@@ -167,7 +172,12 @@ describe("Enrichment — single location via preview", () => {
 					{
 						id: l.id,
 						patch: {
-							extra: { imageDate: "2099-01", datetime: 9999999999, timezone: "Fake/Zone" },
+							extra: {
+								imageDate: "2099-01",
+								altitude: null,
+								datetime: 9999999999,
+								timezone: "Fake/Zone",
+							},
 						},
 					},
 				],
@@ -181,6 +191,7 @@ describe("Enrichment — single location via preview", () => {
 
 		await openLocation(enrichExistingMetaId);
 		await waitForPreview();
+		await saveLocation();
 		await browser.waitUntil(
 			async () => {
 				const l = await readLocation(enrichExistingMetaId);
@@ -198,6 +209,7 @@ describe("Enrichment — single location via preview", () => {
 	it("location without panoId resolves pano from coords and enriches", async () => {
 		await openLocation(enrichNoPanoId);
 		await waitForPreview();
+		await saveLocation();
 		await waitForEnrichment(enrichNoPanoId);
 
 		const l = await readLocation(enrichNoPanoId);
@@ -235,6 +247,7 @@ describe("Enrichment — respects enrichFields setting", () => {
 
 		await openLocation(fieldsSelectiveId);
 		await waitForPreview();
+		await saveLocation();
 		await waitForEnrichment(fieldsSelectiveId, "countryCode");
 		// eslint-disable-next-line no-restricted-syntax -- negative assertion: give disabled fields a bounded window to (not) appear
 		await browser.pause(2000);
@@ -260,6 +273,7 @@ describe("Enrichment — respects enrichFields setting", () => {
 
 		await openLocation(fieldsSelectiveId);
 		await waitForPreview();
+		await saveLocation();
 		// eslint-disable-next-line no-restricted-syntax -- negative assertion: confirm enrichment never populates with metadata disabled
 		await browser.pause(5000);
 
@@ -297,6 +311,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("field defs appear after enrichment", async () => {
 		await openLocation(defsAutoId);
 		await waitForPreview();
+		await saveLocation();
 		await waitForEnrichment(defsAutoId);
 		// Poll getFieldDef rather than knownFieldKeys: concurrent enrichment mutations
 		// can land out of order and transiently regress the keys set.
@@ -339,6 +354,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 
 		await openLocation(defsAutoId);
 		await waitForPreview();
+		await saveLocation();
 		await waitForEnrichment(defsAutoId);
 
 		const meta = await getMapMeta();
@@ -431,6 +447,7 @@ describe("Enrichment — exact date via preview", () => {
 		});
 		await openLocation(exactEnrichId);
 		await waitForPreview();
+		await saveLocation();
 
 		await browser.waitUntil(
 			async () => {
@@ -532,6 +549,7 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 	it("single-location enrich keeps the plugin procedure's fields plus core metadata", async () => {
 		await openLocation(mergeIds[0]);
 		await waitForPreview();
+		await saveLocation();
 		await waitForEnrichment(mergeIds[0]); // core countryCode, written in JS from the pano data
 		await browser.waitUntil(
 			async () => {

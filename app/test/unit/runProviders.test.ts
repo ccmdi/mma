@@ -26,6 +26,7 @@ const h = vi.hoisted(() => ({
 	/// Ids a provider fails, per provider id.
 	failedIds: {} as Record<string, number[]>,
 	queries: [] as { entry: string; input: string; cancel: number | null }[],
+	rowRuns: [] as { ids: number[]; force: boolean; cancel: number | null }[],
 	cancelled: [] as number[],
 	queryAnswer: ((input: string) => Promise.resolve(input)) as (i: string) => Promise<string>,
 }));
@@ -47,6 +48,7 @@ vi.mock("@/store/useMapStore", () => ({
 
 // The real fieldDefs module runs here, so the field catalog it reads has to be present.
 vi.mock("@/bindings.consts", () => ({
+	LocationFlag: { None: 0, LoadAsPanoId: 1, Informational: 2 },
 	BUILTIN_FIELDS: [
 		{ key: "panoId", label: "Pano ID", type: "string", kind: null, comparison: null },
 		{ key: "heading", label: "Heading", type: "number", kind: "writable", comparison: null },
@@ -114,6 +116,19 @@ vi.mock("@/lib/commands", () => ({
 			return Promise.resolve(7);
 		},
 		procedureCancel: () => Promise.resolve(),
+		procedureRunRows: async (
+			decls: typeof h.decls,
+			force: boolean,
+			rows: { id: number; extra: Record<string, unknown> | null }[],
+			cancel: number | null,
+		) => {
+			h.decls.push(...decls);
+			h.rowRuns.push({ ids: rows.map((r) => r.id), force, cancel });
+			return {
+				rows: rows.map((r) => ({ ...r, extra: { ...r.extra, ran: true } })),
+				failed: { [decls[0].id]: [rows[0].id] },
+			};
+		},
 		procedureQuery: (
 			entry: string,
 			input: string,
@@ -137,8 +152,9 @@ import {
 	resolveFieldLabels,
 	type PhasePart,
 } from "@/lib/data/procedures";
+import { createLocation } from "@/types";
 import { registerProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
-import { enrichAll, enrichRuns, panoResolveProvider } from "@/lib/sv/enrich";
+import { enrichAll, enrichRuns, panoResolveProvider, svMetaProvider } from "@/lib/sv/enrich";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
 import type { Provider, ProcedureSpec } from "@/lib/data/fieldDefs";
@@ -628,5 +644,31 @@ describe("the progress bar is phase-relative", () => {
 		h.script = [step("waveA", 10, 10, { failed: 3, skipped: 2, finished: true })];
 		const result = await runProviders([{ provider: waveA }], { type: "Everything" });
 		expect(result.waveA).toMatchObject({ succeeded: 5 });
+	});
+});
+
+describe("runProviders over rows handed in", () => {
+	it("runs in the engine under stand-in ids and answers the rows under their own", async () => {
+		h.decls = [];
+		h.rowRuns = [];
+		const rows = [
+			{ ...createLocation({ lat: 1, lng: 2 }), id: -3, extra: { keep: 1 } },
+			{ ...createLocation({ lat: 3, lng: 4 }), id: 42 },
+		];
+		const out = await runProviders([{ provider: svMetaProvider }], rows);
+		expect(h.rowRuns).toEqual([{ ids: [1, 2], force: false, cancel: null }]);
+		expect(h.decls.map((d) => d.select)).toEqual([{ type: "Everything" }]);
+		expect(out.rows.map((r) => r.id)).toEqual([-3, 42]);
+		expect(out.rows[0].extra).toEqual({ keep: 1, ran: true });
+		expect(out.failed).toEqual({ svMeta: [-3] });
+	});
+
+	it("names the run for cancellation when the caller hands it a signal", async () => {
+		h.rowRuns = [];
+		const ac = new AbortController();
+		await runProviders([{ provider: svMetaProvider }], [createLocation({ lat: 1, lng: 2 })], {
+			signal: ac.signal,
+		});
+		expect(h.rowRuns[0].cancel).not.toBeNull();
 	});
 });

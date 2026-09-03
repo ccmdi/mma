@@ -178,18 +178,3 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 	}
 	return out;
 }
-
-/** `{op: "resolve", lat, lng, imageDate}` -> the capture time in unix seconds, or null
- *  when the point is not a candidate in that month. */
-export function query(input: {
-	op: string;
-	lat: number;
-	lng: number;
-	imageDate: string;
-}): number | null {
-	if (input.op !== "resolve") throw new Error(`exactDate: unknown query op "${input.op}"`);
-	const s = newSearch(0, input.lat, input.lng, input.imageDate);
-	if (!s) throw new Error(`exactDate: bad imageDate "${input.imageDate}"`);
-	narrow([s], false);
-	return s.ts;
-}

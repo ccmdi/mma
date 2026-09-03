@@ -8,7 +8,13 @@ import {
 	useCallback,
 	useEffectEvent,
 } from "react";
-import { createLocation, isVirtualLocation, isImportPreview, isSeenPreview } from "@/types";
+import {
+	createLocation,
+	extraPatch,
+	isVirtualLocation,
+	isImportPreview,
+	isSeenPreview,
+} from "@/types";
 import { LocationFlag, VIRTUAL_FLAGS } from "@/bindings.consts";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
@@ -60,7 +66,6 @@ import { PanoControls, CrosshairOverlay, sendHideCar } from "./PanoControls";
 import { seenPanoChanged, seenFlush, seenUpdateGeo } from "@/lib/seen/seen";
 import { useReverseGeocode, type GeoDisplay } from "@/components/editor/location/useReverseGeocode";
 import { usePanoViewer } from "./PanoViewerContext";
-import { enrich } from "@/lib/sv/enrich";
 import {
 	usePanoFullscreen,
 	togglePanoFullscreen,
@@ -76,7 +81,6 @@ import {
 	singletonDiv,
 	getPanorama,
 	applyResolved,
-	capturePano,
 	capturePov,
 } from "@/lib/sv/panoSingleton";
 import { PanoDatePicker } from "./PanoDatePicker";
@@ -202,6 +206,9 @@ const TagEditor = memo(function TagEditor({
 	);
 });
 
+const pinned = (flags: number, on: boolean) =>
+	on ? flags | LocationFlag.LoadAsPanoId : flags & ~LocationFlag.LoadAsPanoId;
+
 export function LocationPreview() {
 	const location = useMapState((s) => s.activeLocation);
 	const map = useMapState((s) => s.map);
@@ -209,14 +216,14 @@ export function LocationPreview() {
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { viewer, view, pano, open } = usePanoViewer();
+	const { draft, meta, defaultPano, edit, settled, open } = usePanoViewer();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = useState<string[]>(() =>
 		tagIdsToNames(location?.tags ?? []),
 	);
 	const visibleTags = useMapState(getVisibleTags);
 	const geocodeProvider = useSetting("geocodeProvider");
-	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0, pano);
+	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0, meta);
 	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const getGeoResult = useEffectEvent(() => geoResult);
 	useEffect(() => {
@@ -300,31 +307,28 @@ export function LocationPreview() {
 			statusListener = pano.addListener("status_changed", () => {
 				if (cancelled || pano.getStatus() !== "OK") return;
 				const panoId = pano.getPano();
-				if (!panoId) return; // ?
-				view(panoId);
 				const pos = pano.getPosition();
-				if (pos) {
-					pushTrail(pos.lng(), pos.lat());
-					const activeForSeen = getMapState().activeLocation;
-					const geo = getGeoResult();
-					seenPanoChanged(
-						{
-							locationId:
-								activeForSeen && !isVirtualLocation(activeForSeen) ? activeForSeen.id : null,
-							panoId: panoId,
-							lat: pos.lat(),
-							lng: pos.lng(),
-						},
-						geo && {
-							address: geo.address,
-							countryCode:
-								typeof activeForSeen?.extra?.countryCode === "string"
-									? activeForSeen.extra.countryCode
-									: geo.countryCode,
-						},
-						capturePov,
-					);
-				}
+				if (!panoId || !pos) return;
+				edit({ panoId, lat: pos.lat(), lng: pos.lng() });
+
+        pushTrail(pos.lng(), pos.lat());
+				const geo = getGeoResult();
+				seenPanoChanged(
+					{
+						locationId: isVirtualLocation(location) ? null : location.id,
+						panoId,
+						lat: pos.lat(),
+						lng: pos.lng(),
+					},
+					geo && {
+						address: geo.address,
+						countryCode:
+							typeof location.extra?.countryCode === "string"
+								? location.extra.countryCode
+								: geo.countryCode,
+					},
+					capturePov,
+				);
 			});
 
 			lockListener = pano.addListener("pano_changed", () => {
@@ -345,7 +349,7 @@ export function LocationPreview() {
 					toast(t("Configured pano ID could not be found. Falling back to lat/lng."), 3000, root);
 			}
 			// From the resolve result directly: setPano() with the same id fires no status_changed.
-			open(location.id, result?.pano ?? null);
+			open(location, result?.pano ?? null);
 		});
 
 		return () => {
@@ -357,39 +361,31 @@ export function LocationPreview() {
 		};
 	}, [location?.id]);
 
-	// Reads the active location at call time to stay referentially stable
-	// (it is a memo'd PanoDatePicker prop).
-	const handleDateChange = useCallback((panoId: string | null) => {
-		const loc = getMapState().activeLocation;
-		if (!singletonPano || !loc) return;
-		// updateLocation no-ops for staged (virtual) locations at the store level.
-		if (panoId == null) {
-			void updateLocations([
-				{ id: loc.id, patch: { flags: loc.flags & ~LocationFlag.LoadAsPanoId } },
-			]);
-			if (loc.panoId) singletonPano.setPano(loc.panoId);
-		} else {
-			void updateLocations([
-				{ id: loc.id, patch: { flags: loc.flags | LocationFlag.LoadAsPanoId } },
-			]);
-			singletonPano.setPano(panoId);
-		}
-	}, []);
+	// A chosen date pins the draft to that pano; Default floats it on the pano Google
+	// resolves for the position.
+	const handleDateChange = useCallback(
+		(panoId: string | null) => {
+			edit((d) => ({ flags: pinned(d.flags, panoId != null) }));
+			const target = panoId ?? defaultPano;
+			if (target) singletonPano?.setPano(target);
+		},
+		[edit, defaultPano],
+	);
 
 	const handleSave = useCallback(async () => {
 		if (!location || !singletonPano) return;
 		// Staged (virtual) location: updateLocation no-ops, cursorId can't match a
 		// negative id, so this falls through to setActiveLocation(null) = close.
-		const live = capturePano();
-		if (!live) return;
-
-		const savedPanoId = live.panoId ?? location.panoId;
+		// The draft once enrichment has answered; the camera is read live, it moves per frame.
+		const draft = await settled();
+		if (!draft) return;
+		const pov = capturePov();
 
 		if (isSeenPreview(location)) {
 			await addLocations([
 				createLocation({
-					...live,
-					panoId: savedPanoId,
+					...draft,
+					...pov,
 					flags: location.flags & ~VIRTUAL_FLAGS, // keep LoadAsPanoId; drop the preview-kind bits
 					tags: (await createTags(pendingTags)).map((t) => t.id),
 				}),
@@ -398,28 +394,26 @@ export function LocationPreview() {
 			return;
 		}
 
-		const panoChanged = savedPanoId !== location.panoId;
-		const saved = updateLocations([
+		void updateLocations([
 			{
 				id: location.id,
 				patch: {
-					...live,
-					panoId: savedPanoId,
+					...pov,
+					lat: draft.lat,
+					lng: draft.lng,
+					panoId: draft.panoId,
+					flags: draft.flags,
 					tags: (await createTags(pendingTags)).map((t) => t.id),
+					extra: extraPatch(location.extra, draft.extra),
 				},
 			},
 		]);
-		if (panoChanged) {
-			// The location closes with the save, so the viewer cannot enrich the moved pano.
-			const moved = { ...location, panoId: savedPanoId };
-			void saved.then(() => enrich(moved, pano?.pano === savedPanoId ? pano : undefined));
-		}
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
 			void setActiveLocation(null);
 		}
-	}, [location, isReviewMode, reviewSession, pendingTags, pano]);
+	}, [location, settled, isReviewMode, reviewSession, pendingTags]);
 
 	const handleClose = useCallback(() => {
 		if (exitPanoFullscreen()) return;
@@ -449,10 +443,8 @@ export function LocationPreview() {
 		const result = await resolvePano(loc);
 		applyResolved(singletonPano, result, loc);
 		google.maps.event.trigger(singletonPano, "resize");
-		void updateLocations([
-			{ id: loc.id, patch: { flags: loc.flags & ~LocationFlag.LoadAsPanoId } },
-		]);
-	}, []);
+		edit((d) => ({ flags: pinned(d.flags, false) }));
+	}, [edit]);
 
 	const handleFullscreen = useCallback(() => {
 		if (location) togglePanoFullscreen();
@@ -543,7 +535,7 @@ export function LocationPreview() {
 						{appSettings.defaultMovementMode === "nmpz" && (
 							<div style={{ position: "absolute", inset: 0, zIndex: 1 }} />
 						)}
-						{viewer && singletonPano && (
+						{draft && singletonPano && (
 							<PanoControls
 								panorama={singletonPano}
 								isFullscreen={isFullscreen}

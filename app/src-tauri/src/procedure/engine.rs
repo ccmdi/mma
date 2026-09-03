@@ -5,7 +5,7 @@
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
 use crate::selections::{ids_within, narrow, resolve, resolve_within, Selector};
 use crate::store::engine::{
-    apply_updates, ExternalMutation, LocationPatch, StoreState, Update, WindowLabel,
+    apply_updates, ExternalMutation, LocationPatch, Store, StoreState, Update, WindowLabel,
 };
 use crate::types::{AppError, AppResult, Location};
 use futures::executor;
@@ -611,9 +611,37 @@ impl ProviderProgress {
 // Engine
 // ---------------------------------------------------------------------------
 
+/// Where a run's rows live: the open map, paged by each provider's selector, or rows the
+/// caller handed in, held in a store of their own so waves chain the same way and nothing
+/// reaches the map.
+pub(crate) enum RunRows<'a> {
+    Map {
+        state: &'a StoreState,
+        map_id: String,
+    },
+    Given(Box<Mutex<Store>>),
+}
+
+impl RunRows<'_> {
+    pub(crate) fn given(rows: Vec<Location>) -> Self {
+        let mut store = Store::new();
+        store.overlay_add(rows);
+        RunRows::Given(Box::new(Mutex::new(store)))
+    }
+
+    fn with_store<T>(&self, f: impl FnOnce(&mut Store) -> AppResult<T>) -> AppResult<T> {
+        match self {
+            RunRows::Map { state, map_id } => {
+                let mut mgr = state.lock()?;
+                f(mgr.store_for_map(map_id)?)
+            }
+            RunRows::Given(store) => f(&mut store.lock().unwrap_or_else(PoisonError::into_inner)),
+        }
+    }
+}
+
 pub(crate) struct RunCtx<'a> {
-    pub state: &'a StoreState,
-    pub map_id: String,
+    pub rows: Arc<RunRows<'a>>,
     pub run_id: u32,
     pub force: bool,
     pub cancel: Arc<AtomicBool>,
@@ -649,8 +677,7 @@ impl WorkBatch {
 /// concurrently. Blocking throughout: callers put this on a blocking thread.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_all(
-    state: &StoreState,
-    map_id: &str,
+    rows: &Arc<RunRows<'_>>,
     providers: &[ProviderDecl],
     force: bool,
     run_id: u32,
@@ -667,8 +694,7 @@ pub(crate) fn run_all(
             for idx in wave {
                 let decl = &providers[idx];
                 let ctx = RunCtx {
-                    state,
-                    map_id: map_id.to_owned(),
+                    rows: rows.clone(),
                     run_id,
                     force,
                     cancel: cancel.clone(),
@@ -698,13 +724,11 @@ pub(crate) fn run_all(
 }
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
-    let ids: Vec<u32> = {
-        let mut mgr = ctx.state.lock()?;
-        let store = mgr.store_for_map(&ctx.map_id)?;
+    let ids: Vec<u32> = ctx.rows.with_store(|store| {
         let view = store.loc_view();
         let set = narrow(&view, &decl.select);
-        ids_within(&view, set.as_ref())
-    };
+        Ok(ids_within(&view, set.as_ref()))
+    })?;
     let total = ids.len() as u32;
     let started = Instant::now();
     log::info!(
@@ -835,9 +859,7 @@ fn page_batches(
     } else {
         Selector::all([page_sel.clone(), has_every(&decl.fields).not()])
     };
-    let (rows, unmet) = {
-        let mut mgr = ctx.state.lock()?;
-        let store = mgr.store_for_map(&ctx.map_id)?;
+    let (rows, unmet) = ctx.rows.with_store(|store| {
         let view = store.loc_view();
         let alive = resolve(&view, &page_sel);
         let todo = resolve(&view, &todo);
@@ -860,8 +882,8 @@ fn page_batches(
                 .collect(),
             name: None,
         });
-        (rows, unmet)
-    };
+        Ok((rows, unmet))
+    })?;
     if !unmet.is_empty() {
         prog.add_failed(unmet.len() as u32);
         prog.add_done(unmet.len() as u32);
@@ -914,15 +936,16 @@ enum Produced {
 /// Write one page: patches to the store, answers and failed ids to the caller.
 fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResult<()> {
     if !page.updates.is_empty() {
-        let result = {
-            let mut mgr = ctx.state.lock()?;
-            let store = mgr.store_for_map(&ctx.map_id)?;
-            apply_updates(store, &page.updates, true)
-        };
-        crate::emit_event(ExternalMutation {
-            result,
-            map_id: ctx.map_id.clone(),
-        });
+        let on_map = matches!(*ctx.rows, RunRows::Map { .. });
+        let result = ctx
+            .rows
+            .with_store(|store| Ok(apply_updates(store, &page.updates, on_map)))?;
+        if let RunRows::Map { map_id, .. } = &*ctx.rows {
+            crate::emit_event(ExternalMutation {
+                result,
+                map_id: map_id.clone(),
+            });
+        }
     }
     if !page.entries.is_empty() || !page.failed.is_empty() {
         (ctx.results)(ProcedureResult {
@@ -1397,19 +1420,75 @@ pub async fn procedure_run(
         let progress: Arc<ProgressSink> =
             Arc::new(Box::new(crate::emit_event::<ProcedureProgress>));
         let results: Arc<ResultSink> = Arc::new(Box::new(crate::emit_event::<ProcedureResult>));
+        let rows = Arc::new(RunRows::Map {
+            state: state.inner(),
+            map_id,
+        });
         run_all(
-            state.inner(),
-            &map_id,
-            &providers,
-            force,
-            run_id,
-            &cancel,
-            &deps,
-            &progress,
-            &results,
+            &rows, &providers, force, run_id, &cancel, &deps, &progress, &results,
         );
     });
     Ok(run_id)
+}
+
+/// Rows after a run over them, and the ids each provider failed.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct RowsRun {
+    pub rows: Vec<Location>,
+    pub failed: HashMap<String, Vec<u32>>,
+}
+
+/// Run providers over rows the caller hands in and answer with the rows as they are
+/// afterwards. Same waves and gates as a run over the map, in a store of the rows' own,
+/// so nothing reaches the open map. `cancel` is a token for `procedure_query_cancel`.
+#[tauri::command]
+#[specta::specta]
+pub async fn procedure_run_rows(
+    providers: Vec<ProviderDecl>,
+    force: bool,
+    rows: Vec<Location>,
+    cancel: Option<u32>,
+) -> AppResult<RowsRun> {
+    let flag = Arc::new(AtomicBool::new(false));
+    if let Some(token) = cancel {
+        query_tokens().lock()?.insert(token, flag.clone());
+    }
+    let out = task::spawn_blocking(move || {
+        let deps = EngineDeps::production();
+        let rows = Arc::new(RunRows::given(rows));
+        let failed: Arc<Mutex<HashMap<String, Vec<u32>>>> = Arc::default();
+        let results: Arc<ResultSink> = {
+            let failed = failed.clone();
+            Arc::new(Box::new(move |r: ProcedureResult| {
+                if !r.failed.is_empty() {
+                    failed
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .entry(r.provider_id)
+                        .or_default()
+                        .extend(r.failed);
+                }
+            }))
+        };
+        let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
+        let (run_id, _) = register_run()?;
+        run_all(
+            &rows, &providers, force, run_id, &flag, &deps, &progress, &results,
+        );
+        let rows = rows.with_store(|store| Ok(store.collect(&Selector::Everything)))?;
+        let failed = failed
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        Ok(RowsRun { rows, failed })
+    })
+    .await
+    .map_err(|e| AppError(format!("procedure run panicked: {e}")))?;
+    if let Some(token) = cancel {
+        query_tokens().lock()?.remove(&token);
+    }
+    out
 }
 
 /// Stop a run before its next batch. Already-applied patches stay applied.

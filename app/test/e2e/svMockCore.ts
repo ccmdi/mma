@@ -65,6 +65,13 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 	const fixFor = (pano: string, lat = 0, lng = 0): Fix | null => {
 		if (isDead(pano)) return null;
 		if (FIX[pano]) return FIX[pano];
+		// An earlier capture (`olderPanos`) is its parent at the parent's position, with the
+		// dates up to and including its own.
+		const older = /^(.+)~(\d+)$/.exec(pano);
+		if (older && FIX[older[1]]) {
+			const parent = FIX[older[1]];
+			return { ...parent, dates: parent.dates.slice(0, Number(older[2]) + 1) };
+		}
 		// Coords are encoded in synthetic ids (MOCK_lat_lng) so a pano fetched by id
 		// resolves to the same position it did when found by coordinate.
 		const m = /^MOCK_(-?\d+(?:\.\d+)?)_(-?\d+(?:\.\d+)?)$/.exec(pano);

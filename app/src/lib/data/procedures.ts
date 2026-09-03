@@ -5,7 +5,7 @@
  * to the caller. Locations never reach JS.
  */
 
-import type { Selector } from "@/bindings.gen";
+import type { Location, RowsRun, Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
 import {
 	getProviderForField,
@@ -33,22 +33,34 @@ export async function queryProcedure<T = unknown>(
 	config?: unknown,
 	signal?: AbortSignal,
 ): Promise<T> {
+	const raw = await cancellable(signal, (token) =>
+		cmd.procedureQuery(
+			entry,
+			JSON.stringify(input),
+			config === undefined ? null : JSON.stringify(config),
+			token,
+		),
+	);
+	return JSON.parse(raw) as T;
+}
+
+/** An engine call that answers only when it is over, so it is named up front to be
+ *  cancellable: the token reaches the engine through `procedureQueryCancel` when
+ *  `signal` aborts, and the call rejects with the signal's reason. */
+async function cancellable<T>(
+	signal: AbortSignal | undefined,
+	call: (token: number | null) => Promise<T>,
+): Promise<T> {
 	signal?.throwIfAborted();
-	// A query answers only when it is over, so it is named up front to be cancellable.
 	const token = signal ? nextQueryToken++ : null;
 	const onAbort = () => {
 		if (token !== null) void cmd.procedureQueryCancel(token);
 	};
 	signal?.addEventListener("abort", onAbort);
 	try {
-		const raw = await cmd.procedureQuery(
-			entry,
-			JSON.stringify(input),
-			config === undefined ? null : JSON.stringify(config),
-			token,
-		);
+		const out = await call(token);
 		signal?.throwIfAborted();
-		return JSON.parse(raw) as T;
+		return out;
 	} finally {
 		signal?.removeEventListener("abort", onAbort);
 	}
@@ -143,16 +155,28 @@ export interface ProviderRun {
 	fields?: string[];
 }
 
-/** Drive a set of providers through the engine as one run.
- *  Locations never reach JS: the engine pages them, calls each procedure and writes the
- *  patches itself, reporting per-provider progress that this narrows to the wave in
- *  flight for the caller's bar. Resolves once every declared provider reports finished,
- *  or on abort. */
+/** Drive a set of providers through the engine as one run over `rows`: a selector, which
+ *  the engine pages out of the store and writes back into, reporting per-provider
+ *  progress that this narrows to the wave in flight for the caller's bar; or locations
+ *  handed in, which run in a store of their own and come back as the providers left
+ *  them, with nothing reaching the map. Resolves once every declared provider reports
+ *  finished, or on abort. */
 export async function runProviders(
 	items: ProviderRun[],
-	selector: Selector,
+	rows: Selector,
+	opts?: RunOpts,
+): Promise<ProviderOutcomes>;
+export async function runProviders(
+	items: ProviderRun[],
+	rows: Location[],
+	opts?: RunOpts,
+): Promise<RowsRun>;
+export async function runProviders(
+	items: ProviderRun[],
+	rows: Selector | Location[],
 	opts: RunOpts = {},
-): Promise<ProviderOutcomes> {
+): Promise<ProviderOutcomes | RowsRun> {
+	const selector: Selector = Array.isArray(rows) ? { type: "Everything" } : rows;
 	const decls: ProviderDecl[] = [];
 	for (const { provider: p, config, force: providerForce, fields: wanted } of items) {
 		const fields = wanted ?? Object.keys(p.fieldDefs ?? {});
@@ -168,7 +192,24 @@ export async function runProviders(
 		});
 		if (decl) decls.push(decl);
 	}
-	return runDecls(decls, opts);
+	return Array.isArray(rows) ? runRows(decls, rows, opts) : runDecls(decls, opts);
+}
+
+/** The engine holds ids as unsigned integers, so a row travels under its position and
+ *  comes back under its own id (a virtual location's is negative). */
+async function runRows(decls: ProviderDecl[], rows: Location[], opts: RunOpts): Promise<RowsRun> {
+	if (decls.length === 0 || rows.length === 0) return { rows, failed: {} };
+	const standIns = rows.map((r, i) => ({ ...r, id: i + 1 }));
+	const out = await cancellable(opts.signal, (token) =>
+		cmd.procedureRunRows(decls, opts.force ?? false, standIns, token),
+	);
+	const idOf = (standIn: number) => rows[standIn - 1].id;
+	return {
+		rows: out.rows.map((r) => ({ ...r, id: idOf(r.id) })),
+		failed: Object.fromEntries(
+			Object.entries(out.failed).map(([provider, ids]) => [provider, ids.map(idOf)]),
+		),
+	};
 }
 
 /** What a run may set on top of what the spec declares. */

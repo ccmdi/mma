@@ -193,8 +193,10 @@ impl Harness {
 
     fn ctx<'a>(&'a self, state: &'a StoreState, map_id: &str) -> RunCtx<'a> {
         RunCtx {
-            state,
-            map_id: map_id.to_string(),
+            rows: Arc::new(RunRows::Map {
+                state,
+                map_id: map_id.to_string(),
+            }),
             run_id: 1,
             force: true,
             cancel: self.cancel.clone(),
@@ -849,8 +851,10 @@ fn run_shape_reaches_the_host_fetch() {
         backoff: Duration::from_millis(1),
     };
     let ctx = RunCtx {
-        state: &state,
-        map_id: map_id.clone(),
+        rows: Arc::new(RunRows::Map {
+            state: &state,
+            map_id: map_id.clone(),
+        }),
         run_id: 7,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1114,8 +1118,10 @@ fn every_procedure_the_engine_creates_is_configured() {
         backoff: Duration::from_millis(1),
     };
     let ctx = RunCtx {
-        state: &state,
-        map_id: map_id.clone(),
+        rows: Arc::new(RunRows::Map {
+            state: &state,
+            map_id: map_id.clone(),
+        }),
         run_id: 5,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1247,8 +1253,10 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
         backoff: Duration::from_millis(1),
     };
     let ctx = RunCtx {
-        state: &state,
-        map_id: map_id.clone(),
+        rows: Arc::new(RunRows::Map {
+            state: &state,
+            map_id: map_id.clone(),
+        }),
         run_id: 1,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1395,8 +1403,10 @@ fn engine_throughput_probe() {
             backoff: Duration::from_millis(1),
         };
         let ctx = RunCtx {
-            state: &state,
-            map_id: map_id.clone(),
+            rows: Arc::new(RunRows::Map {
+                state: &state,
+                map_id: map_id.clone(),
+            }),
             run_id: 1,
             force: true,
             cancel: Arc::new(AtomicBool::new(false)),
@@ -2014,4 +2024,64 @@ fn a_collect_provider_never_validates_its_answers_as_patches() {
 
     let pages = delivered(&h);
     assert_eq!(pages[0].entries[0].json, r#"{"state":3,"why":"nope"}"#);
+}
+
+// -----------------------------------------------------------------------
+// Rows handed in
+// -----------------------------------------------------------------------
+
+#[test]
+fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone() {
+    let (state, map_id) = setup(&[loc(1, 1.0, 0.0)]);
+    let mut a = decl("a", BatchMode::PerRow);
+    a.fields = vec!["x".into()];
+    let mut b = decl("b", BatchMode::PerRow);
+    b.fields = vec!["y".into()];
+    b.requires = vec!["x".into()];
+    // One mock serves both: it writes `y` to a row that already carries `x`, else `x`.
+    let h = Harness::map_only(Arc::new(|rows: &[Location]| {
+        Ok(rows
+            .iter()
+            .map(|r| PatchEntry {
+                id: r.id,
+                patch: if r
+                    .extra
+                    .as_ref()
+                    .is_some_and(|e| e.as_str().contains("\"x\""))
+                {
+                    r#"{"extra":{"y":2}}"#.into()
+                } else {
+                    r#"{"extra":{"x":1}}"#.into()
+                },
+            })
+            .collect())
+    }));
+    let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]));
+    let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
+    let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
+    run_all(
+        &rows,
+        &[b, a],
+        false,
+        99,
+        &h.cancel,
+        &h.deps,
+        &progress,
+        &results,
+    );
+
+    let out = rows
+        .with_store(|store| Ok(store.collect(&Selector::Everything)))
+        .unwrap();
+    assert_eq!(out.len(), 2);
+    for row in &out {
+        let extra: serde_json::Value =
+            serde_json::from_str(row.extra.as_ref().unwrap().as_str()).unwrap();
+        assert_eq!(extra, serde_json::json!({"x": 1, "y": 2}));
+    }
+    assert_eq!(
+        *h.seen.lock().unwrap(),
+        vec![vec![1], vec![2], vec![1], vec![2]]
+    );
+    assert_eq!(read_extra(&state, &map_id, 1), None);
 }

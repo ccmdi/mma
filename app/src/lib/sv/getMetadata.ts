@@ -185,45 +185,19 @@ export function cameraFrame(p: Pano): CameraFrame {
 	return { heading, pitch: pitch * Math.cos(((heading - (p.pov?.roll ?? 0)) * Math.PI) / 180) };
 }
 
-/** How a pano becomes `extra` fields, one derivation per key. The keys are the Rust
- *  field table's, so the filter, the enrichment picker and this projection agree by
- *  construction; the svMeta provider offers exactly these. */
-export const SVMETA = {
-	altitude: (p) => p.altitude,
-	countryCode: (p) => p.countryCode,
-	cameraType: (p) => detectCameraType(p),
-	panoType: (p) => p.panoFrontend,
-	// Capture-time driving direction in degrees, per Google.
-	drivingDirection: (p) => (p.pov ? centerHeading(p) : null),
-	uploaderName: (p) => p.uploaderName,
-	// `YYYY-MM`; null when the pano carries no date.
-	imageDate: (p) => imageDateOf(p) || null,
-	coverageDates: (p) => coverageDates(p),
-} satisfies Partial<Record<(typeof KNOWN_FIELDS)[number]["key"], (p: Pano) => unknown>>;
-
-/** Only to declare what the svMeta provider produces. */
-export const SVMETA_FIELDS = Object.keys(SVMETA) as (keyof typeof SVMETA)[];
-
-/** The `extra` merge patch a pano writes onto a row carrying `extra`: `SVMETA`
- *  narrowed to `fields` (null = all), plus nulls for `datetime` and `timezone` when the
- *  row holds an exact date for a different capture month. Those nulls bypass the field
- *  narrowing: a stale exact date is wrong whether or not the run asked for one. An absent
- *  `extra.imageDate` counts as a different month. */
-export function metadataPatch(
-	p: Pano,
-	extra: Record<string, unknown> | null,
-	fields: ReadonlySet<string> | null,
-): Record<string, unknown> {
-	const patch: Record<string, unknown> = {};
-	for (const [key, derive] of Object.entries(SVMETA)) {
-		if (fields === null || fields.has(key)) patch[key] = derive(p);
-	}
-	if (extra?.datetime != null && extra.imageDate !== (imageDateOf(p) || null)) {
-		patch.datetime = null;
-		patch.timezone = null;
-	}
-	return patch;
-}
+/** The `extra` fields the svMeta provider produces. Keys of the Rust field table, so
+ *  the filter, the enrichment picker and the provider's derivation agree by
+ *  construction. */
+export const SVMETA_FIELDS = [
+	"altitude",
+	"countryCode",
+	"cameraType",
+	"panoType",
+	"drivingDirection",
+	"uploaderName",
+	"imageDate",
+	"coverageDates",
+] as const satisfies readonly (typeof KNOWN_FIELDS)[number]["key"][];
 
 // --- camera type ---
 

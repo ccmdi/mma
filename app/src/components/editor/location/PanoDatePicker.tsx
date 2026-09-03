@@ -6,6 +6,7 @@ import type { Pano } from "@/types";
 import { useCameraType, type FullCameraType } from "./useCameraType";
 import { usePanoViewer, usePanoDates, viewerPosition } from "./PanoViewerContext";
 import { useMapState } from "@/store/useMapStore";
+import { isFieldEnabled } from "@/lib/data/fieldDefs";
 import { useTimezone } from "@/lib/util/timezone";
 import { NSelect } from "@/components/primitives/NSelect";
 import { getLocale, t } from "@/lib/i18n";
@@ -53,9 +54,17 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 }: {
 	onChange: (panoId: string | null) => void;
 }) {
-	const { pano, exactDate } = usePanoViewer();
+	const { draft, meta, enriching } = usePanoViewer();
+	const exactTs = (draft?.extra?.datetime as number | undefined) ?? null;
 	const location = useMapState((s) => s.activeLocation);
-	const { defaultEntry, sorted, currentEntry, isDefault, displayDate, triggerPanoId } =
+	const enrichFields = useMapState((s) => s.map?.settings.enrichFields ?? null);
+	// An exact date is on its way: the field is on, and what the draft holds is not this pano's yet.
+	const resolvingExact =
+		enriching &&
+		isFieldEnabled(enrichFields, "datetime") &&
+		(exactTs == null || draft?.panoId !== location?.panoId);
+
+  const { defaultEntry, sorted, currentEntry, isDefault, displayDate, triggerPanoId } =
 		usePanoDates();
 	const displayLabel = displayDate
 		? isDefault
@@ -74,13 +83,13 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const showBadges = useSetting("showCameraBadges");
 	const exactDateFormat = useSetting("exactDateFormat");
 	const dateTimezone = useSetting("dateTimezone");
-	const { lat, lng } = viewerPosition(pano, location);
+	const { lat, lng } = viewerPosition(draft, location);
 	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
-	const triggerCameraType = useCameraType(triggerPanoId, pano);
+	const triggerCameraType = useCameraType(triggerPanoId, meta);
 	const tzOption = dateTimezone === "utc" ? "UTC" : (resolvedTz ?? undefined);
-	const exactLabel = exactDate.ts
+	const exactLabel = exactTs
 		? exactDateFormat === "datetime"
-			? new Date(exactDate.ts * 1000).toLocaleString(getLocale(), {
+			? new Date(exactTs * 1000).toLocaleString(getLocale(), {
 					year: "numeric",
 					month: "short",
 					day: "numeric",
@@ -88,7 +97,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 					minute: "2-digit",
 					timeZone: tzOption,
 				})
-			: new Date(exactDate.ts * 1000).toLocaleDateString(getLocale(), {
+			: new Date(exactTs * 1000).toLocaleDateString(getLocale(), {
 					year: "numeric",
 					month: "short",
 					day: "numeric",
@@ -119,9 +128,9 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 		>
 			<button type="button" className="pano-date-select__trigger">
 				<span className="pano-value">
-					{exactDate.loading ? displayLabel : (exactLabel ?? displayLabel)}
+					{resolvingExact ? displayLabel : (exactLabel ?? displayLabel)}
 					<span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-						{exactDate.loading && <span className="badge">...</span>}
+						{resolvingExact && <span className="badge">...</span>}
 						{(triggerCameraType === "unofficial" || showBadges) && (
 							<PanoBadge cameraType={triggerCameraType} />
 						)}

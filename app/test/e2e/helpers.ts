@@ -262,6 +262,14 @@ export async function waitForDates(timeout = 30_000) {
 	);
 }
 
+/** Save the open location: the draft, once its enrichment has answered, reaches the store
+ *  and the preview closes. */
+export async function saveLocation() {
+	const btn = await browser.$("[data-qa='location-save']");
+	await btn.waitForExist({ timeout: 5000 });
+	await btn.click();
+}
+
 export async function waitForPreview() {
 	const el = await browser.$(".location-preview");
 	await el.waitForExist({ timeout: 5000 });

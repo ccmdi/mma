@@ -217,27 +217,3 @@ test("a non-2xx response fails the row instead of reading as no coverage", () =>
 	assert.deepEqual(failed, [51]);
 	assert.ok(calls.length >= 2);
 });
-
-test("query resolves one point, answering null when it is not a candidate", () => {
-	const hidden = Date.UTC(2021, 5, 15, 12, 34, 56) / 1000;
-	install(coverage(hidden));
-	const found = bundle.query({ op: "resolve", lat: 1, lng: 2, imageDate: YM });
-	assert.ok(Math.abs(found - hidden) <= 1, `hidden ${hidden}, found ${found}`);
-
-	const state = install(() => NO_IMAGES);
-	assert.equal(bundle.query({ op: "resolve", lat: 1, lng: 2, imageDate: YM }), null);
-	assert.equal(state.calls.length, 1);
-	// A query reports nothing: `fail` and `progress` belong to a run's row accounting.
-	assert.deepEqual(state.failed, []);
-	assert.equal(state.progress, 0);
-
-	install(() => FOUND);
-	assert.throws(
-		() => bundle.query({ op: "label", lat: 1, lng: 2, imageDate: YM }),
-		/unknown query op/,
-	);
-	assert.throws(
-		() => bundle.query({ op: "resolve", lat: 1, lng: 2, imageDate: "2021-13" }),
-		/bad imageDate/,
-	);
-});

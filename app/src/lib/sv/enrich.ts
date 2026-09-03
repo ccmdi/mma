@@ -1,7 +1,6 @@
-import { svMetadata } from "@/lib/sv/query";
-import { createFieldDef, type Pano } from "@/types";
-import { metadataPatch, SVMETA_FIELDS } from "@/lib/sv/getMetadata";
-import { getMapState, updateLocations } from "@/store/useMapStore";
+import { createFieldDef } from "@/types";
+import { SVMETA_FIELDS } from "@/lib/sv/getMetadata";
+import { getMapState } from "@/store/useMapStore";
 import {
 	getAllEnrichKeys,
 	getProviders,
@@ -36,37 +35,20 @@ export function needsEnrichment(loc: Location, enrichFields?: string[]): boolean
 	return fields.some((key) => loc.extra?.[key] == null);
 }
 
-/** Enrich a single location (used on pano load). `data` is the answer the caller
- *  already has from the `metadata` query; without one this fetches it. The patch is the
- *  same one the svMeta procedure writes in a run. */
-export async function enrich(loc: Location, data?: Pano | null): Promise<boolean> {
-	if (!data) {
-		if (!loc.panoId) return false;
-		[data] = await svMetadata([loc.panoId]);
-		if (!data) return false;
-	}
+/** One location as enrichment leaves it: every field-producing provider, narrowed to
+ *  the map's enabled keys, run over that row alone. A field the row already holds is
+ *  not derived again unless `force`, which re-derives every field the providers own.
+ *  Nothing is written; the caller holds the result. The row comes back untouched when
+ *  the map's enrichment is off. */
+export async function enrich(
+	loc: Location,
+	opts: Pick<RunOpts, "signal" | "force"> = {},
+): Promise<Location> {
 	const map = getMapState().map;
-	if (!map || !map.settings.enrichMetadata) return false;
-	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
-
-	const patch = Object.fromEntries(
-		Object.entries(metadataPatch(data, loc.extra, new Set(enrichFields))).filter(
-			([key, value]) => JSON.stringify(loc.extra?.[key] ?? null) !== JSON.stringify(value),
-		),
-	);
-	if (Object.keys(patch).length > 0) {
-		await updateLocations([{ id: loc.id, patch: { extra: patch } }], { undoable: false });
-	} else if (!needsEnrichment(loc, enrichFields)) {
-		return true;
-	}
-
-	// svMeta is excluded: its fields are the answer this was handed.
-	await runProviders(enrichRuns(enrichFields, ["svMeta"]), {
-		type: "Locations",
-		locations: [loc.id],
-		name: null,
-	});
-	return true;
+	if (!map || !map.settings.enrichMetadata) return loc;
+	const runs = enrichRuns(map.settings.enrichFields ?? getDefaultEnrichKeys());
+	const { rows } = await runProviders(runs, [loc], opts);
+	return rows[0];
 }
 
 /** The field-producing providers as enrichment runs them, each narrowed to the keys the

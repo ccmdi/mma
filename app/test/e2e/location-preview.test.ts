@@ -22,6 +22,7 @@ import {
 	waitForPreview,
 	waitForReady,
 	waitForSave,
+	saveLocation,
 	waitForWorkArea,
 	withApi,
 } from "./helpers";
@@ -207,6 +208,7 @@ describe("LocationPreview — official pano", () => {
 		await openLocation(offDefaultId);
 		await waitForDates();
 		await selectPanoOption(0);
+		await saveLocation();
 		await waitForFlag(offDefaultId, LocationFlag.LoadAsPanoId);
 		const l = await readLocation(offDefaultId);
 		const flags = l?.flags ?? -1;
@@ -216,11 +218,15 @@ describe("LocationPreview — official pano", () => {
 	it("selecting Default clears LoadAsPanoId flag", async () => {
 		await openLocation(offDefaultId);
 		await waitForDates();
-		// first select a specific date
+		// first select a specific date and save it
 		await selectPanoOption(0);
+		await saveLocation();
 		await waitForFlag(offDefaultId, LocationFlag.LoadAsPanoId);
-		// now select Default
+		// now select Default and save that
+		await openLocation(offDefaultId);
+		await waitForDates();
 		await selectPanoValue("default");
+		await saveLocation();
 		await waitForFlag(offDefaultId, LocationFlag.LoadAsPanoId, false);
 		const l = await readLocation(offDefaultId);
 		const flags = l?.flags ?? -1;
@@ -661,6 +667,7 @@ describe("LocationPreview — exact date resolution", () => {
 	it("exact date enriches location extra with datetime", async () => {
 		await openLocation(exact1Id);
 		await waitForDates();
+		await saveLocation();
 
 		await browser.waitUntil(
 			async () => {
@@ -778,13 +785,16 @@ describe("LocationPreview — return to spawn", () => {
 
 		// Select a specific date first
 		await selectPanoOption(0);
-		await waitForFlag(spawn1Id, LocationFlag.LoadAsPanoId);
+		const label = await browser.$(".location-preview__date .pano-value");
+		await browser.waitUntil(async () => !(await label.getText()).includes("Default"), {
+			timeout: 5000,
+			timeoutMsg: "date picker never left Default",
+		});
 
 		// Press 'r' to return to spawn
 		await browser.keys("r");
 
 		// The date picker should show "Default" again
-		const label = await browser.$(".location-preview__date .pano-value");
 		await browser.waitUntil(async () => (await label.getText()).includes("Default"), {
 			timeout: 5000,
 			timeoutMsg: "date picker never returned to Default",
@@ -826,8 +836,9 @@ describe("LocationPreview — next/prev date hotkeys", () => {
 			{ timeout: PANO_TIMEOUT, timeoutMsg: "Need multiple dates to test hotkey" },
 		);
 
-		// Press ] to cycle to next date
+		// Press ] to cycle to next date, then save
 		await browser.keys("]");
+		await saveLocation();
 		await waitForFlag(hotkeyDatesId, LocationFlag.LoadAsPanoId);
 
 		// LocationFlag.LoadAsPanoId should now be set (date was explicitly selected via hotkey)
@@ -847,8 +858,9 @@ describe("LocationPreview — next/prev date hotkeys", () => {
 			{ timeout: PANO_TIMEOUT },
 		);
 
-		// Press [ to cycle to prev date
+		// Press [ to cycle to prev date, then save
 		await browser.keys("[");
+		await saveLocation();
 		await waitForFlag(hotkeyDatesId, LocationFlag.LoadAsPanoId);
 
 		const l = await readLocation(hotkeyDatesId);
@@ -1473,6 +1485,7 @@ describe("LocationPreview — edge cases", () => {
 	it("enrichment merges with existing extra, does not overwrite custom fields", async () => {
 		await openLocation(edgeExtraId);
 		await waitForDates();
+		await saveLocation();
 
 		// Wait for metadata enrichment to run
 		await browser.waitUntil(
@@ -1490,5 +1503,118 @@ describe("LocationPreview — edge cases", () => {
 		expect(l.extra.customField).toBe("preserve-me");
 		// Altitude should be updated by enrichment (overrides our fake 999)
 		expect(typeof l.extra.altitude).toBe("number");
+	});
+});
+
+// ============================================================================
+// The draft: nothing reaches the row before Save, Close discards, Default is the
+// position's resolved pano. The stub's earlier captures are `<pano>~i`, dated at the
+// parent's earlier dates, so selecting one is a real pano change.
+// ============================================================================
+
+describe("LocationPreview — the draft", () => {
+	useMap("E2E LP Draft", { closeLocation: true });
+	const OLDEST = `${OFFICIAL_PANO}~0`; // 2012-08
+	let walkId: number;
+	let discardId: number;
+
+	/** Text of every readout line the metadata control shows. */
+	const readout = () =>
+		browser.execute(() =>
+			[...document.querySelectorAll("[data-position='top-left'] .map-control")]
+				.map((el) => el.textContent ?? "")
+				.join("\n"),
+		);
+	/** Wait for the readout to match, naming what it last showed when it never does. */
+	const waitForReadout = async (re: RegExp) => {
+		let last = "";
+		await browser.waitUntil(
+			async () => {
+				last = await readout();
+				return re.test(last);
+			},
+			{ timeout: PANO_TIMEOUT, timeoutMsg: `readout never matched ${re}; last: ${last}` },
+		).catch((e: Error) => {
+			throw new Error(`${e.message}; last: ${JSON.stringify(last)}`);
+		});
+	};
+	const defaultOptionLabel = () =>
+		browser.execute(() => {
+			const opts = document.querySelectorAll<HTMLOptionElement>(
+				".location-preview__date .pano-option",
+			);
+			return [...opts].find((o) => o.value === "default")?.textContent ?? "";
+		});
+
+	before(async () => {
+		await updateMapSettings({ enrichMetadata: true, enrichFields: undefined });
+		await withApi(async (api) => api.setSetting("showPanoMetadata", true));
+		const ids = await addLocs([
+			loc({ lat: OFFICIAL_COORDS.lat, lng: OFFICIAL_COORDS.lng, panoId: OFFICIAL_PANO }),
+			loc({ lat: OFFICIAL_COORDS.lat, lng: OFFICIAL_COORDS.lng, panoId: OFFICIAL_PANO }),
+		]);
+		walkId = ids[0];
+		discardId = ids[1];
+	});
+	afterEach(async () => {
+		await closeLocation();
+	});
+
+	it("opening and saving keeps the stored pano and writes its fields", async () => {
+		await openLocation(walkId);
+		await waitForDates();
+		await saveLocation();
+		await waitForSave(walkId, (l) => l.extra?.imageDate != null);
+		const l = await readLocation(walkId);
+		expect(l.panoId).toBe(OFFICIAL_PANO);
+		expect(l.flags & LocationFlag.LoadAsPanoId).toBe(0);
+		expect(l.extra.imageDate).toBe("2021-09");
+	});
+
+	it("an older capture shows in the draft's readout and picker before anything is saved", async () => {
+		await openLocation(walkId);
+		await waitForDates();
+		await selectPanoOption(0);
+		await waitForReadout(/2012/);
+		// The Default entry is still the position's resolved pano, not the pano on screen.
+		expect(await defaultOptionLabel()).toMatch(/2021/);
+		const l = await readLocation(walkId);
+		expect(l.panoId).toBe(OFFICIAL_PANO);
+		expect(l.extra.imageDate).toBe("2021-09");
+	});
+
+	it("saving after moving to an older capture writes that pano, pinned, with its own fields", async () => {
+		await openLocation(walkId);
+		await waitForDates();
+		await selectPanoOption(0);
+		await saveLocation();
+		await waitForSave(walkId, (l) => l.panoId === OLDEST);
+		const l = await readLocation(walkId);
+		expect(l.flags & LocationFlag.LoadAsPanoId).toBe(LocationFlag.LoadAsPanoId);
+		expect(l.extra.imageDate).toBe("2012-08");
+		expect(l.extra.countryCode).toBeTruthy();
+	});
+
+	it("Default after an older capture returns to the position's pano and saves unpinned", async () => {
+		await openLocation(walkId);
+		await waitForDates();
+		await selectPanoValue("default");
+		await saveLocation();
+		await waitForSave(walkId, (l) => l.panoId === OFFICIAL_PANO);
+		const l = await readLocation(walkId);
+		expect(l.flags & LocationFlag.LoadAsPanoId).toBe(0);
+		expect(l.extra.imageDate).toBe("2021-09");
+	});
+
+	it("closing without saving discards a moved draft", async () => {
+		await openLocation(discardId);
+		await waitForDates();
+		await selectPanoOption(0);
+		await waitForReadout(/2012/);
+		await closeLocation();
+		const l = await readLocation(discardId);
+		expect(l.panoId).toBe(OFFICIAL_PANO);
+		expect(l.flags & LocationFlag.LoadAsPanoId).toBe(0);
+		expect(l.extra?.imageDate ?? null).toBeNull();
 	});
 });

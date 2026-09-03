@@ -5,24 +5,27 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // (from fieldDefs.add) is kept -- the bug lived in its interaction.
 const h = vi.hoisted(() => ({
 	enrichFields: null as string[] | null,
-	written: [] as Record<string, unknown>[],
+	enrichMetadata: true,
+	ran: [] as [string, string[]][],
 	runs: 0,
 }));
 
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({
-		map: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } },
+		map: { settings: { enrichMetadata: h.enrichMetadata, enrichFields: h.enrichFields } },
 	}),
-	updateLocations: async (updates: { patch: { extra: Record<string, unknown> } }[]) => {
-		for (const u of updates) h.written.push(u.patch.extra);
-	},
 }));
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 vi.mock("@/lib/data/procedures", () => ({
 	procedureEntry: (name: string) => `res://procedures/${name}.js`,
-	runProviders: async () => {
+	runProviders: async (items: { provider: { id: string }; fields?: string[] }[], rows: unknown) => {
 		h.runs++;
-		return {};
+		h.ran = items.map((i) => [i.provider.id, i.fields ?? []]);
+		if (!Array.isArray(rows)) return {};
+		return {
+			rows: (rows as Location[]).map((r) => ({ ...r, extra: { ...r.extra, enriched: true } })),
+			failed: {},
+		};
 	},
 }));
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => "America/New_York" }));
@@ -45,126 +48,44 @@ import {
 	svMetaProvider,
 	timezoneProvider,
 } from "@/lib/sv/enrich";
-import { getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { createLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
-import type { Pano } from "@/types";
-
-/** The `metadata` query's answer for a pano: one decoded image, nothing derived. */
-function answer(imageDate: string | null, over: Partial<Pano> = {}): Pano {
-	const [y, m] = (imageDate ?? "").split("-");
-	return {
-		pano: "pA",
-		panoFrontend: 2,
-		lat: 1,
-		lng: 2,
-		altitude: 10,
-		pov: null,
-		// 8192 = gen4
-		worldSize: { width: 16384, height: 8192 },
-		tileSize: { width: 512, height: 512 },
-		copyright: "",
-		description: "",
-		shortDescription: "",
-		uploaderName: null,
-		countryCode: "US",
-		levelId: null,
-		links: [],
-		time: [],
-		date: imageDate ? { year: Number(y), month: Number(m), day: 1 } : null,
-		source: null,
-		...over,
-	};
-}
 
 function loc(extra: Record<string, unknown>): Location {
 	return { ...createLocation({ lat: 1, lng: 2 }), extra };
 }
 
-/** The `extra` a single-location enrich wrote, or null when it wrote nothing. */
-async function enrichPatch(
-	data: Pano,
-	location: Location,
-): Promise<Record<string, unknown> | null> {
-	await enrich(location, data);
-	return h.written[0] ?? null;
-}
-
-describe("single-location enrich - stale datetime/timezone clearing", () => {
+describe("enrich", () => {
 	beforeEach(() => {
-		h.written = [];
 		h.enrichFields = null;
+		h.enrichMetadata = true;
+		h.ran = [];
 		h.runs = 0;
 	});
 
-	it("writes nothing and runs no provider when the location already holds every field", async () => {
-		h.enrichFields = ["altitude", "imageDate"];
-		await enrich(loc({ altitude: 10, imageDate: "2023-03" }), answer("2023-03"));
-		expect(h.written).toEqual([]);
-		expect(h.runs).toBe(0);
-	});
-
-	it("writes only the fields whose value differs", async () => {
-		h.enrichFields = ["altitude", "imageDate"];
-		await enrich(loc({ altitude: 10, imageDate: "2022-01" }), answer("2023-03"));
-		expect(h.written).toEqual([{ imageDate: "2023-03" }]);
+	it("runs every field-producing provider over the one row and answers the engine's row", async () => {
+		const out = await enrich(loc({ keep: 1 }));
 		expect(h.runs).toBe(1);
+		expect(h.ran.map(([id]) => id)).toEqual(["svMeta", "exactDate", "timezone", "subdivision"]);
+		expect(out.extra).toEqual({ keep: 1, enriched: true });
 	});
 
-	it("clears stale datetime/timezone when imageDate changes, even with datetime enrichment OFF", async () => {
-		// Default enrich set excludes datetime/timezone (opt-in). The clear must still apply.
-		const defaults = getDefaultEnrichKeys();
-		expect(defaults).not.toContain("datetime");
-
-		const patch = (await enrichPatch(
-			answer("2023-03"),
-			loc({ imageDate: "2099-01", datetime: 9999999999, timezone: "Fake/Zone" }),
-		))!;
-
-		expect(patch.imageDate).toBe("2023-03");
-		expect(patch.datetime).toBeNull();
-		expect(patch.timezone).toBeNull();
+	it("narrows each provider to the map's enabled fields", async () => {
+		h.enrichFields = ["altitude", "timezone"];
+		await enrich(loc({}));
+		expect(h.ran).toEqual([
+			["svMeta", ["altitude"]],
+			["exactDate", []],
+			["timezone", ["timezone"]],
+			["subdivision", []],
+		]);
 	});
 
-	it("does NOT add datetime/timezone keys when imageDate is unchanged", async () => {
-		const patch = (await enrichPatch(
-			answer("2099-01"),
-			loc({ imageDate: "2099-01", datetime: 9999999999, timezone: "Fake/Zone" }),
-		))!;
-		expect("datetime" in patch).toBe(false);
-		expect("timezone" in patch).toBe(false);
-	});
-
-	it("does NOT clear when there was no stale datetime to begin with", async () => {
-		const patch = (await enrichPatch(answer("2023-03"), loc({ imageDate: "2099-01" })))!;
-		expect("datetime" in patch).toBe(false);
-	});
-
-	it("still respects the filter for normal enrich keys", async () => {
-		h.enrichFields = ["altitude"];
-		const patch = (await enrichPatch(answer("2023-03"), loc({ imageDate: "2023-03" })))!;
-		expect(patch.altitude).toBe(10);
-		expect("countryCode" in patch).toBe(false); // filtered out
-	});
-
-	it("writes exactly the shared derivation, filtered to the active fields", async () => {
-		h.enrichFields = ["imageDate", "coverageDates"];
-		const data = answer("2023-03", {
-			time: [
-				{ pano: "p0", date: "2019-05-01" },
-				{ pano: "pA", date: "2023-03-01" },
-			],
-		});
-		const patch = (await enrichPatch(data, loc({})))!;
-		expect(patch).toEqual({ imageDate: "2023-03", coverageDates: ["2019-05", "2023-03"] });
-	});
-
-	it("leaves the answer it was handed untouched", async () => {
-		h.enrichFields = ["altitude"];
-		const data = answer("2023-03");
-		const before = JSON.stringify(data);
-		await enrich(loc({ imageDate: "2099-01", datetime: 1 }), data);
-		expect(JSON.stringify(data)).toBe(before);
+	it("hands the row back untouched when the map's enrichment is off", async () => {
+		h.enrichMetadata = false;
+		const row = loc({ keep: 1 });
+		expect(await enrich(row)).toBe(row);
+		expect(h.runs).toBe(0);
 	});
 });
 

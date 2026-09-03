@@ -55,7 +55,7 @@ interface LocationHotkeyDeps {
 }
 
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
-	const { viewer, pano } = usePanoViewer();
+	const { draft, timeline } = usePanoViewer();
 	const location = useMapState((s) => s.activeLocation);
 	const isReviewMode = useReviewSession() !== null;
 	const {
@@ -188,9 +188,9 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (panoId) void downloadPano(panoId);
 	});
 	const stepPanoDate = (step: 1 | -1) => {
-		const panoDates = pano?.nearby ?? [];
+		const panoDates = timeline ?? [];
 		if (!panoDates.length) return;
-		const current = viewer?.viewed ?? location?.panoId ?? null;
+		const current = draft?.panoId ?? location?.panoId ?? null;
 		void handleDateChange(
 			cycle(
 				panoDates.map((d) => d.pano),

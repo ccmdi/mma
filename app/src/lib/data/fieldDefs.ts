@@ -164,3 +164,13 @@ export function getProviderForField(field: string): Provider | undefined {
 export function isFieldEnabled(enrichFields: string[] | null, key: string): boolean {
 	return (enrichFields ?? getDefaultEnrichKeys()).includes(key);
 }
+
+/** `extra` without every field a provider produces: what a row forgets when the pano it
+ *  was derived from changes, for enrichment to derive again. */
+export function withoutProvided(
+	extra: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+	if (!extra) return extra;
+	const provided = new Set(getProviders().flatMap((p) => Object.keys(p.fieldDefs ?? {})));
+	return Object.fromEntries(Object.entries(extra).filter(([key]) => !provided.has(key)));
+}

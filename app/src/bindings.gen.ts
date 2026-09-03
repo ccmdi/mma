@@ -501,6 +501,12 @@ export const commands = {
 	 *  on a background thread and reports through `procedure-progress`.
 	 */
 	procedureRun: (providers: ProviderDecl[], force: boolean) => __TAURI_INVOKE<number>("procedure_run", { providers, force }),
+	/**
+	 *  Run providers over rows the caller hands in and answer with the rows as they are
+	 *  afterwards. Same waves and gates as a run over the map, in a store of the rows' own,
+	 *  so nothing reaches the open map. `cancel` is a token for `procedure_query_cancel`.
+	 */
+	procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], cancel: number | null) => __TAURI_INVOKE<RowsRun>("procedure_run_rows", { providers, force, rows: rows.map(i=>i), cancel }).then((v) => (({...v,rows:v.rows.map(i=>i)}) as typeof v)),
 	/**  Stop a run before its next batch. Already-applied patches stay applied. */
 	procedureCancel: (runId: number) => __TAURI_INVOKE<null>("procedure_cancel", { runId }),
 	/**
@@ -1457,6 +1463,12 @@ export type ReviewUpdate = {
  *  variants carry the same rows, and callers take whichever arrives.
  */
 export type Rows = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
+
+/**  Rows after a run over them, and the ids each provider failed. */
+export type RowsRun = {
+	rows: Location[],
+	failed: { [key in string]: number[] },
+};
 
 /**  Result of `store_save_dirty`: bytes written to the delta sidecar (0 = skipped). */
 export type SaveResult = {
