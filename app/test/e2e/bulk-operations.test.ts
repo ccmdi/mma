@@ -136,13 +136,13 @@ describe("Bulk operations -- bulkPinToPano", () => {
 		locIds = await addLocs(locs);
 	});
 	it("pins unpinned locations and resolves panoId from coords", async () => {
-		const count = await withApi(async (api) => {
+		const outcome = await withApi(async (api) => {
 			return await api.bulkPinToPano({ type: "Everything" });
 		});
 
 		// pin-1 (no pano) and pin-2 (has pano, not pinned) should be pinned
 		// pin-3 is already pinned
-		expect(count).toBe(2);
+		expect(outcome).toEqual({ succeeded: 2, failed: [] });
 
 		const l1 = await getLoc(locIds[0]);
 		expect(l1.panoId).toBeTruthy();
@@ -153,19 +153,19 @@ describe("Bulk operations -- bulkPinToPano", () => {
 	});
 
 	it("skips already-pinned locations without force", async () => {
-		const count = await withApi(async (api) => {
+		const outcome = await withApi(async (api) => {
 			return await api.bulkPinToPano({ type: "Everything" });
 		});
 
-		expect(count).toBe(0);
+		expect(outcome).toEqual({ succeeded: 0, failed: [] });
 	});
 
 	it("re-pins all with force", async () => {
-		const count = await withApi(async (api) => {
+		const outcome = await withApi(async (api) => {
 			return await api.bulkPinToPano({ type: "Everything" }, { force: true });
 		});
 
-		expect(count).toBe(3);
+		expect(outcome).toEqual({ succeeded: 3, failed: [] });
 	});
 });
 
@@ -253,6 +253,8 @@ describe("Bulk operations -- cancel preserves progress", () => {
 						entry: api._test.procedureEntry("timezone"),
 						batch: { mode: "chunk", size: 10000 },
 						instances: 1,
+						// Paced, so the run outlasts the round trip of its first progress report.
+						rate: { units: 10000, perMs: 500, cost: "row" },
 					},
 					{ type: "Everything" },
 					{

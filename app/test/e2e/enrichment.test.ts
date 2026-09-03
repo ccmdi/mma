@@ -321,22 +321,14 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 
 	it("does not clobber user-customized field defs", async () => {
 		// Manually set countryCode to a custom type
-		await withApi(async (api) => {
+		const countryCode = createFieldDef("enum", { label: "My Custom Country", values: ["US", "RU"] });
+		await withApi(async (api, countryCode) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
 			await api.updateMapMeta({
-				extra: {
-					...api.getMapState().map!.extra,
-					fields: {
-						...cur,
-						countryCode: createFieldDef("enum", {
-							label: "My Custom Country",
-							values: ["US", "RU"],
-						}),
-					},
-				},
+				extra: { ...api.getMapState().map!.extra, fields: { ...cur, countryCode } },
 			});
 			return "ok";
-		});
+		}, countryCode);
 
 		// Clear extra and re-enrich
 		const defLoc = await readLocation(defsAutoId);
@@ -512,14 +504,11 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 		// a provider registered from a test lives for the rest of the app session. Pinning
 		// `select` to these ids is what keeps it off every other suite's locations.
 		await withApi(
-			async (api, ids, entry) => {
+			async (api, ids, entry, fieldDefs) => {
 				api.registerProvider({
 					id: "e2e-sun",
 					requires: ["datetime"],
-					fieldDefs: {
-						sunAzimuth: createFieldDef("number", { label: "Sun azimuth" }),
-						sunAltitude: createFieldDef("number", { label: "Sun altitude" }),
-					},
+					fieldDefs,
 					procedure: {
 						entry,
 						select: { type: "Locations", locations: ids, name: null },
@@ -530,6 +519,10 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 			},
 			mergeIds,
 			SUN_ENTRY,
+			{
+				sunAzimuth: createFieldDef("number", { label: "Sun azimuth" }),
+				sunAltitude: createFieldDef("number", { label: "Sun altitude" }),
+			},
 		);
 	});
 	afterEach(async () => {
@@ -628,21 +621,18 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 		filterBId = ids[1];
 		filterCId = ids[2];
 		// Register field defs
-		await withApi(async (api) => {
+		const defs = {
+			altitude: createFieldDef("number", { label: "Altitude" }),
+			countryCode: createFieldDef("string", { label: "Country code" }),
+			imageDate: createFieldDef("month", { label: "Image date" }),
+		};
+		await withApi(async (api, defs) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
 			await api.updateMapMeta({
-				extra: {
-					...api.getMapState().map!.extra,
-					fields: {
-						...cur,
-						altitude: createFieldDef("number", { label: "Altitude" }),
-						countryCode: createFieldDef("string", { label: "Country code" }),
-						imageDate: createFieldDef("month", { label: "Image date" }),
-					},
-				},
+				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
 			});
 			return "ok";
-		});
+		}, defs);
 	});
 	it("numeric filter (altitude > 75) selects correct locations", async () => {
 		await withApi(async (api) => {

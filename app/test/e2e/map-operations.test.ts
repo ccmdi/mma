@@ -243,20 +243,17 @@ describe("Extra field definitions", () => {
 	const map = useMap("E2E Extra Fields");
 
 	it("set extra field definitions on map", async () => {
-		await withApi(async (api) => {
+		const defs = {
+			altitude: createFieldDef("number", { label: "Altitude (m)" }),
+			country: createFieldDef("string", { label: "Country" }),
+			region: createFieldDef("enum", { label: "Region", values: ["NA", "EU", "AS"] }),
+		};
+		await withApi(async (api, defs) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
 			await api.updateMapMeta({
-				extra: {
-					...api.getMapState().map!.extra,
-					fields: {
-						...cur,
-						altitude: createFieldDef("number", { label: "Altitude (m)" }),
-						country: createFieldDef("string", { label: "Country" }),
-						region: createFieldDef("enum", { label: "Region", values: ["NA", "EU", "AS"] }),
-					},
-				},
+				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
 			});
-		});
+		}, defs);
 
 		const extra = await withApi(async (api) => api.getMapState().map?.extra);
 		expect(extra!.fields!.altitude.type).toBe("number");
@@ -355,15 +352,13 @@ describe("Extra field definitions", () => {
 
 	it("does not re-register already known keys", async () => {
 		// Explicitly register with a custom label
-		await withApi(async (api) => {
+		const score = createFieldDef("number", { label: "My Score" });
+		await withApi(async (api, score) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
 			await api.updateMapMeta({
-				extra: {
-					...api.getMapState().map!.extra,
-					fields: { ...cur, score: createFieldDef("number", { label: "My Score" }) },
-				},
+				extra: { ...api.getMapState().map!.extra, fields: { ...cur, score } },
 			});
-		});
+		}, score);
 
 		// Add a location with the same key — should not overwrite the custom def
 		await withApi(async (api) => {

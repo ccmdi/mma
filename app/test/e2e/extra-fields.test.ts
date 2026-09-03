@@ -14,19 +14,16 @@ describe("Extra field definitions", () => {
 	const map = useMap("E2E Extra Fields");
 
 	it("registers field definitions that persist after reopen", async () => {
-		await withApi(async (api) => {
+		const defs = {
+			altitude: createFieldDef("number", { label: "Altitude" }),
+			country: createFieldDef("string", { label: "Country" }),
+		};
+		await withApi(async (api, defs) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
 			await api.updateMapMeta({
-				extra: {
-					...api.getMapState().map!.extra,
-					fields: {
-						...cur,
-						altitude: createFieldDef("number", { label: "Altitude" }),
-						country: createFieldDef("string", { label: "Country" }),
-					},
-				},
+				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
 			});
-		});
+		}, defs);
 
 		await flushAndWait();
 		await closeMap();
