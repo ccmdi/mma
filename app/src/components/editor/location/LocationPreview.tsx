@@ -60,6 +60,7 @@ import { PanoControls, CrosshairOverlay, sendHideCar } from "./PanoControls";
 import { seenPanoChanged, seenFlush, seenUpdateGeo } from "@/lib/seen/seen";
 import { useReverseGeocode, type GeoDisplay } from "@/components/editor/location/useReverseGeocode";
 import { usePanoViewer } from "./PanoViewerContext";
+import { enrich } from "@/lib/sv/enrich";
 import {
 	usePanoFullscreen,
 	togglePanoFullscreen,
@@ -398,23 +399,27 @@ export function LocationPreview() {
 		}
 
 		const panoChanged = savedPanoId !== location.panoId;
-		void updateLocations([
+		const saved = updateLocations([
 			{
 				id: location.id,
 				patch: {
 					...live,
 					panoId: savedPanoId,
 					tags: (await createTags(pendingTags)).map((t) => t.id),
-					extra: panoChanged ? {} : location.extra,
 				},
 			},
 		]);
+		if (panoChanged) {
+			// The location closes with the save, so the viewer cannot enrich the moved pano.
+			const moved = { ...location, panoId: savedPanoId };
+			void saved.then(() => enrich(moved, pano?.pano === savedPanoId ? pano : undefined));
+		}
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
 			void setActiveLocation(null);
 		}
-	}, [location, isReviewMode, reviewSession, pendingTags]);
+	}, [location, isReviewMode, reviewSession, pendingTags, pano]);
 
 	const handleClose = useCallback(() => {
 		if (exitPanoFullscreen()) return;

@@ -118,8 +118,8 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	);
 
 	// A location's extra describes its own pano, never the one being walked through: the
-	// viewed metadata reaches the store only while the two coincide, which is on open and
-	// again after a save moves the stored pano.
+	// viewed metadata reaches the store only while the two coincide, which is on open. A
+	// save that moves the stored pano re-enriches on its own.
 	const own = locationPano(viewer, location);
 	const locationMeta = pano && pano.pano === own ? pano : null;
 	useEffect(() => {
