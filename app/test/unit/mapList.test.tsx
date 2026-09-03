@@ -62,6 +62,5 @@ describe("reserved maps", () => {
 		// A user map merely named "scratch" is theirs, with a name and settings of its own.
 		expect(isReservedMap("some-uuid")).toBe(false);
 		expect(isReservedMap(null)).toBe(false);
-		expect(isReservedMap(undefined)).toBe(false);
 	});
 });

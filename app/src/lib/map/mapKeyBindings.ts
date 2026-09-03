@@ -94,7 +94,7 @@ export function withMapCopyBinding(
 export function mergedKeyBindings(
 	mapBindings: MapKeyBinding[],
 	globalBindings: MapKeyBinding[],
-	currentMapId: string | null | undefined,
+	currentMapId: string | null,
 ): MapKeyBinding[] {
 	const applicable = globalBindings.filter(
 		(b) => !(b.action.type === "copyToMap" && b.action.mapId === currentMapId),

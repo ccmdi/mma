@@ -160,7 +160,7 @@ export function coverageDates(p: Pano): string[] {
 /** The capture history to show for a pano: its own stack merged with the stacks of the panos
  *  beside it, since a partly-official stack carries only part of the history. Entries are
  *  keyed by pano id and later sources win, so pass the pano itself last. */
-export function mergeTimelines(sources: (Pano | null | undefined)[]): Pano["time"] {
+export function mergeTimelines(sources: (Pano | null)[]): Pano["time"] {
 	const merged = new Map<string, Pano["time"][number]>();
 	for (const p of sources) for (const t of p?.time ?? []) merged.set(t.pano, t);
 	return [...merged.values()];
@@ -211,7 +211,7 @@ export const SVMETA_FIELDS = Object.keys(SVMETA) as (keyof typeof SVMETA)[];
  *  `extra.imageDate` counts as a different month. */
 export function metadataPatch(
 	p: Pano,
-	extra: Record<string, unknown> | null | undefined,
+	extra: Record<string, unknown> | null,
 	fields: ReadonlySet<string> | null,
 ): Record<string, unknown> {
 	const patch: Record<string, unknown> = {};

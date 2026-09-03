@@ -14,9 +14,9 @@ function getPolygonName(sel: Selection): string {
 	return sel.selector.polygon.properties?.name || t("Unnamed polygon");
 }
 
-function getPolygonCode(sel: Selection): string | undefined {
-	if (sel.selector.type !== "Polygon") return undefined;
-	return sel.selector.polygon.properties?.code;
+function getPolygonCode(sel: Selection): string | null {
+	if (sel.selector.type !== "Polygon") return null;
+	return sel.selector.polygon.properties?.code ?? null;
 }
 
 export function RegionSelector({

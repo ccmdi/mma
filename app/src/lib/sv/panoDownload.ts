@@ -79,7 +79,7 @@ async function fetchPanoTile(
 /** Stitch a panorama's tiles onto a canvas at the given zoom. Null if no tiles loaded. */
 export async function stitchPano(
 	panoId: string,
-	meta: Pano | null | undefined,
+	meta: Pano | null,
 	zoom: number,
 	signal?: AbortSignal,
 ): Promise<HTMLCanvasElement | null> {

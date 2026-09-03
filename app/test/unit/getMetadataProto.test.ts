@@ -188,7 +188,12 @@ describe("derivations over a Pano", () => {
 	// partly-official stack carries only part of the history. Later sources win.
 	it("merges timelines with later sources winning", () => {
 		const a = pano({ time: [{ pano: "x", date: "2011-01-01" }] });
-		const b = pano({ time: [{ pano: "x", date: "2022-06-01" }, { pano: "y", date: "2019-05-01" }] });
+		const b = pano({
+			time: [
+				{ pano: "x", date: "2022-06-01" },
+				{ pano: "y", date: "2019-05-01" },
+			],
+		});
 		expect(mergeTimelines([a, b])).toEqual([
 			{ pano: "x", date: "2022-06-01" },
 			{ pano: "y", date: "2019-05-01" },
@@ -196,8 +201,10 @@ describe("derivations over a Pano", () => {
 	});
 
 	it("skips absent sources rather than failing", () => {
-		expect(mergeTimelines([null, undefined])).toEqual([]);
-		expect(mergeTimelines([null, pano({ time: [{ pano: "x", date: "2020-01-01" }] })])).toHaveLength(1);
+		expect(mergeTimelines([null, null])).toEqual([]);
+		expect(
+			mergeTimelines([null, pano({ time: [{ pano: "x", date: "2020-01-01" }] })]),
+		).toHaveLength(1);
 	});
 
 	it("flags a timeline with no official coverage, which is what triggers the wider search", () => {

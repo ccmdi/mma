@@ -41,7 +41,7 @@ function padBoundsToMin(b: Bounds, minExtent: number): Bounds {
 	return { west, south, east, north };
 }
 
-export function fitMapToBounds(bounds: Bounds | null | undefined, padding = 0, minExtent?: number) {
+export function fitMapToBounds(bounds: Bounds | null, padding = 0, minExtent?: number) {
 	if (!bounds) return;
 	if (minExtent != null) bounds = padBoundsToMin(bounds, minExtent);
 	mapHost?.fitBounds(bounds, padding);

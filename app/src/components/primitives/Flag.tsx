@@ -4,7 +4,7 @@ export function Flag({
 	height = 15,
 	className,
 }: {
-	code: string | null | undefined;
+	code: string | null;
 	height?: number;
 	className?: string;
 }) {

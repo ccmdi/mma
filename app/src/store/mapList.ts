@@ -53,7 +53,7 @@ const RESERVED_MAP_IDS: ReadonlySet<string> = new Set([SCRATCH_MAP_ID]);
 /** A reserved map is an app fixture, not one of the user's: it carries no name, never
  *  appears in the list, and has nothing to configure. Keyed by id, never by name -- the
  *  name is a value the user could type. */
-export function isReservedMap(id: string | null | undefined): boolean {
+export function isReservedMap(id: string | null): boolean {
 	return id != null && RESERVED_MAP_IDS.has(id);
 }
 

@@ -21,13 +21,13 @@ function badgeText(field: FieldDivergence): string {
 	return t("Categorical");
 }
 
-function fmtNum(n: number | null | undefined): string {
+function fmtNum(n: number | null): string {
 	if (n === null || n === undefined || Number.isNaN(n)) return "-";
 	return Math.abs(n) >= 1000 || Number.isInteger(n) ? n.toFixed(0) : n.toFixed(2);
 }
 
 /** Format a numeric summary value back into a readable form for its field type. */
-function fmtVal(n: number | null | undefined, format: ValueFormat): string {
+function fmtVal(n: number | null, format: ValueFormat): string {
 	if (n === null || n === undefined || Number.isNaN(n)) return "-";
 	if (format === "month") {
 		const idx = Math.round(n);

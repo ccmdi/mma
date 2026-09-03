@@ -190,7 +190,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	const stepPanoDate = (step: 1 | -1) => {
 		const panoDates = pano?.nearby ?? [];
 		if (!panoDates.length) return;
-		const current = viewer?.viewed ?? location?.panoId;
+		const current = viewer?.viewed ?? location?.panoId ?? null;
 		void handleDateChange(
 			cycle(
 				panoDates.map((d) => d.pano),

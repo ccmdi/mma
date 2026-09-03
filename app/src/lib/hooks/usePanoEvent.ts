@@ -2,7 +2,7 @@
 import { google } from "@/lib/sv/opensv";
 
 export function usePanoEvent(
-	panorama: google.maps.StreetViewPanorama | null | undefined,
+	panorama: google.maps.StreetViewPanorama | null,
 	event: string,
 	handler: () => void,
 	deps: React.DependencyList = [],

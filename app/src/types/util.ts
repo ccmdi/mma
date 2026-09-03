@@ -95,7 +95,7 @@ export function clamp(val: number, a: Range | number, b?: number): number {
 
 /** Step `step` places through a non-empty list from `current`, wrapping at both ends.
  *  A `current` that isn't in the list behaves as if it sat just before the first item. */
-export function cycle<T>(items: readonly T[], current: T | null | undefined, step = 1): T {
+export function cycle<T>(items: readonly T[], current: T | null, step = 1): T {
 	const n = items.length;
 	return items[(((items.indexOf(current as T) + step) % n) + n) % n];
 }
