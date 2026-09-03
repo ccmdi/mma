@@ -1,7 +1,6 @@
 import { imageDateOf } from "@/lib/sv/getMetadata";
 import { civilToDate, ymFromDate, ymToDate } from "@/lib/util/date";
 import type { Pano } from "@/types";
-import type { ViewerPano } from "./PanoViewerContext";
 
 export interface PanoDateState {
 	defaultEntry: Pano["time"][number] | undefined;
@@ -19,7 +18,7 @@ export interface PanoDateState {
 export function derivePanoDateState(
 	panoDates: Pano["time"],
 	selectedPanoId: string | null,
-	currentPano: ViewerPano | null,
+	currentPano: Pick<Pano, "pano" | "date"> | null,
 	defaultPanoId: string | null,
 ): PanoDateState {
 	const defaultEntry = panoDates.find((d) => d.pano === defaultPanoId);

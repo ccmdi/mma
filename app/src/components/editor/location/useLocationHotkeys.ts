@@ -14,9 +14,7 @@ import { getSettings, setSetting, MOVEMENT_CYCLE, MOVEMENT_MODES } from "@/store
 import { PANO_ZOOM, zoomInStep, zoomOutStep } from "@/lib/sv/constants";
 import { tweenPov } from "@/lib/sv/tweenPov";
 import { nearestLinkHeading, followLinkedPanos } from "@/lib/sv/lookup";
-import type { Pano } from "@/types";
 import { reverseHeading } from "@/lib/geo/geo";
-import type { ViewerPano } from "./PanoViewerContext";
 import { toast } from "@/lib/util/toast";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
@@ -28,6 +26,7 @@ import { registerMapKeyActionHandler } from "@/lib/map/mapKeyBindings";
 import { log } from "@/lib/util/log";
 import { toggleViewportLock } from "@/lib/sv/viewportLock";
 import { sendHideCar } from "./PanoControls";
+import { usePanoViewer } from "./PanoViewerContext";
 import {
 	singletonPano,
 	getPanorama,
@@ -39,9 +38,6 @@ import { google } from "@/lib/sv/opensv";
 interface LocationHotkeyDeps {
 	location: Location | null;
 	isReviewMode: boolean;
-	panoDates: Pano["time"];
-	selectedPanoId: string | null;
-	currentPano: ViewerPano | null;
 	cancelTweenRef: RefObject<(() => void) | null>;
 	pendingTags: string[];
 	setPendingTags: Dispatch<SetStateAction<string[]>>;
@@ -55,12 +51,10 @@ interface LocationHotkeyDeps {
 }
 
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
+	const { viewer, spot } = usePanoViewer();
 	const {
 		location,
 		isReviewMode,
-		panoDates,
-		selectedPanoId,
-		currentPano,
 		cancelTweenRef,
 		pendingTags,
 		setPendingTags,
@@ -173,7 +167,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		const live = capturePano();
 		if (!live) return null;
 		const tags = (await createTags(pendingTags)).map((tag) => tag.id);
-		return dropLocation(location, live, selectedPanoId ?? live.panoId ?? location.panoId, tags);
+		return dropLocation(location, live, live.panoId ?? location.panoId, tags);
 	};
 
 	useHotkey(useBinding("duplicateLocation"), () => {
@@ -190,8 +184,9 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (panoId) void downloadPano(panoId);
 	});
 	const stepPanoDate = (step: 1 | -1) => {
+		const panoDates = spot?.timeline ?? [];
 		if (!panoDates.length) return;
-		const current = selectedPanoId ?? currentPano?.pano ?? location?.panoId;
+		const current = viewer?.viewed ?? location?.panoId;
 		void handleDateChange(
 			cycle(
 				panoDates.map((d) => d.pano),

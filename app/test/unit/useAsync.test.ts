@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { makeLatestGate } from "@/lib/hooks/useAsync";
+import { act, createElement, useState } from "react";
+import { makeLatestGate, useAsync } from "@/lib/hooks/useAsync";
+import { mount } from "./fixtures/harness";
 
 // The stale-result invariant of useAsync: a run's result is applied only if no
 // newer run (changed deps) or cleanup (unmount) has started since.
@@ -31,5 +34,29 @@ describe("makeLatestGate", () => {
 		expect(only()).toBe(true);
 		next();
 		expect(only()).toBe(false);
+	});
+});
+
+describe("useAsync signal", () => {
+	it("aborts a run's signal when newer deps supersede it, and on unmount", async () => {
+		const signals: AbortSignal[] = [];
+		let bump: () => void = () => {};
+		function Probe() {
+			const [dep, setDep] = useState(0);
+			bump = () => setDep((n) => n + 1);
+			useAsync(
+				(signal) => {
+					signals.push(signal);
+					return new Promise<never>(() => {});
+				},
+				[dep],
+			);
+			return null;
+		}
+		const m = mount(createElement(Probe));
+		await act(async () => bump());
+		expect(signals.map((s) => s.aborted)).toEqual([true, false]);
+		m.unmount();
+		expect(signals[1].aborted).toBe(true);
 	});
 });

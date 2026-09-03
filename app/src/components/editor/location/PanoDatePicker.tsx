@@ -4,7 +4,10 @@ import { dateFmt } from "@/lib/util/format";
 import { civilToDate } from "@/lib/util/date";
 import type { Pano } from "@/types";
 import { useCameraType, type FullCameraType } from "./useCameraType";
-import { usePanoViewer } from "./PanoViewerContext";
+import { usePanoViewer, usePanoDates, viewerPosition } from "./PanoViewerContext";
+import { useMapState } from "@/store/useMapStore";
+import { useTimezone } from "@/lib/util/timezone";
+import { hasLoadAsPanoId } from "@/types";
 import { NSelect } from "@/components/primitives/NSelect";
 import { getLocale, t } from "@/lib/i18n";
 
@@ -51,8 +54,10 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 }: {
 	onChange: (panoId: string | null) => void;
 }) {
-	const { selectedPanoId, dateState, exactDate, resolvedTz } = usePanoViewer();
-	const { defaultEntry, sorted, isDefault, displayDate, triggerPanoId } = dateState;
+	const { viewer, spot, exactDate } = usePanoViewer();
+	const location = useMapState((s) => s.activeLocation);
+	const { defaultEntry, sorted, isDefault, displayDate, triggerPanoId } = usePanoDates();
+	const chosen = location && hasLoadAsPanoId(location) ? viewer?.viewed : null;
 	const prevLabelRef = useRef("");
 	const displayLabel = displayDate
 		? isDefault
@@ -72,6 +77,8 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const showBadges = useSetting("showCameraBadges");
 	const exactDateFormat = useSetting("exactDateFormat");
 	const dateTimezone = useSetting("dateTimezone");
+	const { lat, lng } = viewerPosition(spot, location);
+	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
 	const triggerCameraType = useCameraType(triggerPanoId);
 	const tzOption = dateTimezone === "utc" ? "UTC" : (resolvedTz ?? undefined);
 	const exactLabel = exactDate.ts
@@ -106,7 +113,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 		<NSelect
 			className="pano-date-select"
 			data-side="top"
-			value={selectedPanoId ?? "default"}
+			value={chosen ?? "default"}
 			onChange={(e) => {
 				const select = e.currentTarget;
 				handleValueChange(e.target.value);

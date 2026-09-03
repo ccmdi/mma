@@ -13,17 +13,17 @@ function exactDatetime(lat: number, lng: number, imageDate: string): Promise<num
 
 export function useExactDate(
 	panoId: string | null,
+	ownPano: string | null,
 	lat: number,
 	lng: number,
 	yearMonth: string | null,
 	enabled: boolean,
 ) {
-	// Subscribe to the active location reactively so extra.datetime updates
-	// when switching locations. The other deps (panoId, lat, lng, yearMonth)
-	// come from viewer state — which pano in the time slider is being viewed.
+	// The stored datetime answers for the location's own pano; any other pano in the time
+	// slider is resolved for display only.
 	const location = useMapState((s) => s.activeLocation);
 	const existingDatetime = location?.extra?.datetime as number | undefined;
-	const panoMatchesLocation = panoId != null && panoId === location?.panoId;
+	const panoMatchesLocation = panoId != null && panoId === ownPano;
 
 	const { data, loading, error } = useAsync<number | null>(() => {
 		if (existingDatetime != null && panoMatchesLocation) return existingDatetime;

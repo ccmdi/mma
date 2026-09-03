@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const h = vi.hoisted(() => ({
 	enrichFields: null as string[] | null,
 	written: [] as Record<string, unknown>[],
+	runs: 0,
 }));
 
 vi.mock("@/store/useMapStore", () => ({
@@ -19,7 +20,10 @@ vi.mock("@/store/useMapStore", () => ({
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 vi.mock("@/lib/data/procedures", () => ({
 	procedureEntry: (name: string) => `res://procedures/${name}.js`,
-	runProviders: async () => ({}),
+	runProviders: async () => {
+		h.runs++;
+		return {};
+	},
 }));
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => "America/New_York" }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -90,6 +94,21 @@ describe("single-location enrich - stale datetime/timezone clearing", () => {
 	beforeEach(() => {
 		h.written = [];
 		h.enrichFields = null;
+		h.runs = 0;
+	});
+
+	it("writes nothing and runs no provider when the location already holds every field", async () => {
+		h.enrichFields = ["altitude", "imageDate"];
+		await enrich(loc({ altitude: 10, imageDate: "2023-03" }), answer("2023-03"));
+		expect(h.written).toEqual([]);
+		expect(h.runs).toBe(0);
+	});
+
+	it("writes only the fields whose value differs", async () => {
+		h.enrichFields = ["altitude", "imageDate"];
+		await enrich(loc({ altitude: 10, imageDate: "2022-01" }), answer("2023-03"));
+		expect(h.written).toEqual([{ imageDate: "2023-03" }]);
+		expect(h.runs).toBe(1);
 	});
 
 	it("clears stale datetime/timezone when imageDate changes, even with datetime enrichment OFF", async () => {

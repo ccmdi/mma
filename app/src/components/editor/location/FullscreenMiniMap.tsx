@@ -13,7 +13,8 @@ import {
 	type MapHost,
 	type DeckOverlayHandle,
 } from "@/lib/map/host";
-import { usePanoViewer } from "./PanoViewerContext";
+import { usePanoViewer, viewerPosition } from "./PanoViewerContext";
+import { useMapState } from "@/store/useMapStore";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
 
@@ -59,7 +60,9 @@ async function ensureMinimapHost(
 }
 
 export function FullscreenMiniMap() {
-	const { lat, lng } = usePanoViewer();
+	const { spot } = usePanoViewer();
+	const location = useMapState((s) => s.activeLocation);
+	const { lat, lng } = viewerPosition(spot, location);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const scale = useSetting("fullscreenMinimapScale");

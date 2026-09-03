@@ -49,9 +49,15 @@ export async function enrich(loc: Location, data?: Pano | null): Promise<boolean
 	if (!map || !map.settings.enrichMetadata) return false;
 	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
 
-	const patch = metadataPatch(data, loc.extra, new Set(enrichFields));
+	const patch = Object.fromEntries(
+		Object.entries(metadataPatch(data, loc.extra, new Set(enrichFields))).filter(
+			([key, value]) => JSON.stringify(loc.extra?.[key] ?? null) !== JSON.stringify(value),
+		),
+	);
 	if (Object.keys(patch).length > 0) {
 		await updateLocations([{ id: loc.id, patch: { extra: patch } }], { undoable: false });
+	} else if (!needsEnrichment(loc, enrichFields)) {
+		return true;
 	}
 
 	// svMeta is excluded: its fields are the answer this was handed.
