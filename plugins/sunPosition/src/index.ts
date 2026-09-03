@@ -1,8 +1,20 @@
 import type { ExtraFieldDef } from "mma-plugin-types";
 
 const FIELDS: Record<string, ExtraFieldDef> = {
-	sunAzimuth: { type: "number", label: "Sun azimuth", comparison: { type: "circular", period: 360 } },
-	sunAltitude: { type: "number", label: "Sun altitude" },
+	sunAzimuth: {
+		type: "number",
+		label: "Sun azimuth",
+		values: null,
+		labels: null,
+		comparison: { type: "circular", period: 360 },
+	},
+	sunAltitude: {
+		type: "number",
+		label: "Sun altitude",
+		values: null,
+		labels: null,
+		comparison: null,
+	},
 };
 
 MMA.registerPlugin({

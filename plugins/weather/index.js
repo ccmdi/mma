@@ -10,7 +10,10 @@ var WEATHER_FIELDS = [
   { key: "windSpeed10m", label: "Wind speed (km/h)" }
 ];
 var FIELD_DEFS = Object.fromEntries(
-  WEATHER_FIELDS.map((f) => [f.key, { type: "number", label: f.label }])
+  WEATHER_FIELDS.map((f) => [
+    f.key,
+    { type: "number", label: f.label, values: null, labels: null, comparison: null }
+  ])
 );
 var ENRICH_OPTIONS = WEATHER_FIELDS.map((f) => ({
   key: f.key,

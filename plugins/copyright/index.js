@@ -2,7 +2,13 @@
 var FIELD_DEFS = {
   // Year labels are identification categories, not distances: comparison stays
   // categorical (disambiguate) while type=number keeps numeric bucketing/ranges.
-  copyrightYear: { type: "number", label: "Copyright year", comparison: { type: "categorical" } }
+  copyrightYear: {
+    type: "number",
+    label: "Copyright year",
+    values: null,
+    labels: null,
+    comparison: { type: "categorical" }
+  }
 };
 MMA.registerPlugin({
   activate() {

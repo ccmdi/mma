@@ -17,7 +17,10 @@ const WEATHER_FIELDS: WeatherField[] = [
 ];
 
 const FIELD_DEFS: Record<string, ExtraFieldDef> = Object.fromEntries(
-	WEATHER_FIELDS.map((f) => [f.key, { type: "number", label: f.label }]),
+	WEATHER_FIELDS.map((f) => [
+		f.key,
+		{ type: "number", label: f.label, values: null, labels: null, comparison: null },
+	]),
 );
 
 // defaultOff: weather is a metered network call, so it must be opt-in per field.
