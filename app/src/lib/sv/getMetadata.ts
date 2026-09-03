@@ -136,7 +136,7 @@ const pad = (n: number, width: number) => String(n).padStart(width, "0");
 
 /** "" for no date at all. Two-digit years are 19xx; month and day of 0 are the protobuf
  *  default meaning absent, and timeline entries routinely omit the day, so both floor to 1. */
-function civilDate(d: PanoDate | null | undefined): string {
+function civilDate(d: PanoDate | undefined): string {
 	if (!d || d.year <= 0) return "";
 	const y = d.year;
 	return [
