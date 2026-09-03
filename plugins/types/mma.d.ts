@@ -3503,7 +3503,7 @@ declare function openScratchMap(): Promise<void>;
 /** A reserved map is an app fixture, not one of the user's: it carries no name, never
  *  appears in the list, and has nothing to configure. Keyed by id, never by name -- the
  *  name is a value the user could type. */
-declare function isReservedMap(id: string | null | undefined): boolean;
+declare function isReservedMap(id: string | null): boolean;
 /** Permanently delete a map and all its data. Not undoable. */
 declare function deleteMap$1(id: string): Promise<void>;
 declare function renameFolder(from: string, to: string): Promise<void>;
@@ -3871,7 +3871,7 @@ declare function DialogContent({ className, title, children, ...props }: DialogC
 
 /** Country flag from the bundled SVG set. Renders nothing for a missing or malformed code. */
 declare function Flag({ code, height, className, }: {
-    code: string | null | undefined;
+    code: string | null;
     height?: number;
     className?: string;
 }): React$1.JSX.Element | null;
