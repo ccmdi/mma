@@ -68,15 +68,26 @@ fn ring_test_raw(lng: f64, lat: f64, ring: &[[f64; 2]]) -> bool {
     inside
 }
 
-/// One ring preprocessed for repeated point tests: the unwrap pass and the bbox are
-/// paid once here instead of once per tested point, so the crossing-number loop runs
-/// branch-free over longitudes already in the ring's own frame.
+/// One ring preprocessed for repeated point tests: the unwrap pass, the bbox and a
+/// latitude-band edge index are paid once here instead of once per tested point. A
+/// point then runs the crossing-number test over the edges spanning its own latitude
+/// band, not the whole ring, so a country at full fidelity costs a few dozen edges per
+/// point rather than tens of thousands.
 pub struct PreparedRing<'a> {
     ring: Cow<'a, [[f64; 2]]>,
     /// `[min_lng, min_lat, max_lng, max_lat]` in the unwrapped ring's frame, so
     /// `min_lng` may sit below -180 and `max_lng` above it.
     bb: [f64; 4],
+    /// Edge index `i` (the edge from vertex `i - 1`, wrapping, to vertex `i`) listed under
+    /// every band its latitude span touches; CSR layout, `band_start[b]..band_start[b + 1]`.
+    band_start: Vec<u32>,
+    band_edges: Vec<u32>,
+    band_height: f64,
 }
+
+/// Edges per band the index aims for; the build is one pass, so bands are cheap.
+const EDGES_PER_BAND: usize = 4;
+const MAX_BANDS: usize = 1 << 14;
 
 impl<'a> PreparedRing<'a> {
     pub fn new(ring: &'a [[f64; 2]]) -> Self {
@@ -84,17 +95,83 @@ impl<'a> PreparedRing<'a> {
         let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
         let mut any = false;
         extend_bbox_with_ring(&mut bb, &mut any, &ring);
-        Self { ring, bb }
+
+        let n = ring.len();
+        let bands = (n / EDGES_PER_BAND).clamp(1, MAX_BANDS);
+        let span = bb[3] - bb[1];
+        let band_height = if any && span > 0.0 {
+            span / bands as f64
+        } else {
+            f64::INFINITY
+        };
+        let band_of = |lat: f64| -> usize {
+            if band_height.is_infinite() {
+                0
+            } else {
+                (((lat - bb[1]) / band_height) as usize).min(bands - 1)
+            }
+        };
+        let edge_bands = |i: usize| -> (usize, usize) {
+            let j = if i == 0 { n - 1 } else { i - 1 };
+            let (lo, hi) = (ring[i][1].min(ring[j][1]), ring[i][1].max(ring[j][1]));
+            (band_of(lo), band_of(hi))
+        };
+        let mut band_start = vec![0u32; bands + 1];
+        for i in 0..n {
+            let (lo, hi) = edge_bands(i);
+            for b in lo..=hi {
+                band_start[b + 1] += 1;
+            }
+        }
+        for b in 0..bands {
+            band_start[b + 1] += band_start[b];
+        }
+        let mut fill = band_start.clone();
+        let mut band_edges = vec![0u32; band_start[bands] as usize];
+        for i in 0..n {
+            let (lo, hi) = edge_bands(i);
+            for b in lo..=hi {
+                band_edges[fill[b] as usize] = i as u32;
+                fill[b] += 1;
+            }
+        }
+        Self {
+            ring,
+            bb,
+            band_start,
+            band_edges,
+            band_height,
+        }
     }
 
-    /// Bbox reject, then the raw crossing test. Equivalent to `point_in_ring`.
+    /// Bbox reject, then the crossing test over the edges spanning this latitude band.
+    /// Equivalent to `point_in_ring`: an edge outside the band cannot cross the ray.
     #[inline]
     pub fn contains(&self, lng: f64, lat: f64) -> bool {
         let lng = fold_lng(lng, self.bb[0]);
-        lng <= self.bb[2]
-            && lat >= self.bb[1]
-            && lat <= self.bb[3]
-            && ring_test_raw(lng, lat, &self.ring)
+        if lng > self.bb[2] || lat < self.bb[1] || lat > self.bb[3] {
+            return false;
+        }
+        let band = if self.band_height.is_infinite() {
+            0
+        } else {
+            (((lat - self.bb[1]) / self.band_height) as usize).min(self.band_start.len() - 2)
+        };
+        let ring = &self.ring;
+        let n = ring.len();
+        let mut inside = false;
+        for &i in
+            &self.band_edges[self.band_start[band] as usize..self.band_start[band + 1] as usize]
+        {
+            let i = i as usize;
+            let j = if i == 0 { n - 1 } else { i - 1 };
+            let [xi, yi] = ring[i];
+            let [xj, yj] = ring[j];
+            if ((yi > lat) != (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) {
+                inside = !inside;
+            }
+        }
+        inside
     }
 }
 

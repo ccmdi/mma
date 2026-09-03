@@ -124,7 +124,12 @@ fn cover_contains_and_len_agree_with_cells() {
 #[test]
 fn cover_empty_for_non_finite() {
     assert_eq!(covering_cells(f64::NAN, 0.0, 100.0, 0.1).cells().count(), 0);
-    assert_eq!(covering_cells(0.0, f64::INFINITY, 100.0, 0.1).cells().count(), 0);
+    assert_eq!(
+        covering_cells(0.0, f64::INFINITY, 100.0, 0.1)
+            .cells()
+            .count(),
+        0
+    );
 }
 
 // The invariant every grid depends on: any point within radius_m (per haversine)
@@ -153,15 +158,60 @@ fn cover_contains_all_neighbors_within_radius() {
             if plat.abs() > 90.0 || haversine_m(lat, lng, plat, plng) > radius {
                 continue;
             }
-            let (pcx, pcy) = (
-                (plng / cell).floor() as i32,
-                (plat / cell).floor() as i32,
-            );
+            let (pcx, pcy) = ((plng / cell).floor() as i32, (plat / cell).floor() as i32);
             let cover = covering_cells(lat, lng, radius, cell);
             assert!(
                 cover.cells().any(|c| c == (pcx, pcy)),
                 "point at ({plat},{plng}) not covered from ({lat},{lng}) r={radius}"
             );
+        }
+    }
+}
+
+/// A jagged ring with `n` vertices around `(clng, clat)`: radius varies with a fixed
+/// pseudo-random sequence, so edges span many latitude bands and overlap in longitude.
+fn jagged_ring(n: usize, clng: f64, clat: f64) -> Vec<[f64; 2]> {
+    let mut seed = 0x9e37_79b9_u32;
+    (0..n)
+        .map(|k| {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            let r = 5.0 + 4.0 * (seed >> 8) as f64 / (1u32 << 24) as f64;
+            let t = k as f64 / n as f64 * std::f64::consts::TAU;
+            [clng + r * t.cos(), clat + r * t.sin() * 0.6]
+        })
+        .collect()
+}
+
+#[test]
+fn prepared_ring_agrees_with_point_in_ring_on_a_dense_grid() {
+    for (n, clng) in [(4, 10.0), (37, 10.0), (5000, 10.0), (5000, 178.0)] {
+        let ring = jagged_ring(n, clng, 40.0);
+        let prep = PreparedRing::new(&ring);
+        let mut checked = 0;
+        for yi in 0..120 {
+            for xi in 0..120 {
+                let lat = 28.0 + yi as f64 * 0.2;
+                let lng = wrap_dlng(clng - 12.0 + xi as f64 * 0.2);
+                assert_eq!(
+                    prep.contains(lng, lat),
+                    point_in_ring(lng, lat, &ring),
+                    "n={n} at ({lng}, {lat})"
+                );
+                checked += 1;
+            }
+        }
+        assert_eq!(checked, 14_400);
+    }
+}
+
+#[test]
+fn prepared_ring_matches_on_its_own_vertices_and_edge_latitudes() {
+    let ring = jagged_ring(600, -60.0, -20.0);
+    let prep = PreparedRing::new(&ring);
+    for v in &ring {
+        for dl in [-0.01, 0.0, 0.01] {
+            let (lng, lat) = (v[0] + dl, v[1]);
+            assert_eq!(prep.contains(lng, lat), point_in_ring(lng, lat, &ring));
         }
     }
 }
