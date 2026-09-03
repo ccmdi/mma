@@ -1,8 +1,4 @@
-import type {
-	CameraType,
-	Location,
-	LocationPatch_Deserialize as LocationPatch,
-} from "@/bindings.gen";
+import type { Location, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { nowUnix } from "@/lib/util/util";
 import type { RequireNonNull } from "@/types/util";
 import { LocationFlag, PanoType } from "@/bindings.consts";
@@ -32,22 +28,6 @@ export function bboxTupleToBounds(t: [number, number, number, number] | null): B
 
 export function boundsToScoreTuple(b: Bounds): [number, number, number, number] {
 	return [b.south, b.west, b.north, b.east];
-}
-
-/** The `extra` fields an enrichment run derives for a pano, from `panoFields`. */
-export interface PanoExtra {
-	altitude: number;
-	panoType: PanoType;
-	/** Null when the tile height matches no known generation. */
-	cameraType: CameraType | null;
-	countryCode: string | null;
-	uploaderName: string | null;
-	/** Capture-time driving direction in degrees (0-360), per Google. */
-	drivingDirection: number | null;
-	/** Capture month as `YYYY-MM`; null when the pano carries no date. */
-	imageDate: string | null;
-	/** Every capture month in the pano's timeline, ascending. */
-	coverageDates: string[];
 }
 
 /** One decoded GetMetadata image: flat, plain JSON, no live objects. This is the app's

@@ -17,6 +17,9 @@ import { fileTimestamp, formatDistance } from "@/lib/util/format";
 import { useSettings } from "@/store/settings";
 import { getMapState, useMapState } from "@/store/useMapStore";
 import { usePanoViewer } from "./PanoViewerContext";
+import { metadataPatch } from "@/lib/sv/getMetadata";
+import { getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
+import { fieldLabel, fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useHotkeyRef } from "@/lib/hooks/useHotkey";
 import { usePanoEvent } from "@/lib/hooks/usePanoEvent";
@@ -438,9 +441,18 @@ function CoordinateControl({ panorama }: { panorama: google.maps.StreetViewPanor
 
 // --- PanoControls ---
 
+// The live extra: the stored row with what the viewed pano writes onto it, not yet persisted.
 function PanoMetadataControl() {
 	const location = useMapState((s) => s.activeLocation);
+	const enrichFields = useMapState((s) => s.map?.settings.enrichFields ?? null);
+	const { pano } = usePanoViewer();
 	if (!location) return null;
+	const fields = pano
+		? {
+				...location.extra,
+				...metadataPatch(pano, location.extra, new Set(enrichFields ?? getDefaultEnrichKeys())),
+			}
+		: location.extra;
 	return (
 		<div
 			className="embed-controls__control"
@@ -454,11 +466,11 @@ function PanoMetadataControl() {
 				<span>
 					{t("Pinned pano:")} {hasLoadAsPanoId(location) ? t("yes") : t("no")}
 				</span>
-				{location.extra &&
-					Object.entries(location.extra).map(([key, val]) => (
+				{fields &&
+					Object.entries(fields).map(([key, val]) => (
 						<span key={key}>
-							{key}
-							{t(":")} {val == null ? "null" : String(val)}
+							{fieldLabel(key)}
+							{t(":")} {val == null ? "null" : fieldValueLabel(getFieldDef(key), val)}
 						</span>
 					))}
 			</div>

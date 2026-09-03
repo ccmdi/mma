@@ -17,7 +17,8 @@ import {
 	type ImageMetadata,
 	type PanoDate,
 } from "@/lib/proto/getmetadata.gen";
-import { type Pano, type PanoExtra } from "@/types";
+import { type Pano } from "@/types";
+import type { KNOWN_FIELDS } from "@/bindings.consts";
 import { PanoType } from "@/bindings.consts";
 import { readImageMetadata as readImageMetadataArray } from "@/lib/proto/getmetadata.array.gen";
 import { imageKeyToPanoId, isOfficialPano, panoIdToImageKey } from "@/lib/sv/panoId";
@@ -184,33 +185,26 @@ export function cameraFrame(p: Pano): { heading: number; pitch: number } {
 	return { heading, pitch: pitch * Math.cos(((heading - (p.pov?.roll ?? 0)) * Math.PI) / 180) };
 }
 
-/** The `extra` keys `panoFields` writes, which is what the svMeta provider offers. */
-export const SVMETA_FIELDS = [
-	"altitude",
-	"countryCode",
-	"cameraType",
-	"panoType",
-	"drivingDirection",
-	"uploaderName",
-	"imageDate",
-	"coverageDates",
-] as const satisfies readonly (keyof PanoExtra)[];
+/** How a pano becomes `extra` fields, one derivation per key. The keys are the Rust
+ *  field table's, so the filter, the enrichment picker and this projection agree by
+ *  construction; the svMeta provider offers exactly these. */
+export const SVMETA = {
+	altitude: (p) => p.altitude,
+	countryCode: (p) => p.countryCode,
+	cameraType: (p) => detectCameraType(p),
+	panoType: (p) => p.panoFrontend,
+	// Capture-time driving direction in degrees, per Google.
+	drivingDirection: (p) => (p.pov ? centerHeading(p) : null),
+	uploaderName: (p) => p.uploaderName,
+	// `YYYY-MM`; null when the pano carries no date.
+	imageDate: (p) => imageDateOf(p) || null,
+	coverageDates: (p) => coverageDates(p),
+} satisfies Partial<Record<(typeof KNOWN_FIELDS)[number]["key"], (p: Pano) => unknown>>;
 
-/** The `extra` fields an enrichment run writes for a pano. */
-export function panoFields(p: Pano): PanoExtra {
-	return {
-		altitude: p.altitude,
-		countryCode: p.countryCode,
-		cameraType: detectCameraType(p),
-		panoType: p.panoFrontend,
-		drivingDirection: p.pov ? centerHeading(p) : null,
-		uploaderName: p.uploaderName,
-		imageDate: imageDateOf(p) || null,
-		coverageDates: coverageDates(p),
-	};
-}
+/** Only to declare what the svMeta provider produces. */
+export const SVMETA_FIELDS = Object.keys(SVMETA) as (keyof typeof SVMETA)[];
 
-/** The `extra` merge patch a pano writes onto a row carrying `extra`: `panoFields`
+/** The `extra` merge patch a pano writes onto a row carrying `extra`: `SVMETA`
  *  narrowed to `fields` (null = all), plus nulls for `datetime` and `timezone` when the
  *  row holds an exact date for a different capture month. Those nulls bypass the field
  *  narrowing: a stale exact date is wrong whether or not the run asked for one. An absent
@@ -221,8 +215,8 @@ export function metadataPatch(
 	fields: ReadonlySet<string> | null,
 ): Record<string, unknown> {
 	const patch: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(panoFields(p))) {
-		if (fields === null || fields.has(key)) patch[key] = value;
+	for (const [key, derive] of Object.entries(SVMETA)) {
+		if (fields === null || fields.has(key)) patch[key] = derive(p);
 	}
 	if (extra?.datetime != null && extra.imageDate !== (imageDateOf(p) || null)) {
 		patch.datetime = null;
