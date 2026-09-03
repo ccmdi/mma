@@ -106,5 +106,6 @@ export async function bulkPinToPano(
 		selector,
 		{ ...runOpts, force },
 	);
-	return result.pinPano ?? noWork();
+	const pinned = result.pinPano ?? noWork();
+	return { succeeded: pinned.succeeded, failed: [...unresolved, ...pinned.failed] };
 }

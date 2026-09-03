@@ -344,13 +344,14 @@ describe("the bulk operations name their own providers", () => {
 
 	it("a row the forced re-resolve fails is excluded from the pin wave", async () => {
 		h.failedIds = { panoResolve: [3, 9] };
-		await bulkPinToPano({ type: "Everything" }, { force: true });
+		const out = await bulkPinToPano({ type: "Everything" }, { force: true });
 		const pin = h.decls[1];
 		expect(pin.id).toBe("pinPano");
 		expect(pin.select.type).toBe("Intersection");
 		const json = JSON.stringify(pin.select);
 		expect(json).toContain('"Invert"');
 		expect(json).toContain("[3,9]");
+		expect(out.failed).toEqual([3, 9]);
 	});
 
 	it("bulkPanHeading runs panoResolve then headingRoad, with the direction", async () => {
