@@ -560,7 +560,6 @@
 	"Include": "包含",
 	"Include N/A": "包含 N/A",
 	"Include app-specific data like tags. Not including this makes the file smaller,\n\t\t\t\t\t\t\t\twhich can help when uploading maps with 100K+ locations to GeoGuessr.": "包含标签等应用专属数据。不包含可减小文件体积，向 GeoGuessr 上传 10 万以上位置的地图时会有帮助。",
-	"Informational": "信息性",
 	"Inherit first child": "继承首个子项",
 	"Install": "安装",
 	"Install failed: {error}": "安装失败：{error}",

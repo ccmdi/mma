@@ -31,7 +31,7 @@ export async function selectBorderAt(lat: number, lng: number, subdivision: bool
 		geometry = await lookup();
 	}
 	if (geometry)
-		await addSelections([{ type: "Polygon", polygon: geometry, includeInformational: false }]);
+		await addSelections([{ type: "Polygon", polygon: geometry }]);
 }
 
 export function useCountrySelect() {

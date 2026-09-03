@@ -142,7 +142,6 @@ describe("Selections - basic types", () => {
 				],
 				extraPolygons: null,
 			},
-			includeInformational: false,
 		});
 		expect(result).toBeGreaterThan(0);
 	});

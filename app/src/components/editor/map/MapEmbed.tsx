@@ -380,7 +380,6 @@ export function MapEmbed({
 									{
 										type: "Polygon",
 										polygon: { coordinates: rings as [number, number][][], extraPolygons: null },
-										includeInformational: false,
 									},
 								]);
 							}}

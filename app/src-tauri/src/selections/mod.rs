@@ -48,8 +48,6 @@ pub enum Selector {
     #[serde(rename_all = "camelCase")]
     Polygon {
         polygon: PolygonGeometry,
-        #[serde(rename = "includeInformational")]
-        include_informational: bool,
     },
     Tag {
         #[serde(rename = "tagId")]
@@ -674,15 +672,7 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
         Selector::PanoIds => r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
         Selector::NotPanoIds => !r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
         Selector::Uncommitted => r.is_uncommitted(),
-        Selector::Polygon {
-            polygon,
-            include_informational,
-        } => {
-            if !include_informational && r.flags().contains(LocationFlags::INFORMATIONAL) {
-                return false;
-            }
-            point_in_geometry(r.lng(), r.lat(), polygon)
-        }
+        Selector::Polygon { polygon } => point_in_geometry(r.lng(), r.lat(), polygon),
         Selector::Filter { field, test } => {
             if test.tz_local() {
                 return compare_filter_local_tz(r, field, test);
@@ -939,24 +929,15 @@ fn resolve_leaf_mask(view: &LocView, selector: &Selector) -> Vec<bool> {
             find_duplicates_bitmask(view, *distance, &mut mask);
             mask
         }
-        Selector::Polygon {
-            polygon,
-            include_informational,
-        } => {
-            let inc = *include_informational;
-            match geometry_bbox(polygon) {
-                None => vec![false; n],
-                Some(bb) => {
-                    let prepared = PreparedGeometry::new(polygon);
-                    view.resolve_mask(|r| {
-                        if !inc && r.flags().contains(LocationFlags::INFORMATIONAL) {
-                            return false;
-                        }
-                        in_bbox(r.lng(), r.lat(), &bb) && prepared.contains(r.lng(), r.lat())
-                    })
-                }
+        Selector::Polygon { polygon } => match geometry_bbox(polygon) {
+            None => vec![false; n],
+            Some(bb) => {
+                let prepared = PreparedGeometry::new(polygon);
+                view.resolve_mask(|r| {
+                    in_bbox(r.lng(), r.lat(), &bb) && prepared.contains(r.lng(), r.lat())
+                })
             }
-        }
+        },
         Selector::TopK {
             field,
             k,

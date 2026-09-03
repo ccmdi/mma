@@ -390,7 +390,7 @@ fn projection_erases_unrepresentable_fields() {
     assert_eq!(k.local.get("L:10").unwrap().pano_id, None);
 }
 
-fn include_non_informational(l: &SyncLocalPin) -> bool {
+fn exclude_bit_two(l: &SyncLocalPin) -> bool {
     (l.flags & 2) == 0
 }
 
@@ -402,7 +402,7 @@ fn filtering_excludes_and_deletes_once_excluded() {
         x.flags = 2;
     });
     let mut p = Fake::stable();
-    p.include_fn = Some(include_non_informational);
+    p.include_fn = Some(exclude_bit_two);
 
     let fresh = build_keyed_inputs(&p, &[kept.clone(), excluded.clone()], &[], &[], &tag_name);
     assert_eq!(fresh.local.len(), 1);

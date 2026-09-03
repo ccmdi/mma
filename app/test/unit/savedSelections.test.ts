@@ -220,7 +220,6 @@ describe("Selector coverage", () => {
 				extraPolygons: null,
 				properties: { name: "P" },
 			},
-			includeInformational: false,
 		},
 		Tag: { type: "Tag", tagId: 1 },
 		Untagged: { type: "Untagged" },

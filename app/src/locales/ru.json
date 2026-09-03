@@ -608,7 +608,6 @@
 	"Include": "Включить",
 	"Include N/A": "Включать N/A",
 	"Include app-specific data like tags. Not including this makes the file smaller,\n\t\t\t\t\t\t\t\twhich can help when uploading maps with 100K+ locations to GeoGuessr.": "Включить данные приложения, например теги. Без них файл получается меньше, что помогает при загрузке карт со 100K+ локаций в GeoGuessr.",
-	"Informational": "Информационная",
 	"Inherit first child": "Наследовать от первого дочернего",
 	"Install": "Установить",
 	"Install failed: {error}": "Не удалось установить: {error}",

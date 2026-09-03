@@ -191,7 +191,7 @@ fn normalize_dedupes_and_sorts_tags() {
 #[test]
 fn normalize_strips_virtual_flags() {
     let p = provider();
-    // SeenOverlay(8) | Informational(2) -> Informational only.
+    // SeenOverlay(8) | bit 2 -> bit 2 only.
     let m = MmLocation {
         flags: 10,
         ..Default::default()

@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::selections::field_expr::{self, Expr};
-use crate::types::{AppResult, Location, LocationFlags};
+use crate::types::{AppResult, Location};
 use mma_geo::equirect_m2;
 use std::collections::HashMap;
 
@@ -370,17 +370,13 @@ pub fn better(a: &Location, b: &Location, score: &Expr) -> Ordering {
         .then_with(|| b.id.cmp(&a.id))
 }
 
-/// Prune duplicates. `locs` is the resolved selection; informational locations are
-/// never pruned and never count as neighbours. Returns ids to remove.
+/// Prune duplicates. `locs` is the resolved selection. Returns ids to remove.
 /// - <= 25 m: relevance prune - each radius cluster keeps its best-scored location
 ///   (see [`better`]), rest pruned.
 /// - > 25 m: greedy max-thinning - repeatedly drop the location with the most in-range
 ///   > neighbours until no two survivors are within `distance_m`.
 pub fn prune_duplicates(locs: &[Location], distance_m: f64, score: &Expr) -> Vec<u32> {
-    let locs: Vec<&Location> = locs
-        .iter()
-        .filter(|l| !l.flags.contains(LocationFlags::INFORMATIONAL))
-        .collect();
+    let locs: Vec<&Location> = locs.iter().collect();
     if locs.len() < 2 {
         return Vec::new();
     }

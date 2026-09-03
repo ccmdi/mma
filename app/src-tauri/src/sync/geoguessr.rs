@@ -12,12 +12,11 @@ use crate::net::proxy;
 use crate::store::storage;
 use crate::sync::{
     auth_error, IdentityModel, NormalizedSyncLocation, PushBatch, PushedId, RemoteSnapshot,
-    SyncLocalPin, SyncProvider,
+    SyncProvider,
 };
 use crate::types::{AppError, AppResult, LocationFlags};
 
 const LOAD_AS_PANO_ID: u32 = LocationFlags::LOAD_AS_PANO_ID.bits();
-const INFORMATIONAL: u32 = LocationFlags::INFORMATIONAL.bits();
 
 /// GeoGuessr reads heading 0 as "unset, pick at random", so a genuine north must be nudged.
 /// 1e-4 degrees is ~1cm of bearing, far below anything a user set deliberately.
@@ -226,11 +225,6 @@ impl SyncProvider for GeoGuessrProvider {
             tags: vec![],
             ..n
         }
-    }
-
-    /// Informational pins are editor annotations, not places to guess.
-    fn include_local(&self, pin: &SyncLocalPin) -> bool {
-        pin.flags & INFORMATIONAL == 0
     }
 
     fn materialize(&self, n: &NormalizedSyncLocation) -> GgCoordinate {

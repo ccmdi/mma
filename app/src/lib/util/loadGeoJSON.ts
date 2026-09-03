@@ -24,7 +24,6 @@ export async function loadGeoJSON() {
 								extraPolygons: null,
 								properties: f.properties ?? undefined,
 							},
-							includeInformational: false,
 						});
 					} else if (f.geometry?.type === "MultiPolygon") {
 						const [first, ...rest] = f.geometry.coordinates;
@@ -34,7 +33,7 @@ export async function loadGeoJSON() {
 							extraPolygons: rest.length ? rest : null,
 							properties: f.properties ?? undefined,
 						};
-						selector.push({ type: "Polygon", polygon, includeInformational: false });
+						selector.push({ type: "Polygon", polygon });
 					}
 				}
 			} catch {

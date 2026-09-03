@@ -149,10 +149,6 @@ builtin_fields! {
         |l| Some(flag_value(l.flags, LocationFlags::LOAD_AS_PANO_ID)),
         |v, i| v.flags.map(|c| flag_value(LocationFlags::from_bits_retain(c.value(i)),
             LocationFlags::LOAD_AS_PANO_ID));
-    "informational", "Informational", ExtraFieldType::Number, Some(BuiltinFieldKind::Term), None,
-        |l| Some(flag_value(l.flags, LocationFlags::INFORMATIONAL)),
-        |v, i| v.flags.map(|c| flag_value(LocationFlags::from_bits_retain(c.value(i)),
-            LocationFlags::INFORMATIONAL));
 }
 
 /// Flags read as 0/1 numbers: the expression language has no booleans, so a flag term

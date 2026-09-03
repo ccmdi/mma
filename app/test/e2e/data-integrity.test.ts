@@ -40,7 +40,7 @@ describe("Data integrity - flags", () => {
 		expect(reloaded.flags).toBe(1);
 	});
 
-	it("flag=2 (Informational) survives save/load", async () => {
+	it("an unassigned flag bit survives save/load", async () => {
 		const ids = await addLocs([createLocation({ lat: 30, lng: 40, flags: 2 })]);
 
 		await flushAndWait();

@@ -363,7 +363,7 @@ declare const commands: {
     /**
      *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
      *  cluster. `score` is the map's duplicate preference expression, the same one a merge
-     *  ranks by. Informational locations are never pruned. One undoable edit.
+     *  ranks by. One undoable edit.
      *  @unstable
      */
     storePruneDuplicates: (selector: Selector, distance: number, score: string | null) => Promise<MutationResult>;
@@ -1837,7 +1837,6 @@ type Selector = {
 } | {
     type: "Polygon";
     polygon: PolygonGeometry;
-    includeInformational: boolean;
 } | {
     type: "Tag";
     tagId: number;
@@ -2167,12 +2166,6 @@ declare const BUILTIN_FIELDS: readonly [{
 }, {
     readonly key: "loadAsPanoId";
     readonly label: "Load as pano ID";
-    readonly type: "number";
-    readonly kind: "term";
-    readonly comparison: null;
-}, {
-    readonly key: "informational";
-    readonly label: "Informational";
     readonly type: "number";
     readonly kind: "term";
     readonly comparison: null;

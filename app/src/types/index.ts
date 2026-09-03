@@ -83,10 +83,6 @@ export function hasLoadAsPanoId(loc: Location): boolean {
 	return (loc.flags & LocationFlag.LoadAsPanoId) !== 0;
 }
 
-export function isInformational(loc: Location): boolean {
-	return (loc.flags & LocationFlag.Informational) !== 0;
-}
-
 export function isPinnedToPano(loc: Location): boolean {
 	return hasLoadAsPanoId(loc) && loc.panoId != null;
 }

@@ -221,7 +221,6 @@ fn polygon_resolve_matches_full_test_with_bbox_reject() {
         &view,
         &Selector::Polygon {
             polygon: geom.clone(),
-            include_informational: true,
         },
     );
     assert!(ids.contains(&1));
@@ -367,13 +366,7 @@ fn polygon_resolve_across_antimeridian() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::Polygon {
-            polygon: geom,
-            include_informational: true,
-        },
-    );
+    let ids = ids_of(&view, &Selector::Polygon { polygon: geom });
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
     assert!(!ids.contains(&3));
@@ -418,13 +411,7 @@ fn polygon_resolve_unwrapped_antimeridian() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::Polygon {
-            polygon: geom,
-            include_informational: true,
-        },
-    );
+    let ids = ids_of(&view, &Selector::Polygon { polygon: geom });
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
     assert!(!ids.contains(&3));
@@ -495,13 +482,7 @@ fn polygon_resolve_wide_box() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::Polygon {
-            polygon: geom,
-            include_informational: true,
-        },
-    );
+    let ids = ids_of(&view, &Selector::Polygon { polygon: geom });
     assert!(ids.contains(&1));
     assert!(ids.contains(&2));
     assert!(!ids.contains(&3));
@@ -1659,17 +1640,6 @@ fn prune_relevance_tie_keeps_oldest() {
     new.created_at = 200;
     let removed = prune_duplicates(&[new, old], 10.0, &default_score());
     assert_eq!(removed, vec![2]);
-}
-
-// Informational locations are never pruned and never anchor a cluster.
-#[test]
-fn prune_never_touches_informational() {
-    let mut info = loc(1, 0.00000, 0.0);
-    info.flags = LocationFlags::INFORMATIONAL;
-    let locs = vec![info, loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
-    let removed = prune_duplicates(&locs, 10.0, &default_score());
-    assert_eq!(removed.len(), 1);
-    assert!(!removed.contains(&1));
 }
 
 // Chain at ~1.1m steps with 2m threshold: clusters are radius-based, not transitive.

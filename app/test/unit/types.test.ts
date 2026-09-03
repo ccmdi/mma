@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createLocation, hasLoadAsPanoId, isInformational, isPinnedToPano } from "@/types";
+import { createLocation, hasLoadAsPanoId, isPinnedToPano } from "@/types";
 
 describe("createLocation", () => {
 	it("applies defaults for omitted fields", () => {
@@ -71,7 +71,7 @@ describe("hasLoadAsPanoId", () => {
 		expect(hasLoadAsPanoId(createLocation({ lat: 0, lng: 0, flags: 1 }))).toBe(true);
 	});
 
-	it("returns false for flags=2 (Informational only)", () => {
+	it("returns false for flags=2 (another bit only)", () => {
 		expect(hasLoadAsPanoId(createLocation({ lat: 0, lng: 0, flags: 2 }))).toBe(false);
 	});
 
@@ -80,23 +80,6 @@ describe("hasLoadAsPanoId", () => {
 	});
 });
 
-describe("isInformational", () => {
-	it("returns false for flags=0", () => {
-		expect(isInformational(createLocation({ lat: 0, lng: 0, flags: 0 }))).toBe(false);
-	});
-
-	it("returns false for flags=1 (LoadAsPanoId only)", () => {
-		expect(isInformational(createLocation({ lat: 0, lng: 0, flags: 1 }))).toBe(false);
-	});
-
-	it("returns true for flags=2 (Informational)", () => {
-		expect(isInformational(createLocation({ lat: 0, lng: 0, flags: 2 }))).toBe(true);
-	});
-
-	it("returns true for flags=3 (both bits set)", () => {
-		expect(isInformational(createLocation({ lat: 0, lng: 0, flags: 3 }))).toBe(true);
-	});
-});
 
 describe("isPinnedToPano", () => {
 	it("returns false with no panoId and no flag", () => {

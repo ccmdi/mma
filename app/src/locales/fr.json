@@ -592,7 +592,6 @@
 	"Include": "Inclure",
 	"Include N/A": "Inclure N/A",
 	"Include app-specific data like tags. Not including this makes the file smaller,\n\t\t\t\t\t\t\t\twhich can help when uploading maps with 100K+ locations to GeoGuessr.": "Inclure les données propres à l'application, comme les étiquettes. Les omettre réduit la taille du fichier,\n\t\t\t\t\t\t\t\tce qui aide pour l'envoi vers GeoGuessr de cartes de plus de 100 000 lieux.",
-	"Informational": "Informatif",
 	"Inherit first child": "Hériter du premier enfant",
 	"Install": "Installer",
 	"Install failed: {error}": "Échec de l'installation : {error}",

@@ -197,31 +197,6 @@ fn normalize_treats_empty_pano_as_no_pano() {
 
 // --- include_local ----------------------------------------------------------
 
-fn location(flags: LocationFlags) -> SyncLocalPin {
-    SyncLocalPin {
-        id: 1,
-        lat: 0.0,
-        lng: 0.0,
-        heading: 0.0,
-        pitch: 0.0,
-        zoom: 0.0,
-        pano_id: None,
-        flags: flags.bits(),
-        tags: vec![],
-    }
-}
-
-#[test]
-fn include_local_excludes_informational_pins() {
-    let p = provider();
-    assert!(p.include_local(&location(LocationFlags::empty())));
-    assert!(p.include_local(&location(LocationFlags::LOAD_AS_PANO_ID)));
-    assert!(!p.include_local(&location(LocationFlags::INFORMATIONAL)));
-    assert!(!p.include_local(&location(
-        LocationFlags::INFORMATIONAL | LocationFlags::LOAD_AS_PANO_ID
-    )));
-}
-
 // --- push body shape (pure, no network) -------------------------------------
 
 #[test]

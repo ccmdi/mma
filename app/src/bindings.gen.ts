@@ -301,7 +301,7 @@ export const commands = {
 	/**
 	 *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
 	 *  cluster. `score` is the map's duplicate preference expression, the same one a merge
-	 *  ranks by. Informational locations are never pruned. One undoable edit.
+	 *  ranks by. One undoable edit.
 	 */
 	storePruneDuplicates: (selector: Selector, distance: number, score: string | null) => __TAURI_INVOKE<MutationResult>("store_prune_duplicates", { selector, distance, score }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),fieldDefs:v.fieldDefs==null?v.fieldDefs:Object.fromEntries(Object.entries(v.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
 	/**
@@ -1591,7 +1591,7 @@ export type SelectionSync = {
  *   parallel batch scans. Composites (Intersection, Union, Invert) recursively resolve
  *  children. Duplicates uses a grid-accelerated spatial scan.
  */
-export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry; includeInformational: boolean } | { type: "Tag"; tagId: number } | { type: "Untagged" } | { type: "Unpanned" } | { type: "PanoIds" } | { type: "NotPanoIds" } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | { type: "TopK"; field: string; k: number; ascending: boolean };
+export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Tag"; tagId: number } | { type: "Untagged" } | { type: "Unpanned" } | { type: "PanoIds" } | { type: "NotPanoIds" } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | { type: "TopK"; field: string; k: number; ascending: boolean };
 
 export type SideCounts = {
 	create: number,

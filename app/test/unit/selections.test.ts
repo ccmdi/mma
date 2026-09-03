@@ -90,7 +90,7 @@ describe("polygon color mode", () => {
 		],
 		extraPolygons: null,
 	};
-	const build = () => buildSelection({ type: "Polygon", polygon, includeInformational: false });
+	const build = () => buildSelection({ type: "Polygon", polygon });
 
 	afterEach(() => setSetting("polygonColorMode", "random"));
 
@@ -110,7 +110,6 @@ describe("polygon color mode", () => {
 				],
 				extraPolygons: null,
 			},
-			includeInformational: false,
 		});
 		expect(a.color).toEqual(colorForKey(a.key));
 		expect(other.color).toEqual(colorForKey(other.key));
@@ -144,7 +143,7 @@ describe("polygon selection keys", () => {
 		extraPolygons: null,
 	});
 	const build = (polygon: ReturnType<typeof square>) =>
-		buildSelection({ type: "Polygon", polygon, includeInformational: false });
+		buildSelection({ type: "Polygon", polygon });
 
 	it("identical geometry keys identically, so rebuilds keep identity", () => {
 		// Key is identity for recolor/reorder/remove; a rebuild (replaceSelection,
@@ -170,12 +169,10 @@ describe("polygon selection keys", () => {
 		const once = addSelection([], {
 			type: "Polygon",
 			polygon: square(0),
-			includeInformational: false,
 		});
 		const twice = addSelection(once, {
 			type: "Polygon",
 			polygon: square(0),
-			includeInformational: false,
 		});
 		expect(twice.length).toBe(1);
 	});
@@ -673,7 +670,6 @@ describe("selectionDisplayName", () => {
 				],
 				extraPolygons: null,
 			},
-			includeInformational: false,
 		});
 		expect(selectionDisplayName(sel)).toBe("Polygon");
 	});
@@ -693,7 +689,6 @@ describe("selectionDisplayName", () => {
 				extraPolygons: null,
 				properties: { name: "Europe" },
 			},
-			includeInformational: false,
 		});
 		expect(selectionDisplayName(sel)).toBe("Polygon: Europe");
 	});
@@ -1180,7 +1175,6 @@ describe("polygonSelectionsContaining", () => {
 				],
 				extraPolygons: null,
 			},
-			includeInformational: false,
 		});
 
 	it("returns keys of polygons containing the point (lng/lat order)", () => {
@@ -1228,7 +1222,6 @@ describe("polygonSelectionsContaining", () => {
 						],
 					],
 				},
-				includeInformational: false,
 			}),
 			key: "multi",
 		};

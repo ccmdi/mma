@@ -1265,7 +1265,7 @@ pub async fn store_merge_duplicates(
 
 /// Thin duplicates among `ids` within `distance` metres, keeping the best location per
 /// cluster. `score` is the map's duplicate preference expression, the same one a merge
-/// ranks by. Informational locations are never pruned. One undoable edit.
+/// ranks by. One undoable edit.
 // <= 25m: best-scored per cluster; > 25m: greedy thinning so no two survivors remain in
 // range.
 #[tauri::command]

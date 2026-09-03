@@ -576,7 +576,6 @@
 	"Include": "Include",
 	"Include N/A": "Include N/A",
 	"Include app-specific data like tags. Not including this makes the file smaller,\n\t\t\t\t\t\t\t\twhich can help when uploading maps with 100K+ locations to GeoGuessr.": "Include app-specific data like tags. Not including this makes the file smaller,\n\t\t\t\t\t\t\t\twhich can help when uploading maps with 100K+ locations to GeoGuessr.",
-	"Informational": "Informational",
 	"Inherit first child": "Inherit first child",
 	"Install": "Install",
 	"Install failed: {error}": "Install failed: {error}",

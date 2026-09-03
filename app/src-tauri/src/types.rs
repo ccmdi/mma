@@ -276,6 +276,7 @@ wire_bitflags! {
     /// Per-location bitfield, serialized as a plain `u32` over IPC and Arrow.
     LocationFlags: u32 {
         const LOAD_AS_PANO_ID = 1;
+        /// The original app's informational marker: carried through, read by nothing.
         const INFORMATIONAL = 2;
         /// Preview kinds, set only on the ephemeral active-location preview and stripped
         /// by [`LocationFlags::VIRTUAL`] before one is materialized. Never persisted.

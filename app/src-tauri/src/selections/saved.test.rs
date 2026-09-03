@@ -133,7 +133,6 @@ fn the_index_carries_identity_without_reading_any_tree() {
                 extra_polygons: None,
                 properties: None,
             },
-            include_informational: false,
         },
         HashMap::new(),
         [4, 5, 6],
