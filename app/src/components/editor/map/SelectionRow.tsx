@@ -5,18 +5,19 @@ import {
 	fetchBounds,
 	getVisibleTags,
 	pruneDuplicates,
-	removeSelections,
 	resolveIds,
 	updateFilterSelection,
 	useMapState,
 } from "@/store/useMapStore";
 import {
+	batch,
 	composeSelections,
 	decomposeChild,
 	filterIsLocalTime,
 	isolateGhost,
 	invertSelections,
 	removeFromComposite,
+	removeSelection,
 	reorderSelections,
 	selectionDisplayName,
 	setPolygonName,
@@ -137,7 +138,7 @@ export const SelectionRow = memo(function SelectionRow({
 	);
 	const onRemove = parentKey
 		? () => void applySelectionUpdate(removeFromComposite(parentKey, selection.key))
-		: () => void removeSelections([selection.key]);
+		: () => void applySelectionUpdate(batch(removeSelection)([selection.key]));
 	const [view, setView] = useState<"contextmenu" | "color">("contextmenu");
 	const [dropZone, setDropZone] = useState<"before" | "on" | "after" | null>(null);
 	const [editingFilter, setEditingFilter] = useState(false);

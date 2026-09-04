@@ -10,7 +10,8 @@ import { cmd } from "@/lib/commands";
 import { importLegacySavedSelections } from "./migrations";
 import { bridgeAcrossWindows, emit, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
-import { addSelections, getTag, getVisibleTags } from "./useMapStore";
+import { applySelectionUpdate, getTag, getVisibleTags } from "./useMapStore";
+import { addSelection, batch } from "./selections";
 
 /** Selection types bound to the open map (raw location ids, review sessions): a rule
  *  built from them would be a frozen snapshot, so they are never saved. */
@@ -211,6 +212,6 @@ export async function deleteSavedSelection(id: string): Promise<void> {
  *  were added. */
 export function applySavedSelection(saved: SavedSelection): number {
 	const parts = savedParts(saved);
-	if (parts.length > 0) void addSelections(parts.map((p) => p.selector));
+	if (parts.length > 0) void applySelectionUpdate(batch(addSelection)(parts.map((p) => p.selector)));
 	return parts.length;
 }

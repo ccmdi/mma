@@ -5,13 +5,14 @@ import {
 	getMapState,
 	addTagToLocations,
 	createTags,
-	addSelections,
+	applySelectionUpdate,
 	getVisibleTags,
 	getActiveSelections,
 	selectRandomFromSelection,
 	selectSpacedFromSelection,
 	currentSelection,
 } from "@/store/useMapStore";
+import { addSelection, batch } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { sortTagsByMode } from "@/lib/util/util";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
@@ -195,7 +196,7 @@ function TopKPanel({
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!field || count < 1) return;
-				void addSelections([{ type: "TopK", field, k: count, ascending }]);
+				void applySelectionUpdate(batch(addSelection)([{ type: "TopK", field, k: count, ascending }]));
 			}}
 		>
 			<NSelect value={field} onChange={(e) => setField(e.target.value)}>
@@ -363,7 +364,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									className="selection-manager__inline-form"
 									onSubmit={(e) => {
 										e.preventDefault();
-										void addSelections([{ type: "Duplicates", distance: dupDistance }]);
+										void applySelectionUpdate(batch(addSelection)([{ type: "Duplicates", distance: dupDistance }]));
 									}}
 								>
 									<label>
@@ -387,7 +388,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									persistKey={map.id}
 									submitLabel={t("Add filter")}
 									onSubmit={(field, test) => {
-										void addSelections([{ type: "Filter", field, test }]);
+										void applySelectionUpdate(batch(addSelection)([{ type: "Filter", field, test }]));
 									}}
 								/>
 							),

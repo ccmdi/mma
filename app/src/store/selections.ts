@@ -56,6 +56,11 @@ export const OP_LABELS: Record<FilterOpKind, string> = {
 	notcontains: msg("does not contain"),
 };
 
+export const batch = <T>(op: (item: T) => (sels: Selection[]) => Selection[]) =>
+	(items: T[]) =>
+	(sels: Selection[]): Selection[] =>
+		items.reduce((s, item) => op(item)(s), sels);
+
 export function colorForKey(key: string): [number, number, number] {
 	let t = 0;
 	for (let i = 0; i < key.length; i += 1) t = ((key.charCodeAt(i) + (t << 5)) | 0) + t;
@@ -295,9 +300,8 @@ function dedupe(selections: Selection[]): Selection[] {
 	return map.size === selections.length ? selections : Array.from(map.values());
 }
 
-export function addSelection(current: Selection[], selector: Selector): Selection[] {
-	return dedupe([...current, buildSelection(selector)]);
-}
+export const addSelection = (selector: Selector) => (current: Selection[]): Selection[] =>
+	dedupe([...current, buildSelection(selector)]);
 
 /** Keys of every Polygon selection whose geometry contains the point. */
 export function polygonSelectionsContaining(
@@ -317,13 +321,13 @@ export function polygonSelectionsContaining(
 
 /** Remove a selection by key. Composites unwrap their children back into the list.
  *  Returns `current` unchanged when the key is not present (identity-safe). */
-export function removeSelection(current: Selection[], key: string): Selection[] {
+export const removeSelection = (key: string) => (current: Selection[]): Selection[] => {
 	const idx = current.findIndex((s) => s.key === key);
 	if (idx === -1) return current;
 	const s = current[idx];
 	const children = isVariant(s.selector, COMPOSITE_TYPES) ? s.selector.selections : [];
 	return [...current.slice(0, idx), ...children, ...current.slice(idx + 1)];
-}
+};
 
 /** Split selections into [matching the keys, everything else]. */
 function partitionByKeys(current: Selection[], keys: string[]): [Selection[], Selection[]] {

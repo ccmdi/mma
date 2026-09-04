@@ -28,7 +28,7 @@ import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
 import type { Selection, Selector } from "@/bindings.gen";
-import { addSelection, removeSelection, replaceSelection } from "./selections";
+import { addSelection, batch, removeSelection, replaceSelection } from "./selections";
 import type { SelectionUpdate } from "./selections";
 
 // --- Map state ---
@@ -411,7 +411,7 @@ export function currentSelection(): Selector {
 	return { type: "Union", selections: getActiveSelections() };
 }
 
-/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want -- prefer `addSelections`. */
+/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. */
 export function setSelectedLocationIds(ids: SelectedIds) {
 	setState({ selectedLocationIds: ids });
 }
@@ -477,7 +477,7 @@ function applyMutation(r: MutationResult) {
 		tagCounts: r.tagCounts,
 	});
 	if (r.fieldDefs) setUserFieldDefs(r.fieldDefs);
-	if (r.tags) void removeSelections(deadTagKeys(oldTags, r.tags));
+	if (r.tags) void applySelectionUpdate(batch(removeSelection)(deadTagKeys(oldTags, r.tags)));
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
 }
 
@@ -694,9 +694,10 @@ export async function applySelectionUpdate(
 ) {
 	if (!state.map) return;
 	const out = op(state.selections, state.ghostedSelections);
-	const isFullUpdate = !Array.isArray(out);
-	const selections = isFullUpdate ? out.selections : out;
-	const ghostedSelections = pruneGhosted(selections, isFullUpdate ? out.ghosted : state.ghostedSelections);
+	const [selections, rawGhosted] = Array.isArray(out)
+		? [out, state.ghostedSelections]
+		: [out.selections, out.ghosted];
+	const ghostedSelections = pruneGhosted(selections, rawGhosted);
 	if (selections === state.selections && ghostedSelections === state.ghostedSelections) return;
 	setState({ selections, ghostedSelections });
 	return syncSelections();
@@ -727,19 +728,6 @@ function pruneGhosted(selections: Selection[], ghosted: ReadonlySet<string>): Re
 }
 
 
-/** Add selections to the sidebar and highlight their locations. Same-key selections replace. */
-export function addSelections(selector: Selector[]) {
-	return applySelectionUpdate((sels) =>
-		selector.reduce((result, p) => addSelection(result, p), sels),
-	);
-}
-
-export function removeSelections(keys: string[]) {
-	return applySelectionUpdate((sels) =>
-		keys.reduce((result, k) => removeSelection(result, k), sels),
-	);
-}
-
 /** Clear all selections. */
 export function resetSelections() {
 	return applySelectionUpdate(() => []);
@@ -768,7 +756,8 @@ export async function selectRandomFromSelection(
 	);
 	const picked = [...new Set(buckets.flat())];
 	if (picked.length === 0) return 0;
-	await applySelectionUpdate(() => addSelection([], { type: "Manual", locations: picked }));
+	await applySelectionUpdate(() => addSelection({ type: "Manual", locations: picked })([]));
+
 	return picked.length;
 }
 
@@ -791,7 +780,8 @@ export async function selectSpacedFromSelection(
 	);
 	const ids = [...new Set(results.flatMap((r) => r.ids))];
 	if (ids.length === 0) return { picked: 0, distanceM: 0 };
-	await applySelectionUpdate(() => addSelection([], { type: "Manual", locations: ids }));
+	await applySelectionUpdate(() => addSelection({ type: "Manual", locations: ids })([]));
+
 	// Spacing only holds within a bucket - two buckets can each pick a coincident location.
 	const distanceM = results.length === 1 ? results[0].distanceM : 0;
 	return { picked: ids.length, distanceM };
@@ -848,8 +838,8 @@ export function toggleTagSelections(tagIds: number[]) {
 		tagIds.reduce((result, tagId) => {
 			const key = `tag:${tagId}`;
 			return result.some((s) => s.key === key)
-				? removeSelection(result, key)
-				: addSelection(result, { type: "Tag", tagId });
+				? removeSelection(key)(result)
+				: addSelection({ type: "Tag", tagId })(result);
 		}, sels),
 	);
 }

@@ -22,12 +22,13 @@ import { useMeasure, useMeasureInteraction } from "@/lib/sv/measure";
 import { MeasurementBar } from "@/components/primitives/MeasurementBar";
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
 import {
-	addSelections,
+	applySelectionUpdate,
 	currentSelection,
 	fetchBounds,
 	mapOpen,
 	useMapState,
 } from "@/store/useMapStore";
+import { addSelection, batch } from "@/store/selections";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { setMapHost, tryInterceptDraw } from "@/lib/map/mapState";
 import { createMapHost, hostKindForMapType, type MapHost } from "@/lib/map/host";
@@ -376,12 +377,12 @@ export function MapEmbed({
 							onDraw={(rings) => {
 								if (rings.length === 0) return;
 								if (tryInterceptDraw(rings)) return;
-								void addSelections([
+								void applySelectionUpdate(batch(addSelection)([
 									{
 										type: "Polygon",
 										polygon: { coordinates: rings as [number, number][][], extraPolygons: null },
 									},
-								]);
+								]));
 							}}
 							freehandPathRef={freehandPathRef}
 							polygonVerticesRef={polygonVerticesRef}

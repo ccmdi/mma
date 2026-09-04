@@ -50,11 +50,10 @@ import {
 	mdiFileDocumentOutline,
 } from "@mdi/js";
 import { registerCommand, type CommandDef } from "./commands";
-import { intersectSelections, invertSelections, unionSelections, toggleGhostAll } from "./selections";
+import { addSelection, batch, intersectSelections, invertSelections, unionSelections, toggleGhostAll } from "./selections";
 import {
 	undo,
 	redo,
-	addSelections,
 	applySelectionUpdate,
 	resetSelections,
 	getMapState,
@@ -189,38 +188,38 @@ const COMMANDS = {
 		icon: mdiSelectAll,
 		group: msg("Selections"),
 		defaultBinding: "Mod+a",
-		execute: () => addSelections([{ type: "Everything" }]),
+		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "Everything" }])),
 	},
 	"select-untagged": {
 		label: msg("Select untagged locations"),
 		icon: mdiTagOffOutline,
 		group: msg("Selections"),
 		aliases: ["find untagged", "missing tags"],
-		execute: () => addSelections([{ type: "Untagged" }]),
+		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "Untagged" }])),
 	},
 	"select-unpanned": {
 		label: msg("Select unpanned locations"),
 		icon: mdiCompassOffOutline,
 		group: msg("Selections"),
-		execute: () => addSelections([{ type: "Unpanned" }]),
+		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "Unpanned" }])),
 	},
 	"select-panoid": {
 		label: msg("Select Pano ID locations"),
 		icon: mdiImageOutline,
 		group: msg("Selections"),
-		execute: () => addSelections([{ type: "PanoIds" }]),
+		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "PanoIds" }])),
 	},
 	"select-no-panoid": {
 		label: msg("Select non-Pano ID locations"),
 		icon: mdiImageOffOutline,
 		group: msg("Selections"),
-		execute: () => addSelections([{ type: "NotPanoIds" }]),
+		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "NotPanoIds" }])),
 	},
 	"select-uncommitted": {
 		label: msg("Select uncommitted locations"),
 		icon: mdiContentSaveAlertOutline,
 		group: msg("Selections"),
-		execute: () => addSelections([{ type: "Uncommitted" }]),
+		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "Uncommitted" }])),
 	},
 	"select-reviewed": {
 		label: msg("Select reviewed locations"),

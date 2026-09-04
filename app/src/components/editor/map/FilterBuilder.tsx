@@ -13,7 +13,8 @@ import {
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
-import { addSelections, fieldValues } from "@/store/useMapStore";
+import { applySelectionUpdate, fieldValues } from "@/store/useMapStore";
+import { addSelection, batch } from "@/store/selections";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { toast } from "@/lib/util/toast";
 import { useSetting } from "@/store/settings";
@@ -564,7 +565,7 @@ export function FilterBuilder({ mapId }: { mapId: string }) {
 			persistKey={mapId}
 			submitLabel={t("Add filter")}
 			onSubmit={(field, test) => {
-				void addSelections([{ type: "Filter", field, test }]);
+				void applySelectionUpdate(batch(addSelection)([{ type: "Filter", field, test }]));
 				const type = getFieldDef(field)?.type;
 				if (type)
 					void countMissingTimezone(

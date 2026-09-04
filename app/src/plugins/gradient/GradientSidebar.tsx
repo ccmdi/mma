@@ -175,7 +175,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 			if (sels.length === 0) return;
 
 			await MMA.resetSelections();
-			await MMA.addSelections(sels.map((s) => s.selector));
+			await MMA.applySelectionUpdate(MMA.batch(MMA.addSelection)(sels.map((s) => s.selector)));
 			await MMA.applySelectionUpdate(
 				MMA.setSelectionColors(sels.map((s) => ({ key: s.key, color: s.color }))),
 			);

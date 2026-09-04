@@ -6,13 +6,14 @@ import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
 import {
-	addSelections,
+	applySelectionUpdate,
 	applyFieldOp,
 	countIn,
 	fetchLocations,
 	coverage,
 	getMapState,
 } from "@/store/useMapStore";
+import { addSelection, batch as batchOp } from "@/store/selections";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
 import type { Selector, FieldOp } from "@/bindings.gen";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -139,7 +140,7 @@ function ValidateSetup({ picker, onReady }: SetupProps) {
 									locations: result.states.get(state)!,
 									state,
 								}));
-							if (batch.length > 0) void addSelections(batch);
+							if (batch.length > 0) void applySelectionUpdate(batchOp(addSelection)(batch));
 							const n = batch.reduce((total, b) => total + b.locations.length, 0);
 							return {
 								outcome: result,
@@ -728,7 +729,7 @@ export function SelectFailedButton({
 		<Button
 			style={style}
 			onClick={() => {
-				void addSelections([{ type: "Manual", locations: outcome.failed }]);
+				void applySelectionUpdate(batchOp(addSelection)([{ type: "Manual", locations: outcome.failed }]));
 				toast(
 					t(
 						{ one: "Selected {n} failed location", other: "Selected {n} failed locations" },

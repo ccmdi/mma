@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import { addSelections } from "@/store/useMapStore";
+import { applySelectionUpdate } from "@/store/useMapStore";
+import { addSelection, batch } from "@/store/selections";
 import { getSettings } from "@/store/settings";
 import { cmd } from "@/lib/commands";
 import { useHeldHotkeyClick } from "@/lib/map/useHeldHotkeyClick";
@@ -31,7 +32,7 @@ export async function selectBorderAt(lat: number, lng: number, subdivision: bool
 		geometry = await lookup();
 	}
 	if (geometry)
-		await addSelections([{ type: "Polygon", polygon: geometry }]);
+		await applySelectionUpdate(batch(addSelection)([{ type: "Polygon", polygon: geometry }]));
 }
 
 export function useCountrySelect() {

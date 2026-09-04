@@ -362,9 +362,9 @@ function PivotTable({ data, mode, stale }: { data: PivotData; mode: ValueMode; s
 			if (!props) return;
 			const key = columnKeys?.[i];
 			if (key && MMA.getActiveSelections().some((s) => s.key === key)) {
-				void MMA.removeSelections([key]);
+				void MMA.applySelectionUpdate(MMA.batch(MMA.removeSelection)([key]));
 			} else {
-				void MMA.addSelections([props]);
+				void MMA.applySelectionUpdate(MMA.batch(MMA.addSelection)([props]));
 			}
 		},
 		[data, columnKeys],

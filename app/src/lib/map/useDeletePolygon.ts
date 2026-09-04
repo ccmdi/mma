@@ -1,6 +1,6 @@
 import { useCallback } from "react";
-import { getMapState, removeSelections } from "@/store/useMapStore";
-import { polygonSelectionsContaining } from "@/store/selections";
+import { getMapState, applySelectionUpdate } from "@/store/useMapStore";
+import { batch, polygonSelectionsContaining, removeSelection } from "@/store/selections";
 import { useHeldHotkeyClick } from "@/lib/map/useHeldHotkeyClick";
 
 /** Keys of the polygon selections covering a point. */
@@ -12,7 +12,7 @@ export function polygonsAt(lat: number, lng: number): string[] {
  *  map context menu. */
 export function deletePolygonsAt(lat: number, lng: number): void {
 	const keys = polygonsAt(lat, lng);
-	if (keys.length) void removeSelections(keys);
+	if (keys.length) void applySelectionUpdate(batch(removeSelection)(keys));
 }
 
 export function useDeletePolygon() {

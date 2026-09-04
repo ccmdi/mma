@@ -11,12 +11,11 @@ import { emit, useEventValue, subscribe as onEvent } from "@/lib/events";
 import {
 	getMapState,
 	setActiveLocation,
-	addSelections,
-	removeSelections,
+	applySelectionUpdate,
 	removeLocations,
 	fetchLocations,
 } from "@/store/useMapStore";
-import { selectionDisplayName } from "@/store/selections";
+import { addSelection, batch, removeSelection, selectionDisplayName } from "@/store/selections";
 
 import type { ReviewSession, Selection } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
@@ -311,9 +310,9 @@ const HISTORY_SESSION_ID = "history";
 export async function selectReviewedHistory(): Promise<void> {
 	const ids = reviewedHistoryIds(await listSessions());
 	if (ids.length === 0) return;
-	await addSelections([
+	await applySelectionUpdate(batch(addSelection)([
 		{ type: "Reviewed", locations: ids, sessionId: HISTORY_SESSION_ID, mode: "reviewed" },
-	]);
+	]));
 }
 
 /** Add a reviewed/unreviewed overlay selection for an arbitrary session (resume modal). Mirrors
@@ -322,7 +321,7 @@ export function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed
 	const reviewedSet = new Set(s.reviewed);
 	const locations =
 		mode === "reviewed" ? [...s.reviewed] : s.order.filter((id) => !reviewedSet.has(id));
-	return addSelections([{ type: "Reviewed", locations, sessionId: s.id, mode }]);
+	return applySelectionUpdate(batch(addSelection)([{ type: "Reviewed", locations, sessionId: s.id, mode }]));
 }
 
 // --- Selection projection (auto, debounced) ---
@@ -347,10 +346,10 @@ function refreshProjection(): void {
 	if (!session) return;
 	const reviewedSet = new Set(session.reviewed);
 	const unreviewed = session.order.filter((id) => !reviewedSet.has(id));
-	void addSelections([
+	void applySelectionUpdate(batch(addSelection)([
 		{ type: "Reviewed", locations: [...session.reviewed], sessionId: session.id, mode: "reviewed" },
 		{ type: "Reviewed", locations: unreviewed, sessionId: session.id, mode: "unreviewed" },
-	]);
+	]));
 }
 
 function scheduleProjection(): void {
@@ -363,7 +362,7 @@ function scheduleProjection(): void {
 
 function clearProjection(id: string): void {
 	clearProjectTimer();
-	void removeSelections(reviewKeys(id));
+	void applySelectionUpdate(batch(removeSelection)(reviewKeys(id)));
 }
 
 /** Adopt a persisted session as active, pruning ids whose locations no longer exist
