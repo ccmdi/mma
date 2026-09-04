@@ -2087,6 +2087,24 @@ type VirtualTag = {
     color?: string | null;
 };
 
+export type Digits = {
+    "0": [];
+    "1": [0];
+    "2": [0, 0];
+    "3": [0, 0, 0];
+    "4": [0, 0, 0, 0];
+    "5": [0, 0, 0, 0, 0];
+    "6": [0, 0, 0, 0, 0, 0];
+    "7": [0, 0, 0, 0, 0, 0, 0];
+    "8": [0, 0, 0, 0, 0, 0, 0, 0];
+    "9": [0, 0, 0, 0, 0, 0, 0, 0, 0];
+};
+export type D = keyof Digits;
+/** Lift a single-item curried transform into one that folds over an array of items. */
+declare const batch: <T, S>(op: (item: T) => (state: S) => S) => (items: T[]) => (state: S) => S;
+/** The member(s) of union `U` whose discriminant `D` (default `"type"`) is `V`. */
+export type Variant<U, V extends U[D], D extends keyof U = "type" & keyof U> = Extract<U, Record<D, V>>;
+
 /** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
 declare const LocationFlag: {
     readonly None: 0;
@@ -2377,6 +2395,50 @@ export type SvCoverageType = "official" | "unofficial" | "default";
 export type SvThickness = "default" | "high";
 export type MarkerStyle = "pin" | "circle" | "arrow";
 
+export type RGB = [number, number, number];
+export type RGBA = [...RGB, number];
+/** Parse "#rrggbb" to an [r, g, b] byte tuple. Single source for hex parsing. */
+declare function hexToRgb(hex: string): RGB;
+declare function textColorFor(bg: string): string;
+/** SV line colors were historically Open Props ramp names ("cyan"); stored
+ *  prefs may still hold one. Hex passes through. */
+declare function resolveSvColorHex(color: string): string;
+/** The app accent follows the SV coverage line color. */
+declare function applyAccentColor(hex: string): void;
+declare function hexToHsl(hex: string): {
+    h: number;
+    s: number;
+    l: number;
+};
+declare function hslToHex(h: number, s: number, l: number): string;
+declare function hslToRgb(h: number, s: number, l: number): RGB;
+/**
+ * Deterministic tag color from a name.
+ */
+declare function colorForName(name: string): string;
+declare function rgbCss([r, g, b]: RGB): string;
+declare function rgbToHex([r, g, b]: RGB): string;
+/** A label's color: a user override if set, else a deterministic color from its name. */
+declare function labelColor(name: string, overrides: Record<string, string>): string;
+
+export type colorUtils_RGB = RGB;
+export type colorUtils_RGBA = RGBA;
+declare const colorUtils_applyAccentColor: typeof applyAccentColor;
+declare const colorUtils_colorForName: typeof colorForName;
+declare const colorUtils_hexToHsl: typeof hexToHsl;
+declare const colorUtils_hexToRgb: typeof hexToRgb;
+declare const colorUtils_hslToHex: typeof hslToHex;
+declare const colorUtils_hslToRgb: typeof hslToRgb;
+declare const colorUtils_labelColor: typeof labelColor;
+declare const colorUtils_resolveSvColorHex: typeof resolveSvColorHex;
+declare const colorUtils_rgbCss: typeof rgbCss;
+declare const colorUtils_rgbToHex: typeof rgbToHex;
+declare const colorUtils_textColorFor: typeof textColorFor;
+declare namespace colorUtils {
+  export { colorUtils_applyAccentColor as applyAccentColor, colorUtils_colorForName as colorForName, colorUtils_hexToHsl as hexToHsl, colorUtils_hexToRgb as hexToRgb, colorUtils_hslToHex as hslToHex, colorUtils_hslToRgb as hslToRgb, colorUtils_labelColor as labelColor, colorUtils_resolveSvColorHex as resolveSvColorHex, colorUtils_rgbCss as rgbCss, colorUtils_rgbToHex as rgbToHex, colorUtils_textColorFor as textColorFor };
+  export type { colorUtils_RGB as RGB, colorUtils_RGBA as RGBA };
+}
+
 /** Per-cell, per-selection membership: a dense bitmask or a sparse selected-index list. */
 export type SelEntry = {
     kind: "mask";
@@ -2418,6 +2480,11 @@ declare class SelectedIds {
 
 /** Pure selection transforms. These only manipulate the JS selection tree; Rust resolves the actual bitmasks. */
 
+export interface SelectionState {
+    selections: Selection[];
+    ghosted: ReadonlySet<string>;
+}
+export type SelectionPatch = Partial<SelectionState>;
 /** Variants that wrap children — derived as exactly those carrying a `selections` array. */
 export type CompositeType = Extract<Selector, {
     selections: Selection[];
@@ -2427,6 +2494,123 @@ export type CompositeType = Extract<Selector, {
 export type UnaryType = "Invert";
 /** Composite variants that are flat n-ary groups. */
 export type GroupType = Exclude<CompositeType, UnaryType>;
+declare const UNARY_TYPES: readonly ["Invert"];
+export type FilterOpKind = FilterOp["op"];
+/** Whether a predicate reads the location's clock in its own timezone. Only a range can. */
+declare const filterIsLocalTime: (test: FilterOp) => boolean;
+/** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
+ *  operators are marked for translation. */
+declare const OP_LABELS: Record<FilterOpKind, string>;
+declare function colorForKey(key: string): RGB;
+/** Ghost keys that "solo" `key`: everything except it. Returns an empty set when `key`
+ *  is already the sole visible selection, so a repeat call un-isolates (clears all ghosts). */
+declare function isolateGhostKeys(keys: string[], ghosted: ReadonlySet<string>, key: string): Set<string>;
+declare const toggleGhost: (key: string) => (_sels: Selection[], ghosted: ReadonlySet<string>) => SelectionPatch;
+declare const isolateGhost: (key: string) => (sels: Selection[], ghosted: ReadonlySet<string>) => SelectionPatch;
+declare const toggleGhostAll: () => (sels: Selection[], ghosted: ReadonlySet<string>) => SelectionPatch;
+/** Pick `n` distinct ids uniformly at random from `ids` using `Math.random`.
+ *  `n` is floored and clamped to `[0, ids.length]` (so over-large counts return all ids).
+ *  Uses a partial Fisher–Yates shuffle, so the result contains no duplicates and `ids` is not mutated. */
+declare function sampleIds(ids: number[], n: number): number[];
+/** What one selection type answers about itself; optional answers default at the lookup. */
+export interface SelectionDescriptor<K extends Selector["type"]> {
+    key(selector: Variant<Selector, K>, locations: number[]): string;
+    label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
+    /** Null falls through to the key hash. */
+    color?(selector: Variant<Selector, K>): RGB | null;
+    locations?(selector: Variant<Selector, K>): number[];
+}
+declare const SELECTIONS: {
+    [K in Selector["type"]]: SelectionDescriptor<K>;
+};
+/** Create a Selection with a deterministic key and overlay color from its selector. */
+declare function buildSelection(selector: Selector): Selection;
+declare const addSelection: (selector: Selector) => (current: Selection[]) => Selection[];
+/** Keys of every Polygon selection whose geometry contains the point. */
+declare function polygonSelectionsContaining(selections: Selection[], lat: number, lng: number): string[];
+/** Remove a selection by key. Composites unwrap their children back into the list.
+ *  Returns `current` unchanged when the key is not present (identity-safe). */
+declare const removeSelection: (key: string) => (current: Selection[]) => Selection[];
+declare const intersectSelections: (keys?: string[] | null) => (current: Selection[]) => Selection[];
+declare const unionSelections: (keys?: string[] | null) => (current: Selection[]) => Selection[];
+/** Invert targeted selections. Single target toggles in-place at any depth; multiple are wrapped in Union then Invert. */
+declare const invertSelections: (keys?: string[] | null) => (current: Selection[]) => Selection[];
+declare const toggleManualSelection: (locationId: number) => (current: Selection[]) => Selection[];
+declare const reorderSelections: (fromKey: string, toKey: string, position: "before" | "after") => (current: Selection[]) => Selection[];
+/** Drag-drop composition: merge drag into drop as a new composite, absorbing existing
+ *  children of the same type. Parents route the nested cases: same parent recomposes the
+ *  siblings, a drag out of a parent detaches first, a drop onto a child nests there. */
+declare const composeSelections: (dragKey: string, dropKey: string, mode: GroupType, dragParent?: string | null, dropParent?: string | null) => (current: Selection[]) => Selection[];
+/** Pull a child out of a composite back into the top-level list, children and all. Parent collapses
+ *  if only one child remains, and disappears if none do. */
+declare const decomposeChild: (parentKey: string, childKey: string) => (current: Selection[]) => Selection[];
+declare const removeFromComposite: (parentKey: string, childKey: string) => (current: Selection[]) => Selection[];
+declare function composeSiblings(current: Selection[], parentKey: string, dragKey: string, dropKey: string, mode: GroupType): Selection[];
+declare function composeWithChild(current: Selection[], dragKey: string, parentKey: string, childKey: string, mode: GroupType): Selection[];
+/** Replace the selection identified by `oldKey` (at any depth) with one built from `selector`,
+ *  rebuilding the keys of every composite on the path so identity stays consistent. Used to
+ *  edit a filter in place without dropping it from its AND/OR group. Enforces the unique-key
+ *  invariant recursively (via {@link spliceMerging}): if a re-key collides with an existing
+ *  selection at any level, merge into it — drop this edit, keep the existing one. A selection's
+ *  key is its identity, so a duplicate key would break every key-addressed op (recolor,
+ *  reorder, drag-highlight, remove). */
+declare function replaceSelection(current: Selection[], oldKey: string, selector: Selector): Selection[];
+/** Human-readable label for a selection, resolving tag names and filter ops. Each branch is one
+ *  whole message with named params -- never assembled from translated fragments, so a language
+ *  can reorder it. `tagNames` is a saved rule's tag-name side table: it names `Tag` leaves whose
+ *  id belongs to the map the rule was saved on rather than the one that is open. */
+declare function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string;
+/** Display label for a tag NAME. In tree view with `truncateTagPaths` on, collapses the
+ *  `/`-path to its shortest unique suffix; otherwise returns the name verbatim. Uniqueness
+ *  is computed over visible tags only — soft-deleted ghosts must not widen suffixes.
+ *  Memoized on the visible-tags array (stable identity between tag mutations) so list
+ *  rendering stays O(n). */
+declare function displayTagName(name: string): string;
+declare const setSelectionColors: (entries: Selection[]) => (current: Selection[]) => Selection[];
+declare const setPolygonName: (key: string, name: string) => (current: Selection[]) => Selection[];
+declare const rewriteSelectionFields: (from: string, to: string | null) => (selections: Selection[]) => Selection[];
+
+export type selectionOps_CompositeType = CompositeType;
+export type selectionOps_FilterOpKind = FilterOpKind;
+export type selectionOps_GroupType = GroupType;
+declare const selectionOps_OP_LABELS: typeof OP_LABELS;
+declare const selectionOps_SELECTIONS: typeof SELECTIONS;
+export type selectionOps_SelectionPatch = SelectionPatch;
+export type selectionOps_SelectionState = SelectionState;
+declare const selectionOps_UNARY_TYPES: typeof UNARY_TYPES;
+export type selectionOps_UnaryType = UnaryType;
+declare const selectionOps_addSelection: typeof addSelection;
+declare const selectionOps_batch: typeof batch;
+declare const selectionOps_buildSelection: typeof buildSelection;
+declare const selectionOps_colorForKey: typeof colorForKey;
+declare const selectionOps_composeSelections: typeof composeSelections;
+declare const selectionOps_composeSiblings: typeof composeSiblings;
+declare const selectionOps_composeWithChild: typeof composeWithChild;
+declare const selectionOps_decomposeChild: typeof decomposeChild;
+declare const selectionOps_displayTagName: typeof displayTagName;
+declare const selectionOps_filterIsLocalTime: typeof filterIsLocalTime;
+declare const selectionOps_intersectSelections: typeof intersectSelections;
+declare const selectionOps_invertSelections: typeof invertSelections;
+declare const selectionOps_isolateGhost: typeof isolateGhost;
+declare const selectionOps_isolateGhostKeys: typeof isolateGhostKeys;
+declare const selectionOps_polygonSelectionsContaining: typeof polygonSelectionsContaining;
+declare const selectionOps_removeFromComposite: typeof removeFromComposite;
+declare const selectionOps_removeSelection: typeof removeSelection;
+declare const selectionOps_reorderSelections: typeof reorderSelections;
+declare const selectionOps_replaceSelection: typeof replaceSelection;
+declare const selectionOps_rewriteSelectionFields: typeof rewriteSelectionFields;
+declare const selectionOps_sampleIds: typeof sampleIds;
+declare const selectionOps_selectionDisplayName: typeof selectionDisplayName;
+declare const selectionOps_setPolygonName: typeof setPolygonName;
+declare const selectionOps_setSelectionColors: typeof setSelectionColors;
+declare const selectionOps_toggleGhost: typeof toggleGhost;
+declare const selectionOps_toggleGhostAll: typeof toggleGhostAll;
+declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
+declare const selectionOps_unionSelections: typeof unionSelections;
+declare namespace selectionOps {
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_polygonSelectionsContaining as polygonSelectionsContaining, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections };
+  export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPatch as SelectionPatch, selectionOps_SelectionState as SelectionState, selectionOps_UnaryType as UnaryType };
+}
 
 export interface MapState {
     mapId: string | null;
@@ -2532,7 +2716,7 @@ declare const getActiveSelections: () => Selection[];
  *  every "operate on the selection" call site sends -- Rust holds no notion of "selected",
  *  so the tree JS already has is the definition. */
 declare function currentSelection(): Selector;
-/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want -- prefer `addSelections`. */
+/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. */
 declare function setSelectedLocationIds(ids: SelectedIds): void;
 /** Optimistically patch any map's meta by id, persist, and refresh the map list. Mirrors
  *  onto the open map's state when it is that map. */
@@ -2568,27 +2752,17 @@ declare function deleteField(key: string): Promise<void>;
  *  `location:invalidate` (derived views re-query) and refreshes the open editor's
  *  location. */
 declare function applyFieldOp(selector: Selector, op: FieldOp, recordUndo: boolean): Promise<FieldOpResult>;
-/** Toggle a selection's ghosted state and re-sync (excludes/includes it from the overlay). */
-declare function toggleGhostSelection(key: string): Promise<void>;
-/** "Solo" a selection: ghost every other top-level selection, keep this one visible.
- *  If it is already the only visible one, un-ghost everything (toggle back). */
-declare function isolateSelection(key: string): Promise<void>;
-/** Ghost every top-level selection; if all are already ghosted, un-ghost them all. */
-declare function toggleGhostAllSelections(): Promise<void>;
-/** Add selections to the sidebar and highlight their locations. Same-key selections replace. */
-declare function addSelections(selector: Selector[]): Promise<void>;
-/** No-op (no sync) when none of the keys are live selections. */
-declare function removeSelections(keys: string[]): Promise<void> | undefined;
+/** Apply a pure selection transform, then sync to Rust.
+ *  Ops return a SelectionPatch - either or both of { selections, ghosted }.
+ *  A bare Selection[] is shorthand for { selections }.
+ *  Skips IPC when the op produced no change (reference equality). */
+declare function applySelectionUpdate(op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | SelectionPatch): Promise<void>;
+/** Resolve the current selection list against Rust and sync the overlay.
+ *  Called after `applySelectionUpdate` sets state, or standalone when the underlying
+ *  data changed (tag recolor, commit overlay clear) but selections themselves didn't. */
+declare function syncSelections$1(): Promise<void>;
 /** Clear all selections. */
 declare function resetSelections(): Promise<void>;
-/** Combine selections into an AND composite. `keys` null combines all top-level selections. */
-declare function selectIntersection(keys?: string[] | null): Promise<void>;
-/** Combine selections into an OR composite. `keys` null combines all top-level selections. */
-declare function selectUnion(keys?: string[] | null): Promise<void>;
-/** Wrap selections in an Invert composite (everything NOT in them). `keys` null inverts all. */
-declare function selectInverse(keys?: string[] | null): Promise<void>;
-/** Add or remove one location from the Manual selection (creating it if needed). */
-declare function toggleManualSelection(locationId: number): Promise<void>;
 /** Replace the current selection with a single Manual selection holding `count` ids picked
  *  at random from whatever is currently selected. `count` is clamped to the selection size.
  *  With `perSelection` it is a per-bucket cap: up to `count` ids from each active selection,
@@ -2619,21 +2793,6 @@ declare function pruneDuplicates(selector: Selector, distance: number): Promise<
 /** Edit an existing filter (or any selection) in place by key, preserving its
  *  position inside any AND/OR/Invert composite. Carries ghost state to the new key. */
 declare function updateFilterSelection(oldKey: string, selector: Selector): Promise<void>;
-/** Rename a polygon selection. */
-declare function setPolygonName(key: string, name: string): Promise<void>;
-/** Set the highlight color of selections, by key. */
-declare function setSelectionColors(entries: {
-    key: string;
-    color: [number, number, number];
-}[]): void;
-/** Move a selection before/after another in the sidebar order. */
-declare function reorderSelection(fromKey: string, toKey: string, position: "before" | "after"): void;
-/** Nest existing selections under a new AND/OR/Invert composite. */
-declare function composeSelections(dragKey: string, dropKey: string, mode: GroupType, dragParent: string | null, dropParent: string | null): void;
-/** Pull a child out of a composite back to the top level. */
-declare function decomposeChild(parentKey: string, childKey: string): void;
-/** Delete a child from a composite (without re-adding it at the top level). */
-declare function removeChildFromSelection(parentKey: string, childKey: string): void;
 /** Toggle tag selections on/off for the given tags (used by tag-pill clicks). */
 declare function toggleTagSelections(tagIds: number[]): void;
 /** Tag ids that currently have a Tag selection (cached; keyed on the selection list,
@@ -2701,20 +2860,18 @@ declare function checkoutCommit(commitId: string): Promise<void>;
 
 export type store_MapState = MapState;
 declare const store_addLocations: typeof addLocations;
-declare const store_addSelections: typeof addSelections;
 declare const store_addTagToLocations: typeof addTagToLocations;
 declare const store_applyFieldOp: typeof applyFieldOp;
+declare const store_applySelectionUpdate: typeof applySelectionUpdate;
 declare const store_cancelAutosave: typeof cancelAutosave;
 declare const store_checkoutCommit: typeof checkoutCommit;
 declare const store_closeDuplicates: typeof closeDuplicates;
 declare const store_commitMap: typeof commitMap;
-declare const store_composeSelections: typeof composeSelections;
 declare const store_countBy: typeof countBy;
 declare const store_countIn: typeof countIn;
 declare const store_coverage: typeof coverage;
 declare const store_createTags: typeof createTags;
 declare const store_currentSelection: typeof currentSelection;
-declare const store_decomposeChild: typeof decomposeChild;
 declare const store_deleteField: typeof deleteField;
 declare const store_deleteTags: typeof deleteTags;
 declare const store_discardOpenMap: typeof discardOpenMap;
@@ -2734,7 +2891,6 @@ declare const store_getTag: typeof getTag;
 declare const store_getVisibleTags: typeof getVisibleTags;
 declare const store_holdAutosave: typeof holdAutosave;
 declare const store_initStore: typeof initStore;
-declare const store_isolateSelection: typeof isolateSelection;
 declare const store_mapOpen: typeof mapOpen;
 declare const store_mergeDuplicates: typeof mergeDuplicates;
 declare const store_mutate: typeof mutate;
@@ -2746,14 +2902,11 @@ declare const store_previewDuplicateGroups: typeof previewDuplicateGroups;
 declare const store_previewVirtualLocation: typeof previewVirtualLocation;
 declare const store_pruneDuplicates: typeof pruneDuplicates;
 declare const store_redo: typeof redo;
-declare const store_removeChildFromSelection: typeof removeChildFromSelection;
 declare const store_removeDuplicate: typeof removeDuplicate;
 declare const store_removeLocations: typeof removeLocations;
-declare const store_removeSelections: typeof removeSelections;
 declare const store_removeTagFromAllLocations: typeof removeTagFromAllLocations;
 declare const store_removeTagFromLocations: typeof removeTagFromLocations;
 declare const store_renameField: typeof renameField;
-declare const store_reorderSelection: typeof reorderSelection;
 declare const store_reorderTags: typeof reorderTags;
 declare const store_resetSelections: typeof resetSelections;
 declare const store_resolveIds: typeof resolveIds;
@@ -2761,22 +2914,14 @@ declare const store_resolveLocation: typeof resolveLocation;
 declare const store_sampleFrom: typeof sampleFrom;
 declare const store_scheduleAutoCommit: typeof scheduleAutoCommit;
 declare const store_scheduleSave: typeof scheduleSave;
-declare const store_selectIntersection: typeof selectIntersection;
-declare const store_selectInverse: typeof selectInverse;
 declare const store_selectRandomFromSelection: typeof selectRandomFromSelection;
 declare const store_selectSpacedFromSelection: typeof selectSpacedFromSelection;
-declare const store_selectUnion: typeof selectUnion;
 declare const store_setActiveLocation: typeof setActiveLocation;
 declare const store_setMapExtraFields: typeof setMapExtraFields;
 declare const store_setPluginMode: typeof setPluginMode;
-declare const store_setPolygonName: typeof setPolygonName;
 declare const store_setSelectedLocationIds: typeof setSelectedLocationIds;
-declare const store_setSelectionColors: typeof setSelectionColors;
 declare const store_setWorkArea: typeof setWorkArea;
 declare const store_tagIdsToNames: typeof tagIdsToNames;
-declare const store_toggleGhostAllSelections: typeof toggleGhostAllSelections;
-declare const store_toggleGhostSelection: typeof toggleGhostSelection;
-declare const store_toggleManualSelection: typeof toggleManualSelection;
 declare const store_toggleTagSelections: typeof toggleTagSelections;
 declare const store_undo: typeof undo;
 declare const store_updateFilterSelection: typeof updateFilterSelection;
@@ -2786,7 +2931,7 @@ declare const store_updateTags: typeof updateTags;
 declare const store_useMapState: typeof useMapState;
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
-  export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_composeSelections as composeSelections, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_decomposeChild as decomposeChild, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_isolateSelection as isolateSelection, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeChildFromSelection as removeChildFromSelection, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderSelection as reorderSelection, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectIntersection as selectIntersection, store_selectInverse as selectInverse, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_selectUnion as selectUnion, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setPolygonName as setPolygonName, store_setSelectedLocationIds as setSelectedLocationIds, store_setSelectionColors as setSelectionColors, store_setWorkArea as setWorkArea, store_tagIdsToNames as tagIdsToNames, store_toggleGhostAllSelections as toggleGhostAllSelections, store_toggleGhostSelection as toggleGhostSelection, store_toggleManualSelection as toggleManualSelection, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
+  export { store_addLocations as addLocations, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
   export type { store_MapState as MapState };
 }
 
@@ -3148,8 +3293,6 @@ declare const COMMANDS: {
 };
 export type CommandId = keyof typeof COMMANDS;
 export type PinnedEntry = CommandId | "---" | (string & {});
-
-export type RGB = [number, number, number];
 
 /** Language names stay in their own language, the way every language picker does it -- a reader
  *  looking for their own has to recognise it without already reading English.
@@ -4216,7 +4359,7 @@ declare function getFieldDef(key: string): ExtraFieldDef | undefined;
 declare function getAllFieldDefs(): Record<string, ExtraFieldDef>;
 
 export interface SelectionBitmaskPayload {
-    selColors: [number, number, number][];
+    selColors: RGB[];
     cellEntries: SelCellEntry[];
     setIds: (ids: SelectedIds) => void;
 }
@@ -4273,7 +4416,7 @@ export type EventHandler<E extends EditorEvent> = (payload: EditorEventMap[E]) =
  *  name it was saved under. */
 export interface SavedPart {
     label: string;
-    color: [number, number, number];
+    color: RGB;
     selector: Selector;
 }
 /** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
@@ -4856,7 +4999,16 @@ declare const surface: {
     /** @unstable */
     _test: typeof testApi;
 };
+
+/** Shortcuts over the selection primitives. */
+declare const convenience: {
+    addSelections: (selectors: Selector[]) => Promise<void>;
+    removeSelections: (keys: string[]) => Promise<void>;
+};
 export type StoreApi = typeof store;
+/** The pure selection list ops, composed with `applySelectionUpdate`. */
+export type SelectionOpsApi = typeof selectionOps;
+export type ColorApi = typeof colorUtils;
 /** Import dialog internals. @unstable */
 export type ImportStagingApi = typeof importStaging;
 /** Commit diff internals. @unstable */
@@ -4874,10 +5026,10 @@ export type MapApi = typeof map;
 export type SavedSelectionsApi = typeof saved;
 export type SettingsApi = typeof settings;
 export type SurfaceApi = typeof surface;
-/** Shims for removed APIs: they serve plugins built before the support floor and are
- *  never a promise to newer ones -- each dies when the floor passes its removal. @unstable */
+export type ConvenienceApi = typeof convenience;
+/** Shims for removed APIs. @unstable */
 export type LegacyApi = typeof legacy;
-export interface MMA extends StoreApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, TauriApi, PluginApi, FieldsApi, SeenApi, SvApi, MapApi, SavedSelectionsApi, SettingsApi, SurfaceApi, LegacyApi {
+export interface MMA extends StoreApi, SelectionOpsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, TauriApi, PluginApi, FieldsApi, SeenApi, SvApi, MapApi, SavedSelectionsApi, SettingsApi, SurfaceApi, ColorApi, ConvenienceApi, LegacyApi {
 }
 declare global {
     interface Window {

@@ -45,6 +45,7 @@ import { getScenePositions } from "@/lib/render/sceneStore";
 import * as sidecar from "@/plugins/sidecar";
 import * as legacy from "@/legacy";
 import * as selectionOps from "@/store/selections";
+import * as colorUtils from "@/lib/util/color";
 import * as testApi from "@/testApi";
 
 /** Tauri primitives, handed to plugins as-is. */
@@ -141,9 +142,19 @@ const surface = {
 	_test: testApi,
 };
 
+import type { Selector } from "@/bindings.gen";
+
+const convenience = {
+	addSelections: (selectors: Selector[]) =>
+		store.applySelectionUpdate(selectionOps.batch(selectionOps.addSelection)(selectors)),
+	removeSelections: (keys: string[]) =>
+		store.applySelectionUpdate(selectionOps.batch(selectionOps.removeSelection)(keys)),
+};
+
 type StoreApi = typeof store;
 /** The pure selection list ops, composed with `applySelectionUpdate`. */
 type SelectionOpsApi = typeof selectionOps;
+type ColorApi = typeof colorUtils;
 /** Import dialog internals. @unstable */
 type ImportStagingApi = typeof importStaging;
 /** Commit diff internals. @unstable */
@@ -161,8 +172,8 @@ type MapApi = typeof map;
 type SavedSelectionsApi = typeof saved;
 type SettingsApi = typeof settings;
 type SurfaceApi = typeof surface;
-/** Shims for removed APIs: they serve plugins built before the support floor and are
- *  never a promise to newer ones -- each dies when the floor passes its removal. @unstable */
+type ConvenienceApi = typeof convenience;
+/** Shims for removed APIs. @unstable */
 type LegacyApi = typeof legacy;
 
 export interface MMA
@@ -183,6 +194,8 @@ export interface MMA
 		SavedSelectionsApi,
 		SettingsApi,
 		SurfaceApi,
+		ColorApi,
+		ConvenienceApi,
 		LegacyApi {}
 
 const mma: MMA = {
@@ -202,6 +215,8 @@ const mma: MMA = {
 	...saved,
 	...settings,
 	...surface,
+	...colorUtils,
+	...convenience,
 	...legacy,
 };
 
