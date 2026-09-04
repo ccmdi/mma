@@ -166,14 +166,14 @@ describe("polygon selection keys", () => {
 	});
 
 	it("identical repeat adds dedupe instead of stacking", () => {
-		const once = addSelection([], {
+		const once = addSelection({
 			type: "Polygon",
 			polygon: square(0),
-		});
-		const twice = addSelection(once, {
+		})([]);
+		const twice = addSelection({
 			type: "Polygon",
 			polygon: square(0),
-		});
+		})(once);
 		expect(twice.length).toBe(1);
 	});
 });
@@ -268,20 +268,20 @@ describe("buildSelection", () => {
 
 describe("addSelection / removeSelection", () => {
 	it("addSelection appends a new selection", () => {
-		const result = addSelection([], { type: "Everything" });
+		const result = addSelection({ type: "Everything" })([]);
 		expect(result).toHaveLength(1);
 		expect(result[0].key).toBe("everything");
 	});
 
 	it("addSelection deduplicates by key", () => {
-		const first = addSelection([], { type: "Everything" });
-		const second = addSelection(first, { type: "Everything" });
+		const first = addSelection({ type: "Everything" })([]);
+		const second = addSelection({ type: "Everything" })(first);
 		expect(second).toHaveLength(1);
 	});
 
 	it("removeSelection removes by key", () => {
-		const sels = addSelection([], { type: "Everything" });
-		const result = removeSelection(sels, "everything");
+		const sels = addSelection({ type: "Everything" })([]);
+		const result = removeSelection("everything")(sels);
 		expect(result).toHaveLength(0);
 	});
 
@@ -289,7 +289,7 @@ describe("addSelection / removeSelection", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
 		const composite = buildSelection({ type: "Intersection", selections: [s1, s2] });
-		const result = removeSelection([composite], composite.key);
+		const result = removeSelection(composite.key)([composite]);
 		expect(result).toHaveLength(2);
 	});
 });
@@ -298,14 +298,14 @@ describe("intersectSelections", () => {
 	it("creates intersection of two selections", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const result = intersectSelections([s1, s2], null);
+		const result = intersectSelections(null)([s1, s2]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Intersection");
 	});
 
 	it("does nothing with fewer than 2 selections", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
-		const result = intersectSelections([s1], null);
+		const result = intersectSelections(null)([s1]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("PanoIds");
 	});
@@ -313,9 +313,9 @@ describe("intersectSelections", () => {
 	it("flattens nested intersections", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const inter = intersectSelections([s1, s2], null);
+		const inter = intersectSelections(null)([s1, s2]);
 		const s3 = buildSelection({ type: "Unpanned" });
-		const result = intersectSelections([...inter, s3], null);
+		const result = intersectSelections(null)([...inter, s3]);
 		expect(result).toHaveLength(1);
 		const children = (result[0].selector as { type: "Intersection"; selections: any[] }).selections;
 		expect(children).toHaveLength(3);
@@ -326,7 +326,7 @@ describe("unionSelections", () => {
 	it("creates union of two selections", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const result = unionSelections([s1, s2], null);
+		const result = unionSelections(null)([s1, s2]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Union");
 	});
@@ -334,9 +334,9 @@ describe("unionSelections", () => {
 	it("flattens nested unions", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const union = unionSelections([s1, s2], null);
+		const union = unionSelections(null)([s1, s2]);
 		const s3 = buildSelection({ type: "Unpanned" });
-		const result = unionSelections([...union, s3], null);
+		const result = unionSelections(null)([...union, s3]);
 		expect(result).toHaveLength(1);
 		const children = (result[0].selector as { type: "Union"; selections: any[] }).selections;
 		expect(children).toHaveLength(3);
@@ -346,15 +346,15 @@ describe("unionSelections", () => {
 describe("invertSelections", () => {
 	it("wraps a single selection in Invert", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
-		const result = invertSelections([s1], null);
+		const result = invertSelections(null)([s1]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Invert");
 	});
 
 	it("double invert unwraps back to original", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
-		const inverted = invertSelections([s1], null);
-		const result = invertSelections(inverted, null);
+		const inverted = invertSelections(null)([s1]);
+		const result = invertSelections(null)(inverted);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("PanoIds");
 	});
@@ -363,7 +363,7 @@ describe("invertSelections", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
 		const union = buildSelection({ type: "Union", selections: [s1, s2] });
-		const result = invertSelections([union], [s1.key]);
+		const result = invertSelections([s1.key])([union]);
 		expect(result).toHaveLength(1);
 		const top = result[0].selector as { type: "Union"; selections: any[] };
 		expect(top.type).toBe("Union");
@@ -377,11 +377,11 @@ describe("invertSelections", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
 		const union = buildSelection({ type: "Union", selections: [s1, s2] });
-		const inverted = invertSelections([union], [s1.key]);
+		const inverted = invertSelections([s1.key])([union]);
 		const invertedChild = (inverted[0].selector as { selections: any[] }).selections.find(
 			(c) => c.selector.type === "Invert",
 		);
-		const result = invertSelections(inverted, [invertedChild.key]);
+		const result = invertSelections([invertedChild.key])(inverted);
 		expect(result).toHaveLength(1);
 		const top = result[0].selector as { type: "Union"; selections: any[] };
 		expect(top.type).toBe("Union");
@@ -391,30 +391,30 @@ describe("invertSelections", () => {
 
 describe("toggleManualSelection", () => {
 	it("creates manual selection if none exists", () => {
-		const result = toggleManualSelection([], 1);
+		const result = toggleManualSelection(1)([]);
 		expect(result).toHaveLength(1);
 		expect(result[0].key).toBe("manual");
 	});
 
 	it("adds to existing manual selection", () => {
-		const initial = toggleManualSelection([], 1);
-		const result = toggleManualSelection(initial, 2);
+		const initial = toggleManualSelection(1)([]);
+		const result = toggleManualSelection(2)(initial);
 		const ids = (result[0].selector as { type: "Manual"; locations: number[] }).locations;
 		expect(ids).toContain(1);
 		expect(ids).toContain(2);
 	});
 
 	it("removes from existing manual selection", () => {
-		let sels = toggleManualSelection([], 1);
-		sels = toggleManualSelection(sels, 2);
-		sels = toggleManualSelection(sels, 1);
+		let sels = toggleManualSelection(1)([]);
+		sels = toggleManualSelection(2)(sels);
+		sels = toggleManualSelection(1)(sels);
 		const ids = (sels[0].selector as { type: "Manual"; locations: number[] }).locations;
 		expect(ids).toEqual([2]);
 	});
 
 	it("removes manual selection entirely when last location toggled off", () => {
-		let sels = toggleManualSelection([], 1);
-		sels = toggleManualSelection(sels, 1);
+		let sels = toggleManualSelection(1)([]);
+		sels = toggleManualSelection(1)(sels);
 		expect(sels).toHaveLength(0);
 	});
 });
@@ -424,7 +424,7 @@ describe("reorderSelections", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
 		const s3 = buildSelection({ type: "Unpanned" });
-		const result = reorderSelections([s1, s2, s3], s3.key, s1.key, "before");
+		const result = reorderSelections(s3.key, s1.key, "before")([s1, s2, s3]);
 		expect(result.map((s) => s.key)).toEqual([s3.key, s1.key, s2.key]);
 	});
 
@@ -432,7 +432,7 @@ describe("reorderSelections", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
 		const s3 = buildSelection({ type: "Unpanned" });
-		const result = reorderSelections([s1, s2, s3], s1.key, s3.key, "after");
+		const result = reorderSelections(s1.key, s3.key, "after")([s1, s2, s3]);
 		expect(result.map((s) => s.key)).toEqual([s2.key, s3.key, s1.key]);
 	});
 });
@@ -728,20 +728,20 @@ describe("selectionDisplayName", () => {
 	it("display name for Intersection", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const inter = intersectSelections([s1, s2], null);
+		const inter = intersectSelections(null)([s1, s2]);
 		expect(selectionDisplayName(inter[0])).toBe("Intersection");
 	});
 
 	it("display name for Union", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const union = unionSelections([s1, s2], null);
+		const union = unionSelections(null)([s1, s2]);
 		expect(selectionDisplayName(union[0])).toBe("Union");
 	});
 
 	it("display name for Invert includes child name", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
-		const inverted = invertSelections([s1], null);
+		const inverted = invertSelections(null)([s1]);
 		expect(selectionDisplayName(inverted[0])).toBe("Invert: Pano ID locations");
 	});
 });
@@ -790,21 +790,21 @@ describe("reorderSelections edge cases", () => {
 	it("returns unchanged when from key not found", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const result = reorderSelections([s1, s2], "nonexistent", s2.key, "before");
+		const result = reorderSelections("nonexistent", s2.key, "before")([s1, s2]);
 		expect(result.map((s) => s.key)).toEqual([s1.key, s2.key]);
 	});
 
 	it("returns unchanged when to key not found", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const result = reorderSelections([s1, s2], s1.key, "nonexistent", "before");
+		const result = reorderSelections(s1.key, "nonexistent", "before")([s1, s2]);
 		expect(result.map((s) => s.key)).toEqual([s1.key, s2.key]);
 	});
 
 	it("returns unchanged when from and to are the same", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const result = reorderSelections([s1, s2], s1.key, s1.key, "before");
+		const result = reorderSelections(s1.key, s1.key, "before")([s1, s2]);
 		expect(result.map((s) => s.key)).toEqual([s1.key, s2.key]);
 	});
 });
@@ -813,7 +813,7 @@ describe("composeSelections", () => {
 	it("drag onto drop creates intersection", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const result = composeSelections([s1, s2], s2.key, s1.key, "Intersection");
+		const result = composeSelections(s2.key, s1.key, "Intersection")([s1, s2]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Intersection");
 	});
@@ -821,7 +821,7 @@ describe("composeSelections", () => {
 	it("drag onto drop creates union", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const result = composeSelections([s1, s2], s2.key, s1.key, "Union");
+		const result = composeSelections(s2.key, s1.key, "Union")([s1, s2]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Union");
 	});
@@ -829,9 +829,9 @@ describe("composeSelections", () => {
 	it("drag onto existing composite adds as child", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
 		const s2 = buildSelection({ type: "Untagged" });
-		const composed = composeSelections([s1, s2], s2.key, s1.key, "Intersection");
+		const composed = composeSelections(s2.key, s1.key, "Intersection")([s1, s2]);
 		const s3 = buildSelection({ type: "Unpanned" });
-		const result = composeSelections([...composed, s3], s3.key, composed[0].key, "Intersection");
+		const result = composeSelections(s3.key, composed[0].key, "Intersection")([...composed, s3]);
 		expect(result).toHaveLength(1);
 		const children = (result[0].selector as { selections: any[] }).selections;
 		expect(children).toHaveLength(3);
@@ -839,13 +839,13 @@ describe("composeSelections", () => {
 
 	it("returns unchanged if drag equals drop", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
-		const result = composeSelections([s1], s1.key, s1.key, "Intersection");
+		const result = composeSelections(s1.key, s1.key, "Intersection")([s1]);
 		expect(result).toEqual([s1]);
 	});
 
 	it("returns unchanged if key not found", () => {
 		const s1 = buildSelection({ type: "PanoIds" });
-		const result = composeSelections([s1], "nonexistent", s1.key, "Intersection");
+		const result = composeSelections("nonexistent", s1.key, "Intersection")([s1]);
 		expect(result).toEqual([s1]);
 	});
 });
@@ -885,13 +885,12 @@ describe("decomposeChild", () => {
 		const s2 = buildSelection({ type: "Untagged" });
 		const s3 = buildSelection({ type: "Unpanned" });
 		const composed = composeSelections(
-			composeSelections([s1, s2], s2.key, s1.key, "Intersection").concat(s3),
 			s3.key,
-			composeSelections([s1, s2], s2.key, s1.key, "Intersection")[0].key,
+			composeSelections(s2.key, s1.key, "Intersection")([s1, s2])[0].key,
 			"Intersection",
-		);
+		)(composeSelections(s2.key, s1.key, "Intersection")([s1, s2]).concat(s3));
 		const parentKey = composed[0].key;
-		const result = decomposeChild(composed, parentKey, s2.key);
+		const result = decomposeChild(parentKey, s2.key)(composed);
 		expect(result.length).toBeGreaterThan(composed.length);
 	});
 
@@ -902,7 +901,7 @@ describe("decomposeChild", () => {
 		const union = buildSelection({ type: "Union", selections: [a, b] });
 		const parent = buildSelection({ type: "Intersection", selections: [union, c] });
 
-		const result = decomposeChild([parent], parent.key, union.key);
+		const result = decomposeChild(parent.key, union.key)([parent]);
 
 		// Parent had two children, so it collapses to the one left: C. The Union comes out whole.
 		expect(result.map((s) => s.selector.type)).toEqual(["Unpanned", "Union"]);
@@ -917,7 +916,7 @@ describe("decomposeChild", () => {
 		const union = buildSelection({ type: "Union", selections: [a, b] });
 		const parent = buildSelection({ type: "Intersection", selections: [union] });
 
-		const result = decomposeChild([parent], parent.key, union.key);
+		const result = decomposeChild(parent.key, union.key)([parent]);
 
 		expect(result).toHaveLength(1);
 		expect(result[0].key).toBe(union.key);
@@ -930,10 +929,10 @@ describe("removeFromComposite", () => {
 		const s2 = buildSelection({ type: "Untagged" });
 		const s3 = buildSelection({ type: "Unpanned" });
 		let sels = [s1, s2, s3];
-		sels = composeSelections(sels, s2.key, s1.key, "Intersection");
-		sels = composeSelections([...sels, s3], s3.key, sels[0].key, "Intersection");
+		sels = composeSelections(s2.key, s1.key, "Intersection")(sels);
+		sels = composeSelections(s3.key, sels[0].key, "Intersection")([...sels, s3]);
 		const parentKey = sels[0].key;
-		const result = removeFromComposite(sels, parentKey, s2.key);
+		const result = removeFromComposite(parentKey, s2.key)(sels);
 		expect(result).toHaveLength(sels.length);
 		const children = (result[0].selector as { selections: any[] }).selections;
 		expect(children.every((c: any) => c.key !== s2.key)).toBe(true);
@@ -948,7 +947,7 @@ describe("removeFromComposite", () => {
 		const union = buildSelection({ type: "Union", selections: [a, b] });
 		const parent = buildSelection({ type: "Intersection", selections: [union, c] });
 
-		const result = removeFromComposite([parent], parent.key, union.key);
+		const result = removeFromComposite(parent.key, union.key)([parent]);
 
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Intersection");
@@ -964,10 +963,10 @@ describe("removeFromComposite", () => {
 		const outer = buildSelection({ type: "Intersection", selections: [inner] });
 
 		// Inner drops to one child, so it collapses, and so does the outer wrapping it.
-		expect(removeFromComposite([outer], inner.key, a.key)).toEqual([b]);
+		expect(removeFromComposite(inner.key, a.key)([outer])).toEqual([b]);
 		// Nothing left in the parent at all: the parent goes too.
 		const solo = buildSelection({ type: "Intersection", selections: [a] });
-		expect(removeFromComposite([solo], solo.key, a.key)).toEqual([]);
+		expect(removeFromComposite(solo.key, a.key)([solo])).toEqual([]);
 	});
 
 	it("preserves the Invert wrapper when removing a child from an inverted group", () => {
@@ -976,7 +975,7 @@ describe("removeFromComposite", () => {
 		const s3 = buildSelection({ type: "Unpanned" });
 		const group = buildSelection({ type: "Intersection", selections: [s1, s2, s3] });
 		const inv = buildSelection({ type: "Invert", selections: [group] });
-		const result = removeFromComposite([inv], inv.key, s1.key);
+		const result = removeFromComposite(inv.key, s1.key)([inv]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Invert");
 		const innerGroup = (result[0].selector as { selections: any[] }).selections[0];
@@ -990,7 +989,7 @@ describe("removeFromComposite", () => {
 		const s2 = buildSelection({ type: "Untagged" });
 		const group = buildSelection({ type: "Intersection", selections: [s1, s2] });
 		const inv = buildSelection({ type: "Invert", selections: [group] });
-		const result = removeFromComposite([inv], inv.key, s1.key);
+		const result = removeFromComposite(inv.key, s1.key)([inv]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Invert");
 		expect((result[0].selector as { selections: any[] }).selections[0].key).toBe(s2.key);
@@ -1032,7 +1031,7 @@ describe("replaceSelection", () => {
 	it("replaces a child inside a composite and rebuilds the parent key", () => {
 		const a = buildSelection(filterA);
 		const b = buildSelection({ type: "Untagged" });
-		const composed = intersectSelections([a, b], null); // [Intersection(a,b)]
+		const composed = intersectSelections(null)([a, b]); // [Intersection(a,b)]
 		const parent = composed[0];
 		const result = replaceSelection(composed, a.key, filterAEdited);
 
@@ -1072,7 +1071,7 @@ describe("replaceSelection", () => {
 	it("merges a child onto a sibling and unwraps the collapsed group", () => {
 		const a = buildSelection(filterA);
 		const b = buildSelection(filterAEdited);
-		const group = unionSelections([a, b], null); // [Union(a, b)]
+		const group = unionSelections(null)([a, b]); // [Union(a, b)]
 		const result = replaceSelection(group, a.key, filterAEdited); // edit a -> b's value
 		expect(result).toHaveLength(1);
 		expect(result[0].key).toBe(b.key); // (b OR b) collapsed to just b
@@ -1083,8 +1082,8 @@ describe("replaceSelection", () => {
 		const shared = buildSelection({ type: "PanoIds" });
 		const b = buildSelection(filterA);
 		const c = buildSelection(filterAEdited);
-		const g1 = intersectSelections([shared, b], null)[0]; // Intersection(shared, b)
-		const g2 = intersectSelections([shared, c], null)[0]; // Intersection(shared, c)
+		const g1 = intersectSelections(null)([shared, b])[0]; // Intersection(shared, b)
+		const g2 = intersectSelections(null)([shared, c])[0]; // Intersection(shared, c)
 		const result = replaceSelection([g1, g2], c.key, filterA); // edit c -> b's value
 		expect(result).toHaveLength(1);
 		expect(result[0].key).toBe(g1.key); // g2 became g1 -> kept the pre-existing g1
@@ -1234,7 +1233,7 @@ describe("rewriteSelectionFields", () => {
 		buildSelection({ type: "Filter", field, test: { op: "eq", value: 1 } });
 
 	it("rewrites a Filter field and regenerates its key", () => {
-		const out = rewriteSelectionFields([filter("a")], "a", "b");
+		const out = rewriteSelectionFields("a", "b")([filter("a")]);
 		expect(out).toHaveLength(1);
 		expect((out[0].selector as { field: string }).field).toBe("b");
 		expect(out[0].key).toBe("filter:b:eq:1");
@@ -1242,17 +1241,17 @@ describe("rewriteSelectionFields", () => {
 
 	it("leaves unrelated filters untouched", () => {
 		const f = filter("c");
-		const out = rewriteSelectionFields([f], "a", "b");
+		const out = rewriteSelectionFields("a", "b")([f]);
 		expect(out[0].key).toBe(f.key);
 	});
 
 	it("drops a Filter when the field is deleted (to = null)", () => {
-		expect(rewriteSelectionFields([filter("a")], "a", null)).toEqual([]);
+		expect(rewriteSelectionFields("a", null)([filter("a")])).toEqual([]);
 	});
 
 	it("rewrites filters nested in a composite", () => {
 		const union = buildSelection({ type: "Union", selections: [filter("a"), filter("c")] });
-		const out = rewriteSelectionFields([union], "a", "b");
+		const out = rewriteSelectionFields("a", "b")([union]);
 		const children = (out[0].selector as { selections: { selector: { field: string } }[] })
 			.selections;
 		expect(children.map((c) => c.selector.field)).toEqual(["b", "c"]);
@@ -1261,7 +1260,7 @@ describe("rewriteSelectionFields", () => {
 	it("collapses a group to its sole survivor when a child is deleted", () => {
 		const tag = buildSelection({ type: "Tag", tagId: 1 });
 		const union = buildSelection({ type: "Union", selections: [filter("a"), tag] });
-		const out = rewriteSelectionFields([union], "a", null);
+		const out = rewriteSelectionFields("a", null)([union]);
 		expect(out).toHaveLength(1);
 		expect(out[0].selector.type).toBe("Tag");
 	});

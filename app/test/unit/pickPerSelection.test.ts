@@ -53,12 +53,17 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 
 import {
 	openMap,
-	addSelections,
+	applySelectionUpdate,
 	resetSelections,
 	selectRandomFromSelection,
 	selectSpacedFromSelection,
 	getMapState,
 } from "@/store/useMapStore";
+import { addSelection, batch } from "@/store/selections";
+
+async function addSelections(selectors: import("@/bindings.gen").Selector[]) {
+	await applySelectionUpdate(batch(addSelection)(selectors));
+}
 
 /** What `currentSelection()` builds: the active (non-ghosted) nodes under one Union. */
 function unionOfActive() {
@@ -129,8 +134,8 @@ describe("random pick, per selection", () => {
 			{ type: "Tag", tagId: 1 },
 			{ type: "Tag", tagId: 2 },
 		]);
-		const { toggleGhostSelection } = await import("@/store/useMapStore");
-		await toggleGhostSelection("tag:2");
+		const { toggleGhost } = await import("@/store/selections");
+		await applySelectionUpdate(toggleGhost("tag:2"));
 		const sent = unionOfActive();
 
 		await selectRandomFromSelection(2, true);
