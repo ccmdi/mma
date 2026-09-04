@@ -3,14 +3,12 @@ import { useAsync } from "@/lib/hooks/useAsync";
 import { useEvent, SELECTION_EVENTS } from "@/lib/events";
 import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
 import type { Selection, ExtraFieldDef } from "@/bindings.gen";
+import type { RGB } from "@/lib/util/color";
+import { rgbCss } from "@/lib/util/color";
 import { analysisColumns, computeDivergence, soleGroup, type GroupColumns } from "./engine";
 import type { DisambiguateResult, FieldDivergence, GroupSummary, ValueFormat } from "./engine";
 import "./disambiguate.css";
 import { t } from "@/lib/i18n";
-
-function rgb(c: [number, number, number]) {
-	return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-}
 
 function badgeText(field: FieldDivergence): string {
 	if (field.format === "month") return t("Month");
@@ -48,7 +46,7 @@ function GroupCell({
 }: {
 	field: FieldDivergence;
 	g: GroupSummary;
-	color: [number, number, number];
+	color: RGB;
 }) {
 	const coverage = g.n > 0 ? Math.round((g.present / g.n) * 100) : 0;
 	let body: ReactNode;
@@ -84,7 +82,7 @@ function GroupCell({
 	}
 	return (
 		<div className="disambig__group">
-			<span className="disambig__swatch" style={{ background: rgb(color) }} />
+			<span className="disambig__swatch" style={{ background: rgbCss(color) }} />
 			<div className="disambig__group-body">
 				{body}
 				<div className="disambig__muted disambig__coverage">
@@ -100,7 +98,7 @@ function FieldRow({
 	colors,
 }: {
 	field: FieldDivergence;
-	colors: [number, number, number][];
+	colors: RGB[];
 }) {
 	const score = field.valueScore;
 	return (
@@ -134,7 +132,7 @@ function FieldRow({
 
 interface Analysis {
 	result: DisambiguateResult;
-	colors: [number, number, number][];
+	colors: RGB[];
 	excludedOverlap: number;
 }
 
@@ -215,7 +213,7 @@ export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 							<span key={i} className="disambig__group">
 								<span
 									className="disambig__swatch"
-									style={{ background: rgb(analysis.colors[i] ?? [128, 128, 128]) }}
+									style={{ background: rgbCss(analysis.colors[i] ?? [128, 128, 128]) }}
 								/>
 								{n}
 							</span>

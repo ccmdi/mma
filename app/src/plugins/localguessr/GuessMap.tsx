@@ -38,6 +38,7 @@ import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { t } from "@/lib/i18n";
 import type { Selector } from "@/bindings.gen";
 import type { LatLng, MapTypeKey } from "@/types";
+import type { RGB } from "@/lib/util/color";
 
 // Sizing mirrors the pano viewer minimap. Grows in layout, never by transform --
 // a CSS-scaled map container misreports click coordinates.
@@ -46,11 +47,11 @@ const SCALE_STEP = 0.25;
 const BASE_W = 800;
 const BASE_H = 600;
 const BASEMAPS: MapTypeKey[] = ["map", "satellite", "osm", "vector"];
-const GUESS_COLOR: [number, number, number] = [64, 133, 244];
-const TRUTH_COLOR: [number, number, number] = [76, 175, 80];
+const GUESS_COLOR: RGB = [64, 133, 244];
+const TRUTH_COLOR: RGB = [76, 175, 80];
 
 /** A pin and its shadow halo, so the circle separates from same-colored basemap. */
-function pinLayers(id: string, at: LatLng, color: [number, number, number], pickable: boolean) {
+function pinLayers(id: string, at: LatLng, color: RGB, pickable: boolean) {
 	return [
 		new ScatterplotLayer({
 			id: `${id}-halo`,

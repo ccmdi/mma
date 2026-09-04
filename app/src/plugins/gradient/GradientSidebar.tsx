@@ -4,6 +4,7 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import type { ExtraFieldType, KeySpec, DatePart } from "@/bindings.gen";
+import { rgbCss, type RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";
 import { partition } from "@/store/useMapStore";
@@ -19,7 +20,7 @@ import { Button } from "@/components/primitives/Button";
 
 interface GradientPreset {
 	name: string;
-	stops: [number, number, number][];
+	stops: RGB[];
 }
 
 const PRESETS: GradientPreset[] = [
@@ -70,9 +71,9 @@ const BUCKET_COUNTS = [5, 10, 15, 20];
 // Refuse to color a partition into more groups than a human can distinguish.
 const MAX_GROUPS = 100;
 
-const gradientCss = (stops: [number, number, number][]) =>
+const gradientCss = (stops: RGB[]) =>
 	`linear-gradient(to right, ${stops
-		.map((s, i) => `rgb(${s[0]},${s[1]},${s[2]}) ${(i / (stops.length - 1)) * 100}%`)
+		.map((s, i) => `${rgbCss(s)} ${(i / (stops.length - 1)) * 100}%`)
 		.join(", ")})`;
 
 // Gradient offers Range for numbers and dates (count bins); numeric defaults to Range.
@@ -176,9 +177,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 
 			await MMA.resetSelections();
 			await MMA.applySelectionUpdate(MMA.batch(MMA.addSelection)(sels.map((s) => s.selector)));
-			await MMA.applySelectionUpdate(
-				MMA.setSelectionColors(sels.map((s) => ({ key: s.key, color: s.color }))),
-			);
+			await MMA.applySelectionUpdate(MMA.setSelectionColors(sels));
 		} finally {
 			setApplying(false);
 		}

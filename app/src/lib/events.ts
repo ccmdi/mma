@@ -13,12 +13,13 @@ import type {
 	TagPatch,
 } from "@/bindings.gen";
 import type { SelectedIds, SelCellEntry } from "@/lib/render/CellManager";
+import type { RGB } from "@/lib/util/color";
 
 /** Phantom helper: captures a payload type at the value level without a real value. */
 const event = <T>() => null as T;
 
 export interface SelectionBitmaskPayload {
-	selColors: [number, number, number][];
+	selColors: RGB[];
 	cellEntries: SelCellEntry[];
 	setIds: (ids: SelectedIds) => void;
 }

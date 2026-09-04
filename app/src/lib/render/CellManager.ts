@@ -1,4 +1,5 @@
 import type { RenderDelta, RenderEntry, SelPaint } from "@/bindings.gen";
+import type { RGB } from "@/lib/util/color";
 
 /** A marker's selection state: `null` = the base layer draws it, a paint = the overlay does. */
 export type SelColor = SelPaint | null;
@@ -21,7 +22,7 @@ export interface SelCellEntry {
  * and in `applySelectionBitmasks`, which consumes the decoded entries.
  */
 export function decodeSelectionBitmask(bytes: number[]): {
-	selColors: [number, number, number][];
+	selColors: RGB[];
 	cellEntries: SelCellEntry[];
 } {
 	const buf = new Uint8Array(bytes).buffer;
@@ -29,7 +30,7 @@ export function decodeSelectionBitmask(bytes: number[]): {
 	let off = 0;
 	const numSels = dv.getUint32(off, true);
 	off += 4;
-	const selColors: [number, number, number][] = [];
+	const selColors: RGB[] = [];
 	for (let i = 0; i < numSels; i++) {
 		selColors.push([dv.getUint8(off), dv.getUint8(off + 1), dv.getUint8(off + 2)]);
 		off += 3;
@@ -160,7 +161,7 @@ export class SelectionOverlay {
 		lng: number,
 		lat: number,
 		heading: number,
-		color: readonly [number, number, number],
+		color: Readonly<RGB>,
 		selIdx: number,
 	) {
 		let i: number;
@@ -682,7 +683,7 @@ export class CellManager {
 	 * and overlay entries for every other cell survive untouched.
 	 */
 	applySelectionBitmasks(
-		selColors: [number, number, number][],
+		selColors: RGB[],
 		cellEntries: SelCellEntry[],
 	): SelectedIds {
 		const numSels = selColors.length;

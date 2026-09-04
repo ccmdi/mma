@@ -7,6 +7,7 @@
 
 import { wrapDeg, lngSpan, unionBounds, M_PER_DEG } from "@/lib/geo/geo";
 import type { Bounds } from "@/types";
+import type { RGB } from "@/lib/util/color";
 
 /** deck.gl BitmapLayer bounds, `[left, bottom, right, top]`. Unwrapped, so `right` runs
  *  past 180 for a region crossing the antimeridian rather than doubling back west. */
@@ -15,7 +16,7 @@ export type BitmapBounds = [number, number, number, number];
 const TARGET_DISC_PX = 6; // texels per probe radius at full resolution
 const MIN_DISC_PX = 2.5; // floor so coarse (large-region) textures still draw round dots, not plus-signs
 const MAX_DIM = 2048; // cap texture size (memory + upload bandwidth)
-const COLOR: readonly [number, number, number] = [56, 189, 248];
+const COLOR: Readonly<RGB> = [56, 189, 248];
 const FLUSH_MS = 200; // coalesce probe bursts; each flush costs a full-texture GPU upload
 
 let enabled = false;
@@ -63,7 +64,7 @@ export function stampDisc(
 	cx: number,
 	cy: number,
 	r: number,
-	color: readonly [number, number, number] = COLOR,
+	color: Readonly<RGB> = COLOR,
 ): void {
 	// 1px anti-aliased edge so small discs read as round dots, not blocky plus-signs.
 	const x0 = Math.max(0, Math.floor(cx - r - 1));

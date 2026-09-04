@@ -1,9 +1,10 @@
 import type { Selector } from "@/bindings.gen";
+import type { RGB } from "@/lib/util/color";
 import { localeFormat } from "@/lib/util/format";
 
 export interface PivotRow {
 	label: string;
-	color: [number, number, number];
+	color: RGB;
 	counts: Map<string, number>;
 	total: number;
 }

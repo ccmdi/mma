@@ -1,4 +1,4 @@
-export type RGB = [number, number, number];
+import type { RGB } from "mma-plugin-types";
 
 /** A colour pinned to a point on the ramp. `pos` is 0..1, stops kept sorted by it. */
 export interface GradientStop {

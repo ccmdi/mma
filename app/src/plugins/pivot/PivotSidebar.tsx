@@ -8,6 +8,7 @@ import { selectionDisplayName, buildSelection } from "@/store/selections";
 import { loadSavedSelections, savedParts, useSavedSelectionIndex } from "@/store/savedSelections";
 import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import type { ExtraFieldDef } from "@/bindings.gen";
+import type { RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
@@ -45,7 +46,7 @@ async function computePivot(
 	if (!map) return null;
 
 	// Determine rows + resolve ID sets
-	let rowDefs: { label: string; color: [number, number, number] }[];
+	let rowDefs: { label: string; color: RGB }[];
 	let idSets: Set<number>[];
 
 	if (rowSource === "all") {

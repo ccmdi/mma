@@ -1,11 +1,12 @@
-import type { ExtraFieldDef, PartitionBucket, Selector } from "@/bindings.gen";
+import type { ExtraFieldDef, PartitionBucket, Selection } from "@/bindings.gen";
+import type { RGB } from "@/lib/util/color";
 import { ymOrdinal } from "@/lib/util/date";
 
 export function lerp(
-	a: [number, number, number],
-	b: [number, number, number],
+	a: RGB,
+	b: RGB,
 	t: number,
-): [number, number, number] {
+): RGB {
 	return [
 		Math.round(a[0] + (b[0] - a[0]) * t),
 		Math.round(a[1] + (b[1] - a[1]) * t),
@@ -14,9 +15,9 @@ export function lerp(
 }
 
 export function gradientColor(
-	stops: [number, number, number][],
+	stops: RGB[],
 	t: number,
-): [number, number, number] {
+): RGB {
 	if (t <= 0) return stops[0];
 	if (t >= 1) return stops[stops.length - 1];
 	const segment = t * (stops.length - 1);
@@ -38,11 +39,6 @@ export function fieldScale(value: string, type: string | undefined): number | nu
 	return value.trim() !== "" && Number.isFinite(n) ? n : null;
 }
 
-export interface GradientSelection {
-	selector: Selector;
-	key: string;
-	color: [number, number, number];
-}
 
 // Color a partition's groups along the ramp and turn each into a selection — the
 // gradient sink over the shared `partition()` kernel.
@@ -61,12 +57,12 @@ export function colorPartition(
 	opts: {
 		fieldKey: string;
 		fieldType: string | undefined;
-		stops: [number, number, number][];
+		stops: RGB[];
 		narrowed: boolean;
 		ordinal: boolean;
 		eqFilter: boolean;
 	},
-): GradientSelection[] {
+): Selection[] {
 	// Numeric bins keep their empties for the pivot; an empty selection is noise here.
 	groups = groups.filter((g) => g.ids.length > 0);
 	if (groups.length === 0) return [];
