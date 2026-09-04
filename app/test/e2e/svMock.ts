@@ -16,13 +16,15 @@
  * by the Node stub (svStubServer.ts) over HTTP, built from the same svMockCore.
  *
  * The function below is serialized and run in the webview via browser.execute, so it
- * must be entirely self-contained (no imports, no outer references). The shared
- * fixtures arrive as `coreSrc`, the source text of `svMockCore`, re-evaluated here.
- * `configJson` is the SvMockConfig the Node stub also builds (recorded-latency replay,
- * hidden capture timestamps), so both surfaces answer on the same modelled network. The
- * request timeline is left on `window.__mmaSvTimeline` for a benchmark to read back.
+ * must be entirely self-contained (no imports, no outer references). The shared fixtures
+ * arrive as `window.__mmaSvCore`, which the same driver script builds from `svMockCore`'s
+ * source before calling this -- page-side `eval`/`new Function` would be blocked by the
+ * app's CSP, while a WebDriver script is exempt. The Node stub builds its core from the
+ * same SvMockConfig (recorded-latency replay, hidden capture timestamps), so both surfaces
+ * answer on the same modelled network. The request timeline is left on
+ * `window.__mmaSvTimeline` for a benchmark to read back.
  */
-export function installSvMock(coreSrc: string, configJson = "{}"): void {
+export function installSvMock(): void {
 	type ViewerInst = { __mp?: string; __mpos?: { lat: number; lng: number } | null };
 	type ProtoBag = Record<string, unknown> & { __mmaMocked?: boolean };
 	interface Fix {
@@ -68,18 +70,12 @@ export function installSvMock(coreSrc: string, configJson = "{}"): void {
 		__mmaSvMocked?: boolean;
 		__mmaSvTimeline?: NetEntry[];
 		__mmaSvSetFaults?: (f: Faults) => void;
+		__mmaSvCore?: Core & { net: Net; setFaults: (f: Faults) => void };
 	};
 	if (w.__mmaSvMocked) return;
 	w.__mmaSvMocked = true;
 
-	// esbuild's keepNames wraps every nested function in a `__name` helper that only
-	// exists at the top of the emitted module, so the eval'd source needs its own.
-	const core = (
-		new Function(
-			"cfg",
-			`var __name = (f) => f; return (${coreSrc})(cfg)`,
-		) as (cfg: unknown) => Core & { net: Net; setFaults: (f: Faults) => void }
-	)(JSON.parse(configJson));
+	const core = w.__mmaSvCore!;
 	const { isDead, fixFor, panoAtCoords, viewerData } = core;
 	w.__mmaSvTimeline = core.net.timeline;
 	w.__mmaSvSetFaults = core.setFaults;

@@ -89,11 +89,17 @@ export const config: WebdriverIO.Config = {
 	// Per-suite + idempotent so it survives any per-spec session reset.
 	beforeSuite: async () => {
 		if (process.env.MMA_TEST_MOCK_SV) {
-			try {
-				await browser.execute(installSvMock, svMockCore.toString(), JSON.stringify(svMockConfig()));
-			} catch (e) {
-				console.log("[sv-mock] install failed:", (e as Error).message);
-			}
+			// One WebDriver script, not a page-side eval: the app ships a CSP without
+			// 'unsafe-eval', so `new Function` inside the page would be blocked. esbuild's
+			// keepNames wraps nested functions in a `__name` helper that only exists at the
+			// top of the emitted module, so the serialized sources need their own.
+			// A failed install must abort: --mock is a claim that no result came off the
+			// network, and carrying on unmocked answers every spec from the real one.
+			await browser.execute(
+				`var __name = (f) => f;
+				 window.__mmaSvCore = (${svMockCore.toString()})(${JSON.stringify(svMockConfig())});
+				 return (${installSvMock.toString()})();`,
+			);
 		}
 	},
 	// The Rust procedure engine fetches outside the webview, so it gets an HTTP stub instead
