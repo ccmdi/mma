@@ -219,6 +219,10 @@ fn build_push_batch<P: SyncProvider>(
 }
 
 /// The pure stage of a reconcile. Produces every apply, both directions, plus the rows to persist.
+#[allow(
+    clippy::too_many_lines,
+    reason = "a sequential pipeline whose stages thread the same accumulating state"
+)]
 pub(crate) fn plan<P: SyncProvider>(input: &ReconcileInput<P>) -> PlannedReconcile<P::Raw> {
     let provider = input.provider;
     let positional = provider.identity() == IdentityModel::Positional;
@@ -616,21 +620,28 @@ impl MappingSink for DbSink<'_> {
 
 // --- Layer 3: the command ---------------------------------------------------
 
+/// One reconcile: which map, against which remote, and the local state it was
+/// snapshotted with. Threaded whole from the command down to [`ReconcileInput`].
+pub(crate) struct ReconcileRequest<'a> {
+    pub map_id: &'a str,
+    pub remote_map_id: &'a str,
+    pub local_locs: &'a [SyncLocalPin],
+    /// tag id -> name of the open map.
+    pub tag_names: &'a HashMap<u32, String>,
+    pub first_sync: Option<FirstSyncMode>,
+    pub resolutions: &'a [(IdentityKey, ResolutionSide)],
+}
+
 /// Pull, plan, and execute a linked map against one provider. Blocking (network + rusqlite).
 fn reconcile_with<P: SyncProvider>(
     provider: &P,
-    remote_map_id: &str,
-    local_locs: &[SyncLocalPin],
-    mapping: &[RemoteMappingRow],
-    tag_names: &HashMap<u32, String>,
-    first_sync: Option<FirstSyncMode>,
-    resolutions: &[(IdentityKey, ResolutionSide)],
-    conn: &mut Connection,
     provider_id: &str,
-    map_id: &str,
+    req: &ReconcileRequest<'_>,
+    mapping: &[RemoteMappingRow],
+    conn: &mut Connection,
 ) -> AppResult<SyncReconcileResult> {
     let t = Instant::now();
-    let snapshot = provider.pull(remote_map_id)?;
+    let snapshot = provider.pull(req.remote_map_id)?;
     log::info!(
         "[sync] pull: {} remote locations in {:.1}s",
         snapshot.locations.len(),
@@ -639,12 +650,12 @@ fn reconcile_with<P: SyncProvider>(
     let token = snapshot.token;
     let input = ReconcileInput {
         provider,
-        local_locs,
+        local_locs: req.local_locs,
         remote: snapshot,
         mapping,
-        tag_names,
-        first_sync,
-        resolutions,
+        tag_names: req.tag_names,
+        first_sync: req.first_sync,
+        resolutions: req.resolutions,
     };
     let t = Instant::now();
     let planned = plan(&input);
@@ -664,58 +675,31 @@ fn reconcile_with<P: SyncProvider>(
     let mut sink = DbSink {
         conn,
         provider: provider_id,
-        map_id,
+        map_id: req.map_id,
     };
     let t = Instant::now();
-    let result = execute(provider, remote_map_id, planned, token, &mut sink);
+    let result = execute(provider, req.remote_map_id, planned, token, &mut sink);
     log::info!("[sync] execute: {:.1}s", t.elapsed().as_secs_f64());
     result
 }
 
 fn run_reconcile(
     provider_name: &str,
-    map_id: &str,
-    remote_map_id: &str,
     api_key: Option<String>,
-    local_locs: &[SyncLocalPin],
-    tag_names: &HashMap<u32, String>,
-    first_sync: Option<FirstSyncMode>,
-    resolutions: &[(IdentityKey, ResolutionSide)],
+    req: &ReconcileRequest<'_>,
 ) -> AppResult<SyncReconcileResult> {
     let mut conn = storage::open_db()?;
-    let mapping = remote_mapping::get(&conn, provider_name, map_id)?;
+    let mapping = remote_mapping::get(&conn, provider_name, req.map_id)?;
 
     match provider_name {
         "map-making.app" => {
             let api_key = api_key.ok_or_else(|| AppError("missing api key".into()))?;
             let provider = MapMakingProvider { api_key };
-            reconcile_with(
-                &provider,
-                remote_map_id,
-                local_locs,
-                &mapping,
-                tag_names,
-                first_sync,
-                resolutions,
-                &mut conn,
-                provider_name,
-                map_id,
-            )
+            reconcile_with(&provider, provider_name, req, &mapping, &mut conn)
         }
         "geoguessr" => {
             let provider = GeoGuessrProvider::from_session()?;
-            reconcile_with(
-                &provider,
-                remote_map_id,
-                local_locs,
-                &mapping,
-                tag_names,
-                first_sync,
-                resolutions,
-                &mut conn,
-                provider_name,
-                map_id,
-            )
+            reconcile_with(&provider, provider_name, req, &mapping, &mut conn)
         }
         other => Err(AppError(format!("unknown sync provider '{other}'"))),
     }
@@ -762,13 +746,15 @@ pub async fn sync_reconcile(
     async_runtime::spawn_blocking(move || {
         run_reconcile(
             &provider,
-            &map_id,
-            &remote_map_id,
             api_key,
-            &local_locs,
-            &tag_names,
-            first_sync,
-            &resolutions,
+            &ReconcileRequest {
+                map_id: &map_id,
+                remote_map_id: &remote_map_id,
+                local_locs: &local_locs,
+                tag_names: &tag_names,
+                first_sync,
+                resolutions: &resolutions,
+            },
         )
     })
     .await?

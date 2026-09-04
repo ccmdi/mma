@@ -594,6 +594,10 @@ pub(super) fn build_extra_via_map(
 ///
 /// Tag names from `extra.tags` arrays are collected and deduplicated; tag
 /// metadata (colors, order) is extracted separately from the top-level `extra`.
+#[allow(
+    clippy::too_many_lines,
+    reason = "a sequential pipeline whose stages thread the same accumulating state"
+)]
 pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     let mut warnings = Vec::new();
     let t0 = Instant::now();
