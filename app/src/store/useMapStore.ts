@@ -106,12 +106,7 @@ function setState(patch: Partial<MapState>) {
 
 /** Merge non-null fields into the state (JSON merge patch: null = unchanged). */
 function mergeState(patch: { [K in keyof MapState]?: MapState[K] | null }) {
-	const next = { ...state };
-	for (const key of Object.keys(patch) as (keyof MapState)[]) {
-		const v = patch[key];
-		if (v != null) (next as Record<keyof MapState, unknown>)[key] = v;
-	}
-	state = next;
+	state = { ...state, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v != null)) };
 }
 
 /** Reactive slice of the map state. Re-renders only when the selected value's
@@ -476,16 +471,14 @@ export async function setMapExtraFields(fields: Record<string, ExtraFieldDef>) {
 
 /** Keys of tag selections whose tag just died (deleted or went invisible). */
 function deadTagKeys(oldTags: Record<number, Tag>, newTags: Record<number, Tag>): string[] {
-	const keys: string[] = [];
-	for (const idStr of Object.keys(oldTags)) {
-		const id = Number(idStr);
-		const was = oldTags[id];
-		const now = newTags[id];
-		if (was && was.visible !== false && (!now || now.visible === false)) {
-			keys.push(`tag:${id}`);
-		}
-	}
-	return keys;
+	return Object.keys(oldTags)
+		.map(Number)
+		.filter((id) => {
+			const was = oldTags[id];
+			const now = newTags[id];
+			return was && was.visible !== false && (!now || now.visible === false);
+		})
+		.map((id) => `tag:${id}`);
 }
 
 /** A MutationResult carries only what moved: every present field replaces its slice,
@@ -621,12 +614,12 @@ export async function updateLocations(
 	if (updates.some((u) => isVirtualLocation(u))) return;
 	await mutate(() => cmd.storeUpdateLocations(updates, opts?.undoable ?? true));
 	emitEvent("location:update", updates);
-	if (state.activeLocation && updates.some((u) => u.id === state.activeLocationId)) {
+	if (state.activeLocation) {
 		const activePatch = updates.find((u) => u.id === state.activeLocationId)?.patch;
 		if (activePatch) {
 			setState({ activeLocation: applyLocationPatch(state.activeLocation, activePatch) });
+			emitEvent("store:changed");
 		}
-		emitEvent("store:changed");
 	}
 }
 
@@ -739,10 +732,7 @@ function pruneGhosted(selections: Selection[], ghosted: ReadonlySet<string>): Re
 
 /** Toggle a selection's ghosted state and re-sync (excludes/includes it from the overlay). */
 export function toggleGhostSelection(key: string) {
-	const next = new Set(state.ghostedSelections);
-	if (next.has(key)) next.delete(key);
-	else next.add(key);
-	setState({ ghostedSelections: next });
+	setState({ ghostedSelections: state.ghostedSelections.symmetricDifference(new Set([key])) });
 	return applySelectionUpdate((sels) => sels);
 }
 
@@ -771,11 +761,7 @@ export function toggleGhostAllSelections() {
 
 /** Add selections to the sidebar and highlight their locations. Same-key selections replace. */
 export function addSelections(selector: Selector[]) {
-	return applySelectionUpdate((sels) => {
-		let result = sels;
-		for (const p of selector) result = addSel(result, p);
-		return result;
-	});
+	return applySelectionUpdate((sels) => selector.reduce((result, p) => addSel(result, p), sels));
 }
 
 /** No-op (no sync) when none of the keys are live selections. */
@@ -783,11 +769,7 @@ export function removeSelections(keys: string[]) {
 	const live = new Set(state.selections.map((s) => s.key));
 	const present = keys.filter((k) => live.has(k));
 	if (present.length === 0) return;
-	return applySelectionUpdate((sels) => {
-		let result = sels;
-		for (const k of present) result = removeSel(result, k);
-		return result;
-	});
+	return applySelectionUpdate((sels) => present.reduce((result, k) => removeSel(result, k), sels));
 }
 
 /** Clear all selections. */
@@ -923,11 +905,9 @@ export function setPolygonName(key: string, name: string) {
 
 /** Set the highlight color of selections, by key. */
 export function setSelectionColors(entries: { key: string; color: [number, number, number] }[]) {
-	void applySelectionUpdate((sels) => {
-		let result = sels;
-		for (const { key, color } of entries) result = setSelColor(result, key, color);
-		return result;
-	});
+	void applySelectionUpdate((sels) =>
+		entries.reduce((result, { key, color }) => setSelColor(result, key, color), sels),
+	);
 }
 
 /** Move a selection before/after another in the sidebar order. */
@@ -968,16 +948,14 @@ export function removeChildFromSelection(parentKey: string, childKey: string) {
 /** Toggle tag selections on/off for the given tags (used by tag-pill clicks). */
 export function toggleTagSelections(tagIds: number[]) {
 	if (!state.map || tagIds.length === 0) return;
-	void applySelectionUpdate((sels) => {
-		let result = sels;
-		for (const tagId of tagIds) {
+	void applySelectionUpdate((sels) =>
+		tagIds.reduce((result, tagId) => {
 			const key = `tag:${tagId}`;
-			const exists = result.some((s) => s.key === key);
-			if (exists) result = removeSel(result, key);
-			else result = addSel(result, { type: "Tag", tagId });
-		}
-		return result;
-	});
+			return result.some((s) => s.key === key)
+				? removeSel(result, key)
+				: addSel(result, { type: "Tag", tagId });
+		}, sels),
+	);
 }
 
 /** Tag ids that currently have a Tag selection (cached; keyed on the selection list,
@@ -987,9 +965,10 @@ export const getSelectedTagIds: () => ReadonlySet<number> = (() => {
 	return memoOnRefs(
 		() => [state.selections] as const,
 		(sels) => {
-			const ids = new Set<number>();
-			for (const s of sels) if (s.selector.type === "Tag") ids.add(s.selector.tagId);
-			if (prev && prev.size === ids.size && [...ids].every((id) => prev!.has(id))) return prev;
+			const ids = new Set(
+				sels.flatMap((s) => (s.selector.type === "Tag" ? [s.selector.tagId] : [])),
+			);
+			if (prev && prev.symmetricDifference(ids).size === 0) return prev;
 			prev = ids;
 			return ids;
 		},
@@ -1189,12 +1168,8 @@ export async function updateTags(updates: Update<TagPatch>[]) {
 	await mutate(() => cmd.storeUpdateTags(updates));
 	emitEvent("tag:update", updates);
 	// ONLY resync on color change, everything else is resolved by Rust
-	if (
-		state.selections.some((s) => {
-			const p = s.selector;
-			return p.type === "Tag" && updates.some((q) => q.id === p.tagId && q.patch.color != null);
-		})
-	) {
+	const recolored = new Set(updates.filter((u) => u.patch.color != null).map((u) => u.id));
+	if (state.selections.some((s) => s.selector.type === "Tag" && recolored.has(s.selector.tagId))) {
 		void applySelectionUpdate((sels) => sels);
 	}
 }
@@ -1221,11 +1196,10 @@ async function modifyTagOnLocations(
 ) {
 	if (locationIds.length === 0) return;
 	const locs = await fetchLocations({ type: "Locations", locations: locationIds, name: null });
-	const updates: Update<LocationPatch>[] = [];
-	for (const l of locs) {
+	const updates = locs.flatMap((l): Update<LocationPatch>[] => {
 		const next = transform(l.tags, tagId);
-		if (next) updates.push({ id: l.id, patch: { tags: next } });
-	}
+		return next ? [{ id: l.id, patch: { tags: next } }] : [];
+	});
 	if (updates.length === 0) return;
 	await updateLocations(updates);
 }
