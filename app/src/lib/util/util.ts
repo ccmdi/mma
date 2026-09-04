@@ -27,7 +27,15 @@ export function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set
 	return next;
 }
 
-/** Split into consecutive slices of at most `n` items. */
+/** The item `isBetter` prefers over every other, or null when there are none. */
+export function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null {
+	let best: T | null = null;
+	for (const item of items) {
+		if (best === null || isBetter(item, best)) best = item;
+	}
+	return best;
+}
+
 export function chunk<T>(arr: readonly T[], n: number): T[][] {
 	const out: T[][] = [];
 	for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));

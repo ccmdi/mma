@@ -11,6 +11,7 @@ import type { Location } from "@/bindings.gen";
 
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { reverseHeading } from "@/lib/geo/geo";
+import { bestBy } from "@/lib/util/util";
 
 /** The pano a location should display: the one it is pinned to when that still resolves,
  *  otherwise whatever sits at its coordinates. */
@@ -43,16 +44,7 @@ export function clickSearchRadius(lat: number, zoom: number, minRadius?: number)
 
 /** Heading among `headings` closest to `target` by shortest angular distance, or null if empty. */
 export function nearestLinkHeading(headings: number[], target: number): number | null {
-	let best: number | null = null;
-	let bestDelta = Infinity;
-	for (const h of headings) {
-		const d = angularDelta(h, target);
-		if (d < bestDelta) {
-			bestDelta = d;
-			best = h;
-		}
-	}
-	return best;
+	return bestBy(headings, (a, b) => angularDelta(a, target) < angularDelta(b, target));
 }
 
 /** Determine initial heading for a location based on road links and direction preference. */
@@ -78,9 +70,11 @@ export function calcHeading(
 			const target: Record<string, number> = { north: 0, east: 90, south: 180, west: 270 };
 			const t = target[dir];
 			if (t != null) {
-				link = data.links.reduce((best, cur) =>
-					angularDelta(best.heading ?? 0, t) > angularDelta(cur.heading ?? 0, t) ? cur : best,
-				);
+				link =
+					bestBy(
+						data.links,
+						(a, b) => angularDelta(a.heading ?? 0, t) < angularDelta(b.heading ?? 0, t),
+					) ?? link;
 			}
 		}
 		if (link.heading != null) return link.heading;
@@ -95,11 +89,10 @@ export async function photometaSnap(click: LatLng, radius: number): Promise<Pano
 		const tile = worldToTile(wc.x, wc.y, 17);
 		const dots = await fetchPanoDotsWithIds(tile);
 		if (!dots.length) return null;
-		let best: { panoId: string; dist: number } | null = null;
-		for (const d of dots) {
-			const dist = distMeters(click, { lat: d.lat, lng: d.lng });
-			if (dist < radius && (!best || dist < best.dist)) best = { panoId: d.panoId, dist };
-		}
+		const scored = dots
+			.map((d) => ({ panoId: d.panoId, dist: distMeters(click, { lat: d.lat, lng: d.lng }) }))
+			.filter((d) => d.dist < radius);
+		const best = bestBy(scored, (a, b) => a.dist < b.dist);
 		if (!best) return null;
 		const [pano] = await svMetadata([best.panoId]);
 		return pano;
@@ -243,19 +236,14 @@ export async function followLinkedPanos(
 		const links = data?.links;
 		if (!links || links.length === 0) break;
 
-		let best: { pano: string; heading: number } | null = null;
-		let bestDelta = Infinity;
-		for (const link of links) {
-			const pid = link.pano;
-			const lh = link.heading ?? 0;
-			if (!pid || visited.has(pid)) continue;
-			const delta = angularDelta(lh, currentHeading);
-			if (delta < bestDelta) {
-				bestDelta = delta;
-				best = { pano: pid, heading: lh };
-			}
-		}
-		if (!best || bestDelta > 90) break;
+		const usable = links
+			.filter((l) => l.pano && !visited.has(l.pano))
+			.map((l) => ({ pano: l.pano, heading: l.heading ?? 0 }));
+		const best = bestBy(
+			usable,
+			(a, b) => angularDelta(a.heading, currentHeading) < angularDelta(b.heading, currentHeading),
+		);
+		if (!best || angularDelta(best.heading, currentHeading) > 90) break;
 
 		visited.add(best.pano);
 		const [nextData] = await svMetadata([best.pano]);
