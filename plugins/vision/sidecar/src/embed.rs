@@ -55,7 +55,9 @@ pub struct EmbedStatus {
 use std::sync::Mutex;
 use crate::project::RemapTable;
 
-static REMAP_CACHE: Mutex<Vec<((u32, u32), Vec<RemapTable>)>> = Mutex::new(Vec::new());
+type RemapEntry = ((u32, u32), Vec<RemapTable>);
+
+static REMAP_CACHE: Mutex<Vec<RemapEntry>> = Mutex::new(Vec::new());
 
 pub fn debug_extract_crops(pano: &image::RgbImage) -> Vec<image::RgbImage> {
     extract_crops(pano)
@@ -371,7 +373,7 @@ pub fn run(
             match embed_image_batch(&mut session, crop_batch) {
                 Ok(embs) => {
                     all_embs.extend_from_slice(&embs);
-                    failed.extend(std::iter::repeat(false).take(crop_batch.len()));
+                    failed.extend(std::iter::repeat_n(false, crop_batch.len()));
                 }
                 Err(e) => {
                     // Zero-fill so indexing stays aligned; `failed` keeps these out of the cache.

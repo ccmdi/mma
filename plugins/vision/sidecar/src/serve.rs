@@ -109,11 +109,10 @@ pub fn run(model_dir: &str, cache_dir: &str, idle_secs: u64) {
             Ok(Some(mut req)) => {
                 last = Instant::now();
                 let mut body = String::new();
-                use std::io::Read;
                 let _ = req.as_reader().read_to_string(&mut body);
                 let (status, resp) = state.handle(
                     req.method().as_str().to_uppercase().as_str(),
-                    &req.url().to_string(),
+                    req.url(),
                     &body,
                 );
                 let response = tiny_http::Response::from_string(resp)

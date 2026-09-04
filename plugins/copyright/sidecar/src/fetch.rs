@@ -85,11 +85,11 @@ pub fn fetch_tiles_streaming(
             let tx = tx.clone();
             handles.push(tokio::spawn(async move {
                 let cache = cache_path(&pid, zoom, x, y);
-                if let Some(ref p) = cache {
-                    if let Ok(data) = std::fs::read(p) {
-                        let _ = tx.send((pid, Ok(data)));
-                        return;
-                    }
+                if let Some(ref p) = cache
+                    && let Ok(data) = std::fs::read(p)
+                {
+                    let _ = tx.send((pid, Ok(data)));
+                    return;
                 }
                 let result = match sem.acquire().await {
                     Ok(_permit) => {
@@ -130,10 +130,10 @@ pub fn fetch_tiles_concurrent(
             let pid = pid.to_string();
             handles.push(tokio::spawn(async move {
                 let cache = cache_path(&pid, zoom, x, y);
-                if let Some(ref p) = cache {
-                    if let Ok(data) = std::fs::read(p) {
-                        return (pid, Ok(data));
-                    }
+                if let Some(ref p) = cache
+                    && let Ok(data) = std::fs::read(p)
+                {
+                    return (pid, Ok(data));
                 }
                 let result = match sem.acquire().await {
                     Ok(_permit) => {

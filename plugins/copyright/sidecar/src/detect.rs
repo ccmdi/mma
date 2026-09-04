@@ -218,9 +218,9 @@ fn tier_a_vote(probs: &[[f32; NUM_CLASSES]]) -> Option<u32> {
     for p in probs {
         let mut bi = 1;
         let mut bp = p[1];
-        for i in 2..NUM_CLASSES {
-            if p[i] > bp {
-                bp = p[i];
+        for (i, &v) in p.iter().enumerate().skip(2) {
+            if v > bp {
+                bp = v;
                 bi = i;
             }
         }
@@ -420,9 +420,9 @@ fn tier_b_vote(probs: &[[f32; NUM_CLASSES]]) -> Option<u32> {
     for p in probs {
         let mut pred = 0usize;
         let mut pm = p[0];
-        for i in 1..NUM_CLASSES {
-            if p[i] > pm {
-                pm = p[i];
+        for (i, &v) in p.iter().enumerate().skip(1) {
+            if v > pm {
+                pm = v;
                 pred = i;
             }
         }
@@ -623,10 +623,10 @@ pub fn run(input: &DetectInput, model_dir: &str, mut emit: impl FnMut(DetectResu
         for &(x, row) in &TIER_B_CELLS {
             let fetched = fetch_tiles_concurrent(&nb_ids, 4, x, row);
             for &pid in &nb_ids {
-                if let Some(Ok(data)) = fetched.get(pid) {
-                    if let Some(g) = decode_gray(data) {
-                        btiles.entry(pid).or_default().push(g);
-                    }
+                if let Some(Ok(data)) = fetched.get(pid)
+                    && let Some(g) = decode_gray(data)
+                {
+                    btiles.entry(pid).or_default().push(g);
                 }
             }
         }

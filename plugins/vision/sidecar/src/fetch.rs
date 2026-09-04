@@ -64,8 +64,8 @@ fn tile_layout(zoom: u32, world_w: u32, world_h: u32) -> (u32, u32, u32, u32, u3
     let scale = 1u32 << (max_zoom - z);
     let width = (world_w as f64 / scale as f64).round() as u32;
     let height = (world_h as f64 / scale as f64).round() as u32;
-    let cols = (width + TILE_PX - 1) / TILE_PX;
-    let rows = (height + TILE_PX - 1) / TILE_PX;
+    let cols = width.div_ceil(TILE_PX);
+    let rows = height.div_ceil(TILE_PX);
     (z, cols, rows, width, height)
 }
 

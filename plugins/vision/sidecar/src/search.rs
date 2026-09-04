@@ -87,11 +87,11 @@ fn search(
         })
         .filter(|(_, s)| threshold.is_none_or(|t| *s >= t))
         .collect();
-    if let Some(k) = k {
-        if k < scored.len() {
-            scored.select_nth_unstable_by(k - 1, desc);
-            scored.truncate(k);
-        }
+    if let Some(k) = k
+        && k < scored.len()
+    {
+        scored.select_nth_unstable_by(k - 1, desc);
+        scored.truncate(k);
     }
     scored.sort_by(desc);
     scored.into_iter()

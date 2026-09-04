@@ -50,7 +50,7 @@ impl RemapTable {
             .enumerate()
             .for_each(|(y, row)| {
                 let v = y as f32;
-                for x in 0..out_w as usize {
+                for (x, cell) in row.iter_mut().enumerate() {
                     let u = x as f32;
                     // ray = rk * [u, v, 1]
                     let rx = rk[0][0] * u + rk[0][1] * v + rk[0][2];
@@ -64,7 +64,7 @@ impl RemapTable {
                     let src_x = (lon / (2.0 * std::f32::consts::PI) + 0.5) * (pw - 1.0);
                     let src_y = (lat / std::f32::consts::PI + 0.5) * (ph - 1.0);
 
-                    row[x] = [src_x, src_y];
+                    *cell = [src_x, src_y];
                 }
             });
 
