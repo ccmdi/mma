@@ -290,10 +290,9 @@ pub fn sidecar_installed_version(plugin_id: String) -> AppResult<Option<String>>
 
 // --- Spec ---
 
-/// The `sidecar` object of a plugin manifest -- the single parser for every consumer:
-/// the manifest listing (name/version/checksum) and request routing here (`serve`).
-/// The installed `manifest.json` is the single source of truth, so nothing has to be
-/// registered from JS.
+/// The `sidecar` object of a plugin manifest -- the name it installs under and
+/// request routing here (`serve`). The installed `manifest.json` is the single
+/// source of truth, so nothing has to be registered from JS.
 #[derive(serde::Deserialize)]
 pub(crate) struct SidecarSpec {
     pub(crate) name: String,
@@ -302,10 +301,6 @@ pub(crate) struct SidecarSpec {
     /// Commands the resident process serves. Anything else runs as a one-shot child.
     #[serde(default)]
     serve: Vec<String>,
-    /// Everything else, notably the per-platform `sha256-{platform}` checksums.
-    #[serde(flatten)]
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
-    rest: HashMap<String, serde_json::Value>,
 }
 
 impl SidecarSpec {
@@ -324,12 +319,6 @@ impl SidecarSpec {
 
     fn is_resident(&self, command: &str) -> bool {
         self.serve.iter().any(|c| c == command)
-    }
-
-    /// Expected zip checksum for a platform tag, if the manifest carries one.
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
-    pub(crate) fn sha256(&self, platform: &str) -> Option<&str> {
-        self.rest.get(&format!("sha256-{platform}"))?.as_str()
     }
 }
 

@@ -10,15 +10,13 @@ fn spec(json: &str) -> SidecarSpec {
 }
 
 #[test]
-fn parses_name_version_serve_and_checksums() {
+fn parses_name_version_and_serve() {
     let s = spec(
         r#"{"sidecar":{"name":"mma-vision","version":"1.0.0","serve":["search-text"],"sha256-windows-x64":"abc"}}"#,
     );
     assert_eq!(s.name, "mma-vision");
     assert_eq!(s.version.as_deref(), Some("1.0.0"));
     assert_eq!(s.serve, vec!["search-text"]);
-    assert_eq!(s.sha256("windows-x64"), Some("abc"));
-    assert_eq!(s.sha256("linux-x64"), None);
 }
 
 #[test]
