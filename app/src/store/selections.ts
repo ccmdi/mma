@@ -552,6 +552,26 @@ export const removeFromComposite =
 	(current: Selection[]): Selection[] =>
 		detachChild(current, parentKey, childKey, "delete");
 
+/** Rewrite the children of the composite at `parentKey` in place. `edit` returning null leaves the
+ *  list untouched, so a caller that cannot find its target aborts without a partial write. */
+function withComposite(
+	current: Selection[],
+	parentKey: string,
+	edit: (children: Selection[]) => Selection[] | null,
+): Selection[] {
+	const parentIdx = current.findIndex((s) => s.key === parentKey);
+	if (parentIdx === -1) return current;
+	const grp = unwrapUnary(current[parentIdx]);
+	if (!grp) return current;
+	const { selector: composite, rewrap } = grp;
+	const newChildren = edit(composite.selections);
+	if (!newChildren) return current;
+	return current.with(
+		parentIdx,
+		rewrap(buildSelection({ type: composite.type, selections: newChildren })),
+	);
+}
+
 export function composeSiblings(
 	current: Selection[],
 	parentKey: string,
@@ -559,23 +579,13 @@ export function composeSiblings(
 	dropKey: string,
 	mode: GroupType,
 ): Selection[] {
-	const parentIdx = current.findIndex((s) => s.key === parentKey);
-	if (parentIdx === -1) return current;
-	const grp = unwrapUnary(current[parentIdx]);
-	if (!grp) return current;
-	const { selector: composite, rewrap } = grp;
-
-	const children = composite.selections;
-	const dragChild = children.find((s) => s.key === dragKey);
-	const dropChild = children.find((s) => s.key === dropKey);
-	if (!dragChild || !dropChild) return current;
-
-	const nested = buildSelection({ type: mode, selections: [dropChild, dragChild] });
-	const newChildren = children
-		.filter((s) => s.key !== dragKey)
-		.map((s) => (s.key === dropKey ? nested : s));
-	const newParent = rewrap(buildSelection({ type: composite.type, selections: newChildren }));
-	return current.with(parentIdx, newParent);
+	return withComposite(current, parentKey, (children) => {
+		const dragChild = children.find((s) => s.key === dragKey);
+		const dropChild = children.find((s) => s.key === dropKey);
+		if (!dragChild || !dropChild) return null;
+		const nested = buildSelection({ type: mode, selections: [dropChild, dragChild] });
+		return children.filter((s) => s.key !== dragKey).map((s) => (s.key === dropKey ? nested : s));
+	});
 }
 
 export function composeWithChild(
@@ -585,24 +595,17 @@ export function composeWithChild(
 	childKey: string,
 	mode: GroupType,
 ): Selection[] {
-	const parentIdx = current.findIndex((s) => s.key === parentKey);
 	const dragIdx = current.findIndex((s) => s.key === dragKey);
-	if (parentIdx === -1 || dragIdx === -1) return current;
+	if (dragIdx === -1) return current;
 	const drag = current[dragIdx];
-	const grp = unwrapUnary(current[parentIdx]);
-	if (!grp) return current;
-	const { selector: composite, rewrap } = grp;
 
-	const children = composite.selections;
-	const childIdx = children.findIndex((s) => s.key === childKey);
-	if (childIdx === -1) return current;
-	const child = children[childIdx];
-
-	const nested = buildSelection({ type: mode, selections: [child, drag] });
-	const newChildren = children.with(childIdx, nested);
-	const newParent = rewrap(buildSelection({ type: composite.type, selections: newChildren }));
-
-	return current.filter((_, i) => i !== dragIdx).map((s) => (s.key === parentKey ? newParent : s));
+	const next = withComposite(current, parentKey, (children) => {
+		const childIdx = children.findIndex((s) => s.key === childKey);
+		if (childIdx === -1) return null;
+		const nested = buildSelection({ type: mode, selections: [children[childIdx], drag] });
+		return children.with(childIdx, nested);
+	});
+	return next === current ? current : next.filter((_, i) => i !== dragIdx);
 }
 
 /** Put `replaced` at `index` in `list`, enforcing unique keys at this level: if it collides
