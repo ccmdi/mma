@@ -325,9 +325,9 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
     let mut parent = uf.0;
 
     let mut comps: HashMap<usize, Vec<u32>> = HashMap::new();
-    for pi in 0..n {
+    for (pi, point) in points.iter().enumerate() {
         let r = find(&mut parent, pi);
-        comps.entry(r).or_default().push(points[pi].id);
+        comps.entry(r).or_default().push(point.id);
     }
 
     let mut groups: Vec<Vec<u32>> = comps

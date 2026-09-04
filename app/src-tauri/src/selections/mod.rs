@@ -599,7 +599,7 @@ impl<'a> LocView<'a> {
         }
 
         let set = set.unwrap();
-        for id in set.iter() {
+        for id in set {
             let Some(i) = self
                 .batch
                 .and_then(|batch| arrow::batch_row_for_id(batch, id))
@@ -617,7 +617,7 @@ impl<'a> LocView<'a> {
             };
             f(row);
         }
-        for id in set.iter() {
+        for id in set {
             if let Ok(i) = self.adds.binary_search_by_key(&id, |loc| loc.id) {
                 f(RowRef::from_loc(&self.adds[i]));
             }
@@ -899,8 +899,8 @@ fn alive_id_set(view: &LocView) -> RoaringBitmap {
 /// dead batch rows. O(N).
 fn mask_to_set(view: &LocView, mask: &[bool]) -> RoaringBitmap {
     let mut set = RoaringBitmap::new();
-    for i in 0..view.batch_rows {
-        if mask[i] && view.is_alive(i) {
+    for (i, &hit) in mask.iter().enumerate().take(view.batch_rows) {
+        if hit && view.is_alive(i) {
             set.insert(view.id_at(i));
         }
     }

@@ -111,14 +111,13 @@ pub(crate) fn reconcile_tags_by_name(
     }
     claims.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.2.cmp(&b.2)));
     let changed = created || adopted_doclinks || !claims.is_empty();
-    let mut next_order = target_tags
+    let next_order = target_tags
         .values()
         .filter_map(|t| t.order)
         .max()
         .map_or(1, |m| m + 1);
-    for (id, _, _) in claims {
-        target_tags.get_mut(&id).unwrap().order = Some(next_order);
-        next_order += 1;
+    for (i, (id, _, _)) in claims.into_iter().enumerate() {
+        target_tags.get_mut(&id).unwrap().order = Some(next_order + i as u32);
     }
     (remap, changed)
 }

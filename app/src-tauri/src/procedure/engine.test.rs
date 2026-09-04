@@ -1536,7 +1536,7 @@ fn run_query_returns_the_module_output_and_reaches_fetch() {
         &deps,
         "res://procedures/svMeta.js",
         r#"{"op":"metadata","panoIds":["a"]}"#,
-        Some(r#"{"units":"metric"}"#.into()),
+        Some(r#"{"units":"metric"}"#),
         &|| false,
     )
     .expect("query succeeds");

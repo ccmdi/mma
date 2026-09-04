@@ -5,6 +5,7 @@ use crate::types::LocationFlags;
 use crate::types::RawExtra;
 use crate::util;
 use std::collections::BTreeMap;
+use std::slice;
 
 fn loc(id: u32, lat: f64, lng: f64) -> Location {
     Location {
@@ -103,7 +104,7 @@ fn delta_batch_round_trip_preserves_all_fields() {
     l.extra = RawExtra::from_map(&extra);
     let removed = loc(3, 1.0, 2.0);
 
-    let batch = arrow::delta_to_batch(&[l.clone()], &[removed.clone()]);
+    let batch = arrow::delta_to_batch(&[l.clone()], slice::from_ref(&removed));
     let (created_out, removed_out) = arrow::batch_to_delta(&batch);
 
     assert_eq!(created_out, vec![l]);

@@ -396,10 +396,9 @@ pub(crate) fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) 
     store.render.id_to_cell_idx.clear();
     let mut total_count = 0usize;
     let mut non_empty = 0u32;
-    for ci in 0..32 {
-        let out = match &cells[ci] {
-            Some(o) => o,
-            None => continue,
+    for (ci, cell) in cells.iter().enumerate() {
+        let Some(out) = cell else {
+            continue;
         };
         let mut cr = CellRender {
             id_order: Vec::with_capacity(out.ids.len()),
@@ -437,9 +436,8 @@ pub(crate) fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) 
     let mut buf = Vec::with_capacity(4 + body_cap + 4 + sel_cap);
     buf.extend_from_slice(&non_empty.to_le_bytes());
     for ci in 0..32 {
-        let out = match &cells[ci] {
-            Some(o) => o,
-            None => continue,
+        let Some(out) = &cells[ci] else {
+            continue;
         };
         let count = out.ids.len() as u32;
         buf.push(BASE32[ci]);

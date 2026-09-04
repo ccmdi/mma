@@ -1379,11 +1379,11 @@ pub fn run_query(
     deps: &EngineDeps,
     entry: &str,
     input: &str,
-    config: Option<String>,
+    config: Option<&str>,
     aborted: &(dyn Fn() -> bool + Sync),
 ) -> AppResult<String> {
     let mut proc = (deps.factory)(entry)?;
-    proc.configure(&configure_json(&[], false, config.as_deref()))?;
+    proc.configure(&configure_json(&[], false, config))?;
     let mut host = QueryHost {
         deps,
         budget: FetchBudget::new(None, None),
@@ -1525,7 +1525,7 @@ pub async fn procedure_query(
     }
     let out = task::spawn_blocking(move || {
         let deps = EngineDeps::production();
-        run_query(&deps, &entry, &input, config, &|| {
+        run_query(&deps, &entry, &input, config.as_deref(), &|| {
             flag.load(Ordering::Relaxed)
         })
     })

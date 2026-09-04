@@ -146,9 +146,8 @@ pub(super) fn partition_numeric(
         }
     });
     let nums: Vec<f64> = vals.iter().map(|(_, n)| *n).collect();
-    let buckets = match bin_numeric(&nums, binning) {
-        Some(b) => b,
-        None => return Vec::new(),
+    let Some(buckets) = bin_numeric(&nums, binning) else {
+        return Vec::new();
     };
     let mut groups: Vec<PartitionBucket> = buckets
         .bounds

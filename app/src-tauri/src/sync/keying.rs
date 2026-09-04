@@ -158,12 +158,11 @@ fn claim_remotes<P: SyncProvider>(
         }
     }
     pending.retain(|row| {
-        let p = match local_by_id
+        let Some(p) = local_by_id
             .get(&row.local_id)
             .and_then(|l| l.pano_id.clone())
-        {
-            Some(p) => p,
-            None => return true,
+        else {
+            return true;
         };
         if pending_pano_count.get(&p) != Some(&1) {
             return true;

@@ -4,6 +4,7 @@ use crate::sync::sync_key;
 use crate::sync::AUTH_PREFIX;
 use reqwest::blocking::Response;
 use std::env;
+use std::slice;
 
 // --- fixtures ---------------------------------------------------------------
 
@@ -372,7 +373,7 @@ mod live {
     fn round_trips_the_contract_without_drift() {
         let (ncfa, map) = creds();
         let src = london();
-        let draft = write(&ncfa, &map, &[src.clone()]);
+        let draft = write(&ncfa, &map, slice::from_ref(&src));
         let got = &draft["coordinates"][0];
         assert!((got["lat"].as_f64().unwrap() - src.lat).abs() < 1e-6);
         assert!((got["lng"].as_f64().unwrap() - src.lng).abs() < 1e-6);

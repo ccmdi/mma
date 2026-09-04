@@ -70,9 +70,8 @@ pub(super) fn parse_csv(text: &str) -> ParsedMap {
         .from_reader(text.as_bytes());
 
     let mut rows = rdr.records();
-    let first = match rows.next() {
-        Some(Ok(r)) => r,
-        _ => return warn("Empty CSV"),
+    let Some(Ok(first)) = rows.next() else {
+        return warn("Empty CSV");
     };
 
     let lower: Vec<String> = first.iter().map(|f| f.trim().to_lowercase()).collect();
@@ -335,11 +334,11 @@ pub(super) fn find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usize)>, usiz
 /// quote) - that happens in the final chunk. A well-formed non-final chunk ends with
 /// `end_depth == 0` and `terminated_close == None`; anything else means the chunk's
 /// start landed at a false boundary and the caller falls back to serial.
-pub(super) fn scan_range(
-    bytes: &[u8],
-    start: usize,
-    limit: usize,
-) -> (Vec<(usize, usize)>, i32, Option<usize>) {
+/// Object ranges found in one chunk, the depth it ended at, and an unterminated
+/// string offset if the chunk ended mid-string.
+pub(super) type ScanChunk = (Vec<(usize, usize)>, i32, Option<usize>);
+
+pub(super) fn scan_range(bytes: &[u8], start: usize, limit: usize) -> ScanChunk {
     let mut ranges: Vec<(usize, usize)> = Vec::with_capacity((limit - start) / 96);
     let mut depth = 0i32;
     let mut obj_start = 0usize;
@@ -449,7 +448,7 @@ pub(super) fn parallel_find_object_boundaries(bytes: &[u8]) -> (Vec<(usize, usiz
         return find_object_boundaries(bytes);
     }
 
-    let parts: Vec<(Vec<(usize, usize)>, i32, Option<usize>)> = (0..k)
+    let parts: Vec<ScanChunk> = (0..k)
         .into_par_iter()
         .map(|i| scan_range(bytes, starts[i], starts[i + 1]))
         .collect();
@@ -626,17 +625,14 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
         }
     }
 
-    let (arr_start, arr_end) = match arr_range {
-        Some(r) => r,
-        None => {
-            warnings.push("No recognized coordinate array found".to_string());
-            return ParsedMap {
-                name,
-                folder,
-                warnings,
-                ..Default::default()
-            };
-        }
+    let Some((arr_start, arr_end)) = arr_range else {
+        warnings.push("No recognized coordinate array found".to_string());
+        return ParsedMap {
+            name,
+            folder,
+            warnings,
+            ..Default::default()
+        };
     };
 
     let t_scan = t0.elapsed();

@@ -121,7 +121,7 @@ fn undo_of_a_page_keeps_the_overlay_sorted() {
 #[test]
 fn overlay_remove_decrements_alive_count() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     assert_eq!(store.alive_count, 1);
     store.overlay_remove(&[l]);
     assert_eq!(store.alive_count, 0);
@@ -130,7 +130,7 @@ fn overlay_remove_decrements_alive_count() {
 #[test]
 fn overlay_remove_makes_get_return_none() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.overlay_remove(&[l]);
     assert!(store.get_loc_by_id(1).is_none());
 }
@@ -370,7 +370,7 @@ fn commit_diff_counts_patch_on_base_row_without_undo() {
 #[test]
 fn commit_diff_counts_removed_base_row() {
     let l = loc(1, 0.0, 0.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
     store.overlay_remove(&[l]);
     assert_eq!(store.overlay_diff_counts(), (0, 1, 0));
@@ -379,7 +379,7 @@ fn commit_diff_counts_removed_base_row() {
 #[test]
 fn commit_diff_add_then_remove_is_noop() {
     let l = loc(1, 0.0, 0.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.overlay_remove(&[l]);
     assert_eq!(store.overlay_diff_counts(), (0, 0, 0));
 }
@@ -422,7 +422,7 @@ fn tag_counts_saturate_at_zero() {
 #[test]
 fn undo_add() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.push_undo(EditEntry {
         created: vec![l.clone()],
         removed: vec![],
@@ -454,7 +454,7 @@ fn undo_remove() {
 fn undo_update_restores_original() {
     let original = loc_with_heading(1, 10.0, 20.0, 0.0);
     let updated = loc_with_heading(1, 10.0, 20.0, 90.0);
-    let mut store = setup_store_with(&[updated.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&updated));
 
     let entry = EditEntry {
         created: vec![updated],
@@ -469,7 +469,7 @@ fn undo_update_restores_original() {
 #[test]
 fn redo_after_undo() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     let entry = EditEntry {
         created: vec![l.clone()],
         removed: vec![],
@@ -520,7 +520,7 @@ fn redo_stack_cleared_on_new_edit() {
 #[test]
 fn tag_counts_correct_after_undo_add() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10, 20]);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     assert_eq!(tag_count(&store, 10), Some(1));
 
     let entry = EditEntry {
@@ -549,9 +549,9 @@ fn tag_counts_correct_after_undo_remove() {
 fn tag_counts_correct_after_undo_tag_change() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![20]);
-    let mut store = setup_store_with(&[new.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&new));
     store.tags.counts = Touched::default();
-    store.add_tag_counts(&[new.clone()]);
+    store.add_tag_counts(slice::from_ref(&new));
     assert_eq!(tag_count(&store, 20), Some(1));
     assert_eq!(tag_count(&store, 10), None);
 
@@ -568,7 +568,7 @@ fn tag_counts_correct_after_undo_tag_change() {
 #[test]
 fn tag_counts_survive_undo_redo_cycle() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     let entry = EditEntry {
         created: vec![l.clone()],
         removed: vec![],
@@ -602,7 +602,7 @@ fn delta_has_added_entry_for_new_location() {
 #[test]
 fn delta_has_removed_entry_for_deleted_location() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     let entry = EditEntry {
         created: vec![],
         removed: vec![l],
@@ -617,7 +617,7 @@ fn delta_has_removed_entry_for_deleted_location() {
 fn delta_has_one_move_entry_for_moved_location() {
     let old = loc(1, 10.0, 20.0);
     let new = loc(1, -80.0, -170.0); // far enough to cross render cells
-    let mut store = setup_store_with(&[old.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&old));
 
     // A same-id remove+create is an update, so this is a move, not a delete plus a create.
     let entry = EditEntry {
@@ -666,7 +666,7 @@ fn samey_location_skips_render_delta() {
     let mut new = loc(1, 10.0, 20.0);
     new.pitch = 45.0; // non-render field
     new.zoom = 3.0; // non-render field
-    let mut store = setup_store_with(&[old.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&old));
 
     let entry = EditEntry {
         created: vec![new],
@@ -688,7 +688,7 @@ fn samey_location_skips_render_delta() {
 fn samey_location_with_heading_change_does_rerender() {
     let old = loc_with_heading(1, 10.0, 20.0, 0.0);
     let new = loc_with_heading(1, 10.0, 20.0, 90.0);
-    let mut store = setup_store_with(&[old.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&old));
 
     let entry = EditEntry {
         created: vec![new],
@@ -711,7 +711,7 @@ fn samey_location_with_heading_change_does_rerender() {
 fn samey_location_with_lat_change_does_rerender() {
     let old = loc(1, 10.0, 20.0);
     let new = loc(1, 11.0, 20.0);
-    let mut store = setup_store_with(&[old.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&old));
 
     let entry = EditEntry {
         created: vec![new],
@@ -730,7 +730,7 @@ fn samey_location_with_lat_change_does_rerender() {
 fn samey_tag_only_change_skips_render() {
     let old = loc_with_tags(1, 10.0, 20.0, vec![10]);
     let new = loc_with_tags(1, 10.0, 20.0, vec![20]);
-    let mut store = setup_store_with(&[old.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&old));
 
     let entry = EditEntry {
         created: vec![new],
@@ -798,7 +798,7 @@ fn finish_mutation_reports_correct_state() {
 #[test]
 fn tag_counts_shipped_only_when_changed() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
 
     // Setup's add_tag_counts left counts dirty: first mutation ships them once.
     let result = store.finish_mutation(&ChangeSet::default());
@@ -976,7 +976,7 @@ fn bake_overlay_applies_patches() {
 #[test]
 fn bake_overlay_removes_dead() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
     // now remove
     store.overlay_remove(&[l]);
@@ -992,7 +992,7 @@ fn bake_overlay_removes_dead() {
 #[test]
 fn noop_update_produces_no_undo_entry() {
     let l = loc_with_heading(1, 10.0, 20.0, 45.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
 
     // "update" with identical values
     store.overlay_update(1, &patch!(heading: 45.0));
@@ -1009,7 +1009,7 @@ fn noop_update_produces_no_undo_entry() {
 #[test]
 fn real_update_passes_filter() {
     let l = loc_with_heading(1, 10.0, 20.0, 0.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
 
     store.overlay_update(1, &patch!(heading: 90.0));
     let new = store.get_loc_by_id(1).unwrap();
@@ -1075,10 +1075,10 @@ fn noop_batch_is_removed_before_selection_and_render_work() {
 #[test]
 fn readd_after_remove_via_overlay() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     assert_eq!(store.alive_count, 1);
 
-    store.overlay_remove(&[l.clone()]);
+    store.overlay_remove(slice::from_ref(&l));
     assert_eq!(store.alive_count, 0);
     assert!(store.get_loc_by_id(1).is_none());
 
@@ -1093,7 +1093,7 @@ fn readd_after_remove_via_overlay() {
 #[test]
 fn readd_after_remove_through_undo() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
 
     // remove it
     let remove_entry = EditEntry {
@@ -1156,7 +1156,7 @@ fn cell_swap_remove_last_element() {
 #[test]
 fn undo_update_when_location_is_in_baked_batch() {
     let l = loc_with_heading(1, 10.0, 20.0, 0.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
     // l is now in the batch, not in overlay_adds
 
@@ -1179,7 +1179,7 @@ fn undo_update_when_location_is_in_baked_batch() {
 #[test]
 fn multiple_undo_redo_cycles_consistent() {
     let l = loc_with_tags(1, 10.0, 20.0, vec![10]);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
 
     let updated = loc_with_tags(1, 10.0, 20.0, vec![20]);
     let entry = EditEntry {
@@ -1358,7 +1358,6 @@ fn delta_overlay(adds: Vec<Location>, dead: &[u32], patches: Vec<Location>) -> O
         adds,
         dead: dead.iter().copied().collect(),
         patches: patches.into_iter().map(|l| (l.id, l)).collect(),
-        ..Overlay::default()
     }
 }
 
@@ -1553,11 +1552,11 @@ fn tag_ids_are_never_reused() {
 #[test]
 fn overlay_consistency_no_id_in_both_dead_and_adds() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
 
     // Remove it
-    store.overlay_remove(&[l.clone()]);
+    store.overlay_remove(slice::from_ref(&l));
     assert!(store.overlay.dead.contains(&1));
     assert!(!store.overlay.adds.iter().any(|l| l.id == 1));
 
@@ -1605,7 +1604,7 @@ fn overlay_consistency_update_add_id_stays_in_adds() {
 #[test]
 fn overlay_consistency_remove_clears_patches() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
     store.overlay_update(1, &patch!(heading: 45.0));
     assert!(store.overlay.patches.contains_key(&1));
@@ -1741,7 +1740,7 @@ fn cell_render_id_order_matches_after_swap_remove_sequence() {
 #[test]
 fn undo_delete_readds_render_entry() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     assert!(store.cell_lookup(1).is_some());
 
     // Delete
@@ -1838,9 +1837,9 @@ fn tag_counts_correct_after_tag_reassignment_undo() {
     // location starts with tag [5], update to [5, 10], undo should restore [5]
     let old = loc_with_tags(1, 0.0, 0.0, vec![5]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![5, 10]);
-    let mut store = setup_store_with(&[new.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&new));
     store.tags.counts = Touched::default();
-    store.add_tag_counts(&[new.clone()]);
+    store.add_tag_counts(slice::from_ref(&new));
     assert_eq!(tag_count(&store, 5), Some(1));
     assert_eq!(tag_count(&store, 10), Some(1));
 
@@ -1896,7 +1895,7 @@ fn delta_overlay_round_trip_preserves_store_state() {
     let l3 = loc(3, 50.0, 60.0);
     store.overlay_add(vec![l3.clone()]);
     store.alive_count += 1;
-    store.overlay_remove(&[l1.clone()]);
+    store.overlay_remove(slice::from_ref(&l1));
     store.overlay_update(2, &patch!(heading: 180.0));
 
     // Serialize
@@ -1918,7 +1917,7 @@ fn delta_overlay_round_trip_preserves_store_state() {
 #[test]
 fn active_id_should_be_clearable_when_location_removed() {
     let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(&[l.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l));
     store.selections.active_id = Some(1);
 
     // Remove the active location
@@ -2483,8 +2482,8 @@ fn losing_its_last_location_still_hides_a_tag() {
         tags: vec![],
         ..old.clone()
     };
-    store.remove_tag_counts(&[old.clone()]);
-    store.add_tag_counts(&[untagged.clone()]);
+    store.remove_tag_counts(slice::from_ref(&old));
+    store.add_tag_counts(slice::from_ref(&untagged));
     store.finish_mutation(&ChangeSet {
         updated: vec![(old, untagged)],
         ..Default::default()
@@ -2672,7 +2671,7 @@ fn insert_tag(store: &mut Store, id: u32, count: usize) {
 #[test]
 fn incremental_membership_change_ships_no_bitmask() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![]);
-    let mut store = setup_store_with(&[l1.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l1));
     insert_tag(&mut store, 1, 0);
     add_tag_selection(&mut store, 1, [255, 0, 0]);
 
@@ -2736,7 +2735,7 @@ fn full_resolve_ships_a_bitmask_for_every_cell() {
 #[test]
 fn membership_delta_reports_gained_on_tag_add() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![]);
-    let mut store = setup_store_with(&[l1.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l1));
     store.tags.all.edit().insert(
         1,
         Tag {
@@ -2782,7 +2781,7 @@ fn membership_delta_reports_gained_on_tag_add() {
 #[test]
 fn membership_delta_reports_lost_on_tag_remove() {
     let tagged = loc_with_tags(1, 10.0, 20.0, vec![1]);
-    let mut store = setup_store_with(&[tagged.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&tagged));
     insert_tag(&mut store, 1, 1);
     add_tag_selection(&mut store, 1, [255, 0, 0]);
     store.resolve_selection_membership();
@@ -2840,7 +2839,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
     // union membership never flips here, so this is exactly the case a union-flip test
     // misses and the overlay would keep the dead winner's colour until a full resolve.
     let both = loc_with_tags(1, 10.0, 20.0, vec![1, 2]);
-    let mut store = setup_store_with(&[both.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&both));
     insert_tag(&mut store, 1, 1);
     insert_tag(&mut store, 2, 1);
     add_tag_selection(&mut store, 1, [255, 0, 0]);
@@ -2885,7 +2884,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
 #[test]
 fn membership_delta_no_patch_when_nothing_changed() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![1]);
-    let mut store = setup_store_with(&[l1.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l1));
     store.tags.all.edit().insert(
         1,
         Tag {
@@ -2928,7 +2927,7 @@ fn selected_row_moving_across_cells_ships_as_one_move() {
     // A cross-cell move ships as a single added entry carrying the slot it vacated, so JS
     // can move the overlay entry with the row instead of guessing from a removed/added pair.
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![1]);
-    let mut store = setup_store_with(&[l1.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&l1));
     insert_tag(&mut store, 1, 1);
     add_tag_selection(&mut store, 1, [255, 0, 0]);
     store.resolve_selection_membership();
@@ -3432,7 +3431,7 @@ fn reconcile_tags_doclinks_claimed_when_target_empty() {
         doclinks: vec!["https://docs.google.com/document/d/x/edit#heading=h.abc".into()],
         ..tag(7, "Rural", "#111111")
     };
-    let (_, changed) = reconcile_tags_by_name(&[source.clone()], &mut target_tags, &mut next);
+    let (_, changed) = reconcile_tags_by_name(slice::from_ref(&source), &mut target_tags, &mut next);
     assert!(changed, "doclink adoption must mark tags as changed");
     assert_eq!(target_tags.get(&3).unwrap().doclinks, source.doclinks);
 }
@@ -3482,7 +3481,7 @@ fn reconcile_tags_dedupes_same_name_within_batch() {
 #[test]
 fn undo_to_base_clears_overlay_patch() {
     let base = loc_with_heading(1, 10.0, 20.0, 0.0);
-    let mut store = setup_store_with(&[base.clone()]);
+    let mut store = setup_store_with(slice::from_ref(&base));
     store.bake_overlay();
 
     let edited = loc_with_heading(1, 10.0, 20.0, 90.0);
@@ -4606,14 +4605,13 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
 #[test]
 fn apply_field_op_refuses_a_column_it_cannot_clear() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
-    let err = match apply_field_op(
+    let Err(err) = apply_field_op(
         &mut store,
         &Selector::Everything,
         &del_op(&["heading"]),
         false,
-    ) {
-        Err(e) => e,
-        Ok(_) => panic!("heading is writable, never clearable"),
+    ) else {
+        panic!("heading is writable, never clearable")
     };
     assert!(err.0.contains("cannot be removed"), "{}", err.0);
 }

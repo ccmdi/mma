@@ -199,9 +199,8 @@ pub async fn store_close_map(
 ) -> AppResult<()> {
     let (map_id, store) = {
         let mut mgr = state.lock()?;
-        let map_id = match mgr.window_map.remove(&label.0) {
-            Some(id) => id,
-            None => return Ok(()),
+        let Some(map_id) = mgr.window_map.remove(&label.0) else {
+            return Ok(());
         };
         if mgr.window_map.values().any(|v| v == &map_id) {
             log::debug!("[close_map] {map_id} still open in another window, skipping flush");
@@ -372,7 +371,6 @@ pub async fn store_update_tags(
             if let Some(target_id) = merge_target {
                 let view = store.loc_view();
                 let affected = selections::resolve(&view, &Selector::Tag { tag_id: u.id });
-                drop(view);
 
                 let mut updated: Vec<(Location, Location)> =
                     Vec::with_capacity(affected.len() as usize);
@@ -423,7 +421,6 @@ pub async fn store_delete_tags(
         for &tid in &tag_set {
             affected_ids.extend(selections::resolve(&view, &Selector::Tag { tag_id: tid }));
         }
-        drop(view);
 
         let mut updated: Vec<(Location, Location)> = Vec::with_capacity(affected_ids.len());
         for &id in &affected_ids {
@@ -976,7 +973,6 @@ pub async fn store_sync_selections(
         //    Counts cover ghosted selections too; the overlay uses the non-ghosted subset.
         let view = store.loc_view();
         let (sel_sets, counts) = selections::resolve_forest(&view, &sels_full);
-        drop(view);
 
         // 2. Drop the ghosted ones once, here. Everything downstream reads `live`, so the
         //    selections and their member sets can never be filtered by two different rules.

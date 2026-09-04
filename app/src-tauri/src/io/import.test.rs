@@ -322,8 +322,10 @@ fn merge_settings_overlays_present_keys_only() {
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
 
-    let mut base = MapSettings::default();
-    base.point_along_road = false; // non-default, unrelated key
+    let mut base = MapSettings {
+        point_along_road: false, // non-default, unrelated key
+        ..MapSettings::default()
+    };
     base.virtual_tags.insert(
         "Europe".into(),
         VirtualTag {
@@ -712,12 +714,9 @@ static STDERR_LOG: StderrLog = StderrLog;
 fn bench_parse_real() {
     let _ = log::set_logger(&STDERR_LOG);
     log::set_max_level(log::LevelFilter::Debug);
-    let path = match env::var("MMA_BENCH_FILE") {
-        Ok(p) => p,
-        Err(_) => {
-            eprintln!("SKIP bench: MMA_BENCH_FILE not set");
-            return;
-        }
+    let Ok(path) = env::var("MMA_BENCH_FILE") else {
+        eprintln!("SKIP bench: MMA_BENCH_FILE not set");
+        return;
     };
 
     let bytes = match fs::read(&path) {

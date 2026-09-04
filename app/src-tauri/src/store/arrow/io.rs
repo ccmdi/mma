@@ -107,7 +107,7 @@ pub(crate) fn read_arrow_ipc_mmap(path: &Path) -> AppResult<(RecordBatch, MmapHa
     let blocks = footer.recordBatches();
     let blocks = blocks.as_ref();
     #[allow(clippy::redundant_closure_for_method_calls)]
-    let empty = blocks.map_or(true, |b| b.is_empty());
+    let empty = blocks.is_none_or(|b| b.is_empty());
     if empty {
         return Ok((
             RecordBatch::new_empty(schema),

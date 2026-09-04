@@ -234,7 +234,7 @@ pub(crate) fn skip_string(bytes: &[u8], from: usize) -> usize {
         while k > from && bytes[k - 1] == b'\\' {
             k -= 1;
         }
-        if (q - k) % 2 == 0 {
+        if (q - k).is_multiple_of(2) {
             return q + 1;
         }
         search = q + 1;

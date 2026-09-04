@@ -1890,8 +1890,8 @@ fn filter_tz_local_between_buckets_per_timezone() {
         &Selector::Filter {
             field: "datetime".into(),
             test: FilterOp::Between {
-                lo: lo,
-                hi: hi,
+                lo,
+                hi,
                 tz_local: true,
             },
         },

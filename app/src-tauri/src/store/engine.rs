@@ -561,14 +561,11 @@ impl Store {
         }
         let _t = Instant::now();
 
-        let mut batch = match self.batch.take() {
-            Some(b) => b,
-            None => {
-                let b = arrow::locations_to_batch(&self.overlay.adds);
-                self.clear_overlay();
-                self.batch = Some(b);
-                return;
-            }
+        let Some(mut batch) = self.batch.take() else {
+            let b = arrow::locations_to_batch(&self.overlay.adds);
+            self.clear_overlay();
+            self.batch = Some(b);
+            return;
         };
 
         // Step 1: filter out dead rows
