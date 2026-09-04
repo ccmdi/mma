@@ -50,7 +50,7 @@ import {
 	mdiFileDocumentOutline,
 } from "@mdi/js";
 import { registerCommand, type CommandDef } from "./commands";
-import { intersectSelections, invertSelections, unionSelections } from "./selections";
+import { intersectSelections, invertSelections, unionSelections, toggleGhostAll } from "./selections";
 import {
 	undo,
 	redo,
@@ -61,7 +61,6 @@ import {
 	deleteTags,
 	getActiveSelections,
 	removeLocations,
-	toggleGhostAllSelections,
 } from "./useMapStore";
 import { hasCommitDiff } from "./commitDiff";
 import { MAP_EMBED_PREFS, MAP_TYPES } from "./mapEmbedPrefs";
@@ -234,19 +233,19 @@ const COMMANDS = {
 		label: msg("Invert selection"),
 		icon: mdiSelectInverse,
 		group: msg("Selections"),
-		execute: () => applySelectionUpdate(invertSelections),
+		execute: () => applySelectionUpdate(invertSelections()),
 	},
 	"intersect-selections": {
 		label: msg("Intersect (AND) selections"),
 		icon: mdiSetCenter,
 		group: msg("Selections"),
-		execute: () => applySelectionUpdate(intersectSelections),
+		execute: () => applySelectionUpdate(intersectSelections()),
 	},
 	"union-selections": {
 		label: msg("Union (OR) selections"),
 		icon: mdiSetAll,
 		group: msg("Selections"),
-		execute: () => applySelectionUpdate(unionSelections),
+		execute: () => applySelectionUpdate(unionSelections()),
 	},
 	"load-geojson": {
 		label: msg("Load shapes from GeoJSON as selection"),
@@ -345,7 +344,7 @@ const COMMANDS = {
 		icon: mdiGhostOutline,
 		group: msg("Selections"),
 		aliases: ["hide selections", "dim selections"],
-		execute: () => toggleGhostAllSelections(),
+		execute: () => applySelectionUpdate(toggleGhostAll()),
 		enabled: hasAnySelections,
 	},
 	"save-selections": {

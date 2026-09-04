@@ -203,7 +203,7 @@ export async function handleMapClick(
 		if (picked != null) {
 			if (isVirtualLocation({ id: locId(picked) })) return; // staged location's active pin: already open
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
-				void applySelectionUpdate(toggleManualSelection, locId(picked));
+				void applySelectionUpdate(toggleManualSelection(locId(picked)));
 			else void setActiveLocation(picked);
 			return;
 		}

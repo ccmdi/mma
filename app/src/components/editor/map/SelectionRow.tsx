@@ -4,11 +4,9 @@ import {
 	createTags,
 	fetchBounds,
 	getVisibleTags,
-	isolateSelection,
 	pruneDuplicates,
 	removeSelections,
 	resolveIds,
-	toggleGhostSelection,
 	updateFilterSelection,
 	useMapState,
 } from "@/store/useMapStore";
@@ -16,12 +14,14 @@ import {
 	composeSelections,
 	decomposeChild,
 	filterIsLocalTime,
+	isolateGhost,
 	invertSelections,
 	removeFromComposite,
 	reorderSelections,
 	selectionDisplayName,
 	setPolygonName,
 	setSelectionColors,
+	toggleGhost,
 } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
@@ -136,7 +136,7 @@ export const SelectionRow = memo(function SelectionRow({
 		(s) => inheritedGhost || (depth === 0 && s.ghostedSelections.has(selection.key)),
 	);
 	const onRemove = parentKey
-		? () => void applySelectionUpdate(removeFromComposite, parentKey, selection.key)
+		? () => void applySelectionUpdate(removeFromComposite(parentKey, selection.key))
 		: () => void removeSelections([selection.key]);
 	const [view, setView] = useState<"contextmenu" | "color">("contextmenu");
 	const [dropZone, setDropZone] = useState<"before" | "on" | "after" | null>(null);
@@ -151,7 +151,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const isDropTarget = drag != null && drag.key !== selection.key;
 	const handleColorChange = useCallback(
 		(color: RGB) => {
-			void applySelectionUpdate(setSelectionColors, [{ key: selection.key, color }]);
+			void applySelectionUpdate(setSelectionColors([{ key: selection.key, color }]));
 		},
 		[selection.key],
 	);
@@ -185,7 +185,7 @@ export const SelectionRow = memo(function SelectionRow({
 	};
 
 	const submitRename = () => {
-		void applySelectionUpdate(setPolygonName, selection.key, renameDraft);
+		void applySelectionUpdate(setPolygonName(selection.key, renameDraft));
 		setRenaming(false);
 	};
 
@@ -284,16 +284,17 @@ export const SelectionRow = memo(function SelectionRow({
 		if (!isDropTarget || !drag || !dropZone) return;
 		if (dropZone === "on") {
 			void applySelectionUpdate(
-				composeSelections,
-				drag.key,
-				selection.key,
-				drag.altKey ? "Union" : "Intersection",
-				drag.parentKey,
-				parentKey ?? null,
+				composeSelections(
+					drag.key,
+					selection.key,
+					drag.altKey ? "Union" : "Intersection",
+					drag.parentKey,
+					parentKey ?? null,
+				),
 			);
 		} else {
-			if (drag.parentKey) void applySelectionUpdate(decomposeChild, drag.parentKey, drag.key);
-			void applySelectionUpdate(reorderSelections, drag.key, selection.key, dropZone);
+			if (drag.parentKey) void applySelectionUpdate(decomposeChild(drag.parentKey, drag.key));
+			void applySelectionUpdate(reorderSelections(drag.key, selection.key, dropZone));
 		}
 		setDropZone(null);
 	};
@@ -365,7 +366,7 @@ export const SelectionRow = memo(function SelectionRow({
 										<>
 											<Menu.Item
 												className="context-menu__item"
-												onClick={() => void applySelectionUpdate(invertSelections, [selection.key])}
+												onClick={() => void applySelectionUpdate(invertSelections([selection.key]))}
 											>
 												{t("Invert selection")}
 											</Menu.Item>
@@ -464,9 +465,9 @@ export const SelectionRow = memo(function SelectionRow({
 							aria-label={ghosted ? t("Un-ghost selection") : t("Ghost selection")}
 							title={t("Ghost selection (Alt-click to isolate)")}
 							onClick={(e) =>
-								void (e.altKey
-									? isolateSelection(selection.key)
-									: toggleGhostSelection(selection.key))
+								void applySelectionUpdate(
+									e.altKey ? isolateGhost(selection.key) : toggleGhost(selection.key),
+								)
 							}
 						>
 							<Icon path={ghosted ? mdiGhost : mdiGhostOutline} />

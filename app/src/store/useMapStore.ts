@@ -28,7 +28,8 @@ import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
 import type { Selection, Selector } from "@/bindings.gen";
-import { addSelection, removeSelection, replaceSelection, isolateGhostKeys } from "./selections";
+import { addSelection, removeSelection, replaceSelection } from "./selections";
+import type { SelectionUpdate } from "./selections";
 
 // --- Map state ---
 export interface MapState {
@@ -661,7 +662,7 @@ async function migrateFieldReferences(from: string, to: string | null) {
 		delete defs[from];
 		await setMapExtraFields(defs);
 	}
-	await applySelectionUpdate(rewriteSelectionFields, from, to);
+	await applySelectionUpdate(rewriteSelectionFields(from, to));
 }
 
 // --- Selections ---
@@ -685,18 +686,28 @@ function buildSyncInputs() {
 	}));
 }
 
-/** Apply a pure selection transform, then IPC to Rust to resolve bitmasks and sync the overlay. */
-export async function applySelectionUpdate<A extends unknown[]>(
-	op: (sels: Selection[], ...args: A) => Selection[],
-	...args: A
+/** Apply a pure selection transform, then sync to Rust.
+ *  Ops returning a plain Selection[] leave ghost state unchanged; returning SelectionUpdate sets both.
+ *  Skips IPC when the op produced no change (reference equality on both selections and ghosted). */
+export async function applySelectionUpdate(
+	op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | SelectionUpdate,
 ) {
 	if (!state.map) return;
+	const out = op(state.selections, state.ghostedSelections);
+	const isFullUpdate = !Array.isArray(out);
+	const selections = isFullUpdate ? out.selections : out;
+	const ghostedSelections = pruneGhosted(selections, isFullUpdate ? out.ghosted : state.ghostedSelections);
+	if (selections === state.selections && ghostedSelections === state.ghostedSelections) return;
+	setState({ selections, ghostedSelections });
+	return syncSelections();
+}
+
+/** Resolve the current selection list against Rust and sync the overlay.
+ *  Called after `applySelectionUpdate` sets state, or standalone when the underlying
+ *  data changed (tag recolor, commit overlay clear) but selections themselves didn't. */
+export async function syncSelections() {
+	if (!state.map) return;
 	const t = trace("selection", { summary: true });
-	const selections = op(state.selections, ...args);
-	setState({
-		selections,
-		ghostedSelections: pruneGhosted(selections, state.ghostedSelections),
-	});
 	const sels = buildSyncInputs();
 	const result = await cmd.storeSyncSelections(sels);
 	t.step("ipc");
@@ -704,7 +715,7 @@ export async function applySelectionUpdate<A extends unknown[]>(
 	emitEvent("store:changed");
 	t.step("apply");
 	t.end({ selected: result.selectedCount });
-	emitEvent("selection:change", selections);
+	emitEvent("selection:change", state.selections);
 }
 
 /** Drop ghosted keys that no longer correspond to a live selection. */
@@ -715,34 +726,6 @@ function pruneGhosted(selections: Selection[], ghosted: ReadonlySet<string>): Re
 	return pruned.size !== ghosted.size ? pruned : ghosted;
 }
 
-/** Toggle a selection's ghosted state and re-sync (excludes/includes it from the overlay). */
-export function toggleGhostSelection(key: string) {
-	setState({ ghostedSelections: state.ghostedSelections.symmetricDifference(new Set([key])) });
-	return applySelectionUpdate((sels) => sels);
-}
-
-/** "Solo" a selection: ghost every other top-level selection, keep this one visible.
- *  If it is already the only visible one, un-ghost everything (toggle back). */
-export function isolateSelection(key: string) {
-	setState({
-		ghostedSelections: isolateGhostKeys(
-			state.selections.map((s) => s.key),
-			state.ghostedSelections,
-			key,
-		),
-	});
-	return applySelectionUpdate((sels) => sels);
-}
-
-/** Ghost every top-level selection; if all are already ghosted, un-ghost them all. */
-export function toggleGhostAllSelections() {
-	const keys = new Set(state.selections.map((s) => s.key));
-	const allGhosted = keys.size > 0 && keys.isSubsetOf(state.ghostedSelections);
-	setState({
-		ghostedSelections: allGhosted ? new Set() : state.ghostedSelections.union(keys),
-	});
-	return applySelectionUpdate((sels) => sels);
-}
 
 /** Add selections to the sidebar and highlight their locations. Same-key selections replace. */
 export function addSelections(selector: Selector[]) {
@@ -751,13 +734,9 @@ export function addSelections(selector: Selector[]) {
 	);
 }
 
-/** No-op (no sync) when none of the keys are live selections. */
 export function removeSelections(keys: string[]) {
-	const live = new Set(state.selections.map((s) => s.key));
-	const present = keys.filter((k) => live.has(k));
-	if (present.length === 0) return;
 	return applySelectionUpdate((sels) =>
-		present.reduce((result, k) => removeSelection(result, k), sels),
+		keys.reduce((result, k) => removeSelection(result, k), sels),
 	);
 }
 
@@ -847,23 +826,18 @@ export async function pruneDuplicates(selector: Selector, distance: number): Pro
 /** Edit an existing filter (or any selection) in place by key, preserving its
  *  position inside any AND/OR/Invert composite. Carries ghost state to the new key. */
 export function updateFilterSelection(oldKey: string, selector: Selector) {
-	return applySelectionUpdate((sels) => {
+	return applySelectionUpdate((sels, ghosted): Selection[] | SelectionUpdate => {
 		const next = replaceSelection(sels, oldKey, selector);
-		// Carry a ghost flag across an in-place re-key. A collision instead merges into the
-		// existing selection (shrinking the list); the survivor keeps its own ghost state and
-		// pruneGhosted clears the old key, so only migrate when nothing was merged away.
-		if (next.length === sels.length) {
-			let migrated: Set<string> | null = null;
-			for (let i = 0; i < sels.length; i++) {
-				if (next[i].key !== sels[i].key && state.ghostedSelections.has(sels[i].key)) {
-					migrated ??= new Set(state.ghostedSelections);
-					migrated.delete(sels[i].key);
-					migrated.add(next[i].key);
-				}
+		if (next.length !== sels.length) return next;
+		let migrated: Set<string> | null = null;
+		for (let i = 0; i < sels.length; i++) {
+			if (next[i].key !== sels[i].key && ghosted.has(sels[i].key)) {
+				migrated ??= new Set(ghosted);
+				migrated.delete(sels[i].key);
+				migrated.add(next[i].key);
 			}
-			if (migrated) setState({ ghostedSelections: migrated });
 		}
-		return next;
+		return migrated ? { selections: next, ghosted: migrated } : next;
 	});
 }
 
@@ -1092,7 +1066,7 @@ export async function updateTags(updates: Update<TagPatch>[]) {
 	// ONLY resync on color change, everything else is resolved by Rust
 	const recolored = new Set(updates.filter((u) => u.patch.color != null).map((u) => u.id));
 	if (state.selections.some((s) => s.selector.type === "Tag" && recolored.has(s.selector.tagId))) {
-		void applySelectionUpdate((sels) => sels);
+		void syncSelections();
 	}
 }
 
@@ -1187,7 +1161,7 @@ export async function commitMap(message?: string): Promise<string> {
 	// Commit clears the overlay; commit-sensitive selections (e.g. Uncommitted) must
 	// re-resolve against the new baseline instead of showing now-committed rows.
 	if (state.selections.length > 0) {
-		await applySelectionUpdate((s) => s);
+		await syncSelections();
 	} else {
 		emitEvent("store:changed");
 	}
