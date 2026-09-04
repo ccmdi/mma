@@ -106,7 +106,7 @@ impl DupGrid {
     /// callers fall back to `exact_coord_groups`.
     fn build(pts: &[(f64, f64)], distance_m: f64) -> Option<DupGrid> {
         let cell_deg = distance_m / mma_geo::M_PER_DEG * 1.5;
-        if !(cell_deg > 0.0) {
+        if cell_deg.is_nan() || cell_deg <= 0.0 {
             return None;
         }
         let pts = pts.to_vec();

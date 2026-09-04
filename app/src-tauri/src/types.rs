@@ -197,7 +197,10 @@ macro_rules! wire_enum {
         $(#[doc = $doc])*
         pub struct $name;
         impl $name {
-            $(pub const $konst: $repr = $val;)*
+            $(
+                #[allow(dead_code, reason = "the wire value is mirrored to TypeScript, not read here")]
+                pub const $konst: $repr = $val;
+            )*
             /// The rustdoc above, one entry per line, for the TypeScript mirror.
             pub const DOC: &'static [&'static str] = &[$($doc),*];
             pub fn wire_names() -> Vec<(String, $repr)> {

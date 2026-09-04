@@ -393,7 +393,7 @@ pub(super) fn bin_numeric(values: &[f64], binning: &NumericBinning) -> Option<Nu
             })
         }
         NumericBinning::Width { w } => {
-            if !(w > 0.0) {
+            if w.is_nan() || w <= 0.0 {
                 return None;
             }
             let lo0 = (min / w).floor() * w;

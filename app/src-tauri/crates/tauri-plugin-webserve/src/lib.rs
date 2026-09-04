@@ -12,6 +12,11 @@
 //! The app only ever: enables this plugin, and registers its custom URI schemes
 //! through [`register_scheme`]. Everything else is generic.
 
+#![allow(
+    clippy::doc_overindented_list_items,
+    reason = "the -> column in the module doc is aligned by hand"
+)]
+
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::mpsc::{channel, sync_channel, Receiver, RecvTimeoutError, Sender};

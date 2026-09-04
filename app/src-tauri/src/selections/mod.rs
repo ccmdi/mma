@@ -231,6 +231,10 @@ impl Selector {
         }
     }
 
+    #[allow(
+        clippy::should_implement_trait,
+        reason = "builder DSL alongside all/any, not the operator"
+    )]
     pub fn not(self) -> Selector {
         Selector::Invert {
             selections: vec![Selection::of(self)],

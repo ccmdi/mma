@@ -80,6 +80,10 @@ pub fn tz_offset_seconds(tz_name: &str, ts: f64) -> Option<i32> {
 }
 
 /// Converts HSL to RGB. `h` is in degrees [0, 360), `s` and `l` in [0, 1].
+#[allow(
+    clippy::manual_clamp,
+    reason = "the min/max chain scrubs a NaN that clamp would carry into the u8 cast"
+)]
 pub fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (u8, u8, u8) {
     let a = s * l.min(1.0 - l);
     let f = |n: f64| -> u8 {

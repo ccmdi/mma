@@ -36,6 +36,7 @@ fn read_input(path: &str) -> String {
         .unwrap_or_else(|e| panic!("failed to read input file {path}: {e}"))
 }
 
+#[allow(unused_mut, reason = "every execution provider push is feature-gated")]
 fn init_ort() {
     let mut ep_names: Vec<&str> = Vec::new();
     let mut eps: Vec<ort::execution_providers::ExecutionProviderDispatch> = Vec::new();
