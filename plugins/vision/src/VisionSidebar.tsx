@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Location } from "mma-plugin-types";
 import { embed, searchText } from "./sidecar";
 
-const { Sidebar, Field, TextInput, Button } = MMA.ui;
+const { ui: { Sidebar, Field, TextInput, Button }, useJob, fetchAllLocations, addSelections } = MMA;
 
 /** Top of the confidence slider, and so the scale every score is drawn against. */
 const MAX_SCORE = 0.3;
@@ -111,10 +111,10 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 	const [query, setQuery] = useState("");
 	const [threshold, setThreshold] = useState(0.01);
 
-	const job = MMA.useJob<Outcome>(async ({ signal, report }) => {
+	const job = useJob<Outcome>(async ({ signal, report }) => {
 		const q = query.trim();
 		const cut = threshold;
-		const locs = await MMA.fetchAllLocations();
+		const locs = await fetchAllLocations();
 		signal.throwIfAborted();
 
 		const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
@@ -148,7 +148,7 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 			.filter((id): id is number => id != null);
 
 		if (matchedIds.length > 0) {
-			await MMA.addSelections([
+			await addSelections([
 				{ type: "Locations", locations: matchedIds, name: `Vision: "${q}"` },
 			]);
 		}

@@ -30,6 +30,8 @@ import {
 } from "./gradients";
 import type { SelectorPick } from "mma-plugin-types";
 
+const { useMapState, selectorForPick, ui: { SelectorPicker } } = MMA;
+
 const CSS = `
 .heatmap-sidebar { overflow: auto; }
 .heatmap-sidebar__header {
@@ -181,8 +183,8 @@ export function HeatmapSidebar({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const allCount = MMA.useMapState((s) => s.locationCount);
-  const selectedIds = MMA.useMapState((s) => s.selectedLocationIds);
+  const allCount = useMapState((s) => s.locationCount);
+  const selectedIds = useMapState((s) => s.selectedLocationIds);
 
   return (
     <section className="map-sidebar heatmap-sidebar">
@@ -249,9 +251,9 @@ function LayerControls({
         </button>
       </div>
 
-      <MMA.ui.SelectorPicker
+      <SelectorPicker
         ctl={{
-          selector: MMA.selectorForPick(l.source),
+          selector: selectorForPick(l.source),
           choice: l.source,
           setChoice: (c: SelectorPick) => set({ source: c }),
           allCount,

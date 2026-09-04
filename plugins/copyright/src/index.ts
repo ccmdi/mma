@@ -1,5 +1,7 @@
 import type { ExtraFieldDef } from "mma-plugin-types";
 
+const { registerPlugin, registerEnrichFields, registerProvider } = MMA;
+
 const FIELD_DEFS: Record<string, ExtraFieldDef> = {
 	// Year labels are identification categories, not distances: comparison stays
 	// categorical (disambiguate) while type=number keeps numeric bucketing/ranges.
@@ -12,12 +14,12 @@ const FIELD_DEFS: Record<string, ExtraFieldDef> = {
 	},
 };
 
-MMA.registerPlugin({
+registerPlugin({
 	activate() {
-		MMA.registerEnrichFields([
+		registerEnrichFields([
 			{ key: "copyrightYear", label: "Copyright year" },
 		]);
-		MMA.registerProvider({
+		registerProvider({
 			id: "copyright",
 			label: "Copyright year",
 			requires: ["panoId"],

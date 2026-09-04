@@ -1,15 +1,17 @@
 // Identity (id, name, description, icon) comes from manifest.json.
 // This file only provides behavior.
 
-MMA.registerPlugin({
+const { registerPlugin, getMapState, on } = MMA;
+
+registerPlugin({
   activate() {
-    const map = MMA.getMapState().map;
+    const map = getMapState().map;
     if (map) {
       console.log(`[sample] Activated on "${map.name}"`);
     }
 
     // Subscribe to events
-    const unsub = MMA.on("location:add", (locations) => {
+    const unsub = on("location:add", (locations) => {
       console.log(`[sample] ${(locations as unknown[]).length} location(s) added`);
     });
 

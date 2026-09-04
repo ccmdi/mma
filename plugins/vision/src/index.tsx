@@ -1,7 +1,9 @@
 import { VisionSidebar } from "./VisionSidebar";
 import { FindSimilarButton } from "./FindSimilarButton";
 
-MMA.registerPlugin({
+const { registerPlugin } = MMA;
+
+registerPlugin({
 	activate() {},
 	sidebar: VisionSidebar,
 	locationPanel: FindSimilarButton,

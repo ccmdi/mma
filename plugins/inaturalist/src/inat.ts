@@ -1,6 +1,8 @@
 import { ScatterplotLayer } from "@deck.gl/layers";
 import type { DeckOverlayHandle } from "mma-plugin-types";
 
+const { createLocation, addLocations, getMapHost } = MMA;
+
 export interface Observation {
 	id: number;
 	lat: number;
@@ -99,14 +101,14 @@ export function importToMap() {
 	const obs = getObservations();
 	if (obs.length === 0) return 0;
 	const locs = obs.map((o) =>
-		MMA.createLocation({ lat: o.lat, lng: o.lng, extra: { tags: [o.name] } }),
+		createLocation({ lat: o.lat, lng: o.lng, extra: { tags: [o.name] } }),
 	);
-	MMA.addLocations(locs);
+	addLocations(locs);
 	return locs.length;
 }
 
 export async function init(): Promise<() => void> {
-	const host = MMA.getMapHost();
+	const host = getMapHost();
 	if (!host) throw new Error("No map instance");
 
 	overlay = host.createDeckOverlay();
@@ -208,7 +210,7 @@ async function fetchTile(
 
 async function loadViewport() {
 	if (!currentTaxonId || !visible) return;
-	const host = MMA.getMapHost();
+	const host = getMapHost();
 	if (!host) return;
 	const bounds = host.getBounds();
 	if (!bounds) return;

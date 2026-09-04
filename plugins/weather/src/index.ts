@@ -1,5 +1,7 @@
 import type { ExtraFieldDef, EnrichFieldOption } from "mma-plugin-types";
 
+const { registerPlugin, registerEnrichFields, registerProvider } = MMA;
+
 interface WeatherField {
 	key: string;
 	label: string;
@@ -11,7 +13,7 @@ const WEATHER_FIELDS: WeatherField[] = [
 	{ key: "precipitation", label: "Precipitation (mm)" },
 	{ key: "snowDepth", label: "Snow depth (m)" },
 	{ key: "snowfall", label: "Snowfall (cm)" },
-	{ key: "temperature2m", label: "Temperature (\u00B0C)" },
+	{ key: "temperature2m", label: "Temperature (°C)" },
 	{ key: "sunshineDuration", label: "Sunshine duration (s)" },
 	{ key: "windSpeed10m", label: "Wind speed (km/h)" },
 ];
@@ -30,10 +32,10 @@ const ENRICH_OPTIONS: EnrichFieldOption[] = WEATHER_FIELDS.map((f) => ({
 	defaultOff: true,
 }));
 
-MMA.registerPlugin({
+registerPlugin({
 	activate() {
-		MMA.registerEnrichFields(ENRICH_OPTIONS);
-		MMA.registerProvider({
+		registerEnrichFields(ENRICH_OPTIONS);
+		registerProvider({
 			id: "weather",
 			label: "Weather",
 			fieldDefs: FIELD_DEFS,

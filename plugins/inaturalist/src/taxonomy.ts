@@ -1,3 +1,5 @@
+const { storage, getVisibleTags, updateTags } = MMA;
+
 export interface TaxonInfo {
 	id: number;
 	name: string;
@@ -149,8 +151,8 @@ export async function sortTagsByTaxonomy(
 	onProgress?: (p: SortProgress) => void,
 	signal?: AbortSignal,
 ): Promise<SortResult> {
-	const storage = MMA.storage("inaturalist");
-	const tags = MMA.getVisibleTags();
+	const storage = storage("inaturalist");
+	const tags = getVisibleTags();
 	if (tags.length === 0) return { sorted: 0, skipped: 0, created: 0 };
 
 	const ancestorCacheKey = "taxo_ancestors";
@@ -250,14 +252,14 @@ export async function sortTagsByTaxonomy(
 
 	if (renames.length > 0) {
 		onProgress?.({ phase: "Renaming tags", current: 0, total: renames.length });
-		await MMA.updateTags(renames.map((r) => ({ id: r.id, patch: { name: r.name } })));
+		await updateTags(renames.map((r) => ({ id: r.id, patch: { name: r.name } })));
 	}
 
 	return { sorted: renames.length, skipped, created: 0 };
 }
 
 export function clearTaxonomyCache() {
-	const storage = MMA.storage("inaturalist");
+	const storage = storage("inaturalist");
 	for (const key of storage.keys()) {
 		if (key.startsWith("taxo_")) storage.remove(key);
 	}

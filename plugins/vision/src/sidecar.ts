@@ -2,6 +2,8 @@
 // are answered by a resident mma-vision (declared under `serve` in the manifest), so
 // repeat queries skip the ONNX/tokenizer/cache load. `embed` gets a one-shot run.
 
+const { svMetadata, sidecar } = MMA;
+
 export interface SearchResult {
 	panoId: string;
 	score: number;
@@ -33,7 +35,7 @@ async function resolveWorldSizes(
 	const entries: PanoEntry[] = [];
 	for (let i = 0; i < panoIds.length; i += BATCH) {
 		const batch = panoIds.slice(i, i + BATCH);
-		const metas = await MMA.svMetadata(batch);
+		const metas = await svMetadata(batch);
 		for (let j = 0; j < batch.length; j++) {
 			const ws = metas[j]?.worldSize;
 			entries.push({
@@ -48,7 +50,7 @@ async function resolveWorldSizes(
 }
 
 async function listCached(): Promise<Set<string>> {
-	const ids = await MMA.sidecar.request<string[]>("vision", "list-cached");
+	const ids = await sidecar.request<string[]>("vision", "list-cached");
 	return new Set(ids ?? []);
 }
 
@@ -79,7 +81,7 @@ export async function embed(panoIds: string[], opts: EmbedOptions = {}): Promise
 		opts.onStatus?.(`Metadata: ${done}/${total}`);
 	});
 
-	await MMA.sidecar.request<EmbedStatus>(
+	await sidecar.request<EmbedStatus>(
 		"vision",
 		"embed",
 		{ panos },
@@ -104,7 +106,7 @@ export async function searchText(
 	signal?: AbortSignal,
 	onDiagnostic?: (line: string) => void,
 ): Promise<SearchResult[]> {
-	const res = await MMA.sidecar.request<SearchResponse>(
+	const res = await sidecar.request<SearchResponse>(
 		"vision",
 		"search-text",
 		{ query, k, threshold },
@@ -124,7 +126,7 @@ export async function searchImage(
 	threshold: number | null,
 	signal?: AbortSignal,
 ): Promise<SearchResult[]> {
-	const res = await MMA.sidecar.request<SearchResponse>(
+	const res = await sidecar.request<SearchResponse>(
 		"vision",
 		"search-image",
 		{ panoId, k, threshold },

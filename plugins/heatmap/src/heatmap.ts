@@ -11,6 +11,8 @@ import {
   type HeatmapGradient,
 } from "./gradients";
 
+const { storage, getMapState, resolveIds, selectorForPick, getScenePositions, getMapHost, on } = MMA;
+
 export interface HeatmapLayerSettings {
   id: string;
   visible: boolean;
@@ -31,10 +33,10 @@ export const LAYER_DEFAULTS: Omit<HeatmapLayerSettings, "id" | "source"> = {
   gradientId: DEFAULT_GRADIENT_ID,
 };
 
-const store = MMA.storage("heatmap");
+const store = storage("heatmap");
 
 function defaultSource(): SelectorPick {
-  return MMA.getMapState().selectedLocationIds.size > 0
+  return getMapState().selectedLocationIds.size > 0
     ? { pick: "selection" }
     : { pick: "all" };
 }
@@ -171,8 +173,8 @@ async function sourceData(source: SelectorPick): Promise<LatLng[]> {
   const ids =
     source.pick === "all"
       ? null
-      : new Set(await MMA.resolveIds(MMA.selectorForPick(source)));
-  const scene = MMA.getScenePositions();
+      : new Set(await resolveIds(selectorForPick(source)));
+  const scene = getScenePositions();
   const out: LatLng[] = [];
   for (let i = 0; i < scene.ids.length; i++) {
     if (ids && !ids.has(scene.ids[i])) continue;
@@ -213,7 +215,7 @@ async function rebuild() {
 }
 
 export async function init(): Promise<() => void> {
-  const host = MMA.getMapHost();
+  const host = getMapHost();
   if (!host) throw new Error("No map instance");
 
   overlay = host.createDeckOverlay();
@@ -225,7 +227,7 @@ export async function init(): Promise<() => void> {
     rebuildTimer = setTimeout(() => void rebuild(), 100);
     onSettingsChange?.();
   };
-  const unsub = MMA.on("scene:changed", onChange);
+  const unsub = on("scene:changed", onChange);
 
   return () => {
     unsub();

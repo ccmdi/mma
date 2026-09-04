@@ -1,17 +1,17 @@
 import { embed, searchImage } from "./sidecar";
 
-const { Button } = MMA.ui;
+const { ui: { Button }, getMapState, useJob, fetchAllLocations, addSelections } = MMA;
 
 const SIMILARITY_THRESHOLD = 0.85;
 
 const statusStyle = { fontSize: 12, color: "var(--text-secondary, #999)", padding: "4px 0" };
 
 export function FindSimilarButton() {
-	const active = MMA.getMapState().activeLocation;
+	const active = getMapState().activeLocation;
 	const panoId = active?.panoId;
 
-	const job = MMA.useJob<number>(async ({ signal, report }) => {
-		const locs = await MMA.fetchAllLocations();
+	const job = useJob<number>(async ({ signal, report }) => {
+		const locs = await fetchAllLocations();
 		signal.throwIfAborted();
 		const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
 
@@ -40,7 +40,7 @@ export function FindSimilarButton() {
 			.filter((id): id is number => id != null);
 
 		if (matchedIds.length > 0) {
-			await MMA.addSelections([
+			await addSelections([
 				{
 					type: "Locations",
 					locations: matchedIds,

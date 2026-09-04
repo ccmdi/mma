@@ -33,23 +33,23 @@ function Label({ children, info }: { children: ReactNode; info: string }) {
 	);
 }
 
-const { Section, Field, SegmentedControl, Button } = MMA.ui;
+const { ui: { Section, Field, SegmentedControl, Button }, storage, useJob, toast } = MMA;
 
 export function TaxonomySorter() {
-	const storage = MMA.storage("inaturalist");
-	const [lang, setLang] = useState<string>(() => storage.get("taxo_lang", "en"));
+	const store = storage("inaturalist");
+	const [lang, setLang] = useState<string>(() => store.get("taxo_lang", "en"));
 	const [deep, setDeep] = useState(true);
 	const [commonNames, setCommonNames] = useState(true);
 
 	const handleLangChange = useCallback((code: string) => {
 		setLang(code);
-		storage.set("taxo_lang", code);
-	}, [storage]);
+		store.set("taxo_lang", code);
+	}, [store]);
 
-	const job = MMA.useJob<SortResult, SortProgress>(async ({ signal, report }) => {
+	const job = useJob<SortResult, SortProgress>(async ({ signal, report }) => {
 		const opts: SortOptions = { lang, deep, commonNames };
 		const r = await sortTagsByTaxonomy(opts, report, signal);
-		MMA.toast(
+		toast(
 			r.sorted > 0
 				? `Sorted ${r.sorted} tag${r.sorted === 1 ? "" : "s"} into taxonomy folders`
 				: "No tags needed sorting",
@@ -59,7 +59,7 @@ export function TaxonomySorter() {
 
 	const handleClearCache = useCallback(() => {
 		clearTaxonomyCache();
-		MMA.toast("Taxonomy cache cleared");
+		toast("Taxonomy cache cleared");
 	}, []);
 
 	return (

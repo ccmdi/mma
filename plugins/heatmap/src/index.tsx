@@ -1,7 +1,9 @@
 import { init } from "./heatmap";
 import { HeatmapSidebar } from "./HeatmapSidebar";
 
-MMA.registerPlugin({
+const { registerPlugin } = MMA;
+
+registerPlugin({
   activate() {
     let cancelled = false;
     let teardown: (() => void) | null = null;

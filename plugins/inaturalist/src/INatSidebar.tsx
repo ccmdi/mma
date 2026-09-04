@@ -63,7 +63,7 @@ function removeCSS() {
 	}
 }
 
-const { Sidebar, Section, TextInput, Button } = MMA.ui;
+const { ui: { Sidebar, Section, TextInput, Button }, toast } = MMA;
 
 export function INatSidebar({ onClose }: { onClose: () => void }) {
 	const [query, setQuery] = useState("");
@@ -89,7 +89,7 @@ export function INatSidebar({ onClose }: { onClose: () => void }) {
 		try {
 			setResults(await searchTaxa(q));
 		} catch {
-			MMA.toast("Failed to search iNaturalist");
+			toast("Failed to search iNaturalist");
 		}
 		setSearching(false);
 	};
@@ -102,8 +102,8 @@ export function INatSidebar({ onClose }: { onClose: () => void }) {
 
 	const handleImport = () => {
 		const n = importToMap();
-		if (n > 0) MMA.toast(`Imported ${n} observations as locations`);
-		else MMA.toast("No observations to import");
+		if (n > 0) toast(`Imported ${n} observations as locations`);
+		else toast("No observations to import");
 	};
 
 	const taxon = getCurrentTaxon();

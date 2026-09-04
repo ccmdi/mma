@@ -1,5 +1,7 @@
 import type { ExtraFieldDef } from "mma-plugin-types";
 
+const { registerPlugin, registerEnrichFields, registerProvider } = MMA;
+
 const FIELDS: Record<string, ExtraFieldDef> = {
 	sunAzimuth: {
 		type: "number",
@@ -17,13 +19,13 @@ const FIELDS: Record<string, ExtraFieldDef> = {
 	},
 };
 
-MMA.registerPlugin({
+registerPlugin({
 	activate() {
-		MMA.registerEnrichFields([
+		registerEnrichFields([
 			{ key: "sunAzimuth", label: "Sun azimuth" },
 			{ key: "sunAltitude", label: "Sun altitude" },
 		]);
-		MMA.registerProvider({
+		registerProvider({
 			id: "sunPosition",
 			fieldDefs: FIELDS,
 			requires: ["datetime"],
