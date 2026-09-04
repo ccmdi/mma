@@ -19,7 +19,7 @@ mod geometry;
 mod partition;
 pub use duplicates::*;
 pub use filter::*;
-pub use geometry::*;
+pub(crate) use geometry::*;
 pub(crate) use mma_geo::{
     anchor_bbox, extend_bbox_with_ring, haversine_m, in_bbox, polygon_contains, PreparedRing,
 };

@@ -1,6 +1,7 @@
 #![allow(clippy::needless_pass_by_value)]
 use super::*;
 use crate::store::arrow::locations_to_batch;
+use crate::store::engine::merge_group;
 use crate::test_util::{loc, Fx};
 use crate::types::Location;
 use crate::types::RawExtra;
@@ -3136,7 +3137,7 @@ fn prune_and_merge_keep_the_same_survivor() {
         .find(|id| !removed.contains(id))
         .as_ref()
         .expect("one survivor");
-    let merged = crate::store::engine::merge_group(&group, &default_score());
+    let merged = merge_group(&group, &default_score());
     assert_eq!(kept, merged.id);
 }
 

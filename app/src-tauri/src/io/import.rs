@@ -10,7 +10,7 @@ use std::sync::Mutex;
 
 mod parse;
 mod stage;
-pub use parse::*;
+use parse::*;
 pub use stage::*;
 
 use crate::util::now_iso;

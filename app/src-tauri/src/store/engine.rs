@@ -7,9 +7,11 @@
 
 use crate::types::{AppError, AppResult};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
+use std::ops::Deref;
 use std::sync::{Mutex, OnceLock};
 
-pub use history::*;
+pub(crate) use history::*;
 pub use membership::*;
 pub use mutations::*;
 pub use persist::*;
@@ -824,7 +826,7 @@ impl<T> Tracked<T> {
     }
 }
 
-impl<T> std::ops::Deref for Tracked<T> {
+impl<T> Deref for Tracked<T> {
     type Target = T;
     fn deref(&self) -> &T {
         &self.value
@@ -839,7 +841,7 @@ pub(crate) struct Touched<K, V> {
     touched: HashSet<K>,
 }
 
-impl<K: Eq + std::hash::Hash + Copy, V: Default> Touched<K, V> {
+impl<K: Eq + Hash + Copy, V: Default> Touched<K, V> {
     pub(crate) fn new(map: HashMap<K, V>) -> Self {
         Self {
             map,
@@ -862,7 +864,7 @@ impl<K: Eq + std::hash::Hash + Copy, V: Default> Touched<K, V> {
     }
 }
 
-impl<K, V> std::ops::Deref for Touched<K, V> {
+impl<K, V> Deref for Touched<K, V> {
     type Target = HashMap<K, V>;
     fn deref(&self) -> &HashMap<K, V> {
         &self.map

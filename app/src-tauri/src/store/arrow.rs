@@ -183,7 +183,7 @@ pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<u32, Location>) -> Rec
         {
             false
         } else {
-            crate::types::RawExtra::from_string(extras.value(i).to_owned()).as_ref()
+            RawExtra::from_string(extras.value(i).to_owned()).as_ref()
                 != p.extra.as_ref()
         };
         touched[COL_CREATED_AT] |= created_ats.value(i) != p.created_at;

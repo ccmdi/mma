@@ -12,6 +12,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Duration;
 use std::time::Instant;
+use tauri::async_runtime;
 use tauri::http::response::Builder;
 use tauri::http::{header, Method, Request, Response as HttpResponse};
 use tauri::UriSchemeResponder;
@@ -96,7 +97,7 @@ fn path_and_query(req: &Request<Vec<u8>>) -> (String, String) {
 /// Run a blocking scheme-handler body off the webview thread, on Tauri's bounded
 /// blocking thread pool rather than an unbounded OS thread per request.
 fn respond_async(responder: UriSchemeResponder, f: impl FnOnce() -> Reply + Send + 'static) {
-    tauri::async_runtime::spawn_blocking(move || responder.respond(f()));
+    async_runtime::spawn_blocking(move || responder.respond(f()));
 }
 
 /// Relays an upstream response body + content-type back to the webview with CORS.

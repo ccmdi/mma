@@ -5,9 +5,15 @@
 //!
 //! Gate: `--features web-serve`. Entry: the `mma-serve` bin.
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use std::fs;
+use tauri::http::header::CONTENT_TYPE;
+use tauri::http::Response as HttpResponse;
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_webserve::{register_scheme, SchemeRequest, SchemeResponse};
 
+use crate::net::gdoc;
+use crate::net::geoguessr;
+use crate::net::proxy;
 use crate::store::engine;
 use crate::store::storage;
 
@@ -41,11 +47,11 @@ pub fn run_server() {
 }
 
 /// Convert a Tauri proxy response into the plugin's scheme response.
-fn relay(r: tauri::http::Response<Vec<u8>>) -> SchemeResponse {
+fn relay(r: HttpResponse<Vec<u8>>) -> SchemeResponse {
     let status = r.status().as_u16();
     let content_type = r
         .headers()
-        .get(tauri::http::header::CONTENT_TYPE)
+        .get(CONTENT_TYPE)
         .and_then(|v| v.to_str().ok())
         .unwrap_or("application/octet-stream")
         .to_string();
@@ -72,9 +78,9 @@ fn register_web_schemes() {
             .decode_utf8_lossy()
             .into_owned();
         if req.method.eq_ignore_ascii_case("POST") {
-            return relay(crate::net::proxy::write_upload(&path, &req.body));
+            return relay(proxy::write_upload(&path, &req.body));
         }
-        match std::fs::read(&path) {
+        match fs::read(&path) {
             Ok(data) => SchemeResponse::ok("application/octet-stream", data),
             Err(e) => SchemeResponse::not_found(format!("file not found: {path} - {e}")),
         }
@@ -85,7 +91,7 @@ fn register_web_schemes() {
             req.path,
             qs(&req.query)
         );
-        relay(crate::net::proxy::fetch_svtile(&url))
+        relay(proxy::fetch_svtile(&url))
     });
     register_scheme("gmaps", |req: SchemeRequest| {
         let url = format!("https://www.google.com/{}{}", req.path, qs(&req.query));
@@ -96,7 +102,7 @@ fn register_web_schemes() {
         } else {
             req.content_type
         };
-        relay(crate::net::proxy::proxy_gmaps(
+        relay(proxy::proxy_gmaps(
             method,
             &url,
             ct,
@@ -108,7 +114,7 @@ fn register_web_schemes() {
         let method =
             reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
         let content_type = (!req.content_type.is_empty()).then_some(req.content_type);
-        relay(crate::net::geoguessr::proxy(
+        relay(geoguessr::proxy(
             method,
             &req.path,
             Some(&req.query),
@@ -117,10 +123,10 @@ fn register_web_schemes() {
         ))
     });
     register_scheme("gdoc", |req: SchemeRequest| {
-        relay(crate::net::gdoc::fetch_gdoc(&req.path))
+        relay(gdoc::fetch_gdoc(&req.path))
     });
     register_scheme("googl", |req: SchemeRequest| {
         let mapsapp = req.query.split('&').any(|kv| kv == "source=mapsapp");
-        relay(crate::net::proxy::resolve_googl(&req.path, mapsapp))
+        relay(proxy::resolve_googl(&req.path, mapsapp))
     });
 }
