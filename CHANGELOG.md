@@ -1,3 +1,42 @@
+## v0.10.2 - 2026-09-03
+- The map type control is now always the narrow variant, with map styles inside
+- J and K step through the basemaps
+- Commit message is no longer default save behavior; Shift + click expresses this instead
+- Date filters and date grouping tell you how many locations were skipped for lacking a timezone
+- Field expressions, such as the duplicate preference score, can compare values and test whether a field is present
+- Every bulk operation offers a Select failed button for the locations it could not process
+- Tags can be dragged into folders in any sort mode
+- Dropping a tag onto another with the same name/path merges them
+- Pruning duplicates ranks by the duplicate preference, the same way merging does
+- Drop marker copies the panorama you are looking at, not the one stored on the location
+- The marketplace installs the newest plugin build your app version can run
+- Filters: "is not" no longer matches locations that lack the field; use "does not have" for those
+- The version badge in settings only lights up when an update is waiting
+- Reset every app setting to its default, from Advanced in settings
+- High and Ultra borders follow the same country taxonomy as Standard, with padded coastlines, at about half the download size
+- Complex polygon selections resolve much faster
+- Opening a location makes it a complete draft: moving, choosing a date, pinning and what enrichment finds all wait for Save, and Close discards them
+- Unpinning a date stays where you are instead of jumping back to the stored panorama
+- A field a location already holds for its panorama is not fetched again when it opens; Enrich with Force re-derives it
+- The pano metadata readout shows the draft, what a Save would write
+- Informational locations are no longer supported
+- Fixed saved selections being lost when upgrading from 0.9.2
+- Fixed the vector basemap showing no tiles
+- Fixed a watermarked tile in the vector basemap preview
+- Fixed the selection menu eating the click that closes it
+- Fixed bulk operation progress misreporting its rate and totals
+- Fixed enrichment counting locations it could not process as successes
+- Fixed Pin to pano ID pinning a location to its stale panorama when re-resolving failed
+- Fixed a bulk run hanging when a provider could not start
+- Fixed the pano jump tooltip always saying metres
+- Fixed walking to a different panorama writing its metadata onto the location
+- Fixed the enrichment master switch greying out the per-field switches
+- Fixed zooming to a polygon selection framing only its first part
+- Fixed the generator showing flags for regions that are not countries
+- Fixed the generator listing each region's progress twice
+- Fixed dropdown options showing a focus outline instead of the hover tint, and dropdowns shifting on first open
+- Fixed Google's own focus frame showing on the map after a held-key click
+
 ## v0.10.1 - 2026-08-28
 - Distance unit setting: metric, imperial, or automatic from your system locale. Applies everywhere a distance is shown or typed: the measure bar, map overview, score bounds, merge distance, generator spacing, LocalGuessr results
 - Scratch map: a throwaway map for the session, opened from the map list toolbar and wiped on the next launch
