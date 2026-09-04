@@ -790,6 +790,7 @@ impl<T> Tracked<T> {
         self.rev += 1;
     }
 
+    #[allow(dead_code, reason = "exercised by tests; no production caller")]
     pub(crate) fn rev(&self) -> u64 {
         self.rev
     }

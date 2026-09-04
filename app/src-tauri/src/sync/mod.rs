@@ -270,6 +270,7 @@ pub struct PushedId {
 pub trait SyncProvider {
     type Raw: Clone;
 
+    #[allow(dead_code, reason = "exercised by tests; no production caller")]
     fn id(&self) -> &'static str;
     fn identity(&self) -> IdentityModel;
     fn supports_tags(&self) -> bool;

@@ -331,6 +331,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
         }
     }
     #[inline]
+    #[allow(dead_code, reason = "completes the lat/lng/heading/pitch/zoom accessor set")]
     pub fn pitch(&self) -> f64 {
         match &self.inner {
             RowInner::Base(v, i) => v.pitches.unwrap().value(*i),
@@ -338,6 +339,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
         }
     }
     #[inline]
+    #[allow(dead_code, reason = "completes the lat/lng/heading/pitch/zoom accessor set")]
     pub fn zoom(&self) -> f64 {
         match &self.inner {
             RowInner::Base(v, i) => v.zooms.unwrap().value(*i),
@@ -519,6 +521,7 @@ impl<'a> LocView<'a> {
         }
     }
 
+    #[allow(dead_code, reason = "reader for the field every LocView consumer indexes by")]
     pub fn batch_rows(&self) -> usize {
         self.batch_rows
     }
@@ -886,6 +889,7 @@ pub fn resolve_forest(
 /// Resolved count of every selection node - top-level and nested - keyed by
 /// `Selection.key`. Thin wrapper over [`resolve_forest`] for callers that only
 /// need the counts.
+#[allow(dead_code, reason = "exercised by tests; no production caller")]
 pub fn resolve_node_counts(view: &LocView, sels: &[Selection]) -> HashMap<String, u32> {
     resolve_forest(view, sels).1
 }

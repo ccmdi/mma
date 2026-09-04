@@ -42,6 +42,7 @@ impl RawExtra {
     }
 
     /// Build from a JSON value (an object). `None` if not an object or empty.
+    #[allow(dead_code, reason = "exercised by tests; no production caller")]
     pub fn from_value(v: &serde_json::Value) -> Option<Self> {
         v.as_object().and_then(Self::from_map)
     }

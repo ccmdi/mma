@@ -142,6 +142,7 @@ fn http_error(context: &str, status: u16) -> AppError {
 }
 
 /// 409/412: the sent version lost the optimistic-concurrency race.
+#[allow(dead_code, reason = "exercised by tests; no production caller")]
 pub(crate) fn is_version_conflict(err: &AppError) -> bool {
     err.0.contains("HTTP 409") || err.0.contains("HTTP 412")
 }
