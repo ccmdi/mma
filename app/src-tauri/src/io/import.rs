@@ -121,6 +121,19 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
 // Tauri commands
 // ---------------------------------------------------------------------------
 
+/// Read a file (JSON, or a ZIP of JSONs parsed in parallel) into its maps.
+fn read_and_parse_maps(path: &str) -> AppResult<Vec<ParsedMap>> {
+    let entries = if path.ends_with(".zip") {
+        read_zip_entries(path)?
+    } else {
+        read_single_json(path)?
+    };
+    Ok(entries
+        .par_iter()
+        .map(|(_, text)| parse_single_json(text))
+        .collect())
+}
+
 /// Parse a file (JSON or ZIP of JSONs) and return previews without persisting.
 /// Results are cached in `CACHED_PARSE` so `bulk_import_confirm` can skip re-parsing.
 /// ZIP files have each `.json` entry parsed in parallel via rayon.
@@ -128,16 +141,7 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
 #[specta::specta]
 pub async fn bulk_import_preview(path: String) -> AppResult<Vec<ImportPreviewEntry>> {
     task::spawn_blocking(move || {
-        let entries = if path.ends_with(".zip") {
-            read_zip_entries(&path)?
-        } else {
-            read_single_json(&path)?
-        };
-
-        let maps: Vec<ParsedMap> = entries
-            .par_iter()
-            .map(|(_, text)| parse_single_json(text))
-            .collect();
+        let maps = read_and_parse_maps(&path)?;
 
         let results: Vec<ImportPreviewEntry> = maps
             .iter()
@@ -189,15 +193,7 @@ pub async fn bulk_import_confirm(
                 cache.take().unwrap().maps
             } else {
                 drop(cache);
-                let entries = if path.ends_with(".zip") {
-                    read_zip_entries(&path)?
-                } else {
-                    read_single_json(&path)?
-                };
-                entries
-                    .par_iter()
-                    .map(|(_, text)| parse_single_json(text))
-                    .collect::<Vec<_>>()
+                read_and_parse_maps(&path)?
             }
         };
 
