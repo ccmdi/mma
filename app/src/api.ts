@@ -13,7 +13,7 @@ import * as picker from "@/store/selectorPick";
 import * as mapList from "@/store/mapList";
 import * as review from "@/lib/review/review";
 import { cmd as commands, type Cmd } from "@/lib/commands";
-import { createLocation } from "@/types";
+import { createFieldDef, createLocation } from "@/types";
 import { registerPlugin, createPluginStorage, usePluginState } from "@/plugins/registry";
 import { useJob } from "@/lib/hooks/useJob";
 import { trackDisposable } from "@/plugins/scope";
@@ -68,6 +68,7 @@ const fields = {
 	getFieldDef,
 	getAllFieldDefs,
 	getKnownFieldKeys,
+	createFieldDef,
 	registerEnrichFields,
 	registerProvider,
 };

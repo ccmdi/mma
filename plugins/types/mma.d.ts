@@ -2304,6 +2304,8 @@ declare const SCRATCH_MAP_ID: "scratch";
 /** The bits a preview carries that a real location must not. */
 declare const VIRTUAL_FLAGS: 12;
 
+/** A field definition with every optional attribute spelled absent. */
+declare function createFieldDef(type: ExtraFieldType, over?: Partial<Omit<ExtraFieldDef, "type">>): ExtraFieldDef;
 export type LatLng = google.maps.LatLngLiteral;
 export type Bounds = google.maps.LatLngBoundsLiteral;
 /** One decoded GetMetadata image: flat, plain JSON, no live objects. This is the app's
@@ -4719,6 +4721,7 @@ declare const fields: {
     getFieldDef: typeof getFieldDef;
     getAllFieldDefs: typeof getAllFieldDefs;
     getKnownFieldKeys: typeof getKnownFieldKeys;
+    createFieldDef: typeof createFieldDef;
     registerEnrichFields: typeof registerEnrichFields;
     registerProvider: typeof registerProvider;
 };
