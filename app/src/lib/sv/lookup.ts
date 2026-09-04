@@ -1,4 +1,4 @@
-import { distMeters } from "@/lib/geo/geo";
+import { angularDelta, distMeters } from "@/lib/geo/geo";
 import { fetchPanoDotsWithIds } from "@/lib/geo/photometa";
 import { latLngToWorld, worldToTile } from "@/lib/geo/mercator";
 import { cameraTypeFromHeight, centerHeading, imageDateOf } from "@/lib/sv/getMetadata";
@@ -10,7 +10,7 @@ import type { LatLng, Pano } from "@/types";
 import type { Location } from "@/bindings.gen";
 
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { normalizeHeading, reverseHeading } from "@/lib/geo/geo";
+import { reverseHeading } from "@/lib/geo/geo";
 
 /** The pano a location should display: the one it is pinned to when that still resolves,
  *  otherwise whatever sits at its coordinates. */
@@ -46,7 +46,7 @@ export function nearestLinkHeading(headings: number[], target: number): number |
 	let best: number | null = null;
 	let bestDelta = Infinity;
 	for (const h of headings) {
-		const d = Math.abs(normalizeHeading(h - target));
+		const d = angularDelta(h, target);
 		if (d < bestDelta) {
 			bestDelta = d;
 			best = h;
@@ -79,10 +79,7 @@ export function calcHeading(
 			const t = target[dir];
 			if (t != null) {
 				link = data.links.reduce((best, cur) =>
-					Math.abs(normalizeHeading((best.heading ?? 0) - t)) >
-					Math.abs(normalizeHeading((cur.heading ?? 0) - t))
-						? cur
-						: best,
+					angularDelta(best.heading ?? 0, t) > angularDelta(cur.heading ?? 0, t) ? cur : best,
 				);
 			}
 		}
@@ -252,7 +249,7 @@ export async function followLinkedPanos(
 			const pid = link.pano;
 			const lh = link.heading ?? 0;
 			if (!pid || visited.has(pid)) continue;
-			const delta = Math.abs(normalizeHeading(lh - currentHeading));
+			const delta = angularDelta(lh, currentHeading);
 			if (delta < bestDelta) {
 				bestDelta = delta;
 				best = { pano: pid, heading: lh };

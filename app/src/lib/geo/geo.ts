@@ -17,6 +17,11 @@ export function normalizeHeading(h: number): number {
 	return wrapDeg(h, -180);
 }
 
+/** Shortest angular distance between two headings, in [0, 180]. */
+export function angularDelta(a: number, b: number): number {
+	return Math.abs(normalizeHeading(a - b));
+}
+
 /** The opposite bearing, in [-180, 180). */
 export function reverseHeading(h: number): number {
 	return wrapDeg(h + 180, -180);
