@@ -81,19 +81,29 @@ export function isolateGhostKeys(
 	return alreadyIsolated ? new Set() : new Set(keys.filter((k) => k !== key));
 }
 
-export const toggleGhost = (key: string) => (_sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => ({
-	ghosted: ghosted.symmetricDifference(new Set([key])),
-});
+export const toggleGhost =
+	(key: string) =>
+	(_sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => ({
+		ghosted: ghosted.symmetricDifference(new Set([key])),
+	});
 
-export const isolateGhost = (key: string) => (sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => ({
-	ghosted: isolateGhostKeys(sels.map((s) => s.key), ghosted, key),
-});
+export const isolateGhost =
+	(key: string) =>
+	(sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => ({
+		ghosted: isolateGhostKeys(
+			sels.map((s) => s.key),
+			ghosted,
+			key,
+		),
+	});
 
-export const toggleGhostAll = () => (sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => {
-	const keys = new Set(sels.map((s) => s.key));
-	const allGhosted = keys.size > 0 && keys.isSubsetOf(ghosted);
-	return { ghosted: allGhosted ? new Set() : ghosted.union(keys) };
-};
+export const toggleGhostAll =
+	() =>
+	(sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => {
+		const keys = new Set(sels.map((s) => s.key));
+		const allGhosted = keys.size > 0 && keys.isSubsetOf(ghosted);
+		return { ghosted: allGhosted ? new Set() : ghosted.union(keys) };
+	};
 
 /** Pick `n` distinct ids uniformly at random from `ids` using `Math.random`.
  *  `n` is floored and clamped to `[0, ids.length]` (so over-large counts return all ids).
@@ -296,8 +306,10 @@ function dedupe(selections: Selection[]): Selection[] {
 	return map.size === selections.length ? selections : Array.from(map.values());
 }
 
-export const addSelection = (selector: Selector) => (current: Selection[]): Selection[] =>
-	dedupe([...current, buildSelection(selector)]);
+export const addSelection =
+	(selector: Selector) =>
+	(current: Selection[]): Selection[] =>
+		dedupe([...current, buildSelection(selector)]);
 
 /** Keys of every Polygon selection whose geometry contains the point. */
 export function polygonSelectionsContaining(
@@ -317,13 +329,15 @@ export function polygonSelectionsContaining(
 
 /** Remove a selection by key. Composites unwrap their children back into the list.
  *  Returns `current` unchanged when the key is not present (identity-safe). */
-export const removeSelection = (key: string) => (current: Selection[]): Selection[] => {
-	const idx = current.findIndex((s) => s.key === key);
-	if (idx === -1) return current;
-	const s = current[idx];
-	const children = isVariant(s.selector, COMPOSITE_TYPES) ? s.selector.selections : [];
-	return [...current.slice(0, idx), ...children, ...current.slice(idx + 1)];
-};
+export const removeSelection =
+	(key: string) =>
+	(current: Selection[]): Selection[] => {
+		const idx = current.findIndex((s) => s.key === key);
+		if (idx === -1) return current;
+		const s = current[idx];
+		const children = isVariant(s.selector, COMPOSITE_TYPES) ? s.selector.selections : [];
+		return [...current.slice(0, idx), ...children, ...current.slice(idx + 1)];
+	};
 
 /** Split selections into [matching the keys, everything else]. */
 function partitionByKeys(current: Selection[], keys: string[]): [Selection[], Selection[]] {
@@ -345,93 +359,104 @@ function composeSelectionGroup(
 	return [...others, buildSelection({ type, selections: dedupe(flat) })];
 }
 
-export const intersectSelections = (keys: string[] | null = null) => (current: Selection[]) =>
-	composeSelectionGroup(current, keys, "Intersection");
+export const intersectSelections =
+	(keys: string[] | null = null) =>
+	(current: Selection[]) =>
+		composeSelectionGroup(current, keys, "Intersection");
 
-export const unionSelections = (keys: string[] | null = null) => (current: Selection[]) =>
-	composeSelectionGroup(current, keys, "Union");
+export const unionSelections =
+	(keys: string[] | null = null) =>
+	(current: Selection[]) =>
+		composeSelectionGroup(current, keys, "Union");
 
 /** Invert targeted selections. Single target toggles in-place at any depth; multiple are wrapped in Union then Invert. */
-export const invertSelections = (keys: string[] | null = null) => (current: Selection[]): Selection[] => {
-	if (current.length === 0) return current;
-	const targetKeys = keys ?? current.map((s) => s.key);
-	// single-target invert toggles in-place, nested children included
-	if (targetKeys.length === 1) {
-		const toggle = (m: Selection): Selection =>
-			m.selector.type === "Invert"
-				? m.selector.selections[0]
-				: buildSelection({ type: "Invert", selections: [m] });
-		for (let i = 0; i < current.length; i++) {
-			const inverted = transformInTree(current[i], targetKeys[0], toggle);
-			if (inverted) return spliceMerging(current, i, inverted);
+export const invertSelections =
+	(keys: string[] | null = null) =>
+	(current: Selection[]): Selection[] => {
+		if (current.length === 0) return current;
+		const targetKeys = keys ?? current.map((s) => s.key);
+		// single-target invert toggles in-place, nested children included
+		if (targetKeys.length === 1) {
+			const toggle = (m: Selection): Selection =>
+				m.selector.type === "Invert"
+					? m.selector.selections[0]
+					: buildSelection({ type: "Invert", selections: [m] });
+			for (let i = 0; i < current.length; i++) {
+				const inverted = transformInTree(current[i], targetKeys[0], toggle);
+				if (inverted) return spliceMerging(current, i, inverted);
+			}
+			return current;
 		}
-		return current;
-	}
-	const [targets, others] = partitionByKeys(current, targetKeys);
-	const flat = targets.flatMap((s) => (s.selector.type === "Union" ? s.selector.selections : [s]));
-	const inner = flat.length === 1 ? flat[0] : buildSelection({ type: "Union", selections: flat });
-	return [...others, buildSelection({ type: "Invert", selections: [inner] })];
-};
+		const [targets, others] = partitionByKeys(current, targetKeys);
+		const flat = targets.flatMap((s) =>
+			s.selector.type === "Union" ? s.selector.selections : [s],
+		);
+		const inner = flat.length === 1 ? flat[0] : buildSelection({ type: "Union", selections: flat });
+		return [...others, buildSelection({ type: "Invert", selections: [inner] })];
+	};
 
-export const toggleManualSelection = (locationId: number) => (current: Selection[]): Selection[] => {
-	const idx = current.findIndex((s) => s.key === "manual");
-	if (idx === -1) return [...current, buildSelection({ type: "Manual", locations: [locationId] })];
-	const sel = current[idx];
-	const ids = (sel.selector as Variant<Selector, "Manual">).locations.slice();
-	const at = ids.indexOf(locationId);
-	if (at === -1) ids.push(locationId);
-	else ids.splice(at, 1);
-	if (ids.length === 0) return current.toSpliced(idx, 1);
-	const next = buildSelection({ type: "Manual", locations: ids });
-	return current.with(idx, next);
-};
+export const toggleManualSelection =
+	(locationId: number) =>
+	(current: Selection[]): Selection[] => {
+		const idx = current.findIndex((s) => s.key === "manual");
+		if (idx === -1)
+			return [...current, buildSelection({ type: "Manual", locations: [locationId] })];
+		const sel = current[idx];
+		const ids = (sel.selector as Variant<Selector, "Manual">).locations.slice();
+		const at = ids.indexOf(locationId);
+		if (at === -1) ids.push(locationId);
+		else ids.splice(at, 1);
+		if (ids.length === 0) return current.toSpliced(idx, 1);
+		const next = buildSelection({ type: "Manual", locations: ids });
+		return current.with(idx, next);
+	};
 
-export const reorderSelections = (
-	fromKey: string,
-	toKey: string,
-	position: "before" | "after",
-) => (current: Selection[]): Selection[] => {
-	const fromIdx = current.findIndex((s) => s.key === fromKey);
-	if (fromIdx === -1) return current;
-	const item = current[fromIdx];
-	const without = current.toSpliced(fromIdx, 1);
-	let toIdx = without.findIndex((s) => s.key === toKey);
-	if (toIdx === -1) return current;
-	if (position === "after") toIdx++;
-	return without.toSpliced(toIdx, 0, item);
-};
+export const reorderSelections =
+	(fromKey: string, toKey: string, position: "before" | "after") =>
+	(current: Selection[]): Selection[] => {
+		const fromIdx = current.findIndex((s) => s.key === fromKey);
+		if (fromIdx === -1) return current;
+		const item = current[fromIdx];
+		const without = current.toSpliced(fromIdx, 1);
+		let toIdx = without.findIndex((s) => s.key === toKey);
+		if (toIdx === -1) return current;
+		if (position === "after") toIdx++;
+		return without.toSpliced(toIdx, 0, item);
+	};
 
 /** Drag-drop composition: merge drag into drop as a new composite, absorbing existing
  *  children of the same type. Parents route the nested cases: same parent recomposes the
  *  siblings, a drag out of a parent detaches first, a drop onto a child nests there. */
-export const composeSelections = (
-	dragKey: string,
-	dropKey: string,
-	mode: GroupType,
-	dragParent: string | null = null,
-	dropParent: string | null = null,
-) => (current: Selection[]): Selection[] => {
-	if (dragParent && dropParent && dragParent === dropParent) {
-		return composeSiblings(current, dragParent, dragKey, dropKey, mode);
-	}
-	const sels = dragParent ? decomposeChild(dragParent, dragKey)(current) : current;
-	if (dropParent) return composeWithChild(sels, dragKey, dropParent, dropKey, mode);
-	const dragIdx = sels.findIndex((s) => s.key === dragKey);
-	const dropIdx = sels.findIndex((s) => s.key === dropKey);
-	if (dragIdx === -1 || dropIdx === -1 || dragIdx === dropIdx) return sels;
-	const drag = sels[dragIdx];
-	const drop = sels[dropIdx];
+export const composeSelections =
+	(
+		dragKey: string,
+		dropKey: string,
+		mode: GroupType,
+		dragParent: string | null = null,
+		dropParent: string | null = null,
+	) =>
+	(current: Selection[]): Selection[] => {
+		if (dragParent && dropParent && dragParent === dropParent) {
+			return composeSiblings(current, dragParent, dragKey, dropKey, mode);
+		}
+		const sels = dragParent ? decomposeChild(dragParent, dragKey)(current) : current;
+		if (dropParent) return composeWithChild(sels, dragKey, dropParent, dropKey, mode);
+		const dragIdx = sels.findIndex((s) => s.key === dragKey);
+		const dropIdx = sels.findIndex((s) => s.key === dropKey);
+		if (dragIdx === -1 || dropIdx === -1 || dragIdx === dropIdx) return sels;
+		const drag = sels[dragIdx];
+		const drop = sels[dropIdx];
 
-	let children: Selection[];
-	if (isVariant(drop.selector, mode)) {
-		children = [...drop.selector.selections, drag];
-	} else {
-		children = [drop, drag];
-	}
-	const composite = buildSelection({ type: mode, selections: dedupe(children) });
+		let children: Selection[];
+		if (isVariant(drop.selector, mode)) {
+			children = [...drop.selector.selections, drag];
+		} else {
+			children = [drop, drag];
+		}
+		const composite = buildSelection({ type: mode, selections: dedupe(children) });
 
-	return sels.filter((_, i) => i !== dragIdx).map((s) => (s.key === dropKey ? composite : s));
-};
+		return sels.filter((_, i) => i !== dragIdx).map((s) => (s.key === dropKey ? composite : s));
+	};
 
 /** Unwrap a unary operator (e.g. Invert) to the n-ary group it wraps, returning that group's selector
  *  plus a `rewrap` that restores the operator; a plain group returns itself with an identity rewrap.
@@ -517,11 +542,15 @@ function detachChild(
 
 /** Pull a child out of a composite back into the top-level list, children and all. Parent collapses
  *  if only one child remains, and disappears if none do. */
-export const decomposeChild = (parentKey: string, childKey: string) => (current: Selection[]): Selection[] =>
-	detachChild(current, parentKey, childKey, "extract");
+export const decomposeChild =
+	(parentKey: string, childKey: string) =>
+	(current: Selection[]): Selection[] =>
+		detachChild(current, parentKey, childKey, "extract");
 
-export const removeFromComposite = (parentKey: string, childKey: string) => (current: Selection[]): Selection[] =>
-	detachChild(current, parentKey, childKey, "delete");
+export const removeFromComposite =
+	(parentKey: string, childKey: string) =>
+	(current: Selection[]): Selection[] =>
+		detachChild(current, parentKey, childKey, "delete");
 
 export function composeSiblings(
 	current: Selection[],
@@ -681,24 +710,26 @@ function validationStateLabel(state: ValidationState): string {
 	}
 }
 
-export const setSelectionColors = (
-	entries: Selection[],
-) => (current: Selection[]): Selection[] =>
-	entries.reduce((sels, entry) => {
-		const idx = sels.findIndex((s) => s.key === entry.key);
-		return idx === -1 ? sels : sels.with(idx, entry);
-	}, current);
+export const setSelectionColors =
+	(entries: Selection[]) =>
+	(current: Selection[]): Selection[] =>
+		entries.reduce((sels, entry) => {
+			const idx = sels.findIndex((s) => s.key === entry.key);
+			return idx === -1 ? sels : sels.with(idx, entry);
+		}, current);
 
-export const setPolygonName = (key: string, name: string) => (current: Selection[]): Selection[] => {
-	return current.map((s) => {
-		if (s.key !== key || s.selector.type !== "Polygon") return s;
-		const selector: Selector = {
-			...s.selector,
-			polygon: { ...s.selector.polygon, properties: { ...s.selector.polygon.properties, name } },
-		};
-		return { ...s, selector };
-	});
-};
+export const setPolygonName =
+	(key: string, name: string) =>
+	(current: Selection[]): Selection[] => {
+		return current.map((s) => {
+			if (s.key !== key || s.selector.type !== "Polygon") return s;
+			const selector: Selector = {
+				...s.selector,
+				polygon: { ...s.selector.polygon, properties: { ...s.selector.polygon.properties, name } },
+			};
+			return { ...s, selector };
+		});
+	};
 
 /**
  * Rewrite Filter `field` references in a selection tree: `from` -> `to`, or drop the
@@ -722,7 +753,7 @@ function rewriteSelection(sel: Selection, from: string, to: string | null): Sele
 	return sel;
 }
 
-export const rewriteSelectionFields = (from: string, to: string | null) => (selections: Selection[]): Selection[] =>
-	selections
-		.map((s) => rewriteSelection(s, from, to))
-		.filter((s): s is Selection => s !== null);
+export const rewriteSelectionFields =
+	(from: string, to: string | null) =>
+	(selections: Selection[]): Selection[] =>
+		selections.map((s) => rewriteSelection(s, from, to)).filter((s): s is Selection => s !== null);

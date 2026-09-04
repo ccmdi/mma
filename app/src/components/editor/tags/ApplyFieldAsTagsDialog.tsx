@@ -184,9 +184,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 						</label>
 					)}
 					{tzGap > 0 && (
-						<div className="bulk-operation__status">
-							{missingTimezoneMessage(tzGap)}
-						</div>
+						<div className="bulk-operation__status">{missingTimezoneMessage(tzGap)}</div>
 					)}
 					{field && (
 						<label className="bulk-operation__option">
@@ -195,7 +193,9 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 								value={template}
 								onChange={(e) => setTemplate(e.target.value)}
 								placeholder={DEFAULT_TEMPLATE}
-								title={t("{value} is the projected value, {field} the field label. A / makes a folder.")}
+								title={t(
+									"{value} is the projected value, {field} the field label. A / makes a folder.",
+								)}
 							/>
 						</label>
 					)}

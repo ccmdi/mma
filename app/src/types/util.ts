@@ -101,7 +101,8 @@ export function cycle<T>(items: readonly T[], current: T | null, step = 1): T {
 }
 
 /** Lift a single-item curried transform into one that folds over an array of items. */
-export const batch = <T, S>(op: (item: T) => (state: S) => S) =>
+export const batch =
+	<T, S>(op: (item: T) => (state: S) => S) =>
 	(items: T[]) =>
 	(state: S): S =>
 		items.reduce((s, item) => op(item)(s), state);

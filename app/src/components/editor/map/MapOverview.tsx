@@ -196,7 +196,9 @@ function TopKPanel({
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!field || count < 1) return;
-				void applySelectionUpdate(batch(addSelection)([{ type: "TopK", field, k: count, ascending }]));
+				void applySelectionUpdate(
+					batch(addSelection)([{ type: "TopK", field, k: count, ascending }]),
+				);
 			}}
 		>
 			<NSelect value={field} onChange={(e) => setField(e.target.value)}>
@@ -364,7 +366,9 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									className="selection-manager__inline-form"
 									onSubmit={(e) => {
 										e.preventDefault();
-										void applySelectionUpdate(batch(addSelection)([{ type: "Duplicates", distance: dupDistance }]));
+										void applySelectionUpdate(
+											batch(addSelection)([{ type: "Duplicates", distance: dupDistance }]),
+										);
 									}}
 								>
 									<label>
@@ -388,7 +392,9 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									persistKey={map.id}
 									submitLabel={t("Add filter")}
 									onSubmit={(field, test) => {
-										void applySelectionUpdate(batch(addSelection)([{ type: "Filter", field, test }]));
+										void applySelectionUpdate(
+											batch(addSelection)([{ type: "Filter", field, test }]),
+										);
 									}}
 								/>
 							),

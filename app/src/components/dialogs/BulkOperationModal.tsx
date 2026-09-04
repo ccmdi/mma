@@ -729,7 +729,9 @@ export function SelectFailedButton({
 		<Button
 			style={style}
 			onClick={() => {
-				void applySelectionUpdate(batchOp(addSelection)([{ type: "Manual", locations: outcome.failed }]));
+				void applySelectionUpdate(
+					batchOp(addSelection)([{ type: "Manual", locations: outcome.failed }]),
+				);
 				toast(
 					t(
 						{ one: "Selected {n} failed location", other: "Selected {n} failed locations" },

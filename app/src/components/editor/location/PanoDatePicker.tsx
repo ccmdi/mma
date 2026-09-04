@@ -64,7 +64,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 		isFieldEnabled(enrichFields, "datetime") &&
 		(exactTs == null || draft?.panoId !== location?.panoId);
 
-  const { defaultEntry, sorted, currentEntry, isDefault, displayDate, triggerPanoId } =
+	const { defaultEntry, sorted, currentEntry, isDefault, displayDate, triggerPanoId } =
 		usePanoDates();
 	const displayLabel = displayDate
 		? isDefault

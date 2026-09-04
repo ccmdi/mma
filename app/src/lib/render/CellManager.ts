@@ -156,14 +156,7 @@ export class SelectionOverlay {
 	/** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
 	 *  selection's index - the sort key `order()` needs, which no caller can recover from
 	 *  the colour alone once two selections share one. */
-	set(
-		id: number,
-		lng: number,
-		lat: number,
-		heading: number,
-		color: Readonly<RGB>,
-		selIdx: number,
-	) {
+	set(id: number, lng: number, lat: number, heading: number, color: Readonly<RGB>, selIdx: number) {
 		let i: number;
 		if (this.has(id)) {
 			i = this.slot[id];
@@ -682,10 +675,7 @@ export class CellManager {
 	 * Partial updates are supported: only the cells named in `cellEntries` are restated,
 	 * and overlay entries for every other cell survive untouched.
 	 */
-	applySelectionBitmasks(
-		selColors: RGB[],
-		cellEntries: SelCellEntry[],
-	): SelectedIds {
+	applySelectionBitmasks(selColors: RGB[], cellEntries: SelCellEntry[]): SelectedIds {
 		const numSels = selColors.length;
 		const incoming: { cb: CellBuffer; n: number; entry: SelCellEntry }[] = [];
 		for (const entry of cellEntries) {

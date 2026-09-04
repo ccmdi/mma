@@ -377,12 +377,14 @@ export function MapEmbed({
 							onDraw={(rings) => {
 								if (rings.length === 0) return;
 								if (tryInterceptDraw(rings)) return;
-								void applySelectionUpdate(batch(addSelection)([
-									{
-										type: "Polygon",
-										polygon: { coordinates: rings as [number, number][][], extraPolygons: null },
-									},
-								]));
+								void applySelectionUpdate(
+									batch(addSelection)([
+										{
+											type: "Polygon",
+											polygon: { coordinates: rings as [number, number][][], extraPolygons: null },
+										},
+									]),
+								);
 							}}
 							freehandPathRef={freehandPathRef}
 							polygonVerticesRef={polygonVerticesRef}

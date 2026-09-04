@@ -311,7 +311,7 @@ export function LocationPreview() {
 				if (!panoId || !pos) return;
 				edit({ panoId, lat: pos.lat(), lng: pos.lng() });
 
-        pushTrail(pos.lng(), pos.lat());
+				pushTrail(pos.lng(), pos.lat());
 				const geo = getGeoResult();
 				seenPanoChanged(
 					{

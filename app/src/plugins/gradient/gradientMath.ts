@@ -2,11 +2,7 @@ import type { ExtraFieldDef, PartitionBucket, Selection } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { ymOrdinal } from "@/lib/util/date";
 
-export function lerp(
-	a: RGB,
-	b: RGB,
-	t: number,
-): RGB {
+export function lerp(a: RGB, b: RGB, t: number): RGB {
 	return [
 		Math.round(a[0] + (b[0] - a[0]) * t),
 		Math.round(a[1] + (b[1] - a[1]) * t),
@@ -14,10 +10,7 @@ export function lerp(
 	];
 }
 
-export function gradientColor(
-	stops: RGB[],
-	t: number,
-): RGB {
+export function gradientColor(stops: RGB[], t: number): RGB {
 	if (t <= 0) return stops[0];
 	if (t >= 1) return stops[stops.length - 1];
 	const segment = t * (stops.length - 1);
@@ -38,7 +31,6 @@ export function fieldScale(value: string, type: string | undefined): number | nu
 	const n = Number(value);
 	return value.trim() !== "" && Number.isFinite(n) ? n : null;
 }
-
 
 // Color a partition's groups along the ramp and turn each into a selection — the
 // gradient sink over the shared `partition()` kernel.

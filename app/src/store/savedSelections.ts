@@ -213,6 +213,7 @@ export async function deleteSavedSelection(id: string): Promise<void> {
  *  were added. */
 export function applySavedSelection(saved: SavedSelection): number {
 	const parts = savedParts(saved);
-	if (parts.length > 0) void applySelectionUpdate(batch(addSelection)(parts.map((p) => p.selector)));
+	if (parts.length > 0)
+		void applySelectionUpdate(batch(addSelection)(parts.map((p) => p.selector)));
 	return parts.length;
 }

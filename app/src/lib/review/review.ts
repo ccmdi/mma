@@ -310,9 +310,11 @@ const HISTORY_SESSION_ID = "history";
 export async function selectReviewedHistory(): Promise<void> {
 	const ids = reviewedHistoryIds(await listSessions());
 	if (ids.length === 0) return;
-	await applySelectionUpdate(batch(addSelection)([
-		{ type: "Reviewed", locations: ids, sessionId: HISTORY_SESSION_ID, mode: "reviewed" },
-	]));
+	await applySelectionUpdate(
+		batch(addSelection)([
+			{ type: "Reviewed", locations: ids, sessionId: HISTORY_SESSION_ID, mode: "reviewed" },
+		]),
+	);
 }
 
 /** Add a reviewed/unreviewed overlay selection for an arbitrary session (resume modal). Mirrors
@@ -321,7 +323,9 @@ export function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed
 	const reviewedSet = new Set(s.reviewed);
 	const locations =
 		mode === "reviewed" ? [...s.reviewed] : s.order.filter((id) => !reviewedSet.has(id));
-	return applySelectionUpdate(batch(addSelection)([{ type: "Reviewed", locations, sessionId: s.id, mode }]));
+	return applySelectionUpdate(
+		batch(addSelection)([{ type: "Reviewed", locations, sessionId: s.id, mode }]),
+	);
 }
 
 // --- Selection projection (auto, debounced) ---
@@ -346,10 +350,17 @@ function refreshProjection(): void {
 	if (!session) return;
 	const reviewedSet = new Set(session.reviewed);
 	const unreviewed = session.order.filter((id) => !reviewedSet.has(id));
-	void applySelectionUpdate(batch(addSelection)([
-		{ type: "Reviewed", locations: [...session.reviewed], sessionId: session.id, mode: "reviewed" },
-		{ type: "Reviewed", locations: unreviewed, sessionId: session.id, mode: "unreviewed" },
-	]));
+	void applySelectionUpdate(
+		batch(addSelection)([
+			{
+				type: "Reviewed",
+				locations: [...session.reviewed],
+				sessionId: session.id,
+				mode: "reviewed",
+			},
+			{ type: "Reviewed", locations: unreviewed, sessionId: session.id, mode: "unreviewed" },
+		]),
+	);
 }
 
 function scheduleProjection(): void {

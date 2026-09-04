@@ -67,15 +67,20 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const open = useCallback((loc: Location, resolved: string | null) => {
 		setState({ ...loc, panoId: resolved ?? loc.panoId });
 	}, []);
-	const edit = useCallback((patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
-		setState((prev) => {
-			if (!prev) return prev;
-			const next = { ...prev, ...(typeof patch === "function" ? patch(prev) : patch) };
-			return Object.keys(next).some((k) => next[k as keyof Location] !== prev[k as keyof Location])
-				? next
-				: prev;
-		});
-	}, []);
+	const edit = useCallback(
+		(patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
+			setState((prev) => {
+				if (!prev) return prev;
+				const next = { ...prev, ...(typeof patch === "function" ? patch(prev) : patch) };
+				return Object.keys(next).some(
+					(k) => next[k as keyof Location] !== prev[k as keyof Location],
+				)
+					? next
+					: prev;
+			});
+		},
+		[],
+	);
 
 	// The pano on screen as Google describes it, and the captures the date picker can offer
 	// there. Held across a walk so the panel never blanks between panos; dropped with the location.

@@ -7,11 +7,7 @@
 
 import type { Location, RowsRun, Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
-import {
-	getProviderForField,
-	type Provider,
-	type ProcedureSpec,
-} from "@/lib/data/fieldDefs";
+import { getProviderForField, type Provider, type ProcedureSpec } from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";
 import type { ProcedureProgress, ProcedureResult, ProviderDecl, Sink } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";

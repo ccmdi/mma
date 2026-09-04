@@ -50,7 +50,14 @@ import {
 	mdiFileDocumentOutline,
 } from "@mdi/js";
 import { registerCommand, type CommandDef } from "./commands";
-import { addSelection, batch, intersectSelections, invertSelections, unionSelections, toggleGhostAll } from "./selections";
+import {
+	addSelection,
+	batch,
+	intersectSelections,
+	invertSelections,
+	unionSelections,
+	toggleGhostAll,
+} from "./selections";
 import {
 	undo,
 	redo,

@@ -727,7 +727,6 @@ function pruneGhosted(selections: Selection[], ghosted: ReadonlySet<string>): Re
 	return pruned.size !== ghosted.size ? pruned : ghosted;
 }
 
-
 /** Clear all selections. */
 export function resetSelections() {
 	return applySelectionUpdate(() => []);

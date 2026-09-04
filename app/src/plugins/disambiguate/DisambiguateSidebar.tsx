@@ -39,15 +39,7 @@ function fmtVal(n: number | null, format: ValueFormat): string {
 	return fmtNum(n);
 }
 
-function GroupCell({
-	field,
-	g,
-	color,
-}: {
-	field: FieldDivergence;
-	g: GroupSummary;
-	color: RGB;
-}) {
+function GroupCell({ field, g, color }: { field: FieldDivergence; g: GroupSummary; color: RGB }) {
 	const coverage = g.n > 0 ? Math.round((g.present / g.n) * 100) : 0;
 	let body: ReactNode;
 	if (field.comparison.type === "circular") {
@@ -93,13 +85,7 @@ function GroupCell({
 	);
 }
 
-function FieldRow({
-	field,
-	colors,
-}: {
-	field: FieldDivergence;
-	colors: RGB[];
-}) {
+function FieldRow({ field, colors }: { field: FieldDivergence; colors: RGB[] }) {
 	const score = field.valueScore;
 	return (
 		<div className={`disambig__row${field.lowConfidence ? " disambig__row--weak" : ""}`}>

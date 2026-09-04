@@ -4,9 +4,22 @@ import type { KeySpec, PartitionBucket, Selection, Selector } from "@/bindings.g
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
-import { addSelection, batch, removeSelection, selectionDisplayName, buildSelection } from "@/store/selections";
+import {
+	addSelection,
+	batch,
+	removeSelection,
+	selectionDisplayName,
+	buildSelection,
+} from "@/store/selections";
 import { loadSavedSelections, savedParts, useSavedSelectionIndex } from "@/store/savedSelections";
-import { applySelectionUpdate, fieldValues, getActiveSelections, getMapState, partition, resolveIds } from "@/store/useMapStore";
+import {
+	applySelectionUpdate,
+	fieldValues,
+	getActiveSelections,
+	getMapState,
+	partition,
+	resolveIds,
+} from "@/store/useMapStore";
 import { subscribe } from "@/lib/events";
 import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import type { ExtraFieldDef } from "@/bindings.gen";
@@ -98,8 +111,7 @@ async function computePivot(
 			}),
 		);
 	} else {
-		if (isNumeric)
-			numericDistinct = (await fieldValues({ type: "Everything" }, fieldKey)).length;
+		if (isNumeric) numericDistinct = (await fieldValues({ type: "Everything" }, fieldKey)).length;
 		const effectiveBuckets =
 			numericDistinct != null ? resolveBucketCount(numericDistinct, bucketCount) : null;
 		const key: KeySpec = effectiveBuckets
