@@ -36,7 +36,7 @@ pub fn goal_for_subdivision(
         .unwrap_or_else(|| panic!("Weight for subdivision {subdivision_code} is null."));
     let region_total_weight: i32 = weights
         .iter()
-        .filter(|(code, _)| available_subdivisions.map_or(true, |a| a.contains(code)))
+        .filter(|(code, _)| available_subdivisions.is_none_or(|a| a.contains(code)))
         .map(|(_, w)| *w)
         .sum();
     let weight = weights

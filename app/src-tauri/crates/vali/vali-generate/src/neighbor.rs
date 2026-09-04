@@ -142,19 +142,19 @@ fn survives(
             && points_are_closer_than(l.lat, l.lng, l2.lat, l2.lng, radius_squared)
     };
     let expr_ok = |l2: &Location| {
-        spec.compiled.as_ref().map_or(true, |f| f.eval_with_parent(l2, l))
+        spec.compiled.as_ref().is_none_or(|f| f.eval_with_parent(l2, l))
     };
     let matching = |l2: &Location| in_radius(l2) && expr_ok(l2);
     let neighbors = || nearby(buckets, hash).map(|i| &locations[i as usize]);
     let count_matching = |dir: Option<Direction>| {
         neighbors()
-            .filter(|l2| dir.map_or(true, |d| is_in_direction(d, l, l2)))
+            .filter(|l2| dir.is_none_or(|d| is_in_direction(d, l, l2)))
             .filter(|l2| { matching(l2) })
             .count() as i32
     };
     let any_matching = |dir: Option<Direction>| {
         neighbors()
-            .any(|l2| dir.map_or(true, |d| is_in_direction(d, l, l2)) && matching(l2))
+            .any(|l2| dir.is_none_or(|d| is_in_direction(d, l, l2)) && matching(l2))
     };
     let separately = spec.check_each_cardinal_direction_separately;
     let bound = spec.bound.as_str();

@@ -62,8 +62,8 @@ fn subdivision_goals_match_oracle() {
                 case.goal,
                 available.as_deref(),
             );
-            if got != as_i32(expected) {
-                if failures.len() < 10 {
+            if got != as_i32(expected)
+                && failures.len() < 10 {
                     failures.push(format!(
                         "{} {} goal={} available={:?}: {} != {}",
                         case.country,
@@ -74,7 +74,6 @@ fn subdivision_goals_match_oracle() {
                         as_i32(expected)
                     ));
                 }
-            }
         }
     }
     assert!(checked > 0, "golden fixture had no subdivision goal cases");

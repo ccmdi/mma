@@ -10,13 +10,13 @@ use crate::goals::{
     subdivision_goal_from_custom_weights, subdivision_weights,
 };
 use crate::progress::{emit, CancelToken, Event, Progress};
-use crate::store::{build_output, MapOutput, StoreSummary};
+use crate::store::{build_output, Group, MapOutput, StoreSummary};
 use anyhow::{bail, Context};
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use vali_core::{Location, LocationPreferenceFilterDef};
-type WorkResult = Vec<(Vec<(Location, Option<String>)>, i32, i32)>;
+type WorkResult = Vec<Group>;
 enum WorkKind {
     Subdivision { subdivision_code: String, file: PathBuf },
     Country { files: Vec<PathBuf> },
@@ -173,7 +173,7 @@ pub fn generate_output(
             r
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
-    let groups: Vec<(Vec<(Location, Option<String>)>, i32, i32)> = results
+    let groups: Vec<Group> = results
         .into_iter()
         .flatten()
         .collect();

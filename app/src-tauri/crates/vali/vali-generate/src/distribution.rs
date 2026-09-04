@@ -4,6 +4,9 @@ use rustc_hash::FxHashMap;
 use vali_core::Location;
 use vali_expr::error::ExprError;
 use vali_geo::geohash::HashPrecision;
+/// Chosen location indices, their tags, and the min distance achieved.
+pub type Selected = (Vec<u32>, Vec<Option<String>>, i32);
+
 pub struct SubdivisionResult {
     pub indices: Vec<u32>,
     pub tags: Vec<Option<String>>,
@@ -174,7 +177,7 @@ pub fn by_max_min_distance(
     enable_default_filters: bool,
     min_min_distance: i32,
     deterministic: bool,
-) -> Result<(Vec<u32>, Vec<Option<String>>, i32), ExprError> {
+) -> Result<Selected, ExprError> {
     if !preference_filters.is_empty() {
         let result = preference_selection(
             locations,
@@ -402,7 +405,7 @@ pub fn locations_by_coverage_density(
     enable_default_filters: bool,
     min_min_distance: i32,
     deterministic: bool,
-) -> Result<(Vec<u32>, Vec<Option<String>>, i32), ExprError> {
+) -> Result<Selected, ExprError> {
     let mut group_of: FxHashMap<u64, usize> = FxHashMap::default();
     let mut clusters: Vec<Vec<u32>> = Vec::new();
     for &i in filtered {

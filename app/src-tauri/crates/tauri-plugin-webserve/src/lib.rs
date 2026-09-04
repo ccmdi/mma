@@ -13,7 +13,7 @@
 //! through [`register_scheme`]. Everything else is generic.
 
 use std::collections::HashMap;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::sync::mpsc::{channel, sync_channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Mutex, OnceLock, RwLock};
 use std::time::Duration;

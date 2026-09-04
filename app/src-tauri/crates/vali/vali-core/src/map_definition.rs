@@ -121,6 +121,7 @@ pub struct LocationWeightOverrideDef {
 }
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
+#[derive(Default)]
 pub struct LocationPreferenceFilterDef {
     #[serde(alias = "Expression")]
     pub expression: String,
@@ -138,20 +139,6 @@ pub struct LocationPreferenceFilterDef {
     pub neighbor_filters: Vec<NeighborFilterDef>,
     #[serde(alias = "GeometryFilters")]
     pub geometry_filters: Vec<GeometryFilterDef>,
-}
-impl Default for LocationPreferenceFilterDef {
-    fn default() -> Self {
-        LocationPreferenceFilterDef {
-            expression: String::new(),
-            percentage: None,
-            fill: false,
-            location_tag: None,
-            min_min_distance: None,
-            proximity_filter: ProximityFilterDef::default(),
-            neighbor_filters: Vec::new(),
-            geometry_filters: Vec::new(),
-        }
-    }
 }
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

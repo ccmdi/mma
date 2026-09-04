@@ -24,11 +24,7 @@ fn ulp_diff(a: f64, b: f64) -> u64 {
         }
     };
     let (a, b) = (map(a.to_bits()), map(b.to_bits()));
-    if a > b {
-        a - b
-    } else {
-        b - a
-    }
+    a.abs_diff(b)
 }
 
 fn compare(

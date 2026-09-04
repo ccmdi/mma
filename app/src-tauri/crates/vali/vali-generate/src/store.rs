@@ -7,6 +7,10 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use vali_core::{GoogleData, Location, NominatimData, OsmData};
 use vali_expr::CompiledInt;
+
+/// One generated group: its locations paired with their tags, the region goal, and
+/// the min distance achieved.
+pub type Group = (Vec<(Location, Option<String>)>, i32, i32);
 #[derive(Serialize, Clone)]
 pub struct GeoMapLocation {
     pub lat: f64,
@@ -36,7 +40,7 @@ pub struct MapOutput {
 }
 pub fn store_map(
     prepared: &Prepared,
-    groups: &[(Vec<(Location, Option<String>)>, i32, i32)],
+    groups: &[Group],
     definition_path: &Path,
     deterministic: bool,
 ) -> anyhow::Result<StoreSummary> {
@@ -44,7 +48,7 @@ pub fn store_map(
 }
 pub fn build_output(
     prepared: &Prepared,
-    groups: &[(Vec<(Location, Option<String>)>, i32, i32)],
+    groups: &[Group],
     deterministic: bool,
 ) -> MapOutput {
     let mut seen: FxHashSet<i64> = FxHashSet::default();
@@ -92,7 +96,7 @@ pub fn build_output(
             let pano = prepared
                 .pano_id_country_codes
                 .iter()
-                .any(|c| c == &l.nominatim.country_code)
+                .any(|c| c == l.nominatim.country_code)
                 || prepared.pano_id_country_codes.iter().any(|c| c == "*");
             GeoMapLocation {
                 lat: l.google.lat,
