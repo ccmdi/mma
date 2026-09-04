@@ -7,7 +7,8 @@ import type { ExtraFieldType, KeySpec, DatePart } from "@/bindings.gen";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";
-import { partition } from "@/store/useMapStore";
+import { applySelectionUpdate, getMapState, partition, resetSelections } from "@/store/useMapStore";
+import { addSelection, batch, setSelectionColors } from "@/store/selections";
 import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
@@ -116,7 +117,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 	const picker = useSelectorPick();
 	const dateTimezone = useSetting("dateTimezone");
 
-	const map = MMA.getMapState().map;
+	const map = getMapState().map;
 
 	const allFields = useExtraFieldKeys();
 	const knownKeys = getKnownFieldKeys();
@@ -175,9 +176,9 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 			});
 			if (sels.length === 0) return;
 
-			await MMA.resetSelections();
-			await MMA.applySelectionUpdate(MMA.batch(MMA.addSelection)(sels.map((s) => s.selector)));
-			await MMA.applySelectionUpdate(MMA.setSelectionColors(sels));
+			await resetSelections();
+			await applySelectionUpdate(batch(addSelection)(sels.map((s) => s.selector)));
+			await applySelectionUpdate(setSelectionColors(sels));
 		} finally {
 			setApplying(false);
 		}

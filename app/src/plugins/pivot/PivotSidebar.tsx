@@ -4,8 +4,10 @@ import type { KeySpec, PartitionBucket, Selection, Selector } from "@/bindings.g
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
-import { selectionDisplayName, buildSelection } from "@/store/selections";
+import { addSelection, batch, removeSelection, selectionDisplayName, buildSelection } from "@/store/selections";
 import { loadSavedSelections, savedParts, useSavedSelectionIndex } from "@/store/savedSelections";
+import { applySelectionUpdate, fieldValues, getActiveSelections, getMapState, partition, resolveIds } from "@/store/useMapStore";
+import { subscribe } from "@/lib/events";
 import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import type { ExtraFieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
@@ -42,7 +44,7 @@ async function computePivot(
 	fieldDef: ExtraFieldDef | undefined,
 	bucketCount: number | null,
 ): Promise<PivotData | null> {
-	const map = MMA.getMapState().map;
+	const map = getMapState().map;
 	if (!map) return null;
 
 	// Determine rows + resolve ID sets
@@ -50,18 +52,18 @@ async function computePivot(
 	let idSets: Set<number>[];
 
 	if (rowSource === "all") {
-		const allIds = new Set(await MMA.resolveIds({ type: "Everything" }));
+		const allIds = new Set(await resolveIds({ type: "Everything" }));
 		rowDefs = [{ label: t("All locations"), color: [140, 140, 140] }];
 		idSets = [allIds];
 	} else if (rowSource === "active") {
-		const sels = MMA.getActiveSelections();
+		const sels = getActiveSelections();
 		if (sels.length === 0) return null;
 		rowDefs = sels.map((s: Selection) => ({
 			label: selectionDisplayName(s),
 			color: s.color,
 		}));
 		idSets = await Promise.all(
-			sels.map((s: Selection) => MMA.resolveIds(s.selector).then((ids) => new Set(ids))),
+			sels.map((s: Selection) => resolveIds(s.selector).then((ids) => new Set(ids))),
 		);
 	} else {
 		const [entry] = await loadSavedSelections([rowSource]);
@@ -69,12 +71,12 @@ async function computePivot(
 		if (parts.length === 0) return null;
 		rowDefs = parts.map((p) => ({ label: p.label, color: p.color }));
 		idSets = await Promise.all(
-			parts.map((p) => MMA.resolveIds(p.selector).then((ids) => new Set(ids))),
+			parts.map((p) => resolveIds(p.selector).then((ids) => new Set(ids))),
 		);
 	}
 
 	const isTags = fieldKey === TAGS_FIELD_KEY;
-	const tagMap = MMA.getMapState().tags;
+	const tagMap = getMapState().tags;
 	const isNumeric = !isTags && (fieldDef?.type === "number" || fieldDef?.type === "date");
 
 	// Field index (locId -> group key(s)) comes from the engine: tags from per-tag
@@ -87,7 +89,7 @@ async function computePivot(
 	if (isTags) {
 		await Promise.all(
 			Object.keys(tagMap).map(async (tid) => {
-				const ids = await MMA.resolveIds({ type: "Tag", tagId: Number(tid) });
+				const ids = await resolveIds({ type: "Tag", tagId: Number(tid) });
 				for (const id of ids) {
 					const vals = fieldIndex.get(id);
 					if (vals) vals.push(tid);
@@ -97,13 +99,13 @@ async function computePivot(
 		);
 	} else {
 		if (isNumeric)
-			numericDistinct = (await MMA.fieldValues({ type: "Everything" }, fieldKey)).length;
+			numericDistinct = (await fieldValues({ type: "Everything" }, fieldKey)).length;
 		const effectiveBuckets =
 			numericDistinct != null ? resolveBucketCount(numericDistinct, bucketCount) : null;
 		const key: KeySpec = effectiveBuckets
 			? { kind: "numericBin", binning: { by: "count", n: effectiveBuckets } }
 			: { kind: "value" };
-		const groups = await MMA.partition(fieldKey, key, { type: "Everything" });
+		const groups = await partition(fieldKey, key, { type: "Everything" });
 		for (const g of groups) for (const id of g.ids) fieldIndex.set(id, [g.key]);
 		if (effectiveBuckets) buckets = groups;
 	}
@@ -241,7 +243,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	useEffect(() => {
 		void recompute();
 		const unsubLoc = subscribeMany(LOCATION_DATA_EVENTS, debouncedRecompute);
-		const unsubSel = MMA.on("selection:change", debouncedRecompute);
+		const unsubSel = subscribe("selection:change", debouncedRecompute);
 		return () => {
 			unsubLoc();
 			unsubSel();
@@ -355,17 +357,17 @@ function PivotTable({ data, mode, stale }: { data: PivotData; mode: ValueMode; s
 		() => data.columnProps?.map((p) => (p ? buildSelection(p).key : null)),
 		[data],
 	);
-	const liveKeys = new Set(MMA.getActiveSelections().map((s) => s.key));
+	const liveKeys = new Set(getActiveSelections().map((s) => s.key));
 
 	const toggleColumnSelection = useCallback(
 		(i: number) => {
 			const props = data.columnProps?.[i];
 			if (!props) return;
 			const key = columnKeys?.[i];
-			if (key && MMA.getActiveSelections().some((s) => s.key === key)) {
-				void MMA.applySelectionUpdate(MMA.batch(MMA.removeSelection)([key]));
+			if (key && getActiveSelections().some((s) => s.key === key)) {
+				void applySelectionUpdate(batch(removeSelection)([key]));
 			} else {
-				void MMA.applySelectionUpdate(MMA.batch(MMA.addSelection)([props]));
+				void applySelectionUpdate(batch(addSelection)([props]));
 			}
 		},
 		[data, columnKeys],
