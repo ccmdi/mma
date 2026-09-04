@@ -323,14 +323,14 @@ function composeSelectionGroup(
 	return [...others, buildSelection({ type, selections: dedupe(flat) })];
 }
 
-export const intersectSelections = (current: Selection[], keys: string[] | null) =>
+export const intersectSelections = (current: Selection[], keys: string[] | null = null) =>
 	composeSelectionGroup(current, keys, "Intersection");
 
-export const unionSelections = (current: Selection[], keys: string[] | null) =>
+export const unionSelections = (current: Selection[], keys: string[] | null = null) =>
 	composeSelectionGroup(current, keys, "Union");
 
 /** Invert targeted selections. Single target toggles in-place at any depth; multiple are wrapped in Union then Invert. */
-export function invertSelections(current: Selection[], keys: string[] | null): Selection[] {
+export function invertSelections(current: Selection[], keys: string[] | null = null): Selection[] {
 	if (current.length === 0) return current;
 	const targetKeys = keys ?? current.map((s) => s.key);
 	// single-target invert toggles in-place, nested children included

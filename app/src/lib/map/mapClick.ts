@@ -20,8 +20,9 @@ import {
 	openStagedLocation,
 	resolveLocation,
 	setActiveLocation,
-	toggleManualSelection,
+	applySelectionUpdate,
 } from "@/store/useMapStore";
+import { toggleManualSelection } from "@/store/selections";
 import { isVirtualLocation, isImportPreview, locId, createLocation } from "@/types";
 import type { MaybeLocation, Bounds } from "@/types";
 import type { Location } from "@/bindings.gen";
@@ -202,7 +203,7 @@ export async function handleMapClick(
 		if (picked != null) {
 			if (isVirtualLocation({ id: locId(picked) })) return; // staged location's active pin: already open
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
-				void toggleManualSelection(locId(picked));
+				void applySelectionUpdate(toggleManualSelection, locId(picked));
 			else void setActiveLocation(picked);
 			return;
 		}

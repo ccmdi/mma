@@ -30,19 +30,12 @@ import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 import type { Selection, Selector } from "@/bindings.gen";
 import {
 	type GroupType,
-	addSelection as addSel,
-	removeSelection as removeSel,
-	intersectSelections,
-	unionSelections,
-	invertSelections,
-	toggleManualSelection as toggleManual,
-	setPolygonName as renamePolygonSel,
+	addSelection,
+	removeSelection,
 	setSelectionColors as setSelColor,
-	reorderSelections,
 	composeSelections as composeSels,
 	composeWithChild as composeWithChildSel,
 	decomposeChild as decomposeChildSel,
-	removeFromComposite as removeFromCompositeSel,
 	composeSiblings as composeSiblingsSel,
 	replaceSelection as replaceSel,
 	isolateGhostKeys,
@@ -679,7 +672,7 @@ async function migrateFieldReferences(from: string, to: string | null) {
 		delete defs[from];
 		await setMapExtraFields(defs);
 	}
-	await applySelectionUpdate((sels) => rewriteSelectionFields(sels, from, to));
+	await applySelectionUpdate(rewriteSelectionFields, from, to);
 }
 
 // --- Selections ---
@@ -704,10 +697,13 @@ function buildSyncInputs() {
 }
 
 /** Apply a pure selection transform, then IPC to Rust to resolve bitmasks and sync the overlay. */
-async function applySelectionUpdate(updater: (sels: Selection[]) => Selection[]) {
+export async function applySelectionUpdate<A extends unknown[]>(
+	op: (sels: Selection[], ...args: A) => Selection[],
+	...args: A
+) {
 	if (!state.map) return;
 	const t = trace("selection", { summary: true });
-	const selections = updater(state.selections);
+	const selections = op(state.selections, ...args);
 	setState({
 		selections,
 		ghostedSelections: pruneGhosted(selections, state.ghostedSelections),
@@ -761,7 +757,9 @@ export function toggleGhostAllSelections() {
 
 /** Add selections to the sidebar and highlight their locations. Same-key selections replace. */
 export function addSelections(selector: Selector[]) {
-	return applySelectionUpdate((sels) => selector.reduce((result, p) => addSel(result, p), sels));
+	return applySelectionUpdate((sels) =>
+		selector.reduce((result, p) => addSelection(result, p), sels),
+	);
 }
 
 /** No-op (no sync) when none of the keys are live selections. */
@@ -769,32 +767,14 @@ export function removeSelections(keys: string[]) {
 	const live = new Set(state.selections.map((s) => s.key));
 	const present = keys.filter((k) => live.has(k));
 	if (present.length === 0) return;
-	return applySelectionUpdate((sels) => present.reduce((result, k) => removeSel(result, k), sels));
+	return applySelectionUpdate((sels) =>
+		present.reduce((result, k) => removeSelection(result, k), sels),
+	);
 }
 
 /** Clear all selections. */
 export function resetSelections() {
 	return applySelectionUpdate(() => []);
-}
-
-/** Combine selections into an AND composite. `keys` null combines all top-level selections. */
-export function selectIntersection(keys: string[] | null = null) {
-	return applySelectionUpdate((sels) => intersectSelections(sels, keys));
-}
-
-/** Combine selections into an OR composite. `keys` null combines all top-level selections. */
-export function selectUnion(keys: string[] | null = null) {
-	return applySelectionUpdate((sels) => unionSelections(sels, keys));
-}
-
-/** Wrap selections in an Invert composite (everything NOT in them). `keys` null inverts all. */
-export function selectInverse(keys: string[] | null = null) {
-	return applySelectionUpdate((sels) => invertSelections(sels, keys));
-}
-
-/** Add or remove one location from the Manual selection (creating it if needed). */
-export function toggleManualSelection(locationId: number) {
-	return applySelectionUpdate((sels) => toggleManual(sels, locationId));
 }
 
 /** The buckets a pick runs over: one per active selection when `perSelection`, else the
@@ -820,7 +800,7 @@ export async function selectRandomFromSelection(
 	);
 	const picked = [...new Set(buckets.flat())];
 	if (picked.length === 0) return 0;
-	await applySelectionUpdate(() => addSel([], { type: "Manual", locations: picked }));
+	await applySelectionUpdate(() => addSelection([], { type: "Manual", locations: picked }));
 	return picked.length;
 }
 
@@ -843,7 +823,7 @@ export async function selectSpacedFromSelection(
 	);
 	const ids = [...new Set(results.flatMap((r) => r.ids))];
 	if (ids.length === 0) return { picked: 0, distanceM: 0 };
-	await applySelectionUpdate(() => addSel([], { type: "Manual", locations: ids }));
+	await applySelectionUpdate(() => addSelection([], { type: "Manual", locations: ids }));
 	// Spacing only holds within a bucket - two buckets can each pick a coincident location.
 	const distanceM = results.length === 1 ? results[0].distanceM : 0;
 	return { picked: ids.length, distanceM };
@@ -898,21 +878,11 @@ export function updateFilterSelection(oldKey: string, selector: Selector) {
 	});
 }
 
-/** Rename a polygon selection. */
-export function setPolygonName(key: string, name: string) {
-	return applySelectionUpdate((sels) => renamePolygonSel(sels, key, name));
-}
-
 /** Set the highlight color of selections, by key. */
 export function setSelectionColors(entries: { key: string; color: [number, number, number] }[]) {
 	void applySelectionUpdate((sels) =>
 		entries.reduce((result, { key, color }) => setSelColor(result, key, color), sels),
 	);
-}
-
-/** Move a selection before/after another in the sidebar order. */
-export function reorderSelection(fromKey: string, toKey: string, position: "before" | "after") {
-	void applySelectionUpdate((sels) => reorderSelections(sels, fromKey, toKey, position));
 }
 
 /** Nest existing selections under a new AND/OR/Invert composite. */
@@ -935,16 +905,6 @@ export function composeSelections(
 	});
 }
 
-/** Pull a child out of a composite back to the top level. */
-export function decomposeChild(parentKey: string, childKey: string) {
-	void applySelectionUpdate((sels) => decomposeChildSel(sels, parentKey, childKey));
-}
-
-/** Delete a child from a composite (without re-adding it at the top level). */
-export function removeChildFromSelection(parentKey: string, childKey: string) {
-	void applySelectionUpdate((sels) => removeFromCompositeSel(sels, parentKey, childKey));
-}
-
 /** Toggle tag selections on/off for the given tags (used by tag-pill clicks). */
 export function toggleTagSelections(tagIds: number[]) {
 	if (!state.map || tagIds.length === 0) return;
@@ -952,8 +912,8 @@ export function toggleTagSelections(tagIds: number[]) {
 		tagIds.reduce((result, tagId) => {
 			const key = `tag:${tagId}`;
 			return result.some((s) => s.key === key)
-				? removeSel(result, key)
-				: addSel(result, { type: "Tag", tagId });
+				? removeSelection(result, key)
+				: addSelection(result, { type: "Tag", tagId });
 		}, sels),
 	);
 }

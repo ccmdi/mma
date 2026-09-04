@@ -50,13 +50,12 @@ import {
 	mdiFileDocumentOutline,
 } from "@mdi/js";
 import { registerCommand, type CommandDef } from "./commands";
+import { intersectSelections, invertSelections, unionSelections } from "./selections";
 import {
 	undo,
 	redo,
 	addSelections,
-	selectInverse,
-	selectIntersection,
-	selectUnion,
+	applySelectionUpdate,
 	resetSelections,
 	getMapState,
 	deleteTags,
@@ -235,19 +234,19 @@ const COMMANDS = {
 		label: msg("Invert selection"),
 		icon: mdiSelectInverse,
 		group: msg("Selections"),
-		execute: () => selectInverse(),
+		execute: () => applySelectionUpdate(invertSelections),
 	},
 	"intersect-selections": {
 		label: msg("Intersect (AND) selections"),
 		icon: mdiSetCenter,
 		group: msg("Selections"),
-		execute: () => selectIntersection(),
+		execute: () => applySelectionUpdate(intersectSelections),
 	},
 	"union-selections": {
 		label: msg("Union (OR) selections"),
 		icon: mdiSetAll,
 		group: msg("Selections"),
-		execute: () => selectUnion(),
+		execute: () => applySelectionUpdate(unionSelections),
 	},
 	"load-geojson": {
 		label: msg("Load shapes from GeoJSON as selection"),

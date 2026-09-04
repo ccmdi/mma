@@ -4,7 +4,7 @@ import { getSettings } from "@/store/settings";
 import { getMapState } from "@/store/useMapStore";
 import { log } from "@/lib/util/log";
 import type { LocationPOV } from "@/types";
-import type { SeenFilter } from "@/bindings.gen";
+import type { SeenFilter, SeenMapInfo } from "@/bindings.gen";
 import type { Nullable, Rename, RequireNonNull } from "@/types/util";
 import type { GeoDisplay } from "@/components/editor/location/useReverseGeocode";
 
@@ -103,8 +103,7 @@ export async function getSeenEntries(
 	filter?: SeenFilter,
 	thumbnails = true,
 ): Promise<SeenEntry[]> {
-	const result = await cmd.storeSeenList(limit, offset, filter ?? null, thumbnails);
-	return result;
+	return cmd.storeSeenList(limit, offset, filter ?? null, thumbnails);
 }
 
 /** Number of seen entries matching the filter (all when omitted). */
@@ -116,7 +115,7 @@ export async function getSeenCountries(): Promise<string[]> {
 	return cmd.storeSeenCountries();
 }
 
-export async function getSeenMaps(): Promise<{ id: string; name: string }[]> {
+export async function getSeenMaps(): Promise<SeenMapInfo[]> {
 	return cmd.storeSeenMaps();
 }
 

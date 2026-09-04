@@ -1,23 +1,26 @@
 import { memo, useState, useEffect, useCallback, useRef } from "react";
 import {
+	applySelectionUpdate,
 	composeSelections,
 	createTags,
-	decomposeChild,
 	fetchBounds,
 	getVisibleTags,
 	isolateSelection,
 	pruneDuplicates,
-	removeChildFromSelection,
 	removeSelections,
-	reorderSelection,
 	resolveIds,
-	selectInverse,
-	setPolygonName,
 	setSelectionColors,
 	toggleGhostSelection,
 	updateFilterSelection,
 	useMapState,
 } from "@/store/useMapStore";
+import {
+	decomposeChild,
+	invertSelections,
+	removeFromComposite,
+	reorderSelections,
+	setPolygonName,
+} from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
 import { stepFilterWindow } from "@/lib/util/date";
@@ -132,8 +135,8 @@ export const SelectionRow = memo(function SelectionRow({
 		(s) => inheritedGhost || (depth === 0 && s.ghostedSelections.has(selection.key)),
 	);
 	const onRemove = parentKey
-		? () => removeChildFromSelection(parentKey, selection.key)
-		: () => removeSelections([selection.key]);
+		? () => void applySelectionUpdate(removeFromComposite, parentKey, selection.key)
+		: () => void removeSelections([selection.key]);
 	const [view, setView] = useState<"contextmenu" | "color">("contextmenu");
 	const [dropZone, setDropZone] = useState<"before" | "on" | "after" | null>(null);
 	const [editingFilter, setEditingFilter] = useState(false);
@@ -181,7 +184,7 @@ export const SelectionRow = memo(function SelectionRow({
 	};
 
 	const submitRename = () => {
-		void setPolygonName(selection.key, renameDraft);
+		void applySelectionUpdate(setPolygonName, selection.key, renameDraft);
 		setRenaming(false);
 	};
 
@@ -287,8 +290,8 @@ export const SelectionRow = memo(function SelectionRow({
 				parentKey ?? null,
 			);
 		} else {
-			if (drag.parentKey) decomposeChild(drag.parentKey, drag.key);
-			reorderSelection(drag.key, selection.key, dropZone);
+			if (drag.parentKey) void applySelectionUpdate(decomposeChild, drag.parentKey, drag.key);
+			void applySelectionUpdate(reorderSelections, drag.key, selection.key, dropZone);
 		}
 		setDropZone(null);
 	};
@@ -360,7 +363,7 @@ export const SelectionRow = memo(function SelectionRow({
 										<>
 											<Menu.Item
 												className="context-menu__item"
-												onClick={() => void selectInverse([selection.key])}
+												onClick={() => void applySelectionUpdate(invertSelections, [selection.key])}
 											>
 												{t("Invert selection")}
 											</Menu.Item>
