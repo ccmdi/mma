@@ -44,6 +44,7 @@ import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { getScenePositions } from "@/lib/render/sceneStore";
 import * as sidecar from "@/plugins/sidecar";
 import * as legacy from "@/legacy";
+import * as selectionOps from "@/store/selections";
 import * as testApi from "@/testApi";
 
 /** Tauri primitives, handed to plugins as-is. */
@@ -141,6 +142,8 @@ const surface = {
 };
 
 type StoreApi = typeof store;
+/** The pure selection list ops, composed with `applySelectionUpdate`. */
+type SelectionOpsApi = typeof selectionOps;
 /** Import dialog internals. @unstable */
 type ImportStagingApi = typeof importStaging;
 /** Commit diff internals. @unstable */
@@ -165,6 +168,7 @@ type LegacyApi = typeof legacy;
 export interface MMA
 	extends
 		StoreApi,
+		SelectionOpsApi,
 		ImportStagingApi,
 		CommitDiffApi,
 		SelectorPickApi,
@@ -183,6 +187,7 @@ export interface MMA
 
 const mma: MMA = {
 	...store,
+	...selectionOps,
 	...importStaging,
 	...commitDiff,
 	...picker,

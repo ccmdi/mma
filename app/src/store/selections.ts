@@ -380,18 +380,27 @@ export function reorderSelections(
 	return without.toSpliced(toIdx, 0, item);
 }
 
-/** Drag-drop composition: merge drag into drop as a new composite, absorbing existing children of the same type. */
+/** Drag-drop composition: merge drag into drop as a new composite, absorbing existing
+ *  children of the same type. Parents route the nested cases: same parent recomposes the
+ *  siblings, a drag out of a parent detaches first, a drop onto a child nests there. */
 export function composeSelections(
 	current: Selection[],
 	dragKey: string,
 	dropKey: string,
 	mode: GroupType,
+	dragParent: string | null = null,
+	dropParent: string | null = null,
 ): Selection[] {
-	const dragIdx = current.findIndex((s) => s.key === dragKey);
-	const dropIdx = current.findIndex((s) => s.key === dropKey);
-	if (dragIdx === -1 || dropIdx === -1 || dragIdx === dropIdx) return current;
-	const drag = current[dragIdx];
-	const drop = current[dropIdx];
+	if (dragParent && dropParent && dragParent === dropParent) {
+		return composeSiblings(current, dragParent, dragKey, dropKey, mode);
+	}
+	const sels = dragParent ? decomposeChild(current, dragParent, dragKey) : current;
+	if (dropParent) return composeWithChild(sels, dragKey, dropParent, dropKey, mode);
+	const dragIdx = sels.findIndex((s) => s.key === dragKey);
+	const dropIdx = sels.findIndex((s) => s.key === dropKey);
+	if (dragIdx === -1 || dropIdx === -1 || dragIdx === dropIdx) return sels;
+	const drag = sels[dragIdx];
+	const drop = sels[dropIdx];
 
 	let children: Selection[];
 	if (isVariant(drop.selector, mode)) {
@@ -401,7 +410,7 @@ export function composeSelections(
 	}
 	const composite = buildSelection({ type: mode, selections: dedupe(children) });
 
-	return current.filter((_, i) => i !== dragIdx).map((s) => (s.key === dropKey ? composite : s));
+	return sels.filter((_, i) => i !== dragIdx).map((s) => (s.key === dropKey ? composite : s));
 }
 
 /** Unwrap a unary operator (e.g. Invert) to the n-ary group it wraps, returning that group's selector
@@ -664,12 +673,12 @@ function validationStateLabel(state: ValidationState): string {
 
 export function setSelectionColors(
 	current: Selection[],
-	key: string,
-	color: [number, number, number],
+	entries: { key: string; color: [number, number, number] }[],
 ): Selection[] {
-	const idx = current.findIndex((s) => s.key === key);
-	if (idx === -1) return current;
-	return current.with(idx, { ...current[idx], color });
+	return entries.reduce((sels, { key, color }) => {
+		const idx = sels.findIndex((s) => s.key === key);
+		return idx === -1 ? sels : sels.with(idx, { ...sels[idx], color });
+	}, current);
 }
 
 export function setPolygonName(current: Selection[], key: string, name: string): Selection[] {

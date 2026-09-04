@@ -223,7 +223,7 @@ describe("Selection filters — core field operations", () => {
 					test: { op: "lt", value: 200 },
 				},
 			]);
-			await api.selectIntersection();
+			await api.applySelectionUpdate(api.intersectSelections);
 		});
 		const ids = await refreshSelections();
 		// heading > 100 AND heading < 200: i*12 > 100 AND i*12 < 200
@@ -247,7 +247,7 @@ describe("Selection filters — core field operations", () => {
 					test: { op: "gt", value: 336 },
 				},
 			]);
-			await api.selectUnion();
+			await api.applySelectionUpdate(api.unionSelections);
 		});
 		const ids = await refreshSelections();
 		// heading < 36: i*12 < 36 → i < 3, indices 0-2 = 3

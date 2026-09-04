@@ -1,7 +1,6 @@
 import { memo, useState, useEffect, useCallback, useRef } from "react";
 import {
 	applySelectionUpdate,
-	composeSelections,
 	createTags,
 	fetchBounds,
 	getVisibleTags,
@@ -9,24 +8,26 @@ import {
 	pruneDuplicates,
 	removeSelections,
 	resolveIds,
-	setSelectionColors,
 	toggleGhostSelection,
 	updateFilterSelection,
 	useMapState,
 } from "@/store/useMapStore";
 import {
+	composeSelections,
 	decomposeChild,
+	filterIsLocalTime,
 	invertSelections,
 	removeFromComposite,
 	reorderSelections,
+	selectionDisplayName,
 	setPolygonName,
+	setSelectionColors,
 } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
 import { stepFilterWindow } from "@/lib/util/date";
 import type { RGB } from "@/lib/util/color";
 import type { Selection } from "@/bindings.gen";
-import { filterIsLocalTime, selectionDisplayName } from "@/store/selections";
 import {
 	FilterForm,
 	filterPropsToSeed,
@@ -150,7 +151,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const isDropTarget = drag != null && drag.key !== selection.key;
 	const handleColorChange = useCallback(
 		(color: RGB) => {
-			setSelectionColors([{ key: selection.key, color }]);
+			void applySelectionUpdate(setSelectionColors, [{ key: selection.key, color }]);
 		},
 		[selection.key],
 	);
@@ -282,7 +283,8 @@ export const SelectionRow = memo(function SelectionRow({
 	const handleMouseUp = () => {
 		if (!isDropTarget || !drag || !dropZone) return;
 		if (dropZone === "on") {
-			composeSelections(
+			void applySelectionUpdate(
+				composeSelections,
 				drag.key,
 				selection.key,
 				drag.altKey ? "Union" : "Intersection",

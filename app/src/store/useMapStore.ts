@@ -28,18 +28,7 @@ import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
 import type { Selection, Selector } from "@/bindings.gen";
-import {
-	type GroupType,
-	addSelection,
-	removeSelection,
-	setSelectionColors as setSelColor,
-	composeSelections as composeSels,
-	composeWithChild as composeWithChildSel,
-	decomposeChild as decomposeChildSel,
-	composeSiblings as composeSiblingsSel,
-	replaceSelection as replaceSel,
-	isolateGhostKeys,
-} from "./selections";
+import { addSelection, removeSelection, replaceSelection, isolateGhostKeys } from "./selections";
 
 // --- Map state ---
 export interface MapState {
@@ -859,7 +848,7 @@ export async function pruneDuplicates(selector: Selector, distance: number): Pro
  *  position inside any AND/OR/Invert composite. Carries ghost state to the new key. */
 export function updateFilterSelection(oldKey: string, selector: Selector) {
 	return applySelectionUpdate((sels) => {
-		const next = replaceSel(sels, oldKey, selector);
+		const next = replaceSelection(sels, oldKey, selector);
 		// Carry a ghost flag across an in-place re-key. A collision instead merges into the
 		// existing selection (shrinking the list); the survivor keeps its own ghost state and
 		// pruneGhosted clears the old key, so only migrate when nothing was merged away.
@@ -875,33 +864,6 @@ export function updateFilterSelection(oldKey: string, selector: Selector) {
 			if (migrated) setState({ ghostedSelections: migrated });
 		}
 		return next;
-	});
-}
-
-/** Set the highlight color of selections, by key. */
-export function setSelectionColors(entries: { key: string; color: [number, number, number] }[]) {
-	void applySelectionUpdate((sels) =>
-		entries.reduce((result, { key, color }) => setSelColor(result, key, color), sels),
-	);
-}
-
-/** Nest existing selections under a new AND/OR/Invert composite. */
-export function composeSelections(
-	dragKey: string,
-	dropKey: string,
-	mode: GroupType,
-	dragParent: string | null,
-	dropParent: string | null,
-) {
-	void applySelectionUpdate((sels) => {
-		if (dragParent && dropParent && dragParent === dropParent) {
-			return composeSiblingsSel(sels, dragParent, dragKey, dropKey, mode);
-		}
-		const updated = dragParent ? decomposeChildSel(sels, dragParent, dragKey) : sels;
-		if (dropParent) {
-			return composeWithChildSel(updated, dragKey, dropParent, dropKey, mode);
-		}
-		return composeSels(updated, dragKey, dropKey, mode);
 	});
 }
 

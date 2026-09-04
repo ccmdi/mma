@@ -340,10 +340,7 @@ describe("Performance benchmarks", () => {
 
 async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 	// Own fixture and own map: the enrichment rows carry a datetime and no panoId.
-	if (
-		!Object.keys(ROUTES).some((r) => r !== "app-idle" && enabled(r))
-	)
-		return;
+	if (!Object.keys(ROUTES).some((r) => r !== "app-idle" && enabled(r))) return;
 
 	const fixture = await writeFixture(scale);
 
@@ -592,9 +589,9 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			run: () =>
 				withApi(async (api, op) => {
 					const start = performance.now();
-					if (op === "intersection") await api.selectIntersection();
-					else if (op === "union") await api.selectUnion();
-					else await api.selectInverse();
+					if (op === "intersection") await api.applySelectionUpdate(api.intersectSelections);
+					else if (op === "union") await api.applySelectionUpdate(api.unionSelections);
+					else await api.applySelectionUpdate(api.invertSelections);
 					const operationMs = performance.now() - start;
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
