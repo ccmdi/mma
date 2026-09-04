@@ -7,7 +7,7 @@ import { panosAt, svMetadata } from "@/lib/sv/query";
 import { hasLoadAsPanoId, createLocation } from "@/types";
 import { LocationFlag, PanoType } from "@/bindings.consts";
 import type { LatLng, Pano } from "@/types";
-import type { Location } from "@/bindings.gen";
+import type { CameraType, Location } from "@/bindings.gen";
 
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { reverseHeading } from "@/lib/geo/geo";
@@ -101,7 +101,15 @@ export async function photometaSnap(click: LatLng, radius: number): Promise<Pano
 	}
 }
 
-const CAMERA_PRIORITY = ["gen4", "gen2", "tripod", "badcam", "gen1"];
+/** Preference order under `preferHigherQuality`, lower first. `null` means the type is not a candidate at that setting. */
+const CAMERA_RANK: Record<CameraType, number | null> = {
+	gen4: 0,
+	gen2: 1,
+	tripod: 2,
+	badcam: 3,
+	gen1: 4,
+	trekker: null,
+};
 
 /**
  * Full Street View lookup for map click: finds best panorama near the click point,
@@ -172,7 +180,7 @@ export async function lookupStreetView(
 	if (opts.preferHigherQuality) {
 		filtered = filtered.filter((c) => {
 			const ct = cameraTypeFromHeight(c.worldSize.height);
-			return ct == null || CAMERA_PRIORITY.includes(ct);
+			return ct == null || CAMERA_RANK[ct] !== null;
 		});
 	}
 
@@ -189,8 +197,8 @@ export async function lookupStreetView(
 			if (xc != null && yc == null) return -1;
 			if (xc == null && yc != null) return 1;
 			if (xc != null && yc != null) {
-				const xi = CAMERA_PRIORITY.indexOf(xc);
-				const yi = CAMERA_PRIORITY.indexOf(yc);
+				const xi = CAMERA_RANK[xc] ?? Infinity;
+				const yi = CAMERA_RANK[yc] ?? Infinity;
 				if (xi < yi) return -1;
 				if (xi > yi) return 1;
 			}
