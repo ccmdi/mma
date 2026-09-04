@@ -54,10 +54,7 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
             // overlay remains a faithful changeset-since-last-commit for the next commit.
             let bytes = overlay_delta_bytes(&store.overlay)?;
             let path = storage::arrow_delta_path(map_id)?;
-            storage::atomic_write(&path, |mut file| {
-                use std::io::Write;
-                file.write_all(&bytes).map_err(AppError::from)
-            })?;
+            storage::atomic_write_bytes(&path, &bytes)?;
         }
         let count = store.alive_count;
         let conn = storage::open_db()?;
@@ -117,10 +114,7 @@ pub(crate) fn persist_dirty(
 ) -> AppResult<()> {
     if let Some(delta_data) = delta_data {
         let path = storage::arrow_delta_path(map_id)?;
-        storage::atomic_write(&path, |mut file| {
-            use std::io::Write;
-            file.write_all(&delta_data).map_err(AppError::from)
-        })?;
+        storage::atomic_write_bytes(&path, &delta_data)?;
     }
     let conn = storage::open_db()?;
     storage::set_location_count(&conn, map_id, alive)?;

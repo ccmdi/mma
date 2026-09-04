@@ -1,7 +1,7 @@
 //! Generic file ops: temp-file-then-rename writes and orphan sweeps.
 
 use super::*;
-use crate::types::AppResult;
+use crate::types::{AppError, AppResult};
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::path::Path;
@@ -20,6 +20,14 @@ pub(crate) fn atomic_write(
     OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
     fs::rename(&tmp, path)?;
     Ok(())
+}
+
+/// [`atomic_write`] for a caller that already holds the whole payload.
+pub(crate) fn atomic_write_bytes(path: &Path, bytes: &[u8]) -> AppResult<()> {
+    atomic_write(path, |mut file| {
+        use std::io::Write;
+        file.write_all(bytes).map_err(AppError::from)
+    })
 }
 
 /// Delete orphaned `.tmp` files left under the Arrow root by interrupted
