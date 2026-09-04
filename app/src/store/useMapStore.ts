@@ -12,7 +12,7 @@ import type {
 } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
-import { hexToRgb } from "@/lib/util/color";
+import { hexToRgb, type RGB } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
@@ -29,7 +29,7 @@ import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
 import type { Selection, Selector } from "@/bindings.gen";
 import { addSelection, batch, removeSelection, replaceSelection } from "./selections";
-import type { SelectionUpdate } from "./selections";
+import type { SelectionPatch } from "./selections";
 
 // --- Map state ---
 export interface MapState {
@@ -668,7 +668,7 @@ async function migrateFieldReferences(from: string, to: string | null) {
 // --- Selections ---
 
 /** Resolve a selection's overlay color, substituting the live tag color for Tag selections. */
-function selectionSyncColor(s: Selection): [number, number, number] {
+function selectionSyncColor(s: Selection): RGB {
 	if (s.selector.type === "Tag") {
 		const tag = state.tags[s.selector.tagId];
 		if (tag) return hexToRgb(tag.color);
@@ -687,17 +687,17 @@ function buildSyncInputs() {
 }
 
 /** Apply a pure selection transform, then sync to Rust.
- *  Ops returning a plain Selection[] leave ghost state unchanged; returning SelectionUpdate sets both.
- *  Skips IPC when the op produced no change (reference equality on both selections and ghosted). */
+ *  Ops return a SelectionPatch - either or both of { selections, ghosted }.
+ *  A bare Selection[] is shorthand for { selections }.
+ *  Skips IPC when the op produced no change (reference equality). */
 export async function applySelectionUpdate(
-	op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | SelectionUpdate,
+	op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | SelectionPatch,
 ) {
 	if (!state.map) return;
 	const out = op(state.selections, state.ghostedSelections);
-	const [selections, rawGhosted] = Array.isArray(out)
-		? [out, state.ghostedSelections]
-		: [out.selections, out.ghosted];
-	const ghostedSelections = pruneGhosted(selections, rawGhosted);
+	const patch: SelectionPatch = Array.isArray(out) ? { selections: out } : out;
+	const selections = patch.selections ?? state.selections;
+	const ghostedSelections = pruneGhosted(selections, patch.ghosted ?? state.ghostedSelections);
 	if (selections === state.selections && ghostedSelections === state.ghostedSelections) return;
 	setState({ selections, ghostedSelections });
 	return syncSelections();
@@ -816,9 +816,9 @@ export async function pruneDuplicates(selector: Selector, distance: number): Pro
 /** Edit an existing filter (or any selection) in place by key, preserving its
  *  position inside any AND/OR/Invert composite. Carries ghost state to the new key. */
 export function updateFilterSelection(oldKey: string, selector: Selector) {
-	return applySelectionUpdate((sels, ghosted): Selection[] | SelectionUpdate => {
+	return applySelectionUpdate((sels, ghosted): SelectionPatch => {
 		const next = replaceSelection(sels, oldKey, selector);
-		if (next.length !== sels.length) return next;
+		if (next.length !== sels.length) return { selections: next };
 		let migrated: Set<string> | null = null;
 		for (let i = 0; i < sels.length; i++) {
 			if (next[i].key !== sels[i].key && ghosted.has(sels[i].key)) {
@@ -827,7 +827,7 @@ export function updateFilterSelection(oldKey: string, selector: Selector) {
 				migrated.add(next[i].key);
 			}
 		}
-		return migrated ? { selections: next, ghosted: migrated } : next;
+		return migrated ? { selections: next, ghosted: migrated } : { selections: next };
 	});
 }
 

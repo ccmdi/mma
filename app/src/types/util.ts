@@ -100,6 +100,12 @@ export function cycle<T>(items: readonly T[], current: T | null, step = 1): T {
 	return items[(((items.indexOf(current as T) + step) % n) + n) % n];
 }
 
+/** Lift a single-item curried transform into one that folds over an array of items. */
+export const batch = <T, S>(op: (item: T) => (state: S) => S) =>
+	(items: T[]) =>
+	(state: S): S =>
+		items.reduce((s, item) => op(item)(s), state);
+
 export type RequireNonNull<T> = { [P in keyof T]-?: NonNullable<T[P]> };
 export type Nullable<T> = { [K in keyof T]: T[K] | null };
 export type Rename<T, Map extends Record<string, string>> = {

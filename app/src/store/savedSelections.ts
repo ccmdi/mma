@@ -5,6 +5,7 @@
  *  is stored verbatim and re-resolved against whatever map is open. */
 
 import type { SavedSelection, SavedSelectionInfo, Selection, Selector } from "@/bindings.gen";
+import type { RGB } from "@/lib/util/color";
 import { buildSelection, selectionDisplayName } from "./selections";
 import { cmd } from "@/lib/commands";
 import { importLegacySavedSelections } from "./migrations";
@@ -78,7 +79,7 @@ function remap(selector: Selector, tagNames: Record<number, string>): Selector {
  *  name it was saved under. */
 export interface SavedPart {
 	label: string;
-	color: [number, number, number];
+	color: RGB;
 	selector: Selector;
 }
 

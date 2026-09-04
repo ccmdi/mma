@@ -152,7 +152,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const isDropTarget = drag != null && drag.key !== selection.key;
 	const handleColorChange = useCallback(
 		(color: RGB) => {
-			void applySelectionUpdate(setSelectionColors([{ key: selection.key, color }]));
+			void applySelectionUpdate(setSelectionColors([{ ...selection, color }]));
 		},
 		[selection.key],
 	);

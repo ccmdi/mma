@@ -2,10 +2,11 @@
 
 import type { FilterOp, PolygonGeometry, Tag } from "@/bindings.gen";
 import { getVisibleTags, getTag } from "@/store/useMapStore";
-import { hslToRgb } from "@/lib/util/color";
+import { hslToRgb, type RGB } from "@/lib/util/color";
 import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
 import { formatDistance, localDateTime, utcDateTime } from "@/lib/util/format";
-import { clamp, isVariant, unionTuple, type Variant } from "@/types/util";
+import { batch, clamp, isVariant, unionTuple, type Variant } from "@/types/util";
+export { batch };
 import { ValidationState } from "@/bindings.consts";
 import { pointInPolygon } from "@/lib/geo/geo";
 import { getSettings } from "@/store/settings";
@@ -15,10 +16,12 @@ import { shortestUniqueSuffixes } from "@/components/editor/tags/tagTreeRange";
 
 import type { Selection, Selector } from "@/bindings.gen";
 
-export interface SelectionUpdate {
+export interface SelectionState {
 	selections: Selection[];
 	ghosted: ReadonlySet<string>;
 }
+
+export type SelectionPatch = Partial<SelectionState>;
 
 /** Variants that wrap children — derived as exactly those carrying a `selections` array. */
 export type CompositeType = Extract<Selector, { selections: Selection[] }>["type"];
@@ -56,12 +59,7 @@ export const OP_LABELS: Record<FilterOpKind, string> = {
 	notcontains: msg("does not contain"),
 };
 
-export const batch = <T>(op: (item: T) => (sels: Selection[]) => Selection[]) =>
-	(items: T[]) =>
-	(sels: Selection[]): Selection[] =>
-		items.reduce((s, item) => op(item)(s), sels);
-
-export function colorForKey(key: string): [number, number, number] {
+export function colorForKey(key: string): RGB {
 	let t = 0;
 	for (let i = 0; i < key.length; i += 1) t = ((key.charCodeAt(i) + (t << 5)) | 0) + t;
 	t = (((t * 214013) | 0) + 2531011) | 0;
@@ -83,20 +81,18 @@ export function isolateGhostKeys(
 	return alreadyIsolated ? new Set() : new Set(keys.filter((k) => k !== key));
 }
 
-export const toggleGhost = (key: string) => (sels: Selection[], ghosted: ReadonlySet<string>): SelectionUpdate => ({
-	selections: sels,
+export const toggleGhost = (key: string) => (_sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => ({
 	ghosted: ghosted.symmetricDifference(new Set([key])),
 });
 
-export const isolateGhost = (key: string) => (sels: Selection[], ghosted: ReadonlySet<string>): SelectionUpdate => ({
-	selections: sels,
+export const isolateGhost = (key: string) => (sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => ({
 	ghosted: isolateGhostKeys(sels.map((s) => s.key), ghosted, key),
 });
 
-export const toggleGhostAll = () => (sels: Selection[], ghosted: ReadonlySet<string>): SelectionUpdate => {
+export const toggleGhostAll = () => (sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => {
 	const keys = new Set(sels.map((s) => s.key));
 	const allGhosted = keys.size > 0 && keys.isSubsetOf(ghosted);
-	return { selections: sels, ghosted: allGhosted ? new Set() : ghosted.union(keys) };
+	return { ghosted: allGhosted ? new Set() : ghosted.union(keys) };
 };
 
 /** Pick `n` distinct ids uniformly at random from `ids` using `Math.random`.
@@ -117,7 +113,7 @@ interface SelectionDescriptor<K extends Selector["type"]> {
 	key(selector: Variant<Selector, K>, locations: number[]): string;
 	label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
 	/** Null falls through to the key hash. */
-	color?(selector: Variant<Selector, K>): [number, number, number] | null;
+	color?(selector: Variant<Selector, K>): RGB | null;
 	locations?(selector: Variant<Selector, K>): number[];
 }
 
@@ -686,11 +682,11 @@ function validationStateLabel(state: ValidationState): string {
 }
 
 export const setSelectionColors = (
-	entries: { key: string; color: [number, number, number] }[],
+	entries: Selection[],
 ) => (current: Selection[]): Selection[] =>
-	entries.reduce((sels, { key, color }) => {
-		const idx = sels.findIndex((s) => s.key === key);
-		return idx === -1 ? sels : sels.with(idx, { ...sels[idx], color });
+	entries.reduce((sels, entry) => {
+		const idx = sels.findIndex((s) => s.key === entry.key);
+		return idx === -1 ? sels : sels.with(idx, entry);
 	}, current);
 
 export const setPolygonName = (key: string, name: string) => (current: Selection[]): Selection[] => {
