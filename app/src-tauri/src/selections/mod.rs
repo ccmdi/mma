@@ -758,11 +758,9 @@ pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
             return acc;
         }
         Selector::Union { selections } => {
-            let mut acc = RoaringBitmap::new();
-            for s in selections {
-                acc |= resolve(view, &s.selector);
-            }
-            return acc;
+            return selections
+                .iter()
+                .fold(RoaringBitmap::new(), |acc, s| acc | resolve(view, &s.selector));
         }
         Selector::Invert { selections } => {
             // Invert = (all alive ids) - (child ids). roaring-rs has no native flip,
@@ -805,13 +803,9 @@ pub fn resolve_within(
             }
             acc
         }
-        Selector::Union { selections } => {
-            let mut acc = RoaringBitmap::new();
-            for s in selections {
-                acc |= resolve_within(view, &s.selector, within);
-            }
-            acc
-        }
+        Selector::Union { selections } => selections.iter().fold(RoaringBitmap::new(), |acc, s| {
+            acc | resolve_within(view, &s.selector, within)
+        }),
         Selector::Invert { selections } => match selections.first() {
             Some(first) => within - resolve_within(view, &first.selector, within),
             None => within.clone(),
