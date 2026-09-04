@@ -269,14 +269,12 @@ pub async fn uninstall_plugin(id: String) -> AppResult<()> {
 /// `mma-plugin://` handler: a file from inside the plugins dir, nothing outside it.
 pub(crate) fn serve_file(path: &str) -> Response<Vec<u8>> {
     let status = |code: u16| Response::builder().status(code).body(vec![]).unwrap();
-    let root = plugins_dir().unwrap_or_default();
-    let canonical = root
-        .join(path.trim_start_matches('/'))
-        .canonicalize()
-        .unwrap_or_default();
-    if !canonical.starts_with(&root) {
+    let Ok(root) = plugins_dir() else {
         return status(403);
-    }
+    };
+    let Ok(canonical) = storage::resolve_within(&root, path.trim_start_matches('/')) else {
+        return status(403);
+    };
     let Ok(data) = fs::read(&canonical) else {
         return status(404);
     };

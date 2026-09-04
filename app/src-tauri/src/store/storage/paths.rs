@@ -176,3 +176,29 @@ pub(crate) fn commit_dir(map_id: &str) -> AppResult<PathBuf> {
 pub(crate) fn commit_delta_path(map_id: &str, commit_id: &str) -> AppResult<PathBuf> {
     Ok(commit_dir(map_id)?.join(format!("{commit_id}.arrow")))
 }
+
+/// Resolve `path` under `root` and refuse anything that lands outside it. Both sides are
+/// canonicalized so a symlink or a `..` component cannot escape, and so Windows' verbatim
+/// prefixes are compared like for like. A path that does not exist yet resolves against its
+/// parent, which must.
+pub(crate) fn resolve_within(root: &Path, path: impl AsRef<Path>) -> AppResult<PathBuf> {
+    let root = root.canonicalize()?;
+    let joined = root.join(path);
+    let resolved = match joined.canonicalize() {
+        Ok(p) => p,
+        Err(_) => {
+            let parent = joined
+                .parent()
+                .ok_or_else(|| AppError::from("path has no parent".to_string()))?
+                .canonicalize()?;
+            let name = joined
+                .file_name()
+                .ok_or_else(|| AppError::from("path has no file name".to_string()))?;
+            parent.join(name)
+        }
+    };
+    if !resolved.starts_with(&root) {
+        return Err(AppError(format!("path escapes {}", root.display())));
+    }
+    Ok(resolved)
+}

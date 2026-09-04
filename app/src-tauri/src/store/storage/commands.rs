@@ -8,12 +8,13 @@ use std::path::Path;
 use std::process::Command;
 
 /// Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
-/// large payloads over by file instead of IPC serialization.
+/// large payloads over by file instead of IPC serialization. `name` names a leaf, so it
+/// cannot steer the write out of the temp directory.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn write_temp_file(name: String, content: String) -> AppResult<String> {
-    let path = env::temp_dir().join(format!("mma_{name}"));
+    let path = resolve_within(&env::temp_dir(), format!("mma_{name}"))?;
     fs::write(&path, &content)?;
     Ok(path.to_string_lossy().to_string())
 }

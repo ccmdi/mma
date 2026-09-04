@@ -968,3 +968,28 @@ fn populated_v10_rebuild_preserves_rows() {
         ("map1", "gh1", "h1", 3)
     );
 }
+
+#[test]
+fn resolve_within_keeps_paths_under_root() {
+    let root = TempDir::new("mma_test_resolve_root");
+    fs::create_dir_all(root.join("sub")).unwrap();
+    fs::write(root.join("sub/file.txt"), "x").unwrap();
+
+    let resolved = resolve_within(&root, "sub/file.txt").unwrap();
+    assert!(resolved.ends_with("file.txt"));
+    assert!(resolved.starts_with(root.canonicalize().unwrap()));
+
+    // A file that does not exist yet still resolves, against its existing parent.
+    assert!(resolve_within(&root, "sub/new.txt").is_ok());
+}
+
+#[test]
+fn resolve_within_refuses_escapes() {
+    let root = TempDir::new("mma_test_resolve_escape");
+    fs::create_dir_all(root.join("sub")).unwrap();
+
+    assert!(resolve_within(&root, "sub/../../outside.txt").is_err());
+    assert!(resolve_within(&root, "../outside.txt").is_err());
+    let absolute = root.parent().unwrap().join("elsewhere.txt");
+    assert!(resolve_within(&root, &absolute).is_err());
+}
