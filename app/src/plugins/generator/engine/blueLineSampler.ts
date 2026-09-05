@@ -1,11 +1,10 @@
 import { TileConfig, LayerType, buildSvCoverageConfig, buildTileUrl } from "@/lib/geo/tiles";
 import { getBoundingBox, pointInGeoJsonGeometry } from "./geo";
-import { latLngToWorld, worldToTile, pixelToLatLng } from "@/lib/geo/mercator";
+import { latLngToWorld, worldToTile, pixelToLatLng, TILE_SIZE } from "@/lib/geo/mercator";
 import { log } from "@/lib/util/log";
 import { chunk } from "@/lib/util/util";
 import type { Bounds, LatLng } from "@/types";
 
-const TILE_SIZE = 256;
 const MAX_TILES_PER_AXIS = 50;
 const FETCH_CONCURRENCY = 10;
 

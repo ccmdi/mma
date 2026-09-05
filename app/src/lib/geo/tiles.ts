@@ -3,6 +3,7 @@
 // Constructs Google Maps Vector Tile URLs with protobuf-encoded parameters.
 
 import { resolveSvColorHex, hexToHsl, hslToHex } from "@/lib/util/color";
+import { TILE_SIZE } from "@/lib/geo/mercator";
 
 // --- Protobuf encoding primitives ---
 
@@ -446,7 +447,7 @@ function applyTileCoords(cfg: TileConfig, x: number, y: number, zoom: number) {
 	tile.x = ((x % n) + n) % n;
 	tile.y = y;
 	tile.zoom = zoom;
-	tile.size = 256;
+	tile.size = TILE_SIZE;
 }
 
 export function buildTileUrl(cfg: TileConfig, x: number, y: number, zoom: number): string {

@@ -13,6 +13,7 @@ import * as maplibregl from "maplibre-gl";
 import { type MapMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+import { TILE_SIZE } from "@/lib/geo/mercator";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import type { PickingInfo } from "@deck.gl/core";
 import { createSvTileSource, type SvTileSource } from "@/lib/geo/mapStack";
@@ -202,7 +203,7 @@ class MapLibreHost implements MapHostContract<"maplibre"> {
 		this.map.addSource(SV_SOURCE, {
 			type: "raster",
 			tiles: [this.svTileTemplate()],
-			tileSize: 256,
+			tileSize: TILE_SIZE,
 			maxzoom: 20,
 		});
 		// Below the style's labels (first symbol layer), above its geometry.
