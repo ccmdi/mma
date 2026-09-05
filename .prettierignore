@@ -1,0 +1,11 @@
+app/dist/
+app/node_modules/
+app/public/opensv/
+app/src-tauri/target/
+app/test/fixtures/
+app/public/borders.json
+app/src/bindings.gen.ts
+app/src/bindings.consts.ts
+app/src/components/manual/manual-img-dims.gen.ts
+plugins/types/mma.d.ts
+plugins/types/google-maps.d.ts

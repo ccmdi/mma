@@ -19,7 +19,7 @@
 		"build:procedures": "node scripts/build-procedures.mjs",
 		"build": "npm run gen:plugin-types && npm run gen:plugin-registry && npm run gen:image-dims && npm run gen:i18n && npm run build:procedures && vite build",
 		"build:opensv": "node opensv-build/build-opensv.mjs",
-		"format": "prettier --write \"src/**/*.{ts,tsx,css,json}\" \"test/**/*.{ts,tsx}\" && cargo fmt --manifest-path src-tauri/Cargo.toml",
+		"format": "prettier --write --ignore-path ../.prettierignore \"src/**/*.{ts,tsx,css,json}\" \"test/**/*.{ts,tsx}\" && cargo fmt --manifest-path src-tauri/Cargo.toml",
 		"lint": "eslint .",
 		"preview": "vite preview",
 		"test": "vitest run && npm run test:procedures",
@@ -61,10 +61,10 @@
 	},
 	"lint-staged": {
 		"*.{ts,tsx}": [
-			"prettier --write",
+			"prettier --write --ignore-path ../.prettierignore",
 			"eslint --fix"
 		],
-		"*.{json,css,md}": "prettier --write"
+		"*.{json,css,md}": "prettier --write --ignore-path ../.prettierignore"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
