@@ -789,6 +789,11 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
         .as_ref()
         .map(settings_from_extra)
         .unwrap_or_default();
+    let fields = extra_val
+        .as_ref()
+        .and_then(|e| e.get("fields"))
+        .filter(|f| f.is_object())
+        .cloned();
 
     // Merge chunk-local tag tables into one global table, remapping each chunk's
     // local ids to global ids in place.
@@ -858,9 +863,9 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
         folder,
         locations,
         tags,
+        fields,
         warnings,
         settings,
-        ..Default::default()
     }
 }
 
