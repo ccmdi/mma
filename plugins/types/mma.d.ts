@@ -4,16 +4,16 @@
 import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
-import * as React$1 from 'react';
-import { ComponentType, SetStateAction, ComponentPropsWithRef, ReactNode, CSSProperties, ElementType, ReactElement } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
 import { open, save } from '@tauri-apps/plugin-dialog';
+import * as React$1 from 'react';
+import { ComponentType, SetStateAction, ComponentPropsWithRef, ReactNode, CSSProperties, ElementType, ReactElement } from 'react';
 import { Layer, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
 
 /** Commands */
-declare const commands: {
+declare const commands$1: {
     /**  Milliseconds from `run()` to the frontend's first call; logged once. @unstable */
     appReady: () => Promise<number>;
     /**
@@ -2103,8 +2103,19 @@ export type Digits = {
 export type D = keyof Digits;
 /** Lift a single-item curried transform into one that folds over an array of items. */
 declare const batch: <T, S>(op: (item: T) => (state: S) => S) => (items: T[]) => (state: S) => S;
+export type RequireNonNull<T> = {
+    [P in keyof T]-?: NonNullable<T[P]>;
+};
+export type Nullable<T> = {
+    [K in keyof T]: T[K] | null;
+};
+export type Rename<T, Map extends Record<string, string>> = {
+    [K in keyof T as K extends keyof Map ? Map[K] : K]: T[K];
+};
 /** The member(s) of union `U` whose discriminant `D` (default `"type"`) is `V`. */
 export type Variant<U, V extends U[D], D extends keyof U = "type" & keyof U> = Extract<U, Record<D, V>>;
+/** The value union of a `const` object. */
+export type EnumOf<T> = T[keyof T];
 
 /** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
 declare const LocationFlag: {
@@ -2325,6 +2336,10 @@ declare const VIRTUAL_FLAGS: 12;
 
 /** A field definition with every optional attribute spelled absent. */
 declare function createFieldDef(type: ExtraFieldType, over?: Partial<Omit<ExtraFieldDef, "type">>): ExtraFieldDef;
+/** Street View camera orientation (POV). */
+export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
+/** The camera fields a Location and the live Street View viewer share. */
+export type PanoCapture = LocationPOV & Pick<Location, "lat" | "lng" | "panoId">;
 export type LatLng = google.maps.LatLngLiteral;
 export type Bounds = google.maps.LatLngBoundsLiteral;
 /** One decoded GetMetadata image: flat, plain JSON, no live objects. This is the app's
@@ -2477,6 +2492,156 @@ declare class SelectedIds {
     /** Yields each selected id once, ascending. Scans the bit array, so it's O(maxId/8);
      *  used by deliberate bulk consumers (export, bulk-tag, delete), not the per-frame path. */
     [Symbol.iterator](): Iterator<number>;
+}
+/**
+ * The markers drawn by the selection overlay, keyed by location id.
+ *
+ * Sole authority on "is this row drawn by the overlay rather than the base layer" - the
+ * base cells hold no selection state, they derive their visibility byte from `has`.
+ * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
+ * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
+ * alone, and every by-id operation is O(1).
+ *
+ * Writes swap-remove, so slots land unordered - but the overlay is one deck.gl layer and
+ * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
+ * puts the slots back in selection order, and the batch entry points call it once they
+ * settle. Nothing else may hand these arrays to a layer.
+ */
+declare class SelectionOverlay {
+    positions: Float32Array<ArrayBuffer>;
+    colors: Uint8Array<ArrayBuffer>;
+    angles: Float32Array<ArrayBuffer>;
+    ids: Uint32Array<ArrayBuffer>;
+    /** Per-entry index of the selection drawing it, and the sort key `order()` uses.
+     *  CPU-side bookkeeping like `ids` - never an attribute, never uploaded. */
+    sel: Uint32Array<ArrayBuffer>;
+    count: number;
+    version: number;
+    private capacity;
+    private bits;
+    /** id -> slot. Only meaningful where `bits` is set, so it needs no empty sentinel. */
+    private slot;
+    /** Scratch for `order()`: entry -> destination slot. Reused across calls. */
+    private dest;
+    has(id: number): boolean;
+    /** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
+     *  selection's index - the sort key `order()` needs, which no caller can recover from
+     *  the colour alone once two selections share one. */
+    set(id: number, lng: number, lat: number, heading: number, color: Readonly<RGB>, selIdx: number): void;
+    /** Follow a row that moved. No-op when the row isn't in the overlay. */
+    move(id: number, lng?: number, lat?: number, heading?: number): void;
+    delete(id: number): void;
+    clear(): void;
+    /**
+     * Sort the entries by selection index, so a later selection's markers overdraw an
+     * earlier one's everywhere rather than wherever slot order happens to favour them.
+     *
+     * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
+     * array sized by the selection count. The leading scan makes the cases that need no
+     * work - already ordered, or one selection in play - a single pass with no allocation,
+     * which covers a plain single-selection map entirely.
+     */
+    order(): void;
+    /** Exchange two slots, keeping `slot` pointing at where each id actually lives. */
+    private swap;
+    /** Snapshot of the selected ids. Copies the bit array so later edits can't mutate it. */
+    selectedIds(): SelectedIds;
+    /** Replace every entry with arrays sliced straight out of Rust's render binary, which
+     *  ships them in emission order, then put them in selection order. */
+    load(positions: Float32Array<ArrayBuffer>, colors: Uint8Array<ArrayBuffer>, angles: Float32Array<ArrayBuffer>, ids: Uint32Array<ArrayBuffer>, sel: Uint32Array<ArrayBuffer>, maxId: number): void;
+    /** Size up front for a rebuild of known size, so `set` never reallocates mid-loop. */
+    reserve(n: number, maxId: number): void;
+    /** Grow the draw arrays to hold `n` entries and the id-keyed arrays to cover `maxId`. */
+    private ensure;
+}
+/**
+ * Typed-array backed buffer for one geohash cell's marker data.
+ * Grows by doubling. Removals use swap-remove (O(1), order not preserved).
+ * Versioned per-attribute so deck.gl can skip unchanged layers.
+ */
+declare class CellBuffer {
+    ids: number[];
+    idToIndex: Map<number, number>;
+    positions: Float32Array;
+    /** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
+     *  global marker colour, which the layer supplies as a constant, so the only per-marker
+     *  colour fact is whether a selection or the active highlight is covering it. */
+    visible: Uint8Array;
+    angles: Float32Array;
+    count: number;
+    capacity: number;
+    positionVersion: number;
+    colorVersion: number;
+    constructor(capacity?: number);
+    /** Append a marker, growing the buffer if needed. Visibility is corrected by the
+     *  caller's `syncVisible` once the overlay knows about the row. */
+    append(entry: RenderEntry): void;
+    /** O(1) removal by swapping with the last element. Mirrors Rust's cell_remove_render. */
+    swapRemove(index: number): void;
+    patchPosition(index: number, lng?: number, lat?: number, heading?: number): void;
+    /** Show (255) or hide (0) one marker in the base layer. */
+    patchVisible(index: number, visible: number): void;
+    private ensureCapacity;
+}
+/**
+ * Owns all marker render data as 32 geohash-cell CellBuffers plus a selection overlay.
+ * Initialized from a binary blob built by Rust (`initFromBinary`), then kept in sync
+ * via incremental deltas (`applyDelta`) and selection bitmasks (`applySelectionBitmasks`).
+ * deck.gl layers read the typed arrays directly - no JSON serialization in the render loop.
+ */
+declare class CellManager {
+    cells: Map<string, CellBuffer>;
+    totalCount: number;
+    version: number;
+    /** Largest location id seen - sizes the selection bitset. Monotonic (never shrinks on
+     *  removal; an overestimate just over-allocates a few bytes). */
+    maxId: number;
+    /** The rows the selection overlay draws, and the only record of which rows are selected. */
+    readonly overlay: SelectionOverlay;
+    /** The row the active-location layer draws, hidden in its base cell. */
+    private activeId;
+    /** Parse the full render binary from Rust. Replaces all cells and the selection overlay. */
+    initFromBinary(buf: ArrayBuffer): void;
+    /** Scratch for `applySelectionBitmasks`: per-row winning selection index, reused across
+     *  cells so a full sync does not allocate one array per cell. */
+    private selWinner;
+    /**
+     * Apply an incremental delta. Every entry states the row's resulting selection state,
+     * so the base cells and the overlay are written from one fact rather than inferred
+     * from each other. Returns the affected cell keys.
+     */
+    applyDelta(delta: RenderDelta): Set<string>;
+    /** Put the row at `cb[i]` in or out of the selection overlay and set its base visibility.
+     *  Idempotent, so restating a row's current state costs nothing but is always safe.
+     *  Takes the buffer and index the caller already has - `syncVisible` is for the
+     *  active-location path, which only knows an id. */
+    private setSelection;
+    /** Set the active location, whose marker the active layer draws instead of the base cell.
+     *  Returns whether the active row actually moved. */
+    setActive(id: number | null): boolean;
+    /**
+     * A base row is hidden exactly when something else is drawing it: the selection overlay
+     * or the active-location layer. The only place `visible` is decided for a single row, so
+     * "selected" and "active" never have to negotiate over the byte.
+     */
+    private syncVisible;
+    /** Visit every rendered location's position. The cells hold all alive rows (a `visible`
+     *  0 only means the overlay or active layer draws that row instead), so this is the
+     *  maintained full-map position set. */
+    forEachPosition(f: (id: number, lng: number, lat: number) => void): void;
+    /** Map a deck.gl pick (cell + index) back to a location ID. */
+    resolvePickFromCell(cellKey: string, cellIndex: number): number | null;
+    /** Selected-id set, snapshotted from the overlay. */
+    selectedIds(): SelectedIds;
+    /**
+     * Decode per-cell bitmasks from Rust into the selection overlay. Selected rows are drawn
+     * by the overlay in their selection's color and hidden in their base cell.
+     *
+     * Partial updates are supported: only the cells named in `cellEntries` are restated,
+     * and overlay entries for every other cell survive untouched.
+     */
+    applySelectionBitmasks(selColors: RGB[], cellEntries: SelCellEntry[]): SelectedIds;
+    clear(): void;
 }
 
 /** Pure selection transforms. These only manipulate the JS selection tree; Rust resolves the actual bitmasks. */
@@ -2757,6 +2922,10 @@ declare function applyFieldOp(selector: Selector, op: FieldOp, recordUndo: boole
  *  Ops return a SelectionPatch - either or both of { selections, ghosted }.
  *  A bare Selection[] is shorthand for { selections }.
  *  Skips IPC when the op produced no change (reference equality). */
+/** Add selectors to the active selection list. */
+declare function addSelections(selectors: Selector[]): Promise<void>;
+/** Drop selections by key. */
+declare function removeSelections(keys: string[]): Promise<void>;
 declare function applySelectionUpdate(op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | SelectionPatch): Promise<void>;
 /** Resolve the current selection list against Rust and sync the overlay.
  *  Called after `applySelectionUpdate` sets state, or standalone when the underlying
@@ -2861,6 +3030,7 @@ declare function checkoutCommit(commitId: string): Promise<void>;
 
 export type store_MapState = MapState;
 declare const store_addLocations: typeof addLocations;
+declare const store_addSelections: typeof addSelections;
 declare const store_addTagToLocations: typeof addTagToLocations;
 declare const store_applyFieldOp: typeof applyFieldOp;
 declare const store_applySelectionUpdate: typeof applySelectionUpdate;
@@ -2905,6 +3075,7 @@ declare const store_pruneDuplicates: typeof pruneDuplicates;
 declare const store_redo: typeof redo;
 declare const store_removeDuplicate: typeof removeDuplicate;
 declare const store_removeLocations: typeof removeLocations;
+declare const store_removeSelections: typeof removeSelections;
 declare const store_removeTagFromAllLocations: typeof removeTagFromAllLocations;
 declare const store_removeTagFromLocations: typeof removeTagFromLocations;
 declare const store_renameField: typeof renameField;
@@ -2932,8 +3103,74 @@ declare const store_updateTags: typeof updateTags;
 declare const store_useMapState: typeof useMapState;
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
-  export { store_addLocations as addLocations, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
+  export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
   export type { store_MapState as MapState };
+}
+
+/** Saved selection rules: global, name-based, stored in SQLite.
+ *
+ *  A rule is one `Selector` tree plus the names its `Tag` leaves carried at save time.
+ *  Tag ids are map-local, so the names are what makes a rule portable -- the tree itself
+ *  is stored verbatim and re-resolved against whatever map is open. */
+
+/** Selection types bound to the open map (raw location ids, review sessions): a rule
+ *  built from them would be a frozen snapshot, so they are never saved. */
+declare const MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "ValidationState", "Reviewed"];
+/** Saveable only if the whole tree is portable: one map-local leaf anywhere would freeze
+ *  the rule to the map it was built on. */
+declare function isSaveable(selector: Selector): boolean;
+/** One part of a saved rule: what its chip reads as, and what it resolves to here. The
+ *  label comes from the tree as saved, so a tag this map doesn't have still reads by the
+ *  name it was saved under. */
+export interface SavedPart {
+    label: string;
+    color: RGB;
+    selector: Selector;
+}
+/** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
+ *  a single part. */
+declare function savedParts(saved: SavedSelection): SavedPart[];
+/** The rules that exist, as identity only. Empty until the index arrives -- the first
+ *  call starts the read and `saved-selections:changed` announces it. */
+declare function getSavedSelectionIndex(): SavedSelectionInfo[];
+declare function useSavedSelectionIndex(): SavedSelectionInfo[];
+/** Bodies for `ids`, fetching only the ones not already held. */
+declare function loadSavedSelections(ids: string[]): Promise<SavedSelection[]>;
+/** Every rule with its body. */
+declare function loadAllSavedSelections(): Promise<SavedSelection[]>;
+/** A saved rule as a single `Selector`, resolved against the open map. Matches nothing
+ *  until the body arrives; fetching it emits `saved-selections:changed`, so a caller that
+ *  re-reads on that event gets the real tree. */
+declare function savedSelector(id: string): Selector;
+/** Persists the saveable selections as one rule. False when none of them are saveable. */
+declare function saveCurrentSelections(name: string, selections: Selection[]): Promise<boolean>;
+declare function deleteSavedSelection(id: string): Promise<void>;
+/** Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
+ *  were added. */
+declare function applySavedSelection(saved: SavedSelection): number;
+
+declare const savedSelections_MAP_LOCAL_TYPES: typeof MAP_LOCAL_TYPES;
+export type savedSelections_SavedPart = SavedPart;
+declare const savedSelections_applySavedSelection: typeof applySavedSelection;
+declare const savedSelections_deleteSavedSelection: typeof deleteSavedSelection;
+declare const savedSelections_getSavedSelectionIndex: typeof getSavedSelectionIndex;
+declare const savedSelections_isSaveable: typeof isSaveable;
+declare const savedSelections_loadAllSavedSelections: typeof loadAllSavedSelections;
+declare const savedSelections_loadSavedSelections: typeof loadSavedSelections;
+declare const savedSelections_saveCurrentSelections: typeof saveCurrentSelections;
+declare const savedSelections_savedParts: typeof savedParts;
+declare const savedSelections_savedSelector: typeof savedSelector;
+declare const savedSelections_useSavedSelectionIndex: typeof useSavedSelectionIndex;
+declare namespace savedSelections {
+  export { savedSelections_MAP_LOCAL_TYPES as MAP_LOCAL_TYPES, savedSelections_applySavedSelection as applySavedSelection, savedSelections_deleteSavedSelection as deleteSavedSelection, savedSelections_getSavedSelectionIndex as getSavedSelectionIndex, savedSelections_isSaveable as isSaveable, savedSelections_loadAllSavedSelections as loadAllSavedSelections, savedSelections_loadSavedSelections as loadSavedSelections, savedSelections_saveCurrentSelections as saveCurrentSelections, savedSelections_savedParts as savedParts, savedSelections_savedSelector as savedSelector, savedSelections_useSavedSelectionIndex as useSavedSelectionIndex };
+  export type { savedSelections_SavedPart as SavedPart };
+}
+
+/** A localStorage-backed blob: its key and its defaults, declared where the shape is defined so
+ *  no call site restates the pair. Older stored shapes are handled by `store/migrations.ts`. */
+export interface PersistedStore<T> {
+    key: string;
+    defaults: T;
 }
 
 /** Prompt for GeoJSON file(s) and add their polygons as selections. */
@@ -3343,6 +3580,7 @@ declare const GEOCODE_PROVIDERS: {
     readonly nominatim: "Nominatim";
     readonly google: "Google (from panorama)";
 };
+declare const GEOCODE_PROVIDER_LABELS: Record<keyof typeof GEOCODE_PROVIDERS, string>;
 /** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. */
 declare const UNIT_SYSTEMS: {
     readonly auto: "Automatic";
@@ -3374,6 +3612,8 @@ declare const SUBDIVISION_DETAILS: {
     readonly off: "Off";
     readonly adm1: "States / provinces";
 };
+/** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). */
+declare const TAG_SUGGESTION_LIMITS: readonly [5, 10, 25, 50, 0];
 declare const PREVIEW_ASPECT_RATIOS: {
     readonly "4 / 3": "4:3";
     readonly "16 / 10": "16:10";
@@ -3384,6 +3624,7 @@ declare const PREVIEW_ASPECT_RATIOS: {
 };
 export type Language = keyof typeof LANGUAGES;
 export type MovementMode = keyof typeof MOVEMENT_MODES;
+declare const MOVEMENT_CYCLE: MovementMode[];
 export type ExactDateFormat = keyof typeof EXACT_DATE_FORMATS;
 export type DateTimezone = keyof typeof DATE_TIMEZONES;
 export type SeenResolution = keyof typeof SEEN_RESOLUTIONS;
@@ -3503,7 +3744,182 @@ declare const DEFAULTS: {
     pinnedCommands: PinnedEntry[];
 };
 export type AppSettings = typeof DEFAULTS;
+/** Settings holding private information that should not be exfiltrated. */
+declare const PRIVATE_SETTINGS: ReadonlySet<keyof AppSettings>;
+/** App settings mirrored to CSS custom properties on `:root`. Add an entry to expose a
+ *  setting to CSS; `useCssVarSettings` (App.tsx) keeps them in sync reactively. */
+declare const CSS_VAR_SETTINGS: ReadonlyArray<readonly [cssVar: string, value: (s: AppSettings) => string]>;
+declare const APP_SETTINGS: PersistedStore<{
+    showCameraBadges: boolean;
+    showLinksControl: boolean;
+    clickToGo: boolean;
+    showRoadLabels: boolean;
+    defaultMovementMode: MovementMode;
+    showCar: boolean;
+    showCrosshair: boolean;
+    showCompass: boolean;
+    showCompassTape: boolean;
+    showZoom: boolean;
+    showReturnToSpawn: boolean;
+    showJumpButtons: boolean;
+    showMapLinks: boolean;
+    showCoordinateDisplay: boolean;
+    showFullscreenButton: boolean;
+    showScreenshotButton: boolean;
+    showPanoMetadata: boolean;
+    exactDateFormat: ExactDateFormat;
+    dateTimezone: DateTimezone;
+    showNavArrow: boolean;
+    showGroundArrow: boolean;
+    hidePanoUI: boolean;
+    /** Hiding the pano UI also hides navigation: link arrows, ground arrow, click-to-go X. */
+    hideNavWithUI: boolean;
+    fullscreenMap: boolean;
+    showFullscreenMapMeta: boolean;
+    showFullscreenMiniLocationPreview: boolean;
+    fullscreenMiniLocationScale: number;
+    showFullscreenMinimap: boolean;
+    fullscreenMinimapScale: number;
+    /** Milliseconds the fullscreen minimap stays expanded after the pointer leaves it. */
+    fullscreenMinimapCloseDelay: number;
+    showFullscreenTagbar: boolean;
+    /** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. */
+    fullscreenTagbarCollapsed: boolean;
+    showFullscreenDatePicker: boolean;
+    showFullscreenReviewBar: boolean;
+    showFullscreenGeocode: boolean;
+    customCss: string;
+    enableSeen: boolean;
+    enableSeenThumbnails: boolean;
+    seenResolution: SeenResolution;
+    mapPanSpeed: number;
+    panoLookSpeed: number;
+    slowModifier: number;
+    showFps: boolean;
+    mapListFields: MapListField[];
+    /** Read once at boot; changing it relaunches the app rather than re-rendering. */
+    language: Language;
+    /** Every distance the UI shows or accepts; stored values stay metric. */
+    units: UnitSystem;
+    /** Reopen the maps that were open when the session last ended (main window closed). */
+    restoreSession: boolean;
+    /** Offer pre-release builds to the updater as well as full releases. */
+    prereleaseUpdates: boolean;
+    /** Discord Rich Presence: off, generic (no map name), or full (map name + count). */
+    discordPresence: DiscordPresenceMode;
+    /** Per-label color overrides (hex), keyed by lowercased label name. Shared across all maps. */
+    labelColors: Record<string, string>;
+    geocodeProvider: GeocodeProvider;
+    nominatimApiKey: string;
+    panToImported: boolean;
+    /** With no location open, Enter shows a center crosshair and opens the location under it. */
+    enterOpensCenter: boolean;
+    /** Min half-extent (degrees) a single pasted/imported point is padded to before fitBounds */
+    pastePadding: number;
+    followActiveInReview: boolean;
+    markerColor: RGB;
+    activeLocationColor: RGB;
+    importPreviewColor: RGB;
+    panoDotColor: RGB;
+    /** Color a newly drawn polygon selection starts with. `random` hashes it from the polygon's
+     *  key; `fixed` uses polygonColor. Either way it's only the initial value -- recoloring a
+     *  polygon by hand still wins. */
+    /** What the layer opacity hotkeys restore a layer to when toggling it back on. */
+    opacityToggleMode: OpacityToggleMode;
+    polygonColorMode: PolygonColorMode;
+    polygonColor: RGB;
+    panoDotScaled: boolean;
+    tagViewMode: TagViewMode;
+    /** Tree view only: render each tag as the shortest path suffix that's still unique. */
+    truncateTagPaths: boolean;
+    /** Tree view: how a colorless folder row gets its color. `direct` uses tagFolderColor;
+     *  `firstChild` inherits the first own-colored descendant in display order,
+     *  with tagFolderColor as the fallback for colorless subtrees. */
+    tagFolderColorMode: TagFolderColorMode;
+    tagFolderColor: RGB;
+    tagSortMode: TagSortMode;
+    /** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. */
+    tagGap: number;
+    animateTagReorder: boolean;
+    borderDetail: BorderDetail;
+    subdivisionDetail: SubdivisionDetail;
+    previewAspectRatio: PreviewAspectRatio;
+    tagSuggestionLimit: number;
+    /** Copy-to-map hotkeys that work in every map (assigned in the copy-to-map dialog);
+     *  a map's own binding on the same key shadows them. */
+    globalCopyBindings: MapKeyBinding[];
+    /** Local REST transport for window.MMA (Settings > Advanced). */
+    remoteApi: boolean;
+    remoteApiKey: string;
+    pinnedCommands: PinnedEntry[];
+}>;
+declare function getSettings(): AppSettings;
+/** True while the pano-UI toggle covers the navigation visuals too. */
+declare function navHiddenWithUI(s: AppSettings): boolean;
+/** Effective StreetViewPanorama options: how the movement mode, per-control toggles,
+ *  and the hide-UI toggle compose. Sole authority for both pano creation and updates. */
+declare function panoDisplayOptions(s: AppSettings): {
+    linksControl: boolean;
+    clickToGo: boolean;
+    showRoadLabels: boolean;
+    scrollwheel: boolean;
+};
 declare function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void;
+declare function resetSettings(): void;
+declare function useSettings(): AppSettings;
+declare function useSetting<K extends keyof AppSettings>(key: K): AppSettings[K];
+
+declare const settings_APP_SETTINGS: typeof APP_SETTINGS;
+export type settings_AppSettings = AppSettings;
+declare const settings_BORDER_DETAILS: typeof BORDER_DETAILS;
+export type settings_BorderDetail = BorderDetail;
+declare const settings_CSS_VAR_SETTINGS: typeof CSS_VAR_SETTINGS;
+declare const settings_DATE_TIMEZONES: typeof DATE_TIMEZONES;
+declare const settings_DEFAULTS: typeof DEFAULTS;
+declare const settings_DISCORD_PRESENCE_MODES: typeof DISCORD_PRESENCE_MODES;
+export type settings_DateTimezone = DateTimezone;
+export type settings_DiscordPresenceMode = DiscordPresenceMode;
+declare const settings_EXACT_DATE_FORMATS: typeof EXACT_DATE_FORMATS;
+export type settings_ExactDateFormat = ExactDateFormat;
+declare const settings_GEOCODE_PROVIDERS: typeof GEOCODE_PROVIDERS;
+declare const settings_GEOCODE_PROVIDER_LABELS: typeof GEOCODE_PROVIDER_LABELS;
+export type settings_GeocodeProvider = GeocodeProvider;
+declare const settings_LANGUAGES: typeof LANGUAGES;
+export type settings_Language = Language;
+declare const settings_MAP_LIST_FIELDS: typeof MAP_LIST_FIELDS;
+declare const settings_MOVEMENT_CYCLE: typeof MOVEMENT_CYCLE;
+declare const settings_MOVEMENT_MODES: typeof MOVEMENT_MODES;
+export type settings_MapListField = MapListField;
+export type settings_MovementMode = MovementMode;
+declare const settings_OPACITY_TOGGLE_MODES: typeof OPACITY_TOGGLE_MODES;
+export type settings_OpacityToggleMode = OpacityToggleMode;
+declare const settings_POLYGON_COLOR_MODES: typeof POLYGON_COLOR_MODES;
+declare const settings_PREVIEW_ASPECT_RATIOS: typeof PREVIEW_ASPECT_RATIOS;
+declare const settings_PRIVATE_SETTINGS: typeof PRIVATE_SETTINGS;
+export type settings_PolygonColorMode = PolygonColorMode;
+export type settings_PreviewAspectRatio = PreviewAspectRatio;
+declare const settings_SEEN_RESOLUTIONS: typeof SEEN_RESOLUTIONS;
+declare const settings_SUBDIVISION_DETAILS: typeof SUBDIVISION_DETAILS;
+export type settings_SeenResolution = SeenResolution;
+export type settings_SubdivisionDetail = SubdivisionDetail;
+declare const settings_TAG_FOLDER_COLOR_MODES: typeof TAG_FOLDER_COLOR_MODES;
+declare const settings_TAG_SUGGESTION_LIMITS: typeof TAG_SUGGESTION_LIMITS;
+declare const settings_TAG_VIEW_MODES: typeof TAG_VIEW_MODES;
+export type settings_TagFolderColorMode = TagFolderColorMode;
+export type settings_TagViewMode = TagViewMode;
+declare const settings_UNIT_SYSTEMS: typeof UNIT_SYSTEMS;
+export type settings_UnitSystem = UnitSystem;
+declare const settings_getSettings: typeof getSettings;
+declare const settings_navHiddenWithUI: typeof navHiddenWithUI;
+declare const settings_panoDisplayOptions: typeof panoDisplayOptions;
+declare const settings_resetSettings: typeof resetSettings;
+declare const settings_setSetting: typeof setSetting;
+declare const settings_useSetting: typeof useSetting;
+declare const settings_useSettings: typeof useSettings;
+declare namespace settings {
+  export { settings_APP_SETTINGS as APP_SETTINGS, settings_BORDER_DETAILS as BORDER_DETAILS, settings_CSS_VAR_SETTINGS as CSS_VAR_SETTINGS, settings_DATE_TIMEZONES as DATE_TIMEZONES, settings_DEFAULTS as DEFAULTS, settings_DISCORD_PRESENCE_MODES as DISCORD_PRESENCE_MODES, settings_EXACT_DATE_FORMATS as EXACT_DATE_FORMATS, settings_GEOCODE_PROVIDERS as GEOCODE_PROVIDERS, settings_GEOCODE_PROVIDER_LABELS as GEOCODE_PROVIDER_LABELS, settings_LANGUAGES as LANGUAGES, settings_MAP_LIST_FIELDS as MAP_LIST_FIELDS, settings_MOVEMENT_CYCLE as MOVEMENT_CYCLE, settings_MOVEMENT_MODES as MOVEMENT_MODES, settings_OPACITY_TOGGLE_MODES as OPACITY_TOGGLE_MODES, settings_POLYGON_COLOR_MODES as POLYGON_COLOR_MODES, settings_PREVIEW_ASPECT_RATIOS as PREVIEW_ASPECT_RATIOS, settings_PRIVATE_SETTINGS as PRIVATE_SETTINGS, settings_SEEN_RESOLUTIONS as SEEN_RESOLUTIONS, settings_SUBDIVISION_DETAILS as SUBDIVISION_DETAILS, settings_TAG_FOLDER_COLOR_MODES as TAG_FOLDER_COLOR_MODES, settings_TAG_SUGGESTION_LIMITS as TAG_SUGGESTION_LIMITS, settings_TAG_VIEW_MODES as TAG_VIEW_MODES, settings_UNIT_SYSTEMS as UNIT_SYSTEMS, settings_getSettings as getSettings, settings_navHiddenWithUI as navHiddenWithUI, settings_panoDisplayOptions as panoDisplayOptions, settings_resetSettings as resetSettings, settings_setSetting as setSetting, settings_useSetting as useSetting, settings_useSettings as useSettings };
+  export type { settings_AppSettings as AppSettings, settings_BorderDetail as BorderDetail, settings_DateTimezone as DateTimezone, settings_DiscordPresenceMode as DiscordPresenceMode, settings_ExactDateFormat as ExactDateFormat, settings_GeocodeProvider as GeocodeProvider, settings_Language as Language, settings_MapListField as MapListField, settings_MovementMode as MovementMode, settings_OpacityToggleMode as OpacityToggleMode, settings_PolygonColorMode as PolygonColorMode, settings_PreviewAspectRatio as PreviewAspectRatio, settings_SeenResolution as SeenResolution, settings_SubdivisionDetail as SubdivisionDetail, settings_TagFolderColorMode as TagFolderColorMode, settings_TagViewMode as TagViewMode, settings_UnitSystem as UnitSystem };
+}
 
 /** Parsed-but-not-committed import shown while `workArea === "import"`. */
 export interface ImportStaging {
@@ -3776,7 +4192,37 @@ declare namespace review {
   export type { review_PruneResult as PruneResult };
 }
 
-export type Cmd = typeof commands;
+export type Cmd = typeof commands$1;
+/** Every Rust command, typed. Any of them can change in a release. @unstable */
+declare const cmd: Cmd;
+
+export type commands_Cmd = Cmd;
+declare const commands_cmd: typeof cmd;
+declare namespace commands {
+  export { commands_cmd as cmd };
+  export type { commands_Cmd as Cmd };
+}
+
+/** Tauri primitives, handed to plugins as-is. */
+
+declare const shell: {
+    Command: typeof Command;
+};
+declare const dialog: {
+    open: typeof open;
+    save: typeof save;
+};
+
+declare const tauri_dialog: typeof dialog;
+declare const tauri_invoke: typeof invoke;
+declare const tauri_shell: typeof shell;
+declare namespace tauri {
+  export {
+    tauri_dialog as dialog,
+    tauri_invoke as invoke,
+    tauri_shell as shell,
+  };
+}
 
 export interface PluginSettingDef {
     key: string;
@@ -3804,8 +4250,47 @@ export interface Plugin extends PluginIdentity {
 export type PluginBehavior = Partial<Plugin> & {
     activate(): void | (() => void);
 };
+declare function isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean;
+declare function isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean;
+declare function needsUpdate(installedVersion: string | undefined, latestVersion: string | undefined, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
+/** The build of a plugin an app should install: `ref` is the commit it ships at, null for
+ *  the registry's latest (master). */
+export interface ResolvedBuild {
+    version: string;
+    ref: string | null;
+    minAppVersion: string | null;
+}
+/** The newest build of a plugin this app version can run -- the registry's latest when
+ *  compatible, else the newest pinned fallback that is. Null when no published build
+ *  supports this app at all. `builds` is ordered newest-first. */
+declare function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null;
+/** Whether an install should be refreshed to `target`. A pinned build's sidecar version
+ *  lives in its own manifest, so only the latest build's sidecar can be compared before
+ *  downloading; for a pinned one the install itself reconciles it. */
+declare function needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
+/** The marketplace registry, fetched once per session (startup update check and the
+ *  marketplace dialog share it). A failed fetch clears the cache so the next call retries. */
+declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
+/** Refresh a stale install before it loads. Nothing is registered yet at startup, so an
+ *  update is just re-downloading the files the normal load then picks up; any failure
+ *  falls back to loading what's on disk. Plugins absent from the registry (hand-installed
+ *  dev plugins) and plugins with no build this app can run are never touched. */
+declare function autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>;
+/** @unstable */
+declare function setPendingManifest(manifest: PluginManifest | null): void;
 /** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. */
 declare function registerPlugin(plugin: Plugin | PluginBehavior): void;
+declare function getPlugins(): Plugin[];
+declare function getPlugin(id: string): Plugin | undefined;
+/** A plugin with no sidebar, modal, or location panel — it only contributes data
+ *  (enrichment fields) and never shows UI of its own. Unknown for plugins that
+ *  aren't loaded, so uninstalled registry entries report false. */
+declare function isBackgroundPlugin(id: string): boolean;
+/** @unstable */
+declare function unregisterPlugin(id: string): void;
+declare function isPluginEnabled(id: string): boolean;
+declare function setPluginEnabled(id: string, enabled: boolean): void;
+declare function getEnabledPlugins(): Plugin[];
 export interface PluginStorage {
     get<T = unknown>(key: string, fallback?: T): T;
     set(key: string, value: unknown): void;
@@ -3819,28 +4304,202 @@ declare function createPluginStorage(id: string): PluginStorage;
  *  callers must fall back gracefully when a stored value doesn't resolve against
  *  the current map (e.g. a field key or saved-selection id). */
 declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
+declare function getPluginSetting<T = unknown>(plugin: Plugin, key: string): T;
+declare function setPluginSetting(id: string, key: string, value: unknown): void;
+/** @unstable */
+declare function activatePlugins(): void;
+/** @unstable */
+declare function deactivatePlugins(): void;
+/** @unstable */
+declare function activatePlugin(id: string): void;
+/** @unstable */
+declare function deactivatePlugin(id: string): void;
+/** The per-plugin key-value store, under the name the surface uses. */
+declare const storage: typeof createPluginStorage;
 
-export interface JobContext<P> {
-    signal: AbortSignal;
-    /** Push a progress value to the UI. Ignored once the job is cancelled. */
-    report: (progress: P) => void;
+export type registry_Plugin = Plugin;
+export type registry_PluginBehavior = PluginBehavior;
+export type registry_PluginIdentity = PluginIdentity;
+export type registry_PluginSettingDef = PluginSettingDef;
+export type registry_PluginStorage = PluginStorage;
+export type registry_ResolvedBuild = ResolvedBuild;
+declare const registry_activatePlugin: typeof activatePlugin;
+declare const registry_activatePlugins: typeof activatePlugins;
+declare const registry_autoUpdatePlugin: typeof autoUpdatePlugin;
+declare const registry_createPluginStorage: typeof createPluginStorage;
+declare const registry_deactivatePlugin: typeof deactivatePlugin;
+declare const registry_deactivatePlugins: typeof deactivatePlugins;
+declare const registry_fetchPluginRegistry: typeof fetchPluginRegistry;
+declare const registry_getEnabledPlugins: typeof getEnabledPlugins;
+declare const registry_getPlugin: typeof getPlugin;
+declare const registry_getPluginSetting: typeof getPluginSetting;
+declare const registry_getPlugins: typeof getPlugins;
+declare const registry_isBackgroundPlugin: typeof isBackgroundPlugin;
+declare const registry_isPluginCompatible: typeof isPluginCompatible;
+declare const registry_isPluginEnabled: typeof isPluginEnabled;
+declare const registry_isPluginUpdatable: typeof isPluginUpdatable;
+declare const registry_needsBuildUpdate: typeof needsBuildUpdate;
+declare const registry_needsUpdate: typeof needsUpdate;
+declare const registry_registerPlugin: typeof registerPlugin;
+declare const registry_resolveBuild: typeof resolveBuild;
+declare const registry_setPendingManifest: typeof setPendingManifest;
+declare const registry_setPluginEnabled: typeof setPluginEnabled;
+declare const registry_setPluginSetting: typeof setPluginSetting;
+declare const registry_storage: typeof storage;
+declare const registry_unregisterPlugin: typeof unregisterPlugin;
+declare const registry_usePluginState: typeof usePluginState;
+declare namespace registry {
+  export { registry_activatePlugin as activatePlugin, registry_activatePlugins as activatePlugins, registry_autoUpdatePlugin as autoUpdatePlugin, registry_createPluginStorage as createPluginStorage, registry_deactivatePlugin as deactivatePlugin, registry_deactivatePlugins as deactivatePlugins, registry_fetchPluginRegistry as fetchPluginRegistry, registry_getEnabledPlugins as getEnabledPlugins, registry_getPlugin as getPlugin, registry_getPluginSetting as getPluginSetting, registry_getPlugins as getPlugins, registry_isBackgroundPlugin as isBackgroundPlugin, registry_isPluginCompatible as isPluginCompatible, registry_isPluginEnabled as isPluginEnabled, registry_isPluginUpdatable as isPluginUpdatable, registry_needsBuildUpdate as needsBuildUpdate, registry_needsUpdate as needsUpdate, registry_registerPlugin as registerPlugin, registry_resolveBuild as resolveBuild, registry_setPendingManifest as setPendingManifest, registry_setPluginEnabled as setPluginEnabled, registry_setPluginSetting as setPluginSetting, registry_storage as storage, registry_unregisterPlugin as unregisterPlugin, registry_usePluginState as usePluginState };
+  export type { registry_Plugin as Plugin, registry_PluginBehavior as PluginBehavior, registry_PluginIdentity as PluginIdentity, registry_PluginSettingDef as PluginSettingDef, registry_PluginStorage as PluginStorage, registry_ResolvedBuild as ResolvedBuild };
 }
-export interface Job<R, P> {
-    running: boolean;
-    progress: P | null;
-    result: R | null;
-    /** Message from a failed run. Cancelling is not a failure and leaves this null. */
-    error: string | null;
-    run: () => void;
-    cancel: () => void;
+
+export interface SelectionBitmaskPayload {
+    selColors: RGB[];
+    cellEntries: SelCellEntry[];
+    setIds: (ids: SelectedIds) => void;
 }
-/** A user-triggered async job that reports progress and can be cancelled.
- *  Cancelling aborts the signal and stops the UI immediately; nothing the job does
- *  afterwards can write back. Unmounting cancels. `run` while running is a no-op,
- *  so a double-clicked button cannot start two.
+declare const EVENT_DEFS: {
+    "location:add": Location[];
+    "location:remove": number[];
+    "location:update": Update<LocationPatch_Deserialize>[];
+    /** Location data changed in bulk without per-location patches (e.g. a Rust-side
+     *  field op). Anything derived from location data must re-query. */
+    "location:invalidate": void;
+    "tag:add": Tag[];
+    "tag:remove": number[];
+    "tag:update": Update<TagPatch>[];
+    "selection:change": Selection[];
+    "active:change": number | null;
+    "map:open": MapMeta;
+    "map:close": void;
+    "store:changed": void;
+    "render:delta": RenderDelta;
+    "render:selection": SelectionBitmaskPayload;
+    "map-list:changed": void;
+    "saved-selections:changed": void;
+    "settings:changed": void;
+    "fullscreen:changed": void;
+    "plugins:changed": void;
+    "hotkeys:changed": void;
+    "toasts:changed": void;
+    "scene:changed": void;
+    "measure:changed": void;
+    "anchor:changed": void;
+    "viewport-lock:changed": void;
+    "trail:changed": void;
+    "seen:changed": void;
+    "update:changed": void;
+    "review:changed": void;
+    "fields:changed": void;
+    "route:changed": void;
+    "import-markers:changed": void;
+    "diff-markers:changed": void;
+    "commit-diff:changed": void;
+};
+export type EditorEventMap = typeof EVENT_DEFS;
+export type EditorEvent = keyof EditorEventMap;
+export type EventHandler<E extends EditorEvent> = (payload: EditorEventMap[E]) => void;
+
+/**
+ * Plugin registration scope — generalized ownership + teardown.
  *
- *  For work driven by changing deps rather than a click, use `useAsync`. */
-declare function useJob<R = void, P = string>(fn: (ctx: JobContext<P>) => Promise<R>): Job<R, P>;
+ * The registry runs each `plugin.activate()` inside `runAsPlugin(id, ...)`, which
+ * sets the current owner. Any host registration made during that window calls
+ * `trackDisposable(undo)` to enroll its teardown under that owner. `disposePlugin(id)`
+ * then reverses every registration uniformly — so deactivating a plugin reclaims
+ * everything it registered, without per-surface bookkeeping.
+ *
+ * Caveat: ownership is captured synchronously. Registrations made after an `await`
+ * or in a later callback (outside the activate window) are not attributed.
+ */
+
+export type Disposable = () => void;
+/** Run `fn` attributed to plugin `id`; host registrations during it are tracked for teardown.
+ *  Plugin activation machinery, driven by the registry. @unstable */
+declare function runAsPlugin<T>(id: string, fn: () => T): T;
+/** Enroll a teardown callback under the currently-activating plugin. No-op outside activation. */
+declare function trackDisposable(dispose: Disposable): void;
+/** Record where a plugin's files live on disk, so its registrations can resolve
+ *  paths to assets it ships. Core plugins have no directory. */
+declare function setPluginBaseDir(id: string, dir: string): void;
+/** Resolve a file path a plugin registration referred to, against the directory of the
+ *  plugin currently activating. Absolute paths, "res://" URLs, registrations outside an
+ *  activation window, and core plugins (no directory) all pass through unchanged. */
+declare function resolvePluginPath(path: string): string;
+/** Run and clear every teardown a plugin registered, in reverse order. @unstable */
+declare function disposePlugin(id: string): void;
+/** Subscribe to an editor event. The returned unsubscribe also runs when the plugin
+ *  deactivates. */
+declare function on<E extends EditorEvent>(event: E, handler: EventHandler<E>): () => void;
+
+declare const scope_disposePlugin: typeof disposePlugin;
+declare const scope_on: typeof on;
+declare const scope_resolvePluginPath: typeof resolvePluginPath;
+declare const scope_runAsPlugin: typeof runAsPlugin;
+declare const scope_setPluginBaseDir: typeof setPluginBaseDir;
+declare const scope_trackDisposable: typeof trackDisposable;
+declare namespace scope {
+  export {
+    scope_disposePlugin as disposePlugin,
+    scope_on as on,
+    scope_resolvePluginPath as resolvePluginPath,
+    scope_runAsPlugin as runAsPlugin,
+    scope_setPluginBaseDir as setPluginBaseDir,
+    scope_trackDisposable as trackDisposable,
+  };
+}
+
+/** Get a module the app bundles (e.g. "react", "@deck.gl/core") for use inside a plugin.
+ *  Lazy modules must be loaded with `preloadModules` first. */
+declare function mmaRequire(id: string): unknown;
+/** Load lazy bundled modules so `mmaRequire` can return them synchronously. */
+declare function preloadModules(ids: string[]): Promise<void>;
+/** Names of every module available through `mmaRequire`. */
+declare function getAvailableExternals(): string[];
+declare global {
+    var __mma_require: typeof mmaRequire;
+}
+
+declare const externals_getAvailableExternals: typeof getAvailableExternals;
+declare const externals_mmaRequire: typeof mmaRequire;
+declare const externals_preloadModules: typeof preloadModules;
+declare namespace externals {
+  export {
+    externals_getAvailableExternals as getAvailableExternals,
+    externals_mmaRequire as mmaRequire,
+    externals_preloadModules as preloadModules,
+  };
+}
+
+export interface SidecarOptions<T> {
+    /** Fires once per JSON object the sidecar emits, in order. */
+    onLine?(item: T): void;
+    /** Sidecar diagnostics (stderr), one-shot runs only. Resident-served commands
+     *  write theirs to the app log instead. */
+    onLog?(line: string): void;
+    signal?: AbortSignal;
+}
+/** Run one unit of work on a plugin's sidecar and resolve with its last emitted
+ *  object (null if it emitted none). The app owns the process: commands the manifest
+ *  lists under `serve` are answered by the plugin's resident sidecar, the rest by a
+ *  one-shot run. `payload` is handed to the sidecar as JSON. */
+declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
+/** The sidecar version installed for a plugin, or null when it has none yet. */
+declare function installedVersion(pluginId: string): Promise<string | null>;
+/** The nested `sidecar` namespace on the plugin surface. */
+declare const sidecar: {
+    request: typeof request;
+    installedVersion: typeof installedVersion;
+};
+
+export type sidecar$1_SidecarOptions<T> = SidecarOptions<T>;
+declare const sidecar$1_installedVersion: typeof installedVersion;
+declare const sidecar$1_request: typeof request;
+declare const sidecar$1_sidecar: typeof sidecar;
+declare namespace sidecar$1 {
+  export { sidecar$1_installedVersion as installedVersion, sidecar$1_request as request, sidecar$1_sidecar as sidecar };
+  export type { sidecar$1_SidecarOptions as SidecarOptions };
+}
 
 export type ButtonVariant = "primary" | "destructive" | "ghost";
 declare function Button({ variant, small, type, className, ...props }: ComponentPropsWithRef<"button"> & {
@@ -4228,54 +4887,51 @@ declare function Tooltip({ content, side, align, children, }: {
  * (Settings-dialog plumbing), Trans (i18n infra).
  */
 
-declare const ui_Button: typeof Button;
-declare const ui_Checkbox: typeof Checkbox;
-declare const ui_ColorPicker: typeof ColorPicker;
-declare const ui_DatePicker: typeof DatePicker;
-declare const ui_Dialog: typeof Dialog;
-declare const ui_DialogContent: typeof DialogContent;
-export type ui_DialogProps = DialogProps;
-declare const ui_DialogTrigger: typeof DialogTrigger;
-declare const ui_EmptyState: typeof EmptyState;
-declare const ui_Field: typeof Field;
-declare const ui_Flag: typeof Flag;
-declare const ui_HotkeyInput: typeof HotkeyInput;
-declare const ui_Icon: typeof Icon;
-declare const ui_NSelect: typeof NSelect;
-declare const ui_Radio: typeof Radio;
-declare const ui_RgbPicker: typeof RgbPicker;
-declare const ui_Section: typeof Section;
-declare const ui_SegmentedControl: typeof SegmentedControl;
-export type ui_SegmentedOption<T extends string | number> = SegmentedOption<T>;
-declare const ui_SelectorPicker: typeof SelectorPicker;
-declare const ui_SettingRow: typeof SettingRow;
-declare const ui_Sidebar: typeof Sidebar;
-declare const ui_Slider: typeof Slider;
-declare const ui_SuggestInput: typeof SuggestInput;
-declare const ui_Switch: typeof Switch;
-declare const ui_SwitchRow: typeof SwitchRow;
-declare const ui_TagPill: typeof TagPill;
-declare const ui_TagPillButton: typeof TagPillButton;
-declare const ui_TextInput: typeof TextInput;
-declare const ui_ToolBlock: typeof ToolBlock;
-declare const ui_Tooltip: typeof Tooltip;
-declare const ui_useCloseDialog: typeof useCloseDialog;
-declare namespace ui {
-  export { ui_Button as Button, ui_Checkbox as Checkbox, ui_ColorPicker as ColorPicker, ui_DatePicker as DatePicker, ui_Dialog as Dialog, ui_DialogContent as DialogContent, ui_DialogTrigger as DialogTrigger, ui_EmptyState as EmptyState, ui_Field as Field, ui_Flag as Flag, ui_HotkeyInput as HotkeyInput, ui_Icon as Icon, ui_NSelect as NSelect, ui_Radio as Radio, ui_RgbPicker as RgbPicker, ui_Section as Section, ui_SegmentedControl as SegmentedControl, ui_SelectorPicker as SelectorPicker, ui_SettingRow as SettingRow, ui_Sidebar as Sidebar, ui_Slider as Slider, ui_SuggestInput as SuggestInput, ui_Switch as Switch, ui_SwitchRow as SwitchRow, ui_TagPill as TagPill, ui_TagPillButton as TagPillButton, ui_TextInput as TextInput, ui_ToolBlock as ToolBlock, ui_Tooltip as Tooltip, ui_useCloseDialog as useCloseDialog };
-  export type { ui_DialogProps as DialogProps, ui_SegmentedOption as SegmentedOption };
+declare const primitives_Button: typeof Button;
+declare const primitives_Checkbox: typeof Checkbox;
+declare const primitives_ColorPicker: typeof ColorPicker;
+declare const primitives_DatePicker: typeof DatePicker;
+declare const primitives_Dialog: typeof Dialog;
+declare const primitives_DialogContent: typeof DialogContent;
+export type primitives_DialogProps = DialogProps;
+declare const primitives_DialogTrigger: typeof DialogTrigger;
+declare const primitives_EmptyState: typeof EmptyState;
+declare const primitives_Field: typeof Field;
+declare const primitives_Flag: typeof Flag;
+declare const primitives_HotkeyInput: typeof HotkeyInput;
+declare const primitives_Icon: typeof Icon;
+declare const primitives_NSelect: typeof NSelect;
+declare const primitives_Radio: typeof Radio;
+declare const primitives_RgbPicker: typeof RgbPicker;
+declare const primitives_Section: typeof Section;
+declare const primitives_SegmentedControl: typeof SegmentedControl;
+export type primitives_SegmentedOption<T extends string | number> = SegmentedOption<T>;
+declare const primitives_SelectorPicker: typeof SelectorPicker;
+declare const primitives_SettingRow: typeof SettingRow;
+declare const primitives_Sidebar: typeof Sidebar;
+declare const primitives_Slider: typeof Slider;
+declare const primitives_SuggestInput: typeof SuggestInput;
+declare const primitives_Switch: typeof Switch;
+declare const primitives_SwitchRow: typeof SwitchRow;
+declare const primitives_TagPill: typeof TagPill;
+declare const primitives_TagPillButton: typeof TagPillButton;
+declare const primitives_TextInput: typeof TextInput;
+declare const primitives_ToolBlock: typeof ToolBlock;
+declare const primitives_Tooltip: typeof Tooltip;
+declare const primitives_useCloseDialog: typeof useCloseDialog;
+declare namespace primitives {
+  export { primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogContent as DialogContent, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_NSelect as NSelect, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
+  export type { primitives_DialogProps as DialogProps, primitives_SegmentedOption as SegmentedOption };
 }
 
-declare function toast(message: string, duration?: number, container?: HTMLElement): void;
+/** The nested `ui` namespace on the plugin surface: the primitives module and nothing else. */
+declare const ui: typeof primitives;
 
-/** Get a module the app bundles (e.g. "react", "@deck.gl/core") for use inside a plugin.
- *  Lazy modules must be loaded with `preloadModules` first. */
-declare function mmaRequire(id: string): unknown;
-/** Load lazy bundled modules so `mmaRequire` can return them synchronously. */
-declare function preloadModules(ids: string[]): Promise<void>;
-/** Names of every module available through `mmaRequire`. */
-declare function getAvailableExternals(): string[];
-declare global {
-    var __mma_require: typeof mmaRequire;
+declare const uiSurface_ui: typeof ui;
+declare namespace uiSurface {
+  export {
+    uiSurface_ui as ui,
+  };
 }
 
 export interface EnrichFieldOption {
@@ -4284,8 +4940,14 @@ export interface EnrichFieldOption {
     /** Excluded from the default field set (null enrichFields); user must opt in. */
     defaultOff?: boolean;
 }
+/** Field defs for catalog keys, for providers that write well-known SV fields. */
+declare function knownFieldDefs(...keys: string[]): Record<string, ExtraFieldDef>;
+declare function getEnrichFieldOptions(): EnrichFieldOption[];
 /** Offer extra fields in the enrichment UI. Unregistered when the plugin deactivates. */
 declare function registerEnrichFields(fields: EnrichFieldOption[]): void;
+declare function getAllEnrichKeys(): string[];
+/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). */
+declare function getDefaultEnrichKeys(): string[];
 /** A unit of work for the procedure engine: which module, and how to drive it. This is
  *  everything the engine needs and nothing about enrichment; `runProcedure` takes one
  *  directly. Locations never reach JS: the engine pages them and applies the patches
@@ -4351,97 +5013,98 @@ export interface Provider {
 /** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
  *  deactivates. */
 declare function registerProvider(provider: Provider): void;
+declare function getProviders(): Provider[];
+declare function getProviderForField(field: string): Provider | undefined;
+declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
+/** `extra` without every field a provider produces: what a row forgets when the pano it
+ *  was derived from changes, for enrichment to derive again. */
+declare function withoutProvided(extra: Record<string, unknown> | null): Record<string, unknown> | null;
 
+export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
+export type fieldDefs_ProcedureSpec<TCollected = unknown> = ProcedureSpec<TCollected>;
+export type fieldDefs_Provider = Provider;
+declare const fieldDefs_getAllEnrichKeys: typeof getAllEnrichKeys;
+declare const fieldDefs_getDefaultEnrichKeys: typeof getDefaultEnrichKeys;
+declare const fieldDefs_getEnrichFieldOptions: typeof getEnrichFieldOptions;
+declare const fieldDefs_getProviderForField: typeof getProviderForField;
+declare const fieldDefs_getProviders: typeof getProviders;
+declare const fieldDefs_isFieldEnabled: typeof isFieldEnabled;
+declare const fieldDefs_knownFieldDefs: typeof knownFieldDefs;
+declare const fieldDefs_registerEnrichFields: typeof registerEnrichFields;
+declare const fieldDefs_registerProvider: typeof registerProvider;
+declare const fieldDefs_withoutProvided: typeof withoutProvided;
+declare namespace fieldDefs {
+  export { fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerEnrichFields as registerEnrichFields, fieldDefs_registerProvider as registerProvider, fieldDefs_withoutProvided as withoutProvided };
+  export type { fieldDefs_EnrichFieldOption as EnrichFieldOption, fieldDefs_ProcedureSpec as ProcedureSpec, fieldDefs_Provider as Provider };
+}
+
+/** True when `key` is a built-in Location field (stored top-level, not under `extra`). */
+declare function isBuiltinField(key: string): boolean;
+declare function isWritableField(key: string): boolean;
+/** False for a built-in column a bulk clear cannot empty: non-null, or rewritten by the
+ *  engine on every change. */
+declare function isClearableField(key: string): boolean;
+/** False for identity fields (lat/lng) and expression terms, which pickers must not offer. */
+declare function isListableField(key: string): boolean;
+/** All built-in field keys (excluding virtual). */
+declare function getBuiltinKeys(): string[];
+/** Register field definitions from an enrichment provider (called at activation). */
+declare function registerPluginFieldDefs(defs: Record<string, ExtraFieldDef>): void;
+/** Remove plugin field definitions by key (called when a plugin is deactivated). */
+declare function unregisterPluginFieldDefs(keys: string[]): void;
+/** Replace the user layer: on map open from `MapMeta.extra.fields`, and from every
+ *  mutation result that carries `fieldDefs`. Rust owns this map; JS never merges into it. */
+declare function setUserFieldDefs(defs: Record<string, ExtraFieldDef>): void;
 /** Keys some location on this map carries. Same reference until `fields:changed`. */
 declare function getKnownFieldKeys(): ReadonlySet<string>;
 /** Look up metadata for a single field key. Returns `undefined` if no metadata exists. */
 declare function getFieldDef(key: string): ExtraFieldDef | undefined;
+/** Display label for a field key: registered label if known, otherwise sentence-cased from camelCase/snake_case. */
+declare function fieldLabel(key: string): string;
+/** Display text for one *value* of a field, the counterpart to [`fieldLabel`] naming the
+ *  field itself. Enum values carry translated display names; everything else is its own
+ *  string. */
+declare function fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string;
 /** Merged view of all field definitions across all layers. */
 declare function getAllFieldDefs(): Record<string, ExtraFieldDef>;
-
-export interface SelectionBitmaskPayload {
-    selColors: RGB[];
-    cellEntries: SelCellEntry[];
-    setIds: (ids: SelectedIds) => void;
-}
-declare const EVENT_DEFS: {
-    "location:add": Location[];
-    "location:remove": number[];
-    "location:update": Update<LocationPatch_Deserialize>[];
-    /** Location data changed in bulk without per-location patches (e.g. a Rust-side
-     *  field op). Anything derived from location data must re-query. */
-    "location:invalidate": void;
-    "tag:add": Tag[];
-    "tag:remove": number[];
-    "tag:update": Update<TagPatch>[];
-    "selection:change": Selection[];
-    "active:change": number | null;
-    "map:open": MapMeta;
-    "map:close": void;
-    "store:changed": void;
-    "render:delta": RenderDelta;
-    "render:selection": SelectionBitmaskPayload;
-    "map-list:changed": void;
-    "saved-selections:changed": void;
-    "settings:changed": void;
-    "fullscreen:changed": void;
-    "plugins:changed": void;
-    "hotkeys:changed": void;
-    "toasts:changed": void;
-    "scene:changed": void;
-    "measure:changed": void;
-    "anchor:changed": void;
-    "viewport-lock:changed": void;
-    "trail:changed": void;
-    "seen:changed": void;
-    "update:changed": void;
-    "review:changed": void;
-    "fields:changed": void;
-    "route:changed": void;
-    "import-markers:changed": void;
-    "diff-markers:changed": void;
-    "commit-diff:changed": void;
-};
-export type EditorEventMap = typeof EVENT_DEFS;
-export type EditorEvent = keyof EditorEventMap;
-export type EventHandler<E extends EditorEvent> = (payload: EditorEventMap[E]) => void;
-
-/** Saved selection rules: global, name-based, stored in SQLite.
- *
- *  A rule is one `Selector` tree plus the names its `Tag` leaves carried at save time.
- *  Tag ids are map-local, so the names are what makes a rule portable -- the tree itself
- *  is stored verbatim and re-resolved against whatever map is open. */
-
-/** One part of a saved rule: what its chip reads as, and what it resolves to here. The
- *  label comes from the tree as saved, so a tag this map doesn't have still reads by the
- *  name it was saved under. */
-export interface SavedPart {
+export interface FieldProjection {
+    id: string;
     label: string;
-    color: RGB;
-    selector: Selector;
+    /** Date projections read in the location's own timezone when set -- surfaces a toggle. */
+    needsTz: boolean;
 }
-/** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
- *  a single part. */
-declare function savedParts(saved: SavedSelection): SavedPart[];
-/** The rules that exist, as identity only. Empty until the index arrives -- the first
- *  call starts the read and `saved-selections:changed` announces it. */
-declare function getSavedSelectionIndex(): SavedSelectionInfo[];
-/** Bodies for `ids`, fetching only the ones not already held. */
-declare function loadSavedSelections(ids: string[]): Promise<SavedSelection[]>;
-/** A saved rule as a single `Selector`, resolved against the open map. Matches nothing
- *  until the body arrives; fetching it emits `saved-selections:changed`, so a caller that
- *  re-reads on that event gets the real tree. */
-declare function savedSelector(id: string): Selector;
+/** Projections valid for a field type, in display order (first = dialog default). */
+declare function projectionsForType(type: ExtraFieldType): FieldProjection[];
+/** The synthetic "Range" option: numeric binning, which isn't a stateless projection. */
+declare const RANGE_ID = "range";
+/** Dropdown options for a partition: the projection catalog plus "Range" for numbers (and
+ *  dates too when `rangeForDates`). */
+declare function partitionKeyOptions(type: ExtraFieldType, rangeForDates: boolean): {
+    id: string;
+    label: string;
+}[];
 
-/** Fetch a page of the seen (visited-panorama) history. */
-declare function getSeenEntries(limit?: number, offset?: number, filter?: SeenFilter, thumbnails?: boolean): Promise<SeenEntry[]>;
-/** Number of seen entries matching the filter (all when omitted). */
-declare function getSeenCount(filter?: SeenFilter): Promise<number>;
-/** Delete the entire seen history. Not undoable. */
-declare function clearSeen(): Promise<void>;
-
-/** Open a seen entry's panorama in the Street View viewer. */
-declare function loadSeenPano(entry: SeenEntry): Promise<void>;
+export type fieldDefRegistry_FieldProjection = FieldProjection;
+declare const fieldDefRegistry_RANGE_ID: typeof RANGE_ID;
+declare const fieldDefRegistry_fieldLabel: typeof fieldLabel;
+declare const fieldDefRegistry_fieldValueLabel: typeof fieldValueLabel;
+declare const fieldDefRegistry_getAllFieldDefs: typeof getAllFieldDefs;
+declare const fieldDefRegistry_getBuiltinKeys: typeof getBuiltinKeys;
+declare const fieldDefRegistry_getFieldDef: typeof getFieldDef;
+declare const fieldDefRegistry_getKnownFieldKeys: typeof getKnownFieldKeys;
+declare const fieldDefRegistry_isBuiltinField: typeof isBuiltinField;
+declare const fieldDefRegistry_isClearableField: typeof isClearableField;
+declare const fieldDefRegistry_isListableField: typeof isListableField;
+declare const fieldDefRegistry_isWritableField: typeof isWritableField;
+declare const fieldDefRegistry_partitionKeyOptions: typeof partitionKeyOptions;
+declare const fieldDefRegistry_projectionsForType: typeof projectionsForType;
+declare const fieldDefRegistry_registerPluginFieldDefs: typeof registerPluginFieldDefs;
+declare const fieldDefRegistry_setUserFieldDefs: typeof setUserFieldDefs;
+declare const fieldDefRegistry_unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
+declare namespace fieldDefRegistry {
+  export { fieldDefRegistry_RANGE_ID as RANGE_ID, fieldDefRegistry_fieldLabel as fieldLabel, fieldDefRegistry_fieldValueLabel as fieldValueLabel, fieldDefRegistry_getAllFieldDefs as getAllFieldDefs, fieldDefRegistry_getBuiltinKeys as getBuiltinKeys, fieldDefRegistry_getFieldDef as getFieldDef, fieldDefRegistry_getKnownFieldKeys as getKnownFieldKeys, fieldDefRegistry_isBuiltinField as isBuiltinField, fieldDefRegistry_isClearableField as isClearableField, fieldDefRegistry_isListableField as isListableField, fieldDefRegistry_isWritableField as isWritableField, fieldDefRegistry_partitionKeyOptions as partitionKeyOptions, fieldDefRegistry_projectionsForType as projectionsForType, fieldDefRegistry_registerPluginFieldDefs as registerPluginFieldDefs, fieldDefRegistry_setUserFieldDefs as setUserFieldDefs, fieldDefRegistry_unregisterPluginFieldDefs as unregisterPluginFieldDefs };
+  export type { fieldDefRegistry_FieldProjection as FieldProjection };
+}
 
 /**
  * Driver for the Rust procedure engine. A bulk operation is one or more procedures plus
@@ -4459,6 +5122,10 @@ declare const procedureEntry: (name: string) => string;
  *  assertion over that contract: sound for the app's own `res://` modules, which are
  *  pinned by tests. Validate instead of naming a `T` when the module is a plugin's. */
 declare function queryProcedure<T = unknown>(entry: string, input: unknown, config?: unknown, signal?: AbortSignal): Promise<T>;
+/** Display labels for a field's partition keys, from the procedure that owns the field.
+ *  A module with no `label` query -- or one answering anything but a matching array of
+ *  strings -- leaves the keys as they are. */
+declare function resolveFieldLabels(field: string, keys: string[]): Promise<string[]>;
 /** One location's answer from a `collect` run, as its module defines it. */
 export interface CollectedEntry<T = unknown> {
     id: number;
@@ -4479,6 +5146,7 @@ export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
 }
 /** Every declaration a run scheduled, by provider id. */
 export type ProviderOutcomes = Record<string, ProcedureOutcome>;
+declare const noWork: () => BatchOutcome;
 /** One wave member's own progress, for a caller that shows the providers of a
  *  multi-provider wave individually. Counts are net of skipped rows. */
 export interface PhasePart {
@@ -4535,8 +5203,138 @@ declare function runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opt
     id: string;
 }): Promise<ProcedureOutcome<T>>;
 
+export type procedures_BatchOutcome = BatchOutcome;
+export type procedures_BulkOpts = BulkOpts;
+export type procedures_CollectedEntry<T = unknown> = CollectedEntry<T>;
+export type procedures_PhasePart = PhasePart;
+export type procedures_ProcedureOutcome<TCollected = unknown> = ProcedureOutcome<TCollected>;
+export type procedures_ProviderOutcomes = ProviderOutcomes;
+export type procedures_ProviderRun = ProviderRun;
+export type procedures_RunOpts = RunOpts;
+declare const procedures_noWork: typeof noWork;
+declare const procedures_procedureEntry: typeof procedureEntry;
+declare const procedures_queryProcedure: typeof queryProcedure;
+declare const procedures_resolveFieldLabels: typeof resolveFieldLabels;
+declare const procedures_runProcedure: typeof runProcedure;
+declare const procedures_runProviders: typeof runProviders;
+declare namespace procedures {
+  export { procedures_noWork as noWork, procedures_procedureEntry as procedureEntry, procedures_queryProcedure as queryProcedure, procedures_resolveFieldLabels as resolveFieldLabels, procedures_runProcedure as runProcedure, procedures_runProviders as runProviders };
+  export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_PhasePart as PhasePart, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderRun as ProviderRun, procedures_RunOpts as RunOpts };
+}
+
+export interface GeoDisplay {
+    address: string;
+    countryCode: string | null;
+}
+
+export type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> & Nullable<Rename<Pick<Location, "id">, {
+    id: "locationId";
+}>>;
+declare function seenSkipNext(panoId: string): void;
+declare function seenUpdateGeo(geo: GeoDisplay): void;
+declare function seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, getPov: () => LocationPOV): void;
+declare function seenFlush(getPov: () => LocationPOV): void;
+/** Fetch a page of the seen (visited-panorama) history. */
+declare function getSeenEntries(limit?: number, offset?: number, filter?: SeenFilter, thumbnails?: boolean): Promise<SeenEntry[]>;
+/** Number of seen entries matching the filter (all when omitted). */
+declare function getSeenCount(filter?: SeenFilter): Promise<number>;
+declare function getSeenCountries(): Promise<string[]>;
+declare function getSeenMaps(): Promise<SeenMapInfo[]>;
+/** Delete the entire seen history. Not undoable. */
+declare function clearSeen(): Promise<void>;
+
+declare const seen_clearSeen: typeof clearSeen;
+declare const seen_getSeenCount: typeof getSeenCount;
+declare const seen_getSeenCountries: typeof getSeenCountries;
+declare const seen_getSeenEntries: typeof getSeenEntries;
+declare const seen_getSeenMaps: typeof getSeenMaps;
+declare const seen_seenFlush: typeof seenFlush;
+declare const seen_seenPanoChanged: typeof seenPanoChanged;
+declare const seen_seenSkipNext: typeof seenSkipNext;
+declare const seen_seenUpdateGeo: typeof seenUpdateGeo;
+declare namespace seen {
+  export {
+    seen_clearSeen as clearSeen,
+    seen_getSeenCount as getSeenCount,
+    seen_getSeenCountries as getSeenCountries,
+    seen_getSeenEntries as getSeenEntries,
+    seen_getSeenMaps as getSeenMaps,
+    seen_seenFlush as seenFlush,
+    seen_seenPanoChanged as seenPanoChanged,
+    seen_seenSkipNext as seenSkipNext,
+    seen_seenUpdateGeo as seenUpdateGeo,
+  };
+}
+
+declare let singletonPano: google.maps.StreetViewPanorama | null;
+declare const singletonDiv: HTMLDivElement;
+declare function getPanorama(): google.maps.StreetViewPanorama | null;
+/** The live viewer's camera in the stored zoom domain. Zeroed if there is no viewer. */
+declare function capturePov(): LocationPOV;
+/** Read the live viewer back into Location fields, the inverse of {@link applyResolved}.
+ *  Null until the viewer has a position. */
+declare function capturePano(): PanoCapture | null;
+declare function clearSingletonPano(): void;
+declare function applyResolved(sv: google.maps.StreetViewPanorama, resolved: Pano | null, loc: Location): void;
+/** Open a seen entry's panorama in the Street View viewer. */
+declare function loadSeenPano(entry: SeenEntry): Promise<void>;
+
+declare const panoSingleton_applyResolved: typeof applyResolved;
+declare const panoSingleton_capturePano: typeof capturePano;
+declare const panoSingleton_capturePov: typeof capturePov;
+declare const panoSingleton_clearSingletonPano: typeof clearSingletonPano;
+declare const panoSingleton_getPanorama: typeof getPanorama;
+declare const panoSingleton_loadSeenPano: typeof loadSeenPano;
+declare const panoSingleton_singletonDiv: typeof singletonDiv;
+declare const panoSingleton_singletonPano: typeof singletonPano;
+declare namespace panoSingleton {
+  export {
+    panoSingleton_applyResolved as applyResolved,
+    panoSingleton_capturePano as capturePano,
+    panoSingleton_capturePov as capturePov,
+    panoSingleton_clearSingletonPano as clearSingletonPano,
+    panoSingleton_getPanorama as getPanorama,
+    panoSingleton_loadSeenPano as loadSeenPano,
+    panoSingleton_singletonDiv as singletonDiv,
+    panoSingleton_singletonPano as singletonPano,
+  };
+}
+
 /** True when the location is missing any of the given enrich fields (default: the enabled set). */
 declare function needsEnrichment(loc: Location, enrichFields?: string[]): boolean;
+/** One location as enrichment leaves it: every field-producing provider, narrowed to
+ *  the map's enabled keys, run over that row alone. A field the row already holds is
+ *  not derived again unless `force`, which re-derives every field the providers own.
+ *  Nothing is written; the caller holds the result. The row comes back untouched when
+ *  the map's enrichment is off. */
+declare function enrich(loc: Location, opts?: Pick<RunOpts, "signal" | "force">): Promise<Location>;
+/** The field-producing providers as enrichment runs them, each narrowed to the keys the
+ *  user picked. Keys the enrichment UI never offers are always produced. */
+declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
+export interface PanoResolveConfig {
+    radius: number;
+}
+/** Pano id from coordinates, via the location search `StreetViewService.getPanorama`
+ *  sends. A row that already has a pano id is left alone unless the run is forced:
+ *  `force` re-resolves, which is what pinning asks for. Under `collect` it answers the
+ *  patch it would have written. */
+declare const panoResolveSpec: ProcedureSpec<{
+    panoId: string;
+}>;
+/** `panoResolveSpec` as enrichment schedules it: it writes the `panoId` column, so every
+ *  provider that reads a panorama requires it and the engine puts it in the first wave. */
+declare const panoResolveProvider: Provider;
+/** Exact capture timestamp: the procedure narrows the `imageDate` month against
+ *  Google's SingleImageSearch per location. */
+declare const exactDateProvider: Provider;
+/** Timezone at the location, once a `datetime` exists to interpret. The tz-lookup
+ *  quadtree ships inside the module. */
+declare const timezoneProvider: Provider;
+/** Subdivision (adm1) via offline point-in-polygon against the local border dataset.
+ *  No Google dependency; downloads the adm1 archive on first use. */
+declare const subdivisionProvider: Provider;
+/** Core pano metadata via Google's GetMetadata RPC, decoded inside the module. */
+declare const svMetaProvider: Provider;
 /** One summary row per pass that did work: the core metadata pass, then every
  *  provider that updated or failed at least one location. */
 export interface EnrichOutcome extends ProcedureOutcome {
@@ -4548,12 +5346,57 @@ export type EnrichResult = EnrichOutcome[];
  *  provider (metadata, exact date, timezone, subdivision) through the Rust engine. */
 declare function enrichAll(selector: Selector, opts?: BulkOpts & Pick<RunOpts, "force">): Promise<EnrichResult>;
 
+export type enrich$1_EnrichOutcome = EnrichOutcome;
+export type enrich$1_EnrichResult = EnrichResult;
+export type enrich$1_PanoResolveConfig = PanoResolveConfig;
+declare const enrich$1_enrich: typeof enrich;
+declare const enrich$1_enrichAll: typeof enrichAll;
+declare const enrich$1_enrichRuns: typeof enrichRuns;
+declare const enrich$1_exactDateProvider: typeof exactDateProvider;
+declare const enrich$1_needsEnrichment: typeof needsEnrichment;
+declare const enrich$1_panoResolveProvider: typeof panoResolveProvider;
+declare const enrich$1_panoResolveSpec: typeof panoResolveSpec;
+declare const enrich$1_subdivisionProvider: typeof subdivisionProvider;
+declare const enrich$1_svMetaProvider: typeof svMetaProvider;
+declare const enrich$1_timezoneProvider: typeof timezoneProvider;
+declare namespace enrich$1 {
+  export { enrich$1_enrich as enrich, enrich$1_enrichAll as enrichAll, enrich$1_enrichRuns as enrichRuns, enrich$1_exactDateProvider as exactDateProvider, enrich$1_needsEnrichment as needsEnrichment, enrich$1_panoResolveProvider as panoResolveProvider, enrich$1_panoResolveSpec as panoResolveSpec, enrich$1_subdivisionProvider as subdivisionProvider, enrich$1_svMetaProvider as svMetaProvider, enrich$1_timezoneProvider as timezoneProvider };
+  export type { enrich$1_EnrichOutcome as EnrichOutcome, enrich$1_EnrichResult as EnrichResult, enrich$1_PanoResolveConfig as PanoResolveConfig };
+}
+
+export interface PinPanoConfig {
+    useLatest?: boolean;
+}
+/** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
+ *  panorama. With `useLatest`, move it to the newest official pano in the timeline
+ *  first. The pano id itself comes from `panoResolve`, an earlier wave. */
+declare const pinPanoProvider: Provider;
+/** Pinned is a pano ID *and* the flag: the flag alone can outlive the id. */
+declare const PINNED: Selector;
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
  *  loads the same pano. */
 declare function bulkPinToPano(selector: Selector, opts?: BulkOpts & Pick<RunOpts, "force"> & {
     useLatest?: boolean;
 }): Promise<BatchOutcome>;
 
+declare const pinPano_PINNED: typeof PINNED;
+export type pinPano_PinPanoConfig = PinPanoConfig;
+declare const pinPano_bulkPinToPano: typeof bulkPinToPano;
+declare const pinPano_pinPanoProvider: typeof pinPanoProvider;
+declare namespace pinPano {
+  export { pinPano_PINNED as PINNED, pinPano_bulkPinToPano as bulkPinToPano, pinPano_pinPanoProvider as pinPanoProvider };
+  export type { pinPano_PinPanoConfig as PinPanoConfig };
+}
+
+export interface ValidateConfig {
+    radius: number;
+}
+/** Street View coverage validation: per location, metadata for the stored pano, a
+ *  coordinate lookup as fallback or comparison, then the unofficial, badcam and
+ *  timeline checks. It answers with a `ValidationState` and writes nothing, so it
+ *  declares the collect sink. Not an enrichment provider: nothing selects its fields
+ *  and it never joins a run implicitly. */
+declare const validateSpec: ProcedureSpec<ValidationState>;
 /** What a validation run answered: the ids grouped by the state they validated to, over
  *  the outcome every run reports. */
 export interface ValidationOutcome extends BatchOutcome {
@@ -4561,6 +5404,15 @@ export interface ValidationOutcome extends BatchOutcome {
 }
 /** Check that each location's Street View coverage still exists. */
 declare function validateLocations(selector: Selector, opts?: BulkOpts): Promise<ValidationOutcome>;
+
+export type validate_ValidateConfig = ValidateConfig;
+export type validate_ValidationOutcome = ValidationOutcome;
+declare const validate_validateLocations: typeof validateLocations;
+declare const validate_validateSpec: typeof validateSpec;
+declare namespace validate {
+  export { validate_validateLocations as validateLocations, validate_validateSpec as validateSpec };
+  export type { validate_ValidateConfig as ValidateConfig, validate_ValidationOutcome as ValidationOutcome };
+}
 
 /**
  * The surface a procedure module runs against: the global `mma` object and the values
@@ -4605,12 +5457,51 @@ declare global {
     const mma: ProcedureHost;
 }
 
+/**
+ * Google's SingleImageSearch RPC. The bodies are array-JSON ("json+protobuf"): a JSON
+ * array whose element positions are the protobuf field numbers.
+ *
+ * `buildLocationSearchBody` mirrors what the Maps JS API sends for
+ * `StreetViewService.getPanorama({location, radius})`: context.productId "apiv3"
+ * (field 1), the LatLng + radius (field 2), and in the options (field 3) the search
+ * preference (field 9) plus the source set (field 11: frontends 2, 3 and 10, each
+ * enabled). Field 4 is the component mask. Locale and region are
+ * omitted -- they only localize descriptions nothing here reads.
+ *
+ * Leaf module: `panosAtCoords` runs against the procedure host (`mma`)
+ * and only work inside a procedure. The body builders and the reader are pure.
+ */
+
+/** Which pano a location search picks. An omitted preference goes on the wire as
+ *  `Nearest`; the Maps JS API's encoder has no other default, whatever its docs say. */
+declare const SearchPreference: {
+    readonly Best: 1;
+    readonly Nearest: 2;
+};
+export type SearchPreference = EnumOf<typeof SearchPreference>;
+export interface SearchOpts {
+    sources?: PanoType[];
+    preference?: SearchPreference;
+}
+
 /** Full pano metadata for arbitrarily many panos, aligned to `panoIds`. The procedure
  *  dedupes and splits at GetMetadata's 200-per-request cap itself. */
 declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(Pano | null)[]>;
+/** The nearest pano to each point, aligned to `points`, null where there is no coverage.
+ *  `opts.sources` narrows which collections are searched (`[PanoType.Official]` is what
+ *  `sources: ["google"]` means to the Maps JS API) and `opts.preference` picks nearest or
+ *  best. The procedure hands every point to the host at once, so how many run concurrently
+ *  stays the engine's call. */
+declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal): Promise<(Pano | null)[]>;
 
-/** URL that serves a local file over the `mma-buf://` protocol (binary Rust-to-JS transfers). */
-declare function mmaBufUrl(path: string): string;
+declare const query_panosAt: typeof panosAt;
+declare const query_svMetadata: typeof svMetadata;
+declare namespace query {
+  export {
+    query_panosAt as panosAt,
+    query_svMetadata as svMetadata,
+  };
+}
 
 export interface MapEmbedPrefs {
     svOpacity: number;
@@ -4714,6 +5605,7 @@ export type MapHost = {
     [K in MapHostKind]: MapHostContract<K>;
 }[MapHostKind];
 
+declare function setMapHost(host: MapHost | null): void;
 /**
  * This refers to the main editor map only.
  */
@@ -4722,7 +5614,36 @@ declare function getMapHost(): MapHost | null;
  * Wait for the main editor map to be ready.
  */
 declare function waitForMapHost(): Promise<MapHost>;
+declare function fitMapToBounds(bounds: Bounds | null, padding?: number, minExtent?: number): void;
+export type ClickInterceptor = (lat: number, lng: number, shiftKey: boolean) => boolean;
+declare function addClickInterceptor(fn: ClickInterceptor): () => void;
+declare function tryInterceptClick(lat: number, lng: number, shiftKey?: boolean): boolean;
+export type DrawInterceptor = (rings: number[][][]) => boolean;
+declare function setDrawInterceptor(fn: DrawInterceptor | null): void;
+declare function tryInterceptDraw(rings: number[][][]): boolean;
 
+declare const mapState_addClickInterceptor: typeof addClickInterceptor;
+declare const mapState_fitMapToBounds: typeof fitMapToBounds;
+declare const mapState_getMapHost: typeof getMapHost;
+declare const mapState_setDrawInterceptor: typeof setDrawInterceptor;
+declare const mapState_setMapHost: typeof setMapHost;
+declare const mapState_tryInterceptClick: typeof tryInterceptClick;
+declare const mapState_tryInterceptDraw: typeof tryInterceptDraw;
+declare const mapState_waitForMapHost: typeof waitForMapHost;
+declare namespace mapState {
+  export {
+    mapState_addClickInterceptor as addClickInterceptor,
+    mapState_fitMapToBounds as fitMapToBounds,
+    mapState_getMapHost as getMapHost,
+    mapState_setDrawInterceptor as setDrawInterceptor,
+    mapState_setMapHost as setMapHost,
+    mapState_tryInterceptClick as tryInterceptClick,
+    mapState_tryInterceptDraw as tryInterceptDraw,
+    mapState_waitForMapHost as waitForMapHost,
+  };
+}
+
+declare function getScene(): CellManager;
 /** Snapshot of every rendered location: `ids` plus interleaved `[lng, lat, ...]`, read
  *  from the render buffers the app already keeps current. Lets an overlay that draws all
  *  locations see the map without a store round trip. */
@@ -4730,29 +5651,94 @@ declare function getScenePositions(): {
     ids: Uint32Array;
     positions: Float32Array;
 };
+declare function setMarkerDefaultColor(r: number, g: number, b: number): void;
+/** Repaint the default marker color and tell Rust (for future deltas). The base layers take
+ *  the colour as a constant, so this is O(1) rather than a rewrite of every marker. */
+declare function recolorScene(mc: RGB): void;
+declare function getMarkerDefaultColor(): RGBA;
+/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). */
+declare function whenSceneSettled(): Promise<void>;
+/** Full (re)load from Rust for the whole world. Editor-driven on open / marker-style change. */
+declare function loadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void>;
+declare function clearScene(): void;
+declare function startSceneEngine(): () => void;
 
-export interface SidecarOptions<T> {
-    /** Fires once per JSON object the sidecar emits, in order. */
-    onLine?(item: T): void;
-    /** Sidecar diagnostics (stderr), one-shot runs only. Resident-served commands
-     *  write theirs to the app log instead. */
-    onLog?(line: string): void;
-    signal?: AbortSignal;
+declare const sceneStore_clearScene: typeof clearScene;
+declare const sceneStore_getMarkerDefaultColor: typeof getMarkerDefaultColor;
+declare const sceneStore_getScene: typeof getScene;
+declare const sceneStore_getScenePositions: typeof getScenePositions;
+declare const sceneStore_loadScene: typeof loadScene;
+declare const sceneStore_recolorScene: typeof recolorScene;
+declare const sceneStore_setMarkerDefaultColor: typeof setMarkerDefaultColor;
+declare const sceneStore_startSceneEngine: typeof startSceneEngine;
+declare const sceneStore_whenSceneSettled: typeof whenSceneSettled;
+declare namespace sceneStore {
+  export {
+    sceneStore_clearScene as clearScene,
+    sceneStore_getMarkerDefaultColor as getMarkerDefaultColor,
+    sceneStore_getScene as getScene,
+    sceneStore_getScenePositions as getScenePositions,
+    sceneStore_loadScene as loadScene,
+    sceneStore_recolorScene as recolorScene,
+    sceneStore_setMarkerDefaultColor as setMarkerDefaultColor,
+    sceneStore_startSceneEngine as startSceneEngine,
+    sceneStore_whenSceneSettled as whenSceneSettled,
+  };
 }
-/** Run one unit of work on a plugin's sidecar and resolve with its last emitted
- *  object (null if it emitted none). The app owns the process: commands the manifest
- *  lists under `serve` are answered by the plugin's resident sidecar, the rest by a
- *  one-shot run. `payload` is handed to the sidecar as JSON. */
-declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
-/** The sidecar version installed for a plugin, or null when it has none yet. */
-declare function installedVersion(pluginId: string): Promise<string | null>;
 
-export type sidecar_SidecarOptions<T> = SidecarOptions<T>;
-declare const sidecar_installedVersion: typeof installedVersion;
-declare const sidecar_request: typeof request;
-declare namespace sidecar {
-  export { sidecar_installedVersion as installedVersion, sidecar_request as request };
-  export type { sidecar_SidecarOptions as SidecarOptions };
+export interface ToastEntry {
+    id: number;
+    message: string;
+    progress?: {
+        fraction: number;
+        label?: string;
+    };
+}
+declare function toast(message: string, duration?: number, container?: HTMLElement): void;
+export interface ProgressHandle {
+    update(fraction: number, label?: string): void;
+    finish(message?: string, duration?: number): void;
+}
+declare function progressToast(message: string): ProgressHandle;
+declare function getToasts(): ToastEntry[];
+
+export type toast$1_ProgressHandle = ProgressHandle;
+declare const toast$1_getToasts: typeof getToasts;
+declare const toast$1_progressToast: typeof progressToast;
+declare const toast$1_toast: typeof toast;
+declare namespace toast$1 {
+  export { toast$1_getToasts as getToasts, toast$1_progressToast as progressToast, toast$1_toast as toast };
+  export type { toast$1_ProgressHandle as ProgressHandle };
+}
+
+export interface JobContext<P> {
+    signal: AbortSignal;
+    /** Push a progress value to the UI. Ignored once the job is cancelled. */
+    report: (progress: P) => void;
+}
+export interface Job<R, P> {
+    running: boolean;
+    progress: P | null;
+    result: R | null;
+    /** Message from a failed run. Cancelling is not a failure and leaves this null. */
+    error: string | null;
+    run: () => void;
+    cancel: () => void;
+}
+/** A user-triggered async job that reports progress and can be cancelled.
+ *  Cancelling aborts the signal and stops the UI immediately; nothing the job does
+ *  afterwards can write back. Unmounting cancels. `run` while running is a no-op,
+ *  so a double-clicked button cannot start two.
+ *
+ *  For work driven by changing deps rather than a click, use `useAsync`. */
+declare function useJob<R = void, P = string>(fn: (ctx: JobContext<P>) => Promise<R>): Job<R, P>;
+
+export type useJob$1_Job<R, P> = Job<R, P>;
+export type useJob$1_JobContext<P> = JobContext<P>;
+declare const useJob$1_useJob: typeof useJob;
+declare namespace useJob$1 {
+  export { useJob$1_useJob as useJob };
+  export type { useJob$1_Job as Job, useJob$1_JobContext as JobContext };
 }
 
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. @unstable */
@@ -4867,183 +5853,42 @@ declare namespace testApi {
   };
 }
 
-/** Tauri primitives, handed to plugins as-is. */
-declare const tauri: {
-    invoke: typeof invoke;
-    shell: {
-        Command: typeof Command;
-    };
-    dialog: {
-        open: typeof open;
-        save: typeof save;
-    };
-};
-/** Registering a plugin and the per-plugin runtime it gets. */
-declare const plugin: {
-    registerPlugin: typeof registerPlugin;
-    storage: typeof createPluginStorage;
-    usePluginState: typeof usePluginState;
-    useJob: typeof useJob;
-    preloadModules: typeof preloadModules;
-    getAvailableExternals: typeof getAvailableExternals;
-};
-/** Field definitions: what a location can carry beyond its columns. */
-declare const fields: {
-    getFieldDef: typeof getFieldDef;
-    getAllFieldDefs: typeof getAllFieldDefs;
-    getKnownFieldKeys: typeof getKnownFieldKeys;
-    createFieldDef: typeof createFieldDef;
-    registerEnrichFields: typeof registerEnrichFields;
-    registerProvider: typeof registerProvider;
-};
-/** Running procedures. `registerProvider` above declares one; these execute it: a whole
- *  run over a selector, or a single read-only question to a module. */
-declare const procedures: {
-    runProcedure: typeof runProcedure;
-    runProviders: typeof runProviders;
-    queryProcedure: typeof queryProcedure;
-    procedureEntry: typeof procedureEntry;
-};
-/** Panoramas the user has already seen. */
-declare const seen: {
-    getSeenEntries: typeof getSeenEntries;
-    getSeenCount: typeof getSeenCount;
-    clearSeen: typeof clearSeen;
-    loadSeenPano: typeof loadSeenPano;
-};
-/** Street View: filling locations in from Google, and checking them against it. */
-declare const sv: {
-    enrichAll: typeof enrichAll;
-    bulkPinToPano: typeof bulkPinToPano;
-    validateLocations: typeof validateLocations;
-    needsEnrichment: typeof needsEnrichment;
-    svMetadata: typeof svMetadata;
-};
-/** The live map and what it is currently drawing. */
-declare const map: {
-    getMapHost: typeof getMapHost;
-    waitForMapHost: typeof waitForMapHost;
-    getScenePositions: typeof getScenePositions;
-};
-/** Selections saved on the map, and the rules behind them. */
-declare const saved: {
-    getSavedSelectionIndex: typeof getSavedSelectionIndex;
-    loadSavedSelections: typeof loadSavedSelections;
-    savedParts: typeof savedParts;
-    savedSelector: typeof savedSelector;
-};
-/** App settings. Per-map settings live on `MapMeta.settings`. */
-declare const settings: {
-    setSetting: typeof setSetting;
-    getSettings: () => {
-        showCameraBadges: boolean;
-        showLinksControl: boolean;
-        clickToGo: boolean;
-        showRoadLabels: boolean;
-        defaultMovementMode: MovementMode;
-        showCar: boolean;
-        showCrosshair: boolean;
-        showCompass: boolean;
-        showCompassTape: boolean;
-        showZoom: boolean;
-        showReturnToSpawn: boolean;
-        showJumpButtons: boolean;
-        showMapLinks: boolean;
-        showCoordinateDisplay: boolean;
-        showFullscreenButton: boolean;
-        showScreenshotButton: boolean;
-        showPanoMetadata: boolean;
-        exactDateFormat: ExactDateFormat;
-        dateTimezone: DateTimezone;
-        showNavArrow: boolean;
-        showGroundArrow: boolean;
-        hidePanoUI: boolean;
-        hideNavWithUI: boolean;
-        fullscreenMap: boolean;
-        showFullscreenMapMeta: boolean;
-        showFullscreenMiniLocationPreview: boolean;
-        fullscreenMiniLocationScale: number;
-        showFullscreenMinimap: boolean;
-        fullscreenMinimapScale: number;
-        fullscreenMinimapCloseDelay: number;
-        showFullscreenTagbar: boolean;
-        fullscreenTagbarCollapsed: boolean;
-        showFullscreenDatePicker: boolean;
-        showFullscreenReviewBar: boolean;
-        showFullscreenGeocode: boolean;
-        customCss: string;
-        enableSeen: boolean;
-        enableSeenThumbnails: boolean;
-        seenResolution: SeenResolution;
-        mapPanSpeed: number;
-        panoLookSpeed: number;
-        slowModifier: number;
-        showFps: boolean;
-        mapListFields: MapListField[];
-        language: Language;
-        units: UnitSystem;
-        restoreSession: boolean;
-        prereleaseUpdates: boolean;
-        discordPresence: DiscordPresenceMode;
-        labelColors: Record<string, string>;
-        geocodeProvider: GeocodeProvider;
-        nominatimApiKey: string;
-        panToImported: boolean;
-        enterOpensCenter: boolean;
-        pastePadding: number;
-        followActiveInReview: boolean;
-        markerColor: RGB;
-        activeLocationColor: RGB;
-        importPreviewColor: RGB;
-        panoDotColor: RGB;
-        opacityToggleMode: OpacityToggleMode;
-        polygonColorMode: PolygonColorMode;
-        polygonColor: RGB;
-        panoDotScaled: boolean;
-        tagViewMode: TagViewMode;
-        truncateTagPaths: boolean;
-        tagFolderColorMode: TagFolderColorMode;
-        tagFolderColor: RGB;
-        tagSortMode: TagSortMode;
-        tagGap: number;
-        animateTagReorder: boolean;
-        borderDetail: BorderDetail;
-        subdivisionDetail: SubdivisionDetail;
-        previewAspectRatio: PreviewAspectRatio;
-        tagSuggestionLimit: number;
-        globalCopyBindings: MapKeyBinding[];
-        remoteApi: boolean;
-        remoteApiKey: string;
-        pinnedCommands: PinnedEntry[];
-    };
-};
-/** What belongs to no single domain. */
-declare const surface: {
-    ready: boolean;
-    /** Every Rust command, typed. Any of them can change in a release. @unstable */
-    cmd: Cmd;
-    /** Run work on the plugin's own sidecar binary. */
-    sidecar: typeof sidecar;
-    /** React components the editor is built from. */
-    ui: typeof ui;
-    toast: typeof toast;
-    createLocation: typeof createLocation;
-    mmaBufUrl: typeof mmaBufUrl;
-    /** Subscribe to an editor event. The returned unsubscribe also runs when the plugin
-     *  deactivates. */
-    on<E extends EditorEvent>(event: E, handler: EventHandler<E>): () => void;
-    /** @unstable */
-    _test: typeof testApi;
-};
+/** The nested `_test` namespace on the plugin surface. @unstable */
+declare const _test: typeof testApi;
 
-declare const convenience: {
-    addSelections: (selectors: Selector[]) => Promise<void>;
-    removeSelections: (keys: string[]) => Promise<void>;
+declare const testSurface__test: typeof _test;
+declare namespace testSurface {
+  export {
+    testSurface__test as _test,
+  };
+}
+
+/** URL that serves a local file over the `mma-buf://` protocol (binary Rust-to-JS transfers). */
+declare function mmaBufUrl(path: string): string;
+
+/**
+ * Unified MMA API -- the single public surface for plugins, tests, and app code.
+ * Exposed as `window.MMA` (and the global `MMA`).
+ *
+ * One module, one API: every module listed here has its whole export list on the surface,
+ * and a module that is not listed has nothing on it. There is no per-member curation, so
+ * whether something is public is decided where it lives, not here.
+ */
+
+/** Not a module: the flag `main.tsx` flips once the surface is installed. */
+declare const ready: {
+    ready: boolean;
+};
+/** Constructors that belong to the shared type module, which is otherwise types only. */
+declare const constructors: {
+    createLocation: typeof createLocation;
+    createFieldDef: typeof createFieldDef;
+    mmaBufUrl: typeof mmaBufUrl;
 };
 export type StoreApi = typeof store;
-/** The pure selection list ops, composed with `applySelectionUpdate`. */
 export type SelectionOpsApi = typeof selectionOps;
-export type ColorApi = typeof colorUtils;
+export type SavedSelectionsApi = typeof savedSelections;
+export type SettingsApi = typeof settings;
 /** Import dialog internals. @unstable */
 export type ImportStagingApi = typeof importStaging;
 /** Commit diff internals. @unstable */
@@ -5052,20 +5897,35 @@ export type SelectorPickApi = typeof picker;
 export type MapListApi = typeof mapList;
 /** Review screen internals. @unstable */
 export type ReviewApi = typeof review;
+/** The raw Rust command boundary; any of them can change in a release. @unstable */
+export type CommandsApi = typeof commands;
 export type TauriApi = typeof tauri;
-export type PluginApi = typeof plugin;
-export type FieldsApi = typeof fields;
+export type RegistryApi = typeof registry;
+export type ScopeApi = typeof scope;
+export type ExternalsApi = typeof externals;
+export type SidecarApi = typeof sidecar$1;
+export type UiApi = typeof uiSurface;
+export type FieldDefsApi = typeof fieldDefs;
+export type FieldDefRegistryApi = typeof fieldDefRegistry;
 export type ProceduresApi = typeof procedures;
 export type SeenApi = typeof seen;
-export type SvApi = typeof sv;
-export type MapApi = typeof map;
-export type SavedSelectionsApi = typeof saved;
-export type SettingsApi = typeof settings;
-export type SurfaceApi = typeof surface;
-export type ConvenienceApi = typeof convenience;
+export type PanoSingletonApi = typeof panoSingleton;
+export type EnrichApi = typeof enrich$1;
+export type PinPanoApi = typeof pinPano;
+export type ValidateApi = typeof validate;
+export type QueryApi = typeof query;
+export type MapStateApi = typeof mapState;
+export type SceneStoreApi = typeof sceneStore;
+export type ColorApi = typeof colorUtils;
+export type ToastApi = typeof toast$1;
+export type UseJobApi = typeof useJob$1;
 /** Shims for removed APIs. @unstable */
 export type LegacyApi = typeof legacy;
-export interface MMA extends StoreApi, SelectionOpsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, TauriApi, PluginApi, FieldsApi, ProceduresApi, SeenApi, SvApi, MapApi, SavedSelectionsApi, SettingsApi, SurfaceApi, ColorApi, ConvenienceApi, LegacyApi {
+/** @unstable */
+export type TestApi = typeof testSurface;
+export type ReadyApi = typeof ready;
+export type ConstructorsApi = typeof constructors;
+export interface MMA extends StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoSingletonApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, UseJobApi, TestApi, ReadyApi, ConstructorsApi, LegacyApi {
 }
 declare global {
     interface Window {
@@ -5074,5 +5934,5 @@ declare global {
     const MMA: MMA;
 }
 
-export { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands, events };
+export { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
 export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
