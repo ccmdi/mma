@@ -31,7 +31,7 @@ import { ValidationState } from "@/bindings.consts";
 import { validateLocations } from "@/lib/sv/validate";
 import { enrichAll, type EnrichResult } from "@/lib/sv/enrich";
 import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
-import { bulkPinToPano, PINNED } from "@/lib/sv/pinPano";
+import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading, type RoadDirection } from "@/lib/sv/headingRoad";
 import {
 	bulkDownloadPanoramas,
@@ -107,7 +107,7 @@ async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
 	});
 	const [total, pinned, counts] = await Promise.all([
 		countIn(selector),
-		countIn(narrowed(PINNED)),
+		countIn(narrowed({ type: "PanoIds" })),
 		coverage(selector),
 	]);
 	const have = new Map(counts);

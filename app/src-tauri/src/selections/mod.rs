@@ -353,6 +353,19 @@ impl<'a, 'v> RowRef<'a, 'v> {
             RowInner::Loc(l) => l.flags,
         }
     }
+    /// Pinned: the row always opens one exact pano.
+    pub fn is_pinned(&self) -> bool {
+        if !self.flags().contains(LocationFlags::LOAD_AS_PANO_ID) {
+            return false;
+        }
+        match &self.inner {
+            RowInner::Base(v, i) => {
+                let ids = v.pano_ids.unwrap();
+                !ids.is_null(*i) && !ids.value(*i).is_empty()
+            }
+            RowInner::Loc(l) => l.pano_id.as_deref().is_some_and(|p| !p.is_empty()),
+        }
+    }
     pub fn has_tag(&self, tag_id: u32) -> bool {
         match &self.inner {
             RowInner::Base(v, i) => {
@@ -676,8 +689,8 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
         Selector::Tag { tag_id } => r.has_tag(*tag_id),
         Selector::Untagged => r.tags_empty(),
         Selector::Unpanned => r.heading() == 0.0,
-        Selector::PanoIds => r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
-        Selector::NotPanoIds => !r.flags().contains(LocationFlags::LOAD_AS_PANO_ID),
+        Selector::PanoIds => r.is_pinned(),
+        Selector::NotPanoIds => !r.is_pinned(),
         Selector::Uncommitted => r.is_uncommitted(),
         Selector::Polygon { polygon } => point_in_geometry(r.lng(), r.lat(), polygon),
         Selector::Filter { field, test } => {

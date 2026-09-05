@@ -4,7 +4,7 @@ import { latLngToWorld, worldToTile } from "@/lib/geo/mercator";
 import { cameraTypeFromHeight, centerHeading, imageDateOf } from "@/lib/sv/getMetadata";
 import { isUnofficial } from "@/lib/sv/panoId";
 import { panosAt, svMetadata } from "@/lib/sv/query";
-import { hasLoadAsPanoId, createLocation } from "@/types";
+import { isPinned, createLocation } from "@/types";
 import { LocationFlag, PanoType } from "@/bindings.consts";
 import type { LatLng, Pano } from "@/types";
 import type { CameraType, Location } from "@/bindings.gen";
@@ -16,7 +16,7 @@ import { bestBy } from "@/lib/util/util";
 /** The pano a location should display: the one it is pinned to when that still resolves,
  *  otherwise whatever sits at its coordinates. */
 export async function resolvePano(loc: Location): Promise<Pano | null> {
-	if (hasLoadAsPanoId(loc) && loc.panoId) {
+	if (isPinned(loc)) {
 		const [pinned] = await svMetadata([loc.panoId]);
 		if (pinned) return pinned;
 	}
@@ -27,7 +27,7 @@ export async function resolvePano(loc: Location): Promise<Pano | null> {
 /** True when the location names a pano that no longer resolves, so `resolvePano` fell back
  *  to its coordinates. */
 export function isPanoFallback(loc: Location, resolved: Pano | null): boolean {
-	return hasLoadAsPanoId(loc) && loc.panoId != null && resolved?.pano !== loc.panoId;
+	return isPinned(loc) && resolved?.pano !== loc.panoId;
 }
 
 /** Compute SV search radius in meters based on map zoom and latitude. */

@@ -34,18 +34,11 @@ export const pinPanoProvider: Provider = {
 
 registerProvider(pinPanoProvider);
 
-/** Pinned is a pano ID *and* the flag: the flag alone can outlive the id. */
-export const PINNED: Selector = {
-	type: "Intersection",
-	selections: [
-		buildSelection({ type: "Filter", field: "panoId", test: { op: "has" } }),
-		buildSelection({ type: "PanoIds" }),
-	],
-};
-
 function unpinnedIn(selector: Selector): Selector {
-	const notPinned: Selector = { type: "Invert", selections: [buildSelection(PINNED)] };
-	return { type: "Intersection", selections: [selector, notPinned].map(buildSelection) };
+	return {
+		type: "Intersection",
+		selections: [buildSelection(selector), buildSelection({ type: "NotPanoIds" })],
+	};
 }
 
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always

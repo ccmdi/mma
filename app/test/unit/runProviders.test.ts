@@ -352,10 +352,7 @@ describe("the bulk operations name their own providers", () => {
 		await bulkPinToPano({ type: "Everything" });
 		const pin = h.decls[1];
 		expect(pin.select.type).toBe("Intersection");
-		const json = JSON.stringify(pin.select);
-		expect(json).toContain('"Invert"');
-		expect(json).toContain('"PanoIds"');
-		expect(json).toContain('"has"');
+		expect(JSON.stringify(pin.select)).toContain('"NotPanoIds"');
 	});
 
 	it("a row the forced re-resolve fails is excluded from the pin wave", async () => {

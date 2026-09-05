@@ -1,6 +1,6 @@
 import { schemeBase } from "@/lib/util/util";
 import { isOfficialPano } from "@/lib/sv/panoId";
-import { hasLoadAsPanoId, type PanoView } from "@/types";
+import { isPinned, type PanoView } from "@/types";
 import type { Location, Tag } from "@/bindings.gen";
 
 /** View the link should open at. */
@@ -46,7 +46,7 @@ export function appendLinkTags(url: URL, loc: Location, tagsById: Record<number,
 		const name = tagsById[id]?.name;
 		if (name) url.searchParams.append("extra[tags]", name);
 	}
-	if (!hasLoadAsPanoId(loc)) url.searchParams.set("extra[loadMode]", "latLng");
+	if (!isPinned(loc)) url.searchParams.set("extra[loadMode]", "latLng");
 }
 
 // Routed through the Tauri `gmaps` URI-scheme handler (server-side proxy to

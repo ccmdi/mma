@@ -828,6 +828,7 @@ describe("Slot reuse correctness", () => {
 					api.createLocation({
 						lat: i,
 						lng: i,
+						panoId: i < 8 ? `pano-${i}` : null,
 						flags: i < 8 ? 1 : 0,
 						tags: i < 10 ? [tagId] : [],
 					}),
@@ -857,6 +858,7 @@ describe("Slot reuse correctness", () => {
 					api.createLocation({
 						lat: 60 + i,
 						lng: 60 + i,
+						panoId: i < 3 ? `refill-${i}` : null,
 						flags: i < 3 ? 1 : 0,
 						tags: i < 3 ? [tagId] : [],
 					}),

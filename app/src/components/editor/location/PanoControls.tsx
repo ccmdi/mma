@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, useEffect, useRef, useState, useCallback } from "react";
-import { hasLoadAsPanoId, type CameraFrame } from "@/types";
+import { isPinned, type CameraFrame } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import {
 	PANO_ZOOM,
@@ -454,7 +454,7 @@ function PanoMetadataControl() {
 				style={{ fontSize: "10px", display: "flex", flexDirection: "column", gap: "2px" }}
 			>
 				<span>
-					{t("Pinned pano:")} {hasLoadAsPanoId(draft ?? location) ? t("yes") : t("no")}
+					{t("Pinned pano:")} {isPinned(draft ?? location) ? t("yes") : t("no")}
 				</span>
 				{fields &&
 					Object.entries(fields).map(([key, val]) => (

@@ -5,7 +5,7 @@
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { fetchMetadata, indexPanos } from "@/lib/sv/getMetadata";
 import { newestOfficialPano } from "@/lib/sv/panoId";
-import { isPinnedToPano } from "@/types";
+import { isPinned } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 
 let useLatest = false;
@@ -22,14 +22,14 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 	const out: Update<LocationPatch>[] = [];
 	// Without `useLatest` every slot is empty, so this issues no requests at all.
 	const index = indexPanos(
-		rows.map((r) => (useLatest && (!isPinnedToPano(r) || force) ? (r.panoId ?? "") : "")),
+		rows.map((r) => (useLatest && (!isPinned(r) || force) ? (r.panoId ?? "") : "")),
 	);
 	const fetched = fetchMetadata(index.unique);
 
 	for (let i = 0; i < rows.length; i++) {
 		if (mma.aborted()) break;
 		const row = rows[i];
-		if (isPinnedToPano(row) && !force) continue;
+		if (isPinned(row) && !force) continue;
 		const flags = row.flags | LocationFlag.LoadAsPanoId;
 
 		if (!useLatest) {

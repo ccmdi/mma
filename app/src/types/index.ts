@@ -79,12 +79,9 @@ export interface Pano {
 	source: string | null;
 }
 
-export function hasLoadAsPanoId(loc: Location): boolean {
-	return (loc.flags & LocationFlag.LoadAsPanoId) !== 0;
-}
-
-export function isPinnedToPano(loc: Location): boolean {
-	return hasLoadAsPanoId(loc) && loc.panoId != null;
+/** Pinned: the location always opens this exact pano. */
+export function isPinned(loc: Location): loc is Location & { panoId: string } {
+	return (loc.flags & LocationFlag.LoadAsPanoId) !== 0 && loc.panoId != null && loc.panoId !== "";
 }
 
 /** The `extra` merge patch that turns `before` into `after`: changed keys carry their

@@ -1,5 +1,5 @@
 import { civilToDate, ymFromDate } from "@/lib/util/date";
-import { hasLoadAsPanoId, type Pano } from "@/types";
+import { isPinned, type Pano } from "@/types";
 import type { Location } from "@/bindings.gen";
 
 export interface PanoDateState {
@@ -23,7 +23,7 @@ export function panoDates(
 ): PanoDateState {
 	const entries = timeline ?? [];
 	const current = meta?.pano ?? null;
-	const chosen = draft && hasLoadAsPanoId(draft) ? current : null;
+	const chosen = draft && isPinned(draft) ? current : null;
 	const defaultEntry = entries.find((d) => d.pano === defaultPano);
 	const sorted = [...entries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 	const currentEntry =

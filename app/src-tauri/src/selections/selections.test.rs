@@ -1143,16 +1143,27 @@ fn resolve_unpanned() {
 
 #[test]
 fn resolve_panoids() {
-    let mut l1 = loc(1, 0.0, 0.0);
-    l1.flags = LocationFlags::LOAD_AS_PANO_ID;
-    let l2 = loc(2, 0.0, 0.0);
-    let adds = vec![l1, l2];
-    let fx = Fx::adds(adds);
-    let view = fx.view();
-    let pano = ids_of(&view, &Selector::PanoIds);
-    let not_pano = ids_of(&view, &Selector::NotPanoIds);
-    assert_eq!(pano, vec![1]);
-    assert_eq!(not_pano, vec![2]);
+    let mut pinned = loc(1, 0.0, 0.0);
+    pinned.flags = LocationFlags::LOAD_AS_PANO_ID;
+    pinned.pano_id = Some("AAA".into());
+    let mut flag_only = loc(2, 0.0, 0.0);
+    flag_only.flags = LocationFlags::LOAD_AS_PANO_ID;
+    let mut id_only = loc(3, 0.0, 0.0);
+    id_only.pano_id = Some("BBB".into());
+    let bare = loc(4, 0.0, 0.0);
+    for fx in [
+        Fx::adds(vec![
+            pinned.clone(),
+            flag_only.clone(),
+            id_only.clone(),
+            bare.clone(),
+        ]),
+        Fx::base(&[pinned, flag_only, id_only, bare]),
+    ] {
+        let view = fx.view();
+        assert_eq!(ids_of(&view, &Selector::PanoIds), vec![1]);
+        assert_eq!(ids_of(&view, &Selector::NotPanoIds), vec![2, 3, 4]);
+    }
 }
 
 #[test]
@@ -1187,10 +1198,12 @@ fn resolve_intersection() {
     let mut l1 = loc(1, 0.0, 0.0);
     l1.tags = vec![10];
     l1.flags = LocationFlags::LOAD_AS_PANO_ID;
+    l1.pano_id = Some("AAA".into());
     let mut l2 = loc(2, 0.0, 0.0);
     l2.tags = vec![10];
     let mut l3 = loc(3, 0.0, 0.0);
     l3.flags = LocationFlags::LOAD_AS_PANO_ID;
+    l3.pano_id = Some("AAA".into());
     let adds = vec![l1, l2, l3];
     let fx = Fx::adds(adds);
     let view = fx.view();
@@ -1218,6 +1231,7 @@ fn resolve_union() {
     l1.tags = vec![10];
     let mut l2 = loc(2, 0.0, 0.0);
     l2.flags = LocationFlags::LOAD_AS_PANO_ID;
+    l2.pano_id = Some("AAA".into());
     let l3 = loc(3, 0.0, 0.0);
     let adds = vec![l1, l2, l3];
     let fx = Fx::adds(adds);
@@ -1246,6 +1260,7 @@ fn resolve_union() {
 fn resolve_invert() {
     let mut l1 = loc(1, 0.0, 0.0);
     l1.flags = LocationFlags::LOAD_AS_PANO_ID;
+    l1.pano_id = Some("AAA".into());
     let l2 = loc(2, 0.0, 0.0);
     let l3 = loc(3, 0.0, 0.0);
     let adds = vec![l1, l2, l3];

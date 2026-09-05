@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createLocation, hasLoadAsPanoId, isPinnedToPano } from "@/types";
+import { createLocation, isPinned } from "@/types";
 
 describe("createLocation", () => {
 	it("applies defaults for omitted fields", () => {
@@ -62,43 +62,15 @@ describe("createLocation", () => {
 	});
 });
 
-describe("hasLoadAsPanoId", () => {
-	it("returns false for flags=0", () => {
-		expect(hasLoadAsPanoId(createLocation({ lat: 0, lng: 0, flags: 0 }))).toBe(false);
-	});
-
-	it("returns true for flags=1 (LoadAsPanoId)", () => {
-		expect(hasLoadAsPanoId(createLocation({ lat: 0, lng: 0, flags: 1 }))).toBe(true);
-	});
-
-	it("returns false for flags=2 (another bit only)", () => {
-		expect(hasLoadAsPanoId(createLocation({ lat: 0, lng: 0, flags: 2 }))).toBe(false);
-	});
-
-	it("returns true for flags=3 (both bits set)", () => {
-		expect(hasLoadAsPanoId(createLocation({ lat: 0, lng: 0, flags: 3 }))).toBe(true);
-	});
-});
-
-
-describe("isPinnedToPano", () => {
-	it("returns false with no panoId and no flag", () => {
-		expect(isPinnedToPano(createLocation({ lat: 0, lng: 0 }))).toBe(false);
-	});
-
-	it("returns false with panoId but no LoadAsPanoId flag", () => {
-		expect(isPinnedToPano(createLocation({ lat: 0, lng: 0, panoId: "abc", flags: 0 }))).toBe(false);
-	});
-
-	it("returns false with LoadAsPanoId flag but null panoId", () => {
-		expect(isPinnedToPano(createLocation({ lat: 0, lng: 0, flags: 1, panoId: null }))).toBe(false);
-	});
-
-	it("returns true with both LoadAsPanoId flag and panoId", () => {
-		expect(isPinnedToPano(createLocation({ lat: 0, lng: 0, flags: 1, panoId: "abc" }))).toBe(true);
-	});
-
-	it("returns true with flags=3 and panoId", () => {
-		expect(isPinnedToPano(createLocation({ lat: 0, lng: 0, flags: 3, panoId: "abc" }))).toBe(true);
+describe("isPinned", () => {
+	it("needs the LoadAsPanoId bit and a pano id", () => {
+		const at = (flags: number, panoId: string | null) =>
+			isPinned(createLocation({ lat: 0, lng: 0, flags, panoId }));
+		expect(at(0, "abc")).toBe(false);
+		expect(at(2, "abc")).toBe(false);
+		expect(at(1, null)).toBe(false);
+		expect(at(1, "")).toBe(false);
+		expect(at(1, "abc")).toBe(true);
+		expect(at(3, "abc")).toBe(true);
 	});
 });

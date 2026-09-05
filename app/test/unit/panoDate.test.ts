@@ -8,7 +8,7 @@ import type { Location } from "@/bindings.gen";
 const ref = (pano: string, date: string): Pano["time"][number] => ({ pano, date });
 const on = (pano: string) => ({ pano }) as unknown as Pano;
 const floating: Location = createLocation({ lat: 0, lng: 0 });
-const pinned: Location = { ...floating, flags: 1 };
+const pinned: Location = { ...floating, flags: 1, panoId: "a" };
 
 describe("panoDates", () => {
 	it("default is the pano the position resolves to, not the one on screen", () => {
