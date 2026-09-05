@@ -23,7 +23,7 @@
 			}
 		],
 		"security": {
-			"csp": null
+			"csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' blob: https://maps.googleapis.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src * data: blob: asset: mma-buf: mma-plugin: svtile: gmaps: ggapi: gdoc: googl:; media-src * data: blob: asset: mma-buf: svtile:; connect-src * data: blob: ipc: asset: mma-buf: mma-plugin: svtile: gmaps: ggapi: gdoc: googl: http://ipc.localhost; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'"
 		}
 	},
 	"plugins": {
