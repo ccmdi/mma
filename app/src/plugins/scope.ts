@@ -31,7 +31,7 @@ export function runAsPlugin<T>(id: string, fn: () => T): T {
 	}
 }
 
-/** Enroll a teardown callback under the currently-activating plugin. No-op outside activation. */
+/** Enroll a teardown callback under the currently-activating plugin. No-op outside activation. @unstable */
 export function trackDisposable(dispose: Disposable): void {
 	if (!currentOwner) return;
 	let store = stores.get(currentOwner);
@@ -43,14 +43,14 @@ export function trackDisposable(dispose: Disposable): void {
 }
 
 /** Record where a plugin's files live on disk, so its registrations can resolve
- *  paths to assets it ships. Core plugins have no directory. */
+ *  paths to assets it ships. Core plugins have no directory. @unstable */
 export function setPluginBaseDir(id: string, dir: string): void {
 	baseDirs.set(id, dir);
 }
 
 /** Resolve a file path a plugin registration referred to, against the directory of the
  *  plugin currently activating. Absolute paths, "res://" URLs, registrations outside an
- *  activation window, and core plugins (no directory) all pass through unchanged. */
+ *  activation window, and core plugins (no directory) all pass through unchanged. @unstable */
 export function resolvePluginPath(path: string): string {
 	if (!currentOwner || path.startsWith("res://") || path.startsWith("/") || /^[a-zA-Z]:/.test(path))
 		return path;

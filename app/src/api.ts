@@ -44,6 +44,7 @@ import * as util from "@/lib/util/util";
 type StoreApi = typeof store;
 type SelectionOpsApi = typeof selectionOps;
 type SavedSelectionsApi = typeof savedSelections;
+/** App settings and their option tables; the shape moves with every setting added. @unstable */
 type SettingsApi = typeof settings;
 /** Import dialog internals. @unstable */
 type ImportStagingApi = typeof importStaging;
@@ -65,6 +66,7 @@ type FieldDefsApi = typeof fieldDefs;
 type FieldDefRegistryApi = typeof fieldDefRegistry;
 type ProceduresApi = typeof procedures;
 type SeenApi = typeof seen;
+/** The shared panorama viewer's internals. @unstable */
 type PanoSingletonApi = typeof panoSingleton;
 type EnrichApi = typeof enrich;
 type PinPanoApi = typeof pinPano;

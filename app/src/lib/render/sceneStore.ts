@@ -43,12 +43,13 @@ function syncActive(): boolean {
 	return scene.setActive(getMapState().activeLocation?.id ?? null);
 }
 
+/** Scene engine control. @unstable */
 export function setMarkerDefaultColor(r: number, g: number, b: number) {
 	markerDefault = [r, g, b, 255];
 }
 
 /** Repaint the default marker color and tell Rust (for future deltas). The base layers take
- *  the colour as a constant, so this is O(1) rather than a rewrite of every marker. */
+ *  the colour as a constant, so this is O(1) rather than a rewrite of every marker. @unstable */
 export function recolorScene(mc: RGB) {
 	if (markerDefault.every((c, i) => c === mc[i])) return;
 	setMarkerDefaultColor(...mc);
@@ -64,12 +65,12 @@ export function getMarkerDefaultColor(): RGBA {
 let sceneSettled: Promise<void> = Promise.resolve();
 let loadRequested = 0;
 
-/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). */
+/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
 export function whenSceneSettled(): Promise<void> {
 	return sceneSettled;
 }
 
-/** Full (re)load from Rust for the whole world. Editor-driven on open / marker-style change. */
+/** Full (re)load from Rust for the whole world. Editor-driven on open / marker-style change. @unstable */
 export function loadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 	const seq = ++loadRequested;
 	return (sceneSettled = sceneSettled
@@ -115,12 +116,14 @@ async function doLoadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 	}
 }
 
+/** Scene engine control. @unstable */
 export function clearScene() {
 	scene.clear();
 	emitEvent("scene:changed");
 }
 
 // Subscriptions live for the editor map's lifetime (one producer). Returns a stop fn.
+/** Scene engine control. @unstable */
 export function startSceneEngine(): () => void {
 	const unsubDelta = subscribeEvent("render:delta", (delta) => {
 		if (delta.fullReset) {

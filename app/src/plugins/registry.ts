@@ -41,6 +41,7 @@ export type PluginBehavior = Partial<Plugin> & {
 // `minAppVersion` declares the app version a build needs. The registry pairs it with a
 // list of older builds, so an app under the latest floor is offered the newest build it
 // can actually run instead of being stranded on whatever it already has.
+/** Update machinery. @unstable */
 export function isPluginCompatible(
 	minAppVersion: string | null | undefined,
 	appVersion: string,
@@ -51,6 +52,7 @@ export function isPluginCompatible(
 // An installed plugin is updatable when both its installed version and the registry's
 // version are known and differ. The registry only moves forward, so any mismatch means
 // a newer build is published. Empty/unknown versions never prompt an update.
+/** Update machinery. @unstable */
 export function isPluginUpdatable(
 	installedVersion: string | undefined,
 	latestVersion: string | undefined,
@@ -61,6 +63,7 @@ export function isPluginUpdatable(
 // A plugin needs updating when its JS version drifts OR its sidecar drifts. A registry
 // sidecar version that differs from what's installed (including a missing sidecar, where
 // the installed version is null/undefined) means the sidecar must be (re)downloaded.
+/** Update machinery. @unstable */
 export function needsUpdate(
 	installedVersion: string | undefined,
 	latestVersion: string | undefined,
@@ -81,7 +84,7 @@ export interface ResolvedBuild {
 
 /** The newest build of a plugin this app version can run -- the registry's latest when
  *  compatible, else the newest pinned fallback that is. Null when no published build
- *  supports this app at all. `builds` is ordered newest-first. */
+ *  supports this app at all. `builds` is ordered newest-first. @unstable */
 export function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null {
 	if (isPluginCompatible(entry.minAppVersion, appVersion)) {
 		return { version: entry.version, ref: null, minAppVersion: entry.minAppVersion ?? null };
@@ -96,7 +99,7 @@ export function resolveBuild(entry: PluginManifest, appVersion: string): Resolve
 
 /** Whether an install should be refreshed to `target`. A pinned build's sidecar version
  *  lives in its own manifest, so only the latest build's sidecar can be compared before
- *  downloading; for a pinned one the install itself reconciles it. */
+ *  downloading; for a pinned one the install itself reconciles it. @unstable */
 export function needsBuildUpdate(
 	installedVersion: string | undefined,
 	target: ResolvedBuild,
@@ -117,7 +120,7 @@ const REGISTRY_URL = "https://raw.githubusercontent.com/ccmdi/mma/master/plugins
 let registryPromise: Promise<PluginManifest[]> | null = null;
 
 /** The marketplace registry, fetched once per session (startup update check and the
- *  marketplace dialog share it). A failed fetch clears the cache so the next call retries. */
+ *  marketplace dialog share it). A failed fetch clears the cache so the next call retries. @unstable */
 export function fetchPluginRegistry(): Promise<PluginManifest[]> {
 	if (!registryPromise) {
 		registryPromise = fetch(REGISTRY_URL, { signal: AbortSignal.timeout(5000) }).then((r) => {
@@ -134,7 +137,7 @@ export function fetchPluginRegistry(): Promise<PluginManifest[]> {
 /** Refresh a stale install before it loads. Nothing is registered yet at startup, so an
  *  update is just re-downloading the files the normal load then picks up; any failure
  *  falls back to loading what's on disk. Plugins absent from the registry (hand-installed
- *  dev plugins) and plugins with no build this app can run are never touched. */
+ *  dev plugins) and plugins with no build this app can run are never touched. @unstable */
 export async function autoUpdatePlugin(
 	m: PluginManifest,
 	latest: PluginManifest | undefined,
