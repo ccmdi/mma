@@ -137,3 +137,5 @@ jobs:
         run: git diff --exit-code -- plugins/types/mma.d.ts plugins/types/google-maps.d.ts
       - name: Fail if a stable plugin-visible API was removed without a legacy shim
         run: node plugins/check-legacy.mjs
+      - name: Report plugin code reaching for unstable API (advisory)
+        run: node plugins/check-unstable.mjs
