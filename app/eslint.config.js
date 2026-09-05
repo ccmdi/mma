@@ -175,7 +175,7 @@ export default defineConfig([
 		},
 	},
 	{
-		files: ["src/api.ts", "src/App.tsx"],
+		files: ["src/api.ts", "src/lib/tauri.ts", "src/App.tsx"],
 		rules: { "no-restricted-imports": "off" },
 	},
 	{

@@ -2,169 +2,55 @@
 /// <reference path="./types/google-maps.d.ts" />
 
 /**
- * Unified MMA API — the single public surface for plugins, tests, and app code.
+ * Unified MMA API -- the single public surface for plugins, tests, and app code.
  * Exposed as `window.MMA` (and the global `MMA`).
  */
 
 import * as store from "@/store/useMapStore";
+import * as selectionOps from "@/store/selections";
+import * as savedSelections from "@/store/savedSelections";
+import * as settings from "@/store/settings";
 import * as importStaging from "@/store/importStaging";
 import * as commitDiff from "@/store/commitDiff";
 import * as picker from "@/store/selectorPick";
 import * as mapList from "@/store/mapList";
 import * as review from "@/lib/review/review";
-import { cmd as commands, type Cmd } from "@/lib/commands";
-import { createFieldDef, createLocation } from "@/types";
-import { registerPlugin, createPluginStorage, usePluginState } from "@/plugins/registry";
-import { useJob } from "@/lib/hooks/useJob";
-import { trackDisposable } from "@/plugins/scope";
-import * as ui from "@/components/primitives";
-import { toast } from "@/lib/util/toast";
-import { preloadModules, getAvailableExternals } from "@/plugins/externals";
-import { registerEnrichFields, registerProvider } from "@/lib/data/fieldDefs";
-import { getFieldDef, getAllFieldDefs, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import { invoke } from "@tauri-apps/api/core";
-import { Command } from "@tauri-apps/plugin-shell";
-import { open as dialogOpen, save as dialogSave } from "@tauri-apps/plugin-dialog";
-import { subscribe, type EditorEvent, type EventHandler } from "@/lib/events";
-import { setSetting, getSettings } from "@/store/settings";
-import {
-	getSavedSelectionIndex,
-	loadSavedSelections,
-	savedParts,
-	savedSelector,
-} from "@/store/savedSelections";
-import { getSeenEntries, getSeenCount, clearSeen } from "@/lib/seen/seen";
-import { loadSeenPano } from "@/lib/sv/panoSingleton";
-import { enrichAll, needsEnrichment } from "@/lib/sv/enrich";
-import { bulkPinToPano } from "@/lib/sv/pinPano";
-import { validateLocations } from "@/lib/sv/validate";
-import { svMetadata } from "@/lib/sv/query";
-import { mmaBufUrl } from "@/lib/util/util";
-import { procedureEntry, queryProcedure, runProcedure, runProviders } from "@/lib/data/procedures";
-import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
-import { getScenePositions } from "@/lib/render/sceneStore";
+import * as commands from "@/lib/commands";
+import * as tauri from "@/lib/tauri";
+import * as registry from "@/plugins/registry";
+import * as scope from "@/plugins/scope";
+import * as externals from "@/plugins/externals";
 import * as sidecar from "@/plugins/sidecar";
-import * as legacy from "@/legacy";
-import * as selectionOps from "@/store/selections";
+import * as uiSurface from "@/components/primitives/ui";
+import * as fieldDefs from "@/lib/data/fieldDefs";
+import * as fieldDefRegistry from "@/lib/data/fieldDefRegistry";
+import * as procedures from "@/lib/data/procedures";
+import * as seen from "@/lib/seen/seen";
+import * as panoSingleton from "@/lib/sv/panoSingleton";
+import * as enrich from "@/lib/sv/enrich";
+import * as pinPano from "@/lib/sv/pinPano";
+import * as validate from "@/lib/sv/validate";
+import * as query from "@/lib/sv/query";
+import * as mapState from "@/lib/map/mapState";
+import * as sceneStore from "@/lib/render/sceneStore";
 import * as colorUtils from "@/lib/util/color";
-import * as testApi from "@/testApi";
+import * as toast from "@/lib/util/toast";
+import * as useJob from "@/lib/hooks/useJob";
+import * as legacy from "@/legacy";
+import * as testSurface from "@/testSurface";
+import { createLocation, createFieldDef } from "@/types";
+import { mmaBufUrl } from "@/lib/util/util";
 
-/** Tauri primitives, handed to plugins as-is. */
-const tauri = {
-	invoke,
-	shell: { Command },
-	dialog: { open: dialogOpen, save: dialogSave },
-};
+/** Not a module: the flag `main.tsx` flips once the surface is installed. */
+const ready = { ready: false };
 
-/** Registering a plugin and the per-plugin runtime it gets. */
-const plugin = {
-	registerPlugin,
-	storage: createPluginStorage,
-	usePluginState,
-	useJob,
-	preloadModules,
-	getAvailableExternals,
-};
-
-/** Field definitions: what a location can carry beyond its columns. */
-const fields = {
-	getFieldDef,
-	getAllFieldDefs,
-	getKnownFieldKeys,
-	createFieldDef,
-	registerEnrichFields,
-	registerProvider,
-};
-
-/** Running procedures. `registerProvider` above declares one; these execute it: a whole
- *  run over a selector, or a single read-only question to a module. */
-const procedures = {
-	runProcedure,
-	runProviders,
-	queryProcedure,
-	procedureEntry,
-};
-
-/** Panoramas the user has already seen. */
-const seen = {
-	getSeenEntries,
-	getSeenCount,
-	clearSeen,
-	loadSeenPano,
-};
-
-/** Street View: filling locations in from Google, and checking them against it. */
-const sv = {
-	enrichAll,
-	bulkPinToPano,
-	validateLocations,
-	needsEnrichment,
-	svMetadata,
-};
-
-/** The live map and what it is currently drawing. */
-const map = {
-	getMapHost,
-	waitForMapHost,
-	getScenePositions,
-};
-
-/** Selections saved on the map, and the rules behind them. */
-const saved = {
-	getSavedSelectionIndex,
-	loadSavedSelections,
-	savedParts,
-	savedSelector,
-};
-
-/** App settings. Per-map settings live on `MapMeta.settings`. */
-const settings = {
-	setSetting,
-	getSettings: () => ({ ...getSettings() }),
-};
-
-/** What belongs to no single domain. */
-const surface = {
-	ready: false,
-
-	/** Every Rust command, typed. Any of them can change in a release. @unstable */
-	cmd: commands as Cmd,
-
-	/** Run work on the plugin's own sidecar binary. */
-	sidecar,
-
-	/** React components the editor is built from. */
-	ui,
-
-	toast,
-	createLocation,
-	mmaBufUrl,
-
-	/** Subscribe to an editor event. The returned unsubscribe also runs when the plugin
-	 *  deactivates. */
-	on<E extends EditorEvent>(event: E, handler: EventHandler<E>) {
-		const unsub = subscribe(event, handler);
-		trackDisposable(unsub);
-		return unsub;
-	},
-
-	/** @unstable */
-	_test: testApi,
-};
-
-import type { Selector } from "@/bindings.gen";
-
-const convenience = {
-	addSelections: (selectors: Selector[]) =>
-		store.applySelectionUpdate(selectionOps.batch(selectionOps.addSelection)(selectors)),
-	removeSelections: (keys: string[]) =>
-		store.applySelectionUpdate(selectionOps.batch(selectionOps.removeSelection)(keys)),
-};
+/** Constructors that belong to the shared type module, which is otherwise types only. */
+const constructors = { createLocation, createFieldDef, mmaBufUrl };
 
 type StoreApi = typeof store;
-/** The pure selection list ops, composed with `applySelectionUpdate`. */
 type SelectionOpsApi = typeof selectionOps;
-type ColorApi = typeof colorUtils;
+type SavedSelectionsApi = typeof savedSelections;
+type SettingsApi = typeof settings;
 /** Import dialog internals. @unstable */
 type ImportStagingApi = typeof importStaging;
 /** Commit diff internals. @unstable */
@@ -173,63 +59,106 @@ type SelectorPickApi = typeof picker;
 type MapListApi = typeof mapList;
 /** Review screen internals. @unstable */
 type ReviewApi = typeof review;
+/** The raw Rust command boundary; any of them can change in a release. @unstable */
+type CommandsApi = typeof commands;
 type TauriApi = typeof tauri;
-type PluginApi = typeof plugin;
-type FieldsApi = typeof fields;
+type RegistryApi = typeof registry;
+type ScopeApi = typeof scope;
+type ExternalsApi = typeof externals;
+type SidecarApi = typeof sidecar;
+type UiApi = typeof uiSurface;
+type FieldDefsApi = typeof fieldDefs;
+type FieldDefRegistryApi = typeof fieldDefRegistry;
 type ProceduresApi = typeof procedures;
 type SeenApi = typeof seen;
-type SvApi = typeof sv;
-type MapApi = typeof map;
-type SavedSelectionsApi = typeof saved;
-type SettingsApi = typeof settings;
-type SurfaceApi = typeof surface;
-type ConvenienceApi = typeof convenience;
+type PanoSingletonApi = typeof panoSingleton;
+type EnrichApi = typeof enrich;
+type PinPanoApi = typeof pinPano;
+type ValidateApi = typeof validate;
+type QueryApi = typeof query;
+type MapStateApi = typeof mapState;
+type SceneStoreApi = typeof sceneStore;
+type ColorApi = typeof colorUtils;
+type ToastApi = typeof toast;
+type UseJobApi = typeof useJob;
 /** Shims for removed APIs. @unstable */
 type LegacyApi = typeof legacy;
+/** @unstable */
+type TestApi = typeof testSurface;
+type ReadyApi = typeof ready;
+type ConstructorsApi = typeof constructors;
 
 export interface MMA
 	extends
 		StoreApi,
 		SelectionOpsApi,
+		SavedSelectionsApi,
+		SettingsApi,
 		ImportStagingApi,
 		CommitDiffApi,
 		SelectorPickApi,
 		MapListApi,
 		ReviewApi,
+		CommandsApi,
 		TauriApi,
-		PluginApi,
-		FieldsApi,
+		RegistryApi,
+		ScopeApi,
+		ExternalsApi,
+		SidecarApi,
+		UiApi,
+		FieldDefsApi,
+		FieldDefRegistryApi,
 		ProceduresApi,
 		SeenApi,
-		SvApi,
-		MapApi,
-		SavedSelectionsApi,
-		SettingsApi,
-		SurfaceApi,
+		PanoSingletonApi,
+		EnrichApi,
+		PinPanoApi,
+		ValidateApi,
+		QueryApi,
+		MapStateApi,
+		SceneStoreApi,
 		ColorApi,
-		ConvenienceApi,
+		ToastApi,
+		UseJobApi,
+		TestApi,
+		ReadyApi,
+		ConstructorsApi,
 		LegacyApi {}
 
 const mma: MMA = {
 	...store,
 	...selectionOps,
+	...savedSelections,
+	...settings,
 	...importStaging,
 	...commitDiff,
 	...picker,
 	...mapList,
 	...review,
+	...commands,
 	...tauri,
-	...plugin,
-	...fields,
+	...registry,
+	...scope,
+	...externals,
+	...sidecar,
+	...uiSurface,
+	...fieldDefs,
+	...fieldDefRegistry,
 	...procedures,
 	...seen,
-	...sv,
-	...map,
-	...saved,
-	...settings,
-	...surface,
+	...panoSingleton,
+	...enrich,
+	...pinPano,
+	...validate,
+	...query,
+	...mapState,
+	...sceneStore,
 	...colorUtils,
-	...convenience,
+	...toast,
+	...useJob,
+	...testSurface,
+	...ready,
+	...constructors,
 	...legacy,
 };
 

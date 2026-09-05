@@ -166,6 +166,7 @@ const plugins = new Map<string, Plugin>();
 const cleanups = new Map<string, () => void>();
 let pendingManifest: PluginManifest | null = null;
 
+/** @unstable */
 export function setPendingManifest(manifest: PluginManifest | null) {
 	pendingManifest = manifest;
 }
@@ -212,6 +213,7 @@ export function isBackgroundPlugin(id: string): boolean {
 	return !!plugin && !plugin.sidebar && !plugin.modal && !plugin.locationPanel;
 }
 
+/** @unstable */
 export function unregisterPlugin(id: string) {
 	plugins.delete(id);
 	emitEvent("plugins:changed");
@@ -314,6 +316,7 @@ export function setPluginSetting(id: string, key: string, value: unknown) {
 
 // --- Activation lifecycle ---
 
+/** @unstable */
 export function activatePlugins() {
 	for (const plugin of getEnabledPlugins()) {
 		if (!cleanups.has(plugin.id)) {
@@ -324,6 +327,7 @@ export function activatePlugins() {
 	emitEvent("plugins:changed");
 }
 
+/** @unstable */
 export function deactivatePlugins() {
 	for (const [_id, cleanup] of cleanups) {
 		cleanup();
@@ -334,6 +338,7 @@ export function deactivatePlugins() {
 	cmd.sidecarStopAll().catch(() => {});
 }
 
+/** @unstable */
 export function activatePlugin(id: string) {
 	const plugin = plugins.get(id);
 	if (!plugin || cleanups.has(id)) return;
@@ -341,6 +346,7 @@ export function activatePlugin(id: string) {
 	if (cleanup) cleanups.set(id, cleanup);
 }
 
+/** @unstable */
 export function deactivatePlugin(id: string) {
 	const cleanup = cleanups.get(id);
 	if (cleanup) {
@@ -353,3 +359,6 @@ export function deactivatePlugin(id: string) {
 	// returned no cleanup — so a disabled plugin's providers/fields/listeners stop.
 	disposePlugin(id);
 }
+
+/** The per-plugin key-value store, under the name the surface uses. */
+export const storage = createPluginStorage;

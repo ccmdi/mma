@@ -112,3 +112,6 @@ export async function request<T>(
 export function installedVersion(pluginId: string): Promise<string | null> {
 	return commands.sidecarInstalledVersion(pluginId);
 }
+
+/** The nested `sidecar` namespace on the plugin surface. */
+export const sidecar = { request, installedVersion };

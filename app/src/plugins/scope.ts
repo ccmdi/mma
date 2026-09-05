@@ -10,6 +10,7 @@
  * Caveat: ownership is captured synchronously. Registrations made after an `await`
  * or in a later callback (outside the activate window) are not attributed.
  */
+import { subscribe, type EditorEvent, type EventHandler } from "@/lib/events";
 import { log } from "@/lib/util/log";
 
 type Disposable = () => void;
@@ -18,7 +19,8 @@ let currentOwner: string | null = null;
 const stores = new Map<string, Disposable[]>();
 const baseDirs = new Map<string, string>();
 
-/** Run `fn` attributed to plugin `id`; host registrations during it are tracked for teardown. */
+/** Run `fn` attributed to plugin `id`; host registrations during it are tracked for teardown.
+ *  Plugin activation machinery, driven by the registry. @unstable */
 export function runAsPlugin<T>(id: string, fn: () => T): T {
 	const prev = currentOwner;
 	currentOwner = id;
@@ -56,7 +58,7 @@ export function resolvePluginPath(path: string): string {
 	return dir ? `${dir}/${path}` : path;
 }
 
-/** Run and clear every teardown a plugin registered, in reverse order. */
+/** Run and clear every teardown a plugin registered, in reverse order. @unstable */
 export function disposePlugin(id: string): void {
 	const store = stores.get(id);
 	if (!store) return;
@@ -68,4 +70,12 @@ export function disposePlugin(id: string): void {
 			log.error(`[plugin] teardown failed for "${id}":`, e);
 		}
 	}
+}
+
+/** Subscribe to an editor event. The returned unsubscribe also runs when the plugin
+ *  deactivates. */
+export function on<E extends EditorEvent>(event: E, handler: EventHandler<E>) {
+	const unsub = subscribe(event, handler);
+	trackDisposable(unsub);
+	return unsub;
 }

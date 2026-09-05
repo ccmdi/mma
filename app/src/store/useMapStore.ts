@@ -686,6 +686,16 @@ function buildSyncInputs() {
 	}));
 }
 
+/** Add selectors to the active selection list. */
+export function addSelections(selectors: Selector[]): Promise<void> {
+	return applySelectionUpdate(batch(addSelection)(selectors));
+}
+
+/** Drop selections by key. */
+export function removeSelections(keys: string[]): Promise<void> {
+	return applySelectionUpdate(batch(removeSelection)(keys));
+}
+
 /** Apply a pure selection transform, then sync to Rust.
  *  Ops return a SelectionPatch - either or both of { selections, ghosted }.
  *  A bare Selection[] is shorthand for { selections }.
