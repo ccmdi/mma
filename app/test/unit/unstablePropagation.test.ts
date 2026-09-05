@@ -11,8 +11,11 @@ const dts = readFileSync(join(__dirname, "../../../plugins/types/mma.d.ts"), "ut
 
 /** Members of a `declare const <name>: { ... }` block, with the doc comment above each. */
 function membersOf(name: string): { member: string; doc: string }[] {
-	const start = dts.indexOf(`declare const ${name}: {`);
-	if (start < 0) return [];
+	// The generator suffixes a name it had to disambiguate against an import.
+	const start = [`declare const ${name}: {`, `declare const ${name}$1: {`]
+		.map((decl) => dts.indexOf(decl))
+		.find((i) => i >= 0);
+	if (start === undefined) return [];
 	const body = dts.slice(start, dts.indexOf("\n};", start));
 	const out: { member: string; doc: string }[] = [];
 	const re = /(\/\*\*[\s\S]*?\*\/)?\s*\n\s{4}(\w+)\s*:/g;

@@ -362,3 +362,15 @@ export function deactivatePlugin(id: string) {
 
 /** The per-plugin key-value store, under the name the surface uses. */
 export const storage = createPluginStorage;
+
+let surfaceReady = false;
+
+/** True once the MMA surface is installed and plugins are safe to call it. */
+export function isReady(): boolean {
+	return surfaceReady;
+}
+
+/** Called by the entry point once the surface is on `window`. @unstable */
+export function markReady(): void {
+	surfaceReady = true;
+}

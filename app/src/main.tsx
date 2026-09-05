@@ -45,7 +45,7 @@ async function boot() {
 	initRouter();
 	mark("initRouter");
 
-	if (window.MMA) window.MMA.ready = true;
+	if (window.MMA) window.MMA.markReady();
 	log.info("App booted");
 
 	void appWindow.onCloseRequested(async (event) => {

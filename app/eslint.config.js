@@ -13,6 +13,7 @@ import noPrimitiveClass from "./eslint-rules/no-primitive-class.js";
 import noEffectEventInMemo from "./eslint-rules/no-effect-event-in-memo.js";
 import noNativeDialog from "./eslint-rules/no-native-dialog.js";
 import noUndefinedCssClass from "./eslint-rules/no-undefined-css-class.js";
+import noHandwrittenApiSurface from "./eslint-rules/no-handwritten-api-surface.js";
 
 const RESTRICTED_IMPORT_PATHS = [
 	{
@@ -92,6 +93,7 @@ export default defineConfig([
 					"no-effect-event-in-memo": noEffectEventInMemo,
 					"no-native-dialog": noNativeDialog,
 					"no-undefined-css-class": noUndefinedCssClass,
+					"no-handwritten-api-surface": noHandwrittenApiSurface,
 				},
 			},
 		},
@@ -124,7 +126,12 @@ export default defineConfig([
 					paths: RESTRICTED_IMPORT_PATHS,
 				},
 			],
-			"no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX, USE_SYNC_EXTERNAL_STORE_BAN, QUERY_CMD_BAN],
+			"no-restricted-syntax": [
+				"error",
+				...RESTRICTED_SYNTAX,
+				USE_SYNC_EXTERNAL_STORE_BAN,
+				QUERY_CMD_BAN,
+			],
 			// A shim exists for plugins built against an older release; app code has no excuse.
 			"@typescript-eslint/no-deprecated": "warn",
 			"@typescript-eslint/no-unused-vars": [
@@ -179,6 +186,10 @@ export default defineConfig([
 	{
 		files: ["src/api.ts", "src/lib/tauri.ts", "src/App.tsx"],
 		rules: { "no-restricted-imports": "off" },
+	},
+	{
+		files: ["src/api.ts"],
+		rules: { "local/no-handwritten-api-surface": "error" },
 	},
 	{
 		files: ["src/store/commandDefs.ts"],

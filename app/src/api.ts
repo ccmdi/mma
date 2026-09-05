@@ -38,14 +38,8 @@ import * as toast from "@/lib/util/toast";
 import * as useJob from "@/lib/hooks/useJob";
 import * as legacy from "@/legacy";
 import * as testSurface from "@/testSurface";
-import { createLocation, createFieldDef } from "@/types";
-import { mmaBufUrl } from "@/lib/util/util";
-
-/** Not a module: the flag `main.tsx` flips once the surface is installed. */
-const ready = { ready: false };
-
-/** Constructors that belong to the shared type module, which is otherwise types only. */
-const constructors = { createLocation, createFieldDef, mmaBufUrl };
+import * as types from "@/types";
+import * as util from "@/lib/util/util";
 
 type StoreApi = typeof store;
 type SelectionOpsApi = typeof selectionOps;
@@ -85,8 +79,8 @@ type UseJobApi = typeof useJob;
 type LegacyApi = typeof legacy;
 /** @unstable */
 type TestApi = typeof testSurface;
-type ReadyApi = typeof ready;
-type ConstructorsApi = typeof constructors;
+type TypesApi = typeof types;
+type UtilApi = typeof util;
 
 export interface MMA
 	extends
@@ -121,8 +115,8 @@ export interface MMA
 		ToastApi,
 		UseJobApi,
 		TestApi,
-		ReadyApi,
-		ConstructorsApi,
+		TypesApi,
+		UtilApi,
 		LegacyApi {}
 
 const mma: MMA = {
@@ -157,8 +151,8 @@ const mma: MMA = {
 	...toast,
 	...useJob,
 	...testSurface,
-	...ready,
-	...constructors,
+	...types,
+	...util,
 	...legacy,
 };
 
