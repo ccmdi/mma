@@ -66,6 +66,12 @@ async function main() {
     await bundle.close();
     let content = output[0].code;
 
+    // The SDK ships no JavaScript, so nothing it exports is a value: the bundler's final
+    // `export { ... }` becomes `export type { ... }`, and a plugin that imports a runtime
+    // member from the SDK fails to typecheck instead of failing to bundle. Values live on
+    // `MMA`.
+    content = content.replace(/^export \{ /m, "export type { ");
+
     // rollup-plugin-dts appends $1 to names that collide across modules.
     for (const name of ["Location", "Selection", "Plugin", "MMA", "open"]) {
       content = content.replace(new RegExp(`\\b${name}\\$1\\b`, "g"), name);

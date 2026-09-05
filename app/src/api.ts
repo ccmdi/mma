@@ -6,6 +6,11 @@
  * Exposed as `window.MMA` (and the global `MMA`).
  */
 
+export type * from "@/bindings.consts";
+export type * from "@/bindings.gen";
+export type { ProcedureHost, ProcedureRequest, ProcedureResponse } from "@/lib/data/procedureHost";
+
+import * as consts from "@/bindings.consts";
 import * as store from "@/store/useMapStore";
 import * as selectionOps from "@/store/selections";
 import * as savedSelections from "@/store/savedSelections";
@@ -41,6 +46,7 @@ import * as testSurface from "@/testSurface";
 import * as types from "@/types";
 import * as util from "@/lib/util/util";
 
+type ConstsApi = typeof consts;
 type StoreApi = typeof store;
 type SelectionOpsApi = typeof selectionOps;
 type SavedSelectionsApi = typeof savedSelections;
@@ -86,6 +92,7 @@ type UtilApi = typeof util;
 
 export interface MMA
 	extends
+		ConstsApi,
 		StoreApi,
 		SelectionOpsApi,
 		SavedSelectionsApi,
@@ -121,7 +128,10 @@ export interface MMA
 		UtilApi,
 		LegacyApi {}
 
+export type { MMA as MMAApi };
+
 const mma: MMA = {
+	...consts,
 	...store,
 	...selectionOps,
 	...savedSelections,
