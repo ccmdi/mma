@@ -35,7 +35,7 @@ import { msg, t } from "@/lib/i18n";
  *  the map's enrichment is off. */
 export async function enrich(
 	loc: Location,
-	opts: Pick<RunOpts, "signal" | "force"> = {},
+	opts: Omit<RunOpts, "onProgress"> = {},
 ): Promise<Location> {
 	const map = getMapState().map;
 	if (!map || !map.settings.enrichMetadata) return loc;
@@ -185,14 +185,12 @@ export interface EnrichOutcome extends ProcedureOutcome {
 	id: string;
 	label: string;
 }
-export type EnrichResult = EnrichOutcome[];
-
 /** Bulk enrich a selector: resolve missing pano ids, then run every field-producing
  *  provider (metadata, exact date, timezone, subdivision) through the Rust engine. */
 export async function enrichAll(
 	selector: Selector,
 	opts: RunOpts = {},
-): Promise<EnrichResult> {
+): Promise<EnrichOutcome[]> {
 	const map = getMapState().map;
 	if (!map) return [];
 	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();

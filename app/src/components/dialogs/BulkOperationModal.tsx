@@ -29,7 +29,7 @@ import { cmd } from "@/lib/commands";
 import { buildSelection } from "@/store/selections";
 import { ValidationState } from "@/bindings.consts";
 import { validateLocations } from "@/lib/sv/validate";
-import { enrichAll, type EnrichResult } from "@/lib/sv/enrich";
+import { enrichAll, type EnrichOutcome } from "@/lib/sv/enrich";
 import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading, type RoadDirection } from "@/lib/sv/headingRoad";
@@ -739,7 +739,7 @@ export function SelectFailedButton({
 	);
 }
 
-function EnrichSummary({ result }: { result: EnrichResult }) {
+function EnrichSummary({ result }: { result: EnrichOutcome[] }) {
 	if (result.length === 0) {
 		return (
 			<div>
