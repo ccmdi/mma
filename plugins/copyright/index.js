@@ -1,4 +1,5 @@
 // copyright/src/index.ts
+var { registerPlugin, registerEnrichFields, registerProvider } = MMA;
 var FIELD_DEFS = {
   // Year labels are identification categories, not distances: comparison stays
   // categorical (disambiguate) while type=number keeps numeric bucketing/ranges.
@@ -10,12 +11,12 @@ var FIELD_DEFS = {
     comparison: { type: "categorical" }
   }
 };
-MMA.registerPlugin({
+registerPlugin({
   activate() {
-    MMA.registerEnrichFields([
+    registerEnrichFields([
       { key: "copyrightYear", label: "Copyright year" }
     ]);
-    MMA.registerProvider({
+    registerProvider({
       id: "copyright",
       label: "Copyright year",
       requires: ["panoId"],
