@@ -35,6 +35,12 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 		expect(bare).toEqual([]);
 	});
 
+	it("a const on an unstable surface carries the tag at its own declaration", () => {
+		// `check-unstable` reads names off tagged declarations; a const whose fields are
+		// tagged but whose declaration is not would let `MMA.DEFAULTS` pass unflagged.
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const DEFAULTS:/);
+	});
+
 	it("a legacy shim is unstable from birth, so it is never a stable promise", () => {
 		const deprecated = dts
 			.split(/\n(?=\s*\/\*\*)/)

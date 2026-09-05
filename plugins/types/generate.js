@@ -124,6 +124,10 @@ function propagateUnstable() {
   // node (`() => void`), which is not a place a reader would ever look.
   const documentable = (d) => {
     if (ts.isVariableDeclaration(d)) return d.parent && d.parent.parent;
+    // A const object's type is an anonymous literal; the tag belongs on the const.
+    if (ts.isTypeLiteralNode(d) && d.parent && ts.isVariableDeclaration(d.parent)) {
+      return documentable(d.parent);
+    }
     return ts.isFunctionDeclaration(d) ||
       ts.isPropertySignature(d) ||
       ts.isMethodSignature(d) ||
