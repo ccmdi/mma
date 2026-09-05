@@ -12,7 +12,239 @@ import { ComponentType, SetStateAction, ComponentPropsWithRef, ReactNode, CSSPro
 import { Layer, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
 
-/** Commands */
+/** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
+declare const LocationFlag: {
+    readonly None: 0;
+    readonly LoadAsPanoId: 1;
+    readonly Informational: 2;
+    readonly ImportPreview: 4;
+    readonly SeenOverlay: 8;
+};
+type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
+/** Panorama source type, as Google's metadata reports it. */
+declare const PanoType: {
+    readonly Official: 2;
+    readonly Unknown: 3;
+    readonly UserUploaded: 10;
+};
+type PanoType = (typeof PanoType)[keyof typeof PanoType];
+/** Outcome of a Street View coverage check, as `validate` answers it per row. */
+declare const ValidationState: {
+    readonly Ok: 0;
+    readonly UpdateAvailable: 1;
+    readonly UpdateApplied: 2;
+    readonly GoodcamAvailable: 6;
+    readonly PanoIdBroke: 4;
+    readonly Unofficial: 5;
+    readonly NotFound: 3;
+};
+type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
+declare const BUILTIN_FIELDS: readonly [{
+    readonly key: "lat";
+    readonly label: "Latitude";
+    readonly type: "number";
+    readonly kind: "identity";
+    readonly comparison: null;
+}, {
+    readonly key: "lng";
+    readonly label: "Longitude";
+    readonly type: "number";
+    readonly kind: "identity";
+    readonly comparison: null;
+}, {
+    readonly key: "heading";
+    readonly label: "Heading";
+    readonly type: "number";
+    readonly kind: "writable";
+    readonly comparison: {
+        readonly type: "circular";
+        readonly period: 360;
+    };
+}, {
+    readonly key: "pitch";
+    readonly label: "Pitch";
+    readonly type: "number";
+    readonly kind: "writable";
+    readonly comparison: null;
+}, {
+    readonly key: "zoom";
+    readonly label: "Zoom";
+    readonly type: "number";
+    readonly kind: "writable";
+    readonly comparison: null;
+}, {
+    readonly key: "id";
+    readonly label: "ID";
+    readonly type: "number";
+    readonly kind: "identity";
+    readonly comparison: null;
+}, {
+    readonly key: "createdAt";
+    readonly label: "Created";
+    readonly type: "date";
+    readonly kind: null;
+    readonly comparison: null;
+}, {
+    readonly key: "modifiedAt";
+    readonly label: "Modified";
+    readonly type: "date";
+    readonly kind: null;
+    readonly comparison: null;
+}, {
+    readonly key: "panoId";
+    readonly label: "Pano ID";
+    readonly type: "string";
+    readonly kind: null;
+    readonly comparison: null;
+}, {
+    readonly key: "tagCount";
+    readonly label: "Tag count";
+    readonly type: "number";
+    readonly kind: "virtual";
+    readonly comparison: null;
+}, {
+    readonly key: "loadAsPanoId";
+    readonly label: "Load as pano ID";
+    readonly type: "number";
+    readonly kind: "term";
+    readonly comparison: null;
+}];
+declare const CLEARABLE_BUILTINS: readonly ["panoId"];
+declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
+declare const KNOWN_FIELDS: readonly [{
+    readonly key: "altitude";
+    readonly type: "number";
+    readonly label: "Altitude";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "countryCode";
+    readonly type: "string";
+    readonly label: "Country code";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "cameraType";
+    readonly type: "enum";
+    readonly label: "Camera type";
+    readonly values: readonly ["gen1", "gen2", "gen4", "badcam", "tripod", "trekker"];
+    readonly labels: readonly [readonly ["gen1", "Gen 1"], readonly ["gen2", "Gen 2/3"], readonly ["gen4", "Gen 4"], readonly ["badcam", "Bad cam"], readonly ["tripod", "Tripod"], readonly ["trekker", "Trekker"]];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "panoType";
+    readonly type: "enum";
+    readonly label: "Pano type";
+    readonly values: readonly ["2", "3", "10"];
+    readonly labels: readonly [readonly ["2", "Official"], readonly ["3", "Unknown"], readonly ["10", "User uploaded"]];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "imageDate";
+    readonly type: "month";
+    readonly label: "Image date";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: false;
+}, {
+    readonly key: "datetime";
+    readonly type: "date";
+    readonly label: "Exact date";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}, {
+    readonly key: "timezone";
+    readonly type: "enum";
+    readonly label: "Timezone";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}, {
+    readonly key: "drivingDirection";
+    readonly type: "number";
+    readonly label: "Driving direction";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: 360;
+    readonly defaultOff: true;
+}, {
+    readonly key: "uploaderName";
+    readonly type: "string";
+    readonly label: "Uploader";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}, {
+    readonly key: "coverageDates";
+    readonly type: "array";
+    readonly label: "Coverage dates";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}, {
+    readonly key: "subdivision";
+    readonly type: "string";
+    readonly label: "Subdivision";
+    readonly values: readonly [];
+    readonly labels: readonly [];
+    readonly circularPeriod: null;
+    readonly defaultOff: true;
+}];
+declare const PROJECTIONS: readonly [{
+    readonly id: "value";
+    readonly appliesTo: readonly ["string", "enum", "number", "month"];
+    readonly needsTz: false;
+}, {
+    readonly id: "year";
+    readonly appliesTo: readonly ["date", "month"];
+    readonly needsTz: true;
+}, {
+    readonly id: "yearMonth";
+    readonly appliesTo: readonly ["date"];
+    readonly needsTz: true;
+}, {
+    readonly id: "day";
+    readonly appliesTo: readonly ["date"];
+    readonly needsTz: true;
+}, {
+    readonly id: "monthOfYear";
+    readonly appliesTo: readonly ["date", "month"];
+    readonly needsTz: true;
+}, {
+    readonly id: "hourOfDay";
+    readonly appliesTo: readonly ["date"];
+    readonly needsTz: true;
+}];
+declare const SCRATCH_MAP_ID: "scratch";
+/** The bits a preview carries that a real location must not. */
+declare const VIRTUAL_FLAGS: 12;
+
+declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
+declare const consts_CLEARABLE_BUILTINS: typeof CLEARABLE_BUILTINS;
+declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
+declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
+export type consts_LocationFlag = LocationFlag;
+declare const consts_PROJECTIONS: typeof PROJECTIONS;
+export type consts_PanoType = PanoType;
+declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
+declare const consts_VIRTUAL_FLAGS: typeof VIRTUAL_FLAGS;
+export type consts_ValidationState = ValidationState;
+declare namespace consts {
+  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
+  export type { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_ValidationState as ValidationState };
+}
+
+/** Commands @unstable */
 declare const commands$1: {
     /**  Milliseconds from `run()` to the frontend's first call; logged once. @unstable */
     appReady: () => Promise<number>;
@@ -1534,6 +1766,9 @@ type ProviderDecl = {
     entry?: string | null;
     fields?: string[];
     requires?: string[];
+    invalidates?: {
+        [key in string]: string[];
+    };
     select: Selector;
     batch: BatchMode;
     sink?: Sink;
@@ -1815,15 +2050,15 @@ type Selection = {
     color: [number, number, number];
     selector: Selector;
 };
-/**  Input for `store_sync_selections`: selection criteria + display color. */
+/**
+ *  A top-level row of `store_sync_selections`: the selection itself, plus whether it is
+ *  ghosted. Ghosting means nothing for a nested child, which is why the flag lives here
+ *  and not on `Selection`.
+ */
 type SelectionInput = {
-    /**  Deterministic selection key (e.g. `"tag:5"`), used to return per-node counts back keyed. */
-    key: string;
-    selector: Selector;
-    color: [number, number, number];
     /**  Counted, but kept out of the overlay and the selected set. */
     ghosted?: boolean;
-};
+} & Selection;
 /**
  *  Selection bitmask sync payload. `bitmask` carries the packed per-cell bitmask bytes
  *  inline in the IPC response (no shared temp file → no clobber race under concurrent
@@ -2088,6 +2323,49 @@ type VirtualTag = {
     color?: string | null;
 };
 
+/**
+ * The surface a procedure module runs against: the global `mma` object and the values
+ * that cross the boundary. Every host call is synchronous -- the guest blocks while the
+ * host works, which is how `fetchMany` (never a loop over `fetch`) buys a procedure its
+ * request concurrency.
+ *
+ * A procedure is an ES module bundled to one file. Its named exports are the entry
+ * points: `request` + `map` (RequestMap), `map` (MapOnly) or `run` (Run), plus the
+ * optional `query` and `configure`. Rows arrive as `Location`s and `run`/`map` answer
+ * with `Update<LocationPatch>`s under the `patch` sink, or `Update<T>` of the module's
+ * own answer under `collect`.
+ */
+interface ProcedureRequest {
+    method: string;
+    url: string;
+    headers?: Record<string, string>;
+    body?: string | Uint8Array | ArrayBuffer;
+}
+interface ProcedureResponse {
+    /** 0 when the host could not issue the request at all. */
+    status: number;
+    body: Uint8Array;
+}
+interface ProcedureHost {
+    fetch(req: ProcedureRequest): ProcedureResponse;
+    fetchMany(reqs: ProcedureRequest[]): ProcedureResponse[];
+    classify(dataset: string, lat: number, lng: number): string | null;
+    /** Run one sidecar command. `onLine` sees each output line as it arrives, so a
+     *  procedure can report progress mid-run; the lines are also returned together. */
+    sidecar(pluginId: string, command: string, payloadJson: string, onLine?: (line: string) => void): string[];
+    /** 0 debug, 1 info, 2 warn, 3 error. `console.*` routes here. */
+    log(level: number, msg: string): void;
+    progress(units: number): void;
+    /** Marks a row as failed rather than skipped. */
+    fail(id: number): void;
+    aborted(): boolean;
+}
+declare global {
+    /** Reachable inside a procedure module only. `fetch`, `fetchMany` and `sidecar` are
+     *  detached outside `run` and `query`; calling one elsewhere throws. */
+    const mma: ProcedureHost;
+}
+
 export type Digits = {
     "0": [];
     "1": [0];
@@ -2116,223 +2394,6 @@ export type Rename<T, Map extends Record<string, string>> = {
 export type Variant<U, V extends U[D], D extends keyof U = "type" & keyof U> = Extract<U, Record<D, V>>;
 /** The value union of a `const` object. */
 export type EnumOf<T> = T[keyof T];
-
-/** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
-declare const LocationFlag: {
-    readonly None: 0;
-    readonly LoadAsPanoId: 1;
-    readonly Informational: 2;
-    readonly ImportPreview: 4;
-    readonly SeenOverlay: 8;
-};
-type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
-/** Panorama source type, as Google's metadata reports it. */
-declare const PanoType: {
-    readonly Official: 2;
-    readonly Unknown: 3;
-    readonly UserUploaded: 10;
-};
-type PanoType = (typeof PanoType)[keyof typeof PanoType];
-/** Outcome of a Street View coverage check, as `validate` answers it per row. */
-declare const ValidationState: {
-    readonly Ok: 0;
-    readonly UpdateAvailable: 1;
-    readonly UpdateApplied: 2;
-    readonly GoodcamAvailable: 6;
-    readonly PanoIdBroke: 4;
-    readonly Unofficial: 5;
-    readonly NotFound: 3;
-};
-type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
-declare const BUILTIN_FIELDS: readonly [{
-    readonly key: "lat";
-    readonly label: "Latitude";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-}, {
-    readonly key: "lng";
-    readonly label: "Longitude";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-}, {
-    readonly key: "heading";
-    readonly label: "Heading";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: {
-        readonly type: "circular";
-        readonly period: 360;
-    };
-}, {
-    readonly key: "pitch";
-    readonly label: "Pitch";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: null;
-}, {
-    readonly key: "zoom";
-    readonly label: "Zoom";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: null;
-}, {
-    readonly key: "id";
-    readonly label: "ID";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-}, {
-    readonly key: "createdAt";
-    readonly label: "Created";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-}, {
-    readonly key: "modifiedAt";
-    readonly label: "Modified";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-}, {
-    readonly key: "panoId";
-    readonly label: "Pano ID";
-    readonly type: "string";
-    readonly kind: null;
-    readonly comparison: null;
-}, {
-    readonly key: "tagCount";
-    readonly label: "Tag count";
-    readonly type: "number";
-    readonly kind: "virtual";
-    readonly comparison: null;
-}, {
-    readonly key: "loadAsPanoId";
-    readonly label: "Load as pano ID";
-    readonly type: "number";
-    readonly kind: "term";
-    readonly comparison: null;
-}];
-declare const CLEARABLE_BUILTINS: readonly ["panoId"];
-declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
-declare const KNOWN_FIELDS: readonly [{
-    readonly key: "altitude";
-    readonly type: "number";
-    readonly label: "Altitude";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "countryCode";
-    readonly type: "string";
-    readonly label: "Country code";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "cameraType";
-    readonly type: "enum";
-    readonly label: "Camera type";
-    readonly values: readonly ["gen1", "gen2", "gen4", "badcam", "tripod", "trekker"];
-    readonly labels: readonly [readonly ["gen1", "Gen 1"], readonly ["gen2", "Gen 2/3"], readonly ["gen4", "Gen 4"], readonly ["badcam", "Bad cam"], readonly ["tripod", "Tripod"], readonly ["trekker", "Trekker"]];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "panoType";
-    readonly type: "enum";
-    readonly label: "Pano type";
-    readonly values: readonly ["2", "3", "10"];
-    readonly labels: readonly [readonly ["2", "Official"], readonly ["3", "Unknown"], readonly ["10", "User uploaded"]];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "imageDate";
-    readonly type: "month";
-    readonly label: "Image date";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: false;
-}, {
-    readonly key: "datetime";
-    readonly type: "date";
-    readonly label: "Exact date";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}, {
-    readonly key: "timezone";
-    readonly type: "enum";
-    readonly label: "Timezone";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}, {
-    readonly key: "drivingDirection";
-    readonly type: "number";
-    readonly label: "Driving direction";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: 360;
-    readonly defaultOff: true;
-}, {
-    readonly key: "uploaderName";
-    readonly type: "string";
-    readonly label: "Uploader";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}, {
-    readonly key: "coverageDates";
-    readonly type: "array";
-    readonly label: "Coverage dates";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}, {
-    readonly key: "subdivision";
-    readonly type: "string";
-    readonly label: "Subdivision";
-    readonly values: readonly [];
-    readonly labels: readonly [];
-    readonly circularPeriod: null;
-    readonly defaultOff: true;
-}];
-declare const PROJECTIONS: readonly [{
-    readonly id: "value";
-    readonly appliesTo: readonly ["string", "enum", "number", "month"];
-    readonly needsTz: false;
-}, {
-    readonly id: "year";
-    readonly appliesTo: readonly ["date", "month"];
-    readonly needsTz: true;
-}, {
-    readonly id: "yearMonth";
-    readonly appliesTo: readonly ["date"];
-    readonly needsTz: true;
-}, {
-    readonly id: "day";
-    readonly appliesTo: readonly ["date"];
-    readonly needsTz: true;
-}, {
-    readonly id: "monthOfYear";
-    readonly appliesTo: readonly ["date", "month"];
-    readonly needsTz: true;
-}, {
-    readonly id: "hourOfDay";
-    readonly appliesTo: readonly ["date"];
-    readonly needsTz: true;
-}];
-declare const SCRATCH_MAP_ID: "scratch";
-/** The bits a preview carries that a real location must not. */
-declare const VIRTUAL_FLAGS: 12;
 
 /** A field definition with every optional attribute spelled absent. */
 declare function createFieldDef(type: ExtraFieldType, over?: Partial<Omit<ExtraFieldDef, "type">>): ExtraFieldDef;
@@ -2403,8 +2464,10 @@ export interface Pano {
     /** "launch" = car, "scout" = the special-collects pipeline. */
     source: string | null;
 }
-declare function hasLoadAsPanoId(loc: Location): boolean;
-declare function isPinnedToPano(loc: Location): boolean;
+/** Pinned: the location always opens this exact pano. */
+declare function isPinned(loc: Location): loc is Location & {
+    panoId: string;
+};
 /** The `extra` merge patch that turns `before` into `after`: changed keys carry their
  *  new value, keys `after` lacks carry null. */
 declare function extraPatch(before: Record<string, unknown> | null, after: Record<string, unknown> | null): Record<string, unknown>;
@@ -2468,9 +2531,8 @@ declare const types_createFieldDef: typeof createFieldDef;
 declare const types_createLocation: typeof createLocation;
 declare const types_dropLocation: typeof dropLocation;
 declare const types_extraPatch: typeof extraPatch;
-declare const types_hasLoadAsPanoId: typeof hasLoadAsPanoId;
 declare const types_isImportPreview: typeof isImportPreview;
-declare const types_isPinnedToPano: typeof isPinnedToPano;
+declare const types_isPinned: typeof isPinned;
 declare const types_isSeenPreview: typeof isSeenPreview;
 declare const types_isVirtualLocation: typeof isVirtualLocation;
 declare const types_isWorldBounds: typeof isWorldBounds;
@@ -2478,7 +2540,7 @@ declare const types_locId: typeof locId;
 declare const types_sameRow: typeof sameRow;
 declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
 declare namespace types {
-  export { types_applyLocationPatch as applyLocationPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_extraPatch as extraPatch, types_hasLoadAsPanoId as hasLoadAsPanoId, types_isImportPreview as isImportPreview, types_isPinnedToPano as isPinnedToPano, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds };
+  export { types_applyLocationPatch as applyLocationPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_extraPatch as extraPatch, types_isImportPreview as isImportPreview, types_isPinned as isPinned, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds };
   export type { types_Bounds as Bounds, types_CameraFrame as CameraFrame, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_Pano as Pano, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
 }
 
@@ -3238,9 +3300,11 @@ declare namespace savedSelections {
 }
 
 /** A localStorage-backed blob: its key and its defaults, declared where the shape is defined so
- *  no call site restates the pair. Older stored shapes are handled by `store/migrations.ts`. */
+ *  no call site restates the pair. Older stored shapes are handled by `store/migrations.ts`. @unstable */
 export interface PersistedStore<T> {
+    /** @unstable */
     key: string;
+    /** @unstable */
     defaults: T;
 }
 
@@ -3606,91 +3670,164 @@ export type PinnedEntry = CommandId | "---" | (string & {});
 /** Language names stay in their own language, the way every language picker does it -- a reader
  *  looking for their own has to recognise it without already reading English.
  *  `en-XA` is the generated pseudolocale: accented and ~40% longer, so unextracted strings and
- *  layout overflow are visible without a translator. Offered in dev builds only. */
+ *  layout overflow are visible without a translator. Offered in dev builds only. @unstable */
 declare const LANGUAGES: {
+    /** @unstable */
     readonly en: "English";
+    /** @unstable */
     readonly de: "Deutsch";
+    /** @unstable */
     readonly es: "Español";
+    /** @unstable */
     readonly fr: "Français";
+    /** @unstable */
     readonly ja: "日本語";
+    /** @unstable */
     readonly pl: "Polski";
+    /** @unstable */
     readonly ru: "Русский";
+    /** @unstable */
     readonly "zh-Hans": "简体中文";
+    /** @unstable */
     readonly "en-XA": "Pseudolocale";
 };
+/** @unstable */
 declare const MOVEMENT_MODES: {
+    /** @unstable */
     readonly moving: "Moving";
+    /** @unstable */
     readonly "no-move": "No Move";
+    /** @unstable */
     readonly nmpz: "NMPZ";
 };
+/** @unstable */
 declare const SEEN_RESOLUTIONS: {
+    /** @unstable */
     readonly low: "Low (160x90)";
+    /** @unstable */
     readonly medium: "Medium (320x180)";
+    /** @unstable */
     readonly high: "High (640x360)";
 };
+/** @unstable */
 declare const EXACT_DATE_FORMATS: {
+    /** @unstable */
     readonly date: "Date only";
+    /** @unstable */
     readonly datetime: "Date + time";
 };
+/** @unstable */
 declare const DATE_TIMEZONES: {
+    /** @unstable */
     readonly location: "Location timezone";
+    /** @unstable */
     readonly utc: "UTC";
 };
+/** @unstable */
 declare const MAP_LIST_FIELDS: {
+    /** @unstable */
     readonly locationCount: "Location count";
+    /** @unstable */
     readonly lastOpened: "Last opened";
+    /** @unstable */
     readonly created: "Date created";
 };
+/** @unstable */
 declare const DISCORD_PRESENCE_MODES: {
+    /** @unstable */
     readonly off: "Off";
+    /** @unstable */
     readonly generic: "Generic (no map name)";
+    /** @unstable */
     readonly full: "Full (map name + count)";
 };
+/** @unstable */
 declare const GEOCODE_PROVIDERS: {
+    /** @unstable */
     readonly local: "Local (offline)";
+    /** @unstable */
     readonly nominatim: "Nominatim";
+    /** @unstable */
     readonly google: "Google (from panorama)";
 };
 declare const GEOCODE_PROVIDER_LABELS: Record<keyof typeof GEOCODE_PROVIDERS, string>;
-/** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. */
+/** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. @unstable */
 declare const UNIT_SYSTEMS: {
+    /** @unstable */
     readonly auto: "Automatic";
+    /** @unstable */
     readonly metric: "Metric (m / km)";
+    /** @unstable */
     readonly imperial: "Imperial (ft / mi)";
 };
+/** @unstable */
 declare const TAG_VIEW_MODES: {
+    /** @unstable */
     readonly flat: "Flat";
+    /** @unstable */
     readonly tree: "Tree";
 };
+/** @unstable */
 declare const TAG_FOLDER_COLOR_MODES: {
+    /** @unstable */
     readonly direct: "Fixed color";
+    /** @unstable */
     readonly firstChild: "Inherit first child";
 };
+/** @unstable */
 declare const OPACITY_TOGGLE_MODES: {
+    /** @unstable */
     readonly previous: "Last used opacity";
+    /** @unstable */
     readonly full: "Full opacity";
 };
+/** @unstable */
 declare const POLYGON_COLOR_MODES: {
+    /** @unstable */
     readonly random: "Random";
+    /** @unstable */
     readonly fixed: "Fixed color";
 };
+/** @unstable */
 declare const BORDER_DETAILS: {
+    /** @unstable */
     readonly light: "Standard (bundled)";
-    readonly medium: "High (~10MB)";
-    readonly heavy: "Ultra (~46MB)";
+    /** @unstable */
+    readonly medium: "High ({size})";
+    /** @unstable */
+    readonly heavy: "Ultra ({size})";
 };
+/** On-disk size of each downloadable archive under `data/borders/`. @unstable */
+declare const BORDER_ARCHIVE_BYTES: {
+    /** @unstable */
+    readonly medium: 7460312;
+    /** @unstable */
+    readonly heavy: 21514464;
+    /** @unstable */
+    readonly adm1: 56891952;
+};
+/** @unstable */
 declare const SUBDIVISION_DETAILS: {
+    /** @unstable */
     readonly off: "Off";
+    /** @unstable */
     readonly adm1: "States / provinces";
 };
 /** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). */
 declare const TAG_SUGGESTION_LIMITS: readonly [5, 10, 25, 50, 0];
+/** @unstable */
 declare const PREVIEW_ASPECT_RATIOS: {
+    /** @unstable */
     readonly "4 / 3": "4:3";
+    /** @unstable */
     readonly "16 / 10": "16:10";
+    /** @unstable */
     readonly "16 / 9": "16:9";
+    /** @unstable */
     readonly "21 / 9": "21:9";
+    /** @unstable */
     readonly "32 / 9": "32:9";
+    /** @unstable */
     readonly free: "Free";
 };
 export type Language = keyof typeof LANGUAGES;
@@ -3710,108 +3847,171 @@ export type PolygonColorMode = keyof typeof POLYGON_COLOR_MODES;
 export type BorderDetail = keyof typeof BORDER_DETAILS;
 export type SubdivisionDetail = keyof typeof SUBDIVISION_DETAILS;
 export type PreviewAspectRatio = keyof typeof PREVIEW_ASPECT_RATIOS;
+/** @unstable */
 declare const DEFAULTS: {
+    /** @unstable */
     showCameraBadges: boolean;
+    /** @unstable */
     showLinksControl: boolean;
+    /** @unstable */
     clickToGo: boolean;
+    /** @unstable */
     showRoadLabels: boolean;
+    /** @unstable */
     defaultMovementMode: MovementMode;
+    /** @unstable */
     showCar: boolean;
+    /** @unstable */
     showCrosshair: boolean;
+    /** @unstable */
     showCompass: boolean;
+    /** @unstable */
     showCompassTape: boolean;
+    /** @unstable */
     showZoom: boolean;
+    /** @unstable */
     showReturnToSpawn: boolean;
+    /** @unstable */
     showJumpButtons: boolean;
+    /** @unstable */
     showMapLinks: boolean;
+    /** @unstable */
     showCoordinateDisplay: boolean;
+    /** @unstable */
     showFullscreenButton: boolean;
+    /** @unstable */
     showScreenshotButton: boolean;
+    /** @unstable */
     showPanoMetadata: boolean;
+    /** @unstable */
     exactDateFormat: ExactDateFormat;
+    /** @unstable */
     dateTimezone: DateTimezone;
+    /** @unstable */
     showNavArrow: boolean;
+    /** @unstable */
     showGroundArrow: boolean;
+    /** @unstable */
     hidePanoUI: boolean;
-    /** Hiding the pano UI also hides navigation: link arrows, ground arrow, click-to-go X. */
+    /** Hiding the pano UI also hides navigation: link arrows, ground arrow, click-to-go X. @unstable */
     hideNavWithUI: boolean;
+    /** @unstable */
     fullscreenMap: boolean;
+    /** @unstable */
     showFullscreenMapMeta: boolean;
+    /** @unstable */
     showFullscreenMiniLocationPreview: boolean;
+    /** @unstable */
     fullscreenMiniLocationScale: number;
+    /** @unstable */
     showFullscreenMinimap: boolean;
+    /** @unstable */
     fullscreenMinimapScale: number;
-    /** Milliseconds the fullscreen minimap stays expanded after the pointer leaves it. */
+    /** Milliseconds the fullscreen minimap stays expanded after the pointer leaves it. @unstable */
     fullscreenMinimapCloseDelay: number;
+    /** @unstable */
     showFullscreenTagbar: boolean;
-    /** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. */
+    /** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. @unstable */
     fullscreenTagbarCollapsed: boolean;
+    /** @unstable */
     showFullscreenDatePicker: boolean;
+    /** @unstable */
     showFullscreenReviewBar: boolean;
+    /** @unstable */
     showFullscreenGeocode: boolean;
+    /** @unstable */
     customCss: string;
+    /** @unstable */
     enableSeen: boolean;
+    /** @unstable */
     enableSeenThumbnails: boolean;
+    /** @unstable */
     seenResolution: SeenResolution;
+    /** @unstable */
     mapPanSpeed: number;
+    /** @unstable */
     panoLookSpeed: number;
+    /** @unstable */
     slowModifier: number;
+    /** @unstable */
     showFps: boolean;
+    /** @unstable */
     mapListFields: MapListField[];
-    /** Read once at boot; changing it relaunches the app rather than re-rendering. */
+    /** Read once at boot; changing it relaunches the app rather than re-rendering. @unstable */
     language: Language;
-    /** Every distance the UI shows or accepts; stored values stay metric. */
+    /** Every distance the UI shows or accepts; stored values stay metric. @unstable */
     units: UnitSystem;
-    /** Reopen the maps that were open when the session last ended (main window closed). */
+    /** Reopen the maps that were open when the session last ended (main window closed). @unstable */
     restoreSession: boolean;
-    /** Offer pre-release builds to the updater as well as full releases. */
+    /** Offer pre-release builds to the updater as well as full releases. @unstable */
     prereleaseUpdates: boolean;
-    /** Discord Rich Presence: off, generic (no map name), or full (map name + count). */
+    /** Discord Rich Presence: off, generic (no map name), or full (map name + count). @unstable */
     discordPresence: DiscordPresenceMode;
-    /** Per-label color overrides (hex), keyed by lowercased label name. Shared across all maps. */
+    /** Per-label color overrides (hex), keyed by lowercased label name. Shared across all maps. @unstable */
     labelColors: Record<string, string>;
+    /** @unstable */
     geocodeProvider: GeocodeProvider;
+    /** @unstable */
     nominatimApiKey: string;
+    /** @unstable */
     panToImported: boolean;
-    /** With no location open, Enter shows a center crosshair and opens the location under it. */
+    /** With no location open, Enter shows a center crosshair and opens the location under it. @unstable */
     enterOpensCenter: boolean;
-    /** Min half-extent (degrees) a single pasted/imported point is padded to before fitBounds */
+    /** Min half-extent (degrees) a single pasted/imported point is padded to before fitBounds @unstable */
     pastePadding: number;
+    /** @unstable */
     followActiveInReview: boolean;
+    /** @unstable */
     markerColor: RGB;
+    /** @unstable */
     activeLocationColor: RGB;
+    /** @unstable */
     importPreviewColor: RGB;
+    /** @unstable */
     panoDotColor: RGB;
     /** Color a newly drawn polygon selection starts with. `random` hashes it from the polygon's
      *  key; `fixed` uses polygonColor. Either way it's only the initial value -- recoloring a
      *  polygon by hand still wins. */
-    /** What the layer opacity hotkeys restore a layer to when toggling it back on. */
+    /** What the layer opacity hotkeys restore a layer to when toggling it back on. @unstable */
     opacityToggleMode: OpacityToggleMode;
+    /** @unstable */
     polygonColorMode: PolygonColorMode;
+    /** @unstable */
     polygonColor: RGB;
+    /** @unstable */
     panoDotScaled: boolean;
+    /** @unstable */
     tagViewMode: TagViewMode;
-    /** Tree view only: render each tag as the shortest path suffix that's still unique. */
+    /** Tree view only: render each tag as the shortest path suffix that's still unique. @unstable */
     truncateTagPaths: boolean;
     /** Tree view: how a colorless folder row gets its color. `direct` uses tagFolderColor;
      *  `firstChild` inherits the first own-colored descendant in display order,
-     *  with tagFolderColor as the fallback for colorless subtrees. */
+     *  with tagFolderColor as the fallback for colorless subtrees. @unstable */
     tagFolderColorMode: TagFolderColorMode;
+    /** @unstable */
     tagFolderColor: RGB;
+    /** @unstable */
     tagSortMode: TagSortMode;
-    /** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. */
+    /** Gap between tag pills (px), shared by flat and tree views via `--tag-gap`. @unstable */
     tagGap: number;
+    /** @unstable */
     animateTagReorder: boolean;
+    /** @unstable */
     borderDetail: BorderDetail;
+    /** @unstable */
     subdivisionDetail: SubdivisionDetail;
+    /** @unstable */
     previewAspectRatio: PreviewAspectRatio;
+    /** @unstable */
     tagSuggestionLimit: number;
     /** Copy-to-map hotkeys that work in every map (assigned in the copy-to-map dialog);
-     *  a map's own binding on the same key shadows them. */
+     *  a map's own binding on the same key shadows them. @unstable */
     globalCopyBindings: MapKeyBinding[];
-    /** Local REST transport for window.MMA (Settings > Advanced). */
+    /** Local REST transport for window.MMA (Settings > Advanced). @unstable */
     remoteApi: boolean;
+    /** @unstable */
     remoteApiKey: string;
+    /** @unstable */
     pinnedCommands: PinnedEntry[];
 };
 export type AppSettings = typeof DEFAULTS;
@@ -3924,24 +4124,30 @@ declare const APP_SETTINGS: PersistedStore<{
     remoteApiKey: string;
     pinnedCommands: PinnedEntry[];
 }>;
+/** @unstable */
 declare function getSettings(): AppSettings;
-/** True while the pano-UI toggle covers the navigation visuals too. */
+/** True while the pano-UI toggle covers the navigation visuals too. @unstable */
 declare function navHiddenWithUI(s: AppSettings): boolean;
 /** Effective StreetViewPanorama options: how the movement mode, per-control toggles,
- *  and the hide-UI toggle compose. Sole authority for both pano creation and updates. */
+ *  and the hide-UI toggle compose. Sole authority for both pano creation and updates. @unstable */
 declare function panoDisplayOptions(s: AppSettings): {
     linksControl: boolean;
     clickToGo: boolean;
     showRoadLabels: boolean;
     scrollwheel: boolean;
 };
+/** @unstable */
 declare function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void;
+/** @unstable */
 declare function resetSettings(): void;
+/** @unstable */
 declare function useSettings(): AppSettings;
+/** @unstable */
 declare function useSetting<K extends keyof AppSettings>(key: K): AppSettings[K];
 
 declare const settings_APP_SETTINGS: typeof APP_SETTINGS;
 export type settings_AppSettings = AppSettings;
+declare const settings_BORDER_ARCHIVE_BYTES: typeof BORDER_ARCHIVE_BYTES;
 declare const settings_BORDER_DETAILS: typeof BORDER_DETAILS;
 export type settings_BorderDetail = BorderDetail;
 declare const settings_CSS_VAR_SETTINGS: typeof CSS_VAR_SETTINGS;
@@ -3988,7 +4194,7 @@ declare const settings_setSetting: typeof setSetting;
 declare const settings_useSetting: typeof useSetting;
 declare const settings_useSettings: typeof useSettings;
 declare namespace settings {
-  export { settings_APP_SETTINGS as APP_SETTINGS, settings_BORDER_DETAILS as BORDER_DETAILS, settings_CSS_VAR_SETTINGS as CSS_VAR_SETTINGS, settings_DATE_TIMEZONES as DATE_TIMEZONES, settings_DEFAULTS as DEFAULTS, settings_DISCORD_PRESENCE_MODES as DISCORD_PRESENCE_MODES, settings_EXACT_DATE_FORMATS as EXACT_DATE_FORMATS, settings_GEOCODE_PROVIDERS as GEOCODE_PROVIDERS, settings_GEOCODE_PROVIDER_LABELS as GEOCODE_PROVIDER_LABELS, settings_LANGUAGES as LANGUAGES, settings_MAP_LIST_FIELDS as MAP_LIST_FIELDS, settings_MOVEMENT_CYCLE as MOVEMENT_CYCLE, settings_MOVEMENT_MODES as MOVEMENT_MODES, settings_OPACITY_TOGGLE_MODES as OPACITY_TOGGLE_MODES, settings_POLYGON_COLOR_MODES as POLYGON_COLOR_MODES, settings_PREVIEW_ASPECT_RATIOS as PREVIEW_ASPECT_RATIOS, settings_PRIVATE_SETTINGS as PRIVATE_SETTINGS, settings_SEEN_RESOLUTIONS as SEEN_RESOLUTIONS, settings_SUBDIVISION_DETAILS as SUBDIVISION_DETAILS, settings_TAG_FOLDER_COLOR_MODES as TAG_FOLDER_COLOR_MODES, settings_TAG_SUGGESTION_LIMITS as TAG_SUGGESTION_LIMITS, settings_TAG_VIEW_MODES as TAG_VIEW_MODES, settings_UNIT_SYSTEMS as UNIT_SYSTEMS, settings_getSettings as getSettings, settings_navHiddenWithUI as navHiddenWithUI, settings_panoDisplayOptions as panoDisplayOptions, settings_resetSettings as resetSettings, settings_setSetting as setSetting, settings_useSetting as useSetting, settings_useSettings as useSettings };
+  export { settings_APP_SETTINGS as APP_SETTINGS, settings_BORDER_ARCHIVE_BYTES as BORDER_ARCHIVE_BYTES, settings_BORDER_DETAILS as BORDER_DETAILS, settings_CSS_VAR_SETTINGS as CSS_VAR_SETTINGS, settings_DATE_TIMEZONES as DATE_TIMEZONES, settings_DEFAULTS as DEFAULTS, settings_DISCORD_PRESENCE_MODES as DISCORD_PRESENCE_MODES, settings_EXACT_DATE_FORMATS as EXACT_DATE_FORMATS, settings_GEOCODE_PROVIDERS as GEOCODE_PROVIDERS, settings_GEOCODE_PROVIDER_LABELS as GEOCODE_PROVIDER_LABELS, settings_LANGUAGES as LANGUAGES, settings_MAP_LIST_FIELDS as MAP_LIST_FIELDS, settings_MOVEMENT_CYCLE as MOVEMENT_CYCLE, settings_MOVEMENT_MODES as MOVEMENT_MODES, settings_OPACITY_TOGGLE_MODES as OPACITY_TOGGLE_MODES, settings_POLYGON_COLOR_MODES as POLYGON_COLOR_MODES, settings_PREVIEW_ASPECT_RATIOS as PREVIEW_ASPECT_RATIOS, settings_PRIVATE_SETTINGS as PRIVATE_SETTINGS, settings_SEEN_RESOLUTIONS as SEEN_RESOLUTIONS, settings_SUBDIVISION_DETAILS as SUBDIVISION_DETAILS, settings_TAG_FOLDER_COLOR_MODES as TAG_FOLDER_COLOR_MODES, settings_TAG_SUGGESTION_LIMITS as TAG_SUGGESTION_LIMITS, settings_TAG_VIEW_MODES as TAG_VIEW_MODES, settings_UNIT_SYSTEMS as UNIT_SYSTEMS, settings_getSettings as getSettings, settings_navHiddenWithUI as navHiddenWithUI, settings_panoDisplayOptions as panoDisplayOptions, settings_resetSettings as resetSettings, settings_setSetting as setSetting, settings_useSetting as useSetting, settings_useSettings as useSettings };
   export type { settings_AppSettings as AppSettings, settings_BorderDetail as BorderDetail, settings_DateTimezone as DateTimezone, settings_DiscordPresenceMode as DiscordPresenceMode, settings_ExactDateFormat as ExactDateFormat, settings_GeocodeProvider as GeocodeProvider, settings_Language as Language, settings_MapListField as MapListField, settings_MovementMode as MovementMode, settings_OpacityToggleMode as OpacityToggleMode, settings_PolygonColorMode as PolygonColorMode, settings_PreviewAspectRatio as PreviewAspectRatio, settings_SeenResolution as SeenResolution, settings_SubdivisionDetail as SubdivisionDetail, settings_TagFolderColorMode as TagFolderColorMode, settings_TagViewMode as TagViewMode, settings_UnitSystem as UnitSystem };
 }
 
@@ -4321,8 +4527,11 @@ export interface Plugin extends PluginIdentity {
 export type PluginBehavior = Partial<Plugin> & {
     activate(): void | (() => void);
 };
+/** Update machinery. @unstable */
 declare function isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean;
+/** Update machinery. @unstable */
 declare function isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean;
+/** Update machinery. @unstable */
 declare function needsUpdate(installedVersion: string | undefined, latestVersion: string | undefined, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
 /** The build of a plugin an app should install: `ref` is the commit it ships at, null for
  *  the registry's latest (master). */
@@ -4333,19 +4542,19 @@ export interface ResolvedBuild {
 }
 /** The newest build of a plugin this app version can run -- the registry's latest when
  *  compatible, else the newest pinned fallback that is. Null when no published build
- *  supports this app at all. `builds` is ordered newest-first. */
+ *  supports this app at all. `builds` is ordered newest-first. @unstable */
 declare function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null;
 /** Whether an install should be refreshed to `target`. A pinned build's sidecar version
  *  lives in its own manifest, so only the latest build's sidecar can be compared before
- *  downloading; for a pinned one the install itself reconciles it. */
+ *  downloading; for a pinned one the install itself reconciles it. @unstable */
 declare function needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
 /** The marketplace registry, fetched once per session (startup update check and the
- *  marketplace dialog share it). A failed fetch clears the cache so the next call retries. */
+ *  marketplace dialog share it). A failed fetch clears the cache so the next call retries. @unstable */
 declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
 /** Refresh a stale install before it loads. Nothing is registered yet at startup, so an
  *  update is just re-downloading the files the normal load then picks up; any failure
  *  falls back to loading what's on disk. Plugins absent from the registry (hand-installed
- *  dev plugins) and plugins with no build this app can run are never touched. */
+ *  dev plugins) and plugins with no build this app can run are never touched. @unstable */
 declare function autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>;
 /** @unstable */
 declare function setPendingManifest(manifest: PluginManifest | null): void;
@@ -4494,14 +4703,14 @@ export type Disposable = () => void;
 /** Run `fn` attributed to plugin `id`; host registrations during it are tracked for teardown.
  *  Plugin activation machinery, driven by the registry. @unstable */
 declare function runAsPlugin<T>(id: string, fn: () => T): T;
-/** Enroll a teardown callback under the currently-activating plugin. No-op outside activation. */
+/** Enroll a teardown callback under the currently-activating plugin. No-op outside activation. @unstable */
 declare function trackDisposable(dispose: Disposable): void;
 /** Record where a plugin's files live on disk, so its registrations can resolve
- *  paths to assets it ships. Core plugins have no directory. */
+ *  paths to assets it ships. Core plugins have no directory. @unstable */
 declare function setPluginBaseDir(id: string, dir: string): void;
 /** Resolve a file path a plugin registration referred to, against the directory of the
  *  plugin currently activating. Absolute paths, "res://" URLs, registrations outside an
- *  activation window, and core plugins (no directory) all pass through unchanged. */
+ *  activation window, and core plugins (no directory) all pass through unchanged. @unstable */
 declare function resolvePluginPath(path: string): string;
 /** Run and clear every teardown a plugin registered, in reverse order. @unstable */
 declare function disposePlugin(id: string): void;
@@ -5093,13 +5302,17 @@ declare function registerProvider(provider: Provider): void;
 declare function getProviders(): Provider[];
 declare function getProviderForField(field: string): Provider | undefined;
 declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
-/** `extra` without every field a provider produces: what a row forgets when the pano it
- *  was derived from changes, for enrichment to derive again. */
-declare function withoutProvided(extra: Record<string, unknown> | null): Record<string, unknown> | null;
+/** Every field derived from the `changed` keys, directly or through other providers: what a
+ *  row must forget when those inputs change, for enrichment to derive again. The graph is
+ *  each provider's `requires` against what it produces. */
+declare function derivedFrom(changed: Iterable<string>): Set<string>;
+/** `extra` without every field derived from the `changed` keys. */
+declare function withoutDerivedFrom(extra: Record<string, unknown> | null, changed: Iterable<string>): Record<string, unknown> | null;
 
 export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
 export type fieldDefs_ProcedureSpec<TCollected = unknown> = ProcedureSpec<TCollected>;
 export type fieldDefs_Provider = Provider;
+declare const fieldDefs_derivedFrom: typeof derivedFrom;
 declare const fieldDefs_getAllEnrichKeys: typeof getAllEnrichKeys;
 declare const fieldDefs_getDefaultEnrichKeys: typeof getDefaultEnrichKeys;
 declare const fieldDefs_getEnrichFieldOptions: typeof getEnrichFieldOptions;
@@ -5109,9 +5322,9 @@ declare const fieldDefs_isFieldEnabled: typeof isFieldEnabled;
 declare const fieldDefs_knownFieldDefs: typeof knownFieldDefs;
 declare const fieldDefs_registerEnrichFields: typeof registerEnrichFields;
 declare const fieldDefs_registerProvider: typeof registerProvider;
-declare const fieldDefs_withoutProvided: typeof withoutProvided;
+declare const fieldDefs_withoutDerivedFrom: typeof withoutDerivedFrom;
 declare namespace fieldDefs {
-  export { fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerEnrichFields as registerEnrichFields, fieldDefs_registerProvider as registerProvider, fieldDefs_withoutProvided as withoutProvided };
+  export { fieldDefs_derivedFrom as derivedFrom, fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerEnrichFields as registerEnrichFields, fieldDefs_registerProvider as registerProvider, fieldDefs_withoutDerivedFrom as withoutDerivedFrom };
   export type { fieldDefs_EnrichFieldOption as EnrichFieldOption, fieldDefs_ProcedureSpec as ProcedureSpec, fieldDefs_Provider as Provider };
 }
 
@@ -5272,11 +5485,12 @@ export interface DeclOpts {
     force?: boolean;
     fields?: string[];
     requires?: string[];
+    invalidates?: Record<string, string[]>;
 }
 /** Run one procedure over `selector`, on its own. The primitive: a consumer that is not
  *  enrichment (validation, a download resolving pano ids) declares a spec and calls this,
  *  and gets its collected answers typed by the spec. @unstable */
-declare function runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: RunOpts & Omit<DeclOpts, "fields" | "requires"> & {
+declare function runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & {
     id: string;
 }): Promise<ProcedureOutcome<T>>;
 
@@ -5345,15 +5559,18 @@ declare namespace seen {
 
 declare let singletonPano: google.maps.StreetViewPanorama | null;
 declare const singletonDiv: HTMLDivElement;
+/** @unstable */
 declare function getPanorama(): google.maps.StreetViewPanorama | null;
-/** The live viewer's camera in the stored zoom domain. Zeroed if there is no viewer. */
+/** The live viewer's camera in the stored zoom domain. Zeroed if there is no viewer. @unstable */
 declare function capturePov(): LocationPOV;
 /** Read the live viewer back into Location fields, the inverse of {@link applyResolved}.
- *  Null until the viewer has a position. */
+ *  Null until the viewer has a position. @unstable */
 declare function capturePano(): PanoCapture | null;
+/** @unstable */
 declare function clearSingletonPano(): void;
+/** @unstable */
 declare function applyResolved(sv: google.maps.StreetViewPanorama, resolved: Pano | null, loc: Location): void;
-/** Open a seen entry's panorama in the Street View viewer. */
+/** Open a seen entry's panorama in the Street View viewer. @unstable */
 declare function loadSeenPano(entry: SeenEntry): Promise<void>;
 
 declare const panoSingleton_applyResolved: typeof applyResolved;
@@ -5377,14 +5594,12 @@ declare namespace panoSingleton {
   };
 }
 
-/** True when the location is missing any of the given enrich fields (default: the enabled set). */
-declare function needsEnrichment(loc: Location, enrichFields?: string[]): boolean;
 /** One location as enrichment leaves it: every field-producing provider, narrowed to
  *  the map's enabled keys, run over that row alone. A field the row already holds is
  *  not derived again unless `force`, which re-derives every field the providers own.
  *  Nothing is written; the caller holds the result. The row comes back untouched when
  *  the map's enrichment is off. */
-declare function enrich(loc: Location, opts?: Pick<RunOpts, "signal" | "force">): Promise<Location>;
+declare function enrich(loc: Location, opts?: Omit<RunOpts, "onProgress">): Promise<Location>;
 /** The field-producing providers as enrichment runs them, each narrowed to the keys the
  *  user picked. Keys the enrichment UI never offers are always produced. */
 declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
@@ -5418,27 +5633,24 @@ export interface EnrichOutcome extends ProcedureOutcome {
     id: string;
     label: string;
 }
-export type EnrichResult = EnrichOutcome[];
 /** Bulk enrich a selector: resolve missing pano ids, then run every field-producing
  *  provider (metadata, exact date, timezone, subdivision) through the Rust engine. */
-declare function enrichAll(selector: Selector, opts?: BulkOpts & Pick<RunOpts, "force">): Promise<EnrichResult>;
+declare function enrichAll(selector: Selector, opts?: RunOpts): Promise<EnrichOutcome[]>;
 
 export type enrich$1_EnrichOutcome = EnrichOutcome;
-export type enrich$1_EnrichResult = EnrichResult;
 export type enrich$1_PanoResolveConfig = PanoResolveConfig;
 declare const enrich$1_enrich: typeof enrich;
 declare const enrich$1_enrichAll: typeof enrichAll;
 declare const enrich$1_enrichRuns: typeof enrichRuns;
 declare const enrich$1_exactDateProvider: typeof exactDateProvider;
-declare const enrich$1_needsEnrichment: typeof needsEnrichment;
 declare const enrich$1_panoResolveProvider: typeof panoResolveProvider;
 declare const enrich$1_panoResolveSpec: typeof panoResolveSpec;
 declare const enrich$1_subdivisionProvider: typeof subdivisionProvider;
 declare const enrich$1_svMetaProvider: typeof svMetaProvider;
 declare const enrich$1_timezoneProvider: typeof timezoneProvider;
 declare namespace enrich$1 {
-  export { enrich$1_enrich as enrich, enrich$1_enrichAll as enrichAll, enrich$1_enrichRuns as enrichRuns, enrich$1_exactDateProvider as exactDateProvider, enrich$1_needsEnrichment as needsEnrichment, enrich$1_panoResolveProvider as panoResolveProvider, enrich$1_panoResolveSpec as panoResolveSpec, enrich$1_subdivisionProvider as subdivisionProvider, enrich$1_svMetaProvider as svMetaProvider, enrich$1_timezoneProvider as timezoneProvider };
-  export type { enrich$1_EnrichOutcome as EnrichOutcome, enrich$1_EnrichResult as EnrichResult, enrich$1_PanoResolveConfig as PanoResolveConfig };
+  export { enrich$1_enrich as enrich, enrich$1_enrichAll as enrichAll, enrich$1_enrichRuns as enrichRuns, enrich$1_exactDateProvider as exactDateProvider, enrich$1_panoResolveProvider as panoResolveProvider, enrich$1_panoResolveSpec as panoResolveSpec, enrich$1_subdivisionProvider as subdivisionProvider, enrich$1_svMetaProvider as svMetaProvider, enrich$1_timezoneProvider as timezoneProvider };
+  export type { enrich$1_EnrichOutcome as EnrichOutcome, enrich$1_PanoResolveConfig as PanoResolveConfig };
 }
 
 export interface PinPanoConfig {
@@ -5448,20 +5660,17 @@ export interface PinPanoConfig {
  *  panorama. With `useLatest`, move it to the newest official pano in the timeline
  *  first. The pano id itself comes from `panoResolve`, an earlier wave. */
 declare const pinPanoProvider: Provider;
-/** Pinned is a pano ID *and* the flag: the flag alone can outlive the id. */
-declare const PINNED: Selector;
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
  *  loads the same pano. */
-declare function bulkPinToPano(selector: Selector, opts?: BulkOpts & Pick<RunOpts, "force"> & {
+declare function bulkPinToPano(selector: Selector, opts?: RunOpts & {
     useLatest?: boolean;
 }): Promise<BatchOutcome>;
 
-declare const pinPano_PINNED: typeof PINNED;
 export type pinPano_PinPanoConfig = PinPanoConfig;
 declare const pinPano_bulkPinToPano: typeof bulkPinToPano;
 declare const pinPano_pinPanoProvider: typeof pinPanoProvider;
 declare namespace pinPano {
-  export { pinPano_PINNED as PINNED, pinPano_bulkPinToPano as bulkPinToPano, pinPano_pinPanoProvider as pinPanoProvider };
+  export { pinPano_bulkPinToPano as bulkPinToPano, pinPano_pinPanoProvider as pinPanoProvider };
   export type { pinPano_PinPanoConfig as PinPanoConfig };
 }
 
@@ -5489,49 +5698,6 @@ declare const validate_validateSpec: typeof validateSpec;
 declare namespace validate {
   export { validate_validateLocations as validateLocations, validate_validateSpec as validateSpec };
   export type { validate_ValidateConfig as ValidateConfig, validate_ValidationOutcome as ValidationOutcome };
-}
-
-/**
- * The surface a procedure module runs against: the global `mma` object and the values
- * that cross the boundary. Every host call is synchronous -- the guest blocks while the
- * host works, which is how `fetchMany` (never a loop over `fetch`) buys a procedure its
- * request concurrency.
- *
- * A procedure is an ES module bundled to one file. Its named exports are the entry
- * points: `request` + `map` (RequestMap), `map` (MapOnly) or `run` (Run), plus the
- * optional `query` and `configure`. Rows arrive as `Location`s and `run`/`map` answer
- * with `Update<LocationPatch>`s under the `patch` sink, or `Update<T>` of the module's
- * own answer under `collect`.
- */
-interface ProcedureRequest {
-    method: string;
-    url: string;
-    headers?: Record<string, string>;
-    body?: string | Uint8Array | ArrayBuffer;
-}
-interface ProcedureResponse {
-    /** 0 when the host could not issue the request at all. */
-    status: number;
-    body: Uint8Array;
-}
-interface ProcedureHost {
-    fetch(req: ProcedureRequest): ProcedureResponse;
-    fetchMany(reqs: ProcedureRequest[]): ProcedureResponse[];
-    classify(dataset: string, lat: number, lng: number): string | null;
-    /** Run one sidecar command. `onLine` sees each output line as it arrives, so a
-     *  procedure can report progress mid-run; the lines are also returned together. */
-    sidecar(pluginId: string, command: string, payloadJson: string, onLine?: (line: string) => void): string[];
-    /** 0 debug, 1 info, 2 warn, 3 error. `console.*` routes here. */
-    log(level: number, msg: string): void;
-    progress(units: number): void;
-    /** Marks a row as failed rather than skipped. */
-    fail(id: number): void;
-    aborted(): boolean;
-}
-declare global {
-    /** Reachable inside a procedure module only. `fetch`, `fetchMany` and `sidecar` are
-     *  detached outside `run` and `query`; calling one elsewhere throws. */
-    const mma: ProcedureHost;
 }
 
 /**
@@ -5728,16 +5894,19 @@ declare function getScenePositions(): {
     ids: Uint32Array;
     positions: Float32Array;
 };
+/** Scene engine control. @unstable */
 declare function setMarkerDefaultColor(r: number, g: number, b: number): void;
 /** Repaint the default marker color and tell Rust (for future deltas). The base layers take
- *  the colour as a constant, so this is O(1) rather than a rewrite of every marker. */
+ *  the colour as a constant, so this is O(1) rather than a rewrite of every marker. @unstable */
 declare function recolorScene(mc: RGB): void;
 declare function getMarkerDefaultColor(): RGBA;
-/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). */
+/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
 declare function whenSceneSettled(): Promise<void>;
-/** Full (re)load from Rust for the whole world. Editor-driven on open / marker-style change. */
+/** Full (re)load from Rust for the whole world. Editor-driven on open / marker-style change. @unstable */
 declare function loadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void>;
+/** Scene engine control. @unstable */
 declare function clearScene(): void;
+/** Scene engine control. @unstable */
 declare function startSceneEngine(): () => void;
 
 declare const sceneStore_clearScene: typeof clearScene;
@@ -6020,9 +6189,11 @@ declare namespace util {
  * Exposed as `window.MMA` (and the global `MMA`).
  */
 
+export type ConstsApi = typeof consts;
 export type StoreApi = typeof store;
 export type SelectionOpsApi = typeof selectionOps;
 export type SavedSelectionsApi = typeof savedSelections;
+/** App settings and their option tables; the shape moves with every setting added. @unstable */
 export type SettingsApi = typeof settings;
 /** Import dialog internals. @unstable */
 export type ImportStagingApi = typeof importStaging;
@@ -6044,6 +6215,7 @@ export type FieldDefsApi = typeof fieldDefs;
 export type FieldDefRegistryApi = typeof fieldDefRegistry;
 export type ProceduresApi = typeof procedures;
 export type SeenApi = typeof seen;
+/** The shared panorama viewer's internals. @unstable */
 export type PanoSingletonApi = typeof panoSingleton;
 export type EnrichApi = typeof enrich$1;
 export type PinPanoApi = typeof pinPano;
@@ -6060,8 +6232,9 @@ export type LegacyApi = typeof legacy;
 export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 export type UtilApi = typeof util;
-export interface MMA extends StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoSingletonApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoSingletonApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
+
 declare global {
     interface Window {
         MMA: MMA;
@@ -6069,5 +6242,5 @@ declare global {
     const MMA: MMA;
 }
 
-export { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
 export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
