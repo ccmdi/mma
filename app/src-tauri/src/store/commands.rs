@@ -18,7 +18,6 @@ use crate::util;
 use arrow_array::RecordBatch;
 use arrow_ord::sort;
 use arrow_select::take;
-use roaring::RoaringBitmap;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -974,28 +973,21 @@ pub async fn store_sync_selections(
         let view = store.loc_view();
         let (sel_sets, counts) = selections::resolve_forest(&view, &sels_full);
 
-        // 2. Drop the ghosted ones once, here. Everything downstream reads `live`, so the
-        //    selections and their member sets can never be filtered by two different rules.
-        let live: Vec<ResolvedSelection> = pair_selections(sels_full, sel_sets)
-            .into_iter()
-            .zip(&sels)
-            .filter(|(_, si)| !si.ghosted)
-            .map(|(r, _)| r)
-            .collect();
+        // 2. Keep every selection, ghosted flagged: a mutation recounts all of them, and
+        //    `SelectionState::live` is the one rule that keeps ghosted out of the overlay
+        //    and the selected set.
+        store.selections.resolved = pair_selections(sels_full, sel_sets, sels.iter().map(|si| si.ghosted));
 
-        let mut all_selected = RoaringBitmap::new();
-        for r in &live {
-            all_selected |= &r.set;
-        }
+        let all_selected = store.selections.live_ids();
         let selected_count = all_selected.len() as usize;
 
         // 3. Route selections to per-cell indices (O(selected), not O(S*N)), then
         //    serialize the per-cell bitmask binary.
         let render_total = store.render.total_len();
+        let live: Vec<&ResolvedSelection> = store.selections.live().collect();
         let (buf, num_cells) = build_selection_buf(&store.render, &live);
 
         store.selections.ids = all_selected;
-        store.selections.resolved = live;
         store.selections.node_counts = counts.clone();
         store.selections.version += 1;
 

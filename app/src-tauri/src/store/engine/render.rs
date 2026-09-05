@@ -156,7 +156,7 @@ pub(super) fn serialize_cell_segment(
 /// Cells and selections are independent, so both passes go parallel.
 pub(crate) fn build_selection_buf(
     render: &RenderState,
-    sels: &[ResolvedSelection],
+    sels: &[&ResolvedSelection],
 ) -> (Vec<u8>, usize) {
     let render_total = render.total_len();
     let routed: Vec<[Vec<u32>; 32]> = sels

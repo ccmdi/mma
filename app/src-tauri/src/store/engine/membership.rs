@@ -13,6 +13,8 @@ pub(crate) struct ResolvedSelection {
     pub sel: Selection,
     /// Member location ids.
     pub set: RoaringBitmap,
+    /// Counted, but kept out of the overlay and the selected set.
+    pub ghosted: bool,
 }
 
 /// Zip selections with the member sets `resolve_forest` returned for them. The only place
@@ -20,6 +22,7 @@ pub(crate) struct ResolvedSelection {
 pub(crate) fn pair_selections(
     sels: Vec<Selection>,
     sets: Vec<RoaringBitmap>,
+    ghosted: impl IntoIterator<Item = bool>,
 ) -> Vec<ResolvedSelection> {
     debug_assert_eq!(
         sels.len(),
@@ -28,7 +31,8 @@ pub(crate) fn pair_selections(
     );
     sels.into_iter()
         .zip(sets)
-        .map(|(sel, set)| ResolvedSelection { sel, set })
+        .zip(ghosted)
+        .map(|((sel, set), ghosted)| ResolvedSelection { sel, set, ghosted })
         .collect()
 }
 
@@ -44,13 +48,24 @@ pub(crate) struct SelectionState {
 }
 
 impl SelectionState {
+    /// The selections that draw and select, in order: every one but the ghosted. Their
+    /// position here is the selection index the overlay and the bitmask speak.
+    pub(crate) fn live(&self) -> impl Iterator<Item = &ResolvedSelection> {
+        self.resolved.iter().filter(|r| !r.ghosted)
+    }
+
+    /// Every id some live selection holds: the selected set.
+    pub(crate) fn live_ids(&self) -> RoaringBitmap {
+        self.live().fold(RoaringBitmap::new(), |acc, r| acc | &r.set)
+    }
+
     /// Paint of a selected id = the last selection containing it. None if unselected.
     pub(super) fn paint_for(&self, id: u32) -> Option<SelPaint> {
         if !self.ids.contains(id) {
             return None;
         }
         let mut paint = None;
-        for (i, r) in self.resolved.iter().enumerate() {
+        for (i, r) in self.live().enumerate() {
             if r.set.contains(id) {
                 paint = Some(SelPaint {
                     idx: i as u32,
@@ -65,7 +80,7 @@ impl SelectionState {
     /// up with the same paint the per-id lookup would return.
     pub(super) fn paint_map(&self) -> HashMap<u32, SelPaint> {
         let mut map = HashMap::with_capacity(self.ids.len() as usize);
-        for (i, r) in self.resolved.iter().enumerate() {
+        for (i, r) in self.live().enumerate() {
             let paint = SelPaint {
                 idx: i as u32,
                 color: r.sel.color,
@@ -166,7 +181,9 @@ impl Store {
             for loc in &test_locs {
                 if selections::RowRef::from_loc(loc).matches(&r.sel.selector) {
                     r.set.insert(loc.id);
-                    ids.insert(loc.id);
+                    if !r.ghosted {
+                        ids.insert(loc.id);
+                    }
                 }
             }
         }
@@ -205,18 +222,15 @@ impl Store {
             .iter()
             .map(|r| r.sel.clone())
             .collect();
+        let ghosted: Vec<bool> = self.selections.resolved.iter().map(|r| r.ghosted).collect();
         let (loc_sets, node_counts) = {
             let view = self.loc_view();
             selections::resolve_forest(&view, &sels)
         };
         self.selections.node_counts = node_counts;
-        self.selections.resolved = pair_selections(sels, loc_sets);
+        self.selections.resolved = pair_selections(sels, loc_sets, ghosted);
 
-        let mut all_selected = RoaringBitmap::new();
-        for r in &self.selections.resolved {
-            all_selected |= &r.set;
-        }
-        self.selections.ids = all_selected;
+        self.selections.ids = self.selections.live_ids();
         self.selections.version += 1;
     }
 
@@ -228,8 +242,9 @@ impl Store {
         let selected_count = self.selections.ids.len() as usize;
 
         let t0 = Instant::now();
-        let num_sels = self.selections.resolved.len();
-        let (buf, num_cells) = build_selection_buf(&self.render, &self.selections.resolved);
+        let live: Vec<&ResolvedSelection> = self.selections.live().collect();
+        let num_sels = live.len();
+        let (buf, num_cells) = build_selection_buf(&self.render, &live);
         let bitmask = if num_cells > 0 { Some(buf) } else { None };
 
         log::debug!(

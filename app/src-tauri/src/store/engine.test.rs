@@ -1975,6 +1975,7 @@ fn push_resolved(store: &mut Store, key: &str, color: [u8; 3], members: &[u32]) 
             },
         },
         set,
+        ghosted: false,
     });
 }
 
@@ -2541,7 +2542,62 @@ fn add_tag_selection(store: &mut Store, tag_id: u32, color: [u8; 3]) {
             selector: Selector::Tag { tag_id },
         },
         set: RoaringBitmap::new(),
+        ghosted: false,
     });
+}
+
+#[test]
+fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() {
+    let l1 = loc_with_tags(1, 10.0, 20.0, vec![]);
+    let mut store = setup_store_with(slice::from_ref(&l1));
+    insert_tag(&mut store, 1, 0);
+    insert_tag(&mut store, 2, 0);
+    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    store.selections.resolved[0].ghosted = true;
+    add_tag_selection(&mut store, 2, [0, 255, 0]);
+
+    let after = loc_with_tags(1, 10.0, 20.0, vec![1, 2]);
+    let result = store.finish_mutation(&ChangeSet {
+        updated: vec![(l1, after)],
+        ..Default::default()
+    });
+
+    let sync = result.selection_sync.expect("a mutation recounts");
+    assert_eq!(sync.counts["tag:1"], 1, "the ghosted selection is counted");
+    assert_eq!(sync.counts["tag:2"], 1);
+    assert_eq!(sync.selected_count, 1, "only the live selection selects");
+    assert_eq!(
+        result.delta.updated[0].sel,
+        Some(SelPaint {
+            idx: 0,
+            color: [0, 255, 0]
+        }),
+        "the paint index counts live selections only"
+    );
+}
+
+#[test]
+fn a_full_resolve_counts_a_ghosted_selection_and_keeps_it_out_of_the_selected_set() {
+    let mut store = setup_store_with(&[loc_with_tags(1, 10.0, 20.0, vec![1, 2])]);
+    insert_tag(&mut store, 1, 1);
+    insert_tag(&mut store, 2, 1);
+    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    store.selections.resolved[0].ghosted = true;
+    add_tag_selection(&mut store, 2, [0, 255, 0]);
+
+    store.resolve_selection_membership();
+
+    assert_eq!(store.selections.node_counts["tag:1"], 1);
+    assert_eq!(store.selections.node_counts["tag:2"], 1);
+    assert!(store.selections.resolved[0].ghosted, "a full resolve keeps the flag");
+    assert_eq!(store.selections.ids.len(), 1, "only the live selection selects");
+    let sync = store.build_selection_bitmask();
+    assert_eq!(sync.selected_count, 1);
+    assert_eq!(
+        u32::from_le_bytes(sync.bitmask.unwrap()[0..4].try_into().unwrap()),
+        1,
+        "the bitmask carries live selections only"
+    );
 }
 
 /// Parse the binary bitmask and return the cell chars it contains.
