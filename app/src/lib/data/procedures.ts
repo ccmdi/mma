@@ -270,7 +270,7 @@ async function declare(
 export async function runProcedure<T>(
 	spec: ProcedureSpec<T>,
 	selector: Selector,
-	opts: RunOpts & Omit<DeclOpts, "fields" | "requires"> & { id: string },
+	opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & { id: string },
 ): Promise<ProcedureOutcome<T>> {
 	const { id, label, config, sink, force: specForce, ...run } = opts;
 	const decl = await declare(id, spec, selector, { label, config, sink, force: specForce });
