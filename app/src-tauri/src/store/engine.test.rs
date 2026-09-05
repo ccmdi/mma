@@ -102,6 +102,22 @@ fn overlay_add_batch_merges_into_sorted_adds() {
 }
 
 #[test]
+fn a_no_op_edit_pushes_no_undo_entry_and_keeps_redo() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.apply_undoable(vec![], vec![loc(2, 0.0, 0.0)]);
+    let entry = store.edits.undo.pop().unwrap();
+    store.apply_edit_reverse(&entry);
+    store.edits.redo.push(entry);
+    let rev = store.overlay.rev();
+
+    store.apply_undoable(vec![], vec![]);
+
+    assert!(store.edits.undo.is_empty());
+    assert_eq!(store.edits.redo.len(), 1);
+    assert_eq!(store.overlay.rev(), rev);
+}
+
+#[test]
 fn undo_of_a_page_keeps_the_overlay_sorted() {
     let rows: Vec<Location> = (1..=2000).map(|i| loc(i, 0.0, 0.0)).collect();
     let mut store = setup_store_with(&rows);
