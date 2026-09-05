@@ -5,7 +5,13 @@ set -e
 
 # The sidecar is still a Tauri app: it builds a hidden webview as the IPC dispatch
 # host, so GTK needs a display even though nothing is shown.
-Xvfb :99 -screen 0 1920x1080x24 &
+# Same split as the native runner: environmental X/GL noise is kept beside the run log
+# rather than in it.
+NOISE="${MMA_E2E_LOG_PATH:-/repo/app/test/logs/e2e-web-local.txt}"
+NOISE="${NOISE%.txt}"
+mkdir -p "$(dirname "$NOISE")"
+
+Xvfb :99 -screen 0 1920x1080x24 2>"$NOISE.xvfb.log" &
 export DISPLAY=:99
 sleep 1
 
@@ -19,7 +25,7 @@ if [ -n "${MMA_TEST_MOCK_SV:-}" ]; then
     export MMA_E2E_SV_ORIGIN="http://127.0.0.1:${MMA_E2E_SV_PORT:-4599}"
 fi
 
-map-making-app --serve &
+map-making-app --serve 2>"$NOISE.sidecar.log" &
 SERVER_PID=$!
 trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
 
