@@ -178,7 +178,7 @@ export const DEFAULTS = {
 	/** Read once at boot; changing it relaunches the app rather than re-rendering. */
 	language: "en" as Language,
 	/** Every distance the UI shows or accepts; stored values stay metric. */
-	units: "auto" as UnitSystem,
+	units: "metric" as UnitSystem,
 	/** Reopen the maps that were open when the session last ended (main window closed). */
 	restoreSession: true,
 	/** Offer pre-release builds to the updater as well as full releases. */
