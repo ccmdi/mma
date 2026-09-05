@@ -589,9 +589,9 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			run: () =>
 				withApi(async (api, op) => {
 					const start = performance.now();
-					if (op === "intersection") await api.applySelectionUpdate(api.intersectSelections);
-					else if (op === "union") await api.applySelectionUpdate(api.unionSelections);
-					else await api.applySelectionUpdate(api.invertSelections);
+					if (op === "intersection") await api.applySelectionUpdate(api.intersectSelections());
+					else if (op === "union") await api.applySelectionUpdate(api.unionSelections());
+					else await api.applySelectionUpdate(api.invertSelections());
 					const operationMs = performance.now() - start;
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
