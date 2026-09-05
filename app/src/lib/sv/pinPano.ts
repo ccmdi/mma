@@ -5,7 +5,6 @@ import {
 	procedureEntry,
 	runProviders,
 	type BatchOutcome,
-	type BulkOpts,
 	type RunOpts,
 } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
@@ -45,7 +44,7 @@ function unpinnedIn(selector: Selector): Selector {
  *  loads the same pano. */
 export async function bulkPinToPano(
 	selector: Selector,
-	opts: BulkOpts & Pick<RunOpts, "force"> & { useLatest?: boolean } = {},
+	opts: RunOpts & { useLatest?: boolean } = {},
 ): Promise<BatchOutcome> {
 	const { useLatest, force = false, ...runOpts } = opts;
 	const target = force ? undefined : unpinnedIn(selector);

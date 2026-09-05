@@ -15,7 +15,6 @@ import {
 	procedureEntry,
 	type ProcedureOutcome,
 	type ProviderRun,
-	type BulkOpts,
 	type RunOpts,
 } from "@/lib/data/procedures";
 import {
@@ -192,7 +191,7 @@ export type EnrichResult = EnrichOutcome[];
  *  provider (metadata, exact date, timezone, subdivision) through the Rust engine. */
 export async function enrichAll(
 	selector: Selector,
-	opts: BulkOpts & Pick<RunOpts, "force"> = {},
+	opts: RunOpts = {},
 ): Promise<EnrichResult> {
 	const map = getMapState().map;
 	if (!map) return [];

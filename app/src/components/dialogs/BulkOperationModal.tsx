@@ -42,7 +42,7 @@ import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
 import { fmt } from "@/lib/util/format";
 import { waveRate, type WaveRate } from "@/lib/util/util";
-import type { BatchOutcome, PhasePart, RunOpts } from "@/lib/data/procedures";
+import type { BatchOutcome, BulkOpts, PhasePart } from "@/lib/data/procedures";
 import { toast } from "@/lib/util/toast";
 import { t, msg } from "@/lib/i18n";
 
@@ -57,13 +57,7 @@ const TITLES = {
 } as const;
 export type BulkOperation = keyof typeof TITLES;
 
-type ProgressFn = NonNullable<RunOpts["onProgress"]>;
-
-interface BulkRunContext {
-	selector: Selector;
-	signal: AbortSignal;
-	onProgress: ProgressFn;
-}
+type BulkRunContext = { selector: Selector } & Required<BulkOpts>;
 
 interface BulkRunResult {
 	doneMessage?: string;
@@ -806,7 +800,7 @@ export function BulkProgress({
 		setRate(null);
 		setElapsed(null);
 
-		const onProgress: ProgressFn = (d, t, label, parts) => {
+		const onProgress: BulkRunContext["onProgress"] = (d, t, label, parts) => {
 			setPhaseLabel(label ?? null);
 			setPhaseParts(parts ?? null);
 			setTotal(t);
