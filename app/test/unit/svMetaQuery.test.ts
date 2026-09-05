@@ -8,6 +8,8 @@ import {
 	type GetMetadataRequest,
 } from "@/lib/proto/getmetadata.gen";
 import { imageKeyToPanoId } from "@/lib/sv/panoId";
+import { SVMETA_FIELDS } from "@/lib/sv/getMetadata";
+import { KNOWN_FIELDS } from "@/bindings.consts";
 import {
 	BIN_CAR,
 	JSON_CAR,
@@ -66,7 +68,11 @@ function expectParityWithJson(b64: string, json: any) {
 	expect(p.levelId).toBe(r[5][0][1][3] ? (r[5][0][1][3][0] ?? 0) : null);
 	expect(p.source).toBe(r[6]?.[5]?.[2] ?? null);
 	expect(p.copyright).toBe(r[4]?.[0]?.[0]?.[0]?.[0] ?? "");
-	expect(p.date ? `${String(p.date.year).padStart(4, "0")}-${String(p.date.month).padStart(2, "0")}` : "").toBe(
+	expect(
+		p.date
+			? `${String(p.date.year).padStart(4, "0")}-${String(p.date.month).padStart(2, "0")}`
+			: "",
+	).toBe(
 		r[6]?.[7]?.[0] > 0
 			? `${String(r[6][7][0]).padStart(4, "0")}-${String(r[6][7][1] ?? 0).padStart(2, "0")}`
 			: "",
@@ -214,6 +220,44 @@ describe("svMetadata", () => {
 });
 
 describe("the svMeta run pass", () => {
+	it("derives every field as the type the field table declares", () => {
+		(globalThis as any).mma = {
+			fetchMany: (reqs: unknown[]) => reqs.map(() => ({ status: 200, body: b64Bytes(BIN_CAR) })),
+			log: () => {},
+			progress: () => {},
+			fail: () => {},
+			aborted: () => false,
+		};
+		configure(null);
+		const [out] = run([{ id: 1, lat: 0, lng: 0, panoId: "pA", extra: null }]);
+		const extra = out.patch.extra as Record<string, unknown>;
+		const defs = Object.fromEntries(KNOWN_FIELDS.map((f) => [f.key, f]));
+		for (const key of SVMETA_FIELDS) {
+			const value = extra[key];
+			expect(value, key).not.toBeUndefined();
+			if (value === null) continue;
+			switch (defs[key].type) {
+				case "number":
+					expect(typeof value, key).toBe("number");
+					break;
+				case "string":
+					expect(typeof value, key).toBe("string");
+					break;
+				case "enum":
+					expect(defs[key].values, key).toContain(String(value));
+					break;
+				case "month":
+					expect(value, key).toMatch(/^\d{4}-\d{2}$/);
+					break;
+				case "array":
+					expect(Array.isArray(value), key).toBe(true);
+					break;
+				default:
+					throw new Error(`no type check for ${key}: ${defs[key].type}`);
+			}
+		}
+	});
+
 	it("fails a row whose pano no longer exists instead of silently retrying it forever", () => {
 		const failed: number[] = [];
 		(globalThis as any).mma = {
@@ -228,5 +272,4 @@ describe("the svMeta run pass", () => {
 		expect(out).toEqual([]);
 		expect(failed).toEqual([4]);
 	});
-
 });
