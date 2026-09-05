@@ -22,6 +22,7 @@ import { MONTHS, ymParse } from "@/lib/util/date";
 import { formatDistance } from "@/lib/util/format";
 import "./generator.css";
 import { t } from "@/lib/i18n";
+import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
 
@@ -82,65 +83,96 @@ function formatYearMonth(ym: string) {
 
 function summarizeSettings(s: GeneratorSettings): string {
 	const parts: string[] = [];
+	const camera = getFieldDef("cameraType");
 
 	// Coverage type
-	let coverage = "any";
-	if (s.rejectUnofficial && !s.rejectOfficial) coverage = "official";
-	else if (s.rejectOfficial && !s.rejectUnofficial) coverage = "unofficial";
-	if (s.rejectGen1) coverage += " (no Gen 1)";
+	let coverage =
+		s.rejectUnofficial && !s.rejectOfficial
+			? t("official")
+			: s.rejectOfficial && !s.rejectUnofficial
+				? t("unofficial")
+				: t("any");
+	if (s.rejectGen1) coverage += ` ${t("(no {gen})", { gen: fieldValueLabel(camera, "gen1") })}`;
 	if (s.findGeneration) {
-		const gen = s.generation === 23 ? "Gen 2/3" : `Gen ${s.generation}`;
-		coverage += ` ${gen}`;
+		coverage += ` ${fieldValueLabel(camera, s.generation === 23 ? "gen2" : `gen${s.generation}`)}`;
 	}
-	if (s.rejectDescription) coverage += " trekker";
-	parts.push(`${coverage} coverage`);
+	if (s.rejectDescription) coverage += ` ${t("trekker")}`;
+	parts.push(t("{coverage} coverage", { coverage }));
 
 	// Date range
 	if (s.selectMonths) {
-		const fm = MONTHS.short[parseInt(s.fromMonth, 10) - 1];
-		const tm = MONTHS.short[parseInt(s.toMonth, 10) - 1];
-		parts.push(`in ${fm}–${tm}, ${s.fromYear}–${s.toYear}`);
+		parts.push(
+			t("in {fromMonth}–{toMonth}, {fromYear}–{toYear}", {
+				fromMonth: MONTHS.short[parseInt(s.fromMonth, 10) - 1],
+				toMonth: MONTHS.short[parseInt(s.toMonth, 10) - 1],
+				fromYear: s.fromYear,
+				toYear: s.toYear,
+			}),
+		);
 	} else {
-		parts.push(`between ${formatYearMonth(s.fromDate)} and ${formatYearMonth(s.toDate)}`);
+		parts.push(
+			t("between {from} and {to}", {
+				from: formatYearMonth(s.fromDate),
+				to: formatYearMonth(s.toDate),
+			}),
+		);
 	}
 
 	// Heading / pitch / zoom
 	if (s.adjustHeading) {
-		const ref = s.headingReference === "link" ? "along road" : s.headingReference;
-		const dev = s.headingDeviation > 0 ? ` ±${s.headingDeviation}°` : "";
-		parts.push(`facing ${ref}${dev}`);
+		const ref =
+			s.headingReference === "link"
+				? t("along road")
+				: s.headingReference === "forward"
+					? t("forward")
+					: t("backward");
+		const facing = t("facing {ref}", { ref });
+		parts.push(s.headingDeviation > 0 ? `${facing} ±${s.headingDeviation}°` : facing);
 	}
-	if (s.adjustPitch) parts.push(`pitch ±${s.pitchDeviation}°`);
-	if (s.adjustZoom) parts.push(`zoom ${s.zoomLevel}`);
+	if (s.adjustPitch) parts.push(t("pitch ±{deviation}°", { deviation: s.pitchDeviation }));
+	if (s.adjustZoom) parts.push(t("zoom {level}", { level: s.zoomLevel }));
 
 	// Radius
-	parts.push(`${formatDistance(s.radius)} radius`);
-	if (s.samplingMode !== "random") parts.push(`${s.samplingMode} sampling`);
+	parts.push(t("{radius} radius", { radius: formatDistance(s.radius) }));
+	if (s.samplingMode !== "random") parts.push(t("{mode} sampling", { mode: s.samplingMode }));
 
 	// Date behavior
-	if (s.checkAllDates) parts.push("checking all dates");
-	if (s.randomInTimeline) parts.push("random date in timeline");
+	if (s.checkAllDates) parts.push(t("checking all dates"));
+	if (s.randomInTimeline) parts.push(t("random date in timeline"));
 
 	// Acceptance toggles (only show non-default)
-	if (!s.rejectDateless) parts.push("allowing dateless");
-	if (!s.rejectNoDescription) parts.push("allowing no-description");
-	if (s.onlyOneInTimeframe) parts.push("unique in timeframe");
+	if (!s.rejectDateless) parts.push(t("allowing dateless"));
+	if (!s.rejectNoDescription) parts.push(t("allowing no-description"));
+	if (s.onlyOneInTimeframe) parts.push(t("unique in timeframe"));
 
 	// Search strategy
-	if (s.skipExisting) parts.push(`skipping existing (${formatDistance(s.skipExistingRadius)})`);
-	if (s.getIntersection) parts.push("intersections");
-	if (s.pinpointSearch) parts.push(`curves >${s.pinpointAngle}°`);
-	if (s.checkLinks) parts.push(`checking ${s.linksDepth} link hops`);
-	if (s.findRegions) parts.push(`${formatDistance(s.regionRadius * 1000)} from existing`);
-	if (s.filterByLinks) parts.push(`${s.minLinks}–${s.maxLinks} links`);
+	if (s.skipExisting) {
+		parts.push(t("skipping existing ({radius})", { radius: formatDistance(s.skipExistingRadius) }));
+	}
+	if (s.getIntersection) parts.push(t("intersections"));
+	if (s.pinpointSearch) parts.push(t("curves >{angle}°", { angle: s.pinpointAngle }));
+	if (s.checkLinks) {
+		parts.push(
+			t({ one: "checking {n} link hop", other: "checking {n} link hops" }, { n: s.linksDepth }),
+		);
+	}
+	if (s.findRegions) {
+		parts.push(t("{distance} from existing", { distance: formatDistance(s.regionRadius * 1000) }));
+	}
+	if (s.filterByLinks) parts.push(t("{min}–{max} links", { min: s.minLinks, max: s.maxLinks }));
 	if (s.searchInDescription && s.searchTerms) {
-		const verb = s.searchFilterType === "include" ? "matching" : "excluding";
-		parts.push(`${verb} "${s.searchTerms}"`);
+		parts.push(
+			s.searchFilterType === "include"
+				? t('matching "{terms}"', { terms: s.searchTerms })
+				: t('excluding "{terms}"', { terms: s.searchTerms }),
+		);
 	}
 
 	// Parallelism
-	if (s.numGenerators > 1) parts.push(`${s.numGenerators} workers`);
-	if (s.oneCountryAtATime) parts.push("one region at a time");
+	if (s.numGenerators > 1) {
+		parts.push(t({ one: "{n} worker", other: "{n} workers" }, { n: s.numGenerators }));
+	}
+	if (s.oneCountryAtATime) parts.push(t("one region at a time"));
 
 	return parts.join(", ");
 }
