@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Pin the #89 fix: updating/relaunching must snapshot the open-map session before
@@ -57,7 +58,15 @@ vi.mock("@tauri-apps/plugin-process", () => ({
 	},
 }));
 
-import { checkForUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
+import { act, createElement } from "react";
+import { mount } from "./fixtures/harness";
+import {
+	checkForUpdate,
+	dismissUpdate,
+	installUpdate,
+	relaunchApp,
+	useUpdateState,
+} from "@/lib/util/updateCheck";
 
 beforeEach(() => {
 	h.saved = [];
@@ -83,5 +92,23 @@ describe("update restarts snapshot the session", () => {
 		h.restoreSession = false;
 		await relaunchApp();
 		expect(h.saved).toEqual([]);
+	});
+});
+
+describe("dismissing an update", () => {
+	it("is remembered for that version across checks", async () => {
+		let dismissed: boolean | null = null;
+		function Probe() {
+			dismissed = useUpdateState().dismissed;
+			return null;
+		}
+		const m = mount(createElement(Probe));
+		await act(() => checkForUpdate());
+		expect(dismissed).toBe(false);
+		act(() => dismissUpdate());
+		expect(dismissed).toBe(true);
+		await act(() => checkForUpdate());
+		expect(dismissed).toBe(true);
+		m.unmount();
 	});
 });

@@ -173,3 +173,18 @@ describe("PanoControls screenshot button", () => {
 		expect(button.disabled).toBe(false);
 	});
 });
+
+describe("PanoControls jump buttons", () => {
+	it("follow their visibility setting", () => {
+		const jumps = () =>
+			[...container.querySelectorAll("button")].filter((b) =>
+				/^Jump (forward|backward)/.test(b.getAttribute("aria-label") ?? ""),
+			);
+		renderControls();
+		expect(jumps()).toHaveLength(0);
+		mocks.settings.showJumpButtons = true;
+		renderControls();
+		expect(jumps()).toHaveLength(2);
+		mocks.settings.showJumpButtons = false;
+	});
+});

@@ -29,4 +29,11 @@ describe("the welcome flag", () => {
 		expect(getLocal("welcomeSeen", false)).toBe(true);
 		expect(JSON.parse(localStorage.getItem("appSettings")!)).not.toHaveProperty("hasSeenWelcome");
 	});
+
+	it("a false flag migrates to no key at all", () => {
+		localStorage.removeItem("welcomeSeen");
+		localStorage.setItem("appSettings", JSON.stringify({ ...DEFAULTS, hasSeenWelcome: false }));
+		expect(reloadLocal(APP_SETTINGS)).not.toHaveProperty("hasSeenWelcome");
+		expect(localStorage.getItem("welcomeSeen")).toBeNull();
+	});
 });
