@@ -140,7 +140,12 @@ function exportedTypes(checker, source) {
 	if (!mod) return [];
 	const unstable = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
 	const out = [];
+	// `api.ts` names one alias per spread module (StoreApi, SettingsApi, ...). They are
+	// how the surface is assembled, not something a plugin can write, so a member moving
+	// between them is invisible to callers and must not read as a break.
+	const machinery = (name) => /Api$/.test(name) && name !== "MMAApi";
 	for (const exp of checker.getExportsOfModule(mod)) {
+		if (machinery(exp.name)) continue;
 		const sym = exp.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exp) : exp;
 		const decl = sym.declarations?.[0];
 		if (!decl) continue;
@@ -225,8 +230,10 @@ export function compareTypes(oldPath, newPath) {
 		}
 		const removed = e.promised.filter((m) => !now.members.includes(m));
 		if (removed.length) {
+			// Recorded, then the assignability probe still runs: a member that kept its name
+			// and changed shape is a break of its own, and reporting only the removals would
+			// hide it until a plugin silently misbehaves.
 			broken.set(e.name, `member(s) removed: ${removed.join(", ")}`);
-			continue;
 		}
 		const [o, n] = [e.ref("Old"), e.ref("New")];
 		const skip = e.skip.length ? e.skip.join(" | ") : "never";
@@ -247,7 +254,12 @@ export function compareTypes(oldPath, newPath) {
 		const source = program.getSourceFile(probePath);
 		for (const d of program.getSemanticDiagnostics(source)) {
 			const name = lineOwner.get(source.getLineAndCharacterOfPosition(d.start ?? 0).line);
-			if (name && !broken.has(name)) broken.set(name, leaf(d));
+			if (!name) continue;
+			const prior = broken.get(name);
+			// A removal is already recorded for this type; keep it and add the first shape
+			// break beside it rather than letting either hide the other.
+			if (!prior) broken.set(name, leaf(d));
+			else if (!prior.includes(" | ")) broken.set(name, `${prior} | ${leaf(d)}`);
 		}
 	} finally {
 		rmSync(probePath, { force: true });
