@@ -244,7 +244,7 @@ describe("the svMeta run pass", () => {
 					expect(typeof value, key).toBe("string");
 					break;
 				case "enum":
-					expect(defs[key].values, key).toContain(String(value));
+					expect(defs[key].values, key).toContain(value);
 					break;
 				case "month":
 					expect(value, key).toMatch(/^\d{4}-\d{2}$/);

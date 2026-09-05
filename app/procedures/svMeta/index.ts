@@ -20,7 +20,7 @@ const DERIVE: Record<(typeof SVMETA_FIELDS)[number], (p: Pano) => unknown> = {
 	altitude: (p) => p.altitude,
 	countryCode: (p) => p.countryCode,
 	cameraType: (p) => detectCameraType(p),
-	panoType: (p) => p.panoFrontend,
+	panoType: (p) => (p.panoFrontend == null ? null : String(p.panoFrontend)),
 	// Capture-time driving direction in degrees, per Google.
 	drivingDirection: (p) => (p.pov ? centerHeading(p) : null),
 	uploaderName: (p) => p.uploaderName,
