@@ -525,7 +525,7 @@ describe("Composite selection correctness after mutations", () => {
 			async (api, tagAId: number, tagBId: number, loc) => {
 				await api.addSelections([{ type: "Tag", tagId: tagAId }]);
 				await api.addSelections([{ type: "Tag", tagId: tagBId }]);
-				await api.applySelectionUpdate(api.intersectSelections);
+				await api.applySelectionUpdate(api.intersectSelections());
 				const before = api.getMapState().selectedLocationIds.size;
 
 				await api.updateLocations([{ id: loc.id, patch: { tags: [tagAId, tagBId] } }]);
@@ -548,7 +548,7 @@ describe("Composite selection correctness after mutations", () => {
 			async (api, tagAId: number, tagBId: number, loc) => {
 				await api.addSelections([{ type: "Tag", tagId: tagAId }]);
 				await api.addSelections([{ type: "Tag", tagId: tagBId }]);
-				await api.applySelectionUpdate(api.intersectSelections);
+				await api.applySelectionUpdate(api.intersectSelections());
 				const before = api.getMapState().selectedLocationIds.size;
 
 				await api.updateLocations([{ id: loc.id, patch: { tags: [tagAId] } }]);
@@ -568,7 +568,7 @@ describe("Composite selection correctness after mutations", () => {
 			async (api, tagAId: number, tagBId: number) => {
 				await api.addSelections([{ type: "Tag", tagId: tagAId }]);
 				await api.addSelections([{ type: "Tag", tagId: tagBId }]);
-				await api.applySelectionUpdate(api.unionSelections);
+				await api.applySelectionUpdate(api.unionSelections());
 				const before = api.getMapState().selectedLocationIds.size;
 
 				await api.addLocations([api.createLocation({ lat: 99, lng: 99, tags: [tagAId] })]);
@@ -586,7 +586,7 @@ describe("Composite selection correctness after mutations", () => {
 			async (api, tagAId: number, tagBId: number) => {
 				await api.addSelections([{ type: "Tag", tagId: tagAId }]);
 				await api.addSelections([{ type: "Tag", tagId: tagBId }]);
-				await api.applySelectionUpdate(api.unionSelections);
+				await api.applySelectionUpdate(api.unionSelections());
 				const before = api.getMapState().selectedLocationIds.size;
 
 				await api.addLocations([api.createLocation({ lat: 98, lng: 98 })]);

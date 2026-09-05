@@ -104,9 +104,9 @@ describe("Selections - basic types", () => {
 		const id2 = locIds[2];
 		await withApi(
 			async (api, i0: number, i1: number, i2: number) => {
-				await api.applySelectionUpdate(api.toggleManualSelection, i0);
-				await api.applySelectionUpdate(api.toggleManualSelection, i1);
-				await api.applySelectionUpdate(api.toggleManualSelection, i2);
+				await api.applySelectionUpdate(api.toggleManualSelection(i0));
+				await api.applySelectionUpdate(api.toggleManualSelection(i1));
+				await api.applySelectionUpdate(api.toggleManualSelection(i2));
 			},
 			id0,
 			id1,
@@ -116,7 +116,7 @@ describe("Selections - basic types", () => {
 		expect(ids.length).toBe(3);
 
 		await withApi(async (api, i1: number) => {
-			await api.applySelectionUpdate(api.toggleManualSelection, i1); // remove
+			await api.applySelectionUpdate(api.toggleManualSelection(i1)); // remove
 		}, id1);
 		ids = await refreshSelections();
 		expect(ids.length).toBe(2);
@@ -188,7 +188,7 @@ describe("Selection operations", () => {
 			await api.addSelections([{ type: "PanoIds" }]); // 30 (flags=1)
 			await api.addSelections([{ type: "Tag", tagId: tagId }]); // 50 (indices 0-49)
 			// PanoIds (0-29) intersect Tag-a (0-49) = 30
-			await api.applySelectionUpdate(api.intersectSelections);
+			await api.applySelectionUpdate(api.intersectSelections());
 			const sels = api.getActiveSelections();
 			return { count: api.getMapState().selectedLocationIds.size, selCount: sels.length };
 		}, tagAId);
@@ -200,7 +200,7 @@ describe("Selection operations", () => {
 			await api.addSelections([{ type: "PanoIds" }]); // 30
 			await api.addSelections([{ type: "Tag", tagId: tagId }]); // 50
 			// Union: 0-29 + 0-49 = 0-49 = 50
-			await api.applySelectionUpdate(api.unionSelections);
+			await api.applySelectionUpdate(api.unionSelections());
 			return api.getMapState().selectedLocationIds.size;
 		}, tagAId);
 		expect(result).toBe(50);
@@ -209,7 +209,7 @@ describe("Selection operations", () => {
 	it("invert selection", async () => {
 		const result = await withApi(async (api) => {
 			await api.addSelections([{ type: "PanoIds" }]); // 30
-			await api.applySelectionUpdate(api.invertSelections); // 100 - 30 = 70
+			await api.applySelectionUpdate(api.invertSelections()); // 100 - 30 = 70
 			return api.getMapState().selectedLocationIds.size;
 		});
 		expect(result).toBe(70);
