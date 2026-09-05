@@ -8,6 +8,7 @@ vi.mock("@/lib/geo/stackedMapType", async () =>
 );
 
 import { createGoogleMapHost } from "@/lib/map/googleHost";
+import type { TileLayer } from "@/lib/geo/stackedMapType";
 import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
 import { DEFAULT_PREFS } from "@/store/mapEmbedPrefs";
 
@@ -16,13 +17,14 @@ type Host = ReturnType<typeof createGoogleMapHost>;
 const makeHost = (): Host =>
 	createGoogleMapHost(document.createElement("div"), DEFAULT_PREFS, { customStyles: [] });
 
-// The roadmap stack is [basemap, SV coverage, labels]; opacity rides each SV tile.
-const svOpacity = (host: Host, zoom = 5) => {
-	const stack = (
-		host.getHostInstance() as unknown as { stack: { layers: google.maps.ImageMapType[] } }
-	).stack;
-	return Number((stack.layers[1].getTile(null, zoom, document) as HTMLElement).style.opacity);
-};
+// The roadmap stack is [basemap, SV coverage, labels]; the coverage layer is the only one
+// carrying an opacity ramp, and it is left out of the stack entirely when hidden.
+const svLayer = (host: Host) =>
+	(host.getHostInstance() as unknown as { stack: { layers: TileLayer[] } }).stack.layers.find(
+		(l) => l.opacity,
+	);
+
+const svOpacity = (host: Host, zoom = 5) => svLayer(host)?.opacity?.(zoom);
 
 describe("GoogleMapHost.applyPrefs", () => {
 	it("installs a stack carrying the passed svOpacity", () => {
@@ -33,10 +35,10 @@ describe("GoogleMapHost.applyPrefs", () => {
 	});
 
 	// The minimap toggles blue lines through applyPrefs alone: no other opacity path exists.
-	it("hides the SV layer at zero opacity, and brings it back", () => {
+	it("drops the SV layer at zero opacity, and brings it back", () => {
 		const host = makeHost();
 		host.applyPrefs({ ...DEFAULT_PREFS, svOpacity: 0 }, { customStyles: [] });
-		expect(svOpacity(host)).toBe(0);
+		expect(svLayer(host)).toBeUndefined();
 		host.applyPrefs({ ...DEFAULT_PREFS, svOpacity: 0.5 }, { customStyles: [] });
 		expect(svOpacity(host)).toBeCloseTo(0.5);
 	});

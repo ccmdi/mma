@@ -75,7 +75,7 @@ export function googleMapsMock() {
 				Size,
 				ImageMapType,
 				Map: MapMock,
-				event: { trigger: () => {}, clearInstanceListeners: () => {} },
+				event: { trigger: vi.fn(), clearInstanceListeners: vi.fn() },
 			},
 		},
 	};

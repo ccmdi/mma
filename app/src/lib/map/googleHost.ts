@@ -241,9 +241,7 @@ class GoogleMapHost implements MapHostContract<"google"> {
 	}
 
 	applyPrefs(prefs: MapEmbedPrefs, opts: BasemapOpts) {
-		const { mapType: stack } = resolveStackForPrefs(prefs, {
-			customStyles: opts.customStyles,
-		});
+		const stack = resolveStackForPrefs(prefs, { customStyles: opts.customStyles });
 		this.map.mapTypes.set("stack", stack);
 		this.map.setMapTypeId("stack");
 		const bg = getStyleBackgroundColor(prefs.mapStyleName);
