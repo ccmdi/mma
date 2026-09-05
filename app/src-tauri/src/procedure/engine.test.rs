@@ -996,6 +996,41 @@ fn a_failing_batch_counts_as_failed_and_done() {
 }
 
 #[test]
+fn a_deduped_failure_is_every_sharers_failure() {
+    let mut a = loc(1, 1.0, 0.0);
+    a.pano_id = Some("SHARED".into());
+    let mut b = loc(2, 2.0, 0.0);
+    b.pano_id = Some("SHARED".into());
+    let mut c = loc(3, 3.0, 0.0);
+    c.pano_id = Some("OTHER".into());
+    let (state, map_id) = setup(&[a, b, c]);
+    let d = decl(
+        "meta",
+        BatchMode::DedupeBy {
+            key: "panoId".into(),
+        },
+    );
+    // The procedure fails the representative of the shared pano, whichever row that is.
+    let h = Harness::with_fail(
+        ProcShape::MapOnly,
+        Arc::new(|_rows: &[Location]| Ok(Vec::new())),
+        sync_fetch(|_| Err(AppError("no fetch expected".into()))),
+        Some(1),
+    );
+    let (sink, events) = recording_sink();
+    let mut ctx = h.ctx(&state, &map_id);
+    ctx.progress = sink;
+    run_provider(&ctx, &d).unwrap();
+
+    let mut failed: Vec<u32> = delivered(&h).iter().flat_map(|p| p.failed.clone()).collect();
+    failed.sort_unstable();
+    assert_eq!(failed, vec![1, 2], "both sharers of the dead pano are failed");
+    let events = events.lock().unwrap();
+    let last = events.last().unwrap();
+    assert_eq!((last.done, last.failed), (3, 2));
+}
+
+#[test]
 fn a_row_the_procedure_fails_is_delivered_by_id() {
     let locs: Vec<Location> = (1..=3u32).map(|i| loc(i, i as f64, 0.0)).collect();
     let (state, map_id) = setup(&locs);
@@ -1719,6 +1754,7 @@ fn with_engine_host<R>(
     let mut host = EngineHost {
         ctx: &ctx,
         decl,
+        fanout: None,
         budget: &budget,
         rate_cost: 1,
         prog: &prog,
@@ -1811,6 +1847,7 @@ fn instances_sharing_a_budget_do_not_widen_it() {
                 let mut host = EngineHost {
                     ctx,
                     decl: d,
+                    fanout: None,
                     budget,
                     rate_cost: 1,
                     prog,
@@ -1908,6 +1945,7 @@ fn fetch_many_declines_every_request_once_cancelled() {
     let mut host = EngineHost {
         ctx: &ctx,
         decl: &d,
+        fanout: None,
         budget: &budget,
         rate_cost: 1,
         prog: &prog,

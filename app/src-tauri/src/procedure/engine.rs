@@ -1132,6 +1132,7 @@ fn run_instance(
         let mut host = EngineHost {
             ctx,
             decl,
+            fanout: batch.fanout.as_ref(),
             budget,
             rate_cost: match decl.rate.map(|r| r.cost) {
                 Some(RateCost::Row) => batch.rows.len() as u32,
@@ -1322,6 +1323,9 @@ fn invalidate_derived(
 struct EngineHost<'a> {
     ctx: &'a RunCtx<'a>,
     decl: &'a ProviderDecl,
+    /// Under `DedupeBy`, representative id -> every id sharing its key; a failure of the
+    /// representative is every sharer's failure, as its answer would have been theirs.
+    fanout: Option<&'a HashMap<u32, Vec<u32>>>,
     /// The provider's, not this instance's: every instance shares one budget.
     budget: &'a FetchBudget,
     /// Tokens one fetch attempt charges, per the declared `RateCost`.
@@ -1370,8 +1374,16 @@ impl ProcHost for EngineHost<'_> {
     }
 
     fn fail(&mut self, id: u32) {
-        self.failed.push(id);
-        self.prog.add_failed(1);
+        match self.fanout.and_then(|f| f.get(&id)) {
+            Some(ids) => {
+                self.failed.extend(ids);
+                self.prog.add_failed(ids.len() as u32);
+            }
+            None => {
+                self.failed.push(id);
+                self.prog.add_failed(1);
+            }
+        }
     }
 
     fn aborted(&self) -> bool {
