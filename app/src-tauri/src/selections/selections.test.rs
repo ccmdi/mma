@@ -2637,6 +2637,168 @@ proptest! {
 }
 
 // -----------------------------------------------------------------------
+// Narrowing oracle: `resolve_within(sel, within)` is `resolve(sel) & within` for every
+// leaf kind, including the ones that answer from outside the set (duplicates, top-k,
+// the prepared polygon scan, an indexed tag), on a plain view and a tag-indexed one.
+// -----------------------------------------------------------------------
+
+// (lat cell, lng cell, heading step, tag mask, pinned). Cells are ~111m apart, so a
+// 50m duplicate radius pairs same-cell rows and 200m pairs neighbours too.
+type WithinRow = (u8, u8, u8, u8, bool);
+
+fn within_rows_strategy(max: usize) -> impl Strategy<Value = Vec<WithinRow>> {
+    prop::collection::vec((0u8..4, 0u8..4, 0u8..4, 0u8..64, any::<bool>()), 1..=max)
+}
+
+fn within_rows(rows: &[WithinRow]) -> Vec<Location> {
+    rows.iter()
+        .enumerate()
+        .map(|(i, &(lat, lng, heading, mask, pinned))| {
+            let mut l = loc((i + 1) as u32, f64::from(lat) * 0.001, f64::from(lng) * 0.001);
+            l.heading = f64::from(heading) * 90.0;
+            l.tags = tags_from_mask(mask);
+            if pinned {
+                l.pano_id = Some("PANO".into());
+                l.flags = LocationFlags::LOAD_AS_PANO_ID;
+            }
+            l
+        })
+        .collect()
+}
+
+#[derive(Clone, Debug)]
+enum WithinTree {
+    Tag(u32),
+    Manual(Vec<u32>),
+    PanoIds,
+    NotPanoIds,
+    Untagged,
+    Unpanned,
+    CellBox((u8, u8), (u8, u8)),
+    HeadingOver(u8),
+    HasPano,
+    Duplicates(f64),
+    TopK(u32, bool),
+    Intersection(Vec<WithinTree>),
+    Union(Vec<WithinTree>),
+    Invert(Vec<WithinTree>),
+}
+
+fn within_selector(t: &WithinTree) -> Selector {
+    let children = |c: &[WithinTree]| {
+        c.iter()
+            .map(|t| Selection {
+                key: String::new(),
+                color: [0, 0, 0],
+                selector: within_selector(t),
+            })
+            .collect()
+    };
+    match t {
+        WithinTree::Tag(tag_id) => Selector::Tag { tag_id: *tag_id },
+        WithinTree::Manual(locations) => Selector::Manual {
+            locations: locations.clone(),
+        },
+        WithinTree::PanoIds => Selector::PanoIds,
+        WithinTree::NotPanoIds => Selector::NotPanoIds,
+        WithinTree::Untagged => Selector::Untagged,
+        WithinTree::Unpanned => Selector::Unpanned,
+        WithinTree::CellBox(a, b) => {
+            let (lat0, lat1) = (a.0.min(b.0), a.0.max(b.0));
+            let (lng0, lng1) = (a.1.min(b.1), a.1.max(b.1));
+            let (s, n) = (f64::from(lat0) * 0.001 - 0.0005, f64::from(lat1) * 0.001 + 0.0005);
+            let (w, e) = (f64::from(lng0) * 0.001 - 0.0005, f64::from(lng1) * 0.001 + 0.0005);
+            Selector::Polygon {
+                polygon: PolygonGeometry {
+                    coordinates: vec![vec![[w, s], [e, s], [e, n], [w, n], [w, s]]],
+                    extra_polygons: None,
+                    properties: None,
+                },
+            }
+        }
+        WithinTree::HeadingOver(h) => Selector::Filter {
+            field: "heading".into(),
+            test: FilterOp::Gt {
+                value: serde_json::json!(f64::from(*h) * 90.0 - 45.0),
+                tz_local: false,
+            },
+        },
+        WithinTree::HasPano => Selector::Filter {
+            field: "panoId".into(),
+            test: FilterOp::Has,
+        },
+        WithinTree::Duplicates(distance) => Selector::Duplicates {
+            distance: *distance,
+        },
+        WithinTree::TopK(k, ascending) => Selector::TopK {
+            field: "heading".into(),
+            k: *k,
+            ascending: *ascending,
+        },
+        WithinTree::Intersection(c) => Selector::Intersection {
+            selections: children(c),
+        },
+        WithinTree::Union(c) => Selector::Union {
+            selections: children(c),
+        },
+        WithinTree::Invert(c) => Selector::Invert {
+            selections: children(c),
+        },
+    }
+}
+
+fn within_tree_strategy() -> impl Strategy<Value = WithinTree> {
+    let cell = (0u8..4, 0u8..4);
+    let leaf = prop_oneof![
+        (1u32..=6).prop_map(WithinTree::Tag),
+        prop::collection::vec(1u32..=60, 0..5).prop_map(WithinTree::Manual),
+        Just(WithinTree::PanoIds),
+        Just(WithinTree::NotPanoIds),
+        Just(WithinTree::Untagged),
+        Just(WithinTree::Unpanned),
+        (cell.clone(), cell).prop_map(|(a, b)| WithinTree::CellBox(a, b)),
+        (0u8..4).prop_map(WithinTree::HeadingOver),
+        Just(WithinTree::HasPano),
+        prop_oneof![Just(50.0), Just(200.0)].prop_map(WithinTree::Duplicates),
+        (1u32..=5, any::<bool>()).prop_map(|(k, asc)| WithinTree::TopK(k, asc)),
+    ];
+    leaf.prop_recursive(3, 12, 3, |inner| {
+        prop_oneof![
+            prop::collection::vec(inner.clone(), 0..3).prop_map(WithinTree::Intersection),
+            prop::collection::vec(inner.clone(), 0..3).prop_map(WithinTree::Union),
+            prop::collection::vec(inner, 0..2).prop_map(WithinTree::Invert),
+        ]
+    })
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    #[test]
+    fn narrowing_equals_resolve_then_intersect(
+        rows in within_rows_strategy(40),
+        tree in within_tree_strategy(),
+        keep in prop::collection::vec(any::<bool>(), 40),
+    ) {
+        let locs = within_rows(&rows);
+        let within: RoaringBitmap = locs
+            .iter()
+            .zip(&keep)
+            .filter(|(_, &k)| k)
+            .map(|(l, _)| l.id)
+            .collect();
+        let selector = within_selector(&tree);
+        let (batch, sets) = tagged_batch_and_index(&locs);
+        let plain = Fx::adds(locs);
+        let indexed = Fx::batch(batch);
+        for view in [plain.view(), indexed.view_indexed(&sets)] {
+            let want = resolve(&view, &selector) & &within;
+            prop_assert_eq!(resolve_within(&view, &selector, &within), want);
+        }
+    }
+}
+
+// -----------------------------------------------------------------------
 // Composite edge pins: empty selections vecs. resolve explicitly checks
 // `is_empty()` before indexing, so none of these panic -- pinning the chosen
 // (non-obvious) semantics rather than reproducing a crash.
