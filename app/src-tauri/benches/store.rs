@@ -131,9 +131,11 @@ fn noop_updates(c: &mut Criterion) {
                 || {
                     app.set_store(fx.rendered_store());
                     app.sync_selections(vec![SelectionInput {
-                        key: "tag:3".into(),
-                        selector: Selector::Tag { tag_id: 3 },
-                        color: [255, 0, 0],
+                        selection: Selection {
+                            key: "tag:3".into(),
+                            selector: Selector::Tag { tag_id: 3 },
+                            color: [255, 0, 0],
+                        },
                         ghosted: false,
                     }]);
                     fx.noop_heading_updates(count)
@@ -249,9 +251,11 @@ fn selections(c: &mut Criterion) {
         Selector::has("panoId"),
     ]);
     let input = |key: &str, selector: &Selector| SelectionInput {
-        key: key.into(),
-        selector: selector.clone(),
-        color: [255, 0, 0],
+        selection: Selection {
+            key: key.into(),
+            selector: selector.clone(),
+            color: [255, 0, 0],
+        },
         ghosted: false,
     };
 

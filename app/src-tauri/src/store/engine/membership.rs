@@ -112,14 +112,14 @@ pub struct SelectionSync {
     pub selected_count: usize,
 }
 
-/// Input for `store_sync_selections`: selection criteria + display color.
+/// A top-level row of `store_sync_selections`: the selection itself, plus whether it is
+/// ghosted. Ghosting means nothing for a nested child, which is why the flag lives here
+/// and not on `Selection`.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionInput {
-    /// Deterministic selection key (e.g. `"tag:5"`), used to return per-node counts back keyed.
-    pub key: String,
-    pub selector: Selector,
-    pub color: [u8; 3],
+    #[serde(flatten)]
+    pub selection: Selection,
     /// Counted, but kept out of the overlay and the selected set.
     #[serde(default)]
     pub ghosted: bool,

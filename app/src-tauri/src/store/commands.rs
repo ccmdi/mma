@@ -957,14 +957,7 @@ pub async fn store_sync_selections(
         let store = mgr.store_for_window(&label.0)?;
 
         // Faithful tree: real keys preserved so per-node counts come back keyed (incl. nested).
-        let sels_full: Vec<Selection> = sels
-            .iter()
-            .map(|si| Selection {
-                key: si.key.clone(),
-                color: si.color,
-                selector: si.selector.clone(),
-            })
-            .collect();
+        let sels_full: Vec<Selection> = sels.iter().map(|si| si.selection.clone()).collect();
 
         // 1. Resolve the whole forest in one pass: per-selection Roaring id-sets plus
         //    counts for every node (top-level and nested). Tag leaves hit the membership

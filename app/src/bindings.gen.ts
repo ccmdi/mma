@@ -1577,15 +1577,15 @@ export type Selection = {
 	selector: Selector,
 };
 
-/**  Input for `store_sync_selections`: selection criteria + display color. */
+/**
+ *  A top-level row of `store_sync_selections`: the selection itself, plus whether it is
+ *  ghosted. Ghosting means nothing for a nested child, which is why the flag lives here
+ *  and not on `Selection`.
+ */
 export type SelectionInput = {
-	/**  Deterministic selection key (e.g. `"tag:5"`), used to return per-node counts back keyed. */
-	key: string,
-	selector: Selector,
-	color: [number, number, number],
 	/**  Counted, but kept out of the overlay and the selected set. */
 	ghosted?: boolean,
-};
+} & Selection;
 
 /**
  *  Selection bitmask sync payload. `bitmask` carries the packed per-cell bitmask bytes
