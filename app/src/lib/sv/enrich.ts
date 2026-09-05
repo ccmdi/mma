@@ -29,12 +29,6 @@ import { toast } from "@/lib/util/toast";
 import type { Location, Selector } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
 
-/** True when the location is missing any of the given enrich fields (default: the enabled set). */
-export function needsEnrichment(loc: Location, enrichFields?: string[]): boolean {
-	const fields = enrichFields ?? getDefaultEnrichKeys();
-	return fields.some((key) => loc.extra?.[key] == null);
-}
-
 /** One location as enrichment leaves it: every field-producing provider, narrowed to
  *  the map's enabled keys, run over that row alone. A field the row already holds is
  *  not derived again unless `force`, which re-derives every field the providers own.

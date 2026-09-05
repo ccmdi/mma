@@ -170,60 +170,6 @@ describe("Bulk operations -- bulkPinToPano", () => {
 });
 
 // ============================================================================
-// needsEnrichment predicate
-// ============================================================================
-
-describe("Bulk operations -- needsEnrichment", () => {
-	it("returns true for locations without countryCode", async () => {
-		const result = await withApi(async (api) => {
-			const base = {
-				id: 0,
-				lat: 0,
-				lng: 0,
-				heading: 0,
-				pitch: 0,
-				zoom: 0,
-				panoId: null,
-				flags: 0,
-				tags: [],
-				createdAt: 0,
-				modifiedAt: null,
-			};
-			return [
-				api.needsEnrichment({ ...base, extra: undefined } as unknown as Location),
-				api.needsEnrichment({ ...base, extra: {} } as unknown as Location),
-				api.needsEnrichment({ ...base, extra: { altitude: 100 } } as unknown as Location),
-			];
-		});
-		expect(result).toEqual([true, true, true]);
-	});
-
-	it("is field-aware: needs enrichment unless every requested field is present", async () => {
-		const fields = ["countryCode", "altitude"];
-		const result = await withApi(async (api, f) => {
-			const base = {
-				id: 0,
-				lat: 0,
-				lng: 0,
-				heading: 0,
-				pitch: 0,
-				zoom: 0,
-				panoId: null,
-				flags: 0,
-				tags: [],
-				createdAt: 0,
-				modifiedAt: null,
-			};
-			return [
-				api.needsEnrichment({ ...base, extra: { countryCode: "US" } }, f),
-				api.needsEnrichment({ ...base, extra: { countryCode: "US", altitude: 100 } }, f),
-			];
-		}, fields);
-		expect(result).toEqual([true, false]);
-	});
-});
-
-// ============================================================================
 // Cancel preserves partial progress
 // ============================================================================
 
