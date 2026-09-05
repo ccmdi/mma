@@ -18,7 +18,8 @@ import {
 	isPluginCompatible,
 	isBackgroundPlugin,
 } from "@/plugins/registry";
-import { subscribe } from "@/lib/events";
+import { emit, subscribe } from "@/lib/events";
+import { on } from "@/plugins/scope";
 import {
 	registerProvider,
 	getProviders,
@@ -222,6 +223,35 @@ describe("deactivatePlugins", () => {
 		expect(cleanupB).toHaveBeenCalledOnce();
 		deactivatePlugin("a");
 		expect(cleanupA).toHaveBeenCalledOnce();
+	});
+
+	it("a cleanup that throws does not stop the plugins after it", () => {
+		const cleanupB = vi.fn();
+		registerPlugin(
+			makePlugin("a", "A", () => () => {
+				throw new Error("boom");
+			}),
+		);
+		registerPlugin(makePlugin("b", "B", () => cleanupB));
+		activatePlugin("a");
+		activatePlugin("b");
+		expect(() => deactivatePlugins()).not.toThrow();
+		expect(cleanupB).toHaveBeenCalledOnce();
+	});
+
+	it("reverses the registrations a plugin made during activate, cleanup or not", () => {
+		const handler = vi.fn();
+		registerPlugin(
+			makePlugin("listener", "L", () => {
+				on("map:close", handler);
+			}),
+		);
+		activatePlugin("listener");
+		deactivatePlugins();
+		activatePlugin("listener");
+		deactivatePlugins();
+		emit("map:close");
+		expect(handler).not.toHaveBeenCalled();
 	});
 });
 

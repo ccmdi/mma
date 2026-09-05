@@ -329,10 +329,7 @@ export function activatePlugins() {
 
 /** @unstable */
 export function deactivatePlugins() {
-	for (const [_id, cleanup] of cleanups) {
-		cleanup();
-	}
-	cleanups.clear();
+	for (const id of new Set([...plugins.keys(), ...cleanups.keys()])) teardown(id);
 	// Nothing is active any more, so nothing should still be running. Covers plugins
 	// that registered no cleanup of their own.
 	cmd.sidecarStopAll().catch(() => {});
@@ -348,15 +345,22 @@ export function activatePlugin(id: string) {
 
 /** @unstable */
 export function deactivatePlugin(id: string) {
-	const cleanup = cleanups.get(id);
-	if (cleanup) {
-		cleanup();
-		cleanups.delete(id);
-	}
+	teardown(id);
 	// A disabled plugin keeps no processes, whether or not it cleaned up after itself.
 	cmd.sidecarStop(id).catch(() => {});
-	// Reverse every host registration the plugin made during activation, even when it
-	// returned no cleanup — so a disabled plugin's providers/fields/listeners stop.
+}
+
+/** Run the plugin's own cleanup, then reverse every host registration it made during
+ *  activation, so its providers, fields and listeners stop even when it returned no
+ *  cleanup. One plugin's failing cleanup is its own problem, not the next plugin's. */
+function teardown(id: string) {
+	const cleanup = cleanups.get(id);
+	cleanups.delete(id);
+	try {
+		cleanup?.();
+	} catch (e) {
+		log.error(`[plugin] cleanup failed for "${id}":`, e);
+	}
 	disposePlugin(id);
 }
 
