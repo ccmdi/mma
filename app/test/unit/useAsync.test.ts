@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { act, createElement, useState } from "react";
-import { makeLatestGate, useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
+import { makeLatestGate, useAsync, useAsyncSticky, useSticky } from "@/lib/hooks/useAsync";
 import { mount } from "./fixtures/harness";
 
 // The stale-result invariant of useAsync: a run's result is applied only if no
@@ -86,6 +86,34 @@ describe("useAsyncSticky key", () => {
 		expect(seen).toBeNull();
 		await act(async () => pending.shift()!("v3"));
 		expect(seen).toBe("v3");
+		m.unmount();
+	});
+});
+
+describe("useSticky", () => {
+	it("holds the last settled value while loading, and a settled null is a value", () => {
+		let seen: string | null | undefined;
+		let setState: (s: {
+			data: string | null;
+			loading: boolean;
+			error: Error | null;
+		}) => void = () => {};
+		function Probe() {
+			const [state, set] = useState<{ data: string | null; loading: boolean; error: Error | null }>(
+				{ data: null, loading: true, error: null },
+			);
+			setState = set;
+			seen = useSticky(state);
+			return null;
+		}
+		const m = mount(createElement(Probe));
+		expect(seen).toBeNull();
+		act(() => setState({ data: "v1", loading: false, error: null }));
+		expect(seen).toBe("v1");
+		act(() => setState({ data: null, loading: true, error: null }));
+		expect(seen).toBe("v1");
+		act(() => setState({ data: null, loading: false, error: null }));
+		expect(seen).toBeNull();
 		m.unmount();
 	});
 });

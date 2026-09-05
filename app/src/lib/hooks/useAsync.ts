@@ -56,18 +56,23 @@ export function useAsync<T>(
 	return state;
 }
 
-/** `useAsync` that holds its last resolved value while the next run is in flight.
- *  For a value a subtree is gated on: without it, a dependency change blanks the
- *  value for a frame and unmounts everything below, resetting its state. A `key`
- *  scopes the hold: when it changes, the last value is dropped rather than shown. */
+/** The last settled value of `state`, held while a newer run is in flight. For a value a
+ *  subtree is gated on: without it, a dependency change blanks the value for a frame and
+ *  unmounts everything below, resetting its state. A settled null is a value like any
+ *  other. A `key` scopes the hold: when it changes, the last value is dropped rather than
+ *  shown. */
+export function useSticky<T>(state: AsyncState<T>, key: unknown = null): T | null {
+	const last = useRef<{ key: unknown; value: T | null }>({ key, value: null });
+	if (last.current.key !== key) last.current = { key, value: null };
+	else if (!state.loading) last.current.value = state.data;
+	return last.current.value;
+}
+
+/** `useAsync` with its result held sticky across runs; see {@link useSticky}. */
 export function useAsyncSticky<T>(
 	fn: (signal: AbortSignal) => T | Promise<T>,
 	deps: DependencyList,
 	key: unknown = null,
 ): T | null {
-	const { data } = useAsync(fn, [...deps, key]);
-	const last = useRef<{ key: unknown; value: T | null }>({ key, value: null });
-	if (last.current.key !== key) last.current = { key, value: null };
-	else if (data !== null) last.current.value = data;
-	return last.current.value;
+	return useSticky(useAsync(fn, [...deps, key]), key);
 }
