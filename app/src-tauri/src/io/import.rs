@@ -249,3 +249,7 @@ pub const IMPORT_AUTOCOMMIT_THRESHOLD: usize = 500_000;
 #[allow(clippy::print_stdout, clippy::print_stderr)]
 #[path = "import.test.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "roundtrip.test.rs"]
+mod roundtrip_tests;
