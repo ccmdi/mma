@@ -9,7 +9,8 @@ export const commands = {
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
 	 *  Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
-	 *  large payloads over by file instead of IPC serialization.
+	 *  large payloads over by file instead of IPC serialization. `name` names a leaf, so it
+	 *  cannot steer the write out of the temp directory.
 	 */
 	writeTempFile: (name: string, content: string) => __TAURI_INVOKE<string>("write_temp_file", { name, content }),
 	/**  Read a file as UTF-8 text (temp files, plugin sources). */

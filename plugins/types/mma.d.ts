@@ -18,7 +18,8 @@ declare const commands: {
     appReady: () => Promise<number>;
     /**
      *  Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
-     *  large payloads over by file instead of IPC serialization.
+     *  large payloads over by file instead of IPC serialization. `name` names a leaf, so it
+     *  cannot steer the write out of the temp directory.
      *  @unstable
      */
     writeTempFile: (name: string, content: string) => Promise<string>;
@@ -4451,6 +4452,13 @@ declare function loadSeenPano(entry: SeenEntry): Promise<void>;
 
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 declare const procedureEntry: (name: string) => string;
+/** Ask a procedure a read-only question. `input` and the answer are the module's own
+ *  contract -- the engine only carries the JSON. Rejects when the module exports no
+ *  `query` or the call fails, and with the signal's reason once `signal` aborts, at
+ *  which point the engine declines the query's remaining requests. `T` is an unchecked
+ *  assertion over that contract: sound for the app's own `res://` modules, which are
+ *  pinned by tests. Validate instead of naming a `T` when the module is a plugin's. */
+declare function queryProcedure<T = unknown>(entry: string, input: unknown, config?: unknown, signal?: AbortSignal): Promise<T>;
 /** One location's answer from a `collect` run, as its module defines it. */
 export interface CollectedEntry<T = unknown> {
     id: number;
@@ -4469,6 +4477,8 @@ export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
      *  crosses a JSON boundary, so a reader guards it. */
     collected?: CollectedEntry<TCollected>[];
 }
+/** Every declaration a run scheduled, by provider id. */
+export type ProviderOutcomes = Record<string, ProcedureOutcome>;
 /** One wave member's own progress, for a caller that shows the providers of a
  *  multi-provider wave individually. Counts are net of skipped rows. */
 export interface PhasePart {
@@ -4488,6 +4498,24 @@ export interface RunOpts {
     onProgress?: (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
 }
 export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
+/** A provider to run, optionally overriding the config its procedure declares. */
+export interface ProviderRun {
+    provider: Provider;
+    config?: unknown;
+    /** Re-derive this provider's fields even on an unforced run. For an operation whose
+     *  point is to recompute one provider rather than fill in what is missing. */
+    force?: boolean;
+    /** The `fieldDefs` keys to produce; omitted, every key it declares. */
+    fields?: string[];
+}
+/** Drive a set of providers through the engine as one run over `rows`: a selector, which
+ *  the engine pages out of the store and writes back into, reporting per-provider
+ *  progress that this narrows to the wave in flight for the caller's bar; or locations
+ *  handed in, which run in a store of their own and come back as the providers left
+ *  them, with nothing reaching the map. Resolves once every declared provider reports
+ *  finished, or on abort. */
+declare function runProviders(items: ProviderRun[], rows: Selector, opts?: RunOpts): Promise<ProviderOutcomes>;
+declare function runProviders(items: ProviderRun[], rows: Location[], opts?: RunOpts): Promise<RowsRun>;
 /** What a run may set on top of what the spec declares. */
 export interface DeclOpts {
     label?: string;
@@ -4868,6 +4896,14 @@ declare const fields: {
     registerEnrichFields: typeof registerEnrichFields;
     registerProvider: typeof registerProvider;
 };
+/** Running procedures. `registerProvider` above declares one; these execute it: a whole
+ *  run over a selector, or a single read-only question to a module. */
+declare const procedures: {
+    runProcedure: typeof runProcedure;
+    runProviders: typeof runProviders;
+    queryProcedure: typeof queryProcedure;
+    procedureEntry: typeof procedureEntry;
+};
 /** Panoramas the user has already seen. */
 declare const seen: {
     getSeenEntries: typeof getSeenEntries;
@@ -5000,7 +5036,6 @@ declare const surface: {
     _test: typeof testApi;
 };
 
-/** Shortcuts over the selection primitives. */
 declare const convenience: {
     addSelections: (selectors: Selector[]) => Promise<void>;
     removeSelections: (keys: string[]) => Promise<void>;
@@ -5020,6 +5055,7 @@ export type ReviewApi = typeof review;
 export type TauriApi = typeof tauri;
 export type PluginApi = typeof plugin;
 export type FieldsApi = typeof fields;
+export type ProceduresApi = typeof procedures;
 export type SeenApi = typeof seen;
 export type SvApi = typeof sv;
 export type MapApi = typeof map;
@@ -5029,7 +5065,7 @@ export type SurfaceApi = typeof surface;
 export type ConvenienceApi = typeof convenience;
 /** Shims for removed APIs. @unstable */
 export type LegacyApi = typeof legacy;
-export interface MMA extends StoreApi, SelectionOpsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, TauriApi, PluginApi, FieldsApi, SeenApi, SvApi, MapApi, SavedSelectionsApi, SettingsApi, SurfaceApi, ColorApi, ConvenienceApi, LegacyApi {
+export interface MMA extends StoreApi, SelectionOpsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, TauriApi, PluginApi, FieldsApi, ProceduresApi, SeenApi, SvApi, MapApi, SavedSelectionsApi, SettingsApi, SurfaceApi, ColorApi, ConvenienceApi, LegacyApi {
 }
 declare global {
     interface Window {
