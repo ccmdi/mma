@@ -21,7 +21,7 @@ use reqwest::blocking::Response;
 use rkyv::vec::ArchivedVec;
 use std::fs;
 use std::fs::File;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::task;
 
@@ -649,19 +649,37 @@ fn fetch_border_shas() -> AppResult<HashMap<String, String>> {
 }
 
 fn update_border_file(level: &str, shas: &HashMap<String, String>) -> AppResult<bool> {
-    let Ok(bytes) = fs::read(border_path(level)?) else {
-        return Ok(false); // not installed; the settings download flow owns first install
+    let remote = shas.get(&format!("borders-{level}.rkyv"));
+    let updated = refresh_stale_archive(&border_path(level)?, remote, || {
+        Ok(border_client()?
+            .get(border_url(level))
+            .send()?
+            .error_for_status()?
+            .bytes()?
+            .to_vec())
+    })?;
+    if updated {
+        cache().lock().unwrap().remove(level);
+    }
+    Ok(updated)
+}
+
+/// Replace the archive at `path` with `fetch()` only when it is installed and its blob id
+/// differs from `remote`. Not installed means the settings download flow owns first
+/// install; no remote id means nothing to compare against.
+fn refresh_stale_archive(
+    path: &Path,
+    remote: Option<&String>,
+    fetch: impl FnOnce() -> AppResult<Vec<u8>>,
+) -> AppResult<bool> {
+    let Ok(bytes) = fs::read(path) else {
+        return Ok(false);
     };
-    match shas.get(&format!("borders-{level}.rkyv")) {
+    match remote {
         Some(remote) if *remote != git_blob_sha1(&bytes) => {}
         _ => return Ok(false),
     }
-    let new_bytes = border_client()?
-        .get(border_url(level))
-        .send()?
-        .error_for_status()?
-        .bytes()?;
-    write_border_file(level, &new_bytes)?;
+    fs::write(path, fetch()?)?;
     Ok(true)
 }
 

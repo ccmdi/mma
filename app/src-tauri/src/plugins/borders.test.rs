@@ -3,9 +3,11 @@
 
 use super::{
     arch_feature_bbox, arch_point_in_feature, arch_to_geometry, classify_points, classify_scan,
-    convert_dataset, git_blob_sha1, parse_border_shas, ArchDataset, ArchFeature,
+    convert_dataset, git_blob_sha1, parse_border_shas, refresh_stale_archive, ArchDataset,
+    ArchFeature,
 };
 use crate::selections::{self, PolygonGeometry};
+use crate::test_util::TempDir;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -206,6 +208,28 @@ fn parse_border_shas_reads_contents_listing() {
         Some("527857ecf3dabcba8705aab16e6a548c090b46a2")
     );
     assert!(parse_border_shas(&serde_json::json!({ "message": "rate limited" })).is_empty());
+}
+
+/// The startup refresh downloads only for an installed archive whose blob id differs from
+/// upstream's; a missing file, a missing remote id, or a matching id all leave it alone.
+#[test]
+fn refresh_stale_archive_downloads_only_on_a_changed_blob() {
+    let dir = TempDir::new("borders-refresh");
+    let path = dir.join("borders-medium.rkyv");
+    let fetched = || Ok(b"new".to_vec());
+    let never = || panic!("fetched without a stale archive");
+    let same = git_blob_sha1(b"old");
+    let other = git_blob_sha1(b"new");
+
+    assert!(!refresh_stale_archive(&path, Some(&other), never).unwrap());
+
+    fs::write(&path, b"old").unwrap();
+    assert!(!refresh_stale_archive(&path, None, never).unwrap());
+    assert!(!refresh_stale_archive(&path, Some(&same), never).unwrap());
+    assert_eq!(fs::read(&path).unwrap(), b"old");
+
+    assert!(refresh_stale_archive(&path, Some(&other), fetched).unwrap());
+    assert_eq!(fs::read(&path).unwrap(), b"new");
 }
 
 /// `classify_points` is the in-process entry the `mma.classify` host import reaches.
