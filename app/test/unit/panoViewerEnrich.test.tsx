@@ -7,8 +7,12 @@ import type { Location } from "@/bindings.gen";
 
 const h = vi.hoisted(() => ({
 	activeLocation: null as unknown,
-	/** Rows `enrich` was handed, in order, with whether the run was forced. */
-	enriched: [] as (Location & { forced: boolean })[],
+	/** The map's per-save enrichment switch; off means `enrich` hands the row back untouched. */
+	enrichOn: true,
+	/** When set, `enrich` rejects instead of answering. */
+	enrichFails: false,
+	/** Rows `enrich` was handed, in order. */
+	enriched: [] as Location[],
 	written: [] as { id: number; patch: { extra?: Record<string, unknown> } }[],
 }));
 
@@ -21,14 +25,19 @@ vi.mock("@/store/useMapStore", () => ({
 }));
 // Enrichment answers the row with one field derived from its pano.
 vi.mock("@/lib/sv/enrich", () => ({
-	enrich: async (loc: Location, opts?: { force?: boolean }) => {
-		h.enriched.push({ ...loc, forced: opts?.force === true });
+	enrich: async (loc: Location) => {
+		h.enriched.push(loc);
+		if (h.enrichFails) throw new Error("network");
+		if (!h.enrichOn) return loc;
 		return { ...loc, extra: { ...loc.extra, enriched: loc.panoId } };
 	},
 }));
+// The one provider field in this harness, `enriched`, derives from the pano.
 vi.mock("@/lib/data/fieldDefs", () => ({
-	withoutProvided: (extra: Record<string, unknown> | null) =>
-		extra && Object.fromEntries(Object.entries(extra).filter(([k]) => k !== "enriched")),
+	withoutDerivedFrom: (extra: Record<string, unknown> | null, changed: string[]) =>
+		extra && changed.includes("panoId")
+			? Object.fromEntries(Object.entries(extra).filter(([k]) => k !== "enriched"))
+			: extra,
 }));
 vi.mock("@/lib/sv/query", () => ({
 	svMetadata: async (panos: string[]) => panos.map((pano) => ({ pano, lat: 1, lng: 2, time: [] })),
@@ -75,6 +84,8 @@ const walk = (pano: string) =>
 beforeEach(() => {
 	h.enriched = [];
 	h.written = [];
+	h.enrichOn = true;
+	h.enrichFails = false;
 	h.activeLocation = {
 		...createLocation({ lat: 1, lng: 2 }),
 		id: 7,
@@ -88,7 +99,7 @@ describe("the draft is the location as a save would write it", () => {
 		const m = mountHost();
 		await open("pA");
 		expect(viewer.draft).toMatchObject({ id: 7, panoId: "pA", extra: { enriched: "pA" } });
-		expect(h.enriched.map((l) => [l.panoId, l.forced])).toEqual([["pA", false]]);
+		expect(h.enriched.map((l) => l.panoId)).toEqual(["pA"]);
 		expect(h.written).toEqual([]);
 		m.unmount();
 	});
@@ -119,8 +130,52 @@ describe("the draft is the location as a save would write it", () => {
 		await open("pA");
 		h.written = [];
 		await walk("pB");
-		expect(h.enriched.at(-1)).toMatchObject({ panoId: "pB", lat: 5, lng: 6, forced: true });
+		expect(h.enriched.at(-1)).toMatchObject({
+			panoId: "pB",
+			lat: 5,
+			lng: 6,
+			extra: { custom: "kept" },
+		});
 		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
+		m.unmount();
+	});
+
+	it("with per-save enrichment off, opening keeps the row's own fields", async () => {
+		h.enrichOn = false;
+		const m = mountHost();
+		await open("pA");
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "old" });
+		expect(await viewer.settled()).toMatchObject({ extra: { custom: "kept", enriched: "old" } });
+		m.unmount();
+	});
+
+	it("with per-save enrichment off, walking forgets the old pano's provider fields", async () => {
+		h.enrichOn = false;
+		const m = mountHost();
+		await open("pA");
+		await walk("pB");
+		expect(h.enriched.at(-1)!.extra).toEqual({ custom: "kept" });
+		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
+		expect(await viewer.settled()).toMatchObject({ panoId: "pB", extra: { custom: "kept" } });
+		expect(h.written).toEqual([]);
+		m.unmount();
+	});
+
+	it("a moved draft whose enrichment fails keeps nothing from the old pano", async () => {
+		const m = mountHost();
+		await open("pA");
+		h.enrichFails = true;
+		await walk("pB");
+		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
+		expect(await viewer.settled()).toMatchObject({ panoId: "pB", extra: { custom: "kept" } });
+		m.unmount();
+	});
+
+	it("a draft that did not move keeps its fields when enrichment fails", async () => {
+		const m = mountHost();
+		h.enrichFails = true;
+		await open("pA");
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "old" });
 		m.unmount();
 	});
 

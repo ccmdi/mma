@@ -138,6 +138,7 @@ function ensureAdm1(): Promise<boolean> {
 export const subdivisionProvider: Provider = {
 	id: "subdivision",
 	label: msg("Subdivision"),
+	requires: ["lat", "lng"],
 	fieldDefs: {
 		subdivision: createFieldDef("string", { label: msg("Subdivision") }),
 	},

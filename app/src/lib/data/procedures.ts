@@ -7,7 +7,13 @@
 
 import type { Location, RowsRun, Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
-import { getProviderForField, type Provider, type ProcedureSpec } from "@/lib/data/fieldDefs";
+import {
+	derivedFrom,
+	getProviderForField,
+	getProviders,
+	type Provider,
+	type ProcedureSpec,
+} from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";
 import type { ProcedureProgress, ProcedureResult, ProviderDecl, Sink } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
@@ -173,18 +179,27 @@ export async function runProviders(
 	opts: RunOpts = {},
 ): Promise<ProviderOutcomes | RowsRun> {
 	const selector: Selector = Array.isArray(rows) ? { type: "Everything" } : rows;
+	// Core columns cannot be nulled through `extra`; a changed core input still cascades
+	// into the extra fields derived from it.
+	const core = new Set(getProviders().flatMap((p) => p.provides ?? []));
 	const decls: ProviderDecl[] = [];
 	for (const { provider: p, config, force: providerForce, fields: wanted } of items) {
 		const fields = wanted ?? Object.keys(p.fieldDefs ?? {});
 		// A provider with `fieldDefs` and no field to produce has nothing to do; one with
 		// no `fieldDefs` writes core columns and has nothing to deselect.
 		if (p.fieldDefs && fields.length === 0) continue;
+		const written = [...fields, ...(p.provides ?? [])];
 		const decl = await declare(p.id, p.procedure, selector, {
 			label: p.label,
 			config,
 			force: providerForce,
-			fields: [...fields, ...(p.provides ?? [])],
+			fields: written,
 			requires: p.requires,
+			invalidates: Object.fromEntries(
+				written
+					.map((f) => [f, [...derivedFrom([f])].filter((k) => !core.has(k))] as const)
+					.filter(([, deps]) => deps.length > 0),
+			),
 		});
 		if (decl) decls.push(decl);
 	}
@@ -219,6 +234,7 @@ interface DeclOpts {
 	force?: boolean;
 	fields?: string[];
 	requires?: string[];
+	invalidates?: Record<string, string[]>;
 }
 
 /** Null when the spec's `prepare` gate declines, dropping it from the run. */
@@ -235,6 +251,7 @@ async function declare(
 		entry: spec.entry,
 		fields: o.fields ?? [],
 		requires: o.requires ?? [],
+		invalidates: o.invalidates ?? {},
 		select: spec.select ?? selector,
 		batch: spec.batch,
 		sink: o.sink ?? spec.sink ?? "patch",

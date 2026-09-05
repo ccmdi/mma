@@ -3,7 +3,7 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::selections::{ids_within, narrow, resolve, resolve_within, Selector};
+use crate::selections::{ids_within, narrow, resolve, resolve_field_loc, resolve_within, Selector};
 use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, Store, StoreState, Update, WindowLabel,
 };
@@ -125,6 +125,8 @@ pub struct ProviderDecl {
     pub fields: Vec<String>,
     #[serde(default)]
     pub requires: Vec<String>,
+    #[serde(default)]
+    pub invalidates: HashMap<String, Vec<String>>,
     pub select: Selector,
     pub batch: BatchMode,
     #[serde(default)]
@@ -1144,7 +1146,9 @@ fn run_instance(
             .and_then(|entries| match decl.sink {
                 // Only the patch sink parses: a collected answer is the module's
                 // contract with its caller, not a LocationPatch.
-                Sink::Patch => to_updates(&entries).map(BatchProduct::Patches),
+                Sink::Patch => {
+                    to_updates(&entries, &batch.rows, &decl.invalidates).map(BatchProduct::Patches)
+                }
                 Sink::Collect => Ok(BatchProduct::Entries(entries)),
             });
         let units = batch.units();
@@ -1256,17 +1260,63 @@ fn fan_out(entries: Vec<PatchEntry>, fanout: Option<&HashMap<u32, Vec<u32>>>) ->
 
 /// Parse each entry's JSON into a store patch. A patch that sets nothing is dropped;
 /// one that does not parse fails the whole batch.
-fn to_updates(entries: &[PatchEntry]) -> AppResult<Vec<Update<LocationPatch>>> {
+fn to_updates(
+    entries: &[PatchEntry],
+    rows: &[Location],
+    invalidates: &HashMap<String, Vec<String>>,
+) -> AppResult<Vec<Update<LocationPatch>>> {
+    let by_id: HashMap<u32, &Location> = rows.iter().map(|l| (l.id, l)).collect();
     let mut out = Vec::with_capacity(entries.len());
     for e in entries {
-        let Some(map) = patch_object(e)? else {
+        let Some(mut map) = patch_object(e)? else {
             continue;
         };
+        if let Some(row) = by_id.get(&e.id) {
+            invalidate_derived(&mut map, row, invalidates);
+        }
         let patch = serde_json::from_value(serde_json::Value::Object(map))
             .map_err(|err| AppError(format!("patch for location {}: {err}", e.id)))?;
         out.push(Update { id: e.id, patch });
     }
     Ok(out)
+}
+
+/// A field whose value this patch changes takes the fields derived from it along: they
+/// were derived from the old value. A dependent the patch writes itself is kept, and a
+/// dependent the row never held has nothing to lose.
+fn invalidate_derived(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    row: &Location,
+    invalidates: &HashMap<String, Vec<String>>,
+) {
+    let written = |map: &serde_json::Map<String, serde_json::Value>, key: &str| {
+        map.get(key)
+            .or_else(|| map.get("extra")?.get(key))
+            .cloned()
+            .filter(|v| !v.is_null())
+    };
+    let stale: Vec<&str> = invalidates
+        .iter()
+        .filter(|(key, _)| {
+            map.contains_key(*key) || map.get("extra").is_some_and(|e| e.get(key).is_some())
+        })
+        .filter(|(key, _)| written(map, key) != resolve_field_loc(row, key))
+        .flat_map(|(_, deps)| deps.iter().map(String::as_str))
+        .filter(|dep| !patch_keys().iter().any(|k| k == dep))
+        .filter(|dep| resolve_field_loc(row, dep).is_some())
+        .collect();
+    if stale.is_empty() {
+        return;
+    }
+    let extra = map
+        .entry("extra")
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let serde_json::Value::Object(extra) = extra else {
+        return;
+    };
+    for dep in stale {
+        extra.entry(dep).or_insert(serde_json::Value::Null);
+    }
 }
 
 struct EngineHost<'a> {

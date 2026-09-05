@@ -165,12 +165,33 @@ export function isFieldEnabled(enrichFields: string[] | null, key: string): bool
 	return (enrichFields ?? getDefaultEnrichKeys()).includes(key);
 }
 
-/** `extra` without every field a provider produces: what a row forgets when the pano it
- *  was derived from changes, for enrichment to derive again. */
-export function withoutProvided(
+/** Every field derived from the `changed` keys, directly or through other providers: what a
+ *  row must forget when those inputs change, for enrichment to derive again. The graph is
+ *  each provider's `requires` against what it produces. */
+export function derivedFrom(changed: Iterable<string>): Set<string> {
+	const stale = new Set<string>();
+	const queue = [...changed];
+	while (queue.length > 0) {
+		const key = queue.pop()!;
+		for (const p of getProviders()) {
+			if (!p.requires?.includes(key)) continue;
+			for (const out of [...Object.keys(p.fieldDefs ?? {}), ...(p.provides ?? [])]) {
+				if (!stale.has(out)) {
+					stale.add(out);
+					queue.push(out);
+				}
+			}
+		}
+	}
+	return stale;
+}
+
+/** `extra` without every field derived from the `changed` keys. */
+export function withoutDerivedFrom(
 	extra: Record<string, unknown> | null,
+	changed: Iterable<string>,
 ): Record<string, unknown> | null {
 	if (!extra) return extra;
-	const provided = new Set(getProviders().flatMap((p) => Object.keys(p.fieldDefs ?? {})));
-	return Object.fromEntries(Object.entries(extra).filter(([key]) => !provided.has(key)));
+	const stale = derivedFrom(changed);
+	return Object.fromEntries(Object.entries(extra).filter(([key]) => !stale.has(key)));
 }

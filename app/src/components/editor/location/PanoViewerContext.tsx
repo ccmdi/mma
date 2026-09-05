@@ -15,7 +15,7 @@ import { PanoType } from "@/bindings.consts";
 import { singletonPano } from "@/lib/sv/panoSingleton";
 import { sameRow, type LatLng, type Pano } from "@/types";
 import type { Location } from "@/bindings.gen";
-import { withoutProvided } from "@/lib/data/fieldDefs";
+import { withoutDerivedFrom } from "@/lib/data/fieldDefs";
 import { useAsyncSticky } from "@/lib/hooks/useAsync";
 import { panosAt, svMetadata } from "@/lib/sv/query";
 import { allUnofficial, mergeTimelines } from "@/lib/sv/getMetadata";
@@ -60,8 +60,15 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const [state, setState] = useState<Location | null>(null);
 	// Keyed by the location that opened it: another location's draft is simply not this one.
 	const draft = state && state.id === location?.id ? state : null;
-	// Off the stored row's pano, every provider field belongs to another pano.
-	const moved = draft !== null && draft.panoId !== location?.panoId;
+	// Every field derived from an input the draft changed belongs to the old value: it goes,
+	// and enrichment derives it again from the new one.
+	const forgetting = (row: Location): Location => {
+		if (!location) return row;
+		const changed = Object.keys(row).filter(
+			(k) => k !== "extra" && row[k as keyof Location] !== location[k as keyof Location],
+		);
+		return { ...row, extra: withoutDerivedFrom(row.extra, changed) };
+	};
 	const draftPano = draft?.panoId ?? null;
 
 	const open = useCallback((loc: Location, resolved: string | null) => {
@@ -113,7 +120,10 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		const patch = (extra: Location["extra"]) =>
 			setState((prev) => (prev && sameRow(prev, draft) ? { ...prev, extra } : prev));
 		setEnriching(true);
-		inFlight.current = enrich(draft, { signal: ac.signal, force: moved })
+		// Stale fields go before enrichment runs, so a run that is off or narrowed hands
+		// back a clean row too, and the run derives the gaps.
+		const base = forgetting(draft);
+		inFlight.current = enrich(base, { signal: ac.signal })
 			.then((row) => {
 				if (ac.signal.aborted) return null;
 				patch(row.extra);
@@ -122,8 +132,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			.catch((e: unknown) => {
 				if (ac.signal.aborted) return null;
 				log.error("[viewer] enrichment failed:", e);
-				// Off the stored pano the draft's fields are another pano's: Save must not write them.
-				if (moved) patch(withoutProvided(draft.extra));
+				patch(base.extra);
 				return null;
 			})
 			.finally(() => {
@@ -136,8 +145,9 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		const row = await inFlight.current;
 		if (!draft) return null;
 		if (row && sameRow(row, draft)) return { ...draft, extra: row.extra };
-		return moved ? { ...draft, extra: withoutProvided(draft.extra) } : draft;
-	}, [draft, moved]);
+		return forgetting(draft);
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- forgetting reads only draft and location
+	}, [draft, location]);
 
 	const fullscreenMap = useSetting("fullscreenMap");
 	const prevFullscreenMap = useRef(fullscreenMap);

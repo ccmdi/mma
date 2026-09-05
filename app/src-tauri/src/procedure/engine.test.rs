@@ -61,6 +61,7 @@ fn decl(id: &str, batch: BatchMode) -> ProviderDecl {
         entry: Some("mock".into()),
         fields: Vec::new(),
         requires: Vec::new(),
+        invalidates: HashMap::new(),
         select: Selector::Everything,
         batch,
         sink: Sink::Patch,
@@ -667,7 +668,7 @@ fn a_patch_that_sets_nothing_is_dropped() {
         let updates = to_updates(&[PatchEntry {
             id: 1,
             patch: json.into(),
-        }])
+        }], &[], &HashMap::new())
         .unwrap();
         assert!(updates.is_empty(), "{json} should produce no update");
     }
@@ -728,7 +729,7 @@ fn an_unknown_key_names_itself_in_the_error() {
     let Err(err) = to_updates(&[PatchEntry {
         id: 1,
         patch: r#"{"lat":1,"nope":2}"#.into(),
-    }]) else {
+    }], &[], &HashMap::new()) else {
         panic!("an unknown key must fail the batch");
     };
     assert!(err.0.contains("nope"), "{}", err.0);
@@ -741,7 +742,7 @@ fn a_patch_that_is_not_an_object_is_an_error() {
             to_updates(&[PatchEntry {
                 id: 1,
                 patch: json.into()
-            }])
+            }], &[], &HashMap::new())
             .is_err(),
             "{json} should not parse as a patch"
         );
@@ -830,6 +831,57 @@ fn force_false_skips_rows_that_already_hold_every_field() {
         read_extra(&state, &map_id, 1).unwrap()["country"],
         serde_json::json!("JP")
     );
+}
+
+#[test]
+fn a_changed_value_nulls_the_fields_derived_from_it_and_a_same_value_keeps_them() {
+    let row = |id: u32, month: &str| Location {
+        extra: RawExtra::from_string(format!(
+            r#"{{"imageDate":"{month}","datetime":123,"timezone":"Europe/Oslo","custom":"kept"}}"#
+        )),
+        ..loc(id, 1.0, 0.0)
+    };
+    let (state, map_id) = setup(&[row(1, "2020-01"), row(2, "2021-05")]);
+    let mut d = decl("meta", BatchMode::PerRow);
+    d.fields = vec!["imageDate".into()];
+    d.invalidates = HashMap::from([(
+        "imageDate".to_string(),
+        vec!["datetime".to_string(), "timezone".to_string(), "sunAzimuth".to_string()],
+    )]);
+    let h = Harness::map_only(patch_extra_all(r#"{"imageDate":"2021-05"}"#));
+    let mut ctx = h.ctx(&state, &map_id);
+    ctx.force = true;
+    run_provider(&ctx, &d).unwrap();
+
+    let moved = read_extra(&state, &map_id, 1).unwrap();
+    assert_eq!(moved["imageDate"], serde_json::json!("2021-05"));
+    assert!(moved.get("datetime").is_none(), "{moved}");
+    assert!(moved.get("timezone").is_none(), "{moved}");
+    assert!(moved.get("sunAzimuth").is_none(), "a dependent the row never held stays absent");
+    assert_eq!(moved["custom"], serde_json::json!("kept"));
+
+    let same = read_extra(&state, &map_id, 2).unwrap();
+    assert_eq!(same["datetime"], serde_json::json!(123));
+    assert_eq!(same["timezone"], serde_json::json!("Europe/Oslo"));
+}
+
+#[test]
+fn a_patch_that_writes_a_dependent_itself_keeps_that_value() {
+    let one = Location {
+        extra: RawExtra::from_string(r#"{"imageDate":"2020-01","datetime":123}"#.into()),
+        ..loc(1, 1.0, 0.0)
+    };
+    let (state, map_id) = setup(&[one]);
+    let mut d = decl("meta", BatchMode::PerRow);
+    d.fields = vec!["imageDate".into(), "datetime".into()];
+    d.invalidates = HashMap::from([("imageDate".to_string(), vec!["datetime".to_string()])]);
+    let h = Harness::map_only(patch_extra_all(r#"{"imageDate":"2021-05","datetime":456}"#));
+    let mut ctx = h.ctx(&state, &map_id);
+    ctx.force = true;
+    run_provider(&ctx, &d).unwrap();
+
+    let extra = read_extra(&state, &map_id, 1).unwrap();
+    assert_eq!(extra["datetime"], serde_json::json!(456));
 }
 
 // -----------------------------------------------------------------------

@@ -75,12 +75,6 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 				for (const key of SVMETA_FIELDS) {
 					if (fields === null || fields.has(key)) extra[key] = DERIVE[key](meta);
 				}
-				// An exact date belongs to the month the row held before: wrong once the
-				// month moves, whether or not the run asked for one.
-				if (row.extra?.datetime != null && row.extra.imageDate !== (imageDateOf(meta) || null)) {
-					extra.datetime = null;
-					extra.timezone = null;
-				}
 				if (Object.keys(extra).length > 0) out.push({ id: row.id, patch: { extra } });
 			}
 			mma.progress(1);

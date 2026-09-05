@@ -1277,6 +1277,7 @@ export type ProviderDecl = {
 	entry?: string | null,
 	fields?: string[],
 	requires?: string[],
+	invalidates?: { [key in string]: string[] },
 	select: Selector,
 	batch: BatchMode,
 	sink?: Sink,

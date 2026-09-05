@@ -6,6 +6,8 @@ vi.mock("@/lib/util/log", () => ({
 }));
 
 import {
+	derivedFrom,
+	withoutDerivedFrom,
 	registerProvider,
 	getProviders,
 	registerEnrichFields,
@@ -107,5 +109,55 @@ describe("isFieldEnabled", () => {
 	it("respects an explicit enrichFields list", () => {
 		expect(isFieldEnabled(["datetime"], "datetime")).toBe(true);
 		expect(isFieldEnabled(["altitude"], "datetime")).toBe(false);
+	});
+});
+
+describe("derivedFrom", () => {
+	// pano -> meta(imageDate) -> exact(datetime) -> sun(sunAzimuth); tagsOnly reads tags.
+	const suffix = Math.random();
+	registerProvider({
+		id: `meta-${suffix}`,
+		procedure: { ...procedure },
+		requires: ["panoId"],
+		fieldDefs: { [`imageDate${suffix}`]: createFieldDef("month", { label: "Image date" }) },
+	});
+	registerProvider({
+		id: `exact-${suffix}`,
+		procedure: { ...procedure },
+		requires: [`imageDate${suffix}`],
+		fieldDefs: { [`datetime${suffix}`]: createFieldDef("date", { label: "Exact date" }) },
+	});
+	registerProvider({
+		id: `sun-${suffix}`,
+		procedure: { ...procedure },
+		requires: [`datetime${suffix}`],
+		fieldDefs: { [`sunAzimuth${suffix}`]: createFieldDef("number", { label: "Sun" }) },
+	});
+	registerProvider({
+		id: `tagsOnly-${suffix}`,
+		procedure: { ...procedure },
+		requires: ["tags"],
+		fieldDefs: { [`tagged${suffix}`]: createFieldDef("string", { label: "Tagged" }) },
+	});
+
+	it("follows requires transitively and leaves unrelated fields alone", () => {
+		const stale = derivedFrom(["panoId"]);
+		expect(stale.has(`imageDate${suffix}`)).toBe(true);
+		expect(stale.has(`datetime${suffix}`)).toBe(true);
+		expect(stale.has(`sunAzimuth${suffix}`)).toBe(true);
+		expect(stale.has(`tagged${suffix}`)).toBe(false);
+	});
+
+	it("starts wherever the change is", () => {
+		const stale = derivedFrom([`datetime${suffix}`]);
+		expect(stale.has(`sunAzimuth${suffix}`)).toBe(true);
+		expect(stale.has(`imageDate${suffix}`)).toBe(false);
+	});
+
+	it("strips exactly the stale keys from extra", () => {
+		const extra = { [`imageDate${suffix}`]: "2020-01", [`tagged${suffix}`]: "x", custom: 1 };
+		expect(withoutDerivedFrom(extra, ["panoId"])).toEqual({ [`tagged${suffix}`]: "x", custom: 1 });
+		expect(withoutDerivedFrom(extra, ["heading"])).toEqual(extra);
+		expect(withoutDerivedFrom(null, ["panoId"])).toBeNull();
 	});
 });
