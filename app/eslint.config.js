@@ -125,6 +125,8 @@ export default defineConfig([
 				},
 			],
 			"no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX, USE_SYNC_EXTERNAL_STORE_BAN, QUERY_CMD_BAN],
+			// A shim exists for plugins built against an older release; app code has no excuse.
+			"@typescript-eslint/no-deprecated": "warn",
 			"@typescript-eslint/no-unused-vars": [
 				"error",
 				{
