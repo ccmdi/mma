@@ -40,6 +40,7 @@ import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { validateLocations } from "@/lib/sv/validate";
 import { svMetadata } from "@/lib/sv/query";
 import { mmaBufUrl } from "@/lib/util/util";
+import { procedureEntry, queryProcedure, runProcedure, runProviders } from "@/lib/data/procedures";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { getScenePositions } from "@/lib/render/sceneStore";
 import * as sidecar from "@/plugins/sidecar";
@@ -73,6 +74,15 @@ const fields = {
 	createFieldDef,
 	registerEnrichFields,
 	registerProvider,
+};
+
+/** Running procedures. `registerProvider` above declares one; these execute it: a whole
+ *  run over a selector, or a single read-only question to a module. */
+const procedures = {
+	runProcedure,
+	runProviders,
+	queryProcedure,
+	procedureEntry,
 };
 
 /** Panoramas the user has already seen. */
@@ -166,6 +176,7 @@ type ReviewApi = typeof review;
 type TauriApi = typeof tauri;
 type PluginApi = typeof plugin;
 type FieldsApi = typeof fields;
+type ProceduresApi = typeof procedures;
 type SeenApi = typeof seen;
 type SvApi = typeof sv;
 type MapApi = typeof map;
@@ -188,6 +199,7 @@ export interface MMA
 		TauriApi,
 		PluginApi,
 		FieldsApi,
+		ProceduresApi,
 		SeenApi,
 		SvApi,
 		MapApi,
@@ -209,6 +221,7 @@ const mma: MMA = {
 	...tauri,
 	...plugin,
 	...fields,
+	...procedures,
 	...seen,
 	...sv,
 	...map,
