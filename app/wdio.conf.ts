@@ -3,6 +3,7 @@ import fs from "fs";
 import { installSvMock } from "./test/e2e/svMock";
 import { svMockCore } from "./test/e2e/svMockCore";
 import { startSvStub, svMockConfig, type SvStub } from "./test/e2e/svStubServer";
+import { startGgStub, type GgStub } from "./test/e2e/ggStubServer";
 
 process.env.MMA_TEST_DB = "1";
 process.env.TSX_TSCONFIG_PATH = path.resolve("tsconfig.app.json");
@@ -13,6 +14,7 @@ const isWorker = !!process.env.WDIO_WORKER_ID;
 let logStream: fs.WriteStream | undefined;
 let logPath: string | undefined;
 let svStub: SvStub | undefined;
+let ggStub: GgStub | undefined;
 
 // Two ways in, one record either way. Under scripts/e2e.sh the shell tees the container's
 // whole output -- wdio plus tauri-driver and the sv-stub -- to a file it names, and hands
@@ -105,12 +107,16 @@ export const config: WebdriverIO.Config = {
 	// The Rust procedure engine fetches outside the webview, so it gets an HTTP stub instead
 	// of the monkey-patch. The app was launched with MMA_E2E_SV_ORIGIN pointing here
 	// (scripts/internal/e2e-*.sh); this only has to be listening before the first session.
+	// The GeoGuessr stub is unconditional: the app is launched pointed at it in every e2e
+	// run, so no run can reach geoguessr.com for real.
 	onPrepare: async () => {
+		ggStub = await startGgStub();
 		if (!process.env.MMA_TEST_MOCK_SV) return;
 		svStub = await startSvStub();
 	},
 	onComplete: async () => {
 		await svStub?.close();
+		await ggStub?.close();
 		if (logStream) {
 			logStream.end();
 			console.log(`\nLog: ${logPath}`);

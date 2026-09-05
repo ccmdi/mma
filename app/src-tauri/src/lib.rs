@@ -387,6 +387,9 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
     }
     log::info!("[startup] migrations: {}ms", t.elapsed().as_millis());
 
+    #[cfg(feature = "e2e")]
+    net::geoguessr::seed_session_from_env();
+
     thread::spawn(|| {
         plugins::borders::update_border_files();
         plugins::borders::warm();

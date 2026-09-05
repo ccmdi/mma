@@ -38,7 +38,7 @@ impl SessionCell {
     }
 }
 
-#[cfg(not(test))]
+#[cfg(not(any(test, feature = "e2e")))]
 pub(crate) mod secret {
     use crate::types::AppResult;
 
@@ -69,32 +69,30 @@ pub(crate) mod secret {
     }
 }
 
-/// Test builds swap in a thread-local map so the suite never touches the real keychain.
-#[cfg(test)]
+/// Test and e2e builds swap in an in-memory map, so neither the unit suite nor a headless
+/// e2e container touches the real keychain (a container has no credential store at all).
+#[cfg(any(test, feature = "e2e"))]
 pub(crate) mod secret {
     use crate::types::AppResult;
-    use std::cell::RefCell;
     use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
 
-    thread_local! {
-        static STORE: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+    fn store() -> &'static Mutex<HashMap<String, String>> {
+        static STORE: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+        STORE.get_or_init(|| Mutex::new(HashMap::new()))
     }
 
     pub fn get(name: &str) -> AppResult<Option<String>> {
-        Ok(STORE.with(|s| s.borrow().get(name).cloned()))
+        Ok(store().lock()?.get(name).cloned())
     }
 
     pub fn set(name: &str, value: &str) -> AppResult<()> {
-        STORE.with(|s| {
-            s.borrow_mut().insert(name.to_string(), value.to_string());
-        });
+        store().lock()?.insert(name.to_string(), value.to_string());
         Ok(())
     }
 
     pub fn delete(name: &str) -> AppResult<()> {
-        STORE.with(|s| {
-            s.borrow_mut().remove(name);
-        });
+        store().lock()?.remove(name);
         Ok(())
     }
 }

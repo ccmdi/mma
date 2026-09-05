@@ -29,6 +29,22 @@ const LOGIN_LABEL: &str = "gg-login";
 const POLL_INTERVAL: Duration = Duration::from_millis(750);
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// The upstream GeoGuessr origin. E2E builds may point it at the harness's local stub, so
+/// the suite never talks to geoguessr.com.
+#[cfg(feature = "e2e")]
+pub(crate) fn origin() -> &'static str {
+    static O: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    O.get_or_init(|| match std::env::var("MMA_E2E_GG_ORIGIN") {
+        Ok(o) if !o.is_empty() => o.trim_end_matches('/').to_string(),
+        _ => ORIGIN.to_string(),
+    })
+}
+
+#[cfg(not(feature = "e2e"))]
+pub(crate) fn origin() -> &'static str {
+    ORIGIN
+}
+
 /// The signed-in GeoGuessr account.
 #[derive(serde::Serialize, serde::Deserialize, specta::Type, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +70,19 @@ fn set_session(ncfa: Option<String>) -> AppResult<()> {
     SESSION.set(ncfa)
 }
 
+/// An e2e build has no credential store and no interactive sign-in, so the harness hands it
+/// the session the proxy is expected to replay. Seeded once at startup, so a logout during a
+/// run clears it for good exactly as in production.
+#[cfg(feature = "e2e")]
+pub fn seed_session_from_env() {
+    match std::env::var("MMA_E2E_GG_NCFA") {
+        Ok(v) if !v.is_empty() => {
+            let _ = set_session(Some(v));
+        }
+        _ => {}
+    }
+}
+
 // ---------------------------------------------------------------------------
 // ggapi proxy
 // ---------------------------------------------------------------------------
@@ -61,9 +90,10 @@ fn set_session(ncfa: Option<String>) -> AppResult<()> {
 /// `ggapi://localhost/<path>?<query>` -> `https://www.geoguessr.com/<path>?<query>`.
 pub(crate) fn upstream_url(path: &str, query: Option<&str>) -> String {
     let path = path.trim_start_matches('/');
+    let origin = origin();
     match query {
-        Some(q) if !q.is_empty() => format!("{ORIGIN}/{path}?{q}"),
-        _ => format!("{ORIGIN}/{path}"),
+        Some(q) if !q.is_empty() => format!("{origin}/{path}?{q}"),
+        _ => format!("{origin}/{path}"),
     }
 }
 
@@ -74,8 +104,8 @@ pub(crate) fn proxy_headers(ncfa: &str, content_type: Option<&str>) -> Vec<(&'st
         ("cookie", format!("_ncfa={ncfa}")),
         ("x-client", "web".to_string()),
         ("accept", "application/json".to_string()),
-        ("origin", ORIGIN.to_string()),
-        ("referer", format!("{ORIGIN}/")),
+        ("origin", origin().to_string()),
+        ("referer", format!("{}/", origin())),
     ];
     if let Some(ct) = content_type {
         h.push(("content-type", ct.to_string()));
@@ -201,7 +231,7 @@ pub async fn geoguessr_login(app: tauri::AppHandle) -> AppResult<String> {
     if app.get_webview_window(LOGIN_LABEL).is_some() {
         return Err("a GeoGuessr login window is already open".into());
     }
-    let url = format!("{ORIGIN}/signin")
+    let url = format!("{}/signin", origin())
         .parse()
         .map_err(|e| format!("bad signin url: {e}"))?;
     WebviewWindowBuilder::new(&app, LOGIN_LABEL, WebviewUrl::External(url))
@@ -254,7 +284,7 @@ pub async fn geoguessr_login(app: tauri::AppHandle) -> AppResult<String> {
 /// Polls the login webview's cookie store. Terminates as soon as the window is
 /// gone, so the task cannot outlive the window the user closed.
 fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
-    let url: tauri::Url = ORIGIN.parse().map_err(|e| format!("bad origin: {e}"))?;
+    let url: tauri::Url = origin().parse().map_err(|e| format!("bad origin: {e}"))?;
     let deadline = Instant::now() + LOGIN_TIMEOUT;
     let mut seen = String::new();
     loop {
@@ -313,7 +343,7 @@ pub async fn geoguessr_logout(app: tauri::AppHandle) -> AppResult<()> {
 /// Best-effort. The shared webview profile keeps its own signed-in state; left in place, the
 /// next login window silently re-lifts the OLD account's cookie instead of showing the form.
 fn clear_webview_cookies(app: &tauri::AppHandle) {
-    let Ok(url) = ORIGIN.parse::<tauri::Url>() else {
+    let Ok(url) = origin().parse::<tauri::Url>() else {
         return;
     };
     let Some(win) = app.webview_windows().into_values().next() else {

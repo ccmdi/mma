@@ -18,6 +18,9 @@ export const config: WebdriverIO.Config = {
 		// showSaveFilePicker/download in a browser, and fullscreen leans on real windowing.
 		"./test/e2e/export-dialog.test.ts",
 		"./test/e2e/fullscreen-map.test.ts",
+		// The sign-in flow builds a native webview window, which the sidecar has no
+		// equivalent for.
+		"./test/e2e/geoguessr.test.ts",
 	],
 	capabilities: [
 		{
