@@ -21,8 +21,8 @@ import {
 	setStopColor,
 	type GradientStop,
 	type HeatmapGradient,
-	type RGB,
 } from "../../../plugins/heatmap/src/gradients";
+import type { RGB } from "@/lib/util/color";
 
 const blackWhite: GradientStop[] = [
 	{ color: [0, 0, 0], pos: 0 },

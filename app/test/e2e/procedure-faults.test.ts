@@ -38,7 +38,7 @@ function windowFor(imageDate: string): [number, number] | null {
 	return [first - DAY, first + 32 * DAY];
 }
 
-type Row = Record<string, unknown> & { extra: Record<string, unknown> };
+type Row = Record<string, unknown> & { lat: unknown; lng: unknown; extra: Record<string, unknown> };
 
 describe("procedure faults: what a misbehaving network does to the data", () => {
 	const maps: string[] = [];
@@ -62,7 +62,7 @@ describe("procedure faults: what a misbehaving network does to the data", () => 
 		await browser.setTimeout({ script: 900_000 });
 		clean = await run({});
 		rows = await run(faultScript());
-		for (const r of rows) byKind.set(kindOf(key(r as { lat: unknown; lng: unknown })), r);
+		for (const r of rows) byKind.set(kindOf(key(r)), r);
 	});
 
 	after(async () => {

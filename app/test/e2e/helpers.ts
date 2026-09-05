@@ -32,7 +32,7 @@ export async function withApi<A extends unknown[], R>(
 }
 
 export async function waitForReady() {
-	await browser.waitUntil(async () => browser.execute(() => window.MMA?.ready === true), {
+	await browser.waitUntil(async () => browser.execute(() => window.MMA?.isReady() === true), {
 		timeout: 30000,
 		timeoutMsg: "App did not boot in time",
 	});

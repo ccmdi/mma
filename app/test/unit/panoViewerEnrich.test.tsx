@@ -107,9 +107,9 @@ describe("the draft is the location as a save would write it", () => {
 		const m = mountHost();
 		await open("pA");
 		await act(async () => viewer.edit((d) => ({ flags: d.flags | 1 })));
-		expect(viewer.draft.flags & 1).toBe(1);
+		expect(viewer.draft!.flags & 1).toBe(1);
 		await act(async () => viewer.edit((d) => ({ flags: d.flags & ~1 })));
-		expect(viewer.draft.flags & 1).toBe(0);
+		expect(viewer.draft!.flags & 1).toBe(0);
 		expect(h.written).toEqual([]);
 		m.unmount();
 	});
@@ -120,7 +120,7 @@ describe("the draft is the location as a save would write it", () => {
 		h.written = [];
 		await walk("pB");
 		expect(h.enriched.at(-1)).toMatchObject({ panoId: "pB", lat: 5, lng: 6, forced: true });
-		expect(viewer.draft.extra).toEqual({ custom: "kept", enriched: "pB" });
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
 		m.unmount();
 	});
 

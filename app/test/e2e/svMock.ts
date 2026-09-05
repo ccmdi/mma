@@ -42,7 +42,7 @@ export function installSvMock(): void {
 		respond: (
 			url: string,
 			body: Uint8Array | null,
-		) => { status: number; body: Uint8Array | string } | null;
+		) => { kind: string; status: number; body: Uint8Array | string } | null;
 	}
 	interface GoogleLike {
 		maps?: {

@@ -413,7 +413,7 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 	const respond = (url: string, body: Uint8Array | null): MockReply | null => {
 		if (url.includes("GetMetadata")) {
 			const keys = requestKeys(body);
-			for (const k of keys) {
+			for (const [, k] of keys) {
 				const status = nextFault(k);
 				if (status !== null) return faultReply("GetMetadata", status);
 			}

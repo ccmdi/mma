@@ -154,7 +154,7 @@ describe("Content Security Policy", function () {
 
 	it("boots with the app bundle, styles and fonts loaded", async () => {
 		const boot = await browser.execute(() => ({
-			ready: (window as unknown as { MMA?: { ready?: boolean } }).MMA?.ready === true,
+			ready: window.MMA?.isReady() === true,
 			sheets: document.styleSheets.length,
 			// A blocked stylesheet leaves the body unstyled; the app paints a dark ground.
 			bg: getComputedStyle(document.body).backgroundColor,
@@ -242,15 +242,17 @@ describe("Content Security Policy", function () {
 		const TRIGGER = ".map-type-control .map-control__menu-button";
 		const PANEL = ".map-type-control .settings-popup";
 		await openPanel(TRIGGER, PANEL);
-		const buttons = await browser.$$(`${PANEL} .map-type-control__button`);
-		expect(buttons.length).toBeGreaterThan(1);
-		for (let i = 0; i < buttons.length; i++) {
+		const count = await (await browser.$$(`${PANEL} .map-type-control__button`)).length;
+		expect(count).toBeGreaterThan(1);
+		for (let i = 0; i < count; i++) {
 			await openPanel(TRIGGER, PANEL);
 			const btns = await browser.$$(`${PANEL} .map-type-control__button`);
 			await btns[i].click();
 			await browser.waitUntil(
 				async () =>
-					(await browser.$$(`${PANEL} .map-type-control__button[data-state='on']`)).length === 1,
+					(await (
+						await browser.$$(`${PANEL} .map-type-control__button[data-state='on']`)
+					).length) === 1,
 				{ timeout: 5000, timeoutMsg: "basemap selection never settled" },
 			);
 		}
