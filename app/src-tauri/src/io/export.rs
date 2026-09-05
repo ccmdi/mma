@@ -513,9 +513,8 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
                     export_unpanned: false,
                     export_extras: true,
                 };
-                let fields = (!parse_tag_defs(tags_json).0.is_empty())
-                    .then(|| serde_json::from_str::<serde_json::Value>(extra_json).ok())
-                    .flatten()
+                let fields = serde_json::from_str::<serde_json::Value>(extra_json)
+                    .ok()
                     .and_then(|e| e.get("fields").cloned());
                 let doc = export_document(name, &locs, tags_json, fields, &co);
                 let json = serde_json::to_string(&doc)?;
