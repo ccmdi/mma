@@ -11,7 +11,7 @@
 	"(unnamed)": "（無名）",
 	"(will download)": "(ダウンロードされます)",
 	"({n} without country data)": "（国データなし {n} 件）",
-	"(~45MB, will download)": "(約45MB、ダウンロードされます)",
+	"({size}, will download)": "({size}、ダウンロードされます)",
 	"+ click to select a country outline.": "+ クリックで国の境界を選択。",
 	", at least {distance} apart": "、{distance} 以上の間隔",
 	", {n} failed": {
@@ -23,10 +23,6 @@
 	", {n} tags": {
 		"other": "、タグ {n} 件"
 	},
-	"10 buckets": "10 バケット",
-	"15 buckets": "15 バケット",
-	"20 buckets": "20 バケット",
-	"5 buckets": "5 バケット",
 	":": ":",
 	"A coverage data download is still running.": "カバレッジデータのダウンロードが実行中です。",
 	"AND": "AND",
@@ -117,7 +113,6 @@
 	"Back to the form": "フォームに戻る",
 	"Backwards": "後方",
 	"Bad cam": "Bad cam",
-	"Badcam": "Badcam",
 	"Badcam, but good coverage available": "Badcam だが良好なカバレッジあり",
 	"Best streak: {n}": "最高連続正解: {n}",
 	"Between years": "年の範囲",
@@ -491,9 +486,6 @@
 	"Gen 1": "Gen 1",
 	"Gen 2/3": "Gen 2/3",
 	"Gen 4": "Gen 4",
-	"Gen1": "Gen1",
-	"Gen2/3": "Gen2/3",
-	"Gen4": "Gen4",
 	"General settings": "一般設定",
 	"Generate locations from Street View coverage": "ストリートビューのカバレッジから地点を生成",
 	"Generate locations from pre-built coverage data using Vali": "Vali の事前構築カバレッジデータから地点を生成",
@@ -532,7 +524,7 @@
 	"Hide transit": "交通機関を非表示",
 	"High": "高",
 	"High (640x360)": "高（640x360）",
-	"High (~10MB)": "高（約 10MB）",
+	"High ({size})": "高（{size}）",
 	"History": "履歴",
 	"Hold + click for country (+Shift for subdivision)": "押しながらクリックで国を選択（+Shift で行政区画）",
 	"Hold + click to delete polygon": "押しながらクリックでポリゴンを削除",
@@ -573,9 +565,9 @@
 	"JSON editor": "JSONエディター",
 	"Join the Discord": "Discord に参加",
 	"Jump backward {distance} ({key})": "{distance} 後退（{key}）",
-	"Jump backward 100m": "100m 後退",
+	"Jump backward {distance}": "{distance} 後退",
 	"Jump forward {distance} ({key})": "{distance} 前進（{key}）",
-	"Jump forward 100m": "100m 前進",
+	"Jump forward {distance}": "{distance} 前進",
 	"Jump forward/backward buttons": "前進・後退ボタン",
 	"Keep local": "ローカルを保持",
 	"Keep local for all": "すべてローカルを保持",
@@ -1222,7 +1214,7 @@
 	"Type a name to create a folder": "名前を入力してフォルダーを作成",
 	"Type a name to create a map": "名前を入力してマップを作成",
 	"Type command": "コマンドを入力",
-	"Ultra (~46MB)": "最高（約 46MB）",
+	"Ultra ({size})": "最高（{size}）",
 	"Un-ghost selection": "ゴースト選択を解除",
 	"Uncommitted": "未コミット",
 	"Undo": "元に戻す",
@@ -1384,6 +1376,9 @@
 	"{maps} maps · {locations} locations": "{maps} マップ・{locations} 地点",
 	"{name} - round {n}": "{name} - ラウンド {n}",
 	"{name} updated to v{version}": "{name} を v{version} に更新しました",
+	"{n} buckets": {
+		"other": "{n} バケット"
+	},
 	"{n} conflicts held for review": {
 		"other": "{n} 件の競合をレビュー用に保留"
 	},

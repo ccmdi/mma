@@ -7,6 +7,7 @@ import { useCameraType, type FullCameraType } from "./useCameraType";
 import { usePanoViewer, usePanoDates, viewerPosition } from "./PanoViewerContext";
 import { useMapState } from "@/store/useMapStore";
 import { isFieldEnabled } from "@/lib/data/fieldDefs";
+import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useTimezone } from "@/lib/util/timezone";
 import { NSelect } from "@/components/primitives/NSelect";
 import { getLocale, t } from "@/lib/i18n";
@@ -17,25 +18,25 @@ function monthLabel(civil: string | undefined): string {
 	return d ? dateFmt.format(d) : "";
 }
 
+const BADGE_CLASS: Record<Exclude<FullCameraType, "unofficial">, string> = {
+	gen1: "gen1",
+	gen2: "gen2",
+	gen4: "gen4",
+	badcam: "badcam",
+	tripod: "tripod",
+	trekker: "rb",
+};
+
 function PanoBadge({ cameraType }: { cameraType: FullCameraType | null }) {
-	switch (cameraType) {
-		case "unofficial":
-			return <span className="pano-option__badge badge badge--unofficial">{t("unofficial")}</span>;
-		case "gen1":
-			return <span className="pano-option__badge badge badge--gen1">{t("Gen1")}</span>;
-		case "gen2":
-			return <span className="pano-option__badge badge badge--gen2">{t("Gen2/3")}</span>;
-		case "gen4":
-			return <span className="pano-option__badge badge badge--gen4">{t("Gen4")}</span>;
-		case "badcam":
-			return <span className="pano-option__badge badge badge--badcam">{t("Badcam")}</span>;
-		case "tripod":
-			return <span className="pano-option__badge badge badge--tripod">{t("Tripod")}</span>;
-		case "trekker":
-			return <span className="pano-option__badge badge badge--rb">{t("Trekker")}</span>;
-		default:
-			return null;
+	if (cameraType === null) return null;
+	if (cameraType === "unofficial") {
+		return <span className="pano-option__badge badge badge--unofficial">{t("unofficial")}</span>;
 	}
+	return (
+		<span className={`pano-option__badge badge badge--${BADGE_CLASS[cameraType]}`}>
+			{fieldValueLabel(getFieldDef("cameraType"), cameraType)}
+		</span>
+	);
 }
 
 function PanoOption({ pano, date }: Pano["time"][number]) {

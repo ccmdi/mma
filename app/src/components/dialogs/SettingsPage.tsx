@@ -21,11 +21,13 @@ import {
 	reassignBinding,
 	getConflicts,
 	getAltSlowConflict,
+	hotkeyLabel,
 	isCustomized,
 	type HotkeyAction,
 	type HotkeyDef,
 	type HotkeyGroup,
 } from "@/lib/util/hotkeys";
+import { formatBytes } from "@/lib/util/format";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
@@ -71,6 +73,7 @@ import {
 	POLYGON_COLOR_MODES,
 	OPACITY_TOGGLE_MODES,
 	TAG_SUGGESTION_LIMITS,
+	BORDER_ARCHIVE_BYTES,
 	BORDER_DETAILS,
 	SUBDIVISION_DETAILS,
 	PREVIEW_ASPECT_RATIOS,
@@ -168,7 +171,7 @@ function getBlockedReason(e: KeyboardEvent): string | null {
 		if (conflict) {
 			return t('{combo} conflicts with "{label}" (Alt is the slow modifier for navigation)', {
 				combo: formatBinding(combo),
-				label: t(conflict.label),
+				label: hotkeyLabel(conflict),
 			});
 		}
 	}
@@ -257,7 +260,7 @@ function HotkeyRow({
 			id={`hotkey-row-${action}`}
 			className={`${custom ? "hotkey-row--custom" : ""}${flash ? " hotkey-row--flash" : ""}${hasConflict ? " hotkey-row--conflict" : ""}`}
 		>
-			<td>{t(label)}</td>
+			<td>{label}</td>
 			<td>
 				{recording ? (
 					pending ? (
@@ -266,7 +269,7 @@ function HotkeyRow({
 								<Trans
 									msg="{combo} is bound to {labels}"
 									combo={<code className="mono">{formatBinding(pending.combo)}</code>}
-									labels={<strong>{pending.conflicts.map((c) => t(c.label)).join(", ")}</strong>}
+									labels={<strong>{pending.conflicts.map(hotkeyLabel).join(", ")}</strong>}
 								/>
 							</span>
 							<Button variant="primary" className="hotkey-reset" autoFocus onClick={reassign}>
@@ -307,10 +310,10 @@ function HotkeyRow({
 							key={c.action}
 							className="hotkey-conflict"
 							onClick={() => onJump(c.action)}
-							title={t('Also bound to "{label}" - click to jump there', { label: t(c.label) })}
+							title={t('Also bound to "{label}" - click to jump there', { label: hotkeyLabel(c) })}
 						>
 							<Icon path={mdiAlertCircleOutline} className="hotkey-conflict__icon" />
-							{t(c.label)}
+							{hotkeyLabel(c)}
 						</button>
 					))}
 			</td>
@@ -373,7 +376,7 @@ function KeyboardBody() {
 					(d) =>
 						d.group === group &&
 						(!lower ||
-							t(d.label).toLowerCase().includes(lower) ||
+							hotkeyLabel(d).toLowerCase().includes(lower) ||
 							getBinding(d.action).toLowerCase().includes(lower)),
 				);
 				if (defs.length === 0) return null;
@@ -393,7 +396,7 @@ function KeyboardBody() {
 									<HotkeyRow
 										key={d.action}
 										action={d.action}
-										label={d.label}
+										label={hotkeyLabel(d)}
 										flash={flash === d.action}
 										onJump={jumpTo}
 									/>
@@ -770,7 +773,9 @@ function BorderDetailGroup() {
 	const subdivisionStatus = () => {
 		if (downloading === "adm1") return ` ${t("(downloading...)")}`;
 		if (adm1Ready === null) return "";
-		return adm1Ready ? "" : ` ${t("(~45MB, will download)")}`;
+		return adm1Ready
+			? ""
+			: ` ${t("({size}, will download)", { size: formatBytes(BORDER_ARCHIVE_BYTES.adm1) })}`;
 	};
 
 	return (
@@ -785,12 +790,17 @@ function BorderDetailGroup() {
 							onChange={(e) => void handleChange(e.target.value as BorderDetail)}
 							disabled={downloading !== null}
 						>
-							{Object.entries(BORDER_DETAILS).map(([value, label]) => (
-								<option key={value} value={value}>
-									{t(label)}
-									{value !== "light" && statusLabel(value as "medium" | "heavy")}
-								</option>
-							))}
+							{Object.entries(BORDER_DETAILS).map(([value, label]) => {
+								const level = value as BorderDetail;
+								return (
+									<option key={level} value={level}>
+										{level === "light"
+											? t(label)
+											: t(label, { size: formatBytes(BORDER_ARCHIVE_BYTES[level]) }) +
+												statusLabel(level)}
+									</option>
+								);
+							})}
 						</NSelect>
 					}
 				/>

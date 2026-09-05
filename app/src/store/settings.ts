@@ -84,8 +84,14 @@ export const POLYGON_COLOR_MODES = {
 } as const;
 export const BORDER_DETAILS = {
 	light: msg("Standard (bundled)"),
-	medium: msg("High (~10MB)"),
-	heavy: msg("Ultra (~46MB)"),
+	medium: msg("High ({size})"),
+	heavy: msg("Ultra ({size})"),
+} as const;
+/** On-disk size of each downloadable archive under `data/borders/`. */
+export const BORDER_ARCHIVE_BYTES = {
+	medium: 7_460_312,
+	heavy: 21_514_464,
+	adm1: 56_891_952,
 } as const;
 export const SUBDIVISION_DETAILS = {
 	off: msg("Off"),

@@ -1,7 +1,9 @@
 import { getCommands, getCommand } from "@/store/commands";
 import { bridgeAcrossWindows, emit as emitEvent, useEventValue } from "@/lib/events";
 import { getLocal, setLocal, reloadLocal } from "@/lib/hooks/useLocalStorage";
-import { msg } from "@/lib/i18n";
+import { msg, t, type MessageParams } from "@/lib/i18n";
+import { formatDistance } from "@/lib/util/format";
+import { SV_JUMP_RADIUS } from "@/lib/sv/constants";
 
 const QUICKTAG_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 type QuicktagSlot = (typeof QUICKTAG_SLOTS)[number];
@@ -17,9 +19,15 @@ export type HotkeyGroup =
 export interface HotkeyDef {
 	action: HotkeyAction;
 	label: string;
+	/** Fills the label's placeholders at render time, for a label that carries a value. */
+	params?: () => MessageParams;
 	group: HotkeyGroup;
 	defaultBinding: string;
 	altSlow?: boolean;
+}
+
+export function hotkeyLabel(def: HotkeyDef): string {
+	return t(def.label, def.params?.());
 }
 
 // Raw input bindings only. Command-level bindings are derived from the command registry.
@@ -298,13 +306,15 @@ const STATIC_HOTKEY_DEFS = [
 	},
 	{
 		action: "jumpForward",
-		label: msg("Jump forward 100m"),
+		label: msg("Jump forward {distance}"),
+		params: () => ({ distance: formatDistance(SV_JUMP_RADIUS, 0) }),
 		group: msg("Location Editor"),
 		defaultBinding: "}",
 	},
 	{
 		action: "jumpBackward",
-		label: msg("Jump backward 100m"),
+		label: msg("Jump backward {distance}"),
+		params: () => ({ distance: formatDistance(SV_JUMP_RADIUS, 0) }),
 		group: msg("Location Editor"),
 		defaultBinding: "{",
 	},

@@ -11,7 +11,7 @@
 	"(unnamed)": "（未命名）",
 	"(will download)": "(将会下载)",
 	"({n} without country data)": "（{n} 个无国家数据）",
-	"(~45MB, will download)": "(约45MB，将会下载)",
+	"({size}, will download)": "({size}，将会下载)",
 	"+ click to select a country outline.": " + 点击选择国家轮廓。",
 	", at least {distance} apart": "，间隔至少 {distance}",
 	", {n} failed": {
@@ -23,10 +23,6 @@
 	", {n} tags": {
 		"other": "，{n} 个标签"
 	},
-	"10 buckets": "10 个桶",
-	"15 buckets": "15 个桶",
-	"20 buckets": "20 个桶",
-	"5 buckets": "5 个桶",
 	":": ":",
 	"A coverage data download is still running.": "覆盖数据下载仍在进行中。",
 	"AND": "且",
@@ -117,7 +113,6 @@
 	"Back to the form": "返回表单",
 	"Backwards": "向后",
 	"Bad cam": "低画质相机",
-	"Badcam": "Badcam",
 	"Badcam, but good coverage available": "Badcam，但有更好的覆盖",
 	"Best streak: {n}": "最佳连续: {n}",
 	"Between years": "年份范围",
@@ -491,9 +486,6 @@
 	"Gen 1": "第 1 代",
 	"Gen 2/3": "第 2/3 代",
 	"Gen 4": "第 4 代",
-	"Gen1": "Gen1",
-	"Gen2/3": "Gen2/3",
-	"Gen4": "Gen4",
 	"General settings": "常规设置",
 	"Generate locations from Street View coverage": "从街景覆盖生成位置",
 	"Generate locations from pre-built coverage data using Vali": "使用 Vali 从预构建覆盖数据生成位置",
@@ -532,7 +524,7 @@
 	"Hide transit": "隐藏公交",
 	"High": "高",
 	"High (640x360)": "高（640x360）",
-	"High (~10MB)": "高（约 10MB）",
+	"High ({size})": "高（{size}）",
 	"History": "历史",
 	"Hold + click for country (+Shift for subdivision)": "按住 + 点击选国家（+Shift 选行政区）",
 	"Hold + click to delete polygon": "按住 + 点击删除多边形",
@@ -573,9 +565,9 @@
 	"JSON editor": "JSON 编辑器",
 	"Join the Discord": "加入 Discord",
 	"Jump backward {distance} ({key})": "向后跳 {distance} ({key})",
-	"Jump backward 100m": "向后跳 100m",
+	"Jump backward {distance}": "向后跳 {distance}",
 	"Jump forward {distance} ({key})": "向前跳 {distance} ({key})",
-	"Jump forward 100m": "向前跳 100m",
+	"Jump forward {distance}": "向前跳 {distance}",
 	"Jump forward/backward buttons": "快速前进/后退按钮",
 	"Keep local": "保留本地",
 	"Keep local for all": "全部保留本地",
@@ -1222,7 +1214,7 @@
 	"Type a name to create a folder": "输入名称以创建文件夹",
 	"Type a name to create a map": "输入名称以创建地图",
 	"Type command": "输入命令",
-	"Ultra (~46MB)": "超高（约 46MB）",
+	"Ultra ({size})": "超高（{size}）",
 	"Un-ghost selection": "取消幽灵选择",
 	"Uncommitted": "未提交",
 	"Undo": "撤销",
@@ -1384,6 +1376,9 @@
 	"{maps} maps · {locations} locations": "{maps} 张地图 · {locations} 个位置",
 	"{name} - round {n}": "{name} - 第 {n} 轮",
 	"{name} updated to v{version}": "{name} 已更新至 v{version}",
+	"{n} buckets": {
+		"other": "{n} 个桶"
+	},
 	"{n} conflicts held for review": {
 		"other": "{n} 个冲突待处理"
 	},

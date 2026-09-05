@@ -310,10 +310,11 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 							<option value="off" disabled={bucketForced}>
 								{bucketForced ? t("Off (too many values)") : t("Off")}
 							</option>
-							<option value="5">{t("5 buckets")}</option>
-							<option value="10">{t("10 buckets")}</option>
-							<option value="15">{t("15 buckets")}</option>
-							<option value="20">{t("20 buckets")}</option>
+							{[5, 10, 15, 20].map((n) => (
+								<option key={n} value={n}>
+									{t({ one: "{n} bucket", other: "{n} buckets" }, { n })}
+								</option>
+							))}
 						</NSelect>
 					</Field>
 				)}

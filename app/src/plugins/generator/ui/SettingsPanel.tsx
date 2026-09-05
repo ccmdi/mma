@@ -5,6 +5,7 @@ import { Radio } from "@/components/primitives/Radio";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Section, SegmentedControl } from "@/components/primitives/Sidebar";
 import { t } from "@/lib/i18n";
+import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { TextInput } from "@/components/primitives/TextInput";
 import { distanceUnit } from "@/lib/util/format";
 import { useSetting } from "@/store/settings";
@@ -158,9 +159,9 @@ export function SettingsPanel({
 									value={String(settings.generation)}
 									onChange={(v) => set("generation", Number(v) as 1 | 23 | 4)}
 									options={[
-										{ value: "1", label: t("Gen 1") },
-										{ value: "23", label: t("Gen 2/3") },
-										{ value: "4", label: t("Gen 4") },
+										{ value: "1", label: fieldValueLabel(getFieldDef("cameraType"), "gen1") },
+										{ value: "23", label: fieldValueLabel(getFieldDef("cameraType"), "gen2") },
+										{ value: "4", label: fieldValueLabel(getFieldDef("cameraType"), "gen4") },
 									]}
 								/>
 							</div>
