@@ -2338,10 +2338,18 @@ declare const VIRTUAL_FLAGS: 12;
 declare function createFieldDef(type: ExtraFieldType, over?: Partial<Omit<ExtraFieldDef, "type">>): ExtraFieldDef;
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
+/** Where the camera looks: the POV without its zoom. */
+export type CameraFrame = Pick<LocationPOV, "heading" | "pitch">;
+/** A view on a specific panorama. */
+export type PanoView = LocationPOV & RequireNonNull<Pick<Location, "panoId">>;
 /** The camera fields a Location and the live Street View viewer share. */
 export type PanoCapture = LocationPOV & Pick<Location, "lat" | "lng" | "panoId">;
 export type LatLng = google.maps.LatLngLiteral;
 export type Bounds = google.maps.LatLngBoundsLiteral;
+declare function isWorldBounds(b: Bounds): boolean;
+declare function scoreTupleToBounds([s, w, n, e]: [number, number, number, number]): Bounds;
+declare function bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null;
+declare function boundsToScoreTuple(b: Bounds): [number, number, number, number];
 /** One decoded GetMetadata image: flat, plain JSON, no live objects. This is the app's
  *  panorama, not a transcription of the Maps JS API's. Anything derivable from these
  *  fields is a function in `@/lib/sv/getMetadata`, not a field here. */
@@ -2395,13 +2403,39 @@ export interface Pano {
     /** "launch" = car, "scout" = the special-collects pipeline. */
     source: string | null;
 }
+declare function hasLoadAsPanoId(loc: Location): boolean;
+declare function isPinnedToPano(loc: Location): boolean;
+/** The `extra` merge patch that turns `before` into `after`: changed keys carry their
+ *  new value, keys `after` lacks carry null. */
+declare function extraPatch(before: Record<string, unknown> | null, after: Record<string, unknown> | null): Record<string, unknown>;
+/** The same location on the same pano: what makes one row's answer another row's. */
+declare function sameRow(a: Location, b: Location): boolean;
+/** Virtual locations exist only ephemerally as the single active-location preview — never in
+ *  the map. They display like real locations but every mutate path no-ops. Identity is a unique
+ *  negative id (so id-only checks work); the kind rides in `flags` (read where you hold the
+ *  full Location). */
+declare function isVirtualLocation(loc: {
+    id: number;
+}): boolean;
 /** A location you already hold in full, or just its id to fetch on demand.
  *  Lets the pick -> activate path carry "materialized or not" as plain data;
  *  `resolveLocation` (in the store) fetches only the id case. */
 export type MaybeLocation = Location | number;
+declare function locId(m: MaybeLocation): number;
+declare function isImportPreview(loc: Location): boolean;
+declare function isSeenPreview(loc: Location): boolean;
 /** Build a Location from lat/lng plus overrides. `id` stays 0 until `addLocations`
  *  writes the real id back into the object. */
 declare function createLocation(partial: Partial<Location> & LatLng): Location;
+/** A new Location at the viewer's live camera, carrying `source`'s flags and the given
+ *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
+ *  stayed on that pano. */
+declare function dropLocation(source: Location, live: PanoCapture, panoId: string | null, tags: number[]): Location;
+/** Apply a LocationPatch JS-side, mirroring Rust's `overlay_update`: `extra` is a
+ *  JSON Merge Patch (RFC 7386) — keys shallow-merge, a null value deletes its key,
+ *  and a null patch clears extra entirely. */
+declare function applyLocationPatch(loc: Location, patch: LocationPatch_Deserialize): Location;
+export type SortMode = "name" | "created" | "opened" | "amount";
 export type TagSortMode = "default" | "name" | "amount";
 export type WorkArea = "overview" | "location" | "duplicates" | "import" | "plugin" | "diff";
 /** Hex like "#1098ad"; legacy stored prefs may hold an Open Props ramp name. */
@@ -2410,6 +2444,43 @@ export type MapTypeKey = "map" | "satellite" | "osm" | "vector";
 export type SvCoverageType = "official" | "unofficial" | "default";
 export type SvThickness = "default" | "high";
 export type MarkerStyle = "pin" | "circle" | "arrow";
+
+export type types_Bounds = Bounds;
+export type types_CameraFrame = CameraFrame;
+export type types_LatLng = LatLng;
+export type types_LocationPOV = LocationPOV;
+export type types_MapTypeKey = MapTypeKey;
+export type types_MarkerStyle = MarkerStyle;
+export type types_MaybeLocation = MaybeLocation;
+export type types_Pano = Pano;
+export type types_PanoCapture = PanoCapture;
+export type types_PanoView = PanoView;
+export type types_SortMode = SortMode;
+export type types_SvColor = SvColor;
+export type types_SvCoverageType = SvCoverageType;
+export type types_SvThickness = SvThickness;
+export type types_TagSortMode = TagSortMode;
+export type types_WorkArea = WorkArea;
+declare const types_applyLocationPatch: typeof applyLocationPatch;
+declare const types_bboxTupleToBounds: typeof bboxTupleToBounds;
+declare const types_boundsToScoreTuple: typeof boundsToScoreTuple;
+declare const types_createFieldDef: typeof createFieldDef;
+declare const types_createLocation: typeof createLocation;
+declare const types_dropLocation: typeof dropLocation;
+declare const types_extraPatch: typeof extraPatch;
+declare const types_hasLoadAsPanoId: typeof hasLoadAsPanoId;
+declare const types_isImportPreview: typeof isImportPreview;
+declare const types_isPinnedToPano: typeof isPinnedToPano;
+declare const types_isSeenPreview: typeof isSeenPreview;
+declare const types_isVirtualLocation: typeof isVirtualLocation;
+declare const types_isWorldBounds: typeof isWorldBounds;
+declare const types_locId: typeof locId;
+declare const types_sameRow: typeof sameRow;
+declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
+declare namespace types {
+  export { types_applyLocationPatch as applyLocationPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_extraPatch as extraPatch, types_hasLoadAsPanoId as hasLoadAsPanoId, types_isImportPreview as isImportPreview, types_isPinnedToPano as isPinnedToPano, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds };
+  export type { types_Bounds as Bounds, types_CameraFrame as CameraFrame, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_Pano as Pano, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
+}
 
 export type RGB = [number, number, number];
 export type RGBA = [...RGB, number];
@@ -2918,14 +2989,14 @@ declare function deleteField(key: string): Promise<void>;
  *  `location:invalidate` (derived views re-query) and refreshes the open editor's
  *  location. */
 declare function applyFieldOp(selector: Selector, op: FieldOp, recordUndo: boolean): Promise<FieldOpResult>;
-/** Apply a pure selection transform, then sync to Rust.
- *  Ops return a SelectionPatch - either or both of { selections, ghosted }.
- *  A bare Selection[] is shorthand for { selections }.
- *  Skips IPC when the op produced no change (reference equality). */
 /** Add selectors to the active selection list. */
 declare function addSelections(selectors: Selector[]): Promise<void>;
 /** Drop selections by key. */
 declare function removeSelections(keys: string[]): Promise<void>;
+/** Apply a pure selection transform, then sync to Rust.
+ *  Ops return a SelectionPatch - either or both of { selections, ghosted }.
+ *  A bare Selection[] is shorthand for { selections }.
+ *  Skips IPC when the op produced no change (reference equality). */
 declare function applySelectionUpdate(op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | SelectionPatch): Promise<void>;
 /** Resolve the current selection list against Rust and sync the overlay.
  *  Called after `applySelectionUpdate` sets state, or standalone when the underlying
@@ -4316,6 +4387,10 @@ declare function activatePlugin(id: string): void;
 declare function deactivatePlugin(id: string): void;
 /** The per-plugin key-value store, under the name the surface uses. */
 declare const storage: typeof createPluginStorage;
+/** True once the MMA surface is installed and plugins are safe to call it. */
+declare function isReady(): boolean;
+/** Called by the entry point once the surface is on `window`. @unstable */
+declare function markReady(): void;
 
 export type registry_Plugin = Plugin;
 export type registry_PluginBehavior = PluginBehavior;
@@ -4338,6 +4413,8 @@ declare const registry_isBackgroundPlugin: typeof isBackgroundPlugin;
 declare const registry_isPluginCompatible: typeof isPluginCompatible;
 declare const registry_isPluginEnabled: typeof isPluginEnabled;
 declare const registry_isPluginUpdatable: typeof isPluginUpdatable;
+declare const registry_isReady: typeof isReady;
+declare const registry_markReady: typeof markReady;
 declare const registry_needsBuildUpdate: typeof needsBuildUpdate;
 declare const registry_needsUpdate: typeof needsUpdate;
 declare const registry_registerPlugin: typeof registerPlugin;
@@ -4349,7 +4426,7 @@ declare const registry_storage: typeof storage;
 declare const registry_unregisterPlugin: typeof unregisterPlugin;
 declare const registry_usePluginState: typeof usePluginState;
 declare namespace registry {
-  export { registry_activatePlugin as activatePlugin, registry_activatePlugins as activatePlugins, registry_autoUpdatePlugin as autoUpdatePlugin, registry_createPluginStorage as createPluginStorage, registry_deactivatePlugin as deactivatePlugin, registry_deactivatePlugins as deactivatePlugins, registry_fetchPluginRegistry as fetchPluginRegistry, registry_getEnabledPlugins as getEnabledPlugins, registry_getPlugin as getPlugin, registry_getPluginSetting as getPluginSetting, registry_getPlugins as getPlugins, registry_isBackgroundPlugin as isBackgroundPlugin, registry_isPluginCompatible as isPluginCompatible, registry_isPluginEnabled as isPluginEnabled, registry_isPluginUpdatable as isPluginUpdatable, registry_needsBuildUpdate as needsBuildUpdate, registry_needsUpdate as needsUpdate, registry_registerPlugin as registerPlugin, registry_resolveBuild as resolveBuild, registry_setPendingManifest as setPendingManifest, registry_setPluginEnabled as setPluginEnabled, registry_setPluginSetting as setPluginSetting, registry_storage as storage, registry_unregisterPlugin as unregisterPlugin, registry_usePluginState as usePluginState };
+  export { registry_activatePlugin as activatePlugin, registry_activatePlugins as activatePlugins, registry_autoUpdatePlugin as autoUpdatePlugin, registry_createPluginStorage as createPluginStorage, registry_deactivatePlugin as deactivatePlugin, registry_deactivatePlugins as deactivatePlugins, registry_fetchPluginRegistry as fetchPluginRegistry, registry_getEnabledPlugins as getEnabledPlugins, registry_getPlugin as getPlugin, registry_getPluginSetting as getPluginSetting, registry_getPlugins as getPlugins, registry_isBackgroundPlugin as isBackgroundPlugin, registry_isPluginCompatible as isPluginCompatible, registry_isPluginEnabled as isPluginEnabled, registry_isPluginUpdatable as isPluginUpdatable, registry_isReady as isReady, registry_markReady as markReady, registry_needsBuildUpdate as needsBuildUpdate, registry_needsUpdate as needsUpdate, registry_registerPlugin as registerPlugin, registry_resolveBuild as resolveBuild, registry_setPendingManifest as setPendingManifest, registry_setPluginEnabled as setPluginEnabled, registry_setPluginSetting as setPluginSetting, registry_storage as storage, registry_unregisterPlugin as unregisterPlugin, registry_usePluginState as usePluginState };
   export type { registry_Plugin as Plugin, registry_PluginBehavior as PluginBehavior, registry_PluginIdentity as PluginIdentity, registry_PluginSettingDef as PluginSettingDef, registry_PluginStorage as PluginStorage, registry_ResolvedBuild as ResolvedBuild };
 }
 
@@ -5863,28 +5940,86 @@ declare namespace testSurface {
   };
 }
 
+/** Base URL for a Tauri custom URI scheme. Windows WebView2 uses http://<scheme>.localhost/. */
+declare function schemeBase(scheme: string): string;
 /** URL that serves a local file over the `mma-buf://` protocol (binary Rust-to-JS transfers). */
 declare function mmaBufUrl(path: string): string;
+/** Message for an unknown thrown value. */
+declare function errText(e: unknown): string;
+/** Copy of `set` with `value` toggled, or forced on/off by `on`. */
+declare function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>;
+/** The item `isBetter` prefers over every other, or null when there are none. */
+declare function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null;
+declare function chunk<T>(arr: readonly T[], n: number): T[][];
+/** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
+ *  Build metadata is ignored; a pre-release sorts below the release it precedes. */
+declare function cmpVersion(a: string, b: string): number;
+/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. */
+declare function splitVersion(v: string): [core: string, pre: string];
+/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". */
+declare function isPrereleaseVersion(v: string): boolean;
+/** True when running under the web-serve bridge (a plain browser, no native shell). */
+declare function isWeb(): boolean;
+/** Trigger a browser download from an in-memory Blob. */
+declare function downloadBlob(blob: Blob, fileName: string): void;
+/** Copy an image Blob to the clipboard. False when the platform refuses it. */
+declare function copyImageToClipboard(blob: Blob): Promise<boolean>;
+declare function compareNatural(a: string, b: string): number;
+declare function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[];
+/** Color for a tag named `name`. An existing tag uses its stored color. */
+declare function tagColorFor(name: string, tags: Tag[]): string;
+/** Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
+ *  canonical casing. Returns the original array unchanged if already present. */
+declare function appendTagName(pending: string[], name: string, tags: Tag[]): string[];
+declare function fovToZoom(fov: number): number;
+/** Current time as Unix seconds, the form Location timestamps use. */
+declare function nowUnix(): number;
+/** Rolling anchor for a phase-relative locations/second average. */
+export interface WaveRate {
+    t0: number;
+    done0: number;
+    done: number;
+    total: number;
+}
+/** Locations/second averaged over the progress wave in flight. A done that went backward
+ *  or a total that grew means a new wave began (within one wave done only grows and the
+ *  total only shrinks as skips are found), so the average re-anchors there instead of
+ *  carrying the previous wave's speed. Null until the wave shows a quarter second of work. */
+declare function waveRate(prev: WaveRate | null, done: number, total: number, now: number): {
+    state: WaveRate;
+    rate: number | null;
+};
+
+export type util_WaveRate = WaveRate;
+declare const util_appendTagName: typeof appendTagName;
+declare const util_bestBy: typeof bestBy;
+declare const util_chunk: typeof chunk;
+declare const util_cmpVersion: typeof cmpVersion;
+declare const util_compareNatural: typeof compareNatural;
+declare const util_copyImageToClipboard: typeof copyImageToClipboard;
+declare const util_downloadBlob: typeof downloadBlob;
+declare const util_errText: typeof errText;
+declare const util_fovToZoom: typeof fovToZoom;
+declare const util_isPrereleaseVersion: typeof isPrereleaseVersion;
+declare const util_isWeb: typeof isWeb;
+declare const util_mmaBufUrl: typeof mmaBufUrl;
+declare const util_nowUnix: typeof nowUnix;
+declare const util_schemeBase: typeof schemeBase;
+declare const util_sortTagsByMode: typeof sortTagsByMode;
+declare const util_splitVersion: typeof splitVersion;
+declare const util_tagColorFor: typeof tagColorFor;
+declare const util_toggleInSet: typeof toggleInSet;
+declare const util_waveRate: typeof waveRate;
+declare namespace util {
+  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_errText as errText, util_fovToZoom as fovToZoom, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_schemeBase as schemeBase, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet, util_waveRate as waveRate };
+  export type { util_WaveRate as WaveRate };
+}
 
 /**
  * Unified MMA API -- the single public surface for plugins, tests, and app code.
  * Exposed as `window.MMA` (and the global `MMA`).
- *
- * One module, one API: every module listed here has its whole export list on the surface,
- * and a module that is not listed has nothing on it. There is no per-member curation, so
- * whether something is public is decided where it lives, not here.
  */
 
-/** Not a module: the flag `main.tsx` flips once the surface is installed. */
-declare const ready: {
-    ready: boolean;
-};
-/** Constructors that belong to the shared type module, which is otherwise types only. */
-declare const constructors: {
-    createLocation: typeof createLocation;
-    createFieldDef: typeof createFieldDef;
-    mmaBufUrl: typeof mmaBufUrl;
-};
 export type StoreApi = typeof store;
 export type SelectionOpsApi = typeof selectionOps;
 export type SavedSelectionsApi = typeof savedSelections;
@@ -5923,9 +6058,9 @@ export type UseJobApi = typeof useJob$1;
 export type LegacyApi = typeof legacy;
 /** @unstable */
 export type TestApi = typeof testSurface;
-export type ReadyApi = typeof ready;
-export type ConstructorsApi = typeof constructors;
-export interface MMA extends StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoSingletonApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, UseJobApi, TestApi, ReadyApi, ConstructorsApi, LegacyApi {
+export type TypesApi = typeof types;
+export type UtilApi = typeof util;
+export interface MMA extends StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoSingletonApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 declare global {
     interface Window {
