@@ -50,6 +50,8 @@ vali-oracle/
 *.bin
 # sidecar ONNX models (exported/downloaded, not committed)
 plugins/*/sidecar/models/*
+# candidate models from training rounds, kept locally, never shipped
+plugins/*/sidecar/models_*/
 
 plugins/copyright/eval/
 plugins/copyright/sidecar/_parity_ref.json
