@@ -146,13 +146,13 @@ impl Store {
     /// catches any bulk path that bypassed the overlay fns - rebuild, never wrong).
     pub(super) fn ensure_spatial(&mut self) {
         if let Some(ix) = self.spatial.as_ref() {
-            if ix.len() == self.alive_count {
+            if ix.len() == *self.alive_count {
                 return;
             }
             log::warn!(
                 "[spatial] index len {} != alive {} - rebuilding",
                 ix.len(),
-                self.alive_count
+                *self.alive_count
             );
         }
         let _t = Instant::now();
@@ -281,7 +281,7 @@ impl Store {
         }
         let view = self.loc_view();
         let resolved = selections::narrow(&view, selector);
-        let mut locs = Vec::with_capacity(self.alive_count);
+        let mut locs = Vec::with_capacity(*self.alive_count);
         view.for_each_within(resolved.as_ref(), |row| locs.push(row.to_location()));
         locs
     }

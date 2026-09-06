@@ -89,9 +89,7 @@ pub struct Store {
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
     pub(crate) next_id: u32,
     pub(crate) version: u64,
-    pub(crate) alive_count: usize,
-    /// What JS was last told, so a mutation result carries only the fields that moved.
-    pub(crate) reported: Reported,
+    pub(crate) alive_count: Tracked<usize>,
     /// The map's extra-field registry, mirroring `maps.extra.fields` on disk.
     pub(crate) field_defs: Tracked<HashMap<String, maps::ExtraFieldDef>>,
 
@@ -99,7 +97,7 @@ pub struct Store {
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
     pub(crate) tags: TagState,
-    pub(crate) edits: EditStacks,
+    pub(crate) edits: Tracked<EditStacks>,
     /// Whole-map bounds as of a store version. `update_bounds` carries it across a
     /// mutation when the change can only grow the box; otherwise it is left behind and
     /// the next read rescans. `None` until first read. Resolved to `[w,s,e,n]` on read.
@@ -134,8 +132,7 @@ impl Store {
             mmap_handle: None,
             next_id: 1,
             version: 0,
-            alive_count: 0,
-            reported: Reported::default(),
+            alive_count: Tracked::default(),
             field_defs: Tracked::default(),
             overlay: Tracked::default(),
             render: RenderState {
@@ -157,10 +154,7 @@ impl Store {
                 next_id: 1,
                 sets: HashMap::new(),
             },
-            edits: EditStacks {
-                undo: Vec::new(),
-                redo: Vec::new(),
-            },
+            edits: Tracked::default(),
             bounds: None,
             spatial: None,
         }
@@ -176,13 +170,13 @@ impl Store {
     /// The full picture, for a window that has nothing yet. Every later mutation result
     /// is a delta against this, so it also resets what counts as "already reported".
     pub(crate) fn open_status(&mut self) -> StoreStatus {
-        let now = self.current();
-        self.reported = now;
+        self.alive_count.ship();
+        self.edits.ship();
         StoreStatus {
             version: self.version,
-            location_count: now.location_count,
-            can_undo: now.can_undo,
-            can_redo: now.can_redo,
+            location_count: *self.alive_count,
+            can_undo: !self.edits.undo.is_empty(),
+            can_redo: !self.edits.redo.is_empty(),
             tag_counts: self.tag_counts(),
         }
     }
@@ -195,28 +189,16 @@ impl Store {
             .collect()
     }
 
-    fn current(&self) -> Reported {
-        Reported {
-            location_count: self.alive_count,
-            can_undo: !self.edits.undo.is_empty(),
-            can_redo: !self.edits.redo.is_empty(),
-        }
-    }
-
     /// Put on `result` every scalar JS has not seen at its current value, and remember
     /// that it has now. Idempotent: a second call in the same mutation adds only what
     /// moved in between (an undo entry pushed after `finish_mutation`, say).
     pub(crate) fn report(&mut self, result: &mut MutationResult) {
-        let now = self.current();
-        let was = mem::replace(&mut self.reported, now);
-        if now.location_count != was.location_count {
-            result.location_count = Some(now.location_count);
+        if self.alive_count.ship() {
+            result.location_count = Some(*self.alive_count);
         }
-        if now.can_undo != was.can_undo {
-            result.can_undo = Some(now.can_undo);
-        }
-        if now.can_redo != was.can_redo {
-            result.can_redo = Some(now.can_redo);
+        if self.edits.ship() {
+            result.can_undo = Some(!self.edits.undo.is_empty());
+            result.can_redo = Some(!self.edits.redo.is_empty());
         }
     }
 
@@ -402,7 +384,7 @@ impl Store {
     pub(crate) fn overlay_add(&mut self, locs: Vec<Location>) {
         let mut fresh: Vec<Location> = Vec::with_capacity(locs.len());
         for loc in locs {
-            self.alive_count += 1;
+            *self.alive_count.edit() += 1;
             if let Some(ix) = self.spatial.as_mut() {
                 ix.insert(loc.id, loc.lat, loc.lng);
             }
@@ -465,7 +447,7 @@ impl Store {
     pub(crate) fn overlay_remove(&mut self, locs: &[Location]) {
         let remove_set: HashSet<u32> = locs.iter().map(|l| l.id).collect();
         for loc in locs {
-            self.alive_count -= 1;
+            *self.alive_count.edit() -= 1;
             // Index under the CURRENT coords, not the caller's copy: a patched
             // location's overlay coords are where the index filed it.
             let (lat, lng) = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
@@ -800,15 +782,21 @@ impl<T> Tracked<T> {
         At::new(self.rev, derived)
     }
 
+    /// Mark the current revision as seen by JS; true when it had not been.
+    pub(crate) fn ship(&mut self) -> bool {
+        let changed = !self.shipped.covers(self.rev);
+        if changed {
+            self.shipped = At::new(self.rev, ());
+        }
+        changed
+    }
+
     /// The value if edited since JS last saw it.
     pub(crate) fn take_changed(&mut self) -> Option<T>
     where
         T: Clone,
     {
-        (!self.shipped.covers(self.rev)).then(|| {
-            self.shipped = At::new(self.rev, ());
-            self.value.clone()
-        })
+        self.ship().then(|| self.value.clone())
     }
 
     pub(crate) fn is_unsaved(&self) -> bool {
@@ -872,13 +860,6 @@ impl<K, V> Deref for Touched<K, V> {
     }
 }
 
-/// The scalars a mutation result reports by change, not by value.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct Reported {
-    pub location_count: usize,
-    pub can_undo: bool,
-    pub can_redo: bool,
-}
 
 /// Lightweight status for polling: count, version, and whether unsaved changes exist.
 #[derive(serde::Serialize, specta::Type)]

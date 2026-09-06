@@ -154,7 +154,7 @@ pub async fn store_open_map(
         tag_sets,
         bounds,
     } = store.scan_locations();
-    store.alive_count = alive;
+    store.alive_count = Tracked::new(alive);
     store.bounds = Some(At::new(store.version, bounds));
     {
         let conn = storage::open_db()?;
@@ -178,8 +178,7 @@ pub async fn store_open_map(
         let extra = maps::MapExtra::from_json(&extra_str);
         store.field_defs = Tracked::new(extra.fields.unwrap_or_default());
     }
-    store.edits.undo = undo;
-    store.edits.redo = redo;
+    store.edits = Tracked::new(EditStacks { undo, redo });
 
     let status = store.open_status();
     let mut mgr = state.lock()?;
@@ -710,7 +709,7 @@ pub async fn store_save_dirty(
             .all
             .is_unsaved()
             .then(|| store.tags.all.stamp(serialize_tags_json(&store.tags.all)));
-        (map_id, delta, store.alive_count, tags)
+        (map_id, delta, *store.alive_count, tags)
     };
 
     let size = delta.as_ref().map_or(0, |d| d.value().len());
@@ -758,7 +757,7 @@ pub fn store_get_summary(
 ) -> AppResult<SummaryResult> {
     let _t = Instant::now();
     with_store!(label, state, |store| {
-        let count = store.alive_count;
+        let count = *store.alive_count;
         log::debug!(
             "[cmd] store_get_summary total={}ms alive_count={}",
             _t.elapsed().as_millis(),
@@ -826,7 +825,7 @@ pub async fn store_undo(
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         let _t = Instant::now();
-        let entry = store.edits.undo.pop().ok_or("nothing to undo")?;
+        let entry = store.edits.edit().undo.pop().ok_or("nothing to undo")?;
         log::debug!(
             "[UNDO] stack_depth={} created={} removed={}",
             store.edits.undo.len(),
@@ -841,7 +840,7 @@ pub async fn store_undo(
             changes.updated.len(),
             changes.removed.len()
         );
-        store.edits.redo.push(entry);
+        store.edits.edit().redo.push(entry);
         Ok(store.finish_mutation(&changes))
     })
 }
@@ -855,7 +854,7 @@ pub async fn store_redo(
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         let _t = Instant::now();
-        let entry = store.edits.redo.pop().ok_or("nothing to redo")?;
+        let entry = store.edits.edit().redo.pop().ok_or("nothing to redo")?;
         log::debug!(
             "[REDO] stack_depth={} created={} removed={}",
             store.edits.redo.len(),
@@ -892,8 +891,9 @@ pub fn store_commit_diff(
 #[specta::specta]
 pub fn store_reset_undo(label: WindowLabel, state: tauri::State<'_, StoreState>) -> AppResult<()> {
     with_store!(label, state, |store| {
-        store.edits.undo.clear();
-        store.edits.redo.clear();
+        let edits = store.edits.edit();
+        edits.undo.clear();
+        edits.redo.clear();
         Ok(())
     })
 }
@@ -987,7 +987,7 @@ pub async fn store_sync_selections(
         log::debug!("[cmd] store_sync_selections total={}ms sels={} selected={} cells={} buf_size={} batch_rows={} overlay_adds={} dead={} alive={} render_total={} first_set_len={} counts={:?}",
             _t.elapsed().as_millis(), sels.len(), selected_count, num_cells, buf.len(),
             store.batch.as_ref().map_or(0, RecordBatch::num_rows), store.overlay.adds.len(),
-            store.overlay.dead.len(), store.alive_count, render_total,
+            store.overlay.dead.len(), *store.alive_count, render_total,
             store.selections.resolved.first().map_or(0, |r| r.set.len() as usize), counts);
 
         (counts, buf, selected_count, num_cells)

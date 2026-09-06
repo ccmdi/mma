@@ -7,6 +7,7 @@ use std::time::Instant;
 
 pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
 
+#[derive(Default)]
 pub(crate) struct EditStacks {
     pub undo: Vec<EditEntry>,
     pub redo: Vec<EditEntry>,
@@ -62,7 +63,7 @@ impl Store {
             created: changed_new,
             removed: changed_old,
         });
-        self.edits.redo.clear();
+        self.edits.edit().redo.clear();
         true
     }
 
@@ -125,17 +126,17 @@ impl Store {
             created: create,
             removed: remove,
         });
-        self.edits.redo.clear();
+        self.edits.edit().redo.clear();
         self.finish_mutation(&changes)
     }
 
     /// Push an edit onto the undo stack, capping at MAX_UNDO_ENTRIES. O(1) amortized.
     pub(crate) fn push_undo(&mut self, entry: EditEntry) {
-        self.edits.undo.push(entry);
-        if self.edits.undo.len() > MAX_UNDO_ENTRIES {
-            self.edits
-                .undo
-                .drain(..self.edits.undo.len() - MAX_UNDO_ENTRIES);
+        let undo = &mut self.edits.edit().undo;
+        undo.push(entry);
+        if undo.len() > MAX_UNDO_ENTRIES {
+            let excess = undo.len() - MAX_UNDO_ENTRIES;
+            undo.drain(..excess);
         }
     }
 }

@@ -56,7 +56,7 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
             let path = storage::arrow_delta_path(map_id)?;
             storage::atomic_write_bytes(&path, &bytes)?;
         }
-        let count = store.alive_count;
+        let count = *store.alive_count;
         let conn = storage::open_db()?;
         storage::set_location_count(&conn, map_id, count)?;
         if store.tags.all.is_unsaved() {

@@ -106,7 +106,7 @@ pub async fn store_commit(
     let (pre_bake, current_fallback, location_count) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_map(&map_id)?;
-        let location_count = store.alive_count as u32;
+        let location_count = *store.alive_count as u32;
 
         // Read the changeset before the bake folds it in; a saved overlay still holds it.
         let pre_bake = if !genesis && !store.overlay.is_empty() {
@@ -118,8 +118,9 @@ pub async fn store_commit(
         // Build the canonical full batch ONCE (bake), write the base, re-mmap, flush tags.
         engine::bake_and_save(store, &map_id)?;
 
-        store.edits.undo.clear();
-        store.edits.redo.clear();
+        let edits = store.edits.edit();
+        edits.undo.clear();
+        edits.redo.clear();
 
         // Clean overlay + existing parent (checkout/revert commit): capture the current
         // baked state to diff against the parent below.

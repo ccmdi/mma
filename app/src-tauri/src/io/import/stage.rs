@@ -325,7 +325,7 @@ pub(super) fn add_parsed_to_store(
             removed: Vec::new(),
         });
     }
-    store.edits.redo.clear();
+    store.edits.edit().redo.clear();
 
     let t_undo = _t.elapsed();
 

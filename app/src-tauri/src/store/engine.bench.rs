@@ -169,7 +169,7 @@ impl Fixture {
         store.map_id = Some("bench".into());
         store.batch = Some(self.batch.clone());
         store.next_id = self.n as u32 + 1;
-        store.alive_count = self.n;
+        store.alive_count = Tracked::new(self.n);
         store.field_defs = Tracked::new(self.field_defs.clone());
         store.tags.all = Tracked::new(self.tags.clone());
         store.tags.counts = Touched::new(self.counts.clone());
@@ -425,7 +425,7 @@ pub fn scan(store: &Store) -> usize {
 
 /// Alive row count, so a bench can consume a store without naming its fields.
 pub fn alive(store: &Store) -> usize {
-    store.alive_count
+    *store.alive_count
 }
 
 // ---------------------------------------------------------------------------
@@ -495,7 +495,7 @@ pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, Tag>) -> Store {
     store.mmap_handle = Some(handle);
     store.next_id = max_id + 1;
     let agg = store.scan_locations();
-    store.alive_count = agg.alive;
+    store.alive_count = Tracked::new(agg.alive);
     store.bounds = Some(At::new(store.version, agg.bounds));
     store.tags.all = Tracked::new(tags.clone());
     store.tags.counts = Touched::new(agg.tag_counts);

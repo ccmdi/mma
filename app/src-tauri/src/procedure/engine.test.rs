@@ -24,7 +24,6 @@ fn setup(locs: &[Location]) -> (StoreState, String) {
         let ci = render_cell_idx(l.lat, l.lng);
         store.cell_add_render(ci, l.id);
     }
-    store.alive_count = locs.len();
     let mut mgr = StoreManager::new();
     mgr.stores.insert(map_id.clone(), store);
     (Mutex::new(mgr), map_id)
