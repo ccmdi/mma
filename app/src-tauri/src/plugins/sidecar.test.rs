@@ -176,3 +176,36 @@ fn restart_skips_a_resident_someone_else_already_replaced() {
     assert!(lock(&plugin_slot(id)).resident.is_none());
     kill_plugin(id);
 }
+
+#[test]
+fn install_gate_is_one_lock_per_plugin() {
+    let a1 = install_gate("test-gate-a");
+    let a2 = install_gate("test-gate-a");
+    let b = install_gate("test-gate-b");
+    assert!(Arc::ptr_eq(&a1, &a2));
+    assert!(!Arc::ptr_eq(&a1, &b));
+}
+
+#[test]
+fn concurrent_installs_for_one_plugin_serialize() {
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+    static INSIDE: AtomicBool = AtomicBool::new(false);
+    static OVERLAPS: AtomicU32 = AtomicU32::new(0);
+    let workers: Vec<_> = (0..4)
+        .map(|_| {
+            thread::spawn(|| {
+                let gate = install_gate("test-gate-serial");
+                let _installing = lock(&gate);
+                if INSIDE.swap(true, Ordering::SeqCst) {
+                    OVERLAPS.fetch_add(1, Ordering::SeqCst);
+                }
+                thread::sleep(Duration::from_millis(5));
+                INSIDE.store(false, Ordering::SeqCst);
+            })
+        })
+        .collect();
+    for w in workers {
+        w.join().unwrap();
+    }
+    assert_eq!(OVERLAPS.load(Ordering::SeqCst), 0);
+}

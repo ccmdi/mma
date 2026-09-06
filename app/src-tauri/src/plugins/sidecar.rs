@@ -145,7 +145,28 @@ fn fetch_expected_sha(
     None
 }
 
+/// One install at a time per plugin. The download, extraction and swap all share
+/// `{plugin}/.sidecar-tmp` and the final dir, and concurrent installs happen in
+/// practice (the startup update pass runs per webview), so without this a sibling's
+/// first act -- `remove_dir_all` on the staging dir -- lands mid-extraction.
+fn install_gate(plugin_id: &str) -> Arc<Mutex<()>> {
+    static G: OnceLock<Mutex<HashMap<String, Arc<Mutex<()>>>>> = OnceLock::new();
+    lock(G.get_or_init(|| Mutex::new(HashMap::new())))
+        .entry(plugin_id.to_string())
+        .or_default()
+        .clone()
+}
+
 fn install_blocking(plugin_id: &str, name: &str, version: &str) -> AppResult<()> {
+    let gate = install_gate(plugin_id);
+    let _installing = lock(&gate);
+    // The sibling that held the gate may have just installed this exact version;
+    // re-checking under the lock makes the second pass a no-op, not a re-download.
+    if sidecar_installed_version(plugin_id.to_string())?.as_deref() == Some(version) {
+        log::info!("[sidecar] {name} v{version} already installed for {plugin_id}");
+        return Ok(());
+    }
+
     let platform = platform_tag()?;
     let asset = format!("{name}-{platform}.zip");
     let url =
