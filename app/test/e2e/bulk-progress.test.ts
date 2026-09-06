@@ -33,7 +33,10 @@ async function recordProgress() {
 			if (!root) return;
 			const bar = root.querySelector(".bulk-operation__bar") as HTMLProgressElement | null;
 			const rows = [...root.querySelectorAll(".bulk-operation__provider")].map((r) => ({
-				label: r.querySelector(".bulk-operation__provider-label")?.textContent ?? "",
+				// The label element nests the live rate; the provider's name is its first text node.
+				label:
+					r.querySelector(".bulk-operation__provider-label")?.childNodes[0]?.textContent?.trim() ??
+					"",
 				bar: (r.querySelector(".bulk-operation__provider-bar") as HTMLProgressElement).value,
 				count: r.querySelector(".bulk-operation__provider-count")?.textContent ?? "",
 			}));

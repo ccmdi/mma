@@ -1587,6 +1587,8 @@ describe("LocationPreview — the draft", () => {
 		await openLocation(walkId);
 		await waitForDates();
 		await selectPanoOption(0);
+		// Save writes the draft as it stands, so what the readout shows is what lands.
+		await waitForReadout(/2012/);
 		await saveLocation();
 		await waitForSave(walkId, (l) => l.panoId === OLDEST);
 		const l = await readLocation(walkId);
@@ -1599,6 +1601,7 @@ describe("LocationPreview — the draft", () => {
 		await openLocation(walkId);
 		await waitForDates();
 		await selectPanoValue("default");
+		await waitForReadout(/2021/);
 		await saveLocation();
 		await waitForSave(walkId, (l) => l.panoId === OFFICIAL_PANO);
 		const l = await readLocation(walkId);
