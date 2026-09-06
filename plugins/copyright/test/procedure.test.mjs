@@ -55,7 +55,7 @@ test("one sidecar call per batch, over the distinct panoIds", () => {
 	assert.deepEqual(calls[0], {
 		pluginId: "copyright",
 		command: "detect",
-		payload: '{"panoIds":["pA","pB"]}',
+		payload: '{"panoIds":["pA","pB"],"minYears":{}}',
 	});
 	assert.deepEqual(patches, [
 		{ id: 1, patch: { copyrightYear: 2019 } },

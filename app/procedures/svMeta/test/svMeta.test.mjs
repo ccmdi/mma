@@ -243,7 +243,7 @@ test("a full row yields all eight fields with sorted coverage dates", () => {
     altitude: 12.5,
     countryCode: "JP",
     cameraType: "gen2",
-    panoType: 2,
+    panoType: "2",
     drivingDirection: 123.5,
     uploaderName: "Some Uploader",
     imageDate: "2021-06",
@@ -285,7 +285,7 @@ test("missing optional fields collapse to nulls and defaults", () => {
     altitude: 0,
     countryCode: null,
     cameraType: null,
-    panoType: 2,
+    panoType: "2",
     drivingDirection: null,
     uploaderName: null,
     imageDate: null,
@@ -442,43 +442,16 @@ test("rows sharing a pano are fetched once and fanned out", () => {
 });
 
 // --- Staleness ---
+// Forgetting fields derived from a changed imageDate is the engine's job, declared
+// through `invalidates`; the procedure writes only what it derived.
 
-const stale = (extra) =>
-  runProcedure(rowsFor([CLASSIC_A], extra), () => responseBytes({ metadata: [meta()] }));
-
-test("a changed imageDate nulls datetime and timezone", () => {
-  const { patches } = stale({ imageDate: "2020-01", datetime: 1600000000 });
-  assert.equal(patches[0].patch.datetime, null);
-  assert.equal(patches[0].patch.timezone, null);
-  assert.equal("datetime" in patches[0].patch, true);
-  assert.equal("timezone" in patches[0].patch, true);
-});
-
-test("an unchanged imageDate leaves datetime alone", () => {
-  const { patches } = stale({ imageDate: "2021-06", datetime: 1600000000 });
+test("the procedure writes no staleness keys of its own", () => {
+  const { patches } = runProcedure(
+    rowsFor([CLASSIC_A], { imageDate: "2020-01", datetime: 1600000000 }),
+    () => responseBytes({ metadata: [meta()] }),
+  );
   assert.equal("datetime" in patches[0].patch, false);
   assert.equal("timezone" in patches[0].patch, false);
-});
-
-test("no existing datetime means no staleness keys", () => {
-  const { patches } = stale({ imageDate: "2020-01" });
-  assert.equal("datetime" in patches[0].patch, false);
-});
-
-test("a null datetime means no staleness keys", () => {
-  const { patches } = stale({ imageDate: "2020-01", datetime: null });
-  assert.equal("datetime" in patches[0].patch, false);
-});
-
-test("an absent imageDate counts as changed", () => {
-  const { patches } = stale({ datetime: 1600000000 });
-  assert.equal(patches[0].patch.datetime, null);
-  assert.equal(patches[0].patch.timezone, null);
-});
-
-test("a row with no extra never adds staleness keys", () => {
-  const { patches } = stale(null);
-  assert.equal("datetime" in patches[0].patch, false);
 });
 
 // --- Camera type ---
@@ -550,20 +523,10 @@ test("only the configured fields are written", () => {
   assert.deepEqual(Object.keys(patches[0].patch), ["countryCode", "imageDate"]);
 });
 
-test("staleness nulls bypass field selection", () => {
+test("field selection writes only the selected key, even with derived fields to forget", () => {
   const extra = { imageDate: "2020-01", datetime: 1600000000 };
   const { patches } = configured(["countryCode"], extra);
-  assert.deepEqual(patches[0].patch, {
-    countryCode: "JP",
-    datetime: null,
-    timezone: null,
-  });
-});
-
-test("a fully deselected provider still writes the staleness nulls", () => {
-  const extra = { imageDate: "2020-01", datetime: 1600000000 };
-  const { patches } = configured([], extra);
-  assert.deepEqual(patches[0].patch, { datetime: null, timezone: null });
+  assert.deepEqual(patches[0].patch, { countryCode: "JP" });
 });
 
 test("a fully deselected provider with nothing stale writes nothing", () => {
