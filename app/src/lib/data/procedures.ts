@@ -51,12 +51,12 @@ export async function queryProcedure<T = unknown>(
  *  `signal` aborts, and the call rejects with the signal's reason. */
 async function cancellable<T>(
 	signal: AbortSignal | undefined,
-	call: (token: number | null) => Promise<T>,
+	call: (token: number) => Promise<T>,
 ): Promise<T> {
 	signal?.throwIfAborted();
-	const token = signal ? nextQueryToken++ : null;
+	const token = nextQueryToken++;
 	const onAbort = () => {
-		if (token !== null) void cmd.procedureQueryCancel(token);
+		void cmd.procedureQueryCancel(token);
 	};
 	signal?.addEventListener("abort", onAbort);
 	try {
@@ -142,6 +142,9 @@ export interface RunOpts {
 	 *  counts done once its slowest provider has passed it, over the wave's row universe,
 	 *  never a per-provider sum -- and `parts` then carries each member's own counts. */
 	onProgress?: (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
+	/** A run over handed-in rows only: each row as a provider leaves it, delivered as
+	 *  that provider finishes with it. The same row arrives again per later provider. */
+	onPartial?: (rows: Location[]) => void;
 }
 
 export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
@@ -211,10 +214,19 @@ export async function runProviders(
 async function runRows(decls: ProviderDecl[], rows: Location[], opts: RunOpts): Promise<RowsRun> {
 	if (decls.length === 0 || rows.length === 0) return { rows, failed: {} };
 	const standIns = rows.map((r, i) => ({ ...r, id: i + 1 }));
-	const out = await cancellable(opts.signal, (token) =>
-		cmd.procedureRunRows(decls, opts.force ?? false, standIns, token),
-	);
 	const idOf = (standIn: number) => rows[standIn - 1].id;
+	let unlisten: (() => void) | undefined;
+	const out = await cancellable(opts.signal, async (token) => {
+		if (opts.onPartial) {
+			unlisten = await events.procedureResult.listen(({ payload }) => {
+				if (payload.runId !== token || payload.entries.length === 0) return;
+				opts.onPartial!(
+					payload.entries.map((e) => ({ ...(JSON.parse(e.json) as Location), id: idOf(e.id) })),
+				);
+			});
+		}
+		return cmd.procedureRunRows(decls, opts.force ?? false, standIns, token);
+	}).finally(() => unlisten?.());
 	return {
 		rows: out.rows.map((r) => ({ ...r, id: idOf(r.id) })),
 		failed: Object.fromEntries(

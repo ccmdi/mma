@@ -27,9 +27,13 @@ vi.mock("@/store/useMapStore", () => ({
 }));
 // Enrichment answers the row with one field derived from its pano.
 vi.mock("@/lib/sv/enrich", () => ({
-	enrich: async (loc: Location) => {
+	enrich: async (loc: Location, opts?: { onPartial?: (rows: Location[]) => void }) => {
 		h.enriched.push(loc);
-		if (h.enrichHangs) return new Promise<Location>(() => {});
+		if (h.enrichHangs) {
+			// A fast provider answers while a slow one holds the run open.
+			opts?.onPartial?.([{ ...loc, extra: { ...loc.extra, partial: "early" } }]);
+			return new Promise<Location>(() => {});
+		}
 		if (h.enrichFails) throw new Error("network");
 		if (!h.enrichOn) return loc;
 		return { ...loc, extra: { ...loc.extra, enriched: loc.panoId } };
@@ -180,8 +184,21 @@ describe("the draft is the location as a save would write it", () => {
 		await open("pA");
 		h.enrichHangs = true;
 		await walk("pB");
-		expect(await viewer.settled()).toMatchObject({ panoId: "pB", extra: { custom: "kept" } });
+		expect(await viewer.settled()).toMatchObject({
+			panoId: "pB",
+			extra: { custom: "kept", partial: "early" },
+		});
 		expect(viewer.enriching).toBe(true);
+		m.unmount();
+	});
+
+	it("a provider's answer lands on the draft while slower providers still run", async () => {
+		const m = mountHost();
+		await open("pA");
+		h.enrichHangs = true;
+		await walk("pB");
+		expect(viewer.enriching).toBe(true);
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", partial: "early" });
 		m.unmount();
 	});
 

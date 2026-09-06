@@ -125,7 +125,12 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		// Stale fields go before enrichment runs, so a run that is off or narrowed hands
 		// back a clean row too, and the run derives the gaps.
 		const base = forgetting(draft);
-		inFlight.current = enrich(base, { signal: ac.signal })
+		inFlight.current = enrich(base, {
+			signal: ac.signal,
+			onPartial: ([row]) => {
+				if (row && !ac.signal.aborted && sameRow(row, draft)) patch(row.extra);
+			},
+		})
 			.then((row) => {
 				if (ac.signal.aborted) return null;
 				patch(row.extra);

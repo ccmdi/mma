@@ -180,7 +180,7 @@ describe("svMetadata", () => {
 			"res://procedures/svMeta.js",
 			JSON.stringify({ op: "metadata", panoIds: ["pA"] }),
 			null,
-			null,
+			expect.any(Number),
 		);
 		// Plain JSON, not a live opensv object: no accessors, no Dates.
 		expect(data).toEqual(ANSWER);

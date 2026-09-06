@@ -2148,7 +2148,20 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
     }));
     let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]));
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
-    let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
+    // A rows run streams every written row through the result sink as a full parseable
+    // row, since its store is invisible to the caller.
+    let streamed: Arc<Mutex<Vec<(String, Vec<u32>)>>> = Arc::default();
+    let results: Arc<ResultSink> = {
+        let streamed = streamed.clone();
+        Arc::new(Box::new(move |r| {
+            for e in &r.entries {
+                let row: Location = serde_json::from_str(&e.json).unwrap();
+                assert_eq!(row.id, e.id);
+            }
+            let ids = r.entries.iter().map(|e| e.id).collect();
+            streamed.lock().unwrap().push((r.provider_id, ids));
+        }))
+    };
     run_all(
         &rows,
         &[b, a],
@@ -2172,6 +2185,10 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
     assert_eq!(
         *h.seen.lock().unwrap(),
         vec![vec![1], vec![2], vec![1], vec![2]]
+    );
+    assert_eq!(
+        *streamed.lock().unwrap(),
+        vec![("a".to_string(), vec![1, 2]), ("b".to_string(), vec![1, 2])]
     );
     assert_eq!(read_extra(&state, &map_id, 1), None);
 }

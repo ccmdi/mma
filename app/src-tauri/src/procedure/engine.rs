@@ -937,6 +937,14 @@ enum Produced {
 
 /// Write one page: patches to the store, answers and failed ids to the caller.
 fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResult<()> {
+    let mut entries: Vec<ResultEntry> = page
+        .entries
+        .into_iter()
+        .map(|e| ResultEntry {
+            id: e.id,
+            json: e.patch,
+        })
+        .collect();
     if !page.updates.is_empty() {
         let on_map = matches!(*ctx.rows, RunRows::Map { .. });
         let result = ctx
@@ -947,20 +955,28 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                 result,
                 map_id: map_id.clone(),
             });
+        } else {
+            // A rows run mutates a store no one can watch, so each written row rides the
+            // result stream instead, as the provider left it.
+            ctx.rows.with_store(|store| {
+                for u in &page.updates {
+                    if let Some(loc) = store.get_loc_by_id(u.id) {
+                        entries.push(ResultEntry {
+                            id: u.id,
+                            json: serde_json::to_string(&loc)
+                                .map_err(|e| AppError(e.to_string()))?,
+                        });
+                    }
+                }
+                Ok(())
+            })?;
         }
     }
-    if !page.entries.is_empty() || !page.failed.is_empty() {
+    if !entries.is_empty() || !page.failed.is_empty() {
         (ctx.results)(ProcedureResult {
             run_id: ctx.run_id,
             provider_id: decl.id.clone(),
-            entries: page
-                .entries
-                .into_iter()
-                .map(|e| ResultEntry {
-                    id: e.id,
-                    json: e.patch,
-                })
-                .collect(),
+            entries,
             failed: page.failed,
         });
     }
@@ -1527,9 +1543,16 @@ pub async fn procedure_run_rows(
                     failed
                         .lock()
                         .unwrap_or_else(PoisonError::into_inner)
-                        .entry(r.provider_id)
+                        .entry(r.provider_id.clone())
                         .or_default()
-                        .extend(r.failed);
+                        .extend(r.failed.iter().copied());
+                }
+                // The internal run id never reaches the caller; the cancel token is the
+                // name they know the run by, so streamed pages travel under it.
+                if let Some(token) = cancel {
+                    if !r.entries.is_empty() {
+                        crate::emit_event(ProcedureResult { run_id: token, ..r });
+                    }
                 }
             }))
         };

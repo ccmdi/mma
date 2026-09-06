@@ -385,7 +385,9 @@ describe("the query surface", () => {
 	it("carries JSON both ways and only sends a config when one is given", async () => {
 		h.queryAnswer = () => Promise.resolve('{"ok":true}');
 		expect(await queryProcedure("res://q.js", { op: "label" })).toEqual({ ok: true });
-		expect(h.queries).toEqual([{ entry: "res://q.js", input: '{"op":"label"}', cancel: null }]);
+		expect(h.queries).toEqual([
+			{ entry: "res://q.js", input: '{"op":"label"}', cancel: expect.any(Number) as number },
+		]);
 	});
 
 	it("names a query it can cancel, cancels it on abort, and rejects with the reason", async () => {
@@ -402,10 +404,10 @@ describe("the query surface", () => {
 		await expect(pending).rejects.toMatchObject({ name: "AbortError" });
 	});
 
-	it("names nothing without a signal", async () => {
+	it("a call without a signal is still named, and nothing cancels it", async () => {
 		h.queryAnswer = () => Promise.resolve("[]");
 		await queryProcedure("res://q.js", { op: "at" });
-		expect(h.queries[0].cancel).toBeNull();
+		expect(h.queries[0].cancel).toEqual(expect.any(Number));
 		expect(h.cancelled).toEqual([]);
 	});
 
@@ -653,7 +655,9 @@ describe("runProviders over rows handed in", () => {
 			{ ...createLocation({ lat: 3, lng: 4 }), id: 42 },
 		];
 		const out = await runProviders([{ provider: svMetaProvider }], rows);
-		expect(h.rowRuns).toEqual([{ ids: [1, 2], force: false, cancel: null }]);
+		expect(h.rowRuns).toEqual([
+			{ ids: [1, 2], force: false, cancel: expect.any(Number) as number },
+		]);
 		expect(h.decls.map((d) => d.select)).toEqual([{ type: "Everything" }]);
 		expect(out.rows.map((r) => r.id)).toEqual([-3, 42]);
 		expect(out.rows[0].extra).toEqual({ keep: 1, ran: true });
