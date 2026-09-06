@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
 	enrichOn: true,
 	/** When set, `enrich` rejects instead of answering. */
 	enrichFails: false,
+	/** When set, `enrich` never answers, as a slow provider mid-run. */
+	enrichHangs: false,
 	/** Rows `enrich` was handed, in order. */
 	enriched: [] as Location[],
 	written: [] as { id: number; patch: { extra?: Record<string, unknown> } }[],
@@ -27,6 +29,7 @@ vi.mock("@/store/useMapStore", () => ({
 vi.mock("@/lib/sv/enrich", () => ({
 	enrich: async (loc: Location) => {
 		h.enriched.push(loc);
+		if (h.enrichHangs) return new Promise<Location>(() => {});
 		if (h.enrichFails) throw new Error("network");
 		if (!h.enrichOn) return loc;
 		return { ...loc, extra: { ...loc.extra, enriched: loc.panoId } };
@@ -86,6 +89,7 @@ beforeEach(() => {
 	h.written = [];
 	h.enrichOn = true;
 	h.enrichFails = false;
+	h.enrichHangs = false;
 	h.activeLocation = {
 		...createLocation({ lat: 1, lng: 2 }),
 		id: 7,
@@ -168,6 +172,16 @@ describe("the draft is the location as a save would write it", () => {
 		await walk("pB");
 		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
 		expect(await viewer.settled()).toMatchObject({ panoId: "pB", extra: { custom: "kept" } });
+		m.unmount();
+	});
+
+	it("a save mid-enrichment takes the draft as it stands instead of waiting", async () => {
+		const m = mountHost();
+		await open("pA");
+		h.enrichHangs = true;
+		await walk("pB");
+		expect(await viewer.settled()).toMatchObject({ panoId: "pB", extra: { custom: "kept" } });
+		expect(viewer.enriching).toBe(true);
 		m.unmount();
 	});
 

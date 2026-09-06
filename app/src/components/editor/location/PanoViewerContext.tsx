@@ -35,7 +35,9 @@ interface PanoViewerContextValue {
 	open: (location: Location, resolved: string | null) => void;
 	/** The draft changed: the viewer moved, a date was chosen, a pin toggled. */
 	edit: (patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => void;
-	/** The draft once enrichment in flight has answered: what a save writes. */
+	/** What a save writes: the draft as it stands, never waiting on enrichment. A run
+	 *  still in flight is skipped and its answers discarded; stale derived fields are
+	 *  stripped either way. */
 	settled: () => Promise<Location | null>;
 	/** The draft's pano as Google describes it, for what the UI shows off the pano itself
 	 *  rather than off the draft; null until it lands. */
@@ -142,12 +144,13 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs per pano, reading the draft as it is then
 	}, [draft?.id, draftPano]);
 	const settled = useCallback(async () => {
-		const row = await inFlight.current;
 		if (!draft) return null;
+		if (enriching) return forgetting(draft);
+		const row = await inFlight.current;
 		if (row && sameRow(row, draft)) return { ...draft, extra: row.extra };
 		return forgetting(draft);
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- forgetting reads only draft and location
-	}, [draft, location]);
+	}, [draft, location, enriching]);
 
 	const fullscreenMap = useSetting("fullscreenMap");
 	const prevFullscreenMap = useRef(fullscreenMap);

@@ -376,7 +376,7 @@ export function LocationPreview() {
 		if (!location || !singletonPano) return;
 		// Staged (virtual) location: updateLocation no-ops, cursorId can't match a
 		// negative id, so this falls through to setActiveLocation(null) = close.
-		// The draft once enrichment has answered; the camera is read live, it moves per frame.
+		// The draft as it stands, never waiting on enrichment; the camera is read live, it moves per frame.
 		const draft = await settled();
 		if (!draft) return;
 		const pov = capturePov();
