@@ -1,3 +1,9 @@
+## v0.10.4 - 2026-09-05
+- Enrichment fields no longer wait behind unrelated slow ones; each starts as soon as what it needs is ready
+- The location panel fills in each field as it resolves instead of all at once
+- The bulk dialog shows every field's own progress, speed and failures, with the overall bar counting fully finished locations
+- Fixed Save waiting for in-flight enrichment
+
 ## v0.10.3 - 2026-09-05
 - Editing a location's position or panorama clears the fields derived from the old one
 - Fixed a fast zoom-out on the map freezing, sometimes crashing, the app
