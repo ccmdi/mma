@@ -119,6 +119,7 @@ function MainCommands() {
 
 	return (
 		<>
+			<Command.Empty>{t("No results.")}</Command.Empty>
 			{COMMAND_GROUPS.map((group) => {
 				const groupCmds = commands.filter((c) => c.group === group);
 				if (groupCmds.length === 0) return null;

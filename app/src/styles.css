@@ -4395,10 +4395,15 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 .command-palette__scroll {
 	width: 100vw;
 	max-width: 36rem;
-	max-height: min(324px, 50vh);
+	height: min(324px, 50vh);
 	padding: 0 0.5rem;
 	scroll-padding-block: 2rem;
 	overflow-y: auto;
+}
+.command-palette [cmdk-empty] {
+	color: #ffffff80;
+	padding: 1rem;
+	text-align: center;
 }
 .command-palette [cmdk-group-heading] {
 	color: #ffffff80;
