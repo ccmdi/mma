@@ -85,10 +85,11 @@ function readMeter(meter: string): { done: number; total: number; pct: number } 
 	return { done: num(m[1]), total: num(m[2]), pct: Number(m[3]) };
 }
 
-/** `{done}/{total}`, optionally trailed by a failed count. */
-function readCount(count: string): { done: number; total: number } {
+/** `{done}/{total}`, optionally trailed by a rate or failed count; null for the
+ *  "Waiting"/"Done" states, which carry no numbers. */
+function readCount(count: string): { done: number; total: number } | null {
 	const m = /^([\d,.\s]+?)\/([\d,.\s]+)/.exec(count);
-	if (!m) throw new Error(`unparseable provider count: ${JSON.stringify(count)}`);
+	if (!m) return null;
 	const num = (s: string) => Number(s.replace(/[^\d]/g, ""));
 	return { done: num(m[1]), total: num(m[2]) };
 }
@@ -142,7 +143,8 @@ describe("Bulk operation dialog -- enrichment progress", () => {
 					if (total > LOCATION_COUNT || done > total || pct > 100) bad.push(s.meter);
 					for (const r of s.rows) {
 						const c = readCount(r.count);
-						if (c.total > LOCATION_COUNT || c.done > c.total) bad.push(`${r.label} ${r.count}`);
+						if (c && (c.total > LOCATION_COUNT || c.done > c.total))
+							bad.push(`${r.label} ${r.count}`);
 					}
 				}
 				return bad.length > 0 || (await closeButton().isExisting());
@@ -170,6 +172,7 @@ describe("Bulk operation dialog -- enrichment progress", () => {
 			overall.push(readMeter(s.meter!).done);
 			for (const r of s.rows) {
 				const c = readCount(r.count);
+				if (!c) continue;
 				expect(c.done).toBeGreaterThanOrEqual(perProvider.get(r.label) ?? 0);
 				perProvider.set(r.label, c.done);
 			}

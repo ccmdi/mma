@@ -1311,6 +1311,7 @@
 	"Viewer controls": "[Ṽîéŵéŕ çöñţŕöĺş åéîöüå]",
 	"Vintage": "[Ṽîñţåǧé åéî]",
 	"Visualization": "[Ṽîşüåĺîžåţîöñ åéîöüå]",
+	"Waiting": "[Ŵåîţîñǧ åéî]",
 	"Waiting for sign-in...": "[Ŵåîţîñǧ ƒöŕ şîǧñ-îñ... åéîöüåéîö]",
 	"Warning": "[Ŵåŕñîñǧ åéî]",
 	"Welcome to {app}": "[Ŵéĺçöɱé ţö {app} åéîöü]",
@@ -1520,6 +1521,7 @@
 	"{n}m ago": "[{n}ɱ åǧö åé]",
 	"{pct}% of locations": "[{pct}% öƒ ĺöçåţîöñş åéîöüå]",
 	"{radius} radius": "[{radius} ŕåðîüş åéî]",
+	"{rate}/s": "[{rate}/ş å]",
 	"{selected} of {total} selected ({locations} locations)": "[{selected} öƒ {total} şéĺéçţéð ({locations} ĺöçåţîöñş) åéîöüåéîöüå]",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "[{value} îş ţĥé ƥŕöĵéçţéð ṽåĺüé, {field} ţĥé ƒîéĺð ĺåƀéĺ. Å / ɱåķéş å ƒöĺðéŕ. åéîöüåéîöüåéîöüåéîöüåéîöü]"
 }

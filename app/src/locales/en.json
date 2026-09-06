@@ -1311,6 +1311,7 @@
 	"Viewer controls": "Viewer controls",
 	"Vintage": "Vintage",
 	"Visualization": "Visualization",
+	"Waiting": "Waiting",
 	"Waiting for sign-in...": "Waiting for sign-in...",
 	"Warning": "Warning",
 	"Welcome to {app}": "Welcome to {app}",
@@ -1520,6 +1521,7 @@
 	"{n}m ago": "{n}m ago",
 	"{pct}% of locations": "{pct}% of locations",
 	"{radius} radius": "{radius} radius",
+	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "{selected} of {total} selected ({locations} locations)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} is the projected value, {field} the field label. A / makes a folder."
 }

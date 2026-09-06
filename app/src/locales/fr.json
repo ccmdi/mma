@@ -1345,6 +1345,7 @@
 	"Viewer controls": "Commandes de la visionneuse",
 	"Vintage": "Vintage",
 	"Visualization": "Visualisation",
+	"Waiting": "En attente",
 	"Waiting for sign-in...": "En attente de la connexion...",
 	"Warning": "Avertissement",
 	"Welcome to {app}": "Bienvenue dans {app}",
@@ -1574,6 +1575,7 @@
 	"{n}m ago": "il y a {n} min",
 	"{pct}% of locations": "{pct} % des lieux",
 	"{radius} radius": "rayon de {radius}",
+	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "{selected} sur {total} sélectionnés ({locations} lieux)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} est la valeur projetée, {field} le libellé du champ. Un / crée un dossier."
 }

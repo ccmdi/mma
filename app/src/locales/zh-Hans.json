@@ -1277,6 +1277,7 @@
 	"Viewer controls": "查看器控件",
 	"Vintage": "复古",
 	"Visualization": "可视化",
+	"Waiting": "等待中",
 	"Waiting for sign-in...": "等待登录…",
 	"Warning": "警告",
 	"Welcome to {app}": "欢迎使用 {app}",
@@ -1466,6 +1467,7 @@
 	"{n}m ago": "{n} 分钟前",
 	"{pct}% of locations": "{pct}% 的位置",
 	"{radius} radius": "半径 {radius}",
+	"{rate}/s": "{rate}/秒",
 	"{selected} of {total} selected ({locations} locations)": "已选 {selected} / {total}（{locations} 个位置）",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} 为投影值，{field} 为字段名。/ 会创建文件夹。"
 }

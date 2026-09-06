@@ -1277,6 +1277,7 @@
 	"Viewer controls": "ビューアー操作",
 	"Vintage": "ヴィンテージ",
 	"Visualization": "可視化",
+	"Waiting": "待機中",
 	"Waiting for sign-in...": "サインインを待機中...",
 	"Warning": "警告",
 	"Welcome to {app}": "{app} へようこそ",
@@ -1466,6 +1467,7 @@
 	"{n}m ago": "{n} 分前",
 	"{pct}% of locations": "地点の {pct}%",
 	"{radius} radius": "半径 {radius}",
+	"{rate}/s": "{rate}/秒",
 	"{selected} of {total} selected ({locations} locations)": "{total} 件中 {selected} 件を選択（{locations} 地点）",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} は投影された値、{field} はフィールド名です。/ でフォルダーになります。"
 }

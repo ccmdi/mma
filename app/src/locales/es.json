@@ -1345,6 +1345,7 @@
 	"Viewer controls": "Controles del visor",
 	"Vintage": "Vintage",
 	"Visualization": "Visualización",
+	"Waiting": "En espera",
 	"Waiting for sign-in...": "Esperando el inicio de sesión...",
 	"Warning": "Advertencia",
 	"Welcome to {app}": "Te damos la bienvenida a {app}",
@@ -1574,6 +1575,7 @@
 	"{n}m ago": "hace {n} min",
 	"{pct}% of locations": "{pct}% de las ubicaciones",
 	"{radius} radius": "radio de {radius}",
+	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "{selected} de {total} seleccionados ({locations} ubicaciones)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} es el valor proyectado, {field} la etiqueta del campo. Una / crea una carpeta."
 }

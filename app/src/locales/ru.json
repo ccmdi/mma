@@ -1379,6 +1379,7 @@
 	"Viewer controls": "Элементы управления просмотром",
 	"Vintage": "Винтажный",
 	"Visualization": "Визуализация",
+	"Waiting": "Ожидание",
 	"Waiting for sign-in...": "Ожидание входа...",
 	"Warning": "Предупреждение",
 	"Welcome to {app}": "Добро пожаловать в {app}",
@@ -1628,6 +1629,7 @@
 	"{n}m ago": "{n} мин назад",
 	"{pct}% of locations": "{pct}% локаций",
 	"{radius} radius": "радиус {radius}",
+	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "Выбрано {selected} из {total} ({locations} локаций)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} - спроецированное значение, {field} - название поля. Символ / создаёт папку."
 }

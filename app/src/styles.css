@@ -2684,7 +2684,7 @@ input[type="range"]:disabled {
 	color: var(--stone-9);
 }
 .bulk-operation-modal {
-	width: 32rem;
+	width: 36rem;
 }
 .bulk-operation {
 	display: grid;
@@ -2756,23 +2756,42 @@ input[type="range"]:disabled {
 	transition: width 0.15s;
 }
 .bulk-operation__providers {
-	display: grid;
-	grid-template-columns: auto 1fr auto;
-	align-items: center;
-	gap: 0.25rem 0.625rem;
-	padding-bottom: 0.25rem;
+	background: var(--surface-1);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-2);
+	padding: 0 0.75rem;
+	margin-bottom: 0.25rem;
 }
 .bulk-operation__provider {
-	display: contents;
+	display: grid;
+	grid-template-columns: 1fr auto;
+	row-gap: 0.375rem;
+	align-items: baseline;
+	padding: 0.5625rem 0;
+}
+.bulk-operation__provider:not(:first-child) {
+	border-top: 1px solid var(--border-subtle);
 }
 .bulk-operation__provider-bar {
+	grid-column: 1 / -1;
 	height: 4px;
 }
 .bulk-operation__provider-label {
 	white-space: nowrap;
+	color: var(--text-1);
+}
+.bulk-operation__provider-rate {
+	margin-left: 0.625rem;
+	color: var(--text-3);
+	font-variant-numeric: tabular-nums;
 }
 .bulk-operation__provider-count {
 	font-variant-numeric: tabular-nums;
+	text-align: right;
+	white-space: nowrap;
+}
+.bulk-operation__provider-failed {
+	color: var(--destructive);
 }
 .bulk-operation__option {
 	display: flex;

@@ -789,6 +789,10 @@ export function BulkProgress({
 	const [target] = useState(selector);
 	const controllerRef = useRef<AbortController | null>(null);
 	const rateRef = useRef<PhaseRate | null>(null);
+	const providerRateRef = useRef(new Map<string, PhaseRate>());
+	const [providerRates, setProviderRates] = useState<ReadonlyMap<string, number | null>>(
+		new Map(),
+	);
 
 	const run = useCallback(async () => {
 		const controller = new AbortController();
@@ -805,9 +809,17 @@ export function BulkProgress({
 			setDone(d);
 			setProgress(t > 0 ? d / t : 1);
 
-			const { state, rate } = phaseRate(rateRef.current, d, t, performance.now());
+			const now = performance.now();
+			const { state, rate } = phaseRate(rateRef.current, d, t, now);
 			rateRef.current = state;
 			setRate(rate);
+			const rates = new Map<string, number | null>();
+			for (const p of providerParts) {
+				const r = phaseRate(providerRateRef.current.get(p.label) ?? null, p.done, p.total, now);
+				providerRateRef.current.set(p.label, r.state);
+				rates.set(p.label, r.rate);
+			}
+			setProviderRates(rates);
 		};
 
 		try {
@@ -840,21 +852,38 @@ export function BulkProgress({
 			<div className="bulk-operation__status">
 				{status === "running" && parts.length > 0 && (
 					<div className="bulk-operation__providers">
-						{parts.map((p) => (
-							<div key={p.label} className="bulk-operation__provider">
-								<span className="bulk-operation__provider-label">{t(p.label)}</span>
-								<progress
-									className="bulk-operation__provider-bar"
-									value={p.total > 0 ? p.done / p.total : p.finished ? 1 : 0}
-									max={1}
-								/>
-								<span className="bulk-operation__provider-count">
-									{`${fmt.format(p.done)}/${fmt.format(p.total)}`}
-									{p.failed > 0 &&
-										t({ one: ", {n} failed", other: ", {n} failed" }, { n: p.failed })}
-								</span>
-							</div>
-						))}
+						{parts.map((p) => {
+							const waiting = !p.finished && p.done === 0 && p.total === 0;
+							const running = !p.finished && !waiting;
+							const provRate = providerRates.get(p.label);
+							return (
+								<div key={p.label} className="bulk-operation__provider">
+									<span className="bulk-operation__provider-label">
+										{t(p.label)}
+										{running && provRate != null && (
+											<span className="bulk-operation__provider-rate">
+												{t("{rate}/s", { rate: fmt.format(Math.round(provRate)) })}
+											</span>
+										)}
+									</span>
+									<span className="bulk-operation__provider-count">
+										{waiting && t("Waiting")}
+										{running && `${fmt.format(p.done)}/${fmt.format(p.total)}`}
+										{p.finished && t("Done")}
+										{p.failed > 0 && (
+											<span className="bulk-operation__provider-failed">
+												{t({ one: ", {n} failed", other: ", {n} failed" }, { n: p.failed })}
+											</span>
+										)}
+									</span>
+									<progress
+										className="bulk-operation__provider-bar"
+										value={p.total > 0 ? p.done / p.total : p.finished ? 1 : 0}
+										max={1}
+									/>
+								</div>
+							);
+						})}
 					</div>
 				)}
 				{status === "done" &&

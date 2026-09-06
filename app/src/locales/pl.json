@@ -1379,6 +1379,7 @@
 	"Viewer controls": "Sterowanie podglądem",
 	"Vintage": "Vintage",
 	"Visualization": "Wizualizacja",
+	"Waiting": "Oczekiwanie",
 	"Waiting for sign-in...": "Oczekiwanie na zalogowanie...",
 	"Warning": "Ostrzeżenie",
 	"Welcome to {app}": "Witamy w {app}",
@@ -1628,6 +1629,7 @@
 	"{n}m ago": "{n} min temu",
 	"{pct}% of locations": "{pct}% lokalizacji",
 	"{radius} radius": "promień {radius}",
+	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "Zaznaczono {selected} z {total} ({locations} lokalizacji)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} to rzutowana wartość, {field} to etykieta pola. Znak / tworzy folder."
 }

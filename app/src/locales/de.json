@@ -1311,6 +1311,7 @@
 	"Viewer controls": "Viewer-Steuerung",
 	"Vintage": "Vintage",
 	"Visualization": "Visualisierung",
+	"Waiting": "Wartet",
 	"Waiting for sign-in...": "Warten auf Anmeldung...",
 	"Warning": "Warnung",
 	"Welcome to {app}": "Willkommen bei {app}",
@@ -1520,6 +1521,7 @@
 	"{n}m ago": "vor {n}m",
 	"{pct}% of locations": "{pct}% der Standorte",
 	"{radius} radius": "{radius} Radius",
+	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "{selected} von {total} ausgewählt ({locations} Standorte)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} ist der projizierte Wert, {field} die Feldbezeichnung. Ein / erzeugt einen Ordner."
 }
