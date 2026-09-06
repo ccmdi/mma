@@ -1,6 +1,6 @@
 /**
  * Driver for the Rust procedure engine. A bulk operation is one or more procedures plus
- * a `Selector`: the engine resolves the selector, schedules the dependency waves, pages
+ * a `Selector`: the engine resolves the selector, gates providers on their dependencies, pages
  * the locations, calls each procedure and delivers what it answers, as patches or back
  * to the caller. Locations never reach JS.
  */
@@ -18,7 +18,6 @@ import { events } from "@/bindings.gen";
 import type { ProcedureProgress, ProcedureResult, ProviderDecl, Sink } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
-import { msg } from "@/lib/i18n";
 
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 export const procedureEntry = (name: string) => `res://procedures/${name}.js`;
@@ -124,24 +123,23 @@ function parseAnswer(providerId: string, json: string): unknown {
 	}
 }
 
-/** One wave member's own progress, for a caller that shows the providers of a
- *  multi-provider wave individually. Counts are net of skipped rows. */
-export interface PhasePart {
+/** One provider's own progress. Counts are net of skipped rows. */
+export interface ProviderPart {
 	label: string;
 	done: number;
 	total: number;
+	failed: number;
 	finished: boolean;
 }
 
 export interface RunOpts {
 	signal?: AbortSignal;
 	force?: boolean;
-	/** `label` names the current phase; undefined = no labelled provider is running.
-	 *  `done`/`total` are phase-relative and net of skipped rows, so they reset as each
-	 *  dependency wave begins. A wave of several providers combines as min/max -- a row
-	 *  counts done once its slowest provider has passed it, over the wave's row universe,
-	 *  never a per-provider sum -- and `parts` then carries each member's own counts. */
-	onProgress?: (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
+	/** `done`/`total` are rows finished through every provider in the run -- the slowest
+	 *  provider's count, so the bar is monotonic and full means fully enriched. `parts`
+	 *  carries each labeled provider's own counts for the whole run, zeros until it
+	 *  starts, and is ordered as declared. */
+	onProgress?: (done: number, total: number, parts: ProviderPart[]) => void;
 	/** A run over handed-in rows only: each row as a provider leaves it, delivered as
 	 *  that provider finishes with it. The same row arrives again per later provider. */
 	onPartial?: (rows: Location[]) => void;
@@ -162,7 +160,7 @@ export interface ProviderRun {
 
 /** Drive a set of providers through the engine as one run over `rows`: a selector, which
  *  the engine pages out of the store and writes back into, reporting per-provider
- *  progress that this narrows to the wave in flight for the caller's bar; or locations
+ *  progress this hands to the caller per provider; or locations
  *  handed in, which run in a store of their own and come back as the providers left
  *  them, with nothing reaching the map. Resolves once every declared provider reports
  *  finished, or on abort. */
@@ -296,7 +294,6 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 	const { signal, force = false, onProgress } = opts;
 	const result: ProviderOutcomes = {};
 	if (decls.length === 0) return result;
-	const labels = new Map(decls.map((d) => [d.id, d.label ?? undefined]));
 
 	const seen = new Map<string, ProcedureProgress>();
 	const collected = new Map<string, CollectedEntry[]>();
@@ -305,53 +302,23 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 		settle = resolve;
 	});
 
-	// The engine runs providers in sequential dependency waves, so the bar tracks the
-	// wave in flight: a provider reporting in after every member of the phase finished
-	// opens a new one.
-	let phase: string[] = [];
-
 	const handle = (p: ProcedureProgress) => {
 		seen.set(p.providerId, p);
-		if (!phase.includes(p.providerId)) {
-			if (phase.every((id) => seen.get(id)?.finished)) phase = [];
-			phase.push(p.providerId);
-		}
-		// A member that skipped every row carries no work and would pin the min at zero.
-		const members = phase
-			.map((id) => seen.get(id))
-			.filter((s): s is ProcedureProgress => s !== undefined && s.total - s.skipped > 0);
-		// A lone member nets skipped rows off both sides; several combine as min/max over
-		// the wave's one row universe.
-		let done = 0;
-		let total = 0;
-		if (members.length === 1) {
-			done = members[0].done - members[0].skipped;
-			total = members[0].total - members[0].skipped;
-		} else if (members.length > 1) {
-			done = Math.min(...members.map((s) => s.done));
-			total = Math.max(...members.map((s) => s.total));
-		}
-		const labeled = members.filter((s) => labels.get(s.providerId) !== undefined);
-		const parts =
-			labeled.length > 1
-				? labeled.map((s) => ({
-						label: labels.get(s.providerId) as string,
-						done: s.done - s.skipped,
-						total: s.total - s.skipped,
-						finished: s.finished,
-					}))
-				: undefined;
-		const running = labeled.filter((s) => !s.finished);
-		onProgress?.(
-			done,
-			total,
-			running.length === 1
-				? labels.get(running[0].providerId)
-				: running.length > 1
-					? msg("Enriching fields")
-					: undefined,
-			parts,
-		);
+		const net = (s?: ProcedureProgress) => ({
+			done: s ? s.done - s.skipped : 0,
+			total: s ? s.total - s.skipped : 0,
+			failed: s?.failed ?? 0,
+			finished: s?.finished ?? false,
+		});
+		const parts = decls
+			.filter((d) => d.label != null)
+			.map((d) => ({ label: d.label as string, ...net(seen.get(d.id)) }));
+		// Overall is rows finished through every provider: the slowest one's count. A
+		// provider that skipped its whole universe carries no work and counts for nothing.
+		const counting = decls.map((d) => net(seen.get(d.id))).filter((s) => !(s.finished && s.total === 0));
+		const done = counting.length > 0 ? Math.min(...counting.map((s) => s.done)) : 0;
+		const total = Math.max(0, ...counting.map((s) => s.total));
+		onProgress?.(done, total, parts);
 		if (seen.size === decls.length && [...seen.values()].every((s) => s.finished)) settle();
 	};
 

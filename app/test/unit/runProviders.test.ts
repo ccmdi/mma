@@ -150,7 +150,7 @@ import {
 	runProviders,
 	queryProcedure,
 	resolveFieldLabels,
-	type PhasePart,
+	type ProviderPart,
 } from "@/lib/data/procedures";
 import { createLocation } from "@/types";
 import { registerProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
@@ -464,25 +464,25 @@ describe("the query surface", () => {
 });
 
 // --- Progress ---------------------------------------------------------------------
-// The bar reports real work in the wave that is running: skipped rows leave both sides
-// of the fraction, and a finished wave stops counting once the next one reports in.
+// The bar reports rows finished through every provider in the run: skipped rows leave
+// both sides of the fraction, and the slowest provider's count is the bar.
 
-const waveA: Provider = {
-	id: "waveA",
-	label: "Wave A",
+const provA: Provider = {
+	id: "provA",
+	label: "Prov A",
 	provides: ["panoId"],
 	procedure: { entry: "res://a.js", batch: { mode: "perRow" } },
 };
 
-const waveB: Provider = {
-	id: "waveB",
-	label: "Wave B",
+const provB: Provider = {
+	id: "provB",
+	label: "Prov B",
 	requires: ["panoId"],
 	provides: ["heading"],
 	procedure: { entry: "res://b.js", batch: { mode: "perRow" } },
 };
 
-type Tick = [number, number, string | undefined];
+type Tick = [number, number];
 
 /** Run `providers` against a scripted engine event stream, collecting every `onProgress`. */
 async function ticks(providers: Provider[], script: Omit<ProcedureProgress, "runId">[]) {
@@ -491,7 +491,7 @@ async function ticks(providers: Provider[], script: Omit<ProcedureProgress, "run
 	await runProviders(
 		providers.map((provider) => ({ provider })),
 		{ type: "Everything" },
-		{ onProgress: (done, total, label) => seen.push([done, total, label]) },
+		{ onProgress: (done, total) => seen.push([done, total]) },
 	);
 	return seen;
 }
@@ -515,27 +515,27 @@ describe("the progress bar counts real work", () => {
 	it("drops skipped rows from both sides of the fraction", async () => {
 		expect(
 			await ticks(
-				[waveA],
+				[provA],
 				[
-					step("waveA", 4, 10, { skipped: 4 }),
-					step("waveA", 7, 10, { skipped: 4 }),
-					step("waveA", 10, 10, { skipped: 4, finished: true }),
+					step("provA", 4, 10, { skipped: 4 }),
+					step("provA", 7, 10, { skipped: 4 }),
+					step("provA", 10, 10, { skipped: 4, finished: true }),
 				],
 			),
 		).toEqual([
-			[0, 6, "Wave A"],
-			[3, 6, "Wave A"],
-			[6, 6, undefined],
+			[0, 6],
+			[3, 6],
+			[6, 6],
 		]);
 	});
 
 	it("shrinks the denominator as later pages discover more skipped rows", async () => {
 		const seen = await ticks(
-			[waveA],
+			[provA],
 			[
-				step("waveA", 2, 100, { skipped: 0 }),
-				step("waveA", 40, 100, { skipped: 30 }),
-				step("waveA", 100, 100, { skipped: 80, finished: true }),
+				step("provA", 2, 100, { skipped: 0 }),
+				step("provA", 40, 100, { skipped: 30 }),
+				step("provA", 100, 100, { skipped: 80, finished: true }),
 			],
 		);
 		expect(seen.map(([, total]) => total)).toEqual([100, 70, 20]);
@@ -543,8 +543,8 @@ describe("the progress bar counts real work", () => {
 	});
 
 	it("reports no work at all when every row is skipped", async () => {
-		expect(await ticks([waveA], [step("waveA", 10, 10, { skipped: 10, finished: true })])).toEqual([
-			[0, 0, undefined],
+		expect(await ticks([provA], [step("provA", 10, 10, { skipped: 10, finished: true })])).toEqual([
+			[0, 0],
 		]);
 	});
 
@@ -554,95 +554,112 @@ describe("the progress bar counts real work", () => {
 		const result = await runProviders(
 			[{ provider: plainProvider, fields: [] }],
 			{ type: "Everything" },
-			{ onProgress: (done, total, label) => seen.push([done, total, label]) },
+			{ onProgress: (done, total) => seen.push([done, total]) },
 		);
 		expect(seen).toEqual([]);
 		expect(result).toEqual({});
 	});
 });
 
-describe("the progress bar is phase-relative", () => {
-	it("resets when the next dependency wave reports in", async () => {
+describe("the progress bar is rows finished through every provider", () => {
+	it("stays on the slowest provider, so it is monotonic across the whole run", async () => {
 		expect(
 			await ticks(
-				[waveA, waveB],
+				[provA, provB],
 				[
-					step("waveA", 5, 10),
-					step("waveA", 10, 10, { finished: true }),
-					step("waveB", 3, 20),
-					step("waveB", 20, 20, { finished: true }),
+					step("provA", 5, 10),
+					step("provA", 10, 10, { finished: true }),
+					step("provB", 3, 10),
+					step("provB", 10, 10, { finished: true }),
 				],
 			),
 		).toEqual([
-			[5, 10, "Wave A"],
-			// A finished wave reads full until the next one starts, never 0 and never summed.
-			[10, 10, undefined],
-			[3, 20, "Wave B"],
-			[20, 20, undefined],
+			// provB has not started, so nothing is finished through every provider yet.
+			[0, 10],
+			[0, 10],
+			[3, 10],
+			[10, 10],
 		]);
 	});
 
-	it("combines a wave's providers as min/max over one row universe, never a sum", async () => {
+	it("combines concurrent providers as min over one row universe, never a sum", async () => {
 		expect(
 			await ticks(
-				[waveA, { ...waveB, requires: [], provides: ["heading"] }],
+				[provA, { ...provB, requires: [], provides: ["heading"] }],
 				[
-					step("waveA", 2, 10),
-					step("waveB", 1, 10),
-					step("waveA", 10, 10, { finished: true }),
-					step("waveB", 5, 10),
-					step("waveB", 10, 10, { finished: true }),
+					step("provA", 2, 10),
+					step("provB", 1, 10),
+					step("provA", 10, 10, { finished: true }),
+					step("provB", 5, 10),
+					step("provB", 10, 10, { finished: true }),
 				],
 			),
 		).toEqual([
-			[2, 10, "Wave A"],
-			// A row counts done once its slowest provider has passed it; the total stays
-			// the wave's row count, so two providers over 10 rows never read as 20.
-			[1, 10, "Enriching fields"],
-			[1, 10, "Wave B"],
-			[5, 10, "Wave B"],
-			[10, 10, undefined],
+			[0, 10],
+			[1, 10],
+			[1, 10],
+			[5, 10],
+			[10, 10],
 		]);
 	});
 
-	it("hands each wave member's own counts to the caller alongside the combined bar", async () => {
+	it("hands every labeled provider's own counts to the caller, zeros before it starts", async () => {
 		h.script = [
-			step("waveA", 2, 10),
-			step("waveB", 1, 10),
-			step("waveA", 10, 10, { finished: true }),
-			step("waveB", 10, 10, { finished: true }),
+			step("provA", 2, 10),
+			step("provB", 1, 10, { failed: 1 }),
+			step("provA", 10, 10, { finished: true }),
+			step("provB", 10, 10, { failed: 1, finished: true }),
 		];
-		const parts: (PhasePart[] | undefined)[] = [];
+		const parts: ProviderPart[][] = [];
 		await runProviders(
-			[waveA, { ...waveB, requires: [], provides: ["heading"] }].map((provider) => ({ provider })),
+			[provA, { ...provB, requires: [], provides: ["heading"] }].map((provider) => ({ provider })),
 			{ type: "Everything" },
-			{ onProgress: (_d, _t, _label, p) => parts.push(p) },
+			{ onProgress: (_d, _t, p) => parts.push(p) },
 		);
-		// A lone member reports no parts; a multi-member wave names every member.
-		expect(parts[0]).toBeUndefined();
+		expect(parts[0]).toEqual([
+			{ label: "Prov A", done: 2, total: 10, failed: 0, finished: false },
+			{ label: "Prov B", done: 0, total: 0, failed: 0, finished: false },
+		]);
 		expect(parts[1]).toEqual([
-			{ label: "Wave A", done: 2, total: 10, finished: false },
-			{ label: "Wave B", done: 1, total: 10, finished: false },
+			{ label: "Prov A", done: 2, total: 10, failed: 0, finished: false },
+			{ label: "Prov B", done: 1, total: 10, failed: 1, finished: false },
 		]);
 		expect(parts[2]).toEqual([
-			{ label: "Wave A", done: 10, total: 10, finished: true },
-			{ label: "Wave B", done: 1, total: 10, finished: false },
+			{ label: "Prov A", done: 10, total: 10, failed: 0, finished: true },
+			{ label: "Prov B", done: 1, total: 10, failed: 1, finished: false },
 		]);
 	});
 
 	it("tracks only itself on a single-provider run", async () => {
 		expect(
-			await ticks([waveA], [step("waveA", 3, 8), step("waveA", 8, 8, { finished: true })]),
+			await ticks([provA], [step("provA", 3, 8), step("provA", 8, 8, { finished: true })]),
 		).toEqual([
-			[3, 8, "Wave A"],
-			[8, 8, undefined],
+			[3, 8],
+			[8, 8],
+		]);
+	});
+
+	it("a provider that skipped everything does not pin the bar at zero", async () => {
+		expect(
+			await ticks(
+				[provA, { ...provB, requires: [], provides: ["heading"] }],
+				[
+					step("provA", 10, 10, { skipped: 10, finished: true }),
+					step("provB", 4, 10),
+					step("provB", 10, 10, { finished: true }),
+				],
+			),
+		).toEqual([
+			[0, 0],
+			[4, 10],
+			[10, 10],
 		]);
 	});
 
 	it("keeps success counts on raw engine totals, not the bar's net ones", async () => {
-		h.script = [step("waveA", 10, 10, { failed: 3, skipped: 2, finished: true })];
-		const result = await runProviders([{ provider: waveA }], { type: "Everything" });
-		expect(result.waveA).toMatchObject({ succeeded: 5 });
+		h.script = [step("provA", 10, 10, { failed: 3, skipped: 2, finished: true })];
+		const result = await runProviders([{ provider: provA }], { type: "Everything" });
+		expect(result.provA).toMatchObject({ succeeded: 5 });
 	});
 });
 

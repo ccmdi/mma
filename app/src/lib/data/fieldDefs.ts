@@ -123,11 +123,11 @@ export interface Provider {
 	 *  core columns instead: it is always active, and `enrichAll` never runs it
 	 *  implicitly -- only a caller naming it does. */
 	fieldDefs?: Record<string, ExtraFieldDef>;
-	/** Core columns this provider writes, e.g. `panoId`. Scheduled into the dependency
-	 *  waves and used to skip rows that already hold them, exactly like `fieldDefs`. */
+	/** Core columns this provider writes, e.g. `panoId`. They gate dependents and skip
+	 *  rows that already hold them, exactly like `fieldDefs`. */
 	provides?: string[];
-	/** Fields this provider reads: the engine schedules it into a later dependency
-	 *  wave than any provider producing them. */
+	/** Fields this provider reads: the engine starts it only once every provider
+	 *  producing them has finished. */
 	requires?: string[];
 }
 

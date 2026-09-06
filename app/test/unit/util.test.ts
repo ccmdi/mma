@@ -5,8 +5,8 @@ import {
 	sortTagsByMode,
 	tagColorFor,
 	appendTagName,
-	waveRate,
-	type WaveRate,
+	phaseRate,
+	type PhaseRate,
 } from "@/lib/util/util";
 import { colorForName } from "@/lib/util/color";
 import { relativeTime } from "@/lib/util/format";
@@ -185,12 +185,12 @@ describe("cycle", () => {
 	});
 });
 
-describe("waveRate", () => {
+describe("phaseRate", () => {
 	function feed(ticks: [done: number, total: number, at: number][]) {
-		let state: WaveRate | null = null;
+		let state: PhaseRate | null = null;
 		let rate: number | null = null;
 		for (const [done, total, at] of ticks) {
-			({ state, rate } = waveRate(state, done, total, at));
+			({ state, rate } = phaseRate(state, done, total, at));
 		}
 		return rate;
 	}

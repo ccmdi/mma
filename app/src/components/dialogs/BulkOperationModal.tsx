@@ -41,8 +41,8 @@ import {
 import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
 import { fmt } from "@/lib/util/format";
-import { waveRate, type WaveRate } from "@/lib/util/util";
-import type { BatchOutcome, BulkOpts, PhasePart } from "@/lib/data/procedures";
+import { phaseRate, type PhaseRate } from "@/lib/util/util";
+import type { BatchOutcome, BulkOpts, ProviderPart } from "@/lib/data/procedures";
 import { toast } from "@/lib/util/toast";
 import { t, msg } from "@/lib/i18n";
 
@@ -780,8 +780,7 @@ export function BulkProgress({
 	const [done, setDone] = useState(0);
 	const [rate, setRate] = useState<number | null>(null);
 	const [elapsed, setElapsed] = useState<number | null>(null);
-	const [phaseLabel, setPhaseLabel] = useState<string | null>(null);
-	const [phaseParts, setPhaseParts] = useState<PhasePart[] | null>(null);
+	const [parts, setParts] = useState<ProviderPart[]>([]);
 	const [status, setStatus] = useState<"running" | "done" | "cancelled" | "error">("running");
 	const [error, setError] = useState<string | null>(null);
 	const [result, setResult] = useState<BulkRunResult>({});
@@ -789,7 +788,7 @@ export function BulkProgress({
 	// itself adds selections, and re-running on that would loop.
 	const [target] = useState(selector);
 	const controllerRef = useRef<AbortController | null>(null);
-	const rateRef = useRef<WaveRate | null>(null);
+	const rateRef = useRef<PhaseRate | null>(null);
 
 	const run = useCallback(async () => {
 		const controller = new AbortController();
@@ -800,14 +799,13 @@ export function BulkProgress({
 		setRate(null);
 		setElapsed(null);
 
-		const onProgress: BulkRunContext["onProgress"] = (d, t, label, parts) => {
-			setPhaseLabel(label ?? null);
-			setPhaseParts(parts ?? null);
+		const onProgress: BulkRunContext["onProgress"] = (d, t, providerParts) => {
+			setParts(providerParts);
 			setTotal(t);
 			setDone(d);
 			setProgress(t > 0 ? d / t : 1);
 
-			const { state, rate } = waveRate(rateRef.current, d, t, performance.now());
+			const { state, rate } = phaseRate(rateRef.current, d, t, performance.now());
 			rateRef.current = state;
 			setRate(rate);
 		};
@@ -840,14 +838,25 @@ export function BulkProgress({
 	return (
 		<div className="bulk-operation">
 			<div className="bulk-operation__status">
-				{status === "running" &&
-					(phaseParts
-						? phaseParts
-								.map((p) => `${t(p.label)} ${fmt.format(p.done)}/${fmt.format(p.total)}`)
-								.join(" · ")
-						: phaseLabel
-							? t(phaseLabel)
-							: "")}
+				{status === "running" && parts.length > 0 && (
+					<div className="bulk-operation__providers">
+						{parts.map((p) => (
+							<div key={p.label} className="bulk-operation__provider">
+								<span className="bulk-operation__provider-label">{t(p.label)}</span>
+								<progress
+									className="bulk-operation__provider-bar"
+									value={p.total > 0 ? p.done / p.total : p.finished ? 1 : 0}
+									max={1}
+								/>
+								<span className="bulk-operation__provider-count">
+									{`${fmt.format(p.done)}/${fmt.format(p.total)}`}
+									{p.failed > 0 &&
+										t({ one: ", {n} failed", other: ", {n} failed" }, { n: p.failed })}
+								</span>
+							</div>
+						))}
+					</div>
+				)}
 				{status === "done" &&
 					(result.doneContent ??
 						result.doneMessage ??

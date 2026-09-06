@@ -78,7 +78,7 @@ export const panoResolveSpec: ProcedureSpec<{ panoId: string }> = {
 };
 
 /** `panoResolveSpec` as enrichment schedules it: it writes the `panoId` column, so every
- *  provider that reads a panorama requires it and the engine puts it in the first wave. */
+ *  provider that reads a panorama requires it and the engine runs it first. */
 export const panoResolveProvider: Provider = {
 	id: "panoResolve",
 	label: msg("Resolving panoramas"),

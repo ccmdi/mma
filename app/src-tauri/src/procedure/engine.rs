@@ -13,6 +13,7 @@ use futures::future;
 use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::future::Future;
+use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -111,7 +112,7 @@ pub enum Sink {
 }
 
 /// One provider as declared by the frontend. `fields` are the extra keys it produces
-/// and `requires` the keys it consumes; together they schedule dependency waves.
+/// and `requires` the keys it consumes; together they gate who waits for whom.
 #[derive(Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderDecl {
@@ -342,33 +343,26 @@ fn unregister_run(run_id: u32) {
 }
 
 // ---------------------------------------------------------------------------
-// Wave scheduling
+// Dependency scheduling
 // ---------------------------------------------------------------------------
 
-/// A provider runs once no other unscheduled provider produces a field it requires.
-/// A dependency cycle collapses the remainder into one wave.
-pub(crate) fn provider_waves(list: &[ProviderDecl]) -> Vec<Vec<usize>> {
-    let mut waves = Vec::new();
-    let mut remaining: Vec<usize> = (0..list.len()).collect();
-    while !remaining.is_empty() {
-        let mut wave: Vec<usize> = remaining
-            .iter()
-            .copied()
-            .filter(|&i| {
-                !list[i].requires.iter().any(|r| {
-                    remaining
-                        .iter()
-                        .any(|&j| j != i && list[j].fields.iter().any(|f| f == r))
+/// Who gates whom: `producers[i]` are the co-running providers that write a field
+/// provider `i` requires. Provider `i` starts once every one of them has finished, so a
+/// slow provider only ever holds up its own dependents, never the rest of the run.
+pub(crate) fn producers(list: &[ProviderDecl]) -> Vec<Vec<usize>> {
+    (0..list.len())
+        .map(|i| {
+            (0..list.len())
+                .filter(|&j| {
+                    j != i
+                        && list[i]
+                            .requires
+                            .iter()
+                            .any(|r| list[j].fields.iter().any(|f| f == r))
                 })
-            })
-            .collect();
-        if wave.is_empty() {
-            wave = remaining.clone();
-        }
-        remaining.retain(|i| !wave.contains(i));
-        waves.push(wave);
-    }
-    waves
+                .collect()
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -614,7 +608,7 @@ impl ProviderProgress {
 // ---------------------------------------------------------------------------
 
 /// Where a run's rows live: the open map, paged by each provider's selector, or rows the
-/// caller handed in, held in a store of their own so waves chain the same way and nothing
+/// caller handed in, held in a store of their own so dependencies chain the same way and nothing
 /// reaches the map.
 pub(crate) enum RunRows<'a> {
     Map {
@@ -675,8 +669,9 @@ impl WorkBatch {
     }
 }
 
-/// Schedule the run's providers into dependency waves and execute each wave
-/// concurrently. Blocking throughout: callers put this on a blocking thread.
+/// Run every provider concurrently, each starting the moment the providers that write
+/// its required fields have finished. Blocking throughout: callers put this on a
+/// blocking thread.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_all(
     rows: &Arc<RunRows<'_>>,
@@ -688,40 +683,68 @@ pub(crate) fn run_all(
     progress: &Arc<ProgressSink>,
     results: &Arc<ResultSink>,
 ) {
-    for wave in provider_waves(providers) {
-        if cancel.load(Ordering::Relaxed) {
-            break;
-        }
-        thread::scope(|s| {
-            for idx in wave {
-                let decl = &providers[idx];
-                let ctx = RunCtx {
-                    rows: rows.clone(),
-                    run_id,
-                    force,
-                    cancel: cancel.clone(),
-                    deps,
-                    progress: progress.clone(),
-                    results: results.clone(),
+    let gates = producers(providers);
+    let (tx, rx) = mpsc::channel::<usize>();
+    let mut pending: Vec<usize> = (0..providers.len()).collect();
+    let mut done: Vec<bool> = vec![false; providers.len()];
+    let mut running = 0usize;
+    thread::scope(|s| {
+        let start = |idx: usize, running: &mut usize| {
+            let decl = &providers[idx];
+            let ctx = RunCtx {
+                rows: rows.clone(),
+                run_id,
+                force,
+                cancel: cancel.clone(),
+                deps,
+                progress: progress.clone(),
+                results: results.clone(),
+            };
+            let tx = tx.clone();
+            *running += 1;
+            s.spawn(move || {
+                if let Err(e) = run_provider(&ctx, decl) {
+                    log::error!("[procedure] provider '{}' failed: {e}", decl.id);
+                    // A provider that never reports finished would hang its listener.
+                    (ctx.progress)(ProcedureProgress {
+                        run_id,
+                        provider_id: decl.id.clone(),
+                        done: 0,
+                        total: 0,
+                        failed: 0,
+                        skipped: 0,
+                        finished: true,
+                    });
+                }
+                let _ = tx.send(idx);
+            });
+        };
+        loop {
+            if !cancel.load(Ordering::Relaxed) {
+                let ready: Vec<usize> = pending
+                    .iter()
+                    .copied()
+                    .filter(|&i| gates[i].iter().all(|&j| done[j]))
+                    .collect();
+                // A dependency cycle would wait forever; it runs as one block instead.
+                let release = if ready.is_empty() && running == 0 {
+                    mem::take(&mut pending)
+                } else {
+                    pending.retain(|i| !ready.contains(i));
+                    ready
                 };
-                s.spawn(move || {
-                    if let Err(e) = run_provider(&ctx, decl) {
-                        log::error!("[procedure] provider '{}' failed: {e}", decl.id);
-                        // A provider that never reports finished would hang its listener.
-                        (ctx.progress)(ProcedureProgress {
-                            run_id,
-                            provider_id: decl.id.clone(),
-                            done: 0,
-                            total: 0,
-                            failed: 0,
-                            skipped: 0,
-                            finished: true,
-                        });
-                    }
-                });
+                for idx in release {
+                    start(idx, &mut running);
+                }
             }
-        });
-    }
+            if running == 0 {
+                break;
+            }
+            let idx = rx.recv().expect("a worker cannot drop its sender");
+            running -= 1;
+            done[idx] = true;
+        }
+    });
     unregister_run(run_id);
 }
 
@@ -1518,7 +1541,7 @@ pub struct RowsRun {
 }
 
 /// Run providers over rows the caller hands in and answer with the rows as they are
-/// afterwards. Same waves and gates as a run over the map, in a store of the rows' own,
+/// afterwards. Same gating as a run over the map, in a store of the rows' own,
 /// so nothing reaches the open map. `cancel` is a token for `procedure_query_cancel`.
 #[tauri::command]
 #[specta::specta]

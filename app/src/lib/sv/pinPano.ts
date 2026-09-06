@@ -18,7 +18,7 @@ export interface PinPanoConfig {
 
 /** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
  *  panorama. With `useLatest`, move it to the newest official pano in the timeline
- *  first. The pano id itself comes from `panoResolve`, an earlier wave. */
+ *  first. The pano id itself comes from `panoResolve`, which runs before it. */
 export const pinPanoProvider: Provider = {
 	id: "pinPano",
 	label: msg("Pin to pano ID"),

@@ -331,11 +331,15 @@ export async function bulkDownloadPanoramas(
 	const { signal, onProgress } = opts;
 	const saved: number[] = [];
 	const failed: number[] = [];
+	// A hand-run of sequential phases: the bar resets per phase, one part names it.
+	const report = (label: string) => (done: number, total: number) =>
+		onProgress?.(done, total, [{ label, done, total, failed: 0, finished: false }]);
 
 	const needResolve = locations.filter((l) => !l.panoId);
 	const resolvedMap = new Map<number, string>();
 	if (needResolve.length > 0) {
-		onProgress?.(0, needResolve.length, t("Resolving pano IDs"));
+		const resolving = report(t("Resolving pano IDs"));
+		resolving(0, needResolve.length);
 		// The same procedure enrichment runs, borrowed for its answers: a download must
 		// not move the panorama the user's location points at.
 		const run = await runProcedure(
@@ -345,7 +349,7 @@ export async function bulkDownloadPanoramas(
 				id: "panoResolve",
 				sink: "collect",
 				signal,
-				onProgress: (d, total) => onProgress?.(d, total, t("Resolving pano IDs")),
+				onProgress: (d, total) => resolving(d, total),
 			},
 		);
 		for (const { id, value } of run.collected ?? []) {
@@ -366,7 +370,7 @@ export async function bulkDownloadPanoramas(
 	// Metadata drives tile layout and center heading; thumbnail/tile modes need neither.
 	let metaMap = new Map<string, Pano>();
 	if (config.mode === "equirectangular" || config.mode === "perspective") {
-		onProgress?.(0, pending.length, t("Fetching metadata"));
+		report(t("Fetching metadata"))(0, pending.length);
 		metaMap = await fetchMetadataMap(
 			pending.map((p) => p.panoId),
 			signal,
@@ -394,7 +398,8 @@ export async function bulkDownloadPanoramas(
 	};
 
 	try {
-		onProgress?.(0, pending.length, t("Downloading"));
+		const downloading = report(t("Downloading"));
+		downloading(0, pending.length);
 		await runConcurrent(
 			pending,
 			async ({ loc, panoId }) => {
@@ -417,7 +422,7 @@ export async function bulkDownloadPanoramas(
 				}
 				(ok ? saved : failed).push(loc.id);
 				done++;
-				onProgress?.(done, pending.length, t("Downloading"));
+				downloading(done, pending.length);
 			},
 			{ concurrency: DOWNLOAD_CONCURRENCY, signal },
 		);

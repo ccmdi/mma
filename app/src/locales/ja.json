@@ -394,7 +394,6 @@
 	"Enrich metadata": "メタデータをエンリッチ",
 	"Enrich metadata fields": "メタデータフィールドをエンリッチ",
 	"Enrich metadata fields to enable": "有効にするにはメタデータフィールドをエンリッチしてください",
-	"Enriching fields": "フィールドをエンリッチ中",
 	"Enrichment": "エンリッチメント",
 	"Enrichment only: adds data fields, no panel of its own": "エンリッチメント専用: データフィールドを追加し、独自のパネルは持ちません",
 	"Enter code {code} in your browser to finish signing in.": "サインインを完了するには、ブラウザーでコード {code} を入力してください。",

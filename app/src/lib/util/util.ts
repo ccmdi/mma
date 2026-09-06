@@ -154,23 +154,24 @@ export function nowUnix(): number {
 }
 
 /** Rolling anchor for a phase-relative locations/second average. */
-export interface WaveRate {
+export interface PhaseRate {
 	t0: number;
 	done0: number;
 	done: number;
 	total: number;
 }
 
-/** Locations/second averaged over the progress wave in flight. A done that went backward
- *  or a total that grew means a new wave began (within one wave done only grows and the
- *  total only shrinks as skips are found), so the average re-anchors there instead of
- *  carrying the previous wave's speed. Null until the wave shows a quarter second of work. */
-export function waveRate(
-	prev: WaveRate | null,
+/** Locations/second averaged over the progress phase in flight. A done that went backward
+ *  or a total that grew means a new phase began (a hand-run resets its bar per phase;
+ *  within one, done only grows and the total only shrinks as skips are found), so the
+ *  average re-anchors there instead of carrying the previous phase's speed. Null until
+ *  the phase shows a quarter second of work. */
+export function phaseRate(
+	prev: PhaseRate | null,
 	done: number,
 	total: number,
 	now: number,
-): { state: WaveRate; rate: number | null } {
+): { state: PhaseRate; rate: number | null } {
 	const state =
 		!prev || done < prev.done || total > prev.total
 			? { t0: now, done0: done, done, total }

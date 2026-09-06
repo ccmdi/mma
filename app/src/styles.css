@@ -2735,7 +2735,8 @@ input[type="range"]:disabled {
 .bulk-operation__coverage-stat.is-incomplete {
 	color: #e8a83e;
 }
-.bulk-operation__bar {
+.bulk-operation__bar,
+.bulk-operation__provider-bar {
 	width: 100%;
 	height: 6px;
 	appearance: none;
@@ -2743,14 +2744,35 @@ input[type="range"]:disabled {
 	border-radius: 3px;
 	background: #ffffff14;
 }
-.bulk-operation__bar::-webkit-progress-bar {
+.bulk-operation__bar::-webkit-progress-bar,
+.bulk-operation__provider-bar::-webkit-progress-bar {
 	background: #ffffff14;
 	border-radius: 3px;
 }
-.bulk-operation__bar::-webkit-progress-value {
+.bulk-operation__bar::-webkit-progress-value,
+.bulk-operation__provider-bar::-webkit-progress-value {
 	background: var(--accent);
 	border-radius: 3px;
 	transition: width 0.15s;
+}
+.bulk-operation__providers {
+	display: grid;
+	grid-template-columns: auto 1fr auto;
+	align-items: center;
+	gap: 0.25rem 0.625rem;
+	padding-bottom: 0.25rem;
+}
+.bulk-operation__provider {
+	display: contents;
+}
+.bulk-operation__provider-bar {
+	height: 4px;
+}
+.bulk-operation__provider-label {
+	white-space: nowrap;
+}
+.bulk-operation__provider-count {
+	font-variant-numeric: tabular-nums;
 }
 .bulk-operation__option {
 	display: flex;

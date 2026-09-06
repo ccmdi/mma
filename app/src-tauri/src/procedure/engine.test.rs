@@ -239,21 +239,21 @@ fn patch_extra_all(json: &'static str) -> MapFn {
 }
 
 // -----------------------------------------------------------------------
-// Wave scheduling
+// Dependency scheduling
 // -----------------------------------------------------------------------
 
 #[test]
-fn waves_order_producers_before_consumers() {
+fn a_consumer_is_gated_on_its_producer_alone() {
     let mut a = decl("a", BatchMode::PerRow);
     a.fields = vec!["x".into()];
     let mut b = decl("b", BatchMode::PerRow);
     b.requires = vec!["x".into()];
-    // Declared consumer-first to prove ordering comes from the graph, not the input order.
-    assert_eq!(provider_waves(&[b, a]), vec![vec![1], vec![0]]);
+    // Declared consumer-first to prove the gate comes from the graph, not the input order.
+    assert_eq!(producers(&[b, a]), vec![vec![1], vec![]]);
 }
 
 #[test]
-fn waves_order_a_pano_resolver_before_its_consumers() {
+fn a_pano_resolver_gates_its_consumers_and_nothing_else() {
     // `panoId` is a core column, not an `extra` key, but it schedules like any other:
     // the resolver declares it as a field and its consumers as a requirement.
     let mut resolve = decl("panoResolve", BatchMode::Chunk { size: 2 });
@@ -266,9 +266,10 @@ fn waves_order_a_pano_resolver_before_its_consumers() {
     let mut exact = decl("exactDate", BatchMode::PerRow);
     exact.requires = vec!["imageDate".into()];
 
+    // exactDate waits on svMeta only: pin can grind without holding it up.
     assert_eq!(
-        provider_waves(&[pin, exact, meta, resolve]),
-        vec![vec![3], vec![0, 2], vec![1]]
+        producers(&[pin, exact, meta, resolve]),
+        vec![vec![3], vec![2], vec![3], vec![]]
     );
 }
 
@@ -305,31 +306,110 @@ fn an_empty_pano_id_does_not_count_as_present() {
 }
 
 #[test]
-fn waves_run_independent_providers_together() {
+fn independent_providers_gate_nothing() {
     let mut a = decl("a", BatchMode::PerRow);
     a.fields = vec!["x".into()];
     let mut b = decl("b", BatchMode::PerRow);
     b.fields = vec!["y".into()];
-    assert_eq!(provider_waves(&[a, b]), vec![vec![0, 1]]);
+    assert_eq!(producers(&[a, b]), vec![Vec::<usize>::new(), Vec::new()]);
 }
 
 #[test]
-fn waves_collapse_a_dependency_cycle() {
+fn a_slow_provider_holds_up_only_its_own_dependents() {
+    // c blocks until b has run. Under a wave barrier b could never start (c shares a's
+    // wave and gates b's), so completing at all proves per-provider gating.
+    let mut a = decl("a", BatchMode::PerRow);
+    a.fields = vec!["x".into()];
+    a.select = Selector::Locations {
+        locations: vec![1],
+        name: None,
+    };
+    let mut b = decl("b", BatchMode::PerRow);
+    b.fields = vec!["y".into()];
+    b.requires = vec!["x".into()];
+    b.select = a.select.clone();
+    let mut c = decl("c", BatchMode::PerRow);
+    c.fields = vec!["z".into()];
+    c.select = Selector::Locations {
+        locations: vec![2],
+        name: None,
+    };
+    let (b_ran_tx, b_ran) = mpsc::channel::<()>();
+    let b_ran = Mutex::new(b_ran);
+    let h = Harness::map_only(Arc::new(move |rows: &[Location]| {
+        Ok(rows
+            .iter()
+            .map(|r| PatchEntry {
+                id: r.id,
+                patch: if r.id == 2 {
+                    b_ran
+                        .lock()
+                        .unwrap()
+                        .recv()
+                        .expect("b never ran; the scheduler barriered");
+                    r#"{"extra":{"z":3}}"#.into()
+                } else if r
+                    .extra
+                    .as_ref()
+                    .is_some_and(|e| e.as_str().contains("\"x\""))
+                {
+                    b_ran_tx.send(()).unwrap();
+                    r#"{"extra":{"y":2}}"#.into()
+                } else {
+                    r#"{"extra":{"x":1}}"#.into()
+                },
+            })
+            .collect())
+    }));
+    let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]));
+    let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
+    let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
+    run_all(&rows, &[c, b, a], false, 97, &h.cancel, &h.deps, &progress, &results);
+
+    let out = rows
+        .with_store(|store| Ok(store.collect(&Selector::Everything)))
+        .unwrap();
+    let extra = |id: usize| {
+        serde_json::from_str::<serde_json::Value>(out[id - 1].extra.as_ref().unwrap().as_str())
+            .unwrap()
+    };
+    assert_eq!(extra(1), serde_json::json!({"x": 1, "y": 2}));
+    assert_eq!(extra(2), serde_json::json!({"z": 3}));
+}
+
+#[test]
+fn a_dependency_cycle_still_runs_as_one_block() {
     let mut a = decl("a", BatchMode::PerRow);
     a.fields = vec!["x".into()];
     a.requires = vec!["y".into()];
     let mut b = decl("b", BatchMode::PerRow);
     b.fields = vec!["y".into()];
     b.requires = vec!["x".into()];
-    assert_eq!(provider_waves(&[a, b]), vec![vec![0, 1]]);
+    let h = Harness::map_only(patch_all(r#"{"extra":{"ran":true}}"#));
+    let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0)]));
+    let finished: Arc<Mutex<Vec<String>>> = Arc::default();
+    let progress: Arc<ProgressSink> = {
+        let finished = finished.clone();
+        Arc::new(Box::new(move |p| {
+            if p.finished {
+                finished.lock().unwrap().push(p.provider_id);
+            }
+        }))
+    };
+    let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
+    // Returning at all is the point: mutual gates must release, not deadlock.
+    run_all(&rows, &[a, b], false, 96, &h.cancel, &h.deps, &progress, &results);
+    let mut ids = finished.lock().unwrap().clone();
+    ids.sort();
+    assert_eq!(ids, vec!["a".to_string(), "b".to_string()]);
 }
 
 #[test]
-fn waves_ignore_a_providers_own_output() {
+fn gating_ignores_a_providers_own_output() {
     let mut a = decl("a", BatchMode::PerRow);
     a.fields = vec!["x".into()];
     a.requires = vec!["x".into()];
-    assert_eq!(provider_waves(&[a]), vec![vec![0]]);
+    assert_eq!(producers(&[a]), vec![Vec::<usize>::new()]);
 }
 
 // -----------------------------------------------------------------------
