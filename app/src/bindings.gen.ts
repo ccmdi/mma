@@ -504,7 +504,7 @@ export const commands = {
 	procedureRun: (providers: ProviderDecl[], force: boolean) => __TAURI_INVOKE<number>("procedure_run", { providers, force }),
 	/**
 	 *  Run providers over rows the caller hands in and answer with the rows as they are
-	 *  afterwards. Same waves and gates as a run over the map, in a store of the rows' own,
+	 *  afterwards. Same gating as a run over the map, in a store of the rows' own,
 	 *  so nothing reaches the open map. `cancel` is a token for `procedure_query_cancel`.
 	 */
 	procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], cancel: number | null) => __TAURI_INVOKE<RowsRun>("procedure_run_rows", { providers, force, rows: rows.map(i=>i), cancel }).then((v) => (({...v,rows:v.rows.map(i=>i)}) as typeof v)),
@@ -1268,7 +1268,7 @@ export type ProcedureResult = {
 
 /**
  *  One provider as declared by the frontend. `fields` are the extra keys it produces
- *  and `requires` the keys it consumes; together they schedule dependency waves.
+ *  and `requires` the keys it consumes; together they gate who waits for whom.
  */
 export type ProviderDecl = {
 	id: string,

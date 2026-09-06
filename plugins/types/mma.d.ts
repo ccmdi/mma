@@ -840,7 +840,7 @@ declare const commands$1: {
     procedureRun: (providers: ProviderDecl[], force: boolean) => Promise<number>;
     /**
      *  Run providers over rows the caller hands in and answer with the rows as they are
-     *  afterwards. Same waves and gates as a run over the map, in a store of the rows' own,
+     *  afterwards. Same gating as a run over the map, in a store of the rows' own,
      *  so nothing reaches the open map. `cancel` is a token for `procedure_query_cancel`.
      *  @unstable
      */
@@ -1757,7 +1757,7 @@ type ProcedureResult = {
 };
 /**
  *  One provider as declared by the frontend. `fields` are the extra keys it produces
- *  and `requires` the keys it consumes; together they schedule dependency waves.
+ *  and `requires` the keys it consumes; together they gate who waits for whom.
  */
 type ProviderDecl = {
     id: string;
@@ -5289,11 +5289,11 @@ export interface Provider {
      *  core columns instead: it is always active, and `enrichAll` never runs it
      *  implicitly -- only a caller naming it does. */
     fieldDefs?: Record<string, ExtraFieldDef>;
-    /** Core columns this provider writes, e.g. `panoId`. Scheduled into the dependency
-     *  waves and used to skip rows that already hold them, exactly like `fieldDefs`. */
+    /** Core columns this provider writes, e.g. `panoId`. They gate dependents and skip
+     *  rows that already hold them, exactly like `fieldDefs`. */
     provides?: string[];
-    /** Fields this provider reads: the engine schedules it into a later dependency
-     *  wave than any provider producing them. */
+    /** Fields this provider reads: the engine starts it only once every provider
+     *  producing them has finished. */
     requires?: string[];
 }
 /** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
@@ -5398,7 +5398,7 @@ declare namespace fieldDefRegistry {
 
 /**
  * Driver for the Rust procedure engine. A bulk operation is one or more procedures plus
- * a `Selector`: the engine resolves the selector, schedules the dependency waves, pages
+ * a `Selector`: the engine resolves the selector, gates providers on their dependencies, pages
  * the locations, calls each procedure and delivers what it answers, as patches or back
  * to the caller. Locations never reach JS.
  */
@@ -5437,23 +5437,25 @@ export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
 /** Every declaration a run scheduled, by provider id. */
 export type ProviderOutcomes = Record<string, ProcedureOutcome>;
 declare const noWork: () => BatchOutcome;
-/** One wave member's own progress, for a caller that shows the providers of a
- *  multi-provider wave individually. Counts are net of skipped rows. */
-export interface PhasePart {
+/** One provider's own progress. Counts are net of skipped rows. */
+export interface ProviderPart {
     label: string;
     done: number;
     total: number;
+    failed: number;
     finished: boolean;
 }
 export interface RunOpts {
     signal?: AbortSignal;
     force?: boolean;
-    /** `label` names the current phase; undefined = no labelled provider is running.
-     *  `done`/`total` are phase-relative and net of skipped rows, so they reset as each
-     *  dependency wave begins. A wave of several providers combines as min/max -- a row
-     *  counts done once its slowest provider has passed it, over the wave's row universe,
-     *  never a per-provider sum -- and `parts` then carries each member's own counts. */
-    onProgress?: (done: number, total: number, label?: string, parts?: PhasePart[]) => void;
+    /** `done`/`total` are rows finished through every provider in the run -- the slowest
+     *  provider's count, so the bar is monotonic and full means fully enriched. `parts`
+     *  carries each labeled provider's own counts for the whole run, zeros until it
+     *  starts, and is ordered as declared. */
+    onProgress?: (done: number, total: number, parts: ProviderPart[]) => void;
+    /** A run over handed-in rows only: each row as a provider leaves it, delivered as
+     *  that provider finishes with it. The same row arrives again per later provider. */
+    onPartial?: (rows: Location[]) => void;
 }
 export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
 /** A provider to run, optionally overriding the config its procedure declares. */
@@ -5468,7 +5470,7 @@ export interface ProviderRun {
 }
 /** Drive a set of providers through the engine as one run over `rows`: a selector, which
  *  the engine pages out of the store and writes back into, reporting per-provider
- *  progress that this narrows to the wave in flight for the caller's bar; or locations
+ *  progress this hands to the caller per provider; or locations
  *  handed in, which run in a store of their own and come back as the providers left
  *  them, with nothing reaching the map. Resolves once every declared provider reports
  *  finished, or on abort. */
@@ -5497,9 +5499,9 @@ declare function runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opt
 export type procedures_BatchOutcome = BatchOutcome;
 export type procedures_BulkOpts = BulkOpts;
 export type procedures_CollectedEntry<T = unknown> = CollectedEntry<T>;
-export type procedures_PhasePart = PhasePart;
 export type procedures_ProcedureOutcome<TCollected = unknown> = ProcedureOutcome<TCollected>;
 export type procedures_ProviderOutcomes = ProviderOutcomes;
+export type procedures_ProviderPart = ProviderPart;
 export type procedures_ProviderRun = ProviderRun;
 export type procedures_RunOpts = RunOpts;
 declare const procedures_noWork: typeof noWork;
@@ -5510,7 +5512,7 @@ declare const procedures_runProcedure: typeof runProcedure;
 declare const procedures_runProviders: typeof runProviders;
 declare namespace procedures {
   export { procedures_noWork as noWork, procedures_procedureEntry as procedureEntry, procedures_queryProcedure as queryProcedure, procedures_resolveFieldLabels as resolveFieldLabels, procedures_runProcedure as runProcedure, procedures_runProviders as runProviders };
-  export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_PhasePart as PhasePart, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderRun as ProviderRun, procedures_RunOpts as RunOpts };
+  export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderPart as ProviderPart, procedures_ProviderRun as ProviderRun, procedures_RunOpts as RunOpts };
 }
 
 export interface GeoDisplay {
@@ -5614,7 +5616,7 @@ declare const panoResolveSpec: ProcedureSpec<{
     panoId: string;
 }>;
 /** `panoResolveSpec` as enrichment schedules it: it writes the `panoId` column, so every
- *  provider that reads a panorama requires it and the engine puts it in the first wave. */
+ *  provider that reads a panorama requires it and the engine runs it first. */
 declare const panoResolveProvider: Provider;
 /** Exact capture timestamp: the procedure narrows the `imageDate` month against
  *  Google's SingleImageSearch per location. */
@@ -5658,7 +5660,7 @@ export interface PinPanoConfig {
 }
 /** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
  *  panorama. With `useLatest`, move it to the newest official pano in the timeline
- *  first. The pano id itself comes from `panoResolve`, an earlier wave. */
+ *  first. The pano id itself comes from `panoResolve`, which runs before it. */
 declare const pinPanoProvider: Provider;
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
  *  loads the same pano. */
@@ -6144,22 +6146,23 @@ declare function fovToZoom(fov: number): number;
 /** Current time as Unix seconds, the form Location timestamps use. */
 declare function nowUnix(): number;
 /** Rolling anchor for a phase-relative locations/second average. */
-export interface WaveRate {
+export interface PhaseRate {
     t0: number;
     done0: number;
     done: number;
     total: number;
 }
-/** Locations/second averaged over the progress wave in flight. A done that went backward
- *  or a total that grew means a new wave began (within one wave done only grows and the
- *  total only shrinks as skips are found), so the average re-anchors there instead of
- *  carrying the previous wave's speed. Null until the wave shows a quarter second of work. */
-declare function waveRate(prev: WaveRate | null, done: number, total: number, now: number): {
-    state: WaveRate;
+/** Locations/second averaged over the progress phase in flight. A done that went backward
+ *  or a total that grew means a new phase began (a hand-run resets its bar per phase;
+ *  within one, done only grows and the total only shrinks as skips are found), so the
+ *  average re-anchors there instead of carrying the previous phase's speed. Null until
+ *  the phase shows a quarter second of work. */
+declare function phaseRate(prev: PhaseRate | null, done: number, total: number, now: number): {
+    state: PhaseRate;
     rate: number | null;
 };
 
-export type util_WaveRate = WaveRate;
+export type util_PhaseRate = PhaseRate;
 declare const util_appendTagName: typeof appendTagName;
 declare const util_bestBy: typeof bestBy;
 declare const util_chunk: typeof chunk;
@@ -6173,15 +6176,15 @@ declare const util_isPrereleaseVersion: typeof isPrereleaseVersion;
 declare const util_isWeb: typeof isWeb;
 declare const util_mmaBufUrl: typeof mmaBufUrl;
 declare const util_nowUnix: typeof nowUnix;
+declare const util_phaseRate: typeof phaseRate;
 declare const util_schemeBase: typeof schemeBase;
 declare const util_sortTagsByMode: typeof sortTagsByMode;
 declare const util_splitVersion: typeof splitVersion;
 declare const util_tagColorFor: typeof tagColorFor;
 declare const util_toggleInSet: typeof toggleInSet;
-declare const util_waveRate: typeof waveRate;
 declare namespace util {
-  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_errText as errText, util_fovToZoom as fovToZoom, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_schemeBase as schemeBase, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet, util_waveRate as waveRate };
-  export type { util_WaveRate as WaveRate };
+  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_errText as errText, util_fovToZoom as fovToZoom, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_schemeBase as schemeBase, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet };
+  export type { util_PhaseRate as PhaseRate };
 }
 
 /**
