@@ -238,3 +238,20 @@ fn bundled_model_class_count_is_eleven() {
     let mut session = load_session(model_dir);
     assert_eq!(wm_num_classes(&mut session), Some(NUM_CLASSES));
 }
+
+#[test]
+fn a_batch_of_only_unofficial_panos_terminates() {
+    let model_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/models");
+    if !std::path::Path::new(model_dir).join("wm_cls.onnx").exists() {
+        eprintln!("skipping: no models/ present");
+        return;
+    }
+    let input = DetectInput {
+        pano_ids: vec!["not-a-real-pano".into()],
+        min_years: HashMap::new(),
+    };
+    let mut results = Vec::new();
+    Detector::load(model_dir).run(&input, |r| results.push(r));
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].error.as_deref(), Some("unofficial pano"));
+}

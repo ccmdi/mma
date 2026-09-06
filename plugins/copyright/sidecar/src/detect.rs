@@ -674,6 +674,13 @@ fn run_loaded(
         }
     }
 
+    // Without this, zero official panos deadlocks below: the job sender is only
+    // dropped when the last pano resolves, so the workers wait on a stream that
+    // nothing will ever close.
+    if officials.is_empty() {
+        return;
+    }
+
     // Streamed parallel checker, no phase barrier. Every pano starts with its z5 spot
     // AND the primary profile cells in flight at once; each arrival is read at the
     // known-good spots immediately and can resolve the pano early (label "A"). Only if
