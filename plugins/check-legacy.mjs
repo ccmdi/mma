@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 // How far back the promise reaches: the first release whose mma.d.ts carries @unstable
 // tags. Every release from here to HEAD is checked -- an API that shipped stable in any
 // of them is a promise. Raising the floor ages out every older guarantee at once.
-const SUPPORT_FLOOR = "0.10.3";
+const SUPPORT_FLOOR = "0.10.4";
 
 const pluginsDir = dirname(fileURLToPath(import.meta.url));
 const typesDir = join(pluginsDir, "types");
