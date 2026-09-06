@@ -28,6 +28,7 @@ import {
 } from "@/components/editor/tags/tagTreeRange";
 import type { Tag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
+import { matches as textMatches } from "@/lib/search";
 
 function docUrl(docId: string): string {
 	return `https://docs.google.com/document/d/${docId}/edit`;
@@ -251,15 +252,11 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 	const filteredTags = useMemo(
 		() =>
 			tags
-				.filter((tag) => tag.name.toLowerCase().includes(tagFilter.toLowerCase()))
+				.filter((tag) => textMatches(tagFilter, tag.name))
 				.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true })),
 		[tags, tagFilter],
 	);
-	const shownHeadings = headingFilter
-		? (outline?.headings ?? []).filter((h) =>
-				h.text.toLowerCase().includes(headingFilter.toLowerCase()),
-			)
-		: (outline?.headings ?? []);
+	const shownHeadings = (outline?.headings ?? []).filter((h) => textMatches(headingFilter, h.text));
 
 	// Refresh path for reimports: import only adopts doclinks onto tags that
 	// have none, so clearing this doc's links first lets a reimport repopulate.

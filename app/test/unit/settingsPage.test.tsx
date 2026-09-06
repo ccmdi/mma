@@ -134,7 +134,7 @@ describe("settings search", () => {
 
 	it("a row match keeps its group heading, and headings with nothing under them stay listed only in the DOM", async () => {
 		await mount();
-		search("view mode");
+		search("tags view mode");
 		const rows = qa(".setting-row__title").map((n) => n.textContent);
 		expect(rows).toEqual(["View mode"]);
 		const block = q(".settings-group-block:has(.setting-row)");

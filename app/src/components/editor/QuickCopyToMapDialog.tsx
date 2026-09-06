@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { log } from "@/lib/util/log";
+import { search } from "@/lib/search";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { getMapState } from "@/store/useMapStore";
@@ -27,16 +28,15 @@ export function QuickCopyToMapDialog({
 		[],
 	);
 
-	const lower = query.trim().toLowerCase();
+	const q = query.trim();
 	const suggestions = useMemo(
 		() =>
-			lower
-				? (maps ?? [])
-						.filter((m) => m.id !== getMapState().mapId && m.name.toLowerCase().includes(lower))
-						.sort((a, b) => a.name.localeCompare(b.name))
+			q
+				? search(maps ?? [], q, (m) => [m.name])
+						.filter((m) => m.id !== getMapState().mapId)
 						.slice(0, 8)
 				: [],
-		[maps, lower],
+		[maps, q],
 	);
 
 	const doCopy = (targetMapId: string) => {

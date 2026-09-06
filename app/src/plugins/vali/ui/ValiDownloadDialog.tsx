@@ -10,6 +10,7 @@ import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { countryName, fmt, formatBytes } from "@/lib/util/format";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
+import { search } from "@/lib/search";
 
 /** One `--country` argument. `code: null` is "every country", which is deliberately not the
  *  `world` alias -- that one resolves to the default distribution, i.e. a subset. */
@@ -128,15 +129,10 @@ export function ValiDownloadDialog({
 		[countries],
 	);
 
-	const suggestions = useMemo(() => {
-		const q = query.trim().toLowerCase();
-		const match = q
-			? targets.filter(
-					(x) => x.name.toLowerCase().includes(q) || x.code?.toLowerCase().startsWith(q),
-				)
-			: targets;
-		return match.slice(0, MAX_SUGGESTIONS);
-	}, [targets, query]);
+	const suggestions = useMemo(
+		() => search(targets, query, (x) => [x.name, x.code]).slice(0, MAX_SUGGESTIONS),
+		[targets, query],
+	);
 
 	const run = async (download: () => Promise<unknown>) => {
 		if (running) return;

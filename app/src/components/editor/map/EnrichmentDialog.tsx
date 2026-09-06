@@ -25,6 +25,7 @@ import { useMapSetting } from "@/store/useMapSetting";
 import type { ExtraFieldDef, MergeWinner } from "@/bindings.gen";
 import { mdiClose, mdiDatabasePlusOutline, mdiInformationOutline } from "@mdi/js";
 import { msg, t } from "@/lib/i18n";
+import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
 
 type Comparison = NonNullable<ExtraFieldDef["comparison"]>;
@@ -262,9 +263,9 @@ function FieldsTab() {
 	const coverage = useCoverage(coverageEpoch);
 
 	const shown = useMemo(() => {
-		const q = filter.trim().toLowerCase();
+		const q = filter.trim();
 		if (!q) return rows;
-		return rows.filter((r) => r.key.toLowerCase().includes(q) || r.label.toLowerCase().includes(q));
+		return rows.filter((r) => matches(q, r.label, r.key));
 	}, [rows, filter]);
 
 	const row = rows.find((r) => r.key === selected) ?? null;

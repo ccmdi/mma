@@ -7,6 +7,7 @@ import { TagPill } from "@/components/primitives/TagPill";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiTagPlusOutline } from "@mdi/js";
 import { t } from "@/lib/i18n";
+import { search } from "@/lib/search";
 import { toast } from "@/lib/util/toast";
 import { displayTagName } from "@/store/selections";
 import { createTags, getVisibleTags, useMapState } from "@/store/useMapStore";
@@ -18,10 +19,9 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 	const tags = useMapState(getVisibleTags);
 	const formRef = useRef<HTMLFormElement>(null);
 
-	const query = name.trim().toLowerCase();
 	const suggestions = useMemo(
-		() => tags.filter((tag) => !query || tag.name.toLowerCase().includes(query)).slice(0, 10),
-		[tags, query],
+		() => search(tags, name, (tag) => [tag.name]).slice(0, 10),
+		[tags, name],
 	);
 
 	const apply = useCallback(

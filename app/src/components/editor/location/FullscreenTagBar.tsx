@@ -8,6 +8,7 @@ import { Icon } from "@/components/primitives/Icon";
 import { useSetting, setSetting } from "@/store/settings";
 import { displayTagName } from "@/store/selections";
 import { t } from "@/lib/i18n";
+import { search } from "@/lib/search";
 import { Button } from "@/components/primitives/Button";
 
 export function FullscreenTagBar({
@@ -49,9 +50,7 @@ export function FullscreenTagBar({
 	const pendingLower = new Set(pendingTags.map((n) => n.toLowerCase()));
 	const sorted = sortTagsByMode(tags, tagSortMode, getMapState().tagCounts);
 	const available = sorted.filter((t) => !pendingLower.has(t.name.toLowerCase()));
-	const filtered = input.trim()
-		? available.filter((t) => t.name.toLowerCase().includes(input.toLowerCase()))
-		: available;
+	const filtered = search(available, input, (t) => [t.name]);
 
 	return (
 		<div

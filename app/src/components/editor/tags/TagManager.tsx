@@ -47,6 +47,7 @@ import {
 	type TagMoveResult,
 } from "./tagTreeRange";
 import { t } from "@/lib/i18n";
+import { matches } from "@/lib/search";
 
 /** `order` rides the optimistic overlay only; persisted order goes through `reorderTags`. */
 type OptimisticTagPatch = TagPatch & { order?: number };
@@ -188,11 +189,7 @@ export function TagManager() {
 
 	// Collapsed-state pill preview only; the open list is rendered by TagTreeView.
 	const sortedTags = useMemo(() => {
-		let filtered = tags;
-		if (filterText) {
-			const lower = filterText.toLowerCase();
-			filtered = tags.filter((t) => t.name.toLowerCase().includes(lower));
-		}
+		const filtered = filterText ? tags.filter((t) => matches(filterText, t.name)) : tags;
 		return sortTagsByMode(filtered, sortMode, tagCounts);
 	}, [tags, filterText, sortMode, tagCounts]);
 
@@ -893,9 +890,8 @@ function AddAliasDialog({
 		for (const t of tags) addAncestors(t.name);
 		for (const k of Object.keys(virtualTags)) set.add(k);
 		for (const k of Object.keys(aliases)) addAncestors(k);
-		const lower = folder.toLowerCase();
 		return [...set]
-			.filter((p) => p.toLowerCase().includes(lower))
+			.filter((p) => matches(folder, p))
 			.sort()
 			.slice(0, 50);
 	}, [tags, virtualTags, aliases, folder]);

@@ -40,6 +40,7 @@ import {
 import type { TagSortMode } from "@/types";
 import type { Tag, VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
+import { matches } from "@/lib/search";
 import { Button } from "@/components/primitives/Button";
 
 type DropTarget = { path: string; position: "before" | "after" | "into" };
@@ -168,12 +169,11 @@ export function TagTreeView({
 
 	const filteredTree = useMemo(() => {
 		if (!filterText) return tree;
-		const lower = filterText.toLowerCase();
 
 		function filterNodes(nodes: TagTreeNode[]): TagTreeNode[] {
 			const result: TagTreeNode[] = [];
 			for (const node of nodes) {
-				const nameMatch = node.segment.toLowerCase().includes(lower);
+				const nameMatch = matches(filterText, node.segment);
 				const filteredChildren = filterNodes(node.children);
 				if (nameMatch || filteredChildren.length > 0) {
 					result.push({ ...node, children: filteredChildren });

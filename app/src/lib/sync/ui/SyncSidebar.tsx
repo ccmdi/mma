@@ -12,6 +12,7 @@ import type { RemoteMapSummary } from "../provider";
 import type { SyncStatus } from "../scheduler";
 import { errText } from "@/lib/util/util";
 import { t, msg } from "@/lib/i18n";
+import { matches } from "@/lib/search";
 import { dateTimeFmt } from "@/lib/util/format";
 import { Button } from "@/components/primitives/Button";
 
@@ -317,8 +318,8 @@ export function SyncSidebar({
 
 	const shown = useMemo(() => {
 		if (!maps) return [];
-		const f = filter.trim().toLowerCase();
-		const list = f ? maps.filter((m) => m.name.toLowerCase().includes(f) || m.id === f) : maps;
+		const f = filter.trim();
+		const list = f ? maps.filter((m) => matches(f, m.name) || m.id === f) : maps;
 		return list.slice(0, 25);
 	}, [maps, filter]);
 

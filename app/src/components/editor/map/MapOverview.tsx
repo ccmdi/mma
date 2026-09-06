@@ -37,6 +37,7 @@ import { SelectionRow } from "./SelectionRow";
 import { PinnedToolbar } from "./PinnedToolbar";
 import { SaveSelectionsDialog, ApplySavedSelectionDialog } from "./SavedSelectionDialogs";
 import { t } from "@/lib/i18n";
+import { search } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
 
 /** Opt-in "run this pick once per active selection" switch, shown only when there are
@@ -266,11 +267,11 @@ function BulkTagForm() {
 		setBulkTagInput("");
 	};
 
-	const bulkSuggestions = (() => {
-		const all = sortTagsByMode(visibleTags, tagSortMode, tagCounts);
-		const q = bulkTagInput.trim().toLowerCase();
-		return (q ? all.filter((t) => t.name.toLowerCase().includes(q)) : all).slice(0, 15);
-	})();
+	const bulkSuggestions = search(
+		sortTagsByMode(visibleTags, tagSortMode, tagCounts),
+		bulkTagInput,
+		(t) => [t.name],
+	).slice(0, 15);
 
 	const handleBulkPick = (t: Tag) => {
 		const selected = getMapState().selectedLocationIds;

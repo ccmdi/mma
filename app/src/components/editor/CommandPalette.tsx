@@ -11,6 +11,7 @@ import { useSetting } from "@/store/settings";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { getBinding, useBinding } from "@/lib/util/hotkeys";
 import { getMapState, closeMap } from "@/store/useMapStore";
+import { score } from "@/lib/search";
 import { useMapList } from "@/store/mapList";
 import { goTo } from "@/store/router";
 import { t, msg } from "@/lib/i18n";
@@ -196,6 +197,7 @@ function PaletteContent({ onChangeOpen }: { onChangeOpen: (v: boolean) => void }
 	return (
 		<Ctx.Provider value={ctx}>
 			<Command
+				filter={(value, query, keywords) => score(query, [value, ...(keywords ?? [])])}
 				onKeyDown={(e) => {
 					if (e.key === "Escape" && page !== null) {
 						e.preventDefault();

@@ -90,6 +90,7 @@ import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { t, msg } from "@/lib/i18n";
 import { errText, isPrereleaseVersion } from "@/lib/util/util";
+import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
 
 /** The translated labels of a select's options, so a search for a value ("tree") finds
@@ -101,7 +102,7 @@ const optionLabels = (options: Record<string, string>) => Object.values(options)
  *  contains the query. */
 function Aux({ children, match }: { children: ReactNode; match?: string }) {
 	const { query, auxVisible } = useSettingsSearch();
-	if (!auxVisible && !(match && query && match.toLowerCase().includes(query))) return null;
+	if (!auxVisible && !(match && query && matches(query, match))) return null;
 	return <div className="settings-aux">{children}</div>;
 }
 
@@ -347,7 +348,7 @@ function KeyboardBody() {
 	const { query, searching, sectionMatched } = useSettingsSearch();
 	const [filter, setFilter] = useState("");
 	const [flash, setFlash] = useState<string | null>(null);
-	const lower = searching && !sectionMatched ? query : filter.toLowerCase();
+	const needle = searching && !sectionMatched ? query : filter;
 	const allBindings = getAllBindings();
 
 	const jumpTo = useCallback((action: string) => {
@@ -374,10 +375,7 @@ function KeyboardBody() {
 			{GROUPS.map((group) => {
 				const defs = allBindings.filter(
 					(d) =>
-						d.group === group &&
-						(!lower ||
-							hotkeyLabel(d).toLowerCase().includes(lower) ||
-							getBinding(d.action).toLowerCase().includes(lower)),
+						d.group === group && matches(needle, hotkeyLabel(d), getBinding(d.action)),
 				);
 				if (defs.length === 0) return null;
 				return (
@@ -1553,7 +1551,7 @@ function SectionShell({
 	hidden?: boolean;
 }) {
 	const sectionMatched =
-		mode === "single" || query === "" || t(section.title).toLowerCase().includes(query);
+		mode === "single" || query === "" || matches(query, t(section.title));
 	const Body = section.Body;
 	return (
 		<SettingsSearchContext.Provider
@@ -1584,7 +1582,7 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 	const unread = unreadReplyCount(reports);
 	const [query, setQuery] = useState("");
 	const searchRef = useRef<HTMLInputElement>(null);
-	const q = query.trim().toLowerCase();
+	const q = query.trim();
 	const searching = q !== "";
 
 	useEffect(() => {

@@ -2,6 +2,7 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { Switch } from "@/components/primitives/Switch";
 import { useSetting, setSetting, type AppSettings } from "@/store/settings";
+import { matches } from "@/lib/search";
 
 type SearchCtx = {
 	query: string;
@@ -11,7 +12,7 @@ type SearchCtx = {
 	sectionTitle: string;
 };
 
-/** Drives per-row filtering inside the Settings dialog. `query` is lowercased;
+/** Drives per-row filtering inside the Settings dialog (matching via lib/search);
  *  `sectionMatched` is true when the section title itself matches (then every
  *  row and auxiliary block in the section shows). */
 export const SettingsSearchContext = createContext<SearchCtx>({
@@ -34,7 +35,7 @@ const SettingsGroupContext = createContext<GroupCtx>({ title: "", matched: false
  *  hides itself (CSS) when a search leaves nothing visible under the heading. */
 export function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
 	const { query, searching, sectionMatched } = useContext(SettingsSearchContext);
-	const matched = searching && !sectionMatched && title.toLowerCase().includes(query);
+	const matched = searching && !sectionMatched && matches(query, title);
 	return (
 		<SettingsGroupContext.Provider value={{ title, matched }}>
 			<div className="settings-group-block">
@@ -79,8 +80,8 @@ export function SettingRow(props: BoolRow | ControlRow | AutoBoolRow) {
 	const { label, badge, description, keywords, disabled, sub } = props;
 
 	if (searching && !sectionMatched && !group.matched) {
-		const path = [sectionTitle, group.title, label, description ?? "", ...(keywords ?? [])];
-		if (!path.join(" ").toLowerCase().includes(query)) return null;
+		const path = [sectionTitle, group.title, label, description, ...(keywords ?? [])];
+		if (!matches(query, ...path)) return null;
 	}
 
 	const boolean = !("control" in props);

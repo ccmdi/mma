@@ -88,6 +88,7 @@ import { usePanoNavigation } from "./usePanoNavigation";
 import { useLocationHotkeys } from "./useLocationHotkeys";
 import { Flag } from "@/components/primitives/Flag";
 import { t } from "@/lib/i18n";
+import { search } from "@/lib/search";
 
 /** Pending-tag chips + add form + suggestion pills. Memoized and self-subscribed
  *  so pano-switch churn in the parent doesn't re-render every pill. */
@@ -112,13 +113,10 @@ const TagEditor = memo(function TagEditor({
 	);
 	const suggestions = useMemo(() => {
 		const pendingLower = new Set(pendingTags.map((n) => n.toLowerCase()));
-		const available = allTags.filter((t) => !pendingLower.has(t.name.toLowerCase()));
-		const cap = suggestionLimit || available.length;
-		if (tagInput.trim()) {
-			const lower = tagInput.toLowerCase();
-			return available.filter((t) => t.name.toLowerCase().includes(lower)).slice(0, cap);
-		}
-		return available.slice(0, cap);
+		const available = search(allTags, tagInput, (t) => [t.name]).filter(
+			(t) => !pendingLower.has(t.name.toLowerCase()),
+		);
+		return available.slice(0, suggestionLimit || available.length);
 	}, [allTags, pendingTags, tagInput, suggestionLimit]);
 
 	const addPendingTag = (name: string) =>

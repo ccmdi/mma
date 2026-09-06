@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
+import { search } from "@/lib/search";
 import { log } from "@/lib/util/log";
 import { mdiEarth } from "@mdi/js";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
@@ -52,16 +53,10 @@ export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
 	const keyFor = (id: string) =>
 		getMapCopyBindingKey(globalBindings, id) ?? getMapCopyBindingKey(bindings ?? [], id) ?? "";
 
-	const lower = query.trim().toLowerCase();
-	const suggestions = lower
-		? (maps ?? [])
-				.filter(
-					(m) =>
-						m.id !== getMapState().mapId &&
-						!rowIds.includes(m.id) &&
-						m.name.toLowerCase().includes(lower),
-				)
-				.sort((a, b) => a.name.localeCompare(b.name))
+	const q = query.trim();
+	const suggestions = q
+		? search(maps ?? [], q, (m) => [m.name])
+				.filter((m) => m.id !== getMapState().mapId && !rowIds.includes(m.id))
 				.slice(0, 8)
 		: [];
 
