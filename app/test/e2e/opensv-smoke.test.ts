@@ -130,15 +130,32 @@ async function waitForPanoRender(label: string) {
 	);
 }
 
-/** Nudge the map camera and resolve once its tiles have loaded. */
-async function moveMapAndWaitForTiles(fn: (map: any) => void): Promise<boolean> {
-	return browser.executeAsync((fnSrc: string, done: (r: boolean) => void) => {
-		const map = (window as any).MMA.getGoogleMap();
-		if (!map) return done(false);
-		(window as any).google.maps.event.addListenerOnce(map, "tilesloaded", () => done(true));
-		new Function("map", `(${fnSrc})(map)`)(map);
-		setTimeout(() => done(false), 8000);
-	}, fn.toString());
+/** Nudge the map camera and resolve once its tiles have loaded. Moves are structured
+ *  ops, not a serialized function: the app's CSP has no 'unsafe-eval', so a page-side
+ *  `new Function` is refused; the driver's own script injection is exempt. */
+type MapMove = { zoom?: number; zoomDelta?: number; panTo?: { lat: number; lng: number } };
+async function moveMapAndWaitForTiles(move: MapMove): Promise<boolean> {
+	const armed = await browser.execute((mv: MapMove) => {
+		const w = window as any;
+		const map = w.MMA.getGoogleMap();
+		if (!map) return false;
+		w.__tilesLoaded = undefined;
+		w.google.maps.event.addListenerOnce(map, "tilesloaded", () => (w.__tilesLoaded = true));
+		if (mv.zoom !== undefined) map.setZoom(mv.zoom);
+		if (mv.zoomDelta !== undefined) map.setZoom((map.getZoom() || 10) + mv.zoomDelta);
+		if (mv.panTo) map.panTo(mv.panTo);
+		return true;
+	}, move);
+	if (!armed) return false;
+	try {
+		await browser.waitUntil(
+			async () => browser.execute(() => (window as any).__tilesLoaded === true),
+			{ timeout: 8000 },
+		);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 describe("opensv smoke", function () {
@@ -299,19 +316,12 @@ describe("opensv smoke", function () {
 
 	it("should handle map zoom and pan without errors", async () => {
 		await closeLocation();
-		expect(
-			await moveMapAndWaitForTiles((map) => {
-				map.setZoom(5);
-				map.panTo({ lat: 48, lng: 2 });
-			}),
-		).toBe(true);
-		expect(await moveMapAndWaitForTiles((map) => map.setZoom(15))).toBe(true);
+		expect(await moveMapAndWaitForTiles({ zoom: 5, panTo: { lat: 48, lng: 2 } })).toBe(true);
+		expect(await moveMapAndWaitForTiles({ zoom: 15 })).toBe(true);
 	});
 
 	it("should fire tilesloaded on the map", async () => {
-		expect(await moveMapAndWaitForTiles((map) => map.setZoom((map.getZoom() || 10) + 1))).toBe(
-			true,
-		);
+		expect(await moveMapAndWaitForTiles({ zoomDelta: 1 })).toBe(true);
 	});
 
 	it("should handle StreetViewService.getPanorama lookups", async () => {
