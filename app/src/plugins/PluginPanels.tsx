@@ -1,6 +1,7 @@
 import { memo, useState, createElement } from "react";
 import { getEnabledPlugins } from "@/plugins/registry";
 import { useEvent } from "@/lib/events";
+import { useDialog } from "@/store/dialogBus";
 import { useMapState, setPluginMode } from "@/store/useMapStore";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
@@ -12,6 +13,7 @@ export function PluginToolbar() {
 
 	const plugins = getEnabledPlugins();
 	const [modalId, setModalId] = useState<string | null>(null);
+	useDialog("plugin-modal", (id) => setModalId(id));
 
 	if (plugins.length === 0) return null;
 

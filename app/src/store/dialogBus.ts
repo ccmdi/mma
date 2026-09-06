@@ -19,6 +19,7 @@ type DialogPayloads = {
 	"command-palette": void;
 	feedback: void;
 	"bulk-op": string;
+	"plugin-modal": string;
 	"inline-panel": string;
 };
 

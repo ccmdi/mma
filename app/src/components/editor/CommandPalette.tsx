@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, createContext, useContext } from "react";
-import { useDialog, useDialogState } from "@/store/dialogBus";
+import { useDialog, useDialogState, openDialog } from "@/store/dialogBus";
 import { Command } from "cmdk";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
@@ -10,7 +10,8 @@ import { getCommands, runCommand, togglePinnedCommand, type CommandGroup } from 
 import { useSetting } from "@/store/settings";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { getBinding, useBinding } from "@/lib/util/hotkeys";
-import { getMapState, closeMap } from "@/store/useMapStore";
+import { getMapState, closeMap, setPluginMode } from "@/store/useMapStore";
+import { getEnabledPlugins } from "@/plugins/registry";
 import { score } from "@/lib/search";
 import { useMapList } from "@/store/mapList";
 import { goTo } from "@/store/router";
@@ -146,7 +147,30 @@ function MainCommands() {
 					</Command.Group>
 				);
 			})}
+			<PluginCommands />
 		</>
+	);
+}
+
+/** Every openable plugin (the plugin-toolbar set), reachable from the palette too:
+ *  selecting one does exactly what its toolbar button does. */
+function PluginCommands() {
+	const plugins = getEnabledPlugins()
+		.filter((p) => p.sidebar || p.modal)
+		.sort((a, b) => a.name.localeCompare(b.name));
+	if (plugins.length === 0) return null;
+
+	return (
+		<Command.Group heading={t("Plugins")}>
+			{plugins.map((p) => (
+				<PaletteItem
+					key={p.id}
+					label={p.name}
+					icon={<Icon path={p.icon} size={18} />}
+					onSelect={() => (p.sidebar ? setPluginMode(p.id) : openDialog("plugin-modal", p.id))}
+				/>
+			))}
+		</Command.Group>
 	);
 }
 
