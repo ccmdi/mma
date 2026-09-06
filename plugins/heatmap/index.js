@@ -1172,6 +1172,7 @@ function hexToRgb(hex) {
 }
 
 // heatmap/src/heatmap.ts
+var { storage, getMapState, resolveIds, selectorForPick, getScenePositions, getMapHost, on } = MMA;
 var LAYER_DEFAULTS = {
   visible: true,
   intensity: 1,
@@ -1180,9 +1181,9 @@ var LAYER_DEFAULTS = {
   threshold: 0.05,
   gradientId: DEFAULT_GRADIENT_ID
 };
-var store = MMA.storage("heatmap");
+var store = storage("heatmap");
 function defaultSource() {
-  return MMA.getMapState().selectedLocationIds.size > 0 ? { pick: "selection" } : { pick: "all" };
+  return getMapState().selectedLocationIds.size > 0 ? { pick: "selection" } : { pick: "all" };
 }
 function newLayer() {
   return {
@@ -1281,8 +1282,8 @@ function removeCustomGradient(id) {
   commitGradients();
 }
 async function sourceData(source) {
-  const ids = source.pick === "all" ? null : new Set(await MMA.resolveIds(MMA.selectorForPick(source)));
-  const scene = MMA.getScenePositions();
+  const ids = source.pick === "all" ? null : new Set(await resolveIds(selectorForPick(source)));
+  const scene = getScenePositions();
   const out = [];
   for (let i = 0; i < scene.ids.length; i++) {
     if (ids && !ids.has(scene.ids[i])) continue;
@@ -1316,7 +1317,7 @@ async function rebuild() {
   overlay.setProps({ layers: deckLayers });
 }
 async function init() {
-  const host = MMA.getMapHost();
+  const host = getMapHost();
   if (!host) throw new Error("No map instance");
   overlay = host.createDeckOverlay();
   void rebuild();
@@ -1326,7 +1327,7 @@ async function init() {
     rebuildTimer = setTimeout(() => void rebuild(), 100);
     onSettingsChange?.();
   };
-  const unsub = MMA.on("scene:changed", onChange);
+  const unsub = on("scene:changed", onChange);
   return () => {
     unsub();
     clearTimeout(rebuildTimer);
@@ -1343,6 +1344,7 @@ async function init() {
 // heatmap/src/HeatmapSidebar.tsx
 var import_react = __toESM(require_react());
 var import_jsx_runtime = __toESM(require_jsx_runtime());
+var { useMapState, selectorForPick: selectorForPick2, ui: { SelectorPicker } } = MMA;
 var CSS = `
 .heatmap-sidebar { overflow: auto; }
 .heatmap-sidebar__header {
@@ -1481,8 +1483,8 @@ function HeatmapSidebar({ onClose }) {
       removeCSS();
     };
   }, []);
-  const allCount = MMA.useMapState((s) => s.locationCount);
-  const selectedIds = MMA.useMapState((s) => s.selectedLocationIds);
+  const allCount = useMapState((s) => s.locationCount);
+  const selectedIds = useMapState((s) => s.selectedLocationIds);
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "map-sidebar heatmap-sidebar", children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", { className: "heatmap-sidebar__header", children: [
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "icon-button", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { path: ARROW_LEFT }) }),
@@ -1536,10 +1538,10 @@ function LayerControls({
       )
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      MMA.ui.SelectorPicker,
+      SelectorPicker,
       {
         ctl: {
-          selector: MMA.selectorForPick(l.source),
+          selector: selectorForPick2(l.source),
           choice: l.source,
           setChoice: (c) => set({ source: c }),
           allCount,
@@ -1832,7 +1834,8 @@ function Slider({
 }
 
 // heatmap/src/index.tsx
-MMA.registerPlugin({
+var { registerPlugin } = MMA;
+registerPlugin({
   activate() {
     let cancelled = false;
     let teardown = null;

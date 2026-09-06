@@ -47,6 +47,7 @@ var require_jsx_runtime = __commonJS({
 
 // inaturalist/src/inat.ts
 var import_layers = __toESM(require_layers());
+var { createLocation, addLocations, getMapHost } = MMA;
 var TILE_TTL = 5 * 60 * 1e3;
 var MAX_TILES = 300;
 var MAX_RENDER = 5e4;
@@ -112,13 +113,13 @@ function importToMap() {
   const obs = getObservations();
   if (obs.length === 0) return 0;
   const locs = obs.map(
-    (o) => MMA.createLocation({ lat: o.lat, lng: o.lng, extra: { tags: [o.name] } })
+    (o) => createLocation({ lat: o.lat, lng: o.lng, extra: { tags: [o.name] } })
   );
-  MMA.addLocations(locs);
+  addLocations(locs);
   return locs.length;
 }
 async function init() {
-  const host = MMA.getMapHost();
+  const host = getMapHost();
   if (!host) throw new Error("No map instance");
   overlay = host.createDeckOverlay();
   const throttled = throttle(() => loadViewport(), 400);
@@ -195,7 +196,7 @@ async function fetchTile(taxonId, bbox) {
 }
 async function loadViewport() {
   if (!currentTaxonId || !visible) return;
-  const host = MMA.getMapHost();
+  const host = getMapHost();
   if (!host) return;
   const bounds = host.getBounds();
   if (!bounds) return;
@@ -263,6 +264,7 @@ var import_react2 = __toESM(require_react());
 var import_react = __toESM(require_react());
 
 // inaturalist/src/taxonomy.ts
+var { storage, getVisibleTags, updateTags } = MMA;
 var API_DELAY = 350;
 var delay = (ms) => new Promise((r) => setTimeout(r, ms));
 var DEEP_RANKS = [
@@ -385,13 +387,13 @@ function buildFolderSegment(taxon, useCommon, seenCommons) {
   return `${rankCap} ${taxon.name}`;
 }
 async function sortTagsByTaxonomy(opts, onProgress, signal) {
-  const storage = MMA.storage("inaturalist");
-  const tags = MMA.getVisibleTags();
+  const store = storage("inaturalist");
+  const tags = getVisibleTags();
   if (tags.length === 0) return { sorted: 0, skipped: 0, created: 0 };
   const ancestorCacheKey = "taxo_ancestors";
   const detailCacheKey = `taxo_details_${opts.lang}`;
-  const ancestorCache = storage.get(ancestorCacheKey, {});
-  const detailCache = storage.get(detailCacheKey, {});
+  const ancestorCache = store.get(ancestorCacheKey, {});
+  const detailCache = store.get(detailCacheKey, {});
   const ranksToUse = new Set(opts.deep ? DEEP_RANKS : FLAT_RANKS);
   const allNeededIds = /* @__PURE__ */ new Set();
   const tagAncestors = /* @__PURE__ */ new Map();
@@ -431,7 +433,7 @@ async function sortTagsByTaxonomy(opts, onProgress, signal) {
       onProgress?.({ phase: "Scanning", current: i + 1, total: tags.length, detail: `Not found: ${leafName}` });
     }
   }
-  storage.set(ancestorCacheKey, ancestorCache);
+  store.set(ancestorCacheKey, ancestorCache);
   const missingDetailIds = [...allNeededIds].filter((id) => !detailCache[String(id)]);
   if (missingDetailIds.length > 0) {
     onProgress?.({ phase: "Fetching taxonomy details", current: 0, total: missingDetailIds.length });
@@ -439,7 +441,7 @@ async function sortTagsByTaxonomy(opts, onProgress, signal) {
     for (const [id, info] of details) {
       detailCache[String(id)] = info;
     }
-    storage.set(detailCacheKey, detailCache);
+    store.set(detailCacheKey, detailCache);
   }
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
   const renames = [];
@@ -468,14 +470,14 @@ async function sortTagsByTaxonomy(opts, onProgress, signal) {
   }
   if (renames.length > 0) {
     onProgress?.({ phase: "Renaming tags", current: 0, total: renames.length });
-    await MMA.updateTags(renames.map((r) => ({ id: r.id, patch: { name: r.name } })));
+    await updateTags(renames.map((r) => ({ id: r.id, patch: { name: r.name } })));
   }
   return { sorted: renames.length, skipped, created: 0 };
 }
 function clearTaxonomyCache() {
-  const storage = MMA.storage("inaturalist");
-  for (const key of storage.keys()) {
-    if (key.startsWith("taxo_")) storage.remove(key);
+  const store = storage("inaturalist");
+  for (const key of store.keys()) {
+    if (key.startsWith("taxo_")) store.remove(key);
   }
 }
 
@@ -509,27 +511,27 @@ function Label({ children, info }) {
     )
   ] });
 }
-var { Section, Field, SegmentedControl, Button } = MMA.ui;
+var { ui: { Section, Field, SegmentedControl, Button }, storage: storage2, useJob, toast } = MMA;
 function TaxonomySorter() {
-  const storage = MMA.storage("inaturalist");
-  const [lang, setLang] = (0, import_react.useState)(() => storage.get("taxo_lang", "en"));
+  const store = storage2("inaturalist");
+  const [lang, setLang] = (0, import_react.useState)(() => store.get("taxo_lang", "en"));
   const [deep, setDeep] = (0, import_react.useState)(true);
   const [commonNames, setCommonNames] = (0, import_react.useState)(true);
   const handleLangChange = (0, import_react.useCallback)((code) => {
     setLang(code);
-    storage.set("taxo_lang", code);
-  }, [storage]);
-  const job = MMA.useJob(async ({ signal, report }) => {
+    store.set("taxo_lang", code);
+  }, [store]);
+  const job = useJob(async ({ signal, report }) => {
     const opts = { lang, deep, commonNames };
     const r = await sortTagsByTaxonomy(opts, report, signal);
-    MMA.toast(
+    toast(
       r.sorted > 0 ? `Sorted ${r.sorted} tag${r.sorted === 1 ? "" : "s"} into taxonomy folders` : "No tags needed sorting"
     );
     return r;
   });
   const handleClearCache = (0, import_react.useCallback)(() => {
     clearTaxonomyCache();
-    MMA.toast("Taxonomy cache cleared");
+    toast("Taxonomy cache cleared");
   }, []);
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Section, { title: "Taxonomy Sorter", defaultOpen: false, children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Language", row: true, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
@@ -638,7 +640,7 @@ function removeCSS() {
     styleEl = null;
   }
 }
-var { Sidebar, Section: Section2, TextInput, Button: Button2 } = MMA.ui;
+var { ui: { Sidebar, Section: Section2, TextInput, Button: Button2 }, toast: toast2 } = MMA;
 function INatSidebar({ onClose }) {
   const [query, setQuery] = (0, import_react2.useState)("");
   const [results, setResults] = (0, import_react2.useState)([]);
@@ -660,7 +662,7 @@ function INatSidebar({ onClose }) {
     try {
       setResults(await searchTaxa(q));
     } catch {
-      MMA.toast("Failed to search iNaturalist");
+      toast2("Failed to search iNaturalist");
     }
     setSearching(false);
   };
@@ -671,8 +673,8 @@ function INatSidebar({ onClose }) {
   };
   const handleImport = () => {
     const n = importToMap();
-    if (n > 0) MMA.toast(`Imported ${n} observations as locations`);
-    else MMA.toast("No observations to import");
+    if (n > 0) toast2(`Imported ${n} observations as locations`);
+    else toast2("No observations to import");
   };
   const taxon = getCurrentTaxon();
   const count = getObservations().length;
@@ -730,7 +732,8 @@ function INatSidebar({ onClose }) {
 }
 
 // inaturalist/src/index.tsx
-MMA.registerPlugin({
+var { registerPlugin } = MMA;
+registerPlugin({
   activate() {
     let cancelled = false;
     let teardown = null;

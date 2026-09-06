@@ -1,11 +1,12 @@
 // sample/src/index.ts
-MMA.registerPlugin({
+var { registerPlugin, getMapState, on } = MMA;
+registerPlugin({
   activate() {
-    const map = MMA.getMapState().map;
+    const map = getMapState().map;
     if (map) {
       console.log(`[sample] Activated on "${map.name}"`);
     }
-    const unsub = MMA.on("location:add", (locations) => {
+    const unsub = on("location:add", (locations) => {
       console.log(`[sample] ${locations.length} location(s) added`);
     });
     return () => {

@@ -1,4 +1,5 @@
 // sunPosition/src/index.ts
+var { registerPlugin, registerEnrichFields, registerProvider } = MMA;
 var FIELDS = {
   sunAzimuth: {
     type: "number",
@@ -15,13 +16,13 @@ var FIELDS = {
     comparison: null
   }
 };
-MMA.registerPlugin({
+registerPlugin({
   activate() {
-    MMA.registerEnrichFields([
+    registerEnrichFields([
       { key: "sunAzimuth", label: "Sun azimuth" },
       { key: "sunAltitude", label: "Sun altitude" }
     ]);
-    MMA.registerProvider({
+    registerProvider({
       id: "sunPosition",
       fieldDefs: FIELDS,
       requires: ["datetime"],

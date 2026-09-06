@@ -1,4 +1,5 @@
 // weather/src/index.ts
+var { registerPlugin, registerEnrichFields, registerProvider } = MMA;
 var WEATHER_FIELDS = [
   { key: "weatherCode", label: "Weather code (WMO)" },
   { key: "cloudCover", label: "Cloud cover (%)" },
@@ -20,10 +21,10 @@ var ENRICH_OPTIONS = WEATHER_FIELDS.map((f) => ({
   label: f.label,
   defaultOff: true
 }));
-MMA.registerPlugin({
+registerPlugin({
   activate() {
-    MMA.registerEnrichFields(ENRICH_OPTIONS);
-    MMA.registerProvider({
+    registerEnrichFields(ENRICH_OPTIONS);
+    registerProvider({
       id: "weather",
       label: "Weather",
       fieldDefs: FIELD_DEFS,

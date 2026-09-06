@@ -42,12 +42,13 @@ var require_jsx_runtime = __commonJS({
 var import_react = __toESM(require_react());
 
 // vision/src/sidecar.ts
+var { svMetadata, sidecar } = MMA;
 async function resolveWorldSizes(panoIds, onProgress) {
   const BATCH = 200;
   const entries = [];
   for (let i = 0; i < panoIds.length; i += BATCH) {
     const batch = panoIds.slice(i, i + BATCH);
-    const metas = await MMA.svMetadata(batch);
+    const metas = await svMetadata(batch);
     for (let j = 0; j < batch.length; j++) {
       const ws = metas[j]?.worldSize;
       entries.push({
@@ -61,7 +62,7 @@ async function resolveWorldSizes(panoIds, onProgress) {
   return entries;
 }
 async function listCached() {
-  const ids = await MMA.sidecar.request("vision", "list-cached");
+  const ids = await sidecar.request("vision", "list-cached");
   return new Set(ids ?? []);
 }
 async function embed(panoIds, opts = {}) {
@@ -76,7 +77,7 @@ async function embed(panoIds, opts = {}) {
   const panos = await resolveWorldSizes(uncached, (done, total) => {
     opts.onStatus?.(`Metadata: ${done}/${total}`);
   });
-  await MMA.sidecar.request(
+  await sidecar.request(
     "vision",
     "embed",
     { panos },
@@ -94,7 +95,7 @@ async function embed(panoIds, opts = {}) {
   );
 }
 async function searchText(query, k, threshold, signal, onDiagnostic) {
-  const res = await MMA.sidecar.request(
+  const res = await sidecar.request(
     "vision",
     "search-text",
     { query, k, threshold },
@@ -108,7 +109,7 @@ async function searchText(query, k, threshold, signal, onDiagnostic) {
   return res?.results ?? [];
 }
 async function searchImage(panoId, k, threshold, signal) {
-  const res = await MMA.sidecar.request(
+  const res = await sidecar.request(
     "vision",
     "search-image",
     { panoId, k, threshold },
@@ -119,7 +120,7 @@ async function searchImage(panoId, k, threshold, signal) {
 
 // vision/src/VisionSidebar.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime());
-var { Sidebar, Field, TextInput, Button } = MMA.ui;
+var { ui: { Sidebar, Field, TextInput, Button }, useJob, fetchAllLocations, addSelections } = MMA;
 var MAX_SCORE = 0.3;
 var CSS = `
 .vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
@@ -190,10 +191,10 @@ function Result({ outcome }) {
 function VisionSidebar({ onClose }) {
   const [query, setQuery] = (0, import_react.useState)("");
   const [threshold, setThreshold] = (0, import_react.useState)(0.01);
-  const job = MMA.useJob(async ({ signal, report }) => {
+  const job = useJob(async ({ signal, report }) => {
     const q = query.trim();
     const cut = threshold;
-    const locs = await MMA.fetchAllLocations();
+    const locs = await fetchAllLocations();
     signal.throwIfAborted();
     const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId);
     if (panoIds.length === 0) throw new Error("No locations with pano IDs");
@@ -221,7 +222,7 @@ function VisionSidebar({ onClose }) {
     const results = await searchText(q, null, cut, signal, note);
     const matchedIds = results.map((r) => panoIdToLocId(locs, r.panoId)).filter((id) => id != null);
     if (matchedIds.length > 0) {
-      await MMA.addSelections([
+      await addSelections([
         { type: "Locations", locations: matchedIds, name: `Vision: "${q}"` }
       ]);
     }
@@ -271,14 +272,14 @@ function VisionSidebar({ onClose }) {
 
 // vision/src/FindSimilarButton.tsx
 var import_jsx_runtime2 = __toESM(require_jsx_runtime());
-var { Button: Button2 } = MMA.ui;
+var { ui: { Button: Button2 }, getMapState, useJob: useJob2, fetchAllLocations: fetchAllLocations2, addSelections: addSelections2 } = MMA;
 var SIMILARITY_THRESHOLD = 0.85;
 var statusStyle = { fontSize: 12, color: "var(--text-secondary, #999)", padding: "4px 0" };
 function FindSimilarButton() {
-  const active = MMA.getMapState().activeLocation;
+  const active = getMapState().activeLocation;
   const panoId = active?.panoId;
-  const job = MMA.useJob(async ({ signal, report }) => {
-    const locs = await MMA.fetchAllLocations();
+  const job = useJob2(async ({ signal, report }) => {
+    const locs = await fetchAllLocations2();
     signal.throwIfAborted();
     const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId);
     let embedded = 0;
@@ -302,7 +303,7 @@ function FindSimilarButton() {
     const results = await searchImage(panoId, null, SIMILARITY_THRESHOLD);
     const matchedIds = results.map((r) => locs.find((l) => l.panoId === r.panoId)?.id).filter((id) => id != null);
     if (matchedIds.length > 0) {
-      await MMA.addSelections([
+      await addSelections2([
         {
           type: "Locations",
           locations: matchedIds,
@@ -330,7 +331,8 @@ function FindSimilarButton() {
 }
 
 // vision/src/index.tsx
-MMA.registerPlugin({
+var { registerPlugin } = MMA;
+registerPlugin({
   activate() {
   },
   sidebar: VisionSidebar,
