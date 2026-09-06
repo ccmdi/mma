@@ -1,3 +1,16 @@
+## v0.10.3 - 2026-09-05
+- Editing a location's position or panorama clears the fields derived from the old one
+- Fixed a fast zoom-out on the map freezing, sometimes crashing, the app
+- Fixed exported files dropping their field definitions on re-import
+- Fixed ghosted selections not updating count after an edit
+- Fixed enrichment reporting success for locations whose same pano ID failed
+- Fixed a plugin error during cleanup disabling every other plugin until restart
+- Fixed plugin listeners stacking up as maps close and reopen
+- Fixed the Pano ID selection allowing matches with a pinned pano flag, but without a pano ID
+- Fixed the generator's settings summary being untranslated
+- Fixed readouts holding a stale value when a lookup returned nothing
+- Plugin SDK: selection composition ops are curried now, and the support floor is 0.10.3
+
 ## v0.10.2 - 2026-09-03
 - The map type control is now always the narrow variant, with map styles inside
 - J and K step through the basemaps
