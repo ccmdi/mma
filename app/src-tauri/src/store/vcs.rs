@@ -57,6 +57,15 @@ pub struct CommitDelta {
     pub removed: Vec<Location>,
 }
 
+/// The new commit's id plus the store-state delta the commit caused (cleared undo/redo).
+/// JS applies `status` like any mutation result; it never zeroes engine state itself.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitResult {
+    pub id: String,
+    pub status: engine::MutationResult,
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -76,8 +85,8 @@ fn format_diff_message(added: u32, removed: u32, modified: u32) -> Option<String
     (!parts.is_empty()).then(|| parts.join(" "))
 }
 
-/// Commit the map's uncommitted changes and return the new commit id.
-/// `message` None auto-generates a `+a -r ~m` summary.
+/// Commit the map's uncommitted changes; returns the new commit id plus the
+/// store-state delta (cleared undo/redo). `message` None auto-generates a `+a -r ~m` summary.
 // The only commit path: builds the canonical batch ONCE (the bake) and derives the commit
 // delta three ways -- dirty overlay: the pre-bake changeset, O(changeset); genesis (no
 // parent): a copy of the base just written (batch_to_delta reads it as all-created); clean
@@ -90,7 +99,7 @@ pub async fn store_commit(
     state: State<'_, StoreState>,
     map_id: String,
     message: Option<String>,
-) -> AppResult<String> {
+) -> AppResult<CommitResult> {
     let _t = Instant::now();
     let conn = storage::open_db()?;
 
@@ -103,7 +112,7 @@ pub async fn store_commit(
         .ok();
     let genesis = parent_id.is_none();
 
-    let (pre_bake, current_fallback, location_count) = {
+    let (pre_bake, current_fallback, location_count, status) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_map(&map_id)?;
         let location_count = *store.alive_count as u32;
@@ -130,7 +139,8 @@ pub async fn store_commit(
             Vec::new()
         };
 
-        (pre_bake, current_fallback, location_count)
+        let status = store.finish_mutation(&engine::ChangeSet::default());
+        (pre_bake, current_fallback, location_count, status)
     };
     let t_bake = _t.elapsed();
 
@@ -179,7 +189,7 @@ pub async fn store_commit(
         &id[..7], location_count, added, removed_n, modified, _t.elapsed().as_millis(),
         t_bake.as_millis(), (t_delta - t_bake).as_millis(), (_t.elapsed() - t_delta).as_millis(), genesis
     );
-    Ok(id)
+    Ok(CommitResult { id, status })
 }
 
 /// List all commits for a map, newest first.

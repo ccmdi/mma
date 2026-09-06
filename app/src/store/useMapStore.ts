@@ -174,8 +174,8 @@ export function waitForInflightPersist() {
 export function scheduleAutoCommit(mapId: string, importedCount: number) {
 	inflightPersist = cmd
 		.storeCommit(mapId, `Import ${importedCount} locations`)
-		.then(() => {
-			setState({ canUndo: false, canRedo: false });
+		.then((r) => {
+			applyMutation(r.status);
 			resetCommitDiffCounts();
 		})
 		.catch((e: unknown) => log.error("[import] background commit failed:", e))
@@ -1151,10 +1151,10 @@ export async function commitMap(message?: string): Promise<string> {
 	cancelAutosave();
 	await inflightPersist;
 
-	const id = await cmd.storeCommit(state.mapId, message ?? null);
+	const r = await cmd.storeCommit(state.mapId, message ?? null);
 	t.step("commit");
 	t.end();
-	setState({ canUndo: false, canRedo: false });
+	applyMutation(r.status);
 	resetCommitDiffCounts();
 
 	// Commit clears the overlay; commit-sensitive selections (e.g. Uncommitted) must
@@ -1164,7 +1164,7 @@ export async function commitMap(message?: string): Promise<string> {
 	} else {
 		emitEvent("store:changed");
 	}
-	return id;
+	return r.id;
 }
 
 /** Restore the map to a previous commit's state and reopen it. Clears undo/redo. */
@@ -1172,13 +1172,15 @@ export async function checkoutCommit(commitId: string) {
 	if (!state.mapId) return;
 	await flushSave();
 	let openResult;
+	let resetResult;
+	let commitResult;
 	try {
 		await cmd.storeCloseMap();
 		await cmd.storeCheckoutCommit(state.mapId, commitId);
 		openResult = await cmd.storeOpenMap(state.mapId);
-		await cmd.storeResetUndo();
+		resetResult = await cmd.storeResetUndo();
 		const msg = `Revert to ${commitId.slice(0, 7)}`;
-		await cmd.storeCommit(state.mapId, msg);
+		commitResult = await cmd.storeCommit(state.mapId, msg);
 	} catch (e) {
 		log.error("[checkout] restore failed:", e);
 		throw e;
@@ -1189,10 +1191,9 @@ export async function checkoutCommit(commitId: string) {
 		selections: [],
 		selectedLocationIds: SelectedIds.EMPTY,
 		activeLocationId: null,
-		// override openedMapState: openResult was captured before storeResetUndo ran
-		canUndo: false,
-		canRedo: false,
 	});
+	applyMutation(resetResult);
+	applyMutation(commitResult.status);
 
 	emitEvent("render:delta", { added: [], updated: [], removed: [], fullReset: true });
 	emitEvent("store:changed");

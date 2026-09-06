@@ -279,8 +279,8 @@ export const commands = {
 	storeUndo: () => __TAURI_INVOKE<MutationResult>("store_undo").then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),fieldDefs:v.fieldDefs==null?v.fieldDefs:Object.fromEntries(Object.entries(v.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
 	/**  Pop the redo stack and replay the edit forward. Pushes the entry back onto undo. */
 	storeRedo: () => __TAURI_INVOKE<MutationResult>("store_redo").then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),fieldDefs:v.fieldDefs==null?v.fieldDefs:Object.fromEntries(Object.entries(v.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
-	/**  Clear both undo and redo stacks. Called after a commit to start fresh. */
-	storeResetUndo: () => __TAURI_INVOKE<null>("store_reset_undo"),
+	/**  Clear both undo and redo stacks; returns the resulting store-state delta. */
+	storeResetUndo: () => __TAURI_INVOKE<MutationResult>("store_reset_undo").then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),fieldDefs:v.fieldDefs==null?v.fieldDefs:Object.fromEntries(Object.entries(v.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))}) as typeof v)),
 	/**  The uncommitted changes since the last commit -- the same changeset `store_commit` will record. */
 	storeCommitDiff: () => __TAURI_INVOKE<[number, number, number]>("store_commit_diff"),
 	/**
@@ -413,10 +413,10 @@ export const commands = {
 	/**  Remove an abandoned upload session dir (e.g. cancelled operation). */
 	storeUploadAbort: (sessionDir: string) => __TAURI_INVOKE<null>("store_upload_abort", { sessionDir }),
 	/**
-	 *  Commit the map's uncommitted changes and return the new commit id.
-	 *  `message` None auto-generates a `+a -r ~m` summary.
+	 *  Commit the map's uncommitted changes; returns the new commit id plus the
+	 *  store-state delta (cleared undo/redo). `message` None auto-generates a `+a -r ~m` summary.
 	 */
-	storeCommit: (mapId: string, message: string | null) => __TAURI_INVOKE<string>("store_commit", { mapId, message }),
+	storeCommit: (mapId: string, message: string | null) => __TAURI_INVOKE<CommitResult>("store_commit", { mapId, message }).then((v) => (({...v,status:({...v.status,delta:({...v.status.delta,added:v.status.delta.added.map(i=>i),updated:v.status.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),fieldDefs:v.status.fieldDefs==null?v.status.fieldDefs:Object.fromEntries(Object.entries(v.status.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  List all commits for a map, newest first. */
 	storeListCommits: (mapId: string) => __TAURI_INVOKE<CommitInfo[]>("store_list_commits", { mapId }),
 	/**
@@ -610,6 +610,15 @@ export type CommitInfo = {
 	locationCount: number,
 	createdAt: string,
 } & CommitDiff;
+
+/**
+ *  The new commit's id plus the store-state delta the commit caused (cleared undo/redo).
+ *  JS applies `status` like any mutation result; it never zeroes engine state itself.
+ */
+export type CommitResult = {
+	id: string,
+	status: MutationResult,
+};
 
 /**
  *  How a field's values are compared when measuring how strongly it separates

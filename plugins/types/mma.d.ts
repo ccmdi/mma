@@ -570,8 +570,8 @@ declare const commands$1: {
     storeUndo: () => Promise<MutationResult>;
     /**  Pop the redo stack and replay the edit forward. Pushes the entry back onto undo. @unstable */
     storeRedo: () => Promise<MutationResult>;
-    /**  Clear both undo and redo stacks. Called after a commit to start fresh. @unstable */
-    storeResetUndo: () => Promise<null>;
+    /**  Clear both undo and redo stacks; returns the resulting store-state delta. @unstable */
+    storeResetUndo: () => Promise<MutationResult>;
     /**  The uncommitted changes since the last commit -- the same changeset `store_commit` will record. @unstable */
     storeCommitDiff: () => Promise<[number, number, number]>;
     /**
@@ -724,11 +724,11 @@ declare const commands$1: {
     /**  Remove an abandoned upload session dir (e.g. cancelled operation). @unstable */
     storeUploadAbort: (sessionDir: string) => Promise<null>;
     /**
-     *  Commit the map's uncommitted changes and return the new commit id.
-     *  `message` None auto-generates a `+a -r ~m` summary.
+     *  Commit the map's uncommitted changes; returns the new commit id plus the
+     *  store-state delta (cleared undo/redo). `message` None auto-generates a `+a -r ~m` summary.
      *  @unstable
      */
-    storeCommit: (mapId: string, message: string | null) => Promise<string>;
+    storeCommit: (mapId: string, message: string | null) => Promise<CommitResult>;
     /**  List all commits for a map, newest first. @unstable */
     storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
     /**
@@ -1042,6 +1042,14 @@ type CommitInfo = {
     locationCount: number;
     createdAt: string;
 } & CommitDiff;
+/**
+ *  The new commit's id plus the store-state delta the commit caused (cleared undo/redo).
+ *  JS applies `status` like any mutation result; it never zeroes engine state itself.
+ */
+type CommitResult = {
+    id: string;
+    status: MutationResult;
+};
 /**
  *  How a field's values are compared when measuring how strongly it separates
  *  groups (selection disambiguation). The only un-inferrable property a field can
@@ -6246,4 +6254,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

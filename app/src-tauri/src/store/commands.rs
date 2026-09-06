@@ -886,15 +886,18 @@ pub fn store_commit_diff(
     with_store!(label, state, |store| { Ok(store.overlay_diff_counts()) })
 }
 
-/// Clear both undo and redo stacks. Called after a commit to start fresh.
+/// Clear both undo and redo stacks; returns the resulting store-state delta.
 #[tauri::command]
 #[specta::specta]
-pub fn store_reset_undo(label: WindowLabel, state: tauri::State<'_, StoreState>) -> AppResult<()> {
+pub fn store_reset_undo(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         let edits = store.edits.edit();
         edits.undo.clear();
         edits.redo.clear();
-        Ok(())
+        Ok(store.finish_mutation(&ChangeSet::default()))
     })
 }
 
