@@ -24,6 +24,13 @@ export const commands = {
 	setDataLocation: (path: string | null) => __TAURI_INVOKE<null>("set_data_location", { path }),
 	openDataFolder: () => __TAURI_INVOKE<null>("open_data_folder"),
 	openLogFile: () => __TAURI_INVOKE<null>("open_log_file"),
+	/**
+	 *  First caller per app run wins the silent update pass. Every webview boots the
+	 *  plugin loader, so without this a restored editor window plus the map list run
+	 *  two full passes -- double registry fetches, double downloads, and interleaved
+	 *  install progress for the same plugin.
+	 */
+	claimPluginUpdatePass: () => __TAURI_INVOKE<boolean>("claim_plugin_update_pass"),
 	/**  Manifests of every installed plugin. */
 	listUserPlugins: () => __TAURI_INVOKE<PluginManifest[]>("list_user_plugins"),
 	/**

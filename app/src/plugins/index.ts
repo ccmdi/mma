@@ -58,6 +58,8 @@ async function loadUserPlugins() {
 	let latest = new Map<string, PluginManifest>();
 	if (import.meta.env.DEV) {
 		log.info("[plugin] dev build, skipping the update pass");
+	} else if (!(await cmd.claimPluginUpdatePass().catch(() => true))) {
+		log.info("[plugin] another window owns the update pass, loading as installed");
 	} else {
 		try {
 			latest = new Map((await fetchPluginRegistry()).map((r) => [r.id, r]));

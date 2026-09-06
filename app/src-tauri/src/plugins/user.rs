@@ -174,6 +174,17 @@ fn read_manifest(dir: &Path) -> Option<PluginManifest> {
     }
 }
 
+/// First caller per app run wins the silent update pass. Every webview boots the
+/// plugin loader, so without this a restored editor window plus the map list run
+/// two full passes -- double registry fetches, double downloads, and interleaved
+/// install progress for the same plugin.
+#[tauri::command]
+#[specta::specta]
+pub fn claim_plugin_update_pass() -> bool {
+    static CLAIMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    !CLAIMED.swap(true, std::sync::atomic::Ordering::SeqCst)
+}
+
 /// Manifests of every installed plugin.
 #[tauri::command]
 #[specta::specta]

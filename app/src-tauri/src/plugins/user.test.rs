@@ -37,3 +37,10 @@ fn a_file_field_that_could_escape_the_plugin_directory_is_rejected() {
         );
     }
 }
+
+#[test]
+fn only_the_first_claim_wins_the_update_pass() {
+    assert!(claim_plugin_update_pass());
+    assert!(!claim_plugin_update_pass());
+    assert!(!claim_plugin_update_pass());
+}

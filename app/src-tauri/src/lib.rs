@@ -94,6 +94,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             store::storage::set_data_location,
             store::storage::open_data_folder,
             store::storage::open_log_file,
+            plugins::user::claim_plugin_update_pass,
             plugins::user::list_user_plugins,
             plugins::user::install_plugin,
             plugins::user::uninstall_plugin,
