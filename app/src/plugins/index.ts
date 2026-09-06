@@ -56,10 +56,14 @@ async function loadUserPlugins() {
 	if (manifests.length === 0) return;
 	// Silent update pass: refresh stale marketplace installs before anything loads.
 	let latest = new Map<string, PluginManifest>();
-	try {
-		latest = new Map((await fetchPluginRegistry()).map((r) => [r.id, r]));
-	} catch (e) {
-		log.warn("[plugin] registry unavailable, skipping update check:", e);
+	if (import.meta.env.DEV) {
+		log.info("[plugin] dev build, skipping the update pass");
+	} else {
+		try {
+			latest = new Map((await fetchPluginRegistry()).map((r) => [r.id, r]));
+		} catch (e) {
+			log.warn("[plugin] registry unavailable, skipping update check:", e);
+		}
 	}
 	for (const m of manifests) {
 		try {
