@@ -36,31 +36,7 @@ fn read_input(path: &str) -> String {
         .unwrap_or_else(|e| panic!("failed to read input file {path}: {e}"))
 }
 
-#[allow(unused_mut, reason = "every execution provider push is feature-gated")]
-#[allow(unused_mut, reason = "every execution provider push is feature-gated")]
-fn init_ort() {
-    let mut ep_names: Vec<&str> = Vec::new();
-    let mut eps: Vec<ort::execution_providers::ExecutionProviderDispatch> = Vec::new();
-
-    #[cfg(feature = "directml")]
-    { eps.push(ort::ep::DirectML::default().build()); ep_names.push("DirectML"); }
-
-    #[cfg(feature = "coreml")]
-    { eps.push(ort::ep::CoreML::default().build()); ep_names.push("CoreML"); }
-
-    #[cfg(feature = "cuda")]
-    { eps.push(ort::ep::CUDA::default().build()); ep_names.push("CUDA"); }
-
-    if !eps.is_empty() {
-        let ok = ort::init().with_execution_providers(eps).commit();
-        if ok {
-            eprintln!("[copyright] GPU: registered {}", ep_names.join(", "));
-        }
-    }
-}
-
 fn main() {
-    init_ort();
     let Cli { command, model_dir, data_dir: _ } = Cli::parse();
     let mut stdout = io::stdout();
 

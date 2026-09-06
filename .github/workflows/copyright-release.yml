@@ -6,14 +6,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  # Build sidecar binary for each platform (GPU backend where available)
+  # Build sidecar binary for each platform.
   build-sidecar:
     uses: ./.github/workflows/build-sidecar.yml
     with:
       crate-path: plugins/copyright/sidecar
       binary-name: mma-copyright
-      features-windows-x64: directml
-      features-macos-arm64: coreml
 
   # Bundle everything into release archives
   package:
