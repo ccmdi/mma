@@ -37,9 +37,10 @@ fn read_input(path: &str) -> String {
 }
 
 #[allow(unused_mut, reason = "every execution provider push is feature-gated")]
+#[allow(unused_mut, reason = "every execution provider push is feature-gated")]
 fn init_ort() {
-    let ep_names: Vec<&str> = Vec::new();
-    let eps: Vec<ort::execution_providers::ExecutionProviderDispatch> = Vec::new();
+    let mut ep_names: Vec<&str> = Vec::new();
+    let mut eps: Vec<ort::execution_providers::ExecutionProviderDispatch> = Vec::new();
 
     #[cfg(feature = "directml")]
     { eps.push(ort::ep::DirectML::default().build()); ep_names.push("DirectML"); }
