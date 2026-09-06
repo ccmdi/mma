@@ -579,37 +579,82 @@ fn load_template(model_dir: &str) -> Vec<f32> {
         .collect()
 }
 
-pub fn run(input: &DetectInput, model_dir: &str, mut emit: impl FnMut(DetectResult)) {
-    let mut session = load_session(model_dir);
-    match wm_num_classes(&mut session) {
-        Some(nc) if nc == NUM_CLASSES => {}
-        got => {
-            let classes = got.map_or("unknown".into(), |n: usize| n.to_string());
-            let msg = format!("model mismatch: wm_cls outputs {classes} classes, expected {NUM_CLASSES}");
-            eprintln!("[copyright] FATAL: {msg}");
-            let total = input.pano_ids.len();
-            for (i, pid) in input.pano_ids.iter().enumerate() {
-                emit(DetectResult {
-                    pano_id: pid.clone(), year: None, text: None,
-                    error: Some(msg.clone()),
-                    done: Some(i + 1), total: Some(total),
-                });
+/// Everything a detect run pays to set up -- the CNN session pool, the NCC template
+/// FFT, and the watermark profile. A one-shot builds one per process; the resident
+/// server builds one and reuses it across requests.
+pub struct Detector(Loaded);
+
+enum Loaded {
+    /// The shipped model does not match this binary; every request answers with the
+    /// mismatch instead of a guess.
+    Broken(String),
+    Ready {
+        sessions: Vec<Session>,
+        kfft: Vec<Complex<f64>>,
+        fft2: Fft2,
+        profile: Vec<ProfileCell>,
+    },
+}
+
+impl Detector {
+    pub fn load(model_dir: &str) -> Self {
+        let mut session = load_session(model_dir);
+        match wm_num_classes(&mut session) {
+            Some(nc) if nc == NUM_CLASSES => {}
+            got => {
+                let classes = got.map_or("unknown".into(), |n: usize| n.to_string());
+                let msg = format!("model mismatch: wm_cls outputs {classes} classes, expected {NUM_CLASSES}");
+                eprintln!("[copyright] FATAL: {msg}");
+                return Detector(Loaded::Broken(msg));
             }
-            return;
         }
+
+        let fft2 = Fft2::new();
+        let template = load_template(model_dir);
+        let kfft = kernel_fft(&template, &fft2);
+        // Pool of single-threaded sessions: rung-A CNN throughput is otherwise capped
+        // by one core. Reuse the guard session as sessions[0].
+        let pool_size = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
+        let sessions: Vec<Session> = std::iter::once(session)
+            .chain((1..pool_size).map(|_| load_session(model_dir)))
+            .collect();
+        eprintln!("[copyright] wm_cls loaded, {NUM_CLASSES} classes, {} sessions", sessions.len());
+        let profile = load_profile(model_dir);
+        Detector(Loaded::Ready { sessions, kfft, fft2, profile })
     }
 
-    let fft2 = Fft2::new();
-    let template = load_template(model_dir);
-    let kfft = kernel_fft(&template, &fft2);
-    // Pool of single-threaded sessions: rung-A CNN throughput is otherwise capped
-    // by one core. Reuse the guard session as sessions[0].
-    let pool_size = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
-    let mut sessions: Vec<Session> = std::iter::once(session)
-        .chain((1..pool_size).map(|_| load_session(model_dir)))
-        .collect();
-    eprintln!("[copyright] wm_cls loaded, {NUM_CLASSES} classes, {} sessions", sessions.len());
+    pub fn run(&mut self, input: &DetectInput, mut emit: impl FnMut(DetectResult)) {
+        match &mut self.0 {
+            Loaded::Broken(msg) => {
+                let total = input.pano_ids.len();
+                for (i, pid) in input.pano_ids.iter().enumerate() {
+                    emit(DetectResult {
+                        pano_id: pid.clone(), year: None, text: None,
+                        error: Some(msg.clone()),
+                        done: Some(i + 1), total: Some(total),
+                    });
+                }
+            }
+            Loaded::Ready { sessions, kfft, fft2, profile } => {
+                run_loaded(sessions, kfft, fft2, profile, input, emit);
+            }
+        }
+    }
+}
 
+/// One-shot entry: pay the full load, run once.
+pub fn run(input: &DetectInput, model_dir: &str, emit: impl FnMut(DetectResult)) {
+    Detector::load(model_dir).run(input, emit);
+}
+
+fn run_loaded(
+    sessions: &mut [Session],
+    kfft: &[Complex<f64>],
+    fft2: &Fft2,
+    profile: &[ProfileCell],
+    input: &DetectInput,
+    mut emit: impl FnMut(DetectResult),
+) {
     let total = input.pano_ids.len();
     let mut done = 0;
     let pano_strs: Vec<&str> = input.pano_ids.iter().map(|s| s.as_str()).collect();
@@ -635,7 +680,6 @@ pub fn run(input: &DetectInput, model_dir: &str, mut emit: impl FnMut(DetectResu
     // every primary tile arrives without a confident read do the secondary cells fetch
     // (label "B"); NCC discovery over all fetched cells is the final independent lookup
     // (label "C"). Workers share one job queue; fetch and CNN work overlap throughout.
-    let profile = load_profile(model_dir);
     let primary_idx: Vec<usize> =
         (0..profile.len()).filter(|&i| profile[i].primary).collect();
     let secondary_idx: Vec<usize> =

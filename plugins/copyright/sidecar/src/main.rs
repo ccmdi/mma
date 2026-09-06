@@ -1,5 +1,6 @@
 mod detect;
 mod fetch;
+mod serve;
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -29,6 +30,13 @@ enum Command {
         #[arg(long)]
         input: String,
     },
+    /// Resident detect server: the model pool stays loaded across requests.
+    /// Prints `{"port":N}` on stdout, serves /detect and /ping on 127.0.0.1, and
+    /// exits by itself after `idle_secs` without a request.
+    Serve {
+        #[arg(long, default_value_t = 600)]
+        idle_secs: u64,
+    },
 }
 
 fn read_input(path: &str) -> String {
@@ -49,6 +57,9 @@ fn main() {
                 writeln!(stdout, "{line}").ok();
                 stdout.flush().ok();
             });
+        }
+        Command::Serve { idle_secs } => {
+            serve::run(&model_dir, idle_secs);
         }
     }
 }

@@ -26,8 +26,9 @@ registerPlugin({
 			fieldDefs: FIELD_DEFS,
 			procedure: {
 				entry: "procedure.js",
-				// Every call is a one-shot process that loads the models (~3 s), so a batch is a page.
-				batch: { mode: "chunk", size: 10000 },
+				// The resident sidecar answers each chunk with one reply, so pages stay
+				// small enough to fit the transport budget and keep progress moving.
+				batch: { mode: "chunk", size: 1000 },
 				instances: 1,
 			},
 		});

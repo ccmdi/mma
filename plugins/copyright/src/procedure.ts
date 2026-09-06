@@ -14,14 +14,18 @@ interface DetectLine {
 	error?: string | null;
 }
 
-/** Sidecar stdout is forwarded verbatim, so a line that is not JSON is skipped rather
- *  than killing the batch. */
-function parseLine(line: string): DetectLine | null {
+/** A resident sidecar answers with one line carrying a JSON array of results; a
+ *  one-shot streams one object per line. Stdout is forwarded verbatim either way,
+ *  so a line that is not JSON is skipped rather than killing the batch. */
+function parseLine(line: string): DetectLine[] {
 	try {
 		const parsed: unknown = JSON.parse(line);
-		return parsed && typeof parsed === "object" ? (parsed as DetectLine) : null;
+		if (Array.isArray(parsed)) {
+			return parsed.filter((p): p is DetectLine => !!p && typeof p === "object");
+		}
+		return parsed && typeof parsed === "object" ? [parsed as DetectLine] : [];
 	} catch {
-		return null;
+		return [];
 	}
 }
 
@@ -62,14 +66,15 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 	const payload = JSON.stringify({ panoIds: [...byPano.keys()], minYears });
 	const out: Update<LocationPatch>[] = [];
 	mma.sidecar(PLUGIN_ID, COMMAND, payload, (line) => {
-		const parsed = parseLine(line);
-		const group = parsed?.panoId ? byPano.get(parsed.panoId) : undefined;
-		if (!parsed || !group) return;
-		for (const row of group) {
-			if (parsed.error) mma.fail(row.id);
-			else if (typeof parsed.year === "number" && yearFitsCapture(row.extra, parsed.year))
-				out.push({ id: row.id, patch: { extra: { copyrightYear: parsed.year } } });
-			mma.progress(1);
+		for (const parsed of parseLine(line)) {
+			const group = parsed.panoId ? byPano.get(parsed.panoId) : undefined;
+			if (!group) continue;
+			for (const row of group) {
+				if (parsed.error) mma.fail(row.id);
+				else if (typeof parsed.year === "number" && yearFitsCapture(row.extra, parsed.year))
+					out.push({ id: row.id, patch: { extra: { copyrightYear: parsed.year } } });
+				mma.progress(1);
+			}
 		}
 	});
 	return out;

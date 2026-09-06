@@ -97,6 +97,30 @@ test("a null year is neither a patch nor a failure, and progress lines are ignor
 	assert.deepEqual(progress, [1]);
 });
 
+test("a resident reply carrying one JSON array line fans out like streamed lines", () => {
+	const { patches, failed, progress } = runProc(
+		[
+			{ id: 1, panoId: "pA" },
+			{ id: 2, panoId: "pB" },
+			{ id: 3, panoId: "pC" },
+		],
+		[
+			JSON.stringify([
+				{ panoId: "pA", year: 2019, done: 1, total: 3 },
+				{ panoId: "pB", year: null, error: "tile fetch failed", done: 2, total: 3 },
+				{ panoId: "pC", year: 2024, done: 3, total: 3 },
+			]),
+		],
+	);
+
+	assert.deepEqual(patches, [
+		{ id: 1, patch: { copyrightYear: 2019 } },
+		{ id: 3, patch: { copyrightYear: 2024 } },
+	]);
+	assert.deepEqual(failed, [2]);
+	assert.deepEqual(progress, [1, 1, 1]);
+});
+
 test("a line that is not JSON is skipped, not thrown on", () => {
 	const { patches, progress } = runProc(
 		[{ id: 1, panoId: "pA" }],

@@ -4,9 +4,12 @@ var COMMAND = "detect";
 function parseLine(line) {
   try {
     const parsed = JSON.parse(line);
-    return parsed && typeof parsed === "object" ? parsed : null;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((p) => !!p && typeof p === "object");
+    }
+    return parsed && typeof parsed === "object" ? [parsed] : [];
   } catch {
-    return null;
+    return [];
   }
 }
 function leadingYear(text) {
@@ -37,14 +40,15 @@ function run(rows) {
   const payload = JSON.stringify({ panoIds: [...byPano.keys()], minYears });
   const out = [];
   mma.sidecar(PLUGIN_ID, COMMAND, payload, (line) => {
-    const parsed = parseLine(line);
-    const group = parsed?.panoId ? byPano.get(parsed.panoId) : void 0;
-    if (!parsed || !group) return;
-    for (const row of group) {
-      if (parsed.error) mma.fail(row.id);
-      else if (typeof parsed.year === "number" && yearFitsCapture(row.extra, parsed.year))
-        out.push({ id: row.id, patch: { extra: { copyrightYear: parsed.year } } });
-      mma.progress(1);
+    for (const parsed of parseLine(line)) {
+      const group = parsed.panoId ? byPano.get(parsed.panoId) : void 0;
+      if (!group) continue;
+      for (const row of group) {
+        if (parsed.error) mma.fail(row.id);
+        else if (typeof parsed.year === "number" && yearFitsCapture(row.extra, parsed.year))
+          out.push({ id: row.id, patch: { extra: { copyrightYear: parsed.year } } });
+        mma.progress(1);
+      }
     }
   });
   return out;
