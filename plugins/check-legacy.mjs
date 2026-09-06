@@ -90,6 +90,7 @@ function surfaceOf(dtsPath) {
 	const surface = new Map();
 	const walk = (type, prefix, depth, inherited) => {
 		for (const prop of checker.getPropertiesOfType(type)) {
+			if (prop.name.startsWith("__@")) continue;
 			const path = prefix ? `${prefix}.${prop.name}` : prop.name;
 			// Members spread from a module land as `name: typeof name`, which carries no
 			// JSDoc of its own -- the tag is on what it points at.
@@ -168,7 +169,9 @@ function exportedTypes(checker, source) {
 				.getTypeOfSymbol(p)
 				.getCallSignatures()
 				.some((sig) => (sig.typeParameters ?? []).length > 0);
-		const props = checker.getPropertiesOfType(type);
+		// Symbol-keyed members (`__@iterator@1234`) carry a per-generation id and are not
+		// addressable from plugin code; comparing them only flags generator noise.
+		const props = checker.getPropertiesOfType(type).filter((p) => !p.name.startsWith("__@"));
 		out.push({
 			name: exp.name,
 			unstable: unstable(exp) || unstable(sym),
