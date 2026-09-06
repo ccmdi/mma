@@ -87,7 +87,7 @@
 		"minAppVersion": "0.10.2",
 		"sidecar": {
 			"name": "mma-vision",
-			"version": "0.4.2"
+			"version": "0.4.3"
 		},
 		"builds": [
 			{
