@@ -105,13 +105,19 @@ export function testMap(
 	};
 }
 
-export function openMapResult(over: { tagCounts?: Record<string, number> } = {}) {
+export function openMapResult(
+	over: { tagCounts?: Record<string, number>; fieldDefs?: Record<string, unknown> } = {},
+) {
 	return {
 		version: 0,
-		locationCount: 0,
-		tagCounts: over.tagCounts ?? {},
-		canUndo: false,
-		canRedo: false,
+		values: {
+			locationCount: 0,
+			canUndo: false,
+			canRedo: false,
+			tagCounts: over.tagCounts ?? {},
+			tags: {},
+			fieldDefs: over.fieldDefs ?? {},
+		},
 	};
 }
 

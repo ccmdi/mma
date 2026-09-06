@@ -24,12 +24,14 @@ vi.mock("@/lib/commands", async () => {
 				version: 0,
 				delta: { added: [], updated: [], removed: [1, 2], fullReset: false },
 				selectionSync: null,
-				locationCount: null,
-				canUndo: null,
-				canRedo: null,
-				tagCounts: null,
-				tags: null,
-				fieldDefs: null,
+				values: {
+					locationCount: null,
+					canUndo: null,
+					canRedo: null,
+					tagCounts: null,
+					tags: null,
+					fieldDefs: null,
+				},
 			};
 		},
 	});

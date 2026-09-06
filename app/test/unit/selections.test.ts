@@ -27,16 +27,20 @@ import {
 } from "@/store/selections";
 import { ValidationState } from "@/bindings.consts";
 import type { PolygonGeometry } from "@/bindings.gen";
-import { setUserFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { setSetting } from "@/store/settings";
 
-// The store binds tag lookups internally; back them with a settable fake tag set.
+// The store binds tag and field-def lookups internally; back them with settable fakes.
 const h = vi.hoisted(() => ({
 	tags: {} as Record<number, { id: number; name: string; color: string; visible: boolean }>,
+	fieldDefs: {} as Record<string, unknown>,
 }));
+const setUserFieldDefs = (defs: Record<string, unknown>) => {
+	h.fieldDefs = defs;
+};
 vi.mock("@/store/useMapStore", () => ({
 	getTag: (id: number) => h.tags[id],
 	getVisibleTags: () => Object.values(h.tags).filter((t) => t.visible !== false),
+	getMapState: () => ({ fieldDefs: h.fieldDefs }),
 }));
 
 beforeEach(() => {

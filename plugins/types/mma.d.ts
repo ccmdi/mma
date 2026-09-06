@@ -630,8 +630,14 @@ declare const commands$1: {
     storeScratchMap: () => Promise<MapMeta>;
     /**  Delete a map and all its data: database rows and files on disk. @unstable */
     storeDeleteMap: (id: string) => Promise<null>;
-    /**  Apply a partial update to a map's metadata; `None` fields are left unchanged. @unstable */
-    storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => Promise<null>;
+    /**
+     *  Apply a partial update to a map's metadata; `None` fields are left unchanged.
+     *  When extra fields change on an open map, the in-memory field registry is replaced
+     *  (so auto-registration doesn't re-discover user-defined fields) and the resulting
+     *  store-state delta is returned for the caller to apply.
+     *  @unstable
+     */
+    storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => Promise<MutationResult | null>;
     /**
      *  Update `last_opened_at` to the current timestamp. Used to sort the map
      *  list by recency in the dashboard.
@@ -1042,10 +1048,7 @@ type CommitInfo = {
     locationCount: number;
     createdAt: string;
 } & CommitDiff;
-/**
- *  The new commit's id plus the store-state delta the commit caused (cleared undo/redo).
- *  JS applies `status` like any mutation result; it never zeroes engine state itself.
- */
+/**  The new commit's id plus the store-state delta the commit caused (cleared undo/redo). */
 type CommitResult = {
     id: string;
     status: MutationResult;
@@ -1144,6 +1147,34 @@ type EditorImportResult = {
         [key in string]: any;
     };
 } & MutationResult;
+/**
+ *  The engine-owned values JS mirrors into its state, each `None` when unchanged since
+ *  it last shipped. The open-time form ([`super::StoreStatus`]) has every field present.
+ *  The JS mirror's type and merge are derived from this struct.
+ */
+type EngineValues = {
+    locationCount: number | null;
+    canUndo: boolean | null;
+    canRedo: boolean | null;
+    /**  Every tag's count, when any count moved. */
+    tagCounts: {
+        [key in number]: number;
+    } | null;
+    /**
+     *  The whole registry, when any tag was created, edited, deleted, or flipped visible.
+     *  Includes soft-deleted ghosts (visible=false, kept for undo revival).
+     */
+    tags: {
+        [key in number]: Tag;
+    } | null;
+    /**
+     *  The whole extra-field registry (`MapMeta.extra.fields` mirror), when a key was
+     *  seen for the first time, erased, or the user edited a definition.
+     */
+    fieldDefs: {
+        [key in string]: ExtraFieldDef;
+    } | null;
+};
 /**
  *  Configuration for JSON export. Controls which fields are included and
  *  whether the export covers all locations or a specific selection.
@@ -1590,29 +1621,15 @@ type MapSettings = {
 /**  When a move target already holds a value, which side survives. */
 type MergeWinner = "from" | "to";
 /**
- *  What one mutation changed, and nothing else: every field but `version` and `delta`
- *  is `None` when that part of the world did not move. JS merges each present field
- *  into its state, so an untouched slice keeps its reference and its subscribers sleep.
+ *  What one mutation changed, and nothing else. `values` are merged into the JS state
+ *  mirror (an untouched slice keeps its reference and its subscribers sleep); `delta`
+ *  and `selection_sync` are operations applied once to the render buffers.
  */
 type MutationResult = {
     version: number;
     delta: RenderDelta;
     selectionSync: SelectionSync | null;
-    locationCount: number | null;
-    canUndo: boolean | null;
-    canRedo: boolean | null;
-    /**  Every tag's count, when any count moved. */
-    tagCounts: {
-        [key in number]: number;
-    } | null;
-    /**  The whole registry, when any tag was created, edited, deleted, or flipped visible. */
-    tags: {
-        [key in number]: Tag;
-    } | null;
-    /**  The whole extra-field registry, when a key was seen for the first time or erased. */
-    fieldDefs: {
-        [key in string]: ExtraFieldDef;
-    } | null;
+    values: EngineValues;
 };
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
@@ -2180,17 +2197,12 @@ type SpacedPickResult = {
     distanceM: number;
 };
 /**
- *  Metadata snapshot returned to JS after every mutation. JS uses `version` to
- *  detect stale responses and `canUndo`/`canRedo` for toolbar button state.
+ *  Open-time snapshot: the same `values` a mutation result carries, with every field
+ *  present. The one full picture JS ever receives; everything after is a delta.
  */
 type StoreStatus = {
     version: number;
-    locationCount: number;
-    canUndo: boolean;
-    canRedo: boolean;
-    tagCounts: {
-        [key in number]: number;
-    };
+    values: EngineValues;
 };
 /**  User-facing warning toast. */
 type StoreWarning = string;
@@ -2919,17 +2931,14 @@ declare namespace selectionOps {
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPatch as SelectionPatch, selectionOps_SelectionState as SelectionState, selectionOps_UnaryType as UnaryType };
 }
 
-export interface MapState {
+/** The engine-owned mirror: exactly the value slice Rust ships (`EngineValues`), with every field required. */
+export type EngineState = {
+    [K in keyof EngineValues]: NonNullable<EngineValues[K]>;
+};
+export interface UiState {
     mapId: string | null;
     /** Persisted identity slice (metadata + settings). Changes rarely. */
     map: MapMeta | null;
-    locationCount: number;
-    canUndo: boolean;
-    canRedo: boolean;
-    /** All tags by id, including soft-deleted ghosts (visible=false, kept for undo revival). */
-    tags: Record<number, Tag>;
-    /** Per-tag location counts for the open map, keyed by tag id. */
-    tagCounts: Record<number, number>;
     /** Resolved count per selection node (top-level and nested), keyed by `Selection.key`.
      *  The sole source for sidebar counts — refreshed wholesale from Rust on every sync. */
     selectionCounts: Record<string, number>;
@@ -2946,6 +2955,7 @@ export interface MapState {
     workArea: WorkArea;
     activePluginId: string | null;
 }
+export type MapState = UiState & EngineState;
 /** Reactive slice of the map state. Re-renders only when the selected value's
  *  reference changes (`Object.is`), so selectors must return state fields or
  *  cached derivations — never construct a value per call. */
@@ -3170,6 +3180,7 @@ declare function commitMap(message?: string): Promise<string>;
 declare function checkoutCommit(commitId: string): Promise<void>;
 
 export type store_MapState = MapState;
+export type store_UiState = UiState;
 declare const store_addLocations: typeof addLocations;
 declare const store_addSelections: typeof addSelections;
 declare const store_addTagToLocations: typeof addTagToLocations;
@@ -3245,7 +3256,7 @@ declare const store_useMapState: typeof useMapState;
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
   export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mapOpen as mapOpen, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
-  export type { store_MapState as MapState };
+  export type { store_MapState as MapState, store_UiState as UiState };
 }
 
 /** Saved selection rules: global, name-based, stored in SQLite.
@@ -3378,7 +3389,7 @@ declare const COMMANDS: {
         group: "Map";
         defaultBinding: string;
         execute: typeof undo;
-        enabled: () => boolean;
+        enabled: () => NonNullable<boolean | null>;
     };
     redo: {
         label: "Redo";
@@ -3386,7 +3397,7 @@ declare const COMMANDS: {
         group: "Map";
         defaultBinding: string;
         execute: typeof redo;
-        enabled: () => boolean;
+        enabled: () => NonNullable<boolean | null>;
     };
     export: {
         label: "Export";
@@ -5350,11 +5361,8 @@ declare function getBuiltinKeys(): string[];
 declare function registerPluginFieldDefs(defs: Record<string, ExtraFieldDef>): void;
 /** Remove plugin field definitions by key (called when a plugin is deactivated). */
 declare function unregisterPluginFieldDefs(keys: string[]): void;
-/** Replace the user layer: on map open from `MapMeta.extra.fields`, and from every
- *  mutation result that carries `fieldDefs`. Rust owns this map; JS never merges into it. */
-declare function setUserFieldDefs(defs: Record<string, ExtraFieldDef>): void;
-/** Keys some location on this map carries. Same reference until `fields:changed`. */
-declare function getKnownFieldKeys(): ReadonlySet<string>;
+/** Keys some location on this map carries. Same reference until the user layer moves. */
+declare const getKnownFieldKeys: () => ReadonlySet<string>;
 /** Look up metadata for a single field key. Returns `undefined` if no metadata exists. */
 declare function getFieldDef(key: string): ExtraFieldDef | undefined;
 /** Display label for a field key: registered label if known, otherwise sentence-cased from camelCase/snake_case. */
@@ -5397,10 +5405,9 @@ declare const fieldDefRegistry_isWritableField: typeof isWritableField;
 declare const fieldDefRegistry_partitionKeyOptions: typeof partitionKeyOptions;
 declare const fieldDefRegistry_projectionsForType: typeof projectionsForType;
 declare const fieldDefRegistry_registerPluginFieldDefs: typeof registerPluginFieldDefs;
-declare const fieldDefRegistry_setUserFieldDefs: typeof setUserFieldDefs;
 declare const fieldDefRegistry_unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
 declare namespace fieldDefRegistry {
-  export { fieldDefRegistry_RANGE_ID as RANGE_ID, fieldDefRegistry_fieldLabel as fieldLabel, fieldDefRegistry_fieldValueLabel as fieldValueLabel, fieldDefRegistry_getAllFieldDefs as getAllFieldDefs, fieldDefRegistry_getBuiltinKeys as getBuiltinKeys, fieldDefRegistry_getFieldDef as getFieldDef, fieldDefRegistry_getKnownFieldKeys as getKnownFieldKeys, fieldDefRegistry_isBuiltinField as isBuiltinField, fieldDefRegistry_isClearableField as isClearableField, fieldDefRegistry_isListableField as isListableField, fieldDefRegistry_isWritableField as isWritableField, fieldDefRegistry_partitionKeyOptions as partitionKeyOptions, fieldDefRegistry_projectionsForType as projectionsForType, fieldDefRegistry_registerPluginFieldDefs as registerPluginFieldDefs, fieldDefRegistry_setUserFieldDefs as setUserFieldDefs, fieldDefRegistry_unregisterPluginFieldDefs as unregisterPluginFieldDefs };
+  export { fieldDefRegistry_RANGE_ID as RANGE_ID, fieldDefRegistry_fieldLabel as fieldLabel, fieldDefRegistry_fieldValueLabel as fieldValueLabel, fieldDefRegistry_getAllFieldDefs as getAllFieldDefs, fieldDefRegistry_getBuiltinKeys as getBuiltinKeys, fieldDefRegistry_getFieldDef as getFieldDef, fieldDefRegistry_getKnownFieldKeys as getKnownFieldKeys, fieldDefRegistry_isBuiltinField as isBuiltinField, fieldDefRegistry_isClearableField as isClearableField, fieldDefRegistry_isListableField as isListableField, fieldDefRegistry_isWritableField as isWritableField, fieldDefRegistry_partitionKeyOptions as partitionKeyOptions, fieldDefRegistry_projectionsForType as projectionsForType, fieldDefRegistry_registerPluginFieldDefs as registerPluginFieldDefs, fieldDefRegistry_unregisterPluginFieldDefs as unregisterPluginFieldDefs };
   export type { fieldDefRegistry_FieldProjection as FieldProjection };
 }
 
@@ -6012,7 +6019,9 @@ declare function getSelectedLocationIds(): SelectedIds;
 /** @deprecated v0.8.2. Read `MMA.getMapState().workArea`. @unstable */
 declare function getWorkArea(): WorkArea;
 /** @deprecated v0.8.2. Read `MMA.getMapState().tagCounts`. @unstable */
-declare function getTagCounts(): Record<number, number>;
+declare function getTagCounts(): {
+    [x: number]: number;
+};
 /** @deprecated v0.8.2. Read `MMA.getMapState().selections`. @unstable */
 declare function getAllSelections(): Selection[];
 /** @deprecated v0.8.2. Read `MMA.getMapState().ghostedSelections`. @unstable */
@@ -6031,6 +6040,10 @@ declare function fetchAllLocations(): Promise<Location[]>;
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
 declare function registerEnrichmentProvider(provider: Provider): void;
+/** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
+ *  use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
+ *  plugin-owned defs. @unstable */
+declare function setUserFieldDefs(defs: Record<string, ExtraFieldDef>): Promise<void>;
 
 declare const legacy_fetchAllLocations: typeof fetchAllLocations;
 declare const legacy_fetchLocation: typeof fetchLocation;
@@ -6048,6 +6061,7 @@ declare const legacy_getSelections: typeof getSelections;
 declare const legacy_getTagCounts: typeof getTagCounts;
 declare const legacy_getWorkArea: typeof getWorkArea;
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
+declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
 declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
 declare namespace legacy {
   export {
@@ -6067,6 +6081,7 @@ declare namespace legacy {
     legacy_getTagCounts as getTagCounts,
     legacy_getWorkArea as getWorkArea,
     legacy_registerEnrichmentProvider as registerEnrichmentProvider,
+    legacy_setUserFieldDefs as setUserFieldDefs,
     legacy_waitForGoogleMap as waitForGoogleMap,
   };
 }
@@ -6254,4 +6269,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

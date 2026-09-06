@@ -7,6 +7,7 @@ import { listen } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import type {
 	MutationResult,
+	EngineValues,
 	MapMetaPatch_Deserialize as MapMetaPatch,
 	SelectionSync,
 } from "@/bindings.gen";
@@ -16,7 +17,6 @@ import { hexToRgb, type RGB } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
-import { setUserFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
 import { compareMonthOrder } from "@/lib/util/date";
@@ -32,17 +32,14 @@ import { addSelection, batch, removeSelection, replaceSelection } from "./select
 import type { SelectionPatch } from "./selections";
 
 // --- Map state ---
-export interface MapState {
+
+/** The engine-owned mirror: exactly the value slice Rust ships (`EngineValues`), with every field required. */
+type EngineState = { [K in keyof EngineValues]: NonNullable<EngineValues[K]> };
+
+export interface UiState {
 	mapId: string | null;
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
 	map: MapMeta | null;
-	locationCount: number;
-	canUndo: boolean;
-	canRedo: boolean;
-	/** All tags by id, including soft-deleted ghosts (visible=false, kept for undo revival). */
-	tags: Record<number, Tag>;
-	/** Per-tag location counts for the open map, keyed by tag id. */
-	tagCounts: Record<number, number>;
 	/** Resolved count per selection node (top-level and nested), keyed by `Selection.key`.
 	 *  The sole source for sidebar counts — refreshed wholesale from Rust on every sync. */
 	selectionCounts: Record<string, number>;
@@ -60,14 +57,21 @@ export interface MapState {
 	activePluginId: string | null;
 }
 
-const INITIAL_STATE: MapState = {
-	mapId: null,
-	map: null,
+export type MapState = UiState & EngineState;
+
+const ENGINE_INITIAL: EngineState = {
 	locationCount: 0,
 	canUndo: false,
 	canRedo: false,
-	tags: {},
 	tagCounts: {},
+	tags: {},
+	fieldDefs: {},
+};
+
+const INITIAL_STATE: MapState = {
+	...ENGINE_INITIAL,
+	mapId: null,
+	map: null,
 	selectionCounts: {},
 	selections: [],
 	ghostedSelections: new Set(),
@@ -83,13 +87,17 @@ let state: MapState = INITIAL_STATE;
 
 /** Re-mint the state object with a shallow patch. Field values are hook
  *  snapshots: reassign, never mutate in place. */
-function setState(patch: Partial<MapState>) {
+function setState(patch: Partial<UiState>) {
 	state = { ...state, ...patch };
 }
 
-/** Merge non-null fields into the state (JSON merge patch: null = unchanged). */
-function mergeState(patch: { [K in keyof MapState]?: MapState[K] | null }) {
-	state = { ...state, ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v != null)) };
+/** Merge the engine values Rust shipped (JSON merge patch: null = unchanged). */
+function mergeEngineValues(v: EngineValues) {
+	state = { ...state, ...Object.fromEntries(Object.entries(v).filter(([, x]) => x != null)) };
+}
+
+function resetEngineState() {
+	state = { ...state, ...ENGINE_INITIAL };
 }
 
 /** Reactive slice of the map state. Re-renders only when the selected value's
@@ -250,16 +258,10 @@ function clearEditState() {
 	resetCommitDiffState();
 }
 
-/** State fields every (re)open derives from the meta snapshot + open status. */
-function openedMapState(meta: MapMeta | null, status: StoreStatus) {
-	return {
-		map: meta,
-		locationCount: meta?.locationCount ?? 0,
-		tags: meta?.tags ?? {},
-		tagCounts: status.tagCounts,
-		canUndo: status.canUndo,
-		canRedo: status.canRedo,
-	};
+/** Every (re)open: the meta identity slice, then the open-time engine full picture. */
+function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
+	setState({ map: meta });
+	mergeEngineValues(status.values);
 }
 
 // --- Actions ---
@@ -281,8 +283,7 @@ export async function openMap(id: string) {
 			const openResult = await cmd.storeOpenMap(id);
 			t.step("store_open_map");
 			mapOpen.mark("data");
-			setState(openedMapState(meta, openResult));
-			setUserFieldDefs(meta.extra?.fields ?? {});
+			applyOpenedMap(meta, openResult);
 		} catch (e) {
 			log.error("[openMap] store_open_map failed:", e);
 			setState({ mapId: null, map: null });
@@ -304,10 +305,9 @@ function resetMapState() {
 	setState({ mapId: null, map: null });
 
 	clearEditState();
-	setUserFieldDefs({});
 
 	emitEvent("render:delta", { added: [], updated: [], removed: [], fullReset: true });
-	setState({ canUndo: false, canRedo: false, tags: {}, tagCounts: {}, locationCount: 0 });
+	resetEngineState();
 	emitEvent("store:changed");
 }
 
@@ -420,18 +420,14 @@ export function setSelectedLocationIds(ids: SelectedIds) {
  *  onto the open map's state when it is that map. */
 export async function patchMapMeta(id: string, patch: MapMetaPatch) {
 	if (state.map && state.mapId === id) {
-		const meta = { ...state.map };
-		if (patch.name != null) meta.name = patch.name;
-		if (patch.description != null) meta.description = patch.description;
-		if (patch.folder !== undefined) meta.folder = patch.folder;
-		if (patch.settings != null) meta.settings = patch.settings;
-		if (patch.scoreBounds != null) meta.scoreBounds = patch.scoreBounds;
-		if (patch.extra != null) meta.extra = patch.extra;
-		if (patch.labels != null) meta.labels = patch.labels;
-		setState({ map: meta });
+		const carried = Object.fromEntries(
+			Object.entries(patch).filter(([, v]) => v !== undefined),
+		) as Partial<MapMeta>;
+		setState({ map: { ...state.map, ...carried } });
 	}
 	emitEvent("store:changed");
-	await cmd.storeUpdateMapMeta(id, patch);
+	const r = await cmd.storeUpdateMapMeta(id, patch);
+	if (r && state.mapId === id) applyMutation(r);
 	await invalidateMapList();
 }
 
@@ -445,11 +441,7 @@ export function updateMapMeta(patch: MapMetaPatch) {
 export async function setMapExtraFields(fields: Record<string, ExtraFieldDef>) {
 	if (!state.mapId || !state.map) return;
 	const current = state.map.extra ?? {};
-	const replaced = { ...current, fields };
-	setState({ map: { ...state.map, extra: replaced } });
-	setUserFieldDefs(fields);
-	emitEvent("store:changed");
-	await cmd.storeUpdateMapMeta(state.mapId, { extra: replaced } as Partial<MapMeta>);
+	return patchMapMeta(state.mapId, { extra: { ...current, fields } } as MapMetaPatch);
 }
 
 /** Keys of tag selections whose tag just died (deleted or went invisible). */
@@ -465,20 +457,15 @@ function deadTagKeys(oldTags: Record<number, Tag>, newTags: Record<number, Tag>)
 }
 
 /** A MutationResult carries only what moved: every present field replaces its slice,
- *  every null field was untouched and keeps its reference. */
+ *  every null field was untouched and keeps its reference. Announces its own writes. */
 function applyMutation(r: MutationResult) {
 	if (!state.map) return;
 	const oldTags = state.tags;
-	mergeState({
-		locationCount: r.locationCount,
-		canUndo: r.canUndo,
-		canRedo: r.canRedo,
-		tags: r.tags,
-		tagCounts: r.tagCounts,
-	});
-	if (r.fieldDefs) setUserFieldDefs(r.fieldDefs);
-	if (r.tags) void applySelectionUpdate(batch(removeSelection)(deadTagKeys(oldTags, r.tags)));
+	mergeEngineValues(r.values);
+	if (r.values.tags)
+		void applySelectionUpdate(batch(removeSelection)(deadTagKeys(oldTags, r.values.tags)));
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
+	emitEvent("store:changed");
 }
 
 /** Decode the inline bitmask bytes from Rust and emit to the event bus. @unstable */
@@ -502,12 +489,14 @@ const EMPTY_MUTATION: MutationResult = {
 	version: 0,
 	delta: { added: [], updated: [], removed: [], fullReset: false },
 	selectionSync: null,
-	locationCount: null,
-	canUndo: null,
-	canRedo: null,
-	tagCounts: null,
-	tags: null,
-	fieldDefs: null,
+	values: {
+		locationCount: null,
+		canUndo: null,
+		canRedo: null,
+		tagCounts: null,
+		tags: null,
+		fieldDefs: null,
+	},
 };
 
 /** Run a mutation IPC, emit its render delta, sync JS state, and schedule a save. */
@@ -517,7 +506,6 @@ export async function mutate(fn: () => Promise<MutationResult>): Promise<Mutatio
 	await inflightPersist;
 	emitEvent("render:delta", r.delta);
 	applyMutation(r);
-	emitEvent("store:changed");
 	scheduleSave();
 	return r;
 }
@@ -1159,11 +1147,7 @@ export async function commitMap(message?: string): Promise<string> {
 
 	// Commit clears the overlay; commit-sensitive selections (e.g. Uncommitted) must
 	// re-resolve against the new baseline instead of showing now-committed rows.
-	if (state.selections.length > 0) {
-		await syncSelections();
-	} else {
-		emitEvent("store:changed");
-	}
+	if (state.selections.length > 0) await syncSelections();
 	return r.id;
 }
 
@@ -1187,11 +1171,11 @@ export async function checkoutCommit(commitId: string) {
 	}
 	const map = await cmd.storeGetMap(state.mapId);
 	setState({
-		...openedMapState(map, openResult),
 		selections: [],
 		selectedLocationIds: SelectedIds.EMPTY,
 		activeLocationId: null,
 	});
+	applyOpenedMap(map, openResult);
 	applyMutation(resetResult);
 	applyMutation(commitResult.status);
 

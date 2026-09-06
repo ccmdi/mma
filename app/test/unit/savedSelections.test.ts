@@ -21,6 +21,7 @@ vi.mock("@/store/useMapStore", () => ({
 	},
 	getTag: (id: number) => h.tags[id],
 	getVisibleTags: () => Object.values(h.tags).filter((t) => t.visible !== false),
+	getMapState: () => ({ fieldDefs: {} }),
 }));
 vi.mock("@/store/settings", () => ({ getSettings: () => ({}) }));
 vi.mock("@/lib/util/log", () => ({

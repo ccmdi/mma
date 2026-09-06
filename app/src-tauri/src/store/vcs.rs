@@ -58,7 +58,6 @@ pub struct CommitDelta {
 }
 
 /// The new commit's id plus the store-state delta the commit caused (cleared undo/redo).
-/// JS applies `status` like any mutation result; it never zeroes engine state itself.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitResult {

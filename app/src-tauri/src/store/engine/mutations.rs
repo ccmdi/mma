@@ -37,24 +37,35 @@ impl ChangeSet {
     }
 }
 
-/// What one mutation changed, and nothing else: every field but `version` and `delta`
-/// is `None` when that part of the world did not move. JS merges each present field
-/// into its state, so an untouched slice keeps its reference and its subscribers sleep.
-#[derive(serde::Serialize, Clone, specta::Type)]
+/// The engine-owned values JS mirrors into its state, each `None` when unchanged since
+/// it last shipped. The open-time form ([`super::StoreStatus`]) has every field present.
+/// The JS mirror's type and merge are derived from this struct.
+#[derive(serde::Serialize, Clone, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct MutationResult {
-    pub version: u64,
-    pub delta: RenderDelta,
-    pub selection_sync: Option<SelectionSync>,
+pub struct EngineValues {
     pub location_count: Option<usize>,
     pub can_undo: Option<bool>,
     pub can_redo: Option<bool>,
     /// Every tag's count, when any count moved.
     pub tag_counts: Option<HashMap<u32, usize>>,
     /// The whole registry, when any tag was created, edited, deleted, or flipped visible.
+    /// Includes soft-deleted ghosts (visible=false, kept for undo revival).
     pub tags: Option<HashMap<u32, Tag>>,
-    /// The whole extra-field registry, when a key was seen for the first time or erased.
+    /// The whole extra-field registry (`MapMeta.extra.fields` mirror), when a key was
+    /// seen for the first time, erased, or the user edited a definition.
     pub field_defs: Option<HashMap<String, maps::ExtraFieldDef>>,
+}
+
+/// What one mutation changed, and nothing else. `values` are merged into the JS state
+/// mirror (an untouched slice keeps its reference and its subscribers sleep); `delta`
+/// and `selection_sync` are operations applied once to the render buffers.
+#[derive(serde::Serialize, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct MutationResult {
+    pub version: u64,
+    pub delta: RenderDelta,
+    pub selection_sync: Option<SelectionSync>,
+    pub values: EngineValues,
 }
 
 /// User-facing warning toast.

@@ -166,18 +166,23 @@ impl Store {
         self.version
     }
 
-    /// Snapshot current store metadata for the frontend: version, counts, undo/redo availability.
-    /// The full picture, for a window that has nothing yet. Every later mutation result
-    /// is a delta against this, so it also resets what counts as "already reported".
+    /// The full engine-values picture, for a window that has nothing yet. Every later
+    /// mutation result is a delta against this, so it also marks everything shipped.
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.alive_count.ship();
         self.edits.ship();
+        self.tags.all.ship();
+        self.field_defs.ship();
         StoreStatus {
             version: self.version,
-            location_count: *self.alive_count,
-            can_undo: !self.edits.undo.is_empty(),
-            can_redo: !self.edits.redo.is_empty(),
-            tag_counts: self.tag_counts(),
+            values: EngineValues {
+                location_count: Some(*self.alive_count),
+                can_undo: Some(!self.edits.undo.is_empty()),
+                can_redo: Some(!self.edits.redo.is_empty()),
+                tag_counts: Some(self.tag_counts()),
+                tags: Some((*self.tags.all).clone()),
+                field_defs: Some((*self.field_defs).clone()),
+            },
         }
     }
 
@@ -194,11 +199,11 @@ impl Store {
     /// moved in between (an undo entry pushed after `finish_mutation`, say).
     pub(crate) fn report(&mut self, result: &mut MutationResult) {
         if self.alive_count.ship() {
-            result.location_count = Some(*self.alive_count);
+            result.values.location_count = Some(*self.alive_count);
         }
         if self.edits.ship() {
-            result.can_undo = Some(!self.edits.undo.is_empty());
-            result.can_redo = Some(!self.edits.redo.is_empty());
+            result.values.can_undo = Some(!self.edits.undo.is_empty());
+            result.values.can_redo = Some(!self.edits.redo.is_empty());
         }
     }
 
@@ -274,12 +279,12 @@ impl Store {
             version: self.version,
             delta,
             selection_sync,
-            location_count: None,
-            can_undo: None,
-            can_redo: None,
-            tag_counts,
-            tags,
-            field_defs,
+            values: EngineValues {
+                tag_counts,
+                tags,
+                field_defs,
+                ..Default::default()
+            },
         };
         self.report(&mut result);
         result
@@ -676,16 +681,13 @@ impl FunctionArg for WindowLabel {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Metadata snapshot returned to JS after every mutation. JS uses `version` to
-/// detect stale responses and `canUndo`/`canRedo` for toolbar button state.
+/// Open-time snapshot: the same `values` a mutation result carries, with every field
+/// present. The one full picture JS ever receives; everything after is a delta.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreStatus {
     pub version: u64,
-    pub location_count: usize,
-    pub can_undo: bool,
-    pub can_redo: bool,
-    pub tag_counts: HashMap<u32, usize>,
+    pub values: EngineValues,
 }
 
 /// Something that was correct at revision `rev` of its source: a consumer's watermark

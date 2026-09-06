@@ -20,12 +20,14 @@ vi.mock("@/lib/commands", async () => {
 		version: 0,
 		delta: { added: [], updated: [], removed: [], fullReset: false },
 		selectionSync: null,
-		locationCount: 1,
-		canUndo: true,
-		canRedo: null,
-		tagCounts: null,
-		tags: null,
-		fieldDefs: null,
+		values: {
+			locationCount: 1,
+			canUndo: true,
+			canRedo: null,
+			tagCounts: null,
+			tags: null,
+			fieldDefs: null,
+		},
 	});
 	return cmdProxy({
 		storeGetMap: async () => testMap({ locationCount: 0 }),

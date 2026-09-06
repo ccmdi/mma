@@ -767,24 +767,24 @@ fn open_status_reflects_undo_redo() {
     let mut store = setup_store_with(&[l]);
 
     let s = store.open_status();
-    assert!(!s.can_undo);
-    assert!(!s.can_redo);
+    assert_eq!(s.values.can_undo, Some(false));
+    assert_eq!(s.values.can_redo, Some(false));
 
     store.push_undo(EditEntry {
         created: vec![],
         removed: vec![],
     });
     let s = store.open_status();
-    assert!(s.can_undo);
-    assert!(!s.can_redo);
+    assert_eq!(s.values.can_undo, Some(true));
+    assert_eq!(s.values.can_redo, Some(false));
 
     store.edits.edit().redo.push(EditEntry {
         created: vec![],
         removed: vec![],
     });
     let s = store.open_status();
-    assert!(s.can_undo);
-    assert!(s.can_redo);
+    assert_eq!(s.values.can_undo, Some(true));
+    assert_eq!(s.values.can_redo, Some(true));
 }
 
 #[test]
@@ -797,17 +797,17 @@ fn finish_mutation_reports_correct_state() {
     });
 
     let result = store.finish_mutation(&ChangeSet::default());
-    assert_eq!(result.location_count, Some(1));
-    assert_eq!(result.can_undo, Some(true));
-    assert_eq!(result.can_redo, Some(false), "stack change ships both flags");
+    assert_eq!(result.values.location_count, Some(1));
+    assert_eq!(result.values.can_undo, Some(true));
+    assert_eq!(result.values.can_redo, Some(false), "stack change ships both flags");
     // Setup added tagged locations, so this first mutation ships counts.
-    assert_eq!(result.tag_counts.as_ref().unwrap().get(&10), Some(&1));
+    assert_eq!(result.values.tag_counts.as_ref().unwrap().get(&10), Some(&1));
     assert_eq!(result.version, 1);
 
     // Nothing moved since: the next result reports none of it again.
     let result = store.finish_mutation(&ChangeSet::default());
-    assert_eq!(result.location_count, None);
-    assert_eq!(result.can_undo, None);
+    assert_eq!(result.values.location_count, None);
+    assert_eq!(result.values.can_undo, None);
 }
 
 #[test]
@@ -818,10 +818,9 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
         removed: vec![],
     });
     let result = store.finish_mutation(&ChangeSet::default());
-    assert_eq!(result.can_undo, Some(true));
+    assert_eq!(result.values.can_undo, Some(true));
 
-    // Commit clears the stacks without a mutation result to ride on; JS zeroes
-    // its own flags. The next mutation must re-ship canUndo or the buttons die.
+    // A clear outside any mutation result must still re-ship the flags next mutation.
     let edits = store.edits.edit();
     edits.undo.clear();
     edits.redo.clear();
@@ -831,8 +830,8 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
         removed: vec![],
     });
     let result = store.finish_mutation(&ChangeSet::default());
-    assert_eq!(result.can_undo, Some(true));
-    assert_eq!(result.can_redo, Some(false));
+    assert_eq!(result.values.can_undo, Some(true));
+    assert_eq!(result.values.can_redo, Some(false));
 }
 
 #[test]
@@ -842,16 +841,16 @@ fn tag_counts_shipped_only_when_changed() {
 
     // Setup's add_tag_counts left counts dirty: first mutation ships them once.
     let result = store.finish_mutation(&ChangeSet::default());
-    assert!(result.tag_counts.is_some());
+    assert!(result.values.tag_counts.is_some());
 
     // A mutation that touches no tags must not ship counts.
     let result = store.finish_mutation(&ChangeSet::default());
-    assert!(result.tag_counts.is_none());
+    assert!(result.values.tag_counts.is_none());
 
     // A tag-touching edit ships fresh counts again.
     let changes = store.apply_edit(slice::from_ref(&l), &[]);
     let result = store.finish_mutation(&changes);
-    assert_eq!(result.tag_counts.as_ref().unwrap().get(&10), Some(&0));
+    assert_eq!(result.values.tag_counts.as_ref().unwrap().get(&10), Some(&0));
 }
 
 #[test]
@@ -2457,7 +2456,7 @@ fn create_tags_with_locations_never_leaves_the_tag_at_zero() {
         assert!(store.get_loc_by_id(id).unwrap().tags.contains(&tag.id));
     }
     assert_eq!(
-        result.tag_counts.unwrap().get(&tag.id),
+        result.values.tag_counts.unwrap().get(&tag.id),
         Some(&2),
         "the same mutation reports the count to JS"
     );
@@ -3082,7 +3081,7 @@ fn touched_zero_member_tag_is_hidden_by_finish_mutation() {
         "touched zero-member tag must be hidden"
     );
     assert!(
-        result.tags.is_some(),
+        result.values.tags.is_some(),
         "the visibility flip must ship tags so JS sees it"
     );
 }
@@ -4608,9 +4607,9 @@ fn new_extra_key_is_announced_in_the_same_result() {
     let mut store = setup_store_with(&[]);
     let r = apply_adds(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
     assert!(store.field_defs.contains_key("zz"));
-    assert!(r.field_defs.is_some_and(|d| d.contains_key("zz")));
+    assert!(r.values.field_defs.is_some_and(|d| d.contains_key("zz")));
     let r = apply_adds(&mut store, vec![loc_with_extra(2, r#"{"zz":2}"#)]);
-    assert!(r.field_defs.is_none());
+    assert!(r.values.field_defs.is_none());
 
     let r = apply_updates(
         &mut store,
@@ -4624,6 +4623,7 @@ fn new_extra_key_is_announced_in_the_same_result() {
         false,
     );
     assert!(r
+        .values
         .field_defs
         .is_some_and(|d| d.contains_key("yy") && d.contains_key("zz")));
 }
@@ -4743,7 +4743,7 @@ fn field_op_round_trip_rename_reannounces_the_key() {
     assert!(!store.field_defs.contains_key("a"), "a erased, forgotten");
     assert!(store.field_defs.contains_key("b"), "b auto-registered");
     assert!(
-        r1.field_defs.as_ref().is_some_and(|d| !d.contains_key("a")),
+        r1.values.field_defs.as_ref().is_some_and(|d| !d.contains_key("a")),
         "the result ships the registry without a"
     );
 
@@ -4758,7 +4758,7 @@ fn field_op_round_trip_rename_reannounces_the_key() {
     assert!(store.field_defs.contains_key("a"));
     assert!(!store.field_defs.contains_key("b"));
     assert!(
-        r2.field_defs.is_some_and(|d| d.contains_key("a")),
+        r2.values.field_defs.is_some_and(|d| d.contains_key("a")),
         "reappearing key is re-announced"
     );
 }

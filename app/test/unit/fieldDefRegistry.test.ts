@@ -1,11 +1,12 @@
 import { createFieldDef } from "@/types";
 import { describe, it, expect, beforeEach } from "vitest";
+import type { ExtraFieldDef } from "@/bindings.gen";
 import {
 	getFieldDef,
 	getAllFieldDefs,
+	getKnownFieldKeys,
 	registerPluginFieldDefs,
 	unregisterPluginFieldDefs,
-	setUserFieldDefs,
 	isBuiltinField,
 	isWritableField,
 	projectionsForType,
@@ -13,6 +14,16 @@ import {
 	getBuiltinKeys,
 } from "@/lib/data/fieldDefRegistry";
 import { getEventVersion } from "@/lib/events";
+
+// The user layer is engine state (`MapState.fieldDefs`); the registry only reads it.
+const h = vi.hoisted(() => ({ fieldDefs: {} as Record<string, unknown> }));
+vi.mock("@/store/useMapStore", () => ({
+	getMapState: () => ({ fieldDefs: h.fieldDefs }),
+}));
+
+function setUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
+	h.fieldDefs = defs;
+}
 
 beforeEach(() => {
 	setUserFieldDefs({});
@@ -191,36 +202,32 @@ describe("placeholder does not shadow plugin def", () => {
 	});
 });
 
-// Consumers (e.g. the filter field list) memo on the key set, which doesn't change on
-// a label rename. The version must bump on any def edit so those memos invalidate.
-describe("def-change version", () => {
-	it("bumps on every layer mutation", () => {
+// User-layer changes signal through the `MapState.fieldDefs` reference; only the
+// plugin layer (invisible to state) signals through `fields:changed`.
+describe("change signals", () => {
+	it("plugin layer mutations bump fields:changed", () => {
 		const v0 = getEventVersion("fields:changed");
-		setUserFieldDefs({ a: createFieldDef("number", { label: "A" }) });
-		const v1 = getEventVersion("fields:changed");
-		expect(v1).toBeGreaterThan(v0);
-
-		// A label-only rename (same key set) must still bump.
-		setUserFieldDefs({ a: createFieldDef("number", { label: "A renamed" }) });
-		expect(getEventVersion("fields:changed")).toBeGreaterThan(v1);
-
-		const v2 = getEventVersion("fields:changed");
 		registerPluginFieldDefs({ p: createFieldDef("number", { label: "P" }) });
-		expect(getEventVersion("fields:changed")).toBeGreaterThan(v2);
+		expect(getEventVersion("fields:changed")).toBeGreaterThan(v0);
 
-		const v4 = getEventVersion("fields:changed");
+		const v1 = getEventVersion("fields:changed");
 		unregisterPluginFieldDefs(["p"]);
-		expect(getEventVersion("fields:changed")).toBeGreaterThan(v4);
-
-		const v5 = getEventVersion("fields:changed");
-		setUserFieldDefs({});
-		expect(getEventVersion("fields:changed")).toBeGreaterThan(v5);
+		expect(getEventVersion("fields:changed")).toBeGreaterThan(v1);
 	});
 
 	it("does not bump when unregistering an empty key list", () => {
 		const v = getEventVersion("fields:changed");
 		unregisterPluginFieldDefs([]);
 		expect(getEventVersion("fields:changed")).toBe(v);
+	});
+
+	it("getKnownFieldKeys holds its reference until the user layer moves", () => {
+		setUserFieldDefs({ a: createFieldDef("number", { label: "A" }) });
+		const held = getKnownFieldKeys();
+		expect(getKnownFieldKeys()).toBe(held);
+		setUserFieldDefs({ a: createFieldDef("number", { label: "A" }) });
+		expect(getKnownFieldKeys()).not.toBe(held);
+		expect([...getKnownFieldKeys()]).toEqual(["a"]);
 	});
 });
 

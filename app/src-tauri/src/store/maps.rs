@@ -5,6 +5,7 @@
 //! and deleting maps, plus the auto-registration logic that discovers new
 //! `Location.extra` fields and persists their type definitions.
 
+use crate::store::engine;
 use crate::store::engine::StoreState;
 use crate::store::storage::{self, push_field};
 use crate::types;
@@ -611,26 +612,28 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
 }
 
 /// Apply a partial update to a map's metadata; `None` fields are left unchanged.
-// Also replaces the in-memory store's field registry when extra fields change, so
-// auto-registration doesn't re-discover fields the user explicitly defined.
+/// When extra fields change on an open map, the in-memory field registry is replaced
+/// (so auto-registration doesn't re-discover user-defined fields) and the resulting
+/// store-state delta is returned for the caller to apply.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_update_map_meta(
     state: tauri::State<'_, StoreState>,
     id: String,
     patch: MapMetaPatch,
-) -> AppResult<()> {
+) -> AppResult<Option<engine::MutationResult>> {
     let new_fields = patch.extra.as_ref().and_then(|e| e.fields.clone());
     let row_id = id.clone();
     storage::with_db(move |conn| update_map_meta_row(conn, &row_id, &patch)).await?;
     let Some(new_fields) = new_fields else {
-        return Ok(());
+        return Ok(None);
     };
     let mut mgr = state.lock()?;
-    if let Ok(store) = mgr.store_for_map(&id) {
-        store.field_defs.replace(new_fields);
-    }
-    Ok(())
+    let Ok(store) = mgr.store_for_map(&id) else {
+        return Ok(None);
+    };
+    store.field_defs.replace(new_fields);
+    Ok(Some(store.finish_mutation(&engine::ChangeSet::default())))
 }
 
 /// Apply the patch to the `maps` row.

@@ -4,11 +4,12 @@
  * Field **metadata** (type, label, enum values) from two sources, in priority order:
  *
  *   1. **User overrides** — persisted in `MapMeta.extra.fields`, editable via
- *      ManageFields. Loaded on map open, replaced whole whenever a mutation result
- *      carries `fieldDefs`. Curated defs for well-known SV keys are written here by
- *      Rust (`known_field_def`) when the key first appears in location data, so they
- *      show up the same way. This layer is also field **existence**: a key is in it
- *      exactly when some location carries it (`getKnownFieldKeys`).
+ *      ManageFields, mirrored as `MapState.fieldDefs` (Rust ships it like any other
+ *      engine value; this module only reads it). Curated defs for well-known SV keys
+ *      are written here by Rust (`known_field_def`) when the key first appears in
+ *      location data, so they show up the same way. This layer is also field
+ *      **existence**: a key is in it exactly when some location carries it
+ *      (`getKnownFieldKeys`).
  *   2. **Plugin defs** — declared by `Provider.fieldDefs` at
  *      registration time. Available as long as the plugin is active.
  *
@@ -24,6 +25,8 @@
  */
 
 import { emit } from "@/lib/events";
+import { getMapState } from "@/store/useMapStore";
+import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import { createFieldDef } from "@/types";
 import { BUILTIN_FIELDS, CLEARABLE_BUILTINS, PROJECTIONS } from "@/bindings.consts";
 import type { ExtraFieldDef, ExtraFieldType } from "@/bindings.gen";
@@ -88,7 +91,6 @@ export function getBuiltinKeys(): string[] {
 }
 
 let pluginDefs: Record<string, ExtraFieldDef> = {};
-let userDefs: Record<string, ExtraFieldDef> = {};
 /** Register field definitions from an enrichment provider (called at activation). */
 export function registerPluginFieldDefs(defs: Record<string, ExtraFieldDef>) {
 	pluginDefs = { ...pluginDefs, ...defs };
@@ -104,20 +106,11 @@ export function unregisterPluginFieldDefs(keys: string[]) {
 	emit("fields:changed");
 }
 
-let knownKeys: ReadonlySet<string> = new Set();
-
-/** Replace the user layer: on map open from `MapMeta.extra.fields`, and from every
- *  mutation result that carries `fieldDefs`. Rust owns this map; JS never merges into it. */
-export function setUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
-	userDefs = defs;
-	knownKeys = new Set(Object.keys(defs));
-	emit("fields:changed");
-}
-
-/** Keys some location on this map carries. Same reference until `fields:changed`. */
-export function getKnownFieldKeys(): ReadonlySet<string> {
-	return knownKeys;
-}
+/** Keys some location on this map carries. Same reference until the user layer moves. */
+export const getKnownFieldKeys: () => ReadonlySet<string> = memoOnRefs(
+	() => [getMapState().fieldDefs] as const,
+	(defs) => new Set(Object.keys(defs)),
+);
 
 /** Compose two layers per-attribute: the user value wins when present, falling
  *  through to the plugin value for null/absent attributes (a label-less inferred
@@ -139,7 +132,7 @@ function mergeDef(
 
 /** Look up metadata for a single field key. Returns `undefined` if no metadata exists. */
 export function getFieldDef(key: string): ExtraFieldDef | undefined {
-	return mergeDef(mergeDef(userDefs[key], pluginDefs[key]), FIELDS[key]);
+	return mergeDef(mergeDef(getMapState().fieldDefs[key], pluginDefs[key]), FIELDS[key]);
 }
 
 /** Display label for a field key: registered label if known, otherwise sentence-cased from camelCase/snake_case. */
@@ -168,7 +161,7 @@ export function getAllFieldDefs(): Record<string, ExtraFieldDef> {
 	const allKeys = new Set([
 		...Object.keys(FIELDS),
 		...Object.keys(pluginDefs),
-		...Object.keys(userDefs),
+		...getKnownFieldKeys(),
 	]);
 	for (const key of allKeys) {
 		const merged = getFieldDef(key);

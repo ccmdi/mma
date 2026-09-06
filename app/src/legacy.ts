@@ -3,10 +3,16 @@
 
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { hostInstance } from "@/lib/map/host";
-import { getMapState, getActiveSelections, fetchLocations, coverage } from "@/store/useMapStore";
+import {
+	getMapState,
+	getActiveSelections,
+	fetchLocations,
+	coverage,
+	setMapExtraFields,
+} from "@/store/useMapStore";
 import { cmd } from "@/lib/commands";
 import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
-import type { Selector } from "@/bindings.gen";
+import type { ExtraFieldDef, Selector } from "@/bindings.gen";
 
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
 export function getGoogleMap(): google.maps.Map | null {
@@ -91,4 +97,11 @@ export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. */
 export function registerEnrichmentProvider(provider: Provider): void {
 	registerProvider(provider);
+}
+
+/** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
+ *  use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
+ *  plugin-owned defs. */
+export function setUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
+	return setMapExtraFields(defs);
 }

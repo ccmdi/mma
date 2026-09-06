@@ -14,7 +14,8 @@ vi.mock("@/lib/commands", async () => {
 				tags: { 1: { id: 1, name: "red", color: "#ff0000", visible: true } },
 				extra: { fields: { alt: createFieldDef("number") } },
 			}),
-		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 2 } }),
+		storeOpenMap: async () =>
+			openMapResult({ tagCounts: { 1: 2 }, fieldDefs: { alt: createFieldDef("number") } }),
 	});
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -23,16 +24,22 @@ import { openMap, mutate, getMapState } from "@/store/useMapStore";
 import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import type { MutationResult, Tag } from "@/bindings.gen";
 
-const result = (over: Partial<MutationResult> = {}): MutationResult => ({
+const result = (
+	values: Partial<MutationResult["values"]> = {},
+	over: Partial<MutationResult> = {},
+): MutationResult => ({
 	version: 0,
 	delta: { added: [], updated: [], removed: [], fullReset: false },
 	selectionSync: null,
-	locationCount: null,
-	canUndo: null,
-	canRedo: null,
-	tagCounts: null,
-	tags: null,
-	fieldDefs: null,
+	values: {
+		locationCount: null,
+		canUndo: null,
+		canRedo: null,
+		tagCounts: null,
+		tags: null,
+		fieldDefs: null,
+		...values,
+	},
 	...over,
 });
 
@@ -100,7 +107,7 @@ describe("applyMutation merge semantics", () => {
 	it("selectionSync refreshes selectionCounts", async () => {
 		await mutate(() =>
 			Promise.resolve(
-				result({ selectionSync: { counts: { "tag:1": 7 }, bitmask: null, selectedCount: 7 } }),
+				result({}, { selectionSync: { counts: { "tag:1": 7 }, bitmask: null, selectedCount: 7 } }),
 			),
 		);
 		expect(getMapState().selectionCounts).toEqual({ "tag:1": 7 });

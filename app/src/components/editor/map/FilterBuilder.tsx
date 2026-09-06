@@ -13,7 +13,7 @@ import {
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
-import { applySelectionUpdate, fieldValues } from "@/store/useMapStore";
+import { applySelectionUpdate, fieldValues, useMapState } from "@/store/useMapStore";
 import { addSelection, batch } from "@/store/selections";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { toast } from "@/lib/util/toast";
@@ -77,7 +77,8 @@ export interface FieldEntry {
 }
 
 export function useExtraFieldKeys(): FieldEntry[] {
-	const defsVersion = useEvent("fields:changed");
+	const userDefs = useMapState((s) => s.fieldDefs);
+	const pluginVersion = useEvent("fields:changed");
 	return useMemo(() => {
 		const allDefs = getAllFieldDefs();
 		const seen = new Set<string>();
@@ -92,8 +93,8 @@ export function useExtraFieldKeys(): FieldEntry[] {
 		}
 		entries.sort((a, b) => a.label.localeCompare(b.label));
 		return entries;
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- the registry's change signal
-	}, [defsVersion]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- the two change signals
+	}, [userDefs, pluginVersion]);
 }
 
 const TIMEZONE_VALUES = Intl.supportedValuesOf("timeZone");
