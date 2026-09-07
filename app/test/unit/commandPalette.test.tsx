@@ -40,6 +40,7 @@ describe("command palette plugin entries", () => {
 			name: "Sidebar Plugin",
 			description: "",
 			icon: "M0 0",
+			activate: () => {},
 			sidebar: () => null,
 		});
 		registerPlugin({
@@ -47,6 +48,7 @@ describe("command palette plugin entries", () => {
 			name: "Modal Plugin",
 			description: "",
 			icon: "M0 0",
+			activate: () => {},
 			modal: () => null,
 		});
 		registerPlugin({
@@ -54,6 +56,7 @@ describe("command palette plugin entries", () => {
 			name: "Background Plugin",
 			description: "",
 			icon: "M0 0",
+			activate: () => {},
 		});
 		for (const id of ["test-sidebar", "test-modal", "test-background"])
 			setPluginEnabled(id, true);
