@@ -1618,10 +1618,6 @@ Rename a folder across all maps that reference it.
 
 Set the display order of tags. Each tag's position is its index in `ordered_ids`.
 
-#### `cmd.storeResetUndo(): Promise<MutationResult>` *(unstable)*
-
-Clear both undo and redo stacks.
-
 #### `cmd.storeResolve(selector: Selector): Promise<number[]>` *(unstable)*
 
 Ids of every location the selector resolves to, ascending.

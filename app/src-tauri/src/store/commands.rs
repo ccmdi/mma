@@ -878,21 +878,6 @@ pub fn store_commit_diff(
     with_store!(label, state, |store| { Ok(store.overlay_diff_counts()) })
 }
 
-/// Clear both undo and redo stacks.
-#[tauri::command]
-#[specta::specta]
-pub fn store_reset_undo(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-) -> AppResult<MutationResult> {
-    with_store!(label, state, |store| {
-        let edits = store.edits.edit();
-        edits.undo.clear();
-        edits.redo.clear();
-        Ok(store.finish_mutation(&ChangeSet::default()))
-    })
-}
-
 /// Create tags by name and assign them to the locations matched by `selector`.
 /// Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
 #[tauri::command]

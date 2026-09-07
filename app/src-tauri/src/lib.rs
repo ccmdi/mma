@@ -163,7 +163,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             store::commands::store_reorder_tags,
             store::commands::store_undo,
             store::commands::store_redo,
-            store::commands::store_reset_undo,
             store::commands::store_commit_diff,
             store::commands::store_sync_selections,
             store::commands::store_duplicate_groups,

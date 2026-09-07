@@ -1133,13 +1133,11 @@ export async function checkoutCommit(commitId: string) {
 	if (!state.mapId) return;
 	await flushSave();
 	let openResult;
-	let resetResult;
 	let commitResult;
 	try {
 		await cmd.storeCloseMap();
 		await cmd.storeCheckoutCommit(state.mapId, commitId);
 		openResult = await cmd.storeOpenMap(state.mapId);
-		resetResult = await cmd.storeResetUndo();
 		const msg = `Revert to ${commitId.slice(0, 7)}`;
 		commitResult = await cmd.storeCommit(state.mapId, msg);
 	} catch (e) {
@@ -1153,7 +1151,6 @@ export async function checkoutCommit(commitId: string) {
 		activeLocationId: null,
 	});
 	applyOpenedMap(map, openResult);
-	applyMutation(resetResult);
 	applyMutation(commitResult.status);
 
 	emitEvent("render:delta", { added: [], updated: [], removed: [], fullReset: true });

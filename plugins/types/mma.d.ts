@@ -513,8 +513,6 @@ declare const commands$1: {
     storeUndo: () => Promise<MutationResult>;
     /**  Redo the last undone edit. @unstable */
     storeRedo: () => Promise<MutationResult>;
-    /**  Clear both undo and redo stacks. @unstable */
-    storeResetUndo: () => Promise<MutationResult>;
     /**  Return the uncommitted change counts (added, removed, modified) since the last commit. @unstable */
     storeCommitDiff: () => Promise<[number, number, number]>;
     /**
