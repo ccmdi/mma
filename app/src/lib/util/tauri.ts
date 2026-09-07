@@ -6,8 +6,8 @@ import { downloadBlob, isWeb, mmaBufUrl } from "@/lib/util/util";
 // In a browser (web-serve) there's no native save dialog that returns a path for the
 // backend to write to. Use the File System Access API to let the user pick a destination
 // and stream the already-built temp export straight into it (no full read into memory).
-// Falls back to a plain download where that API is unavailable. Returns false if cancelled.
-async function downloadInBrowser(srcPath: string, fileName: string): Promise<boolean> {
+// Falls back to a plain download where that API is unavailable. False = cancelled.
+async function downloadInBrowser(srcPath: string, fileName: string): Promise<string | false> {
 	const url = mmaBufUrl(srcPath);
 	const picker = (
 		window as unknown as {
@@ -28,15 +28,19 @@ async function downloadInBrowser(srcPath: string, fileName: string): Promise<boo
 		// can't see; without the picker we never get here and fall through to downloadBlob.
 		// eslint-disable-next-line local/no-unsupported-builtins
 		await res.body.pipeTo((await handle.createWritable()) as unknown as WritableStream<Uint8Array>);
-		return true;
+		return handle.name;
 	}
 	downloadBlob(await (await fetch(url)).blob(), fileName);
-	return true;
+	return fileName;
 }
 
 /** Prompt for a destination and move a temp export file there (native dialog in
- *  Tauri, File System Access / download in the browser). False = cancelled. */
-export async function saveExportTempFile(srcPath: string, fileName: string): Promise<boolean> {
+ *  Tauri, File System Access / download in the browser). Returns the name it was saved
+ *  under, which the user may have changed in the dialog. False = cancelled. */
+export async function saveExportTempFile(
+	srcPath: string,
+	fileName: string,
+): Promise<string | false> {
 	if (isWeb()) return downloadInBrowser(srcPath, fileName);
 	const ext = fileName.split(".").pop() ?? "";
 	const dest = await save({
@@ -45,5 +49,5 @@ export async function saveExportTempFile(srcPath: string, fileName: string): Pro
 	});
 	if (!dest) return false;
 	await cmd.storeSaveExportFile(srcPath, dest);
-	return true;
+	return dest.split(/[/\\]/).at(-1) ?? fileName;
 }

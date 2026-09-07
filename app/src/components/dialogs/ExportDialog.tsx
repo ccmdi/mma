@@ -57,39 +57,40 @@ export function ExportDialog({ onClose }: Props) {
 	const saveToFile = (srcPath: string, ext: string) =>
 		saveExportTempFile(srcPath, `${baseName}.${ext}`);
 
-	const withFeedback = (run: () => Promise<boolean | void>, success: string) => async () => {
-		try {
-			const ok = await run();
-			if (ok !== false) toast(success);
-		} catch (e) {
-			log.error("[export] failed:", e);
-			toast(t("Export failed"));
-		}
-	};
+	const withFeedback =
+		(run: () => Promise<string | false | void>, success: (file: string) => string) => async () => {
+			try {
+				const saved = await run();
+				if (saved !== false) toast(success(saved ?? ""));
+			} catch (e) {
+				log.error("[export] failed:", e);
+				toast(t("Export failed"));
+			}
+		};
 
 	const copyJson = withFeedback(
 		async () =>
 			navigator.clipboard.writeText(await (await fetch(mmaBufUrl(await jsonPath()))).text()),
-		t("Copied JSON to clipboard"),
+		() => t("Copied JSON to clipboard"),
 	);
 	const downloadJson = withFeedback(
 		async () => saveToFile(await jsonPath(), "json"),
-		t("Downloaded {file}", { file: `${baseName}.json` }),
+		(file) => t("Downloaded {file}", { file }),
 	);
 
 	const copyCsv = withFeedback(
 		async () =>
 			navigator.clipboard.writeText(await (await fetch(mmaBufUrl(await csvPath()))).text()),
-		t("Copied CSV to clipboard"),
+		() => t("Copied CSV to clipboard"),
 	);
 	const downloadCsv = withFeedback(
 		async () => saveToFile(await csvPath(), "csv"),
-		t("Downloaded {file}", { file: `${baseName}.csv` }),
+		(file) => t("Downloaded {file}", { file }),
 	);
 
 	const downloadGeoJson = withFeedback(
 		async () => saveToFile(await geojsonPath(), "geojson"),
-		t("Downloaded {file}", { file: `${baseName}.geojson` }),
+		(file) => t("Downloaded {file}", { file }),
 	);
 
 	return (
