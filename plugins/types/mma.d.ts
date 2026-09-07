@@ -1534,6 +1534,11 @@ type MapSettings = {
      *  location, highest wins. `None` (or blank) keeps the built-in ranking.
      */
     duplicateScore?: string | null;
+    /**
+     *  The order a review pass walks its worklist: a `field_expr` scoring the location,
+     *  highest first. `None` (or blank) keeps the order the selection resolved in.
+     */
+    reviewOrder?: string | null;
 };
 /**  When a move target already holds a value, which side survives. */
 type MergeWinner = "from" | "to";
@@ -2055,10 +2060,19 @@ type Selector = {
     type: "Filter";
     field: string;
     test: FilterOp;
-} | {
-    type: "TopK";
-    field: string;
-    k: number;
+} | 
+/**
+ *  Rank a selection by a `field_expr`, optionally keeping only the first `k`. Emits
+ *  a ranked root in rank order, where every other selector answers ascending. With no
+ *  `k` this selects its child unchanged and states only how to walk it. A member the
+ *  expression cannot score ranks last, so ranking never drops anything.
+ */
+{
+    type: "Ranked";
+    /**  What to rank; `None` ranks the whole map. */
+    selection: Selection | null;
+    expr: string;
+    k: number | null;
     ascending: boolean;
 };
 type SideCounts = {
@@ -2758,6 +2772,10 @@ export interface SelectionDescriptor<K extends Selector["type"]> {
 declare const SELECTIONS: {
     [K in Selector["type"]]: SelectionDescriptor<K>;
 };
+/** Every child selection a selector wraps, whatever shape it wraps them in. */
+declare function childSelections(selector: Selector): Selection[];
+/** `selector` with its children replaced, keeping the shape it wraps them in. */
+declare function withChildren(selector: Selector, children: Selection[]): Selector;
 /** Create a Selection with a deterministic key and color from its selector. */
 declare function buildSelection(selector: Selector): Selection;
 /** Append a new selection built from `selector`, deduplicating by key. */
@@ -2816,6 +2834,7 @@ export type selectionOps_UnaryType = UnaryType;
 declare const selectionOps_addSelection: typeof addSelection;
 declare const selectionOps_batch: typeof batch;
 declare const selectionOps_buildSelection: typeof buildSelection;
+declare const selectionOps_childSelections: typeof childSelections;
 declare const selectionOps_colorForKey: typeof colorForKey;
 declare const selectionOps_composeSelections: typeof composeSelections;
 declare const selectionOps_composeSiblings: typeof composeSiblings;
@@ -2841,8 +2860,9 @@ declare const selectionOps_toggleGhost: typeof toggleGhost;
 declare const selectionOps_toggleGhostAll: typeof toggleGhostAll;
 declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
 declare const selectionOps_unionSelections: typeof unionSelections;
+declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_polygonSelectionsContaining as polygonSelectionsContaining, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections };
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_polygonSelectionsContaining as polygonSelectionsContaining, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPatch as SelectionPatch, selectionOps_SelectionState as SelectionState, selectionOps_UnaryType as UnaryType };
 }
 

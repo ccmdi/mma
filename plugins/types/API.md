@@ -418,6 +418,10 @@ Lift a single-item curried transform into one that folds over an array of items.
 
 Create a Selection with a deterministic key and color from its selector.
 
+### `childSelections(selector: Selector): Selection[]`
+
+Every child selection a selector wraps, whatever shape it wraps them in.
+
 ### `colorForKey(key: string): RGB`
 
 Deterministic color derived from a selection key string.
@@ -504,7 +508,7 @@ Uses a partial Fisher–Yates shuffle, so the result contains no duplicates and 
 Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
 rather than the open map's tags (used by saved selection rules).
 
-### `SELECTIONS: { Intersection: SelectionDescriptor<"Intersection">; Union: SelectionDescriptor<"Union">; Invert: SelectionDescriptor<"Invert">; ... 14 more ...; TopK: SelectionDescriptor<...>; }`
+### `SELECTIONS: { Intersection: SelectionDescriptor<"Intersection">; Union: SelectionDescriptor<"Union">; Invert: SelectionDescriptor<"Invert">; ... 14 more ...; Ranked: SelectionDescriptor<...>; }`
 
 Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides.
 
@@ -533,6 +537,10 @@ Add or remove a location from the Manual selection, creating it if needed.
 ### `unionSelections(keys?: string[] | null | undefined): (current: Selection[]) => Selection[]`
 
 Merge the targeted selections (or all, when `keys` is null) into a single Union.
+
+### `withChildren(selector: Selector, children: Selection[]): Selector`
+
+`selector` with its children replaced, keeping the shape it wraps them in.
 
 ## SavedSelections
 
