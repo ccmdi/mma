@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildMarkerLayer, MARKER_STYLE, type MarkerBuf } from "@/lib/render/markerLayer";
+import {
+	buildMarkerLayer,
+	MARKER_STYLE,
+	renderPos,
+	type MarkerBuf,
+} from "@/lib/render/markerLayer";
 import SDFMarkerLayer from "@/lib/render/sdf-marker-layer/SDFMarkerLayer";
 import type { MarkerStyle } from "@/types";
 
@@ -48,6 +53,23 @@ describe("marker layer flattening (layer-level opacity)", () => {
 				expect(layer.props.shape).toBe(MARKER_STYLE[style].shape);
 				expect(layer.props.radiusPixels).toBeCloseTo(MARKER_STYLE[style].radiusPixels);
 			}
+		}
+	});
+});
+
+describe("renderPos", () => {
+	// The bug it exists to prevent: an accessor-fed layer drew the active marker at the full
+	// f64 coordinate while its base marker sat at the f32 the cell buffer holds, leaving the
+	// two up to ~0.9m apart at high zoom (issue #212).
+	it("lands on the same value the f32 cell buffer holds", () => {
+		for (const [lng, lat] of [
+			[151.2093, -33.8688],
+			[-157.8583, 21.3069],
+			[2.3522, 48.8566],
+			[0, 0],
+		]) {
+			const cell = new Float32Array([lng, lat]);
+			expect(renderPos(lng, lat)).toEqual([cell[0], cell[1]]);
 		}
 	});
 });

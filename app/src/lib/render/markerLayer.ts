@@ -35,6 +35,11 @@ function flattenParameters(op: number) {
 	} as Record<string, unknown>;
 }
 
+/** Round each lat/lng to the same float precision. */
+export function renderPos(lng: number, lat: number): [number, number] {
+	return [Math.fround(lng), Math.fround(lat)];
+}
+
 export const MARKER_STYLE = {
 	circle: { shape: "circle", radiusPixels: 6, angle: false },
 	arrow: { shape: "arrow", radiusPixels: 12, angle: true },

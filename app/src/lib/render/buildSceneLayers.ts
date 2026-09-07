@@ -1,7 +1,12 @@
 import type { Layer, Position } from "@deck.gl/core";
 import { ScatterplotLayer, PolygonLayer, PathLayer, LineLayer, TextLayer } from "@deck.gl/layers";
 import SDFMarkerLayer from "@/lib/render/sdf-marker-layer/SDFMarkerLayer";
-import { baseMarkerLayers, buildMarkerLayer, MARKER_STYLE } from "@/lib/render/markerLayer";
+import {
+	baseMarkerLayers,
+	buildMarkerLayer,
+	MARKER_STYLE,
+	renderPos,
+} from "@/lib/render/markerLayer";
 import PanoCoverageLayer from "@/lib/render/PanoCoverageLayer";
 import { getMarkerDefaultColor } from "@/lib/render/sceneStore";
 import type { CellManager } from "@/lib/render/CellManager";
@@ -159,7 +164,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				new ScatterplotLayer<SeenEntry>({
 					id: "seen-overlay",
 					data: seen,
-					getPosition: (d) => [d.lng, d.lat],
+					getPosition: (d) => renderPos(d.lng, d.lat),
 					getFillColor: seenEntryColor,
 					getRadius: 5,
 					radiusUnits: "pixels",
@@ -232,7 +237,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 			new SDFMarkerLayer<Location>({
 				id: `${LOCATION_LAYER_ID}-current-sdf`,
 				data: [activeLoc],
-				getPosition: (d) => [d.lng, d.lat],
+				getPosition: (d) => renderPos(d.lng, d.lat),
 				shape: s.shape,
 				radiusPixels: s.radiusPixels * ctx.markerSize,
 				getFillColor: activeColor,
@@ -255,7 +260,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 			new ScatterplotLayer({
 				id: PERFECT_SCORE_LAYER_ID,
 				data: [center],
-				getPosition: (d: LatLng) => [d.lng, d.lat],
+				getPosition: (d: LatLng) => renderPos(d.lng, d.lat),
 				getFillColor: [200, 0, 0, 26],
 				getLineColor: [200, 0, 0, 128],
 				getRadius: Math.max(25, ctx.scoreMaxError),
@@ -280,8 +285,8 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				],
 				pickable: false,
 				getWidth: 2,
-				getSourcePosition: (d) => d.from,
-				getTargetPosition: (d) => d.to,
+				getSourcePosition: (d) => renderPos(d.from[0], d.from[1]),
+				getTargetPosition: (d) => renderPos(d.to[0], d.to[1]),
 				getColor: [0, 0, 0],
 			}),
 		);
@@ -311,7 +316,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 			new ScatterplotLayer({
 				id: "polygon-vertices",
 				data: polygonVertices,
-				getPosition: (d) => d,
+				getPosition: (d) => renderPos(d[0], d[1]),
 				radiusUnits: "pixels",
 				getRadius: (_d, { index }) => (closable && index === 0 ? POLYGON_CLOSE_VERTEX_PX : 4),
 				getFillColor: (_d, { index }) =>
@@ -346,7 +351,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 			new TextLayer({
 				id: "measure-labels",
 				data: getMeasureSegments(),
-				getPosition: (d) => d.at,
+				getPosition: (d) => renderPos(d.at[0], d.at[1]),
 				getText: (d) => d.label,
 				getSize: 13,
 				getColor: [0, 0, 0, 255],
@@ -366,7 +371,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 			new ScatterplotLayer({
 				id: "measure-nodes",
 				data: measurePoints,
-				getPosition: (d) => d,
+				getPosition: (d) => renderPos(d[0], d[1]),
 				radiusUnits: "pixels" as const,
 				getRadius: MEASURE_NODE_PX,
 				getFillColor: [255, 255, 255, 255],
