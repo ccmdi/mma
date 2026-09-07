@@ -127,48 +127,62 @@ function LabelsSection({ draft, edit }: SectionProps) {
 	);
 }
 
-function DuplicatesSection({ draft, edit, block }: SectionProps) {
+/** A `field_expr` input: validated as you type, blank meaning the map states no preference. */
+function ExprSection({
+	draft,
+	edit,
+	block,
+	setting,
+	label,
+	hint,
+	placeholder,
+}: SectionProps & {
+	setting: "duplicateScore" | "reviewOrder";
+	label: string;
+	hint: string;
+	placeholder?: string;
+}) {
 	const id = useId();
-	const score = draft.settings.duplicateScore ?? "";
+	const value = draft.settings[setting] ?? "";
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
-		if (score.trim() === "") {
+		if (value.trim() === "") {
 			setError(null);
 			return;
 		}
 		let live = true;
-		void cmd.fieldExprError(score).then((err) => {
+		void cmd.fieldExprError(value).then((err) => {
 			if (live) setError(err);
 		});
 		return () => {
 			live = false;
 		};
-	}, [score]);
+	}, [value]);
 	useEffect(() => block(error != null), [error, block]);
 
-	const setScore = (v: string) =>
-		edit({ settings: { ...draft.settings, duplicateScore: v.trim() || null } });
+	const setExpr = (v: string) =>
+		edit({ settings: { ...draft.settings, [setting]: v.trim() || null } });
 
 	return (
 		<>
 			<p className="edit-map-modal__name">
-				<label htmlFor={id}>{t("Duplicate preference:")}</label>
+				<label htmlFor={id}>{label}</label>
 				<span className="edit-map-modal__expr">
 					<TextInput
 						id={id}
 						type="text"
 						className="mono"
-						value={score}
-						onChange={(e) => setScore(e.target.value)}
-						placeholder={DEFAULT_DUPLICATE_SCORE}
+						value={value}
+						onChange={(e) => setExpr(e.target.value)}
+						placeholder={placeholder}
 						spellCheck={false}
 					/>
 					<button
 						type="button"
 						className="icon-button"
-						onClick={() => setScore("")}
-						disabled={score === ""}
+						onClick={() => setExpr("")}
+						disabled={value === ""}
 						title={t("Reset to default")}
 						aria-label={t("Reset to default")}
 					>
@@ -177,11 +191,7 @@ function DuplicatesSection({ draft, edit, block }: SectionProps) {
 				</span>
 			</p>
 			<p className="edit-map-modal__hint">
-				{error
-					? t("Invalid expression: {error}", { error })
-					: t(
-							"Scores every duplicate; the highest is the one kept when duplicates are merged or pruned. Merging keeps all tags either way, and ties go to the oldest.",
-						)}
+				{error ? t("Invalid expression: {error}", { error }) : hint}
 			</p>
 		</>
 	);
@@ -200,7 +210,35 @@ const SECTIONS: Section[] = [
 	{ id: "name", in: ["list", "editor"], Body: NameSection },
 	{ id: "description", in: ["list", "editor"], Body: DescriptionSection },
 	{ id: "labels", in: ["list", "editor"], Body: LabelsSection },
-	{ id: "duplicates", in: ["editor"], Body: DuplicatesSection },
+	{
+		id: "duplicates",
+		in: ["editor"],
+		Body: (p) => (
+			<ExprSection
+				{...p}
+				setting="duplicateScore"
+				placeholder={DEFAULT_DUPLICATE_SCORE}
+				label={t("Duplicate preference:")}
+				hint={t(
+					"Scores every duplicate; the highest is the one kept when duplicates are merged or pruned. Merging keeps all tags either way, and ties go to the oldest.",
+				)}
+			/>
+		),
+	},
+	{
+		id: "reviewOrder",
+		in: ["editor"],
+		Body: (p) => (
+			<ExprSection
+				{...p}
+				setting="reviewOrder"
+				label={t("Review order:")}
+				hint={t(
+					"Scores every location; a review pass walks them highest first. Blank reviews them in the order the selection resolved.",
+				)}
+			/>
+		),
+	},
 	{ id: "scoring", in: ["editor"], Body: ScoringSection },
 ];
 

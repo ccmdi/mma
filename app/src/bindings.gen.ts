@@ -1075,6 +1075,11 @@ export type MapSettings = {
 	 *  location, highest wins. `None` (or blank) keeps the built-in ranking.
 	 */
 	duplicateScore?: string | null,
+	/**
+	 *  The order a review pass walks its worklist: a `field_expr` scoring the location,
+	 *  highest first. `None` (or blank) keeps the order the selection resolved in.
+	 */
+	reviewOrder?: string | null,
 };
 
 /**  When a move target already holds a value, which side survives. */

@@ -76,6 +76,19 @@ fn map_settings_duplicate_score_defaults_unset() {
 }
 
 #[test]
+fn map_settings_review_order_defaults_unset() {
+    // Old settings JSON (no reviewOrder) must deserialize as "selection order".
+    let old_json = r#"{"pointAlongRoad":true}"#;
+    let settings: MapSettings = serde_json::from_str(old_json).unwrap();
+    assert!(settings.review_order.is_none());
+    assert!(MapSettings::default().review_order.is_none());
+
+    let json = r#"{"reviewOrder":"-year"}"#;
+    let settings: MapSettings = serde_json::from_str(json).unwrap();
+    assert_eq!(settings.review_order.as_deref(), Some("-year"));
+}
+
+#[test]
 fn map_key_binding_wire_format_round_trip() {
     // Wire shape is the contract with the TS bindings: tagged union, camelCase.
     let json = r#"{"key":"Mod+Shift+x","action":{"type":"applyTag","tagId":5}}"#;

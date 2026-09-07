@@ -79,6 +79,9 @@ pub struct MapSettings {
     /// Which member of a duplicate group survives a merge: a `field_expr` scoring the
     /// location, highest wins. `None` (or blank) keeps the built-in ranking.
     pub duplicate_score: Option<String>,
+    /// The order a review pass walks its worklist: a `field_expr` scoring the location,
+    /// highest first. `None` (or blank) keeps the order the selection resolved in.
+    pub review_order: Option<String>,
 }
 
 impl Default for MapSettings {
@@ -101,6 +104,7 @@ impl Default for MapSettings {
             virtual_tags: HashMap::new(),
             aliases: HashMap::new(),
             duplicate_score: None,
+            review_order: None,
         }
     }
 }
