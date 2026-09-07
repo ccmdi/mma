@@ -1,9 +1,6 @@
-/**
- * Driver for the Rust procedure engine. A bulk operation is one or more procedures plus
- * a `Selector`: the engine resolves the selector, gates providers on their dependencies, pages
- * the locations, calls each procedure and delivers what it answers, as patches or back
- * to the caller. Locations never reach JS.
- */
+// Bulk operations: one or more procedures plus a Selector. The selector is resolved,
+// providers are gated on their dependencies, locations are paged, and each procedure's
+// answers are delivered as patches or back to the caller.
 
 import type { Location, RowsRun, Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
@@ -22,12 +19,8 @@ import { log } from "@/lib/util/log";
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 export const procedureEntry = (name: string) => `res://procedures/${name}.js`;
 
-/** Ask a procedure a read-only question. `input` and the answer are the module's own
- *  contract -- the engine only carries the JSON. Rejects when the module exports no
- *  `query` or the call fails, and with the signal's reason once `signal` aborts, at
- *  which point the engine declines the query's remaining requests. `T` is an unchecked
- *  assertion over that contract: sound for the app's own `res://` modules, which are
- *  pinned by tests. Validate instead of naming a `T` when the module is a plugin's. */
+/** Ask a procedure a read-only question. Rejects when the procedure exports no `query`,
+ *  when the call fails, or when `signal` aborts. */
 export async function queryProcedure<T = unknown>(
 	entry: string,
 	input: unknown,
@@ -69,9 +62,8 @@ async function cancellable<T>(
 
 let nextQueryToken = 1;
 
-/** Display labels for a field's partition keys, from the procedure that owns the field.
- *  A module with no `label` query -- or one answering anything but a matching array of
- *  strings -- leaves the keys as they are. */
+/** Display labels for a field's partition keys. Falls back to the keys themselves when
+ *  the field's procedure has no `label` query or returns a non-matching array. */
 export async function resolveFieldLabels(field: string, keys: string[]): Promise<string[]> {
 	const entry = getProviderForField(field)?.procedure.entry;
 	if (!entry || keys.length === 0) return keys;
@@ -86,24 +78,21 @@ export async function resolveFieldLabels(field: string, keys: string[]): Promise
 	return keys;
 }
 
-/** One location's answer from a `collect` run, as its module defines it. */
+/** One location's answer from a `collect` run. */
 export interface CollectedEntry<T = unknown> {
 	id: number;
 	value: T;
 }
 
 export interface BatchOutcome {
-	/** Rows the procedure worked and did not fail. A count: the engine never ships the
-	 *  ids of what went right. */
+	/** Count of rows the procedure processed successfully. */
 	succeeded: number;
-	/** Rows the procedure failed, by id, so a caller can select them. */
+	/** IDs of rows the procedure failed on. */
 	failed: number[];
 }
 
 export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
-	/** Answers from a `collect` run, in page order. Absent for a run whose results were
-	 *  written as patches. Typed by the spec's declaration, not checked: the value still
-	 *  crosses a JSON boundary, so a reader guards it. */
+	/** Answers from a `collect` run, in page order. Absent when results were written as patches. */
 	collected?: CollectedEntry<TCollected>[];
 }
 
@@ -135,13 +124,11 @@ export interface ProviderPart {
 export interface RunOpts {
 	signal?: AbortSignal;
 	force?: boolean;
-	/** `done`/`total` are rows finished through every provider in the run -- the slowest
-	 *  provider's count, so the bar is monotonic and full means fully enriched. `parts`
-	 *  carries each labeled provider's own counts for the whole run, zeros until it
-	 *  starts, and is ordered as declared. */
+	/** `done`/`total` reflect the slowest provider. `parts` carries each labeled
+	 *  provider's own counts, ordered as declared. */
 	onProgress?: (done: number, total: number, parts: ProviderPart[]) => void;
-	/** A run over handed-in rows only: each row as a provider leaves it, delivered as
-	 *  that provider finishes with it. The same row arrives again per later provider. */
+	/** Each row as a provider finishes with it (rows-only runs). The same row arrives
+	 *  again from each subsequent provider. */
 	onPartial?: (rows: Location[]) => void;
 }
 
@@ -158,12 +145,10 @@ export interface ProviderRun {
 	fields?: string[];
 }
 
-/** Drive a set of providers through the engine as one run over `rows`: a selector, which
- *  the engine pages out of the store and writes back into, reporting per-provider
- *  progress this hands to the caller per provider; or locations
- *  handed in, which run in a store of their own and come back as the providers left
- *  them, with nothing reaching the map. Resolves once every declared provider reports
- *  finished, or on abort. */
+/** Run a set of providers over `rows`. When `rows` is a Selector, matching locations
+ *  are processed in place and results are written back. When `rows` is a Location array,
+ *  locations are processed independently and returned as modified copies. Resolves once
+ *  every provider finishes, or on abort. */
 export async function runProviders(
 	items: ProviderRun[],
 	rows: Selector,
@@ -274,9 +259,7 @@ async function declare(
 	};
 }
 
-/** Run one procedure over `selector`, on its own. The primitive: a consumer that is not
- *  enrichment (validation, a download resolving pano ids) declares a spec and calls this,
- *  and gets its collected answers typed by the spec. */
+/** Run a single procedure over `selector` and return its typed results. */
 export async function runProcedure<T>(
 	spec: ProcedureSpec<T>,
 	selector: Selector,

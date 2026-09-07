@@ -9,6 +9,7 @@ interface ToastEntry {
 let toasts: ToastEntry[] = [];
 let nextId = 0;
 
+/** Show a brief toast notification. Optionally scoped to a `container` element. */
 export function toast(message: string, duration = 2500, container?: HTMLElement) {
 	if (container) {
 		const el = document.createElement("div");
@@ -28,11 +29,15 @@ export function toast(message: string, duration = 2500, container?: HTMLElement)
 	}, duration);
 }
 
+/** Handle for updating or finishing a progress toast. */
 export interface ProgressHandle {
+	/** Set the progress bar fraction (0-1) and optional label. */
 	update(fraction: number, label?: string): void;
+	/** Remove the progress toast, optionally replacing it with a brief message. */
 	finish(message?: string, duration?: number): void;
 }
 
+/** Show a toast with a progress bar. Returns a handle to update or finish it. */
 export function progressToast(message: string): ProgressHandle {
 	const id = nextId++;
 	toasts = [...toasts, { id, message, progress: { fraction: 0 } }];
@@ -58,6 +63,7 @@ export function progressToast(message: string): ProgressHandle {
 	};
 }
 
+/** Current list of visible toasts. */
 export function getToasts() {
 	return toasts;
 }

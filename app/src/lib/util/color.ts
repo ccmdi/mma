@@ -1,7 +1,9 @@
+/** An [r, g, b] byte tuple. */
 export type RGB = [number, number, number];
+/** An [r, g, b, a] byte tuple. */
 export type RGBA = [...RGB, number];
 
-/** Parse "#rrggbb" to an [r, g, b] byte tuple. Single source for hex parsing. */
+/** Parse "#rrggbb" to an [r, g, b] byte tuple. */
 export function hexToRgb(hex: string): RGB {
 	const h = hex.replace("#", "");
 	return [
@@ -11,13 +13,14 @@ export function hexToRgb(hex: string): RGB {
 	];
 }
 
+/** Return "#000" or "#fff" for readable text on the given hex background. */
 export function textColorFor(bg: string): string {
 	const [r, g, b] = hexToRgb(bg);
 	return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? "#000" : "#fff";
 }
 
-/** SV line colors were historically Open Props ramp names ("cyan"); stored
- *  prefs may still hold one. Hex passes through. */
+/** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
+ *  ramp name (legacy stored format). */
 export function resolveSvColorHex(color: string): string {
 	if (color.startsWith("#")) return color;
 	return (
@@ -25,13 +28,14 @@ export function resolveSvColorHex(color: string): string {
 	);
 }
 
-/** The app accent follows the SV coverage line color. */
+/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. */
 export function applyAccentColor(hex: string) {
 	const root = document.documentElement.style;
 	root.setProperty("--accent", hex);
 	root.setProperty("--on-accent", textColorFor(hex));
 }
 
+/** Convert "#rrggbb" to {h, s, l} (degrees, percent, percent). */
 export function hexToHsl(hex: string): { h: number; s: number; l: number } {
 	const [r8, g8, b8] = hexToRgb(hex);
 	const r = r8 / 255;
@@ -56,12 +60,14 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } {
 	};
 }
 
+/** Convert HSL (degrees, percent, percent) to "#rrggbb". */
 export function hslToHex(h: number, s: number, l: number): string {
 	const [r, g, b] = hslToRgb(h, s / 100, l / 100);
 	const hex = (n: number) => n.toString(16).padStart(2, "0");
 	return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
+/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. */
 export function hslToRgb(h: number, s: number, l: number): RGB {
 	const a = s * Math.min(l, 1 - l);
 	const f = (n: number) => {
@@ -86,10 +92,12 @@ export function colorForName(name: string): string {
 	return `#${hex(r)}${hex(g)}${hex(b)}`;
 }
 
+/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. */
 export function rgbCss([r, g, b]: RGB): string {
 	return `rgb(${r}, ${g}, ${b})`;
 }
 
+/** Convert an RGB byte tuple to "#rrggbb". */
 export function rgbToHex([r, g, b]: RGB): string {
 	const h = (n: number) => Math.round(n).toString(16).padStart(2, "0");
 	return `#${h(r)}${h(g)}${h(b)}`;

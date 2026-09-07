@@ -12,6 +12,7 @@ import { getMapState, setWorkArea } from "./useMapStore";
 const ZERO_DIFF: CommitDiff = { added: 0, removed: 0, modified: 0 };
 let cachedCommitDiff = ZERO_DIFF;
 
+/** Whether there are uncommitted changes (adds, removes, or modifications). */
 export function hasCommitDiff(): boolean {
 	return (
 		cachedCommitDiff.added > 0 || cachedCommitDiff.removed > 0 || cachedCommitDiff.modified > 0
@@ -30,7 +31,7 @@ function publishCommitDiff(next: CommitDiff) {
 	emitEvent("commit-diff:changed");
 }
 
-/** Zero the cached counts (a commit just cleared the overlay). */
+/** Reset the uncommitted-change counts to zero. */
 export function resetCommitDiffCounts() {
 	publishCommitDiff(ZERO_DIFF);
 }
@@ -41,6 +42,7 @@ async function refreshCommitDiff() {
 	publishCommitDiff({ added, removed, modified });
 }
 
+/** React hook: the uncommitted add/remove/modify counts, kept in sync with the store. */
 export function useCommitDiff() {
 	const diff = useEventValue("commit-diff:changed", () => cachedCommitDiff);
 	useEffect(() => {
@@ -52,8 +54,8 @@ export function useCommitDiff() {
 
 // --- Commit-diff preview overlay ---
 
-/** Ephemeral commit-diff overlay shown while `workArea === "diff"`. Position arrays are
- *  interleaved `[lng, lat]` f32; `diff-markers:changed` fires to rebuild the layers. */
+/** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
+ *  interleaved `[lng, lat]` Float32Arrays. */
 export interface CommitDiffPreview {
 	commitId: string;
 	hash: string;
@@ -64,16 +66,17 @@ export interface CommitDiffPreview {
 }
 
 let commitDiffPreview: CommitDiffPreview | null = null;
+/** The current commit-diff preview, or null when not previewing. */
 export function getCommitDiffPreview() {
 	return commitDiffPreview;
 }
 
-/** Reset diff state (called when map edit state is cleared). */
+/** Clear commit-diff preview state. */
 export function resetCommitDiffState() {
 	commitDiffPreview = null;
 }
 
-/** Interleave `[lng, lat]` pairs into an f32 buffer for deck.gl. */
+/** Pack `[lng, lat]` pairs into an interleaved Float32Array. */
 export function diffPositions(locs: LatLng[]): Float32Array {
 	const a = new Float32Array(locs.length * 2);
 	for (let i = 0; i < locs.length; i++) {

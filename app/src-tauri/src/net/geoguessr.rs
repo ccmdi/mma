@@ -223,7 +223,7 @@ fn login_nav_allowed(url: &tauri::Url) -> bool {
         .any(|d| host == *d || host.ends_with(&format!(".{d}")))
 }
 
-/// Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
+/// Open the GeoGuessr sign-in window and wait for authentication to complete.
 /// Returns the signed-in nickname.
 #[tauri::command]
 #[specta::specta]
@@ -329,6 +329,7 @@ pub async fn geoguessr_me() -> AppResult<Option<GgUser>> {
     blocking(fetch_me).await?
 }
 
+/// Sign out of GeoGuessr and clear the stored session.
 #[tauri::command]
 #[specta::specta]
 pub async fn geoguessr_logout(app: tauri::AppHandle) -> AppResult<()> {

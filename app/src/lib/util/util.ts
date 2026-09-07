@@ -2,14 +2,14 @@ import type { Tag } from "@/bindings.gen";
 import type { TagSortMode } from "@/types";
 import { colorForName } from "@/lib/util/color";
 
-/** Base URL for a Tauri custom URI scheme. Windows WebView2 uses http://<scheme>.localhost/. */
+/** Base URL for a custom URI scheme, platform-adjusted. */
 export function schemeBase(scheme: string): string {
 	return navigator.platform.startsWith("Win")
 		? `http://${scheme}.localhost/`
 		: `${scheme}://localhost/`;
 }
 
-/** URL that serves a local file over the `mma-buf://` protocol (binary Rust-to-JS transfers). */
+/** URL that serves a local file over the `mma-buf://` protocol. */
 export function mmaBufUrl(path: string): string {
 	return schemeBase("mma-buf") + path.replace(/\\/g, "/");
 }
@@ -36,6 +36,7 @@ export function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean)
 	return best;
 }
 
+/** Split `arr` into sub-arrays of at most `n` elements. */
 export function chunk<T>(arr: readonly T[], n: number): T[][] {
 	const out: T[][] = [];
 	for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
@@ -110,11 +111,12 @@ export async function copyImageToClipboard(blob: Blob): Promise<boolean> {
 	}
 }
 
-// Order strings with embedded numbers by numeric value, not lexically
+/** Compare strings with natural (numeric-aware) ordering. */
 export function compareNatural(a: string, b: string): number {
 	return a.localeCompare(b, undefined, { numeric: true });
 }
 
+/** Sort tags by the chosen mode: name, location count, or manual order. */
 export function sortTagsByMode(
 	tags: Tag[],
 	mode: TagSortMode,
@@ -143,7 +145,7 @@ export function appendTagName(pending: string[], name: string, tags: Tag[]): str
 	return [...pending, existing ? existing.name : name];
 }
 
-// FOV (degrees) → zoom level
+/** Convert a field-of-view angle (degrees) to a zoom level. */
 export function fovToZoom(fov: number): number {
 	return -Math.log2((4 / 3) * Math.tan((Math.PI * fov) / 360)) + 1;
 }
@@ -161,11 +163,9 @@ export interface PhaseRate {
 	total: number;
 }
 
-/** Locations/second averaged over the progress phase in flight. A done that went backward
- *  or a total that grew means a new phase began (a hand-run resets its bar per phase;
- *  within one, done only grows and the total only shrinks as skips are found), so the
- *  average re-anchors there instead of carrying the previous phase's speed. Null until
- *  the phase shows a quarter second of work. */
+/** Compute a locations/second rate for the current progress phase. Re-anchors when a
+ *  new phase is detected (done went backward or total grew). Null until a quarter second
+ *  of work has elapsed. */
 export function phaseRate(
 	prev: PhaseRate | null,
 	done: number,

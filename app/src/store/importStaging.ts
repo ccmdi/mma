@@ -26,15 +26,17 @@ export interface ImportStaging {
 const EMPTY_IMPORT = { staging: null, positions: new Float32Array(0) };
 let importState: { staging: ImportStaging | null; positions: Float32Array } = EMPTY_IMPORT;
 
+/** The preview marker positions for the staged import. */
 export function getImportPreviewPositions() {
 	return importState.positions;
 }
 
+/** The current staged import, or null if none. */
 export function getImportStaging() {
 	return importState.staging;
 }
 
-/** Reset import state (called when map edit state is cleared). */
+/** Clear staged import state. */
 export function resetImportState() {
 	importState = EMPTY_IMPORT;
 }

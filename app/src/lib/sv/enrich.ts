@@ -28,11 +28,9 @@ import { toast } from "@/lib/util/toast";
 import type { Location, Selector } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
 
-/** One location as enrichment leaves it: every field-producing provider, narrowed to
- *  the map's enabled keys, run over that row alone. A field the row already holds is
- *  not derived again unless `force`, which re-derives every field the providers own.
- *  Nothing is written; the caller holds the result. The row comes back untouched when
- *  the map's enrichment is off. */
+/** Enrich a single location with the map's enabled metadata fields. Existing fields are
+ *  kept unless `force` re-derives all of them. Returns the enriched location without
+ *  writing it. Returns the location unchanged when enrichment is disabled. */
 export async function enrich(
 	loc: Location,
 	opts: Omit<RunOpts, "onProgress"> = {},
@@ -44,8 +42,8 @@ export async function enrich(
 	return rows[0];
 }
 
-/** The field-producing providers as enrichment runs them, each narrowed to the keys the
- *  user picked. Keys the enrichment UI never offers are always produced. */
+/** Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
+ *  offered in the enrichment settings are always included. */
 export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []): ProviderRun[] {
 	const selectable = new Set(getAllEnrichKeys());
 	const active = new Set(enrichFields ?? getDefaultEnrichKeys());
@@ -61,14 +59,13 @@ export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []
 
 // --- Providers ---
 
+/** Configuration for panorama resolution (search radius). */
 export interface PanoResolveConfig {
 	radius: number;
 }
 
-/** Pano id from coordinates, via the location search `StreetViewService.getPanorama`
- *  sends. A row that already has a pano id is left alone unless the run is forced:
- *  `force` re-resolves, which is what pinning asks for. Under `collect` it answers the
- *  patch it would have written. */
+/** Resolve a pano id from coordinates. Rows that already have a pano id are skipped
+ *  unless the run is forced. */
 export const panoResolveSpec: ProcedureSpec<{ panoId: string }> = {
 	entry: procedureEntry("panoResolve"),
 	batch: { mode: "chunk", size: 200 },
@@ -77,8 +74,8 @@ export const panoResolveSpec: ProcedureSpec<{ panoId: string }> = {
 	config: { radius: SV_SEARCH_RADIUS } satisfies PanoResolveConfig,
 };
 
-/** `panoResolveSpec` as enrichment schedules it: it writes the `panoId` column, so every
- *  provider that reads a panorama requires it and the engine runs it first. */
+/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before
+ *  any provider that depends on it. */
 export const panoResolveProvider: Provider = {
 	id: "panoResolve",
 	label: msg("Resolving panoramas"),
@@ -86,8 +83,7 @@ export const panoResolveProvider: Provider = {
 	procedure: panoResolveSpec,
 };
 
-/** Exact capture timestamp: the procedure narrows the `imageDate` month against
- *  Google's SingleImageSearch per location. */
+/** Exact capture timestamp, narrowed from the `imageDate` month via binary search. */
 export const exactDateProvider: Provider = {
 	id: "exactDate",
 	label: msg("Exact dates"),
@@ -102,8 +98,7 @@ export const exactDateProvider: Provider = {
 	},
 };
 
-/** Timezone at the location, once a `datetime` exists to interpret. The tz-lookup
- *  quadtree ships inside the module. */
+/** Timezone at the location's coordinates. Requires `datetime` to be present. */
 export const timezoneProvider: Provider = {
 	id: "timezone",
 	label: msg("Timezone"),
@@ -148,7 +143,7 @@ export const subdivisionProvider: Provider = {
 	},
 };
 
-/** Core pano metadata via Google's GetMetadata RPC, decoded inside the module. */
+/** Core panorama metadata via Google's GetMetadata RPC. */
 export const svMetaProvider: Provider = {
 	id: "svMeta",
 	label: msg("Metadata"),
@@ -185,8 +180,8 @@ export interface EnrichOutcome extends ProcedureOutcome {
 	id: string;
 	label: string;
 }
-/** Bulk enrich a selector: resolve missing pano ids, then run every field-producing
- *  provider (metadata, exact date, timezone, subdivision) through the Rust engine. */
+/** Bulk-enrich a selector: resolve missing pano ids, then run every field-producing
+ *  provider (metadata, exact date, timezone, subdivision). */
 export async function enrichAll(
 	selector: Selector,
 	opts: RunOpts = {},

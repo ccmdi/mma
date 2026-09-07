@@ -172,8 +172,8 @@ pub async fn feedback_anonymous_available() -> AppResult<bool> {
     Ok(!WORKER_URL.is_empty())
 }
 
-/// File an issue through the worker, without any account. The worker applies the labels
-/// (a bot has push access, so it can) and returns the reply token.
+/// File a bug report anonymously (no account required). Returns a reference the
+/// caller can use to check for replies via [`feedback_anonymous_thread`].
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_submit_anonymous(
@@ -242,10 +242,7 @@ pub(crate) fn is_staged_upload(path: &Path) -> bool {
         .is_some_and(|p| export::upload_session_dir(p).is_ok())
 }
 
-/// Store an image and return the URL a report body can reference it by.
-///
-/// The proof of work is bound to the bytes, so it costs the same per image as a report costs
-/// per body -- which is what keeps an open upload route from being free hosting.
+/// Upload an image attachment for a bug report and return its URL.
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult<AttachmentRef> {
@@ -289,11 +286,8 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
     .await?
 }
 
-/// Ask the worker to label an issue the user filed themselves.
-///
-/// GitHub drops labels sent by a reporter without push access, so a signed-in outside
-/// contributor's report arrives bare. The worker's installation token has push access and
-/// re-applies them. Best-effort: a report that is filed but unlabelled is not worth failing.
+/// Request that standard labels be applied to a report the user filed. Best-effort:
+/// a failure here does not affect the report itself.
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_request_label(number: u32) -> AppResult<()> {
@@ -322,7 +316,7 @@ pub async fn feedback_request_label(number: u32) -> AppResult<()> {
     .await?
 }
 
-/// State and replies for an anonymous report, relayed by the worker.
+/// Fetch the current state and replies for an anonymous report.
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_anonymous_thread(number: u32, token: String) -> AppResult<IssueThread> {

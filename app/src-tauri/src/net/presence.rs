@@ -79,6 +79,7 @@ pub struct PresenceActivity {
     pub start: Option<i64>,
 }
 
+/// Set the Discord Rich Presence activity. No-op when Discord is not running.
 #[tauri::command]
 #[specta::specta]
 pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
@@ -112,6 +113,7 @@ pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
     Ok(())
 }
 
+/// Clear the Discord Rich Presence activity. No-op when Discord is not running.
 #[tauri::command]
 #[specta::specta]
 pub fn discord_presence_clear() -> AppResult<()> {

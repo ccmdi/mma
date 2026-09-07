@@ -1,4 +1,4 @@
-/** Pure selection transforms. These only manipulate the JS selection tree; Rust resolves the actual bitmasks. */
+/** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
 import type { FilterOp, PolygonGeometry, Tag } from "@/bindings.gen";
 import { getVisibleTags, getTag } from "@/store/useMapStore";
@@ -23,10 +23,9 @@ export interface SelectionState {
 
 export type SelectionPatch = Partial<SelectionState>;
 
-/** Variants that wrap children — derived as exactly those carrying a `selections` array. */
+/** Selector variants that wrap child selections (Intersection, Union, Invert). */
 export type CompositeType = Extract<Selector, { selections: Selection[] }>["type"];
-/** Composite variants that wrap exactly one child (operators, not bags). They never collapse — a
- *  one-child group is degenerate, but one child is a unary node's only valid arity. */
+/** Composite variants that wrap exactly one child (e.g. Invert). */
 export type UnaryType = "Invert";
 /** Composite variants that are flat n-ary groups. */
 export type GroupType = Exclude<CompositeType, UnaryType>;
@@ -59,6 +58,7 @@ export const OP_LABELS: Record<FilterOpKind, string> = {
 	notcontains: msg("does not contain"),
 };
 
+/** Deterministic color derived from a selection key string. */
 export function colorForKey(key: string): RGB {
 	let t = 0;
 	for (let i = 0; i < key.length; i += 1) t = ((key.charCodeAt(i) + (t << 5)) | 0) + t;
@@ -81,12 +81,14 @@ export function isolateGhostKeys(
 	return alreadyIsolated ? new Set() : new Set(keys.filter((k) => k !== key));
 }
 
+/** Toggle one selection's ghosted (dimmed) state. */
 export const toggleGhost =
 	(key: string) =>
 	(_sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => ({
 		ghosted: ghosted.symmetricDifference(new Set([key])),
 	});
 
+/** Solo one selection by ghosting all others. Repeat to clear all ghosts. */
 export const isolateGhost =
 	(key: string) =>
 	(sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => ({
@@ -97,6 +99,7 @@ export const isolateGhost =
 		),
 	});
 
+/** Ghost all selections, or clear all ghosts if every selection is already ghosted. */
 export const toggleGhostAll =
 	() =>
 	(sels: Selection[], ghosted: ReadonlySet<string>): SelectionPatch => {
@@ -129,6 +132,7 @@ interface SelectionDescriptor<K extends Selector["type"]> {
 
 const ownLocations = (s: { locations: number[] }) => [...s.locations];
 
+/** Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides. */
 export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	Locations: {
 		key: (_s, locations) => locationsKey(locations),
@@ -271,9 +275,7 @@ function descriptorFor(selector: Selector) {
 	};
 }
 
-/** Key a polygon by hashing its raw coordinates: identical geometry = identical key,
- *  so any path that rebuilds the Selection (composites, tree transforms) keeps the
- *  leaf's identity instead of minting a fresh one and breaking key-is-identity. */
+// Key a polygon by hashing its raw coordinates: identical geometry = identical key.
 function polygonKey(geom: PolygonGeometry): string {
 	let h1 = 0xdeadbeef | 0;
 	let h2 = 0x41c6ce57 | 0;
@@ -292,7 +294,7 @@ function polygonKey(geom: PolygonGeometry): string {
 	return `polygon:${(h1 >>> 0).toString(36)}${(h2 >>> 0).toString(36)}`;
 }
 
-/** Create a Selection with a deterministic key and overlay color from its selector. */
+/** Create a Selection with a deterministic key and color from its selector. */
 export function buildSelection(selector: Selector): Selection {
 	const d = descriptorFor(selector);
 	const key = d.key(d.locations());
@@ -306,6 +308,7 @@ function dedupe(selections: Selection[]): Selection[] {
 	return map.size === selections.length ? selections : Array.from(map.values());
 }
 
+/** Append a new selection built from `selector`, deduplicating by key. */
 export const addSelection =
 	(selector: Selector) =>
 	(current: Selection[]): Selection[] =>
@@ -327,8 +330,7 @@ export function polygonSelectionsContaining(
 	return keys;
 }
 
-/** Remove a selection by key. Composites unwrap their children back into the list.
- *  Returns `current` unchanged when the key is not present (identity-safe). */
+/** Remove a selection by key. Composites unwrap their children back into the list. */
 export const removeSelection =
 	(key: string) =>
 	(current: Selection[]): Selection[] => {
@@ -359,11 +361,13 @@ function composeSelectionGroup(
 	return [...others, buildSelection({ type, selections: dedupe(flat) })];
 }
 
+/** Merge the targeted selections (or all, when `keys` is null) into a single Intersection. */
 export const intersectSelections =
 	(keys: string[] | null = null) =>
 	(current: Selection[]) =>
 		composeSelectionGroup(current, keys, "Intersection");
 
+/** Merge the targeted selections (or all, when `keys` is null) into a single Union. */
 export const unionSelections =
 	(keys: string[] | null = null) =>
 	(current: Selection[]) =>
@@ -395,6 +399,7 @@ export const invertSelections =
 		return [...others, buildSelection({ type: "Invert", selections: [inner] })];
 	};
 
+/** Add or remove a location from the Manual selection, creating it if needed. */
 export const toggleManualSelection =
 	(locationId: number) =>
 	(current: Selection[]): Selection[] => {
@@ -411,6 +416,7 @@ export const toggleManualSelection =
 		return current.with(idx, next);
 	};
 
+/** Move selection `fromKey` before or after `toKey` in the list. */
 export const reorderSelections =
 	(fromKey: string, toKey: string, position: "before" | "after") =>
 	(current: Selection[]): Selection[] => {
@@ -424,9 +430,8 @@ export const reorderSelections =
 		return without.toSpliced(toIdx, 0, item);
 	};
 
-/** Drag-drop composition: merge drag into drop as a new composite, absorbing existing
- *  children of the same type. Parents route the nested cases: same parent recomposes the
- *  siblings, a drag out of a parent detaches first, a drop onto a child nests there. */
+/** Merge the dragged selection into the drop target as a composite, absorbing existing
+ *  children of the same type. Handles nested cases across parent groups. */
 export const composeSelections =
 	(
 		dragKey: string,
@@ -458,10 +463,9 @@ export const composeSelections =
 		return sels.filter((_, i) => i !== dragIdx).map((s) => (s.key === dropKey ? composite : s));
 	};
 
-/** Unwrap a unary operator (e.g. Invert) to the n-ary group it wraps, returning that group's selector
- *  plus a `rewrap` that restores the operator; a plain group returns itself with an identity rewrap.
- *  Null when there's no group to operate on. Single source for "a unary node keeps its wrapper" —
- *  every site that rebuilds a composite's children routes through it. */
+// Unwrap a unary operator to the group it wraps, returning the group's selector plus a `rewrap`
+// that restores the operator; a plain group returns itself with an identity rewrap. Null when
+// there's no group to operate on.
 function unwrapUnary(
 	sel: Selection,
 ): { selector: Variant<Selector, GroupType>; rewrap: (inner: Selection) => Selection } | null {
@@ -476,8 +480,8 @@ function unwrapUnary(
 	};
 }
 
-/** Rebuild a composite around `next`: a group that drops to one child collapses to it, an empty
- *  one is gone (null). `rewrap` keeps a unary wrapper (Invert) around whatever survives. */
+// Rebuild a composite around `next`: a group that drops to one child collapses to it, an empty
+// one is gone (null). `rewrap` keeps a unary wrapper (Invert) around whatever survives.
 function rebuildComposite(
 	type: GroupType,
 	rewrap: (inner: Selection) => Selection,
@@ -487,9 +491,9 @@ function rebuildComposite(
 	return rewrap(next.length === 1 ? next[0] : buildSelection({ type, selections: next }));
 }
 
-/** `updated: null` means the composite is empty now and the caller must drop it. `dissolve` hoists a
- *  removed group's children into the parent instead of taking them with it — a delete ungroups,
- *  an extract must not (the child keeps its own children when it leaves). */
+// `updated: null` means the composite is empty now and the caller must drop it. `dissolve` hoists a
+// removed group's children into the parent instead of taking them with it - a delete ungroups,
+// an extract must not (the child keeps its own children when it leaves).
 function removeChildFromComposite(
 	sel: Selection,
 	parentKey: string,
@@ -521,8 +525,8 @@ function removeChildFromComposite(
 	return null;
 }
 
-/** `extract` puts the child back at the top level; `delete` drops it, ungrouping a nested group's
- *  children into the parent. */
+// `extract` puts the child back at the top level; `delete` drops it, ungrouping a nested group's
+// children into the parent.
 function detachChild(
 	current: Selection[],
 	parentKey: string,
@@ -547,13 +551,14 @@ export const decomposeChild =
 	(current: Selection[]): Selection[] =>
 		detachChild(current, parentKey, childKey, "extract");
 
+/** Remove a child from a composite, ungrouping any nested group's children into the parent. */
 export const removeFromComposite =
 	(parentKey: string, childKey: string) =>
 	(current: Selection[]): Selection[] =>
 		detachChild(current, parentKey, childKey, "delete");
 
-/** Rewrite the children of the composite at `parentKey` in place. `edit` returning null leaves the
- *  list untouched, so a caller that cannot find its target aborts without a partial write. */
+// Rewrite the children of the composite at `parentKey` in place. `edit` returning null leaves the
+// list untouched.
 function withComposite(
 	current: Selection[],
 	parentKey: string,
@@ -572,6 +577,7 @@ function withComposite(
 	);
 }
 
+/** Compose two siblings inside the same parent group into a nested composite. */
 export function composeSiblings(
 	current: Selection[],
 	parentKey: string,
@@ -588,6 +594,7 @@ export function composeSiblings(
 	});
 }
 
+/** Compose a top-level selection with a child inside a parent group. */
 export function composeWithChild(
 	current: Selection[],
 	dragKey: string,
@@ -608,11 +615,8 @@ export function composeWithChild(
 	return next === current ? current : next.filter((_, i) => i !== dragIdx);
 }
 
-/** Put `replaced` at `index` in `list`, enforcing unique keys at this level: if it collides
- *  with another entry, drop the spliced (edited) one and keep the pre-existing. Index-based so
- *  it's correct at every level — a re-key can collide with a sibling not just where the edit
- *  happened but at any composite up the path (e.g. editing one group's child to match another
- *  group makes the two groups identical). */
+// Put `replaced` at `index` in `list`, enforcing unique keys: if the replacement collides with
+// another entry, drop it and keep the pre-existing one.
 function spliceMerging(list: Selection[], index: number, replaced: Selection): Selection[] {
 	if (list.some((s, j) => j !== index && s.key === replaced.key)) {
 		return list.filter((_, j) => j !== index);
@@ -620,10 +624,8 @@ function spliceMerging(list: Selection[], index: number, replaced: Selection): S
 	return list.with(index, replaced);
 }
 
-/** Find the node identified by `key` at any depth and replace it with `fn(matched)`, rebuilding the
- *  keys of every composite on the path so identity stays consistent. Enforces the unique-key
- *  invariant via {@link spliceMerging}. A group that merges down to one child collapses to that
- *  child; Invert is unary, so it always keeps its wrapper around the rebuilt child. */
+// Find the node identified by `key` at any depth and replace it with `fn(matched)`, rebuilding
+// composite keys on the path. A group that drops to one child collapses to that child.
 function transformInTree(
 	sel: Selection,
 	key: string,
@@ -643,13 +645,8 @@ function transformInTree(
 	return null;
 }
 
-/** Replace the selection identified by `oldKey` (at any depth) with one built from `selector`,
- *  rebuilding the keys of every composite on the path so identity stays consistent. Used to
- *  edit a filter in place without dropping it from its AND/OR group. Enforces the unique-key
- *  invariant recursively (via {@link spliceMerging}): if a re-key collides with an existing
- *  selection at any level, merge into it — drop this edit, keep the existing one. A selection's
- *  key is its identity, so a duplicate key would break every key-addressed op (recolor,
- *  reorder, drag-highlight, remove). */
+/** Replace the selection at `oldKey` (at any depth) with one built from `selector`. If the new
+ *  key collides with an existing selection, the existing one wins and the replacement is dropped. */
 export function replaceSelection(
 	current: Selection[],
 	oldKey: string,
@@ -662,21 +659,16 @@ export function replaceSelection(
 	return current;
 }
 
-/** Human-readable label for a selection, resolving tag names and filter ops. Each branch is one
- *  whole message with named params -- never assembled from translated fragments, so a language
- *  can reorder it. `tagNames` is a saved rule's tag-name side table: it names `Tag` leaves whose
- *  id belongs to the map the rule was saved on rather than the one that is open. */
+/** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
+ *  rather than the open map's tags (used by saved selection rules). */
 export function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string {
 	return descriptorFor(sel.selector).label(tagNames);
 }
 
 let suffixCache: { tags: Tag[]; suffixes: Map<string, string> } | null = null;
 
-/** Display label for a tag NAME. In tree view with `truncateTagPaths` on, collapses the
- *  `/`-path to its shortest unique suffix; otherwise returns the name verbatim. Uniqueness
- *  is computed over visible tags only — soft-deleted ghosts must not widen suffixes.
- *  Memoized on the visible-tags array (stable identity between tag mutations) so list
- *  rendering stays O(n). */
+/** Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
+ *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. */
 export function displayTagName(name: string): string {
 	const s = getSettings();
 	if (s.tagViewMode !== "tree" || !s.truncateTagPaths) return name;
@@ -713,6 +705,7 @@ function validationStateLabel(state: ValidationState): string {
 	}
 }
 
+/** Update the colors of selections by matching keys from `entries`. */
 export const setSelectionColors =
 	(entries: Selection[]) =>
 	(current: Selection[]): Selection[] =>
@@ -721,6 +714,7 @@ export const setSelectionColors =
 			return idx === -1 ? sels : sels.with(idx, entry);
 		}, current);
 
+/** Rename a Polygon selection's display name. */
 export const setPolygonName =
 	(key: string, name: string) =>
 	(current: Selection[]): Selection[] => {
@@ -734,11 +728,8 @@ export const setPolygonName =
 		});
 	};
 
-/**
- * Rewrite Filter `field` references in a selection tree: `from` -> `to`, or drop the
- * Filter when `to` is null (field deleted). Composites collapse if emptied, or unwrap
- * to their sole survivor (matching the rest of the selection engine's semantics).
- */
+// Rewrite Filter `field` references in a selection tree: `from` -> `to`, or drop the
+// Filter when `to` is null. Composites collapse if emptied or unwrap to their sole survivor.
 function rewriteSelection(sel: Selection, from: string, to: string | null): Selection | null {
 	const p = sel.selector;
 	if (p.type === "Filter") {
@@ -756,6 +747,7 @@ function rewriteSelection(sel: Selection, from: string, to: string | null): Sele
 	return sel;
 }
 
+/** Rename or remove a field across all Filter selections. When `to` is null, filters on that field are dropped. */
 export const rewriteSelectionFields =
 	(from: string, to: string | null) =>
 	(selections: Selection[]): Selection[] =>

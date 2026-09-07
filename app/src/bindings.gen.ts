@@ -8,21 +8,24 @@ export const commands = {
 	/**  Milliseconds from `run()` to the frontend's first call; logged once. */
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
-	 *  Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
-	 *  large payloads over by file instead of IPC serialization. `name` names a leaf, so it
-	 *  cannot steer the write out of the temp directory.
+	 *  Write text to a temp file and return its path. `name` is a leaf filename
+	 *  (cannot contain path separators).
 	 */
 	writeTempFile: (name: string, content: string) => __TAURI_INVOKE<string>("write_temp_file", { name, content }),
 	/**  Read a file as UTF-8 text (temp files, plugin sources). */
 	readFile: (path: string) => __TAURI_INVOKE<string>("read_file", { path }),
+	/**  Return the app's data directory path. */
 	getAppDataDir: () => __TAURI_INVOKE<string>("get_app_data_dir"),
+	/**  Return the current and default data-folder paths, and whether a custom override is active. */
 	getDataLocation: () => __TAURI_INVOKE<DataLocation>("get_data_location"),
 	/**
-	 *  Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
-	 *  and does not move existing data.
+	 *  Set or clear the data-folder override. Takes effect after relaunch and does not
+	 *  move existing data.
 	 */
 	setDataLocation: (path: string | null) => __TAURI_INVOKE<null>("set_data_location", { path }),
+	/**  Open the app's data folder in the OS file explorer. */
 	openDataFolder: () => __TAURI_INVOKE<null>("open_data_folder"),
+	/**  Open the app's log file in the OS default handler. */
 	openLogFile: () => __TAURI_INVOKE<null>("open_log_file"),
 	/**
 	 *  First caller per app run wins the silent update pass. Every webview boots the
@@ -45,7 +48,7 @@ export const commands = {
 	 *  `{appData}/plugins/{plugin_id}/sidecar/`. Emits `sidecar-install-progress`.
 	 */
 	sidecarInstall: (pluginId: string, name: string, version: string) => __TAURI_INVOKE<null>("sidecar_install", { pluginId, name, version }),
-	/**  Installed sidecar version for a plugin (from `sidecar/version.txt`), or `None`. */
+	/**  Installed sidecar version for a plugin, or `None` if not installed. */
 	sidecarInstalledVersion: (pluginId: string) => __TAURI_INVOKE<string | null>("sidecar_installed_version", { pluginId }),
 	/**
 	 *  Run one unit of work on a plugin's sidecar. Commands the manifest lists under
@@ -54,37 +57,34 @@ export const commands = {
 	 *  then exactly one `sidecar-done`, all keyed by the returned request id.
 	 */
 	sidecarRequest: (pluginId: string, command: string, payload: string | null) => __TAURI_INVOKE<number>("sidecar_request", { pluginId, command, payload }),
-	/**
-	 *  Stop everything a plugin has running. Called when the plugin is disabled or
-	 *  uninstalled, so a resident process never outlives the plugin that wanted it.
-	 */
+	/**  Stop all sidecar processes for a plugin. */
 	sidecarStop: (pluginId: string) => __TAURI_INVOKE<null>("sidecar_stop", { pluginId }),
-	/**
-	 *  Stop every plugin's sidecar processes. Used when the editor tears all plugins
-	 *  down at once (map close), where nothing should still be running afterwards.
-	 */
+	/**  Stop all sidecar processes across every plugin. */
 	sidecarStopAll: () => __TAURI_INVOKE<null>("sidecar_stop_all"),
-	/**
-	 *  Kill the process behind a one-shot request (no-op if it already finished).
-	 *  Resident-served requests have no process of their own, so this does not
-	 *  interrupt them -- the caller simply stops listening.
-	 */
+	/**  Cancel a running sidecar request. No-op if the request already finished. */
 	sidecarCancel: (reqId: number) => __TAURI_INVOKE<null>("sidecar_cancel", { reqId }),
+	/**  Whether the border dataset for `level` is available on disk. */
 	checkBorderFile: (level: string) => __TAURI_INVOKE<boolean>("check_border_file", { level }),
+	/**  Download the border dataset for `level` from the repository. */
 	downloadBorderFile: (level: string) => __TAURI_INVOKE<null>("download_border_file", { level }),
+	/**
+	 *  Return the border polygon containing (`lat`, `lng`) at the given detail
+	 *  `level`, or `None` if the point falls outside every feature.
+	 */
 	borderLookup: (lat: number, lng: number, level: string) => __TAURI_INVOKE<PolygonGeometry | null>("border_lookup", { lat, lng, level }).then((v) => (v==null?v:({...v,coordinates:v.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:v.extraPolygons==null?v.extraPolygons:v.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) as typeof v)),
 	/**
-	 *  Classify each `(lat, lng)` to the name of its containing feature at `level`
-	 *  (subdivision names for "adm1"). `None` for points outside every feature.
-	 *  Same bbox-prefiltered parallel scan as `tally_countries`, but per-point names.
+	 *  Classify each `(lat, lng)` to the name of its containing border feature at
+	 *  `level` (subdivision names for "adm1"). `None` for points outside every feature.
 	 */
 	borderClassify: (level: string, points: ([number, number])[]) => __TAURI_INVOKE<(string | null)[]>("border_classify", { level, points: points.map(i=>i) }),
 	/**
-	 *  Finds the nearest city/country for a coordinate. O(log n) k-d tree lookup.
-	 *  Always returns `Some` -- the GeoNames dataset covers every landmass.
+	 *  Return the nearest city, administrative region, and country for a coordinate.
+	 *  Always returns `Some` - the dataset covers every landmass.
 	 */
 	reverseGeocode: (lat: number, lng: number) => __TAURI_INVOKE<GeoResult | null>("reverse_geocode", { lat, lng }),
+	/**  Set the Discord Rich Presence activity. No-op when Discord is not running. */
 	discordPresenceSet: (activity: PresenceActivity) => __TAURI_INVOKE<null>("discord_presence_set", { activity }),
+	/**  Clear the Discord Rich Presence activity. No-op when Discord is not running. */
 	discordPresenceClear: () => __TAURI_INVOKE<null>("discord_presence_clear"),
 	/**
 	 *  Begin device-flow sign-in. Returns the code to show the user; call
@@ -92,54 +92,41 @@ export const commands = {
 	 */
 	githubStartLogin: () => __TAURI_INVOKE<DeviceCodeInfo>("github_start_login"),
 	/**
-	 *  Wait for the user to authorize the code from [`github_start_login`], then store the token.
+	 *  Wait for the user to authorize the code from [`github_start_login`].
 	 *  Resolves with the signed-in account.
 	 */
 	githubPollLogin: () => __TAURI_INVOKE<GhUser>("github_poll_login"),
 	/**  The signed-in user, or `None` when there is no session (or it was rejected). */
 	githubMe: () => __TAURI_INVOKE<GhUser | null>("github_me"),
+	/**  Sign out of GitHub and clear the stored session. */
 	githubLogout: () => __TAURI_INVOKE<null>("github_logout"),
 	/**  Local-only check: is a token stored? Says nothing about its validity. */
 	githubHasSession: () => __TAURI_INVOKE<boolean>("github_has_session"),
-	/**
-	 *  File an issue as the signed-in user.
-	 * 
-	 *  Labels are sent even though only accounts with push access may set them: GitHub drops them
-	 *  silently for everyone else rather than failing, so sending costs nothing and they land for
-	 *  maintainers. Closing the gap for outside reporters is the worker's job.
-	 */
+	/**  File a bug report as the signed-in GitHub user. */
 	githubCreateIssue: (title: string, body: string, labels: string[]) => __TAURI_INVOKE<IssueRef>("github_create_issue", { title, body, labels }),
-	/**  One of our issues and its comments, read as the signed-in user. */
+	/**  Fetch a report's current state and comments as the signed-in GitHub user. */
 	githubIssueThread: (number: number) => __TAURI_INVOKE<IssueThread>("github_issue_thread", { number }),
 	/**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. */
 	feedbackLogTail: () => __TAURI_INVOKE<string>("feedback_log_tail"),
 	/**  Whether the anonymous tier is available in this build. */
 	feedbackAnonymousAvailable: () => __TAURI_INVOKE<boolean>("feedback_anonymous_available"),
 	/**
-	 *  File an issue through the worker, without any account. The worker applies the labels
-	 *  (a bot has push access, so it can) and returns the reply token.
+	 *  File a bug report anonymously (no account required). Returns a reference the
+	 *  caller can use to check for replies via [`feedback_anonymous_thread`].
 	 */
 	feedbackSubmitAnonymous: (title: string, body: string, installId: string) => __TAURI_INVOKE<AnonIssueRef>("feedback_submit_anonymous", { title, body, installId }),
-	/**
-	 *  Store an image and return the URL a report body can reference it by.
-	 * 
-	 *  The proof of work is bound to the bytes, so it costs the same per image as a report costs
-	 *  per body -- which is what keeps an open upload route from being free hosting.
-	 */
+	/**  Upload an image attachment for a bug report and return its URL. */
 	feedbackUploadAttachment: (path: string, name: string) => __TAURI_INVOKE<AttachmentRef>("feedback_upload_attachment", { path, name }),
 	/**
-	 *  Ask the worker to label an issue the user filed themselves.
-	 * 
-	 *  GitHub drops labels sent by a reporter without push access, so a signed-in outside
-	 *  contributor's report arrives bare. The worker's installation token has push access and
-	 *  re-applies them. Best-effort: a report that is filed but unlabelled is not worth failing.
+	 *  Request that standard labels be applied to a report the user filed. Best-effort:
+	 *  a failure here does not affect the report itself.
 	 */
 	feedbackRequestLabel: (number: number) => __TAURI_INVOKE<null>("feedback_request_label", { number }),
-	/**  State and replies for an anonymous report, relayed by the worker. */
+	/**  Fetch the current state and replies for an anonymous report. */
 	feedbackAnonymousThread: (number: number, token: string) => __TAURI_INVOKE<IssueThread>("feedback_anonymous_thread", { number, token }),
 	/**
-	 *  Look for an update at `endpoint` (a release's `latest.json`). `None` means the announced
-	 *  version is not newer than the running one, which is the plugin's own comparison.
+	 *  Check for an update at `endpoint` (a release's `latest.json`). Returns `None`
+	 *  when the announced version is not newer than the running one.
 	 */
 	updateCheck: (endpoint: string) => __TAURI_INVOKE<UpdateAvailable | null>("update_check", { endpoint }),
 	/**
@@ -152,46 +139,36 @@ export const commands = {
 	 *  picks up the new key. Returns the base URL.
 	 */
 	remoteApiStart: (key: string) => __TAURI_INVOKE<string>("remote_api_start", { key }),
+	/**  Stop the remote API server. */
 	remoteApiStop: () => __TAURI_INVOKE<null>("remote_api_stop"),
-	/**
-	 *  Webview -> HTTP reply path: resolves the parked request for `id`.
-	 *  `payload` is JSON text, not a typed value -- specta cannot export the
-	 *  recursive `serde_json::Value` type (stack overflow at bindings export).
-	 */
+	/**  Deliver the result for remote API request `id`. `payload` is JSON text. */
 	remoteApiRespond: (id: number, ok: boolean, payload: string) => __TAURI_INVOKE<void>("remote_api_respond", { id, ok, payload }),
 	/**
-	 *  Load a map's Arrow data from disk, rebuild all indexes, and return initial state
-	 *  (tag counts, undo/redo availability). Must be called before any other store commands.
+	 *  Open a map and return its initial state (tag counts, undo/redo availability).
+	 *  Must be called before any other store commands.
 	 */
 	storeOpenMap: (mapId: string) => __TAURI_INVOKE<StoreStatus>("store_open_map", { mapId }).then((v) => (({...v,values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**
-	 *  Close the current map: bake overlay, flush Arrow + tags + edit history to disk, then
-	 *  release all in-memory state (batch, mmap, indexes, selections, undo stacks).
-	 */
+	/**  Close the open map, saving unsaved changes first. */
 	storeCloseMap: () => __TAURI_INVOKE<null>("store_close_map"),
-	/**  Autosave uncommitted changes to the delta sidecar. No-op when nothing changed. */
+	/**  Save uncommitted changes to disk. No-op when nothing has changed. */
 	storeSaveDirty: () => __TAURI_INVOKE<SaveResult>("store_save_dirty"),
 	/**  Copy locations already stored in this map into another map. */
 	storeCopyLocationsToMap: (targetMapId: string, selector: Selector) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
 	/**
-	 *  Copy caller-supplied location data into another map. Tag ids are read against this
-	 *  map's tag table, so the values may differ from any row it holds -- that is how the
-	 *  editor sends the pano you are currently looking at rather than the one on disk.
+	 *  Add caller-supplied locations to another map. Tags are matched by name against this
+	 *  map's tag table.
 	 */
 	storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => __TAURI_INVOKE<CopyToMapResult>("store_add_locations_to_map", { targetMapId, locations: locations.map(i=>i) }),
+	/**  Return the map's current location count, store version, and unsaved-change count. */
 	storeGetSummary: () => __TAURI_INVOKE<SummaryResult>("store_get_summary"),
-	/**
-	 *  Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
-	 *  and clears the redo stack.
-	 */
+	/**  Add new locations, allocating sequential IDs. Undoable. */
 	storeAddLocations: (locations: Location[]) => __TAURI_INVOKE<MutationResult>("store_add_locations", { locations: locations.map(i=>i) }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
-	 *  Add locations uploaded as chunked JSON in an upload session dir (see `store_upload_begin`),
-	 *  so the frontend never serializes the whole batch at once. Otherwise identical to
-	 *  [`store_add_locations`]: one atomic mutation, one undo entry, IDs in uploaded order.
+	 *  Add locations from a chunked upload session (see `store_upload_begin`).
+	 *  Same behavior as `store_add_locations`: one atomic mutation, undoable.
 	 */
 	storeAddLocationsUploaded: (sessionDir: string) => __TAURI_INVOKE<MutationResult>("store_add_locations_uploaded", { sessionDir }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  Remove locations by ID. Snapshots the full location data for undo before deleting. */
+	/**  Remove locations by ID. Undoable. */
 	storeRemoveLocations: (ids: number[]) => __TAURI_INVOKE<MutationResult>("store_remove_locations", { ids }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
 	 *  Apply partial patches to existing locations. `record_undo` defaults to true;
@@ -199,19 +176,13 @@ export const commands = {
 	 *  that manage their own undo).
 	 */
 	storeUpdateLocations: (updates: Update<LocationPatch_Deserialize>[], recordUndo: boolean | null) => __TAURI_INVOKE<MutationResult>("store_update_locations", { updates, recordUndo }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**
-	 *  Set (or clear) the active location. Fire-and-forget from JS; no re-render triggered.
-	 *  JS patches the cell buffer synchronously to hide/show the active marker.
-	 */
+	/**  Set (or clear) the active location. */
 	storeSetActive: (id: number | null) => __TAURI_INVOKE<null>("store_set_active", { id }),
-	/**
-	 *  Set the default marker color used by the render delta path. Fire-and-forget from JS;
-	 *  the JS side recolors its cell buffers in place (no full rebuild).
-	 */
+	/**  Set the default marker color for new render updates. */
 	storeSetMarkerColor: (color: [number, number, number]) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
 	/**  Ids of every location the selector resolves to, ascending. */
 	storeResolve: (selector: Selector) => __TAURI_INVOKE<number[]>("store_resolve", { selector }),
-	/**  How many locations the selector resolves to. Counts rows, never materializes them. */
+	/**  Count how many locations the selector matches. */
 	storeCount: (selector: Selector) => __TAURI_INVOKE<number>("store_count", { selector }),
 	/**  `n` ids drawn uniformly at random from the selected set, without replacement. */
 	storeSample: (selector: Selector, n: number) => __TAURI_INVOKE<number[]>("store_sample", { selector, n }),
@@ -222,7 +193,7 @@ export const commands = {
 	storeSpaced: (selector: Selector, targetCount: number | null, minDistanceM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_spaced", { selector, targetCount, minDistanceM }),
 	/**  Group by a derived key, returning `{ key, ids, bin }` per group. */
 	storeGroupBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<PartitionBucket[]>("store_group_by", { selector, field, key }).then((v) => (v.map(i=>({...i,bin:i.bin==null?i.bin:i.bin.map(i=>i)})) as typeof v)),
-	/**  Group by a derived key, returning counts only -- no member ids on the wire. */
+	/**  Group locations by a derived key, returning counts only (no member ids). */
 	storeCountBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<([string, number])[]>("store_count_by", { selector, field, key }),
 	/**  Distinct values of `field` across the selected set, sorted. */
 	storeValues: (selector: Selector, field: string) => __TAURI_INVOKE<string[]>("store_values", { selector, field }),
@@ -231,21 +202,21 @@ export const commands = {
 	 *  columns a row can lack.
 	 */
 	storeCoverage: (selector: Selector) => __TAURI_INVOKE<([string, number])[]>("store_coverage", { selector }),
-	/**  Values, never rows: the projection for a scan that reads fields across a set. */
+	/**  Read specific fields across matched locations, returned as one column per field. */
 	storeColumns: (selector: Selector, fields: string[]) => __TAURI_INVOKE<Columns>("store_columns", { selector, fields }),
 	/**  Bounding box `[west, south, east, north]`, or `None` when the set is empty. */
 	storeBounds: (selector: Selector) => __TAURI_INVOKE<[number, number, number, number] | null>("store_bounds", { selector }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
 	/**
-	 *  Full rows. The last resort -- prefer a projection. Every row is materialized in
-	 *  webview memory, so an `Everything` call costs O(map). Large answers are staged to a file
-	 *  rather than pushed through the IPC channel.
+	 *  Collect all matched locations as full rows. Prefer a projection (`store_columns`,
+	 *  `store_values`) when only specific fields are needed.
 	 */
 	storeCollect: (selector: Selector) => __TAURI_INVOKE<Rows>("store_collect", { selector }),
+	/**  Apply a field operation to every location matched by `selector`. */
 	storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => __TAURI_INVOKE<FieldOpResult>("store_apply_field_op", { selector, op, recordUndo }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  The parse error for `src`, or nothing when it parses. For the dialog's live check. */
 	fieldExprError: (src: string) => __TAURI_INVOKE<string | null>("field_expr_error", { src }),
 	/**
-	 *  Count locations by country (offline point-in-polygon). Returns unsorted (ISO-A2, count) pairs.
+	 *  Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
 	 *  `level` selects border precision, falling back to "light" if unavailable.
 	 */
 	storeCountryDistribution: (selector: Selector, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
@@ -253,18 +224,12 @@ export const commands = {
 	storeFindNearby: (lat: number, lng: number, radiusM: number) => __TAURI_INVOKE<Location[]>("store_find_nearby", { lat, lng, radiusM }).then((v) => (v.map(i=>i) as typeof v)),
 	/**
 	 *  For each input point, whether any existing location lies within `radius_m` metres.
-	 *  Bulk form so callers probing many coordinates (e.g. the map generator skipping
-	 *  already-covered spots) pay one IPC round-trip, not one per point.
+	 *  Batch form for probing many coordinates at once.
 	 */
 	storeNearAny: (lats: number[], lngs: number[], radiusM: number) => __TAURI_INVOKE<boolean[]>("store_near_any", { lats: lats.map(i=>i), lngs: lngs.map(i=>i), radiusM }),
 	/**
-	 *  Create tags by name. Deduplicates case-insensitively: if a tag with the same name
-	 *  already exists, it is made visible instead of creating a duplicate.
-	 * 
-	 *  `location_ids` assigns every resulting tag to those locations in the same mutation.
-	 *  Doing both here is not a convenience: creating and assigning as two commands leaves the
-	 *  tag visible at count 0 for the round trip in between, and makes the caller fetch every
-	 *  location into JS just to append an id Rust already has.
+	 *  Create tags by name and assign them to the locations matched by `selector`.
+	 *  Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
 	 */
 	storeCreateTags: (names: string[], selector: Selector) => __TAURI_INVOKE<MutationResult>("store_create_tags", { names, selector }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
@@ -272,77 +237,59 @@ export const commands = {
 	 *  merges the two tags.
 	 */
 	storeUpdateTags: (updates: Update<TagPatch>[]) => __TAURI_INVOKE<MutationResult>("store_update_tags", { updates }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**
-	 *  Strip tags from all locations. Tags stay in `store.tags` with count=0 /
-	 *  visible=false so undo can revive them. Returns MutationResult with `tags`.
-	 */
+	/**  Remove tags and strip them from all locations that carry them. Undoable. */
 	storeDeleteTags: (tagIds: number[]) => __TAURI_INVOKE<MutationResult>("store_delete_tags", { tagIds }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**
-	 *  Persist tag ordering. `ordered_ids` specifies the desired order; each tag's
-	 *  `order` field is set to its index in the list.
-	 */
+	/**  Set the display order of tags. Each tag's position is its index in `ordered_ids`. */
 	storeReorderTags: (orderedIds: number[]) => __TAURI_INVOKE<MutationResult>("store_reorder_tags", { orderedIds }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  Pop the undo stack and reverse the last edit. Pushes the entry onto the redo stack. */
+	/**  Undo the last edit. */
 	storeUndo: () => __TAURI_INVOKE<MutationResult>("store_undo").then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  Pop the redo stack and replay the edit forward. Pushes the entry back onto undo. */
+	/**  Redo the last undone edit. */
 	storeRedo: () => __TAURI_INVOKE<MutationResult>("store_redo").then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  Clear both undo and redo stacks; returns the resulting store-state delta. */
+	/**  Clear both undo and redo stacks. */
 	storeResetUndo: () => __TAURI_INVOKE<MutationResult>("store_reset_undo").then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  The uncommitted changes since the last commit -- the same changeset `store_commit` will record. */
+	/**  Return the uncommitted change counts (added, removed, modified) since the last commit. */
 	storeCommitDiff: () => __TAURI_INVOKE<[number, number, number]>("store_commit_diff"),
 	/**
-	 *  Replace all selections, resolve bitmasks against current data, and write a binary
-	 *  patch file for JS to apply to the render overlay. Returns per-selection counts.
+	 *  Replace all active selections and resolve them against current data. Returns
+	 *  per-selection counts and a bitmask for the marker overlay.
 	 */
 	storeSyncSelections: (sels: SelectionInput[]) => __TAURI_INVOKE<SelectionSync>("store_sync_selections", { sels }),
 	/**
-	 *  Transitive spatial duplicate groups (connected components, size >= 2) within `distance`
-	 *  metres. Read-only; used to preview a merge. Returns groups of location IDs.
+	 *  Find groups of locations within `distance` metres of each other (transitive).
+	 *  Returns groups of IDs, each with at least two members.
 	 */
 	storeDuplicateGroups: (distance: number) => __TAURI_INVOKE<number[][]>("store_duplicate_groups", { distance }),
 	/**
-	 *  Merge each duplicate group within `distance` metres into one survivor location, unioning
-	 *  tags and extra fields. `score` is the map's duplicate preference expression; blank or
-	 *  absent uses [`selections::DEFAULT_DUPLICATE_SCORE`]. One undoable edit.
+	 *  Merge each duplicate group within `distance` metres into one location, unioning tags
+	 *  and extra fields. `score` ranks which location survives; blank uses the default ranking.
+	 *  Undoable.
 	 */
 	storeMergeDuplicates: (distance: number, score: string | null) => __TAURI_INVOKE<MutationResult>("store_merge_duplicates", { distance, score }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
-	 *  Thin duplicates among `ids` within `distance` metres, keeping the best location per
-	 *  cluster. `score` is the map's duplicate preference expression, the same one a merge
-	 *  ranks by. One undoable edit.
+	 *  Remove duplicate locations within `distance` metres of each other, keeping the
+	 *  best-scored survivor per cluster. Undoable.
 	 */
 	storePruneDuplicates: (selector: Selector, distance: number, score: string | null) => __TAURI_INVOKE<MutationResult>("store_prune_duplicates", { selector, distance, score }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**
-	 *  Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
-	 *  Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.
-	 */
+	/**  Rebuild all marker render data from scratch and return the file path to fetch it from. */
 	storeFillRenderFile: (req: RenderRequest) => __TAURI_INVOKE<string>("store_fill_render_file", { req }),
-	/**
-	 *  Resolve a deck.gl pick result (cell key + index within cell) to a location ID.
-	 *  Called on marker click to map the GPU pick back to a logical location.
-	 */
+	/**  Resolve a marker pick (cell key + index within cell) to a location ID. */
 	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
 	/**  Return metadata for every map in the database. */
 	storeListMaps: () => __TAURI_INVOKE<MapMeta[]>("store_list_maps").then((v) => (v.map(i=>({...i,extra:({...i.extra,fields:i.extra.fields==null?i.extra.fields:Object.fromEntries(Object.entries(i.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})) as typeof v)),
 	/**  Fetch a single map's metadata by ID. Returns `None` if not found. */
 	storeGetMap: (id: string) => __TAURI_INVOKE<MapMeta | null>("store_get_map", { id }).then((v) => (v==null?v:({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**
-	 *  Create a new empty map with default settings. Returns the full metadata
-	 *  (including the generated UUID) so the frontend can navigate to it immediately.
-	 */
+	/**  Create a new empty map with default settings. Returns the full metadata. */
 	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapMeta>("store_create_map", { name, folder }).then((v) => (({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
 	 *  Open the scratch map, creating it if this is its first use. Ordinary in every way
 	 *  except that [`store_list_maps`] hides it and startup wipes it.
 	 */
 	storeScratchMap: () => __TAURI_INVOKE<MapMeta>("store_scratch_map").then((v) => (({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  Delete a map and all its data: database rows and files on disk. */
+	/**  Delete a map and all its data permanently. */
 	storeDeleteMap: (id: string) => __TAURI_INVOKE<null>("store_delete_map", { id }),
 	/**
-	 *  Apply a partial update to a map's metadata; `None` fields are left unchanged.
-	 *  When extra fields change on an open map, the in-memory field registry is replaced
-	 *  (so auto-registration doesn't re-discover user-defined fields) and the resulting
-	 *  store-state delta is returned for the caller to apply.
+	 *  Apply a partial update to a map's metadata. `None` fields are left unchanged.
+	 *  Returns a mutation result when the open map's field definitions changed.
 	 */
 	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { id, patch: ({...patch,scoreBounds:patch.scoreBounds==null?patch.scoreBounds:patch.scoreBounds,extra:patch.extra==null?patch.extra:({...patch.extra,fields:patch.extra.fields==null?patch.extra.fields:Object.fromEntries(Object.entries(patch.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) }).then((v) => (v==null?v:({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
@@ -352,47 +299,44 @@ export const commands = {
 	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
 	/**  Rename a folder across all maps that reference it. */
 	storeRenameFolder: (from: string, to: string) => __TAURI_INVOKE<null>("store_rename_folder", { from, to }),
-	/**  Delete a folder by setting all its maps' folder to `NULL` (moves them to root). */
+	/**  Delete a folder, moving its maps to the root level. */
 	storeDeleteFolder: (name: string) => __TAURI_INVOKE<null>("store_delete_folder", { name }),
-	/**
-	 *  Compute aggregate database statistics (map/location/tag/commit counts,
-	 *  database file size, journal mode). Tag count is summed across all maps
-	 *  by parsing each map's tags JSON column.
-	 */
+	/**  Return aggregate database statistics: counts, file size, and configuration. */
 	storeDbStats: () => __TAURI_INVOKE<DbStats>("store_db_stats"),
 	/**
-	 *  Parse a file (JSON or ZIP of JSONs) and return previews without persisting.
-	 *  Results are cached in `CACHED_PARSE` so `bulk_import_confirm` can skip re-parsing.
-	 *  ZIP files have each `.json` entry parsed in parallel via rayon.
+	 *  Parse a file (JSON or ZIP of JSONs) and return a preview of each map found,
+	 *  without persisting anything. Call [`bulk_import_confirm`] to import the maps.
 	 */
 	bulkImportPreview: (path: string) => __TAURI_INVOKE<ImportPreviewEntry[]>("bulk_import_preview", { path }),
-	/**  Import the selected maps from a previously previewed file. Emits `bulk-import-progress` per map. */
+	/**
+	 *  Import the maps at `selected_indices` from a previously previewed file.
+	 *  Emits `bulk-import-progress` per map.
+	 */
 	bulkImportConfirm: (path: string, selectedIndices: number[]) => __TAURI_INVOKE<ImportedMapInfo[]>("bulk_import_confirm", { path, selectedIndices }),
 	/**
-	 *  Drop the cached parse from `bulk_import_preview` when the user dismisses the
-	 *  import dialog without confirming, instead of holding it until the next preview.
+	 *  Discard the previewed import without importing. Call when the user cancels the
+	 *  import dialog.
 	 */
 	bulkImportCancel: () => __TAURI_INVOKE<null>("bulk_import_cancel"),
 	/**
-	 *  Parse a file and return field-level statistics + preview positions for the editor
-	 *  import sidebar. Caches the parse result for `store_import_file` to consume on commit.
+	 *  Parse a file and return field-level statistics and preview positions for the
+	 *  editor import dialog. Call [`store_import_file`] to commit the import.
 	 */
 	storeImportPreview: (path: string) => __TAURI_INVOKE<EditorImportPreview>("store_import_preview", { path }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
 	/**
-	 *  Parse pasted text (JSON or CSV) and stage it for preview, exactly like
-	 *  `store_import_preview` does for a file. Caches the parse for `store_import_file`.
+	 *  Parse pasted text (JSON or CSV) and stage it for preview. Works like
+	 *  [`store_import_preview`] but reads from a string instead of a file.
 	 */
 	storeImportPastePreview: (text: string) => __TAURI_INVOKE<EditorImportPreview>("store_import_paste_preview", { text }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
 	/**
-	 *  Fetch one staged (not yet imported) location by its preview index, for read-only
-	 *  preview in the editor. Indexes follow the preview positions order.
+	 *  Return one staged (not yet imported) location by its preview `index`, for
+	 *  read-only preview in the editor.
 	 */
 	storeImportStagedLocation: (index: number) => __TAURI_INVOKE<Location>("store_import_staged_location", { index }),
 	/**
-	 *  Commit a previously previewed editor import, optionally dropping fields and/or
-	 *  applying a bulk tag to every imported location. Consumes the cached parse from
-	 *  `store_import_preview`/`store_import_paste_preview`. Fields in `dropped_fields`
-	 *  (e.g. `"heading"`, `"extra.countryCode"`) are zeroed/removed.
+	 *  Commit a previously previewed editor import into the open map, optionally
+	 *  dropping fields in `dropped_fields` (e.g. `"heading"`, `"extra.countryCode"`)
+	 *  and/or applying `tag_name` to every imported location.
 	 */
 	storeImportFile: (droppedFields: string[], tagName: string | null) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagName }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. */
@@ -404,29 +348,28 @@ export const commands = {
 	 *  Each feature carries its tag names in `properties.tags`.
 	 */
 	storeExportGeojson: (selector: Selector, tagsJson: string) => __TAURI_INVOKE<string>("store_export_geojson", { selector, tagsJson }),
-	/**
-	 *  Copy a temp export file to the destination chosen via the native save dialog,
-	 *  then remove the temp source. `dest_path` comes from the frontend save dialog.
-	 */
+	/**  Move a temp export file to `dest_path` and remove the temp source. */
 	storeSaveExportFile: (srcPath: string, destPath: string) => __TAURI_INVOKE<null>("store_save_export_file", { srcPath, destPath }),
-	/**  Export every map in the database as a ZIP of JSON files. Duplicate map names get a numeric suffix. */
+	/**
+	 *  Export every map as a ZIP of JSON files. Duplicate map names get a numeric suffix.
+	 *  Emits `bulk-export-progress` per map.
+	 */
 	storeExportBulkZip: () => __TAURI_INVOKE<string>("store_export_bulk_zip"),
 	/**
-	 *  Create a temp session dir for binary uploads from the frontend. Files are
-	 *  written into it via `mma-buf://` POST, then packaged by [`store_upload_finish`].
+	 *  Create a temp session directory for binary uploads. Files written into it are
+	 *  packaged by [`store_upload_finish`].
 	 */
 	storeUploadBegin: () => __TAURI_INVOKE<string>("store_upload_begin"),
 	/**
-	 *  Package an upload session and remove its dir: a single file is moved out
-	 *  as-is, multiple are packed into a Stored ZIP (entries like JPEG/PNG are
-	 *  already compressed). Returns a temp path for [`store_save_export_file`].
+	 *  Package an upload session's files into a single output and remove the session
+	 *  directory. Returns a temp path for [`store_save_export_file`].
 	 */
 	storeUploadFinish: (sessionDir: string) => __TAURI_INVOKE<string>("store_upload_finish", { sessionDir }),
 	/**  Remove an abandoned upload session dir (e.g. cancelled operation). */
 	storeUploadAbort: (sessionDir: string) => __TAURI_INVOKE<null>("store_upload_abort", { sessionDir }),
 	/**
-	 *  Commit the map's uncommitted changes; returns the new commit id plus the
-	 *  store-state delta (cleared undo/redo). `message` None auto-generates a `+a -r ~m` summary.
+	 *  Commit the map's uncommitted changes. Returns the new commit ID. `message`
+	 *  defaults to a generated `+a -r ~m` summary. Clears undo/redo.
 	 */
 	storeCommit: (mapId: string, message: string | null) => __TAURI_INVOKE<CommitResult>("store_commit", { mapId, message }).then((v) => (({...v,status:({...v.status,delta:({...v.status.delta,added:v.status.delta.added.map(i=>i),updated:v.status.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.status.values,fieldDefs:v.status.values.fieldDefs==null?v.status.values.fieldDefs:Object.fromEntries(Object.entries(v.status.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  List all commits for a map, newest first. */
@@ -436,49 +379,64 @@ export const commands = {
 	 *  the map afterwards (undo/redo is cleared).
 	 */
 	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<null>("store_checkout_commit", { mapId, commitId }),
-	/**  Read a single commit's delta (created/removed locations) for the diff viewer. */
+	/**  Read a single commit's delta (created and removed locations). */
 	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<CommitDelta>("store_get_commit_delta", { mapId, commitId }).then((v) => (({...v,created:v.created.map(i=>i),removed:v.removed.map(i=>i)}) as typeof v)),
-	/**  Record a panorama visit. Oldest entries beyond `MAX_SEEN` are evicted. */
+	/**  Record a panorama visit. The history is capped; oldest entries are evicted when full. */
 	storeSeenWrite: (entry: SeenWriteEntry) => __TAURI_INVOKE<null>("store_seen_write", { entry }),
 	/**  Returns a page of seen entries, newest first, with optional filtering. */
 	storeSeenList: (limit: number, offset: number, filter: SeenFilter | null, thumbnails: boolean) => __TAURI_INVOKE<SeenEntry[]>("store_seen_list", { limit, offset, filter, thumbnails }).then((v) => (v.map(i=>i) as typeof v)),
 	/**  Returns the total number of seen entries matching the filter (for pagination). */
 	storeSeenCount: (filter: SeenFilter | null) => __TAURI_INVOKE<number>("store_seen_count", { filter }),
-	/**
-	 *  Returns all distinct country codes present in the seen table, sorted alphabetically.
-	 *  Used to populate the country filter dropdown.
-	 */
+	/**  Return all distinct country codes in the seen history, sorted alphabetically. */
 	storeSeenCountries: () => __TAURI_INVOKE<string[]>("store_seen_countries"),
 	/**  Returns all distinct maps that have seen entries, with resolved display names. */
 	storeSeenMaps: () => __TAURI_INVOKE<SeenMapInfo[]>("store_seen_maps"),
 	/**  Deletes all seen history entries. */
 	storeSeenClear: () => __TAURI_INVOKE<null>("store_seen_clear"),
+	/**  Create a new review session from a frozen worklist of location IDs. */
 	storeReviewCreate: (session: ReviewCreate) => __TAURI_INVOKE<ReviewSession>("store_review_create", { session }),
+	/**  Look up the most recent active review session for a map and source key. */
 	storeReviewGet: (mapId: string, sourceKey: string) => __TAURI_INVOKE<ReviewSession | null>("store_review_get", { mapId, sourceKey }),
+	/**  List review sessions for a map, newest first. Optionally filter by `status`. */
 	storeReviewList: (mapId: string, status: string | null) => __TAURI_INVOKE<ReviewSession[]>("store_review_list", { mapId, status }),
+	/**  Apply a partial update to a review session. */
 	storeReviewUpdate: (update: ReviewUpdate) => __TAURI_INVOKE<null>("store_review_update", { update }),
+	/**  Delete a review session. */
 	storeReviewDelete: (id: string) => __TAURI_INVOKE<null>("store_review_delete", { id }),
+	/**  List every saved selection rule (name, color, date), without their selector trees. */
 	storeListSavedSelections: () => __TAURI_INVOKE<SavedSelectionInfo[]>("store_list_saved_selections"),
+	/**  Fetch the full saved selection rules for the given `ids`, including their selector trees. */
 	storeGetSavedSelections: (ids: string[]) => __TAURI_INVOKE<SavedSelection[]>("store_get_saved_selections", { ids }),
+	/**  Save a new selection rule. */
 	storeSaveSelection: (name: string, selector: Selector, tagNames: { [key in number]: string }, color: [number, number, number]) => __TAURI_INVOKE<SavedSelection>("store_save_selection", { name, selector, tagNames, color }),
+	/**  Delete a saved selection rule by `id`. */
 	storeDeleteSavedSelection: (id: string) => __TAURI_INVOKE<null>("store_delete_saved_selection", { id }),
+	/**
+	 *  Import saved selections from the pre-0.10 localStorage format. No-op when
+	 *  rules already exist. Returns the number of rules imported.
+	 */
 	storeImportLegacySavedSelections: (json: string) => __TAURI_INVOKE<number>("store_import_legacy_saved_selections", { json }),
+	/**  Get all local-to-remote id mapping rows for a linked map. */
 	remoteMappingGet: (provider: string, mapId: string) => __TAURI_INVOKE<RemoteMappingRow[]>("remote_mapping_get", { provider, mapId }),
+	/**  Insert or update local-to-remote id mapping rows for a linked map. */
 	remoteMappingUpsert: (provider: string, mapId: string, rows: RemoteMappingRow[]) => __TAURI_INVOKE<null>("remote_mapping_upsert", { provider, mapId, rows }),
+	/**  Remove specific mapping rows by `local_ids` for a linked map. */
 	remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => __TAURI_INVOKE<null>("remote_mapping_delete", { provider, mapId, localIds }),
+	/**  Drop all mapping rows for a linked map (unlink). */
 	remoteMappingClear: (provider: string, mapId: string) => __TAURI_INVOKE<null>("remote_mapping_clear", { provider, mapId }),
 	/**
-	 *  Reconcile a linked, open map against its remote. Snapshots local state under the store lock,
-	 *  drops the lock, then does all network + persistence off the async thread.
+	 *  Reconcile a linked map against its remote, pushing local changes and pulling
+	 *  remote ones. Returns the creates, updates, and deletes for each side to apply.
 	 */
 	syncReconcile: (provider: string, mapId: string, remoteMapId: string, apiKey: string | null, firstSync: FirstSyncMode | null, resolutions: ([string, ResolutionSide])[] | null) => __TAURI_INVOKE<SyncReconcileResult>("sync_reconcile", { provider, mapId, remoteMapId, apiKey, firstSync, resolutions }).then((v) => (({...v,conflicts:v.conflicts.map(i=>({...i,local:i.local==null?i.local:i.local,remote:i.remote==null?i.remote:i.remote})),pullUpdates:v.pullUpdates.map(i=>({...i,patch:({...i.patch,lat:i.patch.lat==null?i.patch.lat:i.patch.lat,lng:i.patch.lng==null?i.patch.lng:i.patch.lng,heading:i.patch.heading==null?i.patch.heading:i.patch.heading,pitch:i.patch.pitch==null?i.patch.pitch:i.patch.pitch,zoom:i.patch.zoom==null?i.patch.zoom:i.patch.zoom})}))}) as typeof v)),
 	/**
-	 *  Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
+	 *  Open the GeoGuessr sign-in window and wait for authentication to complete.
 	 *  Returns the signed-in nickname.
 	 */
 	geoguessrLogin: () => __TAURI_INVOKE<string>("geoguessr_login"),
 	/**  The signed-in user, or `None` when there is no session (or it was rejected). */
 	geoguessrMe: () => __TAURI_INVOKE<GgUser | null>("geoguessr_me"),
+	/**  Sign out of GeoGuessr and clear the stored session. */
 	geoguessrLogout: () => __TAURI_INVOKE<null>("geoguessr_logout"),
 	/**  Local-only check: is a token stored? Says nothing about its validity. */
 	geoguessrHasSession: () => __TAURI_INVOKE<boolean>("geoguessr_has_session"),
@@ -510,28 +468,23 @@ export const commands = {
 	 */
 	valiDownloadStale: () => __TAURI_INVOKE<null>("vali_download_stale"),
 	/**
-	 *  Start a procedure run. Returns immediately with the run id; the work continues
-	 *  on a background thread and reports through `procedure-progress`.
+	 *  Start a procedure run over the open map's locations. Returns immediately with
+	 *  the run id. Emits `procedure-progress` and `procedure-result` as work completes.
 	 */
 	procedureRun: (providers: ProviderDecl[], force: boolean) => __TAURI_INVOKE<number>("procedure_run", { providers, force }),
 	/**
-	 *  Run providers over rows the caller hands in and answer with the rows as they are
-	 *  afterwards. Same gating as a run over the map, in a store of the rows' own,
-	 *  so nothing reaches the open map. `cancel` is a token for `procedure_query_cancel`.
+	 *  Run providers over caller-supplied `rows` and return them as modified. Does not
+	 *  affect the open map. `cancel` is a token for [`procedure_query_cancel`].
 	 */
 	procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], cancel: number | null) => __TAURI_INVOKE<RowsRun>("procedure_run_rows", { providers, force, rows: rows.map(i=>i), cancel }).then((v) => (({...v,rows:v.rows.map(i=>i)}) as typeof v)),
 	/**  Stop a run before its next batch. Already-applied patches stay applied. */
 	procedureCancel: (runId: number) => __TAURI_INVOKE<null>("procedure_cancel", { runId }),
 	/**
-	 *  Ask a procedure a read-only question. `input` and the result are whatever the
-	 *  module's `query` export agrees with its caller; the engine only carries the bytes.
-	 *  `cancel` is a token the caller may later hand to `procedure_query_cancel`.
+	 *  Run a procedure's read-only `query` export. `input` and the result are defined
+	 *  by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
 	 */
 	procedureQuery: (entry: string, input: string, config: string | null, cancel: number | null) => __TAURI_INVOKE<string>("procedure_query", { entry, input, config, cancel }),
-	/**
-	 *  Decline every request a query still has to make. The query then answers whatever
-	 *  its module answers for declined requests, which the caller discards.
-	 */
+	/**  Cancel a running procedure query by its `cancel` token. */
 	procedureQueryCancel: (cancel: number) => __TAURI_INVOKE<null>("procedure_query_cancel", { cancel }),
 };
 
@@ -599,20 +552,22 @@ export type CellRemoval = {
 export type Columns = unknown[][];
 
 /**
- *  A commit's delta, returned to the frontend for the per-commit diff viewer.
- *  An updated location appears in both `created` (new) and `removed` (old).
+ *  A commit's created and removed locations. An updated location appears in both
+ *  `created` (new version) and `removed` (old version).
  */
 export type CommitDelta = {
 	created: Location[],
 	removed: Location[],
 };
 
+/**  Added, removed, and modified counts for a commit. */
 export type CommitDiff = {
 	added: number,
 	removed: number,
 	modified: number,
 };
 
+/**  Metadata for a single commit. */
 export type CommitInfo = {
 	id: string,
 	mapId: string,
@@ -623,7 +578,7 @@ export type CommitInfo = {
 	createdAt: string,
 } & CommitDiff;
 
-/**  The new commit's id plus the store-state delta the commit caused (cleared undo/redo). */
+/**  The new commit's ID and the resulting state update. */
 export type CommitResult = {
 	id: string,
 	status: MutationResult,
@@ -1041,10 +996,7 @@ export type MapKeyBinding = {
 	action: MapKeyAction,
 };
 
-/**
- *  Full metadata for a map, deserialized from the SQLite `maps` row.
- *  JSON columns (settings, tags, extra, etc.) are parsed into typed structs.
- */
+/**  Full metadata for a map. */
 export type MapMeta = {
 	id: string,
 	name: string,
@@ -1063,8 +1015,8 @@ export type MapMeta = {
 
 
 /**
- *  Partial update for map metadata. Only non-`None` fields are written.
- *  `folder: Some(None)` explicitly unsets the folder (moves to root).
+ *  Partial update for map metadata. `None` fields are left unchanged.
+ *  Setting `folder` to null moves the map to root.
  */
 export type MapMetaPatch_Deserialize = {
 	name?: string | null,
@@ -1078,8 +1030,8 @@ export type MapMetaPatch_Deserialize = {
 };
 
 /**
- *  Partial update for map metadata. Only non-`None` fields are written.
- *  `folder: Some(None)` explicitly unsets the folder (moves to root).
+ *  Partial update for map metadata. `None` fields are left unchanged.
+ *  Setting `folder` to null moves the map to root.
  */
 export type MapMetaPatch = {
 	name: string | null,
@@ -1451,8 +1403,8 @@ export type RetrySpec = {
 };
 
 /**
- *  Inbound payload for creating a session. `order` is the frozen worklist (must be non-empty);
- *  the cursor starts at its first id and `reviewed` starts empty.
+ *  Parameters for creating a review session. `order` is the frozen worklist (must be
+ *  non-empty); the cursor starts at its first id.
  */
 export type ReviewCreate = {
 	mapId: string,
@@ -1462,10 +1414,7 @@ export type ReviewCreate = {
 	order: number[],
 };
 
-/**
- *  A review session as returned to the frontend. `order`/`reviewed` are decoded from the
- *  JSON-text columns; `source_props` is the originating `Selector` (opaque here).
- */
+/**  A review session: a frozen worklist of locations with progress tracking. */
 export type ReviewSession = {
 	id: string,
 	mapId: string,
@@ -1480,10 +1429,7 @@ export type ReviewSession = {
 	updatedAt: string,
 };
 
-/**
- *  Partial update. Any `Some` field is written; `None` leaves the column untouched.
- *  `ordering`/`reviewed` carry the full replacement arrays (used by reconciliation pruning).
- */
+/**  Partial update for a review session. `None` fields are left unchanged. */
 export type ReviewUpdate = {
 	id: string,
 	name?: string | null,
@@ -1493,10 +1439,7 @@ export type ReviewUpdate = {
 	status: string | null,
 };
 
-/**
- *  How `store_collect` shipped its answer. A transport choice, not a projection: both
- *  variants carry the same rows, and callers take whichever arrives.
- */
+/**  Result of `store_collect`: locations returned inline, or a file path to read them from. */
 export type Rows = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
 
 /**  Rows after a run over them, and the ids each provider failed. */
@@ -1534,7 +1477,7 @@ export type SavedSelectionInfo = {
  */
 export type ScoreBounds = string | [number, number, number, number];
 
-/**  A panorama visit record as returned to the frontend. */
+/**  A panorama visit record. */
 export type SeenEntry = {
 	id: number,
 	panoId: string,
@@ -1552,8 +1495,8 @@ export type SeenEntry = {
 };
 
 /**
- *  Optional filters for seen-history queries. All fields are AND-combined.
- *  `search` does a substring match on the `address` column.
+ *  Filters for seen-history queries. All fields are AND-combined.
+ *  `search` matches against the address.
  */
 export type SeenFilter = {
 	country?: string | null,
@@ -1561,19 +1504,13 @@ export type SeenFilter = {
 	search?: string | null,
 };
 
-/**
- *  Map id + display name pair for the "filter by map" dropdown.
- *  Name is resolved from the `maps` table when available, falling back to raw id.
- */
+/**  Map ID and display name for seen-history filtering. */
 export type SeenMapInfo = {
 	id: string,
 	name: string,
 };
 
-/**
- *  Inbound payload for recording a new panorama visit. Same shape as `SeenEntry`
- *  minus the auto-assigned `id`.
- */
+/**  Parameters for recording a panorama visit. */
 export type SeenWriteEntry = {
 	panoId: string,
 	lat: number,

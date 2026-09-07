@@ -30,8 +30,8 @@ pub struct UpdateAvailable {
     pub notes: Option<String>,
 }
 
-/// Look for an update at `endpoint` (a release's `latest.json`). `None` means the announced
-/// version is not newer than the running one, which is the plugin's own comparison.
+/// Check for an update at `endpoint` (a release's `latest.json`). Returns `None`
+/// when the announced version is not newer than the running one.
 #[tauri::command]
 #[specta::specta]
 pub async fn update_check(endpoint: String) -> AppResult<Option<UpdateAvailable>> {

@@ -21,10 +21,12 @@ type PendingEntry = PendingEntryLocation &
 let staged: PendingEntry | null = null;
 let skipNextPanoId: string | null = null;
 
+/** Suppress the next seen-history entry for `panoId`. */
 export function seenSkipNext(panoId: string) {
 	skipNextPanoId = panoId;
 }
 
+/** Update the pending seen entry's geocode info (country, address). */
 export function seenUpdateGeo(geo: GeoDisplay) {
 	if (staged) {
 		if (geo.countryCode) staged.countryCode = geo.countryCode;
@@ -32,6 +34,7 @@ export function seenUpdateGeo(geo: GeoDisplay) {
 	}
 }
 
+/** Record a panorama change for the seen history. Flushes the previous entry and stages the new one. */
 export function seenPanoChanged(
 	location: PendingEntryLocation,
 	geo: GeoDisplay | null,
@@ -67,6 +70,7 @@ function flushStaged(getPov: () => LocationPOV) {
 	void writeEntry(entry, getPov(), thumbnail);
 }
 
+/** Write the pending seen entry to disk, if any. */
 export function seenFlush(getPov: () => LocationPOV) {
 	flushStaged(getPov);
 }
@@ -111,10 +115,12 @@ export async function getSeenCount(filter?: SeenFilter): Promise<number> {
 	return cmd.storeSeenCount(filter ?? null);
 }
 
+/** Distinct country codes that appear in the seen history. */
 export async function getSeenCountries(): Promise<string[]> {
 	return cmd.storeSeenCountries();
 }
 
+/** Maps that have seen-history entries. */
 export async function getSeenMaps(): Promise<SeenMapInfo[]> {
 	return cmd.storeSeenMaps();
 }

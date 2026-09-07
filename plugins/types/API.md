@@ -63,8 +63,9 @@ Exposed as `window.MMA` (and the global `MMA`).
 
 ### `addLocations(locs: Location[]): Promise<void>`
 
-Add locations to the map. Rust assigns real ids and they are written back into
-the passed objects -- build with `createLocation` (id 0) and read `loc.id` after. Undoable.
+Add locations to the map. Real ids are assigned and written back into the passed
+objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
+Emits `location:add`.
 
 ### `addSelections(selectors: Selector[]): Promise<void>`
 
@@ -76,19 +77,17 @@ Add a tag to locations (skips ones that already have it). Undoable.
 
 ### `applyFieldOp(selector: Selector, op: FieldOp, recordUndo: boolean): Promise<FieldOpResult>`
 
-Rewrite a field across `selector` in Rust. The per-location patches never exist in
-JS -- which is the point -- so instead of `location:update` this emits a coarse
-`location:invalidate` (derived views re-query) and refreshes the open editor's
-location.
+Apply a field operation across all locations matching `selector`. Emits `location:invalidate`.
 
 ### `applySelectionUpdate(op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | Partial<SelectionState>): Promise<void>`
 
-Apply a pure selection transform, then sync to Rust.
-Ops return a SelectionPatch - either or both of { selections, ghosted }.
-A bare Selection[] is shorthand for { selections }.
-Skips IPC when the op produced no change (reference equality).
+Apply a selection transform function and re-resolve the selection.
+The function receives the current selections and ghosted set, and returns either
+a new `Selection[]` or a `SelectionPatch`. No-op when nothing changed.
 
 ### `cancelAutosave(): void` *(unstable)*
+
+Cancel any pending autosave timer.
 
 ### `checkoutCommit(commitId: string): Promise<void>`
 
@@ -104,36 +103,29 @@ Close the open map, saving unsaved changes first.
 
 ### `commitMap(message?: string | undefined): Promise<string>`
 
-Bake overlay, write the commit delta, create a VCS commit. Resets undo stack.
+Commit all pending changes to the map's version history. Clears the undo stack.
 
 ### `countBy(selector: Selector, field: string, key: KeySpec): Promise<[string, number][]>`
 
-Group by a derived key and count, without shipping member ids.
+Group by a derived key and count.
 
 ### `countIn(selector: Selector): Promise<number>`
 
-How many locations the selector resolves to, without shipping any of them.
+How many locations the selector resolves to.
 
 ### `coverage(selector: Selector): Promise<[string, number][]>`
 
-How many locations hold a value for each field, key-sorted: `extra` keys and the
-built-in columns a row can lack.
+How many locations hold a value for each field, key-sorted.
 
 ### `createTags(names: string[], selector?: Selector | undefined): Promise<Tag[]>`
 
-Get-or-create tags by name. Returns the tag objects for use
-in subsequent location updates. Idempotent — existing tags are returned
-as-is, new names get auto-generated colors.
-
-Pass `selector` to assign the tags to those locations in the same mutation. Prefer that
-over a follow-up `addTagToLocations`: it is one round trip instead of three, and the
-tag never renders at count 0 in between. The default assigns nothing.
+Get-or-create tags by name. Existing tags are returned as-is; new names get
+auto-generated colors. Pass `selector` to assign the tags to those locations
+atomically. Emits `tag:add`.
 
 ### `currentSelection(): Selector`
 
-The live selection as a `Selector`: the union of the active selection nodes. What
-every "operate on the selection" call site sends -- Rust holds no notion of "selected",
-so the tree JS already has is the definition.
+The live selection as a `Selector`: the union of the active selection nodes.
 
 ### `deleteField(key: string): Promise<void>`
 
@@ -141,8 +133,7 @@ Delete extra-field `key` from every location, its definition, and references.
 
 ### `deleteTags(tagIds: number[]): Promise<void>`
 
-Delete tags and strip them from all locations. Undoable (the location
-changes are in the undo stack; visibility auto-restores on undo).
+Delete tags and strip them from all locations. Undoable. Emits `tag:remove`.
 
 ### `discardOpenMap(): void` *(unstable)*
 
@@ -154,7 +145,7 @@ Clone a location in place and return the new id, or null if it doesn't exist. Un
 
 ### `emitBitmask(bytes: number[]): void` *(unstable)*
 
-Decode the inline bitmask bytes from Rust and emit to the event bus.
+Decode a selection bitmask and emit it to the render pipeline.
 
 ### `exitPluginMode(): void`
 
@@ -163,21 +154,18 @@ Close the plugin sidebar and return to the overview.
 ### `fetchBounds(selector: Selector): Promise<[number, number, number, number] | null>`
 
 Bounding box `[west, south, east, north]`, or null when the selector is empty.
-The whole-map box is an O(1) cache hit in Rust; narrower ones scan.
 
 ### `fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>`
 
-One column per field over the selected set: values, never rows. `null` where a row
-lacks the field; `"tags"` is a column of tag-id arrays.
+One column per field over the selected set. `null` where a location
+lacks the field; `"tags"` returns a column of tag-id arrays.
 
 ### `fetchLocations(selector: Selector): Promise<Location[]>`
 
-Materialize a selector's location rows -- by id, by selection, or the whole map.
-Rust picks the transport (inline vs staged file) by size. Missing ids are skipped.
+Fetch full location rows matching a selector. Missing ids are skipped.
 
-Every row lands in webview memory, so an unscoped call costs O(map) -- at millions of
-locations that is the tab's whole heap. Prefer a projection, or an enrichment
-procedure that runs beside the data. Trusted, not policed: selector it yourself.
+Every row lands in memory, so an unscoped call on a large map is expensive.
+Prefer a narrower selector or a projection (`fetchColumns`, `countBy`) when possible.
 
 ### `fieldValues(selector: Selector, field: string): Promise<string[]>`
 
@@ -197,14 +185,12 @@ Imperative snapshot of the map state.
 
 ### `getSelectedTagIds(): ReadonlySet<number>`
 
-Tag ids that currently have a Tag selection (cached; keyed on the selection list,
-identity-stable while the set of ids is unchanged).
+Tag ids that currently have a top-level Tag selection active.
 
 ### `getSelectedTagIdsDeep(): readonly number[]`
 
-Tag ids of every Tag leaf in the active selection tree, in list order --
-composite children included, ghosted selections excluded, ids may repeat.
-Deep counterpart of getSelectedTagIds (top-level only, as a set).
+Tag ids of every Tag leaf in the active selection tree, in list order.
+Includes composite children, excludes ghosted selections; ids may repeat.
 
 ### `getTag(id: number): Tag | undefined`
 
@@ -213,12 +199,11 @@ Raw by-id tag lookup — includes soft-deleted ghosts so stale references
 
 ### `getVisibleTags(): Tag[]`
 
-Tags that exist from the user's point of view. Raw `tags` also holds soft-deleted ghosts (count=0, visible=false, kept for undo revival) — almost nothing outside the undo/revival machinery should enumerate those.
+Tags that exist from the user's point of view. Raw `tags` also holds soft-deleted ghosts (count=0, visible=false) - almost nothing outside the undo machinery should enumerate those.
 
 ### `holdAutosave(): () => void` *(unstable)*
 
-Defer autosave until the returned release runs. A bulk run that lands many mutations
-would otherwise re-serialize the whole overlay on each one; one save at the end is enough.
+Defer autosave until the returned release function runs. Useful for batches that land many mutations.
 
 ### `initStore(): Promise<void>` *(unstable)*
 
@@ -243,7 +228,7 @@ map's duplicate preference. One undoable edit.
 
 ### `mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>`
 
-Run a mutation IPC, emit its render delta, sync JS state, and schedule a save.
+Run a mutation, apply its result to the map, and schedule a save.
 
 ### `openDuplicateLocation(loc: Location): void` *(unstable)*
 
@@ -260,13 +245,12 @@ virtual (negative id; ImportPreview flag) so identity and mutate-guards derive f
 
 ### `partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>`
 
-Group the selected location set by a derived key - entirely in Rust, no locations fetched.
-Numeric bins arrive in bound order; projection keys are sorted naturally for display.
+Group the selected location set by a derived key. Numeric bins arrive in bound order;
+other keys are sorted naturally.
 
 ### `patchMapMeta(id: string, patch: MapMetaPatch_Deserialize): Promise<void>`
 
-Optimistically patch any map's meta by id, persist, and refresh the map list. Mirrors
-onto the open map's state when it is that map.
+Patch any map's metadata by id and persist it. Updates the open map's state when it is that map.
 
 ### `previewDuplicateGroups(distance: number): Promise<number[][]>` *(unstable)*
 
@@ -308,9 +292,8 @@ Remove a tag from the given locations. Undoable.
 
 ### `renameField(from: string, to: string, winner?: MergeWinner | undefined): Promise<void>`
 
-Rename or merge extra-field `from` into `to` across all locations, then migrate
-its definition and every selection that references it. Merge ≡ rename; `winner`
-decides the survivor only where a location already holds `to`.
+Rename extra-field `from` to `to` across all locations, its definition, and selections.
+When a location already holds `to`, `winner` decides which value survives.
 
 ### `reorderTags(orderedIds: number[]): Promise<void>`
 
@@ -326,7 +309,7 @@ Ids of every location the selector resolves to.
 
 ### `resolveLocation(m: MaybeLocation): Promise<Location | null>`
 
-Materialize a `MaybeLocation`.
+Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
 
 ### `sampleFrom(selector: Selector, n: number): Promise<number[]>`
 
@@ -338,19 +321,19 @@ Background auto-commit after an import with autoCommit set.
 
 ### `scheduleSave(): void` *(unstable)*
 
+Schedule a debounced autosave. Mutations call this automatically.
+
 ### `selectRandomFromSelection(count: number, perSelection?: boolean | undefined): Promise<number>`
 
-Replace the current selection with a single Manual selection holding `count` ids picked
-at random from whatever is currently selected. `count` is clamped to the selection size.
-With `perSelection` it is a per-bucket cap: up to `count` ids from each active selection,
-unioned. No-op when nothing is selected. Returns the number of ids actually picked.
+Replace the current selection with up to `count` ids picked at random.
+With `perSelection`, picks up to `count` from each active selection separately.
+Returns the number of ids actually picked (0 when nothing is selected).
 
 ### `selectSpacedFromSelection(opts: { count?: number | undefined; minDistanceM?: number | undefined; }, perSelection?: boolean | undefined): Promise<{ picked: number; distanceM: number; }>`
 
-Replace the current selection with a single Manual selection of ids picked from the
-current selection, spaced apart in Rust: either `count` ids maximizing spacing, or as
-many as fit at `minDistanceM`. With `perSelection` each active selection is picked from
-separately and the results unioned. No-op when the pick returns nothing.
+Replace the current selection with spatially spaced ids - either `count` ids maximizing
+spacing, or as many as fit at `minDistanceM`. With `perSelection`, each active selection
+is picked from separately. Returns the count picked and the minimum distance achieved.
 
 ### `setActiveLocation(target: MaybeLocation | null, checkDuplicates?: boolean | undefined): Promise<void>`
 
@@ -376,14 +359,12 @@ leaving "location" clears the active location, leaving "plugin" clears the plugi
 
 ### `syncSelections(): Promise<void>`
 
-Resolve the current selection list against Rust and sync the overlay.
-Called after `applySelectionUpdate` sets state, or standalone when the underlying
-data changed (tag recolor, commit overlay clear) but selections themselves didn't.
+Re-resolve all selections against the current map data and update the overlay.
+Use when the underlying data changed but the selections themselves did not.
 
 ### `tagIdsToNames(ids: number[]): string[]`
 
-Tag names for the given ids, skipping any that no longer resolve. Tags are staged by
-name rather than id, because a staged tag may not exist yet.
+Tag names for the given ids, skipping any that no longer resolve.
 
 ### `toggleTagSelections(tagIds: number[]): void`
 
@@ -421,9 +402,13 @@ cached derivations — never construct a value per call.
 
 ### `waitForInflightPersist(): Promise<void> | null` *(unstable)*
 
+Wait for any in-progress save to finish.
+
 ## SelectionOps
 
 ### `addSelection(selector: Selector): (current: Selection[]) => Selection[]`
+
+Append a new selection built from `selector`, deduplicating by key.
 
 ### `batch<T, S>(op: (item: T) => (state: S) => S): (items: T[]) => (state: S) => S`
 
@@ -431,19 +416,24 @@ Lift a single-item curried transform into one that folds over an array of items.
 
 ### `buildSelection(selector: Selector): Selection`
 
-Create a Selection with a deterministic key and overlay color from its selector.
+Create a Selection with a deterministic key and color from its selector.
 
 ### `colorForKey(key: string): RGB`
 
+Deterministic color derived from a selection key string.
+
 ### `composeSelections(dragKey: string, dropKey: string, mode: GroupType, dragParent?: string | null | undefined, dropParent?: string | null | undefined): (current: Selection[]) => Selection[]`
 
-Drag-drop composition: merge drag into drop as a new composite, absorbing existing
-children of the same type. Parents route the nested cases: same parent recomposes the
-siblings, a drag out of a parent detaches first, a drop onto a child nests there.
+Merge the dragged selection into the drop target as a composite, absorbing existing
+children of the same type. Handles nested cases across parent groups.
 
 ### `composeSiblings(current: Selection[], parentKey: string, dragKey: string, dropKey: string, mode: GroupType): Selection[]`
 
+Compose two siblings inside the same parent group into a nested composite.
+
 ### `composeWithChild(current: Selection[], dragKey: string, parentKey: string, childKey: string, mode: GroupType): Selection[]`
+
+Compose a top-level selection with a child inside a parent group.
 
 ### `decomposeChild(parentKey: string, childKey: string): (current: Selection[]) => Selection[]`
 
@@ -452,11 +442,8 @@ if only one child remains, and disappears if none do.
 
 ### `displayTagName(name: string): string`
 
-Display label for a tag NAME. In tree view with `truncateTagPaths` on, collapses the
-`/`-path to its shortest unique suffix; otherwise returns the name verbatim. Uniqueness
-is computed over visible tags only — soft-deleted ghosts must not widen suffixes.
-Memoized on the visible-tags array (stable identity between tag mutations) so list
-rendering stays O(n).
+Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
+the `/`-path to its shortest unique suffix; otherwise returns the name verbatim.
 
 ### `filterIsLocalTime(test: FilterOp): boolean`
 
@@ -464,11 +451,15 @@ Whether a predicate reads the location's clock in its own timezone. Only a range
 
 ### `intersectSelections(keys?: string[] | null | undefined): (current: Selection[]) => Selection[]`
 
+Merge the targeted selections (or all, when `keys` is null) into a single Intersection.
+
 ### `invertSelections(keys?: string[] | null | undefined): (current: Selection[]) => Selection[]`
 
 Invert targeted selections. Single target toggles in-place at any depth; multiple are wrapped in Union then Invert.
 
 ### `isolateGhost(key: string): (sels: Selection[], ghosted: ReadonlySet<string>) => Partial<SelectionState>`
+
+Solo one selection by ghosting all others. Repeat to clear all ghosts.
 
 ### `isolateGhostKeys(keys: string[], ghosted: ReadonlySet<string>, key: string): Set<string>`
 
@@ -483,24 +474,24 @@ Keys of every Polygon selection whose geometry contains the point.
 
 ### `removeFromComposite(parentKey: string, childKey: string): (current: Selection[]) => Selection[]`
 
+Remove a child from a composite, ungrouping any nested group's children into the parent.
+
 ### `removeSelection(key: string): (current: Selection[]) => Selection[]`
 
 Remove a selection by key. Composites unwrap their children back into the list.
-Returns `current` unchanged when the key is not present (identity-safe).
 
 ### `reorderSelections(fromKey: string, toKey: string, position: "before" | "after"): (current: Selection[]) => Selection[]`
 
+Move selection `fromKey` before or after `toKey` in the list.
+
 ### `replaceSelection(current: Selection[], oldKey: string, selector: Selector): Selection[]`
 
-Replace the selection identified by `oldKey` (at any depth) with one built from `selector`,
-rebuilding the keys of every composite on the path so identity stays consistent. Used to
-edit a filter in place without dropping it from its AND/OR group. Enforces the unique-key
-invariant recursively (via {@link spliceMerging }): if a re-key collides with an existing
-selection at any level, merge into it — drop this edit, keep the existing one. A selection's
-key is its identity, so a duplicate key would break every key-addressed op (recolor,
-reorder, drag-highlight, remove).
+Replace the selection at `oldKey` (at any depth) with one built from `selector`. If the new
+key collides with an existing selection, the existing one wins and the replacement is dropped.
 
 ### `rewriteSelectionFields(from: string, to: string | null): (selections: Selection[]) => Selection[]`
+
+Rename or remove a field across all Filter selections. When `to` is null, filters on that field are dropped.
 
 ### `sampleIds(ids: number[], n: number): number[]`
 
@@ -510,26 +501,38 @@ Uses a partial Fisher–Yates shuffle, so the result contains no duplicates and 
 
 ### `selectionDisplayName(sel: Selection, tagNames?: Record<number, string> | undefined): string`
 
-Human-readable label for a selection, resolving tag names and filter ops. Each branch is one
-whole message with named params -- never assembled from translated fragments, so a language
-can reorder it. `tagNames` is a saved rule's tag-name side table: it names `Tag` leaves whose
-id belongs to the map the rule was saved on rather than the one that is open.
+Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
+rather than the open map's tags (used by saved selection rules).
 
 ### `SELECTIONS: { Intersection: SelectionDescriptor<"Intersection">; Union: SelectionDescriptor<"Union">; Invert: SelectionDescriptor<"Invert">; ... 14 more ...; TopK: SelectionDescriptor<...>; }`
 
+Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides.
+
 ### `setPolygonName(key: string, name: string): (current: Selection[]) => Selection[]`
+
+Rename a Polygon selection's display name.
 
 ### `setSelectionColors(entries: Selection[]): (current: Selection[]) => Selection[]`
 
+Update the colors of selections by matching keys from `entries`.
+
 ### `toggleGhost(key: string): (_sels: Selection[], ghosted: ReadonlySet<string>) => Partial<SelectionState>`
+
+Toggle one selection's ghosted (dimmed) state.
 
 ### `toggleGhostAll(): (sels: Selection[], ghosted: ReadonlySet<string>) => Partial<SelectionState>`
 
+Ghost all selections, or clear all ghosts if every selection is already ghosted.
+
 ### `toggleManualSelection(locationId: number): (current: Selection[]) => Selection[]`
+
+Add or remove a location from the Manual selection, creating it if needed.
 
 ### `UNARY_TYPES: readonly ["Invert"]`
 
 ### `unionSelections(keys?: string[] | null | undefined): (current: Selection[]) => Selection[]`
+
+Merge the targeted selections (or all, when `keys` is null) into a single Union.
 
 ## SavedSelections
 
@@ -540,6 +543,8 @@ were added.
 
 ### `deleteSavedSelection(id: string): Promise<void>`
 
+Permanently delete a saved selection rule.
+
 ### `getSavedSelectionIndex(): SavedSelectionInfo[]`
 
 The rules that exist, as identity only. Empty until the index arrives -- the first
@@ -547,8 +552,7 @@ call starts the read and `saved-selections:changed` announces it.
 
 ### `isSaveable(selector: Selector): boolean`
 
-Saveable only if the whole tree is portable: one map-local leaf anywhere would freeze
-the rule to the map it was built on.
+Whether the selector tree contains only portable types (no map-local leaves).
 
 ### `loadAllSavedSelections(): Promise<SavedSelection[]>`
 
@@ -556,7 +560,7 @@ Every rule with its body.
 
 ### `loadSavedSelections(ids: string[]): Promise<SavedSelection[]>`
 
-Bodies for `ids`, fetching only the ones not already held.
+Load the full rule bodies for the given `ids`.
 
 ### `MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "ValidationState", "Reviewed"]`
 
@@ -576,6 +580,8 @@ until the body arrives; fetching it emits `saved-selections:changed`, so a calle
 re-reads on that event gets the real tree.
 
 ### `useSavedSelectionIndex(): SavedSelectionInfo[]`
+
+React hook: the saved selection index, re-rendering on changes.
 
 ## Settings
 
@@ -597,6 +603,8 @@ On-disk size of each downloadable archive under `data/borders/`.
 ### `DATE_TIMEZONES: { readonly location: "Location timezone"; readonly utc: "UTC"; }`
 
 ### `DEFAULTS`
+
+Default values for every app setting.
 
 #### `DEFAULTS.activeLocationColor: RGB` *(unstable)*
 
@@ -694,6 +702,8 @@ Min half-extent (degrees) a single pasted/imported point is padded to before fit
 #### `DEFAULTS.polygonColor: RGB` *(unstable)*
 
 #### `DEFAULTS.polygonColorMode: "random" | "fixed"` *(unstable)*
+
+Initial color mode for newly drawn polygon selections. Recoloring by hand overrides either mode.
 
 #### `DEFAULTS.prereleaseUpdates: boolean` *(unstable)*
 
@@ -803,12 +813,11 @@ Every distance the UI shows or accepts; stored values stay metric.
 
 ### `getSettings(): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 71 more ...; pinnedCommands: PinnedEntry[]; }` *(unstable)*
 
+The current app settings snapshot.
+
 ### `LANGUAGES`
 
-Language names stay in their own language, the way every language picker does it -- a reader
-looking for their own has to recognise it without already reading English.
-`en-XA` is the generated pseudolocale: accented and ~40% longer, so unextracted strings and
-layout overflow are visible without a translator. Offered in dev builds only.
+Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale.
 
 #### `LANGUAGES.de: "Deutsch"` *(unstable)*
 
@@ -842,8 +851,7 @@ True while the pano-UI toggle covers the navigation visuals too.
 
 ### `panoDisplayOptions(s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 71 more ...; pinnedCommands: PinnedEntry[]; }): { ...; }` *(unstable)*
 
-Effective StreetViewPanorama options: how the movement mode, per-control toggles,
-and the hide-UI toggle compose. Sole authority for both pano creation and updates.
+Effective StreetViewPanorama display options derived from the current settings.
 
 ### `POLYGON_COLOR_MODES: { readonly random: "Random"; readonly fixed: "Fixed color"; }`
 
@@ -865,9 +873,13 @@ and the hide-UI toggle compose. Sole authority for both pano creation and update
 
 ### `resetSettings(): void` *(unstable)*
 
+Reset all settings to defaults, preserving global copy bindings.
+
 ### `SEEN_RESOLUTIONS: { readonly low: "Low (160x90)"; readonly medium: "Medium (320x180)"; readonly high: "High (640x360)"; }`
 
 ### `setSetting<K extends keyof AppSettings>(key: K, value: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; ... 73 more ...; pinnedCommands: PinnedEntry[]; }[K]): void` *(unstable)*
+
+Update one setting and persist. Emits `settings:changed`.
 
 ### `SUBDIVISION_DETAILS: { readonly off: "Off"; readonly adm1: "States / provinces"; }`
 
@@ -883,7 +895,11 @@ Distance units. `auto` reads the system locale's region, so a US/UK machine gets
 
 ### `useSetting<K extends keyof AppSettings>(key: K): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; ... 73 more ...; pinnedCommands: PinnedEntry[]; }[K]` *(unstable)*
 
+React hook: one setting value, re-rendering only when that key changes.
+
 ### `useSettings(): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 71 more ...; pinnedCommands: PinnedEntry[]; }` *(unstable)*
+
+React hook: all settings, re-rendering on any change.
 
 ## ImportStaging
 
@@ -907,11 +923,15 @@ Commit the staged import, optionally dropping fields and applying a bulk tag.
 
 ### `getImportPreviewPositions(): Float32Array<ArrayBufferLike>` *(unstable)*
 
+The preview marker positions for the staged import.
+
 ### `getImportStaging(): ImportStaging | null` *(unstable)*
+
+The current staged import, or null if none.
 
 ### `resetImportState(): void` *(unstable)*
 
-Reset import state (called when map edit state is cleared).
+Clear staged import state.
 
 ## CommitDiff
 
@@ -929,7 +949,7 @@ both `created` (new) and `removed` (old), keyed by id.
 
 ### `diffPositions(locs: LatLngLiteral[]): Float32Array<ArrayBufferLike>` *(unstable)*
 
-Interleave `[lng, lat]` pairs into an f32 buffer for deck.gl.
+Pack `[lng, lat]` pairs into an interleaved Float32Array.
 
 ### `endCommitDiffPreview(): void` *(unstable)*
 
@@ -937,17 +957,23 @@ Leave commit-diff preview and restore the regular markers.
 
 ### `getCommitDiffPreview(): CommitDiffPreview | null` *(unstable)*
 
+The current commit-diff preview, or null when not previewing.
+
 ### `hasCommitDiff(): boolean` *(unstable)*
+
+Whether there are uncommitted changes (adds, removes, or modifications).
 
 ### `resetCommitDiffCounts(): void` *(unstable)*
 
-Zero the cached counts (a commit just cleared the overlay).
+Reset the uncommitted-change counts to zero.
 
 ### `resetCommitDiffState(): void` *(unstable)*
 
-Reset diff state (called when map edit state is cleared).
+Clear commit-diff preview state.
 
 ### `useCommitDiff(): CommitDiff` *(unstable)*
+
+React hook: the uncommitted add/remove/modify counts, kept in sync with the store.
 
 ## SelectorPick
 
@@ -957,12 +983,12 @@ A standalone "all locations vs current selection" switch, for features that oper
 
 ### `selectorForPick(choice: SelectorPick): Selector`
 
+Convert a picker choice into the corresponding `Selector`.
+
 ### `useSelectorPick(initial?: SelectorPick | undefined): SelectorPickController`
 
-Reactive selector state + live counts, owned by the calling React component. Defaults to
-the current selection when one exists at mount, else all locations. Use this for plugins
-whose selector lives entirely in a React sidebar; reach for `createSelectorPick` when an imperative
-renderer (e.g. a deck.gl overlay) outside React also needs to read the selector.
+React hook: selector state with live counts. Defaults to the current selection when one
+exists, else all locations. Use `createSelectorPick` when non-React code also reads the selector.
 
 ## MapList
 
@@ -971,6 +997,8 @@ renderer (e.g. a deck.gl overlay) outside React also needs to read the selector.
 Create a new empty map and return its metadata.
 
 ### `deleteFolder(name: string): Promise<void>`
+
+Delete a folder. Maps in it become unfoldered.
 
 ### `deleteMap(id: string): Promise<void>`
 
@@ -982,28 +1010,31 @@ The list of all maps (metadata only).
 
 ### `invalidateMapList(): Promise<void>`
 
-Re-fetch the map list from the database.
+Refresh the map list and notify other windows of the change.
 
 ### `isReservedMap(id: string | null): boolean`
 
-A reserved map is an app fixture, not one of the user's: it carries no name, never
-appears in the list, and has nothing to configure. Keyed by id, never by name -- the
-name is a value the user could type.
+Whether `id` belongs to an app fixture rather than a user-created map.
 
 ### `moveMapToFolder(mapId: string, folder: string | null): Promise<void>`
 
+Move a map into a folder, or to the root when `folder` is null.
+
 ### `openScratchMap(): Promise<void>`
 
-Open the scratch map, created on first use. An ordinary map that the list hides and
-startup wipes, so the list never needs invalidating for it.
+Open the scratch map, creating it on first use.
 
 ### `reloadMapList(): Promise<void>`
 
+Refresh the map list from disk.
+
 ### `renameFolder(from: string, to: string): Promise<void>`
+
+Rename a folder, moving all its maps to the new name.
 
 ### `setCachedMapList(list: MapMeta[]): void`
 
-Set the cached map list directly (used by initStore).
+Set the map list directly without a disk read.
 
 ### `useMapList(): MapMeta[]`
 
@@ -1015,13 +1046,13 @@ Review screen internals.
 
 ### `advance(s: ReviewSession): { session: ReviewSession; done: boolean; }` *(unstable)*
 
-Mark the current cursor reviewed and step forward. `done` when the cursor was the
-last item (status flips to "done").
+Mark the current cursor reviewed and step forward. `done` is true when the
+session has no remaining items.
 
 ### `beginReview(ids: number[], source?: Selection | undefined): Promise<void>` *(unstable)*
 
-Start (or resume) a review over `ids`. When `source` is a real selection, the session
-is keyed by it so re-reviewing that selection resumes the in-progress session.
+Start or resume a review over `ids`. When `source` is a selection, re-reviewing
+that selection resumes any in-progress session for it.
 
 ### `cancelReview(): void` *(unstable)*
 
@@ -1049,14 +1080,12 @@ Review sessions for the open map, optionally filtered by status.
 
 ### `pruneSession(s: ReviewSession, removed: Set<number>): PruneResult` *(unstable)*
 
-Remove `removed` ids from a session's worklist + reviewed set. The cursor only
-moves if the cursor id itself was removed (advancing to the next survivor by old
-position). Returns the same session reference untouched if nothing overlapped.
+Remove `removed` ids from a session's worklist and reviewed set. Advances the
+cursor when the cursor id itself was removed.
 
 ### `renameReview(id: string, name: string): Promise<void>` *(unstable)*
 
-Rename a session (custom label over the auto-derived selection name). Persists immediately;
-also patches the live session if it's the one being renamed.
+Rename a review session.
 
 ### `resumeReview(s: ReviewSession): Promise<void>` *(unstable)*
 
@@ -1068,10 +1097,8 @@ Step backward without marking anything reviewed. Null when already at the start.
 
 ### `reviewDelete(): Promise<void>` *(unstable)*
 
-Delete the current location and advance FORWARD (like reviewNext) — to the item that
-followed it, or exit the pass if it was the last one. We navigate off the doomed location
-first so the shared `removeLocations` doesn't bounce us to the overview; its emitted
-`location:remove` is then a no-op for our reconcile listener (already pruned).
+Delete the current location and advance to the next one. Exits the pass if it
+was the last item. Emits `location:remove`.
 
 ### `reviewedHistoryIds(sessions: ReviewSession[]): number[]` *(unstable)*
 
@@ -1091,13 +1118,11 @@ Step back to the previous location in the session.
 
 ### `selectReviewedHistory(): Promise<void>` *(unstable)*
 
-Select every location marked reviewed across all review sessions on this map (active + done).
-A snapshot; re-running refreshes it in place (deterministic key).
+Select every location marked reviewed across all sessions on this map.
 
 ### `selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed"): Promise<void>` *(unstable)*
 
-Add a reviewed/unreviewed overlay selection for an arbitrary session (resume modal). Mirrors
-refreshProjection's selector so the key and color match an in-progress projection.
+Add a reviewed or unreviewed overlay selection for a session.
 
 ### `useReviewSession(): ReviewSession | null` *(unstable)*
 
@@ -1105,7 +1130,7 @@ Reactive active review session, or null.
 
 ## Commands
 
-The raw Rust command boundary; any of them can change in a release.
+The raw command layer under the app-level API; any of them can change in a release.
 
 ### `cmd`
 
@@ -1117,28 +1142,32 @@ Milliseconds from `run()` to the frontend's first call; logged once.
 
 #### `cmd.borderClassify(level: string, points: [number, number][]): Promise<(string | null)[]>` *(unstable)*
 
-Classify each `(lat, lng)` to the name of its containing feature at `level`
-(subdivision names for "adm1"). `None` for points outside every feature.
-Same bbox-prefiltered parallel scan as `tally_countries`, but per-point names.
+Classify each `(lat, lng)` to the name of its containing border feature at
+`level` (subdivision names for "adm1"). `None` for points outside every feature.
 
 #### `cmd.borderLookup(lat: number, lng: number, level: string): Promise<PolygonGeometry | null>` *(unstable)*
 
+Return the border polygon containing (`lat`, `lng`) at the given detail
+`level`, or `None` if the point falls outside every feature.
+
 #### `cmd.bulkImportCancel(): Promise<null>` *(unstable)*
 
-Drop the cached parse from `bulk_import_preview` when the user dismisses the
-import dialog without confirming, instead of holding it until the next preview.
+Discard the previewed import without importing. Call when the user cancels the
+import dialog.
 
 #### `cmd.bulkImportConfirm(path: string, selectedIndices: number[]): Promise<ImportedMapInfo[]>` *(unstable)*
 
-Import the selected maps from a previously previewed file. Emits `bulk-import-progress` per map.
+Import the maps at `selected_indices` from a previously previewed file.
+Emits `bulk-import-progress` per map.
 
 #### `cmd.bulkImportPreview(path: string): Promise<ImportPreviewEntry[]>` *(unstable)*
 
-Parse a file (JSON or ZIP of JSONs) and return previews without persisting.
-Results are cached in `CACHED_PARSE` so `bulk_import_confirm` can skip re-parsing.
-ZIP files have each `.json` entry parsed in parallel via rayon.
+Parse a file (JSON or ZIP of JSONs) and return a preview of each map found,
+without persisting anything. Call [`bulk_import_confirm`] to import the maps.
 
 #### `cmd.checkBorderFile(level: string): Promise<boolean>` *(unstable)*
+
+Whether the border dataset for `level` is available on disk.
 
 #### `cmd.claimPluginUpdatePass(): Promise<boolean>` *(unstable)*
 
@@ -1149,9 +1178,15 @@ install progress for the same plugin.
 
 #### `cmd.discordPresenceClear(): Promise<null>` *(unstable)*
 
+Clear the Discord Rich Presence activity. No-op when Discord is not running.
+
 #### `cmd.discordPresenceSet(activity: PresenceActivity): Promise<null>` *(unstable)*
 
+Set the Discord Rich Presence activity. No-op when Discord is not running.
+
 #### `cmd.downloadBorderFile(level: string): Promise<null>` *(unstable)*
+
+Download the border dataset for `level` from the repository.
 
 #### `cmd.feedbackAnonymousAvailable(): Promise<boolean>` *(unstable)*
 
@@ -1159,7 +1194,7 @@ Whether the anonymous tier is available in this build.
 
 #### `cmd.feedbackAnonymousThread(number: number, token: string): Promise<IssueThread>` *(unstable)*
 
-State and replies for an anonymous report, relayed by the worker.
+Fetch the current state and replies for an anonymous report.
 
 #### `cmd.feedbackLogTail(): Promise<string>` *(unstable)*
 
@@ -1167,23 +1202,17 @@ The tail of `mma.log`, scrubbed. Empty string when there is no log yet.
 
 #### `cmd.feedbackRequestLabel(number: number): Promise<null>` *(unstable)*
 
-Ask the worker to label an issue the user filed themselves.
-
-GitHub drops labels sent by a reporter without push access, so a signed-in outside
-contributor's report arrives bare. The worker's installation token has push access and
-re-applies them. Best-effort: a report that is filed but unlabelled is not worth failing.
+Request that standard labels be applied to a report the user filed. Best-effort:
+a failure here does not affect the report itself.
 
 #### `cmd.feedbackSubmitAnonymous(title: string, body: string, installId: string): Promise<AnonIssueRef>` *(unstable)*
 
-File an issue through the worker, without any account. The worker applies the labels
-(a bot has push access, so it can) and returns the reply token.
+File a bug report anonymously (no account required). Returns a reference the
+caller can use to check for replies via [`feedback_anonymous_thread`].
 
 #### `cmd.feedbackUploadAttachment(path: string, name: string): Promise<AttachmentRef>` *(unstable)*
 
-Store an image and return the URL a report body can reference it by.
-
-The proof of work is bound to the bytes, so it costs the same per image as a report costs
-per body -- which is what keeps an open upload route from being free hosting.
+Upload an image attachment for a bug report and return its URL.
 
 #### `cmd.fieldExprError(src: string): Promise<string | null>` *(unstable)*
 
@@ -1195,10 +1224,12 @@ Local-only check: is a token stored? Says nothing about its validity.
 
 #### `cmd.geoguessrLogin(): Promise<string>` *(unstable)*
 
-Open the GeoGuessr sign-in window and wait for a `_ncfa` cookie to appear.
+Open the GeoGuessr sign-in window and wait for authentication to complete.
 Returns the signed-in nickname.
 
 #### `cmd.geoguessrLogout(): Promise<null>` *(unstable)*
+
+Sign out of GeoGuessr and clear the stored session.
 
 #### `cmd.geoguessrMe(): Promise<GgUser | null>` *(unstable)*
 
@@ -1206,15 +1237,15 @@ The signed-in user, or `None` when there is no session (or it was rejected).
 
 #### `cmd.getAppDataDir(): Promise<string>` *(unstable)*
 
+Return the app's data directory path.
+
 #### `cmd.getDataLocation(): Promise<DataLocation>` *(unstable)*
+
+Return the current and default data-folder paths, and whether a custom override is active.
 
 #### `cmd.githubCreateIssue(title: string, body: string, labels: string[]): Promise<IssueRef>` *(unstable)*
 
-File an issue as the signed-in user.
-
-Labels are sent even though only accounts with push access may set them: GitHub drops them
-silently for everyone else rather than failing, so sending costs nothing and they land for
-maintainers. Closing the gap for outside reporters is the worker's job.
+File a bug report as the signed-in GitHub user.
 
 #### `cmd.githubHasSession(): Promise<boolean>` *(unstable)*
 
@@ -1222,9 +1253,11 @@ Local-only check: is a token stored? Says nothing about its validity.
 
 #### `cmd.githubIssueThread(number: number): Promise<IssueThread>` *(unstable)*
 
-One of our issues and its comments, read as the signed-in user.
+Fetch a report's current state and comments as the signed-in GitHub user.
 
 #### `cmd.githubLogout(): Promise<null>` *(unstable)*
+
+Sign out of GitHub and clear the stored session.
 
 #### `cmd.githubMe(): Promise<GhUser | null>` *(unstable)*
 
@@ -1232,7 +1265,7 @@ The signed-in user, or `None` when there is no session (or it was rejected).
 
 #### `cmd.githubPollLogin(): Promise<GhUser>` *(unstable)*
 
-Wait for the user to authorize the code from [`github_start_login`], then store the token.
+Wait for the user to authorize the code from [`github_start_login`].
 Resolves with the signed-in account.
 
 #### `cmd.githubStartLogin(): Promise<DeviceCodeInfo>` *(unstable)*
@@ -1251,7 +1284,11 @@ Manifests of every installed plugin.
 
 #### `cmd.openDataFolder(): Promise<null>` *(unstable)*
 
+Open the app's data folder in the OS file explorer.
+
 #### `cmd.openLogFile(): Promise<null>` *(unstable)*
+
+Open the app's log file in the OS default handler.
 
 #### `cmd.procedureCancel(runId: number): Promise<null>` *(unstable)*
 
@@ -1259,25 +1296,22 @@ Stop a run before its next batch. Already-applied patches stay applied.
 
 #### `cmd.procedureQuery(entry: string, input: string, config: string | null, cancel: number | null): Promise<string>` *(unstable)*
 
-Ask a procedure a read-only question. `input` and the result are whatever the
-module's `query` export agrees with its caller; the engine only carries the bytes.
-`cancel` is a token the caller may later hand to `procedure_query_cancel`.
+Run a procedure's read-only `query` export. `input` and the result are defined
+by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
 
 #### `cmd.procedureQueryCancel(cancel: number): Promise<null>` *(unstable)*
 
-Decline every request a query still has to make. The query then answers whatever
-its module answers for declined requests, which the caller discards.
+Cancel a running procedure query by its `cancel` token.
 
 #### `cmd.procedureRun(providers: ProviderDecl[], force: boolean): Promise<number>` *(unstable)*
 
-Start a procedure run. Returns immediately with the run id; the work continues
-on a background thread and reports through `procedure-progress`.
+Start a procedure run over the open map's locations. Returns immediately with
+the run id. Emits `procedure-progress` and `procedure-result` as work completes.
 
 #### `cmd.procedureRunRows(providers: ProviderDecl[], force: boolean, rows: Location[], cancel: number | null): Promise<RowsRun>` *(unstable)*
 
-Run providers over rows the caller hands in and answer with the rows as they are
-afterwards. Same gating as a run over the map, in a store of the rows' own,
-so nothing reaches the open map. `cancel` is a token for `procedure_query_cancel`.
+Run providers over caller-supplied `rows` and return them as modified. Does not
+affect the open map. `cancel` is a token for [`procedure_query_cancel`].
 
 #### `cmd.readFile(path: string): Promise<string>` *(unstable)*
 
@@ -1285,9 +1319,7 @@ Read a file as UTF-8 text (temp files, plugin sources).
 
 #### `cmd.remoteApiRespond(id: number, ok: boolean, payload: string): Promise<void>` *(unstable)*
 
-Webview -> HTTP reply path: resolves the parked request for `id`.
-`payload` is JSON text, not a typed value -- specta cannot export the
-recursive `serde_json::Value` type (stack overflow at bindings export).
+Deliver the result for remote API request `id`. `payload` is JSON text.
 
 #### `cmd.remoteApiStart(key: string): Promise<string>` *(unstable)*
 
@@ -1296,29 +1328,37 @@ picks up the new key. Returns the base URL.
 
 #### `cmd.remoteApiStop(): Promise<null>` *(unstable)*
 
+Stop the remote API server.
+
 #### `cmd.remoteMappingClear(provider: string, mapId: string): Promise<null>` *(unstable)*
+
+Drop all mapping rows for a linked map (unlink).
 
 #### `cmd.remoteMappingDelete(provider: string, mapId: string, localIds: number[]): Promise<null>` *(unstable)*
 
+Remove specific mapping rows by `local_ids` for a linked map.
+
 #### `cmd.remoteMappingGet(provider: string, mapId: string): Promise<RemoteMappingRow[]>` *(unstable)*
+
+Get all local-to-remote id mapping rows for a linked map.
 
 #### `cmd.remoteMappingUpsert(provider: string, mapId: string, rows: RemoteMappingRow[]): Promise<null>` *(unstable)*
 
+Insert or update local-to-remote id mapping rows for a linked map.
+
 #### `cmd.reverseGeocode(lat: number, lng: number): Promise<GeoResult | null>` *(unstable)*
 
-Finds the nearest city/country for a coordinate. O(log n) k-d tree lookup.
-Always returns `Some` -- the GeoNames dataset covers every landmass.
+Return the nearest city, administrative region, and country for a coordinate.
+Always returns `Some` - the dataset covers every landmass.
 
 #### `cmd.setDataLocation(path: string | null): Promise<null>` *(unstable)*
 
-Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
-and does not move existing data.
+Set or clear the data-folder override. Takes effect after relaunch and does not
+move existing data.
 
 #### `cmd.sidecarCancel(reqId: number): Promise<null>` *(unstable)*
 
-Kill the process behind a one-shot request (no-op if it already finished).
-Resident-served requests have no process of their own, so this does not
-interrupt them -- the caller simply stops listening.
+Cancel a running sidecar request. No-op if the request already finished.
 
 #### `cmd.sidecarInstall(pluginId: string, name: string, version: string): Promise<null>` *(unstable)*
 
@@ -1327,7 +1367,7 @@ Download a plugin's sidecar bundle from GitHub Releases and extract it under
 
 #### `cmd.sidecarInstalledVersion(pluginId: string): Promise<string | null>` *(unstable)*
 
-Installed sidecar version for a plugin (from `sidecar/version.txt`), or `None`.
+Installed sidecar version for a plugin, or `None` if not installed.
 
 #### `cmd.sidecarRequest(pluginId: string, command: string, payload: string | null): Promise<number>` *(unstable)*
 
@@ -1338,32 +1378,29 @@ then exactly one `sidecar-done`, all keyed by the returned request id.
 
 #### `cmd.sidecarStop(pluginId: string): Promise<null>` *(unstable)*
 
-Stop everything a plugin has running. Called when the plugin is disabled or
-uninstalled, so a resident process never outlives the plugin that wanted it.
+Stop all sidecar processes for a plugin.
 
 #### `cmd.sidecarStopAll(): Promise<null>` *(unstable)*
 
-Stop every plugin's sidecar processes. Used when the editor tears all plugins
-down at once (map close), where nothing should still be running afterwards.
+Stop all sidecar processes across every plugin.
 
 #### `cmd.storeAddLocations(locations: Location[]): Promise<MutationResult>` *(unstable)*
 
-Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
-and clears the redo stack.
+Add new locations, allocating sequential IDs. Undoable.
 
 #### `cmd.storeAddLocationsToMap(targetMapId: string, locations: Location[]): Promise<CopyToMapResult>` *(unstable)*
 
-Copy caller-supplied location data into another map. Tag ids are read against this
-map's tag table, so the values may differ from any row it holds -- that is how the
-editor sends the pano you are currently looking at rather than the one on disk.
+Add caller-supplied locations to another map. Tags are matched by name against this
+map's tag table.
 
 #### `cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult>` *(unstable)*
 
-Add locations uploaded as chunked JSON in an upload session dir (see `store_upload_begin`),
-so the frontend never serializes the whole batch at once. Otherwise identical to
-[`store_add_locations`]: one atomic mutation, one undo entry, IDs in uploaded order.
+Add locations from a chunked upload session (see `store_upload_begin`).
+Same behavior as `store_add_locations`: one atomic mutation, undoable.
 
 #### `cmd.storeApplyFieldOp(selector: Selector, op: FieldOp, recordUndo: boolean | null): Promise<FieldOpResult>` *(unstable)*
+
+Apply a field operation to every location matched by `selector`.
 
 #### `cmd.storeBounds(selector: Selector): Promise<[number, number, number, number] | null>` *(unstable)*
 
@@ -1376,27 +1413,25 @@ the map afterwards (undo/redo is cleared).
 
 #### `cmd.storeCloseMap(): Promise<null>` *(unstable)*
 
-Close the current map: bake overlay, flush Arrow + tags + edit history to disk, then
-release all in-memory state (batch, mmap, indexes, selections, undo stacks).
+Close the open map, saving unsaved changes first.
 
 #### `cmd.storeCollect(selector: Selector): Promise<Rows>` *(unstable)*
 
-Full rows. The last resort -- prefer a projection. Every row is materialized in
-webview memory, so an `Everything` call costs O(map). Large answers are staged to a file
-rather than pushed through the IPC channel.
+Collect all matched locations as full rows. Prefer a projection (`store_columns`,
+`store_values`) when only specific fields are needed.
 
 #### `cmd.storeColumns(selector: Selector, fields: string[]): Promise<Columns>` *(unstable)*
 
-Values, never rows: the projection for a scan that reads fields across a set.
+Read specific fields across matched locations, returned as one column per field.
 
 #### `cmd.storeCommit(mapId: string, message: string | null): Promise<CommitResult>` *(unstable)*
 
-Commit the map's uncommitted changes; returns the new commit id plus the
-store-state delta (cleared undo/redo). `message` None auto-generates a `+a -r ~m` summary.
+Commit the map's uncommitted changes. Returns the new commit ID. `message`
+defaults to a generated `+a -r ~m` summary. Clears undo/redo.
 
 #### `cmd.storeCommitDiff(): Promise<[number, number, number]>` *(unstable)*
 
-The uncommitted changes since the last commit -- the same changeset `store_commit` will record.
+Return the uncommitted change counts (added, removed, modified) since the last commit.
 
 #### `cmd.storeCopyLocationsToMap(targetMapId: string, selector: Selector): Promise<CopyToMapResult>` *(unstable)*
 
@@ -1404,15 +1439,15 @@ Copy locations already stored in this map into another map.
 
 #### `cmd.storeCount(selector: Selector): Promise<number>` *(unstable)*
 
-How many locations the selector resolves to. Counts rows, never materializes them.
+Count how many locations the selector matches.
 
 #### `cmd.storeCountBy(selector: Selector, field: string, key: KeySpec): Promise<[string, number][]>` *(unstable)*
 
-Group by a derived key, returning counts only -- no member ids on the wire.
+Group locations by a derived key, returning counts only (no member ids).
 
 #### `cmd.storeCountryDistribution(selector: Selector, level: string): Promise<[string, number][]>` *(unstable)*
 
-Count locations by country (offline point-in-polygon). Returns unsorted (ISO-A2, count) pairs.
+Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
 `level` selects border precision, falling back to "light" if unavailable.
 
 #### `cmd.storeCoverage(selector: Selector): Promise<[string, number][]>` *(unstable)*
@@ -1422,48 +1457,42 @@ columns a row can lack.
 
 #### `cmd.storeCreateMap(name: string, folder: string | null): Promise<MapMeta>` *(unstable)*
 
-Create a new empty map with default settings. Returns the full metadata
-(including the generated UUID) so the frontend can navigate to it immediately.
+Create a new empty map with default settings. Returns the full metadata.
 
 #### `cmd.storeCreateTags(names: string[], selector: Selector): Promise<MutationResult>` *(unstable)*
 
-Create tags by name. Deduplicates case-insensitively: if a tag with the same name
-already exists, it is made visible instead of creating a duplicate.
-
-`location_ids` assigns every resulting tag to those locations in the same mutation.
-Doing both here is not a convenience: creating and assigning as two commands leaves the
-tag visible at count 0 for the round trip in between, and makes the caller fetch every
-location into JS just to append an id Rust already has.
+Create tags by name and assign them to the locations matched by `selector`.
+Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
 
 #### `cmd.storeDbStats(): Promise<DbStats>` *(unstable)*
 
-Compute aggregate database statistics (map/location/tag/commit counts,
-database file size, journal mode). Tag count is summed across all maps
-by parsing each map's tags JSON column.
+Return aggregate database statistics: counts, file size, and configuration.
 
 #### `cmd.storeDeleteFolder(name: string): Promise<null>` *(unstable)*
 
-Delete a folder by setting all its maps' folder to `NULL` (moves them to root).
+Delete a folder, moving its maps to the root level.
 
 #### `cmd.storeDeleteMap(id: string): Promise<null>` *(unstable)*
 
-Delete a map and all its data: database rows and files on disk.
+Delete a map and all its data permanently.
 
 #### `cmd.storeDeleteSavedSelection(id: string): Promise<null>` *(unstable)*
 
+Delete a saved selection rule by `id`.
+
 #### `cmd.storeDeleteTags(tagIds: number[]): Promise<MutationResult>` *(unstable)*
 
-Strip tags from all locations. Tags stay in `store.tags` with count=0 /
-visible=false so undo can revive them. Returns MutationResult with `tags`.
+Remove tags and strip them from all locations that carry them. Undoable.
 
 #### `cmd.storeDuplicateGroups(distance: number): Promise<number[][]>` *(unstable)*
 
-Transitive spatial duplicate groups (connected components, size >= 2) within `distance`
-metres. Read-only; used to preview a merge. Returns groups of location IDs.
+Find groups of locations within `distance` metres of each other (transitive).
+Returns groups of IDs, each with at least two members.
 
 #### `cmd.storeExportBulkZip(): Promise<string>` *(unstable)*
 
-Export every map in the database as a ZIP of JSON files. Duplicate map names get a numeric suffix.
+Export every map as a ZIP of JSON files. Duplicate map names get a numeric suffix.
+Emits `bulk-export-progress` per map.
 
 #### `cmd.storeExportCsv(selector: Selector): Promise<string>` *(unstable)*
 
@@ -1480,8 +1509,7 @@ Export locations as a `{name, customCoordinates}` JSON file, including tags and 
 
 #### `cmd.storeFillRenderFile(req: RenderRequest): Promise<string>` *(unstable)*
 
-Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
-Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.
+Rebuild all marker render data from scratch and return the file path to fetch it from.
 
 #### `cmd.storeFindNearby(lat: number, lng: number, radiusM: number): Promise<Location[]>` *(unstable)*
 
@@ -1489,7 +1517,7 @@ Find all locations within `radius_m` metres of (`lat`, `lng`).
 
 #### `cmd.storeGetCommitDelta(mapId: string, commitId: string): Promise<CommitDelta>` *(unstable)*
 
-Read a single commit's delta (created/removed locations) for the diff viewer.
+Read a single commit's delta (created and removed locations).
 
 #### `cmd.storeGetMap(id: string): Promise<MapMeta | null>` *(unstable)*
 
@@ -1497,7 +1525,11 @@ Fetch a single map's metadata by ID. Returns `None` if not found.
 
 #### `cmd.storeGetSavedSelections(ids: string[]): Promise<SavedSelection[]>` *(unstable)*
 
+Fetch the full saved selection rules for the given `ids`, including their selector trees.
+
 #### `cmd.storeGetSummary(): Promise<SummaryResult>` *(unstable)*
+
+Return the map's current location count, store version, and unsaved-change count.
 
 #### `cmd.storeGroupBy(selector: Selector, field: string, key: KeySpec): Promise<PartitionBucket[]>` *(unstable)*
 
@@ -1505,27 +1537,29 @@ Group by a derived key, returning `{ key, ids, bin }` per group.
 
 #### `cmd.storeImportFile(droppedFields: string[], tagName: string | null): Promise<EditorImportResult>` *(unstable)*
 
-Commit a previously previewed editor import, optionally dropping fields and/or
-applying a bulk tag to every imported location. Consumes the cached parse from
-`store_import_preview`/`store_import_paste_preview`. Fields in `dropped_fields`
-(e.g. `"heading"`, `"extra.countryCode"`) are zeroed/removed.
+Commit a previously previewed editor import into the open map, optionally
+dropping fields in `dropped_fields` (e.g. `"heading"`, `"extra.countryCode"`)
+and/or applying `tag_name` to every imported location.
 
 #### `cmd.storeImportLegacySavedSelections(json: string): Promise<number>` *(unstable)*
 
+Import saved selections from the pre-0.10 localStorage format. No-op when
+rules already exist. Returns the number of rules imported.
+
 #### `cmd.storeImportPastePreview(text: string): Promise<EditorImportPreview>` *(unstable)*
 
-Parse pasted text (JSON or CSV) and stage it for preview, exactly like
-`store_import_preview` does for a file. Caches the parse for `store_import_file`.
+Parse pasted text (JSON or CSV) and stage it for preview. Works like
+[`store_import_preview`] but reads from a string instead of a file.
 
 #### `cmd.storeImportPreview(path: string): Promise<EditorImportPreview>` *(unstable)*
 
-Parse a file and return field-level statistics + preview positions for the editor
-import sidebar. Caches the parse result for `store_import_file` to consume on commit.
+Parse a file and return field-level statistics and preview positions for the
+editor import dialog. Call [`store_import_file`] to commit the import.
 
 #### `cmd.storeImportStagedLocation(index: number): Promise<Location>` *(unstable)*
 
-Fetch one staged (not yet imported) location by its preview index, for read-only
-preview in the editor. Indexes follow the preview positions order.
+Return one staged (not yet imported) location by its preview `index`, for
+read-only preview in the editor.
 
 #### `cmd.storeListCommits(mapId: string): Promise<CommitInfo[]>` *(unstable)*
 
@@ -1537,36 +1571,36 @@ Return metadata for every map in the database.
 
 #### `cmd.storeListSavedSelections(): Promise<SavedSelectionInfo[]>` *(unstable)*
 
+List every saved selection rule (name, color, date), without their selector trees.
+
 #### `cmd.storeMergeDuplicates(distance: number, score: string | null): Promise<MutationResult>` *(unstable)*
 
-Merge each duplicate group within `distance` metres into one survivor location, unioning
-tags and extra fields. `score` is the map's duplicate preference expression; blank or
-absent uses [`selections::DEFAULT_DUPLICATE_SCORE`]. One undoable edit.
+Merge each duplicate group within `distance` metres into one location, unioning tags
+and extra fields. `score` ranks which location survives; blank uses the default ranking.
+Undoable.
 
 #### `cmd.storeNearAny(lats: number[], lngs: number[], radiusM: number): Promise<boolean[]>` *(unstable)*
 
 For each input point, whether any existing location lies within `radius_m` metres.
-Bulk form so callers probing many coordinates (e.g. the map generator skipping
-already-covered spots) pay one IPC round-trip, not one per point.
+Batch form for probing many coordinates at once.
 
 #### `cmd.storeOpenMap(mapId: string): Promise<StoreStatus>` *(unstable)*
 
-Load a map's Arrow data from disk, rebuild all indexes, and return initial state
-(tag counts, undo/redo availability). Must be called before any other store commands.
+Open a map and return its initial state (tag counts, undo/redo availability).
+Must be called before any other store commands.
 
 #### `cmd.storePruneDuplicates(selector: Selector, distance: number, score: string | null): Promise<MutationResult>` *(unstable)*
 
-Thin duplicates among `ids` within `distance` metres, keeping the best location per
-cluster. `score` is the map's duplicate preference expression, the same one a merge
-ranks by. One undoable edit.
+Remove duplicate locations within `distance` metres of each other, keeping the
+best-scored survivor per cluster. Undoable.
 
 #### `cmd.storeRedo(): Promise<MutationResult>` *(unstable)*
 
-Pop the redo stack and replay the edit forward. Pushes the entry back onto undo.
+Redo the last undone edit.
 
 #### `cmd.storeRemoveLocations(ids: number[]): Promise<MutationResult>` *(unstable)*
 
-Remove locations by ID. Snapshots the full location data for undo before deleting.
+Remove locations by ID. Undoable.
 
 #### `cmd.storeRenameFolder(from: string, to: string): Promise<null>` *(unstable)*
 
@@ -1574,12 +1608,11 @@ Rename a folder across all maps that reference it.
 
 #### `cmd.storeReorderTags(orderedIds: number[]): Promise<MutationResult>` *(unstable)*
 
-Persist tag ordering. `ordered_ids` specifies the desired order; each tag's
-`order` field is set to its index in the list.
+Set the display order of tags. Each tag's position is its index in `ordered_ids`.
 
 #### `cmd.storeResetUndo(): Promise<MutationResult>` *(unstable)*
 
-Clear both undo and redo stacks; returns the resulting store-state delta.
+Clear both undo and redo stacks.
 
 #### `cmd.storeResolve(selector: Selector): Promise<number[]>` *(unstable)*
 
@@ -1587,18 +1620,27 @@ Ids of every location the selector resolves to, ascending.
 
 #### `cmd.storeResolvePick(cell: string, cellIndex: number): Promise<number | null>` *(unstable)*
 
-Resolve a deck.gl pick result (cell key + index within cell) to a location ID.
-Called on marker click to map the GPU pick back to a logical location.
+Resolve a marker pick (cell key + index within cell) to a location ID.
 
 #### `cmd.storeReviewCreate(session: ReviewCreate): Promise<ReviewSession>` *(unstable)*
 
+Create a new review session from a frozen worklist of location IDs.
+
 #### `cmd.storeReviewDelete(id: string): Promise<null>` *(unstable)*
+
+Delete a review session.
 
 #### `cmd.storeReviewGet(mapId: string, sourceKey: string): Promise<ReviewSession | null>` *(unstable)*
 
+Look up the most recent active review session for a map and source key.
+
 #### `cmd.storeReviewList(mapId: string, status: string | null): Promise<ReviewSession[]>` *(unstable)*
 
+List review sessions for a map, newest first. Optionally filter by `status`.
+
 #### `cmd.storeReviewUpdate(update: ReviewUpdate): Promise<null>` *(unstable)*
+
+Apply a partial update to a review session.
 
 #### `cmd.storeSample(selector: Selector, n: number): Promise<number[]>` *(unstable)*
 
@@ -1606,14 +1648,15 @@ Called on marker click to map the GPU pick back to a logical location.
 
 #### `cmd.storeSaveDirty(): Promise<SaveResult>` *(unstable)*
 
-Autosave uncommitted changes to the delta sidecar. No-op when nothing changed.
+Save uncommitted changes to disk. No-op when nothing has changed.
 
 #### `cmd.storeSaveExportFile(srcPath: string, destPath: string): Promise<null>` *(unstable)*
 
-Copy a temp export file to the destination chosen via the native save dialog,
-then remove the temp source. `dest_path` comes from the frontend save dialog.
+Move a temp export file to `dest_path` and remove the temp source.
 
 #### `cmd.storeSaveSelection(name: string, selector: Selector, tagNames: { [x: number]: string; }, color: [number, number, number]): Promise<SavedSelection>` *(unstable)*
+
+Save a new selection rule.
 
 #### `cmd.storeScratchMap(): Promise<MapMeta>` *(unstable)*
 
@@ -1630,8 +1673,7 @@ Returns the total number of seen entries matching the filter (for pagination).
 
 #### `cmd.storeSeenCountries(): Promise<string[]>` *(unstable)*
 
-Returns all distinct country codes present in the seen table, sorted alphabetically.
-Used to populate the country filter dropdown.
+Return all distinct country codes in the seen history, sorted alphabetically.
 
 #### `cmd.storeSeenList(limit: number, offset: number, filter: SeenFilter | null, thumbnails: boolean): Promise<SeenEntry[]>` *(unstable)*
 
@@ -1643,17 +1685,15 @@ Returns all distinct maps that have seen entries, with resolved display names.
 
 #### `cmd.storeSeenWrite(entry: SeenWriteEntry): Promise<null>` *(unstable)*
 
-Record a panorama visit. Oldest entries beyond `MAX_SEEN` are evicted.
+Record a panorama visit. The history is capped; oldest entries are evicted when full.
 
 #### `cmd.storeSetActive(id: number | null): Promise<null>` *(unstable)*
 
-Set (or clear) the active location. Fire-and-forget from JS; no re-render triggered.
-JS patches the cell buffer synchronously to hide/show the active marker.
+Set (or clear) the active location.
 
 #### `cmd.storeSetMarkerColor(color: [number, number, number]): Promise<null>` *(unstable)*
 
-Set the default marker color used by the render delta path. Fire-and-forget from JS;
-the JS side recolors its cell buffers in place (no full rebuild).
+Set the default marker color for new render updates.
 
 #### `cmd.storeSpaced(selector: Selector, targetCount: number | null, minDistanceM: number | null): Promise<SpacedPickResult>` *(unstable)*
 
@@ -1662,8 +1702,8 @@ spacing) or `min_distance_m` (keep as many as fit at that spacing).
 
 #### `cmd.storeSyncSelections(sels: SelectionInput[]): Promise<SelectionSync>` *(unstable)*
 
-Replace all selections, resolve bitmasks against current data, and write a binary
-patch file for JS to apply to the render overlay. Returns per-selection counts.
+Replace all active selections and resolve them against current data. Returns
+per-selection counts and a bitmask for the marker overlay.
 
 #### `cmd.storeTouchMapOpened(mapId: string): Promise<null>` *(unstable)*
 
@@ -1672,7 +1712,7 @@ list by recency in the dashboard.
 
 #### `cmd.storeUndo(): Promise<MutationResult>` *(unstable)*
 
-Pop the undo stack and reverse the last edit. Pushes the entry onto the redo stack.
+Undo the last edit.
 
 #### `cmd.storeUpdateLocations(updates: Update<LocationPatch_Deserialize>[], recordUndo: boolean | null): Promise<MutationResult>` *(unstable)*
 
@@ -1682,10 +1722,8 @@ that manage their own undo).
 
 #### `cmd.storeUpdateMapMeta(id: string, patch: MapMetaPatch_Deserialize): Promise<MutationResult | null>` *(unstable)*
 
-Apply a partial update to a map's metadata; `None` fields are left unchanged.
-When extra fields change on an open map, the in-memory field registry is replaced
-(so auto-registration doesn't re-discover user-defined fields) and the resulting
-store-state delta is returned for the caller to apply.
+Apply a partial update to a map's metadata. `None` fields are left unchanged.
+Returns a mutation result when the open map's field definitions changed.
 
 #### `cmd.storeUpdateTags(updates: Update<TagPatch>[]): Promise<MutationResult>` *(unstable)*
 
@@ -1698,14 +1736,13 @@ Remove an abandoned upload session dir (e.g. cancelled operation).
 
 #### `cmd.storeUploadBegin(): Promise<string>` *(unstable)*
 
-Create a temp session dir for binary uploads from the frontend. Files are
-written into it via `mma-buf://` POST, then packaged by [`store_upload_finish`].
+Create a temp session directory for binary uploads. Files written into it are
+packaged by [`store_upload_finish`].
 
 #### `cmd.storeUploadFinish(sessionDir: string): Promise<string>` *(unstable)*
 
-Package an upload session and remove its dir: a single file is moved out
-as-is, multiple are packed into a Stored ZIP (entries like JPEG/PNG are
-already compressed). Returns a temp path for [`store_save_export_file`].
+Package an upload session's files into a single output and remove the session
+directory. Returns a temp path for [`store_save_export_file`].
 
 #### `cmd.storeValues(selector: Selector, field: string): Promise<string[]>` *(unstable)*
 
@@ -1713,8 +1750,8 @@ Distinct values of `field` across the selected set, sorted.
 
 #### `cmd.syncReconcile(provider: string, mapId: string, remoteMapId: string, apiKey: string | null, firstSync: FirstSyncMode | null, resolutions: [string, ResolutionSide][] | null): Promise<...>` *(unstable)*
 
-Reconcile a linked, open map against its remote. Snapshots local state under the store lock,
-drops the lock, then does all network + persistence off the async thread.
+Reconcile a linked map against its remote, pushing local changes and pulling
+remote ones. Returns the creates, updates, and deletes for each side to apply.
 
 #### `cmd.uninstallPlugin(id: string): Promise<null>` *(unstable)*
 
@@ -1722,8 +1759,8 @@ Delete a plugin's directory.
 
 #### `cmd.updateCheck(endpoint: string): Promise<UpdateAvailable | null>` *(unstable)*
 
-Look for an update at `endpoint` (a release's `latest.json`). `None` means the announced
-version is not newer than the running one, which is the plugin's own comparison.
+Check for an update at `endpoint` (a release's `latest.json`). Returns `None`
+when the announced version is not newer than the running one.
 
 #### `cmd.updateInstall(): Promise<null>` *(unstable)*
 
@@ -1765,9 +1802,8 @@ Subdivision weights for a country (JSON text, same shape as `vali subdivisions`)
 
 #### `cmd.writeTempFile(name: string, content: string): Promise<string>` *(unstable)*
 
-Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
-large payloads over by file instead of IPC serialization. `name` names a leaf, so it
-cannot steer the write out of the temp directory.
+Write text to a temp file and return its path. `name` is a leaf filename
+(cannot contain path separators).
 
 ## Tauri
 
@@ -1785,14 +1821,16 @@ Tauri primitives, handed to plugins as-is.
 
 ### `activatePlugin(id: string): void` *(unstable)*
 
+Activate a single plugin by id.
+
 ### `activatePlugins(): void` *(unstable)*
+
+Activate all enabled plugins. Called when a map opens.
 
 ### `autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>` *(unstable)*
 
-Refresh a stale install before it loads. Nothing is registered yet at startup, so an
-update is just re-downloading the files the normal load then picks up; any failure
-falls back to loading what's on disk. Plugins absent from the registry (hand-installed
-dev plugins) and plugins with no build this app can run are never touched.
+Auto-update a plugin to the newest compatible build before loading it. Falls back
+to what is on disk on failure.
 
 ### `createPluginStorage(id: string): PluginStorage`
 
@@ -1800,36 +1838,47 @@ Persistent key-value storage namespaced to a plugin. Survives restarts.
 
 ### `deactivatePlugin(id: string): void` *(unstable)*
 
+Deactivate a single plugin and stop its sidecar.
+
 ### `deactivatePlugins(): void` *(unstable)*
+
+Deactivate all plugins and stop their sidecars. Called when a map closes.
 
 ### `fetchPluginRegistry(): Promise<PluginManifest[]>` *(unstable)*
 
-The marketplace registry, fetched once per session (startup update check and the
-marketplace dialog share it). A failed fetch clears the cache so the next call retries.
+Fetch the marketplace plugin registry (cached for the session).
 
 ### `getEnabledPlugins(): Plugin[]`
 
+All registered plugins the user has enabled.
+
 ### `getPlugin(id: string): Plugin | undefined`
+
+Look up a registered plugin by id.
 
 ### `getPlugins(): Plugin[]`
 
+All registered plugins, sorted by name.
+
 ### `getPluginSetting<T = unknown>(plugin: Plugin, key: string): T`
+
+Read a plugin's declared setting value, falling back to the setting's default.
 
 ### `isBackgroundPlugin(id: string): boolean`
 
-A plugin with no sidebar, modal, or location panel — it only contributes data
-(enrichment fields) and never shows UI of its own. Unknown for plugins that
-aren't loaded, so uninstalled registry entries report false.
+True when the plugin contributes data only and has no UI surfaces.
 
 ### `isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean` *(unstable)*
 
-Update machinery.
+True when `appVersion` meets the plugin's minimum version requirement.
 
 ### `isPluginEnabled(id: string): boolean`
 
+True when the plugin is enabled by the user.
+
 ### `isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean` *(unstable)*
 
-Update machinery.
+True when a newer version is published and the installed version is known.
 
 ### `isReady(): boolean`
 
@@ -1837,17 +1886,15 @@ True once the MMA surface is installed and plugins are safe to call it.
 
 ### `markReady(): void` *(unstable)*
 
-Called by the entry point once the surface is on `window`.
+Mark the plugin surface as ready.
 
 ### `needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean` *(unstable)*
 
-Whether an install should be refreshed to `target`. A pinned build's sidecar version
-lives in its own manifest, so only the latest build's sidecar can be compared before
-downloading; for a pinned one the install itself reconciles it.
+True when the installed plugin should be refreshed to `target`.
 
 ### `needsUpdate(installedVersion: string | undefined, latestVersion: string | undefined, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean` *(unstable)*
 
-Update machinery.
+True when either the plugin or its sidecar has a newer published version.
 
 ### `registerPlugin(plugin: Plugin | PluginBehavior): void`
 
@@ -1855,15 +1902,20 @@ Register a plugin. `activate` runs when a map opens; its returned cleanup runs o
 
 ### `resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null` *(unstable)*
 
-The newest build of a plugin this app version can run -- the registry's latest when
-compatible, else the newest pinned fallback that is. Null when no published build
-supports this app at all. `builds` is ordered newest-first.
+The newest build of a plugin this app version can run. Falls back through older
+pinned builds when the latest is incompatible. Null when none fit.
 
 ### `setPendingManifest(manifest: PluginManifest | null): void` *(unstable)*
 
+Set the manifest used to fill identity fields on the next `registerPlugin` call.
+
 ### `setPluginEnabled(id: string, enabled: boolean): void`
 
+Enable or disable a plugin.
+
 ### `setPluginSetting(id: string, key: string, value: unknown): void`
+
+Write a plugin's declared setting value.
 
 ### `storage(id: string): PluginStorage`
 
@@ -1871,43 +1923,39 @@ Persistent key-value storage namespaced to a plugin. Survives restarts.
 
 ### `unregisterPlugin(id: string): void` *(unstable)*
 
+Remove a plugin from the registry.
+
 ### `usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void]`
 
-useState persisted through the plugin's namespaced store. UI state saved this
-way survives sidebar unmount and app restart. Values are global, not per-map —
-callers must fall back gracefully when a stored value doesn't resolve against
-the current map (e.g. a field key or saved-selection id).
+React state hook backed by the plugin's persistent store. Survives sidebar
+unmount and app restart. Values are global, not per-map.
 
 ## Scope
 
 ### `disposePlugin(id: string): void` *(unstable)*
 
-Run and clear every teardown a plugin registered, in reverse order.
+Run all teardowns a plugin registered (in reverse order) and clear them.
 
 ### `on<E extends EditorEvent>(event: E, handler: EventHandler<E>): () => void`
 
-Subscribe to an editor event. The returned unsubscribe also runs when the plugin
-deactivates.
+Subscribe to an editor event, automatically unsubscribed on plugin deactivation.
 
 ### `resolvePluginPath(path: string): string` *(unstable)*
 
-Resolve a file path a plugin registration referred to, against the directory of the
-plugin currently activating. Absolute paths, "res://" URLs, registrations outside an
-activation window, and core plugins (no directory) all pass through unchanged.
+Resolve a relative path against the current plugin's base directory. Absolute
+paths and `res://` URLs pass through unchanged.
 
 ### `runAsPlugin<T>(id: string, fn: () => T): T` *(unstable)*
 
-Run `fn` attributed to plugin `id`; host registrations during it are tracked for teardown.
-Plugin activation machinery, driven by the registry.
+Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown.
 
 ### `setPluginBaseDir(id: string, dir: string): void` *(unstable)*
 
-Record where a plugin's files live on disk, so its registrations can resolve
-paths to assets it ships. Core plugins have no directory.
+Set the base directory for a plugin's assets on disk.
 
 ### `trackDisposable(dispose: Disposable): void` *(unstable)*
 
-Enroll a teardown callback under the currently-activating plugin. No-op outside activation.
+Enroll a teardown callback under the current plugin. No-op outside activation.
 
 ## Externals
 
@@ -1932,10 +1980,8 @@ The sidecar version installed for a plugin, or null when it has none yet.
 
 ### `request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T> | undefined): Promise<T | null>`
 
-Run one unit of work on a plugin's sidecar and resolve with its last emitted
-object (null if it emitted none). The app owns the process: commands the manifest
-lists under `serve` are answered by the plugin's resident sidecar, the rest by a
-one-shot run. `payload` is handed to the sidecar as JSON.
+Send a command to a plugin's sidecar and resolve with its last emitted JSON
+object (null if it emitted none). `payload` is sent as JSON.
 
 ### `sidecar: { request: <T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T> | undefined) => Promise<T | null>; installedVersion: (pluginId: string) => Promise<...>; }`
 
@@ -2054,11 +2100,11 @@ host below -- one portal for the whole app rather than one per trigger.
 
 ### `derivedFrom(changed: Iterable<string>): Set<string>`
 
-Every field derived from the `changed` keys, directly or through other providers: what a
-row must forget when those inputs change, for enrichment to derive again. The graph is
-each provider's `requires` against what it produces.
+Every field transitively derived from the `changed` keys via the provider graph.
 
 ### `getAllEnrichKeys(): string[]`
+
+All enrichment field keys (core and plugin-registered).
 
 ### `getDefaultEnrichKeys(): string[]`
 
@@ -2066,15 +2112,23 @@ Keys enriched when enrichFields is null (the default set: all options except def
 
 ### `getEnrichFieldOptions(): EnrichFieldOption[]`
 
+All enrichment field options (core and plugin-registered).
+
 ### `getProviderForField(field: string): Provider | undefined`
+
+The provider that produces a given extra field, if any.
 
 ### `getProviders(): Provider[]`
 
+All registered providers.
+
 ### `isFieldEnabled(enrichFields: string[] | null, key: string): boolean`
+
+True when `key` is in the given enrichment set (or in the default set when null).
 
 ### `knownFieldDefs(...keys: string[]): Record<string, ExtraFieldDef>`
 
-Field defs for catalog keys, for providers that write well-known SV fields.
+Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`).
 
 ### `registerEnrichFields(fields: EnrichFieldOption[]): void`
 
@@ -2087,19 +2141,17 @@ deactivates.
 
 ### `withoutDerivedFrom(extra: Record<string, unknown> | null, changed: Iterable<string>): Record<string, unknown> | null`
 
-`extra` without every field derived from the `changed` keys.
+Remove fields transitively derived from `changed` from an `extra` record.
 
 ## FieldDefRegistry
 
 ### `fieldLabel(key: string): string`
 
-Display label for a field key: registered label if known, otherwise sentence-cased from camelCase/snake_case.
+Display label for a field key, falling back to a sentence-cased version of the key.
 
 ### `fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string`
 
-Display text for one *value* of a field, the counterpart to [`fieldLabel`] naming the
-field itself. Enum values carry translated display names; everything else is its own
-string.
+Display label for a field value. Enum values use their translated display name.
 
 ### `getAllFieldDefs(): Record<string, ExtraFieldDef>`
 
@@ -2111,7 +2163,7 @@ All built-in field keys (excluding virtual).
 
 ### `getFieldDef(key: string): ExtraFieldDef | undefined`
 
-Look up metadata for a single field key. Returns `undefined` if no metadata exists.
+Look up metadata for a field key. Returns `undefined` if no layer declares it.
 
 ### `getKnownFieldKeys(): ReadonlySet<string>`
 
@@ -2123,19 +2175,17 @@ True when `key` is a built-in Location field (stored top-level, not under `extra
 
 ### `isClearableField(key: string): boolean`
 
-False for a built-in column a bulk clear cannot empty: non-null, or rewritten by the
-engine on every change.
+True when the field can be bulk-cleared.
 
 ### `isListableField(key: string): boolean`
 
-False for identity fields (lat/lng) and expression terms, which pickers must not offer.
+True when the field should appear in field pickers.
 
 ### `isWritableField(key: string): boolean`
 
 ### `partitionKeyOptions(type: ExtraFieldType, rangeForDates: boolean): { id: string; label: string; }[]`
 
-Dropdown options for a partition: the projection catalog plus "Range" for numbers (and
-dates too when `rangeForDates`).
+Partition-key dropdown options for a field type.
 
 ### `projectionsForType(type: ExtraFieldType): FieldProjection[]`
 
@@ -2161,33 +2211,24 @@ Entry point of a procedure this app bundles. Plugins ship their own paths.
 
 ### `queryProcedure<T = unknown>(entry: string, input: unknown, config?: unknown, signal?: AbortSignal | undefined): Promise<T>`
 
-Ask a procedure a read-only question. `input` and the answer are the module's own
-contract -- the engine only carries the JSON. Rejects when the module exports no
-`query` or the call fails, and with the signal's reason once `signal` aborts, at
-which point the engine declines the query's remaining requests. `T` is an unchecked
-assertion over that contract: sound for the app's own `res://` modules, which are
-pinned by tests. Validate instead of naming a `T` when the module is a plugin's.
+Ask a procedure a read-only question. Rejects when the procedure exports no `query`,
+when the call fails, or when `signal` aborts.
 
 ### `resolveFieldLabels(field: string, keys: string[]): Promise<string[]>`
 
-Display labels for a field's partition keys, from the procedure that owns the field.
-A module with no `label` query -- or one answering anything but a matching array of
-strings -- leaves the keys as they are.
+Display labels for a field's partition keys. Falls back to the keys themselves when
+the field's procedure has no `label` query or returns a non-matching array.
 
 ### `runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & { ...; }): Promise<...>` *(unstable)*
 
-Run one procedure over `selector`, on its own. The primitive: a consumer that is not
-enrichment (validation, a download resolving pano ids) declares a spec and calls this,
-and gets its collected answers typed by the spec.
+Run a single procedure over `selector` and return its typed results.
 
 ### `runProviders(items: ProviderRun[], rows: Selector, opts?: RunOpts | undefined): Promise<ProviderOutcomes>`
 
-Drive a set of providers through the engine as one run over `rows`: a selector, which
-the engine pages out of the store and writes back into, reporting per-provider
-progress this hands to the caller per provider; or locations
-handed in, which run in a store of their own and come back as the providers left
-them, with nothing reaching the map. Resolves once every declared provider reports
-finished, or on abort.
+Run a set of providers over `rows`. When `rows` is a Selector, matching locations
+are processed in place and results are written back. When `rows` is a Location array,
+locations are processed independently and returned as modified copies. Resolves once
+every provider finishes, or on abort.
 
 ## Seen
 
@@ -2201,25 +2242,39 @@ Number of seen entries matching the filter (all when omitted).
 
 ### `getSeenCountries(): Promise<string[]>`
 
+Distinct country codes that appear in the seen history.
+
 ### `getSeenEntries(limit?: number | undefined, offset?: number | undefined, filter?: SeenFilter | undefined, thumbnails?: boolean | undefined): Promise<SeenEntry[]>`
 
 Fetch a page of the seen (visited-panorama) history.
 
 ### `getSeenMaps(): Promise<SeenMapInfo[]>`
 
+Maps that have seen-history entries.
+
 ### `seenFlush(getPov: () => LocationPOV): void`
+
+Write the pending seen entry to disk, if any.
 
 ### `seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, getPov: () => LocationPOV): void`
 
+Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
+
 ### `seenSkipNext(panoId: string): void`
 
+Suppress the next seen-history entry for `panoId`.
+
 ### `seenUpdateGeo(geo: GeoDisplay): void`
+
+Update the pending seen entry's geocode info (country, address).
 
 ## PanoSingleton
 
 The shared panorama viewer's internals.
 
 ### `applyResolved(sv: StreetViewPanorama, resolved: Pano | null, loc: Location): void` *(unstable)*
+
+Point the viewer at a resolved panorama for `loc`, setting its position, POV, and zoom.
 
 ### `capturePano(): PanoCapture | null` *(unstable)*
 
@@ -2232,7 +2287,11 @@ The live viewer's camera in the stored zoom domain. Zeroed if there is no viewer
 
 ### `clearSingletonPano(): void` *(unstable)*
 
+Hide and release the singleton panorama.
+
 ### `getPanorama(): StreetViewPanorama | null` *(unstable)*
+
+Return the singleton Street View panorama, creating it on first call.
 
 ### `loadSeenPano(entry: SeenEntry): Promise<void>` *(unstable)*
 
@@ -2250,35 +2309,28 @@ The **`HTMLDivElement`** interface provides special properties (beyond the regul
 
 ### `enrich(loc: Location, opts?: Omit<RunOpts, "onProgress"> | undefined): Promise<Location>`
 
-One location as enrichment leaves it: every field-producing provider, narrowed to
-the map's enabled keys, run over that row alone. A field the row already holds is
-not derived again unless `force`, which re-derives every field the providers own.
-Nothing is written; the caller holds the result. The row comes back untouched when
-the map's enrichment is off.
+Enrich a single location with the map's enabled metadata fields. Existing fields are
+kept unless `force` re-derives all of them. Returns the enriched location without
+writing it. Returns the location unchanged when enrichment is disabled.
 
 ### `enrichAll(selector: Selector, opts?: RunOpts | undefined): Promise<EnrichOutcome[]>`
 
-Bulk enrich a selector: resolve missing pano ids, then run every field-producing
-provider (metadata, exact date, timezone, subdivision) through the Rust engine.
+Bulk-enrich a selector: resolve missing pano ids, then run every field-producing
+provider (metadata, exact date, timezone, subdivision).
 
 ### `enrichRuns(enrichFields: string[] | null, exclude?: string[] | undefined): ProviderRun[]`
 
-The field-producing providers as enrichment runs them, each narrowed to the keys the
-user picked. Keys the enrichment UI never offers are always produced.
+Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
+offered in the enrichment settings are always included.
 
 ### `exactDateProvider`
 
-A procedure with a place in the dependency graph: what it produces (`fieldDefs`,
-`provides`) and what it must wait for (`requires`), so `runProviders` can schedule
-several together. One that declares `fieldDefs` is an enrichment provider: its fields
-are selectable and `enrichAll` runs it implicitly. A consumer that just wants one
-procedure run declares a `ProcedureSpec` and calls `runProcedure`.
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
 #### `exactDateProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
 
-Selectable `extra` keys this provider produces. Omitted, the provider writes
-core columns instead: it is always active, and `enrichAll` never runs it
-implicitly -- only a caller naming it does.
+Extra-field keys this provider produces.
 
 #### `exactDateProvider.id: string`
 
@@ -2288,31 +2340,24 @@ Bulk progress label for slow providers; omit for instant ones.
 
 #### `exactDateProvider.procedure: ProcedureSpec<unknown>`
 
-The procedure the Rust engine runs for this provider.
+The procedure that computes this provider's fields.
 
 #### `exactDateProvider.provides: string[] | undefined`
 
-Core columns this provider writes, e.g. `panoId`. They gate dependents and skip
-rows that already hold them, exactly like `fieldDefs`.
+Core columns this provider writes (e.g. `panoId`).
 
 #### `exactDateProvider.requires: string[] | undefined`
 
-Fields this provider reads: the engine starts it only once every provider
-producing them has finished.
+Fields this provider reads; it runs after their producers finish.
 
 ### `panoResolveProvider`
 
-A procedure with a place in the dependency graph: what it produces (`fieldDefs`,
-`provides`) and what it must wait for (`requires`), so `runProviders` can schedule
-several together. One that declares `fieldDefs` is an enrichment provider: its fields
-are selectable and `enrichAll` runs it implicitly. A consumer that just wants one
-procedure run declares a `ProcedureSpec` and calls `runProcedure`.
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
 #### `panoResolveProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
 
-Selectable `extra` keys this provider produces. Omitted, the provider writes
-core columns instead: it is always active, and `enrichAll` never runs it
-implicitly -- only a caller naming it does.
+Extra-field keys this provider produces.
 
 #### `panoResolveProvider.id: string`
 
@@ -2322,59 +2367,46 @@ Bulk progress label for slow providers; omit for instant ones.
 
 #### `panoResolveProvider.procedure: ProcedureSpec<unknown>`
 
-The procedure the Rust engine runs for this provider.
+The procedure that computes this provider's fields.
 
 #### `panoResolveProvider.provides: string[] | undefined`
 
-Core columns this provider writes, e.g. `panoId`. They gate dependents and skip
-rows that already hold them, exactly like `fieldDefs`.
+Core columns this provider writes (e.g. `panoId`).
 
 #### `panoResolveProvider.requires: string[] | undefined`
 
-Fields this provider reads: the engine starts it only once every provider
-producing them has finished.
+Fields this provider reads; it runs after their producers finish.
 
 ### `panoResolveSpec`
 
-A unit of work for the procedure engine: which module, and how to drive it. This is
-everything the engine needs and nothing about enrichment; `runProcedure` takes one
-directly. Locations never reach JS: the engine pages them and applies the patches
-itself. `TCollected` is the shape of one answer under the `collect` sink, as the
-module defines it; the engine carries it as JSON and never checks it.
+A unit of work for the procedure engine: which module to run, and how.
 
 #### `panoResolveSpec.batch: BatchMode`
 
 #### `panoResolveSpec.collects: { panoId: string; } | undefined`
 
-Never set. Carries `TCollected` on the value so `runProcedure` can type its answers.
+Phantom field carrying the `TCollected` type. Never set at runtime.
 
 #### `panoResolveSpec.config: unknown`
 
-Provider-specific settings for the module, any JSON value. The engine splices it
-into the configuration it hands the procedure: `{fields, force, config}`.
+Provider-specific configuration passed to the procedure module.
 
 #### `panoResolveSpec.entry: string`
 
-Module entry point: absolute path, or "res://procedures/<name>.js" for app-bundled
-core procedures, or a bare relative filename for user-plugin-shipped modules (resolved
-against the registering plugin's directory by the plugin loader).
+Module entry point: absolute path, `res://procedures/<name>.js` for built-in
+procedures, or a relative filename (resolved against the plugin's directory).
 
 #### `panoResolveSpec.inflight: number | undefined`
 
-Requests this provider may keep in flight at once, summed over its instances.
-This is where a network-bound provider's throughput comes from: the engine holds
-the budget, so a procedure reaches it by asking for many requests at once
-(`fetchMany`), never by running more instances.
+Maximum concurrent in-flight requests across all instances.
 
 #### `panoResolveSpec.instances: number | undefined`
 
-Procedure instances the provider may run at once. Only for a procedure that cannot
-run beside itself (one sidecar process, one large model); otherwise the engine
-takes one per core, which is not a throughput knob.
+Maximum concurrent procedure instances.
 
 #### `panoResolveSpec.prepare: (() => Promise<boolean>) | undefined`
 
-Awaited before the provider joins a run; false drops it (e.g. a dataset download failed).
+Awaited before the provider joins a run; returning false excludes it.
 
 #### `panoResolveSpec.rate: RateSpec | undefined`
 
@@ -2386,24 +2418,17 @@ Rows the engine feeds the procedure. Omitted, the driver supplies its own.
 
 #### `panoResolveSpec.sink: Sink | undefined`
 
-Where the answers go: `patch` (the default) writes them to the locations they
-name, `collect` hands them to the caller and writes nothing. `runProcedure` can
-override it, which is how a caller borrows a writing procedure for its answers
-alone.
+Where answers go: `patch` writes to locations (default), `collect` returns them
+to the caller.
 
 ### `subdivisionProvider`
 
-A procedure with a place in the dependency graph: what it produces (`fieldDefs`,
-`provides`) and what it must wait for (`requires`), so `runProviders` can schedule
-several together. One that declares `fieldDefs` is an enrichment provider: its fields
-are selectable and `enrichAll` runs it implicitly. A consumer that just wants one
-procedure run declares a `ProcedureSpec` and calls `runProcedure`.
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
 #### `subdivisionProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
 
-Selectable `extra` keys this provider produces. Omitted, the provider writes
-core columns instead: it is always active, and `enrichAll` never runs it
-implicitly -- only a caller naming it does.
+Extra-field keys this provider produces.
 
 #### `subdivisionProvider.id: string`
 
@@ -2413,31 +2438,24 @@ Bulk progress label for slow providers; omit for instant ones.
 
 #### `subdivisionProvider.procedure: ProcedureSpec<unknown>`
 
-The procedure the Rust engine runs for this provider.
+The procedure that computes this provider's fields.
 
 #### `subdivisionProvider.provides: string[] | undefined`
 
-Core columns this provider writes, e.g. `panoId`. They gate dependents and skip
-rows that already hold them, exactly like `fieldDefs`.
+Core columns this provider writes (e.g. `panoId`).
 
 #### `subdivisionProvider.requires: string[] | undefined`
 
-Fields this provider reads: the engine starts it only once every provider
-producing them has finished.
+Fields this provider reads; it runs after their producers finish.
 
 ### `svMetaProvider`
 
-A procedure with a place in the dependency graph: what it produces (`fieldDefs`,
-`provides`) and what it must wait for (`requires`), so `runProviders` can schedule
-several together. One that declares `fieldDefs` is an enrichment provider: its fields
-are selectable and `enrichAll` runs it implicitly. A consumer that just wants one
-procedure run declares a `ProcedureSpec` and calls `runProcedure`.
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
 #### `svMetaProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
 
-Selectable `extra` keys this provider produces. Omitted, the provider writes
-core columns instead: it is always active, and `enrichAll` never runs it
-implicitly -- only a caller naming it does.
+Extra-field keys this provider produces.
 
 #### `svMetaProvider.id: string`
 
@@ -2447,31 +2465,24 @@ Bulk progress label for slow providers; omit for instant ones.
 
 #### `svMetaProvider.procedure: ProcedureSpec<unknown>`
 
-The procedure the Rust engine runs for this provider.
+The procedure that computes this provider's fields.
 
 #### `svMetaProvider.provides: string[] | undefined`
 
-Core columns this provider writes, e.g. `panoId`. They gate dependents and skip
-rows that already hold them, exactly like `fieldDefs`.
+Core columns this provider writes (e.g. `panoId`).
 
 #### `svMetaProvider.requires: string[] | undefined`
 
-Fields this provider reads: the engine starts it only once every provider
-producing them has finished.
+Fields this provider reads; it runs after their producers finish.
 
 ### `timezoneProvider`
 
-A procedure with a place in the dependency graph: what it produces (`fieldDefs`,
-`provides`) and what it must wait for (`requires`), so `runProviders` can schedule
-several together. One that declares `fieldDefs` is an enrichment provider: its fields
-are selectable and `enrichAll` runs it implicitly. A consumer that just wants one
-procedure run declares a `ProcedureSpec` and calls `runProcedure`.
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
 #### `timezoneProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
 
-Selectable `extra` keys this provider produces. Omitted, the provider writes
-core columns instead: it is always active, and `enrichAll` never runs it
-implicitly -- only a caller naming it does.
+Extra-field keys this provider produces.
 
 #### `timezoneProvider.id: string`
 
@@ -2481,17 +2492,15 @@ Bulk progress label for slow providers; omit for instant ones.
 
 #### `timezoneProvider.procedure: ProcedureSpec<unknown>`
 
-The procedure the Rust engine runs for this provider.
+The procedure that computes this provider's fields.
 
 #### `timezoneProvider.provides: string[] | undefined`
 
-Core columns this provider writes, e.g. `panoId`. They gate dependents and skip
-rows that already hold them, exactly like `fieldDefs`.
+Core columns this provider writes (e.g. `panoId`).
 
 #### `timezoneProvider.requires: string[] | undefined`
 
-Fields this provider reads: the engine starts it only once every provider
-producing them has finished.
+Fields this provider reads; it runs after their producers finish.
 
 ## PinPano
 
@@ -2502,17 +2511,12 @@ loads the same pano.
 
 ### `pinPanoProvider`
 
-A procedure with a place in the dependency graph: what it produces (`fieldDefs`,
-`provides`) and what it must wait for (`requires`), so `runProviders` can schedule
-several together. One that declares `fieldDefs` is an enrichment provider: its fields
-are selectable and `enrichAll` runs it implicitly. A consumer that just wants one
-procedure run declares a `ProcedureSpec` and calls `runProcedure`.
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
 #### `pinPanoProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
 
-Selectable `extra` keys this provider produces. Omitted, the provider writes
-core columns instead: it is always active, and `enrichAll` never runs it
-implicitly -- only a caller naming it does.
+Extra-field keys this provider produces.
 
 #### `pinPanoProvider.id: string`
 
@@ -2522,17 +2526,15 @@ Bulk progress label for slow providers; omit for instant ones.
 
 #### `pinPanoProvider.procedure: ProcedureSpec<unknown>`
 
-The procedure the Rust engine runs for this provider.
+The procedure that computes this provider's fields.
 
 #### `pinPanoProvider.provides: string[] | undefined`
 
-Core columns this provider writes, e.g. `panoId`. They gate dependents and skip
-rows that already hold them, exactly like `fieldDefs`.
+Core columns this provider writes (e.g. `panoId`).
 
 #### `pinPanoProvider.requires: string[] | undefined`
 
-Fields this provider reads: the engine starts it only once every provider
-producing them has finished.
+Fields this provider reads; it runs after their producers finish.
 
 ## Validate
 
@@ -2542,45 +2544,34 @@ Check that each location's Street View coverage still exists.
 
 ### `validateSpec`
 
-A unit of work for the procedure engine: which module, and how to drive it. This is
-everything the engine needs and nothing about enrichment; `runProcedure` takes one
-directly. Locations never reach JS: the engine pages them and applies the patches
-itself. `TCollected` is the shape of one answer under the `collect` sink, as the
-module defines it; the engine carries it as JSON and never checks it.
+A unit of work for the procedure engine: which module to run, and how.
 
 #### `validateSpec.batch: BatchMode`
 
 #### `validateSpec.collects: ValidationState | undefined`
 
-Never set. Carries `TCollected` on the value so `runProcedure` can type its answers.
+Phantom field carrying the `TCollected` type. Never set at runtime.
 
 #### `validateSpec.config: unknown`
 
-Provider-specific settings for the module, any JSON value. The engine splices it
-into the configuration it hands the procedure: `{fields, force, config}`.
+Provider-specific configuration passed to the procedure module.
 
 #### `validateSpec.entry: string`
 
-Module entry point: absolute path, or "res://procedures/<name>.js" for app-bundled
-core procedures, or a bare relative filename for user-plugin-shipped modules (resolved
-against the registering plugin's directory by the plugin loader).
+Module entry point: absolute path, `res://procedures/<name>.js` for built-in
+procedures, or a relative filename (resolved against the plugin's directory).
 
 #### `validateSpec.inflight: number | undefined`
 
-Requests this provider may keep in flight at once, summed over its instances.
-This is where a network-bound provider's throughput comes from: the engine holds
-the budget, so a procedure reaches it by asking for many requests at once
-(`fetchMany`), never by running more instances.
+Maximum concurrent in-flight requests across all instances.
 
 #### `validateSpec.instances: number | undefined`
 
-Procedure instances the provider may run at once. Only for a procedure that cannot
-run beside itself (one sidecar process, one large model); otherwise the engine
-takes one per core, which is not a throughput knob.
+Maximum concurrent procedure instances.
 
 #### `validateSpec.prepare: (() => Promise<boolean>) | undefined`
 
-Awaited before the provider joins a run; false drops it (e.g. a dataset download failed).
+Awaited before the provider joins a run; returning false excludes it.
 
 #### `validateSpec.rate: RateSpec | undefined`
 
@@ -2592,43 +2583,52 @@ Rows the engine feeds the procedure. Omitted, the driver supplies its own.
 
 #### `validateSpec.sink: Sink | undefined`
 
-Where the answers go: `patch` (the default) writes them to the locations they
-name, `collect` hands them to the caller and writes nothing. `runProcedure` can
-override it, which is how a caller borrows a writing procedure for its answers
-alone.
+Where answers go: `patch` writes to locations (default), `collect` returns them
+to the caller.
 
 ## Query
 
 ### `panosAt(points: LatLngLiteral[], radius?: number | undefined, opts?: SearchOpts | undefined, signal?: AbortSignal | undefined): Promise<(Pano | null)[]>`
 
 The nearest pano to each point, aligned to `points`, null where there is no coverage.
-`opts.sources` narrows which collections are searched (`[PanoType.Official]` is what
-`sources: ["google"]` means to the Maps JS API) and `opts.preference` picks nearest or
-best. The procedure hands every point to the host at once, so how many run concurrently
-stays the engine's call.
+`opts.sources` narrows which collections are searched and `opts.preference` picks
+nearest or best.
 
 ### `svMetadata(panoIds: string[], signal?: AbortSignal | undefined): Promise<(Pano | null)[]>`
 
-Full pano metadata for arbitrarily many panos, aligned to `panoIds`. The procedure
-dedupes and splits at GetMetadata's 200-per-request cap itself.
+Full pano metadata for one or more panos, aligned to `panoIds`. Duplicates are
+deduped and large batches are split automatically.
 
 ## MapState
 
 ### `addClickInterceptor(fn: ClickInterceptor): () => void`
 
+Register a map-click interceptor. Returns a removal function. The most recently
+added interceptor that returns true consumes the click.
+
 ### `fitMapToBounds(bounds: LatLngBoundsLiteral | null, padding?: number | undefined, minExtent?: number | undefined): void`
+
+Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas.
 
 ### `getMapHost(): MapHost | null`
 
-This refers to the main editor map only.
+Return the main editor map host, or null if not mounted.
 
 ### `setDrawInterceptor(fn: DrawInterceptor | null): void`
 
+Set the callback for completed polygon draws. Null clears it.
+
 ### `setMapHost(host: MapHost | null): void`
+
+Set or clear the main editor map host.
 
 ### `tryInterceptClick(lat: number, lng: number, shiftKey?: boolean | undefined): boolean`
 
+Run registered click interceptors (newest first). True if one consumed the click.
+
 ### `tryInterceptDraw(rings: number[][][]): boolean`
+
+Pass completed polygon rings to the draw interceptor. True if it consumed them.
 
 ### `waitForMapHost(): Promise<MapHost>`
 
@@ -2638,34 +2638,35 @@ Wait for the main editor map to be ready.
 
 ### `clearScene(): void` *(unstable)*
 
-Scene engine control.
+Clear all marker data from the scene.
 
 ### `getMarkerDefaultColor(): [number, number, number, number]`
 
+Current default marker color as RGBA.
+
 ### `getScene(): CellManager`
+
+The shared scene that all map surfaces render from.
 
 ### `getScenePositions(): { ids: Uint32Array<ArrayBufferLike>; positions: Float32Array<ArrayBufferLike>; }`
 
-Snapshot of every rendered location: `ids` plus interleaved `[lng, lat, ...]`, read
-from the render buffers the app already keeps current. Lets an overlay that draws all
-locations see the map without a store round trip.
+Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
 
 ### `loadScene(markerStyle: MarkerStyle, mc?: RGB | undefined): Promise<void>` *(unstable)*
 
-Full (re)load from Rust for the whole world. Editor-driven on open / marker-style change.
+Rebuild the full scene for all locations.
 
 ### `recolorScene(mc: RGB): void` *(unstable)*
 
-Repaint the default marker color and tell Rust (for future deltas). The base layers take
-the colour as a constant, so this is O(1) rather than a rewrite of every marker.
+Change the default marker color and repaint.
 
 ### `setMarkerDefaultColor(r: number, g: number, b: number): void` *(unstable)*
 
-Scene engine control.
+Set the default marker color (RGB bytes).
 
 ### `startSceneEngine(): () => void` *(unstable)*
 
-Scene engine control.
+Start listening for deltas, selections, and active-location changes. Returns a stop function.
 
 ### `whenSceneSettled(): Promise<void>` *(unstable)*
 
@@ -2675,7 +2676,7 @@ Resolves when the most recently started full scene load has finished (or immedia
 
 ### `applyAccentColor(hex: string): void`
 
-The app accent follows the SV coverage line color.
+Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color.
 
 ### `colorForName(name: string): string`
 
@@ -2683,13 +2684,19 @@ Deterministic tag color from a name.
 
 ### `hexToHsl(hex: string): { h: number; s: number; l: number; }`
 
+Convert "#rrggbb" to {h, s, l} (degrees, percent, percent).
+
 ### `hexToRgb(hex: string): RGB`
 
-Parse "#rrggbb" to an [r, g, b] byte tuple. Single source for hex parsing.
+Parse "#rrggbb" to an [r, g, b] byte tuple.
 
 ### `hslToHex(h: number, s: number, l: number): string`
 
+Convert HSL (degrees, percent, percent) to "#rrggbb".
+
 ### `hslToRgb(h: number, s: number, l: number): RGB`
+
+Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple.
 
 ### `labelColor(name: string, overrides: Record<string, string>): string`
 
@@ -2697,22 +2704,34 @@ A label's color: a user override if set, else a deterministic color from its nam
 
 ### `resolveSvColorHex(color: string): string`
 
-SV line colors were historically Open Props ramp names ("cyan"); stored
-prefs may still hold one. Hex passes through.
+Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
+ramp name (legacy stored format).
 
 ### `rgbCss([r, g, b]: RGB): string`
 
+Format an RGB tuple as a CSS `rgb(r, g, b)` string.
+
 ### `rgbToHex([r, g, b]: RGB): string`
 
+Convert an RGB byte tuple to "#rrggbb".
+
 ### `textColorFor(bg: string): string`
+
+Return "#000" or "#fff" for readable text on the given hex background.
 
 ## Toast
 
 ### `getToasts(): ToastEntry[]`
 
+Current list of visible toasts.
+
 ### `progressToast(message: string): ProgressHandle`
 
+Show a toast with a progress bar. Returns a handle to update or finish it.
+
 ### `toast(message: string, duration?: number | undefined, container?: HTMLElement | undefined): void`
+
+Show a brief toast notification. Optionally scoped to a `container` element.
 
 ## UseJob
 
@@ -2731,13 +2750,23 @@ For work driven by changing deps rather than a click, use `useAsync`.
 
 #### `_test.closeMap(): Promise<void>` *(unstable)*
 
+Close the current map and return to the map list.
+
 #### `_test.deleteMap(id: string): Promise<void>` *(unstable)*
+
+Delete a map by id.
 
 #### `_test.importFile(droppedFields: string[], tagName?: string | undefined): Promise<EditorImportResult>` *(unstable)*
 
+Import a previewed file, optionally assigning a tag.
+
 #### `_test.importPaste(text: string): Promise<EditorImportResult[]>` *(unstable)*
 
+Import locations from pasted text and commit them to the map.
+
 #### `_test.openMap(id: string): Promise<void>` *(unstable)*
+
+Open a map by id and navigate to it.
 
 #### `_test.procedureEntry(name: string): string`
 
@@ -2745,27 +2774,26 @@ Entry point of a procedure this app bundles. Plugins ship their own paths.
 
 #### `_test.runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & { ...; }): Promise<...>` *(unstable)*
 
-Run one procedure over `selector`, on its own. The primitive: a consumer that is not
-enrichment (validation, a download resolving pano ids) declares a spec and calls this,
-and gets its collected answers typed by the spec.
+Run a single procedure over `selector` and return its typed results.
 
 #### `_test.syncSelections(): Promise<{ ids: number[]; }>` *(unstable)*
 
-Forces a full selection re-resolve in Rust and returns the raw selected IDs.
-App code reads `getMapState().selectedLocationIds` — mutations already sync
-selections via MutationResult.
+Force a full selection re-resolve and return the selected IDs.
 
 ## Types
 
 ### `applyLocationPatch(loc: Location, patch: LocationPatch_Deserialize): Location`
 
-Apply a LocationPatch JS-side, mirroring Rust's `overlay_update`: `extra` is a
-JSON Merge Patch (RFC 7386) — keys shallow-merge, a null value deletes its key,
-and a null patch clears extra entirely.
+Apply a LocationPatch to a location. `extra` follows JSON Merge Patch (RFC 7386):
+keys shallow-merge, a null value deletes its key, and a null patch clears extra.
 
 ### `bboxTupleToBounds(t: [number, number, number, number] | null): LatLngBoundsLiteral | null`
 
+Convert a [west, south, east, north] bbox tuple to Bounds, or null.
+
 ### `boundsToScoreTuple(b: LatLngBoundsLiteral): [number, number, number, number]`
+
+Convert a Bounds object to a [south, west, north, east] tuple.
 
 ### `createFieldDef(type: ExtraFieldType, over?: Partial<Omit<ExtraFieldDef, "type">> | undefined): ExtraFieldDef`
 
@@ -2789,28 +2817,36 @@ new value, keys `after` lacks carry null.
 
 ### `isImportPreview(loc: Location): boolean`
 
+True when the location is an import preview (not yet committed).
+
 ### `isPinned(loc: Location): loc is Location & { panoId: string; }`
 
 Pinned: the location always opens this exact pano.
 
 ### `isSeenPreview(loc: Location): boolean`
 
+True when the location is a seen-history overlay preview.
+
 ### `isVirtualLocation(loc: { id: number; }): boolean`
 
-Virtual locations exist only ephemerally as the single active-location preview — never in
-the map. They display like real locations but every mutate path no-ops. Identity is a unique
-negative id (so id-only checks work); the kind rides in `flags` (read where you hold the
-full Location).
+True for virtual (preview-only) locations, which have negative ids and are not
+part of the map.
 
 ### `isWorldBounds(b: LatLngBoundsLiteral): boolean`
 
+True when bounds span the entire world.
+
 ### `locId(m: MaybeLocation): number`
+
+Extract the id from a MaybeLocation.
 
 ### `sameRow(a: Location, b: Location): boolean`
 
 The same location on the same pano: what makes one row's answer another row's.
 
 ### `scoreTupleToBounds([s, w, n, e]: [number, number, number, number]): LatLngBoundsLiteral`
+
+Convert a [south, west, north, east] tuple to a Bounds object.
 
 ## Util
 
@@ -2825,12 +2861,16 @@ The item `isBetter` prefers over every other, or null when there are none.
 
 ### `chunk<T>(arr: readonly T[], n: number): T[][]`
 
+Split `arr` into sub-arrays of at most `n` elements.
+
 ### `cmpVersion(a: string, b: string): number`
 
 Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
 Build metadata is ignored; a pre-release sorts below the release it precedes.
 
 ### `compareNatural(a: string, b: string): number`
+
+Compare strings with natural (numeric-aware) ordering.
 
 ### `copyImageToClipboard(blob: Blob): Promise<boolean>`
 
@@ -2846,6 +2886,8 @@ Message for an unknown thrown value.
 
 ### `fovToZoom(fov: number): number`
 
+Convert a field-of-view angle (degrees) to a zoom level.
+
 ### `isPrereleaseVersion(v: string): boolean`
 
 True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1".
@@ -2856,7 +2898,7 @@ True when running under the web-serve bridge (a plain browser, no native shell).
 
 ### `mmaBufUrl(path: string): string`
 
-URL that serves a local file over the `mma-buf://` protocol (binary Rust-to-JS transfers).
+URL that serves a local file over the `mma-buf://` protocol.
 
 ### `nowUnix(): number`
 
@@ -2864,17 +2906,17 @@ Current time as Unix seconds, the form Location timestamps use.
 
 ### `phaseRate(prev: PhaseRate | null, done: number, total: number, now: number): { state: PhaseRate; rate: number | null; }`
 
-Locations/second averaged over the progress phase in flight. A done that went backward
-or a total that grew means a new phase began (a hand-run resets its bar per phase;
-within one, done only grows and the total only shrinks as skips are found), so the
-average re-anchors there instead of carrying the previous phase's speed. Null until
-the phase shows a quarter second of work.
+Compute a locations/second rate for the current progress phase. Re-anchors when a
+new phase is detected (done went backward or total grew). Null until a quarter second
+of work has elapsed.
 
 ### `schemeBase(scheme: string): string`
 
-Base URL for a Tauri custom URI scheme. Windows WebView2 uses http://<scheme>.localhost/.
+Base URL for a custom URI scheme, platform-adjusted.
 
 ### `sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[]`
+
+Sort tags by the chosen mode: name, location count, or manual order.
 
 ### `splitVersion(v: string): [core: string, pre: string]`
 

@@ -6,10 +6,7 @@ import type { PinnedEntry } from "./commandDefs";
 import type { RGB } from "@/lib/util/color";
 import type { MapKeyBinding } from "@/bindings.gen";
 
-/** Language names stay in their own language, the way every language picker does it -- a reader
- *  looking for their own has to recognise it without already reading English.
- *  `en-XA` is the generated pseudolocale: accented and ~40% longer, so unextracted strings and
- *  layout overflow are visible without a translator. Offered in dev builds only. */
+/** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. */
 export const LANGUAGES = {
 	en: "English",
 	de: "Deutsch",
@@ -127,6 +124,7 @@ export type BorderDetail = keyof typeof BORDER_DETAILS;
 export type SubdivisionDetail = keyof typeof SUBDIVISION_DETAILS;
 export type PreviewAspectRatio = keyof typeof PREVIEW_ASPECT_RATIOS;
 
+/** Default values for every app setting. */
 export const DEFAULTS = {
 	showCameraBadges: true,
 	showLinksControl: true,
@@ -199,11 +197,9 @@ export const DEFAULTS = {
 	activeLocationColor: [200, 0, 0] as RGB,
 	importPreviewColor: [217, 70, 239] as RGB,
 	panoDotColor: [255, 0, 0] as RGB,
-	/** Color a newly drawn polygon selection starts with. `random` hashes it from the polygon's
-	 *  key; `fixed` uses polygonColor. Either way it's only the initial value -- recoloring a
-	 *  polygon by hand still wins. */
 	/** What the layer opacity hotkeys restore a layer to when toggling it back on. */
 	opacityToggleMode: "previous" as OpacityToggleMode,
+	/** Initial color mode for newly drawn polygon selections. Recoloring by hand overrides either mode. */
 	polygonColorMode: "random" as PolygonColorMode,
 	polygonColor: [0, 140, 255] as RGB,
 	panoDotScaled: false,
@@ -252,12 +248,12 @@ export const PRIVATE_SETTINGS: ReadonlySet<keyof AppSettings> = new Set([
 	"remoteApiKey",
 ]);
 
-/** App settings mirrored to CSS custom properties on `:root`. Add an entry to expose a
- *  setting to CSS; `useCssVarSettings` (App.tsx) keeps them in sync reactively. */
+/** App settings exposed as CSS custom properties on `:root`. */
 export const CSS_VAR_SETTINGS: ReadonlyArray<
 	readonly [cssVar: string, value: (s: AppSettings) => string]
 > = [["--tag-gap", (s) => `${s.tagGap}px`]];
 
+/** localStorage descriptor for the persisted settings object. */
 export const APP_SETTINGS = persisted("appSettings", DEFAULTS);
 
 let settings: AppSettings = { ...getLocal(APP_SETTINGS) };
@@ -267,6 +263,7 @@ bridgeAcrossWindows("settings:changed", () => {
 	settings = { ...reloadLocal(APP_SETTINGS) };
 });
 
+/** The current app settings snapshot. */
 export function getSettings(): AppSettings {
 	return settings;
 }
@@ -276,8 +273,7 @@ export function navHiddenWithUI(s: AppSettings): boolean {
 	return s.hidePanoUI && s.hideNavWithUI;
 }
 
-/** Effective StreetViewPanorama options: how the movement mode, per-control toggles,
- *  and the hide-UI toggle compose. Sole authority for both pano creation and updates. */
+/** Effective StreetViewPanorama display options derived from the current settings. */
 export function panoDisplayOptions(s: AppSettings) {
 	const noMove = s.defaultMovementMode !== "moving";
 	return {
@@ -288,22 +284,26 @@ export function panoDisplayOptions(s: AppSettings) {
 	};
 }
 
+/** Update one setting and persist. Emits `settings:changed`. */
 export function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void {
 	settings = { ...settings, [key]: value };
 	setLocal(APP_SETTINGS, settings);
 	emitEvent("settings:changed");
 }
 
+/** Reset all settings to defaults, preserving global copy bindings. */
 export function resetSettings(): void {
 	settings = { ...DEFAULTS, globalCopyBindings: settings.globalCopyBindings };
 	setLocal(APP_SETTINGS, settings);
 	emitEvent("settings:changed");
 }
 
+/** React hook: all settings, re-rendering on any change. */
 export function useSettings(): AppSettings {
 	return useEventValue("settings:changed", getSettings);
 }
 
+/** React hook: one setting value, re-rendering only when that key changes. */
 export function useSetting<K extends keyof AppSettings>(key: K): AppSettings[K] {
 	return useEventValue("settings:changed", () => getSettings()[key]);
 }

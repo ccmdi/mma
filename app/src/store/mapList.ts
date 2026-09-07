@@ -17,18 +17,19 @@ export function getMapList() {
 	return cachedMapList;
 }
 
+/** Refresh the map list from disk. */
 export async function reloadMapList() {
 	cachedMapList = await cmd.storeListMaps();
 	emitEvent("map-list:changed");
 }
 
-/** Re-fetch the map list from the database. */
+/** Refresh the map list and notify other windows of the change. */
 export async function invalidateMapList() {
 	await reloadMapList();
 	await tauriEmit("map-list-changed");
 }
 
-/** Set the cached map list directly (used by initStore). */
+/** Set the map list directly without a disk read. */
 export function setCachedMapList(list: MapMeta[]) {
 	cachedMapList = list;
 }
@@ -40,8 +41,7 @@ export async function createMap(name: string, folder: string | null = null) {
 	return meta;
 }
 
-/** Open the scratch map, created on first use. An ordinary map that the list hides and
- *  startup wipes, so the list never needs invalidating for it. */
+/** Open the scratch map, creating it on first use. */
 export async function openScratchMap() {
 	const meta = await cmd.storeScratchMap();
 	await openWindow({ type: "editor", mapId: meta.id }, meta.name);
@@ -50,9 +50,7 @@ export async function openScratchMap() {
 /** Ids the app keeps for its own fixtures. */
 const RESERVED_MAP_IDS: ReadonlySet<string> = new Set([SCRATCH_MAP_ID]);
 
-/** A reserved map is an app fixture, not one of the user's: it carries no name, never
- *  appears in the list, and has nothing to configure. Keyed by id, never by name -- the
- *  name is a value the user could type. */
+/** Whether `id` belongs to an app fixture rather than a user-created map. */
 export function isReservedMap(id: string | null): boolean {
 	return id != null && RESERVED_MAP_IDS.has(id);
 }
@@ -64,6 +62,7 @@ export async function deleteMap(id: string) {
 	await tauriEmit("map-deleted", id);
 }
 
+/** Rename a folder, moving all its maps to the new name. */
 export async function renameFolder(from: string, to: string) {
 	cachedMapList = cachedMapList.map((m) => (m.folder === from ? { ...m, folder: to } : m));
 	emitEvent("map-list:changed");
@@ -71,6 +70,7 @@ export async function renameFolder(from: string, to: string) {
 	await invalidateMapList();
 }
 
+/** Move a map into a folder, or to the root when `folder` is null. */
 export async function moveMapToFolder(mapId: string, folder: string | null) {
 	const idx = cachedMapList.findIndex((m) => m.id === mapId);
 	if (idx !== -1) {
@@ -81,6 +81,7 @@ export async function moveMapToFolder(mapId: string, folder: string | null) {
 	await tauriEmit("map-list-changed");
 }
 
+/** Delete a folder. Maps in it become unfoldered. */
 export async function deleteFolder(name: string) {
 	await cmd.storeDeleteFolder(name);
 	await invalidateMapList();

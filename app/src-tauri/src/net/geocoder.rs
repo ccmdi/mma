@@ -45,8 +45,8 @@ impl From<&SearchResult<'_>> for GeoResult {
     }
 }
 
-/// Finds the nearest city/country for a coordinate. O(log n) k-d tree lookup.
-/// Always returns `Some` -- the GeoNames dataset covers every landmass.
+/// Return the nearest city, administrative region, and country for a coordinate.
+/// Always returns `Some` - the dataset covers every landmass.
 #[tauri::command]
 #[specta::specta]
 pub fn reverse_geocode(lat: f64, lng: f64) -> Option<GeoResult> {

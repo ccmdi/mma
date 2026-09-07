@@ -38,10 +38,7 @@ export type PluginBehavior = Partial<Plugin> & {
 	activate(): void | (() => void);
 };
 
-// `minAppVersion` declares the app version a build needs. The registry pairs it with a
-// list of older builds, so an app under the latest floor is offered the newest build it
-// can actually run instead of being stranded on whatever it already has.
-/** Update machinery. @unstable */
+/** True when `appVersion` meets the plugin's minimum version requirement. @unstable */
 export function isPluginCompatible(
 	minAppVersion: string | null | undefined,
 	appVersion: string,
@@ -49,10 +46,7 @@ export function isPluginCompatible(
 	return !minAppVersion || cmpVersion(appVersion, minAppVersion) >= 0;
 }
 
-// An installed plugin is updatable when both its installed version and the registry's
-// version are known and differ. The registry only moves forward, so any mismatch means
-// a newer build is published. Empty/unknown versions never prompt an update.
-/** Update machinery. @unstable */
+/** True when a newer version is published and the installed version is known. @unstable */
 export function isPluginUpdatable(
 	installedVersion: string | undefined,
 	latestVersion: string | undefined,
@@ -60,10 +54,7 @@ export function isPluginUpdatable(
 	return !!installedVersion && !!latestVersion && installedVersion !== latestVersion;
 }
 
-// A plugin needs updating when its JS version drifts OR its sidecar drifts. A registry
-// sidecar version that differs from what's installed (including a missing sidecar, where
-// the installed version is null/undefined) means the sidecar must be (re)downloaded.
-/** Update machinery. @unstable */
+/** True when either the plugin or its sidecar has a newer published version. @unstable */
 export function needsUpdate(
 	installedVersion: string | undefined,
 	latestVersion: string | undefined,
@@ -74,17 +65,15 @@ export function needsUpdate(
 	return !!latestSidecarVersion && installedSidecarVersion !== latestSidecarVersion;
 }
 
-/** The build of a plugin an app should install: `ref` is the commit it ships at, null for
- *  the registry's latest (master). */
+/** The build of a plugin to install. `ref` is the commit, null for the latest. */
 export interface ResolvedBuild {
 	version: string;
 	ref: string | null;
 	minAppVersion: string | null;
 }
 
-/** The newest build of a plugin this app version can run -- the registry's latest when
- *  compatible, else the newest pinned fallback that is. Null when no published build
- *  supports this app at all. `builds` is ordered newest-first. @unstable */
+/** The newest build of a plugin this app version can run. Falls back through older
+ *  pinned builds when the latest is incompatible. Null when none fit. @unstable */
 export function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null {
 	if (isPluginCompatible(entry.minAppVersion, appVersion)) {
 		return { version: entry.version, ref: null, minAppVersion: entry.minAppVersion ?? null };
@@ -97,9 +86,7 @@ export function resolveBuild(entry: PluginManifest, appVersion: string): Resolve
 	return null;
 }
 
-/** Whether an install should be refreshed to `target`. A pinned build's sidecar version
- *  lives in its own manifest, so only the latest build's sidecar can be compared before
- *  downloading; for a pinned one the install itself reconciles it. @unstable */
+/** True when the installed plugin should be refreshed to `target`. @unstable */
 export function needsBuildUpdate(
 	installedVersion: string | undefined,
 	target: ResolvedBuild,
@@ -119,8 +106,7 @@ const REGISTRY_URL = "https://raw.githubusercontent.com/ccmdi/mma/master/plugins
 
 let registryPromise: Promise<PluginManifest[]> | null = null;
 
-/** The marketplace registry, fetched once per session (startup update check and the
- *  marketplace dialog share it). A failed fetch clears the cache so the next call retries. @unstable */
+/** Fetch the marketplace plugin registry (cached for the session). @unstable */
 export function fetchPluginRegistry(): Promise<PluginManifest[]> {
 	if (!registryPromise) {
 		registryPromise = fetch(REGISTRY_URL, { signal: AbortSignal.timeout(5000) }).then((r) => {
@@ -134,10 +120,8 @@ export function fetchPluginRegistry(): Promise<PluginManifest[]> {
 	return registryPromise;
 }
 
-/** Refresh a stale install before it loads. Nothing is registered yet at startup, so an
- *  update is just re-downloading the files the normal load then picks up; any failure
- *  falls back to loading what's on disk. Plugins absent from the registry (hand-installed
- *  dev plugins) and plugins with no build this app can run are never touched. @unstable */
+/** Auto-update a plugin to the newest compatible build before loading it. Falls back
+ *  to what is on disk on failure. @unstable */
 export async function autoUpdatePlugin(
 	m: PluginManifest,
 	latest: PluginManifest | undefined,
@@ -169,7 +153,7 @@ const plugins = new Map<string, Plugin>();
 const cleanups = new Map<string, () => void>();
 let pendingManifest: PluginManifest | null = null;
 
-/** @unstable */
+/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @unstable */
 export function setPendingManifest(manifest: PluginManifest | null) {
 	pendingManifest = manifest;
 }
@@ -200,32 +184,34 @@ export function registerPlugin(plugin: Plugin | PluginBehavior) {
 	emitEvent("plugins:changed");
 }
 
+/** All registered plugins, sorted by name. */
 export function getPlugins(): Plugin[] {
 	return [...plugins.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** Look up a registered plugin by id. */
 export function getPlugin(id: string): Plugin | undefined {
 	return plugins.get(id);
 }
 
-/** A plugin with no sidebar, modal, or location panel — it only contributes data
- *  (enrichment fields) and never shows UI of its own. Unknown for plugins that
- *  aren't loaded, so uninstalled registry entries report false. */
+/** True when the plugin contributes data only and has no UI surfaces. */
 export function isBackgroundPlugin(id: string): boolean {
 	const plugin = plugins.get(id);
 	return !!plugin && !plugin.sidebar && !plugin.modal && !plugin.locationPanel;
 }
 
-/** @unstable */
+/** Remove a plugin from the registry. @unstable */
 export function unregisterPlugin(id: string) {
 	plugins.delete(id);
 	emitEvent("plugins:changed");
 }
 
+/** True when the plugin is enabled by the user. */
 export function isPluginEnabled(id: string): boolean {
 	return enabledSet.has(id);
 }
 
+/** Enable or disable a plugin. */
 export function setPluginEnabled(id: string, enabled: boolean) {
 	if (enabled) enabledSet.add(id);
 	else enabledSet.delete(id);
@@ -233,6 +219,7 @@ export function setPluginEnabled(id: string, enabled: boolean) {
 	emitEvent("plugins:changed");
 }
 
+/** All registered plugins the user has enabled. */
 export function getEnabledPlugins(): Plugin[] {
 	return [...plugins.values()].filter((p) => enabledSet.has(p.id));
 }
@@ -281,10 +268,8 @@ export function createPluginStorage(id: string): PluginStorage {
 	};
 }
 
-/** useState persisted through the plugin's namespaced store. UI state saved this
- *  way survives sidebar unmount and app restart. Values are global, not per-map —
- *  callers must fall back gracefully when a stored value doesn't resolve against
- *  the current map (e.g. a field key or saved-selection id). */
+/** React state hook backed by the plugin's persistent store. Survives sidebar
+ *  unmount and app restart. Values are global, not per-map. */
 export function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)) {
 	const [value, setValue] = useState<T>(() => {
 		const data = readPluginStore(pluginId);
@@ -304,14 +289,14 @@ export function usePluginState<T>(pluginId: string, key: string, initial: T | ((
 	return [value, set] as const;
 }
 
-// Declarative settings (Plugin.settings) are backed by the same namespaced store,
-// falling back to each def's `default` when unset.
+/** Read a plugin's declared setting value, falling back to the setting's default. */
 export function getPluginSetting<T = unknown>(plugin: Plugin, key: string): T {
 	const data = readPluginStore(plugin.id);
 	if (key in data) return data[key] as T;
 	return plugin.settings?.find((s) => s.key === key)?.default as T;
 }
 
+/** Write a plugin's declared setting value. */
 export function setPluginSetting(id: string, key: string, value: unknown) {
 	createPluginStorage(id).set(key, value);
 	emitEvent("plugins:changed");
@@ -319,7 +304,7 @@ export function setPluginSetting(id: string, key: string, value: unknown) {
 
 // --- Activation lifecycle ---
 
-/** @unstable */
+/** Activate all enabled plugins. Called when a map opens. @unstable */
 export function activatePlugins() {
 	for (const plugin of getEnabledPlugins()) {
 		if (!cleanups.has(plugin.id)) {
@@ -330,7 +315,7 @@ export function activatePlugins() {
 	emitEvent("plugins:changed");
 }
 
-/** @unstable */
+/** Deactivate all plugins and stop their sidecars. Called when a map closes. @unstable */
 export function deactivatePlugins() {
 	for (const id of new Set([...plugins.keys(), ...cleanups.keys()])) teardown(id);
 	// Nothing is active any more, so nothing should still be running. Covers plugins
@@ -338,7 +323,7 @@ export function deactivatePlugins() {
 	cmd.sidecarStopAll().catch(() => {});
 }
 
-/** @unstable */
+/** Activate a single plugin by id. @unstable */
 export function activatePlugin(id: string) {
 	const plugin = plugins.get(id);
 	if (!plugin || cleanups.has(id)) return;
@@ -346,16 +331,14 @@ export function activatePlugin(id: string) {
 	if (cleanup) cleanups.set(id, cleanup);
 }
 
-/** @unstable */
+/** Deactivate a single plugin and stop its sidecar. @unstable */
 export function deactivatePlugin(id: string) {
 	teardown(id);
 	// A disabled plugin keeps no processes, whether or not it cleaned up after itself.
 	cmd.sidecarStop(id).catch(() => {});
 }
 
-/** Run the plugin's own cleanup, then reverse every host registration it made during
- *  activation, so its providers, fields and listeners stop even when it returned no
- *  cleanup. One plugin's failing cleanup is its own problem, not the next plugin's. */
+// Run the plugin's own cleanup, then reverse every host registration it made.
 function teardown(id: string) {
 	const cleanup = cleanups.get(id);
 	cleanups.delete(id);
@@ -377,7 +360,7 @@ export function isReady(): boolean {
 	return surfaceReady;
 }
 
-/** Called by the entry point once the surface is on `window`. @unstable */
+/** Mark the plugin surface as ready. @unstable */
 export function markReady(): void {
 	surfaceReady = true;
 }

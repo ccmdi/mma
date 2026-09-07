@@ -1,8 +1,6 @@
-/** Saved selection rules: global, name-based, stored in SQLite.
- *
- *  A rule is one `Selector` tree plus the names its `Tag` leaves carried at save time.
- *  Tag ids are map-local, so the names are what makes a rule portable -- the tree itself
- *  is stored verbatim and re-resolved against whatever map is open. */
+/** Saved selection rules: portable named rules that persist across maps. A rule stores a
+ *  `Selector` tree plus the tag names its `Tag` leaves carried at save time, so it can
+ *  re-resolve against whatever map is open. */
 
 import type { SavedSelection, SavedSelectionInfo, Selection, Selector } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
@@ -14,8 +12,7 @@ import { log } from "@/lib/util/log";
 import { applySelectionUpdate, getTag, getVisibleTags } from "./useMapStore";
 import { addSelection, batch } from "./selections";
 
-/** Selection types bound to the open map (raw location ids, review sessions): a rule
- *  built from them would be a frozen snapshot, so they are never saved. */
+/** Selection types that cannot be saved as rules because they are bound to the open map. */
 export const MAP_LOCAL_TYPES = ["Locations", "Manual", "ValidationState", "Reviewed"] as const;
 
 const MAP_LOCAL_SET: ReadonlySet<string> = new Set(MAP_LOCAL_TYPES);
@@ -25,8 +22,7 @@ const MAP_LOCAL_SET: ReadonlySet<string> = new Set(MAP_LOCAL_TYPES);
  *  nothing to it. */
 const NOTHING: Selector = { type: "Locations", locations: [], name: null };
 
-/** Saveable only if the whole tree is portable: one map-local leaf anywhere would freeze
- *  the rule to the map it was built on. */
+/** Whether the selector tree contains only portable types (no map-local leaves). */
 export function isSaveable(selector: Selector): boolean {
 	if (MAP_LOCAL_SET.has(selector.type)) return false;
 	return "selections" in selector ? selector.selections.every((c) => isSaveable(c.selector)) : true;
@@ -118,11 +114,12 @@ export function getSavedSelectionIndex(): SavedSelectionInfo[] {
 	return index ?? NO_RULES;
 }
 
+/** React hook: the saved selection index, re-rendering on changes. */
 export function useSavedSelectionIndex(): SavedSelectionInfo[] {
 	return useEventValue("saved-selections:changed", getSavedSelectionIndex);
 }
 
-/** Bodies for `ids`, fetching only the ones not already held. */
+/** Load the full rule bodies for the given `ids`. */
 export async function loadSavedSelections(ids: string[]): Promise<SavedSelection[]> {
 	const missing = ids.filter((id) => !bodies.has(id));
 	if (missing.length > 0) {
@@ -204,6 +201,7 @@ export async function saveCurrentSelections(
 	return true;
 }
 
+/** Permanently delete a saved selection rule. */
 export async function deleteSavedSelection(id: string): Promise<void> {
 	await cmd.storeDeleteSavedSelection(id);
 	await reloadIndex();

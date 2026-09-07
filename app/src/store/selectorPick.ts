@@ -20,6 +20,7 @@ export interface SelectorPickController {
 	saved?: boolean;
 }
 
+/** Convert a picker choice into the corresponding `Selector`. */
 export function selectorForPick(choice: SelectorPick): Selector {
 	switch (choice.pick) {
 		case "all":
@@ -35,10 +36,8 @@ function defaultChoice(selectionCount: number): SelectorPick {
 	return selectionCount > 0 ? { pick: "selection" } : { pick: "all" };
 }
 
-/** Reactive selector state + live counts, owned by the calling React component. Defaults to
- *  the current selection when one exists at mount, else all locations. Use this for plugins
- *  whose selector lives entirely in a React sidebar; reach for `createSelectorPick` when an imperative
- *  renderer (e.g. a deck.gl overlay) outside React also needs to read the selector. */
+/** React hook: selector state with live counts. Defaults to the current selection when one
+ *  exists, else all locations. Use `createSelectorPick` when non-React code also reads the selector. */
 export function useSelectorPick(initial?: SelectorPick): SelectorPickController {
 	const selections = useMapState((s) => s.selections);
 	const selectedIds = useMapState((s) => s.selectedLocationIds);
@@ -53,9 +52,8 @@ export function useSelectorPick(initial?: SelectorPick): SelectorPickController 
 	return { selector, choice, setChoice, allCount, selectionCount: selectedIds.size };
 }
 
-/** A per-consumer selector store that lives outside React, so an imperative renderer can read it
- *  synchronously and subscribe to changes while a React sidebar drives it via `use()`.
- *  Isolated per call - one consumer's choice never leaks into another's. */
+/** A standalone selector store that can be read from both React and non-React code.
+ *  Each `createSelectorPick` call returns an isolated instance. */
 export interface SelectorPickHandle {
 	get(): Selector;
 	getChoice(): SelectorPick;

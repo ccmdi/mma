@@ -542,6 +542,7 @@ fn validate_border_level(level: &str) -> AppResult<()> {
     Ok(())
 }
 
+/// Whether the border dataset for `level` is available on disk.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -582,6 +583,7 @@ fn write_border_file(level: &str, bytes: &[u8]) -> AppResult<()> {
     Ok(())
 }
 
+/// Download the border dataset for `level` from the repository.
 #[tauri::command]
 #[specta::specta]
 pub async fn download_border_file(level: String) -> AppResult<()> {
@@ -714,6 +716,8 @@ pub fn update_border_files() {
     }
 }
 
+/// Return the border polygon containing (`lat`, `lng`) at the given detail
+/// `level`, or `None` if the point falls outside every feature.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -757,9 +761,8 @@ pub fn border_lookup(lat: f64, lng: f64, level: String) -> AppResult<Option<Poly
     Ok(None)
 }
 
-/// Classify each `(lat, lng)` to the name of its containing feature at `level`
-/// (subdivision names for "adm1"). `None` for points outside every feature.
-/// Same bbox-prefiltered parallel scan as `tally_countries`, but per-point names.
+/// Classify each `(lat, lng)` to the name of its containing border feature at
+/// `level` (subdivision names for "adm1"). `None` for points outside every feature.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

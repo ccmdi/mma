@@ -416,8 +416,7 @@ pub fn persist_field_defs(
 // MapMeta
 // ---------------------------------------------------------------------------
 
-/// Full metadata for a map, deserialized from the SQLite `maps` row.
-/// JSON columns (settings, tags, extra, etc.) are parsed into typed structs.
+/// Full metadata for a map.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MapMeta {
@@ -436,8 +435,8 @@ pub struct MapMeta {
     pub last_opened_at: Option<String>,
 }
 
-/// Partial update for map metadata. Only non-`None` fields are written.
-/// `folder: Some(None)` explicitly unsets the folder (moves to root).
+/// Partial update for map metadata. `None` fields are left unchanged.
+/// Setting `folder` to null moves the map to root.
 #[derive(Default, serde::Deserialize, specta::Type)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MapMetaPatch {
@@ -553,8 +552,7 @@ pub async fn store_get_map(id: String) -> AppResult<Option<MapMeta>> {
     .await
 }
 
-/// Create a new empty map with default settings. Returns the full metadata
-/// (including the generated UUID) so the frontend can navigate to it immediately.
+/// Create a new empty map with default settings. Returns the full metadata.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult<MapMeta> {
@@ -594,7 +592,7 @@ fn delete_map_data(conn: &Connection, id: &str) -> AppResult<bool> {
     Ok(removed > 0)
 }
 
-/// Delete a map and all its data: database rows and files on disk.
+/// Delete a map and all its data permanently.
 // Evicts live in-memory state so an open window or racing autosave can't flush the overlay
 // back after the files are gone. The manager lock is held across the whole delete so a
 // concurrent store_open_map can't reload the map mid-deletion and resurrect it.
@@ -611,10 +609,8 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
     Ok(())
 }
 
-/// Apply a partial update to a map's metadata; `None` fields are left unchanged.
-/// When extra fields change on an open map, the in-memory field registry is replaced
-/// (so auto-registration doesn't re-discover user-defined fields) and the resulting
-/// store-state delta is returned for the caller to apply.
+/// Apply a partial update to a map's metadata. `None` fields are left unchanged.
+/// Returns a mutation result when the open map's field definitions changed.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_update_map_meta(
@@ -695,7 +691,7 @@ pub async fn store_rename_folder(from: String, to: String) -> AppResult<()> {
     .await
 }
 
-/// Delete a folder by setting all its maps' folder to `NULL` (moves them to root).
+/// Delete a folder, moving its maps to the root level.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_delete_folder(name: String) -> AppResult<()> {
@@ -726,9 +722,7 @@ pub struct DbStats {
     pub foreign_keys: bool,
 }
 
-/// Compute aggregate database statistics (map/location/tag/commit counts,
-/// database file size, journal mode). Tag count is summed across all maps
-/// by parsing each map's tags JSON column.
+/// Return aggregate database statistics: counts, file size, and configuration.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_db_stats() -> AppResult<DbStats> {

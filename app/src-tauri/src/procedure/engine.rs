@@ -1498,8 +1498,8 @@ pub fn run_query(
 // Commands
 // ---------------------------------------------------------------------------
 
-/// Start a procedure run. Returns immediately with the run id; the work continues
-/// on a background thread and reports through `procedure-progress`.
+/// Start a procedure run over the open map's locations. Returns immediately with
+/// the run id. Emits `procedure-progress` and `procedure-result` as work completes.
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_run(
@@ -1540,9 +1540,8 @@ pub struct RowsRun {
     pub failed: HashMap<String, Vec<u32>>,
 }
 
-/// Run providers over rows the caller hands in and answer with the rows as they are
-/// afterwards. Same gating as a run over the map, in a store of the rows' own,
-/// so nothing reaches the open map. `cancel` is a token for `procedure_query_cancel`.
+/// Run providers over caller-supplied `rows` and return them as modified. Does not
+/// affect the open map. `cancel` is a token for [`procedure_query_cancel`].
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_run_rows(
@@ -1616,9 +1615,8 @@ fn query_tokens() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
     T.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Ask a procedure a read-only question. `input` and the result are whatever the
-/// module's `query` export agrees with its caller; the engine only carries the bytes.
-/// `cancel` is a token the caller may later hand to `procedure_query_cancel`.
+/// Run a procedure's read-only `query` export. `input` and the result are defined
+/// by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_query(
@@ -1646,8 +1644,7 @@ pub async fn procedure_query(
     out?
 }
 
-/// Decline every request a query still has to make. The query then answers whatever
-/// its module answers for declined requests, which the caller discards.
+/// Cancel a running procedure query by its `cancel` token.
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_query_cancel(cancel: u32) -> AppResult<()> {

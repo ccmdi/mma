@@ -60,7 +60,7 @@ type SelectorPickApi = typeof picker;
 type MapListApi = typeof mapList;
 /** Review screen internals. @unstable */
 type ReviewApi = typeof review;
-/** The raw Rust command boundary; any of them can change in a release. @unstable */
+/** The raw command layer under the app-level API; any of them can change in a release. @unstable */
 type CommandsApi = typeof commands;
 type TauriApi = typeof tauri;
 type RegistryApi = typeof registry;

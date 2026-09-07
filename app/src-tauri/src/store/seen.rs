@@ -9,7 +9,7 @@ use crate::types::AppResult;
 use rusqlite::params_from_iter;
 use rusqlite::types::ToSql;
 
-/// A panorama visit record as returned to the frontend.
+/// A panorama visit record.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SeenEntry {
@@ -28,8 +28,7 @@ pub struct SeenEntry {
     pub thumbnail: Option<String>,
 }
 
-/// Inbound payload for recording a new panorama visit. Same shape as `SeenEntry`
-/// minus the auto-assigned `id`.
+/// Parameters for recording a panorama visit.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SeenWriteEntry {
@@ -47,8 +46,8 @@ pub struct SeenWriteEntry {
     pub thumbnail: Option<String>,
 }
 
-/// Optional filters for seen-history queries. All fields are AND-combined.
-/// `search` does a substring match on the `address` column.
+/// Filters for seen-history queries. All fields are AND-combined.
+/// `search` matches against the address.
 #[derive(serde::Deserialize, specta::Type, Default)]
 #[serde(default)]
 pub struct SeenFilter {
@@ -58,8 +57,7 @@ pub struct SeenFilter {
     pub search: Option<String>,
 }
 
-/// Map id + display name pair for the "filter by map" dropdown.
-/// Name is resolved from the `maps` table when available, falling back to raw id.
+/// Map ID and display name for seen-history filtering.
 #[derive(serde::Serialize, specta::Type)]
 pub struct SeenMapInfo {
     pub id: String,
@@ -122,7 +120,7 @@ fn build_where_clause(filter: &Option<SeenFilter>) -> (String, Vec<Box<dyn ToSql
 /// are evicted in the same write transaction.
 const MAX_SEEN: i64 = 10_000;
 
-/// Record a panorama visit. Oldest entries beyond `MAX_SEEN` are evicted.
+/// Record a panorama visit. The history is capped; oldest entries are evicted when full.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_seen_write(entry: SeenWriteEntry) -> AppResult<()> {
@@ -207,8 +205,7 @@ pub async fn store_seen_count(filter: Option<SeenFilter>) -> AppResult<u32> {
     .await
 }
 
-/// Returns all distinct country codes present in the seen table, sorted alphabetically.
-/// Used to populate the country filter dropdown.
+/// Return all distinct country codes in the seen history, sorted alphabetically.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_seen_countries() -> AppResult<Vec<String>> {

@@ -74,6 +74,7 @@ pub async fn remote_api_start(key: String) -> AppResult<String> {
     .await?
 }
 
+/// Stop the remote API server.
 #[tauri::command]
 #[specta::specta]
 pub fn remote_api_stop() -> AppResult<()> {
@@ -84,9 +85,7 @@ pub fn remote_api_stop() -> AppResult<()> {
     Ok(())
 }
 
-/// Webview -> HTTP reply path: resolves the parked request for `id`.
-/// `payload` is JSON text, not a typed value -- specta cannot export the
-/// recursive `serde_json::Value` type (stack overflow at bindings export).
+/// Deliver the result for remote API request `id`. `payload` is JSON text.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

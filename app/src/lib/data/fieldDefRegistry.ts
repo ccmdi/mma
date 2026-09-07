@@ -1,28 +1,12 @@
-/*
- * Unified field-definition registry.
- *
- * Field **metadata** (type, label, enum values) from two sources, in priority order:
- *
- *   1. **User overrides** — persisted in `MapMeta.extra.fields`, editable via
- *      ManageFields, mirrored as `MapState.fieldDefs` (Rust ships it like any other
- *      engine value; this module only reads it). Curated defs for well-known SV keys
- *      are written here by Rust (`known_field_def`) when the key first appears in
- *      location data, so they show up the same way. This layer is also field
- *      **existence**: a key is in it exactly when some location carries it
- *      (`getKnownFieldKeys`).
- *   2. **Plugin defs** — declared by `Provider.fieldDefs` at
- *      registration time. Available as long as the plugin is active.
- *
- * `getFieldDef(key)` composes the layers **per-attribute**, not whole-object: the
- * user layer wins for any attribute it actually has an opinion on, falling through
- * to the plugin layer for null/absent ones. This matters because Rust auto-registers
- * a label-less placeholder (`{ type, label: null, comparison: null, ... }`) into the
- * user layer the first time a plugin-owned key appears in data — Rust can't see the
- * plugin layer, so it must infer *something*. Whole-object precedence would let that
- * placeholder shadow the plugin's real label and comparison; per-attribute fallthrough
- * treats a null attribute as "no opinion, ask the next layer." Returns `undefined` if
- * no layer declares the key (the UI falls back to the raw key name).
- */
+// Unified field-definition registry.
+//
+// Layers, in priority order:
+//   1. User overrides (per-map, persisted in MapMeta)
+//   2. Plugin defs (declared by Provider.fieldDefs, live while the plugin is active)
+//   3. Built-in fields
+//
+// `getFieldDef` composes per-attribute (not whole-object): a null attribute in a
+// higher layer falls through to the next.
 
 import { emit } from "@/lib/events";
 import { getMapState } from "@/store/useMapStore";
@@ -32,24 +16,15 @@ import { BUILTIN_FIELDS, CLEARABLE_BUILTINS, PROJECTIONS } from "@/bindings.cons
 import type { ExtraFieldDef, ExtraFieldType } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
 
-/**
- * What a registry field *is*, which determines how it may be accessed:
- * - "identity": composes the location itself (position). Never writable through the
- *   field system, never offered in pickers; resolvable by exact key only.
- * - "virtual": derived, not stored on the location. Never writable.
- * - "term": only a term in a field expression. Never writable, never offered in pickers:
- *   a selection type already answers it, and better.
- * - "writable": explicitly bulk-editable top-level field.
- * - undefined: on the location, listable and filterable, but read-only.
- * Extra (user/plugin) fields live outside this map and are always writable and listable.
- */
+// Field kind: identity (position), virtual (derived), term (expression-only),
+// writable (bulk-editable), or undefined (read-only, listable).
 type FieldKind = NonNullable<(typeof BUILTIN_FIELDS)[number]["kind"]>;
 
 interface RegistryFieldDef extends ExtraFieldDef {
 	kind?: FieldKind;
 }
 
-/** Derived from the Rust `BUILTIN_FIELDS` table, which the filter resolvers share. */
+// Built-in field definitions, derived from the shared BUILTIN_FIELDS table.
 const FIELDS: Record<string, RegistryFieldDef> = Object.fromEntries(
 	BUILTIN_FIELDS.map((f) => [
 		f.key,
@@ -74,13 +49,12 @@ export function isWritableField(key: string): boolean {
 	return key in FIELDS ? FIELDS[key].kind === "writable" : true;
 }
 
-/** False for a built-in column a bulk clear cannot empty: non-null, or rewritten by the
- *  engine on every change. */
+/** True when the field can be bulk-cleared. */
 export function isClearableField(key: string): boolean {
 	return key in FIELDS ? (CLEARABLE_BUILTINS as readonly string[]).includes(key) : true;
 }
 
-/** False for identity fields (lat/lng) and expression terms, which pickers must not offer. */
+/** True when the field should appear in field pickers. */
 export function isListableField(key: string): boolean {
 	return key in FIELDS ? !["identity", "term"].includes(FIELDS[key].kind ?? "") : true;
 }
@@ -112,9 +86,7 @@ export const getKnownFieldKeys: () => ReadonlySet<string> = memoOnRefs(
 	(defs) => new Set(Object.keys(defs)),
 );
 
-/** Compose two layers per-attribute: the user value wins when present, falling
- *  through to the plugin value for null/absent attributes (a label-less inferred
- *  placeholder must not shadow the plugin's real label/comparison). */
+// Compose two layers per-attribute: the higher layer wins when non-null.
 function mergeDef(
 	user: ExtraFieldDef | undefined,
 	plugin: ExtraFieldDef | undefined,
@@ -130,12 +102,12 @@ function mergeDef(
 	};
 }
 
-/** Look up metadata for a single field key. Returns `undefined` if no metadata exists. */
+/** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
 export function getFieldDef(key: string): ExtraFieldDef | undefined {
 	return mergeDef(mergeDef(getMapState().fieldDefs[key], pluginDefs[key]), FIELDS[key]);
 }
 
-/** Display label for a field key: registered label if known, otherwise sentence-cased from camelCase/snake_case. */
+/** Display label for a field key, falling back to a sentence-cased version of the key. */
 export function fieldLabel(key: string): string {
 	return (
 		getFieldDef(key)?.label ??
@@ -146,9 +118,7 @@ export function fieldLabel(key: string): string {
 	);
 }
 
-/** Display text for one *value* of a field, the counterpart to [`fieldLabel`] naming the
- *  field itself. Enum values carry translated display names; everything else is its own
- *  string. */
+/** Display label for a field value. Enum values use their translated display name. */
 export function fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string {
 	const raw = String(value);
 	const label = def?.type === "enum" ? def.labels?.[raw] : undefined;
@@ -186,7 +156,7 @@ const PROJECTION_LABELS: Record<string, string> = {
 export interface FieldProjection {
 	id: string;
 	label: string;
-	/** Date projections read in the location's own timezone when set -- surfaces a toggle. */
+	/** True when this projection uses the location's timezone. */
 	needsTz: boolean;
 }
 
@@ -201,11 +171,10 @@ export function projectionsForType(type: ExtraFieldType): FieldProjection[] {
 	);
 }
 
-/** The synthetic "Range" option: numeric binning, which isn't a stateless projection. */
+/** The "Range" partition option (numeric binning). */
 export const RANGE_ID = "range";
 
-/** Dropdown options for a partition: the projection catalog plus "Range" for numbers (and
- *  dates too when `rangeForDates`). */
+/** Partition-key dropdown options for a field type. */
 export function partitionKeyOptions(
 	type: ExtraFieldType,
 	rangeForDates: boolean,

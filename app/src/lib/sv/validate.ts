@@ -11,15 +11,14 @@ import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { log } from "@/lib/util/log";
 import { msg } from "@/lib/i18n";
 
+/** Configuration for Street View validation (search radius). */
 export interface ValidateConfig {
 	radius: number;
 }
 
-/** Street View coverage validation: per location, metadata for the stored pano, a
- *  coordinate lookup as fallback or comparison, then the unofficial, badcam and
- *  timeline checks. It answers with a `ValidationState` and writes nothing, so it
- *  declares the collect sink. Not an enrichment provider: nothing selects its fields
- *  and it never joins a run implicitly. */
+/** Street View coverage validation. Checks each location's stored pano, coordinate
+ *  lookup, unofficial status, camera quality, and timeline. Answers with a
+ *  `ValidationState` per location without writing anything. */
 export const validateSpec: ProcedureSpec<ValidationState> = {
 	entry: procedureEntry("validate"),
 	batch: { mode: "chunk", size: 200 },

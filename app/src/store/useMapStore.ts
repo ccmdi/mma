@@ -112,7 +112,7 @@ export function getMapState(): Readonly<MapState> {
 	return state;
 }
 
-/** Tags that exist from the user's point of view. Raw `tags` also holds soft-deleted ghosts (count=0, visible=false, kept for undo revival) — almost nothing outside the undo/revival machinery should enumerate those. */
+/** Tags that exist from the user's point of view. Raw `tags` also holds soft-deleted ghosts (count=0, visible=false) - almost nothing outside the undo machinery should enumerate those. */
 export const getVisibleTags: () => Tag[] = memoOnRefs(
 	() => [state.tags] as const,
 	(tags) => Object.values(tags).filter((t) => t.visible !== false),
@@ -124,8 +124,7 @@ export function getTag(id: number): Tag | undefined {
 	return state.tags[id];
 }
 
-/** Tag names for the given ids, skipping any that no longer resolve. Tags are staged by
- *  name rather than id, because a staged tag may not exist yet. */
+/** Tag names for the given ids, skipping any that no longer resolve. */
 export function tagIdsToNames(ids: number[]): string[] {
 	return ids.map((id) => state.tags[id]?.name).filter((n): n is string => n != null);
 }
@@ -139,8 +138,7 @@ const AUTOSAVE_DELAY_MS = 2000;
 let autosaveHolds = 0;
 let saveDeferred = false;
 
-/** Defer autosave until the returned release runs. A bulk run that lands many mutations
- *  would otherwise re-serialize the whole overlay on each one; one save at the end is enough. @unstable */
+/** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
 export function holdAutosave(): () => void {
 	autosaveHolds++;
 	return () => {
@@ -152,7 +150,7 @@ export function holdAutosave(): () => void {
 	};
 }
 
-/** @unstable */
+/** Schedule a debounced autosave. Mutations call this automatically. @unstable */
 export function scheduleSave() {
 	if (autosaveHolds > 0) {
 		saveDeferred = true;
@@ -165,7 +163,7 @@ export function scheduleSave() {
 	}, AUTOSAVE_DELAY_MS);
 }
 
-/** @unstable */
+/** Cancel any pending autosave timer. @unstable */
 export function cancelAutosave() {
 	if (autosaveTimer) {
 		clearTimeout(autosaveTimer);
@@ -173,7 +171,7 @@ export function cancelAutosave() {
 	}
 }
 
-/** @unstable */
+/** Wait for any in-progress save to finish. @unstable */
 export function waitForInflightPersist() {
 	return inflightPersist;
 }
@@ -329,13 +327,12 @@ export function resolveIds(selector: Selector): Promise<number[]> {
 	return cmd.storeResolve(selector);
 }
 
-/** How many locations the selector resolves to, without shipping any of them. */
+/** How many locations the selector resolves to. */
 export function countIn(selector: Selector): Promise<number> {
 	return cmd.storeCount(selector);
 }
 
-/** Bounding box `[west, south, east, north]`, or null when the selector is empty.
- *  The whole-map box is an O(1) cache hit in Rust; narrower ones scan. */
+/** Bounding box `[west, south, east, north]`, or null when the selector is empty. */
 export function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null> {
 	return cmd.storeBounds(selector);
 }
@@ -350,7 +347,7 @@ export function fieldValues(selector: Selector, field: string): Promise<string[]
 	return cmd.storeValues(selector, field);
 }
 
-/** Group by a derived key and count, without shipping member ids. */
+/** Group by a derived key and count. */
 export function countBy(
 	selector: Selector,
 	field: string,
@@ -359,20 +356,19 @@ export function countBy(
 	return cmd.storeCountBy(selector, field, key);
 }
 
-/** How many locations hold a value for each field, key-sorted: `extra` keys and the
- *  built-in columns a row can lack. */
+/** How many locations hold a value for each field, key-sorted. */
 export function coverage(selector: Selector): Promise<[string, number][]> {
 	return cmd.storeCoverage(selector);
 }
 
-/** One column per field over the selected set: values, never rows. `null` where a row
- *  lacks the field; `"tags"` is a column of tag-id arrays. */
+/** One column per field over the selected set. `null` where a location
+ *  lacks the field; `"tags"` returns a column of tag-id arrays. */
 export function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]> {
 	return cmd.storeColumns(selector, fields);
 }
 
-/** Group the selected location set by a derived key - entirely in Rust, no locations fetched.
- *  Numeric bins arrive in bound order; projection keys are sorted naturally for display. */
+/** Group the selected location set by a derived key. Numeric bins arrive in bound order;
+ *  other keys are sorted naturally. */
 export async function partition(
 	field: string,
 	key: KeySpec,
@@ -387,12 +383,10 @@ export async function partition(
 	return groups;
 }
 
-/** Materialize a selector's location rows -- by id, by selection, or the whole map.
- *  Rust picks the transport (inline vs staged file) by size. Missing ids are skipped.
+/** Fetch full location rows matching a selector. Missing ids are skipped.
  *
- *  Every row lands in webview memory, so an unscoped call costs O(map) -- at millions of
- *  locations that is the tab's whole heap. Prefer a projection, or an enrichment
- *  procedure that runs beside the data. Trusted, not policed: selector it yourself. */
+ *  Every row lands in memory, so an unscoped call on a large map is expensive.
+ *  Prefer a narrower selector or a projection (`fetchColumns`, `countBy`) when possible. */
 export async function fetchLocations(selector: Selector): Promise<Location[]> {
 	const rows = await cmd.storeCollect(selector);
 	return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
@@ -404,9 +398,7 @@ export const getActiveSelections: () => Selection[] = memoOnRefs(
 	(sels, ghosts) => (ghosts.size === 0 ? sels : sels.filter((s) => !ghosts.has(s.key))),
 );
 
-/** The live selection as a `Selector`: the union of the active selection nodes. What
- *  every "operate on the selection" call site sends -- Rust holds no notion of "selected",
- *  so the tree JS already has is the definition. */
+/** The live selection as a `Selector`: the union of the active selection nodes. */
 export function currentSelection(): Selector {
 	return { type: "Union", selections: getActiveSelections() };
 }
@@ -416,8 +408,7 @@ export function setSelectedLocationIds(ids: SelectedIds) {
 	setState({ selectedLocationIds: ids });
 }
 
-/** Optimistically patch any map's meta by id, persist, and refresh the map list. Mirrors
- *  onto the open map's state when it is that map. */
+/** Patch any map's metadata by id and persist it. Updates the open map's state when it is that map. */
 export async function patchMapMeta(id: string, patch: MapMetaPatch) {
 	if (state.map && state.mapId === id) {
 		const carried = Object.fromEntries(
@@ -468,7 +459,7 @@ function applyMutation(r: MutationResult) {
 	emitEvent("store:changed");
 }
 
-/** Decode the inline bitmask bytes from Rust and emit to the event bus. @unstable */
+/** Decode a selection bitmask and emit it to the render pipeline. @unstable */
 export function emitBitmask(bytes: number[]) {
 	const { selColors, cellEntries } = decodeSelectionBitmask(bytes);
 	emitEvent("render:selection", {
@@ -499,7 +490,7 @@ const EMPTY_MUTATION: MutationResult = {
 	},
 };
 
-/** Run a mutation IPC, emit its render delta, sync JS state, and schedule a save. */
+/** Run a mutation, apply its result to the map, and schedule a save. */
 export async function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult> {
 	if (!state.map) return EMPTY_MUTATION;
 	const r = await fn();
@@ -534,8 +525,9 @@ async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 	return cmd.storeAddLocationsUploaded(session);
 }
 
-/** Add locations to the map. Rust assigns real ids and they are written back into
- *  the passed objects -- build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
+/** Add locations to the map. Real ids are assigned and written back into the passed
+ *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
+ *  Emits `location:add`. */
 export async function addLocations(locs: Location[]) {
 	if (locs.length === 0) return;
 	const t = trace("add");
@@ -596,9 +588,8 @@ export async function updateLocations(
 
 // --- Bulk metadata-field operations ---
 
-/** Rename or merge extra-field `from` into `to` across all locations, then migrate
- *  its definition and every selection that references it. Merge ≡ rename; `winner`
- *  decides the survivor only where a location already holds `to`. */
+/** Rename extra-field `from` to `to` across all locations, its definition, and selections.
+ *  When a location already holds `to`, `winner` decides which value survives. */
 export async function renameField(from: string, to: string, winner: MergeWinner = "from") {
 	if (!state.map || from === to || !to) return;
 	await applyFieldOp({ type: "Everything" }, { kind: "move", from, to, winner }, false);
@@ -612,10 +603,7 @@ export async function deleteField(key: string) {
 	await migrateFieldReferences(key, null);
 }
 
-/** Rewrite a field across `selector` in Rust. The per-location patches never exist in
- *  JS -- which is the point -- so instead of `location:update` this emits a coarse
- *  `location:invalidate` (derived views re-query) and refreshes the open editor's
- *  location. */
+/** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. */
 export async function applyFieldOp(
 	selector: Selector,
 	op: FieldOp,
@@ -684,10 +672,9 @@ export function removeSelections(keys: string[]): Promise<void> {
 	return applySelectionUpdate(batch(removeSelection)(keys));
 }
 
-/** Apply a pure selection transform, then sync to Rust.
- *  Ops return a SelectionPatch - either or both of { selections, ghosted }.
- *  A bare Selection[] is shorthand for { selections }.
- *  Skips IPC when the op produced no change (reference equality). */
+/** Apply a selection transform function and re-resolve the selection.
+ *  The function receives the current selections and ghosted set, and returns either
+ *  a new `Selection[]` or a `SelectionPatch`. No-op when nothing changed. */
 export async function applySelectionUpdate(
 	op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | SelectionPatch,
 ) {
@@ -701,9 +688,8 @@ export async function applySelectionUpdate(
 	return syncSelections();
 }
 
-/** Resolve the current selection list against Rust and sync the overlay.
- *  Called after `applySelectionUpdate` sets state, or standalone when the underlying
- *  data changed (tag recolor, commit overlay clear) but selections themselves didn't. */
+/** Re-resolve all selections against the current map data and update the overlay.
+ *  Use when the underlying data changed but the selections themselves did not. */
 export async function syncSelections() {
 	if (!state.map) return;
 	const t = trace("selection", { summary: true });
@@ -740,10 +726,9 @@ function pickBuckets(perSelection: boolean): (Selector | null)[] {
 	return active.map((s) => s.selector);
 }
 
-/** Replace the current selection with a single Manual selection holding `count` ids picked
- *  at random from whatever is currently selected. `count` is clamped to the selection size.
- *  With `perSelection` it is a per-bucket cap: up to `count` ids from each active selection,
- *  unioned. No-op when nothing is selected. Returns the number of ids actually picked. */
+/** Replace the current selection with up to `count` ids picked at random.
+ *  With `perSelection`, picks up to `count` from each active selection separately.
+ *  Returns the number of ids actually picked (0 when nothing is selected). */
 export async function selectRandomFromSelection(
 	count: number,
 	perSelection = false,
@@ -758,10 +743,9 @@ export async function selectRandomFromSelection(
 	return picked.length;
 }
 
-/** Replace the current selection with a single Manual selection of ids picked from the
- *  current selection, spaced apart in Rust: either `count` ids maximizing spacing, or as
- *  many as fit at `minDistanceM`. With `perSelection` each active selection is picked from
- *  separately and the results unioned. No-op when the pick returns nothing. */
+/** Replace the current selection with spatially spaced ids - either `count` ids maximizing
+ *  spacing, or as many as fit at `minDistanceM`. With `perSelection`, each active selection
+ *  is picked from separately. Returns the count picked and the minimum distance achieved. */
 export async function selectSpacedFromSelection(
 	opts: { count?: number; minDistanceM?: number },
 	perSelection = false,
@@ -841,8 +825,7 @@ export function toggleTagSelections(tagIds: number[]) {
 	);
 }
 
-/** Tag ids that currently have a Tag selection (cached; keyed on the selection list,
- *  identity-stable while the set of ids is unchanged). */
+/** Tag ids that currently have a top-level Tag selection active. */
 export const getSelectedTagIds: () => ReadonlySet<number> = (() => {
 	let prev: Set<number> | null = null;
 	return memoOnRefs(
@@ -858,9 +841,8 @@ export const getSelectedTagIds: () => ReadonlySet<number> = (() => {
 	);
 })();
 
-/** Tag ids of every Tag leaf in the active selection tree, in list order --
- *  composite children included, ghosted selections excluded, ids may repeat.
- *  Deep counterpart of getSelectedTagIds (top-level only, as a set). */
+/** Tag ids of every Tag leaf in the active selection tree, in list order.
+ *  Includes composite children, excludes ghosted selections; ids may repeat. */
 export const getSelectedTagIdsDeep: () => readonly number[] = memoOnRefs(
 	() => [getActiveSelections()] as const,
 	(sels) => {
@@ -925,7 +907,7 @@ function clearActiveLocation(): void {
 	emitEvent("active:change", null);
 }
 
-/** Materialize a `MaybeLocation`. */
+/** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 export async function resolveLocation(m: MaybeLocation): Promise<Location | null> {
 	return typeof m === "number"
 		? ((await fetchLocations({ type: "Locations", locations: [m], name: null }))[0] ?? null)
@@ -1024,13 +1006,9 @@ export function exitPluginMode() {
 
 // --- Tag CRUD ---
 
-/** Get-or-create tags by name. Returns the tag objects for use
- *  in subsequent location updates. Idempotent — existing tags are returned
- *  as-is, new names get auto-generated colors.
- *
- *  Pass `selector` to assign the tags to those locations in the same mutation. Prefer that
- *  over a follow-up `addTagToLocations`: it is one round trip instead of three, and the
- *  tag never renders at count 0 in between. The default assigns nothing. */
+/** Get-or-create tags by name. Existing tags are returned as-is; new names get
+ *  auto-generated colors. Pass `selector` to assign the tags to those locations
+ *  atomically. Emits `tag:add`. */
 export async function createTags(
 	names: string[],
 	selector: Selector = { type: "Locations", locations: [], name: null },
@@ -1057,8 +1035,7 @@ export async function updateTags(updates: Update<TagPatch>[]) {
 	}
 }
 
-/** Delete tags and strip them from all locations. Undoable (the location
- *  changes are in the undo stack; visibility auto-restores on undo). */
+/** Delete tags and strip them from all locations. Undoable. Emits `tag:remove`. */
 export async function deleteTags(tagIds: number[]) {
 	if (tagIds.length === 0) return;
 	await mutate(() => cmd.storeDeleteTags(tagIds));
@@ -1132,7 +1109,7 @@ export function redo() {
 
 // --- Version control ---
 
-/** Bake overlay, write the commit delta, create a VCS commit. Resets undo stack. */
+/** Commit all pending changes to the map's version history. Clears the undo stack. */
 export async function commitMap(message?: string): Promise<string> {
 	if (!state.mapId) throw new Error("No map open");
 	const t = trace("commit");

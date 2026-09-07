@@ -197,18 +197,21 @@ pub(crate) fn delete(conn: &Connection, id: &str) -> AppResult<()> {
 
 // --- Command wrappers ---
 
+/// List every saved selection rule (name, color, date), without their selector trees.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_list_saved_selections() -> AppResult<Vec<SavedSelectionInfo>> {
     storage::with_db(|conn| list_info(conn)).await
 }
 
+/// Fetch the full saved selection rules for the given `ids`, including their selector trees.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_get_saved_selections(ids: Vec<String>) -> AppResult<Vec<SavedSelection>> {
     storage::with_db(move |conn| get(conn, &ids)).await
 }
 
+/// Save a new selection rule.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_save_selection(
@@ -220,6 +223,7 @@ pub async fn store_save_selection(
     storage::with_db(move |conn| create(conn, name, selector, tag_names, color)).await
 }
 
+/// Delete a saved selection rule by `id`.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_delete_saved_selection(id: String) -> AppResult<()> {

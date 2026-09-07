@@ -12,13 +12,13 @@ import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
 import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
 import { msg } from "@/lib/i18n";
 
+/** Configuration for the pin-to-pano operation. */
 export interface PinPanoConfig {
 	useLatest?: boolean;
 }
 
 /** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
- *  panorama. With `useLatest`, move it to the newest official pano in the timeline
- *  first. The pano id itself comes from `panoResolve`, which runs before it. */
+ *  panorama. With `useLatest`, move to the newest official pano in the timeline first. */
 export const pinPanoProvider: Provider = {
 	id: "pinPano",
 	label: msg("Pin to pano ID"),

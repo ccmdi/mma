@@ -14,8 +14,7 @@ use crate::util::now_iso;
 use rusqlite::types::ToSql;
 use rusqlite::Connection;
 
-/// A review session as returned to the frontend. `order`/`reviewed` are decoded from the
-/// JSON-text columns; `source_props` is the originating `Selector` (opaque here).
+/// A review session: a frozen worklist of locations with progress tracking.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewSession {
@@ -33,8 +32,8 @@ pub struct ReviewSession {
     pub updated_at: String,
 }
 
-/// Inbound payload for creating a session. `order` is the frozen worklist (must be non-empty);
-/// the cursor starts at its first id and `reviewed` starts empty.
+/// Parameters for creating a review session. `order` is the frozen worklist (must be
+/// non-empty); the cursor starts at its first id.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewCreate {
@@ -46,8 +45,7 @@ pub struct ReviewCreate {
     pub order: Vec<u32>,
 }
 
-/// Partial update. Any `Some` field is written; `None` leaves the column untouched.
-/// `ordering`/`reviewed` carry the full replacement arrays (used by reconciliation pruning).
+/// Partial update for a review session. `None` fields are left unchanged.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewUpdate {
@@ -198,12 +196,14 @@ pub(crate) fn delete(conn: &Connection, id: &str) -> AppResult<()> {
 
 // --- Command wrappers ---
 
+/// Create a new review session from a frozen worklist of location IDs.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_review_create(session: ReviewCreate) -> AppResult<ReviewSession> {
     storage::with_db(move |conn| create(conn, session)).await
 }
 
+/// Look up the most recent active review session for a map and source key.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_review_get(
@@ -213,6 +213,7 @@ pub async fn store_review_get(
     storage::with_db(move |conn| get(conn, &map_id, &source_key)).await
 }
 
+/// List review sessions for a map, newest first. Optionally filter by `status`.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_review_list(
@@ -222,12 +223,14 @@ pub async fn store_review_list(
     storage::with_db(move |conn| list(conn, &map_id, status.as_deref())).await
 }
 
+/// Apply a partial update to a review session.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_review_update(update: ReviewUpdate) -> AppResult<()> {
     storage::with_db(move |conn| self::update(conn, update)).await
 }
 
+/// Delete a review session.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_review_delete(id: String) -> AppResult<()> {

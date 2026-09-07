@@ -26,6 +26,7 @@ use std::time::Instant;
 // Types
 // ---------------------------------------------------------------------------
 
+/// Added, removed, and modified counts for a commit.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitDiff {
@@ -34,6 +35,7 @@ pub struct CommitDiff {
     pub modified: u32,
 }
 
+/// Metadata for a single commit.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitInfo {
@@ -48,8 +50,8 @@ pub struct CommitInfo {
     pub created_at: String,
 }
 
-/// A commit's delta, returned to the frontend for the per-commit diff viewer.
-/// An updated location appears in both `created` (new) and `removed` (old).
+/// A commit's created and removed locations. An updated location appears in both
+/// `created` (new version) and `removed` (old version).
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitDelta {
@@ -57,7 +59,7 @@ pub struct CommitDelta {
     pub removed: Vec<Location>,
 }
 
-/// The new commit's id plus the store-state delta the commit caused (cleared undo/redo).
+/// The new commit's ID and the resulting state update.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitResult {
@@ -84,8 +86,8 @@ fn format_diff_message(added: u32, removed: u32, modified: u32) -> Option<String
     (!parts.is_empty()).then(|| parts.join(" "))
 }
 
-/// Commit the map's uncommitted changes; returns the new commit id plus the
-/// store-state delta (cleared undo/redo). `message` None auto-generates a `+a -r ~m` summary.
+/// Commit the map's uncommitted changes. Returns the new commit ID. `message`
+/// defaults to a generated `+a -r ~m` summary. Clears undo/redo.
 // The only commit path: builds the canonical batch ONCE (the bake) and derives the commit
 // delta three ways -- dirty overlay: the pre-bake changeset, O(changeset); genesis (no
 // parent): a copy of the base just written (batch_to_delta reads it as all-created); clean
@@ -265,7 +267,7 @@ pub(crate) fn read_commit_delta(
     Ok(arrow::batch_to_delta(&batch))
 }
 
-/// Read a single commit's delta (created/removed locations) for the diff viewer.
+/// Read a single commit's delta (created and removed locations).
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

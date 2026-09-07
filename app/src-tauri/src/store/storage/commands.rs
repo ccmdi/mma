@@ -7,9 +7,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
-/// Write text to a named temp file (`mma_{name}`) and return its path. Lets JS hand
-/// large payloads over by file instead of IPC serialization. `name` names a leaf, so it
-/// cannot steer the write out of the temp directory.
+/// Write text to a temp file and return its path. `name` is a leaf filename
+/// (cannot contain path separators).
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -27,6 +26,7 @@ pub fn read_file(path: String) -> AppResult<String> {
     Ok(fs::read_to_string(&path)?)
 }
 
+/// Return the app's data directory path.
 #[tauri::command]
 #[specta::specta]
 pub fn get_app_data_dir() -> AppResult<String> {
@@ -42,6 +42,7 @@ pub struct DataLocation {
     is_custom: bool,
 }
 
+/// Return the current and default data-folder paths, and whether a custom override is active.
 #[tauri::command]
 #[specta::specta]
 pub fn get_data_location() -> AppResult<DataLocation> {
@@ -54,8 +55,8 @@ pub fn get_data_location() -> AppResult<DataLocation> {
     })
 }
 
-/// Set (`Some`) or clear (`None`) the data-folder override. Takes effect after relaunch
-/// and does not move existing data.
+/// Set or clear the data-folder override. Takes effect after relaunch and does not
+/// move existing data.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -75,12 +76,14 @@ pub(super) fn os_open(path: &Path) -> AppResult<()> {
     Ok(())
 }
 
+/// Open the app's data folder in the OS file explorer.
 #[tauri::command]
 #[specta::specta]
 pub fn open_data_folder() -> AppResult<()> {
     os_open(&app_data_dir()?)
 }
 
+/// Open the app's log file in the OS default handler.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

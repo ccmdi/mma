@@ -136,6 +136,8 @@ pub(crate) fn import(conn: &mut Connection, json: &str) -> AppResult<u32> {
     Ok(imported)
 }
 
+/// Import saved selections from the pre-0.10 localStorage format. No-op when
+/// rules already exist. Returns the number of rules imported.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_import_legacy_saved_selections(json: String) -> AppResult<u32> {

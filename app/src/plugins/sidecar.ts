@@ -46,16 +46,13 @@ function listenForSidecarEvents(): Promise<void> {
 export interface SidecarOptions<T> {
 	/** Fires once per JSON object the sidecar emits, in order. */
 	onLine?(item: T): void;
-	/** Sidecar diagnostics (stderr), one-shot runs only. Resident-served commands
-	 *  write theirs to the app log instead. */
+	/** Sidecar diagnostic output, one-shot runs only. */
 	onLog?(line: string): void;
 	signal?: AbortSignal;
 }
 
-/** Run one unit of work on a plugin's sidecar and resolve with its last emitted
- *  object (null if it emitted none). The app owns the process: commands the manifest
- *  lists under `serve` are answered by the plugin's resident sidecar, the rest by a
- *  one-shot run. `payload` is handed to the sidecar as JSON. */
+/** Send a command to a plugin's sidecar and resolve with its last emitted JSON
+ *  object (null if it emitted none). `payload` is sent as JSON. */
 export async function request<T>(
 	pluginId: string,
 	command: string,

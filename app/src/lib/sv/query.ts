@@ -1,6 +1,4 @@
-// The app's read-only Street View queries, each answered by a procedure. The wire formats
-// live in `@/lib/sv/getMetadata` and `@/lib/sv/singleImageSearch`, which the app and those
-// procedures both bundle.
+// Read-only Street View queries.
 
 import { procedureEntry, queryProcedure } from "@/lib/data/procedures";
 import type { LatLng, Pano } from "@/types";
@@ -9,8 +7,8 @@ import type { SearchOpts } from "@/lib/sv/singleImageSearch";
 
 const SVMETA_ENTRY = procedureEntry("svMeta");
 
-/** Full pano metadata for arbitrarily many panos, aligned to `panoIds`. The procedure
- *  dedupes and splits at GetMetadata's 200-per-request cap itself. */
+/** Full pano metadata for one or more panos, aligned to `panoIds`. Duplicates are
+ *  deduped and large batches are split automatically. */
 export async function svMetadata(
 	panoIds: string[],
 	signal?: AbortSignal,
@@ -26,18 +24,11 @@ export async function svMetadata(
 	return panoIds.map((_, i) => answers[i] ?? null);
 }
 
-/** A pano as the viewer shows it: its metadata, plus `nearby`, the timeline of every pano
- *  within reach of its coordinate. `time` stays the pano's own stack, which is what
- *  enrichment writes; a partly-official stack picks up the rest of its history from the
- *  neighbour, and an all-unofficial one asks for the official stack outright, last so its
- *  entries win. */
 const PANORESOLVE_ENTRY = procedureEntry("panoResolve");
 
 /** The nearest pano to each point, aligned to `points`, null where there is no coverage.
- *  `opts.sources` narrows which collections are searched (`[PanoType.Official]` is what
- *  `sources: ["google"]` means to the Maps JS API) and `opts.preference` picks nearest or
- *  best. The procedure hands every point to the host at once, so how many run concurrently
- *  stays the engine's call. */
+ *  `opts.sources` narrows which collections are searched and `opts.preference` picks
+ *  nearest or best. */
 export async function panosAt(
 	points: LatLng[],
 	radius = SV_SEARCH_RADIUS,

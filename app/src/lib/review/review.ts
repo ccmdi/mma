@@ -1,9 +1,4 @@
-//! Review sessions (frontend). Owns the active review session and all navigation,
-//! persisting to the Rust `review_sessions` store. The cursor is an id (never a
-//! positional index), so deleting any non-cursor location can't desync it.
-//!
-//! Extracted out of useMapStore/LocationPreview: this module is the single seam.
-//! LocationPreview renders <ReviewBar> and calls reviewNext/Prev/Delete/onSaved.
+//! Review sessions. Owns the active session, cursor navigation, and persistence.
 
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
@@ -27,9 +22,8 @@ export interface PruneResult {
 	cursorMoved: boolean;
 }
 
-/** Remove `removed` ids from a session's worklist + reviewed set. The cursor only
- *  moves if the cursor id itself was removed (advancing to the next survivor by old
- *  position). Returns the same session reference untouched if nothing overlapped. */
+/** Remove `removed` ids from a session's worklist and reviewed set. Advances the
+ *  cursor when the cursor id itself was removed. */
 export function pruneSession(s: ReviewSession, removed: Set<number>): PruneResult {
 	if (!s.order.some((id) => removed.has(id))) return { session: s, cursorMoved: false };
 	const order = s.order.filter((id) => !removed.has(id));
@@ -43,8 +37,8 @@ export function pruneSession(s: ReviewSession, removed: Set<number>): PruneResul
 	return { session: { ...s, order, reviewed, cursorId }, cursorMoved: cursorId !== s.cursorId };
 }
 
-/** Mark the current cursor reviewed and step forward. `done` when the cursor was the
- *  last item (status flips to "done"). */
+/** Mark the current cursor reviewed and step forward. `done` is true when the
+ *  session has no remaining items. */
 export function advance(s: ReviewSession): { session: ReviewSession; done: boolean } {
 	const idx = s.order.indexOf(s.cursorId);
 	const reviewed = s.reviewed.includes(s.cursorId) ? s.reviewed : [...s.reviewed, s.cursorId];
@@ -131,16 +125,15 @@ function flushSave() {
 	if (session) persist(session);
 }
 
-/** Navigate the pano to the cursor. `checkDuplicates: false` — during a review pass we
- *  show every queued location rather than diverting to the duplicates panel. */
+/** Navigate to the cursor location. */
 async function gotoCursor(s: ReviewSession): Promise<void> {
 	await setActiveLocation(s.cursorId, false);
 }
 
 // --- Public API ---
 
-/** Start (or resume) a review over `ids`. When `source` is a real selection, the session
- *  is keyed by it so re-reviewing that selection resumes the in-progress session. */
+/** Start or resume a review over `ids`. When `source` is a selection, re-reviewing
+ *  that selection resumes any in-progress session for it. */
 export async function beginReview(ids: number[], source?: Selection): Promise<void> {
 	const mapId = getMapState().mapId;
 	const map = getMapState().map;
@@ -213,10 +206,8 @@ export async function reviewPrev(): Promise<void> {
 	await gotoCursor(prev);
 }
 
-/** Delete the current location and advance FORWARD (like reviewNext) — to the item that
- *  followed it, or exit the pass if it was the last one. We navigate off the doomed location
- *  first so the shared `removeLocations` doesn't bounce us to the overview; its emitted
- *  `location:remove` is then a no-op for our reconcile listener (already pruned). */
+/** Delete the current location and advance to the next one. Exits the pass if it
+ *  was the last item. Emits `location:remove`. */
 export async function reviewDelete(): Promise<void> {
 	if (!session) return;
 	const s = session;
@@ -260,8 +251,7 @@ export function cancelReview(): void {
 	void setActiveLocation(null);
 }
 
-/** Rename a session (custom label over the auto-derived selection name). Persists immediately;
- *  also patches the live session if it's the one being renamed. */
+/** Rename a review session. */
 export async function renameReview(id: string, name: string): Promise<void> {
 	const trimmed = name.trim();
 	if (!trimmed) return;
@@ -305,8 +295,7 @@ export function listSessions(status?: "active" | "done"): Promise<ReviewSession[
 // Real sessions are UUID-keyed, so this never collides with a live projection's keys.
 const HISTORY_SESSION_ID = "history";
 
-/** Select every location marked reviewed across all review sessions on this map (active + done).
- *  A snapshot; re-running refreshes it in place (deterministic key). */
+/** Select every location marked reviewed across all sessions on this map. */
 export async function selectReviewedHistory(): Promise<void> {
 	const ids = reviewedHistoryIds(await listSessions());
 	if (ids.length === 0) return;
@@ -317,8 +306,7 @@ export async function selectReviewedHistory(): Promise<void> {
 	);
 }
 
-/** Add a reviewed/unreviewed overlay selection for an arbitrary session (resume modal). Mirrors
- *  refreshProjection's selector so the key and color match an in-progress projection. */
+/** Add a reviewed or unreviewed overlay selection for a session. */
 export function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed") {
 	const reviewedSet = new Set(s.reviewed);
 	const locations =
@@ -376,8 +364,7 @@ function clearProjection(id: string): void {
 	void applySelectionUpdate(batch(removeSelection)(reviewKeys(id)));
 }
 
-/** Adopt a persisted session as active, pruning ids whose locations no longer exist
- *  (deletions from a prior run). Deletes the session if nothing survives. */
+/** Adopt a persisted session as active, pruning locations that no longer exist. */
 async function adopt(s: ReviewSession): Promise<void> {
 	let { order, reviewed, cursorId } = s;
 	try {
@@ -424,9 +411,8 @@ function reconcile(removed: number[]): void {
 	}
 }
 
-/** Keep the cursor in step with the active location. Clicking an in-queue marker jumps the
- *  cursor there (counter/next/prev/delete stay aligned); clicking off-queue is a harmless
- *  peek — the session is left untouched and you can resume from where you were. */
+/** Keep the cursor in step with the active location. Clicking an in-queue marker
+ *  jumps the cursor there; clicking off-queue leaves the session untouched. */
 function onActiveChange(id: number | null): void {
 	if (!session || id == null || id === session.cursorId) return;
 	if (!session.order.includes(id)) return; // off-queue peek: leave the cursor parked

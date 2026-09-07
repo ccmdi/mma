@@ -705,8 +705,8 @@ fn run_reconcile(
     }
 }
 
-/// Reconcile a linked, open map against its remote. Snapshots local state under the store lock,
-/// drops the lock, then does all network + persistence off the async thread.
+/// Reconcile a linked map against its remote, pushing local changes and pulling
+/// remote ones. Returns the creates, updates, and deletes for each side to apply.
 #[tauri::command]
 #[specta::specta]
 pub async fn sync_reconcile(

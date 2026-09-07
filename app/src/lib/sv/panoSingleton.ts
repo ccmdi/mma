@@ -8,8 +8,10 @@ import { seenSkipNext } from "@/lib/seen/seen";
 import type { Pano, LocationPOV, PanoCapture } from "@/types";
 import { displayZoom, storedZoom, PANO_ZOOM } from "@/lib/sv/constants";
 
+/** The app-wide Street View panorama instance, null until first created. */
 export let singletonPano: google.maps.StreetViewPanorama | null = null;
 
+/** The DOM container for the singleton Street View panorama. */
 export const singletonDiv = (() => {
 	const el = document.createElement("div");
 	Object.assign(el.style, { width: "100%", height: "100%" });
@@ -45,6 +47,7 @@ export const singletonDiv = (() => {
 	return el;
 })();
 
+/** Return the singleton Street View panorama, creating it on first call. */
 export function getPanorama(): google.maps.StreetViewPanorama | null {
 	if (singletonPano) return singletonPano;
 	if (!google?.maps) return null;
@@ -84,11 +87,13 @@ export function capturePano(): PanoCapture | null {
 	};
 }
 
+/** Hide and release the singleton panorama. */
 export function clearSingletonPano() {
 	if (singletonPano) singletonPano.setVisible(false);
 	singletonPano = null;
 }
 
+/** Point the viewer at a resolved panorama for `loc`, setting its position, POV, and zoom. */
 export function applyResolved(
 	sv: google.maps.StreetViewPanorama,
 	resolved: Pano | null,

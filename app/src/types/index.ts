@@ -25,29 +25,33 @@ export type PanoView = LocationPOV & RequireNonNull<Pick<Location, "panoId">>;
 /** The camera fields a Location and the live Street View viewer share. */
 export type PanoCapture = LocationPOV & Pick<Location, "lat" | "lng" | "panoId">;
 
+/** A {lat, lng} coordinate pair. */
 export type LatLng = google.maps.LatLngLiteral;
+/** A {west, south, east, north} bounding box. */
 export type Bounds = google.maps.LatLngBoundsLiteral;
 
+/** True when bounds span the entire world. */
 export function isWorldBounds(b: Bounds): boolean {
 	return b.south === -90 && b.west === -180 && b.north === 90 && b.east === 180;
 }
 
+/** Convert a [south, west, north, east] tuple to a Bounds object. */
 export function scoreTupleToBounds([s, w, n, e]: [number, number, number, number]): Bounds {
 	return { south: s, west: w, north: n, east: e };
 }
 
+/** Convert a [west, south, east, north] bbox tuple to Bounds, or null. */
 export function bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null {
 	if (!t) return null;
 	return { south: t[1], west: t[0], north: t[3], east: t[2] };
 }
 
+/** Convert a Bounds object to a [south, west, north, east] tuple. */
 export function boundsToScoreTuple(b: Bounds): [number, number, number, number] {
 	return [b.south, b.west, b.north, b.east];
 }
 
-/** One decoded GetMetadata image: flat, plain JSON, no live objects. This is the app's
- *  panorama, not a transcription of the Maps JS API's. Anything derivable from these
- *  fields is a function in `@/lib/sv/getMetadata`, not a field here. */
+/** A decoded Street View panorama: flat JSON with no live objects. */
 export interface Pano {
 	/** This image's own pano id, "" when the response carries no key. */
 	pano: string;
@@ -105,27 +109,26 @@ export function sameRow(a: Location, b: Location): boolean {
 	return a.id === b.id && a.panoId === b.panoId;
 }
 
-/** Virtual locations exist only ephemerally as the single active-location preview — never in
- *  the map. They display like real locations but every mutate path no-ops. Identity is a unique
- *  negative id (so id-only checks work); the kind rides in `flags` (read where you hold the
- *  full Location). */
+/** True for virtual (preview-only) locations, which have negative ids and are not
+ *  part of the map. */
 export function isVirtualLocation(loc: { id: number }): boolean {
 	return loc.id < 0;
 }
 
-/** A location you already hold in full, or just its id to fetch on demand.
- *  Lets the pick -> activate path carry "materialized or not" as plain data;
- *  `resolveLocation` (in the store) fetches only the id case. */
+/** A full location or just its id (to be fetched on demand). */
 export type MaybeLocation = Location | number;
 
+/** Extract the id from a MaybeLocation. */
 export function locId(m: MaybeLocation): number {
 	return typeof m === "number" ? m : m.id;
 }
 
+/** True when the location is an import preview (not yet committed). */
 export function isImportPreview(loc: Location): boolean {
 	return (loc.flags & LocationFlag.ImportPreview) !== 0;
 }
 
+/** True when the location is a seen-history overlay preview. */
 export function isSeenPreview(loc: Location): boolean {
 	return (loc.flags & LocationFlag.SeenOverlay) !== 0;
 }
@@ -166,9 +169,8 @@ export function dropLocation(
 	});
 }
 
-/** Apply a LocationPatch JS-side, mirroring Rust's `overlay_update`: `extra` is a
- *  JSON Merge Patch (RFC 7386) — keys shallow-merge, a null value deletes its key,
- *  and a null patch clears extra entirely. */
+/** Apply a LocationPatch to a location. `extra` follows JSON Merge Patch (RFC 7386):
+ *  keys shallow-merge, a null value deletes its key, and a null patch clears extra. */
 export function applyLocationPatch(loc: Location, patch: LocationPatch): Location {
 	const { extra: extraPatch, ...rest } = patch;
 	const next = { ...loc, ...rest } as Location;

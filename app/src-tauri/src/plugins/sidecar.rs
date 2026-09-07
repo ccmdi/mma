@@ -299,7 +299,7 @@ pub async fn sidecar_install(plugin_id: String, name: String, version: String) -
         .map_err(|e| AppError(format!("sidecar install task failed: {e}")))?
 }
 
-/// Installed sidecar version for a plugin (from `sidecar/version.txt`), or `None`.
+/// Installed sidecar version for a plugin, or `None` if not installed.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -873,8 +873,7 @@ pub(crate) fn sidecar_call_stream(
     Ok(Box::new(rx.into_iter()))
 }
 
-/// Stop everything a plugin has running. Called when the plugin is disabled or
-/// uninstalled, so a resident process never outlives the plugin that wanted it.
+/// Stop all sidecar processes for a plugin.
 #[tauri::command]
 #[specta::specta]
 pub async fn sidecar_stop(plugin_id: String) -> AppResult<()> {
@@ -883,8 +882,7 @@ pub async fn sidecar_stop(plugin_id: String) -> AppResult<()> {
     Ok(())
 }
 
-/// Stop every plugin's sidecar processes. Used when the editor tears all plugins
-/// down at once (map close), where nothing should still be running afterwards.
+/// Stop all sidecar processes across every plugin.
 #[tauri::command]
 #[specta::specta]
 pub async fn sidecar_stop_all() -> AppResult<()> {
@@ -892,9 +890,7 @@ pub async fn sidecar_stop_all() -> AppResult<()> {
     Ok(())
 }
 
-/// Kill the process behind a one-shot request (no-op if it already finished).
-/// Resident-served requests have no process of their own, so this does not
-/// interrupt them -- the caller simply stops listening.
+/// Cancel a running sidecar request. No-op if the request already finished.
 #[tauri::command]
 #[specta::specta]
 pub async fn sidecar_cancel(req_id: u32) -> AppResult<()> {

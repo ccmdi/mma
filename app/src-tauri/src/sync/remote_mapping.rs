@@ -96,6 +96,7 @@ pub(crate) fn clear(conn: &Connection, provider: &str, map_id: &str) -> AppResul
 
 // --- Command wrappers ---
 
+/// Get all local-to-remote id mapping rows for a linked map.
 #[tauri::command]
 #[specta::specta]
 pub async fn remote_mapping_get(
@@ -105,6 +106,7 @@ pub async fn remote_mapping_get(
     storage::with_db(move |conn| get(conn, &provider, &map_id)).await
 }
 
+/// Insert or update local-to-remote id mapping rows for a linked map.
 #[tauri::command]
 #[specta::specta]
 pub async fn remote_mapping_upsert(
@@ -115,6 +117,7 @@ pub async fn remote_mapping_upsert(
     storage::with_db(move |conn| upsert(conn, &provider, &map_id, &rows)).await
 }
 
+/// Remove specific mapping rows by `local_ids` for a linked map.
 #[tauri::command]
 #[specta::specta]
 pub async fn remote_mapping_delete(
@@ -125,6 +128,7 @@ pub async fn remote_mapping_delete(
     storage::with_db(move |conn| delete(conn, &provider, &map_id, &local_ids)).await
 }
 
+/// Drop all mapping rows for a linked map (unlink).
 #[tauri::command]
 #[specta::specta]
 pub async fn remote_mapping_clear(provider: String, map_id: String) -> AppResult<()> {

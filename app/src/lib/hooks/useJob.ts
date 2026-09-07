@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useStableHandler } from "@/lib/hooks/useStableHandler";
 
+/** Context passed to the job function. */
 export interface JobContext<P> {
 	signal: AbortSignal;
 	/** Push a progress value to the UI. Ignored once the job is cancelled. */
 	report: (progress: P) => void;
 }
 
+/** State and controls for a cancellable async job. */
 export interface Job<R, P> {
 	running: boolean;
 	progress: P | null;

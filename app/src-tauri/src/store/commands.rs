@@ -25,8 +25,7 @@ use std::sync::atomic::{self, AtomicUsize};
 use std::time::Instant;
 use tokio::task;
 
-/// How `store_collect` shipped its answer. A transport choice, not a projection: both
-/// variants carry the same rows, and callers take whichever arrives.
+/// Result of `store_collect`: locations returned inline, or a file path to read them from.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(
     tag = "kind",
@@ -50,8 +49,8 @@ pub(crate) fn rows_file_path(temp: &Path, map_id: &str) -> PathBuf {
     temp.join(format!("mma_rows_{map_id}_{slot}.json"))
 }
 
-/// Load a map's Arrow data from disk, rebuild all indexes, and return initial state
-/// (tag counts, undo/redo availability). Must be called before any other store commands.
+/// Open a map and return its initial state (tag counts, undo/redo availability).
+/// Must be called before any other store commands.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_open_map(
@@ -187,8 +186,7 @@ pub async fn store_open_map(
     Ok(status)
 }
 
-/// Close the current map: bake overlay, flush Arrow + tags + edit history to disk, then
-/// release all in-memory state (batch, mmap, indexes, selections, undo stacks).
+/// Close the open map, saving unsaved changes first.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_close_map(
@@ -213,8 +211,7 @@ pub async fn store_close_map(
     task::spawn_blocking(move || flush_closed_store(&map_id, &store)).await?
 }
 
-/// Add new locations. IDs are allocated server-side (monotonic). Records an undo entry
-/// and clears the redo stack.
+/// Add new locations, allocating sequential IDs. Undoable.
 #[tauri::command]
 #[specta::specta]
 pub fn store_add_locations(
@@ -235,9 +232,8 @@ pub fn store_add_locations(
     })
 }
 
-/// Add locations uploaded as chunked JSON in an upload session dir (see `store_upload_begin`),
-/// so the frontend never serializes the whole batch at once. Otherwise identical to
-/// [`store_add_locations`]: one atomic mutation, one undo entry, IDs in uploaded order.
+/// Add locations from a chunked upload session (see `store_upload_begin`).
+/// Same behavior as `store_add_locations`: one atomic mutation, undoable.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_add_locations_uploaded(
@@ -263,7 +259,7 @@ pub async fn store_add_locations_uploaded(
     })
 }
 
-/// Remove locations by ID. Snapshots the full location data for undo before deleting.
+/// Remove locations by ID. Undoable.
 #[tauri::command]
 #[specta::specta]
 pub fn store_remove_locations(
@@ -313,6 +309,7 @@ pub async fn store_update_locations(
     })
 }
 
+/// Apply a field operation to every location matched by `selector`.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_apply_field_op(
@@ -402,8 +399,7 @@ pub async fn store_update_tags(
     })
 }
 
-/// Strip tags from all locations. Tags stay in `store.tags` with count=0 /
-/// visible=false so undo can revive them. Returns MutationResult with `tags`.
+/// Remove tags and strip them from all locations that carry them. Undoable.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_delete_tags(
@@ -444,8 +440,7 @@ pub async fn store_delete_tags(
     })
 }
 
-/// Set (or clear) the active location. Fire-and-forget from JS; no re-render triggered.
-/// JS patches the cell buffer synchronously to hide/show the active marker.
+/// Set (or clear) the active location.
 #[tauri::command]
 #[specta::specta]
 pub fn store_set_active(
@@ -459,8 +454,7 @@ pub fn store_set_active(
     })
 }
 
-/// Set the default marker color used by the render delta path. Fire-and-forget from JS;
-/// the JS side recolors its cell buffers in place (no full rebuild).
+/// Set the default marker color for new render updates.
 #[tauri::command]
 #[specta::specta]
 pub fn store_set_marker_color(
@@ -474,7 +468,7 @@ pub fn store_set_marker_color(
     })
 }
 
-/// Count locations by country (offline point-in-polygon). Returns unsorted (ISO-A2, count) pairs.
+/// Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
 /// `level` selects border precision, falling back to "light" if unavailable.
 // Coords are gathered under the store lock, then classified after it's released.
 #[tauri::command]
@@ -507,9 +501,8 @@ pub fn store_copy_locations_to_map(
     copy_to_map(label, state, target_map_id, |src| src.collect(&selector))
 }
 
-/// Copy caller-supplied location data into another map. Tag ids are read against this
-/// map's tag table, so the values may differ from any row it holds -- that is how the
-/// editor sends the pano you are currently looking at rather than the one on disk.
+/// Add caller-supplied locations to another map. Tags are matched by name against this
+/// map's tag table.
 #[tauri::command]
 #[specta::specta]
 pub fn store_add_locations_to_map(
@@ -681,7 +674,7 @@ fn copy_to_map(
     })
 }
 
-/// Autosave uncommitted changes to the delta sidecar. No-op when nothing changed.
+/// Save uncommitted changes to disk. No-op when nothing has changed.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_save_dirty(
@@ -749,6 +742,7 @@ pub async fn store_save_dirty(
     Ok(SaveResult { saved_bytes: size })
 }
 
+/// Return the map's current location count, store version, and unsaved-change count.
 #[tauri::command]
 #[specta::specta]
 pub fn store_get_summary(
@@ -771,8 +765,7 @@ pub fn store_get_summary(
     })
 }
 
-/// Full render rebuild: single-pass over all alive locations, writes binary to a temp file.
-/// Returns the file path for JS to fetch via `mma-buf://`. Only called on map open or full reset.
+/// Rebuild all marker render data from scratch and return the file path to fetch it from.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_fill_render_file(
@@ -798,8 +791,7 @@ pub async fn store_fill_render_file(
     .await?
 }
 
-/// Resolve a deck.gl pick result (cell key + index within cell) to a location ID.
-/// Called on marker click to map the GPU pick back to a logical location.
+/// Resolve a marker pick (cell key + index within cell) to a location ID.
 #[tauri::command]
 #[specta::specta]
 pub fn store_resolve_pick(
@@ -816,7 +808,7 @@ pub fn store_resolve_pick(
     })
 }
 
-/// Pop the undo stack and reverse the last edit. Pushes the entry onto the redo stack.
+/// Undo the last edit.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_undo(
@@ -845,7 +837,7 @@ pub async fn store_undo(
     })
 }
 
-/// Pop the redo stack and replay the edit forward. Pushes the entry back onto undo.
+/// Redo the last undone edit.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_redo(
@@ -874,7 +866,7 @@ pub async fn store_redo(
     })
 }
 
-/// The uncommitted changes since the last commit -- the same changeset `store_commit` will record.
+/// Return the uncommitted change counts (added, removed, modified) since the last commit.
 // Derived from the overlay, not the undo stack: the stack is capped, and non-undoable edits
 // (enrichment, field renames, plugin batches) bypass it while still being part of the commit.
 #[tauri::command]
@@ -886,7 +878,7 @@ pub fn store_commit_diff(
     with_store!(label, state, |store| { Ok(store.overlay_diff_counts()) })
 }
 
-/// Clear both undo and redo stacks; returns the resulting store-state delta.
+/// Clear both undo and redo stacks.
 #[tauri::command]
 #[specta::specta]
 pub fn store_reset_undo(
@@ -901,13 +893,8 @@ pub fn store_reset_undo(
     })
 }
 
-/// Create tags by name. Deduplicates case-insensitively: if a tag with the same name
-/// already exists, it is made visible instead of creating a duplicate.
-///
-/// `location_ids` assigns every resulting tag to those locations in the same mutation.
-/// Doing both here is not a convenience: creating and assigning as two commands leaves the
-/// tag visible at count 0 for the round trip in between, and makes the caller fetch every
-/// location into JS just to append an id Rust already has.
+/// Create tags by name and assign them to the locations matched by `selector`.
+/// Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
 #[tauri::command]
 #[specta::specta]
 pub fn store_create_tags(
@@ -926,8 +913,7 @@ pub fn store_create_tags(
     })
 }
 
-/// Persist tag ordering. `ordered_ids` specifies the desired order; each tag's
-/// `order` field is set to its index in the list.
+/// Set the display order of tags. Each tag's position is its index in `ordered_ids`.
 #[tauri::command]
 #[specta::specta]
 pub fn store_reorder_tags(
@@ -945,8 +931,8 @@ pub fn store_reorder_tags(
     })
 }
 
-/// Replace all selections, resolve bitmasks against current data, and write a binary
-/// patch file for JS to apply to the render overlay. Returns per-selection counts.
+/// Replace all active selections and resolve them against current data. Returns
+/// per-selection counts and a bitmask for the marker overlay.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_sync_selections(
@@ -1017,7 +1003,7 @@ pub fn store_resolve(
     ))
 }
 
-/// How many locations the selector resolves to. Counts rows, never materializes them.
+/// Count how many locations the selector matches.
 #[tauri::command]
 #[specta::specta]
 pub fn store_count(
@@ -1081,7 +1067,7 @@ pub fn store_group_by(
     ))
 }
 
-/// Group by a derived key, returning counts only -- no member ids on the wire.
+/// Group locations by a derived key, returning counts only (no member ids).
 #[tauri::command]
 #[specta::specta]
 pub fn store_count_by(
@@ -1132,7 +1118,7 @@ pub struct Columns(
     #[specta(type = Vec<Vec<specta_typescript::Unknown>>)] pub Vec<Vec<serde_json::Value>>,
 );
 
-/// Values, never rows: the projection for a scan that reads fields across a set.
+/// Read specific fields across matched locations, returned as one column per field.
 #[tauri::command]
 #[specta::specta]
 pub fn store_columns(
@@ -1161,9 +1147,8 @@ pub fn store_bounds(
     })
 }
 
-/// Full rows. The last resort -- prefer a projection. Every row is materialized in
-/// webview memory, so an `Everything` call costs O(map). Large answers are staged to a file
-/// rather than pushed through the IPC channel.
+/// Collect all matched locations as full rows. Prefer a projection (`store_columns`,
+/// `store_values`) when only specific fields are needed.
 #[tauri::command]
 #[specta::specta]
 pub fn store_collect(
@@ -1185,8 +1170,8 @@ pub fn store_collect(
     })
 }
 
-/// Transitive spatial duplicate groups (connected components, size >= 2) within `distance`
-/// metres. Read-only; used to preview a merge. Returns groups of location IDs.
+/// Find groups of locations within `distance` metres of each other (transitive).
+/// Returns groups of IDs, each with at least two members.
 #[tauri::command]
 #[specta::specta]
 pub fn store_duplicate_groups(
@@ -1200,9 +1185,9 @@ pub fn store_duplicate_groups(
     })
 }
 
-/// Merge each duplicate group within `distance` metres into one survivor location, unioning
-/// tags and extra fields. `score` is the map's duplicate preference expression; blank or
-/// absent uses [`selections::DEFAULT_DUPLICATE_SCORE`]. One undoable edit.
+/// Merge each duplicate group within `distance` metres into one location, unioning tags
+/// and extra fields. `score` ranks which location survives; blank uses the default ranking.
+/// Undoable.
 // Extra merges survivor-wins.
 #[tauri::command]
 #[specta::specta]
@@ -1247,9 +1232,8 @@ pub async fn store_merge_duplicates(
     })
 }
 
-/// Thin duplicates among `ids` within `distance` metres, keeping the best location per
-/// cluster. `score` is the map's duplicate preference expression, the same one a merge
-/// ranks by. One undoable edit.
+/// Remove duplicate locations within `distance` metres of each other, keeping the
+/// best-scored survivor per cluster. Undoable.
 // <= 25m: best-scored per cluster; > 25m: greedy thinning so no two survivors remain in
 // range.
 #[tauri::command]
@@ -1315,8 +1299,7 @@ pub fn store_find_nearby(
 }
 
 /// For each input point, whether any existing location lies within `radius_m` metres.
-/// Bulk form so callers probing many coordinates (e.g. the map generator skipping
-/// already-covered spots) pay one IPC round-trip, not one per point.
+/// Batch form for probing many coordinates at once.
 #[tauri::command]
 #[specta::specta]
 pub fn store_near_any(

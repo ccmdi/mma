@@ -456,7 +456,7 @@ pub async fn github_start_login() -> AppResult<DeviceCodeInfo> {
     .await?
 }
 
-/// Wait for the user to authorize the code from [`github_start_login`], then store the token.
+/// Wait for the user to authorize the code from [`github_start_login`].
 /// Resolves with the signed-in account.
 #[tauri::command]
 #[specta::specta]
@@ -497,6 +497,7 @@ pub async fn github_me() -> AppResult<Option<GhUser>> {
     blocking(fetch_me).await?
 }
 
+/// Sign out of GitHub and clear the stored session.
 #[tauri::command]
 #[specta::specta]
 pub async fn github_logout() -> AppResult<()> {
@@ -510,11 +511,7 @@ pub async fn github_has_session() -> AppResult<bool> {
     blocking(|| Ok(load_session()?.is_some())).await?
 }
 
-/// File an issue as the signed-in user.
-///
-/// Labels are sent even though only accounts with push access may set them: GitHub drops them
-/// silently for everyone else rather than failing, so sending costs nothing and they land for
-/// maintainers. Closing the gap for outside reporters is the worker's job.
+/// File a bug report as the signed-in GitHub user.
 #[tauri::command]
 #[specta::specta]
 pub async fn github_create_issue(
@@ -555,7 +552,7 @@ pub async fn github_create_issue(
     .await?
 }
 
-/// One of our issues and its comments, read as the signed-in user.
+/// Fetch a report's current state and comments as the signed-in GitHub user.
 #[tauri::command]
 #[specta::specta]
 pub async fn github_issue_thread(number: u32) -> AppResult<IssueThread> {

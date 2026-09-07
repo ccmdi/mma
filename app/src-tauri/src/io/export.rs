@@ -326,8 +326,7 @@ pub fn store_export_geojson(
     })
 }
 
-/// Copy a temp export file to the destination chosen via the native save dialog,
-/// then remove the temp source. `dest_path` comes from the frontend save dialog.
+/// Move a temp export file to `dest_path` and remove the temp source.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -352,8 +351,8 @@ pub(crate) fn upload_session_dir(path: &str) -> AppResult<PathBuf> {
     Ok(p)
 }
 
-/// Create a temp session dir for binary uploads from the frontend. Files are
-/// written into it via `mma-buf://` POST, then packaged by [`store_upload_finish`].
+/// Create a temp session directory for binary uploads. Files written into it are
+/// packaged by [`store_upload_finish`].
 #[tauri::command]
 #[specta::specta]
 pub fn store_upload_begin() -> AppResult<String> {
@@ -365,9 +364,8 @@ pub fn store_upload_begin() -> AppResult<String> {
     Ok(dir.to_string_lossy().into_owned())
 }
 
-/// Package an upload session and remove its dir: a single file is moved out
-/// as-is, multiple are packed into a Stored ZIP (entries like JPEG/PNG are
-/// already compressed). Returns a temp path for [`store_save_export_file`].
+/// Package an upload session's files into a single output and remove the session
+/// directory. Returns a temp path for [`store_save_export_file`].
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -466,7 +464,8 @@ pub struct ExportProgress {
     pub map_name: String,
 }
 
-/// Export every map in the database as a ZIP of JSON files. Duplicate map names get a numeric suffix.
+/// Export every map as a ZIP of JSON files. Duplicate map names get a numeric suffix.
+/// Emits `bulk-export-progress` per map.
 // Reads Arrow IPC files directly from disk (bypasses the in-memory store); runs on a blocking thread.
 #[tauri::command]
 #[specta::specta]

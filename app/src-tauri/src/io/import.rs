@@ -134,9 +134,8 @@ fn read_and_parse_maps(path: &str) -> AppResult<Vec<ParsedMap>> {
         .collect())
 }
 
-/// Parse a file (JSON or ZIP of JSONs) and return previews without persisting.
-/// Results are cached in `CACHED_PARSE` so `bulk_import_confirm` can skip re-parsing.
-/// ZIP files have each `.json` entry parsed in parallel via rayon.
+/// Parse a file (JSON or ZIP of JSONs) and return a preview of each map found,
+/// without persisting anything. Call [`bulk_import_confirm`] to import the maps.
 #[tauri::command]
 #[specta::specta]
 pub async fn bulk_import_preview(path: String) -> AppResult<Vec<ImportPreviewEntry>> {
@@ -176,7 +175,8 @@ pub struct ImportProgress {
     pub map_name: String,
 }
 
-/// Import the selected maps from a previously previewed file. Emits `bulk-import-progress` per map.
+/// Import the maps at `selected_indices` from a previously previewed file.
+/// Emits `bulk-import-progress` per map.
 // Uses the cached parse if available; each map gets a new UUID, Arrow IPC file, and SQLite row.
 #[tauri::command]
 #[specta::specta]
@@ -227,8 +227,8 @@ pub async fn bulk_import_confirm(
     .await?
 }
 
-/// Drop the cached parse from `bulk_import_preview` when the user dismisses the
-/// import dialog without confirming, instead of holding it until the next preview.
+/// Discard the previewed import without importing. Call when the user cancels the
+/// import dialog.
 #[tauri::command]
 #[specta::specta]
 pub async fn bulk_import_cancel() -> AppResult<()> {
