@@ -271,6 +271,14 @@ declare const commands$1: {
     openDataFolder: () => Promise<null>;
     /** @unstable */
     openLogFile: () => Promise<null>;
+    /**
+     *  First caller per app run wins the silent update pass. Every webview boots the
+     *  plugin loader, so without this a restored editor window plus the map list run
+     *  two full passes -- double registry fetches, double downloads, and interleaved
+     *  install progress for the same plugin.
+     *  @unstable
+     */
+    claimPluginUpdatePass: () => Promise<boolean>;
     /**  Manifests of every installed plugin. @unstable */
     listUserPlugins: () => Promise<PluginManifest[]>;
     /**

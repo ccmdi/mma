@@ -96,6 +96,7 @@ async function main() {
       content;
     fs.writeFileSync(out, content);
     propagateUnstable();
+    generateApiMarkdown();
 
     // The google.maps namespace augmentation is ambient (position-independent),
     // so it ships verbatim next to mma.d.ts; only the path alias needs remapping.
@@ -214,6 +215,95 @@ ${" ".repeat(col)}` });
   for (const e of edits) text = text.slice(0, e.at) + e.insert + text.slice(e.at);
   fs.writeFileSync(out, text);
   console.log(`Propagated @unstable to ${edits.length} members`);
+}
+
+// The human-readable companion to mma.d.ts: one section per API surface on the MMA
+// interface, each member with its signature and doc. Output-only -- regenerated with
+// the d.ts, never hand-edited.
+function generateApiMarkdown() {
+  const ts = require(path.join(appDir, "node_modules", "typescript"));
+  const program = ts.createProgram([out], { skipLibCheck: true, target: ts.ScriptTarget.ESNext });
+  const checker = program.getTypeChecker();
+  const source = program.getSourceFile(out);
+
+  let root = null;
+  ts.forEachChild(source, (n) => {
+    if (ts.isInterfaceDeclaration(n) && n.name.text === "MMA") root = n;
+  });
+  if (!root) throw new Error("no MMA interface in the bundle");
+
+  const doc = (sym) => ts.displayPartsToString(sym.getDocumentationComment(checker)).trim();
+  const isUnstable = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
+
+  // Doc and tags can live on the aliased declaration rather than the property symbol.
+  const describe = (prop, propType) => {
+    const target = propType.getSymbol();
+    return {
+      doc: doc(prop) || (target ? doc(target) : ""),
+      unstable: isUnstable(prop) || (!!target && isUnstable(target)),
+    };
+  };
+
+  const entry = (name, prop, propType, level) => {
+    const { doc: text, unstable } = describe(prop, propType);
+    const sigs = propType.getCallSignatures();
+    const label = sigs.length
+      ? `${name}${checker.signatureToString(sigs[0]).replace(/^\(/, "(")}`
+      : `${name}: ${checker.typeToString(propType)}`;
+    const lines = [`${"#".repeat(level)} \`${label}\`${unstable ? " *(unstable)*" : ""}`, ""];
+    if (text) lines.push(text, "");
+    return lines.join("\n");
+  };
+
+  const sections = [];
+  for (const clause of root.heritageClauses || []) {
+    for (const node of clause.types) {
+      const alias = checker.getSymbolAtLocation(node.expression);
+      if (!alias) continue;
+      const surface = alias.name.replace(/Api$/, "");
+      const type = checker.getTypeAtLocation(node);
+      const parts = [];
+      for (const prop of checker.getPropertiesOfType(type).sort((a, b) => a.name.localeCompare(b.name))) {
+        const propType = checker.getTypeOfSymbolAtLocation(prop, root);
+        // A namespace-like member (e.g. `cmd`) gets its members as sub-entries. Only
+        // properties declared in this bundle count -- an array or other lib-typed value
+        // must not have its built-in methods enumerated.
+        let inner = [];
+        if (propType.getCallSignatures().length === 0 && !checker.isArrayLikeType(propType)) {
+          const ownProp = (p) =>
+            (p.declarations || []).some((d) => d.getSourceFile() === source);
+          inner = checker.getPropertiesOfType(propType).filter(ownProp);
+        }
+        if (inner.length > 3) {
+          const { doc: text, unstable } = describe(prop, propType);
+          parts.push(
+            [`### \`${prop.name}\`${unstable ? " *(unstable)*" : ""}`, "", ...(text ? [text, ""] : [])].join("\n"),
+          );
+          for (const p of inner.sort((a, b) => a.name.localeCompare(b.name))) {
+            parts.push(entry(`${prop.name}.${p.name}`, p, checker.getTypeOfSymbolAtLocation(p, root), 4));
+          }
+        } else {
+          parts.push(entry(prop.name, prop, propType, 3));
+        }
+      }
+      if (parts.length) sections.push({ surface, doc: doc(alias), parts });
+    }
+  }
+
+  const anchor = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const md = [
+    "# MMA API reference",
+    "",
+    "Every member of the global `MMA` object, grouped by surface. Generated from the app",
+    "source alongside `mma.d.ts` -- do not edit by hand. Members marked *(unstable)* can",
+    "change in any release.",
+    "",
+    ...sections.map((s) => `- [${s.surface}](#${anchor(s.surface)})`),
+    "",
+    ...sections.flatMap((s) => [`## ${s.surface}`, "", ...(s.doc ? [s.doc, ""] : []), ...s.parts]),
+  ].join("\n");
+  fs.writeFileSync(path.resolve(__dirname, "API.md"), md);
+  console.log(`Generated plugins/types/API.md (${sections.length} sections)`);
 }
 
 main().catch((e) => {
