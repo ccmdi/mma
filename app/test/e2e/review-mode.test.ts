@@ -4,6 +4,7 @@ import {
 	getLocCount,
 	getLocOrNull,
 	seedLocs,
+	updateMapSettings,
 	useMap,
 	withApi,
 } from "./helpers";
@@ -440,5 +441,60 @@ describe("Review mode - empty queue cleanup", () => {
 		);
 		expect(r.active).toBeNull();
 		expect(r.count).toBe(0);
+	});
+});
+
+describe("Review mode - review order", () => {
+	useMap("E2E Review Order");
+	let locIds: number[];
+
+	before(async () => {
+		locIds = await addLocs([
+			createLocation({ lat: 0, lng: 0, zoom: 1 }),
+			createLocation({ lat: 1, lng: 1, zoom: 3 }),
+			createLocation({ lat: 2, lng: 2, zoom: 2 }),
+		]);
+	});
+
+	it("walks the worklist highest-scored first", async () => {
+		await updateMapSettings({ reviewOrder: "zoom" });
+		const r = await withApi(
+			async (api, ids, settle) => {
+				await api.beginReview(ids);
+				await new Promise((res) => setTimeout(res, settle));
+				const first = api.getMapState().activeLocation?.id ?? null;
+				await api.reviewNext();
+				await new Promise((res) => setTimeout(res, settle));
+				return { first, second: api.getMapState().activeLocation?.id ?? null };
+			},
+			[locIds[0], locIds[1], locIds[2]],
+			SETTLE,
+		);
+		expect(r.first).toBe(locIds[1]);
+		expect(r.second).toBe(locIds[2]);
+		await withApi(async (api, settle) => {
+			api.cancelReview();
+			await new Promise((res) => setTimeout(res, settle));
+			return { ok: true };
+		}, SETTLE);
+	});
+
+	it("blank order keeps the order the selection resolved in", async () => {
+		await updateMapSettings({ reviewOrder: null });
+		const r = await withApi(
+			async (api, ids, settle) => {
+				await api.beginReview(ids);
+				await new Promise((res) => setTimeout(res, settle));
+				return { first: api.getMapState().activeLocation?.id ?? null };
+			},
+			[locIds[0], locIds[1], locIds[2]],
+			SETTLE,
+		);
+		expect(r.first).toBe(locIds[0]);
+		await withApi(async (api, settle) => {
+			api.cancelReview();
+			await new Promise((res) => setTimeout(res, settle));
+			return { ok: true };
+		}, SETTLE);
 	});
 });
