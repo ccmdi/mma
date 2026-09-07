@@ -1,3 +1,16 @@
+## v0.10.5 - 2026-09-07
+- Review order: a formula in map settings decides what a review pass walks first
+- Plugins show up in the command palette
+- Text search now works the same everywhere: accents are ignored, and words can be typed in any order
+- Copyright detection keeps its models loaded between requests instead of reloading them every time
+- Fixed the active location's marker sitting slightly off from the same location's selection marker
+- Fixed undo and redo staying greyed out after a commit
+- Fixed the command palette shrinking as you type
+- Fixed plugin updates sometimes running twice at startup
+- Fixed copyright detection hanging on a batch with no official panoramas
+- Fixed the export toast naming the wrong file
+- Plugin SDK: a generated API reference ships beside the type definitions, and the support floor is 0.10.5
+
 ## v0.10.4 - 2026-09-05
 - Enrichment fields no longer wait behind unrelated slow ones; each starts as soon as what it needs is ready
 - The location panel fills in each field as it resolves instead of all at once
