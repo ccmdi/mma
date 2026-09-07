@@ -998,9 +998,12 @@ pub fn store_resolve(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
 ) -> AppResult<Vec<u32>> {
-    selector_read!(label, state, selector, |view, set| selections::ids_within(
-        &view, set
-    ))
+    selector_read!(label, state, selector, |view, set| match &selector {
+        Selector::Ranked {
+            expr, ascending, ..
+        } => selections::ranked_within(&view, set, expr, None, *ascending),
+        _ => selections::ids_within(&view, set),
+    })
 }
 
 /// Count how many locations the selector matches.

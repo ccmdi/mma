@@ -165,6 +165,32 @@ fn get_ignores_ids_that_are_not_there() {
 }
 
 #[test]
+fn a_topk_row_reads_as_a_ranked_over_the_rows_that_hold_the_field() {
+    let old = r#"{"type":"TopK","field":"altitude","k":10,"ascending":true}"#;
+    let selector: Selector =
+        serde_json::from_value(modernize(serde_json::from_str(old).unwrap())).unwrap();
+    let Selector::Ranked {
+        selection,
+        expr,
+        k,
+        ascending,
+    } = selector
+    else {
+        panic!("not a ranked");
+    };
+    assert_eq!(expr, "altitude");
+    assert_eq!(k, Some(10));
+    assert!(ascending);
+    // TopK never offered a row lacking the field; the child is what withholds it now.
+    let child = selection.expect("ranks a filtered child");
+    assert_eq!(child.key, "filter:altitude:has:null");
+    assert!(matches!(
+        child.selector,
+        Selector::Filter { ref field, test: FilterOp::Has } if field == "altitude"
+    ));
+}
+
+#[test]
 fn a_filter_row_written_before_0_10_2_still_reads() {
     let old = r#"{"type":"Intersection","selections":[
         {"key":"a","color":[0,0,0],"selector":{"type":"Filter","field":"altitude","op":"between","value":1,"value2":2,"tzLocal":true}},

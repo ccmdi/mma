@@ -918,6 +918,7 @@
 	"Random": "Aleatorio",
 	"Range": "Rango",
 	"Rank metadata fields by how strongly they separate selections": "Clasificar los campos de metadatos según su capacidad para separar las selecciones",
+	"Ranked by {field}": "Ordenado por {field}",
 	"Re-enrich already enriched locations": "Volver a enriquecer las ubicaciones ya enriquecidas",
 	"Re-fetch document (bypass cache)": "Volver a obtener el documento (omitir la caché)",
 	"Re-pin already pinned locations": "Volver a fijar las ubicaciones ya fijadas",

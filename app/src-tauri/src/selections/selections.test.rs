@@ -2009,54 +2009,89 @@ fn loc_extra(id: u32, extra: serde_json::Value) -> Location {
     }
 }
 
-// --- TopK ---
+// --- Ranked ---
 
-#[test]
-fn topk_selects_highest() {
-    let locs = vec![
+fn ranked(expr: &str, k: Option<u32>, ascending: bool) -> Selector {
+    Selector::Ranked {
+        selection: None,
+        expr: expr.into(),
+        k,
+        ascending,
+    }
+}
+
+/// Ranking over only the rows that hold the field, the way the top-k UI composes it.
+fn ranked_having(field: &str, k: Option<u32>, ascending: bool) -> Selector {
+    Selector::Ranked {
+        selection: Some(Box::new(leaf(
+            "has",
+            Selector::Filter {
+                field: field.into(),
+                test: FilterOp::Has,
+            },
+        ))),
+        expr: field.into(),
+        k,
+        ascending,
+    }
+}
+
+fn alt_fx() -> Fx {
+    Fx::adds(vec![
         loc_extra(1, serde_json::json!({"alt": 100})),
         loc_extra(2, serde_json::json!({"alt": 300})),
         loc_extra(3, serde_json::json!({"alt": 200})),
         loc_extra(4, serde_json::json!({"alt": 500})),
         loc_extra(5, serde_json::json!({"alt": 400})),
-    ];
-    let fx = Fx::adds(locs);
-    let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::TopK {
-            field: "alt".into(),
-            k: 3,
-            ascending: false,
-        },
-    );
+    ])
+}
+
+#[test]
+fn ranked_k_keeps_the_highest() {
+    let fx = alt_fx();
+    let ids = ids_of(&fx.view(), &ranked("alt", Some(3), false));
     assert_eq!(ids, vec![2, 4, 5]); // 500, 400, 300
 }
 
 #[test]
-fn topk_selects_lowest() {
-    let locs = vec![
-        loc_extra(1, serde_json::json!({"alt": 100})),
-        loc_extra(2, serde_json::json!({"alt": 300})),
-        loc_extra(3, serde_json::json!({"alt": 200})),
-        loc_extra(4, serde_json::json!({"alt": 500})),
-        loc_extra(5, serde_json::json!({"alt": 400})),
-    ];
-    let fx = Fx::adds(locs);
-    let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::TopK {
-            field: "alt".into(),
-            k: 2,
-            ascending: true,
-        },
-    );
+fn ranked_k_ascending_keeps_the_lowest() {
+    let fx = alt_fx();
+    let ids = ids_of(&fx.view(), &ranked("alt", Some(2), true));
     assert_eq!(ids, vec![1, 3]); // 100, 200
 }
 
 #[test]
-fn topk_skips_missing_field() {
+fn ranked_orders_the_ids_it_returns() {
+    let fx = alt_fx();
+    let view = fx.view();
+    // Membership is a set, so the order lives in the read, not in `resolve`.
+    assert_eq!(
+        ranked_within(&view, None, "alt", None, false),
+        vec![4, 5, 2, 3, 1]
+    );
+    assert_eq!(
+        ranked_within(&view, None, "alt", None, true),
+        vec![1, 3, 2, 5, 4]
+    );
+}
+
+#[test]
+fn ranked_sinks_what_it_cannot_score_in_either_direction() {
+    let locs = vec![
+        loc_extra(1, serde_json::json!({"alt": 100})),
+        loc_extra(2, serde_json::json!({})),
+        loc_extra(3, serde_json::json!({"alt": "x"})),
+        loc_extra(4, serde_json::json!({"alt": 50})),
+    ];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+    // "no score" is absence, not a low score: it ranks last ascending too.
+    assert_eq!(ranked_within(&view, None, "alt", None, false), vec![1, 4, 2, 3]);
+    assert_eq!(ranked_within(&view, None, "alt", None, true), vec![4, 1, 2, 3]);
+}
+
+#[test]
+fn ranked_keeps_unscorable_members_but_a_filtered_child_drops_them() {
     let locs = vec![
         loc_extra(1, serde_json::json!({"alt": 100})),
         loc_extra(2, serde_json::json!({})),
@@ -2064,74 +2099,84 @@ fn topk_skips_missing_field() {
     ];
     let fx = Fx::adds(locs);
     let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::TopK {
-            field: "alt".into(),
-            k: 10,
-            ascending: false,
-        },
-    );
-    assert_eq!(ids, vec![1, 3]); // only 2 have the field, k=10 returns all available
+    // Ranking never drops: k=10 over 3 rows keeps all 3, unscorable included.
+    assert_eq!(ids_of(&view, &ranked("alt", Some(10), false)), vec![1, 2, 3]);
+    // Dropping is the child's job.
+    assert_eq!(ids_of(&view, &ranked_having("alt", Some(10), false)), vec![1, 3]);
 }
 
 #[test]
-fn topk_works_on_base_batch() {
+fn ranked_without_k_selects_its_child_unchanged() {
+    let locs = vec![
+        loc_extra(1, serde_json::json!({"alt": 100})),
+        loc_extra(2, serde_json::json!({})),
+        loc_extra(3, serde_json::json!({"alt": 50})),
+    ];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+    assert_eq!(ids_of(&view, &ranked("alt", None, false)), vec![1, 2, 3]);
+    assert_eq!(ids_of(&view, &ranked_having("alt", None, false)), vec![1, 3]);
+}
+
+#[test]
+fn ranked_works_on_base_batch() {
     let locs = vec![
         loc_extra(1, serde_json::json!({"val": 10})),
         loc_extra(2, serde_json::json!({"val": 30})),
         loc_extra(3, serde_json::json!({"val": 20})),
     ];
     let fx = Fx::base(&locs);
-    let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::TopK {
-            field: "val".into(),
-            k: 1,
-            ascending: false,
-        },
-    );
+    let ids = ids_of(&fx.view(), &ranked("val", Some(1), false));
     assert_eq!(ids, vec![2]); // 30 is highest
 }
 
 #[test]
-fn topk_zero_k_selects_nothing() {
-    let locs = vec![
-        loc_extra(1, serde_json::json!({"alt": 100})),
-        loc_extra(2, serde_json::json!({"alt": 200})),
-    ];
-    let fx = Fx::adds(locs);
-    let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::TopK {
-            field: "alt".into(),
-            k: 0,
-            ascending: false,
-        },
-    );
+fn ranked_zero_k_selects_nothing() {
+    let fx = alt_fx();
+    let ids = ids_of(&fx.view(), &ranked("alt", Some(0), false));
     assert_eq!(ids, Vec::<u32>::new());
 }
 
 #[test]
-fn topk_k_equals_len_selects_all() {
+fn ranked_k_equals_len_selects_all() {
+    let fx = alt_fx();
+    let ids = ids_of(&fx.view(), &ranked("alt", Some(5), false));
+    assert_eq!(ids, vec![1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn ranked_within_honours_the_set() {
+    let fx = alt_fx();
+    let set: RoaringBitmap = [1u32, 3].into_iter().collect();
+    assert_eq!(
+        ranked_within(&fx.view(), Some(&set), "alt", None, false),
+        vec![3, 1]
+    );
+}
+
+#[test]
+fn ranked_takes_a_whole_expression_not_just_a_field() {
     let locs = vec![
-        loc_extra(1, serde_json::json!({"alt": 100})),
-        loc_extra(2, serde_json::json!({"alt": 300})),
-        loc_extra(3, serde_json::json!({"alt": 200})),
+        loc_extra(1, serde_json::json!({"a": 1, "b": 10})),
+        loc_extra(2, serde_json::json!({"a": 5, "b": 1})),
+        loc_extra(3, serde_json::json!({"a": 2, "b": 2})),
     ];
     let fx = Fx::adds(locs);
-    let view = fx.view();
-    let ids = ids_of(
-        &view,
-        &Selector::TopK {
-            field: "alt".into(),
-            k: 3,
-            ascending: false,
-        },
+    assert_eq!(
+        ranked_within(&fx.view(), None, "a + b", None, false),
+        vec![1, 2, 3]
     );
-    assert_eq!(ids, vec![1, 2, 3]);
+}
+
+#[test]
+fn ranked_with_an_unparseable_expression_scores_nothing_and_keeps_view_order() {
+    let fx = alt_fx();
+    let view = fx.view();
+    assert_eq!(
+        ranked_within(&view, None, "alt +", None, false),
+        vec![1, 2, 3, 4, 5]
+    );
+    assert_eq!(ids_of(&view, &ranked("alt +", Some(2), false)), vec![1, 2]);
 }
 
 #[test]
@@ -2678,7 +2723,7 @@ enum WithinTree {
     HeadingOver(u8),
     HasPano,
     Duplicates(f64),
-    TopK(u32, bool),
+    Ranked(u32, bool),
     Intersection(Vec<WithinTree>),
     Union(Vec<WithinTree>),
     Invert(Vec<WithinTree>),
@@ -2730,9 +2775,10 @@ fn within_selector(t: &WithinTree) -> Selector {
         WithinTree::Duplicates(distance) => Selector::Duplicates {
             distance: *distance,
         },
-        WithinTree::TopK(k, ascending) => Selector::TopK {
-            field: "heading".into(),
-            k: *k,
+        WithinTree::Ranked(k, ascending) => Selector::Ranked {
+            selection: None,
+            expr: "heading".into(),
+            k: Some(*k),
             ascending: *ascending,
         },
         WithinTree::Intersection(c) => Selector::Intersection {
@@ -2760,7 +2806,7 @@ fn within_tree_strategy() -> impl Strategy<Value = WithinTree> {
         (0u8..4).prop_map(WithinTree::HeadingOver),
         Just(WithinTree::HasPano),
         prop_oneof![Just(50.0), Just(200.0)].prop_map(WithinTree::Duplicates),
-        (1u32..=5, any::<bool>()).prop_map(|(k, asc)| WithinTree::TopK(k, asc)),
+        (1u32..=5, any::<bool>()).prop_map(|(k, asc)| WithinTree::Ranked(k, asc)),
     ];
     leaf.prop_recursive(3, 12, 3, |inner| {
         prop_oneof![

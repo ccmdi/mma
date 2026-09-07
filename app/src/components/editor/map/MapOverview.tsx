@@ -12,7 +12,7 @@ import {
 	selectSpacedFromSelection,
 	currentSelection,
 } from "@/store/useMapStore";
-import { addSelection, batch } from "@/store/selections";
+import { addSelection, batch, buildSelection } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { sortTagsByMode } from "@/lib/util/util";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
@@ -174,7 +174,7 @@ function SpacedPickPanel() {
 	);
 }
 
-function TopKPanel({
+function RankedPanel({
 	field: fieldProp,
 	setField,
 	count,
@@ -198,7 +198,15 @@ function TopKPanel({
 				e.preventDefault();
 				if (!field || count < 1) return;
 				void applySelectionUpdate(
-					batch(addSelection)([{ type: "TopK", field, k: count, ascending }]),
+					batch(addSelection)([
+						{
+							type: "Ranked",
+							selection: buildSelection({ type: "Filter", field, test: { op: "has" } }),
+							expr: field,
+							k: count,
+							ascending,
+						},
+					]),
 				);
 			}}
 		>
@@ -311,9 +319,9 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 	const [selectionsCollapsed, setSelectionsCollapsed] = useState(false);
 	const [dupDistance, setDupDistance] = useState(1);
 	const dupUnit = distanceUnit("m");
-	const [topKField, setTopKField] = useState("");
-	const [topKCount, setTopKCount] = useState(10);
-	const [topKAscending, setTopKAscending] = useState(false);
+	const [rankField, setRankField] = useState("");
+	const [rankCount, setRankCount] = useState(10);
+	const [rankAscending, setRankAscending] = useState(false);
 	const [showTagFindReplace, setShowTagFindReplace] = useDialogState("tag-find-replace");
 	const [showMergeDuplicates, setShowMergeDuplicates] = useDialogState("merge-duplicates");
 	const [showReviews, setShowReviews] = useDialogState("review-sessions");
@@ -402,13 +410,13 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 						},
 						"top-k": {
 							render: () => (
-								<TopKPanel
-									field={topKField}
-									setField={setTopKField}
-									count={topKCount}
-									setCount={setTopKCount}
-									ascending={topKAscending}
-									setAscending={setTopKAscending}
+								<RankedPanel
+									field={rankField}
+									setField={setRankField}
+									count={rankCount}
+									setCount={setRankCount}
+									ascending={rankAscending}
+									setAscending={setRankAscending}
 								/>
 							),
 						},

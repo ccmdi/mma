@@ -242,7 +242,13 @@ describe("Selector coverage", () => {
 		Union: { type: "Union", selections: [sel({ type: "Everything" })] },
 		Invert: { type: "Invert", selections: [sel({ type: "Everything" })] },
 		Filter: { type: "Filter", field: "altitude", test: { op: "gt", value: 1, tzLocal: true } },
-		TopK: { type: "TopK", field: "altitude", k: 5, ascending: false },
+		Ranked: {
+			type: "Ranked",
+			selection: sel({ type: "Filter", field: "altitude", test: { op: "has" } }),
+			expr: "altitude",
+			k: 5,
+			ascending: false,
+		},
 	};
 
 	// Read the variants off the generated union so a new Rust variant fails here. A
@@ -253,6 +259,20 @@ describe("Selector coverage", () => {
 		const decl = src.slice(src.indexOf("export type Selector =")).split("\n\n")[0];
 		return [...decl.matchAll(/type: "(\w+)"/g)].map((m) => m[1]);
 	};
+
+	it("sees a child a selector wraps outside a `selections` list", () => {
+		// Ranked holds one child under `selection`; a walk that only knew `selections`
+		// would call a map-local tree saveable.
+		expect(
+			isSaveable({
+				type: "Ranked",
+				selection: sel({ type: "Manual", locations: [1] }),
+				expr: "altitude",
+				k: null,
+				ascending: false,
+			}),
+		).toBe(false);
+	});
 
 	it("has a sample for every generated variant", () => {
 		expect(generatedTypes().sort()).toEqual(Object.keys(SAMPLES).sort());

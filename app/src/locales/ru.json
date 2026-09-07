@@ -938,6 +938,7 @@
 	"Random": "Случайно",
 	"Range": "Диапазон",
 	"Rank metadata fields by how strongly they separate selections": "Ранжировать поля метаданных по тому, насколько сильно они разделяют выборки",
+	"Ranked by {field}": "Упорядочено по {field}",
 	"Re-enrich already enriched locations": "Обогащать повторно уже обогащённые локации",
 	"Re-fetch document (bypass cache)": "Загрузить документ заново (без кэша)",
 	"Re-pin already pinned locations": "Перезакреплять уже закреплённые локации",

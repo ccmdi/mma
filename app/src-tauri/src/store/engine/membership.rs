@@ -133,7 +133,7 @@ impl Store {
             matches!(
                 r.sel.selector,
                 Selector::Duplicates { .. }
-                    | Selector::TopK { .. }
+                    | Selector::Ranked { .. }
                     | Selector::Uncommitted
                     | Selector::Intersection { .. }
                     | Selector::Union { .. }

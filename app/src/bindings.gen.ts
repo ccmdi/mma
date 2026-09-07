@@ -526,7 +526,7 @@ export type AttachmentRef = {
 };
 
 /**  How a page of rows is cut into procedure calls. */
-export type BatchMode = { mode: "chunk"; size: number } | { mode: "perRow" } | 
+export type BatchMode = { mode: "chunk"; size: number } | { mode: "perRow" } |
 /**
  *  Group rows by a row field; the procedure sees one representative per distinct
  *  value and its patch fans back out to every row sharing it. v1 key: `panoId`.
@@ -600,11 +600,11 @@ export type Conflict = {
 	remote: NormalizedSyncLocation | null,
 };
 
-export type ConflictKind = 
+export type ConflictKind =
 /**  Both sides modified the same location differently. */
-"update-update" | 
+"update-update" |
 /**  One side deleted while the other modified. */
-"delete-update" | 
+"delete-update" |
 /**  Both sides added the same identity with different content (hash collision only). */
 "add-add";
 
@@ -772,19 +772,19 @@ export type FieldCount = {
  *  A field-wide rewrite of the `extra` map. Patches are derived *per row*, which is what
  *  separates these from `store_update_locations`' explicit patch list.
  */
-export type FieldOp = 
+export type FieldOp =
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
  *  where nothing holds `to` -- so `winner` decides only where a row holds both.
  */
-{ kind: "move"; from: string; to: string; winner: MergeWinner } | 
+{ kind: "move"; from: string; to: string; winner: MergeWinner } |
 /**  Drop `keys` from every row that has them. */
-{ kind: "delete"; keys: string[] } | 
+{ kind: "delete"; keys: string[] } |
 /**
  *  Assign `value` to `key` on every row where it differs. A writable built-in key
  *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
  */
-{ kind: "set"; key: string; value: unknown } | 
+{ kind: "set"; key: string; value: unknown } |
 /**
  *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
  *  missing or non-numeric field, a non-finite result) is reported back by id.
@@ -896,17 +896,17 @@ export type IssueThread = {
 };
 
 /**  How a field value becomes a group key. Wire-mirrors the JS `KeySpec`. */
-export type KeySpec = 
+export type KeySpec =
 /**  String value of the field (enum/string/month "YYYY-MM"/number). */
-{ kind: "value" } | 
+{ kind: "value" } |
 /**  Equal-width numeric bins. */
-{ kind: "numericBin"; binning: NumericBinning } | 
+{ kind: "numericBin"; binning: NumericBinning } |
 /**  Calendar component of a date (epoch seconds) or month ("YYYY-MM") field. */
 { kind: "datePart"; part: DatePart; tzLocal: boolean };
 
 /**
  *  A single Street View location on a map.
- * 
+ *
  *  This is the atomic unit of data in the system. Locations are stored columnar
  *  in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
  *  within a map and assigned by the store's monotonic allocator.
@@ -1575,7 +1575,17 @@ export type SelectionSync = {
  *   parallel batch scans. Composites (Intersection, Union, Invert) recursively resolve
  *  children. Duplicates uses a grid-accelerated spatial scan.
  */
-export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Tag"; tagId: number } | { type: "Untagged" } | { type: "Unpanned" } | { type: "PanoIds" } | { type: "NotPanoIds" } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | { type: "TopK"; field: string; k: number; ascending: boolean };
+export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Tag"; tagId: number } | { type: "Untagged" } | { type: "Unpanned" } | { type: "PanoIds" } | { type: "NotPanoIds" } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } |
+/**
+ *  Rank a selection by a `field_expr`, optionally keeping only the first `k`. The
+ *  order is the point: `store_resolve` emits a ranked root in rank order, where every
+ *  other selector answers ascending. With no `k` this selects its child unchanged and
+ *  states only how to walk it. A member the expression cannot score ranks last, so
+ *  ranking never drops anything -- narrow the child when only scorable rows qualify.
+ */
+{ type: "Ranked";
+/**  What to rank; `None` ranks the whole map. */
+selection: Selection | null; expr: string; k: number | null; ascending: boolean };
 
 export type SideCounts = {
 	create: number,
@@ -1783,4 +1793,3 @@ function makeEvent<T>(name: string, serialize?: (payload: T) => unknown, deseria
 
     return Object.assign(fn, base);
 }
-

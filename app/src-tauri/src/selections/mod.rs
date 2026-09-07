@@ -87,9 +87,16 @@ pub enum Selector {
         field: String,
         test: FilterOp,
     },
-    TopK {
-        field: String,
-        k: u32,
+    /// Rank a selection by a `field_expr`, optionally keeping only the first `k`. Emits
+    /// a ranked root in rank order, where every other selector answers ascending. With no
+    /// `k` this selects its child unchanged and states only how to walk it. A member the
+    /// expression cannot score ranks last, so ranking never drops anything.
+    #[serde(rename_all = "camelCase")]
+    Ranked {
+        /// What to rank; `None` ranks the whole map.
+        selection: Option<Box<Selection>>,
+        expr: String,
+        k: Option<u32>,
         ascending: bool,
     },
 }
@@ -775,6 +782,21 @@ pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
                 .iter()
                 .fold(RoaringBitmap::new(), |acc, s| acc | resolve(view, &s.selector));
         }
+        Selector::Ranked {
+            selection,
+            expr,
+            k,
+            ascending,
+        } => {
+            let inner = match selection {
+                Some(child) => resolve(view, &child.selector),
+                None => alive_id_set(view),
+            };
+            let Some(k) = k else { return inner };
+            return ranked_within(view, Some(&inner), expr, Some(*k as usize), *ascending)
+                .into_iter()
+                .collect();
+        }
         Selector::Invert { selections } => {
             // Invert = (all alive ids) - (child ids). roaring-rs has no native flip,
             // so this is a difference against the universe set.
@@ -823,7 +845,7 @@ pub fn resolve_within(
             Some(first) => within - resolve_within(view, &first.selector, within),
             None => within.clone(),
         },
-        Selector::Duplicates { .. } | Selector::TopK { .. } | Selector::Polygon { .. } => {
+        Selector::Duplicates { .. } | Selector::Ranked { .. } | Selector::Polygon { .. } => {
             resolve(view, selector) & within
         }
         Selector::Tag { .. } if view.tag_sets.is_some() => resolve(view, selector) & within,
@@ -953,51 +975,6 @@ fn resolve_leaf_mask(view: &LocView, selector: &Selector) -> Vec<bool> {
                 })
             }
         },
-        Selector::TopK {
-            field,
-            k,
-            ascending,
-        } => {
-            let mut entries: Vec<(usize, f64)> = Vec::new();
-            for i in 0..view.batch_rows {
-                if !view.is_alive(i) {
-                    continue;
-                }
-                let row = match view.patch_at(i) {
-                    Some(p) => RowRef::from_loc(p),
-                    None => RowRef {
-                        inner: RowInner::Base(view, i),
-                    },
-                };
-                if let Some(v) = row.resolve_field(field).as_ref().and_then(as_f64) {
-                    entries.push((i, v));
-                }
-            }
-            for (j, loc) in view.adds.iter().enumerate() {
-                if let Some(v) = resolve_field_loc(loc, field).as_ref().and_then(as_f64) {
-                    entries.push((view.batch_rows + j, v));
-                }
-            }
-            let k = *k as usize;
-            let asc = |a: &(usize, f64), b: &(usize, f64)| {
-                a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal)
-            };
-            if k > 0 && k < entries.len() {
-                if *ascending {
-                    entries.select_nth_unstable_by(k - 1, asc);
-                } else {
-                    entries.select_nth_unstable_by(k - 1, |a, b| asc(b, a));
-                }
-                entries.truncate(k);
-            }
-            let mut mask = vec![false; n];
-            if k > 0 {
-                for &(i, _) in &entries {
-                    mask[i] = true;
-                }
-            }
-            mask
-        }
         _ => view.resolve_mask(|r| test_row(r, selector)),
     }
 }
@@ -1073,6 +1050,53 @@ pub fn ids_within(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<u32> {
     let mut ids = Vec::new();
     view.for_each_within(set, |row| ids.push(row.id()));
     ids
+}
+
+/// Selected ids best-ranked first: highest score, or lowest when `ascending`. A row the
+/// expression cannot evaluate (unparseable expression, missing field, non-numeric,
+/// non-finite result) ranks below every row it can, whichever direction is asked for --
+/// "no score" is absence, not a low one. The sort is stable, so ties keep view order.
+/// `k` cuts to the best k first, which costs a selection rather than a full sort.
+pub fn ranked_within(
+    view: &LocView,
+    set: Option<&RoaringBitmap>,
+    expr: &str,
+    k: Option<usize>,
+    ascending: bool,
+) -> Vec<u32> {
+    let expr = field_expr::parse(expr).ok();
+    let mut scored: Vec<(u32, Option<f64>)> = Vec::new();
+    view.for_each_within(set, |row| {
+        let score = expr
+            .as_ref()
+            .and_then(|e| field_expr::eval(e, &|name| row.resolve_field(name)));
+        scored.push((row.id(), score));
+    });
+    // eval never yields NaN, so partial_cmp is total.
+    let better = |a: &(u32, Option<f64>), b: &(u32, Option<f64>)| match (a.1, b.1) {
+        (Some(x), Some(y)) => {
+            let c = x.partial_cmp(&y).unwrap_or(Ordering::Equal);
+            if ascending {
+                c
+            } else {
+                c.reverse()
+            }
+        }
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    };
+    if let Some(k) = k {
+        if k == 0 {
+            return Vec::new();
+        }
+        if k < scored.len() {
+            scored.select_nth_unstable_by(k - 1, better);
+            scored.truncate(k);
+        }
+    }
+    scored.sort_by(better);
+    scored.into_iter().map(|(id, _)| id).collect()
 }
 
 /// Distinct values of `field` across the selected set, sorted. Scalars stringify so they

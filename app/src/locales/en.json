@@ -898,6 +898,7 @@
 	"Random": "Random",
 	"Range": "Range",
 	"Rank metadata fields by how strongly they separate selections": "Rank metadata fields by how strongly they separate selections",
+	"Ranked by {field}": "Ranked by {field}",
 	"Re-enrich already enriched locations": "Re-enrich already enriched locations",
 	"Re-fetch document (bypass cache)": "Re-fetch document (bypass cache)",
 	"Re-pin already pinned locations": "Re-pin already pinned locations",

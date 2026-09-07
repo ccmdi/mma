@@ -253,14 +253,15 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 			return clause(fmtVal(test.value));
 		},
 	},
-	TopK: {
-		key: (s) => `topk:${s.field}:${s.k}:${s.ascending}`,
+	Ranked: {
+		key: (s) => `ranked:${s.expr}:${s.k}:${s.ascending}:${s.selection?.key ?? ""}`,
 		label: (s) => {
-			const fieldDef = getFieldDef(s.field);
-			const label = fieldDef?.label ? t(fieldDef.label) : s.field;
+			const fieldDef = getFieldDef(s.expr);
+			const by = fieldDef?.label ? t(fieldDef.label) : s.expr;
+			if (s.k == null) return t("Ranked by {field}", { field: by });
 			return s.ascending
-				? t("Bottom {k} by {field}", { k: s.k, field: label })
-				: t("Top {k} by {field}", { k: s.k, field: label });
+				? t("Bottom {k} by {field}", { k: s.k, field: by })
+				: t("Top {k} by {field}", { k: s.k, field: by });
 		},
 	},
 };
@@ -292,6 +293,20 @@ function polygonKey(geom: PolygonGeometry): string {
 	for (const ring of geom.coordinates) foldRing(ring);
 	for (const poly of geom.extraPolygons ?? []) for (const ring of poly) foldRing(ring);
 	return `polygon:${(h1 >>> 0).toString(36)}${(h2 >>> 0).toString(36)}`;
+}
+
+/** Every child selection a selector wraps, whatever shape it wraps them in. */
+export function childSelections(selector: Selector): Selection[] {
+	if ("selections" in selector) return selector.selections;
+	if ("selection" in selector) return selector.selection ? [selector.selection] : [];
+	return [];
+}
+
+/** `selector` with its children replaced, keeping the shape it wraps them in. */
+export function withChildren(selector: Selector, children: Selection[]): Selector {
+	if ("selections" in selector) return { ...selector, selections: children };
+	if ("selection" in selector) return { ...selector, selection: children[0] ?? null };
+	return selector;
 }
 
 /** Create a Selection with a deterministic key and color from its selector. */

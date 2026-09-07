@@ -918,6 +918,7 @@
 	"Random": "Aléatoire",
 	"Range": "Plage",
 	"Rank metadata fields by how strongly they separate selections": "Classer les champs de métadonnées selon leur pouvoir de séparation des sélections",
+	"Ranked by {field}": "Classé par {field}",
 	"Re-enrich already enriched locations": "Ré-enrichir les lieux déjà enrichis",
 	"Re-fetch document (bypass cache)": "Recharger le document (ignorer le cache)",
 	"Re-pin already pinned locations": "Ré-épingler les lieux déjà épinglés",

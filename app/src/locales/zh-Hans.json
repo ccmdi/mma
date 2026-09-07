@@ -878,6 +878,7 @@
 	"Random": "随机",
 	"Range": "范围",
 	"Rank metadata fields by how strongly they separate selections": "按区分选区的强度对元数据字段排序",
+	"Ranked by {field}": "按{field}排序",
 	"Re-enrich already enriched locations": "重新扩展已扩展的位置",
 	"Re-fetch document (bypass cache)": "重新获取文档（跳过缓存）",
 	"Re-pin already pinned locations": "重新固定已固定的位置",

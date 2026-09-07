@@ -108,8 +108,10 @@ fn parse_row(
 }
 
 /// Rows written before 0.10.2 spell a filter flat (`op`, `value`, `value2`, `tzLocal`
-/// beside `field`); since then the predicate is one `test` object. Rewritten on read,
-/// so the row itself is never touched.
+/// beside `field`); since then the predicate is one `test` object. Rows written before
+/// `Ranked` spell it `TopK`, which ranked a bare field and dropped rows lacking it -- the
+/// drop is now the child selection's job, so the rewrite wraps the field in a `has` filter.
+/// Both are rewritten on read, so the row itself is never touched.
 pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
     use serde_json::Value;
     let Some(obj) = selector.as_object_mut() else {
@@ -138,6 +140,27 @@ pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
                 }
             }
             obj.insert("test".into(), Value::Object(test));
+        }
+    }
+    if obj.get("type").and_then(Value::as_str) == Some("TopK") {
+        if let Some(Value::String(field)) = obj.remove("field") {
+            let k = obj.remove("k").unwrap_or(Value::Null);
+            obj.insert("type".into(), Value::String("Ranked".into()));
+            obj.insert("expr".into(), Value::String(field.clone()));
+            obj.insert("k".into(), k);
+            obj.insert(
+                "selection".into(),
+                serde_json::json!({
+                    "key": format!("filter:{field}:has:null"),
+                    "color": NO_COLOR,
+                    "selector": { "type": "Filter", "field": field, "test": { "op": "has" } },
+                }),
+            );
+        }
+    }
+    if let Some(child) = obj.get_mut("selection").and_then(Value::as_object_mut) {
+        if let Some(inner) = child.get_mut("selector") {
+            *inner = modernize(inner.take());
         }
     }
     if let Some(Value::Array(children)) = obj.get_mut("selections") {

@@ -878,6 +878,7 @@
 	"Random": "ランダム",
 	"Range": "範囲",
 	"Rank metadata fields by how strongly they separate selections": "選択をどれだけ強く分離するかでメタデータフィールドを順位付け",
+	"Ranked by {field}": "{field}順",
 	"Re-enrich already enriched locations": "エンリッチ済みの地点を再エンリッチ",
 	"Re-fetch document (bypass cache)": "ドキュメントを再取得（キャッシュを無視）",
 	"Re-pin already pinned locations": "ピン留め済みの地点を再ピン留め",
