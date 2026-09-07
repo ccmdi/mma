@@ -54,44 +54,31 @@ export function ExportDialog({ onClose }: Props) {
 	const csvPath = () => cmd.storeExportCsv(selector);
 	const geojsonPath = () => cmd.storeExportGeojson(selector, tagsJson());
 
-	const saveToFile = (srcPath: string, ext: string) =>
-		saveExportTempFile(srcPath, `${baseName}.${ext}`);
+	const guard = (run: () => Promise<void>) => async () => {
+		try {
+			await run();
+		} catch (e) {
+			log.error("[export] failed:", e);
+			toast(t("Export failed"));
+		}
+	};
 
-	const withFeedback =
-		(run: () => Promise<string | false | void>, success: (file: string) => string) => async () => {
-			try {
-				const saved = await run();
-				if (saved !== false) toast(success(saved ?? ""));
-			} catch (e) {
-				log.error("[export] failed:", e);
-				toast(t("Export failed"));
-			}
-		};
+	const copy = (build: () => Promise<string>, copied: string) =>
+		guard(async () => {
+			await navigator.clipboard.writeText(await (await fetch(mmaBufUrl(await build()))).text());
+			toast(copied);
+		});
+	const download = (build: () => Promise<string>, ext: string) =>
+		guard(async () => {
+			const file = await saveExportTempFile(await build(), `${baseName}.${ext}`);
+			if (file) toast(t("Downloaded {file}", { file }));
+		});
 
-	const copyJson = withFeedback(
-		async () =>
-			navigator.clipboard.writeText(await (await fetch(mmaBufUrl(await jsonPath()))).text()),
-		() => t("Copied JSON to clipboard"),
-	);
-	const downloadJson = withFeedback(
-		async () => saveToFile(await jsonPath(), "json"),
-		(file) => t("Downloaded {file}", { file }),
-	);
-
-	const copyCsv = withFeedback(
-		async () =>
-			navigator.clipboard.writeText(await (await fetch(mmaBufUrl(await csvPath()))).text()),
-		() => t("Copied CSV to clipboard"),
-	);
-	const downloadCsv = withFeedback(
-		async () => saveToFile(await csvPath(), "csv"),
-		(file) => t("Downloaded {file}", { file }),
-	);
-
-	const downloadGeoJson = withFeedback(
-		async () => saveToFile(await geojsonPath(), "geojson"),
-		(file) => t("Downloaded {file}", { file }),
-	);
+	const copyJson = copy(jsonPath, t("Copied JSON to clipboard"));
+	const downloadJson = download(jsonPath, "json");
+	const copyCsv = copy(csvPath, t("Copied CSV to clipboard"));
+	const downloadCsv = download(csvPath, "csv");
+	const downloadGeoJson = download(geojsonPath, "geojson");
 
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
