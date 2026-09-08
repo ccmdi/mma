@@ -15,10 +15,16 @@ const MUST_STAY_LAZY = [
 /** Fails the production build when the eager bundle grows a forbidden edge, asserting on the
  *  emitted bundle -- what actually ships -- rather than on source imports. */
 function eagerBundleGuard(): Plugin {
+	let ssr = false;
 	return {
 		name: "mma:eager-bundle-guard",
 		apply: "build",
+		configResolved(config) {
+			ssr = Boolean(config.build.ssr);
+		},
 		generateBundle(_options, bundle) {
+			if (ssr) return; // the manual-index build deliberately pulls the MDX in
+
 			const entry = Object.values(bundle).find((c) => c.type === "chunk" && c.isEntry);
 			if (entry?.type !== "chunk") return;
 

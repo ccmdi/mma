@@ -6,6 +6,7 @@
  *  - `matches` — predicate for lists that filter in place and keep their own order
  *  - `search`  — ranked results for pickers and suggestion lists
  *  - `score`   — the raw scorer, for hosts that rank per item themselves (cmdk)
+ *  - `snippet` — an excerpt of a matched body, for results that show context
  */
 
 export type SearchTexts = readonly (string | null | undefined)[];
@@ -41,7 +42,11 @@ function tokenScore(hay: string, token: string, fuzzy: boolean): number {
 const SECONDARY = 0.7;
 
 /** `texts[0]` is the primary field; later texts match at a discount. */
-function scoreFolded(queryTokens: readonly string[], texts: readonly string[], fuzzy = true): number {
+function scoreFolded(
+	queryTokens: readonly string[],
+	texts: readonly string[],
+	fuzzy = true,
+): number {
 	let total = 0;
 	for (const token of queryTokens) {
 		let best = 0;
@@ -100,4 +105,22 @@ export function search<T>(
 	}
 	scored.sort((a, b) => b[1] - a[1]);
 	return scored.map(([item]) => item);
+}
+
+/** A short excerpt of `text` centred on its earliest query term (positioned on the raw text,
+ *  so an accent-only match falls back to the head). */
+export function snippet(text: string, query: string): string {
+	const lower = text.toLowerCase();
+	let pos = -1;
+	for (const token of tokenize(query)) {
+		const at = lower.indexOf(token);
+		if (at !== -1 && (pos === -1 || at < pos)) pos = at;
+	}
+	if (pos === -1) return text.slice(0, 120).trim() + (text.length > 120 ? "…" : "");
+	const start = Math.max(0, pos - 50);
+	const end = Math.min(text.length, pos + 90);
+	let out = text.slice(start, end).trim();
+	if (start > 0) out = "…" + out;
+	if (end < text.length) out = out + "…";
+	return out;
 }

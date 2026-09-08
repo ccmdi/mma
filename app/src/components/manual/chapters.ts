@@ -2,6 +2,13 @@ import type { ReactElement } from "react";
 
 export type ChapterBody = (props: { components?: Record<string, unknown> }) => ReactElement;
 
+/** One chapter as the build-time search index stores it (see indexSource.ts). */
+export interface ChapterText {
+	id: string;
+	title: string;
+	text: string;
+}
+
 export interface Chapter {
 	id: string;
 	order: number;

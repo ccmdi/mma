@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { score, matches, search } from "@/lib/search";
+import { score, matches, search, snippet } from "@/lib/search";
 
 describe("score", () => {
 	it("empty query matches everything at full score", () => {
@@ -89,5 +89,24 @@ describe("search", () => {
 		expect(texts).toHaveBeenCalledTimes(fresh.length);
 		search(fresh.slice(), "undo", texts);
 		expect(texts).toHaveBeenCalledTimes(fresh.length * 2);
+	});
+});
+
+describe("snippet", () => {
+	it("centers the excerpt on the earliest matched term", () => {
+		const text = "lorem ipsum dolor sit amet perfect score consectetur adipiscing elit done";
+		expect(snippet(text, "perfect").toLowerCase()).toContain("perfect");
+	});
+
+	it("falls back to the head of the text when no term matches", () => {
+		expect(snippet("alpha beta gamma", "zzz")).toBe("alpha beta gamma");
+	});
+
+	it("elides both ends only when it actually cut them", () => {
+		const long = "a".repeat(60) + " needle " + "b".repeat(200);
+		const out = snippet(long, "needle");
+		expect(out.startsWith("…")).toBe(true);
+		expect(out.endsWith("…")).toBe(true);
+		expect(snippet("short needle here", "needle")).toBe("short needle here");
 	});
 });

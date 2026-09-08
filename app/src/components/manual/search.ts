@@ -1,30 +1,15 @@
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { CHAPTERS, type ChapterBody } from "@/components/manual/chapters";
-import { MANUAL_COMPONENTS } from "@/components/manual/components";
-import { rankChapters, type ChapterText, type ManualHit } from "@/components/manual/searchRank";
+import { search, snippet } from "@/lib/search";
+import { MANUAL_INDEX } from "@/components/manual/manual-index.gen";
 
-export type { ManualHit } from "@/components/manual/searchRank";
-
-// Render a compiled chapter to its visible text so it can be indexed -- the same prose,
-// cross-reference titles, and captions the reader sees, with no fragile source scraping.
-function chapterText(Body: ChapterBody): string {
-	return renderToStaticMarkup(createElement(Body, { components: MANUAL_COMPONENTS }))
-		.replace(/<[^>]+>/g, " ")
-		.replace(/&amp;/g, "&")
-		.replace(/&lt;/g, "<")
-		.replace(/&gt;/g, ">")
-		.replace(/&#x27;/g, "'")
-		.replace(/&quot;/g, '"')
-		.replace(/\s+/g, " ")
-		.trim();
+export interface ManualHit {
+	id: string;
+	title: string;
+	snippet: string;
 }
 
-let index: ChapterText[] | null = null;
-
 export function searchManual(query: string, limit = 8): ManualHit[] {
-	if (!index) {
-		index = CHAPTERS.map((c) => ({ id: c.id, title: c.title, text: chapterText(c.Body) }));
-	}
-	return rankChapters(query, index, limit);
+	if (!query.trim()) return [];
+	return search(MANUAL_INDEX, query, (c) => [c.title, c.text])
+		.slice(0, limit)
+		.map((c) => ({ id: c.id, title: c.title, snippet: snippet(c.text, query) }));
 }
