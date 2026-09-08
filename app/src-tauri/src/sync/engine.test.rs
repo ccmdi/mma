@@ -890,6 +890,225 @@ fn atomic_provider_commits_once() {
 }
 
 // ---------------------------------------------------------------------------
+// partial push failure
+// ---------------------------------------------------------------------------
+
+struct PartialPushFake {
+    items: RefCell<Vec<Raw>>,
+    next_rid: Cell<i64>,
+    fail_after: Cell<Option<usize>>,
+}
+
+impl PartialPushFake {
+    fn new() -> Self {
+        Self {
+            items: RefCell::new(Vec::new()),
+            next_rid: Cell::new(800),
+            fail_after: Cell::new(None),
+        }
+    }
+}
+
+impl SyncProvider for PartialPushFake {
+    type Raw = Raw;
+    fn id(&self) -> &'static str {
+        "partial"
+    }
+    fn identity(&self) -> IdentityModel {
+        IdentityModel::Stable
+    }
+    fn supports_tags(&self) -> bool {
+        true
+    }
+    fn remote_id_of(&self, item: &Raw, _index: usize) -> i64 {
+        item.rid.expect("stable raw needs rid")
+    }
+    fn normalize(&self, item: &Raw) -> NormalizedSyncLocation {
+        item.n.clone()
+    }
+    fn materialize(&self, n: &NormalizedSyncLocation) -> Raw {
+        Raw {
+            n: n.clone(),
+            rid: None,
+        }
+    }
+    fn pull(&self, _remote_map_id: &str) -> AppResult<RemoteSnapshot<Raw>> {
+        Ok(RemoteSnapshot {
+            locations: self.items.borrow().clone(),
+            token: None,
+        })
+    }
+    fn push(
+        &self,
+        _remote_map_id: &str,
+        batch: &PushBatch<Raw>,
+        _token: Option<i64>,
+        commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
+    ) -> AppResult<Vec<PushedId>> {
+        let fail_after = self.fail_after.get();
+        let mut items = self.items.borrow_mut();
+        let mut accepted = Vec::new();
+        for (i, (local_id, item)) in batch.create.iter().enumerate() {
+            if fail_after.is_some_and(|n| i >= n) {
+                break;
+            }
+            let rid = self.next_rid.get();
+            self.next_rid.set(rid + 1);
+            items.push(Raw {
+                n: item.n.clone(),
+                rid: Some(rid),
+            });
+            accepted.push(PushedId {
+                local_id: *local_id,
+                remote_id: rid,
+            });
+        }
+        drop(items);
+        if !accepted.is_empty() {
+            commit(&accepted)?;
+        }
+        if fail_after.is_some() {
+            return Err(AppError("network failure on chunk 2".into()));
+        }
+        Ok(accepted)
+    }
+}
+
+#[test]
+fn partial_push_failure_preserves_committed_mapping_and_retries_cleanly() {
+    let provider = PartialPushFake::new();
+    provider.fail_after.set(Some(2));
+    let locs = [
+        loc(1, |l| l.lat = 1.0),
+        loc(2, |l| l.lat = 2.0),
+        loc(3, |l| l.lat = 3.0),
+    ];
+    let mut sink = MemSink::new();
+
+    let snapshot = provider.pull("r").unwrap();
+    let input = ReconcileInput {
+        provider: &provider,
+        local_locs: &locs,
+        remote: snapshot,
+        mapping: &[],
+        tag_names: &no_tags(),
+        first_sync: None,
+        resolutions: &[],
+    };
+    let planned = plan(&input);
+    let result = execute(&provider, "r", planned, None, &mut sink);
+
+    assert!(result.is_err());
+    assert_eq!(sink.rows.len(), 2);
+    assert_eq!(provider.items.borrow().len(), 2);
+
+    // Retry with the committed mapping. The provider now holds items for the 2 that landed.
+    provider.fail_after.set(None);
+    let mapping = sink.mapping();
+    let mut sink2 = MemSink::seeded(&mapping);
+
+    let snap2 = provider.pull("r").unwrap();
+    let token2 = snap2.token;
+    let input2 = ReconcileInput {
+        provider: &provider,
+        local_locs: &locs,
+        remote: snap2,
+        mapping: &mapping,
+        tag_names: &no_tags(),
+        first_sync: None,
+        resolutions: &[],
+    };
+    let planned2 = plan(&input2);
+    let out = execute(&provider, "r", planned2, token2, &mut sink2).unwrap();
+
+    assert_eq!(out.pushed, side(1, 0, 0));
+    assert_eq!(out.pulled, side(0, 0, 0));
+    assert_eq!(sink2.rows.len(), 3);
+    let mut all_ids: Vec<u32> = sink2.rows.keys().copied().collect();
+    all_ids.sort();
+    assert_eq!(all_ids, vec![1, 2, 3]);
+}
+
+// ---------------------------------------------------------------------------
+// content-keyed conflict handling
+// ---------------------------------------------------------------------------
+
+#[test]
+fn content_keyed_entries_never_produce_conflict_rows_or_mapping_deletes() {
+    // With mapping: the same two locations get L:N keys. Both sides changed from base
+    // differently, so the diff produces a conflict. The plan writes a conflict_row to
+    // preserve the base hash.
+    let provider = Fake::stable(vec![raw(|n| n.lat = 3.0, Some(7))]);
+    let locs = [loc(1, |l| l.lat = 2.0)];
+
+    let mapping = [row(1, 7, nhash(|n| n.lat = 1.0))];
+    let snap_a = provider.pull("r").unwrap();
+    let planned_mapped = plan(&ReconcileInput {
+        provider: &provider,
+        local_locs: &locs,
+        remote: snap_a,
+        mapping: &mapping,
+        tag_names: &no_tags(),
+        first_sync: None,
+        resolutions: &[],
+    });
+    assert_eq!(planned_mapped.conflicts.len(), 1);
+    assert_eq!(planned_mapped.conflict_rows.len(), 1);
+
+    // Without mapping: both pins are content-keyed. Different content -> different keys,
+    // so no conflict arises. A content-keyed AddAdd conflict would require a cyrb53
+    // collision; in that case the base guard (no base entry for unmapped keys) still
+    // prevents a conflict_row, and parse_local_key rejects the C:hash#N key format.
+    let snap_b = provider.pull("r").unwrap();
+    let planned_unmapped = plan(&ReconcileInput {
+        provider: &provider,
+        local_locs: &locs,
+        remote: snap_b,
+        mapping: &[],
+        tag_names: &no_tags(),
+        first_sync: None,
+        resolutions: &[],
+    });
+    assert!(planned_unmapped.conflicts.is_empty());
+    assert!(planned_unmapped.conflict_rows.is_empty());
+    assert!(planned_unmapped.mapping_delete_ids.is_empty());
+    assert_eq!(planned_unmapped.counts_push.create, 1);
+    assert_eq!(planned_unmapped.counts_pull.create, 1);
+}
+
+// ---------------------------------------------------------------------------
+// empty remote snapshot
+// ---------------------------------------------------------------------------
+
+#[test]
+fn empty_remote_snapshot_plans_pull_delete_for_every_mapped_location() {
+    // No threshold guard exists in the Rust engine or the TS layer: an empty remote
+    // deletes all mapped locals. This test documents the behavior.
+    let provider = Fake::stable(vec![]);
+    let locs = [
+        loc(1, |l| l.lat = 1.0),
+        loc(2, |l| l.lat = 2.0),
+        loc(3, |l| l.lat = 3.0),
+    ];
+    let mapping = [
+        row(1, 7, nhash(|n| n.lat = 1.0)),
+        row(2, 8, nhash(|n| n.lat = 2.0)),
+        row(3, 9, nhash(|n| n.lat = 3.0)),
+    ];
+    let mut sink = MemSink::seeded(&mapping);
+
+    let out = sync(&provider, &locs, &mapping, &no_tags(), &mut sink);
+
+    assert_eq!(out.pushed, side(0, 0, 0));
+    assert_eq!(out.pulled, side(0, 0, 3));
+    let mut ids = out.pull_delete_ids.clone();
+    ids.sort();
+    assert_eq!(ids, vec![1, 2, 3]);
+    assert!(sink.rows.is_empty());
+    assert!(provider.pushes.borrow().is_empty());
+}
+
+// ---------------------------------------------------------------------------
 // steady state
 // ---------------------------------------------------------------------------
 

@@ -3,7 +3,7 @@ use crate::sync;
 use crate::sync::{
     IdentityModel, NormalizedSyncLocation, PushBatch, PushedId, SyncProvider, AUTH_PREFIX,
 };
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::env;
 
@@ -441,6 +441,40 @@ fn commit_runs_per_chunk_in_order() {
     assert_eq!(
         *log.borrow(),
         vec!["post:2", "commit:2", "post:2", "commit:2", "post:1", "commit:1"]
+    );
+}
+
+#[test]
+fn partial_chunk_failure_commits_landed_chunks_before_propagating_error() {
+    let p = provider();
+    let mut batch = empty_batch();
+    for i in 1..=5u32 {
+        batch.create.push((i, p.materialize(&norm())));
+    }
+    let log = RefCell::new(Vec::<String>::new());
+    let calls = Cell::new(0u32);
+    let mut post = |part: &PushPart| -> AppResult<HashMap<String, i64>> {
+        let n = {
+            let c = calls.get() + 1;
+            calls.set(c);
+            c
+        };
+        log.borrow_mut().push(format!("post:{}", part.create.len()));
+        if n == 2 {
+            return Err(AppError("server error".into()));
+        }
+        fake_post(part)
+    };
+    let mut commit = |pushed: &[PushedId]| {
+        log.borrow_mut().push(format!("commit:{}", pushed.len()));
+        Ok(())
+    };
+    let result = push_apply(&batch, 2, &mut commit, &mut post);
+
+    assert!(result.is_err());
+    assert_eq!(
+        *log.borrow(),
+        vec!["post:2", "commit:2", "post:2"]
     );
 }
 

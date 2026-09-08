@@ -1738,6 +1738,50 @@ fn arrow_render_angle_is_negated_heading() {
 }
 
 #[test]
+fn f32_render_truncation_matches_grid() {
+    let lat = 51.123456789012345_f64;
+    let lng = 2.294738201745632_f64;
+    assert_ne!(lat as f32 as f64, lat, "test coordinates must actually differ between f64 and f32");
+    assert_ne!(lng as f32 as f64, lng, "test coordinates must actually differ between f64 and f32");
+
+    let l = loc(1, lat, lng);
+    let mut store = setup_store_with(&[l.clone()]);
+
+    let changes = ChangeSet {
+        added: vec![l],
+        ..Default::default()
+    };
+    let delta = store.derive_render_delta(&changes, &HashSet::new());
+
+    assert_eq!(delta.added.len(), 1);
+    let entry = &delta.added[0];
+    assert_eq!(entry.lat, lat as f32, "lat must be f32-truncated");
+    assert_eq!(entry.lng, lng as f32, "lng must be f32-truncated");
+}
+
+#[test]
+fn f32_render_truncation_applies_to_position_patches() {
+    let l = loc(1, 10.0, 20.0);
+    let mut store = setup_store_with(&[l]);
+    let new_lat = 10.123456789012345_f64;
+    let new_lng = 20.987654321098765_f64;
+    store.overlay_update(1, &patch!(lat: new_lat, lng: new_lng));
+    let old = loc(1, 10.0, 20.0);
+    let new_loc = store.get_loc_by_id(1).unwrap();
+    let delta = store.derive_render_delta(
+        &ChangeSet {
+            updated: vec![(old, new_loc)],
+            ..Default::default()
+        },
+        &HashSet::new(),
+    );
+    assert_eq!(delta.updated.len(), 1);
+    let patch = &delta.updated[0];
+    assert_eq!(patch.lat.unwrap(), new_lat as f32);
+    assert_eq!(patch.lng.unwrap(), new_lng as f32);
+}
+
+#[test]
 fn cell_render_id_order_matches_after_swap_remove_sequence() {
     // This test verifies the Rust side of the critical invariant:
     // after a sequence of adds and removes, CellRender.id_order[i]

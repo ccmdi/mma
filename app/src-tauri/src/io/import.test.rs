@@ -841,3 +841,133 @@ fn header_keys_are_read_as_fields_not_substrings() {
     assert_eq!(parsed.folder.as_deref(), Some("f"));
     assert_eq!(parsed.locations.len(), 1);
 }
+
+// -----------------------------------------------------------------------
+// CSV named-header parsing
+// -----------------------------------------------------------------------
+
+#[test]
+fn csv_named_headers_standard_order() {
+    let csv = "lat,lng,heading,pitch,zoom,panoId\n48.8566,2.3522,90.0,-5.0,2.0,CAoSK0FGtest\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 1);
+    let l = &parsed.locations[0];
+    assert_eq!(l.lat, 48.8566);
+    assert_eq!(l.lng, 2.3522);
+    assert_eq!(l.heading, 90.0);
+    assert_eq!(l.pitch, -5.0);
+    assert_eq!(l.zoom, 2.0);
+    assert_eq!(l.pano_id.as_deref(), Some("CAoSK0FGtest"));
+    assert!(l.flags.contains(LocationFlags::LOAD_AS_PANO_ID));
+}
+
+#[test]
+fn csv_named_headers_reordered_columns() {
+    let csv = "heading,lng,pitch,lat,zoom\n90.0,2.3522,-5.0,48.8566,2.0\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 1);
+    let l = &parsed.locations[0];
+    assert_eq!(l.lat, 48.8566);
+    assert_eq!(l.lng, 2.3522);
+    assert_eq!(l.heading, 90.0);
+    assert_eq!(l.pitch, -5.0);
+    assert_eq!(l.zoom, 2.0);
+}
+
+#[test]
+fn csv_named_headers_missing_optional_columns() {
+    let csv = "lat,lng\n10.0,20.0\n30.0,40.0\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 2);
+    assert_eq!(parsed.locations[0].heading, 0.0);
+    assert_eq!(parsed.locations[0].pitch, 0.0);
+    assert_eq!(parsed.locations[0].zoom, 0.0);
+    assert!(parsed.locations[0].pano_id.is_none());
+    assert!(!parsed.locations[0].flags.contains(LocationFlags::LOAD_AS_PANO_ID));
+}
+
+#[test]
+fn csv_named_headers_case_insensitive() {
+    let csv = "Latitude,Longitude,Heading\n48.0,2.0,90.0\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 1);
+    assert_eq!(parsed.locations[0].lat, 48.0);
+    assert_eq!(parsed.locations[0].lng, 2.0);
+    assert_eq!(parsed.locations[0].heading, 90.0);
+}
+
+#[test]
+fn csv_named_headers_alternative_column_names() {
+    let csv = "lat,lon,panoid\n10.0,20.0,PANO123\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 1);
+    assert_eq!(parsed.locations[0].lng, 20.0);
+    assert_eq!(parsed.locations[0].pano_id.as_deref(), Some("PANO123"));
+}
+
+#[test]
+fn csv_named_headers_empty_pano_field() {
+    let csv = "lat,lng,panoId\n10.0,20.0,\n30.0,40.0,PANO\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 2);
+    assert!(parsed.locations[0].pano_id.is_none(), "empty pano stays None");
+    assert_eq!(parsed.locations[1].pano_id.as_deref(), Some("PANO"));
+}
+
+#[test]
+fn csv_named_headers_whitespace_in_header() {
+    let csv = " lat , lng , heading \n10.0,20.0,45.0\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 1);
+    assert_eq!(parsed.locations[0].lat, 10.0);
+    assert_eq!(parsed.locations[0].heading, 45.0);
+}
+
+#[test]
+fn csv_skips_rows_with_non_numeric_lat() {
+    let csv = "lat,lng\n10.0,20.0\nbad,30.0\n50.0,60.0\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 2);
+    assert_eq!(parsed.locations[0].lat, 10.0);
+    assert_eq!(parsed.locations[1].lat, 50.0);
+}
+
+#[test]
+fn csv_positional_fallback_first_row_is_data() {
+    let csv = "10.0,20.0\n30.0,40.0\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 2);
+    assert_eq!(parsed.locations[0].lat, 10.0);
+    assert_eq!(parsed.locations[0].lng, 20.0);
+}
+
+// -----------------------------------------------------------------------
+// UTF-8 BOM handling
+// -----------------------------------------------------------------------
+
+#[test]
+fn csv_with_utf8_bom_parses_correctly() {
+    let csv = "\u{FEFF}lat,lng,heading\n48.8566,2.3522,90.0\n";
+    let parsed = parse_csv(csv);
+    assert_eq!(parsed.locations.len(), 1);
+    assert_eq!(parsed.locations[0].lat, 48.8566);
+    assert_eq!(parsed.locations[0].heading, 90.0);
+}
+
+#[test]
+fn json_with_utf8_bom_parses_via_parse_file() {
+    let mut buf = vec![0xEF, 0xBB, 0xBF];
+    buf.extend_from_slice(br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#);
+    let parsed = parse_file(&mut buf);
+    assert_eq!(parsed.locations.len(), 1);
+    assert_eq!(parsed.locations[0].lat, 1.0);
+}
+
+#[test]
+fn csv_with_bom_via_parse_file() {
+    let mut buf = vec![0xEF, 0xBB, 0xBF];
+    buf.extend_from_slice(b"lat,lng\n10.0,20.0\n");
+    let parsed = parse_file(&mut buf);
+    assert_eq!(parsed.locations.len(), 1);
+    assert_eq!(parsed.locations[0].lat, 10.0);
+}

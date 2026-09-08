@@ -547,6 +547,152 @@ describe("CellManager", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Cross-language render delta contract: pin the wire format so Rust and JS
+// cannot drift apart. The delta is JSON (RenderDelta via specta/serde), the
+// full render buffer is binary. Both are tested here from the JS consumer's
+// perspective, with values that match what Rust would produce.
+// ---------------------------------------------------------------------------
+
+describe("cross-language render delta contract", () => {
+	let mgr: CellManager;
+
+	beforeEach(() => {
+		mgr = new CellManager();
+	});
+
+	it("f32-precision coordinates land in the typed arrays exactly", () => {
+		const lat = Math.fround(51.123456789012345);
+		const lng = Math.fround(2.294738201745632);
+		mgr.applyDelta(delta({ added: [entry("u", 1, lng, lat, 0)] }));
+		const cb = mgr.cells.get("u")!;
+		expect(cb.positions[0]).toBe(lng);
+		expect(cb.positions[1]).toBe(lat);
+	});
+
+	it("a mixed delta (add + update + remove) applies in one call", () => {
+		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20), entry("s", 2, 30, 40)] }));
+		expect(mgr.totalCount).toBe(2);
+
+		mgr.applyDelta(
+			delta({
+				added: [entry("t", 3, 50, 60)],
+				updated: [{ cell: "s", cellIndex: 0, lng: 11, lat: 21, heading: null, sel: null }],
+				removed: [{ cell: "s", cellIndex: 1, id: 2 }],
+			}),
+		);
+
+		expect(mgr.totalCount).toBe(2);
+		expect(mgr.cells.get("s")!.count).toBe(1);
+		expect(mgr.cells.get("t")!.count).toBe(1);
+		expect(mgr.cells.get("s")!.positions[0]).toBeCloseTo(11);
+	});
+
+	it("selection paint on an added entry puts it in the overlay", () => {
+		mgr.applyDelta(
+			delta({
+				added: [
+					entry("s", 1, 10, 20, 45, paint([255, 0, 0], 0)),
+					entry("s", 2, 30, 40, 90, null),
+				],
+			}),
+		);
+		expect(mgr.overlay.count).toBe(1);
+		expect(mgr.overlay.ids[0]).toBe(1);
+		expect(mgr.cells.get("s")!.visible[0]).toBe(0);
+		expect(mgr.cells.get("s")!.visible[1]).toBe(255);
+	});
+
+	it("a position update with null coordinates patches only what changed", () => {
+		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20, 45)] }));
+		mgr.applyDelta(
+			delta({
+				updated: [{ cell: "s", cellIndex: 0, lng: null, lat: null, heading: 90, sel: null }],
+			}),
+		);
+		const cb = mgr.cells.get("s")!;
+		expect(cb.positions[0]).toBeCloseTo(10);
+		expect(cb.positions[1]).toBeCloseTo(20);
+		expect(cb.angles[0]).toBeCloseTo(90);
+	});
+
+	it("a selection-only update hides the base row", () => {
+		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20)] }));
+		mgr.applyDelta(delta({ updated: [selPatch("s", 0, paint([0, 255, 0], 1))] }));
+		expect(mgr.cells.get("s")!.visible[0]).toBe(0);
+		expect(mgr.overlay.has(1)).toBe(true);
+		expect(mgr.selectedIds().has(1)).toBe(true);
+	});
+
+	it("deselection returns the row to the base layer", () => {
+		mgr.applyDelta(delta({ added: [entry("s", 1, 10, 20, 0, paint([255, 0, 0]))] }));
+		expect(mgr.overlay.count).toBe(1);
+		mgr.applyDelta(delta({ updated: [selPatch("s", 0, null)] }));
+		expect(mgr.cells.get("s")!.visible[0]).toBe(255);
+		expect(mgr.overlay.count).toBe(0);
+	});
+
+	it("the binary render buffer round-trips through initFromBinary", () => {
+		const count = 2;
+		const visPad = (4 - (count % 4)) % 4;
+		const cellBytes = 8 + count * 4 + count * 2 * 4 + count + visPad + count * 4;
+		const buf = new ArrayBuffer(4 + cellBytes + 4);
+		const dv = new DataView(buf);
+		let off = 0;
+
+		dv.setUint32(off, 1, true);
+		off += 4;
+		dv.setUint8(off, 0x75);
+		off += 1; // 'u'
+		dv.setUint32(off, count, true);
+		off += 4;
+		off += 3; // pad
+
+		dv.setUint32(off, 5, true);
+		off += 4;
+		dv.setUint32(off, 10, true);
+		off += 4;
+
+		const lng1 = Math.fround(2.294738201745632);
+		const lat1 = Math.fround(51.123456789012345);
+		const lng2 = Math.fround(13.404954);
+		const lat2 = Math.fround(52.520008);
+		dv.setFloat32(off, lng1, true);
+		off += 4;
+		dv.setFloat32(off, lat1, true);
+		off += 4;
+		dv.setFloat32(off, lng2, true);
+		off += 4;
+		dv.setFloat32(off, lat2, true);
+		off += 4;
+
+		dv.setUint8(off, 255);
+		off += 1;
+		dv.setUint8(off, 255);
+		off += 1;
+		off += visPad;
+
+		dv.setFloat32(off, -90, true);
+		off += 4;
+		dv.setFloat32(off, -45, true);
+		off += 4;
+
+		dv.setUint32(off, 0, true);
+
+		mgr.initFromBinary(buf);
+		expect(mgr.totalCount).toBe(2);
+		const cb = mgr.cells.get("u")!;
+		expect(cb.ids[0]).toBe(5);
+		expect(cb.ids[1]).toBe(10);
+		expect(cb.positions[0]).toBe(lng1);
+		expect(cb.positions[1]).toBe(lat1);
+		expect(cb.positions[2]).toBe(lng2);
+		expect(cb.positions[3]).toBe(lat2);
+		expect(cb.angles[0]).toBe(-90);
+		expect(cb.angles[1]).toBe(-45);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Selection bitmask mapping: the critical invariant is that bitmask index N
 // maps to CellBuffer.ids[N]. If swap-removes cause drift, the wrong location
 // gets colored.
