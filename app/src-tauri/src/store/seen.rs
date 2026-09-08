@@ -2,12 +2,15 @@
 //!
 //! Stored in SQLite (the `seen` table), capped at 10,000 entries with oldest-first
 //! eviction. Provides paginated listing, filtering by country/map/search, and
-//! aggregate queries for the history UI. All functions are Tauri IPC commands.
+//! aggregate queries for the history UI. Command wrappers (`store_seen_*`) open
+//! the DB and delegate to the `&Connection` core functions below, which carry all
+//! the behavior and are unit-tested directly.
 
 use crate::store::storage;
 use crate::types::AppResult;
 use rusqlite::params_from_iter;
 use rusqlite::types::ToSql;
+use rusqlite::Connection;
 
 /// A panorama visit record.
 #[derive(serde::Serialize, specta::Type)]
@@ -120,33 +123,121 @@ fn build_where_clause(filter: &Option<SeenFilter>) -> (String, Vec<Box<dyn ToSql
 /// are evicted in the same write transaction.
 const MAX_SEEN: i64 = 10_000;
 
+// --- Core (testable against any Connection) ---
+
+pub(crate) fn write(conn: &Connection, entry: SeenWriteEntry) -> AppResult<()> {
+    conn.execute(
+        "INSERT INTO seen (pano_id, lat, lng, heading, pitch, zoom, entered_at, map_id, location_id, country_code, address, thumbnail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        rusqlite::params![
+            entry.pano_id, entry.lat, entry.lng, entry.heading, entry.pitch, entry.zoom,
+            entry.entered_at, entry.map_id, entry.location_id, entry.country_code, entry.address, entry.thumbnail,
+        ],
+    )?;
+
+    let count: i64 = conn.query_row("SELECT COUNT(*) FROM seen", [], |row| row.get(0))?;
+
+    if count > MAX_SEEN {
+        let excess = count - MAX_SEEN;
+        conn.execute(
+            "DELETE FROM seen WHERE id IN (SELECT id FROM seen ORDER BY entered_at ASC LIMIT ?)",
+            rusqlite::params![excess],
+        )?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn list(
+    conn: &Connection,
+    limit: u32,
+    offset: u32,
+    filter: Option<SeenFilter>,
+    thumbnails: bool,
+) -> AppResult<Vec<SeenEntry>> {
+    let (where_clause, mut params) = build_where_clause(&filter);
+
+    let thumb_col = if thumbnails { "thumbnail" } else { "NULL" };
+    let sql = format!(
+        "SELECT {COLS}, {thumb_col} AS thumbnail FROM seen{where_clause} ORDER BY entered_at DESC LIMIT ? OFFSET ?"
+    );
+
+    params.push(Box::new(limit));
+    params.push(Box::new(offset));
+
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(
+        params_from_iter(params.iter().map(AsRef::as_ref)),
+        row_to_seen,
+    )?;
+
+    let mut entries = Vec::new();
+    for row in rows {
+        entries.push(row?);
+    }
+    Ok(entries)
+}
+
+pub(crate) fn count(conn: &Connection, filter: Option<SeenFilter>) -> AppResult<u32> {
+    let (where_clause, params) = build_where_clause(&filter);
+
+    let sql = format!("SELECT COUNT(*) FROM seen{where_clause}");
+
+    let mut stmt = conn.prepare(&sql)?;
+    let count: u32 = stmt.query_row(
+        params_from_iter(params.iter().map(AsRef::as_ref)),
+        |row| row.get(0),
+    )?;
+
+    Ok(count)
+}
+
+pub(crate) fn countries(conn: &Connection) -> AppResult<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT country_code FROM seen WHERE country_code IS NOT NULL ORDER BY country_code",
+    )?;
+
+    let rows = stmt.query_map([], |row| row.get(0))?;
+
+    let mut countries = Vec::new();
+    for row in rows {
+        countries.push(row?);
+    }
+    Ok(countries)
+}
+
+pub(crate) fn seen_maps(conn: &Connection) -> AppResult<Vec<SeenMapInfo>> {
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT s.map_id AS id, m.name \
+             FROM seen s JOIN maps m ON m.id = s.map_id \
+             WHERE s.map_id IS NOT NULL ORDER BY m.name",
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok(SeenMapInfo {
+            id: row.get("id")?,
+            name: row.get("name")?,
+        })
+    })?;
+
+    let mut maps = Vec::new();
+    for row in rows {
+        maps.push(row?);
+    }
+    Ok(maps)
+}
+
+pub(crate) fn clear(conn: &Connection) -> AppResult<()> {
+    conn.execute("DELETE FROM seen", [])?;
+    Ok(())
+}
+
+// --- Command wrappers ---
+
 /// Record a panorama visit. The history is capped; oldest entries are evicted when full.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_seen_write(entry: SeenWriteEntry) -> AppResult<()> {
-    storage::with_db(move |db| {
-
-        db.execute(
-            "INSERT INTO seen (pano_id, lat, lng, heading, pitch, zoom, entered_at, map_id, location_id, country_code, address, thumbnail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            rusqlite::params![
-                entry.pano_id, entry.lat, entry.lng, entry.heading, entry.pitch, entry.zoom,
-                entry.entered_at, entry.map_id, entry.location_id, entry.country_code, entry.address, entry.thumbnail,
-            ],
-        )?;
-
-        let count: i64 = db.query_row("SELECT COUNT(*) FROM seen", [], |row| row.get(0))?;
-
-        if count > MAX_SEEN {
-            let excess = count - MAX_SEEN;
-            db.execute(
-                "DELETE FROM seen WHERE id IN (SELECT id FROM seen ORDER BY entered_at ASC LIMIT ?)",
-                rusqlite::params![excess],
-            )?;
-        }
-
-        Ok(())
-    })
-    .await
+    storage::with_db(move |conn| write(conn, entry)).await
 }
 
 /// Returns a page of seen entries, newest first, with optional filtering.
@@ -158,106 +249,37 @@ pub async fn store_seen_list(
     filter: Option<SeenFilter>,
     thumbnails: bool,
 ) -> AppResult<Vec<SeenEntry>> {
-    storage::with_db(move |db| {
-        let (where_clause, mut params) = build_where_clause(&filter);
-
-        // The thumbnail blob dominates the payload; the map overlay omits it (thumbnails=false).
-        let thumb_col = if thumbnails { "thumbnail" } else { "NULL" };
-        let sql = format!(
-            "SELECT {COLS}, {thumb_col} AS thumbnail FROM seen{where_clause} ORDER BY entered_at DESC LIMIT ? OFFSET ?"
-        );
-
-        params.push(Box::new(limit));
-        params.push(Box::new(offset));
-
-        let mut stmt = db.prepare(&sql)?;
-        let rows = stmt.query_map(
-            params_from_iter(params.iter().map(AsRef::as_ref)),
-            row_to_seen,
-        )?;
-
-        let mut entries = Vec::new();
-        for row in rows {
-            entries.push(row?);
-        }
-        Ok(entries)
-    })
-    .await
+    storage::with_db(move |conn| list(conn, limit, offset, filter, thumbnails)).await
 }
 
 /// Returns the total number of seen entries matching the filter (for pagination).
 #[tauri::command]
 #[specta::specta]
 pub async fn store_seen_count(filter: Option<SeenFilter>) -> AppResult<u32> {
-    storage::with_db(move |db| {
-        let (where_clause, params) = build_where_clause(&filter);
-
-        let sql = format!("SELECT COUNT(*) FROM seen{where_clause}");
-
-        let mut stmt = db.prepare(&sql)?;
-        let count: u32 = stmt
-            .query_row(params_from_iter(params.iter().map(AsRef::as_ref)), |row| {
-                row.get(0)
-            })?;
-
-        Ok(count)
-    })
-    .await
+    storage::with_db(move |conn| count(conn, filter)).await
 }
 
 /// Return all distinct country codes in the seen history, sorted alphabetically.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_seen_countries() -> AppResult<Vec<String>> {
-    storage::with_db(move |db| {
-        let mut stmt = db
-            .prepare("SELECT DISTINCT country_code FROM seen WHERE country_code IS NOT NULL ORDER BY country_code")?;
-
-        let rows = stmt.query_map([], |row| row.get(0))?;
-
-        let mut countries = Vec::new();
-        for row in rows {
-            countries.push(row?);
-        }
-        Ok(countries)
-    })
-    .await
+    storage::with_db(move |conn| countries(conn)).await
 }
 
 /// Returns all distinct maps that have seen entries, with resolved display names.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_seen_maps() -> AppResult<Vec<SeenMapInfo>> {
-    storage::with_db(move |db| {
-        let mut stmt = db.prepare(
-            "SELECT DISTINCT s.map_id AS id, m.name \
-                 FROM seen s JOIN maps m ON m.id = s.map_id \
-                 WHERE s.map_id IS NOT NULL ORDER BY m.name",
-        )?;
-
-        let rows = stmt.query_map([], |row| {
-            Ok(SeenMapInfo {
-                id: row.get("id")?,
-                name: row.get("name")?,
-            })
-        })?;
-
-        let mut maps = Vec::new();
-        for row in rows {
-            maps.push(row?);
-        }
-        Ok(maps)
-    })
-    .await
+    storage::with_db(move |conn| seen_maps(conn)).await
 }
 
 /// Deletes all seen history entries.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_seen_clear() -> AppResult<()> {
-    storage::with_db(move |db| {
-        db.execute("DELETE FROM seen", [])?;
-        Ok(())
-    })
-    .await
+    storage::with_db(move |conn| clear(conn)).await
 }
+
+#[cfg(test)]
+#[path = "seen.test.rs"]
+mod tests;
