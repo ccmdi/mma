@@ -167,6 +167,13 @@ fn read_local(clean: &str) -> Reply {
     }
 }
 
+fn svtile_url(path: &str, query: &str) -> String {
+    format!(
+        "https://lh3.ggpht.com/jsapi2/a/b/c/{}{query}",
+        path.trim_start_matches('/')
+    )
+}
+
 /// svtile: StreetView photosphere tiles via lh3.ggpht.com.
 pub(crate) fn fetch_svtile(url: &str) -> Reply {
     match proxy_client().get(url).send() {
@@ -179,6 +186,10 @@ pub(crate) fn fetch_svtile(url: &str) -> Reply {
         }
         Err(e) => proxy_error(format!("svtile fetch error: {e}")),
     }
+}
+
+fn gmaps_url(path: &str, query: &str) -> String {
+    format!("https://www.google.com{path}{query}")
 }
 
 /// gmaps: forward a request (POST batchexecute etc.) to www.google.com.
@@ -201,14 +212,18 @@ pub(crate) fn proxy_gmaps(
     }
 }
 
-/// googl: resolve a goo.gl / maps.app.goo.gl short link by reading its redirect
-/// `Location` header; returns the target URL as a JSON string.
-pub(crate) fn resolve_googl(id: &str, mapsapp: bool) -> Reply {
-    let url = if mapsapp {
+fn googl_url(id: &str, mapsapp: bool) -> String {
+    if mapsapp {
         format!("https://maps.app.goo.gl/{id}")
     } else {
         format!("https://goo.gl/maps/{id}")
-    };
+    }
+}
+
+/// googl: resolve a goo.gl / maps.app.goo.gl short link by reading its redirect
+/// `Location` header; returns the target URL as a JSON string.
+pub(crate) fn resolve_googl(id: &str, mapsapp: bool) -> Reply {
+    let url = googl_url(id, mapsapp);
     match resolve_client().get(&url).send() {
         Ok(resp) => match resp
             .headers()
@@ -254,15 +269,12 @@ pub(crate) fn register_schemes(builder: tauri::Builder<tauri::Wry>) -> tauri::Bu
         })
         .register_asynchronous_uri_scheme_protocol("svtile", |_ctx, req, responder| {
             let (path, query) = path_and_query(&req);
-            let url = format!(
-                "https://lh3.ggpht.com/jsapi2/a/b/c/{}{query}",
-                path.trim_start_matches('/')
-            );
+            let url = svtile_url(&path, &query);
             respond_async(responder, move || fetch_svtile(&url));
         })
         .register_asynchronous_uri_scheme_protocol("gmaps", |_ctx, req, responder| {
             let (path, query) = path_and_query(&req);
-            let url = format!("https://www.google.com{path}{query}");
+            let url = gmaps_url(&path, &query);
             let method = req.method().clone();
             let content_type = header_str(&req, header::CONTENT_TYPE)
                 .unwrap_or("application/x-www-form-urlencoded")
@@ -309,3 +321,7 @@ pub(crate) fn register_schemes(builder: tauri::Builder<tauri::Wry>) -> tauri::Bu
             respond_async(responder, move || resolve_googl(&id, mapsapp));
         })
 }
+
+#[cfg(test)]
+#[path = "proxy.test.rs"]
+mod proxy_tests;
