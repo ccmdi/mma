@@ -6169,6 +6169,9 @@ body:has([data-plugin-overlay]) .map-meta {
 	overflow: hidden;
 }
 
+.plugin-boundary__label {
+	font-weight: 500;
+}
 .plugin-boundary--error {
 	display: flex;
 	align-items: center;
