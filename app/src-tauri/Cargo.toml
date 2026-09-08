@@ -64,7 +64,8 @@ memmap2 = "0.9"
 rkyv = { version = "=0.7.46", features = ["validation"] }
 bytes = "1.9"
 percent-encoding = "2"
-reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 keyring = "4"
 specta = { version = "=2.0.0-rc.25", features = ["derive", "serde_json"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }

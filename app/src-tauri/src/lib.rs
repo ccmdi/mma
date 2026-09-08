@@ -424,6 +424,11 @@ pub fn run() {
         default_hook(info);
     }));
 
+    // reqwest is built with rustls-no-provider; install the process-wide provider up front
+    // instead of leaving it to whichever client initializes first.
+    use rustls::crypto::ring;
+    let _ = ring::default_provider().install_default();
+
     #[cfg(debug_assertions)]
     if let Err(e) = export_bindings() {
         log::error!("[specta] export FAILED: {e}");
