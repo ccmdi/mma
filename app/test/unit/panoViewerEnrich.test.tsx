@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, useState } from "react";
 import { mount } from "./fixtures/harness";
-import { createLocation } from "@/types";
+import { createLocation, extraPatch } from "@/types";
 import type { Location } from "@/bindings.gen";
 
 const h = vi.hoisted(() => ({
@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
 	/** Rows `enrich` was handed, in order. */
 	enriched: [] as Location[],
 	written: [] as { id: number; patch: { extra?: Record<string, unknown> } }[],
+	enrichDefer: false,
+	deferredResolvers: [] as Array<(loc: Location) => void>,
 }));
 
 vi.mock("@/store/useMapStore", () => ({
@@ -29,6 +31,11 @@ vi.mock("@/store/useMapStore", () => ({
 vi.mock("@/lib/sv/enrich", () => ({
 	enrich: async (loc: Location, opts?: { onPartial?: (rows: Location[]) => void }) => {
 		h.enriched.push(loc);
+		if (h.enrichDefer) {
+			return new Promise<Location>((resolve) => {
+				h.deferredResolvers.push(resolve);
+			});
+		}
 		if (h.enrichHangs) {
 			// A fast provider answers while a slow one holds the run open.
 			opts?.onPartial?.([{ ...loc, extra: { ...loc.extra, partial: "early" } }]);
@@ -94,6 +101,8 @@ beforeEach(() => {
 	h.enrichOn = true;
 	h.enrichFails = false;
 	h.enrichHangs = false;
+	h.enrichDefer = false;
+	h.deferredResolvers = [];
 	h.activeLocation = {
 		...createLocation({ lat: 1, lng: 2 }),
 		id: 7,
@@ -236,6 +245,79 @@ describe("the draft is the location as a save would write it", () => {
 		expect(viewer.meta).toBeNull();
 		expect(viewer.timeline).toBeNull();
 		expect(h.enriched.map((l) => l.id)).toEqual([7]);
+		m.unmount();
+	});
+});
+
+describe("input invalidation", () => {
+	it("a pano change strips the old pano's derived fields before enrichment runs on the new pano", async () => {
+		const m = mountHost();
+		await open("pA");
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pA" });
+		h.enriched = [];
+		await walk("pB");
+		expect(h.enriched).toHaveLength(1);
+		expect(h.enriched[0].panoId).toBe("pB");
+		expect(h.enriched[0].extra).toEqual({ custom: "kept" });
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
+		m.unmount();
+	});
+});
+
+describe("cancellation race", () => {
+	it("a late-arriving result from the old pano does not overwrite the current draft", async () => {
+		h.enrichDefer = true;
+		const m = mountHost();
+		await open("pA");
+		expect(viewer.enriching).toBe(true);
+		expect(h.deferredResolvers).toHaveLength(1);
+		h.enrichDefer = false;
+		await walk("pB");
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
+		await act(async () => {
+			h.deferredResolvers[0]({
+				...createLocation({ lat: 1, lng: 2 }),
+				id: 7,
+				panoId: "pA",
+				extra: { custom: "kept", enriched: "pA_late", stale: true },
+			});
+		});
+		expect(viewer.draft!.panoId).toBe("pB");
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
+		m.unmount();
+	});
+});
+
+describe("handleSave extraPatch", () => {
+	it("changed keys carry values, deleted keys carry null, unchanged keys are omitted", () => {
+		expect(
+			extraPatch(
+				{ kept: 1, changed: "old", gone: "deleted" },
+				{ kept: 1, changed: "new", added: true },
+			),
+		).toEqual({ changed: "new", added: true, gone: null });
+	});
+
+	it("enrichment-then-save patches only what enrichment changed", async () => {
+		const m = mountHost();
+		await open("pA");
+		const settled = await viewer.settled();
+		const patch = extraPatch(location().extra, settled!.extra);
+		expect(patch).toEqual({ enriched: "pA" });
+		expect("custom" in patch).toBe(false);
+		m.unmount();
+	});
+
+	it("a stale derived field becomes null in the patch, not a wholesale extra replacement", async () => {
+		const m = mountHost();
+		await open("pA");
+		h.enrichFails = true;
+		await walk("pB");
+		const settled = await viewer.settled();
+		expect(settled!.extra).toEqual({ custom: "kept" });
+		const patch = extraPatch(location().extra, settled!.extra);
+		expect(patch.enriched).toBeNull();
+		expect("custom" in patch).toBe(false);
 		m.unmount();
 	});
 });

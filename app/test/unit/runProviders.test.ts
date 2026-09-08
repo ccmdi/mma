@@ -8,6 +8,8 @@ const h = vi.hoisted(() => ({
 		id: string;
 		select: Selector;
 		fields: string[];
+		requires: string[];
+		invalidates: Record<string, string[]>;
 		config: string | null;
 		sink: string;
 		force: boolean | null;
@@ -29,6 +31,7 @@ const h = vi.hoisted(() => ({
 	rowRuns: [] as { ids: number[]; force: boolean; cancel: number | null }[],
 	cancelled: [] as number[],
 	queryAnswer: ((input: string) => Promise.resolve(input)) as (i: string) => Promise<string>,
+	rowRunHook: null as ((cancel: number) => void) | null,
 }));
 
 vi.mock("@/lib/util/log", () => ({
@@ -124,6 +127,7 @@ vi.mock("@/lib/commands", () => ({
 		) => {
 			h.decls.push(...decls);
 			h.rowRuns.push({ ids: rows.map((r) => r.id), force, cancel });
+			if (cancel != null) h.rowRunHook?.(cancel);
 			return {
 				rows: rows.map((r) => ({ ...r, extra: { ...r.extra, ran: true } })),
 				failed: { [decls[0].id]: [rows[0].id] },
@@ -154,7 +158,13 @@ import {
 } from "@/lib/data/procedures";
 import { createLocation } from "@/types";
 import { registerProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
-import { enrichAll, enrichRuns, panoResolveProvider, svMetaProvider } from "@/lib/sv/enrich";
+import {
+	enrichAll,
+	enrichRuns,
+	exactDateProvider,
+	panoResolveProvider,
+	svMetaProvider,
+} from "@/lib/sv/enrich";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
 import type { Provider, ProcedureSpec } from "@/lib/data/fieldDefs";
@@ -186,6 +196,7 @@ beforeEach(() => {
 	h.answers = {};
 	h.failedIds = {};
 	h.queryAnswer = (input) => Promise.resolve(input);
+	h.rowRunHook = null;
 });
 
 const ids = () => h.decls.map((d) => d.id);
@@ -688,5 +699,281 @@ describe("runProviders over rows handed in", () => {
 			signal: ac.signal,
 		});
 		expect(h.rowRuns[0].cancel).not.toBeNull();
+	});
+});
+
+// --- Dependency chain ----------------------------------------------------------------
+
+const chainA: Provider = {
+	id: "chainA",
+	label: "Chain A",
+	provides: ["fieldA"],
+	procedure: { entry: "res://chainA.js", batch: { mode: "perRow" } },
+};
+
+const chainB: Provider = {
+	id: "chainB",
+	label: "Chain B",
+	requires: ["fieldA"],
+	provides: ["fieldB"],
+	procedure: { entry: "res://chainB.js", batch: { mode: "perRow" } },
+};
+
+const chainC: Provider = {
+	id: "chainC",
+	label: "Chain C",
+	requires: ["fieldB"],
+	provides: ["fieldC"],
+	procedure: { entry: "res://chainC.js", batch: { mode: "perRow" } },
+};
+
+describe("provider dependency declarations propagate requires through a chain", () => {
+	it("each declaration carries its own requires array for the engine to gate on", async () => {
+		await runProviders(
+			[chainA, chainB, chainC].map((provider) => ({ provider })),
+			{ type: "Everything" },
+		);
+		const byId = Object.fromEntries(h.decls.map((d) => [d.id, d]));
+		expect(byId.chainA.requires).toEqual([]);
+		expect(byId.chainB.requires).toEqual(["fieldA"]);
+		expect(byId.chainC.requires).toEqual(["fieldB"]);
+	});
+
+	it("all providers are declared regardless of the order they were handed in", async () => {
+		await runProviders(
+			[chainC, chainA, chainB].map((provider) => ({ provider })),
+			{ type: "Everything" },
+		);
+		expect(ids()).toEqual(expect.arrayContaining(["chainA", "chainB", "chainC"]));
+		expect(h.decls).toHaveLength(3);
+	});
+
+	it("progress counts a row done only after every provider in the chain has passed it", async () => {
+		expect(
+			await ticks(
+				[chainA, chainB, chainC],
+				[
+					step("chainA", 5, 10),
+					step("chainA", 10, 10, { finished: true }),
+					step("chainB", 3, 10),
+					step("chainB", 10, 10, { finished: true }),
+					step("chainC", 7, 10),
+					step("chainC", 10, 10, { finished: true }),
+				],
+			),
+		).toEqual([
+			[0, 10],
+			[0, 10],
+			[0, 10],
+			[0, 10],
+			[7, 10],
+			[10, 10],
+		]);
+	});
+
+	it("an upstream failure that skips all downstream work still completes the run", async () => {
+		h.script = [
+			step("chainA", 10, 10, { failed: 10, finished: true }),
+			step("chainB", 10, 10, { skipped: 10, finished: true }),
+			step("chainC", 10, 10, { skipped: 10, finished: true }),
+		];
+		h.failedIds = { chainA: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] };
+		const result = await runProviders(
+			[chainA, chainB, chainC].map((provider) => ({ provider })),
+			{ type: "Everything" },
+		);
+		expect(result.chainA.succeeded).toBe(0);
+		expect(result.chainA.failed).toHaveLength(10);
+		expect(result.chainB.succeeded).toBe(0);
+		expect(result.chainC.succeeded).toBe(0);
+	});
+
+	it("per-provider parts stay at zero for providers gated behind an unfinished one", async () => {
+		h.script = [
+			step("chainA", 5, 10),
+			step("chainA", 10, 10, { finished: true }),
+			step("chainB", 4, 10),
+			step("chainB", 10, 10, { finished: true }),
+			step("chainC", 10, 10, { finished: true }),
+		];
+		const parts: ProviderPart[][] = [];
+		await runProviders(
+			[chainA, chainB, chainC].map((provider) => ({ provider })),
+			{ type: "Everything" },
+			{ onProgress: (_d, _t, p) => parts.push(p) },
+		);
+		expect(parts[0].map((p) => [p.label, p.done])).toEqual([
+			["Chain A", 5],
+			["Chain B", 0],
+			["Chain C", 0],
+		]);
+		expect(parts[2].map((p) => [p.label, p.done])).toEqual([
+			["Chain A", 10],
+			["Chain B", 4],
+			["Chain C", 0],
+		]);
+	});
+});
+
+// --- Streaming (rows run) ------------------------------------------------------------
+
+describe("a rows run streams partial results via onPartial", () => {
+	const loc1 = { ...createLocation({ lat: 1, lng: 2 }), id: 10, panoId: "pA" } as Location;
+	const loc2 = { ...createLocation({ lat: 3, lng: 4 }), id: 20, panoId: "pB" } as Location;
+
+	it("delivers entries under their original ids as each provider finishes", async () => {
+		const partial: Location[][] = [];
+		h.rowRunHook = (token) => {
+			h.onResult?.({
+				runId: token,
+				providerId: "svMeta",
+				entries: [
+					{ id: 1, json: JSON.stringify({ ...loc1, extra: { enriched: true } }) },
+					{ id: 2, json: JSON.stringify({ ...loc2, extra: { enriched: true } }) },
+				],
+				failed: [],
+			});
+		};
+		await runProviders([{ provider: svMetaProvider }], [loc1, loc2], {
+			onPartial: (r) => partial.push(r),
+		});
+		expect(partial).toHaveLength(1);
+		expect(partial[0].map((r) => r.id)).toEqual([10, 20]);
+		expect(partial[0][0].extra).toEqual({ enriched: true });
+	});
+
+	it("fires separate callbacks for separate providers", async () => {
+		const partial: Location[][] = [];
+		h.rowRunHook = (token) => {
+			h.onResult?.({
+				runId: token,
+				providerId: "svMeta",
+				entries: [{ id: 1, json: JSON.stringify({ ...loc1, extra: { meta: "first" } }) }],
+				failed: [],
+			});
+			h.onResult?.({
+				runId: token,
+				providerId: "exactDate",
+				entries: [{ id: 1, json: JSON.stringify({ ...loc1, extra: { date: "second" } }) }],
+				failed: [],
+			});
+		};
+		await runProviders(
+			[{ provider: svMetaProvider }, { provider: exactDateProvider }],
+			[loc1],
+			{ onPartial: (r) => partial.push(r) },
+		);
+		expect(partial).toHaveLength(2);
+		expect(partial[0][0].extra).toEqual({ meta: "first" });
+		expect(partial[1][0].extra).toEqual({ date: "second" });
+	});
+
+	it("ignores events with no entries", async () => {
+		const partial: Location[][] = [];
+		h.rowRunHook = (token) => {
+			h.onResult?.({ runId: token, providerId: "svMeta", entries: [], failed: [] });
+		};
+		await runProviders([{ provider: svMetaProvider }], [loc1], {
+			onPartial: (r) => partial.push(r),
+		});
+		expect(partial).toEqual([]);
+	});
+
+	it("ignores events from a different run", async () => {
+		const partial: Location[][] = [];
+		h.rowRunHook = (token) => {
+			h.onResult?.({
+				runId: token + 999,
+				providerId: "svMeta",
+				entries: [{ id: 1, json: JSON.stringify(loc1) }],
+				failed: [],
+			});
+		};
+		await runProviders([{ provider: svMetaProvider }], [loc1], {
+			onPartial: (r) => partial.push(r),
+		});
+		expect(partial).toEqual([]);
+	});
+
+	it("the final result is still correct alongside streaming", async () => {
+		h.rowRunHook = (token) => {
+			h.onResult?.({
+				runId: token,
+				providerId: "svMeta",
+				entries: [{ id: 1, json: JSON.stringify({ ...loc1, extra: { streamed: true } }) }],
+				failed: [],
+			});
+		};
+		const out = await runProviders([{ provider: svMetaProvider }], [loc1], {
+			onPartial: () => {},
+		});
+		expect(out.rows[0].id).toBe(10);
+		expect(out.rows[0].extra).toMatchObject({ ran: true });
+	});
+});
+
+// --- Concurrent provider progress independence ---------------------------------------
+
+describe("concurrent providers report progress independently", () => {
+	const fast: Provider = {
+		id: "fast",
+		label: "Fast",
+		provides: ["f1"],
+		procedure: { entry: "res://fast.js", batch: { mode: "perRow" } },
+	};
+	const slow: Provider = {
+		id: "slow",
+		label: "Slow",
+		provides: ["f2"],
+		procedure: { entry: "res://slow.js", batch: { mode: "perRow" } },
+	};
+
+	it("interleaved updates from two providers keep each part accurate", async () => {
+		h.script = [
+			step("fast", 8, 10),
+			step("slow", 2, 10),
+			step("fast", 10, 10, { finished: true }),
+			step("slow", 6, 10),
+			step("slow", 10, 10, { finished: true }),
+		];
+		const parts: ProviderPart[][] = [];
+		await runProviders(
+			[fast, slow].map((provider) => ({ provider })),
+			{ type: "Everything" },
+			{ onProgress: (_d, _t, p) => parts.push(p) },
+		);
+		expect(parts[0]).toEqual([
+			{ label: "Fast", done: 8, total: 10, failed: 0, finished: false },
+			{ label: "Slow", done: 0, total: 0, failed: 0, finished: false },
+		]);
+		expect(parts[1]).toEqual([
+			{ label: "Fast", done: 8, total: 10, failed: 0, finished: false },
+			{ label: "Slow", done: 2, total: 10, failed: 0, finished: false },
+		]);
+		expect(parts[2]).toEqual([
+			{ label: "Fast", done: 10, total: 10, failed: 0, finished: true },
+			{ label: "Slow", done: 2, total: 10, failed: 0, finished: false },
+		]);
+		expect(parts[3]).toEqual([
+			{ label: "Fast", done: 10, total: 10, failed: 0, finished: true },
+			{ label: "Slow", done: 6, total: 10, failed: 0, finished: false },
+		]);
+	});
+
+	it("a fast provider finishing does not affect the overall bar until the slow one catches up", async () => {
+		expect(
+			await ticks(
+				[fast, slow],
+				[
+					step("fast", 10, 10, { finished: true }),
+					step("slow", 3, 10),
+					step("slow", 10, 10, { finished: true }),
+				],
+			),
+		).toEqual([
+			[0, 10],
+			[3, 10],
+			[10, 10],
+		]);
 	});
 });
