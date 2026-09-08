@@ -17,6 +17,8 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.5.6", features = [] }
 
 [dev-dependencies]
+# Kept solely as the oracle for src/net/geocoder.test.rs.
+reverse_geocoder = "4"
 proptest = "1"
 tempfile = "3"
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -59,7 +61,6 @@ uuid = { version = "1", features = ["v4"] }
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
-reverse_geocoder = "4"
 memmap2 = "0.9"
 rkyv = { version = "=0.7.46", features = ["validation"] }
 bytes = "1.9"
