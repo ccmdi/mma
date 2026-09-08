@@ -157,6 +157,7 @@ import {
 	type ProviderPart,
 } from "@/lib/data/procedures";
 import { createLocation } from "@/types";
+import type { Location } from "@/bindings.gen";
 import { registerProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import {
 	enrichAll,

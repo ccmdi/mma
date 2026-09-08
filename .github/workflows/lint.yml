@@ -31,7 +31,7 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
         working-directory: app
-      - run: npx tsc --noEmit -p tsconfig.app.json
+      - run: npm run typecheck
         working-directory: app
 
   clippy:
