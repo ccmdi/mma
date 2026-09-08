@@ -13,8 +13,7 @@ const HOST_OVERSCAN = 1.01;
 
 /** The live viewer's WebGL scene canvas, or null before first render. */
 export function getPanoCanvas(): HTMLCanvasElement | null {
-	const canvas = singletonDiv.querySelector("canvas");
-	return canvas && canvas.width > 0 && canvas.height > 0 ? canvas : null;
+	return sceneCanvas(singletonDiv);
 }
 
 /** Source rect of the largest centered region matching the target aspect. */
@@ -30,12 +29,13 @@ export function coverCrop(
 	return { sx: (srcW - sw) / 2, sy: (srcH - sh) / 2, sw, sh };
 }
 
-/** Cover-crop the live scene canvas into an exact width x height canvas.
- *  Detail is capped by the on-screen resolution. Null before first render. */
+/** Cover-crop the live scene canvas into an exact width x height canvas; null until the
+ *  viewer holds a rendered frame. */
 export function captureLivePano(width: number, height: number): HTMLCanvasElement | null {
 	const source = getPanoCanvas();
 	if (!source) return null;
-	return drawScaled(source, width, height);
+	const out = drawScaled(source, width, height);
+	return out && hasImagery(out) ? out : null;
 }
 
 // --- Offscreen fixed-resolution render ---
@@ -195,6 +195,11 @@ export function frameFingerprint(pixels: Uint8ClampedArray): number | null {
 function sceneCanvas(host: HTMLElement): HTMLCanvasElement | null {
 	const canvas = host.querySelector<HTMLCanvasElement>("canvas.widget-scene-canvas");
 	return canvas && canvas.width > 0 && canvas.height > 0 ? canvas : null;
+}
+
+function hasImagery(canvas: HTMLCanvasElement): boolean {
+	const pixels = canvas.getContext("2d")?.getImageData(0, 0, canvas.width, canvas.height).data;
+	return !!pixels && frameFingerprint(pixels) !== null;
 }
 
 /** Poll the scene canvas until its content holds still for CANVAS_QUIET_MS.

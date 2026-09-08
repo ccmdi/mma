@@ -87,10 +87,11 @@ export function capturePano(): PanoCapture | null {
 	};
 }
 
-/** Hide and release the singleton panorama. */
+/** Hide and release the singleton panorama, emptying its container. */
 export function clearSingletonPano() {
 	if (singletonPano) singletonPano.setVisible(false);
 	singletonPano = null;
+	singletonDiv.replaceChildren();
 }
 
 /** Point the viewer at a resolved panorama for `loc`, setting its position, POV, and zoom. */
