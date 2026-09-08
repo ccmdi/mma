@@ -15,6 +15,7 @@ import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { addParsedLocations } from "@/lib/map/mapClick";
 import { pluginsReady } from "@/plugins";
+import "@/lib/render/renderStats"; // installs the window.__mmaPerf harness bridge
 import { MapEmbed } from "@/components/editor/map/MapEmbed";
 import { MapMetaBar } from "@/components/editor/map/MapMetaBar";
 import { MapOverview } from "@/components/editor/map/MapOverview";

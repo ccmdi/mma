@@ -13,7 +13,6 @@ import {
 } from "@/store/router";
 import { MapList, BulkActions } from "@/components/map-list/MapList";
 import { openScratchMap } from "@/store/mapList";
-import { StatsForNerds } from "@/components/dialogs/StatsForNerds";
 import { SettingsPage, UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { PluginMarketplace } from "@/components/dialogs/PluginMarketplace";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
@@ -22,7 +21,6 @@ import { useBinding } from "@/lib/util/hotkeys";
 import { useSetting, useSettings, CSS_VAR_SETTINGS } from "@/store/settings";
 import { useLocalStorage, persisted } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";
-import "@/lib/render/renderStats"; // installs the window.__mmaPerf harness bridge
 import { applyAccentColor, resolveSvColorHex } from "@/lib/util/color";
 import { Icon, mdiDiscord } from "@/components/primitives/Icon";
 import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutline } from "@mdi/js";
@@ -109,6 +107,14 @@ function AppChrome() {
 
 	const update = useUpdateState();
 	const [showStats, setShowStats] = useState(false);
+
+	const [Stats, setStats] = useState<
+		typeof import("@/components/dialogs/StatsForNerds").StatsForNerds | null
+	>(null);
+	useEffect(() => {
+		if (!showStats || Stats) return;
+		void import("@/components/dialogs/StatsForNerds").then((m) => setStats(() => m.StatsForNerds));
+	}, [showStats, Stats]);
 	const [showSettings, setShowSettings] = useState(false);
 	const [feedbackOpen, setFeedbackOpen] = useDialogState("feedback");
 	const [showPlugins, setShowPlugins] = useState(false);
@@ -224,7 +230,7 @@ function AppChrome() {
 					</button>
 				</div>
 			)}
-			{showStats && <StatsForNerds onClose={() => setShowStats(false)} />}
+			{showStats && Stats && <Stats onClose={() => setShowStats(false)} />}
 			<SettingsPage open={showSettings} onOpenChange={setShowSettings} />
 			{feedbackOpen && <ReportDialog onClose={() => setFeedbackOpen(false)} />}
 			<PluginMarketplace open={showPlugins} onOpenChange={setShowPlugins} />
