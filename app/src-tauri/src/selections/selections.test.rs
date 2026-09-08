@@ -3382,3 +3382,325 @@ fn pinned_needs_the_pano_id_as_well_as_the_flag() {
     };
     assert_eq!(ids_of(&view, &unpinned), vec![2, 3, 4]);
 }
+
+// -----------------------------------------------------------------------
+// Ranked with overlay
+// -----------------------------------------------------------------------
+
+#[test]
+fn ranked_with_overlay_uses_patched_values_and_skips_dead() {
+    let base = vec![
+        loc_extra(1, serde_json::json!({"val": 10})),
+        loc_extra(2, serde_json::json!({"val": 90})),
+        loc_extra(3, serde_json::json!({"val": 50})),
+        loc_extra(4, serde_json::json!({"val": 80})),
+    ];
+    let patched_3 = Location {
+        extra: RawExtra::from_value(&serde_json::json!({"val": 99})),
+        ..loc(3, 0.0, 0.0)
+    };
+    let fx = Fx::base(&base)
+        .with_dead([2])
+        .with_patch(3, patched_3)
+        .with_adds(vec![loc_extra(5, serde_json::json!({"val": 70}))]);
+    let view = fx.view();
+
+    // top-2 descending: id 3 (patched to 99) and id 4 (80). id 2 is dead.
+    let top2 = ranked_within(&view, None, "val", Some(2), false);
+    assert_eq!(top2, vec![3, 4]);
+
+    // top-1 ascending: id 1 (10), the smallest among alive rows.
+    let bottom1 = ranked_within(&view, None, "val", Some(1), true);
+    assert_eq!(bottom1, vec![1]);
+
+    // through resolve: the full Ranked selector should agree.
+    let sel = Selector::Ranked {
+        selection: None,
+        expr: "val".into(),
+        k: Some(2),
+        ascending: false,
+    };
+    assert_eq!(ids_of(&view, &sel), vec![3, 4]);
+}
+
+// -----------------------------------------------------------------------
+// Contains / Notcontains on array fields
+// -----------------------------------------------------------------------
+
+#[test]
+fn contains_matches_element_in_array_field() {
+    assert!(compare_filter(
+        &serde_json::json!(["x", "y", "z"]),
+        &FilterOp::Contains {
+            value: serde_json::json!("x")
+        }
+    ));
+    assert!(compare_filter(
+        &serde_json::json!(["x", "y", "z"]),
+        &FilterOp::Contains {
+            value: serde_json::json!("y")
+        }
+    ));
+}
+
+#[test]
+fn contains_misses_absent_element() {
+    assert!(!compare_filter(
+        &serde_json::json!(["x", "y"]),
+        &FilterOp::Contains {
+            value: serde_json::json!("w")
+        }
+    ));
+}
+
+#[test]
+fn notcontains_excludes_present_element() {
+    assert!(!compare_filter(
+        &serde_json::json!(["a", "b"]),
+        &FilterOp::Notcontains {
+            value: serde_json::json!("a")
+        }
+    ));
+}
+
+#[test]
+fn notcontains_passes_for_absent_element() {
+    assert!(compare_filter(
+        &serde_json::json!(["a", "b"]),
+        &FilterOp::Notcontains {
+            value: serde_json::json!("c")
+        }
+    ));
+}
+
+#[test]
+fn contains_on_scalar_is_always_false() {
+    assert!(!compare_filter(
+        &serde_json::json!("x"),
+        &FilterOp::Contains {
+            value: serde_json::json!("x")
+        }
+    ));
+    assert!(!compare_filter(
+        &serde_json::json!(42),
+        &FilterOp::Contains {
+            value: serde_json::json!(42)
+        }
+    ));
+}
+
+#[test]
+fn notcontains_on_scalar_is_always_false() {
+    assert!(!compare_filter(
+        &serde_json::json!("x"),
+        &FilterOp::Notcontains {
+            value: serde_json::json!("y")
+        }
+    ));
+}
+
+#[test]
+fn contains_notcontains_end_to_end_via_resolve() {
+    let locs = vec![
+        loc_extra(1, serde_json::json!({"items": ["a", "b"]})),
+        loc_extra(2, serde_json::json!({"items": ["b", "c"]})),
+        loc_extra(3, serde_json::json!({"items": ["a", "c"]})),
+        loc_extra(4, serde_json::json!({"items": "scalar"})),
+    ];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+    let filter = |op: FilterOp| Selector::Filter {
+        field: "items".into(),
+        test: op,
+    };
+    // Contains "a": arrays [1] and [3] have "a"; scalar [4] does not match.
+    assert_eq!(
+        ids_of(
+            &view,
+            &filter(FilterOp::Contains {
+                value: serde_json::json!("a")
+            })
+        ),
+        vec![1, 3]
+    );
+    // Notcontains "b": array [3] lacks "b"; scalar [4] returns false (not an array).
+    assert_eq!(
+        ids_of(
+            &view,
+            &filter(FilterOp::Notcontains {
+                value: serde_json::json!("b")
+            })
+        ),
+        vec![3]
+    );
+}
+
+// -----------------------------------------------------------------------
+// Range operators on array-valued fields compare by array length
+// -----------------------------------------------------------------------
+
+#[test]
+fn gt_lt_on_array_compares_by_length() {
+    let arr2 = serde_json::json!(["a", "b"]);
+    let arr4 = serde_json::json!(["a", "b", "c", "d"]);
+
+    assert!(compare_filter(
+        &arr4,
+        &FilterOp::Gt {
+            value: serde_json::json!(3),
+            tz_local: false,
+        }
+    ));
+    assert!(!compare_filter(
+        &arr2,
+        &FilterOp::Gt {
+            value: serde_json::json!(3),
+            tz_local: false,
+        }
+    ));
+
+    assert!(compare_filter(
+        &arr2,
+        &FilterOp::Lt {
+            value: serde_json::json!(3),
+            tz_local: false,
+        }
+    ));
+    assert!(!compare_filter(
+        &arr4,
+        &FilterOp::Lt {
+            value: serde_json::json!(3),
+            tz_local: false,
+        }
+    ));
+}
+
+#[test]
+fn between_on_array_uses_length() {
+    let arr3 = serde_json::json!(["x", "y", "z"]);
+    assert!(compare_filter(
+        &arr3,
+        &FilterOp::Between {
+            lo: serde_json::json!(2),
+            hi: serde_json::json!(5),
+            tz_local: false,
+        }
+    ));
+    assert!(!compare_filter(
+        &arr3,
+        &FilterOp::Between {
+            lo: serde_json::json!(4),
+            hi: serde_json::json!(10),
+            tz_local: false,
+        }
+    ));
+}
+
+#[test]
+fn eq_on_array_compares_length_not_elements() {
+    let arr = serde_json::json!(["a", "b"]);
+    assert!(compare_filter(
+        &arr,
+        &FilterOp::Eq {
+            value: serde_json::json!(2)
+        }
+    ));
+    assert!(!compare_filter(
+        &arr,
+        &FilterOp::Eq {
+            value: serde_json::json!(3)
+        }
+    ));
+}
+
+#[test]
+fn has_nothas_on_array() {
+    assert!(compare_filter(&serde_json::json!(["x"]), &FilterOp::Has));
+    assert!(!compare_filter(
+        &serde_json::json!(["x"]),
+        &FilterOp::Nothas
+    ));
+}
+
+#[test]
+fn array_filter_end_to_end_via_resolve() {
+    let locs = vec![
+        loc_extra(1, serde_json::json!({"arr": [1, 2, 3]})),
+        loc_extra(2, serde_json::json!({"arr": [1]})),
+        loc_extra(3, serde_json::json!({"arr": [1, 2, 3, 4, 5]})),
+    ];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+    let filter = |op: FilterOp| Selector::Filter {
+        field: "arr".into(),
+        test: op,
+    };
+    // length > 2
+    assert_eq!(
+        ids_of(
+            &view,
+            &filter(FilterOp::Gt {
+                value: serde_json::json!(2),
+                tz_local: false,
+            })
+        ),
+        vec![1, 3]
+    );
+    // length between 2..4 (inclusive)
+    assert_eq!(
+        ids_of(
+            &view,
+            &filter(FilterOp::Between {
+                lo: serde_json::json!(2),
+                hi: serde_json::json!(4),
+                tz_local: false,
+            })
+        ),
+        vec![1]
+    );
+}
+
+// -----------------------------------------------------------------------
+// resolve_within for Duplicates and Ranked: whole-resolve then intersect
+// -----------------------------------------------------------------------
+
+#[test]
+fn resolve_within_duplicates_equals_resolve_then_intersect() {
+    let locs = vec![
+        loc(1, 0.00000, 0.0),
+        loc(2, 0.00001, 0.0),
+        loc(3, 0.00002, 0.0),
+        loc(4, 50.0, 50.0),
+    ];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+    let dups = Selector::Duplicates { distance: 10.0 };
+    let full = resolve(&view, &dups);
+    let within_set: RoaringBitmap = [1u32, 2, 4].into_iter().collect();
+    let via_resolve_within = resolve_within(&view, &dups, &within_set);
+    let via_intersect = &full & &within_set;
+    assert_eq!(via_resolve_within, via_intersect);
+}
+
+#[test]
+fn resolve_within_ranked_equals_resolve_then_intersect() {
+    let locs = vec![
+        loc_extra(1, serde_json::json!({"v": 100})),
+        loc_extra(2, serde_json::json!({"v": 200})),
+        loc_extra(3, serde_json::json!({"v": 300})),
+        loc_extra(4, serde_json::json!({"v": 400})),
+    ];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+    let ranked_sel = Selector::Ranked {
+        selection: None,
+        expr: "v".into(),
+        k: Some(2),
+        ascending: false,
+    };
+    let full = resolve(&view, &ranked_sel);
+    let within_set: RoaringBitmap = [1u32, 3, 4].into_iter().collect();
+    let via_resolve_within = resolve_within(&view, &ranked_sel, &within_set);
+    let via_intersect = &full & &within_set;
+    assert_eq!(via_resolve_within, via_intersect);
+}

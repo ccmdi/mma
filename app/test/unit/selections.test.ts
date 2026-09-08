@@ -24,6 +24,10 @@ import {
 	polygonSelectionsContaining,
 	isolateGhostKeys,
 	rewriteSelectionFields,
+	toggleGhost,
+	toggleGhostAll,
+	childSelections,
+	withChildren,
 } from "@/store/selections";
 import { ValidationState } from "@/bindings.consts";
 import type { PolygonGeometry } from "@/bindings.gen";
@@ -1267,5 +1271,202 @@ describe("rewriteSelectionFields", () => {
 		const out = rewriteSelectionFields("a", null)([union]);
 		expect(out).toHaveLength(1);
 		expect(out[0].selector.type).toBe("Tag");
+	});
+});
+
+describe("toggleGhost", () => {
+	it("adds a key to the ghosted set", () => {
+		const patch = toggleGhost("a")([], new Set());
+		expect(patch.ghosted!.has("a")).toBe(true);
+	});
+
+	it("removes an already-ghosted key", () => {
+		const patch = toggleGhost("a")([], new Set(["a"]));
+		expect(patch.ghosted!.has("a")).toBe(false);
+	});
+
+	it("preserves other ghosted keys", () => {
+		const patch = toggleGhost("a")([], new Set(["b", "c"]));
+		expect(patch.ghosted!.has("a")).toBe(true);
+		expect(patch.ghosted!.has("b")).toBe(true);
+		expect(patch.ghosted!.has("c")).toBe(true);
+	});
+});
+
+describe("toggleGhostAll", () => {
+	it("ghosts every selection when none are ghosted", () => {
+		const sels = [buildSelection({ type: "PanoIds" }), buildSelection({ type: "Untagged" })];
+		const patch = toggleGhostAll()(sels, new Set());
+		expect(patch.ghosted!.size).toBe(2);
+		for (const s of sels) expect(patch.ghosted!.has(s.key)).toBe(true);
+	});
+
+	it("clears all ghosts when every selection is ghosted", () => {
+		const sels = [buildSelection({ type: "PanoIds" }), buildSelection({ type: "Untagged" })];
+		const allKeys = new Set(sels.map((s) => s.key));
+		const patch = toggleGhostAll()(sels, allKeys);
+		expect(patch.ghosted!.size).toBe(0);
+	});
+
+	it("adds missing keys when only some are ghosted", () => {
+		const sels = [buildSelection({ type: "PanoIds" }), buildSelection({ type: "Untagged" })];
+		const partial = new Set([sels[0].key]);
+		const patch = toggleGhostAll()(sels, partial);
+		expect(patch.ghosted!.size).toBe(2);
+	});
+
+	it("returns empty ghosted set for empty selection list", () => {
+		const patch = toggleGhostAll()([], new Set());
+		expect(patch.ghosted!.size).toBe(0);
+	});
+});
+
+describe("Ranked selector key derivation", () => {
+	it("key includes expr, k, ascending, and empty inner selection", () => {
+		const sel = buildSelection({
+			type: "Ranked",
+			selection: null,
+			expr: "altitude",
+			k: 10,
+			ascending: false,
+		});
+		expect(sel.key).toBe("ranked:altitude:10:false:");
+	});
+
+	it("key includes inner selection key when present", () => {
+		const inner = buildSelection({ type: "Untagged" });
+		const sel = buildSelection({
+			type: "Ranked",
+			selection: inner,
+			expr: "altitude",
+			k: 5,
+			ascending: true,
+		});
+		expect(sel.key).toBe(`ranked:altitude:5:true:${inner.key}`);
+	});
+
+	it("null k serializes as 'null' in the key", () => {
+		const sel = buildSelection({
+			type: "Ranked",
+			selection: null,
+			expr: "lat",
+			k: null,
+			ascending: false,
+		});
+		expect(sel.key).toBe("ranked:lat:null:false:");
+	});
+
+	it("label without k says 'Ranked by'", () => {
+		const sel = buildSelection({
+			type: "Ranked",
+			selection: null,
+			expr: "myField",
+			k: null,
+			ascending: false,
+		});
+		expect(selectionDisplayName(sel)).toBe("Ranked by myField");
+	});
+
+	it("label with k and ascending says 'Bottom k by'", () => {
+		const sel = buildSelection({
+			type: "Ranked",
+			selection: null,
+			expr: "myField",
+			k: 3,
+			ascending: true,
+		});
+		expect(selectionDisplayName(sel)).toBe("Bottom 3 by myField");
+	});
+
+	it("label with k and descending says 'Top k by'", () => {
+		const sel = buildSelection({
+			type: "Ranked",
+			selection: null,
+			expr: "myField",
+			k: 3,
+			ascending: false,
+		});
+		expect(selectionDisplayName(sel)).toBe("Top 3 by myField");
+	});
+});
+
+describe("childSelections", () => {
+	it("returns selections array for Intersection", () => {
+		const a = buildSelection({ type: "PanoIds" });
+		const b = buildSelection({ type: "Untagged" });
+		const sel = { type: "Intersection" as const, selections: [a, b] };
+		expect(childSelections(sel)).toEqual([a, b]);
+	});
+
+	it("returns selections array for Union", () => {
+		const a = buildSelection({ type: "PanoIds" });
+		const sel = { type: "Union" as const, selections: [a] };
+		expect(childSelections(sel)).toEqual([a]);
+	});
+
+	it("returns single-element array for Ranked with selection", () => {
+		const inner = buildSelection({ type: "Untagged" });
+		const sel = { type: "Ranked" as const, selection: inner, expr: "lat", k: 5, ascending: true };
+		expect(childSelections(sel)).toEqual([inner]);
+	});
+
+	it("returns empty array for Ranked without selection", () => {
+		const sel = { type: "Ranked" as const, selection: null, expr: "lat", k: null, ascending: false };
+		expect(childSelections(sel)).toEqual([]);
+	});
+
+	it("returns empty array for leaf selectors", () => {
+		expect(childSelections({ type: "Everything" })).toEqual([]);
+		expect(childSelections({ type: "Tag", tagId: 1 })).toEqual([]);
+		expect(childSelections({ type: "Untagged" })).toEqual([]);
+		expect(childSelections({ type: "Duplicates", distance: 10 })).toEqual([]);
+		expect(
+			childSelections({ type: "Filter", field: "x", test: { op: "has" } }),
+		).toEqual([]);
+	});
+});
+
+describe("withChildren", () => {
+	it("replaces children in Intersection", () => {
+		const a = buildSelection({ type: "PanoIds" });
+		const b = buildSelection({ type: "Untagged" });
+		const sel = { type: "Intersection" as const, selections: [a] };
+		const result = withChildren(sel, [a, b]);
+		expect((result as { selections: unknown[] }).selections).toEqual([a, b]);
+	});
+
+	it("replaces children in Union", () => {
+		const a = buildSelection({ type: "PanoIds" });
+		const sel = { type: "Union" as const, selections: [a] };
+		const result = withChildren(sel, []);
+		expect((result as { selections: unknown[] }).selections).toEqual([]);
+	});
+
+	it("replaces the optional selection in Ranked", () => {
+		const inner = buildSelection({ type: "Untagged" });
+		const replacement = buildSelection({ type: "PanoIds" });
+		const sel = { type: "Ranked" as const, selection: inner, expr: "lat", k: 5, ascending: true };
+		const result = withChildren(sel, [replacement]);
+		expect((result as { selection: unknown }).selection).toBe(replacement);
+	});
+
+	it("sets selection to null when children is empty for Ranked", () => {
+		const inner = buildSelection({ type: "Untagged" });
+		const sel = { type: "Ranked" as const, selection: inner, expr: "lat", k: null, ascending: true };
+		const result = withChildren(sel, []);
+		expect((result as { selection: unknown }).selection).toBeNull();
+	});
+
+	it("returns the selector unchanged for leaf types", () => {
+		const leaf = { type: "Everything" as const };
+		expect(withChildren(leaf, [])).toEqual(leaf);
+	});
+
+	it("roundtrips: withChildren(sel, childSelections(sel)) preserves shape", () => {
+		const a = buildSelection({ type: "PanoIds" });
+		const b = buildSelection({ type: "Untagged" });
+		const intersection = { type: "Intersection" as const, selections: [a, b] };
+		const result = withChildren(intersection, childSelections(intersection));
+		expect((result as { selections: unknown[] }).selections).toEqual([a, b]);
 	});
 });
