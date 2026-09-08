@@ -17,7 +17,13 @@ let countFormat = new Intl.NumberFormat("en");
 /** Load a locale's catalog. Call once before the first render -- language changes relaunch the
  *  app rather than re-rendering, so nothing observes `locale` changing mid-flight. */
 export async function initLocale(code: string): Promise<void> {
-	const catalogs = import.meta.glob<{ default: Record<string, CatalogEntry> }>("../locales/*.json");
+	// The DEV branch constant-folds away in production, so en-XA never becomes a shipped chunk.
+	const catalogs = import.meta.env.DEV
+		? import.meta.glob<{ default: Record<string, CatalogEntry> }>("../locales/*.json")
+		: import.meta.glob<{ default: Record<string, CatalogEntry> }>([
+				"../locales/*.json",
+				"!../locales/en-XA.json",
+			]);
 	const load = catalogs[`../locales/${code}.json`];
 	catalog = load ? (await load()).default : {};
 	locale = code;
