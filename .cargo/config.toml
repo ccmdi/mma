@@ -1,2 +1,6 @@
 [target.x86_64-pc-windows-msvc]
 linker = "rust-lld.exe"
+
+# libsqlite3-sys appends these after its own -D flags, so -U drops the unused extensions.
+[env]
+LIBSQLITE3_FLAGS = "-USQLITE_ENABLE_FTS3 -USQLITE_ENABLE_FTS3_PARENTHESIS -USQLITE_ENABLE_FTS5 -USQLITE_ENABLE_RTREE -USQLITE_ENABLE_STAT4 -USQLITE_ENABLE_DBSTAT_VTAB -USQLITE_SOUNDEX -DSQLITE_OMIT_JSON"
