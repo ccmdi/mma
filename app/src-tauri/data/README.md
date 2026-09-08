@@ -8,8 +8,9 @@ always available offline and cost no startup parsing beyond a header read.
 Packed reverse-geocoding table: 144,563 populated places with their nearest-city name,
 first-level administrative division, and ISO 3166-1 alpha-2 country code. Points are stored
 in implicit kd-tree order, so the spatial index costs no bytes at all -- the array order is
-the tree. Built by `scripts/gen-cities-bin.mjs`; see `src/net/geocoder.rs` for the layout
-and the descent.
+the tree. Coordinates and payload are parallel arrays, and names are front-coded against
+their sorted predecessor with periodic restarts. Built by `scripts/gen-cities-bin.mjs`; see
+`src/net/geocoder.rs` for the layout and the descent.
 
 Derived from the **GeoNames** cities1000 dataset (<https://www.geonames.org/>), which is
 licensed **CC BY 4.0**. Attribution is required for redistribution. The dataset reaches us

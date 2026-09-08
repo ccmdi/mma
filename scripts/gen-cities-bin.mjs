@@ -4,13 +4,17 @@
 // Usage: node scripts/gen-cities-bin.mjs <path-to-cities.csv>
 //
 // Layout (little-endian). Points are unit-sphere vectors in implicit kd-tree order
-// (children of node i at 2i+1/2i+2, splitting axis cycles x, y, z with depth).
+// (children of node i at 2i+1/2i+2, splitting axis cycles x, y, z with depth). Names are
+// front-coded in sorted order with a restart every NAME_BLOCK entries.
 //
-//   magic "MMAC" u32 | version u32 | count u32 | reserved u32
-//   names_at u32 | admins_at u32 | admin_count u32 | reserved u32      (32B header)
-//   points      count * 20B         -- x,y,z f32 (unit sphere), name u32, admin u16, cc [u8;2]
-//   name pool   [u8 len][utf8]...   -- point.name is a byte offset to the length
-//   admin index (admin_count + 1) * u32, then the admin1 utf8 bytes
+//   header 48B: magic "MMAC" | version | count | admin_count | cc_count
+//               xyz_at | payload_at | names_at | admins_at | ccs_at | 2 reserved
+//   xyz       count * 12B    -- f32 x, y, z on the unit sphere
+//   payload   count * 6B     -- name u24, admin u16, cc u8 (parallel to xyz)
+//   names     restart u32 count, (restarts + 1) * u32 offsets, then front-coded entries:
+//             shared u8, suffix_len u8, suffix bytes
+//   admins    (admin_count + 1) * u32 offsets, then the admin1 utf8 bytes
+//   ccs       cc_count * 2B  -- ISO 3166-1 alpha-2, fixed width
 
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -101,22 +105,39 @@ const tree = new Array(rows.length);
 })(0, rows.length, 0, 0);
 if (tree.some((t) => t === undefined)) throw new Error("kd-tree layout left a hole");
 
+const NAME_BLOCK = 16;
+
 const admins = [...new Set(rows.map((r) => r.admin1))].sort();
 const adminId = new Map(admins.map((a, i) => [a, i]));
 if (admins.length > 0xffff) throw new Error("admin1 count exceeds u16");
 
-const nameBufs = [];
-const nameOffset = new Map();
+const ccs = [...new Set(rows.map((r) => r.cc))].sort();
+const ccId = new Map(ccs.map((c, i) => [c, i]));
+if (ccs.length > 0xff) throw new Error("country count exceeds u8");
+
+const names = [...new Set(rows.map((r) => r.name))].sort();
+const nameId = new Map(names.map((n, i) => [n, i]));
+if (names.length > 0xffffff) throw new Error("name count exceeds u24");
+
+const restarts = [];
+const nameChunks = [];
 let namesLen = 0;
-for (const r of rows) {
-	if (nameOffset.has(r.name)) continue;
-	const b = Buffer.from(r.name, "utf8");
-	if (b.length > 255) throw new Error(`name too long: ${r.name}`);
-	nameOffset.set(r.name, namesLen);
-	nameBufs.push(Buffer.from([b.length]), b);
-	namesLen += 1 + b.length;
-}
-const namePool = Buffer.concat(nameBufs);
+let prev = Buffer.alloc(0);
+names.forEach((n, i) => {
+	const b = Buffer.from(n, "utf8");
+	if (b.length > 255) throw new Error(`name too long: ${n}`);
+	let shared = 0;
+	if (i % NAME_BLOCK === 0) restarts.push(namesLen);
+	else while (shared < Math.min(b.length, prev.length, 255) && b[shared] === prev[shared]) shared++;
+	nameChunks.push(Buffer.from([shared, b.length - shared]), b.subarray(shared));
+	namesLen += 2 + b.length - shared;
+	prev = b;
+});
+const nameIndex = Buffer.alloc(4 + (restarts.length + 1) * 4);
+nameIndex.writeUInt32LE(restarts.length, 0);
+restarts.forEach((off, i) => nameIndex.writeUInt32LE(off, 4 + i * 4));
+nameIndex.writeUInt32LE(namesLen, 4 + restarts.length * 4);
+const namePool = Buffer.concat([nameIndex, ...nameChunks]);
 
 const adminBufs = admins.map((a) => Buffer.from(a, "utf8"));
 const adminBytes = Buffer.concat(adminBufs);
@@ -127,32 +148,45 @@ for (let i = 0; i < admins.length; i++) {
 	acc += adminBufs[i].length;
 }
 adminIndex.writeUInt32LE(acc, admins.length * 4);
+const adminPool = Buffer.concat([adminIndex, adminBytes]);
 
-const points = Buffer.alloc(tree.length * 20);
+const ccPool = Buffer.alloc(ccs.length * 2);
+ccs.forEach((c, i) => ccPool.write(c, i * 2, 2, "latin1"));
+
+const xyz = Buffer.alloc(tree.length * 12);
+const payload = Buffer.alloc(tree.length * 6);
 for (let i = 0; i < tree.length; i++) {
 	const r = tree[i];
-	const at = i * 20;
-	points.writeFloatLE(r.v[0], at);
-	points.writeFloatLE(r.v[1], at + 4);
-	points.writeFloatLE(r.v[2], at + 8);
-	points.writeUInt32LE(nameOffset.get(r.name), at + 12);
-	points.writeUInt16LE(adminId.get(r.admin1), at + 16);
-	points.write(r.cc, at + 18, 2, "latin1");
+	xyz.writeFloatLE(r.v[0], i * 12);
+	xyz.writeFloatLE(r.v[1], i * 12 + 4);
+	xyz.writeFloatLE(r.v[2], i * 12 + 8);
+	payload.writeUIntLE(nameId.get(r.name), i * 6, 3);
+	payload.writeUInt16LE(adminId.get(r.admin1), i * 6 + 3);
+	payload.writeUInt8(ccId.get(r.cc), i * 6 + 5);
 }
 
-const headerBuf = Buffer.alloc(32);
+const headerBuf = Buffer.alloc(48);
 headerBuf.write("MMAC", 0, 4, "latin1");
-headerBuf.writeUInt32LE(3, 4);
-headerBuf.writeUInt32LE(rows.length, 8);
-const namesAt = 32 + points.length;
-headerBuf.writeUInt32LE(namesAt, 16);
-headerBuf.writeUInt32LE(namesAt + namePool.length, 20);
-headerBuf.writeUInt32LE(admins.length, 24);
+headerBuf.writeUInt32LE(4, 4);
+headerBuf.writeUInt32LE(tree.length, 8);
+headerBuf.writeUInt32LE(admins.length, 12);
+headerBuf.writeUInt32LE(ccs.length, 16);
+const xyzAt = 48;
+const payloadAt = xyzAt + xyz.length;
+const namesAt = payloadAt + payload.length;
+const adminsAt = namesAt + namePool.length;
+const ccsAt = adminsAt + adminPool.length;
+headerBuf.writeUInt32LE(xyzAt, 20);
+headerBuf.writeUInt32LE(payloadAt, 24);
+headerBuf.writeUInt32LE(namesAt, 28);
+headerBuf.writeUInt32LE(adminsAt, 32);
+headerBuf.writeUInt32LE(ccsAt, 36);
 
-const out = Buffer.concat([headerBuf, points, namePool, adminIndex, adminBytes]);
+const out = Buffer.concat([headerBuf, xyz, payload, namePool, adminPool, ccPool]);
 mkdirSync(dirname(outFile), { recursive: true });
 writeFileSync(outFile, out);
 console.log(
-	`cities.bin: ${rows.length.toLocaleString()} rows, ${admins.length.toLocaleString()} admin1, ` +
-		`${nameOffset.size.toLocaleString()} distinct names, ${out.length.toLocaleString()} bytes`,
+	`cities.bin: ${rows.length.toLocaleString()} rows, ${names.length.toLocaleString()} names ` +
+		`(${namePool.length.toLocaleString()} B front-coded), ${admins.length.toLocaleString()} admin1, ` +
+		`${ccs.length} countries -> ${out.length.toLocaleString()} bytes`,
 );
