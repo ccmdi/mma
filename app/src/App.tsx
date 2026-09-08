@@ -17,8 +17,6 @@ import { StatsForNerds } from "@/components/dialogs/StatsForNerds";
 import { SettingsPage, UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { PluginMarketplace } from "@/components/dialogs/PluginMarketplace";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
-import { Manual } from "@/components/manual/Manual";
-import { ManualSearch } from "@/components/manual/ManualSearch";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useSetting, useSettings, CSS_VAR_SETTINGS } from "@/store/settings";
@@ -48,6 +46,11 @@ import { Button } from "@/components/primitives/Button";
 // a Suspense boundary makes React 19 render the editor in a low-priority lane (~260ms/open).
 // We preload the chunk in the background and render it as a plain component in the urgent lane.
 const mapEditorModule = import("@/components/editor/MapEditor");
+
+const manualModules = Promise.all([
+	import("@/components/manual/Manual"),
+	import("@/components/manual/ManualSearch"),
+]);
 
 const BLANK_STYLE: CSSProperties = { position: "fixed", inset: 0, background: "var(--surface-0)" };
 const Blank = () => <div style={BLANK_STYLE} />;
@@ -110,6 +113,16 @@ function AppChrome() {
 	const [feedbackOpen, setFeedbackOpen] = useDialogState("feedback");
 	const [showPlugins, setShowPlugins] = useState(false);
 	const [manualSearchOpen, setManualSearchOpen] = useState(false);
+
+	const [manual, setManual] = useState<{
+		Manual: typeof import("@/components/manual/Manual").Manual;
+		Search: typeof import("@/components/manual/ManualSearch").ManualSearch;
+	} | null>(null);
+	useEffect(() => {
+		void manualModules.then(([m, search]) =>
+			setManual({ Manual: m.Manual, Search: search.ManualSearch }),
+		);
+	}, []);
 
 	useHotkey(useBinding("toggleStats"), () => setShowStats((s) => !s));
 	useHotkey(useBinding("openManualSearch"), () => setManualSearchOpen((v) => !v));
@@ -215,9 +228,15 @@ function AppChrome() {
 			<SettingsPage open={showSettings} onOpenChange={setShowSettings} />
 			{feedbackOpen && <ReportDialog onClose={() => setFeedbackOpen(false)} />}
 			<PluginMarketplace open={showPlugins} onOpenChange={setShowPlugins} />
-			<ManualSearch open={manualSearchOpen} onOpenChange={setManualSearchOpen} />
-			{manualChapter !== null && (
-				<Manual chapterId={manualChapter} onNavigate={gotoManualChapter} onClose={closeManual} />
+			{manual && manualSearchOpen && (
+				<manual.Search open={manualSearchOpen} onOpenChange={setManualSearchOpen} />
+			)}
+			{manual && manualChapter !== null && (
+				<manual.Manual
+					chapterId={manualChapter}
+					onNavigate={gotoManualChapter}
+					onClose={closeManual}
+				/>
 			)}
 		</>
 	);
