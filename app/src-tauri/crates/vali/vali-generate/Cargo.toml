@@ -17,7 +17,7 @@ rust_decimal = "1"
 rustc-hash = "2"
 serde = { features = ["derive"], version = "1" }
 serde_json = { features = ["float_roundtrip"], version = "1" }
-ureq = { features = ["json"], version = "3.3.0" }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls-no-provider"] }
 vali-core = { path = "../vali-core" }
 vali-data = { path = "../vali-data" }
 vali-expr = { path = "../vali-expr" }

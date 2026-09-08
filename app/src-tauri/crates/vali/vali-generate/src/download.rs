@@ -1,5 +1,6 @@
 use crate::progress::{emit, CancelToken, Event, Progress};
 use anyhow::{bail, Context};
+use reqwest::blocking::Client;
 use serde::Deserialize;
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -28,14 +29,15 @@ struct MetadataFile {
     #[serde(alias = "LastWriteTimeUtc")]
     last_write_time_utc: NetDateTime,
 }
-fn agent() -> ureq::Agent {
+fn agent() -> Client {
     agent_with(Duration::from_secs(600))
 }
-fn agent_with(timeout: Duration) -> ureq::Agent {
-    ureq::Agent::config_builder()
-        .timeout_global(Some(timeout))
+/// No TLS provider selected here; the app installs one process-wide at startup.
+fn agent_with(timeout: Duration) -> Client {
+    Client::builder()
+        .timeout(timeout)
         .build()
-        .into()
+        .expect("blocking HTTP client")
 }
 /// Remote objects that are missing locally or whose upload is newer than the local copy --
 /// the one rule for "out of date", shared by the download passes and the staleness check.
@@ -114,7 +116,7 @@ enum Operation {
     Updates { force: bool },
 }
 fn run_operation(
-    agent: &ureq::Agent,
+    agent: &Client,
     root: &Path,
     cc: &str,
     op: &Operation,
@@ -322,7 +324,7 @@ fn downloaded_country_codes(root: &Path) -> Vec<String> {
         .collect()
 }
 fn download_data_files(
-    agent: &ureq::Agent,
+    agent: &Client,
     cc: &str,
     folder: &Path,
     files: &[&R2Object],
@@ -372,7 +374,7 @@ fn append_update_file(country_folder: &Path, r2: &R2Object) -> anyhow::Result<()
     Ok(())
 }
 fn download_file(
-    agent: &ureq::Agent,
+    agent: &Client,
     bucket: &str,
     r2: &R2Object,
     folder: &Path,
@@ -403,20 +405,20 @@ fn download_file(
     }
     Err(last_err.unwrap().context(format!("download {url}")))
 }
-fn try_download(agent: &ureq::Agent, url: &str) -> anyhow::Result<Vec<u8>> {
-    let mut response = agent.get(url).call()?;
-    let compressed = response
-        .body_mut()
-        .with_config()
-        .limit(2 * 1024 * 1024 * 1024)
-        .read_to_vec()?;
+fn try_download(agent: &Client, url: &str) -> anyhow::Result<Vec<u8>> {
+    let compressed = agent
+        .get(url)
+        .send()?
+        .error_for_status()?
+        .bytes()?
+        .to_vec();
     let mut decoder = bzip2::read::BzDecoder::new(compressed.as_slice());
     let mut out = Vec::with_capacity(compressed.len() * 4);
     decoder.read_to_end(&mut out)?;
     Ok(out)
 }
 fn list_files(
-    agent: &ureq::Agent,
+    agent: &Client,
     cc: &str,
     bucket: &str,
 ) -> anyhow::Result<Vec<R2Object>> {
@@ -428,10 +430,10 @@ fn list_files(
     let url = format!("{BASE_URL}/{listing}/{cc}");
     let objects: Vec<R2Object> = agent
         .get(&url)
-        .call()
+        .send()
+        .and_then(reqwest::blocking::Response::error_for_status)
         .with_context(|| format!("GET {url}"))?
-        .body_mut()
-        .read_json()?;
+        .json()?;
     Ok(objects)
 }
 fn run_limited<T: Sync>(
