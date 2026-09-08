@@ -2271,3 +2271,32 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
     );
     assert_eq!(read_extra(&state, &map_id, 1), None);
 }
+
+#[test]
+fn given_rows_do_not_write_to_the_open_map() {
+    let seeded = Location {
+        extra: RawExtra::from_string(r#"{"before":true}"#.into()),
+        ..loc(1, 1.0, 0.0)
+    };
+    let (state, map_id) = setup(&[seeded]);
+    let d = decl("writer", BatchMode::PerRow);
+    let h = Harness::map_only(patch_extra_all(r#"{"written":true}"#));
+    let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0)]));
+    let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
+    let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
+    run_all(&rows, &[d], true, 50, &h.cancel, &h.deps, &progress, &results);
+
+    let given = rows
+        .with_store(|store| Ok(store.collect(&Selector::Everything)))
+        .unwrap();
+    let given_extra: serde_json::Value =
+        serde_json::from_str(given[0].extra.as_ref().unwrap().as_str()).unwrap();
+    assert_eq!(given_extra["written"], serde_json::json!(true));
+
+    let map_extra = read_extra(&state, &map_id, 1).unwrap();
+    assert_eq!(map_extra["before"], serde_json::json!(true));
+    assert!(
+        map_extra.get("written").is_none(),
+        "patch leaked to the map store: {map_extra}"
+    );
+}

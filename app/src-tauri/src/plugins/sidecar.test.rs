@@ -209,3 +209,55 @@ fn concurrent_installs_for_one_plugin_serialize() {
     }
     assert_eq!(OVERLAPS.load(Ordering::SeqCst), 0);
 }
+
+#[test]
+fn cancel_kills_a_tracked_child_by_req_id() {
+    let req_id = 9500;
+    let child = track("test-cancel", req_id);
+    assert!(!exited(&child));
+
+    let found = {
+        let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
+        slots.iter().find_map(|slot| lock(slot).children.get(&req_id).cloned())
+    };
+    let target = found.expect("tracked child is in the registry");
+    kill_child(&target);
+
+    assert!(exited(&child));
+    kill_plugin("test-cancel");
+}
+
+#[test]
+fn path_traversal_entries_are_skipped_during_extraction() {
+    use std::io::{Cursor, Write};
+    use zip::write::{SimpleFileOptions, ZipWriter};
+
+    let buf = Vec::new();
+    let mut zw = ZipWriter::new(Cursor::new(buf));
+    let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+    zw.start_file("../../../evil.txt", opts).unwrap();
+    zw.write_all(b"evil content").unwrap();
+    zw.start_file("safe.txt", opts).unwrap();
+    zw.write_all(b"safe content").unwrap();
+    let bytes = zw.finish().unwrap().into_inner();
+
+    let tmp = tempfile::tempdir().expect("temp dir");
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).unwrap();
+        let rel = match entry.enclosed_name() {
+            Some(p) => p.to_owned(),
+            None => continue,
+        };
+        let out = tmp.path().join(&rel);
+        if let Some(parent) = out.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        let mut f = File::create(&out).unwrap();
+        io::copy(&mut entry, &mut f).unwrap();
+    }
+
+    assert!(tmp.path().join("safe.txt").exists());
+    assert!(!tmp.path().join("evil.txt").exists());
+    assert!(!tmp.path().parent().unwrap().join("evil.txt").exists());
+}

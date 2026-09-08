@@ -743,6 +743,25 @@ fn an_aborted_run_interrupts_a_runaway_guest() {
 }
 
 #[test]
+fn memory_limit_returns_an_error_not_an_oom() {
+    let mut proc =
+        loaded("export function run(rows) { let s = 'x'; while (true) s += s; return []; }");
+    let mut host = MockProcHost::default();
+    let err = proc.run(&rows(), &mut host).expect_err("memory limit hit");
+    assert!(!err.0.is_empty(), "error should carry a message: {}", err.0);
+}
+
+#[test]
+fn stack_limit_returns_an_error_not_a_panic() {
+    let mut proc = loaded(
+        "export function run(rows) { function f(n) { return f(n + 1); } f(0); return []; }",
+    );
+    let mut host = MockProcHost::default();
+    let err = proc.run(&rows(), &mut host).expect_err("stack overflow");
+    assert!(!err.0.is_empty(), "error should carry a message: {}", err.0);
+}
+
+#[test]
 fn a_procedure_still_works_after_an_interrupt() {
     let mut proc = loaded(
         "export function run(rows) {
