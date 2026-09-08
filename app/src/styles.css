@@ -6169,6 +6169,28 @@ body:has([data-plugin-overlay]) .map-meta {
 	overflow: hidden;
 }
 
+.plugin-boundary--error {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	padding: 0.5rem 0.75rem;
+	background: var(--pu-card-bg);
+	border: 1px solid var(--pu-card-border);
+	border-radius: 0.5rem;
+	color: var(--error-text, #c24b3d);
+	font-size: 0.8125rem;
+}
+.plugin-boundary__retry {
+	font-size: 0.75rem;
+	padding: 0.2rem 0.5rem;
+	border-radius: 0.25rem;
+	border: 1px solid var(--pu-card-border);
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+}
+
 .plugin-section {
 	background: var(--pu-card-bg);
 	border: 1px solid var(--pu-card-border);

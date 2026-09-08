@@ -1,5 +1,6 @@
 import { memo, useState, createElement } from "react";
 import { getEnabledPlugins } from "@/plugins/registry";
+import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useEvent } from "@/lib/events";
 import { useDialog } from "@/store/dialogBus";
 import { useMapState, setPluginMode } from "@/store/useMapStore";
@@ -44,10 +45,13 @@ export function PluginToolbar() {
 				</Tooltip>
 			))}
 			{modalPlugin &&
-				modalPlugin.modal &&
-				createElement(modalPlugin.modal, {
-					onClose: () => setModalId(null),
-				})}
+				modalPlugin.modal && (
+					<PluginBoundary pluginId={modalPlugin.id}>
+						{createElement(modalPlugin.modal, {
+							onClose: () => setModalId(null),
+						})}
+					</PluginBoundary>
+				)}
 		</>
 	);
 }
@@ -71,7 +75,9 @@ export const PluginLocationPanels = memo(function PluginLocationPanels() {
 						</>
 					}
 				>
-					{createElement(p.locationPanel!)}
+					<PluginBoundary pluginId={p.id}>
+						{createElement(p.locationPanel!)}
+					</PluginBoundary>
 				</Section>
 			))}
 		</>
