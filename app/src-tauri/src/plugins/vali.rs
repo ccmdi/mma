@@ -136,7 +136,7 @@ fn data_root() -> AppResult<PathBuf> {
     paths::data_root().map_err(|e| AppError(format!("{e:#}")))
 }
 
-/// Generate locations from a Vali map definition (JSON/JSONC text). Missing country
+/// Generate locations from a Vali map definition (JSON text). Missing country
 /// data is auto-downloaded like the Vali CLI. Returns the generated locations.
 #[tauri::command]
 #[specta::specta]
@@ -147,7 +147,7 @@ pub async fn vali_generate(
     let token = CancelToken::new();
     *state.cancel.lock().unwrap() = Some(token.clone());
     let result = task::spawn_blocking(move || {
-        let def: vali_core::MapDefinition = json5::from_str(&definition)
+        let def: vali_core::MapDefinition = serde_json::from_str(&definition)
             .map_err(|e| AppError(format!("The map definition is not valid JSON: {e}")))?;
         let prepared = prepare(&def).map_err(AppError)?;
         let output = generate_output(
