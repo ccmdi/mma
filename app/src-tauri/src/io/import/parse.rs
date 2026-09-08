@@ -58,6 +58,7 @@ pub(super) struct ParsedMap {
 /// Parse CSV text into locations. Supports both named columns (lat/lng/heading/etc.)
 /// and positional (first two numeric columns = lat, lng). Skips malformed rows silently.
 pub(super) fn parse_csv(text: &str) -> ParsedMap {
+    let text = text.strip_prefix('\u{FEFF}').unwrap_or(text);
     let warn = |w: &str| {
         let mut m = ParsedMap::default();
         m.warnings.push(w.into());
@@ -253,6 +254,7 @@ pub(super) fn settings_from_extra(extra: &Value) -> serde_json::Map<String, Valu
 
 /// Auto-detect format (JSON vs CSV) by first non-whitespace byte and dispatch.
 pub(super) fn parse_file(buf: &mut [u8]) -> ParsedMap {
+    let buf = if buf.starts_with(&[0xEF, 0xBB, 0xBF]) { &mut buf[3..] } else { buf };
     let trimmed = buf
         .iter()
         .position(|&b| !b.is_ascii_whitespace())
