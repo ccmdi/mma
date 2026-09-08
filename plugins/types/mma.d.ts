@@ -730,7 +730,7 @@ declare const commands$1: {
     /**  Local-only check: is a token stored? Says nothing about its validity. @unstable */
     geoguessrHasSession: () => Promise<boolean>;
     /**
-     *  Generate locations from a Vali map definition (JSON/JSONC text). Missing country
+     *  Generate locations from a Vali map definition (JSON text). Missing country
      *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
      *  @unstable
      */

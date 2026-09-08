@@ -1797,7 +1797,7 @@ is stale, so the caller can fire it without checking first.
 
 #### `cmd.valiGenerate(definition: string): Promise<ValiLocation[]>` *(unstable)*
 
-Generate locations from a Vali map definition (JSON/JSONC text). Missing country
+Generate locations from a Vali map definition (JSON text). Missing country
 data is auto-downloaded like the Vali CLI. Returns the generated locations.
 
 #### `cmd.valiSubdivisions(country: string): Promise<string>` *(unstable)*
