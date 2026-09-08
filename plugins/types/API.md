@@ -2291,7 +2291,8 @@ The live viewer's camera in the stored zoom domain. Zeroed if there is no viewer
 
 ### `clearSingletonPano(): void` *(unstable)*
 
-Hide and release the singleton panorama.
+Hide and release the singleton panorama, emptying its container so the next
+{@link getPanorama} is the only viewer in {@link singletonDiv}.
 
 ### `getPanorama(): StreetViewPanorama | null` *(unstable)*
 
