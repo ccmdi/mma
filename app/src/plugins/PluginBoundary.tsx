@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { log } from "@/lib/util/log";
+import { t } from "@/lib/i18n";
 
 interface Props {
 	pluginId: string;
@@ -25,12 +26,9 @@ export class PluginBoundary extends Component<Props, State> {
 		if (this.state.error) {
 			return (
 				<div className="plugin-boundary--error">
-					<span className="plugin-boundary__label">Plugin crashed</span>
-					<button
-						className="plugin-boundary__retry"
-						onClick={() => this.setState({ error: null })}
-					>
-						Retry
+					<span className="plugin-boundary__label">{t("Plugin crashed")}</span>
+					<button className="plugin-boundary__retry" onClick={() => this.setState({ error: null })}>
+						{t("Retry")}
 					</button>
 				</div>
 			);
