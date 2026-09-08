@@ -439,7 +439,7 @@ export const commands = {
 	/**  Local-only check: is a token stored? Says nothing about its validity. */
 	geoguessrHasSession: () => __TAURI_INVOKE<boolean>("geoguessr_has_session"),
 	/**
-	 *  Generate locations from a Vali map definition (JSON/JSONC text). Missing country
+	 *  Generate locations from a Vali map definition (JSON text). Missing country
 	 *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
 	 */
 	valiGenerate: (definition: string) => __TAURI_INVOKE<ValiLocation[]>("vali_generate", { definition }).then((v) => (v.map(i=>({...i,zoom:i.zoom==null?i.zoom:i.zoom,pitch:i.pitch==null?i.pitch:i.pitch})) as typeof v)),
