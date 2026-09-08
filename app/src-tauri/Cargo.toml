@@ -48,9 +48,7 @@ bytemuck = "1"
 roaring = "0.10"
 arrow-array = "54"
 arrow-buffer = "54"
-arrow-data = "54"
 arrow-ipc = "54"
-arrow-ord = "54"
 arrow-schema = "54"
 arrow-select = "54"
 bitflags = "2"
@@ -84,7 +82,6 @@ vali-data = { path = "crates/vali/vali-data" }
 vali-generate = { path = "crates/vali/vali-generate" }
 vali-geo = { path = "crates/vali/vali-geo" }
 mma-geo = { path = "crates/geo" }
-json5 = "0.4"
 rquickjs = { version = "0.9", features = ["parallel"] }
 
 [target.'cfg(windows)'.dependencies]

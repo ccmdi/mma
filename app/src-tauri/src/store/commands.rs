@@ -15,8 +15,7 @@ use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::types::{Location, Tag};
 use crate::util;
-use arrow_array::RecordBatch;
-use arrow_ord::sort;
+use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -97,7 +96,9 @@ pub async fn store_open_map(
                 (batch, mmap_handle)
             } else {
                 log::info!("[store_open] migrating unsorted Arrow file to sorted ID order");
-                let sort_idx = sort::sort_to_indices(ids, None, None)?;
+                let mut order: Vec<u32> = (0..batch.num_rows() as u32).collect();
+                order.sort_by_key(|&i| ids.value(i as usize));
+                let sort_idx = UInt32Array::from(order);
                 let sorted_batch = RecordBatch::try_new(
                     batch.schema(),
                     batch
