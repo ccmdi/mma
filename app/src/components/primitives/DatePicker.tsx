@@ -386,7 +386,13 @@ export function DatePicker({
 				}}
 			/>
 			<Popover.Portal>
-				<Popover.Positioner anchor={inputRef} sideOffset={4} align="start" collisionPadding={8}>
+				<Popover.Positioner
+					className="picker-positioner"
+					anchor={inputRef}
+					sideOffset={4}
+					align="start"
+					collisionPadding={8}
+				>
 					<Popover.Popup
 						className="date-picker__popover"
 						initialFocus={false}

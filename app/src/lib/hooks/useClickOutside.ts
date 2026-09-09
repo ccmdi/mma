@@ -3,7 +3,7 @@ import { useStableHandler } from "@/lib/hooks/useStableHandler";
 
 /* Overlay content portaled to <body> (outside every container's DOM); clicks
  * inside it must never count as "outside". Single source for that exemption. */
-const PORTAL_SELECTOR = ".color-picker__popover, .suggest-portal";
+const PORTAL_SELECTOR = ".picker-positioner, .suggest-portal";
 
 export function useClickOutside(
 	ref: RefObject<HTMLElement | null>,

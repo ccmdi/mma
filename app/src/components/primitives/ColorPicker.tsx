@@ -32,7 +32,12 @@ export function ColorPicker({
 				style={{ backgroundColor: rgbCss(color) }}
 			/>
 			<Popover.Portal>
-				<Popover.Positioner sideOffset={4} align="start" collisionPadding={8}>
+				<Popover.Positioner
+					className="picker-positioner"
+					sideOffset={4}
+					align="start"
+					collisionPadding={8}
+				>
 					<Popover.Popup className="color-picker__popover">
 						<RgbPicker color={color} onChange={onChange} />
 					</Popover.Popup>

@@ -32,12 +32,12 @@ export function Dialog({
 			<BaseDialog.Root
 				open={open}
 				onOpenChange={(next, details) => {
-					// A portaled SuggestInput dropdown lives outside the popup in the DOM;
-					// interacting with it must not dismiss the dialog.
 					if (
 						!next &&
 						details.reason === "outside-press" &&
-						(details.event.target as Element | null)?.closest?.(".suggest-portal")
+						(details.event.target as Element | null)?.closest?.(
+							".suggest-portal, .picker-positioner",
+						)
 					) {
 						details.cancel();
 						return;

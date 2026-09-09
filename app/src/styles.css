@@ -3193,13 +3193,15 @@ input.date-picker__trigger.is-invalid:focus {
 .color-picker__swatch:hover {
 	border-color: rgba(128, 128, 128, 0.9);
 }
+.picker-positioner {
+	z-index: 10000;
+}
 .color-picker__popover {
 	background: var(--surface-3);
 	border: 1px solid var(--border-subtle);
 	box-shadow: var(--shadow-4);
 	border-radius: var(--radius-3);
 	padding: 0.5rem;
-	z-index: 100;
 }
 .date-picker__popover {
 	background: var(--surface-3);
@@ -3208,7 +3210,6 @@ input.date-picker__trigger.is-invalid:focus {
 	box-shadow: var(--shadow-4);
 	border-radius: var(--radius-3);
 	padding: 0.25rem;
-	z-index: 100;
 }
 .date-picker__popover .rdp-root {
 	--rdp-accent-color: var(--accent);
