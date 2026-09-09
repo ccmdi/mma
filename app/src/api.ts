@@ -40,6 +40,7 @@ import * as mapState from "@/lib/map/mapState";
 import * as sceneStore from "@/lib/render/sceneStore";
 import * as colorUtils from "@/lib/util/color";
 import * as toast from "@/lib/util/toast";
+import * as jobs from "@/lib/jobs";
 import * as useJob from "@/lib/hooks/useJob";
 import * as legacy from "@/legacy";
 import * as testSurface from "@/testSurface";
@@ -161,6 +162,7 @@ const mma: MMA = {
 	...sceneStore,
 	...colorUtils,
 	...toast,
+	...jobs,
 	...useJob,
 	...testSurface,
 	...types,

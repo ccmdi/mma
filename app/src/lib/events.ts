@@ -48,6 +48,7 @@ const EVENT_DEFS = {
 	"plugins:changed": event<void>(),
 	"hotkeys:changed": event<void>(),
 	"toasts:changed": event<void>(),
+	"jobs:changed": event<void>(),
 	"scene:changed": event<void>(),
 	"measure:changed": event<void>(),
 	"anchor:changed": event<void>(),

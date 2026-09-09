@@ -3,7 +3,6 @@ import { emit as emitEvent } from "@/lib/events";
 interface ToastEntry {
 	id: number;
 	message: string;
-	progress?: { fraction: number; label?: string };
 }
 
 let toasts: ToastEntry[] = [];
@@ -27,40 +26,6 @@ export function toast(message: string, duration = 2500, container?: HTMLElement)
 		toasts = toasts.filter((t) => t.id !== id);
 		emitEvent("toasts:changed");
 	}, duration);
-}
-
-/** Handle for updating or finishing a progress toast. */
-export interface ProgressHandle {
-	/** Set the progress bar fraction (0-1) and optional label. */
-	update(fraction: number, label?: string): void;
-	/** Remove the progress toast, optionally replacing it with a brief message. */
-	finish(message?: string, duration?: number): void;
-}
-
-/** Show a toast with a progress bar. Returns a handle to update or finish it. */
-export function progressToast(message: string): ProgressHandle {
-	const id = nextId++;
-	toasts = [...toasts, { id, message, progress: { fraction: 0 } }];
-	emitEvent("toasts:changed");
-	return {
-		update(fraction: number, label?: string) {
-			toasts = toasts.map((t) => (t.id === id ? { ...t, progress: { fraction, label } } : t));
-			emitEvent("toasts:changed");
-		},
-		finish(message?: string, duration = 2500) {
-			if (message) {
-				toasts = toasts.map((t) => (t.id === id ? { ...t, message, progress: undefined } : t));
-				emitEvent("toasts:changed");
-				setTimeout(() => {
-					toasts = toasts.filter((t) => t.id !== id);
-					emitEvent("toasts:changed");
-				}, duration);
-			} else {
-				toasts = toasts.filter((t) => t.id !== id);
-				emitEvent("toasts:changed");
-			}
-		},
-	};
 }
 
 /** Current list of visible toasts. */

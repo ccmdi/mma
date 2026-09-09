@@ -6064,12 +6064,23 @@ body:has([data-plugin-overlay]) .map-meta {
 		transform: translateY(0);
 	}
 }
-.toast-entry--progress {
+.job-entry {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
 	white-space: nowrap;
 	min-width: 280px;
+	pointer-events: auto;
+}
+.job-entry--reveal {
+	cursor: pointer;
+}
+.job-entry--reveal:hover {
+	border-color: #777;
+}
+.job-entry__cancel {
+	flex-shrink: 0;
+	margin: -0.25rem -0.5rem -0.25rem 0;
 }
 .toast-progress__label {
 	font-size: 0.75rem;

@@ -44,7 +44,8 @@ import { fmt, relativeTime, shortDateFmt } from "@/lib/util/format";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { useSetting, type MapListField } from "@/store/settings";
 import { labelColor, textColorFor } from "@/lib/util/color";
-import { toast, progressToast } from "@/lib/util/toast";
+import { toast } from "@/lib/util/toast";
+import { registerJob } from "@/lib/jobs";
 import { parseMapQuery, mapMatchesQuery, toggleLabelInQuery } from "./mapQuery";
 import { t, msg } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
@@ -683,7 +684,7 @@ export function BulkActions() {
 
 	const handleExport = useCallback(async () => {
 		setExporting(true);
-		const progress = progressToast(t("Exporting maps..."));
+		const progress = registerJob(t("Exporting maps..."));
 		const unlisten = await events.bulkExportProgress.listen((e) =>
 			progress.update(
 				e.payload.current / e.payload.total,
@@ -777,7 +778,7 @@ export function BulkActions() {
 		setPreview(null);
 		const total = indices.length;
 		let base = 0; // maps confirmed in prior files, for global progress across the per-file loop
-		const progress = progressToast(t("Importing maps..."));
+		const progress = registerJob(t("Importing maps..."));
 		const unlisten = await events.bulkImportProgress.listen((e) =>
 			progress.update((base + e.payload.current) / total, `${base + e.payload.current} / ${total}`),
 		);
