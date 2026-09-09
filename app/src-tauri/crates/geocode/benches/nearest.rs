@@ -39,6 +39,14 @@ fn bench(c: &mut Criterion) {
             })
         });
         let mut i = 0;
+        c.bench_function(&format!("mma-geocode_index/{set}"), |b| {
+            b.iter(|| {
+                let (lat, lng) = coords[i & 4095];
+                i += 1;
+                black_box(g.nearest_index(black_box(lat), black_box(lng)))
+            })
+        });
+        let mut i = 0;
         c.bench_function(&format!("reverse_geocoder/{set}"), |b| {
             b.iter(|| {
                 let (lat, lng) = coords[i & 4095];

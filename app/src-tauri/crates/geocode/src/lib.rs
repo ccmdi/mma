@@ -42,6 +42,7 @@ pub struct Geocoder<'a> {
     data: &'a [u8],
     xyz: &'a [f32],
     count: usize,
+    scan_depth: usize,
     payload_at: usize,
     name_index_at: usize,
     name_data_at: usize,
@@ -98,6 +99,7 @@ impl<'a> Geocoder<'a> {
             data,
             xyz,
             count,
+            scan_depth: ((count + 1).max(2).ilog2() as usize).saturating_sub(4),
             payload_at,
             name_index_at: names_at + 4,
             name_data_at: names_at + 4 + (restarts + 1) * 4,
@@ -117,6 +119,11 @@ impl<'a> Geocoder<'a> {
 
     /// The record nearest to `(lat, lng)` by great-circle distance, or `None` on an empty table.
     pub fn nearest(&self, lat: f64, lng: f64) -> Option<Record<'a>> {
+        self.nearest_index(lat, lng).map(|i| self.record(i))
+    }
+
+    /// Index of the nearest record, for callers that only need some of its fields via [`Self::get`].
+    pub fn nearest_index(&self, lat: f64, lng: f64) -> Option<usize> {
         if self.count == 0 {
             return None;
         }
@@ -124,7 +131,7 @@ impl<'a> Geocoder<'a> {
         let q = (rlat.cos() * rlng.cos(), rlat.cos() * rlng.sin(), rlat.sin());
         let mut best = (f64::INFINITY, 0usize);
         self.descend(0, 0, q, &mut best);
-        best.0.is_finite().then(|| self.record(best.1))
+        best.0.is_finite().then_some(best.1)
     }
 
     pub fn get(&self, i: usize) -> Option<Record<'a>> {
@@ -149,6 +156,9 @@ impl<'a> Geocoder<'a> {
         if node >= self.count {
             return;
         }
+        if depth >= self.scan_depth {
+            return self.scan_subtree(node, q, best);
+        }
         let (x, y, z) = self.point(node);
         let (dx, dy, dz) = (x - q.0, y - q.1, z - q.2);
         let d = dx * dx + dy * dy + dz * dz;
@@ -168,6 +178,24 @@ impl<'a> Geocoder<'a> {
         self.descend(near, depth + 1, q, best);
         if split * split < best.0 {
             self.descend(far, depth + 1, q, best);
+        }
+    }
+
+    /// Scan a whole bottom subtree without pruning: each level is one contiguous index run,
+    /// so the branchless loop beats descending the last few levels node by node.
+    fn scan_subtree(&self, root: usize, q: (f64, f64, f64), best: &mut (f64, usize)) {
+        let (mut start, mut width) = (root, 1);
+        while start < self.count {
+            for i in start..(start + width).min(self.count) {
+                let (x, y, z) = self.point(i);
+                let (dx, dy, dz) = (x - q.0, y - q.1, z - q.2);
+                let d = dx * dx + dy * dy + dz * dz;
+                if d < best.0 {
+                    *best = (d, i);
+                }
+            }
+            start = 2 * start + 1;
+            width *= 2;
         }
     }
 
@@ -191,7 +219,7 @@ impl<'a> Geocoder<'a> {
             d[self.name_index_at + (idx / NAME_BLOCK) * 4..][..4].try_into().unwrap(),
         ) as usize;
         let mut at = self.name_data_at + block;
-        let mut buf: Vec<u8> = Vec::new();
+        let mut buf: Vec<u8> = Vec::with_capacity(64);
         for _ in 0..=(idx % NAME_BLOCK) {
             let shared = d[at] as usize;
             let len = d[at + 1] as usize;
