@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
@@ -44,6 +45,9 @@ import { fmt } from "@/lib/util/format";
 import { phaseRate, type PhaseRate } from "@/lib/util/util";
 import type { BatchOutcome, BulkOpts, ProviderPart } from "@/lib/data/procedures";
 import { toast } from "@/lib/util/toast";
+import { registerJob, type JobHandle } from "@/lib/jobs";
+import { emit as emitEvent, useEventValue } from "@/lib/events";
+import { openDialog } from "@/store/dialogBus";
 import { t, msg } from "@/lib/i18n";
 
 const TITLES = {
@@ -763,88 +767,182 @@ function EnrichSummary({ result }: { result: EnrichOutcome[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Progress — runs the BulkRunner and shows progress/results
+// Run store — bulk runs live at module level so closing the dialog backgrounds
+// them instead of aborting; the dialog re-attaches to the run for its operation.
+// ---------------------------------------------------------------------------
+
+type BulkRunStatus = "running" | "done" | "cancelled" | "error";
+
+export interface BulkRunState {
+	operation: BulkOperation;
+	status: BulkRunStatus;
+	progress: number;
+	total: number;
+	done: number;
+	rate: number | null;
+	elapsed: number | null;
+	parts: ProviderPart[];
+	providerRates: ReadonlyMap<string, number | null>;
+	error: string | null;
+	result: BulkRunResult;
+	controller: AbortController;
+	job: JobHandle;
+	/** The dialog for this operation is showing the run. */
+	attached: boolean;
+}
+
+let bulkRuns: ReadonlyMap<BulkOperation, BulkRunState> = new Map();
+
+export function getBulkRuns(): ReadonlyMap<BulkOperation, BulkRunState> {
+	return bulkRuns;
+}
+
+function patchRun(operation: BulkOperation, fields: Partial<BulkRunState>) {
+	const cur = bulkRuns.get(operation);
+	if (!cur) return;
+	bulkRuns = new Map(bulkRuns).set(operation, { ...cur, ...fields });
+	emitEvent("bulkruns:changed");
+}
+
+function dropRun(operation: BulkOperation) {
+	if (!bulkRuns.has(operation)) return;
+	const next = new Map(bulkRuns);
+	next.delete(operation);
+	bulkRuns = next;
+	emitEvent("bulkruns:changed");
+}
+
+/** The run ended. Attached: the dialog shows the outcome and the run stays until it
+ *  closes. Backgrounded: announce through the job tray and drop the run. */
+function settleRun(operation: BulkOperation) {
+	const run = bulkRuns.get(operation);
+	if (!run) return;
+	if (run.attached) {
+		run.job.finish();
+		return;
+	}
+	if (run.status === "error") run.job.fail(t("Error: {error}", { error: run.error ?? "" }));
+	else if (run.status === "cancelled") run.job.finish();
+	else {
+		run.job.finish(
+			run.result.doneMessage ??
+				t(
+					{ one: "Done -- {n} location processed", other: "Done -- {n} locations processed" },
+					{ n: run.total },
+				),
+		);
+	}
+	dropRun(operation);
+}
+
+/** Dialog for `operation` mounted or unmounted its run view. Detaching from a finished
+ *  run drops it — the outcome was on screen. */
+function setRunAttached(operation: BulkOperation, attached: boolean) {
+	const run = bulkRuns.get(operation);
+	if (!run) return;
+	run.job.setHidden(attached);
+	if (!attached && run.status !== "running") dropRun(operation);
+	else patchRun(operation, { attached });
+}
+
+// The run's selector is fixed at start: a live-selection selector changes when the run
+// itself adds selections, and re-running on that would loop.
+export function startBulkRun(operation: BulkOperation, runner: BulkRunner, target: Selector): void {
+	if (bulkRuns.get(operation)?.status === "running") return;
+	const controller = new AbortController();
+	const job = registerJob(t(TITLES[operation]), {
+		scope: "map",
+		cancel: () => controller.abort(),
+		reveal: () => openDialog("bulk-op", operation),
+	});
+	job.setHidden(true);
+	bulkRuns = new Map(bulkRuns).set(operation, {
+		operation,
+		status: "running",
+		progress: 0,
+		total: 0,
+		done: 0,
+		rate: null,
+		elapsed: null,
+		parts: [],
+		providerRates: new Map(),
+		error: null,
+		result: {},
+		controller,
+		job,
+		attached: true,
+	});
+	emitEvent("bulkruns:changed");
+
+	const runStart = performance.now();
+	let rateState: PhaseRate | null = null;
+	const providerRateStates = new Map<string, PhaseRate>();
+	const onProgress: BulkRunContext["onProgress"] = (d, tot, providerParts) => {
+		const now = performance.now();
+		const overall = phaseRate(rateState, d, tot, now);
+		rateState = overall.state;
+		const rates = new Map<string, number | null>();
+		for (const p of providerParts) {
+			const r = phaseRate(providerRateStates.get(p.label) ?? null, p.done, p.total, now);
+			providerRateStates.set(p.label, r.state);
+			rates.set(p.label, r.rate);
+		}
+		const progress = tot > 0 ? d / tot : 1;
+		patchRun(operation, {
+			done: d,
+			total: tot,
+			parts: providerParts,
+			progress,
+			rate: overall.rate,
+			providerRates: rates,
+		});
+		job.update(progress, `${fmt.format(d)} / ${fmt.format(tot)}`);
+	};
+
+	void (async () => {
+		try {
+			const r = await runner({ selector: target, signal: controller.signal, onProgress });
+			patchRun(operation, {
+				result: r,
+				progress: 1,
+				elapsed: (performance.now() - runStart) / 1000,
+				status: "done",
+			});
+		} catch (e: unknown) {
+			if (controller.signal.aborted) {
+				patchRun(operation, { status: "cancelled" });
+			} else {
+				patchRun(operation, {
+					error: e instanceof Error ? e.message : t("Operation failed"),
+					status: "error",
+				});
+			}
+		}
+		settleRun(operation);
+	})();
+}
+
+// ---------------------------------------------------------------------------
+// Progress — shows the module-level run for this operation
 // ---------------------------------------------------------------------------
 
 export function BulkProgress({
-	runner,
-	selector,
+	operation,
 	onClose,
 }: {
-	runner: BulkRunner;
-	selector: Selector;
+	operation: BulkOperation;
 	onClose: () => void;
 }) {
-	const [progress, setProgress] = useState(0);
-	const [total, setTotal] = useState(0);
-	const [done, setDone] = useState(0);
-	const [rate, setRate] = useState<number | null>(null);
-	const [elapsed, setElapsed] = useState<number | null>(null);
-	const [parts, setParts] = useState<ProviderPart[]>([]);
-	const [status, setStatus] = useState<"running" | "done" | "cancelled" | "error">("running");
-	const [error, setError] = useState<string | null>(null);
-	const [result, setResult] = useState<BulkRunResult>({});
-	// The run's selector is fixed at start: a live-selection selector changes when the run
-	// itself adds selections, and re-running on that would loop.
-	const [target] = useState(selector);
-	const controllerRef = useRef<AbortController | null>(null);
-	const rateRef = useRef<PhaseRate | null>(null);
-	const providerRateRef = useRef(new Map<string, PhaseRate>());
-	const [providerRates, setProviderRates] = useState<ReadonlyMap<string, number | null>>(
-		new Map(),
-	);
-
-	const run = useCallback(async () => {
-		const controller = new AbortController();
-		controllerRef.current = controller;
-
-		const runStart = performance.now();
-		rateRef.current = null;
-		setRate(null);
-		setElapsed(null);
-
-		const onProgress: BulkRunContext["onProgress"] = (d, t, providerParts) => {
-			setParts(providerParts);
-			setTotal(t);
-			setDone(d);
-			setProgress(t > 0 ? d / t : 1);
-
-			const now = performance.now();
-			const { state, rate } = phaseRate(rateRef.current, d, t, now);
-			rateRef.current = state;
-			setRate(rate);
-			const rates = new Map<string, number | null>();
-			for (const p of providerParts) {
-				const r = phaseRate(providerRateRef.current.get(p.label) ?? null, p.done, p.total, now);
-				providerRateRef.current.set(p.label, r.state);
-				rates.set(p.label, r.rate);
-			}
-			setProviderRates(rates);
-		};
-
-		try {
-			const r = await runner({ selector: target, signal: controller.signal, onProgress });
-			setResult(r);
-			setProgress(1);
-			setElapsed((performance.now() - runStart) / 1000);
-			setStatus("done");
-		} catch (e: unknown) {
-			if (e instanceof Error && e.name === "AbortError") {
-				if (controllerRef.current === controller) setStatus("cancelled");
-			} else {
-				setError(e instanceof Error ? e.message : t("Operation failed"));
-				setStatus("error");
-			}
-		}
-	}, [runner, target]);
+	const run = useEventValue("bulkruns:changed", getBulkRuns).get(operation);
 
 	useEffect(() => {
-		void run();
-		return () => {
-			controllerRef.current?.abort();
-		};
-	}, [run]);
+		setRunAttached(operation, true);
+		return () => setRunAttached(operation, false);
+	}, [operation]);
 
+	if (!run) return null;
+	const { status, progress, total, done, rate, elapsed, parts, providerRates, error, result } =
+		run;
 	const pct = Math.round(progress * 100);
 
 	return (
@@ -921,7 +1019,7 @@ export function BulkProgress({
 								pct,
 							}) + (rate != null ? t(" -- {rate}/s", { rate: fmt.format(Math.round(rate)) }) : "")}
 						</span>
-						<Button variant="destructive" onClick={() => controllerRef.current?.abort()}>
+						<Button variant="destructive" onClick={() => run.controller.abort()}>
 							{t("Cancel")}
 						</Button>
 					</>
@@ -931,7 +1029,13 @@ export function BulkProgress({
 						{status === "done" && result.outcome != null && (
 							<SelectFailedButton outcome={result.outcome} />
 						)}
-						<Button variant="primary" onClick={onClose}>
+						<Button
+							variant="primary"
+							onClick={() => {
+								dropRun(operation);
+								onClose();
+							}}
+						>
 							{t("Close")}
 						</Button>
 					</>
@@ -956,14 +1060,14 @@ const SETUPS: Record<BulkOperation, React.ComponentType<SetupProps>> = {
 };
 
 export function BulkOperationModal({ operation, onClose }: Props) {
-	const [runner, setRunner] = useState<BulkRunner | null>(null);
+	const run = useEventValue("bulkruns:changed", getBulkRuns).get(operation);
 	const picker = useSelectorPick();
 	const { data: allKeys } = useAsync(() => coverage({ type: "Everything" }), []);
 	const info = useAsyncSticky(() => readTargetInfo(picker.selector), [picker.selector]);
 
-	if (allKeys === null || info === null) return null;
+	if (!run && (allKeys === null || info === null)) return null;
 
-	const onReady = (run: BulkRunner) => setRunner(() => run);
+	const onReady = (runner: BulkRunner) => startBulkRun(operation, runner, picker.selector);
 	const Setup = SETUPS[operation];
 
 	return (
@@ -974,13 +1078,13 @@ export function BulkOperationModal({ operation, onClose }: Props) {
 			}}
 		>
 			<DialogContent title={t(TITLES[operation])} className="bulk-operation-modal">
-				{runner ? (
-					<BulkProgress runner={runner} selector={picker.selector} onClose={onClose} />
+				{run ? (
+					<BulkProgress operation={operation} onClose={onClose} />
 				) : (
 					<Setup
 						picker={picker}
-						info={info}
-						fieldKeys={allKeys.map(([key]) => key)}
+						info={info!}
+						fieldKeys={allKeys!.map(([key]) => key)}
 						onReady={onReady}
 					/>
 				)}
