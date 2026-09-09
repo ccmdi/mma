@@ -1354,6 +1354,13 @@ Get all local-to-remote id mapping rows for a linked map.
 
 Insert or update local-to-remote id mapping rows for a linked map.
 
+#### `cmd.revealWindow(maximized: boolean): Promise<void>` *(unstable)*
+
+Reveal with the native open animation: a true first show() (DWM plays its pop-in),
+then maximize back-to-back while the shell is still blank. The show must come first:
+maximize on a hidden window reveals it without setting tao's visible flag, and the
+window gets re-hidden a frame later.
+
 #### `cmd.reverseGeocode(lat: number, lng: number): Promise<GeoResult | null>` *(unstable)*
 
 Return the nearest city, administrative region, and country for a coordinate.
@@ -1757,6 +1764,10 @@ Distinct values of `field` across the selected set, sorted.
 Reconcile a linked map against its remote, pushing local changes and pulling
 remote ones. Returns the creates, updates, and deletes for each side to apply.
 
+#### `cmd.timezoneAt(lat: number, lng: number): Promise<string | null>` *(unstable)*
+
+IANA timezone at a coordinate, or `None` outside the valid range.
+
 #### `cmd.uninstallPlugin(id: string): Promise<null>` *(unstable)*
 
 Delete a plugin's directory.
@@ -2005,13 +2016,11 @@ A color swatch that opens the picker in a popover on click.
 
 #### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): Element`
 
-#### `ui.Dialog({ open, onOpenChange, children, ...props }: DialogProps$1): Element`
+#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<Props<unknown>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
 
-#### `ui.DialogContent({ className, title, children, ...props }: DialogContentProps & { title: string; }): Element`
+#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; }): Element`
 
-#### `ui.DialogTrigger(props: DialogTriggerProps & RefAttributes<HTMLButtonElement>): ReactNode`
-
-The type of the component returned from {@link forwardRef}.
+#### `ui.DialogTrigger<Payload>(componentProps: DialogTriggerProps<Payload> & RefAttributes<HTMLElement>): Element`
 
 #### `ui.EmptyState({ icon, children }: { icon?: string | undefined; children: ReactNode; }): Element`
 
