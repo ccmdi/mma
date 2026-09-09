@@ -6064,23 +6064,88 @@ body:has([data-plugin-overlay]) .map-meta {
 		transform: translateY(0);
 	}
 }
-.job-entry {
+/* Background-job pill in the corner bar, the update pill's sibling: its fill is the
+   least-done job's progress; clicking pops a panel of per-job rows above the bar. */
+.job-tray {
 	display: flex;
 	align-items: center;
-	gap: 0.75rem;
-	white-space: nowrap;
-	min-width: 280px;
-	pointer-events: auto;
+	user-select: none;
 }
-.job-entry--reveal {
+.job-tray__pill {
+	position: relative;
+	width: 72px;
+	height: 16px;
+	padding: 0;
+	margin: 0 4px;
+	background: #ffffff14;
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+	overflow: hidden;
+	animation: job-pill-grow 200ms ease-out;
+}
+@keyframes job-pill-grow {
+	from {
+		width: 0;
+	}
+}
+.job-tray__pill:hover .job-tray__pill-fill {
+	opacity: 1;
+}
+.job-tray__pill-fill {
+	position: absolute;
+	inset: 0 auto 0 0;
+	background: var(--accent);
+	opacity: 0.8;
+	transition: width 200ms ease-out;
+}
+.job-tray__count {
+	position: relative;
+	display: block;
+	font-size: 0.65rem;
+	line-height: 16px;
+	color: #eee;
+	text-align: center;
+	text-shadow: 0 1px 2px #0008;
+}
+/* Positioned against .bottom-bar (the nearest fixed ancestor): just above the bar,
+   lightly padded off the screen edge. */
+.job-tray__panel {
+	position: absolute;
+	right: 6px;
+	bottom: calc(100% + 8px);
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 320px;
+	padding: 6px;
+	background: #33332e;
+	border: 1px solid #4d4c45;
+	border-radius: 8px;
+	animation: toast-in 150ms ease-out;
+}
+.job-tray__row {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.35rem 0.5rem;
+	border-radius: 4px;
+	font-size: 0.8125rem;
+	color: #ddd;
+	white-space: nowrap;
+}
+.job-tray__row--reveal {
 	cursor: pointer;
 }
-.job-entry--reveal:hover {
-	border-color: #777;
+.job-tray__row--reveal:hover {
+	background: #3c3c38;
 }
-.job-entry__cancel {
+.job-tray__row-label {
 	flex-shrink: 0;
-	margin: -0.25rem -0.5rem -0.25rem 0;
+}
+.job-tray__cancel {
+	flex-shrink: 0;
+	margin: -4px -2px;
 }
 .toast-progress__label {
 	font-size: 0.75rem;
@@ -6097,7 +6162,7 @@ body:has([data-plugin-overlay]) .map-meta {
 }
 .toast-progress__bar {
 	height: 100%;
-	background: #7c9;
+	background: var(--accent);
 	border-radius: 2px;
 	transition: width 200ms ease-out;
 }

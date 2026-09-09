@@ -34,6 +34,7 @@ change in any release.
 - [SceneStore](#scenestore)
 - [Color](#color)
 - [Toast](#toast)
+- [Jobs](#jobs)
 - [UseJob](#usejob)
 - [Test](#test)
 - [Types](#types)
@@ -2016,11 +2017,16 @@ A color swatch that opens the picker in a popover on click.
 
 #### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): Element`
 
-#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<any, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
+#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<Props<unknown>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
 
-#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: any): Element`
+#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; }): Element`
 
-#### `ui.DialogTrigger: Dialog$1.Trigger`
+#### `ui.DialogTrigger<Payload>(componentProps: DialogTriggerProps<Payload> & RefAttributes<HTMLElement>): Element`
+
+A button that opens the dialog.
+Renders a `<button>` element.
+
+Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
 
 #### `ui.EmptyState({ icon, children }: { icon?: string | undefined; children: ReactNode; }): Element`
 
@@ -2738,13 +2744,31 @@ Return "#000" or "#fff" for readable text on the given hex background.
 
 Current list of visible toasts.
 
-### `progressToast(message: string): ProgressHandle`
-
-Show a toast with a progress bar. Returns a handle to update or finish it.
-
 ### `toast(message: string, duration?: number | undefined, container?: HTMLElement | undefined): void`
 
 Show a brief toast notification. Optionally scoped to a `container` element.
+
+## Jobs
+
+### `cancelJobs(scope: JobScope): void` *(unstable)*
+
+Cancel every live job of `scope` that can be cancelled. Owners observe their own
+abort and end their jobs; entries without a cancel are removed outright.
+
+### `getJobs(): JobEntry[]` *(unstable)*
+
+Live jobs, for the tray. Reference changes on every update.
+
+### `registerJob(label: string, opts?: JobOpts | undefined): JobHandle` *(unstable)*
+
+Register a long-running operation with the global job tray. The caller owns the
+work; the registry owns only its presentation and the cancel/reveal controls.
+
+### `runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel"> | undefined): Promise<R | null>` *(unstable)*
+
+Sugar for promise-shaped work: registers a job wired to an AbortController, reports
+through the handle, and ends the job however `fn` settles. Cancelling resolves null;
+a real failure toasts and rethrows.
 
 ## UseJob
 

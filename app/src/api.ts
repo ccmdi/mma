@@ -83,6 +83,7 @@ type MapStateApi = typeof mapState;
 type SceneStoreApi = typeof sceneStore;
 type ColorApi = typeof colorUtils;
 type ToastApi = typeof toast;
+type JobsApi = typeof jobs;
 type UseJobApi = typeof useJob;
 /** Shims for removed APIs. @unstable */
 type LegacyApi = typeof legacy;
@@ -123,6 +124,7 @@ export interface MMA
 		SceneStoreApi,
 		ColorApi,
 		ToastApi,
+		JobsApi,
 		UseJobApi,
 		TestApi,
 		TypesApi,

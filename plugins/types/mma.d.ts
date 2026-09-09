@@ -4588,6 +4588,7 @@ declare const EVENT_DEFS: {
     "plugins:changed": void;
     "hotkeys:changed": void;
     "toasts:changed": void;
+    "jobs:changed": void;
     "scene:changed": void;
     "measure:changed": void;
     "anchor:changed": void;
@@ -5669,32 +5670,80 @@ declare namespace sceneStore {
 export interface ToastEntry {
     id: number;
     message: string;
-    progress?: {
-        fraction: number;
-        label?: string;
-    };
 }
 /** Show a brief toast notification. Optionally scoped to a `container` element. */
 declare function toast(message: string, duration?: number, container?: HTMLElement): void;
-/** Handle for updating or finishing a progress toast. */
-export interface ProgressHandle {
-    /** Set the progress bar fraction (0-1) and optional label. */
-    update(fraction: number, label?: string): void;
-    /** Remove the progress toast, optionally replacing it with a brief message. */
-    finish(message?: string, duration?: number): void;
-}
-/** Show a toast with a progress bar. Returns a handle to update or finish it. */
-declare function progressToast(message: string): ProgressHandle;
 /** Current list of visible toasts. */
 declare function getToasts(): ToastEntry[];
 
-export type toast$1_ProgressHandle = ProgressHandle;
 declare const toast$1_getToasts: typeof getToasts;
-declare const toast$1_progressToast: typeof progressToast;
 declare const toast$1_toast: typeof toast;
 declare namespace toast$1 {
-  export { toast$1_getToasts as getToasts, toast$1_progressToast as progressToast, toast$1_toast as toast };
-  export type { toast$1_ProgressHandle as ProgressHandle };
+  export {
+    toast$1_getToasts as getToasts,
+    toast$1_toast as toast,
+  };
+}
+
+/** `map` jobs mutate the open map and are cancelled when it closes; `app` jobs survive. */
+export type JobScope = "map" | "app";
+export interface JobOpts {
+    scope?: JobScope;
+    /** Abort the underlying work. Omitted = the tray offers no cancel button. */
+    cancel?: () => void;
+    /** Reopen the owning UI. Omitted = the tray entry is not clickable. */
+    reveal?: () => void;
+}
+export interface JobEntry {
+    id: number;
+    label: string;
+    scope: JobScope;
+    fraction: number;
+    detail?: string;
+    /** The owning UI is showing its own progress; the tray skips this entry. */
+    hidden: boolean;
+    cancel?: () => void;
+    reveal?: () => void;
+}
+/** Handle for driving a registered job. All methods are no-ops once the job ended. */
+export interface JobHandle {
+    /** Set the progress bar fraction (0-1) and optional detail text. */
+    update(fraction: number, detail?: string): void;
+    setHidden(hidden: boolean): void;
+    /** Remove the job, optionally leaving a brief toast. */
+    finish(message?: string, duration?: number): void;
+    /** Remove the job and leave an error toast. */
+    fail(message: string): void;
+}
+/** Live jobs, for the tray. Reference changes on every update. @unstable */
+declare function getJobs(): JobEntry[];
+/** Register a long-running operation with the global job tray. The caller owns the
+ *  work; the registry owns only its presentation and the cancel/reveal controls. @unstable */
+declare function registerJob(label: string, opts?: JobOpts): JobHandle;
+export interface JobRunContext {
+    signal: AbortSignal;
+    report: (fraction: number, detail?: string) => void;
+}
+/** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
+ *  through the handle, and ends the job however `fn` settles. Cancelling resolves null;
+ *  a real failure toasts and rethrows. @unstable */
+declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<R | null>;
+/** Cancel every live job of `scope` that can be cancelled. Owners observe their own
+ *  abort and end their jobs; entries without a cancel are removed outright. @unstable */
+declare function cancelJobs(scope: JobScope): void;
+
+export type jobs_JobEntry = JobEntry;
+export type jobs_JobHandle = JobHandle;
+export type jobs_JobOpts = JobOpts;
+export type jobs_JobRunContext = JobRunContext;
+export type jobs_JobScope = JobScope;
+declare const jobs_cancelJobs: typeof cancelJobs;
+declare const jobs_getJobs: typeof getJobs;
+declare const jobs_registerJob: typeof registerJob;
+declare const jobs_runJob: typeof runJob;
+declare namespace jobs {
+  export { jobs_cancelJobs as cancelJobs, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_runJob as runJob };
+  export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobRunContext as JobRunContext, jobs_JobScope as JobScope };
 }
 
 /** Context passed to the job function. */
@@ -5976,6 +6025,7 @@ export type MapStateApi = typeof mapState;
 export type SceneStoreApi = typeof sceneStore;
 export type ColorApi = typeof colorUtils;
 export type ToastApi = typeof toast$1;
+export type JobsApi = typeof jobs;
 export type UseJobApi = typeof useJob$1;
 /** Shims for removed APIs. @unstable */
 export type LegacyApi = typeof legacy;
@@ -5983,7 +6033,7 @@ export type LegacyApi = typeof legacy;
 export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 export type UtilApi = typeof util;
-interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoSingletonApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoSingletonApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 
 declare global {

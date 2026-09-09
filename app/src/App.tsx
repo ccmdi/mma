@@ -25,6 +25,7 @@ import { applyAccentColor, resolveSvColorHex } from "@/lib/util/color";
 import { Icon, mdiDiscord } from "@/components/primitives/Icon";
 import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutline } from "@mdi/js";
 import { ToastContainer } from "@/components/primitives/Toast";
+import { JobTray } from "@/components/primitives/JobTray";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
 import { useUpdateState, dismissUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
@@ -169,6 +170,7 @@ function AppChrome() {
 			<WelcomeDialog open={isMapList && !welcomeSeen} onDismiss={() => setWelcomeSeen(true)} />
 			{!showSettings && !showPlugins && !(map && fullscreenMap) && (
 				<div className="bottom-bar">
+					<JobTray />
 					{update.version && !update.dismissed && (
 						<div className="update-pill">
 							{update.phase === "available" && (
