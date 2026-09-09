@@ -2016,11 +2016,11 @@ A color swatch that opens the picker in a popover on click.
 
 #### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): Element`
 
-#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<Props<unknown>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
+#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<any, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
 
-#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; }): Element`
+#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: any): Element`
 
-#### `ui.DialogTrigger<Payload>(componentProps: DialogTriggerProps<Payload> & RefAttributes<HTMLElement>): Element`
+#### `ui.DialogTrigger: Dialog$1.Trigger`
 
 #### `ui.EmptyState({ icon, children }: { icon?: string | undefined; children: ReactNode; }): Element`
 

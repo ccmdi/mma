@@ -47,7 +47,7 @@ async function main() {
 
     const bundle = await rollup({
       input: entry,
-      external: [/^react/, /^@deck\.gl\//, /^@tauri-apps\//, /^maplibre-gl/],
+      external: [/^react/, /^@deck\.gl\//, /^@tauri-apps\//, /^maplibre-gl/, /^@base-ui-components\//],
       plugins: [
         dts({
           respectExternal: true,

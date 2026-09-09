@@ -9,6 +9,7 @@
     "tsconfig.base.json"
   ],
   "dependencies": {
+    "@base-ui-components/react": "1.0.0-rc.0",
     "@deck.gl/core": "9.3.10",
     "@deck.gl/google-maps": "9.3.10",
     "@deck.gl/layers": "9.3.10",
