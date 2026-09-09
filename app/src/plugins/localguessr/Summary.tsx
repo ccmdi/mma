@@ -45,7 +45,7 @@ export function Summary({
 						<span className="lg-summary__row-time">{formatElapsed(r.elapsedMs)}</span>
 						<span className="lg-summary__row-place">
 							<Flag code={r.truth?.country_code ?? null} />
-							{[r.truth?.admin, r.truth?.country].filter(Boolean).join(", ")}
+							{[r.truth?.admin, r.truth?.country_code].filter(Boolean).join(", ")}
 						</span>
 						{r.streakHit !== null && (
 							<span className={`lg-summary__row-streak${r.streakHit ? " is-hit" : " is-miss"}`}>

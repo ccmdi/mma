@@ -63,7 +63,7 @@ function result(over: Partial<RoundResult> = {}): RoundResult {
 }
 
 function place(country_code: string, admin = ""): GeoResult {
-	return { city: "", admin, country: country_code, country_code };
+	return { city: "", admin, country_code };
 }
 
 describe("sampleN", () => {

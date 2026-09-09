@@ -88,8 +88,8 @@ function streakMessage(
 	if (result.streakHit === null) return null;
 	const place = (g: GeoResult | null) =>
 		streakMode === "state"
-			? g?.admin?.trim() || g?.country || t("somewhere unknown")
-			: g?.country || t("somewhere unknown");
+			? g?.admin?.trim() || g?.country_code || t("somewhere unknown")
+			: g?.country_code || t("somewhere unknown");
 	if (result.streakHit) {
 		return t("Correct: {place}. Streak: {n}", { place: place(result.truth), n: streak });
 	}
@@ -394,7 +394,7 @@ export function RoundPlayer({
 							<div className="lg-result-bar__place">
 								<Flag code={lastResult.truth.country_code} />
 								<span>
-									{[lastResult.truth.admin, lastResult.truth.country].filter(Boolean).join(", ")}
+									{[lastResult.truth.admin, lastResult.truth.country_code].filter(Boolean).join(", ")}
 								</span>
 							</div>
 						)}

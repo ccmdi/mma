@@ -20,7 +20,6 @@ pub struct GeoResult {
     pub city: String,
     /// First-level administrative division (state, province, region).
     pub admin: String,
-    pub country: String,
     /// ISO 3166-1 alpha-2 (e.g. "US", "FR").
     pub country_code: String,
 }
@@ -38,7 +37,6 @@ pub fn reverse_geocode(lat: f64, lng: f64) -> Option<GeoResult> {
     geocoder().nearest(lat, lng).map(|r| GeoResult {
         city: r.name,
         admin: r.admin1.to_string(),
-        country: r.country_code.to_string(),
         country_code: r.country_code.to_string(),
     })
 }

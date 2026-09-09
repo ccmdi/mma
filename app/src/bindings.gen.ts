@@ -817,7 +817,6 @@ export type GeoResult = {
 	city: string,
 	/**  First-level administrative division (state, province, region). */
 	admin: string,
-	country: string,
 	/**  ISO 3166-1 alpha-2 (e.g. "US", "FR"). */
 	country_code: string,
 };
