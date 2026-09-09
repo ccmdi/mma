@@ -5417,8 +5417,7 @@ declare function capturePov(): LocationPOV;
 /** Read the live viewer back into Location fields, the inverse of {@link applyResolved}.
  *  Null until the viewer has a position. @unstable */
 declare function capturePano(): PanoCapture | null;
-/** Hide and release the singleton panorama, emptying its container so the next
- *  {@link getPanorama} is the only viewer in {@link singletonDiv}. @unstable */
+/** Hide and release the singleton panorama, emptying its container. @unstable */
 declare function clearSingletonPano(): void;
 /** Point the viewer at a resolved panorama for `loc`, setting its position, POV, and zoom. @unstable */
 declare function applyResolved(sv: google.maps.StreetViewPanorama, resolved: Pano | null, loc: Location): void;
