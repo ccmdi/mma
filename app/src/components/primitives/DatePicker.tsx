@@ -356,133 +356,133 @@ export function DatePicker({
 			}}
 		>
 			<input
-					ref={inputRef}
-					type="text"
-					className={`date-picker__trigger${draftInvalid ? " is-invalid" : ""}`}
-					aria-invalid={draftInvalid || undefined}
-					size={inputSize}
-					value={draft ?? (value ? formatDisplay(value, mode, anyYear, anyTime, wallClock) : "")}
-					placeholder={draft != null ? formatHint(mode, anyYear, anyTime) : t("Select...")}
-					onFocus={startEditing}
-					onClick={startEditing}
-					onChange={(e) => setDraft(e.target.value)}
-					onBlur={() => {
+				ref={inputRef}
+				type="text"
+				className={`date-picker__trigger${draftInvalid ? " is-invalid" : ""}`}
+				aria-invalid={draftInvalid || undefined}
+				size={inputSize}
+				value={draft ?? (value ? formatDisplay(value, mode, anyYear, anyTime, wallClock) : "")}
+				placeholder={draft != null ? formatHint(mode, anyYear, anyTime) : t("Select...")}
+				onFocus={startEditing}
+				onClick={startEditing}
+				onChange={(e) => setDraft(e.target.value)}
+				onBlur={() => {
+					commitDraft();
+					setDraft(null);
+				}}
+				onKeyDown={(e) => {
+					if (e.key === "Enter") {
+						e.preventDefault(); // typing a date must not submit an enclosing form
 						commitDraft();
 						setDraft(null);
-					}}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") {
-							e.preventDefault(); // typing a date must not submit an enclosing form
-							commitDraft();
-							setDraft(null);
-							setOpen(false);
-							inputRef.current?.blur();
-						} else if (e.key === "Escape") {
-							e.stopPropagation();
-							setDraft(null);
-							setOpen(false);
-							inputRef.current?.blur();
-						}
-					}}
-				/>
+						setOpen(false);
+						inputRef.current?.blur();
+					} else if (e.key === "Escape") {
+						e.stopPropagation();
+						setDraft(null);
+						setOpen(false);
+						inputRef.current?.blur();
+					}
+				}}
+			/>
 			<Popover.Portal>
 				<Popover.Positioner anchor={inputRef} sideOffset={4} align="start" collisionPadding={8}>
 					<Popover.Popup className="date-picker__popover" initialFocus={false}>
-					{anyTime ? (
-						<div className="date-picker__time-only">
-							<label>
-								{t("Time of day:")}
-								<input
-									type="time"
-									value={/^\d{2}:\d{2}$/.test(value) ? value : ""}
-									onChange={(e) => onChange(e.target.value)}
-								/>
-							</label>
-						</div>
-					) : mode === "month" ? (
-						<MonthGrid
-							value={value}
-							onChange={handleMonthSelect}
-							anyYear={anyYear}
-							onYearSelect={
-								onYearSelect
-									? (y) => {
-											onYearSelect(y);
-											setOpen(false);
-										}
-									: undefined
-							}
-						/>
-					) : (
-						<>
-							<DayPicker
-								mode="single"
-								selected={pendingDate ?? selectedDate}
-								onSelect={handleDaySelect}
-								month={navMonth}
-								onMonthChange={setNavMonth}
-								captionLayout="dropdown"
-								navLayout="around"
-								startMonth={new Date(2007, 0)}
-								endMonth={new Date(new Date().getFullYear() + 1, 11)}
+						{anyTime ? (
+							<div className="date-picker__time-only">
+								<label>
+									{t("Time of day:")}
+									<input
+										type="time"
+										value={/^\d{2}:\d{2}$/.test(value) ? value : ""}
+										onChange={(e) => onChange(e.target.value)}
+									/>
+								</label>
+							</div>
+						) : mode === "month" ? (
+							<MonthGrid
+								value={value}
+								onChange={handleMonthSelect}
+								anyYear={anyYear}
+								onYearSelect={
+									onYearSelect
+										? (y) => {
+												onYearSelect(y);
+												setOpen(false);
+											}
+										: undefined
+								}
 							/>
-							{showTime && !anyYear && (
-								<div className="date-picker__time">
-									<label>
-										{t("Time:")}
-										<input
-											type="time"
-											value={time}
-											onChange={(e) => handleTimeChange(e.target.value)}
+						) : (
+							<>
+								<DayPicker
+									mode="single"
+									selected={pendingDate ?? selectedDate}
+									onSelect={handleDaySelect}
+									month={navMonth}
+									onMonthChange={setNavMonth}
+									captionLayout="dropdown"
+									navLayout="around"
+									startMonth={new Date(2007, 0)}
+									endMonth={new Date(new Date().getFullYear() + 1, 11)}
+								/>
+								{showTime && !anyYear && (
+									<div className="date-picker__time">
+										<label>
+											{t("Time:")}
+											<input
+												type="time"
+												value={time}
+												onChange={(e) => handleTimeChange(e.target.value)}
+											/>
+										</label>
+										<button
+											type="button"
+											className="date-picker__time-clear"
+											title={t("Clear time (whole day)")}
+											disabled={!time || time === "00:00"}
+											onClick={() => handleTimeChange("")}
+										>
+											<Icon path={mdiClose} size={14} />
+										</button>
+									</div>
+								)}
+							</>
+						)}
+						{(showAnyYear || showAnyTime || showTzLocal) && (
+							<div className="date-picker__toggles">
+								{showAnyYear && (
+									<label className="date-picker__any-year">
+										<Checkbox
+											checked={anyYear ?? false}
+											onChange={(e) => onAnyYearToggle?.(e.target.checked)}
 										/>
+
+										{t("Any year")}
 									</label>
-									<button
-										type="button"
-										className="date-picker__time-clear"
-										title={t("Clear time (whole day)")}
-										disabled={!time || time === "00:00"}
-										onClick={() => handleTimeChange("")}
-									>
-										<Icon path={mdiClose} size={14} />
-									</button>
-								</div>
-							)}
-						</>
-					)}
-					{(showAnyYear || showAnyTime || showTzLocal) && (
-						<div className="date-picker__toggles">
-							{showAnyYear && (
-								<label className="date-picker__any-year">
-									<Checkbox
-										checked={anyYear ?? false}
-										onChange={(e) => onAnyYearToggle?.(e.target.checked)}
-									/>
+								)}
+								{showAnyTime && (
+									<label className="date-picker__any-year">
+										<Checkbox
+											checked={anyTime ?? false}
+											onChange={(e) => onAnyTimeToggle?.(e.target.checked)}
+										/>
 
-									{t("Any year")}
-								</label>
-							)}
-							{showAnyTime && (
-								<label className="date-picker__any-year">
-									<Checkbox
-										checked={anyTime ?? false}
-										onChange={(e) => onAnyTimeToggle?.(e.target.checked)}
-									/>
+										{t("Any date")}
+									</label>
+								)}
+								{showTzLocal && (
+									<label className="date-picker__any-year">
+										<Checkbox
+											checked={tzLocal ?? false}
+											onChange={(e) => onTzLocalToggle?.(e.target.checked)}
+										/>
 
-									{t("Any date")}
-								</label>
-							)}
-							{showTzLocal && (
-								<label className="date-picker__any-year">
-									<Checkbox
-										checked={tzLocal ?? false}
-										onChange={(e) => onTzLocalToggle?.(e.target.checked)}
-									/>
-
-									{t("Location timezone")}
-								</label>
-							)}
-						</div>
-					)}
+										{t("Location timezone")}
+									</label>
+								)}
+							</div>
+						)}
 					</Popover.Popup>
 				</Popover.Positioner>
 			</Popover.Portal>
