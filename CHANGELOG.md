@@ -1,3 +1,13 @@
+## v0.10.6 - 2026-09-08
+- A crashed plugin no longer crashes the app, only the containing view
+- The app is ~8 megabytes smaller
+- Timezone enrichment is ~50x faster
+- Windows open faster, especially the map list
+- Searching the manual now ignores accents and word order like every other search
+- Fixed files exported from Excel misparsing on import
+- Fixed seen thumbnails becoming stale after refreshing a panorama
+- Fixed maximized map windows flashing open
+
 ## v0.10.5 - 2026-09-07
 - Review order: a formula in map settings decides what a review pass walks first
 - Plugins show up in the command palette
