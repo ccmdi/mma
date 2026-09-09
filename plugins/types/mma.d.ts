@@ -5028,6 +5028,8 @@ export interface ProcedureSpec<TCollected = unknown> {
      *  to the caller. */
     sink?: Sink;
     rate?: RateSpec;
+    /** Overrides the engine's transient-status retry default. Omit unless this endpoint
+     *  answers a retryable condition with a status the default does not cover. */
     retry?: {
         attempts: number;
         on: number[];

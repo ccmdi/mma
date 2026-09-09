@@ -591,14 +591,31 @@ fn retry_stops_at_the_attempt_cap() {
     assert_eq!(calls, 3);
 }
 
-#[test]
-fn no_retry_spec_means_one_attempt() {
+fn run_without_retry_spec(statuses: Vec<u16>) -> u32 {
     let (state, map_id) = setup(&[loc(1, 0.0, 0.0)]);
-    let d = decl("once", BatchMode::PerRow);
-    let (fetch, calls) = status_sequence(vec![500]);
+    let d = decl("defaulted", BatchMode::PerRow);
+    let (fetch, calls) = status_sequence(statuses);
     let h = Harness::new(ProcShape::RequestMap, Arc::new(|_| Ok(Vec::new())), fetch);
     run_provider(&h.ctx(&state, &map_id), &d).unwrap();
-    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    calls.load(Ordering::Relaxed)
+}
+
+#[test]
+fn no_retry_spec_retries_every_transient_status() {
+    for status in TRANSIENT_STATUSES {
+        assert_eq!(
+            run_without_retry_spec(vec![status, 200]),
+            2,
+            "status {status} should have been retried by default"
+        );
+    }
+}
+
+#[test]
+fn no_retry_spec_leaves_a_settled_status_alone() {
+    assert_eq!(run_without_retry_spec(vec![400, 200]), 1);
+    assert_eq!(run_without_retry_spec(vec![403, 200]), 1);
+    assert_eq!(run_without_retry_spec(vec![404, 200]), 1);
 }
 
 // -----------------------------------------------------------------------

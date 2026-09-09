@@ -26,7 +26,6 @@ export const pinPanoProvider: Provider = {
 	procedure: {
 		entry: procedureEntry("pinPano"),
 		batch: { mode: "chunk", size: 1000 },
-		retry: { attempts: 3, on: [429, 500, 503] },
 		inflight: GET_METADATA_INFLIGHT,
 	},
 };

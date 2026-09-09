@@ -23,7 +23,6 @@ export const validateSpec: ProcedureSpec<ValidationState> = {
 	entry: procedureEntry("validate"),
 	batch: { mode: "chunk", size: 200 },
 	sink: "collect",
-	retry: { attempts: 3, on: [429, 500, 503] },
 	// Every row of a batch searches its coordinate in one round, one request each.
 	inflight: 100,
 	config: { radius: SV_SEARCH_RADIUS } satisfies ValidateConfig,

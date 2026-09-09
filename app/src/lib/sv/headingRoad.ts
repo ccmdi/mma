@@ -27,7 +27,6 @@ export const headingRoadProvider: Provider = {
 	procedure: {
 		entry: procedureEntry("headingRoad"),
 		batch: { mode: "dedupeBy", key: "panoId" },
-		retry: { attempts: 3, on: [429, 500, 503] },
 		inflight: GET_METADATA_INFLIGHT,
 	},
 };

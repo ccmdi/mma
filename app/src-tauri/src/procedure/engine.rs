@@ -92,6 +92,14 @@ pub struct RateSpec {
     pub cost: RateCost,
 }
 
+/// The statuses a request is worth re-sending on: the endpoint is overloaded or wedged
+/// rather than answering the request it was given. Google's frontend sheds a burst with
+/// 502 as readily as with 429, so a list that omits it drops rows a second try would
+/// have resolved.
+pub const TRANSIENT_STATUSES: [u16; 7] = [408, 425, 429, 500, 502, 503, 504];
+/// Tries a request gets when the provider declares no policy of its own.
+const DEFAULT_ATTEMPTS: u32 = 3;
+
 /// Retry only the listed HTTP statuses, up to `attempts` total tries.
 #[derive(Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -1379,11 +1387,12 @@ struct EngineHost<'a> {
 }
 
 impl EngineHost<'_> {
-    /// The declared retry policy, or a single attempt when the provider declares none.
+    /// The declared retry policy, or the transient-status default when the provider
+    /// declares none.
     fn retry_policy(&self) -> (u32, &[u16]) {
         match self.decl.retry.as_ref() {
             Some(r) => (r.attempts, r.on.as_slice()),
-            None => (1, &[]),
+            None => (DEFAULT_ATTEMPTS, &TRANSIENT_STATUSES),
         }
     }
 }
@@ -1436,10 +1445,6 @@ impl ProcHost for EngineHost<'_> {
 // Query
 // ---------------------------------------------------------------------------
 
-/// A query carries no declaration, so its retry policy is fixed.
-const QUERY_ATTEMPTS: u32 = 3;
-const QUERY_RETRY_ON: [u16; 2] = [429, 503];
-
 /// Host for `query`. Effects are allowed (a query exists to reach a remote API), but
 /// there is no run to report into: progress and failures go nowhere. A cancelled query
 /// has its requests declined, the same way a cancelled run does.
@@ -1462,8 +1467,8 @@ impl ProcHost for QueryHost<'_> {
             self.deps,
             &self.budget,
             1,
-            QUERY_ATTEMPTS,
-            &QUERY_RETRY_ON,
+            DEFAULT_ATTEMPTS,
+            &TRANSIENT_STATUSES,
             self.aborted,
             reqs,
         )

@@ -103,8 +103,8 @@ describe("exactDateProvider", () => {
 		});
 	});
 
-	it("leaves retry of throttled SingleImageSearch responses to the engine", () => {
-		expect(exactDateProvider.procedure!.retry).toEqual({ attempts: 3, on: [429, 501, 503] });
+	it("takes the engine's transient-status retry default", () => {
+		expect(exactDateProvider.procedure!.retry).toBeUndefined();
 	});
 });
 

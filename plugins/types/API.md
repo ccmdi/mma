@@ -2431,6 +2431,9 @@ Awaited before the provider joins a run; returning false excludes it.
 
 #### `panoResolveSpec.retry: { attempts: number; on: number[]; } | undefined`
 
+Overrides the engine's transient-status retry default. Omit unless this endpoint
+answers a retryable condition with a status the default does not cover.
+
 #### `panoResolveSpec.select: Selector | undefined`
 
 Rows the engine feeds the procedure. Omitted, the driver supplies its own.
@@ -2595,6 +2598,9 @@ Awaited before the provider joins a run; returning false excludes it.
 #### `validateSpec.rate: RateSpec | undefined`
 
 #### `validateSpec.retry: { attempts: number; on: number[]; } | undefined`
+
+Overrides the engine's transient-status retry default. Omit unless this endpoint
+answers a retryable condition with a status the default does not cover.
 
 #### `validateSpec.select: Selector | undefined`
 

@@ -69,7 +69,6 @@ export interface PanoResolveConfig {
 export const panoResolveSpec: ProcedureSpec<{ panoId: string }> = {
 	entry: procedureEntry("panoResolve"),
 	batch: { mode: "chunk", size: 200 },
-	retry: { attempts: 3, on: [429, 500, 503] },
 	inflight: LOCATION_SEARCH_INFLIGHT,
 	config: { radius: SV_SEARCH_RADIUS } satisfies PanoResolveConfig,
 };
@@ -92,7 +91,6 @@ export const exactDateProvider: Provider = {
 	procedure: {
 		entry: procedureEntry("exactDate"),
 		batch: { mode: "chunk", size: 50 },
-		retry: { attempts: 3, on: [429, 501, 503] },
 		// A batch bisects every row's month in lockstep, four probes per row per round.
 		inflight: 512,
 	},
@@ -152,7 +150,6 @@ export const svMetaProvider: Provider = {
 	procedure: {
 		entry: procedureEntry("svMeta"),
 		batch: { mode: "chunk", size: 1000 },
-		retry: { attempts: 3, on: [429, 500, 503] },
 		inflight: GET_METADATA_INFLIGHT,
 	},
 };
