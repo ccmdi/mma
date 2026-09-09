@@ -6,7 +6,7 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { Flag } from "@/components/primitives/Flag";
 import type { Selection } from "@/bindings.gen";
 import type { GeneratorRegionMeta } from "../engine/types";
-import { useProgressTick } from "./progressSignal";
+import { useProgressTick, useCountMotion } from "./progressSignal";
 import { t } from "@/lib/i18n";
 
 function getPolygonName(sel: Selection): string {
@@ -17,6 +17,43 @@ function getPolygonName(sel: Selection): string {
 function getPolygonCode(sel: Selection): string | null {
 	if (sel.selector.type !== "Polygon") return null;
 	return sel.selector.polygon.properties?.code ?? null;
+}
+
+function RegionRow({
+	sel,
+	found,
+	target,
+	processing,
+	onTargetChange,
+}: {
+	sel: Selection;
+	found: number;
+	target: number;
+	processing: boolean;
+	onTargetChange: (v: number) => void;
+}) {
+	const name = getPolygonName(sel);
+	const code = getPolygonCode(sel);
+	const { shown } = useCountMotion(found, target, found < target);
+	return (
+		<div className="generator-regions__item">
+			<div className="generator-regions__item-name">
+				<Flag code={code} className="generator-regions__flag" />
+				<span>{name}</span>
+				{processing && <span className="generator-regions__spinner" />}
+			</div>
+			<div className="generator-regions__item-count">
+				{shown} /
+				<TextInput
+					type="number"
+					min={found || 1}
+					value={target}
+					onChange={(e) => onTargetChange(Number(e.target.value) || 1)}
+					style={{ width: "5rem", fontSize: "inherit" }}
+				/>
+			</div>
+		</div>
+	);
 }
 
 export function RegionSelector({
@@ -154,37 +191,31 @@ export function RegionSelector({
 				<>
 					<div className="generator-regions__list">
 						{polygonSelections.map((sel) => {
-							const name = getPolygonName(sel);
-							const code = getPolygonCode(sel);
 							const m = meta.get(sel.key);
-							const found = m?.found.length ?? 0;
-							const target = m?.target ?? defaultTarget;
 							return (
-								<div key={sel.key} className="generator-regions__item">
-									<div className="generator-regions__item-name">
-										<Flag code={code} className="generator-regions__flag" />
-										<span>{name}</span>
-										{m?.isProcessing && <span className="generator-regions__spinner" />}
-									</div>
-									<div className="generator-regions__item-count">
-										{found} /
-										<TextInput
-											type="number"
-											min={found || 1}
-											value={target}
-											onChange={(e) => setTarget(sel.key, Number(e.target.value) || 1)}
-											style={{ width: "5rem", fontSize: "inherit" }}
-										/>
-									</div>
-								</div>
+								<RegionRow
+									key={sel.key}
+									sel={sel}
+									found={m?.found.length ?? 0}
+									target={m?.target ?? defaultTarget}
+									processing={m?.isProcessing ?? false}
+									onTargetChange={(v) => setTarget(sel.key, v)}
+								/>
 							);
 						})}
 					</div>
-					<div className="generator-regions__total">
-						{t("Total:")} {totalFound} / {totalTarget}
-					</div>
+					<TotalRow found={totalFound} target={totalTarget} />
 				</>
 			)}
+		</div>
+	);
+}
+
+function TotalRow({ found, target }: { found: number; target: number }) {
+	const { shown } = useCountMotion(found, target, found < target);
+	return (
+		<div className="generator-regions__total">
+			{t("Total:")} {shown} / {target}
 		</div>
 	);
 }
