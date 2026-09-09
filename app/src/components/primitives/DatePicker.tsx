@@ -387,7 +387,12 @@ export function DatePicker({
 			/>
 			<Popover.Portal>
 				<Popover.Positioner anchor={inputRef} sideOffset={4} align="start" collisionPadding={8}>
-					<Popover.Popup className="date-picker__popover" initialFocus={false}>
+					<Popover.Popup
+						className="date-picker__popover"
+						initialFocus={false}
+						// Focus returned to the input re-fires onFocus, which re-opens the picker.
+						finalFocus={false}
+					>
 						{anyTime ? (
 							<div className="date-picker__time-only">
 								<label>
