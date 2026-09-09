@@ -10,7 +10,7 @@ import {
 import { beginImportPaste, beginImportFromPath } from "@/store/importStaging";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
-import { goTo } from "@/store/router";
+import { goTo, leaveToList } from "@/store/router";
 import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { addParsedLocations } from "@/lib/map/mapClick";
@@ -329,7 +329,7 @@ export function MapEditor() {
 									aria-label={t("Back to map list")}
 									onClick={(e) => {
 										e.preventDefault();
-										goTo({ type: "list" });
+										void leaveToList();
 									}}
 								>
 									<Icon path={mdiBackburger} />

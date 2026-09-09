@@ -3,7 +3,15 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { emit } from "@/lib/events";
-import { registerJob, runJob, cancelJobs, getJobs } from "@/lib/jobs";
+import {
+	registerJob,
+	runJob,
+	cancelJobs,
+	getJobs,
+	confirmMapExit,
+	resolveMapExit,
+	getExitRequest,
+} from "@/lib/jobs";
 import { getToasts } from "@/lib/util/toast";
 
 describe("job registry", () => {
@@ -124,5 +132,41 @@ describe("runJob", () => {
 		expect(getToasts().map((t) => t.message)).toContain("boom");
 		vi.runAllTimers();
 		vi.useRealTimers();
+	});
+});
+
+describe("confirmMapExit", () => {
+	it("resolves true immediately when no map-scoped jobs are live", async () => {
+		const a = registerJob("App work", { scope: "app" });
+		await expect(confirmMapExit("leave")).resolves.toBe(true);
+		expect(getExitRequest()).toBeNull();
+		a.finish();
+	});
+
+	it("stay leaves the jobs running; proceed cancels them", async () => {
+		const cancel = vi.fn();
+		const m = registerJob("Map work", { scope: "map", cancel });
+
+		const stay = confirmMapExit("leave");
+		expect(getExitRequest()?.kind).toBe("leave");
+		resolveMapExit(false);
+		await expect(stay).resolves.toBe(false);
+		expect(cancel).not.toHaveBeenCalled();
+
+		const proceed = confirmMapExit("quit");
+		resolveMapExit(true);
+		await expect(proceed).resolves.toBe(true);
+		expect(cancel).toHaveBeenCalledOnce();
+		expect(getExitRequest()).toBeNull();
+		m.finish();
+	});
+
+	it("a second request while one is pending resolves false", async () => {
+		const m = registerJob("Map work", { scope: "map", cancel: () => {} });
+		const first = confirmMapExit("leave");
+		await expect(confirmMapExit("quit")).resolves.toBe(false);
+		resolveMapExit(false);
+		await expect(first).resolves.toBe(false);
+		m.finish();
 	});
 });

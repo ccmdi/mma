@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import type { ComponentType, CSSProperties } from "react";
 
-import { appWindow, closeAndDestroy } from "@/lib/window";
+import { appWindow, closeAndDestroy, hasWindowHost } from "@/lib/window";
 import { useMapState } from "@/store/useMapStore";
 import {
 	useTargetMapId,
 	useManualChapter,
 	closeManual,
 	gotoManualChapter,
-	goTo,
+	leaveToList,
 	openManual,
 } from "@/store/router";
 import { MapList, BulkActions } from "@/components/map-list/MapList";
@@ -25,7 +25,8 @@ import { applyAccentColor, resolveSvColorHex } from "@/lib/util/color";
 import { Icon, mdiDiscord } from "@/components/primitives/Icon";
 import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutline } from "@mdi/js";
 import { ToastContainer } from "@/components/primitives/Toast";
-import { JobTray } from "@/components/primitives/JobTray";
+import { JobTray, JobExitDialog } from "@/components/primitives/JobTray";
+import { getJobs, confirmMapExit } from "@/lib/jobs";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
 import { useUpdateState, dismissUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
@@ -62,6 +63,7 @@ export default function App() {
 	const closing = appWindow.type === "editor" && !targetMapId;
 
 	useSelfDestruct(closing);
+	useCloseGuard();
 	useCustomCss();
 	useCssVarSettings();
 	useDiscordPresence();
@@ -136,7 +138,7 @@ function AppChrome() {
 	useHotkey(useBinding("toggleSettings"), () => setShowSettings((v) => !v));
 	useHotkey(useBinding("togglePlugins"), () => setShowPlugins((v) => !v));
 	useHotkey(useBinding("closeMap"), () => {
-		if (map) goTo({ type: "list" });
+		if (map) void leaveToList();
 	});
 
 	const [welcomeSeen, setWelcomeSeen] = useLocalStorage(WELCOME_SEEN);
@@ -232,6 +234,7 @@ function AppChrome() {
 					</button>
 				</div>
 			)}
+			<JobExitDialog />
 			{showStats && Stats && <Stats onClose={() => setShowStats(false)} />}
 			<SettingsPage open={showSettings} onOpenChange={setShowSettings} />
 			{feedbackOpen && <ReportDialog onClose={() => setFeedbackOpen(false)} />}
@@ -248,6 +251,22 @@ function AppChrome() {
 			)}
 		</>
 	);
+}
+
+/** Intercept the window's close button while map-scoped jobs run: confirm, cancel them,
+ *  then close for real. destroy() does not re-fire CloseRequested. */
+function useCloseGuard() {
+	useEffect(() => {
+		if (!hasWindowHost) return;
+		const unlisten = appWindow.onCloseRequested(async (e) => {
+			if (!getJobs().some((j) => j.scope === "map")) return;
+			e.preventDefault();
+			if (await confirmMapExit("quit")) void closeAndDestroy();
+		});
+		return () => {
+			void unlisten.then((f) => f());
+		};
+	}, []);
 }
 
 function useSelfDestruct(closing: boolean) {

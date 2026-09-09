@@ -6147,6 +6147,20 @@ body:has([data-plugin-overlay]) .map-meta {
 	flex-shrink: 0;
 	margin: -4px -2px;
 }
+.job-exit-dialog__message {
+	margin: 0 0 0.75rem;
+}
+.job-exit-dialog__jobs {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-bottom: 1rem;
+}
+.job-exit-dialog__actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 0.5rem;
+}
 .toast-progress__label {
 	font-size: 0.75rem;
 	color: #aaa;

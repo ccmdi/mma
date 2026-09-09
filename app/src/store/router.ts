@@ -8,6 +8,7 @@
 // the intent, and the render authority from the first frame; applyRoute reconciles the
 // store's open map to it.
 import { openMap, closeMap, getMapState } from "@/store/useMapStore";
+import { confirmMapExit } from "@/lib/jobs";
 import { emit, useEventValue, subscribe as subscribeEvent } from "@/lib/events";
 import { hashOf, identityFromHash, syncTitle, type WindowIdentity } from "@/lib/window";
 
@@ -60,6 +61,12 @@ function navigate(next: Route) {
 }
 
 export const goTo = (window: WindowIdentity) => navigate({ window, manual: route.manual });
+
+/** Leave the open map for the list, gated on the map-exit confirmation when map-scoped
+ *  background jobs are live. */
+export async function leaveToList(): Promise<void> {
+	if (await confirmMapExit("leave")) goTo({ type: "list" });
+}
 export const openManual = (chapter = "") => navigate({ ...route, manual: chapter });
 export const gotoManualChapter = (chapter: string) => navigate({ ...route, manual: chapter });
 export const closeManual = () => navigate({ ...route, manual: null });
