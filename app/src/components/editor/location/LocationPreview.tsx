@@ -214,7 +214,7 @@ export function LocationPreview() {
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { draft, meta, defaultPano, edit, settled, open } = usePanoViewer();
+	const { draft, meta, defaultPano, edit, settled, open, enriching } = usePanoViewer();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = useState<string[]>(() =>
 		tagIdsToNames(location?.tags ?? []),
@@ -516,6 +516,7 @@ export function LocationPreview() {
 			<ReviewBar />
 			<section
 				className={`location-preview${appSettings.previewAspectRatio === "free" ? " free-resize" : ""}`}
+				data-enriching={enriching || undefined}
 			>
 				<div
 					className={`location-preview__panorama${isFullscreen ? " is-fullscreen" : ""}${appSettings.hidePanoUI ? " hide-pano-ui" : ""}`}

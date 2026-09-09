@@ -262,9 +262,14 @@ export async function waitForDates(timeout = 30_000) {
 	);
 }
 
-/** Save the open location: the draft, once its enrichment has answered, reaches the store
- *  and the preview closes. */
+/** Save the open location once its enrichment has answered, so every enabled field
+ *  reaches the store; Save itself writes the draft as it stands. */
 export async function saveLocation() {
+	const settled = await browser.$(".location-preview:not([data-enriching])");
+	await settled.waitForExist({
+		timeout: 60_000,
+		timeoutMsg: "the draft's enrichment never answered before Save",
+	});
 	const btn = await browser.$("[data-qa='location-save']");
 	await btn.waitForExist({ timeout: 5000 });
 	await btn.click();
