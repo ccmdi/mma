@@ -150,6 +150,17 @@ export class GenerationEngine {
 		this.flushBatch(); // flush any locations held back while paused
 	}
 
+	/** Aggregate found/target over the engine's current regions. */
+	progress(): { found: number; target: number } {
+		let found = 0;
+		let target = 0;
+		for (const region of this.regions) {
+			found += Math.min(region.found.length, region.target);
+			target += region.target;
+		}
+		return { found, target };
+	}
+
 	stop(): void {
 		this.flushBatch(); // commit confirmed finds before teardown (running still true here)
 		this.running = false;

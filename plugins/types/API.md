@@ -2755,6 +2755,16 @@ Show a brief toast notification. Optionally scoped to a `container` element.
 Cancel every live job of `scope` that can be cancelled. Owners observe their own
 abort and end their jobs; entries without a cancel are removed outright.
 
+### `confirmMapExit(kind: MapExitKind): Promise<boolean>` *(unstable)*
+
+Gate a user action that would end every map-scoped job. Resolves true immediately when
+none are live; otherwise raises the confirm dialog, and true means the jobs were
+cancelled and the action should proceed.
+
+### `getExitRequest(): { kind: MapExitKind; } | null` *(unstable)*
+
+The pending map-exit confirmation, for the dialog.
+
 ### `getJobs(): JobEntry[]` *(unstable)*
 
 Live jobs, for the tray. Reference changes on every update.
@@ -2763,6 +2773,10 @@ Live jobs, for the tray. Reference changes on every update.
 
 Register a long-running operation with the global job tray. The caller owns the
 work; the registry owns only its presentation and the cancel/reveal controls.
+
+### `resolveMapExit(ok: boolean): void` *(unstable)*
+
+Answer the pending map-exit confirmation.
 
 ### `runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel"> | undefined): Promise<R | null>` *(unstable)*
 

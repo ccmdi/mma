@@ -4589,6 +4589,7 @@ declare const EVENT_DEFS: {
     "hotkeys:changed": void;
     "toasts:changed": void;
     "jobs:changed": void;
+    "bulkruns:changed": void;
     "scene:changed": void;
     "measure:changed": void;
     "anchor:changed": void;
@@ -5731,19 +5732,34 @@ declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
  *  abort and end their jobs; entries without a cancel are removed outright. @unstable */
 declare function cancelJobs(scope: JobScope): void;
+export type MapExitKind = "leave" | "quit";
+/** The pending map-exit confirmation, for the dialog. @unstable */
+declare function getExitRequest(): {
+    kind: MapExitKind;
+} | null;
+/** Gate a user action that would end every map-scoped job. Resolves true immediately when
+ *  none are live; otherwise raises the confirm dialog, and true means the jobs were
+ *  cancelled and the action should proceed. @unstable */
+declare function confirmMapExit(kind: MapExitKind): Promise<boolean>;
+/** Answer the pending map-exit confirmation. @unstable */
+declare function resolveMapExit(ok: boolean): void;
 
 export type jobs_JobEntry = JobEntry;
 export type jobs_JobHandle = JobHandle;
 export type jobs_JobOpts = JobOpts;
 export type jobs_JobRunContext = JobRunContext;
 export type jobs_JobScope = JobScope;
+export type jobs_MapExitKind = MapExitKind;
 declare const jobs_cancelJobs: typeof cancelJobs;
+declare const jobs_confirmMapExit: typeof confirmMapExit;
+declare const jobs_getExitRequest: typeof getExitRequest;
 declare const jobs_getJobs: typeof getJobs;
 declare const jobs_registerJob: typeof registerJob;
+declare const jobs_resolveMapExit: typeof resolveMapExit;
 declare const jobs_runJob: typeof runJob;
 declare namespace jobs {
-  export { jobs_cancelJobs as cancelJobs, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_runJob as runJob };
-  export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobRunContext as JobRunContext, jobs_JobScope as JobScope };
+  export { jobs_cancelJobs as cancelJobs, jobs_confirmMapExit as confirmMapExit, jobs_getExitRequest as getExitRequest, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_resolveMapExit as resolveMapExit, jobs_runJob as runJob };
+  export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobRunContext as JobRunContext, jobs_JobScope as JobScope, jobs_MapExitKind as MapExitKind };
 }
 
 /** Context passed to the job function. */
