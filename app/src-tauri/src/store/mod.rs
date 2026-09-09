@@ -4,6 +4,5 @@ pub(crate) mod engine;
 pub(crate) mod maps;
 pub(crate) mod review;
 pub(crate) mod seen;
-pub(crate) mod spatial;
 pub(crate) mod storage;
 pub(crate) mod vcs;

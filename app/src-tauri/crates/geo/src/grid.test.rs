@@ -1,5 +1,5 @@
 use super::*;
-use crate::selections;
+use crate::haversine_m;
 
 fn ids(mut v: Vec<u32>) -> Vec<u32> {
     v.sort_unstable();
@@ -15,7 +15,7 @@ fn query(ix: &SpatialIndex, lat: f64, lng: f64, r: f64) -> Vec<u32> {
 
 #[test]
 fn any_candidate_stops_after_the_first_match() {
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     ix.insert(1, 10.0, 10.0);
     ix.insert(2, 10.0, 10.0);
     ix.insert(3, 10.0, 10.0);
@@ -32,7 +32,7 @@ fn any_candidate_stops_after_the_first_match() {
 
 #[test]
 fn any_candidate_visits_every_candidate_on_a_miss() {
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     ix.insert(1, 10.0, 10.0);
     ix.insert(2, 10.0, 10.0);
     let mut visited = Vec::new();
@@ -48,7 +48,7 @@ fn any_candidate_visits_every_candidate_on_a_miss() {
 
 #[test]
 fn any_candidate_matches_exhaustive_candidates() {
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     for (id, lat, lng) in [
         (1, 0.0, 179.999),
         (2, 0.0, -179.999),
@@ -75,7 +75,7 @@ fn any_candidate_matches_exhaustive_candidates() {
 
 #[test]
 fn insert_then_query_finds_point() {
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     ix.insert(1, 51.5074, -0.1278);
     assert_eq!(query(&ix, 51.5074, -0.1278, 10.0), vec![1]);
     assert_eq!(ix.len(), 1);
@@ -83,7 +83,7 @@ fn insert_then_query_finds_point() {
 
 #[test]
 fn query_zero_radius_hits_same_cell() {
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     ix.insert(1, 10.0, 10.0);
     assert_eq!(query(&ix, 10.0, 10.0, 0.0), vec![1]);
 }
@@ -91,7 +91,7 @@ fn query_zero_radius_hits_same_cell() {
 #[test]
 fn query_spans_cell_boundaries() {
     // Two points ~40m apart straddle 25m cells; a 50m query from either must see both.
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     let (lat, lng) = (48.8566, 2.3522);
     let lat2 = lat + 40.0 / 111_320.0;
     ix.insert(1, lat, lng);
@@ -104,7 +104,7 @@ fn query_spans_cell_boundaries() {
 fn candidates_are_superset_never_missing() {
     // Deterministic pseudo-random points in a ~2km box; every point within r of the
     // probe must appear among candidates (false positives are fine, misses are not).
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     let mut pts = Vec::new();
     let mut seed = 42u64;
     let mut rnd = || {
@@ -123,7 +123,7 @@ fn candidates_are_superset_never_missing() {
     for r in [5.0, 50.0, 300.0] {
         let cand = query(&ix, plat, plng, r);
         for &(id, lat, lng) in &pts {
-            let d = selections::haversine_m(plat, plng, lat, lng);
+            let d = haversine_m(plat, plng, lat, lng);
             if d <= r {
                 assert!(
                     cand.contains(&id),
@@ -137,7 +137,7 @@ fn candidates_are_superset_never_missing() {
 #[test]
 fn candidates_wrap_across_antimeridian() {
     // ~106m apart across the seam; a 200m query from either side must see both.
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     ix.insert(1, -17.8, 179.9995);
     ix.insert(2, -17.8, -179.9995);
     assert_eq!(query(&ix, -17.8, 179.9995, 200.0), vec![1, 2]);
@@ -147,8 +147,8 @@ fn candidates_wrap_across_antimeridian() {
 #[test]
 fn candidates_widen_at_high_latitude() {
     // ~170m apart almost purely in longitude at 78N; must be mutually visible.
-    let mut ix = SpatialIndex::new();
-    let dlng = 170.0 / (mma_geo::M_PER_DEG * 78.0f64.to_radians().cos());
+    let mut ix = SpatialIndex::new(25.0);
+    let dlng = 170.0 / (M_PER_DEG * 78.0f64.to_radians().cos());
     ix.insert(1, 78.0, 20.0);
     ix.insert(2, 78.0, 20.0 + dlng);
     assert_eq!(query(&ix, 78.0, 20.0, 200.0), vec![1, 2]);
@@ -159,7 +159,7 @@ fn candidates_widen_at_high_latitude() {
 // huge windows scan the occupied cells instead.
 #[test]
 fn huge_radius_returns_far_candidates() {
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     ix.insert(1, 45.0, 7.0);
     ix.insert(2, 46.35, 7.0); // ~150km north
     ix.insert(3, 45.0, 9.0); // ~157km east
@@ -174,7 +174,7 @@ fn huge_radius_returns_far_candidates() {
 
 #[test]
 fn remove_by_coords_and_fallback() {
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     ix.insert(1, 10.0, 10.0);
     ix.insert(2, 10.0, 10.0);
     ix.remove(1, 10.0, 10.0);
@@ -187,7 +187,7 @@ fn remove_by_coords_and_fallback() {
 
 #[test]
 fn non_finite_coords_are_ignored() {
-    let mut ix = SpatialIndex::new();
+    let mut ix = SpatialIndex::new(25.0);
     ix.insert(1, f64::NAN, 10.0);
     ix.insert(2, 10.0, f64::INFINITY);
     assert_eq!(ix.len(), 0);

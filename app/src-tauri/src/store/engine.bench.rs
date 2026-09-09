@@ -462,7 +462,7 @@ pub fn derived_state(store: &mut Store) -> usize {
 }
 
 pub fn build_spatial(store: &Store) -> usize {
-    let mut index = spatial::SpatialIndex::new();
+    let mut index = mma_geo::SpatialIndex::new(SPATIAL_CELL_M);
     store
         .loc_view()
         .for_each(|row| index.insert(row.id(), row.lat(), row.lng()));

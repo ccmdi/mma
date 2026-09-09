@@ -3,11 +3,13 @@
 use super::*;
 use crate::selections::{self, Selector};
 use crate::store::arrow::{col_lat, col_lng};
-use crate::store::spatial;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
 use roaring::RoaringBitmap;
 use std::collections::HashMap;
+
+/// ~25m cells: 1-100m queries walk a handful of cells; a 1km query walks ~80x80.
+pub(crate) const SPATIAL_CELL_M: f64 = 25.0;
 use std::time::Instant;
 
 /// Everything derived from a single O(N) pass over all alive locations. Computed
@@ -156,7 +158,7 @@ impl Store {
             );
         }
         let _t = Instant::now();
-        let mut ix = spatial::SpatialIndex::new();
+        let mut ix = mma_geo::SpatialIndex::new(SPATIAL_CELL_M);
         self.loc_view()
             .for_each(|row| ix.insert(row.id(), row.lat(), row.lng()));
         log::debug!(

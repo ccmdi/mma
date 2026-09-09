@@ -28,7 +28,6 @@ use crate::selections;
 use crate::store::arrow;
 use crate::store::arrow::{batch_row_for_id, col_id, schema};
 use crate::store::maps;
-use crate::store::spatial;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
 use crate::util;
@@ -106,7 +105,7 @@ pub struct Store {
     /// then maintained incrementally by the overlay mutation functions. A length
     /// mismatch against `alive_count` at query time forces a rebuild, so any bulk
     /// path that bypasses the overlay fns degrades to a rebuild, never wrong results.
-    spatial: Option<spatial::SpatialIndex>,
+    spatial: Option<mma_geo::SpatialIndex>,
 }
 
 macro_rules! apply_patch {
@@ -457,7 +456,9 @@ impl Store {
             // location's overlay coords are where the index filed it.
             let (lat, lng) = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
             if let Some(ix) = self.spatial.as_mut() {
-                ix.remove(loc.id, lat, lng);
+                if !ix.remove(loc.id, lat, lng) {
+                    log::warn!("[spatial] remove miss for id {}", loc.id);
+                }
             }
             self.overlay.edit().patches.remove(&loc.id);
         }
@@ -506,7 +507,9 @@ impl Store {
     fn overlay_write(&mut self, id: u32, mut loc: Location, old: &Location) -> Location {
         if (loc.lat, loc.lng) != (old.lat, old.lng) {
             if let Some(ix) = self.spatial.as_mut() {
-                ix.remove(id, old.lat, old.lng);
+                if !ix.remove(id, old.lat, old.lng) {
+                    log::warn!("[spatial] remove miss for id {id}");
+                }
                 ix.insert(id, loc.lat, loc.lng);
             }
         }

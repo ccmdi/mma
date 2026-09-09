@@ -8,7 +8,9 @@
 use std::f64::consts::PI;
 use std::ops::RangeInclusive;
 
+mod grid;
 mod polygon;
+pub use grid::SpatialIndex;
 pub use polygon::*;
 
 pub const EARTH_R_M: f64 = 6_371_000.0;
