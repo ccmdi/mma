@@ -1,6 +1,6 @@
-// Drives the built bundle directly: `map` is the procedure's only entry point, and the
-// zone lookup itself is @photostructure/tz-lookup, so only this module's own rules are
-// worth pinning here.
+// Drives the built bundle directly: `map` is the procedure's only entry point. The host's
+// `mma.tz` is stubbed with @photostructure/tz-lookup (a devDependency), which is exactly
+// what the Rust host serves -- crates/tz pins that equivalence against a fixture.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -8,7 +8,17 @@ import { createRequire } from "node:module";
 const tzlookup = createRequire(import.meta.url)("@photostructure/tz-lookup");
 
 const failed = [];
-globalThis.mma = { fail: (id) => failed.push(id), log: () => {} };
+globalThis.mma = {
+	fail: (id) => failed.push(id),
+	log: () => {},
+	tz: (lat, lng) => {
+		try {
+			return tzlookup(lat, lng);
+		} catch {
+			return null;
+		}
+	},
+};
 
 const { map } = await import(
 	new URL("../../../src-tauri/procedures/timezone.js", import.meta.url).href

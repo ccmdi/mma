@@ -8,6 +8,7 @@ use chrono::{DateTime, Datelike, Timelike, Utc};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use tauri::async_runtime;
 
 /// The ISO 8601 form every SQLite timestamp column is written in.
@@ -54,9 +55,24 @@ pub fn unix_to_hour_min(ts: f64) -> (u32, u32) {
 /// into the wall-clock time at a location ("the date where the photo was taken").
 /// The name→Tz parse is memoized per thread (called per row in filter resolves);
 /// the offset itself is always computed per instant so DST stays correct.
+/// The shared coordinate->IANA-zone grid (used by the `timezone_at` command and the
+/// procedure sandbox's `mma.tz`).
+pub fn tz_grid() -> &'static mma_tz::TzGrid<'static> {
+    static GRID_TABLE: &[u8] = include_bytes!("../data/tzgrid.bin");
+    static GRID: OnceLock<mma_tz::TzGrid<'static>> = OnceLock::new();
+    GRID.get_or_init(|| mma_tz::TzGrid::new(GRID_TABLE).expect("tzgrid.bin: invalid table"))
+}
+
+/// IANA timezone at a coordinate, or `None` outside the valid range.
+#[tauri::command]
+#[specta::specta]
+pub fn timezone_at(lat: f64, lng: f64) -> Option<String> {
+    tz_grid().zone_at(lat, lng).map(str::to_owned)
+}
+
 pub fn tz_offset_seconds(tz_name: &str, ts: f64) -> Option<i32> {
     static TZ_TABLE: &[u8] = include_bytes!("../data/tz.bin");
-    static TABLE: std::sync::OnceLock<mma_tz::Tz<'static>> = std::sync::OnceLock::new();
+    static TABLE: OnceLock<mma_tz::Tz<'static>> = OnceLock::new();
     thread_local! {
         static TZ_CACHE: RefCell<HashMap<String, Option<usize>>> = RefCell::new(HashMap::new());
     }

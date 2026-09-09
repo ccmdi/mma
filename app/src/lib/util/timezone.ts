@@ -1,16 +1,16 @@
-import { useMemo } from "react";
-import tzlookup from "@photostructure/tz-lookup";
 import type { ExtraFieldType, Selector } from "@/bindings.gen";
+import { cmd } from "@/lib/commands";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { countIn } from "@/store/useMapStore";
 import { buildSelection } from "@/store/selections";
 import { t } from "@/lib/i18n";
 
-export function resolveTimezone(lat: number, lng: number): string {
-	return tzlookup(lat, lng);
+export function resolveTimezone(lat: number, lng: number): Promise<string | null> {
+	return cmd.timezoneAt(lat, lng);
 }
 
 export function useTimezone(lat: number, lng: number, enabled: boolean): string | null {
-	return useMemo(() => (enabled ? tzlookup(lat, lng) : null), [lat, lng, enabled]);
+	return useAsync(() => (enabled ? resolveTimezone(lat, lng) : null), [lat, lng, enabled]).data;
 }
 
 export async function countMissingTimezone(

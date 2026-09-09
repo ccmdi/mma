@@ -82,6 +82,8 @@ export const commands = {
 	 *  Always returns `Some` - the dataset covers every landmass.
 	 */
 	reverseGeocode: (lat: number, lng: number) => __TAURI_INVOKE<GeoResult | null>("reverse_geocode", { lat, lng }),
+	/**  IANA timezone at a coordinate, or `None` outside the valid range. */
+	timezoneAt: (lat: number, lng: number) => __TAURI_INVOKE<string | null>("timezone_at", { lat, lng }),
 	/**  Set the Discord Rich Presence activity. No-op when Discord is not running. */
 	discordPresenceSet: (activity: PresenceActivity) => __TAURI_INVOKE<null>("discord_presence_set", { activity }),
 	/**  Clear the Discord Rich Presence activity. No-op when Discord is not running. */

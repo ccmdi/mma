@@ -40,7 +40,6 @@
 		"@deck.gl/layers": "^9.3.1",
 		"@deck.gl/mapbox": "^9.3.6",
 		"@mdi/js": "^7.4.47",
-		"@photostructure/tz-lookup": "^11.5.0",
 		"@tauri-apps/api": "^2.11.0",
 		"@tauri-apps/plugin-dialog": "^2.7.1",
 		"@tauri-apps/plugin-log": "^2.8.0",
@@ -64,6 +63,7 @@
 		"*.{json,css,md}": "prettier --write --ignore-path ../.prettierignore"
 	},
 	"devDependencies": {
+		"@photostructure/tz-lookup": "^11.5.0",
 		"@eslint/js": "^10.0.1",
 		"@mdn/browser-compat-data": "^8.0.11",
 		"@mdx-js/rollup": "^3.1.1",

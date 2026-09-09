@@ -642,6 +642,13 @@ fn install_host_calls<'js>(
             let _ = b.call(HostReq::Progress(units));
         })?,
     )?;
+    obj.set(
+        "tz",
+        Function::new(ctx.clone(), |lat: f64, lng: f64| -> Option<String> {
+            use crate::util::tz_grid;
+            tz_grid().zone_at(lat, lng).map(str::to_owned)
+        })?,
+    )?;
     let b = bridge.clone();
     obj.set(
         "fail",

@@ -39,6 +39,9 @@ export interface ProcedureHost {
 	/** 0 debug, 1 info, 2 warn, 3 error. `console.*` routes here. */
 	log(level: number, msg: string): void;
 	progress(units: number): void;
+	/** IANA timezone at a coordinate, or null outside the valid range. Pure compute,
+	 *  available to every procedure shape. @unstable */
+	tz(lat: number, lng: number): string | null;
 	/** Marks a row as failed rather than skipped. */
 	fail(id: number): void;
 	aborted(): boolean;
