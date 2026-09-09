@@ -63,6 +63,21 @@ pub fn tz_grid() -> &'static mma_tz::TzGrid<'static> {
     GRID.get_or_init(|| mma_tz::TzGrid::new(GRID_TABLE).expect("tzgrid.bin: invalid table"))
 }
 
+/// Reveal with the native open animation: a true first show() (DWM plays its pop-in),
+/// then maximize back-to-back while the shell is still blank. The show must come first:
+/// maximize on a hidden window reveals it without setting tao's visible flag, and the
+/// window gets re-hidden a frame later.
+#[tauri::command]
+#[specta::specta]
+#[allow(clippy::needless_pass_by_value, reason = "tauri injects the calling window by value")]
+pub fn reveal_window(window: tauri::WebviewWindow, maximized: bool) {
+    let _ = window.show();
+    if maximized {
+        let _ = window.maximize();
+    }
+    let _ = window.set_focus();
+}
+
 /// IANA timezone at a coordinate, or `None` outside the valid range.
 #[tauri::command]
 #[specta::specta]

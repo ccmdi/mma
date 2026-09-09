@@ -1,7 +1,7 @@
 import "@/lib/sv/shaderPatch";
 import {} from "react";
 import { createRoot } from "react-dom/client";
-import { appWindow } from "@/lib/window";
+import { appWindow, hasWindowHost, revealWindow, saveWindowState } from "@/lib/window";
 import "@/styles.css";
 import App from "@/App.tsx";
 import { initLogging, log } from "@/lib/util/log";
@@ -58,6 +58,7 @@ async function boot() {
 			await closeWindows("editor");
 		}
 		await flushSave();
+		await saveWindowState();
 		await cmd.storeCloseMap().catch((e) => log.error("[close] store_close_map failed:", e));
 		log.info("Map closed, destroying window");
 		void appWindow.destroy();
@@ -79,9 +80,17 @@ async function boot() {
 	createRoot(document.getElementById("root")!).render(<App />);
 	mark("render");
 
-	void appWindow.show();
+	// Shown as soon as the shell has rendered: the webview surface exists by now, so the
+	// appear is a single native show (with DWM's pop-in), the maximize lands while the
+	// window is still a blank shell, and content streams into a visible window.
+	if (hasWindowHost) {
+		void revealWindow();
+		mark("show");
+	} else {
+		void appWindow.show();
+		mark("show");
+	}
 	const jsTotal = performance.now();
-	mark("show");
 
 	if (appWindow.type === "list" && getSettings().restoreSession) restoreSession();
 

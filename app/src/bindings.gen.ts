@@ -84,6 +84,13 @@ export const commands = {
 	reverseGeocode: (lat: number, lng: number) => __TAURI_INVOKE<GeoResult | null>("reverse_geocode", { lat, lng }),
 	/**  IANA timezone at a coordinate, or `None` outside the valid range. */
 	timezoneAt: (lat: number, lng: number) => __TAURI_INVOKE<string | null>("timezone_at", { lat, lng }),
+	/**
+	 *  Reveal with the native open animation: a true first show() (DWM plays its pop-in),
+	 *  then maximize back-to-back while the shell is still blank. The show must come first:
+	 *  maximize on a hidden window reveals it without setting tao's visible flag, and the
+	 *  window gets re-hidden a frame later.
+	 */
+	revealWindow: (maximized: boolean) => __TAURI_INVOKE<void>("reveal_window", { maximized }),
 	/**  Set the Discord Rich Presence activity. No-op when Discord is not running. */
 	discordPresenceSet: (activity: PresenceActivity) => __TAURI_INVOKE<null>("discord_presence_set", { activity }),
 	/**  Clear the Discord Rich Presence activity. No-op when Discord is not running. */

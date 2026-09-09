@@ -158,16 +158,52 @@ export function syncTitle(mapName: string | null): void {
 	void appWindow.setTitle(title);
 }
 
-// tauri-plugin-window-state flags: all() minus VISIBLE (bit 3).
-const WINDOW_STATE_FLAGS = 0b110111;
+// tauri-plugin-window-state flags: all() minus VISIBLE (bit 3) and MAXIMIZED (bit 2).
+// Maximized is ours, not the plugin's: tao's SW_MAXIMIZE reveals a hidden window mid-boot
+// and animates a morph at reveal, so the bit lives in localStorage, the hidden window is
+// pre-sized to its monitor, and the reveal is one maximize() over already-final pixels.
+const WINDOW_STATE_FLAGS = 0b110011;
+const maximizedKey = (label: string) => `win-maximized:${label}`;
+
+/** Persist this window's geometry, plus the maximized bit the plugin no longer tracks. */
+export async function saveWindowState(): Promise<void> {
+	try {
+		localStorage.setItem(maximizedKey(appWindow.label), String(await appWindow.isMaximized()));
+	} catch {
+		/* geometry still restores; only the maximized bit is lost */
+	}
+	const { invoke } = await import("@tauri-apps/api/core");
+	await invoke("plugin:window-state|save_window_state", { flags: WINDOW_STATE_FLAGS }).catch(
+		() => {},
+	);
+}
+
+function wasMaximized(label: string): boolean {
+	try {
+		return localStorage.getItem(maximizedKey(label)) === "true";
+	} catch {
+		return false;
+	}
+}
+
+// The flicker-free maximized reveal on Windows (tao#193, tauri#11284: maximize is
+// unreliable on hidden windows and creation-time maximized black-flashes): size the
+// hidden window to the work area, show it -- pixels already identical to maximized --
+// then maximize, which is a zero-rect-delta style change.
+
+/** While hidden, take on the work area's rect when this window will reveal maximized,
+ *  so content renders at final size and the reveal never reflows. */
+/** Show this window; when it last closed maximized, promote the already-work-area-sized
+ *  window to maximized right after (maximize only works on visible windows). */
+export async function revealWindow(): Promise<void> {
+	const { cmd } = await import("@/lib/commands");
+	await cmd.revealWindow(wasMaximized(appWindow.label));
+}
 
 /** Hand focus to the list window, persist this window's geometry (destroy() never fires
  *  CloseRequested, so the window-state plugin would not), then destroy it. */
 export async function closeAndDestroy(): Promise<void> {
 	await focusWindow({ type: "list" });
-	const { invoke } = await import("@tauri-apps/api/core");
-	await invoke("plugin:window-state|save_window_state", { flags: WINDOW_STATE_FLAGS }).catch(
-		() => {},
-	);
+	await saveWindowState();
 	void appWindow.destroy();
 }

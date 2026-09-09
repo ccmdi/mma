@@ -110,6 +110,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             plugins::borders::border_classify,
             net::geocoder::reverse_geocode,
             util::timezone_at,
+            util::reveal_window,
             net::presence::discord_presence_set,
             net::presence::discord_presence_clear,
             net::github::github_start_login,
@@ -453,8 +454,12 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(
+                    // MAXIMIZED excluded: tao's SW_MAXIMIZE reveals a hidden window, so the
+                    // creation-time restore would defeat the first-frame show gate. The
+                    // frontend re-applies it right before showing (window.ts).
                     tauri_plugin_window_state::StateFlags::all()
-                        - tauri_plugin_window_state::StateFlags::VISIBLE,
+                        - tauri_plugin_window_state::StateFlags::VISIBLE
+                        - tauri_plugin_window_state::StateFlags::MAXIMIZED,
                 )
                 .build(),
         )
