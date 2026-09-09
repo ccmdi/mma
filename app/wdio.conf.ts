@@ -45,6 +45,9 @@ export const SHARED_EXCLUDES = [
 	"./test/e2e/procedure-faults.test.ts",
 	"./test/e2e/procedure-scale.test.ts",
 	"./test/e2e/sv-stub-ceiling.test.ts",
+	// Throughput tools: run explicitly against a host-path fixture, never in a suite.
+	"./test/e2e/benchFixture.test.ts",
+	"./test/e2e/providerBench.test.ts",
 ];
 
 export const config: WebdriverIO.Config = {
