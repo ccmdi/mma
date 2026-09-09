@@ -134,6 +134,13 @@
 	white-space: nowrap;
 }
 
+.generator-regions__rate {
+	color: var(--text-2);
+	font-size: 0.75rem;
+	margin: 0 0.4em;
+	font-variant-numeric: tabular-nums;
+}
+
 .generator-regions__total {
 	margin-top: 6px;
 	font-weight: 600;

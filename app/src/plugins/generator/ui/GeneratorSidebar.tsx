@@ -394,6 +394,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 					onDefaultTargetChange={(v) => updateSettings({ defaultTarget: v })}
 					meta={meta}
 					onMetaChange={handleMetaChange}
+					running={running}
 				/>
 			</Section>
 

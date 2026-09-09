@@ -42,6 +42,7 @@ function render(selections: Selection[], meta: Map<string, GeneratorRegionMeta>)
 			onDefaultTargetChange={() => {}}
 			meta={meta}
 			onMetaChange={() => {}}
+			running={false}
 		/>,
 	);
 }

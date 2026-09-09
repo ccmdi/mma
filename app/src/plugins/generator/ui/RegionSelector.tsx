@@ -19,22 +19,29 @@ function getPolygonCode(sel: Selection): string | null {
 	return sel.selector.polygon.properties?.code ?? null;
 }
 
+function rateLabel(rate: number | null): string | null {
+	if (rate == null) return null;
+	return t("{rate}/s", { rate: rate >= 10 ? String(Math.round(rate)) : rate.toFixed(1) });
+}
+
 function RegionRow({
 	sel,
 	found,
 	target,
 	processing,
+	running,
 	onTargetChange,
 }: {
 	sel: Selection;
 	found: number;
 	target: number;
 	processing: boolean;
+	running: boolean;
 	onTargetChange: (v: number) => void;
 }) {
 	const name = getPolygonName(sel);
 	const code = getPolygonCode(sel);
-	const { shown } = useCountMotion(found, target, found < target);
+	const { shown, rate } = useCountMotion(found, target, running && found < target);
 	return (
 		<div className="generator-regions__item">
 			<div className="generator-regions__item-name">
@@ -43,6 +50,7 @@ function RegionRow({
 				{processing && <span className="generator-regions__spinner" />}
 			</div>
 			<div className="generator-regions__item-count">
+				{rate != null && <span className="generator-regions__rate">{rateLabel(rate)}</span>}
 				{shown} /
 				<TextInput
 					type="number"
@@ -61,11 +69,13 @@ export function RegionSelector({
 	onDefaultTargetChange,
 	meta,
 	onMetaChange,
+	running,
 }: {
 	defaultTarget: number;
 	onDefaultTargetChange: (v: number) => void;
 	meta: Map<string, GeneratorRegionMeta>;
 	onMetaChange: (meta: Map<string, GeneratorRegionMeta>) => void;
+	running: boolean;
 }) {
 	useProgressTick();
 	const selections = useMapState(getActiveSelections);
@@ -199,23 +209,33 @@ export function RegionSelector({
 									found={m?.found.length ?? 0}
 									target={m?.target ?? defaultTarget}
 									processing={m?.isProcessing ?? false}
+									running={running}
 									onTargetChange={(v) => setTarget(sel.key, v)}
 								/>
 							);
 						})}
 					</div>
-					<TotalRow found={totalFound} target={totalTarget} />
+					<TotalRow found={totalFound} target={totalTarget} running={running} />
 				</>
 			)}
 		</div>
 	);
 }
 
-function TotalRow({ found, target }: { found: number; target: number }) {
-	const { shown } = useCountMotion(found, target, found < target);
+function TotalRow({
+	found,
+	target,
+	running,
+}: {
+	found: number;
+	target: number;
+	running: boolean;
+}) {
+	const { shown, rate } = useCountMotion(found, target, running && found < target);
 	return (
 		<div className="generator-regions__total">
 			{t("Total:")} {shown} / {target}
+			{rate != null && <span className="generator-regions__rate">{rateLabel(rate)}</span>}
 		</div>
 	);
 }
