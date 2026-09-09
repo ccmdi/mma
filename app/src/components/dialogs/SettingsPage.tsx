@@ -1594,10 +1594,7 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 			<DialogContent
 				title={t("Settings")}
 				className="settings-page"
-				onOpenAutoFocus={(e) => {
-					e.preventDefault();
-					searchRef.current?.focus();
-				}}
+				initialFocus={searchRef}
 			>
 				<nav className="settings-rail">
 					<TextInput

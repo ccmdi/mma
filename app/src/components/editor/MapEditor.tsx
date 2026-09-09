@@ -339,10 +339,8 @@ export function MapEditor() {
 							{!isReservedMap(map.id) && (
 								<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
 									<Tooltip content={t("Edit map")} side="bottom">
-										<DialogTrigger asChild>
-											<button className="icon-button" type="button" aria-label={t("Edit map")}>
-												<Icon path={mdiPencil} />
-											</button>
+										<DialogTrigger className="icon-button" aria-label={t("Edit map")}>
+											<Icon path={mdiPencil} />
 										</DialogTrigger>
 									</Tooltip>
 									<DialogContent title={t("Edit map")} className="edit-map-modal">

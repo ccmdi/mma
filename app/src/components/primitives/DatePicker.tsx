@@ -1,7 +1,7 @@
 ﻿import { useState, useCallback, useMemo, useRef } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
-import * as Popover from "@radix-ui/react-popover";
+import { Popover } from "@base-ui-components/react/popover";
 import { Icon } from "@/components/primitives/Icon";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { mdiClose } from "@mdi/js";
@@ -337,9 +337,25 @@ export function DatePicker({
 					: 12;
 
 	return (
-		<Popover.Root open={open} onOpenChange={handleOpenChange}>
-			<Popover.Anchor asChild>
-				<input
+		<Popover.Root
+			open={open}
+			onOpenChange={(next, details) => {
+				// Clicking the anchor input is not "outside" -- it would close and
+				// instantly re-open via the input's focus/click handlers.
+				if (
+					!next &&
+					details.reason === "outside-press" &&
+					inputRef.current &&
+					details.event.target instanceof Node &&
+					inputRef.current.contains(details.event.target)
+				) {
+					details.cancel();
+					return;
+				}
+				handleOpenChange(next);
+			}}
+		>
+			<input
 					ref={inputRef}
 					type="text"
 					className={`date-picker__trigger${draftInvalid ? " is-invalid" : ""}`}
@@ -369,21 +385,9 @@ export function DatePicker({
 						}
 					}}
 				/>
-			</Popover.Anchor>
 			<Popover.Portal>
-				<Popover.Content
-					className="date-picker__popover"
-					sideOffset={4}
-					align="start"
-					collisionPadding={8}
-					onOpenAutoFocus={(e) => e.preventDefault()}
-					onInteractOutside={(e) => {
-						// Clicking the anchor input is not "outside" â€” it would close and
-						// instantly re-open via the input's focus/click handlers.
-						if (inputRef.current && e.target instanceof Node && inputRef.current.contains(e.target))
-							e.preventDefault();
-					}}
-				>
+				<Popover.Positioner anchor={inputRef} sideOffset={4} align="start" collisionPadding={8}>
+					<Popover.Popup className="date-picker__popover" initialFocus={false}>
 					{anyTime ? (
 						<div className="date-picker__time-only">
 							<label>
@@ -479,7 +483,8 @@ export function DatePicker({
 							)}
 						</div>
 					)}
-				</Popover.Content>
+					</Popover.Popup>
+				</Popover.Positioner>
 			</Popover.Portal>
 		</Popover.Root>
 	);

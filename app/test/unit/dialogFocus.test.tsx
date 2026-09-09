@@ -25,8 +25,12 @@ function openDialog(container: HTMLElement) {
 }
 
 describe("Dialog focus", () => {
-	it("opens with focus parked on the content, not a ring on the close button", () => {
+	it("opens with focus parked on the content, not a ring on the close button", async () => {
 		openDialog(mount(<Harness />).container);
+		// base-ui applies initial focus a tick after mount
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0));
+		});
 		expect(document.activeElement).toBe(document.querySelector(".modal"));
 	});
 

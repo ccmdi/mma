@@ -142,10 +142,8 @@ export function EnrichmentButton() {
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<Tooltip content={t("Enrichment")} side="bottom">
-				<DialogTrigger asChild>
-					<button className="icon-button" type="button" aria-label={t("Enrichment")}>
-						<Icon path={mdiDatabasePlusOutline} />
-					</button>
+				<DialogTrigger className="icon-button" aria-label={t("Enrichment")}>
+					<Icon path={mdiDatabasePlusOutline} />
 				</DialogTrigger>
 			</Tooltip>
 			<DialogContent title={t("Enrichment")} className="enrichment-modal">

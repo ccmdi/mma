@@ -1,8 +1,7 @@
 import { useState, useCallback, useMemo, createContext, useContext } from "react";
 import { useDialog, useDialogState, openDialog } from "@/store/dialogBus";
 import { Command } from "cmdk";
-import * as RadixDialog from "@radix-ui/react-dialog";
-import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
+import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiUndo, mdiPin, mdiPinOutline } from "@mdi/js";
 import { BulkOperationModal, type BulkOperation } from "@/components/dialogs/BulkOperationModal";
@@ -258,17 +257,14 @@ export function CommandPalette() {
 
 	return (
 		<>
-			<RadixDialog.Root open={open} onOpenChange={setOpen}>
-				<RadixDialog.Portal>
-					<RadixDialog.Overlay className="modal__backdrop" />
-					<RadixDialog.Content className="modal command-palette" aria-describedby={undefined}>
-						<VisuallyHidden.Root>
-							<RadixDialog.Title>{t("Command Palette")}</RadixDialog.Title>
-						</VisuallyHidden.Root>
+			<BaseDialog.Root open={open} onOpenChange={setOpen}>
+				<BaseDialog.Portal>
+					<BaseDialog.Backdrop className="modal__backdrop" />
+					<BaseDialog.Popup className="modal command-palette" aria-label={t("Command Palette")}>
 						<PaletteContent onChangeOpen={setOpen} />
-					</RadixDialog.Content>
-				</RadixDialog.Portal>
-			</RadixDialog.Root>
+					</BaseDialog.Popup>
+				</BaseDialog.Portal>
+			</BaseDialog.Root>
 			{bulkOp && <BulkOperationModal operation={bulkOp} onClose={() => setBulkOp(null)} />}
 		</>
 	);

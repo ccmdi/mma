@@ -922,7 +922,7 @@ input[type="range"]:disabled {
 	}
 }
 .modal[open],
-.modal[data-state="open"] {
+.modal[data-open] {
 	z-index: 10;
 	color: var(--text-1);
 	border: none;
@@ -4361,7 +4361,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	display: flex;
 }
 .command-palette[open],
-.command-palette[data-state="open"] {
+.command-palette[data-open] {
 	color: var(--text-1);
 	z-index: 10;
 	background: var(--surface-3);

@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef } from "react";
-import * as RadixDialog from "@radix-ui/react-dialog";
-import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
+import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import { searchManual } from "@/components/manual/search";
 import type { DialogProps } from "@/components/primitives/Dialog";
 import { openManual } from "@/store/router";
@@ -33,16 +32,13 @@ export function ManualSearch({ open, onOpenChange }: DialogProps) {
 	};
 
 	return (
-		<RadixDialog.Root open={open} onOpenChange={onOpenChange}>
-			<RadixDialog.Portal>
-				<RadixDialog.Overlay className="modal__backdrop" />
-				<RadixDialog.Content
+		<BaseDialog.Root open={open} onOpenChange={onOpenChange}>
+			<BaseDialog.Portal>
+				<BaseDialog.Backdrop className="modal__backdrop" />
+				<BaseDialog.Popup
 					className="modal command-palette manual-search"
-					aria-describedby={undefined}
+					aria-label={t("Search the manual")}
 				>
-					<VisuallyHidden.Root>
-						<RadixDialog.Title>{t("Search the manual")}</RadixDialog.Title>
-					</VisuallyHidden.Root>
 					<div className="manual-search__panel">
 						<input
 							ref={inputRef}
@@ -75,8 +71,8 @@ export function ManualSearch({ open, onOpenChange }: DialogProps) {
 							))}
 						</div>
 					</div>
-				</RadixDialog.Content>
-			</RadixDialog.Portal>
-		</RadixDialog.Root>
+				</BaseDialog.Popup>
+			</BaseDialog.Portal>
+		</BaseDialog.Root>
 	);
 }
