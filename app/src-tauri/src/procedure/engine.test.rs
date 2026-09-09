@@ -720,6 +720,50 @@ fn cancel_stops_before_the_next_batch_and_keeps_applied_patches() {
     assert!(read_extra(&state, &map_id, 3).is_none());
 }
 
+#[test]
+fn cancel_with_more_batches_queued_than_the_queue_holds_still_lands_and_returns() {
+    // One instance holds a queue of two; a page of twelve per-row batches overfills it.
+    let locs: Vec<Location> = (1..=12u32).map(|i| loc(i, i as f64, 0.0)).collect();
+    let (state, map_id) = setup(&locs);
+    let d = decl("canceller", BatchMode::PerRow);
+    let flag = Arc::new(AtomicBool::new(false));
+    let f = flag.clone();
+    let on_map: MapFn = Arc::new(move |rows: &[Location]| {
+        f.store(true, Ordering::Relaxed);
+        Ok(rows
+            .iter()
+            .map(|r| PatchEntry {
+                id: r.id,
+                patch: r#"{"extra":{"hit":true}}"#.into(),
+            })
+            .collect())
+    });
+    let mut h = Harness::map_only(on_map);
+    h.cancel = flag;
+    // Leaked so the worker can be abandoned: a deadlocked provider must fail this test,
+    // not hang it.
+    let (h, state, map_id, d) = (
+        &*Box::leak(Box::new(h)),
+        &*Box::leak(Box::new(state)),
+        &*Box::leak(Box::new(map_id)),
+        &*Box::leak(Box::new(d)),
+    );
+    let (tx, rx) = std::sync::mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(run_provider(&h.ctx(state, map_id), d));
+    });
+    rx.recv_timeout(Duration::from_secs(10))
+        .expect("a cancelled provider must return, not block on its own queue")
+        .unwrap();
+
+    assert_eq!(h.seen.lock().unwrap().len(), 1, "only one batch should run");
+    assert_eq!(
+        read_extra(state, map_id, 1).unwrap()["hit"],
+        serde_json::json!(true)
+    );
+    assert!(read_extra(state, map_id, 2).is_none());
+}
+
 // -----------------------------------------------------------------------
 // Patch application
 // -----------------------------------------------------------------------

@@ -1158,9 +1158,6 @@ fn run_instance(
     out: &mpsc::Sender<Produced>,
 ) {
     loop {
-        if ctx.aborted() {
-            return;
-        }
         let next = batches
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -1168,6 +1165,11 @@ fn run_instance(
         let Ok(Tagged { page, batch }) = next else {
             return;
         };
+        // A cancelled instance keeps draining: the queue is bounded, and a pager blocked
+        // on a full one would never close it, so the applied batches would never land.
+        if ctx.aborted() {
+            continue;
+        }
         let mut host = EngineHost {
             ctx,
             decl,
