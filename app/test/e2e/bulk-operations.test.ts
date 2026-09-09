@@ -179,32 +179,32 @@ describe("Bulk operations -- cancel preserves progress", () => {
 	const N = 50_000;
 
 	before(async () => {
-		// Enough rows for several engine pages, each with the datetime timezone needs.
+		// Enough rows for several engine pages, none resolved yet.
 		await seedLocs(N, (i) => ({
 			lat: 52.109 + (i % 1000) * 0.0001,
 			lng: 34.901 + Math.floor(i / 1000) * 0.0001,
-			extra: { datetime: 1700000000 },
 		}));
 	});
 	it("a cancelled run keeps the pages it applied and lands no more", async () => {
 		const result = await withApi(async (api, total) => {
-			// The timezone procedure on its own, one instance, so pages apply one at a time
-			// and a cancel after the first progress report leaves a partial run. enrichAll
-			// cannot be used here: it schedules panoResolve in the same wave, and timezone
-			// finishes every page while panoResolve is still searching.
+			// Pano resolution on its own, one instance, so pages apply one at a time and a
+			// cancel after the first progress report leaves a partial run. It has to be a
+			// procedure that fetches: `rate` is charged per request, so a pure-compute
+			// procedure such as timezone finishes every page before the first report lands.
 			const controller = new AbortController();
 			try {
 				await api._test.runProcedure(
 					{
-						entry: api._test.procedureEntry("timezone"),
-						batch: { mode: "chunk", size: 10000 },
+						entry: api._test.procedureEntry("panoResolve"),
+						batch: { mode: "chunk", size: 200 },
 						instances: 1,
-						// Paced, so the run outlasts the round trip of its first progress report.
-						rate: { units: 10000, perMs: 500, cost: "row" },
+						// Paced per request, so the run outlasts the round trip of its first progress
+						// report and the batch declined by the cancel drains in well under a second.
+						rate: { units: 400, perMs: 1000 },
 					},
 					{ type: "Everything" },
 					{
-						id: "timezone",
+						id: "panoResolve",
 						signal: controller.signal,
 						onProgress: (done) => {
 							if (done > 0) controller.abort();
@@ -215,16 +215,15 @@ describe("Bulk operations -- cancel preserves progress", () => {
 			} catch (e) {
 				if (e instanceof Error && e.name === "AbortError") {
 					const count = async () =>
-						(await api.fetchAllLocations()).filter((l) => l.extra?.timezone != null).length;
+						(await api.fetchAllLocations()).filter((l) => l.panoId != null).length;
 					const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-					// Cancel stops the run before its next batch: the batch in flight still lands.
-					// Wait for that, then prove nothing more does.
-					let settled = await count();
-					for (let i = 0; i < 20; i++) {
-						await sleep(500);
-						const now = await count();
-						if (now === settled) break;
-						settled = now;
+					// Cancel stops the run before its next batch: the batches already answered
+					// land once the one in flight has drained. Wait for that first write, then
+					// prove nothing more lands.
+					let settled = 0;
+					for (let i = 0; i < 120 && settled === 0; i++) {
+						await sleep(250);
+						settled = await count();
 					}
 					await sleep(2000);
 					return { cancelled: true, settled, later: await count(), total };
