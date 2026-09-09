@@ -42,7 +42,6 @@ rmp-serde = "1"
 sha1 = "0.10"
 sha2 = "0.10"
 chrono = "0.4"
-chrono-tz = "0.10"
 rayon = "1.10"
 bytemuck = "1"
 roaring = "0.10"
@@ -82,6 +81,7 @@ vali-data = { path = "crates/vali/vali-data" }
 vali-generate = { path = "crates/vali/vali-generate" }
 vali-geo = { path = "crates/vali/vali-geo" }
 mma-geo = { path = "crates/geo" }
+mma-tz = { path = "crates/tz" }
 mma-geocode = { path = "crates/geocode" }
 rquickjs = { version = "0.9", features = ["parallel"] }
 

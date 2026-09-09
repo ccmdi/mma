@@ -55,28 +55,24 @@ pub fn unix_to_hour_min(ts: f64) -> (u32, u32) {
 /// The name→Tz parse is memoized per thread (called per row in filter resolves);
 /// the offset itself is always computed per instant so DST stays correct.
 pub fn tz_offset_seconds(tz_name: &str, ts: f64) -> Option<i32> {
-    use chrono::{Offset, TimeZone};
+    static TZ_TABLE: &[u8] = include_bytes!("../data/tz.bin");
+    static TABLE: std::sync::OnceLock<mma_tz::Tz<'static>> = std::sync::OnceLock::new();
     thread_local! {
-        static TZ_CACHE: RefCell<HashMap<String, Option<chrono_tz::Tz>>> =
-            RefCell::new(HashMap::new());
+        static TZ_CACHE: RefCell<HashMap<String, Option<usize>>> = RefCell::new(HashMap::new());
     }
-    let tz = TZ_CACHE.with(|c| {
+    let table = TABLE.get_or_init(|| mma_tz::Tz::new(TZ_TABLE).expect("tz.bin: invalid table"));
+    let zone = TZ_CACHE.with(|c| {
         let mut m = c.borrow_mut();
         match m.get(tz_name) {
             Some(v) => *v,
             None => {
-                let v = tz_name.parse().ok();
+                let v = table.zone_index(tz_name);
                 m.insert(tz_name.to_owned(), v);
                 v
             }
         }
     })?;
-    let dt = DateTime::<Utc>::from_timestamp(ts as i64, 0)?;
-    Some(
-        tz.offset_from_utc_datetime(&dt.naive_utc())
-            .fix()
-            .local_minus_utc(),
-    )
+    Some(table.offset_at(zone, ts as i64))
 }
 
 /// Converts HSL to RGB. `h` is in degrees [0, 360), `s` and `l` in [0, 1].

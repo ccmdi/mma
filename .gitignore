@@ -63,6 +63,8 @@ plugins/copyright/sidecar/verify_parity.py
 
 # reverse-geocoding table, packed by scripts/gen-cities-bin.mjs
 !app/src-tauri/data/cities.bin
+# timezone transition table, packed by crates/tz's regenerate_table test
+!app/src-tauri/data/tz.bin
 
 # render-binary layout fixture, emitted by the Rust writer (emit_render_fixture)
 !app/test/unit/fixtures/render-buffer.bin

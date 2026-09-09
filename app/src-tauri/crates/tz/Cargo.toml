@@ -1,0 +1,8 @@
+[package]
+name = "mma-tz"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+chrono = "0.4"
+chrono-tz = "0.10"

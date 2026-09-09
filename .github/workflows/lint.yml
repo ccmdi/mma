@@ -87,6 +87,8 @@ jobs:
         working-directory: app/src-tauri
       - run: cargo test --manifest-path crates/geocode/Cargo.toml
         working-directory: app/src-tauri
+      - run: cargo test --manifest-path crates/tz/Cargo.toml
+        working-directory: app/src-tauri
 
   js-tests:
     runs-on: ubuntu-latest
