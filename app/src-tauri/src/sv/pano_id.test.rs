@@ -45,3 +45,17 @@ fn a_key_with_no_id_has_no_pano() {
 fn a_frontend_of_zero_reads_as_official() {
     assert_eq!(from_image_key(0, OFFICIAL), OFFICIAL);
 }
+
+// Reference vectors captured from the Maps JS API, which pads the base64 with ".".
+#[test]
+fn non_official_keys_spell_like_the_maps_js_api_dot_padding_included() {
+    assert_eq!(from_image_key(10, "abc"), "CAoSA2FiYw..");
+    assert_eq!(
+        from_image_key(10, "AF1QipMnotARealPhotoIdButRepresentative_0123456789"),
+        "CAoSMkFGMVFpcE1ub3RBUmVhbFBob3RvSWRCdXRSZXByZXNlbnRhdGl2ZV8wMTIzNDU2Nzg5"
+    );
+    // 200 bytes of id plus the two tags, the frontend and the 2-byte length varint.
+    let huge = from_image_key(10, &"x".repeat(200));
+    assert_eq!(huge.len(), 206_usize.div_ceil(3) * 4);
+    assert!(huge.starts_with("CAoSyAF4eHh4") && huge.ends_with("eHh4eA.."));
+}

@@ -642,6 +642,8 @@ declare const commands$1: {
      *  @unstable
      */
     storeImportFile: (droppedFields: string[], tagName: string | null) => Promise<EditorImportResult>;
+    /**  The location a pasted Maps URL names, short links resolved. @unstable */
+    parseMapsUrl: (input: string) => Promise<ParsedLocation | null>;
     /**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. @unstable */
     storeExportJson: (opts: ExportOpts) => Promise<string>;
     /**  Export locations as a minimal lat/lng CSV file. @unstable */
@@ -1680,6 +1682,18 @@ type PanoTime = {
     pano: string;
     /**  The civil day, `YYYY-MM-DD`. */
     date: string;
+};
+/**  A single location parsed out of a pasted Maps URL. */
+type ParsedLocation = {
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    panoId: string | null;
+    flags: number;
+    /**  Tag names. */
+    tags: string[];
 };
 /**
  *  One partition group: a stable key, the ids it holds, and (numeric bins only) the
@@ -6001,8 +6015,6 @@ declare function tagColorFor(name: string, tags: Tag[]): string;
 /** Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
  *  canonical casing. Returns the original array unchanged if already present. */
 declare function appendTagName(pending: string[], name: string, tags: Tag[]): string[];
-/** Convert a field-of-view angle (degrees) to a zoom level. */
-declare function fovToZoom(fov: number): number;
 /** Current time as Unix seconds, the form Location timestamps use. */
 declare function nowUnix(): number;
 /** Rolling anchor for a phase-relative locations/second average. */
@@ -6029,7 +6041,6 @@ declare const util_compareNatural: typeof compareNatural;
 declare const util_copyImageToClipboard: typeof copyImageToClipboard;
 declare const util_downloadBlob: typeof downloadBlob;
 declare const util_errText: typeof errText;
-declare const util_fovToZoom: typeof fovToZoom;
 declare const util_isPrereleaseVersion: typeof isPrereleaseVersion;
 declare const util_isWeb: typeof isWeb;
 declare const util_mmaBufUrl: typeof mmaBufUrl;
@@ -6041,7 +6052,7 @@ declare const util_splitVersion: typeof splitVersion;
 declare const util_tagColorFor: typeof tagColorFor;
 declare const util_toggleInSet: typeof toggleInSet;
 declare namespace util {
-  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_errText as errText, util_fovToZoom as fovToZoom, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_schemeBase as schemeBase, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet };
+  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_errText as errText, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_schemeBase as schemeBase, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet };
   export type { util_PhaseRate as PhaseRate };
 }
 
@@ -6105,4 +6116,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

@@ -1299,6 +1299,10 @@ Open the app's data folder in the OS file explorer.
 
 Open the app's log file in the OS default handler.
 
+#### `cmd.parseMapsUrl(input: string): Promise<ParsedLocation | null>` *(unstable)*
+
+The location a pasted Maps URL names, short links resolved.
+
 #### `cmd.procedureCancel(runId: number): Promise<null>` *(unstable)*
 
 Stop a run before its next batch. Already-applied patches stay applied.
@@ -2940,10 +2944,6 @@ Trigger a browser download from an in-memory Blob.
 ### `errText(e: unknown): string`
 
 Message for an unknown thrown value.
-
-### `fovToZoom(fov: number): number`
-
-Convert a field-of-view angle (degrees) to a zoom level.
 
 ### `isPrereleaseVersion(v: string): boolean`
 

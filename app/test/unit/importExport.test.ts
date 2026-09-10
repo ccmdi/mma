@@ -1,133 +1,32 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import fc from "fast-check";
-import {
-	parseMapsUrl,
-	parseCoordinates,
-	parseUrlList,
-	parsedLocationsToImportJson,
-	type ParsedLocation,
-} from "@/lib/data/importExport";
+import type { ParsedLocation } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 
-describe("parseMapsUrl", () => {
-	it("returns null for non-URL strings", async () => {
-		expect(await parseMapsUrl("not a url")).toBeNull();
-		expect(await parseMapsUrl("")).toBeNull();
-		expect(await parseMapsUrl("   ")).toBeNull();
-	});
+// The URL grammar itself lives in Rust (`io/maps_url.rs`, tested there); the list
+// parser only needs a host that answers viewpoint URLs and rejects everything else.
+vi.mock("@/lib/commands", () => ({
+	cmd: {
+		parseMapsUrl: async (input: string): Promise<ParsedLocation | null> => {
+			const vp = /^https:\/\/www\.google\.com\/maps\?map_action=pano&viewpoint=([-\d.]+),([-\d.]+)$/.exec(
+				input,
+			);
+			if (!vp) return null;
+			return {
+				lat: parseFloat(vp[1]),
+				lng: parseFloat(vp[2]),
+				heading: 0,
+				pitch: 0,
+				zoom: 0,
+				panoId: null,
+				flags: LocationFlag.None,
+				tags: [],
+			};
+		},
+	},
+}));
 
-	it("returns null for URLs from unsupported domains", async () => {
-		expect(await parseMapsUrl("https://example.com/maps")).toBeNull();
-		expect(await parseMapsUrl("https://openstreetmap.org/#map=14/51.5074/-0.1278")).toBeNull();
-	});
-
-	it("parses Google Maps pano viewpoint URL", async () => {
-		const url =
-			"https://www.google.com/maps?map_action=pano&viewpoint=48.8566,2.3522&heading=90&pitch=-5&pano=CAoSK0FGtest&fov=90";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.lat).toBeCloseTo(48.8566, 4);
-		expect(result!.lng).toBeCloseTo(2.3522, 4);
-		expect(result!.heading).toBe(90);
-		expect(result!.pitch).toBe(-5);
-		expect(result!.panoId).toBe("CAoSK0FGtest");
-		expect(result!.flags).toBe(LocationFlag.LoadAsPanoId);
-	});
-
-	it("sets LoadAsPanoId on /maps/@ URLs with a pano (historical date pastes)", async () => {
-		const url =
-			"https://www.google.com/maps/@58.6190505,49.7204709,3a,75y,265.69h,98.54t/data=!3m8!1e1!3m6!1sbUp3OlCW2UH3MA4lYMRirQ!2e0!5s20130901T000000!7i13312!8i6656";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.panoId).toBe("bUp3OlCW2UH3MA4lYMRirQ");
-		expect(result!.flags).toBe(LocationFlag.LoadAsPanoId);
-	});
-
-	it("extra[loadMode]=latLng opts out of LoadAsPanoId", async () => {
-		const url =
-			"https://www.google.com/maps?map_action=pano&viewpoint=48.8566,2.3522&pano=CAoSK0FGtest&extra[loadMode]=latLng";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.panoId).toBe("CAoSK0FGtest");
-		expect(result!.flags).toBe(LocationFlag.None);
-	});
-
-	it("parses Google Maps pano URL without panoId", async () => {
-		const url = "https://www.google.com/maps?map_action=pano&viewpoint=40.7128,-74.006";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.lat).toBeCloseTo(40.7128, 4);
-		expect(result!.lng).toBeCloseTo(-74.006, 3);
-		expect(result!.panoId).toBeNull();
-		expect(result!.flags).toBe(LocationFlag.None);
-	});
-
-	it("returns null for pano URL missing viewpoint", async () => {
-		const url = "https://www.google.com/maps?map_action=pano&heading=90";
-		const result = await parseMapsUrl(url);
-		expect(result).toBeNull();
-	});
-
-	it("parses Google Maps cbll layer=c URL", async () => {
-		const url = "https://www.google.com/maps?layer=c&cbll=51.5074,-0.1278";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.lat).toBeCloseTo(51.5074, 4);
-		expect(result!.lng).toBeCloseTo(-0.1278, 4);
-		expect(result!.heading).toBe(0);
-		expect(result!.panoId).toBeNull();
-	});
-
-	it("parses Arts & Culture URL", async () => {
-		const url =
-			"https://artsandculture.google.com/streetview?sv_pid=PANO123&sv_lat=35.6762&sv_lng=139.6503&sv_h=180&s_p=10&sv_z=2";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.lat).toBeCloseTo(35.6762, 4);
-		expect(result!.lng).toBeCloseTo(139.6503, 4);
-		expect(result!.heading).toBe(180);
-		expect(result!.pitch).toBe(10);
-		expect(result!.panoId).toBe("PANO123");
-		expect(result!.zoom).toBe(2);
-	});
-
-	it("extracts extra[tags] from query params", async () => {
-		const url =
-			"https://www.google.com/maps?map_action=pano&viewpoint=10,20&extra[tags]=Mountains&extra[tags]=Coastal";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.tags).toEqual(["Mountains", "Coastal"]);
-	});
-
-	it("extracts extra[tags] from hash params", async () => {
-		const url = "https://www.google.com/maps?map_action=pano&viewpoint=10,20#extra[tags]=FromHash";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.tags).toEqual(["FromHash"]);
-	});
-
-	it("returns empty tags when none present", async () => {
-		const url = "https://www.google.com/maps?map_action=pano&viewpoint=10,20";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.tags).toEqual([]);
-	});
-
-	it("trims whitespace from input", async () => {
-		const url = "  https://www.google.com/maps?map_action=pano&viewpoint=10,20  ";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.lat).toBe(10);
-	});
-
-	it("defaults heading/pitch/zoom for pano URLs without them", async () => {
-		const url = "https://www.google.com/maps?map_action=pano&viewpoint=10,20";
-		const result = await parseMapsUrl(url);
-		expect(result).not.toBeNull();
-		expect(result!.heading).toBe(0);
-		expect(result!.pitch).toBe(0);
-	});
-});
+import { parseCoordinates, parseUrlList, parsedLocationsToImportJson } from "@/lib/data/importExport";
 
 describe("parseUrlList", () => {
 	it("parses multiple Google Maps URLs", async () => {

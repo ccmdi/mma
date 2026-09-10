@@ -145,11 +145,6 @@ export function appendTagName(pending: string[], name: string, tags: Tag[]): str
 	return [...pending, existing ? existing.name : name];
 }
 
-/** Convert a field-of-view angle (degrees) to a zoom level. */
-export function fovToZoom(fov: number): number {
-	return -Math.log2((4 / 3) * Math.tan((Math.PI * fov) / 360)) + 1;
-}
-
 /** Current time as Unix seconds, the form Location timestamps use. */
 export function nowUnix(): number {
 	return Math.floor(Date.now() / 1000);

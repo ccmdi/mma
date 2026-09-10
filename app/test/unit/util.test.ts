@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
-	fovToZoom,
 	compareNatural,
 	sortTagsByMode,
 	tagColorFor,
@@ -71,29 +70,6 @@ describe("appendTagName", () => {
 	it("dedups case-insensitively, returning the original array unchanged", () => {
 		const pending = ["Urban"];
 		expect(appendTagName(pending, "urban", tags)).toBe(pending);
-	});
-});
-
-describe("fovToZoom", () => {
-	it("returns ~1 for 90-degree FOV", () => {
-		const z = fovToZoom(90);
-		expect(z).toBeCloseTo(1, 0);
-	});
-
-	it("higher FOV = lower zoom", () => {
-		expect(fovToZoom(120)).toBeLessThan(fovToZoom(90));
-	});
-
-	it("lower FOV = higher zoom", () => {
-		expect(fovToZoom(45)).toBeGreaterThan(fovToZoom(90));
-	});
-
-	it("is monotonically decreasing", () => {
-		const fovs = [30, 45, 60, 90, 120];
-		const zooms = fovs.map(fovToZoom);
-		for (let i = 1; i < zooms.length; i++) {
-			expect(zooms[i]).toBeLessThan(zooms[i - 1]);
-		}
 	});
 });
 

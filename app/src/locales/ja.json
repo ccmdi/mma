@@ -431,7 +431,6 @@
 	"Exporting maps...": "マップをエクスポート中...",
 	"Exporting...": "エクスポート中...",
 	"Failed to load registry:": "レジストリの読み込みに失敗:",
-	"Failed to resolve short URL": "短縮 URL を解決できませんでした",
 	"Feedback": "フィードバック",
 	"Fetching metadata": "メタデータを取得中",
 	"Field": "フィールド",

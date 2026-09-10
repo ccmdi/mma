@@ -42,7 +42,7 @@ import { Slider } from "@/components/primitives/Slider";
 import { PolygonTools } from "@/components/editor/PolygonTools";
 
 import { SearchControl } from "@/components/editor/map/SearchControl";
-import type { ParsedLocation } from "@/lib/data/importExport";
+import type { ParsedLocation } from "@/bindings.gen";
 import { MapTypeDropdown, MapSettingsDropdown } from "@/components/editor/map/MapSettingsPanel";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import {

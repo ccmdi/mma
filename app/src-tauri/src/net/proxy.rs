@@ -3,6 +3,7 @@
 
 use crate::io::export;
 use crate::net::gdoc;
+use crate::types::AppResult;
 use crate::net::geoguessr;
 use crate::plugins::user;
 use reqwest::blocking::{Client, Response};
@@ -220,28 +221,35 @@ fn googl_url(id: &str, mapsapp: bool) -> String {
     }
 }
 
+/// The URL a goo.gl / maps.app.goo.gl short link redirects to, from its `Location`
+/// header; `None` for a link that answers without one.
+pub(crate) fn short_link_target(id: &str, mapsapp: bool) -> AppResult<Option<String>> {
+    let resp = resolve_client()
+        .get(googl_url(id, mapsapp))
+        .send()
+        .map_err(|e| format!("googl fetch error: {e}"))?;
+    Ok(resp
+        .headers()
+        .get(header::LOCATION)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned))
+}
+
 /// googl: resolve a goo.gl / maps.app.goo.gl short link by reading its redirect
 /// `Location` header; returns the target URL as a JSON string.
 pub(crate) fn resolve_googl(id: &str, mapsapp: bool) -> Reply {
-    let url = googl_url(id, mapsapp);
-    match resolve_client().get(&url).send() {
-        Ok(resp) => match resp
-            .headers()
-            .get(header::LOCATION)
-            .and_then(|v| v.to_str().ok())
-        {
-            Some(location) => cors()
-                .status(200)
-                .header("Content-Type", "application/json")
-                .body(
-                    serde_json::to_string(location)
-                        .unwrap_or_default()
-                        .into_bytes(),
-                )
-                .unwrap(),
-            None => cors_resp(404, Vec::new()),
-        },
-        Err(e) => proxy_error(format!("googl fetch error: {e}")),
+    match short_link_target(id, mapsapp) {
+        Ok(Some(location)) => cors()
+            .status(200)
+            .header("Content-Type", "application/json")
+            .body(
+                serde_json::to_string(&location)
+                    .unwrap_or_default()
+                    .into_bytes(),
+            )
+            .unwrap(),
+        Ok(None) => cors_resp(404, Vec::new()),
+        Err(e) => proxy_error(e.to_string()),
     }
 }
 

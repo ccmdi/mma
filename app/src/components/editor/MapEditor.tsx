@@ -14,6 +14,7 @@ import { goTo, leaveToList } from "@/store/router";
 import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { addParsedLocations } from "@/lib/map/mapClick";
+import { cmd } from "@/lib/commands";
 import { pluginsReady } from "@/plugins";
 import "@/lib/render/renderStats"; // installs the window.__mmaPerf harness bridge
 import { MapEmbed } from "@/components/editor/map/MapEmbed";
@@ -45,7 +46,6 @@ import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { usePointerDrag } from "@/lib/hooks/usePointerDrag";
 import { useSettings, getSettings } from "@/store/settings";
 import {
-	parseMapsUrl,
 	parseCoordinates,
 	parseUrlList,
 	parsedLocationsToImportJson,
@@ -76,7 +76,7 @@ function usePasteHandler() {
 			// Single line -> direct add + open; anything multi-line (JSON, CSV,
 			// URL lists) -> staged import flow
 			if (!text.trim().includes("\n")) {
-				const parsed = (await parseMapsUrl(text)) ?? parseCoordinates(text);
+				const parsed = (await cmd.parseMapsUrl(text)) ?? parseCoordinates(text);
 				if (parsed) {
 					await addParsedLocations([parsed]);
 					return;

@@ -346,6 +346,8 @@ export const commands = {
 	 *  and/or applying `tag_name` to every imported location.
 	 */
 	storeImportFile: (droppedFields: string[], tagName: string | null) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagName }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
+	/**  The location a pasted Maps URL names, short links resolved. */
+	parseMapsUrl: (input: string) => __TAURI_INVOKE<ParsedLocation | null>("parse_maps_url", { input }).then((v) => (v==null?v:v as typeof v)),
 	/**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. */
 	storeExportJson: (opts: ExportOpts) => __TAURI_INVOKE<string>("store_export_json", { opts }),
 	/**  Export locations as a minimal lat/lng CSV file. */
@@ -1205,6 +1207,19 @@ export type PanoTime = {
 	pano: string,
 	/**  The civil day, `YYYY-MM-DD`. */
 	date: string,
+};
+
+/**  A single location parsed out of a pasted Maps URL. */
+export type ParsedLocation = {
+	lat: number,
+	lng: number,
+	heading: number,
+	pitch: number,
+	zoom: number,
+	panoId: string | null,
+	flags: number,
+	/**  Tag names. */
+	tags: string[],
 };
 
 /**

@@ -8,7 +8,7 @@ import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
 import { tryInterceptClick, fitMapToBounds } from "@/lib/map/mapState";
 import { getSettings } from "@/store/settings";
-import { parseMapsUrl, type ParsedLocation } from "@/lib/data/importExport";
+import type { ParsedLocation } from "@/bindings.gen";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { openSeenEntry } from "@/lib/seen/seenOverlay";
 import { openContextMenuLatLng, openContextMenuLocation } from "@/lib/map/contextMenu";
@@ -78,7 +78,7 @@ export async function addParsedLocations(parsed: ParsedLocation[]) {
  *  the duplicate-detection radius), otherwise adds it as if pasted. Everything
  *  else opens externally. */
 export async function openHref(href: string) {
-	const parsed = await parseMapsUrl(href);
+	const parsed = await cmd.parseMapsUrl(href);
 	if (!parsed) {
 		await openExternal(href);
 		return;

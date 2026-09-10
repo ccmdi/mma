@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from "react";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
-import { parseMapsUrl, parseCoordinates, type ParsedLocation } from "@/lib/data/importExport";
+import { parseCoordinates } from "@/lib/data/importExport";
+import { cmd } from "@/lib/commands";
+import type { ParsedLocation } from "@/bindings.gen";
 import type { LatLng } from "@/types";
 import { t } from "@/lib/i18n";
 
@@ -58,7 +60,7 @@ export function SearchControl({
 	// a Maps URL or coordinate resolves to a location, otherwise default geocode
 	const resolveOrSearch = useCallback(
 		async (q: string) => {
-			const parsed = (await parseMapsUrl(q)) ?? parseCoordinates(q);
+			const parsed = (await cmd.parseMapsUrl(q)) ?? parseCoordinates(q);
 			if (parsed) {
 				clearTimeout(timerRef.current);
 				setResults([]);
