@@ -319,6 +319,8 @@ fn export_consts() -> Result<(), String> {
         ("BUILTIN_FIELDS", TsConst::value(selections::BUILTIN_FIELDS)),
         ("OFFICIAL_ID_PATTERN", TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN)),
         ("CLEARABLE_BUILTINS", TsConst::value(store::engine::clearable_builtins())),
+        ("EFFECT_CALLS", TsConst::value(procedure::quickjs::EFFECT_CALLS)),
+        ("PLAIN_CALLS", TsConst::value(procedure::quickjs::PLAIN_CALLS)),
         (
             "DEFAULT_DUPLICATE_SCORE",
             TsConst::value(selections::DEFAULT_DUPLICATE_SCORE),

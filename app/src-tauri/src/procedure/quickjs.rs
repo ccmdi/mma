@@ -527,11 +527,11 @@ fn install_mma<'js>(
 }
 
 /// The host calls only `run`-shaped procedures may use.
-const EFFECT_CALLS: &[&str] = &["fetch", "fetchMany", "panos", "sidecar"];
+pub(crate) const EFFECT_CALLS: &[&str] = &["fetch", "fetchMany", "panos", "sidecar"];
 /// The host calls every procedure shape gets. Together with [`EFFECT_CALLS`] this is
 /// the whole `mma` host surface; `mma_surface_is_identical_with_and_without_a_host`
 /// pins both lists to what [`install_host_calls`] actually sets.
-const PLAIN_CALLS: &[&str] = &["classify", "progress", "fail", "aborted"];
+pub(crate) const PLAIN_CALLS: &[&str] = &["classify", "progress", "fail", "aborted"];
 
 fn install_host_calls<'js>(
     ctx: &Ctx<'js>,
