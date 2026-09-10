@@ -52,9 +52,13 @@ Exposed as `window.MMA` (and the global `MMA`).
 
 ### `DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)"`
 
+### `EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"]`
+
 ### `KNOWN_FIELDS: readonly [{ readonly key: "altitude"; readonly type: "number"; readonly label: "Altitude"; readonly values: readonly []; readonly labels: readonly []; readonly circularPeriod: null; readonly defaultOff: false; }, { ...; }, ... 8 more ..., { ...; }]`
 
 ### `OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$"`
+
+### `PLAIN_CALLS: readonly ["classify", "progress", "fail", "aborted"]`
 
 ### `PROJECTIONS: readonly [{ readonly id: "value"; readonly appliesTo: readonly ["string", "enum", "number", "month"]; readonly needsTz: false; }, { readonly id: "year"; readonly appliesTo: readonly ["date", "month"]; readonly needsTz: true; }, { ...; }, { ...; }, { ...; }, { ...; }]`
 
@@ -2894,8 +2898,7 @@ True when the location is an import preview (not yet committed).
 
 ### `isPinned(loc: Location): loc is Location & { panoId: string; }`
 
-Pinned: the location always opens this exact pano. Mirrors `Row::is_pinned` in
-`selections/mod.rs`.
+Pinned: the location always opens this exact pano.
 
 ### `isSeenPreview(loc: Location): boolean`
 

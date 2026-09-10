@@ -123,6 +123,8 @@ declare const BUILTIN_FIELDS: readonly [{
 }];
 declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
 declare const CLEARABLE_BUILTINS: readonly ["panoId"];
+declare const EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"];
+declare const PLAIN_CALLS: readonly ["classify", "progress", "fail", "aborted"];
 declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
 declare const KNOWN_FIELDS: readonly [{
     readonly key: "altitude";
@@ -245,9 +247,11 @@ declare const VIRTUAL_FLAGS: 12;
 declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
 declare const consts_CLEARABLE_BUILTINS: typeof CLEARABLE_BUILTINS;
 declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
+declare const consts_EFFECT_CALLS: typeof EFFECT_CALLS;
 declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
 export type consts_LocationFlag = LocationFlag;
 declare const consts_OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
+declare const consts_PLAIN_CALLS: typeof PLAIN_CALLS;
 declare const consts_PROJECTIONS: typeof PROJECTIONS;
 export type consts_PanoType = PanoType;
 export type consts_RankingStrategy = RankingStrategy;
@@ -255,7 +259,7 @@ declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
 declare const consts_VIRTUAL_FLAGS: typeof VIRTUAL_FLAGS;
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
-  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
+  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
   export type { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_ValidationState as ValidationState };
 }
 
@@ -1369,7 +1373,10 @@ type IssueThread = {
     stateReason: string | null;
     comments: IssueComment[];
 };
-/**  How a field value becomes a group key. Wire-mirrors the JS `KeySpec`. */
+/**
+ *  How a field value becomes a group key, chosen by the caller of `store_group_by` /
+ *  `store_count_by`.
+ */
 type KeySpec = 
 /**  String value of the field (enum/string/month "YYYY-MM"/number). */
 {
@@ -2116,8 +2123,9 @@ type SelPaint = {
     color: [number, number, number];
 };
 /**
- *  A named, colored selection. `key` is deterministic (e.g., `"tag:5"`, `"polygon:abc"`)
- *  so JS can diff selections across syncs. `color` is the RGB overlay color.
+ *  A named, colored selection. `key` is deterministic (JS mints it) so selections can be
+ *  diffed across syncs; `Selection::of` keys internal queries by their serialized selector.
+ *  `color` is the RGB overlay color.
  */
 type Selection = {
     key: string;
@@ -2500,8 +2508,7 @@ declare function scoreTupleToBounds([s, w, n, e]: [number, number, number, numbe
 declare function bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null;
 /** Convert a Bounds object to a [south, west, north, east] tuple. */
 declare function boundsToScoreTuple(b: Bounds): [number, number, number, number];
-/** Pinned: the location always opens this exact pano. Mirrors `Row::is_pinned` in
- *  `selections/mod.rs`. */
+/** Pinned: the location always opens this exact pano. */
 declare function isPinned(loc: Location): loc is Location & {
     panoId: string;
 };
@@ -6126,5 +6133,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, OFFICIAL_ID_PATTERN, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, EFFECT_CALLS, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
 export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

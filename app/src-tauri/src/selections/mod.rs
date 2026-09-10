@@ -200,8 +200,9 @@ pub struct PolygonGeometry {
     pub properties: Option<serde_json::Value>,
 }
 
-/// A named, colored selection. `key` is deterministic (e.g., `"tag:5"`, `"polygon:abc"`)
-/// so JS can diff selections across syncs. `color` is the RGB overlay color.
+/// A named, colored selection. `key` is deterministic (JS mints it) so selections can be
+/// diffed across syncs; `Selection::of` keys internal queries by their serialized selector.
+/// `color` is the RGB overlay color.
 #[derive(Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Selection {
@@ -360,8 +361,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
             RowInner::Loc(l) => l.flags,
         }
     }
-    /// Pinned: the row always opens one exact pano. Mirrors `isPinned` in
-    /// `types/index.ts`.
+    /// Pinned: the row always opens one exact pano.
     pub fn is_pinned(&self) -> bool {
         if !self.flags().contains(LocationFlags::LOAD_AS_PANO_ID) {
             return false;

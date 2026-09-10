@@ -918,7 +918,10 @@ export type IssueThread = {
 	comments: IssueComment[],
 };
 
-/**  How a field value becomes a group key. Wire-mirrors the JS `KeySpec`. */
+/**
+ *  How a field value becomes a group key, chosen by the caller of `store_group_by` /
+ *  `store_count_by`.
+ */
 export type KeySpec = 
 /**  String value of the field (enum/string/month "YYYY-MM"/number). */
 { kind: "value" } | 
@@ -1672,8 +1675,9 @@ export type SelPaint = {
 };
 
 /**
- *  A named, colored selection. `key` is deterministic (e.g., `"tag:5"`, `"polygon:abc"`)
- *  so JS can diff selections across syncs. `color` is the RGB overlay color.
+ *  A named, colored selection. `key` is deterministic (JS mints it) so selections can be
+ *  diffed across syncs; `Selection::of` keys internal queries by their serialized selector.
+ *  `color` is the RGB overlay color.
  */
 export type Selection = {
 	key: string,

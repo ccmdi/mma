@@ -8,7 +8,8 @@ use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// How a field value becomes a group key. Wire-mirrors the JS `KeySpec`.
+/// How a field value becomes a group key, chosen by the caller of `store_group_by` /
+/// `store_count_by`.
 #[derive(Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum KeySpec {
@@ -222,8 +223,9 @@ pub fn count_by(
         .collect()
 }
 
-/// JS `String(value)` for the key: strings verbatim (empty -> skip), numbers without a
-/// trailing ".0", bools as "true"/"false". Null/other -> skip.
+/// The group key for a field value, printed the way JS `String()` does: strings verbatim
+/// (empty -> skip), numbers without a trailing ".0", bools as "true"/"false".
+/// Null/other -> skip.
 pub(super) fn value_key(v: &serde_json::Value) -> Option<String> {
     match v {
         serde_json::Value::String(s) => {
@@ -294,7 +296,7 @@ pub(super) fn utc_parts(ts: f64) -> (i32, u32, u32, u32) {
     (dt.year(), dt.month(), dt.day(), dt.hour())
 }
 
-/// JS `String(number)`: integer-valued floats print without a decimal.
+/// A number printed the way JS `String()` does: integer-valued floats lose the decimal.
 pub(super) fn js_number_string(f: f64) -> String {
     if f.is_finite() && f.fract() == 0.0 {
         format!("{}", f as i64)
@@ -303,7 +305,7 @@ pub(super) fn js_number_string(f: f64) -> String {
     }
 }
 
-/// Equal-width numeric bins, mirroring JS `binNumeric`.
+/// Equal-width numeric bins.
 pub(super) struct NumBuckets {
     pub(super) bounds: Vec<(f64, f64)>,
     pub(super) mode: BinMode,
@@ -409,7 +411,7 @@ pub(super) fn bin_numeric(values: &[f64], binning: &NumericBinning) -> Option<Nu
     }
 }
 
-/// Numeric bin label, matching JS `fmtBound` ("lo–hi", integers without decimals).
+/// Numeric bin label: "lo–hi", integers without decimals.
 pub(super) fn bound_label(lo: f64, hi: f64) -> String {
     format!("{}–{}", fmt_bound(lo), fmt_bound(hi))
 }

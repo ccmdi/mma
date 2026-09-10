@@ -1999,7 +1999,7 @@ fn filter_tz_local_ignored_for_nothas() {
 }
 
 // -----------------------------------------------------------------------
-// Partition: group-by aggregation (parity with JS fieldOps/binNumeric)
+// Partition: group-by aggregation
 // -----------------------------------------------------------------------
 
 fn loc_extra(id: u32, extra: serde_json::Value) -> Location {
@@ -2286,9 +2286,9 @@ fn partition_value_groups_by_distinct() {
 }
 
 #[test]
-fn partition_date_tz_local_matches_js_golden() {
-    // 2019-12-31T20:00:00Z is 2020-01-01 05:00 in Tokyo (UTC+9, no DST) - same vectors as
-    // the JS fieldOps tzLocal test.
+fn partition_date_tz_local_follows_the_zone_offset() {
+    // 2019-12-31T20:00:00Z is 2020-01-01 05:00 in Tokyo (UTC+9, no DST), so every calendar
+    // part crosses into the new year.
     let ts = Utc
         .with_ymd_and_hms(2019, 12, 31, 20, 0, 0)
         .unwrap()
