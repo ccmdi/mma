@@ -7,13 +7,15 @@
 // the batch size, and the width it runs at is the engine's `inflight` budget rather than
 // anything this module decides. `query` answers the same question for a single point.
 
-import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import type {
-	ProcedureRequest,
-	ProcedureResponse,
-	} from "@/lib/data/procedureHost";
+	Location,
+	PanoAnswer,
+	SearchQuery,
+	Update,
+	LocationPatch_Deserialize as LocationPatch,
+} from "@/bindings.gen";
+import { PanoType, RankingStrategy } from "@/bindings.consts";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { SIS_NO_IMAGES, timestampSearchRequest } from "@/lib/sv/singleImageSearch";
 
 /** Interior probes per search round, splitting [lo, hi) into BRANCH+1 segments. */
 const BRANCH = 4;
@@ -45,13 +47,25 @@ function newSearch(id: number, lat: number, lng: number, yearMonth: unknown): Se
 	return { id, lat, lng, lo: first - DAY, hi, hiInit: hi, cuts: [], settled: false, ts: null };
 }
 
-const decoder = new TextDecoder();
+/** A coverage probe over (start, end]: official coverage only, best match, and only the
+ *  key and info components -- the verdict is existence, not the pano. */
+function probe(s: Search, hi: number): SearchQuery {
+	return {
+		lat: s.lat,
+		lng: s.lng,
+		radius: SV_SEARCH_RADIUS,
+		dateRange: [s.lo, hi],
+		sources: [PanoType.Official],
+		preference: RankingStrategy.Best,
+		components: [2, 6],
+	};
+}
 
-/** 1 = coverage in (start, end], 0 = none, -1 = request failed. A failure must never
- *  read as "no images": the search treats a negative as evidence. */
-function verdict(res: ProcedureResponse | undefined): number {
-	if (!res || res.status < 200 || res.status >= 300) return -1;
-	return decoder.decode(res.body).includes(SIS_NO_IMAGES) ? 0 : 1;
+/** 1 = coverage in the window, 0 = none, -1 = request failed. A failure must never
+ *  read as "no coverage": the search treats a negative as evidence. */
+function verdict(a: PanoAnswer | undefined): number {
+	if (a?.state === "found") return 1;
+	return a?.state === "notFound" ? 0 : -1;
 }
 
 function settle(s: Search, ts: number | null): void {
@@ -125,9 +139,7 @@ function narrow(batch: Search[], counts = true): void {
 
 	// One query over each whole window first: a pano that is not a candidate at all
 	// costs one request instead of twenty.
-	const seed = mma.fetchMany(
-		batch.map((s) => timestampSearchRequest(s.lat, s.lng, SV_SEARCH_RADIUS, s.lo, s.hi)),
-	);
+	const seed = mma.panos(batch.map((s) => probe(s, s.hi)));
 	batch.forEach((s, i) => {
 		if (verdict(seed[i]) !== 1) settle(s, null);
 	});
@@ -138,12 +150,12 @@ function narrow(batch: Search[], counts = true): void {
 		const live = batch.filter((s) => !s.settled);
 		if (live.length === 0) break;
 
-		const reqs: ProcedureRequest[] = [];
+		const reqs: SearchQuery[] = [];
 		for (const s of live) {
 			s.cuts = cutsFor(s);
-			for (const c of s.cuts) reqs.push(timestampSearchRequest(s.lat, s.lng, SV_SEARCH_RADIUS, s.lo, c));
+			for (const c of s.cuts) reqs.push(probe(s, c));
 		}
-		const res = mma.fetchMany(reqs);
+		const res = mma.panos(reqs);
 
 		let at = 0;
 		for (const s of live) {

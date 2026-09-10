@@ -3,20 +3,12 @@
 // unofficial, badcam and timeline checks. It answers with a ValidationState per row and writes
 // nothing -- the run declares the collect sink.
 //
-// The batch moves through four phases, each issuing every request it needs in one
-// `mma.fetchMany`, so a batch of any size costs a fixed number of rounds.
+// The batch moves through four phases, each issuing every lookup it needs in one
+// `mma.panos`, so a batch of any size costs a fixed number of rounds.
 
-import type { Location, Update } from "@/bindings.gen";
-import {
-	detectCameraType,
-	fetchMetadata,
-	indexPanos,
-	type FetchedMetadata,
-} from "@/lib/sv/getMetadata";
+import type { Location, Pano, PanoAnswer, Update } from "@/bindings.gen";
 import { isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { panosAtCoords } from "@/lib/sv/singleImageSearch";
-import type { Pano } from "@/types";
 import { LocationFlag, ValidationState } from "@/bindings.consts";
 
 interface RunConfig {
@@ -31,13 +23,12 @@ export function configure(cfg: RunConfig | null): void {
 
 /** A capture worth keeping: anything else is what the badcam check is looking past. */
 function isGoodCam(m: Pano): boolean {
-	const cam = detectCameraType(m);
-	return cam === "gen4" || cam === "gen2";
+	return m.cameraType === "gen4" || m.cameraType === "gen2";
 }
 
-/** Metadata at one slot, or null when the pano is unknown or its request failed. */
-function metaAt(f: FetchedMetadata, slot: number): Pano | null {
-	return slot >= 0 && f.done[slot] && !f.failed[slot] ? f.metas[slot] : null;
+/** The resolved pano, or null when it is unknown or its request failed. */
+function metaOf(a: PanoAnswer | undefined): Pano | null {
+	return a?.state === "found" ? a.pano : null;
 }
 
 interface RowState {
@@ -53,14 +44,13 @@ interface RowState {
 export function run(rows: Location[]): Update<ValidationState>[] {
 	if (rows.length === 0 || mma.aborted()) return [];
 
-	const stored = indexPanos(rows.map((r) => r.panoId ?? ""));
-	const storedMeta = fetchMetadata(stored.unique);
+	const storedMeta = mma.panos(rows.map((r) => ({ panoId: r.panoId ?? "" })));
 	if (mma.aborted()) return [];
 
 	const items: RowState[] = rows.map((row, i) => ({
 		row,
 		pinned: (row.flags & LocationFlag.LoadAsPanoId) !== 0,
-		data: metaAt(storedMeta, stored.slot[i]),
+		data: metaOf(storedMeta[i]),
 		coordData: null,
 		entries: [],
 		state: ValidationState.Ok,
@@ -71,13 +61,9 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 	// coordinate, as a fallback when pinned and as the comparison when not.
 	const needCoord = items.filter((it) => !it.pinned || it.data === null);
 	// The search answers their metadata too, so there is no second lookup.
-	const coordPanos =
-		needCoord.length > 0
-			? panosAtCoords(
-					needCoord.map((it) => it.row),
-					radius,
-				)
-			: [];
+	const coordPanos = mma
+		.panos(needCoord.map((it) => ({ lat: it.row.lat, lng: it.row.lng, radius })))
+		.map(metaOf);
 	if (mma.aborted()) return [];
 
 	needCoord.forEach((it, i) => {
@@ -103,19 +89,18 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 			it.settled = true;
 		} else {
 			it.entries = it.data.time;
-			if (!it.pinned && detectCameraType(it.data) === "badcam") badcam.push(it);
+			if (!it.pinned && it.data.cameraType === "badcam") badcam.push(it);
 		}
 	}
 
-	const cams = indexPanos(badcam.flatMap((it) => it.entries.map((e) => e.pano)));
-	const camMeta = fetchMetadata(cams.unique);
+	const camMeta = mma.panos(badcam.flatMap((it) => it.entries.map((e) => ({ panoId: e.pano }))));
 	if (mma.aborted()) return [];
 
 	let at = 0;
 	for (const it of badcam) {
 		let better = false;
 		for (let k = 0; k < it.entries.length; k++) {
-			const m = metaAt(camMeta, cams.slot[at++]);
+			const m = metaOf(camMeta[at++]);
 			if (m && isGoodCam(m)) better = true;
 		}
 		if (better) {

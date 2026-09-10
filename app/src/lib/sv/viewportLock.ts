@@ -1,8 +1,7 @@
 import { normalizeHeading } from "@/lib/geo/geo";
 import { emit as emitEvent } from "@/lib/events";
 import { svMetadata } from "@/lib/sv/query";
-import { cameraFrame } from "@/lib/sv/getMetadata";
-import type { CameraFrame } from "@/types";
+import type { CameraFrame } from "@/bindings.gen";
 
 let locked = false;
 let relHeading = 0;
@@ -25,7 +24,7 @@ async function getCameraFrame(panoId: string): Promise<CameraFrame | null> {
 	if (cached) return cached;
 	const [data] = await svMetadata([panoId]);
 	if (!data) return null;
-	const frame = cameraFrame(data);
+	const frame = data.cameraFrame;
 	frameCache.set(panoId, frame);
 	return frame;
 }

@@ -5,9 +5,18 @@
 export const LocationFlag = { None: 0, LoadAsPanoId: 1, Informational: 2, ImportPreview: 4, SeenOverlay: 8 } as const;
 export type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
 
-/** Panorama source type, as Google's metadata reports it. */
+/** Which imagery collection a pano id belongs to. */
 export const PanoType = { Official: 2, Unknown: 3, UserUploaded: 10 } as const;
 export type PanoType = (typeof PanoType)[keyof typeof PanoType];
+
+/**
+ * Which pano the search picks. An omitted rankingOptions goes on the wire as closest;
+ * the Maps JS API's encoder has no other default, whatever its docs say. BEST at a small
+ * radius returns a neighbouring pano from the same capture run, so a timeline probe must
+ * use CLOSEST at the pano's own coordinate.
+ */
+export const RankingStrategy = { Best: 1, Closest: 2 } as const;
+export type RankingStrategy = (typeof RankingStrategy)[keyof typeof RankingStrategy];
 
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
 export const ValidationState = { Ok: 0, UpdateAvailable: 1, UpdateApplied: 2, GoodcamAvailable: 6, PanoIdBroke: 4, Unofficial: 5, NotFound: 3 } as const;

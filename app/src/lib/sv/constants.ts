@@ -1,3 +1,4 @@
+import type { KNOWN_FIELDS } from "@/bindings.consts";
 import { range } from "@/types/util";
 
 export const SV_SEARCH_RADIUS = 50;
@@ -6,6 +7,20 @@ export const GET_METADATA_INFLIGHT = 48;
 /** SingleImageSearch location lookups a procedure may keep in flight, one pano each. */
 export const LOCATION_SEARCH_INFLIGHT = 128;
 export const SV_JUMP_RADIUS = 100;
+
+/** The `extra` fields the svMeta provider produces. Keys of the Rust field table, so
+ *  the filter, the enrichment picker and the provider's derivation agree by
+ *  construction. */
+export const SVMETA_FIELDS = [
+	"altitude",
+	"countryCode",
+	"cameraType",
+	"panoType",
+	"drivingDirection",
+	"uploaderName",
+	"imageDate",
+	"coverageDates",
+] as const satisfies readonly (typeof KNOWN_FIELDS)[number]["key"][];
 
 export const PANO_ZOOM = range([-3, 4]);
 export const PANO_PITCH = range([-90, 90]);

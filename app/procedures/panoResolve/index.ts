@@ -5,9 +5,8 @@
 
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { type Pano } from "@/types";
-import { PanoType } from "@/bindings.consts";
-import { panosAtCoords, type SearchPreference } from "@/lib/sv/singleImageSearch";
+import type { Pano } from "@/bindings.gen";
+import type { PanoType, RankingStrategy } from "@/bindings.consts";
 
 interface RunConfig {
 	force?: boolean;
@@ -26,16 +25,15 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 	const todo = rows.filter((row) => force || !row.panoId);
 	if (todo.length === 0 || mma.aborted()) return [];
 
-	const panos = panosAtCoords(todo, radius);
-	// A cancelling run has its requests declined rather than answered; leaving those rows
-	// unfinished keeps a cancel from counting them as failures.
-	const cancelled = mma.aborted();
+	const answers = mma.panos(todo.map((row) => ({ lat: row.lat, lng: row.lng, radius })));
 
 	const out: Update<LocationPatch>[] = [];
 	todo.forEach((row, i) => {
-		const pano = panos[i];
-		if (pano) out.push({ id: row.id, patch: { panoId: pano.pano } });
-		else if (cancelled) return;
+		const a = answers[i];
+		if (a.state === "found") out.push({ id: row.id, patch: { panoId: a.pano.pano } });
+		// A skipped answer is a cancelled run's declined request: neither a result nor
+		// a failure, so the row stays untouched.
+		else if (a.state === "skipped") return;
 		else mma.fail(row.id);
 		mma.progress(1);
 	});
@@ -47,7 +45,7 @@ interface AtQuery {
 	points?: { lat: number; lng: number }[];
 	radius?: number;
 	sources?: PanoType[];
-	preference?: SearchPreference;
+	preference?: RankingStrategy;
 }
 
 /** Read-only entry: the nearest pano to each of `points`, for callers sampling coverage
@@ -57,5 +55,12 @@ interface AtQuery {
 export function query(input: AtQuery | null): (Pano | null)[] | { error: string } {
 	if (input?.op !== "at") return { error: "panoResolve: unknown query op" };
 	const r = typeof input.radius === "number" ? input.radius : SV_SEARCH_RADIUS;
-	return panosAtCoords(input.points ?? [], r, input);
+	const queries = (input.points ?? []).map((p) => ({
+		lat: p.lat,
+		lng: p.lng,
+		radius: r,
+		sources: input.sources,
+		preference: input.preference,
+	}));
+	return mma.panos(queries).map((a) => (a.state === "found" ? a.pano : null));
 }

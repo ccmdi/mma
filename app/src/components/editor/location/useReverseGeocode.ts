@@ -2,7 +2,7 @@ import { cmd } from "@/lib/commands";
 import { getSettings } from "@/store/settings";
 import { log } from "@/lib/util/log";
 import { useAsync } from "@/lib/hooks/useAsync";
-import type { Pano } from "@/types";
+import type { Pano } from "@/bindings.gen";
 
 export interface GeoDisplay {
 	address: string;

@@ -14,8 +14,7 @@ import { blueLineSample } from "./blueLineSampler";
 import { passesInitialFilters, passesDateFilters, isPanoGood, computeHeading } from "./filters";
 import { svMetadata } from "@/lib/sv/query";
 import { PanoType } from "@/bindings.consts";
-import type { Pano } from "@/types";
-import { imageDateOf } from "@/lib/sv/getMetadata";
+import type { Pano } from "@/bindings.gen";
 import { panosAt } from "@/lib/sv/query";
 import { distMeters, lerpLng, unionBounds } from "@/lib/geo/geo";
 import { searchCoverage } from "../searchCoverage";
@@ -636,7 +635,7 @@ export class GenerationEngine {
 			heading: computeHeading(pano, s),
 			pitch: s.adjustPitch ? s.pitchDeviation : 0,
 			zoom: s.adjustZoom ? s.zoomLevel : 0,
-			imageDate: imageDateOf(pano) || null,
+			imageDate: pano.imageDate || null,
 		};
 
 		region.found.push(loc);

@@ -1,5 +1,4 @@
 import { createFieldDef } from "@/types";
-import { SVMETA_FIELDS } from "@/lib/sv/getMetadata";
 import { getMapState } from "@/store/useMapStore";
 import {
 	getAllEnrichKeys,
@@ -20,6 +19,7 @@ import {
 import {
 	GET_METADATA_INFLIGHT,
 	LOCATION_SEARCH_INFLIGHT,
+	SVMETA_FIELDS,
 	SV_SEARCH_RADIUS,
 } from "@/lib/sv/constants";
 import { cmd } from "@/lib/commands";

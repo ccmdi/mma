@@ -6,7 +6,7 @@ import type {
 } from "@/bindings.gen";
 import { nowUnix } from "@/lib/util/util";
 import type { RequireNonNull } from "@/types/util";
-import { LocationFlag, PanoType } from "@/bindings.consts";
+import { LocationFlag } from "@/bindings.consts";
 
 /** A field definition with every optional attribute spelled absent. */
 export function createFieldDef(
@@ -18,8 +18,6 @@ export function createFieldDef(
 
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
-/** Where the camera looks: the POV without its zoom. */
-export type CameraFrame = Pick<LocationPOV, "heading" | "pitch">;
 /** A view on a specific panorama. */
 export type PanoView = LocationPOV & RequireNonNull<Pick<Location, "panoId">>;
 /** The camera fields a Location and the live Street View viewer share. */
@@ -49,38 +47,6 @@ export function bboxTupleToBounds(t: [number, number, number, number] | null): B
 /** Convert a Bounds object to a [south, west, north, east] tuple. */
 export function boundsToScoreTuple(b: Bounds): [number, number, number, number] {
 	return [b.south, b.west, b.north, b.east];
-}
-
-/** A decoded Street View panorama: flat JSON with no live objects. */
-export interface Pano {
-	/** This image's own pano id, "" when the response carries no key. */
-	pano: string;
-	/** Which imagery collection the id belongs to; also what `extra.panoType` stores. */
-	panoFrontend: PanoType;
-	lat: number;
-	lng: number;
-	altitude: number;
-	/** The camera's orientation. The Maps JS API builds its whole tile frame out of this. */
-	pov: { heading: number; tilt: number; roll: number } | null;
-	worldSize: { width: number; height: number };
-	tileSize: { width: number; height: number };
-	copyright: string;
-	/** `description.description[].text`, joined with ", ". */
-	description: string;
-	/** The first of those parts alone, which is what the Maps JS API calls the short description. */
-	shortDescription: string;
-	uploaderName: string | null;
-	countryCode: string | null;
-	/** Non-null marks an indoor/tripod pano; a level carrying no id still counts. */
-	levelId: number | null;
-	/** Neighbouring panos, resolved to ids. */
-	links: { pano: string; heading: number }[];
-	/** Capture timeline, ascending. `date` is the civil day, `YYYY-MM-DD`. */
-	time: { pano: string; date: string }[];
-	/** This image's own capture date; month and day are 0 when absent. */
-	date: { year: number; month: number; day: number } | null;
-	/** "launch" = car, "scout" = the special-collects pipeline. */
-	source: string | null;
 }
 
 /** Pinned: the location always opens this exact pano. */

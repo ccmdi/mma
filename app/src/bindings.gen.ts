@@ -540,6 +540,12 @@ export type BatchMode = { mode: "chunk"; size: number } | { mode: "perRow" } |
  */
 { mode: "dedupeBy"; key: string };
 
+/**  Where the camera looks: the heading it faces and its pitch off level, in degrees. */
+export type CameraFrame = {
+	heading: number,
+	pitch: number,
+};
+
 export type CameraType = "gen1" | "gen2" | "gen4" | "badcam" | "tripod" | "trekker";
 
 /**
@@ -843,6 +849,15 @@ export type GhUser = {
 	avatarUrl: string | null,
 };
 
+export type IdQuery = {
+	panoId: string,
+};
+
+export type ImageSize = {
+	height: number,
+	width: number,
+};
+
 /**
  *  Summary of a single map found during bulk import preview.
  *  Shown in the import dialog so the user can select which maps to import.
@@ -1123,6 +1138,75 @@ export type NormalizedSyncLocation = {
 /**  Equal-width bin sizing. `count` derives the width from the data range; `width` fixes it. */
 export type NumericBinning = { by: "count"; n: number } | { by: "width"; w: number };
 
+/**  A decoded Street View panorama: flat data with no live objects. */
+export type Pano = {
+	/**  This image's own pano id, "" when the response carries no key. */
+	pano: string,
+	/**  Which imagery collection the id belongs to; also what `extra.panoType` stores. */
+	panoFrontend: number,
+	lat: number,
+	lng: number,
+	altitude: number,
+	/**  The camera's orientation. The Maps JS API builds its whole tile frame out of this. */
+	pov: Pov | null,
+	worldSize: ImageSize,
+	tileSize: ImageSize,
+	copyright: string,
+	/**  `description.description[].text`, joined with ", ". */
+	description: string,
+	/**  The first of those parts alone, which is what the Maps JS API calls the short description. */
+	shortDescription: string,
+	uploaderName: string | null,
+	countryCode: string | null,
+	/**  Non-null marks an indoor/tripod pano; a level carrying no id still counts. */
+	levelId: number | null,
+	/**  Neighbouring panos, resolved to ids. */
+	links: PanoLink[],
+	/**  Capture timeline, ascending. */
+	time: PanoTime[],
+	/**  This image's own capture date; month and day are 0 when absent. */
+	date: PanoDate | null,
+	/**  "launch" = car, "scout" = the special-collects pipeline. */
+	source: string | null,
+	/**  This image's own capture month as `YYYY-MM`, "" when it carries no date. */
+	imageDate: string,
+	/**  Every capture month in the timeline, ascending. */
+	coverageDates: string[],
+	/**
+	 *  The heading at the horizontal centre of the image, which is also the driving
+	 *  direction on car coverage.
+	 */
+	centerHeading: number,
+	cameraFrame: CameraFrame,
+	cameraType: CameraType | null,
+};
+
+/**
+ *  What one query resolved to. `skipped` is a query the host never answered: an aborted
+ *  run, or an id query whose id is empty.
+ */
+export type PanoAnswer = { state: "found"; pano: Pano } | { state: "notFound" } | { state: "failed" } | { state: "skipped" };
+
+export type PanoDate = {
+	year: number,
+	month: number,
+	day: number,
+};
+
+export type PanoLink = {
+	pano: string,
+	heading: number,
+};
+
+/**  One pano lookup: a pano id resolves over GetMetadata, a search over SingleImageSearch. */
+export type PanoQuery = IdQuery | SearchQuery;
+
+export type PanoTime = {
+	pano: string,
+	/**  The civil day, `YYYY-MM-DD`. */
+	date: string,
+};
+
 /**
  *  One partition group: a stable key, the ids it holds, and (numeric bins only) the
  *  `[lo, hi]` bounds so JS can rebuild a live Filter for whole-map gradients.
@@ -1222,6 +1306,12 @@ export type PolygonGeometry = {
 	coordinates: (([number, number])[])[],
 	extraPolygons: ((([number, number])[])[])[] | null,
 	properties?: any | null,
+};
+
+export type Pov = {
+	heading: number,
+	tilt: number,
+	roll: number,
 };
 
 export type PresenceActivity = {
@@ -1487,6 +1577,24 @@ export type SavedSelectionInfo = {
  *  explicit `[south, west, north, east]` rectangle.
  */
 export type ScoreBounds = string | [number, number, number, number];
+
+/**
+ *  The full SingleImageSearch request surface. Every optional field defaults to what the
+ *  Maps JS API sends for `getPanorama({location, radius})`.
+ */
+export type SearchQuery = {
+	lat: number,
+	lng: number,
+	radius: number,
+	/**  Frontends to search, as `PanoType` values; all of them when absent. */
+	sources?: number[] | null,
+	/**  A `RankingStrategy` value; closest when absent, matching the wire default. */
+	preference?: number | null,
+	/**  Only coverage captured in `(start, end]`, Unix seconds. */
+	dateRange?: [number, number] | null,
+	/**  Component mask; the full set when absent. */
+	components?: number[] | null,
+};
 
 /**  A panorama visit record. */
 export type SeenEntry = {

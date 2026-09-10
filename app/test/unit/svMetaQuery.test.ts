@@ -1,27 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { PbfReader, PbfWriter } from "pbf";
-import {
-	readGetMetadataRequest,
-	writeGetMetadataRequest,
-	type GetMetadataRequest,
-} from "@/lib/proto/getmetadata.gen";
-import { imageKeyToPanoId } from "@/lib/sv/panoId";
-import { SVMETA_FIELDS } from "@/lib/sv/getMetadata";
+import type { IdQuery, Pano, PanoAnswer } from "@/bindings.gen";
+import { SVMETA_FIELDS } from "@/lib/sv/constants";
 import { KNOWN_FIELDS } from "@/bindings.consts";
-import {
-	BIN_CAR,
-	JSON_CAR,
-	BIN_SCOUT,
-	JSON_SCOUT,
-	BIN_DEAD,
-	JSON_DEAD,
-} from "./fixtures/getMetadataFixtures";
+import { CAR_PANO } from "./fixtures/pano";
 
-/* Two layers are pinned here: the svMeta module's `metadata` query against live binary
- * captures (with the json+protobuf form of the same responses as ground truth), and the
- * JS wrapper that turns the query's plain JSON back into the shape callers read. */
+/* Two layers are pinned here: what the svMeta module makes of the panos the host hands it,
+ * and the JS wrapper that turns the query's plain JSON back into the shape callers read. */
 
 const app = fileURLToPath(new URL("../..", import.meta.url));
 // The bundle is a build artifact, not a checked-in one.
@@ -30,107 +16,43 @@ const { query, run, configure } = await import(
 	new URL("../../src-tauri/procedures/svMeta.js", import.meta.url).href
 );
 
-const b64Bytes = (b64: string) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
-
-/** One pano as the `metadata` query answers it; the same capture answers every request. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function queryMetadata(panoIds: string[], body: Uint8Array): any[] {
+
+/** Installs a host answering every non-empty pano id with `answer`. */
+function installHost(answer: Pano | null, opts: { failed?: boolean } = {}) {
+	const failed: number[] = [];
 	(globalThis as any).mma = {
-		fetchMany: (reqs: unknown[]) => reqs.map(() => ({ status: 200, body })),
+		panos: (queries: IdQuery[]): PanoAnswer[] =>
+			queries.map((q) => {
+				if (!q.panoId) return { state: "skipped" };
+				if (opts.failed === true) return { state: "failed" };
+				return answer ? { state: "found", pano: answer } : { state: "notFound" };
+			}),
 		log: () => {},
 		progress: () => {},
-		fail: () => {},
+		fail: (id: number) => failed.push(id),
 		aborted: () => false,
 	};
-	return JSON.parse(JSON.stringify(query({ op: "metadata", panoIds })));
-}
-
-// float32 fields arrive as exact f32 in binary but 7-significant-digit decimals in JSON
-const f32 = (a: number | null, b: number | null) => {
-	if (a === null || b === null) expect(a).toBe(b);
-	else expect(Math.abs(a - b)).toBeLessThanOrEqual(Math.abs(a) * 1e-6);
-};
-
-/** Positional reads of the json+protobuf response, as ground truth for the query. */
-function expectParityWithJson(b64: string, json: any) {
-	const r = json[1][0];
-	const [p] = queryMetadata(["ignored"], b64Bytes(b64));
-	expect(p).not.toBeNull();
-
-	expect(p.pano).toBe(imageKeyToPanoId(r[1]));
-	expect(p.lat).toBe(r[5][0][1][0][2]);
-	expect(p.lng).toBe(r[5][0][1][0][3]);
-	expect(p.description).toBe((r[3]?.[2] ?? []).map((d: any) => d[0]).join(", "));
-	f32(p.altitude, Number(r[5][0][1][1]?.[0]) || 0);
-	f32(p.pov?.heading ?? null, r[5][0][1][2]?.[0] ?? null);
-	expect(p.countryCode).toBe(r[5][0][1][4] || null);
-	expect(p.panoFrontend).toBe(r[1][0]);
-	expect(p.levelId).toBe(r[5][0][1][3] ? (r[5][0][1][3][0] ?? 0) : null);
-	expect(p.source).toBe(r[6]?.[5]?.[2] ?? null);
-	expect(p.copyright).toBe(r[4]?.[0]?.[0]?.[0]?.[0] ?? "");
-	expect(
-		p.date
-			? `${String(p.date.year).padStart(4, "0")}-${String(p.date.month).padStart(2, "0")}`
-			: "",
-	).toBe(
-		r[6]?.[7]?.[0] > 0
-			? `${String(r[6][7][0]).padStart(4, "0")}-${String(r[6][7][1] ?? 0).padStart(2, "0")}`
-			: "",
-	);
-	expect(p.worldSize).toEqual({ width: r[2][2][1], height: r[2][2][0] });
-	expect(p.tileSize).toEqual({ width: r[2][3][1][1], height: r[2][3][1][0] });
-
-	const refs = r[5][0][3]?.[0] ?? [];
-	const links = r[5][0][6] ?? [];
-	expect(p.links).toHaveLength(links.length);
-	links.forEach((l: any, i: number) => {
-		expect(p.links[i].pano).toBe(refs[l[0]] ? imageKeyToPanoId(refs[l[0]][0]) : "");
-		f32(p.links[i].heading, l[1]?.[3] ?? 0);
-	});
-
-	// The timeline carries the image's own capture on top of the historical entries.
-	// `[year, month, day]` is 1-based with 0 for absent, read straight off the response.
-	const times = r[5][0][8] ?? [];
-	expect(p.time).toHaveLength(times.length + 1);
-	const pad = (n: number, w: number) => String(n).padStart(w, "0");
-	for (const e of times) {
-		const pano = refs[e[0]] ? imageKeyToPanoId(refs[e[0]][0]) : p.pano;
-		const match = p.time.find((t: any) => t.pano === pano)!;
-		const [y, m, d] = [e[1]?.[0] ?? 0, e[1]?.[1] || 1, e[1]?.[2] || 1];
-		expect(match.date).toBe(`${pad(y, 4)}-${pad(m, 2)}-${pad(d, 2)}`);
-	}
+	return failed;
 }
 
 describe("svMeta metadata query", () => {
-	it("matches json+protobuf ground truth for car coverage (links, time, relations)", () => {
-		expectParityWithJson(BIN_CAR, JSON_CAR);
+	it("answers the panos the host found, aligned to the request", () => {
+		installHost(CAR_PANO);
+		const out = JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: ["a", "b"] })));
+		expect(out).toEqual([CAR_PANO, CAR_PANO]);
 	});
 
-	it("matches json+protobuf ground truth for alleycat coverage", () => {
-		expectParityWithJson(BIN_SCOUT, JSON_SCOUT);
-		const [p] = queryMetadata(["ignored"], b64Bytes(BIN_SCOUT));
-		expect(p.source).toBe("scout");
+	it("answers null for a pano the host reached no verdict on", () => {
+		installHost(CAR_PANO);
+		expect(JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: [""] })))).toEqual([null]);
+		installHost(CAR_PANO, { failed: true });
+		expect(JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: ["a"] })))).toEqual([null]);
 	});
 
-	it("answers null for the envelope status nonexistent panos get", () => {
-		expect(JSON_DEAD[0][0]).toBe(3);
-		expect(queryMetadata(["dead"], b64Bytes(BIN_DEAD))).toEqual([null]);
-	});
-
-	it("round-trips the binary request through the schema", () => {
-		const req: GetMetadataRequest = {
-			context: { productId: "apiv3", language: "en" },
-			locale: { language: "en", regionCode: "US" },
-			key: [
-				{ key: { frontend: 2, id: "20C-1_sANr4OMdhTDM2N-g" } },
-				{ key: { frontend: 10, id: "userUpload" } },
-			],
-			spec: { component: [1, 2, 3, 4, 8, 6] },
-		};
-		const writer = new PbfWriter();
-		writeGetMetadataRequest(req, writer);
-		const decoded = readGetMetadataRequest(new PbfReader(writer.finish()));
-		expect(decoded).toEqual(req);
+	it("rejects an unknown query op rather than guessing", () => {
+		installHost(null);
+		expect(query({ op: "nope" })).toEqual({ error: "svMeta: unknown query op" });
 	});
 });
 
@@ -221,13 +143,7 @@ describe("svMetadata", () => {
 
 describe("the svMeta run pass", () => {
 	it("derives every field as the type the field table declares", () => {
-		(globalThis as any).mma = {
-			fetchMany: (reqs: unknown[]) => reqs.map(() => ({ status: 200, body: b64Bytes(BIN_CAR) })),
-			log: () => {},
-			progress: () => {},
-			fail: () => {},
-			aborted: () => false,
-		};
+		installHost(CAR_PANO);
 		configure(null);
 		const [out] = run([{ id: 1, lat: 0, lng: 0, panoId: "pA", extra: null }]);
 		const extra = out.patch.extra as Record<string, unknown>;
@@ -259,14 +175,7 @@ describe("the svMeta run pass", () => {
 	});
 
 	it("fails a row whose pano no longer exists instead of silently retrying it forever", () => {
-		const failed: number[] = [];
-		(globalThis as any).mma = {
-			fetchMany: (reqs: unknown[]) => reqs.map(() => ({ status: 200, body: b64Bytes(BIN_DEAD) })),
-			log: () => {},
-			progress: () => {},
-			fail: (id: number) => failed.push(id),
-			aborted: () => false,
-		};
+		const failed = installHost(null);
 		configure(null);
 		const out = run([{ id: 4, lat: 0, lng: 0, panoId: "gone", extra: null }]);
 		expect(out).toEqual([]);

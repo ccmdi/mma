@@ -16,15 +16,10 @@ function jsWindow(year, month) {
 	return { lo: startDate.getTime() / 1000, hi: endInit.getTime() / 1000 };
 }
 
-function jsBody(lat, lng, start, end, radius = 50) {
-	return `[["apiv3"],[[null,null,${lat},${lng}],${radius}],[[null,null,null,null,null,null,null,null,null,null,[${start},${end}]],null,null,null,null,null,null,null,[1],null,[[[2,true,2]]]],[[2,6]]]`;
-}
-
 // --- Harness ---
 
-const NO_IMAGES = '["Search returned no images."]';
-const FOUND = '[[["pano"]]]';
-const encoder = new TextEncoder();
+const NO_IMAGES = "notFound";
+const FOUND = "found";
 
 const row = (id, lat, lng, extra) => ({
 	id,
@@ -41,33 +36,30 @@ const row = (id, lat, lng, extra) => ({
 	extra,
 });
 
-/** Installs a host whose SingleImageSearch answers come from `respond`, which receives
- *  {lat,lng,start,end,n} and returns a body string or {status, body}. */
+/** Installs a host whose `mma.panos` answers come from `respond`, which receives
+ *  {query,lat,lng,start,end,n} and returns an answer state: "found", "notFound" or
+ *  "failed". */
 function install(respond, { abortAfter = Infinity, onRound = null } = {}) {
 	const state = { calls: [], failed: [], progress: 0 };
 	globalThis.mma = {
-		fetchMany(reqs) {
-			const out = reqs.map((req) => {
-				const parsed = JSON.parse(req.body);
-				const [start, end] = parsed[2][0][10];
+		panos(queries) {
+			const out = queries.map((query) => {
+				const [start, end] = query.dateRange;
 				const call = {
-					req,
-					body: req.body,
-					lat: parsed[1][0][2],
-					lng: parsed[1][0][3],
+					query,
+					lat: query.lat,
+					lng: query.lng,
 					start,
 					end,
 					n: state.calls.length,
 				};
 				state.calls.push(call);
-				const r = respond(call);
-				const status = typeof r === "object" ? r.status : 200;
-				return { status, body: encoder.encode(typeof r === "object" ? r.body : r) };
+				const s = respond(call);
+				return s === FOUND ? { state: FOUND, pano: { pano: "pano" } } : { state: s };
 			});
 			onRound?.(out.length);
 			return out;
 		},
-		fetch: (req) => globalThis.mma.fetchMany([req])[0],
 		log: () => {},
 		progress: (units) => {
 			state.progress += units;
@@ -187,31 +179,37 @@ test("a malformed imageDate fails the row without a request", () => {
 	assert.deepEqual(failed, [34]);
 });
 
-test("request body matches the JS implementation byte for byte", () => {
-	for (const [lat, lng] of [
-		[48.8584, 2.2945],
-		[-33.9, 151.2],
-		[12, -7],
-		[0, 0],
-		[-0.000125, 100.5],
-	]) {
-		const { calls } = runProcedure([row(41, lat, lng, { imageDate: YM })], coverage(lo + 777777));
-		assert.equal(calls[0].body, jsBody(lat, lng, lo, hi), `whole-window body for ${lat},${lng}`);
-		for (const c of calls.slice(1)) {
-			assert.equal(c.body, jsBody(lat, lng, c.start, c.end), `cut body for ${lat},${lng}`);
-		}
-		assert.equal(calls[0].req.method, "POST");
-		assert.equal(calls[0].req.headers["content-type"], "application/json+protobuf");
-		assert.equal(
-			calls[0].req.url,
-			"https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/SingleImageSearch",
-		);
+test("every probe carries the exact search parameters", () => {
+	const { calls } = runProcedure(
+		[row(41, 48.8584, 2.2945, { imageDate: YM })],
+		coverage(lo + 777777),
+	);
+	assert.deepEqual(calls[0].query, {
+		lat: 48.8584,
+		lng: 2.2945,
+		radius: 50,
+		dateRange: [lo, hi],
+		sources: [2],
+		preference: 1,
+		components: [2, 6],
+	});
+	for (const c of calls.slice(1)) {
+		const { dateRange, ...params } = c.query;
+		assert.deepEqual(dateRange, [c.start, c.end], "cut window");
+		assert.deepEqual(params, {
+			lat: 48.8584,
+			lng: 2.2945,
+			radius: 50,
+			sources: [2],
+			preference: 1,
+			components: [2, 6],
+		});
 	}
 });
 
-test("a non-2xx response fails the row instead of reading as no coverage", () => {
+test("a failed request fails the row instead of reading as no coverage", () => {
 	const { patches, failed, calls } = runProcedure([row(51, 1, 2, { imageDate: YM })], (c) =>
-		c.n === 0 ? FOUND : { status: 503, body: "" },
+		c.n === 0 ? FOUND : "failed",
 	);
 	assert.deepEqual(patches, []);
 	assert.deepEqual(failed, [51]);

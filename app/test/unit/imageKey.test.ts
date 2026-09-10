@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { imageKeyToPanoId, panoIdToImageKey } from "@/lib/sv/panoId";
+import { imageKeyToPanoId } from "@/lib/sv/panoId";
 
-// Reference vectors computed from the pre-pbf hand-rolled encoder, padded with "." the
-// way the Maps JS API spells the same key.
+// Reference vectors captured from the Maps JS API, which pads the base64 with ".".
 const LONG_ID = "AF1QipMnotARealPhotoIdButRepresentative_0123456789";
 const HUGE_ID = "x".repeat(200);
 const VECTORS: [number, string, string][] = [
@@ -15,8 +14,8 @@ const VECTORS: [number, string, string][] = [
 	],
 ];
 
-describe("imageKey codec", () => {
-	it("encodes non-official keys to the same bytes as the legacy encoder", () => {
+describe("imageKeyToPanoId", () => {
+	it("spells a non-official key the way the Maps JS API does, dot padding included", () => {
 		for (const [type, id, expected] of VECTORS) {
 			expect(imageKeyToPanoId([type, id])).toBe(expected);
 		}
@@ -29,24 +28,9 @@ describe("imageKey codec", () => {
 		expect(imageKeyToPanoId([2, ""])).toBe("");
 	});
 
-	it("round-trips encoded pano IDs back to [type, id]", () => {
-		for (const [type, id] of VECTORS) {
-			const panoId = imageKeyToPanoId([type, id]);
-			expect(panoIdToImageKey(panoId)).toEqual([type, id]);
-		}
-	});
-
-	it("round-trips F: and official IDs", () => {
-		expect(panoIdToImageKey("F:fifeId")).toEqual([3, "fifeId"]);
-		expect(panoIdToImageKey("0123456789abcdefghijkl")).toEqual([2, "0123456789abcdefghijkl"]);
-	});
-
-	it("falls back to [2, panoId] for undecodable input", () => {
-		expect(panoIdToImageKey("!!!not-base64!!!")).toEqual([2, "!!!not-base64!!!"]);
-	});
-
 	it("encodes an id far past the argument limit", () => {
 		const id = "y".repeat(300_000);
-		expect(panoIdToImageKey(imageKeyToPanoId([10, id]))).toEqual([10, id]);
+		// 300_000 utf-8 bytes plus the two tags, the frontend and the 3-byte length varint.
+		expect(imageKeyToPanoId([10, id])).toHaveLength(Math.ceil(300_006 / 3) * 4);
 	});
 });

@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { panoDates } from "@/components/editor/location/panoDate";
 import { createLocation } from "@/types";
-import type { Pano } from "@/types";
+import type { Pano } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
 
 const ref = (pano: string, date: string): Pano["time"][number] => ({ pano, date });

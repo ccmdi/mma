@@ -1,5 +1,5 @@
 import { normalizeHeading } from "@/lib/geo/geo";
-import type { CameraFrame } from "@/types";
+import type { CameraFrame } from "@/bindings.gen";
 
 const TWEEN_DURATION = 160;
 

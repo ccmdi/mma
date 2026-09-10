@@ -1,29 +1,22 @@
-// Drives the built bundle against a stubbed host. The SingleImageSearch wire format
-// lives in @/lib/sv/singleImageSearch, but `jsLocationBody` below is the only JS
-// statement of it that is independent of that module, so it stays the reference.
+// Drives the built bundle against a stubbed host. The search request itself is the
+// host's job now (pinned byte-for-byte in `sv/pano.test.rs`), so the stub scripts
+// `mma.panos` answers by pano id and the tests assert the query objects.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchAnswer } from "../../arrayJson.mjs";
+import { pano } from "../../panoStub.mjs";
 
 const { configure, run, query } = await import(
 	new URL("../../../src-tauri/procedures/panoResolve.js", import.meta.url).href
 );
 
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
-
-// --- Reference request body, mirroring StreetViewService.getPanorama({location, radius}) ---
-
-function jsLocationBody(lat, lng, radius, frontends = [2, 3, 10]) {
-	const sources = frontends.map((f) => `[${f},true,2]`).join(",");
-	return `[["apiv3"],[[null,null,${lat},${lng}],${radius}],[null,null,null,null,null,null,null,null,[2],null,[[${sources}]]],[[1,2,3,4,8,6]]]`;
-}
-
-const NO_IMAGES = '[[5,"generic","Search returned no images."]]';
-/** The least a search answers for a pano: an OK image status, its key, and one
- *  information entry, which is all the decode needs to call it found. */
-const found = (pano, frontend = 2) =>
-	searchAnswer({ status: { code: 1 }, pano: { frontend, id: pano }, information: [{}] });
+const NO_IMAGES = { state: "notFound" };
+const FAILED = { state: "failed" };
+const SKIPPED = { state: "skipped" };
+/** A scripted search answer naming the pano it found. */
+const found = (panoId) => ({
+	state: "found",
+	pano: pano({ pano: panoId, time: [{ pano: panoId, date: "2020-01-01" }] }),
+});
 
 // --- Harness ---
 
@@ -40,37 +33,29 @@ const toRow = (r) => ({
 	...r,
 });
 
-/** Installs a host stub. `respond` receives {lat,lng,body,n} and returns a body string
- *  or {status, body}. `abortAfter` makes `aborted()` true once that many requests have
- *  been answered. */
+/** Installs a host stub. `respond` receives {query,lat,lng,radius,n} and returns a
+ *  PanoAnswer. `abortAfter` makes `aborted()` true once that many queries have been
+ *  answered. */
 function installHost(respond, { abortAfter = Infinity } = {}) {
 	const calls = [];
 	const failed = [];
 	let progress = 0;
 	let hostCalls = 0;
 
-	const answer = (req) => {
-		const body = typeof req.body === "string" ? req.body : decoder.decode(req.body);
-		const coord = /\[null,null,(-?[\d.e+-]+),(-?[\d.e+-]+)\],(-?[\d.e+-]+)\]/.exec(body);
-		const call = {
-			req,
-			body,
-			lat: Number(coord[1]),
-			lng: Number(coord[2]),
-			radius: Number(coord[3]),
-			n: calls.length,
-		};
-		calls.push(call);
-		const r = respond(call);
-		const status = typeof r === "object" ? r.status : 200;
-		return { status, body: encoder.encode(typeof r === "object" ? r.body : r) };
-	};
-
 	globalThis.mma = {
-		fetch: answer,
-		fetchMany(reqs) {
+		panos(queries) {
 			hostCalls++;
-			return reqs.map(answer);
+			return queries.map((query) => {
+				const call = {
+					query,
+					lat: query.lat,
+					lng: query.lng,
+					radius: query.radius,
+					n: calls.length,
+				};
+				calls.push(call);
+				return respond(call);
+			});
 		},
 		log() {},
 		progress(units) {
@@ -101,21 +86,9 @@ function queryAt(input, respond, { config = null } = {}) {
 
 const PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 
-test("request body mirrors the location search getPanorama sends", () => {
-	const cases = [
-		[52.10947502806108, 34.90131410856584],
-		[0, 0],
-		[-33.5, -70.25],
-	];
-	for (const [lat, lng] of cases) {
-		const { calls } = runProcedure([{ id: 1, lat, lng }], () => NO_IMAGES);
-		assert.equal(calls[0].body, jsLocationBody(lat, lng, 50), `${lat},${lng}`);
-		assert.equal(
-			calls[0].req.url,
-			"https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/SingleImageSearch",
-		);
-		assert.equal(calls[0].req.headers["content-type"], "application/json+protobuf");
-	}
+test("a run's query is the point and the radius, nothing else", () => {
+	const { calls } = runProcedure([{ id: 1, lat: 52.1, lng: 34.9 }], () => NO_IMAGES);
+	assert.deepEqual(calls[0].query, { lat: 52.1, lng: 34.9, radius: 50 });
 });
 
 test("a resolved pano is written as a panoId patch", () => {
@@ -185,20 +158,8 @@ test("no coverage fails the row without a patch", () => {
 	assert.equal(progress, 1);
 });
 
-test("a ZERO_RESULTS result status fails the row", () => {
-	const { patches, failed } = runProcedure(
-		[{ id: 7, lat: 1, lng: 2 }],
-		() => `[[0],[[2],null,null]]`,
-	);
-	assert.deepEqual(patches, []);
-	assert.deepEqual(failed, [7]);
-});
-
-test("a non-2xx response fails the row instead of reading as no coverage", () => {
-	const { patches, failed } = runProcedure([{ id: 9, lat: 1, lng: 2 }], () => ({
-		status: 500,
-		body: "",
-	}));
+test("a failed request fails the row instead of reading as no coverage", () => {
+	const { patches, failed } = runProcedure([{ id: 9, lat: 1, lng: 2 }], () => FAILED);
 	assert.deepEqual(patches, []);
 	assert.deepEqual(failed, [9]);
 });
@@ -210,7 +171,7 @@ test("an aborted run leaves its declined rows unfailed", () => {
 			{ id: 2, lat: 3, lng: 4 },
 			{ id: 3, lat: 5, lng: 6 },
 		],
-		(c) => (c.n === 2 ? NO_IMAGES : found(`p${c.n}`)),
+		(c) => (c.n === 2 ? SKIPPED : found(`p${c.n}`)),
 		{ abortAfter: 1 },
 	);
 	assert.deepEqual(
@@ -221,26 +182,11 @@ test("an aborted run leaves its declined rows unfailed", () => {
 	assert.equal(progress, 2);
 });
 
-test("non-official frontends round-trip through the ImageKey encoding", () => {
-	const fife = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => found("AF1QipMabc", 3));
-	assert.deepEqual(fife.patches, [{ id: 1, patch: { panoId: "F:AF1QipMabc" } }]);
-
-	// frontend 10 (user uploaded) becomes a base64url-encoded binary ImageKey.
-	const user = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => found("upload-1", 10));
-	assert.equal(user.patches.length, 1);
-	const raw = Buffer.from(
-		user.patches[0].patch.panoId.replace(/-/g, "+").replace(/_/g, "/").replace(/\./g, "="),
-		"base64",
-	);
-	assert.deepEqual([...raw], [0x08, 10, 0x12, 8, ...Buffer.from("upload-1")]);
-});
-
 test("the configured radius rides the request", () => {
 	const { calls } = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => NO_IMAGES, {
 		config: { radius: 250 },
 	});
 	assert.equal(calls[0].radius, 250);
-	assert.equal(calls[0].body, jsLocationBody(1, 2, 250));
 });
 
 // --- query: op "at" ---
@@ -279,25 +225,22 @@ test("every point of a query goes to the host in one call", () => {
 test("the query radius rides the request, defaulting to 50", () => {
 	const pt = [{ lat: 1, lng: 2 }];
 	const a = queryAt({ op: "at", points: pt, radius: 250 }, () => NO_IMAGES);
-	assert.equal(a.calls[0].body, jsLocationBody(1, 2, 250));
+	assert.equal(a.calls[0].radius, 250);
 	const b = queryAt({ op: "at", points: pt }, () => NO_IMAGES);
-	assert.equal(b.calls[0].body, jsLocationBody(1, 2, 50));
+	assert.equal(b.calls[0].radius, 50);
 });
 
 test("sources narrows the search to the collections named", () => {
 	const pt = [{ lat: 1, lng: 2 }];
 	const user = queryAt({ op: "at", points: pt, sources: [3, 10] }, () => NO_IMAGES);
-	assert.equal(user.calls[0].body, jsLocationBody(1, 2, 50, [3, 10]));
-	// No sources named: every frontend, as getPanorama({location}) searched.
+	assert.deepEqual(user.calls[0].query.sources, [3, 10]);
+	// No sources named: every frontend, which is the host's own default.
 	const off = queryAt({ op: "at", points: pt }, () => NO_IMAGES);
-	assert.equal(off.calls[0].body, jsLocationBody(1, 2, 50));
+	assert.equal(off.calls[0].query.sources, undefined);
 });
 
-test("a non-2xx response reads as no coverage rather than failing the query", () => {
-	const { answer } = queryAt({ op: "at", points: [{ lat: 1, lng: 2 }] }, () => ({
-		status: 500,
-		body: "",
-	}));
+test("a failed request reads as no coverage rather than failing the query", () => {
+	const { answer } = queryAt({ op: "at", points: [{ lat: 1, lng: 2 }] }, () => FAILED);
 	assert.deepEqual(answer, [null]);
 });
 

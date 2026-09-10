@@ -1,5 +1,18 @@
-import { PbfReader, PbfWriter } from "pbf";
-import type { Pano } from "@/types";
+import type { Pano } from "@/bindings.gen";
+
+/** Pano ids outside the official and `F:` collections are a base64url-encoded binary
+ *  `ImageKey` in their own right: `{1: varint frontend, 2: string id}`, the only two
+ *  protobuf fields this module writes. */
+const KEY_FRONTEND = 0x08;
+const KEY_ID = 0x12;
+
+function varint(value: number): number[] {
+	const out: number[] = [];
+	for (let v = value; ; v >>>= 7) {
+		out.push(v < 0x80 ? v : (v & 0x7f) | 0x80);
+		if (v < 0x80) return out;
+	}
+}
 
 const OFFICIAL_PANO_RE = /^[-_A-Za-z0-9]{21}[AQgw]$/;
 
@@ -23,31 +36,6 @@ export function isUnofficial(p: Pano): boolean {
 	return /photo by|user[- ]uploaded/i.test(`${p.shortDescription} ${p.copyright}`);
 }
 
-/** Pano ID -> protobuf `ImageKey` [frontend, id]. */
-export function panoIdToImageKey(panoId: string): [number, string] {
-	if (panoId.startsWith("F:")) return [3, panoId.slice(2)];
-	if (isOfficialPano(panoId)) return [2, panoId];
-	// Base64url-encoded binary protobuf ImageKey (user-uploaded, etc.) - {1: type, 2: id}
-	try {
-		const b64 = panoId.replace(/\.+$/, "").replace(/-/g, "+").replace(/_/g, "/");
-		const bin = atob(b64);
-		const bytes = new Uint8Array(bin.length);
-		for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-		const pbf = new PbfReader(bytes);
-		let type = 2;
-		let id = panoId;
-		let field;
-		while ((field = pbf.nextField())) {
-			if (field === 1) type = pbf.readVarint();
-			else if (field === 2) id = pbf.readString();
-			else pbf.skip(pbf.type);
-		}
-		return [type, id];
-	} catch {
-		return [2, panoId];
-	}
-}
-
 /** Protobuf `ImageKey` [frontend, id] -> pano ID string. */
 export function imageKeyToPanoId(key: unknown[]): string {
 	if (!key || !key[1]) return "";
@@ -57,12 +45,25 @@ export function imageKeyToPanoId(key: unknown[]): string {
 	if (type === 3) return `F:${id}`;
 	// Other types (e.g. 10 = USER_UPLOADED): binary protobuf ImageKey, web-safe base64 with
 	// Google's "." padding -- the exact string the Maps JS API reports for the same pano.
-	const pbf = new PbfWriter();
-	pbf.writeVarintField(1, type);
-	pbf.writeStringField(2, id);
-	const buf = pbf.finish();
+	const utf8 = new TextEncoder().encode(id);
+	const encoded = [KEY_FRONTEND, ...varint(type), KEY_ID, ...varint(utf8.length), ...utf8];
 	// Spreading into fromCharCode blows the argument limit on a long id.
 	let bin = "";
-	for (const byte of buf) bin += String.fromCharCode(byte);
+	for (const byte of encoded) bin += String.fromCharCode(byte);
 	return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, ".");
+}
+
+/** The capture history to show for a pano: its own stack merged with the stacks of the panos
+ *  beside it, since a partly-official stack carries only part of the history. Entries are
+ *  keyed by pano id and later sources win, so pass the pano itself last. */
+export function mergeTimelines(sources: (Pano | null)[]): Pano["time"] {
+	const merged = new Map<string, Pano["time"][number]>();
+	for (const p of sources) for (const t of p?.time ?? []) merged.set(t.pano, t);
+	return [...merged.values()];
+}
+
+/** True when nothing in the timeline is official coverage, so the multi-year history lives
+ *  on official coverage nearby rather than on these panos. */
+export function allUnofficial(time: Pano["time"]): boolean {
+	return time.length > 0 && time.every((t) => !isOfficialPano(t.pano));
 }

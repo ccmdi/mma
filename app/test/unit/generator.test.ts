@@ -43,7 +43,7 @@ import type {
 	GenerationCallbacks,
 	GeneratedLocation,
 } from "@/plugins/generator/engine/types";
-import type { Pano } from "@/types";
+import type { Pano } from "@/bindings.gen";
 
 function loc(description = "", shortDescription = ""): Pano {
 	return { description, shortDescription } as unknown as Pano;
@@ -145,13 +145,15 @@ function pano(over: {
 	imageDate?: string;
 }): Pano {
 	const links = Array.from({ length: over.links ?? 2 }, () => ({ heading: 0, pano: "x" }));
-	const [y, m] = (over.imageDate ?? "2020-06").split("-");
+	const imageDate = over.imageDate ?? "2020-06";
+	const [y, m] = imageDate.split("-");
 	return {
 		pano: over.pano ?? "a".repeat(22),
 		description: over.description ?? "Main Street",
 		shortDescription: "",
 		links,
 		date: { year: Number(y), month: Number(m), day: 1 },
+		imageDate,
 		time: [],
 	} as unknown as Pano;
 }
@@ -264,6 +266,7 @@ function foundPano(lng: number, lat: number): unknown {
 		lng,
 		links: [{ heading: 90, pano: "l".repeat(22) }],
 		date: { year: 2020, month: 6, day: 1 },
+		imageDate: "2020-06",
 		time: [],
 		worldSize: { height: 6656 },
 		pov: { heading: 0, tilt: 90, roll: 0 },
@@ -491,6 +494,7 @@ function seedChain(length: number, isGood: (i: number) => boolean): void {
 			lng: -50,
 			links: i + 1 < length ? [{ heading: 90, pano: `p${i + 1}` }] : [],
 			date: isGood(i) ? { year: 2020, month: 6, day: 1 } : { year: 2005, month: 1, day: 1 },
+			imageDate: isGood(i) ? "2020-06" : "2005-01",
 			time: [],
 			worldSize: { height: 6656 },
 			pov: { heading: 0, tilt: 90, roll: 0 },

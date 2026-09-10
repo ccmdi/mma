@@ -22,13 +22,24 @@ declare const LocationFlag: {
     readonly SeenOverlay: 8;
 };
 type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
-/** Panorama source type, as Google's metadata reports it. */
+/** Which imagery collection a pano id belongs to. */
 declare const PanoType: {
     readonly Official: 2;
     readonly Unknown: 3;
     readonly UserUploaded: 10;
 };
 type PanoType = (typeof PanoType)[keyof typeof PanoType];
+/**
+ * Which pano the search picks. An omitted rankingOptions goes on the wire as closest;
+ * the Maps JS API's encoder has no other default, whatever its docs say. BEST at a small
+ * radius returns a neighbouring pano from the same capture run, so a timeline probe must
+ * use CLOSEST at the pano's own coordinate.
+ */
+declare const RankingStrategy: {
+    readonly Best: 1;
+    readonly Closest: 2;
+};
+type RankingStrategy = (typeof RankingStrategy)[keyof typeof RankingStrategy];
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
 declare const ValidationState: {
     readonly Ok: 0;
@@ -237,12 +248,13 @@ declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
 export type consts_LocationFlag = LocationFlag;
 declare const consts_PROJECTIONS: typeof PROJECTIONS;
 export type consts_PanoType = PanoType;
+export type consts_RankingStrategy = RankingStrategy;
 declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
 declare const consts_VIRTUAL_FLAGS: typeof VIRTUAL_FLAGS;
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
   export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
-  export type { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_ValidationState as ValidationState };
+  export type { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_ValidationState as ValidationState };
 }
 
 /** Commands @unstable */
@@ -938,6 +950,11 @@ type BatchMode = {
     mode: "dedupeBy";
     key: string;
 };
+/**  Where the camera looks: the heading it faces and its pitch off level, in degrees. */
+type CameraFrame = {
+    heading: number;
+    pitch: number;
+};
 type CameraType = "gen1" | "gen2" | "gen4" | "badcam" | "tripod" | "trekker";
 /**
  *  A swap-removal from a render cell. JS must move the last element into `cell_index`
@@ -1290,6 +1307,13 @@ type GhUser = {
     login: string;
     avatarUrl: string | null;
 };
+type IdQuery = {
+    panoId: string;
+};
+type ImageSize = {
+    height: number;
+    width: number;
+};
 /**
  *  Summary of a single map found during bulk import preview.
  *  Shown in the import dialog so the user can select which maps to import.
@@ -1585,6 +1609,78 @@ type NumericBinning = {
     by: "width";
     w: number;
 };
+/**  A decoded Street View panorama: flat data with no live objects. */
+type Pano = {
+    /**  This image's own pano id, "" when the response carries no key. */
+    pano: string;
+    /**  Which imagery collection the id belongs to; also what `extra.panoType` stores. */
+    panoFrontend: number;
+    lat: number;
+    lng: number;
+    altitude: number;
+    /**  The camera's orientation. The Maps JS API builds its whole tile frame out of this. */
+    pov: Pov | null;
+    worldSize: ImageSize;
+    tileSize: ImageSize;
+    copyright: string;
+    /**  `description.description[].text`, joined with ", ". */
+    description: string;
+    /**  The first of those parts alone, which is what the Maps JS API calls the short description. */
+    shortDescription: string;
+    uploaderName: string | null;
+    countryCode: string | null;
+    /**  Non-null marks an indoor/tripod pano; a level carrying no id still counts. */
+    levelId: number | null;
+    /**  Neighbouring panos, resolved to ids. */
+    links: PanoLink[];
+    /**  Capture timeline, ascending. */
+    time: PanoTime[];
+    /**  This image's own capture date; month and day are 0 when absent. */
+    date: PanoDate | null;
+    /**  "launch" = car, "scout" = the special-collects pipeline. */
+    source: string | null;
+    /**  This image's own capture month as `YYYY-MM`, "" when it carries no date. */
+    imageDate: string;
+    /**  Every capture month in the timeline, ascending. */
+    coverageDates: string[];
+    /**
+     *  The heading at the horizontal centre of the image, which is also the driving
+     *  direction on car coverage.
+     */
+    centerHeading: number;
+    cameraFrame: CameraFrame;
+    cameraType: CameraType | null;
+};
+/**
+ *  What one query resolved to. `skipped` is a query the host never answered: an aborted
+ *  run, or an id query whose id is empty.
+ */
+type PanoAnswer = {
+    state: "found";
+    pano: Pano;
+} | {
+    state: "notFound";
+} | {
+    state: "failed";
+} | {
+    state: "skipped";
+};
+type PanoDate = {
+    year: number;
+    month: number;
+    day: number;
+};
+type PanoLink = {
+    pano: string;
+    heading: number;
+};
+/**  One pano lookup: a pano id resolves over GetMetadata, a search over SingleImageSearch. */
+type PanoQuery = IdQuery | SearchQuery;
+type PanoTime = {
+    pano: string;
+    /**  The civil day, `YYYY-MM-DD`. */
+    date: string;
+};
 /**
  *  One partition group: a stable key, the ids it holds, and (numeric bins only) the
  *  `[lo, hi]` bounds so JS can rebuild a live Filter for whole-map gradients.
@@ -1674,6 +1770,11 @@ type PolygonGeometry = {
     coordinates: (([number, number])[])[];
     extraPolygons: ((([number, number])[])[])[] | null;
     properties?: any | null;
+};
+type Pov = {
+    heading: number;
+    tilt: number;
+    roll: number;
 };
 type PresenceActivity = {
     details: string | null;
@@ -1926,6 +2027,23 @@ type SavedSelectionInfo = {
  *  explicit `[south, west, north, east]` rectangle.
  */
 type ScoreBounds = string | [number, number, number, number];
+/**
+ *  The full SingleImageSearch request surface. Every optional field defaults to what the
+ *  Maps JS API sends for `getPanorama({location, radius})`.
+ */
+type SearchQuery = {
+    lat: number;
+    lng: number;
+    radius: number;
+    /**  Frontends to search, as `PanoType` values; all of them when absent. */
+    sources?: number[] | null;
+    /**  A `RankingStrategy` value; closest when absent, matching the wire default. */
+    preference?: number | null;
+    /**  Only coverage captured in `(start, end]`, Unix seconds. */
+    dateRange?: [number, number] | null;
+    /**  Component mask; the full set when absent. */
+    components?: number[] | null;
+};
 /**  A panorama visit record. */
 type SeenEntry = {
     id: number;
@@ -2279,6 +2397,7 @@ type VirtualTag = {
  * with `Update<LocationPatch>`s under the `patch` sink, or `Update<T>` of the module's
  * own answer under `collect`.
  */
+
 interface ProcedureRequest {
     method: string;
     url: string;
@@ -2293,6 +2412,11 @@ interface ProcedureResponse {
 interface ProcedureHost {
     fetch(req: ProcedureRequest): ProcedureResponse;
     fetchMany(reqs: ProcedureRequest[]): ProcedureResponse[];
+    /** Every query resolved to its pano, aligned to `queries`: an id query over
+     *  GetMetadata (deduped, batched, bisection-retried), a search query over
+     *  SingleImageSearch. `skipped` is a query the host never answered: an aborted run,
+     *  or an id query whose id is empty. */
+    panos(queries: PanoQuery[]): PanoAnswer[];
     classify(dataset: string, lat: number, lng: number): string | null;
     /** Run one sidecar command. `onLine` sees each output line as it arrives, so a
      *  procedure can report progress mid-run; the lines are also returned together. */
@@ -2308,8 +2432,8 @@ interface ProcedureHost {
     aborted(): boolean;
 }
 declare global {
-    /** Reachable inside a procedure module only. `fetch`, `fetchMany` and `sidecar` are
-     *  detached outside `run` and `query`; calling one elsewhere throws. */
+    /** Reachable inside a procedure module only. `fetch`, `fetchMany`, `panos` and
+     *  `sidecar` are detached outside `run` and `query`; calling one elsewhere throws. */
     const mma: ProcedureHost;
 }
 
@@ -2339,15 +2463,11 @@ export type Rename<T, Map extends Record<string, string>> = {
 };
 /** The member(s) of union `U` whose discriminant `D` (default `"type"`) is `V`. */
 export type Variant<U, V extends U[D], D extends keyof U = "type" & keyof U> = Extract<U, Record<D, V>>;
-/** The value union of a `const` object. */
-export type EnumOf<T> = T[keyof T];
 
 /** A field definition with every optional attribute spelled absent. */
 declare function createFieldDef(type: ExtraFieldType, over?: Partial<Omit<ExtraFieldDef, "type">>): ExtraFieldDef;
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
-/** Where the camera looks: the POV without its zoom. */
-export type CameraFrame = Pick<LocationPOV, "heading" | "pitch">;
 /** A view on a specific panorama. */
 export type PanoView = LocationPOV & RequireNonNull<Pick<Location, "panoId">>;
 /** The camera fields a Location and the live Street View viewer share. */
@@ -2364,57 +2484,6 @@ declare function scoreTupleToBounds([s, w, n, e]: [number, number, number, numbe
 declare function bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null;
 /** Convert a Bounds object to a [south, west, north, east] tuple. */
 declare function boundsToScoreTuple(b: Bounds): [number, number, number, number];
-/** A decoded Street View panorama: flat JSON with no live objects. */
-export interface Pano {
-    /** This image's own pano id, "" when the response carries no key. */
-    pano: string;
-    /** Which imagery collection the id belongs to; also what `extra.panoType` stores. */
-    panoFrontend: PanoType;
-    lat: number;
-    lng: number;
-    altitude: number;
-    /** The camera's orientation. The Maps JS API builds its whole tile frame out of this. */
-    pov: {
-        heading: number;
-        tilt: number;
-        roll: number;
-    } | null;
-    worldSize: {
-        width: number;
-        height: number;
-    };
-    tileSize: {
-        width: number;
-        height: number;
-    };
-    copyright: string;
-    /** `description.description[].text`, joined with ", ". */
-    description: string;
-    /** The first of those parts alone, which is what the Maps JS API calls the short description. */
-    shortDescription: string;
-    uploaderName: string | null;
-    countryCode: string | null;
-    /** Non-null marks an indoor/tripod pano; a level carrying no id still counts. */
-    levelId: number | null;
-    /** Neighbouring panos, resolved to ids. */
-    links: {
-        pano: string;
-        heading: number;
-    }[];
-    /** Capture timeline, ascending. `date` is the civil day, `YYYY-MM-DD`. */
-    time: {
-        pano: string;
-        date: string;
-    }[];
-    /** This image's own capture date; month and day are 0 when absent. */
-    date: {
-        year: number;
-        month: number;
-        day: number;
-    } | null;
-    /** "launch" = car, "scout" = the special-collects pipeline. */
-    source: string | null;
-}
 /** Pinned: the location always opens this exact pano. */
 declare function isPinned(loc: Location): loc is Location & {
     panoId: string;
@@ -2458,13 +2527,11 @@ export type SvThickness = "default" | "high";
 export type MarkerStyle = "pin" | "circle" | "arrow";
 
 export type types_Bounds = Bounds;
-export type types_CameraFrame = CameraFrame;
 export type types_LatLng = LatLng;
 export type types_LocationPOV = LocationPOV;
 export type types_MapTypeKey = MapTypeKey;
 export type types_MarkerStyle = MarkerStyle;
 export type types_MaybeLocation = MaybeLocation;
-export type types_Pano = Pano;
 export type types_PanoCapture = PanoCapture;
 export type types_PanoView = PanoView;
 export type types_SortMode = SortMode;
@@ -2490,7 +2557,7 @@ declare const types_sameRow: typeof sameRow;
 declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
 declare namespace types {
   export { types_applyLocationPatch as applyLocationPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_extraPatch as extraPatch, types_isImportPreview as isImportPreview, types_isPinned as isPinned, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds };
-  export type { types_Bounds as Bounds, types_CameraFrame as CameraFrame, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_Pano as Pano, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
+  export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
 }
 
 /** An [r, g, b] byte tuple. */
@@ -5438,33 +5505,10 @@ declare namespace validate {
   export type { validate_ValidateConfig as ValidateConfig, validate_ValidationOutcome as ValidationOutcome };
 }
 
-/**
- * Google's SingleImageSearch RPC. The bodies are array-JSON ("json+protobuf"): a JSON
- * array whose element positions are the protobuf field numbers.
- *
- * `buildLocationSearchBody` mirrors what the Maps JS API sends for
- * `StreetViewService.getPanorama({location, radius})`: context.productId "apiv3"
- * (field 1), the LatLng + radius (field 2), and in the options (field 3) the search
- * preference (field 9) plus the source set (field 11: frontends 2, 3 and 10, each
- * enabled). Field 4 is the component mask. Locale and region are
- * omitted -- they only localize descriptions nothing here reads.
- *
- * Leaf module: `panosAtCoords` runs against the procedure host (`mma`)
- * and only work inside a procedure. The body builders and the reader are pure.
- */
-
-/** Which pano a location search picks. An omitted preference goes on the wire as
- *  `Nearest`; the Maps JS API's encoder has no other default, whatever its docs say. */
-declare const SearchPreference: {
-    readonly Best: 1;
-    readonly Nearest: 2;
-};
-export type SearchPreference = EnumOf<typeof SearchPreference>;
 export interface SearchOpts {
     sources?: PanoType[];
-    preference?: SearchPreference;
+    preference?: RankingStrategy;
 }
-
 /** Full pano metadata for one or more panos, aligned to `panoIds`. Duplicates are
  *  deduped and large batches are split automatically. */
 declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(Pano | null)[]>;
@@ -5473,13 +5517,12 @@ declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(P
  *  nearest or best. */
 declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal): Promise<(Pano | null)[]>;
 
+export type query_SearchOpts = SearchOpts;
 declare const query_panosAt: typeof panosAt;
 declare const query_svMetadata: typeof svMetadata;
 declare namespace query {
-  export {
-    query_panosAt as panosAt,
-    query_svMetadata as svMetadata,
-  };
+  export { query_panosAt as panosAt, query_svMetadata as svMetadata };
+  export type { query_SearchOpts as SearchOpts };
 }
 
 export interface MapEmbedPrefs {
@@ -6061,5 +6104,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, PROJECTIONS, PanoType, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

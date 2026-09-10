@@ -1,5 +1,4 @@
-import type { Pano } from "@/types";
-import { imageDateOf } from "@/lib/sv/getMetadata";
+import type { Pano } from "@/bindings.gen";
 import type { GeneratorSettings } from "./types";
 
 function normalizeText(text: string): string {
@@ -130,10 +129,10 @@ export function passesDateFilters(
 		return "months";
 	}
 
-	if (s.rejectDateless && !imageDateOf(res)) return false;
+	if (s.rejectDateless && !res.imageDate) return false;
 	if (
-		Date.parse(imageDateOf(res)) < Date.parse(s.fromDate) ||
-		Date.parse(imageDateOf(res)) > Date.parse(s.toDate)
+		Date.parse(res.imageDate) < Date.parse(s.fromDate) ||
+		Date.parse(res.imageDate) > Date.parse(s.toDate)
 	)
 		return false;
 	return "direct";
@@ -165,14 +164,14 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 			return false;
 	}
 
-	if (s.rejectDateless && !imageDateOf(pano)) return false;
+	if (s.rejectDateless && !pano.imageDate) return false;
 
 	const fromDate = Date.parse(s.fromDate);
 	const toDate = Date.parse(s.toDate);
 
 	if (!s.selectMonths) {
 		if (!s.checkAllDates || s.rejectOfficial) {
-			const locDate = Date.parse(imageDateOf(pano));
+			const locDate = Date.parse(pano.imageDate);
 			if (locDate < fromDate || locDate > toDate) return false;
 		}
 	}
@@ -225,9 +224,9 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 			}
 			if (!dateWithin) return false;
 		} else {
-			if (!imageDateOf(pano)) return false;
-			const year = parseInt(imageDateOf(pano).slice(0, 4));
-			const month = parseInt(imageDateOf(pano).slice(5));
+			if (!pano.imageDate) return false;
+			const year = parseInt(pano.imageDate.slice(0, 4));
+			const month = parseInt(pano.imageDate.slice(5));
 			if (year < fY || year > tY) return false;
 			const inRange = fM <= tM ? month >= fM && month <= tM : month >= fM || month <= tM;
 			if (!inRange) return false;

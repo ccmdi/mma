@@ -1,5 +1,6 @@
 import { civilToDate, ymFromDate } from "@/lib/util/date";
-import { isPinned, type Pano } from "@/types";
+import { isPinned } from "@/types";
+import type { Pano } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
 
 export interface PanoDateState {

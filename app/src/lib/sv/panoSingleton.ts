@@ -5,7 +5,8 @@ import { getSettings, panoDisplayOptions } from "@/store/settings";
 import { google } from "@/lib/sv/opensv";
 import { patchOpenSV, setPanoHovered } from "@/lib/sv/opensvPatch";
 import { seenSkipNext } from "@/lib/seen/seen";
-import type { Pano, LocationPOV, PanoCapture } from "@/types";
+import type { LocationPOV, PanoCapture } from "@/types";
+import type { Pano } from "@/bindings.gen";
 import { displayZoom, storedZoom, PANO_ZOOM } from "@/lib/sv/constants";
 
 /** The app-wide Street View panorama instance, null until first created. */

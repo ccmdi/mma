@@ -2,7 +2,7 @@ import { memo, useCallback } from "react";
 import { useSetting } from "@/store/settings";
 import { dateFmt } from "@/lib/util/format";
 import { civilToDate } from "@/lib/util/date";
-import type { Pano } from "@/types";
+import type { Pano } from "@/bindings.gen";
 import { useCameraType, type FullCameraType } from "./useCameraType";
 import { usePanoViewer, usePanoDates, viewerPosition } from "./PanoViewerContext";
 import { useMapState } from "@/store/useMapStore";

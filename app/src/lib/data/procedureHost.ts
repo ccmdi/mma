@@ -11,6 +11,8 @@
  * own answer under `collect`.
  */
 
+import type { PanoAnswer, PanoQuery } from "@/bindings.gen";
+
 export interface ProcedureRequest {
 	method: string;
 	url: string;
@@ -27,6 +29,11 @@ export interface ProcedureResponse {
 export interface ProcedureHost {
 	fetch(req: ProcedureRequest): ProcedureResponse;
 	fetchMany(reqs: ProcedureRequest[]): ProcedureResponse[];
+	/** Every query resolved to its pano, aligned to `queries`: an id query over
+	 *  GetMetadata (deduped, batched, bisection-retried), a search query over
+	 *  SingleImageSearch. `skipped` is a query the host never answered: an aborted run,
+	 *  or an id query whose id is empty. */
+	panos(queries: PanoQuery[]): PanoAnswer[];
 	classify(dataset: string, lat: number, lng: number): string | null;
 	/** Run one sidecar command. `onLine` sees each output line as it arrives, so a
 	 *  procedure can report progress mid-run; the lines are also returned together. */
@@ -48,7 +55,7 @@ export interface ProcedureHost {
 }
 
 declare global {
-	/** Reachable inside a procedure module only. `fetch`, `fetchMany` and `sidecar` are
-	 *  detached outside `run` and `query`; calling one elsewhere throws. */
+	/** Reachable inside a procedure module only. `fetch`, `fetchMany`, `panos` and
+	 *  `sidecar` are detached outside `run` and `query`; calling one elsewhere throws. */
 	const mma: ProcedureHost;
 }

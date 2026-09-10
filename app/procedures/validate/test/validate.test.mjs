@@ -1,20 +1,12 @@
-// Drives the built bundle against a stubbed host. Both RPCs arrive through
-// `mma.fetchMany`, so the request URL picks the decoder.
+// Drives the built bundle against a stubbed host: one `mma.panos` answers the stored
+// panos and the timeline round by id, and the coordinate lookups by search query.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { searchAnswer } from "../../arrayJson.mjs";
-import { PbfReader, PbfWriter } from "pbf";
-import {
-	readGetMetadataRequest,
-	writeGetMetadataResponse,
-} from "../../../src/lib/proto/getmetadata.gen.js";
+import { pano, panos as panosStub } from "../../panoStub.mjs";
 
 const { configure, run } = await import(
 	new URL("../../../src-tauri/procedures/validate.js", import.meta.url).href
 );
-
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
 
 // --- ValidationState (app/src/types/index.ts) ---
 
@@ -35,44 +27,43 @@ const B = "bbbbbbbbbbbbbbbbbbbbbQ";
 const C = "cccccccccccccccccccccg";
 const LONG = "ddddddddddddddddddddddddw";
 
-/** ImageMetadata for `pano`, with per-case overrides. */
-function meta(pano, over = {}) {
-	const location = {
-		location: { lat: over.lat ?? 35.6, lng: over.lng ?? 139.7 },
-		altitude: { meters: 12.5 },
-		pov: { heading: 123.5 },
+const pad = (n) => String(n).padStart(2, "0");
+const civil = (d) => `${d.year}-${pad(d.month)}-${pad(d.day)}`;
+
+/** A pano as the host decodes one, with per-case overrides. The timeline carries the
+ *  image's own capture alongside the entries `timeline` names, ascending. */
+function meta(id, over = {}) {
+	const date = over.date ?? { year: 2021, month: 6, day: 15 };
+	const height = over.height ?? 8192;
+	const time = [...(over.timeline ?? []), { pano: id, date }]
+		.map((t) => ({ pano: t.pano, date: civil(t.date) }))
+		.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
+	return pano({
+		pano: id,
+		lat: over.lat ?? 35.6,
+		lng: over.lng ?? 139.7,
 		countryCode: over.countryCode ?? "JP",
-	};
-	if (over.level) location.level = over.level;
-	const information = { location, time: [] };
-	if (over.timeline) {
-		// Each timeline entry names a relation; the image itself is appended by the module.
-		information.relations = {
-			pano: over.timeline.map((t) => ({ key: { frontend: 2, id: t.pano } })),
-		};
-		information.time = over.timeline.map((t, i) => ({ target: i, date: t.date }));
-	}
-	return {
-		status: { code: 1 },
-		pano: { frontend: 2, id: pano },
-		tiles: { worldSize: { height: over.height ?? 8192, width: 16384 } },
-		attribution: {
-			item: [{ name: { name: over.copyright ?? "© 2021 Google" } }],
-			author: [{ name: { text: "Some Uploader" } }],
-		},
-		information: [information],
-		date: {
-			sourceInfo: { source: over.source ?? "launch" },
-			date: over.date ?? { year: 2021, month: 6, day: 15 },
-		},
-	};
+		copyright: over.copyright ?? "© 2021 Google",
+		worldSize: { width: 16384, height },
+		cameraType: over.cameraType ?? (height === 8192 ? "gen4" : "gen2"),
+		pov: { heading: 123.5, tilt: 90, roll: 0 },
+		centerHeading: 123.5,
+		time,
+		date,
+		imageDate: `${date.year}-${pad(date.month)}`,
+		coverageDates: time.map((t) => t.date.slice(0, 7)),
+	});
 }
 
 /** A gen2 capture in a country and month the badcam table covers. */
-const badcam = (pano, over = {}) =>
-	meta(pano, { height: 6656, countryCode: "GB", date: { year: 2021, month: 6, day: 1 }, ...over });
-
-const NO_IMAGES = '[[5,"generic","Search returned no images."]]';
+const badcam = (id, over = {}) =>
+	meta(id, {
+		height: 6656,
+		countryCode: "GB",
+		date: { year: 2021, month: 6, day: 1 },
+		cameraType: "badcam",
+		...over,
+	});
 
 // --- Harness ---
 
@@ -90,8 +81,8 @@ const toRow = (r) => ({
 });
 
 /** Drives `run` over `rows`.
- *  `panos` maps a pano id to its ImageMetadata; a pano that is absent answers as
- *  unknown, and one listed in `failing` makes its whole request non-2xx.
+ *  `panos` maps a pano id to its decoded `Pano`; a pano that is absent answers as
+ *  unknown, and one listed in `failing` is a request that never came back.
  *  `coords` maps "lat,lng" to the pano the coordinate lookup finds.
  *  `abortAfter` makes `aborted()` true once that many requests have been answered. */
 function runProcedure(
@@ -102,42 +93,28 @@ function runProcedure(
 	const coordCalls = [];
 	let progress = 0;
 	let hostCalls = 0;
-	const requests = () => metaCalls.length + coordCalls.length;
+	const requests = () => metaCalls.flat().length + coordCalls.length;
 
-	const metadataFor = (keys) => {
-		metaCalls.push(keys);
-		if (keys.some((k) => failing.includes(k))) return { status: 500, body: new Uint8Array(0) };
-		const w = new PbfWriter();
-		writeGetMetadataResponse(
-			{ status: { code: 0 }, metadata: keys.map((k) => panos[k] ?? { status: { code: 2 } }) },
-			w,
-		);
-		return { status: 200, body: w.finish().slice() };
-	};
-
-	const coordLookup = (body) => {
-		const m = /\[null,null,(-?[\d.e+-]+),(-?[\d.e+-]+)\],(-?[\d.e+-]+)\]/.exec(body);
-		const call = { lat: Number(m[1]), lng: Number(m[2]), radius: Number(m[3]) };
-		coordCalls.push(call);
-		// A search answers the pano's metadata with it, so the row never asks again.
-		const pano = coords[`${call.lat},${call.lng}`];
-		const answer = pano ? searchAnswer(panos[pano] ?? meta(pano)) : NO_IMAGES;
-		return { status: 200, body: encoder.encode(answer) };
-	};
-
-	const respond = (req) => {
-		if (req.url.endsWith("/SingleImageSearch")) {
-			return coordLookup(typeof req.body === "string" ? req.body : decoder.decode(req.body));
-		}
-		const decoded = readGetMetadataRequest(new PbfReader(req.body));
-		return metadataFor(decoded.key.map((k) => k.key.id));
-	};
+	const answer = panosStub(
+		(id) => (failing.includes(id) ? "fail" : (panos[id] ?? null)),
+		(query) => {
+			const call = { lat: query.lat, lng: query.lng, radius: query.radius };
+			coordCalls.push(call);
+			// A search answers the pano's metadata with it, so the row never asks again.
+			const found = coords[`${call.lat},${call.lng}`];
+			return found
+				? { state: "found", pano: panos[found] ?? meta(found) }
+				: { state: "notFound" };
+		},
+	);
 
 	globalThis.mma = {
-		fetch: respond,
-		fetchMany(reqs) {
-			hostCalls++;
-			return reqs.map(respond);
+		panos(queries) {
+			const active = queries.filter((q) => !("panoId" in q) || q.panoId);
+			if (active.length > 0) hostCalls++;
+			const asked = [...new Set(queries.map((q) => q.panoId).filter(Boolean))];
+			if (asked.length > 0) metaCalls.push(asked);
+			return answer(queries);
 		},
 		log() {},
 		progress(units) {

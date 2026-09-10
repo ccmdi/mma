@@ -2,8 +2,7 @@ import type { Location } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { svThumbnailUrl } from "@/lib/sv/lookup";
 import { svMetadata } from "@/lib/sv/query";
-import type { Pano } from "@/types";
-import { centerHeading } from "@/lib/sv/getMetadata";
+import type { Pano } from "@/bindings.gen";
 import { panoResolveSpec } from "@/lib/sv/enrich";
 import { runProcedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
 import { runConcurrent } from "@/lib/util/concurrent";
@@ -293,7 +292,7 @@ async function renderLocationImage(
 		const perspective = generatePerspective(
 			canvas,
 			125,
-			loc.heading - (meta ? centerHeading(meta) : 0),
+			loc.heading - (meta ? meta.centerHeading : 0),
 			loc.pitch,
 			1920,
 			1080,

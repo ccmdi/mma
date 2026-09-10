@@ -14,9 +14,6 @@ const mod: any = await import(
 	new URL("../../src-tauri/procedures/exactDate.js", import.meta.url).href
 );
 
-const enc = new TextEncoder();
-const NO_IMAGES = enc.encode("Search returned no images.");
-const COVERED = enc.encode("[]");
 
 /** Coverage everywhere except at `deadLat`, which never has images. Records the event
  *  stream: one "fetch" per round, one "progress" per credited row. */
@@ -24,9 +21,13 @@ function withHost<T>(deadLat: string, run: () => T): { out: T; events: string[];
 	const events: string[] = [];
 	const failed: number[] = [];
 	(globalThis as any).mma = {
-		fetchMany: (reqs: { body: string }[]) => {
+		panos: (queries: { lat: number }[]) => {
 			events.push("fetch");
-			return reqs.map((r) => ({ status: 200, body: r.body.includes(deadLat) ? NO_IMAGES : COVERED }));
+			return queries.map((q) =>
+				String(q.lat) === deadLat
+					? { state: "notFound" }
+					: { state: "found", pano: { pano: "p" } },
+			);
 		},
 		log: () => {},
 		progress: (n: number) => {

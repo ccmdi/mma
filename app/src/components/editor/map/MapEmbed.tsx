@@ -14,7 +14,6 @@ import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { svThumbnailUrl, svSearchRadius } from "@/lib/sv/lookup";
 import { PanoType } from "@/bindings.consts";
-import { centerHeading } from "@/lib/sv/getMetadata";
 import { panosAt } from "@/lib/sv/query";
 import { log } from "@/lib/util/log";
 import { getSettings, useSetting } from "@/store/settings";
@@ -269,7 +268,7 @@ export function MapEmbed({
 							ac.signal,
 						);
 						if (!pano || ac.signal.aborted) return;
-						const res = await fetch(svThumbnailUrl(pano.pano, centerHeading(pano)), {
+						const res = await fetch(svThumbnailUrl(pano.pano, pano.centerHeading), {
 							signal: ac.signal,
 						});
 						if (!res.ok || ac.signal.aborted) return;

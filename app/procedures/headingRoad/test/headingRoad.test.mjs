@@ -1,36 +1,12 @@
-// Drives the built bundle: `configure` then `run`, against a stubbed host whose
-// `fetchMany` answers GetMetadata requests with protobuf built here.
+// Drives the built bundle: `configure` then `run`, against a host stub whose `mma.panos`
+// answers with the panos the case names.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PbfReader, PbfWriter } from "pbf";
-import {
-	readGetMetadataRequest,
-	writeGetMetadataResponse,
-} from "../../../src/lib/proto/getmetadata.gen.js";
+import { pano, panos } from "../../panoStub.mjs";
 
-let respond = () => assert.fail("unexpected request");
-let calls = [];
 let failed = [];
 let progress = 0;
-
-globalThis.mma = {
-	fetchMany(reqs) {
-		return reqs.map((req) => {
-			const decoded = readGetMetadataRequest(new PbfReader(req.body));
-			calls.push({ req, keys: decoded.key.map((k) => k.key.id) });
-			const r = respond();
-			return r?.status !== undefined ? r : { status: 200, body: r ?? new Uint8Array() };
-		});
-	},
-	log() {},
-	progress(units) {
-		progress += units;
-	},
-	fail(id) {
-		failed.push(id);
-	},
-	aborted: () => false,
-};
+let asked = [];
 
 const { configure, run } = await import(
 	new URL("../../../src-tauri/procedures/headingRoad.js", import.meta.url).href
@@ -51,34 +27,38 @@ const row = (id, panoId = null) => ({
 	extra: null,
 });
 
-function runProcedure(rows, onRequest, { direction = "forwards" } = {}) {
-	calls = [];
+function runProcedure(rows, lookup, { direction = "forwards" } = {}) {
 	failed = [];
 	progress = 0;
-	respond = onRequest ?? (() => assert.fail("unexpected request"));
-	configure({ fields: [], force: false, config: { direction } });
-	const patches = run(rows);
-	return { patches, calls, progress, failed };
-}
-
-function responseBytes(obj) {
-	const w = new PbfWriter();
-	writeGetMetadataResponse(obj, w);
-	return w.finish().slice();
-}
-
-/** ImageMetadata whose location carries `pov.heading`, the driving direction. */
-function metaWithHeading(panoId, heading) {
-	const location = { location: { lat: 1, lng: 2 }, countryCode: "JP" };
-	if (heading !== null) location.pov = { heading };
-	return {
-		status: { code: 1 },
-		pano: { frontend: 2, id: panoId },
-		tiles: { worldSize: { height: 6656, width: 13312 } },
-		information: [{ location, time: [] }],
-		date: { sourceInfo: { source: "launch" }, date: { year: 2021, month: 6, day: 15 } },
+	asked = [];
+	const answer = panos(lookup);
+	globalThis.mma = {
+		panos(queries) {
+			asked.push(queries.map((q) => q.panoId));
+			return answer(queries);
+		},
+		log() {},
+		progress(units) {
+			progress += units;
+		},
+		fail(id) {
+			failed.push(id);
+		},
+		aborted: () => false,
 	};
+	configure({ fields: [], force: false, config: { direction } });
+	return { patches: run(rows), asked, progress, failed };
 }
+
+/** A pano facing `heading`, as the host reports one. */
+const facing = (id, heading) =>
+	pano({
+		pano: id,
+		pov: heading === null ? null : { heading, tilt: 90, roll: 0 },
+		centerHeading: heading ?? 0,
+		countryCode: "JP",
+		imageDate: "2021-06",
+	});
 
 /** Clamp to [-180, 180]: normalizeHeading in app/src/lib/sv/lookup.ts. */
 const normalizeHeading = (h) => (h > 180 ? h - 360 : h < -180 ? h + 360 : h);
@@ -86,67 +66,58 @@ const normalizeHeading = (h) => (h > 180 ? h - 360 : h < -180 ? h + 360 : h);
 const PANO = "aaaaaaaaaaaaaaaaaaaaaA";
 
 test("forwards writes the driving direction unchanged", () => {
-	const { patches, calls, progress, failed } = runProcedure([row(1, PANO)], () =>
-		responseBytes({ metadata: [metaWithHeading(PANO, 90)] }),
-	);
-	assert.deepEqual(calls[0].keys, [PANO]);
+	const { patches, asked, progress, failed } = runProcedure([row(1, PANO)], (id) => facing(id, 90));
+	assert.deepEqual(asked, [[PANO]]);
 	assert.deepEqual(patches, [{ id: 1, patch: { heading: 90 } }]);
 	assert.equal(progress, 1);
 	assert.deepEqual(failed, []);
 });
 
 test("backwards matches normalizeHeading(center - 180) exactly", () => {
-	// float32 round-trips exactly for these; the protobuf pov.heading is a float.
 	for (const center of [0, 90, 180, -90, -180, 45.5, 179.5, -179.5]) {
-		const { patches } = runProcedure(
-			[row(1, PANO)],
-			() => responseBytes({ metadata: [metaWithHeading(PANO, center)] }),
-			{ direction: "backwards" },
-		);
+		const { patches } = runProcedure([row(1, PANO)], (id) => facing(id, center), {
+			direction: "backwards",
+		});
 		assert.equal(patches[0].patch.heading, normalizeHeading(center - 180), `center ${center}`);
 	}
 });
 
 test("an unknown direction reads as forwards", () => {
-	const { patches } = runProcedure(
-		[row(1, PANO)],
-		() => responseBytes({ metadata: [metaWithHeading(PANO, 12)] }),
-		{ direction: "sideways" },
-	);
+	const { patches } = runProcedure([row(1, PANO)], (id) => facing(id, 12), {
+		direction: "sideways",
+	});
 	assert.deepEqual(patches, [{ id: 1, patch: { heading: 12 } }]);
 });
 
 test("metadata with no pov leaves the heading alone without failing", () => {
-	const { patches, progress, failed } = runProcedure([row(1, PANO)], () =>
-		responseBytes({ metadata: [metaWithHeading(PANO, null)] }),
-	);
+	const { patches, progress, failed } = runProcedure([row(1, PANO)], (id) => facing(id, null));
 	assert.deepEqual(patches, []);
 	assert.deepEqual(failed, []);
 	assert.equal(progress, 1);
 });
 
-test("undecodable metadata fails the row", () => {
-	const { patches, failed } = runProcedure([row(2, PANO)], () =>
-		responseBytes({ metadata: [{ status: { code: 2 } }] }),
-	);
+test("a pano the host could not resolve fails the row", () => {
+	const { patches, failed } = runProcedure([row(2, PANO)], () => null);
 	assert.deepEqual(patches, []);
 	assert.deepEqual(failed, [2]);
 });
 
-test("a non-2xx response fails the row", () => {
-	const { patches, failed } = runProcedure([row(3, PANO)], () => ({
-		status: 503,
-		body: new Uint8Array(),
-	}));
+test("a request the host never got an answer to fails the row", () => {
+	const { patches, failed } = runProcedure([row(3, PANO)], () => "fail");
 	assert.deepEqual(patches, []);
 	assert.deepEqual(failed, [3]);
 });
 
-test("rows sharing a pano are fetched once and each get the heading", () => {
-	const { patches, calls } = runProcedure([row(1, PANO), row(2, PANO)], () =>
-		responseBytes({ metadata: [metaWithHeading(PANO, 33)] }),
-	);
-	assert.equal(calls.length, 1);
+test("a row with no pano id is left unfinished rather than failed", () => {
+	const { patches, progress, failed } = runProcedure([row(4)], () => assert.fail("no request"));
+	assert.deepEqual(patches, []);
+	assert.deepEqual(failed, []);
+	assert.equal(progress, 0);
+});
+
+test("rows sharing a pano each get the heading, in one host call", () => {
+	const { patches, asked } = runProcedure([row(1, PANO), row(2, PANO)], (id) => facing(id, 33));
+	assert.equal(asked.length, 1);
 	assert.deepEqual(patches, [
 		{ id: 1, patch: { heading: 33 } },
 		{ id: 2, patch: { heading: 33 } },

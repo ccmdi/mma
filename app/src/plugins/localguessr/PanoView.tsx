@@ -6,7 +6,8 @@ import { tweenPov } from "@/lib/sv/tweenPov";
 import { normalizeHeading } from "@/lib/geo/geo";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { resolvePano } from "@/lib/sv/lookup";
-import type { CameraFrame, Pano, PanoView as PanoRef } from "@/types";
+import type { PanoView as PanoRef } from "@/types";
+import type { CameraFrame, Pano } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import type { MovementMode, RoundLocation } from "./game";
 

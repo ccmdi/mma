@@ -1,16 +1,15 @@
 import { isOfficialPano } from "@/lib/sv/panoId";
-import { detectCameraType } from "@/lib/sv/getMetadata";
 import { svMetadata } from "@/lib/sv/query";
 import { PanoType } from "@/bindings.consts";
 import { useAsyncSticky } from "@/lib/hooks/useAsync";
 import type { CameraType } from "@/bindings.gen";
-import type { Pano } from "@/types";
+import type { Pano } from "@/bindings.gen";
 
 /** Camera type plus "unofficial", a display-only state that is never stored. */
 export type FullCameraType = CameraType | "unofficial";
 
 function cameraTypeOf(data: Pano): FullCameraType | null {
-	return data.panoFrontend !== PanoType.Official ? "unofficial" : detectCameraType(data);
+	return data.panoFrontend !== PanoType.Official ? "unofficial" : data.cameraType;
 }
 
 /** `known` is a pano already fetched; when it is the one asked about, the answer is

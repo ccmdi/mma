@@ -3,7 +3,6 @@
 // timeline first.
 
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
-import { fetchMetadata, indexPanos } from "@/lib/sv/getMetadata";
 import { newestOfficialPano } from "@/lib/sv/panoId";
 import { isPinned } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
@@ -20,11 +19,10 @@ export function configure(
 
 export function run(rows: Location[]): Update<LocationPatch>[] {
 	const out: Update<LocationPatch>[] = [];
-	// Without `useLatest` every slot is empty, so this issues no requests at all.
-	const index = indexPanos(
-		rows.map((r) => (useLatest && (!isPinned(r) || force) ? (r.panoId ?? "") : "")),
+	// Without `useLatest` every id is empty, so this issues no requests at all.
+	const answers = mma.panos(
+		rows.map((r) => ({ panoId: useLatest && (!isPinned(r) || force) ? (r.panoId ?? "") : "" })),
 	);
-	const fetched = fetchMetadata(index.unique);
 
 	for (let i = 0; i < rows.length; i++) {
 		if (mma.aborted()) break;
@@ -38,10 +36,9 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 			continue;
 		}
 
-		const slot = index.slot[i];
-		if (slot < 0 || !fetched.done[slot]) continue;
-		const meta = fetched.metas[slot];
-		const latest = meta ? newestOfficialPano(meta.time) : null;
+		const a = answers[i];
+		if (a.state === "skipped") continue;
+		const latest = a.state === "found" ? newestOfficialPano(a.pano.time) : null;
 		if (!latest) mma.fail(row.id);
 		else out.push({ id: row.id, patch: { panoId: latest.pano, flags } });
 		mma.progress(1);

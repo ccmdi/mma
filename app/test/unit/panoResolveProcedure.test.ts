@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { BIN_CAR, JSON_CAR } from "./fixtures/getMetadataFixtures";
+import { CAR_PANO } from "./fixtures/pano";
 
 const app = fileURLToPath(new URL("../..", import.meta.url));
 // The bundle is a build artifact, not a checked-in one.
@@ -15,13 +15,12 @@ const mod: any = await import(
 	new URL("../../src-tauri/procedures/panoResolve.js", import.meta.url).href
 );
 
-/** The image key the car fixture carries, as a location search would answer it. */
-const PANO = JSON_CAR[1][0][1][1] as string;
-const searchBody = new TextEncoder().encode(JSON.stringify([[0], JSON_CAR[1][0]]));
+const PANO = CAR_PANO.pano;
 
+/** The host issues the search and reads the answer back; the procedure only builds queries. */
 function withHost<T>(run: () => T): T {
 	(globalThis as any).mma = {
-		fetchMany: (reqs: unknown[]) => reqs.map(() => ({ status: 200, body: searchBody })),
+		panos: (queries: unknown[]) => queries.map(() => ({ state: "found", pano: CAR_PANO })),
 		log: () => {},
 		progress: () => {},
 		fail: () => {},
@@ -64,7 +63,3 @@ describe("panoResolve procedure", () => {
 		});
 	});
 });
-
-// BIN_CAR is imported so the fixture pair stays in step; the binary half is covered by
-// getMetadataProto.test.ts.
-void BIN_CAR;

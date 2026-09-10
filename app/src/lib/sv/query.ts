@@ -1,9 +1,15 @@
 // Read-only Street View queries.
 
 import { procedureEntry, queryProcedure } from "@/lib/data/procedures";
-import type { LatLng, Pano } from "@/types";
+import type { LatLng } from "@/types";
+import type { Pano } from "@/bindings.gen";
+import type { PanoType, RankingStrategy } from "@/bindings.consts";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import type { SearchOpts } from "@/lib/sv/singleImageSearch";
+
+export interface SearchOpts {
+	sources?: PanoType[];
+	preference?: RankingStrategy;
+}
 
 const SVMETA_ENTRY = procedureEntry("svMeta");
 

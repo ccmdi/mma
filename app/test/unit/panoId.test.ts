@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { isOfficialPano, isUnofficial, newestOfficialPano, panoIdToImageKey, imageKeyToPanoId } from "@/lib/sv/panoId";
-import type { Pano } from "@/types";
+import {
+	allUnofficial,
+	isOfficialPano,
+	isUnofficial,
+	mergeTimelines,
+	newestOfficialPano,
+} from "@/lib/sv/panoId";
+import type { Pano } from "@/bindings.gen";
 
 describe("isOfficialPano", () => {
 	it("recognizes F: prefix as unofficial", () => {
@@ -85,12 +91,37 @@ describe("isUnofficial", () => {
 	});
 });
 
-describe("ImageKey round-trip", () => {
-	it("spells a user pano id the way the Maps JS API does, dot padding included", () => {
-		// Captured live: the id opensv reports for a Times Square photosphere.
-		const id = "CAoSFkNJSE0wb2dLRUlDQWdJREV5TV9hRFE.";
-		const [frontend, key] = panoIdToImageKey(id);
-		expect(frontend).toBe(10);
-		expect(imageKeyToPanoId([frontend, key])).toBe(id);
+describe("mergeTimelines", () => {
+	const pano = (over: Partial<Pano> = {}): Pano => ({ pano: "p", time: [], ...over }) as Pano;
+
+	// The date picker merges the viewed pano's stack with its neighbour's, because a
+	// partly-official stack carries only part of the history. Later sources win.
+	it("merges timelines with later sources winning", () => {
+		const a = pano({ time: [{ pano: "x", date: "2011-01-01" }] });
+		const b = pano({
+			time: [
+				{ pano: "x", date: "2022-06-01" },
+				{ pano: "y", date: "2019-05-01" },
+			],
+		});
+		expect(mergeTimelines([a, b])).toEqual([
+			{ pano: "x", date: "2022-06-01" },
+			{ pano: "y", date: "2019-05-01" },
+		]);
+	});
+
+	it("skips absent sources rather than failing", () => {
+		expect(mergeTimelines([null, null])).toEqual([]);
+		expect(mergeTimelines([null, pano({ time: [{ pano: "x", date: "2020-01-01" }] })])).toHaveLength(
+			1,
+		);
+	});
+});
+
+describe("allUnofficial", () => {
+	it("flags a timeline with no official coverage, which is what triggers the wider search", () => {
+		expect(allUnofficial([{ pano: "F:abc", date: "2020-01-01" }])).toBe(true);
+		expect(allUnofficial([{ pano: "-zrYsLR4Fh-cfJG_EMZ1-A", date: "2020-01-01" }])).toBe(false);
+		expect(allUnofficial([])).toBe(false);
 	});
 });

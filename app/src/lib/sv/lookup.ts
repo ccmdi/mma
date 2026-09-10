@@ -1,13 +1,12 @@
 import { angularDelta, distMeters } from "@/lib/geo/geo";
 import { fetchPanoDotsWithIds } from "@/lib/geo/photometa";
 import { latLngToWorld, worldToTile } from "@/lib/geo/mercator";
-import { cameraTypeFromHeight, centerHeading, imageDateOf } from "@/lib/sv/getMetadata";
 import { isUnofficial } from "@/lib/sv/panoId";
 import { panosAt, svMetadata } from "@/lib/sv/query";
 import { isPinned, createLocation } from "@/types";
 import { LocationFlag, PanoType } from "@/bindings.consts";
-import type { LatLng, Pano } from "@/types";
-import type { CameraType, Location } from "@/bindings.gen";
+import type { LatLng } from "@/types";
+import type { CameraType, Location, Pano } from "@/bindings.gen";
 
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { reverseHeading } from "@/lib/geo/geo";
@@ -53,7 +52,7 @@ export function calcHeading(
 	opts?: { pointAlongRoad?: boolean; preferDirection?: string | null },
 ): number {
 	if (!opts?.pointAlongRoad) return 0;
-	const center = centerHeading(data);
+	const center = data.centerHeading;
 	const dir = opts.preferDirection;
 	if (dir === "forwards" || !dir) {
 		if (!dir && data.links && data.links.length > 0 && data.links[0].heading != null) {
@@ -110,6 +109,48 @@ const CAMERA_RANK: Record<CameraType, number | null> = {
 	gen1: 4,
 	trekker: null,
 };
+
+export interface RankOpts {
+	userUploaded?: "allow" | "avoid" | "ignore";
+	preferHigherQuality?: boolean;
+}
+
+/** The candidates a click may land on, best first: unranked camera types are dropped under
+ *  `preferHigherQuality`, then user uploads sink, camera quality decides, and the newest
+ *  capture breaks the tie. */
+export function rankCandidates(candidates: Pano[], opts: RankOpts): Pano[] {
+	const userUploaded = opts.userUploaded ?? "allow";
+	let filtered = candidates;
+	if (userUploaded === "ignore") filtered = filtered.filter((c) => !isUnofficial(c));
+	if (opts.preferHigherQuality) {
+		filtered = filtered.filter((c) => c.cameraType == null || CAMERA_RANK[c.cameraType] !== null);
+	}
+
+	return [...filtered].sort((x, y) => {
+		if (userUploaded === "avoid") {
+			const xu = isUnofficial(x);
+			const yu = isUnofficial(y);
+			if (xu && !yu) return 1;
+			if (!xu && yu) return -1;
+		}
+		if (opts.preferHigherQuality) {
+			const xc = x.cameraType;
+			const yc = y.cameraType;
+			if (xc != null && yc == null) return -1;
+			if (xc == null && yc != null) return 1;
+			if (xc != null && yc != null) {
+				const xi = CAMERA_RANK[xc] ?? Infinity;
+				const yi = CAMERA_RANK[yc] ?? Infinity;
+				if (xi < yi) return -1;
+				if (xi > yi) return 1;
+			}
+		}
+		if (userUploaded === "allow") return 0;
+		const xd = x.imageDate || "9999-99";
+		const yd = y.imageDate || "9999-99";
+		return -xd.localeCompare(yd);
+	});
+}
 
 /**
  * Full Street View lookup for map click: finds best panorama near the click point,
@@ -174,42 +215,10 @@ export async function lookupStreetView(
 		for (const p of await svMetadata(official.time.map((t) => t.pano))) push(p);
 	}
 
-	let filtered = candidates;
-	if (userUploaded === "ignore") filtered = filtered.filter((c) => !isUnofficial(c));
-
-	if (opts.preferHigherQuality) {
-		filtered = filtered.filter((c) => {
-			const ct = cameraTypeFromHeight(c.worldSize.height);
-			return ct == null || CAMERA_RANK[ct] !== null;
-		});
-	}
-
-	filtered.sort((x, y) => {
-		if (userUploaded === "avoid") {
-			const xu = isUnofficial(x);
-			const yu = isUnofficial(y);
-			if (xu && !yu) return 1;
-			if (!xu && yu) return -1;
-		}
-		if (opts.preferHigherQuality) {
-			const xc = cameraTypeFromHeight(x.worldSize.height);
-			const yc = cameraTypeFromHeight(y.worldSize.height);
-			if (xc != null && yc == null) return -1;
-			if (xc == null && yc != null) return 1;
-			if (xc != null && yc != null) {
-				const xi = CAMERA_RANK[xc] ?? Infinity;
-				const yi = CAMERA_RANK[yc] ?? Infinity;
-				if (xi < yi) return -1;
-				if (xi > yi) return 1;
-			}
-		}
-		if (userUploaded === "allow") return 0;
-		const xd = imageDateOf(x) || "9999-99";
-		const yd = imageDateOf(y) || "9999-99";
-		return -xd.localeCompare(yd);
-	});
-
-	const chosen = filtered[0];
+	const chosen = rankCandidates(candidates, {
+		userUploaded,
+		preferHigherQuality: opts.preferHigherQuality,
+	})[0];
 	if (!chosen) return null;
 
 	const [verify] = await panosAt([{ lat: chosen.lat, lng: chosen.lng }], SV_SEARCH_RADIUS);

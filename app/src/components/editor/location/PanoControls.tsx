@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, useEffect, useRef, useState, useCallback } from "react";
-import { isPinned, type CameraFrame } from "@/types";
+import { isPinned } from "@/types";
+import type { CameraFrame } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 import {
 	PANO_ZOOM,
