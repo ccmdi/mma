@@ -2,6 +2,7 @@
 // Protobuf tile URL builder
 // Constructs Google Maps Vector Tile URLs with protobuf-encoded parameters.
 
+import { PanoType } from "@/bindings.consts";
 import { resolveSvColorHex, hexToHsl, hslToHex } from "@/lib/util/color";
 import { TILE_SIZE } from "@/lib/geo/mercator";
 
@@ -34,7 +35,6 @@ function pbSerialize(serializer: (arr: any[], out: string[]) => void, arr: any[]
 
 // --- Enums ---
 
-export const CoverageType = { OFFICIAL: 2, UNKNOWN: 3, USER_UPLOADED: 10 } as const;
 export const ImageFormat = { Y: 1, Z: 2 } as const;
 export const LayerType = {
 	ROADMAP: 0,
@@ -407,7 +407,7 @@ export function buildSvCoverageConfig(opts: {
 	if (opts.showOfficial ?? true) {
 		strategies.push(
 			new RenderStrategy({
-				frontend: CoverageType.OFFICIAL,
+				frontend: PanoType.Official,
 				tiled: true,
 				imageFormat: ImageFormat.Z,
 			}),
@@ -416,14 +416,14 @@ export function buildSvCoverageConfig(opts: {
 	if (opts.showUnofficial ?? true) {
 		strategies.push(
 			new RenderStrategy({
-				frontend: CoverageType.UNKNOWN,
+				frontend: PanoType.Unknown,
 				tiled: true,
 				imageFormat: ImageFormat.Z,
 			}),
 		);
 		strategies.push(
 			new RenderStrategy({
-				frontend: CoverageType.USER_UPLOADED,
+				frontend: PanoType.UserUploaded,
 				tiled: true,
 				imageFormat: ImageFormat.Z,
 			}),
