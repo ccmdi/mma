@@ -28,6 +28,20 @@ export interface PruneResult {
 	cursorMoved: boolean;
 }
 
+// One id->index map per worklist, built on first lookup. Every worklist change builds a
+// new array, so a map can never index an order it no longer describes.
+const worklistIndexes = new WeakMap<number[], Map<number, number>>();
+
+/** Position of `id` in the session's worklist, or -1. O(1) per step. */
+export function positionOf(s: ReviewSession, id: number): number {
+	let index = worklistIndexes.get(s.order);
+	if (!index) {
+		index = new Map(s.order.map((locId, i) => [locId, i]));
+		worklistIndexes.set(s.order, index);
+	}
+	return index.get(id) ?? -1;
+}
+
 /** Remove `removed` ids from a session's worklist and reviewed set. Advances the
  *  cursor when the cursor id itself was removed. */
 export function pruneSession(s: ReviewSession, removed: Set<number>): PruneResult {
@@ -37,7 +51,7 @@ export function pruneSession(s: ReviewSession, removed: Set<number>): PruneResul
 	if (order.length === 0) return { session: null, cursorMoved: true };
 	let cursorId = s.cursorId;
 	if (removed.has(cursorId)) {
-		const oldIdx = s.order.indexOf(cursorId);
+		const oldIdx = positionOf(s, cursorId);
 		cursorId = order[Math.min(oldIdx, order.length - 1)];
 	}
 	return { session: { ...s, order, reviewed, cursorId }, cursorMoved: cursorId !== s.cursorId };
@@ -46,7 +60,7 @@ export function pruneSession(s: ReviewSession, removed: Set<number>): PruneResul
 /** Mark the current cursor reviewed and step forward. `done` is true when the
  *  session has no remaining items. */
 export function advance(s: ReviewSession): { session: ReviewSession; done: boolean } {
-	const idx = s.order.indexOf(s.cursorId);
+	const idx = positionOf(s, s.cursorId);
 	const reviewed = s.reviewed.includes(s.cursorId) ? s.reviewed : [...s.reviewed, s.cursorId];
 	if (idx < 0 || idx >= s.order.length - 1) {
 		return { session: { ...s, reviewed, status: "done" }, done: true };
@@ -56,14 +70,14 @@ export function advance(s: ReviewSession): { session: ReviewSession; done: boole
 
 /** Step backward without marking anything reviewed. Null when already at the start. */
 export function retreat(s: ReviewSession): ReviewSession | null {
-	const idx = s.order.indexOf(s.cursorId);
+	const idx = positionOf(s, s.cursorId);
 	if (idx <= 0) return null;
 	return { ...s, cursorId: s.order[idx - 1] };
 }
 
 /** Position of the session cursor within its review order. */
 export function reviewIndex(s: ReviewSession): number {
-	return s.order.indexOf(s.cursorId);
+	return positionOf(s, s.cursorId);
 }
 
 /** Union of reviewed ids across sessions, de-duplicated. Pure (unit-tested). */
@@ -230,7 +244,7 @@ export async function reviewDelete(): Promise<void> {
 	if (!session) return;
 	const s = session;
 	const curId = s.cursorId;
-	const idx = s.order.indexOf(curId);
+	const idx = positionOf(s, curId);
 	const order = s.order.filter((id) => id !== curId);
 	const reviewed = s.reviewed.filter((id) => id !== curId);
 
@@ -434,7 +448,7 @@ function reconcile(removed: number[]): void {
  *  jumps the cursor there; clicking off-queue leaves the session untouched. */
 function onActiveChange(id: number | null): void {
 	if (!session || id == null || id === session.cursorId) return;
-	if (!session.order.includes(id)) return; // off-queue peek: leave the cursor parked
+	if (positionOf(session, id) < 0) return; // off-queue peek: leave the cursor parked
 	session = { ...session, cursorId: id };
 	emit("review:changed");
 	scheduleSave();

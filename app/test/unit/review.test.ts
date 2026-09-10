@@ -21,6 +21,7 @@ import {
 	isAtStart,
 	isCurrentReviewed,
 	reviewedHistoryIds,
+	positionOf,
 } from "@/lib/review/review";
 import type { ReviewSession } from "@/bindings.gen";
 
@@ -130,5 +131,32 @@ describe("helpers", () => {
 		expect(isAtStart(mk([1, 2, 3], 2))).toBe(false);
 		expect(isCurrentReviewed(mk([1, 2, 3], 2, [2]))).toBe(true);
 		expect(isCurrentReviewed(mk([1, 2, 3], 2, [1]))).toBe(false);
+	});
+});
+
+describe("worklist positions", () => {
+	it("answers the same positions indexOf would", () => {
+		const s = mk([7, 3, 9, 4], 9);
+		for (const id of [...s.order, 99]) expect(positionOf(s, id)).toBe(s.order.indexOf(id));
+	});
+
+	it("re-indexes after a prune instead of answering from the old worklist", () => {
+		const s = mk([1, 2, 3, 4, 5], 5, []);
+		expect(positionOf(s, 5)).toBe(4);
+		const { session } = pruneSession(s, new Set([1, 2]));
+		expect(session).not.toBeNull();
+		expect(positionOf(session!, 5)).toBe(2);
+		expect(positionOf(session!, 1)).toBe(-1);
+		expect(reviewIndex(session!)).toBe(2);
+		expect(positionOf(s, 5)).toBe(4); // the pruned-from session is untouched
+	});
+
+	it("steps a long worklist by position, not by scanning it", () => {
+		const order = Array.from({ length: 50_000 }, (_, i) => i + 1);
+		let s = mk(order, order[0]);
+		for (let i = 0; i < 5; i += 1) s = advance(s).session;
+		expect(s.cursorId).toBe(6);
+		expect(reviewIndex(s)).toBe(5);
+		expect(retreat(s)?.cursorId).toBe(5);
 	});
 });
