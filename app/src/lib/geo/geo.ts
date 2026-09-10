@@ -34,7 +34,7 @@ export function unwrapLng(lng: number, prevLng: number): number {
 
 /** Rewrite longitudes so each vertex sits within 180 degrees of its predecessor; the
  *  span may run outside [-180, 180]. Edges of 180 degrees or more fold the short way
- *  round - run `densifyRing` first. Mirrors `unwrap_ring` in selections.rs. */
+ *  round - run `densifyRing` first. Mirrors `unwrap_ring` in the mma-geo crate. */
 export function unwrapRing<T extends number[]>(ring: T[]): T[] {
 	if (ring.every((p, i) => i === 0 || Math.abs(p[0] - ring[i - 1][0]) <= 180)) return ring;
 	let prev = ring[0][0];
@@ -67,7 +67,8 @@ export function densifyRing<T extends number[]>(ring: T[]): T[] {
 
 /** Bbox over `rings`, each unwrapped then shifted by whole turns to sit nearest the box
  *  so far. Crossing form: `west > east` means the box crosses the antimeridian, so test
- *  with `inBbox`. `null` if no vertices. Mirrors `geometry_bbox` in selections.rs. */
+ *  with `inBbox`. `null` if no vertices. Mirrors `extend_bbox_with_ring` (and the final
+ *  `anchor_bbox`) in the mma-geo crate. */
 export function ringsBbox(rings: number[][][]): Bounds | null {
 	let w = Infinity;
 	let s = Infinity;
@@ -132,7 +133,7 @@ export function unionBounds(a: Bounds, b: Bounds): Bounds {
 }
 
 /** Broad-phase reject against a `Bounds`, honouring the `west > east` crossing form.
- *  Mirrors `in_bbox` in selections.rs. */
+ *  Mirrors `in_bbox` in the mma-geo crate. */
 export function inBbox(lng: number, lat: number, b: Bounds): boolean {
 	if (lat < b.south || lat > b.north) return false;
 	const x = lng < b.west ? lng + 360 : lng;

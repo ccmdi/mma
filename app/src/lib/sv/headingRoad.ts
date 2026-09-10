@@ -17,9 +17,8 @@ export interface HeadingRoadConfig {
 	direction: RoadDirection;
 }
 
-/** Pan a location's heading along the road. The driving direction is GetMetadata's
- *  `pov.heading` (this source has no `tiles.centerHeading`); "forwards" faces it,
- *  "backwards" faces the opposite. */
+/** Pan a location's heading along the road. The driving direction is the pano's
+ *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. */
 export const headingRoadProvider: Provider = {
 	id: "headingRoad",
 	label: msg("Pan heading along road"),
