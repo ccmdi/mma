@@ -7,7 +7,7 @@ import type {
 	GeneratorRegionMeta,
 	GeneratedLocation,
 } from "../engine/types";
-import { DEFAULT_SETTINGS } from "../engine/types";
+import { DEFAULT_SETTINGS, GENERATION_CAMERA_TYPE } from "../engine/types";
 import { GenerationEngine } from "../engine/GenerationEngine";
 import { RegionSelector } from "./RegionSelector";
 import { SettingsPanel } from "./SettingsPanel";
@@ -121,7 +121,7 @@ function summarizeSettings(s: GeneratorSettings): string {
 				: t("any");
 	if (s.rejectGen1) coverage += ` ${t("(no {gen})", { gen: fieldValueLabel(camera, "gen1") })}`;
 	if (s.findGeneration) {
-		coverage += ` ${fieldValueLabel(camera, s.generation === 23 ? "gen2" : `gen${s.generation}`)}`;
+		coverage += ` ${fieldValueLabel(camera, GENERATION_CAMERA_TYPE[s.generation])}`;
 	}
 	if (s.rejectDescription) coverage += ` ${t("trekker")}`;
 	parts.push(t("{coverage} coverage", { coverage }));

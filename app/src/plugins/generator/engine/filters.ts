@@ -1,5 +1,5 @@
 import type { Pano } from "@/bindings.gen";
-import type { GeneratorSettings } from "./types";
+import { GENERATION_CAMERA_TYPE, type GeneratorSettings } from "./types";
 
 function normalizeText(text: string): string {
 	return text
@@ -58,20 +58,6 @@ export function passesDescriptionSearch(loc: Pano, s: GeneratorSettings): boolea
 	return s.searchFilterType === "exclude" ? !hasMatch : hasMatch;
 }
 
-export function getCameraGeneration(pano: Pano): 0 | 1 | 23 | 4 {
-	const h = pano.worldSize?.height;
-	switch (h) {
-		case 1664:
-			return 1;
-		case 6656:
-			return 23;
-		case 8192:
-			return 4;
-		default:
-			return 0;
-	}
-}
-
 /** The capture month of a timeline entry as a comparable timestamp, NaN when it has none. */
 function entryMonth(entry: { date: string }): number {
 	return entry.date ? Date.parse(entry.date.slice(0, 7)) : NaN;
@@ -97,10 +83,10 @@ export function passesInitialFilters(res: Pano, s: GeneratorSettings): boolean {
 		if (/^\xA9 (?:\d+ )?Google$/.test(res.copyright)) return false;
 	}
 
-	if (s.rejectGen1 && getCameraGeneration(res) === 1) return false;
+	if (s.rejectGen1 && res.cameraType === "gen1") return false;
 
 	if (s.findGeneration && (!s.checkAllDates || s.selectMonths)) {
-		if (getCameraGeneration(res) !== s.generation) return false;
+		if (res.cameraType !== GENERATION_CAMERA_TYPE[s.generation]) return false;
 	}
 
 	return true;
@@ -187,8 +173,9 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 
 	if (s.checkAllDates && !s.selectMonths && !s.rejectOfficial) {
 		if (!pano.time?.length) return false;
-		if (s.findGeneration && getCameraGeneration(pano) !== s.generation) return false;
-		if (s.rejectGen1 && getCameraGeneration(pano) === 1) return false;
+		if (s.findGeneration && pano.cameraType !== GENERATION_CAMERA_TYPE[s.generation])
+			return false;
+		if (s.rejectGen1 && pano.cameraType === "gen1") return false;
 		let dateWithin = false;
 		for (const entry of pano.time) {
 			if (s.rejectUnofficial && entry.pano.length !== 22) continue;

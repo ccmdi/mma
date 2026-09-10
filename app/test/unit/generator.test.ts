@@ -43,7 +43,7 @@ import type {
 	GenerationCallbacks,
 	GeneratedLocation,
 } from "@/plugins/generator/engine/types";
-import type { Pano } from "@/bindings.gen";
+import type { CameraType, Pano } from "@/bindings.gen";
 
 function loc(description = "", shortDescription = ""): Pano {
 	return { description, shortDescription } as unknown as Pano;
@@ -143,6 +143,7 @@ function pano(over: {
 	links?: number;
 	description?: string;
 	imageDate?: string;
+	cameraType?: CameraType | null;
 }): Pano {
 	const links = Array.from({ length: over.links ?? 2 }, () => ({ heading: 0, pano: "x" }));
 	const imageDate = over.imageDate ?? "2020-06";
@@ -155,6 +156,7 @@ function pano(over: {
 		date: { year: Number(y), month: Number(m), day: 1 },
 		imageDate,
 		time: [],
+		cameraType: over.cameraType ?? "gen2",
 	} as unknown as Pano;
 }
 
@@ -172,6 +174,27 @@ describe("description-only rejection filters", () => {
 		const s = settings({ rejectUnofficial: true, rejectDescription: true });
 		expect(passesInitialFilters(withShort("", "Main Street"), s)).toBe(false);
 		expect(passesInitialFilters(withShort("", ""), s)).toBe(true);
+	});
+});
+
+describe("camera type filters", () => {
+	it("rejectGen1 drops gen1 and keeps the rest", () => {
+		const s = settings({ rejectGen1: true });
+		expect(passesInitialFilters(pano({ cameraType: "gen1" }), s)).toBe(false);
+		expect(passesInitialFilters(pano({ cameraType: "gen2" }), s)).toBe(true);
+		expect(passesInitialFilters(pano({ cameraType: "gen4" }), s)).toBe(true);
+		expect(passesInitialFilters(pano({ cameraType: null }), s)).toBe(true);
+	});
+
+	it("findGeneration matches the camera type exactly, not the rig family", () => {
+		const gen2 = settings({ findGeneration: true, generation: 23 });
+		expect(passesInitialFilters(pano({ cameraType: "gen2" }), gen2)).toBe(true);
+		expect(passesInitialFilters(pano({ cameraType: "badcam" }), gen2)).toBe(false);
+		expect(passesInitialFilters(pano({ cameraType: "tripod" }), gen2)).toBe(false);
+
+		const gen4 = settings({ findGeneration: true, generation: 4 });
+		expect(passesInitialFilters(pano({ cameraType: "gen4" }), gen4)).toBe(true);
+		expect(passesInitialFilters(pano({ cameraType: "trekker" }), gen4)).toBe(false);
 	});
 });
 

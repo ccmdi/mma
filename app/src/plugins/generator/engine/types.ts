@@ -1,5 +1,13 @@
-import type { Location } from "@/bindings.gen";
+import type { CameraType, Location } from "@/bindings.gen";
 import type { PanoView } from "@/types";
+
+/** The camera type each `generation` choice asks for. Equality, not rig family: a
+ *  "Gen 4" pick excludes trekkers the way a `cameraType` metadata filter does. */
+export const GENERATION_CAMERA_TYPE = {
+	1: "gen1",
+	23: "gen2",
+	4: "gen4",
+} as const satisfies Record<GeneratorSettings["generation"], CameraType>;
 
 export interface GeneratorSettings {
 	defaultTarget: number;
