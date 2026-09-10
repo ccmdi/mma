@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { mmaRequire, preloadModules, getAvailableExternals } from "@/plugins/externals";
 
 describe("mmaRequire", () => {
@@ -44,28 +46,16 @@ describe("getAvailableExternals", () => {
 		expect(externals).toContain("react-dom");
 	});
 
-	it("contains all 11 eager modules", () => {
-		const externals = getAvailableExternals();
-		const expected = [
-			"react",
-			"react-dom",
-			"react/jsx-runtime",
-			"react/jsx-dev-runtime",
-			"@deck.gl/core",
-			"@deck.gl/layers",
-			"@deck.gl/google-maps",
-			"@luma.gl/core",
-			"@luma.gl/engine",
-			"@luma.gl/shadertools",
-			"@luma.gl/webgl",
-		];
-		for (const id of expected) {
-			expect(externals).toContain(id);
-		}
-	});
-
-	it("has at least 11 entries", () => {
-		expect(getAvailableExternals().length).toBeGreaterThanOrEqual(11);
+	// The broker's keys and the SDK's `DEFAULT_EXTERNALS` are the same list: what the esbuild
+	// plugin rewrites to `__mma_require` must be what the broker can hand back.
+	// If either side drifts, this goes red.
+	it("matches DEFAULT_EXTERNALS in the plugin SDK", () => {
+		const sdk = readFileSync(join(__dirname, "../../../plugins/mma-externals.js"), "utf8");
+		const list = /const DEFAULT_EXTERNALS = \[([^\]]*)\]/.exec(sdk)?.[1];
+		expect(list).toBeTruthy();
+		const names = [...list!.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+		expect(names.length).toBeGreaterThan(0);
+		expect([...names].sort()).toEqual([...getAvailableExternals()].sort());
 	});
 });
 
