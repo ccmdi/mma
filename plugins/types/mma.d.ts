@@ -121,6 +121,7 @@ declare const BUILTIN_FIELDS: readonly [{
     readonly kind: "term";
     readonly comparison: null;
 }];
+declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
 declare const CLEARABLE_BUILTINS: readonly ["panoId"];
 declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
 declare const KNOWN_FIELDS: readonly [{
@@ -246,6 +247,7 @@ declare const consts_CLEARABLE_BUILTINS: typeof CLEARABLE_BUILTINS;
 declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
 declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
 export type consts_LocationFlag = LocationFlag;
+declare const consts_OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
 declare const consts_PROJECTIONS: typeof PROJECTIONS;
 export type consts_PanoType = PanoType;
 export type consts_RankingStrategy = RankingStrategy;
@@ -253,7 +255,7 @@ declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
 declare const consts_VIRTUAL_FLAGS: typeof VIRTUAL_FLAGS;
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
-  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
+  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
   export type { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_ValidationState as ValidationState };
 }
 
@@ -2498,7 +2500,8 @@ declare function scoreTupleToBounds([s, w, n, e]: [number, number, number, numbe
 declare function bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null;
 /** Convert a Bounds object to a [south, west, north, east] tuple. */
 declare function boundsToScoreTuple(b: Bounds): [number, number, number, number];
-/** Pinned: the location always opens this exact pano. */
+/** Pinned: the location always opens this exact pano. Mirrors `Row::is_pinned` in
+ *  `selections/mod.rs`. */
 declare function isPinned(loc: Location): loc is Location & {
     panoId: string;
 };
@@ -2839,6 +2842,10 @@ declare const filterIsLocalTime: (test: FilterOp) => boolean;
 declare const OP_LABELS: Record<FilterOpKind, string>;
 /** Deterministic color derived from a selection key string. */
 declare function colorForKey(key: string): RGB;
+/** Key an id list by hashing it: the same ids in the same order give the same key.
+ *  Order-sensitive, like the list it identifies. Key length is constant, so a
+ *  million-id selection is not a megabyte-long React key. */
+declare function locationsKey(ids: number[]): string;
 /** Ghost keys that "solo" `key`: everything except it. Returns an empty set when `key`
  *  is already the sole visible selection, so a repeat call un-isolates (clears all ghosts). */
 declare function isolateGhostKeys(keys: string[], ghosted: ReadonlySet<string>, key: string): Set<string>;
@@ -2938,6 +2945,7 @@ declare const selectionOps_intersectSelections: typeof intersectSelections;
 declare const selectionOps_invertSelections: typeof invertSelections;
 declare const selectionOps_isolateGhost: typeof isolateGhost;
 declare const selectionOps_isolateGhostKeys: typeof isolateGhostKeys;
+declare const selectionOps_locationsKey: typeof locationsKey;
 declare const selectionOps_polygonSelectionsContaining: typeof polygonSelectionsContaining;
 declare const selectionOps_removeFromComposite: typeof removeFromComposite;
 declare const selectionOps_removeSelection: typeof removeSelection;
@@ -2954,7 +2962,7 @@ declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
 declare const selectionOps_unionSelections: typeof unionSelections;
 declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_polygonSelectionsContaining as polygonSelectionsContaining, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections, selectionOps_withChildren as withChildren };
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_locationsKey as locationsKey, selectionOps_polygonSelectionsContaining as polygonSelectionsContaining, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPatch as SelectionPatch, selectionOps_SelectionState as SelectionState, selectionOps_UnaryType as UnaryType };
 }
 
@@ -4400,6 +4408,8 @@ export interface PruneResult {
     session: ReviewSession | null;
     cursorMoved: boolean;
 }
+/** Position of `id` in the session's worklist, or -1. O(1) per step. @unstable */
+declare function positionOf(s: ReviewSession, id: number): number;
 /** Remove `removed` ids from a session's worklist and reviewed set. Advances the
  *  cursor when the cursor id itself was removed. @unstable */
 declare function pruneSession(s: ReviewSession, removed: Set<number>): PruneResult;
@@ -4457,6 +4467,7 @@ declare const review_getReviewSession: typeof getReviewSession;
 declare const review_isAtStart: typeof isAtStart;
 declare const review_isCurrentReviewed: typeof isCurrentReviewed;
 declare const review_listSessions: typeof listSessions;
+declare const review_positionOf: typeof positionOf;
 declare const review_pruneSession: typeof pruneSession;
 declare const review_renameReview: typeof renameReview;
 declare const review_resumeReview: typeof resumeReview;
@@ -4470,7 +4481,7 @@ declare const review_selectReviewSet: typeof selectReviewSet;
 declare const review_selectReviewedHistory: typeof selectReviewedHistory;
 declare const review_useReviewSession: typeof useReviewSession;
 declare namespace review {
-  export { review_advance as advance, review_beginReview as beginReview, review_cancelReview as cancelReview, review_deleteSession as deleteSession, review_getReviewSession as getReviewSession, review_isAtStart as isAtStart, review_isCurrentReviewed as isCurrentReviewed, review_listSessions as listSessions, review_pruneSession as pruneSession, review_renameReview as renameReview, review_resumeReview as resumeReview, review_retreat as retreat, review_reviewDelete as reviewDelete, review_reviewIndex as reviewIndex, review_reviewNext as reviewNext, review_reviewPrev as reviewPrev, review_reviewedHistoryIds as reviewedHistoryIds, review_selectReviewSet as selectReviewSet, review_selectReviewedHistory as selectReviewedHistory, review_useReviewSession as useReviewSession };
+  export { review_advance as advance, review_beginReview as beginReview, review_cancelReview as cancelReview, review_deleteSession as deleteSession, review_getReviewSession as getReviewSession, review_isAtStart as isAtStart, review_isCurrentReviewed as isCurrentReviewed, review_listSessions as listSessions, review_positionOf as positionOf, review_pruneSession as pruneSession, review_renameReview as renameReview, review_resumeReview as resumeReview, review_retreat as retreat, review_reviewDelete as reviewDelete, review_reviewIndex as reviewIndex, review_reviewNext as reviewNext, review_reviewPrev as reviewPrev, review_reviewedHistoryIds as reviewedHistoryIds, review_selectReviewSet as selectReviewSet, review_selectReviewedHistory as selectReviewedHistory, review_useReviewSession as useReviewSession };
   export type { review_PruneResult as PruneResult };
 }
 
@@ -6115,5 +6126,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, OFFICIAL_ID_PATTERN, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
 export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

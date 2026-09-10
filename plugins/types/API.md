@@ -54,6 +54,8 @@ Exposed as `window.MMA` (and the global `MMA`).
 
 ### `KNOWN_FIELDS: readonly [{ readonly key: "altitude"; readonly type: "number"; readonly label: "Altitude"; readonly values: readonly []; readonly labels: readonly []; readonly circularPeriod: null; readonly defaultOff: false; }, { ...; }, ... 8 more ..., { ...; }]`
 
+### `OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$"`
+
 ### `PROJECTIONS: readonly [{ readonly id: "value"; readonly appliesTo: readonly ["string", "enum", "number", "month"]; readonly needsTz: false; }, { readonly id: "year"; readonly appliesTo: readonly ["date", "month"]; readonly needsTz: true; }, { ...; }, { ...; }, { ...; }, { ...; }]`
 
 ### `SCRATCH_MAP_ID: "scratch"`
@@ -470,6 +472,12 @@ Solo one selection by ghosting all others. Repeat to clear all ghosts.
 
 Ghost keys that "solo" `key`: everything except it. Returns an empty set when `key`
 is already the sole visible selection, so a repeat call un-isolates (clears all ghosts).
+
+### `locationsKey(ids: number[]): string`
+
+Key an id list by hashing it: the same ids in the same order give the same key.
+Order-sensitive, like the list it identifies. Key length is constant, so a
+million-id selection is not a megabyte-long React key.
 
 ### `OP_LABELS: Record<"has" | "nothas" | "eq" | "neq" | "contains" | "notcontains" | "gt" | "lt" | "gte" | "lte" | "between" | "between_anyyear" | "between_anytime", string>`
 
@@ -1086,6 +1094,10 @@ Current cursor location is in the reviewed set.
 ### `listSessions(status?: "active" | "done" | undefined): Promise<ReviewSession[]>` *(unstable)*
 
 Review sessions for the open map, optionally filtered by status.
+
+### `positionOf(s: ReviewSession, id: number): number` *(unstable)*
+
+Position of `id` in the session's worklist, or -1. O(1) per step.
 
 ### `pruneSession(s: ReviewSession, removed: Set<number>): PruneResult` *(unstable)*
 
@@ -2882,7 +2894,8 @@ True when the location is an import preview (not yet committed).
 
 ### `isPinned(loc: Location): loc is Location & { panoId: string; }`
 
-Pinned: the location always opens this exact pano.
+Pinned: the location always opens this exact pano. Mirrors `Row::is_pinned` in
+`selections/mod.rs`.
 
 ### `isSeenPreview(loc: Location): boolean`
 
