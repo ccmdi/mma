@@ -1,6 +1,7 @@
 import type { ExtraFieldDef, PartitionBucket, Selection } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { ymOrdinal } from "@/lib/util/date";
+import { locationsKey } from "@/store/selections";
 
 export function lerp(a: RGB, b: RGB, t: number): RGB {
 	return [
@@ -96,7 +97,7 @@ export function colorPartition(
 		}
 		return {
 			selector: { type: "Locations", locations: g.ids, name: g.key },
-			key: g.ids.join(","),
+			key: locationsKey(g.ids),
 			color,
 		};
 	});

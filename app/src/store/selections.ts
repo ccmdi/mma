@@ -66,8 +66,19 @@ export function colorForKey(key: string): RGB {
 	return hslToRgb(Math.abs(t) % 360, 0.5, 0.5);
 }
 
-function locationsKey(ids: number[]): string {
-	return ids.join(",");
+/** Key an id list by hashing it: the same ids in the same order give the same key.
+ *  Order-sensitive, like the list it identifies. Key length is constant, so a
+ *  million-id selection is not a megabyte-long React key. */
+export function locationsKey(ids: number[]): string {
+	let h1 = 0xdeadbeef | 0;
+	let h2 = 0x41c6ce57 | 0;
+	for (const id of ids) {
+		h1 = Math.imul(h1 ^ id, 2654435761);
+		h2 = Math.imul(h2 ^ id, 1597334677);
+	}
+	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+	return `locations:${ids.length}:${(h1 >>> 0).toString(36)}${(h2 >>> 0).toString(36)}`;
 }
 
 /** Ghost keys that "solo" `key`: everything except it. Returns an empty set when `key`

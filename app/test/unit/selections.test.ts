@@ -28,6 +28,7 @@ import {
 	toggleGhostAll,
 	childSelections,
 	withChildren,
+	locationsKey,
 } from "@/store/selections";
 import { ValidationState } from "@/bindings.consts";
 import type { PolygonGeometry } from "@/bindings.gen";
@@ -1468,5 +1469,41 @@ describe("withChildren", () => {
 		const intersection = { type: "Intersection" as const, selections: [a, b] };
 		const result = withChildren(intersection, childSelections(intersection));
 		expect((result as { selections: unknown[] }).selections).toEqual([a, b]);
+	});
+});
+
+describe("locationsKey", () => {
+	const keyOf = (ids: number[]) =>
+		buildSelection({ type: "Locations", locations: ids, name: null }).key;
+
+	it("is stable for the same ids", () => {
+		expect(locationsKey([1, 2, 3])).toBe(locationsKey([1, 2, 3]));
+		expect(keyOf([4, 5])).toBe(keyOf([4, 5]));
+	});
+
+	it("separates different id lists, including reorderings and subsets", () => {
+		const keys = new Set([
+			locationsKey([]),
+			locationsKey([1]),
+			locationsKey([2]),
+			locationsKey([1, 2]),
+			locationsKey([2, 1]),
+			locationsKey([1, 2, 3]),
+		]);
+		expect(keys.size).toBe(6);
+	});
+
+	it("keys a huge selection in constant length", () => {
+		const ids = Array.from({ length: 200_000 }, (_, i) => i);
+		const key = locationsKey(ids);
+		expect(key.length).toBeLessThan(40);
+		expect(key.startsWith("locations:200000:")).toBe(true);
+		expect(locationsKey(ids.slice(0, -1))).not.toBe(key);
+	});
+
+	it("does not collide across a large family of lists", () => {
+		const keys = new Set<string>();
+		for (let i = 0; i < 20_000; i += 1) keys.add(locationsKey([i, i + 1, i * 7]));
+		expect(keys.size).toBe(20_000);
 	});
 });

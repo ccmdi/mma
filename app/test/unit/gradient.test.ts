@@ -7,6 +7,7 @@ import {
 	fieldScale,
 	colorPartition,
 } from "@/plugins/gradient/gradientMath";
+import { locationsKey } from "@/store/selections";
 import type { PartitionBucket } from "@/bindings.gen";
 
 describe("lerp", () => {
@@ -207,7 +208,7 @@ describe("colorPartition", () => {
 		expect(ids.sort()).toEqual([1, 2, 3]);
 		const first = sels[0];
 		if (first.selector.type === "Locations") {
-			expect(first.key).toBe(first.selector.locations.join(","));
+			expect(first.key).toBe(locationsKey(first.selector.locations));
 			// carries the group key as its name, so it isn't a generic "Selection"
 			expect(first.selector.name).toBe("0–50");
 		}
