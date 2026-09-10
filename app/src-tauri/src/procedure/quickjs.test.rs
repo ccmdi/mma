@@ -952,3 +952,34 @@ fn load_from_path_matches_load_source() {
         ProcShape::MapOnly
     );
 }
+
+#[test]
+fn mma_surface_is_identical_with_and_without_a_host() {
+    let keys = |bridge: Option<Rc<Bridge>>, allow_effects: bool| -> Vec<String> {
+        let runtime = Runtime::new().expect("runtime");
+        let context = Context::full(&runtime).expect("context");
+        context.with(|ctx| {
+            install_mma(&ctx, bridge, allow_effects).expect("mma installs");
+            let mut names: Vec<String> = ctx.eval("Object.keys(mma)").expect("keys");
+            names.sort();
+            names
+        })
+    };
+    let bridge = || {
+        let (tx, _) = mpsc::channel();
+        let (_, rx) = mpsc::channel();
+        Some(Rc::new(Bridge { tx, rx }))
+    };
+
+    let bridged = keys(bridge(), true);
+    let mut expected: Vec<String> = EFFECT_CALLS
+        .iter()
+        .chain(PLAIN_CALLS)
+        .map(ToString::to_string)
+        .chain(["log".to_string(), "tz".to_string()])
+        .collect();
+    expected.sort();
+    assert_eq!(bridged, expected);
+    assert_eq!(keys(bridge(), false), bridged);
+    assert_eq!(keys(None, false), bridged);
+}

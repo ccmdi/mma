@@ -506,24 +506,32 @@ fn install_mma<'js>(
         .map_err(jerr)?,
     )
     .map_err(jerr)?;
+    obj.set(
+        "tz",
+        Function::new(ctx.clone(), |lat: f64, lng: f64| -> Option<String> {
+            use crate::util::tz_grid;
+            tz_grid().zone_at(lat, lng).map(str::to_owned)
+        })
+        .map_err(jerr)?,
+    )
+    .map_err(jerr)?;
     match bridge {
         Some(b) => install_host_calls(ctx, &obj, b, allow_effects),
-        None => [
-            "fetch",
-            "fetchMany",
-            "panos",
-            "classify",
-            "sidecar",
-            "progress",
-            "fail",
-            "aborted",
-        ]
-        .iter()
-        .try_for_each(|n| stub(ctx, &obj, n, "procedure has no host attached".into())),
+        None => EFFECT_CALLS
+            .iter()
+            .chain(PLAIN_CALLS)
+            .try_for_each(|n| stub(ctx, &obj, n, "procedure has no host attached".into())),
     }
     .map_err(jerr)?;
     ctx.globals().set("mma", obj).map_err(jerr)
 }
+
+/// The host calls only `run`-shaped procedures may use.
+const EFFECT_CALLS: &[&str] = &["fetch", "fetchMany", "panos", "sidecar"];
+/// The host calls every procedure shape gets. Together with [`EFFECT_CALLS`] this is
+/// the whole `mma` host surface; `mma_surface_is_identical_with_and_without_a_host`
+/// pins both lists to what [`install_host_calls`] actually sets.
+const PLAIN_CALLS: &[&str] = &["classify", "progress", "fail", "aborted"];
 
 fn install_host_calls<'js>(
     ctx: &Ctx<'js>,
@@ -644,7 +652,7 @@ fn install_host_calls<'js>(
             )?,
         )?;
     } else {
-        for name in ["fetch", "fetchMany", "panos", "sidecar"] {
+        for name in EFFECT_CALLS {
             stub(
                 ctx,
                 obj,
@@ -676,13 +684,6 @@ fn install_host_calls<'js>(
         "progress",
         Function::new(ctx.clone(), move |units: u32| {
             let _ = b.call(HostReq::Progress(units));
-        })?,
-    )?;
-    obj.set(
-        "tz",
-        Function::new(ctx.clone(), |lat: f64, lng: f64| -> Option<String> {
-            use crate::util::tz_grid;
-            tz_grid().zone_at(lat, lng).map(str::to_owned)
         })?,
     )?;
     let b = bridge.clone();
