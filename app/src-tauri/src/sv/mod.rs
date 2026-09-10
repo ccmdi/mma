@@ -1,6 +1,8 @@
-//! Street View wire schema: the proto-stated messages of Google's MapsJs RPCs and the
-//! generated layer that reads them.
+//! Street View metadata: Google's GetMetadata RPC on the wire, and the [`pano::Pano`]
+//! every metadata-backed feature reads.
 
+pub(crate) mod pano;
+pub(crate) mod pano_id;
 pub(crate) mod schema;
 #[cfg(test)]
 mod schema_codegen;

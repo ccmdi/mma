@@ -86,6 +86,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .semantic_types(Configuration::default().enable_lossless_floats())
         // Exported for TS but not carried by any command signature.
         .typ::<store::maps::CameraType>()
+        .typ::<sv::pano::Pano>()
+        .typ::<sv::pano::PanoQuery>()
+        .typ::<sv::pano::PanoAnswer>()
         .commands(tauri_specta::collect_commands![
             app_ready,
             store::storage::write_temp_file,
@@ -309,7 +312,8 @@ fn export_consts() -> Result<(), String> {
     );
     for (name, konst) in [
         ("LocationFlag", types::LocationFlags::ts_const()),
-        ("PanoType", types::PanoType::ts_const()),
+        ("PanoType", sv::schema::PanoType::ts_const()),
+        ("RankingStrategy", sv::schema::RankingStrategy::ts_const()),
         ("ValidationState", types::ValidationState::ts_const()),
         ("BUILTIN_FIELDS", TsConst::value(selections::BUILTIN_FIELDS)),
         ("CLEARABLE_BUILTINS", TsConst::value(store::engine::clearable_builtins())),

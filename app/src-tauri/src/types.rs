@@ -230,15 +230,6 @@ macro_rules! wire_enum {
 pub(crate) use wire_enum;
 
 wire_enum! {
-    /// Panorama source type, as Google's metadata reports it.
-    PanoType: u8 {
-        OFFICIAL = 2 => "Official",
-        UNKNOWN = 3 => "Unknown",
-        USER_UPLOADED = 10 => "User uploaded",
-    }
-}
-
-wire_enum! {
     /// Outcome of a Street View coverage check, as `validate` answers it per row.
     ValidationState: u8 {
         OK = 0,

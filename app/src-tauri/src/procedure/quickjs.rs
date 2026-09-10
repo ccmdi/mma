@@ -29,6 +29,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use rquickjs::function::{Opt, Rest};
+use serde::Serialize;
 use rquickjs::{
     Array, ArrayBuffer, CatchResultExt, CaughtError, Context, Ctx, Function, Module, Object,
     Runtime, TypedArray, Value,
@@ -46,6 +47,7 @@ use std::thread;
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
 use crate::plugins::sidecar::SidecarStream;
+use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::{AppError, AppResult};
 
 /// Ceiling on one runtime's heap. Procedures decode whole responses in memory, so this
@@ -190,6 +192,9 @@ const PRELUDE: &str = r#"
 enum HostReq {
     Fetch(HttpRequestSpec),
     FetchMany(Vec<HttpRequestSpec>),
+    /// Pano lookups, by id over GetMetadata and by search over SingleImageSearch; the
+    /// host owns the requests end to end.
+    Panos(Vec<PanoQuery>),
     Classify {
         dataset: String,
         lat: f64,
@@ -211,6 +216,7 @@ enum HostReq {
 enum HostRep {
     Fetch(AppResult<HttpResponse>),
     FetchMany(Vec<AppResult<HttpResponse>>),
+    Panos(Vec<PanoAnswer>),
     Classify(AppResult<Option<String>>),
     Sidecar(AppResult<()>),
     SidecarLine(String),
@@ -246,6 +252,7 @@ fn service(host: &mut dyn ProcHost, stream: &mut Option<SidecarStream>, req: Hos
     match req {
         HostReq::Fetch(spec) => HostRep::Fetch(host.fetch(&spec)),
         HostReq::FetchMany(specs) => HostRep::FetchMany(host.fetch_many(&specs)),
+        HostReq::Panos(queries) => HostRep::Panos(pano::resolve_panos(host, &queries)),
         HostReq::Classify { dataset, lat, lng } => {
             HostRep::Classify(host.classify(&dataset, lat, lng))
         }
@@ -424,6 +431,12 @@ fn response_to_js<'js>(ctx: &Ctx<'js>, r: &HttpResponse) -> rquickjs::Result<Val
     Ok(obj.into_value())
 }
 
+/// Anything the host answers with that is a plain data structure crosses as JSON.
+fn json_to_js<'js>(ctx: &Ctx<'js>, value: &impl Serialize) -> rquickjs::Result<Value<'js>> {
+    let text = serde_json::to_string(value).map_err(|e| throw(ctx, e))?;
+    ctx.json_parse(text)
+}
+
 /// A request the host could not answer comes back as status 0 with an empty body,
 /// which the guest reads as a failure like any other non-2xx.
 fn failed_response() -> HttpResponse {
@@ -498,6 +511,7 @@ fn install_mma<'js>(
         None => [
             "fetch",
             "fetchMany",
+            "panos",
             "classify",
             "sidecar",
             "progress",
@@ -569,6 +583,28 @@ fn install_host_calls<'js>(
         )?;
         let b = bridge.clone();
         obj.set(
+            "panos",
+            Function::new(
+                ctx.clone(),
+                value_fn(move |ctx: Ctx<'_>, queries: Value<'_>| {
+                    let bad = || throw(&ctx, "mma.panos expects an array of queries");
+                    let text = ctx
+                        .json_stringify(queries)
+                        .map_err(|_| bad())?
+                        .ok_or_else(bad)?;
+                    let queries: Vec<PanoQuery> =
+                        serde_json::from_str(&text.to_string().map_err(|_| bad())?)
+                            .map_err(|_| bad())?;
+                    match b.call(HostReq::Panos(queries)) {
+                        Ok(HostRep::Panos(answers)) => json_to_js(&ctx, &answers),
+                        Err(e) => Err(throw(&ctx, e)),
+                        Ok(_) => Err(throw(&ctx, "host answered the wrong call")),
+                    }
+                }),
+            )?,
+        )?;
+        let b = bridge.clone();
+        obj.set(
             "sidecar",
             Function::new(
                 ctx.clone(),
@@ -608,7 +644,7 @@ fn install_host_calls<'js>(
             )?,
         )?;
     } else {
-        for name in ["fetch", "fetchMany", "sidecar"] {
+        for name in ["fetch", "fetchMany", "panos", "sidecar"] {
             stub(
                 ctx,
                 obj,

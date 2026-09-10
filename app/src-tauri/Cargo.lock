@@ -3128,6 +3128,7 @@ dependencies = [
  "arrow-ipc",
  "arrow-schema",
  "arrow-select",
+ "base64 0.22.1",
  "bitflags 2.11.1",
  "bytemuck",
  "bytes",

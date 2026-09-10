@@ -10,7 +10,7 @@ use crate::store::engine::StoreState;
 use crate::store::storage::{self, push_field};
 use crate::types;
 use crate::types::AppResult;
-use crate::types::PanoType;
+use crate::sv::schema::PanoType;
 use crate::types::RawExtra;
 use crate::types::Tag;
 use crate::util::now_iso;
@@ -243,7 +243,7 @@ impl KnownField {
 
 macro_rules! camera_types {
     ($($variant:ident => $value:literal, $label:literal;)*) => {
-        #[derive(Clone, Copy, serde::Serialize, serde::Deserialize, specta::Type)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
         pub enum CameraType {
             $(#[serde(rename = $value)] $variant),*
         }
