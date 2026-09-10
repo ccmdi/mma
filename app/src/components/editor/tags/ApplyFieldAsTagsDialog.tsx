@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
-import type { KeySpec, DatePart } from "@/bindings.gen";
+import type { KeySpec, DatePart, Selector } from "@/bindings.gen";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
-import { createTags, partition, resolveIds } from "@/store/useMapStore";
+import { countIn, createTags, partition } from "@/store/useMapStore";
+import { buildSelection } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { useSetting } from "@/store/settings";
@@ -76,29 +77,39 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 
 		// Rust drops rows whose key does not resolve, so whatever the groups miss is exactly
 		// the set with no value for this field.
-		let missing: number[] = [];
-		if (tagMissing) {
-			const grouped = new Set(groups.flatMap((g) => g.ids));
-			missing = (await resolveIds(picker.selector)).filter((id) => !grouped.has(id));
-		}
-		if (groups.length === 0 && missing.length === 0) return;
+		const missing: Selector | null = tagMissing
+			? {
+					type: "Intersection",
+					selections: [
+						buildSelection(picker.selector),
+						buildSelection({
+							type: "Invert",
+							selections: [
+								buildSelection({
+									type: "Locations",
+									locations: groups.flatMap((g) => g.ids),
+									name: null,
+								}),
+							],
+						}),
+					],
+				}
+			: null;
+		const missingCount = missing ? await countIn(missing) : 0;
+		if (groups.length === 0 && missingCount === 0) return;
 
-		// Two groups can share a label, so ids are merged by name first.
 		const labels = await resolveFieldLabels(
 			field,
 			groups.map((g) => g.key),
 		);
-		const idsByName = new Map<string, number[]>();
-		groups.forEach((g, i) => {
-			const name = tagName(labels[i]);
-			const ids = idsByName.get(name);
-			if (ids) ids.push(...g.ids);
-			else idsByName.set(name, [...g.ids]);
-		});
-		if (missing.length > 0) idsByName.set(tagName(missingName), missing);
-
-		for (const [name, ids] of idsByName)
-			await createTags([name], { type: "Locations", locations: ids, name: null });
+		// Groups sharing a label land on one tag: createTags reuses an existing name.
+		for (const [i, g] of groups.entries())
+			await createTags([tagName(labels[i])], {
+				type: "Locations",
+				locations: g.ids,
+				name: null,
+			});
+		if (missing && missingCount > 0) await createTags([tagName(missingName)], missing);
 		onOpenChange(false);
 	};
 
