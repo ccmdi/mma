@@ -317,6 +317,7 @@ fn export_consts() -> Result<(), String> {
         ("RankingStrategy", sv::schema::RankingStrategy::ts_const()),
         ("ValidationState", types::ValidationState::ts_const()),
         ("BUILTIN_FIELDS", TsConst::value(selections::BUILTIN_FIELDS)),
+        ("OFFICIAL_ID_PATTERN", TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN)),
         ("CLEARABLE_BUILTINS", TsConst::value(store::engine::clearable_builtins())),
         (
             "DEFAULT_DUPLICATE_SCORE",

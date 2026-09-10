@@ -1,6 +1,7 @@
 import type { Pano } from "@/bindings.gen";
+import { OFFICIAL_ID_PATTERN } from "@/bindings.consts";
 
-const OFFICIAL_PANO_RE = /^[-_A-Za-z0-9]{21}[AQgw]$/;
+const OFFICIAL_PANO_RE = new RegExp(OFFICIAL_ID_PATTERN);
 
 export function isOfficialPano(panoId: string): boolean {
 	if (panoId.startsWith("F:")) return false;

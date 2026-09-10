@@ -24,6 +24,8 @@ export type ValidationState = (typeof ValidationState)[keyof typeof ValidationSt
 
 export const BUILTIN_FIELDS = [{"key":"lat","label":"Latitude","type":"number","kind":"identity","comparison":null},{"key":"lng","label":"Longitude","type":"number","kind":"identity","comparison":null},{"key":"heading","label":"Heading","type":"number","kind":"writable","comparison":{"type":"circular","period":360.0}},{"key":"pitch","label":"Pitch","type":"number","kind":"writable","comparison":null},{"key":"zoom","label":"Zoom","type":"number","kind":"writable","comparison":null},{"key":"id","label":"ID","type":"number","kind":"identity","comparison":null},{"key":"createdAt","label":"Created","type":"date","kind":null,"comparison":null},{"key":"modifiedAt","label":"Modified","type":"date","kind":null,"comparison":null},{"key":"panoId","label":"Pano ID","type":"string","kind":null,"comparison":null},{"key":"tagCount","label":"Tag count","type":"number","kind":"virtual","comparison":null},{"key":"loadAsPanoId","label":"Load as pano ID","type":"number","kind":"term","comparison":null}] as const;
 
+export const OFFICIAL_ID_PATTERN = "^[-_A-Za-z0-9]{21}[AQgw]$" as const;
+
 export const CLEARABLE_BUILTINS = ["panoId"] as const;
 
 export const DEFAULT_DUPLICATE_SCORE = "tagCount + has(panoId) + loadAsPanoId + (heading != 0)" as const;

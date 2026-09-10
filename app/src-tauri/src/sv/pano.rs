@@ -87,6 +87,9 @@ pub struct Pano {
 /// 200 is GetMetadata's hard per-request cap.
 pub const BATCH_SIZE: usize = 200;
 
+/// The response components both RPCs are asked for when the caller names none.
+const DEFAULT_COMPONENTS: [u32; 6] = [1, 2, 3, 4, 8, 6];
+
 pub const GET_METADATA_URL: &str =
     "https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/GetMetadata";
 
@@ -114,8 +117,8 @@ pub fn encode_request(pano_ids: &[String]) -> Vec<u8> {
         });
     }
     put_msg(&mut out, GetMetadataRequest::SPEC, |b| {
-        for component in [1, 2, 3, 4, 8, 6] {
-            put_varint_field(b, schema::MetadataResponseSpecification::COMPONENT, component);
+        for component in DEFAULT_COMPONENTS {
+            put_varint_field(b, schema::MetadataResponseSpecification::COMPONENT, u64::from(component));
         }
     });
     out
@@ -453,7 +456,7 @@ pub fn encode_search(q: &SearchQuery) -> String {
         })
         .collect();
     let preference = q.preference.unwrap_or(RankingStrategy::CLOSEST);
-    let components = q.components.clone().unwrap_or_else(|| vec![1, 2, 3, 4, 8, 6]);
+    let components = q.components.clone().unwrap_or_else(|| DEFAULT_COMPONENTS.to_vec());
 
     let mut options = vec![
         (

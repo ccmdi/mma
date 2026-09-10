@@ -1,24 +1,23 @@
 //! Pano id <-> protobuf `ImageKey`. Ids outside the official and `F:` collections are a
 //! base64url-encoded `ImageKey` in their own right.
 
+use std::sync::OnceLock;
+
 use base64::engine::general_purpose::{STANDARD_NO_PAD, URL_SAFE};
 use base64::Engine;
+use regex::Regex;
 
 use crate::sv::schema::{ImageKey, PanoType};
 use crate::sv::wire::{Node, put_str, put_varint_field};
 
-const OFFICIAL_LEN: usize = 22;
+/// The shape of an official pano id: a 21-character base64url body closed by one of the
+/// four characters that can end a 132-bit key.
+pub const OFFICIAL_ID_PATTERN: &str = "^[-_A-Za-z0-9]{21}[AQgw]$";
 
-/// The 21-character body plus one of the four ids that can close a 132-bit key.
 pub fn is_official(pano_id: &str) -> bool {
-    if pano_id.starts_with("F:") || pano_id.len() != OFFICIAL_LEN {
-        return false;
-    }
-    let bytes = pano_id.as_bytes();
-    bytes[..21]
-        .iter()
-        .all(|b| b.is_ascii_alphanumeric() || *b == b'-' || *b == b'_')
-        && matches!(bytes[21], b'A' | b'Q' | b'g' | b'w')
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(OFFICIAL_ID_PATTERN).expect("official id pattern"))
+        .is_match(pano_id)
 }
 
 pub fn to_image_key(pano_id: &str) -> (i32, String) {
