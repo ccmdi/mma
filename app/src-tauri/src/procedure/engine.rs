@@ -18,7 +18,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::OnceLock;
 use std::sync::PoisonError;
 use std::sync::{mpsc, Arc, Mutex};
@@ -263,15 +263,26 @@ fn resolve_entry(spec: &str) -> AppResult<PathBuf> {
     Ok(dir.join(rel))
 }
 
+/// Connections the client spreads requests over. Google caps concurrent streams per
+/// HTTP/2 connection (~100), so one connection silently throttles a wide provider's
+/// `inflight`; each client holds its own connection and requests deal round-robin.
+const HTTP_CONNECTIONS: usize = 8;
+
 fn http_client() -> &'static reqwest::Client {
-    static C: OnceLock<reqwest::Client> = OnceLock::new();
-    C.get_or_init(|| {
-        reqwest::Client::builder()
-            .use_rustls_tls()
-            .timeout(Duration::from_secs(30))
-            .build()
-            .expect("failed to build the procedure http client")
-    })
+    static POOL: OnceLock<Vec<reqwest::Client>> = OnceLock::new();
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let pool = POOL.get_or_init(|| {
+        (0..HTTP_CONNECTIONS)
+            .map(|_| {
+                reqwest::Client::builder()
+                    .use_rustls_tls()
+                    .timeout(Duration::from_secs(30))
+                    .build()
+                    .expect("failed to build the procedure http client")
+            })
+            .collect()
+    });
+    &pool[NEXT.fetch_add(1, Ordering::Relaxed) % pool.len()]
 }
 
 /// Test-only: swap the origin of an outgoing URL for the local e2e Street View stub,
