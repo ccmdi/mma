@@ -138,6 +138,9 @@ describe("passesDescriptionSearch", () => {
 	});
 });
 
+/** Official ids end in one of A/Q/g/w, which is what `isOfficialPano` tests. */
+const OFFICIAL_ID = `${"a".repeat(21)}A`;
+
 function pano(over: {
 	pano?: string;
 	links?: number;
@@ -149,7 +152,7 @@ function pano(over: {
 	const imageDate = over.imageDate ?? "2020-06";
 	const [y, m] = imageDate.split("-");
 	return {
-		pano: over.pano ?? "a".repeat(22),
+		pano: over.pano ?? OFFICIAL_ID,
 		description: over.description ?? "Main Street",
 		shortDescription: "",
 		links,
@@ -204,6 +207,13 @@ describe("isPanoGood new filters", () => {
 		expect(isPanoGood(pano({ links: 2 }), s)).toBe(true);
 		expect(isPanoGood(pano({ links: 1 }), s)).toBe(false);
 		expect(isPanoGood(pano({ links: 4 }), s)).toBe(false);
+	});
+
+	it("rejectUnofficial tests the official id pattern, not the id length", () => {
+		const s = settings({ rejectUnofficial: true, rejectDateless: false });
+		expect(isPanoGood(pano({ pano: OFFICIAL_ID }), s)).toBe(true);
+		expect(isPanoGood(pano({ pano: `${"a".repeat(21)}b` }), s)).toBe(false);
+		expect(isPanoGood(pano({ pano: `F:${"a".repeat(20)}` }), s)).toBe(false);
 	});
 
 	it("applies description search as a gate", () => {

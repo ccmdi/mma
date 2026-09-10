@@ -15,6 +15,7 @@ import { passesInitialFilters, passesDateFilters, isPanoGood, computeHeading } f
 import { svMetadata } from "@/lib/sv/query";
 import { PanoType } from "@/bindings.consts";
 import type { Pano } from "@/bindings.gen";
+import { isOfficialPano } from "@/lib/sv/panoId";
 import { panosAt } from "@/lib/sv/query";
 import { distMeters, lerpLng, unionBounds } from "@/lib/geo/geo";
 import { searchCoverage } from "../searchCoverage";
@@ -534,7 +535,7 @@ export class GenerationEngine {
 				const fromDate = Date.parse(s.fromDate);
 				const toDate = Date.parse(s.toDate);
 				for (const entry of pano.time) {
-					if (s.rejectUnofficial && entry.pano.length !== 22) continue;
+					if (s.rejectUnofficial && !isOfficialPano(entry.pano)) continue;
 					if (!entry.date) continue;
 					const ym = entry.date.slice(0, 7);
 					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) seeds.push(entry.pano);
@@ -586,7 +587,7 @@ export class GenerationEngine {
 				const fromDate = Date.parse(s.fromDate);
 				const toDate = Date.parse(s.toDate);
 				for (const entry of pano.time) {
-					if (s.rejectUnofficial && entry.pano.length !== 22) continue;
+					if (s.rejectUnofficial && !isOfficialPano(entry.pano)) continue;
 					if (!entry.date) continue;
 					const ym = entry.date.slice(0, 7);
 					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) next.push(entry.pano);
