@@ -14,6 +14,9 @@ import {
 import { loadSavedSelections, savedParts, useSavedSelectionIndex } from "@/store/savedSelections";
 import {
 	applySelectionUpdate,
+	countBy,
+	countIn,
+	fetchColumns,
 	fieldValues,
 	getActiveSelections,
 	getMapState,
@@ -51,6 +54,57 @@ const TAGS_FIELD_KEY = "__tags__";
 import type { FieldEntry } from "@/components/editor/map/FilterBuilder";
 import { msg, t } from "@/lib/i18n";
 
+type RowDef = { label: string; color: RGB; selector: Selector };
+
+async function pivotRowDefs(rowSource: RowSource): Promise<RowDef[]> {
+	if (rowSource === "all") {
+		return [
+			{ label: t("All locations"), color: [140, 140, 140], selector: { type: "Everything" } },
+		];
+	}
+	if (rowSource === "active") {
+		return getActiveSelections().map((s: Selection) => ({
+			label: selectionDisplayName(s),
+			color: s.color,
+			selector: s.selector,
+		}));
+	}
+	const [entry] = await loadSavedSelections([rowSource]);
+	const parts = entry ? savedParts(entry) : [];
+	return parts.map((p) => ({ label: p.label, color: p.color, selector: p.selector }));
+}
+
+/** Per-row tag histogram: one tag column read per row, tallied over that row alone. */
+async function tagCounts(row: RowDef): Promise<{ counts: Map<string, number>; withValue: number }> {
+	const [column] = await fetchColumns(row.selector, ["tags"]);
+	const counts = new Map<string, number>();
+	let withValue = 0;
+	for (const cell of column) {
+		const ids = cell as number[] | null;
+		if (!ids || ids.length === 0) continue;
+		withValue++;
+		for (const tid of ids) {
+			const key = String(tid);
+			counts.set(key, (counts.get(key) ?? 0) + 1);
+		}
+	}
+	return { counts, withValue };
+}
+
+/** Per-row counts over a global set of numeric bins, which only a whole-map partition
+ *  can pin down (bin edges follow the data range). */
+function binCounts(ids: number[], binOf: Map<number, string>) {
+	const counts = new Map<string, number>();
+	let withValue = 0;
+	for (const id of ids) {
+		const key = binOf.get(id);
+		if (key == null) continue;
+		withValue++;
+		counts.set(key, (counts.get(key) ?? 0) + 1);
+	}
+	return { counts, withValue };
+}
+
 async function computePivot(
 	rowSource: RowSource,
 	fieldKey: string,
@@ -60,67 +114,43 @@ async function computePivot(
 	const map = getMapState().map;
 	if (!map) return null;
 
-	// Determine rows + resolve ID sets
-	let rowDefs: { label: string; color: RGB }[];
-	let idSets: Set<number>[];
-
-	if (rowSource === "all") {
-		const allIds = new Set(await resolveIds({ type: "Everything" }));
-		rowDefs = [{ label: t("All locations"), color: [140, 140, 140] }];
-		idSets = [allIds];
-	} else if (rowSource === "active") {
-		const sels = getActiveSelections();
-		if (sels.length === 0) return null;
-		rowDefs = sels.map((s: Selection) => ({
-			label: selectionDisplayName(s),
-			color: s.color,
-		}));
-		idSets = await Promise.all(
-			sels.map((s: Selection) => resolveIds(s.selector).then((ids) => new Set(ids))),
-		);
-	} else {
-		const [entry] = await loadSavedSelections([rowSource]);
-		const parts = entry ? savedParts(entry) : [];
-		if (parts.length === 0) return null;
-		rowDefs = parts.map((p) => ({ label: p.label, color: p.color }));
-		idSets = await Promise.all(
-			parts.map((p) => resolveIds(p.selector).then((ids) => new Set(ids))),
-		);
-	}
+	const rowDefs = await pivotRowDefs(rowSource);
+	if (rowDefs.length === 0) return null;
 
 	const isTags = fieldKey === TAGS_FIELD_KEY;
 	const tagMap = getMapState().tags;
 	const isNumeric = !isTags && (fieldDef?.type === "number" || fieldDef?.type === "date");
 
-	// Field index (locId -> group key(s)) comes from the engine: tags from per-tag
-	// selectors, everything else from one whole-map groupBy. Numeric fields bucket into
-	// a histogram; resolveBucketCount arbitrates between the user's choice and the
-	// field's cardinality.
-	const fieldIndex = new Map<number, string[]>();
+	// Numeric fields bucket into a histogram; resolveBucketCount arbitrates between the
+	// user's choice and the field's cardinality.
 	let numericDistinct: number | undefined;
+	if (isNumeric) numericDistinct = (await fieldValues({ type: "Everything" }, fieldKey)).length;
+	const effectiveBuckets =
+		numericDistinct != null ? resolveBucketCount(numericDistinct, bucketCount) : null;
+	const key: KeySpec = effectiveBuckets
+		? { kind: "numericBin", binning: { by: "count", n: effectiveBuckets } }
+		: { kind: "value" };
+
 	let buckets: PartitionBucket[] | null = null;
-	if (isTags) {
-		await Promise.all(
-			Object.keys(tagMap).map(async (tid) => {
-				const ids = await resolveIds({ type: "Tag", tagId: Number(tid) });
-				for (const id of ids) {
-					const vals = fieldIndex.get(id);
-					if (vals) vals.push(tid);
-					else fieldIndex.set(id, [tid]);
-				}
-			}),
-		);
-	} else {
-		if (isNumeric) numericDistinct = (await fieldValues({ type: "Everything" }, fieldKey)).length;
-		const effectiveBuckets =
-			numericDistinct != null ? resolveBucketCount(numericDistinct, bucketCount) : null;
-		const key: KeySpec = effectiveBuckets
-			? { kind: "numericBin", binning: { by: "count", n: effectiveBuckets } }
-			: { kind: "value" };
-		const groups = await partition(fieldKey, key, { type: "Everything" });
-		for (const g of groups) for (const id of g.ids) fieldIndex.set(id, [g.key]);
-		if (effectiveBuckets) buckets = groups;
+	let binOf: Map<number, string> | null = null;
+	if (effectiveBuckets) {
+		buckets = await partition(fieldKey, key, { type: "Everything" });
+		binOf = new Map();
+		for (const g of buckets) for (const id of g.ids) binOf.set(id, g.key);
 	}
+
+	const perRow = await Promise.all(
+		rowDefs.map(async (row) => {
+			const total = await countIn(row.selector);
+			if (isTags) return { ...(await tagCounts(row)), total };
+			if (binOf) return { ...binCounts(await resolveIds(row.selector), binOf), total };
+			const pairs = await countBy(row.selector, fieldKey, key);
+			const counts = new Map(pairs);
+			let withValue = 0;
+			for (const [, n] of pairs) withValue += n;
+			return { counts, withValue, total };
+		}),
+	);
 
 	// Discover columns
 	let columns: string[];
@@ -130,36 +160,18 @@ async function computePivot(
 		columns = [...fieldDef.values];
 	} else {
 		const seen = new Set<string>();
-		for (const idSet of idSets) {
-			for (const id of idSet) {
-				const vals = fieldIndex.get(id);
-				if (vals) for (const v of vals) seen.add(v);
-			}
-		}
+		for (const r of perRow) for (const col of r.counts.keys()) seen.add(col);
 		columns = [...seen].sort(compareNatural);
 	}
 
 	let hasNa = false;
 
 	const pivotRows: PivotRow[] = rowDefs.map((row, i) => {
-		const counts = new Map<string, number>();
-		let total = 0;
-		let naCount = 0;
-		for (const id of idSets[i]) {
-			const vals = fieldIndex.get(id);
-			if (vals) {
-				for (const v of vals) {
-					counts.set(v, (counts.get(v) ?? 0) + 1);
-				}
-				total++;
-			} else {
-				naCount++;
-			}
-		}
+		const { counts, withValue, total } = perRow[i];
+		const naCount = total - withValue;
 		if (naCount > 0) {
 			counts.set(NA_KEY, naCount);
 			hasNa = true;
-			total += naCount;
 		}
 		return { label: row.label, color: row.color, counts, total };
 	});
