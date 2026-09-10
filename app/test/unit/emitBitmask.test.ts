@@ -1,78 +1,71 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { emitBitmask } from "@/store/useMapStore";
 import { subscribe } from "@/lib/events";
+import type { RGB } from "@/lib/util/color";
 import type { SelCellEntry } from "@/lib/render/CellManager";
 
-const le32 = (n: number) => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255];
-
-/** Capture the cellEntries emitBitmask emits for a crafted wire message. */
-function decode(bytes: number[]): SelCellEntry[] {
-	let captured: SelCellEntry[] = [];
-	const unsub = subscribe("render:selection", ({ cellEntries }) => {
-		captured = cellEntries;
+/** Capture what emitBitmask emits for a wire message. */
+function decode(bytes: number[]): { selColors: RGB[]; cellEntries: SelCellEntry[] } {
+	let captured: { selColors: RGB[]; cellEntries: SelCellEntry[] } = {
+		selColors: [],
+		cellEntries: [],
+	};
+	const unsub = subscribe("render:selection", ({ selColors, cellEntries }) => {
+		captured = { selColors, cellEntries };
 	});
 	emitBitmask(bytes);
 	unsub();
 	return captured;
 }
 
+// `selection-bitmask.bin` is written by the Rust serializer (store/engine.test.rs,
+// `emit_selection_bitmask_fixture`), which also describes the scene. Decoding the real
+// producer's bytes keeps the layout stated once.
+// Regenerate with: cargo test emit_selection_bitmask_fixture -- --ignored
+// If either side drifts, one of the two suites goes red.
+const fixturePath = fileURLToPath(new URL("./fixtures/selection-bitmask.bin", import.meta.url));
+
 describe("emitBitmask wire decode", () => {
-	it("decodes the index-list (fmt=1) and bitmask (fmt=0) branches", () => {
-		// Wire format: [u32 numSels][numSels*RGB][u8 numCells]
-		//   per cell: [u8 char][u32 locCount] then per sel [u8 fmt] + (idx: u32 count + u32[]) | (mask: bytes)
-		const bytes = [
-			...le32(1), // numSels
-			255,
-			0,
-			0, // selColors[0] = red
-			2, // numCells
-			"a".charCodeAt(0),
-			...le32(3), // cell 'a', locCount 3
-			1,
-			...le32(2),
-			...le32(0),
-			...le32(2), // fmt=1 index-list: count 2, indices [0,2]
-			"b".charCodeAt(0),
-			...le32(3), // cell 'b', locCount 3
-			0,
-			0b101, // fmt=0 bitmask: ceil(3/8)=1 byte, bits 0 and 2 set
-		];
+	// Skips until the generator has been run, so a checkout without the artifact stays green.
+	it.skipIf(!existsSync(fixturePath))("decodes the bitmask binary Rust emits", () => {
+		const { selColors, cellEntries } = decode(Array.from(readFileSync(fixturePath)));
 
-		const entries = decode(bytes);
-		expect(entries).toHaveLength(2);
+		// 300 selections: the count is a u32, so it no longer wraps the way a u8 header did
+		// (300 % 256 = 44) and desyncs every following offset.
+		expect(selColors).toHaveLength(300);
+		expect(selColors[0]).toEqual([255, 0, 0]);
+		expect(selColors[1]).toEqual([0, 0, 255]);
 
-		const a = entries.find((e) => e.cellChar === "a")!;
-		expect(a.locCount).toBe(3);
-		const sa = a.sels[0];
-		expect(sa.kind).toBe("idx");
-		if (sa.kind === "idx") expect(Array.from(sa.indices)).toEqual([0, 2]);
+		expect(cellEntries.map((e) => e.cellChar)).toEqual(["r", "u"]);
 
-		const b = entries.find((e) => e.cellChar === "b")!;
-		const sb = b.sels[0];
-		expect(sb.kind).toBe("mask");
-		if (sb.kind === "mask") expect(Array.from(sb.mask)).toEqual([0b101]);
+		// The wide cell: an index list is smaller than 200 bits of mask.
+		const u = cellEntries.find((e) => e.cellChar === "u")!;
+		expect(u.locCount).toBe(200);
+		expect(u.sels).toHaveLength(300);
+		const [uA, uB] = u.sels;
+		expect(uA.kind).toBe("idx");
+		if (uA.kind === "idx") expect(Array.from(uA.indices)).toEqual([0, 4, 8]);
+		expect(uB.kind).toBe("idx");
+		if (uB.kind === "idx") expect(Array.from(uB.indices)).toEqual([]);
+		const uLast = u.sels[299];
+		expect(uLast.kind).toBe("idx");
+		if (uLast.kind === "idx") expect(Array.from(uLast.indices)).toEqual([0]);
+
+		// The narrow cell: 3 locations fit in one mask byte, which beats any index list.
+		const r = cellEntries.find((e) => e.cellChar === "r")!;
+		expect(r.locCount).toBe(3);
+		const [rA, rB] = r.sels;
+		expect(rA.kind).toBe("mask");
+		if (rA.kind === "mask") expect(Array.from(rA.mask)).toEqual([0]);
+		expect(rB.kind).toBe("mask");
+		if (rB.kind === "mask") expect(Array.from(rB.mask)).toEqual([0b101]);
 	});
 
-	it("survives more than 255 selections (u32 header, regression)", () => {
-		// 300 selections used to wrap the old u8 numSels header (300 % 256 = 44) and
-		// desync every following offset -- shift-selecting thousands of tags threw
-		// "Invalid typed array length".
-		const numSels = 300;
-		const bytes = [
-			...le32(numSels),
-			...Array.from({ length: numSels }, (_, i) => [i % 256, 0, 0]).flat(), // colors
-			1, // numCells
-			"a".charCodeAt(0),
-			...le32(2), // cell 'a', locCount 2
-			// per selection: fmt=1 index-list selecting index 0
-			...Array.from({ length: numSels }, () => [1, ...le32(1), ...le32(0)]).flat(),
-		];
-
-		const entries = decode(bytes);
-		expect(entries).toHaveLength(1);
-		expect(entries[0].sels).toHaveLength(numSels);
-		const last = entries[0].sels[numSels - 1];
-		expect(last.kind).toBe("idx");
-		if (last.kind === "idx") expect(Array.from(last.indices)).toEqual([0]);
+	it("emits nothing for a buffer holding no cells", () => {
+		const { selColors, cellEntries } = decode([0, 0, 0, 0, 0]);
+		expect(selColors).toEqual([]);
+		expect(cellEntries).toEqual([]);
 	});
 });

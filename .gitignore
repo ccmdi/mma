@@ -71,6 +71,7 @@ plugins/copyright/sidecar/verify_parity.py
 
 # render-binary layout fixture, emitted by the Rust writer (emit_render_fixture)
 !app/test/unit/fixtures/render-buffer.bin
+!app/test/unit/fixtures/selection-bitmask.bin
 
 # C# oracle golden vectors + location slices for the vali parity gates
 !app/src-tauri/crates/vali/vali-geo/tests/fixtures/geo/*.bin

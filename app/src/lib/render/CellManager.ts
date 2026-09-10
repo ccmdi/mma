@@ -17,8 +17,8 @@ export interface SelCellEntry {
 }
 
 /**
- * Decode the inline selection-bitmask bytes written by Rust's `serialize_cell_bitmask`
- * (location_store.rs). Sole reader of that wire format - all format knowledge lives here
+ * Decode the inline selection-bitmask bytes written by Rust's `assemble_selection_bitmask`
+ * (engine/render.rs). Sole reader of that wire format - all format knowledge lives here
  * and in `applySelectionBitmasks`, which consumes the decoded entries.
  */
 export function decodeSelectionBitmask(bytes: number[]): {

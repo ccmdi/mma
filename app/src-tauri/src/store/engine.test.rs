@@ -20,6 +20,7 @@ use std::env;
 use std::fs;
 use std::panic;
 use std::path::Path;
+use std::path::PathBuf;
 use std::slice;
 use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
@@ -2044,6 +2045,51 @@ fn push_resolved(store: &mut Store, key: &str, color: [u8; 3], members: &[u32]) 
         set,
         ghosted: false,
     });
+}
+
+/// The scene behind `app/test/unit/fixtures/selection-bitmask.bin`: 200 locations in cell
+/// `u` and 3 in cell `r`, with 300 selections -- "a" [255,0,0] over ids 1, 5 and 9, "b"
+/// [0,0,255] over ids 201 and 203, then 298 fillers over id 1 so the count clears the u8
+/// the header used to be. The wide cell picks the index-list format, the narrow one the
+/// bitmask, so one buffer carries both branches.
+fn selection_bitmask_fixture() -> Vec<u8> {
+    let mut locs: Vec<Location> = (1..=200)
+        .map(|i| loc(i, 48.8 + f64::from(i) * 0.0005, 2.35))
+        .collect();
+    locs.extend((201..=203).map(|i| loc(i, -33.8, 151.2 + f64::from(i) * 0.001)));
+    let mut store = setup_store_with(&locs);
+    store.bake_overlay();
+    push_resolved(&mut store, "a", [255, 0, 0], &[1, 5, 9]);
+    push_resolved(&mut store, "b", [0, 0, 255], &[201, 203]);
+    for i in 0..298u32 {
+        push_resolved(&mut store, &format!("f{i}"), [(i % 256) as u8, 0, 0], &[1]);
+    }
+    let live: Vec<&ResolvedSelection> = store.selections.live().collect();
+    build_selection_buf(&store.render, &live).0
+}
+
+fn selection_bitmask_fixture_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../test/unit/fixtures/selection-bitmask.bin")
+}
+
+/// Generator, not an assertion. `cargo test emit_selection_bitmask_fixture -- --ignored`
+/// rewrites `app/test/unit/fixtures/selection-bitmask.bin`, which `emitBitmask.test.ts`
+/// decodes.
+#[test]
+#[ignore]
+fn emit_selection_bitmask_fixture() {
+    let path = selection_bitmask_fixture_path();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, selection_bitmask_fixture()).unwrap();
+}
+
+/// The committed fixture is what the serializer writes today.
+/// If either side drifts, one of the two suites goes red.
+#[test]
+fn the_selection_bitmask_fixture_matches_the_serializer() {
+    let on_disk = fs::read(selection_bitmask_fixture_path())
+        .expect("fixture; regenerate with `cargo test emit_selection_bitmask_fixture -- --ignored`");
+    assert_eq!(on_disk, selection_bitmask_fixture());
 }
 
 /// Generator, not an assertion. `cargo test emit_render_fixture -- --ignored` rewrites
