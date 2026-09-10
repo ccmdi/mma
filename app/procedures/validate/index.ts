@@ -9,7 +9,8 @@
 import type { Location, Pano, PanoAnswer, Update } from "@/bindings.gen";
 import { isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { LocationFlag, ValidationState } from "@/bindings.consts";
+import { isPinned } from "@/types";
+import { ValidationState } from "@/bindings.consts";
 
 interface RunConfig {
 	config?: { radius?: number } | null;
@@ -49,7 +50,7 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 
 	const items: RowState[] = rows.map((row, i) => ({
 		row,
-		pinned: (row.flags & LocationFlag.LoadAsPanoId) !== 0,
+		pinned: isPinned(row),
 		data: metaOf(storedMeta[i]),
 		coordData: null,
 		entries: [],

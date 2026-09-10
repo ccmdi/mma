@@ -360,7 +360,8 @@ impl<'a, 'v> RowRef<'a, 'v> {
             RowInner::Loc(l) => l.flags,
         }
     }
-    /// Pinned: the row always opens one exact pano.
+    /// Pinned: the row always opens one exact pano. Mirrors `isPinned` in
+    /// `types/index.ts`.
     pub fn is_pinned(&self) -> bool {
         if !self.flags().contains(LocationFlags::LOAD_AS_PANO_ID) {
             return false;

@@ -3238,6 +3238,34 @@ fn pano_id_filter_intersected_with_pano_ids_is_the_pinned_count() {
     assert_eq!(count_selector(&view, narrowed), 0);
 }
 
+/// The flag alone is not enough: an empty or absent pano id is not pinned, in either
+/// row variant.
+#[test]
+fn is_pinned_requires_the_flag_and_a_non_empty_pano_id() {
+    let locs = [
+        pinned(1, Some("a"), true),
+        pinned(2, Some("b"), false),
+        pinned(3, None, true),
+        pinned(4, Some(""), true),
+    ];
+    let fx = Fx::base(&locs);
+    let view = fx.view();
+    let base = |i| {
+        RowRef {
+            inner: RowInner::Base(&view, i),
+        }
+        .is_pinned()
+    };
+    assert!(base(0));
+    assert!(!base(1));
+    assert!(!base(2));
+    assert!(!base(3));
+
+    for (loc, want) in locs.iter().zip([true, false, false, false]) {
+        assert_eq!(RowRef::from_loc(loc).is_pinned(), want);
+    }
+}
+
 #[test]
 fn pano_id_resolves_from_both_row_variants_and_is_none_when_absent() {
     let fx = pano_fx();
