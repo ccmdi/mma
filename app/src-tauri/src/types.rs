@@ -201,6 +201,9 @@ macro_rules! wire_enum {
                 #[allow(dead_code, reason = "the wire value is mirrored to TypeScript, not read here")]
                 pub const $konst: $repr = $val;
             )*
+            /// Every value, in declaration order, which is also the wire order.
+            #[allow(dead_code, reason = "not every wire enum has an all-values caller")]
+            pub const ALL: &'static [$repr] = &[$($val),*];
             /// The rustdoc above, one entry per line, for the TypeScript mirror.
             pub const DOC: &'static [&'static str] = &[$($doc),*];
             pub fn wire_names() -> Vec<(String, $repr)> {
@@ -224,6 +227,7 @@ macro_rules! wire_enum {
         wire_enum!(@base $(#[doc = $doc])* $name : $repr { $($konst = $val),* });
     };
 }
+pub(crate) use wire_enum;
 
 wire_enum! {
     /// Panorama source type, as Google's metadata reports it.

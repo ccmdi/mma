@@ -20,6 +20,7 @@ mod selections;
 #[cfg(all(debug_assertions, windows))]
 mod stall_reporter;
 mod store;
+mod sv;
 mod sync;
 #[cfg(test)]
 mod test_util;
