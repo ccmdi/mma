@@ -10,17 +10,20 @@ import {
 import { HslColorPicker } from "react-colorful";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
 import {
+	countIn,
+	currentSelection,
 	deleteTags,
+	getActiveSelections,
 	getMapState,
 	getSelectedTagIds,
 	getVisibleTags,
 	removeTagFromAllLocations,
 	removeTagFromLocations,
 	reorderTags,
-	resolveIds,
 	updateTags,
 	useMapState,
 } from "@/store/useMapStore";
+import { buildSelection } from "@/store/selections";
 import type { TagSortMode } from "@/types";
 import type { Tag, TagPatch, Update, VirtualTag } from "@/bindings.gen";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
@@ -394,16 +397,14 @@ export function TagContextMenuContent({
 	const [selCount, setSelCount] = useState<number | null>(null);
 
 	useEffect(() => {
-		const selIds = getMapState().selectedLocationIds;
-		if (selIds.size === 0) {
+		if (getActiveSelections().length === 0) {
 			setSelCount(0);
 			return;
 		}
-		void resolveIds({ type: "Tag", tagId }).then((tagLocIds) => {
-			let count = 0;
-			for (const id of tagLocIds) if (selIds.has(id)) count++;
-			setSelCount(count);
-		});
+		void countIn({
+			type: "Intersection",
+			selections: [buildSelection({ type: "Tag", tagId }), buildSelection(currentSelection())],
+		}).then(setSelCount);
 	}, [tagId]);
 
 	const inSel = selCount ?? 0;
