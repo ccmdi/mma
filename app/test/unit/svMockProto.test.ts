@@ -1,63 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { PbfReader, PbfWriter } from "pbf";
-import { readGetMetadataResponse, writeGetMetadataRequest } from "@/lib/proto/getmetadata.gen";
-import type { ImageMetadata } from "@/lib/proto/getmetadata.gen";
+import { readFileSync } from "node:fs";
 import { svMockCore } from "../e2e/svMockCore";
 import { startSvStub } from "../e2e/svStubServer";
 
-/* The e2e SV mock hand-encodes binary protobuf (it runs self-contained in the webview).
- * This pins its wire output to the real schema reader so the two can't drift apart, and
- * pins the Node stub -- which serves the Rust enrich engine -- to the same builders. */
+/* The e2e SV mock hand-encodes binary protobuf (it runs self-contained in the webview) and
+ * nothing in JS reads protobuf back. So the mock is pinned byte-for-byte to the fixtures in
+ * `app/src-tauri/src/sv/testdata/`, which `pano.test.rs` decodes with the reader the app
+ * actually runs; the Node stub -- which serves the Rust engine -- is pinned to the same bytes. */
 
 const RU_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 const GM_URL =
 	"https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/GetMetadata?alt=proto";
 
-function request(panoIds: string[]): Uint8Array {
-	const writer = new PbfWriter();
-	writeGetMetadataRequest(
-		{
-			context: { productId: "apiv3", language: "en" },
-			locale: { language: "en", regionCode: "US" },
-			key: panoIds.map((id) => ({ key: { frontend: 2, id } })),
-			spec: { component: [1, 2, 3, 4, 8, 6] },
-		},
-		writer,
-	);
-	return writer.finish();
-}
+const fixture = (name: string) =>
+	new Uint8Array(readFileSync(new URL(`../../src-tauri/src/sv/testdata/${name}`, import.meta.url)));
 
-function decode(bin: Uint8Array) {
-	return readGetMetadataResponse(new PbfReader(bin));
-}
-
-function fetchMock(panoIds: string[]) {
-	const reply = svMockCore().respond(GM_URL, request(panoIds))!;
-	return decode(reply.body as Uint8Array);
-}
+/** A GetMetadata request for a dead pano and the fixture pano, as the Rust encoder builds it. */
+const REQUEST = fixture("svmock.request.pb");
+const RESPONSE = fixture("svmock.getmetadata.pb");
 
 describe("svMock binary GetMetadata", () => {
-	it("encodes fixture panos decodable by the schema reader", () => {
-		const resp = fetchMock([RU_PANO]);
-		expect(resp.status?.code).toBe(0);
-		const m = resp.metadata[0];
-		expect(m.status?.code).toBe(1);
-		expect(m.pano).toEqual({ frontend: 2, id: RU_PANO });
-		const loc = m.information[0].location!;
-		expect(loc.location!.lat).toBeCloseTo(52.10947502806108, 9);
-		expect(loc.location!.lng).toBeCloseTo(34.90131410856584, 9);
-		expect(loc.countryCode).toBe("RU");
-		expect(loc.altitude!.meters).toBeCloseTo(142, 3);
-		expect(m.date!.date).toMatchObject({ year: 2021, month: 9 });
-		expect(m.tiles!.worldSize).toEqual({ width: 16384, height: 8192 });
-		expect(m.tiles!.tileSize!.tileSize).toEqual({ width: 512, height: 512 });
-	});
-
-	it("encodes dead panos as non-OK results", () => {
-		const resp = fetchMock(["DEAD_PANO", RU_PANO]);
-		expect(resp.metadata).toHaveLength(2);
-		expect(resp.metadata[0].status?.code).not.toBe(1);
-		expect(resp.metadata[1].status?.code).toBe(1);
+	it("answers the pinned bytes the decoder is tested against", () => {
+		const reply = svMockCore().respond(GM_URL, REQUEST)!;
+		expect(new Uint8Array(reply.body as Uint8Array)).toEqual(RESPONSE);
 	});
 
 	it("unknown urls are not claimed by the router", () => {
@@ -71,14 +36,14 @@ describe("svMock binary GetMetadata", () => {
 const SIS_URL =
 	"https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/SingleImageSearch";
 
-/** The body panoResolve builds (asserted byte-for-byte in its own node:test). */
+/** The body the host encodes for a location search (pinned byte-for-byte in `sv/pano.test.rs`). */
 function locationSearch(lat: number, lng: number, radius = 50): Uint8Array {
 	return new TextEncoder().encode(
 		`[["apiv3"],[[null,null,${lat},${lng}],${radius}],[null,null,null,null,null,null,null,null,[2],null,[[[2,true,2],[3,true,2],[10,true,2]]]],[[1,2,3,4,8,6]]]`,
 	);
 }
 
-/** The body exactDate builds for one coverage probe. */
+/** The body the host encodes for exactDate's coverage probe (pinned in `sv/pano.test.rs`). */
 function timeProbe(lat: number, lng: number, start: number, end: number): Uint8Array {
 	return new TextEncoder().encode(
 		`[["apiv3"],[[null,null,${lat},${lng}],50],[[null,null,null,null,null,null,null,null,null,null,[${start},${end}]],null,null,null,null,null,null,null,[1],null,[[[2,true,2]]]],[[2,6]]]`,
@@ -134,15 +99,13 @@ describe("svStubServer", () => {
 			const base = `http://127.0.0.1:${stub.port}`;
 			const meta = await fetch(
 				`${base}/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/GetMetadata?alt=proto`,
-				{ method: "POST", body: request([RU_PANO]) as BodyInit },
+				{ method: "POST", body: REQUEST as BodyInit },
 			);
-			const served: ImageMetadata = decode(new Uint8Array(await meta.arrayBuffer())).metadata[0];
-			expect(served.pano?.id).toBe(RU_PANO);
-			expect(served.date!.date).toMatchObject({ year: 2021, month: 9 });
+			expect(new Uint8Array(await meta.arrayBuffer())).toEqual(RESPONSE);
 
 			const sis = await fetch(
 				`${base}/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/SingleImageSearch`,
-				{ method: "POST", body: "[]" },
+				{ method: "POST", body: timeProbe(52.10947502806108, 34.90131410856584, 100, 200) as BodyInit },
 			);
 			expect(await sis.text()).not.toContain("Search returned no images.");
 

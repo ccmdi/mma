@@ -484,22 +484,31 @@ export function svMockCore(cfg: SvMockConfig = {}) {
 				const f = pano ? fixFor(pano, ll[2], ll[3]) : null;
 				const ts = pano && f ? captureTs(pano, f) : null;
 				const hit = ts != null && ts > Number(range[0]) && ts <= Number(range[1]);
+				// A hit answers a decodable image: the host reads the pano out of the
+				// answer, so a bare marker body would read as no coverage.
+				const meta = hit && pano ? metaArray(pano, ll[2], ll[3]) : null;
 				return {
 					kind: "SingleImageSearch",
 					status: 200,
 					contentType: "application/json",
-					body: hit
-						? JSON.stringify([["img"]])
+					body: meta
+						? JSON.stringify([[0], meta, null])
 						: JSON.stringify([[5, "generic", "Search returned no images."]]),
 				};
 			}
-			// Any non-"no images" body counts as "image found", so the exactDate procedure's
-			// binary search always narrows downward and converges to a valid timestamp.
+			// A probe over fixture coverage always answers a decodable image, so the
+			// exactDate binary search narrows downward and converges to a valid
+			// timestamp. The host reads the pano out of the answer, so a bare marker
+			// body would read as no coverage.
+			const probePano = located ? panoAtCoords(ll[2], ll[3]) : null;
+			const probeMeta = probePano ? metaArray(probePano, ll[2], ll[3]) : null;
 			return {
 				kind: "SingleImageSearch",
 				status: 200,
 				contentType: "application/json",
-				body: JSON.stringify([["img"]]),
+				body: probeMeta
+					? JSON.stringify([[0], probeMeta, null])
+					: JSON.stringify([[5, "generic", "Search returned no images."]]),
 			};
 		}
 		return null;
