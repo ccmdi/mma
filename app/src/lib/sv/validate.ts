@@ -7,7 +7,7 @@ import {
 	type BatchOutcome,
 	type BulkOpts,
 } from "@/lib/data/procedures";
-import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
+import { LOCATION_SEARCH_INFLIGHT, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { log } from "@/lib/util/log";
 import { msg } from "@/lib/i18n";
 
@@ -24,7 +24,7 @@ export const validateSpec: ProcedureSpec<ValidationState> = {
 	batch: { mode: "chunk", size: 200 },
 	sink: "collect",
 	// Every row of a batch searches its coordinate in one round, one request each.
-	inflight: 100,
+	inflight: LOCATION_SEARCH_INFLIGHT,
 	config: { radius: SV_SEARCH_RADIUS } satisfies ValidateConfig,
 };
 
