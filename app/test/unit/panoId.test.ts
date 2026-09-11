@@ -94,8 +94,8 @@ describe("isUnofficial", () => {
 describe("mergeTimelines", () => {
 	const pano = (over: Partial<Pano> = {}): Pano => ({ pano: "p", time: [], ...over }) as Pano;
 
-	// The date picker merges the viewed pano's stack with its neighbour's, because a
-	// partly-official stack carries only part of the history. Later sources win.
+	// The date picker merges an all-unofficial stack with nearby official coverage,
+	// which carries the multi-year history. Later sources win.
 	it("merges timelines with later sources winning", () => {
 		const a = pano({ time: [{ pano: "x", date: "2011-01-01" }] });
 		const b = pano({
@@ -122,6 +122,9 @@ describe("allUnofficial", () => {
 	it("flags a timeline with no official coverage, which is what triggers the wider search", () => {
 		expect(allUnofficial([{ pano: "F:abc", date: "2020-01-01" }])).toBe(true);
 		expect(allUnofficial([{ pano: "-zrYsLR4Fh-cfJG_EMZ1-A", date: "2020-01-01" }])).toBe(false);
-		expect(allUnofficial([])).toBe(false);
+	});
+
+	it("counts an empty stack as all-unofficial, since unofficial panos often carry none", () => {
+		expect(allUnofficial([])).toBe(true);
 	});
 });

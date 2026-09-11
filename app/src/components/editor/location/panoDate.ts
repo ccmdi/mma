@@ -19,13 +19,14 @@ export interface PanoDateState {
 export function panoDates(
 	meta: Pano | null,
 	timeline: Pano["time"] | null,
-	defaultPano: string | null,
+	defaultPano: Pano | null,
 	draft: Location | null,
 ): PanoDateState {
 	const entries = timeline ?? [];
 	const current = meta?.pano ?? null;
 	const chosen = draft && isPinned(draft) ? current : null;
-	const defaultEntry = entries.find((d) => d.pano === defaultPano);
+	// Dated from its own stack; the default need not be in the draft's timeline.
+	const defaultEntry = defaultPano?.time.find((d) => d.pano === defaultPano.pano);
 	const sorted = [...entries].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 	const currentEntry =
 		chosen == null

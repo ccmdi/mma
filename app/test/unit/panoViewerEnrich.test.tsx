@@ -127,7 +127,7 @@ describe("the draft is the location as a save would write it", () => {
 		await walk("pB");
 		await act(async () => {});
 		expect(viewer.meta?.pano).toBe("pB");
-		expect(viewer.defaultPano).toBe("pDefault");
+		expect(viewer.defaultPano?.pano).toBe("pDefault");
 		m.unmount();
 	});
 

@@ -364,7 +364,7 @@ export function LocationPreview() {
 	const handleDateChange = useCallback(
 		(panoId: string | null) => {
 			edit((d) => ({ flags: pinned(d.flags, panoId != null) }));
-			const target = panoId ?? defaultPano;
+			const target = panoId ?? defaultPano?.pano;
 			if (target) singletonPano?.setPano(target);
 		},
 		[edit, defaultPano],

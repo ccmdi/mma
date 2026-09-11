@@ -20,7 +20,7 @@ import { withoutDerivedFrom } from "@/lib/data/fieldDefs";
 import { useAsyncSticky } from "@/lib/hooks/useAsync";
 import { panosAt, svMetadata } from "@/lib/sv/query";
 import { allUnofficial, mergeTimelines } from "@/lib/sv/panoId";
-import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
+import { SV_OFFICIAL_FALLBACK_RADIUS, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { enrich } from "@/lib/sv/enrich";
 import { log } from "@/lib/util/log";
 import { panoDates, type PanoDateState } from "./panoDate";
@@ -46,7 +46,7 @@ interface PanoViewerContextValue {
 	/** The captures the date picker can offer at the draft's pano; null until it lands. */
 	timeline: Pano["time"] | null;
 	/** The pano Google resolves for the draft's position: what "Default" means there. */
-	defaultPano: string | null;
+	defaultPano: Pano | null;
 	/** The draft's enrichment is still in flight. */
 	enriching: boolean;
 }
@@ -101,12 +101,17 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			if (!meta) return null;
 			const here = [{ lat: meta.lat, lng: meta.lng }];
 			const [atCoord] = await panosAt(here, SV_SEARCH_RADIUS, undefined, signal);
-			let timeline = mergeTimelines([atCoord, meta]);
+			let timeline = meta.time;
 			if (allUnofficial(timeline)) {
-				const [official] = await panosAt(here, 25, { sources: [PanoType.Official] }, signal);
-				timeline = mergeTimelines([atCoord, meta, official]);
+				const [official] = await panosAt(
+					here,
+					SV_OFFICIAL_FALLBACK_RADIUS,
+					{ sources: [PanoType.Official] },
+					signal,
+				);
+				timeline = mergeTimelines([official, meta]);
 			}
-			return { meta, timeline, defaultPano: atCoord?.pano ?? meta.pano };
+			return { meta, timeline, defaultPano: atCoord ?? meta };
 		},
 		[draftPano],
 		draft?.id ?? null,
