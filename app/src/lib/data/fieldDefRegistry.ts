@@ -15,6 +15,7 @@ import { createFieldDef } from "@/types";
 import { BUILTIN_FIELDS, CLEARABLE_BUILTINS, PROJECTIONS } from "@/bindings.consts";
 import type { ExtraFieldDef, ExtraFieldType } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
+import { log } from "@/lib/util/log";
 
 // Field kind: identity (position), virtual (derived), term (expression-only),
 // writable (bulk-editable), or undefined (read-only, listable).
@@ -107,15 +108,15 @@ export function getFieldDef(key: string): ExtraFieldDef | undefined {
 	return mergeDef(mergeDef(getMapState().fieldDefs[key], pluginDefs[key]), FIELDS[key]);
 }
 
-/** Display label for a field key, falling back to a sentence-cased version of the key. */
+/** Translated display label for a field key, falling back to a sentence-cased version of the key. */
 export function fieldLabel(key: string): string {
-	return (
-		getFieldDef(key)?.label ??
-		key
-			.replace(/([a-z])([A-Z])/g, (_, a, b) => `${a} ${b.toLowerCase()}`)
-			.replace(/_/g, " ")
-			.replace(/^./, (c) => c.toUpperCase())
-	);
+	const label = getFieldDef(key)?.label;
+	return label
+		? t(label)
+		: key
+				.replace(/([a-z])([A-Z])/g, (_, a, b) => `${a} ${b.toLowerCase()}`)
+				.replace(/_/g, " ")
+				.replace(/^./, (c) => c.toUpperCase());
 }
 
 /** Display label for a field value. Enum values use their translated display name. */
@@ -165,10 +166,17 @@ export function projectionsForType(type: ExtraFieldType): FieldProjection[] {
 	return PROJECTIONS.filter((p) => (p.appliesTo as readonly ExtraFieldType[]).includes(type)).map(
 		(p) => ({
 			id: p.id,
-			label: PROJECTION_LABELS[p.id] ?? p.id,
+			label: projectionLabel(p.id),
 			needsTz: p.needsTz,
 		}),
 	);
+}
+
+// Render sites translate the returned label, so the raw id is a visible fallback, not a crash.
+function projectionLabel(id: string): string {
+	const label = PROJECTION_LABELS[id];
+	if (!label && import.meta.env.DEV) log.warn(`[fields] projection "${id}" has no label`);
+	return label ?? id;
 }
 
 /** The "Range" partition option (numeric binning). */

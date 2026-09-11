@@ -213,7 +213,7 @@ function RankedPanel({
 			<NSelect value={field} onChange={(e) => setField(e.target.value)}>
 				{fields.map((f) => (
 					<option key={f.key} value={f.key}>
-						{t(f.label)}
+						{f.label}
 					</option>
 				))}
 			</NSelect>

@@ -327,7 +327,7 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 						return (
 							<label key={key} className="bulk-operation__field-item">
 								<Checkbox checked={selected.has(key)} onChange={() => toggle(key)} />
-								<span className="bulk-operation__field-label">{t(fieldLabel(key))}</span>
+								<span className="bulk-operation__field-label">{fieldLabel(key)}</span>
 								{def?.label && def.label !== key && (
 									<span className="bulk-operation__field-key">{key}</span>
 								)}
@@ -428,7 +428,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 					</option>
 					{sortedKeys.map((k) => (
 						<option key={k} value={k}>
-							{t(fieldLabel(k))}
+							{fieldLabel(k)}
 						</option>
 					))}
 					<option value="__new__">{t("New field...")}</option>

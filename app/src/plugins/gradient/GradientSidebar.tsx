@@ -225,7 +225,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 							>
 								{fields.map((f) => (
 									<option key={f.key} value={f.key}>
-										{t(f.label)}
+										{f.label}
 									</option>
 								))}
 							</NSelect>

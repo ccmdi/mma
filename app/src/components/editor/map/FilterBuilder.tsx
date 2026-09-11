@@ -493,7 +493,7 @@ export function FilterForm({
 				{fields.length === 0 && <option value="">{t("No metadata yet")}</option>}
 				{fields.map((f) => (
 					<option key={f.key} value={f.key}>
-						{t(f.label)}
+						{f.label}
 					</option>
 				))}
 			</NSelect>

@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { t, msg, initLocale, getLocale } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
+import { BUILTIN_FIELDS, KNOWN_FIELDS } from "@/bindings.consts";
 import {
 	staleCatalogs,
 	pseudo,
@@ -112,6 +113,17 @@ describe("i18n catalogs", () => {
 			}
 		}
 		expect(unwrapped).toEqual([]);
+	});
+
+	// `bindingLabels()` in scripts/i18n-extract.mjs seeds these from bindings.consts.ts. Asserted
+	// independently of that seeding so dropping the bridge fails here instead of silently
+	// un-translating every field picker.
+	it("carry every Rust-side field and enum label", () => {
+		const labels = [
+			...BUILTIN_FIELDS.map((f) => f.label),
+			...KNOWN_FIELDS.flatMap((f) => [f.label, ...f.labels.map(([, l]) => l)]),
+		];
+		expect(labels.filter((l) => !(l in en.catalog))).toEqual([]);
 	});
 
 	it("ship at least the base locale and the pseudolocale", () => {

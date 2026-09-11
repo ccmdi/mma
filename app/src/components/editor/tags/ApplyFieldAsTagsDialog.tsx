@@ -61,8 +61,8 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	};
 
 	const fieldLabel = fields.find((f) => f.key === field)?.label ?? field;
-	const missingName = t("No {field} data", { field: t(fieldLabel) });
-	const tagName = (value: string) => fillTemplate(template, { value, field: t(fieldLabel) });
+	const missingName = t("No {field} data", { field: fieldLabel });
+	const tagName = (value: string) => fillTemplate(template, { value, field: fieldLabel });
 
 	const handleApply = async () => {
 		if (!field || !widthValid) return;
@@ -148,7 +148,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 							<option value="">{t("Select a field...")}</option>
 							{fields.map((f) => (
 								<option key={f.key} value={f.key}>
-									{t(f.label)}
+									{f.label}
 								</option>
 							))}
 						</NSelect>

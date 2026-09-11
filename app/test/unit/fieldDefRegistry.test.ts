@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { createFieldDef } from "@/types";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { ExtraFieldDef } from "@/bindings.gen";
@@ -12,8 +13,11 @@ import {
 	projectionsForType,
 	isListableField,
 	getBuiltinKeys,
+	fieldLabel,
 } from "@/lib/data/fieldDefRegistry";
 import { getEventVersion } from "@/lib/events";
+import { initLocale } from "@/lib/i18n";
+import { pseudo } from "../../scripts/i18n-extract.mjs";
 
 // The user layer is engine state (`MapState.fieldDefs`); the registry only reads it.
 const h = vi.hoisted(() => ({ fieldDefs: {} as Record<string, unknown> }));
@@ -228,6 +232,25 @@ describe("change signals", () => {
 		setUserFieldDefs({ a: createFieldDef("number", { label: "A" }) });
 		expect(getKnownFieldKeys()).not.toBe(held);
 		expect([...getKnownFieldKeys()]).toEqual(["a"]);
+	});
+});
+
+describe("fieldLabel", () => {
+	beforeEach(async () => {
+		await initLocale("en-XA");
+	});
+
+	it("translates the label, wherever the layer it came from", async () => {
+		registerPluginFieldDefs({ sunAzimuth: createFieldDef("number", { label: "Altitude" }) });
+		expect(fieldLabel("sunAzimuth")).toBe(pseudo("Altitude"));
+		expect(fieldLabel("lat")).toBe(pseudo("Latitude"));
+		await initLocale("en");
+		expect(fieldLabel("lat")).toBe("Latitude");
+	});
+
+	it("sentence-cases an unlabelled key rather than translating it", () => {
+		expect(fieldLabel("sun_azimuth_raw")).toBe("Sun azimuth raw");
+		expect(fieldLabel("someCustomKey")).toBe("Some custom key");
 	});
 });
 

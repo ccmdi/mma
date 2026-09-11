@@ -306,7 +306,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 					<NSelect value={fieldKey} onChange={(e) => setFieldKey(e.target.value)}>
 						{fields.map((f) => (
 							<option key={f.key} value={f.key}>
-								{t(f.label)}
+								{f.label}
 							</option>
 						))}
 					</NSelect>

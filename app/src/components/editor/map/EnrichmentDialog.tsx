@@ -82,7 +82,8 @@ function buildRows(): FieldRow[] {
 		const def = getFieldDef(key);
 		return {
 			key,
-			label: fieldLabel(key),
+			// The stored label, not the translated one: this row is an editor and writes it back.
+			label: def?.label ?? fieldLabel(key),
 			type: def?.type ?? "string",
 			comparison: def?.comparison ?? null,
 			values: def?.values ?? null,
