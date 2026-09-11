@@ -241,6 +241,7 @@ declare const PROJECTIONS: readonly [{
     readonly needsTz: true;
 }];
 declare const SCRATCH_MAP_ID: "scratch";
+declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large"];
 /** The bits a preview carries that a real location must not. */
 declare const VIRTUAL_FLAGS: 12;
 
@@ -248,6 +249,7 @@ declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
 declare const consts_CLEARABLE_BUILTINS: typeof CLEARABLE_BUILTINS;
 declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
 declare const consts_EFFECT_CALLS: typeof EFFECT_CALLS;
+declare const consts_ERROR_CODES: typeof ERROR_CODES;
 declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
 export type consts_LocationFlag = LocationFlag;
 declare const consts_OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
@@ -259,7 +261,7 @@ declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
 declare const consts_VIRTUAL_FLAGS: typeof VIRTUAL_FLAGS;
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
-  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
+  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
   export type { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_ValidationState as ValidationState };
 }
 
@@ -507,7 +509,7 @@ declare const commands$1: {
     /**  Apply a field operation to every location matched by `selector`. @unstable */
     storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => Promise<FieldOpResult>;
     /**  The parse error for `src`, or nothing when it parses. For the dialog's live check. @unstable */
-    fieldExprError: (src: string) => Promise<string | null>;
+    fieldExprError: (src: string) => Promise<ExprError | null>;
     /**
      *  Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
      *  `level` selects border precision, falling back to "light" if unavailable.
@@ -908,13 +910,13 @@ declare const events: {
         emit: (payload: ExternalMutation) => Promise<void>;
     };
     storeWarning: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
-        listen: (cb: __TAURI_EVENT.EventCallback<string>) => Promise<__TAURI_EVENT.UnlistenFn>;
-        once: (cb: __TAURI_EVENT.EventCallback<string>) => Promise<__TAURI_EVENT.UnlistenFn>;
-        emit: (payload: string) => Promise<void>;
+        listen: (cb: __TAURI_EVENT.EventCallback<StoreWarning>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<StoreWarning>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: (payload: StoreWarning) => Promise<void>;
     }) & {
-        listen: (cb: __TAURI_EVENT.EventCallback<string>) => Promise<__TAURI_EVENT.UnlistenFn>;
-        once: (cb: __TAURI_EVENT.EventCallback<string>) => Promise<__TAURI_EVENT.UnlistenFn>;
-        emit: (payload: string) => Promise<void>;
+        listen: (cb: __TAURI_EVENT.EventCallback<StoreWarning>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        once: (cb: __TAURI_EVENT.EventCallback<StoreWarning>) => Promise<__TAURI_EVENT.UnlistenFn>;
+        emit: (payload: StoreWarning) => Promise<void>;
     };
     updateProgress: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
         listen: (cb: __TAURI_EVENT.EventCallback<UpdateProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
@@ -1166,6 +1168,41 @@ type ExportProgress = {
     total: number;
     mapName: string;
 };
+/**  Why an expression failed to parse. The sentence is TS's to write. */
+type ExprError = {
+    kind: "invalidNumber";
+    position: number;
+} | {
+    kind: "unterminatedString";
+} | {
+    kind: "unexpectedCharacter";
+    character: string;
+    position: number;
+} | {
+    kind: "expectedSymbol";
+    symbol: string;
+} | {
+    kind: "chainedComparison";
+} | {
+    kind: "unexpectedEnd";
+} | {
+    kind: "missingLeftOperand";
+} | {
+    kind: "hasTakesFieldName";
+} | {
+    kind: "unknownFunction";
+    name: string;
+} | {
+    kind: "wrongArgCount";
+    name: string;
+    expected: number;
+} | {
+    kind: "unexpectedToken";
+    token: string;
+} | {
+    kind: "trailingToken";
+    token: string;
+};
 /**  A mutation another window made to a map this window may have open, routed by `map_id`. */
 type ExternalMutation = {
     mapId: string;
@@ -1337,7 +1374,8 @@ type ImageSize = {
  *  Shown in the import dialog so the user can select which maps to import.
  */
 type ImportPreviewEntry = {
-    name: string;
+    /**  `None` when the file names the map nothing; JS supplies the placeholder. */
+    name: string | null;
     folder: string | null;
     locationCount: number;
     tagCount: number;
@@ -2291,8 +2329,12 @@ type StoreStatus = {
     version: number;
     values: EngineValues;
 };
-/**  User-facing warning toast. */
-type StoreWarning = string;
+/**  What the store has to warn the user about. The sentence is TS's to write. */
+type StoreWarning = 
+/**  The uncommitted delta was unreadable; the map opened from its last commit. */
+{
+    kind: "deltaSetAside";
+};
 /**  Lightweight status for polling: count, version, and whether unsaved changes exist. */
 type SummaryResult = {
     locationCount: number;
@@ -5228,7 +5270,7 @@ declare function unregisterPluginFieldDefs(keys: string[]): void;
 declare const getKnownFieldKeys: () => ReadonlySet<string>;
 /** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
 declare function getFieldDef(key: string): ExtraFieldDef | undefined;
-/** Display label for a field key, falling back to a sentence-cased version of the key. */
+/** Translated display label for a field key, falling back to a sentence-cased version of the key. */
 declare function fieldLabel(key: string): string;
 /** Display label for a field value. Enum values use their translated display name. */
 declare function fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string;
@@ -5276,9 +5318,10 @@ declare const procedureEntry: (name: string) => string;
 /** Ask a procedure a read-only question. Rejects when the procedure exports no `query`,
  *  when the call fails, or when `signal` aborts. */
 declare function queryProcedure<T = unknown>(entry: string, input: unknown, config?: unknown, signal?: AbortSignal): Promise<T>;
-/** Display labels for a field's partition keys. Falls back to the keys themselves when
- *  the field's procedure has no `label` query or returns a non-matching array. */
-declare function resolveFieldLabels(field: string, keys: string[]): Promise<string[]>;
+/** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
+ *  become locale month names; otherwise falls back to the keys themselves when the field's
+ *  procedure has no `label` query or returns a non-matching array. */
+declare function resolveFieldLabels(field: string, keys: string[], key?: KeySpec): Promise<string[]>;
 /** One location's answer from a `collect` run. */
 export interface CollectedEntry<T = unknown> {
     id: number;
@@ -6024,8 +6067,6 @@ declare namespace testSurface {
 declare function schemeBase(scheme: string): string;
 /** URL that serves a local file over the `mma-buf://` protocol. */
 declare function mmaBufUrl(path: string): string;
-/** Message for an unknown thrown value. */
-declare function errText(e: unknown): string;
 /** Copy of `set` with `value` toggled, or forced on/off by `on`. */
 declare function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>;
 /** The item `isBetter` prefers over every other, or null when there are none. */
@@ -6079,7 +6120,6 @@ declare const util_cmpVersion: typeof cmpVersion;
 declare const util_compareNatural: typeof compareNatural;
 declare const util_copyImageToClipboard: typeof copyImageToClipboard;
 declare const util_downloadBlob: typeof downloadBlob;
-declare const util_errText: typeof errText;
 declare const util_isPrereleaseVersion: typeof isPrereleaseVersion;
 declare const util_isWeb: typeof isWeb;
 declare const util_mmaBufUrl: typeof mmaBufUrl;
@@ -6091,7 +6131,7 @@ declare const util_splitVersion: typeof splitVersion;
 declare const util_tagColorFor: typeof tagColorFor;
 declare const util_toggleInSet: typeof toggleInSet;
 declare namespace util {
-  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_errText as errText, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_schemeBase as schemeBase, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet };
+  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_schemeBase as schemeBase, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet };
   export type { util_PhaseRate as PhaseRate };
 }
 
@@ -6154,5 +6194,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, EFFECT_CALLS, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, EFFECT_CALLS, ERROR_CODES, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

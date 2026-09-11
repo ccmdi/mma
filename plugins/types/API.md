@@ -54,6 +54,8 @@ Exposed as `window.MMA` (and the global `MMA`).
 
 ### `EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"]`
 
+### `ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large"]`
+
 ### `KNOWN_FIELDS: readonly [{ readonly key: "altitude"; readonly type: "number"; readonly label: "Altitude"; readonly values: readonly []; readonly labels: readonly []; readonly circularPeriod: null; readonly defaultOff: false; }, { ...; }, ... 8 more ..., { ...; }]`
 
 ### `OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$"`
@@ -1239,7 +1241,7 @@ caller can use to check for replies via [`feedback_anonymous_thread`].
 
 Upload an image attachment for a bug report and return its URL.
 
-#### `cmd.fieldExprError(src: string): Promise<string | null>` *(unstable)*
+#### `cmd.fieldExprError(src: string): Promise<ExprError | null>` *(unstable)*
 
 The parse error for `src`, or nothing when it parses. For the dialog's live check.
 
@@ -2206,7 +2208,7 @@ Remove fields transitively derived from `changed` from an `extra` record.
 
 ### `fieldLabel(key: string): string`
 
-Display label for a field key, falling back to a sentence-cased version of the key.
+Translated display label for a field key, falling back to a sentence-cased version of the key.
 
 ### `fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string`
 
@@ -2273,10 +2275,11 @@ Entry point of a procedure this app bundles. Plugins ship their own paths.
 Ask a procedure a read-only question. Rejects when the procedure exports no `query`,
 when the call fails, or when `signal` aborts.
 
-### `resolveFieldLabels(field: string, keys: string[]): Promise<string[]>`
+### `resolveFieldLabels(field: string, keys: string[], key?: KeySpec | undefined): Promise<string[]>`
 
-Display labels for a field's partition keys. Falls back to the keys themselves when
-the field's procedure has no `label` query or returns a non-matching array.
+Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
+become locale month names; otherwise falls back to the keys themselves when the field's
+procedure has no `label` query or returns a non-matching array.
 
 ### `runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & { ...; }): Promise<...>` *(unstable)*
 
@@ -2976,10 +2979,6 @@ Copy an image Blob to the clipboard. False when the platform refuses it.
 ### `downloadBlob(blob: Blob, fileName: string): void`
 
 Trigger a browser download from an in-memory Blob.
-
-### `errText(e: unknown): string`
-
-Message for an unknown thrown value.
 
 ### `isPrereleaseVersion(v: string): boolean`
 
