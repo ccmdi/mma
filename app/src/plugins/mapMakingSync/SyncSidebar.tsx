@@ -3,7 +3,7 @@ import { Field } from "@/components/primitives/Sidebar";
 import { TextInput } from "@/components/primitives/TextInput";
 import { mapMakingApp } from "@/components/primitives/Icon";
 import { ConnectionUser, SyncSidebar as SharedSyncSidebar } from "@/lib/sync/ui/SyncSidebar";
-import type { Remote } from "./map-making-web-api";
+import type { MmUser } from "@/bindings.gen";
 import * as auth from "./controller";
 import { controller } from "./controller";
 import { errText } from "@/lib/util/util";
@@ -12,13 +12,13 @@ import { Button } from "@/components/primitives/Button";
 
 /** The shared sync sidebar, with map-making.app's API-key auth plugged into it. */
 export function SyncSidebar({ onClose }: { onClose: () => void }) {
-	const [keyDraft, setKeyDraft] = useState(auth.getApiKey());
-	const [user, setUser] = useState<Remote.User | null>(auth.getCachedUser());
+	const [keyDraft, setKeyDraft] = useState("");
+	const [user, setUser] = useState<MmUser | null>(auth.getCachedUser());
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	// True only while the mount-time validation below is in flight. With no key there is nothing
-	// to check, so the key form shows immediately rather than flashing through a "checking" state.
-	const [checking, setChecking] = useState(() => !!auth.getApiKey() && !auth.getCachedUser());
+	// True only while the mount-time check below is in flight. With no key there is nothing to
+	// check, so the key form shows immediately rather than flashing through a "checking" state.
+	const [checking, setChecking] = useState(() => auth.hasKey() && !auth.getCachedUser());
 
 	const validate = useCallback(async () => {
 		setBusy(true);
@@ -26,21 +26,24 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 		try {
 			// Validate before persisting: a typo'd key must not replace a working one.
 			const user = await auth.validate(keyDraft);
-			auth.setApiKey(keyDraft);
+			await auth.setKey(keyDraft);
 			setUser(user);
 		} catch (e) {
 			setError(errText(e));
 			setUser(null);
 		} finally {
 			setBusy(false);
-			setChecking(false);
 		}
 	}, [keyDraft]);
 
-	// Validate once when a key exists but nothing is cached yet; cached opens are instant.
+	// Check the stored key once when nothing is cached yet; cached opens are instant.
 	useEffect(() => {
-		if (auth.getApiKey() && !auth.getCachedUser()) void validate();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		if (!auth.hasKey() || auth.getCachedUser()) return;
+		auth
+			.me()
+			.then(setUser)
+			.catch((e: unknown) => setError(errText(e)))
+			.finally(() => setChecking(false));
 	}, []);
 
 	const authUi = user ? (
