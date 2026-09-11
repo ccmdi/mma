@@ -170,20 +170,20 @@ describe("svThumbnailUrl", () => {
 });
 
 describe("rankCandidates", () => {
-	function cand(pano: string, cameraType: CameraType | null, imageDate = "2020-01"): Pano {
-		return { pano, cameraType, imageDate, copyright: "© Google" } as unknown as Pano;
+	function cand(id: string, cameraType: CameraType | null, imageDate = "2020-01"): Pano {
+		return { id, cameraType, imageDate, copyright: "© Google" } as unknown as Pano;
 	}
 
 	it("drops a camera type the rank table excludes", () => {
 		const out = rankCandidates([cand("t", "trekker"), cand("g", "gen4")], {
 			preferHigherQuality: true,
 		});
-		expect(out.map((c) => c.pano)).toEqual(["g"]);
+		expect(out.map((c) => c.id)).toEqual(["g"]);
 	});
 
 	it("keeps an excluded type when quality is not preferred", () => {
 		const out = rankCandidates([cand("t", "trekker"), cand("g", "gen4")], {});
-		expect(out.map((c) => c.pano)).toEqual(["t", "g"]);
+		expect(out.map((c) => c.id)).toEqual(["t", "g"]);
 	});
 
 	it("orders by the rank table, not by capture date", () => {
@@ -191,14 +191,14 @@ describe("rankCandidates", () => {
 			[cand("gen1", "gen1", "2024-01"), cand("tripod", "tripod", "2011-01"), cand("gen4", "gen4")],
 			{ preferHigherQuality: true },
 		);
-		expect(out.map((c) => c.pano)).toEqual(["gen4", "tripod", "gen1"]);
+		expect(out.map((c) => c.id)).toEqual(["gen4", "tripod", "gen1"]);
 	});
 
 	it("prefers a known camera type over an unknown one", () => {
 		const out = rankCandidates([cand("unknown", null), cand("gen1", "gen1")], {
 			preferHigherQuality: true,
 		});
-		expect(out.map((c) => c.pano)).toEqual(["gen1", "unknown"]);
+		expect(out.map((c) => c.id)).toEqual(["gen1", "unknown"]);
 	});
 
 	it("breaks a rank tie with the newer capture", () => {
@@ -206,12 +206,12 @@ describe("rankCandidates", () => {
 			userUploaded: "avoid",
 			preferHigherQuality: true,
 		});
-		expect(out.map((c) => c.pano)).toEqual(["new", "old"]);
+		expect(out.map((c) => c.id)).toEqual(["new", "old"]);
 	});
 
 	it("leaves the input array untouched", () => {
 		const input = [cand("b", "gen1"), cand("a", "gen4")];
 		rankCandidates(input, { preferHigherQuality: true });
-		expect(input.map((c) => c.pano)).toEqual(["b", "a"]);
+		expect(input.map((c) => c.id)).toEqual(["b", "a"]);
 	});
 });

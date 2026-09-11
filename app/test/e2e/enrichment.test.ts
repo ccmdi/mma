@@ -796,7 +796,7 @@ describe("Enrichment — the read-only query surface", () => {
 			const [d] = await api.svMetadata([pano]);
 			if (!d) return null;
 			return {
-				pano: d.pano,
+				pano: d.id,
 				lat: d.lat,
 				worldHeight: d.worldSize.height,
 				date: d.date,

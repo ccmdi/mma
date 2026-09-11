@@ -155,7 +155,7 @@ export function PanoView({
 			stagedRef.current = null;
 			const resolved = staged?.round === round ? staged.resolved : await resolvePano(loc);
 			if (cancelled) return;
-			if (!resolved?.pano) {
+			if (!resolved?.id) {
 				setError(t("No panorama found here"));
 				return;
 			}
@@ -165,7 +165,7 @@ export function PanoView({
 			google.maps.event.trigger(pano, "resize");
 			onPanorama?.(pano);
 
-			const target = resolved.pano;
+			const target = resolved.id;
 			const reveal = () => {
 				if (cancelled || pano.getStatus() !== "OK") return;
 				// status_changed also fires for the outgoing pano mid-swap.
@@ -195,9 +195,9 @@ export function PanoView({
 			const pano = getPanorama();
 			if (!pano) return;
 			const resolved = await resolvePano(toLocation(preload));
-			if (cancelled || !resolved?.pano) return;
+			if (cancelled || !resolved?.id) return;
 			stagedRef.current = { round: preload, resolved };
-			pano.setPano(resolved.pano);
+			pano.setPano(resolved.id);
 			pano.setPov({ heading: preload.heading, pitch: preload.pitch });
 		})();
 		return () => {

@@ -15,7 +15,7 @@ const SKIPPED = { state: "skipped" };
 /** A scripted search answer naming the pano it found. */
 const found = (panoId) => ({
 	state: "found",
-	pano: pano({ pano: panoId, time: [{ pano: panoId, date: "2020-01-01" }] }),
+	pano: pano({ id: panoId, time: [{ panoId, date: "2020-01-01" }] }),
 });
 
 // --- Harness ---
@@ -201,7 +201,7 @@ test("the at query answers a pano per point, in input order", () => {
 		c.n === 1 ? NO_IMAGES : found(`pano${c.n}`),
 	);
 	assert.deepEqual(
-		answer.map((a) => a && a.pano),
+		answer.map((a) => a && a.id),
 		["pano0", null, "pano2"],
 	);
 	assert.deepEqual(

@@ -14,7 +14,7 @@ const mod: any = await import(
 	new URL("../../src-tauri/procedures/pinPano.js", import.meta.url).href
 );
 
-const CAR_PANO_ID = CAR_PANO.pano;
+const CAR_PANO_ID = CAR_PANO.id;
 const LOAD_AS_PANO_ID = 1;
 
 /** The host's answer for every non-empty id, aligned to the request the way it is on the

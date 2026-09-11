@@ -67,7 +67,7 @@ describe("validate procedure", () => {
 	});
 
 	it("skips the goodcam round for a genuinely pinned row", () => {
-		const { out, rounds } = configured(() => mod.run([row(CAR_PANO.pano)]));
+		const { out, rounds } = configured(() => mod.run([row(CAR_PANO.id)]));
 		expect(out).toEqual([{ id: 1, patch: ValidationState.Ok }]);
 		expect(rounds[2]).toHaveLength(0);
 	});

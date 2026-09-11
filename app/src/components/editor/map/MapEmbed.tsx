@@ -268,7 +268,7 @@ export function MapEmbed({
 							ac.signal,
 						);
 						if (!pano || ac.signal.aborted) return;
-						const res = await fetch(svThumbnailUrl(pano.pano, pano.centerHeading), {
+						const res = await fetch(svThumbnailUrl(pano.id, pano.centerHeading), {
 							signal: ac.signal,
 						});
 						if (!res.ok || ac.signal.aborted) return;

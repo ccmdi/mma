@@ -25,7 +25,7 @@ const EMPTY_ROW = {
 /** A pano carrying every field the eight derivations read. */
 const full = (over = {}) =>
 	pano({
-		pano: "x",
+		id: "x",
 		lat: 35.6,
 		lng: 139.7,
 		altitude: 12.5,
@@ -91,7 +91,7 @@ const rowsFor = (panoIds, extra = null) =>
 
 test("a full row yields all eight fields, in the order the field list names", () => {
 	const { patches, progress, failed } = runProcedure(rowsFor([CLASSIC_A]), (id) =>
-		full({ pano: id }),
+		full({ id }),
 	);
 	assert.deepEqual(failed, []);
 	assert.equal(progress, 1);
@@ -113,7 +113,7 @@ test("a full row yields all eight fields, in the order the field list names", ()
 
 test("absent facts collapse to nulls and defaults", () => {
 	const { patches, failed } = runProcedure(rowsFor([CLASSIC_A]), (id) =>
-		pano({ pano: id, cameraType: null }),
+		pano({ id, cameraType: null }),
 	);
 	assert.deepEqual(failed, []);
 	assert.deepEqual(patches[0].patch, {
@@ -130,7 +130,7 @@ test("absent facts collapse to nulls and defaults", () => {
 
 test("the pano type is the frontend the id belongs to", () => {
 	const { patches } = runProcedure(rowsFor([CLASSIC_A]), (id) =>
-		full({ pano: id, panoFrontend: 10 }),
+		full({ id, panoFrontend: 10 }),
 	);
 	assert.equal(patches[0].patch.panoType, "10");
 });
@@ -138,7 +138,7 @@ test("the pano type is the frontend the id belongs to", () => {
 test("a pano that no longer exists fails the row instead of passing it", () => {
 	const { patches, progress, failed } = runProcedure(
 		rowsFor([CLASSIC_A, CLASSIC_B]),
-		(id) => (id === CLASSIC_B ? null : full({ pano: id })),
+		(id) => (id === CLASSIC_B ? null : full({ id })),
 	);
 	assert.deepEqual(
 		patches.map((p) => p.id),
@@ -169,7 +169,7 @@ test("rows sharing a pano each get the fields, in one host call", () => {
 		{ id: 8, panoId: CLASSIC_A },
 		{ id: 9, panoId: CLASSIC_B },
 	];
-	const { patches, asked, progress } = runProcedure(rows, (id) => full({ pano: id }));
+	const { patches, asked, progress } = runProcedure(rows, (id) => full({ id }));
 	assert.equal(asked.length, 1);
 	assert.deepEqual(
 		patches.map((p) => p.id),
@@ -185,7 +185,7 @@ test("rows sharing a pano each get the fields, in one host call", () => {
 test("the procedure writes no staleness keys of its own", () => {
 	const { patches } = runProcedure(
 		rowsFor([CLASSIC_A], { imageDate: "2020-01", datetime: 1600000000 }),
-		(id) => full({ pano: id }),
+		(id) => full({ id }),
 	);
 	assert.equal("datetime" in patches[0].patch, false);
 	assert.equal("timezone" in patches[0].patch, false);
@@ -194,7 +194,7 @@ test("the procedure writes no staleness keys of its own", () => {
 // --- Field selection ---
 
 const configured = (fields, extra) =>
-	runProcedure(rowsFor([CLASSIC_A], extra), (id) => full({ pano: id }), { fields });
+	runProcedure(rowsFor([CLASSIC_A], extra), (id) => full({ id }), { fields });
 
 test("only the configured fields are written", () => {
 	const { patches } = configured(["countryCode", "imageDate", "notAField"]);
@@ -214,7 +214,7 @@ test("a fully deselected provider with nothing stale writes nothing", () => {
 // --- query ---
 
 test("query metadata answers the whole pano, as it stands", () => {
-	const answer = full({ pano: CLASSIC_A });
+	const answer = full({ id: CLASSIC_A });
 	const { result, asked } = queryProcedure({ op: "metadata", panoIds: [CLASSIC_A] }, () => answer);
 	assert.equal(asked.length, 1);
 	assert.deepEqual(result, [answer]);
@@ -223,14 +223,14 @@ test("query metadata answers the whole pano, as it stands", () => {
 test("query metadata keeps answers aligned to the panos it was asked for", () => {
 	const { result, asked } = queryProcedure(
 		{ op: "metadata", panoIds: [CLASSIC_A, "", CLASSIC_A, CLASSIC_B] },
-		(id) => full({ pano: id }),
+		(id) => full({ id }),
 	);
 	assert.deepEqual(asked, [[CLASSIC_A, "", CLASSIC_A, CLASSIC_B]]);
 	assert.equal(result.length, 4);
-	assert.equal(result[0].pano, CLASSIC_A);
+	assert.equal(result[0].id, CLASSIC_A);
 	assert.equal(result[1], null);
-	assert.equal(result[2].pano, CLASSIC_A);
-	assert.equal(result[3].pano, CLASSIC_B);
+	assert.equal(result[2].id, CLASSIC_A);
+	assert.equal(result[3].id, CLASSIC_B);
 });
 
 test("query metadata answers null for a failed request", () => {

@@ -5,7 +5,7 @@ import type { Pano } from "@/bindings.gen";
 
 /** Official car coverage in Kursk Oblast, with links and a 2013 capture in its timeline. */
 export const CAR_PANO: Pano = {
-	pano: "-zrYsLR4Fh-cfJG_EMZ1-A",
+	id: "-zrYsLR4Fh-cfJG_EMZ1-A",
 	panoFrontend: 2,
 	worldSize: {
 		width: 13312,
@@ -31,21 +31,21 @@ export const CAR_PANO: Pano = {
 	levelId: null,
 	links: [
 		{
-			pano: "u_RkcPj3naSx6z2tpX_8QQ",
+			panoId: "u_RkcPj3naSx6z2tpX_8QQ",
 			heading: 48.51864242553711,
 		},
 		{
-			pano: "bFRvVCz1nW8wfQUb5hjZVw",
+			panoId: "bFRvVCz1nW8wfQUb5hjZVw",
 			heading: 228.57041931152344,
 		},
 	],
 	time: [
 		{
-			pano: "NCdpiKH9MUMzPzMShzBq4Q",
+			panoId: "NCdpiKH9MUMzPzMShzBq4Q",
 			date: "2013-05-01",
 		},
 		{
-			pano: "-zrYsLR4Fh-cfJG_EMZ1-A",
+			panoId: "-zrYsLR4Fh-cfJG_EMZ1-A",
 			date: "2018-09-01",
 		},
 	],
@@ -67,7 +67,7 @@ export const CAR_PANO: Pano = {
 
 /** A special-collects capture, which reads as a trekker. */
 export const SCOUT_PANO: Pano = {
-	pano: "5upMz1_zTGPdkIXG6_QM3g",
+	id: "5upMz1_zTGPdkIXG6_QM3g",
 	panoFrontend: 2,
 	worldSize: {
 		width: 13312,
@@ -93,13 +93,13 @@ export const SCOUT_PANO: Pano = {
 	levelId: null,
 	links: [
 		{
-			pano: "tWk1YQmDuRl34JxntGmKQA",
+			panoId: "tWk1YQmDuRl34JxntGmKQA",
 			heading: 176.35621643066406,
 		},
 	],
 	time: [
 		{
-			pano: "5upMz1_zTGPdkIXG6_QM3g",
+			panoId: "5upMz1_zTGPdkIXG6_QM3g",
 			date: "2015-09-01",
 		},
 	],
@@ -121,7 +121,7 @@ export const SCOUT_PANO: Pano = {
 
 /** A user upload: its own frontend, no links. */
 export const USER_PANO: Pano = {
-	pano: "CAoSF0NJSE0wb2dLRUlDQWdJQ0VtX2l4cXdF",
+	id: "CAoSF0NJSE0wb2dLRUlDQWdJQ0VtX2l4cXdF",
 	panoFrontend: 10,
 	worldSize: {
 		width: 7776,
@@ -148,7 +148,7 @@ export const USER_PANO: Pano = {
 	links: [],
 	time: [
 		{
-			pano: "CAoSF0NJSE0wb2dLRUlDQWdJQ0VtX2l4cXdF",
+			panoId: "CAoSF0NJSE0wb2dLRUlDQWdJQ0VtX2l4cXdF",
 			date: "2016-10-16",
 		},
 	],

@@ -214,14 +214,14 @@ export function LocationPreview() {
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { draft, meta, defaultPano, edit, settled, open, enriching } = usePanoViewer();
+	const { draft, currentPano, defaultPano, edit, settled, open, enriching } = usePanoViewer();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = useState<string[]>(() =>
 		tagIdsToNames(location?.tags ?? []),
 	);
 	const visibleTags = useMapState(getVisibleTags);
 	const geocodeProvider = useSetting("geocodeProvider");
-	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0, meta);
+	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0, currentPano);
 	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const getGeoResult = useEffectEvent(() => geoResult);
 	useEffect(() => {
@@ -347,7 +347,7 @@ export function LocationPreview() {
 					toast(t("Configured pano ID could not be found. Falling back to lat/lng."), 3000, root);
 			}
 			// From the resolve result directly: setPano() with the same id fires no status_changed.
-			open(location, result?.pano ?? null);
+			open(location, result?.id ?? null);
 		});
 
 		return () => {
@@ -364,7 +364,7 @@ export function LocationPreview() {
 	const handleDateChange = useCallback(
 		(panoId: string | null) => {
 			edit((d) => ({ flags: pinned(d.flags, panoId != null) }));
-			const target = panoId ?? defaultPano?.pano;
+			const target = panoId ?? defaultPano?.id;
 			if (target) singletonPano?.setPano(target);
 		},
 		[edit, defaultPano],

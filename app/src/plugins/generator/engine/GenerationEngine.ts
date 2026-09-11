@@ -411,18 +411,18 @@ export class GenerationEngine {
 				}
 
 				for (const link of pano.links) {
-					if (link.pano && !visited.has(link.pano)) {
-						visited.add(link.pano);
-						queue.push(link.pano);
-						depthMap.set(link.pano, depth);
+					if (link.panoId && !visited.has(link.panoId)) {
+						visited.add(link.panoId);
+						queue.push(link.panoId);
+						depthMap.set(link.panoId, depth);
 					}
 				}
 				if (s.checkAllDates && pano.time) {
 					for (const entry of pano.time) {
-						if (entry.pano && !visited.has(entry.pano)) {
-							visited.add(entry.pano);
-							queue.push(entry.pano);
-							depthMap.set(entry.pano, depth);
+						if (entry.panoId && !visited.has(entry.panoId)) {
+							visited.add(entry.panoId);
+							queue.push(entry.panoId);
+							depthMap.set(entry.panoId, depth);
 						}
 					}
 				}
@@ -527,7 +527,7 @@ export class GenerationEngine {
 						continue;
 					}
 				}
-				seeds.push(entry.pano);
+				seeds.push(entry.panoId);
 				continue;
 			}
 
@@ -535,13 +535,13 @@ export class GenerationEngine {
 				const fromDate = Date.parse(s.fromDate);
 				const toDate = Date.parse(s.toDate);
 				for (const entry of pano.time) {
-					if (s.rejectUnofficial && !isOfficialPano(entry.pano)) continue;
+					if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
 					if (!entry.date) continue;
 					const ym = entry.date.slice(0, 7);
-					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) seeds.push(entry.pano);
+					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) seeds.push(entry.panoId);
 				}
 			} else {
-				seeds.push(pano.pano);
+				seeds.push(pano.id);
 			}
 		}
 
@@ -587,16 +587,16 @@ export class GenerationEngine {
 				const fromDate = Date.parse(s.fromDate);
 				const toDate = Date.parse(s.toDate);
 				for (const entry of pano.time) {
-					if (s.rejectUnofficial && !isOfficialPano(entry.pano)) continue;
+					if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
 					if (!entry.date) continue;
 					const ym = entry.date.slice(0, 7);
-					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) next.push(entry.pano);
+					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) next.push(entry.panoId);
 				}
 			}
 
 			if (s.checkLinks) {
-				for (const link of pano.links) if (link.pano) next.push(link.pano);
-				for (const entry of pano.time) next.push(entry.pano);
+				for (const link of pano.links) if (link.panoId) next.push(link.panoId);
+				for (const entry of pano.time) next.push(entry.panoId);
 			}
 
 			if (good) void this.finalizeLoc(pano, region);
@@ -609,7 +609,7 @@ export class GenerationEngine {
 	private async finalizeLoc(pano: Pano, region: GeneratorRegion): Promise<void> {
 		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
 		const s = this.settings;
-		const panoId: string = pano.pano;
+		const panoId: string = pano.id;
 
 		if (this.globalFoundPanoIds.has(panoId)) return;
 		if (region.found.length >= region.target) return;

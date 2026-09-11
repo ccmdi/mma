@@ -142,17 +142,17 @@ describe("passesDescriptionSearch", () => {
 const OFFICIAL_ID = `${"a".repeat(21)}A`;
 
 function pano(over: {
-	pano?: string;
+	id?: string;
 	links?: number;
 	description?: string;
 	imageDate?: string;
 	cameraType?: CameraType | null;
 }): Pano {
-	const links = Array.from({ length: over.links ?? 2 }, () => ({ heading: 0, pano: "x" }));
+	const links = Array.from({ length: over.links ?? 2 }, () => ({ heading: 0, panoId: "x" }));
 	const imageDate = over.imageDate ?? "2020-06";
 	const [y, m] = imageDate.split("-");
 	return {
-		pano: over.pano ?? OFFICIAL_ID,
+		id: over.id ?? OFFICIAL_ID,
 		description: over.description ?? "Main Street",
 		shortDescription: "",
 		links,
@@ -211,9 +211,9 @@ describe("isPanoGood new filters", () => {
 
 	it("rejectUnofficial tests the official id pattern, not the id length", () => {
 		const s = settings({ rejectUnofficial: true, rejectDateless: false });
-		expect(isPanoGood(pano({ pano: OFFICIAL_ID }), s)).toBe(true);
-		expect(isPanoGood(pano({ pano: `${"a".repeat(21)}b` }), s)).toBe(false);
-		expect(isPanoGood(pano({ pano: `F:${"a".repeat(20)}` }), s)).toBe(false);
+		expect(isPanoGood(pano({ id: OFFICIAL_ID }), s)).toBe(true);
+		expect(isPanoGood(pano({ id: `${"a".repeat(21)}b` }), s)).toBe(false);
+		expect(isPanoGood(pano({ id: `F:${"a".repeat(20)}` }), s)).toBe(false);
 	});
 
 	it("applies description search as a gate", () => {
@@ -292,12 +292,12 @@ const FOUND_PANO = "p".repeat(22);
 
 function foundPano(lng: number, lat: number): unknown {
 	return {
-		pano: FOUND_PANO,
+		id: FOUND_PANO,
 		description: "Main Street, Springfield",
 		shortDescription: "Main Street",
 		lat,
 		lng,
-		links: [{ heading: 90, pano: "l".repeat(22) }],
+		links: [{ heading: 90, panoId: "l".repeat(22) }],
 		date: { year: 2020, month: 6, day: 1 },
 		imageDate: "2020-06",
 		time: [],
@@ -520,12 +520,12 @@ function seedChain(length: number, isGood: (i: number) => boolean): void {
 	h.panos.clear();
 	for (let i = 0; i < length; i++) {
 		h.panos.set(`p${i}`, {
-			pano: `p${i}`,
+			id: `p${i}`,
 			description: "Main Street",
 			shortDescription: "Main Street",
 			lat: 0,
 			lng: -50,
-			links: i + 1 < length ? [{ heading: 90, pano: `p${i + 1}` }] : [],
+			links: i + 1 < length ? [{ heading: 90, panoId: `p${i + 1}` }] : [],
 			date: isGood(i) ? { year: 2020, month: 6, day: 1 } : { year: 2005, month: 1, day: 1 },
 			imageDate: isGood(i) ? "2020-06" : "2005-01",
 			time: [],

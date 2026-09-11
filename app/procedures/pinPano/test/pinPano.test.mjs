@@ -55,7 +55,7 @@ function runProcedure(rows, lookup, { force = false, config = null } = {}) {
 
 /** A pano whose timeline names `history`, ascending as the host sorts it. */
 const withTimeline = (id, history) =>
-	pano({ pano: id, time: history.map((p) => ({ pano: p, date: "2020-01-01" })) });
+	pano({ id, time: history.map((p) => ({ panoId: p, date: "2020-01-01" })) });
 
 const OFFICIAL_A = "aaaaaaaaaaaaaaaaaaaaaA";
 const OFFICIAL_B = "bbbbbbbbbbbbbbbbbbbbbQ";

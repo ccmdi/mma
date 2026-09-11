@@ -1173,7 +1173,7 @@ export type NumericBinning = { by: "count"; n: number } | { by: "width"; w: numb
 /**  A decoded Street View panorama: flat data with no live objects. */
 export type Pano = {
 	/**  This image's own pano id, "" when the response carries no key. */
-	pano: string,
+	id: string,
 	/**  Which imagery collection the id belongs to; also what `extra.panoType` stores. */
 	panoFrontend: number,
 	lat: number,
@@ -1226,7 +1226,7 @@ export type PanoDate = {
 };
 
 export type PanoLink = {
-	pano: string,
+	panoId: string,
 	heading: number,
 };
 
@@ -1234,7 +1234,7 @@ export type PanoLink = {
 export type PanoQuery = IdQuery | SearchQuery;
 
 export type PanoTime = {
-	pano: string,
+	panoId: string,
 	/**  The civil day, `YYYY-MM-DD`. */
 	date: string,
 };

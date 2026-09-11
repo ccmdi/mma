@@ -193,7 +193,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		const current = draft?.panoId ?? location?.panoId ?? null;
 		void handleDateChange(
 			cycle(
-				panoDates.map((d) => d.pano),
+				panoDates.map((d) => d.panoId),
 				current,
 				step,
 			),

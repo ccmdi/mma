@@ -15,7 +15,7 @@ const mod: any = await import(
 	new URL("../../src-tauri/procedures/panoResolve.js", import.meta.url).href
 );
 
-const PANO = CAR_PANO.pano;
+const PANO = CAR_PANO.id;
 
 /** The host issues the search and reads the answer back; the procedure only builds queries. */
 function withHost<T>(run: () => T): T {
@@ -51,7 +51,7 @@ describe("panoResolve procedure", () => {
 	it("answers whole panos from the `at` query, not ids", () => {
 		mod.configure(null);
 		const [pano] = withHost(() => mod.query({ op: "at", points: [{ lat: 1, lng: 2 }] })) as any[];
-		expect(pano.pano).toBe(PANO);
+		expect(pano.id).toBe(PANO);
 		// The metadata rides along: no second lookup to learn the timeline or the camera.
 		expect(pano.time.length).toBeGreaterThan(0);
 		expect(pano.worldSize.height).toBeGreaterThan(0);

@@ -80,7 +80,7 @@ fn a_failed_image_decodes_to_none() {
 fn every_captured_pano_decodes_to_the_id_it_was_asked_for() {
     for (image, asked) in decode_response(RESPONSE_PB).iter().zip(CAPTURED) {
         if let Some(p) = image {
-            assert_eq!(p.pano, asked);
+            assert_eq!(p.id, asked);
         }
     }
 }
@@ -89,7 +89,7 @@ fn every_captured_pano_decodes_to_the_id_it_was_asked_for() {
 fn the_ungated_array_decode_reads_a_search_answer() {
     let root: Value = serde_json::from_str(SEARCH_JSON).unwrap();
     let pano = decode_image_json_unchecked(&root[1]).expect("search answer decodes");
-    assert!(!pano.pano.is_empty());
+    assert!(!pano.id.is_empty());
     assert!(pano.lat != 0.0 && pano.lng != 0.0);
 }
 
@@ -131,7 +131,7 @@ fn two_digit_years_are_nineteen_hundreds_and_absent_parts_floor_to_one() {
 
 fn base() -> Pano {
     Pano {
-        pano: String::new(),
+        id: String::new(),
         pano_frontend: 2,
         lat: 0.0,
         lng: 0.0,
@@ -290,7 +290,7 @@ fn the_mock_answers_the_captured_pano_and_writes_off_the_dead_one() {
     assert_eq!(images.len(), 2);
     assert!(images[0].is_none());
     let p = images[1].as_ref().expect("the fixture pano decodes");
-    assert_eq!(p.pano, "-zrYsLR4Fh-cfJG_EMZ1-A");
+    assert_eq!(p.id, "-zrYsLR4Fh-cfJG_EMZ1-A");
     assert!((p.lat - 52.109_475_028_061_08).abs() < 1e-9);
     assert!((p.lng - 34.901_314_108_565_84).abs() < 1e-9);
     assert_eq!(p.country_code.as_deref(), Some("RU"));
@@ -361,7 +361,7 @@ fn the_radius_clamps_to_half_the_earths_circumference() {
 #[test]
 fn a_search_answer_decodes_to_the_pano_it_found() {
     let pano = decode_search(SEARCH_JSON.as_bytes()).expect("search answer decodes");
-    assert_eq!(pano.pano, "CAoSF0NJSE0wb2dLRUlDQWdJQ0VtX2l4cXdF");
+    assert_eq!(pano.id, "CAoSF0NJSE0wb2dLRUlDQWdJQ0VtX2l4cXdF");
     assert!(pano.lat != 0.0 && pano.lng != 0.0);
 }
 
@@ -373,17 +373,17 @@ fn reply(status: i64, key: &Value) -> String {
 #[test]
 fn an_ok_search_answer_reads_out_the_whole_pano() {
     let p = decode_search(reply(1, &json!([2, "20C-1_sANr4OMdhTDM2N-g"])).as_bytes()).unwrap();
-    assert_eq!(p.pano, "20C-1_sANr4OMdhTDM2N-g");
+    assert_eq!(p.id, "20C-1_sANr4OMdhTDM2N-g");
     assert_eq!((p.lat, p.lng), (1.0, 2.0));
     assert_eq!(
-        decode_search(reply(3, &json!([3, "abc"])).as_bytes()).unwrap().pano,
+        decode_search(reply(3, &json!([3, "abc"])).as_bytes()).unwrap().id,
         "F:abc"
     );
     // A missing frontend reads as official, matching the Maps JS API's own default.
     assert_eq!(
         decode_search(reply(1, &json!([null, "20C-1_sANr4OMdhTDM2N-g"])).as_bytes())
             .unwrap()
-            .pano,
+            .id,
         "20C-1_sANr4OMdhTDM2N-g"
     );
 }
@@ -631,12 +631,12 @@ fn queries_of_both_kinds_answer_aligned_to_the_input() {
     ];
     let mut host = SplitStub::new();
     let answers = resolve_panos(&mut host, &queries);
-    assert!(matches!(&answers[0], PanoAnswer::Found { pano } if pano.pano == "pano-0"));
+    assert!(matches!(&answers[0], PanoAnswer::Found { pano } if pano.id == "pano-0"));
     assert!(
-        matches!(&answers[1], PanoAnswer::Found { pano } if pano.pano == "20C-1_sANr4OMdhTDM2N-g")
+        matches!(&answers[1], PanoAnswer::Found { pano } if pano.id == "20C-1_sANr4OMdhTDM2N-g")
     );
     assert_eq!(answers[2], PanoAnswer::Skipped);
-    assert!(matches!(&answers[3], PanoAnswer::Found { pano } if pano.pano == "pano-1"));
+    assert!(matches!(&answers[3], PanoAnswer::Found { pano } if pano.id == "pano-1"));
     assert_eq!(host.search_bodies, vec![encode_search(&search(1.0, 2.0, 50.0))]);
     assert_eq!(host.meta_rounds, 1);
 }
@@ -682,7 +682,7 @@ fn a_guest_query_object_lands_on_the_right_variant() {
 #[test]
 fn a_timestamp_probe_answer_reads_as_coverage_or_not() {
     let hit = decode_search(include_str!("testdata/timestampsearch.hit.json").as_bytes());
-    assert!(hit.is_some_and(|p| !p.pano.is_empty()));
+    assert!(hit.is_some_and(|p| !p.id.is_empty()));
     assert!(decode_search(include_str!("testdata/timestampsearch.miss.json").as_bytes()).is_none());
 }
 

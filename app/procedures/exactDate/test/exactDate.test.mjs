@@ -55,7 +55,7 @@ function install(respond, { abortAfter = Infinity, onRound = null } = {}) {
 				};
 				state.calls.push(call);
 				const s = respond(call);
-				return s === FOUND ? { state: FOUND, pano: { pano: "pano" } } : { state: s };
+				return s === FOUND ? { state: FOUND, pano: { id: "pano" } } : { state: s };
 			});
 			onRound?.(out.length);
 			return out;

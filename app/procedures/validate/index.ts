@@ -96,7 +96,7 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 		}
 	}
 
-	const camMeta = mma.panos(badcam.flatMap((it) => it.entries.map((e) => ({ panoId: e.pano }))));
+	const camMeta = mma.panos(badcam.flatMap((it) => it.entries.map((e) => ({ panoId: e.panoId }))));
 	if (mma.aborted()) return [];
 
 	let at = 0;
@@ -114,15 +114,15 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 
 	for (const it of items) {
 		if (it.settled || it.data === null) continue;
-		if (it.coordData !== null && it.coordData.pano !== it.data.pano) {
+		if (it.coordData !== null && it.coordData.id !== it.data.id) {
 			it.state = it.pinned ? ValidationState.UpdateAvailable : ValidationState.UpdateApplied;
 			continue;
 		}
 		// The stored pano is a known official capture, but not the newest one.
 		const storedIsOfficial = it.entries.some(
-			(e) => e.pano === it.row.panoId && isOfficialPano(e.pano),
+			(e) => e.panoId === it.row.panoId && isOfficialPano(e.panoId),
 		);
-		if (storedIsOfficial && newestOfficialPano(it.entries)?.pano !== it.row.panoId) {
+		if (storedIsOfficial && newestOfficialPano(it.entries)?.panoId !== it.row.panoId) {
 			it.state = it.pinned ? ValidationState.UpdateAvailable : ValidationState.UpdateApplied;
 		}
 	}

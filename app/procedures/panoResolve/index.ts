@@ -30,7 +30,7 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 	const out: Update<LocationPatch>[] = [];
 	todo.forEach((row, i) => {
 		const a = answers[i];
-		if (a.state === "found") out.push({ id: row.id, patch: { panoId: a.pano.pano } });
+		if (a.state === "found") out.push({ id: row.id, patch: { panoId: a.pano.id } });
 		// A skipped answer is a cancelled run's declined request: neither a result nor
 		// a failure, so the row stays untouched.
 		else if (a.state === "skipped") return;

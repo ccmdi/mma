@@ -42,7 +42,7 @@ interface PanoViewerContextValue {
 	settled: () => Promise<Location | null>;
 	/** The draft's pano as Google describes it, for what the UI shows off the pano itself
 	 *  rather than off the draft; null until it lands. */
-	meta: Pano | null;
+	currentPano: Pano | null;
 	/** The captures the date picker can offer at the draft's pano; null until it lands. */
 	timeline: Pano["time"] | null;
 	/** The pano Google resolves for the draft's position: what "Default" means there. */
@@ -76,7 +76,8 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 
 	const open = useCallback((loc: Location, resolved: string | null) => {
 		setState({ ...loc, panoId: resolved ?? loc.panoId });
-	}, []);
+  }, []);
+	
 	const edit = useCallback(
 		(patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
 			setState((prev) => {
@@ -97,11 +98,12 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const onScreen = useAsyncSticky(
 		async (signal) => {
 			if (!draftPano) return null;
-			const [meta] = await svMetadata([draftPano], signal);
-			if (!meta) return null;
-			const here = [{ lat: meta.lat, lng: meta.lng }];
+			const [shown] = await svMetadata([draftPano], signal);
+			if (!shown) return null;
+			const here = [{ lat: shown.lat, lng: shown.lng }];
 			const [atCoord] = await panosAt(here, SV_SEARCH_RADIUS, undefined, signal);
-			let timeline = meta.time;
+
+      let timeline = shown.time;
 			if (allUnofficial(timeline)) {
 				const [official] = await panosAt(
 					here,
@@ -109,14 +111,15 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 					{ sources: [PanoType.Official] },
 					signal,
 				);
-				timeline = mergeTimelines([official, meta]);
-			}
-			return { meta, timeline, defaultPano: atCoord ?? meta };
+				timeline = mergeTimelines([official, shown]);
+      }
+			
+			return { currentPano: shown, timeline, defaultPano: atCoord ?? shown };
 		},
 		[draftPano],
 		draft?.id ?? null,
 	);
-	const meta = onScreen?.meta ?? null;
+	const currentPano = onScreen?.currentPano ?? null;
 	const timeline = onScreen?.timeline ?? null;
 	const defaultPano = onScreen?.defaultPano ?? null;
 
@@ -180,8 +183,8 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	}, [location]);
 
 	const value = useMemo(
-		() => ({ draft, open, edit, settled, meta, timeline, defaultPano, enriching }),
-		[draft, open, edit, settled, meta, timeline, defaultPano, enriching],
+		() => ({ draft, open, edit, settled, currentPano, timeline, defaultPano, enriching }),
+		[draft, open, edit, settled, currentPano, timeline, defaultPano, enriching],
 	);
 
 	return <PanoViewerContext.Provider value={value}>{children}</PanoViewerContext.Provider>;
@@ -194,9 +197,9 @@ export function usePanoViewer(): PanoViewerContextValue {
 }
 
 export function usePanoDates(): PanoDateState {
-	const { meta, timeline, defaultPano, draft } = usePanoViewer();
+	const { currentPano, timeline, defaultPano, draft } = usePanoViewer();
 	return useMemo(
-		() => panoDates(meta, timeline, defaultPano, draft),
-		[meta, timeline, defaultPano, draft],
+		() => panoDates(currentPano, timeline, defaultPano, draft),
+		[currentPano, timeline, defaultPano, draft],
 	);
 }

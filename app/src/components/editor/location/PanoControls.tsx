@@ -409,7 +409,7 @@ function ReturnToSpawnControl({
 
 function CoordinateControl({ panorama }: { panorama: google.maps.StreetViewPanorama }) {
 	const textRef = useRef<HTMLSpanElement>(null);
-	const altitude = usePanoViewer().meta?.altitude ?? 0;
+	const altitude = usePanoViewer().currentPano?.altitude ?? 0;
 	// Zoom ticks every frame of a pinch, so the text is written straight to the DOM.
 	const updateDisplay = useCallback(() => {
 		const zoom = (panorama.getZoom() ?? 0).toFixed(2);

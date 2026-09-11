@@ -35,11 +35,11 @@ const civil = (d) => `${d.year}-${pad(d.month)}-${pad(d.day)}`;
 function meta(id, over = {}) {
 	const date = over.date ?? { year: 2021, month: 6, day: 15 };
 	const height = over.height ?? 8192;
-	const time = [...(over.timeline ?? []), { pano: id, date }]
-		.map((t) => ({ pano: t.pano, date: civil(t.date) }))
+	const time = [...(over.timeline ?? []), { panoId: id, date }]
+		.map((t) => ({ panoId: t.panoId, date: civil(t.date) }))
 		.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
 	return pano({
-		pano: id,
+		id,
 		lat: over.lat ?? 35.6,
 		lng: over.lng ?? 139.7,
 		countryCode: over.countryCode ?? "JP",
@@ -229,7 +229,7 @@ test("a badcam capture with a better camera in its timeline reports one", () => 
 		{ panoId: A },
 		{
 			panos: {
-				[A]: badcam(A, { timeline: [{ pano: B, date: { year: 2019, month: 5, day: 1 } }] }),
+				[A]: badcam(A, { timeline: [{ panoId: B, date: { year: 2019, month: 5, day: 1 } }] }),
 				[B]: meta(B),
 			},
 			coords: { "1,2": A },
@@ -245,7 +245,7 @@ test("a badcam capture with no better camera falls through to the timeline check
 		{ panoId: A },
 		{
 			panos: {
-				[A]: badcam(A, { timeline: [{ pano: B, date: { year: 2019, month: 5, day: 1 } }] }),
+				[A]: badcam(A, { timeline: [{ panoId: B, date: { year: 2019, month: 5, day: 1 } }] }),
 				[B]: badcam(B),
 			},
 			coords: { "1,2": A },
@@ -260,7 +260,7 @@ test("a pinned badcam row with a better camera in its timeline reports one", () 
 		{ panoId: A, flags: PINNED },
 		{
 			panos: {
-				[A]: badcam(A, { timeline: [{ pano: B, date: { year: 2019, month: 5, day: 1 } }] }),
+				[A]: badcam(A, { timeline: [{ panoId: B, date: { year: 2019, month: 5, day: 1 } }] }),
 				[B]: meta(B),
 			},
 			coords: { "1,2": A },
@@ -312,7 +312,7 @@ test("a pinned row on an older official capture reports an available update", ()
 			panos: {
 				[A]: meta(A, {
 					date: { year: 2019, month: 5, day: 1 },
-					timeline: [{ pano: B, date: { year: 2021, month: 6, day: 1 } }],
+					timeline: [{ panoId: B, date: { year: 2021, month: 6, day: 1 } }],
 				}),
 			},
 		},
@@ -327,7 +327,7 @@ test("an unpinned row on an older official capture reports it as applied", () =>
 			panos: {
 				[A]: meta(A, {
 					date: { year: 2019, month: 5, day: 1 },
-					timeline: [{ pano: B, date: { year: 2021, month: 6, day: 1 } }],
+					timeline: [{ panoId: B, date: { year: 2021, month: 6, day: 1 } }],
 				}),
 			},
 			coords: { "1,2": A },
@@ -343,7 +343,7 @@ test("a stored pano that is not in the timeline is left alone", () => {
 			panos: {
 				[C]: meta(A, {
 					date: { year: 2019, month: 5, day: 1 },
-					timeline: [{ pano: B, date: { year: 2021, month: 6, day: 1 } }],
+					timeline: [{ panoId: B, date: { year: 2021, month: 6, day: 1 } }],
 				}),
 			},
 		},
@@ -393,7 +393,7 @@ test("badcam rows across a batch share one timeline round", () => {
 	const rows = Array.from({ length: 5 }, (_, i) => ({ id: i + 1, lat: 1, lng: 2, panoId: A }));
 	const { answers, metaCalls, hostCalls } = runProcedure(rows, {
 		panos: {
-			[A]: badcam(A, { timeline: [{ pano: B, date: { year: 2019, month: 5, day: 1 } }] }),
+			[A]: badcam(A, { timeline: [{ panoId: B, date: { year: 2019, month: 5, day: 1 } }] }),
 			[B]: meta(B),
 		},
 		coords: { "1,2": A },

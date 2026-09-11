@@ -26,7 +26,7 @@ function withHost<T>(deadLat: string, run: () => T): { out: T; events: string[];
 			return queries.map((q) =>
 				String(q.lat) === deadLat
 					? { state: "notFound" }
-					: { state: "found", pano: { pano: "p" } },
+					: { state: "found", pano: { id: "p" } },
 			);
 		},
 		log: () => {},

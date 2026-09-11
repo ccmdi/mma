@@ -40,7 +40,7 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 		if (a.state === "skipped") continue;
 		const latest = a.state === "found" ? newestOfficialPano(a.pano.time) : null;
 		if (!latest) mma.fail(row.id);
-		else out.push({ id: row.id, patch: { panoId: latest.pano, flags } });
+		else out.push({ id: row.id, patch: { panoId: latest.panoId, flags } });
 		mma.progress(1);
 	}
 	return out;

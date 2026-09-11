@@ -104,7 +104,7 @@ export function passesDateFilters(
 		const fromDate = Date.parse(s.fromDate);
 		const toDate = Date.parse(s.toDate);
 		for (const entry of res.time) {
-			if (s.rejectUnofficial && !isOfficialPano(entry.pano)) continue;
+			if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
 			const iDate = entryMonth(entry);
 			if (iDate >= fromDate && iDate <= toDate) return "checkAll";
 		}
@@ -129,7 +129,7 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 	if (!passesDescriptionSearch(pano, s)) return false;
 
 	if (s.rejectUnofficial && !s.rejectOfficial) {
-		if (!isOfficialPano(pano.pano)) return false;
+		if (!isOfficialPano(pano.id)) return false;
 		if (s.filterByLinks && (pano.links.length < s.minLinks || pano.links.length > s.maxLinks))
 			return false;
 		if (
@@ -165,8 +165,8 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 
 	if (s.onlyOneInTimeframe && pano.time) {
 		for (const entry of pano.time) {
-			if (s.rejectUnofficial && !isOfficialPano(entry.pano)) continue;
-			if (entry.pano === pano.pano) continue;
+			if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
+			if (entry.panoId === pano.id) continue;
 			const iDate = entryMonth(entry);
 			if (iDate >= fromDate && iDate <= toDate) return false;
 		}
@@ -179,7 +179,7 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 		if (s.rejectGen1 && pano.cameraType === "gen1") return false;
 		let dateWithin = false;
 		for (const entry of pano.time) {
-			if (s.rejectUnofficial && !isOfficialPano(entry.pano)) continue;
+			if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
 			const iDate = entryMonth(entry);
 			if (iDate >= fromDate && iDate <= toDate) {
 				dateWithin = true;
@@ -199,7 +199,7 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 		if (s.checkAllDates) {
 			let dateWithin = false;
 			for (const entry of pano.time) {
-				if (s.rejectUnofficial && !isOfficialPano(entry.pano)) continue;
+				if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
 				if (!entry.date) continue;
 				const m = parseInt(entry.date.slice(5, 7));
 				const y = parseInt(entry.date.slice(0, 4));

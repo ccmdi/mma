@@ -26,7 +26,7 @@ export async function resolvePano(loc: Location): Promise<Pano | null> {
 /** True when the location names a pano that no longer resolves, so `resolvePano` fell back
  *  to its coordinates. */
 export function isPanoFallback(loc: Location, resolved: Pano | null): boolean {
-	return isPinned(loc) && resolved?.pano !== loc.panoId;
+	return isPinned(loc) && resolved?.id !== loc.panoId;
 }
 
 /** Compute SV search radius in meters based on map zoom and latitude. */
@@ -194,8 +194,8 @@ export async function lookupStreetView(
 
 	const candidates: Pano[] = [];
 	const push = (e: Pano | null) => {
-		if (!e?.pano) return;
-		if (!candidates.some((c) => c.pano === e.pano)) candidates.push(e);
+		if (!e?.id) return;
+		if (!candidates.some((c) => c.id === e.id)) candidates.push(e);
 	};
 
 	if (iRes && sRes) {
@@ -212,7 +212,7 @@ export async function lookupStreetView(
 	const official = candidates.find((c) => !isUnofficial(c));
 	if (official?.time.length) {
 		// The whole historical stack, in one request.
-		for (const p of await svMetadata(official.time.map((t) => t.pano))) push(p);
+		for (const p of await svMetadata(official.time.map((t) => t.panoId))) push(p);
 	}
 
 	const chosen = rankCandidates(candidates, {
@@ -222,14 +222,14 @@ export async function lookupStreetView(
 	if (!chosen) return null;
 
 	const [verify] = await panosAt([{ lat: chosen.lat, lng: chosen.lng }], SV_SEARCH_RADIUS);
-	const isDefault = verify !== null && verify.pano === chosen.pano;
+	const isDefault = verify !== null && verify.id === chosen.id;
 
 	const heading = calcHeading(chosen, opts);
 	return createLocation({
 		lat: chosen.lat,
 		lng: chosen.lng,
 		heading,
-		panoId: chosen.pano || null,
+		panoId: chosen.id || null,
 		flags: !isDefault || opts.defaultPanoId ? LocationFlag.LoadAsPanoId : LocationFlag.None,
 	});
 }
@@ -254,8 +254,8 @@ export async function followLinkedPanos(
 		if (!links || links.length === 0) break;
 
 		const usable = links
-			.filter((l) => l.pano && !visited.has(l.pano))
-			.map((l) => ({ pano: l.pano, heading: l.heading ?? 0 }));
+			.filter((l) => l.panoId && !visited.has(l.panoId))
+			.map((l) => ({ pano: l.panoId, heading: l.heading ?? 0 }));
 		const best = bestBy(
 			usable,
 			(a, b) => angularDelta(a.heading, currentHeading) < angularDelta(b.heading, currentHeading),

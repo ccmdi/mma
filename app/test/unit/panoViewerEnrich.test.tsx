@@ -54,9 +54,9 @@ vi.mock("@/lib/data/fieldDefs", () => ({
 			: extra,
 }));
 vi.mock("@/lib/sv/query", () => ({
-	svMetadata: async (panos: string[]) => panos.map((pano) => ({ pano, lat: 1, lng: 2, time: [] })),
+	svMetadata: async (panos: string[]) => panos.map((id) => ({ id, lat: 1, lng: 2, time: [] })),
 	// Google's default at every position is "pDefault", whatever pano is on screen.
-	panosAt: async () => [{ pano: "pDefault", lat: 1, lng: 2, time: [] }],
+	panosAt: async () => [{ id: "pDefault", lat: 1, lng: 2, time: [] }],
 }));
 vi.mock("@/lib/sv/panoSingleton", () => ({ singletonPano: null }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -126,8 +126,8 @@ describe("the draft is the location as a save would write it", () => {
 		await open("pA");
 		await walk("pB");
 		await act(async () => {});
-		expect(viewer.meta?.pano).toBe("pB");
-		expect(viewer.defaultPano?.pano).toBe("pDefault");
+		expect(viewer.currentPano?.id).toBe("pB");
+		expect(viewer.defaultPano?.id).toBe("pDefault");
 		m.unmount();
 	});
 
@@ -242,7 +242,7 @@ describe("the draft is the location as a save would write it", () => {
 		h.activeLocation = { ...createLocation({ lat: 3, lng: 4 }), id: 8 } satisfies Location;
 		await act(async () => refresh());
 		expect(viewer.draft).toBeNull();
-		expect(viewer.meta).toBeNull();
+		expect(viewer.currentPano).toBeNull();
 		expect(viewer.timeline).toBeNull();
 		expect(h.enriched.map((l) => l.id)).toEqual([7]);
 		m.unmount();

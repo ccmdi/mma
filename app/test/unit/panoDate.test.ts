@@ -5,8 +5,8 @@ import { createLocation } from "@/types";
 import type { Pano } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
 
-const ref = (pano: string, date: string): Pano["time"][number] => ({ pano, date });
-const on = (pano: string, time: Pano["time"] = []) => ({ pano, time }) as unknown as Pano;
+const ref = (panoId: string, date: string): Pano["time"][number] => ({ panoId, date });
+const on = (id: string, time: Pano["time"] = []) => ({ id, time }) as unknown as Pano;
 const floating: Location = createLocation({ lat: 0, lng: 0 });
 const pinned: Location = { ...floating, flags: 1, panoId: "a" };
 
@@ -16,8 +16,8 @@ describe("panoDates", () => {
 		// Floating on "a" (an older capture) with Google's default at this spot being "b".
 		const s = panoDates(on("a"), dates, on("b", dates), floating);
 		expect(s.isDefault).toBe(true);
-		expect(s.defaultEntry?.pano).toBe("b");
-		expect(s.currentEntry?.pano).toBe("b");
+		expect(s.defaultEntry?.panoId).toBe("b");
+		expect(s.currentEntry?.panoId).toBe("b");
 		expect(s.triggerPanoId).toBe("b");
 		expect(s.displayDate).toEqual(new Date(2021, 2, 1));
 		expect(s.yearMonth).toBe("2021-03");
@@ -27,8 +27,8 @@ describe("panoDates", () => {
 		const dates = [ref("a", "2020-06-15"), ref("b", "2021-03-01")];
 		const s = panoDates(on("a"), dates, on("b", dates), pinned);
 		expect(s.isDefault).toBe(false);
-		expect(s.defaultEntry?.pano).toBe("b");
-		expect(s.currentEntry?.pano).toBe("a");
+		expect(s.defaultEntry?.panoId).toBe("b");
+		expect(s.currentEntry?.panoId).toBe("a");
 		expect(s.triggerPanoId).toBe("a");
 		expect(s.yearMonth).toBe("2020-06");
 	});
@@ -38,15 +38,15 @@ describe("panoDates", () => {
 		// appear in the pinned pano's stack, yet the Default row still shows its date.
 		const dates = [ref("a", "2020-06-15")];
 		const s = panoDates(on("a"), dates, on("b", [ref("b", "2024-05-01")]), pinned);
-		expect(s.defaultEntry?.pano).toBe("b");
+		expect(s.defaultEntry?.panoId).toBe("b");
 		expect(s.defaultEntry?.date).toBe("2024-05-01");
-		expect(s.sorted.map((d) => d.pano)).toEqual(["a"]);
+		expect(s.sorted.map((d) => d.panoId)).toEqual(["a"]);
 	});
 
 	it("sorts entries ascending by date", () => {
 		const dates = [ref("new", "2022-01-01"), ref("old", "2018-01-01")];
 		const s = panoDates(null, dates, null, floating);
-		expect(s.sorted.map((d) => d.pano)).toEqual(["old", "new"]);
+		expect(s.sorted.map((d) => d.panoId)).toEqual(["old", "new"]);
 	});
 
 	it("with no entries, the pano on screen still triggers but has no date to show", () => {

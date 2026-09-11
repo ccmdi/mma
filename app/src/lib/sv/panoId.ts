@@ -11,15 +11,15 @@ export function isOfficialPano(panoId: string): boolean {
 /** Newest official pano in a capture timeline, or null if it holds none. Timelines from
  *  `svMetadata` are sorted ascending by date, so "newest" is the last official entry -
  *  scanning backwards rather than indexing keeps that assumption in one place. */
-export function newestOfficialPano<T extends { pano: string }>(time: readonly T[]): T | null {
-	return time.findLast((t) => isOfficialPano(t.pano)) ?? null;
+export function newestOfficialPano<T extends { panoId: string }>(time: readonly T[]): T | null {
+	return time.findLast((t) => isOfficialPano(t.panoId)) ?? null;
 }
 
 /** Heuristic: a user-uploaded pano, by id length or attribution. Both attribution texts are
  *  searched: a user photo can carry a place description as well as its "Photo by" line. */
 export function isUnofficial(p: Pano): boolean {
-	if (!p.pano) return false;
-	if (p.pano.length > 22) return true;
+	if (!p.id) return false;
+	if (p.id.length > 22) return true;
 	return /photo by|user[- ]uploaded/i.test(`${p.shortDescription} ${p.copyright}`);
 }
 
@@ -28,12 +28,12 @@ export function isUnofficial(p: Pano): boolean {
  *  sources win, so pass the pano itself last. */
 export function mergeTimelines(sources: (Pano | null)[]): Pano["time"] {
 	const merged = new Map<string, Pano["time"][number]>();
-	for (const p of sources) for (const t of p?.time ?? []) merged.set(t.pano, t);
+	for (const p of sources) for (const t of p?.time ?? []) merged.set(t.panoId, t);
 	return [...merged.values()];
 }
 
 /** True when nothing in the timeline is official coverage, an empty stack included, so
  *  the multi-year history lives on official coverage nearby rather than on these panos. */
 export function allUnofficial(time: Pano["time"]): boolean {
-	return time.every((t) => !isOfficialPano(t.pano));
+	return time.every((t) => !isOfficialPano(t.panoId));
 }

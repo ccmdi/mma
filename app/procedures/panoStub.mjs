@@ -4,7 +4,7 @@
 /** A Pano with every field spelled out, overridden per case. */
 export function pano(over = {}) {
 	return {
-		pano: "",
+		id: "",
 		panoFrontend: 2,
 		lat: 0,
 		lng: 0,

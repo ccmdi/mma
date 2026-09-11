@@ -39,11 +39,11 @@ function PanoBadge({ cameraType }: { cameraType: FullCameraType | null }) {
 	);
 }
 
-function PanoOption({ pano, date }: Pano["time"][number]) {
+function PanoOption({ panoId, date }: Pano["time"][number]) {
 	const showBadges = useSetting("showCameraBadges");
-	const cameraType = useCameraType(pano);
+	const cameraType = useCameraType(panoId);
 	return (
-		<option value={pano} className="pano-option">
+		<option value={panoId} className="pano-option">
 			<span>{monthLabel(date)}</span>
 			{(cameraType === "unofficial" || showBadges) && <PanoBadge cameraType={cameraType} />}
 		</option>
@@ -55,7 +55,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 }: {
 	onChange: (panoId: string | null) => void;
 }) {
-	const { draft, meta, enriching } = usePanoViewer();
+	const { draft, currentPano, enriching } = usePanoViewer();
 	const exactTs = (draft?.extra?.datetime as number | undefined) ?? null;
 	const location = useMapState((s) => s.activeLocation);
 	const enrichFields = useMapState((s) => s.map?.settings.enrichFields ?? null);
@@ -86,7 +86,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const dateTimezone = useSetting("dateTimezone");
 	const { lat, lng } = viewerPosition(draft, location);
 	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
-	const triggerCameraType = useCameraType(triggerPanoId, meta);
+	const triggerCameraType = useCameraType(triggerPanoId, currentPano);
 	const tzOption = dateTimezone === "utc" ? "UTC" : (resolvedTz ?? undefined);
 	const exactLabel = exactTs
 		? exactDateFormat === "datetime"
@@ -120,7 +120,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 		<NSelect
 			className="pano-date-select"
 			data-side="top"
-			value={isDefault ? "default" : (currentEntry?.pano ?? "default")}
+			value={isDefault ? "default" : (currentEntry?.panoId ?? "default")}
 			onChange={(e) => {
 				const select = e.currentTarget;
 				handleValueChange(e.target.value);
@@ -141,7 +141,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 			</button>
 			<optgroup label={t("Specific Panorama")}>
 				{sorted.map((d) => (
-					<PanoOption key={d.pano} {...d} />
+					<PanoOption key={d.panoId} {...d} />
 				))}
 			</optgroup>
 			<optgroup label={t("Default / auto-updating")}>

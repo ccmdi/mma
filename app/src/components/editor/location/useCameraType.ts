@@ -16,7 +16,7 @@ function cameraTypeOf(data: Pano): FullCameraType | null {
  *  synchronous. Otherwise the last answer holds while the request is in flight, so the
  *  badge never blanks between panos. */
 export function useCameraType(panoId: string | null, known?: Pano | null): FullCameraType | null {
-	const answer = known && known.pano === panoId ? known : null;
+	const answer = known && known.id === panoId ? known : null;
 	return useAsyncSticky<FullCameraType | null>(() => {
 		if (!panoId) return null;
 		// Immediate check: a non-official pano ID is unofficial regardless of metadata.

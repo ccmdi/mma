@@ -53,7 +53,7 @@ function runProcedure(rows, lookup, { direction = "forwards" } = {}) {
 /** A pano facing `heading`, as the host reports one. */
 const facing = (id, heading) =>
 	pano({
-		pano: id,
+		id,
 		pov: heading === null ? null : { heading, tilt: 90, roll: 0 },
 		centerHeading: heading ?? 0,
 		countryCode: "JP",

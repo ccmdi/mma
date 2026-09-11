@@ -21,14 +21,14 @@ use crate::sv::wire::{put_msg, put_str, put_varint_field, Node};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PanoLink {
-    pub pano: String,
+    pub pano_id: String,
     pub heading: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PanoTime {
-    pub pano: String,
+    pub pano_id: String,
     /// The civil day, `YYYY-MM-DD`.
     pub date: String,
 }
@@ -46,7 +46,7 @@ pub struct CameraFrame {
 #[serde(rename_all = "camelCase")]
 pub struct Pano {
     /// This image's own pano id, "" when the response carries no key.
-    pub pano: String,
+    pub id: String,
     /// Which imagery collection the id belongs to; also what `extra.panoType` stores.
     pub pano_frontend: i32,
     pub lat: f64,
@@ -165,7 +165,7 @@ fn project(m: &ImageMetadata) -> Option<Pano> {
     let info = m.information().into_iter().next()?;
     let loc = info.location();
     let key = m.pano();
-    let pano = key_to_pano_id(&key);
+    let id = key_to_pano_id(&key);
     let parts: Vec<&str> = m
         .description()
         .description()
@@ -192,14 +192,14 @@ fn project(m: &ImageMetadata) -> Option<Pano> {
         .time()
         .iter()
         .map(|t| PanoTime {
-            pano: match neighbour(t.target()) {
-                id if id.is_empty() => pano.clone(),
-                id => id,
+            pano_id: match neighbour(t.target()) {
+                target if target.is_empty() => id.clone(),
+                target => target,
             },
             date: civil_date(&t.date()),
         })
         .chain([PanoTime {
-            pano: pano.clone(),
+            pano_id: id.clone(),
             date: civil_date(&taken),
         }])
         .filter(|t| !t.date.is_empty())
@@ -211,7 +211,7 @@ fn project(m: &ImageMetadata) -> Option<Pano> {
             0 => i32::from(PanoType::OFFICIAL),
             frontend => frontend,
         },
-        pano,
+        id,
         world_size: world.to_owned(),
         tile_size: tile.to_owned(),
         copyright: attribution
@@ -236,7 +236,7 @@ fn project(m: &ImageMetadata) -> Option<Pano> {
             .link()
             .iter()
             .map(|l| PanoLink {
-                pano: neighbour(l.target()),
+                pano_id: neighbour(l.target()),
                 heading: l.properties().heading(),
             })
             .collect(),
@@ -525,7 +525,7 @@ pub fn decode_search(body: &[u8]) -> Option<Pano> {
     if !matches!(result.status().code(), 1 | 3) {
         return None;
     }
-    project(&result).filter(|p| !p.pano.is_empty())
+    project(&result).filter(|p| !p.id.is_empty())
 }
 
 // --- batching ---

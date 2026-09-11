@@ -46,26 +46,26 @@ describe("newestOfficialPano", () => {
 
 	it("returns null for an empty or all-unofficial timeline", () => {
 		expect(newestOfficialPano([])).toBeNull();
-		expect(newestOfficialPano([{ pano: ugc }, { pano: "junk" }])).toBeNull();
+		expect(newestOfficialPano([{ panoId: ugc }, { panoId: "junk" }])).toBeNull();
 	});
 
 	// Timelines arrive sorted ascending, so the newest official entry is the LAST one —
 	// not the first match, and not the last entry when that entry is unofficial.
 	it("takes the last official entry, skipping trailing unofficial ones", () => {
-		expect(newestOfficialPano([{ pano: off1 }, { pano: off2 }])?.pano).toBe(off2);
-		expect(newestOfficialPano([{ pano: off1 }, { pano: off2 }, { pano: ugc }])?.pano).toBe(off2);
-		expect(newestOfficialPano([{ pano: ugc }, { pano: off1 }])?.pano).toBe(off1);
+		expect(newestOfficialPano([{ panoId: off1 }, { panoId: off2 }])?.panoId).toBe(off2);
+		expect(newestOfficialPano([{ panoId: off1 }, { panoId: off2 }, { panoId: ugc }])?.panoId).toBe(off2);
+		expect(newestOfficialPano([{ panoId: ugc }, { panoId: off1 }])?.panoId).toBe(off1);
 	});
 
 	it("preserves the entry object, not just the id", () => {
-		const entry = { pano: off1, date: new Date(2019, 5) };
+		const entry = { panoId: off1, date: new Date(2019, 5) };
 		expect(newestOfficialPano([entry])).toBe(entry);
 	});
 });
 
 describe("isUnofficial", () => {
 	const pano = (id: string, attribution: Partial<Pick<Pano, "shortDescription" | "copyright">> = {}) =>
-		({ pano: id, shortDescription: "", copyright: "", ...attribution }) as Pano;
+		({ id, shortDescription: "", copyright: "", ...attribution }) as Pano;
 
 	it("long pano ID is unofficial", () => {
 		expect(isUnofficial(pano("A".repeat(30)))).toBe(true);
@@ -92,27 +92,27 @@ describe("isUnofficial", () => {
 });
 
 describe("mergeTimelines", () => {
-	const pano = (over: Partial<Pano> = {}): Pano => ({ pano: "p", time: [], ...over }) as Pano;
+	const pano = (over: Partial<Pano> = {}): Pano => ({ id: "p", time: [], ...over }) as Pano;
 
 	// The date picker merges an all-unofficial stack with nearby official coverage,
 	// which carries the multi-year history. Later sources win.
 	it("merges timelines with later sources winning", () => {
-		const a = pano({ time: [{ pano: "x", date: "2011-01-01" }] });
+		const a = pano({ time: [{ panoId: "x", date: "2011-01-01" }] });
 		const b = pano({
 			time: [
-				{ pano: "x", date: "2022-06-01" },
-				{ pano: "y", date: "2019-05-01" },
+				{ panoId: "x", date: "2022-06-01" },
+				{ panoId: "y", date: "2019-05-01" },
 			],
 		});
 		expect(mergeTimelines([a, b])).toEqual([
-			{ pano: "x", date: "2022-06-01" },
-			{ pano: "y", date: "2019-05-01" },
+			{ panoId: "x", date: "2022-06-01" },
+			{ panoId: "y", date: "2019-05-01" },
 		]);
 	});
 
 	it("skips absent sources rather than failing", () => {
 		expect(mergeTimelines([null, null])).toEqual([]);
-		expect(mergeTimelines([null, pano({ time: [{ pano: "x", date: "2020-01-01" }] })])).toHaveLength(
+		expect(mergeTimelines([null, pano({ time: [{ panoId: "x", date: "2020-01-01" }] })])).toHaveLength(
 			1,
 		);
 	});
@@ -120,8 +120,8 @@ describe("mergeTimelines", () => {
 
 describe("allUnofficial", () => {
 	it("flags a timeline with no official coverage, which is what triggers the wider search", () => {
-		expect(allUnofficial([{ pano: "F:abc", date: "2020-01-01" }])).toBe(true);
-		expect(allUnofficial([{ pano: "-zrYsLR4Fh-cfJG_EMZ1-A", date: "2020-01-01" }])).toBe(false);
+		expect(allUnofficial([{ panoId: "F:abc", date: "2020-01-01" }])).toBe(true);
+		expect(allUnofficial([{ panoId: "-zrYsLR4Fh-cfJG_EMZ1-A", date: "2020-01-01" }])).toBe(false);
 	});
 
 	it("counts an empty stack as all-unofficial, since unofficial panos often carry none", () => {

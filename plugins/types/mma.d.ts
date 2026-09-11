@@ -1682,7 +1682,7 @@ type NumericBinning = {
 /**  A decoded Street View panorama: flat data with no live objects. */
 type Pano = {
     /**  This image's own pano id, "" when the response carries no key. */
-    pano: string;
+    id: string;
     /**  Which imagery collection the id belongs to; also what `extra.panoType` stores. */
     panoFrontend: number;
     lat: number;
@@ -1741,13 +1741,13 @@ type PanoDate = {
     day: number;
 };
 type PanoLink = {
-    pano: string;
+    panoId: string;
     heading: number;
 };
 /**  One pano lookup: a pano id resolves over GetMetadata, a search over SingleImageSearch. */
 type PanoQuery = IdQuery | SearchQuery;
 type PanoTime = {
-    pano: string;
+    panoId: string;
     /**  The civil day, `YYYY-MM-DD`. */
     date: string;
 };
