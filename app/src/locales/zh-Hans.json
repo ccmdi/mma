@@ -1243,6 +1243,7 @@
 	"Ultra ({size})": "超高（{size}）",
 	"Un-ghost selection": "取消幽灵选择",
 	"Uncommitted": "未提交",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "无法读取未提交的更改，已将其另存为 .corrupt 文件。地图已从上次提交的状态打开。",
 	"Undo": "撤销",
 	"Unexpected \"{token}\"": "意外的“{token}”",
 	"Unexpected \"{token}\" after expression": "表达式后出现意外的“{token}”",

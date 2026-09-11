@@ -1345,6 +1345,7 @@
 	"Ultra ({size})": "Ultra ({size})",
 	"Un-ghost selection": "Cofnij widmo zaznaczenia",
 	"Uncommitted": "Niezatwierdzone",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Nie udało się odczytać niezatwierdzonych zmian i odłożono je jako plik .corrupt. Mapa została otwarta z ostatniego zatwierdzonego stanu.",
 	"Undo": "Cofnij",
 	"Unexpected \"{token}\"": "Nieoczekiwane \"{token}\"",
 	"Unexpected \"{token}\" after expression": "Nieoczekiwane \"{token}\" po wyrażeniu",

@@ -1243,6 +1243,7 @@
 	"Ultra ({size})": "最高（{size}）",
 	"Un-ghost selection": "ゴースト選択を解除",
 	"Uncommitted": "未コミット",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "コミットされていない変更を読み取れなかったため、.corrupt ファイルとして退避しました。マップは最後にコミットされた状態で開かれました。",
 	"Undo": "元に戻す",
 	"Unexpected \"{token}\"": "予期しない「{token}」",
 	"Unexpected \"{token}\" after expression": "式の後に予期しない「{token}」",

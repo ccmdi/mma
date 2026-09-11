@@ -1803,8 +1803,10 @@ export type StoreStatus = {
 	values: EngineValues,
 };
 
-/**  User-facing warning toast. */
-export type StoreWarning = string;
+/**  What the store has to warn the user about. The sentence is TS's to write. */
+export type StoreWarning = 
+/**  The uncommitted delta was unreadable; the map opened from its last commit. */
+{ kind: "deltaSetAside" };
 
 /**  Lightweight status for polling: count, version, and whether unsaved changes exist. */
 export type SummaryResult = {

@@ -1345,6 +1345,7 @@
 	"Ultra ({size})": "Ультра ({size})",
 	"Un-ghost selection": "Снять призрачность выборки",
 	"Uncommitted": "Не закоммичено",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Не удалось прочитать незафиксированные изменения, они отложены в файл .corrupt. Карта открыта из последнего зафиксированного состояния.",
 	"Undo": "Отменить",
 	"Unexpected \"{token}\"": "Неожиданное «{token}»",
 	"Unexpected \"{token}\" after expression": "Неожиданное «{token}» после выражения",

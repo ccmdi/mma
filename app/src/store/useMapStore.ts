@@ -15,12 +15,20 @@ import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { hexToRgb, type RGB } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
+import { storeWarningText } from "@/lib/util/format";
 import { trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
 import type { LocationPatch_Deserialize as LocationPatch, Update, TagPatch } from "@/bindings.gen";
-import type { KeySpec, PartitionBucket, FieldOp, FieldOpResult, MergeWinner } from "@/bindings.gen";
+import type {
+	KeySpec,
+	PartitionBucket,
+	FieldOp,
+	FieldOpResult,
+	MergeWinner,
+	StoreWarning,
+} from "@/bindings.gen";
 import { SelectedIds, decodeSelectionBitmask, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { resetImportState } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
@@ -224,7 +232,7 @@ export async function initStore() {
 	emitEvent("store:changed");
 	// App-lifetime listeners: never unsubscribed, so the handles are dropped on purpose.
 	void listen("map-list-changed", () => void reloadMapList());
-	void listen<string>("store-warning", (e) => toast(e.payload, 8000));
+	void listen<StoreWarning>("store-warning", (e) => toast(storeWarningText(e.payload), 8000));
 }
 
 /** Cross-module stopwatch for map-open latency. */

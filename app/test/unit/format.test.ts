@@ -6,6 +6,7 @@ import {
 	fillTemplate,
 	formatDistance,
 	partitionLabel,
+	storeWarningText,
 	unitSystem,
 } from "@/lib/util/format";
 import { compareNatural } from "@/lib/util/util";
@@ -108,6 +109,14 @@ describe("partitionLabel", () => {
 
 	it("sorts month tokens into calendar order, which English names did not", () => {
 		expect(["04", "01", "12", "08"].sort(compareNatural)).toEqual(["01", "04", "08", "12"]);
+	});
+});
+
+describe("storeWarningText", () => {
+	it("renders the store's warning kinds as sentences", () => {
+		expect(storeWarningText({ kind: "deltaSetAside" })).toBe(
+			"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.",
+		);
 	});
 });
 

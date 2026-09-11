@@ -1311,6 +1311,7 @@
 	"Ultra ({size})": "Ultra ({size})",
 	"Un-ghost selection": "Quitar la selección fantasma",
 	"Uncommitted": "Sin confirmar",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "No se pudieron leer los cambios sin confirmar y se apartaron como un archivo .corrupt. El mapa se abrió desde su último estado confirmado.",
 	"Undo": "Deshacer",
 	"Unexpected \"{token}\"": "\"{token}\" inesperado",
 	"Unexpected \"{token}\" after expression": "\"{token}\" inesperado después de la expresión",

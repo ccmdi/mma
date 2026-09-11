@@ -1277,6 +1277,7 @@
 	"Ultra ({size})": "Ultra ({size})",
 	"Un-ghost selection": "Geisterauswahl aufheben",
 	"Uncommitted": "Nicht committet",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Nicht committete Änderungen konnten nicht gelesen werden und wurden als .corrupt-Datei beiseitegelegt. Die Karte wurde aus ihrem letzten Commit-Stand geöffnet.",
 	"Undo": "Rückgängig",
 	"Unexpected \"{token}\"": "Unerwartetes \"{token}\"",
 	"Unexpected \"{token}\" after expression": "Unerwartetes \"{token}\" nach dem Ausdruck",

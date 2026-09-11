@@ -1,4 +1,4 @@
-import type { ExprError, KeySpec } from "@/bindings.gen";
+import type { ExprError, KeySpec, StoreWarning } from "@/bindings.gen";
 import { getLocale, msg, t } from "@/lib/i18n";
 import { getSettings } from "@/store/settings";
 import { ERROR_CODES } from "@/bindings.consts";
@@ -266,6 +266,16 @@ export function relativeTime(time: string | number): string {
 	if (delta < DAY) return t("{n}h ago", { n: Math.floor(delta / HOUR) });
 	if (delta < 30 * DAY) return t("{n}d ago", { n: Math.floor(delta / DAY) });
 	return shortDateFmt.format(new Date(ms));
+}
+
+/** The message for a warning the store raised. */
+export function storeWarningText(warning: StoreWarning): string {
+	switch (warning.kind) {
+		case "deltaSetAside":
+			return t(
+				"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.",
+			);
+	}
 }
 
 /** The message for a field-expression parse error. */

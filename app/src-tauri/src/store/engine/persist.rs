@@ -38,9 +38,7 @@ pub(crate) fn load_delta(delta_path: &Path) -> Option<Overlay> {
             log::error!(
                 "[store_open] unreadable delta ({e}), set aside (moved={moved}) at {kept:?}"
             );
-            crate::emit_event(StoreWarning(
-                "Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.".into(),
-            ));
+            crate::emit_event(StoreWarning::DeltaSetAside);
             None
         }
     }

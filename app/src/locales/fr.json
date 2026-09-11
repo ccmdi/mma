@@ -1311,6 +1311,7 @@
 	"Ultra ({size})": "Ultra ({size})",
 	"Un-ghost selection": "Annuler la sélection fantôme",
 	"Uncommitted": "Non validé",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Les modifications non validées n'ont pas pu être lues et ont été mises de côté dans un fichier .corrupt. La carte a été ouverte depuis son dernier état validé.",
 	"Undo": "Annuler",
 	"Unexpected \"{token}\"": "« {token} » inattendu",
 	"Unexpected \"{token}\" after expression": "« {token} » inattendu après l'expression",

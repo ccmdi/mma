@@ -68,11 +68,14 @@ pub struct MutationResult {
     pub values: EngineValues,
 }
 
-/// User-facing warning toast.
+/// What the store has to warn the user about. The sentence is TS's to write.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
-#[serde(transparent)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 #[tauri_specta(event_name = "store-warning")]
-pub struct StoreWarning(pub String);
+pub enum StoreWarning {
+    /// The uncommitted delta was unreadable; the map opened from its last commit.
+    DeltaSetAside,
+}
 
 /// A mutation another window made to a map this window may have open, routed by `map_id`.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]

@@ -1277,6 +1277,7 @@
 	"Ultra ({size})": "[Üĺţŕå ({size}) åéîö]",
 	"Un-ghost selection": "[Üñ-ǧĥöşţ şéĺéçţîöñ åéîöüåéî]",
 	"Uncommitted": "[Üñçöɱɱîţţéð åéîöü]",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "[Üñçöɱɱîţţéð çĥåñǧéş çöüĺð ñöţ ƀé ŕéåð åñð ŵéŕé şéţ åşîðé åş å .çöŕŕüƥţ ƒîĺé. Ţĥé ɱåƥ öƥéñéð ƒŕöɱ îţş ĺåşţ çöɱɱîţţéð şţåţé. åéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîö]",
 	"Undo": "[Üñðö åé]",
 	"Unexpected \"{token}\"": "[Üñéẋƥéçţéð \"{token}\" åéîöüå]",
 	"Unexpected \"{token}\" after expression": "[Üñéẋƥéçţéð \"{token}\" åƒţéŕ éẋƥŕéşşîöñ åéîöüåéîöüåé]",

@@ -1277,6 +1277,7 @@
 	"Ultra ({size})": "Ultra ({size})",
 	"Un-ghost selection": "Un-ghost selection",
 	"Uncommitted": "Uncommitted",
+	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.",
 	"Undo": "Undo",
 	"Unexpected \"{token}\"": "Unexpected \"{token}\"",
 	"Unexpected \"{token}\" after expression": "Unexpected \"{token}\" after expression",
