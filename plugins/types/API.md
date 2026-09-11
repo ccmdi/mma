@@ -2603,7 +2603,7 @@ Fields this provider reads; it runs after their producers finish.
 
 ## Validate
 
-### `validateLocations(selector: Selector, opts?: BulkOpts | undefined): Promise<ValidationOutcome>`
+### `validateLocations(selector: Selector, opts?: (BulkOpts & { config?: Partial<ValidateConfig> | undefined; }) | undefined): Promise<ValidationOutcome>`
 
 Check that each location's Street View coverage still exists.
 

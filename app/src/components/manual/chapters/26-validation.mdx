@@ -5,11 +5,13 @@ Validation checks whether each location still has valid Street View coverage and
 ## Problem categories
 
 - **Valid location.** No issues.
-- **Newer coverage available.** The pinned pano has a more recent version in the timeline.
+- **Newer coverage available.** The pinned pano has a more recent version in its timeline, or the coordinates now resolve to a different pano than the pinned one.
 - **Coverage updated since last view.** A coordinate-based location now resolves to a different, newer pano.
 - **Not found.** No coverage at the coordinates or pano ID.
 - **Pano ID broke.** The pinned pano ID no longer resolves.
 - **Unofficial.** Resolves to user-uploaded coverage.
 - **Badcam, but good coverage available.** The current coverage is a low-quality camera, but a better one exists in the timeline.
+
+**Check pinned locations for newer coverage** (on by default) compares pinned locations against what their coordinates resolve to, and checks their camera quality. Turn it off for maps that deliberately pin older coverage, such as historical or generation-specific maps - there, every pin would otherwise flag as having an update.
 
 Results become a **Validation state** selection you can act on, for example review every "Pano ID broke" location and re-pin it.

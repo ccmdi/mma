@@ -5576,9 +5576,12 @@ declare namespace pinPano {
   export type { pinPano_PinPanoConfig as PinPanoConfig };
 }
 
-/** Configuration for Street View validation (search radius). */
+/** Configuration for Street View validation: search radius, and whether pinned rows are
+ *  also compared against the coordinate lookup (off = a pin means the row is deliberate,
+ *  its stored pano's own timeline is the only update signal). */
 export interface ValidateConfig {
     radius: number;
+    checkPinned: boolean;
 }
 /** Street View coverage validation. Checks each location's stored pano, coordinate
  *  lookup, unofficial status, camera quality, and timeline. Answers with a
@@ -5590,7 +5593,9 @@ export interface ValidationOutcome extends BatchOutcome {
     states: Map<ValidationState, number[]>;
 }
 /** Check that each location's Street View coverage still exists. */
-declare function validateLocations(selector: Selector, opts?: BulkOpts): Promise<ValidationOutcome>;
+declare function validateLocations(selector: Selector, opts?: BulkOpts & {
+    config?: Partial<ValidateConfig>;
+}): Promise<ValidationOutcome>;
 
 export type validate_ValidateConfig = ValidateConfig;
 export type validate_ValidationOutcome = ValidationOutcome;

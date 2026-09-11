@@ -121,16 +121,28 @@ async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
 // Setup components — each produces a BulkRunner closure
 // ---------------------------------------------------------------------------
 
-function ValidateSetup({ picker, onReady }: SetupProps) {
+function ValidateSetup({ picker, info, onReady }: SetupProps) {
+	const [checkPinned, setCheckPinned] = useState(true);
 	return (
 		<div className="bulk-operation">
 			<SelectorPicker ctl={picker} />
+			{info.pinned > 0 && (
+				<label className="bulk-operation__option">
+					<Checkbox checked={checkPinned} onChange={(e) => setCheckPinned(e.target.checked)} />
+
+					{t("Check pinned locations for newer coverage")}
+				</label>
+			)}
 			<div className="bulk-operation__actions">
 				<Button
 					variant="primary"
 					onClick={() =>
 						onReady(async ({ selector, signal, onProgress }) => {
-							const result = await validateLocations(selector, { signal, onProgress });
+							const result = await validateLocations(selector, {
+								signal,
+								onProgress,
+								config: { checkPinned },
+							});
 							const batch = Object.values(ValidationState)
 								.filter((state) => (result.states.get(state)?.length ?? 0) > 0)
 								.map((state) => ({

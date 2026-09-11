@@ -1,25 +1,27 @@
-// Street View coverage validation, Run shape: metadata for the stored pano, a coordinate
-// lookup as fallback (or as the comparison when the row is not pinned), then the
-// unofficial, badcam and timeline checks. It answers with a ValidationState per row and writes
-// nothing -- the run declares the collect sink.
+// Street View coverage validation. Run shape: metadata for the stored pano, a coordinate
+// lookup as comparison and fallback, then the unofficial, badcam and timeline checks. It
+// answers with a ValidationState per row and writes nothing -- the run declares the collect sink.
 //
 // The batch moves through four phases, each issuing every lookup it needs in one
 // `mma.panos`, so a batch of any size costs a fixed number of rounds.
 
 import type { Location, Pano, PanoAnswer, Update } from "@/bindings.gen";
+import type { ValidateConfig } from "@/lib/sv/validate";
 import { isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { isPinned } from "@/types";
 import { ValidationState } from "@/bindings.consts";
 
 interface RunConfig {
-	config?: { radius?: number } | null;
+	config?: Partial<ValidateConfig> | null;
 }
 
 let radius = SV_SEARCH_RADIUS;
+let checkPinned = true;
 
 export function configure(cfg: RunConfig | null): void {
 	radius = cfg?.config?.radius ?? SV_SEARCH_RADIUS;
+	checkPinned = cfg?.config?.checkPinned ?? true;
 }
 
 /** A capture worth keeping: anything else is what the badcam check is looking past. */
@@ -58,9 +60,9 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 		settled: false,
 	}));
 
-	// A pinned row keeps its stored pano when it resolves; every other row needs the
-	// coordinate, as a fallback when pinned and as the comparison when not.
-	const needCoord = items.filter((it) => !it.pinned || it.data === null);
+	// The coordinate is the comparison (pinned rows included under checkPinned) and the
+	// fallback for a pinned row whose pano broke.
+	const needCoord = items.filter((it) => checkPinned || !it.pinned || it.data === null);
 	// The search answers their metadata too, so there is no second lookup.
 	const coordPanos = mma
 		.panos(needCoord.map((it) => ({ lat: it.row.lat, lng: it.row.lng, radius })))
@@ -69,7 +71,7 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 
 	needCoord.forEach((it, i) => {
 		const m = coordPanos[i];
-		if (!it.pinned) {
+		if (!it.pinned || it.data !== null) {
 			it.coordData = m;
 			return;
 		}
@@ -90,7 +92,7 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 			it.settled = true;
 		} else {
 			it.entries = it.data.time;
-			if (!it.pinned && it.data.cameraType === "badcam") badcam.push(it);
+			if ((checkPinned || !it.pinned) && it.data.cameraType === "badcam") badcam.push(it);
 		}
 	}
 
@@ -112,9 +114,8 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 
 	for (const it of items) {
 		if (it.settled || it.data === null) continue;
-		// Only set when the row is not pinned, so this is the "the coordinate moved" case.
 		if (it.coordData !== null && it.coordData.pano !== it.data.pano) {
-			it.state = ValidationState.UpdateApplied;
+			it.state = it.pinned ? ValidationState.UpdateAvailable : ValidationState.UpdateApplied;
 			continue;
 		}
 		// The stored pano is a known official capture, but not the newest one.

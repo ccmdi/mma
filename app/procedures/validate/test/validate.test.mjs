@@ -179,10 +179,19 @@ test("a failed metadata request counts as a missing pano", () => {
 	assert.equal(state, NOT_FOUND);
 });
 
-test("a pinned row never looks up its coordinate while its pano resolves", () => {
+test("a pinned row whose coordinate agrees with its pano is ok", () => {
 	const { state, coordCalls } = stateOf(
 		{ panoId: A, flags: PINNED },
-		{ panos: { [A]: meta(A) }, coords: { "1,2": B } },
+		{ panos: { [A]: meta(A) }, coords: { "1,2": A } },
+	);
+	assert.equal(state, OK);
+	assert.equal(coordCalls.length, 1);
+});
+
+test("with pinned checks off, a pinned row never looks up its coordinate while its pano resolves", () => {
+	const { state, coordCalls } = stateOf(
+		{ panoId: A, flags: PINNED },
+		{ panos: { [A]: meta(A) }, coords: { "1,2": B }, config: { checkPinned: false } },
 	);
 	assert.equal(state, OK);
 	assert.deepEqual(coordCalls, []);
@@ -246,8 +255,25 @@ test("a badcam capture with no better camera falls through to the timeline check
 	assert.equal(state, OK);
 });
 
-test("a pinned badcam row is never checked for a better camera", () => {
-	const { state, metaCalls } = stateOf({ panoId: A, flags: PINNED }, { panos: { [A]: badcam(A) } });
+test("a pinned badcam row with a better camera in its timeline reports one", () => {
+	const { state } = stateOf(
+		{ panoId: A, flags: PINNED },
+		{
+			panos: {
+				[A]: badcam(A, { timeline: [{ pano: B, date: { year: 2019, month: 5, day: 1 } }] }),
+				[B]: meta(B),
+			},
+			coords: { "1,2": A },
+		},
+	);
+	assert.equal(state, GOODCAM_AVAILABLE);
+});
+
+test("with pinned checks off, a pinned badcam row is never checked for a better camera", () => {
+	const { state, metaCalls } = stateOf(
+		{ panoId: A, flags: PINNED },
+		{ panos: { [A]: badcam(A) }, config: { checkPinned: false } },
+	);
 	assert.equal(state, OK);
 	assert.deepEqual(metaCalls, [[A]]);
 });
@@ -260,6 +286,23 @@ test("a moved coordinate reports an applied update", () => {
 		{ panos: { [A]: meta(A), [B]: meta(B) }, coords: { "1,2": B } },
 	);
 	assert.equal(state, UPDATE_APPLIED);
+});
+
+test("a pinned row whose coordinate answers a different pano reports an available update", () => {
+	// A republished area: the stored pano still resolves but a new graph sits at the coordinate.
+	const { state } = stateOf(
+		{ panoId: A, flags: PINNED },
+		{ panos: { [A]: meta(A), [B]: meta(B) }, coords: { "1,2": B } },
+	);
+	assert.equal(state, UPDATE_AVAILABLE);
+});
+
+test("with pinned checks off, a republished area is not caught", () => {
+	const { state } = stateOf(
+		{ panoId: A, flags: PINNED },
+		{ panos: { [A]: meta(A), [B]: meta(B) }, coords: { "1,2": B }, config: { checkPinned: false } },
+	);
+	assert.equal(state, OK);
 });
 
 test("a pinned row on an older official capture reports an available update", () => {
