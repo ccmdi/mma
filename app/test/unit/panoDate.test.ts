@@ -18,9 +18,6 @@ describe("panoDates", () => {
 		expect(s.isDefault).toBe(true);
 		expect(s.defaultEntry?.panoId).toBe("b");
 		expect(s.currentEntry?.panoId).toBe("b");
-		expect(s.triggerPanoId).toBe("b");
-		expect(s.displayDate).toEqual(new Date(2021, 2, 1));
-		expect(s.yearMonth).toBe("2021-03");
 	});
 
 	it("a pinned draft chooses the pano on screen and the default stays what it was", () => {
@@ -29,8 +26,7 @@ describe("panoDates", () => {
 		expect(s.isDefault).toBe(false);
 		expect(s.defaultEntry?.panoId).toBe("b");
 		expect(s.currentEntry?.panoId).toBe("a");
-		expect(s.triggerPanoId).toBe("a");
-		expect(s.yearMonth).toBe("2020-06");
+		expect(s.currentEntry?.date).toBe("2020-06-15");
 	});
 
 	it("dates the default from its own stack when it is not in the draft's timeline", () => {
@@ -40,28 +36,15 @@ describe("panoDates", () => {
 		const s = panoDates(on("a"), dates, on("b", [ref("b", "2024-05-01")]), pinned);
 		expect(s.defaultEntry?.panoId).toBe("b");
 		expect(s.defaultEntry?.date).toBe("2024-05-01");
-		expect(s.sorted.map((d) => d.panoId)).toEqual(["a"]);
 	});
 
-	it("sorts entries ascending by date", () => {
-		const dates = [ref("new", "2022-01-01"), ref("old", "2018-01-01")];
-		const s = panoDates(null, dates, null, floating);
-		expect(s.sorted.map((d) => d.panoId)).toEqual(["old", "new"]);
-	});
-
-	it("with no entries, the pano on screen still triggers but has no date to show", () => {
+	it("with no entries nothing is chosen", () => {
 		const s = panoDates(on("snap"), [], on("snap"), floating);
-		expect(s.sorted).toEqual([]);
 		expect(s.currentEntry).toBeUndefined();
-		expect(s.triggerPanoId).toBe("snap");
-		expect(s.displayDate).toBeNull();
-		expect(s.yearMonth).toBeNull();
 	});
 
-	it("with nothing on screen there is no trigger and no date", () => {
+	it("with nothing on screen nothing is chosen", () => {
 		const s = panoDates(null, null, null, null);
-		expect(s.triggerPanoId).toBeNull();
-		expect(s.displayDate).toBeNull();
-		expect(s.yearMonth).toBeNull();
+		expect(s.currentEntry).toBeUndefined();
 	});
 });

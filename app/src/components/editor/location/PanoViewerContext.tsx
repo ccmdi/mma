@@ -72,7 +72,6 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		);
 		return { ...row, extra: withoutDerivedFrom(row.extra, changed) };
 	};
-	const draftPano = draft?.panoId ?? null;
 
 	const open = useCallback((loc: Location, resolved: string | null) => {
 		setState({ ...loc, panoId: resolved ?? loc.panoId });
@@ -97,8 +96,8 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	// there. Held across a walk so the panel never blanks between panos; dropped with the location.
 	const onScreen = useAsyncSticky(
 		async (signal) => {
-			if (!draftPano) return null;
-			const [shown] = await svMetadata([draftPano], signal);
+			if (!draft?.panoId) return null;
+			const [shown] = await svMetadata([draft.panoId], signal);
 			if (!shown) return null;
 			const here = [{ lat: shown.lat, lng: shown.lng }];
 			const [atCoord] = await panosAt(here, SV_SEARCH_RADIUS, undefined, signal);
@@ -116,7 +115,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			
 			return { currentPano: shown, timeline, defaultPano: atCoord ?? shown };
 		},
-		[draftPano],
+		[draft?.panoId],
 		draft?.id ?? null,
 	);
 	const currentPano = onScreen?.currentPano ?? null;
@@ -156,7 +155,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			});
 		return () => ac.abort();
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs per pano, reading the draft as it is then
-	}, [draft?.id, draftPano]);
+	}, [draft?.id, draft?.panoId]);
 	const settled = useCallback(async () => {
 		if (!draft) return null;
 		if (enriching) return forgetting(draft);

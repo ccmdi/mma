@@ -25,11 +25,11 @@ export function isUnofficial(p: Pano): boolean {
 
 /** A pano's stack merged with another's, for the all-unofficial case where the multi-year
  *  history lives on official coverage nearby. Entries are keyed by pano id and later
- *  sources win, so pass the pano itself last. */
+ *  sources win, so pass the pano itself last. Ascending by date, as every timeline is. */
 export function mergeTimelines(sources: (Pano | null)[]): Pano["time"] {
 	const merged = new Map<string, Pano["time"][number]>();
 	for (const p of sources) for (const t of p?.time ?? []) merged.set(t.panoId, t);
-	return [...merged.values()];
+	return [...merged.values()].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }
 
 /** True when nothing in the timeline is official coverage, an empty stack included, so

@@ -96,7 +96,7 @@ describe("mergeTimelines", () => {
 
 	// The date picker merges an all-unofficial stack with nearby official coverage,
 	// which carries the multi-year history. Later sources win.
-	it("merges timelines with later sources winning", () => {
+	it("merges timelines with later sources winning, ascending by date", () => {
 		const a = pano({ time: [{ panoId: "x", date: "2011-01-01" }] });
 		const b = pano({
 			time: [
@@ -105,8 +105,8 @@ describe("mergeTimelines", () => {
 			],
 		});
 		expect(mergeTimelines([a, b])).toEqual([
-			{ panoId: "x", date: "2022-06-01" },
 			{ panoId: "y", date: "2019-05-01" },
+			{ panoId: "x", date: "2022-06-01" },
 		]);
 	});
 

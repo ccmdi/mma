@@ -55,7 +55,8 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 }: {
 	onChange: (panoId: string | null) => void;
 }) {
-	const { draft, currentPano, enriching } = usePanoViewer();
+	const { draft, currentPano, timeline, enriching } = usePanoViewer();
+	const entries = timeline ?? [];
 	const exactTs = (draft?.extra?.datetime as number | undefined) ?? null;
 	const location = useMapState((s) => s.activeLocation);
 	const enrichFields = useMapState((s) => s.map?.settings.enrichFields ?? null);
@@ -65,8 +66,8 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 		isFieldEnabled(enrichFields, "datetime") &&
 		(exactTs == null || draft?.panoId !== location?.panoId);
 
-	const { defaultEntry, sorted, currentEntry, isDefault, displayDate, triggerPanoId } =
-		usePanoDates();
+	const { defaultEntry, currentEntry, isDefault } = usePanoDates();
+	const displayDate = currentEntry ? civilToDate(currentEntry.date) : null;
 	const displayLabel = displayDate
 		? isDefault
 			? t("Default ({date})", { date: dateFmt.format(displayDate) })
@@ -86,7 +87,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const dateTimezone = useSetting("dateTimezone");
 	const { lat, lng } = viewerPosition(draft, location);
 	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
-	const triggerCameraType = useCameraType(triggerPanoId, currentPano);
+	const triggerCameraType = useCameraType(currentEntry?.panoId ?? currentPano?.id ?? null, currentPano);
 	const tzOption = dateTimezone === "utc" ? "UTC" : (resolvedTz ?? undefined);
 	const exactLabel = exactTs
 		? exactDateFormat === "datetime"
@@ -106,7 +107,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 				})
 		: null;
 
-	if (sorted.length === 0) {
+	if (entries.length === 0) {
 		return (
 			<NSelect className="pano-date-select" disabled>
 				<button type="button" className="pano-date-select__trigger">
@@ -136,11 +137,11 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 							<PanoBadge cameraType={triggerCameraType} />
 						)}
 					</span>
-					<span className="badge badge--number">{sorted.length}</span>
+					<span className="badge badge--number">{entries.length}</span>
 				</span>
 			</button>
 			<optgroup label={t("Specific Panorama")}>
-				{sorted.map((d) => (
+				{entries.map((d) => (
 					<PanoOption key={d.panoId} {...d} />
 				))}
 			</optgroup>
@@ -148,8 +149,8 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 				<option value="default" className="pano-option">
 					<span>
 						{t("Default")}
-						{monthLabel(defaultEntry?.date ?? sorted[sorted.length - 1]?.date)
-							? ` (${monthLabel(defaultEntry?.date ?? sorted[sorted.length - 1]?.date)})`
+						{monthLabel(defaultEntry?.date ?? entries[entries.length - 1]?.date)
+							? ` (${monthLabel(defaultEntry?.date ?? entries[entries.length - 1]?.date)})`
 							: ""}
 					</span>
 				</option>
