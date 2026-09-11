@@ -223,7 +223,7 @@ export const commands = {
 	/**  Apply a field operation to every location matched by `selector`. */
 	storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => __TAURI_INVOKE<FieldOpResult>("store_apply_field_op", { selector, op, recordUndo }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  The parse error for `src`, or nothing when it parses. For the dialog's live check. */
-	fieldExprError: (src: string) => __TAURI_INVOKE<string | null>("field_expr_error", { src }),
+	fieldExprError: (src: string) => __TAURI_INVOKE<ExprError | null>("field_expr_error", { src }),
 	/**
 	 *  Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
 	 *  `level` selects border precision, falling back to "light" if unavailable.
@@ -755,6 +755,9 @@ export type ExportProgress = {
 	total: number,
 	mapName: string,
 };
+
+/**  Why an expression failed to parse. The sentence is TS's to write. */
+export type ExprError = { kind: "invalidNumber"; position: number } | { kind: "unterminatedString" } | { kind: "unexpectedCharacter"; character: string; position: number } | { kind: "expectedSymbol"; symbol: string } | { kind: "chainedComparison" } | { kind: "unexpectedEnd" } | { kind: "missingLeftOperand" } | { kind: "hasTakesFieldName" } | { kind: "unknownFunction"; name: string } | { kind: "wrongArgCount"; name: string; expected: number } | { kind: "unexpectedToken"; token: string } | { kind: "trailingToken"; token: string };
 
 /**  A mutation another window made to a map this window may have open, routed by `map_id`. */
 export type ExternalMutation = {

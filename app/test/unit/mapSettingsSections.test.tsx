@@ -16,7 +16,10 @@ vi.mock("@/components/dialogs/ScoreBoundsEditor", () => ({
 	ScoreBoundsEditor: () => <div data-testid="scoring" />,
 }));
 vi.mock("@/lib/commands", () => ({
-	cmd: { fieldExprError: async (expr: string) => (expr === "bad(" ? "unexpected token" : null) },
+	cmd: {
+		fieldExprError: async (expr: string) =>
+			expr === "bad(" ? { kind: "unexpectedEnd" as const } : null,
+	},
 }));
 
 import { MapSettingsForm, type MapFormContext } from "@/components/dialogs/MapSettingsForm";

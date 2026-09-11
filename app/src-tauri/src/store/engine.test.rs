@@ -4687,7 +4687,7 @@ fn expr_op_rejects_a_syntax_error_before_touching_rows() {
     let err = plan_field_op(&fx.view(), None, &expr_op("a", "a +"))
         .err()
         .unwrap();
-    assert!(err.0.contains("Unexpected end of expression"), "{}", err.0);
+    assert!(err.0.contains("unexpected end of expression"), "{}", err.0);
 }
 
 // A key a mutation introduces lands in the store's registry and the same result ships

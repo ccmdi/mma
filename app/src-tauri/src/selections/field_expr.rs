@@ -7,9 +7,67 @@
 //! can add to a score. Comparison semantics are [`compare_filter`]'s, so `>` here means
 //! what `>` means in a filter.
 
+use std::fmt::{self, Display, Formatter};
+
 use super::{compare_filter, FilterOp};
 
-use crate::types::{AppError, AppResult};
+use crate::types::AppError;
+
+/// Why an expression failed to parse. The sentence is TS's to write.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ExprError {
+    InvalidNumber { position: u32 },
+    UnterminatedString,
+    UnexpectedCharacter { character: String, position: u32 },
+    ExpectedSymbol { symbol: String },
+    ChainedComparison,
+    UnexpectedEnd,
+    MissingLeftOperand,
+    HasTakesFieldName,
+    UnknownFunction { name: String },
+    WrongArgCount { name: String, expected: u32 },
+    UnexpectedToken { token: String },
+    TrailingToken { token: String },
+}
+
+type ExprResult<T> = Result<T, ExprError>;
+
+impl Display for ExprError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ExprError::InvalidNumber { position } => {
+                write!(f, "invalid number at position {position}")
+            }
+            ExprError::UnterminatedString => f.write_str("unterminated string"),
+            ExprError::UnexpectedCharacter {
+                character,
+                position,
+            } => write!(f, "unexpected character {character:?} at position {position}"),
+            ExprError::ExpectedSymbol { symbol } => write!(f, "expected {symbol:?}"),
+            ExprError::ChainedComparison => f.write_str("chained comparison"),
+            ExprError::UnexpectedEnd => f.write_str("unexpected end of expression"),
+            ExprError::MissingLeftOperand => f.write_str("missing left operand"),
+            ExprError::HasTakesFieldName => f.write_str("has() takes a field name"),
+            ExprError::UnknownFunction { name } => write!(f, "unknown function {name:?}"),
+            ExprError::WrongArgCount { name, expected } => {
+                write!(f, "{name}() takes {expected} arguments")
+            }
+            ExprError::UnexpectedToken { token } => write!(f, "unexpected {token:?}"),
+            ExprError::TrailingToken { token } => write!(f, "unexpected {token:?} after expression"),
+        }
+    }
+}
+
+impl From<ExprError> for AppError {
+    fn from(e: ExprError) -> Self {
+        AppError(e.to_string())
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
@@ -92,7 +150,7 @@ enum Token {
     Op(char),
 }
 
-fn tokenize(src: &str) -> AppResult<Vec<Token>> {
+fn tokenize(src: &str) -> ExprResult<Vec<Token>> {
     let chars: Vec<char> = src.chars().collect();
     let mut tokens = Vec::new();
     let mut i = 0;
@@ -114,7 +172,7 @@ fn tokenize(src: &str) -> AppResult<Vec<Token>> {
             let text: String = chars[start..i].iter().collect();
             match text.parse::<f64>() {
                 Ok(v) if chars[i - 1].is_ascii_digit() => tokens.push(Token::Num(v)),
-                _ => return Err(AppError(format!("Invalid number at position {start}"))),
+                _ => return Err(ExprError::InvalidNumber { position: start as u32 }),
             }
         } else if c.is_ascii_alphabetic() || c == '_' {
             let start = i;
@@ -127,14 +185,14 @@ fn tokenize(src: &str) -> AppResult<Vec<Token>> {
             let mut text = String::new();
             loop {
                 let Some(&ch) = chars.get(i) else {
-                    return Err(AppError("Unterminated string".into()));
+                    return Err(ExprError::UnterminatedString);
                 };
                 i += 1;
                 match ch {
                     '"' => break,
                     '\\' => {
                         let Some(&esc) = chars.get(i) else {
-                            return Err(AppError("Unterminated string".into()));
+                            return Err(ExprError::UnterminatedString);
                         };
                         i += 1;
                         text.push(esc);
@@ -150,9 +208,10 @@ fn tokenize(src: &str) -> AppResult<Vec<Token>> {
             tokens.push(Token::Op(c));
             i += 1;
         } else {
-            return Err(AppError(format!(
-                "Unexpected character \"{c}\" at position {i}"
-            )));
+            return Err(ExprError::UnexpectedCharacter {
+                character: c.to_string(),
+                position: i as u32,
+            });
         }
     }
     Ok(tokens)
@@ -236,9 +295,11 @@ impl Parser {
         matches!(self.peek(), Some(Token::Op(o)) if *o == c)
     }
 
-    fn expect_op(&mut self, c: char) -> AppResult<()> {
+    fn expect_op(&mut self, c: char) -> ExprResult<()> {
         if !self.is_op(c) {
-            return Err(AppError(format!("Expected \"{c}\"")));
+            return Err(ExprError::ExpectedSymbol {
+                symbol: c.to_string(),
+            });
         }
         self.pos += 1;
         Ok(())
@@ -246,7 +307,7 @@ impl Parser {
 
     /// Comma-separated arguments up to and including the closing paren. The opening
     /// paren is already consumed.
-    fn arg_list(&mut self) -> AppResult<Vec<Expr>> {
+    fn arg_list(&mut self) -> ExprResult<Vec<Expr>> {
         let mut args = Vec::new();
         if !self.is_op(')') {
             args.push(self.comparison()?);
@@ -260,7 +321,7 @@ impl Parser {
     }
 
     /// One comparison, non-associative: `a < b < c` is a mistake, not a chain.
-    fn comparison(&mut self) -> AppResult<Expr> {
+    fn comparison(&mut self) -> ExprResult<Expr> {
         let left = self.additive()?;
         let Some(Token::Cmp(op)) = self.peek().cloned() else {
             return Ok(left);
@@ -268,12 +329,12 @@ impl Parser {
         self.pos += 1;
         let right = self.additive()?;
         if let Some(Token::Cmp(_)) = self.peek() {
-            return Err(AppError("Comparisons do not chain; use parentheses".into()));
+            return Err(ExprError::ChainedComparison);
         }
         Ok(Expr::Cmp(op, Box::new(left), Box::new(right)))
     }
 
-    fn additive(&mut self) -> AppResult<Expr> {
+    fn additive(&mut self) -> ExprResult<Expr> {
         let mut left = self.multiplicative()?;
         loop {
             let op = if self.is_op('+') {
@@ -288,7 +349,7 @@ impl Parser {
         }
     }
 
-    fn multiplicative(&mut self) -> AppResult<Expr> {
+    fn multiplicative(&mut self) -> ExprResult<Expr> {
         let mut left = self.unary()?;
         loop {
             let op = if self.is_op('*') {
@@ -305,7 +366,7 @@ impl Parser {
         }
     }
 
-    fn unary(&mut self) -> AppResult<Expr> {
+    fn unary(&mut self) -> ExprResult<Expr> {
         if self.is_op('-') {
             self.pos += 1;
             return Ok(Expr::Neg(Box::new(self.unary()?)));
@@ -313,11 +374,11 @@ impl Parser {
         self.primary()
     }
 
-    fn primary(&mut self) -> AppResult<Expr> {
+    fn primary(&mut self) -> ExprResult<Expr> {
         let tok = self
             .peek()
             .cloned()
-            .ok_or_else(|| AppError("Unexpected end of expression".into()))?;
+            .ok_or(ExprError::UnexpectedEnd)?;
         match tok {
             Token::Num(v) => {
                 self.pos += 1;
@@ -327,7 +388,7 @@ impl Parser {
                 self.pos += 1;
                 Ok(Expr::Str(text))
             }
-            Token::Cmp(_) => Err(AppError("Expected a value before the comparison".into())),
+            Token::Cmp(_) => Err(ExprError::MissingLeftOperand),
             Token::Ident(name) => {
                 self.pos += 1;
                 if !self.is_op('(') {
@@ -336,7 +397,7 @@ impl Parser {
                 if name == "has" {
                     self.pos += 1;
                     let Some(Token::Ident(field)) = self.peek().cloned() else {
-                        return Err(AppError("has() takes a field name".into()));
+                        return Err(ExprError::HasTakesFieldName);
                     };
                     self.pos += 1;
                     self.expect_op(')')?;
@@ -347,21 +408,26 @@ impl Parser {
                     let args = self.arg_list()?;
                     let [cond, then, otherwise]: [Expr; 3] = args
                         .try_into()
-                        .map_err(|_| AppError("if() takes 3 arguments".into()))?;
+                        .map_err(|_| ExprError::WrongArgCount {
+                            name: "if".into(),
+                            expected: 3,
+                        })?;
                     return Ok(Expr::If(
                         Box::new(cond),
                         Box::new(then),
                         Box::new(otherwise),
                     ));
                 }
-                let func = Func::named(&name)
-                    .ok_or_else(|| AppError(format!("Unknown function \"{name}\"")))?;
+                let func =
+                    Func::named(&name).ok_or(ExprError::UnknownFunction { name: name.clone() })?;
                 self.pos += 1;
                 let args = self.arg_list()?;
                 let n = func.arity();
                 if args.len() != n {
-                    let noun = if n == 1 { "argument" } else { "arguments" };
-                    return Err(AppError(format!("{name}() takes {n} {noun}")));
+                    return Err(ExprError::WrongArgCount {
+                        name,
+                        expected: n as u32,
+                    });
                 }
                 Ok(Expr::Call(func, args))
             }
@@ -371,13 +437,15 @@ impl Parser {
                 self.expect_op(')')?;
                 Ok(inner)
             }
-            Token::Op(c) => Err(AppError(format!("Unexpected \"{c}\""))),
+            Token::Op(c) => Err(ExprError::UnexpectedToken {
+                token: c.to_string(),
+            }),
         }
     }
 }
 
 /// Parse an expression such as `mod(sunAzimuth + 180, 360)`.
-pub fn parse(src: &str) -> AppResult<Expr> {
+pub fn parse(src: &str) -> ExprResult<Expr> {
     let mut p = Parser {
         tokens: tokenize(src)?,
         pos: 0,
@@ -390,7 +458,7 @@ pub fn parse(src: &str) -> AppResult<Expr> {
             Token::Cmp(op) => cmp_symbol(*op).to_string(),
             Token::Op(c) => c.to_string(),
         };
-        return Err(AppError(format!("Unexpected \"{text}\" after expression")));
+        return Err(ExprError::TrailingToken { token: text });
     }
     Ok(expr)
 }
@@ -463,8 +531,8 @@ fn eval_node(expr: &Expr, field: &Resolver) -> Option<f64> {
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn field_expr_error(src: String) -> Option<String> {
-    parse(&src).err().map(|e| e.0)
+pub fn field_expr_error(src: String) -> Option<ExprError> {
+    parse(&src).err()
 }
 
 #[cfg(test)]

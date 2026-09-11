@@ -41,7 +41,7 @@ import {
 } from "@/lib/sv/panoDownload";
 import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
-import { fmt } from "@/lib/util/format";
+import { exprErrorText, fmt } from "@/lib/util/format";
 import { phaseRate, type PhaseRate } from "@/lib/util/util";
 import type { BatchOutcome, BulkOpts, ProviderPart } from "@/lib/data/procedures";
 import { toast } from "@/lib/util/toast";
@@ -399,7 +399,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 		}
 		let live = true;
 		void cmd.fieldExprError(raw).then((err) => {
-			if (live) setExprError(err);
+			if (live) setExprError(err && exprErrorText(err));
 		});
 		return () => {
 			live = false;

@@ -7,6 +7,7 @@ import { deleteMap } from "@/store/mapList";
 import { cmd } from "@/lib/commands";
 import { useSetting, setSetting, getSettings } from "@/store/settings";
 import { labelColor, rgbToHex, hexToRgb } from "@/lib/util/color";
+import { exprErrorText } from "@/lib/util/format";
 import { useCloseDialog } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
@@ -153,7 +154,7 @@ function ExprSection({
 		}
 		let live = true;
 		void cmd.fieldExprError(value).then((err) => {
-			if (live) setError(err);
+			if (live) setError(err && exprErrorText(err));
 		});
 		return () => {
 			live = false;

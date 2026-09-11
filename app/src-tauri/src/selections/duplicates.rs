@@ -351,7 +351,7 @@ pub const DEFAULT_DUPLICATE_SCORE: &str = "tagCount + has(panoId) + loadAsPanoId
 /// better one", not two.
 pub fn parse_duplicate_score(src: Option<&str>) -> AppResult<Expr> {
     let src = src.map(str::trim).filter(|s| !s.is_empty());
-    field_expr::parse(src.unwrap_or(DEFAULT_DUPLICATE_SCORE))
+    Ok(field_expr::parse(src.unwrap_or(DEFAULT_DUPLICATE_SCORE))?)
 }
 
 /// Which of two duplicates is the better one to keep, greatest first. `created_at` and

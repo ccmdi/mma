@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { distanceUnit, fillTemplate, formatDistance, unitSystem } from "@/lib/util/format";
+import {
+	distanceUnit,
+	exprErrorText,
+	fillTemplate,
+	formatDistance,
+	unitSystem,
+} from "@/lib/util/format";
 import { setSetting } from "@/store/settings";
+import type { ExprError } from "@/bindings.gen";
 
 describe("fillTemplate", () => {
 	it("substitutes known placeholders and leaves unknown ones as written", () => {
@@ -75,5 +82,38 @@ describe("distanceUnit", () => {
 		expect(m.toDisplay(m.fromDisplay(3280))).toBe(3280);
 		const km = distanceUnit("km");
 		expect(km.toDisplay(km.fromDisplay(6.21))).toBe(6.21);
+	});
+});
+
+describe("exprErrorText", () => {
+	// Kinds are pinned in src-tauri/src/selections/field_expr.test.rs; both lists must agree.
+	const cases: Array<[ExprError, string]> = [
+		[{ kind: "invalidNumber", position: 0 }, "Invalid number at position 0"],
+		[{ kind: "unterminatedString" }, "Unterminated string"],
+		[
+			{ kind: "unexpectedCharacter", character: "$", position: 2 },
+			'Unexpected character "$" at position 2',
+		],
+		[{ kind: "expectedSymbol", symbol: ")" }, 'Expected ")"'],
+		[{ kind: "chainedComparison" }, "Comparisons do not chain; use parentheses"],
+		[{ kind: "unexpectedEnd" }, "Unexpected end of expression"],
+		[{ kind: "missingLeftOperand" }, "Expected a value before the comparison"],
+		[{ kind: "hasTakesFieldName" }, "has() takes a field name"],
+		[{ kind: "unknownFunction", name: "foo" }, 'Unknown function "foo"'],
+		[{ kind: "unexpectedToken", token: ")" }, 'Unexpected ")"'],
+		[{ kind: "trailingToken", token: "2" }, 'Unexpected "2" after expression'],
+	];
+
+	it.each(cases)("renders %j", (err, text) => {
+		expect(exprErrorText(err)).toBe(text);
+	});
+
+	it("pluralises the argument count", () => {
+		expect(exprErrorText({ kind: "wrongArgCount", name: "abs", expected: 1 })).toBe(
+			"abs() takes 1 argument",
+		);
+		expect(exprErrorText({ kind: "wrongArgCount", name: "mod", expected: 2 })).toBe(
+			"mod() takes 2 arguments",
+		);
 	});
 });

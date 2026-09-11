@@ -1,3 +1,4 @@
+import type { ExprError } from "@/bindings.gen";
 import { getLocale, msg, t } from "@/lib/i18n";
 import { getSettings } from "@/store/settings";
 import { ERROR_CODES } from "@/bindings.consts";
@@ -250,4 +251,40 @@ export function relativeTime(time: string | number): string {
 	if (delta < DAY) return t("{n}h ago", { n: Math.floor(delta / HOUR) });
 	if (delta < 30 * DAY) return t("{n}d ago", { n: Math.floor(delta / DAY) });
 	return shortDateFmt.format(new Date(ms));
+}
+
+/** The message for a field-expression parse error. */
+export function exprErrorText(err: ExprError): string {
+	switch (err.kind) {
+		case "invalidNumber":
+			return t("Invalid number at position {position}", { position: err.position });
+		case "unterminatedString":
+			return t("Unterminated string");
+		case "unexpectedCharacter":
+			return t('Unexpected character "{character}" at position {position}', {
+				character: err.character,
+				position: err.position,
+			});
+		case "expectedSymbol":
+			return t('Expected "{symbol}"', { symbol: err.symbol });
+		case "chainedComparison":
+			return t("Comparisons do not chain; use parentheses");
+		case "unexpectedEnd":
+			return t("Unexpected end of expression");
+		case "missingLeftOperand":
+			return t("Expected a value before the comparison");
+		case "hasTakesFieldName":
+			return t("has() takes a field name");
+		case "unknownFunction":
+			return t('Unknown function "{name}"', { name: err.name });
+		case "wrongArgCount":
+			return t(
+				{ one: "{name}() takes {n} argument", other: "{name}() takes {n} arguments" },
+				{ name: err.name, n: err.expected },
+			);
+		case "unexpectedToken":
+			return t('Unexpected "{token}"', { token: err.token });
+		case "trailingToken":
+			return t('Unexpected "{token}" after expression', { token: err.token });
+	}
 }
