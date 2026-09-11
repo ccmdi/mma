@@ -1,7 +1,7 @@
 use super::*;
 use crate::net::proxy;
 use crate::sync::sync_key;
-use crate::sync::AUTH_PREFIX;
+use crate::types::ErrCode;
 use reqwest::blocking::Response;
 use std::env;
 use std::slice;
@@ -259,7 +259,7 @@ fn gg_coordinate_deserializes_null_and_absent_codes_alike() {
 #[test]
 fn classifies_auth_and_version_conflict_errors() {
     assert_eq!(http_error("read", 401).0, "auth: read: HTTP 401");
-    assert!(!http_error("read", 409).0.starts_with(AUTH_PREFIX));
+    assert!(!http_error("read", 409).0.starts_with(ErrCode::Auth.wire()));
     assert!(is_version_conflict(&http_error("write", 409)));
     assert!(is_version_conflict(&http_error("write", 412)));
     assert!(!is_version_conflict(&http_error("write", 401)));

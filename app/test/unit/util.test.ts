@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
 	compareNatural,
@@ -7,8 +8,10 @@ import {
 	phaseRate,
 	type PhaseRate,
 } from "@/lib/util/util";
+import { ERROR_CODES } from "@/bindings.consts";
+import { initLocale } from "@/lib/i18n";
 import { colorForName } from "@/lib/util/color";
-import { relativeTime } from "@/lib/util/format";
+import { relativeTime, errText } from "@/lib/util/format";
 import { cycle } from "@/types/util";
 import { MOVEMENT_CYCLE } from "@/store/settings";
 import type { Tag } from "@/bindings.gen";
@@ -221,5 +224,46 @@ describe("phaseRate", () => {
 				[200, 800, 2000],
 			]),
 		).toBe(100);
+	});
+});
+
+// ERROR_CODES is the Rust vocabulary (types.rs `err_codes!`); a code with no message here is a
+// compile error, and a code Rust dropped leaves an orphan the same way.
+describe("errText", () => {
+	it("translates every code Rust can stamp", async () => {
+		await initLocale("en-XA");
+		for (const code of ERROR_CODES) {
+			if (code === "auth") continue;
+			const rendered = errText(new Error(`${code}: 1024 2048`));
+			expect({ code, translated: rendered.startsWith("[") }).toEqual({ code, translated: true });
+		}
+	});
+
+	it("shows the provider's own words behind the auth code", async () => {
+		await initLocale("en");
+		expect(errText(new Error("auth: read: HTTP 401"))).toBe("read: HTTP 401");
+	});
+
+	it("interpolates the detail as data, not prose", async () => {
+		await initLocale("en");
+		expect(errText(new Error("attachment-too-large: 5242880"))).toBe(
+			"That image is too large (5.00 MB maximum).",
+		);
+		expect(errText(new Error("geoguessr-draft-too-large: 17825792 16777216"))).toBe(
+			"Too large for a GeoGuessr draft (stores as 17.00 MB; the limit is 16.00 MB).",
+		);
+		expect(errText(new Error("upload-rejected: 429 Too Many Requests"))).toBe(
+			"The upload was rejected (429 Too Many Requests).",
+		);
+	});
+
+	it("renders a code with no detail", async () => {
+		await initLocale("en");
+		expect(errText(new Error("attachment-not-staged"))).toBe("That file was not staged for upload.");
+	});
+
+	it("passes an uncoded message through untouched", () => {
+		expect(errText(new Error("boom: everything is on fire"))).toBe("boom: everything is on fire");
+		expect(errText("plain string")).toBe("plain string");
 	});
 });

@@ -10,19 +10,9 @@ pub(crate) mod map_making;
 pub(crate) mod remote_mapping;
 
 use crate::types::AppResult;
-use crate::types::{AppError, Location, LocationFlags};
+use crate::types::{Location, LocationFlags};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use std::fmt::Display;
-
-/// The one encoding of "this provider rejected our credentials". Providers stamp it where the
-/// 401 is seen; the prefix is the wire contract the TS sync UI classifies on
-/// (`lib/sync/provider.ts`), which strips it before display.
-pub const AUTH_PREFIX: &str = "auth: ";
-
-pub fn auth_error(message: impl Display) -> AppError {
-    AppError(format!("{AUTH_PREFIX}{message}"))
-}
 
 /// Keep only the persisted flag bits. [`LocationFlags::VIRTUAL`] and any bit not declared at
 /// all are excluded from the synced contract, so a new bit starts syncing only when it is

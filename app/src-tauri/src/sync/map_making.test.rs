@@ -1,8 +1,7 @@
 use super::*;
 use crate::sync;
-use crate::sync::{
-    IdentityModel, NormalizedSyncLocation, PushBatch, PushedId, SyncProvider, AUTH_PREFIX,
-};
+use crate::sync::{IdentityModel, NormalizedSyncLocation, PushBatch, PushedId, SyncProvider};
+use crate::types::ErrCode;
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::env;
@@ -605,11 +604,11 @@ fn auth_error_detected_only_for_401() {
     assert_eq!(e401.0, "auth: bad key");
 
     let e500 = api_error(500, b"boom");
-    assert!(!e500.0.starts_with(AUTH_PREFIX));
+    assert!(!e500.0.starts_with(ErrCode::Auth.wire()));
     assert_eq!(e500.0, "boom");
 
     let e404 = api_error(404, b"");
-    assert!(!e404.0.starts_with(AUTH_PREFIX));
+    assert!(!e404.0.starts_with(ErrCode::Auth.wire()));
     assert!(e404.0.contains("HTTP 404"));
 
     // Valid JSON without a `message` falls back to the status message.
@@ -655,7 +654,7 @@ fn key_round_trips_through_the_credential_store() {
     match MapMakingProvider::from_key() {
         Ok(_) => panic!("expected an auth error with no key stored"),
         Err(err) => assert!(
-            err.0.starts_with(AUTH_PREFIX),
+            err.0.starts_with(&format!("{}: ", ErrCode::Auth.wire())),
             "a missing key must classify as an auth failure, got: {}",
             err.0
         ),
@@ -705,7 +704,7 @@ fn live_bad_key_surfaces_auth_error() {
     match p.pull(&map) {
         Ok(_) => panic!("expected an auth error from an invalid key"),
         Err(err) => assert!(
-            err.0.starts_with(AUTH_PREFIX),
+            err.0.starts_with(ErrCode::Auth.wire()),
             "expected auth error, got: {}",
             err.0
         ),

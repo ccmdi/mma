@@ -6,7 +6,7 @@ import { ConnectionUser, SyncSidebar as SharedSyncSidebar } from "@/lib/sync/ui/
 import type { MmUser } from "@/bindings.gen";
 import * as auth from "./controller";
 import { controller } from "./controller";
-import { errText } from "@/lib/util/util";
+import { errText } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { Button } from "@/components/primitives/Button";
 

@@ -7,7 +7,7 @@
 use crate::io::export;
 use crate::net::github::IssueThread;
 use crate::net::proxy;
-use crate::types::AppResult;
+use crate::types::{AppResult, ErrCode};
 use crate::util;
 use crate::util::{blocking, sha256};
 use std::fs;
@@ -203,7 +203,7 @@ pub async fn feedback_submit_anonymous(
         let status = resp.status();
         if !status.is_success() {
             let detail = resp.text().unwrap_or_default();
-            return Err(format!("report rejected ({status}): {detail}").into());
+            return Err(ErrCode::ReportRejected.with(format!("{status}: {detail}")));
         }
         Ok(resp.json::<AnonIssueRef>()?)
     })
@@ -251,15 +251,15 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
     }
     blocking(move || {
         if !is_staged_upload(Path::new(&path)) {
-            return Err("attachment is not a staged upload".into());
+            return Err(ErrCode::AttachmentNotStaged.err());
         }
         let meta = fs::metadata(&path)?;
         if meta.len() > MAX_ATTACHMENT {
-            return Err("image is too large (5 MB maximum)".into());
+            return Err(ErrCode::AttachmentTooLarge.with(MAX_ATTACHMENT));
         }
         let bytes = fs::read(&path)?;
         if !is_image(&bytes) {
-            return Err("that file is not a PNG, JPEG, GIF or WebP".into());
+            return Err(ErrCode::AttachmentNotImage.err());
         }
         let challenge = fetch_challenge()?;
         let digest = util::sha256_hex(&bytes);
@@ -276,7 +276,7 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
         let status = resp.status();
         if !status.is_success() {
             let detail = resp.text().unwrap_or_default();
-            return Err(format!("upload rejected ({status}): {detail}").into());
+            return Err(ErrCode::UploadRejected.with(format!("{status}: {detail}")));
         }
         let uploaded = resp.json::<AttachmentRef>()?;
         // The staged copy has served its purpose; leaving it would keep a screenshot in temp.
@@ -330,7 +330,7 @@ pub async fn feedback_anonymous_thread(number: u32, token: String) -> AppResult<
             .header("Authorization", format!("Bearer {token}"))
             .send()?;
         if !resp.status().is_success() {
-            return Err(format!("could not read the report ({})", resp.status()).into());
+            return Err(ErrCode::ReportUnreadable.with(resp.status()));
         }
         Ok(resp.json::<IssueThread>()?)
     })

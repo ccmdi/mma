@@ -1,5 +1,6 @@
 import { getLocale, msg, t } from "@/lib/i18n";
 import { getSettings } from "@/store/settings";
+import { ERROR_CODES } from "@/bindings.consts";
 
 /** Product name -- never translated. */
 export const APP_NAME = "Map Making App";
@@ -196,6 +197,40 @@ export function formatBytes(bytes: number): string {
 	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
 	if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 	return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+type ErrorCode = (typeof ERROR_CODES)[number];
+
+/** The message each Rust error code reads as, given whatever detail followed it on the wire. */
+const CODE_MESSAGES: Record<ErrorCode, (detail: string) => string> = {
+	// The provider's own words, which Rust only stamped; there is nothing to translate.
+	auth: (d) => d,
+	"attachment-not-staged": () => t("That file was not staged for upload."),
+	"attachment-too-large": (d) =>
+		t("That image is too large ({limit} maximum).", { limit: formatBytes(Number(d)) }),
+	"attachment-not-image": () => t("That file is not a PNG, JPEG, GIF or WebP."),
+	"upload-rejected": (d) => t("The upload was rejected ({detail}).", { detail: d }),
+	"report-rejected": (d) => t("The report was rejected ({detail}).", { detail: d }),
+	"report-unreadable": (d) => t("Could not read the report ({status}).", { status: d }),
+	"sign-in-timed-out": () => t("Timed out waiting for GitHub sign-in."),
+	"sign-in-token-rejected": () => t("Signed in, but GitHub rejected the token."),
+	"issue-rejected": (d) => t("GitHub rejected the report: {detail}", { detail: d }),
+	"geoguessr-polygonal": () => t("This GeoGuessr map is polygonal and cannot be synced."),
+	"geoguessr-draft-too-large": (d) => {
+		const [stored, limit] = d.split(" ").map(Number);
+		return t("Too large for a GeoGuessr draft (stores as {size}; the limit is {limit}).", {
+			size: formatBytes(stored),
+			limit: formatBytes(limit),
+		});
+	},
+};
+
+/** Displayable message for a thrown value, resolving Rust's `<code>[: detail]` form. */
+export function errText(e: unknown): string {
+	const raw = e instanceof Error ? e.message : String(e);
+	const sep = raw.indexOf(": ");
+	const message = CODE_MESSAGES[(sep === -1 ? raw : raw.slice(0, sep)) as ErrorCode];
+	return message ? message(sep === -1 ? "" : raw.slice(sep + 2)) : raw;
 }
 
 /** Fill `{name}` placeholders from `vars`; an unknown placeholder is left as written. */

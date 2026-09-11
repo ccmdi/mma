@@ -14,11 +14,6 @@ export function mmaBufUrl(path: string): string {
 	return schemeBase("mma-buf") + path.replace(/\\/g, "/");
 }
 
-/** Message for an unknown thrown value. */
-export function errText(e: unknown): string {
-	return e instanceof Error ? e.message : String(e);
-}
-
 /** Copy of `set` with `value` toggled, or forced on/off by `on`. */
 export function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T> {
 	const next = new Set(set);

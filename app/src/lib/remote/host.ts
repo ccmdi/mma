@@ -1,7 +1,7 @@
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
-import { errText } from "@/lib/util/util";
+import { errText } from "@/lib/util/format";
 
 /** A call routed in from the local REST transport (see src-tauri/remote_api.rs). */
 interface RemoteCall {

@@ -333,6 +333,15 @@ fn export_consts() -> Result<(), String> {
         ("KNOWN_FIELDS", TsConst::value(store::maps::KNOWN_FIELDS)),
         ("PROJECTIONS", TsConst::value(selections::PROJECTIONS)),
         ("SCRATCH_MAP_ID", TsConst::value(store::maps::SCRATCH_MAP_ID)),
+        (
+            "ERROR_CODES",
+            TsConst::value(
+                types::ErrCode::ALL
+                    .iter()
+                    .map(|c| c.wire())
+                    .collect::<Vec<_>>(),
+            ),
+        ),
     ] {
         ts.push_str(&konst.render(name));
     }

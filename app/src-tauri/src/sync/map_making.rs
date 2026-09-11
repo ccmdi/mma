@@ -10,10 +10,10 @@ use vali_data::decode::Reader;
 use crate::net::proxy;
 use crate::store::storage;
 use crate::sync::{
-    auth_error, canon_tags, sync_flags, IdentityModel, NormalizedSyncLocation, PushBatch, PushedId,
+    canon_tags, sync_flags, IdentityModel, NormalizedSyncLocation, PushBatch, PushedId,
     RemoteSnapshot, SyncProvider,
 };
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, ErrCode};
 use crate::util::blocking;
 
 const BASE_URL: &str = "https://map-making.app";
@@ -201,7 +201,7 @@ impl MapMakingProvider {
     pub(crate) fn from_key() -> AppResult<Self> {
         let api_key = KEY
             .get()?
-            .ok_or_else(|| auth_error("no map-making.app API key"))?;
+            .ok_or_else(|| ErrCode::Auth.with("no map-making.app API key"))?;
         Ok(Self { api_key })
     }
 
@@ -234,7 +234,7 @@ impl MapMakingProvider {
 }
 
 /// Build an [`AppError`] from a non-2xx response. Prefers a JSON body's `message`, else the body
-/// text, else a status-only fallback. A 401 becomes an [`auth_error`].
+/// text, else a status-only fallback. A 401 becomes an [`ErrCode::Auth`].
 fn api_error(status: u16, body: &[u8]) -> AppError {
     let message = match serde_json::from_slice::<serde_json::Value>(body) {
         Ok(v) => v
@@ -253,7 +253,7 @@ fn api_error(status: u16, body: &[u8]) -> AppError {
         }
     };
     if status == 401 {
-        auth_error(message)
+        ErrCode::Auth.with(message)
     } else {
         AppError(message)
     }

@@ -89,7 +89,8 @@ import { useUpdateState, checkForUpdate, installUpdate, relaunchApp } from "@/li
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { t, msg } from "@/lib/i18n";
-import { errText, isPrereleaseVersion } from "@/lib/util/util";
+import { isPrereleaseVersion } from "@/lib/util/util";
+import { errText } from "@/lib/util/format";
 import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
 

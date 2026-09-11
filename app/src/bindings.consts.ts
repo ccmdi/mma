@@ -40,5 +40,7 @@ export const PROJECTIONS = [{"id":"value","appliesTo":["string","enum","number",
 
 export const SCRATCH_MAP_ID = "scratch" as const;
 
+export const ERROR_CODES = ["auth","attachment-not-staged","attachment-too-large","attachment-not-image","upload-rejected","report-rejected","report-unreadable","sign-in-timed-out","sign-in-token-rejected","issue-rejected","geoguessr-polygonal","geoguessr-draft-too-large"] as const;
+
 /** The bits a preview carries that a real location must not. */
 export const VIRTUAL_FLAGS = 12 as const;

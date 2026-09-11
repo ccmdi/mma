@@ -1,5 +1,6 @@
 use super::*;
 use serde_json::value::RawValue;
+use std::collections::HashSet;
 
 // The delta sidecar / undo-blob field that actually hit the wire: Option<Option<RawExtra>>.
 type ExtraField = Option<Option<RawExtra>>;
@@ -261,6 +262,23 @@ fn arb_location() -> impl Strategy<Value = Location> {
                 }
             },
         )
+}
+
+// The wire strings are the contract `src/lib/util/format.ts` maps to messages; whatever follows
+// ": " is data the TS side parses.
+#[test]
+fn err_codes_are_unique_and_detail_separated() {
+    let mut seen = HashSet::new();
+    for code in ErrCode::ALL {
+        assert!(seen.insert(code.wire()), "duplicate code {}", code.wire());
+        assert!(
+            !code.wire().contains(": "),
+            "a code may not contain the detail separator: {}",
+            code.wire()
+        );
+        assert_eq!(code.err().0, code.wire());
+        assert_eq!(code.with(7).0, format!("{}: 7", code.wire()));
+    }
 }
 
 proptest! {

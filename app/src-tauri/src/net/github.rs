@@ -17,7 +17,7 @@ use crate::net::feedback;
 use crate::net::proxy;
 use crate::store::storage;
 use crate::types::AppError;
-use crate::types::AppResult;
+use crate::types::{AppResult, ErrCode};
 use crate::util::blocking;
 use reqwest::blocking::RequestBuilder;
 use reqwest::blocking::Response;
@@ -469,7 +469,7 @@ pub async fn github_poll_login() -> AppResult<GhUser> {
         };
         loop {
             if Instant::now() >= deadline {
-                return Err("timed out waiting for GitHub sign-in".into());
+                return Err(ErrCode::SignInTimedOut.err());
             }
             thread::sleep(interval);
             match poll_once(&device_code)? {
@@ -486,7 +486,7 @@ pub async fn github_poll_login() -> AppResult<GhUser> {
     store_session(Some(&Session::from(token)))?;
     match blocking(fetch_me).await?? {
         Some(user) => Ok(user),
-        None => Err("signed in, but GitHub rejected the token".into()),
+        None => Err(ErrCode::SignInTokenRejected.err()),
     }
 }
 
@@ -534,7 +534,7 @@ pub async fn github_create_issue(
                 .json(&payload)
         })?;
         if !resp.status().is_success() {
-            return Err(format!("GitHub rejected the report: {}", error_detail(resp)).into());
+            return Err(ErrCode::IssueRejected.with(error_detail(resp)));
         }
         let v: serde_json::Value = resp.json()?;
         Ok(IssueRef {

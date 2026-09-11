@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { mdiMapMarker } from "@mdi/js";
 import { ConnectionUser, SyncSidebar } from "@/lib/sync/ui/SyncSidebar";
 import { log } from "@/lib/util/log";
-import { errText } from "@/lib/util/util";
+import { errText } from "@/lib/util/format";
 import { controller, geoguessrProvider, PLUGIN_ID } from "./provider";
 import { t } from "@/lib/i18n";
 import { Button } from "@/components/primitives/Button";

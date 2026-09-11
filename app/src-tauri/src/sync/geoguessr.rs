@@ -11,10 +11,9 @@ use crate::net::geoguessr::{proxy_headers, upstream_url};
 use crate::net::proxy;
 use crate::store::storage;
 use crate::sync::{
-    auth_error, IdentityModel, NormalizedSyncLocation, PushBatch, PushedId, RemoteSnapshot,
-    SyncProvider,
+    IdentityModel, NormalizedSyncLocation, PushBatch, PushedId, RemoteSnapshot, SyncProvider,
 };
-use crate::types::{AppError, AppResult, LocationFlags};
+use crate::types::{AppError, AppResult, ErrCode, LocationFlags};
 
 const LOAD_AS_PANO_ID: u32 = LocationFlags::LOAD_AS_PANO_ID.bits();
 
@@ -135,7 +134,7 @@ pub(crate) fn stored_bson_size(coords: &[GgCoordinate]) -> usize {
 fn http_error(context: &str, status: u16) -> AppError {
     let msg = format!("{context}: HTTP {status}");
     if status == 401 {
-        auth_error(msg)
+        ErrCode::Auth.with(msg)
     } else {
         AppError(msg)
     }
@@ -259,7 +258,7 @@ impl SyncProvider for GeoGuessrProvider {
         }
         let draft: GgDraft = resp.json()?;
         if draft.mode == "regions" {
-            return Err("This GeoGuessr map is polygonal and cannot be synced.".into());
+            return Err(ErrCode::GeoguessrPolygonal.err());
         }
         Ok(RemoteSnapshot {
             locations: draft.coordinates.unwrap_or_default(),
@@ -280,10 +279,7 @@ impl SyncProvider for GeoGuessrProvider {
         let items: Vec<GgCoordinate> = batch.desired.iter().map(|d| d.item.clone()).collect();
         let stored = stored_bson_size(&items);
         if stored > BSON_DOC_LIMIT - DRAFT_METADATA_MARGIN {
-            return Err(AppError(format!(
-                "Too large for a GeoGuessr draft (stores as {:.1} MiB; the limit is 16 MiB).",
-                stored as f64 / 1048576.0
-            )));
+            return Err(ErrCode::GeoguessrDraftTooLarge.with(format!("{stored} {BSON_DOC_LIMIT}")));
         }
 
         // Send exactly pull-time version + 1; never re-read first. A stale version fails loudly,

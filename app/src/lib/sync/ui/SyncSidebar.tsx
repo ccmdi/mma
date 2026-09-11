@@ -10,7 +10,7 @@ import type { SyncController } from "../controller";
 import type { SyncOutcome } from "../engine";
 import type { RemoteMapSummary } from "../provider";
 import type { SyncStatus } from "../scheduler";
-import { errText } from "@/lib/util/util";
+import { errText } from "@/lib/util/format";
 import { t, msg } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { dateTimeFmt } from "@/lib/util/format";

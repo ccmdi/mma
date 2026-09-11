@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import type { Location, Tag } from "@/bindings.gen";
 import { createTags } from "@/store/useMapStore";
 import { locDate } from "@/lib/util/format";
-import { errText } from "@/lib/util/util";
+import { errText } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { Button } from "@/components/primitives/Button";
 

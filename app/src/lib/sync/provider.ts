@@ -1,3 +1,5 @@
+import type { ERROR_CODES } from "@/bindings.consts";
+
 export interface RemoteMapSummary {
 	id: string;
 	name: string;
@@ -7,9 +9,11 @@ export interface RemoteMapSummary {
 	unsupported?: string;
 }
 
-/** Rust stamps auth failures with `auth: ` (see `sync.rs`); both providers detect them this way. */
+const AUTH_CODE = "auth" satisfies (typeof ERROR_CODES)[number];
+
+/** Rust stamps auth failures with the `auth` error code; both providers detect them this way. */
 export const isAuthPrefixed = (e: unknown): boolean =>
-	e instanceof Error && e.message.startsWith("auth: ");
+	e instanceof Error && e.message.startsWith(`${AUTH_CODE}: `);
 
 /**
  * The UI half of a sync backend. The merge itself lives in Rust (see `syncReconcile`), which also

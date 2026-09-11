@@ -320,6 +320,50 @@ impl specta::Type for LocationFlags {
 #[derive(Debug, Clone)]
 pub struct AppError(pub String);
 
+macro_rules! err_codes {
+    ($($(#[$doc:meta])* $variant:ident => $wire:literal),* $(,)?) => {
+        /// A failure the user reads, classified rather than worded. The wire form is the code
+        /// alone or `<code>: <detail>`, where the detail is data (a status, a byte count) and
+        /// never prose. TypeScript owns the message.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum ErrCode { $($(#[$doc])* $variant),* }
+
+        impl ErrCode {
+            pub const ALL: &'static [ErrCode] = &[$(ErrCode::$variant),*];
+
+            pub fn wire(self) -> &'static str {
+                match self { $(ErrCode::$variant => $wire),* }
+            }
+        }
+    };
+}
+
+err_codes! {
+    /// The provider rejected our credentials; stamped where the 401 is seen.
+    Auth => "auth",
+    AttachmentNotStaged => "attachment-not-staged",
+    AttachmentTooLarge => "attachment-too-large",
+    AttachmentNotImage => "attachment-not-image",
+    UploadRejected => "upload-rejected",
+    ReportRejected => "report-rejected",
+    ReportUnreadable => "report-unreadable",
+    SignInTimedOut => "sign-in-timed-out",
+    SignInTokenRejected => "sign-in-token-rejected",
+    IssueRejected => "issue-rejected",
+    GeoguessrPolygonal => "geoguessr-polygonal",
+    GeoguessrDraftTooLarge => "geoguessr-draft-too-large",
+}
+
+impl ErrCode {
+    pub fn err(self) -> AppError {
+        AppError(self.wire().to_string())
+    }
+
+    pub fn with(self, detail: impl Display) -> AppError {
+        AppError(format!("{}: {detail}", self.wire()))
+    }
+}
+
 /// Result alias for backend operations and commands.
 pub type AppResult<T> = Result<T, AppError>;
 

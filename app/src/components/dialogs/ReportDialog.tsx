@@ -23,7 +23,7 @@ import { collectDiagnostics, type Diagnostics } from "@/lib/diagnostics";
 import { isSignedIn, submitReport } from "@/lib/feedback/submit";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
-import { errText } from "@/lib/util/util";
+import { errText } from "@/lib/util/format";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { ATTACHMENT_PREFS, type SubmittedReport } from "@/store/feedback";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
@@ -176,7 +176,7 @@ export function ReportDialog({ onClose }: { onClose: () => void }) {
 			setSignedIn(true);
 			setError(null);
 		} catch (e) {
-			setError(String(e));
+			setError(errText(e));
 		}
 	};
 
