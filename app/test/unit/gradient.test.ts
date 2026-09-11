@@ -8,7 +8,7 @@ import {
 	colorPartition,
 } from "@/plugins/gradient/gradientMath";
 import { locationsKey } from "@/store/selections";
-import type { PartitionBucket } from "@/bindings.gen";
+import type { KeySpec, PartitionBucket } from "@/bindings.gen";
 
 describe("lerp", () => {
 	it("t=0 returns first color", () => {
@@ -153,6 +153,7 @@ describe("fieldScale", () => {
 });
 
 describe("colorPartition", () => {
+	const VALUE_SPEC: KeySpec = { kind: "value" };
 	const stops: [number, number, number][] = [
 		[0, 0, 0],
 		[255, 255, 255],
@@ -171,6 +172,7 @@ describe("colorPartition", () => {
 		const sels = colorPartition(withGap, {
 			fieldKey: "altitude",
 			fieldType: "number",
+			spec: VALUE_SPEC,
 			stops,
 			narrowed: false,
 			ordinal: true,
@@ -185,6 +187,7 @@ describe("colorPartition", () => {
 		const sels = colorPartition(numericBins, {
 			fieldKey: "altitude",
 			fieldType: "number",
+			spec: VALUE_SPEC,
 			stops,
 			narrowed: false,
 			ordinal: true,
@@ -198,6 +201,7 @@ describe("colorPartition", () => {
 		const sels = colorPartition(numericBins, {
 			fieldKey: "altitude",
 			fieldType: "number",
+			spec: VALUE_SPEC,
 			stops,
 			narrowed: true,
 			ordinal: true,
@@ -222,6 +226,7 @@ describe("colorPartition", () => {
 		const sels = colorPartition(groups, {
 			fieldKey: "tag",
 			fieldType: "string",
+			spec: VALUE_SPEC,
 			stops,
 			narrowed: false,
 			ordinal: false,
@@ -239,6 +244,7 @@ describe("colorPartition", () => {
 		const sels = colorPartition(groups, {
 			fieldKey: "datetime",
 			fieldType: "date",
+			spec: VALUE_SPEC,
 			stops,
 			narrowed: false,
 			ordinal: false,
@@ -252,7 +258,8 @@ describe("colorPartition", () => {
 			colorPartition([], {
 				fieldKey: "x",
 				fieldType: "number",
-				stops,
+				spec: VALUE_SPEC,
+			stops,
 				narrowed: true,
 				ordinal: true,
 				eqFilter: false,

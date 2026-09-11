@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ProcedureProgress, Selector } from "@/bindings.gen";
+import type { KeySpec, ProcedureProgress, Selector } from "@/bindings.gen";
 
 // Bulk work is selector-first: JS never reads rows, it hands the Rust engine a set of
 // provider declarations plus the caller's Selector. These mocks record every declaration.
@@ -37,7 +37,11 @@ const h = vi.hoisted(() => ({
 vi.mock("@/lib/util/log", () => ({
 	log: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, trace: () => {} },
 }));
-vi.mock("@/lib/i18n", () => ({ msg: (s: string) => s, t: (s: string) => s }));
+vi.mock("@/lib/i18n", () => ({
+	msg: (s: string) => s,
+	t: (s: string) => s,
+	getLocale: () => "en",
+}));
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 
@@ -461,6 +465,16 @@ describe("the query surface", () => {
 
 	it("never queries for an empty key set", async () => {
 		expect(await resolveFieldLabels("labelledField", [])).toEqual([]);
+		expect(h.queries).toEqual([]);
+	});
+
+	it("names month-of-year tokens itself rather than asking the procedure", async () => {
+		const spec: KeySpec = { kind: "datePart", part: "monthOfYear", tzLocal: false };
+		expect(await resolveFieldLabels("labelledField", ["01", "07", "12"], spec)).toEqual([
+			"January",
+			"July",
+			"December",
+		]);
 		expect(h.queries).toEqual([]);
 	});
 

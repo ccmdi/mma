@@ -2,7 +2,7 @@
 // providers are gated on their dependencies, locations are paged, and each procedure's
 // answers are delivered as patches or back to the caller.
 
-import type { Location, RowsRun, Selector } from "@/bindings.gen";
+import type { KeySpec, Location, RowsRun, Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
 import {
 	derivedFrom,
@@ -14,6 +14,7 @@ import {
 import { events } from "@/bindings.gen";
 import type { ProcedureProgress, ProcedureResult, ProviderDecl, Sink } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
+import { partitionLabel } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
 
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
@@ -62,9 +63,16 @@ async function cancellable<T>(
 
 let nextQueryToken = 1;
 
-/** Display labels for a field's partition keys. Falls back to the keys themselves when
- *  the field's procedure has no `label` query or returns a non-matching array. */
-export async function resolveFieldLabels(field: string, keys: string[]): Promise<string[]> {
+/** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
+ *  become locale month names; otherwise falls back to the keys themselves when the field's
+ *  procedure has no `label` query or returns a non-matching array. */
+export async function resolveFieldLabels(
+	field: string,
+	keys: string[],
+	key?: KeySpec,
+): Promise<string[]> {
+	if (key?.kind === "datePart" && key.part === "monthOfYear")
+		return keys.map((k) => partitionLabel(k, key));
 	const entry = getProviderForField(field)?.procedure.entry;
 	if (!entry || keys.length === 0) return keys;
 	try {

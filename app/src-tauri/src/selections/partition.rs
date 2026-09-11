@@ -102,21 +102,6 @@ pub struct PartitionBucket {
     pub bin: Option<[f64; 2]>,
 }
 
-pub(super) const MONTH_NAMES: [&str; 12] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-];
-
 /// Partition `view` into groups by `field`. `set` (when Some) restricts to those ids.
 /// Returns groups in a deterministic but unsorted order (numeric: bin order; projection:
 /// first-seen) - the JS caller sorts for display.
@@ -276,7 +261,7 @@ pub(super) fn parts_to_key(y: i32, mo: u32, d: u32, h: u32, part: DatePart) -> S
         DatePart::Year => format!("{y}"),
         DatePart::YearMonth => format!("{y}-{mo:02}"),
         DatePart::Day => format!("{y}-{mo:02}-{d:02}"),
-        DatePart::MonthOfYear => MONTH_NAMES[(mo.clamp(1, 12) - 1) as usize].to_string(),
+        DatePart::MonthOfYear => format!("{:02}", mo.clamp(1, 12)),
         DatePart::HourOfDay => format!("{h:02}:00"),
     }
 }

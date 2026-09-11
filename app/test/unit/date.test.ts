@@ -3,7 +3,6 @@ import fc from "fast-check";
 import {
 	parseTypedDate,
 	MONTHS,
-	compareMonthOrder,
 	ymParse,
 	ymFormat,
 	ymFromDate,
@@ -26,17 +25,6 @@ describe("MONTHS", () => {
 		MONTHS.full.forEach((full, i) => {
 			expect(full.startsWith(MONTHS.short[i])).toBe(true);
 		});
-	});
-});
-
-describe("compareMonthOrder", () => {
-	it("orders month names by calendar position, not alphabetically", () => {
-		expect(["April", "January", "December", "August"].sort(compareMonthOrder)).toEqual([
-			"January",
-			"April",
-			"August",
-			"December",
-		]);
 	});
 });
 

@@ -5,10 +5,12 @@ import {
 	exprErrorText,
 	fillTemplate,
 	formatDistance,
+	partitionLabel,
 	unitSystem,
 } from "@/lib/util/format";
+import { compareNatural } from "@/lib/util/util";
 import { setSetting } from "@/store/settings";
-import type { ExprError } from "@/bindings.gen";
+import type { ExprError, KeySpec } from "@/bindings.gen";
 
 describe("fillTemplate", () => {
 	it("substitutes known placeholders and leaves unknown ones as written", () => {
@@ -82,6 +84,30 @@ describe("distanceUnit", () => {
 		expect(m.toDisplay(m.fromDisplay(3280))).toBe(3280);
 		const km = distanceUnit("km");
 		expect(km.toDisplay(km.fromDisplay(6.21))).toBe(6.21);
+	});
+});
+
+describe("partitionLabel", () => {
+	const month: KeySpec = { kind: "datePart", part: "monthOfYear", tzLocal: false };
+
+	it("names month-of-year tokens", () => {
+		expect(partitionLabel("01", month)).toBe("January");
+		expect(partitionLabel("09", month)).toBe("September");
+		expect(partitionLabel("12", month)).toBe("December");
+	});
+
+	it("leaves every other key as the token Rust produced", () => {
+		expect(partitionLabel("2019-07", { kind: "datePart", part: "yearMonth", tzLocal: false })).toBe(
+			"2019-07",
+		);
+		expect(partitionLabel("09:00", { kind: "datePart", part: "hourOfDay", tzLocal: false })).toBe(
+			"09:00",
+		);
+		expect(partitionLabel("FR", { kind: "value" })).toBe("FR");
+	});
+
+	it("sorts month tokens into calendar order, which English names did not", () => {
+		expect(["04", "01", "12", "08"].sort(compareNatural)).toEqual(["01", "04", "08", "12"]);
 	});
 });
 

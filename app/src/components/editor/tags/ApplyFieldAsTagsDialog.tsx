@@ -101,6 +101,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		const labels = await resolveFieldLabels(
 			field,
 			groups.map((g) => g.key),
+			key,
 		);
 		// Groups sharing a label land on one tag: createTags reuses an existing name.
 		for (const [i, g] of groups.entries())

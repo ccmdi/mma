@@ -1,6 +1,7 @@
-import type { ExtraFieldDef, PartitionBucket, Selection } from "@/bindings.gen";
+import type { ExtraFieldDef, KeySpec, PartitionBucket, Selection } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { ymOrdinal } from "@/lib/util/date";
+import { partitionLabel } from "@/lib/util/format";
 import { locationsKey } from "@/store/selections";
 
 export function lerp(a: RGB, b: RGB, t: number): RGB {
@@ -50,6 +51,7 @@ export function colorPartition(
 	opts: {
 		fieldKey: string;
 		fieldType: string | undefined;
+		spec: KeySpec;
 		stops: RGB[];
 		narrowed: boolean;
 		ordinal: boolean;
@@ -59,7 +61,7 @@ export function colorPartition(
 	// Numeric bins keep their empties for the pivot; an empty selection is noise here.
 	groups = groups.filter((g) => g.ids.length > 0);
 	if (groups.length === 0) return [];
-	const { fieldKey, fieldType, stops, narrowed, ordinal, eqFilter } = opts;
+	const { fieldKey, fieldType, spec, stops, narrowed, ordinal, eqFilter } = opts;
 	const n = groups.length;
 	const evenSpaced = (i: number) => (n === 1 ? 0.5 : i / (n - 1));
 
@@ -96,7 +98,7 @@ export function colorPartition(
 			};
 		}
 		return {
-			selector: { type: "Locations", locations: g.ids, name: g.key },
+			selector: { type: "Locations", locations: g.ids, name: partitionLabel(g.key, spec) },
 			key: locationsKey(g.ids),
 			color,
 		};

@@ -19,7 +19,6 @@ import { trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
-import { compareMonthOrder } from "@/lib/util/date";
 import type { LocationPatch_Deserialize as LocationPatch, Update, TagPatch } from "@/bindings.gen";
 import type { KeySpec, PartitionBucket, FieldOp, FieldOpResult, MergeWinner } from "@/bindings.gen";
 import { SelectedIds, decodeSelectionBitmask, type ReadonlyIdSet } from "@/lib/render/CellManager";
@@ -375,11 +374,7 @@ export async function partition(
 	selector: Selector,
 ): Promise<PartitionBucket[]> {
 	const groups = await cmd.storeGroupBy(selector, field, key);
-	if (key.kind !== "numericBin") {
-		const cmp =
-			key.kind === "datePart" && key.part === "monthOfYear" ? compareMonthOrder : compareNatural;
-		groups.sort((a, b) => cmp(a.key, b.key));
-	}
+	if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 	return groups;
 }
 

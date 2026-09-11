@@ -20,12 +20,6 @@ export const MONTHS = {
 	],
 } as const;
 
-// Calendar order for full month-name keys (e.g. month-of-year partition groups)
-export function compareMonthOrder(a: string, b: string): number {
-	const order: readonly string[] = MONTHS.full;
-	return order.indexOf(a) - order.indexOf(b);
-}
-
 /** 1-based month from a name ("Jun", "june") or number token ("6", "06"). */
 function monthToken(tok: string): number | null {
 	if (/^\d{1,2}$/.test(tok)) {

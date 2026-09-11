@@ -2377,7 +2377,21 @@ fn partition_month_field_year_and_month_of_year() {
         },
         None,
     );
-    assert_eq!(mo[0].key, "July");
+    assert_eq!(mo[0].key, "07");
+}
+
+/// Month-of-year keys are zero-padded numeric tokens, so lexicographic order is calendar
+/// order and the label is the locale's to write.
+#[test]
+fn month_of_year_keys_are_padded_numbers() {
+    let key = |mo| parts_to_key(2019, mo, 1, 0, DatePart::MonthOfYear);
+    let all: Vec<String> = (1..=12).map(key).collect();
+    assert_eq!(all[0], "01");
+    assert_eq!(all[8], "09");
+    assert_eq!(all[11], "12");
+    let mut sorted = all.clone();
+    sorted.sort();
+    assert_eq!(sorted, all);
 }
 
 #[test]

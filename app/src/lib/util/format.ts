@@ -1,4 +1,4 @@
-import type { ExprError } from "@/bindings.gen";
+import type { ExprError, KeySpec } from "@/bindings.gen";
 import { getLocale, msg, t } from "@/lib/i18n";
 import { getSettings } from "@/store/settings";
 import { ERROR_CODES } from "@/bindings.consts";
@@ -55,11 +55,26 @@ export function countryName(code: string): string {
 const monthFmt = localeFormat<Date | number>(
 	(l) => new Intl.DateTimeFormat(l, { month: "short", timeZone: "UTC" }),
 );
+const monthLongFmt = localeFormat<Date | number>(
+	(l) => new Intl.DateTimeFormat(l, { month: "long", timeZone: "UTC" }),
+);
 
 /** Localised short month name for a 0-based index. Display only -- `MONTHS` in `util/date`
  *  stays English because it also backs date *parsing*. */
 export function monthShort(index: number): string {
 	return monthFmt.format(Date.UTC(2000, index, 1));
+}
+
+/** Localised full month name for a 0-based index. */
+export function monthLong(index: number): string {
+	return monthLongFmt.format(Date.UTC(2000, index, 1));
+}
+
+/** The display label for a partition bucket key. Rust keys every group with a
+ *  locale-neutral token, so month-of-year ("01".."12") is named here. */
+export function partitionLabel(key: string, spec: KeySpec): string {
+	if (spec.kind === "datePart" && spec.part === "monthOfYear") return monthLong(Number(key) - 1);
+	return key;
 }
 
 /** Location timestamps are Unix seconds; JS Date wants milliseconds. */

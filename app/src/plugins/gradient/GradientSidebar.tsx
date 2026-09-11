@@ -169,6 +169,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 			const sels = colorPartition(groups, {
 				fieldKey: fieldKey,
 				fieldType,
+				spec: key,
 				stops,
 				narrowed: picker.choice.pick === "selection",
 				ordinal: projectionId === RANGE_ID,
