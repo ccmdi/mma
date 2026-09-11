@@ -727,11 +727,12 @@ export function BulkActions() {
 			for (const path of mapFiles) {
 				const entries = await cmd.bulkImportPreview(path);
 				entries.forEach((e, localIndex) => {
+					const name = e.name ?? t("Untitled");
 					const isDuplicate = maps.some(
-						(existing) => existing.name === e.name && existing.locationCount === e.locationCount,
+						(existing) => existing.name === name && existing.locationCount === e.locationCount,
 					);
 					aggregated.push({
-						name: e.name,
+						name,
 						folder: e.folder,
 						locationCount: e.locationCount,
 						tagCount: e.tagCount,

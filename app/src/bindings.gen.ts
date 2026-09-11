@@ -878,7 +878,8 @@ export type ImageSize = {
  *  Shown in the import dialog so the user can select which maps to import.
  */
 export type ImportPreviewEntry = {
-	name: string,
+	/**  `None` when the file names the map nothing; JS supplies the placeholder. */
+	name: string | null,
 	folder: string | null,
 	locationCount: number,
 	tagCount: number,

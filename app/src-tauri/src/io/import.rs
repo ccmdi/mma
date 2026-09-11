@@ -45,11 +45,24 @@ struct CachedImport {
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportPreviewEntry {
-    pub name: String,
+    /// `None` when the file names the map nothing; JS supplies the placeholder.
+    pub name: Option<String>,
     pub folder: Option<String>,
     pub location_count: u32,
     pub tag_count: u32,
     pub warnings: Vec<String>,
+}
+
+impl From<&ParsedMap> for ImportPreviewEntry {
+    fn from(m: &ParsedMap) -> Self {
+        ImportPreviewEntry {
+            name: (!m.name.is_empty()).then(|| m.name.clone()),
+            folder: m.folder.clone(),
+            location_count: m.locations.len() as u32,
+            tag_count: m.tags.len() as u32,
+            warnings: m.warnings.clone(),
+        }
+    }
 }
 
 /// Result returned per map after a successful bulk import.
@@ -142,20 +155,7 @@ pub async fn bulk_import_preview(path: String) -> AppResult<Vec<ImportPreviewEnt
     task::spawn_blocking(move || {
         let maps = read_and_parse_maps(&path)?;
 
-        let results: Vec<ImportPreviewEntry> = maps
-            .iter()
-            .map(|m| ImportPreviewEntry {
-                name: if m.name.is_empty() {
-                    "Untitled".to_string()
-                } else {
-                    m.name.clone()
-                },
-                folder: m.folder.clone(),
-                location_count: m.locations.len() as u32,
-                tag_count: m.tags.len() as u32,
-                warnings: m.warnings.clone(),
-            })
-            .collect();
+        let results: Vec<ImportPreviewEntry> = maps.iter().map(ImportPreviewEntry::from).collect();
 
         *CACHED_PARSE.lock().unwrap() = Some(CachedImport { path, maps });
 

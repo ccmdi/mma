@@ -432,6 +432,24 @@ fn boundaries_tag_meta_after_brace_heavy_strings() {
     assert_eq!(parsed.tags[0].color, "#010203");
 }
 
+/// A nameless map previews as no name at all; naming the placeholder is JS's job.
+#[test]
+fn preview_leaves_an_unnamed_map_nameless() {
+    let entry = |json: &[u8]| {
+        let mut buf = json.to_vec();
+        ImportPreviewEntry::from(&parse_single_json_mut(&mut buf))
+    };
+    assert_eq!(
+        entry(br#"{"name":"Sweden","customCoordinates":[{"lat":1,"lng":2}]}"#).name,
+        Some("Sweden".to_string())
+    );
+    assert_eq!(entry(br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#).name, None);
+    assert_eq!(
+        entry(br#"{"name":"","customCoordinates":[{"lat":1,"lng":2}]}"#).name,
+        None
+    );
+}
+
 #[test]
 fn parsed_tags_sorted_by_order() {
     let json = br#"{"name":"test","customCoordinates":[
