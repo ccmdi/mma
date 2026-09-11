@@ -90,7 +90,6 @@ export async function reconcile(
 		provider.id,
 		link.localMapId,
 		link.remoteMapId,
-		provider.credential?.() ?? null,
 		opts.firstSync ?? null,
 		opts.resolutions ? [...opts.resolutions.entries()] : null,
 	);

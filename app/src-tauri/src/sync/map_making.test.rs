@@ -617,6 +617,51 @@ fn auth_error_detected_only_for_401() {
     assert!(e400.0.contains("HTTP 400"));
 }
 
+// --- map listing ------------------------------------------------------------
+
+#[test]
+fn parse_maps_drops_archived_and_stringifies_ids() {
+    let body = br#"[
+        {"id": 7, "name": "Live", "archivedAt": null, "locationCount": 3},
+        {"id": 8, "name": "Gone", "archivedAt": "2026-01-01T00:00:00Z", "locationCount": 9},
+        {"id": 9, "name": "No field", "locationCount": 0}
+    ]"#;
+    let maps = parse_maps(body).unwrap();
+    assert_eq!(
+        maps.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+        ["7", "9"]
+    );
+    assert_eq!(maps[0].name, "Live");
+    assert_eq!(maps[0].location_count, 3);
+}
+
+#[test]
+fn parse_maps_tolerates_unknown_and_missing_fields() {
+    let body = br#"[{"id": 1, "name": "M", "role": "owner", "settings": {"exportZoom": true}}]"#;
+    let maps = parse_maps(body).unwrap();
+    assert_eq!(maps.len(), 1);
+    assert_eq!(maps[0].location_count, 0);
+}
+
+#[test]
+fn key_round_trips_through_the_credential_store() {
+    KEY.set(Some("k".into())).unwrap();
+    assert_eq!(KEY.get().unwrap().as_deref(), Some("k"));
+    assert_eq!(MapMakingProvider::from_key().unwrap().api_key, "k");
+
+    KEY.set(None).unwrap();
+    assert!(KEY.get().unwrap().is_none());
+    // MapMakingProvider is not Debug, so match rather than unwrap_err.
+    match MapMakingProvider::from_key() {
+        Ok(_) => panic!("expected an auth error with no key stored"),
+        Err(err) => assert!(
+            err.0.starts_with(AUTH_PREFIX),
+            "a missing key must classify as an auth failure, got: {}",
+            err.0
+        ),
+    }
+}
+
 // --- live wire (ignored; needs credentials + network) -----------------------
 
 fn live_creds() -> (String, String) {

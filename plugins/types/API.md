@@ -1307,6 +1307,26 @@ the procedure module it declares. `git_ref` pins an older build; `None` takes ma
 
 Manifests of every installed plugin.
 
+#### `cmd.mapMakingHasKey(): Promise<boolean>` *(unstable)*
+
+Local-only check: is a key stored? Says nothing about its validity.
+
+#### `cmd.mapMakingMaps(): Promise<MmMapSummary[]>` *(unstable)*
+
+Linkable maps for the stored key.
+
+#### `cmd.mapMakingMe(): Promise<MmUser | null>` *(unstable)*
+
+The account behind the stored key, or null when no key is stored.
+
+#### `cmd.mapMakingSetKey(key: string | null): Promise<null>` *(unstable)*
+
+Store the API key, or clear it with null.
+
+#### `cmd.mapMakingValidate(key: string): Promise<MmUser>` *(unstable)*
+
+Check `key` against the remote without storing it.
+
 #### `cmd.openDataFolder(): Promise<null>` *(unstable)*
 
 Open the app's data folder in the OS file explorer.
@@ -1780,7 +1800,7 @@ directory. Returns a temp path for [`store_save_export_file`].
 
 Distinct values of `field` across the selected set, sorted.
 
-#### `cmd.syncReconcile(provider: string, mapId: string, remoteMapId: string, apiKey: string | null, firstSync: FirstSyncMode | null, resolutions: [string, ResolutionSide][] | null): Promise<...>` *(unstable)*
+#### `cmd.syncReconcile(provider: string, mapId: string, remoteMapId: string, firstSync: FirstSyncMode | null, resolutions: [string, ResolutionSide][] | null): Promise<...>` *(unstable)*
 
 Reconcile a linked map against its remote, pushing local changes and pulling
 remote ones. Returns the creates, updates, and deletes for each side to apply.

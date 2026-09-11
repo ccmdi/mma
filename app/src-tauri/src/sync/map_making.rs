@@ -4,29 +4,36 @@
 
 use std::collections::HashMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use vali_data::decode::Reader;
 
 use crate::net::proxy;
+use crate::store::storage;
 use crate::sync::{
     auth_error, canon_tags, sync_flags, IdentityModel, NormalizedSyncLocation, PushBatch, PushedId,
     RemoteSnapshot, SyncProvider,
 };
 use crate::types::{AppError, AppResult};
+use crate::util::blocking;
 
 const BASE_URL: &str = "https://map-making.app";
 
 /// Ops per edit request; bounds failure cost, not a server limit.
 const PUSH_CHUNK: usize = 200_000;
 
-/// EditActionType.Bulk from remote-types.ts.
+/// The remote's bulk edit action.
 const EDIT_ACTION_BULK: u32 = 8;
+
+const SECRET_NAME: &str = "map-making.app";
+
+/// The API key, cached from the OS credential store.
+static KEY: storage::SessionCell = storage::SessionCell::new(SECRET_NAME);
 
 pub(crate) struct MapMakingProvider {
     pub api_key: String,
 }
 
-// --- read shape (mirrors Remote.Location) -----------------------------------
+// --- read shape -------------------------------------------------------------
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -35,8 +42,8 @@ pub(crate) struct LatLng {
     pub lng: f64,
 }
 
-/// The read shape decoded from a pull. `author`/`created_at`/`pano_date` are remote-owned and
-/// ignored by the contract; kept for fidelity.
+/// Decoded from a pull. `author`/`created_at`/`pano_date` are remote-owned and ignored by the
+/// contract; kept for fidelity.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub(crate) struct MmLocation {
     pub id: i64,
@@ -190,6 +197,14 @@ impl SyncProvider for MapMakingProvider {
 }
 
 impl MapMakingProvider {
+    /// The provider bound to the stored API key.
+    pub(crate) fn from_key() -> AppResult<Self> {
+        let api_key = KEY
+            .get()?
+            .ok_or_else(|| auth_error("no map-making.app API key"))?;
+        Ok(Self { api_key })
+    }
+
     /// POST one chunk's edit and return the submitted-id -> assigned-id remap.
     fn post_edit(&self, remote_map_id: &str, part: &PushPart) -> AppResult<HashMap<String, i64>> {
         let url = format!("{BASE_URL}/api/maps/{remote_map_id}/locations");
@@ -219,8 +234,7 @@ impl MapMakingProvider {
 }
 
 /// Build an [`AppError`] from a non-2xx response. Prefers a JSON body's `message`, else the body
-/// text, else a status-only fallback (loosely mirrors MapMakingWebApiError). A 401 becomes an
-/// [`auth_error`].
+/// text, else a status-only fallback. A 401 becomes an [`auth_error`].
 fn api_error(status: u16, body: &[u8]) -> AppError {
     let message = match serde_json::from_slice::<serde_json::Value>(body) {
         Ok(v) => v
@@ -247,6 +261,113 @@ fn api_error(status: u16, body: &[u8]) -> AppError {
 
 fn default_error_message(status: u16) -> String {
     format!("map-making.app API request failed with HTTP {status}")
+}
+
+// --- account and map listing ------------------------------------------------
+
+/// The account an API key belongs to.
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MmUser {
+    pub id: i64,
+    pub username: String,
+}
+
+/// A map the key holder can link to.
+#[derive(Serialize, Deserialize, specta::Type, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MmMapSummary {
+    pub id: String,
+    pub name: String,
+    pub location_count: i64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MapRow {
+    id: i64,
+    name: String,
+    #[serde(default)]
+    archived_at: Option<serde_json::Value>,
+    #[serde(default)]
+    location_count: i64,
+}
+
+fn get_bytes(api_key: &str, path: &str) -> AppResult<Vec<u8>> {
+    let resp = proxy::sync_client()
+        .get(format!("{BASE_URL}{path}"))
+        .header("authorization", format!("API {api_key}"))
+        .header("accept", "application/json")
+        .send()?;
+    let status = resp.status().as_u16();
+    let body = resp.bytes()?;
+    if !(200..300).contains(&status) {
+        return Err(api_error(status, &body));
+    }
+    Ok(body.to_vec())
+}
+
+fn fetch_user(api_key: &str) -> AppResult<MmUser> {
+    Ok(serde_json::from_slice(&get_bytes(api_key, "/api/user")?)?)
+}
+
+fn fetch_maps(api_key: &str) -> AppResult<Vec<MmMapSummary>> {
+    parse_maps(&get_bytes(api_key, "/api/maps")?)
+}
+
+/// Archived maps cannot be linked, so they never reach the picker.
+fn parse_maps(body: &[u8]) -> AppResult<Vec<MmMapSummary>> {
+    let rows: Vec<MapRow> = serde_json::from_slice(body)?;
+    Ok(rows
+        .into_iter()
+        .filter(|m| !matches!(&m.archived_at, Some(v) if !v.is_null()))
+        .map(|m| MmMapSummary {
+            id: m.id.to_string(),
+            name: m.name,
+            location_count: m.location_count,
+        })
+        .collect())
+}
+
+// --- commands ---------------------------------------------------------------
+
+/// The account behind the stored key, or null when no key is stored.
+#[tauri::command]
+#[specta::specta]
+pub async fn map_making_me() -> AppResult<Option<MmUser>> {
+    blocking(|| match KEY.get()? {
+        Some(key) => Ok(Some(fetch_user(&key)?)),
+        None => Ok(None),
+    })
+    .await?
+}
+
+/// Check `key` against the remote without storing it.
+#[tauri::command]
+#[specta::specta]
+pub async fn map_making_validate(key: String) -> AppResult<MmUser> {
+    blocking(move || fetch_user(&key)).await?
+}
+
+/// Linkable maps for the stored key.
+#[tauri::command]
+#[specta::specta]
+pub async fn map_making_maps() -> AppResult<Vec<MmMapSummary>> {
+    blocking(|| fetch_maps(&MapMakingProvider::from_key()?.api_key)).await?
+}
+
+/// Store the API key, or clear it with null.
+#[tauri::command]
+#[specta::specta]
+pub async fn map_making_set_key(key: Option<String>) -> AppResult<()> {
+    blocking(move || KEY.set(key.filter(|k| !k.is_empty()))).await?
+}
+
+/// Local-only check: is a key stored? Says nothing about its validity.
+#[tauri::command]
+#[specta::specta]
+pub async fn map_making_has_key() -> AppResult<bool> {
+    blocking(|| Ok(KEY.get()?.is_some())).await?
 }
 
 // --- push chunking (pure) ---------------------------------------------------
@@ -385,11 +506,11 @@ impl RawLoc {
                 lat: self.lat,
                 lng: self.lng,
             },
-            // Empty panoId string -> None (map-making-web-api.ts:180).
+            // An empty panoId string means "none".
             pano_id: (!self.pano_id.is_empty()).then_some(self.pano_id),
             heading: self.heading,
             pitch: self.pitch,
-            // Proto always yields a double (default 0); mirror the TS Some.
+            // Proto always yields a double, defaulting to 0.
             zoom: Some(self.zoom),
             flags: self.flags,
             // Resolve indices against the table; out-of-range indices are dropped, order kept.

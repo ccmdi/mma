@@ -437,7 +437,17 @@ export const commands = {
 	 *  Reconcile a linked map against its remote, pushing local changes and pulling
 	 *  remote ones. Returns the creates, updates, and deletes for each side to apply.
 	 */
-	syncReconcile: (provider: string, mapId: string, remoteMapId: string, apiKey: string | null, firstSync: FirstSyncMode | null, resolutions: ([string, ResolutionSide])[] | null) => __TAURI_INVOKE<SyncReconcileResult>("sync_reconcile", { provider, mapId, remoteMapId, apiKey, firstSync, resolutions }).then((v) => (({...v,conflicts:v.conflicts.map(i=>({...i,local:i.local==null?i.local:i.local,remote:i.remote==null?i.remote:i.remote})),pullUpdates:v.pullUpdates.map(i=>({...i,patch:({...i.patch,lat:i.patch.lat==null?i.patch.lat:i.patch.lat,lng:i.patch.lng==null?i.patch.lng:i.patch.lng,heading:i.patch.heading==null?i.patch.heading:i.patch.heading,pitch:i.patch.pitch==null?i.patch.pitch:i.patch.pitch,zoom:i.patch.zoom==null?i.patch.zoom:i.patch.zoom})}))}) as typeof v)),
+	syncReconcile: (provider: string, mapId: string, remoteMapId: string, firstSync: FirstSyncMode | null, resolutions: ([string, ResolutionSide])[] | null) => __TAURI_INVOKE<SyncReconcileResult>("sync_reconcile", { provider, mapId, remoteMapId, firstSync, resolutions }).then((v) => (({...v,conflicts:v.conflicts.map(i=>({...i,local:i.local==null?i.local:i.local,remote:i.remote==null?i.remote:i.remote})),pullUpdates:v.pullUpdates.map(i=>({...i,patch:({...i.patch,lat:i.patch.lat==null?i.patch.lat:i.patch.lat,lng:i.patch.lng==null?i.patch.lng:i.patch.lng,heading:i.patch.heading==null?i.patch.heading:i.patch.heading,pitch:i.patch.pitch==null?i.patch.pitch:i.patch.pitch,zoom:i.patch.zoom==null?i.patch.zoom:i.patch.zoom})}))}) as typeof v)),
+	/**  The account behind the stored key, or null when no key is stored. */
+	mapMakingMe: () => __TAURI_INVOKE<MmUser | null>("map_making_me"),
+	/**  Check `key` against the remote without storing it. */
+	mapMakingValidate: (key: string) => __TAURI_INVOKE<MmUser>("map_making_validate", { key }),
+	/**  Linkable maps for the stored key. */
+	mapMakingMaps: () => __TAURI_INVOKE<MmMapSummary[]>("map_making_maps"),
+	/**  Store the API key, or clear it with null. */
+	mapMakingSetKey: (key: string | null) => __TAURI_INVOKE<null>("map_making_set_key", { key }),
+	/**  Local-only check: is a key stored? Says nothing about its validity. */
+	mapMakingHasKey: () => __TAURI_INVOKE<boolean>("map_making_has_key"),
 	/**
 	 *  Open the GeoGuessr sign-in window and wait for authentication to complete.
 	 *  Returns the signed-in nickname.
@@ -1110,6 +1120,19 @@ export type MapSettings = {
 
 /**  When a move target already holds a value, which side survives. */
 export type MergeWinner = "from" | "to";
+
+/**  A map the key holder can link to. */
+export type MmMapSummary = {
+	id: string,
+	name: string,
+	locationCount: number,
+};
+
+/**  The account an API key belongs to. */
+export type MmUser = {
+	id: number,
+	username: string,
+};
 
 /**
  *  What one mutation changed, and nothing else. `values` are merged into the JS state

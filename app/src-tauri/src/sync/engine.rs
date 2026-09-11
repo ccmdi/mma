@@ -685,7 +685,6 @@ fn reconcile_with<P: SyncProvider>(
 
 fn run_reconcile(
     provider_name: &str,
-    api_key: Option<String>,
     req: &ReconcileRequest<'_>,
 ) -> AppResult<SyncReconcileResult> {
     let mut conn = storage::open_db()?;
@@ -693,8 +692,7 @@ fn run_reconcile(
 
     match provider_name {
         "map-making.app" => {
-            let api_key = api_key.ok_or_else(|| AppError("missing api key".into()))?;
-            let provider = MapMakingProvider { api_key };
+            let provider = MapMakingProvider::from_key()?;
             reconcile_with(&provider, provider_name, req, &mapping, &mut conn)
         }
         "geoguessr" => {
@@ -714,7 +712,6 @@ pub async fn sync_reconcile(
     provider: String,
     map_id: String,
     remote_map_id: String,
-    api_key: Option<String>,
     first_sync: Option<FirstSyncMode>,
     resolutions: Option<Vec<(String, ResolutionSide)>>,
 ) -> AppResult<SyncReconcileResult> {
@@ -746,7 +743,6 @@ pub async fn sync_reconcile(
     async_runtime::spawn_blocking(move || {
         run_reconcile(
             &provider,
-            api_key,
             &ReconcileRequest {
                 map_id: &map_id,
                 remote_map_id: &remote_map_id,
