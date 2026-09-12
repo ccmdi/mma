@@ -24,6 +24,12 @@
 	color: var(--text-2);
 }
 
+.lg-history .entry-list__card {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+}
+
 .lg-history__clear {
 	display: flex;
 	justify-content: flex-end;
@@ -476,7 +482,7 @@
 	background: var(--surface-2);
 }
 
-.lg-summary__row-thumb {
+.lg-row-thumb {
 	position: absolute;
 	inset: 0 auto 0 0;
 	z-index: -1;
@@ -485,10 +491,10 @@
 	object-fit: cover;
 	pointer-events: none;
 	mask-image: linear-gradient(to right, #000, transparent);
-	animation: lg-summary-thumb-in 0.4s ease forwards;
+	animation: lg-row-thumb-in 0.4s ease forwards;
 }
 
-@keyframes lg-summary-thumb-in {
+@keyframes lg-row-thumb-in {
 	from {
 		opacity: 0;
 	}

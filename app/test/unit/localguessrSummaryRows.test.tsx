@@ -11,7 +11,7 @@ vi.mock("@/lib/seen/seen", () => ({
 	loadSeenPano: (...a: unknown[]) => loadSeenPano(...a),
 }));
 vi.mock("@/lib/hooks/usePano", () => ({ usePano: () => viewer }));
-vi.mock("@/plugins/localguessr/storage", () => ({ roundThumbnails: async () => new Map() }));
+vi.mock("@/plugins/localguessr/storage", () => ({ useRoundThumbnails: () => new Map() }));
 vi.mock("@/plugins/localguessr/TagButton", () => ({
 	TagButton: () => createElement("button", { type: "button", className: "tag" }, "tag"),
 }));

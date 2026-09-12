@@ -27,6 +27,7 @@ import { t } from "@/lib/i18n";
 import type { Selector } from "@/bindings.gen";
 import {
 	DEFAULT_CONFIG,
+	formatElapsed,
 	INFINITE_BATCH,
 	hydrateSession,
 	pastTotal,
@@ -50,6 +51,7 @@ import {
 	getGlobalStreak,
 	getHistory,
 	getSavedGame,
+	useRoundThumbnails,
 	saveGame,
 	setGlobalStreak,
 } from "./storage";
@@ -62,6 +64,42 @@ async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[
 	if (ids.length === 0) return [];
 	return (await fetchLocations({ type: "Locations", locations: ids, name: null })).map(
 		toRoundLocation,
+	);
+}
+
+function movementLabels(): Record<MovementMode, string> {
+	return { moving: t("Moving"), noMove: t("No move"), nmpz: t("NMPZ") };
+}
+
+function PastGameCard({ game, onOpen }: { game: PastGame; onOpen: (game: PastGame) => void }) {
+	const firstId = game.rounds[0]?.location.id;
+	const thumbnails = useRoundThumbnails(
+		game.mapId,
+		game.startedAt,
+		firstId === undefined ? [] : [firstId],
+	);
+	const thumbnail = firstId === undefined ? undefined : thumbnails.get(firstId);
+	return (
+		<EntryCard
+			actions={
+				<Button small onClick={() => onOpen(game)}>
+					{t("Open")}
+				</Button>
+			}
+		>
+			{thumbnail && (
+				<img className="lg-row-thumb" src={`data:image/jpeg;base64,${thumbnail}`} alt="" />
+			)}
+			<div className="entry-list__name">{fmt.format(pastTotal(game))}</div>
+			<div className="entry-list__meta">
+				<span>{t("{n} rounds", { n: game.rounds.length })}</span>
+				<span>{movementLabels()[game.config.movementMode]}</span>
+				<span>{formatElapsed(game.rounds.reduce((sum, r) => sum + r.elapsedMs, 0))}</span>
+				<span title={dateTimeFmt.format(game.finishedAt)}>
+					{relativeTime(game.finishedAt / 1000)}
+				</span>
+			</div>
+		</EntryCard>
 	);
 }
 
@@ -80,25 +118,10 @@ function PastGamesModal({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Past games")} className="entry-list-modal">
+			<DialogContent title={t("Past games")} className="entry-list-modal lg-history">
 				<EntryList>
 					{history.map((g) => (
-						<EntryCard
-							key={g.startedAt}
-							actions={
-								<Button small onClick={() => onOpen(g)}>
-									{t("Open")}
-								</Button>
-							}
-						>
-							<div className="entry-list__name">{fmt.format(pastTotal(g))}</div>
-							<div className="entry-list__meta">
-								<span>{t("{n} rounds", { n: g.rounds.length })}</span>
-								<span title={dateTimeFmt.format(g.finishedAt)}>
-									{relativeTime(g.finishedAt / 1000)}
-								</span>
-							</div>
-						</EntryCard>
+						<PastGameCard key={g.startedAt} game={g} onOpen={onOpen} />
 					))}
 				</EntryList>
 				<div className="lg-history__clear">
@@ -302,9 +325,9 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 									value={config.movementMode}
 									onChange={(movementMode) => patch({ movementMode })}
 									options={[
-										{ value: "moving", label: t("Moving") },
-										{ value: "noMove", label: t("No move") },
-										{ value: "nmpz", label: t("NMPZ") },
+										...(Object.entries(movementLabels()) as [MovementMode, string][]).map(
+											([value, label]) => ({ value, label }),
+										),
 									]}
 								/>
 							</Field>

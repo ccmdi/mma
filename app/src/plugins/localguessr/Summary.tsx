@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiCheckCircle, mdiCloseCircle } from "@mdi/js";
@@ -7,24 +6,10 @@ import { formatElapsed, type Session } from "./game";
 import { formatDistance } from "@/lib/util/format";
 import { Flag } from "@/components/primitives/Flag";
 import { TagButton } from "./TagButton";
-import { roundThumbnails } from "./storage";
+import { useRoundThumbnails } from "./storage";
 import { loadSeenPano } from "@/lib/seen/seen";
 import { usePano } from "@/lib/hooks/usePano";
 import type { RoundResult } from "./game";
-
-function useRoundThumbnails(session: Session): Map<number, string | null> {
-	const [thumbnails, setThumbnails] = useState(() => new Map<number, string | null>());
-	useEffect(() => {
-		let cancelled = false;
-		void roundThumbnails(session).then((found) => {
-			if (!cancelled) setThumbnails(found);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [session]);
-	return thumbnails;
-}
 
 export function Summary({
 	session,
@@ -36,7 +21,7 @@ export function Summary({
 	onBack: () => void;
 }) {
 	const allIds = session.results.map((r) => r.location.id);
-	const thumbnails = useRoundThumbnails(session);
+	const thumbnails = useRoundThumbnails(session.mapId, session.startedAt, allIds);
 	const pano = usePano();
 	const openRound = ({ location, truth }: RoundResult) =>
 		void loadSeenPano(
@@ -87,11 +72,7 @@ export function Summary({
 							}}
 						>
 							{thumbnail && (
-								<img
-									className="lg-summary__row-thumb"
-									src={`data:image/jpeg;base64,${thumbnail}`}
-									alt=""
-								/>
+								<img className="lg-row-thumb" src={`data:image/jpeg;base64,${thumbnail}`} alt="" />
 							)}
 							<span className="lg-summary__row-n">#{i + 1}</span>
 							<span className="lg-summary__row-score">{r.score.toLocaleString()}</span>

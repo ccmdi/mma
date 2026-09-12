@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { createPluginStorage } from "@/plugins/registry";
 import { getSeenCount, getSeenEntries } from "@/lib/seen/seen";
-import type { Game, PastGame, Session, StreakMode } from "./game";
+import type { Game, PastGame, StreakMode } from "./game";
 
 const storage = createPluginStorage("localguessr");
 const SAVED_GAME = "savedGame";
@@ -77,13 +78,11 @@ export function clearHistory(mapId: string): void {
 }
 
 export async function roundThumbnails(
-	session: Pick<Session, "mapId" | "startedAt" | "results">,
+	mapId: string,
+	startedAt: number,
+	locationIds: number[],
 ): Promise<Map<number, string | null>> {
-	const filter = {
-		mapId: session.mapId,
-		since: session.startedAt,
-		locationIds: session.results.map((r) => r.location.id),
-	};
+	const filter = { mapId, since: startedAt, locationIds };
 	const entries = await getSeenEntries(await getSeenCount(filter), 0, filter);
 	const thumbnails = new Map<number, string | null>();
 	for (const entry of entries.toReversed()) {
@@ -91,5 +90,24 @@ export async function roundThumbnails(
 			thumbnails.set(entry.locationId, entry.thumbnail);
 		}
 	}
+	return thumbnails;
+}
+
+export function useRoundThumbnails(
+	mapId: string,
+	startedAt: number,
+	locationIds: number[],
+): Map<number, string | null> {
+	const [thumbnails, setThumbnails] = useState(() => new Map<number, string | null>());
+	const key = locationIds.join(",");
+	useEffect(() => {
+		let cancelled = false;
+		void roundThumbnails(mapId, startedAt, key ? key.split(",").map(Number) : []).then((found) => {
+			if (!cancelled) setThumbnails(found);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [mapId, startedAt, key]);
 	return thumbnails;
 }

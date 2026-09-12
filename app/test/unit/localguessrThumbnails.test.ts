@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import type { SeenEntry, SeenFilter } from "@/bindings.gen";
-import type { RoundResult } from "@/plugins/localguessr/game";
 
 const seen: SeenEntry[] = [];
 const getSeenEntries = vi.fn(async (_limit: number, _offset: number, _filter: SeenFilter) => seen);
@@ -32,15 +31,10 @@ function entry(id: number, locationId: number, enteredAt: number, thumbnail: str
 	} satisfies SeenEntry;
 }
 
-const round = (id: number) =>
-	({
-		location: { id, lat: 0, lng: 0, heading: 0, pitch: 0, zoom: 0, panoId: null },
-	}) as RoundResult;
-
 describe("round thumbnails", () => {
 	it("asks for the session's rounds on its map since it started", async () => {
 		seen.length = 0;
-		await roundThumbnails({ mapId: "m", startedAt: 100, results: [round(1), round(2)] });
+		await roundThumbnails("m", 100, [1, 2]);
 		expect(getSeenCount).toHaveBeenCalledWith({ mapId: "m", since: 100, locationIds: [1, 2] });
 		expect(getSeenEntries).toHaveBeenCalledWith(0, 0, {
 			mapId: "m",
@@ -58,18 +52,14 @@ describe("round thumbnails", () => {
 			entry(2, 2, 200, "start-2"),
 			entry(1, 1, 150, "start-1"),
 		);
-		const thumbnails = await roundThumbnails({
-			mapId: "m",
-			startedAt: 100,
-			results: [round(1), round(2)],
-		});
+		const thumbnails = await roundThumbnails("m", 100, [1, 2]);
 		expect(thumbnails.get(1)).toBe("start-1");
 		expect(thumbnails.get(2)).toBe("start-2");
 	});
 
 	it("keeps a starting view that had no thumbnail rather than borrowing a later one", async () => {
 		seen.splice(0, seen.length, entry(2, 1, 300, "walked"), entry(1, 1, 200, null));
-		const thumbnails = await roundThumbnails({ mapId: "m", startedAt: 100, results: [round(1)] });
+		const thumbnails = await roundThumbnails("m", 100, [1]);
 		expect(thumbnails.has(1)).toBe(true);
 		expect(thumbnails.get(1)).toBeNull();
 	});
