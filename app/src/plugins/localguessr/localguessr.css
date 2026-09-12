@@ -458,6 +458,9 @@
 }
 
 .lg-summary__row {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
 	display: grid;
 	grid-template-columns: 32px 64px 88px auto 1fr auto auto;
 	align-items: center;
@@ -466,6 +469,27 @@
 	border-radius: var(--radius-1);
 	background: var(--surface-1);
 	font-size: 13px;
+}
+
+.lg-summary__row-thumb {
+	position: absolute;
+	inset: 0 auto 0 0;
+	z-index: -1;
+	width: 45%;
+	height: 100%;
+	object-fit: cover;
+	pointer-events: none;
+	mask-image: linear-gradient(to right, #000, transparent);
+	animation: lg-summary-thumb-in 0.4s ease forwards;
+}
+
+@keyframes lg-summary-thumb-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 0.5;
+	}
 }
 
 .lg-summary__row-n {

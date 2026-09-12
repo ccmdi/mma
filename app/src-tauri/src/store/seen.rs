@@ -58,6 +58,9 @@ pub struct SeenFilter {
     #[serde(rename = "mapId")]
     pub map_id: Option<String>,
     pub search: Option<String>,
+    #[serde(rename = "locationIds")]
+    pub location_ids: Option<Vec<u32>>,
+    pub since: Option<i64>,
 }
 
 /// Map ID and display name for seen-history filtering.
@@ -93,7 +96,7 @@ fn row_to_seen(row: &rusqlite::Row) -> rusqlite::Result<SeenEntry> {
 /// Builds a SQL WHERE clause and parameter list from the optional filter.
 /// Returns an empty string (no WHERE) when no filter fields are set.
 fn build_where_clause(filter: &Option<SeenFilter>) -> (String, Vec<Box<dyn ToSql>>) {
-    let mut conditions: Vec<&str> = Vec::new();
+    let mut conditions: Vec<String> = Vec::new();
     let mut params: Vec<Box<dyn ToSql>> = Vec::new();
     let f = filter.as_ref();
 
@@ -106,9 +109,20 @@ fn build_where_clause(filter: &Option<SeenFilter>) -> (String, Vec<Box<dyn ToSql
         ),
     ] {
         if let Some(v) = value {
-            conditions.push(cond);
+            conditions.push(cond.to_string());
             params.push(Box::new(v));
         }
+    }
+    if let Some(since) = f.and_then(|f| f.since) {
+        conditions.push("entered_at >= ?".to_string());
+        params.push(Box::new(since));
+    }
+    if let Some(ids) = f.and_then(|f| f.location_ids.as_ref()) {
+        conditions.push(format!(
+            "location_id IN ({})",
+            vec!["?"; ids.len()].join(", ")
+        ));
+        params.extend(ids.iter().map(|&id| Box::new(id) as Box<dyn ToSql>));
     }
 
     let clause = if conditions.is_empty() {

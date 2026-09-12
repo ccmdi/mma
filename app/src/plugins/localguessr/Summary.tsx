@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiCheckCircle, mdiCloseCircle } from "@mdi/js";
@@ -6,6 +7,21 @@ import { formatElapsed, type Session } from "./game";
 import { formatDistance } from "@/lib/util/format";
 import { Flag } from "@/components/primitives/Flag";
 import { TagButton } from "./TagButton";
+import { roundThumbnails } from "./storage";
+
+function useRoundThumbnails(session: Session): Map<number, string | null> {
+	const [thumbnails, setThumbnails] = useState(() => new Map<number, string | null>());
+	useEffect(() => {
+		let cancelled = false;
+		void roundThumbnails(session).then((found) => {
+			if (!cancelled) setThumbnails(found);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [session]);
+	return thumbnails;
+}
 
 export function Summary({
 	session,
@@ -17,6 +33,7 @@ export function Summary({
 	onBack: () => void;
 }) {
 	const allIds = session.results.map((r) => r.location.id);
+	const thumbnails = useRoundThumbnails(session);
 
 	return (
 		<div className="lg-summary">
@@ -35,26 +52,36 @@ export function Summary({
 			</header>
 
 			<div className="lg-summary__rounds">
-				{session.results.map((r, i) => (
-					<div key={i} className="lg-summary__row">
-						<span className="lg-summary__row-n">#{i + 1}</span>
-						<span className="lg-summary__row-score">{r.score.toLocaleString()}</span>
-						<span className="lg-summary__row-dist">
-							{r.distanceMeters != null ? formatDistance(r.distanceMeters, 0) : "-"}
-						</span>
-						<span className="lg-summary__row-time">{formatElapsed(r.elapsedMs)}</span>
-						<span className="lg-summary__row-place">
-							<Flag code={r.truth?.country_code ?? null} />
-							{[r.truth?.admin, r.truth?.country_code].filter(Boolean).join(", ")}
-						</span>
-						{r.streakHit !== null && (
-							<span className={`lg-summary__row-streak${r.streakHit ? " is-hit" : " is-miss"}`}>
-								<Icon path={r.streakHit ? mdiCheckCircle : mdiCloseCircle} size={16} />
+				{session.results.map((r, i) => {
+					const thumbnail = thumbnails.get(r.location.id);
+					return (
+						<div key={i} className="lg-summary__row">
+							{thumbnail && (
+								<img
+									className="lg-summary__row-thumb"
+									src={`data:image/jpeg;base64,${thumbnail}`}
+									alt=""
+								/>
+							)}
+							<span className="lg-summary__row-n">#{i + 1}</span>
+							<span className="lg-summary__row-score">{r.score.toLocaleString()}</span>
+							<span className="lg-summary__row-dist">
+								{r.distanceMeters != null ? formatDistance(r.distanceMeters, 0) : "-"}
 							</span>
-						)}
-						<TagButton locationIds={[r.location.id]} />
-					</div>
-				))}
+							<span className="lg-summary__row-time">{formatElapsed(r.elapsedMs)}</span>
+							<span className="lg-summary__row-place">
+								<Flag code={r.truth?.country_code ?? null} />
+								{[r.truth?.admin, r.truth?.country_code].filter(Boolean).join(", ")}
+							</span>
+							{r.streakHit !== null && (
+								<span className={`lg-summary__row-streak${r.streakHit ? " is-hit" : " is-miss"}`}>
+									<Icon path={r.streakHit ? mdiCheckCircle : mdiCloseCircle} size={16} />
+								</span>
+							)}
+							<TagButton locationIds={[r.location.id]} />
+						</div>
+					);
+				})}
 			</div>
 
 			<footer className="lg-summary__actions">

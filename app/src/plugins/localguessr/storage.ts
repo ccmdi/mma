@@ -1,5 +1,6 @@
 import { createPluginStorage } from "@/plugins/registry";
-import type { Game, PastGame, StreakMode } from "./game";
+import { getSeenCount, getSeenEntries } from "@/lib/seen/seen";
+import type { Game, PastGame, Session, StreakMode } from "./game";
 
 const storage = createPluginStorage("localguessr");
 const SAVED_GAME = "savedGame";
@@ -73,4 +74,22 @@ export function clearHistory(mapId: string): void {
 		HISTORY,
 		readHistory().filter((g) => g.mapId !== mapId),
 	);
+}
+
+export async function roundThumbnails(
+	session: Pick<Session, "mapId" | "startedAt" | "results">,
+): Promise<Map<number, string | null>> {
+	const filter = {
+		mapId: session.mapId,
+		since: session.startedAt,
+		locationIds: session.results.map((r) => r.location.id),
+	};
+	const entries = await getSeenEntries(await getSeenCount(filter), 0, filter);
+	const thumbnails = new Map<number, string | null>();
+	for (const entry of entries.toReversed()) {
+		if (entry.locationId != null && !thumbnails.has(entry.locationId)) {
+			thumbnails.set(entry.locationId, entry.thumbnail);
+		}
+	}
+	return thumbnails;
 }

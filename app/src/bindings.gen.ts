@@ -1666,6 +1666,8 @@ export type SeenFilter = {
 	country?: string | null,
 	mapId?: string | null,
 	search?: string | null,
+	locationIds?: number[] | null,
+	since?: number | null,
 };
 
 /**  Map ID and display name for seen-history filtering. */

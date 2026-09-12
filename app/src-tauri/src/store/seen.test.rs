@@ -256,3 +256,37 @@ fn countries_returns_distinct_sorted_codes() {
     let result = countries(&conn).unwrap();
     assert_eq!(result, vec!["FR", "GB", "US"]);
 }
+
+#[test]
+fn filter_by_location_ids_since() {
+    let conn = setup();
+    for (pano, location, entered_at) in [
+        ("a", 1, 5),
+        ("b", 1, 20),
+        ("c", 2, 30),
+        ("d", 3, 40),
+        ("e", 2, 10),
+    ] {
+        let mut e = mk(pano, entered_at);
+        e.location_id = Some(location);
+        write(&conn, e).unwrap();
+    }
+
+    let filter = SeenFilter {
+        location_ids: Some(vec![1, 2]),
+        since: Some(15),
+        ..Default::default()
+    };
+    let panos: Vec<String> = list(&conn, 100, 0, Some(filter), false)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.pano_id)
+        .collect();
+    assert_eq!(panos, vec!["c", "b"]);
+
+    let none = SeenFilter {
+        location_ids: Some(vec![]),
+        ..Default::default()
+    };
+    assert_eq!(count(&conn, Some(none)).unwrap(), 0);
+}
