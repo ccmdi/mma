@@ -1,3 +1,13 @@
+## v0.10.8 - 2026-09-12
+- Fixed pin-to-pano relocating locations onto a photosphere when one is the default at their coordinates
+- Fixed some contributor panoramas failing to resolve, pin, or validate
+- Fixed validation reporting newer coverage for pinned locations when the nearby pano is older or unofficial
+- Generator region counters show the real count as finds land; the smoothed animation is gone, the rate stays
+- The enrichment progress list shows every provider from the start instead of popping in
+- Fixed the walk trail drawing over the active location marker
+- Fixed the merge-duplicates dialog flashing empty while it counts
+- Fixed the failed-count in provider rows coloring its separator red
+
 ## v0.10.7 - 2026-09-12
 - Bulk operations and map generation continue in the background, with a progress tray in the corner
 - Closing a map or the app with background work running asks for confirmation
