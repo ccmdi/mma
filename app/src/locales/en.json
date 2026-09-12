@@ -1492,6 +1492,10 @@
 		"other": "{n} conflicts held for review"
 	},
 	"{n} excluded (in multiple groups)": "{n} excluded (in multiple groups)",
+	"{n} failed": {
+		"one": "{n} failed",
+		"other": "{n} failed"
+	},
 	"{n} failed.": {
 		"one": "{n} failed.",
 		"other": "{n} failed."

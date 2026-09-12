@@ -135,12 +135,12 @@
 	"Bulk Operations": "批量操作",
 	"Bulk-add tag...": "批量添加标签…",
 	"Bypass GeoGuessr auto-panning for locations with 0 heading": "对朝向为 0 的位置绕过 GeoGuessr 自动平移",
-	"Cancel and leave": "取消并离开",
-	"Cancel and quit": "取消并退出",
 	"CSV exports do {not} retain camera orientation and pano IDs.": "CSV 导出{not}保留相机朝向与全景 ID。",
 	"Camera direction arrow": "箭头",
 	"Camera type": "相机类型",
 	"Cancel": "取消",
+	"Cancel and leave": "取消并离开",
+	"Cancel and quit": "取消并退出",
 	"Cancelled at {done} / {total}.": "已在 {done} / {total} 处取消。",
 	"Cancelled.": "已取消。",
 	"Categorical": "分类",
@@ -574,10 +574,10 @@
 	"Invert: {selection}": "反选：{selection}",
 	"JSON editor": "JSON 编辑器",
 	"Join the Discord": "加入 Discord",
-	"Jump backward {distance} ({key})": "向后跳 {distance} ({key})",
 	"Jump backward {distance}": "向后跳 {distance}",
-	"Jump forward {distance} ({key})": "向前跳 {distance} ({key})",
+	"Jump backward {distance} ({key})": "向后跳 {distance} ({key})",
 	"Jump forward {distance}": "向前跳 {distance}",
+	"Jump forward {distance} ({key})": "向前跳 {distance} ({key})",
 	"Jump forward/backward buttons": "快速前进/后退按钮",
 	"Keep local": "保留本地",
 	"Keep local for all": "全部保留本地",
@@ -761,7 +761,6 @@
 	"Nothing to process.": "没有可处理的内容。",
 	"Number": "数字",
 	"Numeric": "数值",
-	"Operations in progress": "进行中的操作",
 	"OR": "或",
 	"OSM": "OSM",
 	"Oceania": "大洋洲",
@@ -793,6 +792,7 @@
 	"Open version history": "打开版本历史",
 	"OpenStreetMap (Nominatim)": "OpenStreetMap (Nominatim)",
 	"Operation failed": "操作失败",
+	"Operations in progress": "进行中的操作",
 	"Output": "输出",
 	"Overrides \"{label}\" while this map is open.": "在此地图打开时覆盖「{label}」。",
 	"Pan down": "向下平移",
@@ -1452,6 +1452,9 @@
 		"other": "{n} 个冲突待处理"
 	},
 	"{n} excluded (in multiple groups)": "已排除 {n} 个（属于多个分组）",
+	"{n} failed": {
+		"other": "{n} 个失败"
+	},
 	"{n} failed.": {
 		"other": "{n} 个失败。"
 	},

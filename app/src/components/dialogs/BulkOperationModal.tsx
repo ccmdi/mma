@@ -981,9 +981,12 @@ export function BulkProgress({
 										{running && `${fmt.format(p.done)}/${fmt.format(p.total)}`}
 										{p.finished && t("Done")}
 										{p.failed > 0 && (
-											<span className="bulk-operation__provider-failed">
-												{t({ one: ", {n} failed", other: ", {n} failed" }, { n: p.failed })}
-											</span>
+											<>
+												{" · "}
+												<span className="bulk-operation__provider-failed">
+													{t({ one: "{n} failed", other: "{n} failed" }, { n: p.failed })}
+												</span>
+											</>
 										)}
 									</span>
 									<progress
