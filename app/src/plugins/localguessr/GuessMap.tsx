@@ -1,4 +1,4 @@
-import { fetchBounds } from "@/store/useMapStore";
+import { fetchBounds, fetchColumns, sampleFrom } from "@/store/useMapStore";
 import {
 	useCallback,
 	useEffect,
@@ -17,6 +17,7 @@ import {
 	mdiMinus,
 	mdiMagnifyPlusOutline,
 	mdiMagnifyMinusOutline,
+	mdiScatterPlot,
 } from "@mdi/js";
 import {
 	createMapHost,
@@ -38,7 +39,7 @@ import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { t } from "@/lib/i18n";
 import type { Selector } from "@/bindings.gen";
 import type { LatLng, MapTypeKey } from "@/types";
-import type { RGB } from "@/lib/util/color";
+import { hexToRgb, resolveSvColorHex, type RGB } from "@/lib/util/color";
 
 // Sizing mirrors the pano viewer minimap. Grows in layout, never by transform --
 // a CSS-scaled map container misreports click coordinates.
@@ -49,6 +50,39 @@ const BASE_H = 600;
 const BASEMAPS: MapTypeKey[] = ["map", "satellite", "osm", "vector"];
 const GUESS_COLOR: RGB = [64, 133, 244];
 const TRUTH_COLOR: RGB = [76, 175, 80];
+const POOL_POINTS = 10_000;
+const POOL_RADIUS = 3;
+
+async function fetchPool(selector: Selector): Promise<Float32Array> {
+	const ids = await sampleFrom(selector, POOL_POINTS);
+	const [lng, lat] = await fetchColumns({ type: "Locations", locations: ids, name: null }, [
+		"lng",
+		"lat",
+	]);
+	const positions = new Float32Array(lat.length * 2);
+	for (let i = 0; i < lat.length; i++) {
+		positions[i * 2] = lng[i] as number;
+		positions[i * 2 + 1] = lat[i] as number;
+	}
+	return positions;
+}
+
+function poolLayer(positions: Float32Array, color: RGB) {
+	return new ScatterplotLayer({
+		id: "lg-pool",
+		data: {
+			length: positions.length / 2,
+			attributes: { getPosition: { value: positions, size: 2 } },
+		},
+		getFillColor: color,
+		radiusUnits: "pixels",
+		getRadius: POOL_RADIUS,
+		stroked: false,
+		filled: true,
+		opacity: 0.55,
+		pickable: false,
+	});
+}
 
 /** A pin and its shadow halo, so the circle separates from same-colored basemap. */
 function pinLayers(id: string, at: LatLng, color: RGB, pickable: boolean) {
@@ -136,6 +170,8 @@ export function GuessMap({
 	const overlayRef = useRef<DeckOverlayHandle | null>(null);
 	const [ready, setReady] = useState(false);
 	const [scale, setScale] = usePluginState<number>("localguessr", "mapScale", 1);
+	const [showPool, setShowPool] = usePluginState<boolean>("localguessr", "showPool", false);
+	const [pool, setPool] = useState<Float32Array | null>(null);
 	const closeDelay = useSetting("fullscreenMinimapCloseDelay");
 	const { expanded, hoverProps } = useHoverExpand(rootRef, closeDelay);
 	// Per round: the hook carries `expanded` across the result, and resetting
@@ -160,6 +196,8 @@ export function GuessMap({
 	lockedRef.current = showResult;
 	/** Location bounds, resolved once with the host so per-round fits never await. */
 	const boundsRef = useRef<[number, number, number, number] | null>(null);
+	const selectorRef = useRef(selector);
+	selectorRef.current = selector;
 
 	const guessPrefs: MapEmbedPrefs = {
 		...prefs,
@@ -267,16 +305,33 @@ export function GuessMap({
 	}, [ready, showResult]);
 
 	useEffect(() => {
+		if (!showPool || pool) return;
+		let cancelled = false;
+		void (async () => {
+			try {
+				const positions = await fetchPool(selectorRef.current);
+				if (!cancelled) setPool(positions);
+			} catch {
+				if (!cancelled) setShowPool(false);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [showPool, pool, setShowPool]);
+
+	useEffect(() => {
 		const overlay = overlayRef.current;
 		if (!overlay || !ready) return;
 		const layers = [];
+		if (showPool && pool) layers.push(poolLayer(pool, hexToRgb(resolveSvColorHex(prefs.svColor))));
 		if (showResult && truth && guess && settledZoom !== null) {
 			layers.push(resultLineLayer(guess, truth, settledZoom));
 		}
 		if (guess) layers.push(...pinLayers("lg-guess", guess, GUESS_COLOR, false));
 		if (showResult && truth) layers.push(...pinLayers("lg-truth", truth, TRUTH_COLOR, false));
 		overlay.setProps({ layers });
-	}, [guess, truth, showResult, ready, settledZoom]);
+	}, [guess, truth, showResult, ready, settledZoom, showPool, pool, prefs.svColor]);
 
 	const fitToLocations = useCallback(() => {
 		const host = hostRef.current;
@@ -380,6 +435,14 @@ export function GuessMap({
 						aria-label={t("Change basemap")}
 					>
 						<Icon path={mdiLayers} size={16} />
+					</button>
+					<button
+						type="button"
+						className={`lg-guess-map__control${showPool ? " is-active" : ""}`}
+						onClick={() => setShowPool((v) => !v)}
+						aria-label={showPool ? t("Hide map locations") : t("Show map locations")}
+					>
+						<Icon path={mdiScatterPlot} size={16} />
 					</button>
 				</div>
 			)}
