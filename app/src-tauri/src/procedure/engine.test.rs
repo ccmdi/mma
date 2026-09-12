@@ -591,6 +591,18 @@ fn retry_stops_at_the_attempt_cap() {
     assert_eq!(calls, 3);
 }
 
+#[test]
+fn declared_attempts_clamp_to_the_engine_ceiling() {
+    let calls = run_retry(
+        RetrySpec {
+            attempts: 1000,
+            on: vec![500],
+        },
+        vec![500],
+    );
+    assert_eq!(calls, 8);
+}
+
 fn run_without_retry_spec(statuses: Vec<u16>) -> u32 {
     let (state, map_id) = setup(&[loc(1, 0.0, 0.0)]);
     let d = decl("defaulted", BatchMode::PerRow);

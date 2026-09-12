@@ -42,6 +42,8 @@ const DEFAULT_INFLIGHT: u32 = 48;
 /// Ceiling on a provider's in-flight requests. These are futures, not threads, so it
 /// bounds what the remote endpoint sees rather than what the machine can hold.
 const MAX_INFLIGHT: u32 = 1024;
+/// Ceiling on a declared retry policy's total tries per request.
+const MAX_ATTEMPTS: u32 = 8;
 
 /// Procedure instances a provider gets. `instances` is for procedures that cannot run beside
 /// themselves -- one sidecar process, one large model in memory; everything else takes
@@ -500,7 +502,7 @@ async fn fetch_one(
     aborted: &(dyn Fn() -> bool + Sync),
     req: &HttpRequestSpec,
 ) -> AppResult<HttpResponse> {
-    let attempts = attempts.max(1);
+    let attempts = attempts.clamp(1, MAX_ATTEMPTS);
     let mut delay = deps.backoff;
     for attempt in 0..attempts {
         let resp = {
@@ -516,7 +518,7 @@ async fn fetch_one(
             return Ok(resp);
         }
         time::sleep(delay).await;
-        delay *= 2;
+        delay = delay.saturating_mul(2);
     }
     unreachable!("attempts is at least 1")
 }
