@@ -64,21 +64,6 @@
 	z-index: 2;
 }
 
-/* Covers the outgoing round. Fade declared on the revealed state only: fading in
-   would show the previous location through it. */
-.lg-pano__loading {
-	position: absolute;
-	inset: 0;
-	z-index: 3;
-	background: var(--surface-0);
-}
-
-.lg-pano__loading.is-revealed {
-	opacity: 0;
-	pointer-events: none;
-	transition: opacity 0.28s ease;
-}
-
 .lg-pano__error {
 	position: absolute;
 	inset: 0;

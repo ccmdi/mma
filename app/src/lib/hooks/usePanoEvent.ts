@@ -1,22 +1,18 @@
-﻿import { useEffect, useRef } from "react";
-import { google } from "@/lib/sv/opensv";
+import { useEffect, useRef } from "react";
+import { pano, type PanoEvent } from "@/lib/sv/pano";
 
 export function usePanoEvent(
-	panorama: google.maps.StreetViewPanorama | null,
-	event: string,
+	event: PanoEvent,
 	handler: () => void,
 	deps: React.DependencyList = [],
 ) {
 	const ref = useRef(handler);
 	ref.current = handler;
 	useEffect(() => {
-		if (!panorama) return;
 		const fn = () => ref.current();
-		const listener = panorama.addListener(event, fn);
+		const off = pano.on(event, fn);
 		fn();
-		return () => {
-			google?.maps?.event?.removeListener(listener);
-		};
+		return off;
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [panorama, event, ...deps]);
+	}, [event, ...deps]);
 }

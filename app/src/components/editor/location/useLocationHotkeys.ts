@@ -17,10 +17,7 @@ import { sortTagsByMode } from "@/lib/util/util";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { getSettings, setSetting, MOVEMENT_CYCLE, MOVEMENT_MODES } from "@/store/settings";
-import { PANO_ZOOM, zoomInStep, zoomOutStep } from "@/lib/sv/constants";
-import { tweenPov } from "@/lib/sv/tweenPov";
-import { nearestLinkHeading, followLinkedPanos } from "@/lib/sv/lookup";
-import { reverseHeading } from "@/lib/geo/geo";
+import { followLinkedPanos } from "@/lib/sv/lookup";
 import { toast } from "@/lib/util/toast";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
@@ -33,16 +30,9 @@ import { log } from "@/lib/util/log";
 import { toggleViewportLock } from "@/lib/sv/viewportLock";
 import { sendHideCar } from "./PanoControls";
 import { usePanoViewer } from "./PanoViewerContext";
-import {
-	singletonPano,
-	getPanorama,
-	clearSingletonPano,
-	capturePano,
-} from "@/lib/sv/panoSingleton";
-import { google } from "@/lib/sv/opensv";
+import { pano } from "@/lib/sv/pano";
 
 interface LocationHotkeyDeps {
-	cancelTweenRef: RefObject<(() => void) | null>;
 	pendingTags: string[];
 	setPendingTags: Dispatch<SetStateAction<string[]>>;
 	fullscreenContainerRef: RefObject<HTMLDivElement | null>;
@@ -59,7 +49,6 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	const location = useMapState((s) => s.activeLocation);
 	const isReviewMode = useReviewSession() !== null;
 	const {
-		cancelTweenRef,
 		pendingTags,
 		setPendingTags,
 		fullscreenContainerRef,
@@ -89,50 +78,18 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	useHotkey(useBinding("returnToSpawn"), () => {
 		void Promise.resolve(handleReturnToSpawn());
 	});
-	useHotkey(useBinding("pointNorth"), () => {
-		if (singletonPano) {
-			cancelTweenRef.current?.();
-			const h = singletonPano.getPov().heading;
-			if (Math.abs(h) < 1 && Math.abs(singletonPano.getPov().pitch) < 1) {
-				cancelTweenRef.current = tweenPov(singletonPano, { heading: 0, pitch: -90 });
-			} else {
-				cancelTweenRef.current = tweenPov(singletonPano, { heading: 0, pitch: 0 });
-			}
-		}
-	});
-	useHotkey(useBinding("centerRoad"), () => {
-		if (!singletonPano) return;
-		const headings = (singletonPano.getLinks() ?? [])
-			.map((l) => l?.heading)
-			.filter((h): h is number => h != null);
-		const nearest = nearestLinkHeading(headings, singletonPano.getPov().heading);
-		if (nearest == null) return;
-		cancelTweenRef.current?.();
-		cancelTweenRef.current = tweenPov(singletonPano, { heading: nearest, pitch: 0 });
-	});
-	useHotkey(useBinding("spin180"), () => {
-		if (singletonPano) {
-			cancelTweenRef.current?.();
-			const pov = singletonPano.getPov();
-			cancelTweenRef.current = tweenPov(singletonPano, {
-				heading: reverseHeading(pov.heading),
-				pitch: pov.pitch,
-			});
-		}
-	});
+	useHotkey(useBinding("pointNorth"), () => pano.pointNorth());
+	useHotkey(useBinding("centerRoad"), () => pano.faceRoad());
+	useHotkey(useBinding("spin180"), () => pano.turnAround());
 	const canZoom = () => getSettings().defaultMovementMode !== "nmpz";
 	useHotkey(useBinding("zoomIn"), () => {
-		if (singletonPano && canZoom()) {
-			singletonPano.setZoom(zoomInStep(singletonPano.getZoom()));
-		}
+		if (canZoom()) pano.zoomIn();
 	});
 	useHotkey(useBinding("zoomOut"), () => {
-		if (singletonPano && canZoom()) {
-			singletonPano.setZoom(zoomOutStep(singletonPano.getZoom()));
-		}
+		if (canZoom()) pano.zoomOut();
 	});
 	useHotkey(useBinding("panoZoomReset"), () => {
-		if (singletonPano && canZoom()) singletonPano.setZoom(PANO_ZOOM.min);
+		if (canZoom()) pano.resetZoom();
 	});
 	useHotkey(
 		useBinding("copyLink"),
@@ -168,7 +125,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	/** The open location as it is right now: live camera, staged tags. */
 	const buildDrop = async (): Promise<Location | null> => {
 		if (!location || isVirtualLocation(location)) return null;
-		const live = capturePano();
+		const live = pano.capture();
 		if (!live) return null;
 		const tags = (await createTags(pendingTags)).map((tag) => tag.id);
 		return dropLocation(location, live, live.panoId ?? location.panoId, tags);
@@ -184,7 +141,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	useHotkey(useBinding("downloadPanoTile"), () => {
-		const panoId = singletonPano?.getPano();
+		const panoId = pano.panoId();
 		if (panoId) void downloadPano(panoId);
 	});
 	const stepPanoDate = (step: 1 | -1) => {
@@ -202,9 +159,8 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	useHotkey(useBinding("nextPanoDate"), () => stepPanoDate(1));
 	useHotkey(useBinding("prevPanoDate"), () => stepPanoDate(-1));
 	useHotkey(useBinding("followRoad"), () => {
-		if (!singletonPano) return;
-		const panoId = singletonPano.getPano();
-		const heading = singletonPano.getPov().heading;
+		const panoId = pano.panoId();
+		const heading = pano.pov().heading;
 		if (!panoId) return;
 		const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 		if (container) toast(t("Following road..."), 1500, container);
@@ -224,24 +180,13 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	useHotkey(useBinding("refreshPano"), () => {
-		if (!singletonPano || !location) return;
-		const panoId = singletonPano.getPano();
-		const pov = singletonPano.getPov();
-		const zoom = singletonPano.getZoom();
-		clearSingletonPano();
-		const fresh = getPanorama();
-		if (!fresh) return;
-		if (panoId) fresh.setPano(panoId);
-		else fresh.setPosition({ lat: location.lat, lng: location.lng });
-		fresh.setPov(pov);
-		fresh.setZoom(zoom);
-		fresh.setVisible(true);
-		google.maps.event.trigger(fresh, "resize");
+		if (!pano.exists() || !location) return;
+		pano.reload({ lat: location.lat, lng: location.lng });
 		sendHideCar(!getSettings().showCar);
 	});
 
 	useHotkey(useBinding("viewportLock"), () => {
-		if (singletonPano) void toggleViewportLock(singletonPano);
+		void toggleViewportLock();
 	});
 
 	const quicktagSlot = (idx: number) => {

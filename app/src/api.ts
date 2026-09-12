@@ -31,7 +31,7 @@ import * as fieldDefs from "@/lib/data/fieldDefs";
 import * as fieldDefRegistry from "@/lib/data/fieldDefRegistry";
 import * as procedures from "@/lib/data/procedures";
 import * as seen from "@/lib/seen/seen";
-import * as panoSingleton from "@/lib/sv/panoSingleton";
+import * as panoSurface from "@/lib/sv/pano";
 import * as enrich from "@/lib/sv/enrich";
 import * as pinPano from "@/lib/sv/pinPano";
 import * as validate from "@/lib/sv/validate";
@@ -74,7 +74,7 @@ type FieldDefRegistryApi = typeof fieldDefRegistry;
 type ProceduresApi = typeof procedures;
 type SeenApi = typeof seen;
 /** The shared panorama viewer's internals. @unstable */
-type PanoSingletonApi = typeof panoSingleton;
+type PanoApi = typeof panoSurface;
 type EnrichApi = typeof enrich;
 type PinPanoApi = typeof pinPano;
 type ValidateApi = typeof validate;
@@ -115,7 +115,7 @@ export interface MMA
 		FieldDefRegistryApi,
 		ProceduresApi,
 		SeenApi,
-		PanoSingletonApi,
+		PanoApi,
 		EnrichApi,
 		PinPanoApi,
 		ValidateApi,
@@ -155,7 +155,7 @@ const mma: MMA = {
 	...fieldDefRegistry,
 	...procedures,
 	...seen,
-	...panoSingleton,
+	...panoSurface,
 	...enrich,
 	...pinPano,
 	...validate,

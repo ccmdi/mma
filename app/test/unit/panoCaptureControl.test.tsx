@@ -26,9 +26,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/sv/panoCapture", () => ({
-	snapshotPanoView: mocks.snapshot,
 	renderPanoView: mocks.render,
 	canvasToBlob: mocks.toBlob,
+}));
+vi.mock("@/lib/sv/pano", () => ({
+	pano: { snapshot: mocks.snapshot, jumpAhead: async () => false },
 }));
 vi.mock("@/lib/util/util", () => ({
 	downloadBlob: mocks.download,
@@ -51,19 +53,13 @@ vi.mock("@/components/primitives/Tooltip", () => ({
 
 import { PanoControls } from "@/components/editor/location/PanoControls";
 
-const panorama = {} as google.maps.StreetViewPanorama;
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 
 function renderControls() {
 	act(() =>
 		root.render(
-			<PanoControls
-				panorama={panorama}
-				isFullscreen={false}
-				onFullscreen={vi.fn()}
-				onReturnToSpawn={vi.fn()}
-			/>,
+			<PanoControls isFullscreen={false} onFullscreen={vi.fn()} onReturnToSpawn={vi.fn()} />,
 		),
 	);
 }

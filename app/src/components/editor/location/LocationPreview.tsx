@@ -27,7 +27,6 @@ import {
 	reviewDelete,
 	isAtStart,
 } from "@/lib/review/review";
-import { google } from "@/lib/sv/opensv";
 
 import {
 	useSettings,
@@ -39,7 +38,6 @@ import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { PluginLocationPanels } from "@/plugins/PluginPanels";
 import { relativeTime } from "@/lib/util/format";
-import { resolvePano } from "@/lib/sv/lookup";
 import { FullscreenMiniMap } from "@/components/editor/location/FullscreenMiniMap";
 import { FullscreenTagBar } from "@/components/editor/location/FullscreenTagBar";
 import { PanoControls } from "./PanoControls";
@@ -54,7 +52,7 @@ import {
 import { FullscreenMiniLocationPreview } from "./FullscreenMiniLocationPreview";
 import { getViewportLockInfo } from "@/lib/sv/viewportLock";
 import { useEvent } from "@/lib/events";
-import { singletonPano, applyResolved, capturePov } from "@/lib/sv/panoSingleton";
+import { pano } from "@/lib/sv/pano";
 import { PanoDatePicker } from "./PanoDatePicker";
 import { usePanoSession } from "./usePanoSession";
 import { useSeenFeed } from "./useSeenFeed";
@@ -192,7 +190,6 @@ export function LocationPreview() {
 	const [pendingTags, setPendingTags] = usePendingTags(location);
 	const visibleTags = useMapState(getVisibleTags);
 	const geocodeProvider = useSetting("geocodeProvider");
-	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const appSettings = useSettings();
 	const chipMode = appSettings.fullscreenMap && appSettings.showFullscreenMiniLocationPreview;
 	usePanoSession();
@@ -224,18 +221,18 @@ export function LocationPreview() {
 		(selectedPanoId: string | null) => {
 			edit((d) => setPinned(d, selectedPanoId != null));
 			const target = selectedPanoId ?? defaultPano?.id;
-			if (target) singletonPano?.setPano(target);
+			if (target) pano.jump(target);
 		},
 		[edit, defaultPano],
 	);
 
 	const handleSave = useCallback(async () => {
-    if (!location || !singletonPano) return;
+    if (!location || !pano.exists()) return;
 		
 		// The draft as it stands, never waiting on enrichment; the camera is read live, it moves per frame.
 		const draft = await settled();
 		if (!draft) return;
-		const pov = capturePov();
+		const pov = pano.captureView();
 
 		if (isSeenPreview(location)) {
 			await addLocations([
@@ -295,11 +292,8 @@ export function LocationPreview() {
 	// stable (it is a memo'd PanoControls prop).
 	const handleReturnToSpawn = useCallback(async () => {
 		const loc = getMapState().activeLocation;
-		if (!loc || !singletonPano) return;
-		if (!google) return;
-		const result = await resolvePano(loc);
-		applyResolved(singletonPano, result, loc);
-		google.maps.event.trigger(singletonPano, "resize");
+		if (!loc || !pano.exists()) return;
+		if ((await pano.show(loc)).status === "superseded") return;
 		edit((d) => setPinned(d, false));
 	}, [edit]);
 
@@ -310,7 +304,6 @@ export function LocationPreview() {
 	useHotkey(useBinding("toggleFullscreen"), handleFullscreen);
 
 	useLocationHotkeys({
-		cancelTweenRef,
 		pendingTags,
 		setPendingTags,
 		fullscreenContainerRef,
@@ -360,9 +353,8 @@ export function LocationPreview() {
 						{appSettings.defaultMovementMode === "nmpz" && (
 							<div style={{ position: "absolute", inset: 0, zIndex: 1 }} />
 						)}
-						{draft && singletonPano && (
+						{draft && pano.exists() && (
 							<PanoControls
-								panorama={singletonPano}
 								isFullscreen={isFullscreen}
 								onFullscreen={handleFullscreen}
 								onReturnToSpawn={handleReturnToSpawn}

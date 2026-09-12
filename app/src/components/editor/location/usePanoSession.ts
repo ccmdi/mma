@@ -2,11 +2,10 @@ import { useEffect } from "react";
 import { useMapState } from "@/store/useMapStore";
 import { getSettings } from "@/store/settings";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
-import { isPanoFallback, resolvePano } from "@/lib/sv/lookup";
-import { toast } from "@/lib/util/toast";
+import { isPanoFallback } from "@/lib/sv/lookup";
 import { sendHideCar } from "./PanoControls";
 import { resetTrail, pushTrail, clearTrail } from "@/lib/sv/svTrail";
-import { getPanorama, applyResolved } from "@/lib/sv/panoSingleton";
+import { pano } from "@/lib/sv/pano";
 import { applyViewportLock } from "@/lib/sv/viewportLock";
 import { usePanoViewer } from "./PanoViewerContext";
 import { t } from "@/lib/i18n";
@@ -20,50 +19,36 @@ export function usePanoSession() {
 	useEffect(() => {
 		if (!location) return;
 		let cancelled = false;
-		let statusListener: google.maps.MapsEventListener | null = null;
-		let lockListener: google.maps.MapsEventListener | null = null;
+
+		const offStatus = pano.on("status_changed", () => {
+			if (cancelled || !pano.isLoaded()) return;
+			const panoId = pano.panoId();
+			const position = pano.position();
+			if (!panoId || !position) return;
+			edit({ panoId, ...position });
+			pushTrail(position.lng, position.lat);
+		});
+		const offLock = pano.on("pano_changed", () => void applyViewportLock());
 
 		void loadOpenSV().then(async () => {
-			if (cancelled) return;
-			if (!google?.maps) return;
-			const pano = getPanorama();
-			if (!pano) return;
-
-			statusListener = pano.addListener("status_changed", () => {
-				if (cancelled || pano.getStatus() !== "OK") return;
-				const panoId = pano.getPano();
-				const pos = pano.getPosition();
-				if (!panoId || !pos) return;
-				edit({ panoId, lat: pos.lat(), lng: pos.lng() });
-				pushTrail(pos.lng(), pos.lat());
-			});
-
-			lockListener = pano.addListener("pano_changed", () => {
-				void applyViewportLock(pano);
-			});
-
+			if (cancelled || !google?.maps) return;
 			sendHideCar(!getSettings().showCar);
 			resetTrail(location.lng, location.lat);
 
-			const result = await resolvePano(location);
-			if (cancelled) return;
-			applyResolved(pano, result, location);
-			google.maps.event.trigger(pano, "resize");
-			if (isPanoFallback(location, result)) {
-				const root = Object.values(pano).find((v) => v instanceof HTMLElement) as
-					HTMLElement | undefined;
-				if (root)
-					toast(t("Configured pano ID could not be found. Falling back to lat/lng."), 3000, root);
+			const shown = await pano.show(location);
+			if (cancelled || shown.status === "superseded") return;
+			if (isPanoFallback(location, shown.pano)) {
+				pano.toast(t("Configured pano ID could not be found. Falling back to lat/lng."), 3000);
 			}
 			// From the resolve result directly: setPano() with the same id fires no status_changed.
-			open(location, result?.id ?? null);
+			open(location, shown.pano?.id ?? null);
 		});
 
 		return () => {
 			cancelled = true;
 			clearTrail();
-			if (statusListener) google?.maps?.event?.removeListener(statusListener);
-			if (lockListener) google?.maps?.event?.removeListener(lockListener);
+			offStatus();
+			offLock();
 		};
 	}, [location?.id]);
 }

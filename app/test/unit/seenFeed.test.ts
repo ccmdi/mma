@@ -13,9 +13,8 @@ vi.mock("@/lib/seen/seen", () => ({
 	seenUpdateGeo: vi.fn(),
 	seenFlush: vi.fn(),
 }));
-vi.mock("@/lib/sv/panoSingleton", () => ({
-	singletonPano: {},
-	capturePov: () => ({ heading: 0, pitch: 0, zoom: 0 }),
+vi.mock("@/lib/sv/pano", () => ({
+	pano: { exists: () => true, captureView: () => ({ heading: 0, pitch: 0, zoom: 0 }) },
 }));
 vi.mock("@/store/useMapStore", () => ({
 	useMapState: (sel: (s: { activeLocation: Location | null }) => unknown) =>

@@ -138,7 +138,7 @@ export function RoundPlayer({
 	const [submitting, setSubmitting] = useState(false);
 	const [hasCheckpoint, setHasCheckpoint] = useState(false);
 	const [opening, setOpening] = useState(false);
-	const [panorama, setPanorama] = useState<Parameters<typeof Compass>[0]["panorama"] | null>(null);
+	const [panoShown, setPanoShown] = useState(false);
 	const settings = useSettings();
 	const [hideCar, setHideCar] = useState(!getSettings().showCar);
 	// Persisted: the tag bar is a working preference, not per-round state.
@@ -236,7 +236,7 @@ export function RoundPlayer({
 				return act(() => (showResult ? advance() : void submit(guess)));
 			}
 			if (e.key === "Escape") return act(onExit);
-			// Pano keys are inert during the result -- the singleton is showing the
+			// Pano keys are inert during the result -- the pano is showing the
 			// warmed next round by then, not this one.
 			if (showResult) return;
 			if (e.key === "r") return act(() => panoRef.current?.returnToSpawn());
@@ -281,21 +281,21 @@ export function RoundPlayer({
 						round={round}
 						movementMode={game.config.movementMode}
 						preload={showResult ? (game.locations[game.index + 1] ?? null) : null}
-						onPanorama={setPanorama}
+						onShown={setPanoShown}
 					/>
 				)}
 			</div>
 
-			{!showResult && panorama && (
+			{!showResult && panoShown && (
 				<>
 					{settings.showCompass && (
 						<div className="lg-round__compass">
-							<Compass panorama={panorama} />
+							<Compass />
 						</div>
 					)}
 					{settings.showCompassTape && (
 						<div className="lg-round__compass-tape">
-							<CompassTape panorama={panorama} />
+							<CompassTape />
 						</div>
 					)}
 				</>

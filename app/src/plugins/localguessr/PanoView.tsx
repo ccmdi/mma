@@ -1,13 +1,10 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import { getPanorama, singletonDiv, applyResolved } from "@/lib/sv/panoSingleton";
-import { tweenPov } from "@/lib/sv/tweenPov";
-import { normalizeHeading } from "@/lib/geo/geo";
+import { pano } from "@/lib/sv/pano";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
-import { resolvePano } from "@/lib/sv/lookup";
 import type { PanoView as PanoRef } from "@/types";
-import type { CameraFrame, Pano } from "@/bindings.gen";
+import type { CameraFrame } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import type { MovementMode, RoundLocation } from "./game";
 
@@ -16,7 +13,6 @@ export interface PanoHandle {
 	pointNorth: () => void;
 	setCheckpoint: () => boolean;
 	returnToCheckpoint: () => boolean;
-	getPanorama: () => google.maps.StreetViewPanorama | null;
 }
 
 function toLocation(round: RoundLocation) {
@@ -26,9 +22,9 @@ function toLocation(round: RoundLocation) {
 	});
 }
 
-function applyMovement(pano: google.maps.StreetViewPanorama, mode: MovementMode) {
+function movementOptions(mode: MovementMode): google.maps.StreetViewPanoramaOptions {
 	const moving = mode === "moving";
-	pano.setOptions({
+	return {
 		linksControl: moving,
 		clickToGo: moving,
 		scrollwheel: mode !== "nmpz",
@@ -37,11 +33,11 @@ function applyMovement(pano: google.maps.StreetViewPanorama, mode: MovementMode)
 		fullscreenControl: false,
 		showRoadLabels: false,
 		enableCloseButton: false,
-	});
+	};
 }
 
 /**
- * The round's Street View. Holds the shared singleton canvas for the whole game and
+ * The round's Street View. Holds the shared pano for the whole game and
  * swaps pano content per round -- reparenting it every round loses the WebGL context,
  * which white-screens the editor preview too.
  */
@@ -49,185 +45,110 @@ export function PanoView({
 	round,
 	movementMode,
 	preload,
-	onPanorama,
+	onShown,
 	ref,
 }: {
 	round: RoundLocation;
 	movementMode: MovementMode;
 	/** Next round to warm while this one is hidden. Null outside the result phase. */
 	preload?: RoundLocation | null;
-	onPanorama?: (pano: google.maps.StreetViewPanorama | null) => void;
+	onShown?: (shown: boolean) => void;
 	ref?: React.Ref<PanoHandle>;
 }) {
 	const hostRef = useRef<HTMLDivElement>(null);
 	const [error, setError] = useState<string | null>(null);
-	// Derived: an effect-set flag flips a frame late, showing the previous location.
-	const [revealed, setRevealed] = useState<RoundLocation | null>(null);
-	const loading = revealed !== round;
 	const spawnRef = useRef(round);
 	spawnRef.current = round;
-	const stagedRef = useRef<{ round: RoundLocation; resolved: Pano | null } | null>(null);
-	const cancelTweenRef = useRef<(() => void) | null>(null);
 	const checkpointRef = useRef<(CameraFrame & Pick<PanoRef, "panoId">) | null>(null);
 
 	useImperativeHandle(
 		ref,
 		() => ({
 			returnToSpawn: () => {
-				const pano = getPanorama();
 				const spawn = spawnRef.current;
-				if (!pano) return;
-				if (spawn.panoId) pano.setPano(spawn.panoId);
-				else pano.setPosition({ lat: spawn.lat, lng: spawn.lng });
-				pano.setPov({ heading: spawn.heading, pitch: spawn.pitch });
+				pano.jump(spawn.panoId || { lat: spawn.lat, lng: spawn.lng }, {
+					heading: spawn.heading,
+					pitch: spawn.pitch,
+				});
 			},
-			pointNorth: () => {
-				const pano = getPanorama();
-				if (!pano) return;
-				cancelTweenRef.current?.();
-				const pov = pano.getPov();
-				const isNorth = Math.abs(normalizeHeading(pov.heading)) < 2;
-				// Second press: top-down and fully zoomed out, for lining up with the map.
-				if (isNorth) pano.setZoom(0);
-				const target = isNorth ? { heading: 0, pitch: -90 } : { heading: 0, pitch: pov.pitch };
-				cancelTweenRef.current = tweenPov(pano, target);
-			},
+			pointNorth: pano.pointNorth,
 			setCheckpoint: () => {
-				const pano = getPanorama();
-				if (!pano) return false;
-				const pov = pano.getPov();
-				checkpointRef.current = { panoId: pano.getPano(), heading: pov.heading, pitch: pov.pitch };
+				const panoId = pano.panoId();
+				if (!panoId) return false;
+				checkpointRef.current = { panoId, ...pano.pov() };
 				return true;
 			},
 			returnToCheckpoint: () => {
-				const pano = getPanorama();
 				const cp = checkpointRef.current;
-				if (!pano || !cp) return false;
-				pano.setPano(cp.panoId);
-				pano.setPov({ heading: cp.heading, pitch: cp.pitch });
+				if (!cp) return false;
+				pano.jump(cp.panoId, { heading: cp.heading, pitch: cp.pitch });
 				checkpointRef.current = null;
 				return true;
 			},
-			getPanorama,
 		}),
 		[],
 	);
 
-	// Borrow the singleton for the game, then hand it back with its WebGL context intact.
+	// Borrow the pano for the game, then hand it back with its WebGL context intact.
 	useLayoutEffect(() => {
 		const host = hostRef.current;
 		if (!host) return;
-		const previousParent = singletonDiv.parentElement;
-		singletonDiv.style.width = "100%";
-		singletonDiv.style.height = "100%";
-		host.appendChild(singletonDiv);
+		const release = pano.mount(host);
 		return () => {
-			if (previousParent) previousParent.appendChild(singletonDiv);
-			else singletonDiv.remove();
-			const pano = getPanorama();
-			if (pano && google?.maps) {
-				pano.setVisible(true);
-				google.maps.event.trigger(pano, "resize");
-			}
-			onPanorama?.(null);
+			release();
+			onShown?.(false);
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- borrow for the whole game
 	}, []);
 
-	// Covered until this round's pano reports OK; the singleton still shows the last one.
 	useEffect(() => {
 		let cancelled = false;
-		let listener: google.maps.MapsEventListener | null = null;
 		setError(null);
 		checkpointRef.current = null;
 
 		void (async () => {
 			await loadOpenSV();
 			if (cancelled) return;
-			const pano = getPanorama();
-			if (!google?.maps || !pano) {
+			if (!google?.maps) {
 				setError(t("Street View unavailable"));
 				return;
 			}
-			const loc = toLocation(round);
-			// Warmed during the previous result: skip the lookup entirely.
-			const staged = stagedRef.current;
-			stagedRef.current = null;
-			const resolved = staged?.round === round ? staged.resolved : await resolvePano(loc);
-			if (cancelled) return;
-			if (!resolved?.id) {
+			const shown = await pano.show(toLocation(round));
+			if (cancelled || shown.status === "superseded") return;
+			if (!shown.pano?.id) {
 				setError(t("No panorama found here"));
 				return;
 			}
-
-			applyResolved(pano, resolved, loc);
-			applyMovement(pano, movementMode);
-			google.maps.event.trigger(pano, "resize");
-			onPanorama?.(pano);
-
-			const target = resolved.id;
-			const reveal = () => {
-				if (cancelled || pano.getStatus() !== "OK") return;
-				// status_changed also fires for the outgoing pano mid-swap.
-				const live = pano.getPano();
-				if (target && live && live !== target) return;
-				setRevealed(round);
-			};
-			listener = pano.addListener("status_changed", reveal);
-			reveal();
+			pano.configure(movementOptions(movementMode));
+			onShown?.(true);
 		})();
 
 		return () => {
 			cancelled = true;
-			listener?.remove();
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- movement is applied separately
 	}, [round]);
 
-	// Warm the next round on the hidden singleton so Next reveals rather than loads.
-	// Not applyResolved: its sv.focus() would steal focus and break Space-to-continue.
+	// Warm the next round on the hidden pano so Next reveals rather than loads.
 	useEffect(() => {
 		if (!preload) return;
 		let cancelled = false;
-		void (async () => {
-			await loadOpenSV();
-			if (cancelled || !google?.maps) return;
-			const pano = getPanorama();
-			if (!pano) return;
-			const resolved = await resolvePano(toLocation(preload));
-			if (cancelled || !resolved?.id) return;
-			stagedRef.current = { round: preload, resolved };
-			pano.setPano(resolved.id);
-			pano.setPov({ heading: preload.heading, pitch: preload.pitch });
-		})();
+		void loadOpenSV().then(() => {
+			if (!cancelled) void pano.preload(toLocation(preload));
+		});
 		return () => {
 			cancelled = true;
 		};
 	}, [preload]);
 
 	useEffect(() => {
-		const pano = getPanorama();
-		if (pano) applyMovement(pano, movementMode);
+		pano.configure(movementOptions(movementMode));
 	}, [movementMode]);
-
-	useEffect(() => {
-		const host = hostRef.current;
-		if (!host) return;
-		const observer = new ResizeObserver(() => {
-			const pano = getPanorama();
-			if (pano && google?.maps) google.maps.event.trigger(pano, "resize");
-		});
-		observer.observe(host);
-		return () => observer.disconnect();
-	}, []);
 
 	return (
 		<div className="lg-pano">
 			<div ref={hostRef} className="lg-pano__host" />
 			{movementMode === "nmpz" && <div className="lg-pano__shield" aria-hidden="true" />}
-			{!error && (
-				<div className={`lg-pano__loading${loading ? "" : " is-revealed"}`} aria-hidden="true" />
-			)}
 			{error && <div className="lg-pano__error">{error}</div>}
 		</div>
 	);

@@ -9,6 +9,7 @@ vi.mock("@/lib/sv/opensv", () => {
 		getPov: () => ({ heading: 88.5, pitch: -4.5 }),
 		getZoom: () => liveZoom.value,
 		getPano: () => "live-pano",
+		setPano: () => {},
 		addListener: () => ({}),
 		setVisible: () => {},
 	};
@@ -24,7 +25,7 @@ vi.mock("@/lib/sv/opensv", () => {
 });
 vi.mock("@/lib/sv/opensvPatch", () => ({ patchOpenSV: () => {}, setPanoHovered: () => {} }));
 
-import { capturePano, getPanorama } from "@/lib/sv/panoSingleton";
+import { pano } from "@/lib/sv/pano";
 import { createLocation, dropLocation, type PanoCapture } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { PANO_ZOOM } from "@/lib/sv/constants";
@@ -49,16 +50,16 @@ const live: PanoCapture = {
 	panoId: "live-pano",
 };
 
-describe("capturePano", () => {
+describe("pano.capture", () => {
 	it("reads the live viewer", () => {
-		getPanorama();
-		expect(capturePano()).toEqual(live);
+		pano.jump("live-pano");
+		expect(pano.capture()).toEqual(live);
 	});
 
 	it("returns zoom in the stored domain, so a fully-out view reads as unset", () => {
-		getPanorama();
+		pano.jump("live-pano");
 		liveZoom.value = PANO_ZOOM.min;
-		expect(capturePano()?.zoom).toBe(0);
+		expect(pano.capture()?.zoom).toBe(0);
 		liveZoom.value = 2.5;
 	});
 });

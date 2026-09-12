@@ -120,7 +120,7 @@ describe("Seen -- recording consistency", () => {
 	});
 
 	it("switching locations records distinct entries with correct pano_ids", async () => {
-		// Open trek first to ensure the singleton pano changes when we open off next
+		// Open trek first to ensure the pano changes when we open off next
 		await openLocation(seenTrekId);
 		await waitForPreview();
 		await waitForDates();

@@ -12,7 +12,7 @@ import { isReservedMap } from "@/store/mapList";
 import { SeenDialog } from "@/components/dialogs/SeenDialog";
 import { CopyToMapDialog } from "@/components/editor/CopyToMapDialog";
 import { QuickCopyToMapDialog } from "@/components/editor/QuickCopyToMapDialog";
-import { loadSeenPano } from "@/lib/sv/panoSingleton";
+import { loadSeenPano } from "@/lib/seen/seen";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { mdiUndo, mdiRedo } from "@mdi/js";

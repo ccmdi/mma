@@ -12,7 +12,7 @@ import {
 import { useMapState } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { PanoType } from "@/bindings.consts";
-import { singletonPano } from "@/lib/sv/panoSingleton";
+import { pano } from "@/lib/sv/pano";
 import { sameRow, type LatLng } from "@/types";
 import type { Pano } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
@@ -195,7 +195,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		if (location) return;
 		setState(null);
 		onLocationCleared();
-		if (singletonPano) singletonPano.setVisible(false);
+		pano.hide();
 	}, [location]);
 
 	const value = useMemo(

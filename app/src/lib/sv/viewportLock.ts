@@ -2,6 +2,7 @@ import { normalizeHeading } from "@/lib/geo/geo";
 import { emit as emitEvent } from "@/lib/events";
 import { svMetadata } from "@/lib/sv/query";
 import type { CameraFrame } from "@/bindings.gen";
+import { pano } from "@/lib/sv/pano";
 
 let locked = false;
 let relHeading = 0;
@@ -29,33 +30,34 @@ async function getCameraFrame(panoId: string): Promise<CameraFrame | null> {
 	return frame;
 }
 
-export async function applyViewportLock(pano: google.maps.StreetViewPanorama) {
+export async function applyViewportLock() {
 	if (!locked) return;
-	const panoId = pano.getPano?.();
+	const panoId = pano.panoId();
 	if (!panoId) return;
+	const look = pano.reserveLook();
 	const frame = await getCameraFrame(panoId);
-	if (!frame || !locked || pano.getPano?.() !== panoId) return;
-	pano.setPov({
+	if (!frame || !locked || pano.panoId() !== panoId) return;
+	look({
 		heading: normalizeHeading(frame.heading + relHeading),
 		pitch: frame.pitch + relPitch,
+		zoom: lockedZoom,
 	});
-	pano.setZoom(lockedZoom);
 }
 
-export async function toggleViewportLock(pano: google.maps.StreetViewPanorama): Promise<boolean> {
+export async function toggleViewportLock(): Promise<boolean> {
 	if (locked) {
 		locked = false;
 		emitEvent("viewport-lock:changed");
 		return false;
 	}
-	const pov = pano.getPov?.();
-	const panoId = pano.getPano?.();
-	if (!pov || !panoId) return false;
+	const panoId = pano.panoId();
+	if (!panoId) return false;
+	const { heading, pitch } = pano.pov();
 	const frame = await getCameraFrame(panoId);
 	if (!frame) return false;
-	relHeading = normalizeHeading(pov.heading - frame.heading);
-	relPitch = (pov.pitch ?? 0) - frame.pitch;
-	lockedZoom = pano.getZoom?.() ?? 0;
+	relHeading = normalizeHeading(heading - frame.heading);
+	relPitch = pitch - frame.pitch;
+	lockedZoom = pano.zoom();
 	locked = true;
 	emitEvent("viewport-lock:changed");
 	return true;

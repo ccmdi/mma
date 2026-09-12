@@ -1,9 +1,9 @@
 import { cmd } from "@/lib/commands";
-import { captureLivePano } from "@/lib/sv/panoCapture";
+import { pano } from "@/lib/sv/pano";
 import { getSettings } from "@/store/settings";
-import { getMapState } from "@/store/useMapStore";
+import { addLocations, fetchLocations, getMapState, setActiveLocation } from "@/store/useMapStore";
 import { log } from "@/lib/util/log";
-import type { LocationPOV } from "@/types";
+import { createLocation, type LocationPOV } from "@/types";
 import type { SeenFilter, SeenMapInfo } from "@/bindings.gen";
 import type { Nullable, Rename, RequireNonNull } from "@/types/util";
 import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
@@ -80,7 +80,7 @@ const RESOLUTIONS = { low: [160, 90], medium: [320, 180], high: [640, 360] } as 
 function captureThumbnail(): string | null {
 	try {
 		const [w, h] = RESOLUTIONS[getSettings().seenResolution] ?? RESOLUTIONS.medium;
-		const dataUrl = captureLivePano(w, h)?.toDataURL("image/jpeg", 0.6);
+		const dataUrl = pano.captureImage(w, h)?.toDataURL("image/jpeg", 0.6);
 		const base64 = dataUrl?.split(",")[1];
 		return base64 && base64.length >= 100 ? base64 : null;
 	} catch {
@@ -98,6 +98,41 @@ async function writeEntry(entry: PendingEntry, pov: LocationPOV, thumbnail: stri
 	} catch (e) {
 		log.warn("[seen] failed to write entry:", e);
 	}
+}
+
+/** Open a seen entry's panorama in the Street View viewer. */
+export async function loadSeenPano(entry: SeenEntry) {
+	seenSkipNext(entry.panoId);
+
+	const [fetched] =
+		entry.locationId != null
+			? await fetchLocations({ type: "Locations", locations: [entry.locationId], name: null })
+			: [];
+	const existing = fetched && fetched.panoId === entry.panoId ? fetched : null;
+
+	if (existing) {
+		const active = getMapState().activeLocation;
+		if (active?.id !== existing.id) {
+			await setActiveLocation(existing.id);
+			return;
+		}
+	} else {
+		const loc = createLocation({
+			lat: entry.lat,
+			lng: entry.lng,
+			heading: entry.heading,
+			pitch: entry.pitch,
+			zoom: entry.zoom,
+			panoId: entry.panoId,
+			extra: entry.countryCode ? { countryCode: entry.countryCode } : undefined,
+		});
+		await addLocations([loc]);
+		await setActiveLocation(loc.id, false);
+		return;
+	}
+
+	if (!pano.exists()) return;
+	pano.jump(entry.panoId, { heading: entry.heading, pitch: entry.pitch, zoom: entry.zoom });
 }
 
 /** Fetch a page of the seen (visited-panorama) history. */

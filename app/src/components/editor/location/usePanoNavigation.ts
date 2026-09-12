@@ -1,11 +1,9 @@
 import { useEffect, useEffectEvent, useRef } from "react";
-import { PANO_PITCH, FRAME_MS } from "@/lib/sv/constants";
-import { clamp } from "@/types/util";
-import { normalizeHeading, reverseHeading, wrapDeg } from "@/lib/geo/geo";
+import { FRAME_MS } from "@/lib/sv/constants";
 import { parseHotkey, matchesKey, isEditableElement } from "@/lib/hooks/useHotkey";
 import { getBinding } from "@/lib/util/hotkeys";
 
-import { singletonPano } from "@/lib/sv/panoSingleton";
+import { pano } from "@/lib/sv/pano";
 import type { AppSettings } from "@/store/settings";
 
 export function usePanoNavigation(appSettings: AppSettings) {
@@ -19,7 +17,7 @@ export function usePanoNavigation(appSettings: AppSettings) {
 		const allActions = [...lookActions, ...moveActions] as const;
 
 		function tick() {
-			if (!singletonPano || nav.held.size === 0) {
+			if (!pano.exists() || nav.held.size === 0) {
 				nav.rafId = 0;
 				nav.lastTime = 0;
 				return;
@@ -32,7 +30,6 @@ export function usePanoNavigation(appSettings: AppSettings) {
 			const s = getAppSettings();
 			const slow = nav.alt ? s.slowModifier : 1;
 			const speed = (s.panoLookSpeed * 0.4 * dt) / slow;
-			const pov = singletonPano.getPov();
 			let dh = 0,
 				dp = 0;
 			if (nav.held.has("panoLookLeft")) dh -= speed;
@@ -40,12 +37,7 @@ export function usePanoNavigation(appSettings: AppSettings) {
 			if (nav.held.has("panoLookUp")) dp += speed;
 			if (nav.held.has("panoLookDown")) dp -= speed;
 
-			if (dh || dp) {
-				singletonPano.setPov({
-					heading: wrapDeg(pov.heading + dh, 0),
-					pitch: clamp(pov.pitch + dp, PANO_PITCH),
-				});
-			}
+			if (dh || dp) pano.nudge(dh, dp);
 
 			nav.rafId = requestAnimationFrame(tick);
 		}
@@ -67,24 +59,8 @@ export function usePanoNavigation(appSettings: AppSettings) {
 				for (const alt of parsed) {
 					if (alt.length === 1 && matchesKey(e, alt[0], { ignoreAlt: true })) {
 						if (action === "panoMoveForward" || action === "panoMoveBackward") {
-							if (!singletonPano) return;
 							if (getAppSettings().defaultMovementMode !== "moving") return;
-							const links = singletonPano
-								.getLinks()
-								?.filter((l): l is google.maps.StreetViewLink => l != null);
-							if (!links?.length) return;
-							const heading = singletonPano.getPov().heading;
-							const target = action === "panoMoveForward" ? heading : reverseHeading(heading);
-							let best = links[0];
-							let bestDiff = 360;
-							for (const link of links) {
-								const diff = Math.abs(normalizeHeading(link.heading! - target));
-								if (diff < bestDiff) {
-									bestDiff = diff;
-									best = link;
-								}
-							}
-							if (best.pano) singletonPano.setPano(best.pano);
+							if (!pano.step(action === "panoMoveForward" ? "forward" : "backward")) return;
 							e.preventDefault();
 							e.stopImmediatePropagation();
 							return;

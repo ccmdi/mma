@@ -1,5 +1,4 @@
 import { google } from "@/lib/sv/opensv";
-import { singletonDiv } from "@/lib/sv/panoSingleton";
 import type { PanoView } from "@/types";
 
 const PANO_LOAD_TIMEOUT_MS = 15_000;
@@ -8,13 +7,6 @@ const CANVAS_QUIET_MS = 400;
 const CANVAS_SAMPLE_INTERVAL_MS = 100;
 // Slight oversize so fractional-DPR rounding can never undershoot the target buffer.
 const HOST_OVERSCAN = 1.01;
-
-// --- Live viewer capture ---
-
-/** The live viewer's WebGL scene canvas, or null before first render. */
-export function getPanoCanvas(): HTMLCanvasElement | null {
-	return sceneCanvas(singletonDiv);
-}
 
 /** Source rect of the largest centered region matching the target aspect. */
 export function coverCrop(
@@ -29,33 +21,7 @@ export function coverCrop(
 	return { sx: (srcW - sw) / 2, sy: (srcH - sh) / 2, sw, sh };
 }
 
-/** Cover-crop the live scene canvas into an exact width x height canvas; null until the
- *  viewer holds a rendered frame. */
-export function captureLivePano(width: number, height: number): HTMLCanvasElement | null {
-	const source = getPanoCanvas();
-	if (!source) return null;
-	const out = drawScaled(source, width, height);
-	return out && hasImagery(out) ? out : null;
-}
-
 // --- Offscreen fixed-resolution render ---
-
-/** Freeze the live viewer camera before offscreen rendering starts. */
-export function snapshotPanoView(panorama: google.maps.StreetViewPanorama): PanoView {
-	const panoId = panorama.getPano();
-	const pov = panorama.getPov();
-	const zoom = panorama.getZoom();
-	if (
-		!panoId ||
-		!pov ||
-		!Number.isFinite(pov.heading) ||
-		!Number.isFinite(pov.pitch) ||
-		!Number.isFinite(zoom)
-	) {
-		throw new Error("Street View is not ready");
-	}
-	return { panoId, heading: pov.heading, pitch: pov.pitch, zoom };
-}
 
 /** Render `view` in a hidden viewer and return an exact width x height canvas at
  *  native source quality, independent of the on-screen viewer's size or UI. */
@@ -100,7 +66,7 @@ export async function renderPanoView(
 
 // --- Shared internals ---
 
-function drawScaled(
+export function drawScaled(
 	source: HTMLCanvasElement,
 	width: number,
 	height: number,
@@ -192,12 +158,12 @@ export function frameFingerprint(pixels: Uint8ClampedArray): number | null {
 	return visible > pixels.length / 8 && max - min > 4 ? hash >>> 0 : null;
 }
 
-function sceneCanvas(host: HTMLElement): HTMLCanvasElement | null {
+export function sceneCanvas(host: HTMLElement): HTMLCanvasElement | null {
 	const canvas = host.querySelector<HTMLCanvasElement>("canvas.widget-scene-canvas");
 	return canvas && canvas.width > 0 && canvas.height > 0 ? canvas : null;
 }
 
-function hasImagery(canvas: HTMLCanvasElement): boolean {
+export function hasImagery(canvas: HTMLCanvasElement): boolean {
 	const pixels = canvas.getContext("2d")?.getImageData(0, 0, canvas.width, canvas.height).data;
 	return !!pixels && frameFingerprint(pixels) !== null;
 }
