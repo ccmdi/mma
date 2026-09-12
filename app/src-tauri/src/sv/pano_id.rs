@@ -24,6 +24,11 @@ pub fn to_image_key(pano_id: &str) -> (i32, String) {
     if let Some(rest) = pano_id.strip_prefix("F:") {
         return (i32::from(PanoType::UNKNOWN), rest.to_string());
     }
+    // Bare user-contribution keys can be exactly 22 characters, colliding with the
+    // official shape; by prefix they resolve only over the user-uploaded frontend.
+    if pano_id.starts_with("CIHM") {
+        return (i32::from(PanoType::USER_UPLOADED), pano_id.to_string());
+    }
     if is_official(pano_id) {
         return (i32::from(PanoType::OFFICIAL), pano_id.to_string());
     }

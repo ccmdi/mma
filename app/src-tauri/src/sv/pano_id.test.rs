@@ -30,6 +30,17 @@ fn an_uploaded_id_is_a_key_in_its_own_right() {
 }
 
 #[test]
+fn a_bare_contributor_key_resolves_over_the_user_uploaded_frontend() {
+    // 22-char "CIHM…" keys collide with the official shape; sent as official, GetMetadata
+    // answers nothing for them.
+    assert_eq!(
+        to_image_key("CIHM0ogKEICAgICTzu7WYg"),
+        (10, "CIHM0ogKEICAgICTzu7WYg".to_string())
+    );
+    assert_eq!(to_image_key(UPLOADED_KEY), (10, UPLOADED_KEY.to_string()));
+}
+
+#[test]
 fn an_id_that_is_not_a_key_stays_itself_as_official_coverage() {
     assert_eq!(to_image_key("not base64 at all"), (2, "not base64 at all".to_string()));
     assert_eq!(to_image_key(""), (2, String::new()));
