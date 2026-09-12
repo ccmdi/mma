@@ -779,7 +779,7 @@ describe("Enrichment — the read-only query surface", () => {
 
 		expect(answers).toHaveLength(2);
 		expect(answers[1]).toBe(null);
-		expect(answers[0].pano).toBe(OFFICIAL_PANO);
+		expect(answers[0].id).toBe(OFFICIAL_PANO);
 		expect(answers[0].lat).toBeCloseTo(OFFICIAL_COORDS.lat, 6);
 		expect(answers[0].lng).toBeCloseTo(OFFICIAL_COORDS.lng, 6);
 		expect(answers[0].countryCode).toBe("RU");
@@ -800,7 +800,7 @@ describe("Enrichment — the read-only query surface", () => {
 				lat: d.lat,
 				worldHeight: d.worldSize.height,
 				date: d.date,
-				timePanos: d.time.map((t: any) => t.pano),
+				timePanos: d.time.map((t: any) => t.panoId),
 				timeDates: d.time.map((t: any) => t.date),
 			};
 		}, OFFICIAL_PANO)) as any;
