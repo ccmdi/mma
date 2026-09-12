@@ -51,7 +51,7 @@ import {
 	getGlobalStreak,
 	getHistory,
 	getSavedGame,
-	useRoundThumbnails,
+	useStartingThumbnails,
 	saveGame,
 	setGlobalStreak,
 } from "./storage";
@@ -71,14 +71,15 @@ function movementLabels(): Record<MovementMode, string> {
 	return { moving: t("Moving"), noMove: t("No move"), nmpz: t("NMPZ") };
 }
 
-function PastGameCard({ game, onOpen }: { game: PastGame; onOpen: (game: PastGame) => void }) {
-	const firstId = game.rounds[0]?.location.id;
-	const thumbnails = useRoundThumbnails(
-		game.mapId,
-		game.startedAt,
-		firstId === undefined ? [] : [firstId],
-	);
-	const thumbnail = firstId === undefined ? undefined : thumbnails.get(firstId);
+function PastGameCard({
+	game,
+	thumbnail,
+	onOpen,
+}: {
+	game: PastGame;
+	thumbnail: string | null | undefined;
+	onOpen: (game: PastGame) => void;
+}) {
 	return (
 		<EntryCard
 			actions={
@@ -115,13 +116,23 @@ function PastGamesModal({
 	onClear: () => void;
 }) {
 	const [confirmingClear, setConfirmingClear] = useState(false);
+	const starts = history.flatMap((g) =>
+		g.rounds[0] ? [{ locationId: g.rounds[0].location.id, startedAt: g.startedAt }] : [],
+	);
+	const thumbnails = useStartingThumbnails(history[0]?.mapId ?? "", starts);
+	const thumbnailByStart = new Map(starts.map((s, i) => [s.startedAt, thumbnails[i]]));
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Past games")} className="entry-list-modal lg-history">
 				<EntryList>
 					{history.map((g) => (
-						<PastGameCard key={g.startedAt} game={g} onOpen={onOpen} />
+						<PastGameCard
+							key={g.startedAt}
+							game={g}
+							thumbnail={thumbnailByStart.get(g.startedAt)}
+							onOpen={onOpen}
+						/>
 					))}
 				</EntryList>
 				<div className="lg-history__clear">

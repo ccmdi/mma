@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPluginStorage } from "@/plugins/registry";
 import { getSeenCount, getSeenEntries } from "@/lib/seen/seen";
+import type { SeenEntry } from "@/bindings.gen";
 import type { Game, PastGame, StreakMode } from "./game";
 
 const storage = createPluginStorage("localguessr");
@@ -77,37 +78,55 @@ export function clearHistory(mapId: string): void {
 	);
 }
 
-export async function roundThumbnails(
-	mapId: string,
-	startedAt: number,
-	locationIds: number[],
-): Promise<Map<number, string | null>> {
-	const filter = { mapId, since: startedAt, locationIds };
-	const entries = await getSeenEntries(await getSeenCount(filter), 0, filter);
-	const thumbnails = new Map<number, string | null>();
-	for (const entry of entries.toReversed()) {
-		if (entry.locationId != null && !thumbnails.has(entry.locationId)) {
-			thumbnails.set(entry.locationId, entry.thumbnail);
-		}
-	}
-	return thumbnails;
+export interface RoundStart {
+	locationId: number;
+	startedAt: number;
 }
 
-export function useRoundThumbnails(
+export async function startingThumbnails(
 	mapId: string,
-	startedAt: number,
-	locationIds: number[],
-): Map<number, string | null> {
-	const [thumbnails, setThumbnails] = useState(() => new Map<number, string | null>());
-	const key = locationIds.join(",");
+	rounds: RoundStart[],
+): Promise<(string | null)[]> {
+	if (rounds.length === 0) return [];
+	const filter = {
+		mapId,
+		since: Math.min(...rounds.map((r) => r.startedAt)),
+		locationIds: [...new Set(rounds.map((r) => r.locationId))],
+	};
+	const newestFirst = await getSeenEntries(await getSeenCount(filter), 0, filter);
+	const byLocation = new Map<number, SeenEntry[]>();
+	for (const entry of newestFirst.toReversed()) {
+		if (entry.locationId == null) continue;
+		const seen = byLocation.get(entry.locationId) ?? [];
+		seen.push(entry);
+		byLocation.set(entry.locationId, seen);
+	}
+	return rounds.map(
+		({ locationId, startedAt }) =>
+			byLocation.get(locationId)?.find((e) => e.enteredAt >= startedAt)?.thumbnail ?? null,
+	);
+}
+
+export function useStartingThumbnails(mapId: string, rounds: RoundStart[]): (string | null)[] {
+	const key = rounds.map((r) => `${r.locationId}@${r.startedAt}`).join(",");
+	const [found, setFound] = useState<{ key: string; thumbnails: (string | null)[] }>({
+		key: "",
+		thumbnails: [],
+	});
 	useEffect(() => {
 		let cancelled = false;
-		void roundThumbnails(mapId, startedAt, key ? key.split(",").map(Number) : []).then((found) => {
-			if (!cancelled) setThumbnails(found);
+		const parsed = key
+			? key.split(",").map((pair) => {
+					const [locationId, startedAt] = pair.split("@").map(Number);
+					return { locationId, startedAt };
+				})
+			: [];
+		void startingThumbnails(mapId, parsed).then((thumbnails) => {
+			if (!cancelled) setFound({ key, thumbnails });
 		});
 		return () => {
 			cancelled = true;
 		};
-	}, [mapId, startedAt, key]);
-	return thumbnails;
+	}, [mapId, key]);
+	return found.key === key ? found.thumbnails : [];
 }

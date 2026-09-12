@@ -6,7 +6,7 @@ import { formatElapsed, type Session } from "./game";
 import { formatDistance } from "@/lib/util/format";
 import { Flag } from "@/components/primitives/Flag";
 import { TagButton } from "./TagButton";
-import { useRoundThumbnails } from "./storage";
+import { useStartingThumbnails } from "./storage";
 import { loadSeenPano } from "@/lib/seen/seen";
 import { usePano } from "@/lib/hooks/usePano";
 import type { RoundResult } from "./game";
@@ -21,7 +21,10 @@ export function Summary({
 	onBack: () => void;
 }) {
 	const allIds = session.results.map((r) => r.location.id);
-	const thumbnails = useRoundThumbnails(session.mapId, session.startedAt, allIds);
+	const thumbnails = useStartingThumbnails(
+		session.mapId,
+		allIds.map((locationId) => ({ locationId, startedAt: session.startedAt })),
+	);
 	const pano = usePano();
 	const openRound = ({ location, truth }: RoundResult) =>
 		void loadSeenPano(
@@ -56,7 +59,7 @@ export function Summary({
 
 			<div className="lg-summary__rounds">
 				{session.results.map((r, i) => {
-					const thumbnail = thumbnails.get(r.location.id);
+					const thumbnail = thumbnails[i];
 					return (
 						<div
 							key={i}

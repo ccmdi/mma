@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeenEntry, SeenFilter } from "@/bindings.gen";
 
 const seen: SeenEntry[] = [];
@@ -11,12 +11,14 @@ vi.mock("@/lib/seen/seen", () => ({
 	getSeenCount: (...a: [SeenFilter]) => getSeenCount(...a),
 }));
 
-import { roundThumbnails } from "@/plugins/localguessr/storage";
+import { startingThumbnails } from "@/plugins/localguessr/storage";
 
-function entry(id: number, locationId: number, enteredAt: number, thumbnail: string | null) {
+let nextId = 0;
+function entry(locationId: number, enteredAt: number, thumbnail: string | null): SeenEntry {
+	nextId++;
 	return {
-		id,
-		panoId: `P${id}`,
+		id: nextId,
+		panoId: `P${nextId}`,
 		lat: 0,
 		lng: 0,
 		heading: 0,
@@ -28,39 +30,62 @@ function entry(id: number, locationId: number, enteredAt: number, thumbnail: str
 		countryCode: null,
 		address: null,
 		thumbnail,
-	} satisfies SeenEntry;
+	};
 }
 
-describe("round thumbnails", () => {
-	it("asks for the session's rounds on its map since it started", async () => {
-		seen.length = 0;
-		await roundThumbnails("m", 100, [1, 2]);
-		expect(getSeenCount).toHaveBeenCalledWith({ mapId: "m", since: 100, locationIds: [1, 2] });
-		expect(getSeenEntries).toHaveBeenCalledWith(0, 0, {
-			mapId: "m",
-			since: 100,
-			locationIds: [1, 2],
-		});
+function newestFirst(...entries: SeenEntry[]) {
+	seen.splice(0, seen.length, ...entries.sort((a, b) => b.enteredAt - a.enteredAt));
+}
+
+beforeEach(() => {
+	getSeenEntries.mockClear();
+	getSeenCount.mockClear();
+});
+
+describe("starting thumbnails", () => {
+	it("asks once, from the earliest start, for every distinct location", async () => {
+		newestFirst();
+		await startingThumbnails("m", [
+			{ locationId: 5, startedAt: 300 },
+			{ locationId: 9, startedAt: 100 },
+			{ locationId: 5, startedAt: 200 },
+		]);
+		const filter = { mapId: "m", since: 100, locationIds: [5, 9] };
+		expect(getSeenCount).toHaveBeenCalledOnce();
+		expect(getSeenCount).toHaveBeenCalledWith(filter);
+		expect(getSeenEntries).toHaveBeenCalledOnce();
+		expect(getSeenEntries).toHaveBeenCalledWith(0, 0, filter);
 	});
 
-	it("uses each round's first entry, which is its starting view", async () => {
-		seen.splice(
-			0,
-			seen.length,
-			entry(4, 1, 400, "walked"),
-			entry(3, 2, 300, null),
-			entry(2, 2, 200, "start-2"),
-			entry(1, 1, 150, "start-1"),
+	it("does not ask at all without rounds", async () => {
+		expect(await startingThumbnails("m", [])).toEqual([]);
+		expect(getSeenEntries).not.toHaveBeenCalled();
+	});
+
+	it("gives each round the first entry at or after its own start", async () => {
+		newestFirst(
+			entry(5, 100, "5-monday"),
+			entry(9, 300, "9-wednesday"),
+			entry(5, 400, "5-thursday"),
+			entry(9, 500, "9-friday"),
+			entry(9, 600, "9-walked"),
 		);
-		const thumbnails = await roundThumbnails("m", 100, [1, 2]);
-		expect(thumbnails.get(1)).toBe("start-1");
-		expect(thumbnails.get(2)).toBe("start-2");
+		expect(
+			await startingThumbnails("m", [
+				{ locationId: 5, startedAt: 100 },
+				{ locationId: 9, startedAt: 500 },
+				{ locationId: 5, startedAt: 350 },
+			]),
+		).toEqual(["5-monday", "9-friday", "5-thursday"]);
 	});
 
 	it("keeps a starting view that had no thumbnail rather than borrowing a later one", async () => {
-		seen.splice(0, seen.length, entry(2, 1, 300, "walked"), entry(1, 1, 200, null));
-		const thumbnails = await roundThumbnails("m", 100, [1]);
-		expect(thumbnails.has(1)).toBe(true);
-		expect(thumbnails.get(1)).toBeNull();
+		newestFirst(entry(1, 200, null), entry(1, 300, "walked"));
+		expect(await startingThumbnails("m", [{ locationId: 1, startedAt: 100 }])).toEqual([null]);
+	});
+
+	it("leaves a round with no entry since its start empty", async () => {
+		newestFirst(entry(1, 50, "before"));
+		expect(await startingThumbnails("m", [{ locationId: 1, startedAt: 100 }])).toEqual([null]);
 	});
 });
