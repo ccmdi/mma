@@ -23,6 +23,8 @@ import { toast } from "@/lib/util/toast";
 import { formatDistance } from "@/lib/util/format";
 import { panosAt } from "@/lib/sv/query";
 import { previewVirtualLocation, setActiveLocation } from "@/store/useMapStore";
+import { usePano } from "@/lib/hooks/usePano";
+import { seenRecord } from "@/lib/seen/seen";
 import type { LatLng } from "@/types";
 import {
 	currentRound,
@@ -145,6 +147,27 @@ export function RoundPlayer({
 	const [showTags, setShowTags] = usePluginState<boolean>("localguessr", "showTags", false);
 	const lastResult = game.results[game.results.length - 1] ?? null;
 	const last = isLastRound(game);
+	const pano = usePano();
+	const recordedRound = useRef<number | null>(null);
+
+	useEffect(() => {
+		if (!round || !panoShown || showResult || recordedRound.current === game.index) return;
+		const panoId = pano.panoId();
+		if (!panoId) return;
+		recordedRound.current = game.index;
+		void seenRecord(
+			{
+				locationId: round.id,
+				panoId,
+				lat: round.lat,
+				lng: round.lng,
+				heading: round.heading,
+				pitch: round.pitch,
+				zoom: round.zoom,
+			},
+			pano,
+		);
+	}, [round, panoShown, showResult, game.index, pano]);
 
 	useEffect(() => {
 		setGuess(null);
@@ -428,7 +451,9 @@ export function RoundPlayer({
 							<div className="lg-result-bar__place">
 								<Flag code={lastResult.truth.country_code} />
 								<span>
-									{[lastResult.truth.admin, lastResult.truth.country_code].filter(Boolean).join(", ")}
+									{[lastResult.truth.admin, lastResult.truth.country_code]
+										.filter(Boolean)
+										.join(", ")}
 								</span>
 							</div>
 						)}

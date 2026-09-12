@@ -3,6 +3,7 @@ import type { PanoViewer } from "@/lib/sv/pano";
 import { getSettings } from "@/store/settings";
 import { addLocations, fetchLocations, getMapState, setActiveLocation } from "@/store/useMapStore";
 import { log } from "@/lib/util/log";
+import { wrapDeg } from "@/lib/geo/geo";
 import { createLocation, type LocationPOV } from "@/types";
 import type { SeenFilter, SeenMapInfo } from "@/bindings.gen";
 import type { Nullable, Rename, RequireNonNull } from "@/types/util";
@@ -73,6 +74,51 @@ function flushStaged(viewer: PanoViewer) {
 /** Write the pending seen entry to disk, if any. */
 export function seenFlush(viewer: PanoViewer) {
 	flushStaged(viewer);
+}
+
+const STARTING_THUMBNAIL_WAIT_MS = 3_000;
+const STARTING_THUMBNAIL_POLL_MS = 100;
+const STARTING_VIEW_TOLERANCE_DEG = 0.5;
+
+/** Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives. */
+export async function seenRecord(location: PendingEntryLocation & LocationPOV, viewer: PanoViewer) {
+	const settings = getSettings();
+	if (!settings.enableSeen) return;
+	const { heading, pitch, zoom, ...at } = location;
+	const entry: PendingEntry = {
+		...at,
+		enteredAt: Date.now(),
+		mapId: getMapState().mapId,
+		countryCode: null,
+		address: null,
+	};
+	const thumbnail = settings.enableSeenThumbnails
+		? await startingThumbnail(location, viewer)
+		: null;
+	await writeEntry(entry, { heading, pitch, zoom }, thumbnail);
+}
+
+async function startingThumbnail(
+	location: PendingEntryLocation & LocationPOV,
+	viewer: PanoViewer,
+): Promise<string | null> {
+	const deadline = Date.now() + STARTING_THUMBNAIL_WAIT_MS;
+	while (Date.now() < deadline) {
+		if (!onStartingView(location, viewer)) return null;
+		const thumbnail = captureThumbnail(viewer);
+		if (thumbnail) return thumbnail;
+		await new Promise((resolve) => setTimeout(resolve, STARTING_THUMBNAIL_POLL_MS));
+	}
+	return null;
+}
+
+function onStartingView(location: PendingEntryLocation & LocationPOV, viewer: PanoViewer): boolean {
+	const { heading, pitch } = viewer.captureView();
+	return (
+		viewer.panoId() === location.panoId &&
+		Math.abs(wrapDeg(heading - location.heading, -180)) < STARTING_VIEW_TOLERANCE_DEG &&
+		Math.abs(pitch - location.pitch) < STARTING_VIEW_TOLERANCE_DEG
+	);
 }
 
 const RESOLUTIONS = { low: [160, 90], medium: [320, 180], high: [640, 360] } as const;

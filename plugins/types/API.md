@@ -2318,6 +2318,10 @@ Write the pending seen entry to disk, if any.
 
 Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
 
+### `seenRecord(location: RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> & Nullable<Rename<Pick<Location, "id">, { id: "locationId"; }>> & LocationPOV, viewer: { ...; }): Promise<...>`
+
+Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives.
+
 ### `seenSkipNext(panoId: string): void`
 
 Suppress the next seen-history entry for `panoId`.

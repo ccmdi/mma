@@ -5596,6 +5596,8 @@ declare function seenUpdateGeo(geo: GeoDisplay): void;
 declare function seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, viewer: PanoViewer): void;
 /** Write the pending seen entry to disk, if any. */
 declare function seenFlush(viewer: PanoViewer): void;
+/** Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives. */
+declare function seenRecord(location: PendingEntryLocation & LocationPOV, viewer: PanoViewer): Promise<void>;
 /** Open a seen entry's panorama in the Street View viewer. */
 declare function loadSeenPano(entry: SeenEntry, viewer: PanoViewer): Promise<void>;
 /** Fetch a page of the seen (visited-panorama) history. */
@@ -5617,6 +5619,7 @@ declare const seen_getSeenMaps: typeof getSeenMaps;
 declare const seen_loadSeenPano: typeof loadSeenPano;
 declare const seen_seenFlush: typeof seenFlush;
 declare const seen_seenPanoChanged: typeof seenPanoChanged;
+declare const seen_seenRecord: typeof seenRecord;
 declare const seen_seenSkipNext: typeof seenSkipNext;
 declare const seen_seenUpdateGeo: typeof seenUpdateGeo;
 declare namespace seen {
@@ -5629,6 +5632,7 @@ declare namespace seen {
     seen_loadSeenPano as loadSeenPano,
     seen_seenFlush as seenFlush,
     seen_seenPanoChanged as seenPanoChanged,
+    seen_seenRecord as seenRecord,
     seen_seenSkipNext as seenSkipNext,
     seen_seenUpdateGeo as seenUpdateGeo,
   };
