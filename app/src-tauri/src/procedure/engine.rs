@@ -793,7 +793,9 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let config = configure_json(&decl.fields, force, decl.config.as_deref());
     // No more instances than the run can keep busy: a one-row run must not load a
     // procedure per core.
-    let instances = instance_count(decl).min(batch_ceiling(&batch_mode, total).max(1));
+    let per_instance = rows_per_instance(decl);
+    let instances =
+        instance_count(decl).min(batch_ceiling(&batch_mode, total, per_instance).max(1));
 
     // Created and configured before any batch is queued: with no live consumer the
     // producer would block forever on a full queue, so a provider that cannot start a
@@ -838,13 +840,14 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
             if ctx.aborted() {
                 break;
             }
-            let batches = match page_batches(ctx, decl, chunk, force, &batch_mode, &prog) {
-                Ok(b) => b,
-                Err(e) => {
-                    produced = Err(e);
-                    break;
-                }
-            };
+            let batches =
+                match page_batches(ctx, decl, chunk, force, &batch_mode, per_instance, &prog) {
+                    Ok(b) => b,
+                    Err(e) => {
+                        produced = Err(e);
+                        break;
+                    }
+                };
             if batches.is_empty() {
                 continue;
             }
@@ -891,6 +894,7 @@ fn page_batches(
     page: &[u32],
     force: bool,
     batch_mode: &BatchMode,
+    per_instance: usize,
     prog: &ProviderProgress,
 ) -> AppResult<Vec<WorkBatch>> {
     let has_every = |fields: &[String]| Selector::all(fields.iter().map(|f| Selector::has(f)));
@@ -946,18 +950,18 @@ fn page_batches(
     if rows.is_empty() {
         return Ok(Vec::new());
     }
-    split_batches(batch_mode, rows)
+    split_batches(batch_mode, rows, per_instance)
 }
 
 /// An upper bound on how many batches `total` rows can become, before skipping. Batches
 /// are cut per page, so a chunk larger than a page still yields one batch per page.
-fn batch_ceiling(mode: &BatchMode, total: u32) -> usize {
+fn batch_ceiling(mode: &BatchMode, total: u32, per_instance: usize) -> usize {
     let total = total as usize;
     let pages = total.div_ceil(PAGE_SIZE);
     match mode {
         BatchMode::PerRow => total,
         BatchMode::Chunk { size } => total.min(PAGE_SIZE).div_ceil((*size).max(1) as usize) * pages,
-        BatchMode::DedupeBy { .. } => pages,
+        BatchMode::DedupeBy { .. } => total.min(PAGE_SIZE).div_ceil(per_instance.max(1)) * pages,
     }
 }
 
@@ -1083,13 +1087,20 @@ fn effective_batch_mode(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<BatchMod
     if (ctx.deps.factory)(entry_of(decl)?)?.shape() != ProcShape::MapOnly {
         return Ok(decl.batch.clone());
     }
-    let per_instance = (PAGE_SIZE as u32).div_ceil(instance_count(decl) as u32);
     Ok(BatchMode::Chunk {
-        size: (*size).min(per_instance).max(1),
+        size: (*size).min(rows_per_instance(decl) as u32).max(1),
     })
 }
 
-fn split_batches(mode: &BatchMode, rows: Vec<Location>) -> AppResult<Vec<WorkBatch>> {
+fn rows_per_instance(decl: &ProviderDecl) -> usize {
+    PAGE_SIZE.div_ceil(instance_count(decl))
+}
+
+fn split_batches(
+    mode: &BatchMode,
+    rows: Vec<Location>,
+    per_instance: usize,
+) -> AppResult<Vec<WorkBatch>> {
     match mode {
         BatchMode::PerRow => Ok(rows
             .into_iter()
@@ -1116,7 +1127,6 @@ fn split_batches(mode: &BatchMode, rows: Vec<Location>) -> AppResult<Vec<WorkBat
                     "procedure: dedupeBy key '{key}' unsupported"
                 )));
             }
-            let ids: Vec<u32> = rows.iter().map(|r| r.id).collect();
             let mut order: Vec<String> = Vec::new();
             let mut groups: HashMap<String, Vec<u32>> = HashMap::new();
             let mut reps: Vec<Location> = Vec::new();
@@ -1135,16 +1145,33 @@ fn split_batches(mode: &BatchMode, rows: Vec<Location>) -> AppResult<Vec<WorkBat
                     }
                 }
             }
-            let fanout = reps
+            let mut members: HashMap<u32, Vec<u32>> = reps
                 .iter()
                 .zip(order)
                 .map(|(rep, k)| (rep.id, groups.remove(&k).unwrap()))
                 .collect();
-            Ok(vec![WorkBatch {
-                rows: reps,
-                fanout: Some(fanout),
-                ids,
-            }])
+            let mut reps = reps.into_iter();
+            let mut batches = Vec::new();
+            loop {
+                let rows: Vec<Location> = reps.by_ref().take(per_instance.max(1)).collect();
+                if rows.is_empty() {
+                    break;
+                }
+                let fanout: HashMap<u32, Vec<u32>> = rows
+                    .iter()
+                    .map(|r| (r.id, members.remove(&r.id).unwrap()))
+                    .collect();
+                let ids = rows
+                    .iter()
+                    .flat_map(|r| fanout[&r.id].iter().copied())
+                    .collect();
+                batches.push(WorkBatch {
+                    rows,
+                    fanout: Some(fanout),
+                    ids,
+                });
+            }
+            Ok(batches)
         }
     }
 }

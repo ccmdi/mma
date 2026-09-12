@@ -518,10 +518,46 @@ fn dedupe_by_pano_fans_the_patch_out_to_every_sharer() {
 }
 
 #[test]
+fn dedupe_by_spreads_representatives_over_every_instance() {
+    let mut locs: Vec<Location> = (1..=5_001u32)
+        .map(|i| Location {
+            pano_id: Some(format!("PANO_{i}").into()),
+            ..loc(i, i as f64 * 0.0001, 0.0)
+        })
+        .collect();
+    locs.push(Location {
+        pano_id: Some("PANO_5001".into()),
+        ..loc(5_002, 0.0, 0.0)
+    });
+    let (state, map_id) = setup(&locs);
+    let mut d = decl(
+        "spread",
+        BatchMode::DedupeBy {
+            key: "panoId".into(),
+        },
+    );
+    d.instances = Some(4);
+    let h = Harness::map_only(patch_extra_all(r#"{"country":"JP"}"#));
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
+
+    let mut sizes: Vec<usize> = h.seen.lock().unwrap().iter().map(Vec::len).collect();
+    sizes.sort_unstable();
+    assert_eq!(sizes, vec![1, 2_500, 2_500]);
+    for id in [1, 5_001, 5_002] {
+        assert_eq!(
+            read_extra(&state, &map_id, id).unwrap()["country"],
+            serde_json::json!("JP"),
+            "location {id}"
+        );
+    }
+}
+
+#[test]
 fn dedupe_by_rejects_unsupported_keys() {
     let err = split_batches(
         &BatchMode::DedupeBy { key: "lat".into() },
         vec![loc(1, 0.0, 0.0)],
+        1,
     )
     .err()
     .expect("unsupported key must be rejected");
