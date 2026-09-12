@@ -13,6 +13,7 @@ import { SeenDialog } from "@/components/dialogs/SeenDialog";
 import { CopyToMapDialog } from "@/components/editor/CopyToMapDialog";
 import { QuickCopyToMapDialog } from "@/components/editor/QuickCopyToMapDialog";
 import { loadSeenPano } from "@/lib/seen/seen";
+import { usePano } from "@/lib/hooks/usePano";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { mdiUndo, mdiRedo } from "@mdi/js";
@@ -87,6 +88,7 @@ function UndoRedoControls() {
 
 export function MapMetaBar() {
 	const map = useMapState((s) => s.map);
+	const pano = usePano();
 	const [showExport, setShowExport] = useDialogState("export");
 	const [showHistory, setShowHistory] = useDialogState("history");
 	const [showSeen, setShowSeen] = useDialogState("seen");
@@ -128,7 +130,7 @@ export function MapMetaBar() {
 				<SeenDialog
 					open
 					onOpenChange={setShowSeen}
-					onLoadPano={(entry) => void loadSeenPano(entry)}
+					onLoadPano={(entry) => void loadSeenPano(entry, pano)}
 				/>
 			)}
 			{showCopyToMap && <CopyToMapDialog onClose={() => setShowCopyToMap(false)} />}

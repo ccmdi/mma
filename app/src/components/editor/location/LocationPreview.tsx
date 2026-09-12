@@ -52,7 +52,7 @@ import {
 import { FullscreenMiniLocationPreview } from "./FullscreenMiniLocationPreview";
 import { getViewportLockInfo } from "@/lib/sv/viewportLock";
 import { useEvent } from "@/lib/events";
-import { pano } from "@/lib/sv/pano";
+import { usePano } from "@/lib/hooks/usePano";
 import { PanoDatePicker } from "./PanoDatePicker";
 import { usePanoSession } from "./usePanoSession";
 import { useSeenFeed } from "./useSeenFeed";
@@ -213,6 +213,7 @@ export function LocationPreview() {
 		obs.observe(el);
 		return () => obs.disconnect();
 	}, [isFullscreen, appSettings.showFullscreenTagbar, appSettings.showFullscreenDatePicker]);
+	const pano = usePano();
 	useEvent("viewport-lock:changed");
 	const lockInfo = getViewportLockInfo();
 
@@ -223,7 +224,7 @@ export function LocationPreview() {
 			const target = selectedPanoId ?? defaultPano?.id;
 			if (target) pano.jump(target);
 		},
-		[edit, defaultPano],
+		[pano, edit, defaultPano],
 	);
 
 	const handleSave = useCallback(async () => {
@@ -267,7 +268,7 @@ export function LocationPreview() {
 		} else {
 			void setActiveLocation(null);
 		}
-	}, [location, settled, isReviewMode, reviewSession, pendingTags]);
+	}, [pano, location, settled, isReviewMode, reviewSession, pendingTags]);
 
 	const handleClose = useCallback(() => {
 		if (exitPanoFullscreen()) return;
@@ -295,7 +296,7 @@ export function LocationPreview() {
 		if (!loc || !pano.exists()) return;
 		if ((await pano.show(loc)).status === "superseded") return;
 		edit((d) => setPinned(d, false));
-	}, [edit]);
+	}, [pano, edit]);
 
 	const handleFullscreen = useCallback(() => {
 		if (location) togglePanoFullscreen();

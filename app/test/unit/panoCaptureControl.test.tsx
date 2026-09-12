@@ -29,9 +29,6 @@ vi.mock("@/lib/sv/panoCapture", () => ({
 	renderPanoView: mocks.render,
 	canvasToBlob: mocks.toBlob,
 }));
-vi.mock("@/lib/sv/pano", () => ({
-	pano: { snapshot: mocks.snapshot, jumpAhead: async () => false },
-}));
 vi.mock("@/lib/util/util", () => ({
 	downloadBlob: mocks.download,
 	copyImageToClipboard: mocks.copyImage,
@@ -45,7 +42,10 @@ vi.mock("@/store/settings", () => ({
 }));
 vi.mock("@/lib/util/hotkeys", () => ({ useBinding: () => "f" }));
 vi.mock("@/lib/hooks/useHotkey", () => ({ useHotkeyRef: () => ({ current: null }) }));
-vi.mock("@/lib/hooks/usePanoEvent", () => ({ usePanoEvent: vi.fn() }));
+vi.mock("@/lib/hooks/usePano", () => {
+	const viewer = { snapshot: mocks.snapshot, jumpAhead: async () => false };
+	return { usePano: () => viewer, usePanoEvent: vi.fn() };
+});
 vi.mock("@/lib/sv/opensv", () => ({ google: { maps: {} } }));
 vi.mock("@/components/primitives/Tooltip", () => ({
 	Tooltip: ({ children }: { children: React.ReactNode }) => children,

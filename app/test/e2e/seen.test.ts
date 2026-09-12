@@ -228,21 +228,24 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 		// Create a seen entry and load it
 		await withApi(
 			async (api, pano, lat, lng, locId) => {
-				await api.loadSeenPano({
-					id: 999,
-					panoId: pano,
-					lat,
-					lng,
-					heading: 90,
-					pitch: 0,
-					zoom: 0,
-					enteredAt: Date.now(),
-					mapId: null,
-					locationId: locId,
-					countryCode: null,
-					address: null,
-					thumbnail: null,
-				});
+				await api.loadSeenPano(
+					{
+						id: 999,
+						panoId: pano,
+						lat,
+						lng,
+						heading: 90,
+						pitch: 0,
+						zoom: 0,
+						enteredAt: Date.now(),
+						mapId: null,
+						locationId: locId,
+						countryCode: null,
+						address: null,
+						thumbnail: null,
+					},
+					api.pano,
+				);
 			},
 			OFFICIAL_PANO,
 			OFFICIAL_COORDS.lat,
@@ -264,21 +267,24 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 		// Use a numeric ID that doesn't exist (seen table location_id for a nonexistent location)
 		await withApi(
 			async (api, pano, lat, lng) => {
-				return api.loadSeenPano({
-					id: 998,
-					panoId: pano,
-					lat,
-					lng,
-					heading: 45,
-					pitch: 5,
-					zoom: 1,
-					enteredAt: Date.now(),
-					mapId: null,
-					locationId: 999999,
-					countryCode: "RU",
-					address: null,
-					thumbnail: null,
-				});
+				return api.loadSeenPano(
+					{
+						id: 998,
+						panoId: pano,
+						lat,
+						lng,
+						heading: 45,
+						pitch: 5,
+						zoom: 1,
+						enteredAt: Date.now(),
+						mapId: null,
+						locationId: 999999,
+						countryCode: "RU",
+						address: null,
+						thumbnail: null,
+					},
+					api.pano,
+				);
 			},
 			OFFICIAL_PANO,
 			OFFICIAL_COORDS.lat,

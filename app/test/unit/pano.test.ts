@@ -335,3 +335,34 @@ describe("mounting", () => {
 		expect(game.childElementCount).toBe(1);
 	});
 });
+
+describe("independent viewers", () => {
+	it("moves only the viewer it was asked to move", async () => {
+		vi.resetModules();
+		const { createPano } = await import("@/lib/sv/pano");
+		const editor = createPano();
+		const game = createPano();
+		editor.jump("EDITOR");
+		game.jump("GAME");
+		expect(editor.panoId()).toBe("EDITOR");
+		expect(game.panoId()).toBe("GAME");
+		expect(sv.instances).toHaveLength(2);
+	});
+
+	it("leaves its container and listeners behind when disposed", async () => {
+		vi.resetModules();
+		const { createPano } = await import("@/lib/sv/pano");
+		const viewer = createPano();
+		const host = document.createElement("div");
+		const heard = vi.fn();
+		viewer.mount(host);
+		viewer.on("pov_changed", heard);
+		viewer.jump("A");
+		const created = live();
+		viewer.dispose();
+		created.emit("pov_changed");
+		expect(host.childElementCount).toBe(0);
+		expect(viewer.exists()).toBe(false);
+		expect(heard).not.toHaveBeenCalled();
+	});
+});

@@ -5401,6 +5401,181 @@ declare namespace procedures {
   export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderPart as ProviderPart, procedures_ProviderRun as ProviderRun, procedures_RunOpts as RunOpts };
 }
 
+export type PanoDestination = string | google.maps.LatLngLiteral;
+export type PanoFrame = CameraFrame & {
+    zoom?: number;
+};
+export type ShowResult = {
+    status: "shown";
+    pano: Pano | null;
+} | {
+    status: "superseded";
+};
+export type PanoEvent = "pov_changed" | "zoom_changed" | "links_changed" | "status_changed" | "pano_changed";
+export type PanoViewer = ReturnType<typeof createPano>;
+/** Create an independent pano viewer with its own camera, requests, listeners and mounts. @unstable */
+declare function createPano(): {
+    /** Resolve and show a location's pano; "superseded" when a newer request overtook it. */
+    show: (loc: Location) => Promise<ShowResult>;
+    /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. */
+    jump: (to: PanoDestination, frame?: PanoFrame) => void;
+    /** Step to the linked pano nearest the camera heading, or its reverse. */
+    step: (direction: "forward" | "backward") => boolean;
+    /** Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees. */
+    jumpAhead: (headingOffset: number) => Promise<boolean>;
+    /** Stage a location's pano while nothing newer is pending, so a later show is instant. */
+    preload: (loc: Location) => Promise<void>;
+    /** Rebuild a stuck viewer in place, keeping its pano and camera. */
+    reload: (fallback: google.maps.LatLngLiteral) => void;
+    /** Whether the viewer has been created. */
+    exists: () => boolean;
+    /** Whether the viewer has finished loading its current pano. */
+    isLoaded: () => boolean;
+    /** The current pano id, or null before one loads. */
+    panoId: () => string | null;
+    /** The current pano's position, or null before one loads. */
+    position: () => google.maps.LatLngLiteral | null;
+    /** The camera heading and pitch. */
+    pov: () => CameraFrame;
+    /** The viewer's display zoom. */
+    zoom: () => number;
+    /** The current pano's navigable links. */
+    links: () => google.maps.StreetViewLink[];
+    /** The camera in the stored zoom domain, zeroed without a viewer. */
+    captureView: () => LocationPOV;
+    /** The viewer read back into Location fields, or null until it has a position. */
+    capture: () => PanoCapture | null;
+    /** Freeze the live camera for an offscreen render; throws until a pano is ready. */
+    snapshot: () => PanoView;
+    /** The live WebGL scene canvas, or null before the first render. */
+    canvas: () => HTMLCanvasElement | null;
+    /** Cover-crop the live frame into an exact image, or null until real imagery renders. */
+    captureImage: (width: number, height: number) => HTMLCanvasElement | null;
+    /** Point the camera now. */
+    look: (frame: PanoFrame) => void;
+    /** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. */
+    reserveLook: () => (frame: PanoFrame) => boolean;
+    /** Nudge heading and pitch by a delta, keeping pitch in range. */
+    nudge: (dHeading: number, dPitch: number) => void;
+    /** Animate the camera to a frame, replacing any turn in progress. */
+    turnTo: (target: CameraFrame) => void;
+    /** Face north level, or look straight down zoomed out when already facing north. */
+    pointNorth: () => void;
+    /** Face the linked road nearest the camera heading. */
+    faceRoad: () => void;
+    /** Turn to face the opposite direction. */
+    turnAround: () => void;
+    /** Turn to the next linked road clockwise from the camera. */
+    turnToNextLink: () => void;
+    /** Step the zoom in. */
+    zoomIn: () => void;
+    /** Step the zoom out. */
+    zoomOut: () => void;
+    /** Zoom fully out. */
+    resetZoom: () => void;
+    /** Listen to a viewer event, across viewer rebuilds; returns an unsubscribe. */
+    on: (event: PanoEvent, fn: () => void) => () => void;
+    /** Apply display options to the viewer. */
+    configure: (options: google.maps.StreetViewPanoramaOptions) => void;
+    /** Hide the viewer. */
+    hide: () => void;
+    /** Parent the viewer into a container; the newest mount wins until released. */
+    mount: (target: HTMLElement) => () => void;
+    /** Draw the crosshair over the viewer; returns a remove. */
+    showCrosshair: () => () => void;
+    /** Show a toast anchored over the viewer. */
+    toast: (message: string, durationMs: number) => void;
+    /** Release the viewer, its container and every listener; the instance is unusable afterwards. */
+    dispose: () => void;
+};
+/** The app's default pano viewer. @unstable */
+declare const pano: {
+    /** Resolve and show a location's pano; "superseded" when a newer request overtook it. @unstable */
+    show: (loc: Location) => Promise<ShowResult>;
+    /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. @unstable */
+    jump: (to: PanoDestination, frame?: PanoFrame) => void;
+    /** Step to the linked pano nearest the camera heading, or its reverse. @unstable */
+    step: (direction: "forward" | "backward") => boolean;
+    /** Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees. @unstable */
+    jumpAhead: (headingOffset: number) => Promise<boolean>;
+    /** Stage a location's pano while nothing newer is pending, so a later show is instant. @unstable */
+    preload: (loc: Location) => Promise<void>;
+    /** Rebuild a stuck viewer in place, keeping its pano and camera. @unstable */
+    reload: (fallback: google.maps.LatLngLiteral) => void;
+    /** Whether the viewer has been created. @unstable */
+    exists: () => boolean;
+    /** Whether the viewer has finished loading its current pano. @unstable */
+    isLoaded: () => boolean;
+    /** The current pano id, or null before one loads. @unstable */
+    panoId: () => string | null;
+    /** The current pano's position, or null before one loads. @unstable */
+    position: () => google.maps.LatLngLiteral | null;
+    /** The camera heading and pitch. @unstable */
+    pov: () => CameraFrame;
+    /** The viewer's display zoom. @unstable */
+    zoom: () => number;
+    /** The current pano's navigable links. @unstable */
+    links: () => google.maps.StreetViewLink[];
+    /** The camera in the stored zoom domain, zeroed without a viewer. @unstable */
+    captureView: () => LocationPOV;
+    /** The viewer read back into Location fields, or null until it has a position. @unstable */
+    capture: () => PanoCapture | null;
+    /** Freeze the live camera for an offscreen render; throws until a pano is ready. @unstable */
+    snapshot: () => PanoView;
+    /** The live WebGL scene canvas, or null before the first render. @unstable */
+    canvas: () => HTMLCanvasElement | null;
+    /** Cover-crop the live frame into an exact image, or null until real imagery renders. @unstable */
+    captureImage: (width: number, height: number) => HTMLCanvasElement | null;
+    /** Point the camera now. @unstable */
+    look: (frame: PanoFrame) => void;
+    /** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. @unstable */
+    reserveLook: () => (frame: PanoFrame) => boolean;
+    /** Nudge heading and pitch by a delta, keeping pitch in range. @unstable */
+    nudge: (dHeading: number, dPitch: number) => void;
+    /** Animate the camera to a frame, replacing any turn in progress. @unstable */
+    turnTo: (target: CameraFrame) => void;
+    /** Face north level, or look straight down zoomed out when already facing north. @unstable */
+    pointNorth: () => void;
+    /** Face the linked road nearest the camera heading. @unstable */
+    faceRoad: () => void;
+    /** Turn to face the opposite direction. @unstable */
+    turnAround: () => void;
+    /** Turn to the next linked road clockwise from the camera. @unstable */
+    turnToNextLink: () => void;
+    /** Step the zoom in. @unstable */
+    zoomIn: () => void;
+    /** Step the zoom out. @unstable */
+    zoomOut: () => void;
+    /** Zoom fully out. @unstable */
+    resetZoom: () => void;
+    /** Listen to a viewer event, across viewer rebuilds; returns an unsubscribe. @unstable */
+    on: (event: PanoEvent, fn: () => void) => () => void;
+    /** Apply display options to the viewer. @unstable */
+    configure: (options: google.maps.StreetViewPanoramaOptions) => void;
+    /** Hide the viewer. @unstable */
+    hide: () => void;
+    /** Parent the viewer into a container; the newest mount wins until released. @unstable */
+    mount: (target: HTMLElement) => () => void;
+    /** Draw the crosshair over the viewer; returns a remove. @unstable */
+    showCrosshair: () => () => void;
+    /** Show a toast anchored over the viewer. @unstable */
+    toast: (message: string, durationMs: number) => void;
+    /** Release the viewer, its container and every listener; the instance is unusable afterwards. @unstable */
+    dispose: () => void;
+};
+
+export type panoSurface_PanoDestination = PanoDestination;
+export type panoSurface_PanoEvent = PanoEvent;
+export type panoSurface_PanoFrame = PanoFrame;
+export type panoSurface_PanoViewer = PanoViewer;
+export type panoSurface_ShowResult = ShowResult;
+declare const panoSurface_createPano: typeof createPano;
+declare const panoSurface_pano: typeof pano;
+declare namespace panoSurface {
+  export { panoSurface_createPano as createPano, panoSurface_pano as pano };
+  export type { panoSurface_PanoDestination as PanoDestination, panoSurface_PanoEvent as PanoEvent, panoSurface_PanoFrame as PanoFrame, panoSurface_PanoViewer as PanoViewer, panoSurface_ShowResult as ShowResult };
+}
+
 export interface GeoDisplay {
     address: string;
     countryCode: string | null;
@@ -5414,9 +5589,11 @@ declare function seenSkipNext(panoId: string): void;
 /** Update the pending seen entry's geocode info (country, address). */
 declare function seenUpdateGeo(geo: GeoDisplay): void;
 /** Record a panorama change for the seen history. Flushes the previous entry and stages the new one. */
-declare function seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, getPov: () => LocationPOV): void;
+declare function seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, viewer: PanoViewer): void;
 /** Write the pending seen entry to disk, if any. */
-declare function seenFlush(getPov: () => LocationPOV): void;
+declare function seenFlush(viewer: PanoViewer): void;
+/** Open a seen entry's panorama in the Street View viewer. */
+declare function loadSeenPano(entry: SeenEntry, viewer: PanoViewer): Promise<void>;
 /** Fetch a page of the seen (visited-panorama) history. */
 declare function getSeenEntries(limit?: number, offset?: number, filter?: SeenFilter, thumbnails?: boolean): Promise<SeenEntry[]>;
 /** Number of seen entries matching the filter (all when omitted). */
@@ -5433,6 +5610,7 @@ declare const seen_getSeenCount: typeof getSeenCount;
 declare const seen_getSeenCountries: typeof getSeenCountries;
 declare const seen_getSeenEntries: typeof getSeenEntries;
 declare const seen_getSeenMaps: typeof getSeenMaps;
+declare const seen_loadSeenPano: typeof loadSeenPano;
 declare const seen_seenFlush: typeof seenFlush;
 declare const seen_seenPanoChanged: typeof seenPanoChanged;
 declare const seen_seenSkipNext: typeof seenSkipNext;
@@ -5444,49 +5622,11 @@ declare namespace seen {
     seen_getSeenCountries as getSeenCountries,
     seen_getSeenEntries as getSeenEntries,
     seen_getSeenMaps as getSeenMaps,
+    seen_loadSeenPano as loadSeenPano,
     seen_seenFlush as seenFlush,
     seen_seenPanoChanged as seenPanoChanged,
     seen_seenSkipNext as seenSkipNext,
     seen_seenUpdateGeo as seenUpdateGeo,
-  };
-}
-
-/** The app-wide Street View panorama instance, null until first created. */
-declare let singletonPano: google.maps.StreetViewPanorama | null;
-/** The DOM container for the singleton Street View panorama. */
-declare const singletonDiv: HTMLDivElement;
-/** Return the singleton Street View panorama, creating it on first call. @unstable */
-declare function getPanorama(): google.maps.StreetViewPanorama | null;
-/** The live viewer's camera in the stored zoom domain. Zeroed if there is no viewer. @unstable */
-declare function capturePov(): LocationPOV;
-/** Read the live viewer back into Location fields, the inverse of {@link applyResolved}.
- *  Null until the viewer has a position. @unstable */
-declare function capturePano(): PanoCapture | null;
-/** Hide and release the singleton panorama, emptying its container. @unstable */
-declare function clearSingletonPano(): void;
-/** Point the viewer at a resolved panorama for `loc`, setting its position, POV, and zoom. @unstable */
-declare function applyResolved(sv: google.maps.StreetViewPanorama, resolved: Pano | null, loc: Location): void;
-/** Open a seen entry's panorama in the Street View viewer. @unstable */
-declare function loadSeenPano(entry: SeenEntry): Promise<void>;
-
-declare const panoSingleton_applyResolved: typeof applyResolved;
-declare const panoSingleton_capturePano: typeof capturePano;
-declare const panoSingleton_capturePov: typeof capturePov;
-declare const panoSingleton_clearSingletonPano: typeof clearSingletonPano;
-declare const panoSingleton_getPanorama: typeof getPanorama;
-declare const panoSingleton_loadSeenPano: typeof loadSeenPano;
-declare const panoSingleton_singletonDiv: typeof singletonDiv;
-declare const panoSingleton_singletonPano: typeof singletonPano;
-declare namespace panoSingleton {
-  export {
-    panoSingleton_applyResolved as applyResolved,
-    panoSingleton_capturePano as capturePano,
-    panoSingleton_capturePov as capturePov,
-    panoSingleton_clearSingletonPano as clearSingletonPano,
-    panoSingleton_getPanorama as getPanorama,
-    panoSingleton_loadSeenPano as loadSeenPano,
-    panoSingleton_singletonDiv as singletonDiv,
-    panoSingleton_singletonPano as singletonPano,
   };
 }
 
@@ -6161,7 +6301,7 @@ export type FieldDefRegistryApi = typeof fieldDefRegistry;
 export type ProceduresApi = typeof procedures;
 export type SeenApi = typeof seen;
 /** The shared panorama viewer's internals. @unstable */
-export type PanoSingletonApi = typeof panoSingleton;
+export type PanoApi = typeof panoSurface;
 export type EnrichApi = typeof enrich$1;
 export type PinPanoApi = typeof pinPano;
 export type ValidateApi = typeof validate;
@@ -6178,7 +6318,7 @@ export type LegacyApi = typeof legacy;
 export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 export type UtilApi = typeof util;
-interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoSingletonApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 
 declare global {

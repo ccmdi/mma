@@ -1,7 +1,7 @@
 import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import { pano } from "@/lib/sv/pano";
+import { usePano } from "@/lib/hooks/usePano";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import type { PanoView as PanoRef } from "@/types";
 import type { CameraFrame } from "@/bindings.gen";
@@ -55,6 +55,7 @@ export function PanoView({
 	onShown?: (shown: boolean) => void;
 	ref?: React.Ref<PanoHandle>;
 }) {
+	const pano = usePano();
 	const hostRef = useRef<HTMLDivElement>(null);
 	const [error, setError] = useState<string | null>(null);
 	const spawnRef = useRef(round);
@@ -86,7 +87,7 @@ export function PanoView({
 				return true;
 			},
 		}),
-		[],
+		[pano],
 	);
 
 	// Borrow the pano for the game, then hand it back with its WebGL context intact.
@@ -139,11 +140,11 @@ export function PanoView({
 		return () => {
 			cancelled = true;
 		};
-	}, [preload]);
+	}, [pano, preload]);
 
 	useEffect(() => {
 		pano.configure(movementOptions(movementMode));
-	}, [movementMode]);
+	}, [pano, movementMode]);
 
 	return (
 		<div className="lg-pano">

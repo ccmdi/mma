@@ -8,7 +8,7 @@ const viewer = vi.hoisted(() => ({
 	nudge: vi.fn(),
 	step: vi.fn(() => true),
 }));
-vi.mock("@/lib/sv/pano", () => ({ pano: viewer }));
+vi.mock("@/lib/hooks/usePano", () => ({ usePano: () => viewer }));
 
 import { usePanoNavigation } from "@/components/editor/location/usePanoNavigation";
 import { getSettings, type MovementMode } from "@/store/settings";

@@ -2,7 +2,7 @@ import { useEffect, useEffectEvent, useMemo } from "react";
 import { isVirtualLocation } from "@/types";
 import { useMapState } from "@/store/useMapStore";
 import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seen";
-import { pano } from "@/lib/sv/pano";
+import { usePano } from "@/lib/hooks/usePano";
 import { usePanoViewer } from "./PanoViewerContext";
 
 /** Sole feeder of the seen ledger: stages an entry for each pano the viewer walks to,
@@ -11,6 +11,7 @@ import { usePanoViewer } from "./PanoViewerContext";
 export function useSeenFeed() {
 	const location = useMapState((s) => s.activeLocation);
 	const { draft, geo } = usePanoViewer();
+	const pano = usePano();
 	const storedCountry =
 		typeof location?.extra?.countryCode === "string" ? location.extra.countryCode : null;
 	const effectiveGeo = useMemo(
@@ -30,9 +31,9 @@ export function useSeenFeed() {
 				lng: draft.lng,
 			},
 			effectiveGeo,
-			pano.captureView,
+			pano,
 		);
-	}, [draft?.panoId]);
+	}, [pano, draft?.panoId]);
 
 	useEffect(() => {
 		if (effectiveGeo) seenUpdateGeo(effectiveGeo);
@@ -41,7 +42,7 @@ export function useSeenFeed() {
 	useEffect(() => {
 		if (!location) return;
 		return () => {
-			if (pano.exists()) seenFlush(pano.captureView);
+			if (pano.exists()) seenFlush(pano);
 		};
-	}, [location?.id]);
+	}, [pano, location?.id]);
 }

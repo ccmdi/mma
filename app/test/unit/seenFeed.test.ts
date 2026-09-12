@@ -13,9 +13,10 @@ vi.mock("@/lib/seen/seen", () => ({
 	seenUpdateGeo: vi.fn(),
 	seenFlush: vi.fn(),
 }));
-vi.mock("@/lib/sv/pano", () => ({
-	pano: { exists: () => true, captureView: () => ({ heading: 0, pitch: 0, zoom: 0 }) },
-}));
+vi.mock("@/lib/hooks/usePano", () => {
+	const viewer = { exists: () => true, captureView: () => ({ heading: 0, pitch: 0, zoom: 0 }) };
+	return { usePano: () => viewer };
+});
 vi.mock("@/store/useMapStore", () => ({
 	useMapState: (sel: (s: { activeLocation: Location | null }) => unknown) =>
 		sel({ activeLocation: scene.location }),
@@ -65,7 +66,7 @@ describe("useSeenFeed", () => {
 		expect(seenPanoChanged).toHaveBeenLastCalledWith(
 			{ locationId: 7, panoId: "B", lat: 3, lng: 4 },
 			null,
-			expect.any(Function),
+			expect.anything(),
 		);
 	});
 
@@ -86,7 +87,7 @@ describe("useSeenFeed", () => {
 		expect(seenPanoChanged).toHaveBeenLastCalledWith(
 			expect.anything(),
 			{ address: "Somewhere", countryCode: "JP" },
-			expect.any(Function),
+			expect.anything(),
 		);
 	});
 
@@ -95,7 +96,7 @@ describe("useSeenFeed", () => {
 		expect(seenPanoChanged).toHaveBeenLastCalledWith(
 			expect.objectContaining({ locationId: null }),
 			null,
-			expect.any(Function),
+			expect.anything(),
 		);
 	});
 

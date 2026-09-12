@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, type RefObject } from "react";
 import { useSettings, getSettings, panoDisplayOptions } from "@/store/settings";
-import { usePanoEvent } from "@/lib/hooks/usePanoEvent";
-import { pano } from "@/lib/sv/pano";
+import { usePano, usePanoEvent } from "@/lib/hooks/usePano";
 import { sendHideCar } from "./PanoControls";
 
 /** Keeps the pano presentable: display options follow settings, the car and
@@ -12,10 +11,12 @@ export function usePanoDisplay(
 	chipMode: boolean,
 ) {
 	const appSettings = useSettings();
+	const pano = usePano();
 
 	useEffect(() => {
 		pano.configure(panoDisplayOptions(getSettings()));
 	}, [
+		pano,
 		appSettings.showLinksControl,
 		appSettings.clickToGo,
 		appSettings.showRoadLabels,
@@ -29,7 +30,7 @@ export function usePanoDisplay(
 	useEffect(() => {
 		if (!appSettings.showCrosshair) return;
 		return pano.showCrosshair();
-	}, [appSettings.showCrosshair]);
+	}, [pano, appSettings.showCrosshair]);
 
 	// Mount/unmount: move the persistent div in/out of the container.
 	// useLayoutEffect so appendChild runs before paint.
@@ -37,5 +38,5 @@ export function usePanoDisplay(
 		const container = panoContainerRef.current;
 		if (!container) return;
 		return pano.mount(container);
-	}, [chipMode]);
+	}, [pano, chipMode]);
 }

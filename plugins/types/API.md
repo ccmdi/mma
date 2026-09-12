@@ -25,7 +25,7 @@ change in any release.
 - [FieldDefRegistry](#fielddefregistry)
 - [Procedures](#procedures)
 - [Seen](#seen)
-- [PanoSingleton](#panosingleton)
+- [Pano](#pano)
 - [Enrich](#enrich)
 - [PinPano](#pinpano)
 - [Validate](#validate)
@@ -2306,11 +2306,15 @@ Fetch a page of the seen (visited-panorama) history.
 
 Maps that have seen-history entries.
 
-### `seenFlush(getPov: () => LocationPOV): void`
+### `loadSeenPano(entry: SeenEntry, viewer: { show: (loc: Location) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): Promise<...>`
+
+Open a seen entry's panorama in the Street View viewer.
+
+### `seenFlush(viewer: { show: (loc: Location) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): void`
 
 Write the pending seen entry to disk, if any.
 
-### `seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, getPov: () => LocationPOV): void`
+### `seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, viewer: { show: (loc: Location) => Promise<ShowResult>; ... 34 more ...; dispose: () => void; }): void`
 
 Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
 
@@ -2322,42 +2326,161 @@ Suppress the next seen-history entry for `panoId`.
 
 Update the pending seen entry's geocode info (country, address).
 
-## PanoSingleton
+## Pano
 
 The shared panorama viewer's internals.
 
-### `applyResolved(sv: StreetViewPanorama, resolved: Pano | null, loc: Location): void` *(unstable)*
+### `createPano(): { show: (loc: Location) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }` *(unstable)*
 
-Point the viewer at a resolved panorama for `loc`, setting its position, POV, and zoom.
+Create an independent pano viewer with its own camera, requests, listeners and mounts.
 
-### `capturePano(): PanoCapture | null` *(unstable)*
+### `pano`
 
-Read the live viewer back into Location fields, the inverse of {@link applyResolved}.
-Null until the viewer has a position.
+The app's default pano viewer.
 
-### `capturePov(): LocationPOV` *(unstable)*
+#### `pano.canvas(): HTMLCanvasElement | null` *(unstable)*
 
-The live viewer's camera in the stored zoom domain. Zeroed if there is no viewer.
+The live WebGL scene canvas, or null before the first render.
 
-### `clearSingletonPano(): void` *(unstable)*
+#### `pano.capture(): PanoCapture | null` *(unstable)*
 
-Hide and release the singleton panorama, emptying its container.
+The viewer read back into Location fields, or null until it has a position.
 
-### `getPanorama(): StreetViewPanorama | null` *(unstable)*
+#### `pano.captureImage(width: number, height: number): HTMLCanvasElement | null` *(unstable)*
 
-Return the singleton Street View panorama, creating it on first call.
+Cover-crop the live frame into an exact image, or null until real imagery renders.
 
-### `loadSeenPano(entry: SeenEntry): Promise<void>` *(unstable)*
+#### `pano.captureView(): LocationPOV` *(unstable)*
 
-Open a seen entry's panorama in the Street View viewer.
+The camera in the stored zoom domain, zeroed without a viewer.
 
-### `singletonDiv: HTMLDivElement`
+#### `pano.configure(options: StreetViewPanoramaOptions): void` *(unstable)*
 
-The **`HTMLDivElement`** interface provides special properties (beyond the regular HTMLElement interface it also has available to it by inheritance) for manipulating <div> elements.
+Apply display options to the viewer.
 
-[MDN Reference](https://developer.mozilla.org/docs/Web/API/HTMLDivElement)
+#### `pano.dispose(): void` *(unstable)*
 
-### `singletonPano: StreetViewPanorama | null`
+Release the viewer, its container and every listener; the instance is unusable afterwards.
+
+#### `pano.exists(): boolean` *(unstable)*
+
+Whether the viewer has been created.
+
+#### `pano.faceRoad(): void` *(unstable)*
+
+Face the linked road nearest the camera heading.
+
+#### `pano.hide(): void` *(unstable)*
+
+Hide the viewer.
+
+#### `pano.isLoaded(): boolean` *(unstable)*
+
+Whether the viewer has finished loading its current pano.
+
+#### `pano.jump(to: PanoDestination, frame?: PanoFrame | undefined): void` *(unstable)*
+
+Move to a pano id or position now, optionally setting the camera, overtaking pending requests.
+
+#### `pano.jumpAhead(headingOffset: number): Promise<boolean>` *(unstable)*
+
+Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees.
+
+#### `pano.links(): StreetViewLink[]` *(unstable)*
+
+The current pano's navigable links.
+
+#### `pano.look(frame: PanoFrame): void` *(unstable)*
+
+Point the camera now.
+
+#### `pano.mount(target: HTMLElement): () => void` *(unstable)*
+
+Parent the viewer into a container; the newest mount wins until released.
+
+#### `pano.nudge(dHeading: number, dPitch: number): void` *(unstable)*
+
+Nudge heading and pitch by a delta, keeping pitch in range.
+
+#### `pano.on(event: PanoEvent, fn: () => void): () => void` *(unstable)*
+
+Listen to a viewer event, across viewer rebuilds; returns an unsubscribe.
+
+#### `pano.panoId(): string | null` *(unstable)*
+
+The current pano id, or null before one loads.
+
+#### `pano.pointNorth(): void` *(unstable)*
+
+Face north level, or look straight down zoomed out when already facing north.
+
+#### `pano.position(): LatLngLiteral | null` *(unstable)*
+
+The current pano's position, or null before one loads.
+
+#### `pano.pov(): CameraFrame` *(unstable)*
+
+The camera heading and pitch.
+
+#### `pano.preload(loc: Location): Promise<void>` *(unstable)*
+
+Stage a location's pano while nothing newer is pending, so a later show is instant.
+
+#### `pano.reload(fallback: LatLngLiteral): void` *(unstable)*
+
+Rebuild a stuck viewer in place, keeping its pano and camera.
+
+#### `pano.reserveLook(): (frame: PanoFrame) => boolean` *(unstable)*
+
+Reserve a camera move across an async wait; it lands only if nothing moved the pano since.
+
+#### `pano.resetZoom(): void` *(unstable)*
+
+Zoom fully out.
+
+#### `pano.show(loc: Location): Promise<ShowResult>` *(unstable)*
+
+Resolve and show a location's pano; "superseded" when a newer request overtook it.
+
+#### `pano.showCrosshair(): () => void` *(unstable)*
+
+Draw the crosshair over the viewer; returns a remove.
+
+#### `pano.snapshot(): PanoView` *(unstable)*
+
+Freeze the live camera for an offscreen render; throws until a pano is ready.
+
+#### `pano.step(direction: "forward" | "backward"): boolean` *(unstable)*
+
+Step to the linked pano nearest the camera heading, or its reverse.
+
+#### `pano.toast(message: string, durationMs: number): void` *(unstable)*
+
+Show a toast anchored over the viewer.
+
+#### `pano.turnAround(): void` *(unstable)*
+
+Turn to face the opposite direction.
+
+#### `pano.turnTo(target: CameraFrame): void` *(unstable)*
+
+Animate the camera to a frame, replacing any turn in progress.
+
+#### `pano.turnToNextLink(): void` *(unstable)*
+
+Turn to the next linked road clockwise from the camera.
+
+#### `pano.zoom(): number` *(unstable)*
+
+The viewer's display zoom.
+
+#### `pano.zoomIn(): void` *(unstable)*
+
+Step the zoom in.
+
+#### `pano.zoomOut(): void` *(unstable)*
+
+Step the zoom out.
 
 ## Enrich
 

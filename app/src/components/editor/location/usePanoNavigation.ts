@@ -3,12 +3,13 @@ import { FRAME_MS } from "@/lib/sv/constants";
 import { parseHotkey, matchesKey, isEditableElement } from "@/lib/hooks/useHotkey";
 import { getBinding } from "@/lib/util/hotkeys";
 
-import { pano } from "@/lib/sv/pano";
+import { usePano } from "@/lib/hooks/usePano";
 import type { AppSettings } from "@/store/settings";
 
 export function usePanoNavigation(appSettings: AppSettings) {
 	const navRef = useRef({ held: new Set<string>(), rafId: 0, alt: false, lastTime: 0 });
 	const getAppSettings = useEffectEvent(() => appSettings);
+	const pano = usePano();
 
 	useEffect(() => {
 		const nav = navRef.current;
@@ -103,5 +104,5 @@ export function usePanoNavigation(appSettings: AppSettings) {
 			if (nav.rafId) cancelAnimationFrame(nav.rafId);
 			nav.held.clear();
 		};
-	}, []);
+	}, [pano]);
 }

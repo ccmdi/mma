@@ -1,5 +1,5 @@
 import { cmd } from "@/lib/commands";
-import { pano } from "@/lib/sv/pano";
+import type { PanoViewer } from "@/lib/sv/pano";
 import { getSettings } from "@/store/settings";
 import { addLocations, fetchLocations, getMapState, setActiveLocation } from "@/store/useMapStore";
 import { log } from "@/lib/util/log";
@@ -38,7 +38,7 @@ export function seenUpdateGeo(geo: GeoDisplay) {
 export function seenPanoChanged(
 	location: PendingEntryLocation,
 	geo: GeoDisplay | null,
-	getPov: () => LocationPOV,
+	viewer: PanoViewer,
 ) {
 	const settings = getSettings();
 	if (!settings.enableSeen) return;
@@ -49,7 +49,7 @@ export function seenPanoChanged(
 	}
 
 	if (staged) {
-		flushStaged(getPov);
+		flushStaged(viewer);
 	}
 
 	staged = {
@@ -61,26 +61,26 @@ export function seenPanoChanged(
 	};
 }
 
-function flushStaged(getPov: () => LocationPOV) {
+function flushStaged(viewer: PanoViewer) {
 	if (!staged) return;
 	const entry = staged;
 	staged = null;
 
-	const thumbnail = getSettings().enableSeenThumbnails ? captureThumbnail() : null;
-	void writeEntry(entry, getPov(), thumbnail);
+	const thumbnail = getSettings().enableSeenThumbnails ? captureThumbnail(viewer) : null;
+	void writeEntry(entry, viewer.captureView(), thumbnail);
 }
 
 /** Write the pending seen entry to disk, if any. */
-export function seenFlush(getPov: () => LocationPOV) {
-	flushStaged(getPov);
+export function seenFlush(viewer: PanoViewer) {
+	flushStaged(viewer);
 }
 
 const RESOLUTIONS = { low: [160, 90], medium: [320, 180], high: [640, 360] } as const;
 
-function captureThumbnail(): string | null {
+function captureThumbnail(viewer: PanoViewer): string | null {
 	try {
 		const [w, h] = RESOLUTIONS[getSettings().seenResolution] ?? RESOLUTIONS.medium;
-		const dataUrl = pano.captureImage(w, h)?.toDataURL("image/jpeg", 0.6);
+		const dataUrl = viewer.captureImage(w, h)?.toDataURL("image/jpeg", 0.6);
 		const base64 = dataUrl?.split(",")[1];
 		return base64 && base64.length >= 100 ? base64 : null;
 	} catch {
@@ -101,7 +101,7 @@ async function writeEntry(entry: PendingEntry, pov: LocationPOV, thumbnail: stri
 }
 
 /** Open a seen entry's panorama in the Street View viewer. */
-export async function loadSeenPano(entry: SeenEntry) {
+export async function loadSeenPano(entry: SeenEntry, viewer: PanoViewer) {
 	seenSkipNext(entry.panoId);
 
 	const [fetched] =
@@ -131,8 +131,8 @@ export async function loadSeenPano(entry: SeenEntry) {
 		return;
 	}
 
-	if (!pano.exists()) return;
-	pano.jump(entry.panoId, { heading: entry.heading, pitch: entry.pitch, zoom: entry.zoom });
+	if (!viewer.exists()) return;
+	viewer.jump(entry.panoId, { heading: entry.heading, pitch: entry.pitch, zoom: entry.zoom });
 }
 
 /** Fetch a page of the seen (visited-panorama) history. */

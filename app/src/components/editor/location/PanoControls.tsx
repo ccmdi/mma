@@ -10,10 +10,9 @@ import { usePanoViewer } from "./PanoViewerContext";
 import { fieldLabel, fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useHotkeyRef } from "@/lib/hooks/useHotkey";
-import { usePanoEvent } from "@/lib/hooks/usePanoEvent";
+import { usePano, usePanoEvent } from "@/lib/hooks/usePano";
 import { open } from "@tauri-apps/plugin-shell";
 import { renderPanoView, canvasToBlob } from "@/lib/sv/panoCapture";
-import { pano } from "@/lib/sv/pano";
 import { downloadBlob, copyImageToClipboard } from "@/lib/util/util";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
@@ -39,6 +38,7 @@ import { t } from "@/lib/i18n";
 // --- Compass ---
 
 export function Compass() {
+	const pano = usePano();
 	const ref = useRef<HTMLDivElement>(null);
 	usePanoEvent("pov_changed", () => {
 		ref.current?.style.setProperty("--heading", `${(-pano.pov().heading).toFixed(2)}deg`);
@@ -69,6 +69,7 @@ const TAPE_PX_PER_DEG = 1.5;
 const TAPE_WIDTH_PX = TAPE_DEG_WIDTH * TAPE_PX_PER_DEG;
 
 export function CompassTape() {
+	const pano = usePano();
 	const innerRef = useRef<HTMLDivElement>(null);
 	usePanoEvent("pov_changed", () => {
 		if (innerRef.current)
@@ -128,6 +129,7 @@ export function sendHideCar(hide: boolean) {
 // --- Pano control subcomponents ---
 
 function CompassControl() {
+	const pano = usePano();
 	const [links, setLinks] = useState(pano.links);
 	const controlRef = useRef<HTMLDivElement>(null);
 
@@ -182,6 +184,7 @@ function CompassControl() {
 }
 
 function ZoomControl() {
+	const pano = usePano();
 	const [atMin, setAtMin] = useState(() => pano.zoom() <= PANO_ZOOM.min);
 	usePanoEvent("zoom_changed", () => {
 		setAtMin(pano.zoom() <= PANO_ZOOM.min);
@@ -219,6 +222,7 @@ function ReturnToSpawnControl({
 }: {
 	onReturnToSpawn: () => void | Promise<void>;
 }) {
+	const pano = usePano();
 	const location = useMapState((s) => s.activeLocation);
 	const [hasChanged, setHasChanged] = useState(false);
 	const checkChanged = () => {
@@ -255,6 +259,7 @@ function ReturnToSpawnControl({
 }
 
 function CoordinateControl() {
+	const pano = usePano();
 	const textRef = useRef<HTMLSpanElement>(null);
 	const altitude = usePanoViewer().currentPano?.altitude ?? 0;
 	// Zoom ticks every frame of a pinch, so the text is written straight to the DOM.
@@ -265,7 +270,7 @@ function CoordinateControl() {
 				altitude === 0
 					? " " + t("zoom {zoom}", { zoom })
 					: ` ${formatDistance(altitude, 2)} · ` + t("zoom {zoom}", { zoom });
-	}, [altitude]);
+	}, [pano, altitude]);
 	usePanoEvent("zoom_changed", updateDisplay);
 	useEffect(updateDisplay, [updateDisplay]);
 
@@ -325,6 +330,7 @@ export const PanoControls = memo(function PanoControls({
 	onFullscreen: () => void;
 	onReturnToSpawn: () => void | Promise<void>;
 }) {
+	const pano = usePano();
 	const vis = useSettings();
 	const fullscreenKey = useBinding("toggleFullscreen");
 	const jumpForwardKey = useBinding("jumpForward");
@@ -339,7 +345,7 @@ export const PanoControls = memo(function PanoControls({
 		if (!panoId || !position) return null;
 		const { heading, pitch } = pano.pov();
 		return mapsPanoUrl({ ...position, heading, pitch, zoom: pano.zoom(), panoId });
-	}, []);
+	}, [pano]);
 
 	const openInMaps = useCallback(() => {
 		const url = buildMapsUrl();
@@ -366,29 +372,32 @@ export const PanoControls = memo(function PanoControls({
 	const jumpBackwardRef = useHotkeyRef(jumpBackwardKey);
 	const jumpDistance = formatDistance(SV_JUMP_RADIUS, 0);
 
-	const takeScreenshot = useCallback(async (download: boolean) => {
-		setScreenshotState("loading");
-		try {
-			const view = pano.snapshot();
-			const blob = await canvasToBlob(await renderPanoView(view, 1920, 1080));
-			const copied = download ? false : await copyImageToClipboard(blob);
-			if (copied) {
-				toast(t("Screenshot copied"));
-			} else {
-				const stamp = fileTimestamp();
-				downloadBlob(blob, `${view.panoId}_${stamp}.png`);
-				toast(
-					download ? t("Screenshot downloaded") : t("Clipboard unavailable, downloaded instead"),
-				);
+	const takeScreenshot = useCallback(
+		async (download: boolean) => {
+			setScreenshotState("loading");
+			try {
+				const view = pano.snapshot();
+				const blob = await canvasToBlob(await renderPanoView(view, 1920, 1080));
+				const copied = download ? false : await copyImageToClipboard(blob);
+				if (copied) {
+					toast(t("Screenshot copied"));
+				} else {
+					const stamp = fileTimestamp();
+					downloadBlob(blob, `${view.panoId}_${stamp}.png`);
+					toast(
+						download ? t("Screenshot downloaded") : t("Clipboard unavailable, downloaded instead"),
+					);
+				}
+				setScreenshotState("done");
+				setTimeout(() => setScreenshotState("idle"), 500);
+			} catch (error) {
+				log.warn("[pano-screenshot] capture failed", error);
+				setScreenshotState("idle");
+				toast(t("Screenshot failed"));
 			}
-			setScreenshotState("done");
-			setTimeout(() => setScreenshotState("idle"), 500);
-		} catch (error) {
-			log.warn("[pano-screenshot] capture failed", error);
-			setScreenshotState("idle");
-			toast(t("Screenshot failed"));
-		}
-	}, []);
+		},
+		[pano],
+	);
 
 	return (
 		<div className="embed-controls">

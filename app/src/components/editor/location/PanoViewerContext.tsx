@@ -12,7 +12,7 @@ import {
 import { useMapState } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { PanoType } from "@/bindings.consts";
-import { pano } from "@/lib/sv/pano";
+import { usePano } from "@/lib/hooks/usePano";
 import { sameRow, type LatLng } from "@/types";
 import type { Pano } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
@@ -64,6 +64,7 @@ export function viewerPosition(draft: Location | null, location: Location | null
 
 export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const location = useMapState((s) => s.activeLocation);
+	const pano = usePano();
 	const [state, setState] = useState<Location | null>(null);
 	// Keyed by the location that opened it: another location's draft is simply not this one.
 	const draft = state && state.id === location?.id ? state : null;
@@ -196,7 +197,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		setState(null);
 		onLocationCleared();
 		pano.hide();
-	}, [location]);
+	}, [pano, location]);
 
 	const value = useMemo(
 		() => ({ draft, open, edit, settled, currentPano, timeline, defaultPano, geo, enriching }),

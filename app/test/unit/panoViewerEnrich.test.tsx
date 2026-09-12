@@ -58,7 +58,10 @@ vi.mock("@/lib/sv/query", () => ({
 	// Google's default at every position is "pDefault", whatever pano is on screen.
 	panosAt: async () => [{ id: "pDefault", lat: 1, lng: 2, time: [] }],
 }));
-vi.mock("@/lib/sv/pano", () => ({ pano: { hide: () => {} } }));
+vi.mock("@/lib/hooks/usePano", () => {
+	const viewer = { hide: () => {} };
+	return { usePano: () => viewer };
+});
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 const { PanoViewerProvider, usePanoViewer } =

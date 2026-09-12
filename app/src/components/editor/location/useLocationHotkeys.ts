@@ -30,7 +30,7 @@ import { log } from "@/lib/util/log";
 import { toggleViewportLock } from "@/lib/sv/viewportLock";
 import { sendHideCar } from "./PanoControls";
 import { usePanoViewer } from "./PanoViewerContext";
-import { pano } from "@/lib/sv/pano";
+import { usePano } from "@/lib/hooks/usePano";
 
 interface LocationHotkeyDeps {
 	pendingTags: string[];
@@ -46,6 +46,7 @@ interface LocationHotkeyDeps {
 
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	const { draft, timeline } = usePanoViewer();
+	const pano = usePano();
 	const location = useMapState((s) => s.activeLocation);
 	const isReviewMode = useReviewSession() !== null;
 	const {
@@ -186,7 +187,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	useHotkey(useBinding("viewportLock"), () => {
-		void toggleViewportLock();
+		void toggleViewportLock(pano);
 	});
 
 	const quicktagSlot = (idx: number) => {
