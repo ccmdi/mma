@@ -5,6 +5,8 @@ import { createRoot, type Root } from "react-dom/client";
 
 import { PolygonTools } from "@/components/editor/PolygonTools";
 import type { MapHost } from "@/lib/map/host";
+import { tryInterceptClick } from "@/lib/map/mapState";
+import type { LatLng } from "@/types";
 
 // px <-> latlng mapping: lat = y/1000, lng = x/1000. jsdom rects are all-zero, so
 // clientX/clientY are container coordinates directly.
@@ -15,6 +17,7 @@ div.appendChild(engineSurface);
 document.body.appendChild(div);
 
 let draggableCalls: boolean[] = [];
+let mousemoveListener: ((ll: LatLng) => void) | null = null;
 const host = {
 	container: div,
 	getZoom: () => 18,
@@ -22,22 +25,29 @@ const host = {
 	setDraggable: (v: boolean) => draggableCalls.push(v),
 	setCursor: () => {},
 	setDoubleClickZoom: () => {},
-	on: () => () => {},
+	on: (event: string, fn: (ll: LatLng) => void) => {
+		if (event === "mousemove") mousemoveListener = fn;
+		return () => {
+			if (mousemoveListener === fn) mousemoveListener = null;
+		};
+	},
 } as unknown as MapHost;
 
 let root: Root | null = null;
 let toolsEl: HTMLElement;
+let freehandPathRef = createRef<number[][] | null>();
 
 function mount(): number[][][][] {
 	const drawn: number[][][][] = [];
 	toolsEl = document.createElement("div");
+	freehandPathRef = createRef<number[][] | null>();
 	root = createRoot(toolsEl);
 	act(() =>
 		root!.render(
 			createElement(PolygonTools, {
 				host,
 				onDraw: (rings: number[][][]) => drawn.push(rings),
-				freehandPathRef: createRef<number[][] | null>(),
+				freehandPathRef,
 				polygonVerticesRef: createRef<number[][] | null>(),
 				requestOverlayUpdate: () => {},
 			}),
@@ -150,5 +160,22 @@ describe("draw tools still produce their ring", () => {
 		move(10, 200);
 		up(10, 200);
 		expect(drawn).toHaveLength(1);
+	});
+});
+
+describe("polygon preview", () => {
+	it("ends at the clicked vertex when the cursor event is stale", () => {
+		mount();
+		arm("Draw a polygon selection");
+		act(() => {
+			tryInterceptClick(0, 0);
+			mousemoveListener!({ lat: 1, lng: 1 });
+			tryInterceptClick(2, 2);
+		});
+		expect(freehandPathRef.current).toEqual([
+			[0, 0],
+			[2, 2],
+			[2, 2],
+		]);
 	});
 });
