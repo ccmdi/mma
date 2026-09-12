@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { createPortal } from "react-dom";
-import { mdiArrowLeft, mdiEarth, mdiHistory } from "@mdi/js";
+import { mdiEarth, mdiHistory } from "@mdi/js";
 import {
 	Sidebar,
 	Section,
@@ -18,13 +18,7 @@ import { Slider } from "@/components/primitives/Slider";
 import { NSelect } from "@/components/primitives/NSelect";
 import { usePluginState } from "@/plugins/registry";
 import { useSelectorPick } from "@/store/selectorPick";
-import {
-	fetchLocations,
-	getMapState,
-	sampleFrom,
-	setActiveLocation,
-	useMapState,
-} from "@/store/useMapStore";
+import { fetchLocations, getMapState, sampleFrom, useMapState } from "@/store/useMapStore";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { cmd } from "@/lib/commands";
 import { toast } from "@/lib/util/toast";
@@ -231,6 +225,8 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 		setShowHistory(false);
 	}, []);
 
+	const inspecting = useMapState((s) => s.workArea) === "location";
+
 	const content =
 		view.phase === "playing" || view.phase === "result" ? (
 			<RoundPlayer
@@ -241,6 +237,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 				onNext={next}
 				onFinish={() => dispatch({ type: "finish" })}
 				onExit={exitGame}
+				inspecting={inspecting}
 			/>
 		) : view.phase === "summary" ? (
 			<Summary session={view.session} onPlayAgain={playAgain} onBack={exitGame} />
@@ -255,28 +252,20 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 			/>
 		) : null;
 
-	const inspecting = useMapState((s) => s.workArea) === "location";
-
 	const overlay =
 		content &&
-		(inspecting
-			? createPortal(
-					<button
-						type="button"
-						className="lg-resume-game"
-						onClick={() => void setActiveLocation(null)}
-					>
-						<Icon path={mdiArrowLeft} size={18} />
-						<span>{t("Back to the game")}</span>
-					</button>,
-					document.body,
-				)
-			: createPortal(
-					<div className="lg-overlay" role="dialog" aria-modal="true" data-plugin-overlay>
-						{content}
-					</div>,
-					document.body,
-				));
+		createPortal(
+			<div
+				className="lg-overlay"
+				role="dialog"
+				aria-modal="true"
+				hidden={inspecting}
+				data-plugin-overlay={inspecting ? undefined : true}
+			>
+				{content}
+			</div>,
+			document.body,
+		);
 
 	return (
 		<>

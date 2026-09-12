@@ -121,6 +121,7 @@ export function RoundPlayer({
 	onNext,
 	onFinish,
 	onExit,
+	inspecting,
 }: {
 	game: Game;
 	showResult: boolean;
@@ -129,6 +130,7 @@ export function RoundPlayer({
 	onNext: () => void;
 	onFinish: () => void;
 	onExit: () => void;
+	inspecting: boolean;
 }) {
 	const round = currentRound(game);
 	const panoRef = useRef<PanoHandle>(null);
@@ -218,6 +220,7 @@ export function RoundPlayer({
 	// the stopImmediatePropagation below only settles ordering among later listeners.
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
+			if (inspecting) return;
 			const el = e.target as HTMLElement | null;
 			if (e.repeat || (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
 			if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -261,7 +264,7 @@ export function RoundPlayer({
 		};
 		document.addEventListener("keydown", handler, true);
 		return () => document.removeEventListener("keydown", handler, true);
-	}, [showResult, guess, submit, advance, onExit]);
+	}, [inspecting, showResult, guess, submit, advance, onExit]);
 
 	if (!round) return null;
 
@@ -269,18 +272,18 @@ export function RoundPlayer({
 	const cumulative = game.results.reduce((sum, r) => sum + r.score, 0);
 
 	return (
-		<div
-			className={`lg-round${showResult ? " lg-round--result" : ""}`}
-		>
+		<div className={`lg-round${showResult ? " lg-round--result" : ""}`}>
 			{/* Kept mounted through the result phase: remounting drops the WebGL context. */}
 			<div className="lg-round__pano" aria-hidden={showResult}>
-				<PanoView
-					ref={panoRef}
-					round={round}
-					movementMode={game.config.movementMode}
-					preload={showResult ? (game.locations[game.index + 1] ?? null) : null}
-					onPanorama={setPanorama}
-				/>
+				{!inspecting && (
+					<PanoView
+						ref={panoRef}
+						round={round}
+						movementMode={game.config.movementMode}
+						preload={showResult ? (game.locations[game.index + 1] ?? null) : null}
+						onPanorama={setPanorama}
+					/>
+				)}
 			</div>
 
 			{!showResult && panorama && (
@@ -400,9 +403,7 @@ export function RoundPlayer({
 				</div>
 			)}
 
-			<div
-				className={showResult ? "lg-round__result" : "lg-round__map-slot"}
-			>
+			<div className={showResult ? "lg-round__result" : "lg-round__map-slot"}>
 				<GuessMap
 					guess={showResult ? (lastResult?.guess ?? null) : guess}
 					truth={showResult ? { lat: round.lat, lng: round.lng } : null}
