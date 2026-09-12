@@ -10,6 +10,7 @@ import { useSetting } from "@/store/settings";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { getBinding, useBinding } from "@/lib/util/hotkeys";
 import { getMapState, closeMap, setPluginMode } from "@/store/useMapStore";
+import { confirmMapExit } from "@/lib/jobs";
 import { getEnabledPlugins } from "@/plugins/registry";
 import { score } from "@/lib/search";
 import { useMapList } from "@/store/mapList";
@@ -195,7 +196,11 @@ function MapSwitcher() {
 					<PaletteItem
 						key={m.id}
 						label={m.name}
-						onSelect={() => void closeMap().then(() => goTo({ type: "editor", mapId: m.id }))}
+						onSelect={() =>
+							void confirmMapExit("leave").then((ok) => {
+								if (ok) void closeMap().then(() => goTo({ type: "editor", mapId: m.id }));
+							})
+						}
 					/>
 				))
 			)}
