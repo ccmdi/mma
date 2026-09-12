@@ -6,7 +6,7 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { Flag } from "@/components/primitives/Flag";
 import type { Selection } from "@/bindings.gen";
 import type { GeneratorRegionMeta } from "../engine/types";
-import { useProgressTick, useCountMotion } from "./progressSignal";
+import { useProgressTick, useFoundRate } from "./progressSignal";
 import { t } from "@/lib/i18n";
 
 function getPolygonName(sel: Selection): string {
@@ -41,7 +41,7 @@ function RegionRow({
 }) {
 	const name = getPolygonName(sel);
 	const code = getPolygonCode(sel);
-	const { shown, rate } = useCountMotion(found, target, running && found < target);
+	const rate = useFoundRate(found, target, running && found < target);
 	return (
 		<div className="generator-regions__item">
 			<div className="generator-regions__item-name">
@@ -51,7 +51,7 @@ function RegionRow({
 			</div>
 			<div className="generator-regions__item-count">
 				{rate != null && <span className="generator-regions__rate">{rateLabel(rate)}</span>}
-				{shown} /
+				{found} /
 				<TextInput
 					type="number"
 					min={found || 1}
@@ -231,10 +231,10 @@ function TotalRow({
 	target: number;
 	running: boolean;
 }) {
-	const { shown, rate } = useCountMotion(found, target, running && found < target);
+	const rate = useFoundRate(found, target, running && found < target);
 	return (
 		<div className="generator-regions__total">
-			{t("Total:")} {shown} / {target}
+			{t("Total:")} {found} / {target}
 			{rate != null && <span className="generator-regions__rate">{rateLabel(rate)}</span>}
 		</div>
 	);
