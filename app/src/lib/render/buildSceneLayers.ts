@@ -227,6 +227,23 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		}
 	}
 
+	const svTrail = getTrail();
+	if (svTrail.length >= 2) {
+		layers.push(
+			new PathLayer({
+				id: "sv-trail",
+				data: [svTrail],
+				getPath: (d) => d,
+				getColor: [255, 0, 0],
+				getWidth: 2,
+				widthUnits: "pixels" as const,
+				jointRounded: true,
+				capRounded: true,
+				pickable: false,
+			}),
+		);
+	}
+
 	// Active marker renders even with no committed locations so virtual previews (staged/seen)
 	// on an empty map still show — and it draws on top of the preview dots, which is the highlight.
 	const activeLoc = getMapState().activeLocation;
@@ -379,23 +396,6 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				lineWidthUnits: "pixels" as const,
 				getLineWidth: 2,
 				getLineColor: [0, 0, 0, 255],
-				pickable: false,
-			}),
-		);
-	}
-
-	const svTrail = getTrail();
-	if (svTrail.length >= 2) {
-		layers.push(
-			new PathLayer({
-				id: "sv-trail",
-				data: [svTrail],
-				getPath: (d) => d,
-				getColor: [255, 0, 0],
-				getWidth: 2,
-				widthUnits: "pixels" as const,
-				jointRounded: true,
-				capRounded: true,
 				pickable: false,
 			}),
 		);
