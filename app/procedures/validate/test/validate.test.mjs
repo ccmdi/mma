@@ -297,6 +297,15 @@ test("a pinned row whose coordinate answers a different pano reports an availabl
 	assert.equal(state, UPDATE_AVAILABLE);
 });
 
+test("an unofficial pano at the coordinate is not an update", () => {
+	// The nearest hit can be a photosphere; only official coverage counts as an update.
+	const { state } = stateOf(
+		{ panoId: A, flags: PINNED },
+		{ panos: { [A]: meta(A), [LONG]: meta(LONG) }, coords: { "1,2": LONG } },
+	);
+	assert.equal(state, OK);
+});
+
 test("with pinned checks off, a republished area is not caught", () => {
 	const { state } = stateOf(
 		{ panoId: A, flags: PINNED },

@@ -114,7 +114,9 @@ export function run(rows: Location[]): Update<ValidationState>[] {
 
 	for (const it of items) {
 		if (it.settled || it.data === null) continue;
-		if (it.coordData !== null && it.coordData.id !== it.data.id) {
+		// Only official coverage counts as an update: the nearest hit can be a photosphere
+		// or an adjacent road, and a republished graph's panos are official by definition.
+		if (it.coordData !== null && !isUnofficial(it.coordData) && it.coordData.id !== it.data.id) {
 			it.state = it.pinned ? ValidationState.UpdateAvailable : ValidationState.UpdateApplied;
 			continue;
 		}
