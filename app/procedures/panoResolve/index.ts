@@ -10,22 +10,26 @@ import type { PanoType, RankingStrategy } from "@/bindings.consts";
 
 interface RunConfig {
 	force?: boolean;
-	config?: { radius?: number } | null;
+	config?: { radius?: number; sources?: PanoType[] } | null;
 }
 
 let radius = SV_SEARCH_RADIUS;
 let force = false;
+let sources: PanoType[] | undefined;
 
 export function configure(cfg: RunConfig | null): void {
 	radius = cfg?.config?.radius ?? SV_SEARCH_RADIUS;
 	force = cfg?.force === true;
+	sources = cfg?.config?.sources ?? undefined;
 }
 
 export function run(rows: Location[]): Update<LocationPatch>[] {
 	const todo = rows.filter((row) => force || !row.panoId);
 	if (todo.length === 0 || mma.aborted()) return [];
 
-	const answers = mma.panos(todo.map((row) => ({ lat: row.lat, lng: row.lng, radius })));
+	const answers = mma.panos(
+		todo.map((row) => ({ lat: row.lat, lng: row.lng, radius, ...(sources ? { sources } : {}) })),
+	);
 
 	const out: Update<LocationPatch>[] = [];
 	todo.forEach((row, i) => {

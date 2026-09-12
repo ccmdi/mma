@@ -91,6 +91,13 @@ test("a run's query is the point and the radius, nothing else", () => {
 	assert.deepEqual(calls[0].query, { lat: 52.1, lng: 34.9, radius: 50 });
 });
 
+test("a run with sources configured narrows every search to them", () => {
+	const { calls } = runProcedure([{ id: 1, lat: 52.1, lng: 34.9 }], () => NO_IMAGES, {
+		config: { sources: [2] },
+	});
+	assert.deepEqual(calls[0].query, { lat: 52.1, lng: 34.9, radius: 50, sources: [2] });
+});
+
 test("a resolved pano is written as a panoId patch", () => {
 	const { patches, calls, progress, failed } = runProcedure(
 		[

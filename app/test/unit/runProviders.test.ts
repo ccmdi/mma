@@ -56,6 +56,7 @@ vi.mock("@/store/useMapStore", () => ({
 // The real fieldDefs module runs here, so the field catalog it reads has to be present.
 vi.mock("@/bindings.consts", () => ({
 	LocationFlag: { None: 0, LoadAsPanoId: 1, Informational: 2 },
+	PanoType: { Official: 2, Unknown: 3, UserUploaded: 10 },
 	BUILTIN_FIELDS: [
 		{ key: "panoId", label: "Pano ID", type: "string", kind: null, comparison: null },
 		{ key: "heading", label: "Heading", type: "number", kind: "writable", comparison: null },
@@ -357,6 +358,9 @@ describe("the bulk operations name their own providers", () => {
 	it("bulkPinToPano runs panoResolve then pinPano, with the useLatest config", async () => {
 		const out = await bulkPinToPano({ type: "Everything" }, { useLatest: true, force: true });
 		expect(ids()).toEqual(["panoResolve", "pinPano"]);
+		// The re-resolve searches official coverage only: the closest pano can be a
+		// photosphere, and a bulk pin must never relocate rows onto one.
+		expect(h.decls[0].config).toBe(JSON.stringify({ sources: [2] }));
 		const pin = h.decls[1];
 		expect(pin.config).toBe(JSON.stringify({ useLatest: true }));
 		// Forced, so the run is not narrowed away from the caller's selector.

@@ -8,6 +8,7 @@ import {
 	type RunOpts,
 } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
+import { PanoType } from "@/bindings.consts";
 import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
 import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
 import { msg } from "@/lib/i18n";
@@ -49,7 +50,8 @@ export async function bulkPinToPano(
 	const target = force ? undefined : unpinnedIn(selector);
 	// Pinning resolves the panorama, it does not merely fill a missing one: a row that
 	// already carries a stale pano id is re-resolved to what is at its coordinates now,
-	// which is what the operation means.
+	// which is what the operation means. Official coverage only: the closest pano can be
+	// a photosphere, and a bulk pin must never relocate rows onto one.
 	const resolve = await runProviders(
 		[
 			{
@@ -57,6 +59,7 @@ export async function bulkPinToPano(
 					...panoResolveProvider,
 					procedure: { ...panoResolveProvider.procedure, select: target },
 				},
+				config: { sources: [PanoType.Official] },
 				force: true,
 			},
 		],
