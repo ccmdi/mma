@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import type { ComponentType, CSSProperties } from "react";
 
-import { appWindow, closeAndDestroy, hasWindowHost } from "@/lib/window";
+import { appWindow, closeAndDestroy } from "@/lib/window";
 import { useMapState } from "@/store/useMapStore";
 import {
 	useTargetMapId,
@@ -26,7 +26,6 @@ import { Icon, mdiDiscord } from "@/components/primitives/Icon";
 import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutline } from "@mdi/js";
 import { ToastContainer } from "@/components/primitives/Toast";
 import { JobTray, JobExitDialog } from "@/components/primitives/JobTray";
-import { getJobs, confirmMapExit } from "@/lib/jobs";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
 import { useUpdateState, dismissUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
@@ -63,7 +62,6 @@ export default function App() {
 	const closing = appWindow.type === "editor" && !targetMapId;
 
 	useSelfDestruct(closing);
-	useCloseGuard();
 	useCustomCss();
 	useCssVarSettings();
 	useDiscordPresence();
@@ -251,22 +249,6 @@ function AppChrome() {
 			)}
 		</>
 	);
-}
-
-/** Intercept the window's close button while map-scoped jobs run: confirm, cancel them,
- *  then close for real. destroy() does not re-fire CloseRequested. */
-function useCloseGuard() {
-	useEffect(() => {
-		if (!hasWindowHost) return;
-		const unlisten = appWindow.onCloseRequested(async (e) => {
-			if (!getJobs().some((j) => j.scope === "map")) return;
-			e.preventDefault();
-			if (await confirmMapExit("quit")) void closeAndDestroy();
-		});
-		return () => {
-			void unlisten.then((f) => f());
-		};
-	}, []);
 }
 
 function useSelfDestruct(closing: boolean) {

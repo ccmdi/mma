@@ -13,6 +13,7 @@ import { getSettings } from "@/store/settings";
 import { loadSession, saveSession } from "@/store/session";
 import { openWindow, openWindows, closeWindows } from "@/lib/window";
 import { cmd } from "@/lib/commands";
+import { getJobs, confirmMapExit } from "@/lib/jobs";
 import { checkForUpdate } from "@/lib/util/updateCheck";
 import { refreshStoredReports } from "@/lib/feedback/submit";
 import { blockBrowserAccelerators } from "@/lib/hooks/useHotkey";
@@ -50,6 +51,7 @@ async function boot() {
 
 	void appWindow.onCloseRequested(async (event) => {
 		event.preventDefault();
+		if (getJobs().some((j) => j.scope === "map") && !(await confirmMapExit("quit"))) return;
 		log.info("Window close requested, closing map...");
 		if (appWindow.type === "list" && getSettings().restoreSession) {
 			const openIds = (await openWindows("editor")).map((w) => w.mapId);
