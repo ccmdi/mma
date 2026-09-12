@@ -52,22 +52,19 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 		}
 	}, [distance, preview, onOpenChange]);
 
-	const nothing = !loading && preview != null && preview.groups === 0;
+	const nothing = preview != null && preview.groups === 0;
+
+	if (loading) return null;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Merge duplicates")} className="merge-duplicates">
-				{loading && (
-					<div className="merge-duplicates__loading">
-						<div className="merge-duplicates__spinner" />
-					</div>
-				)}
 				{nothing && (
 					<p className="merge-duplicates__status">
 						{t("No duplicate groups within {distance}.", { distance: formatDistance(distance) })}
 					</p>
 				)}
-				{!loading && preview != null && preview.groups > 0 && (
+				{preview != null && preview.groups > 0 && (
 					<>
 						<p className="merge-duplicates__status">
 							{t(
