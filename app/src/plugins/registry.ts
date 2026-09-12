@@ -9,13 +9,6 @@ import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { t } from "@/lib/i18n";
 
-export interface PluginSettingDef {
-	key: string;
-	label: string;
-	type: "boolean" | "string" | "number";
-	default: unknown;
-}
-
 /** The fields a plugin shows as itself, declared once by its manifest. */
 export type PluginIdentity = Pick<
 	PluginManifest,
@@ -24,7 +17,6 @@ export type PluginIdentity = Pick<
 
 export interface Plugin extends PluginIdentity {
 	core?: boolean;
-	settings?: PluginSettingDef[];
 	/** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
 	 *  Only for plugins whose state can't be serialized (e.g. an iframe). */
 	keepAlive?: boolean;
@@ -287,19 +279,6 @@ export function usePluginState<T>(pluginId: string, key: string, initial: T | ((
 		[pluginId, key],
 	);
 	return [value, set] as const;
-}
-
-/** Read a plugin's declared setting value, falling back to the setting's default. */
-export function getPluginSetting<T = unknown>(plugin: Plugin, key: string): T {
-	const data = readPluginStore(plugin.id);
-	if (key in data) return data[key] as T;
-	return plugin.settings?.find((s) => s.key === key)?.default as T;
-}
-
-/** Write a plugin's declared setting value. */
-export function setPluginSetting(id: string, key: string, value: unknown) {
-	createPluginStorage(id).set(key, value);
-	emitEvent("plugins:changed");
 }
 
 // --- Activation lifecycle ---

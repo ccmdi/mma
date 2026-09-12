@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import type { Plugin } from "@/plugins/registry";
-import { createPluginStorage, getPluginSetting, setPluginSetting } from "@/plugins/registry";
+import { createPluginStorage } from "@/plugins/registry";
 
 beforeEach(() => {
 	localStorage.clear();
@@ -50,35 +49,5 @@ describe("createPluginStorage", () => {
 	it("tolerates corrupt json, returning the fallback", () => {
 		localStorage.setItem("mma_plugin:p1", "{not json");
 		expect(createPluginStorage("p1").get("k", "fb")).toBe("fb");
-	});
-});
-
-describe("plugin settings", () => {
-	const plugin: Plugin = {
-		id: "settings-plugin",
-		name: "Settings Plugin",
-		description: "settings",
-		icon: "x",
-		activate: () => {},
-		settings: [
-			{ key: "enabled", label: "Enabled", type: "boolean", default: true },
-			{ key: "count", label: "Count", type: "number", default: 5 },
-		],
-	};
-
-	it("falls back to the def default when unset", () => {
-		expect(getPluginSetting(plugin, "enabled")).toBe(true);
-		expect(getPluginSetting(plugin, "count")).toBe(5);
-	});
-
-	it("returns a stored value over the default (including falsy)", () => {
-		setPluginSetting(plugin.id, "enabled", false);
-		setPluginSetting(plugin.id, "count", 12);
-		expect(getPluginSetting(plugin, "enabled")).toBe(false);
-		expect(getPluginSetting(plugin, "count")).toBe(12);
-	});
-
-	it("returns undefined for an unknown key with no default", () => {
-		expect(getPluginSetting(plugin, "nope")).toBeUndefined();
 	});
 });

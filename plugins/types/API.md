@@ -1918,10 +1918,6 @@ Look up a registered plugin by id.
 
 All registered plugins, sorted by name.
 
-### `getPluginSetting<T = unknown>(plugin: Plugin, key: string): T`
-
-Read a plugin's declared setting value, falling back to the setting's default.
-
 ### `isBackgroundPlugin(id: string): boolean`
 
 True when the plugin contributes data only and has no UI surfaces.
@@ -1970,10 +1966,6 @@ Set the manifest used to fill identity fields on the next `registerPlugin` call.
 ### `setPluginEnabled(id: string, enabled: boolean): void`
 
 Enable or disable a plugin.
-
-### `setPluginSetting(id: string, key: string, value: unknown): void`
-
-Write a plugin's declared setting value.
 
 ### `storage(id: string): PluginStorage`
 

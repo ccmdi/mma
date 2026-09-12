@@ -4590,17 +4590,10 @@ declare namespace tauri {
   };
 }
 
-export interface PluginSettingDef {
-    key: string;
-    label: string;
-    type: "boolean" | "string" | "number";
-    default: unknown;
-}
 /** The fields a plugin shows as itself, declared once by its manifest. */
 export type PluginIdentity = Pick<PluginManifest, "id" | "name" | "description" | "icon" | "comingSoon" | "experimental">;
 export interface Plugin extends PluginIdentity {
     core?: boolean;
-    settings?: PluginSettingDef[];
     /** Keep the sidebar mounted (hidden) when the user leaves plugin mode.
      *  Only for plugins whose state can't be serialized (e.g. an iframe). */
     keepAlive?: boolean;
@@ -4667,10 +4660,6 @@ declare function createPluginStorage(id: string): PluginStorage;
 /** React state hook backed by the plugin's persistent store. Survives sidebar
  *  unmount and app restart. Values are global, not per-map. */
 declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
-/** Read a plugin's declared setting value, falling back to the setting's default. */
-declare function getPluginSetting<T = unknown>(plugin: Plugin, key: string): T;
-/** Write a plugin's declared setting value. */
-declare function setPluginSetting(id: string, key: string, value: unknown): void;
 /** Activate all enabled plugins. Called when a map opens. @unstable */
 declare function activatePlugins(): void;
 /** Deactivate all plugins and stop their sidecars. Called when a map closes. @unstable */
@@ -4689,7 +4678,6 @@ declare function markReady(): void;
 export type registry_Plugin = Plugin;
 export type registry_PluginBehavior = PluginBehavior;
 export type registry_PluginIdentity = PluginIdentity;
-export type registry_PluginSettingDef = PluginSettingDef;
 export type registry_PluginStorage = PluginStorage;
 export type registry_ResolvedBuild = ResolvedBuild;
 declare const registry_activatePlugin: typeof activatePlugin;
@@ -4701,7 +4689,6 @@ declare const registry_deactivatePlugins: typeof deactivatePlugins;
 declare const registry_fetchPluginRegistry: typeof fetchPluginRegistry;
 declare const registry_getEnabledPlugins: typeof getEnabledPlugins;
 declare const registry_getPlugin: typeof getPlugin;
-declare const registry_getPluginSetting: typeof getPluginSetting;
 declare const registry_getPlugins: typeof getPlugins;
 declare const registry_isBackgroundPlugin: typeof isBackgroundPlugin;
 declare const registry_isPluginCompatible: typeof isPluginCompatible;
@@ -4715,13 +4702,12 @@ declare const registry_registerPlugin: typeof registerPlugin;
 declare const registry_resolveBuild: typeof resolveBuild;
 declare const registry_setPendingManifest: typeof setPendingManifest;
 declare const registry_setPluginEnabled: typeof setPluginEnabled;
-declare const registry_setPluginSetting: typeof setPluginSetting;
 declare const registry_storage: typeof storage;
 declare const registry_unregisterPlugin: typeof unregisterPlugin;
 declare const registry_usePluginState: typeof usePluginState;
 declare namespace registry {
-  export { registry_activatePlugin as activatePlugin, registry_activatePlugins as activatePlugins, registry_autoUpdatePlugin as autoUpdatePlugin, registry_createPluginStorage as createPluginStorage, registry_deactivatePlugin as deactivatePlugin, registry_deactivatePlugins as deactivatePlugins, registry_fetchPluginRegistry as fetchPluginRegistry, registry_getEnabledPlugins as getEnabledPlugins, registry_getPlugin as getPlugin, registry_getPluginSetting as getPluginSetting, registry_getPlugins as getPlugins, registry_isBackgroundPlugin as isBackgroundPlugin, registry_isPluginCompatible as isPluginCompatible, registry_isPluginEnabled as isPluginEnabled, registry_isPluginUpdatable as isPluginUpdatable, registry_isReady as isReady, registry_markReady as markReady, registry_needsBuildUpdate as needsBuildUpdate, registry_needsUpdate as needsUpdate, registry_registerPlugin as registerPlugin, registry_resolveBuild as resolveBuild, registry_setPendingManifest as setPendingManifest, registry_setPluginEnabled as setPluginEnabled, registry_setPluginSetting as setPluginSetting, registry_storage as storage, registry_unregisterPlugin as unregisterPlugin, registry_usePluginState as usePluginState };
-  export type { registry_Plugin as Plugin, registry_PluginBehavior as PluginBehavior, registry_PluginIdentity as PluginIdentity, registry_PluginSettingDef as PluginSettingDef, registry_PluginStorage as PluginStorage, registry_ResolvedBuild as ResolvedBuild };
+  export { registry_activatePlugin as activatePlugin, registry_activatePlugins as activatePlugins, registry_autoUpdatePlugin as autoUpdatePlugin, registry_createPluginStorage as createPluginStorage, registry_deactivatePlugin as deactivatePlugin, registry_deactivatePlugins as deactivatePlugins, registry_fetchPluginRegistry as fetchPluginRegistry, registry_getEnabledPlugins as getEnabledPlugins, registry_getPlugin as getPlugin, registry_getPlugins as getPlugins, registry_isBackgroundPlugin as isBackgroundPlugin, registry_isPluginCompatible as isPluginCompatible, registry_isPluginEnabled as isPluginEnabled, registry_isPluginUpdatable as isPluginUpdatable, registry_isReady as isReady, registry_markReady as markReady, registry_needsBuildUpdate as needsBuildUpdate, registry_needsUpdate as needsUpdate, registry_registerPlugin as registerPlugin, registry_resolveBuild as resolveBuild, registry_setPendingManifest as setPendingManifest, registry_setPluginEnabled as setPluginEnabled, registry_storage as storage, registry_unregisterPlugin as unregisterPlugin, registry_usePluginState as usePluginState };
+  export type { registry_Plugin as Plugin, registry_PluginBehavior as PluginBehavior, registry_PluginIdentity as PluginIdentity, registry_PluginStorage as PluginStorage, registry_ResolvedBuild as ResolvedBuild };
 }
 
 export interface SelectionBitmaskPayload {

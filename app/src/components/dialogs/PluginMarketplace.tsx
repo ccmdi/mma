@@ -2,13 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
-import { TextInput } from "@/components/primitives/TextInput";
 import { SegmentedControl } from "@/components/primitives/Sidebar";
 import {
-	getPlugin,
 	getPlugins,
-	getPluginSetting,
-	setPluginSetting,
 	isPluginEnabled,
 	setPluginEnabled,
 	activatePlugin,
@@ -49,52 +45,9 @@ async function installSidecar(
 
 type Tab = "core" | "additional";
 
-function PluginSettings({ pluginId }: { pluginId: string }) {
-	const plugin = getPlugin(pluginId);
-	const [, rerender] = useState(0);
-	if (!plugin?.settings?.length) return null;
-	return (
-		<div className="plugin-card__settings">
-			{plugin.settings.map((def) => {
-				const value = getPluginSetting(plugin, def.key);
-				const update = (v: unknown) => {
-					setPluginSetting(plugin.id, def.key, v);
-					rerender((n) => n + 1);
-				};
-				if (def.type === "boolean") {
-					return (
-						<SwitchRow
-							key={def.key}
-							className="plugin-card__setting"
-							checked={Boolean(value)}
-							onChange={(v) => update(v)}
-							label={t(def.label)}
-						>
-							<span>{t(def.label)}</span>
-						</SwitchRow>
-					);
-				}
-				return (
-					<label key={def.key} className="plugin-card__setting">
-						<span>{t(def.label)}</span>
-						<TextInput
-							type={def.type === "number" ? "number" : "text"}
-							value={def.type === "number" ? Number(value ?? 0) : String(value ?? "")}
-							onChange={(e) =>
-								update(def.type === "number" ? Number(e.target.value) : e.target.value)
-							}
-						/>
-					</label>
-				);
-			})}
-		</div>
-	);
-}
-
 import { mdiAutoFix, mdiDownload, mdiFlaskOutline, mdiRefresh, mdiTrashCanOutline } from "@mdi/js";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Switch } from "@/components/primitives/Switch";
-import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { t, msg } from "@/lib/i18n";
 
 /** One card's worth of state. Core plugins are just entries that ship installed and
@@ -252,7 +205,6 @@ function PluginCard({
 					)}
 				</div>
 			)}
-			{installed && enabled && <PluginSettings pluginId={id} />}
 		</div>
 	);
 }
