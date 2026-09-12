@@ -293,17 +293,23 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 		settle = resolve;
 	});
 
-	const handle = (p: ProcedureProgress) => {
-		seen.set(p.providerId, p);
-		const net = (s?: ProcedureProgress) => ({
-			done: s ? s.done - s.skipped : 0,
-			total: s ? s.total - s.skipped : 0,
-			failed: s?.failed ?? 0,
-			finished: s?.finished ?? false,
-		});
-		const parts = decls
+	const net = (s?: ProcedureProgress) => ({
+		done: s ? s.done - s.skipped : 0,
+		total: s ? s.total - s.skipped : 0,
+		failed: s?.failed ?? 0,
+		finished: s?.finished ?? false,
+	});
+	const partsOf = () =>
+		decls
 			.filter((d) => d.label != null)
 			.map((d) => ({ label: d.label as string, ...net(seen.get(d.id)) }));
+	// Every declared provider reports as waiting before the first engine event, so the
+	// progress stack renders at its final height instead of popping in row by row.
+	onProgress?.(0, 0, partsOf());
+
+	const handle = (p: ProcedureProgress) => {
+		seen.set(p.providerId, p);
+		const parts = partsOf();
 		// Overall is rows finished through every provider: the slowest one's count. A
 		// provider that skipped its whole universe carries no work and counts for nothing.
 		const counting = decls.map((d) => net(seen.get(d.id))).filter((s) => !(s.finished && s.total === 0));

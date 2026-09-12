@@ -510,7 +510,9 @@ const provB: Provider = {
 
 type Tick = [number, number];
 
-/** Run `providers` against a scripted engine event stream, collecting every `onProgress`. */
+/** Run `providers` against a scripted engine event stream, collecting every `onProgress`.
+ *  The first report is always the pre-engine waiting snapshot, asserted here once; the
+ *  returned ticks are the scripted ones. */
 async function ticks(providers: Provider[], script: Omit<ProcedureProgress, "runId">[]) {
 	h.script = script;
 	const seen: Tick[] = [];
@@ -519,7 +521,8 @@ async function ticks(providers: Provider[], script: Omit<ProcedureProgress, "run
 		{ type: "Everything" },
 		{ onProgress: (done, total) => seen.push([done, total]) },
 	);
-	return seen;
+	expect(seen[0]).toEqual([0, 0]);
+	return seen.slice(1);
 }
 
 const step = (
@@ -643,14 +646,18 @@ describe("the progress bar is rows finished through every provider", () => {
 			{ onProgress: (_d, _t, p) => parts.push(p) },
 		);
 		expect(parts[0]).toEqual([
-			{ label: "Prov A", done: 2, total: 10, failed: 0, finished: false },
+			{ label: "Prov A", done: 0, total: 0, failed: 0, finished: false },
 			{ label: "Prov B", done: 0, total: 0, failed: 0, finished: false },
 		]);
 		expect(parts[1]).toEqual([
 			{ label: "Prov A", done: 2, total: 10, failed: 0, finished: false },
-			{ label: "Prov B", done: 1, total: 10, failed: 1, finished: false },
+			{ label: "Prov B", done: 0, total: 0, failed: 0, finished: false },
 		]);
 		expect(parts[2]).toEqual([
+			{ label: "Prov A", done: 2, total: 10, failed: 0, finished: false },
+			{ label: "Prov B", done: 1, total: 10, failed: 1, finished: false },
+		]);
+		expect(parts[3]).toEqual([
 			{ label: "Prov A", done: 10, total: 10, failed: 0, finished: true },
 			{ label: "Prov B", done: 1, total: 10, failed: 1, finished: false },
 		]);
@@ -818,11 +825,16 @@ describe("provider dependency declarations propagate requires through a chain", 
 			{ onProgress: (_d, _t, p) => parts.push(p) },
 		);
 		expect(parts[0].map((p) => [p.label, p.done])).toEqual([
+			["Chain A", 0],
+			["Chain B", 0],
+			["Chain C", 0],
+		]);
+		expect(parts[1].map((p) => [p.label, p.done])).toEqual([
 			["Chain A", 5],
 			["Chain B", 0],
 			["Chain C", 0],
 		]);
-		expect(parts[2].map((p) => [p.label, p.done])).toEqual([
+		expect(parts[3].map((p) => [p.label, p.done])).toEqual([
 			["Chain A", 10],
 			["Chain B", 4],
 			["Chain C", 0],
@@ -958,18 +970,22 @@ describe("concurrent providers report progress independently", () => {
 			{ onProgress: (_d, _t, p) => parts.push(p) },
 		);
 		expect(parts[0]).toEqual([
-			{ label: "Fast", done: 8, total: 10, failed: 0, finished: false },
+			{ label: "Fast", done: 0, total: 0, failed: 0, finished: false },
 			{ label: "Slow", done: 0, total: 0, failed: 0, finished: false },
 		]);
 		expect(parts[1]).toEqual([
 			{ label: "Fast", done: 8, total: 10, failed: 0, finished: false },
-			{ label: "Slow", done: 2, total: 10, failed: 0, finished: false },
+			{ label: "Slow", done: 0, total: 0, failed: 0, finished: false },
 		]);
 		expect(parts[2]).toEqual([
-			{ label: "Fast", done: 10, total: 10, failed: 0, finished: true },
+			{ label: "Fast", done: 8, total: 10, failed: 0, finished: false },
 			{ label: "Slow", done: 2, total: 10, failed: 0, finished: false },
 		]);
 		expect(parts[3]).toEqual([
+			{ label: "Fast", done: 10, total: 10, failed: 0, finished: true },
+			{ label: "Slow", done: 2, total: 10, failed: 0, finished: false },
+		]);
+		expect(parts[4]).toEqual([
 			{ label: "Fast", done: 10, total: 10, failed: 0, finished: true },
 			{ label: "Slow", done: 6, total: 10, failed: 0, finished: false },
 		]);
