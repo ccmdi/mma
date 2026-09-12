@@ -1,5 +1,6 @@
 import { cmd } from "@/lib/commands";
 import { getSettings } from "@/store/settings";
+import { log } from "@/lib/util/log";
 import type { Pano } from "@/bindings.gen";
 
 export interface GeoDisplay {
@@ -17,8 +18,10 @@ async function geocodeLocal(lat: number, lng: number): Promise<GeoDisplay | null
 	};
 }
 
-/** Google already answered inside the pano's metadata. */
-export function geocodeGoogle(pano: Pano | null): GeoDisplay | null {
+/** Google already answered inside the pano's metadata: a derivation, not a lookup. */
+export function geocodeGoogle(
+	pano: Pick<Pano, "description" | "countryCode"> | null,
+): GeoDisplay | null {
 	return (
 		pano && {
 			address: pano.description || "",
@@ -49,9 +52,12 @@ async function geocodeNominatim(lat: number, lng: number): Promise<GeoDisplay | 
 	};
 }
 
-/** The configured provider's answer for a position; the google provider answers from pano
- *  metadata instead and is resolved synchronously by the caller via {@link geocodeGoogle}. */
-export async function reverseGeocode(lat: number, lng: number): Promise<GeoDisplay | null> {
+/** The configured lookup provider's answer for a position, null on failure. The google
+ *  provider is not a lookup; its answer is {@link geocodeGoogle} over pano metadata. */
+export function reverseGeocode(lat: number, lng: number): Promise<GeoDisplay | null> {
 	const fn = getSettings().geocodeProvider === "nominatim" ? geocodeNominatim : geocodeLocal;
-	return fn(lat, lng);
+	return fn(lat, lng).catch((e: unknown) => {
+		log.warn("[geocode] reverse geocode failed:", e);
+		return null;
+	});
 }

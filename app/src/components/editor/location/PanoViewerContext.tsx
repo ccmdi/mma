@@ -127,16 +127,17 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const defaultPano = onScreen?.defaultPano ?? null;
 
 	const geocodeProvider = useSetting("geocodeProvider");
-	const geoAsync = useAsync(async () => {
-		if (geocodeProvider === "google" || !location) return null;
-		try {
-			return await reverseGeocode(location.lat, location.lng);
-		} catch (e) {
-			log.warn("[geocode] reverse geocode failed:", e);
-			return null;
-		}
-	}, [location?.lat, location?.lng, geocodeProvider]);
-	const geo = geocodeProvider === "google" ? geocodeGoogle(currentPano) : geoAsync.data;
+	const lookup = useAsync(
+		() =>
+			location && geocodeProvider !== "google"
+				? reverseGeocode(location.lat, location.lng)
+				: null,
+		[location?.lat, location?.lng, geocodeProvider],
+	);
+	const geo = useMemo(
+		() => (geocodeProvider === "google" ? geocodeGoogle(currentPano) : lookup.data),
+		[geocodeProvider, currentPano, lookup.data],
+	);
 
 	const [enriching, setEnriching] = useState(false);
 	const inFlight = useRef<Promise<Location | null>>(Promise.resolve(null));
