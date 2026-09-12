@@ -27,7 +27,7 @@ export type PanoEvent =
 	"pov_changed" | "zoom_changed" | "links_changed" | "status_changed" | "pano_changed";
 export type PanoViewer = ReturnType<typeof createPano>;
 
-const REVEAL_MS = 180;
+const REVEAL_MS = 280;
 const TURN_MS = 160;
 const RESOLUTION_CAP = 64;
 const KEYS_KEPT_FROM_MAP = new Set([
@@ -172,6 +172,7 @@ export function createPano() {
 	}
 
 	function reveal() {
+		if (concealedFor === null) return;
 		concealedFor = null;
 		container.style.transition = `opacity ${REVEAL_MS}ms ease`;
 		container.style.opacity = "1";
@@ -209,11 +210,12 @@ export function createPano() {
 		reserveJump()(to, frame);
 	}
 
-	async function show(loc: Location): Promise<ShowResult> {
+	async function show(
+		loc: Location,
+		{ concealUntilReady = false }: { concealUntilReady?: boolean } = {},
+	): Promise<ShowResult> {
 		const claim = ++latestClaim;
-		const alreadyShown =
-			viewer !== null && isPinned(loc) && loc.panoId !== null && isAt(viewer, loc.panoId);
-		if (viewer && !alreadyShown) conceal(claim);
+		if (concealUntilReady) conceal(claim);
 		let resolved: Pano | null;
 		try {
 			resolved = await resolveCached(loc);
@@ -228,8 +230,8 @@ export function createPano() {
 			return { status: "superseded" };
 		}
 		const to: PanoDestination = resolved?.id ? resolved.id : { lat: loc.lat, lng: loc.lng };
-		if (isAt(sv, to)) reveal();
-		else revealWhenReady(sv, claim, to);
+		if (concealUntilReady && !isAt(sv, to)) revealWhenReady(sv, claim, to);
+		else reveal();
 		applyResolved(sv, resolved, loc);
 		resize();
 		return { status: "shown", pano: resolved };
@@ -556,7 +558,7 @@ export function createPano() {
 	}
 
 	return {
-		/** Resolve and show a location's pano; "superseded" when a newer request overtook it. */
+		/** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. */
 		show,
 		/** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. */
 		jump,

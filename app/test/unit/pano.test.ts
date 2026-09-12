@@ -159,7 +159,7 @@ describe("showing a pano", () => {
 	it("keeps the pano hidden until the requested pano is ready", async () => {
 		const { pano, surface } = await freshPano();
 		lookup.resolvePano.mockResolvedValueOnce(resolved("A"));
-		await pano.show(loc("A"));
+		await pano.show(loc("A"), { concealUntilReady: true });
 		expect(surface.style.opacity).toBe("0");
 		live().emit("status_changed");
 		expect(surface.style.opacity).toBe("1");
@@ -168,10 +168,12 @@ describe("showing a pano", () => {
 	it("reveals at once, from the cache, when the pano is already on screen", async () => {
 		const { pano, surface } = await freshPano();
 		lookup.resolvePano.mockResolvedValueOnce(resolved("A"));
-		await pano.show(loc("A"));
+		await pano.show(loc("A"), { concealUntilReady: true });
 		live().emit("status_changed");
-		await pano.show(loc("A"));
+		surface.style.transition = "";
+		await pano.show(loc("A"), { concealUntilReady: true });
 		expect(surface.style.opacity).toBe("1");
+		expect(surface.style.transition).toContain("opacity");
 		expect(lookup.resolvePano).toHaveBeenCalledTimes(1);
 	});
 
@@ -181,6 +183,16 @@ describe("showing a pano", () => {
 		await pano.show(loc("A"));
 		await expect(pano.show(loc("A"))).resolves.toEqual({ status: "shown", pano: resolved("A") });
 		expect(lookup.resolvePano).toHaveBeenCalledTimes(2);
+	});
+
+	it("swaps without hiding or fading unless asked to conceal", async () => {
+		const { pano, surface } = await freshPano();
+		lookup.resolvePano.mockResolvedValueOnce(resolved("A")).mockResolvedValueOnce(resolved("B"));
+		await pano.show(loc("A"));
+		await pano.show(loc("B"));
+		pano.jump("C");
+		expect(surface.style.opacity).toBe("");
+		expect(surface.style.transition).toBe("");
 	});
 });
 
@@ -221,7 +233,7 @@ describe("preloading", () => {
 		lookup.resolvePano
 			.mockResolvedValueOnce(resolved("CURRENT"))
 			.mockResolvedValueOnce(resolved("NEXT"));
-		await pano.show(loc("CURRENT"));
+		await pano.show(loc("CURRENT"), { concealUntilReady: true });
 		await pano.preload(loc("NEXT"));
 		expect(live().setPano.mock.calls).toEqual([["CURRENT"]]);
 	});

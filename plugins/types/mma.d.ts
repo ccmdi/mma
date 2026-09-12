@@ -5415,8 +5415,10 @@ export type PanoEvent = "pov_changed" | "zoom_changed" | "links_changed" | "stat
 export type PanoViewer = ReturnType<typeof createPano>;
 /** Create an independent pano viewer with its own camera, requests, listeners and mounts. @unstable */
 declare function createPano(): {
-    /** Resolve and show a location's pano; "superseded" when a newer request overtook it. */
-    show: (loc: Location) => Promise<ShowResult>;
+    /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. */
+    show: (loc: Location, { concealUntilReady }?: {
+        concealUntilReady?: boolean;
+    }) => Promise<ShowResult>;
     /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. */
     jump: (to: PanoDestination, frame?: PanoFrame) => void;
     /** Step to the linked pano nearest the camera heading, or its reverse. */
@@ -5490,8 +5492,10 @@ declare function createPano(): {
 };
 /** The app's default pano viewer. @unstable */
 declare const pano: {
-    /** Resolve and show a location's pano; "superseded" when a newer request overtook it. @unstable */
-    show: (loc: Location) => Promise<ShowResult>;
+    /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. @unstable */
+    show: (loc: Location, { concealUntilReady }?: {
+        concealUntilReady?: boolean;
+    }) => Promise<ShowResult>;
     /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. @unstable */
     jump: (to: PanoDestination, frame?: PanoFrame) => void;
     /** Step to the linked pano nearest the camera heading, or its reverse. @unstable */

@@ -2306,15 +2306,15 @@ Fetch a page of the seen (visited-panorama) history.
 
 Maps that have seen-history entries.
 
-### `loadSeenPano(entry: SeenEntry, viewer: { show: (loc: Location) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): Promise<...>`
+### `loadSeenPano(entry: SeenEntry, viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; ... 34 more ...; dispose: () => void; }): Promise<...>`
 
 Open a seen entry's panorama in the Street View viewer.
 
-### `seenFlush(viewer: { show: (loc: Location) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): void`
+### `seenFlush(viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): void`
 
 Write the pending seen entry to disk, if any.
 
-### `seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, viewer: { show: (loc: Location) => Promise<ShowResult>; ... 34 more ...; dispose: () => void; }): void`
+### `seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<...>; ... 34 more ...; dispose: () => void; }): void`
 
 Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
 
@@ -2330,7 +2330,7 @@ Update the pending seen entry's geocode info (country, address).
 
 The shared panorama viewer's internals.
 
-### `createPano(): { show: (loc: Location) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }` *(unstable)*
+### `createPano(): { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }` *(unstable)*
 
 Create an independent pano viewer with its own camera, requests, listeners and mounts.
 
@@ -2438,9 +2438,9 @@ Reserve a camera move across an async wait; it lands only if nothing moved the p
 
 Zoom fully out.
 
-#### `pano.show(loc: Location): Promise<ShowResult>` *(unstable)*
+#### `pano.show(loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined): Promise<ShowResult>` *(unstable)*
 
-Resolve and show a location's pano; "superseded" when a newer request overtook it.
+Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken.
 
 #### `pano.showCrosshair(): () => void` *(unstable)*
 

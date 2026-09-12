@@ -114,7 +114,7 @@ export function PanoView({
 				setError(t("Street View unavailable"));
 				return;
 			}
-			const shown = await pano.show(toLocation(round));
+			const shown = await pano.show(toLocation(round), { concealUntilReady: true });
 			if (cancelled || shown.status === "superseded") return;
 			if (!shown.pano?.id) {
 				setError(t("No panorama found here"));
