@@ -6,7 +6,7 @@ import { log } from "@/lib/util/log";
 import type { LocationPOV } from "@/types";
 import type { SeenFilter, SeenMapInfo } from "@/bindings.gen";
 import type { Nullable, Rename, RequireNonNull } from "@/types/util";
-import type { GeoDisplay } from "@/components/editor/location/useReverseGeocode";
+import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
 
 import type { Location, SeenEntry } from "@/bindings.gen";
 

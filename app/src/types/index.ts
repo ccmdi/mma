@@ -54,6 +54,14 @@ export function isPinned(loc: Location): loc is Location & { panoId: string } {
 	return (loc.flags & LocationFlag.LoadAsPanoId) !== 0 && loc.panoId != null && loc.panoId !== "";
 }
 
+/** The location pinned to the pano it carries, or unpinned to float on default coverage. */
+export function setPinned(loc: Location, on: boolean): Location {
+	return {
+		...loc,
+		flags: on ? loc.flags | LocationFlag.LoadAsPanoId : loc.flags & ~LocationFlag.LoadAsPanoId,
+	};
+}
+
 /** The `extra` merge patch that turns `before` into `after`: changed keys carry their
  *  new value, keys `after` lacks carry null. */
 export function extraPatch(

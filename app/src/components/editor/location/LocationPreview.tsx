@@ -1,21 +1,6 @@
-import {
-	memo,
-	useEffect,
-	useLayoutEffect,
-	useMemo,
-	useRef,
-	useState,
-	useCallback,
-	useEffectEvent,
-} from "react";
-import {
-	createLocation,
-	extraPatch,
-	isVirtualLocation,
-	isImportPreview,
-	isSeenPreview,
-} from "@/types";
-import { LocationFlag, VIRTUAL_FLAGS } from "@/bindings.consts";
+import { memo, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
+import { createLocation, extraPatch, isImportPreview, isSeenPreview, setPinned } from "@/types";
+import { VIRTUAL_FLAGS } from "@/bindings.consts";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -25,7 +10,6 @@ import {
 	useMapState,
 	updateLocations,
 	getMapState,
-	tagIdsToNames,
 	removeLocations,
 	addLocations,
 	createTags,
@@ -43,13 +27,11 @@ import {
 	reviewDelete,
 	isAtStart,
 } from "@/lib/review/review";
-import { loadOpenSV, google } from "@/lib/sv/opensv";
+import { google } from "@/lib/sv/opensv";
 
 import {
 	useSettings,
 	useSetting,
-	getSettings,
-	panoDisplayOptions,
 	GEOCODE_PROVIDER_LABELS,
 	type GeocodeProvider,
 } from "@/store/settings";
@@ -57,14 +39,11 @@ import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { PluginLocationPanels } from "@/plugins/PluginPanels";
 import { relativeTime } from "@/lib/util/format";
-import { isPanoFallback, resolvePano } from "@/lib/sv/lookup";
-import { usePanoEvent } from "@/lib/hooks/usePanoEvent";
-import { toast } from "@/lib/util/toast";
+import { resolvePano } from "@/lib/sv/lookup";
 import { FullscreenMiniMap } from "@/components/editor/location/FullscreenMiniMap";
 import { FullscreenTagBar } from "@/components/editor/location/FullscreenTagBar";
-import { PanoControls, CrosshairOverlay, sendHideCar } from "./PanoControls";
-import { seenPanoChanged, seenFlush, seenUpdateGeo } from "@/lib/seen/seen";
-import { useReverseGeocode, type GeoDisplay } from "@/components/editor/location/useReverseGeocode";
+import { PanoControls } from "./PanoControls";
+import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
 import { usePanoViewer } from "./PanoViewerContext";
 import {
 	usePanoFullscreen,
@@ -73,17 +52,14 @@ import {
 	exitFullscreenMap,
 } from "./fullscreenModeState";
 import { FullscreenMiniLocationPreview } from "./FullscreenMiniLocationPreview";
-import { applyViewportLock, getViewportLockInfo } from "@/lib/sv/viewportLock";
+import { getViewportLockInfo } from "@/lib/sv/viewportLock";
 import { useEvent } from "@/lib/events";
-import { resetTrail, pushTrail, clearTrail } from "@/lib/sv/svTrail";
-import {
-	singletonPano,
-	singletonDiv,
-	getPanorama,
-	applyResolved,
-	capturePov,
-} from "@/lib/sv/panoSingleton";
+import { singletonPano, applyResolved, capturePov } from "@/lib/sv/panoSingleton";
 import { PanoDatePicker } from "./PanoDatePicker";
+import { usePanoSession } from "./usePanoSession";
+import { useSeenFeed } from "./useSeenFeed";
+import { usePanoDisplay } from "./usePanoDisplay";
+import { usePendingTags } from "./usePendingTags";
 import { usePanoNavigation } from "./usePanoNavigation";
 import { useLocationHotkeys } from "./useLocationHotkeys";
 import { Flag } from "@/components/primitives/Flag";
@@ -204,9 +180,6 @@ const TagEditor = memo(function TagEditor({
 	);
 });
 
-const pinned = (flags: number, on: boolean) =>
-	on ? flags | LocationFlag.LoadAsPanoId : flags & ~LocationFlag.LoadAsPanoId;
-
 export function LocationPreview() {
 	const location = useMapState((s) => s.activeLocation);
 	const map = useMapState((s) => s.map);
@@ -214,28 +187,18 @@ export function LocationPreview() {
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { draft, currentPano, defaultPano, edit, settled, open, enriching } = usePanoViewer();
+	const { draft, defaultPano, edit, settled, geo, enriching } = usePanoViewer();
 	const isFullscreen = usePanoFullscreen();
-	const [pendingTags, setPendingTags] = useState<string[]>(() =>
-		tagIdsToNames(location?.tags ?? []),
-	);
+	const [pendingTags, setPendingTags] = usePendingTags(location);
 	const visibleTags = useMapState(getVisibleTags);
 	const geocodeProvider = useSetting("geocodeProvider");
-	const geoResult = useReverseGeocode(location?.lat ?? 0, location?.lng ?? 0, currentPano);
 	const cancelTweenRef = useRef<(() => void) | null>(null);
-	const getGeoResult = useEffectEvent(() => geoResult);
-	useEffect(() => {
-		setPendingTags((prev) => {
-			const next = tagIdsToNames(location?.tags ?? []);
-			return prev.length === next.length && prev.every((n, i) => n === next[i]) ? prev : next;
-		});
-	}, [location?.id]);
-	useEffect(() => {
-		if (geoResult) seenUpdateGeo(geoResult);
-	}, [geoResult]);
 	const appSettings = useSettings();
-
 	const chipMode = appSettings.fullscreenMap && appSettings.showFullscreenMiniLocationPreview;
+	usePanoSession();
+	useSeenFeed();
+	usePanoDisplay(panoContainerRef, chipMode);
+
 	const bottomTrayRef = useRef<HTMLDivElement>(null);
 	// Written straight to the CSS var, not through state: the tray animates its height, so
 	// this fires every frame and a re-render per frame would leave the chrome lagging behind.
@@ -256,124 +219,19 @@ export function LocationPreview() {
 	useEvent("viewport-lock:changed");
 	const lockInfo = getViewportLockInfo();
 
-	useEffect(() => {
-		if (!singletonPano) return;
-		singletonPano.setOptions(panoDisplayOptions(getSettings()));
-	}, [
-		appSettings.showLinksControl,
-		appSettings.clickToGo,
-		appSettings.showRoadLabels,
-		appSettings.defaultMovementMode,
-		appSettings.hidePanoUI,
-		appSettings.hideNavWithUI,
-	]);
-
-	usePanoEvent(singletonPano, "status_changed", () => sendHideCar(!appSettings.showCar), [
-		appSettings.showCar,
-	]);
-
-	useEffect(() => {
-		if (!singletonPano || !appSettings.showCrosshair) return;
-		const overlay = new CrosshairOverlay(singletonPano);
-		return () => overlay.dispose();
-	}, [appSettings.showCrosshair]);
-
-	// Mount/unmount: move the persistent div in/out of the container.
-	// useLayoutEffect so appendChild runs before paint.
-	useLayoutEffect(() => {
-		const container = panoContainerRef.current;
-		if (!container) return;
-		container.appendChild(singletonDiv);
-		if (singletonPano && google?.maps) google.maps.event.trigger(singletonPano, "resize");
-		return () => {
-			if (container.contains(singletonDiv)) container.removeChild(singletonDiv);
-		};
-	}, [chipMode]);
-
-	useEffect(() => {
-		if (!location) return;
-		let cancelled = false;
-		let statusListener: google.maps.MapsEventListener | null = null;
-		let lockListener: google.maps.MapsEventListener | null = null;
-
-		void loadOpenSV().then(async () => {
-			if (cancelled) return;
-			if (!google?.maps) return;
-			const pano = getPanorama();
-			if (!pano) return;
-
-			statusListener = pano.addListener("status_changed", () => {
-				if (cancelled || pano.getStatus() !== "OK") return;
-				const panoId = pano.getPano();
-				const pos = pano.getPosition();
-				if (!panoId || !pos) return;
-				edit({ panoId, lat: pos.lat(), lng: pos.lng() });
-
-				pushTrail(pos.lng(), pos.lat());
-				const geo = getGeoResult();
-				seenPanoChanged(
-					{
-						locationId: isVirtualLocation(location) ? null : location.id,
-						panoId,
-						lat: pos.lat(),
-						lng: pos.lng(),
-					},
-					geo && {
-						address: geo.address,
-						countryCode:
-							typeof location.extra?.countryCode === "string"
-								? location.extra.countryCode
-								: geo.countryCode,
-					},
-					capturePov,
-				);
-			});
-
-			lockListener = pano.addListener("pano_changed", () => {
-				void applyViewportLock(pano);
-			});
-
-			sendHideCar(!getSettings().showCar);
-			resetTrail(location.lng, location.lat);
-
-			const result = await resolvePano(location);
-			if (cancelled) return;
-			applyResolved(pano, result, location);
-			google.maps.event.trigger(pano, "resize");
-			if (isPanoFallback(location, result)) {
-				const root = Object.values(pano).find((v) => v instanceof HTMLElement) as
-					HTMLElement | undefined;
-				if (root)
-					toast(t("Configured pano ID could not be found. Falling back to lat/lng."), 3000, root);
-			}
-			// From the resolve result directly: setPano() with the same id fires no status_changed.
-			open(location, result?.id ?? null);
-		});
-
-		return () => {
-			cancelled = true;
-			clearTrail();
-			if (statusListener) google?.maps?.event?.removeListener(statusListener);
-			if (lockListener) google?.maps?.event?.removeListener(lockListener);
-			if (singletonPano) seenFlush(capturePov);
-		};
-	}, [location?.id]);
-
-	// A chosen date pins the draft to that pano; Default floats it on the pano Google
-	// resolves for the position.
+	// A chosen date pins the draft to that pano; Default floats it on the pano Google resolves for the position.
 	const handleDateChange = useCallback(
-		(panoId: string | null) => {
-			edit((d) => ({ flags: pinned(d.flags, panoId != null) }));
-			const target = panoId ?? defaultPano?.id;
+		(selectedPanoId: string | null) => {
+			edit((d) => setPinned(d, selectedPanoId != null));
+			const target = selectedPanoId ?? defaultPano?.id;
 			if (target) singletonPano?.setPano(target);
 		},
 		[edit, defaultPano],
 	);
 
 	const handleSave = useCallback(async () => {
-		if (!location || !singletonPano) return;
-		// Staged (virtual) location: updateLocation no-ops, cursorId can't match a
-		// negative id, so this falls through to setActiveLocation(null) = close.
+    if (!location || !singletonPano) return;
+		
 		// The draft as it stands, never waiting on enrichment; the camera is read live, it moves per frame.
 		const draft = await settled();
 		if (!draft) return;
@@ -405,7 +263,8 @@ export function LocationPreview() {
 					extra: extraPatch(location.extra, draft.extra),
 				},
 			},
-		]);
+    ]);
+		
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
@@ -441,7 +300,7 @@ export function LocationPreview() {
 		const result = await resolvePano(loc);
 		applyResolved(singletonPano, result, loc);
 		google.maps.event.trigger(singletonPano, "resize");
-		edit((d) => ({ flags: pinned(d.flags, false) }));
+		edit((d) => setPinned(d, false));
 	}, [edit]);
 
 	const handleFullscreen = useCallback(() => {
@@ -449,39 +308,6 @@ export function LocationPreview() {
 	}, [location]);
 
 	useHotkey(useBinding("toggleFullscreen"), handleFullscreen);
-
-	useEffect(() => {
-		if (!chipMode) return;
-		const el = panoContainerRef.current;
-		if (!el) return;
-		const obs = new ResizeObserver(() => {
-			if (singletonPano && google?.maps) google.maps.event.trigger(singletonPano, "resize");
-		});
-		obs.observe(el);
-		return () => obs.disconnect();
-	}, [chipMode]);
-
-	useEffect(() => {
-		if (singletonPano && google?.maps) google.maps.event.trigger(singletonPano, "resize");
-	}, [appSettings.previewAspectRatio]);
-
-	useEffect(() => {
-		if (!singletonPano || appSettings.previewAspectRatio !== "free") return;
-		const el = fullscreenContainerRef.current;
-		if (!el) return;
-		let timer: ReturnType<typeof setTimeout>;
-		const obs = new ResizeObserver(() => {
-			clearTimeout(timer);
-			timer = setTimeout(() => {
-				if (singletonPano && google?.maps) google.maps.event.trigger(singletonPano, "resize");
-			}, 150);
-		});
-		obs.observe(el);
-		return () => {
-			obs.disconnect();
-			clearTimeout(timer);
-		};
-	}, [singletonPano, appSettings.previewAspectRatio]);
 
 	useLocationHotkeys({
 		cancelTweenRef,
@@ -556,9 +382,9 @@ export function LocationPreview() {
 						<div className="fullscreen-topbar">
 							{appSettings.showFullscreenReviewBar && <ReviewBar />}
 							{appSettings.showFullscreenGeocode &&
-								(geoResult?.countryCode || geoResult?.address) && (
+								(geo?.countryCode || geo?.address) && (
 									<div className="fullscreen-geocode">
-										<GeoSummary geo={geoResult} provider={geocodeProvider} />
+										<GeoSummary geo={geo} provider={geocodeProvider} />
 									</div>
 								)}
 						</div>
@@ -582,8 +408,8 @@ export function LocationPreview() {
 				</div>
 				<div className="location-preview__meta">
 					<span className="location-preview__description">
-						<GeoSummary geo={geoResult} provider={geocodeProvider} />
-						{(geoResult?.address || geoResult?.countryCode) && (
+						<GeoSummary geo={geo} provider={geocodeProvider} />
+						{(geo?.address || geo?.countryCode) && (
 							<span className="location-preview__timestamp-sep"> · </span>
 						)}
 						<span className="location-preview__timestamps">

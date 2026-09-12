@@ -1,7 +1,5 @@
 import { cmd } from "@/lib/commands";
 import { getSettings } from "@/store/settings";
-import { log } from "@/lib/util/log";
-import { useAsync } from "@/lib/hooks/useAsync";
 import type { Pano } from "@/bindings.gen";
 
 export interface GeoDisplay {
@@ -20,7 +18,7 @@ async function geocodeLocal(lat: number, lng: number): Promise<GeoDisplay | null
 }
 
 /** Google already answered inside the pano's metadata. */
-function geocodeGoogle(pano: Pano | null): GeoDisplay | null {
+export function geocodeGoogle(pano: Pano | null): GeoDisplay | null {
 	return (
 		pano && {
 			address: pano.description || "",
@@ -51,20 +49,9 @@ async function geocodeNominatim(lat: number, lng: number): Promise<GeoDisplay | 
 	};
 }
 
-export function useReverseGeocode(lat: number, lng: number, pano: Pano | null): GeoDisplay | null {
-	const provider = getSettings().geocodeProvider;
-
-	const asyncResult = useAsync(async () => {
-		if (provider === "google") return null;
-		const fn = provider === "nominatim" ? geocodeNominatim : geocodeLocal;
-		try {
-			return await fn(lat, lng);
-		} catch (e) {
-			log.warn("[geocode] reverse geocode failed:", e);
-			return null;
-		}
-	}, [lat, lng, provider]).data;
-
-	if (provider === "google") return geocodeGoogle(pano);
-	return asyncResult;
+/** The configured provider's answer for a position; the google provider answers from pano
+ *  metadata instead and is resolved synchronously by the caller via {@link geocodeGoogle}. */
+export async function reverseGeocode(lat: number, lng: number): Promise<GeoDisplay | null> {
+	const fn = getSettings().geocodeProvider === "nominatim" ? geocodeNominatim : geocodeLocal;
+	return fn(lat, lng);
 }

@@ -17,7 +17,8 @@ import { sameRow, type LatLng } from "@/types";
 import type { Pano } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
 import { withoutDerivedFrom } from "@/lib/data/fieldDefs";
-import { useAsyncSticky } from "@/lib/hooks/useAsync";
+import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
+import { geocodeGoogle, reverseGeocode, type GeoDisplay } from "@/lib/geo/reverseGeocode";
 import { panosAt, svMetadata } from "@/lib/sv/query";
 import { allUnofficial, mergeTimelines } from "@/lib/sv/panoId";
 import { SV_OFFICIAL_FALLBACK_RADIUS, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
@@ -47,6 +48,9 @@ interface PanoViewerContextValue {
 	timeline: Pano["time"] | null;
 	/** The pano Google resolves for the draft's position: what "Default" means there. */
 	defaultPano: Pano | null;
+	/** The geocoder's answer for the location's position (the google provider answers from
+	 *  the pano on screen); null until it lands. */
+	geo: GeoDisplay | null;
 	/** The draft's enrichment is still in flight. */
 	enriching: boolean;
 }
@@ -122,6 +126,18 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const timeline = onScreen?.timeline ?? null;
 	const defaultPano = onScreen?.defaultPano ?? null;
 
+	const geocodeProvider = useSetting("geocodeProvider");
+	const geoAsync = useAsync(async () => {
+		if (geocodeProvider === "google" || !location) return null;
+		try {
+			return await reverseGeocode(location.lat, location.lng);
+		} catch (e) {
+			log.warn("[geocode] reverse geocode failed:", e);
+			return null;
+		}
+	}, [location?.lat, location?.lng, geocodeProvider]);
+	const geo = geocodeProvider === "google" ? geocodeGoogle(currentPano) : geoAsync.data;
+
 	const [enriching, setEnriching] = useState(false);
 	const inFlight = useRef<Promise<Location | null>>(Promise.resolve(null));
 	useEffect(() => {
@@ -182,8 +198,8 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	}, [location]);
 
 	const value = useMemo(
-		() => ({ draft, open, edit, settled, currentPano, timeline, defaultPano, enriching }),
-		[draft, open, edit, settled, currentPano, timeline, defaultPano, enriching],
+		() => ({ draft, open, edit, settled, currentPano, timeline, defaultPano, geo, enriching }),
+		[draft, open, edit, settled, currentPano, timeline, defaultPano, geo, enriching],
 	);
 
 	return <PanoViewerContext.Provider value={value}>{children}</PanoViewerContext.Provider>;
