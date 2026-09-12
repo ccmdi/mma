@@ -74,6 +74,8 @@ vi.mock("@/lib/sv/opensv", () => ({
 }));
 vi.mock("@/lib/sv/opensvPatch", () => ({ patchOpenSV: () => {}, setPanoHovered: () => {} }));
 vi.mock("@/lib/sv/lookup", () => lookup);
+const gpu = vi.hoisted(() => ({ releaseWebglContexts: vi.fn() }));
+vi.mock("@/lib/render/webglContexts", () => gpu);
 
 function loc(panoId: string) {
 	return createLocation({ lat: 1, lng: 2, panoId, flags: LocationFlag.LoadAsPanoId });
@@ -364,5 +366,25 @@ describe("independent viewers", () => {
 		expect(host.childElementCount).toBe(0);
 		expect(viewer.exists()).toBe(false);
 		expect(heard).not.toHaveBeenCalled();
+	});
+});
+
+describe("GPU contexts", () => {
+	it("releases the old viewer's WebGL context when it rebuilds", async () => {
+		const { pano, surface } = await freshPano();
+		pano.jump("A");
+		gpu.releaseWebglContexts.mockClear();
+		pano.reload({ lat: 1, lng: 2 });
+		expect(gpu.releaseWebglContexts).toHaveBeenCalledWith(surface);
+	});
+
+	it("releases its WebGL context when disposed", async () => {
+		vi.resetModules();
+		const { createPano } = await import("@/lib/sv/pano");
+		const viewer = createPano();
+		viewer.jump("A");
+		gpu.releaseWebglContexts.mockClear();
+		viewer.dispose();
+		expect(gpu.releaseWebglContexts).toHaveBeenCalledOnce();
 	});
 });

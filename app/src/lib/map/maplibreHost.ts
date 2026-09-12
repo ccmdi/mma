@@ -15,6 +15,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import maplibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { TILE_SIZE } from "@/lib/geo/mercator";
 import { MapboxOverlay } from "@deck.gl/mapbox";
+import { releaseDeckContext } from "@/lib/render/webglContexts";
 import type { PickingInfo } from "@deck.gl/core";
 import { createSvTileSource, type SvTileSource } from "@/lib/geo/mapStack";
 import { vectorStyleUrl } from "@/lib/geo/mapStyles";
@@ -116,6 +117,9 @@ class MapLibreDeckOverlay implements DeckOverlayHandle {
 	finalize() {
 		if (this.finalized) return;
 		this.finalized = true;
+		releaseDeckContext(
+			(this.overlay as unknown as { _deck?: Parameters<typeof releaseDeckContext>[0] })._deck,
+		);
 		this.map.removeControl(this.overlay);
 		this.onFinalize(this);
 	}

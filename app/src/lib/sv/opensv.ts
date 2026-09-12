@@ -4,19 +4,6 @@ import { schemeBase } from "@/lib/util/util";
 let loaded = false;
 let loading: Promise<void> | null = null;
 
-// Force preserveDrawingBuffer so we can capture thumbnails from the pano canvas.
-const origGetContext = HTMLCanvasElement.prototype.getContext;
-HTMLCanvasElement.prototype.getContext = function (
-	this: HTMLCanvasElement,
-	type: string,
-	attrs?: any,
-) {
-	if (type === "webgl" || type === "webgl2") {
-		attrs = { ...attrs, preserveDrawingBuffer: true };
-	}
-	return origGetContext.call(this, type, attrs);
-} as typeof origGetContext;
-
 export let google: typeof globalThis.google;
 
 export function loadOpenSV(): Promise<void> {

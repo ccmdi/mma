@@ -48,7 +48,11 @@ function webglRenderer(): string {
 		const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
 		if (!gl) return "no webgl";
 		const ext = gl.getExtension("WEBGL_debug_renderer_info");
-		return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+		const renderer: string = ext
+			? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)
+			: gl.getParameter(gl.RENDERER);
+		gl.getExtension("WEBGL_lose_context")?.loseContext();
+		return renderer;
 	} catch {
 		return "unknown";
 	}

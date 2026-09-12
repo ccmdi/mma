@@ -18,6 +18,7 @@ import {
 } from "@/lib/sv/constants";
 import { normalizeHeading, reverseHeading, wrapDeg } from "@/lib/geo/geo";
 import { toast as showToast } from "@/lib/util/toast";
+import { releaseWebglContexts } from "@/lib/render/webglContexts";
 
 export type PanoDestination = string | google.maps.LatLngLiteral;
 export type PanoFrame = CameraFrame & { zoom?: number };
@@ -153,6 +154,7 @@ export function createPano() {
 	function clearViewer() {
 		viewer?.setVisible(false);
 		viewer = null;
+		releaseWebglContexts(container);
 		container.replaceChildren();
 	}
 

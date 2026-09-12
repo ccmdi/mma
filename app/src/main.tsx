@@ -1,3 +1,4 @@
+import "@/lib/render/webglContexts";
 import "@/lib/sv/shaderPatch";
 import {} from "react";
 import { createRoot } from "react-dom/client";
