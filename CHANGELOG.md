@@ -1,3 +1,16 @@
+## v0.10.7 - 2026-09-12
+- Bulk operations and map generation continue in the background, with a progress tray in the corner
+- Closing a map or the app with background work running asks for confirmation
+- Validation can check pinned locations for newer coverage, behind a checkbox that is on by default
+- Generator region rows show a live generation rate
+- Bulk Street View operations retry transient network errors instead of failing the row
+- Error messages are now translated
+- The map-making.app sync API key moved into the system credential store
+- Fixed the date picker offering capture dates merged in from nearby panoramas
+- Fixed cancelling a bulk operation sometimes hanging the run
+- Fixed the generator's camera-generation filter misclassifying some panoramas
+- Fixed some field labels not being translated
+
 ## v0.10.6 - 2026-09-08
 - A crashed plugin no longer crashes the app, only the containing view
 - The app is ~8 megabytes smaller
