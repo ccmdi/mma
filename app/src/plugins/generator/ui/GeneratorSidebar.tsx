@@ -15,6 +15,7 @@ import { tickProgress } from "./progressSignal";
 import { google } from "@/lib/sv/opensv";
 import { getActiveSelections, useMapState, createTags, setPluginMode } from "@/store/useMapStore";
 import { registerJob, type JobHandle } from "@/lib/jobs";
+import { subscribe } from "@/lib/events";
 import { fmt } from "@/lib/util/format";
 import type { Selection } from "@/bindings.gen";
 import { createPluginStorage } from "@/plugins/registry";
@@ -80,13 +81,21 @@ let sessionTagId: number | null = null;
 let sessionJob: JobHandle | null = null;
 let sessionSidebarOpen = false;
 
+let jobUpdateQueued = false;
+// Coalesced to a frame like tickProgress: onProgress fires per found pano, and an
+// eager jobs:changed per pano re-renders the tray that often.
 function updateSessionJob(): void {
-	if (!sessionEngine || !sessionJob) return;
-	const { found, target } = sessionEngine.progress();
-	sessionJob.update(
-		target > 0 ? Math.min(found / target, 1) : 0,
-		`${fmt.format(found)} / ${fmt.format(target)}`,
-	);
+	if (!sessionEngine || !sessionJob || jobUpdateQueued) return;
+	jobUpdateQueued = true;
+	requestAnimationFrame(() => {
+		jobUpdateQueued = false;
+		if (!sessionEngine || !sessionJob) return;
+		const { found, target } = sessionEngine.progress();
+		sessionJob.update(
+			target > 0 ? Math.min(found / target, 1) : 0,
+			`${fmt.format(found)} / ${fmt.format(target)}`,
+		);
+	});
 }
 
 function endSessionJob(message?: string): void {
@@ -223,6 +232,19 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	useEffect(() => {
 		sessionPaused = paused;
 	}, [paused]);
+
+	// An outside stop (job tray cancel, map close) ends the session while this sidebar
+	// is mounted; follow it rather than claiming a run with no engine behind it.
+	useEffect(
+		() =>
+			subscribe("jobs:changed", () => {
+				if (sessionEngine || !engineRef.current) return;
+				engineRef.current = null;
+				setRunning(false);
+				setPaused(false);
+			}),
+		[],
+	);
 
 	// If engine is still running from before remount, wire up callbacks
 	useEffect(() => {
