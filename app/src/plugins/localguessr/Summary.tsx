@@ -8,6 +8,9 @@ import { formatDistance } from "@/lib/util/format";
 import { Flag } from "@/components/primitives/Flag";
 import { TagButton } from "./TagButton";
 import { roundThumbnails } from "./storage";
+import { loadSeenPano } from "@/lib/seen/seen";
+import { usePano } from "@/lib/hooks/usePano";
+import type { RoundResult } from "./game";
 
 function useRoundThumbnails(session: Session): Map<number, string | null> {
 	const [thumbnails, setThumbnails] = useState(() => new Map<number, string | null>());
@@ -34,6 +37,21 @@ export function Summary({
 }) {
 	const allIds = session.results.map((r) => r.location.id);
 	const thumbnails = useRoundThumbnails(session);
+	const pano = usePano();
+	const openRound = ({ location, truth }: RoundResult) =>
+		void loadSeenPano(
+			{
+				locationId: location.id,
+				panoId: location.panoId,
+				lat: location.lat,
+				lng: location.lng,
+				heading: location.heading,
+				pitch: location.pitch,
+				zoom: location.zoom,
+				countryCode: truth?.country_code ?? null,
+			},
+			pano,
+		);
 
 	return (
 		<div className="lg-summary">
@@ -55,7 +73,19 @@ export function Summary({
 				{session.results.map((r, i) => {
 					const thumbnail = thumbnails.get(r.location.id);
 					return (
-						<div key={i} className="lg-summary__row">
+						<div
+							key={i}
+							className="lg-summary__row"
+							role="button"
+							tabIndex={0}
+							onClick={(e) => {
+								const target = e.target as Element;
+								if (e.currentTarget.contains(target) && !target.closest("button")) openRound(r);
+							}}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" && e.target === e.currentTarget) openRound(r);
+							}}
+						>
 							{thumbnail && (
 								<img
 									className="lg-summary__row-thumb"

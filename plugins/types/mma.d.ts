@@ -5590,6 +5590,7 @@ export interface GeoDisplay {
 export type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> & Nullable<Rename<Pick<Location, "id">, {
     id: "locationId";
 }>>;
+export type SeenPano = Pick<SeenEntry, "locationId" | "lat" | "lng" | "heading" | "pitch" | "zoom" | "countryCode"> & Pick<Location, "panoId">;
 /** Suppress the next seen-history entry for `panoId`. */
 declare function seenSkipNext(panoId: string): void;
 /** Update the pending seen entry's geocode info (country, address). */
@@ -5601,7 +5602,7 @@ declare function seenFlush(viewer: PanoViewer): void;
 /** Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives. */
 declare function seenRecord(location: PendingEntryLocation & LocationPOV, viewer: PanoViewer): Promise<void>;
 /** Open a seen entry's panorama in the Street View viewer. */
-declare function loadSeenPano(entry: SeenEntry, viewer: PanoViewer): Promise<void>;
+declare function loadSeenPano(entry: SeenPano, viewer: PanoViewer): Promise<void>;
 /** Fetch a page of the seen (visited-panorama) history. */
 declare function getSeenEntries(limit?: number, offset?: number, filter?: SeenFilter, thumbnails?: boolean): Promise<SeenEntry[]>;
 /** Number of seen entries matching the filter (all when omitted). */

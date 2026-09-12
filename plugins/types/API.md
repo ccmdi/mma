@@ -2306,7 +2306,7 @@ Fetch a page of the seen (visited-panorama) history.
 
 Maps that have seen-history entries.
 
-### `loadSeenPano(entry: SeenEntry, viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; ... 34 more ...; dispose: () => void; }): Promise<...>`
+### `loadSeenPano(entry: SeenPano, viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): Promise<...>`
 
 Open a seen entry's panorama in the Street View viewer.
 

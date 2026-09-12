@@ -13,6 +13,11 @@ import type { Location, SeenEntry } from "@/bindings.gen";
 
 type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> &
 	Nullable<Rename<Pick<Location, "id">, { id: "locationId" }>>;
+type SeenPano = Pick<
+	SeenEntry,
+	"locationId" | "lat" | "lng" | "heading" | "pitch" | "zoom" | "countryCode"
+> &
+	Pick<Location, "panoId">;
 type PendingEntry = PendingEntryLocation &
 	Nullable<GeoDisplay> & {
 		enteredAt: number;
@@ -147,8 +152,8 @@ async function writeEntry(entry: PendingEntry, pov: LocationPOV, thumbnail: stri
 }
 
 /** Open a seen entry's panorama in the Street View viewer. */
-export async function loadSeenPano(entry: SeenEntry, viewer: PanoViewer) {
-	seenSkipNext(entry.panoId);
+export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
+	if (entry.panoId) seenSkipNext(entry.panoId);
 
 	const [fetched] =
 		entry.locationId != null
@@ -178,7 +183,11 @@ export async function loadSeenPano(entry: SeenEntry, viewer: PanoViewer) {
 	}
 
 	if (!viewer.exists()) return;
-	viewer.jump(entry.panoId, { heading: entry.heading, pitch: entry.pitch, zoom: entry.zoom });
+	viewer.jump(entry.panoId ?? { lat: entry.lat, lng: entry.lng }, {
+		heading: entry.heading,
+		pitch: entry.pitch,
+		zoom: entry.zoom,
+	});
 }
 
 /** Fetch a page of the seen (visited-panorama) history. */
