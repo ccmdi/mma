@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { createPortal } from "react-dom";
-import { mdiEarth } from "@mdi/js";
+import { mdiEarth, mdiHistory } from "@mdi/js";
 import {
 	Sidebar,
 	Section,
@@ -10,31 +10,45 @@ import {
 } from "@/components/primitives/Sidebar";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { Button } from "@/components/primitives/Button";
+import { Icon } from "@/components/primitives/Icon";
+import { Tooltip } from "@/components/primitives/Tooltip";
+import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import { EntryCard, EntryList } from "@/components/primitives/EntryList";
 import { Slider } from "@/components/primitives/Slider";
 import { NSelect } from "@/components/primitives/NSelect";
 import { usePluginState } from "@/plugins/registry";
 import { useSelectorPick } from "@/store/selectorPick";
 import { fetchLocations, getMapState, sampleFrom, useMapState } from "@/store/useMapStore";
 import { useScoreMaxError } from "@/lib/geo/scoring";
+import { cmd } from "@/lib/commands";
 import { toast } from "@/lib/util/toast";
+import { dateTimeFmt, fmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import type { Selector } from "@/bindings.gen";
 import {
 	DEFAULT_CONFIG,
 	INFINITE_BATCH,
+	hydrateSession,
+	pastTotal,
 	reduce,
+	toPastGame,
 	toRoundLocation,
 	type GameConfig,
 	type MovementMode,
+	type PastGame,
 	type RoundLocation,
 	type RoundMode,
+	type Session,
 	type StreakMode,
 	type TimerMode,
 	type View,
 } from "./game";
 import {
+	appendHistory,
+	clearHistory,
 	clearSavedGame,
 	getGlobalStreak,
+	getHistory,
 	getSavedGame,
 	saveGame,
 	setGlobalStreak,
@@ -51,6 +65,57 @@ async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[
 	);
 }
 
+function PastGamesModal({
+	open,
+	onOpenChange,
+	history,
+	onOpen,
+	onClear,
+}: DialogProps & {
+	history: PastGame[];
+	onOpen: (game: PastGame) => void;
+	onClear: () => void;
+}) {
+	const [confirmingClear, setConfirmingClear] = useState(false);
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent title={t("Past games")} className="entry-list-modal">
+				<EntryList>
+					{history.map((g) => (
+						<EntryCard
+							key={g.startedAt}
+							actions={
+								<Button small onClick={() => onOpen(g)}>
+									{t("Open")}
+								</Button>
+							}
+						>
+							<div className="entry-list__name">{fmt.format(pastTotal(g))}</div>
+							<div className="entry-list__meta">
+								<span>{t("{n} rounds", { n: g.rounds.length })}</span>
+								<span title={dateTimeFmt.format(g.finishedAt)}>
+									{relativeTime(g.finishedAt / 1000)}
+								</span>
+							</div>
+						</EntryCard>
+					))}
+				</EntryList>
+				<div className="lg-history__clear">
+					<Button
+						small
+						variant="destructive"
+						onClick={() => (confirmingClear ? onClear() : setConfirmingClear(true))}
+						onBlur={() => setConfirmingClear(false)}
+					>
+						{confirmingClear ? t("Are you sure?") : t("Clear history")}
+					</Button>
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	const [stored, setStored] = usePluginState<GameConfig>("localguessr", "config", DEFAULT_CONFIG);
 	const config = useMemo<GameConfig>(() => ({ ...DEFAULT_CONFIG, ...stored }), [stored]);
@@ -64,6 +129,9 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 		const id = getMapState().map?.id;
 		return id ? getSavedGame(id) : null;
 	});
+	const [history, setHistory] = useState<PastGame[]>([]);
+	const [past, setPast] = useState<Session | null>(null);
+	const [showHistory, setShowHistory] = useState(false);
 
 	const patch = (p: Partial<GameConfig>) => setStored({ ...config, ...p });
 
@@ -76,9 +144,14 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 			setGlobalStreak(view.game.config.streakMode, view.game.streak);
 		} else if (view.phase === "summary" && mapId) {
 			clearSavedGame(mapId);
+			appendHistory(toPastGame(view.session));
 		}
 		setResumable(view.phase === "config" && mapId ? getSavedGame(mapId) : null);
 	}, [view]);
+
+	useEffect(() => {
+		setHistory(map && view.phase === "config" ? getHistory(map.id) : []);
+	}, [map, view]);
 
 	/** Leave and forfeit the game (drops the saved run). */
 	const exitGame = useCallback(() => {
@@ -132,31 +205,80 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 		dispatch({ type: "next" });
 	}, [view, picker.selector]);
 
+	const playAgain = useCallback(() => {
+		setPast(null);
+		void start();
+	}, [start]);
+
+	const openPast = useCallback(async (game: PastGame) => {
+		const session = await hydrateSession(game, (lat, lng) =>
+			cmd.reverseGeocode(lat, lng).catch(() => null),
+		);
+		setPast(session);
+		setShowHistory(false);
+	}, []);
+
+	const clearPast = useCallback(() => {
+		const mapId = getMapState().map?.id;
+		if (mapId) clearHistory(mapId);
+		setHistory([]);
+		setShowHistory(false);
+	}, []);
+
+	const content =
+		view.phase === "playing" || view.phase === "result" ? (
+			<RoundPlayer
+				game={view.game}
+				showResult={view.phase === "result"}
+				selector={picker.selector}
+				onResult={(result) => dispatch({ type: "result", result })}
+				onNext={next}
+				onFinish={() => dispatch({ type: "finish" })}
+				onExit={exitGame}
+			/>
+		) : view.phase === "summary" ? (
+			<Summary session={view.session} onPlayAgain={playAgain} onBack={exitGame} />
+		) : past ? (
+			<Summary
+				session={past}
+				onPlayAgain={playAgain}
+				onBack={() => {
+					setPast(null);
+					setShowHistory(true);
+				}}
+			/>
+		) : null;
+
 	const overlay =
-		view.phase === "config"
-			? null
-			: createPortal(
-					<div className="lg-overlay" role="dialog" aria-modal="true" data-plugin-overlay>
-						{view.phase === "summary" ? (
-							<Summary session={view.session} onPlayAgain={() => void start()} onBack={exitGame} />
-						) : (
-							<RoundPlayer
-								game={view.game}
-								showResult={view.phase === "result"}
-								selector={picker.selector}
-								onResult={(result) => dispatch({ type: "result", result })}
-								onNext={next}
-								onFinish={() => dispatch({ type: "finish" })}
-								onExit={exitGame}
-							/>
-						)}
-					</div>,
-					document.body,
-				);
+		content &&
+		createPortal(
+			<div className="lg-overlay" role="dialog" aria-modal="true" data-plugin-overlay>
+				{content}
+			</div>,
+			document.body,
+		);
 
 	return (
 		<>
-			<Sidebar title={t("LocalGuessr")} onBack={onClose} className="lg-sidebar">
+			<Sidebar
+				title={t("LocalGuessr")}
+				onBack={onClose}
+				className="lg-sidebar"
+				actions={
+					history.length > 0 && (
+						<Tooltip content={t("Past games")} side="bottom">
+							<button
+								className="icon-button"
+								type="button"
+								aria-label={t("Past games")}
+								onClick={() => setShowHistory(true)}
+							>
+								<Icon path={mdiHistory} />
+							</button>
+						</Tooltip>
+					)
+				}
+			>
 				{!map ? (
 					<EmptyState icon={mdiEarth}>{t("Open a map to play")}</EmptyState>
 				) : (
@@ -270,6 +392,15 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 					</>
 				)}
 			</Sidebar>
+			{showHistory && (
+				<PastGamesModal
+					open
+					onOpenChange={setShowHistory}
+					history={history}
+					onOpen={(game) => void openPast(game)}
+					onClear={clearPast}
+				/>
+			)}
 			{overlay}
 		</>
 	);

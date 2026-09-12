@@ -62,11 +62,30 @@ export interface Game {
 
 export interface Session {
 	config: GameConfig;
+	mapId: string;
 	mapName: string;
+	maxError: number;
 	results: RoundResult[];
 	totalScore: number;
 	bestStreak: number;
+	startedAt: number;
 	finishedAt: number;
+}
+
+export interface PastRound {
+	location: RoundLocation;
+	guess: LatLng | null;
+	elapsedMs: number;
+}
+
+export interface PastGame {
+	config: GameConfig;
+	mapId: string;
+	mapName: string;
+	maxError: number;
+	startedAt: number;
+	finishedAt: number;
+	rounds: PastRound[];
 }
 
 /** Illegal states are unrepresentable: a game exists exactly when one is being played. */
@@ -179,15 +198,77 @@ export function streakBeforeLast(results: RoundResult[]): number {
 	return run;
 }
 
-export function toSession(game: Game): Session {
+export function toSession({
+	config,
+	mapId,
+	mapName,
+	maxError,
+	results,
+	startedAt,
+	finishedAt,
+}: Omit<Session, "totalScore" | "bestStreak">): Session {
 	return {
-		config: game.config,
-		mapName: game.mapName,
-		results: game.results,
-		totalScore: game.results.reduce((sum, r) => sum + r.score, 0),
-		bestStreak: bestStreak(game.results),
-		finishedAt: Date.now(),
+		config,
+		mapId,
+		mapName,
+		maxError,
+		results,
+		startedAt,
+		finishedAt,
+		totalScore: results.reduce((sum, r) => sum + r.score, 0),
+		bestStreak: bestStreak(results),
 	};
+}
+
+export function toPastGame(session: Session): PastGame {
+	return {
+		config: session.config,
+		mapId: session.mapId,
+		mapName: session.mapName,
+		maxError: session.maxError,
+		startedAt: session.startedAt,
+		finishedAt: session.finishedAt,
+		rounds: session.results.map(({ location, guess, elapsedMs }) => ({
+			location,
+			guess,
+			elapsedMs,
+		})),
+	};
+}
+
+export function pastTotal(past: PastGame): number {
+	return past.rounds.reduce(
+		(sum, r) => sum + scoreGuess(r.guess, r.location, past.maxError).score,
+		0,
+	);
+}
+
+export async function hydrateSession(
+	past: PastGame,
+	geocode: (lat: number, lng: number) => Promise<GeoResult | null>,
+): Promise<Session> {
+	const { streakMode } = past.config;
+	const results = await Promise.all(
+		past.rounds.map(async ({ location, guess, elapsedMs }): Promise<RoundResult> => {
+			const [truth, guessed] =
+				streakMode !== "off"
+					? await Promise.all([
+							geocode(location.lat, location.lng),
+							guess ? geocode(guess.lat, guess.lng) : null,
+						])
+					: [null, null];
+			return {
+				location,
+				guess,
+				...scoreGuess(guess, location, past.maxError),
+				truth,
+				guessed,
+				streakHit: streakHit(streakMode, truth, guessed),
+				elapsedMs,
+			};
+		}),
+	);
+	return toSession({ ...past, results });
 }
 
 export function reduce(view: View, action: GameAction): View {
@@ -213,7 +294,8 @@ export function reduce(view: View, action: GameAction): View {
 			const { game } = view;
 			const locations = action.locations ?? game.locations;
 			const index = action.locations ? 0 : game.index + 1;
-			if (!locations[index]) return { phase: "summary", session: toSession(game) };
+			if (!locations[index])
+				return { phase: "summary", session: toSession({ ...game, finishedAt: Date.now() }) };
 			return {
 				phase: "playing",
 				game: { ...game, locations, index, roundStartedAt: Date.now() },
@@ -222,7 +304,7 @@ export function reduce(view: View, action: GameAction): View {
 
 		case "finish":
 			if (view.phase !== "playing" && view.phase !== "result") return view;
-			return { phase: "summary", session: toSession(view.game) };
+			return { phase: "summary", session: toSession({ ...view.game, finishedAt: Date.now() }) };
 
 		case "exit":
 			return { phase: "config" };

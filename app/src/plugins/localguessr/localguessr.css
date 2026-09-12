@@ -24,6 +24,12 @@
 	color: var(--text-2);
 }
 
+.lg-history__clear {
+	display: flex;
+	justify-content: flex-end;
+	margin-top: 12px;
+}
+
 /* ---- Game overlay ---- */
 
 .lg-overlay {

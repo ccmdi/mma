@@ -1,9 +1,10 @@
 import { createPluginStorage } from "@/plugins/registry";
-import type { Game, StreakMode } from "./game";
+import type { Game, PastGame, StreakMode } from "./game";
 
 const storage = createPluginStorage("localguessr");
 const SAVED_GAME = "savedGame";
 const GLOBAL_STREAK = "globalStreak";
+const HISTORY = "history";
 
 /**
  * The one in-flight game per map, kept so closing the sidebar mid-round isn't a loss.
@@ -39,4 +40,37 @@ export function getGlobalStreak(mode: StreakMode): number {
 export function setGlobalStreak(mode: StreakMode, count: number): void {
 	if (mode === "off") return;
 	storage.set(GLOBAL_STREAK, { mode, count } satisfies GlobalStreak);
+}
+
+export const HISTORY_ROUND_CAP = 2_000;
+
+function readHistory(): PastGame[] {
+	return storage.get<PastGame[]>(HISTORY, []);
+}
+
+export function getHistory(mapId: string): PastGame[] {
+	return readHistory().filter((g) => g.mapId === mapId);
+}
+
+const gameKey = (game: PastGame) => `${game.mapId}:${game.startedAt}`;
+
+export function appendHistory(game: PastGame): void {
+	const kept = [game];
+	const keys = new Set([gameKey(game)]);
+	let rounds = game.rounds.length;
+	for (const older of readHistory()) {
+		if (keys.has(gameKey(older))) continue;
+		keys.add(gameKey(older));
+		rounds += older.rounds.length;
+		if (rounds > HISTORY_ROUND_CAP) break;
+		kept.push(older);
+	}
+	storage.set(HISTORY, kept);
+}
+
+export function clearHistory(mapId: string): void {
+	storage.set(
+		HISTORY,
+		readHistory().filter((g) => g.mapId !== mapId),
+	);
 }

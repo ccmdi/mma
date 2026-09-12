@@ -4230,9 +4230,61 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 #coverage-type-select {
 	width: 260px;
 }
-.review-sessions-modal {
+.entry-list-modal {
 	width: 46rem;
 	max-width: 95vw;
+}
+.entry-list__empty {
+	color: var(--text-2);
+	text-align: center;
+	padding: 2rem 0;
+	margin: 0;
+}
+.entry-list {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+	display: grid;
+	gap: 0.5rem;
+}
+.entry-list__card {
+	border: 1px solid var(--border-subtle);
+	border-radius: 0.5rem;
+	padding: 0.75rem;
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	transition: border-color 0.15s;
+}
+.entry-list__card:hover {
+	border-color: var(--border-strong);
+}
+.entry-list__info {
+	flex: 1;
+	min-width: 0;
+}
+.entry-list__name {
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	margin-bottom: 0.25rem;
+}
+.entry-list__meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 0.75rem;
+	font-size: 0.8rem;
+	color: var(--text-2);
+}
+.entry-list__actions {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-shrink: 0;
+}
+.entry-list__actions .icon-button {
+	color: var(--text-2);
 }
 .review-sessions__tabs {
 	display: flex;
@@ -4259,49 +4311,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	color: var(--text-1);
 	background: #ffffff14;
 }
-.review-sessions__empty {
-	color: var(--text-2);
-	text-align: center;
-	padding: 2rem 0;
-	margin: 0;
-}
-.review-sessions__list {
-	list-style: none;
-	padding: 0;
-	margin: 0;
-	display: grid;
-	gap: 0.5rem;
-}
-.review-sessions__card {
-	border: 1px solid var(--border-subtle);
-	border-radius: 0.5rem;
-	padding: 0.75rem;
-	display: flex;
-	align-items: center;
-	gap: 0.75rem;
-	transition: border-color 0.15s;
-}
-.review-sessions__card:hover {
-	border-color: var(--border-strong);
-}
-.review-sessions__info {
-	flex: 1;
-	min-width: 0;
-}
-.review-sessions__name {
-	font-weight: 600;
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	margin-bottom: 0.25rem;
-}
-.review-sessions__meta {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.25rem 0.75rem;
-	font-size: 0.8rem;
-	color: var(--text-2);
-}
 .review-sessions__bar {
 	height: 4px;
 	border-radius: 2px;
@@ -4314,15 +4323,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	background: #3fb950;
 	border-radius: 2px;
 	transition: width 0.2s;
-}
-.review-sessions__actions {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	flex-shrink: 0;
-}
-.review-sessions__actions .icon-button {
-	color: var(--text-2);
 }
 .review-sessions__resume {
 	display: inline-flex;

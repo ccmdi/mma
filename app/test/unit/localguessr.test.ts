@@ -11,9 +11,13 @@ import {
 	scoreGuess,
 	streakBeforeLast,
 	streakHit,
+	toPastGame,
 	toSession,
+	hydrateSession,
+	pastTotal,
 	type Game,
 	type GameConfig,
+	type PastGame,
 	type RoundLocation,
 	type RoundResult,
 	type View,
@@ -258,7 +262,7 @@ describe("round helpers", () => {
 
 	it("carries the best streak into the session", () => {
 		const results = [true, true, false, true].map((streakHit) => result({ streakHit }));
-		expect(toSession(game({ results })).bestStreak).toBe(2);
+		expect(toSession({ ...game({ results }), finishedAt: 0 }).bestStreak).toBe(2);
 	});
 });
 
@@ -282,5 +286,106 @@ describe("resume", () => {
 		if (view.phase === "playing") {
 			expect(view.game.roundStartedAt).toBeGreaterThan(1);
 		}
+	});
+});
+
+function past(over: Partial<PastGame> = {}): PastGame {
+	return {
+		config: CONFIG,
+		mapId: "m",
+		mapName: "Map",
+		maxError: 185.34781,
+		startedAt: 0,
+		finishedAt: 0,
+		rounds: [],
+		...over,
+	};
+}
+
+function filler(n: number) {
+	return Array.from({ length: n }, () => ({ location: loc(1), guess: null, elapsedMs: 0 }));
+}
+
+describe("history storage", () => {
+	it("lists the newest game first, scoped to its map", async () => {
+		const { appendHistory, getHistory, clearHistory } =
+			await import("@/plugins/localguessr/storage");
+		appendHistory(past({ mapId: "one", startedAt: 1 }));
+		appendHistory(past({ mapId: "two", startedAt: 2 }));
+		appendHistory(past({ mapId: "one", startedAt: 3 }));
+		expect(getHistory("one").map((g) => g.startedAt)).toEqual([3, 1]);
+		expect(getHistory("two").map((g) => g.startedAt)).toEqual([2]);
+		clearHistory("one");
+		expect(getHistory("one")).toEqual([]);
+		expect(getHistory("two")).toHaveLength(1);
+		clearHistory("two");
+	});
+
+	it("drops the oldest games once the kept rounds exceed the cap", async () => {
+		const { appendHistory, getHistory, clearHistory, HISTORY_ROUND_CAP } =
+			await import("@/plugins/localguessr/storage");
+		const half = Math.floor(HISTORY_ROUND_CAP / 2);
+		appendHistory(past({ mapId: "cap", startedAt: 1, rounds: filler(half) }));
+		appendHistory(past({ mapId: "cap", startedAt: 2, rounds: filler(half) }));
+		appendHistory(past({ mapId: "cap", startedAt: 3, rounds: filler(1) }));
+		expect(getHistory("cap").map((g) => g.startedAt)).toEqual([3, 2]);
+		clearHistory("cap");
+	});
+
+	it("holds each game once however often it is appended", async () => {
+		const { appendHistory, getHistory, clearHistory } =
+			await import("@/plugins/localguessr/storage");
+		appendHistory(past({ mapId: "once", startedAt: 1 }));
+		appendHistory(past({ mapId: "once", startedAt: 2 }));
+		appendHistory(past({ mapId: "once", startedAt: 2 }));
+		appendHistory(past({ mapId: "once", startedAt: 1 }));
+		expect(getHistory("once").map((g) => g.startedAt)).toEqual([1, 2]);
+		clearHistory("once");
+	});
+
+	it("keeps the game just finished even when it alone exceeds the cap", async () => {
+		const { appendHistory, getHistory, clearHistory, HISTORY_ROUND_CAP } =
+			await import("@/plugins/localguessr/storage");
+		appendHistory(past({ mapId: "big", startedAt: 1, rounds: filler(1) }));
+		appendHistory(past({ mapId: "big", startedAt: 2, rounds: filler(HISTORY_ROUND_CAP + 1) }));
+		expect(getHistory("big").map((g) => g.startedAt)).toEqual([2]);
+		clearHistory("big");
+	});
+});
+
+describe("history round trip", () => {
+	const guess = { lat: 1.4, lng: 0.3 };
+	const results = [
+		result({
+			location: loc(1),
+			guess,
+			elapsedMs: 4200,
+			...scoreGuess(guess, loc(1), 185.34781),
+		}),
+		result({ location: loc(2), guess: null, elapsedMs: 9100 }),
+	];
+	const noGeocode = () => Promise.reject(new Error("geocoded a streakless game"));
+
+	it("rescores to the numbers the live game produced", async () => {
+		const played = toSession({ ...game({ results }), finishedAt: 1_700_000_000_000 });
+		expect(await hydrateSession(toPastGame(played), noGeocode)).toEqual(played);
+	});
+
+	it("totals a stored game without hydrating it", async () => {
+		const played = toSession({ ...game({ results }), finishedAt: 1 });
+		expect(pastTotal(toPastGame(played))).toBe(played.totalScore);
+	});
+
+	it("geocodes again only for a game that counted a streak", async () => {
+		const config: GameConfig = { ...CONFIG, streakMode: "country" };
+		const played = toSession({ ...game({ config, results }), finishedAt: 1 });
+		let calls = 0;
+		const hydrated = await hydrateSession(toPastGame(played), () => {
+			calls++;
+			return Promise.resolve(place("US", "Texas"));
+		});
+		expect(calls).toBe(3);
+		expect(hydrated.results.map((r) => r.streakHit)).toEqual([true, false]);
+		expect(hydrated.bestStreak).toBe(1);
 	});
 });
