@@ -18,6 +18,11 @@ export function newestOfficialPano<T extends { panoId: string }>(time: readonly 
 	return time.findLast((t) => isOfficialPano(t.panoId)) ?? null;
 }
 
+/** `a`'s capture month is strictly after `b`'s. Undated coverage never counts as newer. */
+export function capturedAfter(a: Pano, b: Pano): boolean {
+	return a.imageDate !== "" && a.imageDate > b.imageDate;
+}
+
 /** Heuristic: a user-uploaded pano, by id length or attribution. Both attribution texts are
  *  searched: a user photo can carry a place description as well as its "Photo by" line. */
 export function isUnofficial(p: Pano): boolean {

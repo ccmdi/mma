@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
 	allUnofficial,
+	capturedAfter,
 	isOfficialPano,
 	isUnofficial,
 	mergeTimelines,
@@ -92,6 +93,24 @@ describe("isUnofficial", () => {
 		expect(
 			isUnofficial(pano("A".repeat(22), { shortDescription: "Main Street", copyright: "Photo by John" })),
 		).toBe(true);
+	});
+});
+
+describe("capturedAfter", () => {
+	const dated = (imageDate: string) => ({ imageDate }) as Pano;
+
+	it("a later month is after", () => {
+		expect(capturedAfter(dated("2026-02"), dated("2023-05"))).toBe(true);
+	});
+
+	it("an earlier or equal month is not", () => {
+		expect(capturedAfter(dated("2023-05"), dated("2026-02"))).toBe(false);
+		expect(capturedAfter(dated("2023-05"), dated("2023-05"))).toBe(false);
+	});
+
+	it("undated coverage never counts as newer, but always loses to a date", () => {
+		expect(capturedAfter(dated(""), dated("2023-05"))).toBe(false);
+		expect(capturedAfter(dated("2023-05"), dated(""))).toBe(true);
 	});
 });
 

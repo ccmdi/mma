@@ -283,19 +283,42 @@ test("with pinned checks off, a pinned badcam row is never checked for a better 
 test("a moved coordinate reports an applied update", () => {
 	const { state } = stateOf(
 		{ panoId: A },
-		{ panos: { [A]: meta(A), [B]: meta(B) }, coords: { "1,2": B } },
+		{
+			panos: { [A]: meta(A), [B]: meta(B, { date: { year: 2024, month: 3, day: 1 } }) },
+			coords: { "1,2": B },
+		},
 	);
 	assert.equal(state, UPDATE_APPLIED);
 });
 
-test("a pinned row whose coordinate answers a different pano reports an available update", () => {
+test("a pinned row whose coordinate answers a newer pano reports an available update", () => {
 	// A republished area: the stored pano still resolves but a new graph sits at the coordinate.
 	const { state } = stateOf(
 		{ panoId: A, flags: PINNED },
-		{ panos: { [A]: meta(A), [B]: meta(B) }, coords: { "1,2": B } },
+		{
+			panos: { [A]: meta(A), [B]: meta(B, { date: { year: 2024, month: 3, day: 1 } }) },
+			coords: { "1,2": B },
+		},
 	);
 	assert.equal(state, UPDATE_AVAILABLE);
 });
+
+test("a pin ahead of a lagging default is not an update", () => {
+	// The row is pinned to the newest graph; the coordinate's default is an older official
+	// pano. Different id, but nothing newer exists.
+	const { state } = stateOf(
+		{ panoId: A, flags: PINNED },
+		{
+			panos: {
+				[A]: meta(A, { date: { year: 2026, month: 2, day: 1 } }),
+				[B]: meta(B, { date: { year: 2023, month: 5, day: 1 } }),
+			},
+			coords: { "1,2": B },
+		},
+	);
+	assert.equal(state, OK);
+});
+
 
 test("an unofficial pano at the coordinate is not an update", () => {
 	// The nearest hit can be a photosphere; only official coverage counts as an update.
