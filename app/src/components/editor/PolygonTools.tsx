@@ -146,7 +146,10 @@ export function PolygonTools({
 
 		return () => {
 			off();
-			freehandPathRef.current = null;
+			if (freehandPathRef.current) {
+				freehandPathRef.current = null;
+				emitUpdate();
+			}
 		};
 	}, [host, mode, freehandPathRef]);
 
@@ -276,7 +279,10 @@ export function PolygonTools({
 		return () => {
 			off();
 			document.removeEventListener("keydown", onKey, true);
-			freehandPathRef.current = null;
+			if (freehandPathRef.current) {
+				freehandPathRef.current = null;
+				emitUpdate();
+			}
 		};
 	}, [host, mode, freehandPathRef]);
 

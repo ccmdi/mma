@@ -17,6 +17,7 @@ div.appendChild(engineSurface);
 document.body.appendChild(div);
 
 let draggableCalls: boolean[] = [];
+let overlayUpdates = 0;
 let mousemoveListener: ((ll: LatLng) => void) | null = null;
 const host = {
 	container: div,
@@ -49,7 +50,7 @@ function mount(): number[][][][] {
 				onDraw: (rings: number[][][]) => drawn.push(rings),
 				freehandPathRef,
 				polygonVerticesRef: createRef<number[][] | null>(),
-				requestOverlayUpdate: () => {},
+				requestOverlayUpdate: () => overlayUpdates++,
 			}),
 		),
 	);
@@ -80,6 +81,7 @@ afterEach(() => {
 	if (root) act(() => root!.unmount());
 	root = null;
 	draggableCalls = [];
+	overlayUpdates = 0;
 });
 
 describe("draw tools leave the map interactive", () => {
@@ -178,4 +180,21 @@ describe("polygon preview", () => {
 			[2, 2],
 		]);
 	});
+});
+
+describe("draw tool cleanup", () => {
+	it.each(["Freehand polygon selection", "Draw a rectangle selection"])(
+		"repaints after disarming %s",
+		(label) => {
+			mount();
+			arm(label);
+			down(10, 10);
+			move(20, 20);
+			expect(freehandPathRef.current).not.toBeNull();
+			const updatesBeforeDisarm = overlayUpdates;
+			arm(label);
+			expect(freehandPathRef.current).toBeNull();
+			expect(overlayUpdates).toBe(updatesBeforeDisarm + 1);
+		},
+	);
 });
