@@ -2948,6 +2948,10 @@ The same location on the same pano: what makes one row's answer another row's.
 
 Convert a [south, west, north, east] tuple to a Bounds object.
 
+### `setPinned(loc: Location, on: boolean): Location`
+
+The location pinned to the pano it carries, or unpinned to float on default coverage.
+
 ## Util
 
 ### `appendTagName(pending: string[], name: string, tags: Tag[]): string[]`

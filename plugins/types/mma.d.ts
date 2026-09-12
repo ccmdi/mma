@@ -2575,6 +2575,8 @@ declare function boundsToScoreTuple(b: Bounds): [number, number, number, number]
 declare function isPinned(loc: Location): loc is Location & {
     panoId: string;
 };
+/** The location pinned to the pano it carries, or unpinned to float on default coverage. */
+declare function setPinned(loc: Location, on: boolean): Location;
 /** The `extra` merge patch that turns `before` into `after`: changed keys carry their
  *  new value, keys `after` lacks carry null. */
 declare function extraPatch(before: Record<string, unknown> | null, after: Record<string, unknown> | null): Record<string, unknown>;
@@ -2642,8 +2644,9 @@ declare const types_isWorldBounds: typeof isWorldBounds;
 declare const types_locId: typeof locId;
 declare const types_sameRow: typeof sameRow;
 declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
+declare const types_setPinned: typeof setPinned;
 declare namespace types {
-  export { types_applyLocationPatch as applyLocationPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_extraPatch as extraPatch, types_isImportPreview as isImportPreview, types_isPinned as isPinned, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds };
+  export { types_applyLocationPatch as applyLocationPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_extraPatch as extraPatch, types_isImportPreview as isImportPreview, types_isPinned as isPinned, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds, types_setPinned as setPinned };
   export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
 }
 
