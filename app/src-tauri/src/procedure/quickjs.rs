@@ -359,6 +359,13 @@ where
     f
 }
 
+fn tz_fn<F>(f: F) -> F
+where
+    F: for<'js> Fn(Ctx<'js>, f64, f64) -> rquickjs::Result<Value<'js>> + 'static,
+{
+    f
+}
+
 fn js_string(v: &rquickjs::String<'_>) -> AppResult<String> {
     v.to_string().map_err(|e| AppError(e.to_string()))
 }
@@ -508,10 +515,18 @@ fn install_mma<'js>(
     .map_err(jerr)?;
     obj.set(
         "tz",
-        Function::new(ctx.clone(), |lat: f64, lng: f64| -> Option<String> {
-            use crate::util::tz_grid;
-            tz_grid().zone_at(lat, lng).map(str::to_owned)
-        })
+        Function::new(
+            ctx.clone(),
+            tz_fn(|ctx: Ctx<'_>, lat: f64, lng: f64| {
+                use crate::util::tz_grid;
+                match tz_grid().zone_at(lat, lng) {
+                    Some(name) => {
+                        Ok(rquickjs::String::from_str(ctx.clone(), name)?.into_value())
+                    }
+                    None => Ok(Value::new_null(ctx)),
+                }
+            }),
+        )
         .map_err(jerr)?,
     )
     .map_err(jerr)?;

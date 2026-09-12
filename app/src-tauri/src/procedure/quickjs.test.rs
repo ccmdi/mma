@@ -452,6 +452,16 @@ fn classify_answers_null_outside_every_feature() {
 }
 
 #[test]
+fn tz_answers_null_outside_the_grid() {
+    let mut proc = loaded(&echo_map("{ zone: mma.tz(91, 0) }"));
+    let mut host = MockProcHost::default();
+    let patches = proc
+        .map(&rows(), &empty_response(), &mut host)
+        .expect("map succeeds");
+    assert_eq!(extra(&patches), serde_json::json!({ "zone": null }));
+}
+
+#[test]
 fn sidecar_lines_reach_a_run_shape() {
     let mut proc = loaded(
         "export function run(rows) {
