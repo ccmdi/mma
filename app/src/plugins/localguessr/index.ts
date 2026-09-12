@@ -9,6 +9,7 @@ registerPlugin({
 	description: msg("Play a guessing game on your own map, and tag rounds as you go"),
 	icon: mdiGamepadVariantOutline,
 	experimental: true,
+	keepAlive: true,
 	sidebar: LocalGuessrSidebar,
 	activate() {},
 });

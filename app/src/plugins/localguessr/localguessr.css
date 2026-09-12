@@ -169,6 +169,30 @@
 	cursor: pointer;
 }
 
+.lg-resume-game {
+	position: fixed;
+	bottom: 16px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 40;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px;
+	border: none;
+	border-radius: var(--radius-3);
+	background: #0009;
+	backdrop-filter: blur(6px);
+	color: var(--text-1);
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.lg-resume-game:hover {
+	background: #000c;
+}
+
 .lg-round__tools {
 	position: absolute;
 	top: 50%;

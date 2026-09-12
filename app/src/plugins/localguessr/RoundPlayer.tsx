@@ -19,10 +19,14 @@ import { getSettings, setSetting, useSettings } from "@/store/settings";
 import { sendHideCar, Compass, CompassTape } from "@/components/editor/location/PanoControls";
 import { usePluginState } from "@/plugins/registry";
 import { t } from "@/lib/i18n";
+import { toast } from "@/lib/util/toast";
 import { formatDistance } from "@/lib/util/format";
+import { panosAt } from "@/lib/sv/query";
+import { previewVirtualLocation, setActiveLocation } from "@/store/useMapStore";
 import type { LatLng } from "@/types";
 import {
 	currentRound,
+	guessPreview,
 	isLastRound,
 	scoreGuess,
 	streakBeforeLast,
@@ -31,7 +35,7 @@ import {
 	type RoundResult,
 	type StreakMode,
 } from "./game";
-import { GuessMap } from "./GuessMap";
+import { GuessMap, type ResultPin } from "./GuessMap";
 import { PanoView, type PanoHandle } from "./PanoView";
 import { RoundTagBar } from "./RoundTagBar";
 
@@ -78,6 +82,8 @@ function Timer({
 		</span>
 	);
 }
+
+const GUESS_PANO_RADIUS = 1000;
 
 function streakMessage(
 	result: RoundResult,
@@ -129,6 +135,7 @@ export function RoundPlayer({
 	const [guess, setGuess] = useState<LatLng | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 	const [hasCheckpoint, setHasCheckpoint] = useState(false);
+	const [opening, setOpening] = useState(false);
 	const [panorama, setPanorama] = useState<Parameters<typeof Compass>[0]["panorama"] | null>(null);
 	const settings = useSettings();
 	const [hideCar, setHideCar] = useState(!getSettings().showCar);
@@ -178,6 +185,27 @@ export function RoundPlayer({
 			setSubmitting(false);
 		},
 		[round, submitting, showResult, game, onResult],
+	);
+
+	const openPin = useCallback(
+		async (pin: ResultPin) => {
+			if (opening || !round) return;
+			if (pin === "truth") {
+				await setActiveLocation(round.id, false);
+				return;
+			}
+			const at = lastResult?.guess;
+			if (!at) return;
+			setOpening(true);
+			try {
+				const [pano] = await panosAt([at], GUESS_PANO_RADIUS);
+				if (pano?.id) previewVirtualLocation(guessPreview(pano));
+				else toast(t("No Street View near your guess"));
+			} finally {
+				setOpening(false);
+			}
+		},
+		[opening, round, lastResult],
 	);
 
 	const advance = useCallback(() => {
@@ -241,7 +269,9 @@ export function RoundPlayer({
 	const cumulative = game.results.reduce((sum, r) => sum + r.score, 0);
 
 	return (
-		<div className={`lg-round${showResult ? " lg-round--result" : ""}`}>
+		<div
+			className={`lg-round${showResult ? " lg-round--result" : ""}`}
+		>
 			{/* Kept mounted through the result phase: remounting drops the WebGL context. */}
 			<div className="lg-round__pano" aria-hidden={showResult}>
 				<PanoView
@@ -370,7 +400,9 @@ export function RoundPlayer({
 				</div>
 			)}
 
-			<div className={showResult ? "lg-round__result" : "lg-round__map-slot"}>
+			<div
+				className={showResult ? "lg-round__result" : "lg-round__map-slot"}
+			>
 				<GuessMap
 					guess={showResult ? (lastResult?.guess ?? null) : guess}
 					truth={showResult ? { lat: round.lat, lng: round.lng } : null}
@@ -379,6 +411,7 @@ export function RoundPlayer({
 					selector={selector}
 					onGuess={setGuess}
 					onSubmit={() => void submit(guess)}
+					onOpenPin={(pin) => void openPin(pin)}
 					submitting={submitting}
 				/>
 

@@ -1,6 +1,9 @@
-import type { GeoResult, Location } from "@/bindings.gen";
+import type { GeoResult, Location, Pano } from "@/bindings.gen";
 import type { LatLng, PanoCapture } from "@/types";
 import { distMeters } from "@/lib/geo/geo";
+import { calcHeading } from "@/lib/sv/lookup";
+import { createLocation } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 import { computeScore } from "@/lib/geo/scoring";
 
 export type MovementMode = "moving" | "noMove" | "nmpz";
@@ -101,6 +104,16 @@ export type GameAction =
 	| { type: "next"; locations?: RoundLocation[] }
 	| { type: "finish" }
 	| { type: "exit" };
+
+export function guessPreview(pano: Pano): Location {
+	return createLocation({
+		lat: pano.lat,
+		lng: pano.lng,
+		panoId: pano.id,
+		heading: calcHeading(pano, { pointAlongRoad: true }),
+		flags: LocationFlag.LoadAsPanoId,
+	});
+}
 
 export function toRoundLocation({
 	id,

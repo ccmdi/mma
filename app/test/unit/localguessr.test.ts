@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import type { GeoResult } from "@/bindings.gen";
+import type { GeoResult, Pano } from "@/bindings.gen";
+import { LocationFlag } from "@/bindings.consts";
 import {
 	bestStreak,
 	currentRound,
 	formatElapsed,
+	guessPreview,
 	isLastRound,
 	reduce,
 	sampleN,
@@ -387,5 +389,33 @@ describe("history round trip", () => {
 		expect(calls).toBe(3);
 		expect(hydrated.results.map((r) => r.streakHit)).toEqual([true, false]);
 		expect(hydrated.bestStreak).toBe(1);
+	});
+});
+
+describe("previewing the pano nearest a guess", () => {
+	const pano = (over: Partial<Pano> = {}) =>
+		({
+			id: "PANO_ID",
+			lat: 51.5,
+			lng: -0.12,
+			centerHeading: 200,
+			links: [],
+			...over,
+		}) as unknown as Pano;
+
+	it("pins the preview to the exact pano it found", () => {
+		const preview = guessPreview(pano());
+		expect(preview.panoId).toBe("PANO_ID");
+		expect(preview.flags & LocationFlag.LoadAsPanoId).toBeTruthy();
+	});
+
+	it("faces along the road when the pano links somewhere", () => {
+		expect(
+			guessPreview(pano({ links: [{ panoId: "NEXT", heading: 77 }] as Pano["links"] })).heading,
+		).toBe(77);
+	});
+
+	it("falls back to the capture heading when the pano links nowhere", () => {
+		expect(guessPreview(pano()).heading).toBe(200);
 	});
 });

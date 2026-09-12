@@ -53,6 +53,13 @@ const TRUTH_COLOR: RGB = [76, 175, 80];
 const POOL_POINTS = 10_000;
 const POOL_RADIUS = 3;
 
+export type ResultPin = "guess" | "truth";
+
+const PIN_KIND: Record<string, ResultPin | undefined> = {
+	"lg-guess": "guess",
+	"lg-truth": "truth",
+};
+
 async function fetchPool(selector: Selector): Promise<Float32Array> {
 	const ids = await sampleFrom(selector, POOL_POINTS);
 	const [lng, lat] = await fetchColumns({ type: "Locations", locations: ids, name: null }, [
@@ -152,6 +159,7 @@ export function GuessMap({
 	selector,
 	onGuess,
 	onSubmit,
+	onOpenPin,
 	submitting,
 }: {
 	guess: LatLng | null;
@@ -162,6 +170,7 @@ export function GuessMap({
 	selector: Selector;
 	onGuess: (p: LatLng) => void;
 	onSubmit: () => void;
+	onOpenPin: (pin: ResultPin) => void;
 	submitting: boolean;
 }) {
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -192,6 +201,8 @@ export function GuessMap({
 	// Read via refs so the click listener binds once.
 	const onGuessRef = useRef(onGuess);
 	onGuessRef.current = onGuess;
+	const onOpenPinRef = useRef(onOpenPin);
+	onOpenPinRef.current = onOpenPin;
 	const lockedRef = useRef(showResult);
 	lockedRef.current = showResult;
 	/** Location bounds, resolved once with the host so per-round fits never await. */
@@ -287,9 +298,10 @@ export function GuessMap({
 		}
 	}, [ready]);
 
+	const [hoveredPin, setHoveredPin] = useState<ResultPin | null>(null);
 	useEffect(() => {
-		hostRef.current?.setCursor(showResult ? null : "crosshair");
-	}, [showResult]);
+		hostRef.current?.setCursor(showResult ? (hoveredPin ? "pointer" : null) : "crosshair");
+	}, [showResult, hoveredPin]);
 
 	// The line re-normalizes once per zoom level (the `zoom` event fires per step,
 	// already carrying the target value) and simply scales with the map in between.
@@ -328,9 +340,16 @@ export function GuessMap({
 		if (showResult && truth && guess && settledZoom !== null) {
 			layers.push(resultLineLayer(guess, truth, settledZoom));
 		}
-		if (guess) layers.push(...pinLayers("lg-guess", guess, GUESS_COLOR, false));
-		if (showResult && truth) layers.push(...pinLayers("lg-truth", truth, TRUTH_COLOR, false));
-		overlay.setProps({ layers });
+		if (guess) layers.push(...pinLayers("lg-guess", guess, GUESS_COLOR, showResult));
+		if (showResult && truth) layers.push(...pinLayers("lg-truth", truth, TRUTH_COLOR, showResult));
+		overlay.setProps({
+			layers,
+			onClick: (info) => {
+				const pin = PIN_KIND[info.layer?.id ?? ""];
+				if (pin) onOpenPinRef.current(pin);
+			},
+			onHover: (info) => setHoveredPin(PIN_KIND[info.layer?.id ?? ""] ?? null),
+		});
 	}, [guess, truth, showResult, ready, settledZoom, showPool, pool, prefs.svColor]);
 
 	const fitToLocations = useCallback(() => {
