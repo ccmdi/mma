@@ -2,6 +2,7 @@ import type { Tag, VirtualTag } from "@/bindings.gen";
 import type { TagSortMode } from "@/types";
 import type { TagFolderColorMode } from "@/store/settings";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
+import { toggleInSet } from "@/lib/util/util";
 
 const EXPANDED_KEY = "tagTreeExpanded";
 
@@ -37,6 +38,54 @@ export interface TagTreeNode {
  *  tagless node is a declared empty folder (a virtualTags key no tag passes through) and
  *  renders as a folder row; filtering can also leave transient tagless nodes behind. */
 export const isLeafTag = (n: TagTreeNode) => n.children.length === 0 && n.tag != null;
+
+export type TagTreeExpansionIntent =
+	| { kind: "toggle"; path: string }
+	| { kind: "toggle-subtree"; path: string }
+	| { kind: "isolate"; path: string; parentPath: string };
+
+export function resolveExpandedPaths(
+	tree: TagTreeNode[],
+	expanded: ReadonlySet<string>,
+	intent: TagTreeExpansionIntent,
+): Set<string> {
+	if (intent.kind === "toggle") return toggleInSet(expanded, intent.path);
+
+	const next = new Set(expanded);
+	if (intent.kind === "toggle-subtree") {
+		if (expanded.has(intent.path)) {
+			for (const path of next) {
+				if (path === intent.path || path.startsWith(`${intent.path}/`)) next.delete(path);
+			}
+		} else {
+			const addSubtree = (nodes: TagTreeNode[]) => {
+				for (const node of nodes) {
+					if (
+						node.children.length > 0 &&
+						(node.fullPath === intent.path || node.fullPath.startsWith(`${intent.path}/`))
+					) {
+						next.add(node.fullPath);
+					}
+					addSubtree(node.children);
+				}
+			};
+			addSubtree(tree);
+		}
+		return next;
+	}
+
+	const closeSiblings = (nodes: TagTreeNode[]) => {
+		for (const node of nodes) {
+			if (node.parentPath === intent.parentPath && node.fullPath !== intent.path) {
+				next.delete(node.fullPath);
+			}
+			closeSiblings(node.children);
+		}
+	};
+	closeSiblings(tree);
+	next.add(intent.path);
+	return next;
+}
 
 /** Every occupied tree path (tags, aliases, declared folders + all their ancestors) --
  *  mirrors buildTagTree's occupancy, so a free slot here is a free slot in the tree. */

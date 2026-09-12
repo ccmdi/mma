@@ -17,7 +17,6 @@ import { Icon } from "@/components/primitives/Icon";
 import { mdiChevronDown, mdiChevronRight, mdiPencil, mdiFolder } from "@mdi/js";
 import { textColorFor, rgbToHex } from "@/lib/util/color";
 import { fmt } from "@/lib/util/format";
-import { toggleInSet } from "@/lib/util/util";
 import { toggleTagSelections } from "@/store/useMapStore";
 import { useStableHandler } from "@/lib/hooks/useStableHandler";
 import { useSetting } from "@/store/settings";
@@ -34,8 +33,10 @@ import {
 	isLeafTag,
 	loadExpanded,
 	saveExpanded,
+	resolveExpandedPaths,
 	type TagTreeNode,
 	type TagMoveResult,
+	type TagTreeExpansionIntent,
 } from "./tagTreeRange";
 import type { TagSortMode } from "@/types";
 import type { Tag, VirtualTag } from "@/bindings.gen";
@@ -67,7 +68,7 @@ interface TagTreeCallbacks {
 	onNewFolder: (parentPath: string) => void;
 	onDeleteFolder: (path: string) => void;
 	onRowClick: (node: TagTreeNode, shiftKey: boolean, altKey: boolean) => void;
-	onToggleExpanded: (path: string) => void;
+	onToggleExpanded: (intent: TagTreeExpansionIntent) => void;
 	drag: TreeDragHandlers;
 }
 
@@ -139,13 +140,16 @@ export function TagTreeView({
 	);
 	const [expandedPaths, setExpandedPaths] = useState(loadExpanded);
 
-	const toggleExpanded = useCallback((path: string) => {
-		setExpandedPaths((prev) => {
-			const next = toggleInSet(prev, path);
-			saveExpanded(next);
-			return next;
-		});
-	}, []);
+	const toggleExpanded = useCallback(
+		(intent: TagTreeExpansionIntent) => {
+			setExpandedPaths((prev) => {
+				const next = resolveExpandedPaths(tree, prev, intent);
+				saveExpanded(next);
+				return next;
+			});
+		},
+		[tree],
+	);
 
 	useImperativeHandle(
 		ref,
@@ -600,7 +604,13 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 
 	const handleChevronClick = (e: React.MouseEvent) => {
 		e.stopPropagation();
-		onToggleExpanded(node.fullPath);
+		let intent: TagTreeExpansionIntent = { kind: "toggle", path: node.fullPath };
+		if (e.altKey) {
+			intent = { kind: "isolate", path: node.fullPath, parentPath: node.parentPath };
+		} else if (e.ctrlKey || e.metaKey) {
+			intent = { kind: "toggle-subtree", path: node.fullPath };
+		}
+		onToggleExpanded(intent);
 	};
 
 	return (

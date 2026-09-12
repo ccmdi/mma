@@ -12,6 +12,7 @@ import {
 	isLeafTag,
 	sumCounts,
 	shortestUniqueSuffixes,
+	resolveExpandedPaths,
 	type TagTreeNode,
 	type FolderColorOpts,
 } from "@/components/editor/tags/tagTreeRange";
@@ -32,6 +33,54 @@ const rows = [
 	{ descendantTagIds: [3] },
 	{ descendantTagIds: [4] },
 ];
+
+describe("resolveExpandedPaths", () => {
+	const tree = buildTagTree(
+		[
+			mkTag(1, "A/leaf"),
+			mkTag(2, "A/B/leaf"),
+			mkTag(3, "A/B/C/leaf"),
+			mkTag(4, "A/X/leaf"),
+			mkTag(5, "D/E/leaf"),
+		],
+		"default",
+		{},
+	);
+
+	it("toggles one folder without changing other expanded paths", () => {
+		expect(resolveExpandedPaths(tree, new Set(["D"]), { kind: "toggle", path: "A" })).toEqual(
+			new Set(["D", "A"]),
+		);
+		expect(resolveExpandedPaths(tree, new Set(["A", "A/B"]), { kind: "toggle", path: "A" })).toEqual(
+			new Set(["A/B"]),
+		);
+	});
+
+	it("expands every folder in a collapsed subtree", () => {
+		expect(
+			resolveExpandedPaths(tree, new Set(["D"]), { kind: "toggle-subtree", path: "A" }),
+		).toEqual(new Set(["D", "A", "A/B", "A/B/C", "A/X"]));
+	});
+
+	it("collapses every expanded path in an open subtree", () => {
+		expect(
+			resolveExpandedPaths(tree, new Set(["A", "A/B", "A/B/C", "A/gone", "AB", "D"]), {
+				kind: "toggle-subtree",
+				path: "A",
+			}),
+		).toEqual(new Set(["AB", "D"]));
+	});
+
+	it("opens one folder and closes only its expanded siblings", () => {
+		expect(
+			resolveExpandedPaths(tree, new Set(["A", "A/X", "A/X/deep", "D"]), {
+				kind: "isolate",
+				path: "A/B",
+				parentPath: "A",
+			}),
+		).toEqual(new Set(["A", "A/X/deep", "D", "A/B"]));
+	});
+});
 
 describe("shortestUniqueSuffixes", () => {
 	it("collapses a unique name to its last segment", () => {
