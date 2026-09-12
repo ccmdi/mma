@@ -29,6 +29,9 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			await auth.setKey(keyDraft);
 			setUser(user);
 		} catch (e) {
+			// Validate may have cached the identity before the store failed; a failed
+			// submit must leave nothing signed in.
+			auth.forgetAuth();
 			setError(errText(e));
 			setUser(null);
 		} finally {
