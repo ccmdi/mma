@@ -5,6 +5,9 @@ const OFFICIAL_PANO_RE = new RegExp(OFFICIAL_ID_PATTERN);
 
 export function isOfficialPano(panoId: string): boolean {
 	if (panoId.startsWith("F:")) return false;
+	// Bare user-contribution keys can be exactly 22 characters, colliding with the
+	// official shape; the prefix is the tell.
+	if (panoId.startsWith("CIHM")) return false;
 	return OFFICIAL_PANO_RE.test(panoId);
 }
 

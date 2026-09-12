@@ -34,6 +34,10 @@ describe("isOfficialPano", () => {
 		expect(isOfficialPano("some-random-pano-id")).toBe(false);
 	});
 
+	it("a bare CIHM contributor key is not official, even at 22 chars ending in a key bit", () => {
+		expect(isOfficialPano("CIHM0ogKEICAgICTzu7WYg")).toBe(false);
+	});
+
 	it("handles empty string as unofficial", () => {
 		expect(isOfficialPano("")).toBe(false);
 	});

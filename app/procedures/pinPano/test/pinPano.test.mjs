@@ -86,6 +86,17 @@ test("already pinned rows are skipped, and forced ones are not", () => {
 	assert.equal(forced.progress, 1);
 });
 
+test("useLatest never picks a bare CIHM contributor key, whatever its shape", () => {
+	const CONTRIBUTOR = "CIHM0ogKEICAgICTzu7WYg";
+	const { patches, failed } = runProcedure(
+		[row(1, OFFICIAL_A, 0)],
+		(id) => withTimeline(id, [OFFICIAL_A, OFFICIAL_B, CONTRIBUTOR]),
+		{ config: { useLatest: true } },
+	);
+	assert.deepEqual(patches, [{ id: 1, patch: { panoId: OFFICIAL_B, flags: 1 } }]);
+	assert.deepEqual(failed, []);
+});
+
 test("useLatest picks the newest official pano in the timeline", () => {
 	const { patches, asked, failed } = runProcedure(
 		[row(1, OFFICIAL_A, 0)],
