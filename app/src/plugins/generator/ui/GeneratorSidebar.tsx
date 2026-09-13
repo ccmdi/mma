@@ -255,7 +255,6 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			onLocationsFound: (locs: GeneratedLocation[]) => {
 				void MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
 				updateSessionJob();
-				rerender((n) => n + 1);
 			},
 			onProgress: () => {
 				tickProgress();
@@ -335,7 +334,6 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			onLocationsFound: (locs: GeneratedLocation[]) => {
 				void MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
 				updateSessionJob();
-				rerender((n) => n + 1);
 			},
 			onProgress: () => {
 				tickProgress();
