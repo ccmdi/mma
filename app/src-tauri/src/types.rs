@@ -285,8 +285,7 @@ wire_bitflags! {
     LocationFlags: u32 {
         /// When the location has a stored pano, it opens exactly that pano instead of the nearest coverage.
         const LOAD_AS_PANO_ID = 1;
-        // The original app's informational marker: carried through, read by nothing.
-        /// Kept as imported, with no effect in the app.
+        /// Legacy marker (web). Kept as imported, with no effect in the app.
         const INFORMATIONAL = 2;
         // Preview kinds, set only on the ephemeral active-location preview and stripped
         // by [`LocationFlags::VIRTUAL`] before one is materialized. Never persisted.

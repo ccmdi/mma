@@ -7,7 +7,7 @@ export const LocationFlag = {
 	None: 0,
 	/** When the location has a stored pano, it opens exactly that pano instead of the nearest coverage. */
 	LoadAsPanoId: 1,
-	/** Kept as imported, with no effect in the app. */
+	/** Legacy marker (web). Kept as imported, with no effect in the app. */
 	Informational: 2,
 	/** A location from a pending import, opened for preview and not yet on the map. */
 	ImportPreview: 4,

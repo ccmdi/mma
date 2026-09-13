@@ -19,7 +19,7 @@ declare const LocationFlag: {
     readonly None: 0;
     /** When the location has a stored pano, it opens exactly that pano instead of the nearest coverage. */
     readonly LoadAsPanoId: 1;
-    /** Kept as imported, with no effect in the app. */
+    /** Legacy marker (web). Kept as imported, with no effect in the app. */
     readonly Informational: 2;
     /** A location from a pending import, opened for preview and not yet on the map. */
     readonly ImportPreview: 4;
