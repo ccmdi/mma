@@ -102,9 +102,7 @@ describe("cancel and duplicate starts", () => {
 	it("abort marks the run cancelled", async () => {
 		const runner = async ({ signal }: { signal: AbortSignal }) => {
 			await new Promise<void>((_, reject) => {
-				signal.addEventListener("abort", () =>
-					reject(new DOMException("aborted", "AbortError")),
-				);
+				signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
 			});
 			return {};
 		};
@@ -135,4 +133,27 @@ describe("cancel and duplicate starts", () => {
 		await tick();
 		await drain("setField");
 	});
+});
+
+import { describeJobContract } from "./fixtures/jobContract";
+
+describeJobContract("a bulk run", "src/components/dialogs/BulkOperationModal.tsx", (work) => {
+	let writes = 0;
+	return {
+		singleRun: true,
+		start: () =>
+			startBulkRun(
+				"clearFields",
+				async ({ signal, onProgress }) => {
+					for (;;) {
+						await work.park(() => undefined, signal);
+						signal.throwIfAborted();
+						writes++;
+						onProgress(writes, writes + 1, []);
+					}
+				},
+				sel(1),
+			),
+		effects: () => writes,
+	};
 });

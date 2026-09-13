@@ -170,3 +170,26 @@ describe("confirmMapExit", () => {
 		m.finish();
 	});
 });
+
+import { describeJobContract } from "./fixtures/jobContract";
+
+describeJobContract("runJob", "src/lib/jobs.ts", (work) => {
+	let writes = 0;
+	return {
+		singleRun: false,
+		start: () =>
+			void runJob(
+				"Working",
+				async ({ signal, report }) => {
+					for (;;) {
+						await work.park(() => undefined, signal);
+						signal.throwIfAborted();
+						writes++;
+						report(0.5);
+					}
+				},
+				{ scope: "map" },
+			),
+		effects: () => writes,
+	};
+});

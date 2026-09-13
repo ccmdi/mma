@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act } from "react";
 import type { Selection } from "@/bindings.gen";
-import { Work } from "./fixtures/jobContract";
+import { Work, describeJobContract } from "./fixtures/jobContract";
 
 const h = vi.hoisted(() => ({
 	work: null as unknown as Work,
@@ -11,6 +11,13 @@ const h = vi.hoisted(() => ({
 	key: "",
 	saved: {} as Record<string, unknown>,
 	writes: 0,
+	square: [
+		[-60, -5],
+		[-40, -5],
+		[-40, 5],
+		[-60, 5],
+		[-60, -5],
+	],
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -54,18 +61,7 @@ vi.mock("@/store/useMapStore", () => ({
 			color: "#fff",
 			selector: {
 				type: "Polygon",
-				polygon: {
-					properties: { name: "A" },
-					coordinates: [
-						[
-							[-60, -5],
-							[-40, -5],
-							[-40, 5],
-							[-60, 5],
-							[-60, -5],
-						],
-					],
-				},
+				polygon: { properties: { name: "A" }, coordinates: [h.square] },
 			},
 		} as unknown as Selection,
 	],
@@ -83,6 +79,8 @@ vi.mock("@/plugins/registry", () => ({
 vi.mock("@/plugins/generator/ui/SettingsPanel", () => ({ SettingsPanel: () => null }));
 
 import { GeneratorSidebar } from "@/plugins/generator/ui/GeneratorSidebar";
+import { startGeneration } from "@/plugins/generator/session";
+import { DEFAULT_SETTINGS, type GeneratorRegion } from "@/plugins/generator/engine/types";
 import { getJobs } from "@/lib/jobs";
 import { mount, type Mounted } from "./fixtures/harness";
 
@@ -93,38 +91,14 @@ const PERMISSIVE = {
 	defaultTarget: 100_000,
 };
 
-let testIndex = 0;
-
-beforeEach(() => {
-	vi.useFakeTimers({
-		toFake: [
-			"setTimeout",
-			"clearTimeout",
-			"setInterval",
-			"clearInterval",
-			"requestAnimationFrame",
-			"cancelAnimationFrame",
-		],
-	});
-	h.work = new Work();
-	h.key = `poly:${testIndex++}`;
-	h.saved = { settings: PERMISSIVE };
+function countWrites(): void {
 	h.writes = 0;
 	vi.stubGlobal("MMA", {
 		addLocations: async (locs: unknown[]) => {
 			h.writes += locs.length;
 		},
 	});
-});
-
-afterEach(async () => {
-	await act(async () => {
-		for (const j of getJobs()) j.cancel?.();
-	});
-	for (let i = 0; i < 3; i++) await act(() => h.work.answer());
-	vi.unstubAllGlobals();
-	vi.useRealTimers();
-});
+}
 
 function sidebar(): Mounted {
 	return mount(<GeneratorSidebar onClose={() => {}} />);
@@ -164,6 +138,34 @@ async function expectSilence(): Promise<void> {
 }
 
 describe("stopping the generator", () => {
+	let testIndex = 0;
+
+	beforeEach(() => {
+		vi.useFakeTimers({
+			toFake: [
+				"setTimeout",
+				"clearTimeout",
+				"setInterval",
+				"clearInterval",
+				"requestAnimationFrame",
+				"cancelAnimationFrame",
+			],
+		});
+		h.work = new Work();
+		h.key = `poly:${testIndex++}`;
+		h.saved = { settings: PERMISSIVE };
+		countWrites();
+	});
+
+	afterEach(async () => {
+		await act(async () => {
+			for (const j of getJobs()) j.cancel?.();
+		});
+		for (let i = 0; i < 3; i++) await act(() => h.work.answer());
+		vi.unstubAllGlobals();
+		vi.useRealTimers();
+	});
+
 	it("Stop ends generation: nothing is written or looked up afterwards", async () => {
 		const m = sidebar();
 		await click(m, "Start");
@@ -217,4 +219,32 @@ describe("stopping the generator", () => {
 		const again = sidebar();
 		expect(button(again, "Start")).toBeDefined();
 	});
+});
+
+function contractRegion(): GeneratorRegion {
+	return {
+		id: "contract",
+		name: "contract",
+		feature: {
+			type: "Feature",
+			properties: { name: "contract" },
+			geometry: { type: "Polygon", coordinates: [h.square] },
+		},
+		found: [],
+		target: 100_000,
+		checkedPanos: new Set(),
+		isProcessing: false,
+	};
+}
+
+describeJobContract("the map generator", "src/plugins/generator/session.ts", (work) => {
+	h.work = work;
+	countWrites();
+	return {
+		singleRun: true,
+		start: () => {
+			startGeneration({ ...DEFAULT_SETTINGS, ...PERMISSIVE }, [contractRegion()], "");
+		},
+		effects: () => h.writes,
+	};
 });
