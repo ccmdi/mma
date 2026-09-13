@@ -240,14 +240,13 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	const svTrail = getTrail();
 	if (ctx.svTrail && svTrail.length >= 2) {
-		const [r, g, b] = ctx.svTrailColor;
 		const segments = trailSegments(svTrail);
 		layers.push(
 			new PathLayer<(typeof segments)[number]>({
 				id: "sv-trail",
 				data: segments,
 				getPath: (d) => d.path,
-				getColor: (d) => [r, g, b, d.alpha],
+				getColor: (d) => [...ctx.svTrailColor, d.alpha],
 				getWidth: 2,
 				widthUnits: "pixels" as const,
 				jointRounded: true,
@@ -256,7 +255,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 			}),
 		);
 		if (ctx.svTrailPosition) {
-			const tip = svTrail[svTrail.length - 1];
+			const tip = svTrail.at(-1);
 			layers.push(
 				new ScatterplotLayer({
 					id: "sv-trail-position",
@@ -269,7 +268,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 					stroked: true,
 					lineWidthUnits: "pixels" as const,
 					getLineWidth: 2,
-					getLineColor: [r, g, b, 255],
+					getLineColor: [...ctx.svTrailColor, 255],
 					pickable: false,
 				}),
 			);
