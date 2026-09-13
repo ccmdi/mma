@@ -67,19 +67,33 @@ const EVENT_DEFS = {
 
 export type EditorEventMap = typeof EVENT_DEFS;
 export type EditorEvent = keyof EditorEventMap;
-export type EventHandler<E extends EditorEvent> = (payload: EditorEventMap[E]) => void;
+
+declare const pluginEventPayload: unique symbol;
+/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
+ *  hears it. `definePluginEvent` makes one. */
+export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
+	readonly [pluginEventPayload]: T;
+};
+type AnyEvent = EditorEvent | PluginEvent<unknown>;
+/** What an event hands its handlers. */
+export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent
+	? EditorEventMap[E]
+	: E extends PluginEvent<infer T>
+		? T
+		: never;
+export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (
+	payload: EventPayload<E>,
+) => void;
 
 /** Events whose payload is `void` may be emitted with no argument; all others require one. */
-type EmitArgs<E extends EditorEvent> = EditorEventMap[E] extends void
-	? []
-	: [payload: EditorEventMap[E]];
+type EmitArgs<E extends AnyEvent> = EventPayload<E> extends void ? [] : [payload: EventPayload<E>];
 
 const ALL_EVENTS = Object.keys(EVENT_DEFS) as EditorEvent[];
 
-const handlers = new Map<EditorEvent, Set<(payload: never) => void>>();
-const versions = new Map<EditorEvent, number>();
+const handlers = new Map<AnyEvent, Set<(payload: never) => void>>();
+const versions = new Map<AnyEvent, number>();
 
-export function emit<E extends EditorEvent>(evt: E, ...args: EmitArgs<E>): void {
+export function emit<E extends AnyEvent>(evt: E, ...args: EmitArgs<E>): void {
 	versions.set(evt, (versions.get(evt) ?? 0) + 1);
 	if (!applyingRemote && bridgedEvents.has(evt)) {
 		void tauriEmit(`xwin:${evt}`, appWindow.label).catch((e) =>
@@ -102,7 +116,7 @@ export function emit<E extends EditorEvent>(evt: E, ...args: EmitArgs<E>): void 
  *  receiver rereads state instead of receiving it. */
 type VoidEvent = { [E in EditorEvent]: EditorEventMap[E] extends void ? E : never }[EditorEvent];
 
-const bridgedEvents = new Set<EditorEvent>();
+const bridgedEvents = new Set<AnyEvent>();
 let applyingRemote = false;
 
 /** Mirror `event` to every window: local emits also broadcast a Tauri event, and another
@@ -125,9 +139,9 @@ export function bridgeAcrossWindows(event: VoidEvent, rehydrate: () => void): vo
 }
 
 /** Normalizes event input into a stable key, event list, and subscribe callback. */
-function useEventSubscription(evt: EditorEvent | readonly EditorEvent[]) {
+function useEventSubscription(evt: AnyEvent | readonly AnyEvent[]) {
 	const key = Array.isArray(evt) ? evt.join("|") : (evt as string);
-	const events = useMemo(() => key.split("|") as EditorEvent[], [key]);
+	const events = useMemo(() => key.split("|") as AnyEvent[], [key]);
 	const sub = useCallback((cb: () => void) => subscribeMany(events, cb), [events]);
 	return { events, sub };
 }
@@ -137,14 +151,14 @@ function useEventSubscription(evt: EditorEvent | readonly EditorEvent[]) {
  *  changes (`Object.is`). Two invariants follow:
  *  - `getValue` must return a cached/stable reference, never construct one per call
  *  - producers must reassign the published reference, never mutate it in place */
-export function useEventValue<T>(evt: EditorEvent | readonly EditorEvent[], getValue: () => T): T {
+export function useEventValue<T>(evt: AnyEvent | readonly AnyEvent[], getValue: () => T): T {
 	const { sub } = useEventSubscription(evt);
 	// getValue doubles as the server snapshot: the value is module state either way.
 	return useSyncExternalStore(sub, getValue, getValue);
 }
 
 /** React hook: re-renders when the given event(s) fire. Returns a version counter. */
-export function useEvent(evt: EditorEvent | readonly EditorEvent[]): number {
+export function useEvent(evt: AnyEvent | readonly AnyEvent[]): number {
 	const { events, sub } = useEventSubscription(evt);
 	const snap = useCallback(
 		() => events.reduce((sum, e) => sum + (versions.get(e) ?? 0), 0),
@@ -154,11 +168,11 @@ export function useEvent(evt: EditorEvent | readonly EditorEvent[]): number {
 }
 
 /** Non-hook read of the version counter for a single event. */
-export function getEventVersion(evt: EditorEvent): number {
+export function getEventVersion(evt: AnyEvent): number {
 	return versions.get(evt) ?? 0;
 }
 
-export function subscribe<E extends EditorEvent>(evt: E, handler: EventHandler<E>): () => void {
+export function subscribe<E extends AnyEvent>(evt: E, handler: EventHandler<E>): () => void {
 	let set = handlers.get(evt);
 	if (!set) {
 		set = new Set();
@@ -172,7 +186,7 @@ export function subscribe<E extends EditorEvent>(evt: E, handler: EventHandler<E
 }
 
 /** Subscribe one payload-agnostic handler to several events; returns a single combined unsubscribe. */
-export function subscribeMany(events: readonly EditorEvent[], handler: () => void): () => void {
+export function subscribeMany(events: readonly AnyEvent[], handler: () => void): () => void {
 	const unsubs = events.map((e) => subscribe(e, handler));
 	return () => unsubs.forEach((u) => u());
 }

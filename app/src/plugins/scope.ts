@@ -1,7 +1,15 @@
 // Plugin registration scope: ownership tracking and teardown.
 // Ownership is captured synchronously during `runAsPlugin`. Registrations made
 // after an `await` or in a later callback are not attributed.
-import { subscribe, type EditorEvent, type EventHandler } from "@/lib/events";
+import {
+	emit,
+	getEventVersion,
+	subscribe,
+	useEventValue,
+	type EditorEvent,
+	type EventHandler,
+	type PluginEvent,
+} from "@/lib/events";
 import { log } from "@/lib/util/log";
 
 type Disposable = () => void;
@@ -60,9 +68,36 @@ export function disposePlugin(id: string): void {
 	}
 }
 
-/** Subscribe to an editor event, automatically unsubscribed on plugin deactivation. */
-export function on<E extends EditorEvent>(event: E, handler: EventHandler<E>) {
+/** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
+ *  deactivation. */
+export function on<E extends EditorEvent | PluginEvent<unknown>>(
+	event: E,
+	handler: EventHandler<E>,
+) {
 	const unsub = subscribe(event, handler);
 	trackDisposable(unsub);
 	return unsub;
+}
+
+/** Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
+ *  whoever raises it and whoever hears it agree on the payload. @unstable */
+export function definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T> {
+	return `plugin:${pluginId}:${name}` as PluginEvent<T>;
+}
+
+/** Raise one of a plugin's own events, with its payload when it carries one. @unstable */
+export function emitPluginEvent<T>(
+	event: PluginEvent<T>,
+	...payload: T extends void ? [] : [payload: T]
+): void {
+	emit(event as PluginEvent<unknown>, (payload as unknown[])[0]);
+}
+
+/** React hook: a counter that moves each time `event` is raised. @unstable */
+export function usePluginEvent(event: PluginEvent<unknown>): number;
+/** React hook: what `read` returns, read again each time `event` is raised. `read` must return
+ *  the same reference while nothing it reads has changed. @unstable */
+export function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;
+export function usePluginEvent<V>(event: PluginEvent<unknown>, read?: () => V): V | number {
+	return useEventValue<V | number>(event, read ?? (() => getEventVersion(event)));
 }

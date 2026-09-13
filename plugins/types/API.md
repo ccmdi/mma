@@ -2154,13 +2154,23 @@ unmount and app restart. Values are global, not per-map.
 
 ## Scope
 
+### `definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>` *(unstable)*
+
+Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
+whoever raises it and whoever hears it agree on the payload.
+
 ### `disposePlugin(id: string): void` *(unstable)*
 
 Run all teardowns a plugin registered (in reverse order) and clear them.
 
-### `on<E extends EditorEvent>(event: E, handler: EventHandler<E>): () => void`
+### `emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends void ? [] : [payload: T]): void` *(unstable)*
 
-Subscribe to an editor event, automatically unsubscribed on plugin deactivation.
+Raise one of a plugin's own events, with its payload when it carries one.
+
+### `on<E extends EditorEvent | PluginEvent<unknown>>(event: E, handler: EventHandler<E>): () => void`
+
+Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
+deactivation.
 
 ### `resolvePluginPath(path: string): string` *(unstable)*
 
@@ -2178,6 +2188,12 @@ Set the base directory for a plugin's assets on disk.
 ### `trackDisposable(dispose: Disposable): void` *(unstable)*
 
 Enroll a teardown callback under the current plugin. No-op outside activation.
+
+### `usePluginEvent(event: PluginEvent<unknown>): number` *(unstable)*
+
+React hook: a counter that moves each time `event` is raised.
+React hook: what `read` returns, read again each time `event` is raised. `read` must return
+the same reference while nothing it reads has changed.
 
 ## Externals
 
