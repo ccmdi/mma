@@ -6,7 +6,9 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { Flag } from "@/components/primitives/Flag";
 import type { Selection } from "@/bindings.gen";
 import type { GeneratorRegionMeta } from "../engine/types";
-import { useProgressTick, useFoundRate } from "./progressSignal";
+import { useFoundRate } from "./progressSignal";
+import { usePluginEvent } from "@/plugins/scope";
+import { GENERATOR_CHANGED } from "../session";
 import { t } from "@/lib/i18n";
 
 function getPolygonName(sel: Selection): string {
@@ -77,7 +79,7 @@ export function RegionSelector({
 	onMetaChange: (meta: Map<string, GeneratorRegionMeta>) => void;
 	running: boolean;
 }) {
-	useProgressTick();
+	usePluginEvent(GENERATOR_CHANGED);
 	const selections = useMapState(getActiveSelections);
 	const polygonSelections = selections.filter((s) => s.selector.type === "Polygon");
 	const [capDialogOpen, setCapDialogOpen] = useState(false);
@@ -222,15 +224,7 @@ export function RegionSelector({
 	);
 }
 
-function TotalRow({
-	found,
-	target,
-	running,
-}: {
-	found: number;
-	target: number;
-	running: boolean;
-}) {
+function TotalRow({ found, target, running }: { found: number; target: number; running: boolean }) {
 	const rate = useFoundRate(found, target, running && found < target);
 	return (
 		<div className="generator-regions__total">

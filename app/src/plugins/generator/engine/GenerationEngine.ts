@@ -24,11 +24,19 @@ import { log } from "@/lib/util/log";
 import { chunk } from "@/lib/util/util";
 import type { Bounds, LatLng } from "@/types";
 
+const SILENT: GenerationCallbacks = {
+	onLocationsFound: () => {},
+	onProgress: () => {},
+	onRegionComplete: () => {},
+	onDone: () => {},
+};
+
 export class GenerationEngine {
 	private settings: GeneratorSettings;
 	private regions: GeneratorRegion[];
 	private callbacks: GenerationCallbacks;
-	private running = false;
+	private readonly abort = new AbortController();
+	private started = false;
 	private paused = false;
 	private pauseResolvers: (() => void)[] = [];
 	private cancelledRegions = new Set<string>();
@@ -52,18 +60,16 @@ export class GenerationEngine {
 		this.callbacks = callbacks;
 	}
 
-	replaceCallbacks(callbacks: GenerationCallbacks) {
-		this.callbacks = callbacks;
-	}
-
 	// Live-apply settings mid-job. Most settings are read fresh on every probe, so they
 	// take effect immediately. numGenerators and oneCountryAtATime are fixed at start().
 	updateSettings(settings: GeneratorSettings) {
 		this.settings = settings;
 	}
 
+	/** Runs until every region is done or the engine is stopped. A stopped engine never starts. */
 	async start(): Promise<void> {
-		this.running = true;
+		if (this.started || this.stopped) return;
+		this.started = true;
 		this.beginSearchOverlay();
 		try {
 			if (this.settings.oneCountryAtATime) {
@@ -77,10 +83,15 @@ export class GenerationEngine {
 			while (this.regionTasks.length) {
 				await Promise.all(this.regionTasks.splice(0));
 			}
+		} catch (e) {
+			// Stopping rejects the lookups in flight; only a live run's failure is news.
+			if (!this.stopped) throw e;
 		} finally {
 			this.flushBatch();
-			this.running = false;
-			this.callbacks.onDone();
+			const { onDone } = this.callbacks;
+			// Walks still in flight are dropped, so their lookups are declined.
+			this.abort.abort();
+			onDone();
 		}
 	}
 
@@ -88,7 +99,7 @@ export class GenerationEngine {
 	// Skips regions already running as a reconcile-added worker, or cancelled.
 	private async runSequential(): Promise<void> {
 		for (let i = 0; i < this.regions.length; i++) {
-			if (!this.running) return;
+			if (this.stopped) return;
 			const region = this.regions[i];
 			if (this.cancelledRegions.has(region.id) || this.liveRegionIds.has(region.id)) continue;
 			this.liveRegionIds.add(region.id);
@@ -109,7 +120,7 @@ export class GenerationEngine {
 	// Apply a region set change to a running job. Intended to be called while paused
 	// (parked workers see cancellation / new workers park immediately), then resume().
 	reconcileRegions(desired: GeneratorRegion[]): void {
-		if (!this.running) return;
+		if (!this.isRunning()) return;
 		const desiredIds = new Set(desired.map((r) => r.id));
 
 		for (const region of this.regions) {
@@ -161,9 +172,13 @@ export class GenerationEngine {
 		return { found, target };
 	}
 
+	/** Stops for good. Confirmed finds are handed over first; after that no callback fires
+	 *  and every lookup still in flight is declined. */
 	stop(): void {
-		this.flushBatch(); // commit confirmed finds before teardown (running still true here)
-		this.running = false;
+		if (this.stopped) return;
+		this.flushBatch();
+		this.callbacks = SILENT;
+		this.abort.abort();
 		if (this.flushTimer) {
 			clearTimeout(this.flushTimer);
 			this.flushTimer = null;
@@ -200,17 +215,26 @@ export class GenerationEngine {
 	}
 
 	isRunning(): boolean {
-		return this.running;
+		return this.started && !this.stopped;
 	}
 	isPaused(): boolean {
 		return this.paused;
 	}
 
-	private async waitIfPaused(): Promise<void> {
-		if (!this.paused) return;
-		await new Promise<void>((resolve) => {
-			this.pauseResolvers.push(resolve);
-		});
+	private get stopped(): boolean {
+		return this.abort.signal.aborted;
+	}
+
+	/** Parks while paused, then answers whether the region still has work to do. */
+	private async proceed(region: GeneratorRegion): Promise<boolean> {
+		while (this.paused) {
+			await new Promise<void>((resolve) => {
+				this.pauseResolvers.push(resolve);
+			});
+		}
+		return (
+			!this.stopped && !this.cancelledRegions.has(region.id) && region.found.length < region.target
+		);
 	}
 
 	private async generateRegion(region: GeneratorRegion): Promise<void> {
@@ -233,14 +257,7 @@ export class GenerationEngine {
 		}
 		const allPoints = this.poissonPoints.get(region.id)!;
 
-		while (
-			region.found.length < region.target &&
-			this.running &&
-			!this.cancelledRegions.has(region.id)
-		) {
-			await this.waitIfPaused();
-			if (!this.running || this.cancelledRegions.has(region.id)) break;
-
+		while (await this.proceed(region)) {
 			region.isProcessing = true;
 			const startIdx = this.poissonIndex.get(region.id) ?? 0;
 			const endIdx = Math.min(startIdx + this.settings.speed, allPoints.length);
@@ -263,17 +280,7 @@ export class GenerationEngine {
 			}
 			if (coords.length === 0) continue;
 
-			const batchSize = this.settings.findRegions ? 1 : 75;
-			for (const batch of chunk(coords, batchSize)) {
-				if (
-					!this.running ||
-					this.cancelledRegions.has(region.id) ||
-					region.found.length >= region.target
-				)
-					break;
-				await this.waitIfPaused();
-				await this.probeCoords(batch, region);
-			}
+			await this.probeAll(coords, region);
 		}
 
 		this.poissonPoints.delete(region.id);
@@ -288,14 +295,7 @@ export class GenerationEngine {
 		}
 		const allPoints = this.bluelinePoints.get(region.id)!;
 
-		while (
-			region.found.length < region.target &&
-			this.running &&
-			!this.cancelledRegions.has(region.id)
-		) {
-			await this.waitIfPaused();
-			if (!this.running || this.cancelledRegions.has(region.id)) break;
-
+		while (await this.proceed(region)) {
 			region.isProcessing = true;
 			const startIdx = this.bluelineIndex.get(region.id) ?? 0;
 			const endIdx = Math.min(startIdx + this.settings.speed, allPoints.length);
@@ -318,17 +318,7 @@ export class GenerationEngine {
 			}
 			if (coords.length === 0) continue;
 
-			const batchSize = this.settings.findRegions ? 1 : 75;
-			for (const batch of chunk(coords, batchSize)) {
-				if (
-					!this.running ||
-					this.cancelledRegions.has(region.id) ||
-					region.found.length >= region.target
-				)
-					break;
-				await this.waitIfPaused();
-				await this.probeCoords(batch, region);
-			}
+			await this.probeAll(coords, region);
 		}
 
 		this.bluelinePoints.delete(region.id);
@@ -377,18 +367,10 @@ export class GenerationEngine {
 		const maxDepth = this.settings.linksDepth;
 		const s = this.settings;
 
-		while (
-			queue.length > 0 &&
-			region.found.length < region.target &&
-			this.running &&
-			!this.cancelledRegions.has(region.id)
-		) {
-			await this.waitIfPaused();
-			if (!this.running || this.cancelledRegions.has(region.id)) break;
-
+		while (queue.length > 0 && (await this.proceed(region))) {
 			region.isProcessing = true;
 			const frontier = queue.splice(0, Math.max(s.speed, 50));
-			const results = await svMetadata(frontier);
+			const results = await svMetadata(frontier, this.abort.signal);
 
 			for (let i = 0; i < results.length; i++) {
 				if (region.found.length >= region.target) break;
@@ -435,14 +417,7 @@ export class GenerationEngine {
 		if (!bounds) return;
 		let coveredRounds = 0;
 
-		while (
-			region.found.length < region.target &&
-			this.running &&
-			!this.cancelledRegions.has(region.id)
-		) {
-			await this.waitIfPaused();
-			if (!this.running || this.cancelledRegions.has(region.id)) return;
-
+		while (await this.proceed(region)) {
 			region.isProcessing = true;
 			const n = Math.min(region.target * 100, this.settings.speed);
 			let randomCoords: LatLng[] = [];
@@ -475,17 +450,14 @@ export class GenerationEngine {
 			}
 			if (randomCoords.length === 0) break;
 
-			const batchSize = this.settings.findRegions ? 1 : 75;
-			for (const batch of chunk(randomCoords, batchSize)) {
-				if (
-					!this.running ||
-					this.cancelledRegions.has(region.id) ||
-					region.found.length >= region.target
-				)
-					break;
-				await this.waitIfPaused();
-				await this.probeCoords(batch, region);
-			}
+			await this.probeAll(randomCoords, region);
+		}
+	}
+
+	private async probeAll(coords: LatLng[], region: GeneratorRegion): Promise<void> {
+		for (const batch of chunk(coords, this.settings.findRegions ? 1 : 75)) {
+			if (!(await this.proceed(region))) return;
+			await this.probeCoords(batch, region);
 		}
 	}
 
@@ -499,12 +471,13 @@ export class GenerationEngine {
 				coords,
 				s.radius,
 				s.rejectUnofficial ? { sources: [PanoType.Official] } : undefined,
+				this.abort.signal,
 			)
 		).filter((p) => p !== null);
 		if (panos.length === 0) return;
 
 		// Paused or stopped while the lookups were in flight: drop the results.
-		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
+		if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
 
 		const seeds: string[] = [];
 		for (let i = 0; i < panos.length; i++) {
@@ -552,7 +525,7 @@ export class GenerationEngine {
 	 *  sampling while earlier finds are still opening up. */
 	private walk(ids: string[], region: GeneratorRegion, depth: number): void {
 		void this.walkPanos(ids, region, depth).catch((e) => {
-			log.warn("[generator] link walk failed:", e);
+			if (!this.stopped) log.warn("[generator] link walk failed:", e);
 		});
 	}
 
@@ -561,7 +534,7 @@ export class GenerationEngine {
 	 *  resets the depth of what it leads to, which is what lets a good stretch keep
 	 *  going while a dead one bottoms out at `linksDepth`. */
 	private async walkPanos(ids: string[], region: GeneratorRegion, depth: number): Promise<void> {
-		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
+		if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
 		const s = this.settings;
 		if (depth > s.linksDepth) return;
 		if (region.found.length >= region.target) return;
@@ -570,8 +543,8 @@ export class GenerationEngine {
 		if (fresh.length === 0) return;
 		for (const id of fresh) region.checkedPanos.add(id);
 
-		const panos = await svMetadata(fresh);
-		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
+		const panos = await svMetadata(fresh, this.abort.signal);
+		if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
 
 		// A pano that passed sends what it opens up back to depth 1; everything else sinks.
 		const fromGood: string[] = [];
@@ -607,7 +580,7 @@ export class GenerationEngine {
 	}
 
 	private async finalizeLoc(pano: Pano, region: GeneratorRegion): Promise<void> {
-		if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
+		if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
 		const s = this.settings;
 		const panoId: string = pano.id;
 
@@ -625,7 +598,7 @@ export class GenerationEngine {
 			} catch (e) {
 				log.warn("[generator] storeNearAny failed, accepting unchecked:", e);
 			}
-			if (!this.running || this.paused || this.cancelledRegions.has(region.id)) return;
+			if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
 			if (region.found.length >= region.target) return;
 		}
 
@@ -655,7 +628,7 @@ export class GenerationEngine {
 			clearTimeout(this.flushTimer);
 			this.flushTimer = null;
 		}
-		if (this.pendingBatch.length === 0 || !this.running || this.paused) return;
+		if (this.pendingBatch.length === 0 || this.stopped || this.paused) return;
 		const batch = this.pendingBatch.splice(0);
 		this.callbacks.onLocationsFound(batch);
 	}

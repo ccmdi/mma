@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Work } from "./fixtures/jobContract";
 
 const h = vi.hoisted(() => ({
 	seeds: [] as { lat: number; lng: number; panoId: string }[],
@@ -8,6 +9,8 @@ const h = vi.hoisted(() => ({
 	// One coverage probe batch: the pano id found at each point, or null for none.
 	probe: (points: { lat: number; lng: number }[], _radius: number): (string | null)[] =>
 		points.map(() => null),
+	// When set, lookups park here instead of answering at once.
+	work: null as Work | null,
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -20,13 +23,22 @@ vi.mock("@/lib/commands", () => ({
 }));
 
 vi.mock("@/lib/sv/query", () => {
-	const svMetadata = (ids: string[]) => {
+	const svMetadata = (ids: string[], signal?: AbortSignal) => {
 		h.fetched.push(...ids);
-		return Promise.resolve(ids.map((id) => h.panos.get(id) ?? null));
+		const answer = () => ids.map((id) => h.panos.get(id) ?? null);
+		return h.work ? h.work.park(answer, signal) : Promise.resolve(answer());
 	};
 	// The probe is scripted with pano ids; a location search now answers the pano itself.
-	const panosAt = (points: { lat: number; lng: number }[], radius: number) =>
-		Promise.resolve(h.probe(points, radius).map((id) => (id ? (h.panos.get(id) ?? null) : null)));
+	const panosAt = (
+		points: { lat: number; lng: number }[],
+		radius: number,
+		_opts?: unknown,
+		signal?: AbortSignal,
+	) => {
+		const ids = h.probe(points, radius);
+		const answer = () => ids.map((id) => (id ? (h.panos.get(id) ?? null) : null));
+		return h.work ? h.work.park(answer, signal) : Promise.resolve(answer());
+	};
 	return { svMetadata, panosAt };
 });
 
@@ -506,6 +518,92 @@ describe("GenerationEngine live tuning", () => {
 
 		expect(probesAfterResume).toBeGreaterThanOrEqual(50);
 		expect(engine.isRunning()).toBe(false);
+	});
+});
+
+describe("GenerationEngine stop", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		h.work = new Work();
+	});
+	afterEach(() => {
+		h.work = null;
+		vi.useRealTimers();
+	});
+
+	/** Every probed point finds a pano of its own, so a live run keeps finding. */
+	function probeFindsEverywhere(): void {
+		let n = 0;
+		probeWith((points) =>
+			points.map(({ lat, lng }) => {
+				const id = `q${String(n++).padStart(21, "0")}`;
+				h.panos.set(id, { ...(foundPano(lng, lat) as object), id });
+				return id;
+			}),
+		);
+	}
+
+	it("reaches no callback once stopped, however its lookups answer", async () => {
+		probeFindsEverywhere();
+		let calls = 0;
+		const count = () => {
+			calls++;
+		};
+		const engine = new GenerationEngine(permissive(), [A()], {
+			onLocationsFound: count,
+			onProgress: count,
+			onRegionComplete: count,
+			onDone: count,
+		});
+		const run = engine.start();
+		await vi.advanceTimersByTimeAsync(0);
+		await h.work!.answer();
+		await h.work!.answer();
+		expect(calls).toBeGreaterThan(0);
+
+		engine.stop();
+		const atStop = calls;
+		for (let i = 0; i < 3; i++) await h.work!.answer({ honorAbort: false });
+		await run;
+		expect(calls).toBe(atStop);
+	});
+
+	it("aborts every lookup still in flight", async () => {
+		emptyProbe(() => {});
+		const engine = new GenerationEngine(permissive(), [A()], noopCallbacks);
+		const run = engine.start();
+		await vi.advanceTimersByTimeAsync(0);
+		const inFlight = h.work!.pendingSignals();
+		expect(inFlight.length).toBeGreaterThan(0);
+
+		engine.stop();
+		expect(inFlight.every((s) => s?.aborted)).toBe(true);
+		await h.work!.answer();
+		await run;
+	});
+
+	it("never starts once stopped", async () => {
+		emptyProbe(() => {});
+		const engine = new GenerationEngine(permissive(), [A()], noopCallbacks);
+		engine.stop();
+		await engine.start();
+		expect(h.work!.issued).toBe(0);
+		expect(engine.isRunning()).toBe(false);
+	});
+
+	it("asks nothing more when stopped while paused", async () => {
+		emptyProbe(() => {});
+		const engine = new GenerationEngine(permissive(), [A()], noopCallbacks);
+		const run = engine.start();
+		await vi.advanceTimersByTimeAsync(0);
+		engine.pause();
+		await h.work!.answer();
+		const issued = h.work!.issued;
+
+		engine.stop();
+		await h.work!.answer();
+		await run;
+		expect(h.work!.issued).toBe(issued);
 	});
 });
 

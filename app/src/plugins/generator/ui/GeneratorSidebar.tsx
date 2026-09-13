@@ -1,26 +1,26 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { createLocation } from "@/types";
-import { LocationFlag } from "@/bindings.consts";
-import type {
-	GeneratorSettings,
-	GeneratorRegion,
-	GeneratorRegionMeta,
-	GeneratedLocation,
-} from "../engine/types";
+import { useState, useCallback, useEffect } from "react";
+import type { GeneratorSettings, GeneratorRegion, GeneratorRegionMeta } from "../engine/types";
 import { DEFAULT_SETTINGS, GENERATION_CAMERA_TYPE } from "../engine/types";
-import { GenerationEngine } from "../engine/GenerationEngine";
 import { RegionSelector } from "./RegionSelector";
 import { SettingsPanel } from "./SettingsPanel";
-import { tickProgress } from "./progressSignal";
 import { google } from "@/lib/sv/opensv";
-import { getActiveSelections, useMapState, createTags, setPluginMode } from "@/store/useMapStore";
-import { registerJob, type JobHandle } from "@/lib/jobs";
-import { subscribe } from "@/lib/events";
-import { fmt } from "@/lib/util/format";
+import { getActiveSelections, useMapState } from "@/store/useMapStore";
+import { usePluginEvent } from "@/plugins/scope";
 import type { Selection } from "@/bindings.gen";
 import { createPluginStorage } from "@/plugins/registry";
 import { Sidebar, Section } from "@/components/primitives/Sidebar";
 import { searchCoverage } from "../searchCoverage";
+import {
+	GENERATOR_CHANGED,
+	getGeneratorStatus,
+	pauseGeneration,
+	resumeGeneration,
+	setGeneratorSidebarOpen,
+	startGeneration,
+	stopGeneration,
+	updateGenerationSettings,
+	updateGenerationTargets,
+} from "../session";
 import { MONTHS, ymParse } from "@/lib/util/date";
 import { formatDistance } from "@/lib/util/format";
 import "./generator.css";
@@ -38,21 +38,6 @@ function loadSettings(): GeneratorSettings {
 
 function saveSettings(s: GeneratorSettings) {
 	genStore.set("settings", s);
-}
-
-function generatedToLocation({ imageDate, ...pano }: GeneratedLocation, tagId: number | null) {
-	return createLocation({
-		...pano,
-		flags: LocationFlag.LoadAsPanoId,
-		...(tagId != null ? { tags: [tagId] } : {}),
-		...(imageDate ? { extra: { imageDate } } : {}),
-	});
-}
-
-async function resolveTagByName(name: string): Promise<number | null> {
-	if (!name) return null;
-	const [tag] = await createTags([name]);
-	return tag.id;
 }
 
 function selectionToRegion(sel: Selection, meta: GeneratorRegionMeta): GeneratorRegion | null {
@@ -74,43 +59,6 @@ function selectionToRegion(sel: Selection, meta: GeneratorRegionMeta): Generator
 }
 
 let sessionMeta: Map<string, GeneratorRegionMeta> = new Map();
-let sessionEngine: GenerationEngine | null = null;
-let sessionRunning = false;
-let sessionPaused = false;
-let sessionTagId: number | null = null;
-let sessionJob: JobHandle | null = null;
-let sessionSidebarOpen = false;
-
-let jobUpdateQueued = false;
-// Coalesced to a frame like tickProgress: onProgress fires per found pano, and an
-// eager jobs:changed per pano re-renders the tray that often.
-function updateSessionJob(): void {
-	if (!sessionEngine || !sessionJob || jobUpdateQueued) return;
-	jobUpdateQueued = true;
-	requestAnimationFrame(() => {
-		jobUpdateQueued = false;
-		if (!sessionEngine || !sessionJob) return;
-		const { found, target } = sessionEngine.progress();
-		sessionJob.update(
-			target > 0 ? Math.min(found / target, 1) : 0,
-			`${fmt.format(found)} / ${fmt.format(target)}`,
-		);
-	});
-}
-
-function endSessionJob(message?: string): void {
-	sessionJob?.finish(sessionSidebarOpen ? undefined : message);
-	sessionJob = null;
-}
-
-/** Stop the engine from outside the sidebar (job tray cancel, map close). */
-function stopSessionEngine(): void {
-	sessionEngine?.stop();
-	sessionEngine = null;
-	sessionRunning = false;
-	sessionPaused = false;
-	endSessionJob();
-}
 
 function formatYearMonth(ym: string) {
 	const p = ymParse(ym);
@@ -216,104 +164,70 @@ function summarizeSettings(s: GeneratorSettings): string {
 export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	const [settings, setSettings] = useState<GeneratorSettings>(loadSettings);
 	const [meta, setMeta] = useState<Map<string, GeneratorRegionMeta>>(sessionMeta);
-	const [running, setRunning] = useState(sessionRunning);
-	const [paused, setPaused] = useState(sessionPaused);
 	const [tagName, setTagName] = useState(() => genStore.get<string>("tagName", ""));
-	const [, rerender] = useState(0);
-	const engineRef = useRef<GenerationEngine | null>(sessionEngine);
+	const status = usePluginEvent(GENERATOR_CHANGED, getGeneratorStatus);
+	const running = status !== "idle";
+	const paused = status === "paused";
 	const selections = useMapState(getActiveSelections);
 
 	useEffect(() => {
 		sessionMeta = meta;
 	}, [meta]);
-	useEffect(() => {
-		sessionRunning = running;
-	}, [running]);
-	useEffect(() => {
-		sessionPaused = paused;
-	}, [paused]);
-
-	// An outside stop (job tray cancel, map close) ends the session while this sidebar
-	// is mounted; follow it rather than claiming a run with no engine behind it.
-	useEffect(
-		() =>
-			subscribe("jobs:changed", () => {
-				if (sessionEngine || !engineRef.current) return;
-				engineRef.current = null;
-				setRunning(false);
-				setPaused(false);
-			}),
-		[],
-	);
-
-	// If engine is still running from before remount, wire up callbacks
-	useEffect(() => {
-		const engine = engineRef.current;
-		if (!engine || !running) return;
-		const tagId = sessionTagId;
-		engine.replaceCallbacks({
-			onLocationsFound: (locs: GeneratedLocation[]) => {
-				void MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
-				updateSessionJob();
-			},
-			onProgress: () => {
-				tickProgress();
-				updateSessionJob();
-			},
-			onRegionComplete: () => {
-				rerender((n) => n + 1);
-			},
-			onDone: () => {
-				setRunning(false);
-				setPaused(false);
-				engineRef.current = null;
-				sessionEngine = null;
-				endSessionJob(t("Generation complete"));
-			},
-		});
-	}, [running]);
 
 	// Drive the search-coverage overlay's visibility live from the toggle.
 	useEffect(() => {
 		searchCoverage.setEnabled(settings.showSearchOverlay);
 	}, [settings.showSearchOverlay]);
 
-	// Clear the overlay when leaving the generator, unless it's still running in the background.
 	useEffect(() => {
-		sessionSidebarOpen = true;
-		sessionJob?.setHidden(true);
-		return () => {
-			sessionSidebarOpen = false;
-			sessionJob?.setHidden(false);
-			if (!sessionRunning) searchCoverage.endSession();
-		};
+		setGeneratorSidebarOpen(true);
+		return () => setGeneratorSidebarOpen(false);
 	}, []);
 
 	const updateSettings = useCallback((patch: Partial<GeneratorSettings>) => {
 		setSettings((prev) => {
 			const next = { ...prev, ...patch };
 			saveSettings(next);
-			engineRef.current?.updateSettings(next); // apply live to a running job
+			updateGenerationSettings(next);
 			return next;
 		});
 	}, []);
 
 	const handleMetaChange = useCallback((next: Map<string, GeneratorRegionMeta>) => {
 		setMeta(next);
-		engineRef.current?.updateRegionTargets(new Map([...next].map(([k, m]) => [k, m.target])));
+		updateGenerationTargets(new Map([...next].map(([k, m]) => [k, m.target])));
 	}, []);
 
-	const handleStart = useCallback(async () => {
+	const handleStart = useCallback(() => {
 		const sels = getActiveSelections().filter((s) => s.selector.type === "Polygon");
 		if (sels.length === 0) return;
 		if (!google) return;
 
-		const tagId = await resolveTagByName(tagName);
-		sessionTagId = tagId;
-
-		// Reset metadata for selected regions
+		// Fresh metadata for the selected regions, kept only if the run starts
 		const nextMeta = new Map(sessionMeta);
 		const regions: GeneratorRegion[] = [];
+		for (const sel of sels) {
+			const m: GeneratorRegionMeta = {
+				target: nextMeta.get(sel.key)?.target ?? settings.defaultTarget,
+				found: [],
+				checkedPanos: new Set(),
+				isProcessing: false,
+			};
+			nextMeta.set(sel.key, m);
+			const region = selectionToRegion(sel, m);
+			if (region) regions.push(region);
+		}
+		if (startGeneration(settings, regions, tagName)) setMeta(nextMeta);
+	}, [settings, tagName]);
+
+	const handlePause = useCallback(() => {
+		if (!paused) {
+			pauseGeneration();
+			return;
+		}
+		const sels = getActiveSelections().filter((s) => s.selector.type === "Polygon");
+		const nextMeta = new Map(sessionMeta);
+		const desired: GeneratorRegion[] = [];
 		for (const sel of sels) {
 			const m = nextMeta.get(sel.key) ?? {
 				target: settings.defaultTarget,
@@ -321,84 +235,13 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 				checkedPanos: new Set(),
 				isProcessing: false,
 			};
-			m.found = [];
-			m.checkedPanos = new Set();
-			m.isProcessing = false;
 			nextMeta.set(sel.key, m);
 			const region = selectionToRegion(sel, m);
-			if (region) regions.push(region);
+			if (region) desired.push(region);
 		}
 		setMeta(nextMeta);
-
-		const engine = new GenerationEngine(settings, regions, {
-			onLocationsFound: (locs: GeneratedLocation[]) => {
-				void MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId)));
-				updateSessionJob();
-			},
-			onProgress: () => {
-				tickProgress();
-				updateSessionJob();
-			},
-			onRegionComplete: () => {
-				rerender((n) => n + 1);
-			},
-			onDone: () => {
-				setRunning(false);
-				setPaused(false);
-				engineRef.current = null;
-				sessionEngine = null;
-				endSessionJob(t("Generation complete"));
-			},
-		});
-
-		engineRef.current = engine;
-		sessionEngine = engine;
-		sessionJob?.finish();
-		sessionJob = registerJob(t("Map generator"), {
-			scope: "map",
-			cancel: stopSessionEngine,
-			reveal: () => setPluginMode("map-generator"),
-		});
-		sessionJob.setHidden(true);
-		setRunning(true);
-		setPaused(false);
-		void engine.start();
-	}, [settings, tagName]);
-
-	const handlePause = useCallback(() => {
-		const engine = engineRef.current;
-		if (!engine) return;
-		if (engine.isPaused()) {
-			const sels = getActiveSelections().filter((s) => s.selector.type === "Polygon");
-			const nextMeta = new Map(sessionMeta);
-			const desired: GeneratorRegion[] = [];
-			for (const sel of sels) {
-				const m = nextMeta.get(sel.key) ?? {
-					target: settings.defaultTarget,
-					found: [],
-					checkedPanos: new Set(),
-					isProcessing: false,
-				};
-				nextMeta.set(sel.key, m);
-				const region = selectionToRegion(sel, m);
-				if (region) desired.push(region);
-			}
-			setMeta(nextMeta);
-			engine.reconcileRegions(desired);
-			engine.resume();
-			setPaused(false);
-		} else {
-			engine.pause();
-			setPaused(true);
-		}
-	}, [settings.defaultTarget]);
-
-	const handleStop = useCallback(() => {
-		stopSessionEngine();
-		setRunning(false);
-		setPaused(false);
-		engineRef.current = null;
-	}, []);
+		resumeGeneration(desired);
+	}, [paused, settings.defaultTarget]);
 
 	const handleClose = useCallback(() => {
 		onClose();
@@ -442,7 +285,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 					{!running ? (
 						<Button
 							variant="primary"
-							onClick={() => void handleStart()}
+							onClick={handleStart}
 							disabled={polygonSelections.length === 0}
 						>
 							{t("Start")}
@@ -450,7 +293,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 					) : (
 						<>
 							<Button onClick={handlePause}>{paused ? t("Resume") : t("Pause")}</Button>
-							<Button onClick={handleStop}>{t("Stop")}</Button>
+							<Button onClick={stopGeneration}>{t("Stop")}</Button>
 						</>
 					)}
 				</div>

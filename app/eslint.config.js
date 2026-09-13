@@ -171,12 +171,7 @@ export default defineConfig([
 	},
 	{
 		// Legitimate low-level users of useSyncExternalStore: exempt from that one ban.
-		files: [
-			"src/lib/events.ts",
-			"src/store/selectorPick.ts",
-			"src/lib/hooks/useLocalStorage.ts",
-			"src/plugins/generator/ui/progressSignal.ts",
-		],
+		files: ["src/lib/events.ts", "src/store/selectorPick.ts", "src/lib/hooks/useLocalStorage.ts"],
 		rules: {
 			"no-restricted-syntax": ["error", ...RESTRICTED_SYNTAX],
 		},
