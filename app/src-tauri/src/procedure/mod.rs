@@ -79,13 +79,7 @@ pub trait ProcHost {
 pub trait Procedure: Send {
     fn shape(&self) -> ProcShape;
 
-    /// Run configuration (`{"fields":[..],"force":bool,"config":..}`), applied to every
-    /// instance the procedure creates. Procedures that take no config ignore it.
-    fn configure(&mut self, _config_json: &str) -> AppResult<()> {
-        Ok(())
-    }
-
-    fn request(&mut self, _batch: &[u8]) -> AppResult<HttpRequestSpec> {
+    fn request(&mut self, _batch: &[u8], _config: &str) -> AppResult<HttpRequestSpec> {
         Err(AppError(
             "procedure shape does not implement request".into(),
         ))
@@ -96,18 +90,26 @@ pub trait Procedure: Send {
         _batch: &[u8],
         _response: &HttpResponse,
         _host: &mut dyn ProcHost,
+        _config: &str,
     ) -> AppResult<Vec<PatchEntry>> {
         Err(AppError("procedure shape does not implement map".into()))
     }
 
-    fn run(&mut self, _batch: &[u8], _host: &mut dyn ProcHost) -> AppResult<Vec<PatchEntry>> {
+    fn run(
+        &mut self,
+        _batch: &[u8],
+        _host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<PatchEntry>> {
         Err(AppError("procedure shape does not implement run".into()))
     }
 
-    /// Read-only entry, outside the shapes: answer `input` with a result of the
-    /// procedure's own choosing. No batch, no patches, no store. Optional -- a module
-    /// that exports no `query` answers with this error.
-    fn query(&mut self, _input: &[u8], _host: &mut dyn ProcHost) -> AppResult<Vec<u8>> {
+    fn query(
+        &mut self,
+        _input: &[u8],
+        _host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<u8>> {
         Err(AppError("procedure does not implement query".into()))
     }
 }

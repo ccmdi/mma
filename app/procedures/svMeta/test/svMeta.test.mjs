@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pano, panos } from "../../panoStub.mjs";
 
-const { run, query, configure } = await import(
+const { run, query } = await import(
 	new URL("../../../src-tauri/procedures/svMeta.js", import.meta.url).href
 );
 
@@ -41,7 +41,7 @@ const full = (over = {}) =>
 	});
 
 /** Installs an `mma` answering every non-empty id through `lookup`. */
-function install(lookup, { fields = null } = {}) {
+function install(lookup) {
 	const asked = [];
 	const failed = [];
 	let progress = 0;
@@ -60,24 +60,25 @@ function install(lookup, { fields = null } = {}) {
 		},
 		aborted: () => false,
 	};
-	configure(fields ? { fields, force: false, config: null } : null);
 	return { asked, state: () => ({ progress, failed }) };
 }
 
 /** Runs `run` over `rows`. This procedure writes `extra` only; unwrap so the cases below
  *  read the fields. */
-function runProcedure(rows, lookup, opts = {}) {
-	const h = install(lookup, opts);
-	const patches = run(rows.map((r) => ({ ...EMPTY_ROW, ...r }))).map((p) => {
+function runProcedure(rows, lookup, { fields = null } = {}) {
+	const h = install(lookup);
+	const cfg = { fields: fields ?? [], force: false, config: null };
+	const patches = run(rows.map((r) => ({ ...EMPTY_ROW, ...r })), cfg).map((p) => {
 		assert.deepEqual(Object.keys(p.patch), ["extra"], "patch entries must be LocationPatch-shaped");
 		return { id: p.id, patch: p.patch.extra };
 	});
 	return { patches, asked: h.asked, ...h.state() };
 }
 
-function queryProcedure(input, lookup, opts = {}) {
-	const h = install(lookup, opts);
-	return { result: JSON.parse(JSON.stringify(query(input))), asked: h.asked, ...h.state() };
+function queryProcedure(input, lookup) {
+	const h = install(lookup);
+	const cfg = { fields: [], force: false, config: null };
+	return { result: JSON.parse(JSON.stringify(query(input, cfg))), asked: h.asked, ...h.state() };
 }
 
 const CLASSIC_A = "abcdefghijklmnopqrstuA";

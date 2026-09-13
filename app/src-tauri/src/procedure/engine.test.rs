@@ -114,7 +114,7 @@ impl Procedure for MockProc {
     fn shape(&self) -> ProcShape {
         self.shape
     }
-    fn request(&mut self, _batch: &[u8]) -> AppResult<HttpRequestSpec> {
+    fn request(&mut self, _batch: &[u8], _config: &str) -> AppResult<HttpRequestSpec> {
         Ok(HttpRequestSpec {
             method: "GET".into(),
             url: "https://example.invalid/".into(),
@@ -127,13 +127,19 @@ impl Procedure for MockProc {
         batch: &[u8],
         _response: &HttpResponse,
         host: &mut dyn ProcHost,
+        _config: &str,
     ) -> AppResult<Vec<PatchEntry>> {
         if let Some(id) = self.fail_id {
             host.fail(id);
         }
         self.handle(batch)
     }
-    fn run(&mut self, batch: &[u8], _host: &mut dyn ProcHost) -> AppResult<Vec<PatchEntry>> {
+    fn run(
+        &mut self,
+        batch: &[u8],
+        _host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<PatchEntry>> {
         self.handle(batch)
     }
 }
@@ -1119,7 +1125,12 @@ impl Procedure for RunProc {
     fn shape(&self) -> ProcShape {
         ProcShape::Run
     }
-    fn run(&mut self, batch: &[u8], host: &mut dyn ProcHost) -> AppResult<Vec<PatchEntry>> {
+    fn run(
+        &mut self,
+        batch: &[u8],
+        host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<PatchEntry>> {
         let rows = batch_rows(batch)?;
         host.fetch(&HttpRequestSpec {
             method: "GET".into(),
@@ -1364,22 +1375,20 @@ impl Procedure for CfgProc {
     fn shape(&self) -> ProcShape {
         ProcShape::MapOnly
     }
-    fn configure(&mut self, config_json: &str) -> AppResult<()> {
-        self.seen.lock().unwrap().push(config_json.to_string());
-        Ok(())
-    }
     fn map(
         &mut self,
         _batch: &[u8],
         _response: &HttpResponse,
         _host: &mut dyn ProcHost,
+        config: &str,
     ) -> AppResult<Vec<PatchEntry>> {
+        self.seen.lock().unwrap().push(config.to_string());
         Ok(Vec::new())
     }
 }
 
 #[test]
-fn every_procedure_the_engine_creates_is_configured() {
+fn every_procedure_call_receives_its_config() {
     let (state, map_id) = setup(&[loc(1, 0.0, 0.0)]);
     let mut d = decl("cfg", BatchMode::PerRow);
     d.fields = vec!["timezone".into()];
@@ -1440,35 +1449,6 @@ fn a_provider_declaring_no_procedure_module_fails_the_run() {
         err.to_string().contains("declares no procedure module"),
         "{err}"
     );
-}
-
-struct BadCfgProc;
-
-impl Procedure for BadCfgProc {
-    fn shape(&self) -> ProcShape {
-        ProcShape::MapOnly
-    }
-    fn configure(&mut self, _config_json: &str) -> AppResult<()> {
-        Err(AppError("config rejected".into()))
-    }
-    fn map(
-        &mut self,
-        _batch: &[u8],
-        _response: &HttpResponse,
-        _host: &mut dyn ProcHost,
-    ) -> AppResult<Vec<PatchEntry>> {
-        Ok(Vec::new())
-    }
-}
-
-#[test]
-fn a_procedure_whose_configure_fails_fails_the_run() {
-    let locs: Vec<Location> = (1..=100u32).map(|i| loc(i, i as f64 / 10.0, 0.0)).collect();
-    let (state, map_id) = setup(&locs);
-    let mut h = Harness::map_only(patch_all("{}"));
-    h.deps.factory = Box::new(|_| Ok(Box::new(BadCfgProc) as Box<dyn Procedure>));
-    let err = run_provider(&h.ctx(&state, &map_id), &decl("cfg", BatchMode::PerRow)).unwrap_err();
-    assert!(err.to_string().contains("config rejected"), "{err}");
 }
 
 #[test]
@@ -1752,7 +1732,6 @@ mod e2e_rewrite {
 /// Answers a query by reporting what it was configured with, the input it saw, and the
 /// body of one host fetch. Every shape method is unreachable: a query needs none.
 struct QueryProc {
-    config: String,
     entry: String,
 }
 
@@ -1760,11 +1739,12 @@ impl Procedure for QueryProc {
     fn shape(&self) -> ProcShape {
         ProcShape::Run
     }
-    fn configure(&mut self, config_json: &str) -> AppResult<()> {
-        self.config = config_json.to_string();
-        Ok(())
-    }
-    fn query(&mut self, input: &[u8], host: &mut dyn ProcHost) -> AppResult<Vec<u8>> {
+    fn query(
+        &mut self,
+        input: &[u8],
+        host: &mut dyn ProcHost,
+        config: &str,
+    ) -> AppResult<Vec<u8>> {
         let fetched = host.fetch(&HttpRequestSpec {
             method: "GET".into(),
             url: "https://example.invalid/q".into(),
@@ -1777,7 +1757,7 @@ impl Procedure for QueryProc {
         assert!(!host.aborted());
         Ok(serde_json::json!({
             "entry": self.entry,
-            "config": serde_json::from_str::<serde_json::Value>(&self.config).unwrap(),
+            "config": serde_json::from_str::<serde_json::Value>(config).unwrap(),
             "input": String::from_utf8_lossy(input),
             "fetched": String::from_utf8_lossy(&fetched.body),
         })
@@ -1790,7 +1770,6 @@ fn query_deps(fetch: FetchFn) -> EngineDeps {
     EngineDeps {
         factory: Box::new(|entry| {
             Ok(Box::new(QueryProc {
-                config: "null".into(),
                 entry: entry.to_string(),
             }) as Box<dyn Procedure>)
         }),

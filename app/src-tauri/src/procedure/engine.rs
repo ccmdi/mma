@@ -804,16 +804,13 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let instances =
         instance_count(decl).min(batch_ceiling(&batch_mode, total, per_instance).max(1));
 
-    // Created and configured before any batch is queued: with no live consumer the
-    // producer would block forever on a full queue, so a provider that cannot start a
-    // single instance fails the run instead of stranding it.
+    // Created before any batch is queued: with no live consumer the producer would
+    // block forever on a full queue, so a provider that cannot start a single instance
+    // fails the run instead of stranding it.
     let mut procs: Vec<Box<dyn Procedure>> = Vec::with_capacity(instances);
     let mut create_err: Option<AppError> = None;
     for _ in 0..instances {
-        match entry_of(decl)
-            .and_then(&ctx.deps.factory)
-            .and_then(|mut p| p.configure(&config).map(|_| p))
-        {
+        match entry_of(decl).and_then(&ctx.deps.factory) {
             Ok(p) => procs.push(p),
             Err(e) => create_err = Some(e),
         }
@@ -837,8 +834,10 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let outcome = thread::scope(|s| {
         for mut proc in procs {
             let out_tx = out_tx.clone();
-            let (batch_rx, budget, prog) = (&batch_rx, &budget, &prog);
-            s.spawn(move || run_instance(ctx, decl, budget, prog, &mut *proc, batch_rx, &out_tx));
+            let (batch_rx, budget, prog, config) = (&batch_rx, &budget, &prog, config.as_str());
+            s.spawn(move || {
+                run_instance(ctx, decl, budget, prog, &mut *proc, batch_rx, &out_tx, config)
+            });
         }
         let applier = s.spawn(|| apply_pages(ctx, decl, out_rx));
 
@@ -1211,6 +1210,7 @@ fn run_instance(
     proc: &mut dyn Procedure,
     batches: &Mutex<mpsc::Receiver<Tagged>>,
     out: &mpsc::Sender<Produced>,
+    config: &str,
 ) {
     loop {
         let next = batches
@@ -1238,7 +1238,7 @@ fn run_instance(
             reported: 0,
             failed: Vec::new(),
         };
-        let result = run_batch(proc, &batch, &mut host)
+        let result = run_batch(proc, &batch, &mut host, config)
             .map(|entries| fan_out(entries, batch.fanout.as_ref()))
             .and_then(|entries| match decl.sink {
                 // Only the patch sink parses: a collected answer is the module's
@@ -1282,6 +1282,7 @@ fn run_batch(
     proc: &mut dyn Procedure,
     batch: &WorkBatch,
     host: &mut EngineHost,
+    config: &str,
 ) -> AppResult<Vec<PatchEntry>> {
     let blob = serde_json::to_vec(&batch.rows)
         .map_err(|e| AppError(format!("batch could not be serialized: {e}")))?;
@@ -1293,13 +1294,14 @@ fn run_batch(
                 body: Vec::new(),
             },
             host,
+            config,
         ),
         ProcShape::RequestMap => {
-            let req = proc.request(&blob)?;
+            let req = proc.request(&blob, config)?;
             let resp = host.fetch(&req)?;
-            proc.map(&blob, &resp, host)
+            proc.map(&blob, &resp, host, config)
         }
-        ProcShape::Run => proc.run(&blob, host),
+        ProcShape::Run => proc.run(&blob, host, config),
     }
 }
 
@@ -1538,13 +1540,13 @@ pub fn run_query(
     aborted: &(dyn Fn() -> bool + Sync),
 ) -> AppResult<String> {
     let mut proc = (deps.factory)(entry)?;
-    proc.configure(&configure_json(&[], false, config))?;
+    let config = configure_json(&[], false, config);
     let mut host = QueryHost {
         deps,
         budget: FetchBudget::new(None, None),
         aborted,
     };
-    let out = proc.query(input.as_bytes(), &mut host)?;
+    let out = proc.query(input.as_bytes(), &mut host, &config)?;
     String::from_utf8(out).map_err(|_| AppError("query result is not valid utf-8".into()))
 }
 

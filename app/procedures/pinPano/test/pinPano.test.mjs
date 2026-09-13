@@ -1,5 +1,5 @@
-// Drives the built bundle: `configure` then `run`, against a host stub whose `mma.panos`
-// answers with the timelines the case names.
+// Drives the built bundle against a host stub whose `mma.panos` answers with the
+// timelines the case names.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pano, panos } from "../../panoStub.mjs";
@@ -10,7 +10,7 @@ let asked = [];
 let failed = [];
 let progress = 0;
 
-const { configure, run } = await import(
+const { run } = await import(
 	new URL("../../../src-tauri/procedures/pinPano.js", import.meta.url).href
 );
 
@@ -49,8 +49,7 @@ function runProcedure(rows, lookup, { force = false, config = null } = {}) {
 		},
 		aborted: () => false,
 	};
-	configure({ fields: [], force, config });
-	return { patches: run(rows), asked, progress, failed };
+	return { patches: run(rows, { fields: [], force, config }), asked, progress, failed };
 }
 
 /** A pano whose timeline names `history`, ascending as the host sorts it. */

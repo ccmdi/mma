@@ -8,7 +8,7 @@ import type { Location, Update, LocationPatch_Deserialize as LocationPatch } fro
 
 const DATASET = "adm1";
 
-export function run(rows: Location[]): Update<LocationPatch>[] {
+export function run(rows: Location[], _cfg: ProcedureConfig): Update<LocationPatch>[] {
 	const out: Update<LocationPatch>[] = [];
 	for (const row of rows) {
 		if (mma.aborted()) break;

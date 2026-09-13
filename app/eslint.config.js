@@ -72,7 +72,12 @@ const RESTRICTED_SYNTAX = [
 ];
 
 export default defineConfig([
-	globalIgnores(["dist", "src/bindings.gen.ts", "src/components/manual/manual-img-dims.gen.ts"]),
+	globalIgnores([
+		"dist",
+		"src/bindings.gen.ts",
+		"src/components/manual/manual-img-dims.gen.ts",
+		"procedures/prelude.d.ts",
+	]),
 	{
 		files: ["**/*.{ts,tsx}"],
 		extends: [

@@ -9,8 +9,6 @@ import type {
 } from "@/bindings.gen";
 import { SVMETA_FIELDS } from "@/lib/sv/constants";
 
-// --- derivation ---
-
 /** How a pano becomes each field this provider produces. */
 const DERIVE: Record<(typeof SVMETA_FIELDS)[number], (p: Pano) => unknown> = {
 	altitude: (p) => p.altitude,
@@ -25,28 +23,16 @@ const DERIVE: Record<(typeof SVMETA_FIELDS)[number], (p: Pano) => unknown> = {
 	coverageDates: (p) => p.coverageDates,
 };
 
-// --- configuration ---
-
-/** The `extra` keys the run wants; null until configured, meaning no filtering. */
-let fields: Set<string> | null = null;
-
-export function configure(cfg: { fields?: string[] } | null): void {
-	fields = Array.isArray(cfg?.fields) ? new Set(cfg.fields) : null;
-}
-
-// --- query ---
-
 /** Read-only entry: metadata for arbitrary panos, without a run.
  *  `{"op":"metadata","panoIds":[..]}` answers with an array aligned to `panoIds`. */
-export function query(input: { op?: string; panoIds?: string[] }) {
+export function query(input: { op?: string; panoIds?: string[] }, _cfg: ProcedureConfig) {
 	if (input?.op !== "metadata") return { error: "svMeta: unknown query op" };
 	const answers = mma.panos((input.panoIds ?? []).map((panoId) => ({ panoId })));
 	return answers.map((a) => (a.state === "found" ? a.pano : null));
 }
 
-// --- run ---
-
-export function run(rows: Location[]): Update<LocationPatch>[] {
+export function run(rows: Location[], cfg: ProcedureConfig): Update<LocationPatch>[] {
+	const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
 	const answers = mma.panos(rows.map((r) => ({ panoId: r.panoId ?? "" })));
 	const out: Update<LocationPatch>[] = [];
 	for (let i = 0; i < rows.length; i++) {

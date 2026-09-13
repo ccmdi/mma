@@ -167,7 +167,7 @@ function narrow(batch: Search[], counts = true): void {
 	}
 }
 
-export function run(rows: Location[]): Update<LocationPatch>[] {
+export function run(rows: Location[], _cfg: ProcedureConfig): Update<LocationPatch>[] {
 	const batch: Search[] = [];
 	for (const row of rows) {
 		const s = newSearch(row.id, row.lat, row.lng, row.extra?.imageDate);

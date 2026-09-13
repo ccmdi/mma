@@ -49,25 +49,18 @@ const row = (panoId: string) => ({
 	tags: [],
 });
 
-describe("validate procedure", () => {
-	const configured = (run: () => unknown) => {
-		mod.configure({ fields: [], force: false, config: { checkPinned: false } });
-		try {
-			return withHost(run);
-		} finally {
-			mod.configure(null);
-		}
-	};
+const NO_CHECK_PINNED = { fields: [], force: false, config: { checkPinned: false } };
 
+describe("validate procedure", () => {
 	it("treats a flagged row with no pano id as unpinned", () => {
-		const { out, rounds } = configured(() => mod.run([row("")]));
+		const { out, rounds } = withHost(() => mod.run([row("")], NO_CHECK_PINNED));
 		expect(out).toEqual([{ id: 1, patch: ValidationState.GoodcamAvailable }]);
 		// The timeline round only happens for a row the procedure considers unpinned.
 		expect(rounds[2]).toHaveLength(CAR_PANO.time.length);
 	});
 
 	it("skips the goodcam round for a genuinely pinned row", () => {
-		const { out, rounds } = configured(() => mod.run([row(CAR_PANO.id)]));
+		const { out, rounds } = withHost(() => mod.run([row(CAR_PANO.id)], NO_CHECK_PINNED));
 		expect(out).toEqual([{ id: 1, patch: ValidationState.Ok }]);
 		expect(rounds[2]).toHaveLength(0);
 	});

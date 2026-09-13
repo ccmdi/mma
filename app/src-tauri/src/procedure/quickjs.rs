@@ -3,10 +3,9 @@
 //!
 //! The module's named exports are the entry points: `request`+`map` (RequestMap),
 //! `map` (MapOnly) or `run` (Run). `query` is a second optional export outside the
-//! shapes, and `configure` is called before every entry point when the module has
-//! one -- with `null` when the run carries no configuration, since one context serves
-//! every borrower of a pooled procedure. The boundary is JSON: a batch arrives as
-//! `JSON.parse`d rows and every entry point answers with plain JS values.
+//! shapes. Each entry point receives its run configuration as a trailing argument.
+//! The boundary is JSON: a batch arrives as `JSON.parse`d rows and every entry point
+//! answers with plain JS values.
 //!
 //! Host services live on a global `mma` object: `fetch`, `fetchMany`, `classify`,
 //! `sidecar`, `log`, `progress`, `fail`, `aborted`. They are synchronous -- the guest
@@ -726,7 +725,6 @@ struct Exports {
     map: bool,
     run: bool,
     query: bool,
-    configure: bool,
 }
 
 fn detect_shape(e: &Exports, origin: &str) -> AppResult<ProcShape> {
@@ -759,8 +757,6 @@ pub struct JsProcedure {
     /// Raised by the servicing loop when the run is aborted; the runtime's interrupt
     /// handler reads it, so a guest that never yields still stops.
     interrupt: Arc<AtomicBool>,
-    /// Run configuration, replayed through `configure` before every call.
-    config: Option<String>,
 }
 
 impl Debug for JsProcedure {
@@ -801,7 +797,6 @@ impl JsProcedure {
                 map: ns.contains_key("map").unwrap_or(false),
                 run: ns.contains_key("run").unwrap_or(false),
                 query: ns.contains_key("query").unwrap_or(false),
-                configure: ns.contains_key("configure").unwrap_or(false),
             };
             ctx.globals().set(EXPORTS, ns).map_err(err)?;
             Ok(found)
@@ -814,7 +809,6 @@ impl JsProcedure {
             exports,
             origin: origin.to_string(),
             interrupt,
-            config: None,
         })
     }
 
@@ -833,7 +827,6 @@ impl JsProcedure {
         let (msg_tx, msg_rx) = mpsc::channel::<Msg>();
         let (rep_tx, rep_rx) = mpsc::channel::<HostRep>();
         let bridge_tx = msg_tx.clone();
-        let config = self.config.clone();
 
         let joined = thread::scope(|scope| {
             let worker = scope.spawn(move || {
@@ -844,9 +837,7 @@ impl JsProcedure {
                         rx: rep_rx,
                     });
                     install_mma(&ctx, Some(bridge), allow_effects)?;
-                    let out = self
-                        .push_config(&ctx, config.as_deref())
-                        .and_then(|()| body(ctx.clone()));
+                    let out = body(ctx.clone());
                     // Drop this call's channel ends rather than parking them in the JS heap.
                     install_mma(&ctx, None, false)?;
                     out
@@ -874,18 +865,9 @@ impl JsProcedure {
         joined.unwrap_or_else(|_| Err(self.err("procedure thread panicked")))
     }
 
-    /// Optional `configure` export, called before every entry point. A call with no
-    /// configuration passes `null` rather than skipping: one context serves every
-    /// borrower of a pooled procedure, so silence would leave the last run's
-    /// configuration standing.
-    fn push_config(&self, ctx: &Ctx<'_>, config: Option<&str>) -> AppResult<()> {
-        if !self.exports.configure {
-            return Ok(());
-        }
-        let arg = ctx
-            .json_parse(config.unwrap_or("null"))
-            .map_err(|e| self.err(format!("configuration JSON is invalid: {e}")))?;
-        self.invoke(ctx, "configure", vec![arg]).map(|_| ())
+    fn config_val<'js>(&self, ctx: &Ctx<'js>, config: &str) -> AppResult<Value<'js>> {
+        ctx.json_parse(config)
+            .map_err(|e| self.err(format!("configuration JSON is invalid: {e}")))
     }
 
     fn export<'js>(&self, ctx: &Ctx<'js>, name: &str) -> AppResult<Function<'js>> {
@@ -961,19 +943,15 @@ impl Procedure for JsProcedure {
         self.shape
     }
 
-    fn configure(&mut self, config_json: &str) -> AppResult<()> {
-        self.config = Some(config_json.to_string());
-        Ok(())
-    }
-
-    fn request(&mut self, batch: &[u8]) -> AppResult<HttpRequestSpec> {
+    fn request(&mut self, batch: &[u8], config: &str) -> AppResult<HttpRequestSpec> {
         if self.shape != ProcShape::RequestMap {
             return Err(self.err("procedure shape does not implement request"));
         }
         let mut no_host = NoHost;
         self.call(&mut no_host, false, |ctx| {
             let rows = self.rows(&ctx, batch)?;
-            let out = self.invoke(&ctx, "request", vec![rows])?;
+            let cfg = self.config_val(&ctx, config)?;
+            let out = self.invoke(&ctx, "request", vec![rows, cfg])?;
             read_request(&out).map_err(|e| self.err(e.0))
         })
     }
@@ -983,6 +961,7 @@ impl Procedure for JsProcedure {
         batch: &[u8],
         response: &HttpResponse,
         host: &mut dyn ProcHost,
+        config: &str,
     ) -> AppResult<Vec<PatchEntry>> {
         if !matches!(self.shape, ProcShape::RequestMap | ProcShape::MapOnly) {
             return Err(self.err("procedure shape does not implement map"));
@@ -990,23 +969,35 @@ impl Procedure for JsProcedure {
         self.call(host, false, |ctx| {
             let rows = self.rows(&ctx, batch)?;
             let resp = response_to_js(&ctx, response).map_err(|e| self.err(e))?;
-            let out = self.invoke(&ctx, "map", vec![rows, resp])?;
+            let cfg = self.config_val(&ctx, config)?;
+            let out = self.invoke(&ctx, "map", vec![rows, resp, cfg])?;
             read_patches(&ctx, out).map_err(|e| self.err(e.0))
         })
     }
 
-    fn run(&mut self, batch: &[u8], host: &mut dyn ProcHost) -> AppResult<Vec<PatchEntry>> {
+    fn run(
+        &mut self,
+        batch: &[u8],
+        host: &mut dyn ProcHost,
+        config: &str,
+    ) -> AppResult<Vec<PatchEntry>> {
         if self.shape != ProcShape::Run {
             return Err(self.err("procedure shape does not implement run"));
         }
         self.call(host, true, |ctx| {
             let rows = self.rows(&ctx, batch)?;
-            let out = self.invoke(&ctx, "run", vec![rows])?;
+            let cfg = self.config_val(&ctx, config)?;
+            let out = self.invoke(&ctx, "run", vec![rows, cfg])?;
             read_patches(&ctx, out).map_err(|e| self.err(e.0))
         })
     }
 
-    fn query(&mut self, input: &[u8], host: &mut dyn ProcHost) -> AppResult<Vec<u8>> {
+    fn query(
+        &mut self,
+        input: &[u8],
+        host: &mut dyn ProcHost,
+        config: &str,
+    ) -> AppResult<Vec<u8>> {
         if !self.exports.query {
             return Err(self.err("module exports no `query`"));
         }
@@ -1014,7 +1005,8 @@ impl Procedure for JsProcedure {
             let arg = ctx
                 .json_parse(input)
                 .map_err(|e| self.err(format!("query input JSON is invalid: {e}")))?;
-            let out = self.invoke(&ctx, "query", vec![arg])?;
+            let cfg = self.config_val(&ctx, config)?;
+            let out = self.invoke(&ctx, "query", vec![arg, cfg])?;
             let json = ctx
                 .json_stringify(out)
                 .map_err(|e| self.err(e))?
@@ -1096,12 +1088,9 @@ impl PooledProcedure {
 
 impl Drop for PooledProcedure {
     fn drop(&mut self) {
-        let Some(mut proc) = self.proc.take() else {
+        let Some(proc) = self.proc.take() else {
             return;
         };
-        // The next borrower configures before calling; not carrying this one's
-        // configuration across keeps that a guarantee rather than a habit.
-        proc.config = None;
         let Ok(mut pool) = pool().lock() else {
             return;
         };
@@ -1122,12 +1111,8 @@ impl Procedure for PooledProcedure {
         self.proc.as_ref().expect("held until drop").shape()
     }
 
-    fn configure(&mut self, config_json: &str) -> AppResult<()> {
-        self.inner().configure(config_json)
-    }
-
-    fn request(&mut self, batch: &[u8]) -> AppResult<HttpRequestSpec> {
-        self.inner().request(batch)
+    fn request(&mut self, batch: &[u8], config: &str) -> AppResult<HttpRequestSpec> {
+        self.inner().request(batch, config)
     }
 
     fn map(
@@ -1135,16 +1120,27 @@ impl Procedure for PooledProcedure {
         batch: &[u8],
         response: &HttpResponse,
         host: &mut dyn ProcHost,
+        config: &str,
     ) -> AppResult<Vec<PatchEntry>> {
-        self.inner().map(batch, response, host)
+        self.inner().map(batch, response, host, config)
     }
 
-    fn run(&mut self, batch: &[u8], host: &mut dyn ProcHost) -> AppResult<Vec<PatchEntry>> {
-        self.inner().run(batch, host)
+    fn run(
+        &mut self,
+        batch: &[u8],
+        host: &mut dyn ProcHost,
+        config: &str,
+    ) -> AppResult<Vec<PatchEntry>> {
+        self.inner().run(batch, host, config)
     }
 
-    fn query(&mut self, input: &[u8], host: &mut dyn ProcHost) -> AppResult<Vec<u8>> {
-        self.inner().query(input, host)
+    fn query(
+        &mut self,
+        input: &[u8],
+        host: &mut dyn ProcHost,
+        config: &str,
+    ) -> AppResult<Vec<u8>> {
+        self.inner().query(input, host, config)
     }
 }
 

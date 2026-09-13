@@ -2,7 +2,11 @@
 
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 
-export function map(rows: Location[]): Update<LocationPatch>[] {
+export function map(
+	rows: Location[],
+	_response: unknown,
+	_cfg: ProcedureConfig,
+): Update<LocationPatch>[] {
 	const out: Update<LocationPatch>[] = [];
 	for (const row of rows) {
 		const timezone = mma.tz(row.lat, row.lng);

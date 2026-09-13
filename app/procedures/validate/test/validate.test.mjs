@@ -4,7 +4,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pano, panos as panosStub } from "../../panoStub.mjs";
 
-const { configure, run } = await import(
+const { run } = await import(
 	new URL("../../../src-tauri/procedures/validate.js", import.meta.url).href
 );
 
@@ -124,8 +124,7 @@ function runProcedure(
 		aborted: () => requests() >= abortAfter,
 	};
 
-	configure({ fields: [], force: false, config });
-	const answers = run(rows.map(toRow));
+	const answers = run(rows.map(toRow), { fields: [], force: false, config });
 	for (const a of answers) {
 		assert.equal(typeof a.patch, "number", "an answer is a bare ValidationState");
 	}

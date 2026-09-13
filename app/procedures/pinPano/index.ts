@@ -7,17 +7,12 @@ import { newestOfficialPano } from "@/lib/sv/panoId";
 import { isPinned } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 
-let useLatest = false;
-let force = false;
-
-export function configure(
-	cfg: { force?: boolean; config?: { useLatest?: boolean } | null } | null,
-): void {
-	force = cfg?.force === true;
-	useLatest = cfg?.config?.useLatest === true;
-}
-
-export function run(rows: Location[]): Update<LocationPatch>[] {
+export function run(
+	rows: Location[],
+	cfg: ProcedureConfig<{ useLatest?: boolean }>,
+): Update<LocationPatch>[] {
+	const useLatest = cfg.config?.useLatest === true;
+	const force = cfg.force;
 	const out: Update<LocationPatch>[] = [];
 	// Without `useLatest` every id is empty, so this issues no requests at all.
 	const answers = mma.panos(

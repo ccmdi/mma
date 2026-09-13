@@ -8,22 +8,13 @@ import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import type { Pano } from "@/bindings.gen";
 import type { PanoType, RankingStrategy } from "@/bindings.consts";
 
-interface RunConfig {
-	force?: boolean;
-	config?: { radius?: number; sources?: PanoType[] } | null;
-}
-
-let radius = SV_SEARCH_RADIUS;
-let force = false;
-let sources: PanoType[] | undefined;
-
-export function configure(cfg: RunConfig | null): void {
-	radius = cfg?.config?.radius ?? SV_SEARCH_RADIUS;
-	force = cfg?.force === true;
-	sources = cfg?.config?.sources ?? undefined;
-}
-
-export function run(rows: Location[]): Update<LocationPatch>[] {
+export function run(
+	rows: Location[],
+	cfg: ProcedureConfig<{ radius?: number; sources?: PanoType[] }>,
+): Update<LocationPatch>[] {
+	const radius = cfg.config?.radius ?? SV_SEARCH_RADIUS;
+	const force = cfg.force;
+	const sources = cfg.config?.sources;
 	const todo = rows.filter((row) => force || !row.panoId);
 	if (todo.length === 0 || mma.aborted()) return [];
 
@@ -56,7 +47,10 @@ interface AtQuery {
  *  rather than patching rows. `{"op":"at","points":[{"lat":..,"lng":..}],"radius":50}`
  *  answers an array aligned to `points`, each entry the whole pano or null. `sources`
  *  narrows which collections are searched. */
-export function query(input: AtQuery | null): (Pano | null)[] | { error: string } {
+export function query(
+	input: AtQuery | null,
+	_cfg: ProcedureConfig,
+): (Pano | null)[] | { error: string } {
 	if (input?.op !== "at") return { error: "panoResolve: unknown query op" };
 	const r = typeof input.radius === "number" ? input.radius : SV_SEARCH_RADIUS;
 	const queries = (input.points ?? []).map((p) => ({

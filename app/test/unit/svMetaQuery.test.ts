@@ -12,9 +12,11 @@ import { CAR_PANO } from "./fixtures/pano";
 const app = fileURLToPath(new URL("../..", import.meta.url));
 // The bundle is a build artifact, not a checked-in one.
 execFileSync(process.execPath, ["scripts/build-procedures.mjs", "svMeta"], { cwd: app });
-const { query, run, configure } = await import(
+const { query, run } = await import(
 	new URL("../../src-tauri/procedures/svMeta.js", import.meta.url).href
 );
+
+const NULL_CFG = { fields: [], force: false, config: null };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -39,20 +41,26 @@ function installHost(answer: Pano | null, opts: { failed?: boolean } = {}) {
 describe("svMeta metadata query", () => {
 	it("answers the panos the host found, aligned to the request", () => {
 		installHost(CAR_PANO);
-		const out = JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: ["a", "b"] })));
+		const out = JSON.parse(
+			JSON.stringify(query({ op: "metadata", panoIds: ["a", "b"] }, NULL_CFG)),
+		);
 		expect(out).toEqual([CAR_PANO, CAR_PANO]);
 	});
 
 	it("answers null for a pano the host reached no verdict on", () => {
 		installHost(CAR_PANO);
-		expect(JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: [""] })))).toEqual([null]);
+		expect(JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: [""] }, NULL_CFG)))).toEqual([
+			null,
+		]);
 		installHost(CAR_PANO, { failed: true });
-		expect(JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: ["a"] })))).toEqual([null]);
+		expect(JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: ["a"] }, NULL_CFG)))).toEqual(
+			[null],
+		);
 	});
 
 	it("rejects an unknown query op rather than guessing", () => {
 		installHost(null);
-		expect(query({ op: "nope" })).toEqual({ error: "svMeta: unknown query op" });
+		expect(query({ op: "nope" }, NULL_CFG)).toEqual({ error: "svMeta: unknown query op" });
 	});
 });
 
@@ -144,8 +152,7 @@ describe("svMetadata", () => {
 describe("the svMeta run pass", () => {
 	it("derives every field as the type the field table declares", () => {
 		installHost(CAR_PANO);
-		configure(null);
-		const [out] = run([{ id: 1, lat: 0, lng: 0, panoId: "pA", extra: null }]);
+		const [out] = run([{ id: 1, lat: 0, lng: 0, panoId: "pA", extra: null }], NULL_CFG);
 		const extra = out.patch.extra as Record<string, unknown>;
 		const defs = Object.fromEntries(KNOWN_FIELDS.map((f) => [f.key, f]));
 		for (const key of SVMETA_FIELDS) {
@@ -176,8 +183,7 @@ describe("the svMeta run pass", () => {
 
 	it("fails a row whose pano no longer exists instead of silently retrying it forever", () => {
 		const failed = installHost(null);
-		configure(null);
-		const out = run([{ id: 4, lat: 0, lng: 0, panoId: "gone", extra: null }]);
+		const out = run([{ id: 4, lat: 0, lng: 0, panoId: "gone", extra: null }], NULL_CFG);
 		expect(out).toEqual([]);
 		expect(failed).toEqual([4]);
 	});

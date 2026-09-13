@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { pano } from "../../panoStub.mjs";
 
-const { configure, run, query } = await import(
+const { run, query } = await import(
 	new URL("../../../src-tauri/procedures/panoResolve.js", import.meta.url).href
 );
 
@@ -71,15 +71,13 @@ function installHost(respond, { abortAfter = Infinity } = {}) {
 
 function runProcedure(rows, respond, { config = null, force = false, abortAfter = Infinity } = {}) {
 	const h = installHost(respond, { abortAfter });
-	configure({ fields: ["panoId"], force, config });
-	const patches = run(rows.map(toRow));
+	const patches = run(rows.map(toRow), { fields: ["panoId"], force, config });
 	return { patches, calls: h.calls, failed: h.failed, ...h.stats() };
 }
 
 function queryAt(input, respond, { config = null } = {}) {
 	const h = installHost(respond);
-	configure({ fields: [], force: false, config });
-	return { answer: query(input), calls: h.calls, ...h.stats() };
+	return { answer: query(input, { fields: [], force: false, config }), calls: h.calls, ...h.stats() };
 }
 
 // --- Tests ---

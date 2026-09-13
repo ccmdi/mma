@@ -12,18 +12,6 @@ import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { isPinned } from "@/types";
 import { ValidationState } from "@/bindings.consts";
 
-interface RunConfig {
-	config?: Partial<ValidateConfig> | null;
-}
-
-let radius = SV_SEARCH_RADIUS;
-let checkPinned = true;
-
-export function configure(cfg: RunConfig | null): void {
-	radius = cfg?.config?.radius ?? SV_SEARCH_RADIUS;
-	checkPinned = cfg?.config?.checkPinned ?? true;
-}
-
 /** A capture worth keeping: anything else is what the badcam check is looking past. */
 function isGoodCam(m: Pano): boolean {
 	return m.cameraType === "gen4" || m.cameraType === "gen2";
@@ -44,7 +32,12 @@ interface RowState {
 	settled: boolean;
 }
 
-export function run(rows: Location[]): Update<ValidationState>[] {
+export function run(
+	rows: Location[],
+	cfg: ProcedureConfig<Partial<ValidateConfig>>,
+): Update<ValidationState>[] {
+	const radius = cfg.config?.radius ?? SV_SEARCH_RADIUS;
+	const checkPinned = cfg.config?.checkPinned ?? true;
 	if (rows.length === 0 || mma.aborted()) return [];
 
 	const storedMeta = mma.panos(rows.map((r) => ({ panoId: r.panoId ?? "" })));

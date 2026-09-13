@@ -4,13 +4,11 @@
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { reverseHeading } from "@/lib/geo/geo";
 
-let backwards = false;
-
-export function configure(cfg: { config?: { direction?: string } | null } | null): void {
-	backwards = cfg?.config?.direction === "backwards";
-}
-
-export function run(rows: Location[]): Update<LocationPatch>[] {
+export function run(
+	rows: Location[],
+	cfg: ProcedureConfig<{ direction?: string }>,
+): Update<LocationPatch>[] {
+	const backwards = cfg.config?.direction === "backwards";
 	const out: Update<LocationPatch>[] = [];
 	const answers = mma.panos(rows.map((r) => ({ panoId: r.panoId ?? "" })));
 

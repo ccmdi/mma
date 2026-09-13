@@ -11,3 +11,9 @@ declare class TextDecoder {
 declare class TextEncoder {
 	encode(input?: string): Uint8Array;
 }
+
+interface ProcedureConfig<T = unknown> {
+	fields: string[];
+	force: boolean;
+	config: T;
+}

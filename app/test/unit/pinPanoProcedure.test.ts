@@ -16,6 +16,7 @@ const mod: any = await import(
 
 const CAR_PANO_ID = CAR_PANO.id;
 const LOAD_AS_PANO_ID = 1;
+const NULL_CFG = { fields: [], force: false, config: null };
 
 /** The host's answer for every non-empty id, aligned to the request the way it is on the
  *  real boundary: an empty id is never asked for, so it never reaches a verdict. */
@@ -40,9 +41,8 @@ function withHost<T>(answer: Pano | null, run: () => T) {
 
 describe("pinPano procedure", () => {
 	it("pins an unpinned row by setting the flag, without any request", () => {
-		mod.configure(null);
 		const { out, failed, asked } = withHost(null, () =>
-			mod.run([{ id: 1, lat: 0, lng: 0, panoId: "abc", flags: 0 }]),
+			mod.run([{ id: 1, lat: 0, lng: 0, panoId: "abc", flags: 0 }], NULL_CFG),
 		);
 		expect(out).toEqual([{ id: 1, patch: { flags: LOAD_AS_PANO_ID } }]);
 		expect(failed).toEqual([]);
@@ -50,18 +50,17 @@ describe("pinPano procedure", () => {
 	});
 
 	it("leaves an already-pinned row alone", () => {
-		mod.configure(null);
 		const { out, failed } = withHost(null, () =>
-			mod.run([{ id: 2, lat: 0, lng: 0, panoId: "kept", flags: LOAD_AS_PANO_ID }]),
+			mod.run([{ id: 2, lat: 0, lng: 0, panoId: "kept", flags: LOAD_AS_PANO_ID }], NULL_CFG),
 		);
 		expect(out).toEqual([]);
 		expect(failed).toEqual([]);
 	});
 
 	it("useLatest moves a forced re-pin to the newest official pano in the timeline", () => {
-		mod.configure({ force: true, config: { useLatest: true } });
+		const cfg = { fields: [], force: true, config: { useLatest: true } };
 		const { out, failed } = withHost(CAR_PANO, () =>
-			mod.run([{ id: 7, lat: 0, lng: 0, panoId: CAR_PANO_ID, flags: LOAD_AS_PANO_ID }]),
+			mod.run([{ id: 7, lat: 0, lng: 0, panoId: CAR_PANO_ID, flags: LOAD_AS_PANO_ID }], cfg),
 		);
 		expect(failed).toEqual([]);
 		// The car fixture's newest official capture is the pano itself.
@@ -69,9 +68,9 @@ describe("pinPano procedure", () => {
 	});
 
 	it("useLatest fails a row whose metadata answers null", () => {
-		mod.configure({ force: true, config: { useLatest: true } });
+		const cfg = { fields: [], force: true, config: { useLatest: true } };
 		const { out, failed } = withHost(null, () =>
-			mod.run([{ id: 9, lat: 0, lng: 0, panoId: "dead", flags: 0 }]),
+			mod.run([{ id: 9, lat: 0, lng: 0, panoId: "dead", flags: 0 }], cfg),
 		);
 		expect(out).toEqual([]);
 		expect(failed).toEqual([9]);
