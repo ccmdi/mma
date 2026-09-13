@@ -33,6 +33,14 @@ import {
 import type { RGB, RGBA } from "@/lib/util/color";
 import { unwrapRing } from "@/lib/geo/geo";
 
+function trailSegments(trail: [number, number][]) {
+	const count = trail.length - 1;
+	return trail.slice(0, -1).map((pt, i) => ({
+		path: [pt, trail[i + 1]] as [number, number][],
+		alpha: count === 1 ? 255 : Math.round(50 + (205 * i) / (count - 1)),
+	}));
+}
+
 export const LOCATION_LAYER_ID = "locations";
 export const PERFECT_SCORE_LAYER_ID = "perfect-score";
 // Screen-pixel hit radius for "click the first vertex to close the loop" — also
@@ -229,16 +237,34 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	const svTrail = getTrail();
 	if (svTrail.length >= 2) {
+		const segments = trailSegments(svTrail);
 		layers.push(
-			new PathLayer({
+			new PathLayer<(typeof segments)[number]>({
 				id: "sv-trail",
-				data: [svTrail],
-				getPath: (d) => d,
-				getColor: [255, 0, 0],
+				data: segments,
+				getPath: (d) => d.path,
+				getColor: (d) => [255, 0, 0, d.alpha],
 				getWidth: 2,
 				widthUnits: "pixels" as const,
 				jointRounded: true,
 				capRounded: true,
+				pickable: false,
+			}),
+		);
+		const tip = svTrail[svTrail.length - 1];
+		layers.push(
+			new ScatterplotLayer({
+				id: "sv-trail-position",
+				data: [tip],
+				getPosition: (d) => renderPos(d[0], d[1]),
+				getRadius: 5,
+				radiusUnits: "pixels" as const,
+				radiusMinPixels: 4,
+				getFillColor: [255, 255, 255, 220],
+				stroked: true,
+				lineWidthUnits: "pixels" as const,
+				getLineWidth: 2,
+				getLineColor: [255, 0, 0, 255],
 				pickable: false,
 			}),
 		);
