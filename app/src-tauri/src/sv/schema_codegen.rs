@@ -24,6 +24,7 @@ struct Message {
 
 struct EnumValue {
     name: String,
+    doc: String,
     number: u32,
     label: Option<String>,
 }
@@ -108,8 +109,11 @@ fn parse(source: &str, schema: &mut Schema) {
             let Some((name, number)) = code.trim_end_matches(';').split_once('=') else {
                 continue;
             };
+            let [value_doc] = <[String; 1]>::try_from(mem::take(&mut doc))
+                .unwrap_or_else(|_| panic!("enum value `{code}` needs exactly one doc line"));
             e.values.push(EnumValue {
                 name: name.trim().to_string(),
+                doc: value_doc,
                 number: number.trim().parse().expect("enum value"),
                 label: comment(line)
                     .and_then(|c| c.strip_prefix("label:"))
@@ -194,6 +198,7 @@ fn generate() -> String {
         }
         let _ = writeln!(out, "    {}: u8 {{", e.name);
         for v in &e.values {
+            let _ = writeln!(out, "        /// {}", v.doc);
             match &v.label {
                 Some(label) => {
                     let _ = writeln!(out, "        {} = {} => \"{label}\",", v.name, v.number);

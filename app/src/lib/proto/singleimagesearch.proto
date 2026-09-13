@@ -64,7 +64,9 @@ message SemanticRestrictions {} // contents unverified
 // radius returns a neighbouring pano from the same capture run, so a timeline probe must
 // use CLOSEST at the pano's own coordinate.
 enum RankingStrategy {
+  // The pano the search ranks best within the radius, which may not be the nearest.
   BEST = 1;
+  // The pano nearest the searched point, and the choice when none is given.
   CLOSEST = 2;
 }
 

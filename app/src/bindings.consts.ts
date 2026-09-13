@@ -2,11 +2,29 @@
 // No imports, ever: procedures bundle this file and must not reach Tauri.
 
 /** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
-export const LocationFlag = { None: 0, LoadAsPanoId: 1, Informational: 2, ImportPreview: 4, SeenOverlay: 8 } as const;
+export const LocationFlag = {
+	/** No flags set. */
+	None: 0,
+	/** When the location has a stored pano, it opens exactly that pano instead of the nearest coverage. */
+	LoadAsPanoId: 1,
+	/** Kept as imported, with no effect in the app. */
+	Informational: 2,
+	/** A location from a pending import, opened for preview and not yet on the map. */
+	ImportPreview: 4,
+	/** A pano opened from the seen history overlay, not yet on the map. */
+	SeenOverlay: 8,
+} as const;
 export type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
 
 /** Which imagery collection a pano id belongs to. */
-export const PanoType = { Official: 2, Unknown: 3, UserUploaded: 10 } as const;
+export const PanoType = {
+	/** Official Street View coverage. */
+	Official: 2,
+	/** Unofficial imagery from outside the user-uploaded collection. */
+	Unknown: 3,
+	/** Imagery uploaded by users. */
+	UserUploaded: 10,
+} as const;
 export type PanoType = (typeof PanoType)[keyof typeof PanoType];
 
 /**
@@ -15,11 +33,31 @@ export type PanoType = (typeof PanoType)[keyof typeof PanoType];
  * radius returns a neighbouring pano from the same capture run, so a timeline probe must
  * use CLOSEST at the pano's own coordinate.
  */
-export const RankingStrategy = { Best: 1, Closest: 2 } as const;
+export const RankingStrategy = {
+	/** The pano the search ranks best within the radius, which may not be the nearest. */
+	Best: 1,
+	/** The pano nearest the searched point, and the choice when none is given. */
+	Closest: 2,
+} as const;
 export type RankingStrategy = (typeof RankingStrategy)[keyof typeof RankingStrategy];
 
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
-export const ValidationState = { Ok: 0, UpdateAvailable: 1, UpdateApplied: 2, GoodcamAvailable: 6, PanoIdBroke: 4, Unofficial: 5, NotFound: 3 } as const;
+export const ValidationState = {
+	/** The location's coverage checked out, with nothing to report. */
+	Ok: 0,
+	/** The location is pinned to a pano, and newer official coverage exists that it does not show. */
+	UpdateAvailable: 1,
+	/** Newer official coverage exists here, and the unpinned location already shows it. */
+	UpdateApplied: 2,
+	/** The location shows bad-camera coverage, but its timeline holds a better camera capture. */
+	GoodcamAvailable: 6,
+	/** The location's pinned pano no longer loads, though coverage still exists at its coordinates. */
+	PanoIdBroke: 4,
+	/** The coverage the location shows is unofficial. */
+	Unofficial: 5,
+	/** No coverage was found, neither the stored pano nor any within the search radius. */
+	NotFound: 3,
+} as const;
 export type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
 
 export const BUILTIN_FIELDS = [{"key":"lat","label":"Latitude","type":"number","kind":"identity","comparison":null},{"key":"lng","label":"Longitude","type":"number","kind":"identity","comparison":null},{"key":"heading","label":"Heading","type":"number","kind":"writable","comparison":{"type":"circular","period":360.0}},{"key":"pitch","label":"Pitch","type":"number","kind":"writable","comparison":null},{"key":"zoom","label":"Zoom","type":"number","kind":"writable","comparison":null},{"key":"id","label":"ID","type":"number","kind":"identity","comparison":null},{"key":"createdAt","label":"Created","type":"date","kind":null,"comparison":null},{"key":"modifiedAt","label":"Modified","type":"date","kind":null,"comparison":null},{"key":"panoId","label":"Pano ID","type":"string","kind":null,"comparison":null},{"key":"tagCount","label":"Tag count","type":"number","kind":"virtual","comparison":null},{"key":"loadAsPanoId","label":"Load as pano ID","type":"number","kind":"term","comparison":null}] as const;

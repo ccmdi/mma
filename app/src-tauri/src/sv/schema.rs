@@ -12,8 +12,11 @@ use crate::types::{wire_enum, wire_names, TsConst};
 wire_enum! {
     /// Which imagery collection a pano id belongs to.
     PanoType: u8 {
+        /// Official Street View coverage.
         OFFICIAL = 2 => "Official",
+        /// Unofficial imagery from outside the user-uploaded collection.
         UNKNOWN = 3 => "Unknown",
+        /// Imagery uploaded by users.
         USER_UPLOADED = 10 => "User uploaded",
     }
 }
@@ -24,7 +27,9 @@ wire_enum! {
     /// radius returns a neighbouring pano from the same capture run, so a timeline probe must
     /// use CLOSEST at the pano's own coordinate.
     RankingStrategy: u8 {
+        /// The pano the search ranks best within the radius, which may not be the nearest.
         BEST = 1,
+        /// The pano nearest the searched point, and the choice when none is given.
         CLOSEST = 2,
     }
 }

@@ -138,15 +138,16 @@ impl TsConst {
     }
 
     /// A name -> value object in declaration order, which also gets its value union.
-    pub fn names<V: Display>(pairs: impl IntoIterator<Item = (String, V)>) -> Self {
-        let body = pairs
+    pub fn names<V: Display>(
+        entries: impl IntoIterator<Item = ((String, V), &'static str)>,
+    ) -> Self {
+        let body: String = entries
             .into_iter()
-            .map(|(n, v)| format!("{n}: {v}"))
-            .collect::<Vec<_>>()
-            .join(", ");
+            .map(|((n, v), doc)| format!("\t/** {} */\n\t{n}: {v},\n", doc.trim()))
+            .collect();
         Self {
             doc: &[],
-            literal: format!("{{ {body} }}"),
+            literal: format!("{{\n{body}}}"),
             union: true,
         }
     }
@@ -193,11 +194,12 @@ impl TsConst {
 /// A closed set of numeric values Rust owns: the constants, the enum-field catalogue
 /// entries built from them, and the map TypeScript mirrors, all from one list.
 macro_rules! wire_enum {
-    (@base $(#[doc = $doc:literal])* $name:ident : $repr:ty { $($konst:ident = $val:expr),* }) => {
+    (@base $(#[doc = $doc:literal])* $name:ident : $repr:ty { $(#[doc = $kdoc:literal] $konst:ident = $val:expr),* }) => {
         $(#[doc = $doc])*
         pub struct $name;
         impl $name {
             $(
+                #[doc = $kdoc]
                 #[allow(dead_code, reason = "the wire value is mirrored to TypeScript, not read here")]
                 pub const $konst: $repr = $val;
             )*
@@ -210,12 +212,12 @@ macro_rules! wire_enum {
                 wire_names([$((stringify!($konst), $val)),*])
             }
             pub fn ts_const() -> TsConst {
-                TsConst::names(Self::wire_names()).with_doc(Self::DOC)
+                TsConst::names(Self::wire_names().into_iter().zip([$($kdoc),*])).with_doc(Self::DOC)
             }
         }
     };
-    ($(#[doc = $doc:literal])* $name:ident : $repr:ty { $($konst:ident = $val:expr => $label:literal),* $(,)? }) => {
-        wire_enum!(@base $(#[doc = $doc])* $name : $repr { $($konst = $val),* });
+    ($(#[doc = $doc:literal])* $name:ident : $repr:ty { $(#[doc = $kdoc:literal] $konst:ident = $val:expr => $label:literal),* $(,)? }) => {
+        wire_enum!(@base $(#[doc = $doc])* $name : $repr { $(#[doc = $kdoc] $konst = $val),* });
         impl $name {
             /// Values as the `extra` column stores them.
             pub const VALUES: &'static [&'static str] = &[$(stringify!($val)),*];
@@ -223,8 +225,8 @@ macro_rules! wire_enum {
                 &[$((stringify!($val), $label)),*];
         }
     };
-    ($(#[doc = $doc:literal])* $name:ident : $repr:ty { $($konst:ident = $val:expr),* $(,)? }) => {
-        wire_enum!(@base $(#[doc = $doc])* $name : $repr { $($konst = $val),* });
+    ($(#[doc = $doc:literal])* $name:ident : $repr:ty { $(#[doc = $kdoc:literal] $konst:ident = $val:expr),* $(,)? }) => {
+        wire_enum!(@base $(#[doc = $doc])* $name : $repr { $(#[doc = $kdoc] $konst = $val),* });
     };
 }
 pub(crate) use wire_enum;
@@ -232,12 +234,19 @@ pub(crate) use wire_enum;
 wire_enum! {
     /// Outcome of a Street View coverage check, as `validate` answers it per row.
     ValidationState: u8 {
+        /// The location's coverage checked out, with nothing to report.
         OK = 0,
+        /// The location is pinned to a pano, and newer official coverage exists that it does not show.
         UPDATE_AVAILABLE = 1,
+        /// Newer official coverage exists here, and the unpinned location already shows it.
         UPDATE_APPLIED = 2,
+        /// The location shows bad-camera coverage, but its timeline holds a better camera capture.
         GOODCAM_AVAILABLE = 6,
+        /// The location's pinned pano no longer loads, though coverage still exists at its coordinates.
         PANO_ID_BROKE = 4,
+        /// The coverage the location shows is unofficial.
         UNOFFICIAL = 5,
+        /// No coverage was found, neither the stored pano nor any within the search radius.
         NOT_FOUND = 3,
     }
 }
@@ -247,18 +256,19 @@ wire_enum! {
 macro_rules! wire_bitflags {
     (
         $(#[doc = $doc:literal])*
-        $name:ident : $repr:ty { $($body:tt)* }
+        $name:ident : $repr:ty { $(#[doc = $fdoc:literal] const $flag:ident = $bits:expr;)* }
         consts { $($(#[doc = $cdoc:literal])* $konst:ident as $ts:literal = $val:expr;)* }
     ) => {
         bitflags::bitflags! {
             $(#[doc = $doc])*
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-            pub struct $name: $repr { $($body)* }
+            pub struct $name: $repr { $(#[doc = $fdoc] const $flag = $bits;)* }
         }
 
         impl $name {
             /// The rustdoc above, one entry per line, for the TypeScript mirror.
             pub const DOC: &'static [&'static str] = &[$($doc),*];
+            pub const FLAG_DOCS: &'static [&'static str] = &[$($fdoc),*];
             $(
                 $(#[doc = $cdoc])*
                 pub const $konst: Self = $val;
@@ -273,12 +283,16 @@ macro_rules! wire_bitflags {
 wire_bitflags! {
     /// Per-location bitfield, serialized as a plain `u32` over IPC and Arrow.
     LocationFlags: u32 {
+        /// When the location has a stored pano, it opens exactly that pano instead of the nearest coverage.
         const LOAD_AS_PANO_ID = 1;
-        /// The original app's informational marker: carried through, read by nothing.
+        // The original app's informational marker: carried through, read by nothing.
+        /// Kept as imported, with no effect in the app.
         const INFORMATIONAL = 2;
-        /// Preview kinds, set only on the ephemeral active-location preview and stripped
-        /// by [`LocationFlags::VIRTUAL`] before one is materialized. Never persisted.
+        // Preview kinds, set only on the ephemeral active-location preview and stripped
+        // by [`LocationFlags::VIRTUAL`] before one is materialized. Never persisted.
+        /// A location from a pending import, opened for preview and not yet on the map.
         const IMPORT_PREVIEW = 4;
+        /// A pano opened from the seen history overlay, not yet on the map.
         const SEEN_OVERLAY = 8;
     }
     consts {
@@ -292,7 +306,8 @@ impl LocationFlags {
         let names = wire_names(
             iter::once(("NONE", 0)).chain(Self::all().iter_names().map(|(n, f)| (n, f.bits()))),
         );
-        TsConst::names(names).with_doc(Self::DOC)
+        let docs = iter::once("No flags set.").chain(Self::FLAG_DOCS.iter().copied());
+        TsConst::names(names.into_iter().zip(docs)).with_doc(Self::DOC)
     }
 }
 

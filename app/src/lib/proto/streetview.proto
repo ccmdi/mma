@@ -7,8 +7,11 @@ syntax = "proto2";
 
 // Which imagery collection a pano id belongs to.
 enum PanoType {
+  // Official Street View coverage.
   OFFICIAL = 2; // label: Official
+  // Unofficial imagery from outside the user-uploaded collection.
   UNKNOWN = 3; // label: Unknown
+  // Imagery uploaded by users.
   USER_UPLOADED = 10; // label: User uploaded
 }
 

@@ -15,17 +15,25 @@ import * as maplibregl from 'maplibre-gl';
 
 /** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
 declare const LocationFlag: {
+    /** No flags set. */
     readonly None: 0;
+    /** When the location has a stored pano, it opens exactly that pano instead of the nearest coverage. */
     readonly LoadAsPanoId: 1;
+    /** Kept as imported, with no effect in the app. */
     readonly Informational: 2;
+    /** A location from a pending import, opened for preview and not yet on the map. */
     readonly ImportPreview: 4;
+    /** A pano opened from the seen history overlay, not yet on the map. */
     readonly SeenOverlay: 8;
 };
 type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
 /** Which imagery collection a pano id belongs to. */
 declare const PanoType: {
+    /** Official Street View coverage. */
     readonly Official: 2;
+    /** Unofficial imagery from outside the user-uploaded collection. */
     readonly Unknown: 3;
+    /** Imagery uploaded by users. */
     readonly UserUploaded: 10;
 };
 type PanoType = (typeof PanoType)[keyof typeof PanoType];
@@ -36,18 +44,27 @@ type PanoType = (typeof PanoType)[keyof typeof PanoType];
  * use CLOSEST at the pano's own coordinate.
  */
 declare const RankingStrategy: {
+    /** The pano the search ranks best within the radius, which may not be the nearest. */
     readonly Best: 1;
+    /** The pano nearest the searched point, and the choice when none is given. */
     readonly Closest: 2;
 };
 type RankingStrategy = (typeof RankingStrategy)[keyof typeof RankingStrategy];
 /** Outcome of a Street View coverage check, as `validate` answers it per row. */
 declare const ValidationState: {
+    /** The location's coverage checked out, with nothing to report. */
     readonly Ok: 0;
+    /** The location is pinned to a pano, and newer official coverage exists that it does not show. */
     readonly UpdateAvailable: 1;
+    /** Newer official coverage exists here, and the unpinned location already shows it. */
     readonly UpdateApplied: 2;
+    /** The location shows bad-camera coverage, but its timeline holds a better camera capture. */
     readonly GoodcamAvailable: 6;
+    /** The location's pinned pano no longer loads, though coverage still exists at its coordinates. */
     readonly PanoIdBroke: 4;
+    /** The coverage the location shows is unofficial. */
     readonly Unofficial: 5;
+    /** No coverage was found, neither the stored pano nor any within the search radius. */
     readonly NotFound: 3;
 };
 type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
