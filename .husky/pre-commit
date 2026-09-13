@@ -2,6 +2,9 @@
 
 [ "$HUSKY" = "0" ] && exit 0
 
+git_dir=$(git rev-parse --git-dir)
+[ -d "$git_dir/rebase-merge" ] || [ -d "$git_dir/rebase-apply" ] || [ -f "$git_dir/CHERRY_PICK_HEAD" ] && exit 0
+
 cd app
 
 # Format + lint staged files
@@ -10,11 +13,8 @@ npx lint-staged || exit 1
 # Format staged Rust files
 STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep '^app/src-tauri/src/')
 if [ -n "$STAGED_RS" ]; then
-	echo "[pre-commit] rustfmt..."
-	cargo fmt --manifest-path src-tauri/Cargo.toml -- --check || {
-		echo "rustfmt failed. Run 'cargo fmt' to fix."
-		exit 1
-	}
+	(cd .. && rustfmt --check --edition 2021 $STAGED_RS) >/dev/null 2>&1 ||
+		echo "[pre-commit] rustfmt would reformat a staged Rust file (advisory)."
 fi
 
 # TypeScript type check

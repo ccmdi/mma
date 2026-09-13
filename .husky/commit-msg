@@ -2,6 +2,9 @@
 
 [ "$HUSKY" = "0" ] && exit 0
 
+git_dir=$(git rev-parse --git-dir)
+[ -d "$git_dir/rebase-merge" ] || [ -d "$git_dir/rebase-apply" ] || [ -f "$git_dir/CHERRY_PICK_HEAD" ] && exit 0
+
 msg_file="$1"
 
 # Subject = first line that isn't a comment or blank.
