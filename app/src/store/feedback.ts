@@ -1,5 +1,5 @@
 import { mdiCheckCircleOutline, mdiCloseCircleOutline, mdiRecordCircleOutline } from "@mdi/js";
-import type { IssueState } from "@/bindings.gen";
+import type { IssueState } from "@/bindings.consts";
 import { getLocal, persisted, setLocal, useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { msg } from "@/lib/i18n";
 import type { Attachments, ReportKind } from "@/lib/feedback/body";

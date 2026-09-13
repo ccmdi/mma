@@ -10,6 +10,7 @@
 //! This is a GitHub *App*, not an OAuth App, so a user-to-server token is bounded by the
 //! app's installation on [`REPO`]. Signing in grants us nothing on the user's own repos.
 
+use crate::types::wire_str_enum;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -179,11 +180,14 @@ pub struct IssueComment {
     pub created_at: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, specta::Type, Clone, Copy, Debug, PartialEq)]
-#[serde(rename_all = "lowercase")]
-pub enum IssueState {
-    Open,
-    Closed,
+wire_str_enum! {
+    derive(serde::Serialize, serde::Deserialize, specta::Type, Clone, Copy, Debug, PartialEq)
+    pub enum IssueState {
+        /// The issue is still open.
+        Open = "open",
+        /// The issue has been closed.
+        Closed = "closed",
+    }
 }
 
 /// What became of a report, and what has been said on it. One shape for both transports so a

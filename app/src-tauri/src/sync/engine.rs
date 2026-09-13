@@ -9,6 +9,7 @@
 //!  - [`sync_reconcile`]: the tauri command; thin glue that snapshots local state, builds the
 //!    provider, and runs plan+execute off the async thread.
 
+use crate::types::wire_str_enum;
 use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
@@ -33,12 +34,15 @@ use tauri::async_runtime;
 
 // --- result types (IPC contract) --------------------------------------------
 
-/// Which side won a resolved conflict; serialized as "local"/"remote".
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "lowercase")]
-pub enum ResolutionSide {
-    Local,
-    Remote,
+wire_str_enum! {
+    /// Which side won a resolved conflict; serialized as "local"/"remote".
+    derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)
+    pub enum ResolutionSide {
+        /// This map's version won the conflict.
+        Local = "local",
+        /// The remote map's version won the conflict.
+        Remote = "remote",
+    }
 }
 
 /// A remote-originated create for JS to apply. `remote_id` is the handle its mapping row must

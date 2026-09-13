@@ -2,6 +2,7 @@
 
 import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 import * as __TAURI_EVENT from "@tauri-apps/api/event";
+import type { CameraType, DatePart, ExtraFieldType, FirstSyncMode, IssueState, MergeWinner, RateCost, ResolutionSide, Sink } from "./bindings.consts";
 
 /** Commands */
 export const commands = {
@@ -558,8 +559,6 @@ export type CameraFrame = {
 	pitch: number,
 };
 
-export type CameraType = "gen1" | "gen2" | "gen4" | "badcam" | "tripod" | "trekker";
-
 /**
  *  A swap-removal from a render cell. JS must move the last element into `cell_index`
  *  and pop the array to mirror the Rust-side swap-remove.
@@ -648,8 +647,6 @@ export type DataLocation = {
 	is_custom: boolean,
 };
 
-/**  A calendar component to group dates by. */
-export type DatePart = "year" | "yearMonth" | "day" | "monthOfYear" | "hourOfDay";
 
 /**  Aggregate database statistics for the debug panel. */
 export type DbStats = {
@@ -781,11 +778,6 @@ export type ExtraFieldDef = {
 	comparison: ComparisonType | null,
 };
 
-/**
- *  Type discriminant for `Location.extra` field definitions.
- *  Determines how the field is displayed and filtered in the UI.
- */
-export type ExtraFieldType = "string" | "number" | "date" | "month" | "enum" | "array";
 
 /**
  *  Field presence count for the editor import preview dialog, letting
@@ -836,11 +828,6 @@ export type FieldOpResult = {
  */
 export type FilterOp = { op: "has" } | { op: "nothas" } | { op: "eq"; value: any } | { op: "neq"; value: any } | { op: "contains"; value: any } | { op: "notcontains"; value: any } | { op: "gt"; value: any; tzLocal?: boolean } | { op: "lt"; value: any; tzLocal?: boolean } | { op: "gte"; value: any; tzLocal?: boolean } | { op: "lte"; value: any; tzLocal?: boolean } | { op: "between"; lo: any; hi: any; tzLocal?: boolean } | { op: "between_anyyear"; lo: string; hi: string; tzLocal?: boolean } | { op: "between_anytime"; lo: string; hi: string; tzLocal?: boolean };
 
-/**
- *  First-sync seeding when both sides already have pins. Only meaningful on the first sync
- *  (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
- */
-export type FirstSyncMode = "merge" | "mirrorFromRemote" | "mirrorFromLocal";
 
 /**  Reverse geocode result: nearest populated place to a coordinate. */
 export type GeoResult = {
@@ -915,8 +902,6 @@ export type IssueRef = {
 	number: number,
 	url: string,
 };
-
-export type IssueState = "open" | "closed";
 
 /**
  *  What became of a report, and what has been said on it. One shape for both transports so a
@@ -1122,8 +1107,6 @@ export type MapSettings = {
 	reviewOrder?: string | null,
 };
 
-/**  When a move target already holds a value, which side survives. */
-export type MergeWinner = "from" | "to";
 
 /**  A map the key holder can link to. */
 export type MmMapSummary = {
@@ -1450,11 +1433,6 @@ export type PullUpdate = {
 	patch: SyncPatch,
 };
 
-/**
- *  What one attempt charges the bucket: the call itself, or one per row in its batch
- *  (for APIs that bill multi-row requests per row).
- */
-export type RateCost = "request" | "row";
 
 /**  Token bucket: `units` calls per `per_ms` milliseconds, refilled continuously. */
 export type RateSpec = {
@@ -1530,8 +1508,6 @@ export type RenderRequest = {
 	markerColor?: [number, number, number] | null,
 };
 
-/**  Which side won a resolved conflict; serialized as "local"/"remote". */
-export type ResolutionSide = "local" | "remote";
 
 /**
  *  One location's answer from a `Collect` provider: whatever its module emitted for
@@ -1781,12 +1757,6 @@ export type SidecarProgress = {
 	total: number,
 };
 
-/**
- *  Where a provider's results go. `Patch` applies them to the locations they name;
- *  `Collect` delivers them to the caller and writes nothing. The declaration decides
- *  this, never the contents of a result.
- */
-export type Sink = "patch" | "collect";
 
 /**
  *  `pick_spaced`'s answer: the picked ids plus the spacing achieved (count mode) or

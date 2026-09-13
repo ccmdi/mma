@@ -22,7 +22,8 @@ import {
 	setMapExtraFields,
 } from "@/store/useMapStore";
 import { useMapSetting } from "@/store/useMapSetting";
-import type { ExtraFieldDef, MergeWinner } from "@/bindings.gen";
+import type { ExtraFieldDef } from "@/bindings.gen";
+import type { MergeWinner } from "@/bindings.consts";
 import { mdiClose, mdiDatabasePlusOutline, mdiInformationOutline } from "@mdi/js";
 import { msg, t } from "@/lib/i18n";
 import { matches } from "@/lib/search";

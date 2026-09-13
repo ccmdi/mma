@@ -6,7 +6,8 @@ import { panosAt, svMetadata } from "@/lib/sv/query";
 import { isPinned, createLocation } from "@/types";
 import { LocationFlag, PanoType } from "@/bindings.consts";
 import type { LatLng } from "@/types";
-import type { CameraType, Location, Pano } from "@/bindings.gen";
+import type { Location, Pano } from "@/bindings.gen";
+import type { CameraType } from "@/bindings.consts";
 
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { reverseHeading } from "@/lib/geo/geo";

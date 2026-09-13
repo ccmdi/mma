@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { describe, it, expect } from "vitest";
 import {
 	svSearchRadius,
@@ -9,7 +9,8 @@ import {
 	svThumbnailUrl,
 	rankCandidates,
 } from "@/lib/sv/lookup";
-import type { CameraType, Pano } from "@/bindings.gen";
+import type { Pano } from "@/bindings.gen";
+import type { CameraType } from "@/bindings.consts";
 import { panoTileLayout } from "@/lib/sv/panoDownload";
 
 describe("svSearchRadius", () => {

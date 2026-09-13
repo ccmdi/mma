@@ -2,7 +2,7 @@ import { isOfficialPano } from "@/lib/sv/panoId";
 import { svMetadata } from "@/lib/sv/query";
 import { PanoType } from "@/bindings.consts";
 import { useAsyncSticky } from "@/lib/hooks/useAsync";
-import type { CameraType } from "@/bindings.gen";
+import type { CameraType } from "@/bindings.consts";
 import type { Pano } from "@/bindings.gen";
 
 /** Camera type plus "unofficial", a display-only state that is never stored. */

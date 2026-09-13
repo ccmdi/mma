@@ -1,5 +1,6 @@
 //! Grouping a set by field: key projection, date parts, numeric binning, count-by.
 
+use crate::types::wire_str_enum;
 use super::*;
 use crate::store::maps::ExtraFieldType;
 use crate::util::tz_offset_seconds;
@@ -33,15 +34,21 @@ pub enum NumericBinning {
     Width { w: f64 },
 }
 
-/// A calendar component to group dates by.
-#[derive(Clone, Copy, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum DatePart {
-    Year,
-    YearMonth,
-    Day,
-    MonthOfYear,
-    HourOfDay,
+wire_str_enum! {
+    /// A calendar component to group dates by.
+    derive(Clone, Copy, Deserialize, specta::Type)
+    pub enum DatePart {
+        /// The calendar year.
+        Year = "year",
+        /// The year and month.
+        YearMonth = "yearMonth",
+        /// The calendar date.
+        Day = "day",
+        /// The month, the same in every year.
+        MonthOfYear = "monthOfYear",
+        /// The hour of the day.
+        HourOfDay = "hourOfDay",
+    }
 }
 
 /// One grouping projection a field type may be partitioned by: `"value"` or a `DatePart`

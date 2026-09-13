@@ -1,9 +1,9 @@
 import type {
 	ExtraFieldDef,
-	ExtraFieldType,
 	Location,
 	LocationPatch_Deserialize as LocationPatch,
 } from "@/bindings.gen";
+import type { ExtraFieldType } from "@/bindings.consts";
 import { nowUnix } from "@/lib/util/util";
 import type { RequireNonNull } from "@/types/util";
 import { LocationFlag } from "@/bindings.consts";

@@ -13,6 +13,113 @@ import { Dialog as Dialog$1 } from '@base-ui-components/react/dialog';
 import { Layer, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
 
+declare const CameraType: {
+    /** First-generation Street View camera. */
+    readonly Gen1: "gen1";
+    /** Second- or third-generation camera. */
+    readonly Gen2: "gen2";
+    /** Fourth-generation camera. */
+    readonly Gen4: "gen4";
+    /** A capture from a known bad camera. */
+    readonly Badcam: "badcam";
+    /** An indoor capture from a tripod. */
+    readonly Tripod: "tripod";
+    /** A special collect carried on foot or on another vehicle, such as a trekker. */
+    readonly Trekker: "trekker";
+};
+type CameraType = (typeof CameraType)[keyof typeof CameraType];
+/** A calendar component to group dates by. */
+declare const DatePart: {
+    /** The calendar year. */
+    readonly Year: "year";
+    /** The year and month. */
+    readonly YearMonth: "yearMonth";
+    /** The calendar date. */
+    readonly Day: "day";
+    /** The month, the same in every year. */
+    readonly MonthOfYear: "monthOfYear";
+    /** The hour of the day. */
+    readonly HourOfDay: "hourOfDay";
+};
+type DatePart = (typeof DatePart)[keyof typeof DatePart];
+/**
+ * Type discriminant for `Location.extra` field definitions.
+ * Determines how the field is displayed and filtered in the UI.
+ */
+declare const ExtraFieldType: {
+    /** Text. */
+    readonly String: "string";
+    /** A number. */
+    readonly Number: "number";
+    /** A point in time. */
+    readonly Date: "date";
+    /** A year and month. */
+    readonly Month: "month";
+    /** One of a fixed set of values. */
+    readonly Enum: "enum";
+    /** A list of values. */
+    readonly Array: "array";
+};
+type ExtraFieldType = (typeof ExtraFieldType)[keyof typeof ExtraFieldType];
+/**
+ * First-sync seeding when both sides already have pins. Only meaningful on the first sync
+ * (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
+ */
+declare const FirstSyncMode: {
+    /** Both maps keep everything; nothing is deleted. */
+    readonly Merge: "merge";
+    /** Locations only on this map are deleted so it matches the remote map. */
+    readonly MirrorFromRemote: "mirrorFromRemote";
+    /** Locations only on the remote map are deleted so it matches this map. */
+    readonly MirrorFromLocal: "mirrorFromLocal";
+};
+type FirstSyncMode = (typeof FirstSyncMode)[keyof typeof FirstSyncMode];
+declare const IssueState: {
+    /** The issue is still open. */
+    readonly Open: "open";
+    /** The issue has been closed. */
+    readonly Closed: "closed";
+};
+type IssueState = (typeof IssueState)[keyof typeof IssueState];
+/** When a move target already holds a value, which side survives. */
+declare const MergeWinner: {
+    /** The moved value replaces what the target already holds. */
+    readonly From: "from";
+    /** The target keeps its own value and the moved value is dropped. */
+    readonly To: "to";
+};
+type MergeWinner = (typeof MergeWinner)[keyof typeof MergeWinner];
+/**
+ * What one attempt charges the bucket: the call itself, or one per row in its batch
+ * (for APIs that bill multi-row requests per row).
+ */
+declare const RateCost: {
+    /** Each attempt charges the rate limit once, however many rows it carries. */
+    readonly Request: "request";
+    /** Each attempt charges the rate limit once per row it carries. */
+    readonly Row: "row";
+};
+type RateCost = (typeof RateCost)[keyof typeof RateCost];
+/** Which side won a resolved conflict; serialized as "local"/"remote". */
+declare const ResolutionSide: {
+    /** This map's version won the conflict. */
+    readonly Local: "local";
+    /** The remote map's version won the conflict. */
+    readonly Remote: "remote";
+};
+type ResolutionSide = (typeof ResolutionSide)[keyof typeof ResolutionSide];
+/**
+ * Where a provider's results go. `Patch` applies them to the locations they name;
+ * `Collect` delivers them to the caller and writes nothing. The declaration decides
+ * this, never the contents of a result.
+ */
+declare const Sink: {
+    /** Results are written to the locations they name. */
+    readonly Patch: "patch";
+    /** Results are handed back and nothing is written. */
+    readonly Collect: "collect";
+};
+type Sink = (typeof Sink)[keyof typeof Sink];
 /** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
 declare const LocationFlag: {
     /** No flags set. */
@@ -264,12 +371,24 @@ declare const VIRTUAL_FLAGS: 12;
 
 declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
 declare const consts_CLEARABLE_BUILTINS: typeof CLEARABLE_BUILTINS;
+declare const consts_CameraType: typeof CameraType;
+export type consts_CameraType = CameraType;
 declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
+declare const consts_DatePart: typeof DatePart;
+export type consts_DatePart = DatePart;
 declare const consts_EFFECT_CALLS: typeof EFFECT_CALLS;
 declare const consts_ERROR_CODES: typeof ERROR_CODES;
+declare const consts_ExtraFieldType: typeof ExtraFieldType;
+export type consts_ExtraFieldType = ExtraFieldType;
+declare const consts_FirstSyncMode: typeof FirstSyncMode;
+export type consts_FirstSyncMode = FirstSyncMode;
+declare const consts_IssueState: typeof IssueState;
+export type consts_IssueState = IssueState;
 declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
 declare const consts_LocationFlag: typeof LocationFlag;
 export type consts_LocationFlag = LocationFlag;
+declare const consts_MergeWinner: typeof MergeWinner;
+export type consts_MergeWinner = MergeWinner;
 declare const consts_OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
 declare const consts_PLAIN_CALLS: typeof PLAIN_CALLS;
 declare const consts_PROJECTIONS: typeof PROJECTIONS;
@@ -277,13 +396,19 @@ declare const consts_PanoType: typeof PanoType;
 export type consts_PanoType = PanoType;
 declare const consts_RankingStrategy: typeof RankingStrategy;
 export type consts_RankingStrategy = RankingStrategy;
+declare const consts_RateCost: typeof RateCost;
+export type consts_RateCost = RateCost;
+declare const consts_ResolutionSide: typeof ResolutionSide;
+export type consts_ResolutionSide = ResolutionSide;
 declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
+declare const consts_Sink: typeof Sink;
+export type consts_Sink = Sink;
 declare const consts_VIRTUAL_FLAGS: typeof VIRTUAL_FLAGS;
 declare const consts_ValidationState: typeof ValidationState;
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
   export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
-  export { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_ValidationState as ValidationState };
+  export { consts_CameraType as CameraType, consts_DatePart as DatePart, consts_ExtraFieldType as ExtraFieldType, consts_FirstSyncMode as FirstSyncMode, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_ValidationState as ValidationState };
 }
 
 /** Commands @unstable */
@@ -996,7 +1121,6 @@ type CameraFrame = {
     heading: number;
     pitch: number;
 };
-type CameraType = "gen1" | "gen2" | "gen4" | "badcam" | "tripod" | "trekker";
 /**
  *  A swap-removal from a render cell. JS must move the last element into `cell_index`
  *  and pop the array to mirror the Rust-side swap-remove.
@@ -1081,8 +1205,6 @@ type DataLocation = {
     default_path: string;
     is_custom: boolean;
 };
-/**  A calendar component to group dates by. */
-type DatePart = "year" | "yearMonth" | "day" | "monthOfYear" | "hourOfDay";
 /**  Aggregate database statistics for the debug panel. */
 type DbStats = {
     maps: number;
@@ -1247,11 +1369,6 @@ type ExtraFieldDef = {
     comparison: ComparisonType | null;
 };
 /**
- *  Type discriminant for `Location.extra` field definitions.
- *  Determines how the field is displayed and filtered in the UI.
- */
-type ExtraFieldType = "string" | "number" | "date" | "month" | "enum" | "array";
-/**
  *  Field presence count for the editor import preview dialog, letting
  *  the user see which optional fields exist and decide which to keep/drop.
  */
@@ -1359,11 +1476,6 @@ type FilterOp = {
     hi: string;
     tzLocal?: boolean;
 };
-/**
- *  First-sync seeding when both sides already have pins. Only meaningful on the first sync
- *  (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
- */
-type FirstSyncMode = "merge" | "mirrorFromRemote" | "mirrorFromLocal";
 /**  Reverse geocode result: nearest populated place to a coordinate. */
 type GeoResult = {
     city: string;
@@ -1428,7 +1540,6 @@ type IssueRef = {
     number: number;
     url: string;
 };
-type IssueState = "open" | "closed";
 /**
  *  What became of a report, and what has been said on it. One shape for both transports so a
  *  signed-in and an anonymous report render identically.
@@ -1652,8 +1763,6 @@ type MapSettings = {
      */
     reviewOrder?: string | null;
 };
-/**  When a move target already holds a value, which side survives. */
-type MergeWinner = "from" | "to";
 /**  A map the key holder can link to. */
 type MmMapSummary = {
     id: string;
@@ -1966,11 +2075,6 @@ type PullUpdate = {
     localId: number;
     patch: SyncPatch;
 };
-/**
- *  What one attempt charges the bucket: the call itself, or one per row in its batch
- *  (for APIs that bill multi-row requests per row).
- */
-type RateCost = "request" | "row";
 /**  Token bucket: `units` calls per `per_ms` milliseconds, refilled continuously. */
 type RateSpec = {
     units: number;
@@ -2039,8 +2143,6 @@ type RenderRequest = {
     markerStyle?: string;
     markerColor?: [number, number, number] | null;
 };
-/**  Which side won a resolved conflict; serialized as "local"/"remote". */
-type ResolutionSide = "local" | "remote";
 /**
  *  One location's answer from a `Collect` provider: whatever its module emitted for
  *  that row, carried as text exactly as a patch would be.
@@ -2330,12 +2432,6 @@ type SidecarProgress = {
     downloaded: number;
     total: number;
 };
-/**
- *  Where a provider's results go. `Patch` applies them to the locations they name;
- *  `Collect` delivers them to the caller and writes nothing. The declaration decides
- *  this, never the contents of a result.
- */
-type Sink = "patch" | "collect";
 /**
  *  `pick_spaced`'s answer: the picked ids plus the spacing achieved (count mode) or
  *  enforced (distance mode).
@@ -6360,5 +6456,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, DEFAULT_DUPLICATE_SCORE, EFFECT_CALLS, ERROR_CODES, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, SCRATCH_MAP_ID, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CameraType, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DatePart, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, ExtraFieldType, FieldCount, FieldOp, FieldOpResult, FilterOp, FirstSyncMode, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueState, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MergeWinner, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateCost, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResolutionSide, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, Sink, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

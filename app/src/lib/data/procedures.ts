@@ -12,7 +12,8 @@ import {
 	type ProcedureSpec,
 } from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";
-import type { ProcedureProgress, ProcedureResult, ProviderDecl, Sink } from "@/bindings.gen";
+import type { ProcedureProgress, ProcedureResult, ProviderDecl } from "@/bindings.gen";
+import type { Sink } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
 import { partitionLabel } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
@@ -312,7 +313,9 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 		const parts = partsOf();
 		// Overall is rows finished through every provider: the slowest one's count. A
 		// provider that skipped its whole universe carries no work and counts for nothing.
-		const counting = decls.map((d) => net(seen.get(d.id))).filter((s) => !(s.finished && s.total === 0));
+		const counting = decls
+			.map((d) => net(seen.get(d.id)))
+			.filter((s) => !(s.finished && s.total === 0));
 		const done = counting.length > 0 ? Math.min(...counting.map((s) => s.done)) : 0;
 		const total = Math.max(0, ...counting.map((s) => s.total));
 		onProgress?.(done, total, parts);

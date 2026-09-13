@@ -1,4 +1,5 @@
-import type { ExtraFieldType, Selector } from "@/bindings.gen";
+import type { Selector } from "@/bindings.gen";
+import type { ExtraFieldType } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { countIn } from "@/store/useMapStore";

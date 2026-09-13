@@ -9,6 +9,7 @@ pub(crate) mod keying;
 pub(crate) mod map_making;
 pub(crate) mod remote_mapping;
 
+use crate::types::wire_str_enum;
 use crate::types::AppResult;
 use crate::types::{Location, LocationFlags};
 use serde::{Deserialize, Serialize};
@@ -212,14 +213,18 @@ pub struct SideCounts {
     pub delete: u32,
 }
 
-/// First-sync seeding when both sides already have pins. Only meaningful on the first sync
-/// (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum FirstSyncMode {
-    Merge,
-    MirrorFromRemote,
-    MirrorFromLocal,
+wire_str_enum! {
+    /// First-sync seeding when both sides already have pins. Only meaningful on the first sync
+    /// (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
+    derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)
+    pub enum FirstSyncMode {
+        /// Both maps keep everything; nothing is deleted.
+        Merge = "merge",
+        /// Locations only on this map are deleted so it matches the remote map.
+        MirrorFromRemote = "mirrorFromRemote",
+        /// Locations only on the remote map are deleted so it matches this map.
+        MirrorFromLocal = "mirrorFromLocal",
+    }
 }
 
 // --- provider seam ----------------------------------------------------------

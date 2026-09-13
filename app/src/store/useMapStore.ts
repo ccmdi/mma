@@ -26,9 +26,9 @@ import type {
 	PartitionBucket,
 	FieldOp,
 	FieldOpResult,
-	MergeWinner,
 	StoreWarning,
 } from "@/bindings.gen";
+import type { MergeWinner } from "@/bindings.consts";
 import { SelectedIds, decodeSelectionBitmask, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { resetImportState } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";

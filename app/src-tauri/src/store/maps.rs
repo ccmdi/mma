@@ -5,6 +5,7 @@
 //! and deleting maps, plus the auto-registration logic that discovers new
 //! `Location.extra` fields and persists their type definitions.
 
+use crate::types::wire_str_enum;
 use crate::store::engine;
 use crate::store::engine::StoreState;
 use crate::store::storage::{self, push_field};
@@ -114,23 +115,24 @@ pub fn default_settings_json() -> String {
     serde_json::to_string(&MapSettings::default()).expect("MapSettings serializes")
 }
 
-/// Type discriminant for `Location.extra` field definitions.
-/// Determines how the field is displayed and filtered in the UI.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum ExtraFieldType {
-    #[serde(rename = "string")]
-    String,
-    #[serde(rename = "number")]
-    Number,
-    #[serde(rename = "date")]
-    Date,
-    #[serde(rename = "month")]
-    Month,
-    #[serde(rename = "enum")]
-    Enum,
-    #[serde(rename = "array")]
-    Array,
+wire_str_enum! {
+    /// Type discriminant for `Location.extra` field definitions.
+    /// Determines how the field is displayed and filtered in the UI.
+    derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)
+    pub enum ExtraFieldType {
+        /// Text.
+        String = "string",
+        /// A number.
+        Number = "number",
+        /// A point in time.
+        Date = "date",
+        /// A year and month.
+        Month = "month",
+        /// One of a fixed set of values.
+        Enum = "enum",
+        /// A list of values.
+        Array = "array",
+    }
 }
 
 /// Schema definition for a single `Location.extra` field. Stored in the map's
@@ -241,25 +243,22 @@ impl KnownField {
     }
 }
 
-macro_rules! camera_types {
-    ($($variant:ident => $value:literal, $label:literal;)*) => {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
-        pub enum CameraType {
-            $(#[serde(rename = $value)] $variant),*
-        }
-
-        const CAMERA_TYPE_VALUES: &[&str] = &[$($value),*];
-        const CAMERA_TYPE_LABELS: &[(&str, &str)] = &[$(($value, $label)),*];
-    };
-}
-
-camera_types! {
-    Gen1 => "gen1", "Gen 1";
-    Gen2 => "gen2", "Gen 2/3";
-    Gen4 => "gen4", "Gen 4";
-    Badcam => "badcam", "Bad cam";
-    Tripod => "tripod", "Tripod";
-    Trekker => "trekker", "Trekker";
+wire_str_enum! {
+    derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)
+    pub enum CameraType {
+        /// First-generation Street View camera.
+        Gen1 = "gen1" => "Gen 1",
+        /// Second- or third-generation camera.
+        Gen2 = "gen2" => "Gen 2/3",
+        /// Fourth-generation camera.
+        Gen4 = "gen4" => "Gen 4",
+        /// A capture from a known bad camera.
+        Badcam = "badcam" => "Bad cam",
+        /// An indoor capture from a tripod.
+        Tripod = "tripod" => "Tripod",
+        /// A special collect carried on foot or on another vehicle, such as a trekker.
+        Trekker = "trekker" => "Trekker",
+    }
 }
 
 pub static KNOWN_FIELDS: &[KnownField] = &[
@@ -269,8 +268,8 @@ pub static KNOWN_FIELDS: &[KnownField] = &[
         key: "cameraType",
         field_type: ExtraFieldType::Enum,
         label: "Camera type",
-        values: CAMERA_TYPE_VALUES,
-        labels: CAMERA_TYPE_LABELS,
+        values: CameraType::VALUES,
+        labels: CameraType::LABELS,
         circular_period: None,
         default_off: false,
     },

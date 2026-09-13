@@ -1,6 +1,5 @@
 import type {
 	Conflict,
-	FirstSyncMode,
 	Location,
 	LocationPatch_Deserialize,
 	NormalizedSyncLocation,
@@ -8,10 +7,11 @@ import type {
 	SyncPatch,
 	Update,
 } from "@/bindings.gen";
+import type { FirstSyncMode } from "@/bindings.consts";
 import type { SyncProvider } from "./provider";
 import type { IdentityKey, RemoteMappingRow, SyncStore } from "./syncStore";
 
-export type { FirstSyncMode } from "@/bindings.gen";
+export type { FirstSyncMode } from "@/bindings.consts";
 
 export interface SyncOutcome {
 	pushed: SideCounts;

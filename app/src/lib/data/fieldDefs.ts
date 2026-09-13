@@ -1,11 +1,6 @@
 import { KNOWN_FIELDS } from "@/bindings.consts";
-import {
-	type BatchMode,
-	type ExtraFieldDef,
-	type RateSpec,
-	type Selector,
-	type Sink,
-} from "@/bindings.gen";
+import { type BatchMode, type ExtraFieldDef, type RateSpec, type Selector } from "@/bindings.gen";
+import type { Sink } from "@/bindings.consts";
 import { registerPluginFieldDefs, unregisterPluginFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
 import { log } from "@/lib/util/log";

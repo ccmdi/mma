@@ -301,9 +301,64 @@ pub fn export_bindings() -> Result<(), String> {
         .iter()
         .map(|l| l.replace("_Serialize", "") + "\n")
         .collect();
-    fs::write(&out, promoted).expect("write bindings");
+    let names = wire_string_enums().map(|(name, _)| name);
+    fs::write(&out, owned_by_consts(&promoted, &names)).expect("write bindings");
     eprintln!("[specta] bindings exported to {}", out.display());
     export_consts()
+}
+
+fn wire_string_enums() -> [(&'static str, TsConst); 9] {
+    [
+        ("CameraType", store::maps::CameraType::ts_const()),
+        ("DatePart", selections::DatePart::ts_const()),
+        ("ExtraFieldType", store::maps::ExtraFieldType::ts_const()),
+        ("FirstSyncMode", sync::FirstSyncMode::ts_const()),
+        ("IssueState", net::github::IssueState::ts_const()),
+        ("MergeWinner", store::engine::MergeWinner::ts_const()),
+        ("RateCost", procedure::engine::RateCost::ts_const()),
+        ("ResolutionSide", sync::engine::ResolutionSide::ts_const()),
+        ("Sink", procedure::engine::Sink::ts_const()),
+    ]
+}
+
+fn owned_by_consts(src: &str, names: &[&str]) -> String {
+    let mut out: Vec<String> = Vec::new();
+    let mut lines = src.lines();
+    while let Some(line) = lines.next() {
+        if !names.iter().any(|n| line.starts_with(&format!("export type {n} = "))) {
+            out.push(line.to_string());
+            continue;
+        }
+        let mut end = line;
+        while !end.trim_end().ends_with(';') {
+            match lines.next() {
+                Some(next) => end = next,
+                None => break,
+            }
+        }
+        while out.last().is_some_and(|l| l.trim().is_empty()) {
+            out.pop();
+        }
+        if out.last().is_some_and(|l| l.trim_end().ends_with("*/")) {
+            while let Some(l) = out.pop() {
+                if l.trim_start().starts_with("/**") {
+                    break;
+                }
+            }
+        }
+    }
+    let at = out
+        .iter()
+        .position(|l| l.starts_with("import * as __TAURI_EVENT"))
+        .map_or(0, |i| i + 1);
+    out.insert(
+        at,
+        format!(
+            "import type {{ {} }} from \"./bindings.consts\";",
+            names.join(", ")
+        ),
+    );
+    out.join("\n") + "\n"
 }
 
 /// Values Rust owns that TypeScript mirrors, in their own file because it must stay
@@ -316,7 +371,7 @@ fn export_consts() -> Result<(), String> {
 // No imports, ever: procedures bundle this file and must not reach Tauri.
 ",
     );
-    for (name, konst) in [
+    for (name, konst) in wire_string_enums().into_iter().chain([
         ("LocationFlag", types::LocationFlags::ts_const()),
         ("PanoType", sv::schema::PanoType::ts_const()),
         ("RankingStrategy", sv::schema::RankingStrategy::ts_const()),
@@ -342,7 +397,7 @@ fn export_consts() -> Result<(), String> {
                     .collect::<Vec<_>>(),
             ),
         ),
-    ] {
+    ]) {
         ts.push_str(&konst.render(name));
     }
     for (name, value, doc) in types::LocationFlags::WIRE_CONSTS {

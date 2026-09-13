@@ -43,7 +43,8 @@ import type {
 	GenerationCallbacks,
 	GeneratedLocation,
 } from "@/plugins/generator/engine/types";
-import type { CameraType, Pano } from "@/bindings.gen";
+import type { Pano } from "@/bindings.gen";
+import type { CameraType } from "@/bindings.consts";
 
 function loc(description = "", shortDescription = ""): Pano {
 	return { description, shortDescription } as unknown as Pano;
@@ -447,27 +448,23 @@ describe("GenerationEngine live tuning", () => {
 
 		h.panos.set(FOUND_PANO, foundPano(-50, 0));
 		probeWith((points) => points.map(() => FOUND_PANO));
-		const engine = new GenerationEngine(
-			permissive(),
-			[A()],
-			{
-				onLocationsFound: (locs) => flushed.push(...locs),
-				onProgress: () => {
-					if (acted) return;
-					acted = true;
-					// Defer past the probe call stack: the find is buffered (flushTimer
-					// pending), not yet flushed. pause() must commit it.
-					void Promise.resolve().then(() => {
-						result.beforePause = flushed.length;
-						engine.pause();
-						result.afterPause = flushed.length;
-						engine.stop();
-					});
-				},
-				onRegionComplete: () => {},
-				onDone: () => {},
+		const engine = new GenerationEngine(permissive(), [A()], {
+			onLocationsFound: (locs) => flushed.push(...locs),
+			onProgress: () => {
+				if (acted) return;
+				acted = true;
+				// Defer past the probe call stack: the find is buffered (flushTimer
+				// pending), not yet flushed. pause() must commit it.
+				void Promise.resolve().then(() => {
+					result.beforePause = flushed.length;
+					engine.pause();
+					result.afterPause = flushed.length;
+					engine.stop();
+				});
 			},
-		);
+			onRegionComplete: () => {},
+			onDone: () => {},
+		});
 
 		await engine.start();
 
@@ -536,7 +533,6 @@ function seedChain(length: number, isGood: (i: number) => boolean): void {
 	h.seeds = [{ lat: 0, lng: -50, panoId: "p0" }];
 	h.fetched = [];
 }
-
 
 describe("GenerationEngine grow sampling", () => {
 	it("keeps growing past linksDepth while panos keep qualifying", async () => {

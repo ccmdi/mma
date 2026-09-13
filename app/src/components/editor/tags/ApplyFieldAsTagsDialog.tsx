@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
-import type { KeySpec, DatePart, Selector } from "@/bindings.gen";
+import type { KeySpec, Selector } from "@/bindings.gen";
+import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";

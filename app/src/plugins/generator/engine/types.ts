@@ -1,4 +1,5 @@
-import type { CameraType, Location } from "@/bindings.gen";
+import type { Location } from "@/bindings.gen";
+import type { CameraType } from "@/bindings.consts";
 import type { PanoView } from "@/types";
 
 /** The camera type each `generation` choice asks for. Equality, not rig family: a

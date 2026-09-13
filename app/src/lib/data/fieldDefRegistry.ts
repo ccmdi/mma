@@ -13,7 +13,8 @@ import { getMapState } from "@/store/useMapStore";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import { createFieldDef } from "@/types";
 import { BUILTIN_FIELDS, CLEARABLE_BUILTINS, PROJECTIONS } from "@/bindings.consts";
-import type { ExtraFieldDef, ExtraFieldType } from "@/bindings.gen";
+import type { ExtraFieldDef } from "@/bindings.gen";
+import type { ExtraFieldType } from "@/bindings.consts";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
 

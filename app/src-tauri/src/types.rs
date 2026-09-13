@@ -141,6 +141,25 @@ impl TsConst {
     pub fn names<V: Display>(
         entries: impl IntoIterator<Item = ((String, V), &'static str)>,
     ) -> Self {
+        Self::object(entries, true)
+    }
+
+    pub fn strings(
+        entries: impl IntoIterator<Item = (&'static str, &'static str, &'static str)>,
+    ) -> Self {
+        Self::object(
+            entries.into_iter().map(|(name, value, doc)| {
+                let literal = serde_json::to_string(value).expect("string serializes");
+                ((name.to_string(), literal), doc)
+            }),
+            true,
+        )
+    }
+
+    fn object<V: Display>(
+        entries: impl IntoIterator<Item = ((String, V), &'static str)>,
+        union: bool,
+    ) -> Self {
         let body: String = entries
             .into_iter()
             .map(|((n, v), doc)| format!("\t/** {} */\n\t{n}: {v},\n", doc.trim()))
@@ -148,7 +167,7 @@ impl TsConst {
         Self {
             doc: &[],
             literal: format!("{{\n{body}}}"),
-            union: true,
+            union,
         }
     }
 
@@ -230,6 +249,32 @@ macro_rules! wire_enum {
     };
 }
 pub(crate) use wire_enum;
+
+macro_rules! wire_str_enum {
+    (@base [$($doc:literal),*] [$($derive:path),*] $vis:vis $name:ident { $(#[doc = $vdoc:literal] [$(#[$vattr:meta])*] $variant:ident = $value:literal),* }) => {
+        $(#[doc = $doc])*
+        #[derive($($derive),*)]
+        $vis enum $name {
+            $(#[doc = $vdoc] $(#[$vattr])* #[serde(rename = $value)] $variant),*
+        }
+        impl $name {
+            pub fn ts_const() -> $crate::types::TsConst {
+                $crate::types::TsConst::strings([$((stringify!($variant), $value, $vdoc)),*]).with_doc(&[$($doc),*])
+            }
+        }
+    };
+    ($(#[doc = $doc:literal])* derive($($derive:path),* $(,)?) $vis:vis enum $name:ident { $(#[doc = $vdoc:literal] $(#[$vattr:meta])* $variant:ident = $value:literal => $label:literal),* $(,)? }) => {
+        wire_str_enum!(@base [$($doc),*] [$($derive),*] $vis $name { $(#[doc = $vdoc] [$(#[$vattr])*] $variant = $value),* });
+        impl $name {
+            pub const VALUES: &'static [&'static str] = &[$($value),*];
+            pub const LABELS: &'static [(&'static str, &'static str)] = &[$(($value, $label)),*];
+        }
+    };
+    ($(#[doc = $doc:literal])* derive($($derive:path),* $(,)?) $vis:vis enum $name:ident { $(#[doc = $vdoc:literal] $(#[$vattr:meta])* $variant:ident = $value:literal),* $(,)? }) => {
+        wire_str_enum!(@base [$($doc),*] [$($derive),*] $vis $name { $(#[doc = $vdoc] [$(#[$vattr])*] $variant = $value),* });
+    };
+}
+pub(crate) use wire_str_enum;
 
 wire_enum! {
     /// Outcome of a Street View coverage check, as `validate` answers it per row.

@@ -3,7 +3,8 @@ import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primi
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
-import type { ExtraFieldType, KeySpec, DatePart } from "@/bindings.gen";
+import type { KeySpec } from "@/bindings.gen";
+import type { ExtraFieldType, DatePart } from "@/bindings.consts";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";

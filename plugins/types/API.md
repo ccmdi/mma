@@ -48,13 +48,99 @@ Exposed as `window.MMA` (and the global `MMA`).
 
 ### `BUILTIN_FIELDS: readonly [{ readonly key: "lat"; readonly label: "Latitude"; readonly type: "number"; readonly kind: "identity"; readonly comparison: null; }, { readonly key: "lng"; readonly label: "Longitude"; readonly type: "number"; readonly kind: "identity"; readonly comparison: null; }, ... 8 more ..., { ...; }]`
 
+### `CameraType`
+
+#### `CameraType.Badcam: "badcam"`
+
+A capture from a known bad camera.
+
+#### `CameraType.Gen1: "gen1"`
+
+First-generation Street View camera.
+
+#### `CameraType.Gen2: "gen2"`
+
+Second- or third-generation camera.
+
+#### `CameraType.Gen4: "gen4"`
+
+Fourth-generation camera.
+
+#### `CameraType.Trekker: "trekker"`
+
+A special collect carried on foot or on another vehicle, such as a trekker.
+
+#### `CameraType.Tripod: "tripod"`
+
+An indoor capture from a tripod.
+
 ### `CLEARABLE_BUILTINS: readonly ["panoId"]`
+
+### `DatePart`
+
+A calendar component to group dates by.
+
+#### `DatePart.Day: "day"`
+
+The calendar date.
+
+#### `DatePart.HourOfDay: "hourOfDay"`
+
+The hour of the day.
+
+#### `DatePart.MonthOfYear: "monthOfYear"`
+
+The month, the same in every year.
+
+#### `DatePart.Year: "year"`
+
+The calendar year.
+
+#### `DatePart.YearMonth: "yearMonth"`
+
+The year and month.
 
 ### `DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)"`
 
 ### `EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"]`
 
 ### `ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large"]`
+
+### `ExtraFieldType`
+
+Type discriminant for `Location.extra` field definitions.
+Determines how the field is displayed and filtered in the UI.
+
+#### `ExtraFieldType.Array: "array"`
+
+A list of values.
+
+#### `ExtraFieldType.Date: "date"`
+
+A point in time.
+
+#### `ExtraFieldType.Enum: "enum"`
+
+One of a fixed set of values.
+
+#### `ExtraFieldType.Month: "month"`
+
+A year and month.
+
+#### `ExtraFieldType.Number: "number"`
+
+A number.
+
+#### `ExtraFieldType.String: "string"`
+
+Text.
+
+### `FirstSyncMode: { readonly Merge: "merge"; readonly MirrorFromRemote: "mirrorFromRemote"; readonly MirrorFromLocal: "mirrorFromLocal"; }`
+
+First-sync seeding when both sides already have pins. Only meaningful on the first sync
+(empty mapping); afterwards it's plain three-way. `Merge` never deletes.
+
+### `IssueState: { readonly Open: "open"; readonly Closed: "closed"; }`
 
 ### `KNOWN_FIELDS: readonly [{ readonly key: "altitude"; readonly type: "number"; readonly label: "Altitude"; readonly values: readonly []; readonly labels: readonly []; readonly circularPeriod: null; readonly defaultOff: false; }, { ...; }, ... 8 more ..., { ...; }]`
 
@@ -82,6 +168,10 @@ No flags set.
 
 A pano opened from the seen history overlay, not yet on the map.
 
+### `MergeWinner: { readonly From: "from"; readonly To: "to"; }`
+
+When a move target already holds a value, which side survives.
+
 ### `OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$"`
 
 ### `PanoType: { readonly Official: 2; readonly Unknown: 3; readonly UserUploaded: 10; }`
@@ -99,7 +189,22 @@ the Maps JS API's encoder has no other default, whatever its docs say. BEST at a
 radius returns a neighbouring pano from the same capture run, so a timeline probe must
 use CLOSEST at the pano's own coordinate.
 
+### `RateCost: { readonly Request: "request"; readonly Row: "row"; }`
+
+What one attempt charges the bucket: the call itself, or one per row in its batch
+(for APIs that bill multi-row requests per row).
+
+### `ResolutionSide: { readonly Local: "local"; readonly Remote: "remote"; }`
+
+Which side won a resolved conflict; serialized as "local"/"remote".
+
 ### `SCRATCH_MAP_ID: "scratch"`
+
+### `Sink: { readonly Patch: "patch"; readonly Collect: "collect"; }`
+
+Where a provider's results go. `Patch` applies them to the locations they name;
+`Collect` delivers them to the caller and writes nothing. The declaration decides
+this, never the contents of a result.
 
 ### `ValidationState`
 

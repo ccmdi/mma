@@ -2,6 +2,7 @@
 //! over paged location batches, applies the resulting patches, and reports
 //! progress. Nothing here knows what any provider actually computes.
 
+use crate::types::wire_str_enum;
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
 use crate::selections::{ids_within, narrow, resolve, resolve_field_loc, resolve_within, Selector};
 use crate::store::engine::{
@@ -74,14 +75,17 @@ pub enum BatchMode {
     },
 }
 
-/// What one attempt charges the bucket: the call itself, or one per row in its batch
-/// (for APIs that bill multi-row requests per row).
-#[derive(Clone, Copy, Default, PartialEq, Eq, Debug, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum RateCost {
-    #[default]
-    Request,
-    Row,
+wire_str_enum! {
+    /// What one attempt charges the bucket: the call itself, or one per row in its batch
+    /// (for APIs that bill multi-row requests per row).
+    derive(Clone, Copy, Default, PartialEq, Eq, Debug, serde::Deserialize, specta::Type)
+    pub enum RateCost {
+        /// Each attempt charges the rate limit once, however many rows it carries.
+        #[default]
+        Request = "request",
+        /// Each attempt charges the rate limit once per row it carries.
+        Row = "row",
+    }
 }
 
 /// Token bucket: `units` calls per `per_ms` milliseconds, refilled continuously.
@@ -110,15 +114,18 @@ pub struct RetrySpec {
     pub on: Vec<u16>,
 }
 
-/// Where a provider's results go. `Patch` applies them to the locations they name;
-/// `Collect` delivers them to the caller and writes nothing. The declaration decides
-/// this, never the contents of a result.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Debug, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum Sink {
-    #[default]
-    Patch,
-    Collect,
+wire_str_enum! {
+    /// Where a provider's results go. `Patch` applies them to the locations they name;
+    /// `Collect` delivers them to the caller and writes nothing. The declaration decides
+    /// this, never the contents of a result.
+    derive(Clone, Copy, Default, PartialEq, Eq, Debug, serde::Deserialize, specta::Type)
+    pub enum Sink {
+        /// Results are written to the locations they name.
+        #[default]
+        Patch = "patch",
+        /// Results are handed back and nothing is written.
+        Collect = "collect",
+    }
 }
 
 /// One provider as declared by the frontend. `fields` are the extra keys it produces

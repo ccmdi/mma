@@ -1,5 +1,6 @@
 //! Location mutations as the engine applies them: adds, patches, field-wide ops, and the `MutationResult` they report.
 
+use crate::types::wire_str_enum;
 use super::*;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
@@ -206,12 +207,15 @@ pub(crate) fn apply_updates(
     result
 }
 
-/// When a move target already holds a value, which side survives.
-#[derive(serde::Deserialize, specta::Type, Clone, Copy, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub enum MergeWinner {
-    From,
-    To,
+wire_str_enum! {
+    /// When a move target already holds a value, which side survives.
+    derive(serde::Deserialize, specta::Type, Clone, Copy, PartialEq)
+    pub enum MergeWinner {
+        /// The moved value replaces what the target already holds.
+        From = "from",
+        /// The target keeps its own value and the moved value is dropped.
+        To = "to",
+    }
 }
 
 /// A field-wide rewrite of the `extra` map. Patches are derived *per row*, which is what
