@@ -118,12 +118,11 @@ export function useMapSurface(
 	// Repaint on every visual signal WITHOUT rendering the host component — these buses
 	// used to be render subscriptions serving purely as effect triggers. Same-tick bursts
 	// coalesce into one rebuild (React's batching did this implicitly before).
-	const rebuildQueued = useRef(false);
+	const rebuildQueued = useRef(0);
 	const scheduleRebuild = useEffectEvent(() => {
 		if (rebuildQueued.current) return;
-		rebuildQueued.current = true;
-		queueMicrotask(() => {
-			rebuildQueued.current = false;
+		rebuildQueued.current = requestAnimationFrame(() => {
+			rebuildQueued.current = 0;
 			rebuildLatest();
 		});
 	});
