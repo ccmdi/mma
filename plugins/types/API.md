@@ -58,13 +58,80 @@ Exposed as `window.MMA` (and the global `MMA`).
 
 ### `KNOWN_FIELDS: readonly [{ readonly key: "altitude"; readonly type: "number"; readonly label: "Altitude"; readonly values: readonly []; readonly labels: readonly []; readonly circularPeriod: null; readonly defaultOff: false; }, { ...; }, ... 8 more ..., { ...; }]`
 
+### `LocationFlag`
+
+Per-location bitfield, serialized as a plain `u32` over IPC and Arrow.
+
+#### `LocationFlag.ImportPreview: 4`
+
+A location from a pending import, opened for preview and not yet on the map.
+
+#### `LocationFlag.Informational: 2`
+
+Legacy marker (web). Kept as imported, with no effect in the app.
+
+#### `LocationFlag.LoadAsPanoId: 1`
+
+When the location has a stored pano, it opens exactly that pano instead of the nearest coverage.
+
+#### `LocationFlag.None: 0`
+
+No flags set.
+
+#### `LocationFlag.SeenOverlay: 8`
+
+A pano opened from the seen history overlay, not yet on the map.
+
 ### `OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$"`
+
+### `PanoType: { readonly Official: 2; readonly Unknown: 3; readonly UserUploaded: 10; }`
+
+Which imagery collection a pano id belongs to.
 
 ### `PLAIN_CALLS: readonly ["classify", "progress", "fail", "aborted"]`
 
 ### `PROJECTIONS: readonly [{ readonly id: "value"; readonly appliesTo: readonly ["string", "enum", "number", "month"]; readonly needsTz: false; }, { readonly id: "year"; readonly appliesTo: readonly ["date", "month"]; readonly needsTz: true; }, { ...; }, { ...; }, { ...; }, { ...; }]`
 
+### `RankingStrategy: { readonly Best: 1; readonly Closest: 2; }`
+
+Which pano the search picks. An omitted rankingOptions goes on the wire as closest;
+the Maps JS API's encoder has no other default, whatever its docs say. BEST at a small
+radius returns a neighbouring pano from the same capture run, so a timeline probe must
+use CLOSEST at the pano's own coordinate.
+
 ### `SCRATCH_MAP_ID: "scratch"`
+
+### `ValidationState`
+
+Outcome of a Street View coverage check, as `validate` answers it per row.
+
+#### `ValidationState.GoodcamAvailable: 6`
+
+The location shows bad-camera coverage, but its timeline holds a better camera capture.
+
+#### `ValidationState.NotFound: 3`
+
+No coverage was found, neither the stored pano nor any within the search radius.
+
+#### `ValidationState.Ok: 0`
+
+The location's coverage checked out, with nothing to report.
+
+#### `ValidationState.PanoIdBroke: 4`
+
+The location's pinned pano no longer loads, though coverage still exists at its coordinates.
+
+#### `ValidationState.Unofficial: 5`
+
+The coverage the location shows is unofficial.
+
+#### `ValidationState.UpdateApplied: 2`
+
+Newer official coverage exists here, and the unpinned location already shows it.
+
+#### `ValidationState.UpdateAvailable: 1`
+
+The location is pinned to a pano, and newer official coverage exists that it does not show.
 
 ### `VIRTUAL_FLAGS: 12`
 

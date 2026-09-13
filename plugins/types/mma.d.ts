@@ -268,18 +268,22 @@ declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
 declare const consts_EFFECT_CALLS: typeof EFFECT_CALLS;
 declare const consts_ERROR_CODES: typeof ERROR_CODES;
 declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
+declare const consts_LocationFlag: typeof LocationFlag;
 export type consts_LocationFlag = LocationFlag;
 declare const consts_OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
 declare const consts_PLAIN_CALLS: typeof PLAIN_CALLS;
 declare const consts_PROJECTIONS: typeof PROJECTIONS;
+declare const consts_PanoType: typeof PanoType;
 export type consts_PanoType = PanoType;
+declare const consts_RankingStrategy: typeof RankingStrategy;
 export type consts_RankingStrategy = RankingStrategy;
 declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
 declare const consts_VIRTUAL_FLAGS: typeof VIRTUAL_FLAGS;
+declare const consts_ValidationState: typeof ValidationState;
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
   export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
-  export type { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_ValidationState as ValidationState };
+  export { consts_LocationFlag as LocationFlag, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_ValidationState as ValidationState };
 }
 
 /** Commands @unstable */

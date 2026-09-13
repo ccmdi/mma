@@ -72,6 +72,17 @@ async function main() {
     // `MMA`.
     content = content.replace(/^export \{ /m, "export type { ");
 
+    for (const [line, alias, target] of [...content.matchAll(/^(?:export )?type (\w+) = (\w+);$/gm)]) {
+      if (!new RegExp(`^declare const ${target}:`, "m").test(content)) continue;
+      content = content.replace(line, `declare const ${alias}: typeof ${target};
+${line}`);
+    }
+    content = content.replace(/^([ 	]+)export type \{([^}]*)\};$/gm, (whole, indent, list) =>
+      list.split(",").every((part) => new RegExp(`^declare const ${part.trim().split(/\s+/)[0]}:`, "m").test(content))
+        ? `${indent}export {${list}};`
+        : whole,
+    );
+
     // rollup-plugin-dts appends $1 to names that collide across modules.
     for (const name of ["Location", "Selection", "Plugin", "MMA", "open"]) {
       content = content.replace(new RegExp(`\\b${name}\\$1\\b`, "g"), name);
