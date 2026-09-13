@@ -375,8 +375,7 @@ function KeyboardBody() {
 			</Aux>
 			{GROUPS.map((group) => {
 				const defs = allBindings.filter(
-					(d) =>
-						d.group === group && matches(needle, hotkeyLabel(d), getBinding(d.action)),
+					(d) => d.group === group && matches(needle, hotkeyLabel(d), getBinding(d.action)),
 				);
 				if (defs.length === 0) return null;
 				return (
@@ -659,6 +658,26 @@ function MapBody() {
 						</NSelect>
 					}
 				/>
+			</SettingsGroup>
+
+			<SettingsGroup title={t("Street View trail")}>
+				<SettingRow setting="svTrail" label={t("Show navigation trail")} />
+				{s.svTrail && (
+					<>
+						<SettingRow
+							sub
+							label={t("Trail color")}
+							control={
+								<ColorPicker
+									color={s.svTrailColor}
+									onChange={(color) => setSetting("svTrailColor", color)}
+									ariaLabel={t("Street View trail color")}
+								/>
+							}
+						/>
+						<SettingRow sub setting="svTrailPosition" label={t("Show position indicator")} />
+					</>
+				)}
 			</SettingsGroup>
 
 			<SettingsGroup title={t("Selections")}>
@@ -1551,8 +1570,7 @@ function SectionShell({
 	query: string;
 	hidden?: boolean;
 }) {
-	const sectionMatched =
-		mode === "single" || query === "" || matches(query, t(section.title));
+	const sectionMatched = mode === "single" || query === "" || matches(query, t(section.title));
 	const Body = section.Body;
 	return (
 		<SettingsSearchContext.Provider
@@ -1592,11 +1610,7 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent
-				title={t("Settings")}
-				className="settings-page"
-				initialFocus={searchRef}
-			>
+			<DialogContent title={t("Settings")} className="settings-page" initialFocus={searchRef}>
 				<nav className="settings-rail">
 					<TextInput
 						ref={searchRef}

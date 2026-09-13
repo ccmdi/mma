@@ -196,6 +196,9 @@ export const DEFAULTS = {
 	markerColor: [42, 42, 42] as RGB,
 	activeLocationColor: [200, 0, 0] as RGB,
 	importPreviewColor: [217, 70, 239] as RGB,
+	svTrail: true,
+	svTrailColor: [255, 0, 0] as RGB,
+	svTrailPosition: true,
 	panoDotColor: [255, 0, 0] as RGB,
 	/** What the layer opacity hotkeys restore a layer to when toggling it back on. */
 	opacityToggleMode: "previous" as OpacityToggleMode,

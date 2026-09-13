@@ -55,6 +55,9 @@ interface SceneContext {
 	showPerfectScoreCircle: boolean;
 	scoreMaxError: number;
 	svPanoramas: boolean;
+	svTrail: boolean;
+	svTrailColor: RGB;
+	svTrailPosition: boolean;
 	panoDotColor: RGB;
 	panoDotScaled: boolean;
 	activeLocationColor: RGB;
@@ -236,14 +239,15 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	}
 
 	const svTrail = getTrail();
-	if (svTrail.length >= 2) {
+	if (ctx.svTrail && svTrail.length >= 2) {
+		const [r, g, b] = ctx.svTrailColor;
 		const segments = trailSegments(svTrail);
 		layers.push(
 			new PathLayer<(typeof segments)[number]>({
 				id: "sv-trail",
 				data: segments,
 				getPath: (d) => d.path,
-				getColor: (d) => [255, 0, 0, d.alpha],
+				getColor: (d) => [r, g, b, d.alpha],
 				getWidth: 2,
 				widthUnits: "pixels" as const,
 				jointRounded: true,
@@ -251,23 +255,25 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				pickable: false,
 			}),
 		);
-		const tip = svTrail[svTrail.length - 1];
-		layers.push(
-			new ScatterplotLayer({
-				id: "sv-trail-position",
-				data: [tip],
-				getPosition: (d) => renderPos(d[0], d[1]),
-				getRadius: 5,
-				radiusUnits: "pixels" as const,
-				radiusMinPixels: 4,
-				getFillColor: [255, 255, 255, 220],
-				stroked: true,
-				lineWidthUnits: "pixels" as const,
-				getLineWidth: 2,
-				getLineColor: [255, 0, 0, 255],
-				pickable: false,
-			}),
-		);
+		if (ctx.svTrailPosition) {
+			const tip = svTrail[svTrail.length - 1];
+			layers.push(
+				new ScatterplotLayer({
+					id: "sv-trail-position",
+					data: [tip],
+					getPosition: (d) => renderPos(d[0], d[1]),
+					getRadius: 5,
+					radiusUnits: "pixels" as const,
+					radiusMinPixels: 4,
+					getFillColor: [255, 255, 255, 220],
+					stroked: true,
+					lineWidthUnits: "pixels" as const,
+					getLineWidth: 2,
+					getLineColor: [r, g, b, 255],
+					pickable: false,
+				}),
+			);
+		}
 	}
 
 	// Active marker renders even with no committed locations so virtual previews (staged/seen)
