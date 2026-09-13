@@ -16,8 +16,10 @@ pub const OFFICIAL_ID_PATTERN: &str = "^[-_A-Za-z0-9]{21}[AQgw]$";
 
 pub fn is_official(pano_id: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| Regex::new(OFFICIAL_ID_PATTERN).expect("official id pattern"))
-        .is_match(pano_id)
+    !pano_id.starts_with("CIHM")
+        && RE
+            .get_or_init(|| Regex::new(OFFICIAL_ID_PATTERN).expect("official id pattern"))
+            .is_match(pano_id)
 }
 
 pub fn to_image_key(pano_id: &str) -> (i32, String) {

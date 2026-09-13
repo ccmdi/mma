@@ -1,0 +1,51 @@
+{
+	"yearMonth": {
+		"valid": [
+			["2019-06", 2019, 6],
+			["1000-01", 1000, 1],
+			["9999-12", 9999, 12],
+			["2023-10", 2023, 10]
+		],
+		"invalid": [
+			"",
+			"2019",
+			"2019-",
+			"2019-1",
+			"19-06",
+			"2019-00",
+			"2019-13",
+			"2019-6a",
+			"+123-01",
+			"2019-+1",
+			"20a9-01"
+		]
+	},
+	"officialPano": {
+		"official": [
+			"KQ2dSFpRKZZMxJEBc4FhcA",
+			"KQ2dSFpRKZZMxJEBc4FhcQ",
+			"KQ2dSFpRKZZMxJEBc4Fhcg",
+			"KQ2dSFpRKZZMxJEBc4Fhcw",
+			"AAAAAAAAAAAAAAAAAAAAAQ"
+		],
+		"unofficial": [
+			"F:abc",
+			"F:CAoSLEFGMVFpcE",
+			"CIHM0ogKEICAgICTzu7WYg",
+			"AAAAAAAAAAAAAAAAAAAAAB",
+			"AAAAAAAAAAAAAAAAAAAAA",
+			"AAAAAAAAAAAAAAAAAAAA+Q",
+			""
+		]
+	},
+	"lngDelta": [
+		[0, 180, -180],
+		[180, 0, -180],
+		[0, -180, -180],
+		[-180, 0, -180],
+		[179.5, -179.5, 1],
+		[-179.5, 179.5, -1],
+		[10, 20, 10],
+		[350, 10, 20]
+	]
+}

@@ -3746,3 +3746,28 @@ fn resolve_within_ranked_equals_resolve_then_intersect() {
     let via_intersect = &full & &within_set;
     assert_eq!(via_resolve_within, via_intersect);
 }
+
+#[test]
+fn year_month_strings_match_the_shared_mirror_cases() {
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("../../../test/fixtures/mirrors.json")).unwrap();
+    for case in cases["yearMonth"]["valid"].as_array().unwrap() {
+        let s = case[0].as_str().unwrap();
+        let expected = (case[1].as_i64().unwrap() as i32, case[2].as_u64().unwrap() as u32);
+        assert_eq!(parse_year_month(s), Some(expected), "{s}");
+    }
+    for s in cases["yearMonth"]["invalid"].as_array().unwrap() {
+        let s = s.as_str().unwrap();
+        assert_eq!(parse_year_month(s), None, "{s}");
+    }
+}
+
+#[test]
+fn lng_delta_matches_the_shared_mirror_cases() {
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("../../../test/fixtures/mirrors.json")).unwrap();
+    for case in cases["lngDelta"].as_array().unwrap() {
+        let [from, to, expected] = [0, 1, 2].map(|i| case[i].as_f64().unwrap());
+        assert_eq!(mma_geo::lng_delta(from, to), expected, "{from} -> {to}");
+    }
+}

@@ -1,3 +1,4 @@
+import { mirrorCases } from "./fixtures/mirrorCases";
 import { describe, it, expect } from "vitest";
 import {
 	allUnofficial,
@@ -149,5 +150,12 @@ describe("allUnofficial", () => {
 
 	it("counts an empty stack as all-unofficial, since unofficial panos often carry none", () => {
 		expect(allUnofficial([])).toBe(true);
+	});
+});
+
+describe("isOfficialPano shared mirror cases", () => {
+	it("agrees with the store on every case", () => {
+		for (const id of mirrorCases.officialPano.official) expect(isOfficialPano(id)).toBe(true);
+		for (const id of mirrorCases.officialPano.unofficial) expect(isOfficialPano(id)).toBe(false);
 	});
 });

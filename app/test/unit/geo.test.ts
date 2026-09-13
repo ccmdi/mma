@@ -1,3 +1,4 @@
+import { mirrorCases } from "./fixtures/mirrorCases";
 import { describe, it, expect } from "vitest";
 import {
 	densifyRing,
@@ -342,5 +343,13 @@ describe("pointInPolygon across the seam", () => {
 		expect(pointInPolygon(185, 0, [outer, hole])).toBe(false);
 		expect(pointInPolygon(175, 0, [outer, hole])).toBe(true);
 		expect(pointInPolygon(-165, 0, [outer, hole])).toBe(true);
+	});
+});
+
+describe("longitude delta shared mirror cases", () => {
+	it("agrees with the geo crate, including exactly 180 degrees apart", () => {
+		for (const [from, to, expected] of mirrorCases.lngDelta) {
+			expect(unwrapLng(to, from) - from).toBeCloseTo(expected);
+		}
 	});
 });

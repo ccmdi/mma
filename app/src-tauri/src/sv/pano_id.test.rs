@@ -70,3 +70,15 @@ fn non_official_keys_spell_like_the_maps_js_api_dot_padding_included() {
     assert_eq!(huge.len(), 206_usize.div_ceil(3) * 4);
     assert!(huge.starts_with("CAoSyAF4eHh4") && huge.ends_with("eHh4eA.."));
 }
+
+#[test]
+fn official_ids_match_the_shared_mirror_cases() {
+    let cases: serde_json::Value =
+        serde_json::from_str(include_str!("../../../test/fixtures/mirrors.json")).unwrap();
+    for id in cases["officialPano"]["official"].as_array().unwrap() {
+        assert!(is_official(id.as_str().unwrap()), "{id}");
+    }
+    for id in cases["officialPano"]["unofficial"].as_array().unwrap() {
+        assert!(!is_official(id.as_str().unwrap()), "{id}");
+    }
+}

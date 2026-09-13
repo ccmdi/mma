@@ -270,10 +270,14 @@ pub(super) fn parts_to_key(y: i32, mo: u32, d: u32, h: u32, part: DatePart) -> S
 /// numeric date string), which the caller then treats as epoch seconds.
 pub(super) fn parse_year_month(s: &str) -> Option<(i32, u32)> {
     let b = s.as_bytes();
-    if s.len() != 7 || b[4] != b'-' {
+    if b.len() != 7 || b[4] != b'-' || !b[..4].iter().chain(&b[5..]).all(u8::is_ascii_digit) {
         return None;
     }
-    Some((s[0..4].parse().ok()?, s[5..7].parse().ok()?))
+    let month = s[5..7]
+        .parse::<u32>()
+        .ok()
+        .filter(|m| (1..=12).contains(m))?;
+    Some((s[0..4].parse().ok()?, month))
 }
 
 pub(super) fn utc_parts(ts: f64) -> (i32, u32, u32, u32) {

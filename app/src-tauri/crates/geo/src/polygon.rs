@@ -3,11 +3,11 @@
 
 use std::borrow::Cow;
 
-/// Shortest signed longitude delta from `from` to `to`, in [-180, 180].
+/// Shortest signed longitude delta from `from` to `to`, in [-180, 180).
 #[inline]
 pub fn lng_delta(from: f64, to: f64) -> f64 {
     let d = (to - from) % 360.0;
-    if d > 180.0 {
+    if d >= 180.0 {
         d - 360.0
     } else if d < -180.0 {
         d + 360.0

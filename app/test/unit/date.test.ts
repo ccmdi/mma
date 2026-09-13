@@ -1,3 +1,4 @@
+import { mirrorCases } from "./fixtures/mirrorCases";
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import {
@@ -338,5 +339,12 @@ describe("stepFilterWindow", () => {
 			stepFilterWindow("date", { op: "between_anyyear", lo: "06-01", hi: "06-03" }, 1),
 		).toBeNull();
 		expect(stepFilterWindow("string", { op: "between", lo: "a", hi: "b" }, 1)).toBeNull();
+	});
+});
+
+describe("YYYY-MM shared mirror cases", () => {
+	it("parses exactly what the store parses", () => {
+		for (const [s, y, m] of mirrorCases.yearMonth.valid) expect(ymParse(s)).toEqual({ y, m });
+		for (const s of mirrorCases.yearMonth.invalid) expect(ymParse(s)).toBeNull();
 	});
 });
