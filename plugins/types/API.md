@@ -1485,6 +1485,12 @@ Resolves with the signed-in account.
 Begin device-flow sign-in. Returns the code to show the user; call
 [`github_poll_login`] afterwards to wait for them to finish authorizing.
 
+#### `cmd.honeycombPoints(polygons: [number, number][][][], spacingM: number): Promise<HoneycombRun[]>` *(unstable)*
+
+The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
+(each an outer ring followed by its holes, as `[lng, lat]` pairs), one entry per row of
+points.
+
 #### `cmd.installPlugin(id: string, gitRef: string | null): Promise<PluginManifest>` *(unstable)*
 
 Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
@@ -1525,11 +1531,6 @@ Open the app's log file in the OS default handler.
 #### `cmd.parseMapsUrl(input: string): Promise<ParsedLocation | null>` *(unstable)*
 
 The location a pasted Maps URL names, short links resolved.
-
-#### `cmd.polygonGrid(polygons: [number, number][][][], spacingM: number): Promise<GridRun[]>` *(unstable)*
-
-The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
-(each an outer ring followed by its holes, as `[lng, lat]` pairs), as runs along each row.
 
 #### `cmd.procedureCancel(runId: number): Promise<null>` *(unstable)*
 

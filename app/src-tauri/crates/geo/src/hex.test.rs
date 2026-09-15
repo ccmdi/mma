@@ -11,10 +11,12 @@ fn square(west: f64, south: f64, east: f64, north: f64) -> Vec<[f64; 2]> {
     ]
 }
 
-fn points(runs: &[GridRun]) -> Vec<(f64, f64)> {
-    runs.iter()
-        .flat_map(|r| (0..r.count).map(move |m| (r.lat, r.lng + m as f64 * r.lng_step)))
-        .collect()
+fn points(grid: &HexGrid, polygons: &[Vec<Vec<[f64; 2]>>]) -> Vec<(f64, f64)> {
+    let mut pts = Vec::new();
+    grid.for_each_run(polygons, |lat, lng, lng_step, count| {
+        pts.extend((0..count).map(|m| (lat, lng + m as f64 * lng_step)));
+    });
+    pts
 }
 
 fn sorted(mut pts: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
@@ -61,7 +63,7 @@ fn runs_are_exactly_the_grid_points_inside_the_polygon() {
     ];
     let hole = square(10.05, 50.02, 10.12, 50.07);
     let grid = HexGrid::new(50.15, 10.2, 700.0);
-    let got = sorted(points(&grid.runs(&[vec![outer.clone(), hole.clone()]])));
+    let got = sorted(points(&grid, &[vec![outer.clone(), hole.clone()]]));
 
     let mut expected = Vec::new();
     for index in -30..=30 {
@@ -93,7 +95,7 @@ fn runs_are_exactly_the_grid_points_inside_the_polygon() {
 fn every_point_well_inside_is_within_the_covering_radius() {
     let radius = 500.0;
     let grid = HexGrid::new(45.15, 5.2, radius * 3f64.sqrt());
-    let pts = points(&grid.runs(&[vec![square(5.0, 45.0, 5.4, 45.3)]]));
+    let pts = points(&grid, &[vec![square(5.0, 45.0, 5.4, 45.3)]]);
     for yi in 0..30 {
         for xi in 0..30 {
             let lat = 45.02 + yi as f64 * 0.26 / 29.0;
@@ -113,10 +115,10 @@ fn every_point_well_inside_is_within_the_covering_radius() {
 #[test]
 fn every_part_of_a_multipolygon_gets_points() {
     let grid = HexGrid::new(50.5, 11.0, 2000.0);
-    let pts = points(&grid.runs(&[
+    let pts = points(&grid, &[
         vec![square(10.0, 50.0, 10.2, 50.2)],
         vec![square(12.0, 51.0, 12.2, 51.2)],
-    ]));
+    ]);
     assert!(pts.iter().any(|&(_, lng)| lng < 11.0));
     assert!(pts.iter().any(|&(_, lng)| lng > 11.0));
 }
@@ -124,17 +126,22 @@ fn every_part_of_a_multipolygon_gets_points() {
 #[test]
 fn a_polygon_across_the_antimeridian_matches_one_away_from_it() {
     let spacing = 1500.0;
-    let across = HexGrid::new(0.0, -180.0, spacing).runs(&[vec![vec![
-        [179.9, -0.1],
-        [-179.9, -0.1],
-        [-179.9, 0.1],
-        [179.9, 0.1],
-        [179.9, -0.1],
-    ]]]);
-    let away = HexGrid::new(0.0, 0.0, spacing).runs(&[vec![square(-0.1, -0.1, 0.1, 0.1)]]);
+    let across = points(
+        &HexGrid::new(0.0, -180.0, spacing),
+        &[vec![vec![
+            [179.9, -0.1],
+            [-179.9, -0.1],
+            [-179.9, 0.1],
+            [179.9, 0.1],
+            [179.9, -0.1],
+        ]]],
+    );
+    let away = points(
+        &HexGrid::new(0.0, 0.0, spacing),
+        &[vec![square(-0.1, -0.1, 0.1, 0.1)]],
+    );
 
-    let across = points(&across);
-    assert_eq!(across.len(), points(&away).len());
+    assert_eq!(across.len(), away.len());
     assert!(across
         .iter()
         .all(|&(_, lng)| (-180.0..180.0).contains(&lng)));
@@ -181,7 +188,7 @@ fn nearest_is_the_closest_grid_point() {
 #[test]
 fn every_run_point_is_its_own_nearest_grid_point() {
     let grid = HexGrid::new(50.15, 10.2, 700.0);
-    for (lat, lng) in points(&grid.runs(&[vec![square(10.0, 50.0, 10.4, 50.3)]])) {
+    for (lat, lng) in points(&grid, &[vec![square(10.0, 50.0, 10.4, 50.3)]]) {
         let node = grid.nearest(lat, lng);
         assert!(
             (node.lat - lat).abs() < 1e-9 && (node.lng - lng).abs() < 1e-9,

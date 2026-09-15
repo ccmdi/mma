@@ -21,7 +21,7 @@ vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeFindNearby: () => Promise.resolve(h.seeds),
 		storeNearAny: (lats: number[]) => Promise.resolve(lats.map(() => false)),
-		polygonGrid: (_polygons: unknown, spacingM: number) => {
+		honeycombPoints: (_polygons: unknown, spacingM: number) => {
 			h.gridRequests.push(spacingM);
 			return Promise.resolve(h.gridRuns);
 		},

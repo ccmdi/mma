@@ -286,7 +286,7 @@ export class GenerationEngine {
 		const { geometry } = region.feature;
 		const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
 		// Discs of the search radius cover the plane with no gaps when their centers form a honeycomb radius * sqrt(3) apart.
-		const runs = await cmd.polygonGrid(
+		const runs = await cmd.honeycombPoints(
 			polygons as [number, number][][][],
 			this.settings.radius * Math.sqrt(3),
 		);

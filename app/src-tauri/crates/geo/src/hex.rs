@@ -14,16 +14,6 @@ pub struct HexNode {
     pub lng: f64,
 }
 
-/// Grid points along one row: `count` points from `lng` eastward, `lng_step` degrees apart,
-/// all within [-180, 180).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct GridRun {
-    pub lat: f64,
-    pub lng: f64,
-    pub lng_step: f64,
-    pub count: u32,
-}
-
 pub struct HexGrid {
     lat: f64,
     lng: f64,
@@ -85,9 +75,13 @@ impl HexGrid {
     }
 
     /// The grid points inside the polygons (each an outer ring then its holes, `[lng, lat]`
-    /// vertices), as runs along each row.
-    pub fn runs(&self, polygons: &[Vec<Vec<[f64; 2]>>]) -> Vec<GridRun> {
-        let mut runs = Vec::new();
+    /// vertices), handed to `run` as `(lat, lng, lng_step, count)`: `count` points from `lng`
+    /// eastward, `lng_step` degrees apart, all within [-180, 180).
+    pub fn for_each_run(
+        &self,
+        polygons: &[Vec<Vec<[f64; 2]>>],
+        mut run: impl FnMut(f64, f64, f64, u32),
+    ) {
         let mut crossings = Vec::new();
         for polygon in polygons {
             let rings: Vec<(PreparedRing, f64)> = polygon
@@ -120,7 +114,7 @@ impl HexGrid {
                     let (from, to) = (col(span[0]).ceil(), col(span[1]).floor());
                     if to >= from {
                         push_run(
-                            &mut runs,
+                            &mut run,
                             row.lat,
                             self.lng + (from + row.phase) * row.lng_step,
                             row.lng_step,
@@ -130,12 +124,17 @@ impl HexGrid {
                 }
             }
         }
-        runs
     }
 }
 
 /// Splits a run at the antimeridian, so every run starts and stays within [-180, 180).
-fn push_run(runs: &mut Vec<GridRun>, lat: f64, lng: f64, lng_step: f64, count: u64) {
+fn push_run(
+    run: &mut impl FnMut(f64, f64, f64, u32),
+    lat: f64,
+    lng: f64,
+    lng_step: f64,
+    count: u64,
+) {
     let count = count.min((360.0 / lng_step) as u64);
     let lng = fold_lng(lng, -180.0);
     let past_antimeridian = |m: u64| lng + m as f64 * lng_step >= 180.0;
@@ -147,20 +146,15 @@ fn push_run(runs: &mut Vec<GridRun>, lat: f64, lng: f64, lng_step: f64, count: u
         west_of_antimeridian += 1;
     }
     if west_of_antimeridian > 0 {
-        runs.push(GridRun {
-            lat,
-            lng,
-            lng_step,
-            count: west_of_antimeridian as u32,
-        });
+        run(lat, lng, lng_step, west_of_antimeridian as u32);
     }
     if count > west_of_antimeridian {
-        runs.push(GridRun {
+        run(
             lat,
-            lng: lng + west_of_antimeridian as f64 * lng_step - 360.0,
+            lng + west_of_antimeridian as f64 * lng_step - 360.0,
             lng_step,
-            count: (count - west_of_antimeridian) as u32,
-        });
+            (count - west_of_antimeridian) as u32,
+        );
     }
 }
 

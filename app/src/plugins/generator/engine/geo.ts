@@ -8,7 +8,7 @@ import {
 	ringsBbox,
 } from "@/lib/geo/geo";
 import type { Bounds, LatLng } from "@/types";
-import type { GridRun } from "@/bindings.gen";
+import type { HoneycombRun } from "@/bindings.gen";
 import type { PointSource } from "./types";
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -24,7 +24,7 @@ export function pointsInOrder(points: LatLng[]): PointSource {
 }
 
 /** Every point of the grid runs exactly once, in random order, without laying them all out. */
-export function gridPointSource(runs: GridRun[]): PointSource {
+export function gridPointSource(runs: HoneycombRun[]): PointSource {
 	const ends: number[] = [];
 	let total = 0;
 	for (const run of runs) ends.push((total += run.count));

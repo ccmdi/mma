@@ -1060,6 +1060,56 @@ pub fn store_evenly_spaced(
     )?)
 }
 
+/// One row of honeycomb points: `count` points from `lng` eastward, each `lng_step` degrees
+/// apart.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct HoneycombRun {
+    pub lat: f64,
+    pub lng: f64,
+    pub lng_step: f64,
+    pub count: u32,
+}
+
+/// The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
+/// (each an outer ring followed by its holes, as `[lng, lat]` pairs), one entry per row of
+/// points.
+#[tauri::command]
+#[specta::specta]
+pub async fn honeycomb_points(
+    polygons: Vec<Vec<Vec<[f64; 2]>>>,
+    spacing_m: f64,
+) -> AppResult<Vec<HoneycombRun>> {
+    if !(spacing_m.is_finite() && spacing_m >= 1.0) {
+        return Err(AppError::from(
+            "honeycomb_points: spacing_m must be at least 1 metre",
+        ));
+    }
+    let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+    let mut any = false;
+    for outer in polygons.iter().filter_map(|p| p.first()) {
+        mma_geo::extend_bbox_with_ring(&mut bb, &mut any, outer);
+    }
+    if !any {
+        return Ok(Vec::new());
+    }
+    let grid = mma_geo::HexGrid::new(
+        (bb[1] + bb[3]) / 2.0,
+        mma_geo::fold_lng((bb[0] + bb[2]) / 2.0, -180.0),
+        spacing_m,
+    );
+    let mut runs = Vec::new();
+    grid.for_each_run(&polygons, |lat, lng, lng_step, count| {
+        runs.push(HoneycombRun {
+            lat,
+            lng,
+            lng_step,
+            count,
+        })
+    });
+    Ok(runs)
+}
+
 /// Group by a derived key, returning `{ key, ids, bin }` per group.
 #[tauri::command]
 #[specta::specta]

@@ -502,12 +502,6 @@ declare const commands$1: {
     /**  IANA timezone at a coordinate, or `None` outside the valid range. @unstable */
     timezoneAt: (lat: number, lng: number) => Promise<string | null>;
     /**
-     *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
-     *  (each an outer ring followed by its holes, as `[lng, lat]` pairs), as runs along each row.
-     *  @unstable
-     */
-    polygonGrid: (polygons: ((([number, number])[])[])[], spacingM: number) => Promise<GridRun[]>;
-    /**
      *  Reveal with the native open animation: a true first show() (DWM plays its pop-in),
      *  then maximize back-to-back while the shell is still blank. The show must come first:
      *  maximize on a hidden window reveals it without setting tao's visible flag, and the
@@ -643,6 +637,13 @@ declare const commands$1: {
      *  @unstable
      */
     storeEvenlySpaced: (selector: Selector, targetCount: number | null, spacingM: number | null) => Promise<SpacedPickResult>;
+    /**
+     *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
+     *  (each an outer ring followed by its holes, as `[lng, lat]` pairs), one entry per row of
+     *  points.
+     *  @unstable
+     */
+    honeycombPoints: (polygons: ((([number, number])[])[])[], spacingM: number) => Promise<HoneycombRun[]>;
     /**  Group by a derived key, returning `{ key, ids, bin }` per group. @unstable */
     storeGroupBy: (selector: Selector, field: string, key: KeySpec) => Promise<PartitionBucket[]>;
     /**  Group locations by a derived key, returning counts only (no member ids). @unstable */
@@ -1509,10 +1510,10 @@ type GhUser = {
     avatarUrl: string | null;
 };
 /**
- *  Grid points along one row of a honeycomb: `count` points starting at `lng`, each
- *  `lng_step` degrees east of the one before.
+ *  One row of honeycomb points: `count` points from `lng` eastward, each `lng_step` degrees
+ *  apart.
  */
-type GridRun = {
+type HoneycombRun = {
     lat: number;
     lng: number;
     lngStep: number;
@@ -3818,6 +3819,14 @@ declare const COMMANDS: {
     };
     "select-spaced": {
         label: "Thin selection by minimum distance";
+        icon: string;
+        group: "Selections";
+        aliases: string[];
+        execute: () => void;
+        enabled: typeof hasSelection;
+    };
+    "select-evenly-spaced": {
+        label: "Pick evenly spaced locations from selection";
         icon: string;
         group: "Selections";
         aliases: string[];
@@ -6537,4 +6546,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, GridRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

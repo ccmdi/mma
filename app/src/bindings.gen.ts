@@ -86,11 +86,6 @@ export const commands = {
 	/**  IANA timezone at a coordinate, or `None` outside the valid range. */
 	timezoneAt: (lat: number, lng: number) => __TAURI_INVOKE<string | null>("timezone_at", { lat, lng }),
 	/**
-	 *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
-	 *  (each an outer ring followed by its holes, as `[lng, lat]` pairs), as runs along each row.
-	 */
-	polygonGrid: (polygons: ((([number, number])[])[])[], spacingM: number) => __TAURI_INVOKE<GridRun[]>("polygon_grid", { polygons: polygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i)))), spacingM }).then((v) => (v.map(i=>i) as typeof v)),
-	/**
 	 *  Reveal with the native open animation: a true first show() (DWM plays its pop-in),
 	 *  then maximize back-to-back while the shell is still blank. The show must come first:
 	 *  maximize on a hidden window reveals it without setting tao's visible flag, and the
@@ -212,6 +207,12 @@ export const commands = {
 	 *  closer than half of it).
 	 */
 	storeEvenlySpaced: (selector: Selector, targetCount: number | null, spacingM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_evenly_spaced", { selector, targetCount, spacingM: spacingM==null?spacingM:spacingM }),
+	/**
+	 *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
+	 *  (each an outer ring followed by its holes, as `[lng, lat]` pairs), one entry per row of
+	 *  points.
+	 */
+	honeycombPoints: (polygons: ((([number, number])[])[])[], spacingM: number) => __TAURI_INVOKE<HoneycombRun[]>("honeycomb_points", { polygons: polygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i)))), spacingM }).then((v) => (v.map(i=>i) as typeof v)),
 	/**  Group by a derived key, returning `{ key, ids, bin }` per group. */
 	storeGroupBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<PartitionBucket[]>("store_group_by", { selector, field, key }).then((v) => (v.map(i=>({...i,bin:i.bin==null?i.bin:i.bin.map(i=>i)})) as typeof v)),
 	/**  Group locations by a derived key, returning counts only (no member ids). */
@@ -863,10 +864,10 @@ export type GhUser = {
 };
 
 /**
- *  Grid points along one row of a honeycomb: `count` points starting at `lng`, each
- *  `lng_step` degrees east of the one before.
+ *  One row of honeycomb points: `count` points from `lng` eastward, each `lng_step` degrees
+ *  apart.
  */
-export type GridRun = {
+export type HoneycombRun = {
 	lat: number,
 	lng: number,
 	lngStep: number,
