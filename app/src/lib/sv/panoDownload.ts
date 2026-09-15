@@ -3,7 +3,7 @@ import { cmd } from "@/lib/commands";
 import { svThumbnailUrl } from "@/lib/sv/lookup";
 import { svMetadata } from "@/lib/sv/query";
 import type { Pano } from "@/bindings.gen";
-import { panoResolveSpec } from "@/lib/sv/enrich";
+import { panoResolveProvider } from "@/lib/sv/enrich";
 import { runProcedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { fileTimestamp } from "@/lib/util/format";
@@ -342,7 +342,7 @@ export async function bulkDownloadPanoramas(
 		// The same procedure enrichment runs, borrowed for its answers: a download must
 		// not move the panorama the user's location points at.
 		const run = await runProcedure(
-			panoResolveSpec,
+			panoResolveProvider.procedure,
 			{ type: "Locations", locations: needResolve.map((l) => l.id), name: null },
 			{
 				id: "panoResolve",

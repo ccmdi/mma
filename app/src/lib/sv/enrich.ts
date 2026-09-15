@@ -1,4 +1,5 @@
 import { createFieldDef } from "@/types";
+import type { PanoType } from "@/bindings.consts";
 import { getMapState } from "@/store/useMapStore";
 import {
 	getAllEnrichKeys,
@@ -7,7 +8,6 @@ import {
 	knownFieldDefs,
 	registerProvider,
 	type Provider,
-	type ProcedureSpec,
 } from "@/lib/data/fieldDefs";
 import {
 	runProviders,
@@ -59,27 +59,25 @@ export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []
 
 // --- Providers ---
 
-/** Configuration for panorama resolution (search radius). */
+/** Where to search when resolving a pano from coordinates. */
 export interface PanoResolveConfig {
 	radius: number;
+	sources?: PanoType[];
 }
 
-/** Resolve a pano id from coordinates. Rows that already have a pano id are skipped
- *  unless the run is forced. */
-export const panoResolveSpec: ProcedureSpec<{ panoId: string }> = {
-	entry: procedureEntry("panoResolve"),
-	batch: { mode: "chunk", size: 200 },
-	inflight: LOCATION_SEARCH_INFLIGHT,
-	config: { radius: SV_SEARCH_RADIUS } satisfies PanoResolveConfig,
-};
-
-/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before
- *  any provider that depends on it. */
-export const panoResolveProvider: Provider = {
+/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
+ *  provider that depends on it. Rows that already have a pano id are skipped unless the
+ *  run is forced. */
+export const panoResolveProvider: Provider<{ panoId: string }, PanoResolveConfig> = {
 	id: "panoResolve",
 	label: msg("Resolving panoramas"),
 	provides: ["panoId"],
-	procedure: panoResolveSpec,
+	procedure: {
+		entry: procedureEntry("panoResolve"),
+		batch: { mode: "chunk", size: 200 },
+		inflight: LOCATION_SEARCH_INFLIGHT,
+		config: { radius: SV_SEARCH_RADIUS },
+	},
 };
 
 /** Exact capture timestamp, narrowed from the `imageDate` month via binary search. */
@@ -179,10 +177,7 @@ export interface EnrichOutcome extends ProcedureOutcome {
 }
 /** Bulk-enrich a selector: resolve missing pano ids, then run every field-producing
  *  provider (metadata, exact date, timezone, subdivision). */
-export async function enrichAll(
-	selector: Selector,
-	opts: RunOpts = {},
-): Promise<EnrichOutcome[]> {
+export async function enrichAll(selector: Selector, opts: RunOpts = {}): Promise<EnrichOutcome[]> {
 	const map = getMapState().map;
 	if (!map) return [];
 	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
@@ -193,7 +188,10 @@ export async function enrichAll(
 		? panoResolveProvider
 		: {
 				...panoResolveProvider,
-				procedure: { ...panoResolveSpec, select: lackingAny(selector, enrichFields) },
+				procedure: {
+					...panoResolveProvider.procedure,
+					select: lackingAny(selector, enrichFields),
+				},
 			};
 	const run = await runProviders(
 		[{ provider: resolve, force: false }, ...enrichRuns(enrichFields)],

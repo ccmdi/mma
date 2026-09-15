@@ -3,10 +3,11 @@
 
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { reverseHeading } from "@/lib/geo/geo";
+import type { HeadingRoadConfig } from "@/lib/sv/headingRoad";
 
 export function run(
 	rows: Location[],
-	cfg: ProcedureConfig<{ direction?: string }>,
+	cfg: ProcedureConfig<Partial<HeadingRoadConfig>>,
 ): Update<LocationPatch>[] {
 	const backwards = cfg.config?.direction === "backwards";
 	const out: Update<LocationPatch>[] = [];

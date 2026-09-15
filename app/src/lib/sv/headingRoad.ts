@@ -19,7 +19,7 @@ export interface HeadingRoadConfig {
 
 /** Pan a location's heading along the road. The driving direction is the pano's
  *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. */
-export const headingRoadProvider: Provider = {
+export const headingRoadProvider: Provider<unknown, HeadingRoadConfig> = {
 	id: "headingRoad",
 	label: msg("Pan heading along road"),
 	requires: ["panoId"],
@@ -39,10 +39,7 @@ export async function bulkPanHeading(
 	opts: BulkOpts = {},
 ): Promise<BatchOutcome> {
 	const result = await runProviders(
-		[
-			{ provider: panoResolveProvider },
-			{ provider: headingRoadProvider, config: { direction } satisfies HeadingRoadConfig },
-		],
+		[{ provider: panoResolveProvider }, { provider: headingRoadProvider, config: { direction } }],
 		selector,
 		opts,
 	);

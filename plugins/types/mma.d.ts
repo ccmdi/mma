@@ -5330,7 +5330,7 @@ declare function getAllEnrichKeys(): string[];
 /** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). */
 declare function getDefaultEnrichKeys(): string[];
 /** A unit of work for the procedure engine: which module to run, and how. */
-export interface ProcedureSpec<TCollected = unknown> {
+export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> {
     /** Phantom field carrying the `TCollected` type. Never set at runtime. */
     readonly collects?: TCollected;
     /** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
@@ -5354,18 +5354,18 @@ export interface ProcedureSpec<TCollected = unknown> {
     /** Maximum concurrent procedure instances. */
     instances?: number;
     /** Provider-specific configuration passed to the procedure module. */
-    config?: unknown;
+    config?: TConfig;
     /** Awaited before the provider joins a run; returning false excludes it. */
     prepare?: () => Promise<boolean>;
 }
 /** A named procedure with dependency-graph placement. Providers that declare
  *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. */
-export interface Provider {
+export interface Provider<TCollected = unknown, TConfig = unknown> {
     id: string;
     /** Bulk progress label for slow providers; omit for instant ones. */
     label?: string;
     /** The procedure that computes this provider's fields. */
-    procedure: ProcedureSpec;
+    procedure: ProcedureSpec<TCollected, TConfig>;
     /** Extra-field keys this provider produces. */
     fieldDefs?: Record<string, ExtraFieldDef>;
     /** Core columns this provider writes (e.g. `panoId`). */
@@ -5388,8 +5388,8 @@ declare function derivedFrom(changed: Iterable<string>): Set<string>;
 declare function withoutDerivedFrom(extra: Record<string, unknown> | null, changed: Iterable<string>): Record<string, unknown> | null;
 
 export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
-export type fieldDefs_ProcedureSpec<TCollected = unknown> = ProcedureSpec<TCollected>;
-export type fieldDefs_Provider = Provider;
+export type fieldDefs_ProcedureSpec<TCollected = unknown, TConfig = unknown> = ProcedureSpec<TCollected, TConfig>;
+export type fieldDefs_Provider<TCollected = unknown, TConfig = unknown> = Provider<TCollected, TConfig>;
 declare const fieldDefs_derivedFrom: typeof derivedFrom;
 declare const fieldDefs_getAllEnrichKeys: typeof getAllEnrichKeys;
 declare const fieldDefs_getDefaultEnrichKeys: typeof getDefaultEnrichKeys;
@@ -5514,9 +5514,9 @@ export interface RunOpts {
 }
 export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
 /** A provider to run, optionally overriding the config its procedure declares. */
-export interface ProviderRun {
-    provider: Provider;
-    config?: unknown;
+export interface ProviderRun<TConfig = unknown> {
+    provider: Provider<unknown, TConfig>;
+    config?: Partial<NoInfer<TConfig>>;
     /** Re-derive this provider's fields even on an unforced run. For an operation whose
      *  point is to recompute one provider rather than fill in what is missing. */
     force?: boolean;
@@ -5527,8 +5527,12 @@ export interface ProviderRun {
  *  are processed in place and results are written back. When `rows` is a Location array,
  *  locations are processed independently and returned as modified copies. Resolves once
  *  every provider finishes, or on abort. */
-declare function runProviders(items: ProviderRun[], rows: Selector, opts?: RunOpts): Promise<ProviderOutcomes>;
-declare function runProviders(items: ProviderRun[], rows: Location[], opts?: RunOpts): Promise<RowsRun>;
+declare function runProviders<C extends readonly unknown[]>(items: {
+    [K in keyof C]: ProviderRun<C[K]>;
+}, rows: Selector, opts?: RunOpts): Promise<ProviderOutcomes>;
+declare function runProviders<C extends readonly unknown[]>(items: {
+    [K in keyof C]: ProviderRun<C[K]>;
+}, rows: Location[], opts?: RunOpts): Promise<RowsRun>;
 /** What a run may set on top of what the spec declares. */
 export interface DeclOpts {
     label?: string;
@@ -5543,8 +5547,9 @@ export interface DeclOpts {
     invalidates?: Record<string, string[]>;
 }
 /** Run a single procedure over `selector` and return its typed results. @unstable */
-declare function runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & {
+declare function runProcedure<T, C>(spec: ProcedureSpec<T, C>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires" | "config"> & {
     id: string;
+    config?: Partial<NoInfer<C>>;
 }): Promise<ProcedureOutcome<T>>;
 
 export type procedures_BatchOutcome = BatchOutcome;
@@ -5553,7 +5558,7 @@ export type procedures_CollectedEntry<T = unknown> = CollectedEntry<T>;
 export type procedures_ProcedureOutcome<TCollected = unknown> = ProcedureOutcome<TCollected>;
 export type procedures_ProviderOutcomes = ProviderOutcomes;
 export type procedures_ProviderPart = ProviderPart;
-export type procedures_ProviderRun = ProviderRun;
+export type procedures_ProviderRun<TConfig = unknown> = ProviderRun<TConfig>;
 export type procedures_RunOpts = RunOpts;
 declare const procedures_noWork: typeof noWork;
 declare const procedures_procedureEntry: typeof procedureEntry;
@@ -5811,18 +5816,17 @@ declare function enrich(loc: Location, opts?: Omit<RunOpts, "onProgress">): Prom
 /** Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
  *  offered in the enrichment settings are always included. */
 declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
-/** Configuration for panorama resolution (search radius). */
+/** Where to search when resolving a pano from coordinates. */
 export interface PanoResolveConfig {
     radius: number;
+    sources?: PanoType[];
 }
-/** Resolve a pano id from coordinates. Rows that already have a pano id are skipped
- *  unless the run is forced. */
-declare const panoResolveSpec: ProcedureSpec<{
+/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
+ *  provider that depends on it. Rows that already have a pano id are skipped unless the
+ *  run is forced. */
+declare const panoResolveProvider: Provider<{
     panoId: string;
-}>;
-/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before
- *  any provider that depends on it. */
-declare const panoResolveProvider: Provider;
+}, PanoResolveConfig>;
 /** Exact capture timestamp, narrowed from the `imageDate` month via binary search. */
 declare const exactDateProvider: Provider;
 /** Timezone at the location's coordinates. Requires `datetime` to be present. */
@@ -5849,12 +5853,11 @@ declare const enrich$1_enrichAll: typeof enrichAll;
 declare const enrich$1_enrichRuns: typeof enrichRuns;
 declare const enrich$1_exactDateProvider: typeof exactDateProvider;
 declare const enrich$1_panoResolveProvider: typeof panoResolveProvider;
-declare const enrich$1_panoResolveSpec: typeof panoResolveSpec;
 declare const enrich$1_subdivisionProvider: typeof subdivisionProvider;
 declare const enrich$1_svMetaProvider: typeof svMetaProvider;
 declare const enrich$1_timezoneProvider: typeof timezoneProvider;
 declare namespace enrich$1 {
-  export { enrich$1_enrich as enrich, enrich$1_enrichAll as enrichAll, enrich$1_enrichRuns as enrichRuns, enrich$1_exactDateProvider as exactDateProvider, enrich$1_panoResolveProvider as panoResolveProvider, enrich$1_panoResolveSpec as panoResolveSpec, enrich$1_subdivisionProvider as subdivisionProvider, enrich$1_svMetaProvider as svMetaProvider, enrich$1_timezoneProvider as timezoneProvider };
+  export { enrich$1_enrich as enrich, enrich$1_enrichAll as enrichAll, enrich$1_enrichRuns as enrichRuns, enrich$1_exactDateProvider as exactDateProvider, enrich$1_panoResolveProvider as panoResolveProvider, enrich$1_subdivisionProvider as subdivisionProvider, enrich$1_svMetaProvider as svMetaProvider, enrich$1_timezoneProvider as timezoneProvider };
   export type { enrich$1_EnrichOutcome as EnrichOutcome, enrich$1_PanoResolveConfig as PanoResolveConfig };
 }
 
@@ -5864,7 +5867,7 @@ export interface PinPanoConfig {
 }
 /** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
  *  panorama. With `useLatest`, move to the newest official pano in the timeline first. */
-declare const pinPanoProvider: Provider;
+declare const pinPanoProvider: Provider<unknown, PinPanoConfig>;
 /** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
  *  loads the same pano. */
 declare function bulkPinToPano(selector: Selector, opts?: RunOpts & {
@@ -5889,7 +5892,7 @@ export interface ValidateConfig {
 /** Street View coverage validation. Checks each location's stored pano, coordinate
  *  lookup, unofficial status, camera quality, and timeline. Answers with a
  *  `ValidationState` per location without writing anything. */
-declare const validateSpec: ProcedureSpec<ValidationState>;
+declare const validateSpec: ProcedureSpec<ValidationState, ValidateConfig>;
 /** What a validation run answered: the ids grouped by the state they validated to, over
  *  the outcome every run reports. */
 export interface ValidationOutcome extends BatchOutcome {

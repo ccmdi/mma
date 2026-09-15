@@ -6,10 +6,11 @@ import type { Location, Update, LocationPatch_Deserialize as LocationPatch } fro
 import { newestOfficialPano } from "@/lib/sv/panoId";
 import { isPinned } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
+import type { PinPanoConfig } from "@/lib/sv/pinPano";
 
 export function run(
 	rows: Location[],
-	cfg: ProcedureConfig<{ useLatest?: boolean }>,
+	cfg: ProcedureConfig<Partial<PinPanoConfig>>,
 ): Update<LocationPatch>[] {
 	const useLatest = cfg.config?.useLatest === true;
 	const force = cfg.force;

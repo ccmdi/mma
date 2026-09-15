@@ -149,9 +149,9 @@ export interface RunOpts {
 export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
 
 /** A provider to run, optionally overriding the config its procedure declares. */
-export interface ProviderRun {
-	provider: Provider;
-	config?: unknown;
+export interface ProviderRun<TConfig = unknown> {
+	provider: Provider<unknown, TConfig>;
+	config?: Partial<NoInfer<TConfig>>;
 	/** Re-derive this provider's fields even on an unforced run. For an operation whose
 	 *  point is to recompute one provider rather than fill in what is missing. */
 	force?: boolean;
@@ -163,18 +163,18 @@ export interface ProviderRun {
  *  are processed in place and results are written back. When `rows` is a Location array,
  *  locations are processed independently and returned as modified copies. Resolves once
  *  every provider finishes, or on abort. */
-export async function runProviders(
-	items: ProviderRun[],
+export async function runProviders<C extends readonly unknown[]>(
+	items: { [K in keyof C]: ProviderRun<C[K]> },
 	rows: Selector,
 	opts?: RunOpts,
 ): Promise<ProviderOutcomes>;
-export async function runProviders(
-	items: ProviderRun[],
+export async function runProviders<C extends readonly unknown[]>(
+	items: { [K in keyof C]: ProviderRun<C[K]> },
 	rows: Location[],
 	opts?: RunOpts,
 ): Promise<RowsRun>;
 export async function runProviders(
-	items: ProviderRun[],
+	items: readonly ProviderRun[],
 	rows: Selector | Location[],
 	opts: RunOpts = {},
 ): Promise<ProviderOutcomes | RowsRun> {
@@ -274,10 +274,14 @@ async function declare(
 }
 
 /** Run a single procedure over `selector` and return its typed results. */
-export async function runProcedure<T>(
-	spec: ProcedureSpec<T>,
+export async function runProcedure<T, C>(
+	spec: ProcedureSpec<T, C>,
 	selector: Selector,
-	opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & { id: string },
+	opts: Omit<RunOpts, "force"> &
+		Omit<DeclOpts, "fields" | "requires" | "config"> & {
+			id: string;
+			config?: Partial<NoInfer<C>>;
+		},
 ): Promise<ProcedureOutcome<T>> {
 	const { id, label, config, sink, force: specForce, ...run } = opts;
 	const decl = await declare(id, spec, selector, { label, config, sink, force: specForce });

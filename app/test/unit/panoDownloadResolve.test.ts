@@ -40,7 +40,7 @@ vi.mock("@/lib/sv/query", () => ({
 }));
 
 import { bulkDownloadPanoramas } from "@/lib/sv/panoDownload";
-import { panoResolveSpec } from "@/lib/sv/enrich";
+import { panoResolveProvider } from "@/lib/sv/enrich";
 
 function loc(id: number, panoId: string | null = null): Location {
 	return {
@@ -84,7 +84,7 @@ describe("bulk pano download resolves through the engine", () => {
 
 		expect(h.runs).toHaveLength(1);
 		const [{ spec, selector, opts }] = h.runs;
-		expect(spec).toBe(panoResolveSpec);
+		expect(spec).toBe(panoResolveProvider.procedure);
 		// Collected, not written: a download must not move the user's panorama.
 		expect(opts.sink).toBe("collect");
 		expect(selector).toEqual({ type: "Locations", locations: [2], name: null });

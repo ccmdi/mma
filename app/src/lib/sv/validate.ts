@@ -22,13 +22,13 @@ export interface ValidateConfig {
 /** Street View coverage validation. Checks each location's stored pano, coordinate
  *  lookup, unofficial status, camera quality, and timeline. Answers with a
  *  `ValidationState` per location without writing anything. */
-export const validateSpec: ProcedureSpec<ValidationState> = {
+export const validateSpec: ProcedureSpec<ValidationState, ValidateConfig> = {
 	entry: procedureEntry("validate"),
 	batch: { mode: "chunk", size: 200 },
 	sink: "collect",
 	// Every row of a batch searches its coordinate in one round, one request each.
 	inflight: LOCATION_SEARCH_INFLIGHT,
-	config: { radius: SV_SEARCH_RADIUS, checkPinned: true } satisfies ValidateConfig,
+	config: { radius: SV_SEARCH_RADIUS, checkPinned: true },
 };
 
 const STATES = new Set<number>(Object.values(ValidationState));

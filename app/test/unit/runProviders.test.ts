@@ -404,6 +404,42 @@ describe("the bulk operations name their own providers", () => {
 	});
 });
 
+describe("a provider's config type", () => {
+	it("checks the declared config and every override against one type", () => {
+		const typed: Provider<unknown, { direction: "forwards" | "backwards" }> = {
+			id: "typed",
+			procedure: {
+				entry: "res://t.js",
+				batch: { mode: "perRow" },
+				config: { direction: "forwards" },
+			},
+		};
+		const compileOnly = () => {
+			void runProviders([{ provider: typed, config: { direction: "backwards" } }], {
+				type: "Everything",
+			});
+			void runProviders(
+				// @ts-expect-error a key the procedure's config does not have
+				[{ provider: typed, config: { speed: 1 } }],
+				{ type: "Everything" },
+			);
+			void runProcedure(
+				typed.procedure,
+				{ type: "Everything" },
+				// @ts-expect-error a value the procedure's config does not accept
+				{ id: "typed", config: { direction: "sideways" } },
+			);
+			const wrong: Provider<unknown, { direction: "forwards" | "backwards" }> = {
+				id: "wrong",
+				// @ts-expect-error the declared config is checked where it is written
+				procedure: { entry: "res://t.js", batch: { mode: "perRow" }, config: { direction: 1 } },
+			};
+			return wrong;
+		};
+		expect(compileOnly).toBeTypeOf("function");
+	});
+});
+
 describe("the query surface", () => {
 	const Q = { entry: "res://q.js", batch: { mode: "perRow" } } satisfies ProcedureSpec;
 

@@ -7,10 +7,11 @@ import type { Location, Update, LocationPatch_Deserialize as LocationPatch } fro
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import type { Pano } from "@/bindings.gen";
 import type { PanoType, RankingStrategy } from "@/bindings.consts";
+import type { PanoResolveConfig } from "@/lib/sv/enrich";
 
 export function run(
 	rows: Location[],
-	cfg: ProcedureConfig<{ radius?: number; sources?: PanoType[] }>,
+	cfg: ProcedureConfig<Partial<PanoResolveConfig>>,
 ): Update<LocationPatch>[] {
 	const radius = cfg.config?.radius ?? SV_SEARCH_RADIUS;
 	const force = cfg.force;

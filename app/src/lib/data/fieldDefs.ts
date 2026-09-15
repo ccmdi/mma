@@ -68,7 +68,7 @@ export function getDefaultEnrichKeys(): string[] {
 }
 
 /** A unit of work for the procedure engine: which module to run, and how. */
-export interface ProcedureSpec<TCollected = unknown> {
+export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> {
 	/** Phantom field carrying the `TCollected` type. Never set at runtime. */
 	readonly collects?: TCollected;
 	/** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
@@ -89,19 +89,19 @@ export interface ProcedureSpec<TCollected = unknown> {
 	/** Maximum concurrent procedure instances. */
 	instances?: number;
 	/** Provider-specific configuration passed to the procedure module. */
-	config?: unknown;
+	config?: TConfig;
 	/** Awaited before the provider joins a run; returning false excludes it. */
 	prepare?: () => Promise<boolean>;
 }
 
 /** A named procedure with dependency-graph placement. Providers that declare
  *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. */
-export interface Provider {
+export interface Provider<TCollected = unknown, TConfig = unknown> {
 	id: string;
 	/** Bulk progress label for slow providers; omit for instant ones. */
 	label?: string;
 	/** The procedure that computes this provider's fields. */
-	procedure: ProcedureSpec;
+	procedure: ProcedureSpec<TCollected, TConfig>;
 	/** Extra-field keys this provider produces. */
 	fieldDefs?: Record<string, ExtraFieldDef>;
 	/** Core columns this provider writes (e.g. `panoId`). */

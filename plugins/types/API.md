@@ -2361,11 +2361,11 @@ Keys enriched when enrichFields is null (the default set: all options except def
 
 All enrichment field options (core and plugin-registered).
 
-### `getProviderForField(field: string): Provider | undefined`
+### `getProviderForField(field: string): Provider<unknown, unknown> | undefined`
 
 The provider that produces a given extra field, if any.
 
-### `getProviders(): Provider[]`
+### `getProviders(): Provider<unknown, unknown>[]`
 
 All registered providers.
 
@@ -2381,7 +2381,7 @@ Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`)
 
 Offer extra fields in the enrichment UI. Unregistered when the plugin deactivates.
 
-### `registerProvider(provider: Provider): void`
+### `registerProvider(provider: Provider<unknown, unknown>): void`
 
 Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
 deactivates.
@@ -2456,7 +2456,7 @@ Remove plugin field definitions by key (called when a plugin is deactivated).
 
 Entry point of a procedure this app bundles. Plugins ship their own paths.
 
-### `queryProcedure<T = unknown>(spec: ProcedureSpec<unknown>, input: unknown, signal?: AbortSignal | undefined): Promise<T>`
+### `queryProcedure<T = unknown>(spec: ProcedureSpec<unknown, unknown>, input: unknown, signal?: AbortSignal | undefined): Promise<T>`
 
 Ask a procedure a read-only question, within the same `inflight`, `rate` and `retry` a run
 of it gets. Rejects when the procedure exports no `query`, when the call fails, or when
@@ -2468,11 +2468,11 @@ Display labels for a field's partition keys. Month-of-year keys are numeric toke
 become locale month names; otherwise falls back to the keys themselves when the field's
 procedure has no `label` query or returns a non-matching array.
 
-### `runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & { ...; }): Promise<...>` *(unstable)*
+### `runProcedure<T, C>(spec: ProcedureSpec<T, C>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires" | "config"> & { ...; }): Promise<...>` *(unstable)*
 
 Run a single procedure over `selector` and return its typed results.
 
-### `runProviders(items: ProviderRun[], rows: Selector, opts?: RunOpts | undefined): Promise<ProviderOutcomes>`
+### `runProviders<C extends readonly unknown[]>(items: { [K in keyof C]: ProviderRun<C[K]>; }, rows: Selector, opts?: RunOpts | undefined): Promise<ProviderOutcomes>`
 
 Run a set of providers over `rows`. When `rows` is a Selector, matching locations
 are processed in place and results are written back. When `rows` is a Location array,
@@ -2694,7 +2694,7 @@ writing it. Returns the location unchanged when enrichment is disabled.
 Bulk-enrich a selector: resolve missing pano ids, then run every field-producing
 provider (metadata, exact date, timezone, subdivision).
 
-### `enrichRuns(enrichFields: string[] | null, exclude?: string[] | undefined): ProviderRun[]`
+### `enrichRuns(enrichFields: string[] | null, exclude?: string[] | undefined): ProviderRun<unknown>[]`
 
 Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
 offered in the enrichment settings are always included.
@@ -2714,7 +2714,7 @@ Extra-field keys this provider produces.
 
 Bulk progress label for slow providers; omit for instant ones.
 
-#### `exactDateProvider.procedure: ProcedureSpec<unknown>`
+#### `exactDateProvider.procedure: ProcedureSpec<unknown, unknown>`
 
 The procedure that computes this provider's fields.
 
@@ -2741,7 +2741,7 @@ Extra-field keys this provider produces.
 
 Bulk progress label for slow providers; omit for instant ones.
 
-#### `panoResolveProvider.procedure: ProcedureSpec<unknown>`
+#### `panoResolveProvider.procedure: ProcedureSpec<{ panoId: string; }, PanoResolveConfig>`
 
 The procedure that computes this provider's fields.
 
@@ -2752,53 +2752,6 @@ Core columns this provider writes (e.g. `panoId`).
 #### `panoResolveProvider.requires: string[] | undefined`
 
 Fields this provider reads; it runs after their producers finish.
-
-### `panoResolveSpec`
-
-A unit of work for the procedure engine: which module to run, and how.
-
-#### `panoResolveSpec.batch: BatchMode`
-
-#### `panoResolveSpec.collects: { panoId: string; } | undefined`
-
-Phantom field carrying the `TCollected` type. Never set at runtime.
-
-#### `panoResolveSpec.config: unknown`
-
-Provider-specific configuration passed to the procedure module.
-
-#### `panoResolveSpec.entry: string`
-
-Module entry point: absolute path, `res://procedures/<name>.js` for built-in
-procedures, or a relative filename (resolved against the plugin's directory).
-
-#### `panoResolveSpec.inflight: number | undefined`
-
-Maximum concurrent in-flight requests across all instances.
-
-#### `panoResolveSpec.instances: number | undefined`
-
-Maximum concurrent procedure instances.
-
-#### `panoResolveSpec.prepare: (() => Promise<boolean>) | undefined`
-
-Awaited before the provider joins a run; returning false excludes it.
-
-#### `panoResolveSpec.rate: RateSpec | undefined`
-
-#### `panoResolveSpec.retry: { attempts: number; on: number[]; } | undefined`
-
-Overrides the engine's transient-status retry default. Omit unless this endpoint
-answers a retryable condition with a status the default does not cover.
-
-#### `panoResolveSpec.select: Selector | undefined`
-
-Rows the engine feeds the procedure. Omitted, the driver supplies its own.
-
-#### `panoResolveSpec.sink: Sink | undefined`
-
-Where answers go: `patch` writes to locations (default), `collect` returns them
-to the caller.
 
 ### `subdivisionProvider`
 
@@ -2815,7 +2768,7 @@ Extra-field keys this provider produces.
 
 Bulk progress label for slow providers; omit for instant ones.
 
-#### `subdivisionProvider.procedure: ProcedureSpec<unknown>`
+#### `subdivisionProvider.procedure: ProcedureSpec<unknown, unknown>`
 
 The procedure that computes this provider's fields.
 
@@ -2842,7 +2795,7 @@ Extra-field keys this provider produces.
 
 Bulk progress label for slow providers; omit for instant ones.
 
-#### `svMetaProvider.procedure: ProcedureSpec<unknown>`
+#### `svMetaProvider.procedure: ProcedureSpec<unknown, unknown>`
 
 The procedure that computes this provider's fields.
 
@@ -2869,7 +2822,7 @@ Extra-field keys this provider produces.
 
 Bulk progress label for slow providers; omit for instant ones.
 
-#### `timezoneProvider.procedure: ProcedureSpec<unknown>`
+#### `timezoneProvider.procedure: ProcedureSpec<unknown, unknown>`
 
 The procedure that computes this provider's fields.
 
@@ -2903,7 +2856,7 @@ Extra-field keys this provider produces.
 
 Bulk progress label for slow providers; omit for instant ones.
 
-#### `pinPanoProvider.procedure: ProcedureSpec<unknown>`
+#### `pinPanoProvider.procedure: ProcedureSpec<unknown, PinPanoConfig>`
 
 The procedure that computes this provider's fields.
 
@@ -2931,7 +2884,7 @@ A unit of work for the procedure engine: which module to run, and how.
 
 Phantom field carrying the `TCollected` type. Never set at runtime.
 
-#### `validateSpec.config: unknown`
+#### `validateSpec.config: ValidateConfig | undefined`
 
 Provider-specific configuration passed to the procedure module.
 
@@ -3186,7 +3139,7 @@ Open a map by id and navigate to it.
 
 Entry point of a procedure this app bundles. Plugins ship their own paths.
 
-#### `_test.runProcedure<T>(spec: ProcedureSpec<T>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires"> & { ...; }): Promise<...>` *(unstable)*
+#### `_test.runProcedure<T, C>(spec: ProcedureSpec<T, C>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires" | "config"> & { ...; }): Promise<...>` *(unstable)*
 
 Run a single procedure over `selector` and return its typed results.
 
@@ -3374,7 +3327,7 @@ Shims for removed APIs.
 
 ### `getWorkArea(): WorkArea` *(unstable)*
 
-### `registerEnrichmentProvider(provider: Provider): void` *(unstable)*
+### `registerEnrichmentProvider(provider: Provider<unknown, unknown>): void` *(unstable)*
 
 ### `setUserFieldDefs(defs: Record<string, ExtraFieldDef>): Promise<void>` *(unstable)*
 

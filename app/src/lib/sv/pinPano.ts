@@ -20,7 +20,7 @@ export interface PinPanoConfig {
 
 /** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
  *  panorama. With `useLatest`, move to the newest official pano in the timeline first. */
-export const pinPanoProvider: Provider = {
+export const pinPanoProvider: Provider<unknown, PinPanoConfig> = {
 	id: "pinPano",
 	label: msg("Pin to pano ID"),
 	requires: ["panoId"],
@@ -94,7 +94,7 @@ export async function bulkPinToPano(
 					// it reports is the count of locations actually pinned.
 					procedure: { ...pinPanoProvider.procedure, select: pinTarget },
 				},
-				config: { useLatest: !!useLatest } satisfies PinPanoConfig,
+				config: { useLatest: !!useLatest },
 			},
 		],
 		selector,
