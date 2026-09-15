@@ -725,9 +725,15 @@ struct Exports {
     map: bool,
     run: bool,
     query: bool,
+    configure: bool,
 }
 
 fn detect_shape(e: &Exports, origin: &str) -> AppResult<ProcShape> {
+    if e.configure {
+        return Err(AppError(format!(
+            "{origin}: module exports `configure`; every entry point receives its config as its last argument"
+        )));
+    }
     if e.request {
         if !e.map {
             return Err(AppError(format!(
@@ -797,6 +803,7 @@ impl JsProcedure {
                 map: ns.contains_key("map").unwrap_or(false),
                 run: ns.contains_key("run").unwrap_or(false),
                 query: ns.contains_key("query").unwrap_or(false),
+                configure: ns.contains_key("configure").unwrap_or(false),
             };
             ctx.globals().set(EXPORTS, ns).map_err(err)?;
             Ok(found)

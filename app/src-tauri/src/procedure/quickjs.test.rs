@@ -171,6 +171,18 @@ fn request_without_map_is_rejected() {
 }
 
 #[test]
+fn a_module_exporting_configure_is_rejected() {
+    let err = load(&format!("export function configure(c) {{}}
+{}", echo_map("null")))
+        .expect_err("configure export");
+    assert!(
+        err.0.contains("exports `configure`"),
+        "unexpected error: {}",
+        err.0
+    );
+}
+
+#[test]
 fn a_module_that_does_not_parse_is_rejected() {
     let err = load("export function map( {").expect_err("syntax error");
     assert!(
