@@ -28,6 +28,12 @@
 		"many": ", не удалось: {n}.",
 		"other": ", не удалось: {n}."
 	},
+	", {n} skipped": {
+		"one": ", {n} пропущено",
+		"few": ", {n} пропущено",
+		"many": ", {n} пропущено",
+		"other": ", {n} пропущено"
+	},
 	", {n} tags": {
 		"one": ", {n} тег",
 		"few": ", {n} тега",
@@ -435,6 +441,8 @@
 	"End measurement": "Завершить измерение",
 	"Endless": "Бесконечный",
 	"Ends with": "Заканчивается на",
+	"Engine (live)": "Движок (в реальном времени)",
+	"Engine idle": "Движок простаивает",
 	"Enrich": "Обогатить",
 	"Enrich locations": "Обогатить локации",
 	"Enrich metadata": "Обогатить метаданные",
@@ -1563,6 +1571,7 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: локально {local} · на сервере {remote}",
 	"{field}’s values": "Значения {field}",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} в работе, {waiting} ждут лимита, {retries} повторов, {instances} экземпляров",
 	"{maps} maps · {locations} locations": "Карт: {maps} · локаций: {locations}",
 	"{min}–{max} links": "{min}–{max} ссылок",
 	"{mode} sampling": "выборка: {mode}",
@@ -1692,6 +1701,7 @@
 	"{n}m ago": "{n} мин назад",
 	"{pct}% of locations": "{pct}% локаций",
 	"{radius} radius": "радиус {radius}",
+	"{rate} requests/s": "{rate} запросов/с",
 	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "Выбрано {selected} из {total} ({locations} локаций)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} - спроецированное значение, {field} - название поля. Символ / создаёт папку."

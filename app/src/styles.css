@@ -6121,7 +6121,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	color: #aaa;
 	flex-shrink: 0;
 }
-.toast-progress__track {
+.progress-bar {
 	flex: 1;
 	height: 4px;
 	min-width: 140px;
@@ -6129,7 +6129,86 @@ body:has([data-plugin-overlay]) .map-meta {
 	border-radius: 2px;
 	overflow: hidden;
 }
-.toast-progress__bar {
+/* --- Stats for nerds --- */
+.stats-nerds {
+	width: min(880px, 90vw);
+}
+.stats-nerds__columns {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 0.5rem 2rem;
+	align-items: start;
+}
+@media (width <= 720px) {
+	.stats-nerds__columns {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+.stats-nerds__heading {
+	margin: 0.75rem 0 0.25rem;
+	font-size: 0.75rem;
+	font-weight: 600;
+	color: var(--text-2);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+.stats-nerds__column > .stats-nerds__heading:first-child {
+	margin-top: 0;
+}
+.stats-nerds__table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 0.8125rem;
+	line-height: 1.6;
+}
+.stats-nerds__table th {
+	padding-right: 1rem;
+	font-weight: 400;
+	text-align: left;
+	vertical-align: top;
+	white-space: nowrap;
+	color: var(--text-2);
+}
+.stats-nerds__table td {
+	word-break: break-all;
+}
+.stats-nerds__error {
+	margin-bottom: 0.5rem;
+	color: var(--destructive);
+}
+.stats-nerds__idle {
+	margin: 0;
+	font-size: 0.8125rem;
+	color: var(--text-2);
+}
+.stats-nerds__job {
+	display: grid;
+	gap: 0.25rem;
+	padding: 0.5rem 0;
+}
+.stats-nerds__job + .stats-nerds__job {
+	border-top: 1px solid var(--border-subtle);
+}
+.stats-nerds__job-head {
+	display: flex;
+	justify-content: space-between;
+	gap: 0.75rem;
+	font-size: 0.8125rem;
+	white-space: nowrap;
+}
+.stats-nerds__job-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.stats-nerds__job-net {
+	font-size: 0.75rem;
+	color: var(--text-2);
+	white-space: normal;
+}
+.stats-nerds__bar {
+	min-width: 0;
+}
+.progress-bar__fill {
 	height: 100%;
 	background: var(--accent);
 	border-radius: 2px;

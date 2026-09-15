@@ -2475,6 +2475,10 @@ Remove plugin field definitions by key (called when a plugin is deactivated).
 
 Entry point of a procedure this app bundles. Plugins ship their own paths.
 
+### `procedureName(entry: string): string`
+
+The readable name behind an entry point, for surfaces that show one.
+
 ### `queryProcedure<T = unknown>(spec: ProcedureSpec<unknown, unknown>, input: unknown, signal?: AbortSignal | undefined): Promise<T>`
 
 Ask a procedure a read-only question under its declared network limits. Rejects when it

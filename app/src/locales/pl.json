@@ -28,6 +28,12 @@
 		"many": ", {n} nieudanych.",
 		"other": ", {n} nieudanych."
 	},
+	", {n} skipped": {
+		"one": ", {n} pominiętych",
+		"few": ", {n} pominiętych",
+		"many": ", {n} pominiętych",
+		"other": ", {n} pominiętych"
+	},
 	", {n} tags": {
 		"one": ", {n} tag",
 		"few": ", {n} tagi",
@@ -435,6 +441,8 @@
 	"End measurement": "Zakończ pomiar",
 	"Endless": "Bez końca",
 	"Ends with": "Kończy się na",
+	"Engine (live)": "Silnik (na żywo)",
+	"Engine idle": "Silnik bezczynny",
 	"Enrich": "Wzbogać",
 	"Enrich locations": "Wzbogać lokalizacje",
 	"Enrich metadata": "Wzbogać metadane",
@@ -1563,6 +1571,7 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: lokalnie {local} · zdalnie {remote}",
 	"{field}’s values": "Wartości pola {field}",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} w toku, {waiting} czeka na limit, {retries} ponowień, {instances} instancji",
 	"{maps} maps · {locations} locations": "Mapy: {maps} · Lokalizacje: {locations}",
 	"{min}–{max} links": "{min}–{max} linków",
 	"{mode} sampling": "próbkowanie {mode}",
@@ -1692,6 +1701,7 @@
 	"{n}m ago": "{n} min temu",
 	"{pct}% of locations": "{pct}% lokalizacji",
 	"{radius} radius": "promień {radius}",
+	"{rate} requests/s": "{rate} żądań/s",
 	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "Zaznaczono {selected} z {total} ({locations} lokalizacji)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} to rzutowana wartość, {field} to etykieta pola. Znak / tworzy folder."

@@ -26,6 +26,11 @@
 		"many": ", {n} fallidas.",
 		"other": ", {n} fallidas."
 	},
+	", {n} skipped": {
+		"one": ", {n} omitidas",
+		"many": ", {n} omitidas",
+		"other": ", {n} omitidas"
+	},
 	", {n} tags": {
 		"one": ", {n} etiqueta",
 		"many": ", {n} etiquetas",
@@ -422,6 +427,8 @@
 	"End measurement": "Finalizar la medición",
 	"Endless": "Sin fin",
 	"Ends with": "Termina con",
+	"Engine (live)": "Motor (en vivo)",
+	"Engine idle": "Motor inactivo",
 	"Enrich": "Enriquecer",
 	"Enrich locations": "Enriquecer las ubicaciones",
 	"Enrich metadata": "Enriquecer los metadatos",
@@ -1526,6 +1533,7 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: local {local} · remoto {remote}",
 	"{field}’s values": "Valores de {field}",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} en curso, {waiting} en espera de límite, {retries} reintentos, {instances} instancias",
 	"{maps} maps · {locations} locations": "{maps} mapas · {locations} ubicaciones",
 	"{min}–{max} links": "{min}–{max} enlaces",
 	"{mode} sampling": "muestreo {mode}",
@@ -1636,6 +1644,7 @@
 	"{n}m ago": "hace {n} min",
 	"{pct}% of locations": "{pct}% de las ubicaciones",
 	"{radius} radius": "radio de {radius}",
+	"{rate} requests/s": "{rate} solicitudes/s",
 	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "{selected} de {total} seleccionados ({locations} ubicaciones)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} es el valor proyectado, {field} la etiqueta del campo. Una / crea una carpeta."

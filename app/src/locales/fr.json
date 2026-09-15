@@ -26,6 +26,11 @@
 		"many": ", {n} en échec.",
 		"other": ", {n} en échec."
 	},
+	", {n} skipped": {
+		"one": ", {n} ignorées",
+		"many": ", {n} ignorées",
+		"other": ", {n} ignorées"
+	},
 	", {n} tags": {
 		"one": ", {n} étiquette",
 		"many": ", {n} étiquettes",
@@ -422,6 +427,8 @@
 	"End measurement": "Terminer la mesure",
 	"Endless": "Infini",
 	"Ends with": "Se termine par",
+	"Engine (live)": "Moteur (en direct)",
+	"Engine idle": "Moteur inactif",
 	"Enrich": "Enrichir",
 	"Enrich locations": "Enrichir les lieux",
 	"Enrich metadata": "Enrichir les métadonnées",
@@ -1526,6 +1533,7 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field} : local {local} · distant {remote}",
 	"{field}’s values": "Valeurs de {field}",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} en cours, {waiting} en attente de quota, {retries} nouvelles tentatives, {instances} instances",
 	"{maps} maps · {locations} locations": "{maps} cartes · {locations} lieux",
 	"{min}–{max} links": "{min}–{max} liens",
 	"{mode} sampling": "échantillonnage {mode}",
@@ -1636,6 +1644,7 @@
 	"{n}m ago": "il y a {n} min",
 	"{pct}% of locations": "{pct} % des lieux",
 	"{radius} radius": "rayon de {radius}",
+	"{rate} requests/s": "{rate} requêtes/s",
 	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "{selected} sur {total} sélectionnés ({locations} lieux)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} est la valeur projetée, {field} le libellé du champ. Un / crée un dossier."

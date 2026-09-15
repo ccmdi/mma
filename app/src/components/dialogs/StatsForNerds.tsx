@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { collectDiagnostics, type Diagnostics } from "@/lib/diagnostics";
+import type { ProcedureActivity } from "@/bindings.gen";
+import { cmd } from "@/lib/commands";
+import { collectDiagnostics, engineRows, type Diagnostics } from "@/lib/diagnostics";
 import { useAsync } from "@/lib/hooks/useAsync";
-import { useDomEvent } from "@/lib/hooks/useDomEvent";
 import { fmt, formatBytes, localeFormat } from "@/lib/util/format";
+import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { ProgressBar } from "@/components/primitives/ProgressBar";
 import {
 	startFrameMeter,
 	stopFrameMeter,
@@ -96,14 +99,82 @@ function liveRows(live: LiveStats): [string, string][] {
 	return rows;
 }
 
+function StatTable({ rows }: { rows: [string, string | number][] }) {
+	return (
+		<table className="stats-nerds__table">
+			<tbody>
+				{rows.map(([label, value]) => (
+					<tr key={label}>
+						<th scope="row">{label}</th>
+						<td className="mono">{value}</td>
+					</tr>
+				))}
+			</tbody>
+		</table>
+	);
+}
+
+function EngineSection({ activity }: { activity: ProcedureActivity | null }) {
+	const { providers, queries, requestsPerSecond, idle } = engineRows(activity);
+	if (idle) return <p className="stats-nerds__idle">{t("Engine idle")}</p>;
+	return (
+		<>
+			{providers.map((p) => (
+				<div key={p.key} className="stats-nerds__job">
+					<div className="stats-nerds__job-head">
+						<span className="stats-nerds__job-label">{t(p.label)}</span>
+						<span className="mono">
+							{fmt.format(p.done)} / {fmt.format(p.total)}
+							<span className="text-muted">
+								{p.failed > 0 && t({ one: ", {n} failed", other: ", {n} failed" }, { n: p.failed })}
+								{p.skipped > 0 &&
+									t({ one: ", {n} skipped", other: ", {n} skipped" }, { n: p.skipped })}
+							</span>
+						</span>
+					</div>
+					<ProgressBar value={p.fraction} className="stats-nerds__bar" />
+					<div className="stats-nerds__job-net mono">
+						{t(
+							"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances",
+							{
+								inflight: p.inflight,
+								limit: p.inflightLimit,
+								waiting: p.rateWaiting,
+								retries: p.retries,
+								instances: p.instances,
+							},
+						)}
+					</div>
+				</div>
+			))}
+			{queries.map((q) => (
+				<div key={q.entry} className="stats-nerds__job">
+					<div className="stats-nerds__job-head">
+						<span className="stats-nerds__job-label">{q.entry}</span>
+						<span className="mono">
+							{q.inflight} / {q.inflightLimit}
+						</span>
+					</div>
+				</div>
+			))}
+			<div className="stats-nerds__job-net mono">
+				{t("{rate} requests/s", { rate: requestsPerSecond.toFixed(1) })}
+			</div>
+		</>
+	);
+}
+
 export function StatsForNerds({ onClose }: { onClose: () => void }) {
 	const [live, setLive] = useState<LiveStats | null>(null);
+	const [activity, setActivity] = useState<ProcedureActivity | null>(null);
 	const { data: stats, error } = useAsync(collectDiagnostics, []);
 
 	useEffect(() => {
 		startFrameMeter();
-		const tick = () =>
+		const tick = () => {
 			setLive({ frame: frameStats(), deck: getDeckMetrics(), scene: computeRenderStats() });
+			void cmd.procedureActivity().then(setActivity, () => setActivity(null));
+		};
 		const iv = setInterval(tick, 1000);
 		tick();
 		return () => {
@@ -112,127 +183,33 @@ export function StatsForNerds({ onClose }: { onClose: () => void }) {
 		};
 	}, []);
 
-	useDomEvent("keydown", (e) => {
-		if ((e as KeyboardEvent).key === "Escape") onClose();
-	});
-
 	if (!stats && !error) return null;
 
 	return (
-		<div
-			style={{
-				position: "fixed",
-				inset: 0,
-				zIndex: 9999,
-				background: "rgba(0,0,0,0.6)",
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-			}}
-			onClick={(e) => {
-				if (e.target === e.currentTarget) onClose();
+		<Dialog
+			open
+			onOpenChange={(open) => {
+				if (!open) onClose();
 			}}
 		>
-			<div
-				style={{
-					background: "var(--surface-2)",
-					color: "var(--text-1)",
-					borderRadius: 8,
-					padding: "20px 28px",
-					minWidth: 420,
-					maxWidth: 600,
-					fontSize: 13,
-					lineHeight: 1.7,
-					border: "1px solid var(--border-subtle)",
-				}}
-			>
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: "center",
-						marginBottom: 16,
-					}}
-				>
-					<span style={{ fontSize: 15, fontWeight: 600, color: "var(--text-1)" }}>
-						{t("Stats for Nerds")}
-					</span>
-					<button
-						onClick={onClose}
-						style={{
-							background: "none",
-							border: "none",
-							color: "var(--text-2)",
-							cursor: "pointer",
-							fontSize: 18,
-							padding: "0 4px",
-						}}
-					>
-						x
-					</button>
+			<DialogContent title={t("Stats for Nerds")} className="stats-nerds">
+				{error && <div className="stats-nerds__error">{String(error)}</div>}
+				<div className="stats-nerds__columns">
+					<div className="stats-nerds__column">
+						{stats && <StatTable rows={statsRows(stats)} />}
+						{live && (
+							<>
+								<h3 className="stats-nerds__heading">{t("Rendering (live)")}</h3>
+								<StatTable rows={liveRows(live)} />
+							</>
+						)}
+					</div>
+					<div className="stats-nerds__column">
+						<h3 className="stats-nerds__heading">{t("Engine (live)")}</h3>
+						<EngineSection activity={activity} />
+					</div>
 				</div>
-				{error && <div style={{ color: "var(--destructive)" }}>{String(error)}</div>}
-				{stats && (
-					<table style={{ width: "100%", borderCollapse: "collapse" }}>
-						<tbody>
-							{statsRows(stats).map(([label, value]) => (
-								<tr key={label}>
-									<td
-										className="text-muted"
-										style={{
-											paddingRight: 16,
-											whiteSpace: "nowrap",
-											verticalAlign: "top",
-										}}
-									>
-										{label}
-									</td>
-									<td className="mono" style={{ wordBreak: "break-all" }}>
-										{value}
-									</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				)}
-				{live && (
-					<>
-						<div
-							style={{
-								fontSize: 12,
-								fontWeight: 600,
-								color: "var(--text-2)",
-								margin: "12px 0 4px",
-								textTransform: "uppercase",
-								letterSpacing: "0.05em",
-							}}
-						>
-							{t("Rendering (live)")}
-						</div>
-						<table style={{ width: "100%", borderCollapse: "collapse" }}>
-							<tbody>
-								{liveRows(live).map(([label, value]) => (
-									<tr key={label}>
-										<td
-											className="text-muted"
-											style={{
-												paddingRight: 16,
-												whiteSpace: "nowrap",
-												verticalAlign: "top",
-											}}
-										>
-											{label}
-										</td>
-										<td className="mono" style={{ wordBreak: "break-all" }}>
-											{value}
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</>
-				)}
-			</div>
-		</div>
+			</DialogContent>
+		</Dialog>
 	);
 }

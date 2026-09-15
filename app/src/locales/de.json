@@ -24,6 +24,10 @@
 		"one": ", {n} fehlgeschlagen.",
 		"other": ", {n} fehlgeschlagen."
 	},
+	", {n} skipped": {
+		"one": ", {n} übersprungen",
+		"other": ", {n} übersprungen"
+	},
 	", {n} tags": {
 		"one": ", {n} Tag",
 		"other": ", {n} Tags"
@@ -409,6 +413,8 @@
 	"End measurement": "Messung beenden",
 	"Endless": "Endlos",
 	"Ends with": "Endet mit",
+	"Engine (live)": "Engine (live)",
+	"Engine idle": "Engine im Leerlauf",
 	"Enrich": "Anreichern",
 	"Enrich locations": "Standorte anreichern",
 	"Enrich metadata": "Metadaten anreichern",
@@ -1489,6 +1495,7 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: lokal {local} · remote {remote}",
 	"{field}’s values": "Werte von {field}",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} laufend, {waiting} ratenbegrenzt, {retries} Wiederholungen, {instances} Instanzen",
 	"{maps} maps · {locations} locations": "{maps} Karten · {locations} Standorte",
 	"{min}–{max} links": "{min}–{max} Links",
 	"{mode} sampling": "{mode}-Stichprobe",
@@ -1580,6 +1587,7 @@
 	"{n}m ago": "vor {n}m",
 	"{pct}% of locations": "{pct}% der Standorte",
 	"{radius} radius": "{radius} Radius",
+	"{rate} requests/s": "{rate} Anfragen/s",
 	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "{selected} von {total} ausgewählt ({locations} Standorte)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} ist der projizierte Wert, {field} die Feldbezeichnung. Ein / erzeugt einen Ordner."

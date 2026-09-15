@@ -5550,6 +5550,8 @@ declare namespace fieldDefRegistry {
 
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 declare const procedureEntry: (name: string) => string;
+/** The readable name behind an entry point, for surfaces that show one. */
+declare const procedureName: (entry: string) => string;
 /** Ask a procedure a read-only question under its declared network limits. Rejects when it
  *  exports no `query`, when the call fails, or when `signal` aborts. */
 declare function queryProcedure<T = unknown>(spec: ProcedureSpec, input: unknown, signal?: AbortSignal): Promise<T>;
@@ -5643,12 +5645,13 @@ export type procedures_ProviderRun<TConfig = unknown> = ProviderRun<TConfig>;
 export type procedures_RunOpts = RunOpts;
 declare const procedures_noWork: typeof noWork;
 declare const procedures_procedureEntry: typeof procedureEntry;
+declare const procedures_procedureName: typeof procedureName;
 declare const procedures_queryProcedure: typeof queryProcedure;
 declare const procedures_resolveFieldLabels: typeof resolveFieldLabels;
 declare const procedures_runProcedure: typeof runProcedure;
 declare const procedures_runProviders: typeof runProviders;
 declare namespace procedures {
-  export { procedures_noWork as noWork, procedures_procedureEntry as procedureEntry, procedures_queryProcedure as queryProcedure, procedures_resolveFieldLabels as resolveFieldLabels, procedures_runProcedure as runProcedure, procedures_runProviders as runProviders };
+  export { procedures_noWork as noWork, procedures_procedureEntry as procedureEntry, procedures_procedureName as procedureName, procedures_queryProcedure as queryProcedure, procedures_resolveFieldLabels as resolveFieldLabels, procedures_runProcedure as runProcedure, procedures_runProviders as runProviders };
   export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderPart as ProviderPart, procedures_ProviderRun as ProviderRun, procedures_RunOpts as RunOpts };
 }
 

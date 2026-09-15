@@ -21,6 +21,10 @@ import { log } from "@/lib/util/log";
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 export const procedureEntry = (name: string) => `res://procedures/${name}.js`;
 
+/** The readable name behind an entry point, for surfaces that show one. */
+export const procedureName = (entry: string) =>
+	entry.replace(/^res:\/\/procedures\//, "").replace(/\.js$/, "");
+
 /** Ask a procedure a read-only question under its declared network limits. Rejects when it
  *  exports no `query`, when the call fails, or when `signal` aborts. */
 export async function queryProcedure<T = unknown>(

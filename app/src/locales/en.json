@@ -24,6 +24,10 @@
 		"one": ", {n} failed.",
 		"other": ", {n} failed."
 	},
+	", {n} skipped": {
+		"one": ", {n} skipped",
+		"other": ", {n} skipped"
+	},
 	", {n} tags": {
 		"one": ", {n} tag",
 		"other": ", {n} tags"
@@ -409,6 +413,8 @@
 	"End measurement": "End measurement",
 	"Endless": "Endless",
 	"Ends with": "Ends with",
+	"Engine (live)": "Engine (live)",
+	"Engine idle": "Engine idle",
 	"Enrich": "Enrich",
 	"Enrich locations": "Enrich locations",
 	"Enrich metadata": "Enrich metadata",
@@ -1489,6 +1495,7 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: local {local} · remote {remote}",
 	"{field}’s values": "{field}’s values",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances",
 	"{maps} maps · {locations} locations": "{maps} maps · {locations} locations",
 	"{min}–{max} links": "{min}–{max} links",
 	"{mode} sampling": "{mode} sampling",
@@ -1580,6 +1587,7 @@
 	"{n}m ago": "{n}m ago",
 	"{pct}% of locations": "{pct}% of locations",
 	"{radius} radius": "{radius} radius",
+	"{rate} requests/s": "{rate} requests/s",
 	"{rate}/s": "{rate}/s",
 	"{selected} of {total} selected ({locations} locations)": "{selected} of {total} selected ({locations} locations)",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} is the projected value, {field} the field label. A / makes a folder."

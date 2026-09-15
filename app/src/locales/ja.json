@@ -22,6 +22,9 @@
 	", {n} failed.": {
 		"other": "、{n} 件失敗。"
 	},
+	", {n} skipped": {
+		"other": "、{n} 件スキップ"
+	},
 	", {n} tags": {
 		"other": "、タグ {n} 件"
 	},
@@ -396,6 +399,8 @@
 	"End measurement": "計測を終了",
 	"Endless": "エンドレス",
 	"Ends with": "で終わる",
+	"Engine (live)": "エンジン（ライブ）",
+	"Engine idle": "エンジン待機中",
 	"Enrich": "エンリッチ",
 	"Enrich locations": "地点をエンリッチ",
 	"Enrich metadata": "メタデータをエンリッチ",
@@ -1452,6 +1457,7 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}: ローカル {local}・リモート {remote}",
 	"{field}’s values": "{field} の値",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "実行中 {inflight} / {limit}、レート待ち {waiting}、再試行 {retries}、インスタンス {instances}",
 	"{maps} maps · {locations} locations": "{maps} マップ・{locations} 地点",
 	"{min}–{max} links": "リンク {min}–{max}",
 	"{mode} sampling": "{mode}サンプリング",
@@ -1524,6 +1530,7 @@
 	"{n}m ago": "{n} 分前",
 	"{pct}% of locations": "地点の {pct}%",
 	"{radius} radius": "半径 {radius}",
+	"{rate} requests/s": "{rate} リクエスト/秒",
 	"{rate}/s": "{rate}/秒",
 	"{selected} of {total} selected ({locations} locations)": "{total} 件中 {selected} 件を選択（{locations} 地点）",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} は投影された値、{field} はフィールド名です。/ でフォルダーになります。"

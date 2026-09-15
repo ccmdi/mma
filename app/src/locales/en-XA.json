@@ -24,6 +24,10 @@
 		"one": "[, {n} ƒåîĺéð. åéîö]",
 		"other": "[, {n} ƒåîĺéð. åéîö]"
 	},
+	", {n} skipped": {
+		"one": "[, {n} şķîƥƥéð åéîö]",
+		"other": "[, {n} şķîƥƥéð åéîö]"
+	},
 	", {n} tags": {
 		"one": "[, {n} ţåǧ åéî]",
 		"other": "[, {n} ţåǧş åéî]"
@@ -409,6 +413,8 @@
 	"End measurement": "[Éñð ɱéåşüŕéɱéñţ åéîöüå]",
 	"Endless": "[Éñðĺéşş åéî]",
 	"Ends with": "[Éñðş ŵîţĥ åéîö]",
+	"Engine (live)": "[Éñǧîñé (ĺîṽé) åéîöüå]",
+	"Engine idle": "[Éñǧîñé îðĺé åéîöü]",
 	"Enrich": "[Éñŕîçĥ åéî]",
 	"Enrich locations": "[Éñŕîçĥ ĺöçåţîöñş åéîöüåé]",
 	"Enrich metadata": "[Éñŕîçĥ ɱéţåðåţå åéîöüå]",
@@ -1489,6 +1495,7 @@
 	"{field} {op} {value}": "[{field} {op} {value} å]",
 	"{field}: local {local} · remote {remote}": "[{field}: ĺöçåĺ {local} · ŕéɱöţé {remote} åéîöüåéî]",
 	"{field}’s values": "[{field}’ş ṽåĺüéş åéîö]",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "[{inflight} / {limit} îñ ƒĺîǧĥţ, {waiting} ŕåţé-ŵåîţîñǧ, {retries} ŕéţŕîéş, {instances} îñşţåñçéş åéîöüåéîöüåéîöüåéîöü]",
 	"{maps} maps · {locations} locations": "[{maps} ɱåƥş · {locations} ĺöçåţîöñş åéîöüåéî]",
 	"{min}–{max} links": "[{min}–{max} ĺîñķş åéî]",
 	"{mode} sampling": "[{mode} şåɱƥĺîñǧ åéîö]",
@@ -1580,6 +1587,7 @@
 	"{n}m ago": "[{n}ɱ åǧö åé]",
 	"{pct}% of locations": "[{pct}% öƒ ĺöçåţîöñş åéîöüå]",
 	"{radius} radius": "[{radius} ŕåðîüş åéî]",
+	"{rate} requests/s": "[{rate} ŕéǫüéşţş/ş åéîöü]",
 	"{rate}/s": "[{rate}/ş å]",
 	"{selected} of {total} selected ({locations} locations)": "[{selected} öƒ {total} şéĺéçţéð ({locations} ĺöçåţîöñş) åéîöüåéîöüå]",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "[{value} îş ţĥé ƥŕöĵéçţéð ṽåĺüé, {field} ţĥé ƒîéĺð ĺåƀéĺ. Å / ɱåķéş å ƒöĺðéŕ. åéîöüåéîöüåéîöüåéîöüåéîöü]"

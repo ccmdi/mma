@@ -22,6 +22,9 @@
 	", {n} failed.": {
 		"other": "，{n} 个失败。"
 	},
+	", {n} skipped": {
+		"other": "，{n} 个跳过"
+	},
 	", {n} tags": {
 		"other": "，{n} 个标签"
 	},
@@ -396,6 +399,8 @@
 	"End measurement": "结束测量",
 	"Endless": "无限",
 	"Ends with": "结尾为",
+	"Engine (live)": "引擎（实时）",
+	"Engine idle": "引擎空闲",
 	"Enrich": "扩展",
 	"Enrich locations": "扩展位置",
 	"Enrich metadata": "扩展元数据",
@@ -1452,6 +1457,7 @@
 	"{field} {op} {value}": "{field} {op} {value}",
 	"{field}: local {local} · remote {remote}": "{field}：本地 {local} · 远程 {remote}",
 	"{field}’s values": "{field} 的值",
+	"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances": "进行中 {inflight} / {limit}，限速等待 {waiting}，重试 {retries}，实例 {instances}",
 	"{maps} maps · {locations} locations": "{maps} 张地图 · {locations} 个位置",
 	"{min}–{max} links": "{min}–{max} 个链接",
 	"{mode} sampling": "{mode}采样",
@@ -1524,6 +1530,7 @@
 	"{n}m ago": "{n} 分钟前",
 	"{pct}% of locations": "{pct}% 的位置",
 	"{radius} radius": "半径 {radius}",
+	"{rate} requests/s": "{rate} 请求/秒",
 	"{rate}/s": "{rate}/秒",
 	"{selected} of {total} selected ({locations} locations)": "已选 {selected} / {total}（{locations} 个位置）",
 	"{value} is the projected value, {field} the field label. A / makes a folder.": "{value} 为投影值，{field} 为字段名。/ 会创建文件夹。"
