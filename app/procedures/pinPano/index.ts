@@ -2,6 +2,7 @@
 // same panorama, and with `useLatest` move it to the newest official pano in the capture
 // timeline first.
 
+import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { newestOfficialPano } from "@/lib/sv/panoId";
 import { isPinned } from "@/types";

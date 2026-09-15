@@ -2876,7 +2876,8 @@ Check that each location's Street View coverage still exists.
 
 ### `validateSpec`
 
-A unit of work for the procedure engine: which module to run, and how.
+A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
+what a run and a query both read) plus how a run schedules it.
 
 #### `validateSpec.batch: BatchMode`
 
@@ -2886,7 +2887,7 @@ Phantom field carrying the `TCollected` type. Never set at runtime.
 
 #### `validateSpec.config: ValidateConfig | undefined`
 
-Provider-specific configuration passed to the procedure module.
+The procedure's own configuration, handed to every entry point as `config`.
 
 #### `validateSpec.entry: string`
 
@@ -2895,12 +2896,13 @@ procedures, or a relative filename (resolved against the plugin's directory).
 
 #### `validateSpec.inflight: number | undefined`
 
-Requests one run or one query may have in flight at once. A run's instances share it;
-a separate run or query gets its own.
+Requests one run or one query of the procedure may have in flight at once. A run's
+instances share the budget; a separate run or query gets its own.
 
 #### `validateSpec.instances: number | undefined`
 
-Maximum concurrent procedure instances.
+Instances this provider may run at once. Declared only when the procedure
+cannot run beside itself; throughput comes from `inflight`.
 
 #### `validateSpec.prepare: (() => Promise<boolean>) | undefined`
 
@@ -2908,19 +2910,11 @@ Awaited before the provider joins a run; returning false excludes it.
 
 #### `validateSpec.rate: RateSpec | undefined`
 
-#### `validateSpec.retry: { attempts: number; on: number[]; } | undefined`
+#### `validateSpec.retry: RetrySpec | undefined`
 
-Overrides the engine's transient-status retry default. Omit unless this endpoint
-answers a retryable condition with a status the default does not cover.
+#### `validateSpec.select: NonNullable<Selector> | undefined`
 
-#### `validateSpec.select: Selector | undefined`
-
-Rows the engine feeds the procedure. Omitted, the driver supplies its own.
-
-#### `validateSpec.sink: Sink | undefined`
-
-Where answers go: `patch` writes to locations (default), `collect` returns them
-to the caller.
+#### `validateSpec.sink: NonNullable<Sink | undefined> | undefined`
 
 ## Query
 

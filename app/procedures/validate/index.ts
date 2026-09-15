@@ -5,6 +5,7 @@
 // The batch moves through four phases, each issuing every lookup it needs in one
 // `mma.panos`, so a batch of any size costs a fixed number of rounds.
 
+import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, Pano, PanoAnswer, Update } from "@/bindings.gen";
 import type { ValidateConfig } from "@/lib/sv/validate";
 import { capturedAfter, isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";

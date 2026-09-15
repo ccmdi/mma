@@ -1336,12 +1336,12 @@ fn a_map_only_procedure_reaches_the_real_host() {
 // -----------------------------------------------------------------------
 
 #[test]
-fn configure_json_carries_fields_force_and_the_provider_config() {
+fn config_json_carries_fields_force_and_the_provider_config() {
     let mut d = decl("cfg", BatchMode::PerRow);
     d.fields = vec!["a".into(), "b".into()];
     d.procedure.config = Some(r#"{"units":"metric \"x\"","n":[1,2]}"#.into());
     let v: serde_json::Value =
-        serde_json::from_str(&configure_json(&d.fields, true, d.procedure.config.as_deref())).unwrap();
+        serde_json::from_str(&config_json(&d.fields, true, d.procedure.config.as_deref())).unwrap();
     assert_eq!(v["fields"], serde_json::json!(["a", "b"]));
     assert_eq!(v["force"], serde_json::json!(true));
     assert_eq!(v["config"]["units"], serde_json::json!("metric \"x\""));
@@ -1349,17 +1349,17 @@ fn configure_json_carries_fields_force_and_the_provider_config() {
 }
 
 #[test]
-fn configure_json_reads_absent_or_malformed_config_as_null() {
+fn config_json_reads_absent_or_malformed_config_as_null() {
     let d = decl("cfg", BatchMode::PerRow);
     let v: serde_json::Value =
-        serde_json::from_str(&configure_json(&d.fields, false, d.procedure.config.as_deref())).unwrap();
+        serde_json::from_str(&config_json(&d.fields, false, d.procedure.config.as_deref())).unwrap();
     assert_eq!(v["config"], serde_json::Value::Null);
     assert_eq!(v["force"], serde_json::json!(false));
 
     let mut bad = decl("cfg", BatchMode::PerRow);
     bad.procedure.config = Some("{not json".into());
     let v: serde_json::Value =
-        serde_json::from_str(&configure_json(&bad.fields, false, bad.procedure.config.as_deref())).unwrap();
+        serde_json::from_str(&config_json(&bad.fields, false, bad.procedure.config.as_deref())).unwrap();
     assert_eq!(v["config"], serde_json::Value::Null);
 }
 

@@ -1,11 +1,12 @@
 // Timezone procedure. MapOnly: the zone lookup is the host's `mma.tz` (pure compute).
 
+import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 
 export function map(
 	rows: Location[],
 	_response: unknown,
-	_cfg: ProcedureConfig,
+	_cfg: ProcedureConfig<unknown>,
 ): Update<LocationPatch>[] {
 	const out: Update<LocationPatch>[] = [];
 	for (const row of rows) {

@@ -1,6 +1,5 @@
 import { KNOWN_FIELDS } from "@/bindings.consts";
-import { type BatchMode, type ExtraFieldDef, type RateSpec, type Selector } from "@/bindings.gen";
-import type { Sink } from "@/bindings.consts";
+import type { BatchMode, ExtraFieldDef, ProcedureDecl, ProviderDecl } from "@/bindings.gen";
 import { registerPluginFieldDefs, unregisterPluginFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
 import { log } from "@/lib/util/log";
@@ -67,29 +66,22 @@ export function getDefaultEnrichKeys(): string[] {
 		.map((f) => f.key);
 }
 
-/** A unit of work for the procedure engine: which module to run, and how. */
-export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> {
+/** The declared form of a wire struct: every field optional, absent where the wire says null. */
+type Declared<T> = { [K in keyof T]?: NonNullable<T[K]> };
+
+/** A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
+ *  what a run and a query both read) plus how a run schedules it. */
+export interface ProcedureSpec<TCollected = unknown, TConfig = unknown>
+	extends
+		Declared<Omit<ProcedureDecl, "entry" | "config">>,
+		Declared<Pick<ProviderDecl, "select" | "sink" | "instances">> {
 	/** Phantom field carrying the `TCollected` type. Never set at runtime. */
 	readonly collects?: TCollected;
 	/** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
 	 *  procedures, or a relative filename (resolved against the plugin's directory). */
 	entry: string;
-	/** Rows the engine feeds the procedure. Omitted, the driver supplies its own. */
-	select?: Selector;
 	batch: BatchMode;
-	/** Where answers go: `patch` writes to locations (default), `collect` returns them
-	 *  to the caller. */
-	sink?: Sink;
-	rate?: RateSpec;
-	/** Overrides the engine's transient-status retry default. Omit unless this endpoint
-	 *  answers a retryable condition with a status the default does not cover. */
-	retry?: { attempts: number; on: number[] };
-	/** Requests one run or one query may have in flight at once. A run's instances share it;
-	 *  a separate run or query gets its own. */
-	inflight?: number;
-	/** Maximum concurrent procedure instances. */
-	instances?: number;
-	/** Provider-specific configuration passed to the procedure module. */
+	/** The procedure's own configuration, handed to every entry point as `config`. */
 	config?: TConfig;
 	/** Awaited before the provider joins a run; returning false excludes it. */
 	prepare?: () => Promise<boolean>;

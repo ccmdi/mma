@@ -3,6 +3,7 @@
 // picked deliberately. A forced run does re-resolve, which is what pinning asks for --
 // pinning means "resolve and pin", not "pin whatever is stored".
 
+import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import type { Pano } from "@/bindings.gen";
@@ -50,7 +51,7 @@ interface AtQuery {
  *  narrows which collections are searched. */
 export function query(
 	input: AtQuery | null,
-	_cfg: ProcedureConfig,
+	_cfg: ProcedureConfig<unknown>,
 ): (Pano | null)[] | { error: string } {
 	if (input?.op !== "at") return { error: "panoResolve: unknown query op" };
 	const r = typeof input.radius === "number" ? input.radius : SV_SEARCH_RADIUS;

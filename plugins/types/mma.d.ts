@@ -96,7 +96,7 @@ type MergeWinner = (typeof MergeWinner)[keyof typeof MergeWinner];
 declare const RateCost: {
     /** Each attempt charges the rate limit once, however many rows it carries. */
     readonly Request: "request";
-    /** Each attempt charges the rate limit once per row it carries. */
+    /** Each attempt charges the rate limit once per row it carries; a query carries no rows and charges once. */
     readonly Row: "row";
 };
 type RateCost = (typeof RateCost)[keyof typeof RateCost];
@@ -1997,6 +1997,18 @@ type PresenceActivity = {
     smallText: string | null;
     /**  Unix seconds; Discord renders an "elapsed" timer counting up from here. */
     start: number | null;
+};
+/**
+ *  What every entry point of a procedure receives as its last argument: the engine's view of
+ *  the run and the procedure's own configuration.
+ */
+type ProcedureConfig<T> = {
+    /**  The extra-field keys the run wants written. Empty means every key the procedure produces. */
+    fields: string[];
+    /**  Recompute rows that already hold every wanted field. */
+    force: boolean;
+    /**  The procedure's own configuration, or null when none was declared or it did not parse. */
+    config: T | null;
 };
 /**
  *  A procedure module and the network limits every call to it gets, whether it runs over
@@ -5328,32 +5340,20 @@ declare function registerEnrichFields(fields: EnrichFieldOption[]): void;
 declare function getAllEnrichKeys(): string[];
 /** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). */
 declare function getDefaultEnrichKeys(): string[];
-/** A unit of work for the procedure engine: which module to run, and how. */
-export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> {
+/** The declared form of a wire struct: every field optional, absent where the wire says null. */
+export type Declared<T> = {
+    [K in keyof T]?: NonNullable<T[K]>;
+};
+/** A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
+ *  what a run and a query both read) plus how a run schedules it. */
+export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> extends Declared<Omit<ProcedureDecl, "entry" | "config">>, Declared<Pick<ProviderDecl, "select" | "sink" | "instances">> {
     /** Phantom field carrying the `TCollected` type. Never set at runtime. */
     readonly collects?: TCollected;
     /** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
      *  procedures, or a relative filename (resolved against the plugin's directory). */
     entry: string;
-    /** Rows the engine feeds the procedure. Omitted, the driver supplies its own. */
-    select?: Selector;
     batch: BatchMode;
-    /** Where answers go: `patch` writes to locations (default), `collect` returns them
-     *  to the caller. */
-    sink?: Sink;
-    rate?: RateSpec;
-    /** Overrides the engine's transient-status retry default. Omit unless this endpoint
-     *  answers a retryable condition with a status the default does not cover. */
-    retry?: {
-        attempts: number;
-        on: number[];
-    };
-    /** Requests one run or one query may have in flight at once. A run's instances share it;
-     *  a separate run or query gets its own. */
-    inflight?: number;
-    /** Maximum concurrent procedure instances. */
-    instances?: number;
-    /** Provider-specific configuration passed to the procedure module. */
+    /** The procedure's own configuration, handed to every entry point as `config`. */
     config?: TConfig;
     /** Awaited before the provider joins a run; returning false excludes it. */
     prepare?: () => Promise<boolean>;
@@ -6506,4 +6506,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

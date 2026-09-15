@@ -1,6 +1,7 @@
 // Heading along the road, Run shape: "forwards" faces the driving direction, "backwards"
 // the opposite.
 
+import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
 import { reverseHeading } from "@/lib/geo/geo";
 import type { HeadingRoadConfig } from "@/lib/sv/headingRoad";

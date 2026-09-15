@@ -1,6 +1,7 @@
 // Street View metadata, Run shape: the host fetches every pano, this maps the answers onto
 // the eight metadata `extra` fields.
 
+import type { ProcedureConfig } from "@/bindings.gen";
 import type {
 	Location,
 	Pano,
@@ -25,13 +26,13 @@ const DERIVE: Record<(typeof SVMETA_FIELDS)[number], (p: Pano) => unknown> = {
 
 /** Read-only entry: metadata for arbitrary panos, without a run.
  *  `{"op":"metadata","panoIds":[..]}` answers with an array aligned to `panoIds`. */
-export function query(input: { op?: string; panoIds?: string[] }, _cfg: ProcedureConfig) {
+export function query(input: { op?: string; panoIds?: string[] }, _cfg: ProcedureConfig<unknown>) {
 	if (input?.op !== "metadata") return { error: "svMeta: unknown query op" };
 	const answers = mma.panos((input.panoIds ?? []).map((panoId) => ({ panoId })));
 	return answers.map((a) => (a.state === "found" ? a.pano : null));
 }
 
-export function run(rows: Location[], cfg: ProcedureConfig): Update<LocationPatch>[] {
+export function run(rows: Location[], cfg: ProcedureConfig<unknown>): Update<LocationPatch>[] {
 	const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
 	const answers = mma.panos(rows.map((r) => ({ panoId: r.panoId ?? "" })));
 	const out: Update<LocationPatch>[] = [];

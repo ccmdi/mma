@@ -1354,6 +1354,19 @@ export type PresenceActivity = {
 };
 
 /**
+ *  What every entry point of a procedure receives as its last argument: the engine's view of
+ *  the run and the procedure's own configuration.
+ */
+export type ProcedureConfig<T> = {
+	/**  The extra-field keys the run wants written. Empty means every key the procedure produces. */
+	fields: string[],
+	/**  Recompute rows that already hold every wanted field. */
+	force: boolean,
+	/**  The procedure's own configuration, or null when none was declared or it did not parse. */
+	config: T | null,
+};
+
+/**
  *  A procedure module and the network limits every call to it gets, whether it runs over
  *  locations or answers a question.
  */

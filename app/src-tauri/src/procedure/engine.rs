@@ -83,7 +83,7 @@ wire_str_enum! {
         /// Each attempt charges the rate limit once, however many rows it carries.
         #[default]
         Request = "request",
-        /// Each attempt charges the rate limit once per row it carries.
+        /// Each attempt charges the rate limit once per row it carries; a query carries no rows and charges once.
         Row = "row",
     }
 }
@@ -178,6 +178,19 @@ pub struct ProcedureDecl {
     /// inside the config object every entry point receives.
     #[serde(default)]
     pub config: Option<String>,
+}
+
+/// What every entry point of a procedure receives as its last argument: the engine's view of
+/// the run and the procedure's own configuration.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcedureConfig<T> {
+    /// The extra-field keys the run wants written. Empty means every key the procedure produces.
+    pub fields: Vec<String>,
+    /// Recompute rows that already hold every wanted field.
+    pub force: bool,
+    /// The procedure's own configuration, or null when none was declared or it did not parse.
+    pub config: Option<T>,
 }
 
 /// The declared retry policy, or the transient-status default when none is declared.
@@ -805,7 +818,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let batch_mode = effective_batch_mode(ctx, decl)?;
     // One budget for the provider, not one per page or per instance.
     let budget = FetchBudget::new(decl.procedure.inflight, decl.procedure.rate);
-    let config = configure_json(&decl.fields, force, decl.procedure.config.as_deref());
+    let config = config_json(&decl.fields, force, decl.procedure.config.as_deref());
     // No more instances than the run can keep busy: a one-row run must not load a
     // procedure per core.
     let per_instance = rows_per_instance(decl);
@@ -1190,13 +1203,16 @@ fn split_batches(
     }
 }
 
-/// The configuration object a procedure sees: the engine's own view of the run
-/// (which fields are wanted, whether it is a forced re-run) plus the provider's
-/// opaque config, spliced in verbatim. Unparseable provider config reads as null
-/// rather than failing the run.
-fn configure_json(fields: &[String], force: bool, config: Option<&str>) -> String {
+/// The [`ProcedureConfig`] a run hands its procedure, with the declared config spliced in
+/// verbatim. Unparseable config reads as null rather than failing the run.
+fn config_json(fields: &[String], force: bool, config: Option<&str>) -> String {
     let config = config.and_then(|s| serde_json::from_str::<Box<RawValue>>(s).ok());
-    serde_json::json!({ "fields": fields, "force": force, "config": config }).to_string()
+    serde_json::to_string(&ProcedureConfig {
+        fields: fields.to_vec(),
+        force,
+        config,
+    })
+    .expect("a procedure config serializes")
 }
 
 /// What one page produced. Which of the first two is filled follows from the declared
@@ -1537,7 +1553,7 @@ pub fn run_query(
     aborted: &(dyn Fn() -> bool + Sync),
 ) -> AppResult<String> {
     let mut proc = (deps.factory)(&decl.entry)?;
-    let config = configure_json(&[], false, decl.config.as_deref());
+    let config = config_json(&[], false, decl.config.as_deref());
     let mut host = QueryHost {
         deps,
         decl,

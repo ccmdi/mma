@@ -89,6 +89,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .typ::<sv::pano::Pano>()
         .typ::<sv::pano::PanoQuery>()
         .typ::<sv::pano::PanoAnswer>()
+        .typ::<procedure::engine::ProcedureConfig<serde_json::Value>>()
         .commands(tauri_specta::collect_commands![
             app_ready,
             store::storage::write_temp_file,

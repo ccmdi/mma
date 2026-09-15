@@ -7,6 +7,7 @@
 // the batch size, and the width it runs at is the engine's `inflight` budget rather than
 // anything this module decides. `query` answers the same question for a single point.
 
+import type { ProcedureConfig } from "@/bindings.gen";
 import type {
 	Location,
 	PanoAnswer,
@@ -167,7 +168,7 @@ function narrow(batch: Search[], counts = true): void {
 	}
 }
 
-export function run(rows: Location[], _cfg: ProcedureConfig): Update<LocationPatch>[] {
+export function run(rows: Location[], _cfg: ProcedureConfig<unknown>): Update<LocationPatch>[] {
 	const batch: Search[] = [];
 	for (const row of rows) {
 		const s = newSearch(row.id, row.lat, row.lng, row.extra?.imageDate);

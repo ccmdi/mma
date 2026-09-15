@@ -90,7 +90,7 @@ export type MergeWinner = (typeof MergeWinner)[keyof typeof MergeWinner];
 export const RateCost = {
 	/** Each attempt charges the rate limit once, however many rows it carries. */
 	Request: "request",
-	/** Each attempt charges the rate limit once per row it carries. */
+	/** Each attempt charges the rate limit once per row it carries; a query carries no rows and charges once. */
 	Row: "row",
 } as const;
 export type RateCost = (typeof RateCost)[keyof typeof RateCost];

@@ -2,7 +2,7 @@
 // providers are gated on their dependencies, locations are paged, and each procedure's
 // answers are delivered as patches or back to the caller.
 
-import type { KeySpec, Location, RowsRun, Selector } from "@/bindings.gen";
+import type { KeySpec, Location, ProcedureDecl, RowsRun, Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
 import {
 	derivedFrom,
@@ -30,19 +30,21 @@ export async function queryProcedure<T = unknown>(
 	signal?: AbortSignal,
 ): Promise<T> {
 	const raw = await cancellable(signal, (token) =>
-		cmd.procedureQuery(
-			{
-				entry: spec.entry,
-				rate: spec.rate ?? null,
-				retry: spec.retry ?? null,
-				inflight: spec.inflight ?? null,
-				config: spec.config === undefined ? null : JSON.stringify(spec.config),
-			},
-			JSON.stringify(input),
-			token,
-		),
+		cmd.procedureQuery(procedureDecl(spec, spec.config), JSON.stringify(input), token),
 	);
 	return JSON.parse(raw) as T;
+}
+
+/** The part of a spec the engine reads for a run and a query alike, with `config` as the
+ *  JSON text the wire carries. */
+function procedureDecl(spec: ProcedureSpec, config: unknown): ProcedureDecl {
+	return {
+		entry: spec.entry,
+		rate: spec.rate ?? null,
+		retry: spec.retry ?? null,
+		inflight: spec.inflight ?? null,
+		config: config === undefined ? null : JSON.stringify(config),
+	};
 }
 
 /** An engine call that answers only when it is over, so it is named up front to be
@@ -257,7 +259,7 @@ async function declare(
 	return {
 		id,
 		label: o.label ?? null,
-		entry: spec.entry,
+		...procedureDecl(spec, o.config === undefined ? spec.config : o.config),
 		fields: o.fields ?? [],
 		requires: o.requires ?? [],
 		invalidates: o.invalidates ?? {},
@@ -265,11 +267,7 @@ async function declare(
 		batch: spec.batch,
 		sink: o.sink ?? spec.sink ?? "patch",
 		force: o.force ?? null,
-		rate: spec.rate ?? null,
-		retry: spec.retry ?? null,
-		inflight: spec.inflight ?? null,
 		instances: spec.instances ?? null,
-		config: JSON.stringify(o.config === undefined ? (spec.config ?? null) : o.config),
 	};
 }
 
