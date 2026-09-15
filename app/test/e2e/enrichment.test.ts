@@ -336,7 +336,10 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 
 	it("does not clobber user-customized field defs", async () => {
 		// Manually set countryCode to a custom type
-		const countryCode = createFieldDef("enum", { label: "My Custom Country", values: ["US", "RU"] });
+		const countryCode = createFieldDef("enum", {
+			label: "My Custom Country",
+			values: ["US", "RU"],
+		});
 		await withApi(async (api, countryCode) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
 			await api.updateMapMeta({
@@ -768,9 +771,8 @@ describe("Enrichment — the read-only query surface", () => {
 			async (api, pano) =>
 				JSON.parse(
 					await api.cmd.procedureQuery(
-						"res://procedures/svMeta.js",
+						{ entry: "res://procedures/svMeta.js" },
 						JSON.stringify({ op: "metadata", panoIds: [pano, "DEAD_PANO"] }),
-						null,
 						null,
 					),
 				),
@@ -820,7 +822,7 @@ describe("Enrichment — the read-only query surface", () => {
 	it("a module without a query export fails loudly", async () => {
 		const err = await withApi(async (api) => {
 			try {
-				await api.cmd.procedureQuery("res://procedures/timezone.js", "{}", null, null);
+				await api.cmd.procedureQuery({ entry: "res://procedures/timezone.js" }, "{}", null);
 				return "no error";
 			} catch (e: any) {
 				return String(e?.message ?? e);

@@ -21,19 +21,24 @@ import { log } from "@/lib/util/log";
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 export const procedureEntry = (name: string) => `res://procedures/${name}.js`;
 
-/** Ask a procedure a read-only question. Rejects when the procedure exports no `query`,
- *  when the call fails, or when `signal` aborts. */
+/** Ask a procedure a read-only question, within the same `inflight`, `rate` and `retry` a run
+ *  of it gets. Rejects when the procedure exports no `query`, when the call fails, or when
+ *  `signal` aborts. */
 export async function queryProcedure<T = unknown>(
-	entry: string,
+	spec: ProcedureSpec,
 	input: unknown,
-	config?: unknown,
 	signal?: AbortSignal,
 ): Promise<T> {
 	const raw = await cancellable(signal, (token) =>
 		cmd.procedureQuery(
-			entry,
+			{
+				entry: spec.entry,
+				rate: spec.rate ?? null,
+				retry: spec.retry ?? null,
+				inflight: spec.inflight ?? null,
+				config: spec.config === undefined ? null : JSON.stringify(spec.config),
+			},
 			JSON.stringify(input),
-			config === undefined ? null : JSON.stringify(config),
 			token,
 		),
 	);
@@ -74,10 +79,10 @@ export async function resolveFieldLabels(
 ): Promise<string[]> {
 	if (key?.kind === "datePart" && key.part === "monthOfYear")
 		return keys.map((k) => partitionLabel(k, key));
-	const entry = getProviderForField(field)?.procedure.entry;
-	if (!entry || keys.length === 0) return keys;
+	const procedure = getProviderForField(field)?.procedure;
+	if (!procedure || keys.length === 0) return keys;
 	try {
-		const labels = await queryProcedure<unknown>(entry, { op: "label", field, values: keys });
+		const labels = await queryProcedure<unknown>(procedure, { op: "label", field, values: keys });
 		if (Array.isArray(labels) && labels.length === keys.length) {
 			return labels.map((l, i) => (typeof l === "string" ? l : keys[i]));
 		}

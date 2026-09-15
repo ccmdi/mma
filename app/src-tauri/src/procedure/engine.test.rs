@@ -1766,6 +1766,16 @@ impl Procedure for QueryProc {
     }
 }
 
+fn query(entry: &str) -> QueryDecl {
+    QueryDecl {
+        entry: entry.into(),
+        rate: None,
+        retry: None,
+        inflight: None,
+        config: None,
+    }
+}
+
 fn query_deps(fetch: FetchFn) -> EngineDeps {
     EngineDeps {
         factory: Box::new(|entry| {
@@ -1786,11 +1796,14 @@ fn run_query_returns_the_module_output_and_reaches_fetch() {
             body: b"pong".to_vec(),
         })
     }));
+    let decl = QueryDecl {
+        config: Some(r#"{"units":"metric"}"#.into()),
+        ..query("res://procedures/svMeta.js")
+    };
     let out = run_query(
         &deps,
-        "res://procedures/svMeta.js",
+        &decl,
         r#"{"op":"metadata","panoIds":["a"]}"#,
-        Some(r#"{"units":"metric"}"#),
         &|| false,
     )
     .expect("query succeeds");
@@ -1819,10 +1832,65 @@ fn run_query_retries_a_throttled_fetch() {
             body: b"pong".to_vec(),
         })
     }));
-    let out = run_query(&deps, "q.js", "{}", None, &|| false).expect("query succeeds");
+    let out = run_query(&deps, &query("q.js"), "{}", &|| false).expect("query succeeds");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(v["fetched"], serde_json::json!("pong"));
     assert_eq!(calls.load(Ordering::Relaxed), 2);
+}
+
+#[test]
+fn a_query_follows_its_declared_retry_policy() {
+    let calls = Arc::new(AtomicU32::new(0));
+    let seen = calls.clone();
+    let deps = query_deps(sync_fetch(move |_| {
+        seen.fetch_add(1, Ordering::Relaxed);
+        Ok(HttpResponse {
+            status: 429,
+            body: Vec::new(),
+        })
+    }));
+    let decl = QueryDecl {
+        retry: Some(RetrySpec {
+            attempts: 1,
+            on: vec![429],
+        }),
+        ..query("q.js")
+    };
+    let _ = run_query(&deps, &decl, "{}", &|| false);
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+}
+
+struct WideQueryProc(usize);
+
+impl Procedure for WideQueryProc {
+    fn shape(&self) -> ProcShape {
+        ProcShape::Run
+    }
+    fn query(
+        &mut self,
+        _input: &[u8],
+        host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<u8>> {
+        Ok(host.fetch_many(&gets(self.0)).len().to_string().into_bytes())
+    }
+}
+
+#[test]
+fn a_query_holds_its_declared_inflight_ceiling() {
+    let peak = Arc::new(AtomicU32::new(0));
+    let deps = EngineDeps {
+        factory: Box::new(|_| Ok(Box::new(WideQueryProc(20)) as Box<dyn Procedure>)),
+        fetch: barrier_fetch(u32::MAX, Duration::from_millis(150), peak.clone()),
+        backoff: Duration::from_millis(1),
+    };
+    let decl = QueryDecl {
+        inflight: Some(8),
+        ..query("wide.js")
+    };
+    let out = run_query(&deps, &decl, "{}", &|| false).expect("query succeeds");
+    assert_eq!(out, "20");
+    assert_eq!(peak.load(Ordering::SeqCst), 8);
 }
 
 #[test]
@@ -1836,7 +1904,7 @@ fn a_cancelled_query_has_its_requests_declined() {
             body: b"never".to_vec(),
         })
     }));
-    let err = run_query(&deps, "q.js", "{}", None, &|| true).unwrap_err();
+    let err = run_query(&deps, &query("q.js"), "{}", &|| true).unwrap_err();
     assert!(err.0.contains("cancelled"), "{}", err.0);
     assert_eq!(
         calls.load(Ordering::Relaxed),
@@ -1859,7 +1927,7 @@ fn run_query_surfaces_a_module_without_the_export() {
         fetch: sync_fetch(|_| Err(AppError("no fetch expected".into()))),
         backoff: Duration::from_millis(1),
     };
-    let err = run_query(&deps, "plain.js", "{}", None, &|| false).expect_err("rejected");
+    let err = run_query(&deps, &query("plain.js"), "{}", &|| false).expect_err("rejected");
     assert!(err.0.contains("does not implement query"), "{}", err.0);
 }
 

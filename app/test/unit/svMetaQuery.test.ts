@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { IdQuery, Pano, PanoAnswer } from "@/bindings.gen";
-import { SVMETA_FIELDS } from "@/lib/sv/constants";
+import { GET_METADATA_INFLIGHT, SVMETA_FIELDS } from "@/lib/sv/constants";
 import { KNOWN_FIELDS } from "@/bindings.consts";
 import { CAR_PANO } from "./fixtures/pano";
 
@@ -107,9 +107,11 @@ describe("svMetadata", () => {
 
 		const [data] = await svMetadata(["pA"]);
 		expect(procedureQuery).toHaveBeenCalledWith(
-			"res://procedures/svMeta.js",
+			expect.objectContaining({
+				entry: "res://procedures/svMeta.js",
+				inflight: GET_METADATA_INFLIGHT,
+			}),
 			JSON.stringify({ op: "metadata", panoIds: ["pA"] }),
-			null,
 			expect.any(Number),
 		);
 		// Plain JSON, not a live opensv object: no accessors, no Dates.

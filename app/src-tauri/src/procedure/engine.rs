@@ -171,6 +171,32 @@ pub struct ProviderDecl {
     pub config: Option<String>,
 }
 
+/// A procedure asked one read-only question, with the same network limits a run of it gets.
+#[derive(Clone, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryDecl {
+    /// The procedure module: an absolute path, or `res://<rel>` for one bundled with the app.
+    pub entry: String,
+    #[serde(default)]
+    pub rate: Option<RateSpec>,
+    #[serde(default)]
+    pub retry: Option<RetrySpec>,
+    /// Requests the question may have in flight at once.
+    #[serde(default)]
+    pub inflight: Option<u32>,
+    /// Procedure-specific configuration, a JSON value as text.
+    #[serde(default)]
+    pub config: Option<String>,
+}
+
+/// The declared retry policy, or the transient-status default when none is declared.
+fn retry_policy(retry: Option<&RetrySpec>) -> (u32, &[u16]) {
+    match retry {
+        Some(r) => (r.attempts, r.on.as_slice()),
+        None => (DEFAULT_ATTEMPTS, &TRANSIENT_STATUSES),
+    }
+}
+
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "procedure-progress")]
@@ -1435,17 +1461,6 @@ struct EngineHost<'a> {
     failed: Vec<u32>,
 }
 
-impl EngineHost<'_> {
-    /// The declared retry policy, or the transient-status default when the provider
-    /// declares none.
-    fn retry_policy(&self) -> (u32, &[u16]) {
-        match self.decl.retry.as_ref() {
-            Some(r) => (r.attempts, r.on.as_slice()),
-            None => (DEFAULT_ATTEMPTS, &TRANSIENT_STATUSES),
-        }
-    }
-}
-
 impl ProcHost for EngineHost<'_> {
     fn fetch(&mut self, req: &HttpRequestSpec) -> AppResult<HttpResponse> {
         self.fetch_many(slice::from_ref(req))
@@ -1454,7 +1469,7 @@ impl ProcHost for EngineHost<'_> {
     }
 
     fn fetch_many(&mut self, reqs: &[HttpRequestSpec]) -> Vec<AppResult<HttpResponse>> {
-        let (attempts, on) = self.retry_policy();
+        let (attempts, on) = retry_policy(self.decl.retry.as_ref());
         let ctx = self.ctx;
         fetch_all(
             ctx.deps,
@@ -1499,7 +1514,7 @@ impl ProcHost for EngineHost<'_> {
 /// has its requests declined, the same way a cancelled run does.
 struct QueryHost<'a> {
     deps: &'a EngineDeps,
-    /// A query declares nothing, so it takes the default width.
+    decl: &'a QueryDecl,
     budget: FetchBudget,
     aborted: &'a (dyn Fn() -> bool + Sync),
 }
@@ -1512,12 +1527,13 @@ impl ProcHost for QueryHost<'_> {
     }
 
     fn fetch_many(&mut self, reqs: &[HttpRequestSpec]) -> Vec<AppResult<HttpResponse>> {
+        let (attempts, on) = retry_policy(self.decl.retry.as_ref());
         fetch_all(
             self.deps,
             &self.budget,
             1,
-            DEFAULT_ATTEMPTS,
-            &TRANSIENT_STATUSES,
+            attempts,
+            on,
             self.aborted,
             reqs,
         )
@@ -1534,16 +1550,16 @@ impl ProcHost for QueryHost<'_> {
 /// patches, no progress events.
 pub fn run_query(
     deps: &EngineDeps,
-    entry: &str,
+    decl: &QueryDecl,
     input: &str,
-    config: Option<&str>,
     aborted: &(dyn Fn() -> bool + Sync),
 ) -> AppResult<String> {
-    let mut proc = (deps.factory)(entry)?;
-    let config = configure_json(&[], false, config);
+    let mut proc = (deps.factory)(&decl.entry)?;
+    let config = configure_json(&[], false, decl.config.as_deref());
     let mut host = QueryHost {
         deps,
-        budget: FetchBudget::new(None, None),
+        decl,
+        budget: FetchBudget::new(decl.inflight, decl.rate),
         aborted,
     };
     let out = proc.query(input.as_bytes(), &mut host, &config)?;
@@ -1676,9 +1692,8 @@ fn query_tokens() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_query(
-    entry: String,
+    procedure: QueryDecl,
     input: String,
-    config: Option<String>,
     cancel: Option<u32>,
 ) -> AppResult<String> {
     let flag = Arc::new(AtomicBool::new(false));
@@ -1687,7 +1702,7 @@ pub async fn procedure_query(
     }
     let out = task::spawn_blocking(move || {
         let deps = EngineDeps::production();
-        run_query(&deps, &entry, &input, config.as_deref(), &|| {
+        run_query(&deps, &procedure, &input, &|| {
             flag.load(Ordering::Relaxed)
         })
     })

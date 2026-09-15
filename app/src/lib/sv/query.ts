@@ -1,6 +1,7 @@
 // Read-only Street View queries.
 
-import { procedureEntry, queryProcedure } from "@/lib/data/procedures";
+import { queryProcedure } from "@/lib/data/procedures";
+import { panoResolveProvider, svMetaProvider } from "@/lib/sv/enrich";
 import type { LatLng } from "@/types";
 import type { Pano } from "@/bindings.gen";
 import type { PanoType, RankingStrategy } from "@/bindings.consts";
@@ -11,8 +12,6 @@ export interface SearchOpts {
 	preference?: RankingStrategy;
 }
 
-const SVMETA_ENTRY = procedureEntry("svMeta");
-
 /** Full pano metadata for one or more panos, aligned to `panoIds`. Duplicates are
  *  deduped and large batches are split automatically. */
 export async function svMetadata(
@@ -21,16 +20,13 @@ export async function svMetadata(
 ): Promise<(Pano | null)[]> {
 	if (panoIds.length === 0) return [];
 	const answers = await queryProcedure<(Pano | null)[]>(
-		SVMETA_ENTRY,
+		svMetaProvider.procedure,
 		{ op: "metadata", panoIds },
-		undefined,
 		signal,
 	);
 	if (!Array.isArray(answers)) throw new Error(`svMeta query answered ${typeof answers}`);
 	return panoIds.map((_, i) => answers[i] ?? null);
 }
-
-const PANORESOLVE_ENTRY = procedureEntry("panoResolve");
 
 /** The nearest pano to each point, aligned to `points`, null where there is no coverage.
  *  `opts.sources` narrows which collections are searched and `opts.preference` picks
@@ -43,9 +39,8 @@ export async function panosAt(
 ): Promise<(Pano | null)[]> {
 	if (points.length === 0) return [];
 	const answers = await queryProcedure<(Pano | null)[]>(
-		PANORESOLVE_ENTRY,
+		panoResolveProvider.procedure,
 		{ op: "at", points, radius, ...opts },
-		undefined,
 		signal,
 	);
 	if (!Array.isArray(answers)) throw new Error(`panoResolve query answered ${typeof answers}`);

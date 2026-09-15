@@ -27,7 +27,11 @@ const h = vi.hoisted(() => ({
 	answers: {} as Record<string, { id: number; json: string }[]>,
 	/// Ids a provider fails, per provider id.
 	failedIds: {} as Record<string, number[]>,
-	queries: [] as { entry: string; input: string; cancel: number | null }[],
+	queries: [] as {
+		procedure: { entry: string; inflight: number | null; config: string | null };
+		input: string;
+		cancel: number | null;
+	}[],
 	rowRuns: [] as { ids: number[]; force: boolean; cancel: number | null }[],
 	cancelled: [] as number[],
 	queryAnswer: ((input: string) => Promise.resolve(input)) as (i: string) => Promise<string>,
@@ -139,12 +143,11 @@ vi.mock("@/lib/commands", () => ({
 			};
 		},
 		procedureQuery: (
-			entry: string,
+			procedure: (typeof h.queries)[number]["procedure"],
 			input: string,
-			_config: string | null,
 			cancel: number | null,
 		) => {
-			h.queries.push({ entry, input, cancel });
+			h.queries.push({ procedure, input, cancel });
 			return h.queryAnswer(input);
 		},
 		procedureQueryCancel: (cancel: number) => {
@@ -402,19 +405,40 @@ describe("the bulk operations name their own providers", () => {
 });
 
 describe("the query surface", () => {
+	const Q = { entry: "res://q.js", batch: { mode: "perRow" } } satisfies ProcedureSpec;
+
 	it("carries JSON both ways and only sends a config when one is given", async () => {
 		h.queryAnswer = () => Promise.resolve('{"ok":true}');
-		expect(await queryProcedure("res://q.js", { op: "label" })).toEqual({ ok: true });
+		expect(await queryProcedure(Q, { op: "label" })).toEqual({ ok: true });
 		expect(h.queries).toEqual([
-			{ entry: "res://q.js", input: '{"op":"label"}', cancel: expect.any(Number) as number },
+			{
+				procedure: expect.objectContaining({ entry: "res://q.js", config: null }) as unknown,
+				input: '{"op":"label"}',
+				cancel: expect.any(Number) as number,
+			},
 		]);
+	});
+
+	it("asks within the network limits the procedure declares for its runs", async () => {
+		h.queryAnswer = () => Promise.resolve("[]");
+		await queryProcedure(
+			{ ...Q, inflight: 192, retry: { attempts: 2, on: [429] }, config: { radius: 50 } },
+			{ op: "at" },
+		);
+		expect(h.queries[0].procedure).toEqual({
+			entry: "res://q.js",
+			rate: null,
+			retry: { attempts: 2, on: [429] },
+			inflight: 192,
+			config: '{"radius":50}',
+		});
 	});
 
 	it("names a query it can cancel, cancels it on abort, and rejects with the reason", async () => {
 		const ac = new AbortController();
 		let answer = () => {};
 		h.queryAnswer = () => new Promise<string>((resolve) => (answer = () => resolve("[]")));
-		const pending = queryProcedure("res://q.js", { op: "at" }, undefined, ac.signal);
+		const pending = queryProcedure(Q, { op: "at" }, ac.signal);
 		await Promise.resolve();
 		const token = h.queries[0].cancel;
 		expect(token).not.toBeNull();
@@ -426,7 +450,7 @@ describe("the query surface", () => {
 
 	it("a call without a signal is still named, and nothing cancels it", async () => {
 		h.queryAnswer = () => Promise.resolve("[]");
-		await queryProcedure("res://q.js", { op: "at" });
+		await queryProcedure(Q, { op: "at" });
 		expect(h.queries[0].cancel).toEqual(expect.any(Number));
 		expect(h.cancelled).toEqual([]);
 	});
@@ -889,11 +913,9 @@ describe("a rows run streams partial results via onPartial", () => {
 				failed: [],
 			});
 		};
-		await runProviders(
-			[{ provider: svMetaProvider }, { provider: exactDateProvider }],
-			[loc1],
-			{ onPartial: (r) => partial.push(r) },
-		);
+		await runProviders([{ provider: svMetaProvider }, { provider: exactDateProvider }], [loc1], {
+			onPartial: (r) => partial.push(r),
+		});
 		expect(partial).toHaveLength(2);
 		expect(partial[0][0].extra).toEqual({ meta: "first" });
 		expect(partial[1][0].extra).toEqual({ date: "second" });

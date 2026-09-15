@@ -782,7 +782,7 @@ React hook: the saved selection index, re-rendering on changes.
 
 App settings and their option tables; the shape moves with every setting added.
 
-### `APP_SETTINGS: PersistedStore<{ showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 71 more ...; pinnedCommands: PinnedEntry[]; }>` *(unstable)*
+### `APP_SETTINGS: PersistedStore<{ showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 74 more ...; pinnedCommands: PinnedEntry[]; }>` *(unstable)*
 
 A localStorage-backed blob: its key and its defaults, declared where the shape is defined so
 no call site restates the pair. Older stored shapes are handled by `store/migrations.ts`.
@@ -793,7 +793,7 @@ On-disk size of each downloadable archive under `data/borders/`.
 
 ### `BORDER_DETAILS: { readonly light: "Standard (bundled)"; readonly medium: "High ({size})"; readonly heavy: "Ultra ({size})"; }`
 
-### `CSS_VAR_SETTINGS: readonly (readonly [cssVar: string, value: (s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; ... 72 more ...; pinnedCommands: PinnedEntry[]; }) => string])[]`
+### `CSS_VAR_SETTINGS: readonly (readonly [cssVar: string, value: (s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; ... 75 more ...; pinnedCommands: PinnedEntry[]; }) => string])[]`
 
 ### `DATE_TIMEZONES: { readonly location: "Location timezone"; readonly utc: "UTC"; }`
 
@@ -972,6 +972,12 @@ Reopen the maps that were open when the session last ended (main window closed).
 
 #### `DEFAULTS.subdivisionDetail: "off" | "adm1"` *(unstable)*
 
+#### `DEFAULTS.svTrail: boolean` *(unstable)*
+
+#### `DEFAULTS.svTrailColor: RGB` *(unstable)*
+
+#### `DEFAULTS.svTrailPosition: boolean` *(unstable)*
+
 #### `DEFAULTS.tagFolderColor: RGB` *(unstable)*
 
 #### `DEFAULTS.tagFolderColorMode: "direct" | "firstChild"` *(unstable)*
@@ -1006,7 +1012,7 @@ Every distance the UI shows or accepts; stored values stay metric.
 
 ### `GEOCODE_PROVIDERS: { readonly local: "Local (offline)"; readonly nominatim: "Nominatim"; readonly google: "Google (from panorama)"; }`
 
-### `getSettings(): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 71 more ...; pinnedCommands: PinnedEntry[]; }` *(unstable)*
+### `getSettings(): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 74 more ...; pinnedCommands: PinnedEntry[]; }` *(unstable)*
 
 The current app settings snapshot.
 
@@ -1038,13 +1044,13 @@ Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolo
 
 ### `MOVEMENT_MODES: { readonly moving: "Moving"; readonly "no-move": "No Move"; readonly nmpz: "NMPZ"; }`
 
-### `navHiddenWithUI(s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 71 more ...; pinnedCommands: PinnedEntry[]; }): boolean` *(unstable)*
+### `navHiddenWithUI(s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 74 more ...; pinnedCommands: PinnedEntry[]; }): boolean` *(unstable)*
 
 True while the pano-UI toggle covers the navigation visuals too.
 
 ### `OPACITY_TOGGLE_MODES: { readonly previous: "Last used opacity"; readonly full: "Full opacity"; }`
 
-### `panoDisplayOptions(s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 71 more ...; pinnedCommands: PinnedEntry[]; }): { ...; }` *(unstable)*
+### `panoDisplayOptions(s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 74 more ...; pinnedCommands: PinnedEntry[]; }): { ...; }` *(unstable)*
 
 Effective StreetViewPanorama display options derived from the current settings.
 
@@ -1064,7 +1070,7 @@ Effective StreetViewPanorama display options derived from the current settings.
 
 #### `PREVIEW_ASPECT_RATIOS.free: "Free"` *(unstable)*
 
-### `PRIVATE_SETTINGS: ReadonlySet<"showCameraBadges" | "showLinksControl" | "clickToGo" | "showRoadLabels" | "defaultMovementMode" | "showCar" | "showCrosshair" | "showCompass" | "showCompassTape" | "showZoom" | ... 68 more ... | "pinnedCommands">`
+### `PRIVATE_SETTINGS: ReadonlySet<"showCameraBadges" | "showLinksControl" | "clickToGo" | "showRoadLabels" | "defaultMovementMode" | "showCar" | "showCrosshair" | "showCompass" | "showCompassTape" | "showZoom" | ... 71 more ... | "pinnedCommands">`
 
 ### `resetSettings(): void` *(unstable)*
 
@@ -1072,7 +1078,7 @@ Reset all settings to defaults, preserving global copy bindings.
 
 ### `SEEN_RESOLUTIONS: { readonly low: "Low (160x90)"; readonly medium: "Medium (320x180)"; readonly high: "High (640x360)"; }`
 
-### `setSetting<K extends keyof AppSettings>(key: K, value: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; ... 73 more ...; pinnedCommands: PinnedEntry[]; }[K]): void` *(unstable)*
+### `setSetting<K extends keyof AppSettings>(key: K, value: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; ... 76 more ...; pinnedCommands: PinnedEntry[]; }[K]): void` *(unstable)*
 
 Update one setting and persist. Emits `settings:changed`.
 
@@ -1088,11 +1094,11 @@ Update one setting and persist. Emits `settings:changed`.
 
 Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles.
 
-### `useSetting<K extends keyof AppSettings>(key: K): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; ... 73 more ...; pinnedCommands: PinnedEntry[]; }[K]` *(unstable)*
+### `useSetting<K extends keyof AppSettings>(key: K): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; ... 76 more ...; pinnedCommands: PinnedEntry[]; }[K]` *(unstable)*
 
 React hook: one setting value, re-rendering only when that key changes.
 
-### `useSettings(): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 71 more ...; pinnedCommands: PinnedEntry[]; }` *(unstable)*
+### `useSettings(): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 74 more ...; pinnedCommands: PinnedEntry[]; }` *(unstable)*
 
 React hook: all settings, re-rendering on any change.
 
@@ -1517,7 +1523,7 @@ The location a pasted Maps URL names, short links resolved.
 
 Stop a run before its next batch. Already-applied patches stay applied.
 
-#### `cmd.procedureQuery(entry: string, input: string, config: string | null, cancel: number | null): Promise<string>` *(unstable)*
+#### `cmd.procedureQuery(procedure: QueryDecl, input: string, cancel: number | null): Promise<string>` *(unstable)*
 
 Run a procedure's read-only `query` export. `input` and the result are defined
 by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
@@ -2450,10 +2456,11 @@ Remove plugin field definitions by key (called when a plugin is deactivated).
 
 Entry point of a procedure this app bundles. Plugins ship their own paths.
 
-### `queryProcedure<T = unknown>(entry: string, input: unknown, config?: unknown, signal?: AbortSignal | undefined): Promise<T>`
+### `queryProcedure<T = unknown>(spec: ProcedureSpec<unknown>, input: unknown, signal?: AbortSignal | undefined): Promise<T>`
 
-Ask a procedure a read-only question. Rejects when the procedure exports no `query`,
-when the call fails, or when `signal` aborts.
+Ask a procedure a read-only question, within the same `inflight`, `rate` and `retry` a run
+of it gets. Rejects when the procedure exports no `query`, when the call fails, or when
+`signal` aborts.
 
 ### `resolveFieldLabels(field: string, keys: string[], key?: KeySpec | undefined): Promise<string[]>`
 

@@ -503,7 +503,7 @@ export const commands = {
 	 *  Run a procedure's read-only `query` export. `input` and the result are defined
 	 *  by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
 	 */
-	procedureQuery: (entry: string, input: string, config: string | null, cancel: number | null) => __TAURI_INVOKE<string>("procedure_query", { entry, input, config, cancel }),
+	procedureQuery: (procedure: QueryDecl, input: string, cancel: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, cancel }),
 	/**  Cancel a running procedure query by its `cancel` token. */
 	procedureQueryCancel: (cancel: number) => __TAURI_INVOKE<null>("procedure_query_cancel", { cancel }),
 };
@@ -1431,6 +1431,18 @@ export type PullCreate = {
 export type PullUpdate = {
 	localId: number,
 	patch: SyncPatch,
+};
+
+/**  A procedure asked one read-only question, with the same network limits a run of it gets. */
+export type QueryDecl = {
+	/**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
+	entry: string,
+	rate?: RateSpec | null,
+	retry?: RetrySpec | null,
+	/**  Requests the question may have in flight at once. */
+	inflight?: number | null,
+	/**  Procedure-specific configuration, a JSON value as text. */
+	config?: string | null,
 };
 
 

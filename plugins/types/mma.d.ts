@@ -968,7 +968,7 @@ declare const commands$1: {
      *  by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
      *  @unstable
      */
-    procedureQuery: (entry: string, input: string, config: string | null, cancel: number | null) => Promise<string>;
+    procedureQuery: (procedure: QueryDecl, input: string, cancel: number | null) => Promise<string>;
     /**  Cancel a running procedure query by its `cancel` token. @unstable */
     procedureQueryCancel: (cancel: number) => Promise<null>;
 };
@@ -2074,6 +2074,17 @@ type PullCreate = {
 type PullUpdate = {
     localId: number;
     patch: SyncPatch;
+};
+/**  A procedure asked one read-only question, with the same network limits a run of it gets. */
+type QueryDecl = {
+    /**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
+    entry: string;
+    rate?: RateSpec | null;
+    retry?: RetrySpec | null;
+    /**  Requests the question may have in flight at once. */
+    inflight?: number | null;
+    /**  Procedure-specific configuration, a JSON value as text. */
+    config?: string | null;
 };
 /**  Token bucket: `units` calls per `per_ms` milliseconds, refilled continuously. */
 type RateSpec = {
@@ -4186,6 +4197,12 @@ declare const DEFAULTS: {
     /** @unstable */
     importPreviewColor: RGB;
     /** @unstable */
+    svTrail: boolean;
+    /** @unstable */
+    svTrailColor: RGB;
+    /** @unstable */
+    svTrailPosition: boolean;
+    /** @unstable */
     panoDotColor: RGB;
     /** What the layer opacity hotkeys restore a layer to when toggling it back on. @unstable */
     opacityToggleMode: OpacityToggleMode;
@@ -4306,6 +4323,9 @@ declare const APP_SETTINGS: PersistedStore<{
     markerColor: RGB;
     activeLocationColor: RGB;
     importPreviewColor: RGB;
+    svTrail: boolean;
+    svTrailColor: RGB;
+    svTrailPosition: boolean;
     panoDotColor: RGB;
     /** What the layer opacity hotkeys restore a layer to when toggling it back on. */
     opacityToggleMode: OpacityToggleMode;
@@ -5448,9 +5468,10 @@ declare namespace fieldDefRegistry {
 
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 declare const procedureEntry: (name: string) => string;
-/** Ask a procedure a read-only question. Rejects when the procedure exports no `query`,
- *  when the call fails, or when `signal` aborts. */
-declare function queryProcedure<T = unknown>(entry: string, input: unknown, config?: unknown, signal?: AbortSignal): Promise<T>;
+/** Ask a procedure a read-only question, within the same `inflight`, `rate` and `retry` a run
+ *  of it gets. Rejects when the procedure exports no `query`, when the call fails, or when
+ *  `signal` aborts. */
+declare function queryProcedure<T = unknown>(spec: ProcedureSpec, input: unknown, signal?: AbortSignal): Promise<T>;
 /** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
  *  become locale month names; otherwise falls back to the keys themselves when the field's
  *  procedure has no `label` query or returns a non-matching array. */
@@ -6482,4 +6503,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, QueryDecl, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
