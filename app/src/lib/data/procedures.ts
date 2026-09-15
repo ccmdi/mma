@@ -21,9 +21,8 @@ import { log } from "@/lib/util/log";
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 export const procedureEntry = (name: string) => `res://procedures/${name}.js`;
 
-/** Ask a procedure a read-only question, within the same `inflight`, `rate` and `retry` a run
- *  of it gets. Rejects when the procedure exports no `query`, when the call fails, or when
- *  `signal` aborts. */
+/** Ask a procedure a read-only question under its declared network limits. Rejects when it
+ *  exports no `query`, when the call fails, or when `signal` aborts. */
 export async function queryProcedure<T = unknown>(
 	spec: ProcedureSpec,
 	input: unknown,

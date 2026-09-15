@@ -32,7 +32,6 @@ export function usePanoDisplay(
 		return pano.showCrosshair();
 	}, [pano, appSettings.showCrosshair]);
 
-	// Mount/unmount: move the persistent div in/out of the container.
 	// useLayoutEffect so appendChild runs before paint.
 	useLayoutEffect(() => {
 		const container = panoContainerRef.current;

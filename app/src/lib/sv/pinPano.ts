@@ -48,10 +48,7 @@ export async function bulkPinToPano(
 ): Promise<BatchOutcome> {
 	const { useLatest, force = false, ...runOpts } = opts;
 	const target = force ? undefined : unpinnedIn(selector);
-	// Pinning resolves the panorama, it does not merely fill a missing one: a row that
-	// already carries a stale pano id is re-resolved to what is at its coordinates now,
-	// which is what the operation means. Official coverage only: the closest pano can be
-	// a photosphere, and a bulk pin must never relocate rows onto one.
+	// A pin re-resolves a stale pano id too, and only against official coverage.
 	const resolve = await runProviders(
 		[
 			{

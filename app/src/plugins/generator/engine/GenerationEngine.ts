@@ -172,8 +172,8 @@ export class GenerationEngine {
 		return { found, target };
 	}
 
-	/** Stops for good. Confirmed finds are handed over first; after that no callback fires
-	 *  and every lookup still in flight is declined. */
+	/** A stopped engine never restarts. Finds already confirmed are delivered; afterwards no
+	 *  callback fires and every lookup in flight is declined. */
 	stop(): void {
 		if (this.stopped) return;
 		this.flushBatch();

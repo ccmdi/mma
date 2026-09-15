@@ -825,9 +825,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let instances =
         instance_count(decl).min(batch_ceiling(&batch_mode, total, per_instance).max(1));
 
-    // Created before any batch is queued: with no live consumer the producer would
-    // block forever on a full queue, so a provider that cannot start a single instance
-    // fails the run instead of stranding it.
+    // Created before any batch is queued: a full queue with no consumer never drains.
     let mut procs: Vec<Box<dyn Procedure>> = Vec::with_capacity(instances);
     let mut create_err: Option<AppError> = None;
     for _ in 0..instances {
