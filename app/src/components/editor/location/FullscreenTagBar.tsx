@@ -5,11 +5,15 @@ import { getMapState } from "@/store/useMapStore";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/util/util";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { Icon } from "@/components/primitives/Icon";
-import { useSetting, setSetting } from "@/store/settings";
+import { useSetting } from "@/store/settings";
+import { persisted, useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { displayTagName } from "@/store/selections";
 import { t } from "@/lib/i18n";
 import { search } from "@/lib/search";
 import { Button } from "@/components/primitives/Button";
+
+/** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. */
+const FULLSCREEN_TAGBAR_COLLAPSED = persisted("fullscreenTagbarCollapsed", false);
 
 export function FullscreenTagBar({
 	pendingTags,
@@ -23,7 +27,7 @@ export function FullscreenTagBar({
 	const [input, setInput] = useState("");
 	const [focused, setFocused] = useState(false);
 	const [hovered, setHovered] = useState(false);
-	const collapsed = useSetting("fullscreenTagbarCollapsed");
+	const [collapsed, setCollapsed] = useLocalStorage(FULLSCREEN_TAGBAR_COLLAPSED);
 	const tagSortMode = useSetting("tagSortMode");
 	useSetting("truncateTagPaths");
 	useSetting("tagViewMode");
@@ -98,7 +102,7 @@ export function FullscreenTagBar({
 				type="button"
 				className="fullscreen-tagbar__collapse"
 				aria-label={collapsed ? t("Expand tag bar") : t("Collapse tag bar")}
-				onClick={() => setSetting("fullscreenTagbarCollapsed", !collapsed)}
+				onClick={() => setCollapsed(!collapsed)}
 			>
 				<Icon path={collapsed ? mdiChevronUp : mdiChevronDown} size={16} />
 			</button>

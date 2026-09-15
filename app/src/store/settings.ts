@@ -4,7 +4,6 @@ import { msg } from "@/lib/i18n";
 import type { TagSortMode } from "@/types";
 import type { PinnedEntry } from "./commandDefs";
 import type { RGB } from "@/lib/util/color";
-import type { MapKeyBinding } from "@/bindings.gen";
 
 /** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. */
 export const LANGUAGES = {
@@ -159,8 +158,6 @@ export const DEFAULTS = {
 	/** Milliseconds the fullscreen minimap stays expanded after the pointer leaves it. */
 	fullscreenMinimapCloseDelay: 250,
 	showFullscreenTagbar: true,
-	/** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. */
-	fullscreenTagbarCollapsed: false,
 	showFullscreenDatePicker: true,
 	showFullscreenReviewBar: true,
 	showFullscreenGeocode: true,
@@ -222,9 +219,6 @@ export const DEFAULTS = {
 	subdivisionDetail: "off" as SubdivisionDetail,
 	previewAspectRatio: "16 / 9" as PreviewAspectRatio,
 	tagSuggestionLimit: 0 as number,
-	/** Copy-to-map hotkeys that work in every map (assigned in the copy-to-map dialog);
-	 *  a map's own binding on the same key shadows them. */
-	globalCopyBindings: [] as MapKeyBinding[],
 	/** Local REST transport for window.MMA (Settings > Advanced). */
 	remoteApi: false,
 	remoteApiKey: "",
@@ -294,9 +288,9 @@ export function setSetting<K extends keyof AppSettings>(key: K, value: AppSettin
 	emitEvent("settings:changed");
 }
 
-/** Reset all settings to defaults, preserving global copy bindings. */
+/** Reset all settings to defaults. */
 export function resetSettings(): void {
-	settings = { ...DEFAULTS, globalCopyBindings: settings.globalCopyBindings };
+	settings = { ...DEFAULTS };
 	setLocal(APP_SETTINGS, settings);
 	emitEvent("settings:changed");
 }

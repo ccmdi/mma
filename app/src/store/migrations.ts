@@ -71,6 +71,20 @@ export const MIGRATIONS: StoredMigration[] = [
 			delete stored.hasSeenWelcome;
 		},
 	},
+	{
+		since: "0.10.9",
+		key: "appSettings",
+		describe: "globalCopyBindings and fullscreenTagbarCollapsed -> their own keys",
+		apply: (stored) => {
+			for (const key of ["globalCopyBindings", "fullscreenTagbarCollapsed"]) {
+				if (!(key in stored)) continue;
+				if (localStorage.getItem(key) === null) {
+					localStorage.setItem(key, JSON.stringify(stored[key]));
+				}
+				delete stored[key];
+			}
+		},
+	},
 ];
 
 export function migrationsFor(key: string): Migration[] {

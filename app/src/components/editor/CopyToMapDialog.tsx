@@ -11,8 +11,12 @@ import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { useMapSetting } from "@/store/useMapSetting";
-import { useSettings, setSetting } from "@/store/settings";
-import { getMapCopyBindingKey, withMapCopyBinding } from "@/lib/map/mapKeyBindings";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
+import {
+	GLOBAL_COPY_BINDINGS,
+	getMapCopyBindingKey,
+	withMapCopyBinding,
+} from "@/lib/map/mapKeyBindings";
 import { getMapState } from "@/store/useMapStore";
 import { t } from "@/lib/i18n";
 
@@ -22,7 +26,7 @@ import { t } from "@/lib/i18n";
  *  autocomplete (type a map name), then keyed. */
 export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
 	const [bindings, setBindings] = useMapSetting("keyBindings");
-	const globalBindings = useSettings().globalCopyBindings;
+	const [globalBindings, setGlobalBindings] = useLocalStorage(GLOBAL_COPY_BINDINGS);
 	// Added via autocomplete but not yet keyed; persisted only once a key is recorded.
 	const [pendingIds, setPendingIds] = useState<string[]>([]);
 	const [pendingGlobal, setPendingGlobal] = useState<string[]>([]);
@@ -67,14 +71,14 @@ export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
 
 	const removeRow = (id: string) => {
 		setBindings(withMapCopyBinding(bindings ?? [], id, ""));
-		setSetting("globalCopyBindings", withMapCopyBinding(globalBindings, id, ""));
+		setGlobalBindings(withMapCopyBinding(globalBindings, id, ""));
 		setPendingIds((prev) => prev.filter((p) => p !== id));
 		setPendingGlobal((prev) => prev.filter((p) => p !== id));
 	};
 
 	const setRowKey = (id: string, combo: string) => {
 		if (isGlobal(id)) {
-			setSetting("globalCopyBindings", withMapCopyBinding(globalBindings, id, combo));
+			setGlobalBindings(withMapCopyBinding(globalBindings, id, combo));
 		} else {
 			setBindings(withMapCopyBinding(bindings ?? [], id, combo));
 		}
@@ -90,12 +94,12 @@ export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
 	const toggleScope = (id: string) => {
 		const key = keyFor(id);
 		if (isGlobal(id)) {
-			setSetting("globalCopyBindings", withMapCopyBinding(globalBindings, id, ""));
+			setGlobalBindings(withMapCopyBinding(globalBindings, id, ""));
 			if (key) setBindings(withMapCopyBinding(bindings ?? [], id, key));
 			setPendingGlobal((prev) => prev.filter((p) => p !== id));
 		} else {
 			setBindings(withMapCopyBinding(bindings ?? [], id, ""));
-			if (key) setSetting("globalCopyBindings", withMapCopyBinding(globalBindings, id, key));
+			if (key) setGlobalBindings(withMapCopyBinding(globalBindings, id, key));
 			else setPendingGlobal((prev) => [...prev, id]);
 		}
 	};

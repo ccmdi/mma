@@ -6,6 +6,11 @@ import {
 	isEditableElement,
 	pluginOverlayOwnsInput,
 } from "@/lib/hooks/useHotkey";
+import { persisted } from "@/lib/hooks/useLocalStorage";
+
+/** Copy-to-map hotkeys that work in every map, assigned in the copy-to-map dialog;
+ *  a map's own binding on the same key shadows them. */
+export const GLOBAL_COPY_BINDINGS = persisted<MapKeyBinding[]>("globalCopyBindings", []);
 
 /**
  * Per-map key binding layer. Bindings live on `MapSettings.keyBindings`; each maps

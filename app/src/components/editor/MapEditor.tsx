@@ -42,7 +42,7 @@ import {
 	pluginOverlayOwnsInput,
 } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
-import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
+import { useLocalStorage, getLocal } from "@/lib/hooks/useLocalStorage";
 import { usePointerDrag } from "@/lib/hooks/usePointerDrag";
 import { useSettings, getSettings } from "@/store/settings";
 import {
@@ -62,7 +62,11 @@ import SameLocation from "@/components/editor/SameLocation";
 import { log } from "@/lib/util/log";
 import { useCountrySelect } from "@/lib/map/useCountrySelect";
 import { useDeletePolygon } from "@/lib/map/useDeletePolygon";
-import { useMapKeyBindings, mergedKeyBindings } from "@/lib/map/mapKeyBindings";
+import {
+	useMapKeyBindings,
+	mergedKeyBindings,
+	GLOBAL_COPY_BINDINGS,
+} from "@/lib/map/mapKeyBindings";
 import { range, clamp } from "@/types/util";
 import { t } from "@/lib/i18n";
 
@@ -244,7 +248,7 @@ export function MapEditor() {
 	useMapKeyBindings(() =>
 		mergedKeyBindings(
 			getMapState().map?.settings.keyBindings ?? [],
-			getSettings().globalCopyBindings,
+			getLocal(GLOBAL_COPY_BINDINGS),
 			getMapState().mapId,
 		),
 	);

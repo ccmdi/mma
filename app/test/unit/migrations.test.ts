@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { MIGRATIONS, SUPPORTED_FROM, migrationsFor } from "@/store/migrations";
 import { cmpVersion } from "@/lib/util/util";
@@ -34,5 +35,53 @@ describe("migration registry", () => {
 			MIGRATIONS.filter((m) => m.key === "appSettings").length,
 		);
 		expect(migrationsFor("no-such-blob")).toEqual([]);
+	});
+});
+
+describe("globalCopyBindings and fullscreenTagbarCollapsed migration", () => {
+	const apply = (stored: Record<string, unknown>) => {
+		for (const migrate of migrationsFor("appSettings")) migrate(stored);
+	};
+
+	it("migrates both keys out into their own localStorage entries", () => {
+		localStorage.clear();
+		const bindings = [{ key: "q", action: { type: "copyToMap", mapId: "map-b" } }];
+		const stored: Record<string, unknown> = {
+			globalCopyBindings: bindings,
+			fullscreenTagbarCollapsed: true,
+		};
+		apply(stored);
+		expect(stored).not.toHaveProperty("globalCopyBindings");
+		expect(stored).not.toHaveProperty("fullscreenTagbarCollapsed");
+		expect(JSON.parse(localStorage.getItem("globalCopyBindings")!)).toEqual(bindings);
+		expect(JSON.parse(localStorage.getItem("fullscreenTagbarCollapsed")!)).toBe(true);
+	});
+
+	it("leaves a blob without them untouched", () => {
+		localStorage.clear();
+		const stored: Record<string, unknown> = { showFps: true };
+		apply(stored);
+		expect(stored).toEqual({ showFps: true });
+		expect(localStorage.getItem("globalCopyBindings")).toBeNull();
+		expect(localStorage.getItem("fullscreenTagbarCollapsed")).toBeNull();
+	});
+
+	it("running it twice is a no-op", () => {
+		localStorage.clear();
+		const stored: Record<string, unknown> = {
+			globalCopyBindings: [{ key: "q", action: { type: "copyToMap", mapId: "map-b" } }],
+			fullscreenTagbarCollapsed: true,
+		};
+		apply(stored);
+		const afterFirst = {
+			globalCopyBindings: localStorage.getItem("globalCopyBindings"),
+			fullscreenTagbarCollapsed: localStorage.getItem("fullscreenTagbarCollapsed"),
+		};
+		apply(stored);
+		expect(localStorage.getItem("globalCopyBindings")).toBe(afterFirst.globalCopyBindings);
+		expect(localStorage.getItem("fullscreenTagbarCollapsed")).toBe(
+			afterFirst.fullscreenTagbarCollapsed,
+		);
+		expect(stored).toEqual({});
 	});
 });
