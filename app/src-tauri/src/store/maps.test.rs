@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_util::TempDir;
 use std::collections::HashSet;
 
 #[test]
@@ -601,4 +602,34 @@ fn default_settings_json_round_trips_to_default() {
     assert!(parsed.key_bindings.is_empty());
     assert!(parsed.virtual_tags.is_empty());
     assert!(parsed.aliases.is_empty());
+}
+
+#[test]
+fn a_database_is_sized_with_the_sidecars_its_writes_sit_in() {
+    let dir = TempDir::new("mma_test_dbsize");
+    let db = dir.join("mma.db");
+    fs::write(&db, vec![0u8; 400]).unwrap();
+    assert_eq!(sqlite_bytes(&db), 400);
+
+    fs::write(dir.join("mma.db-wal"), vec![0u8; 90]).unwrap();
+    fs::write(dir.join("mma.db-shm"), vec![0u8; 10]).unwrap();
+    assert_eq!(sqlite_bytes(&db), 500);
+
+    // A database that does not exist yet is not an error, it is nothing on disk.
+    assert_eq!(sqlite_bytes(&dir.join("absent.db")), 0);
+}
+
+#[test]
+fn location_data_is_sized_down_through_the_commit_folders() {
+    let dir = TempDir::new("mma_test_arrowsize");
+    assert_eq!(dir_bytes(&dir), 0);
+
+    fs::write(dir.join("a.arrow"), vec![0u8; 128]).unwrap();
+    fs::write(dir.join("a_delta.arrow"), vec![0u8; 32]).unwrap();
+    let commits = dir.join("commits").join("a");
+    fs::create_dir_all(&commits).unwrap();
+    fs::write(commits.join("c1.arrow"), vec![0u8; 64]).unwrap();
+
+    assert_eq!(dir_bytes(&dir), 224);
+    assert_eq!(dir_bytes(&dir.join("absent")), 0);
 }

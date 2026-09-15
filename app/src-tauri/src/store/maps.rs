@@ -19,6 +19,7 @@ use rusqlite::types::ToSql;
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 
 // ---------------------------------------------------------------------------
 // Typed sub-structs for MapMeta
@@ -717,12 +718,51 @@ pub async fn store_delete_folder(name: String) -> AppResult<()> {
 #[serde(rename_all = "camelCase")]
 pub struct DbStats {
     pub maps: i64,
+    /// Locations across every map as of the last time each was saved.
     pub locations: i64,
     pub tags: i64,
     pub commits: i64,
+    /// Bytes the metadata database occupies, its write-ahead log included.
     pub db_size_bytes: i64,
+    /// Bytes every map's location data occupies, saved commits included.
+    pub location_size_bytes: i64,
     pub journal_mode: String,
     pub foreign_keys: bool,
+}
+
+/// Bytes a file occupies, or zero where there is no such file.
+fn file_bytes(path: &Path) -> i64 {
+    fs::metadata(path).map_or(0, |m| m.len() as i64)
+}
+
+/// Bytes the files under `dir` occupy, nested directories included. A directory that
+/// cannot be read contributes nothing rather than failing the count.
+fn dir_bytes(dir: &Path) -> i64 {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    entries
+        .filter_map(Result::ok)
+        .map(|e| {
+            let path = e.path();
+            if path.is_dir() {
+                dir_bytes(&path)
+            } else {
+                file_bytes(&path)
+            }
+        })
+        .sum()
+}
+
+/// Bytes a SQLite database occupies: the file plus the sidecars WAL mode keeps beside it,
+/// which hold every write that has not been checkpointed back yet.
+fn sqlite_bytes(db: &Path) -> i64 {
+    let sidecar = |suffix: &str| {
+        let mut name = db.as_os_str().to_os_string();
+        name.push(suffix);
+        file_bytes(Path::new(&name))
+    };
+    file_bytes(db) + sidecar("-wal") + sidecar("-shm")
 }
 
 /// Return aggregate database statistics: counts, file size, and configuration.
@@ -758,12 +798,6 @@ pub async fn store_db_stats() -> AppResult<DbStats> {
         let commits: i64 = conn
             .query_row("SELECT COUNT(*) FROM commits", [], |r| r.get(0))
             .unwrap_or(0);
-        let page_count: i64 = conn
-            .query_row("PRAGMA page_count", [], |r| r.get(0))
-            .unwrap_or(0);
-        let page_size: i64 = conn
-            .query_row("PRAGMA page_size", [], |r| r.get(0))
-            .unwrap_or(4096);
         let journal_mode: String = conn
             .query_row("PRAGMA journal_mode", [], |r| r.get(0))
             .unwrap_or_default();
@@ -775,7 +809,8 @@ pub async fn store_db_stats() -> AppResult<DbStats> {
             locations,
             tags,
             commits,
-            db_size_bytes: page_count * page_size,
+            db_size_bytes: storage::db_path().map_or(0, |p| sqlite_bytes(&p)),
+            location_size_bytes: storage::arrow_dir().map_or(0, |d| dir_bytes(&d)),
             journal_mode,
             foreign_keys: fk != 0,
         })

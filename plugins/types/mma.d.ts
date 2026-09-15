@@ -416,6 +416,12 @@ declare const commands$1: {
     /**  Milliseconds from `run()` to the frontend's first call; logged once. @unstable */
     appReady: () => Promise<number>;
     /**
+     *  Seconds the app has been running, counted from launch rather than from whenever a
+     *  window last loaded its page.
+     *  @unstable
+     */
+    appUptime: () => Promise<number>;
+    /**
      *  Write text to a temp file and return its path. `name` is a leaf filename
      *  (cannot contain path separators).
      *  @unstable
@@ -1224,10 +1230,14 @@ type DataLocation = {
 /**  Aggregate database statistics for the debug panel. */
 type DbStats = {
     maps: number;
+    /**  Locations across every map as of the last time each was saved. */
     locations: number;
     tags: number;
     commits: number;
+    /**  Bytes the metadata database occupies, its write-ahead log included. */
     dbSizeBytes: number;
+    /**  Bytes every map's location data occupies, saved commits included. */
+    locationSizeBytes: number;
     journalMode: string;
     foreignKeys: boolean;
 };

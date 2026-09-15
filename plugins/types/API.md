@@ -1348,6 +1348,11 @@ Commands
 
 Milliseconds from `run()` to the frontend's first call; logged once.
 
+#### `cmd.appUptime(): Promise<number>` *(unstable)*
+
+Seconds the app has been running, counted from launch rather than from whenever a
+window last loaded its page.
+
 #### `cmd.borderClassify(level: string, points: [number, number][]): Promise<(string | null)[]>` *(unstable)*
 
 Classify each `(lat, lng)` to the name of its containing border feature at

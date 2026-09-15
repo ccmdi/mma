@@ -9,6 +9,11 @@ export const commands = {
 	/**  Milliseconds from `run()` to the frontend's first call; logged once. */
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
+	 *  Seconds the app has been running, counted from launch rather than from whenever a
+	 *  window last loaded its page.
+	 */
+	appUptime: () => __TAURI_INVOKE<number>("app_uptime"),
+	/**
 	 *  Write text to a temp file and return its path. `name` is a leaf filename
 	 *  (cannot contain path separators).
 	 */
@@ -665,10 +670,14 @@ export type DataLocation = {
 /**  Aggregate database statistics for the debug panel. */
 export type DbStats = {
 	maps: number,
+	/**  Locations across every map as of the last time each was saved. */
 	locations: number,
 	tags: number,
 	commits: number,
+	/**  Bytes the metadata database occupies, its write-ahead log included. */
 	dbSizeBytes: number,
+	/**  Bytes every map's location data occupies, saved commits included. */
+	locationSizeBytes: number,
 	journalMode: string,
 	foreignKeys: boolean,
 };

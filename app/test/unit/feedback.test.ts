@@ -52,10 +52,11 @@ const diagnostics: Diagnostics = {
 	jsHeap: { usedBytes: 120_000_000, limitBytes: 4_294_967_296 },
 	db: {
 		maps: 3,
-		locations: 12000,
+		savedLocations: 12000,
 		tags: 40,
 		commits: 7,
 		sizeBytes: 5_000_000,
+		locationSizeBytes: 9_000_000,
 		journalMode: "wal",
 		foreignKeys: true,
 	},

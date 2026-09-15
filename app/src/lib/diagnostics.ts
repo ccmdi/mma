@@ -21,10 +21,12 @@ export interface Diagnostics {
 	jsHeap: { usedBytes: number; limitBytes: number } | null;
 	db: {
 		maps: number;
-		locations: number;
+		/** Totalled from each map's count as of its last save. */
+		savedLocations: number;
 		tags: number;
 		commits: number;
 		sizeBytes: number;
+		locationSizeBytes: number;
 		journalMode: string;
 		foreignKeys: boolean;
 	};
@@ -188,9 +190,10 @@ async function mapDiagnostics(): Promise<MapDiagnostics | null> {
 }
 
 export async function collectDiagnostics(): Promise<Diagnostics> {
-	const [db, startupMs, plugins, map] = await Promise.all([
+	const [db, startupMs, uptimeSecs, plugins, map] = await Promise.all([
 		cmd.storeDbStats(),
 		cmd.appReady(),
+		cmd.appUptime(),
 		pluginList(),
 		mapDiagnostics(),
 	]);
@@ -206,16 +209,17 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
 		devicePixelRatio: window.devicePixelRatio,
 		opensvVersion: google?.maps?.version ?? "not loaded",
 		startupMs,
-		uptimeSecs: Math.floor(performance.now() / 1000),
+		uptimeSecs,
 		jsHeap: perfMem
 			? { usedBytes: perfMem.usedJSHeapSize, limitBytes: perfMem.jsHeapSizeLimit }
 			: null,
 		db: {
 			maps: db.maps,
-			locations: db.locations,
+			savedLocations: db.locations,
 			tags: db.tags,
 			commits: db.commits,
 			sizeBytes: db.dbSizeBytes,
+			locationSizeBytes: db.locationSizeBytes,
 			journalMode: db.journalMode,
 			foreignKeys: db.foreignKeys,
 		},

@@ -63,8 +63,8 @@ function diagnosticsTable(d: Diagnostics): string {
 		["Startup", `${d.startupMs} ms`],
 		[
 			"Database",
-			`${d.db.maps} maps, ${d.db.locations} locations, ${d.db.tags} tags, ${d.db.commits} commits, ` +
-				`${formatBytes(d.db.sizeBytes)} (${d.db.journalMode})`,
+			`${d.db.maps} maps, ${d.db.savedLocations} locations, ${d.db.tags} tags, ${d.db.commits} commits, ` +
+				`${formatBytes(d.db.sizeBytes)} + ${formatBytes(d.db.locationSizeBytes)} (${d.db.journalMode})`,
 		],
 		["Plugins", d.plugins.length ? d.plugins.join(", ") : "none"],
 	];

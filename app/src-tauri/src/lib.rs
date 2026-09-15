@@ -76,6 +76,16 @@ fn app_ready() -> u32 {
     })
 }
 
+/// Seconds the app has been running, counted from launch rather than from whenever a
+/// window last loaded its page.
+#[tauri::command]
+#[specta::specta]
+fn app_uptime() -> u32 {
+    START_INSTANT
+        .get()
+        .map_or(0, |t| t.elapsed().as_secs() as u32)
+}
+
 /// Single source of truth for the IPC command surface. Used by both the desktop
 /// app (`run`) and the web sidecar (`serve`), so adding a command here wires it
 /// for both transports automatically.
@@ -92,6 +102,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .typ::<procedure::engine::ProcedureConfig<serde_json::Value>>()
         .commands(tauri_specta::collect_commands![
             app_ready,
+            app_uptime,
             store::storage::write_temp_file,
             store::storage::read_file,
             store::storage::get_app_data_dir,

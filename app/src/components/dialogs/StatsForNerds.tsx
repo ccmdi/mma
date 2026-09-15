@@ -36,11 +36,12 @@ function statsRows(d: Diagnostics): [string, string | number][] {
 		["Version", d.appVersion],
 		["Build", d.buildMode],
 		["Maps", d.db.maps],
-		["Locations", fmt.format(d.db.locations)],
+		["Locations (saved)", fmt.format(d.db.savedLocations)],
 		["Tags", d.db.tags],
 		["Commits", d.db.commits],
 		["Pending saves", d.map?.dirtyCount ?? 0],
 		["DB size", formatBytes(d.db.sizeBytes)],
+		["Location data", formatBytes(d.db.locationSizeBytes)],
 		["Journal mode", d.db.journalMode],
 		["Foreign keys", d.db.foreignKeys ? "ON" : "OFF"],
 		["opensv", d.opensvVersion],
@@ -79,8 +80,8 @@ function liveRows(live: LiveStats): [string, string][] {
 				"Marker quad",
 				`${scene.quadSidePx.toFixed(1)}px ${scene.markerStyle} x${scene.markerSize} @ ${scene.dpr}dpr`,
 			],
-			["Est fragments", `${(scene.estFragments / 1e6).toFixed(1)}M / frame`],
-			["Overdraw", `${scene.overdraw.toFixed(2)}x viewport`],
+			["Fragments (estimate)", `${(scene.estFragments / 1e6).toFixed(1)}M / frame`],
+			["Overdraw (estimate)", `${scene.overdraw.toFixed(2)}x viewport`],
 		);
 	} else {
 		rows.push(["Markers", "no map open"]);
@@ -89,12 +90,14 @@ function liveRows(live: LiveStats): [string, string][] {
 		rows.push(
 			["Deck layers drawn", `${deck.drawLayersCount} of ${deck.layersCount}`],
 			["CPU / frame", `${deck.cpuTimePerFrame.toFixed(2)} ms`],
-			["GPU / frame", deck.gpuTimePerFrame > 0 ? `${deck.gpuTimePerFrame.toFixed(2)} ms` : "n/a"],
-			[
-				"GPU memory",
-				`${formatBytes(deck.gpuMemory)} (buf ${formatBytes(deck.bufferMemory)}, tex ${formatBytes(deck.textureMemory)})`,
-			],
 		);
+		if (deck.gpuTimePerFrame > 0) {
+			rows.push(["GPU / frame", `${deck.gpuTimePerFrame.toFixed(2)} ms`]);
+		}
+		rows.push([
+			"GPU memory",
+			`${formatBytes(deck.gpuMemory)} (buf ${formatBytes(deck.bufferMemory)}, tex ${formatBytes(deck.textureMemory)})`,
+		]);
 	}
 	return rows;
 }
