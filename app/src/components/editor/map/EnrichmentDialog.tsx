@@ -211,11 +211,6 @@ export function EnrichTab({
 			label={label}
 		>
 			<span className="enrich-field__name">{label}</span>
-			{SLOW_FIELDS.has(key) && (
-				<span className="enrich-field__tag" title={t("Costs extra requests per location")}>
-					{t("slow")}
-				</span>
-			)}
 			<CoverageBar ratio={coverage.get(key) ?? 0} />
 		</SwitchRow>
 	);
@@ -246,9 +241,6 @@ export function EnrichTab({
 		</>
 	);
 }
-
-/** Fields whose enrichment issues extra requests per location. */
-const SLOW_FIELDS = new Set(["datetime"]);
 
 /** The management view: every field on the map, with its schema in a detail pane so
  *  nothing has to escalate to a nested dialog just to fit. */

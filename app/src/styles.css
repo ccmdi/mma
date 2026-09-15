@@ -2876,15 +2876,6 @@ input[type="range"]:disabled {
 .enrich-field__name {
 	margin-right: auto;
 }
-.enrich-field__tag {
-	color: var(--text-3);
-	border: 1px solid var(--border-subtle);
-	border-radius: 0.5rem;
-	padding: 0 0.4rem;
-	font-size: 0.6875rem;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-}
 
 .coverage-bar {
 	display: flex;
