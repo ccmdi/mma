@@ -2007,11 +2007,14 @@ type ProcedureDecl = {
     entry: string;
     rate?: RateSpec | null;
     retry?: RetrySpec | null;
-    /**  Requests the procedure may have in flight at once, summed over its instances. */
+    /**
+     *  Requests one run or one query of the procedure may have in flight at once. A run's
+     *  instances share the budget; a separate run or query gets its own.
+     */
     inflight?: number | null;
     /**
      *  Procedure-specific configuration, a JSON value as text. Passed through verbatim
-     *  inside the object the procedure's `configure` receives.
+     *  inside the config object every entry point receives.
      */
     config?: string | null;
 };
@@ -2605,7 +2608,8 @@ type VirtualTag = {
  *
  * A procedure is an ES module bundled to one file. Its named exports are the entry
  * points: `request` + `map` (RequestMap), `map` (MapOnly) or `run` (Run), plus the
- * optional `query` and `configure`. Rows arrive as `Location`s and `run`/`map` answer
+ * optional `query`. Every entry point receives the run's `{ fields, force, config }` as its
+ * last argument. Rows arrive as `Location`s and `run`/`map` answer
  * with `Update<LocationPatch>`s under the `patch` sink, or `Update<T>` of the module's
  * own answer under `collect`.
  */
@@ -5344,7 +5348,8 @@ export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> {
         attempts: number;
         on: number[];
     };
-    /** Maximum concurrent in-flight requests across all instances. */
+    /** Requests one run or one query may have in flight at once. A run's instances share it;
+     *  a separate run or query gets its own. */
     inflight?: number;
     /** Maximum concurrent procedure instances. */
     instances?: number;

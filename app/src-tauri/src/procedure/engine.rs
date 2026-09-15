@@ -170,11 +170,12 @@ pub struct ProcedureDecl {
     pub rate: Option<RateSpec>,
     #[serde(default)]
     pub retry: Option<RetrySpec>,
-    /// Requests the procedure may have in flight at once, summed over its instances.
+    /// Requests one run or one query of the procedure may have in flight at once. A run's
+    /// instances share the budget; a separate run or query gets its own.
     #[serde(default)]
     pub inflight: Option<u32>,
     /// Procedure-specific configuration, a JSON value as text. Passed through verbatim
-    /// inside the object the procedure's `configure` receives.
+    /// inside the config object every entry point receives.
     #[serde(default)]
     pub config: Option<String>,
 }

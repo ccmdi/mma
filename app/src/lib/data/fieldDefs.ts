@@ -84,7 +84,8 @@ export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> {
 	/** Overrides the engine's transient-status retry default. Omit unless this endpoint
 	 *  answers a retryable condition with a status the default does not cover. */
 	retry?: { attempts: number; on: number[] };
-	/** Maximum concurrent in-flight requests across all instances. */
+	/** Requests one run or one query may have in flight at once. A run's instances share it;
+	 *  a separate run or query gets its own. */
 	inflight?: number;
 	/** Maximum concurrent procedure instances. */
 	instances?: number;

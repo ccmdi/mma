@@ -1362,11 +1362,14 @@ export type ProcedureDecl = {
 	entry: string,
 	rate?: RateSpec | null,
 	retry?: RetrySpec | null,
-	/**  Requests the procedure may have in flight at once, summed over its instances. */
+	/**
+	 *  Requests one run or one query of the procedure may have in flight at once. A run's
+	 *  instances share the budget; a separate run or query gets its own.
+	 */
 	inflight?: number | null,
 	/**
 	 *  Procedure-specific configuration, a JSON value as text. Passed through verbatim
-	 *  inside the object the procedure's `configure` receives.
+	 *  inside the config object every entry point receives.
 	 */
 	config?: string | null,
 };

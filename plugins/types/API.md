@@ -2895,7 +2895,8 @@ procedures, or a relative filename (resolved against the plugin's directory).
 
 #### `validateSpec.inflight: number | undefined`
 
-Maximum concurrent in-flight requests across all instances.
+Requests one run or one query may have in flight at once. A run's instances share it;
+a separate run or query gets its own.
 
 #### `validateSpec.instances: number | undefined`
 
