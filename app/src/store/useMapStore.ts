@@ -30,6 +30,7 @@ import type {
 } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
 import { SelectedIds, decodeSelectionBitmask, type ReadonlyIdSet } from "@/lib/render/CellManager";
+import { tagsNamed } from "@/lib/data/tagsNamed";
 import { resetImportState } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
@@ -1038,8 +1039,7 @@ export async function createTags(
 ): Promise<Tag[]> {
 	if (names.length === 0) return [];
 	await mutate(() => cmd.storeCreateTags(names, selector));
-	const lower = new Set(names.map((n) => n.toLowerCase()));
-	const created = Object.values(state.tags).filter((t) => lower.has(t.name.toLowerCase()));
+	const created = tagsNamed(names, Object.values(state.tags));
 	emitEvent("tag:add", created);
 	return created;
 }
