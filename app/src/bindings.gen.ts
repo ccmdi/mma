@@ -518,6 +518,8 @@ export const commands = {
 	procedureQuery: (procedure: ProcedureDecl, input: string, cancel: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, cancel }),
 	/**  Cancel a running procedure query by its `cancel` token. */
 	procedureQueryCancel: (cancel: number) => __TAURI_INVOKE<null>("procedure_query_cancel", { cancel }),
+	/**  What the procedure engine is working on right now. */
+	procedureActivity: () => __TAURI_INVOKE<ProcedureActivity>("procedure_activity"),
 };
 
 /** Events */
@@ -1376,6 +1378,16 @@ export type PresenceActivity = {
 	start: number | null,
 };
 
+/**  Everything the procedure engine has in flight at one instant. */
+export type ProcedureActivity = {
+	/**  The providers working right now. */
+	runs: ProviderActivity[],
+	/**  The procedures answering a question right now. */
+	queries: QueryActivity[],
+	/**  Requests answered per second over the last few seconds, across everything running. */
+	requestsPerSecond: number,
+};
+
 /**
  *  What every entry point of a procedure receives as its last argument: the engine's view of
  *  the run and the procedure's own configuration.
@@ -1437,6 +1449,34 @@ export type ProcedureResult = {
 	failed: number[],
 };
 
+/**  One provider working its share of a run. */
+export type ProviderActivity = {
+	/**  The run this provider belongs to. */
+	runId: number,
+	/**  The provider's id. */
+	providerId: string,
+	/**  The provider's display name, where it has one. */
+	label: string | null,
+	/**  Locations the provider was handed. */
+	total: number,
+	/**  Locations it has finished. */
+	done: number,
+	/**  Locations it could not work. */
+	failed: number,
+	/**  Locations that already held everything it produces. */
+	skipped: number,
+	/**  Copies of the procedure working its queue. */
+	instances: number,
+	/**  Requests outstanding at this instant. */
+	inflight: number,
+	/**  The most requests the provider may keep outstanding. */
+	inflightLimit: number,
+	/**  Requests parked until the provider's rate limit lets them through. */
+	rateWaiting: number,
+	/**  Requests retried so far in this run. */
+	retries: number,
+};
+
 /**
  *  One provider as declared by the frontend. `fields` are the extra keys it produces
  *  and `requires` the keys it consumes; together they gate who waits for whom.
@@ -1477,6 +1517,16 @@ export type PullCreate = {
 export type PullUpdate = {
 	localId: number,
 	patch: SyncPatch,
+};
+
+/**  The questions one procedure is answering, taken together. */
+export type QueryActivity = {
+	/**  The procedure answering. */
+	entry: string,
+	/**  Requests outstanding at this instant. */
+	inflight: number,
+	/**  The most requests it may keep outstanding. */
+	inflightLimit: number,
 };
 
 

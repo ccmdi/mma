@@ -15,11 +15,12 @@ use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::future::Future;
 use std::mem;
+use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::slice;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::OnceLock;
 use std::sync::PoisonError;
 use std::sync::{mpsc, Arc, Mutex};
@@ -473,6 +474,29 @@ pub(super) const CANCELLED: &str = "procedure: run cancelled";
 struct FetchBudget {
     slots: Semaphore,
     limiter: Option<RateLimiter>,
+    state: Arc<BudgetState>,
+}
+
+/// What a budget is passing at this instant, shared with the activity snapshot. Atomics
+/// only: a reader must cost the request path nothing.
+struct BudgetState {
+    width: u32,
+    outstanding: AtomicU32,
+    rate_waiting: AtomicU32,
+    retries: AtomicU32,
+}
+
+/// A slot held for the length of one request. Dropping it frees the slot and clears the
+/// request from the outstanding count together, so an early return cannot leak either.
+struct Admitted<'a> {
+    _slot: SemaphorePermit<'a>,
+    state: &'a BudgetState,
+}
+
+impl Drop for Admitted<'_> {
+    fn drop(&mut self) {
+        self.state.outstanding.fetch_sub(1, Ordering::Relaxed);
+    }
 }
 
 impl FetchBudget {
@@ -481,19 +505,33 @@ impl FetchBudget {
         FetchBudget {
             slots: Semaphore::new(width as usize),
             limiter: rate.and_then(RateLimiter::new),
+            state: Arc::new(BudgetState {
+                width,
+                outstanding: AtomicU32::new(0),
+                rate_waiting: AtomicU32::new(0),
+                retries: AtomicU32::new(0),
+            }),
         }
     }
 
     /// Waits for the rate bucket, then for a slot. The slot is held until the response
     /// lands, so `inflight` counts requests actually outstanding.
-    async fn admit(&self, cost: u32) -> SemaphorePermit<'_> {
+    async fn admit(&self, cost: u32) -> Admitted<'_> {
         if let Some(l) = &self.limiter {
+            self.state.rate_waiting.fetch_add(1, Ordering::Relaxed);
             l.acquire(cost).await;
+            self.state.rate_waiting.fetch_sub(1, Ordering::Relaxed);
         }
-        self.slots
+        let slot = self
+            .slots
             .acquire()
             .await
-            .expect("the budget semaphore is never closed")
+            .expect("the budget semaphore is never closed");
+        self.state.outstanding.fetch_add(1, Ordering::Relaxed);
+        Admitted {
+            _slot: slot,
+            state: &self.state,
+        }
     }
 }
 
@@ -540,11 +578,14 @@ async fn fetch_one(
             if aborted() {
                 return Err(AppError(CANCELLED.into()));
             }
-            (deps.fetch)(req.clone()).await?
+            let answered = (deps.fetch)(req.clone()).await;
+            record_fetch();
+            answered?
         };
         if !retry_on.contains(&resp.status) || attempt + 1 == attempts {
             return Ok(resp);
         }
+        budget.state.retries.fetch_add(1, Ordering::Relaxed);
         time::sleep(delay).await;
         delay = delay.saturating_mul(2);
     }
@@ -650,6 +691,161 @@ impl ProviderProgress {
     fn finish(&self) {
         (self.sink)(self.snapshot(true));
     }
+}
+
+// ---------------------------------------------------------------------------
+// Activity
+// ---------------------------------------------------------------------------
+
+/// Work the engine has in flight, keyed by an id nothing outside uses. An entry goes in
+/// when the work starts and comes out with its guard, so a cancelled or failed piece of
+/// work deregisters exactly the way a finished one does.
+struct Live<T: 'static> {
+    cells: OnceLock<Mutex<HashMap<u32, Arc<T>>>>,
+    next: AtomicU32,
+}
+
+impl<T: 'static> Live<T> {
+    const fn new() -> Self {
+        Live {
+            cells: OnceLock::new(),
+            next: AtomicU32::new(1),
+        }
+    }
+
+    fn cells(&self) -> &Mutex<HashMap<u32, Arc<T>>> {
+        self.cells.get_or_init(|| Mutex::new(HashMap::new()))
+    }
+
+    fn add(&'static self, cell: T) -> LiveGuard<T> {
+        let id = self.next.fetch_add(1, Ordering::Relaxed);
+        let cell = Arc::new(cell);
+        self.cells()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id, cell.clone());
+        LiveGuard { reg: self, id, cell }
+    }
+
+    fn snapshot(&self) -> Vec<Arc<T>> {
+        self.cells()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .values()
+            .cloned()
+            .collect()
+    }
+}
+
+struct LiveGuard<T: 'static> {
+    reg: &'static Live<T>,
+    id: u32,
+    cell: Arc<T>,
+}
+
+impl<T: 'static> Drop for LiveGuard<T> {
+    fn drop(&mut self) {
+        self.reg
+            .cells()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(&self.id);
+    }
+}
+
+impl<T: 'static> Deref for LiveGuard<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.cell
+    }
+}
+
+static LIVE_PROVIDERS: Live<ProviderRun> = Live::new();
+static LIVE_QUERIES: Live<QueryRun> = Live::new();
+
+/// One provider working its share of a run. Counts come from the progress it already
+/// keeps; network state comes from the budget every one of its instances draws on.
+struct ProviderRun {
+    label: Option<String>,
+    progress: Arc<ProviderProgress>,
+    budget: Arc<BudgetState>,
+    instances: AtomicU32,
+}
+
+impl ProviderRun {
+    fn instance(&self) -> InstanceGuard<'_> {
+        self.instances.fetch_add(1, Ordering::Relaxed);
+        InstanceGuard(self)
+    }
+}
+
+/// Counts one procedure instance for as long as it is working the queue.
+struct InstanceGuard<'a>(&'a ProviderRun);
+
+impl Drop for InstanceGuard<'_> {
+    fn drop(&mut self) {
+        self.0.instances.fetch_sub(1, Ordering::Relaxed);
+    }
+}
+
+/// One procedure answering a query.
+struct QueryRun {
+    entry: String,
+    budget: Arc<BudgetState>,
+}
+
+/// Seconds of answered requests the engine-wide rate averages over.
+const RATE_WINDOW_SECS: u64 = 5;
+
+/// One second of answered requests, stamped with the second it counts, so a bucket the
+/// ring has lapped reads as empty instead of as old traffic.
+struct RateBucket {
+    second: AtomicU64,
+    hits: AtomicU32,
+}
+
+impl RateBucket {
+    const fn new() -> Self {
+        RateBucket {
+            second: AtomicU64::new(u64::MAX),
+            hits: AtomicU32::new(0),
+        }
+    }
+}
+
+/// A bucket wider than the window, so the second still filling never evicts the oldest
+/// second the average still wants.
+static RATE: [RateBucket; RATE_WINDOW_SECS as usize + 1] =
+    [const { RateBucket::new() }; RATE_WINDOW_SECS as usize + 1];
+
+fn engine_second() -> u64 {
+    static EPOCH: OnceLock<Instant> = OnceLock::new();
+    EPOCH.get_or_init(Instant::now).elapsed().as_secs()
+}
+
+fn record_fetch() {
+    let second = engine_second();
+    let bucket = &RATE[(second % RATE.len() as u64) as usize];
+    if bucket.second.swap(second, Ordering::Relaxed) == second {
+        bucket.hits.fetch_add(1, Ordering::Relaxed);
+    } else {
+        bucket.hits.store(1, Ordering::Relaxed);
+    }
+}
+
+/// Requests answered per second across the window. The second still filling is left out,
+/// so the figure does not dip at whatever moment it is read.
+fn fetch_rate() -> f64 {
+    let now = engine_second();
+    let hits: u32 = RATE
+        .iter()
+        .filter(|b| {
+            let second = b.second.load(Ordering::Relaxed);
+            second < now && now - second <= RATE_WINDOW_SECS
+        })
+        .map(|b| b.hits.load(Ordering::Relaxed))
+        .sum();
+    hits as f64 / RATE_WINDOW_SECS as f64
 }
 
 // ---------------------------------------------------------------------------
@@ -812,12 +1008,23 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
         decl.label.as_deref().unwrap_or("-"),
         total
     );
-    let prog = ProviderProgress::new(ctx.run_id, decl.id.clone(), total, ctx.progress.clone());
+    let prog = Arc::new(ProviderProgress::new(
+        ctx.run_id,
+        decl.id.clone(),
+        total,
+        ctx.progress.clone(),
+    ));
     prog.start();
     let force = decl.force.unwrap_or(ctx.force);
     let batch_mode = effective_batch_mode(ctx, decl)?;
     // One budget for the provider, not one per page or per instance.
     let budget = FetchBudget::new(decl.procedure.inflight, decl.procedure.rate);
+    let live = LIVE_PROVIDERS.add(ProviderRun {
+        label: decl.label.clone(),
+        progress: prog.clone(),
+        budget: budget.state.clone(),
+        instances: AtomicU32::new(0),
+    });
     let config = config_json(&decl.fields, force, decl.procedure.config.as_deref());
     // No more instances than the run can keep busy: a one-row run must not load a
     // procedure per core.
@@ -853,8 +1060,10 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let outcome = thread::scope(|s| {
         for mut proc in procs {
             let out_tx = out_tx.clone();
-            let (batch_rx, budget, prog, config) = (&batch_rx, &budget, &prog, config.as_str());
+            let (batch_rx, budget, prog, live, config) =
+                (&batch_rx, &budget, &prog, &live, config.as_str());
             s.spawn(move || {
+                let _alive = live.instance();
                 run_instance(ctx, decl, budget, prog, &mut *proc, batch_rx, &out_tx, config)
             });
         }
@@ -1552,10 +1761,15 @@ pub fn run_query(
 ) -> AppResult<String> {
     let mut proc = (deps.factory)(&decl.entry)?;
     let config = config_json(&[], false, decl.config.as_deref());
+    let budget = FetchBudget::new(decl.inflight, decl.rate);
+    let _live = LIVE_QUERIES.add(QueryRun {
+        entry: decl.entry.clone(),
+        budget: budget.state.clone(),
+    });
     let mut host = QueryHost {
         deps,
         decl,
-        budget: FetchBudget::new(decl.inflight, decl.rate),
+        budget,
         aborted,
     };
     let out = proc.query(input.as_bytes(), &mut host, &config)?;
@@ -1719,6 +1933,104 @@ pub async fn procedure_query_cancel(cancel: u32) -> AppResult<()> {
         flag.store(true, Ordering::Relaxed);
     }
     Ok(())
+}
+
+/// Everything the procedure engine has in flight at one instant.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcedureActivity {
+    /// The providers working right now.
+    pub runs: Vec<ProviderActivity>,
+    /// The procedures answering a question right now.
+    pub queries: Vec<QueryActivity>,
+    /// Requests answered per second over the last few seconds, across everything running.
+    pub requests_per_second: f64,
+}
+
+/// One provider working its share of a run.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderActivity {
+    /// The run this provider belongs to.
+    pub run_id: u32,
+    /// The provider's id.
+    pub provider_id: String,
+    /// The provider's display name, where it has one.
+    pub label: Option<String>,
+    /// Locations the provider was handed.
+    pub total: u32,
+    /// Locations it has finished.
+    pub done: u32,
+    /// Locations it could not work.
+    pub failed: u32,
+    /// Locations that already held everything it produces.
+    pub skipped: u32,
+    /// Copies of the procedure working its queue.
+    pub instances: u32,
+    /// Requests outstanding at this instant.
+    pub inflight: u32,
+    /// The most requests the provider may keep outstanding.
+    pub inflight_limit: u32,
+    /// Requests parked until the provider's rate limit lets them through.
+    pub rate_waiting: u32,
+    /// Requests retried so far in this run.
+    pub retries: u32,
+}
+
+/// The questions one procedure is answering, taken together.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct QueryActivity {
+    /// The procedure answering.
+    pub entry: String,
+    /// Requests outstanding at this instant.
+    pub inflight: u32,
+    /// The most requests it may keep outstanding.
+    pub inflight_limit: u32,
+}
+
+/// What the procedure engine is working on right now.
+#[tauri::command]
+#[specta::specta]
+pub fn procedure_activity() -> ProcedureActivity {
+    let runs = LIVE_PROVIDERS
+        .snapshot()
+        .iter()
+        .map(|r| ProviderActivity {
+            run_id: r.progress.run_id,
+            provider_id: r.progress.provider_id.clone(),
+            label: r.label.clone(),
+            total: r.progress.total,
+            done: r.progress.done.load(Ordering::Relaxed),
+            failed: r.progress.failed.load(Ordering::Relaxed),
+            skipped: r.progress.skipped.load(Ordering::Relaxed),
+            instances: r.instances.load(Ordering::Relaxed),
+            inflight: r.budget.outstanding.load(Ordering::Relaxed),
+            inflight_limit: r.budget.width,
+            rate_waiting: r.budget.rate_waiting.load(Ordering::Relaxed),
+            retries: r.budget.retries.load(Ordering::Relaxed),
+        })
+        .collect();
+    let mut queries: Vec<QueryActivity> = Vec::new();
+    for q in LIVE_QUERIES.snapshot() {
+        let inflight = q.budget.outstanding.load(Ordering::Relaxed);
+        match queries.iter_mut().find(|a| a.entry == q.entry) {
+            Some(a) => {
+                a.inflight += inflight;
+                a.inflight_limit += q.budget.width;
+            }
+            None => queries.push(QueryActivity {
+                entry: q.entry.clone(),
+                inflight,
+                inflight_limit: q.budget.width,
+            }),
+        }
+    }
+    ProcedureActivity {
+        runs,
+        queries,
+        requests_per_second: fetch_rate(),
+    }
 }
 
 #[cfg(test)]

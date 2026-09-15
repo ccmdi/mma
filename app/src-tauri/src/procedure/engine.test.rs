@@ -2439,3 +2439,123 @@ fn given_rows_do_not_write_to_the_open_map() {
         "patch leaked to the map store: {map_extra}"
     );
 }
+
+// -----------------------------------------------------------------------
+// Activity
+// -----------------------------------------------------------------------
+
+/// Polls the snapshot until `want` holds. Work that never reaches that state answers with
+/// the last snapshot, so the test fails on its assertion rather than hanging.
+fn await_activity(want: impl Fn(&ProcedureActivity) -> bool) -> ProcedureActivity {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let snapshot = procedure_activity();
+        if want(&snapshot) || Instant::now() > deadline {
+            return snapshot;
+        }
+        thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn eight_rows() -> Vec<Location> {
+    (1..=8).map(|i| loc(i, i as f64, 0.0)).collect()
+}
+
+#[test]
+fn a_working_provider_reports_its_requests_in_flight() {
+    let peak = Arc::new(AtomicU32::new(0));
+    let (state, map_id) = setup(&eight_rows());
+    let h = Harness::new(
+        ProcShape::RequestMap,
+        patch_all("{}"),
+        barrier_fetch(u32::MAX, Duration::from_millis(800), peak),
+    );
+    let mut d = decl("activityHeld", BatchMode::PerRow);
+    d.label = Some("Held".into());
+    d.procedure.inflight = Some(4);
+    d.instances = Some(8);
+    let ctx = h.ctx(&state, &map_id);
+
+    let row = thread::scope(|s| {
+        let run = s.spawn(|| run_provider(&ctx, &d));
+        let snapshot = await_activity(|a| {
+            a.runs
+                .iter()
+                .any(|r| r.provider_id == "activityHeld" && r.inflight == 4)
+        });
+        let row = snapshot
+            .runs
+            .into_iter()
+            .find(|r| r.provider_id == "activityHeld");
+        run.join().unwrap().unwrap();
+        row
+    })
+    .expect("the provider is reported while it works");
+
+    assert_eq!(row.label.as_deref(), Some("Held"));
+    assert_eq!(row.total, 8);
+    assert_eq!(row.inflight, 4);
+    assert_eq!(row.inflight_limit, 4);
+    assert!(row.instances > 0, "no instance was counted alive");
+    assert!(
+        procedure_activity()
+            .runs
+            .iter()
+            .all(|r| r.provider_id != "activityHeld"),
+        "the provider outlived its run"
+    );
+}
+
+#[test]
+fn a_query_in_flight_is_reported_under_its_entry() {
+    let peak = Arc::new(AtomicU32::new(0));
+    let deps = query_deps(barrier_fetch(u32::MAX, Duration::from_millis(800), peak));
+    let entry = "res://procedures/activityProbe.js";
+
+    let row = thread::scope(|s| {
+        let run = s.spawn(|| run_query(&deps, &procedure_decl(entry), "{}", &|| false));
+        let snapshot =
+            await_activity(|a| a.queries.iter().any(|q| q.entry == entry && q.inflight == 1));
+        let row = snapshot.queries.into_iter().find(|q| q.entry == entry);
+        run.join().unwrap().unwrap();
+        row
+    })
+    .expect("the query is reported while it runs");
+
+    assert_eq!(row.inflight, 1);
+    assert_eq!(row.inflight_limit, DEFAULT_INFLIGHT);
+    assert!(
+        procedure_activity().queries.iter().all(|q| q.entry != entry),
+        "the query outlived its answer"
+    );
+}
+
+#[test]
+fn a_cancelled_run_leaves_nothing_reported() {
+    let peak = Arc::new(AtomicU32::new(0));
+    let (state, map_id) = setup(&eight_rows());
+    let h = Harness::new(
+        ProcShape::RequestMap,
+        patch_all("{}"),
+        barrier_fetch(u32::MAX, Duration::from_millis(800), peak),
+    );
+    let mut d = decl("activityCancelled", BatchMode::PerRow);
+    d.procedure.inflight = Some(2);
+    d.instances = Some(4);
+    let ctx = h.ctx(&state, &map_id);
+
+    thread::scope(|s| {
+        let run = s.spawn(|| run_provider(&ctx, &d));
+        await_activity(|a| a.runs.iter().any(|r| r.provider_id == "activityCancelled"));
+        h.cancel.store(true, Ordering::Relaxed);
+        run.join().unwrap().unwrap();
+    });
+
+    assert!(
+        procedure_activity()
+            .runs
+            .iter()
+            .all(|r| r.provider_id != "activityCancelled"),
+        "a cancelled run stayed registered"
+    );
+}

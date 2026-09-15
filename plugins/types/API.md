@@ -554,6 +554,11 @@ Use when the underlying data changed but the selections themselves did not.
 
 Tag names for the given ids, skipping any that no longer resolve.
 
+### `tagsNamed(names: string[], tags: Tag[]): Tag[]`
+
+The tags for `names`, in the order the names were given, so a tag list a user built
+keeps its order. Names without a tag are skipped.
+
 ### `toggleTagSelections(tagIds: number[]): void`
 
 Toggle tag selections on/off for the given tags (used by tag-pill clicks).
@@ -1522,6 +1527,10 @@ Open the app's log file in the OS default handler.
 #### `cmd.parseMapsUrl(input: string): Promise<ParsedLocation | null>` *(unstable)*
 
 The location a pasted Maps URL names, short links resolved.
+
+#### `cmd.procedureActivity(): Promise<ProcedureActivity>` *(unstable)*
+
+What the procedure engine is working on right now.
 
 #### `cmd.procedureCancel(runId: number): Promise<null>` *(unstable)*
 

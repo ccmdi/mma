@@ -251,6 +251,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             procedure::engine::procedure_cancel,
             procedure::engine::procedure_query,
             procedure::engine::procedure_query_cancel,
+            procedure::engine::procedure_activity,
         ])
         .events(tauri_specta::collect_events![
             plugins::sidecar::SidecarProgress,
