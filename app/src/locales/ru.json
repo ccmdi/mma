@@ -15,7 +15,7 @@
 	"({size}, will download)": "({size}, будет загружено)",
 	"+ click to select a country outline.": "+ клик, чтобы выбрать контур страны.",
 	", about {distance} apart": ", примерно в {distance} друг от друга",
-	", at least {distance} apart": ", не ближе {distance} м друг от друга",
+	", at least {distance} apart": ", не ближе {distance} друг от друга",
 	", {n} failed": {
 		"one": ", {n} с ошибкой",
 		"few": ", {n} с ошибкой",
