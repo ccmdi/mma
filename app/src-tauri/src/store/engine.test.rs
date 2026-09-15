@@ -3896,7 +3896,7 @@ fn pick_spaced_distance_enforces_threshold() {
     let store = spaced_grid_store();
     let coords = coord_lookup(&store);
     let res = store
-        .pick_spaced(Some(&store.selections.ids), None, Some(250))
+        .pick_spaced(Some(&store.selections.ids), None, Some(250.0))
         .unwrap();
     assert_eq!(res.distance_m, 250);
     assert!(!res.ids.is_empty());
@@ -3908,16 +3908,16 @@ fn pick_spaced_distance_enforces_threshold() {
 fn pick_spaced_arg_validation() {
     let store = spaced_grid_store();
     assert!(
-        store.pick_spaced(None, Some(5), Some(100)).is_err(),
+        store.pick_spaced(None, Some(5), Some(100.0)).is_err(),
         "both set"
     );
     assert!(store.pick_spaced(None, None, None).is_err(), "neither set");
     assert!(
-        store.pick_spaced(None, None, Some(0)).is_err(),
+        store.pick_spaced(None, None, Some(0.0)).is_err(),
         "zero distance"
     );
     assert!(
-        store.pick_spaced(None, None, Some(u32::MAX)).is_err(),
+        store.pick_spaced(None, None, Some(f64::INFINITY)).is_err(),
         "distance above i32::MAX"
     );
 }
@@ -3931,7 +3931,7 @@ fn pick_spaced_empty_selection() {
     assert!(count.ids.is_empty());
     assert_eq!(count.distance_m, 0);
     let dist = store
-        .pick_spaced(Some(&store.selections.ids), None, Some(100))
+        .pick_spaced(Some(&store.selections.ids), None, Some(100.0))
         .unwrap();
     assert!(dist.ids.is_empty());
     assert_eq!(dist.distance_m, 0);

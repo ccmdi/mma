@@ -1032,7 +1032,7 @@ pub fn store_spaced(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
     target_count: Option<u32>,
-    min_distance_m: Option<u32>,
+    min_distance_m: Option<f64>,
 ) -> AppResult<SpacedPickResult> {
     selector_read!(label, state, selector, store: |store, set| store.pick_spaced(
         set,

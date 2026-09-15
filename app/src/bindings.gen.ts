@@ -200,7 +200,7 @@ export const commands = {
 	 *  An evenly spaced subset: exactly one of `target_count` (thin to N, maximizing
 	 *  spacing) or `min_distance_m` (keep as many as fit at that spacing).
 	 */
-	storeSpaced: (selector: Selector, targetCount: number | null, minDistanceM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_spaced", { selector, targetCount, minDistanceM }),
+	storeSpaced: (selector: Selector, targetCount: number | null, minDistanceM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_spaced", { selector, targetCount, minDistanceM: minDistanceM==null?minDistanceM:minDistanceM }),
 	/**
 	 *  An evenly spaced subset laid out on a honeycomb: exactly one of `target_count` (at most
 	 *  N, spaced as widely as that allows) or `spacing_m` (about that far apart, and never

@@ -246,7 +246,7 @@ impl Store {
         &self,
         set: Option<&RoaringBitmap>,
         target_count: Option<u32>,
-        min_distance_m: Option<u32>,
+        min_distance_m: Option<f64>,
     ) -> AppResult<SpacedPickResult> {
         match (target_count, min_distance_m) {
             (Some(_), Some(_)) => {
@@ -259,12 +259,12 @@ impl Store {
                     "pick_spaced: pass exactly one of target_count or min_distance_m",
                 ))
             }
-            (_, Some(0)) => {
+            (_, Some(d)) if !(d > 0.0) => {
                 return Err(AppError::from(
                     "pick_spaced: min_distance_m must be greater than 0",
                 ))
             }
-            (_, Some(d)) if d > i32::MAX as u32 => {
+            (_, Some(d)) if d > i32::MAX as f64 => {
                 return Err(AppError::from("pick_spaced: min_distance_m too large"))
             }
             _ => {}
@@ -287,7 +287,7 @@ impl Store {
             return Ok(SpacedPickResult { ids, distance_m });
         }
 
-        let d = min_distance_m.unwrap() as i32;
+        let d = min_distance_m.unwrap().round().max(1.0) as i32;
         if candidates.is_empty() {
             return Ok(SpacedPickResult {
                 ids: Vec::new(),

@@ -4192,8 +4192,6 @@ declare const DEFAULTS: {
     fullscreenMinimapCloseDelay: number;
     /** @unstable */
     showFullscreenTagbar: boolean;
-    /** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. @unstable */
-    fullscreenTagbarCollapsed: boolean;
     /** @unstable */
     showFullscreenDatePicker: boolean;
     /** @unstable */
@@ -4288,9 +4286,6 @@ declare const DEFAULTS: {
     previewAspectRatio: PreviewAspectRatio;
     /** @unstable */
     tagSuggestionLimit: number;
-    /** Copy-to-map hotkeys that work in every map (assigned in the copy-to-map dialog);
-     *  a map's own binding on the same key shadows them. @unstable */
-    globalCopyBindings: MapKeyBinding[];
     /** Local REST transport for window.MMA (Settings > Advanced). @unstable */
     remoteApi: boolean;
     /** @unstable */
@@ -4338,8 +4333,6 @@ declare const APP_SETTINGS: PersistedStore<{
     /** Milliseconds the fullscreen minimap stays expanded after the pointer leaves it. */
     fullscreenMinimapCloseDelay: number;
     showFullscreenTagbar: boolean;
-    /** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. */
-    fullscreenTagbarCollapsed: boolean;
     showFullscreenDatePicker: boolean;
     showFullscreenReviewBar: boolean;
     showFullscreenGeocode: boolean;
@@ -4401,9 +4394,6 @@ declare const APP_SETTINGS: PersistedStore<{
     subdivisionDetail: SubdivisionDetail;
     previewAspectRatio: PreviewAspectRatio;
     tagSuggestionLimit: number;
-    /** Copy-to-map hotkeys that work in every map (assigned in the copy-to-map dialog);
-     *  a map's own binding on the same key shadows them. */
-    globalCopyBindings: MapKeyBinding[];
     /** Local REST transport for window.MMA (Settings > Advanced). */
     remoteApi: boolean;
     remoteApiKey: string;
@@ -4422,7 +4412,7 @@ declare function panoDisplayOptions(s: AppSettings): {
 };
 /** Update one setting and persist. Emits `settings:changed`. @unstable */
 declare function setSetting<K extends keyof AppSettings>(key: K, value: AppSettings[K]): void;
-/** Reset all settings to defaults, preserving global copy bindings. @unstable */
+/** Reset all settings to defaults. @unstable */
 declare function resetSettings(): void;
 /** React hook: all settings, re-rendering on any change. @unstable */
 declare function useSettings(): AppSettings;
