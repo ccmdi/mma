@@ -1,6 +1,6 @@
 import type { Location } from "@/bindings.gen";
 import type { CameraType } from "@/bindings.consts";
-import type { PanoView } from "@/types";
+import type { LatLng, PanoView } from "@/types";
 
 /** The camera type each `generation` choice asks for. Equality, not rig family: a
  *  "Gen 4" pick excludes trekkers the way a `cameraType` metadata filter does. */
@@ -61,7 +61,10 @@ export interface GeneratorSettings {
 	samplingMode: SamplingMode;
 }
 
-export type SamplingMode = "random" | "poisson" | "blueline" | "kernels";
+export type SamplingMode = "random" | "poisson" | "grid" | "blueline" | "kernels";
+
+/** A region's supply of probe points, drawn `n` at a time; an empty draw means it is used up. */
+export type PointSource = (n: number) => LatLng[];
 
 export type SearchMode = "contains" | "fullword" | "startswith" | "endswith" | "sectionmatch";
 

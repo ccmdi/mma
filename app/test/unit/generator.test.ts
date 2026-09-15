@@ -11,6 +11,8 @@ const h = vi.hoisted(() => ({
 		points.map(() => null),
 	// When set, lookups park here instead of answering at once.
 	work: null as Work | null,
+	gridRuns: [] as { lat: number; lng: number; lngStep: number; count: number }[],
+	gridRequests: [] as number[],
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -19,6 +21,10 @@ vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeFindNearby: () => Promise.resolve(h.seeds),
 		storeNearAny: (lats: number[]) => Promise.resolve(lats.map(() => false)),
+		polygonGrid: (_polygons: unknown, spacingM: number) => {
+			h.gridRequests.push(spacingM);
+			return Promise.resolve(h.gridRuns);
+		},
 	},
 }));
 
@@ -745,5 +751,48 @@ describe("poissonDiskSample", () => {
 		const feature = squareFeature(10, 50, 10.001, 50.001);
 		const points = poissonDiskSample(feature, 5000);
 		expect(points.length).toBeLessThanOrEqual(1);
+	});
+});
+
+// --- Grid sampling ---
+
+import { gridPointSource } from "@/plugins/generator/engine/geo";
+
+const GRID_RUNS = [
+	{ lat: 1, lng: -50, lngStep: 0.5, count: 4 },
+	{ lat: 1.5, lng: -49.75, lngStep: 0.5, count: 3 },
+	{ lat: 2, lng: -50, lngStep: 0.5, count: 1 },
+];
+const GRID_POINTS = GRID_RUNS.flatMap((r) =>
+	Array.from({ length: r.count }, (_, m) => `${r.lat},${r.lng + m * r.lngStep}`),
+);
+const keyOf = (p: { lat: number; lng: number }) => `${p.lat},${p.lng}`;
+
+describe("gridPointSource", () => {
+	it("draws every grid point once across batches, then runs dry", () => {
+		const take = gridPointSource(GRID_RUNS);
+		const drawn = [...take(3), ...take(3), ...take(3)].map(keyOf);
+		expect(drawn.sort()).toEqual([...GRID_POINTS].sort());
+		expect(take(3)).toEqual([]);
+	});
+});
+
+describe("GenerationEngine grid sampling", () => {
+	it("builds one honeycomb radius * sqrt(3) apart and probes each point once across workers", async () => {
+		h.gridRuns = GRID_RUNS;
+		h.gridRequests = [];
+		const probed: string[] = [];
+		emptyProbe((points) => probed.push(...points.map(keyOf)));
+
+		const engine = new GenerationEngine(
+			permissive({ samplingMode: "grid", radius: 500, numGenerators: 3, speed: 2 }),
+			[A()],
+			noopCallbacks,
+		);
+		await engine.start();
+
+		expect(h.gridRequests).toHaveLength(1);
+		expect(h.gridRequests[0]).toBeCloseTo(500 * Math.sqrt(3));
+		expect(probed.sort()).toEqual([...GRID_POINTS].sort());
 	});
 });

@@ -3,7 +3,7 @@
 //! Provides timestamps, color math, hashing, and deterministic tag color
 //! assignment. No I/O, no state -- safe to call from any context.
 
-use crate::types::AppResult;
+use crate::types::{AppError, AppResult};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
@@ -83,6 +83,55 @@ pub fn reveal_window(window: tauri::WebviewWindow, maximized: bool) {
 #[specta::specta]
 pub fn timezone_at(lat: f64, lng: f64) -> Option<String> {
     tz_grid().zone_at(lat, lng).map(str::to_owned)
+}
+
+/// Grid points along one row of a honeycomb: `count` points starting at `lng`, each
+/// `lng_step` degrees east of the one before.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct GridRun {
+    pub lat: f64,
+    pub lng: f64,
+    pub lng_step: f64,
+    pub count: u32,
+}
+
+/// The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
+/// (each an outer ring followed by its holes, as `[lng, lat]` pairs), as runs along each row.
+#[tauri::command]
+#[specta::specta]
+pub async fn polygon_grid(
+    polygons: Vec<Vec<Vec<[f64; 2]>>>,
+    spacing_m: f64,
+) -> AppResult<Vec<GridRun>> {
+    if !(spacing_m.is_finite() && spacing_m >= 1.0) {
+        return Err(AppError::from(
+            "polygon_grid: spacing_m must be at least 1 metre",
+        ));
+    }
+    let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+    let mut any = false;
+    for outer in polygons.iter().filter_map(|p| p.first()) {
+        mma_geo::extend_bbox_with_ring(&mut bb, &mut any, outer);
+    }
+    if !any {
+        return Ok(Vec::new());
+    }
+    let grid = mma_geo::HexGrid::new(
+        (bb[1] + bb[3]) / 2.0,
+        mma_geo::fold_lng((bb[0] + bb[2]) / 2.0, -180.0),
+        spacing_m,
+    );
+    Ok(grid
+        .runs(&polygons)
+        .into_iter()
+        .map(|r| GridRun {
+            lat: r.lat,
+            lng: r.lng,
+            lng_step: r.lng_step,
+            count: r.count,
+        })
+        .collect())
 }
 
 pub fn tz_offset_seconds(tz_name: &str, ts: f64) -> Option<i32> {

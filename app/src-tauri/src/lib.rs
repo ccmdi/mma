@@ -115,6 +115,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             plugins::borders::border_classify,
             net::geocoder::reverse_geocode,
             util::timezone_at,
+            util::polygon_grid,
             util::reveal_window,
             net::presence::discord_presence_set,
             net::presence::discord_presence_clear,

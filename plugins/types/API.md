@@ -1519,6 +1519,11 @@ Open the app's log file in the OS default handler.
 
 The location a pasted Maps URL names, short links resolved.
 
+#### `cmd.polygonGrid(polygons: [number, number][][][], spacingM: number): Promise<GridRun[]>` *(unstable)*
+
+The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
+(each an outer ring followed by its holes, as `[lng, lat]` pairs), as runs along each row.
+
 #### `cmd.procedureCancel(runId: number): Promise<null>` *(unstable)*
 
 Stop a run before its next batch. Already-applied patches stay applied.
@@ -2458,9 +2463,8 @@ Entry point of a procedure this app bundles. Plugins ship their own paths.
 
 ### `queryProcedure<T = unknown>(spec: ProcedureSpec<unknown, unknown>, input: unknown, signal?: AbortSignal | undefined): Promise<T>`
 
-Ask a procedure a read-only question, within the same `inflight`, `rate` and `retry` a run
-of it gets. Rejects when the procedure exports no `query`, when the call fails, or when
-`signal` aborts.
+Ask a procedure a read-only question under its declared network limits. Rejects when it
+exports no `query`, when the call fails, or when `signal` aborts.
 
 ### `resolveFieldLabels(field: string, keys: string[], key?: KeySpec | undefined): Promise<string[]>`
 

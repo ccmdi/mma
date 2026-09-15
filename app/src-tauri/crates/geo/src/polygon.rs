@@ -152,6 +152,18 @@ impl<'a> PreparedRing<'a> {
         if lng > self.bb[2] || lat < self.bb[1] || lat > self.bb[3] {
             return false;
         }
+        self.crossings(lat).filter(|&x| lng < x).count() % 2 == 1
+    }
+
+    /// `[min_lng, min_lat, max_lng, max_lat]` in the unwrapped ring's frame.
+    pub fn bbox(&self) -> [f64; 4] {
+        self.bb
+    }
+
+    /// Longitudes, in the unwrapped ring's frame, where the parallel at `lat` crosses the
+    /// ring, by the same half-open rule `contains` counts.
+    #[inline]
+    pub fn crossings(&self, lat: f64) -> impl Iterator<Item = f64> + '_ {
         let band = if self.band_height.is_infinite() {
             0
         } else {
@@ -159,19 +171,15 @@ impl<'a> PreparedRing<'a> {
         };
         let ring = &self.ring;
         let n = ring.len();
-        let mut inside = false;
-        for &i in
-            &self.band_edges[self.band_start[band] as usize..self.band_start[band + 1] as usize]
-        {
-            let i = i as usize;
-            let j = if i == 0 { n - 1 } else { i - 1 };
-            let [xi, yi] = ring[i];
-            let [xj, yj] = ring[j];
-            if ((yi > lat) != (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi) {
-                inside = !inside;
-            }
-        }
-        inside
+        self.band_edges[self.band_start[band] as usize..self.band_start[band + 1] as usize]
+            .iter()
+            .filter_map(move |&i| {
+                let i = i as usize;
+                let j = if i == 0 { n - 1 } else { i - 1 };
+                let [xi, yi] = ring[i];
+                let [xj, yj] = ring[j];
+                ((yi > lat) != (yj > lat)).then(|| (xj - xi) * (lat - yi) / (yj - yi) + xi)
+            })
     }
 }
 

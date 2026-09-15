@@ -502,6 +502,12 @@ declare const commands$1: {
     /**  IANA timezone at a coordinate, or `None` outside the valid range. @unstable */
     timezoneAt: (lat: number, lng: number) => Promise<string | null>;
     /**
+     *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
+     *  (each an outer ring followed by its holes, as `[lng, lat]` pairs), as runs along each row.
+     *  @unstable
+     */
+    polygonGrid: (polygons: ((([number, number])[])[])[], spacingM: number) => Promise<GridRun[]>;
+    /**
      *  Reveal with the native open animation: a true first show() (DWM plays its pop-in),
      *  then maximize back-to-back while the shell is still blank. The show must come first:
      *  maximize on a hidden window reveals it without setting tao's visible flag, and the
@@ -1494,6 +1500,16 @@ type GgUser = {
 type GhUser = {
     login: string;
     avatarUrl: string | null;
+};
+/**
+ *  Grid points along one row of a honeycomb: `count` points starting at `lng`, each
+ *  `lng_step` degrees east of the one before.
+ */
+type GridRun = {
+    lat: number;
+    lng: number;
+    lngStep: number;
+    count: number;
 };
 type IdQuery = {
     panoId: string;
@@ -5468,9 +5484,8 @@ declare namespace fieldDefRegistry {
 
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. */
 declare const procedureEntry: (name: string) => string;
-/** Ask a procedure a read-only question, within the same `inflight`, `rate` and `retry` a run
- *  of it gets. Rejects when the procedure exports no `query`, when the call fails, or when
- *  `signal` aborts. */
+/** Ask a procedure a read-only question under its declared network limits. Rejects when it
+ *  exports no `query`, when the call fails, or when `signal` aborts. */
 declare function queryProcedure<T = unknown>(spec: ProcedureSpec, input: unknown, signal?: AbortSignal): Promise<T>;
 /** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
  *  become locale month names; otherwise falls back to the keys themselves when the field's
@@ -6506,4 +6521,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, GridRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

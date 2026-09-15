@@ -3,11 +3,15 @@ import type {
 	GeneratorRegion,
 	GeneratedLocation,
 	GenerationCallbacks,
+	PointSource,
+	SamplingMode,
 } from "./types";
 import {
 	randomPointInBounds,
 	getBoundingBox,
+	gridPointSource,
 	pointInGeoJsonGeometry,
+	pointsInOrder,
 	poissonDiskSample,
 } from "./geo";
 import { blueLineSample } from "./blueLineSampler";
@@ -45,10 +49,7 @@ export class GenerationEngine {
 	private globalFoundPanoIds = new Set<string>();
 	private pendingBatch: GeneratedLocation[] = [];
 	private flushTimer: ReturnType<typeof setTimeout> | null = null;
-	private poissonPoints = new Map<string, LatLng[]>();
-	private poissonIndex = new Map<string, number>();
-	private bluelinePoints = new Map<string, LatLng[]>();
-	private bluelineIndex = new Map<string, number>();
+	private pointSources = new Map<string, Promise<PointSource>>();
 
 	constructor(
 		settings: GeneratorSettings,
@@ -239,90 +240,76 @@ export class GenerationEngine {
 
 	private async generateRegion(region: GeneratorRegion): Promise<void> {
 		const mode = this.settings.samplingMode;
-		if (mode === "poisson") await this.generateRegionPoisson(region);
-		else if (mode === "blueline") await this.generateRegionBlueline(region);
-		else if (mode === "kernels") await this.generateRegionKernels(region);
-		else await this.generateRegionRandom(region);
+		if (mode === "kernels") await this.generateRegionKernels(region);
+		else if (mode === "random") await this.generateRegionRandom(region);
+		else await this.generateRegionFrom(region, mode);
 
 		region.isProcessing = false;
 		this.callbacks.onRegionComplete(region.id);
 	}
 
-	private async generateRegionPoisson(region: GeneratorRegion): Promise<void> {
-		if (!this.poissonPoints.has(region.id)) {
-			const points = poissonDiskSample(region.feature, 2 * this.settings.radius);
-			this.poissonPoints.set(region.id, points);
-			this.poissonIndex.set(region.id, 0);
-			log.info(`[generator] Poisson disk: ${points.length} probes for ${region.name}`);
+	/** Probes a region's points in batches until they run out. Every worker on the region
+	 *  draws from the one supply, so no point is probed twice. */
+	private async generateRegionFrom(
+		region: GeneratorRegion,
+		mode: Exclude<SamplingMode, "random" | "kernels">,
+	): Promise<void> {
+		let source = this.pointSources.get(region.id);
+		if (!source) {
+			source = this.pointSource(region, mode);
+			this.pointSources.set(region.id, source);
 		}
-		const allPoints = this.poissonPoints.get(region.id)!;
+		const take = await source;
 
 		while (await this.proceed(region)) {
 			region.isProcessing = true;
-			const startIdx = this.poissonIndex.get(region.id) ?? 0;
-			const endIdx = Math.min(startIdx + this.settings.speed, allPoints.length);
-			this.poissonIndex.set(region.id, endIdx);
-			let coords = allPoints.slice(startIdx, endIdx);
-			if (coords.length === 0) break;
-
-			if (this.settings.skipExisting) {
-				try {
-					// eslint-disable-next-line local/no-ipc-in-loop -- bulk form: one IPC per batch
-					const near = await cmd.storeNearAny(
-						coords.map((c) => c.lat),
-						coords.map((c) => c.lng),
-						this.settings.skipExistingRadius,
-					);
-					coords = coords.filter((_, i) => !near[i]);
-				} catch (e) {
-					log.warn("[generator] storeNearAny failed, probing unfiltered:", e);
-				}
-			}
+			const batch = take(this.settings.speed);
+			if (batch.length === 0) break;
+			const coords = await this.withoutExisting(batch);
 			if (coords.length === 0) continue;
-
 			await this.probeAll(coords, region);
 		}
 
-		this.poissonPoints.delete(region.id);
-		this.poissonIndex.delete(region.id);
+		this.pointSources.delete(region.id);
 	}
 
-	private async generateRegionBlueline(region: GeneratorRegion): Promise<void> {
-		if (!this.bluelinePoints.has(region.id)) {
-			const points = await blueLineSample(region.feature);
-			this.bluelinePoints.set(region.id, points);
-			this.bluelineIndex.set(region.id, 0);
+	private async pointSource(
+		region: GeneratorRegion,
+		mode: Exclude<SamplingMode, "random" | "kernels">,
+	): Promise<PointSource> {
+		if (mode === "blueline") return pointsInOrder(await blueLineSample(region.feature));
+		if (mode === "poisson") {
+			const points = poissonDiskSample(region.feature, 2 * this.settings.radius);
+			log.info(`[generator] Poisson disk: ${points.length} probes for ${region.name}`);
+			return pointsInOrder(points);
 		}
-		const allPoints = this.bluelinePoints.get(region.id)!;
+		const { geometry } = region.feature;
+		const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+		// Discs of the search radius cover the plane with no gaps when their centers form a honeycomb radius * sqrt(3) apart.
+		const runs = await cmd.polygonGrid(
+			polygons as [number, number][][][],
+			this.settings.radius * Math.sqrt(3),
+		);
+		log.info(
+			`[generator] Grid: ${runs.reduce((n, run) => n + run.count, 0)} probes for ${region.name}`,
+		);
+		return gridPointSource(runs);
+	}
 
-		while (await this.proceed(region)) {
-			region.isProcessing = true;
-			const startIdx = this.bluelineIndex.get(region.id) ?? 0;
-			const endIdx = Math.min(startIdx + this.settings.speed, allPoints.length);
-			this.bluelineIndex.set(region.id, endIdx);
-			let coords = allPoints.slice(startIdx, endIdx);
-			if (coords.length === 0) break;
-
-			if (this.settings.skipExisting) {
-				try {
-					// eslint-disable-next-line local/no-ipc-in-loop -- bulk form: one IPC per batch
-					const near = await cmd.storeNearAny(
-						coords.map((c) => c.lat),
-						coords.map((c) => c.lng),
-						this.settings.skipExistingRadius,
-					);
-					coords = coords.filter((_, i) => !near[i]);
-				} catch (e) {
-					log.warn("[generator] storeNearAny failed, probing unfiltered:", e);
-				}
-			}
-			if (coords.length === 0) continue;
-
-			await this.probeAll(coords, region);
+	/** With skip-existing on, drops the points that already have a location within its radius. */
+	private async withoutExisting(coords: LatLng[]): Promise<LatLng[]> {
+		if (!this.settings.skipExisting) return coords;
+		try {
+			const near = await cmd.storeNearAny(
+				coords.map((c) => c.lat),
+				coords.map((c) => c.lng),
+				this.settings.skipExistingRadius,
+			);
+			return coords.filter((_, i) => !near[i]);
+		} catch (e) {
+			log.warn("[generator] storeNearAny failed, probing unfiltered:", e);
+			return coords;
 		}
-
-		this.bluelinePoints.delete(region.id);
-		this.bluelineIndex.delete(region.id);
 	}
 
 	private async generateRegionKernels(region: GeneratorRegion): Promise<void> {
@@ -431,17 +418,7 @@ export class GenerationEngine {
 				}
 			}
 			if (this.settings.skipExisting && randomCoords.length > 0) {
-				try {
-					// eslint-disable-next-line local/no-ipc-in-loop -- bulk form: one IPC per batch
-					const near = await cmd.storeNearAny(
-						randomCoords.map((c) => c.lat),
-						randomCoords.map((c) => c.lng),
-						this.settings.skipExistingRadius,
-					);
-					randomCoords = randomCoords.filter((_, i) => !near[i]);
-				} catch (e) {
-					log.warn("[generator] storeNearAny failed, probing unfiltered:", e);
-				}
+				randomCoords = await this.withoutExisting(randomCoords);
 				if (randomCoords.length === 0) {
 					if (++coveredRounds >= 20) break;
 					continue;

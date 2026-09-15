@@ -86,6 +86,11 @@ export const commands = {
 	/**  IANA timezone at a coordinate, or `None` outside the valid range. */
 	timezoneAt: (lat: number, lng: number) => __TAURI_INVOKE<string | null>("timezone_at", { lat, lng }),
 	/**
+	 *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
+	 *  (each an outer ring followed by its holes, as `[lng, lat]` pairs), as runs along each row.
+	 */
+	polygonGrid: (polygons: ((([number, number])[])[])[], spacingM: number) => __TAURI_INVOKE<GridRun[]>("polygon_grid", { polygons: polygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i)))), spacingM }).then((v) => (v.map(i=>i) as typeof v)),
+	/**
 	 *  Reveal with the native open animation: a true first show() (DWM plays its pop-in),
 	 *  then maximize back-to-back while the shell is still blank. The show must come first:
 	 *  maximize on a hidden window reveals it without setting tao's visible flag, and the
@@ -849,6 +854,17 @@ export type GgUser = {
 export type GhUser = {
 	login: string,
 	avatarUrl: string | null,
+};
+
+/**
+ *  Grid points along one row of a honeycomb: `count` points starting at `lng`, each
+ *  `lng_step` degrees east of the one before.
+ */
+export type GridRun = {
+	lat: number,
+	lng: number,
+	lngStep: number,
+	count: number,
 };
 
 export type IdQuery = {

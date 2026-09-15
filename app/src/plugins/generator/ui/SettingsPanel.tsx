@@ -330,6 +330,7 @@ export function SettingsPanel({
 						options={[
 							{ value: "random", label: t("Random") },
 							{ value: "poisson", label: t("Uniform") },
+							{ value: "grid", label: t("Grid") },
 							{ value: "blueline", label: t("Coverage") },
 							{ value: "kernels", label: t("Grow") },
 						]}
