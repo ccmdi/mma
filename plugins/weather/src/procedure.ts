@@ -5,6 +5,7 @@
 // domain `extra.datetime` is already in.
 
 import type {
+	ProcedureConfig,
 	ProcedureRequest,
 	ProcedureResponse,
 	Location,
@@ -28,14 +29,11 @@ const HOURLY: [string, string][] = [
 	["windSpeed10m", "wind_speed_10m"],
 ];
 
-/** The `extra` keys the run wants; null until configured, meaning no filtering. */
-let fields: Set<string> | null = null;
-
-export function configure(cfg: { fields?: string[] } | null): void {
-	fields = Array.isArray(cfg?.fields) ? new Set(cfg.fields) : null;
+/** The hourly variables the run wants, in request order; every one when `fields` is empty. */
+function wanted(cfg: ProcedureConfig<unknown>): [string, string][] {
+	const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
+	return HOURLY.filter(([key]) => fields === null || fields.has(key));
 }
-
-const enabled = (key: string) => fields === null || fields.has(key);
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
 
@@ -55,7 +53,7 @@ function usableSeconds(row: Location): number | null {
 	return secs;
 }
 
-export function request(rows: Location[]): ProcedureRequest {
+export function request(rows: Location[], cfg: ProcedureConfig<unknown>): ProcedureRequest {
 	const lat: string[] = [];
 	const lng: string[] = [];
 	const dates: string[] = [];
@@ -66,7 +64,7 @@ export function request(rows: Location[]): ProcedureRequest {
 		lng.push(String(row.lng));
 		dates.push(utcParts(secs).date);
 	}
-	const hourly = HOURLY.filter(([key]) => enabled(key))
+	const hourly = wanted(cfg)
 		.map(([, param]) => param)
 		.join(",");
 	const joined = dates.join(",");
@@ -92,7 +90,12 @@ function parseResults(body: string): { hourly?: Hourly }[] {
 
 const decoder = new TextDecoder();
 
-export function map(rows: Location[], response: ProcedureResponse): Update<LocationPatch>[] {
+export function map(
+	rows: Location[],
+	response: ProcedureResponse,
+	cfg: ProcedureConfig<unknown>,
+): Update<LocationPatch>[] {
+	const hourlyWanted = wanted(cfg);
 	if (response.status !== 200) {
 		for (const row of rows) mma.fail(row.id);
 		return [];
@@ -119,8 +122,7 @@ export function map(rows: Location[], response: ProcedureResponse): Update<Locat
 		}
 
 		const patch: Record<string, unknown> = {};
-		for (const [key, param] of HOURLY) {
-			if (!enabled(key)) continue;
+		for (const [key, param] of hourlyWanted) {
 			const series = hourly[param];
 			if (!Array.isArray(series) || idx >= series.length) continue;
 			const value = series[idx];

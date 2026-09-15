@@ -1,23 +1,21 @@
 // Sun position, MapOnly: pure compute over lat/lng and `extra.datetime`.
 
 import SunCalc from "suncalc";
-import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "mma-plugin-types";
+import type {
+	Location,
+	ProcedureConfig,
+	Update,
+	LocationPatch_Deserialize as LocationPatch,
+} from "mma-plugin-types";
 
 const DEG = 180 / Math.PI;
 const MAX_TIME_MS = 8.64e15; // JS Date range; beyond it Date is invalid
 
-/** The `extra` keys the run wants; null until configured, meaning no filtering. */
-let fields: Set<string> | null = null;
-
-export function configure(cfg: { fields?: string[] } | null): void {
-	fields = Array.isArray(cfg?.fields) ? new Set(cfg.fields) : null;
-}
-
-const enabled = (key: string) => fields === null || fields.has(key);
-
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
-export function map(rows: Location[]): Update<LocationPatch>[] {
+export function map(rows: Location[], cfg: ProcedureConfig<unknown>): Update<LocationPatch>[] {
+	const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
+	const enabled = (key: string) => fields === null || fields.has(key);
 	const wantAz = enabled("sunAzimuth");
 	const wantAlt = enabled("sunAltitude");
 	if (!wantAz && !wantAlt) return [];

@@ -209,13 +209,10 @@ var require_suncalc = __commonJS({
 var import_suncalc = __toESM(require_suncalc());
 var DEG = 180 / Math.PI;
 var MAX_TIME_MS = 864e13;
-var fields = null;
-function configure(cfg) {
-  fields = Array.isArray(cfg?.fields) ? new Set(cfg.fields) : null;
-}
-var enabled = (key) => fields === null || fields.has(key);
 var round2 = (v) => Math.round(v * 100) / 100;
-function map(rows) {
+function map(rows, cfg) {
+  const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
+  const enabled = (key) => fields === null || fields.has(key);
   const wantAz = enabled("sunAzimuth");
   const wantAlt = enabled("sunAltitude");
   if (!wantAz && !wantAlt) return [];
@@ -240,6 +237,5 @@ function map(rows) {
   return out;
 }
 export {
-  configure,
   map
 };

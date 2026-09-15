@@ -7,14 +7,13 @@ import assert from "node:assert/strict";
 const failed = [];
 globalThis.mma = { fail: (id) => failed.push(id), log: () => {} };
 
-const { map, configure } = await import(new URL("../procedure.js", import.meta.url).href);
+const { map } = await import(new URL("../procedure.js", import.meta.url).href);
 
 const row = (id, lat, lng, extra = { datetime: 1719835200 }) => ({ id, lat, lng, extra });
 
 function runMap(rows, fields = null) {
 	failed.length = 0;
-	configure(fields === null ? null : { fields, force: false, config: null });
-	const patches = map(rows);
+	const patches = map(rows, { fields: fields ?? [], force: false, config: null });
 	for (const p of patches) {
 		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
 	}

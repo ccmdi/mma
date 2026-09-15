@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 const failed = [];
 globalThis.mma = { fail: (id) => failed.push(id), log: () => {} };
 
-const { request, map, configure } = await import(new URL("../procedure.js", import.meta.url).href);
+const { request, map } = await import(new URL("../procedure.js", import.meta.url).href);
 
 // --- the JS builder, kept verbatim as the URL parity reference -----------------
 
@@ -66,19 +66,15 @@ function toRows(locs) {
 	}));
 }
 
-function apply(fields) {
-	configure(fields === null ? null : { fields, force: false, config: null });
-}
+const cfg = (fields) => ({ fields: fields ?? [], force: false, config: null });
 
 function runRequest(locs, fields = null) {
-	apply(fields);
-	return request(toRows(locs));
+	return request(toRows(locs), cfg(fields));
 }
 
 function runMap(locs, status, body, fields = null) {
-	apply(fields);
 	failed.length = 0;
-	const patches = map(toRows(locs), { status, body: new TextEncoder().encode(body) });
+	const patches = map(toRows(locs), { status, body: new TextEncoder().encode(body) }, cfg(fields));
 	for (const p of patches) {
 		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
 	}

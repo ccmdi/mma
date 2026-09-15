@@ -11,11 +11,10 @@ var HOURLY = [
   ["sunshineDuration", "sunshine_duration"],
   ["windSpeed10m", "wind_speed_10m"]
 ];
-var fields = null;
-function configure(cfg) {
-  fields = Array.isArray(cfg?.fields) ? new Set(cfg.fields) : null;
+function wanted(cfg) {
+  const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
+  return HOURLY.filter(([key]) => fields === null || fields.has(key));
 }
-var enabled = (key) => fields === null || fields.has(key);
 var pad2 = (n) => String(n).padStart(2, "0");
 function utcParts(secs) {
   const d = new Date(Math.trunc(secs * 1e3));
@@ -29,7 +28,7 @@ function usableSeconds(row) {
   if (!isFinite(ms) || Math.abs(ms) > MAX_TIME_MS) return null;
   return secs;
 }
-function request(rows) {
+function request(rows, cfg) {
   const lat = [];
   const lng = [];
   const dates = [];
@@ -40,7 +39,7 @@ function request(rows) {
     lng.push(String(row.lng));
     dates.push(utcParts(secs).date);
   }
-  const hourly = HOURLY.filter(([key]) => enabled(key)).map(([, param]) => param).join(",");
+  const hourly = wanted(cfg).map(([, param]) => param).join(",");
   const joined = dates.join(",");
   return {
     method: "GET",
@@ -52,7 +51,8 @@ function parseResults(body) {
   return Array.isArray(parsed) ? parsed : [parsed];
 }
 var decoder = new TextDecoder();
-function map(rows, response) {
+function map(rows, response, cfg) {
+  const hourlyWanted = wanted(cfg);
   if (response.status !== 200) {
     for (const row of rows) mma.fail(row.id);
     return [];
@@ -77,8 +77,7 @@ function map(rows, response) {
       continue;
     }
     const patch = {};
-    for (const [key, param] of HOURLY) {
-      if (!enabled(key)) continue;
+    for (const [key, param] of hourlyWanted) {
       const series = hourly[param];
       if (!Array.isArray(series) || idx >= series.length) continue;
       const value = series[idx];
@@ -90,7 +89,6 @@ function map(rows, response) {
   return out;
 }
 export {
-  configure,
   map,
   request
 };
