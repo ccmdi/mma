@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const h = vi.hoisted(() => ({
 	sampledSelectors: [] as unknown[],
 	spacedSelectors: [] as unknown[],
+	evenSelectors: [] as unknown[],
 }));
 
 vi.mock("@/lib/commands", async () => {
@@ -46,6 +47,11 @@ vi.mock("@/lib/commands", async () => {
 			const pool = poolOf(selector);
 			return { ids: pool.slice(0, targetCount ?? pool.length), distanceM: 100 };
 		},
+		storeEvenlySpaced: async (selector: TestSelector, targetCount: number | null) => {
+			h.evenSelectors.push(selector);
+			const pool = poolOf(selector);
+			return { ids: pool.slice(0, targetCount ?? pool.length), distanceM: 250 };
+		},
 	};
 	return cmdProxy(handlers as Record<string, (...args: unknown[]) => unknown>);
 });
@@ -57,6 +63,7 @@ import {
 	resetSelections,
 	selectRandomFromSelection,
 	selectSpacedFromSelection,
+	selectEvenlySpacedFromSelection,
 	getMapState,
 } from "@/store/useMapStore";
 import { addSelection, batch } from "@/store/selections";
@@ -87,6 +94,7 @@ beforeEach(async () => {
 	await resetSelections();
 	h.sampledSelectors = [];
 	h.spacedSelectors = [];
+	h.evenSelectors = [];
 });
 
 describe("random pick, per selection", () => {
@@ -176,5 +184,34 @@ describe("spaced pick, per selection", () => {
 
 		expect(h.spacedSelectors).toEqual([sent]);
 		expect(distanceM).toBe(100);
+	});
+});
+
+describe("evenly spaced pick, per selection", () => {
+	it("runs once per selection on its own command and claims no spacing across them", async () => {
+		await addSelections([
+			{ type: "Tag", tagId: 1 },
+			{ type: "Tag", tagId: 3 },
+		]);
+
+		const { picked, distanceM } = await selectEvenlySpacedFromSelection({ count: 2 }, true);
+
+		expect(h.evenSelectors).toEqual([
+			{ type: "Tag", tagId: 1 },
+			{ type: "Tag", tagId: 3 },
+		]);
+		expect(h.spacedSelectors).toEqual([]);
+		expect(picked).toBe(4);
+		expect(distanceM).toBe(0);
+	});
+
+	it("reports the spacing of a whole-selection pick", async () => {
+		await addSelections([{ type: "Tag", tagId: 1 }]);
+		const sent = unionOfActive();
+
+		const { distanceM } = await selectEvenlySpacedFromSelection({ spacingM: 250 }, false);
+
+		expect(h.evenSelectors).toEqual([sent]);
+		expect(distanceM).toBe(250);
 	});
 });

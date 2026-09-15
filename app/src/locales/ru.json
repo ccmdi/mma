@@ -14,6 +14,7 @@
 	"({n} without country data)": "({n} без данных о стране)",
 	"({size}, will download)": "({size}, будет загружено)",
 	"+ click to select a country outline.": "+ клик, чтобы выбрать контур страны.",
+	", about {distance} apart": ", примерно в {distance} друг от друга",
 	", at least {distance} apart": ", не ближе {distance} м друг от друга",
 	", {n} failed": {
 		"one": ", {n} с ошибкой",
@@ -889,6 +890,7 @@
 	"Pick": "Выбрать",
 	"Pick a tag, then click headings to link it.": "Выберите тег, затем щёлкайте по заголовкам, чтобы связать его.",
 	"Pick color": "Выбрать цвет",
+	"Pick evenly spaced locations from selection": "Выбрать равномерно распределённые локации из выборки",
 	"Pick random locations from selection": "Выбрать случайные локации из выборки",
 	"Pin": "Закрепить",
 	"Pin current section": "Закрепить текущий раздел",
@@ -1227,6 +1229,7 @@
 	"Something is broken": "Что-то не работает",
 	"Sort tags": "Сортировка тегов",
 	"South America": "Южная Америка",
+	"Spacing ({unit})": "Шаг ({unit})",
 	"Specific Panorama": "Конкретная панорама",
 	"Speed": "Скорость",
 	"Spin 180°": "Развернуться на 180°",

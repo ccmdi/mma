@@ -153,6 +153,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             store::commands::store_count,
             store::commands::store_sample,
             store::commands::store_spaced,
+            store::commands::store_evenly_spaced,
             store::commands::store_group_by,
             store::commands::store_count_by,
             store::commands::store_values,

@@ -13,7 +13,7 @@ mod grid;
 mod hex;
 mod polygon;
 pub use grid::SpatialIndex;
-pub use hex::{GridRun, HexGrid};
+pub use hex::{GridRun, HexGrid, HexNode};
 pub use polygon::*;
 
 pub const EARTH_R_M: f64 = 6_371_000.0;

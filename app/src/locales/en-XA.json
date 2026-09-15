@@ -14,6 +14,7 @@
 	"({n} without country data)": "[({n} ŵîţĥöüţ çöüñţŕý ðåţå) åéîöüåéîöü]",
 	"({size}, will download)": "[({size}, ŵîĺĺ ðöŵñĺöåð) åéîöüåé]",
 	"+ click to select a country outline.": "[+ çĺîçķ ţö şéĺéçţ å çöüñţŕý öüţĺîñé. åéîöüåéîöüåéîöü]",
+	", about {distance} apart": "[, åƀöüţ {distance} åƥåŕţ åéîöüå]",
 	", at least {distance} apart": "[, åţ ĺéåşţ {distance} åƥåŕţ åéîöüåé]",
 	", {n} failed": {
 		"one": "[, {n} ƒåîĺéð åéîö]",
@@ -851,6 +852,7 @@
 	"Pick": "[Ƥîçķ åé]",
 	"Pick a tag, then click headings to link it.": "[Ƥîçķ å ţåǧ, ţĥéñ çĺîçķ ĥéåðîñǧş ţö ĺîñķ îţ. åéîöüåéîöüåéîöüåéî]",
 	"Pick color": "[Ƥîçķ çöĺöŕ åéîö]",
+	"Pick evenly spaced locations from selection": "[Ƥîçķ éṽéñĺý şƥåçéð ĺöçåţîöñş ƒŕöɱ şéĺéçţîöñ åéîöüåéîöüåéîöüåéî]",
 	"Pick random locations from selection": "[Ƥîçķ ŕåñðöɱ ĺöçåţîöñş ƒŕöɱ şéĺéçţîöñ åéîöüåéîöüåéîöü]",
 	"Pin": "[Ƥîñ åé]",
 	"Pin current section": "[Ƥîñ çüŕŕéñţ şéçţîöñ åéîöüåéî]",
@@ -1159,6 +1161,7 @@
 	"Something is broken": "[Şöɱéţĥîñǧ îş ƀŕöķéñ åéîöüåéî]",
 	"Sort tags": "[Şöŕţ ţåǧş åéîö]",
 	"South America": "[Şöüţĥ Åɱéŕîçå åéîöüå]",
+	"Spacing ({unit})": "[Şƥåçîñǧ ({unit}) åéîö]",
 	"Specific Panorama": "[Şƥéçîƒîç Ƥåñöŕåɱå åéîöüåé]",
 	"Speed": "[Şƥééð åé]",
 	"Spin 180°": "[Şƥîñ 180° åéîö]",

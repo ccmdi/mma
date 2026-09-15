@@ -147,3 +147,45 @@ fn a_row_at_the_pole_holds_one_point() {
     let grid = HexGrid::new(90.0, 0.0, 1000.0);
     assert_eq!(grid.row(0).lng_step, 360.0);
 }
+
+#[test]
+fn nearest_is_the_closest_grid_point() {
+    let grid = HexGrid::new(48.0, 2.0, 800.0);
+    let nodes: Vec<(f64, f64)> = (-20..=20)
+        .flat_map(|index| {
+            let row = grid.row(index);
+            let lng0 = grid.lng;
+            (-25..=25).map(move |col| (row.lat, lng0 + (col as f64 + row.phase) * row.lng_step))
+        })
+        .collect();
+    let mut seed = 0x2545_f491_u32;
+    let mut next = move || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (seed >> 8) as f64 / (1u32 << 24) as f64
+    };
+    for _ in 0..2000 {
+        let (lat, lng) = (47.92 + next() * 0.16, 1.88 + next() * 0.24);
+        let node = grid.nearest(lat, lng);
+        let got = haversine_m(lat, lng, node.lat, node.lng);
+        let closest = nodes
+            .iter()
+            .map(|&(nlat, nlng)| haversine_m(lat, lng, nlat, nlng))
+            .fold(f64::INFINITY, f64::min);
+        assert!(
+            got <= closest + 1e-6,
+            "({lng}, {lat}): nearest is {got}m away, the closest grid point {closest}m"
+        );
+    }
+}
+
+#[test]
+fn every_run_point_is_its_own_nearest_grid_point() {
+    let grid = HexGrid::new(50.15, 10.2, 700.0);
+    for (lat, lng) in points(&grid.runs(&[vec![square(10.0, 50.0, 10.4, 50.3)]])) {
+        let node = grid.nearest(lat, lng);
+        assert!(
+            (node.lat - lat).abs() < 1e-9 && (node.lng - lng).abs() < 1e-9,
+            "({lng}, {lat}) snaps to {node:?}"
+        );
+    }
+}

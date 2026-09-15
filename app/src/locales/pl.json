@@ -14,6 +14,7 @@
 	"({n} without country data)": "({n} bez danych o kraju)",
 	"({size}, will download)": "({size}, zostanie pobrane)",
 	"+ click to select a country outline.": "+ kliknięcie, aby zaznaczyć obrys kraju.",
+	", about {distance} apart": ", oddalone o około {distance}",
 	", at least {distance} apart": ", oddalone o co najmniej {distance}",
 	", {n} failed": {
 		"one": ", {n} nieudana",
@@ -889,6 +890,7 @@
 	"Pick": "Wybierz",
 	"Pick a tag, then click headings to link it.": "Wybierz tag, a następnie klikaj nagłówki, aby go powiązać.",
 	"Pick color": "Wybierz kolor",
+	"Pick evenly spaced locations from selection": "Wybierz równomiernie rozmieszczone lokalizacje z zaznaczenia",
 	"Pick random locations from selection": "Wybierz losowe lokalizacje z zaznaczenia",
 	"Pin": "Przypnij",
 	"Pin current section": "Przypnij bieżącą sekcję",
@@ -1227,6 +1229,7 @@
 	"Something is broken": "Coś nie działa",
 	"Sort tags": "Sortuj tagi",
 	"South America": "Ameryka Południowa",
+	"Spacing ({unit})": "Odstęp ({unit})",
 	"Specific Panorama": "Konkretna panorama",
 	"Speed": "Prędkość",
 	"Spin 180°": "Obróć o 180°",

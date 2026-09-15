@@ -31,7 +31,7 @@ const USE_SYNC_EXTERNAL_STORE_BAN = {
 };
 
 const QUERY_COMMANDS =
-	"/^store(Resolve|Count|CountBy|Bounds|Sample|Spaced|Values|Coverage|Columns|GroupBy|Collect)$/";
+	"/^store(Resolve|Count|CountBy|Bounds|Sample|Spaced|EvenlySpaced|Values|Coverage|Columns|GroupBy|Collect)$/";
 
 /** The store's query surface is named vocabulary, not raw IPC: `fieldCoverage`, not
  *  `cmd.storeCoverage`. Only useMapStore may reach past the wrappers. */

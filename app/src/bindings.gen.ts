@@ -206,6 +206,12 @@ export const commands = {
 	 *  spacing) or `min_distance_m` (keep as many as fit at that spacing).
 	 */
 	storeSpaced: (selector: Selector, targetCount: number | null, minDistanceM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_spaced", { selector, targetCount, minDistanceM }),
+	/**
+	 *  An evenly spaced subset laid out on a honeycomb: exactly one of `target_count` (at most
+	 *  N, spaced as widely as that allows) or `spacing_m` (about that far apart, and never
+	 *  closer than half of it).
+	 */
+	storeEvenlySpaced: (selector: Selector, targetCount: number | null, spacingM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_evenly_spaced", { selector, targetCount, spacingM: spacingM==null?spacingM:spacingM }),
 	/**  Group by a derived key, returning `{ key, ids, bin }` per group. */
 	storeGroupBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<PartitionBucket[]>("store_group_by", { selector, field, key }).then((v) => (v.map(i=>({...i,bin:i.bin==null?i.bin:i.bin.map(i=>i)})) as typeof v)),
 	/**  Group locations by a derived key, returning counts only (no member ids). */
@@ -1797,10 +1803,7 @@ export type SidecarProgress = {
 };
 
 
-/**
- *  `pick_spaced`'s answer: the picked ids plus the spacing achieved (count mode) or
- *  enforced (distance mode).
- */
+/**  A spaced pick's answer: the picked ids plus the spacing they were picked at. */
 export type SpacedPickResult = {
 	ids: number[],
 	distanceM: number,

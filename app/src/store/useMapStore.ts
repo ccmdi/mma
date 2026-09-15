@@ -34,7 +34,7 @@ import { resetImportState } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
-import type { Selection, Selector } from "@/bindings.gen";
+import type { Selection, Selector, SpacedPickResult } from "@/bindings.gen";
 import { addSelection, batch, removeSelection, replaceSelection } from "./selections";
 import type { SelectionPatch } from "./selections";
 
@@ -746,21 +746,14 @@ export async function selectRandomFromSelection(
 	return picked.length;
 }
 
-/** Replace the current selection with spatially spaced ids - either `count` ids maximizing
- *  spacing, or as many as fit at `minDistanceM`. With `perSelection`, each active selection
- *  is picked from separately. Returns the count picked and the minimum distance achieved. */
-export async function selectSpacedFromSelection(
-	opts: { count?: number; minDistanceM?: number },
-	perSelection = false,
+/** Replace the current selection with what `pick` chooses from each pick bucket. Returns the
+ *  count picked and the spacing they were picked at. */
+async function selectSpacedWith(
+	pick: (selector: Selector) => Promise<SpacedPickResult>,
+	perSelection: boolean,
 ): Promise<{ picked: number; distanceM: number }> {
 	const results = await Promise.all(
-		pickBuckets(perSelection).map((selector) =>
-			cmd.storeSpaced(
-				selector ?? currentSelection(),
-				opts.count ?? null,
-				opts.minDistanceM ?? null,
-			),
-		),
+		pickBuckets(perSelection).map((selector) => pick(selector ?? currentSelection())),
 	);
 	const ids = [...new Set(results.flatMap((r) => r.ids))];
 	if (ids.length === 0) return { picked: 0, distanceM: 0 };
@@ -769,6 +762,33 @@ export async function selectSpacedFromSelection(
 	// Spacing only holds within a bucket - two buckets can each pick a coincident location.
 	const distanceM = results.length === 1 ? results[0].distanceM : 0;
 	return { picked: ids.length, distanceM };
+}
+
+/** Replace the current selection with spatially spaced ids - either `count` ids maximizing
+ *  spacing, or as many as fit at `minDistanceM`. With `perSelection`, each active selection
+ *  is picked from separately. Returns the count picked and the minimum distance achieved. */
+export function selectSpacedFromSelection(
+	opts: { count?: number; minDistanceM?: number },
+	perSelection = false,
+): Promise<{ picked: number; distanceM: number }> {
+	return selectSpacedWith(
+		(selector) => cmd.storeSpaced(selector, opts.count ?? null, opts.minDistanceM ?? null),
+		perSelection,
+	);
+}
+
+/** Replace the current selection with evenly spaced ids laid out on a honeycomb - either at
+ *  most `count` ids spaced as widely as that allows, or ids about `spacingM` apart. No two
+ *  picks sit closer than half the spacing. With `perSelection`, each active selection is
+ *  picked from separately. Returns the count picked and the spacing used. */
+export function selectEvenlySpacedFromSelection(
+	opts: { count?: number; spacingM?: number },
+	perSelection = false,
+): Promise<{ picked: number; distanceM: number }> {
+	return selectSpacedWith(
+		(selector) => cmd.storeEvenlySpaced(selector, opts.count ?? null, opts.spacingM ?? null),
+		perSelection,
+	);
 }
 
 /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */

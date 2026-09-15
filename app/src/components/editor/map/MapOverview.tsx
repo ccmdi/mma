@@ -10,6 +10,7 @@ import {
 	getActiveSelections,
 	selectRandomFromSelection,
 	selectSpacedFromSelection,
+	selectEvenlySpacedFromSelection,
 	currentSelection,
 } from "@/store/useMapStore";
 import { addSelection, batch, buildSelection } from "@/store/selections";
@@ -113,7 +114,7 @@ function RandomPickPanel() {
 	);
 }
 
-function SpacedPickPanel() {
+function SpacedPickPanel({ method }: { method: "minDistance" | "even" }) {
 	const [mode, setMode] = useState<"count" | "distance">("count");
 	const [value, setValue] = useState("");
 	const [perSelection, setPerSelection] = useState(false);
@@ -127,8 +128,18 @@ function SpacedPickPanel() {
 		e.preventDefault();
 		if (!valid) return;
 		const count = perSelection ? parsed : Math.min(parsed, total);
-		const opts = mode === "count" ? { count } : { minDistanceM: unit.fromDisplay(parsed) };
-		selectSpacedFromSelection(opts, perSelection)
+		const distance = unit.fromDisplay(parsed);
+		const pick =
+			method === "even"
+				? selectEvenlySpacedFromSelection(
+						mode === "count" ? { count } : { spacingM: distance },
+						perSelection,
+					)
+				: selectSpacedFromSelection(
+						mode === "count" ? { count } : { minDistanceM: distance },
+						perSelection,
+					);
+		pick
 			.then(({ picked, distanceM }) => {
 				if (picked === 0) return;
 				const base = perSelection
@@ -141,9 +152,11 @@ function SpacedPickPanel() {
 						)
 					: t({ one: "Selected {n} location", other: "Selected {n} locations" }, { n: picked });
 				const spacing =
-					distanceM > 0
-						? t(", at least {distance} apart", { distance: formatDistance(distanceM) })
-						: "";
+					distanceM <= 0
+						? ""
+						: method === "even"
+							? t(", about {distance} apart", { distance: formatDistance(distanceM) })
+							: t(", at least {distance} apart", { distance: formatDistance(distanceM) });
 				toast(base + spacing);
 			})
 			.catch((err) => toast(String(err)));
@@ -153,7 +166,11 @@ function SpacedPickPanel() {
 		<form className="selection-manager__inline-form" onSubmit={handleSubmit}>
 			<NSelect value={mode} onChange={(e) => setMode(e.target.value as "count" | "distance")}>
 				<option value="count">{t("Count")}</option>
-				<option value="distance">{t("Min distance ({unit})", { unit: unit.label })}</option>
+				<option value="distance">
+					{method === "even"
+						? t("Spacing ({unit})", { unit: unit.label })
+						: t("Min distance ({unit})", { unit: unit.label })}
+				</option>
 			</NSelect>
 			<TextInput
 				type="number"
@@ -367,7 +384,10 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 							render: () => <RandomPickPanel />,
 						},
 						"select-spaced": {
-							render: () => <SpacedPickPanel />,
+							render: () => <SpacedPickPanel method="minDistance" />,
+						},
+						"select-evenly-spaced": {
+							render: () => <SpacedPickPanel method="even" />,
 						},
 						"find-duplicates": {
 							render: () => (

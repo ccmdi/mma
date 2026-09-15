@@ -1041,6 +1041,25 @@ pub fn store_spaced(
     )?)
 }
 
+/// An evenly spaced subset laid out on a honeycomb: exactly one of `target_count` (at most
+/// N, spaced as widely as that allows) or `spacing_m` (about that far apart, and never
+/// closer than half of it).
+#[tauri::command]
+#[specta::specta]
+pub fn store_evenly_spaced(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    selector: Selector,
+    target_count: Option<u32>,
+    spacing_m: Option<f64>,
+) -> AppResult<SpacedPickResult> {
+    selector_read!(label, state, selector, store: |store, set| store.pick_even(
+        set,
+        target_count,
+        spacing_m
+    )?)
+}
+
 /// Group by a derived key, returning `{ key, ids, bin }` per group.
 #[tauri::command]
 #[specta::specta]

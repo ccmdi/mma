@@ -14,6 +14,7 @@
 	"({n} without country data)": "({n} without country data)",
 	"({size}, will download)": "({size}, will download)",
 	"+ click to select a country outline.": "+ click to select a country outline.",
+	", about {distance} apart": ", about {distance} apart",
 	", at least {distance} apart": ", at least {distance} apart",
 	", {n} failed": {
 		"one": ", {n} failed",
@@ -851,6 +852,7 @@
 	"Pick": "Pick",
 	"Pick a tag, then click headings to link it.": "Pick a tag, then click headings to link it.",
 	"Pick color": "Pick color",
+	"Pick evenly spaced locations from selection": "Pick evenly spaced locations from selection",
 	"Pick random locations from selection": "Pick random locations from selection",
 	"Pin": "Pin",
 	"Pin current section": "Pin current section",
@@ -1159,6 +1161,7 @@
 	"Something is broken": "Something is broken",
 	"Sort tags": "Sort tags",
 	"South America": "South America",
+	"Spacing ({unit})": "Spacing ({unit})",
 	"Specific Panorama": "Specific Panorama",
 	"Speed": "Speed",
 	"Spin 180°": "Spin 180°",

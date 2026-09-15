@@ -3959,6 +3959,188 @@ fn pick_spaced_narrowing_overrides_selection() {
     assert_eq!(res.ids.len(), 3);
 }
 
+fn selected_store(points: &[(f64, f64)]) -> Store {
+    let locs: Vec<Location> = points
+        .iter()
+        .enumerate()
+        .map(|(i, &(lat, lng))| loc(i as u32 + 1, lat, lng))
+        .collect();
+    let mut store = setup_store_with(&locs);
+    for l in &locs {
+        store.selections.ids.insert(l.id);
+    }
+    store
+}
+
+/// `n` by `n` locations `step_m` apart, south-west corner at 45N 7E.
+fn square_of(n: usize, step_m: f64) -> Vec<(f64, f64)> {
+    let dlat = step_m / mma_geo::M_PER_DEG;
+    let dlng = dlat / 45f64.to_radians().cos();
+    (0..n)
+        .flat_map(|r| (0..n).map(move |c| (45.0 + r as f64 * dlat, 7.0 + c as f64 * dlng)))
+        .collect()
+}
+
+/// `n` pseudo-random locations over roughly a square kilometre at 45N 7E.
+fn scattered(n: usize) -> Vec<(f64, f64)> {
+    let mut seed = 0x9e37_79b9_u32;
+    let mut next = move || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        (seed >> 8) as f64 / (1u32 << 24) as f64
+    };
+    (0..n)
+        .map(|_| {
+            let lat = 45.0 + next() * 0.01;
+            (lat, 7.0 + next() * 0.014)
+        })
+        .collect()
+}
+
+fn nearest_to(lat: f64, lng: f64, others: impl Iterator<Item = (f64, f64)>) -> f64 {
+    others
+        .map(|(olat, olng)| selections::haversine_m(lat, lng, olat, olng))
+        .fold(f64::INFINITY, f64::min)
+}
+
+#[test]
+fn pick_even_spaces_neighbors_about_one_spacing_apart() {
+    let store = selected_store(&square_of(60, 10.0));
+    let coords = coord_lookup(&store);
+    let res = store
+        .pick_even(Some(&store.selections.ids), None, Some(100.0))
+        .unwrap();
+    assert_eq!(res.distance_m, 100);
+
+    let picks: Vec<(f64, f64)> = res.ids.iter().map(|id| coords[id]).collect();
+    let mut interior = 0;
+    for &(lat, lng) in &picks {
+        let y = (lat - 45.0) * mma_geo::M_PER_DEG;
+        let x = (lng - 7.0) * mma_geo::M_PER_DEG * 45f64.to_radians().cos();
+        if !(100.0..=490.0).contains(&x) || !(100.0..=490.0).contains(&y) {
+            continue;
+        }
+        let gap = nearest_to(lat, lng, picks.iter().copied().filter(|&p| p != (lat, lng)));
+        assert!(
+            (85.0..=115.0).contains(&gap),
+            "the pick at ({x:.0}, {y:.0})m has its nearest neighbor {gap:.1}m away"
+        );
+        interior += 1;
+    }
+    assert!(interior > 10, "{interior} interior picks");
+}
+
+#[test]
+fn pick_even_never_keeps_two_picks_closer_than_half_the_spacing() {
+    let road: Vec<(f64, f64)> = (0..400)
+        .map(|i| (45.0 + i as f64 * 0.00004, 7.0 + i as f64 * 0.00007))
+        .collect();
+    for points in [scattered(3000), road] {
+        let store = selected_store(&points);
+        let coords = coord_lookup(&store);
+        for spacing in [60.0, 150.0] {
+            let res = store
+                .pick_even(Some(&store.selections.ids), None, Some(spacing))
+                .unwrap();
+            assert!(res.ids.len() > 1);
+            let min = min_pairwise(&res.ids, &coords);
+            assert!(
+                min >= spacing / 2.0,
+                "{} picks at spacing {spacing}, the closest two {min}m apart",
+                res.ids.len()
+            );
+        }
+    }
+}
+
+#[test]
+fn pick_even_leaves_every_location_near_a_pick() {
+    let store = selected_store(&scattered(3000));
+    let coords = coord_lookup(&store);
+    let res = store
+        .pick_even(Some(&store.selections.ids), None, Some(100.0))
+        .unwrap();
+    for (id, &(lat, lng)) in &coords {
+        let gap = nearest_to(lat, lng, res.ids.iter().map(|p| coords[p]));
+        assert!(
+            gap <= 170.0,
+            "location {id} is {gap:.1}m from the nearest pick"
+        );
+    }
+}
+
+#[test]
+fn pick_even_count_keeps_at_most_n_near_n() {
+    let store = selected_store(&scattered(3000));
+    let coords = coord_lookup(&store);
+    for goal in [1u32, 7, 40, 250] {
+        let res = store
+            .pick_even(Some(&store.selections.ids), Some(goal), None)
+            .unwrap();
+        let n = res.ids.len();
+        assert!(n >= 1 && n <= goal as usize, "{n} picks for {goal}");
+        if goal >= 40 {
+            assert!(n as f64 >= goal as f64 * 0.8, "{n} picks for {goal}");
+        }
+        if n > 1 {
+            let min = min_pairwise(&res.ids, &coords);
+            assert!(
+                min >= res.distance_m as f64 / 2.0 - 1.0,
+                "closest two {min}m apart"
+            );
+        }
+    }
+}
+
+#[test]
+fn pick_even_count_ge_size_returns_all() {
+    let store = spaced_grid_store();
+    let res = store
+        .pick_even(Some(&store.selections.ids), Some(50), None)
+        .unwrap();
+    assert_eq!(res.ids.len(), 20);
+    assert_eq!(res.distance_m, 0);
+}
+
+#[test]
+fn pick_even_is_deterministic() {
+    let store = selected_store(&scattered(1000));
+    let first = store
+        .pick_even(Some(&store.selections.ids), None, Some(80.0))
+        .unwrap();
+    let second = store
+        .pick_even(Some(&store.selections.ids), None, Some(80.0))
+        .unwrap();
+    assert_eq!(first.ids, second.ids);
+}
+
+#[test]
+fn pick_even_arg_validation() {
+    let store = spaced_grid_store();
+    assert!(
+        store.pick_even(None, Some(5), Some(100.0)).is_err(),
+        "both set"
+    );
+    assert!(store.pick_even(None, None, None).is_err(), "neither set");
+    for spacing in [0.0, -5.0, f64::NAN, f64::INFINITY] {
+        assert!(
+            store.pick_even(None, None, Some(spacing)).is_err(),
+            "spacing {spacing}"
+        );
+    }
+}
+
+#[test]
+fn pick_even_empty_selection() {
+    let store = setup_store_with(&[]);
+    for (count, spacing) in [(Some(5), None), (None, Some(100.0))] {
+        let res = store
+            .pick_even(Some(&store.selections.ids), count, spacing)
+            .unwrap();
+        assert!(res.ids.is_empty());
+        assert_eq!(res.distance_m, 0);
+    }
+}
+
 // -----------------------------------------------------------------------
 // Delta corruption pinning
 // -----------------------------------------------------------------------

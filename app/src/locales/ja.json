@@ -14,6 +14,7 @@
 	"({n} without country data)": "（国データなし {n} 件）",
 	"({size}, will download)": "({size}、ダウンロードされます)",
 	"+ click to select a country outline.": "+ クリックで国の境界を選択。",
+	", about {distance} apart": "、約 {distance} の間隔",
 	", at least {distance} apart": "、{distance} 以上の間隔",
 	", {n} failed": {
 		"other": "、{n} 件失敗"
@@ -832,6 +833,7 @@
 	"Pick": "抽出",
 	"Pick a tag, then click headings to link it.": "タグを選択し、見出しをクリックしてリンクします。",
 	"Pick color": "色を選択",
+	"Pick evenly spaced locations from selection": "選択から等間隔に地点を抽出",
 	"Pick random locations from selection": "選択からランダムに地点を抽出",
 	"Pin": "ピン留め",
 	"Pin current section": "現在のセクションをピン留め",
@@ -1125,6 +1127,7 @@
 	"Something is broken": "不具合がある",
 	"Sort tags": "タグを並べ替え",
 	"South America": "南アメリカ",
+	"Spacing ({unit})": "間隔 ({unit})",
 	"Specific Panorama": "特定のパノラマ",
 	"Speed": "速度",
 	"Spin 180°": "180° 回転",

@@ -3,7 +3,16 @@
 //! keeps its own longitude step, so far from the anchor meridian the rows slide against
 //! each other instead of stretching.
 
-use crate::{fold_lng, PreparedRing, M_PER_DEG};
+use crate::{fold_lng, haversine_m, wrap_dlng, PreparedRing, M_PER_DEG};
+
+/// A grid point: its row and column in the honeycomb, and where it sits.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HexNode {
+    pub row: i64,
+    pub col: i64,
+    pub lat: f64,
+    pub lng: f64,
+}
 
 /// Grid points along one row: `count` points from `lng` eastward, `lng_step` degrees apart,
 /// all within [-180, 180).
@@ -45,6 +54,33 @@ impl HexGrid {
             lat,
             lng_step: (self.spacing_m / (M_PER_DEG * lat.to_radians().cos())).min(360.0),
             phase: index.rem_euclid(2) as f64 * 0.5,
+        }
+    }
+
+    /// The grid point nearest (`lat`, `lng`).
+    pub fn nearest(&self, lat: f64, lng: f64) -> HexNode {
+        let below = ((lat - self.lat) / self.row_deg).floor() as i64;
+        let (south, north) = (
+            self.nearest_in_row(below, lng),
+            self.nearest_in_row(below + 1, lng),
+        );
+        if haversine_m(lat, lng, south.lat, south.lng)
+            <= haversine_m(lat, lng, north.lat, north.lng)
+        {
+            south
+        } else {
+            north
+        }
+    }
+
+    fn nearest_in_row(&self, index: i64, lng: f64) -> HexNode {
+        let row = self.row(index);
+        let col = (wrap_dlng(lng - self.lng) / row.lng_step - row.phase).round();
+        HexNode {
+            row: index,
+            col: col as i64,
+            lat: row.lat,
+            lng: fold_lng(self.lng + (col + row.phase) * row.lng_step, -180.0),
         }
     }
 

@@ -14,6 +14,7 @@
 	"({n} without country data)": "({n} sin datos de país)",
 	"({size}, will download)": "({size}, se descargará)",
 	"+ click to select a country outline.": "+ clic para seleccionar el contorno de un país.",
+	", about {distance} apart": ", con unos {distance} de separación",
 	", at least {distance} apart": ", con al menos {distance} de separación",
 	", {n} failed": {
 		"one": ", {n} fallida",
@@ -870,6 +871,7 @@
 	"Pick": "Elegir",
 	"Pick a tag, then click headings to link it.": "Elige una etiqueta y haz clic en los encabezados para enlazarla.",
 	"Pick color": "Elegir color",
+	"Pick evenly spaced locations from selection": "Elegir ubicaciones equidistantes de la selección",
 	"Pick random locations from selection": "Elegir ubicaciones aleatorias de la selección",
 	"Pin": "Fijar",
 	"Pin current section": "Fijar la sección actual",
@@ -1193,6 +1195,7 @@
 	"Something is broken": "Algo no funciona",
 	"Sort tags": "Ordenar etiquetas",
 	"South America": "América del Sur",
+	"Spacing ({unit})": "Separación ({unit})",
 	"Specific Panorama": "Panorama específico",
 	"Speed": "Velocidad",
 	"Spin 180°": "Girar 180°",

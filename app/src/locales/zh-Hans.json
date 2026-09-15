@@ -14,6 +14,7 @@
 	"({n} without country data)": "（{n} 个无国家数据）",
 	"({size}, will download)": "({size}，将会下载)",
 	"+ click to select a country outline.": " + 点击选择国家轮廓。",
+	", about {distance} apart": "，间隔约 {distance}",
 	", at least {distance} apart": "，间隔至少 {distance}",
 	", {n} failed": {
 		"other": "，{n} 个失败"
@@ -832,6 +833,7 @@
 	"Pick": "选取",
 	"Pick a tag, then click headings to link it.": "选择一个标签，然后点击标题进行链接。",
 	"Pick color": "选取颜色",
+	"Pick evenly spaced locations from selection": "从选择中均匀间隔选取",
 	"Pick random locations from selection": "从选择中随机选取",
 	"Pin": "图钉",
 	"Pin current section": "固定当前章节",
@@ -1125,6 +1127,7 @@
 	"Something is broken": "有功能出错",
 	"Sort tags": "标签排序",
 	"South America": "南美洲",
+	"Spacing ({unit})": "间距（{unit}）",
 	"Specific Panorama": "指定全景",
 	"Speed": "速度",
 	"Spin 180°": "旋转 180°",

@@ -5,8 +5,10 @@ use crate::selections::{self, Selector};
 use crate::store::arrow::{col_lat, col_lng};
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
+use mma_geo::{fold_lng, HexGrid, EARTH_R_M};
 use roaring::RoaringBitmap;
 use std::collections::HashMap;
+use std::f64::consts::PI;
 
 /// ~25m cells: 1-100m queries walk a handful of cells; a 1km query walks ~80x80.
 pub(crate) const SPATIAL_CELL_M: f64 = 25.0;
@@ -108,13 +110,51 @@ impl BoundsAcc {
     }
 }
 
-/// `pick_spaced`'s answer: the picked ids plus the spacing achieved (count mode) or
-/// enforced (distance mode).
+/// A spaced pick's answer: the picked ids plus the spacing they were picked at.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SpacedPickResult {
     pub ids: Vec<u32>,
     pub distance_m: i32,
+}
+
+/// One pick per honeycomb cell: the location nearest its center, best-centered cells first,
+/// skipping any location within half the spacing of one already kept.
+fn even_picks(candidates: &[(u32, f64, f64)], grid: &HexGrid, spacing_m: f64) -> Vec<u32> {
+    let mut nearest: HashMap<(i64, i64), (f64, usize)> = HashMap::new();
+    for (i, &(id, lat, lng)) in candidates.iter().enumerate() {
+        let node = grid.nearest(lat, lng);
+        let d = selections::haversine_m(lat, lng, node.lat, node.lng);
+        nearest
+            .entry((node.row, node.col))
+            .and_modify(|best| {
+                if (d, id) < (best.0, candidates[best.1].0) {
+                    *best = (d, i);
+                }
+            })
+            .or_insert((d, i));
+    }
+    let mut winners: Vec<(f64, usize)> = nearest.into_values().collect();
+    winners.sort_by(|a, b| {
+        a.0.total_cmp(&b.0)
+            .then(candidates[a.1].0.cmp(&candidates[b.1].0))
+    });
+
+    let floor = spacing_m / 2.0;
+    let mut kept: Vec<usize> = Vec::new();
+    let mut index = mma_geo::SpatialIndex::new(floor);
+    for (_, i) in winners {
+        let (_, lat, lng) = candidates[i];
+        let crowded = index.any_candidate(lat, lng, floor, |k| {
+            let (_, klat, klng) = candidates[kept[k as usize]];
+            selections::haversine_m(lat, lng, klat, klng) < floor
+        });
+        if !crowded {
+            index.insert(kept.len() as u32, lat, lng);
+            kept.push(i);
+        }
+    }
+    kept.into_iter().map(|i| candidates[i].0).collect()
 }
 
 impl Store {
@@ -230,17 +270,7 @@ impl Store {
             _ => {}
         }
 
-        let candidate_ids: Vec<u32> = match set {
-            Some(s) => s.iter().collect(),
-            None => selections::ids_within(&self.loc_view(), None),
-        };
-        let mut candidates: Vec<(u32, f64, f64)> = candidate_ids
-            .into_iter()
-            .filter_map(|id| {
-                let (lat, lng) = self.coords_of(id)?;
-                (lat.is_finite() && lng.is_finite()).then_some((id, lat, lng))
-            })
-            .collect();
+        let mut candidates = self.located(set);
         fastrand::shuffle(&mut candidates);
 
         if let Some(n) = target_count {
@@ -268,6 +298,107 @@ impl Store {
         let idxs = vali_geo::place_spaced(&coords, candidates.len(), d, &[]);
         let ids = idxs.into_iter().map(|i| candidates[i as usize].0).collect();
         Ok(SpacedPickResult { ids, distance_m: d })
+    }
+
+    /// Evenly spaced subset of `set` (`None` = whole map) on a honeycomb: `spacing_m` keeps
+    /// picks about that far apart and never closer than half of it; `target_count` searches
+    /// for the spacing that keeps at most N.
+    pub(crate) fn pick_even(
+        &self,
+        set: Option<&RoaringBitmap>,
+        target_count: Option<u32>,
+        spacing_m: Option<f64>,
+    ) -> AppResult<SpacedPickResult> {
+        match (target_count, spacing_m) {
+            (Some(_), Some(_)) => {
+                return Err(AppError::from(
+                    "pick_even: pass exactly one of target_count or spacing_m, not both",
+                ))
+            }
+            (None, None) => {
+                return Err(AppError::from(
+                    "pick_even: pass exactly one of target_count or spacing_m",
+                ))
+            }
+            (_, Some(d)) if !(d.is_finite() && d > 0.0) => {
+                return Err(AppError::from(
+                    "pick_even: spacing_m must be greater than 0",
+                ))
+            }
+            _ => {}
+        }
+
+        let candidates = self.located(set);
+        let Some(bounds) = candidates.iter().fold(None, |acc, &(_, lat, lng)| {
+            Some(BoundsAcc::fold(acc, lat, lng))
+        }) else {
+            return Ok(SpacedPickResult {
+                ids: Vec::new(),
+                distance_m: 0,
+            });
+        };
+        let [west, south, east, north] = bounds.resolve();
+        let east = if east < west { east + 360.0 } else { east };
+        let (lat, lng) = ((south + north) / 2.0, fold_lng((west + east) / 2.0, -180.0));
+        let pick =
+            |spacing: f64| even_picks(&candidates, &HexGrid::new(lat, lng, spacing), spacing);
+
+        if let Some(spacing) = spacing_m {
+            return Ok(SpacedPickResult {
+                ids: pick(spacing),
+                distance_m: spacing.round() as i32,
+            });
+        }
+        let goal = target_count.unwrap() as usize;
+        if goal >= candidates.len() {
+            return Ok(SpacedPickResult {
+                ids: candidates.iter().map(|c| c.0).collect(),
+                distance_m: 0,
+            });
+        }
+        if goal == 0 {
+            return Ok(SpacedPickResult {
+                ids: Vec::new(),
+                distance_m: 0,
+            });
+        }
+        let (mut fits, mut crowded) = (4.0 * PI * EARTH_R_M, 1.0);
+        let mut best = pick(fits);
+        let finest = pick(crowded);
+        if finest.len() <= goal {
+            return Ok(SpacedPickResult {
+                ids: finest,
+                distance_m: 1,
+            });
+        }
+        while fits / crowded > 1.001 {
+            let spacing = (fits * crowded).sqrt();
+            let ids = pick(spacing);
+            if ids.len() <= goal {
+                best = ids;
+                fits = spacing;
+            } else {
+                crowded = spacing;
+            }
+        }
+        Ok(SpacedPickResult {
+            ids: best,
+            distance_m: fits.round() as i32,
+        })
+    }
+
+    /// The alive locations in `set` (`None` = whole map) that have finite coordinates.
+    fn located(&self, set: Option<&RoaringBitmap>) -> Vec<(u32, f64, f64)> {
+        let ids: Vec<u32> = match set {
+            Some(s) => s.iter().collect(),
+            None => selections::ids_within(&self.loc_view(), None),
+        };
+        ids.into_iter()
+            .filter_map(|id| {
+                let (lat, lng) = self.coords_of(id)?;
+                (lat.is_finite() && lng.is_finite()).then_some((id, lat, lng))
+            })
+            .collect()
     }
 
     /// Materialize the selected location set (`Everything` = every alive location).

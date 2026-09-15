@@ -44,10 +44,14 @@ Each row also has an inline **ghost** button, which dims that selection on the m
 
 ## Reducing density
 
-**Pick evenly spaced locations from selection** (command palette) replaces the current selection with a spread-out subset of itself. Choose **Count** to keep a target number of locations, spacing them as far apart as possible, or **Min distance** to keep as many locations as fit while staying at least that many meters apart. Use this to thin a dense cluster of locations without leaving obvious gaps or clumps.
+**Thin selection by minimum distance** (command palette) replaces the current selection with a spread-out subset of itself. Choose **Count** to keep that many locations as far apart as the selection allows, or **Min distance** to keep as many locations as fit while staying at least that far apart. It only promises the minimum: the gap between neighbors can be anywhere from that distance to more than twice it.
+
+## Picking evenly spaced locations
+
+**Pick evenly spaced locations from selection** (command palette) lays a honeycomb over the selection and keeps the location nearest the center of each cell, so neighboring picks sit about the same distance apart. Choose **Spacing** to set that distance, or **Count** to keep up to that many locations, spaced as widely as that allows. No two picks are ever closer than half the spacing. The spacing is most even across an area: a single road crosses the honeycomb at an angle, so the gaps along it vary more.
 
 ## Picking from each selection
 
-Both pickers offer **from each of N selections** whenever two or more selections are active. The count then becomes a per-selection cap rather than a total: with eight tags selected and a count of 25, you get up to 25 locations from each tag, unioned into one selection. A location carried by two of them is only picked once, so the total can come out below count x N.
+All three pickers offer **from each of N selections** whenever two or more selections are active. The count then becomes a per-selection cap rather than a total: with eight tags selected and a count of 25, you get up to 25 locations from each tag, unioned into one selection. A location carried by two of them is only picked once, so the total can come out below count x N.
 
 This is how you build an evenly weighted map out of tags with wildly different location counts. It works for any kind of selection, not just tags - per polygon, per filter, or per bucket of a gradient.

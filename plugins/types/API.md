@@ -504,6 +504,13 @@ Background auto-commit after an import with autoCommit set.
 
 Schedule a debounced autosave. Mutations call this automatically.
 
+### `selectEvenlySpacedFromSelection(opts: { count?: number | undefined; spacingM?: number | undefined; }, perSelection?: boolean | undefined): Promise<{ picked: number; distanceM: number; }>`
+
+Replace the current selection with evenly spaced ids laid out on a honeycomb - either at
+most `count` ids spaced as widely as that allows, or ids about `spacingM` apart. No two
+picks sit closer than half the spacing. With `perSelection`, each active selection is
+picked from separately. Returns the count picked and the spacing used.
+
 ### `selectRandomFromSelection(count: number, perSelection?: boolean | undefined): Promise<number>`
 
 Replace the current selection with up to `count` ids picked at random.
@@ -1729,6 +1736,12 @@ Remove tags and strip them from all locations that carry them. Undoable.
 
 Find groups of locations within `distance` metres of each other (transitive).
 Returns groups of IDs, each with at least two members.
+
+#### `cmd.storeEvenlySpaced(selector: Selector, targetCount: number | null, spacingM: number | null): Promise<SpacedPickResult>` *(unstable)*
+
+An evenly spaced subset laid out on a honeycomb: exactly one of `target_count` (at most
+N, spaced as widely as that allows) or `spacing_m` (about that far apart, and never
+closer than half of it).
 
 #### `cmd.storeExportBulkZip(): Promise<string>` *(unstable)*
 
