@@ -253,6 +253,15 @@ pub(super) struct FieldPlan {
     pub(super) failed: Vec<u32>,
 }
 
+/// A create's outcome for the caller: the mutation plus the tags it named.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatedTags {
+    pub mutation: MutationResult,
+    /// The tags the names resolved to, in the order the names were given.
+    pub ids: Vec<u32>,
+}
+
 /// The op's outcome for the caller: the mutation plus what its message needs.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

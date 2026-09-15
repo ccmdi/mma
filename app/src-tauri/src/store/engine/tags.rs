@@ -204,7 +204,7 @@ impl Store {
     /// Ensure `names` exist as tags and are on `location_ids`, in one mutation. Names match
     /// case-insensitively, so an existing tag is reused (and un-hidden) rather than
     /// duplicated. An empty `location_ids` just creates them.
-    pub(crate) fn create_tags(&mut self, names: &[String], location_ids: &[u32]) -> MutationResult {
+    pub(crate) fn create_tags(&mut self, names: &[String], location_ids: &[u32]) -> CreatedTags {
         let mut name_to_id: HashMap<String, u32> = HashMap::new();
         for (&id, entry) in self.tags.all.iter() {
             name_to_id.insert(entry.name.to_lowercase(), id);
@@ -254,7 +254,10 @@ impl Store {
         }
 
         let changeset = self.commit_tag_update(updated);
-        self.finish_mutation(&changeset)
+        CreatedTags {
+            mutation: self.finish_mutation(&changeset),
+            ids: tag_ids,
+        }
     }
 
     /// Allocate the next monotonically increasing tag ID.

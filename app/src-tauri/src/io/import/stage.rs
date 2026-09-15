@@ -212,7 +212,6 @@ pub async fn store_import_paste_preview(text: String) -> AppResult<EditorImportP
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorImportResult {
-    #[serde(flatten)]
     pub mutation: engine::MutationResult,
     pub imported_count: u32,
     pub warnings: Vec<String>,

@@ -55,13 +55,13 @@ export function deleteMap(id: string) {
 export async function importPaste(text: string) {
 	await cmd.storeImportPastePreview(text);
 	const r = await cmd.storeImportFile([], null);
-	await mutate(() => Promise.resolve(r));
+	await mutate(() => Promise.resolve(r.mutation));
 	return [r];
 }
 
 /** Import a previewed file, optionally assigning a tag. */
 export async function importFile(droppedFields: string[], tagName?: string) {
 	const r = await cmd.storeImportFile(droppedFields, tagName ?? null);
-	await mutate(() => Promise.resolve(r));
+	await mutate(() => Promise.resolve(r.mutation));
 	return r;
 }

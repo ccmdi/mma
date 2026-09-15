@@ -30,7 +30,6 @@ import type {
 } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
 import { SelectedIds, decodeSelectionBitmask, type ReadonlyIdSet } from "@/lib/render/CellManager";
-import { tagsNamed } from "@/lib/data/tagsNamed";
 import { resetImportState } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
@@ -494,13 +493,24 @@ const EMPTY_MUTATION: MutationResult = {
 	},
 };
 
-/** Run a mutation, apply its result to the map, and schedule a save. */
-export async function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult> {
-	if (!state.map) return EMPTY_MUTATION;
+/** Run a mutation, apply its result to the map, and schedule a save. A result that wraps its
+ *  mutation comes back whole; `empty` is its answer when no map is open. */
+export function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
+export function mutate<R extends { mutation: MutationResult }>(
+	fn: () => Promise<R>,
+	empty: R,
+): Promise<R>;
+export async function mutate<R extends MutationResult | { mutation: MutationResult }>(
+	fn: () => Promise<R>,
+	empty: R = EMPTY_MUTATION as R,
+): Promise<R> {
+	if (!state.map) return empty;
 	const r = await fn();
+	const answer: MutationResult | { mutation: MutationResult } = r;
+	const m = "mutation" in answer ? answer.mutation : answer;
 	await inflightPersist;
-	emitEvent("render:delta", r.delta);
-	applyMutation(r);
+	emitEvent("render:delta", m.delta);
+	applyMutation(m);
 	scheduleSave();
 	return r;
 }
@@ -613,10 +623,10 @@ export async function applyFieldOp(
 	op: FieldOp,
 	recordUndo: boolean,
 ): Promise<FieldOpResult> {
-	let r: FieldOpResult = { mutation: EMPTY_MUTATION, changed: 0, failed: [] };
-	await mutate(async () => {
-		r = await cmd.storeApplyFieldOp(selector, op, recordUndo);
-		return r.mutation;
+	const r = await mutate(() => cmd.storeApplyFieldOp(selector, op, recordUndo), {
+		mutation: EMPTY_MUTATION,
+		changed: 0,
+		failed: [],
 	});
 	emitEvent("location:invalidate");
 	const active = state.activeLocation;
@@ -1038,8 +1048,11 @@ export async function createTags(
 	selector: Selector = { type: "Locations", locations: [], name: null },
 ): Promise<Tag[]> {
 	if (names.length === 0) return [];
-	await mutate(() => cmd.storeCreateTags(names, selector));
-	const created = tagsNamed(names, Object.values(state.tags));
+	const { ids } = await mutate(() => cmd.storeCreateTags(names, selector), {
+		mutation: EMPTY_MUTATION,
+		ids: [],
+	});
+	const created = ids.map((id) => state.tags[id]);
 	emitEvent("tag:add", created);
 	return created;
 }

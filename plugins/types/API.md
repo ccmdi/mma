@@ -409,7 +409,8 @@ map's duplicate preference. One undoable edit.
 
 ### `mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>`
 
-Run a mutation, apply its result to the map, and schedule a save.
+Run a mutation, apply its result to the map, and schedule a save. A result that wraps its
+mutation comes back whole; `empty` is its answer when no map is open.
 
 ### `openDuplicateLocation(loc: Location): void` *(unstable)*
 
@@ -1708,7 +1709,7 @@ columns a row can lack.
 
 Create a new empty map with default settings. Returns the full metadata.
 
-#### `cmd.storeCreateTags(names: string[], selector: Selector): Promise<MutationResult>` *(unstable)*
+#### `cmd.storeCreateTags(names: string[], selector: Selector): Promise<CreatedTags>` *(unstable)*
 
 Create tags by name and assign them to the locations matched by `selector`.
 Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.

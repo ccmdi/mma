@@ -74,7 +74,7 @@ export async function confirmImport(droppedFields: string[], tagName?: string) {
 
 	const r = await cmd.storeImportFile(droppedFields, tagName?.trim() || null);
 	cancelImport();
-	await mutate(() => Promise.resolve(r));
+	await mutate(() => Promise.resolve(r.mutation));
 
 	const map = getMapState().map;
 	if (map && r.settings && Object.keys(r.settings).length) {

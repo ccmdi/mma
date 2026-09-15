@@ -2546,7 +2546,7 @@ fn create_tags_with_locations_never_leaves_the_tag_at_zero() {
         assert!(store.get_loc_by_id(id).unwrap().tags.contains(&tag.id));
     }
     assert_eq!(
-        result.values.tag_counts.unwrap().get(&tag.id),
+        result.mutation.values.tag_counts.unwrap().get(&tag.id),
         Some(&2),
         "the same mutation reports the count to JS"
     );
@@ -2561,6 +2561,17 @@ fn create_tags_without_locations_only_creates() {
     let tag = store.tags.all.values().find(|t| t.name == "solo").unwrap();
     assert_eq!(store.tag_count(tag.id), 0);
     assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
+}
+
+#[test]
+fn create_tags_answers_with_the_ids_in_the_order_named() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
+    store.create_tags(&["old".to_string()], &[]);
+    let old = store.tags.all.values().find(|t| t.name == "old").unwrap().id;
+
+    let created = store.create_tags(&["new".to_string(), "OLD".to_string()], &[]);
+    let new = store.tags.all.values().find(|t| t.name == "new").unwrap().id;
+    assert_eq!(created.ids, vec![new, old]);
 }
 
 #[test]

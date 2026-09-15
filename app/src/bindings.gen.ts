@@ -258,7 +258,7 @@ export const commands = {
 	 *  Create tags by name and assign them to the locations matched by `selector`.
 	 *  Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
 	 */
-	storeCreateTags: (names: string[], selector: Selector) => __TAURI_INVOKE<MutationResult>("store_create_tags", { names, selector }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
+	storeCreateTags: (names: string[], selector: Selector) => __TAURI_INVOKE<CreatedTags>("store_create_tags", { names, selector }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**
 	 *  Rename and/or recolor tags in one batch. Renaming onto an existing name (case-insensitive)
 	 *  merges the two tags.
@@ -363,7 +363,7 @@ export const commands = {
 	 *  dropping fields in `dropped_fields` (e.g. `"heading"`, `"extra.countryCode"`)
 	 *  and/or applying `tag_name` to every imported location.
 	 */
-	storeImportFile: (droppedFields: string[], tagName: string | null) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagName }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
+	storeImportFile: (droppedFields: string[], tagName: string | null) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagName }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  The location a pasted Maps URL names, short links resolved. */
 	parseMapsUrl: (input: string) => __TAURI_INVOKE<ParsedLocation | null>("parse_maps_url", { input }).then((v) => (v==null?v:v as typeof v)),
 	/**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. */
@@ -658,6 +658,13 @@ export type CopyToMapResult = {
 	targetName: string,
 };
 
+/**  A create's outcome for the caller: the mutation plus the tags it named. */
+export type CreatedTags = {
+	mutation: MutationResult,
+	/**  The tags the names resolved to, in the order the names were given. */
+	ids: number[],
+};
+
 /**  The active and default data-folder paths, plus whether a custom override is in effect. */
 export type DataLocation = {
 	path: string,
@@ -716,13 +723,14 @@ export type EditorImportPreview = {
  *  plus import-specific metadata.
  */
 export type EditorImportResult = {
+	mutation: MutationResult,
 	importedCount: number,
 	warnings: string[],
 	/**  True when the import was large enough to autocommit; the caller commits it. */
 	autoCommit: boolean,
 	/**  Settings carried by the import (`extra.settings`) */
 	settings: { [key in string]: any },
-} & MutationResult;
+};
 
 /**
  *  The engine-owned values JS mirrors into its state, each `None` when unchanged since

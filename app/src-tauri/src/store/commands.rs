@@ -888,7 +888,7 @@ pub fn store_create_tags(
     state: tauri::State<'_, StoreState>,
     names: Vec<String>,
     selector: Selector,
-) -> AppResult<MutationResult> {
+) -> AppResult<CreatedTags> {
     with_store!(label, state, |store| {
         let location_ids: Vec<u32> = {
             let view = store.loc_view();
