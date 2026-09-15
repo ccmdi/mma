@@ -115,7 +115,12 @@ fn neighbors_match_oracle() {
                 }
             }
         }
-        assert_eq!(bad, 0, "{bad}/{n} neighbor mismatches in {}", path.display());
+        assert_eq!(
+            bad,
+            0,
+            "{bad}/{n} neighbor mismatches in {}",
+            path.display()
+        );
     });
 }
 
@@ -133,9 +138,7 @@ fn bounding_box_matches_oracle_bitwise() {
             if got.map(f64::to_bits) != expected.map(f64::to_bits) {
                 bad += 1;
                 if bad <= 5 {
-                    eprintln!(
-                        "record {i}: bounding_box({hash:#x}) = {got:?}, oracle {expected:?}"
-                    );
+                    eprintln!("record {i}: bounding_box({hash:#x}) = {got:?}, oracle {expected:?}");
                 }
             }
         }
@@ -167,6 +170,11 @@ fn points_are_closer_than_matches_oracle() {
                 }
             }
         }
-        assert_eq!(bad, 0, "{bad}/{n} distance-boolean mismatches in {}", path.display());
+        assert_eq!(
+            bad,
+            0,
+            "{bad}/{n} distance-boolean mismatches in {}",
+            path.display()
+        );
     });
 }

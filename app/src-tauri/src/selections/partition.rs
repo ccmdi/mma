@@ -1,8 +1,8 @@
 //! Grouping a set by field: key projection, date parts, numeric binning, count-by.
 
-use crate::types::wire_str_enum;
 use super::*;
 use crate::store::maps::ExtraFieldType;
+use crate::types::wire_str_enum;
 use crate::util::tz_offset_seconds;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use roaring::RoaringBitmap;

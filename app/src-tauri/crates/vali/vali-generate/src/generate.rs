@@ -1,13 +1,12 @@
 use crate::definition::Prepared;
 use crate::distribution::{
-    by_max_min_distance, densify_country, distribute_evenly,
-    locations_by_coverage_density, max_count_goal_search, PreferenceSpec,
-    ResolvedProbability,
+    by_max_min_distance, densify_country, distribute_evenly, locations_by_coverage_density,
+    max_count_goal_search, PreferenceSpec, ResolvedProbability,
 };
 use crate::filter::filter;
 use crate::goals::{
-    country_location_count_goal, goal_for_subdivision,
-    subdivision_goal_from_custom_weights, subdivision_weights,
+    country_location_count_goal, goal_for_subdivision, subdivision_goal_from_custom_weights,
+    subdivision_weights,
 };
 use crate::progress::{emit, CancelToken, Event, Progress};
 use crate::store::{build_output, Group, MapOutput, StoreSummary};
@@ -18,8 +17,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use vali_core::{Location, LocationPreferenceFilterDef};
 type WorkResult = Vec<Group>;
 enum WorkKind {
-    Subdivision { subdivision_code: String, file: PathBuf },
-    Country { files: Vec<PathBuf> },
+    Subdivision {
+        subdivision_code: String,
+        file: PathBuf,
+    },
+    Country {
+        files: Vec<PathBuf>,
+    },
 }
 struct WorkItem {
     country_code: String,
@@ -42,8 +46,7 @@ pub fn generate_with_progress(
     cancel: Option<&CancelToken>,
 ) -> anyhow::Result<StoreSummary> {
     let data_root = vali_data::paths::data_root()?;
-    generate_output(prepared, &data_root, deterministic, progress, cancel)?
-        .write(definition_path)
+    generate_output(prepared, &data_root, deterministic, progress, cancel)?.write(definition_path)
 }
 pub fn generate_output(
     prepared: &Prepared,
@@ -68,20 +71,16 @@ pub fn generate_output(
             (Some(inclusions), _) => {
                 for sub in inclusions {
                     if !available.iter().any(|a| a == sub) {
-                        bail!(
-                            "subdivision inclusion '{sub}' for {cc} has no data (weight 0)."
-                        );
+                        bail!("subdivision inclusion '{sub}' for {cc} has no data (weight 0).");
                     }
                 }
                 inclusions.clone()
             }
-            (None, Some(exclusions)) => {
-                available
-                    .iter()
-                    .filter(|s| !exclusions.iter().any(|e| e == *s))
-                    .map(|s| s.to_string())
-                    .collect()
-            }
+            (None, Some(exclusions)) => available
+                .iter()
+                .filter(|s| !exclusions.iter().any(|e| e == *s))
+                .map(|s| s.to_string())
+                .collect(),
             (None, None) => available.iter().map(|s| s.to_string()).collect(),
         };
         let files: Vec<PathBuf> = selected
@@ -91,18 +90,13 @@ pub fn generate_output(
         if let Some(c) = cancel {
             c.check()?;
         }
-        crate::download::ensure_files_downloaded(
-            data_root,
-            cc,
-            &files,
-            progress,
-            cancel,
-        )?;
+        crate::download::ensure_files_downloaded(data_root, cc, &files, progress, cancel)?;
         for file in &files {
             if !file.exists() {
                 bail!(
                     "missing data file {} - run 'vali download --country {}' first.",
-                    file.display(), cc
+                    file.display(),
+                    cc
                 );
             }
         }
@@ -116,30 +110,28 @@ pub fn generate_output(
             .iter()
             .any(|c| c == cc);
         let per_subdivision = matches!(
-            prepared.strategy_key.as_str(), "FixedCountByMaxMinDistance" |
-            "FixedCountByCoverageDensity"
+            prepared.strategy_key.as_str(),
+            "FixedCountByMaxMinDistance" | "FixedCountByCoverageDensity"
         ) && !treat_as_single;
         if per_subdivision {
             for (sub, file) in selected.iter().zip(&files) {
-                work_items
-                    .push(WorkItem {
-                        country_code: cc.clone(),
-                        goal,
-                        subdivisions: selected.clone(),
-                        kind: WorkKind::Subdivision {
-                            subdivision_code: sub.clone(),
-                            file: file.clone(),
-                        },
-                    });
-            }
-        } else {
-            work_items
-                .push(WorkItem {
+                work_items.push(WorkItem {
                     country_code: cc.clone(),
                     goal,
                     subdivisions: selected.clone(),
-                    kind: WorkKind::Country { files },
+                    kind: WorkKind::Subdivision {
+                        subdivision_code: sub.clone(),
+                        file: file.clone(),
+                    },
                 });
+            }
+        } else {
+            work_items.push(WorkItem {
+                country_code: cc.clone(),
+                goal,
+                subdivisions: selected.clone(),
+                kind: WorkKind::Country { files },
+            });
         }
     }
     emit(
@@ -161,9 +153,9 @@ pub fn generate_output(
                 Event::WorkItemDone {
                     country_code: item.country_code.clone(),
                     subdivision_code: match &item.kind {
-                        WorkKind::Subdivision { subdivision_code, .. } => {
-                            Some(subdivision_code.clone())
-                        }
+                        WorkKind::Subdivision {
+                            subdivision_code, ..
+                        } => Some(subdivision_code.clone()),
                         WorkKind::Country { .. } => None,
                     },
                     done: done.fetch_add(1, Ordering::Relaxed) + 1,
@@ -173,10 +165,7 @@ pub fn generate_output(
             r
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
-    let groups: Vec<Group> = results
-        .into_iter()
-        .flatten()
-        .collect();
+    let groups: Vec<Group> = results.into_iter().flatten().collect();
     let t = std::time::Instant::now();
     let output = build_output(prepared, &groups, deterministic);
     timing::add("store", t.elapsed());
@@ -231,7 +220,9 @@ fn build_proximity(
     if def.radius > 0 && path.exists() {
         let points = crate::proximity::read_locations_lat_lng(path)
             .with_context(|| format!("read proximity locations {}", path.display()))?;
-        Ok(Some(crate::proximity::ProximityIndex::build(points, def.radius)))
+        Ok(Some(crate::proximity::ProximityIndex::build(
+            points, def.radius,
+        )))
     } else {
         Ok(None)
     }
@@ -274,17 +265,18 @@ fn resolve_context<'a>(
     country_code: &str,
     subdivision: &str,
 ) -> anyhow::Result<WorkContext<'a>> {
-    let merged = crate::distribution::merge_location_filters(
-        &[
-            Some(prepared.global_location_filter.as_str()),
-            prepared.country_location_filters.get(country_code).map(String::as_str),
-            prepared
-                .subdivision_location_filters
-                .get(country_code)
-                .and_then(|subs| subs.get(subdivision))
-                .map(String::as_str),
-        ],
-    );
+    let merged = crate::distribution::merge_location_filters(&[
+        Some(prepared.global_location_filter.as_str()),
+        prepared
+            .country_location_filters
+            .get(country_code)
+            .map(String::as_str),
+        prepared
+            .subdivision_location_filters
+            .get(country_code)
+            .and_then(|subs| subs.get(subdivision))
+            .map(String::as_str),
+    ]);
     let proximity_def = prepared
         .subdivision_proximity_filters
         .get(country_code)
@@ -298,13 +290,17 @@ fn resolve_context<'a>(
         .and_then(|m| m.get(subdivision))
         .or_else(|| prepared.country_geometry_filters.get(country_code))
         .unwrap_or(&prepared.geometry_filters);
-    let geometry = crate::geometry::build_context(geometry_filters)
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let geometry =
+        crate::geometry::build_context(geometry_filters).map_err(|e| anyhow::anyhow!(e))?;
     let preference_defs = prepared
         .subdivision_location_preference_filters
         .get(country_code)
         .and_then(|m| m.get(subdivision))
-        .or_else(|| prepared.country_location_preference_filters.get(country_code))
+        .or_else(|| {
+            prepared
+                .country_location_preference_filters
+                .get(country_code)
+        })
         .unwrap_or(&prepared.global_location_preference_filters);
     let pref_proximities: Vec<Option<crate::proximity::ProximityIndex>> = preference_defs
         .iter()
@@ -313,9 +309,7 @@ fn resolve_context<'a>(
     let pref_geometries: Vec<Option<crate::geometry::GeometryContext>> = preference_defs
         .iter()
         .map(|p| {
-            crate::geometry::build_context(
-                    &crate::geometry::prepare_list(&p.geometry_filters),
-                )
+            crate::geometry::build_context(&crate::geometry::prepare_list(&p.geometry_filters))
                 .map_err(|e| anyhow::anyhow!(e))
         })
         .collect::<anyhow::Result<Vec<_>>>()?;
@@ -348,23 +342,18 @@ fn run_work_item(
     deterministic: bool,
 ) -> anyhow::Result<WorkResult> {
     match &item.kind {
-        WorkKind::Subdivision { subdivision_code, file } => {
-            run_subdivision_item(prepared, item, subdivision_code, file, deterministic)
-        }
-        WorkKind::Country { files } => {
-            match prepared.strategy_key.as_str() {
-                "FixedCountByMaxMinDistance" | "FixedCountByCoverageDensity" => {
-                    run_country_single(prepared, item, files, deterministic)
-                }
-                "MaxCountByFixedMinDistance" => {
-                    run_max_count(prepared, item, files, deterministic)
-                }
-                "EvenlyByDistanceWithinCountry" => {
-                    run_evenly(prepared, item, files, deterministic)
-                }
-                other => bail!("unhandled strategy {other}"),
+        WorkKind::Subdivision {
+            subdivision_code,
+            file,
+        } => run_subdivision_item(prepared, item, subdivision_code, file, deterministic),
+        WorkKind::Country { files } => match prepared.strategy_key.as_str() {
+            "FixedCountByMaxMinDistance" | "FixedCountByCoverageDensity" => {
+                run_country_single(prepared, item, files, deterministic)
             }
-        }
+            "MaxCountByFixedMinDistance" => run_max_count(prepared, item, files, deterministic),
+            "EvenlyByDistanceWithinCountry" => run_evenly(prepared, item, files, deterministic),
+            other => bail!("unhandled strategy {other}"),
+        },
     }
 }
 fn run_subdivision_item(
@@ -396,21 +385,9 @@ fn run_subdivision_item(
         file,
     )?;
     let available: Vec<&str> = item.subdivisions.iter().map(String::as_str).collect();
-    let region_goal_count = match prepared
-        .subdivision_distribution
-        .get(&item.country_code)
-    {
-        Some(weights) => {
-            subdivision_goal_from_custom_weights(weights, subdivision, item.goal)
-        }
-        None => {
-            goal_for_subdivision(
-                &item.country_code,
-                subdivision,
-                item.goal,
-                Some(&available),
-            )
-        }
+    let region_goal_count = match prepared.subdivision_distribution.get(&item.country_code) {
+        Some(weights) => subdivision_goal_from_custom_weights(weights, subdivision, item.goal),
+        None => goal_for_subdivision(&item.country_code, subdivision, item.goal, Some(&available)),
     };
     if region_goal_count == 0 {
         return Ok(vec![(Vec::new(), 0, 0)]);
@@ -421,39 +398,39 @@ fn run_subdivision_item(
     let prefs = ctx.preference_specs();
     let t = std::time::Instant::now();
     let (indices, tags, min_distance) = match prepared.strategy_key.as_str() {
-        "FixedCountByCoverageDensity" => {
-            locations_by_coverage_density(
-                &locations,
-                &filtered,
-                region_goal_count,
-                prepared.coverage_density_tuning_factor,
-                neighbor_context.as_ref(),
-                &ctx.map_neighbor_specs,
-                &prefs,
-                &ctx.probability,
-                prepared.enable_default_location_filters,
-                prepared.min_min_distance,
-                deterministic,
-            )
-        }
-        _ => {
-            by_max_min_distance(
-                &locations,
-                filtered,
-                region_goal_count,
-                neighbor_context.as_ref(),
-                &ctx.map_neighbor_specs,
-                &prefs,
-                &ctx.probability,
-                prepared.enable_default_location_filters,
-                prepared.min_min_distance,
-                deterministic,
-            )
-        }
+        "FixedCountByCoverageDensity" => locations_by_coverage_density(
+            &locations,
+            &filtered,
+            region_goal_count,
+            prepared.coverage_density_tuning_factor,
+            neighbor_context.as_ref(),
+            &ctx.map_neighbor_specs,
+            &prefs,
+            &ctx.probability,
+            prepared.enable_default_location_filters,
+            prepared.min_min_distance,
+            deterministic,
+        ),
+        _ => by_max_min_distance(
+            &locations,
+            filtered,
+            region_goal_count,
+            neighbor_context.as_ref(),
+            &ctx.map_neighbor_specs,
+            &prefs,
+            &ctx.probability,
+            prepared.enable_default_location_filters,
+            prepared.min_min_distance,
+            deterministic,
+        ),
     }
-        .map_err(|e| anyhow::anyhow!("{}: {e}", file.display()))?;
+    .map_err(|e| anyhow::anyhow!("{}: {e}", file.display()))?;
     timing::add("distribute", t.elapsed());
-    Ok(vec![(collect(& locations, & indices, & tags), region_goal_count, min_distance)])
+    Ok(vec![(
+        collect(&locations, &indices, &tags),
+        region_goal_count,
+        min_distance,
+    )])
 }
 fn run_country_single(
     prepared: &Prepared,
@@ -493,38 +470,38 @@ fn run_country_single(
     );
     let prefs = ctx.preference_specs();
     let (indices, tags, min_distance) = match prepared.strategy_key.as_str() {
-        "FixedCountByCoverageDensity" => {
-            locations_by_coverage_density(
-                &locations,
-                &densified,
-                item.goal,
-                prepared.coverage_density_tuning_factor,
-                neighbor_context.as_ref(),
-                &ctx.map_neighbor_specs,
-                &prefs,
-                &ctx.probability,
-                prepared.enable_default_location_filters,
-                prepared.min_min_distance,
-                deterministic,
-            )
-        }
-        _ => {
-            by_max_min_distance(
-                &locations,
-                densified,
-                item.goal,
-                neighbor_context.as_ref(),
-                &ctx.map_neighbor_specs,
-                &prefs,
-                &ctx.probability,
-                prepared.enable_default_location_filters,
-                prepared.min_min_distance,
-                deterministic,
-            )
-        }
+        "FixedCountByCoverageDensity" => locations_by_coverage_density(
+            &locations,
+            &densified,
+            item.goal,
+            prepared.coverage_density_tuning_factor,
+            neighbor_context.as_ref(),
+            &ctx.map_neighbor_specs,
+            &prefs,
+            &ctx.probability,
+            prepared.enable_default_location_filters,
+            prepared.min_min_distance,
+            deterministic,
+        ),
+        _ => by_max_min_distance(
+            &locations,
+            densified,
+            item.goal,
+            neighbor_context.as_ref(),
+            &ctx.map_neighbor_specs,
+            &prefs,
+            &ctx.probability,
+            prepared.enable_default_location_filters,
+            prepared.min_min_distance,
+            deterministic,
+        ),
     }
-        .map_err(|e| anyhow::anyhow!("{}: {e}", item.country_code))?;
-    Ok(vec![(collect(& locations, & indices, & tags), item.goal, min_distance)])
+    .map_err(|e| anyhow::anyhow!("{}: {e}", item.country_code))?;
+    Ok(vec![(
+        collect(&locations, &indices, &tags),
+        item.goal,
+        min_distance,
+    )])
 }
 fn run_max_count(
     prepared: &Prepared,
@@ -552,10 +529,7 @@ fn run_max_count(
         let ctx = resolve_context(prepared, &item.country_code, &subdivision)?;
         let neighbors = prepared
             .neighbor_bucket_precision
-            .map(|precision| crate::neighbor::NeighborContext::build(
-                &locations,
-                precision,
-            ));
+            .map(|precision| crate::neighbor::NeighborContext::build(&locations, precision));
         let filtered = if item.subdivisions.iter().any(|s| s == &subdivision) {
             filter_with_context(
                 &locations,
@@ -581,7 +555,13 @@ fn run_max_count(
     let country_probability = resolve_probability(prepared, &item.country_code, "");
     let search_input: Vec<(&str, &[Location], Vec<u32>)> = subs
         .iter()
-        .map(|s| (s.subdivision.as_str(), s.locations.as_slice(), s.filtered.clone()))
+        .map(|s| {
+            (
+                s.subdivision.as_str(),
+                s.locations.as_slice(),
+                s.filtered.clone(),
+            )
+        })
         .collect();
     let goals = max_count_goal_search(
         &search_input,
@@ -596,24 +576,23 @@ fn run_max_count(
     for (s, goal) in subs.iter().zip(&goals) {
         let prefs = s.ctx.preference_specs();
         let (indices, tags, _) = by_max_min_distance(
-                &s.locations,
-                s.filtered.clone(),
-                *goal,
-                s.neighbors.as_ref(),
-                &s.ctx.map_neighbor_specs,
-                &prefs,
-                &s.ctx.probability,
-                prepared.enable_default_location_filters,
-                *goal,
-                deterministic,
-            )
-            .map_err(|e| anyhow::anyhow!("{}: {e}", s.subdivision))?;
-        results
-            .push((
-                collect(&s.locations, &indices, &tags),
-                *goal,
-                prepared.fixed_min_distance,
-            ));
+            &s.locations,
+            s.filtered.clone(),
+            *goal,
+            s.neighbors.as_ref(),
+            &s.ctx.map_neighbor_specs,
+            &prefs,
+            &s.ctx.probability,
+            prepared.enable_default_location_filters,
+            *goal,
+            deterministic,
+        )
+        .map_err(|e| anyhow::anyhow!("{}: {e}", s.subdivision))?;
+        results.push((
+            collect(&s.locations, &indices, &tags),
+            *goal,
+            prepared.fixed_min_distance,
+        ));
     }
     Ok(results)
 }
@@ -639,10 +618,7 @@ fn run_evenly(
         let ctx = resolve_context(prepared, &item.country_code, &subdivision)?;
         let neighbors = prepared
             .neighbor_bucket_precision
-            .map(|precision| crate::neighbor::NeighborContext::build(
-                &locations,
-                precision,
-            ));
+            .map(|precision| crate::neighbor::NeighborContext::build(&locations, precision));
         let filtered = filter_with_context(
             &locations,
             &ctx,
@@ -663,7 +639,11 @@ fn run_evenly(
         deterministic,
     );
     let tags = vec![None; selected.len()];
-    Ok(vec![(collect(& combined, & selected, & tags), - 1, prepared.fixed_min_distance)])
+    Ok(vec![(
+        collect(&combined, &selected, &tags),
+        -1,
+        prepared.fixed_min_distance,
+    )])
 }
 fn resolve_probability(
     prepared: &Prepared,
@@ -680,8 +660,7 @@ fn resolve_probability(
 }
 fn decode(file: &Path) -> anyhow::Result<Vec<Location>> {
     let t = std::time::Instant::now();
-    let r = vali_data::decode_file(file)
-        .with_context(|| format!("decode {}", file.display()));
+    let r = vali_data::decode_file(file).with_context(|| format!("decode {}", file.display()));
     timing::add("decode", t.elapsed());
     r
 }
@@ -693,21 +672,19 @@ fn filter_with_context(
     deterministic: bool,
     label: &Path,
 ) -> anyhow::Result<Vec<u32>> {
-    let spec_refs: Vec<&crate::neighbor::NeighborFilterSpec> = ctx
-        .map_neighbor_specs
-        .iter()
-        .collect();
+    let spec_refs: Vec<&crate::neighbor::NeighborFilterSpec> =
+        ctx.map_neighbor_specs.iter().collect();
     let t = std::time::Instant::now();
     let r = filter(
-            locations,
-            ctx.merged.as_deref(),
-            ctx.proximity.as_ref(),
-            ctx.geometry.as_ref(),
-            neighbors.map(|n| (n, spec_refs.as_slice())),
-            prepared.enable_default_location_filters,
-            deterministic,
-        )
-        .map_err(|e| anyhow::anyhow!("{}: {e}", label.display()));
+        locations,
+        ctx.merged.as_deref(),
+        ctx.proximity.as_ref(),
+        ctx.geometry.as_ref(),
+        neighbors.map(|n| (n, spec_refs.as_slice())),
+        prepared.enable_default_location_filters,
+        deterministic,
+    )
+    .map_err(|e| anyhow::anyhow!("{}: {e}", label.display()));
     timing::add("filter", t.elapsed());
     r
 }

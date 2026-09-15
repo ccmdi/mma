@@ -38,12 +38,7 @@ pub struct Token {
     pub length: usize,
 }
 impl Token {
-    pub fn new(
-        kind: TokenKind,
-        value: impl Into<String>,
-        position: usize,
-        length: usize,
-    ) -> Token {
+    pub fn new(kind: TokenKind, value: impl Into<String>, position: usize, length: usize) -> Token {
         Token {
             kind,
             value: value.into(),

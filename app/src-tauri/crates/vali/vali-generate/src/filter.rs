@@ -3,44 +3,20 @@ use vali_core::Location;
 use vali_expr::error::ExprError;
 const RESOLUTION_GEN4: i32 = 8192;
 pub const COUNTRY_CODES_ACCEPTABLE_WITHOUT_DESCRIPTION: [&str; 23] = [
-    "CX",
-    "CC",
-    "MP",
-    "GU",
-    "EG",
-    "ML",
-    "MG",
-    "PN",
-    "GL",
-    "MN",
-    "KR",
-    "FO",
-    "UG",
-    "KG",
-    "RW",
-    "LB",
-    "RE",
-    "MQ",
-    "NP",
-    "PK",
-    "BY",
-    "UM",
-    "XK",
+    "CX", "CC", "MP", "GU", "EG", "ML", "MG", "PN", "GL", "MN", "KR", "FO", "UG", "KG", "RW", "LB",
+    "RE", "MQ", "NP", "PK", "BY", "UM", "XK",
 ];
-pub const SUBDIVISION_CODES_ACCEPTABLE_WITHOUT_DESCRIPTION: [&str; 4] = [
-    "NO-21",
-    "CA-NU",
-    "US-AK",
-    "BR-PE",
-];
+pub const SUBDIVISION_CODES_ACCEPTABLE_WITHOUT_DESCRIPTION: [&str; 4] =
+    ["NO-21", "CA-NU", "US-AK", "BR-PE"];
 pub fn filter(
     locations: &[Location],
     location_filter_expression: Option<&str>,
     proximity: Option<&crate::proximity::ProximityIndex>,
     geometry: Option<&crate::geometry::GeometryContext>,
-    neighbors: Option<
-        (&crate::neighbor::NeighborContext, &[&crate::neighbor::NeighborFilterSpec]),
-    >,
+    neighbors: Option<(
+        &crate::neighbor::NeighborContext,
+        &[&crate::neighbor::NeighborFilterSpec],
+    )>,
     enable_default_location_filters: bool,
     deterministic: bool,
 ) -> Result<Vec<u32>, ExprError> {
@@ -63,9 +39,10 @@ pub fn filter_subset(
     location_filter_expression: Option<&str>,
     proximity: Option<&crate::proximity::ProximityIndex>,
     geometry: Option<&crate::geometry::GeometryContext>,
-    neighbors: Option<
-        (&crate::neighbor::NeighborContext, &[&crate::neighbor::NeighborFilterSpec]),
-    >,
+    neighbors: Option<(
+        &crate::neighbor::NeighborContext,
+        &[&crate::neighbor::NeighborFilterSpec],
+    )>,
     enable_default_location_filters: bool,
     deterministic: bool,
 ) -> Result<Vec<u32>, ExprError> {
@@ -73,8 +50,7 @@ pub fn filter_subset(
     let has_expression = !expression.is_empty();
     let apply_tunnels = !has_expression || !expression.contains("Tunnels");
     let apply_description = !has_expression
-        || (!expression.contains("DescriptionLength")
-            && !expression.contains("IsScout"));
+        || (!expression.contains("DescriptionLength") && !expression.contains("IsScout"));
     let compiled = if has_expression {
         Some(vali_expr::compile_bool(expression)?)
     } else {
@@ -111,12 +87,7 @@ pub fn filter_subset(
     }
     if let Some((context, specs)) = neighbors {
         for &spec in specs {
-            kept = crate::neighbor::apply_neighbor_filter(
-                locations,
-                context,
-                spec,
-                &kept,
-            );
+            kept = crate::neighbor::apply_neighbor_filter(locations, context, spec, &kept);
         }
     }
     let mut seen: FxHashSet<i64> = FxHashSet::default();
@@ -129,15 +100,12 @@ pub fn filter_subset(
 fn resolution_gate(loc: &Location) -> bool {
     match loc.nominatim.country_code.as_str() {
         "FI" => loc.google.resolution_height >= RESOLUTION_GEN4 || loc.google.year < 2022,
-        "EC" | "NG" => {
-            loc.google.resolution_height >= RESOLUTION_GEN4 || loc.google.year < 2021
-        }
+        "EC" | "NG" => loc.google.resolution_height >= RESOLUTION_GEN4 || loc.google.year < 2021,
         _ => true,
     }
 }
 fn description_gate(loc: &Location) -> bool {
-    let desc_ok = matches!(loc.google.description_length, None | Some(1..))
-        && !loc.google.is_scout;
+    let desc_ok = matches!(loc.google.description_length, None | Some(1..)) && !loc.google.is_scout;
     desc_ok
         || COUNTRY_CODES_ACCEPTABLE_WITHOUT_DESCRIPTION
             .contains(&loc.nominatim.country_code.as_str())

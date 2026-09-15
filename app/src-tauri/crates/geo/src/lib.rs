@@ -131,9 +131,15 @@ pub fn covering_cells(lat: f64, lng: f64, radius_m: f64, cell_deg: f64) -> CellC
         let d_lng = (sin_r / cos_lat).asin().to_degrees();
         let (lo, hi) = (lng - d_lng, lng + d_lng);
         if lo < -180.0 {
-            [Some(to_range(-180.0, hi)), Some(to_range(lo + 360.0, 180.0))]
+            [
+                Some(to_range(-180.0, hi)),
+                Some(to_range(lo + 360.0, 180.0)),
+            ]
         } else if hi > 180.0 {
-            [Some(to_range(lo, 180.0)), Some(to_range(-180.0, hi - 360.0))]
+            [
+                Some(to_range(lo, 180.0)),
+                Some(to_range(-180.0, hi - 360.0)),
+            ]
         } else {
             [Some(to_range(lo, hi)), None]
         }

@@ -865,7 +865,6 @@ impl<K, V> Deref for Touched<K, V> {
     }
 }
 
-
 /// Lightweight status for polling: count, version, and whether unsaved changes exist.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

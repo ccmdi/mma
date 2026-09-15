@@ -5,13 +5,13 @@
 //! and deleting maps, plus the auto-registration logic that discovers new
 //! `Location.extra` fields and persists their type definitions.
 
-use crate::types::wire_str_enum;
 use crate::store::engine;
 use crate::store::engine::StoreState;
 use crate::store::storage::{self, push_field};
-use crate::types;
-use crate::types::AppResult;
 use crate::sv::schema::PanoType;
+use crate::types;
+use crate::types::wire_str_enum;
+use crate::types::AppResult;
 use crate::types::RawExtra;
 use crate::types::Tag;
 use crate::util::now_iso;

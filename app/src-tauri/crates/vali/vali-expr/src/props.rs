@@ -112,11 +112,7 @@ pub fn ty(prop: Prop) -> Ty {
     match prop {
         Surface | WayId | CountryCode | SubdivisionCode | County => Ty::Str,
         IsResidential | IsScout => Ty::Bool,
-        ClosestCoast
-        | ClosestLake
-        | ClosestRiver
-        | ClosestRailway
-        | Elevation
+        ClosestCoast | ClosestLake | ClosestRiver | ClosestRailway | Elevation
         | DescriptionLength => Ty::NInt,
         Lat | Lng => Ty::Double,
         HighwayType => Ty::Highway,

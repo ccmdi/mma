@@ -31,11 +31,10 @@ impl ProximityIndex {
     }
     pub fn matches(&self, lat: f64, lng: f64) -> bool {
         let hash = encode(lat, lng, self.precision);
-        nearby(&self.buckets, hash)
-            .any(|i| {
-                let (plat, plng) = self.points[i as usize];
-                points_are_closer_than(lat, lng, plat, plng, self.radius_squared)
-            })
+        nearby(&self.buckets, hash).any(|i| {
+            let (plat, plng) = self.points[i as usize];
+            points_are_closer_than(lat, lng, plat, plng, self.radius_squared)
+        })
     }
 }
 #[derive(Deserialize)]

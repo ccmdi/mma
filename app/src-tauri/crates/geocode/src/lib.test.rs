@@ -14,7 +14,9 @@ fn geocoder() -> Geocoder<'static> {
 /// the exact same record.
 fn assert_agrees(g: &Geocoder<'_>, oracle: &ReverseGeocoder, lat: f64, lng: f64) {
     let want = oracle.search((lat, lng)).record;
-    let got = g.nearest(lat, lng).expect("the dataset covers every coordinate");
+    let got = g
+        .nearest(lat, lng)
+        .expect("the dataset covers every coordinate");
     if got.name == want.name && got.admin1 == want.admin1 && got.country_code == want.cc {
         return;
     }
@@ -116,9 +118,16 @@ fn agrees_with_the_oracle_on_every_city_s_own_coordinate() {
 #[test]
 fn rejects_a_misaligned_table() {
     let mut buf = vec![0u8; TABLE.0.len() + 4];
-    let shift = if (buf.as_ptr() as usize + 1) % 4 == 0 { 2 } else { 1 };
+    let shift = if (buf.as_ptr() as usize + 1) % 4 == 0 {
+        2
+    } else {
+        1
+    };
     buf[shift..shift + TABLE.0.len()].copy_from_slice(&TABLE.0);
-    assert_eq!(Geocoder::new(&buf[shift..shift + TABLE.0.len()]).err(), Some(Error::Misaligned));
+    assert_eq!(
+        Geocoder::new(&buf[shift..shift + TABLE.0.len()]).err(),
+        Some(Error::Misaligned)
+    );
 }
 
 #[test]

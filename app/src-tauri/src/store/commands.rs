@@ -944,7 +944,8 @@ pub async fn store_sync_selections(
         // 2. Keep every selection, ghosted flagged: a mutation recounts all of them, and
         //    `SelectionState::live` is the one rule that keeps ghosted out of the overlay
         //    and the selected set.
-        store.selections.resolved = pair_selections(sels_full, sel_sets, sels.iter().map(|si| si.ghosted));
+        store.selections.resolved =
+            pair_selections(sels_full, sel_sets, sels.iter().map(|si| si.ghosted));
 
         let all_selected = store.selections.live_ids();
         let selected_count = all_selected.len() as usize;

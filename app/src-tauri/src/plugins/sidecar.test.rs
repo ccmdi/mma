@@ -218,7 +218,9 @@ fn cancel_kills_a_tracked_child_by_req_id() {
 
     let found = {
         let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
-        slots.iter().find_map(|slot| lock(slot).children.get(&req_id).cloned())
+        slots
+            .iter()
+            .find_map(|slot| lock(slot).children.get(&req_id).cloned())
     };
     let target = found.expect("tracked child is in the registry");
     kill_child(&target);

@@ -178,21 +178,33 @@ impl TsConst {
 
     /// The declaration as it lands in the file.
     pub fn render(&self, name: &str) -> String {
-        let mut ts = String::from("
-");
+        let mut ts = String::from(
+            "
+",
+        );
         match self.doc {
             [] => {}
-            [one] => ts.push_str(&format!("/** {} */
-", one.trim())),
+            [one] => ts.push_str(&format!(
+                "/** {} */
+",
+                one.trim()
+            )),
             many => {
-                ts.push_str("/**
-");
+                ts.push_str(
+                    "/**
+",
+                );
                 for line in many {
-                    ts.push_str(&format!(" * {}
-", line.trim()));
+                    ts.push_str(&format!(
+                        " * {}
+",
+                        line.trim()
+                    ));
                 }
-                ts.push_str(" */
-");
+                ts.push_str(
+                    " */
+",
+                );
             }
         }
         ts.push_str(&format!(

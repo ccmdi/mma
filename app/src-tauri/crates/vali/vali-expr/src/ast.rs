@@ -7,13 +7,36 @@ pub struct TextSpan {
 #[derive(Debug, Clone)]
 pub enum Node {
     Literal(Token),
-    Property { token: Token, name: String },
-    ExternalProperty { token: Token, key: String },
-    ParentProperty { token: Token, name: String },
-    Binary { left: Box<Node>, op: Token, right: Box<Node> },
-    UnaryMinus { op: Token, operand: Box<Node> },
-    Group { inner: Box<Node>, span: TextSpan },
-    In { operand: Box<Node>, values: Vec<Token>, span: TextSpan },
+    Property {
+        token: Token,
+        name: String,
+    },
+    ExternalProperty {
+        token: Token,
+        key: String,
+    },
+    ParentProperty {
+        token: Token,
+        name: String,
+    },
+    Binary {
+        left: Box<Node>,
+        op: Token,
+        right: Box<Node>,
+    },
+    UnaryMinus {
+        op: Token,
+        operand: Box<Node>,
+    },
+    Group {
+        inner: Box<Node>,
+        span: TextSpan,
+    },
+    In {
+        operand: Box<Node>,
+        values: Vec<Token>,
+        span: TextSpan,
+    },
 }
 impl Node {
     pub fn span(&self) -> TextSpan {
@@ -21,12 +44,10 @@ impl Node {
             Node::Literal(t)
             | Node::Property { token: t, .. }
             | Node::ExternalProperty { token: t, .. }
-            | Node::ParentProperty { token: t, .. } => {
-                TextSpan {
-                    start: t.position,
-                    length: t.length,
-                }
-            }
+            | Node::ParentProperty { token: t, .. } => TextSpan {
+                start: t.position,
+                length: t.length,
+            },
             Node::Binary { left, right, .. } => {
                 let l = left.span();
                 let r = right.span();

@@ -1,4 +1,3 @@
-
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, RoundingStrategy};
 pub fn round_to_int(d: Decimal) -> i32 {
@@ -6,9 +5,7 @@ pub fn round_to_int(d: Decimal) -> i32 {
         .to_i32()
         .expect("goal count out of int range")
 }
-pub fn subdivision_weights(
-    country_code: &str,
-) -> Option<&'static [(&'static str, i32)]> {
+pub fn subdivision_weights(country_code: &str) -> Option<&'static [(&'static str, i32)]> {
     crate::weights::subdivision_weights(country_code)
 }
 pub fn country_location_count_goal(
@@ -22,9 +19,7 @@ pub fn country_location_count_goal(
         .find(|(cc, _)| cc == country_code)
         .unwrap_or_else(|| panic!("country {country_code} not in CountryDistribution"))
         .1;
-    round_to_int(
-        Decimal::from(location_count_goal) * Decimal::from(weight) / Decimal::from(total),
-    )
+    round_to_int(Decimal::from(location_count_goal) * Decimal::from(weight) / Decimal::from(total))
 }
 pub fn goal_for_subdivision(
     country_code: &str,
@@ -59,7 +54,5 @@ pub fn subdivision_goal_from_custom_weights(
         .find(|(code, _)| code == subdivision_code)
         .map_or(0, |(_, w)| *w);
     let total: i32 = weights.iter().map(|(_, w)| *w).sum();
-    round_to_int(
-        Decimal::from(weight) / Decimal::from(total) * Decimal::from(goal_count),
-    )
+    round_to_int(Decimal::from(weight) / Decimal::from(total) * Decimal::from(goal_count))
 }

@@ -1,12 +1,12 @@
 //! Location mutations as the engine applies them: adds, patches, field-wide ops, and the `MutationResult` they report.
 
-use crate::types::wire_str_enum;
 use super::*;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::{self, Selector};
 use crate::store::maps;
 use crate::store::storage;
+use crate::types::wire_str_enum;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::types::{Location, Tag};

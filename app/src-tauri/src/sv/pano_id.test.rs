@@ -42,7 +42,10 @@ fn a_bare_contributor_key_resolves_over_the_user_uploaded_frontend() {
 
 #[test]
 fn an_id_that_is_not_a_key_stays_itself_as_official_coverage() {
-    assert_eq!(to_image_key("not base64 at all"), (2, "not base64 at all".to_string()));
+    assert_eq!(
+        to_image_key("not base64 at all"),
+        (2, "not base64 at all".to_string())
+    );
     assert_eq!(to_image_key(""), (2, String::new()));
 }
 

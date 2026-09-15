@@ -11,7 +11,10 @@ fn land_coords(g: &Geocoder<'_>, n: usize) -> Vec<(f64, f64)> {
     (0..n)
         .map(|_| {
             let r = g.get(fastrand::usize(..g.len())).unwrap();
-            (r.lat + fastrand::f64() * 0.1 - 0.05, r.lng + fastrand::f64() * 0.1 - 0.05)
+            (
+                r.lat + fastrand::f64() * 0.1 - 0.05,
+                r.lng + fastrand::f64() * 0.1 - 0.05,
+            )
         })
         .collect()
 }
@@ -19,7 +22,12 @@ fn land_coords(g: &Geocoder<'_>, n: usize) -> Vec<(f64, f64)> {
 fn uniform_coords(n: usize) -> Vec<(f64, f64)> {
     fastrand::seed(11);
     (0..n)
-        .map(|_| (fastrand::f64() * 180.0 - 90.0, fastrand::f64() * 360.0 - 180.0))
+        .map(|_| {
+            (
+                fastrand::f64() * 180.0 - 90.0,
+                fastrand::f64() * 360.0 - 180.0,
+            )
+        })
         .collect()
 }
 

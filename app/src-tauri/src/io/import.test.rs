@@ -443,7 +443,10 @@ fn preview_leaves_an_unnamed_map_nameless() {
         entry(br#"{"name":"Sweden","customCoordinates":[{"lat":1,"lng":2}]}"#).name,
         Some("Sweden".to_string())
     );
-    assert_eq!(entry(br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#).name, None);
+    assert_eq!(
+        entry(br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#).name,
+        None
+    );
     assert_eq!(
         entry(br#"{"name":"","customCoordinates":[{"lat":1,"lng":2}]}"#).name,
         None
@@ -846,7 +849,12 @@ fn add_copied_reconciles_tags_and_reports_counts() {
     assert_eq!(counts[&unique.id], 1);
 
     // The new tag def is shipped on the result (the receiver needs it to render).
-    assert!(r.values.tags.as_ref().and_then(|m| m.get(&unique.id)).is_some());
+    assert!(r
+        .values
+        .tags
+        .as_ref()
+        .and_then(|m| m.get(&unique.id))
+        .is_some());
 }
 
 #[test]
@@ -901,7 +909,9 @@ fn csv_named_headers_missing_optional_columns() {
     assert_eq!(parsed.locations[0].pitch, 0.0);
     assert_eq!(parsed.locations[0].zoom, 0.0);
     assert!(parsed.locations[0].pano_id.is_none());
-    assert!(!parsed.locations[0].flags.contains(LocationFlags::LOAD_AS_PANO_ID));
+    assert!(!parsed.locations[0]
+        .flags
+        .contains(LocationFlags::LOAD_AS_PANO_ID));
 }
 
 #[test]
@@ -928,7 +938,10 @@ fn csv_named_headers_empty_pano_field() {
     let csv = "lat,lng,panoId\n10.0,20.0,\n30.0,40.0,PANO\n";
     let parsed = parse_csv(csv);
     assert_eq!(parsed.locations.len(), 2);
-    assert!(parsed.locations[0].pano_id.is_none(), "empty pano stays None");
+    assert!(
+        parsed.locations[0].pano_id.is_none(),
+        "empty pano stays None"
+    );
     assert_eq!(parsed.locations[1].pano_id.as_deref(), Some("PANO"));
 }
 

@@ -24,8 +24,12 @@ impl ExprError {
 impl fmt::Display for ExprError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
-            f, "{} (at {}..{} in `{}`)", self.message, self.position, self.position +
-            self.length, self.expression
+            f,
+            "{} (at {}..{} in `{}`)",
+            self.message,
+            self.position,
+            self.position + self.length,
+            self.expression
         )
     }
 }

@@ -7,18 +7,11 @@ use vali_core::GeometryFilterDef;
 /// One polygon in GeoJSON ring order: outer ring first, then holes; vertices are [lng, lat].
 pub type PolygonRings = Vec<Vec<[f64; 2]>>;
 
-pub const EUROPEAN_TURKEY: &str = include_str!(
-    "../resources/regions/european-turkey.geojson"
-);
-pub const EUROPEAN_RUSSIA: &str = include_str!(
-    "../resources/regions/european-russia.geojson"
-);
-pub const EUROPEAN_KAZAKHSTAN: &str = include_str!(
-    "../resources/regions/european-kazakhstan.geojson"
-);
-pub const AFRICAN_SPAIN: &str = include_str!(
-    "../resources/regions/african-spain.geojson"
-);
+pub const EUROPEAN_TURKEY: &str = include_str!("../resources/regions/european-turkey.geojson");
+pub const EUROPEAN_RUSSIA: &str = include_str!("../resources/regions/european-russia.geojson");
+pub const EUROPEAN_KAZAKHSTAN: &str =
+    include_str!("../resources/regions/european-kazakhstan.geojson");
+pub const AFRICAN_SPAIN: &str = include_str!("../resources/regions/african-spain.geojson");
 pub const HAWAII: &str = include_str!("../resources/regions/hawaii.geojson");
 #[derive(Debug, Clone)]
 pub enum GeometrySource {
@@ -32,10 +25,7 @@ pub struct PreparedGeometryFilter {
     pub source: GeometrySource,
 }
 impl PreparedGeometryFilter {
-    pub fn from_def(
-        def: &GeometryFilterDef,
-        combination_mode: &str,
-    ) -> PreparedGeometryFilter {
+    pub fn from_def(def: &GeometryFilterDef, combination_mode: &str) -> PreparedGeometryFilter {
         PreparedGeometryFilter {
             locations_inside: def.locations_inside(),
             combination_mode: combination_mode.to_string(),
@@ -51,7 +41,9 @@ pub fn normalized_combination_mode(defs: &[GeometryFilterDef]) -> String {
 }
 pub fn prepare_list(defs: &[GeometryFilterDef]) -> Vec<PreparedGeometryFilter> {
     let mode = normalized_combination_mode(defs);
-    defs.iter().map(|d| PreparedGeometryFilter::from_def(d, &mode)).collect()
+    defs.iter()
+        .map(|d| PreparedGeometryFilter::from_def(d, &mode))
+        .collect()
 }
 pub fn geometries_from_file(path: &str) -> Vec<PolygonRings> {
     static CACHE: OnceLock<Mutex<HashMap<String, Vec<PolygonRings>>>> = OnceLock::new();
@@ -68,7 +60,10 @@ pub fn geometries_from_file(path: &str) -> Vec<PolygonRings> {
             );
             Vec::new()
         });
-    cache.lock().unwrap().insert(path.to_string(), parsed.clone());
+    cache
+        .lock()
+        .unwrap()
+        .insert(path.to_string(), parsed.clone());
     parsed
 }
 pub fn applicable(
@@ -106,9 +101,7 @@ pub fn build_context(
     GeometryContext::build(&mode, evaluated).map(Some)
 }
 pub fn parse_geojson(text: &str) -> Result<Vec<PolygonRings>, String> {
-    let parsed: geojson::GeoJson = text
-        .parse()
-        .map_err(|e| format!("invalid GeoJSON: {e}"))?;
+    let parsed: geojson::GeoJson = text.parse().map_err(|e| format!("invalid GeoJSON: {e}"))?;
     match parsed {
         geojson::GeoJson::Geometry(g) => geometry_polygons(g),
         geojson::GeoJson::Feature(f) => {
@@ -141,7 +134,10 @@ fn geometry_polygons(g: geojson::Geometry) -> Result<Vec<PolygonRings>, String> 
             }
             Ok(out)
         }
-        other => Err(format!("unsupported GeoJSON geometry: {}", other.type_name())),
+        other => Err(format!(
+            "unsupported GeoJSON geometry: {}",
+            other.type_name()
+        )),
     }
 }
 struct EvaluatedFilter {
@@ -162,9 +158,9 @@ impl GeometryContext {
             "union" => true,
             "intersection" => false,
             other => {
-                return Err(
-                    format!("Only union/intersection acceptable values, got '{other}'."),
-                );
+                return Err(format!(
+                    "Only union/intersection acceptable values, got '{other}'."
+                ));
             }
         };
         let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];

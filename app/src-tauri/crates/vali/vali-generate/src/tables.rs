@@ -7,8 +7,7 @@ pub type Weights = &'static [(&'static str, i32)];
 const NAMES_JSON: &[u8] = include_bytes!("../resources/tables/names.json");
 const SUBDIVISION_WEIGHTS_JSON: &[u8] =
     include_bytes!("../resources/tables/subdivision_weights.json");
-const COUNTRY_WEIGHTS_JSON: &[u8] =
-    include_bytes!("../resources/tables/country_weights.json");
+const COUNTRY_WEIGHTS_JSON: &[u8] = include_bytes!("../resources/tables/country_weights.json");
 
 #[derive(Deserialize)]
 struct NamesFile {
@@ -52,20 +51,17 @@ fn leak_str(s: String) -> &'static str {
 }
 
 fn leak_weights(v: Vec<(String, i32)>) -> Weights {
-    let v: Vec<(&'static str, i32)> =
-        v.into_iter().map(|(k, w)| (leak_str(k), w)).collect();
+    let v: Vec<(&'static str, i32)> = v.into_iter().map(|(k, w)| (leak_str(k), w)).collect();
     Box::leak(v.into_boxed_slice())
 }
 
 fn load() -> Tables {
-    let names: NamesFile =
-        serde_json::from_slice(NAMES_JSON).expect("names.json is malformed");
+    let names: NamesFile = serde_json::from_slice(NAMES_JSON).expect("names.json is malformed");
     let sub_weights: Vec<(String, Vec<(String, i32)>)> =
         serde_json::from_slice(SUBDIVISION_WEIGHTS_JSON)
             .expect("subdivision_weights.json is malformed");
     let presets: Vec<(String, Vec<(String, i32)>)> =
-        serde_json::from_slice(COUNTRY_WEIGHTS_JSON)
-            .expect("country_weights.json is malformed");
+        serde_json::from_slice(COUNTRY_WEIGHTS_JSON).expect("country_weights.json is malformed");
 
     let countries: Vec<(&'static str, &'static str)> = names
         .countries
@@ -122,7 +118,10 @@ mod tests {
     fn spot_checks() {
         assert_eq!(crate::names::country_name("JP"), "Japan");
         assert_eq!(crate::names::country_name("ZZ"), "");
-        assert_eq!(crate::names::subdivision_name("GE", "GE-TB"), Some("Tbilisi"));
+        assert_eq!(
+            crate::names::subdivision_name("GE", "GE-TB"),
+            Some("Tbilisi")
+        );
         assert_eq!(crate::names::subdivision_name("GE", "GE-ZZ"), None);
         let ge = crate::weights::subdivision_weights("GE").unwrap();
         assert_eq!(ge.iter().find(|(c, _)| *c == "GE-IM").unwrap().1, 321);
@@ -132,4 +131,3 @@ mod tests {
         assert!(cw::preset("NOT_A_PRESET").is_empty());
     }
 }
-

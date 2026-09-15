@@ -8,7 +8,7 @@ use base64::Engine;
 use regex::Regex;
 
 use crate::sv::schema::{ImageKey, PanoType};
-use crate::sv::wire::{Node, put_str, put_varint_field};
+use crate::sv::wire::{put_str, put_varint_field, Node};
 
 /// The shape of an official pano id: a 21-character base64url body closed by one of the
 /// four characters that can end a 132-bit key.
@@ -47,9 +47,7 @@ fn decode_key(pano_id: &str) -> Option<(i32, String)> {
             c => c,
         })
         .collect();
-    let bytes = STANDARD_NO_PAD
-        .decode(b64.trim_end_matches('='))
-        .ok()?;
+    let bytes = STANDARD_NO_PAD.decode(b64.trim_end_matches('=')).ok()?;
     let key = ImageKey(Node::proto(&bytes));
     let frontend = match key.frontend() {
         0 => i32::from(PanoType::OFFICIAL),

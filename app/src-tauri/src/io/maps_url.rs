@@ -100,7 +100,10 @@ fn parse_expanded(url: &Url) -> Option<ParsedLocation> {
             let lat: f64 = m[1].parse().ok()?;
             let lng: f64 = m[2].parse().ok()?;
             let zoom = m[3].parse().map_or(0.0, fov_to_zoom);
-            let heading = m.get(4).and_then(|h| h.as_str().parse().ok()).unwrap_or(0.0);
+            let heading = m
+                .get(4)
+                .and_then(|h| h.as_str().parse().ok())
+                .unwrap_or(0.0);
             let pitch = m[5].parse::<f64>().map_or(0.0, |t| t - 90.0);
             let frontend: i32 = m[7].parse().ok()?;
             let pano_id = from_image_key(if frontend == 0 { 2 } else { frontend }, &m[6]);

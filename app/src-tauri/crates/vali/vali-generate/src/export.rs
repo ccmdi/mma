@@ -1,35 +1,18 @@
-use crate::definition::{
-    default_distribution, map_country_codes, resolve_country_distribution,
-};
+use crate::definition::{default_distribution, map_country_codes, resolve_country_distribution};
 use crate::goals::subdivision_weights;
 use crate::names::{country_name, subdivision_name};
 use std::fmt::Write as _;
 use vali_core::{DistributionStrategy, MapDefinition};
 const MONTHS: [&str; 12] = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 pub fn subdivisions_export(code: &str, as_text: bool) -> Result<String, String> {
-    let country_codes = map_country_codes(
-        &[code.to_string()],
-        &DistributionStrategy::default(),
-    )?;
+    let country_codes = map_country_codes(&[code.to_string()], &DistributionStrategy::default())?;
     if country_codes.is_empty() {
-        return Ok(
-            format!(
-                "No subdivision distribution yet for {} / {code}.", country_name(code)
-            ),
-        );
+        return Ok(format!(
+            "No subdivision distribution yet for {} / {code}.",
+            country_name(code)
+        ));
     }
     let entries: Vec<(&str, &[(&str, i32)])> = country_codes
         .iter()
@@ -40,8 +23,9 @@ pub fn subdivisions_export(code: &str, as_text: bool) -> Result<String, String> 
         for (cc, weights) in &entries {
             for (sub, weight) in *weights {
                 let _ = writeln!(
-                    out, "{sub}\t{}\t{weight}", subdivision_name(cc, sub)
-                    .unwrap_or("N/A")
+                    out,
+                    "{sub}\t{}\t{weight}",
+                    subdivision_name(cc, sub).unwrap_or("N/A")
                 );
             }
         }
@@ -72,17 +56,17 @@ pub fn countries_export(
         ..Default::default()
     };
     if default_distribution(&strategy).is_empty() {
-        return Err(format!("Unknown distribution {}.", distribution_name.unwrap_or("")));
+        return Err(format!(
+            "Unknown distribution {}.",
+            distribution_name.unwrap_or("")
+        ));
     }
     let definition = MapDefinition {
         country_codes: vec![countries.to_string()],
         distribution_strategy: strategy,
         ..Default::default()
     };
-    let expanded = map_country_codes(
-        &definition.country_codes,
-        &DistributionStrategy::default(),
-    )?;
+    let expanded = map_country_codes(&definition.country_codes, &DistributionStrategy::default())?;
     let mut distribution = resolve_country_distribution(&definition, &expanded)?;
     distribution.sort_by(|a, b| a.0.cmp(&b.0));
     if as_text {
@@ -114,29 +98,27 @@ pub fn report(code: &str, property: &str, by_country: bool) -> Result<String, St
             .collect();
         let announce = |e: crate::progress::Event| {
             if let crate::progress::Event::CountryDownloadStarted { country_code, .. } = e {
-                println!("Downloading {} data.", country_name(& country_code));
+                println!("Downloading {} data.", country_name(&country_code));
             }
         };
         crate::download::ensure_files_downloaded(
-                &data_root,
-                &cc,
-                &all_files,
-                Some(&announce),
-                None,
-            )
-            .map_err(|e| format!("{e:#}"))?;
+            &data_root,
+            &cc,
+            &all_files,
+            Some(&announce),
+            None,
+        )
+        .map_err(|e| format!("{e:#}"))?;
         for (sub, weight) in weights {
             if *weight <= 0 {
                 continue;
             }
             let file = vali_data::paths::subdivision_file(&data_root, &cc, sub);
             if !file.exists() {
-                return Err(
-                    format!(
-                        "missing data file {} - run 'vali download --country {cc}' first.",
-                        file.display()
-                    ),
-                );
+                return Err(format!(
+                    "missing data file {} - run 'vali download --country {cc}' first.",
+                    file.display()
+                ));
             }
             let locations = vali_data::decode_file(&file).map_err(|e| e.to_string())?;
             for l in &locations {
@@ -144,15 +126,10 @@ pub fn report(code: &str, property: &str, by_country: bool) -> Result<String, St
                     "SubdivisionCode" => Some(l.nominatim.subdivision_code.to_string()),
                     "County" => l.nominatim.county.as_deref().map(str::to_string),
                     "Year" => Some(l.google.year.to_string()),
-                    "Month" => {
-                        Some(
-                            MONTHS[(l.google.month as usize).saturating_sub(1).min(11)]
-                                .to_string(),
-                        )
-                    }
-                    "YearMonth" => {
-                        Some(format!("{}-{:0>2}", l.google.year, l.google.month))
-                    }
+                    "Month" => Some(
+                        MONTHS[(l.google.month as usize).saturating_sub(1).min(11)].to_string(),
+                    ),
+                    "YearMonth" => Some(format!("{}-{:0>2}", l.google.year, l.google.month)),
                     "Surface" => l.osm.surface.as_deref().map(str::to_string),
                     _ => Some("Invalid property".to_string()),
                 };
@@ -165,10 +142,7 @@ pub fn report(code: &str, property: &str, by_country: bool) -> Result<String, St
                 } else {
                     (
                         l.nominatim.subdivision_code.to_string(),
-                        subdivision_name(
-                                &l.nominatim.country_code,
-                                &l.nominatim.subdivision_code,
-                            )
+                        subdivision_name(&l.nominatim.country_code, &l.nominatim.subdivision_code)
                             .unwrap_or("N/A")
                             .to_string(),
                     )
@@ -181,11 +155,15 @@ pub fn report(code: &str, property: &str, by_country: bool) -> Result<String, St
             }
         }
     }
-    counts.sort_by(|a, b| a.0.0.cmp(&b.0.0).then(a.0.2.cmp(&b.0.2)));
-    let key_heading = if by_country { "Country code" } else { "Subdivision code" };
+    counts.sort_by(|a, b| a.0 .0.cmp(&b.0 .0).then(a.0 .2.cmp(&b.0 .2)));
+    let key_heading = if by_country {
+        "Country code"
+    } else {
+        "Subdivision code"
+    };
     let mut out = format!(
-        "By country {}\n{key_heading}\tName\t{property}\tLocation count\n", if by_country
-        { "True" } else { "False" }
+        "By country {}\n{key_heading}\tName\t{property}\tLocation count\n",
+        if by_country { "True" } else { "False" }
     );
     for ((key, name, value), count) in &counts {
         let _ = writeln!(out, "{key}\t{name}\t{value}\t{count}");

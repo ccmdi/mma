@@ -91,7 +91,8 @@ impl<'a> Geocoder<'a> {
             return Err(Error::Misaligned);
         }
         let names_end = names_at.checked_add(4).ok_or(Error::Truncated)?;
-        if data.len() < payload_at.saturating_add(count * PAYLOAD_STRIDE) || data.len() < names_end {
+        if data.len() < payload_at.saturating_add(count * PAYLOAD_STRIDE) || data.len() < names_end
+        {
             return Err(Error::Truncated);
         }
         let restarts = u32_at(names_at) as usize;
@@ -216,7 +217,9 @@ impl<'a> Geocoder<'a> {
             | (d[self.payload_at + i * PAYLOAD_STRIDE + 1] as usize) << 8
             | (d[self.payload_at + i * PAYLOAD_STRIDE + 2] as usize) << 16;
         let block = u32::from_le_bytes(
-            d[self.name_index_at + (idx / NAME_BLOCK) * 4..][..4].try_into().unwrap(),
+            d[self.name_index_at + (idx / NAME_BLOCK) * 4..][..4]
+                .try_into()
+                .unwrap(),
         ) as usize;
         let mut at = self.name_data_at + block;
         let mut buf: Vec<u8> = Vec::with_capacity(64);
@@ -233,10 +236,16 @@ impl<'a> Geocoder<'a> {
     fn admin1(&self, i: usize) -> &'a str {
         let d = self.data;
         let id = u16::from_le_bytes(
-            d[self.payload_at + i * PAYLOAD_STRIDE + 3..][..2].try_into().unwrap(),
+            d[self.payload_at + i * PAYLOAD_STRIDE + 3..][..2]
+                .try_into()
+                .unwrap(),
         ) as usize;
         let a = u32::from_le_bytes(d[self.admin_index_at + id * 4..][..4].try_into().unwrap());
-        let b = u32::from_le_bytes(d[self.admin_index_at + id * 4 + 4..][..4].try_into().unwrap());
+        let b = u32::from_le_bytes(
+            d[self.admin_index_at + id * 4 + 4..][..4]
+                .try_into()
+                .unwrap(),
+        );
         from_utf8(&d[self.admin_bytes_at + a as usize..self.admin_bytes_at + b as usize])
             .unwrap_or_default()
     }

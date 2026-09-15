@@ -365,7 +365,16 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
     let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]));
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
-    run_all(&rows, &[c, b, a], false, 97, &h.cancel, &h.deps, &progress, &results);
+    run_all(
+        &rows,
+        &[c, b, a],
+        false,
+        97,
+        &h.cancel,
+        &h.deps,
+        &progress,
+        &results,
+    );
 
     let out = rows
         .with_store(|store| Ok(store.collect(&Selector::Everything)))
@@ -399,7 +408,16 @@ fn a_dependency_cycle_still_runs_as_one_block() {
     };
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
     // Returning at all is the point: mutual gates must release, not deadlock.
-    run_all(&rows, &[a, b], false, 96, &h.cancel, &h.deps, &progress, &results);
+    run_all(
+        &rows,
+        &[a, b],
+        false,
+        96,
+        &h.cancel,
+        &h.deps,
+        &progress,
+        &results,
+    );
     let mut ids = finished.lock().unwrap().clone();
     ids.sort();
     assert_eq!(ids, vec!["a".to_string(), "b".to_string()]);
@@ -855,10 +873,14 @@ fn null_in_a_merge_patch_deletes_the_key() {
 #[test]
 fn a_patch_that_sets_nothing_is_dropped() {
     for json in [r#"{}"#, r#"{"extra":{}}"#] {
-        let updates = to_updates(&[PatchEntry {
-            id: 1,
-            patch: json.into(),
-        }], &[], &HashMap::new())
+        let updates = to_updates(
+            &[PatchEntry {
+                id: 1,
+                patch: json.into(),
+            }],
+            &[],
+            &HashMap::new(),
+        )
         .unwrap();
         assert!(updates.is_empty(), "{json} should produce no update");
     }
@@ -916,10 +938,14 @@ fn patch_keys_cover_every_location_patch_field() {
 
 #[test]
 fn an_unknown_key_names_itself_in_the_error() {
-    let Err(err) = to_updates(&[PatchEntry {
-        id: 1,
-        patch: r#"{"lat":1,"nope":2}"#.into(),
-    }], &[], &HashMap::new()) else {
+    let Err(err) = to_updates(
+        &[PatchEntry {
+            id: 1,
+            patch: r#"{"lat":1,"nope":2}"#.into(),
+        }],
+        &[],
+        &HashMap::new(),
+    ) else {
         panic!("an unknown key must fail the batch");
     };
     assert!(err.0.contains("nope"), "{}", err.0);
@@ -929,10 +955,14 @@ fn an_unknown_key_names_itself_in_the_error() {
 fn a_patch_that_is_not_an_object_is_an_error() {
     for json in [r#"[{"lat":1}]"#, r#""lat""#, "7"] {
         assert!(
-            to_updates(&[PatchEntry {
-                id: 1,
-                patch: json.into()
-            }], &[], &HashMap::new())
+            to_updates(
+                &[PatchEntry {
+                    id: 1,
+                    patch: json.into()
+                }],
+                &[],
+                &HashMap::new()
+            )
             .is_err(),
             "{json} should not parse as a patch"
         );
@@ -1036,7 +1066,11 @@ fn a_changed_value_nulls_the_fields_derived_from_it_and_a_same_value_keeps_them(
     d.fields = vec!["imageDate".into()];
     d.invalidates = HashMap::from([(
         "imageDate".to_string(),
-        vec!["datetime".to_string(), "timezone".to_string(), "sunAzimuth".to_string()],
+        vec![
+            "datetime".to_string(),
+            "timezone".to_string(),
+            "sunAzimuth".to_string(),
+        ],
     )]);
     let h = Harness::map_only(patch_extra_all(r#"{"imageDate":"2021-05"}"#));
     let mut ctx = h.ctx(&state, &map_id);
@@ -1047,7 +1081,10 @@ fn a_changed_value_nulls_the_fields_derived_from_it_and_a_same_value_keeps_them(
     assert_eq!(moved["imageDate"], serde_json::json!("2021-05"));
     assert!(moved.get("datetime").is_none(), "{moved}");
     assert!(moved.get("timezone").is_none(), "{moved}");
-    assert!(moved.get("sunAzimuth").is_none(), "a dependent the row never held stays absent");
+    assert!(
+        moved.get("sunAzimuth").is_none(),
+        "a dependent the row never held stays absent"
+    );
     assert_eq!(moved["custom"], serde_json::json!("kept"));
 
     let same = read_extra(&state, &map_id, 2).unwrap();
@@ -1217,9 +1254,16 @@ fn a_deduped_failure_is_every_sharers_failure() {
     ctx.progress = sink;
     run_provider(&ctx, &d).unwrap();
 
-    let mut failed: Vec<u32> = delivered(&h).iter().flat_map(|p| p.failed.clone()).collect();
+    let mut failed: Vec<u32> = delivered(&h)
+        .iter()
+        .flat_map(|p| p.failed.clone())
+        .collect();
     failed.sort_unstable();
-    assert_eq!(failed, vec![1, 2], "both sharers of the dead pano are failed");
+    assert_eq!(
+        failed,
+        vec![1, 2],
+        "both sharers of the dead pano are failed"
+    );
     let events = events.lock().unwrap();
     let last = events.last().unwrap();
     assert_eq!((last.done, last.failed), (3, 2));
@@ -1351,15 +1395,23 @@ fn config_json_carries_fields_force_and_the_provider_config() {
 #[test]
 fn config_json_reads_absent_or_malformed_config_as_null() {
     let d = decl("cfg", BatchMode::PerRow);
-    let v: serde_json::Value =
-        serde_json::from_str(&config_json(&d.fields, false, d.procedure.config.as_deref())).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&config_json(
+        &d.fields,
+        false,
+        d.procedure.config.as_deref(),
+    ))
+    .unwrap();
     assert_eq!(v["config"], serde_json::Value::Null);
     assert_eq!(v["force"], serde_json::json!(false));
 
     let mut bad = decl("cfg", BatchMode::PerRow);
     bad.procedure.config = Some("{not json".into());
-    let v: serde_json::Value =
-        serde_json::from_str(&config_json(&bad.fields, false, bad.procedure.config.as_deref())).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&config_json(
+        &bad.fields,
+        false,
+        bad.procedure.config.as_deref(),
+    ))
+    .unwrap();
     assert_eq!(v["config"], serde_json::Value::Null);
 }
 
@@ -1722,12 +1774,7 @@ impl Procedure for QueryProc {
     fn shape(&self) -> ProcShape {
         ProcShape::Run
     }
-    fn query(
-        &mut self,
-        input: &[u8],
-        host: &mut dyn ProcHost,
-        config: &str,
-    ) -> AppResult<Vec<u8>> {
+    fn query(&mut self, input: &[u8], host: &mut dyn ProcHost, config: &str) -> AppResult<Vec<u8>> {
         let fetched = host.fetch(&HttpRequestSpec {
             method: "GET".into(),
             url: "https://example.invalid/q".into(),
@@ -1855,7 +1902,11 @@ impl Procedure for WideQueryProc {
         host: &mut dyn ProcHost,
         _config: &str,
     ) -> AppResult<Vec<u8>> {
-        Ok(host.fetch_many(&gets(self.0)).len().to_string().into_bytes())
+        Ok(host
+            .fetch_many(&gets(self.0))
+            .len()
+            .to_string()
+            .into_bytes())
     }
 }
 
@@ -2423,7 +2474,16 @@ fn given_rows_do_not_write_to_the_open_map() {
     let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0)]));
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
-    run_all(&rows, &[d], true, 50, &h.cancel, &h.deps, &progress, &results);
+    run_all(
+        &rows,
+        &[d],
+        true,
+        50,
+        &h.cancel,
+        &h.deps,
+        &progress,
+        &results,
+    );
 
     let given = rows
         .with_store(|store| Ok(store.collect(&Selector::Everything)))
@@ -2514,8 +2574,11 @@ fn a_query_in_flight_is_reported_under_its_entry() {
 
     let row = thread::scope(|s| {
         let run = s.spawn(|| run_query(&deps, &procedure_decl(entry), "{}", &|| false));
-        let snapshot =
-            await_activity(|a| a.queries.iter().any(|q| q.entry == entry && q.inflight == 1));
+        let snapshot = await_activity(|a| {
+            a.queries
+                .iter()
+                .any(|q| q.entry == entry && q.inflight == 1)
+        });
         let row = snapshot.queries.into_iter().find(|q| q.entry == entry);
         run.join().unwrap().unwrap();
         row
@@ -2525,7 +2588,10 @@ fn a_query_in_flight_is_reported_under_its_entry() {
     assert_eq!(row.inflight, 1);
     assert_eq!(row.inflight_limit, DEFAULT_INFLIGHT);
     assert!(
-        procedure_activity().queries.iter().all(|q| q.entry != entry),
+        procedure_activity()
+            .queries
+            .iter()
+            .all(|q| q.entry != entry),
         "the query outlived its answer"
     );
 }

@@ -3,9 +3,9 @@
 
 use crate::io::export;
 use crate::net::gdoc;
-use crate::types::AppResult;
 use crate::net::geoguessr;
 use crate::plugins::user;
+use crate::types::AppResult;
 use reqwest::blocking::{Client, Response};
 use reqwest::redirect::Policy;
 use std::fs;

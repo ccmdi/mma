@@ -49,17 +49,52 @@ pub enum TExpr {
     ConstDouble(f64),
     ConstStr(String),
     ConstNull,
-    Prop { prop: Prop, parent: bool },
-    External { key: String, numeric: bool },
+    Prop {
+        prop: Prop,
+        parent: bool,
+    },
+    External {
+        key: String,
+        numeric: bool,
+    },
     And(Box<TExpr>, Box<TExpr>),
     Or(Box<TExpr>, Box<TExpr>),
-    Arith { op: ArithOp, ty: NumTy, l: Box<TExpr>, r: Box<TExpr> },
-    Neg { ty: NumTy, e: Box<TExpr> },
-    CmpNum { op: CmpOp, ty: NumTy, l: Box<TExpr>, r: Box<TExpr> },
-    CmpStr { op: CmpOp, l: Box<TExpr>, r: Box<TExpr> },
-    CmpBool { neq: bool, l: Box<TExpr>, r: Box<TExpr> },
-    HighwayCmpStr { neq: bool, hw: Box<TExpr>, s: Box<TExpr> },
-    HighwayCmpHw { neq: bool, l: Box<TExpr>, r: Box<TExpr> },
+    Arith {
+        op: ArithOp,
+        ty: NumTy,
+        l: Box<TExpr>,
+        r: Box<TExpr>,
+    },
+    Neg {
+        ty: NumTy,
+        e: Box<TExpr>,
+    },
+    CmpNum {
+        op: CmpOp,
+        ty: NumTy,
+        l: Box<TExpr>,
+        r: Box<TExpr>,
+    },
+    CmpStr {
+        op: CmpOp,
+        l: Box<TExpr>,
+        r: Box<TExpr>,
+    },
+    CmpBool {
+        neq: bool,
+        l: Box<TExpr>,
+        r: Box<TExpr>,
+    },
+    HighwayCmpStr {
+        neq: bool,
+        hw: Box<TExpr>,
+        s: Box<TExpr>,
+    },
+    HighwayCmpHw {
+        neq: bool,
+        l: Box<TExpr>,
+        r: Box<TExpr>,
+    },
     Concat(Box<TExpr>, Box<TExpr>),
 }
 #[derive(Debug, Clone)]
@@ -82,31 +117,33 @@ impl<'e> Checker<'e> {
             Node::Literal(token) => self.check_literal(token),
             Node::Property { token, name } => {
                 let prop = self.resolve_prop(token, name)?;
-                Ok((TExpr::Prop { prop, parent: false }, props::ty(prop)))
+                Ok((
+                    TExpr::Prop {
+                        prop,
+                        parent: false,
+                    },
+                    props::ty(prop),
+                ))
             }
             Node::ParentProperty { token, name } => {
                 if !self.allow_parent {
-                    return Err(
-                        ExprError::new(
-                            self.expr,
-                            token.position,
-                            token.length,
-                            "Parent properties (current:) are not allowed in this context.",
-                        ),
-                    );
+                    return Err(ExprError::new(
+                        self.expr,
+                        token.position,
+                        token.length,
+                        "Parent properties (current:) are not allowed in this context.",
+                    ));
                 }
                 let prop = self.resolve_prop(token, name)?;
                 Ok((TExpr::Prop { prop, parent: true }, props::ty(prop)))
             }
-            Node::ExternalProperty { key, .. } => {
-                Ok((
-                    TExpr::External {
-                        key: key.clone(),
-                        numeric: false,
-                    },
-                    Ty::Str,
-                ))
-            }
+            Node::ExternalProperty { key, .. } => Ok((
+                TExpr::External {
+                    key: key.clone(),
+                    numeric: false,
+                },
+                Ty::Str,
+            )),
             Node::Group { inner, .. } => self.check(inner),
             Node::UnaryMinus { op, operand } => {
                 let (te, ty) = self.check(operand)?;
@@ -122,34 +159,33 @@ impl<'e> Checker<'e> {
                 ))
             }
             Node::Binary { left, op, right } => self.check_binary(left, op, right),
-            Node::In { operand, values, .. } => {
+            Node::In {
+                operand, values, ..
+            } => {
                 let mut result: Option<TExpr> = None;
                 for v in values {
                     let l = self.check(operand)?;
                     let r = self.check_literal(v)?;
                     let eq = self.check_cmp(CmpOp::Eq, l, r, operand.span().start, v)?;
-                    result = Some(
-                        match result {
-                            None => eq,
-                            Some(acc) => TExpr::Or(Box::new(acc), Box::new(eq)),
-                        },
-                    );
+                    result = Some(match result {
+                        None => eq,
+                        Some(acc) => TExpr::Or(Box::new(acc), Box::new(eq)),
+                    });
                 }
                 Ok((result.unwrap(), Ty::Bool))
             }
         }
     }
     fn resolve_prop(&self, token: &Token, name: &str) -> Result<Prop, ExprError> {
-        props::resolve(name)
-            .ok_or_else(|| {
-                let closest = props::closest_match(name);
-                ExprError::new(
-                    self.expr,
-                    token.position,
-                    token.length,
-                    format!("Unknown property '{name}'. Did you mean '{closest}'?"),
-                )
-            })
+        props::resolve(name).ok_or_else(|| {
+            let closest = props::closest_match(name);
+            ExprError::new(
+                self.expr,
+                token.position,
+                token.length,
+                format!("Unknown property '{name}'. Did you mean '{closest}'?"),
+            )
+        })
     }
     fn check_literal(&self, token: &Token) -> Result<(TExpr, Ty), ExprError> {
         match token.kind {
@@ -168,71 +204,62 @@ impl<'e> Checker<'e> {
                 if let Ok(v) = text.parse::<i64>() {
                     Ok((TExpr::ConstLong(v), Ty::Long))
                 } else {
-                    Err(
-                        ExprError::new(
-                            self.expr,
-                            token.position,
-                            token.length,
-                            format!(
-                                "Failed to compile expression: invalid integer literal '{}'.",
-                                token.value
-                            ),
-                        ),
-                    )
-                }
-            }
-            TokenKind::DecimalLiteral => {
-                if token.value.strip_prefix('-').unwrap_or(&token.value).starts_with('.')
-                {
-                    return Err(
-                        ExprError::new(
-                            self.expr,
-                            token.position,
-                            token.length,
-                            format!(
-                                "Failed to compile expression: invalid number literal '{}'.",
-                                token.value
-                            ),
-                        ),
-                    );
-                }
-                match token.value.parse::<f64>() {
-                    Ok(v) => Ok((TExpr::ConstDouble(v), Ty::Double)),
-                    Err(_) => {
-                        Err(
-                            ExprError::new(
-                                self.expr,
-                                token.position,
-                                token.length,
-                                format!(
-                                    "Failed to compile expression: invalid number literal '{}'.",
-                                    token.value
-                                ),
-                            ),
-                        )
-                    }
-                }
-            }
-            TokenKind::StringLiteral => {
-                Ok((TExpr::ConstStr(token.value.clone()), Ty::Str))
-            }
-            TokenKind::BooleanLiteral => {
-                Ok((TExpr::ConstBool(token.value.to_lowercase() == "true"), Ty::Bool))
-            }
-            TokenKind::NullLiteral => Ok((TExpr::ConstNull, Ty::Null)),
-            _ => {
-                Err(
-                    ExprError::new(
+                    Err(ExprError::new(
                         self.expr,
                         token.position,
                         token.length,
                         format!(
-                            "Failed to compile expression: unexpected literal '{}'.",
+                            "Failed to compile expression: invalid integer literal '{}'.",
                             token.value
                         ),
-                    ),
-                )
+                    ))
+                }
             }
+            TokenKind::DecimalLiteral => {
+                if token
+                    .value
+                    .strip_prefix('-')
+                    .unwrap_or(&token.value)
+                    .starts_with('.')
+                {
+                    return Err(ExprError::new(
+                        self.expr,
+                        token.position,
+                        token.length,
+                        format!(
+                            "Failed to compile expression: invalid number literal '{}'.",
+                            token.value
+                        ),
+                    ));
+                }
+                match token.value.parse::<f64>() {
+                    Ok(v) => Ok((TExpr::ConstDouble(v), Ty::Double)),
+                    Err(_) => Err(ExprError::new(
+                        self.expr,
+                        token.position,
+                        token.length,
+                        format!(
+                            "Failed to compile expression: invalid number literal '{}'.",
+                            token.value
+                        ),
+                    )),
+                }
+            }
+            TokenKind::StringLiteral => Ok((TExpr::ConstStr(token.value.clone()), Ty::Str)),
+            TokenKind::BooleanLiteral => Ok((
+                TExpr::ConstBool(token.value.to_lowercase() == "true"),
+                Ty::Bool,
+            )),
+            TokenKind::NullLiteral => Ok((TExpr::ConstNull, Ty::Null)),
+            _ => Err(ExprError::new(
+                self.expr,
+                token.position,
+                token.length,
+                format!(
+                    "Failed to compile expression: unexpected literal '{}'.",
+                    token.value
+                ),
+            )),
         }
     }
     fn check_binary(
@@ -292,26 +319,18 @@ impl<'e> Checker<'e> {
                 };
                 Ok((node, make_ty(ty, nullable)))
             }
-            _ => {
-                Err(
-                    ExprError::new(
-                        self.expr,
-                        op.position,
-                        op.length,
-                        format!(
-                            "Failed to compile expression: unexpected operator '{}'.", op
-                            .value
-                        ),
-                    ),
-                )
-            }
+            _ => Err(ExprError::new(
+                self.expr,
+                op.position,
+                op.length,
+                format!(
+                    "Failed to compile expression: unexpected operator '{}'.",
+                    op.value
+                ),
+            )),
         }
     }
-    fn check_operand(
-        &self,
-        node: &Node,
-        numeric_external: bool,
-    ) -> Result<(TExpr, Ty), ExprError> {
+    fn check_operand(&self, node: &Node, numeric_external: bool) -> Result<(TExpr, Ty), ExprError> {
         if numeric_external {
             if let Node::ExternalProperty { key, .. } = node {
                 return Ok((
@@ -346,20 +365,16 @@ impl<'e> Checker<'e> {
         };
         if lty == Ty::Highway {
             return match (rty, op) {
-                (Ty::Str, CmpOp::Eq | CmpOp::Neq) => {
-                    Ok(TExpr::HighwayCmpStr {
-                        neq: op == CmpOp::Neq,
-                        hw: Box::new(lt),
-                        s: Box::new(rt),
-                    })
-                }
-                (Ty::Highway, CmpOp::Eq | CmpOp::Neq) => {
-                    Ok(TExpr::HighwayCmpHw {
-                        neq: op == CmpOp::Neq,
-                        l: Box::new(lt),
-                        r: Box::new(rt),
-                    })
-                }
+                (Ty::Str, CmpOp::Eq | CmpOp::Neq) => Ok(TExpr::HighwayCmpStr {
+                    neq: op == CmpOp::Neq,
+                    hw: Box::new(lt),
+                    s: Box::new(rt),
+                }),
+                (Ty::Highway, CmpOp::Eq | CmpOp::Neq) => Ok(TExpr::HighwayCmpHw {
+                    neq: op == CmpOp::Neq,
+                    l: Box::new(lt),
+                    r: Box::new(rt),
+                }),
                 _ => Err(err()),
             };
         }
@@ -370,9 +385,7 @@ impl<'e> Checker<'e> {
             if !matches!(lty, Ty::Str | Ty::Null) || !matches!(rty, Ty::Str | Ty::Null) {
                 return Err(err());
             }
-            if !matches!(op, CmpOp::Eq | CmpOp::Neq)
-                && (lty == Ty::Null || rty == Ty::Null)
-            {
+            if !matches!(op, CmpOp::Eq | CmpOp::Neq) && (lty == Ty::Null || rty == Ty::Null) {
                 return Err(err());
             }
             return Ok(TExpr::CmpStr {
@@ -383,34 +396,31 @@ impl<'e> Checker<'e> {
         }
         let value_const = |t: &TExpr| {
             matches!(
-                t, TExpr::ConstInt(_) | TExpr::ConstLong(_) | TExpr::ConstDouble(_) |
-                TExpr::ConstBool(_)
+                t,
+                TExpr::ConstInt(_)
+                    | TExpr::ConstLong(_)
+                    | TExpr::ConstDouble(_)
+                    | TExpr::ConstBool(_)
             )
         };
-        if (lty == Ty::Null && value_const(&rt)) || (rty == Ty::Null && value_const(&lt))
-        {
+        if (lty == Ty::Null && value_const(&rt)) || (rty == Ty::Null && value_const(&lt)) {
             return Err(err());
         }
         if lty == Ty::Bool || rty == Ty::Bool {
-            if !matches!(lty, Ty::Bool | Ty::Null) || !matches!(rty, Ty::Bool | Ty::Null)
-            {
+            if !matches!(lty, Ty::Bool | Ty::Null) || !matches!(rty, Ty::Bool | Ty::Null) {
                 return Err(err());
             }
             return match op {
-                CmpOp::Eq => {
-                    Ok(TExpr::CmpBool {
-                        neq: false,
-                        l: Box::new(lt),
-                        r: Box::new(rt),
-                    })
-                }
-                CmpOp::Neq => {
-                    Ok(TExpr::CmpBool {
-                        neq: true,
-                        l: Box::new(lt),
-                        r: Box::new(rt),
-                    })
-                }
+                CmpOp::Eq => Ok(TExpr::CmpBool {
+                    neq: false,
+                    l: Box::new(lt),
+                    r: Box::new(rt),
+                }),
+                CmpOp::Neq => Ok(TExpr::CmpBool {
+                    neq: true,
+                    l: Box::new(lt),
+                    r: Box::new(rt),
+                }),
                 _ => Err(err()),
             };
         }
@@ -425,12 +435,7 @@ impl<'e> Checker<'e> {
             r: Box::new(rt),
         })
     }
-    fn promote_numeric(
-        &self,
-        op: &Token,
-        lty: Ty,
-        rty: Ty,
-    ) -> Result<(NumTy, bool), ExprError> {
+    fn promote_numeric(&self, op: &Token, lty: Ty, rty: Ty) -> Result<(NumTy, bool), ExprError> {
         let (Some(l), Some(r)) = (numeric_of(lty), numeric_of(rty)) else {
             return Err(self.op_error(op, lty, rty));
         };
@@ -474,7 +479,13 @@ struct NumInfo {
     is_null: bool,
 }
 fn numeric_of(ty: Ty) -> Option<NumInfo> {
-    let info = |kind, nullable, is_null| Some(NumInfo { kind, nullable, is_null });
+    let info = |kind, nullable, is_null| {
+        Some(NumInfo {
+            kind,
+            nullable,
+            is_null,
+        })
+    };
     match ty {
         Ty::Int => info(NumTy::Int, false, false),
         Ty::Long => info(NumTy::Long, false, false),
@@ -534,11 +545,7 @@ fn is_numeric_literal(node: &Node) -> bool {
         TokenKind::DecimalLiteral)
     )
 }
-pub fn eval<'a>(
-    e: &'a TExpr,
-    loc: &'a Location,
-    parent: Option<&'a Location>,
-) -> Val<'a> {
+pub fn eval<'a>(e: &'a TExpr, loc: &'a Location, parent: Option<&'a Location>) -> Val<'a> {
     match e {
         TExpr::ConstBool(b) => Val::B(Some(*b)),
         TExpr::ConstInt(v) => Val::I(Some(*v)),
@@ -546,7 +553,10 @@ pub fn eval<'a>(
         TExpr::ConstDouble(v) => Val::D(Some(*v)),
         TExpr::ConstStr(s) => Val::S(Some(Cow::Borrowed(s.as_str()))),
         TExpr::ConstNull => Val::Null,
-        TExpr::Prop { prop, parent: use_parent } => {
+        TExpr::Prop {
+            prop,
+            parent: use_parent,
+        } => {
             let target = if *use_parent {
                 parent.expect("parent expression evaluated without a parent location")
             } else {
@@ -561,40 +571,28 @@ pub fn eval<'a>(
                 Val::S(Some(Cow::Borrowed("")))
             }
         }
-        TExpr::And(l, r) => {
-            Val::B(Some(as_bool(eval(l, loc, parent)) && as_bool(eval(r, loc, parent))))
-        }
-        TExpr::Or(l, r) => {
-            Val::B(Some(as_bool(eval(l, loc, parent)) || as_bool(eval(r, loc, parent))))
-        }
+        TExpr::And(l, r) => Val::B(Some(
+            as_bool(eval(l, loc, parent)) && as_bool(eval(r, loc, parent)),
+        )),
+        TExpr::Or(l, r) => Val::B(Some(
+            as_bool(eval(l, loc, parent)) || as_bool(eval(r, loc, parent)),
+        )),
         TExpr::Arith { op, ty, l, r } => {
             let lv = eval(l, loc, parent);
             let rv = eval(r, loc, parent);
             match ty {
-                NumTy::Int => {
-                    Val::I(
-                        match (as_i32(lv), as_i32(rv)) {
-                            (Some(a), Some(b)) => Some(arith_i32(*op, a, b)),
-                            _ => None,
-                        },
-                    )
-                }
-                NumTy::Long => {
-                    Val::L(
-                        match (as_i64(lv), as_i64(rv)) {
-                            (Some(a), Some(b)) => Some(arith_i64(*op, a, b)),
-                            _ => None,
-                        },
-                    )
-                }
-                NumTy::Double => {
-                    Val::D(
-                        match (as_f64(lv), as_f64(rv)) {
-                            (Some(a), Some(b)) => Some(arith_f64(*op, a, b)),
-                            _ => None,
-                        },
-                    )
-                }
+                NumTy::Int => Val::I(match (as_i32(lv), as_i32(rv)) {
+                    (Some(a), Some(b)) => Some(arith_i32(*op, a, b)),
+                    _ => None,
+                }),
+                NumTy::Long => Val::L(match (as_i64(lv), as_i64(rv)) {
+                    (Some(a), Some(b)) => Some(arith_i64(*op, a, b)),
+                    _ => None,
+                }),
+                NumTy::Double => Val::D(match (as_f64(lv), as_f64(rv)) {
+                    (Some(a), Some(b)) => Some(arith_f64(*op, a, b)),
+                    _ => None,
+                }),
             }
         }
         TExpr::Neg { ty, e } => {
@@ -609,36 +607,30 @@ pub fn eval<'a>(
             let lv = eval(l, loc, parent);
             let rv = eval(r, loc, parent);
             let b = match ty {
-                NumTy::Int => {
-                    cmp_opt(
-                        *op,
-                        as_i32(lv),
-                        as_i32(rv),
-                        |a, b| a == b,
-                        |a, b| a < b,
-                        |a, b| a <= b,
-                    )
-                }
-                NumTy::Long => {
-                    cmp_opt(
-                        *op,
-                        as_i64(lv),
-                        as_i64(rv),
-                        |a, b| a == b,
-                        |a, b| a < b,
-                        |a, b| a <= b,
-                    )
-                }
-                NumTy::Double => {
-                    cmp_opt(
-                        *op,
-                        as_f64(lv),
-                        as_f64(rv),
-                        |a, b| a == b,
-                        |a, b| a < b,
-                        |a, b| a <= b,
-                    )
-                }
+                NumTy::Int => cmp_opt(
+                    *op,
+                    as_i32(lv),
+                    as_i32(rv),
+                    |a, b| a == b,
+                    |a, b| a < b,
+                    |a, b| a <= b,
+                ),
+                NumTy::Long => cmp_opt(
+                    *op,
+                    as_i64(lv),
+                    as_i64(rv),
+                    |a, b| a == b,
+                    |a, b| a < b,
+                    |a, b| a <= b,
+                ),
+                NumTy::Double => cmp_opt(
+                    *op,
+                    as_f64(lv),
+                    as_f64(rv),
+                    |a, b| a == b,
+                    |a, b| a < b,
+                    |a, b| a <= b,
+                ),
             };
             Val::B(Some(b))
         }
@@ -720,28 +712,22 @@ fn cmp_opt<T: Copy>(
     lte: impl Fn(T, T) -> bool,
 ) -> bool {
     match op {
-        CmpOp::Eq => {
-            match (l, r) {
-                (None, None) => true,
-                (Some(a), Some(b)) => eq(a, b),
-                _ => false,
-            }
-        }
+        CmpOp::Eq => match (l, r) {
+            (None, None) => true,
+            (Some(a), Some(b)) => eq(a, b),
+            _ => false,
+        },
         CmpOp::Neq => !cmp_opt(CmpOp::Eq, l, r, eq, lt, lte),
-        _ => {
-            match (l, r) {
-                (Some(a), Some(b)) => {
-                    match op {
-                        CmpOp::Lt => lt(a, b),
-                        CmpOp::Lte => lte(a, b),
-                        CmpOp::Gt => lt(b, a),
-                        CmpOp::Gte => lte(b, a),
-                        _ => unreachable!(),
-                    }
-                }
-                _ => false,
-            }
-        }
+        _ => match (l, r) {
+            (Some(a), Some(b)) => match op {
+                CmpOp::Lt => lt(a, b),
+                CmpOp::Lte => lte(a, b),
+                CmpOp::Gt => lt(b, a),
+                CmpOp::Gte => lte(b, a),
+                _ => unreachable!(),
+            },
+            _ => false,
+        },
     }
 }
 fn arith_i32(op: ArithOp, a: i32, b: i32) -> i32 {

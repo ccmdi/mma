@@ -197,10 +197,9 @@ pub(crate) fn count(conn: &Connection, filter: Option<SeenFilter>) -> AppResult<
     let sql = format!("SELECT COUNT(*) FROM seen{where_clause}");
 
     let mut stmt = conn.prepare(&sql)?;
-    let count: u32 = stmt.query_row(
-        params_from_iter(params.iter().map(AsRef::as_ref)),
-        |row| row.get(0),
-    )?;
+    let count: u32 = stmt.query_row(params_from_iter(params.iter().map(AsRef::as_ref)), |row| {
+        row.get(0)
+    })?;
 
     Ok(count)
 }

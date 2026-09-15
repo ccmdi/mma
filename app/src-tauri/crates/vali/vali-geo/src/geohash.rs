@@ -87,7 +87,11 @@ pub fn neighbors(hash: u64) -> [u64; 8] {
 fn encode_range(normalized: f64, bits: u32) -> u64 {
     let range = 1u64 << bits;
     let val = (normalized * range as f64) as u64;
-    if val >= range { range - 1 } else { val }
+    if val >= range {
+        range - 1
+    } else {
+        val
+    }
 }
 #[inline]
 fn spread(mut x: u64) -> u64 {

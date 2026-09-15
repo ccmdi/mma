@@ -69,7 +69,10 @@ pub fn tz_grid() -> &'static mma_tz::TzGrid<'static> {
 /// window gets re-hidden a frame later.
 #[tauri::command]
 #[specta::specta]
-#[allow(clippy::needless_pass_by_value, reason = "tauri injects the calling window by value")]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "tauri injects the calling window by value"
+)]
 pub fn reveal_window(window: tauri::WebviewWindow, maximized: bool) {
     let _ = window.show();
     if maximized {

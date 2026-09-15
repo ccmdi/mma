@@ -172,9 +172,12 @@ fn request_without_map_is_rejected() {
 
 #[test]
 fn a_module_exporting_configure_is_rejected() {
-    let err = load(&format!("export function configure(c) {{}}
-{}", echo_map("null")))
-        .expect_err("configure export");
+    let err = load(&format!(
+        "export function configure(c) {{}}
+{}",
+        echo_map("null")
+    ))
+    .expect_err("configure export");
     assert!(
         err.0.contains("exports `configure`"),
         "unexpected error: {}",
@@ -225,7 +228,9 @@ fn run_answers_with_patches() {
          }",
     );
     let mut host = MockProcHost::default();
-    let patches = proc.run(&rows(), &mut host, NULL_CONFIG).expect("run succeeds");
+    let patches = proc
+        .run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
     assert_eq!(patches.len(), 2);
     assert_eq!(patches[0].id, 7);
     assert_eq!(patches[0].patch, r#"{"lat":9.5,"panoId":null}"#);
@@ -273,7 +278,9 @@ fn request_becomes_an_http_request_spec() {
          }}\n{}",
         echo_map("null")
     ));
-    let spec = proc.request(&rows(), NULL_CONFIG).expect("request succeeds");
+    let spec = proc
+        .request(&rows(), NULL_CONFIG)
+        .expect("request succeeds");
     assert_eq!(spec.method, "POST");
     assert_eq!(spec.url, "https://x.test/7");
     assert_eq!(spec.headers, vec![("X-A".to_string(), "1".to_string())]);
@@ -288,7 +295,9 @@ fn a_request_body_may_be_a_string_and_headers_may_be_absent() {
          }}\n{}",
         echo_map("null")
     ));
-    let spec = proc.request(&rows(), NULL_CONFIG).expect("request succeeds");
+    let spec = proc
+        .request(&rows(), NULL_CONFIG)
+        .expect("request succeeds");
     assert!(spec.headers.is_empty());
     assert_eq!(spec.body, Some(b"hi".to_vec()));
 }
@@ -336,7 +345,9 @@ fn an_async_entry_point_settles_before_it_answers() {
          }",
     );
     let mut host = MockProcHost::default();
-    let patches = proc.run(&rows(), &mut host, NULL_CONFIG).expect("run succeeds");
+    let patches = proc
+        .run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
     assert_eq!(extra(&patches), serde_json::json!({ "awaited": true }));
 }
 
@@ -395,7 +406,9 @@ fn a_run_shape_reaches_fetch() {
         }),
         ..Default::default()
     };
-    let patches = proc.run(&rows(), &mut host, NULL_CONFIG).expect("run succeeds");
+    let patches = proc
+        .run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
     assert_eq!(host.requests.len(), 1);
     assert_eq!(host.requests[0].method, "POST");
     assert_eq!(host.requests[0].url, "https://example.test/v1");
@@ -429,7 +442,9 @@ fn fetch_many_answers_in_order_and_reports_a_failure_as_status_zero() {
         refuse: vec!["https://example.test/b".into()],
         ..Default::default()
     };
-    let patches = proc.run(&rows(), &mut host, NULL_CONFIG).expect("run succeeds");
+    let patches = proc
+        .run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
     // One batched call, not three serial ones: that is the whole point of fetchMany.
     assert_eq!(host.many, vec![3]);
     assert_eq!(
@@ -487,7 +502,9 @@ fn sidecar_lines_reach_a_run_shape() {
         sidecar_lines: vec!["one".into(), "two".into()],
         ..Default::default()
     };
-    let patches = proc.run(&rows(), &mut host, NULL_CONFIG).expect("run succeeds");
+    let patches = proc
+        .run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
     assert_eq!(
         host.sidecar_calls,
         vec![(
@@ -518,7 +535,9 @@ fn sidecar_lines_stream_to_a_handler_with_progress_serviced_between_them() {
         sidecar_lines: vec!["one".into(), "two".into()],
         ..Default::default()
     };
-    let patches = proc.run(&rows(), &mut host, NULL_CONFIG).expect("run succeeds");
+    let patches = proc
+        .run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
     assert_eq!(
         extra(&patches),
         serde_json::json!({ "seen": ["one!", "two!"], "lines": ["one", "two"] })
@@ -596,7 +615,9 @@ fn aborted_reports_the_hosts_answer() {
         abort: true,
         ..Default::default()
     };
-    let patches = loaded(src).run(&rows(), &mut host, NULL_CONFIG).expect("run succeeds");
+    let patches = loaded(src)
+        .run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
     assert_eq!(extra(&patches), serde_json::json!({ "n": 0 }));
 
     let mut open = MockProcHost::default();
@@ -649,7 +670,9 @@ fn request_cannot_reach_the_effectful_host_calls() {
             "export function request(rows) {{ {call}; return {{ method: 'GET', url: '/' }}; }}\n{}",
             echo_map("null")
         ));
-        let err = proc.request(&rows(), NULL_CONFIG).expect_err("gate rejects the call");
+        let err = proc
+            .request(&rows(), NULL_CONFIG)
+            .expect_err("gate rejects the call");
         assert_gated(name, &err);
     }
 }
@@ -664,7 +687,9 @@ fn request_has_no_host_for_the_calls_that_are_otherwise_open() {
          }}\n{}",
         echo_map("null")
     ));
-    let err = proc.request(&rows(), NULL_CONFIG).expect_err("no host attached");
+    let err = proc
+        .request(&rows(), NULL_CONFIG)
+        .expect_err("no host attached");
     assert!(
         err.0.contains("no host attached"),
         "unexpected error: {}",
@@ -741,7 +766,9 @@ fn a_fetch_the_host_refuses_throws_into_the_guest() {
         refuse: vec!["https://example.test/no".into()],
         ..Default::default()
     };
-    let patches = proc.run(&rows(), &mut host, NULL_CONFIG).expect("run succeeds");
+    let patches = proc
+        .run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
     let caught = extra(&patches)["caught"]
         .as_str()
         .unwrap_or_default()
@@ -787,9 +814,8 @@ fn memory_limit_returns_an_error_not_an_oom() {
 
 #[test]
 fn stack_limit_returns_an_error_not_a_panic() {
-    let mut proc = loaded(
-        "export function run(rows) { function f(n) { return f(n + 1); } f(0); return []; }",
-    );
+    let mut proc =
+        loaded("export function run(rows) { function f(n) { return f(n + 1); } f(0); return []; }");
     let mut host = MockProcHost::default();
     let err = proc
         .run(&rows(), &mut host, NULL_CONFIG)

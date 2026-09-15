@@ -800,9 +800,16 @@ fn finish_mutation_reports_correct_state() {
     let result = store.finish_mutation(&ChangeSet::default());
     assert_eq!(result.values.location_count, Some(1));
     assert_eq!(result.values.can_undo, Some(true));
-    assert_eq!(result.values.can_redo, Some(false), "stack change ships both flags");
+    assert_eq!(
+        result.values.can_redo,
+        Some(false),
+        "stack change ships both flags"
+    );
     // Setup added tagged locations, so this first mutation ships counts.
-    assert_eq!(result.values.tag_counts.as_ref().unwrap().get(&10), Some(&1));
+    assert_eq!(
+        result.values.tag_counts.as_ref().unwrap().get(&10),
+        Some(&1)
+    );
     assert_eq!(result.version, 1);
 
     // Nothing moved since: the next result reports none of it again.
@@ -851,7 +858,10 @@ fn tag_counts_shipped_only_when_changed() {
     // A tag-touching edit ships fresh counts again.
     let changes = store.apply_edit(slice::from_ref(&l), &[]);
     let result = store.finish_mutation(&changes);
-    assert_eq!(result.values.tag_counts.as_ref().unwrap().get(&10), Some(&0));
+    assert_eq!(
+        result.values.tag_counts.as_ref().unwrap().get(&10),
+        Some(&0)
+    );
 }
 
 #[test]
@@ -1742,8 +1752,14 @@ fn arrow_render_angle_is_negated_heading() {
 fn f32_render_truncation_matches_grid() {
     let lat = 51.123456789012345_f64;
     let lng = 2.294738201745632_f64;
-    assert_ne!(lat as f32 as f64, lat, "test coordinates must actually differ between f64 and f32");
-    assert_ne!(lng as f32 as f64, lng, "test coordinates must actually differ between f64 and f32");
+    assert_ne!(
+        lat as f32 as f64, lat,
+        "test coordinates must actually differ between f64 and f32"
+    );
+    assert_ne!(
+        lng as f32 as f64, lng,
+        "test coordinates must actually differ between f64 and f32"
+    );
 
     let l = loc(1, lat, lng);
     let mut store = setup_store_with(&[l.clone()]);
@@ -2087,8 +2103,9 @@ fn emit_selection_bitmask_fixture() {
 /// If either side drifts, one of the two suites goes red.
 #[test]
 fn the_selection_bitmask_fixture_matches_the_serializer() {
-    let on_disk = fs::read(selection_bitmask_fixture_path())
-        .expect("fixture; regenerate with `cargo test emit_selection_bitmask_fixture -- --ignored`");
+    let on_disk = fs::read(selection_bitmask_fixture_path()).expect(
+        "fixture; regenerate with `cargo test emit_selection_bitmask_fixture -- --ignored`",
+    );
     assert_eq!(on_disk, selection_bitmask_fixture());
 }
 
@@ -2567,10 +2584,22 @@ fn create_tags_without_locations_only_creates() {
 fn create_tags_answers_with_the_ids_in_the_order_named() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
     store.create_tags(&["old".to_string()], &[]);
-    let old = store.tags.all.values().find(|t| t.name == "old").unwrap().id;
+    let old = store
+        .tags
+        .all
+        .values()
+        .find(|t| t.name == "old")
+        .unwrap()
+        .id;
 
     let created = store.create_tags(&["new".to_string(), "OLD".to_string()], &[]);
-    let new = store.tags.all.values().find(|t| t.name == "new").unwrap().id;
+    let new = store
+        .tags
+        .all
+        .values()
+        .find(|t| t.name == "new")
+        .unwrap()
+        .id;
     assert_eq!(created.ids, vec![new, old]);
 }
 
@@ -2713,8 +2742,15 @@ fn a_full_resolve_counts_a_ghosted_selection_and_keeps_it_out_of_the_selected_se
 
     assert_eq!(store.selections.node_counts["tag:1"], 1);
     assert_eq!(store.selections.node_counts["tag:2"], 1);
-    assert!(store.selections.resolved[0].ghosted, "a full resolve keeps the flag");
-    assert_eq!(store.selections.ids.len(), 1, "only the live selection selects");
+    assert!(
+        store.selections.resolved[0].ghosted,
+        "a full resolve keeps the flag"
+    );
+    assert_eq!(
+        store.selections.ids.len(),
+        1,
+        "only the live selection selects"
+    );
     let sync = store.build_selection_bitmask();
     assert_eq!(sync.selected_count, 1);
     assert_eq!(
@@ -3626,7 +3662,8 @@ fn reconcile_tags_doclinks_claimed_when_target_empty() {
         doclinks: vec!["https://docs.google.com/document/d/x/edit#heading=h.abc".into()],
         ..tag(7, "Rural", "#111111")
     };
-    let (_, changed) = reconcile_tags_by_name(slice::from_ref(&source), &mut target_tags, &mut next);
+    let (_, changed) =
+        reconcile_tags_by_name(slice::from_ref(&source), &mut target_tags, &mut next);
     assert!(changed, "doclink adoption must mark tags as changed");
     assert_eq!(target_tags.get(&3).unwrap().doclinks, source.doclinks);
 }
@@ -5026,7 +5063,10 @@ fn field_op_round_trip_rename_reannounces_the_key() {
     assert!(!store.field_defs.contains_key("a"), "a erased, forgotten");
     assert!(store.field_defs.contains_key("b"), "b auto-registered");
     assert!(
-        r1.values.field_defs.as_ref().is_some_and(|d| !d.contains_key("a")),
+        r1.values
+            .field_defs
+            .as_ref()
+            .is_some_and(|d| !d.contains_key("a")),
         "the result ships the registry without a"
     );
 

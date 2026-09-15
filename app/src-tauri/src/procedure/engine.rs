@@ -2,12 +2,12 @@
 //! over paged location batches, applies the resulting patches, and reports
 //! progress. Nothing here knows what any provider actually computes.
 
-use crate::types::wire_str_enum;
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
 use crate::selections::{ids_within, narrow, resolve, resolve_field_loc, resolve_within, Selector};
 use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, Store, StoreState, Update, WindowLabel,
 };
+use crate::types::wire_str_enum;
 use crate::types::{AppError, AppResult, Location};
 use futures::executor;
 use futures::future;
@@ -724,7 +724,11 @@ impl<T: 'static> Live<T> {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .insert(id, cell.clone());
-        LiveGuard { reg: self, id, cell }
+        LiveGuard {
+            reg: self,
+            id,
+            cell,
+        }
     }
 
     fn snapshot(&self) -> Vec<Arc<T>> {
@@ -1064,7 +1068,9 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
                 (&batch_rx, &budget, &prog, &live, config.as_str());
             s.spawn(move || {
                 let _alive = live.instance();
-                run_instance(ctx, decl, budget, prog, &mut *proc, batch_rx, &out_tx, config)
+                run_instance(
+                    ctx, decl, budget, prog, &mut *proc, batch_rx, &out_tx, config,
+                )
             });
         }
         let applier = s.spawn(|| apply_pages(ctx, decl, out_rx));
@@ -1733,15 +1739,7 @@ impl ProcHost for QueryHost<'_> {
 
     fn fetch_many(&mut self, reqs: &[HttpRequestSpec]) -> Vec<AppResult<HttpResponse>> {
         let (attempts, on) = retry_policy(self.decl.retry.as_ref());
-        fetch_all(
-            self.deps,
-            &self.budget,
-            1,
-            attempts,
-            on,
-            self.aborted,
-            reqs,
-        )
+        fetch_all(self.deps, &self.budget, 1, attempts, on, self.aborted, reqs)
     }
 
     fn progress(&mut self, _units: u32) {}
@@ -1912,9 +1910,7 @@ pub async fn procedure_query(
     }
     let out = task::spawn_blocking(move || {
         let deps = EngineDeps::production();
-        run_query(&deps, &procedure, &input, &|| {
-            flag.load(Ordering::Relaxed)
-        })
+        run_query(&deps, &procedure, &input, &|| flag.load(Ordering::Relaxed))
     })
     .await;
     if let Some(token) = cancel {

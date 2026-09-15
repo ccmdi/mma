@@ -145,9 +145,7 @@ fn filter_by_map_id() {
     };
     let results = list(&conn, 100, 0, Some(filter), false).unwrap();
     assert_eq!(results.len(), 5);
-    assert!(results
-        .iter()
-        .all(|e| e.map_id.as_deref() == Some("mapA")));
+    assert!(results.iter().all(|e| e.map_id.as_deref() == Some("mapA")));
 }
 
 #[test]
@@ -245,8 +243,14 @@ fn count_with_and_without_filter() {
 #[test]
 fn countries_returns_distinct_sorted_codes() {
     let conn = setup();
-    let codes: [Option<&str>; 6] =
-        [Some("US"), Some("GB"), Some("US"), Some("FR"), None, Some("GB")];
+    let codes: [Option<&str>; 6] = [
+        Some("US"),
+        Some("GB"),
+        Some("US"),
+        Some("FR"),
+        None,
+        Some("GB"),
+    ];
     for (i, cc) in codes.iter().enumerate() {
         let mut e = mk(&format!("p{i}"), i as i64);
         e.country_code = cc.map(|s| s.to_string());

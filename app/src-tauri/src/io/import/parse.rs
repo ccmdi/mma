@@ -254,7 +254,11 @@ pub(super) fn settings_from_extra(extra: &Value) -> serde_json::Map<String, Valu
 
 /// Auto-detect format (JSON vs CSV) by first non-whitespace byte and dispatch.
 pub(super) fn parse_file(buf: &mut [u8]) -> ParsedMap {
-    let buf = if buf.starts_with(&[0xEF, 0xBB, 0xBF]) { &mut buf[3..] } else { buf };
+    let buf = if buf.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        &mut buf[3..]
+    } else {
+        buf
+    };
     let trimmed = buf
         .iter()
         .position(|&b| !b.is_ascii_whitespace())

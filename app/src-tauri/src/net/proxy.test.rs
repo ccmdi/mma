@@ -52,14 +52,8 @@ fn svtile_url_ssrf_localhost() {
 
 #[test]
 fn svtile_url_empty_and_slash() {
-    assert_eq!(
-        svtile_url("", ""),
-        "https://lh3.ggpht.com/jsapi2/a/b/c/"
-    );
-    assert_eq!(
-        svtile_url("/", ""),
-        "https://lh3.ggpht.com/jsapi2/a/b/c/"
-    );
+    assert_eq!(svtile_url("", ""), "https://lh3.ggpht.com/jsapi2/a/b/c/");
+    assert_eq!(svtile_url("/", ""), "https://lh3.ggpht.com/jsapi2/a/b/c/");
 }
 
 #[test]

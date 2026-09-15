@@ -50,7 +50,11 @@ fn subdivision_distribution_matches_oracle() {
         .unwrap_or_default();
     assert_eq!(
         available,
-        golden.available.iter().map(String::as_str).collect::<Vec<_>>(),
+        golden
+            .available
+            .iter()
+            .map(String::as_str)
+            .collect::<Vec<_>>(),
         "available subdivisions differ from oracle for {}",
         golden.country
     );

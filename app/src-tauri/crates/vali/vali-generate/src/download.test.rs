@@ -50,7 +50,10 @@ fn an_identical_timestamp_is_not_outdated() {
 #[test]
 fn sub_second_ticks_decide_freshness() {
     let r = vec![remote("FR/paris.bin", "2026-02-01T00:00:00.0000002Z")];
-    assert_eq!(outdated(&r, &[local("paris", "2026-02-01T00:00:00.0000001Z")]).len(), 1);
+    assert_eq!(
+        outdated(&r, &[local("paris", "2026-02-01T00:00:00.0000001Z")]).len(),
+        1
+    );
     assert!(outdated(&r, &[local("paris", "2026-02-01T00:00:00.0000003Z")]).is_empty());
 }
 
@@ -60,7 +63,10 @@ fn matching_ignores_the_key_prefix_and_one_extension() {
     let r = vec![remote("FR/paris.bin", "2026-01-01T00:00:00Z")];
     assert!(outdated(&r, &[local("paris", "2026-06-01T00:00:00Z")]).is_empty());
     assert!(outdated(&r, &[local("paris.bin", "2026-06-01T00:00:00Z")]).is_empty());
-    assert_eq!(outdated(&r, &[local("lyon", "2026-06-01T00:00:00Z")]).len(), 1);
+    assert_eq!(
+        outdated(&r, &[local("lyon", "2026-06-01T00:00:00Z")]).len(),
+        1
+    );
 }
 
 #[test]
@@ -69,7 +75,10 @@ fn keys_with_spaces_and_accents_become_valid_uris() {
         encode_key("AU/AU+Jervis Bay Territory.zip"),
         "AU/AU+Jervis%20Bay%20Territory.zip"
     );
-    assert_eq!(encode_key("FR/FR+Île-de-France.zip"), "FR/FR+%C3%8Ele-de-France.zip");
+    assert_eq!(
+        encode_key("FR/FR+Île-de-France.zip"),
+        "FR/FR+%C3%8Ele-de-France.zip"
+    );
 }
 
 #[test]
@@ -92,8 +101,16 @@ fn updates_append_to_their_data_file_in_listing_order() {
     let country = temp_dir("vali-append");
     std::fs::create_dir_all(country.join("updates")).unwrap();
     std::fs::write(country.join("paris.bin"), b"base").unwrap();
-    std::fs::write(country.join("updates").join("2026-01-01-paris.bin"), b"-jan").unwrap();
-    std::fs::write(country.join("updates").join("2026-02-01-paris.bin"), b"-feb").unwrap();
+    std::fs::write(
+        country.join("updates").join("2026-01-01-paris.bin"),
+        b"-jan",
+    )
+    .unwrap();
+    std::fs::write(
+        country.join("updates").join("2026-02-01-paris.bin"),
+        b"-feb",
+    )
+    .unwrap();
 
     for key in ["FR/2026-01-01-paris.bin", "FR/2026-02-01-paris.bin"] {
         append_update_file(&country, &remote(key, "2026-03-01T00:00:00Z")).unwrap();
@@ -108,9 +125,17 @@ fn updates_append_to_their_data_file_in_listing_order() {
 fn an_update_with_no_existing_data_file_creates_one() {
     let country = temp_dir("vali-append-new");
     std::fs::create_dir_all(country.join("updates")).unwrap();
-    std::fs::write(country.join("updates").join("2026-01-01-lyon.bin"), b"delta").unwrap();
+    std::fs::write(
+        country.join("updates").join("2026-01-01-lyon.bin"),
+        b"delta",
+    )
+    .unwrap();
 
-    append_update_file(&country, &remote("FR/2026-01-01-lyon.bin", "2026-03-01T00:00:00Z")).unwrap();
+    append_update_file(
+        &country,
+        &remote("FR/2026-01-01-lyon.bin", "2026-03-01T00:00:00Z"),
+    )
+    .unwrap();
 
     assert_eq!(std::fs::read(country.join("lyon.bin")).unwrap(), b"delta");
     let _ = std::fs::remove_dir_all(&country);
@@ -138,7 +163,11 @@ fn interrupted_update_application_records_the_applied_deltas() {
     std::fs::create_dir_all(country.join("updates")).unwrap();
     std::fs::write(country.join("paris.bin"), b"base").unwrap();
     // Only the first delta was actually fetched; applying the second fails mid-loop.
-    std::fs::write(country.join("updates").join("2026-01-01-paris.bin"), b"-jan").unwrap();
+    std::fs::write(
+        country.join("updates").join("2026-01-01-paris.bin"),
+        b"-jan",
+    )
+    .unwrap();
 
     let jan = remote("FR/2026-01-01-paris.bin", "2026-03-01T00:00:00Z");
     let feb = remote("FR/2026-02-01-paris.bin", "2026-03-01T00:00:00Z");
@@ -148,6 +177,9 @@ fn interrupted_update_application_records_the_applied_deltas() {
     let recorded = existing_files_in_metadata(&country);
     assert!(recorded.iter().any(|f| f.name == "2026-01-01-paris"));
     assert!(!recorded.iter().any(|f| f.name == "2026-02-01-paris"));
-    assert_eq!(std::fs::read(country.join("paris.bin")).unwrap(), b"base-jan");
+    assert_eq!(
+        std::fs::read(country.join("paris.bin")).unwrap(),
+        b"base-jan"
+    );
     let _ = std::fs::remove_dir_all(&country);
 }

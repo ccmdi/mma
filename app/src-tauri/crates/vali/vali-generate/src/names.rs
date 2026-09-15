@@ -8,9 +8,6 @@ pub fn country_names() -> &'static [(&'static str, &'static str)] {
 pub fn country_name(code: &str) -> &'static str {
     tables().country_name(code)
 }
-pub fn subdivision_name(
-    country_code: &str,
-    subdivision_code: &str,
-) -> Option<&'static str> {
+pub fn subdivision_name(country_code: &str, subdivision_code: &str) -> Option<&'static str> {
     tables().subdivision_name(country_code, subdivision_code)
 }

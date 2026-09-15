@@ -156,7 +156,10 @@ impl<'a> Node<'a> {
                 Some(Field::Bytes(b)) => str::from_utf8(b).unwrap_or_default(),
                 _ => "",
             },
-            Repr::Json(_) => self.slot(number).and_then(Value::as_str).unwrap_or_default(),
+            Repr::Json(_) => self
+                .slot(number)
+                .and_then(Value::as_str)
+                .unwrap_or_default(),
             Repr::Empty => "",
         }
     }

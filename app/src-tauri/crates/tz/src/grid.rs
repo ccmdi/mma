@@ -57,9 +57,8 @@ impl<'a> TzGrid<'a> {
     }
 
     pub fn zone_name(&self, i: usize) -> &'a str {
-        let u32_at = |off: usize| {
-            u32::from_le_bytes(self.data[off..off + 4].try_into().unwrap()) as usize
-        };
+        let u32_at =
+            |off: usize| u32::from_le_bytes(self.data[off..off + 4].try_into().unwrap()) as usize;
         let a = u32_at(self.names_idx_at + i * 4);
         let b = u32_at(self.names_idx_at + i * 4 + 4);
         from_utf8(&self.data[self.names_at + a..self.names_at + b]).unwrap_or_default()

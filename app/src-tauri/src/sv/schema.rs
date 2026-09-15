@@ -4,7 +4,10 @@
 //! Each struct reads one wire message through [`Node`] by field number, over binary
 //! protobuf and array-JSON alike; the consts carry the numbers for the encode side,
 //! and `owned` holds the value form every reader copies out through `to_owned`.
-#![allow(dead_code, reason = "the schema is generated whole; readers use what they need")]
+#![allow(
+    dead_code,
+    reason = "the schema is generated whole; readers use what they need"
+)]
 
 use crate::sv::wire::Node;
 use crate::types::{wire_enum, wire_names, TsConst};
@@ -132,14 +135,12 @@ impl<'a> RequestContext<'a> {
 pub struct SuperrootParams<'a>(pub Node<'a>);
 
 impl<'a> SuperrootParams<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::SuperrootParams {
-        owned::SuperrootParams {
-        }
+        owned::SuperrootParams {}
     }
 }
 
@@ -180,23 +181,19 @@ impl<'a> StreetViewSpecialCase<'a> {
     }
 
     pub fn to_owned(&self) -> owned::StreetViewSpecialCase {
-        owned::StreetViewSpecialCase {
-            flag: self.flag(),
-        }
+        owned::StreetViewSpecialCase { flag: self.flag() }
     }
 }
 
 pub struct ExperimentalOptions<'a>(pub Node<'a>);
 
 impl<'a> ExperimentalOptions<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::ExperimentalOptions {
-        owned::ExperimentalOptions {
-        }
+        owned::ExperimentalOptions {}
     }
 }
 
@@ -328,7 +325,11 @@ impl<'a> ImageMetadata<'a> {
                 let v = self.attribution();
                 v.present().then(|| v.to_owned())
             },
-            information: self.information().iter().map(ImageInformation::to_owned).collect(),
+            information: self
+                .information()
+                .iter()
+                .map(ImageInformation::to_owned)
+                .collect(),
             date: {
                 let v = self.date();
                 v.present().then(|| v.to_owned())
@@ -544,7 +545,11 @@ impl<'a> ImageDescription<'a> {
 
     pub fn to_owned(&self) -> owned::ImageDescription {
         owned::ImageDescription {
-            description: self.description().iter().map(LocalizedText::to_owned).collect(),
+            description: self
+                .description()
+                .iter()
+                .map(LocalizedText::to_owned)
+                .collect(),
         }
     }
 }
@@ -1178,8 +1183,7 @@ impl<'a> MetadataResponseSpecification<'a> {
     }
 
     pub fn to_owned(&self) -> owned::MetadataResponseSpecification {
-        owned::MetadataResponseSpecification {
-        }
+        owned::MetadataResponseSpecification {}
     }
 }
 
@@ -1207,7 +1211,11 @@ impl<'a> GetMetadataResponse<'a> {
                 let v = self.status();
                 v.present().then(|| v.to_owned())
             },
-            metadata: self.metadata().iter().map(ImageMetadata::to_owned).collect(),
+            metadata: self
+                .metadata()
+                .iter()
+                .map(ImageMetadata::to_owned)
+                .collect(),
         }
     }
 }
@@ -1445,7 +1453,8 @@ impl<'a> FilterOptions<'a> {
             restrict_to_ads_eligible: self.restrict_to_ads_eligible(),
             restrict_to_directions_appropriate: self.restrict_to_directions_appropriate(),
             restrict_to_unknown4: self.restrict_to_unknown4(),
-            restrict_to_photos_with_focus_attribution: self.restrict_to_photos_with_focus_attribution(),
+            restrict_to_photos_with_focus_attribution: self
+                .restrict_to_photos_with_focus_attribution(),
             restrict_to_syndication_eligible: self.restrict_to_syndication_eligible(),
             semantic_restrictions: {
                 let v = self.semantic_restrictions();
@@ -1509,14 +1518,12 @@ impl<'a> FormatRestrictions<'a> {
 pub struct SemanticRestrictions<'a>(pub Node<'a>);
 
 impl<'a> SemanticRestrictions<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::SemanticRestrictions {
-        owned::SemanticRestrictions {
-        }
+        owned::SemanticRestrictions {}
     }
 }
 
@@ -1594,42 +1601,36 @@ impl<'a> RankingOptions<'a> {
 pub struct TimestampOptions<'a>(pub Node<'a>);
 
 impl<'a> TimestampOptions<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::TimestampOptions {
-        owned::TimestampOptions {
-        }
+        owned::TimestampOptions {}
     }
 }
 
 pub struct RankingUnknown6<'a>(pub Node<'a>);
 
 impl<'a> RankingUnknown6<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::RankingUnknown6 {
-        owned::RankingUnknown6 {
-        }
+        owned::RankingUnknown6 {}
     }
 }
 
 pub struct SimilarityOptions<'a>(pub Node<'a>);
 
 impl<'a> SimilarityOptions<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::SimilarityOptions {
-        owned::SimilarityOptions {
-        }
+        owned::SimilarityOptions {}
     }
 }
 
@@ -1653,7 +1654,11 @@ impl<'a> ClientCapabilities<'a> {
 
     pub fn to_owned(&self) -> owned::ClientCapabilities {
         owned::ClientCapabilities {
-            supported_render_strategy: self.supported_render_strategy().iter().map(RenderStrategy::to_owned).collect(),
+            supported_render_strategy: self
+                .supported_render_strategy()
+                .iter()
+                .map(RenderStrategy::to_owned)
+                .collect(),
             max_dimension: {
                 let v = self.max_dimension();
                 v.present().then(|| v.to_owned())
@@ -1745,14 +1750,26 @@ impl<'a> ResponseSpecification<'a> {
 
     pub fn to_owned(&self) -> owned::ResponseSpecification {
         owned::ResponseSpecification {
-            navigation_channels: self.navigation_channels().iter().map(NavigationChannel::to_owned).collect(),
+            navigation_channels: self
+                .navigation_channels()
+                .iter()
+                .map(NavigationChannel::to_owned)
+                .collect(),
             http_response_format: self.http_response_format() as i32,
             attribution: {
                 let v = self.attribution();
                 v.present().then(|| v.to_owned())
             },
-            cursor_formats: self.cursor_formats().iter().map(CursorFormat::to_owned).collect(),
-            target_overlay_formats: self.target_overlay_formats().iter().map(TargetOverlayFormat::to_owned).collect(),
+            cursor_formats: self
+                .cursor_formats()
+                .iter()
+                .map(CursorFormat::to_owned)
+                .collect(),
+            target_overlay_formats: self
+                .target_overlay_formats()
+                .iter()
+                .map(TargetOverlayFormat::to_owned)
+                .collect(),
             unknown7: self.unknown7(),
             client_capabilities: {
                 let v = self.client_capabilities();
@@ -1769,14 +1786,12 @@ impl<'a> ResponseSpecification<'a> {
 pub struct NavigationChannel<'a>(pub Node<'a>);
 
 impl<'a> NavigationChannel<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::NavigationChannel {
-        owned::NavigationChannel {
-        }
+        owned::NavigationChannel {}
     }
 }
 
@@ -1823,14 +1838,12 @@ impl<'a> CursorFormat<'a> {
 pub struct TargetOverlayFormat<'a>(pub Node<'a>);
 
 impl<'a> TargetOverlayFormat<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::TargetOverlayFormat {
-        owned::TargetOverlayFormat {
-        }
+        owned::TargetOverlayFormat {}
     }
 }
 
@@ -1880,14 +1893,12 @@ impl<'a> ThumbnailEntry<'a> {
 pub struct SearchFeature<'a>(pub Node<'a>);
 
 impl<'a> SearchFeature<'a> {
-
     pub fn present(&self) -> bool {
         self.0.present()
     }
 
     pub fn to_owned(&self) -> owned::SearchFeature {
-        owned::SearchFeature {
-        }
+        owned::SearchFeature {}
     }
 }
 
@@ -1948,8 +1959,7 @@ pub mod owned {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct SuperrootParams {
-    }
+    pub struct SuperrootParams {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
@@ -1965,8 +1975,7 @@ pub mod owned {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct ExperimentalOptions {
-    }
+    pub struct ExperimentalOptions {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
@@ -2198,8 +2207,7 @@ pub mod owned {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct MetadataResponseSpecification {
-    }
+    pub struct MetadataResponseSpecification {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
@@ -2267,8 +2275,7 @@ pub mod owned {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct SemanticRestrictions {
-    }
+    pub struct SemanticRestrictions {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
@@ -2285,18 +2292,15 @@ pub mod owned {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct TimestampOptions {
-    }
+    pub struct TimestampOptions {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct RankingUnknown6 {
-    }
+    pub struct RankingUnknown6 {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct SimilarityOptions {
-    }
+    pub struct SimilarityOptions {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
@@ -2328,8 +2332,7 @@ pub mod owned {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct NavigationChannel {
-    }
+    pub struct NavigationChannel {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
@@ -2345,8 +2348,7 @@ pub mod owned {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct TargetOverlayFormat {
-    }
+    pub struct TargetOverlayFormat {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
@@ -2362,8 +2364,7 @@ pub mod owned {
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]
-    pub struct SearchFeature {
-    }
+    pub struct SearchFeature {}
 
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
     #[serde(rename_all = "camelCase")]

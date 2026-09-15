@@ -28,11 +28,11 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use rquickjs::function::{Opt, Rest};
-use serde::Serialize;
 use rquickjs::{
     Array, ArrayBuffer, CatchResultExt, CaughtError, Context, Ctx, Function, Module, Object,
     Runtime, TypedArray, Value,
 };
+use serde::Serialize;
 #[cfg(test)]
 use std::cell::Cell;
 use std::fmt;
@@ -519,9 +519,7 @@ fn install_mma<'js>(
             tz_fn(|ctx: Ctx<'_>, lat: f64, lng: f64| {
                 use crate::util::tz_grid;
                 match tz_grid().zone_at(lat, lng) {
-                    Some(name) => {
-                        Ok(rquickjs::String::from_str(ctx.clone(), name)?.into_value())
-                    }
+                    Some(name) => Ok(rquickjs::String::from_str(ctx.clone(), name)?.into_value()),
                     None => Ok(Value::new_null(ctx)),
                 }
             }),
@@ -999,12 +997,7 @@ impl Procedure for JsProcedure {
         })
     }
 
-    fn query(
-        &mut self,
-        input: &[u8],
-        host: &mut dyn ProcHost,
-        config: &str,
-    ) -> AppResult<Vec<u8>> {
+    fn query(&mut self, input: &[u8], host: &mut dyn ProcHost, config: &str) -> AppResult<Vec<u8>> {
         if !self.exports.query {
             return Err(self.err("module exports no `query`"));
         }
@@ -1141,12 +1134,7 @@ impl Procedure for PooledProcedure {
         self.inner().run(batch, host, config)
     }
 
-    fn query(
-        &mut self,
-        input: &[u8],
-        host: &mut dyn ProcHost,
-        config: &str,
-    ) -> AppResult<Vec<u8>> {
+    fn query(&mut self, input: &[u8], host: &mut dyn ProcHost, config: &str) -> AppResult<Vec<u8>> {
         self.inner().query(input, host, config)
     }
 }

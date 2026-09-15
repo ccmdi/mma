@@ -8,7 +8,11 @@ use std::fs;
 use std::mem;
 use std::path::PathBuf;
 
-const PROTO_FILES: &[&str] = &["streetview.proto", "getmetadata.proto", "singleimagesearch.proto"];
+const PROTO_FILES: &[&str] = &[
+    "streetview.proto",
+    "getmetadata.proto",
+    "singleimagesearch.proto",
+];
 
 struct Field {
     name: String,
@@ -131,7 +135,11 @@ fn parse(source: &str, schema: &mut Schema) {
             let type_name = words.next().expect("field type").to_string();
             let name = words.next().expect("field name").to_string();
             assert_eq!(words.next(), Some("="), "malformed field: {code}");
-            let number = words.next().expect("field number").parse().expect("field number");
+            let number = words
+                .next()
+                .expect("field number")
+                .parse()
+                .expect("field number");
             m.fields.push(Field {
                 name,
                 type_name,
@@ -160,7 +168,12 @@ fn snake(name: &str) -> String {
 /// it from the reader accessor.
 fn scalar(type_name: &str) -> Option<(&'static str, &'static str, &'static str, &'static str)> {
     Some(match type_name {
-        "string" => ("&'a str", "self.0.str({N})", "String", "self.{m}().to_string()"),
+        "string" => (
+            "&'a str",
+            "self.0.str({N})",
+            "String",
+            "self.{m}().to_string()",
+        ),
         "int32" => ("i64", "self.0.int({N})", "i32", "self.{m}() as i32"),
         "int64" => ("i64", "self.0.int({N})", "i64", "self.{m}()"),
         "uint64" => ("u64", "self.0.int({N}) as u64", "u64", "self.{m}()"),
@@ -215,7 +228,12 @@ fn generate() -> String {
         let _ = write!(out, "\npub struct {}<'a>(pub Node<'a>);\n", m.name);
         let _ = writeln!(out, "\nimpl<'a> {}<'a> {{", m.name);
         for f in &m.fields {
-            let _ = writeln!(out, "    pub const {}: u32 = {};", snake(&f.name).to_uppercase(), f.number);
+            let _ = writeln!(
+                out,
+                "    pub const {}: u32 = {};",
+                snake(&f.name).to_uppercase(),
+                f.number
+            );
         }
         out.push_str("\n    pub fn present(&self) -> bool {\n        self.0.present()\n    }\n");
         for f in &m.fields {

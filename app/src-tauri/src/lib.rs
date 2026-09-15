@@ -340,7 +340,10 @@ fn owned_by_consts(src: &str, names: &[&str]) -> String {
     let mut out: Vec<String> = Vec::new();
     let mut lines = src.lines();
     while let Some(line) = lines.next() {
-        if !names.iter().any(|n| line.starts_with(&format!("export type {n} = "))) {
+        if !names
+            .iter()
+            .any(|n| line.starts_with(&format!("export type {n} = ")))
+        {
             out.push(line.to_string());
             continue;
         }
@@ -392,17 +395,32 @@ fn export_consts() -> Result<(), String> {
         ("RankingStrategy", sv::schema::RankingStrategy::ts_const()),
         ("ValidationState", types::ValidationState::ts_const()),
         ("BUILTIN_FIELDS", TsConst::value(selections::BUILTIN_FIELDS)),
-        ("OFFICIAL_ID_PATTERN", TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN)),
-        ("CLEARABLE_BUILTINS", TsConst::value(store::engine::clearable_builtins())),
-        ("EFFECT_CALLS", TsConst::value(procedure::quickjs::EFFECT_CALLS)),
-        ("PLAIN_CALLS", TsConst::value(procedure::quickjs::PLAIN_CALLS)),
+        (
+            "OFFICIAL_ID_PATTERN",
+            TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN),
+        ),
+        (
+            "CLEARABLE_BUILTINS",
+            TsConst::value(store::engine::clearable_builtins()),
+        ),
+        (
+            "EFFECT_CALLS",
+            TsConst::value(procedure::quickjs::EFFECT_CALLS),
+        ),
+        (
+            "PLAIN_CALLS",
+            TsConst::value(procedure::quickjs::PLAIN_CALLS),
+        ),
         (
             "DEFAULT_DUPLICATE_SCORE",
             TsConst::value(selections::DEFAULT_DUPLICATE_SCORE),
         ),
         ("KNOWN_FIELDS", TsConst::value(store::maps::KNOWN_FIELDS)),
         ("PROJECTIONS", TsConst::value(selections::PROJECTIONS)),
-        ("SCRATCH_MAP_ID", TsConst::value(store::maps::SCRATCH_MAP_ID)),
+        (
+            "SCRATCH_MAP_ID",
+            TsConst::value(store::maps::SCRATCH_MAP_ID),
+        ),
         (
             "ERROR_CODES",
             TsConst::value(

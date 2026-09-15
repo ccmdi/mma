@@ -2086,8 +2086,14 @@ fn ranked_sinks_what_it_cannot_score_in_either_direction() {
     let fx = Fx::adds(locs);
     let view = fx.view();
     // "no score" is absence, not a low score: it ranks last ascending too.
-    assert_eq!(ranked_within(&view, None, "alt", None, false), vec![1, 4, 2, 3]);
-    assert_eq!(ranked_within(&view, None, "alt", None, true), vec![4, 1, 2, 3]);
+    assert_eq!(
+        ranked_within(&view, None, "alt", None, false),
+        vec![1, 4, 2, 3]
+    );
+    assert_eq!(
+        ranked_within(&view, None, "alt", None, true),
+        vec![4, 1, 2, 3]
+    );
 }
 
 #[test]
@@ -2100,9 +2106,15 @@ fn ranked_keeps_unscorable_members_but_a_filtered_child_drops_them() {
     let fx = Fx::adds(locs);
     let view = fx.view();
     // Ranking never drops: k=10 over 3 rows keeps all 3, unscorable included.
-    assert_eq!(ids_of(&view, &ranked("alt", Some(10), false)), vec![1, 2, 3]);
+    assert_eq!(
+        ids_of(&view, &ranked("alt", Some(10), false)),
+        vec![1, 2, 3]
+    );
     // Dropping is the child's job.
-    assert_eq!(ids_of(&view, &ranked_having("alt", Some(10), false)), vec![1, 3]);
+    assert_eq!(
+        ids_of(&view, &ranked_having("alt", Some(10), false)),
+        vec![1, 3]
+    );
 }
 
 #[test]
@@ -2115,7 +2127,10 @@ fn ranked_without_k_selects_its_child_unchanged() {
     let fx = Fx::adds(locs);
     let view = fx.view();
     assert_eq!(ids_of(&view, &ranked("alt", None, false)), vec![1, 2, 3]);
-    assert_eq!(ids_of(&view, &ranked_having("alt", None, false)), vec![1, 3]);
+    assert_eq!(
+        ids_of(&view, &ranked_having("alt", None, false)),
+        vec![1, 3]
+    );
 }
 
 #[test]
@@ -2713,7 +2728,11 @@ fn within_rows(rows: &[WithinRow]) -> Vec<Location> {
     rows.iter()
         .enumerate()
         .map(|(i, &(lat, lng, heading, mask, pinned))| {
-            let mut l = loc((i + 1) as u32, f64::from(lat) * 0.001, f64::from(lng) * 0.001);
+            let mut l = loc(
+                (i + 1) as u32,
+                f64::from(lat) * 0.001,
+                f64::from(lng) * 0.001,
+            );
             l.heading = f64::from(heading) * 90.0;
             l.tags = tags_from_mask(mask);
             if pinned {
@@ -2765,8 +2784,14 @@ fn within_selector(t: &WithinTree) -> Selector {
         WithinTree::CellBox(a, b) => {
             let (lat0, lat1) = (a.0.min(b.0), a.0.max(b.0));
             let (lng0, lng1) = (a.1.min(b.1), a.1.max(b.1));
-            let (s, n) = (f64::from(lat0) * 0.001 - 0.0005, f64::from(lat1) * 0.001 + 0.0005);
-            let (w, e) = (f64::from(lng0) * 0.001 - 0.0005, f64::from(lng1) * 0.001 + 0.0005);
+            let (s, n) = (
+                f64::from(lat0) * 0.001 - 0.0005,
+                f64::from(lat1) * 0.001 + 0.0005,
+            );
+            let (w, e) = (
+                f64::from(lng0) * 0.001 - 0.0005,
+                f64::from(lng1) * 0.001 + 0.0005,
+            );
             Selector::Polygon {
                 polygon: PolygonGeometry {
                     coordinates: vec![vec![[w, s], [e, s], [e, n], [w, n], [w, s]]],
@@ -3753,7 +3778,10 @@ fn year_month_strings_match_the_shared_mirror_cases() {
         serde_json::from_str(include_str!("../../../test/fixtures/mirrors.json")).unwrap();
     for case in cases["yearMonth"]["valid"].as_array().unwrap() {
         let s = case[0].as_str().unwrap();
-        let expected = (case[1].as_i64().unwrap() as i32, case[2].as_u64().unwrap() as u32);
+        let expected = (
+            case[1].as_i64().unwrap() as i32,
+            case[2].as_u64().unwrap() as u32,
+        );
         assert_eq!(parse_year_month(s), Some(expected), "{s}");
     }
     for s in cases["yearMonth"]["invalid"].as_array().unwrap() {

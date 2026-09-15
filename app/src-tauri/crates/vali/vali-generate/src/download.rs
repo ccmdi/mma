@@ -60,8 +60,10 @@ pub fn download_files(
     progress: Option<Progress<'_>>,
     cancel: Option<&CancelToken>,
 ) -> anyhow::Result<()> {
-    let all_codes: Vec<&str> =
-        crate::names::country_names().iter().map(|(c, _)| *c).collect();
+    let all_codes: Vec<&str> = crate::names::country_names()
+        .iter()
+        .map(|(c, _)| *c)
+        .collect();
     let country_codes: Vec<String> = match country.filter(|c| !c.is_empty()) {
         None => all_codes.iter().map(|c| c.to_string()).collect(),
         Some(code) => {
@@ -98,9 +100,7 @@ pub fn download_codes(
     let agent = agent();
     for op in [
         Operation::Data { force: full },
-        Operation::Updates {
-            force: updates,
-        },
+        Operation::Updates { force: updates },
     ] {
         for cc in country_codes {
             if let Some(c) = cancel {
@@ -144,7 +144,9 @@ fn run_operation(
     let files_to_delete: Vec<&MetadataFile> = local_files
         .iter()
         .filter(|f| {
-            !files_from_r2.iter().any(|r2| key_stem(&r2.key) == file_stem(&f.name))
+            !files_from_r2
+                .iter()
+                .any(|r2| key_stem(&r2.key) == file_stem(&f.name))
         })
         .collect();
     if matches!(op, Operation::Data { .. }) {
@@ -183,23 +185,18 @@ fn run_operation(
             // of the cancellable phase also keeps a cancel from leaving deltas applied but
             // unrecorded, which would re-append them on the next run.
             let updates_folder = country_folder.join("updates");
-            run_limited(
-                &files_to_download,
-                10,
-                cancel,
-                |r2| {
-                    download_file(agent, COUNTRY_UPDATES_BUCKET, r2, &updates_folder)?;
-                    emit(
-                        progress,
-                        Event::FileDownloaded {
-                            country_code: cc.to_string(),
-                            name: key_stem(&r2.key).to_string(),
-                            bytes: r2.size.unwrap_or(0),
-                        },
-                    );
-                    Ok(())
-                },
-            )?;
+            run_limited(&files_to_download, 10, cancel, |r2| {
+                download_file(agent, COUNTRY_UPDATES_BUCKET, r2, &updates_folder)?;
+                emit(
+                    progress,
+                    Event::FileDownloaded {
+                        country_code: cc.to_string(),
+                        name: key_stem(&r2.key).to_string(),
+                        bytes: r2.size.unwrap_or(0),
+                    },
+                );
+                Ok(())
+            })?;
             apply_update_files(&country_folder, &files_to_download)?;
             if updates_folder.exists() {
                 std::fs::remove_dir_all(&updates_folder)?;
@@ -279,31 +276,23 @@ pub fn stale_countries(
     }
     let agent = agent_with(timeout);
     let found = std::sync::Mutex::new(Vec::new());
-    run_limited(
-        &codes,
-        10,
-        cancel,
-        |cc| {
-            let remote_data = list_files(&agent, cc, COUNTRIES_BUCKET)?;
-            let remote_updates = list_files(&agent, cc, COUNTRY_UPDATES_BUCKET)?;
-            let local = existing_files_in_metadata(&root.join(cc));
-            let stale: Vec<&R2Object> = outdated(&remote_data, &local)
-                .into_iter()
-                .chain(outdated(&remote_updates, &local))
-                .collect();
-            if !stale.is_empty() {
-                found
-                    .lock()
-                    .unwrap()
-                    .push(CountryStatus {
-                        country_code: cc.clone(),
-                        files: stale.len(),
-                        bytes: stale.iter().filter_map(|f| f.size).sum(),
-                    });
-            }
-            Ok(())
-        },
-    )?;
+    run_limited(&codes, 10, cancel, |cc| {
+        let remote_data = list_files(&agent, cc, COUNTRIES_BUCKET)?;
+        let remote_updates = list_files(&agent, cc, COUNTRY_UPDATES_BUCKET)?;
+        let local = existing_files_in_metadata(&root.join(cc));
+        let stale: Vec<&R2Object> = outdated(&remote_data, &local)
+            .into_iter()
+            .chain(outdated(&remote_updates, &local))
+            .collect();
+        if !stale.is_empty() {
+            found.lock().unwrap().push(CountryStatus {
+                country_code: cc.clone(),
+                files: stale.len(),
+                bytes: stale.iter().filter_map(|f| f.size).sum(),
+            });
+        }
+        Ok(())
+    })?;
     let mut out = found.into_inner().unwrap();
     out.sort_by(|a, b| a.country_code.cmp(&b.country_code));
     Ok(out)
@@ -316,9 +305,9 @@ fn downloaded_country_codes(root: &Path) -> Vec<String> {
         .map(|(c, _)| c.to_string())
         .filter(|cc| {
             std::fs::read_dir(root.join(cc))
-                .map(|mut e| e.any(|f| {
-                    f.is_ok_and(|f| f.path().extension().is_some_and(|x| x == "bin"))
-                }))
+                .map(|mut e| {
+                    e.any(|f| f.is_ok_and(|f| f.path().extension().is_some_and(|x| x == "bin")))
+                })
                 .unwrap_or(false)
         })
         .collect()
@@ -331,23 +320,18 @@ fn download_data_files(
     progress: Option<Progress<'_>>,
     cancel: Option<&CancelToken>,
 ) -> anyhow::Result<()> {
-    run_limited(
-        files,
-        10,
-        cancel,
-        |r2| {
-            download_file(agent, COUNTRIES_BUCKET, r2, folder)?;
-            emit(
-                progress,
-                Event::FileDownloaded {
-                    country_code: cc.to_string(),
-                    name: key_stem(&r2.key).to_string(),
-                    bytes: r2.size.unwrap_or(0),
-                },
-            );
-            Ok(())
-        },
-    )
+    run_limited(files, 10, cancel, |r2| {
+        download_file(agent, COUNTRIES_BUCKET, r2, folder)?;
+        emit(
+            progress,
+            Event::FileDownloaded {
+                country_code: cc.to_string(),
+                name: key_stem(&r2.key).to_string(),
+                bytes: r2.size.unwrap_or(0),
+            },
+        );
+        Ok(())
+    })
 }
 /// Append fetched deltas in listing order, recording each one the moment its bytes land.
 /// An I/O error (or kill) between deltas then loses only the unapplied tail -- an applied
@@ -388,8 +372,7 @@ fn download_file(
         match try_download(agent, &url) {
             Ok(bytes) => {
                 let tmp = folder.join(format!("{file_name}.tmp"));
-                std::fs::write(&tmp, bytes)
-                    .with_context(|| format!("write {}", tmp.display()))?;
+                std::fs::write(&tmp, bytes).with_context(|| format!("write {}", tmp.display()))?;
                 let _ = std::fs::remove_file(&dest);
                 std::fs::rename(&tmp, &dest)
                     .with_context(|| format!("rename to {}", dest.display()))?;
@@ -406,22 +389,13 @@ fn download_file(
     Err(last_err.unwrap().context(format!("download {url}")))
 }
 fn try_download(agent: &Client, url: &str) -> anyhow::Result<Vec<u8>> {
-    let compressed = agent
-        .get(url)
-        .send()?
-        .error_for_status()?
-        .bytes()?
-        .to_vec();
+    let compressed = agent.get(url).send()?.error_for_status()?.bytes()?.to_vec();
     let mut decoder = bzip2::read::BzDecoder::new(compressed.as_slice());
     let mut out = Vec::with_capacity(compressed.len() * 4);
     decoder.read_to_end(&mut out)?;
     Ok(out)
 }
-fn list_files(
-    agent: &Client,
-    cc: &str,
-    bucket: &str,
-) -> anyhow::Result<Vec<R2Object>> {
+fn list_files(agent: &Client, cc: &str, bucket: &str) -> anyhow::Result<Vec<R2Object>> {
     let listing = if bucket.contains("updates") {
         "list-country-updates"
     } else {
@@ -447,18 +421,18 @@ fn run_limited<T: Sync>(
     std::thread::scope(|scope| {
         let handles: Vec<_> = (0..threads)
             .map(|_| {
-                scope
-                    .spawn(|| -> anyhow::Result<()> {
-                        loop {
-                            if let Some(c) = cancel {
-                                c.check()?;
-                            }
-                            let i = next
-                                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                            let Some(item) = items.get(i) else { return Ok(()) };
-                            f(item)?;
+                scope.spawn(|| -> anyhow::Result<()> {
+                    loop {
+                        if let Some(c) = cancel {
+                            c.check()?;
                         }
-                    })
+                        let i = next.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        let Some(item) = items.get(i) else {
+                            return Ok(());
+                        };
+                        f(item)?;
+                    }
+                })
             })
             .collect();
         for h in handles {
@@ -492,11 +466,10 @@ fn ensure_download_metadata_file_exists(root: &Path, cc: &str) -> anyhow::Result
         let p = entry?.path();
         if p.extension().is_some_and(|e| e == "bin") {
             let mtime = p.metadata()?.modified()?;
-            files
-                .push(MetadataFile {
-                    name: p.file_stem().unwrap().to_string_lossy().to_string(),
-                    last_write_time_utc: NetDateTime::from_system_time_truncated(mtime),
-                });
+            files.push(MetadataFile {
+                name: p.file_stem().unwrap().to_string_lossy().to_string(),
+                last_write_time_utc: NetDateTime::from_system_time_truncated(mtime),
+            });
         }
     }
     write_metadata(&path, &files)
@@ -524,18 +497,11 @@ fn save_data_files_downloaded(
             last_write_time_utc: r2.uploaded.clone(),
         })
         .collect();
-    files
-        .extend(
-            old
-                .into_iter()
-                .filter(|f| {
-                    downloaded
-                        .iter()
-                        .all(|r2| {
-                            key_stem(&r2.key) != file_stem(remove_date_prefix(&f.name))
-                        })
-                }),
-        );
+    files.extend(old.into_iter().filter(|f| {
+        downloaded
+            .iter()
+            .all(|r2| key_stem(&r2.key) != file_stem(remove_date_prefix(&f.name)))
+    }));
     dedup_by_name(&mut files);
     write_metadata(&path, &files)
 }
@@ -690,8 +656,12 @@ impl NetDateTime {
     fn parse(s: &str) -> Option<NetDateTime> {
         let s = s.trim().strip_suffix('Z').unwrap_or(s.trim());
         let bytes = s.as_bytes();
-        if bytes.len() < 19 || bytes[4] != b'-' || bytes[7] != b'-' || bytes[10] != b'T'
-            || bytes[13] != b':' || bytes[16] != b':'
+        if bytes.len() < 19
+            || bytes[4] != b'-'
+            || bytes[7] != b'-'
+            || bytes[10] != b'T'
+            || bytes[13] != b':'
+            || bytes[16] != b':'
         {
             return None;
         }
@@ -702,9 +672,7 @@ impl NetDateTime {
                 return None;
             }
             let frac = s.get(20..)?;
-            if frac.is_empty() || frac.len() > 7
-                || !frac.bytes().all(|b| b.is_ascii_digit())
-            {
+            if frac.is_empty() || frac.len() > 7 || !frac.bytes().all(|b| b.is_ascii_digit()) {
                 return None;
             }
             ticks = frac.parse::<u32>().ok()? * 10u32.pow(7 - frac.len() as u32);
@@ -747,8 +715,8 @@ impl NetDateTime {
     }
     fn to_dotnet_string(&self) -> String {
         let mut s = format!(
-            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}", self.year, self.month, self.day, self
-            .hour, self.minute, self.second
+            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}",
+            self.year, self.month, self.day, self.hour, self.minute, self.second
         );
         if self.ticks > 0 {
             let mut frac = format!("{:07}", self.ticks);

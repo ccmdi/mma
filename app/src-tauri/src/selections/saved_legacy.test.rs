@@ -143,7 +143,12 @@ fn import_reads_flat_filters_and_drops_an_item_it_cannot_read() {
     ]"#;
     assert_eq!(import(&mut conn, legacy).unwrap(), 3);
     let rules = all(&conn);
-    let by_name = |n: &str| rules.iter().find(|r| r.info.name == n).map(|r| r.selector.clone());
+    let by_name = |n: &str| {
+        rules
+            .iter()
+            .find(|r| r.info.name == n)
+            .map(|r| r.selector.clone())
+    };
     let Some(Selector::Filter { field, test }) = by_name("high") else {
         panic!("not a filter");
     };

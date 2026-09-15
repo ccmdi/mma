@@ -71,7 +71,9 @@ impl<'a> Reader<'a> {
         Ok(slice)
     }
     pub fn read_string(&mut self) -> anyhow::Result<compact_str::CompactString> {
-        Ok(compact_str::CompactString::from_utf8(self.read_len_slice()?)?)
+        Ok(compact_str::CompactString::from_utf8(
+            self.read_len_slice()?,
+        )?)
     }
     /// Length-delimited field as a lossy UTF-8 `String`, for wire formats that may carry
     /// invalid UTF-8 rather than treating it as a decode failure.

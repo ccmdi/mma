@@ -115,10 +115,13 @@ fn every_point_well_inside_is_within_the_covering_radius() {
 #[test]
 fn every_part_of_a_multipolygon_gets_points() {
     let grid = HexGrid::new(50.5, 11.0, 2000.0);
-    let pts = points(&grid, &[
-        vec![square(10.0, 50.0, 10.2, 50.2)],
-        vec![square(12.0, 51.0, 12.2, 51.2)],
-    ]);
+    let pts = points(
+        &grid,
+        &[
+            vec![square(10.0, 50.0, 10.2, 50.2)],
+            vec![square(12.0, 51.0, 12.2, 51.2)],
+        ],
+    );
     assert!(pts.iter().any(|&(_, lng)| lng < 11.0));
     assert!(pts.iter().any(|&(_, lng)| lng > 11.0));
 }

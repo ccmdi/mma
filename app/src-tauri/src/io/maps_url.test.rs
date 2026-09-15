@@ -10,7 +10,10 @@ fn non_urls_and_unsupported_domains_parse_to_nothing() {
     assert_eq!(parse(""), None);
     assert_eq!(parse("   "), None);
     assert_eq!(parse("https://example.com/maps"), None);
-    assert_eq!(parse("https://openstreetmap.org/#map=14/51.5074/-0.1278"), None);
+    assert_eq!(
+        parse("https://openstreetmap.org/#map=14/51.5074/-0.1278"),
+        None
+    );
 }
 
 #[test]
@@ -61,7 +64,10 @@ fn a_viewpoint_without_a_pano_is_a_bare_coordinate() {
 
 #[test]
 fn a_pano_url_missing_its_viewpoint_parses_to_nothing() {
-    assert_eq!(parse("https://www.google.com/maps?map_action=pano&heading=90"), None);
+    assert_eq!(
+        parse("https://www.google.com/maps?map_action=pano&heading=90"),
+        None
+    );
 }
 
 #[test]
@@ -93,7 +99,8 @@ fn tags_come_from_the_query_and_the_fragment_owns_them_when_present() {
         "https://www.google.com/maps?map_action=pano&viewpoint=10,20&extra[tags]=Mountains&extra[tags]=Coastal",
     );
     assert_eq!(p.tags, ["Mountains", "Coastal"]);
-    let p = parsed("https://www.google.com/maps?map_action=pano&viewpoint=10,20#extra[tags]=FromHash");
+    let p =
+        parsed("https://www.google.com/maps?map_action=pano&viewpoint=10,20#extra[tags]=FromHash");
     assert_eq!(p.tags, ["FromHash"]);
     let p = parsed("https://www.google.com/maps?map_action=pano&viewpoint=10,20");
     assert!(p.tags.is_empty());
@@ -101,7 +108,10 @@ fn tags_come_from_the_query_and_the_fragment_owns_them_when_present() {
 
 #[test]
 fn input_whitespace_is_trimmed() {
-    assert_eq!(parsed("  https://www.google.com/maps?map_action=pano&viewpoint=10,20  ").lat, 10.0);
+    assert_eq!(
+        parsed("  https://www.google.com/maps?map_action=pano&viewpoint=10,20  ").lat,
+        10.0
+    );
 }
 
 #[test]
@@ -109,7 +119,10 @@ fn a_non_official_street_view_key_becomes_the_encoded_pano_id() {
     let p = parsed(
         "https://www.google.com/maps/@1,2,3a,75y,0h,90t/data=!1sCIHM0ogKEICAgICEm_ixqwE!2e10",
     );
-    assert_eq!(p.pano_id.as_deref(), Some("CAoSF0NJSE0wb2dLRUlDQWdJQ0VtX2l4cXdF"));
+    assert_eq!(
+        p.pano_id.as_deref(),
+        Some("CAoSF0NJSE0wb2dLRUlDQWdJQ0VtX2l4cXdF")
+    );
 }
 
 #[test]
@@ -129,7 +142,11 @@ const TAGGED_LAT_LNG: &str = "https://www.google.com/maps/@35.6762,139.6503,3a,8
 
 /// Zoom survives the writer's one-decimal field of view.
 fn assert_zoom(p: &ParsedLocation, written: f64) {
-    assert!((p.zoom - written).abs() < 2e-3, "zoom {} != {written}", p.zoom);
+    assert!(
+        (p.zoom - written).abs() < 2e-3,
+        "zoom {} != {written}",
+        p.zoom
+    );
 }
 
 #[test]

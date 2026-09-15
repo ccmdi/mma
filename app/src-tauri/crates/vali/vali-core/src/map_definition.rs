@@ -12,10 +12,7 @@ impl<'de> Deserialize<'de> for OrderedMap {
             fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 f.write_str("a string-to-string object")
             }
-            fn visit_map<A: MapAccess<'de>>(
-                self,
-                mut map: A,
-            ) -> Result<OrderedMap, A::Error> {
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<OrderedMap, A::Error> {
                 let mut entries = Vec::new();
                 while let Some((k, v)) = map.next_entry::<String, String>()? {
                     entries.push((k, v));
@@ -56,33 +53,22 @@ pub struct MapDefinition {
     #[serde(alias = "GlobalLocationPreferenceFilters")]
     pub global_location_preference_filters: Vec<LocationPreferenceFilterDef>,
     #[serde(alias = "CountryLocationPreferenceFilters")]
-    pub country_location_preference_filters: HashMap<
-        String,
-        Vec<LocationPreferenceFilterDef>,
-    >,
+    pub country_location_preference_filters: HashMap<String, Vec<LocationPreferenceFilterDef>>,
     #[serde(alias = "SubdivisionLocationPreferenceFilters")]
-    pub subdivision_location_preference_filters: HashMap<
-        String,
-        HashMap<String, Vec<LocationPreferenceFilterDef>>,
-    >,
+    pub subdivision_location_preference_filters:
+        HashMap<String, HashMap<String, Vec<LocationPreferenceFilterDef>>>,
     #[serde(alias = "ProximityFilter")]
     pub proximity_filter: ProximityFilterDef,
     #[serde(alias = "CountryProximityFilters")]
     pub country_proximity_filters: HashMap<String, ProximityFilterDef>,
     #[serde(alias = "SubdivisionProximityFilters")]
-    pub subdivision_proximity_filters: HashMap<
-        String,
-        HashMap<String, ProximityFilterDef>,
-    >,
+    pub subdivision_proximity_filters: HashMap<String, HashMap<String, ProximityFilterDef>>,
     #[serde(alias = "GeometryFilters")]
     pub geometry_filters: Vec<GeometryFilterDef>,
     #[serde(alias = "CountryGeometryFilters")]
     pub country_geometry_filters: HashMap<String, Vec<GeometryFilterDef>>,
     #[serde(alias = "SubdivisionGeometryFilters")]
-    pub subdivision_geometry_filters: HashMap<
-        String,
-        HashMap<String, Vec<GeometryFilterDef>>,
-    >,
+    pub subdivision_geometry_filters: HashMap<String, HashMap<String, Vec<GeometryFilterDef>>>,
     #[serde(alias = "NeighborFilters")]
     pub neighbor_filters: Vec<NeighborFilterDef>,
     #[serde(alias = "UsedLocationsPaths")]
@@ -98,10 +84,8 @@ pub struct MapDefinition {
     #[serde(alias = "CountryLocationProbabilities")]
     pub country_location_probabilities: HashMap<String, LocationProbabilityDef>,
     #[serde(alias = "SubdivisionLocationProbabilities")]
-    pub subdivision_location_probabilities: HashMap<
-        String,
-        HashMap<String, LocationProbabilityDef>,
-    >,
+    pub subdivision_location_probabilities:
+        HashMap<String, HashMap<String, LocationProbabilityDef>>,
 }
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]

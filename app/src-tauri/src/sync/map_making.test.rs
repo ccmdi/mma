@@ -471,10 +471,7 @@ fn partial_chunk_failure_commits_landed_chunks_before_propagating_error() {
     let result = push_apply(&batch, 2, &mut commit, &mut post);
 
     assert!(result.is_err());
-    assert_eq!(
-        *log.borrow(),
-        vec!["post:2", "commit:2", "post:2"]
-    );
+    assert_eq!(*log.borrow(), vec!["post:2", "commit:2", "post:2"]);
 }
 
 // --- protobuf decode --------------------------------------------------------

@@ -56,10 +56,18 @@ pub struct SchemeResponse {
 
 impl SchemeResponse {
     pub fn ok(content_type: impl Into<String>, body: Vec<u8>) -> Self {
-        Self { status: 200, content_type: content_type.into(), body }
+        Self {
+            status: 200,
+            content_type: content_type.into(),
+            body,
+        }
     }
     pub fn not_found(msg: impl Into<String>) -> Self {
-        Self { status: 404, content_type: "text/plain".into(), body: msg.into().into_bytes() }
+        Self {
+            status: 404,
+            content_type: "text/plain".into(),
+            body: msg.into().into_bytes(),
+        }
     }
 }
 
@@ -76,7 +84,10 @@ pub fn register_scheme<F>(name: &str, handler: F)
 where
     F: Fn(SchemeRequest) -> SchemeResponse + Send + Sync + 'static,
 {
-    schemes().write().unwrap().insert(name.to_string(), Box::new(handler));
+    schemes()
+        .write()
+        .unwrap()
+        .insert(name.to_string(), Box::new(handler));
 }
 
 // ---------------------------------------------------------------------------
@@ -102,8 +113,11 @@ pub fn forward_event(event: &str, payload: serde_json::Value) {
     if clients.is_empty() {
         return;
     }
-    let frame = format!("data: {}\n\n", serde_json::json!({ "event": event, "payload": payload }))
-        .into_bytes();
+    let frame = format!(
+        "data: {}\n\n",
+        serde_json::json!({ "event": event, "payload": payload })
+    )
+    .into_bytes();
     clients.retain(|tx| tx.send(frame.clone()).is_ok());
 }
 
@@ -139,7 +153,10 @@ fn serve<R: Runtime>(handle: AppHandle<R>) {
         let method = req.method().clone();
         let url = req.url().to_string();
         let path = url.split('?').next().unwrap_or("").to_string();
-        let query = url.split_once('?').map(|(_, q)| q.to_string()).unwrap_or_default();
+        let query = url
+            .split_once('?')
+            .map(|(_, q)| q.to_string())
+            .unwrap_or_default();
 
         if method == Method::Post && path == "/__ipc_upload" {
             let raw = query.strip_prefix("name=").unwrap_or("upload");
@@ -250,7 +267,10 @@ fn stream_events(req: tiny_http::Request, rx: Receiver<Vec<u8>>) {
                 Content-Type: text/event-stream\r\n\
                 Cache-Control: no-cache\r\n\
                 Connection: close\r\n\r\n";
-    if w.write_all(head.as_bytes()).and_then(|_| w.flush()).is_err() {
+    if w.write_all(head.as_bytes())
+        .and_then(|_| w.flush())
+        .is_err()
+    {
         return;
     }
     loop {
@@ -269,7 +289,11 @@ fn stream_events(req: tiny_http::Request, rx: Receiver<Vec<u8>>) {
 // IPC bridge: forward to the app's real invoke handler.
 // ---------------------------------------------------------------------------
 
-fn invoke<R: Runtime>(handle: &AppHandle<R>, cmd: String, args: serde_json::Value) -> (u16, String) {
+fn invoke<R: Runtime>(
+    handle: &AppHandle<R>,
+    cmd: String,
+    args: serde_json::Value,
+) -> (u16, String) {
     let webview = match handle.get_webview_window("main") {
         Some(w) => w.as_ref().clone(),
         None => return (500, err_json("ipc webview not ready")),
@@ -362,8 +386,8 @@ fn serve_asset<R: Runtime>(
     let mut resp = Response::from_data(bytes).with_header(ct_header(&asset.mime_type));
     if is_html {
         // index.html must never be cached (points at content-hashed assets).
-        resp = resp
-            .with_header(Header::from_bytes(&b"Cache-Control"[..], &b"no-cache"[..]).unwrap());
+        resp =
+            resp.with_header(Header::from_bytes(&b"Cache-Control"[..], &b"no-cache"[..]).unwrap());
     }
     resp
 }

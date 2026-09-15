@@ -9,7 +9,9 @@ const TS_MAX: i64 = u32::MAX as i64;
 
 fn oracle_offset(tz: chrono_tz::Tz, ts: i64) -> i32 {
     let dt = chrono::DateTime::from_timestamp(ts, 0).unwrap();
-    tz.offset_from_utc_datetime(&dt.naive_utc()).fix().local_minus_utc()
+    tz.offset_from_utc_datetime(&dt.naive_utc())
+        .fix()
+        .local_minus_utc()
 }
 
 fn table() -> Tz<'static> {
@@ -75,8 +77,14 @@ fn known_offsets() {
     let winter = 1_705_276_800; // 2024-01-15
     let summer = 1_721_088_000; // 2024-07-16
     assert_eq!(t.offset_seconds("Asia/Tokyo", winter), Some(9 * 3600));
-    assert_eq!(t.offset_seconds("America/New_York", winter), Some(-5 * 3600));
-    assert_eq!(t.offset_seconds("America/New_York", summer), Some(-4 * 3600));
+    assert_eq!(
+        t.offset_seconds("America/New_York", winter),
+        Some(-5 * 3600)
+    );
+    assert_eq!(
+        t.offset_seconds("America/New_York", summer),
+        Some(-4 * 3600)
+    );
 }
 
 /// Rebuild `data/tz.bin` from chrono-tz: walk every zone in 6-hour steps across the u32
@@ -88,8 +96,10 @@ fn known_offsets() {
 fn regenerate_table() {
     use std::collections::HashMap;
 
-    let mut zones: Vec<(&str, chrono_tz::Tz)> =
-        chrono_tz::TZ_VARIANTS.iter().map(|tz| (tz.name(), *tz)).collect();
+    let mut zones: Vec<(&str, chrono_tz::Tz)> = chrono_tz::TZ_VARIANTS
+        .iter()
+        .map(|tz| (tz.name(), *tz))
+        .collect();
     zones.sort_by_key(|(name, _)| *name);
 
     let mut runs: HashMap<Vec<(i64, i32)>, u32> = HashMap::new();
@@ -163,7 +173,11 @@ fn regenerate_table() {
         out.extend_from_slice(&ts.to_le_bytes());
         out.extend_from_slice(&off.to_le_bytes());
     }
-    std::fs::write(concat!(env!("CARGO_MANIFEST_DIR"), "/../../data/tz.bin"), &out).unwrap();
+    std::fs::write(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../../data/tz.bin"),
+        &out,
+    )
+    .unwrap();
     panic!(
         "regenerated: {} zones, {} entries ({} unique runs), {} bytes -- rerun the real tests now",
         zones.len(),

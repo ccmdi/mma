@@ -43,15 +43,12 @@ fn collect_top_level_and_operands<'a>(node: &'a Node, acc: &mut Vec<&'a Node>) {
 fn contains_parent(node: &Node) -> bool {
     match node {
         Node::ParentProperty { .. } => true,
-        Node::Binary { left, right, .. } => {
-            contains_parent(left) || contains_parent(right)
-        }
+        Node::Binary { left, right, .. } => contains_parent(left) || contains_parent(right),
         Node::Group { inner, .. } => contains_parent(inner),
         Node::UnaryMinus { operand, .. } => contains_parent(operand),
-        Node::In { operand, values, .. } => {
-            contains_parent(operand)
-                || values.iter().any(|t| t.kind == TokenKind::ParentProperty)
-        }
+        Node::In {
+            operand, values, ..
+        } => contains_parent(operand) || values.iter().any(|t| t.kind == TokenKind::ParentProperty),
         _ => false,
     }
 }

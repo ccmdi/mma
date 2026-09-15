@@ -1,9 +1,9 @@
 use rust_decimal::Decimal;
 use rustc_hash::FxHashMap;
 use vali_core::Location;
+use vali_expr::CompiledBool;
 use vali_geo::geohash::HashPrecision;
 use vali_geo::{bucketize, encode, nearby, points_are_closer_than};
-use vali_expr::CompiledBool;
 pub fn precision_from_max_radius(max_radius: i32) -> HashPrecision {
     if max_radius > 500 {
         HashPrecision::Size_km_5x5
@@ -28,9 +28,7 @@ fn is_pre_filter_safe_bound(bound: &str) -> bool {
 }
 impl NeighborFilterSpec {
     pub fn from_def(def: &vali_core::NeighborFilterDef) -> NeighborFilterSpec {
-        let prefilter = if is_pre_filter_safe_bound(&def.bound)
-            && !def.expression.is_empty()
-        {
+        let prefilter = if is_pre_filter_safe_bound(&def.bound) && !def.expression.is_empty() {
             vali_expr::neighbor_only_expression(&def.expression)
                 .and_then(|e| vali_expr::compile_bool(&e).ok())
         } else {
@@ -49,20 +47,13 @@ impl NeighborFilterSpec {
             radius: def.radius,
             bound: def.bound.clone(),
             limit: def.limit,
-            check_each_cardinal_direction_separately: def
-                .check_each_cardinal_direction_separately,
+            check_each_cardinal_direction_separately: def.check_each_cardinal_direction_separately,
         }
     }
 }
 impl NeighborContext {
-    pub fn build(
-        all_locations: &[Location],
-        precision: HashPrecision,
-    ) -> NeighborContext {
-        let points: Vec<(f64, f64)> = all_locations
-            .iter()
-            .map(|l| (l.lat, l.lng))
-            .collect();
+    pub fn build(all_locations: &[Location], precision: HashPrecision) -> NeighborContext {
+        let points: Vec<(f64, f64)> = all_locations.iter().map(|l| (l.lat, l.lng)).collect();
         NeighborContext {
             buckets: bucketize(&points, Some(precision)),
             precision,
@@ -96,36 +87,35 @@ pub fn apply_neighbor_filter(
     spec: &NeighborFilterSpec,
     candidates: &[u32],
 ) -> Vec<u32> {
-    let prefiltered: Option<FxHashMap<u64, Vec<u32>>> = spec
-        .prefilter
-        .as_ref()
-        .map(|p| {
-            context
-                .buckets
-                .iter()
-                .filter_map(|(&key, list)| {
-                    let kept: Vec<u32> = list
-                        .iter()
-                        .copied()
-                        .filter(|&i| p.eval(&locations[i as usize]))
-                        .collect();
-                    (!kept.is_empty()).then_some((key, kept))
-                })
-                .collect()
-        });
+    let prefiltered: Option<FxHashMap<u64, Vec<u32>>> = spec.prefilter.as_ref().map(|p| {
+        context
+            .buckets
+            .iter()
+            .filter_map(|(&key, list)| {
+                let kept: Vec<u32> = list
+                    .iter()
+                    .copied()
+                    .filter(|&i| p.eval(&locations[i as usize]))
+                    .collect();
+                (!kept.is_empty()).then_some((key, kept))
+            })
+            .collect()
+    });
     let buckets = prefiltered.as_ref().unwrap_or(&context.buckets);
     let radius_squared = spec.radius as f64 * spec.radius as f64;
     candidates
         .iter()
         .copied()
-        .filter(|&i| survives(
-            locations,
-            buckets,
-            context.precision,
-            spec,
-            radius_squared,
-            &locations[i as usize],
-        ))
+        .filter(|&i| {
+            survives(
+                locations,
+                buckets,
+                context.precision,
+                spec,
+                radius_squared,
+                &locations[i as usize],
+            )
+        })
         .collect()
 }
 fn survives(
@@ -142,19 +132,20 @@ fn survives(
             && points_are_closer_than(l.lat, l.lng, l2.lat, l2.lng, radius_squared)
     };
     let expr_ok = |l2: &Location| {
-        spec.compiled.as_ref().is_none_or(|f| f.eval_with_parent(l2, l))
+        spec.compiled
+            .as_ref()
+            .is_none_or(|f| f.eval_with_parent(l2, l))
     };
     let matching = |l2: &Location| in_radius(l2) && expr_ok(l2);
     let neighbors = || nearby(buckets, hash).map(|i| &locations[i as usize]);
     let count_matching = |dir: Option<Direction>| {
         neighbors()
             .filter(|l2| dir.is_none_or(|d| is_in_direction(d, l, l2)))
-            .filter(|l2| { matching(l2) })
+            .filter(|l2| matching(l2))
             .count() as i32
     };
     let any_matching = |dir: Option<Direction>| {
-        neighbors()
-            .any(|l2| dir.is_none_or(|d| is_in_direction(d, l, l2)) && matching(l2))
+        neighbors().any(|l2| dir.is_none_or(|d| is_in_direction(d, l, l2)) && matching(l2))
     };
     let separately = spec.check_each_cardinal_direction_separately;
     let bound = spec.bound.as_str();
@@ -170,9 +161,7 @@ fn survives(
     if bound == "gte" && !separately {
         return limit.is_some_and(|lim| count_matching(None) >= lim);
     }
-    if (bound == "lte" && separately && limit == Some(0))
-        || (bound == "none" && separately)
-    {
+    if (bound == "lte" && separately && limit == Some(0)) || (bound == "none" && separately) {
         return DIRECTIONS.iter().any(|&d| !any_matching(Some(d)));
     }
     if (bound == "lte" && !separately && limit == Some(0)) || bound == "none" {

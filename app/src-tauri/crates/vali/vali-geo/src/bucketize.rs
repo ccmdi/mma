@@ -9,7 +9,10 @@ pub fn bucketize(
     };
     let mut buckets: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
     for (i, &(lat, lng)) in points.iter().enumerate() {
-        buckets.entry(encode(lat, lng, precision)).or_default().push(i as u32);
+        buckets
+            .entry(encode(lat, lng, precision))
+            .or_default()
+            .push(i as u32);
     }
     buckets
 }
@@ -22,11 +25,11 @@ pub fn nearby<'a>(
     center
         .iter()
         .copied()
-        .chain(
-            neighbors(hash)
-                .into_iter()
-                .flat_map(move |h| {
-                    buckets.get(&h).map_or(EMPTY, |v| v.as_slice()).iter().copied()
-                }),
-        )
+        .chain(neighbors(hash).into_iter().flat_map(move |h| {
+            buckets
+                .get(&h)
+                .map_or(EMPTY, |v| v.as_slice())
+                .iter()
+                .copied()
+        }))
 }

@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use serde::Deserialize;
+use std::path::{Path, PathBuf};
 #[derive(Deserialize, Default)]
 struct AppSettings {
     #[serde(rename = "downloadDirectory")]
@@ -9,7 +9,9 @@ fn common_app_data() -> Option<PathBuf> {
     std::env::var_os("ProgramData").map(PathBuf::from)
 }
 fn settings_download_directory() -> Option<String> {
-    let path = common_app_data()?.join("Vali").join("application-settings.json");
+    let path = common_app_data()?
+        .join("Vali")
+        .join("application-settings.json");
     let text = std::fs::read_to_string(path).ok()?;
     serde_json::from_str::<AppSettings>(&text)
         .ok()?
@@ -29,5 +31,6 @@ pub fn data_root() -> anyhow::Result<PathBuf> {
     Ok(dir.join("Vali"))
 }
 pub fn subdivision_file(root: &Path, country: &str, subdivision: &str) -> PathBuf {
-    root.join(country).join(format!("{country}+{subdivision}.bin"))
+    root.join(country)
+        .join(format!("{country}+{subdivision}.bin"))
 }

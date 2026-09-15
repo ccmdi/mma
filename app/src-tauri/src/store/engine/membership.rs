@@ -56,7 +56,8 @@ impl SelectionState {
 
     /// Every id some live selection holds: the selected set.
     pub(crate) fn live_ids(&self) -> RoaringBitmap {
-        self.live().fold(RoaringBitmap::new(), |acc, r| acc | &r.set)
+        self.live()
+            .fold(RoaringBitmap::new(), |acc, r| acc | &r.set)
     }
 
     /// Paint of a selected id = the last selection containing it. None if unselected.

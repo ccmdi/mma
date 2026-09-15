@@ -31,9 +31,7 @@ fn numbers(value: &Value) -> Value {
     match value {
         Value::Number(n) => json!(n.as_f64().unwrap_or_default()),
         Value::Array(a) => Value::Array(a.iter().map(numbers).collect()),
-        Value::Object(o) => {
-            Value::Object(o.iter().map(|(k, v)| (k.clone(), numbers(v))).collect())
-        }
+        Value::Object(o) => Value::Object(o.iter().map(|(k, v)| (k.clone(), numbers(v))).collect()),
         other => other.clone(),
     }
 }
@@ -117,16 +115,28 @@ fn the_request_round_trips_through_the_reader() {
 fn two_digit_years_are_nineteen_hundreds_and_absent_parts_floor_to_one() {
     let mut body = Vec::new();
     put_varint_field(&mut body, 1, 99);
-    assert_eq!(civil_date(&schema::PanoDate(Node::proto(&body))), "1999-01-01");
+    assert_eq!(
+        civil_date(&schema::PanoDate(Node::proto(&body))),
+        "1999-01-01"
+    );
 
     let mut body = Vec::new();
     put_varint_field(&mut body, 1, 2011);
     put_varint_field(&mut body, 2, 7);
-    assert_eq!(civil_date(&schema::PanoDate(Node::proto(&body))), "2011-07-01");
+    assert_eq!(
+        civil_date(&schema::PanoDate(Node::proto(&body))),
+        "2011-07-01"
+    );
 
     assert_eq!(civil_date(&schema::PanoDate(Node::json(&json!([])))), "");
-    assert_eq!(civil_date(&schema::PanoDate(Node::json(&json!([0, 4, 2])))), "");
-    assert_eq!(civil_date(&schema::PanoDate(Node::json(&json!([2020, 4, 2])))), "2020-04-02");
+    assert_eq!(
+        civil_date(&schema::PanoDate(Node::json(&json!([0, 4, 2])))),
+        ""
+    );
+    assert_eq!(
+        civil_date(&schema::PanoDate(Node::json(&json!([2020, 4, 2])))),
+        "2020-04-02"
+    );
 }
 
 fn base() -> Pano {
@@ -277,7 +287,6 @@ fn the_camera_frame_leans_with_roll() {
     assert_eq!(camera_frame(&base()).pitch, 0.0);
 }
 
-
 #[test]
 fn the_mock_request_fixture_is_what_the_encoder_builds() {
     let ids = ["DEAD_PANO", "-zrYsLR4Fh-cfJG_EMZ1-A"].map(str::to_string);
@@ -296,8 +305,20 @@ fn the_mock_answers_the_captured_pano_and_writes_off_the_dead_one() {
     assert_eq!(p.country_code.as_deref(), Some("RU"));
     assert!((p.altitude - 142.0).abs() < 1e-3);
     assert_eq!(p.image_date, "2021-09");
-    assert_eq!(p.world_size, ImageSize { width: 16384, height: 8192 });
-    assert_eq!(p.tile_size, ImageSize { width: 512, height: 512 });
+    assert_eq!(
+        p.world_size,
+        ImageSize {
+            width: 16384,
+            height: 8192
+        }
+    );
+    assert_eq!(
+        p.tile_size,
+        ImageSize {
+            width: 512,
+            height: 512
+        }
+    );
 }
 
 // --- SingleImageSearch ---
@@ -367,7 +388,18 @@ fn a_search_answer_decodes_to_the_pano_it_found() {
 
 /// A location-search response carrying one image: `[status, ImageMetadata]`.
 fn reply(status: i64, key: &Value) -> String {
-    json!([[0], [[status], key, null, null, null, [[[1], [[null, null, 1, 2]]]]]]).to_string()
+    json!([
+        [0],
+        [
+            [status],
+            key,
+            null,
+            null,
+            null,
+            [[[1], [[null, null, 1, 2]]]]
+        ]
+    ])
+    .to_string()
 }
 
 #[test]
@@ -376,7 +408,9 @@ fn an_ok_search_answer_reads_out_the_whole_pano() {
     assert_eq!(p.id, "20C-1_sANr4OMdhTDM2N-g");
     assert_eq!((p.lat, p.lng), (1.0, 2.0));
     assert_eq!(
-        decode_search(reply(3, &json!([3, "abc"])).as_bytes()).unwrap().id,
+        decode_search(reply(3, &json!([3, "abc"])).as_bytes())
+            .unwrap()
+            .id,
         "F:abc"
     );
     // A missing frontend reads as official, matching the Maps JS API's own default.
@@ -501,7 +535,10 @@ fn a_pano_asked_for_twice_is_fetched_once_and_answered_twice() {
     let panos = ["a", "b", "a", "", "b"].map(str::to_string).to_vec();
     let mut host = StubHost::new(|asked: &[String]| ok(response_for(asked, |_| true)));
     let out = fetch_metadata(&mut host, &panos);
-    assert_eq!(host.requests(), vec![vec!["a".to_string(), "b".to_string()]]);
+    assert_eq!(
+        host.requests(),
+        vec![vec!["a".to_string(), "b".to_string()]]
+    );
     assert_eq!(out.done, vec![true, true, true, false, true]);
     assert_eq!(out.metas[0], out.metas[2]);
     // An empty id is never asked for, so it never reaches a verdict.
@@ -599,8 +636,10 @@ impl ProcHost for SplitStub {
         reqs.iter()
             .map(|req| {
                 if req.url == SINGLE_IMAGE_SEARCH_URL {
-                    self.search_bodies
-                        .push(String::from_utf8_lossy(req.body.as_deref().unwrap_or_default()).into_owned());
+                    self.search_bodies.push(
+                        String::from_utf8_lossy(req.body.as_deref().unwrap_or_default())
+                            .into_owned(),
+                    );
                     if self.fail_searches {
                         return Err(AppError("boom".into()));
                     }
@@ -637,7 +676,10 @@ fn queries_of_both_kinds_answer_aligned_to_the_input() {
     );
     assert_eq!(answers[2], PanoAnswer::Skipped);
     assert!(matches!(&answers[3], PanoAnswer::Found { pano } if pano.id == "pano-1"));
-    assert_eq!(host.search_bodies, vec![encode_search(&search(1.0, 2.0, 50.0))]);
+    assert_eq!(
+        host.search_bodies,
+        vec![encode_search(&search(1.0, 2.0, 50.0))]
+    );
     assert_eq!(host.meta_rounds, 1);
 }
 
@@ -646,7 +688,10 @@ fn a_search_without_coverage_is_not_found_and_a_failed_one_is_failed() {
     let queries = vec![PanoQuery::Search(search(1.0, 2.0, 50.0))];
     let mut host = SplitStub::new();
     host.no_coverage = true;
-    assert_eq!(resolve_panos(&mut host, &queries), vec![PanoAnswer::NotFound]);
+    assert_eq!(
+        resolve_panos(&mut host, &queries),
+        vec![PanoAnswer::NotFound]
+    );
     let mut host = SplitStub::new();
     host.fail_searches = true;
     assert_eq!(resolve_panos(&mut host, &queries), vec![PanoAnswer::Failed]);
@@ -658,7 +703,10 @@ fn a_search_declined_by_a_cancelling_run_is_skipped() {
     let mut host = SplitStub::new();
     host.fail_searches = true;
     host.abort = true;
-    assert_eq!(resolve_panos(&mut host, &queries), vec![PanoAnswer::Skipped]);
+    assert_eq!(
+        resolve_panos(&mut host, &queries),
+        vec![PanoAnswer::Skipped]
+    );
 }
 
 /// The guest sends plain objects; which variant one lands on is the wire contract.
@@ -688,7 +736,8 @@ fn a_timestamp_probe_answer_reads_as_coverage_or_not() {
 
 const TESTDATA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/src/sv/testdata");
 const JSON_RPC: &str = "application/json+protobuf";
-const RPC: &str = "https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService";
+const RPC: &str =
+    "https://maps.googleapis.com/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService";
 
 /// Refreshes `testdata/` from the live RPC and checks the encoder against it:
 /// `cargo test -p map-making-app -- --ignored capture`.
@@ -720,7 +769,12 @@ fn capture() {
             json!([[frontend, key]])
         })
         .collect();
-    let request = json!([["apiv3", null, null, null, "en"], ["en", "US"], keys, [[1, 2, 3, 4, 8, 6]]]);
+    let request = json!([
+        ["apiv3", null, null, null, "en"],
+        ["en", "US"],
+        keys,
+        [[1, 2, 3, 4, 8, 6]]
+    ]);
     let array = client
         .post(format!("{RPC}/GetMetadata"))
         .header("content-type", JSON_RPC)
@@ -740,7 +794,19 @@ fn capture() {
             json!([
                 ["apiv3"],
                 [[null, null, 48.858_37, 2.294_481], 50],
-                [null, null, null, null, null, null, null, null, [2], null, [[[10, true, 2]]]],
+                [
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    [2],
+                    null,
+                    [[[10, true, 2]]]
+                ],
                 [[1, 2, 3, 4, 8, 6]]
             ])
             .to_string(),

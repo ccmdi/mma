@@ -2,12 +2,10 @@ use crate::error::ExprError;
 use crate::token::{Token, TokenKind};
 pub fn tokenize(expression: &str) -> Result<Vec<Token>, ExprError> {
     if expression == "*" {
-        return Ok(
-            vec![
-                Token::new(TokenKind::Wildcard, "*", 0, 1),
-                Token::new(TokenKind::EndOfExpression, "", 1, 0),
-            ],
-        );
+        return Ok(vec![
+            Token::new(TokenKind::Wildcard, "*", 0, 1),
+            Token::new(TokenKind::EndOfExpression, "", 1, 0),
+        ]);
     }
     let chars: Vec<char> = expression.chars().collect();
     let mut tokens: Vec<Token> = Vec::new();
@@ -28,22 +26,29 @@ pub fn tokenize(expression: &str) -> Result<Vec<Token>, ExprError> {
             continue;
         }
         if c == '-' {
-            let is_unary_minus = tokens
-                .last()
-                .map_or(
-                    true,
-                    |t| {
-                        matches!(
-                            t.kind, TokenKind::OpenParen | TokenKind::OpenBracket |
-                            TokenKind::Comma | TokenKind::Eq | TokenKind::Neq |
-                            TokenKind::Lt | TokenKind::Lte | TokenKind::Gt |
-                            TokenKind::Gte | TokenKind::And | TokenKind::Or |
-                            TokenKind::Plus | TokenKind::Minus | TokenKind::Multiply |
-                            TokenKind::Divide | TokenKind::Modulo
-                        )
-                    },
-                );
-            if is_unary_minus && i + 1 < chars.len()
+            let is_unary_minus = tokens.last().map_or(true, |t| {
+                matches!(
+                    t.kind,
+                    TokenKind::OpenParen
+                        | TokenKind::OpenBracket
+                        | TokenKind::Comma
+                        | TokenKind::Eq
+                        | TokenKind::Neq
+                        | TokenKind::Lt
+                        | TokenKind::Lte
+                        | TokenKind::Gt
+                        | TokenKind::Gte
+                        | TokenKind::And
+                        | TokenKind::Or
+                        | TokenKind::Plus
+                        | TokenKind::Minus
+                        | TokenKind::Multiply
+                        | TokenKind::Divide
+                        | TokenKind::Modulo
+                )
+            });
+            if is_unary_minus
+                && i + 1 < chars.len()
                 && (chars[i + 1].is_ascii_digit() || chars[i + 1] == '.')
             {
                 tokens.push(read_number(&chars, &mut i));
@@ -53,8 +58,7 @@ pub fn tokenize(expression: &str) -> Result<Vec<Token>, ExprError> {
             }
             continue;
         }
-        if c.is_ascii_digit()
-            || (c == '.' && i + 1 < chars.len() && chars[i + 1].is_ascii_digit())
+        if c.is_ascii_digit() || (c == '.' && i + 1 < chars.len() && chars[i + 1].is_ascii_digit())
         {
             tokens.push(read_number(&chars, &mut i));
             continue;
@@ -63,9 +67,12 @@ pub fn tokenize(expression: &str) -> Result<Vec<Token>, ExprError> {
             tokens.push(read_identifier_or_keyword(&chars, &mut i));
             continue;
         }
-        return Err(
-            ExprError::new(expression, i, 1, format!("Unexpected character '{c}'.")),
-        );
+        return Err(ExprError::new(
+            expression,
+            i,
+            1,
+            format!("Unexpected character '{c}'."),
+        ));
     }
     tokens.push(Token::new(TokenKind::EndOfExpression, "", chars.len(), 0));
     Ok(tokens)
@@ -83,11 +90,7 @@ fn single_char_kind(c: char) -> Option<TokenKind> {
         _ => None,
     }
 }
-fn read_string(
-    expression: &str,
-    chars: &[char],
-    i: &mut usize,
-) -> Result<Token, ExprError> {
+fn read_string(expression: &str, chars: &[char], i: &mut usize) -> Result<Token, ExprError> {
     let start = *i;
     *i += 1;
     let mut value = String::new();
@@ -99,19 +102,22 @@ fn read_string(
         }
         if chars[*i] == '\'' {
             *i += 1;
-            return Ok(Token::new(TokenKind::StringLiteral, value, start, *i - start));
+            return Ok(Token::new(
+                TokenKind::StringLiteral,
+                value,
+                start,
+                *i - start,
+            ));
         }
         value.push(chars[*i]);
         *i += 1;
     }
-    Err(
-        ExprError::new(
-            expression,
-            start,
-            chars.len() - start,
-            format!("Unterminated string starting at position {start}."),
-        ),
-    )
+    Err(ExprError::new(
+        expression,
+        start,
+        chars.len() - start,
+        format!("Unterminated string starting at position {start}."),
+    ))
 }
 fn read_number(chars: &[char], i: &mut usize) -> Token {
     let start = *i;
@@ -141,8 +147,7 @@ fn read_number(chars: &[char], i: &mut usize) -> Token {
 }
 fn read_identifier_or_keyword(chars: &[char], i: &mut usize) -> Token {
     let start = *i;
-    while *i < chars.len()
-        && (chars[*i].is_alphanumeric() || matches!(chars[* i], '_' | ':' | '$'))
+    while *i < chars.len() && (chars[*i].is_alphanumeric() || matches!(chars[*i], '_' | ':' | '$'))
     {
         *i += 1;
     }

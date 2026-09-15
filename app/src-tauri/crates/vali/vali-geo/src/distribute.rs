@@ -6,10 +6,10 @@ use crate::distance::points_are_closer_than;
 use rustc_hash::FxHashMap;
 use std::f64::consts::PI;
 pub const DISTANCES: [i32; 53] = [
-    25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500, 600, 700,
-    800, 900, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3300, 3600, 3900,
-    4200, 4500, 5000, 6000, 7000, 8000, 9000, 10000, 12500, 15000, 20000, 25000, 30000,
-    35000, 40000, 45000, 50000, 55000, 60000, 65000, 70000, 75000,
+    25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900,
+    1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3300, 3600, 3900, 4200, 4500, 5000, 6000,
+    7000, 8000, 9000, 10000, 12500, 15000, 20000, 25000, 30000, 35000, 40000, 45000, 50000, 55000,
+    60000, 65000, 70000, 75000,
 ];
 const METRES_PER_DEGREE: f64 = 6371137.0 * PI / 180.0;
 pub fn with_max_min_distance(
@@ -19,7 +19,10 @@ pub fn with_max_min_distance(
     already_in_map: &[(f64, f64)],
 ) -> (Vec<u32>, i32) {
     let start = match min_min_distance {
-        Some(m) => DISTANCES.iter().position(|&x| x >= m).unwrap_or(DISTANCES.len()),
+        Some(m) => DISTANCES
+            .iter()
+            .position(|&x| x >= m)
+            .unwrap_or(DISTANCES.len()),
         None => 0,
     };
     let distances = &DISTANCES[start..];
@@ -29,14 +32,12 @@ pub fn with_max_min_distance(
     let mut cache: Vec<Option<Vec<u32>>> = vec![None; distances.len()];
     let eval = |idx: usize, cache: &mut Vec<Option<Vec<u32>>>| -> usize {
         if cache[idx].is_none() {
-            cache[idx] = Some(
-                place_spaced(
-                    ordered_candidates,
-                    goal_count,
-                    distances[idx],
-                    already_in_map,
-                ),
-            );
+            cache[idx] = Some(place_spaced(
+                ordered_candidates,
+                goal_count,
+                distances[idx],
+                already_in_map,
+            ));
         }
         cache[idx].as_ref().unwrap().len()
     };
@@ -82,13 +83,7 @@ pub fn get_some(
         for (i, &(lat, lng)) in ordered_candidates.iter().enumerate() {
             if already_in_map
                 .iter()
-                .any(|&(plat, plng)| points_are_closer_than(
-                    plat,
-                    plng,
-                    lat,
-                    lng,
-                    d_squared,
-                ))
+                .any(|&(plat, plng)| points_are_closer_than(plat, plng, lat, lng, d_squared))
             {
                 alive[i] = false;
             }
@@ -149,12 +144,15 @@ pub fn place_spaced(
     let cell_lng = d as f64 / (METRES_PER_DEGREE * cos_ref);
     let mut grid: FxHashMap<i64, Vec<(f64, f64)>> = FxHashMap::default();
     for &(lat, lng) in already_in_map {
-        let key = pack((lng / cell_lng).floor() as i32, (lat / cell_lat).floor() as i32);
-        grid.entry(key).or_insert_with(|| Vec::with_capacity(1)).push((lat, lng));
+        let key = pack(
+            (lng / cell_lng).floor() as i32,
+            (lat / cell_lat).floor() as i32,
+        );
+        grid.entry(key)
+            .or_insert_with(|| Vec::with_capacity(1))
+            .push((lat, lng));
     }
-    let mut result: Vec<u32> = Vec::with_capacity(
-        goal_count.min(ordered_candidates.len()),
-    );
+    let mut result: Vec<u32> = Vec::with_capacity(goal_count.min(ordered_candidates.len()));
     for (i, &(lat, lng)) in ordered_candidates.iter().enumerate() {
         if result.len() >= goal_count {
             break;

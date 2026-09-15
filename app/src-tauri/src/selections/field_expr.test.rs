@@ -5,11 +5,17 @@ use std::collections::HashMap;
 type Row = HashMap<String, Value>;
 
 fn row(pairs: &[(&str, f64)]) -> Row {
-    pairs.iter().map(|(k, v)| (k.to_string(), json!(v))).collect()
+    pairs
+        .iter()
+        .map(|(k, v)| (k.to_string(), json!(v)))
+        .collect()
 }
 
 fn json_row(pairs: &[(&str, Value)]) -> Row {
-    pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+    pairs
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.clone()))
+        .collect()
 }
 
 fn run(src: &str, fields: &Row) -> Option<f64> {
@@ -101,7 +107,10 @@ fn syntax_errors_name_the_problem() {
 #[test]
 fn every_kind_serialises_with_its_parameters() {
     let json = |src: &str| serde_json::to_value(err(src)).unwrap();
-    assert_eq!(json("1."), json!({ "kind": "invalidNumber", "position": 0 }));
+    assert_eq!(
+        json("1."),
+        json!({ "kind": "invalidNumber", "position": 0 })
+    );
     assert_eq!(json("\"abc"), json!({ "kind": "unterminatedString" }));
     assert_eq!(
         json("a $ b"),

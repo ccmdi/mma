@@ -100,7 +100,13 @@ fn catalog() -> Vec<Fixture> {
             ],
             tags: vec![
                 tag(1, "Rural", "#3a7fc2", Some(1), &[]),
-                tag(2, "Urban", "#ff8800", Some(2), &["https://docs.example/urban#h.1"]),
+                tag(
+                    2,
+                    "Urban",
+                    "#ff8800",
+                    Some(2),
+                    &["https://docs.example/urban#h.1"],
+                ),
                 tag(3, "Kärnten / Alps", "#00ff00", None, &[]),
             ],
             fields: None,
@@ -108,7 +114,10 @@ fn catalog() -> Vec<Fixture> {
         Fixture {
             name: "field definitions and no tags",
             map_name: "Fields only",
-            locations: vec![with_extra(loc(1.0, 1.0), &json!({ "score": 7, "countryCode": "AT" }))],
+            locations: vec![with_extra(
+                loc(1.0, 1.0),
+                &json!({ "score": 7, "countryCode": "AT" }),
+            )],
             tags: vec![],
             fields: Some(fields.clone()),
         },
@@ -231,14 +240,29 @@ fn every_fixture_survives_the_map_making_json() {
         );
         let parsed = parse_single_json(&doc.to_string());
 
-        assert!(parsed.warnings.is_empty(), "{}: {:?}", fx.name, parsed.warnings);
+        assert!(
+            parsed.warnings.is_empty(),
+            "{}: {:?}",
+            fx.name,
+            parsed.warnings
+        );
         assert_eq!(parsed.name, fx.map_name, "{}: name", fx.name);
-        assert_eq!(parsed.locations.len(), fx.locations.len(), "{}: row count", fx.name);
+        assert_eq!(
+            parsed.locations.len(),
+            fx.locations.len(),
+            "{}: row count",
+            fx.name
+        );
         let (want, got) = (names(&fx.tags), names(&parsed.tags));
         for (i, (a, b)) in fx.locations.iter().zip(&parsed.locations).enumerate() {
             assert_eq!(view(b, &got), view(a, &want), "{}: row {i}", fx.name);
         }
-        assert_eq!(tag_view(&parsed.tags), tag_view(&fx.tags), "{}: tags", fx.name);
+        assert_eq!(
+            tag_view(&parsed.tags),
+            tag_view(&fx.tags),
+            "{}: tags",
+            fx.name
+        );
         assert_eq!(parsed.fields, fx.fields, "{}: field definitions", fx.name);
     }
 }
@@ -247,14 +271,27 @@ fn every_fixture_survives_the_map_making_json() {
 fn the_csv_keeps_exactly_the_coordinates() {
     for fx in catalog() {
         let parsed = parse_csv(&csv_document(&fx.locations));
-        assert_eq!(parsed.locations.len(), fx.locations.len(), "{}: row count", fx.name);
+        assert_eq!(
+            parsed.locations.len(),
+            fx.locations.len(),
+            "{}: row count",
+            fx.name
+        );
         for (i, (a, b)) in fx.locations.iter().zip(&parsed.locations).enumerate() {
             assert_eq!((b.lat, b.lng), (a.lat, a.lng), "{}: row {i}", fx.name);
             assert_eq!(b.heading, 0.0, "{}: heading is not carried", fx.name);
             assert_eq!(b.pano_id, None, "{}: pano is not carried", fx.name);
-            assert!(b.tags.is_empty() && b.extra.is_none(), "{}: nothing else is carried", fx.name);
+            assert!(
+                b.tags.is_empty() && b.extra.is_none(),
+                "{}: nothing else is carried",
+                fx.name
+            );
         }
-        assert!(parsed.tags.is_empty() && parsed.fields.is_none(), "{}", fx.name);
+        assert!(
+            parsed.tags.is_empty() && parsed.fields.is_none(),
+            "{}",
+            fx.name
+        );
     }
 }
 
@@ -266,10 +303,20 @@ fn the_geojson_carries_points_and_tag_names_and_nothing_else() {
         assert_eq!(features.len(), fx.locations.len(), "{}", fx.name);
         let want = names(&fx.tags);
         for (l, f) in fx.locations.iter().zip(features) {
-            assert_eq!(f["geometry"]["coordinates"], json!([l.lng, l.lat]), "{}", fx.name);
+            assert_eq!(
+                f["geometry"]["coordinates"],
+                json!([l.lng, l.lat]),
+                "{}",
+                fx.name
+            );
             let tags: Vec<Value> = l.tags.iter().map(|t| json!(want[t])).collect();
             assert_eq!(f["properties"]["tags"], json!(tags), "{}", fx.name);
-            assert_eq!(f["properties"].as_object().unwrap().len(), 1, "{}: only tags", fx.name);
+            assert_eq!(
+                f["properties"].as_object().unwrap().len(),
+                1,
+                "{}: only tags",
+                fx.name
+            );
         }
     }
 }

@@ -183,8 +183,7 @@ pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<u32, Location>) -> Rec
         {
             false
         } else {
-            RawExtra::from_string(extras.value(i).to_owned()).as_ref()
-                != p.extra.as_ref()
+            RawExtra::from_string(extras.value(i).to_owned()).as_ref() != p.extra.as_ref()
         };
         touched[COL_CREATED_AT] |= created_ats.value(i) != p.created_at;
         touched[COL_MODIFIED_AT] |= if modified_ats.is_null(i) {

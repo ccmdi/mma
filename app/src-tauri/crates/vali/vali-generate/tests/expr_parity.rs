@@ -102,9 +102,10 @@ fn expression_semantics_match_oracle() {
                     ));
                 }
             }
-            (other, _) => {
-                failures.push(format!("bool `{}`: unknown golden status {other}", row.expr))
-            }
+            (other, _) => failures.push(format!(
+                "bool `{}`: unknown golden status {other}",
+                row.expr
+            )),
         }
     }
 

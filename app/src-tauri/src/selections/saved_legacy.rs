@@ -67,7 +67,10 @@ fn convert(value: &mut serde_json::Value, names: &mut HashMap<u32, String>) {
 
 /// `None` for an item the current grammar cannot read: dropping it loses one rule, where a
 /// fallback to `Everything` would hand the user a rule selecting the whole map.
-fn props_to_selector(props: &serde_json::Value, names: &mut HashMap<u32, String>) -> Option<Selector> {
+fn props_to_selector(
+    props: &serde_json::Value,
+    names: &mut HashMap<u32, String>,
+) -> Option<Selector> {
     let mut value = props.clone();
     convert(&mut value, names);
     serde_json::from_value(super::modernize(value)).ok()

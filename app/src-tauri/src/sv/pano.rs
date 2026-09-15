@@ -118,7 +118,11 @@ pub fn encode_request(pano_ids: &[String]) -> Vec<u8> {
     }
     put_msg(&mut out, GetMetadataRequest::SPEC, |b| {
         for component in DEFAULT_COMPONENTS {
-            put_varint_field(b, schema::MetadataResponseSpecification::COMPONENT, u64::from(component));
+            put_varint_field(
+                b,
+                schema::MetadataResponseSpecification::COMPONENT,
+                u64::from(component),
+            );
         }
     });
     out
@@ -144,7 +148,10 @@ pub fn decode_image_json(value: &Value) -> Option<Pano> {
 }
 
 /// As above, for a caller that checked the status itself.
-#[allow(dead_code, reason = "the tests decode captured search answers through it")]
+#[allow(
+    dead_code,
+    reason = "the tests decode captured search answers through it"
+)]
 pub fn decode_image_json_unchecked(value: &Value) -> Option<Pano> {
     project(&ImageMetadata(Node::json(value)))
 }
@@ -363,7 +370,6 @@ pub fn detect_camera_type(m: &Pano) -> Option<CameraType> {
     })
 }
 
-
 // --- SingleImageSearch ---
 
 pub const SINGLE_IMAGE_SEARCH_URL: &str =
@@ -456,12 +462,18 @@ pub fn encode_search(q: &SearchQuery) -> String {
         })
         .collect();
     let preference = q.preference.unwrap_or(RankingStrategy::CLOSEST);
-    let components = q.components.clone().unwrap_or_else(|| DEFAULT_COMPONENTS.to_vec());
+    let components = q
+        .components
+        .clone()
+        .unwrap_or_else(|| DEFAULT_COMPONENTS.to_vec());
 
     let mut options = vec![
         (
             schema::QueryOptions::RANKING_OPTIONS,
-            slots(vec![(schema::RankingOptions::RANKING_STRATEGY, json!(preference))]),
+            slots(vec![(
+                schema::RankingOptions::RANKING_STRATEGY,
+                json!(preference),
+            )]),
         ),
         (
             schema::QueryOptions::CLIENT_CAPABILITIES,
@@ -474,7 +486,10 @@ pub fn encode_search(q: &SearchQuery) -> String {
     if let Some((start, end)) = q.date_range {
         options.push((
             schema::QueryOptions::FILTER_OPTIONS,
-            slots(vec![(schema::FilterOptions::CAPTURE_TIME_RANGE, json!([start, end]))]),
+            slots(vec![(
+                schema::FilterOptions::CAPTURE_TIME_RANGE,
+                json!([start, end]),
+            )]),
         ));
     }
 
@@ -488,7 +503,10 @@ pub fn encode_search(q: &SearchQuery) -> String {
             slots(vec![
                 (
                     schema::Circle::CENTER,
-                    slots(vec![(schema::LatLng::LAT, num(q.lat)), (schema::LatLng::LNG, num(q.lng))]),
+                    slots(vec![
+                        (schema::LatLng::LAT, num(q.lat)),
+                        (schema::LatLng::LNG, num(q.lng)),
+                    ]),
                 ),
                 (schema::Circle::RADIUS, num(radius)),
             ]),
@@ -496,7 +514,10 @@ pub fn encode_search(q: &SearchQuery) -> String {
         (SingleImageSearchRequest::QUERY_OPTIONS, slots(options)),
         (
             SingleImageSearchRequest::RESPONSE_SPECIFICATION,
-            slots(vec![(schema::ResponseSpecification::COMPONENTS, json!(components))]),
+            slots(vec![(
+                schema::ResponseSpecification::COMPONENTS,
+                json!(components),
+            )]),
         ),
     ])
     .to_string()
@@ -698,7 +719,9 @@ pub fn resolve_panos(host: &mut dyn ProcHost, queries: &[PanoQuery]) -> Vec<Pano
             let ok = result.ok().filter(|r| (200..300).contains(&r.status));
             answers[*i] = match ok {
                 Some(resp) => match decode_search(&resp.body) {
-                    Some(pano) => PanoAnswer::Found { pano: Box::new(pano) },
+                    Some(pano) => PanoAnswer::Found {
+                        pano: Box::new(pano),
+                    },
                     None => PanoAnswer::NotFound,
                 },
                 None if host.aborted() => PanoAnswer::Skipped,
@@ -728,7 +751,9 @@ pub fn resolve_panos(host: &mut dyn ProcHost, queries: &[PanoQuery]) -> Vec<Pano
                 PanoAnswer::Skipped
             } else {
                 match fetched.metas[k].take() {
-                    Some(pano) => PanoAnswer::Found { pano: Box::new(pano) },
+                    Some(pano) => PanoAnswer::Found {
+                        pano: Box::new(pano),
+                    },
                     None => PanoAnswer::NotFound,
                 }
             };

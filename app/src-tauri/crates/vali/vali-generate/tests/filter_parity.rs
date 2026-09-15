@@ -92,9 +92,7 @@ fn filter_pipeline_matches_oracle() {
                     let text = match f.geojson.strip_prefix("region:") {
                         Some("european-turkey") => vali_generate::geometry::EUROPEAN_TURKEY,
                         Some("european-russia") => vali_generate::geometry::EUROPEAN_RUSSIA,
-                        Some("european-kazakhstan") => {
-                            vali_generate::geometry::EUROPEAN_KAZAKHSTAN
-                        }
+                        Some("european-kazakhstan") => vali_generate::geometry::EUROPEAN_KAZAKHSTAN,
                         Some("african-spain") => vali_generate::geometry::AFRICAN_SPAIN,
                         Some("hawaii") => vali_generate::geometry::HAWAII,
                         Some(other) => panic!("unknown region {other}"),
@@ -115,7 +113,9 @@ fn filter_pipeline_matches_oracle() {
             case.expression.as_deref(),
             proximity.as_ref(),
             geometry_context.as_ref(),
-            neighbor.as_ref().map(|(ctx, _)| (ctx, neighbor_specs.as_slice())),
+            neighbor
+                .as_ref()
+                .map(|(ctx, _)| (ctx, neighbor_specs.as_slice())),
             case.defaults,
             case.deterministic,
         );
