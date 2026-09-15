@@ -55,6 +55,8 @@ export interface GeneratorSettings {
 	filterByLinks: boolean;
 	minLinks: number;
 	maxLinks: number;
+	findCurves: boolean;
+	minCurveAngle: number;
 	adjustZoom: boolean;
 	zoomLevel: number;
 	speed: number;
@@ -116,6 +118,8 @@ export const DEFAULT_SETTINGS: GeneratorSettings = {
 	filterByLinks: false,
 	minLinks: 1,
 	maxLinks: 5,
+	findCurves: false,
+	minCurveAngle: 30,
 	adjustZoom: false,
 	zoomLevel: 0,
 	speed: 1000,

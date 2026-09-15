@@ -1,6 +1,17 @@
-import type { Pano } from "@/bindings.gen";
+import type { Pano, PanoLink } from "@/bindings.gen";
 import { isOfficialPano } from "@/lib/sv/panoId";
 import { GENERATION_CAMERA_TYPE, type GeneratorSettings } from "./types";
+
+/** The bend, in degrees, of a fork with exactly two links: 0 for a straight road, 90 for a
+ *  right angle. Null when the pano isn't a simple two-link fork or a link has no heading. */
+export function bendAngle(links: Pick<PanoLink, "heading">[]): number | null {
+	if (links.length !== 2) return null;
+	const [a, b] = links;
+	if (!Number.isFinite(a.heading) || !Number.isFinite(b.heading)) return null;
+	const diff = Math.abs(a.heading - b.heading) % 360;
+	const angle = diff > 180 ? 360 - diff : diff;
+	return 180 - angle;
+}
 
 function normalizeText(text: string): string {
 	return text
@@ -132,6 +143,10 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 		if (!isOfficialPano(pano.id)) return false;
 		if (s.filterByLinks && (pano.links.length < s.minLinks || pano.links.length > s.maxLinks))
 			return false;
+		if (s.findCurves) {
+			const bend = bendAngle(pano.links);
+			if (bend === null || bend < s.minCurveAngle) return false;
+		}
 		if (
 			s.rejectNoDescription &&
 			!s.rejectDescription &&
@@ -174,8 +189,7 @@ export function isPanoGood(pano: Pano, s: GeneratorSettings): boolean {
 
 	if (s.checkAllDates && !s.selectMonths && !s.rejectOfficial) {
 		if (!pano.time?.length) return false;
-		if (s.findGeneration && pano.cameraType !== GENERATION_CAMERA_TYPE[s.generation])
-			return false;
+		if (s.findGeneration && pano.cameraType !== GENERATION_CAMERA_TYPE[s.generation]) return false;
 		if (s.rejectGen1 && pano.cameraType === "gen1") return false;
 		let dateWithin = false;
 		for (const entry of pano.time) {

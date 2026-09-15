@@ -144,6 +144,7 @@ function summarizeSettings(s: GeneratorSettings): string {
 		parts.push(t("{distance} from existing", { distance: formatDistance(s.regionRadius * 1000) }));
 	}
 	if (s.filterByLinks) parts.push(t("{min}–{max} links", { min: s.minLinks, max: s.maxLinks }));
+	if (s.findCurves) parts.push(t("bend >{angle}°", { angle: s.minCurveAngle }));
 	if (s.searchInDescription && s.searchTerms) {
 		parts.push(
 			s.searchFilterType === "include"

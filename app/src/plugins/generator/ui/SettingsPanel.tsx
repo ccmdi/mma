@@ -520,6 +520,21 @@ export function SettingsPanel({
 						/>
 					</div>
 				)}
+				<Check
+					label={t("Find curves")}
+					checked={settings.findCurves}
+					onChange={(v) => set("findCurves", v)}
+				/>
+				{settings.findCurves && (
+					<NumberInput
+						label={t("Min curve angle")}
+						value={settings.minCurveAngle}
+						onChange={(v) => set("minCurveAngle", v)}
+						min={5}
+						max={90}
+						indent
+					/>
+				)}
 			</Section>
 
 			<Section title={t("Visualization")} defaultOpen={false}>

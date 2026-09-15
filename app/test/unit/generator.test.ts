@@ -52,6 +52,7 @@ import {
 	passesDescriptionSearch,
 	passesInitialFilters,
 	isPanoGood,
+	bendAngle,
 } from "@/plugins/generator/engine/filters";
 import { GenerationEngine } from "@/plugins/generator/engine/GenerationEngine";
 import { DEFAULT_SETTINGS } from "@/plugins/generator/engine/types";
@@ -220,6 +221,29 @@ describe("camera type filters", () => {
 	});
 });
 
+describe("bendAngle", () => {
+	it("a straight road bends 0 degrees", () => {
+		expect(bendAngle([{ heading: 0 }, { heading: 180 }])).toBe(0);
+	});
+
+	it("a right angle bends 90 degrees", () => {
+		expect(bendAngle([{ heading: 0 }, { heading: 90 }])).toBe(90);
+	});
+
+	it("folds headings that wrap past 360", () => {
+		expect(bendAngle([{ heading: 350 }, { heading: 100 }])).toBe(70);
+	});
+
+	it("is null for one or three links", () => {
+		expect(bendAngle([{ heading: 0 }])).toBeNull();
+		expect(bendAngle([{ heading: 0 }, { heading: 90 }, { heading: 180 }])).toBeNull();
+	});
+
+	it("is null when a link has no heading", () => {
+		expect(bendAngle([{ heading: 0 }, { heading: undefined as unknown as number }])).toBeNull();
+	});
+});
+
 describe("isPanoGood new filters", () => {
 	it("rejects panos outside the links-length range", () => {
 		const s = settings({ filterByLinks: true, minLinks: 2, maxLinks: 3, rejectDateless: false });
@@ -233,6 +257,30 @@ describe("isPanoGood new filters", () => {
 		expect(isPanoGood(pano({ id: OFFICIAL_ID }), s)).toBe(true);
 		expect(isPanoGood(pano({ id: `${"a".repeat(21)}b` }), s)).toBe(false);
 		expect(isPanoGood(pano({ id: `F:${"a".repeat(20)}` }), s)).toBe(false);
+	});
+
+	it("findCurves rejects panos not on a sharp enough bend", () => {
+		const s = settings({ findCurves: true, minCurveAngle: 60, rejectDateless: false });
+		const withLinks = (links: { heading: number; panoId: string }[]) =>
+			({ ...pano({}), links }) as Pano;
+		expect(
+			isPanoGood(
+				withLinks([
+					{ heading: 0, panoId: "x" },
+					{ heading: 90, panoId: "y" },
+				]),
+				s,
+			),
+		).toBe(true);
+		expect(
+			isPanoGood(
+				withLinks([
+					{ heading: 0, panoId: "x" },
+					{ heading: 180, panoId: "y" },
+				]),
+				s,
+			),
+		).toBe(false);
 	});
 
 	it("applies description search as a gate", () => {
