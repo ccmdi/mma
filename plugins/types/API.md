@@ -554,11 +554,6 @@ Use when the underlying data changed but the selections themselves did not.
 
 Tag names for the given ids, skipping any that no longer resolve.
 
-### `tagsNamed(names: string[], tags: Tag[]): Tag[]`
-
-The tags for `names`, in the order the names were given, so a tag list a user built
-keeps its order. Names without a tag are skipped.
-
 ### `toggleTagSelections(tagIds: number[]): void`
 
 Toggle tag selections on/off for the given tags (used by tag-pill clicks).
