@@ -57,19 +57,15 @@ fn decl(id: &str, batch: BatchMode) -> ProviderDecl {
     ProviderDecl {
         id: id.into(),
         label: None,
-        entry: Some("mock".into()),
+        procedure: procedure_decl("mock"),
         fields: Vec::new(),
         requires: Vec::new(),
         invalidates: HashMap::new(),
         select: Selector::Everything,
         batch,
         sink: Sink::Patch,
-        rate: None,
-        retry: None,
         force: None,
-        inflight: None,
         instances: Some(1),
-        config: None,
     }
 }
 
@@ -590,7 +586,7 @@ fn status_sequence(statuses: Vec<u16>) -> (FetchFn, Arc<AtomicU32>) {
 fn run_retry(retry: RetrySpec, statuses: Vec<u16>) -> u32 {
     let (state, map_id) = setup(&[loc(1, 0.0, 0.0)]);
     let mut d = decl("retrier", BatchMode::PerRow);
-    d.retry = Some(retry);
+    d.procedure.retry = Some(retry);
     let (fetch, calls) = status_sequence(statuses);
     let h = Harness::new(ProcShape::RequestMap, Arc::new(|_| Ok(Vec::new())), fetch);
     run_provider(&h.ctx(&state, &map_id), &d).unwrap();
@@ -719,7 +715,7 @@ fn timed_chunk_run(rows: u32, chunk: u32, rate: RateSpec) -> u128 {
     let locs: Vec<Location> = (1..=rows).map(|i| loc(i, i as f64 * 0.001, 0.0)).collect();
     let (state, map_id) = setup(&locs);
     let mut d = decl("rated", BatchMode::Chunk { size: chunk });
-    d.rate = Some(rate);
+    d.procedure.rate = Some(rate);
     let (fetch, _) = status_sequence(vec![200]);
     let h = Harness::new(ProcShape::RequestMap, Arc::new(|_| Ok(Vec::new())), fetch);
     let t = Instant::now();
@@ -1343,9 +1339,9 @@ fn a_map_only_procedure_reaches_the_real_host() {
 fn configure_json_carries_fields_force_and_the_provider_config() {
     let mut d = decl("cfg", BatchMode::PerRow);
     d.fields = vec!["a".into(), "b".into()];
-    d.config = Some(r#"{"units":"metric \"x\"","n":[1,2]}"#.into());
+    d.procedure.config = Some(r#"{"units":"metric \"x\"","n":[1,2]}"#.into());
     let v: serde_json::Value =
-        serde_json::from_str(&configure_json(&d.fields, true, d.config.as_deref())).unwrap();
+        serde_json::from_str(&configure_json(&d.fields, true, d.procedure.config.as_deref())).unwrap();
     assert_eq!(v["fields"], serde_json::json!(["a", "b"]));
     assert_eq!(v["force"], serde_json::json!(true));
     assert_eq!(v["config"]["units"], serde_json::json!("metric \"x\""));
@@ -1356,14 +1352,14 @@ fn configure_json_carries_fields_force_and_the_provider_config() {
 fn configure_json_reads_absent_or_malformed_config_as_null() {
     let d = decl("cfg", BatchMode::PerRow);
     let v: serde_json::Value =
-        serde_json::from_str(&configure_json(&d.fields, false, d.config.as_deref())).unwrap();
+        serde_json::from_str(&configure_json(&d.fields, false, d.procedure.config.as_deref())).unwrap();
     assert_eq!(v["config"], serde_json::Value::Null);
     assert_eq!(v["force"], serde_json::json!(false));
 
     let mut bad = decl("cfg", BatchMode::PerRow);
-    bad.config = Some("{not json".into());
+    bad.procedure.config = Some("{not json".into());
     let v: serde_json::Value =
-        serde_json::from_str(&configure_json(&bad.fields, false, bad.config.as_deref())).unwrap();
+        serde_json::from_str(&configure_json(&bad.fields, false, bad.procedure.config.as_deref())).unwrap();
     assert_eq!(v["config"], serde_json::Value::Null);
 }
 
@@ -1436,19 +1432,6 @@ fn a_provider_with_no_startable_instance_fails_the_run() {
     h.deps.factory = Box::new(|_| Err(AppError("no interpreter".into())));
     let err = run_provider(&h.ctx(&state, &map_id), &decl("dead", BatchMode::PerRow)).unwrap_err();
     assert!(err.to_string().contains("no interpreter"), "{err}");
-}
-
-#[test]
-fn a_provider_declaring_no_procedure_module_fails_the_run() {
-    let (state, map_id) = setup(&[loc(1, 0.0, 0.0)]);
-    let h = Harness::map_only(patch_all("{}"));
-    let mut d = decl("moduleless", BatchMode::PerRow);
-    d.entry = None;
-    let err = run_provider(&h.ctx(&state, &map_id), &d).unwrap_err();
-    assert!(
-        err.to_string().contains("declares no procedure module"),
-        "{err}"
-    );
 }
 
 #[test]
@@ -1766,8 +1749,8 @@ impl Procedure for QueryProc {
     }
 }
 
-fn query(entry: &str) -> QueryDecl {
-    QueryDecl {
+fn procedure_decl(entry: &str) -> ProcedureDecl {
+    ProcedureDecl {
         entry: entry.into(),
         rate: None,
         retry: None,
@@ -1796,9 +1779,9 @@ fn run_query_returns_the_module_output_and_reaches_fetch() {
             body: b"pong".to_vec(),
         })
     }));
-    let decl = QueryDecl {
+    let decl = ProcedureDecl {
         config: Some(r#"{"units":"metric"}"#.into()),
-        ..query("res://procedures/svMeta.js")
+        ..procedure_decl("res://procedures/svMeta.js")
     };
     let out = run_query(
         &deps,
@@ -1832,7 +1815,7 @@ fn run_query_retries_a_throttled_fetch() {
             body: b"pong".to_vec(),
         })
     }));
-    let out = run_query(&deps, &query("q.js"), "{}", &|| false).expect("query succeeds");
+    let out = run_query(&deps, &procedure_decl("q.js"), "{}", &|| false).expect("query succeeds");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(v["fetched"], serde_json::json!("pong"));
     assert_eq!(calls.load(Ordering::Relaxed), 2);
@@ -1849,12 +1832,12 @@ fn a_query_follows_its_declared_retry_policy() {
             body: Vec::new(),
         })
     }));
-    let decl = QueryDecl {
+    let decl = ProcedureDecl {
         retry: Some(RetrySpec {
             attempts: 1,
             on: vec![429],
         }),
-        ..query("q.js")
+        ..procedure_decl("q.js")
     };
     let _ = run_query(&deps, &decl, "{}", &|| false);
     assert_eq!(calls.load(Ordering::Relaxed), 1);
@@ -1884,9 +1867,9 @@ fn a_query_holds_its_declared_inflight_ceiling() {
         fetch: barrier_fetch(u32::MAX, Duration::from_millis(150), peak.clone()),
         backoff: Duration::from_millis(1),
     };
-    let decl = QueryDecl {
+    let decl = ProcedureDecl {
         inflight: Some(8),
-        ..query("wide.js")
+        ..procedure_decl("wide.js")
     };
     let out = run_query(&deps, &decl, "{}", &|| false).expect("query succeeds");
     assert_eq!(out, "20");
@@ -1904,7 +1887,7 @@ fn a_cancelled_query_has_its_requests_declined() {
             body: b"never".to_vec(),
         })
     }));
-    let err = run_query(&deps, &query("q.js"), "{}", &|| true).unwrap_err();
+    let err = run_query(&deps, &procedure_decl("q.js"), "{}", &|| true).unwrap_err();
     assert!(err.0.contains("cancelled"), "{}", err.0);
     assert_eq!(
         calls.load(Ordering::Relaxed),
@@ -1927,7 +1910,7 @@ fn run_query_surfaces_a_module_without_the_export() {
         fetch: sync_fetch(|_| Err(AppError("no fetch expected".into()))),
         backoff: Duration::from_millis(1),
     };
-    let err = run_query(&deps, &query("plain.js"), "{}", &|| false).expect_err("rejected");
+    let err = run_query(&deps, &procedure_decl("plain.js"), "{}", &|| false).expect_err("rejected");
     assert!(err.0.contains("does not implement query"), "{}", err.0);
 }
 
@@ -1985,7 +1968,7 @@ fn with_engine_host<R>(
     let h = Harness::new(ProcShape::Run, patch_all("{}"), fetch);
     let ctx = h.ctx(&state, &map_id);
     let prog = ProviderProgress::new(1, decl.id.clone(), 1, Arc::new(Box::new(|_| {})));
-    let budget = FetchBudget::new(decl.inflight, rate);
+    let budget = FetchBudget::new(decl.procedure.inflight, rate);
     let mut host = EngineHost {
         ctx: &ctx,
         decl,
@@ -2030,7 +2013,7 @@ fn fetch_many_puts_every_request_in_flight_at_once() {
 fn fetch_many_holds_the_declared_inflight_ceiling() {
     let peak = Arc::new(AtomicU32::new(0));
     let mut d = decl("many", BatchMode::PerRow);
-    d.inflight = Some(8);
+    d.procedure.inflight = Some(8);
     let n = 20;
     let reqs = gets(n);
     // Nothing releases the barrier, so every request waits out the same short window:
@@ -2049,7 +2032,7 @@ fn fetch_many_holds_the_declared_inflight_ceiling() {
 fn a_provider_declaring_no_inflight_takes_the_default_width() {
     let peak = Arc::new(AtomicU32::new(0));
     let d = decl("many", BatchMode::PerRow);
-    assert!(d.inflight.is_none());
+    assert!(d.procedure.inflight.is_none());
     let n = DEFAULT_INFLIGHT as usize + 12;
     let reqs = gets(n);
     let out = with_engine_host(
@@ -2112,7 +2095,7 @@ fn fetch_many_retries_a_declared_status_per_request() {
         })
     });
     let mut d = decl("many", BatchMode::PerRow);
-    d.retry = Some(RetrySpec {
+    d.procedure.retry = Some(RetrySpec {
         attempts: 3,
         on: vec![429],
     });

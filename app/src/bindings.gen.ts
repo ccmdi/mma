@@ -503,7 +503,7 @@ export const commands = {
 	 *  Run a procedure's read-only `query` export. `input` and the result are defined
 	 *  by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
 	 */
-	procedureQuery: (procedure: QueryDecl, input: string, cancel: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, cancel }),
+	procedureQuery: (procedure: ProcedureDecl, input: string, cancel: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, cancel }),
 	/**  Cancel a running procedure query by its `cancel` token. */
 	procedureQueryCancel: (cancel: number) => __TAURI_INVOKE<null>("procedure_query_cancel", { cancel }),
 };
@@ -1353,6 +1353,24 @@ export type PresenceActivity = {
 	start: number | null,
 };
 
+/**
+ *  A procedure module and the network limits every call to it gets, whether it runs over
+ *  locations or answers a question.
+ */
+export type ProcedureDecl = {
+	/**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
+	entry: string,
+	rate?: RateSpec | null,
+	retry?: RetrySpec | null,
+	/**  Requests the procedure may have in flight at once, summed over its instances. */
+	inflight?: number | null,
+	/**
+	 *  Procedure-specific configuration, a JSON value as text. Passed through verbatim
+	 *  inside the object the procedure's `configure` receives.
+	 */
+	config?: string | null,
+};
+
 export type ProcedureProgress = {
 	runId: number,
 	providerId: string,
@@ -1387,35 +1405,24 @@ export type ProcedureResult = {
 export type ProviderDecl = {
 	id: string,
 	label?: string | null,
-	/**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
-	entry?: string | null,
 	fields?: string[],
 	requires?: string[],
 	invalidates?: { [key in string]: string[] },
 	select: Selector,
 	batch: BatchMode,
 	sink?: Sink,
-	rate?: RateSpec | null,
-	retry?: RetrySpec | null,
 	/**
 	 *  Re-derive this provider's fields even on a run that is not forced. For an
 	 *  operation whose whole point is to recompute one provider (pinning re-resolves the
 	 *  panorama) rather than to fill in what is missing.
 	 */
 	force?: boolean | null,
-	/**  Requests this provider may have in flight at once, summed over its instances. */
-	inflight?: number | null,
 	/**
 	 *  Instances this provider may run at once. Declared only when the procedure
 	 *  cannot run beside itself; throughput comes from `inflight`.
 	 */
 	instances?: number | null,
-	/**
-	 *  Provider-specific configuration, a JSON value as text. Passed through verbatim
-	 *  inside the object the procedure's `configure` receives.
-	 */
-	config?: string | null,
-};
+} & ProcedureDecl;
 
 /**
  *  A remote-originated create for JS to apply. `remote_id` is the handle its mapping row must
@@ -1431,18 +1438,6 @@ export type PullCreate = {
 export type PullUpdate = {
 	localId: number,
 	patch: SyncPatch,
-};
-
-/**  A procedure asked one read-only question, with the same network limits a run of it gets. */
-export type QueryDecl = {
-	/**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
-	entry: string,
-	rate?: RateSpec | null,
-	retry?: RetrySpec | null,
-	/**  Requests the question may have in flight at once. */
-	inflight?: number | null,
-	/**  Procedure-specific configuration, a JSON value as text. */
-	config?: string | null,
 };
 
 

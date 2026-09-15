@@ -968,7 +968,7 @@ declare const commands$1: {
      *  by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
      *  @unstable
      */
-    procedureQuery: (procedure: QueryDecl, input: string, cancel: number | null) => Promise<string>;
+    procedureQuery: (procedure: ProcedureDecl, input: string, cancel: number | null) => Promise<string>;
     /**  Cancel a running procedure query by its `cancel` token. @unstable */
     procedureQueryCancel: (cancel: number) => Promise<null>;
 };
@@ -1998,6 +1998,23 @@ type PresenceActivity = {
     /**  Unix seconds; Discord renders an "elapsed" timer counting up from here. */
     start: number | null;
 };
+/**
+ *  A procedure module and the network limits every call to it gets, whether it runs over
+ *  locations or answers a question.
+ */
+type ProcedureDecl = {
+    /**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
+    entry: string;
+    rate?: RateSpec | null;
+    retry?: RetrySpec | null;
+    /**  Requests the procedure may have in flight at once, summed over its instances. */
+    inflight?: number | null;
+    /**
+     *  Procedure-specific configuration, a JSON value as text. Passed through verbatim
+     *  inside the object the procedure's `configure` receives.
+     */
+    config?: string | null;
+};
 type ProcedureProgress = {
     runId: number;
     providerId: string;
@@ -2030,8 +2047,6 @@ type ProcedureResult = {
 type ProviderDecl = {
     id: string;
     label?: string | null;
-    /**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
-    entry?: string | null;
     fields?: string[];
     requires?: string[];
     invalidates?: {
@@ -2040,27 +2055,18 @@ type ProviderDecl = {
     select: Selector;
     batch: BatchMode;
     sink?: Sink;
-    rate?: RateSpec | null;
-    retry?: RetrySpec | null;
     /**
      *  Re-derive this provider's fields even on a run that is not forced. For an
      *  operation whose whole point is to recompute one provider (pinning re-resolves the
      *  panorama) rather than to fill in what is missing.
      */
     force?: boolean | null;
-    /**  Requests this provider may have in flight at once, summed over its instances. */
-    inflight?: number | null;
     /**
      *  Instances this provider may run at once. Declared only when the procedure
      *  cannot run beside itself; throughput comes from `inflight`.
      */
     instances?: number | null;
-    /**
-     *  Provider-specific configuration, a JSON value as text. Passed through verbatim
-     *  inside the object the procedure's `configure` receives.
-     */
-    config?: string | null;
-};
+} & ProcedureDecl;
 /**
  *  A remote-originated create for JS to apply. `remote_id` is the handle its mapping row must
  *  carry once created (a positional push reindexes to its desired-document position).
@@ -2074,17 +2080,6 @@ type PullCreate = {
 type PullUpdate = {
     localId: number;
     patch: SyncPatch;
-};
-/**  A procedure asked one read-only question, with the same network limits a run of it gets. */
-type QueryDecl = {
-    /**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
-    entry: string;
-    rate?: RateSpec | null;
-    retry?: RetrySpec | null;
-    /**  Requests the question may have in flight at once. */
-    inflight?: number | null;
-    /**  Procedure-specific configuration, a JSON value as text. */
-    config?: string | null;
 };
 /**  Token bucket: `units` calls per `per_ms` milliseconds, refilled continuously. */
 type RateSpec = {
@@ -6506,4 +6501,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, QueryDecl, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderDecl, PullCreate, PullUpdate, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

@@ -1523,7 +1523,7 @@ The location a pasted Maps URL names, short links resolved.
 
 Stop a run before its next batch. Already-applied patches stay applied.
 
-#### `cmd.procedureQuery(procedure: QueryDecl, input: string, cancel: number | null): Promise<string>` *(unstable)*
+#### `cmd.procedureQuery(procedure: ProcedureDecl, input: string, cancel: number | null): Promise<string>` *(unstable)*
 
 Run a procedure's read-only `query` export. `input` and the result are defined
 by the procedure module. `cancel` is a token for [`procedure_query_cancel`].

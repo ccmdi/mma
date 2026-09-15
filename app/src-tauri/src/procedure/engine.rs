@@ -136,9 +136,8 @@ pub struct ProviderDecl {
     pub id: String,
     #[serde(default)]
     pub label: Option<String>,
-    /// The procedure module: an absolute path, or `res://<rel>` for one bundled with the app.
-    #[serde(default)]
-    pub entry: Option<String>,
+    #[serde(flatten)]
+    pub procedure: ProcedureDecl,
     #[serde(default)]
     pub fields: Vec<String>,
     #[serde(default)]
@@ -149,42 +148,33 @@ pub struct ProviderDecl {
     pub batch: BatchMode,
     #[serde(default)]
     pub sink: Sink,
-    #[serde(default)]
-    pub rate: Option<RateSpec>,
-    #[serde(default)]
-    pub retry: Option<RetrySpec>,
     /// Re-derive this provider's fields even on a run that is not forced. For an
     /// operation whose whole point is to recompute one provider (pinning re-resolves the
     /// panorama) rather than to fill in what is missing.
     #[serde(default)]
     pub force: Option<bool>,
-    /// Requests this provider may have in flight at once, summed over its instances.
-    #[serde(default)]
-    pub inflight: Option<u32>,
     /// Instances this provider may run at once. Declared only when the procedure
     /// cannot run beside itself; throughput comes from `inflight`.
     #[serde(default)]
     pub instances: Option<u32>,
-    /// Provider-specific configuration, a JSON value as text. Passed through verbatim
-    /// inside the object the procedure's `configure` receives.
-    #[serde(default)]
-    pub config: Option<String>,
 }
 
-/// A procedure asked one read-only question, with the same network limits a run of it gets.
+/// A procedure module and the network limits every call to it gets, whether it runs over
+/// locations or answers a question.
 #[derive(Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct QueryDecl {
+pub struct ProcedureDecl {
     /// The procedure module: an absolute path, or `res://<rel>` for one bundled with the app.
     pub entry: String,
     #[serde(default)]
     pub rate: Option<RateSpec>,
     #[serde(default)]
     pub retry: Option<RetrySpec>,
-    /// Requests the question may have in flight at once.
+    /// Requests the procedure may have in flight at once, summed over its instances.
     #[serde(default)]
     pub inflight: Option<u32>,
-    /// Procedure-specific configuration, a JSON value as text.
+    /// Procedure-specific configuration, a JSON value as text. Passed through verbatim
+    /// inside the object the procedure's `configure` receives.
     #[serde(default)]
     pub config: Option<String>,
 }
@@ -241,15 +231,6 @@ pub struct ProcedureResult {
 
 pub type ProcedureFactory = Box<dyn Fn(&str) -> AppResult<Box<dyn Procedure>> + Send + Sync>;
 
-/// The procedure module a provider names, or the error naming the provider that lacks one.
-pub fn entry_of(decl: &ProviderDecl) -> AppResult<&str> {
-    decl.entry.as_deref().ok_or_else(|| {
-        AppError(format!(
-            "provider '{}' declares no procedure module",
-            decl.id
-        ))
-    })
-}
 /// One request, in flight. Async because a provider's width is counted in requests and
 /// not in threads: hundreds of these can be pending on the http runtime at once.
 pub type FetchFuture = Pin<Box<dyn Future<Output = AppResult<HttpResponse>> + Send>>;
@@ -822,8 +803,8 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let force = decl.force.unwrap_or(ctx.force);
     let batch_mode = effective_batch_mode(ctx, decl)?;
     // One budget for the provider, not one per page or per instance.
-    let budget = FetchBudget::new(decl.inflight, decl.rate);
-    let config = configure_json(&decl.fields, force, decl.config.as_deref());
+    let budget = FetchBudget::new(decl.procedure.inflight, decl.procedure.rate);
+    let config = configure_json(&decl.fields, force, decl.procedure.config.as_deref());
     // No more instances than the run can keep busy: a one-row run must not load a
     // procedure per core.
     let per_instance = rows_per_instance(decl);
@@ -836,7 +817,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let mut procs: Vec<Box<dyn Procedure>> = Vec::with_capacity(instances);
     let mut create_err: Option<AppError> = None;
     for _ in 0..instances {
-        match entry_of(decl).and_then(&ctx.deps.factory) {
+        match (ctx.deps.factory)(&decl.procedure.entry) {
             Ok(p) => procs.push(p),
             Err(e) => create_err = Some(e),
         }
@@ -1116,7 +1097,7 @@ fn effective_batch_mode(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<BatchMod
     let BatchMode::Chunk { size } = &decl.batch else {
         return Ok(decl.batch.clone());
     };
-    if (ctx.deps.factory)(entry_of(decl)?)?.shape() != ProcShape::MapOnly {
+    if (ctx.deps.factory)(&decl.procedure.entry)?.shape() != ProcShape::MapOnly {
         return Ok(decl.batch.clone());
     }
     Ok(BatchMode::Chunk {
@@ -1256,7 +1237,7 @@ fn run_instance(
             decl,
             fanout: batch.fanout.as_ref(),
             budget,
-            rate_cost: match decl.rate.map(|r| r.cost) {
+            rate_cost: match decl.procedure.rate.map(|r| r.cost) {
                 Some(RateCost::Row) => batch.rows.len() as u32,
                 _ => 1,
             },
@@ -1469,7 +1450,7 @@ impl ProcHost for EngineHost<'_> {
     }
 
     fn fetch_many(&mut self, reqs: &[HttpRequestSpec]) -> Vec<AppResult<HttpResponse>> {
-        let (attempts, on) = retry_policy(self.decl.retry.as_ref());
+        let (attempts, on) = retry_policy(self.decl.procedure.retry.as_ref());
         let ctx = self.ctx;
         fetch_all(
             ctx.deps,
@@ -1514,7 +1495,7 @@ impl ProcHost for EngineHost<'_> {
 /// has its requests declined, the same way a cancelled run does.
 struct QueryHost<'a> {
     deps: &'a EngineDeps,
-    decl: &'a QueryDecl,
+    decl: &'a ProcedureDecl,
     budget: FetchBudget,
     aborted: &'a (dyn Fn() -> bool + Sync),
 }
@@ -1550,7 +1531,7 @@ impl ProcHost for QueryHost<'_> {
 /// patches, no progress events.
 pub fn run_query(
     deps: &EngineDeps,
-    decl: &QueryDecl,
+    decl: &ProcedureDecl,
     input: &str,
     aborted: &(dyn Fn() -> bool + Sync),
 ) -> AppResult<String> {
@@ -1692,7 +1673,7 @@ fn query_tokens() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_query(
-    procedure: QueryDecl,
+    procedure: ProcedureDecl,
     input: String,
     cancel: Option<u32>,
 ) -> AppResult<String> {
