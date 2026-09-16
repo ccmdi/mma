@@ -178,7 +178,7 @@ When a move target already holds a value, which side survives.
 
 Which imagery collection a pano id belongs to.
 
-### `PLAIN_CALLS: readonly ["classify", "progress", "fail", "aborted"]`
+### `PLAIN_CALLS: readonly ["classify", "progress", "fail", "emit", "aborted"]`
 
 ### `PROJECTIONS: readonly [{ readonly id: "value"; readonly appliesTo: readonly ["string", "enum", "number", "month"]; readonly needsTz: false; }, { readonly id: "year"; readonly appliesTo: readonly ["date", "month"]; readonly needsTz: true; }, { ...; }, { ...; }, { ...; }, { ...; }]`
 
@@ -2494,10 +2494,12 @@ Entry point of a procedure this app bundles. Plugins ship their own paths.
 
 The readable name behind an entry point, for surfaces that show one.
 
-### `queryProcedure<T = unknown>(spec: ProcedureSpec<unknown, unknown>, input: unknown, signal?: AbortSignal | undefined): Promise<T>`
+### `queryProcedure<T = unknown, P = unknown>(spec: ProcedureSpec<unknown, unknown>, input: unknown, signal?: AbortSignal | undefined, onPartial?: ((entries: { id: number; value: P; }[]) => void) | undefined): Promise<T>`
 
 Ask a procedure a read-only question under its declared network limits. Rejects when it
-exports no `query`, when the call fails, or when `signal` aborts.
+exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
+pages of answers as they resolve, ahead of the full result; each entry carries the id
+the emitting side chose for it.
 
 ### `resolveFieldLabels(field: string, keys: string[], key?: KeySpec | undefined): Promise<string[]>`
 
@@ -2955,11 +2957,12 @@ Awaited before the provider joins a run; returning false excludes it.
 
 ## Query
 
-### `panosAt(points: LatLngLiteral[], radius?: number | undefined, opts?: SearchOpts | undefined, signal?: AbortSignal | undefined): Promise<(Pano | null)[]>`
+### `panosAt(points: LatLngLiteral[], radius?: number | undefined, opts?: SearchOpts | undefined, signal?: AbortSignal | undefined, onPano?: ((index: number, pano: Pano | null) => void) | undefined): Promise<...>`
 
 The nearest pano to each point, aligned to `points`, null where there is no coverage.
 `opts.sources` narrows which collections are searched and `opts.preference` picks
-nearest or best.
+nearest or best. `onPano` sees each point's answer the moment its search resolves,
+ahead of the full array.
 
 ### `svMetadata(panoIds: string[], signal?: AbortSignal | undefined): Promise<(Pano | null)[]>`
 
@@ -3308,6 +3311,10 @@ of work has elapsed.
 ### `schemeBase(scheme: string): string`
 
 Base URL for a custom URI scheme, platform-adjusted.
+
+### `shuffle<T>(items: T[]): T[]`
+
+Shuffle `items` in place (Fisher-Yates) and return them.
 
 ### `sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[]`
 

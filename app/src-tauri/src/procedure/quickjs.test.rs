@@ -56,6 +56,7 @@ struct MockProcHost {
     /// Interleaving of `line` pulls and `progress` calls, to pin that a line handler's
     /// progress reaches the host before the next line is pulled.
     trace: Arc<Mutex<Vec<&'static str>>>,
+    partials: Option<Arc<crate::procedure::engine::Partials>>,
 }
 
 impl ProcHost for MockProcHost {
@@ -102,6 +103,9 @@ impl ProcHost for MockProcHost {
     }
     fn fail(&mut self, id: u32) {
         self.failed.push(id);
+    }
+    fn emitter(&self) -> Option<Arc<crate::procedure::engine::Partials>> {
+        self.partials.clone()
     }
     fn aborted(&self) -> bool {
         self.abort
@@ -468,6 +472,39 @@ fn classify_reaches_the_host_from_map() {
         .expect("map succeeds");
     assert_eq!(host.classified, vec![("borders".to_string(), 1.5, 2.5)]);
     assert_eq!(extra(&patches), serde_json::json!({ "name": "FR" }));
+}
+
+#[test]
+fn emit_reaches_the_hosts_emitter() {
+    let pages = Arc::new(Mutex::new(Vec::new()));
+    let seen = pages.clone();
+    let mut host = MockProcHost {
+        partials: Some(Arc::new(crate::procedure::engine::Partials::new(
+            3,
+            "m.js".into(),
+            Box::new(move |r| seen.lock().unwrap().push(r)),
+        ))),
+        ..Default::default()
+    };
+    let mut proc =
+        loaded("export function run(rows) { mma.emit(5, { hello: 'world' }); return []; }");
+    proc.run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
+    host.emitter().expect("emitter installed").flush();
+
+    let pages = pages.lock().unwrap();
+    assert_eq!(pages.len(), 1);
+    assert_eq!(pages[0].run_id, 3);
+    assert_eq!(pages[0].entries[0].id, 5);
+    assert_eq!(pages[0].entries[0].json, r#"{"hello":"world"}"#);
+}
+
+#[test]
+fn emit_without_an_emitter_is_dropped() {
+    let mut proc = loaded("export function run(rows) { mma.emit(1, 2); return []; }");
+    let mut host = MockProcHost::default();
+    proc.run(&rows(), &mut host, NULL_CONFIG)
+        .expect("run succeeds");
 }
 
 #[test]

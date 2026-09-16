@@ -52,6 +52,10 @@ export interface ProcedureHost {
 	tz(lat: number, lng: number): string | null;
 	/** Marks a row as failed rather than skipped. */
 	fail(id: number): void;
+	/** Delivers one partial result to the caller while the call is still running, under
+	 *  an id of the procedure's choosing. Queries stream these to whoever asked; runs
+	 *  discard them. */
+	emit(id: number, value: unknown): void;
 	aborted(): boolean;
 }
 

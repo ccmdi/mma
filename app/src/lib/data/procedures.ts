@@ -26,15 +26,25 @@ export const procedureName = (entry: string) =>
 	entry.replace(/^res:\/\/procedures\//, "").replace(/\.js$/, "");
 
 /** Ask a procedure a read-only question under its declared network limits. Rejects when it
- *  exports no `query`, when the call fails, or when `signal` aborts. */
-export async function queryProcedure<T = unknown>(
+ *  exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
+ *  pages of answers as they resolve, ahead of the full result; each entry carries the id
+ *  the emitting side chose for it. */
+export async function queryProcedure<T = unknown, P = unknown>(
 	spec: ProcedureSpec,
 	input: unknown,
 	signal?: AbortSignal,
+	onPartial?: (entries: { id: number; value: P }[]) => void,
 ): Promise<T> {
-	const raw = await cancellable(signal, (token) =>
-		cmd.procedureQuery(procedureDecl(spec, spec.config), JSON.stringify(input), token),
-	);
+	let unlisten: (() => void) | undefined;
+	const raw = await cancellable(signal, async (token) => {
+		if (onPartial) {
+			unlisten = await events.procedureResult.listen(({ payload }) => {
+				if (payload.runId !== token || payload.entries.length === 0) return;
+				onPartial(payload.entries.map((e) => ({ id: e.id, value: JSON.parse(e.json) as P })));
+			});
+		}
+		return cmd.procedureQuery(procedureDecl(spec, spec.config), JSON.stringify(input), token);
+	}).finally(() => unlisten?.());
 	return JSON.parse(raw) as T;
 }
 

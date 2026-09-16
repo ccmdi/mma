@@ -714,19 +714,32 @@ pub fn resolve_panos(host: &mut dyn ProcHost, queries: &[PanoQuery]) -> Vec<Pano
         .collect();
     if !searches.is_empty() {
         let reqs: Vec<HttpRequestSpec> = searches.iter().map(|(_, s)| search_request(s)).collect();
-        let results = host.fetch_many(&reqs);
-        for ((i, _), result) in searches.iter().zip(results) {
+        let emitter = host.emitter();
+        host.fetch_stream(&reqs, &mut |k, result| {
+            let i = searches[k].0;
             let ok = result.ok().filter(|r| (200..300).contains(&r.status));
-            answers[*i] = match ok {
+            let answer = match ok {
                 Some(resp) => match decode_search(&resp.body) {
                     Some(pano) => PanoAnswer::Found {
                         pano: Box::new(pano),
                     },
                     None => PanoAnswer::NotFound,
                 },
-                None if host.aborted() => PanoAnswer::Skipped,
                 None => PanoAnswer::Failed,
             };
+            if let Some(e) = &emitter {
+                if let Ok(json) = serde_json::to_string(&answer) {
+                    e.emit(i as u32, json);
+                }
+            }
+            answers[i] = answer;
+        });
+        if host.aborted() {
+            for (i, _) in &searches {
+                if matches!(answers[*i], PanoAnswer::Failed) {
+                    answers[*i] = PanoAnswer::Skipped;
+                }
+            }
         }
     }
 

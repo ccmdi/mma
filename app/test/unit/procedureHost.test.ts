@@ -14,6 +14,7 @@ const surface = {
 	classify: 0,
 	progress: 0,
 	fail: 0,
+	emit: 0,
 	aborted: 0,
 	log: 0,
 	tz: 0,

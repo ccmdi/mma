@@ -10,7 +10,7 @@ use crate::store::engine::{
 use crate::types::wire_str_enum;
 use crate::types::{AppError, AppResult, Location};
 use futures::executor;
-use futures::future;
+use futures::stream::{FuturesUnordered, StreamExt};
 use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::future::Future;
@@ -253,6 +253,72 @@ pub type FetchFn = Box<dyn Fn(HttpRequestSpec) -> FetchFuture + Send + Sync>;
 pub type ProgressSink = Box<dyn Fn(ProcedureProgress) + Send + Sync>;
 /// Where a `Collect` provider's pages go. Production emits them; tests record them.
 pub type ResultSink = Box<dyn Fn(ProcedureResult) + Send + Sync>;
+
+/// Entries buffered before a partial page goes out.
+const PARTIAL_PAGE: usize = 200;
+const PARTIAL_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Partial results a query delivers while it is still running, paged and throttled so
+/// thousands of single answers become a steady trickle of events.
+pub struct Partials {
+    run_id: u32,
+    provider_id: String,
+    sink: ResultSink,
+    buf: Mutex<PartialBuf>,
+}
+
+struct PartialBuf {
+    entries: Vec<ResultEntry>,
+    last_flush: Instant,
+}
+
+impl Partials {
+    pub fn new(run_id: u32, provider_id: String, sink: ResultSink) -> Self {
+        Partials {
+            run_id,
+            provider_id,
+            sink,
+            buf: Mutex::new(PartialBuf {
+                entries: Vec::new(),
+                last_flush: Instant::now(),
+            }),
+        }
+    }
+
+    pub fn emit(&self, id: u32, json: String) {
+        let page = {
+            let mut buf = self.buf.lock().unwrap_or_else(PoisonError::into_inner);
+            buf.entries.push(ResultEntry { id, json });
+            if buf.entries.len() < PARTIAL_PAGE && buf.last_flush.elapsed() < PARTIAL_INTERVAL {
+                return;
+            }
+            buf.last_flush = Instant::now();
+            mem::take(&mut buf.entries)
+        };
+        self.deliver(page);
+    }
+
+    pub fn flush(&self) {
+        let page = {
+            let mut buf = self.buf.lock().unwrap_or_else(PoisonError::into_inner);
+            buf.last_flush = Instant::now();
+            mem::take(&mut buf.entries)
+        };
+        self.deliver(page);
+    }
+
+    fn deliver(&self, entries: Vec<ResultEntry>) {
+        if entries.is_empty() {
+            return;
+        }
+        (self.sink)(ProcedureResult {
+            run_id: self.run_id,
+            provider_id: self.provider_id.clone(),
+            entries,
+            failed: Vec::new(),
+        });
+    }
+}
 
 /// Everything the engine reaches outside the store. Production wires the QuickJS host
 /// and an async reqwest client; tests inject mocks.
@@ -592,8 +658,38 @@ async fn fetch_one(
     unreachable!("attempts is at least 1")
 }
 
-/// Answer every request, in request order, as wide as the budget allows. A request that
-/// fails answers with its own error: one bad request does not lose the others.
+/// Answer every request as wide as the budget allows, handing each answer over the
+/// moment it lands, in completion order. A request that fails answers with its own
+/// error: one bad request does not lose the others.
+#[allow(clippy::too_many_arguments)]
+fn fetch_streamed(
+    deps: &EngineDeps,
+    budget: &FetchBudget,
+    cost: u32,
+    attempts: u32,
+    retry_on: &[u16],
+    aborted: &(dyn Fn() -> bool + Sync),
+    reqs: &[HttpRequestSpec],
+    on_each: &mut dyn FnMut(usize, AppResult<HttpResponse>),
+) {
+    drive(async {
+        let mut pending: FuturesUnordered<_> = reqs
+            .iter()
+            .enumerate()
+            .map(|(i, req)| async move {
+                (
+                    i,
+                    fetch_one(deps, budget, cost, attempts, retry_on, aborted, req).await,
+                )
+            })
+            .collect();
+        while let Some((i, result)) = pending.next().await {
+            on_each(i, result);
+        }
+    })
+}
+
+/// [`fetch_streamed`], answered in request order once everything is done.
 fn fetch_all(
     deps: &EngineDeps,
     budget: &FetchBudget,
@@ -603,9 +699,20 @@ fn fetch_all(
     aborted: &(dyn Fn() -> bool + Sync),
     reqs: &[HttpRequestSpec],
 ) -> Vec<AppResult<HttpResponse>> {
-    drive(future::join_all(reqs.iter().map(|req| {
-        fetch_one(deps, budget, cost, attempts, retry_on, aborted, req)
-    })))
+    let mut out: Vec<Option<AppResult<HttpResponse>>> = reqs.iter().map(|_| None).collect();
+    fetch_streamed(
+        deps,
+        budget,
+        cost,
+        attempts,
+        retry_on,
+        aborted,
+        reqs,
+        &mut |i, r| out[i] = Some(r),
+    );
+    out.into_iter()
+        .map(|r| r.expect("every request answers exactly once"))
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -1693,6 +1800,25 @@ impl ProcHost for EngineHost<'_> {
         )
     }
 
+    fn fetch_stream(
+        &mut self,
+        reqs: &[HttpRequestSpec],
+        on_each: &mut dyn FnMut(usize, AppResult<HttpResponse>),
+    ) {
+        let (attempts, on) = retry_policy(self.decl.procedure.retry.as_ref());
+        let ctx = self.ctx;
+        fetch_streamed(
+            ctx.deps,
+            self.budget,
+            self.rate_cost,
+            attempts,
+            on,
+            &|| ctx.aborted(),
+            reqs,
+            on_each,
+        )
+    }
+
     fn progress(&mut self, units: u32) {
         self.reported += units;
         self.prog.add_done(units);
@@ -1728,6 +1854,7 @@ struct QueryHost<'a> {
     decl: &'a ProcedureDecl,
     budget: FetchBudget,
     aborted: &'a (dyn Fn() -> bool + Sync),
+    partials: Option<Arc<Partials>>,
 }
 
 impl ProcHost for QueryHost<'_> {
@@ -1742,6 +1869,28 @@ impl ProcHost for QueryHost<'_> {
         fetch_all(self.deps, &self.budget, 1, attempts, on, self.aborted, reqs)
     }
 
+    fn fetch_stream(
+        &mut self,
+        reqs: &[HttpRequestSpec],
+        on_each: &mut dyn FnMut(usize, AppResult<HttpResponse>),
+    ) {
+        let (attempts, on) = retry_policy(self.decl.retry.as_ref());
+        fetch_streamed(
+            self.deps,
+            &self.budget,
+            1,
+            attempts,
+            on,
+            self.aborted,
+            reqs,
+            on_each,
+        )
+    }
+
+    fn emitter(&self) -> Option<Arc<Partials>> {
+        self.partials.clone()
+    }
+
     fn progress(&mut self, _units: u32) {}
     fn fail(&mut self, _id: u32) {}
     fn aborted(&self) -> bool {
@@ -1749,13 +1898,15 @@ impl ProcHost for QueryHost<'_> {
     }
 }
 
-/// Load a procedure and run its `query` export over `input`. Read-only: no store, no
-/// patches, no progress events.
+/// Load a procedure and run its `query` export over `input`. Read-only: no store and no
+/// patches. With `partials`, whatever the procedure or its host calls emit streams out
+/// in pages while the query runs; the last page flushes before the answer returns.
 pub fn run_query(
     deps: &EngineDeps,
     decl: &ProcedureDecl,
     input: &str,
     aborted: &(dyn Fn() -> bool + Sync),
+    partials: Option<Arc<Partials>>,
 ) -> AppResult<String> {
     let mut proc = (deps.factory)(&decl.entry)?;
     let config = config_json(&[], false, decl.config.as_deref());
@@ -1769,9 +1920,13 @@ pub fn run_query(
         decl,
         budget,
         aborted,
+        partials: partials.clone(),
     };
-    let out = proc.query(input.as_bytes(), &mut host, &config)?;
-    String::from_utf8(out).map_err(|_| AppError("query result is not valid utf-8".into()))
+    let out = proc.query(input.as_bytes(), &mut host, &config);
+    if let Some(p) = &partials {
+        p.flush();
+    }
+    String::from_utf8(out?).map_err(|_| AppError("query result is not valid utf-8".into()))
 }
 
 // ---------------------------------------------------------------------------
@@ -1910,7 +2065,22 @@ pub async fn procedure_query(
     }
     let out = task::spawn_blocking(move || {
         let deps = EngineDeps::production();
-        run_query(&deps, &procedure, &input, &|| flag.load(Ordering::Relaxed))
+        // The caller knows the query by its cancel token, so partial pages travel
+        // under it; an anonymous query has nowhere to stream.
+        let partials = cancel.map(|token| {
+            Arc::new(Partials::new(
+                token,
+                procedure.entry.clone(),
+                Box::new(crate::emit_event::<ProcedureResult>),
+            ))
+        });
+        run_query(
+            &deps,
+            &procedure,
+            &input,
+            &|| flag.load(Ordering::Relaxed),
+            partials,
+        )
     })
     .await;
     if let Some(token) = cancel {

@@ -248,7 +248,7 @@ declare const BUILTIN_FIELDS: readonly [{
 declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
 declare const CLEARABLE_BUILTINS: readonly ["panoId"];
 declare const EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"];
-declare const PLAIN_CALLS: readonly ["classify", "progress", "fail", "aborted"];
+declare const PLAIN_CALLS: readonly ["classify", "progress", "fail", "emit", "aborted"];
 declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
 declare const KNOWN_FIELDS: readonly [{
     readonly key: "altitude";
@@ -2761,6 +2761,10 @@ interface ProcedureHost {
     tz(lat: number, lng: number): string | null;
     /** Marks a row as failed rather than skipped. */
     fail(id: number): void;
+    /** Delivers one partial result to the caller while the call is still running, under
+     *  an id of the procedure's choosing. Queries stream these to whoever asked; runs
+     *  discard them. */
+    emit(id: number, value: unknown): void;
     aborted(): boolean;
 }
 declare global {
@@ -5586,8 +5590,13 @@ declare const procedureEntry: (name: string) => string;
 /** The readable name behind an entry point, for surfaces that show one. */
 declare const procedureName: (entry: string) => string;
 /** Ask a procedure a read-only question under its declared network limits. Rejects when it
- *  exports no `query`, when the call fails, or when `signal` aborts. */
-declare function queryProcedure<T = unknown>(spec: ProcedureSpec, input: unknown, signal?: AbortSignal): Promise<T>;
+ *  exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
+ *  pages of answers as they resolve, ahead of the full result; each entry carries the id
+ *  the emitting side chose for it. */
+declare function queryProcedure<T = unknown, P = unknown>(spec: ProcedureSpec, input: unknown, signal?: AbortSignal, onPartial?: (entries: {
+    id: number;
+    value: P;
+}[]) => void): Promise<T>;
 /** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
  *  become locale month names; otherwise falls back to the keys themselves when the field's
  *  procedure has no `label` query or returns a non-matching array. */
@@ -6038,8 +6047,9 @@ export interface SearchOpts {
 declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(Pano | null)[]>;
 /** The nearest pano to each point, aligned to `points`, null where there is no coverage.
  *  `opts.sources` narrows which collections are searched and `opts.preference` picks
- *  nearest or best. */
-declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal): Promise<(Pano | null)[]>;
+ *  nearest or best. `onPano` sees each point's answer the moment its search resolves,
+ *  ahead of the full array. */
+declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal, onPano?: (index: number, pano: Pano | null) => void): Promise<(Pano | null)[]>;
 
 export type query_SearchOpts = SearchOpts;
 declare const query_panosAt: typeof panosAt;
@@ -6499,6 +6509,8 @@ declare function mmaBufUrl(path: string): string;
 declare function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>;
 /** The item `isBetter` prefers over every other, or null when there are none. */
 declare function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null;
+/** Shuffle `items` in place (Fisher-Yates) and return them. */
+declare function shuffle<T>(items: T[]): T[];
 /** Split `arr` into sub-arrays of at most `n` elements. */
 declare function chunk<T>(arr: readonly T[], n: number): T[][];
 /** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
@@ -6554,12 +6566,13 @@ declare const util_mmaBufUrl: typeof mmaBufUrl;
 declare const util_nowUnix: typeof nowUnix;
 declare const util_phaseRate: typeof phaseRate;
 declare const util_schemeBase: typeof schemeBase;
+declare const util_shuffle: typeof shuffle;
 declare const util_sortTagsByMode: typeof sortTagsByMode;
 declare const util_splitVersion: typeof splitVersion;
 declare const util_tagColorFor: typeof tagColorFor;
 declare const util_toggleInSet: typeof toggleInSet;
 declare namespace util {
-  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_schemeBase as schemeBase, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet };
+  export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_schemeBase as schemeBase, util_shuffle as shuffle, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet };
   export type { util_PhaseRate as PhaseRate };
 }
 

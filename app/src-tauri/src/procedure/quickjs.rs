@@ -209,6 +209,11 @@ enum HostReq {
     SidecarNext,
     Progress(u32),
     Fail(u32),
+    /// One partial result, streamed to the caller while the call is still running.
+    Emit {
+        id: u32,
+        json: String,
+    },
     Aborted,
 }
 
@@ -288,6 +293,12 @@ fn service(host: &mut dyn ProcHost, stream: &mut Option<SidecarStream>, req: Hos
             host.fail(id);
             HostRep::Unit
         }
+        HostReq::Emit { id, json } => {
+            if let Some(p) = host.emitter() {
+                p.emit(id, json);
+            }
+            HostRep::Unit
+        }
         HostReq::Aborted => HostRep::Aborted(host.aborted()),
     }
 }
@@ -354,6 +365,13 @@ where
 fn classify_fn<F>(f: F) -> F
 where
     F: for<'js> Fn(Ctx<'js>, String, f64, f64) -> rquickjs::Result<Value<'js>> + 'static,
+{
+    f
+}
+
+fn emit_fn<F>(f: F) -> F
+where
+    F: for<'js> Fn(Ctx<'js>, u32, Value<'js>) -> rquickjs::Result<()> + 'static,
 {
     f
 }
@@ -543,7 +561,7 @@ pub(crate) const EFFECT_CALLS: &[&str] = &["fetch", "fetchMany", "panos", "sidec
 /// The host calls every procedure shape gets. Together with [`EFFECT_CALLS`] this is
 /// the whole `mma` host surface; `mma_surface_is_identical_with_and_without_a_host`
 /// pins both lists to what [`install_host_calls`] actually sets.
-pub(crate) const PLAIN_CALLS: &[&str] = &["classify", "progress", "fail", "aborted"];
+pub(crate) const PLAIN_CALLS: &[&str] = &["classify", "progress", "fail", "emit", "aborted"];
 
 fn install_host_calls<'js>(
     ctx: &Ctx<'js>,
@@ -704,6 +722,24 @@ fn install_host_calls<'js>(
         Function::new(ctx.clone(), move |id: u32| {
             let _ = b.call(HostReq::Fail(id));
         })?,
+    )?;
+    let b = bridge.clone();
+    obj.set(
+        "emit",
+        Function::new(
+            ctx.clone(),
+            emit_fn(move |ctx: Ctx<'_>, id: u32, value: Value<'_>| {
+                let bad = || throw(&ctx, "mma.emit expects a JSON-stringifiable value");
+                let json = ctx
+                    .json_stringify(value)
+                    .map_err(|_| bad())?
+                    .ok_or_else(bad)?
+                    .to_string()
+                    .map_err(|_| bad())?;
+                let _ = b.call(HostReq::Emit { id, json });
+                Ok(())
+            }),
+        )?,
     )?;
     obj.set(
         "aborted",

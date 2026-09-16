@@ -611,6 +611,7 @@ struct SplitStub {
     fail_searches: bool,
     no_coverage: bool,
     abort: bool,
+    partials: Option<std::sync::Arc<crate::procedure::engine::Partials>>,
 }
 
 impl SplitStub {
@@ -621,6 +622,7 @@ impl SplitStub {
             fail_searches: false,
             no_coverage: false,
             abort: false,
+            partials: None,
         }
     }
 }
@@ -655,9 +657,50 @@ impl ProcHost for SplitStub {
 
     fn progress(&mut self, _units: u32) {}
     fn fail(&mut self, _id: u32) {}
+    fn emitter(&self) -> Option<std::sync::Arc<crate::procedure::engine::Partials>> {
+        self.partials.clone()
+    }
     fn aborted(&self) -> bool {
         self.abort
     }
+}
+
+#[test]
+fn search_answers_stream_through_the_emitter_under_their_query_indices() {
+    use crate::procedure::engine::{Partials, ResultEntry};
+    use std::sync::{Arc, Mutex};
+
+    let pages = Arc::new(Mutex::new(Vec::new()));
+    let seen = pages.clone();
+    let queries = vec![
+        id_query("pano-0"),
+        PanoQuery::Search(search(1.0, 2.0, 50.0)),
+        PanoQuery::Search(search(3.0, 4.0, 50.0)),
+    ];
+    let mut host = SplitStub::new();
+    host.partials = Some(Arc::new(Partials::new(
+        9,
+        "p.js".into(),
+        Box::new(move |r| seen.lock().unwrap().push(r)),
+    )));
+    resolve_panos(&mut host, &queries);
+    host.partials.as_ref().unwrap().flush();
+
+    let entries: Vec<ResultEntry> = pages
+        .lock()
+        .unwrap()
+        .iter()
+        .flat_map(|p| p.entries.clone())
+        .collect();
+    let ids: Vec<u32> = entries.iter().map(|e| e.id).collect();
+    assert_eq!(
+        ids,
+        vec![1, 2],
+        "searches stream under their query index; id lookups answer at the end"
+    );
+    assert!(entries
+        .iter()
+        .all(|e| e.json.contains(r#""state":"found""#)));
 }
 
 #[test]

@@ -1835,6 +1835,7 @@ fn run_query_returns_the_module_output_and_reaches_fetch() {
         &decl,
         r#"{"op":"metadata","panoIds":["a"]}"#,
         &|| false,
+        None,
     )
     .expect("query succeeds");
 
@@ -1862,7 +1863,8 @@ fn run_query_retries_a_throttled_fetch() {
             body: b"pong".to_vec(),
         })
     }));
-    let out = run_query(&deps, &procedure_decl("q.js"), "{}", &|| false).expect("query succeeds");
+    let out =
+        run_query(&deps, &procedure_decl("q.js"), "{}", &|| false, None).expect("query succeeds");
     let v: serde_json::Value = serde_json::from_str(&out).unwrap();
     assert_eq!(v["fetched"], serde_json::json!("pong"));
     assert_eq!(calls.load(Ordering::Relaxed), 2);
@@ -1886,7 +1888,7 @@ fn a_query_follows_its_declared_retry_policy() {
         }),
         ..procedure_decl("q.js")
     };
-    let _ = run_query(&deps, &decl, "{}", &|| false);
+    let _ = run_query(&deps, &decl, "{}", &|| false, None);
     assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
 
@@ -1922,7 +1924,7 @@ fn a_query_holds_its_declared_inflight_ceiling() {
         inflight: Some(8),
         ..procedure_decl("wide.js")
     };
-    let out = run_query(&deps, &decl, "{}", &|| false).expect("query succeeds");
+    let out = run_query(&deps, &decl, "{}", &|| false, None).expect("query succeeds");
     assert_eq!(out, "20");
     assert_eq!(peak.load(Ordering::SeqCst), 8);
 }
@@ -1938,7 +1940,7 @@ fn a_cancelled_query_has_its_requests_declined() {
             body: b"never".to_vec(),
         })
     }));
-    let err = run_query(&deps, &procedure_decl("q.js"), "{}", &|| true).unwrap_err();
+    let err = run_query(&deps, &procedure_decl("q.js"), "{}", &|| true, None).unwrap_err();
     assert!(err.0.contains("cancelled"), "{}", err.0);
     assert_eq!(
         calls.load(Ordering::Relaxed),
@@ -1961,8 +1963,172 @@ fn run_query_surfaces_a_module_without_the_export() {
         fetch: sync_fetch(|_| Err(AppError("no fetch expected".into()))),
         backoff: Duration::from_millis(1),
     };
-    let err = run_query(&deps, &procedure_decl("plain.js"), "{}", &|| false).expect_err("rejected");
+    let err =
+        run_query(&deps, &procedure_decl("plain.js"), "{}", &|| false, None).expect_err("rejected");
     assert!(err.0.contains("does not implement query"), "{}", err.0);
+}
+
+// -----------------------------------------------------------------------
+// Query partials
+// -----------------------------------------------------------------------
+
+/// Emits `count` partials through the host's emitter, when there is one, then answers.
+struct EmittingQueryProc {
+    count: u32,
+}
+
+impl Procedure for EmittingQueryProc {
+    fn shape(&self) -> ProcShape {
+        ProcShape::Run
+    }
+    fn query(
+        &mut self,
+        _input: &[u8],
+        host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<u8>> {
+        if let Some(e) = host.emitter() {
+            for i in 0..self.count {
+                e.emit(i, format!("\"p{i}\""));
+            }
+        }
+        Ok(b"[]".to_vec())
+    }
+}
+
+fn emitting_deps(count: u32) -> EngineDeps {
+    EngineDeps {
+        factory: Box::new(move |_| Ok(Box::new(EmittingQueryProc { count }) as Box<dyn Procedure>)),
+        fetch: sync_fetch(|_| Err(AppError("no fetch expected".into()))),
+        backoff: Duration::from_millis(1),
+    }
+}
+
+fn recording_partials(pages: &Arc<Mutex<Vec<ProcedureResult>>>) -> Arc<Partials> {
+    let seen = pages.clone();
+    Arc::new(Partials::new(
+        7,
+        "e.js".into(),
+        Box::new(move |r| seen.lock().unwrap().push(r)),
+    ))
+}
+
+#[test]
+fn a_query_streams_partials_under_the_callers_token() {
+    let pages = Arc::new(Mutex::new(Vec::new()));
+    let deps = emitting_deps(5);
+    run_query(
+        &deps,
+        &procedure_decl("e.js"),
+        "{}",
+        &|| false,
+        Some(recording_partials(&pages)),
+    )
+    .expect("query succeeds");
+
+    let pages = pages.lock().unwrap();
+    let entries: Vec<ResultEntry> = pages.iter().flat_map(|p| p.entries.clone()).collect();
+    assert_eq!(entries.len(), 5);
+    assert_eq!(entries[0].id, 0);
+    assert_eq!(entries[0].json, "\"p0\"");
+    assert_eq!(entries[4].id, 4);
+    assert!(pages
+        .iter()
+        .all(|p| p.run_id == 7 && p.provider_id == "e.js" && p.failed.is_empty()));
+}
+
+#[test]
+fn a_full_partial_page_leaves_before_the_query_ends() {
+    let pages = Arc::new(Mutex::new(Vec::new()));
+    let deps = emitting_deps(450);
+    run_query(
+        &deps,
+        &procedure_decl("e.js"),
+        "{}",
+        &|| false,
+        Some(recording_partials(&pages)),
+    )
+    .expect("query succeeds");
+
+    let pages = pages.lock().unwrap();
+    assert_eq!(pages.len(), 3, "two full pages and the flushed tail");
+    assert_eq!(pages[0].entries.len(), 200);
+    assert_eq!(pages.iter().map(|p| p.entries.len()).sum::<usize>(), 450);
+}
+
+#[test]
+fn an_untokened_query_answers_with_nothing_streamed() {
+    let deps = emitting_deps(3);
+    let out = run_query(&deps, &procedure_decl("e.js"), "{}", &|| false, None)
+        .expect("query succeeds without an emitter");
+    assert_eq!(out, "[]");
+}
+
+/// Streams three requests and records the order their answers landed in.
+struct StreamProbeProc {
+    order: Arc<Mutex<Vec<usize>>>,
+}
+
+impl Procedure for StreamProbeProc {
+    fn shape(&self) -> ProcShape {
+        ProcShape::Run
+    }
+    fn query(
+        &mut self,
+        _input: &[u8],
+        host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<u8>> {
+        let reqs: Vec<HttpRequestSpec> = ["slow", "fast", "fast2"]
+            .iter()
+            .map(|u| HttpRequestSpec {
+                method: "GET".into(),
+                url: (*u).into(),
+                headers: Vec::new(),
+                body: None,
+            })
+            .collect();
+        let order = self.order.clone();
+        host.fetch_stream(&reqs, &mut |i, r| {
+            r.expect("every request answers");
+            order.lock().unwrap().push(i);
+        });
+        Ok(b"{}".to_vec())
+    }
+}
+
+#[test]
+fn fetch_stream_hands_answers_over_in_completion_order() {
+    let order = Arc::new(Mutex::new(Vec::new()));
+    let seen = order.clone();
+    let deps = EngineDeps {
+        factory: Box::new(move |_| {
+            Ok(Box::new(StreamProbeProc {
+                order: seen.clone(),
+            }) as Box<dyn Procedure>)
+        }),
+        fetch: Box::new(|req| {
+            Box::pin(async move {
+                if req.url == "slow" {
+                    time::sleep(Duration::from_millis(50)).await;
+                }
+                Ok(HttpResponse {
+                    status: 200,
+                    body: Vec::new(),
+                })
+            })
+        }),
+        backoff: Duration::from_millis(1),
+    };
+    run_query(&deps, &procedure_decl("s.js"), "{}", &|| false, None).expect("query succeeds");
+
+    let order = order.lock().unwrap();
+    assert_eq!(order.len(), 3);
+    assert_eq!(
+        order.last(),
+        Some(&0),
+        "the slow request answers last instead of holding the others"
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -2573,7 +2739,7 @@ fn a_query_in_flight_is_reported_under_its_entry() {
     let entry = "res://procedures/activityProbe.js";
 
     let row = thread::scope(|s| {
-        let run = s.spawn(|| run_query(&deps, &procedure_decl(entry), "{}", &|| false));
+        let run = s.spawn(|| run_query(&deps, &procedure_decl(entry), "{}", &|| false, None));
         let snapshot = await_activity(|a| {
             a.queries
                 .iter()
