@@ -19,8 +19,6 @@ import { LocationFlag } from "@/bindings.consts";
 const OFFICIAL_PANO = "-zrYsLR4Fh-cfJG_EMZ1-A";
 const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };
 
-const PANO_TIMEOUT = 10_000;
-
 function loc(overrides: Partial<Location> = {}): Location {
 	return createLocation({
 		lat: 0,
@@ -45,7 +43,6 @@ async function waitForEnrichment(locId: number, field = "countryCode") {
 			return l?.extra?.[field] != null;
 		},
 		{
-			timeout: PANO_TIMEOUT,
 			timeoutMsg: `Enrichment field '${field}' never populated on ${locId}`,
 		},
 	);
@@ -53,14 +50,13 @@ async function waitForEnrichment(locId: number, field = "countryCode") {
 
 // knownFieldKeys propagate asynchronously after an extra write lands; poll instead of
 // asserting once, or the read races the registration under slow (SwiftShader) runs.
-async function waitForFieldKeys(timeoutMs: number, ...wanted: string[]) {
+async function waitForFieldKeys(...wanted: string[]) {
 	await browser.waitUntil(
 		async () => {
 			const keys = await withApi((api) => [...api.getKnownFieldKeys()]);
 			return wanted.every((k) => keys.includes(k));
 		},
 		{
-			timeout: timeoutMs,
 			interval: 50,
 			timeoutMsg: `field defs never registered: ${wanted.join(", ")}`,
 		},
@@ -152,7 +148,7 @@ describe("Enrichment — single location via preview", () => {
 				const l = await readLocation(enrichExistingMetaId);
 				return l?.extra?.countryCode != null && l.extra.countryCode !== "XX";
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "countryCode was never overwritten from XX" },
+			{ timeoutMsg: "countryCode was never overwritten from XX" },
 		);
 
 		const l = await readLocation(enrichExistingMetaId);
@@ -197,7 +193,7 @@ describe("Enrichment — single location via preview", () => {
 				const l = await readLocation(enrichExistingMetaId);
 				return l?.extra?.imageDate != null && l.extra.imageDate !== "2099-01";
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "imageDate was never overwritten from 2099-01" },
+			{ timeoutMsg: "imageDate was never overwritten from 2099-01" },
 		);
 
 		const after = await readLocation(enrichExistingMetaId);
@@ -328,7 +324,6 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			);
 		};
 		await browser.waitUntil(defsOk, {
-			timeout: PANO_TIMEOUT,
 			interval: 50,
 			timeoutMsg: "enrichment field defs never registered",
 		});
@@ -376,7 +371,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			return "ok";
 		}, patchLoc);
 
-		await waitForFieldKeys(PANO_TIMEOUT, "datetime");
+		await waitForFieldKeys("datetime");
 		const def = await withApi((api) => api.getFieldDef("datetime"));
 		expect(def?.type).toBe("date");
 	});
@@ -386,7 +381,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		// known string field nothing in this map has touched.
 		await addLocs([loc({ lat: 10, lng: 20, extra: { altitude: 100, uploaderName: "Google" } })]);
 
-		await waitForFieldKeys(PANO_TIMEOUT, "altitude", "uploaderName");
+		await waitForFieldKeys("altitude", "uploaderName");
 		const defs = await withApi((api) => ({
 			altitude: api.getFieldDef("altitude"),
 			uploaderName: api.getFieldDef("uploaderName"),
@@ -404,7 +399,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			return "ok";
 		}, customLoc);
 
-		await waitForFieldKeys(PANO_TIMEOUT, "randomCustomThing");
+		await waitForFieldKeys("randomCustomThing");
 	});
 });
 
@@ -458,7 +453,6 @@ describe("Enrichment — exact date via preview", () => {
 				return l?.extra?.datetime != null;
 			},
 			{
-				timeout: 60_000,
 				timeoutMsg: "datetime never populated (exact date resolution can be slow)",
 			},
 		);
@@ -475,7 +469,7 @@ describe("Enrichment — exact date via preview", () => {
 		// enrichment mutations land out of order.
 		await browser.waitUntil(
 			async () => (await withApi((api) => api.getFieldDef("datetime")))?.type === "date",
-			{ timeout: 60_000, interval: 50, timeoutMsg: "datetime field def never available" },
+			{ interval: 50, timeoutMsg: "datetime field def never available" },
 		);
 	});
 });
@@ -559,7 +553,7 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 				const l = await readLocation(mergeIds[0]);
 				return l?.extra?.sunAzimuth != null && l?.extra?.timezone != null;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "plugin procedure fields never present" },
+			{ timeoutMsg: "plugin procedure fields never present" },
 		);
 
 		const l = await readLocation(mergeIds[0]);
@@ -588,7 +582,6 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 				return true;
 			},
 			{
-				timeout: PANO_TIMEOUT,
 				timeoutMsg: "plugin procedure fields never present on every location",
 			},
 		);

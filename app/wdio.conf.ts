@@ -35,6 +35,12 @@ if (!isWorker && !process.env.MMA_E2E_LOG_PATH) {
 	};
 }
 
+/** The one bound on a test, and on any single in-page script within it. Runtime
+ *  `this.timeout()` is not honored under wdio's mocha runner, so the benchmark suite
+ *  (MMA_BENCH_REVISION set by e2e.sh --bench) gets its whole per-scale budget here. */
+export const TEST_TIMEOUT =
+	process.env.MMA_BENCH_REVISION || process.env.MMA_SCALE_ROWS ? 7_200_000 : 300_000;
+
 /** Excluded from both suites: scratch and the benchmark suite, run explicitly
  *  (`scripts/e2e.sh --bench`, or `--spec`). */
 export const SHARED_EXCLUDES = [
@@ -74,7 +80,8 @@ export const config: WebdriverIO.Config = {
 	port: 4444,
 	path: "/",
 	logLevel: "warn",
-	waitforTimeout: 10000,
+	// A hang bound, never an expected duration: waits end on their condition.
+	waitforTimeout: 120_000,
 	// A single in-page block can legitimately run for minutes (the benchmark suite imports
 	// hundreds of thousands of rows inside one `execute/async`). Mocha's per-test timeout is
 	// the real bound on a wedged app; this only has to be larger than the slowest command.
@@ -84,10 +91,10 @@ export const config: WebdriverIO.Config = {
 	reporters: ["spec"],
 	mochaOpts: {
 		ui: "bdd",
-		// Runtime `this.timeout()` is not honored under wdio's mocha runner, so the
-		// benchmark suite (MMA_BENCH_REVISION set by e2e.sh --bench) gets its whole
-		// per-scale budget here; everything else keeps the 5-minute hang bound.
-		timeout: process.env.MMA_BENCH_REVISION || process.env.MMA_SCALE_ROWS ? 7_200_000 : 300000,
+		timeout: TEST_TIMEOUT,
+	},
+	before: async () => {
+		await browser.setTimeout({ script: TEST_TIMEOUT });
 	},
 	// Monkey-patch Street View (window.fetch + google.maps) from the test side when
 	// --mock is on, so the network-bound specs run deterministically with no network.

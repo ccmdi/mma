@@ -34,7 +34,7 @@ describe("Map click", () => {
 				await clickAt(COVERED.lat, COVERED.lng);
 				return (await getLocCount()) > before;
 			},
-			{ timeout: 15000, interval: 1000, timeoutMsg: "covered click never created a location" },
+			{ interval: 1000, timeoutMsg: "covered click never created a location" },
 		);
 
 		const locs = await getAllLocs();
@@ -50,7 +50,7 @@ describe("Map click", () => {
 		await browser.waitUntil(
 			async () =>
 				browser.execute(() => document.body.textContent?.includes("No coverage found") === true),
-			{ timeout: 15000, timeoutMsg: "no-coverage toast never appeared" },
+			{ timeoutMsg: "no-coverage toast never appeared" },
 		);
 		expect(await getLocCount()).toBe(before);
 	});

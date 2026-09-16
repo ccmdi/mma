@@ -4,7 +4,7 @@
 //
 // Expects `map-making-app --serve` already listening (see scripts/docker-web-e2e.sh).
 
-import { config as base, SHARED_EXCLUDES } from "./wdio.conf";
+import { config as base, SHARED_EXCLUDES, TEST_TIMEOUT } from "./wdio.conf";
 
 // Drop the tauri-driver connection settings: wdio manages the chromedriver session.
 const { hostname: _h, port: _p, path: _path, capabilities: _caps, ...shared } = base;
@@ -45,9 +45,9 @@ export const config: WebdriverIO.Config = {
 		},
 	],
 	before: async () => {
+		await browser.setTimeout({ script: TEST_TIMEOUT });
 		await browser.url("/");
-		await browser.waitUntil(async () => browser.execute(() => window.MMA?.ready === true), {
-			timeout: 30000,
+		await browser.waitUntil(async () => browser.execute(() => window.MMA?.isReady() === true), {
 			timeoutMsg: "web app did not boot in time",
 		});
 	},

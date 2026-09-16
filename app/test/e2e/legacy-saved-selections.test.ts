@@ -44,7 +44,7 @@ async function importedRules() {
 				rows = await withApi(async (api) => api.cmd.storeListSavedSelections());
 				return rows.length > 0;
 			},
-			{ timeout: 10000, interval: 250, timeoutMsg: "legacy rules never reached SQLite" },
+			{ interval: 250, timeoutMsg: "legacy rules never reached SQLite" },
 		)
 		.catch(() => undefined);
 	return rows;

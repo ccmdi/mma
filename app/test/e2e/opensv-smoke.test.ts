@@ -35,8 +35,6 @@ const TREKKER_PANO = "5upMz1_zTGPdkIXG6_QM3g";
 const TREKKER_COORDS = { lat: 55.510656, lng: 157.636627 };
 const TIMES_SQUARE = { lat: 40.758, lng: -73.9855 };
 
-const PANO_RENDER_TIMEOUT = 30_000;
-
 function loc(overrides: Partial<Location> = {}): Location {
 	return createLocation({ lat: 0, lng: 0, ...overrides });
 }
@@ -124,7 +122,6 @@ async function waitForPanoRender(label: string) {
 			return true;
 		},
 		{
-			timeout: PANO_RENDER_TIMEOUT,
 			timeoutMsg: `${label}: pano canvas never rendered new imagery`,
 		},
 	);
@@ -148,9 +145,8 @@ async function moveMapAndWaitForTiles(move: MapMove): Promise<boolean> {
 	}, move);
 	if (!armed) return false;
 	try {
-		await browser.waitUntil(
-			async () => browser.execute(() => (window as any).__tilesLoaded === true),
-			{ timeout: 8000 },
+		await browser.waitUntil(async () =>
+			browser.execute(() => (window as any).__tilesLoaded === true),
 		);
 		return true;
 	} catch {

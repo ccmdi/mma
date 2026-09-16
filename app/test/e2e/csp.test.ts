@@ -116,14 +116,14 @@ async function moveMap(center: { lat: number; lng: number }, zoom: number): Prom
 async function openPanel(trigger: string, panel: string) {
 	if (await browser.$(panel).isExisting()) return;
 	await browser.$(trigger).click();
-	await browser.$(panel).waitForExist({ timeout: 5000, timeoutMsg: `${panel} never opened` });
+	await browser.$(panel).waitForExist({ timeoutMsg: `${panel} never opened` });
 }
 
 /** Click a bottom-bar gear by title. A real pointer click misses it under software
  *  rendering (the bar animates in), so dispatch through the element itself. */
 async function clickByTitle(title: string) {
 	const el = await browser.$(`.settings-gear[title='${title}']`);
-	await el.waitForExist({ timeout: 10000, timeoutMsg: `gear "${title}" never rendered` });
+	await el.waitForExist({ timeoutMsg: `gear "${title}" never rendered` });
 	await browser.execute((t: string) => {
 		document.querySelector<HTMLElement>(`.settings-gear[title='${t}']`)?.click();
 	}, title);
@@ -132,7 +132,6 @@ async function clickByTitle(title: string) {
 async function escapeUntilGone(panel: string) {
 	await browser.keys("Escape");
 	await browser.waitUntil(async () => !(await browser.$(panel).isExisting()), {
-		timeout: 5000,
 		timeoutMsg: `${panel} never closed`,
 	});
 }
@@ -171,7 +170,7 @@ describe("Content Security Policy", function () {
 					() =>
 						typeof (window as unknown as { google?: { maps?: unknown } }).google?.maps === "object",
 				),
-			{ timeout: 30000, timeoutMsg: "google.maps never appeared (opensv blob script blocked?)" },
+			{ timeoutMsg: "google.maps never appeared (opensv blob script blocked?)" },
 		);
 	});
 
@@ -206,7 +205,7 @@ describe("Content Security Policy", function () {
 				);
 				return (await getLocCount()) > before;
 			},
-			{ timeout: 30000, interval: 1500, timeoutMsg: "covered click never created a location" },
+			{ interval: 1500, timeoutMsg: "covered click never created a location" },
 		);
 		const locs = await getAllLocs();
 		expect(locs[locs.length - 1].panoId).toBeTruthy();
@@ -224,7 +223,7 @@ describe("Content Security Policy", function () {
 		await openLocation(ids[0]);
 		await browser
 			.$(".location-preview canvas.widget-scene-canvas")
-			.waitForExist({ timeout: 30000, timeoutMsg: "pano canvas never mounted" });
+			.waitForExist({ timeoutMsg: "pano canvas never mounted" });
 		await browser.waitUntil(
 			async () =>
 				browser.execute(() => {
@@ -233,7 +232,7 @@ describe("Content Security Policy", function () {
 					);
 					return !!c && c.width > 0 && c.height > 0;
 				}),
-			{ timeout: 30000, timeoutMsg: "pano canvas never sized" },
+			{ timeoutMsg: "pano canvas never sized" },
 		);
 		await closeLocation();
 	});
@@ -253,7 +252,7 @@ describe("Content Security Policy", function () {
 					(await (
 						await browser.$$(`${PANEL} .map-type-control__button[data-state='on']`)
 					).length) === 1,
-				{ timeout: 5000, timeoutMsg: "basemap selection never settled" },
+				{ timeoutMsg: "basemap selection never settled" },
 			);
 		}
 		// Back to the default so later cases run against the Google map.
@@ -290,7 +289,7 @@ describe("Content Security Policy", function () {
 			["Seen", ".seen-dialog"],
 		] as const) {
 			await browser.$(`button=${label}`).click();
-			await browser.$(panel).waitForExist({ timeout: 10000, timeoutMsg: `${label} never opened` });
+			await browser.$(panel).waitForExist({ timeoutMsg: `${label} never opened` });
 			await escapeUntilGone(panel);
 		}
 	});
@@ -301,7 +300,7 @@ describe("Content Security Policy", function () {
 		await clickByTitle("Settings");
 		await browser
 			.$("[data-qa^='settings-nav-']")
-			.waitForExist({ timeout: 10000, timeoutMsg: "settings never opened" });
+			.waitForExist({ timeoutMsg: "settings never opened" });
 		await browser.keys("Escape");
 
 		await clickByTitle("Plugins");
@@ -309,20 +308,20 @@ describe("Content Security Policy", function () {
 		// request to resolve one way or the other, then move on.
 		await browser
 			.$(".plugin-marketplace, .marketplace")
-			.waitForExist({ timeout: 10000 })
+			.waitForExist()
 			.catch(() => undefined);
 		await browser.keys("Escape");
 
 		await browser.execute(() => {
 			location.hash = "#manual";
 		});
-		await browser.$(".manual").waitForExist({ timeout: 10000, timeoutMsg: "manual never opened" });
+		await browser.$(".manual").waitForExist({ timeoutMsg: "manual never opened" });
 		await browser.execute(() => {
 			location.hash = "#";
 		});
 
 		await withApi(async (api, id) => api._test.openMap(id), mapId);
-		await browser.$(".page-map-editor").waitForExist({ timeout: 10000 });
+		await browser.$(".page-map-editor").waitForExist();
 	});
 
 	it("reported no CSP violations", async () => {

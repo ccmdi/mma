@@ -33,7 +33,6 @@ export async function withApi<A extends unknown[], R>(
 
 export async function waitForReady() {
 	await browser.waitUntil(async () => browser.execute(() => window.MMA?.isReady() === true), {
-		timeout: 30000,
 		timeoutMsg: "App did not boot in time",
 	});
 }
@@ -63,7 +62,7 @@ export async function createAndOpenMap(name: string): Promise<string> {
 	// (helpers.ts is exempt from the no-fixed-sleep rule; this is the one sanctioned spot.)
 	await browser
 		.$(".page-map-editor")
-		.waitForExist({ timeout: 10000, timeoutMsg: "map editor never mounted after open" });
+		.waitForExist({ timeoutMsg: "map editor never mounted after open" });
 	await browser.pause(300);
 	return id;
 }
@@ -219,7 +218,7 @@ export async function createTag(
 // Each polls the real post-condition via the MMA API or DOM, so it finishes as soon as
 // the condition holds and fails loud (not silently) if it never does.
 
-const WAIT = { timeout: 5000, interval: 50 } as const;
+const WAIT = { interval: 50 } as const;
 
 /** Wait until the active location id equals `id` (null = back to overview). */
 export async function waitForActive(id: number | null) {
@@ -249,16 +248,15 @@ export async function registerFields(defs: Record<string, ExtraFieldDef>) {
 	}, defs);
 }
 
-/** Wait for the date count badge to show a positive number;
- *  the default is deliberately far above the shared WAIT timeout. */
-export async function waitForDates(timeout = 30_000) {
+/** Wait for the date count badge to show a positive number. */
+export async function waitForDates() {
 	await browser.waitUntil(
 		async () => {
 			const badge = await browser.$(".location-preview__date .badge--number");
 			if (!(await badge.isExisting())) return false;
 			return parseInt(await badge.getText()) > 0;
 		},
-		{ timeout, timeoutMsg: "Date picker never populated with dates" },
+		{ timeoutMsg: "Date picker never populated with dates" },
 	);
 }
 
@@ -267,17 +265,16 @@ export async function waitForDates(timeout = 30_000) {
 export async function saveLocation() {
 	const settled = await browser.$(".location-preview:not([data-enriching])");
 	await settled.waitForExist({
-		timeout: 60_000,
 		timeoutMsg: "the draft's enrichment never answered before Save",
 	});
 	const btn = await browser.$("[data-qa='location-save']");
-	await btn.waitForExist({ timeout: 5000 });
+	await btn.waitForExist();
 	await btn.click();
 }
 
 export async function waitForPreview() {
 	const el = await browser.$(".location-preview");
-	await el.waitForExist({ timeout: 5000 });
+	await el.waitForExist();
 }
 
 export async function waitForWorkArea(area: string) {

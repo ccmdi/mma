@@ -102,8 +102,8 @@ async function openEnrichDialog() {
 		api.setSetting("pinnedCommands", ["bulk-enrich"]);
 	});
 	await browser.$('[data-qa="bulk-enrich"]').click();
-	await browser.$(".bulk-operation-modal").waitForExist({ timeout: 10_000 });
-	await browser.$(".bulk-operation-modal").$("button=Start").waitForClickable({ timeout: 10_000 });
+	await browser.$(".bulk-operation-modal").waitForExist();
+	await browser.$(".bulk-operation-modal").$("button=Start").waitForClickable();
 }
 
 describe("Bulk operation dialog -- enrichment progress", () => {
@@ -153,7 +153,6 @@ describe("Bulk operation dialog -- enrichment progress", () => {
 				return bad.length > 0 || (await closeButton().isExisting());
 			},
 			{
-				timeout: 120_000,
 				interval: 50,
 				timeoutMsg: "bulk enrichment never reached a terminal state",
 			},

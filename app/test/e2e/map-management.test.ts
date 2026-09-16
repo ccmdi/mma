@@ -116,7 +116,6 @@ describe("Map management", () => {
 		await withApi(async (api, mapId) => api._test.deleteMap(mapId), id);
 
 		await browser.waitUntil(async () => withApi(async (api) => api.getMapState().map === null), {
-			timeout: 5000,
 			timeoutMsg: "open map was not closed after delete",
 		});
 

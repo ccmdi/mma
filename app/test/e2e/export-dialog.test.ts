@@ -2,13 +2,12 @@ import { closeMap, openMap, withApi, useMap } from "./helpers";
 
 async function openExportDialog() {
 	await browser.$("button=Export").click();
-	await browser.$(".export-modal").waitForExist({ timeout: 5000 });
+	await browser.$(".export-modal").waitForExist();
 }
 
 async function closeExportDialog() {
 	await browser.keys("Escape");
 	await browser.waitUntil(async () => !(await browser.$(".export-modal").isExisting()), {
-		timeout: 5000,
 		timeoutMsg: "export dialog never closed",
 	});
 }

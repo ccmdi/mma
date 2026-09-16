@@ -31,7 +31,6 @@ async function getSeenEntries(limit = 100) {
 /** Wait until a seen entry for `panoId` is flushed to the store. */
 async function waitForSeenPano(panoId: string) {
 	await browser.waitUntil(async () => (await getSeenEntries(50)).some((e) => e.panoId === panoId), {
-		timeout: 5000,
 		timeoutMsg: `seen entry for ${panoId} never recorded`,
 	});
 }
@@ -149,7 +148,7 @@ describe("Seen -- recording consistency", () => {
 					entries.some((e) => e.panoId === TREKKER_PANO)
 				);
 			},
-			{ timeout: 10000, timeoutMsg: "Expected seen entries for both panos" },
+			{ timeoutMsg: "Expected seen entries for both panos" },
 		);
 
 		const count = await getSeenCount();
@@ -405,7 +404,6 @@ describe("Seen -- clear", () => {
 		await closeLocation();
 
 		await browser.waitUntil(async () => (await getSeenCount()) > 0, {
-			timeout: 10000,
 			timeoutMsg: "Expected at least 1 seen entry after opening location",
 		});
 

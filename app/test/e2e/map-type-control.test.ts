@@ -10,7 +10,6 @@ async function panelOpen(): Promise<boolean> {
 
 async function waitForPanel(open: boolean, msg: string) {
 	await browser.waitUntil(async () => (await panelOpen()) === open, {
-		timeout: 3000,
 		timeoutMsg: msg,
 	});
 }

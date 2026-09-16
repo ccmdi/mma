@@ -45,8 +45,6 @@ const DEAD_PANO = "DEAD_PANO_DOES_NOT_EXIST_12345";
 // Coord-only location (Times Square — dense coverage, no saved panoId)
 const COORD_ONLY = { lat: 40.758, lng: -73.9855 };
 
-const PANO_TIMEOUT = 30_000;
-
 function loc(overrides: Partial<Location> = {}): Location {
 	return createLocation({ lat: 0, lng: 0, ...overrides });
 }
@@ -125,7 +123,7 @@ describe("LocationPreview — basics", () => {
 	it("close button returns to overview", async () => {
 		await openLocation(basicCoordId);
 		const btn = await browser.$("[data-qa='location-close']");
-		await btn.waitForExist({ timeout: 5000 });
+		await btn.waitForExist();
 		await btn.click();
 		await waitForWorkArea("overview");
 		const area = await withApi(async (api) => api.getMapState().workArea);
@@ -135,10 +133,9 @@ describe("LocationPreview — basics", () => {
 	it("delete button removes the location", async () => {
 		await openLocation(basicDeleteId);
 		const btn = await browser.$("[data-qa='location-delete']");
-		await btn.waitForExist({ timeout: 5000 });
+		await btn.waitForExist();
 		await btn.click();
 		await browser.waitUntil(async () => (await readLocation(basicDeleteId)) == null, {
-			timeout: 5000,
 			timeoutMsg: "location was never deleted",
 		});
 		const fetched = await readLocation(basicDeleteId);
@@ -279,7 +276,7 @@ describe("LocationPreview — official pano", () => {
 				const l = await readLocation(offDefaultId);
 				return l?.extra?.countryCode != null;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Metadata enrichment never completed" },
+			{ timeoutMsg: "Metadata enrichment never completed" },
 		);
 		const l = await readLocation(offDefaultId);
 		expect(l.extra.countryCode).toBeTruthy();
@@ -323,7 +320,7 @@ describe("LocationPreview — unofficial pano", () => {
 				const badge = await browser.$(".badge--unofficial");
 				return await badge.isExisting();
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Unofficial badge never appeared" },
+			{ timeoutMsg: "Unofficial badge never appeared" },
 		);
 	});
 
@@ -593,7 +590,7 @@ describe("LocationPreview — location with tags", () => {
 				const tags = await browser.$$(".location-preview__tags .tag");
 				return (await tags.length) >= 2;
 			},
-			{ timeout: 5000, timeoutMsg: "Tag items never appeared in preview" },
+			{ timeoutMsg: "Tag items never appeared in preview" },
 		);
 	});
 
@@ -660,7 +657,7 @@ describe("LocationPreview — exact date resolution", () => {
 				// Exact date format includes a day: "Sep 6, 2018" vs month-only "Sep 2018"
 				return /\w+ \d{1,2}, \d{4}/.test(text);
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Exact date never resolved to a specific day" },
+			{ timeoutMsg: "Exact date never resolved to a specific day" },
 		);
 	});
 
@@ -674,7 +671,7 @@ describe("LocationPreview — exact date resolution", () => {
 				const l = await readLocation(exact1Id);
 				return l?.extra?.datetime != null;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "datetime was never written to location extra" },
+			{ timeoutMsg: "datetime was never written to location extra" },
 		);
 
 		const l = await readLocation(exact1Id);
@@ -687,14 +684,11 @@ describe("LocationPreview — exact date resolution", () => {
 		await waitForDates();
 
 		// Wait for exact date
-		await browser.waitUntil(
-			async () => {
-				const label = await browser.$(".location-preview__date .pano-value");
-				if (!(await label.isExisting())) return false;
-				return /\w+ \d{1,2}, \d{4}/.test(await label.getText());
-			},
-			{ timeout: PANO_TIMEOUT },
-		);
+		await browser.waitUntil(async () => {
+			const label = await browser.$(".location-preview__date .pano-value");
+			if (!(await label.isExisting())) return false;
+			return /\w+ \d{1,2}, \d{4}/.test(await label.getText());
+		});
 
 		await closeLocation();
 		await openLocation(exact1Id);
@@ -707,7 +701,7 @@ describe("LocationPreview — exact date resolution", () => {
 				if (!(await label.isExisting())) return false;
 				return /\w+ \d{1,2}, \d{4}/.test(await label.getText());
 			},
-			{ timeout: 10_000, timeoutMsg: "Exact date did not resolve on reopen (cache miss?)" },
+			{ timeoutMsg: "Exact date did not resolve on reopen (cache miss?)" },
 		);
 	});
 });
@@ -787,7 +781,6 @@ describe("LocationPreview — return to spawn", () => {
 		await selectPanoOption(0);
 		const label = await browser.$(".location-preview__date .pano-value");
 		await browser.waitUntil(async () => !(await label.getText()).includes("Default"), {
-			timeout: 5000,
 			timeoutMsg: "date picker never left Default",
 		});
 
@@ -796,7 +789,6 @@ describe("LocationPreview — return to spawn", () => {
 
 		// The date picker should show "Default" again
 		await browser.waitUntil(async () => (await label.getText()).includes("Default"), {
-			timeout: 5000,
 			timeoutMsg: "date picker never returned to Default",
 		});
 		const text = await label.getText();
@@ -833,7 +825,7 @@ describe("LocationPreview — next/prev date hotkeys", () => {
 				if (!(await badge.isExisting())) return false;
 				return parseInt(await badge.getText()) > 1;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Need multiple dates to test hotkey" },
+			{ timeoutMsg: "Need multiple dates to test hotkey" },
 		);
 
 		// Press ] to cycle to next date, then save
@@ -849,14 +841,11 @@ describe("LocationPreview — next/prev date hotkeys", () => {
 
 	it("'[' key selects previous date", async () => {
 		await openLocation(hotkeyDatesId);
-		await browser.waitUntil(
-			async () => {
-				const badge = await browser.$(".location-preview__date .badge--number");
-				if (!(await badge.isExisting())) return false;
-				return parseInt(await badge.getText()) > 1;
-			},
-			{ timeout: PANO_TIMEOUT },
-		);
+		await browser.waitUntil(async () => {
+			const badge = await browser.$(".location-preview__date .badge--number");
+			if (!(await badge.isExisting())) return false;
+			return parseInt(await badge.getText()) > 1;
+		});
 
 		// Press [ to cycle to prev date, then save
 		await browser.keys("[");
@@ -912,7 +901,7 @@ describe("LocationPreview — duplicate location", () => {
 		await browser.keys("c");
 		await browser.waitUntil(
 			async () => (await getAllLocs()).some((l) => l.id !== dupSrcId && l.panoId === OFFICIAL_PANO),
-			{ timeout: 5000, timeoutMsg: "duplicate never appeared" },
+			{ timeoutMsg: "duplicate never appeared" },
 		);
 
 		const locs = await getAllLocs();
@@ -977,7 +966,7 @@ describe("LocationPreview — tag management in preview", () => {
 		await input.setValue("Alp");
 
 		const addBtn = await browser.$(".location-preview__tags ol.tag-list .tag__button--add");
-		await addBtn.waitForExist({ timeout: 5000, timeoutMsg: "Alpha suggestion never appeared" });
+		await addBtn.waitForExist({ timeoutMsg: "Alpha suggestion never appeared" });
 		await addBtn.click();
 		const saveBtn = await browser.$("[data-qa='location-save']");
 		await saveBtn.click();
@@ -994,7 +983,7 @@ describe("LocationPreview — tag management in preview", () => {
 		const removeBtn = await browser.$(
 			".location-preview__tags .tag-list .tag .tag__button--delete",
 		);
-		await removeBtn.waitForExist({ timeout: 5000, timeoutMsg: "No removable tag chip in preview" });
+		await removeBtn.waitForExist({ timeoutMsg: "No removable tag chip in preview" });
 		const before = (await readLocation(tagmgmt1Id)).tags.length;
 		await removeBtn.click();
 		const saveBtn = await browser.$("[data-qa='location-save']");
@@ -1036,7 +1025,6 @@ describe("LocationPreview — tag management in preview", () => {
 		const saveBtn = await browser.$("[data-qa='location-save']");
 		await saveBtn.click();
 		await browser.waitUntil(async () => (await tagNames()).includes("ZZStagedSave"), {
-			timeout: 5000,
 			timeoutMsg: "new tag never persisted after save",
 		});
 
@@ -1114,7 +1102,7 @@ describe("LocationPreview — camera type badges", () => {
 				const badges = await browser.$$(".location-preview__date .pano-option__badge");
 				return (await badges.length) > 0;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Camera badge never appeared for official pano" },
+			{ timeoutMsg: "Camera badge never appeared for official pano" },
 		);
 	});
 
@@ -1126,7 +1114,7 @@ describe("LocationPreview — camera type badges", () => {
 				const badge = await browser.$(".badge--unofficial");
 				return await badge.isExisting();
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Unofficial badge never appeared" },
+			{ timeoutMsg: "Unofficial badge never appeared" },
 		);
 	});
 
@@ -1138,7 +1126,7 @@ describe("LocationPreview — camera type badges", () => {
 				const badges = await browser.$$(".location-preview__date .pano-option__badge");
 				return (await badges.length) > 0;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Camera badge never appeared for trekker pano" },
+			{ timeoutMsg: "Camera badge never appeared for trekker pano" },
 		);
 	});
 });
@@ -1222,7 +1210,7 @@ describe("LocationPreview — settings toggles", () => {
 				if (!(await label.isExisting())) return false;
 				return /\w+ \d{1,2}, \d{4}/.test(await label.getText());
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Exact date never resolved after enabling setting" },
+			{ timeoutMsg: "Exact date never resolved after enabling setting" },
 		);
 	});
 
@@ -1243,7 +1231,7 @@ describe("LocationPreview — settings toggles", () => {
 				// datetime format includes AM/PM: "Sep 6, 2018, 12:34 PM"
 				return /\d{1,2}:\d{2}/.test(text);
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Datetime format never showed time component" },
+			{ timeoutMsg: "Datetime format never showed time component" },
 		);
 		// Reset
 		await withApi(async (api) => {
@@ -1259,16 +1247,13 @@ describe("LocationPreview — settings toggles", () => {
 		});
 		await openLocation(set1Id);
 		await waitForDates();
-		await browser.waitUntil(
-			async () => {
-				const loading = await browser.$(".location-preview__date .badge--loading");
-				if (await loading.isExisting()) return false;
-				const label = await browser.$(".location-preview__date .pano-value");
-				if (!(await label.isExisting())) return false;
-				return /\d{1,2}:\d{2}/.test(await label.getText());
-			},
-			{ timeout: PANO_TIMEOUT },
-		);
+		await browser.waitUntil(async () => {
+			const loading = await browser.$(".location-preview__date .badge--loading");
+			if (await loading.isExisting()) return false;
+			const label = await browser.$(".location-preview__date .pano-value");
+			if (!(await label.isExisting())) return false;
+			return /\d{1,2}:\d{2}/.test(await label.getText());
+		});
 		await withApi(async (api) => {
 			api.setSetting("exactDateFormat", "date");
 			api.setSetting("dateTimezone", "location");
@@ -1302,7 +1287,7 @@ describe("LocationPreview — settings toggles", () => {
 				const badges = await browser.$$(".location-preview__date .pano-option__badge");
 				return (await badges.length) > 0;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Camera badge never appeared with setting ON" },
+			{ timeoutMsg: "Camera badge never appeared with setting ON" },
 		);
 		await withApi(async (api) => {
 			api.setSetting("showCameraBadges", false);
@@ -1325,7 +1310,7 @@ describe("LocationPreview — settings toggles", () => {
 					!((await el.getAttribute("class")) ?? "").includes("hide-pano-ui")
 				);
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Pano controls never appeared" },
+			{ timeoutMsg: "Pano controls never appeared" },
 		);
 
 		// Toggle hidePanoUI ON
@@ -1335,7 +1320,7 @@ describe("LocationPreview — settings toggles", () => {
 		const panorama = await browser.$(".location-preview__panorama");
 		await browser.waitUntil(
 			async () => ((await panorama.getAttribute("class")) ?? "").includes("hide-pano-ui"),
-			{ timeout: 5000, timeoutMsg: "hide-pano-ui class never applied" },
+			{ timeoutMsg: "hide-pano-ui class never applied" },
 		);
 		expect(((await panorama.getAttribute("class")) ?? "").includes("hide-pano-ui")).toBe(true);
 
@@ -1493,7 +1478,7 @@ describe("LocationPreview — edge cases", () => {
 				const l = await readLocation(edgeExtraId);
 				return l?.extra?.countryCode != null;
 			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: "Metadata enrichment never completed" },
+			{ timeoutMsg: "Metadata enrichment never completed" },
 		);
 
 		const l = await readLocation(edgeExtraId);
@@ -1534,7 +1519,7 @@ describe("LocationPreview — the draft", () => {
 					last = await readout();
 					return re.test(last);
 				},
-				{ timeout: PANO_TIMEOUT, timeoutMsg: `readout never matched ${re}; last: ${last}` },
+				{ timeoutMsg: `readout never matched ${re}; last: ${last}` },
 			)
 			.catch((e: Error) => {
 				throw new Error(`${e.message}; last: ${JSON.stringify(last)}`);

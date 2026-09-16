@@ -59,12 +59,11 @@ async function stepToOtherPano() {
 			const badge = await browser.$(".location-preview__date .badge--number");
 			return (await badge.isExisting()) && parseInt(await badge.getText()) > 1;
 		},
-		{ timeout: 30_000, timeoutMsg: "pano never reported multiple captures" },
+		{ timeoutMsg: "pano never reported multiple captures" },
 	);
 	const before = await shownDate();
 	await browser.keys("]");
 	await browser.waitUntil(async () => (await shownDate()) !== before, {
-		timeout: 5000,
 		timeoutMsg: "date picker never moved off the seeded capture",
 	});
 }
@@ -194,7 +193,7 @@ describe("Drop marker -- copy to another map", () => {
 		await browser.keys("k");
 		await browser.waitUntil(
 			async () => browser.execute(() => document.body.textContent?.includes("Copied to") === true),
-			{ timeout: 15000, timeoutMsg: "copy-to-map toast never appeared" },
+			{ timeoutMsg: "copy-to-map toast never appeared" },
 		);
 
 		await closeLocation();

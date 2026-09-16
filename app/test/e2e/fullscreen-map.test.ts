@@ -25,7 +25,7 @@ async function waitForFullscreenMap(on: boolean) {
 			const el = await browser.$(".page-map-editor.fullscreen-map");
 			return on ? await el.isExisting() : !(await el.isExisting());
 		},
-		{ timeout: 5000, timeoutMsg: `fullscreenMap never became ${on}` },
+		{ timeoutMsg: `fullscreenMap never became ${on}` },
 	);
 }
 
@@ -35,7 +35,7 @@ async function waitForPanoFullscreen(on: boolean) {
 			const pano = await browser.$(".location-preview__panorama.is-fullscreen");
 			return on ? await pano.isExisting() : !(await pano.isExisting());
 		},
-		{ timeout: 5000, timeoutMsg: `pano fullscreen never became ${on}` },
+		{ timeoutMsg: `pano fullscreen never became ${on}` },
 	);
 }
 
@@ -84,7 +84,7 @@ describe("Fullscreen map mode", () => {
 		await openLocation(locA);
 		await waitForWorkArea("location");
 		const mini = await browser.$(".fullscreen-mini-location");
-		await mini.waitForExist({ timeout: 5000 });
+		await mini.waitForExist();
 	});
 
 	// Hover-expand is a transform, not a size change: the SV canvas must keep its
@@ -96,7 +96,7 @@ describe("Fullscreen map mode", () => {
 		await waitForWorkArea("location");
 
 		const chip = await browser.$(".fullscreen-mini-location");
-		await chip.waitForExist({ timeout: 5000 });
+		await chip.waitForExist();
 
 		// The pano widget mounts several canvases; only the scene canvas is the
 		// WebGL surface whose drawing buffer must stay put.
@@ -107,7 +107,6 @@ describe("Fullscreen map mode", () => {
 				return { shown: Math.round(el.getBoundingClientRect().width), buffer: cv?.width ?? 0 };
 			});
 		await browser.waitUntil(async () => (await read()).buffer > 1, {
-			timeout: 15000,
 			timeoutMsg: "scene canvas never sized",
 		});
 
@@ -122,7 +121,6 @@ describe("Fullscreen map mode", () => {
 				.dispatchEvent(new PointerEvent("pointerover", { bubbles: true }));
 		});
 		await browser.waitUntil(async () => (await read()).shown > collapsed.shown + 20, {
-			timeout: 3000,
 			timeoutMsg: `chip never expanded on hover; collapsed=${JSON.stringify(collapsed)}`,
 		});
 		const expanded = await read();
