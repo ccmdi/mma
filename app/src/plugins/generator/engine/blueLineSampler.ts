@@ -130,7 +130,7 @@ export function blueLineSource(
 
 		const cfg = buildSamplerTileConfig();
 		const canvas = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
-		const ctx = canvas.getContext("2d")!;
+		const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
 		const tileJobs: { tx: number; ty: number }[] = [];
 		const perAxis = 2 ** zoom;
