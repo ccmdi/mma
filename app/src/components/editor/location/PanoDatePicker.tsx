@@ -87,7 +87,10 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const dateTimezone = useSetting("dateTimezone");
 	const { lat, lng } = viewerPosition(draft, location);
 	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
-	const triggerCameraType = useCameraType(currentEntry?.panoId ?? currentPano?.id ?? null, currentPano);
+	const triggerCameraType = useCameraType(
+		currentEntry?.panoId ?? currentPano?.id ?? null,
+		currentPano,
+	);
 	const tzOption = dateTimezone === "utc" ? "UTC" : (resolvedTz ?? undefined);
 	const exactLabel = exactTs
 		? exactDateFormat === "datetime"

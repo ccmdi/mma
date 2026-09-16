@@ -77,7 +77,11 @@ function runProcedure(rows, respond, { config = null, force = false, abortAfter 
 
 function queryAt(input, respond, { config = null } = {}) {
 	const h = installHost(respond);
-	return { answer: query(input, { fields: [], force: false, config }), calls: h.calls, ...h.stats() };
+	return {
+		answer: query(input, { fields: [], force: false, config }),
+		calls: h.calls,
+		...h.stats(),
+	};
 }
 
 // --- Tests ---

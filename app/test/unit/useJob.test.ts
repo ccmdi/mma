@@ -27,7 +27,6 @@ function deferred<T>() {
 
 const flush = () => act(async () => {});
 
-
 describe("useJob", () => {
 	it("reports progress and the final result", async () => {
 		mount(async ({ report }: JobContext<string>) => {

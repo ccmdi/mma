@@ -99,7 +99,12 @@ export function fixtureRows(): FixtureRow[] {
 
 		// --- flags ---
 		{ kind: "informational", lat: 47.6062, lng: -122.3321, flags: INFORMATIONAL },
-		{ kind: "informational-pinned", lat: 49.2827, lng: -123.1207, flags: INFORMATIONAL | LOAD_AS_PANO_ID },
+		{
+			kind: "informational-pinned",
+			lat: 49.2827,
+			lng: -123.1207,
+			flags: INFORMATIONAL | LOAD_AS_PANO_ID,
+		},
 
 		// --- duplicates: same coordinate, distinct rows ---
 		{ kind: "dup-a", lat: 35.0, lng: 135.0 },
@@ -129,9 +134,24 @@ export function faultScript(): Record<string, number[]> {
 /** Rows that only exist to be faulted; kept apart so the plain fixture stays readable. */
 export function faultRows(): FixtureRow[] {
 	return [
-		{ kind: "fault-recovers", lat: 46.948, lng: 7.4474, extra: { imageDate: MOCK_GENERIC_IMAGE_DATE } },
-		{ kind: "fault-persists", lat: 37.9838, lng: 23.7275, extra: { imageDate: MOCK_GENERIC_IMAGE_DATE } },
-		{ kind: "fault-truncated", lat: 59.3293, lng: 18.0686, extra: { imageDate: MOCK_GENERIC_IMAGE_DATE } },
+		{
+			kind: "fault-recovers",
+			lat: 46.948,
+			lng: 7.4474,
+			extra: { imageDate: MOCK_GENERIC_IMAGE_DATE },
+		},
+		{
+			kind: "fault-persists",
+			lat: 37.9838,
+			lng: 23.7275,
+			extra: { imageDate: MOCK_GENERIC_IMAGE_DATE },
+		},
+		{
+			kind: "fault-truncated",
+			lat: 59.3293,
+			lng: 18.0686,
+			extra: { imageDate: MOCK_GENERIC_IMAGE_DATE },
+		},
 	];
 }
 

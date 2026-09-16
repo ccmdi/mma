@@ -259,7 +259,7 @@ describe("colorPartition", () => {
 				fieldKey: "x",
 				fieldType: "number",
 				spec: VALUE_SPEC,
-			stops,
+				stops,
 				narrowed: true,
 				ordinal: true,
 				eqFilter: false,

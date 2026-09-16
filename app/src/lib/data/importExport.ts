@@ -90,4 +90,3 @@ export function parsedLocationsToImportJson(locs: ParsedLocation[], name: string
 	});
 	return JSON.stringify({ name, customCoordinates });
 }
-

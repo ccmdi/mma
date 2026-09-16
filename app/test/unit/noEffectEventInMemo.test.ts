@@ -19,10 +19,11 @@ const frozen = [{ messageId: "frozen" }];
 tester.run("no-effect-event-in-memo", rule as never, {
 	valid: [
 		imports + "function C({ x }) { const f = useEffectEvent(() => x); return f; }",
-		'function useEffectEvent(f) { return f; }\nconst C = memo(function C({ x }) { return useEffectEvent(() => x); });',
+		"function useEffectEvent(f) { return f; }\nconst C = memo(function C({ x }) { return useEffectEvent(() => x); });",
 		'import { memo } from "react";\nimport { useEffectEvent } from "./shim";\nconst C = memo(function C({ x }) { return useEffectEvent(() => x); });',
 		imports + "const C = memo(function C({ x }) { return x; });",
-		imports + "const A = memo(function A() { return null; });\nfunction B({ x }) { return useEffectEvent(() => x); }",
+		imports +
+			"const A = memo(function A() { return null; });\nfunction B({ x }) { return useEffectEvent(() => x); }",
 	],
 	invalid: [
 		{
@@ -34,11 +35,15 @@ tester.run("no-effect-event-in-memo", rule as never, {
 			errors: frozen,
 		},
 		{
-			code: imports + "const C = forwardRef(function C({ x }, ref) { return useEffectEvent(() => x); });",
+			code:
+				imports +
+				"const C = forwardRef(function C({ x }, ref) { return useEffectEvent(() => x); });",
 			errors: frozen,
 		},
 		{
-			code: imports + "const C = memo(forwardRef(function C({ x }, ref) { return useEffectEvent(() => x); }));",
+			code:
+				imports +
+				"const C = memo(forwardRef(function C({ x }, ref) { return useEffectEvent(() => x); }));",
 			errors: frozen,
 		},
 		{

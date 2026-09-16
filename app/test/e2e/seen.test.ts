@@ -22,7 +22,6 @@ const OFFICIAL_COORDS = { lat: 52.10947502806108, lng: 34.90131410856584 };
 const TREKKER_PANO = "5upMz1_zTGPdkIXG6_QM3g";
 const TREKKER_COORDS = { lat: 55.510656, lng: 157.636627 };
 
-
 async function getSeenEntries(limit = 100) {
 	return withApi(async (api, lim) => {
 		return await api.getSeenEntries(lim);

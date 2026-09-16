@@ -1528,15 +1528,17 @@ describe("LocationPreview — the draft", () => {
 	/** Wait for the readout to match, naming what it last showed when it never does. */
 	const waitForReadout = async (re: RegExp) => {
 		let last = "";
-		await browser.waitUntil(
-			async () => {
-				last = await readout();
-				return re.test(last);
-			},
-			{ timeout: PANO_TIMEOUT, timeoutMsg: `readout never matched ${re}; last: ${last}` },
-		).catch((e: Error) => {
-			throw new Error(`${e.message}; last: ${JSON.stringify(last)}`);
-		});
+		await browser
+			.waitUntil(
+				async () => {
+					last = await readout();
+					return re.test(last);
+				},
+				{ timeout: PANO_TIMEOUT, timeoutMsg: `readout never matched ${re}; last: ${last}` },
+			)
+			.catch((e: Error) => {
+				throw new Error(`${e.message}; last: ${JSON.stringify(last)}`);
+			});
 	};
 	const defaultOptionLabel = () =>
 		browser.execute(() => {

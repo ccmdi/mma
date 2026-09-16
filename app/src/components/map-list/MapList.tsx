@@ -470,54 +470,54 @@ const FolderEntry = React.memo(function FolderEntry({
 			onOpenChange={setOpen}
 			render={<li className="map-folder" data-drop-folder={name} data-filter-folder />}
 		>
-				<div className="map-folder__head">
-					<Collapsible.Trigger
-						id={triggerId}
-						className="icon-button"
-						style={{ display: "inline-block" }}
-						aria-label={t("Open or close folder")}
-					>
-						<Icon path={open ? mdiChevronDown : mdiChevronRight} />
-					</Collapsible.Trigger>
-					<label htmlFor={triggerId}>
-						<strong>{name}</strong>
-						<span className="map-list__folder-count">
-							{" "}
-							·{" "}
-							{t("{maps} maps · {locations} locations", {
-								maps: fmt.format(maps.length),
-								locations: fmt.format(count),
-							})}
-						</span>
-					</label>
-					<button
-						className="map-list__edit icon-button"
-						aria-label={t("Rename folder")}
-						onClick={() => onFolderAction({ type: "rename-folder", name, mapCount: maps.length })}
-					>
-						<Icon path={mdiPencil} />
-					</button>
-					<button
-						className="map-list__edit icon-button"
-						aria-label={t("Delete folder")}
-						onClick={() => onFolderAction({ type: "delete-folder", name, mapCount: maps.length })}
-					>
-						<Icon path={mdiFolderRemove} />
-					</button>
-				</div>
-				<Collapsible.Panel render={<ul className="map-sublist" />}>
-						{maps.map((m) => (
-							<MapEntry
-								key={m.id}
-								meta={m}
-								isDragging={dragId === m.id}
-								onDragStart={onDragStart}
-								onAction={onMapAction}
-								onLabelClick={onLabelClick}
-								fields={fields}
-							/>
-						))}
-				</Collapsible.Panel>
+			<div className="map-folder__head">
+				<Collapsible.Trigger
+					id={triggerId}
+					className="icon-button"
+					style={{ display: "inline-block" }}
+					aria-label={t("Open or close folder")}
+				>
+					<Icon path={open ? mdiChevronDown : mdiChevronRight} />
+				</Collapsible.Trigger>
+				<label htmlFor={triggerId}>
+					<strong>{name}</strong>
+					<span className="map-list__folder-count">
+						{" "}
+						·{" "}
+						{t("{maps} maps · {locations} locations", {
+							maps: fmt.format(maps.length),
+							locations: fmt.format(count),
+						})}
+					</span>
+				</label>
+				<button
+					className="map-list__edit icon-button"
+					aria-label={t("Rename folder")}
+					onClick={() => onFolderAction({ type: "rename-folder", name, mapCount: maps.length })}
+				>
+					<Icon path={mdiPencil} />
+				</button>
+				<button
+					className="map-list__edit icon-button"
+					aria-label={t("Delete folder")}
+					onClick={() => onFolderAction({ type: "delete-folder", name, mapCount: maps.length })}
+				>
+					<Icon path={mdiFolderRemove} />
+				</button>
+			</div>
+			<Collapsible.Panel render={<ul className="map-sublist" />}>
+				{maps.map((m) => (
+					<MapEntry
+						key={m.id}
+						meta={m}
+						isDragging={dragId === m.id}
+						onDragStart={onDragStart}
+						onAction={onMapAction}
+						onLabelClick={onLabelClick}
+						fields={fields}
+					/>
+				))}
+			</Collapsible.Panel>
 		</Collapsible.Root>
 	);
 });

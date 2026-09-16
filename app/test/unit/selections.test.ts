@@ -1412,7 +1412,13 @@ describe("childSelections", () => {
 	});
 
 	it("returns empty array for Ranked without selection", () => {
-		const sel = { type: "Ranked" as const, selection: null, expr: "lat", k: null, ascending: false };
+		const sel = {
+			type: "Ranked" as const,
+			selection: null,
+			expr: "lat",
+			k: null,
+			ascending: false,
+		};
 		expect(childSelections(sel)).toEqual([]);
 	});
 
@@ -1421,9 +1427,7 @@ describe("childSelections", () => {
 		expect(childSelections({ type: "Tag", tagId: 1 })).toEqual([]);
 		expect(childSelections({ type: "Untagged" })).toEqual([]);
 		expect(childSelections({ type: "Duplicates", distance: 10 })).toEqual([]);
-		expect(
-			childSelections({ type: "Filter", field: "x", test: { op: "has" } }),
-		).toEqual([]);
+		expect(childSelections({ type: "Filter", field: "x", test: { op: "has" } })).toEqual([]);
 	});
 });
 
@@ -1453,7 +1457,13 @@ describe("withChildren", () => {
 
 	it("sets selection to null when children is empty for Ranked", () => {
 		const inner = buildSelection({ type: "Untagged" });
-		const sel = { type: "Ranked" as const, selection: inner, expr: "lat", k: null, ascending: true };
+		const sel = {
+			type: "Ranked" as const,
+			selection: inner,
+			expr: "lat",
+			k: null,
+			ascending: true,
+		};
 		const result = withChildren(sel, []);
 		expect((result as { selection: unknown }).selection).toBeNull();
 	});

@@ -46,7 +46,12 @@ function runProcedure(rows, lookup, { direction = "forwards" } = {}) {
 		},
 		aborted: () => false,
 	};
-	return { patches: run(rows, { fields: [], force: false, config: { direction } }), asked, progress, failed };
+	return {
+		patches: run(rows, { fields: [], force: false, config: { direction } }),
+		asked,
+		progress,
+		failed,
+	};
 }
 
 /** A pano facing `heading`, as the host reports one. */

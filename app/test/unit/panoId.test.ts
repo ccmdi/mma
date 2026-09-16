@@ -59,7 +59,9 @@ describe("newestOfficialPano", () => {
 	// not the first match, and not the last entry when that entry is unofficial.
 	it("takes the last official entry, skipping trailing unofficial ones", () => {
 		expect(newestOfficialPano([{ panoId: off1 }, { panoId: off2 }])?.panoId).toBe(off2);
-		expect(newestOfficialPano([{ panoId: off1 }, { panoId: off2 }, { panoId: ugc }])?.panoId).toBe(off2);
+		expect(newestOfficialPano([{ panoId: off1 }, { panoId: off2 }, { panoId: ugc }])?.panoId).toBe(
+			off2,
+		);
 		expect(newestOfficialPano([{ panoId: ugc }, { panoId: off1 }])?.panoId).toBe(off1);
 	});
 
@@ -70,8 +72,10 @@ describe("newestOfficialPano", () => {
 });
 
 describe("isUnofficial", () => {
-	const pano = (id: string, attribution: Partial<Pick<Pano, "shortDescription" | "copyright">> = {}) =>
-		({ id, shortDescription: "", copyright: "", ...attribution }) as Pano;
+	const pano = (
+		id: string,
+		attribution: Partial<Pick<Pano, "shortDescription" | "copyright">> = {},
+	) => ({ id, shortDescription: "", copyright: "", ...attribution }) as Pano;
 
 	it("long pano ID is unofficial", () => {
 		expect(isUnofficial(pano("A".repeat(30)))).toBe(true);
@@ -87,12 +91,16 @@ describe("isUnofficial", () => {
 
 	it("attribution naming a photographer or a user upload is unofficial", () => {
 		expect(isUnofficial(pano("A".repeat(22), { copyright: "Photo by John" }))).toBe(true);
-		expect(isUnofficial(pano("A".repeat(22), { shortDescription: "User-uploaded image" }))).toBe(true);
+		expect(isUnofficial(pano("A".repeat(22), { shortDescription: "User-uploaded image" }))).toBe(
+			true,
+		);
 	});
 
 	it("a described user photo is still unofficial", () => {
 		expect(
-			isUnofficial(pano("A".repeat(22), { shortDescription: "Main Street", copyright: "Photo by John" })),
+			isUnofficial(
+				pano("A".repeat(22), { shortDescription: "Main Street", copyright: "Photo by John" }),
+			),
 		).toBe(true);
 	});
 });
@@ -136,9 +144,9 @@ describe("mergeTimelines", () => {
 
 	it("skips absent sources rather than failing", () => {
 		expect(mergeTimelines([null, null])).toEqual([]);
-		expect(mergeTimelines([null, pano({ time: [{ panoId: "x", date: "2020-01-01" }] })])).toHaveLength(
-			1,
-		);
+		expect(
+			mergeTimelines([null, pano({ time: [{ panoId: "x", date: "2020-01-01" }] })]),
+		).toHaveLength(1);
 	});
 });
 

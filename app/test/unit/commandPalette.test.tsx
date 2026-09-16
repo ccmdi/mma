@@ -58,8 +58,7 @@ describe("command palette plugin entries", () => {
 			icon: "M0 0",
 			activate: () => {},
 		});
-		for (const id of ["test-sidebar", "test-modal", "test-background"])
-			setPluginEnabled(id, true);
+		for (const id of ["test-sidebar", "test-modal", "test-background"]) setPluginEnabled(id, true);
 	});
 
 	afterAll(() => {

@@ -259,7 +259,9 @@ describe("errText", () => {
 
 	it("renders a code with no detail", async () => {
 		await initLocale("en");
-		expect(errText(new Error("attachment-not-staged"))).toBe("That file was not staged for upload.");
+		expect(errText(new Error("attachment-not-staged"))).toBe(
+			"That file was not staged for upload.",
+		);
 	});
 
 	it("passes an uncoded message through untouched", () => {

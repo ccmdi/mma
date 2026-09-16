@@ -55,7 +55,9 @@ const COMPUTE_FIELDS = ["sunAzimuth", "sunAltitude"];
 const RESULT_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), "../perf/results");
 
 /** One in every N rows is a hostile shape, so paging never sees a uniform batch. */
-function scaleRows(n: number): { kind: string; lat: number; lng: number; panoId?: string; extra?: Record<string, unknown> }[] {
+function scaleRows(
+	n: number,
+): { kind: string; lat: number; lng: number; panoId?: string; extra?: Record<string, unknown> }[] {
 	const rows = [];
 	let h = 12345 >>> 0;
 	const next = () => {

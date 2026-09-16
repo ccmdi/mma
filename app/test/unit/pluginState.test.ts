@@ -22,7 +22,6 @@ beforeEach(() => {
 	localStorage.clear();
 });
 
-
 describe("usePluginState", () => {
 	it("returns the initial value when nothing is stored", () => {
 		const [value] = mount("p1", "k", "default");

@@ -150,7 +150,7 @@ describe("buildComboString", () => {
 		);
 	});
 
-	it("names the comma, which a raw \",\" would split as an alternative", () => {
+	it('names the comma, which a raw "," would split as an alternative', () => {
 		expect(buildComboString(mockEvent({ key: ",", ctrlKey: true }))).toBe("Mod+comma");
 		const [[pk]] = parseHotkey("Mod+comma");
 		expect(pk.key).toBe(",");

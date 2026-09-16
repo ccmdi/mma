@@ -51,9 +51,9 @@ describe("resolveExpandedPaths", () => {
 		expect(resolveExpandedPaths(tree, new Set(["D"]), { kind: "toggle", path: "A" })).toEqual(
 			new Set(["D", "A"]),
 		);
-		expect(resolveExpandedPaths(tree, new Set(["A", "A/B"]), { kind: "toggle", path: "A" })).toEqual(
-			new Set(["A/B"]),
-		);
+		expect(
+			resolveExpandedPaths(tree, new Set(["A", "A/B"]), { kind: "toggle", path: "A" }),
+		).toEqual(new Set(["A/B"]));
 	});
 
 	it("expands every folder in a collapsed subtree", () => {

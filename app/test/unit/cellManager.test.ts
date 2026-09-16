@@ -590,10 +590,7 @@ describe("cross-language render delta contract", () => {
 	it("selection paint on an added entry puts it in the overlay", () => {
 		mgr.applyDelta(
 			delta({
-				added: [
-					entry("s", 1, 10, 20, 45, paint([255, 0, 0], 0)),
-					entry("s", 2, 30, 40, 90, null),
-				],
+				added: [entry("s", 1, 10, 20, 45, paint([255, 0, 0], 0)), entry("s", 2, 30, 40, 90, null)],
 			}),
 		);
 		expect(mgr.overlay.count).toBe(1);

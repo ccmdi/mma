@@ -102,9 +102,7 @@ function runProcedure(
 			coordCalls.push(call);
 			// A search answers the pano's metadata with it, so the row never asks again.
 			const found = coords[`${call.lat},${call.lng}`];
-			return found
-				? { state: "found", pano: panos[found] ?? meta(found) }
-				: { state: "notFound" };
+			return found ? { state: "found", pano: panos[found] ?? meta(found) } : { state: "notFound" };
 		},
 	);
 
@@ -317,7 +315,6 @@ test("a pin ahead of a lagging default is not an update", () => {
 	);
 	assert.equal(state, OK);
 });
-
 
 test("an unofficial pano at the coordinate is not an update", () => {
 	// The nearest hit can be a photosphere; only official coverage counts as an update.

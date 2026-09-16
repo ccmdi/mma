@@ -29,7 +29,9 @@ describe("the Select failed button", () => {
 		act(() => m.container.querySelector("button")!.click());
 
 		expect(h.applySelectionUpdate).toHaveBeenCalledTimes(1);
-		const op = h.applySelectionUpdate.mock.calls[0][0] as (sels: unknown[]) => { selector: Selector }[];
+		const op = h.applySelectionUpdate.mock.calls[0][0] as (
+			sels: unknown[],
+		) => { selector: Selector }[];
 		const result = op([]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector).toEqual({ type: "Manual", locations: [4, 9] });

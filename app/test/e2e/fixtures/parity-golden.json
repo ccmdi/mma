@@ -385,10 +385,7 @@
 						"imageDate": "2022-06",
 						"cameraType": "gen4",
 						"nested": {
-							"a": [
-								1,
-								2
-							]
+							"a": [1, 2]
 						},
 						"panoType": 2,
 						"datetime": 1654411158
@@ -982,10 +979,7 @@
 						"imageDate": "2022-06",
 						"cameraType": "gen4",
 						"nested": {
-							"a": [
-								1,
-								2
-							]
+							"a": [1, 2]
 						},
 						"panoType": 2,
 						"datetime": 1654411158
@@ -1217,14 +1211,8 @@
 		{
 			"name": "validate",
 			"outcomes": [
-				[
-					0,
-					31
-				],
-				[
-					3,
-					1
-				]
+				[0, 31],
+				[3, 1]
 			],
 			"rows": [
 				{
@@ -1582,10 +1570,7 @@
 						"imageDate": "2022-06",
 						"cameraType": "gen4",
 						"nested": {
-							"a": [
-								1,
-								2
-							]
+							"a": [1, 2]
 						},
 						"panoType": 2,
 						"datetime": 1654411158

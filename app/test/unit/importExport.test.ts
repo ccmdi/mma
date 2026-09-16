@@ -8,9 +8,10 @@ import { LocationFlag } from "@/bindings.consts";
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		parseMapsUrl: async (input: string): Promise<ParsedLocation | null> => {
-			const vp = /^https:\/\/www\.google\.com\/maps\?map_action=pano&viewpoint=([-\d.]+),([-\d.]+)$/.exec(
-				input,
-			);
+			const vp =
+				/^https:\/\/www\.google\.com\/maps\?map_action=pano&viewpoint=([-\d.]+),([-\d.]+)$/.exec(
+					input,
+				);
 			if (!vp) return null;
 			return {
 				lat: parseFloat(vp[1]),
@@ -26,7 +27,11 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 
-import { parseCoordinates, parseUrlList, parsedLocationsToImportJson } from "@/lib/data/importExport";
+import {
+	parseCoordinates,
+	parseUrlList,
+	parsedLocationsToImportJson,
+} from "@/lib/data/importExport";
 
 describe("parseUrlList", () => {
 	it("parses multiple Google Maps URLs", async () => {

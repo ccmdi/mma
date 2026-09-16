@@ -44,14 +44,13 @@ export function PluginToolbar() {
 					</button>
 				</Tooltip>
 			))}
-			{modalPlugin &&
-				modalPlugin.modal && (
-					<PluginBoundary pluginId={modalPlugin.id}>
-						{createElement(modalPlugin.modal, {
-							onClose: () => setModalId(null),
-						})}
-					</PluginBoundary>
-				)}
+			{modalPlugin && modalPlugin.modal && (
+				<PluginBoundary pluginId={modalPlugin.id}>
+					{createElement(modalPlugin.modal, {
+						onClose: () => setModalId(null),
+					})}
+				</PluginBoundary>
+			)}
 		</>
 	);
 }
@@ -75,9 +74,7 @@ export const PluginLocationPanels = memo(function PluginLocationPanels() {
 						</>
 					}
 				>
-					<PluginBoundary pluginId={p.id}>
-						{createElement(p.locationPanel!)}
-					</PluginBoundary>
+					<PluginBoundary pluginId={p.id}>{createElement(p.locationPanel!)}</PluginBoundary>
 				</Section>
 			))}
 		</>

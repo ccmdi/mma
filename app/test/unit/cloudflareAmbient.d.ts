@@ -5,7 +5,11 @@
 // redefine DOM globals (Response, fetch, ...) and break everything else that assumes lib.dom.
 
 type R2Bucket = {
-	put(key: string, value: unknown, opts?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
+	put(
+		key: string,
+		value: unknown,
+		opts?: { httpMetadata?: { contentType?: string } },
+	): Promise<unknown>;
 	get(key: string): Promise<{
 		body: BodyInit;
 		httpMetadata?: { contentType?: string };

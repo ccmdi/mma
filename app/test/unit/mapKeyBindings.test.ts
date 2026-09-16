@@ -108,9 +108,9 @@ describe("tag binding helpers", () => {
 	it("a tag holds one key: reassigning drops its previous key", () => {
 		const next = withTagKeyBinding(base, 1, "z");
 		expect(getTagBindingKey(next, 1)).toBe("z");
-		expect(
-			next.filter((b) => b.action.type === "applyTag" && b.action.tagId === 1),
-		).toHaveLength(1);
+		expect(next.filter((b) => b.action.type === "applyTag" && b.action.tagId === 1)).toHaveLength(
+			1,
+		);
 	});
 
 	it("empty key clears the tag's binding", () => {

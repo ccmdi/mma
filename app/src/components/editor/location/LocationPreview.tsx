@@ -228,8 +228,8 @@ export function LocationPreview() {
 	);
 
 	const handleSave = useCallback(async () => {
-    if (!location || !pano.exists()) return;
-		
+		if (!location || !pano.exists()) return;
+
 		// The draft as it stands, never waiting on enrichment; the camera is read live, it moves per frame.
 		const draft = await settled();
 		if (!draft) return;
@@ -261,8 +261,8 @@ export function LocationPreview() {
 					extra: extraPatch(location.extra, draft.extra),
 				},
 			},
-    ]);
-		
+		]);
+
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
@@ -374,12 +374,11 @@ export function LocationPreview() {
 					{isFullscreen && (
 						<div className="fullscreen-topbar">
 							{appSettings.showFullscreenReviewBar && <ReviewBar />}
-							{appSettings.showFullscreenGeocode &&
-								(geo?.countryCode || geo?.address) && (
-									<div className="fullscreen-geocode">
-										<GeoSummary geo={geo} provider={geocodeProvider} />
-									</div>
-								)}
+							{appSettings.showFullscreenGeocode && (geo?.countryCode || geo?.address) && (
+								<div className="fullscreen-geocode">
+									<GeoSummary geo={geo} provider={geocodeProvider} />
+								</div>
+							)}
 						</div>
 					)}
 					{isFullscreen && (

@@ -34,8 +34,7 @@ const BODY = JSON.stringify([
 	[[2, 6]],
 ]);
 
-const PATH =
-	"/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/SingleImageSearch";
+const PATH = "/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/SingleImageSearch";
 
 function once(agent: http.Agent): Promise<void> {
 	return new Promise((resolve, reject) => {

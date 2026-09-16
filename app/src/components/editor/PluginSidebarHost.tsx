@@ -29,8 +29,8 @@ export function PluginSidebarHost() {
 				return (
 					<div key={id} style={{ display: inPluginMode && id === pluginId ? "contents" : "none" }}>
 						<PluginBoundary pluginId={id}>
-						<KeptSidebar onClose={exitPluginMode} />
-					</PluginBoundary>
+							<KeptSidebar onClose={exitPluginMode} />
+						</PluginBoundary>
 					</div>
 				);
 			})}

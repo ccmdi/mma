@@ -80,8 +80,8 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 
 	const open = useCallback((loc: Location, resolved: string | null) => {
 		setState({ ...loc, panoId: resolved ?? loc.panoId });
-  }, []);
-	
+	}, []);
+
 	const edit = useCallback(
 		(patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
 			setState((prev) => {
@@ -107,7 +107,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			const here = [{ lat: shown.lat, lng: shown.lng }];
 			const [atCoord] = await panosAt(here, SV_SEARCH_RADIUS, undefined, signal);
 
-      let timeline = shown.time;
+			let timeline = shown.time;
 			if (allUnofficial(timeline)) {
 				const [official] = await panosAt(
 					here,
@@ -116,8 +116,8 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 					signal,
 				);
 				timeline = mergeTimelines([official, shown]);
-      }
-			
+			}
+
 			return { currentPano: shown, timeline, defaultPano: atCoord ?? shown };
 		},
 		[draft?.panoId],
@@ -130,9 +130,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const geocodeProvider = useSetting("geocodeProvider");
 	const lookup = useAsync(
 		() =>
-			location && geocodeProvider !== "google"
-				? reverseGeocode(location.lat, location.lng)
-				: null,
+			location && geocodeProvider !== "google" ? reverseGeocode(location.lat, location.lng) : null,
 		[location?.lat, location?.lng, geocodeProvider],
 	);
 	const geo = useMemo(

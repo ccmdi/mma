@@ -253,8 +253,7 @@ describe("Import — nested objects in extra", () => {
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const meta = locs[0]?.extra?.meta as
-				| { source?: { name?: string; version?: number }; flags?: number[] }
-				| undefined;
+				{ source?: { name?: string; version?: number }; flags?: number[] } | undefined;
 			return {
 				count: locs.length,
 				label: locs[0]?.extra?.label,

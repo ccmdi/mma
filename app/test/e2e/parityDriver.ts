@@ -72,78 +72,92 @@ export async function setEnrich(fields: string[]): Promise<void> {
 }
 
 export async function addRows(rows: SeedRow[]): Promise<number[]> {
-	return withApi(async (api, batch, scope) => {
-		const a = api as unknown as Record<string, unknown>;
-		const make = a.createLocation as ((lat: number, lng: number) => Record<string, unknown>) | undefined;
-		const locs = (batch as SeedRow[]).map((r) => {
-			const base = make
-				? make(r.lat, r.lng)
-				: {
-						id: 0,
-						lat: r.lat,
-						lng: r.lng,
-						heading: 0,
-						pitch: 0,
-						zoom: 0,
-						panoId: null,
-						flags: 0,
-						tags: [],
-						createdAt: Math.floor(Date.now() / 1000),
-						modifiedAt: null,
-					};
-			return { ...base, lat: r.lat, lng: r.lng, extra: { imageDate: r.imageDate } };
-		});
-		await (a.addLocations as (l: unknown[]) => Promise<unknown>)(locs);
-		const all = (await (a.fetchLocations as (s: unknown) => Promise<Record<string, unknown>[]>)(
-			scope,
-		)) as Record<string, unknown>[];
-		return all.map((l) => Number(l.id));
-	}, rows, EVERYTHING);
+	return withApi(
+		async (api, batch, scope) => {
+			const a = api as unknown as Record<string, unknown>;
+			const make = a.createLocation as
+				((lat: number, lng: number) => Record<string, unknown>) | undefined;
+			const locs = (batch as SeedRow[]).map((r) => {
+				const base = make
+					? make(r.lat, r.lng)
+					: {
+							id: 0,
+							lat: r.lat,
+							lng: r.lng,
+							heading: 0,
+							pitch: 0,
+							zoom: 0,
+							panoId: null,
+							flags: 0,
+							tags: [],
+							createdAt: Math.floor(Date.now() / 1000),
+							modifiedAt: null,
+						};
+				return { ...base, lat: r.lat, lng: r.lng, extra: { imageDate: r.imageDate } };
+			});
+			await (a.addLocations as (l: unknown[]) => Promise<unknown>)(locs);
+			const all = (await (a.fetchLocations as (s: unknown) => Promise<Record<string, unknown>[]>)(
+				scope,
+			)) as Record<string, unknown>[];
+			return all.map((l) => Number(l.id));
+		},
+		rows,
+		EVERYTHING,
+	);
 }
 
 /** Fixture rows carry a pano, flags and pre-existing extras; `addRows` only carries a
  *  capture month. Both land through the same add call. */
 export async function addFixture(
-	rows: { lat: number; lng: number; panoId?: string | null; flags?: number; extra?: Record<string, unknown> }[],
+	rows: {
+		lat: number;
+		lng: number;
+		panoId?: string | null;
+		flags?: number;
+		extra?: Record<string, unknown>;
+	}[],
 ): Promise<number[]> {
-	return withApi(async (api, batch, scope) => {
-		const a = api as unknown as Record<string, unknown>;
-		const make = a.createLocation as
-			| ((lat: number, lng: number) => Record<string, unknown>)
-			| undefined;
-		const locs = (batch as Record<string, unknown>[]).map((r) => {
-			const lat = Number(r.lat);
-			const lng = Number(r.lng);
-			const base = make
-				? make(lat, lng)
-				: {
-						id: 0,
-						lat,
-						lng,
-						heading: 0,
-						pitch: 0,
-						zoom: 0,
-						panoId: null,
-						flags: 0,
-						tags: [],
-						createdAt: Math.floor(Date.now() / 1000),
-						modifiedAt: null,
-					};
-			return {
-				...base,
-				lat,
-				lng,
-				panoId: (r.panoId as string | undefined) ?? null,
-				flags: Number(r.flags ?? 0),
-				extra: (r.extra as Record<string, unknown> | undefined) ?? {},
-			};
-		});
-		await (a.addLocations as (l: unknown[]) => Promise<unknown>)(locs);
-		const all = (await (a.fetchLocations as (s: unknown) => Promise<Record<string, unknown>[]>)(
-			scope,
-		)) as Record<string, unknown>[];
-		return all.map((l) => Number(l.id));
-	}, rows, EVERYTHING);
+	return withApi(
+		async (api, batch, scope) => {
+			const a = api as unknown as Record<string, unknown>;
+			const make = a.createLocation as
+				((lat: number, lng: number) => Record<string, unknown>) | undefined;
+			const locs = (batch as Record<string, unknown>[]).map((r) => {
+				const lat = Number(r.lat);
+				const lng = Number(r.lng);
+				const base = make
+					? make(lat, lng)
+					: {
+							id: 0,
+							lat,
+							lng,
+							heading: 0,
+							pitch: 0,
+							zoom: 0,
+							panoId: null,
+							flags: 0,
+							tags: [],
+							createdAt: Math.floor(Date.now() / 1000),
+							modifiedAt: null,
+						};
+				return {
+					...base,
+					lat,
+					lng,
+					panoId: (r.panoId as string | undefined) ?? null,
+					flags: Number(r.flags ?? 0),
+					extra: (r.extra as Record<string, unknown> | undefined) ?? {},
+				};
+			});
+			await (a.addLocations as (l: unknown[]) => Promise<unknown>)(locs);
+			const all = (await (a.fetchLocations as (s: unknown) => Promise<Record<string, unknown>[]>)(
+				scope,
+			)) as Record<string, unknown>[];
+			return all.map((l) => Number(l.id));
+		},
+		rows,
+		EVERYTHING,
+	);
 }
 
 export interface EnrichRun {
@@ -159,8 +173,7 @@ export async function runEnrich(force = true): Promise<EnrichRun> {
 			const enrichAll = a.enrichAll as (t: unknown, o: unknown) => Promise<unknown>;
 			const start = Date.now();
 			const res = (await enrichAll(scope, { force: doForce })) as
-				| { id?: string; success?: unknown[]; failed?: unknown[] }[]
-				| undefined;
+				{ id?: string; success?: unknown[]; failed?: unknown[] }[] | undefined;
 			const durationMs = Date.now() - start;
 			const outcomes = (res ?? []).map((o) => ({
 				id: String(o.id ?? "?"),
@@ -259,21 +272,18 @@ export async function runValidate(): Promise<{
 	durationMs: number;
 	states: [number, number][];
 }> {
-	return withApi(
-		async (api, scope) => {
-			const a = api as unknown as Record<string, unknown>;
-			const validate = a.validateLocations as (t: unknown, o: unknown) => Promise<unknown>;
-			const start = Date.now();
-			const res = ((await validate(scope, {})) as { states?: Map<number, unknown[]> } | undefined)
-				?.states;
-			const states: [number, number][] = res
-				? [...res.entries()].map(([state, rows]) => [Number(state), rows.length])
-				: [];
-			states.sort((x, y) => x[0] - y[0]);
-			return { durationMs: Date.now() - start, states };
-		},
-		EVERYTHING,
-	);
+	return withApi(async (api, scope) => {
+		const a = api as unknown as Record<string, unknown>;
+		const validate = a.validateLocations as (t: unknown, o: unknown) => Promise<unknown>;
+		const start = Date.now();
+		const res = ((await validate(scope, {})) as { states?: Map<number, unknown[]> } | undefined)
+			?.states;
+		const states: [number, number][] = res
+			? [...res.entries()].map(([state, rows]) => [Number(state), rows.length])
+			: [];
+		states.sort((x, y) => x[0] - y[0]);
+		return { durationMs: Date.now() - start, states };
+	}, EVERYTHING);
 }
 
 /** Every row as the build left it: the parity diff's raw material. */
@@ -292,7 +302,9 @@ export async function dumpRows(): Promise<Record<string, unknown>[]> {
 				heading: l.heading,
 				extra: (l.extra ?? {}) as Record<string, unknown>,
 			}))
-			.sort((x, y) => (x.lat as number) - (y.lat as number) || (x.lng as number) - (y.lng as number));
+			.sort(
+				(x, y) => (x.lat as number) - (y.lat as number) || (x.lng as number) - (y.lng as number),
+			);
 	}, EVERYTHING);
 }
 
@@ -305,7 +317,10 @@ function stubPost(path: string, payload: string): Promise<number> {
 				path,
 				method: "POST",
 				timeout: 5000,
-				headers: { "content-type": "application/json", "content-length": Buffer.byteLength(payload) },
+				headers: {
+					"content-type": "application/json",
+					"content-length": Buffer.byteLength(payload),
+				},
 			},
 			(res) => {
 				res.resume();

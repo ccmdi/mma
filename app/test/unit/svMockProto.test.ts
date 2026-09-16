@@ -105,7 +105,10 @@ describe("svStubServer", () => {
 
 			const sis = await fetch(
 				`${base}/$rpc/google.internal.maps.mapsjs.v1.MapsJsInternalService/SingleImageSearch`,
-				{ method: "POST", body: timeProbe(52.10947502806108, 34.90131410856584, 100, 200) as BodyInit },
+				{
+					method: "POST",
+					body: timeProbe(52.10947502806108, 34.90131410856584, 100, 200) as BodyInit,
+				},
 			);
 			expect(await sis.text()).not.toContain("Search returned no images.");
 

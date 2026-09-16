@@ -953,8 +953,7 @@ export function BulkProgress({
 	}, [operation]);
 
 	if (!run) return null;
-	const { status, progress, total, done, rate, elapsed, parts, providerRates, error, result } =
-		run;
+	const { status, progress, total, done, rate, elapsed, parts, providerRates, error, result } = run;
 	const pct = Math.round(progress * 100);
 
 	return (

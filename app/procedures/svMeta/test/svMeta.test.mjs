@@ -68,7 +68,10 @@ function install(lookup) {
 function runProcedure(rows, lookup, { fields = null } = {}) {
 	const h = install(lookup);
 	const cfg = { fields: fields ?? [], force: false, config: null };
-	const patches = run(rows.map((r) => ({ ...EMPTY_ROW, ...r })), cfg).map((p) => {
+	const patches = run(
+		rows.map((r) => ({ ...EMPTY_ROW, ...r })),
+		cfg,
+	).map((p) => {
 		assert.deepEqual(Object.keys(p.patch), ["extra"], "patch entries must be LocationPatch-shaped");
 		return { id: p.id, patch: p.patch.extra };
 	});
@@ -91,9 +94,7 @@ const rowsFor = (panoIds, extra = null) =>
 // --- Derivation ---
 
 test("a full row yields all eight fields, in the order the field list names", () => {
-	const { patches, progress, failed } = runProcedure(rowsFor([CLASSIC_A]), (id) =>
-		full({ id }),
-	);
+	const { patches, progress, failed } = runProcedure(rowsFor([CLASSIC_A]), (id) => full({ id }));
 	assert.deepEqual(failed, []);
 	assert.equal(progress, 1);
 	assert.deepEqual(patches[0].patch, {
@@ -130,16 +131,13 @@ test("absent facts collapse to nulls and defaults", () => {
 });
 
 test("the pano type is the frontend the id belongs to", () => {
-	const { patches } = runProcedure(rowsFor([CLASSIC_A]), (id) =>
-		full({ id, panoFrontend: 10 }),
-	);
+	const { patches } = runProcedure(rowsFor([CLASSIC_A]), (id) => full({ id, panoFrontend: 10 }));
 	assert.equal(patches[0].patch.panoType, "10");
 });
 
 test("a pano that no longer exists fails the row instead of passing it", () => {
-	const { patches, progress, failed } = runProcedure(
-		rowsFor([CLASSIC_A, CLASSIC_B]),
-		(id) => (id === CLASSIC_B ? null : full({ id })),
+	const { patches, progress, failed } = runProcedure(rowsFor([CLASSIC_A, CLASSIC_B]), (id) =>
+		id === CLASSIC_B ? null : full({ id }),
 	);
 	assert.deepEqual(
 		patches.map((p) => p.id),

@@ -14,19 +14,19 @@ const mod: any = await import(
 	new URL("../../src-tauri/procedures/exactDate.js", import.meta.url).href
 );
 
-
 /** Coverage everywhere except at `deadLat`, which never has images. Records the event
  *  stream: one "fetch" per round, one "progress" per credited row. */
-function withHost<T>(deadLat: string, run: () => T): { out: T; events: string[]; failed: number[] } {
+function withHost<T>(
+	deadLat: string,
+	run: () => T,
+): { out: T; events: string[]; failed: number[] } {
 	const events: string[] = [];
 	const failed: number[] = [];
 	(globalThis as any).mma = {
 		panos: (queries: { lat: number }[]) => {
 			events.push("fetch");
 			return queries.map((q) =>
-				String(q.lat) === deadLat
-					? { state: "notFound" }
-					: { state: "found", pano: { id: "p" } },
+				String(q.lat) === deadLat ? { state: "notFound" } : { state: "found", pano: { id: "p" } },
 			);
 		},
 		log: () => {},
