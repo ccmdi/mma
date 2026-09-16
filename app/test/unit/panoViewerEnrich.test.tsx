@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, useState } from "react";
+import { act, useEffect, useState } from "react";
 import { mount } from "./fixtures/harness";
 import { createLocation, extraPatch } from "@/types";
 import type { Location } from "@/bindings.gen";
@@ -78,7 +78,9 @@ function Probe({ report }: { report: (v: Viewer) => void }) {
 
 function Host() {
 	const [, tick] = useState(0);
-	refresh = () => tick((n) => n + 1);
+	useEffect(() => {
+		refresh = () => tick((n) => n + 1);
+	}, []);
 	return (
 		<PanoViewerProvider>
 			<Probe report={(v) => (viewer = v)} />
