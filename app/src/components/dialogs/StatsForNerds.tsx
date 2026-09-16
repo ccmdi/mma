@@ -20,7 +20,7 @@ import {
 } from "@/lib/render/renderStats";
 import { t } from "@/lib/i18n";
 
-interface LiveStats {
+export interface LiveStats {
 	frame: FrameStats;
 	deck: DeckMetrics | null;
 	scene: RenderStats | null;
@@ -65,7 +65,8 @@ function statsRows(d: Diagnostics): [string, string | number][] {
 	];
 }
 
-function liveRows(live: LiveStats): [string, string][] {
+// eslint-disable-next-line react-refresh/only-export-components
+export function liveRows(live: LiveStats): [string, string][] {
 	const { frame, deck, scene } = live;
 	const rows: [string, string][] = [
 		["FPS", `${frame.fps} (p95 ${frame.p95.toFixed(1)} ms, worst ${frame.worst.toFixed(0)} ms)`],
@@ -88,7 +89,7 @@ function liveRows(live: LiveStats): [string, string][] {
 	}
 	if (deck) {
 		rows.push(
-			["Deck layers drawn", `${deck.drawLayersCount} of ${deck.layersCount}`],
+			["Deck layer draws", String(deck.drawLayersCount)],
 			["CPU / frame", `${deck.cpuTimePerFrame.toFixed(2)} ms`],
 		);
 		if (deck.gpuTimePerFrame > 0) {

@@ -24,6 +24,7 @@ import {
 export interface DeckMetrics {
 	fps: number;
 	layersCount: number;
+	/** Draws in the latest screen pass; one logical layer can draw in multiple viewports. */
 	drawLayersCount: number;
 	framesRedrawn: number;
 	gpuTime: number;
