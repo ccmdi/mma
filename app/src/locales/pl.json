@@ -452,7 +452,7 @@
 	"End measurement": "Zakończ pomiar",
 	"Endless": "Bez końca",
 	"Ends with": "Kończy się na",
-	"Engine (live)": "Silnik (na żywo)",
+	"Engine": "Silnik",
 	"Engine idle": "Silnik bezczynny",
 	"Enrich": "Wzbogać",
 	"Enrich locations": "Wzbogać lokalizacje",
@@ -1043,7 +1043,7 @@
 		"other": "Zmień nazwy {n} tagów w środku"
 	},
 	"Rename:": "Zmień nazwę:",
-	"Rendering (live)": "Renderowanie (na żywo)",
+	"Rendering": "Renderowanie",
 	"Replace": "Zamień",
 	"Replace with...": "Zamień na...",
 	"Replace {n} tags": {

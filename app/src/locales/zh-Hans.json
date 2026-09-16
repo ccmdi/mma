@@ -407,7 +407,7 @@
 	"End measurement": "结束测量",
 	"Endless": "无限",
 	"Ends with": "结尾为",
-	"Engine (live)": "引擎（实时）",
+	"Engine": "引擎",
 	"Engine idle": "引擎空闲",
 	"Enrich": "扩展",
 	"Enrich locations": "扩展位置",
@@ -962,7 +962,7 @@
 		"other": "重命名内部 {n} 个标签"
 	},
 	"Rename:": "重命名：",
-	"Rendering (live)": "渲染（实时）",
+	"Rendering": "渲染",
 	"Replace": "替换",
 	"Replace with...": "替换为…",
 	"Replace {n} tags": {

@@ -437,7 +437,7 @@
 	"End measurement": "Terminer la mesure",
 	"Endless": "Infini",
 	"Ends with": "Se termine par",
-	"Engine (live)": "Moteur (en direct)",
+	"Engine": "Moteur",
 	"Engine idle": "Moteur inactif",
 	"Enrich": "Enrichir",
 	"Enrich locations": "Enrichir les lieux",
@@ -1016,7 +1016,7 @@
 		"other": "Renommer {n} étiquettes à l'intérieur"
 	},
 	"Rename:": "Renommer :",
-	"Rendering (live)": "Rendu (en direct)",
+	"Rendering": "Rendu",
 	"Replace": "Remplacer",
 	"Replace with...": "Remplacer par...",
 	"Replace {n} tags": {

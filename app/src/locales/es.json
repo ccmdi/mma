@@ -437,7 +437,7 @@
 	"End measurement": "Finalizar la medición",
 	"Endless": "Sin fin",
 	"Ends with": "Termina con",
-	"Engine (live)": "Motor (en vivo)",
+	"Engine": "Motor",
 	"Engine idle": "Motor inactivo",
 	"Enrich": "Enriquecer",
 	"Enrich locations": "Enriquecer las ubicaciones",
@@ -1016,7 +1016,7 @@
 		"other": "Renombrar {n} etiquetas dentro"
 	},
 	"Rename:": "Renombrar:",
-	"Rendering (live)": "Renderizado (en vivo)",
+	"Rendering": "Renderizado",
 	"Replace": "Reemplazar",
 	"Replace with...": "Reemplazar con...",
 	"Replace {n} tags": {

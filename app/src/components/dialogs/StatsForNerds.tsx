@@ -204,16 +204,16 @@ export function StatsForNerds({ onClose }: { onClose: () => void }) {
 				<div className="stats-nerds__columns">
 					<div className="stats-nerds__column">
 						{stats && <StatTable rows={statsRows(stats)} />}
+					</div>
+					<div className="stats-nerds__column">
+						<h3 className="stats-nerds__heading">{t("Engine")}</h3>
+						<EngineSection activity={activity} />
 						{live && (
 							<>
-								<h3 className="stats-nerds__heading">{t("Rendering (live)")}</h3>
+								<h3 className="stats-nerds__heading">{t("Rendering")}</h3>
 								<StatTable rows={liveRows(live)} />
 							</>
 						)}
-					</div>
-					<div className="stats-nerds__column">
-						<h3 className="stats-nerds__heading">{t("Engine (live)")}</h3>
-						<EngineSection activity={activity} />
 					</div>
 				</div>
 			</DialogContent>

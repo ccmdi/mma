@@ -422,7 +422,7 @@
 	"End measurement": "Messung beenden",
 	"Endless": "Endlos",
 	"Ends with": "Endet mit",
-	"Engine (live)": "Engine (live)",
+	"Engine": "Engine",
 	"Engine idle": "Engine im Leerlauf",
 	"Enrich": "Anreichern",
 	"Enrich locations": "Standorte anreichern",
@@ -989,7 +989,7 @@
 		"other": "{n} Tags darin umbenennen"
 	},
 	"Rename:": "Umbenennen:",
-	"Rendering (live)": "Rendering (live)",
+	"Rendering": "Rendering",
 	"Replace": "Ersetzen",
 	"Replace with...": "Ersetzen durch...",
 	"Replace {n} tags": {

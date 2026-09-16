@@ -407,7 +407,7 @@
 	"End measurement": "計測を終了",
 	"Endless": "エンドレス",
 	"Ends with": "で終わる",
-	"Engine (live)": "エンジン（ライブ）",
+	"Engine": "エンジン",
 	"Engine idle": "エンジン待機中",
 	"Enrich": "エンリッチ",
 	"Enrich locations": "地点をエンリッチ",
@@ -962,7 +962,7 @@
 		"other": "内部の {n} 件のタグの名前を変更"
 	},
 	"Rename:": "名前を変更:",
-	"Rendering (live)": "レンダリング（ライブ）",
+	"Rendering": "レンダリング",
 	"Replace": "置換",
 	"Replace with...": "置換後の文字列...",
 	"Replace {n} tags": {
