@@ -10,8 +10,18 @@ import type { Bounds, LatLng } from "@/types";
 
 const CLIP_BATCH = 50_000;
 
-const MAX_TILES_PER_AXIS = 50;
-const FETCH_CONCURRENCY = 10;
+const MAX_TILES_PER_AXIS = 150;
+/** The axis cap whose zoom sets the point-density baseline that `keepRate` thins to. */
+const BASE_TILES_PER_AXIS = 50;
+const FETCH_CONCURRENCY = 24;
+const SCAN_YIELD_EVERY = 6;
+
+/** Finer tiles put the jittered probe on the road instead of somewhere in a coarse
+ *  pixel's cell; thinning each pixel back to the base zoom's line density keeps the
+ *  point supply, memory and clip cost where they were. */
+export function keepRate(zoom: number, baseZoom: number): number {
+	return Math.min(1, 2 ** (baseZoom - zoom));
+}
 
 /** Columns run east from the northwest tile, wrapping the world, so a region crossing
  *  the antimeridian counts forward instead of coming out negative and scanning nothing. */
@@ -20,7 +30,7 @@ function tileCols(nwX: number, seX: number, zoom: number): number {
 	return ((seX - nwX + perAxis) % perAxis) + 1;
 }
 
-function calculateZoom(b: Bounds, maxPerAxis: number) {
+export function calculateZoom(b: Bounds, maxPerAxis: number) {
 	const nwWorld = latLngToWorld({ lat: b.north, lng: b.west });
 	const seWorld = latLngToWorld({ lat: b.south, lng: b.east });
 	for (let zoom = 16; zoom >= 0; zoom--) {
@@ -82,6 +92,7 @@ function scanTile(
 	tileX: number,
 	tileY: number,
 	ctx: OffscreenCanvasRenderingContext2D,
+	keep: number,
 	pixelXs: number[],
 	pixelYs: number[],
 ) {
@@ -94,6 +105,7 @@ function scanTile(
 	for (let py = 0; py < TILE_SIZE; py++) {
 		for (let px = 0; px < TILE_SIZE; px++) {
 			if (data[(py * TILE_SIZE + px) * 4 + 3] > 0) {
+				if (keep < 1 && Math.random() >= keep) continue;
 				pixelXs.push(baseX + px);
 				pixelYs.push(baseY + py);
 			}
@@ -126,7 +138,10 @@ export function blueLineSource(
 		if (!box) return;
 		const bounds: Bounds = { west: box[0], south: box[1], east: box[2], north: box[3] };
 		const { zoom, nwTile, seTile, cols, rows } = calculateZoom(bounds, maxTilesPerAxis);
-		log.info(`[generator] Blue line: ${cols * rows} tiles (${cols}x${rows}) at zoom ${zoom}`);
+		const keep = keepRate(zoom, calculateZoom(bounds, BASE_TILES_PER_AXIS).zoom);
+		log.info(
+			`[generator] Blue line: ${cols * rows} tiles (${cols}x${rows}) at zoom ${zoom}, keeping ${Math.round(keep * 100)}% of pixels`,
+		);
 
 		const cfg = buildSamplerTileConfig();
 		const canvas = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
@@ -150,7 +165,10 @@ export function blueLineSource(
 			for (let b = 0; b < batch.length; b++) {
 				const bmp = bmps[b];
 				if (!bmp) continue;
-				scanTile(bmp, batch[b].tx, batch[b].ty, ctx, pixelXs, pixelYs);
+				scanTile(bmp, batch[b].tx, batch[b].ty, ctx, keep, pixelXs, pixelYs);
+				if (b % SCAN_YIELD_EVERY === SCAN_YIELD_EVERY - 1) {
+					await new Promise((resolve) => setTimeout(resolve));
+				}
 			}
 			if (pixelXs.length === 0) continue;
 			const candidates: LatLng[] = new Array(pixelXs.length);
