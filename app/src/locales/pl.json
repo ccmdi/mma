@@ -598,6 +598,7 @@
 	"High (640x360)": "Wysoka (640x360)",
 	"High ({size})": "Wysoka ({size})",
 	"History": "Historia",
+	"Hit rate: the share of answered probes that became a location, last 10 seconds": "Trafność: odsetek odpowiedzianych sond, które dały lokalizację, ostatnie 10 sekund",
 	"Hold + click for country (+Shift for subdivision)": "Przytrzymaj + kliknij, aby wybrać kraj (+Shift dla jednostki administracyjnej)",
 	"Hold + click to delete polygon": "Przytrzymaj + kliknij, aby usunąć wielokąt",
 	"Hold Alt to slow down map panning and pano look.": "Przytrzymaj Alt, aby spowolnić przesuwanie mapy i rozglądanie w pano.",
@@ -685,6 +686,7 @@
 	"Location settings": "Ustawienia lokalizacji",
 	"Location timezone": "Strefa czasowa lokalizacji",
 	"Locations": "Lokalizacje",
+	"Locations added per second, last 10 seconds": "Dodane lokalizacje na sekundę, ostatnie 10 sekund",
 	"Locations cap for all regions:": "Limit lokalizacji dla wszystkich regionów:",
 	"Locations per region:": "Lokalizacji na region:",
 	"Lock viewport direction": "Zablokuj kierunek widoku",
@@ -945,6 +947,7 @@
 	"Previous date cycle": "Poprzedni cykl dat",
 	"Previous location": "Poprzednia lokalizacja",
 	"Previous period": "Poprzedni okres",
+	"Probes answered per second, last 10 seconds": "Odpowiedziane sondy na sekundę, ostatnie 10 sekund",
 	"Provider": "Dostawca",
 	"Prune duplicates": "Usuń duplikaty",
 	"Pruned {n} duplicates": {

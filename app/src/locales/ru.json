@@ -598,6 +598,7 @@
 	"High (640x360)": "Высокое (640x360)",
 	"High ({size})": "Высокая ({size})",
 	"History": "История",
+	"Hit rate: the share of answered probes that became a location, last 10 seconds": "Точность: доля отвеченных проб, ставших локацией, за последние 10 секунд",
 	"Hold + click for country (+Shift for subdivision)": "Зажмите + клик для страны (+Shift для региона)",
 	"Hold + click to delete polygon": "Зажмите + клик, чтобы удалить полигон",
 	"Hold Alt to slow down map panning and pano look.": "Зажмите Alt, чтобы замедлить перемещение карты и обзор в pano.",
@@ -685,6 +686,7 @@
 	"Location settings": "Настройки локаций",
 	"Location timezone": "Часовой пояс локации",
 	"Locations": "Локации",
+	"Locations added per second, last 10 seconds": "Добавленные локации в секунду, за последние 10 секунд",
 	"Locations cap for all regions:": "Лимит локаций для всех регионов:",
 	"Locations per region:": "Локаций на регион:",
 	"Lock viewport direction": "Зафиксировать направление обзора",
@@ -945,6 +947,7 @@
 	"Previous date cycle": "Предыдущий цикл дат",
 	"Previous location": "Предыдущая локация",
 	"Previous period": "Предыдущий период",
+	"Probes answered per second, last 10 seconds": "Отвеченные пробы в секунду, за последние 10 секунд",
 	"Provider": "Провайдер",
 	"Prune duplicates": "Удалить дубликаты",
 	"Pruned {n} duplicates": {

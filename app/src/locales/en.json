@@ -564,6 +564,7 @@
 	"High (640x360)": "High (640x360)",
 	"High ({size})": "High ({size})",
 	"History": "History",
+	"Hit rate: the share of answered probes that became a location, last 10 seconds": "Hit rate: the share of answered probes that became a location, last 10 seconds",
 	"Hold + click for country (+Shift for subdivision)": "Hold + click for country (+Shift for subdivision)",
 	"Hold + click to delete polygon": "Hold + click to delete polygon",
 	"Hold Alt to slow down map panning and pano look.": "Hold Alt to slow down map panning and pano look.",
@@ -649,6 +650,7 @@
 	"Location settings": "Location settings",
 	"Location timezone": "Location timezone",
 	"Locations": "Locations",
+	"Locations added per second, last 10 seconds": "Locations added per second, last 10 seconds",
 	"Locations cap for all regions:": "Locations cap for all regions:",
 	"Locations per region:": "Locations per region:",
 	"Lock viewport direction": "Lock viewport direction",
@@ -903,6 +905,7 @@
 	"Previous date cycle": "Previous date cycle",
 	"Previous location": "Previous location",
 	"Previous period": "Previous period",
+	"Probes answered per second, last 10 seconds": "Probes answered per second, last 10 seconds",
 	"Provider": "Provider",
 	"Prune duplicates": "Prune duplicates",
 	"Pruned {n} duplicates": {

@@ -547,6 +547,7 @@
 	"High (640x360)": "高（640x360）",
 	"High ({size})": "高（{size}）",
 	"History": "履歴",
+	"Hit rate: the share of answered probes that became a location, last 10 seconds": "ヒット率:応答した探索のうち地点になった割合(直近10秒)",
 	"Hold + click for country (+Shift for subdivision)": "押しながらクリックで国を選択（+Shift で行政区画）",
 	"Hold + click to delete polygon": "押しながらクリックでポリゴンを削除",
 	"Hold Alt to slow down map panning and pano look.": "Alt を押している間、マップのパンとパノラマの視点移動が遅くなります。",
@@ -631,6 +632,7 @@
 	"Location settings": "地点設定",
 	"Location timezone": "現地タイムゾーン",
 	"Locations": "地点",
+	"Locations added per second, last 10 seconds": "1秒あたりの追加地点数(直近10秒)",
 	"Locations cap for all regions:": "全地域の地点数上限:",
 	"Locations per region:": "地域ごとの地点数:",
 	"Lock viewport direction": "ビューポートの向きを固定",
@@ -882,6 +884,7 @@
 	"Previous date cycle": "前の日付サイクル",
 	"Previous location": "前の地点",
 	"Previous period": "前の期間",
+	"Probes answered per second, last 10 seconds": "1秒あたりの応答探索数(直近10秒)",
 	"Provider": "プロバイダー",
 	"Prune duplicates": "重複を除去",
 	"Pruned {n} duplicates": {

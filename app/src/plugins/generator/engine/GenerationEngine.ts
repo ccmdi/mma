@@ -16,6 +16,7 @@ import { isOfficialPano } from "@/lib/sv/panoId";
 import { panosAt } from "@/lib/sv/query";
 import { distMeters, lerpLng, unionBounds } from "@/lib/geo/geo";
 import { searchCoverage } from "../searchCoverage";
+import { RateWindow } from "./rateWindow";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { chunk } from "@/lib/util/util";
@@ -62,6 +63,8 @@ export class GenerationEngine {
 	private pendingBatch: GeneratedLocation[] = [];
 	private flushTimer: ReturnType<typeof setTimeout> | null = null;
 	private pointSources = new Map<string, Promise<PointSource>>();
+	private answered = new RateWindow();
+	private accepted = new RateWindow();
 
 	constructor(
 		settings: GeneratorSettings,
@@ -173,6 +176,17 @@ export class GenerationEngine {
 		const resolvers = this.pauseResolvers.splice(0);
 		for (const resolve of resolvers) resolve();
 		this.flushBatch(); // flush any locations held back while paused
+	}
+
+	/** Observed rates over the last ten seconds: probes answered, locations added, and
+	 *  the share of answers that became a location. */
+	stats(): { probesPerSec: number; locsPerSec: number; hitRate: number | null } {
+		const answers = this.answered.inWindow();
+		return {
+			probesPerSec: this.answered.perSecond(),
+			locsPerSec: this.accepted.perSecond(),
+			hitRate: answers > 0 ? this.accepted.inWindow() / answers : null,
+		};
 	}
 
 	/** Aggregate found/target over the engine's current regions. */
@@ -487,6 +501,8 @@ export class GenerationEngine {
 		const threshold = Math.max(1, Math.ceil(coords.length * ROUND_OVERLAP_AT));
 		let received = 0;
 		let found = 0;
+		let lastArrival = performance.now();
+		let maxGap = 0;
 		let reachedMost!: () => void;
 		const mostlyDone = new Promise<void>((resolve) => (reachedMost = resolve));
 
@@ -513,6 +529,10 @@ export class GenerationEngine {
 			if (seen[index]) return;
 			seen[index] = 1;
 			received++;
+			this.answered.add(1);
+			const now = performance.now();
+			maxGap = Math.max(maxGap, now - lastArrival);
+			lastArrival = now;
 			if (received === threshold) reachedMost();
 			if (!pano) return;
 			// Paused or stopped while the lookup was in flight: drop the result.
@@ -543,7 +563,7 @@ export class GenerationEngine {
 				for (let i = 0; i < panos.length; i++) handle(i, panos[i]);
 				const probeMs = Math.max(1, performance.now() - probeStart);
 				log.debug(
-					`[generator] probed ${coords.length} in ${Math.round(probeMs)}ms (${Math.round((coords.length * 1000) / probeMs)} search/s), ${found} panos`,
+					`[generator] probed ${coords.length} in ${Math.round(probeMs)}ms (${Math.round((coords.length * 1000) / probeMs)} search/s), ${found} panos, max answer gap ${Math.round(maxGap)}ms`,
 				);
 			} finally {
 				flushSeeds();
@@ -708,6 +728,7 @@ export class GenerationEngine {
 
 		region.found.push(loc);
 		this.pendingBatch.push(loc);
+		this.accepted.add(1);
 		this.callbacks.onProgress(region.id, region.found.length, region.target);
 
 		if (this.pendingBatch.length >= 200) {

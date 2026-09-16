@@ -60,6 +60,10 @@ export function getGeneratorStatus(): GeneratorStatus {
 	return run.engine.isPaused() ? "paused" : "running";
 }
 
+export function getGeneratorStats(): ReturnType<GenerationEngine["stats"]> | null {
+	return run?.engine.stats() ?? null;
+}
+
 /** Generate over `regions`, tagging finds with `tagName`. False while a run is already live,
  *  so a double click starts one run. */
 export function startGeneration(

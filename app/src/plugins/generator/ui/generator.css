@@ -32,6 +32,26 @@
 	line-height: 1.4;
 }
 
+.generator-sidebar__stats {
+	display: flex;
+	gap: 1rem;
+	font-size: 0.8rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-2);
+}
+
+.generator-sidebar__stat {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.generator-sidebar__stat-icon {
+	display: inline-flex;
+	cursor: help;
+	opacity: 0.7;
+}
+
 .generator-settings {
 	display: flex;
 	flex-direction: column;

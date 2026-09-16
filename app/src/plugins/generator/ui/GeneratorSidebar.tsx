@@ -12,6 +12,7 @@ import { Sidebar, Section } from "@/components/primitives/Sidebar";
 import { searchCoverage } from "../searchCoverage";
 import {
 	GENERATOR_CHANGED,
+	getGeneratorStats,
 	getGeneratorStatus,
 	pauseGeneration,
 	resumeGeneration,
@@ -21,6 +22,9 @@ import {
 	updateGenerationSettings,
 	updateGenerationTargets,
 } from "../session";
+import { Icon } from "@/components/primitives/Icon";
+import { Tooltip } from "@/components/primitives/Tooltip";
+import { mdiBullseyeArrow, mdiRadar, mdiSpeedometer } from "@mdi/js";
 import { MONTHS, ymParse } from "@/lib/util/date";
 import { formatDistance } from "@/lib/util/format";
 import "./generator.css";
@@ -56,6 +60,47 @@ function selectionToRegion(sel: Selection, meta: GeneratorRegionMeta): Generator
 }
 
 let sessionMeta: Map<string, GeneratorRegionMeta> = new Map();
+
+function Stat({ icon, hint, value }: { icon: string; hint: string; value: string }) {
+	return (
+		<span className="generator-sidebar__stat">
+			<Tooltip content={hint}>
+				<span className="generator-sidebar__stat-icon" aria-label={hint}>
+					<Icon path={icon} size={14} />
+				</span>
+			</Tooltip>
+			{value}
+		</span>
+	);
+}
+
+function StatsRow() {
+	const [stats, setStats] = useState(getGeneratorStats);
+	useEffect(() => {
+		const poll = setInterval(() => setStats(getGeneratorStats()), 1000);
+		return () => clearInterval(poll);
+	}, []);
+	if (!stats) return null;
+	return (
+		<div className="generator-sidebar__stats mono">
+			<Stat
+				icon={mdiBullseyeArrow}
+				hint={t("Hit rate: the share of answered probes that became a location, last 10 seconds")}
+				value={stats.hitRate == null ? "--" : `${Math.round(stats.hitRate * 100)}%`}
+			/>
+			<Stat
+				icon={mdiSpeedometer}
+				hint={t("Locations added per second, last 10 seconds")}
+				value={t("{rate}/s", { rate: Math.round(stats.locsPerSec) })}
+			/>
+			<Stat
+				icon={mdiRadar}
+				hint={t("Probes answered per second, last 10 seconds")}
+				value={t("{rate}/s", { rate: Math.round(stats.probesPerSec) })}
+			/>
+		</div>
+	);
+}
 
 function formatYearMonth(ym: string) {
 	const p = ymParse(ym);
@@ -278,6 +323,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			</Section>
 
 			<div className="generator-sidebar__footer">
+				{running && <StatsRow />}
 				<p className="generator-sidebar__summary">{summarizeSettings(settings)}</p>
 				<div className="generator-sidebar__actions">
 					{!running ? (

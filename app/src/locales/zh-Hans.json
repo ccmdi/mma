@@ -547,6 +547,7 @@
 	"High (640x360)": "高（640x360）",
 	"High ({size})": "高（{size}）",
 	"History": "历史",
+	"Hit rate: the share of answered probes that became a location, last 10 seconds": "命中率:已应答探测中成为位置的比例(最近10秒)",
 	"Hold + click for country (+Shift for subdivision)": "按住 + 点击选国家（+Shift 选行政区）",
 	"Hold + click to delete polygon": "按住 + 点击删除多边形",
 	"Hold Alt to slow down map panning and pano look.": "按住 Alt 可减慢地图平移和全景视角转动。",
@@ -631,6 +632,7 @@
 	"Location settings": "位置设置",
 	"Location timezone": "位置时区",
 	"Locations": "位置",
+	"Locations added per second, last 10 seconds": "每秒新增位置数(最近10秒)",
 	"Locations cap for all regions:": "所有区域的位置上限：",
 	"Locations per region:": "每区域位置数：",
 	"Lock viewport direction": "锁定视口方向",
@@ -882,6 +884,7 @@
 	"Previous date cycle": "上一日期周期",
 	"Previous location": "上一个位置",
 	"Previous period": "上一周期",
+	"Probes answered per second, last 10 seconds": "每秒应答探测数(最近10秒)",
 	"Provider": "提供商",
 	"Prune duplicates": "剔除重复",
 	"Pruned {n} duplicates": {
