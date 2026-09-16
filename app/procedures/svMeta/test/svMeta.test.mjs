@@ -205,9 +205,9 @@ test("field selection writes only the selected key, even with derived fields to 
 	assert.deepEqual(patches[0].patch, { countryCode: "JP" });
 });
 
-test("a fully deselected provider with nothing stale writes nothing", () => {
+test("an empty field list writes every field", () => {
 	const { patches } = configured([], { imageDate: "2021-06" });
-	assert.deepEqual(patches, []);
+	assert.ok(["countryCode", "imageDate", "cameraType"].every((k) => k in patches[0].patch));
 });
 
 // --- query ---
