@@ -34,6 +34,12 @@ function regionContains(region: GeneratorRegion, points: LatLng[]): Promise<bool
 	);
 }
 
+/** Share of a probe round that must have answered before the next round launches. */
+const ROUND_OVERLAP_AT = 0.9;
+const MAX_ROUNDS_IN_FLIGHT = 4;
+const SEED_BATCH = 100;
+const SEED_DELAY = 50;
+
 const SILENT: GenerationCallbacks = {
 	onLocationsFound: () => {},
 	onProgress: () => {},
@@ -267,6 +273,7 @@ export class GenerationEngine {
 			this.pointSources.set(region.id, source);
 		}
 		const take = await source;
+		const rounds = this.roundLauncher(region);
 
 		while (await this.proceed(region)) {
 			region.isProcessing = true;
@@ -274,8 +281,9 @@ export class GenerationEngine {
 			if (batch.length === 0) break;
 			const coords = await this.withoutExisting(batch);
 			if (coords.length === 0) continue;
-			await this.probeAll(coords, region);
+			await rounds.launch(coords);
 		}
+		await rounds.drain();
 
 		this.pointSources.delete(region.id);
 	}
@@ -405,6 +413,7 @@ export class GenerationEngine {
 
 	private async generateRegionRandom(region: GeneratorRegion): Promise<void> {
 		let coveredRounds = 0;
+		const rounds = this.roundLauncher(region);
 
 		while (await this.proceed(region)) {
 			region.isProcessing = true;
@@ -423,8 +432,38 @@ export class GenerationEngine {
 			}
 			if (randomCoords.length === 0) break;
 
-			await this.probeAll(randomCoords, region);
+			await rounds.launch(randomCoords);
 		}
+		await rounds.drain();
+	}
+
+	/** Rounds overlap: the next launches once most of the current one has answered, so a
+	 *  straggling request cannot drain the pipe. findRegions stays strictly serial. */
+	private roundLauncher(region: GeneratorRegion) {
+		const rounds = new Set<Promise<void>>();
+		let failure: unknown;
+		const surface = () => {
+			if (failure !== undefined) throw failure;
+		};
+		return {
+			launch: async (coords: LatLng[]) => {
+				surface();
+				if (this.settings.findRegions) return this.probeAll(coords, region);
+				const round = this.probeCoords(coords, region);
+				const settled: Promise<void> = round.settled
+					.catch((e: unknown) => {
+						failure ??= e ?? new Error("probe round failed");
+					})
+					.finally(() => rounds.delete(settled));
+				rounds.add(settled);
+				if (rounds.size >= MAX_ROUNDS_IN_FLIGHT) await Promise.race(rounds);
+				await round.mostlyDone;
+			},
+			drain: async () => {
+				await Promise.all(rounds);
+				surface();
+			},
+		};
 	}
 
 	private async probeAll(coords: LatLng[], region: GeneratorRegion): Promise<void> {
@@ -432,68 +471,112 @@ export class GenerationEngine {
 		const size = this.settings.findRegions ? 1 : coords.length || 1;
 		for (const batch of chunk(coords, size)) {
 			if (!(await this.proceed(region))) return;
-			await this.probeCoords(batch, region);
+			await this.probeCoords(batch, region).settled;
 		}
 	}
 
-	private async probeCoords(coords: LatLng[], region: GeneratorRegion): Promise<void> {
+	/** One probe round. Each answer is handled the moment it streams in; `mostlyDone`
+	 *  settles once `ROUND_OVERLAP_AT` of them are in, `settled` when the round is over. */
+	private probeCoords(
+		coords: LatLng[],
+		region: GeneratorRegion,
+	): { mostlyDone: Promise<void>; settled: Promise<void> } {
 		for (const c of coords) searchCoverage.addProbe(c.lng, c.lat);
 		const s = this.settings;
+		const seen = new Uint8Array(coords.length);
+		const threshold = Math.max(1, Math.ceil(coords.length * ROUND_OVERLAP_AT));
+		let received = 0;
+		let found = 0;
+		let reachedMost!: () => void;
+		const mostlyDone = new Promise<void>((resolve) => (reachedMost = resolve));
 
-		// The search answers the metadata too, so there is no second lookup.
-		const panos = (
-			await panosAt(
-				coords,
-				s.radius,
-				s.rejectUnofficial ? { sources: [PanoType.Official] } : undefined,
-				this.abort.signal,
-			)
-		).filter((p) => p !== null);
-		if (panos.length === 0) return;
-
-		// Paused or stopped while the lookups were in flight: drop the results.
-		if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
-
-		const seeds: string[] = [];
-		for (let i = 0; i < panos.length; i++) {
-			const pano = panos[i];
-			if (!pano || !passesInitialFilters(pano, s)) continue;
-
-			if (s.findRegions) {
-				const coord = { lat: pano.lat, lng: pano.lng };
-				if (region.found.some((f) => distMeters(f, coord) < s.regionRadius * 1000)) continue;
+		let seeds: string[] = [];
+		let seedTimer: ReturnType<typeof setTimeout> | null = null;
+		const flushSeeds = () => {
+			if (seedTimer) {
+				clearTimeout(seedTimer);
+				seedTimer = null;
 			}
+			if (seeds.length === 0) return;
+			const batch = seeds;
+			seeds = [];
+			this.walk(batch, region, 0);
+		};
+		const handle = (index: number, pano: Pano | null) => {
+			if (seen[index]) return;
+			seen[index] = 1;
+			received++;
+			if (received === threshold) reachedMost();
+			if (!pano) return;
+			// Paused or stopped while the lookup was in flight: drop the result.
+			if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
+			found++;
+			seeds.push(...this.seedsFrom(pano, region));
+			if (seeds.length >= SEED_BATCH) flushSeeds();
+			else if (seeds.length > 0 && !seedTimer) seedTimer = setTimeout(flushSeeds, SEED_DELAY);
+		};
 
-			const dateResult = passesDateFilters(pano, s);
-			if (dateResult === false) continue;
-
-			if (s.randomInTimeline && pano.time?.length) {
-				const entry = pano.time[Math.floor(Math.random() * pano.time.length)];
-				if (entry.date) {
-					const ym = entry.date.slice(0, 7);
-					if (Date.parse(ym) < Date.parse(s.fromDate) || Date.parse(ym) > Date.parse(s.toDate)) {
-						continue;
-					}
-				}
-				seeds.push(entry.panoId);
-				continue;
+		const probeStart = performance.now();
+		const settled = (async () => {
+			try {
+				// The search answers the metadata too, so there is no second lookup.
+				const panos = await panosAt(
+					coords,
+					s.radius,
+					s.rejectUnofficial ? { sources: [PanoType.Official] } : undefined,
+					this.abort.signal,
+					handle,
+				);
+				for (let i = 0; i < panos.length; i++) handle(i, panos[i]);
+				const probeMs = Math.max(1, performance.now() - probeStart);
+				log.debug(
+					`[generator] probed ${coords.length} in ${Math.round(probeMs)}ms (${Math.round((coords.length * 1000) / probeMs)} search/s), ${found} panos`,
+				);
+			} finally {
+				flushSeeds();
+				reachedMost();
 			}
+		})();
+		return { mostlyDone, settled };
+	}
 
-			if (dateResult === "checkAll" && pano.time) {
-				const fromDate = Date.parse(s.fromDate);
-				const toDate = Date.parse(s.toDate);
-				for (const entry of pano.time) {
-					if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
-					if (!entry.date) continue;
-					const ym = entry.date.slice(0, 7);
-					if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) seeds.push(entry.panoId);
-				}
-			} else {
-				seeds.push(pano.id);
-			}
+	private seedsFrom(pano: Pano, region: GeneratorRegion): string[] {
+		const s = this.settings;
+		if (!passesInitialFilters(pano, s)) return [];
+
+		if (s.findRegions) {
+			const coord = { lat: pano.lat, lng: pano.lng };
+			if (region.found.some((f) => distMeters(f, coord) < s.regionRadius * 1000)) return [];
 		}
 
-		this.walk(seeds, region, 0);
+		const dateResult = passesDateFilters(pano, s);
+		if (dateResult === false) return [];
+
+		if (s.randomInTimeline && pano.time?.length) {
+			const entry = pano.time[Math.floor(Math.random() * pano.time.length)];
+			if (entry.date) {
+				const ym = entry.date.slice(0, 7);
+				if (Date.parse(ym) < Date.parse(s.fromDate) || Date.parse(ym) > Date.parse(s.toDate)) {
+					return [];
+				}
+			}
+			return [entry.panoId];
+		}
+
+		if (dateResult === "checkAll" && pano.time) {
+			const seeds: string[] = [];
+			const fromDate = Date.parse(s.fromDate);
+			const toDate = Date.parse(s.toDate);
+			for (const entry of pano.time) {
+				if (s.rejectUnofficial && !isOfficialPano(entry.panoId)) continue;
+				if (!entry.date) continue;
+				const ym = entry.date.slice(0, 7);
+				if (Date.parse(ym) >= fromDate && Date.parse(ym) <= toDate) seeds.push(entry.panoId);
+			}
+			return seeds;
+		}
+
+		return [pano.id];
 	}
 
 	/** The walk runs alongside the probing rather than holding it up, so a region keeps
