@@ -692,6 +692,43 @@ describe("GenerationEngine stop", () => {
 	});
 });
 
+describe("GenerationEngine probe batching", () => {
+	it("probes a round's coordinates in one search, not fixed sub-chunks", async () => {
+		const sizes: number[] = [];
+		emptyProbe((points) => {
+			sizes.push(points.length);
+			engine.stop();
+		});
+		const engine = new GenerationEngine(
+			permissive({ numGenerators: 1, speed: 300 }),
+			[A()],
+			noopCallbacks,
+		);
+
+		await engine.start();
+
+		// One search carried the whole round; the engine schedules it under its inflight budget.
+		expect(sizes[0]).toBe(300);
+	});
+
+	it("probes one at a time when findRegions dedups against prior finds", async () => {
+		const sizes: number[] = [];
+		emptyProbe((points) => {
+			sizes.push(points.length);
+			if (sizes.length >= 3) engine.stop();
+		});
+		const engine = new GenerationEngine(
+			permissive({ numGenerators: 1, speed: 300, findRegions: true }),
+			[A()],
+			noopCallbacks,
+		);
+
+		await engine.start();
+
+		expect(sizes.slice(0, 3)).toEqual([1, 1, 1]);
+	});
+});
+
 // --- Grow (kernels) sampling ---
 
 // A chain p0 -> p1 -> ... inside region A, each pano linking only to its successor.

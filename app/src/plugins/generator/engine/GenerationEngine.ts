@@ -428,7 +428,9 @@ export class GenerationEngine {
 	}
 
 	private async probeAll(coords: LatLng[], region: GeneratorRegion): Promise<void> {
-		for (const batch of chunk(coords, this.settings.findRegions ? 1 : 75)) {
+		// findRegions accepts each pano against region.found as it goes, so it probes one at a time
+		const size = this.settings.findRegions ? 1 : coords.length || 1;
+		for (const batch of chunk(coords, size)) {
 			if (!(await this.proceed(region))) return;
 			await this.probeCoords(batch, region);
 		}
