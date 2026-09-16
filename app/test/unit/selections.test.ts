@@ -21,7 +21,6 @@ import {
 	composeWithChild,
 	replaceSelection,
 	sampleIds,
-	polygonSelectionsContaining,
 	isolateGhostKeys,
 	rewriteSelectionFields,
 	toggleGhost,
@@ -1164,76 +1163,6 @@ describe("isolateGhostKeys", () => {
 
 	it("un-isolates a lone visible selection (no-op toward visible)", () => {
 		expect(isolateGhostKeys(["a"], new Set(), "a")).toEqual(new Set());
-	});
-});
-
-describe("polygonSelectionsContaining", () => {
-	const square = (_key: string, ox: number, oy: number) =>
-		buildSelection({
-			type: "Polygon",
-			polygon: {
-				coordinates: [
-					[
-						[ox, oy],
-						[ox + 2, oy],
-						[ox + 2, oy + 2],
-						[ox, oy + 2],
-						[ox, oy],
-					],
-				],
-				extraPolygons: null,
-			},
-		});
-
-	it("returns keys of polygons containing the point (lng/lat order)", () => {
-		const a = { ...square("a", 0, 0), key: "a" };
-		const b = { ...square("b", 10, 10), key: "b" };
-		// point at lng=1, lat=1 -> inside a only
-		expect(polygonSelectionsContaining([a, b], 1, 1)).toEqual(["a"]);
-	});
-
-	it("returns every overlapping polygon", () => {
-		const a = { ...square("a", 0, 0), key: "a" };
-		const b = { ...square("b", 1, 1), key: "b" };
-		expect(polygonSelectionsContaining([a, b], 1.5, 1.5).sort()).toEqual(["a", "b"]);
-	});
-
-	it("ignores non-Polygon selections and misses", () => {
-		const a = { ...square("a", 0, 0), key: "a" };
-		const tag = { ...buildSelection({ type: "Tag", tagId: 1 }), key: "t" };
-		expect(polygonSelectionsContaining([a, tag], 50, 50)).toEqual([]);
-	});
-
-	it("matches inside an extraPolygons part (MultiPolygon)", () => {
-		const sel = {
-			...buildSelection({
-				type: "Polygon",
-				polygon: {
-					coordinates: [
-						[
-							[0, 0],
-							[2, 0],
-							[2, 2],
-							[0, 2],
-							[0, 0],
-						],
-					],
-					extraPolygons: [
-						[
-							[
-								[10, 10],
-								[12, 10],
-								[12, 12],
-								[10, 12],
-								[10, 10],
-							],
-						],
-					],
-				},
-			}),
-			key: "multi",
-		};
-		expect(polygonSelectionsContaining([sel], 11, 11)).toEqual(["multi"]);
 	});
 });
 

@@ -53,16 +53,14 @@ import { fmt } from "@/lib/util/format";
 import { rgbCss } from "@/lib/util/color";
 import { getMapHost } from "@/lib/map/mapState";
 import type { MapHost } from "@/lib/map/host";
-import { polygonBbox } from "@/lib/geo/geo";
+import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
 
 async function fitSelectionBounds(host: MapHost, selection: Selection) {
-	if (selection.selector.type === "Polygon") {
-		const bounds = polygonBbox(selection.selector.polygon);
-		if (bounds) host.fitBounds(bounds, 100);
-		return;
-	}
-	const box = await fetchBounds(selection.selector);
+	const box =
+		selection.selector.type === "Polygon"
+			? await cmd.polygonBounds(selection.selector.polygon)
+			: await fetchBounds(selection.selector);
 	if (box) host.fitBounds({ west: box[0], south: box[1], east: box[2], north: box[3] }, 100);
 }
 

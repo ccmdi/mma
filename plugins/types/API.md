@@ -667,10 +667,6 @@ million-id selection is not a megabyte-long React key.
 
 ### `OP_LABELS: Record<"has" | "nothas" | "eq" | "neq" | "contains" | "notcontains" | "gt" | "lt" | "gte" | "lte" | "between" | "between_anyyear" | "between_anytime", string>`
 
-### `polygonSelectionsContaining(selections: Selection[], lat: number, lng: number): string[]`
-
-Keys of every Polygon selection whose geometry contains the point.
-
 ### `removeFromComposite(parentKey: string, childKey: string): (current: Selection[]) => Selection[]`
 
 Remove a child from a composite, ungrouping any nested group's children into the parent.
@@ -2081,11 +2077,13 @@ Write text to a temp file and return its path. `name` is a leaf filename
 
 ## Tauri
 
-### `dialog: { open: any; save: any; }`
+### `dialog: { open: <T extends OpenDialogOptions>(options?: T | undefined) => Promise<OpenDialogReturn<T>>; save: (options?: SaveDialogOptions | undefined) => Promise<...>; }`
 
-### `invoke: any`
+### `invoke<T>(cmd: string, args?: InvokeArgs | undefined, options?: InvokeOptions | undefined): Promise<T>`
 
-### `shell: { Command: any; }`
+Sends a message to the backend.
+
+### `shell: { Command: typeof Command; }`
 
 Tauri primitives, handed to plugins as-is.
 
@@ -2271,71 +2269,76 @@ The nested `sidecar` namespace on the plugin surface.
 
 ### `ui`
 
-#### `ui.Button({ variant, small, type, className, ...props }: any): react.JSX.Element`
+#### `ui.Button({ variant, small, type, className, ...props }: ClassAttributes<HTMLButtonElement> & ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant | undefined; small?: boolean | undefined; }): Element`
 
-#### `ui.Checkbox({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element`
+#### `ui.Checkbox({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
 
-#### `ui.ColorPicker({ color, onChange, ariaLabel, }: { color: RGB; onChange: (color: RGB) => void; ariaLabel?: string | undefined; }): react.JSX.Element`
+#### `ui.ColorPicker({ color, onChange, ariaLabel, }: { color: RGB; onChange: (color: RGB) => void; ariaLabel?: string | undefined; }): Element`
 
 A color swatch that opens the picker in a popover on click.
 
-#### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): react.JSX.Element`
+#### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): Element`
 
-#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<ComponentProps<any>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): react.JSX.Element`
+#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<Props<unknown>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
 
-#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: any): react.JSX.Element`
+#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; }): Element`
 
-#### `ui.DialogTrigger: Dialog$1.Trigger`
+#### `ui.DialogTrigger<Payload>(componentProps: DialogTriggerProps<Payload> & RefAttributes<HTMLElement>): Element`
 
-#### `ui.EmptyState({ icon, children }: { icon?: string | undefined; children: ReactNode; }): react.JSX.Element`
+A button that opens the dialog.
+Renders a `<button>` element.
+
+Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
+
+#### `ui.EmptyState({ icon, children }: { icon?: string | undefined; children: ReactNode; }): Element`
 
 Centered icon + message for empty panels.
 
-#### `ui.Field({ label, hint, row, children, }: { label: ReactNode; hint?: any; row?: boolean | undefined; children: ReactNode; }): react.JSX.Element`
+#### `ui.Field({ label, hint, row, children, }: { label: ReactNode; hint?: ReactNode; row?: boolean | undefined; children: ReactNode; }): Element`
 
 Labelled form row (label left, control right) for sidebar sections.
 
-#### `ui.Flag({ code, height, className, }: { code: string | null; height?: number | undefined; className?: string | undefined; }): any`
+#### `ui.Flag({ code, height, className, }: { code: string | null; height?: number | undefined; className?: string | undefined; }): Element | null`
 
 Country flag from the bundled SVG set. Renders nothing for a missing or malformed code.
 
-#### `ui.HotkeyInput({ value, onChange, }: { value: string; onChange: (combo: string) => void; }): react.JSX.Element`
+#### `ui.HotkeyInput({ value, onChange, }: { value: string; onChange: (combo: string) => void; }): Element`
 
 Click-to-record key combo input. Backspace/Delete clears, Escape cancels.
 
-#### `ui.Icon({ path, size, className, style }: IconProps): react.JSX.Element`
+#### `ui.Icon({ path, size, className, style }: IconProps): Element`
 
-#### `ui.NSelect({ className, onWheel, ...props }: ComponentPropsWithRef<"select">): react.JSX.Element`
+#### `ui.NSelect({ className, onWheel, ...props }: DetailedHTMLProps<SelectHTMLAttributes<HTMLSelectElement>, HTMLSelectElement>): Element`
 
-#### `ui.Radio({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element`
+#### `ui.Radio({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
 
-#### `ui.RgbPicker({ color, onChange }: { color: RGB; onChange: (color: RGB) => void; }): react.JSX.Element`
+#### `ui.RgbPicker({ color, onChange }: { color: RGB; onChange: (color: RGB) => void; }): Element`
 
 The picker surface itself, debounced. Sole place the `{r,g,b}` shape react-colorful
 wants exists -- every caller in the app passes and receives an [r, g, b] tuple.
 
-#### `ui.Section({ title, defaultOpen, collapsible, addons, children, }: { title: ReactNode; defaultOpen?: boolean | undefined; collapsible?: boolean | undefined; addons?: any; children: ReactNode; }): react.JSX.Element`
+#### `ui.Section({ title, defaultOpen, collapsible, addons, children, }: { title: ReactNode; defaultOpen?: boolean | undefined; collapsible?: boolean | undefined; addons?: ReactNode; children: ReactNode; }): Element`
 
 Collapsible titled section inside a Sidebar.
 
-#### `ui.SegmentedControl<T extends string | number>({ options, value, onChange, className, }: { options: SegmentedOption<T>[]; value: T; onChange: (value: T) => void; className?: string | undefined; }): react.JSX.Element`
+#### `ui.SegmentedControl<T extends string | number>({ options, value, onChange, className, }: { options: SegmentedOption<T>[]; value: T; onChange: (value: T) => void; className?: string | undefined; }): Element`
 
 Row of mutually exclusive option buttons (a compact radio group).
 
-#### `ui.SelectorPicker({ ctl, className, }: { ctl: SelectorPickController; className?: string | undefined; }): react.JSX.Element`
+#### `ui.SelectorPicker({ ctl, className, }: { ctl: SelectorPickController; className?: string | undefined; }): Element`
 
-#### `ui.SettingRow(props: BoolRow | ControlRow | AutoBoolRow): any`
+#### `ui.SettingRow(props: BoolRow | ControlRow | AutoBoolRow): Element | null`
 
-#### `ui.Sidebar({ title, onBack, actions, className, flush, children, }: { title: ReactNode; onBack?: (() => void) | undefined; actions?: any; className?: string | undefined; flush?: boolean | undefined; children: ReactNode; }): react.JSX.Element`
+#### `ui.Sidebar({ title, onBack, actions, className, flush, children, }: { title: ReactNode; onBack?: (() => void) | undefined; actions?: ReactNode; className?: string | undefined; flush?: boolean | undefined; children: ReactNode; }): Element`
 
 Standard right-hand sidebar chrome (title, back button, scrollable body). Use for plugin sidebars.
 
-#### `ui.Slider({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element`
+#### `ui.Slider({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
 
 Range input whose track fills with the accent up to the current value.
 Controlled only: the fill derives from the value prop.
 
-#### `ui.SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: { value: string; onChange: (v: string) => void; suggestions: T[]; onPick: (item: T) => void; renderItem: (item: T) => ReactNode; getKey: (item: T) => string | number; placeholder?: string | undefined; ... 8 more ...; portal?: boolean | undefined; }): react.JSX.Element`
+#### `ui.SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: { value: string; onChange: (v: string) => void; suggestions: T[]; onPick: (item: T) => void; renderItem: (item: T) => ReactNode; getKey: (item: T) => string | number; ... 9 more ...; portal?: boolean | undefined; }): Element`
 
 Autocomplete input: owns open/close state, outside-click dismissal,
 Enter-picks-first, and Escape-closes. Suggestion sourcing stays at the call
@@ -2343,9 +2346,9 @@ site (sync filter or debounced fetch) — the dropdown shows whenever
 `suggestions` is non-empty and not dismissed. Default classes render the
 standard `.search-results` dropdown; override them for other skins.
 
-#### `ui.Switch({ checked, onChange, disabled, label, }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean | undefined; label?: string | undefined; }): react.JSX.Element`
+#### `ui.Switch({ checked, onChange, disabled, label, }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean | undefined; label?: string | undefined; }): Element`
 
-#### `ui.SwitchRow({ checked, onChange, label, disabled, className, children, }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean | undefined; className?: string | undefined; children?: any; }): react.JSX.Element`
+#### `ui.SwitchRow({ checked, onChange, label, disabled, className, children, }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean | undefined; className?: string | undefined; children?: ReactNode; }): Element`
 
 A compact, control-left row whose whole surface toggles an immediate-effect
 boolean. The Switch owns keyboard + a11y; the row forwards mouse clicks to
@@ -2353,20 +2356,20 @@ the same toggle. The control wrapper stops propagation so a direct switch
 click does not also fire the row handler. Used by MapSettingsPanel and any
 surface outside the Settings dialog (SettingRow is the Settings dialog row).
 
-#### `ui.TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): react.JSX.Element`
+#### `ui.TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): Element`
 
 The one tag pill. Owns the tag color's rendering: every surface that shows a tag
 goes through here, so the look changes in one place.
 
-#### `ui.TagPillButton({ variant, className, ...props }: any): react.JSX.Element`
+#### `ui.TagPillButton({ variant, className, ...props }: ClassAttributes<HTMLButtonElement> & ButtonHTMLAttributes<HTMLButtonElement> & { variant: TagPillButtonVariant; }): Element`
 
 The leading affordance inside a TagPill: remove, apply, or open the editor.
 
-#### `ui.TextInput({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element`
+#### `ui.TextInput({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
 
-#### `ui.ToolBlock(props: ToolBlockProps): react.JSX.Element`
+#### `ui.ToolBlock(props: ToolBlockProps): Element`
 
-#### `ui.Tooltip({ content, side, align, children, }: { content: string; side?: Side | undefined; align?: Align | undefined; children: ReactElement; }): ReactElement<Record<string, unknown>, any>`
+#### `ui.Tooltip({ content, side, align, children, }: { content: string; side?: Side | undefined; align?: Align | undefined; children: ReactElement<unknown, string | JSXElementConstructor<any>>; }): ReactElement<...>`
 
 Marks its child as a tooltip trigger. Adds attributes to the existing element instead of
 wrapping it, so a trigger costs no extra fibers and hovering re-renders only the single

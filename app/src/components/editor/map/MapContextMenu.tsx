@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useEffect, useState } from "react";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
 import {
 	useIsMeasuring,
@@ -41,7 +41,16 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 	const anchor = useEventValue("anchor:changed", getLatLngAnchor);
 	// Read during render: the popup unmounts on close, so this is the click just handled.
 	const { location, latLng } = getContextMenuTarget();
-	const polygonCount = polygonsAt(latLng.lat, latLng.lng).length;
+	const [polygonCount, setPolygonCount] = useState(0);
+	useEffect(() => {
+		let live = true;
+		void polygonsAt(latLng.lat, latLng.lng).then((keys) => {
+			if (live) setPolygonCount(keys.length);
+		});
+		return () => {
+			live = false;
+		};
+	}, [latLng.lat, latLng.lng]);
 
 	return (
 		<ContextMenu.Positioner className="menu-positioner">
@@ -124,7 +133,7 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 				<ContextMenu.Item
 					className="context-menu__item"
 					disabled={polygonCount === 0}
-					onClick={() => deletePolygonsAt(latLng.lat, latLng.lng)}
+					onClick={() => void deletePolygonsAt(latLng.lat, latLng.lng)}
 				>
 					{polygonCount > 1
 						? t(

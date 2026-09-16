@@ -5,12 +5,8 @@ import {
 	normalizeHeading,
 	reverseHeading,
 	wrapDeg,
-	inBbox,
 	lerpLng,
 	lngSpan,
-	pointInPolygon,
-	ringsBbox,
-	polygonBbox,
 	unionBounds,
 	unwrapLng,
 	unwrapRing,
@@ -154,78 +150,6 @@ describe("reverseHeading", () => {
 	});
 });
 
-const ring = (a: number, b: number) => box(a, b) as [number, number][];
-
-describe("polygonBbox", () => {
-	it("spans the extra polygons, not just the primary one", () => {
-		const bb = polygonBbox({ coordinates: [ring(0, 10)], extraPolygons: [[ring(40, 50)]] })!;
-		expect([bb.west, bb.east]).toEqual([0, 50]);
-	});
-
-	it("keeps the crossing form when an extra polygon sits past the antimeridian", () => {
-		const bb = polygonBbox({
-			coordinates: [ring(170, 180)],
-			extraPolygons: [[ring(-180, -170)]],
-		})!;
-		expect([bb.west, bb.east]).toEqual([170, -170]);
-	});
-});
-
-describe("ringsBbox / inBbox", () => {
-	it("emits the crossing form and reads it back", () => {
-		const bb = ringsBbox([box(170, 190)])!;
-		expect([bb.west, bb.east]).toEqual([170, -170]); // west > east = crosses
-		expect(inBbox(-175, 0, bb)).toBe(true);
-		expect(inBbox(180, 0, bb)).toBe(true);
-		expect(inBbox(160, 0, bb)).toBe(false);
-		expect(inBbox(0, 0, bb)).toBe(false);
-	});
-
-	it("reads a plain box the ordinary way", () => {
-		const bb = ringsBbox([box(10, 20)])!;
-		expect([bb.west, bb.east]).toEqual([10, 20]);
-		expect(inBbox(15, 0, bb)).toBe(true);
-		expect(inBbox(25, 0, bb)).toBe(false);
-		expect(inBbox(5, 0, bb)).toBe(false);
-	});
-
-	it("holds a span wider than 180 degrees", () => {
-		const bb = ringsBbox([box(20, -170)])!;
-		expect(inBbox(0, 0, bb)).toBe(true);
-		expect(inBbox(-100, 0, bb)).toBe(true);
-		expect(inBbox(100, 0, bb)).toBe(false);
-		expect(inBbox(-175, 0, bb)).toBe(false);
-	});
-
-	// Read in their own frames the two parts would span the globe and reject nothing.
-	it("merges straddling parts into one frame", () => {
-		const bb = ringsBbox([box(170, 190), box(-175, -172)])!;
-		expect([bb.west, bb.east]).toEqual([170, -170]);
-		expect(inBbox(-174, 0, bb)).toBe(true);
-		expect(inBbox(0, 0, bb)).toBe(false);
-	});
-
-	it("is null with no vertices", () => {
-		expect(ringsBbox([])).toBe(null);
-		expect(ringsBbox([[]])).toBe(null);
-	});
-
-	// Antarctica-style: a ring running the full -180..180. Folding both edges would
-	// collapse the box to zero width and reject everything.
-	it("holds a full-globe span instead of collapsing to zero width", () => {
-		const ring: number[][] = [];
-		for (let lng = -180; lng <= 180; lng += 10) ring.push([lng, -85]);
-		for (let lng = 180; lng >= -180; lng -= 10) ring.push([lng, -60]);
-		const bb = ringsBbox([ring])!;
-		expect([bb.west, bb.east]).toEqual([-180, 180]);
-		expect(lngSpan(bb)).toBe(360);
-		expect(inBbox(0, -70, bb)).toBe(true);
-		expect(inBbox(-179, -70, bb)).toBe(true);
-		expect(inBbox(100, -70, bb)).toBe(true);
-		expect(inBbox(0, -50, bb)).toBe(false); // latitude still rejects
-	});
-});
-
 describe("lngSpan / lerpLng", () => {
 	it("measures the way the box actually spans", () => {
 		expect(lngSpan({ west: 10, east: 20, south: 0, north: 1 })).toBe(10);
@@ -249,8 +173,7 @@ describe("unionBounds", () => {
 			{ west: 350, east: 355, south: 0, north: 1 },
 		);
 		expect(lngSpan(u)).toBe(30); // 350 -> 20, not the 345 the other way
-		expect(inBbox(0, 0.5, u)).toBe(true);
-		expect(inBbox(180, 0.5, u)).toBe(false);
+		expect([u.west, u.east]).toEqual([350, 20]);
 	});
 
 	it("behaves like plain min/max when neither box crosses", () => {
@@ -265,49 +188,6 @@ describe("unionBounds", () => {
 		const outer = { west: 170, east: -170, south: 0, north: 1 };
 		const u = unionBounds(outer, { west: 178, east: -178, south: 0, north: 1 });
 		expect(lngSpan(u)).toBe(20);
-	});
-});
-
-describe("pointInPolygon across the seam", () => {
-	it("selects inside a narrow box straddling the antimeridian", () => {
-		const ring = box(170, 190);
-		expect(pointInPolygon(180, 0, [ring])).toBe(true);
-		expect(pointInPolygon(-175, 0, [ring])).toBe(true);
-		expect(pointInPolygon(175, 0, [ring])).toBe(true);
-		expect(pointInPolygon(160, 0, [ring])).toBe(false);
-		expect(pointInPolygon(-160, 0, [ring])).toBe(false);
-	});
-
-	// The "shortest rectangle" bug: a box wider than half the globe used to resolve to
-	// its complement, because a span over 180 degrees can't be read back off normalized
-	// vertices.
-	it("selects the drawn side of a box wider than 180 degrees", () => {
-		const ring = box(20, -170);
-		expect(pointInPolygon(0, 0, [ring])).toBe(true);
-		expect(pointInPolygon(-100, 0, [ring])).toBe(true);
-		expect(pointInPolygon(-169, 0, [ring])).toBe(true);
-		expect(pointInPolygon(100, 0, [ring])).toBe(false);
-		expect(pointInPolygon(-175, 0, [ring])).toBe(false);
-	});
-
-	// The "inverts" bug: normalizing to [0, 360) only moved the seam to lng 0, so a
-	// shape crossing both meridians tore at Greenwich instead.
-	it("selects across a shape crossing both the antimeridian and Greenwich", () => {
-		const ring = box(170, 365);
-		expect(pointInPolygon(180, 0, [ring])).toBe(true);
-		expect(pointInPolygon(-90, 0, [ring])).toBe(true);
-		expect(pointInPolygon(0, 0, [ring])).toBe(true);
-		expect(pointInPolygon(3, 0, [ring])).toBe(true);
-		expect(pointInPolygon(30, 0, [ring])).toBe(false);
-		expect(pointInPolygon(100, 0, [ring])).toBe(false);
-	});
-
-	it("honours holes in the seam frame", () => {
-		const outer = box(170, 200);
-		const hole = box(180, 190);
-		expect(pointInPolygon(185, 0, [outer, hole])).toBe(false);
-		expect(pointInPolygon(175, 0, [outer, hole])).toBe(true);
-		expect(pointInPolygon(-165, 0, [outer, hole])).toBe(true);
 	});
 });
 

@@ -8,7 +8,6 @@ import { formatDistance, localDateTime, utcDateTime } from "@/lib/util/format";
 import { batch, clamp, isVariant, unionTuple, type Variant } from "@/types/util";
 export { batch };
 import { ValidationState } from "@/bindings.consts";
-import { pointInPolygon } from "@/lib/geo/geo";
 import { getSettings } from "@/store/settings";
 import { dayMonthFmt } from "@/lib/util/format";
 import { t, msg } from "@/lib/i18n";
@@ -339,22 +338,6 @@ export const addSelection =
 	(selector: Selector) =>
 	(current: Selection[]): Selection[] =>
 		dedupe([...current, buildSelection(selector)]);
-
-/** Keys of every Polygon selection whose geometry contains the point. */
-export function polygonSelectionsContaining(
-	selections: Selection[],
-	lat: number,
-	lng: number,
-): string[] {
-	const keys: string[] = [];
-	for (const sel of selections) {
-		if (sel.selector.type !== "Polygon") continue;
-		const { coordinates, extraPolygons } = sel.selector.polygon;
-		const polys = extraPolygons ? [coordinates, ...extraPolygons] : [coordinates];
-		if (polys.some((rings) => pointInPolygon(lng, lat, rings))) keys.push(sel.key);
-	}
-	return keys;
-}
 
 /** Remove a selection by key. Composites unwrap their children back into the list. */
 export const removeSelection =
