@@ -22,6 +22,7 @@
 import {
 	waitForReady,
 	createAndOpenMap,
+	openMap,
 	closeMap,
 	deleteMap,
 	withApi,
@@ -320,8 +321,7 @@ describe("Content Security Policy", function () {
 			location.hash = "#";
 		});
 
-		await withApi(async (api, id) => api._test.openMap(id), mapId);
-		await browser.$(".page-map-editor").waitForExist();
+		await openMap(mapId);
 	});
 
 	it("reported no CSP violations", async () => {

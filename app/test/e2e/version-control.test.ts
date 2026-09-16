@@ -6,6 +6,7 @@ import {
 	createTag,
 	getAllLocs,
 	getLocCount,
+	openMap,
 	withApi,
 	useMap,
 } from "./helpers";
@@ -111,7 +112,7 @@ describe("Version control - checkout", () => {
 	it("checkout result survives save/load", async () => {
 		await flushAndWait();
 		await closeMap();
-		await withApi(async (api, id) => api._test.openMap(id), map.id);
+		await openMap(map.id);
 
 		const count = await getLocCount();
 		expect(count).toBe(2);

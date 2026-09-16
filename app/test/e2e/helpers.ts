@@ -51,19 +51,8 @@ export async function clearInput(selector: string) {
 }
 
 export async function createAndOpenMap(name: string): Promise<string> {
-	const id = await withApi(async (api, n) => {
-		const map = await api.cmd.storeCreateMap(n, null);
-		await api._test.openMap(map.id);
-		return map.id;
-	}, name);
-	// The editor mounts asynchronously after open and runs init effects (render fill,
-	// plugin activation). Seeding/selecting before that settles is racy, so gate here
-	// centrally: wait for the editor DOM, then a short settle for its post-mount effects.
-	// (helpers.ts is exempt from the no-fixed-sleep rule; this is the one sanctioned spot.)
-	await browser
-		.$(".page-map-editor")
-		.waitForExist({ timeoutMsg: "map editor never mounted after open" });
-	await browser.pause(300);
+	const id = await withApi(async (api, n) => (await api.cmd.storeCreateMap(n, null)).id, name);
+	await openMap(id);
 	return id;
 }
 
@@ -88,8 +77,12 @@ export function useMap(name: string, opts: { closeLocation?: boolean } = {}) {
 	return ref;
 }
 
+/** Open a map and wait for its editor to load the scene, which selected ids resolve against. */
 export async function openMap(id: string) {
 	await withApi(async (api, mapId) => api._test.openMap(mapId), id);
+	await browser.waitUntil(() => withApi((api) => api.mapOpen.seen.has("markers")), {
+		timeoutMsg: `map ${id} never loaded its scene`,
+	});
 }
 
 export async function closeMap() {
