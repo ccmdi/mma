@@ -333,9 +333,8 @@ describe("blockBrowserAccelerators", () => {
 
 describe("isActivationElement", () => {
 	function el(html: string): HTMLElement {
-		const host = document.createElement("div");
-		host.innerHTML = html;
-		return host.firstElementChild as HTMLElement;
+		const doc = new DOMParser().parseFromString(html, "text/html");
+		return doc.body.firstElementChild as HTMLElement;
 	}
 
 	it("claims Enter for controls that activate on it", () => {

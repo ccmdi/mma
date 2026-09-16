@@ -561,7 +561,7 @@ describe("cross-language render delta contract", () => {
 	});
 
 	it("f32-precision coordinates land in the typed arrays exactly", () => {
-		const lat = Math.fround(51.123456789012345);
+		const lat = Math.fround(51.1234567890123);
 		const lng = Math.fround(2.294738201745632);
 		mgr.applyDelta(delta({ added: [entry("u", 1, lng, lat, 0)] }));
 		const cb = mgr.cells.get("u")!;
@@ -650,7 +650,7 @@ describe("cross-language render delta contract", () => {
 		off += 4;
 
 		const lng1 = Math.fround(2.294738201745632);
-		const lat1 = Math.fround(51.123456789012345);
+		const lat1 = Math.fround(51.1234567890123);
 		const lng2 = Math.fround(13.404954);
 		const lat2 = Math.fround(52.520008);
 		dv.setFloat32(off, lng1, true);
