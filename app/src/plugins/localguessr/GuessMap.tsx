@@ -1,15 +1,7 @@
 import { fetchBounds, fetchColumns, sampleFrom } from "@/store/useMapStore";
-import {
-	useCallback,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	useState,
-	type CSSProperties,
-} from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type React from "react";
-import { ScatterplotLayer, PathLayer } from "@deck.gl/layers";
-import { PathStyleExtension } from "@deck.gl/extensions";
+import { ScatterplotLayer } from "@deck.gl/layers";
 import { Icon } from "@/components/primitives/Icon";
 import {
 	mdiLayers,
@@ -19,17 +11,10 @@ import {
 	mdiMagnifyMinusOutline,
 	mdiScatterPlot,
 } from "@mdi/js";
-import {
-	createMapHost,
-	hostInstance,
-	hostKindForMapType,
-	type DeckOverlayHandle,
-	type MapHost,
-} from "@/lib/map/host";
-import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
+import { hostInstance } from "@/lib/map/host";
 import { google } from "@/lib/sv/opensv";
 import type * as maplibregl from "maplibre-gl";
-import { useLocalStorage, getLocal } from "@/lib/hooks/useLocalStorage";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { useSetting } from "@/store/settings";
 import { usePluginState } from "@/plugins/registry";
@@ -40,6 +25,14 @@ import { t } from "@/lib/i18n";
 import type { Selector } from "@/bindings.gen";
 import type { LatLng, MapTypeKey } from "@/types";
 import { hexToRgb, resolveSvColorHex, type RGB } from "@/lib/util/color";
+import {
+	GUESS_COLOR,
+	TRUTH_COLOR,
+	pinLayers,
+	resultLineLayer,
+	useGameMap,
+	useSettledZoom,
+} from "./gameMap";
 
 // Sizing mirrors the pano viewer minimap. Grows in layout, never by transform --
 // a CSS-scaled map container misreports click coordinates.
@@ -48,8 +41,6 @@ const SCALE_STEP = 0.25;
 const BASE_W = 800;
 const BASE_H = 600;
 const BASEMAPS: MapTypeKey[] = ["map", "satellite", "osm", "vector"];
-const GUESS_COLOR: RGB = [64, 133, 244];
-const TRUTH_COLOR: RGB = [76, 175, 80];
 const POOL_POINTS = 10_000;
 const POOL_RADIUS = 3;
 
@@ -91,62 +82,6 @@ function poolLayer(positions: Float32Array, color: RGB) {
 	});
 }
 
-/** A pin and its shadow halo, so the circle separates from same-colored basemap. */
-function pinLayers(id: string, at: LatLng, color: RGB, pickable: boolean) {
-	return [
-		new ScatterplotLayer({
-			id: `${id}-halo`,
-			data: [at],
-			getPosition: (d: LatLng) => [d.lng, d.lat],
-			getFillColor: [0, 0, 0, 90],
-			radiusUnits: "pixels",
-			getRadius: 11,
-			pickable: false,
-		}),
-		new ScatterplotLayer({
-			id,
-			data: [at],
-			getPosition: (d: LatLng) => [d.lng, d.lat],
-			getFillColor: color,
-			getLineColor: [255, 255, 255],
-			getLineWidth: 2,
-			lineWidthUnits: "pixels",
-			stroked: true,
-			radiusUnits: "pixels",
-			getRadius: 8,
-			pickable,
-		}),
-	];
-}
-
-/** Dashed guess-to-answer line, GeoGuessr contract: everything is anchored to the
- *  map (common units + high-precision dash), so mid-animation the pattern scales
- *  with the world like a texture; it re-normalizes to standard pixel size exactly
- *  once per settled zoom, via `settledZoom`. */
-function resultLineLayer(guess: LatLng, truth: LatLng, settledZoom: number) {
-	// Under the maps overlay, deck's zoom sits one below the host's; one common
-	// unit is 2^(zoom-1) screen px, so this width reads as 2.5px at the settled zoom.
-	const width = 2.5 / 2 ** (settledZoom - 1);
-	return new PathLayer({
-		id: "lg-line",
-		data: [
-			{
-				path: [
-					[guess.lng, guess.lat],
-					[truth.lng, truth.lat],
-				],
-			},
-		],
-		getPath: (d: { path: [number, number][] }) => d.path,
-		getColor: [25, 25, 25, 240],
-		getWidth: width,
-		widthUnits: "common",
-		capRounded: true,
-		getDashArray: [4, 3],
-		extensions: [new PathStyleExtension({ dash: true, highPrecisionDash: true })],
-	});
-}
-
 /**
  * The guess map. One MapHost for the whole game: toggling play/result only swaps
  * CSS and layers, because recreating it burns a WebGL context every round.
@@ -175,9 +110,6 @@ export function GuessMap({
 }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
-	const hostRef = useRef<MapHost | null>(null);
-	const overlayRef = useRef<DeckOverlayHandle | null>(null);
-	const [ready, setReady] = useState(false);
 	const [scale, setScale] = usePluginState<number>("localguessr", "mapScale", 1);
 	const [showPool, setShowPool] = usePluginState<boolean>("localguessr", "showPool", false);
 	const [pool, setPool] = useState<Float32Array | null>(null);
@@ -216,64 +148,18 @@ export function GuessMap({
 		svPanoramas: false,
 		svVisible: false,
 	};
-	const hostKind = hostKindForMapType(basemap);
 
-	useLayoutEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
-		let cancelled = false;
-		const div = document.createElement("div");
-		div.style.cssText = "position:absolute;inset:0";
-		container.appendChild(div);
-
-		void (async () => {
-			try {
-				// Bounds up front so per-round fits stay synchronous -- awaiting IPC inside
-				// the fit paints a frame of the previous round's camera.
-				const [host, bounds] = await Promise.all([
-					createMapHost(hostKind, div, guessPrefs, {
-						customStyles: getLocal<CustomStyle[]>(CUSTOM_STYLES_KEY, []),
-						camera: { center: { lat: 20, lng: 0 }, zoom: 1.5 },
-						scaleControl: false,
-					}),
-					fetchBounds(selector),
-				]);
-				if (cancelled) {
-					host.destroy();
-					return;
-				}
-				boundsRef.current = bounds;
-				host.setCursor("crosshair");
-				hostRef.current = host;
-				overlayRef.current = host.createDeckOverlay();
-				fitToLocations();
-				setReady(true);
-			} catch {
-				if (!cancelled) setReady(false);
-			}
-		})();
-
-		return () => {
-			cancelled = true;
-			overlayRef.current?.finalize();
-			overlayRef.current = null;
-			hostRef.current?.destroy();
-			hostRef.current = null;
-			div.remove();
-			setReady(false);
-		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- engine kind only; prefs apply in place
-	}, [hostKind]);
-
-	// Same engine (map/satellite/osm all share one Google instance): restyle in place.
-	useEffect(() => {
-		const host = hostRef.current;
-		if (!host || !ready || hostKindForMapType(basemap) !== host.kind) return;
-		host.applyPrefs(guessPrefs, {
-			customStyles: getLocal<CustomStyle[]>(CUSTOM_STYLES_KEY, []),
-		});
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- guessPrefs is derived from basemap
-	}, [basemap, ready]);
+	const { hostRef, overlayRef, ready } = useGameMap(containerRef, guessPrefs, {
+		// Bounds up front so per-round fits stay synchronous -- awaiting IPC inside
+		// the fit paints a frame of the previous round's camera.
+		prepare: async () => {
+			boundsRef.current = await fetchBounds(selectorRef.current);
+		},
+		onReady: (host) => {
+			host.setCursor("crosshair");
+			fitToLocations();
+		},
+	});
 
 	useEffect(() => {
 		const host = hostRef.current;
@@ -296,25 +182,14 @@ export function GuessMap({
 			ml.on("click", onClick);
 			return () => void ml.off("click", onClick);
 		}
-	}, [ready]);
+	}, [hostRef, ready]);
 
 	const [hoveredPin, setHoveredPin] = useState<ResultPin | null>(null);
 	useEffect(() => {
 		hostRef.current?.setCursor(showResult ? (hoveredPin ? "pointer" : null) : "crosshair");
-	}, [showResult, hoveredPin]);
+	}, [hostRef, showResult, hoveredPin]);
 
-	// The line re-normalizes once per zoom level (the `zoom` event fires per step,
-	// already carrying the target value) and simply scales with the map in between.
-	const [settledZoom, setSettledZoom] = useState<number | null>(null);
-	useEffect(() => {
-		const host = hostRef.current;
-		if (!host || !ready || !showResult) {
-			setSettledZoom(null);
-			return;
-		}
-		setSettledZoom(host.getZoom());
-		return host.on("zoom", () => setSettledZoom(hostRef.current?.getZoom() ?? null));
-	}, [ready, showResult]);
+	const settledZoom = useSettledZoom(hostRef, ready && showResult);
 
 	useEffect(() => {
 		if (!showPool || pool) return;
@@ -338,10 +213,12 @@ export function GuessMap({
 		const layers = [];
 		if (showPool && pool) layers.push(poolLayer(pool, hexToRgb(resolveSvColorHex(prefs.svColor))));
 		if (showResult && truth && guess && settledZoom !== null) {
-			layers.push(resultLineLayer(guess, truth, settledZoom));
+			layers.push(resultLineLayer("lg-line", [{ guess, truth }], settledZoom));
 		}
-		if (guess) layers.push(...pinLayers("lg-guess", guess, GUESS_COLOR, showResult));
-		if (showResult && truth) layers.push(...pinLayers("lg-truth", truth, TRUTH_COLOR, showResult));
+		if (guess) layers.push(...pinLayers("lg-guess", [guess], GUESS_COLOR, showResult));
+		if (showResult && truth) {
+			layers.push(...pinLayers("lg-truth", [truth], TRUTH_COLOR, showResult));
+		}
 		overlay.setProps({
 			layers,
 			onClick: (info) => {
@@ -350,7 +227,7 @@ export function GuessMap({
 			},
 			onHover: (info) => setHoveredPin(PIN_KIND[info.layer?.id ?? ""] ?? null),
 		});
-	}, [guess, truth, showResult, ready, settledZoom, showPool, pool, prefs.svColor]);
+	}, [overlayRef, guess, truth, showResult, ready, settledZoom, showPool, pool, prefs.svColor]);
 
 	const fitToLocations = useCallback(() => {
 		const host = hostRef.current;
@@ -360,7 +237,7 @@ export function GuessMap({
 		if (!b) return;
 		host.fitBounds({ west: b[0], south: b[1], east: b[2], north: b[3] }, 0, { snap: true });
 		host.setZoom((host.getZoom() ?? 1) + 1);
-	}, []);
+	}, [hostRef]);
 
 	// The only thing that moves the play camera.
 	useEffect(() => {
@@ -392,13 +269,16 @@ export function GuessMap({
 	// Resize only; the camera is not ours to move here.
 	useEffect(() => {
 		if (ready) hostRef.current?.resize();
-	}, [scale, showResult, expanded, ready]);
+	}, [hostRef, scale, showResult, expanded, ready]);
 
-	const zoomBy = useCallback((delta: number) => {
-		const host = hostRef.current;
-		if (!host) return;
-		host.setZoom(Math.max(1, Math.round(host.getZoom()) + delta));
-	}, []);
+	const zoomBy = useCallback(
+		(delta: number) => {
+			const host = hostRef.current;
+			if (!host) return;
+			host.setZoom(Math.max(1, Math.round(host.getZoom()) + delta));
+		},
+		[hostRef],
+	);
 
 	const cycleBasemap = useCallback(() => {
 		setBasemap((cur) => BASEMAPS[(BASEMAPS.indexOf(cur) + 1) % BASEMAPS.length]);

@@ -15,6 +15,15 @@ vi.mock("@/plugins/localguessr/storage", () => ({ useStartingThumbnails: () => [
 vi.mock("@/plugins/localguessr/TagButton", () => ({
 	TagButton: () => createElement("button", { type: "button", className: "tag" }, "tag"),
 }));
+const replay = vi.hoisted(() => ({
+	props: null as null | { highlighted: number | null; onOpenRound: (round: number) => void },
+}));
+vi.mock("@/plugins/localguessr/ReplayMap", () => ({
+	ReplayMap: (props: typeof replay.props) => {
+		replay.props = props;
+		return null;
+	},
+}));
 
 import { Summary } from "@/plugins/localguessr/Summary";
 
@@ -88,5 +97,39 @@ describe("breakdown rows", () => {
 		const row = await renderRow();
 		act(() => row.querySelector<HTMLElement>("button.tag")!.click());
 		expect(loadSeenPano).not.toHaveBeenCalled();
+	});
+
+	it("keep a round highlighted on the replay map until the pointer leaves the list", async () => {
+		const { container } = await mountAsync(
+			createElement(Summary, {
+				session: { ...session, results: [result, result] },
+				onPlayAgain: () => {},
+				onBack: () => {},
+			}),
+		);
+		const list = container.querySelector<HTMLElement>(".lg-summary__rounds")!;
+		const [first, second] = container.querySelectorAll<HTMLElement>(".lg-summary__row");
+		const move = (from: HTMLElement, to: HTMLElement | null) =>
+			act(() => {
+				from.dispatchEvent(new MouseEvent("pointerout", { bubbles: true, relatedTarget: to }));
+			});
+
+		expect(replay.props?.highlighted).toBeNull();
+		move(list, first);
+		expect(replay.props?.highlighted).toBe(0);
+		move(first, list);
+		expect(replay.props?.highlighted).toBe(0);
+		move(list, second);
+		expect(replay.props?.highlighted).toBe(1);
+		move(second, null);
+		expect(replay.props?.highlighted).toBeNull();
+	});
+});
+
+describe("replay map pins", () => {
+	it("open their round through the same path as its row", async () => {
+		await renderRow();
+		act(() => replay.props!.onOpenRound(0));
+		expect(loadSeenPano).toHaveBeenCalledWith(expect.objectContaining({ locationId: 7 }), viewer);
 	});
 });

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiCheckCircle, mdiCloseCircle } from "@mdi/js";
@@ -10,6 +11,7 @@ import { useStartingThumbnails } from "./storage";
 import { loadSeenPano } from "@/lib/seen/seen";
 import { usePano } from "@/lib/hooks/usePano";
 import type { RoundResult } from "./game";
+import { ReplayMap } from "./ReplayMap";
 
 export function Summary({
 	session,
@@ -26,6 +28,7 @@ export function Summary({
 		allIds.map((locationId) => ({ locationId, startedAt: session.startedAt })),
 	);
 	const pano = usePano();
+	const [highlighted, setHighlighted] = useState<number | null>(null);
 	const openRound = ({ location, truth }: RoundResult) =>
 		void loadSeenPano(
 			{
@@ -57,7 +60,13 @@ export function Summary({
 				</div>
 			</header>
 
-			<div className="lg-summary__rounds">
+			<ReplayMap
+				results={session.results}
+				highlighted={highlighted}
+				onOpenRound={(i) => openRound(session.results[i])}
+			/>
+
+			<div className="lg-summary__rounds" onPointerLeave={() => setHighlighted(null)}>
 				{session.results.map((r, i) => {
 					const thumbnail = thumbnails[i];
 					return (
@@ -66,6 +75,7 @@ export function Summary({
 							className="lg-summary__row"
 							role="button"
 							tabIndex={0}
+							onPointerEnter={() => setHighlighted(i)}
 							onClick={(e) => {
 								const target = e.target as Element;
 								if (e.currentTarget.contains(target) && !target.closest("button")) openRound(r);

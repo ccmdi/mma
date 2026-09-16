@@ -455,6 +455,19 @@
 	color: var(--text-2);
 }
 
+.lg-summary__map {
+	position: relative;
+	flex: 0 0 auto;
+	height: min(42vh, 440px);
+	overflow: hidden;
+	border-radius: var(--radius-2);
+}
+
+.lg-summary__map-canvas {
+	position: absolute;
+	inset: 0;
+}
+
 .lg-summary__rounds {
 	flex: 1;
 	overflow-y: auto;
