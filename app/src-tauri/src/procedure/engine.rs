@@ -2056,6 +2056,26 @@ fn query_tokens() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
     T.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+/// Partial pages leave through their own thread: a delivery that blocks must never
+/// stall the loop that is issuing requests and collecting answers.
+fn partial_emitter() -> &'static mpsc::Sender<ProcedureResult> {
+    static TX: OnceLock<mpsc::Sender<ProcedureResult>> = OnceLock::new();
+    TX.get_or_init(|| {
+        let (tx, rx) = mpsc::channel::<ProcedureResult>();
+        thread::spawn(move || {
+            for page in rx {
+                let started = Instant::now();
+                crate::emit_event(page);
+                let ms = started.elapsed().as_millis();
+                if ms > 200 {
+                    log::debug!("[procedure] partial emit took {ms}ms");
+                }
+            }
+        });
+        tx
+    })
+}
+
 /// Run a procedure's read-only `query` export. `input` and the result are defined
 /// by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
 #[tauri::command]
@@ -2077,7 +2097,9 @@ pub async fn procedure_query(
             Arc::new(Partials::new(
                 token,
                 procedure.entry.clone(),
-                Box::new(crate::emit_event::<ProcedureResult>),
+                Box::new(|page| {
+                    let _ = partial_emitter().send(page);
+                }),
             ))
         });
         run_query(
