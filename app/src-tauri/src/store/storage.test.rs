@@ -545,7 +545,6 @@ fn atomic_write_failure_leaves_dest_unchanged() {
 fn atomic_write_failure_leaves_tmp_file_behind() {
     let dir = TempDir::new("mma_test_crash_atomic_tmp_leak");
     let path = dir.join("dest.arrow");
-    let tmp_path = path.with_extension("tmp");
 
     let batch = make_test_batch(&[1]);
     write_arrow_ipc(&path, &batch).unwrap();
@@ -555,8 +554,12 @@ fn atomic_write_failure_leaves_tmp_file_behind() {
     });
     assert!(err_result.is_err());
 
+    let leftover_tmp = fs::read_dir(&*dir)
+        .unwrap()
+        .filter_map(Result::ok)
+        .any(|e| e.path().extension().is_some_and(|x| x == "tmp"));
     assert!(
-        tmp_path.exists(),
+        leftover_tmp,
         "current behavior: failed atomic_write leaves the .tmp file behind"
     );
 }

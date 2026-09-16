@@ -4,7 +4,8 @@ use super::*;
 use crate::types::{AppError, AppResult};
 use std::fs;
 use std::fs::{File, OpenOptions};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Write to `path` via a temporary `.tmp` sibling, then atomically rename.
 /// Guarantees readers never observe a partially-written file.
@@ -12,7 +13,7 @@ pub(crate) fn atomic_write(
     path: &Path,
     write_fn: impl FnOnce(File) -> AppResult<()>,
 ) -> AppResult<()> {
-    let tmp = path.with_extension("tmp");
+    let tmp = tmp_path(path);
     let file = File::create(&tmp)?;
     write_fn(file)?;
     // write_fn consumed the handle; reopen to fsync - without it the rename can
@@ -20,6 +21,14 @@ pub(crate) fn atomic_write(
     OpenOptions::new().write(true).open(&tmp)?.sync_all()?;
     fs::rename(&tmp, path)?;
     Ok(())
+}
+
+/// A `.tmp` sibling unique to this write, so concurrent writers to one destination
+/// never truncate each other's in-flight bytes.
+fn tmp_path(path: &Path) -> PathBuf {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, Ordering::Relaxed);
+    path.with_extension(format!("{}.{n}.tmp", std::process::id()))
 }
 
 /// [`atomic_write`] for a caller that already holds the whole payload.
@@ -52,3 +61,7 @@ pub(crate) fn sweep_tmp_under(dir: &Path) -> usize {
     }
     n
 }
+
+#[cfg(test)]
+#[path = "files.test.rs"]
+mod tests;
