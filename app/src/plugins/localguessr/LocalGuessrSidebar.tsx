@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { createPortal } from "react-dom";
-import { mdiEarth, mdiHistory } from "@mdi/js";
+import { mdiDeleteOutline, mdiEarth, mdiHistory } from "@mdi/js";
 import {
 	Sidebar,
 	Section,
@@ -34,6 +34,7 @@ import {
 	reduce,
 	toPastGame,
 	toRoundLocation,
+	type Game,
 	type GameConfig,
 	type MovementMode,
 	type PastGame,
@@ -47,10 +48,10 @@ import {
 import {
 	appendHistory,
 	clearHistory,
-	clearSavedGame,
 	getGlobalStreak,
 	getHistory,
-	getSavedGame,
+	getSavedGames,
+	removeSavedGame,
 	useStartingThumbnails,
 	saveGame,
 	setGlobalStreak,
@@ -69,6 +70,50 @@ async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[
 
 function movementLabels(): Record<MovementMode, string> {
 	return { moving: t("Moving"), noMove: t("No move"), nmpz: t("NMPZ") };
+}
+
+function SavedGameCard({
+	game,
+	onResume,
+	onDiscard,
+}: {
+	game: Game;
+	onResume: (game: Game) => void;
+	onDiscard: (game: Game) => void;
+}) {
+	const round =
+		game.config.roundMode === "infinite"
+			? `${game.index + 1}`
+			: `${game.index + 1}/${game.locations.length}`;
+	return (
+		<EntryCard
+			actions={
+				<>
+					<Tooltip content={t("Discard")}>
+						<button
+							className="icon-button"
+							type="button"
+							aria-label={t("Discard")}
+							onClick={() => onDiscard(game)}
+						>
+							<Icon path={mdiDeleteOutline} />
+						</button>
+					</Tooltip>
+					<Button small onClick={() => onResume(game)}>
+						{t("Resume")}
+					</Button>
+				</>
+			}
+		>
+			<div className="entry-list__name">{t("Round {n}", { n: round })}</div>
+			<div className="entry-list__meta">
+				<span>{movementLabels()[game.config.movementMode]}</span>
+				<span title={dateTimeFmt.format(game.roundStartedAt)}>
+					{relativeTime(game.roundStartedAt / 1000)}
+				</span>
+			</div>
+		</EntryCard>
+	);
 }
 
 function PastGameCard({
@@ -159,39 +204,34 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	const picker = useSelectorPick();
 	const [view, dispatch] = useReducer(reduce, { phase: "config" } as View);
 	const [starting, setStarting] = useState(false);
-	const [resumable, setResumable] = useState(() => {
-		const id = getMapState().map?.id;
-		return id ? getSavedGame(id) : null;
-	});
+	const [saved, setSaved] = useState<Game[]>([]);
 	const [history, setHistory] = useState<PastGame[]>([]);
 	const [past, setPast] = useState<Session | null>(null);
 	const [showHistory, setShowHistory] = useState(false);
 
 	const patch = (p: Partial<GameConfig>) => setStored({ ...config, ...p });
 
-	// The config phase never clears here: this effect also runs on a fresh mount,
-	// and clearing then would wipe a resumable run. Explicit exits clear via `exitGame`.
 	useEffect(() => {
-		const mapId = getMapState().map?.id;
 		if (view.phase === "playing" || view.phase === "result") {
 			saveGame(view.game);
 			setGlobalStreak(view.game.config.streakMode, view.game.streak);
-		} else if (view.phase === "summary" && mapId) {
-			clearSavedGame(mapId);
+		} else if (view.phase === "summary") {
+			removeSavedGame(view.session);
 			appendHistory(toPastGame(view.session));
 		}
-		setResumable(view.phase === "config" && mapId ? getSavedGame(mapId) : null);
 	}, [view]);
 
 	useEffect(() => {
-		setHistory(map && view.phase === "config" ? getHistory(map.id) : []);
+		const inConfig = map && view.phase === "config";
+		setHistory(inConfig ? getHistory(map.id) : []);
+		setSaved(inConfig ? getSavedGames(map.id) : []);
 	}, [map, view]);
 
-	/** Leave and forfeit the game (drops the saved run). */
-	const exitGame = useCallback(() => {
-		const mapId = getMapState().map?.id;
-		if (mapId) clearSavedGame(mapId);
-		dispatch({ type: "exit" });
+	const exitGame = useCallback(() => dispatch({ type: "exit" }), []);
+
+	const discardGame = useCallback((game: Game) => {
+		removeSavedGame(game);
+		setSaved(getSavedGames(game.mapId));
 	}, []);
 
 	const start = useCallback(async () => {
@@ -407,19 +447,18 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 							)}
 						</Section>
 
-						{resumable && (
+						{saved.length > 0 && (
 							<Section title={t("In progress")}>
-								<div className="lg-sidebar__resume">
-									<span>
-										{t("{name} - round {n}", {
-											name: resumable.mapName,
-											n: resumable.index + 1,
-										})}
-									</span>
-									<Button small onClick={() => dispatch({ type: "start", game: resumable })}>
-										{t("Resume")}
-									</Button>
-								</div>
+								<EntryList>
+									{saved.map((game) => (
+										<SavedGameCard
+											key={game.startedAt}
+											game={game}
+											onResume={(game) => dispatch({ type: "start", game })}
+											onDiscard={discardGame}
+										/>
+									))}
+								</EntryList>
 							</Section>
 						)}
 

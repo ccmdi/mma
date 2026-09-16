@@ -998,6 +998,7 @@
 	"Reviewing": "审阅",
 	"Rich Presence": "动态状态",
 	"Round": "轮次",
+	"Round {n}": "第 {n} 轮",
 	"Rounds": "轮数",
 	"Row %": "行 %",
 	"Rows": "行",
@@ -1467,7 +1468,6 @@
 	"{maps} maps · {locations} locations": "{maps} 张地图 · {locations} 个位置",
 	"{min}–{max} links": "{min}–{max} 个链接",
 	"{mode} sampling": "{mode}采样",
-	"{name} - round {n}": "{name} - 第 {n} 轮",
 	"{name} updated to v{version}": "{name} 已更新至 v{version}",
 	"{name}() takes {n} arguments": {
 		"other": "{name}() 需要 {n} 个参数"

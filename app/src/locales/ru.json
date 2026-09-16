@@ -1082,6 +1082,7 @@
 	"Reviewing": "Идёт просмотр",
 	"Rich Presence": "Rich Presence",
 	"Round": "Раунд",
+	"Round {n}": "Раунд {n}",
 	"Rounds": "Раунды",
 	"Row %": "% строки",
 	"Rows": "Строки",
@@ -1584,7 +1585,6 @@
 	"{maps} maps · {locations} locations": "Карт: {maps} · локаций: {locations}",
 	"{min}–{max} links": "{min}–{max} ссылок",
 	"{mode} sampling": "выборка: {mode}",
-	"{name} - round {n}": "{name} - раунд {n}",
 	"{name} updated to v{version}": "{name} обновлён до v{version}",
 	"{name}() takes {n} arguments": {
 		"one": "{name}() принимает {n} аргумент",

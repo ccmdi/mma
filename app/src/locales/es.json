@@ -1054,6 +1054,7 @@
 	"Reviewing": "Revisando",
 	"Rich Presence": "Rich Presence",
 	"Round": "Ronda",
+	"Round {n}": "Ronda {n}",
 	"Rounds": "Rondas",
 	"Row %": "% fila",
 	"Rows": "Filas",
@@ -1545,7 +1546,6 @@
 	"{maps} maps · {locations} locations": "{maps} mapas · {locations} ubicaciones",
 	"{min}–{max} links": "{min}–{max} enlaces",
 	"{mode} sampling": "muestreo {mode}",
-	"{name} - round {n}": "{name} - ronda {n}",
 	"{name} updated to v{version}": "{name} actualizado a v{version}",
 	"{name}() takes {n} arguments": {
 		"one": "{name}() requiere {n} argumento",

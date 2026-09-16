@@ -286,8 +286,12 @@ export async function hydrateSession(
 
 export function reduce(view: View, action: GameAction): View {
 	switch (action.type) {
-		case "start":
-			return { phase: "playing", game: { ...action.game, roundStartedAt: Date.now() } };
+		case "start": {
+			const game = { ...action.game, roundStartedAt: Date.now() };
+			return game.results.length > game.index
+				? { phase: "result", game }
+				: { phase: "playing", game };
+		}
 
 		case "result": {
 			if (view.phase !== "playing") return view;

@@ -1026,6 +1026,7 @@
 	"Reviewing": "Prüfung",
 	"Rich Presence": "Rich Presence",
 	"Round": "Runde",
+	"Round {n}": "Runde {n}",
 	"Rounds": "Runden",
 	"Row %": "Zeile %",
 	"Rows": "Zeilen",
@@ -1506,7 +1507,6 @@
 	"{maps} maps · {locations} locations": "{maps} Karten · {locations} Standorte",
 	"{min}–{max} links": "{min}–{max} Links",
 	"{mode} sampling": "{mode}-Stichprobe",
-	"{name} - round {n}": "{name} - Runde {n}",
 	"{name} updated to v{version}": "{name} auf v{version} aktualisiert",
 	"{name}() takes {n} arguments": {
 		"one": "{name}() erwartet {n} Argument",

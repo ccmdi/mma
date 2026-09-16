@@ -1054,6 +1054,7 @@
 	"Reviewing": "Révision en cours",
 	"Rich Presence": "Rich Presence",
 	"Round": "Manche",
+	"Round {n}": "Manche {n}",
 	"Rounds": "Manches",
 	"Row %": "% ligne",
 	"Rows": "Lignes",
@@ -1545,7 +1546,6 @@
 	"{maps} maps · {locations} locations": "{maps} cartes · {locations} lieux",
 	"{min}–{max} links": "{min}–{max} liens",
 	"{mode} sampling": "échantillonnage {mode}",
-	"{name} - round {n}": "{name} - manche {n}",
 	"{name} updated to v{version}": "{name} mis à jour vers v{version}",
 	"{name}() takes {n} arguments": {
 		"one": "{name}() attend {n} argument",

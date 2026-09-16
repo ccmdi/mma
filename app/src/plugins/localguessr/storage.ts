@@ -5,28 +5,45 @@ import type { SeenEntry } from "@/bindings.gen";
 import type { Game, PastGame, StreakMode } from "./game";
 
 const storage = createPluginStorage("localguessr");
-const SAVED_GAME = "savedGame";
+const SAVED_GAMES = "savedGames";
 const GLOBAL_STREAK = "globalStreak";
 const HISTORY = "history";
 
+export const SAVED_GAME_CAP = 20;
+
+const gameKey = (game: Pick<Game, "mapId" | "startedAt">) => `${game.mapId}:${game.startedAt}`;
+
+function readSavedGames(): Game[] {
+	return storage.get<Game[]>(SAVED_GAMES, []);
+}
+
 /**
- * The one in-flight game per map, kept so closing the sidebar mid-round isn't a loss.
- * Keyed by the map the rounds were drawn from: their location ids and tags mean nothing
- * on any other map. Only the drawn rounds are stored, never the pool they came from.
+ * A map's unfinished games, most recently played first. Scoped to the map the rounds were
+ * drawn from: their location ids mean nothing on any other map.
  */
-export function getSavedGame(mapId: string): Game | null {
-	const game = storage.get<Game | null>(`${SAVED_GAME}:${mapId}`, null);
-	return game && game.mapId === mapId && Array.isArray(game.locations) && game.locations.length > 0
-		? game
-		: null;
+export function getSavedGames(mapId: string): Game[] {
+	return readSavedGames().filter((g) => g.mapId === mapId);
 }
 
+/** An endless game keeps only the rounds it has reached, and draws a fresh batch past them. */
 export function saveGame(game: Game): void {
-	storage.set(`${SAVED_GAME}:${game.mapId}`, game);
+	const key = gameKey(game);
+	const kept =
+		game.config.roundMode === "infinite"
+			? { ...game, locations: game.locations.slice(0, game.index + 1) }
+			: game;
+	storage.set(
+		SAVED_GAMES,
+		[kept, ...readSavedGames().filter((g) => gameKey(g) !== key)].slice(0, SAVED_GAME_CAP),
+	);
 }
 
-export function clearSavedGame(mapId: string): void {
-	storage.set(`${SAVED_GAME}:${mapId}`, null);
+export function removeSavedGame(game: Pick<Game, "mapId" | "startedAt">): void {
+	const key = gameKey(game);
+	storage.set(
+		SAVED_GAMES,
+		readSavedGames().filter((g) => gameKey(g) !== key),
+	);
 }
 
 interface GlobalStreak {
@@ -54,8 +71,6 @@ function readHistory(): PastGame[] {
 export function getHistory(mapId: string): PastGame[] {
 	return readHistory().filter((g) => g.mapId === mapId);
 }
-
-const gameKey = (game: PastGame) => `${game.mapId}:${game.startedAt}`;
 
 export function appendHistory(game: PastGame): void {
 	const kept = [game];

@@ -1026,6 +1026,7 @@
 	"Reviewing": "Reviewing",
 	"Rich Presence": "Rich Presence",
 	"Round": "Round",
+	"Round {n}": "Round {n}",
 	"Rounds": "Rounds",
 	"Row %": "Row %",
 	"Rows": "Rows",
@@ -1506,7 +1507,6 @@
 	"{maps} maps · {locations} locations": "{maps} maps · {locations} locations",
 	"{min}–{max} links": "{min}–{max} links",
 	"{mode} sampling": "{mode} sampling",
-	"{name} - round {n}": "{name} - round {n}",
 	"{name} updated to v{version}": "{name} updated to v{version}",
 	"{name}() takes {n} arguments": {
 		"one": "{name}() takes {n} argument",

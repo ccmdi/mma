@@ -998,6 +998,7 @@
 	"Reviewing": "レビュー中",
 	"Rich Presence": "リッチプレゼンス",
 	"Round": "ラウンド",
+	"Round {n}": "ラウンド {n}",
 	"Rounds": "ラウンド数",
 	"Row %": "行 %",
 	"Rows": "行",
@@ -1467,7 +1468,6 @@
 	"{maps} maps · {locations} locations": "{maps} マップ・{locations} 地点",
 	"{min}–{max} links": "リンク {min}–{max}",
 	"{mode} sampling": "{mode}サンプリング",
-	"{name} - round {n}": "{name} - ラウンド {n}",
 	"{name} updated to v{version}": "{name} を v{version} に更新しました",
 	"{name}() takes {n} arguments": {
 		"other": "{name}() には引数が {n} 個必要です"

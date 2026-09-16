@@ -269,14 +269,51 @@ describe("round helpers", () => {
 });
 
 describe("saved game storage", () => {
-	it("scopes the saved game to its map", async () => {
-		const { saveGame, getSavedGame, clearSavedGame } =
+	it("keeps every unfinished game, scoped to its map, most recently played first", async () => {
+		const { saveGame, getSavedGames, removeSavedGame } =
 			await import("@/plugins/localguessr/storage");
-		saveGame(game({ mapId: "a" }));
-		expect(getSavedGame("a")?.mapId).toBe("a");
-		expect(getSavedGame("b")).toBeNull();
-		clearSavedGame("a");
-		expect(getSavedGame("a")).toBeNull();
+		saveGame(game({ mapId: "a", startedAt: 1 }));
+		saveGame(game({ mapId: "b", startedAt: 2 }));
+		saveGame(game({ mapId: "a", startedAt: 3 }));
+		expect(getSavedGames("a").map((g) => g.startedAt)).toEqual([3, 1]);
+		expect(getSavedGames("b").map((g) => g.startedAt)).toEqual([2]);
+		saveGame(game({ mapId: "a", startedAt: 1, index: 2 }));
+		expect(getSavedGames("a").map((g) => [g.startedAt, g.index])).toEqual([
+			[1, 2],
+			[3, 0],
+		]);
+		removeSavedGame({ mapId: "a", startedAt: 1 });
+		removeSavedGame({ mapId: "a", startedAt: 3 });
+		removeSavedGame({ mapId: "b", startedAt: 2 });
+		expect(getSavedGames("a")).toEqual([]);
+	});
+
+	it("drops the least recently played game past the cap", async () => {
+		const { saveGame, getSavedGames, removeSavedGame, SAVED_GAME_CAP } =
+			await import("@/plugins/localguessr/storage");
+		const starts = Array.from({ length: SAVED_GAME_CAP + 1 }, (_, i) => i + 1);
+		for (const startedAt of starts) saveGame(game({ mapId: "cap", startedAt }));
+		const kept = getSavedGames("cap").map((g) => g.startedAt);
+		expect(kept).toHaveLength(SAVED_GAME_CAP);
+		expect(kept).not.toContain(1);
+		for (const startedAt of starts) removeSavedGame({ mapId: "cap", startedAt });
+	});
+
+	it("keeps only the rounds an endless game has reached", async () => {
+		const { saveGame, getSavedGames, removeSavedGame } =
+			await import("@/plugins/localguessr/storage");
+		const endless = game({
+			mapId: "endless",
+			config: { ...CONFIG, roundMode: "infinite" },
+			locations: [loc(1), loc(2), loc(3), loc(4)],
+			index: 1,
+		});
+		saveGame(endless);
+		expect(getSavedGames("endless")[0].locations.map((l) => l.id)).toEqual([1, 2]);
+		saveGame(game({ mapId: "classic", index: 1 }));
+		expect(getSavedGames("classic")[0].locations).toHaveLength(3);
+		removeSavedGame(endless);
+		removeSavedGame({ mapId: "classic", startedAt: 0 });
 	});
 });
 
@@ -288,6 +325,25 @@ describe("resume", () => {
 		if (view.phase === "playing") {
 			expect(view.game.roundStartedAt).toBeGreaterThan(1);
 		}
+	});
+
+	it("reopens an answered round on its result rather than replaying it", () => {
+		const answered = game({ index: 1, results: [result(), result()] });
+		expect(reduce({ phase: "config" }, { type: "start", game: answered }).phase).toBe("result");
+		const unanswered = game({ index: 1, results: [result()] });
+		expect(reduce({ phase: "config" }, { type: "start", game: unanswered }).phase).toBe("playing");
+	});
+
+	it("draws a fresh batch when a trimmed endless game moves past its last reached round", () => {
+		const endless = game({
+			config: { ...CONFIG, roundMode: "infinite" },
+			locations: [loc(1), loc(2)],
+			index: 1,
+			results: [result(), result()],
+		});
+		const resumed = reduce({ phase: "config" }, { type: "start", game: endless });
+		const next = reduce(resumed, { type: "next", locations: [loc(9)] });
+		expect(next.phase === "playing" && currentRound(next.game)?.id).toBe(9);
 	});
 });
 

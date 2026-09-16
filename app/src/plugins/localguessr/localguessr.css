@@ -15,15 +15,6 @@
 	font-variant-numeric: tabular-nums;
 }
 
-.lg-sidebar__resume {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
-	font-size: 12px;
-	color: var(--text-2);
-}
-
 .lg-history .entry-list__card {
 	position: relative;
 	isolation: isolate;

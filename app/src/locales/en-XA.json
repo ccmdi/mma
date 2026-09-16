@@ -1026,6 +1026,7 @@
 	"Reviewing": "[Ŕéṽîéŵîñǧ åéîö]",
 	"Rich Presence": "[Ŕîçĥ Ƥŕéşéñçé åéîöüå]",
 	"Round": "[Ŕöüñð åé]",
+	"Round {n}": "[Ŕöüñð {n} åéî]",
 	"Rounds": "[Ŕöüñðş åéî]",
 	"Row %": "[Ŕöŵ % åé]",
 	"Rows": "[Ŕöŵş åé]",
@@ -1506,7 +1507,6 @@
 	"{maps} maps · {locations} locations": "[{maps} ɱåƥş · {locations} ĺöçåţîöñş åéîöüåéî]",
 	"{min}–{max} links": "[{min}–{max} ĺîñķş åéî]",
 	"{mode} sampling": "[{mode} şåɱƥĺîñǧ åéîö]",
-	"{name} - round {n}": "[{name} - ŕöüñð {n} åéîö]",
 	"{name} updated to v{version}": "[{name} üƥðåţéð ţö ṽ{version} åéîöüå]",
 	"{name}() takes {n} arguments": {
 		"one": "[{name}() ţåķéş {n} åŕǧüɱéñţ åéîöüåéî]",

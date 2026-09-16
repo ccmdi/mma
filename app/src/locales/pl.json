@@ -1082,6 +1082,7 @@
 	"Reviewing": "Przeglądanie",
 	"Rich Presence": "Rich Presence",
 	"Round": "Runda",
+	"Round {n}": "Runda {n}",
 	"Rounds": "Rundy",
 	"Row %": "% wiersza",
 	"Rows": "Wiersze",
@@ -1584,7 +1585,6 @@
 	"{maps} maps · {locations} locations": "Mapy: {maps} · Lokalizacje: {locations}",
 	"{min}–{max} links": "{min}–{max} linków",
 	"{mode} sampling": "próbkowanie {mode}",
-	"{name} - round {n}": "{name} - runda {n}",
 	"{name} updated to v{version}": "{name} zaktualizowano do v{version}",
 	"{name}() takes {n} arguments": {
 		"one": "{name}() wymaga {n} argumentu",
