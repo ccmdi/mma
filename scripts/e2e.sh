@@ -129,6 +129,11 @@ fi
 
 if [ "${1:-}" = "--shard" ]; then
 	N="${2:-3}"
+	# Compose creates the project's named volumes on first use, and N containers doing it at once collide.
+	if ! out=$($COMPOSE run --rm --entrypoint true e2e 2>&1); then
+		echo "$out" >&2
+		exit 1
+	fi
 	echo "Running e2e suite across $N parallel containers..."
 	pids=()
 	names=()
