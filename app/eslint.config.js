@@ -107,7 +107,10 @@ export default defineConfig([
 			// `local/no-unsupported-builtins` needs types to tell `someSet.union()` from a
 			// method of our own with the same name. projectService costs ~4s over the suite.
 			parser: tseslint.parser,
-			parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+			parserOptions: {
+				projectService: { allowDefaultProject: ["wdio.conf.ts", "wdio.web.conf.ts"] },
+				tsconfigRootDir: import.meta.dirname,
+			},
 		},
 		rules: {
 			"react-hooks/refs": "off",
