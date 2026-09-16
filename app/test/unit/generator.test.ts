@@ -791,7 +791,7 @@ describe("GenerationEngine grow sampling", () => {
 
 // --- Grid sampling ---
 
-import { gridPointSource } from "@/plugins/generator/engine/pointSources";
+import { gridPointSource, streamedPoints } from "@/plugins/generator/engine/pointSources";
 
 const GRID_RUNS = [
 	{ lat: 1, lng: -50, lngStep: 0.5, count: 4 },
@@ -804,11 +804,64 @@ const GRID_POINTS = GRID_RUNS.flatMap((r) =>
 const keyOf = (p: { lat: number; lng: number }) => `${p.lat},${p.lng}`;
 
 describe("gridPointSource", () => {
-	it("draws every grid point once across batches, then runs dry", () => {
+	it("draws every grid point once across batches, then runs dry", async () => {
 		const take = gridPointSource(GRID_RUNS);
-		const drawn = [...take(3), ...take(3), ...take(3)].map(keyOf);
+		const drawn = [...(await take(3)), ...(await take(3)), ...(await take(3))].map(keyOf);
 		expect(drawn.sort()).toEqual([...GRID_POINTS].sort());
-		expect(take(3)).toEqual([]);
+		expect(await take(3)).toEqual([]);
+	});
+});
+
+describe("streamedPoints", () => {
+	const P = (lat: number): { lat: number; lng: number } => ({ lat, lng: 0 });
+
+	it("serves points emitted so far without waiting for the producer to finish", async () => {
+		let finish!: () => void;
+		const take = streamedPoints(async (emit) => {
+			emit([P(1), P(2)]);
+			await new Promise<void>((r) => (finish = r));
+			emit([P(3)]);
+		});
+		expect((await take(5)).map((p) => p.lat).sort()).toEqual([1, 2]);
+		finish();
+		expect(await take(5)).toEqual([P(3)]);
+		expect(await take(5)).toEqual([]);
+	});
+
+	it("a draw during starvation waits for the next emit instead of ending the supply", async () => {
+		let emitLate!: (pts: { lat: number; lng: number }[]) => void;
+		const take = streamedPoints(
+			(emit) =>
+				new Promise<void>((resolve) => {
+					emitLate = (pts) => {
+						emit(pts);
+						resolve();
+					};
+				}),
+		);
+		const pending = take(1);
+		emitLate([P(7)]);
+		expect(await pending).toEqual([P(7)]);
+		expect(await take(1)).toEqual([]);
+	});
+
+	it("draws split the buffer without duplicating or dropping points", async () => {
+		const take = streamedPoints(async (emit) => emit([P(1), P(2), P(3)]));
+		const first = await take(2);
+		const second = await take(2);
+		expect(first).toHaveLength(2);
+		expect(second).toHaveLength(1);
+		expect([...first, ...second].map((p) => p.lat).sort()).toEqual([1, 2, 3]);
+		expect(await take(2)).toEqual([]);
+	});
+
+	it("a producer failure surfaces on the draw once the buffer is drained", async () => {
+		const take = streamedPoints(async (emit) => {
+			emit([P(1)]);
+			throw new Error("tiles down");
+		});
+		expect(await take(1)).toEqual([P(1)]);
+		await expect(take(1)).rejects.toThrow("tiles down");
 	});
 });
 

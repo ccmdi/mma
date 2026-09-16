@@ -31,6 +31,17 @@ export function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean)
 	return best;
 }
 
+/** Shuffle `items` in place (Fisher-Yates) and return them. */
+export function shuffle<T>(items: T[]): T[] {
+	for (let i = items.length - 1; i > 0; i--) {
+		const j = (Math.random() * (i + 1)) | 0;
+		const tmp = items[i];
+		items[i] = items[j];
+		items[j] = tmp;
+	}
+	return items;
+}
+
 /** Split `arr` into sub-arrays of at most `n` elements. */
 export function chunk<T>(arr: readonly T[], n: number): T[][] {
 	const out: T[][] = [];

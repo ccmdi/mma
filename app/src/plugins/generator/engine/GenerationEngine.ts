@@ -7,7 +7,7 @@ import type {
 	SamplingMode,
 } from "./types";
 import { gridPointSource, pointsInOrder } from "./pointSources";
-import { blueLineSample } from "./blueLineSampler";
+import { blueLineSource } from "./blueLineSampler";
 import { passesInitialFilters, passesDateFilters, isPanoGood, computeHeading } from "./filters";
 import { svMetadata } from "@/lib/sv/query";
 import { PanoType } from "@/bindings.consts";
@@ -270,7 +270,7 @@ export class GenerationEngine {
 
 		while (await this.proceed(region)) {
 			region.isProcessing = true;
-			const batch = take(this.settings.speed);
+			const batch = await take(this.settings.speed);
 			if (batch.length === 0) break;
 			const coords = await this.withoutExisting(batch);
 			if (coords.length === 0) continue;
@@ -284,7 +284,7 @@ export class GenerationEngine {
 		region: GeneratorRegion,
 		mode: Exclude<SamplingMode, "random" | "kernels">,
 	): Promise<PointSource> {
-		if (mode === "blueline") return pointsInOrder(await blueLineSample(region.polygon));
+		if (mode === "blueline") return blueLineSource(region.polygon);
 		if (mode === "poisson") {
 			const pairs = await cmd.polygonPoissonPoints(region.polygon, 2 * this.settings.radius);
 			const points = pairs.map(([lng, lat]) => ({ lat, lng }));

@@ -2,7 +2,9 @@ import { TileConfig, LayerType, buildSvCoverageConfig, buildTileUrl } from "@/li
 import { latLngToWorld, worldToTile, pixelToLatLng, TILE_SIZE } from "@/lib/geo/mercator";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
-import { chunk } from "@/lib/util/util";
+import { chunk, shuffle } from "@/lib/util/util";
+import { streamedPoints } from "./pointSources";
+import type { PointSource } from "./types";
 import type { PolygonGeometry } from "@/bindings.gen";
 import type { Bounds, LatLng } from "@/types";
 
@@ -99,48 +101,10 @@ function scanTile(
 	}
 }
 
-export async function blueLineSample(
-	polygon: PolygonGeometry,
-	maxTilesPerAxis = MAX_TILES_PER_AXIS,
-): Promise<LatLng[]> {
-	const box = await cmd.polygonBounds(polygon);
-	if (!box) return [];
-	const bounds: Bounds = { west: box[0], south: box[1], east: box[2], north: box[3] };
-	const { zoom, nwTile, seTile, cols, rows } = calculateZoom(bounds, maxTilesPerAxis);
-	log.info(`[generator] Blue line: ${cols * rows} tiles (${cols}x${rows}) at zoom ${zoom}`);
-
-	const cfg = buildSamplerTileConfig();
-	const canvas = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
-	const ctx = canvas.getContext("2d")!;
-	const pixelXs: number[] = [];
-	const pixelYs: number[] = [];
-
-	const tileJobs: { tx: number; ty: number }[] = [];
-	const perAxis = 2 ** zoom;
-	for (let ty = nwTile.y; ty <= seTile.y; ty++) {
-		for (let c = 0; c < cols; c++) {
-			tileJobs.push({ tx: (nwTile.x + c) % perAxis, ty });
-		}
-	}
-
-	// Fetch tiles concurrently, scan pixels sequentially (canvas is shared)
-	for (const batch of chunk(tileJobs, FETCH_CONCURRENCY)) {
-		const bmps = await Promise.all(batch.map((j) => fetchTileBlob(cfg, j.tx, j.ty, zoom)));
-		for (let b = 0; b < batch.length; b++) {
-			const bmp = bmps[b];
-			if (!bmp) continue;
-			scanTile(bmp, batch[b].tx, batch[b].ty, ctx, pixelXs, pixelYs);
-		}
-	}
-
-	log.info(`[generator] Blue line: ${pixelXs.length} coverage pixels`);
-
-	const candidates: LatLng[] = new Array(pixelXs.length);
-	for (let i = 0; i < pixelXs.length; i++) {
-		candidates[i] = pixelToLatLng(pixelXs[i] + Math.random(), pixelYs[i] + Math.random(), zoom);
-	}
+async function clipToPolygon(polygon: PolygonGeometry, candidates: LatLng[]): Promise<LatLng[]> {
 	const result: LatLng[] = [];
 	for (const batch of chunk(candidates, CLIP_BATCH)) {
+		// eslint-disable-next-line local/no-ipc-in-loop -- already bulk: 50k points per round trip
 		const inside = await cmd.polygonContainsPoints(
 			polygon,
 			batch.map((p) => p.lat),
@@ -148,14 +112,57 @@ export async function blueLineSample(
 		);
 		for (let i = 0; i < batch.length; i++) if (inside[i]) result.push(batch[i]);
 	}
-
-	for (let i = result.length - 1; i > 0; i--) {
-		const j = (Math.random() * (i + 1)) | 0;
-		const tmp = result[i];
-		result[i] = result[j];
-		result[j] = tmp;
-	}
-
-	log.info(`[generator] Blue line: ${result.length} sample points after polygon clip`);
 	return result;
+}
+
+/** Tiles land in random order and each scanned batch is released as soon as it is clipped,
+ *  so probing starts on the first tiles while the rest are still downloading. */
+export function blueLineSource(
+	polygon: PolygonGeometry,
+	maxTilesPerAxis = MAX_TILES_PER_AXIS,
+): PointSource {
+	return streamedPoints(async (emit) => {
+		const box = await cmd.polygonBounds(polygon);
+		if (!box) return;
+		const bounds: Bounds = { west: box[0], south: box[1], east: box[2], north: box[3] };
+		const { zoom, nwTile, seTile, cols, rows } = calculateZoom(bounds, maxTilesPerAxis);
+		log.info(`[generator] Blue line: ${cols * rows} tiles (${cols}x${rows}) at zoom ${zoom}`);
+
+		const cfg = buildSamplerTileConfig();
+		const canvas = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
+		const ctx = canvas.getContext("2d")!;
+
+		const tileJobs: { tx: number; ty: number }[] = [];
+		const perAxis = 2 ** zoom;
+		for (let ty = nwTile.y; ty <= seTile.y; ty++) {
+			for (let c = 0; c < cols; c++) {
+				tileJobs.push({ tx: (nwTile.x + c) % perAxis, ty });
+			}
+		}
+		shuffle(tileJobs);
+
+		let total = 0;
+		// Fetch tiles concurrently, scan pixels sequentially (canvas is shared)
+		for (const batch of chunk(tileJobs, FETCH_CONCURRENCY)) {
+			const bmps = await Promise.all(batch.map((j) => fetchTileBlob(cfg, j.tx, j.ty, zoom)));
+			const pixelXs: number[] = [];
+			const pixelYs: number[] = [];
+			for (let b = 0; b < batch.length; b++) {
+				const bmp = bmps[b];
+				if (!bmp) continue;
+				scanTile(bmp, batch[b].tx, batch[b].ty, ctx, pixelXs, pixelYs);
+			}
+			if (pixelXs.length === 0) continue;
+			const candidates: LatLng[] = new Array(pixelXs.length);
+			for (let i = 0; i < pixelXs.length; i++) {
+				candidates[i] = pixelToLatLng(pixelXs[i] + Math.random(), pixelYs[i] + Math.random(), zoom);
+			}
+			const points = await clipToPolygon(polygon, candidates);
+			if (points.length === 0) continue;
+			total += points.length;
+			emit(points);
+		}
+
+		log.info(`[generator] Blue line: ${total} sample points after polygon clip`);
+	});
 }

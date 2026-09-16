@@ -65,8 +65,9 @@ export interface GeneratorSettings {
 
 export type SamplingMode = "random" | "poisson" | "grid" | "blueline" | "kernels";
 
-/** A region's supply of probe points, drawn `n` at a time; an empty draw means it is used up. */
-export type PointSource = (n: number) => LatLng[];
+/** A region's supply of probe points, drawn `n` at a time; a draw waits while more are on
+ *  the way, and an empty draw means it is used up. */
+export type PointSource = (n: number) => Promise<LatLng[]>;
 
 export type SearchMode = "contains" | "fullword" | "startswith" | "endswith" | "sectionmatch";
 
