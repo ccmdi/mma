@@ -15,6 +15,7 @@ import {
 	useMap,
 	waitForActive,
 	waitForDates,
+	waitForEnriched,
 	waitForFlag,
 	waitForLocCount,
 	waitForOptions,
@@ -1175,8 +1176,7 @@ describe("LocationPreview — settings toggles", () => {
 		await setMapEnrichFields(NO_EXACT_ENRICH_FIELDS);
 		await openLocation(set1Id);
 		await waitForDates();
-		// eslint-disable-next-line no-restricted-syntax -- negative assertion: confirm the exact-date fetch never runs
-		await browser.pause(2000);
+		await waitForEnriched();
 		const label = await browser.$(".location-preview__date .pano-value");
 		const text = await label.getText();
 		// Should show month/year only (e.g., "Default (Sep 2018)"), NOT "Sep 6, 2018"
@@ -1248,19 +1248,28 @@ describe("LocationPreview — settings toggles", () => {
 	});
 
 	it("showCameraBadges OFF — gen badges hidden (unofficial still shows)", async () => {
+		const genBadges = async () =>
+			(
+				await browser.$$(
+					".location-preview__date .badge--gen1, .location-preview__date .badge--gen2, .location-preview__date .badge--gen4",
+				)
+			).length;
 		await setMapEnrichFields(NO_EXACT_ENRICH_FIELDS);
 		await withApi(async (api) => {
-			api.setSetting("showCameraBadges", false);
+			api.setSetting("showCameraBadges", true);
 		});
 		await openLocation(set1Id);
 		await waitForDates();
-		// eslint-disable-next-line no-restricted-syntax -- negative assertion: confirm no gen badge renders with the setting off
-		await browser.pause(1000);
-		// Official pano should NOT show a gen badge when setting is off
-		const badges = await browser.$$(
-			".location-preview__date .badge--gen1, .location-preview__date .badge--gen2, .location-preview__date .badge--gen4",
-		);
-		expect(await badges.length).toBe(0);
+		// Showing first proves the camera type is known, so the badge going away is the setting.
+		await browser.waitUntil(async () => (await genBadges()) > 0, {
+			timeoutMsg: "gen badge never appeared with the setting on",
+		});
+		await withApi(async (api) => {
+			api.setSetting("showCameraBadges", false);
+		});
+		await browser.waitUntil(async () => (await genBadges()) === 0, {
+			timeoutMsg: "gen badge stayed with the setting off",
+		});
 	});
 
 	it("showCameraBadges ON — gen badge appears", async () => {

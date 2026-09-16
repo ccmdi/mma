@@ -40,9 +40,9 @@ describe("Map type control", () => {
 
 	it("does not open on hover", async () => {
 		await browser.$(TRIGGER).moveTo();
-		// eslint-disable-next-line no-restricted-syntax -- settle: asserting the panel never opens
-		await browser.pause(500);
-		expect(await panelOpen()).toBe(false);
+		// The trigger toggles, so a panel the hover had opened would close on this click.
+		await browser.$(TRIGGER).click();
+		await waitForPanel(true, "the click closed a panel the hover had opened");
 	});
 
 	it("opens and closes from the trigger", async () => {
@@ -62,9 +62,19 @@ describe("Map type control", () => {
 
 	it("selecting a basemap keeps the panel open", async () => {
 		await setPanel(true);
-		await browser.$(`${PANEL} ${CONTROL}__button[data-state="off"]`).click();
-		// eslint-disable-next-line no-restricted-syntax -- settle: asserting the panel stays open
-		await browser.pause(300);
+		const buttons = `${PANEL} ${CONTROL}__button`;
+		const index = await browser.execute(
+			(sel: string) =>
+				[...document.querySelectorAll(sel)].findIndex(
+					(b) => b.getAttribute("data-state") === "off",
+				),
+			buttons,
+		);
+		await (await browser.$$(buttons))[index].click();
+		await browser.waitUntil(
+			async () => (await (await browser.$$(buttons))[index]?.getAttribute("data-state")) === "on",
+			{ timeoutMsg: "the basemap never became selected with the panel open" },
+		);
 		expect(await panelOpen()).toBe(true);
 	});
 

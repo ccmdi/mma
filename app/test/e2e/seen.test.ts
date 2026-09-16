@@ -122,22 +122,16 @@ describe("Seen -- recording consistency", () => {
 		await openLocation(seenTrekId);
 		await waitForPreview();
 		await waitForDates();
-		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
-		await browser.pause(400);
 
 		await clearSeen();
 
 		await openLocation(seenOffId);
 		await waitForPreview();
 		await waitForDates();
-		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
-		await browser.pause(400);
 
 		await openLocation(seenTrekId);
 		await waitForPreview();
 		await waitForDates();
-		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
-		await browser.pause(400);
 
 		await closeLocation();
 		await browser.waitUntil(
@@ -291,6 +285,7 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 describe("Seen -- enableSeen setting", () => {
 	let mapId: string;
 	let seenSetting1Id: number;
+	let seenSettingAnchorId: number;
 
 	before(async () => {
 		await waitForReady();
@@ -302,8 +297,14 @@ describe("Seen -- enableSeen setting", () => {
 				panoId: OFFICIAL_PANO,
 				flags: LocationFlag.LoadAsPanoId,
 			}),
+			createLocation({
+				lat: TREKKER_COORDS.lat,
+				lng: TREKKER_COORDS.lng,
+				panoId: TREKKER_PANO,
+				flags: LocationFlag.LoadAsPanoId,
+			}),
 		]);
-		seenSetting1Id = ids[0];
+		[seenSetting1Id, seenSettingAnchorId] = ids;
 	});
 
 	after(async () => {
@@ -329,16 +330,19 @@ describe("Seen -- enableSeen setting", () => {
 		await waitForPreview();
 		await waitForDates();
 		await closeLocation();
-		// eslint-disable-next-line no-restricted-syntax -- negative assertion: confirm nothing is recorded with seen disabled
-		await browser.pause(500);
 
-		const count = await getSeenCount();
-		expect(count).toBe(0);
-
-		// Re-enable for other tests
+		// Any write from the disabled visit was sent before this visit's.
 		await withApi((api) => {
 			api.setSetting("enableSeen", true);
 		});
+		await openLocation(seenSettingAnchorId);
+		await waitForPreview();
+		await waitForDates();
+		await closeLocation();
+		await waitForSeenPano(TREKKER_PANO);
+
+		const entries = await getSeenEntries(10);
+		expect(entries.map((e) => e.panoId)).toEqual([TREKKER_PANO]);
 	});
 });
 
@@ -393,14 +397,10 @@ describe("Seen -- clear", () => {
 		await openLocation(seenClearWarmId);
 		await waitForPreview();
 		await waitForDates();
-		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
-		await browser.pause(400);
 
 		await openLocation(seenClear1Id);
 		await waitForPreview();
 		await waitForDates();
-		// eslint-disable-next-line no-restricted-syntax -- seen entry is staged until close; no store-observable signal while the location is open
-		await browser.pause(400);
 		await closeLocation();
 
 		await browser.waitUntil(async () => (await getSeenCount()) > 0, {

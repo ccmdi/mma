@@ -185,7 +185,7 @@ describe("Bulk operations -- cancel preserves progress", () => {
 		}));
 	});
 	it("a cancelled run keeps the pages it applied and lands no more", async () => {
-		const result = await withApi(async (api, total) => {
+		const result = await withApi(async (api) => {
 			// Pano resolution on its own, one instance, so pages apply one at a time and a
 			// cancel after the first progress report leaves a partial run. It has to be a
 			// procedure that fetches: `rate` is charged per request, so a pure-compute
@@ -212,30 +212,24 @@ describe("Bulk operations -- cancel preserves progress", () => {
 				);
 				return { cancelled: false };
 			} catch (e) {
-				if (e instanceof Error && e.name === "AbortError") {
-					const count = async () =>
-						(await api.fetchAllLocations()).filter((l) => l.panoId != null).length;
-					const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-					// Cancel stops the run before its next batch: the batches already answered
-					// land once the one in flight has drained. Wait for that first write, then
-					// prove nothing more lands.
-					let settled = 0;
-					for (let i = 0; i < 120 && settled === 0; i++) {
-						await sleep(250);
-						settled = await count();
-					}
-					await sleep(2000);
-					return { cancelled: true, settled, later: await count(), total };
-				}
+				if (e instanceof Error && e.name === "AbortError") return { cancelled: true };
 				return { error: e instanceof Error ? e.message : String(e) };
 			}
-		}, N);
-
+		});
 		expect(result.cancelled).toBe(true);
-		// The page that reported progress stays applied, and no page lands after the cancel.
-		expect(result.settled).toBeGreaterThan(0);
-		expect(result.settled).toBeLessThan(N);
-		expect(result.later).toBe(result.settled);
+
+		// Cancel stops the run before its next batch, and the engine lets the run go only
+		// once the batch in flight has drained, so nothing can land after this.
+		await browser.waitUntil(
+			() => withApi(async (api) => (await api.cmd.procedureActivity()).runs.length === 0),
+			{ timeoutMsg: "the cancelled run never ended" },
+		);
+		const settled = await withApi(
+			async (api) => (await api.fetchAllLocations()).filter((l) => l.panoId != null).length,
+		);
+		// The page that reported progress stays applied, and the cancel left the rest unrun.
+		expect(settled).toBeGreaterThan(0);
+		expect(settled).toBeLessThan(N);
 	});
 });
 
