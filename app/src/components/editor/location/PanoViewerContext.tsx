@@ -138,14 +138,15 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		[geocodeProvider, currentPano, lookup.data],
 	);
 
-	const [enriching, setEnriching] = useState(false);
+	const draftKey = draft && `${draft.id}:${draft.panoId}`;
+	const [enrichedKey, setEnrichedKey] = useState<string | null>(null);
+	const enriching = location != null && (draftKey == null || enrichedKey !== draftKey);
 	const inFlight = useRef<Promise<Location | null>>(Promise.resolve(null));
 	useEffect(() => {
 		if (!draft) return;
 		const ac = new AbortController();
 		const patch = (extra: Location["extra"]) =>
 			setState((prev) => (prev && sameRow(prev, draft) ? { ...prev, extra } : prev));
-		setEnriching(true);
 		// Stale fields go before enrichment runs, so a run that is off or narrowed hands
 		// back a clean row too, and the run derives the gaps.
 		const base = forgetting(draft);
@@ -167,7 +168,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 				return null;
 			})
 			.finally(() => {
-				if (!ac.signal.aborted) setEnriching(false);
+				if (!ac.signal.aborted) setEnrichedKey(draftKey);
 			});
 		return () => ac.abort();
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs per pano, reading the draft as it is then
@@ -193,6 +194,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	useEffect(() => {
 		if (location) return;
 		setState(null);
+		setEnrichedKey(null);
 		onLocationCleared();
 		pano.hide();
 	}, [pano, location]);

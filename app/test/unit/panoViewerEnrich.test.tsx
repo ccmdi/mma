@@ -254,6 +254,34 @@ describe("the draft is the location as a save would write it", () => {
 	});
 });
 
+describe("enriching", () => {
+	it("holds from the moment a location opens until its draft's enrichment answers", async () => {
+		h.enrichDefer = true;
+		const m = mountHost();
+		expect(viewer.draft).toBeNull();
+		expect(viewer.enriching).toBe(true);
+		await open("pA");
+		expect(viewer.enriching).toBe(true);
+		await act(async () => h.deferredResolvers[0]({ ...location(), extra: { enriched: "pA" } }));
+		expect(viewer.enriching).toBe(false);
+		m.unmount();
+	});
+
+	it("holds again when the same location reopens on the same pano", async () => {
+		const m = mountHost();
+		await open("pA");
+		expect(viewer.enriching).toBe(false);
+		const stored = location();
+		h.activeLocation = null;
+		await act(async () => refresh());
+		expect(viewer.enriching).toBe(false);
+		h.activeLocation = stored;
+		await act(async () => refresh());
+		expect(viewer.enriching).toBe(true);
+		m.unmount();
+	});
+});
+
 describe("input invalidation", () => {
 	it("a pano change strips the old pano's derived fields before enrichment runs on the new pano", async () => {
 		const m = mountHost();
