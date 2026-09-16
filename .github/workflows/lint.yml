@@ -20,6 +20,25 @@ jobs:
       - run: npx eslint src/
         working-directory: app
 
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
+      - run: npx prettier --check src test procedures --ignore-path ../.prettierignore
+        working-directory: app
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+        working-directory: app/src-tauri
+
   typecheck:
     runs-on: ubuntu-latest
     steps:

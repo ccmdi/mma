@@ -54,7 +54,7 @@
 		"ts-pattern": "^5.9.0"
 	},
 	"lint-staged": {
-		"*.{ts,tsx}": [
+		"*.{ts,tsx,mjs}": [
 			"prettier --write --ignore-path ../.prettierignore",
 			"eslint --fix"
 		],

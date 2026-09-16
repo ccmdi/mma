@@ -10,11 +10,10 @@ cd app
 # Format + lint staged files
 npx lint-staged || exit 1
 
-# Format staged Rust files
-STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep '^app/src-tauri/src/')
+# Format staged Rust files and restage them, the way lint-staged does for TypeScript
+STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep '^app/src-tauri/')
 if [ -n "$STAGED_RS" ]; then
-	(cd .. && rustfmt --check --edition 2021 $STAGED_RS) >/dev/null 2>&1 ||
-		echo "[pre-commit] rustfmt would reformat a staged Rust file (advisory)."
+	(cd .. && rustfmt --edition 2021 $STAGED_RS && git add $STAGED_RS) || exit 1
 fi
 
 # TypeScript type check
