@@ -3,6 +3,7 @@
 
 pub(crate) mod pano;
 pub(crate) mod pano_id;
+#[rustfmt::skip]
 pub(crate) mod schema;
 #[cfg(test)]
 mod schema_codegen;

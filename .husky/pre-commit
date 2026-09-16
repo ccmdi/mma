@@ -11,7 +11,7 @@ cd app
 npx lint-staged || exit 1
 
 # Format staged Rust files and restage them, the way lint-staged does for TypeScript
-STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep '^app/src-tauri/')
+STAGED_RS=$(git diff --cached --name-only --diff-filter=ACM -- '*.rs' | grep '^app/src-tauri/' | grep -v '^app/src-tauri/src/sv/schema\.rs$')
 if [ -n "$STAGED_RS" ]; then
 	(cd .. && rustfmt --edition 2021 $STAGED_RS && git add $STAGED_RS) || exit 1
 fi
