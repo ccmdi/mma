@@ -15,11 +15,6 @@ import {
 	unwrapLng,
 	unwrapRing,
 } from "@/lib/geo/geo";
-import {
-	getBoundingBox,
-	pointInGeoJsonGeometry,
-	poissonDiskSample,
-} from "@/plugins/generator/engine/geo";
 
 /** What the rectangle tool builds, before it is closed and densified. */
 const corners = (a: number, b: number) => [
@@ -305,36 +300,6 @@ describe("pointInPolygon across the seam", () => {
 		expect(pointInPolygon(3, 0, [ring])).toBe(true);
 		expect(pointInPolygon(30, 0, [ring])).toBe(false);
 		expect(pointInPolygon(100, 0, [ring])).toBe(false);
-	});
-
-	it("selects with the generator's broad phase, which shares the same frame", () => {
-		// pointInGeoJsonGeometry bbox-rejects before the exact test, so a raw comparison
-		// there would drop seam-crossing points the ring test would have accepted.
-		const geometry: GeoJSON.Polygon = { type: "Polygon", coordinates: [box(170, 190)] };
-		expect(pointInGeoJsonGeometry(180, 0, geometry)).toBe(true);
-		expect(pointInGeoJsonGeometry(-175, 0, geometry)).toBe(true);
-		expect(pointInGeoJsonGeometry(175, 0, geometry)).toBe(true);
-		expect(pointInGeoJsonGeometry(160, 0, geometry)).toBe(false);
-		expect(pointInGeoJsonGeometry(0, 0, geometry)).toBe(false);
-	});
-
-	it("samples a seam-crossing region instead of the rest of the world", () => {
-		// Raw min/max bounds made this box 340 degrees wide, so sampling landed almost
-		// entirely outside it and every emitted longitude had to be in [-180, 180].
-		const feature: GeoJSON.Feature<GeoJSON.Polygon> = {
-			type: "Feature",
-			properties: {},
-			geometry: { type: "Polygon", coordinates: [box(170, 190)] },
-		};
-		expect(lngSpan(getBoundingBox(feature)!)).toBe(20);
-		const points = poissonDiskSample(feature, 40_000);
-		expect(points.length).toBeGreaterThan(0);
-		for (const p of points) {
-			expect(p.lng).toBeGreaterThanOrEqual(-180);
-			expect(p.lng).toBeLessThanOrEqual(180);
-			expect(pointInGeoJsonGeometry(p.lng, p.lat, feature.geometry)).toBe(true);
-		}
-		expect(points.some((p) => p.lng < 0)).toBe(true); // reached past the seam
 	});
 
 	it("honours holes in the seam frame", () => {

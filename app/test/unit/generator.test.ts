@@ -17,13 +17,48 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
+// Test polygons are rectangles, so the mocked shape commands answer with plain
+// interval checks against the outer ring.
+type MockPolygon = { coordinates: [number, number][][] };
+function rectOf(polygon: MockPolygon) {
+	const ring = polygon.coordinates[0];
+	const lngs = ring.map((p) => p[0]);
+	const lats = ring.map((p) => p[1]);
+	return {
+		west: Math.min(...lngs),
+		east: Math.max(...lngs),
+		south: Math.min(...lats),
+		north: Math.max(...lats),
+	};
+}
+
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeFindNearby: () => Promise.resolve(h.seeds),
 		storeNearAny: (lats: number[]) => Promise.resolve(lats.map(() => false)),
-		honeycombPoints: (_polygons: unknown, spacingM: number) => {
+		honeycombPoints: (_polygon: unknown, spacingM: number) => {
 			h.gridRequests.push(spacingM);
 			return Promise.resolve(h.gridRuns);
+		},
+		polygonBounds: (polygon: MockPolygon) => {
+			const r = rectOf(polygon);
+			return Promise.resolve([r.west, r.south, r.east, r.north]);
+		},
+		polygonContainsPoints: (polygon: MockPolygon, lats: number[], lngs: number[]) => {
+			const r = rectOf(polygon);
+			return Promise.resolve(
+				lats.map(
+					(lat, i) => lat >= r.south && lat <= r.north && lngs[i] >= r.west && lngs[i] <= r.east,
+				),
+			);
+		},
+		polygonRandomPoints: (polygon: MockPolygon, count: number) => {
+			const r = rectOf(polygon);
+			const pts: [number, number][] = Array.from({ length: count }, () => [
+				r.west + Math.random() * (r.east - r.west),
+				r.south + Math.random() * (r.north - r.south),
+			]);
+			return Promise.resolve(pts);
 		},
 	},
 }));
@@ -303,21 +338,17 @@ function regionAt(id: string, west: number, east: number): GeneratorRegion {
 	return {
 		id,
 		name: id,
-		feature: {
-			type: "Feature",
-			properties: { name: id },
-			geometry: {
-				type: "Polygon",
-				coordinates: [
-					[
-						[west, -5],
-						[east, -5],
-						[east, 5],
-						[west, 5],
-						[west, -5],
-					],
+		polygon: {
+			coordinates: [
+				[
+					[west, -5],
+					[east, -5],
+					[east, 5],
+					[west, 5],
+					[west, -5],
 				],
-			},
+			],
+			extraPolygons: null,
 		},
 		found: [],
 		target: 1000, // never self-completes; tests drive stop() explicitly
@@ -721,90 +752,9 @@ describe("GenerationEngine grow sampling", () => {
 	});
 });
 
-// --- Poisson disk sampling ---
-
-import { poissonDiskSample } from "@/plugins/generator/engine/geo";
-
-function squareFeature(
-	west: number,
-	south: number,
-	east: number,
-	north: number,
-): GeoJSON.Feature<GeoJSON.Polygon> {
-	return {
-		type: "Feature",
-		properties: {},
-		geometry: {
-			type: "Polygon",
-			coordinates: [
-				[
-					[west, south],
-					[east, south],
-					[east, north],
-					[west, north],
-					[west, south],
-				],
-			],
-		},
-	};
-}
-
-describe("poissonDiskSample", () => {
-	it("all points are inside the polygon", () => {
-		const feature = squareFeature(10, 50, 11, 51);
-		const points = poissonDiskSample(feature, 5000);
-		expect(points.length).toBeGreaterThan(0);
-		for (const p of points) {
-			expect(p.lng).toBeGreaterThanOrEqual(10);
-			expect(p.lng).toBeLessThanOrEqual(11);
-			expect(p.lat).toBeGreaterThanOrEqual(50);
-			expect(p.lat).toBeLessThanOrEqual(51);
-		}
-	});
-
-	it("no two points are closer than minDistance", () => {
-		const feature = squareFeature(10, 50, 10.5, 50.5);
-		const minDist = 3000;
-		const points = poissonDiskSample(feature, minDist);
-
-		const mPerDegLat = 111_320;
-		const midLat = 50.25;
-		const mPerDegLng = mPerDegLat * Math.cos((midLat * Math.PI) / 180);
-
-		for (let i = 0; i < points.length; i++) {
-			for (let j = i + 1; j < points.length; j++) {
-				const dx = (points[i].lng - points[j].lng) * mPerDegLng;
-				const dy = (points[i].lat - points[j].lat) * mPerDegLat;
-				const dist = Math.sqrt(dx * dx + dy * dy);
-				expect(dist).toBeGreaterThanOrEqual(minDist * 0.99);
-			}
-		}
-	});
-
-	it("produces a reasonable number of points for the area", () => {
-		const feature = squareFeature(10, 50, 11, 51);
-		const minDist = 5000;
-		const points = poissonDiskSample(feature, minDist);
-
-		const mPerDegLat = 111_320;
-		const mPerDegLng = mPerDegLat * Math.cos((50.5 * Math.PI) / 180);
-		const areaM2 = 1 * mPerDegLng * (1 * mPerDegLat);
-		const maxPacking = areaM2 / (minDist * minDist * Math.PI * 0.25);
-
-		expect(points.length).toBeGreaterThan(maxPacking * 0.3);
-		expect(points.length).toBeLessThan(maxPacking * 1.5);
-	});
-
-	it("handles tiny polygons gracefully", () => {
-		const feature = squareFeature(10, 50, 10.001, 50.001);
-		const points = poissonDiskSample(feature, 5000);
-		expect(points.length).toBeLessThanOrEqual(1);
-	});
-});
-
 // --- Grid sampling ---
 
-import { gridPointSource } from "@/plugins/generator/engine/geo";
+import { gridPointSource } from "@/plugins/generator/engine/pointSources";
 
 const GRID_RUNS = [
 	{ lat: 1, lng: -50, lngStep: 0.5, count: 4 },

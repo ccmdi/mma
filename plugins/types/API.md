@@ -1482,11 +1482,10 @@ Resolves with the signed-in account.
 Begin device-flow sign-in. Returns the code to show the user; call
 [`github_poll_login`] afterwards to wait for them to finish authorizing.
 
-#### `cmd.honeycombPoints(polygons: [number, number][][][], spacingM: number): Promise<HoneycombRun[]>` *(unstable)*
+#### `cmd.honeycombPoints(polygon: PolygonGeometry, spacingM: number): Promise<HoneycombRun[]>` *(unstable)*
 
-The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
-(each an outer ring followed by its holes, as `[lng, lat]` pairs), one entry per row of
-points.
+The points of a honeycomb about `spacing_m` metres apart that fall inside the polygon,
+one entry per row of points.
 
 #### `cmd.installPlugin(id: string, gitRef: string | null): Promise<PluginManifest>` *(unstable)*
 
@@ -1528,6 +1527,25 @@ Open the app's log file in the OS default handler.
 #### `cmd.parseMapsUrl(input: string): Promise<ParsedLocation | null>` *(unstable)*
 
 The location a pasted Maps URL names, short links resolved.
+
+#### `cmd.polygonBounds(polygon: PolygonGeometry): Promise<[number, number, number, number] | null>` *(unstable)*
+
+Bounding box `[west, south, east, north]` of the polygon itself, or `None` when it
+has no vertices. `west > east` means the box crosses the antimeridian.
+
+#### `cmd.polygonContainsPoints(polygon: PolygonGeometry, lats: number[], lngs: number[]): Promise<boolean[]>` *(unstable)*
+
+Whether each of the points sits inside the polygon.
+
+#### `cmd.polygonPoissonPoints(polygon: PolygonGeometry, spacingM: number): Promise<[number, number][]>` *(unstable)*
+
+Points covering the polygon with no two closer than `spacing_m` metres and no gap
+wider than about twice that, in random order.
+
+#### `cmd.polygonRandomPoints(polygon: PolygonGeometry, count: number): Promise<[number, number][]>` *(unstable)*
+
+Up to `count` points drawn uniformly at random inside the polygon, as `[lng, lat]`
+pairs. Fewer come back when the polygon fills little of its bounding box.
 
 #### `cmd.procedureActivity(): Promise<ProcedureActivity>` *(unstable)*
 
@@ -2063,13 +2081,11 @@ Write text to a temp file and return its path. `name` is a leaf filename
 
 ## Tauri
 
-### `dialog: { open: <T extends OpenDialogOptions>(options?: T | undefined) => Promise<OpenDialogReturn<T>>; save: (options?: SaveDialogOptions | undefined) => Promise<...>; }`
+### `dialog: { open: any; save: any; }`
 
-### `invoke<T>(cmd: string, args?: InvokeArgs | undefined, options?: InvokeOptions | undefined): Promise<T>`
+### `invoke: any`
 
-Sends a message to the backend.
-
-### `shell: { Command: typeof Command; }`
+### `shell: { Command: any; }`
 
 Tauri primitives, handed to plugins as-is.
 
@@ -2255,76 +2271,71 @@ The nested `sidecar` namespace on the plugin surface.
 
 ### `ui`
 
-#### `ui.Button({ variant, small, type, className, ...props }: ClassAttributes<HTMLButtonElement> & ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant | undefined; small?: boolean | undefined; }): Element`
+#### `ui.Button({ variant, small, type, className, ...props }: any): react.JSX.Element`
 
-#### `ui.Checkbox({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
+#### `ui.Checkbox({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element`
 
-#### `ui.ColorPicker({ color, onChange, ariaLabel, }: { color: RGB; onChange: (color: RGB) => void; ariaLabel?: string | undefined; }): Element`
+#### `ui.ColorPicker({ color, onChange, ariaLabel, }: { color: RGB; onChange: (color: RGB) => void; ariaLabel?: string | undefined; }): react.JSX.Element`
 
 A color swatch that opens the picker in a popover on click.
 
-#### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): Element`
+#### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): react.JSX.Element`
 
-#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<Props<unknown>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
+#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<ComponentProps<any>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): react.JSX.Element`
 
-#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; }): Element`
+#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: any): react.JSX.Element`
 
-#### `ui.DialogTrigger<Payload>(componentProps: DialogTriggerProps<Payload> & RefAttributes<HTMLElement>): Element`
+#### `ui.DialogTrigger: Dialog$1.Trigger`
 
-A button that opens the dialog.
-Renders a `<button>` element.
-
-Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
-
-#### `ui.EmptyState({ icon, children }: { icon?: string | undefined; children: ReactNode; }): Element`
+#### `ui.EmptyState({ icon, children }: { icon?: string | undefined; children: ReactNode; }): react.JSX.Element`
 
 Centered icon + message for empty panels.
 
-#### `ui.Field({ label, hint, row, children, }: { label: ReactNode; hint?: ReactNode; row?: boolean | undefined; children: ReactNode; }): Element`
+#### `ui.Field({ label, hint, row, children, }: { label: ReactNode; hint?: any; row?: boolean | undefined; children: ReactNode; }): react.JSX.Element`
 
 Labelled form row (label left, control right) for sidebar sections.
 
-#### `ui.Flag({ code, height, className, }: { code: string | null; height?: number | undefined; className?: string | undefined; }): Element | null`
+#### `ui.Flag({ code, height, className, }: { code: string | null; height?: number | undefined; className?: string | undefined; }): any`
 
 Country flag from the bundled SVG set. Renders nothing for a missing or malformed code.
 
-#### `ui.HotkeyInput({ value, onChange, }: { value: string; onChange: (combo: string) => void; }): Element`
+#### `ui.HotkeyInput({ value, onChange, }: { value: string; onChange: (combo: string) => void; }): react.JSX.Element`
 
 Click-to-record key combo input. Backspace/Delete clears, Escape cancels.
 
-#### `ui.Icon({ path, size, className, style }: IconProps): Element`
+#### `ui.Icon({ path, size, className, style }: IconProps): react.JSX.Element`
 
-#### `ui.NSelect({ className, onWheel, ...props }: DetailedHTMLProps<SelectHTMLAttributes<HTMLSelectElement>, HTMLSelectElement>): Element`
+#### `ui.NSelect({ className, onWheel, ...props }: ComponentPropsWithRef<"select">): react.JSX.Element`
 
-#### `ui.Radio({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
+#### `ui.Radio({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element`
 
-#### `ui.RgbPicker({ color, onChange }: { color: RGB; onChange: (color: RGB) => void; }): Element`
+#### `ui.RgbPicker({ color, onChange }: { color: RGB; onChange: (color: RGB) => void; }): react.JSX.Element`
 
 The picker surface itself, debounced. Sole place the `{r,g,b}` shape react-colorful
 wants exists -- every caller in the app passes and receives an [r, g, b] tuple.
 
-#### `ui.Section({ title, defaultOpen, collapsible, addons, children, }: { title: ReactNode; defaultOpen?: boolean | undefined; collapsible?: boolean | undefined; addons?: ReactNode; children: ReactNode; }): Element`
+#### `ui.Section({ title, defaultOpen, collapsible, addons, children, }: { title: ReactNode; defaultOpen?: boolean | undefined; collapsible?: boolean | undefined; addons?: any; children: ReactNode; }): react.JSX.Element`
 
 Collapsible titled section inside a Sidebar.
 
-#### `ui.SegmentedControl<T extends string | number>({ options, value, onChange, className, }: { options: SegmentedOption<T>[]; value: T; onChange: (value: T) => void; className?: string | undefined; }): Element`
+#### `ui.SegmentedControl<T extends string | number>({ options, value, onChange, className, }: { options: SegmentedOption<T>[]; value: T; onChange: (value: T) => void; className?: string | undefined; }): react.JSX.Element`
 
 Row of mutually exclusive option buttons (a compact radio group).
 
-#### `ui.SelectorPicker({ ctl, className, }: { ctl: SelectorPickController; className?: string | undefined; }): Element`
+#### `ui.SelectorPicker({ ctl, className, }: { ctl: SelectorPickController; className?: string | undefined; }): react.JSX.Element`
 
-#### `ui.SettingRow(props: BoolRow | ControlRow | AutoBoolRow): Element | null`
+#### `ui.SettingRow(props: BoolRow | ControlRow | AutoBoolRow): any`
 
-#### `ui.Sidebar({ title, onBack, actions, className, flush, children, }: { title: ReactNode; onBack?: (() => void) | undefined; actions?: ReactNode; className?: string | undefined; flush?: boolean | undefined; children: ReactNode; }): Element`
+#### `ui.Sidebar({ title, onBack, actions, className, flush, children, }: { title: ReactNode; onBack?: (() => void) | undefined; actions?: any; className?: string | undefined; flush?: boolean | undefined; children: ReactNode; }): react.JSX.Element`
 
 Standard right-hand sidebar chrome (title, back button, scrollable body). Use for plugin sidebars.
 
-#### `ui.Slider({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
+#### `ui.Slider({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element`
 
 Range input whose track fills with the accent up to the current value.
 Controlled only: the fill derives from the value prop.
 
-#### `ui.SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: { value: string; onChange: (v: string) => void; suggestions: T[]; onPick: (item: T) => void; renderItem: (item: T) => ReactNode; getKey: (item: T) => string | number; ... 9 more ...; portal?: boolean | undefined; }): Element`
+#### `ui.SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: { value: string; onChange: (v: string) => void; suggestions: T[]; onPick: (item: T) => void; renderItem: (item: T) => ReactNode; getKey: (item: T) => string | number; placeholder?: string | undefined; ... 8 more ...; portal?: boolean | undefined; }): react.JSX.Element`
 
 Autocomplete input: owns open/close state, outside-click dismissal,
 Enter-picks-first, and Escape-closes. Suggestion sourcing stays at the call
@@ -2332,9 +2343,9 @@ site (sync filter or debounced fetch) — the dropdown shows whenever
 `suggestions` is non-empty and not dismissed. Default classes render the
 standard `.search-results` dropdown; override them for other skins.
 
-#### `ui.Switch({ checked, onChange, disabled, label, }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean | undefined; label?: string | undefined; }): Element`
+#### `ui.Switch({ checked, onChange, disabled, label, }: { checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean | undefined; label?: string | undefined; }): react.JSX.Element`
 
-#### `ui.SwitchRow({ checked, onChange, label, disabled, className, children, }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean | undefined; className?: string | undefined; children?: ReactNode; }): Element`
+#### `ui.SwitchRow({ checked, onChange, label, disabled, className, children, }: { checked: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean | undefined; className?: string | undefined; children?: any; }): react.JSX.Element`
 
 A compact, control-left row whose whole surface toggles an immediate-effect
 boolean. The Switch owns keyboard + a11y; the row forwards mouse clicks to
@@ -2342,20 +2353,20 @@ the same toggle. The control wrapper stops propagation so a direct switch
 click does not also fire the row handler. Used by MapSettingsPanel and any
 surface outside the Settings dialog (SettingRow is the Settings dialog row).
 
-#### `ui.TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): Element`
+#### `ui.TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): react.JSX.Element`
 
 The one tag pill. Owns the tag color's rendering: every surface that shows a tag
 goes through here, so the look changes in one place.
 
-#### `ui.TagPillButton({ variant, className, ...props }: ClassAttributes<HTMLButtonElement> & ButtonHTMLAttributes<HTMLButtonElement> & { variant: TagPillButtonVariant; }): Element`
+#### `ui.TagPillButton({ variant, className, ...props }: any): react.JSX.Element`
 
 The leading affordance inside a TagPill: remove, apply, or open the editor.
 
-#### `ui.TextInput({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
+#### `ui.TextInput({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element`
 
-#### `ui.ToolBlock(props: ToolBlockProps): Element`
+#### `ui.ToolBlock(props: ToolBlockProps): react.JSX.Element`
 
-#### `ui.Tooltip({ content, side, align, children, }: { content: string; side?: Side | undefined; align?: Align | undefined; children: ReactElement<unknown, string | JSXElementConstructor<any>>; }): ReactElement<...>`
+#### `ui.Tooltip({ content, side, align, children, }: { content: string; side?: Side | undefined; align?: Align | undefined; children: ReactElement; }): ReactElement<Record<string, unknown>, any>`
 
 Marks its child as a tooltip trigger. Adds attributes to the existing element instead of
 wrapping it, so a trigger costs no extra fibers and hovering re-renders only the single

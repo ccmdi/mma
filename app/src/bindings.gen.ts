@@ -213,11 +213,27 @@ export const commands = {
 	 */
 	storeEvenlySpaced: (selector: Selector, targetCount: number | null, spacingM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_evenly_spaced", { selector, targetCount, spacingM: spacingM==null?spacingM:spacingM }),
 	/**
-	 *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
-	 *  (each an outer ring followed by its holes, as `[lng, lat]` pairs), one entry per row of
-	 *  points.
+	 *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygon,
+	 *  one entry per row of points.
 	 */
-	honeycombPoints: (polygons: ((([number, number])[])[])[], spacingM: number) => __TAURI_INVOKE<HoneycombRun[]>("honeycomb_points", { polygons: polygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i)))), spacingM }).then((v) => (v.map(i=>i) as typeof v)),
+	honeycombPoints: (polygon: PolygonGeometry, spacingM: number) => __TAURI_INVOKE<HoneycombRun[]>("honeycomb_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), spacingM }).then((v) => (v.map(i=>i) as typeof v)),
+	/**
+	 *  Up to `count` points drawn uniformly at random inside the polygon, as `[lng, lat]`
+	 *  pairs. Fewer come back when the polygon fills little of its bounding box.
+	 */
+	polygonRandomPoints: (polygon: PolygonGeometry, count: number) => __TAURI_INVOKE<([number, number])[]>("polygon_random_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), count }).then((v) => (v.map(i=>i.map(i=>i)) as typeof v)),
+	/**
+	 *  Points covering the polygon with no two closer than `spacing_m` metres and no gap
+	 *  wider than about twice that, in random order.
+	 */
+	polygonPoissonPoints: (polygon: PolygonGeometry, spacingM: number) => __TAURI_INVOKE<([number, number])[]>("polygon_poisson_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), spacingM }).then((v) => (v.map(i=>i.map(i=>i)) as typeof v)),
+	/**  Whether each of the points sits inside the polygon. */
+	polygonContainsPoints: (polygon: PolygonGeometry, lats: number[], lngs: number[]) => __TAURI_INVOKE<boolean[]>("polygon_contains_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), lats: lats.map(i=>i), lngs: lngs.map(i=>i) }),
+	/**
+	 *  Bounding box `[west, south, east, north]` of the polygon itself, or `None` when it
+	 *  has no vertices. `west > east` means the box crosses the antimeridian.
+	 */
+	polygonBounds: (polygon: PolygonGeometry) => __TAURI_INVOKE<[number, number, number, number] | null>("polygon_bounds", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
 	/**  Group by a derived key, returning `{ key, ids, bin }` per group. */
 	storeGroupBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<PartitionBucket[]>("store_group_by", { selector, field, key }).then((v) => (v.map(i=>({...i,bin:i.bin==null?i.bin:i.bin.map(i=>i)})) as typeof v)),
 	/**  Group locations by a derived key, returning counts only (no member ids). */

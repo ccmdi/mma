@@ -1,4 +1,4 @@
-import type { Location } from "@/bindings.gen";
+import type { Location, PolygonGeometry } from "@/bindings.gen";
 import type { CameraType } from "@/bindings.consts";
 import type { LatLng, PanoView } from "@/types";
 
@@ -136,7 +136,7 @@ export interface GeneratorRegionMeta {
 export interface GeneratorRegion {
 	id: string;
 	name: string;
-	feature: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>;
+	polygon: PolygonGeometry;
 	found: GeneratedLocation[];
 	target: number;
 	checkedPanos: Set<string>;

@@ -183,6 +183,54 @@ impl<'a> PreparedRing<'a> {
     }
 }
 
+/// A set of polygons (each an outer ring then its holes) preprocessed for repeated
+/// point tests, with the whole set's bbox. The prepared form of `polygon_contains`
+/// over many polygons: each ring pays its unwrap, bbox and band index once.
+pub struct PreparedPolygons<'a> {
+    polys: Vec<Vec<PreparedRing<'a>>>,
+    bb: Option<[f64; 4]>,
+}
+
+impl<'a> PreparedPolygons<'a> {
+    pub fn new(polygons: impl IntoIterator<Item = &'a [Vec<[f64; 2]>]>) -> Self {
+        let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+        let mut any = false;
+        let polys: Vec<Vec<PreparedRing<'a>>> = polygons
+            .into_iter()
+            .map(|rings| {
+                for ring in rings {
+                    extend_bbox_with_ring(&mut bb, &mut any, ring);
+                }
+                rings.iter().map(|r| PreparedRing::new(r)).collect()
+            })
+            .collect();
+        if any {
+            anchor_bbox(&mut bb);
+        }
+        Self {
+            polys,
+            bb: any.then_some(bb),
+        }
+    }
+
+    /// Equivalent to `polygon_contains` over any of the polygons.
+    #[inline]
+    pub fn contains(&self, lng: f64, lat: f64) -> bool {
+        self.polys.iter().any(|rings| match rings.split_first() {
+            Some((outer, holes)) => {
+                outer.contains(lng, lat) && !holes.iter().any(|h| h.contains(lng, lat))
+            }
+            None => false,
+        })
+    }
+
+    /// `[min_lng, min_lat, max_lng, max_lat]` over every ring, `min_lng` anchored in
+    /// [-180, 180) with `max_lng` possibly past it. `None` when there are no vertices.
+    pub fn bbox(&self) -> Option<[f64; 4]> {
+        self.bb
+    }
+}
+
 /// Test point-in-polygon with holes over rings yielded as slices: inside the outer
 /// ring (first) and outside all hole rings (rest). The single source of truth for the
 /// outer/hole composition, shared by owned `Vec`-backed and mmap'd archived geometry.

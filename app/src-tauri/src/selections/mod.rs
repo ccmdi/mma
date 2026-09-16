@@ -21,7 +21,7 @@ pub use duplicates::*;
 pub use filter::*;
 pub(crate) use geometry::*;
 pub(crate) use mma_geo::{
-    anchor_bbox, extend_bbox_with_ring, haversine_m, in_bbox, polygon_contains, PreparedRing,
+    anchor_bbox, extend_bbox_with_ring, haversine_m, in_bbox, polygon_contains,
 };
 #[cfg(test)]
 pub(crate) use mma_geo::{point_in_ring, unwrap_ring};
@@ -979,7 +979,7 @@ fn resolve_leaf_mask(view: &LocView, selector: &Selector) -> Vec<bool> {
         Selector::Polygon { polygon } => match geometry_bbox(polygon) {
             None => vec![false; n],
             Some(bb) => {
-                let prepared = PreparedGeometry::new(polygon);
+                let prepared = polygon.prepared();
                 view.resolve_mask(|r| {
                     in_bbox(r.lng(), r.lat(), &bb) && prepared.contains(r.lng(), r.lat())
                 })

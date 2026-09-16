@@ -6,14 +6,7 @@ import type {
 	PointSource,
 	SamplingMode,
 } from "./types";
-import {
-	randomPointInBounds,
-	getBoundingBox,
-	gridPointSource,
-	pointInGeoJsonGeometry,
-	pointsInOrder,
-	poissonDiskSample,
-} from "./geo";
+import { gridPointSource, pointsInOrder } from "./pointSources";
 import { blueLineSample } from "./blueLineSampler";
 import { passesInitialFilters, passesDateFilters, isPanoGood, computeHeading } from "./filters";
 import { svMetadata } from "@/lib/sv/query";
@@ -27,6 +20,19 @@ import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { chunk } from "@/lib/util/util";
 import type { Bounds, LatLng } from "@/types";
+
+async function regionBounds(region: GeneratorRegion): Promise<Bounds | null> {
+	const box = await cmd.polygonBounds(region.polygon);
+	return box ? { west: box[0], south: box[1], east: box[2], north: box[3] } : null;
+}
+
+function regionContains(region: GeneratorRegion, points: LatLng[]): Promise<boolean[]> {
+	return cmd.polygonContainsPoints(
+		region.polygon,
+		points.map((p) => p.lat),
+		points.map((p) => p.lng),
+	);
+}
 
 const SILENT: GenerationCallbacks = {
 	onLocationsFound: () => {},
@@ -71,7 +77,7 @@ export class GenerationEngine {
 	async start(): Promise<void> {
 		if (this.started || this.stopped) return;
 		this.started = true;
-		this.beginSearchOverlay();
+		await this.beginSearchOverlay();
 		try {
 			if (this.settings.oneCountryAtATime) {
 				this.regionTasks.push(this.runSequential());
@@ -138,8 +144,9 @@ export class GenerationEngine {
 			this.regionTasks.push(this.runRegionWorkers(existing ?? region, count));
 		}
 
-		const b = this.searchOverlayBounds();
-		if (b) searchCoverage.growSession(b, this.settings.radius);
+		void this.searchOverlayBounds().then((b) => {
+			if (b && this.isRunning()) searchCoverage.growSession(b, this.settings.radius);
+		});
 	}
 
 	// Live-apply per-region target changes mid-job; workers re-read target every probe.
@@ -190,11 +197,11 @@ export class GenerationEngine {
 	}
 
 	/** Every region's box, padded by the probe radius so a disc at the edge still lands. */
-	private searchOverlayBounds(): Bounds | null {
+	private async searchOverlayBounds(): Promise<Bounds | null> {
 		if (this.regions.length === 0) return null;
 		let bounds: Bounds | null = null;
 		for (const region of this.regions) {
-			const bb = getBoundingBox(region.feature);
+			const bb = await regionBounds(region);
 			if (bb) bounds = bounds ? unionBounds(bounds, bb) : bb;
 		}
 		if (!bounds) return null;
@@ -210,8 +217,8 @@ export class GenerationEngine {
 		};
 	}
 
-	private beginSearchOverlay(): void {
-		const b = this.searchOverlayBounds();
+	private async beginSearchOverlay(): Promise<void> {
+		const b = await this.searchOverlayBounds();
 		if (b) searchCoverage.beginSession(b, this.settings.radius);
 	}
 
@@ -277,19 +284,15 @@ export class GenerationEngine {
 		region: GeneratorRegion,
 		mode: Exclude<SamplingMode, "random" | "kernels">,
 	): Promise<PointSource> {
-		if (mode === "blueline") return pointsInOrder(await blueLineSample(region.feature));
+		if (mode === "blueline") return pointsInOrder(await blueLineSample(region.polygon));
 		if (mode === "poisson") {
-			const points = poissonDiskSample(region.feature, 2 * this.settings.radius);
+			const pairs = await cmd.polygonPoissonPoints(region.polygon, 2 * this.settings.radius);
+			const points = pairs.map(([lng, lat]) => ({ lat, lng }));
 			log.info(`[generator] Poisson disk: ${points.length} probes for ${region.name}`);
 			return pointsInOrder(points);
 		}
-		const { geometry } = region.feature;
-		const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
 		// Discs of the search radius cover the plane with no gaps when their centers form a honeycomb radius * sqrt(3) apart.
-		const runs = await cmd.honeycombPoints(
-			polygons as [number, number][][][],
-			this.settings.radius * Math.sqrt(3),
-		);
+		const runs = await cmd.honeycombPoints(region.polygon, this.settings.radius * Math.sqrt(3));
 		log.info(
 			`[generator] Grid: ${runs.reduce((n, run) => n + run.count, 0)} probes for ${region.name}`,
 		);
@@ -313,7 +316,7 @@ export class GenerationEngine {
 	}
 
 	private async generateRegionKernels(region: GeneratorRegion): Promise<void> {
-		const bounds = getBoundingBox(region.feature);
+		const bounds = await regionBounds(region);
 		if (!bounds) return;
 		const { east, north, south } = bounds;
 		const centroidLat = (south + north) / 2;
@@ -326,9 +329,9 @@ export class GenerationEngine {
 		let seeds: string[];
 		try {
 			const locs = await cmd.storeFindNearby(centroidLat, centroidLng, coveringRadius);
-			seeds = locs
-				.filter((l) => l.panoId && pointInGeoJsonGeometry(l.lng, l.lat, region.feature.geometry))
-				.map((l) => l.panoId!);
+			const withPano = locs.filter((l) => l.panoId);
+			const inside = await regionContains(region, withPano);
+			seeds = withPano.filter((_, i) => inside[i]).map((l) => l.panoId!);
 		} catch (e) {
 			log.warn("[generator] Failed to fetch seed locations:", e);
 			return;
@@ -358,16 +361,17 @@ export class GenerationEngine {
 			region.isProcessing = true;
 			const frontier = queue.splice(0, Math.max(s.speed, 50));
 			const results = await svMetadata(frontier, this.abort.signal);
+			const inside = await regionContains(
+				region,
+				results.map((p) => (p ? { lat: p.lat, lng: p.lng } : { lat: 0, lng: 0 })),
+			);
 
 			for (let i = 0; i < results.length; i++) {
 				if (region.found.length >= region.target) break;
 
 				const pano = results[i];
 				if (!pano) continue;
-
-				const lat = pano.lat;
-				const lng = pano.lng;
-				if (!pointInGeoJsonGeometry(lng, lat, region.feature.geometry)) continue;
+				if (!inside[i]) continue;
 
 				let depth = depthMap.get(frontier[i]) ?? 0;
 
@@ -400,23 +404,15 @@ export class GenerationEngine {
 	}
 
 	private async generateRegionRandom(region: GeneratorRegion): Promise<void> {
-		const bounds = getBoundingBox(region.feature);
-		if (!bounds) return;
 		let coveredRounds = 0;
 
 		while (await this.proceed(region)) {
 			region.isProcessing = true;
 			const n = Math.min(region.target * 100, this.settings.speed);
-			let randomCoords: LatLng[] = [];
-			let attempts = 0;
-			const maxAttempts = n * 200;
-			while (randomCoords.length < n && attempts < maxAttempts) {
-				attempts++;
-				const pt = randomPointInBounds(bounds);
-				if (pointInGeoJsonGeometry(pt.lng, pt.lat, region.feature.geometry)) {
-					randomCoords.push(pt);
-				}
-			}
+			let randomCoords = (await cmd.polygonRandomPoints(region.polygon, n)).map(([lng, lat]) => ({
+				lat,
+				lng,
+			}));
 			if (this.settings.skipExisting && randomCoords.length > 0) {
 				randomCoords = await this.withoutExisting(randomCoords);
 				if (randomCoords.length === 0) {
@@ -522,15 +518,19 @@ export class GenerationEngine {
 
 		const panos = await svMetadata(fresh, this.abort.signal);
 		if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
+		const inside = await regionContains(
+			region,
+			panos.map((p) => (p ? { lat: p.lat, lng: p.lng } : { lat: 0, lng: 0 })),
+		);
 
 		// A pano that passed sends what it opens up back to depth 1; everything else sinks.
 		const fromGood: string[] = [];
 		const deeper: string[] = [];
 
-		for (const pano of panos) {
+		for (let i = 0; i < panos.length; i++) {
+			const pano = panos[i];
 			if (!pano) continue;
-			const inRegion = pointInGeoJsonGeometry(pano.lng, pano.lat, region.feature.geometry);
-			const good = isPanoGood(pano, s) && inRegion;
+			const good = isPanoGood(pano, s) && inside[i];
 			const next = good ? fromGood : deeper;
 
 			if (s.checkAllDates && !s.selectMonths && pano.time) {

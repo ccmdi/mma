@@ -12,9 +12,11 @@ use std::ops::RangeInclusive;
 mod grid;
 mod hex;
 mod polygon;
+mod sample;
 pub use grid::SpatialIndex;
 pub use hex::{HexGrid, HexNode};
 pub use polygon::*;
+pub use sample::{poisson_points, random_points};
 
 pub const EARTH_R_M: f64 = 6_371_000.0;
 

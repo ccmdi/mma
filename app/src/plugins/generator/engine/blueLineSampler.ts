@@ -1,9 +1,12 @@
 import { TileConfig, LayerType, buildSvCoverageConfig, buildTileUrl } from "@/lib/geo/tiles";
-import { getBoundingBox, pointInGeoJsonGeometry } from "./geo";
 import { latLngToWorld, worldToTile, pixelToLatLng, TILE_SIZE } from "@/lib/geo/mercator";
+import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { chunk } from "@/lib/util/util";
+import type { PolygonGeometry } from "@/bindings.gen";
 import type { Bounds, LatLng } from "@/types";
+
+const CLIP_BATCH = 50_000;
 
 const MAX_TILES_PER_AXIS = 50;
 const FETCH_CONCURRENCY = 10;
@@ -97,11 +100,12 @@ function scanTile(
 }
 
 export async function blueLineSample(
-	feature: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.MultiPolygon>,
+	polygon: PolygonGeometry,
 	maxTilesPerAxis = MAX_TILES_PER_AXIS,
 ): Promise<LatLng[]> {
-	const bounds = getBoundingBox(feature);
-	if (!bounds) return [];
+	const box = await cmd.polygonBounds(polygon);
+	if (!box) return [];
+	const bounds: Bounds = { west: box[0], south: box[1], east: box[2], north: box[3] };
 	const { zoom, nwTile, seTile, cols, rows } = calculateZoom(bounds, maxTilesPerAxis);
 	log.info(`[generator] Blue line: ${cols * rows} tiles (${cols}x${rows}) at zoom ${zoom}`);
 
@@ -131,12 +135,18 @@ export async function blueLineSample(
 
 	log.info(`[generator] Blue line: ${pixelXs.length} coverage pixels`);
 
-	const result: LatLng[] = [];
+	const candidates: LatLng[] = new Array(pixelXs.length);
 	for (let i = 0; i < pixelXs.length; i++) {
-		const pt = pixelToLatLng(pixelXs[i] + Math.random(), pixelYs[i] + Math.random(), zoom);
-		if (pointInGeoJsonGeometry(pt.lng, pt.lat, feature.geometry)) {
-			result.push(pt);
-		}
+		candidates[i] = pixelToLatLng(pixelXs[i] + Math.random(), pixelYs[i] + Math.random(), zoom);
+	}
+	const result: LatLng[] = [];
+	for (const batch of chunk(candidates, CLIP_BATCH)) {
+		const inside = await cmd.polygonContainsPoints(
+			polygon,
+			batch.map((p) => p.lat),
+			batch.map((p) => p.lng),
+		);
+		for (let i = 0; i < batch.length; i++) if (inside[i]) result.push(batch[i]);
 	}
 
 	for (let i = result.length - 1; i > 0; i--) {

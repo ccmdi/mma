@@ -644,12 +644,31 @@ declare const commands$1: {
      */
     storeEvenlySpaced: (selector: Selector, targetCount: number | null, spacingM: number | null) => Promise<SpacedPickResult>;
     /**
-     *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygons
-     *  (each an outer ring followed by its holes, as `[lng, lat]` pairs), one entry per row of
-     *  points.
+     *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygon,
+     *  one entry per row of points.
      *  @unstable
      */
-    honeycombPoints: (polygons: ((([number, number])[])[])[], spacingM: number) => Promise<HoneycombRun[]>;
+    honeycombPoints: (polygon: PolygonGeometry, spacingM: number) => Promise<HoneycombRun[]>;
+    /**
+     *  Up to `count` points drawn uniformly at random inside the polygon, as `[lng, lat]`
+     *  pairs. Fewer come back when the polygon fills little of its bounding box.
+     *  @unstable
+     */
+    polygonRandomPoints: (polygon: PolygonGeometry, count: number) => Promise<[number, number][]>;
+    /**
+     *  Points covering the polygon with no two closer than `spacing_m` metres and no gap
+     *  wider than about twice that, in random order.
+     *  @unstable
+     */
+    polygonPoissonPoints: (polygon: PolygonGeometry, spacingM: number) => Promise<[number, number][]>;
+    /**  Whether each of the points sits inside the polygon. @unstable */
+    polygonContainsPoints: (polygon: PolygonGeometry, lats: number[], lngs: number[]) => Promise<boolean[]>;
+    /**
+     *  Bounding box `[west, south, east, north]` of the polygon itself, or `None` when it
+     *  has no vertices. `west > east` means the box crosses the antimeridian.
+     *  @unstable
+     */
+    polygonBounds: (polygon: PolygonGeometry) => Promise<[number, number, number, number] | null>;
     /**  Group by a derived key, returning `{ key, ids, bin }` per group. @unstable */
     storeGroupBy: (selector: Selector, field: string, key: KeySpec) => Promise<PartitionBucket[]>;
     /**  Group locations by a derived key, returning counts only (no member ids). @unstable */

@@ -285,8 +285,8 @@ fn geometry_bbox_antimeridian() {
 
 #[test]
 fn prepared_geometry_matches_point_in_geometry() {
-    // PreparedGeometry (per-ring bbox + cached antimeridian flag) must agree with the
-    // per-point path everywhere, or polygon selections change under the optimization.
+    // The prepared form (per-ring bbox + band index) must agree with the per-point
+    // path everywhere, or polygon selections change under the optimization.
     let square =
         |x0: f64, y0: f64, x1: f64, y1: f64| vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
     let geoms = vec![
@@ -328,7 +328,7 @@ fn prepared_geometry_matches_point_in_geometry() {
         },
     ];
     for geom in &geoms {
-        let prepared = PreparedGeometry::new(geom);
+        let prepared = geom.prepared();
         let mut lat = -20.0;
         while lat <= 20.0 {
             let mut lng = -180.0;
@@ -468,7 +468,7 @@ fn point_in_ring_across_both_meridians() {
 
 #[test]
 fn polygon_resolve_wide_box() {
-    // End-to-end through geometry_bbox + in_bbox + PreparedGeometry, which is where a
+    // End-to-end through geometry_bbox + in_bbox + the prepared form, which is where a
     // broad-phase in the wrong frame would silently reject the whole selection.
     let geom = PolygonGeometry {
         coordinates: vec![wide_box(-170.0, 20.0)],

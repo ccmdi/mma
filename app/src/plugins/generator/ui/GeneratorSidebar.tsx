@@ -42,15 +42,12 @@ function saveSettings(s: GeneratorSettings) {
 
 function selectionToRegion(sel: Selection, meta: GeneratorRegionMeta): GeneratorRegion | null {
 	if (sel.selector.type !== "Polygon") return null;
-	const poly = sel.selector.polygon;
-	const name = poly.properties?.name || t("Unnamed polygon");
-	const geometry = poly.extraPolygons
-		? { type: "MultiPolygon" as const, coordinates: [poly.coordinates, ...poly.extraPolygons] }
-		: { type: "Polygon" as const, coordinates: poly.coordinates };
+	const polygon = sel.selector.polygon;
+	const name = polygon.properties?.name || t("Unnamed polygon");
 	return {
 		id: sel.key,
 		name,
-		feature: { type: "Feature", properties: { name }, geometry },
+		polygon,
 		found: meta.found,
 		target: meta.target,
 		checkedPanos: meta.checkedPanos,

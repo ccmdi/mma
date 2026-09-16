@@ -17,11 +17,49 @@ const h = vi.hoisted(() => ({
 		[-40, 5],
 		[-60, 5],
 		[-60, -5],
-	],
+	] as [number, number][],
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@/lib/sv/opensv", () => ({ google: {} }));
+// The test region is a rectangle, so the shape commands answer with interval checks.
+vi.mock("@/lib/commands", () => {
+	const rect = () => {
+		const lngs = h.square.map((p) => p[0]);
+		const lats = h.square.map((p) => p[1]);
+		return {
+			west: Math.min(...lngs),
+			east: Math.max(...lngs),
+			south: Math.min(...lats),
+			north: Math.max(...lats),
+		};
+	};
+	return {
+		cmd: {
+			storeNearAny: (lats: number[]) => Promise.resolve(lats.map(() => false)),
+			polygonBounds: () => {
+				const r = rect();
+				return Promise.resolve([r.west, r.south, r.east, r.north]);
+			},
+			polygonContainsPoints: (_p: unknown, lats: number[], lngs: number[]) => {
+				const r = rect();
+				return Promise.resolve(
+					lats.map(
+						(lat, i) => lat >= r.south && lat <= r.north && lngs[i] >= r.west && lngs[i] <= r.east,
+					),
+				);
+			},
+			polygonRandomPoints: (_p: unknown, count: number) => {
+				const r = rect();
+				const pts: [number, number][] = Array.from({ length: count }, () => [
+					r.west + Math.random() * (r.east - r.west),
+					r.south + Math.random() * (r.north - r.south),
+				]);
+				return Promise.resolve(pts);
+			},
+		},
+	};
+});
 vi.mock("@/lib/sv/query", () => ({
 	panosAt: (
 		points: { lat: number; lng: number }[],
@@ -225,11 +263,7 @@ function contractRegion(): GeneratorRegion {
 	return {
 		id: "contract",
 		name: "contract",
-		feature: {
-			type: "Feature",
-			properties: { name: "contract" },
-			geometry: { type: "Polygon", coordinates: [h.square] },
-		},
+		polygon: { coordinates: [h.square], extraPolygons: null },
 		found: [],
 		target: 100_000,
 		checkedPanos: new Set(),

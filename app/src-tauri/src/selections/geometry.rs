@@ -2,37 +2,17 @@
 
 use super::*;
 
-/// A whole geometry (primary polygon + extras) preprocessed with per-ring bboxes and
-/// antimeridian flags. Build once per resolve; `contains` is then bbox-rejected per
-/// polygon and per hole instead of paying the O(V) antimeridian pre-scan per point.
-pub(crate) struct PreparedGeometry<'a> {
-    /// Each entry is one polygon: outer ring first, then holes.
-    polys: Vec<Vec<PreparedRing<'a>>>,
-}
-
-impl<'a> PreparedGeometry<'a> {
-    pub(crate) fn new(geom: &'a PolygonGeometry) -> Self {
-        let prep = |rings: &'a [Vec<[f64; 2]>]| -> Vec<PreparedRing<'a>> {
-            rings.iter().map(|r| PreparedRing::new(r)).collect()
-        };
-        let mut polys = vec![prep(&geom.coordinates)];
-        if let Some(extras) = &geom.extra_polygons {
-            for p in extras {
-                polys.push(prep(p));
-            }
-        }
-        Self { polys }
+impl PolygonGeometry {
+    /// Every polygon of the geometry (the primary one, then the extras), each an outer
+    /// ring followed by its holes.
+    pub(crate) fn parts(&self) -> impl Iterator<Item = &[Vec<[f64; 2]>]> {
+        std::iter::once(self.coordinates.as_slice())
+            .chain(self.extra_polygons.iter().flatten().map(Vec::as_slice))
     }
 
-    /// Equivalent to `point_in_geometry`.
-    #[inline]
-    pub(crate) fn contains(&self, lng: f64, lat: f64) -> bool {
-        self.polys.iter().any(|rings| match rings.split_first() {
-            Some((outer, holes)) => {
-                outer.contains(lng, lat) && !holes.iter().any(|h| h.contains(lng, lat))
-            }
-            None => false,
-        })
+    /// The geometry preprocessed for repeated point tests. Build once per resolve.
+    pub(crate) fn prepared(&self) -> mma_geo::PreparedPolygons<'_> {
+        mma_geo::PreparedPolygons::new(self.parts())
     }
 }
 
