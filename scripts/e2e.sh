@@ -156,8 +156,8 @@ fi
 
 # Subset: prefix each spec file with --spec. No args => full suite. A named spec runs even
 # when the default suite excludes it: --exclude replaces the config's list, which would
-# otherwise block --spec too.
+# otherwise block --spec too. Scratch stays excluded unless it is itself the named spec.
 args=()
 for s in "$@"; do args+=(--spec "$s"); done
-[ ${#args[@]} -gt 0 ] && args+=(--exclude ./test/e2e/scratch.test.ts)
+[[ ${#args[@]} -gt 0 && " $* " != *scratch.test.ts* ]] && args+=(--exclude ./test/e2e/scratch.test.ts)
 run_logged "$(log_name)" "${MOCK_ENV[@]}" "${FWD_ENV[@]}" --rm e2e $RUNNER "${args[@]}"
