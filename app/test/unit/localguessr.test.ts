@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import type { GeoResult, Pano } from "@/bindings.gen";
+import type { Pano } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 import {
 	bestStreak,
@@ -20,6 +20,7 @@ import {
 	type Game,
 	type GameConfig,
 	type PastGame,
+	type Place,
 	type RoundLocation,
 	type RoundResult,
 	type View,
@@ -68,8 +69,8 @@ function result(over: Partial<RoundResult> = {}): RoundResult {
 	};
 }
 
-function place(country_code: string, admin = ""): GeoResult {
-	return { city: "", admin, country_code };
+function place(country_code: string, admin = ""): Place {
+	return { admin, country_code };
 }
 
 describe("sampleN", () => {
@@ -373,6 +374,7 @@ describe("history storage", () => {
 		appendHistory(past({ mapId: "one", startedAt: 3 }));
 		expect(getHistory("one").map((g) => g.startedAt)).toEqual([3, 1]);
 		expect(getHistory("two").map((g) => g.startedAt)).toEqual([2]);
+		expect(getHistory(null).map((g) => g.startedAt)).toEqual([3, 2, 1]);
 		clearHistory("one");
 		expect(getHistory("one")).toEqual([]);
 		expect(getHistory("two")).toHaveLength(1);
@@ -434,17 +436,36 @@ describe("history round trip", () => {
 		expect(pastTotal(toPastGame(played))).toBe(played.totalScore);
 	});
 
-	it("geocodes again only for a game that counted a streak", async () => {
+	it("reads places a round was stored with instead of geocoding again", async () => {
 		const config: GameConfig = { ...CONFIG, streakMode: "country" };
-		const played = toSession({ ...game({ config, results }), finishedAt: 1 });
+		const placed = [
+			{ ...results[0], truth: place("US", "Texas"), guessed: place("US", "Ohio") },
+			{ ...results[1], truth: place("FR") },
+		];
+		const played = toSession({ ...game({ config, results: placed }), finishedAt: 1 });
+		const hydrated = await hydrateSession(toPastGame(played), noGeocode);
+		expect(hydrated.results.map((r) => r.truth?.country_code)).toEqual(["US", "FR"]);
+		expect(hydrated.results.map((r) => r.streakHit)).toEqual([true, false]);
+	});
+
+	it("geocodes a round stored without its places, whatever the streak mode", async () => {
+		const stored = toPastGame(toSession({ ...game({ results }), finishedAt: 1 }));
+		const bare = {
+			...stored,
+			rounds: stored.rounds.map(({ location, guess, elapsedMs }) => ({
+				location,
+				guess,
+				elapsedMs,
+			})),
+		};
 		let calls = 0;
-		const hydrated = await hydrateSession(toPastGame(played), () => {
+		const hydrated = await hydrateSession(bare, () => {
 			calls++;
 			return Promise.resolve(place("US", "Texas"));
 		});
 		expect(calls).toBe(3);
-		expect(hydrated.results.map((r) => r.streakHit)).toEqual([true, false]);
-		expect(hydrated.bestStreak).toBe(1);
+		expect(hydrated.results.map((r) => r.truth?.country_code)).toEqual(["US", "US"]);
+		expect(hydrated.results[1].guessed).toBeNull();
 	});
 });
 

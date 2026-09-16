@@ -32,7 +32,7 @@ const result: RoundResult = {
 	guess: null,
 	distanceMeters: null,
 	score: 0,
-	truth: { city: "", admin: "", country_code: "FR" },
+	truth: { admin: "", country_code: "FR" },
 	guessed: null,
 	streakHit: null,
 	elapsedMs: 0,

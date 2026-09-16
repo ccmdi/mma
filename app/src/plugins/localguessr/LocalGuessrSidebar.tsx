@@ -20,7 +20,6 @@ import { usePluginState } from "@/plugins/registry";
 import { useSelectorPick } from "@/store/selectorPick";
 import { fetchLocations, getMapState, sampleFrom, useMapState } from "@/store/useMapStore";
 import { useScoreMaxError } from "@/lib/geo/scoring";
-import { cmd } from "@/lib/commands";
 import { toast } from "@/lib/util/toast";
 import { dateTimeFmt, fmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
@@ -30,6 +29,8 @@ import {
 	formatElapsed,
 	INFINITE_BATCH,
 	hydrateSession,
+	locate,
+	movementLabels,
 	pastTotal,
 	reduce,
 	toPastGame,
@@ -58,6 +59,7 @@ import {
 } from "./storage";
 import { RoundPlayer } from "./RoundPlayer";
 import { Summary } from "./Summary";
+import { PastStats } from "./PastStats";
 import "./localguessr.css";
 
 async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
@@ -66,10 +68,6 @@ async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[
 	return (await fetchLocations({ type: "Locations", locations: ids, name: null })).map(
 		toRoundLocation,
 	);
-}
-
-function movementLabels(): Record<MovementMode, string> {
-	return { moving: t("Moving"), noMove: t("No move"), nmpz: t("NMPZ") };
 }
 
 function SavedGameCard({
@@ -160,36 +158,53 @@ function PastGamesModal({
 	onOpen: (game: PastGame) => void;
 	onClear: () => void;
 }) {
+	const [tab, setTab] = useState<"games" | "stats">("games");
 	const [confirmingClear, setConfirmingClear] = useState(false);
+	const mapId = history[0]?.mapId ?? "";
 	const starts = history.flatMap((g) =>
 		g.rounds[0] ? [{ locationId: g.rounds[0].location.id, startedAt: g.startedAt }] : [],
 	);
-	const thumbnails = useStartingThumbnails(history[0]?.mapId ?? "", starts);
+	const thumbnails = useStartingThumbnails(mapId, starts);
 	const thumbnailByStart = new Map(starts.map((s, i) => [s.startedAt, thumbnails[i]]));
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Past games")} className="entry-list-modal lg-history">
-				<EntryList>
-					{history.map((g) => (
-						<PastGameCard
-							key={g.startedAt}
-							game={g}
-							thumbnail={thumbnailByStart.get(g.startedAt)}
-							onOpen={onOpen}
-						/>
-					))}
-				</EntryList>
-				<div className="lg-history__clear">
-					<Button
-						small
-						variant="destructive"
-						onClick={() => (confirmingClear ? onClear() : setConfirmingClear(true))}
-						onBlur={() => setConfirmingClear(false)}
-					>
-						{confirmingClear ? t("Are you sure?") : t("Clear history")}
-					</Button>
-				</div>
+				<SegmentedControl
+					className="lg-history__tabs"
+					value={tab}
+					onChange={setTab}
+					options={[
+						{ value: "games", label: t("Games") },
+						{ value: "stats", label: t("Stats") },
+					]}
+				/>
+				{tab === "stats" ? (
+					<PastStats mapId={mapId} />
+				) : (
+					<>
+						<EntryList>
+							{history.map((g) => (
+								<PastGameCard
+									key={g.startedAt}
+									game={g}
+									thumbnail={thumbnailByStart.get(g.startedAt)}
+									onOpen={onOpen}
+								/>
+							))}
+						</EntryList>
+						<div className="lg-history__clear">
+							<Button
+								small
+								variant="destructive"
+								onClick={() => (confirmingClear ? onClear() : setConfirmingClear(true))}
+								onBlur={() => setConfirmingClear(false)}
+							>
+								{confirmingClear ? t("Are you sure?") : t("Clear history")}
+							</Button>
+						</div>
+					</>
+				)}
 			</DialogContent>
 		</Dialog>
 	);
@@ -285,9 +300,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	}, [start]);
 
 	const openPast = useCallback(async (game: PastGame) => {
-		const session = await hydrateSession(game, (lat, lng) =>
-			cmd.reverseGeocode(lat, lng).catch(() => null),
-		);
+		const session = await hydrateSession(game, locate);
 		setPast(session);
 		setShowHistory(false);
 	}, []);

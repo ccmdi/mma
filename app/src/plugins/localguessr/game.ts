@@ -5,11 +5,17 @@ import { calcHeading } from "@/lib/sv/lookup";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { computeScore } from "@/lib/geo/scoring";
+import { cmd } from "@/lib/commands";
+import { t } from "@/lib/i18n";
 
 export type MovementMode = "moving" | "noMove" | "nmpz";
 export type RoundMode = "classic" | "infinite";
 export type TimerMode = "off" | "countdown" | "countup";
 export type StreakMode = "off" | "country" | "state";
+
+export function movementLabels(): Record<MovementMode, string> {
+	return { moving: t("Moving"), noMove: t("No move"), nmpz: t("NMPZ") };
+}
 
 export interface GameConfig {
 	movementMode: MovementMode;
@@ -37,13 +43,15 @@ export const INFINITE_BATCH = 500;
 /** The subset of a Location a round needs. Kept narrow so a saved game stays small. */
 export type RoundLocation = PanoCapture & Pick<Location, "id">;
 
+export type Place = Pick<GeoResult, "admin" | "country_code">;
+
 export interface RoundResult {
 	location: RoundLocation;
 	guess: LatLng | null;
 	distanceMeters: number | null;
 	score: number;
-	truth: GeoResult | null;
-	guessed: GeoResult | null;
+	truth: Place | null;
+	guessed: Place | null;
 	/** Whether the streak survived this round; null when streak mode is off. */
 	streakHit: boolean | null;
 	elapsedMs: number;
@@ -79,6 +87,9 @@ export interface PastRound {
 	location: RoundLocation;
 	guess: LatLng | null;
 	elapsedMs: number;
+	/** Undefined when the round was stored without its places. */
+	truth?: Place | null;
+	guessed?: Place | null;
 }
 
 export interface PastGame {
@@ -142,11 +153,16 @@ export function sampleN<T>(pool: readonly T[], n: number): T[] {
 	return out;
 }
 
-function sameCountry(truth: GeoResult, guess: GeoResult): boolean {
+export async function locate({ lat, lng }: LatLng): Promise<Place | null> {
+	const geo = await cmd.reverseGeocode(lat, lng).catch(() => null);
+	return geo && { admin: geo.admin, country_code: geo.country_code };
+}
+
+function sameCountry(truth: Place, guess: Place): boolean {
 	return !!truth.country_code && truth.country_code === guess.country_code;
 }
 
-function sameAdmin(truth: GeoResult, guess: GeoResult): boolean {
+function sameAdmin(truth: Place, guess: Place): boolean {
 	const a = truth.admin.trim().toLowerCase();
 	const b = guess.admin.trim().toLowerCase();
 	return a.length > 0 && a === b;
@@ -155,8 +171,8 @@ function sameAdmin(truth: GeoResult, guess: GeoResult): boolean {
 /** Whether the streak survives. Null only when streak mode is off; a failed geocode misses. */
 export function streakHit(
 	mode: StreakMode,
-	truth: GeoResult | null,
-	guess: GeoResult | null,
+	truth: Place | null,
+	guess: Place | null,
 ): boolean | null {
 	if (mode === "off") return null;
 	if (!truth || !guess) return false;
@@ -191,7 +207,7 @@ export function isLastRound(game: Game): boolean {
 }
 
 /** Longest run of consecutive streak hits. */
-export function bestStreak(results: RoundResult[]): number {
+export function bestStreak(results: Pick<RoundResult, "streakHit">[]): number {
 	let best = 0;
 	let run = 0;
 	for (const r of results) {
@@ -241,10 +257,12 @@ export function toPastGame(session: Session): PastGame {
 		maxError: session.maxError,
 		startedAt: session.startedAt,
 		finishedAt: session.finishedAt,
-		rounds: session.results.map(({ location, guess, elapsedMs }) => ({
+		rounds: session.results.map(({ location, guess, elapsedMs, truth, guessed }) => ({
 			location,
 			guess,
 			elapsedMs,
+			truth,
+			guessed,
 		})),
 	};
 }
@@ -256,20 +274,19 @@ export function pastTotal(past: PastGame): number {
 	);
 }
 
+/** A round stored without its places is geocoded again. */
 export async function hydrateSession(
 	past: PastGame,
-	geocode: (lat: number, lng: number) => Promise<GeoResult | null>,
+	geocode: (at: LatLng) => Promise<Place | null>,
 ): Promise<Session> {
 	const { streakMode } = past.config;
 	const results = await Promise.all(
-		past.rounds.map(async ({ location, guess, elapsedMs }): Promise<RoundResult> => {
+		past.rounds.map(async (round): Promise<RoundResult> => {
+			const { location, guess, elapsedMs } = round;
 			const [truth, guessed] =
-				streakMode !== "off"
-					? await Promise.all([
-							geocode(location.lat, location.lng),
-							guess ? geocode(guess.lat, guess.lng) : null,
-						])
-					: [null, null];
+				round.truth !== undefined
+					? [round.truth, round.guessed ?? null]
+					: await Promise.all([geocode(location), guess ? geocode(guess) : null]);
 			return {
 				location,
 				guess,

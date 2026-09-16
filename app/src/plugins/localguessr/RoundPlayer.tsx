@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { GeoResult, Selector } from "@/bindings.gen";
+import type { Selector } from "@/bindings.gen";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { Flag } from "@/components/primitives/Flag";
@@ -14,7 +14,6 @@ import {
 	mdiCarOff,
 	mdiTagOutline,
 } from "@mdi/js";
-import { cmd } from "@/lib/commands";
 import { getSettings, setSetting, useSettings } from "@/store/settings";
 import { sendHideCar, Compass, CompassTape } from "@/components/editor/location/PanoControls";
 import { usePluginState } from "@/plugins/registry";
@@ -30,10 +29,12 @@ import {
 	currentRound,
 	guessPreview,
 	isLastRound,
+	locate,
 	scoreGuess,
 	streakBeforeLast,
 	streakHit,
 	type Game,
+	type Place,
 	type RoundResult,
 	type StreakMode,
 } from "./game";
@@ -94,7 +95,7 @@ function streakMessage(
 	streakMode: StreakMode,
 ): string | null {
 	if (result.streakHit === null) return null;
-	const place = (g: GeoResult | null) =>
+	const place = (g: Place | null) =>
 		streakMode === "state"
 			? g?.admin?.trim() || g?.country_code || t("somewhere unknown")
 			: g?.country_code || t("somewhere unknown");
@@ -189,13 +190,7 @@ export function RoundPlayer({
 				{ lat: round.lat, lng: round.lng },
 				game.maxError,
 			);
-			const needsPlaces = game.config.streakMode !== "off";
-			const [truth, guessed] = needsPlaces
-				? await Promise.all([
-						cmd.reverseGeocode(round.lat, round.lng).catch(() => null),
-						at ? cmd.reverseGeocode(at.lat, at.lng).catch(() => null) : null,
-					])
-				: [null, null];
+			const [truth, guessed] = await Promise.all([locate(round), at ? locate(at) : null]);
 
 			onResult({
 				location: round,

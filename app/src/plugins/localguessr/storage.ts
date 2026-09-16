@@ -68,8 +68,9 @@ function readHistory(): PastGame[] {
 	return storage.get<PastGame[]>(HISTORY, []);
 }
 
-export function getHistory(mapId: string): PastGame[] {
-	return readHistory().filter((g) => g.mapId === mapId);
+/** Finished games, newest first: one map's, or every map's for null. */
+export function getHistory(mapId: string | null): PastGame[] {
+	return readHistory().filter((g) => mapId === null || g.mapId === mapId);
 }
 
 export function appendHistory(game: PastGame): void {
