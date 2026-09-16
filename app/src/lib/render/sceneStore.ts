@@ -84,6 +84,7 @@ async function doLoadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 	lastMarkerStyle = markerStyle;
 	if (mc) setMarkerDefaultColor(...mc);
 	const token = ++loadToken;
+	const mapId = getMapState().mapId;
 	const t = trace("render", { summary: true });
 	try {
 		const filePath = await cmd.storeFillRenderFile({
@@ -100,7 +101,7 @@ async function doLoadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 		t.step("fetch-headers");
 		const buf = await resp.arrayBuffer();
 		t.step("arraybuffer");
-		if (token !== loadToken) return; // superseded by a newer load
+		if (token !== loadToken || getMapState().mapId !== mapId) return; // superseded by a newer load or another map
 		scene.initFromBinary(buf);
 		t.step("parse");
 		mapOpen.mark("markers");
