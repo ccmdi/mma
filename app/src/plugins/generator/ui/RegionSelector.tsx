@@ -43,7 +43,7 @@ function RegionRow({
 }) {
 	const name = getPolygonName(sel);
 	const code = getPolygonCode(sel);
-	const rate = useFoundRate(found, target, running && found < target);
+	const rate = useFoundRate(found, running && found < target);
 	return (
 		<div className="generator-regions__item">
 			<div className="generator-regions__item-name">
@@ -225,7 +225,7 @@ export function RegionSelector({
 }
 
 function TotalRow({ found, target, running }: { found: number; target: number; running: boolean }) {
-	const rate = useFoundRate(found, target, running && found < target);
+	const rate = useFoundRate(found, running && found < target);
 	return (
 		<div className="generator-regions__total">
 			{t("Total:")} {found} / {target}
