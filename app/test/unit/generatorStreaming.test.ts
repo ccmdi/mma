@@ -11,6 +11,7 @@ interface ProbeCall {
 const h = vi.hoisted(() => ({
 	calls: [] as ProbeCall[],
 	metaCalls: 0,
+	progressed: 0,
 	nextPano: 0,
 	square: [
 		[-60, -5],
@@ -21,7 +22,7 @@ const h = vi.hoisted(() => ({
 	] as [number, number][],
 }));
 
-function fakePano() {
+function fakePano(links: { heading: number; panoId: string }[] = []) {
 	const id = `p${String(h.nextPano++).padStart(21, "0")}`;
 	return {
 		id,
@@ -29,7 +30,7 @@ function fakePano() {
 		shortDescription: "Main Street",
 		lat: 1,
 		lng: -50,
-		links: [],
+		links,
 		date: { year: 2020, month: 6, day: 1 },
 		imageDate: "2020-06",
 		time: [],
@@ -116,7 +117,7 @@ function engine(overrides: Partial<typeof DEFAULT_SETTINGS>) {
 		[region()],
 		{
 			onLocationsFound: () => {},
-			onProgress: () => {},
+			onProgress: () => h.progressed++,
 			onRegionComplete: () => {},
 			onDone: () => {},
 		},
@@ -132,6 +133,7 @@ describe("streaming probe rounds", () => {
 		vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
 		h.calls = [];
 		h.metaCalls = 0;
+		h.progressed = 0;
 	});
 
 	afterEach(async () => {
@@ -140,7 +142,7 @@ describe("streaming probe rounds", () => {
 		vi.useRealTimers();
 	});
 
-	it("a streamed pano is walked before its round resolves", async () => {
+	it("a streamed pano is accepted before its round resolves, without a second lookup", async () => {
 		const e = engine({});
 		const run = e.start();
 		await settle();
@@ -148,6 +150,23 @@ describe("streaming probe rounds", () => {
 
 		h.calls[0].onPano!(0, fakePano());
 		await vi.advanceTimersByTimeAsync(60);
+		expect(h.progressed).toBeGreaterThan(0);
+		expect(h.metaCalls).toBe(0);
+
+		e.stop();
+		for (const c of h.calls) c.finish();
+		await settle();
+		await run;
+	});
+
+	it("ids a pano opens up are still looked up", async () => {
+		const e = engine({ checkLinks: true, linksDepth: 2 });
+		const run = e.start();
+		await settle();
+
+		h.calls[0].onPano!(0, fakePano([{ heading: 90, panoId: "l".repeat(22) }]));
+		await vi.advanceTimersByTimeAsync(60);
+		expect(h.progressed).toBeGreaterThan(0);
 		expect(h.metaCalls).toBeGreaterThan(0);
 
 		e.stop();

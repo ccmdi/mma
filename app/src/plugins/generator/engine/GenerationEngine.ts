@@ -491,16 +491,23 @@ export class GenerationEngine {
 		const mostlyDone = new Promise<void>((resolve) => (reachedMost = resolve));
 
 		let seeds: string[] = [];
+		let direct: Pano[] = [];
 		let seedTimer: ReturnType<typeof setTimeout> | null = null;
 		const flushSeeds = () => {
 			if (seedTimer) {
 				clearTimeout(seedTimer);
 				seedTimer = null;
 			}
-			if (seeds.length === 0) return;
-			const batch = seeds;
-			seeds = [];
-			this.walk(batch, region, 0);
+			if (direct.length > 0) {
+				const batch = direct;
+				direct = [];
+				this.accept(batch, region);
+			}
+			if (seeds.length > 0) {
+				const batch = seeds;
+				seeds = [];
+				this.walk(batch, region, 0);
+			}
 		};
 		const handle = (index: number, pano: Pano | null) => {
 			if (seen[index]) return;
@@ -511,9 +518,15 @@ export class GenerationEngine {
 			// Paused or stopped while the lookup was in flight: drop the result.
 			if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
 			found++;
-			seeds.push(...this.seedsFrom(pano, region));
-			if (seeds.length >= SEED_BATCH) flushSeeds();
-			else if (seeds.length > 0 && !seedTimer) seedTimer = setTimeout(flushSeeds, SEED_DELAY);
+			// The search already answered the metadata, so a seed that is this pano is
+			// accepted from what is in hand; only derived ids need a lookup.
+			for (const id of this.seedsFrom(pano, region)) {
+				if (id === pano.id) direct.push(pano);
+				else seeds.push(id);
+			}
+			if (seeds.length + direct.length >= SEED_BATCH) flushSeeds();
+			else if (seeds.length + direct.length > 0 && !seedTimer)
+				seedTimer = setTimeout(flushSeeds, SEED_DELAY);
 		};
 
 		const probeStart = performance.now();
@@ -587,14 +600,23 @@ export class GenerationEngine {
 		});
 	}
 
+	/** Panos already in hand enter the walk at its post-lookup stage. */
+	private accept(panos: Pano[], region: GeneratorRegion): void {
+		const fresh = panos.filter((p) => !region.checkedPanos.has(p.id));
+		if (fresh.length === 0) return;
+		for (const p of fresh) region.checkedPanos.add(p.id);
+		void this.processPanos(fresh, region, 0).catch((e) => {
+			if (!this.stopped) log.warn("[generator] accept failed:", e);
+		});
+	}
+
 	/** Walks a level of the link/timeline graph: every id at `depth` is fetched in one
 	 *  batch, and what each one opens up is walked as the next level. A pano that passes
 	 *  resets the depth of what it leads to, which is what lets a good stretch keep
 	 *  going while a dead one bottoms out at `linksDepth`. */
 	private async walkPanos(ids: string[], region: GeneratorRegion, depth: number): Promise<void> {
 		if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
-		const s = this.settings;
-		if (depth > s.linksDepth) return;
+		if (depth > this.settings.linksDepth) return;
 		if (region.found.length >= region.target) return;
 
 		const fresh = ids.filter((id) => id && !region.checkedPanos.has(id));
@@ -602,7 +624,17 @@ export class GenerationEngine {
 		for (const id of fresh) region.checkedPanos.add(id);
 
 		const panos = await svMetadata(fresh, this.abort.signal);
+		await this.processPanos(panos, region, depth);
+	}
+
+	private async processPanos(
+		panos: (Pano | null)[],
+		region: GeneratorRegion,
+		depth: number,
+	): Promise<void> {
 		if (this.stopped || this.paused || this.cancelledRegions.has(region.id)) return;
+		if (region.found.length >= region.target) return;
+		const s = this.settings;
 		const inside = await regionContains(
 			region,
 			panos.map((p) => (p ? { lat: p.lat, lng: p.lng } : { lat: 0, lng: 0 })),
