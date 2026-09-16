@@ -210,7 +210,7 @@ var import_suncalc = __toESM(require_suncalc());
 var DEG = 180 / Math.PI;
 var MAX_TIME_MS = 864e13;
 var round2 = (v) => Math.round(v * 100) / 100;
-function map(rows, cfg) {
+function map(rows, _response, cfg) {
   const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
   const enabled = (key) => fields === null || fields.has(key);
   const wantAz = enabled("sunAzimuth");

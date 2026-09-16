@@ -13,7 +13,11 @@ const MAX_TIME_MS = 8.64e15; // JS Date range; beyond it Date is invalid
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
-export function map(rows: Location[], cfg: ProcedureConfig<unknown>): Update<LocationPatch>[] {
+export function map(
+	rows: Location[],
+	_response: unknown,
+	cfg: ProcedureConfig<unknown>,
+): Update<LocationPatch>[] {
 	const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
 	const enabled = (key: string) => fields === null || fields.has(key);
 	const wantAz = enabled("sunAzimuth");

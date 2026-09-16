@@ -13,7 +13,7 @@ const row = (id, lat, lng, extra = { datetime: 1719835200 }) => ({ id, lat, lng,
 
 function runMap(rows, fields = null) {
 	failed.length = 0;
-	const patches = map(rows, { fields: fields ?? [], force: false, config: null });
+	const patches = map(rows, null, { fields: fields ?? [], force: false, config: null });
 	for (const p of patches) {
 		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
 	}
