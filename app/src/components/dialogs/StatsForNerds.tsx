@@ -156,6 +156,10 @@ function EngineSection({ activity }: { activity: ProcedureActivity | null }) {
 						<span className="stats-nerds__job-label">{q.entry}</span>
 						<span className="mono">
 							{q.inflight} / {q.inflightLimit}
+							<span className="text-muted">
+								{q.retries > 0 &&
+									t({ one: ", {n} retry", other: ", {n} retries" }, { n: q.retries })}
+							</span>
 						</span>
 					</div>
 				</div>

@@ -22,6 +22,9 @@
 	", {n} failed.": {
 		"other": "、{n} 件失敗。"
 	},
+	", {n} retries": {
+		"other": "、再試行 {n} 回"
+	},
 	", {n} skipped": {
 		"other": "、{n} 件スキップ"
 	},

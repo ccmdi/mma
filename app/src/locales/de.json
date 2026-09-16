@@ -24,6 +24,10 @@
 		"one": ", {n} fehlgeschlagen.",
 		"other": ", {n} fehlgeschlagen."
 	},
+	", {n} retries": {
+		"one": ", {n} Wiederholung",
+		"other": ", {n} Wiederholungen"
+	},
 	", {n} skipped": {
 		"one": ", {n} übersprungen",
 		"other": ", {n} übersprungen"

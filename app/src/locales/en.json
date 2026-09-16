@@ -24,6 +24,10 @@
 		"one": ", {n} failed.",
 		"other": ", {n} failed."
 	},
+	", {n} retries": {
+		"one": ", {n} retry",
+		"other": ", {n} retries"
+	},
 	", {n} skipped": {
 		"one": ", {n} skipped",
 		"other": ", {n} skipped"

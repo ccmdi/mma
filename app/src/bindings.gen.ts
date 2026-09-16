@@ -1560,6 +1560,8 @@ export type QueryActivity = {
 	inflight: number,
 	/**  The most requests it may keep outstanding. */
 	inflightLimit: number,
+	/**  Requests retried so far by the queries in flight. */
+	retries: number,
 };
 
 

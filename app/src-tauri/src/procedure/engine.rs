@@ -651,6 +651,12 @@ async fn fetch_one(
         if !retry_on.contains(&resp.status) || attempt + 1 == attempts {
             return Ok(resp);
         }
+        log::debug!(
+            "[procedure] status {} on attempt {}, backing off {:?}",
+            resp.status,
+            attempt + 1,
+            delay
+        );
         budget.state.retries.fetch_add(1, Ordering::Relaxed);
         time::sleep(delay).await;
         delay = delay.saturating_mul(2);
@@ -2153,6 +2159,8 @@ pub struct QueryActivity {
     pub inflight: u32,
     /// The most requests it may keep outstanding.
     pub inflight_limit: u32,
+    /// Requests retried so far by the queries in flight.
+    pub retries: u32,
 }
 
 /// What the procedure engine is working on right now.
@@ -2180,15 +2188,18 @@ pub fn procedure_activity() -> ProcedureActivity {
     let mut queries: Vec<QueryActivity> = Vec::new();
     for q in LIVE_QUERIES.snapshot() {
         let inflight = q.budget.outstanding.load(Ordering::Relaxed);
+        let retries = q.budget.retries.load(Ordering::Relaxed);
         match queries.iter_mut().find(|a| a.entry == q.entry) {
             Some(a) => {
                 a.inflight += inflight;
                 a.inflight_limit += q.budget.width;
+                a.retries += retries;
             }
             None => queries.push(QueryActivity {
                 entry: q.entry.clone(),
                 inflight,
                 inflight_limit: q.budget.width,
+                retries,
             }),
         }
     }

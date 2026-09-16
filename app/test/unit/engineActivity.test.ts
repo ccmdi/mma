@@ -73,9 +73,12 @@ describe("engineRows", () => {
 			entry: "res://procedures/timezone.js",
 			inflight: 3,
 			inflightLimit: 48,
+			retries: 2,
 		};
 		const rows = engineRows(activity({ queries: [query] }));
-		expect(rows.queries).toEqual([{ entry: "timezone", inflight: 3, inflightLimit: 48 }]);
+		expect(rows.queries).toEqual([
+			{ entry: "timezone", inflight: 3, inflightLimit: 48, retries: 2 },
+		]);
 		expect(rows.idle).toBe(false);
 	});
 

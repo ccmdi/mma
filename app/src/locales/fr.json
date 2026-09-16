@@ -26,6 +26,11 @@
 		"many": ", {n} en échec.",
 		"other": ", {n} en échec."
 	},
+	", {n} retries": {
+		"one": ", {n} nouvelle tentative",
+		"many": ", {n} nouvelles tentatives",
+		"other": ", {n} nouvelles tentatives"
+	},
 	", {n} skipped": {
 		"one": ", {n} ignorées",
 		"many": ", {n} ignorées",

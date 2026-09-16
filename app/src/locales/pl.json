@@ -28,6 +28,12 @@
 		"many": ", {n} nieudanych.",
 		"other": ", {n} nieudanych."
 	},
+	", {n} retries": {
+		"one": ", {n} ponowienie",
+		"few": ", {n} ponowienia",
+		"many": ", {n} ponowień",
+		"other": ", {n} ponowienia"
+	},
 	", {n} skipped": {
 		"one": ", {n} pominiętych",
 		"few": ", {n} pominiętych",

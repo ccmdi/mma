@@ -22,6 +22,9 @@
 	", {n} failed.": {
 		"other": "，{n} 个失败。"
 	},
+	", {n} retries": {
+		"other": "，重试 {n} 次"
+	},
 	", {n} skipped": {
 		"other": "，{n} 个跳过"
 	},

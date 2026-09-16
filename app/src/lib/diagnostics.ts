@@ -56,6 +56,7 @@ export interface EngineQueryRow {
 	entry: string;
 	inflight: number;
 	inflightLimit: number;
+	retries: number;
 }
 
 export interface EngineRows {
@@ -86,6 +87,7 @@ export function engineRows(activity: ProcedureActivity | null): EngineRows {
 		entry: procedureName(q.entry),
 		inflight: q.inflight,
 		inflightLimit: q.inflightLimit,
+		retries: q.retries,
 	}));
 	return {
 		providers,

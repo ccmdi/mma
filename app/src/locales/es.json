@@ -26,6 +26,11 @@
 		"many": ", {n} fallidas.",
 		"other": ", {n} fallidas."
 	},
+	", {n} retries": {
+		"one": ", {n} reintento",
+		"many": ", {n} reintentos",
+		"other": ", {n} reintentos"
+	},
 	", {n} skipped": {
 		"one": ", {n} omitidas",
 		"many": ", {n} omitidas",
