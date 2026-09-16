@@ -41,6 +41,58 @@ const QUERY_CMD_BAN = {
 		"Query commands go through their named wrapper in store/useMapStore (resolveIds, countIn, fetchBounds, sampleFrom, fieldValues, countBy, fieldCoverage, fetchColumns, partition, fetchLocations), not raw cmd.",
 };
 
+const E2E_BRIDGE_RULES = [
+	{
+		selector: "Literal[value='__TAURI_INTERNALS__']",
+		message: "Use withApi() from helpers instead of raw __TAURI_INTERNALS__",
+	},
+	{
+		selector: "MemberExpression[property.name='__TAURI_INTERNALS__']",
+		message: "Use withApi() from helpers instead of raw __TAURI_INTERNALS__",
+	},
+	{
+		selector: "Literal[value='__TEST_API__']",
+		message: "Use withApi() from helpers instead of raw __TEST_API__",
+	},
+	{
+		selector: "MemberExpression[property.name='__TEST_API__']",
+		message: "Use withApi() from helpers instead of raw __TEST_API__",
+	},
+];
+
+/** The host machine decides how long anything takes, so an e2e spec waits on a condition,
+ *  never on a duration. */
+const E2E_TIMING_RULES = [
+	{
+		selector: "CallExpression[callee.object.name='browser'][callee.property.name='pause']",
+		message:
+			"No fixed sleeps in e2e. Wait on the real post-condition with a waitFor* helper or browser.waitUntil. To prove something did not happen, first wait on a signal that it would have by now: the work finished, or a later event landed.",
+	},
+	{
+		selector: "CallExpression[callee.name='setTimeout'][arguments.length=2]:not([arguments.1.value=0])",
+		message:
+			"No timed sleeps or cutoffs in e2e. Await the operation, or poll its post-condition from the spec with browser.waitUntil.",
+	},
+	{
+		selector: "CallExpression[callee.property.name=/^wait(Until|For)/] Property[key.name='timeout']",
+		message:
+			"No per-wait timeouts in e2e. waitforTimeout in wdio.conf.ts is the one hang bound; a wait ends on its condition.",
+	},
+];
+
+const E2E_TIMED_TOOLS = [
+	"test/e2e/scratch.test.ts",
+	"test/e2e/performance.test.ts",
+	"test/e2e/procedure-parity.test.ts",
+	"test/e2e/procedure-faults.test.ts",
+	"test/e2e/procedure-scale.test.ts",
+	"test/e2e/sv-stub-ceiling.test.ts",
+	"test/e2e/benchFixture.test.ts",
+	"test/e2e/providerBench.test.ts",
+	"test/e2e/parityDriver.ts",
+	"test/e2e/svMockCore.ts",
+];
+
 const RESTRICTED_SYNTAX = [
 	{
 		selector: "JSXOpeningElement[name.name='select']",
@@ -232,32 +284,12 @@ export default defineConfig([
 	},
 	{
 		files: ["test/e2e/**/*.ts"],
-		ignores: ["test/e2e/helpers.ts"],
-		rules: {
-			"no-restricted-syntax": [
-				"error",
-				{
-					selector: "Literal[value='__TAURI_INTERNALS__']",
-					message: "Use withApi() from helpers instead of raw __TAURI_INTERNALS__",
-				},
-				{
-					selector: "MemberExpression[property.name='__TAURI_INTERNALS__']",
-					message: "Use withApi() from helpers instead of raw __TAURI_INTERNALS__",
-				},
-				{
-					selector: "Literal[value='__TEST_API__']",
-					message: "Use withApi() from helpers instead of raw __TEST_API__",
-				},
-				{
-					selector: "MemberExpression[property.name='__TEST_API__']",
-					message: "Use withApi() from helpers instead of raw __TEST_API__",
-				},
-				{
-					selector: "CallExpression[callee.object.name='browser'][callee.property.name='pause']",
-					message:
-						"No fixed sleeps in e2e — use a waitFor* helper (waitForActive/waitForWorkArea/waitForLocCount/waitForSave/waitForFlag/waitForOptions, or browser.waitUntil) that polls the real post-condition. For a genuine 'wait for X to NOT happen' settle, add an inline eslint-disable with a reason.",
-				},
-			],
-		},
+		ignores: E2E_TIMED_TOOLS,
+		rules: { "no-restricted-syntax": ["error", ...E2E_BRIDGE_RULES, ...E2E_TIMING_RULES] },
+	},
+	{
+		// Benchmarks, engine A/B tools and the mock's latency model measure or model time on purpose.
+		files: E2E_TIMED_TOOLS,
+		rules: { "no-restricted-syntax": ["error", ...E2E_BRIDGE_RULES] },
 	},
 ]);

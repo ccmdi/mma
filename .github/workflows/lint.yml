@@ -17,7 +17,7 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
         working-directory: app
-      - run: npx eslint src/
+      - run: npx eslint src/ test/e2e/
         working-directory: app
 
   format:
