@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           filter='
-            def kind: [.labels[].name] | any(. == "bug" or . == "enhancement" or . == "documentation");
+            def kind: [.labels[].name] | any(. == "bug" or . == "enhancement" or . == "documentation" or . == "dev");
             def effort: [.labels[].name] | any(startswith("effort: "));
             select((kind | not) or (effort | not)) | .number
           '
@@ -109,7 +109,9 @@ jobs:
 
             2. Decide the kind, only if no kind label is present yet:
                - bug: something existing misbehaves
-               - enhancement: a request for new or changed behavior
+               - enhancement: new or changed behavior a user would notice
+               - dev: internal quality work - refactoring, performance, tooling,
+                 CI - with no user-visible change
                - documentation: about the manual, README, or other docs
 
             3. Decide the effort, only if no "effort:" label is present yet. Explore the
@@ -153,6 +155,7 @@ jobs:
                - One label per line. Only these values are valid:
                  bug
                  enhancement
+                 dev
                  documentation
                  effort: small
                  effort: medium
@@ -226,7 +229,7 @@ jobs:
           args=()
           while IFS= read -r line; do
             case "$line" in
-              bug|enhancement|documentation|"effort: small"|"effort: medium"|"effort: large"|"effort: unknown")
+              bug|enhancement|dev|documentation|"effort: small"|"effort: medium"|"effort: large"|"effort: unknown")
                 args+=(--add-label "$line") ;;
               "title: "?*)
                 args+=(--title "${line#title: }") ;;
