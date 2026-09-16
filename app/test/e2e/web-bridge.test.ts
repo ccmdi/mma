@@ -62,7 +62,7 @@ describe("Web bridge", () => {
 
 	describe("event stream (/__events)", () => {
 		it("delivers a backend-emitted event to a JS listener", async () => {
-			const received = await withApi(async (api) => {
+			await withApi(async (api) => {
 				// listen() can't cross the withApi serialization boundary, and the emulated
 				// event API is the thing under test, not a shortcut around withApi.
 				// eslint-disable-next-line no-restricted-syntax -- the bridge itself is under test
@@ -75,22 +75,25 @@ describe("Web bridge", () => {
 					}
 				).__TAURI_INTERNALS__;
 
-				const events: unknown[] = [];
+				const received = window as unknown as { __e2eBridgeEvents: unknown[] };
+				received.__e2eBridgeEvents = [];
 				await internals.invoke("plugin:event|listen", {
 					event: "bulk-export-progress",
-					handler: internals.transformCallback((e) => events.push(e)),
+					handler: internals.transformCallback((e) => received.__e2eBridgeEvents.push(e)),
 				});
 
 				await api.cmd.storeExportBulkZip();
-
-				// SSE frames arrive on their own connection, so the emit can land after the
-				// command resolves. Poll instead of sleeping a fixed amount.
-				for (let i = 0; i < 100 && events.length === 0; i++) {
-					await new Promise((r) => setTimeout(r, 50));
-				}
-				return events.length;
 			});
-			expect(received).toBeGreaterThan(0);
+
+			// SSE frames arrive on their own connection, so the emit can land after the command resolves.
+			await browser.waitUntil(
+				() =>
+					browser.execute(
+						() =>
+							(window as unknown as { __e2eBridgeEvents: unknown[] }).__e2eBridgeEvents.length > 0,
+					),
+				{ timeoutMsg: "the backend-emitted event never reached the listener" },
+			);
 		});
 	});
 });

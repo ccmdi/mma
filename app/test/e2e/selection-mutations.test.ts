@@ -382,7 +382,6 @@ describe("Selection correctness after undo/redo", () => {
 				await api.resetSelections();
 				await api.addSelections([{ type: "Tag", tagId: tagId }]);
 				await api.removeLocations(new Set([locId]));
-				await new Promise((r) => setTimeout(r, 300));
 			},
 			tagUndoId,
 			id0,
@@ -392,7 +391,6 @@ describe("Selection correctness after undo/redo", () => {
 
 		await withApi(async (api) => {
 			await api.undo();
-			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterUndoIds = await refreshSelections();
 		expect(afterUndoIds.length).toBe(before + 1);
@@ -407,7 +405,6 @@ describe("Selection correctness after undo/redo", () => {
 				await api.resetSelections();
 				await api.addSelections([{ type: "Tag", tagId: tagId }]);
 				await api.updateLocations([{ id: loc.id, patch: { tags: [tagId] } }]);
-				await new Promise((r) => setTimeout(r, 300));
 			},
 			tagUndoId,
 			loc5,
@@ -417,7 +414,6 @@ describe("Selection correctness after undo/redo", () => {
 
 		await withApi(async (api) => {
 			await api.undo();
-			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterUndoIds = await refreshSelections();
 		expect(afterUndoIds.length).toBe(before - 1);
@@ -465,14 +461,12 @@ describe("Selection correctness after undo/redo", () => {
 
 		await withApi(async (api) => {
 			await api.undo();
-			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterUndoIds = await refreshSelections();
 		expect(afterUndoIds.length).toBe(afterAdd.length - 1);
 
 		await withApi(async (api) => {
 			await api.redo();
-			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterRedoIds = await refreshSelections();
 		expect(afterRedoIds.length).toBe(afterAdd.length);

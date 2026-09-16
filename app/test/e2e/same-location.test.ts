@@ -37,7 +37,6 @@ describe("SameLocation — duplicate picker", () => {
 
 		await withApi(async (api, id) => {
 			await api.removeLocations(new Set([id]));
-			await new Promise((r) => setTimeout(r, 300));
 		}, toDelete);
 
 		const after = await getLocCount();
@@ -102,7 +101,6 @@ describe("Close map persistence", () => {
 
 		await withApi(async (api) => {
 			await api.undo();
-			await new Promise((r) => setTimeout(r, 300));
 		});
 		const afterUndo = await getLocCount();
 		expect(afterUndo).toBe(before);

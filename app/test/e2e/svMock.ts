@@ -179,6 +179,5 @@ export function installSvMock(): void {
 		const iv = setInterval(() => {
 			if (patchSVS((window as unknown as { google?: GoogleLike }).google)) clearInterval(iv);
 		}, 10);
-		setTimeout(() => clearInterval(iv), 20000);
 	}
 }

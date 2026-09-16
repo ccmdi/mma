@@ -101,11 +101,7 @@ async function moveMap(center: { lat: number; lng: number }, zoom: number): Prom
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- in-page global
 			const host = (window as any).MMA.getMapHost();
 			if (!host) return done(false);
-			const timer = setTimeout(() => done(false), 20000);
-			host.once("idle", () => {
-				clearTimeout(timer);
-				done(true);
-			});
+			host.once("idle", () => done(true));
 			host.moveCamera({ center: { lat, lng }, zoom: z });
 		},
 		center.lat,
@@ -277,7 +273,6 @@ describe("Content Security Policy", function () {
 			};
 			frame.onload = () => finish(frame.contentDocument?.documentElement.className ?? null);
 			frame.onerror = () => finish(null);
-			setTimeout(() => finish("timeout"), 15000);
 			document.body.appendChild(frame);
 		});
 		expect(hostClass).toContain("host-mma");
@@ -305,12 +300,9 @@ describe("Content Security Policy", function () {
 		await browser.keys("Escape");
 
 		await clickByTitle("Plugins");
-		// The marketplace fetches its registry from GitHub over the network; wait for the
-		// request to resolve one way or the other, then move on.
 		await browser
-			.$(".plugin-marketplace, .marketplace")
-			.waitForExist()
-			.catch(() => undefined);
+			.$(".plugin-marketplace")
+			.waitForExist({ timeoutMsg: "plugin marketplace never opened" });
 		await browser.keys("Escape");
 
 		await browser.execute(() => {

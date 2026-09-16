@@ -253,16 +253,36 @@ export async function waitForDates() {
 	);
 }
 
-/** Save the open location once its enrichment has answered, so every enabled field
- *  reaches the store; Save itself writes the draft as it stands. */
-export async function saveLocation() {
+/** Wait until the open location's draft exists and its enrichment has answered. */
+export async function waitForEnriched() {
 	const settled = await browser.$(".location-preview:not([data-enriching])");
 	await settled.waitForExist({
-		timeoutMsg: "the draft's enrichment never answered before Save",
+		timeoutMsg: "the draft's enrichment never answered",
+	});
+}
+
+/** Save the open location once its enrichment has answered, so every enabled field
+ *  reaches the store, and wait for the write to land; Save itself writes the draft as it stands. */
+export async function saveLocation() {
+	await waitForEnriched();
+	await withApi((api) => {
+		const id = api.getMapState().activeLocation?.id;
+		const saved = window as unknown as { __e2eSaved?: boolean };
+		saved.__e2eSaved = false;
+		const off = api.on("location:update", (updates) => {
+			if (!updates.some((u) => u.id === id)) return;
+			off();
+			saved.__e2eSaved = true;
+		});
 	});
 	const btn = await browser.$("[data-qa='location-save']");
 	await btn.waitForExist();
 	await btn.click();
+	await browser.waitUntil(
+		() =>
+			browser.execute(() => (window as unknown as { __e2eSaved?: boolean }).__e2eSaved === true),
+		{ timeoutMsg: "Save never wrote the location" },
+	);
 }
 
 export async function waitForPreview() {

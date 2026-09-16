@@ -282,7 +282,6 @@ describe("Selection correctness after mutations", () => {
 			for (const l of locs) {
 				await api.updateLocations([{ id: l.id, patch: { flags: 1 } }]);
 			}
-			await new Promise((r) => setTimeout(r, 500));
 			await api.resetSelections();
 			await api.addSelections([{ type: "PanoIds" }]);
 			const after = api.getMapState().selectedLocationIds.size;
@@ -315,7 +314,6 @@ describe("Selection correctness after mutations", () => {
 			const before = (await api._test.syncSelections()).ids;
 			const toRemove = before[before.length - 1];
 			await api.removeLocations(new Set([toRemove]));
-			await new Promise((r) => setTimeout(r, 300));
 			const after = (await api._test.syncSelections()).ids;
 			return { before: before.length, after: after.length };
 		});
@@ -328,7 +326,6 @@ describe("Selection correctness after mutations", () => {
 			await api.resetSelections();
 			await api.addSelections([{ type: "PanoIds" }]);
 			await api.updateLocations([{ id: loc.id, patch: { flags: 0 } }]);
-			await new Promise((r) => setTimeout(r, 300));
 		}, loc0);
 
 		const afterUnpin = await refreshSelections();
@@ -336,7 +333,6 @@ describe("Selection correctness after mutations", () => {
 
 		await withApi(async (api) => {
 			await api.undo();
-			await new Promise((r) => setTimeout(r, 300));
 		});
 
 		const afterUndo = await refreshSelections();

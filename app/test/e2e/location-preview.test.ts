@@ -7,7 +7,6 @@ import {
 	createLocation,
 	createTag,
 	deleteMap,
-	flushAndWait,
 	getAllLocs,
 	getLocCount,
 	getLocOrNull,
@@ -233,8 +232,7 @@ describe("LocationPreview — official pano", () => {
 	it("save persists panoId and heading/pitch/zoom", async () => {
 		await openLocation(offDefaultId);
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(offDefaultId, (l) => typeof l.panoId === "string" && l.panoId.length > 0);
 		const saved = await readLocation(offDefaultId);
 		expect(saved).not.toBeNull();
@@ -248,8 +246,7 @@ describe("LocationPreview — official pano", () => {
 	it("save with pinned pano preserves the pinned panoId", async () => {
 		await openLocation(offPinnedId);
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(offPinnedId, (l) => l.panoId === OFFICIAL_PANO);
 		const saved = await readLocation(offPinnedId);
 		expect(saved.panoId).toBe(OFFICIAL_PANO);
@@ -336,8 +333,7 @@ describe("LocationPreview — unofficial pano", () => {
 		await openLocation(unoff1Id);
 		await waitForPreview();
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(unoff1Id);
 		const saved = await readLocation(unoff1Id);
 		expect(saved).not.toBeNull();
@@ -376,8 +372,7 @@ describe("LocationPreview — trekker pano", () => {
 	it("save works for trekker pano", async () => {
 		await openLocation(trek1Id);
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(trek1Id, (l) => !!l.panoId);
 		const saved = await readLocation(trek1Id);
 		expect(saved.panoId).toBeTruthy();
@@ -437,8 +432,7 @@ describe("LocationPreview — dead pano (fallback)", () => {
 	it("save after fallback persists the resolved pano (not the dead one)", async () => {
 		await openLocation(dead1Id);
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(dead1Id, (l) => l.panoId !== DEAD_PANO);
 		const saved = await readLocation(dead1Id);
 		expect(saved.panoId).not.toBe(DEAD_PANO);
@@ -470,8 +464,7 @@ describe("LocationPreview — coord-only location (no panoId)", () => {
 	it("save populates panoId from resolved pano", async () => {
 		await openLocation(coord1Id);
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(coord1Id, (l) => !!l.panoId);
 		const saved = await readLocation(coord1Id);
 		expect(saved.panoId).toBeTruthy();
@@ -597,8 +590,7 @@ describe("LocationPreview — location with tags", () => {
 	it("save preserves tags", async () => {
 		await openLocation(tagged1Id);
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(tagged1Id, (l) => l.tags.includes(tagRedId));
 		const saved = await readLocation(tagged1Id);
 		expect(saved.tags).toContain(tagRedId);
@@ -725,8 +717,7 @@ describe("LocationPreview — save captures full pano state", () => {
 	it("save captures lat/lng from pano position (not original coords)", async () => {
 		await openLocation(saveFullId);
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(saveFullId, (l) => l.lat !== 0 && l.lng !== 0);
 		const after = await readLocation(saveFullId);
 		// Lat/lng should be set to the pano's actual position (might differ slightly from original)
@@ -739,8 +730,7 @@ describe("LocationPreview — save captures full pano state", () => {
 	it("save captures heading/pitch/zoom", async () => {
 		await openLocation(saveFullId);
 		await waitForDates();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(saveFullId);
 		const saved = await readLocation(saveFullId);
 		expect(typeof saved.heading).toBe("number");
@@ -968,8 +958,7 @@ describe("LocationPreview — tag management in preview", () => {
 		const addBtn = await browser.$(".location-preview__tags ol.tag-list .tag__button--add");
 		await addBtn.waitForExist({ timeoutMsg: "Alpha suggestion never appeared" });
 		await addBtn.click();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(tagmgmt1Id, (l) => l.tags.includes(mgmtTagAId));
 
 		const l = await readLocation(tagmgmt1Id);
@@ -986,8 +975,7 @@ describe("LocationPreview — tag management in preview", () => {
 		await removeBtn.waitForExist({ timeoutMsg: "No removable tag chip in preview" });
 		const before = (await readLocation(tagmgmt1Id)).tags.length;
 		await removeBtn.click();
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await waitForSave(tagmgmt1Id, (l) => l.tags.length === before - 1);
 		const l = await readLocation(tagmgmt1Id);
 		expect(l.tags.length).toBe(before - 1);
@@ -1022,8 +1010,7 @@ describe("LocationPreview — tag management in preview", () => {
 		// still nothing persisted until save
 		expect(await tagNames()).not.toContain("ZZStagedSave");
 
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		await saveBtn.click();
+		await saveLocation();
 		await browser.waitUntil(async () => (await tagNames()).includes("ZZStagedSave"), {
 			timeoutMsg: "new tag never persisted after save",
 		});
@@ -1433,11 +1420,7 @@ describe("LocationPreview — edge cases", () => {
 		const dateSection = await browser.$(".location-preview__date");
 		expect(await dateSection.isExisting()).toBe(true);
 		// Save should still work
-		const saveBtn = await browser.$("[data-qa='location-save']");
-		// eslint-disable-next-line no-restricted-syntax -- edge case may have 0 dates, so waitForDates can't gate; bounded pano-load settle
-		await browser.pause(2000);
-		await saveBtn.click();
-		await waitForSave(edgeSingleDateId);
+		await saveLocation();
 		const saved = await readLocation(edgeSingleDateId);
 		expect(saved).not.toBeNull();
 	});
@@ -1446,18 +1429,14 @@ describe("LocationPreview — edge cases", () => {
 		await openLocation(edgeSaveIdemId);
 		await waitForDates();
 
-		const saveBtn = await browser.$("[data-qa='location-save']");
-
 		// First save — reopens the location because save closes it
-		await saveBtn.click();
-		await flushAndWait();
+		await saveLocation();
 		await openLocation(edgeSaveIdemId);
 		await waitForDates();
 		const first = await readLocation(edgeSaveIdemId);
 
 		// Second save
-		await saveBtn.click();
-		await flushAndWait();
+		await saveLocation();
 		const second = await readLocation(edgeSaveIdemId);
 
 		expect(second.panoId).toBe(first.panoId);

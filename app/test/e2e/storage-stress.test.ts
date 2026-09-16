@@ -1065,8 +1065,6 @@ describe("Selection during mutation", () => {
 			const beforeCount = api.getMapState().selectedLocationIds.size;
 			const ids = [...api.getMapState().selectedLocationIds].slice(0, 5);
 			await api.removeLocations(new Set(ids));
-			// Give Rust a moment to refresh selections
-			await new Promise((r) => setTimeout(r, 100));
 			await api.addSelections([{ type: "Everything" }]);
 			return { before: beforeCount, after: api.getMapState().selectedLocationIds.size };
 		});

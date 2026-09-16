@@ -102,7 +102,6 @@ describe("Bulk operations -- enrichAll", () => {
 		await withApi(async (api, id) => {
 			for (let i = 0; i < 100; i++) {
 				await api.undo();
-				await new Promise((r) => setTimeout(r, 300));
 				const loc = await api.fetchLocation(id);
 				if (!loc || !loc.panoId) break;
 			}
