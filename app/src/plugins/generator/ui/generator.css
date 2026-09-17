@@ -179,18 +179,7 @@
 }
 
 .generator-regions__spinner {
-	width: 10px;
-	height: 10px;
-	border: 2px solid var(--border-strong);
-	border-top-color: var(--text-2);
-	border-radius: 50%;
-	animation: generator-spin 0.6s linear infinite;
-}
-
-@keyframes generator-spin {
-	to {
-		transform: rotate(360deg);
-	}
+	--spinner-size: 10px;
 }
 
 /* Settings panel */

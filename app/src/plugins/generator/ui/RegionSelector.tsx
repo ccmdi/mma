@@ -52,7 +52,7 @@ function RegionRow({
 			<div className="generator-regions__item-name">
 				<Flag code={code} className="generator-regions__flag" />
 				<span>{name}</span>
-				{processing && <span className="generator-regions__spinner" />}
+				{processing && <span className="spinner generator-regions__spinner" />}
 			</div>
 			<div className="generator-regions__item-count">
 				{rate != null && <span className="generator-regions__rate">{rateLabel(rate)}</span>}

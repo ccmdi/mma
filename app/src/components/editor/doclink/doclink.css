@@ -85,16 +85,6 @@
 	z-index: 1;
 }
 
-.doclink-spinner {
-	display: inline-block;
-	width: 1rem;
-	height: 1rem;
-	border: 2px solid var(--sand-7, #66655c);
-	border-top-color: var(--sand-2, #e0dfd4);
-	border-radius: 50%;
-	animation: rotate 0.8s linear infinite;
-}
-
 .doclink-native {
 	padding: 0.75rem 1rem;
 	overflow-wrap: break-word;

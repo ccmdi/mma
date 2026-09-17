@@ -236,7 +236,7 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 			>
 				{loading && shown && (
 					<div className="doclink-panel__loading">
-						<span className="doclink-spinner" />
+						<span className="spinner" />
 					</div>
 				)}
 				{tags.length === 0 ? (
@@ -268,7 +268,7 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 					<ShadowHtml css={shown.css} html={shown.html} />
 				) : loading ? (
 					<div className="doclink-panel__status doclink-panel__status--center">
-						<span className="doclink-spinner" />
+						<span className="spinner" />
 					</div>
 				) : null}
 			</div>

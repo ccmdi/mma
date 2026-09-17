@@ -1049,11 +1049,7 @@ function UpdateBlock() {
 						title={t("Check for updates")}
 						aria-label={t("Check for updates")}
 					>
-						<Icon
-							path={mdiRefresh}
-							size={18}
-							className={checking ? "settings-updates__spin" : undefined}
-						/>
+						<Icon path={mdiRefresh} size={18} className={checking ? "spin" : undefined} />
 					</button>
 					{(update.phase === "error" || update.phase === "up-to-date") && (
 						<span className="text-muted" style={{ fontSize: "0.8rem" }}>
