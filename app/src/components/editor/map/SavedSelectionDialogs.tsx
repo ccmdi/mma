@@ -60,7 +60,7 @@ export function SaveSelectionsDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Save current selections")}>
+			<DialogContent title={t("Save current selections")} size="sm">
 				{saveable.length === 0 ? (
 					<p>{t("No saveable selections active.")}</p>
 				) : (

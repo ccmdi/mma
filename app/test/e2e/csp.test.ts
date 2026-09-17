@@ -290,7 +290,7 @@ describe("Content Security Policy", function () {
 	it("opens the editor dialogs", async () => {
 		for (const [label, panel] of [
 			["Export", ".export-modal"],
-			["History", ".version-history-modal"],
+			["History", ".modal__dialog"],
 			["Seen", ".seen-dialog"],
 		] as const) {
 			await browser.$(`button=${label}`).click();

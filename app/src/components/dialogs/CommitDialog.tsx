@@ -16,7 +16,7 @@ export function CommitDialog({ onClose }: { onClose: () => void }) {
 	};
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent title={t("Commit changes")} className="commit-dialog">
+			<DialogContent title={t("Commit changes")} className="commit-dialog" size="sm">
 				<span className="map-meta__count mono">
 					<span className="map-meta__count--added">+{fmt.format(diff.added)}</span>{" "}
 					<span className="map-meta__count--removed">-{fmt.format(diff.removed)}</span>{" "}

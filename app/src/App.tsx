@@ -317,7 +317,11 @@ function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => vo
 				if (!v) onDismiss();
 			}}
 		>
-			<DialogContent title={t("Welcome to {app}", { app: APP_NAME })} className="welcome-dialog">
+			<DialogContent
+				title={t("Welcome to {app}", { app: APP_NAME })}
+				className="welcome-dialog"
+				size="sm"
+			>
 				<div className="welcome-dialog__hero">
 					<img src="/icon-1024.png" alt="" width={80} height={80} draggable={false} />
 					<div className="welcome-dialog__name">{APP_NAME}</div>

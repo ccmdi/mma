@@ -1086,7 +1086,7 @@ export function BulkOperationModal({ operation, onClose }: Props) {
 				if (!open) onClose();
 			}}
 		>
-			<DialogContent title={t(TITLES[operation])} className="bulk-operation-modal">
+			<DialogContent title={t(TITLES[operation])}>
 				{run ? (
 					<BulkProgress operation={operation} onClose={onClose} />
 				) : (

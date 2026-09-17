@@ -960,21 +960,38 @@ input[type="range"]:disabled {
 	position: fixed;
 	inset: 0;
 }
-.modal__dialog {
-	--modal-bg: var(--surface-2);
+.modal__frame {
 	background: var(--surface-2);
 	color: var(--text-1);
 	border: 1px solid var(--border-subtle);
 	box-shadow: var(--shadow-4);
 	border-radius: var(--radius-3);
-	grid-template-rows: min-content 1fr;
-	grid-template-columns: 100%;
-	max-height: 90vh;
-	padding: 1rem 0;
 	animation: 0.15s cubic-bezier(0.16, 1, 0.3, 1) modalShow;
 	/* Stay on a compositor layer after the entrance: dropping it repaints outlines and
 	   text in a different antialiasing mode, which reads as a brightness flash. */
 	will-change: transform;
+}
+.modal__frame.is-resizing {
+	overflow: hidden;
+}
+.modal__dialog--sm {
+	width: min(24rem, calc(100vw - 2rem));
+}
+.modal__dialog--md {
+	width: min(36rem, calc(100vw - 2rem));
+}
+.modal__dialog--lg {
+	width: min(46rem, calc(100vw - 2rem));
+}
+.modal__dialog--xl {
+	width: min(56rem, calc(100vw - 2rem));
+}
+.modal__dialog {
+	--modal-bg: var(--surface-2);
+	grid-template-rows: min-content 1fr;
+	grid-template-columns: 100%;
+	max-height: calc(90vh - 2px);
+	padding: 1rem 0;
 	display: grid;
 }
 .modal__content {
@@ -1001,13 +1018,13 @@ input[type="range"]:disabled {
 }
 @media (prefers-reduced-motion) {
 	.modal[open],
-	.modal::backdrop {
+	.modal::backdrop,
+	.modal__frame {
 		animation: none;
 	}
 }
 .welcome-dialog {
 	position: relative;
-	width: min(24rem, 92vw);
 	padding-bottom: 1.5rem;
 }
 /* keep the Radix title for a11y; the hero carries the visible name */
@@ -1100,12 +1117,9 @@ input[type="range"]:disabled {
 	width: 100%;
 }
 .edit-map-modal {
-	width: 600px;
 	max-height: 90vh;
 }
 .enrichment-modal {
-	width: min(46rem, 92vw);
-	max-width: 92vw;
 	height: min(42rem, 90vh);
 }
 /* The body is a column so the Fields pane can claim the leftover height and scroll
@@ -1433,10 +1447,6 @@ input[type="range"]:disabled {
 }
 
 /* Import preview modal */
-.import-preview-modal {
-	width: 520px;
-	max-width: 95vw;
-}
 .import-preview__actions {
 	display: flex;
 	align-items: center;
@@ -2346,10 +2356,6 @@ input[type="range"]:disabled {
 .layer-config__item {
 	display: block;
 }
-.map-styles-modal {
-	width: 768px;
-	max-width: 100vw;
-}
 .map-style-list {
 	flex-wrap: wrap;
 	justify-content: space-between;
@@ -2524,9 +2530,6 @@ input[type="range"]:disabled {
 .duplicate-item__select input {
 	cursor: pointer;
 }
-.export-modal {
-	max-width: 40rem;
-}
 .export-modal__formats details {
 	margin-top: 1rem;
 }
@@ -2693,9 +2696,6 @@ input[type="range"]:disabled {
 	margin-left: auto;
 	font-family: monospace;
 	color: var(--stone-9);
-}
-.bulk-operation-modal {
-	width: 36rem;
 }
 .bulk-operation {
 	display: grid;
@@ -3041,9 +3041,6 @@ input[type="range"]:disabled {
 	color: var(--text-3);
 	font-size: 0.8125rem;
 	padding: 0.5rem;
-}
-.period-prompt {
-	width: min(22rem, 92vw);
 }
 .period-prompt__help {
 	margin: 0 0 0.75rem;
@@ -4154,9 +4151,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 .map-meta__spacer {
 	flex-grow: 1;
 }
-.commit-dialog {
-	width: 22rem;
-}
 .commit-dialog__message {
 	width: 100%;
 	margin-top: 0.75rem;
@@ -4256,10 +4250,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 #marker-style-select,
 #coverage-type-select {
 	width: 260px;
-}
-.entry-list-modal {
-	width: 46rem;
-	max-width: 95vw;
 }
 .entry-list__empty {
 	color: var(--text-2);
@@ -4918,8 +4908,6 @@ body {
 
 /* Settings page dialog */
 .settings-page {
-	width: 56rem;
-	max-width: 92vw;
 	height: 80vh;
 	max-height: 90vh;
 	padding-bottom: 0;
@@ -5744,18 +5732,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	visibility: hidden !important;
 }
 
-.tag-find-replace-modal {
-	width: 36rem;
-}
-.version-history-modal {
-	max-width: 56rem;
-}
-
 /* Plugin Marketplace */
-.plugin-marketplace {
-	width: 850px;
-	max-width: 95vw;
-}
 .plugin-marketplace .modal__content {
 	gap: 0.75rem;
 }
@@ -5921,8 +5898,6 @@ body:has([data-plugin-overlay]) .map-meta {
 
 /* Seen dialog */
 .seen-dialog {
-	width: 720px;
-	max-width: 95vw;
 	max-height: 80vh;
 	display: flex;
 	flex-direction: column;
@@ -6193,9 +6168,6 @@ body:has([data-plugin-overlay]) .map-meta {
 	min-width: 140px;
 }
 /* --- Stats for nerds --- */
-.stats-nerds {
-	width: min(880px, 90vw);
-}
 .stats-nerds__columns {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6595,7 +6567,6 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 .report-dialog {
 	display: flex;
 	flex-direction: column;
-	width: min(34rem, 92vw);
 }
 
 .report-dialog:has(.report-dialog__area) {

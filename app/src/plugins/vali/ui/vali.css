@@ -26,11 +26,6 @@
 	pointer-events: none;
 }
 
-.vali-download {
-	width: 560px;
-	max-width: 100%;
-}
-
 .vali-download__stale {
 	display: flex;
 	align-items: center;

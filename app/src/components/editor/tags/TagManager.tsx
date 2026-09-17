@@ -492,7 +492,7 @@ function RenameInSelectionDialog({
 
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent title={t("Rename tag in selection")}>
+			<DialogContent title={t("Rename tag in selection")} size="sm">
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -812,6 +812,7 @@ function NewFolderDialog({
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
 			<DialogContent
 				title={parentPath ? t('New folder in "{parent}"', { parent: parentPath }) : t("New folder")}
+				size="sm"
 			>
 				<form
 					onSubmit={(e) => {
@@ -903,7 +904,7 @@ function AddAliasDialog({
 
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent title={t('Alias "{name}"', { name: segment })}>
+			<DialogContent title={t('Alias "{name}"', { name: segment })} size="sm">
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();

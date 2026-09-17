@@ -143,7 +143,7 @@ export function SeenDialog({
 
 	return (
 		<Dialog open={open && ready} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Seen ({n})", { n: total })} className="seen-dialog">
+			<DialogContent title={t("Seen ({n})", { n: total })} className="seen-dialog" size="lg">
 				<div className="seen-dialog__filters">
 					<NSelect
 						className="seen-dialog__select"

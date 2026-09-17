@@ -63,7 +63,7 @@ export function VersionHistory({ onClose }: { onClose: () => void }) {
 
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent title={t("Version history")} className="version-history-modal">
+			<DialogContent title={t("Version history")} size="xl">
 				{commits.length === 0 && (
 					<p className="text-muted">
 						{t("No commits yet. Press Commit to create your first version.")}

@@ -606,7 +606,7 @@ function ImportPreviewModal({
 				if (!open) onClose();
 			}}
 		>
-			<DialogContent title={t("Import Maps")} className="import-preview-modal">
+			<DialogContent title={t("Import Maps")}>
 				<div className="import-preview__actions">
 					<Button onClick={selectAll}>{t("All")}</Button>
 					<Button onClick={selectNone}>{t("None")}</Button>

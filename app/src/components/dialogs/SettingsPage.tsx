@@ -1610,7 +1610,12 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Settings")} className="settings-page" initialFocus={searchRef}>
+			<DialogContent
+				title={t("Settings")}
+				className="settings-page"
+				size="xl"
+				initialFocus={searchRef}
+			>
 				<nav className="settings-rail">
 					<TextInput
 						ref={searchRef}

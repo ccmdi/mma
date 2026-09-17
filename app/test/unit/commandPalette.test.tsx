@@ -6,15 +6,7 @@ import { initLocale } from "@/lib/i18n";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-// cmdk observes its list's size and scrolls the selection into view; jsdom has neither.
-vi.stubGlobal(
-	"ResizeObserver",
-	class {
-		observe() {}
-		unobserve() {}
-		disconnect() {}
-	},
-);
+// cmdk scrolls the selection into view; jsdom has no layout to scroll.
 Element.prototype.scrollIntoView = () => {};
 
 const { registerPlugin, unregisterPlugin, setPluginEnabled } = await import("@/plugins/registry");

@@ -2249,7 +2249,7 @@ A color swatch that opens the picker in a popover on click.
 
 #### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<Props<unknown>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
 
-#### `ui.DialogContent({ className, title, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; }): Element`
+#### `ui.DialogContent({ className, title, size, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; size?: "sm" | "md" | "lg" | "xl" | undefined; }): Element`
 
 #### `ui.DialogTrigger<Payload>(componentProps: DialogTriggerProps<Payload> & RefAttributes<HTMLElement>): Element`
 

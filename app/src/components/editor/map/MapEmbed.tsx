@@ -481,7 +481,7 @@ export function MapEmbed({
 			</div>
 			{showStylesDialog && (
 				<Dialog open onOpenChange={(open) => !open && setShowStylesDialog(false)}>
-					<DialogContent title={t("Manage map styles")} className="map-styles-modal">
+					<DialogContent title={t("Manage map styles")} size="lg">
 						{customStyles.length > 0 && (
 							<ul className="map-style-list">
 								{customStyles.map((s) => (

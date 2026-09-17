@@ -37,7 +37,7 @@ export function TagFindReplaceDialog({ open, onOpenChange }: DialogProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent title={t("Find and replace in tag names")} className="tag-find-replace-modal">
+			<DialogContent title={t("Find and replace in tag names")}>
 				<div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}>
 					<label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
 						<span style={{ width: 60 }}>{t("Find")}</span>

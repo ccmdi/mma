@@ -179,7 +179,7 @@ export function RegionSelector({
 				</Button>
 			</div>
 			<Dialog open={capDialogOpen} onOpenChange={setCapDialogOpen}>
-				<DialogContent title={t("Change all caps")}>
+				<DialogContent title={t("Change all caps")} size="sm">
 					<div className="generator-cap-dialog">
 						<label className="generator-regions__target-label">
 							{t("Locations cap for all regions:")}

@@ -74,7 +74,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Review sessions")} className="entry-list-modal">
+			<DialogContent title={t("Review sessions")} size="lg">
 				<div className="review-sessions__tabs">
 					<button
 						className={`review-sessions__tab${filter === "active" ? " is-active" : ""}`}

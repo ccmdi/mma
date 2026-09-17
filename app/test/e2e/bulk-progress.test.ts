@@ -29,7 +29,7 @@ async function recordProgress() {
 		const w = window as unknown as { __bulkSamples?: Sample[]; __bulkObserver?: MutationObserver };
 		w.__bulkSamples = [];
 		const push = () => {
-			const root = document.querySelector(".bulk-operation-modal");
+			const root = document.querySelector(".modal__dialog");
 			if (!root) return;
 			const bar = root.querySelector(".bulk-operation__bar") as HTMLProgressElement | null;
 			const rows = [...root.querySelectorAll(".bulk-operation__provider")].map((r) => ({
@@ -102,8 +102,8 @@ async function openEnrichDialog() {
 		api.setSetting("pinnedCommands", ["bulk-enrich"]);
 	});
 	await browser.$('[data-qa="bulk-enrich"]').click();
-	await browser.$(".bulk-operation-modal").waitForExist();
-	await browser.$(".bulk-operation-modal").$("button=Start").waitForClickable();
+	await browser.$(".modal__dialog").waitForExist();
+	await browser.$(".modal__dialog").$("button=Start").waitForClickable();
 }
 
 describe("Bulk operation dialog -- enrichment progress", () => {
@@ -129,13 +129,13 @@ describe("Bulk operation dialog -- enrichment progress", () => {
 	it("shows every provider its own honest row and a monotonic overall bar", async () => {
 		await openEnrichDialog();
 		await recordProgress();
-		await browser.$(".bulk-operation-modal").$("button=Start").click();
+		await browser.$(".modal__dialog").$("button=Start").click();
 
 		const samples: Sample[] = [];
 		// waitUntil retries a condition that throws, so a mid-run violation is banked and
 		// ends the wait rather than asserted in place.
 		const bad: string[] = [];
-		const closeButton = () => browser.$(".bulk-operation-modal").$("button=Close");
+		const closeButton = () => browser.$(".modal__dialog").$("button=Close");
 		await browser.waitUntil(
 			async () => {
 				for (const s of await drainSamples()) {

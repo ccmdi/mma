@@ -325,7 +325,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Assign document links")} className="doclink-assign">
+			<DialogContent title={t("Assign document links")} className="doclink-assign" size="xl">
 				<div className="doclink-assign__url">
 					<TextInput
 						placeholder={t("Paste a Google Docs link...")}

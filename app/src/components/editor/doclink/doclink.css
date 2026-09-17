@@ -166,10 +166,6 @@
 }
 
 /* --- Assign dialog --- */
-.doclink-assign {
-	width: 1100px;
-	max-width: 95vw;
-}
 .doclink-assign__url {
 	margin-top: 4px;
 	display: flex;

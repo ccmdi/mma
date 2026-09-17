@@ -137,7 +137,7 @@ export function EnrichmentButton() {
 					<Icon path={mdiDatabasePlusOutline} />
 				</DialogTrigger>
 			</Tooltip>
-			<DialogContent title={t("Enrichment")} className="enrichment-modal">
+			<DialogContent title={t("Enrichment")} className="enrichment-modal" size="lg">
 				<SegmentedControl
 					className="segmented--fill enrichment-modal__tabs"
 					options={TABS.map((o) => ({ value: o.value, label: t(o.label) }))}
@@ -442,6 +442,7 @@ function FieldsTab() {
 				<DialogContent
 					title={renamePrompt?.merge ? t("Merge field") : t("Rename field")}
 					className="period-prompt"
+					size="sm"
 				>
 					{renamePrompt && (
 						<>
@@ -502,7 +503,7 @@ function FieldsTab() {
 			</Dialog>
 
 			<Dialog open={deleteKey !== null} onOpenChange={(open) => !open && setDeleteKey(null)}>
-				<DialogContent title={t("Delete field")} className="period-prompt">
+				<DialogContent title={t("Delete field")} className="period-prompt" size="sm">
 					<p className="period-prompt__help">
 						<Trans
 							msg="Delete {field} and clear its values from every location? This cannot be undone."

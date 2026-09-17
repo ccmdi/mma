@@ -493,7 +493,7 @@ export const SelectionRow = memo(function SelectionRow({
 				/>
 			)}
 			<Dialog open={renaming} onOpenChange={setRenaming}>
-				<DialogContent title={t("Polygon name")}>
+				<DialogContent title={t("Polygon name")} size="sm">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();
@@ -523,7 +523,7 @@ export const SelectionRow = memo(function SelectionRow({
 					if (!v) setTagName("");
 				}}
 			>
-				<DialogContent title={t("Save selection as tag")}>
+				<DialogContent title={t("Save selection as tag")} size="sm">
 					<form
 						onSubmit={(e) => {
 							e.preventDefault();

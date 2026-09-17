@@ -200,7 +200,7 @@ export function StatsForNerds({ onClose }: { onClose: () => void }) {
 				if (!open) onClose();
 			}}
 		>
-			<DialogContent title={t("Stats for Nerds")} className="stats-nerds">
+			<DialogContent title={t("Stats for Nerds")} className="stats-nerds" size="xl">
 				{error && <div className="stats-nerds__error">{String(error)}</div>}
 				<div className="stats-nerds__columns">
 					<div className="stats-nerds__column">

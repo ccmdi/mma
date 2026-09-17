@@ -5085,8 +5085,10 @@ declare function Dialog({ open, onOpenChange, children, ...props }: Omit<Compone
     onOpenChange?: (open: boolean) => void;
 }): react.JSX.Element;
 declare const DialogTrigger: Dialog$1.Trigger;
-declare function DialogContent({ className, title, initialFocus, children, ...props }: ComponentProps<typeof Dialog$1.Popup> & {
+declare function DialogContent({ className, title, size, initialFocus, children, ...props }: ComponentProps<typeof Dialog$1.Popup> & {
     title: string;
+    /** The dialog's fixed width: small, medium, large or extra large. */
+    size?: "sm" | "md" | "lg" | "xl";
 }): react.JSX.Element;
 
 /** Country flag from the bundled SVG set. Renders nothing for a missing or malformed code. */
