@@ -84,6 +84,21 @@ pub struct MapSettings {
     /// The order a review pass walks its worklist: a field expression scoring the location,
     /// highest first. `null` (or blank) keeps the order the selection resolved in.
     pub review_order: Option<String>,
+    /// Whether a bulk pin resolves pano ids before pinning.
+    pub pin_resolve: bool,
+    /// Which capture a bulk pin's resolve settles on; `null` keeps the pano as found.
+    pub pin_capture: Option<CapturePick>,
+}
+
+wire_str_enum! {
+    /// A capture of a pano's timeline to settle on.
+    derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)
+    pub enum CapturePick {
+        /// The newest official capture.
+        Newest = "newest",
+        /// The oldest official capture.
+        Oldest = "oldest",
+    }
 }
 
 impl Default for MapSettings {
@@ -107,6 +122,8 @@ impl Default for MapSettings {
             aliases: HashMap::new(),
             duplicate_score: None,
             review_order: None,
+            pin_resolve: true,
+            pin_capture: None,
         }
     }
 }

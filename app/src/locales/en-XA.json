@@ -112,6 +112,7 @@
 	"As CSV": "[Åş ÇŞṼ åéî]",
 	"As GeoJSON": "[Åş ǦéöĴŞÖÑ åéîö]",
 	"As JSON (recommended)": "[Åş ĴŞÖÑ (ŕéçöɱɱéñðéð) åéîöüåéîö]",
+	"As found": "[Åş ƒöüñð åéîö]",
 	"Asia": "[Åşîå åé]",
 	"Assign document links": "[Åşşîǧñ ðöçüɱéñţ ĺîñķş åéîöüåéîö]",
 	"Assign document links...": "[Åşşîǧñ ðöçüɱéñţ ĺîñķş... åéîöüåéîöü]",
@@ -163,6 +164,7 @@
 	"Cancel and quit": "[Çåñçéĺ åñð ǫüîţ åéîöüå]",
 	"Cancelled at {done} / {total}.": "[Çåñçéĺĺéð åţ {done} / {total}. åéîöüåé]",
 	"Cancelled.": "[Çåñçéĺĺéð. åéîö]",
+	"Capture": "[Çåƥţüŕé åéî]",
 	"Categorical": "[Çåţéǧöŕîçåĺ åéîöü]",
 	"Center map on active location during review": "[Çéñţéŕ ɱåƥ öñ åçţîṽé ĺöçåţîöñ ðüŕîñǧ ŕéṽîéŵ åéîöüåéîöüåéîöüåéî]",
 	"Center toward nearest road direction": "[Çéñţéŕ ţöŵåŕð ñéåŕéşţ ŕöåð ðîŕéçţîöñ åéîöüåéîöüåéîöü]",
@@ -757,6 +759,7 @@
 	"New style": "[Ñéŵ şţýĺé åéîö]",
 	"New subfolder...": "[Ñéŵ şüƀƒöĺðéŕ... åéîöüåé]",
 	"Newer coverage available": "[Ñéŵéŕ çöṽéŕåǧé åṽåîĺåƀĺé åéîöüåéîöü]",
+	"Newest capture": "[Ñéŵéşţ çåƥţüŕé åéîöüå]",
 	"Next": "[Ñéẋţ åé]",
 	"Next basemap": "[Ñéẋţ ƀåşéɱåƥ åéîöü]",
 	"Next date cycle": "[Ñéẋţ ðåţé çýçĺé åéîöüå]",
@@ -823,6 +826,7 @@
 	"Off": "[Öƒƒ åé]",
 	"Off (too many values)": "[Öƒƒ (ţöö ɱåñý ṽåĺüéş) åéîöüåéîö]",
 	"Official": "[Öƒƒîçîåĺ åéîö]",
+	"Oldest capture": "[Öĺðéşţ çåƥţüŕé åéîöüå]",
 	"On": "[Öñ å]",
 	"On conflict, keep:": "[Öñ çöñƒĺîçţ, ķééƥ: åéîöüåéî]",
 	"Only allow locations that don't have other nearby coverage in timeframe.": "[Öñĺý åĺĺöŵ ĺöçåţîöñş ţĥåţ ðöñ'ţ ĥåṽé öţĥéŕ ñéåŕƀý çöṽéŕåǧé îñ ţîɱéƒŕåɱé. åéîöüåéîöüåéîöüåéîöüåéîöüåéîö]",
@@ -895,7 +899,6 @@
 	"Pin locations to pano ID": "[Ƥîñ ĺöçåţîöñş ţö ƥåñö ÎÐ åéîöüåéîöü]",
 	"Pin section": "[Ƥîñ şéçţîöñ åéîöü]",
 	"Pin to Pano ID": "[Ƥîñ ţö Ƥåñö ÎÐ åéîöüå]",
-	"Pin to pano ID": "[Ƥîñ ţö ƥåñö ÎÐ åéîöüå]",
 	"Pin to toolbar": "[Ƥîñ ţö ţööĺƀåŕ åéîöüå]",
 	"Pinned pano:": "[Ƥîññéð ƥåñö: åéîöü]",
 	"Pinpointable angle": "[Ƥîñƥöîñţåƀĺé åñǧĺé åéîöüåéî]",
@@ -955,7 +958,7 @@
 	"Rank metadata fields by how strongly they separate selections": "[Ŕåñķ ɱéţåðåţå ƒîéĺðş ƀý ĥöŵ şţŕöñǧĺý ţĥéý şéƥåŕåţé şéĺéçţîöñş åéîöüåéîöüåéîöüåéîöüåéîöü]",
 	"Ranked by {field}": "[Ŕåñķéð ƀý {field} åéîö]",
 	"Re-enrich already enriched locations": "[Ŕé-éñŕîçĥ åĺŕéåðý éñŕîçĥéð ĺöçåţîöñş åéîöüåéîöüåéîöü]",
-	"Re-pin already pinned locations": "[Ŕé-ƥîñ åĺŕéåðý ƥîññéð ĺöçåţîöñş åéîöüåéîöüåéî]",
+	"Re-resolve already pinned locations": "[Ŕé-ŕéşöĺṽé åĺŕéåðý ƥîññéð ĺöçåţîöñş åéîöüåéîöüåéîö]",
 	"Read the manual": "[Ŕéåð ţĥé ɱåñüåĺ åéîöüå]",
 	"Reassign": "[Ŕéåşşîǧñ åéîö]",
 	"Recent log": "[Ŕéçéñţ ĺöǧ åéîö]",
@@ -1018,6 +1021,7 @@
 	"Reset every app setting to its default? Key bindings are kept.": "[Ŕéşéţ éṽéŕý åƥƥ şéţţîñǧ ţö îţş ðéƒåüĺţ? Ķéý ƀîñðîñǧş åŕé ķéƥţ. åéîöüåéîöüåéîöüåéîöüåéîöü]",
 	"Reset to default": "[Ŕéşéţ ţö ðéƒåüĺţ åéîöüåé]",
 	"Reset zoom": "[Ŕéşéţ žööɱ åéîö]",
+	"Resolve pano IDs first": "[Ŕéşöĺṽé ƥåñö ÎÐş ƒîŕşţ åéîöüåéîö]",
 	"Resolving pano IDs": "[Ŕéşöĺṽîñǧ ƥåñö ÎÐş åéîöüåéî]",
 	"Resolving panoramas": "[Ŕéşöĺṽîñǧ ƥåñöŕåɱåş åéîöüåéî]",
 	"Restart now": "[Ŕéşţåŕţ ñöŵ åéîöü]",
@@ -1374,7 +1378,6 @@
 	"Uploader": "[Üƥĺöåðéŕ åéîö]",
 	"Use Pano ID locations by default": "[Üşé Ƥåñö ÎÐ ĺöçåţîöñş ƀý ðéƒåüĺţ åéîöüåéîöüåéî]",
 	"Use blobby layer while zoomed out": "[Üşé ƀĺöƀƀý ĺåýéŕ ŵĥîĺé žööɱéð öüţ åéîöüåéîöüåéîö]",
-	"Use latest timeline coverage": "[Üşé ĺåţéşţ ţîɱéĺîñé çöṽéŕåǧé åéîöüåéîöüåé]",
 	"Use local · delete remote-only pins": "[Üşé ĺöçåĺ · ðéĺéţé ŕéɱöţé-öñĺý ƥîñş åéîöüåéîöüåéîö]",
 	"Use remote · delete local-only pins": "[Üşé ŕéɱöţé · ðéĺéţé ĺöçåĺ-öñĺý ƥîñş åéîöüåéîöüåéîö]",
 	"User uploaded": "[Üşéŕ üƥĺöåðéð åéîöüå]",
@@ -1571,9 +1574,13 @@
 		"one": "[{n} ĺöçåţîöñ åéîö]",
 		"other": "[{n} ĺöçåţîöñş åéîö]"
 	},
-	"{n} locations not pinned to a pano ID.": {
-		"one": "[{n} ĺöçåţîöñ ñöţ ƥîññéð ţö å ƥåñö ÎÐ. åéîöüåéîöüåéîö]",
-		"other": "[{n} ĺöçåţîöñş ñöţ ƥîññéð ţö å ƥåñö ÎÐ. åéîöüåéîöüåéîö]"
+	"{n} locations already pinned.": {
+		"one": "[{n} ĺöçåţîöñ åĺŕéåðý ƥîññéð. åéîöüåéîöü]",
+		"other": "[{n} ĺöçåţîöñş åĺŕéåðý ƥîññéð. åéîöüåéîöüå]"
+	},
+	"{n} locations have a pano ID to pin.": {
+		"one": "[{n} ĺöçåţîöñ ĥåş å ƥåñö ÎÐ ţö ƥîñ. åéîöüåéîöüåéî]",
+		"other": "[{n} ĺöçåţîöñş ĥåṽé å ƥåñö ÎÐ ţö ƥîñ. åéîöüåéîöüåéîö]"
 	},
 	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
 		"one": "[{n} ĺöçåţîöñ şķîƥƥéð: ñö ţîɱéžöñé. Éñŕîçĥ ţîɱéžöñéş, öŕ şéţ ţĥé ðåţé ţîɱéžöñé ţö ÜŢÇ. åéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéî]",
@@ -1588,6 +1595,10 @@
 		"other": "[{n} ɱåƥş åşşîǧñéð ţö ƒöĺðéŕş åéîöüåéîöü]"
 	},
 	"{n} not found locally": "[{n} ñöţ ƒöüñð ĺöçåĺĺý åéîöüåéî]",
+	"{n} pano IDs resolved.": {
+		"one": "[{n} ƥåñö ÎÐ ŕéşöĺṽéð. åéîöüåéî]",
+		"other": "[{n} ƥåñö ÎÐş ŕéşöĺṽéð. åéîöüåéî]"
+	},
 	"{n} rounds": "[{n} ŕöüñðş åéî]",
 	"{n} seconds per round": "[{n} şéçöñðş ƥéŕ ŕöüñð åéîöüåéî]",
 	"{n} tags": {
@@ -1613,6 +1624,10 @@
 	"{n} without pano ID will be resolved from coordinates.": {
 		"one": "[{n} ŵîţĥöüţ ƥåñö ÎÐ ŵîĺĺ ƀé ŕéşöĺṽéð ƒŕöɱ çööŕðîñåţéş. åéîöüåéîöüåéîöüåéîöüå]",
 		"other": "[{n} ŵîţĥöüţ ƥåñö ÎÐ ŵîĺĺ ƀé ŕéşöĺṽéð ƒŕöɱ çööŕðîñåţéş. åéîöüåéîöüåéîöüåéîöüå]"
+	},
+	"{n} without pano ID will be skipped.": {
+		"one": "[{n} ŵîţĥöüţ ƥåñö ÎÐ ŵîĺĺ ƀé şķîƥƥéð. åéîöüåéîöüåéîö]",
+		"other": "[{n} ŵîţĥöüţ ƥåñö ÎÐ ŵîĺĺ ƀé şķîƥƥéð. åéîöüåéîöüåéîö]"
 	},
 	"{n}%": "[{n}% å]",
 	"{n}d ago": "[{n}ð åǧö åé]",

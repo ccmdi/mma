@@ -112,6 +112,7 @@
 	"As CSV": "As CSV",
 	"As GeoJSON": "As GeoJSON",
 	"As JSON (recommended)": "As JSON (recommended)",
+	"As found": "As found",
 	"Asia": "Asia",
 	"Assign document links": "Assign document links",
 	"Assign document links...": "Assign document links...",
@@ -163,6 +164,7 @@
 	"Cancel and quit": "Cancel and quit",
 	"Cancelled at {done} / {total}.": "Cancelled at {done} / {total}.",
 	"Cancelled.": "Cancelled.",
+	"Capture": "Capture",
 	"Categorical": "Categorical",
 	"Center map on active location during review": "Center map on active location during review",
 	"Center toward nearest road direction": "Center toward nearest road direction",
@@ -757,6 +759,7 @@
 	"New style": "New style",
 	"New subfolder...": "New subfolder...",
 	"Newer coverage available": "Newer coverage available",
+	"Newest capture": "Newest capture",
 	"Next": "Next",
 	"Next basemap": "Next basemap",
 	"Next date cycle": "Next date cycle",
@@ -823,6 +826,7 @@
 	"Off": "Off",
 	"Off (too many values)": "Off (too many values)",
 	"Official": "Official",
+	"Oldest capture": "Oldest capture",
 	"On": "On",
 	"On conflict, keep:": "On conflict, keep:",
 	"Only allow locations that don't have other nearby coverage in timeframe.": "Only allow locations that don't have other nearby coverage in timeframe.",
@@ -895,7 +899,6 @@
 	"Pin locations to pano ID": "Pin locations to pano ID",
 	"Pin section": "Pin section",
 	"Pin to Pano ID": "Pin to Pano ID",
-	"Pin to pano ID": "Pin to pano ID",
 	"Pin to toolbar": "Pin to toolbar",
 	"Pinned pano:": "Pinned pano:",
 	"Pinpointable angle": "Pinpointable angle",
@@ -955,7 +958,7 @@
 	"Rank metadata fields by how strongly they separate selections": "Rank metadata fields by how strongly they separate selections",
 	"Ranked by {field}": "Ranked by {field}",
 	"Re-enrich already enriched locations": "Re-enrich already enriched locations",
-	"Re-pin already pinned locations": "Re-pin already pinned locations",
+	"Re-resolve already pinned locations": "Re-resolve already pinned locations",
 	"Read the manual": "Read the manual",
 	"Reassign": "Reassign",
 	"Recent log": "Recent log",
@@ -1018,6 +1021,7 @@
 	"Reset every app setting to its default? Key bindings are kept.": "Reset every app setting to its default? Key bindings are kept.",
 	"Reset to default": "Reset to default",
 	"Reset zoom": "Reset zoom",
+	"Resolve pano IDs first": "Resolve pano IDs first",
 	"Resolving pano IDs": "Resolving pano IDs",
 	"Resolving panoramas": "Resolving panoramas",
 	"Restart now": "Restart now",
@@ -1374,7 +1378,6 @@
 	"Uploader": "Uploader",
 	"Use Pano ID locations by default": "Use Pano ID locations by default",
 	"Use blobby layer while zoomed out": "Use blobby layer while zoomed out",
-	"Use latest timeline coverage": "Use latest timeline coverage",
 	"Use local · delete remote-only pins": "Use local · delete remote-only pins",
 	"Use remote · delete local-only pins": "Use remote · delete local-only pins",
 	"User uploaded": "User uploaded",
@@ -1571,9 +1574,13 @@
 		"one": "{n} location",
 		"other": "{n} locations"
 	},
-	"{n} locations not pinned to a pano ID.": {
-		"one": "{n} location not pinned to a pano ID.",
-		"other": "{n} locations not pinned to a pano ID."
+	"{n} locations already pinned.": {
+		"one": "{n} location already pinned.",
+		"other": "{n} locations already pinned."
+	},
+	"{n} locations have a pano ID to pin.": {
+		"one": "{n} location has a pano ID to pin.",
+		"other": "{n} locations have a pano ID to pin."
 	},
 	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
 		"one": "{n} location skipped: no timezone. Enrich timezones, or set the date timezone to UTC.",
@@ -1588,6 +1595,10 @@
 		"other": "{n} maps assigned to folders"
 	},
 	"{n} not found locally": "{n} not found locally",
+	"{n} pano IDs resolved.": {
+		"one": "{n} pano ID resolved.",
+		"other": "{n} pano IDs resolved."
+	},
 	"{n} rounds": "{n} rounds",
 	"{n} seconds per round": "{n} seconds per round",
 	"{n} tags": {
@@ -1613,6 +1624,10 @@
 	"{n} without pano ID will be resolved from coordinates.": {
 		"one": "{n} without pano ID will be resolved from coordinates.",
 		"other": "{n} without pano ID will be resolved from coordinates."
+	},
+	"{n} without pano ID will be skipped.": {
+		"one": "{n} without pano ID will be skipped.",
+		"other": "{n} without pano ID will be skipped."
 	},
 	"{n}%": "{n}%",
 	"{n}d ago": "{n}d ago",

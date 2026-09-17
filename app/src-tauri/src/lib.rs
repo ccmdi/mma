@@ -326,9 +326,10 @@ pub fn export_bindings() -> Result<(), String> {
     export_consts()
 }
 
-fn wire_string_enums() -> [(&'static str, TsConst); 9] {
+fn wire_string_enums() -> [(&'static str, TsConst); 10] {
     [
         ("CameraType", store::maps::CameraType::ts_const()),
+        ("CapturePick", store::maps::CapturePick::ts_const()),
         ("DatePart", selections::DatePart::ts_const()),
         ("ExtraFieldType", store::maps::ExtraFieldType::ts_const()),
         ("FirstSyncMode", sync::FirstSyncMode::ts_const()),

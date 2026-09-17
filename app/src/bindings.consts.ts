@@ -17,6 +17,15 @@ export const CameraType = {
 } as const;
 export type CameraType = (typeof CameraType)[keyof typeof CameraType];
 
+/** A capture of a pano's timeline to settle on. */
+export const CapturePick = {
+	/** The newest official capture. */
+	Newest: "newest",
+	/** The oldest official capture. */
+	Oldest: "oldest",
+} as const;
+export type CapturePick = (typeof CapturePick)[keyof typeof CapturePick];
+
 /** A calendar component to group dates by. */
 export const DatePart = {
 	/** The calendar year. */

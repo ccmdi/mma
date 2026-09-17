@@ -6,9 +6,10 @@ import {
 	isOfficialPano,
 	isUnofficial,
 	mergeTimelines,
-	newestOfficialPano,
+	pickCapture,
 } from "@/lib/sv/panoId";
 import type { Pano } from "@/bindings.gen";
+import { CapturePick } from "@/bindings.consts";
 
 describe("isOfficialPano", () => {
 	it("recognizes F: prefix as unofficial", () => {
@@ -45,29 +46,36 @@ describe("isOfficialPano", () => {
 	});
 });
 
-describe("newestOfficialPano", () => {
+describe("pickCapture", () => {
 	const off1 = "KQ2dSFpRKZZMxJEBc4FhcA";
 	const off2 = "KQ2dSFpRKZZMxJEBc4Fhcw";
 	const ugc = "F:CAoSLEFGMVFpcE";
 
 	it("returns null for an empty or all-unofficial timeline", () => {
-		expect(newestOfficialPano([])).toBeNull();
-		expect(newestOfficialPano([{ panoId: ugc }, { panoId: "junk" }])).toBeNull();
+		for (const pick of [CapturePick.Newest, CapturePick.Oldest]) {
+			expect(pickCapture([], pick)).toBeNull();
+			expect(pickCapture([{ panoId: ugc }, { panoId: "junk" }], pick)).toBeNull();
+		}
 	});
 
-	// Timelines arrive sorted ascending, so the newest official entry is the LAST one —
-	// not the first match, and not the last entry when that entry is unofficial.
-	it("takes the last official entry, skipping trailing unofficial ones", () => {
-		expect(newestOfficialPano([{ panoId: off1 }, { panoId: off2 }])?.panoId).toBe(off2);
-		expect(newestOfficialPano([{ panoId: off1 }, { panoId: off2 }, { panoId: ugc }])?.panoId).toBe(
-			off2,
-		);
-		expect(newestOfficialPano([{ panoId: ugc }, { panoId: off1 }])?.panoId).toBe(off1);
+	// Timelines arrive sorted ascending, so the newest official entry is the LAST one,
+	// not the last entry when that entry is unofficial.
+	it("newest takes the last official entry, skipping trailing unofficial ones", () => {
+		const newest = (time: { panoId: string }[]) => pickCapture(time, CapturePick.Newest)?.panoId;
+		expect(newest([{ panoId: off1 }, { panoId: off2 }])).toBe(off2);
+		expect(newest([{ panoId: off1 }, { panoId: off2 }, { panoId: ugc }])).toBe(off2);
+		expect(newest([{ panoId: ugc }, { panoId: off1 }])).toBe(off1);
+	});
+
+	it("oldest takes the first official entry, skipping leading unofficial ones", () => {
+		const oldest = (time: { panoId: string }[]) => pickCapture(time, CapturePick.Oldest)?.panoId;
+		expect(oldest([{ panoId: off1 }, { panoId: off2 }])).toBe(off1);
+		expect(oldest([{ panoId: ugc }, { panoId: off2 }, { panoId: off1 }])).toBe(off2);
 	});
 
 	it("preserves the entry object, not just the id", () => {
 		const entry = { panoId: off1, date: new Date(2019, 5) };
-		expect(newestOfficialPano([entry])).toBe(entry);
+		expect(pickCapture([entry], CapturePick.Newest)).toBe(entry);
 	});
 });
 

@@ -36,6 +36,7 @@ const h = vi.hoisted(() => ({
 	cancelled: [] as number[],
 	queryAnswer: ((input: string) => Promise.resolve(input)) as (i: string) => Promise<string>,
 	rowRunHook: null as ((cancel: number) => void) | null,
+	fieldOps: [] as { selector: Selector; op: unknown }[],
 }));
 
 vi.mock("@/lib/util/log", () => ({
@@ -52,6 +53,10 @@ vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 vi.mock("@/store/useMapStore", () => ({
 	holdAutosave: () => () => {},
 	updateLocations: async () => {},
+	applyFieldOp: async (selector: Selector, op: unknown) => {
+		h.fieldOps.push({ selector, op });
+		return { changed: 2, failed: [] };
+	},
 	getMapState: () => ({
 		map: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } },
 	}),
@@ -207,6 +212,7 @@ beforeEach(() => {
 	h.failedIds = {};
 	h.queryAnswer = (input) => Promise.resolve(input);
 	h.rowRunHook = null;
+	h.fieldOps = [];
 });
 
 const ids = () => h.decls.map((d) => d.id);
@@ -309,7 +315,6 @@ describe("the implicit provider set", () => {
 		const set = enrichRuns(null).map((r) => r.provider.id);
 		expect(set).toEqual(expect.arrayContaining(["svMeta", "exactDate", "timezone", "subdivision"]));
 		expect(set).not.toContain("panoResolve");
-		expect(set).not.toContain("pinPano");
 		expect(set).not.toContain("headingRoad");
 	});
 
@@ -325,7 +330,6 @@ describe("the implicit provider set", () => {
 		expect(ids()).toEqual(
 			expect.arrayContaining(["svMeta", "exactDate", "timezone", "subdivision"]),
 		);
-		expect(ids()).not.toContain("pinPano");
 		expect(ids()).not.toContain("headingRoad");
 	});
 
@@ -352,7 +356,6 @@ describe("the implicit provider set", () => {
 			name: null,
 		});
 		expect(ids()).not.toContain("panoResolve");
-		expect(ids()).not.toContain("pinPano");
 		expect(ids()).not.toContain("svMeta");
 		for (const d of h.decls)
 			expect(d.select).toEqual({ type: "Locations", locations: [42], name: null });
@@ -360,35 +363,46 @@ describe("the implicit provider set", () => {
 });
 
 describe("the bulk operations name their own providers", () => {
-	it("bulkPinToPano runs panoResolve then pinPano, with the useLatest config", async () => {
-		const out = await bulkPinToPano({ type: "Everything" }, { useLatest: true, force: true });
-		expect(ids()).toEqual(["panoResolve", "pinPano"]);
-		// The re-resolve searches official coverage only: the closest pano can be a
-		// photosphere, and a bulk pin must never relocate rows onto one.
-		expect(h.decls[0].config).toBe(JSON.stringify({ sources: [2] }));
-		const pin = h.decls[1];
-		expect(pin.config).toBe(JSON.stringify({ useLatest: true }));
-		// Forced, so the run is not narrowed away from the caller's selector.
-		expect(pin.select).toEqual({ type: "Everything" });
-		expect(out.succeeded).toBe(5);
+	it("bulkPinToPano resolves unpinned rows from official coverage, then sets the flag", async () => {
+		const out = await bulkPinToPano({ type: "Everything" });
+		expect(ids()).toEqual(["panoResolve"]);
+		const resolve = h.decls[0];
+		// The closest pano can be a photosphere, and a bulk pin must never relocate rows onto one.
+		expect(resolve.config).toBe(JSON.stringify({ sources: [2] }));
+		expect(resolve.force).toBe(false);
+		expect(JSON.stringify(resolve.select)).toContain('"NotPanoIds"');
+		expect(h.fieldOps).toHaveLength(1);
+		expect(h.fieldOps[0].op).toEqual({ kind: "set", key: "loadAsPanoId", value: 1 });
+		const pinTarget = JSON.stringify(h.fieldOps[0].selector);
+		expect(pinTarget).toContain('"field":"panoId"');
+		expect(pinTarget).toContain('"op":"has"');
+		expect(out).toEqual({ succeeded: 2, failed: [], resolved: 5 });
 	});
 
-	it("without force pinPano only sees rows that are not already pinned", async () => {
-		await bulkPinToPano({ type: "Everything" });
-		const pin = h.decls[1];
-		expect(pin.select.type).toBe("Intersection");
-		expect(JSON.stringify(pin.select)).toContain('"NotPanoIds"');
+	it("a capture pick forces the resolve so stored panos reach it", async () => {
+		await bulkPinToPano({ type: "Everything" }, { capture: "newest" });
+		const resolve = h.decls[0];
+		expect(resolve.config).toBe(JSON.stringify({ sources: [2], capture: "newest" }));
+		expect(resolve.force).toBe(true);
+		expect(JSON.stringify(resolve.select)).toContain('"NotPanoIds"');
 	});
 
-	it("a row the forced re-resolve fails is excluded from the pin wave", async () => {
+	it("force re-resolves already pinned rows too", async () => {
+		await bulkPinToPano({ type: "Everything" }, { force: true });
+		expect(h.decls[0].force).toBe(true);
+		expect(h.decls[0].select).toEqual({ type: "Everything" });
+	});
+
+	it("without the resolve step only the flag is written", async () => {
+		const out = await bulkPinToPano({ type: "Everything" }, { resolve: false });
+		expect(ids()).toEqual([]);
+		expect(h.fieldOps).toHaveLength(1);
+		expect(out).toEqual({ succeeded: 2, failed: [], resolved: 0 });
+	});
+
+	it("a row the resolve fails is offered back", async () => {
 		h.failedIds = { panoResolve: [3, 9] };
 		const out = await bulkPinToPano({ type: "Everything" }, { force: true });
-		const pin = h.decls[1];
-		expect(pin.id).toBe("pinPano");
-		expect(pin.select.type).toBe("Intersection");
-		const json = JSON.stringify(pin.select);
-		expect(json).toContain('"Invert"');
-		expect(json).toContain("[3,9]");
 		expect(out.failed).toEqual([3, 9]);
 	});
 

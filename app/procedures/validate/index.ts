@@ -8,10 +8,10 @@
 import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location, Pano, PanoAnswer, Update } from "@/bindings.gen";
 import type { ValidateConfig } from "@/lib/sv/validate";
-import { capturedAfter, isOfficialPano, isUnofficial, newestOfficialPano } from "@/lib/sv/panoId";
+import { capturedAfter, isOfficialPano, isUnofficial, pickCapture } from "@/lib/sv/panoId";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { isPinned } from "@/types";
-import { ValidationState } from "@/bindings.consts";
+import { CapturePick, ValidationState } from "@/bindings.consts";
 
 /** A capture worth keeping: anything else is what the badcam check is looking past. */
 function isGoodCam(m: Pano): boolean {
@@ -123,7 +123,7 @@ export function run(
 		const storedIsOfficial = it.entries.some(
 			(e) => e.panoId === it.row.panoId && isOfficialPano(e.panoId),
 		);
-		if (storedIsOfficial && newestOfficialPano(it.entries)?.panoId !== it.row.panoId) {
+		if (storedIsOfficial && pickCapture(it.entries, CapturePick.Newest)?.panoId !== it.row.panoId) {
 			it.state = it.pinned ? ValidationState.UpdateAvailable : ValidationState.UpdateApplied;
 		}
 	}

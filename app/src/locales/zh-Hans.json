@@ -105,6 +105,7 @@
 	"As CSV": "CSV 格式",
 	"As GeoJSON": "GeoJSON 格式",
 	"As JSON (recommended)": "JSON 格式（推荐）",
+	"As found": "保持找到的全景",
 	"Asia": "亚洲",
 	"Assign document links": "分配文档链接",
 	"Assign document links...": "分配文档链接…",
@@ -156,6 +157,7 @@
 	"Cancel and quit": "取消并退出",
 	"Cancelled at {done} / {total}.": "已在 {done} / {total} 处取消。",
 	"Cancelled.": "已取消。",
+	"Capture": "拍摄",
 	"Categorical": "分类",
 	"Center map on active location during review": "审阅时将地图居中到活动位置",
 	"Center toward nearest road direction": "朝向最近道路方向",
@@ -737,6 +739,7 @@
 	"New style": "新样式",
 	"New subfolder...": "新建子文件夹…",
 	"Newer coverage available": "有更新的覆盖",
+	"Newest capture": "最新拍摄",
 	"Next": "下一步",
 	"Next basemap": "下一个底图",
 	"Next date cycle": "下一日期周期",
@@ -802,6 +805,7 @@
 	"Off": "关闭",
 	"Off (too many values)": "关闭（值过多）",
 	"Official": "官方",
+	"Oldest capture": "最早拍摄",
 	"On": "开",
 	"On conflict, keep:": "冲突时保留：",
 	"Only allow locations that don't have other nearby coverage in timeframe.": "仅允许在时间范围内无其他附近覆盖的位置。",
@@ -873,7 +877,6 @@
 	"Pin locations to pano ID": "将位置固定到全景 ID",
 	"Pin section": "固定章节",
 	"Pin to Pano ID": "固定到全景 ID",
-	"Pin to pano ID": "固定到全景 ID",
 	"Pin to toolbar": "固定到工具栏",
 	"Pinned pano:": "已固定全景：",
 	"Pinpointable angle": "可定位角度",
@@ -932,7 +935,7 @@
 	"Rank metadata fields by how strongly they separate selections": "按区分选区的强度对元数据字段排序",
 	"Ranked by {field}": "按{field}排序",
 	"Re-enrich already enriched locations": "重新扩展已扩展的位置",
-	"Re-pin already pinned locations": "重新固定已固定的位置",
+	"Re-resolve already pinned locations": "重新解析已固定的位置",
 	"Read the manual": "阅读手册",
 	"Reassign": "重新分配",
 	"Recent log": "最近的日志",
@@ -989,6 +992,7 @@
 	"Reset every app setting to its default? Key bindings are kept.": "将所有应用设置重置为默认值？快捷键将保留。",
 	"Reset to default": "重置为默认",
 	"Reset zoom": "重置缩放",
+	"Resolve pano IDs first": "先解析全景 ID",
 	"Resolving pano IDs": "正在解析全景 ID",
 	"Resolving panoramas": "正在解析全景",
 	"Restart now": "立即重启",
@@ -1337,7 +1341,6 @@
 	"Uploader": "上传者",
 	"Use Pano ID locations by default": "默认使用全景 ID 位置",
 	"Use blobby layer while zoomed out": "缩小时使用 blob 图层",
-	"Use latest timeline coverage": "使用最新时间线覆盖",
 	"Use local · delete remote-only pins": "使用本地 · 删除仅远程的标记",
 	"Use remote · delete local-only pins": "使用远程 · 删除仅本地的标记",
 	"User uploaded": "用户上传",
@@ -1522,8 +1525,11 @@
 	"{n} locations": {
 		"other": "{n} 个位置"
 	},
-	"{n} locations not pinned to a pano ID.": {
-		"other": "{n} 个位置未固定到全景 ID。"
+	"{n} locations already pinned.": {
+		"other": "{n} 个位置已固定。"
+	},
+	"{n} locations have a pano ID to pin.": {
+		"other": "{n} 个位置有可固定的全景 ID。"
 	},
 	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
 		"other": "已跳过 {n} 个位置：没有时区。请先丰富时区，或将日期时区设为 UTC。"
@@ -1535,6 +1541,9 @@
 		"other": "{n} 张地图已分配到文件夹"
 	},
 	"{n} not found locally": "{n} 个在本地未找到",
+	"{n} pano IDs resolved.": {
+		"other": "已解析 {n} 个全景 ID。"
+	},
 	"{n} rounds": "{n} 轮",
 	"{n} seconds per round": "每轮 {n} 秒",
 	"{n} tags": {
@@ -1554,6 +1563,9 @@
 	},
 	"{n} without pano ID will be resolved from coordinates.": {
 		"other": "{n} 个无全景 ID 的位置将根据坐标解析。"
+	},
+	"{n} without pano ID will be skipped.": {
+		"other": "{n} 个无全景 ID 的位置将被跳过。"
 	},
 	"{n}%": "{n}%",
 	"{n}d ago": "{n} 天前",

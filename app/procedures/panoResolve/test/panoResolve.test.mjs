@@ -160,6 +160,65 @@ test("an unforced run leaves a pano the row already has", () => {
 	assert.equal(progress, 0);
 });
 
+const OFFICIAL_OLD = "aaaaaaaaaaaaaaaaaaaaaA";
+const OFFICIAL_NEW = "bbbbbbbbbbbbbbbbbbbbbQ";
+const UNOFFICIAL = "F:AF1QipMabcdefgHIJklmn";
+/** A found pano whose timeline runs old official, new official, then a photosphere. */
+const withHistory = (id) => ({
+	state: "found",
+	pano: pano({
+		id,
+		time: [OFFICIAL_OLD, OFFICIAL_NEW, UNOFFICIAL].map((panoId, i) => ({
+			panoId,
+			date: `202${i}-01-01`,
+		})),
+	}),
+});
+
+test("a capture pick moves a searched pano to that capture of its timeline", () => {
+	const newest = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => withHistory(PANO), {
+		config: { capture: "newest" },
+	});
+	assert.deepEqual(newest.patches, [{ id: 1, patch: { panoId: OFFICIAL_NEW } }]);
+	const oldest = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => withHistory(PANO), {
+		config: { capture: "oldest" },
+	});
+	assert.deepEqual(oldest.patches, [{ id: 1, patch: { panoId: OFFICIAL_OLD } }]);
+});
+
+test("a forced capture pick reads the stored pano's timeline, not the coordinates", () => {
+	const { patches, calls, failed } = runProcedure(
+		[{ id: 1, lat: 1, lng: 2, panoId: OFFICIAL_OLD }],
+		(c) => (c.query.panoId === OFFICIAL_OLD ? withHistory(OFFICIAL_OLD) : NO_IMAGES),
+		{ force: true, config: { capture: "newest" } },
+	);
+	assert.deepEqual(
+		calls.map((c) => c.query),
+		[{ panoId: OFFICIAL_OLD }],
+	);
+	assert.deepEqual(patches, [{ id: 1, patch: { panoId: OFFICIAL_NEW } }]);
+	assert.deepEqual(failed, []);
+});
+
+test("a capture pick fails a row whose stored pano is gone or has no official capture", () => {
+	const { patches, failed } = runProcedure(
+		[
+			{ id: 1, lat: 1, lng: 2, panoId: "dead" },
+			{ id: 2, lat: 1, lng: 2, panoId: UNOFFICIAL },
+		],
+		(c) =>
+			c.query.panoId === UNOFFICIAL
+				? {
+						state: "found",
+						pano: pano({ id: UNOFFICIAL, time: [{ panoId: UNOFFICIAL, date: "2020-01-01" }] }),
+					}
+				: NO_IMAGES,
+		{ force: true, config: { capture: "newest" } },
+	);
+	assert.deepEqual(patches, []);
+	assert.deepEqual(failed, [1, 2]);
+});
+
 test("no coverage fails the row without a patch", () => {
 	const { patches, progress, failed } = runProcedure([{ id: 7, lat: 1, lng: 2 }], () => NO_IMAGES);
 	assert.deepEqual(patches, []);

@@ -1,5 +1,5 @@
 import { createFieldDef } from "@/types";
-import type { PanoType } from "@/bindings.consts";
+import type { CapturePick, PanoType } from "@/bindings.consts";
 import { getMapState } from "@/store/useMapStore";
 import {
 	getAllEnrichKeys,
@@ -59,10 +59,12 @@ export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []
 
 // --- Providers ---
 
-/** Where to search when resolving a pano from coordinates. */
+/** Where to search when resolving a pano from coordinates, and which capture of its
+ *  timeline to settle on. */
 export interface PanoResolveConfig {
 	radius: number;
 	sources?: PanoType[];
+	capture?: CapturePick;
 }
 
 /** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any

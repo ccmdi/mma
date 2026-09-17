@@ -2,7 +2,7 @@
 
 import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 import * as __TAURI_EVENT from "@tauri-apps/api/event";
-import type { CameraType, DatePart, ExtraFieldType, FirstSyncMode, IssueState, MergeWinner, RateCost, ResolutionSide, Sink } from "./bindings.consts";
+import type { CameraType, CapturePick, DatePart, ExtraFieldType, FirstSyncMode, IssueState, MergeWinner, RateCost, ResolutionSide, Sink } from "./bindings.consts";
 
 /** Commands */
 export const commands = {
@@ -571,6 +571,7 @@ export type CameraFrame = {
 	pitch: number,
 };
 
+
 /**  A marker removed from a render cell. */
 export type CellRemoval = {
 	cell: string,
@@ -1123,6 +1124,10 @@ export type MapSettings = {
 	 *  highest first. `null` (or blank) keeps the order the selection resolved in.
 	 */
 	reviewOrder?: string | null,
+	/**  Whether a bulk pin resolves pano ids before pinning. */
+	pinResolve?: boolean,
+	/**  Which capture a bulk pin's resolve settles on; `null` keeps the pano as found. */
+	pinCapture?: CapturePick | null,
 };
 
 

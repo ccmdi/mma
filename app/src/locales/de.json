@@ -112,6 +112,7 @@
 	"As CSV": "Als CSV",
 	"As GeoJSON": "Als GeoJSON",
 	"As JSON (recommended)": "Als JSON (empfohlen)",
+	"As found": "Wie gefunden",
 	"Asia": "Asien",
 	"Assign document links": "Dokumentlinks zuweisen",
 	"Assign document links...": "Dokumentlinks zuweisen...",
@@ -163,6 +164,7 @@
 	"Cancel and quit": "Abbrechen und beenden",
 	"Cancelled at {done} / {total}.": "Bei {done} / {total} abgebrochen.",
 	"Cancelled.": "Abgebrochen.",
+	"Capture": "Aufnahme",
 	"Categorical": "Kategorial",
 	"Center map on active location during review": "Karte während der Prüfung auf aktiven Standort zentrieren",
 	"Center toward nearest road direction": "An nächster Straßenrichtung ausrichten",
@@ -757,6 +759,7 @@
 	"New style": "Neuer Stil",
 	"New subfolder...": "Neuer Unterordner...",
 	"Newer coverage available": "Neuere Abdeckung verfügbar",
+	"Newest capture": "Neueste Aufnahme",
 	"Next": "Weiter",
 	"Next basemap": "Nächste Basiskarte",
 	"Next date cycle": "Nächster Datumszyklus",
@@ -823,6 +826,7 @@
 	"Off": "Aus",
 	"Off (too many values)": "Aus (zu viele Werte)",
 	"Official": "Offiziell",
+	"Oldest capture": "Älteste Aufnahme",
 	"On": "An",
 	"On conflict, keep:": "Bei Konflikt behalten:",
 	"Only allow locations that don't have other nearby coverage in timeframe.": "Nur Standorte zulassen, die im Zeitraum keine andere Abdeckung in der Nähe haben.",
@@ -895,7 +899,6 @@
 	"Pin locations to pano ID": "Standorte an Pano ID anheften",
 	"Pin section": "Abschnitt anheften",
 	"Pin to Pano ID": "An Pano ID anheften",
-	"Pin to pano ID": "An Pano ID anheften",
 	"Pin to toolbar": "An Werkzeugleiste anheften",
 	"Pinned pano:": "Angeheftetes Pano:",
 	"Pinpointable angle": "Bestimmbarer Winkel",
@@ -955,7 +958,7 @@
 	"Rank metadata fields by how strongly they separate selections": "Metadatenfelder danach ordnen, wie stark sie Auswahlen trennen",
 	"Ranked by {field}": "Sortiert nach {field}",
 	"Re-enrich already enriched locations": "Bereits angereicherte Standorte erneut anreichern",
-	"Re-pin already pinned locations": "Bereits angeheftete Standorte erneut anheften",
+	"Re-resolve already pinned locations": "Bereits angeheftete Standorte erneut ermitteln",
 	"Read the manual": "Handbuch lesen",
 	"Reassign": "Neu zuweisen",
 	"Recent log": "Aktuelles Protokoll",
@@ -1018,6 +1021,7 @@
 	"Reset every app setting to its default? Key bindings are kept.": "Alle App-Einstellungen auf den Standard zurücksetzen? Tastenkürzel bleiben erhalten.",
 	"Reset to default": "Auf Standard zurücksetzen",
 	"Reset zoom": "Zoom zurücksetzen",
+	"Resolve pano IDs first": "Zuerst Pano IDs ermitteln",
 	"Resolving pano IDs": "Pano IDs werden ermittelt",
 	"Resolving panoramas": "Panoramen werden ermittelt",
 	"Restart now": "Jetzt neu starten",
@@ -1374,7 +1378,6 @@
 	"Uploader": "Uploader",
 	"Use Pano ID locations by default": "Standardmäßig Pano ID-Standorte verwenden",
 	"Use blobby layer while zoomed out": "Blobby-Ebene beim Herauszoomen verwenden",
-	"Use latest timeline coverage": "Neueste Zeitleisten-Abdeckung verwenden",
 	"Use local · delete remote-only pins": "Lokal verwenden · nur remote vorhandene Pins löschen",
 	"Use remote · delete local-only pins": "Remote verwenden · nur lokal vorhandene Pins löschen",
 	"User uploaded": "Nutzer-Upload",
@@ -1571,9 +1574,13 @@
 		"one": "{n} Standort",
 		"other": "{n} Standorte"
 	},
-	"{n} locations not pinned to a pano ID.": {
-		"one": "{n} Standort ist an keine Pano ID angeheftet.",
-		"other": "{n} Standorte sind an keine Pano ID angeheftet."
+	"{n} locations already pinned.": {
+		"one": "{n} Standort ist bereits angeheftet.",
+		"other": "{n} Standorte sind bereits angeheftet."
+	},
+	"{n} locations have a pano ID to pin.": {
+		"one": "{n} Standort hat eine Pano ID zum Anheften.",
+		"other": "{n} Standorte haben eine Pano ID zum Anheften."
 	},
 	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
 		"one": "{n} Standort übersprungen: keine Zeitzone. Zeitzonen anreichern oder die Zeitzone des exakten Datums auf UTC setzen.",
@@ -1588,6 +1595,10 @@
 		"other": "{n} Karten Ordnern zugewiesen"
 	},
 	"{n} not found locally": "{n} lokal nicht gefunden",
+	"{n} pano IDs resolved.": {
+		"one": "{n} Pano ID ermittelt.",
+		"other": "{n} Pano IDs ermittelt."
+	},
 	"{n} rounds": "{n} Runden",
 	"{n} seconds per round": "{n} Sekunden pro Runde",
 	"{n} tags": {
@@ -1613,6 +1624,10 @@
 	"{n} without pano ID will be resolved from coordinates.": {
 		"one": "{n} ohne Pano ID wird aus Koordinaten ermittelt.",
 		"other": "{n} ohne Pano ID werden aus Koordinaten ermittelt."
+	},
+	"{n} without pano ID will be skipped.": {
+		"one": "{n} ohne Pano ID wird übersprungen.",
+		"other": "{n} ohne Pano ID werden übersprungen."
 	},
 	"{n}%": "{n} %",
 	"{n}d ago": "vor {n}d",

@@ -29,7 +29,8 @@ import {
 } from "@/lib/data/fieldDefRegistry";
 import { cmd } from "@/lib/commands";
 import { buildSelection } from "@/store/selections";
-import { ValidationState } from "@/bindings.consts";
+import { useMapSetting } from "@/store/useMapSetting";
+import { CapturePick, ValidationState } from "@/bindings.consts";
 import { validateLocations } from "@/lib/sv/validate";
 import { enrichAll, type EnrichOutcome } from "@/lib/sv/enrich";
 import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
@@ -252,33 +253,85 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 	);
 }
 
+const CAPTURE_LABELS: Record<CapturePick, string> = {
+	newest: msg("Newest capture"),
+	oldest: msg("Oldest capture"),
+};
+
 function PinPanoSetup({ picker, info, onReady }: SetupProps) {
+	const [resolve, setResolve] = useMapSetting("pinResolve", true);
+	const [capture, setCapture] = useMapSetting("pinCapture");
 	const [force, setForce] = useState(false);
-	const [useLatest, setUseLatest] = useState(false);
-	const unpinned = info.total - info.pinned;
+	const withoutPano = info.missing("panoId");
+	const pinnable = info.have("panoId") - info.pinned;
+	const repick = resolve && (force || capture !== null);
+	const nothingToDo = !repick && pinnable === 0 && (!resolve || withoutPano === 0);
 
 	return (
 		<div className="bulk-operation">
 			<SelectorPicker ctl={picker} />
 			<div className="bulk-operation__status">
 				{t(
-					{
-						one: "{n} location not pinned to a pano ID.",
-						other: "{n} locations not pinned to a pano ID.",
-					},
-					{ n: unpinned },
+					{ one: "{n} location already pinned.", other: "{n} locations already pinned." },
+					{ n: info.pinned },
 				)}
 			</div>
+			<div className="bulk-operation__status">
+				{t(
+					{
+						one: "{n} location has a pano ID to pin.",
+						other: "{n} locations have a pano ID to pin.",
+					},
+					{ n: pinnable },
+				)}
+			</div>
+			{withoutPano > 0 && (
+				<div className="bulk-operation__status">
+					{resolve
+						? t(
+								{
+									one: "{n} without pano ID will be resolved from coordinates.",
+									other: "{n} without pano ID will be resolved from coordinates.",
+								},
+								{ n: withoutPano },
+							)
+						: t(
+								{
+									one: "{n} without pano ID will be skipped.",
+									other: "{n} without pano ID will be skipped.",
+								},
+								{ n: withoutPano },
+							)}
+				</div>
+			)}
 			<label className="bulk-operation__option">
-				<Checkbox checked={force} onChange={(e) => setForce(e.target.checked)} />
+				<Checkbox checked={resolve} onChange={(e) => setResolve(e.target.checked)} />
 
-				{t("Re-pin already pinned locations")}
+				{t("Resolve pano IDs first")}
 			</label>
-			<label className="bulk-operation__option">
-				<Checkbox checked={useLatest} onChange={(e) => setUseLatest(e.target.checked)} />
+			{resolve && (
+				<>
+					<label className="bulk-operation__option">
+						{t("Capture")}
+						<NSelect
+							value={capture ?? ""}
+							onChange={(e) => setCapture((e.target.value || null) as CapturePick | null)}
+						>
+							<option value="">{t("As found")}</option>
+							{Object.values(CapturePick).map((pick) => (
+								<option key={pick} value={pick}>
+									{t(CAPTURE_LABELS[pick])}
+								</option>
+							))}
+						</NSelect>
+					</label>
+					<label className="bulk-operation__option">
+						<Checkbox checked={force} onChange={(e) => setForce(e.target.checked)} />
 
-				{t("Use latest timeline coverage")}
-			</label>
+						{t("Re-resolve already pinned locations")}
+					</label>
+				</>
+			)}
 			<div className="bulk-operation__actions">
 				<Button
 					variant="primary"
@@ -286,20 +339,29 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 						onReady(async ({ selector, signal, onProgress }) => {
 							const outcome = await bulkPinToPano(selector, {
 								signal,
-								force: force || useLatest,
-								useLatest,
 								onProgress,
+								resolve,
+								capture,
+								force,
 							});
 							return {
 								outcome,
-								doneMessage: t(
-									{ one: "Done. {n} location pinned.", other: "Done. {n} locations pinned." },
-									{ n: outcome.succeeded },
-								),
+								doneMessage:
+									t(
+										{ one: "Done. {n} location pinned.", other: "Done. {n} locations pinned." },
+										{ n: outcome.succeeded },
+									) +
+									(outcome.resolved > 0
+										? " " +
+											t(
+												{ one: "{n} pano ID resolved.", other: "{n} pano IDs resolved." },
+												{ n: outcome.resolved },
+											)
+										: ""),
 							};
 						})
 					}
-					disabled={!force && !useLatest && unpinned === 0}
+					disabled={nothingToDo}
 				>
 					{t("Start")}
 				</Button>

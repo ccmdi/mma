@@ -105,6 +105,7 @@
 	"As CSV": "CSV として",
 	"As GeoJSON": "GeoJSON として",
 	"As JSON (recommended)": "JSON として（推奨）",
+	"As found": "見つかったまま",
 	"Asia": "アジア",
 	"Assign document links": "ドキュメントリンクを割り当て",
 	"Assign document links...": "ドキュメントリンクを割り当て...",
@@ -156,6 +157,7 @@
 	"Cancel and quit": "キャンセルして終了",
 	"Cancelled at {done} / {total}.": "{done} / {total} で中止しました。",
 	"Cancelled.": "キャンセルしました。",
+	"Capture": "撮影",
 	"Categorical": "カテゴリ",
 	"Center map on active location during review": "レビュー中にアクティブ地点をマップ中央に表示",
 	"Center toward nearest road direction": "最も近い道路の方向に向ける",
@@ -737,6 +739,7 @@
 	"New style": "新しいスタイル",
 	"New subfolder...": "新しいサブフォルダー...",
 	"Newer coverage available": "新しいカバレッジあり",
+	"Newest capture": "最新の撮影",
 	"Next": "次へ",
 	"Next basemap": "次のベースマップ",
 	"Next date cycle": "次の日付サイクル",
@@ -802,6 +805,7 @@
 	"Off": "オフ",
 	"Off (too many values)": "オフ（値が多すぎます）",
 	"Official": "公式",
+	"Oldest capture": "最古の撮影",
 	"On": "オン",
 	"On conflict, keep:": "競合時に保持:",
 	"Only allow locations that don't have other nearby coverage in timeframe.": "期間内に近隣の別カバレッジがない地点のみを許可します。",
@@ -873,7 +877,6 @@
 	"Pin locations to pano ID": "地点を Pano ID にピン留め",
 	"Pin section": "セクションをピン留め",
 	"Pin to Pano ID": "Pano ID にピン留め",
-	"Pin to pano ID": "Pano ID にピン留め",
 	"Pin to toolbar": "ツールバーにピン留め",
 	"Pinned pano:": "ピン留めしたパノラマ:",
 	"Pinpointable angle": "特定可能な角度",
@@ -932,7 +935,7 @@
 	"Rank metadata fields by how strongly they separate selections": "選択をどれだけ強く分離するかでメタデータフィールドを順位付け",
 	"Ranked by {field}": "{field}順",
 	"Re-enrich already enriched locations": "エンリッチ済みの地点を再エンリッチ",
-	"Re-pin already pinned locations": "ピン留め済みの地点を再ピン留め",
+	"Re-resolve already pinned locations": "ピン留め済みの地点を再解決",
 	"Read the manual": "マニュアルを読む",
 	"Reassign": "再割り当て",
 	"Recent log": "最近のログ",
@@ -989,6 +992,7 @@
 	"Reset every app setting to its default? Key bindings are kept.": "すべてのアプリ設定を既定値にリセットしますか？キーバインドは保持されます。",
 	"Reset to default": "デフォルトに戻す",
 	"Reset zoom": "ズームをリセット",
+	"Resolve pano IDs first": "先に Pano ID を解決",
 	"Resolving pano IDs": "Pano ID を解決中",
 	"Resolving panoramas": "パノラマを解決中",
 	"Restart now": "今すぐ再起動",
@@ -1337,7 +1341,6 @@
 	"Uploader": "投稿者",
 	"Use Pano ID locations by default": "既定で Pano ID の地点を使用",
 	"Use blobby layer while zoomed out": "ズームアウト時にブロブレイヤーを使用",
-	"Use latest timeline coverage": "最新のタイムラインカバレッジを使用",
 	"Use local · delete remote-only pins": "ローカルを使用・リモートのみのピンを削除",
 	"Use remote · delete local-only pins": "リモートを使用・ローカルのみのピンを削除",
 	"User uploaded": "ユーザー投稿",
@@ -1522,8 +1525,11 @@
 	"{n} locations": {
 		"other": "{n} 地点"
 	},
-	"{n} locations not pinned to a pano ID.": {
-		"other": "{n} 件の地点が Pano ID にピン留めされていません。"
+	"{n} locations already pinned.": {
+		"other": "{n} 件の地点はピン留め済みです。"
+	},
+	"{n} locations have a pano ID to pin.": {
+		"other": "{n} 件の地点にピン留めできる Pano ID があります。"
 	},
 	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
 		"other": "{n} 件の地点をスキップしました：タイムゾーンがありません。タイムゾーンをエンリッチするか、日付のタイムゾーンを UTC に設定してください。"
@@ -1535,6 +1541,9 @@
 		"other": "{n} 件のマップがフォルダーに割り当て済み"
 	},
 	"{n} not found locally": "{n} 件がローカルに見つかりません",
+	"{n} pano IDs resolved.": {
+		"other": "{n} 件の Pano ID を解決しました。"
+	},
 	"{n} rounds": "{n} ラウンド",
 	"{n} seconds per round": "ラウンドあたり {n} 秒",
 	"{n} tags": {
@@ -1554,6 +1563,9 @@
 	},
 	"{n} without pano ID will be resolved from coordinates.": {
 		"other": "Pano ID のない {n} 件は座標から解決されます。"
+	},
+	"{n} without pano ID will be skipped.": {
+		"other": "Pano ID のない {n} 件はスキップされます。"
 	},
 	"{n}%": "{n}%",
 	"{n}d ago": "{n} 日前",

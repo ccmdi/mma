@@ -1,102 +1,61 @@
 import type { Selector } from "@/bindings.gen";
+import { PanoType, type CapturePick } from "@/bindings.consts";
 import { buildSelection } from "@/store/selections";
-import {
-	noWork,
-	procedureEntry,
-	runProviders,
-	type BatchOutcome,
-	type RunOpts,
-} from "@/lib/data/procedures";
+import { applyFieldOp } from "@/store/useMapStore";
+import { runProviders, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
-import { PanoType } from "@/bindings.consts";
-import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
-import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
-import { msg } from "@/lib/i18n";
 
-/** Configuration for the pin-to-pano operation. */
-export interface PinPanoConfig {
-	useLatest?: boolean;
+/** How a bulk pin settles each location's pano before pinning it. */
+export interface PinOpts extends BulkOpts {
+	/** Resolve pano ids first; off, only locations that already carry one are pinned. */
+	resolve?: boolean;
+	/** Move each resolved pano to this capture of its timeline. */
+	capture?: CapturePick | null;
+	/** Re-resolve already pinned locations too. */
+	force?: boolean;
 }
 
-/** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
- *  panorama. With `useLatest`, move to the newest official pano in the timeline first. */
-export const pinPanoProvider: Provider<unknown, PinPanoConfig> = {
-	id: "pinPano",
-	label: msg("Pin to pano ID"),
-	requires: ["panoId"],
-	procedure: {
-		entry: procedureEntry("pinPano"),
-		batch: { mode: "chunk", size: 1000 },
-		inflight: GET_METADATA_INFLIGHT,
-	},
-};
-
-registerProvider(pinPanoProvider);
-
-function unpinnedIn(selector: Selector): Selector {
-	return {
-		type: "Intersection",
-		selections: [buildSelection(selector), buildSelection({ type: "NotPanoIds" })],
-	};
+/** What a bulk pin did: the locations newly pinned, the ones whose pano could not be
+ *  resolved, and how many pano ids the resolve wrote. */
+export interface PinOutcome extends BatchOutcome {
+	resolved: number;
 }
 
-/** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
- *  loads the same pano. */
-export async function bulkPinToPano(
-	selector: Selector,
-	opts: RunOpts & { useLatest?: boolean } = {},
-): Promise<BatchOutcome> {
-	const { useLatest, force = false, ...runOpts } = opts;
-	const target = force ? undefined : unpinnedIn(selector);
-	// A pin re-resolves a stale pano id too, and only against official coverage.
-	const resolve = await runProviders(
-		[
-			{
-				provider: {
-					...panoResolveProvider,
-					procedure: { ...panoResolveProvider.procedure, select: target },
+const intersect = (...selectors: Selector[]): Selector => ({
+	type: "Intersection",
+	selections: selectors.map(buildSelection),
+});
+
+/** Pin every location in the selector to its pano id, resolving pano ids first when asked. */
+export async function bulkPinToPano(selector: Selector, opts: PinOpts = {}): Promise<PinOutcome> {
+	const { resolve = true, capture = null, force = false, ...runOpts } = opts;
+	let resolved = 0;
+	let failed: number[] = [];
+	if (resolve) {
+		const target = force ? selector : intersect(selector, { type: "NotPanoIds" });
+		// A pin searches official coverage only: the closest pano can be a photosphere.
+		const result = await runProviders(
+			[
+				{
+					provider: {
+						...panoResolveProvider,
+						procedure: { ...panoResolveProvider.procedure, select: target },
+					},
+					config: { sources: [PanoType.Official], ...(capture ? { capture } : {}) },
+					force: force || capture !== null,
 				},
-				config: { sources: [PanoType.Official] },
-				force: true,
-			},
-		],
-		selector,
-		{ ...runOpts, force },
+			],
+			selector,
+			runOpts,
+		);
+		resolved = result.panoResolve?.succeeded ?? 0;
+		failed = result.panoResolve?.failed ?? [];
+	}
+	if (runOpts.signal?.aborted) return { succeeded: 0, failed, resolved };
+	const pinned = await applyFieldOp(
+		intersect(selector, { type: "Filter", field: "panoId", test: { op: "has" } }),
+		{ kind: "set", key: "loadAsPanoId", value: 1 },
+		true,
 	);
-	// Its own run, after the resolve verdicts are in: a row whose re-resolve failed keeps
-	// what it had and is not pinned -- a stale, possibly dead pano must not gain the flag.
-	const unresolved = resolve.panoResolve?.failed ?? [];
-	const base = target ?? selector;
-	const pinTarget: Selector =
-		unresolved.length === 0
-			? base
-			: {
-					type: "Intersection",
-					selections: [
-						base,
-						{
-							type: "Invert",
-							selections: [
-								buildSelection({ type: "Locations", locations: unresolved, name: null }),
-							],
-						} as Selector,
-					].map(buildSelection),
-				};
-	const result = await runProviders(
-		[
-			{
-				provider: {
-					...pinPanoProvider,
-					// Without force the engine only ever sees rows that need pinning, so what
-					// it reports is the count of locations actually pinned.
-					procedure: { ...pinPanoProvider.procedure, select: pinTarget },
-				},
-				config: { useLatest: !!useLatest },
-			},
-		],
-		selector,
-		{ ...runOpts, force },
-	);
-	const pinned = result.pinPano ?? noWork();
-	return { succeeded: pinned.succeeded, failed: [...unresolved, ...pinned.failed] };
+	return { succeeded: pinned.changed, failed: [...failed, ...pinned.failed], resolved };
 }

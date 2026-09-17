@@ -126,6 +126,7 @@
 	"As CSV": "Jako CSV",
 	"As GeoJSON": "Jako GeoJSON",
 	"As JSON (recommended)": "Jako JSON (zalecane)",
+	"As found": "Tak jak znaleziono",
 	"Asia": "Azja",
 	"Assign document links": "Przypisz linki do dokumentu",
 	"Assign document links...": "Przypisz linki do dokumentu...",
@@ -177,6 +178,7 @@
 	"Cancel and quit": "Anuluj i zamknij",
 	"Cancelled at {done} / {total}.": "Anulowano na {done} / {total}.",
 	"Cancelled.": "Anulowano.",
+	"Capture": "Ujęcie",
 	"Categorical": "Kategoryczne",
 	"Center map on active location during review": "Centruj mapę na aktywnej lokalizacji podczas przeglądu",
 	"Center toward nearest road direction": "Centruj w kierunku najbliższej drogi",
@@ -797,6 +799,7 @@
 	"New style": "Nowy styl",
 	"New subfolder...": "Nowy podfolder...",
 	"Newer coverage available": "Dostępne jest nowsze pokrycie",
+	"Newest capture": "Najnowsze ujęcie",
 	"Next": "Dalej",
 	"Next basemap": "Następna mapa bazowa",
 	"Next date cycle": "Następny cykl dat",
@@ -865,6 +868,7 @@
 	"Off": "Wył.",
 	"Off (too many values)": "Wył. (zbyt wiele wartości)",
 	"Official": "Oficjalne",
+	"Oldest capture": "Najstarsze ujęcie",
 	"On": "Wł.",
 	"On conflict, keep:": "W razie konfliktu zachowaj:",
 	"Only allow locations that don't have other nearby coverage in timeframe.": "Dopuszczaj tylko lokalizacje bez innego pobliskiego pokrycia w danym przedziale czasu.",
@@ -939,7 +943,6 @@
 	"Pin locations to pano ID": "Przypnij lokalizacje do pano ID",
 	"Pin section": "Przypnij sekcję",
 	"Pin to Pano ID": "Przypnij do Pano ID",
-	"Pin to pano ID": "Przypnij do pano ID",
 	"Pin to toolbar": "Przypnij do paska narzędzi",
 	"Pinned pano:": "Przypięte pano:",
 	"Pinpointable angle": "Kąt umożliwiający wskazanie miejsca",
@@ -1001,7 +1004,7 @@
 	"Rank metadata fields by how strongly they separate selections": "Uszereguj pola metadanych według tego, jak silnie rozdzielają zaznaczenia",
 	"Ranked by {field}": "Uporządkowane wg {field}",
 	"Re-enrich already enriched locations": "Wzbogać ponownie już wzbogacone lokalizacje",
-	"Re-pin already pinned locations": "Przypnij ponownie już przypięte lokalizacje",
+	"Re-resolve already pinned locations": "Ustal ponownie już przypięte lokalizacje",
 	"Read the manual": "Przeczytaj podręcznik",
 	"Reassign": "Przypisz ponownie",
 	"Recent log": "Ostatni dziennik",
@@ -1076,6 +1079,7 @@
 	"Reset every app setting to its default? Key bindings are kept.": "Przywrócić domyślne wartości wszystkich ustawień aplikacji? Skróty klawiszowe zostaną zachowane.",
 	"Reset to default": "Przywróć domyślne",
 	"Reset zoom": "Resetuj przybliżenie",
+	"Resolve pano IDs first": "Najpierw ustal pano ID",
 	"Resolving pano IDs": "Ustalanie pano ID",
 	"Resolving panoramas": "Ustalanie panoram",
 	"Restart now": "Uruchom ponownie teraz",
@@ -1448,7 +1452,6 @@
 	"Uploader": "Autor",
 	"Use Pano ID locations by default": "Domyślnie używaj lokalizacji z Pano ID",
 	"Use blobby layer while zoomed out": "Używaj warstwy uproszczonej przy oddaleniu",
-	"Use latest timeline coverage": "Używaj najnowszego pokrycia z osi czasu",
 	"Use local · delete remote-only pins": "Użyj lokalnych · usuń przypięcia tylko zdalne",
 	"Use remote · delete local-only pins": "Użyj zdalnych · usuń przypięcia tylko lokalne",
 	"User uploaded": "Przesłane przez użytkownika",
@@ -1669,11 +1672,17 @@
 		"many": "{n} lokalizacji",
 		"other": "{n} lokalizacji"
 	},
-	"{n} locations not pinned to a pano ID.": {
-		"one": "{n} lokalizacja nie jest przypięta do pano ID.",
-		"few": "{n} lokalizacje nie są przypięte do pano ID.",
-		"many": "{n} lokalizacji nie jest przypiętych do pano ID.",
-		"other": "{n} lokalizacji nie jest przypiętych do pano ID."
+	"{n} locations already pinned.": {
+		"one": "{n} lokalizacja jest już przypięta.",
+		"few": "{n} lokalizacje są już przypięte.",
+		"many": "{n} lokalizacji jest już przypiętych.",
+		"other": "{n} lokalizacji jest już przypiętych."
+	},
+	"{n} locations have a pano ID to pin.": {
+		"one": "{n} lokalizacja ma pano ID do przypięcia.",
+		"few": "{n} lokalizacje mają pano ID do przypięcia.",
+		"many": "{n} lokalizacji ma pano ID do przypięcia.",
+		"other": "{n} lokalizacji ma pano ID do przypięcia."
 	},
 	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
 		"one": "Pominięto {n} lokalizację: brak strefy czasowej. Wzbogać strefy czasowe lub ustaw strefę czasową daty na UTC.",
@@ -1694,6 +1703,12 @@
 		"other": "{n} map przypisanych do folderów"
 	},
 	"{n} not found locally": "{n} nie znaleziono lokalnie",
+	"{n} pano IDs resolved.": {
+		"one": "Ustalono {n} pano ID.",
+		"few": "Ustalono {n} pano ID.",
+		"many": "Ustalono {n} pano ID.",
+		"other": "Ustalono {n} pano ID."
+	},
 	"{n} rounds": "{n} rund",
 	"{n} seconds per round": "{n} sekund na rundę",
 	"{n} tags": {
@@ -1731,6 +1746,12 @@
 		"few": "{n} lokalizacje bez pano ID zostaną ustalone na podstawie współrzędnych.",
 		"many": "{n} lokalizacji bez pano ID zostanie ustalonych na podstawie współrzędnych.",
 		"other": "{n} lokalizacji bez pano ID zostanie ustalonych na podstawie współrzędnych."
+	},
+	"{n} without pano ID will be skipped.": {
+		"one": "{n} lokalizacja bez pano ID zostanie pominięta.",
+		"few": "{n} lokalizacje bez pano ID zostaną pominięte.",
+		"many": "{n} lokalizacji bez pano ID zostanie pominiętych.",
+		"other": "{n} lokalizacji bez pano ID zostanie pominiętych."
 	},
 	"{n}%": "{n}%",
 	"{n}d ago": "{n} dn. temu",

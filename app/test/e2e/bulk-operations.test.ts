@@ -139,9 +139,9 @@ describe("Bulk operations -- bulkPinToPano", () => {
 			return await api.bulkPinToPano({ type: "Everything" });
 		});
 
-		// pin-1 (no pano) and pin-2 (has pano, not pinned) should be pinned
-		// pin-3 is already pinned
-		expect(outcome).toEqual({ succeeded: 2, failed: [] });
+		// pin-1 (no pano) is resolved and pinned, pin-2 (has pano, not pinned) keeps its pano
+		// and is pinned, pin-3 is already pinned
+		expect(outcome).toEqual({ succeeded: 2, failed: [], resolved: 1 });
 
 		const l1 = await getLoc(locIds[0]);
 		expect(l1.panoId).toBeTruthy();
@@ -156,15 +156,15 @@ describe("Bulk operations -- bulkPinToPano", () => {
 			return await api.bulkPinToPano({ type: "Everything" });
 		});
 
-		expect(outcome).toEqual({ succeeded: 0, failed: [] });
+		expect(outcome).toEqual({ succeeded: 0, failed: [], resolved: 0 });
 	});
 
-	it("re-pins all with force", async () => {
+	it("re-resolves every pinned location with force", async () => {
 		const outcome = await withApi(async (api) => {
 			return await api.bulkPinToPano({ type: "Everything" }, { force: true });
 		});
 
-		expect(outcome).toEqual({ succeeded: 3, failed: [] });
+		expect(outcome).toEqual({ succeeded: 0, failed: [], resolved: 3 });
 	});
 });
 

@@ -72,6 +72,10 @@ A special collect carried on foot or on another vehicle, such as a trekker.
 
 An indoor capture from a tripod.
 
+### `CapturePick: { readonly Newest: "newest"; readonly Oldest: "oldest"; }`
+
+A capture of a pano's timeline to settle on.
+
 ### `CLEARABLE_BUILTINS: readonly ["panoId"]`
 
 ### `DatePart`
@@ -2833,37 +2837,9 @@ Fields this provider reads; it runs after their producers finish.
 
 ## PinPano
 
-### `bulkPinToPano(selector: Selector, opts?: (RunOpts & { useLatest?: boolean | undefined; }) | undefined): Promise<BatchOutcome>`
+### `bulkPinToPano(selector: Selector, opts?: PinOpts | undefined): Promise<PinOutcome>`
 
-Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
-loads the same pano.
-
-### `pinPanoProvider`
-
-A named procedure with dependency-graph placement. Providers that declare
-`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
-
-#### `pinPanoProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
-
-Extra-field keys this provider produces.
-
-#### `pinPanoProvider.id: string`
-
-#### `pinPanoProvider.label: string`
-
-Name shown in enrichment progress and results.
-
-#### `pinPanoProvider.procedure: ProcedureSpec<unknown, PinPanoConfig>`
-
-The procedure that computes this provider's fields.
-
-#### `pinPanoProvider.provides: string[] | undefined`
-
-Core columns this provider writes (e.g. `panoId`).
-
-#### `pinPanoProvider.requires: string[] | undefined`
-
-Fields this provider reads; it runs after their producers finish.
+Pin every location in the selector to its pano id, resolving pano ids first when asked.
 
 ## Validate
 

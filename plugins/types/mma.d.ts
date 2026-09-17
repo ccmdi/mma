@@ -27,6 +27,14 @@ declare const CameraType: {
     readonly Trekker: "trekker";
 };
 type CameraType = (typeof CameraType)[keyof typeof CameraType];
+/** A capture of a pano's timeline to settle on. */
+declare const CapturePick: {
+    /** The newest official capture. */
+    readonly Newest: "newest";
+    /** The oldest official capture. */
+    readonly Oldest: "oldest";
+};
+type CapturePick = (typeof CapturePick)[keyof typeof CapturePick];
 /** A calendar component to group dates by. */
 declare const DatePart: {
     /** The calendar year. */
@@ -370,6 +378,8 @@ declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
 declare const consts_CLEARABLE_BUILTINS: typeof CLEARABLE_BUILTINS;
 declare const consts_CameraType: typeof CameraType;
 export type consts_CameraType = CameraType;
+declare const consts_CapturePick: typeof CapturePick;
+export type consts_CapturePick = CapturePick;
 declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
 declare const consts_DatePart: typeof DatePart;
 export type consts_DatePart = DatePart;
@@ -405,7 +415,7 @@ declare const consts_ValidationState: typeof ValidationState;
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
   export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
-  export { consts_CameraType as CameraType, consts_DatePart as DatePart, consts_ExtraFieldType as ExtraFieldType, consts_FirstSyncMode as FirstSyncMode, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_ValidationState as ValidationState };
+  export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_ExtraFieldType as ExtraFieldType, consts_FirstSyncMode as FirstSyncMode, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_ValidationState as ValidationState };
 }
 
 /** Commands @unstable */
@@ -1775,6 +1785,10 @@ type MapSettings = {
      *  highest first. `null` (or blank) keeps the order the selection resolved in.
      */
     reviewOrder?: string | null;
+    /**  Whether a bulk pin resolves pano ids before pinning. */
+    pinResolve?: boolean;
+    /**  Which capture a bulk pin's resolve settles on; `null` keeps the pano as found. */
+    pinCapture?: CapturePick | null;
 };
 /**  A map the key holder can link to. */
 type MmMapSummary = {
@@ -5833,10 +5847,12 @@ declare function enrich(loc: Location, opts?: Omit<RunOpts, "onProgress">): Prom
 /** Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
  *  offered in the enrichment settings are always included. */
 declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
-/** Where to search when resolving a pano from coordinates. */
+/** Where to search when resolving a pano from coordinates, and which capture of its
+ *  timeline to settle on. */
 export interface PanoResolveConfig {
     radius: number;
     sources?: PanoType[];
+    capture?: CapturePick;
 }
 /** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
  *  provider that depends on it. Rows that already have a pano id are skipped unless the
@@ -5878,25 +5894,29 @@ declare namespace enrich$1 {
   export type { enrich$1_EnrichOutcome as EnrichOutcome, enrich$1_PanoResolveConfig as PanoResolveConfig };
 }
 
-/** Configuration for the pin-to-pano operation. */
-export interface PinPanoConfig {
-    useLatest?: boolean;
+/** How a bulk pin settles each location's pano before pinning it. */
+export interface PinOpts extends BulkOpts {
+    /** Resolve pano ids first; off, only locations that already carry one are pinned. */
+    resolve?: boolean;
+    /** Move each resolved pano to this capture of its timeline. */
+    capture?: CapturePick | null;
+    /** Re-resolve already pinned locations too. */
+    force?: boolean;
 }
-/** Pin to pano ID: set the LoadAsPanoId flag so the location always loads the same
- *  panorama. With `useLatest`, move to the newest official pano in the timeline first. */
-declare const pinPanoProvider: Provider<unknown, PinPanoConfig>;
-/** Pin each location in the selector to a resolved panorama (sets `panoId`), so it always
- *  loads the same pano. */
-declare function bulkPinToPano(selector: Selector, opts?: RunOpts & {
-    useLatest?: boolean;
-}): Promise<BatchOutcome>;
+/** What a bulk pin did: the locations newly pinned, the ones whose pano could not be
+ *  resolved, and how many pano ids the resolve wrote. */
+export interface PinOutcome extends BatchOutcome {
+    resolved: number;
+}
+/** Pin every location in the selector to its pano id, resolving pano ids first when asked. */
+declare function bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>;
 
-export type pinPano_PinPanoConfig = PinPanoConfig;
+export type pinPano_PinOpts = PinOpts;
+export type pinPano_PinOutcome = PinOutcome;
 declare const pinPano_bulkPinToPano: typeof bulkPinToPano;
-declare const pinPano_pinPanoProvider: typeof pinPanoProvider;
 declare namespace pinPano {
-  export { pinPano_bulkPinToPano as bulkPinToPano, pinPano_pinPanoProvider as pinPanoProvider };
-  export type { pinPano_PinPanoConfig as PinPanoConfig };
+  export { pinPano_bulkPinToPano as bulkPinToPano };
+  export type { pinPano_PinOpts as PinOpts, pinPano_PinOutcome as PinOutcome };
 }
 
 /** Configuration for Street View validation: search radius, and whether pinned rows are
@@ -6531,5 +6551,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
 export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CreatedTags, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

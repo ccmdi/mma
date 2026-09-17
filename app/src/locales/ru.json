@@ -126,6 +126,7 @@
 	"As CSV": "Как CSV",
 	"As GeoJSON": "Как GeoJSON",
 	"As JSON (recommended)": "Как JSON (рекомендуется)",
+	"As found": "Как найдено",
 	"Asia": "Азия",
 	"Assign document links": "Назначить ссылки на документ",
 	"Assign document links...": "Назначить ссылки на документ...",
@@ -177,6 +178,7 @@
 	"Cancel and quit": "Отменить и закрыть",
 	"Cancelled at {done} / {total}.": "Отменено на {done} / {total}.",
 	"Cancelled.": "Отменено.",
+	"Capture": "Съёмка",
 	"Categorical": "Категориальный",
 	"Center map on active location during review": "Центрировать карту на активной локации во время просмотра",
 	"Center toward nearest road direction": "Центрировать по направлению ближайшей дороги",
@@ -797,6 +799,7 @@
 	"New style": "Новый стиль",
 	"New subfolder...": "Новая подпапка...",
 	"Newer coverage available": "Доступно более новое покрытие",
+	"Newest capture": "Самая новая съёмка",
 	"Next": "Далее",
 	"Next basemap": "Следующая подложка",
 	"Next date cycle": "Следующий цикл дат",
@@ -865,6 +868,7 @@
 	"Off": "Выкл.",
 	"Off (too many values)": "Выкл. (слишком много значений)",
 	"Official": "Официальное",
+	"Oldest capture": "Самая старая съёмка",
 	"On": "Вкл.",
 	"On conflict, keep:": "При конфликте оставить:",
 	"Only allow locations that don't have other nearby coverage in timeframe.": "Разрешать только локации, рядом с которыми нет другого покрытия в заданном периоде.",
@@ -939,7 +943,6 @@
 	"Pin locations to pano ID": "Закрепить локации за pano ID",
 	"Pin section": "Закрепить раздел",
 	"Pin to Pano ID": "Закрепить за Pano ID",
-	"Pin to pano ID": "Закрепить за pano ID",
 	"Pin to toolbar": "Закрепить на панели",
 	"Pinned pano:": "Закреплённый pano:",
 	"Pinpointable angle": "Точно определяемый ракурс",
@@ -1001,7 +1004,7 @@
 	"Rank metadata fields by how strongly they separate selections": "Ранжировать поля метаданных по тому, насколько сильно они разделяют выборки",
 	"Ranked by {field}": "Упорядочено по {field}",
 	"Re-enrich already enriched locations": "Обогащать повторно уже обогащённые локации",
-	"Re-pin already pinned locations": "Перезакреплять уже закреплённые локации",
+	"Re-resolve already pinned locations": "Заново определять уже закреплённые локации",
 	"Read the manual": "Прочитать руководство",
 	"Reassign": "Переназначить",
 	"Recent log": "Недавний журнал",
@@ -1076,6 +1079,7 @@
 	"Reset every app setting to its default? Key bindings are kept.": "Сбросить все настройки приложения к значениям по умолчанию? Сочетания клавиш сохранятся.",
 	"Reset to default": "Сбросить к значению по умолчанию",
 	"Reset zoom": "Сбросить зум",
+	"Resolve pano IDs first": "Сначала определить pano ID",
 	"Resolving pano IDs": "Определение pano ID",
 	"Resolving panoramas": "Определение панорам",
 	"Restart now": "Перезапустить сейчас",
@@ -1448,7 +1452,6 @@
 	"Uploader": "Автор",
 	"Use Pano ID locations by default": "По умолчанию использовать локации с Pano ID",
 	"Use blobby layer while zoomed out": "Использовать сглаженный слой при отдалении",
-	"Use latest timeline coverage": "Использовать самое свежее покрытие из таймлайна",
 	"Use local · delete remote-only pins": "Использовать локальную карту · удалить локации, которые есть только на сервере",
 	"Use remote · delete local-only pins": "Использовать удалённую карту · удалить локации, которые есть только локально",
 	"User uploaded": "Загружено пользователем",
@@ -1669,11 +1672,17 @@
 		"many": "{n} локаций",
 		"other": "{n} локации"
 	},
-	"{n} locations not pinned to a pano ID.": {
-		"one": "{n} локация не закреплена за pano ID.",
-		"few": "{n} локации не закреплены за pano ID.",
-		"many": "{n} локаций не закреплены за pano ID.",
-		"other": "{n} локации не закреплены за pano ID."
+	"{n} locations already pinned.": {
+		"one": "{n} локация уже закреплена.",
+		"few": "{n} локации уже закреплены.",
+		"many": "{n} локаций уже закреплены.",
+		"other": "{n} локации уже закреплены."
+	},
+	"{n} locations have a pano ID to pin.": {
+		"one": "У {n} локации есть pano ID для закрепления.",
+		"few": "У {n} локаций есть pano ID для закрепления.",
+		"many": "У {n} локаций есть pano ID для закрепления.",
+		"other": "У {n} локации есть pano ID для закрепления."
 	},
 	"{n} locations skipped: no timezone. Enrich timezones, or set the date timezone to UTC.": {
 		"one": "Пропущена {n} локация: нет часового пояса. Обогатите часовые пояса или установите часовой пояс даты на UTC.",
@@ -1694,6 +1703,12 @@
 		"other": "{n} карты распределены по папкам"
 	},
 	"{n} not found locally": "{n} не найдено локально",
+	"{n} pano IDs resolved.": {
+		"one": "Определён {n} pano ID.",
+		"few": "Определено {n} pano ID.",
+		"many": "Определено {n} pano ID.",
+		"other": "Определено {n} pano ID."
+	},
 	"{n} rounds": "{n} раундов",
 	"{n} seconds per round": "{n} секунд на раунд",
 	"{n} tags": {
@@ -1731,6 +1746,12 @@
 		"few": "{n} без pano ID будут определены по координатам.",
 		"many": "{n} без pano ID будут определены по координатам.",
 		"other": "{n} без pano ID будут определены по координатам."
+	},
+	"{n} without pano ID will be skipped.": {
+		"one": "{n} без pano ID будет пропущена.",
+		"few": "{n} без pano ID будут пропущены.",
+		"many": "{n} без pano ID будут пропущены.",
+		"other": "{n} без pano ID будут пропущены."
 	},
 	"{n}%": "{n} %",
 	"{n}d ago": "{n} д назад",

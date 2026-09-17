@@ -1,5 +1,5 @@
 import type { Pano } from "@/bindings.gen";
-import { OFFICIAL_ID_PATTERN } from "@/bindings.consts";
+import { CapturePick, OFFICIAL_ID_PATTERN } from "@/bindings.consts";
 
 const OFFICIAL_PANO_RE = new RegExp(OFFICIAL_ID_PATTERN);
 
@@ -11,11 +11,14 @@ export function isOfficialPano(panoId: string): boolean {
 	return OFFICIAL_PANO_RE.test(panoId);
 }
 
-/** Newest official pano in a capture timeline, or null if it holds none. Timelines from
- *  `svMetadata` are sorted ascending by date, so "newest" is the last official entry -
- *  scanning backwards rather than indexing keeps that assumption in one place. */
-export function newestOfficialPano<T extends { panoId: string }>(time: readonly T[]): T | null {
-	return time.findLast((t) => isOfficialPano(t.panoId)) ?? null;
+/** The official capture `pick` names in a timeline, or null if it holds none. Timelines
+ *  are sorted ascending by date. */
+export function pickCapture<T extends { panoId: string }>(
+	time: readonly T[],
+	pick: CapturePick,
+): T | null {
+	const official = (t: T) => isOfficialPano(t.panoId);
+	return (pick === CapturePick.Newest ? time.findLast(official) : time.find(official)) ?? null;
 }
 
 /** `a`'s capture month is strictly after `b`'s. Undated coverage never counts as newer. */
