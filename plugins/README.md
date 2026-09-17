@@ -107,7 +107,7 @@ Component props:
 
 ## Shared modules
 
-The plugin template's build config automatically deduplicates libraries the app already bundles (React, deck.gl, luma.gl). Just write normal imports and the build handles the rest. Libraries the app doesn't have get bundled into your plugin automatically.
+The plugin template's build config automatically deduplicates libraries the app already bundles (React, deck.gl, luma.gl). Just write normal imports and the build handles the rest. Libraries the app doesn't have get bundled into your plugin automatically. Imported `.css` files are bundled too and added to the page when your plugin loads.
 
 ## Distribution
 

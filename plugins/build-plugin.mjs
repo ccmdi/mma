@@ -10,7 +10,7 @@
 // bundled from src/procedure.ts, and both artifacts take part in version-bump detection.
 
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { execSync } from "node:child_process";
@@ -60,6 +60,30 @@ function bumpedSinceHead(pluginDir) {
 	);
 }
 
+/** Each imported .css file becomes one <style> element, keyed by its path so a reload replaces it. */
+function cssImports() {
+	return {
+		name: "mma-css",
+		setup(build) {
+			build.onLoad({ filter: /\.css$/ }, ({ path }) => {
+				const key = JSON.stringify(relative(pluginsDir, path).split(sep).join("/"));
+				const css = JSON.stringify(readFileSync(path, "utf8"));
+				return {
+					loader: "js",
+					contents: `let style = [...document.head.querySelectorAll("style[data-mma-plugin-css]")].find((s) => s.dataset.mmaPluginCss === ${key});
+if (!style) {
+	style = document.createElement("style");
+	style.dataset.mmaPluginCss = ${key};
+	document.head.appendChild(style);
+}
+style.textContent = ${css};
+`,
+				};
+			});
+		},
+	};
+}
+
 export function uiOpts(pluginDir) {
 	const tsx = existsSync(join(pluginDir, "src/index.tsx"));
 	const entry = tsx ? "src/index.tsx" : "src/index.ts";
@@ -73,7 +97,7 @@ export function uiOpts(pluginDir) {
 		format: "esm",
 		outfile: join(pluginDir, "index.js"),
 		absWorkingDir: pluginsDir,
-		plugins: [mmaExternals()],
+		plugins: [mmaExternals(), cssImports()],
 	};
 
 	if (tsx) {
