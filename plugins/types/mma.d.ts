@@ -2713,7 +2713,7 @@ export type Digits = {
     "9": [0, 0, 0, 0, 0, 0, 0, 0, 0];
 };
 export type D = keyof Digits;
-/** Lift a single-item curried transform into one that folds over an array of items. */
+/** Lift a single-item curried transform into one that folds over an array of items. @unstable */
 declare const batch: <T, S>(op: (item: T) => (state: S) => S) => (items: T[]) => (state: S) => S;
 export type RequireNonNull<T> = {
     [P in keyof T]-?: NonNullable<T[P]>;
@@ -2830,48 +2830,60 @@ declare namespace types {
 export type RGB = [number, number, number];
 /** An [r, g, b, a] byte tuple. */
 export type RGBA = [...RGB, number];
-/** Parse "#rrggbb" to an [r, g, b] byte tuple. */
+/** Parse "#rrggbb" to an [r, g, b] byte tuple. @unstable */
 declare function hexToRgb(hex: string): RGB;
-/** Return "#000" or "#fff" for readable text on the given hex background. */
+/** Return "#000" or "#fff" for readable text on the given hex background. @unstable */
 declare function textColorFor(bg: string): string;
 /** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
- *  ramp name (legacy stored format). */
+ *  ramp name (legacy stored format). @unstable */
 declare function resolveSvColorHex(color: string): string;
-/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. */
+/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @unstable */
 declare function applyAccentColor(hex: string): void;
-/** Convert "#rrggbb" to {h, s, l} (degrees, percent, percent). */
+/** Convert "#rrggbb" to {h, s, l} (degrees, percent, percent). @unstable */
 declare function hexToHsl(hex: string): {
     h: number;
     s: number;
     l: number;
 };
-/** Convert HSL (degrees, percent, percent) to "#rrggbb". */
+/** Convert HSL (degrees, percent, percent) to "#rrggbb". @unstable */
 declare function hslToHex(h: number, s: number, l: number): string;
-/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. */
+/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @unstable */
 declare function hslToRgb(h: number, s: number, l: number): RGB;
 /**
  * Deterministic tag color from a name.
+ *  @unstable
  */
 declare function colorForName(name: string): string;
-/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. */
+/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. @unstable */
 declare function rgbCss([r, g, b]: RGB): string;
-/** Convert an RGB byte tuple to "#rrggbb". */
+/** Convert an RGB byte tuple to "#rrggbb". @unstable */
 declare function rgbToHex([r, g, b]: RGB): string;
-/** A label's color: a user override if set, else a deterministic color from its name. */
+/** A label's color: a user override if set, else a deterministic color from its name. @unstable */
 declare function labelColor(name: string, overrides: Record<string, string>): string;
 
 export type colorUtils_RGB = RGB;
 export type colorUtils_RGBA = RGBA;
+/** @unstable */
 declare const colorUtils_applyAccentColor: typeof applyAccentColor;
+/** @unstable */
 declare const colorUtils_colorForName: typeof colorForName;
+/** @unstable */
 declare const colorUtils_hexToHsl: typeof hexToHsl;
+/** @unstable */
 declare const colorUtils_hexToRgb: typeof hexToRgb;
+/** @unstable */
 declare const colorUtils_hslToHex: typeof hslToHex;
+/** @unstable */
 declare const colorUtils_hslToRgb: typeof hslToRgb;
+/** @unstable */
 declare const colorUtils_labelColor: typeof labelColor;
+/** @unstable */
 declare const colorUtils_resolveSvColorHex: typeof resolveSvColorHex;
+/** @unstable */
 declare const colorUtils_rgbCss: typeof rgbCss;
+/** @unstable */
 declare const colorUtils_rgbToHex: typeof rgbToHex;
+/** @unstable */
 declare const colorUtils_textColorFor: typeof textColorFor;
 declare namespace colorUtils {
   export { colorUtils_applyAccentColor as applyAccentColor, colorUtils_colorForName as colorForName, colorUtils_hexToHsl as hexToHsl, colorUtils_hexToRgb as hexToRgb, colorUtils_hslToHex as hslToHex, colorUtils_hslToRgb as hslToRgb, colorUtils_labelColor as labelColor, colorUtils_resolveSvColorHex as resolveSvColorHex, colorUtils_rgbCss as rgbCss, colorUtils_rgbToHex as rgbToHex, colorUtils_textColorFor as textColorFor };
@@ -3082,31 +3094,32 @@ export type CompositeType = Extract<Selector, {
 export type UnaryType = "Invert";
 /** Composite variants that are flat n-ary groups. */
 export type GroupType = Exclude<CompositeType, UnaryType>;
+/** @unstable */
 declare const UNARY_TYPES: readonly ["Invert"];
 export type FilterOpKind = FilterOp["op"];
-/** Whether a predicate reads the location's clock in its own timezone. Only a range can. */
+/** Whether a predicate reads the location's clock in its own timezone. Only a range can. @unstable */
 declare const filterIsLocalTime: (test: FilterOp) => boolean;
 /** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
- *  operators are marked for translation. */
+ *  operators are marked for translation. @unstable */
 declare const OP_LABELS: Record<FilterOpKind, string>;
-/** Deterministic color derived from a selection key string. */
+/** Deterministic color derived from a selection key string. @unstable */
 declare function colorForKey(key: string): RGB;
 /** Key an id list by hashing it: the same ids in the same order give the same key.
- *  Order-sensitive, like the list it identifies. Key length is constant. */
+ *  Order-sensitive, like the list it identifies. Key length is constant. @unstable */
 declare function locationsKey(ids: number[]): string;
 /** Ghost keys that "solo" `key`: everything except it. Returns an empty set when `key`
- *  is already the sole visible selection, so a repeat call un-isolates (clears all ghosts). */
+ *  is already the sole visible selection, so a repeat call un-isolates (clears all ghosts). @unstable */
 declare function isolateGhostKeys(keys: string[], ghosted: ReadonlySet<string>, key: string): Set<string>;
-/** Toggle one selection's ghosted (dimmed) state. */
+/** Toggle one selection's ghosted (dimmed) state. @unstable */
 declare const toggleGhost: (key: string) => (_sels: Selection[], ghosted: ReadonlySet<string>) => SelectionPatch;
-/** Solo one selection by ghosting all others. Repeat to clear all ghosts. */
+/** Solo one selection by ghosting all others. Repeat to clear all ghosts. @unstable */
 declare const isolateGhost: (key: string) => (sels: Selection[], ghosted: ReadonlySet<string>) => SelectionPatch;
-/** Ghost all selections, or clear all ghosts if every selection is already ghosted. */
+/** Ghost all selections, or clear all ghosts if every selection is already ghosted. @unstable */
 declare const toggleGhostAll: () => (sels: Selection[], ghosted: ReadonlySet<string>) => SelectionPatch;
 /** Pick `n` distinct ids uniformly at random from `ids`. `n` is floored and clamped to
- *  `[0, ids.length]`, so an over-large count returns all ids. `ids` is not mutated. */
+ *  `[0, ids.length]`, so an over-large count returns all ids. `ids` is not mutated. @unstable */
 declare function sampleIds(ids: number[], n: number): number[];
-/** What one selection type answers about itself; optional answers default at the lookup. */
+/** What one selection type answers about itself; optional answers default at the lookup. @unstable */
 export interface SelectionDescriptor<K extends Selector["type"]> {
     key(selector: Variant<Selector, K>, locations: number[]): string;
     label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
@@ -3114,111 +3127,149 @@ export interface SelectionDescriptor<K extends Selector["type"]> {
     color?(selector: Variant<Selector, K>): RGB | null;
     locations?(selector: Variant<Selector, K>): number[];
 }
-/** Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides. */
+/** Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides. @unstable */
 declare const SELECTIONS: {
     [K in Selector["type"]]: SelectionDescriptor<K>;
 };
-/** Every child selection a selector wraps, whatever shape it wraps them in. */
+/** Every child selection a selector wraps, whatever shape it wraps them in. @unstable */
 declare function childSelections(selector: Selector): Selection[];
-/** `selector` with its children replaced, keeping the shape it wraps them in. */
+/** `selector` with its children replaced, keeping the shape it wraps them in. @unstable */
 declare function withChildren(selector: Selector, children: Selection[]): Selector;
-/** Create a Selection with a deterministic key and color from its selector. */
+/** Create a Selection with a deterministic key and color from its selector. @unstable */
 declare function buildSelection(selector: Selector): Selection;
-/** Locations matching every one of `selectors`; with none, every location. */
+/** Locations matching every one of `selectors`; with none, every location. @unstable */
 declare const all: (...selectors: Selector[]) => Selector;
-/** Locations matching any of `selectors`; with none, no location. */
+/** Locations matching any of `selectors`; with none, no location. @unstable */
 declare const any: (...selectors: Selector[]) => Selector;
-/** Locations not matching `selector`. */
+/** Locations not matching `selector`. @unstable */
 declare const not: (selector: Selector) => Selector;
-/** Locations holding a value for `field`. */
+/** Locations holding a value for `field`. @unstable */
 declare const has: (field: string) => Selector;
-/** Locations holding no value for `field`. */
+/** Locations holding no value for `field`. @unstable */
 declare const lacks: (field: string) => Selector;
-/** Append a new selection built from `selector`, deduplicating by key. */
+/** Append a new selection built from `selector`, deduplicating by key. @unstable */
 declare const addSelection: (selector: Selector) => (current: Selection[]) => Selection[];
-/** Remove a selection by key. Composites unwrap their children back into the list. */
+/** Remove a selection by key. Composites unwrap their children back into the list. @unstable */
 declare const removeSelection: (key: string) => (current: Selection[]) => Selection[];
-/** Merge the targeted selections (or all, when `keys` is null) into a single Intersection. */
+/** Merge the targeted selections (or all, when `keys` is null) into a single Intersection. @unstable */
 declare const intersectSelections: (keys?: string[] | null) => (current: Selection[]) => Selection[];
-/** Merge the targeted selections (or all, when `keys` is null) into a single Union. */
+/** Merge the targeted selections (or all, when `keys` is null) into a single Union. @unstable */
 declare const unionSelections: (keys?: string[] | null) => (current: Selection[]) => Selection[];
-/** Invert targeted selections. Single target toggles in-place at any depth; multiple are wrapped in Union then Invert. */
+/** Invert targeted selections. Single target toggles in-place at any depth; multiple are wrapped in Union then Invert. @unstable */
 declare const invertSelections: (keys?: string[] | null) => (current: Selection[]) => Selection[];
-/** Add or remove a location from the Manual selection, creating it if needed. */
+/** Add or remove a location from the Manual selection, creating it if needed. @unstable */
 declare const toggleManualSelection: (locationId: number) => (current: Selection[]) => Selection[];
-/** Move selection `fromKey` before or after `toKey` in the list. */
+/** Move selection `fromKey` before or after `toKey` in the list. @unstable */
 declare const reorderSelections: (fromKey: string, toKey: string, position: "before" | "after") => (current: Selection[]) => Selection[];
 /** Merge the dragged selection into the drop target as a composite, absorbing existing
- *  children of the same type. Handles nested cases across parent groups. */
+ *  children of the same type. Handles nested cases across parent groups. @unstable */
 declare const composeSelections: (dragKey: string, dropKey: string, mode: GroupType, dragParent?: string | null, dropParent?: string | null) => (current: Selection[]) => Selection[];
 /** Pull a child out of a composite back into the top-level list, children and all. Parent collapses
- *  if only one child remains, and disappears if none do. */
+ *  if only one child remains, and disappears if none do. @unstable */
 declare const decomposeChild: (parentKey: string, childKey: string) => (current: Selection[]) => Selection[];
-/** Remove a child from a composite, ungrouping any nested group's children into the parent. */
+/** Remove a child from a composite, ungrouping any nested group's children into the parent. @unstable */
 declare const removeFromComposite: (parentKey: string, childKey: string) => (current: Selection[]) => Selection[];
-/** Compose two siblings inside the same parent group into a nested composite. */
+/** Compose two siblings inside the same parent group into a nested composite. @unstable */
 declare function composeSiblings(current: Selection[], parentKey: string, dragKey: string, dropKey: string, mode: GroupType): Selection[];
-/** Compose a top-level selection with a child inside a parent group. */
+/** Compose a top-level selection with a child inside a parent group. @unstable */
 declare function composeWithChild(current: Selection[], dragKey: string, parentKey: string, childKey: string, mode: GroupType): Selection[];
 /** Replace the selection at `oldKey` (at any depth) with one built from `selector`. If the new
- *  key collides with an existing selection, the existing one wins and the replacement is dropped. */
+ *  key collides with an existing selection, the existing one wins and the replacement is dropped. @unstable */
 declare function replaceSelection(current: Selection[], oldKey: string, selector: Selector): Selection[];
 /** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
- *  rather than the open map's tags. */
+ *  rather than the open map's tags. @unstable */
 declare function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string;
 /** Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
- *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. */
+ *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. @unstable */
 declare function displayTagName(name: string): string;
-/** Update the colors of selections by matching keys from `entries`. */
+/** Update the colors of selections by matching keys from `entries`. @unstable */
 declare const setSelectionColors: (entries: Selection[]) => (current: Selection[]) => Selection[];
-/** Rename a Polygon selection's display name. */
+/** Rename a Polygon selection's display name. @unstable */
 declare const setPolygonName: (key: string, name: string) => (current: Selection[]) => Selection[];
-/** Rename or remove a field across all Filter selections. When `to` is null, filters on that field are dropped. */
+/** Rename or remove a field across all Filter selections. When `to` is null, filters on that field are dropped. @unstable */
 declare const rewriteSelectionFields: (from: string, to: string | null) => (selections: Selection[]) => Selection[];
 
 export type selectionOps_CompositeType = CompositeType;
 export type selectionOps_FilterOpKind = FilterOpKind;
 export type selectionOps_GroupType = GroupType;
+/** @unstable */
 declare const selectionOps_OP_LABELS: typeof OP_LABELS;
+/** @unstable */
 declare const selectionOps_SELECTIONS: typeof SELECTIONS;
 export type selectionOps_SelectionPatch = SelectionPatch;
 export type selectionOps_SelectionState = SelectionState;
+/** @unstable */
 declare const selectionOps_UNARY_TYPES: typeof UNARY_TYPES;
 export type selectionOps_UnaryType = UnaryType;
+/** @unstable */
 declare const selectionOps_addSelection: typeof addSelection;
+/** @unstable */
 declare const selectionOps_all: typeof all;
+/** @unstable */
 declare const selectionOps_any: typeof any;
+/** @unstable */
 declare const selectionOps_batch: typeof batch;
+/** @unstable */
 declare const selectionOps_buildSelection: typeof buildSelection;
+/** @unstable */
 declare const selectionOps_childSelections: typeof childSelections;
+/** @unstable */
 declare const selectionOps_colorForKey: typeof colorForKey;
+/** @unstable */
 declare const selectionOps_composeSelections: typeof composeSelections;
+/** @unstable */
 declare const selectionOps_composeSiblings: typeof composeSiblings;
+/** @unstable */
 declare const selectionOps_composeWithChild: typeof composeWithChild;
+/** @unstable */
 declare const selectionOps_decomposeChild: typeof decomposeChild;
+/** @unstable */
 declare const selectionOps_displayTagName: typeof displayTagName;
+/** @unstable */
 declare const selectionOps_filterIsLocalTime: typeof filterIsLocalTime;
+/** @unstable */
 declare const selectionOps_has: typeof has;
+/** @unstable */
 declare const selectionOps_intersectSelections: typeof intersectSelections;
+/** @unstable */
 declare const selectionOps_invertSelections: typeof invertSelections;
+/** @unstable */
 declare const selectionOps_isolateGhost: typeof isolateGhost;
+/** @unstable */
 declare const selectionOps_isolateGhostKeys: typeof isolateGhostKeys;
+/** @unstable */
 declare const selectionOps_lacks: typeof lacks;
+/** @unstable */
 declare const selectionOps_locationsKey: typeof locationsKey;
+/** @unstable */
 declare const selectionOps_not: typeof not;
+/** @unstable */
 declare const selectionOps_removeFromComposite: typeof removeFromComposite;
+/** @unstable */
 declare const selectionOps_removeSelection: typeof removeSelection;
+/** @unstable */
 declare const selectionOps_reorderSelections: typeof reorderSelections;
+/** @unstable */
 declare const selectionOps_replaceSelection: typeof replaceSelection;
+/** @unstable */
 declare const selectionOps_rewriteSelectionFields: typeof rewriteSelectionFields;
+/** @unstable */
 declare const selectionOps_sampleIds: typeof sampleIds;
+/** @unstable */
 declare const selectionOps_selectionDisplayName: typeof selectionDisplayName;
+/** @unstable */
 declare const selectionOps_setPolygonName: typeof setPolygonName;
+/** @unstable */
 declare const selectionOps_setSelectionColors: typeof setSelectionColors;
+/** @unstable */
 declare const selectionOps_toggleGhost: typeof toggleGhost;
+/** @unstable */
 declare const selectionOps_toggleGhostAll: typeof toggleGhostAll;
+/** @unstable */
 declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
+/** @unstable */
 declare const selectionOps_unionSelections: typeof unionSelections;
+/** @unstable */
 declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
   export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_lacks as lacks, selectionOps_locationsKey as locationsKey, selectionOps_not as not, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections, selectionOps_withChildren as withChildren };
@@ -3558,9 +3609,9 @@ declare namespace store {
  *  `Selector` tree plus the tag names its `Tag` leaves carried at save time, so it can
  *  re-resolve against whatever map is open. */
 
-/** Selection types that cannot be saved as rules because they are bound to the open map. */
+/** Selection types that cannot be saved as rules because they are bound to the open map. @unstable */
 declare const MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "ValidationState", "Reviewed"];
-/** Whether the selector tree contains only portable types (no map-local leaves). */
+/** Whether the selector tree contains only portable types (no map-local leaves). @unstable */
 declare function isSaveable(selector: Selector): boolean;
 /** One part of a saved rule: what its chip reads as, and what it resolves to here. The
  *  label comes from the tree as saved, so a tag this map doesn't have still reads by the
@@ -3571,40 +3622,51 @@ export interface SavedPart {
     selector: Selector;
 }
 /** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
- *  a single part. */
+ *  a single part. @unstable */
 declare function savedParts(saved: SavedSelection): SavedPart[];
 /** The rules that exist, as identity only. Empty until the index loads: the first
- *  call starts the read and `saved-selections:changed` announces it. */
+ *  call starts the read and `saved-selections:changed` announces it. @unstable */
 declare function getSavedSelectionIndex(): SavedSelectionInfo[];
-/** React hook: the saved selection index, re-rendering on changes. */
+/** React hook: the saved selection index, re-rendering on changes. @unstable */
 declare function useSavedSelectionIndex(): SavedSelectionInfo[];
-/** Load the full rule bodies for the given `ids`. */
+/** Load the full rule bodies for the given `ids`. @unstable */
 declare function loadSavedSelections(ids: string[]): Promise<SavedSelection[]>;
-/** Every rule with its body. */
+/** Every rule with its body. @unstable */
 declare function loadAllSavedSelections(): Promise<SavedSelection[]>;
 /** A saved rule as a single `Selector`, resolved against the open map. Matches nothing
  *  until the body arrives; fetching it emits `saved-selections:changed`, so a caller that
- *  re-reads on that event gets the real tree. */
+ *  re-reads on that event gets the real tree. @unstable */
 declare function savedSelector(id: string): Selector;
-/** Persists the saveable selections as one rule. False when none of them are saveable. */
+/** Persists the saveable selections as one rule. False when none of them are saveable. @unstable */
 declare function saveCurrentSelections(name: string, selections: Selection[]): Promise<boolean>;
-/** Permanently delete a saved selection rule. */
+/** Permanently delete a saved selection rule. @unstable */
 declare function deleteSavedSelection(id: string): Promise<void>;
 /** Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
- *  were added. */
+ *  were added. @unstable */
 declare function applySavedSelection(saved: SavedSelection): number;
 
+/** @unstable */
 declare const savedSelections_MAP_LOCAL_TYPES: typeof MAP_LOCAL_TYPES;
 export type savedSelections_SavedPart = SavedPart;
+/** @unstable */
 declare const savedSelections_applySavedSelection: typeof applySavedSelection;
+/** @unstable */
 declare const savedSelections_deleteSavedSelection: typeof deleteSavedSelection;
+/** @unstable */
 declare const savedSelections_getSavedSelectionIndex: typeof getSavedSelectionIndex;
+/** @unstable */
 declare const savedSelections_isSaveable: typeof isSaveable;
+/** @unstable */
 declare const savedSelections_loadAllSavedSelections: typeof loadAllSavedSelections;
+/** @unstable */
 declare const savedSelections_loadSavedSelections: typeof loadSavedSelections;
+/** @unstable */
 declare const savedSelections_saveCurrentSelections: typeof saveCurrentSelections;
+/** @unstable */
 declare const savedSelections_savedParts: typeof savedParts;
+/** @unstable */
 declare const savedSelections_savedSelector: typeof savedSelector;
+/** @unstable */
 declare const savedSelections_useSavedSelectionIndex: typeof useSavedSelectionIndex;
 declare namespace savedSelections {
   export { savedSelections_MAP_LOCAL_TYPES as MAP_LOCAL_TYPES, savedSelections_applySavedSelection as applySavedSelection, savedSelections_deleteSavedSelection as deleteSavedSelection, savedSelections_getSavedSelectionIndex as getSavedSelectionIndex, savedSelections_isSaveable as isSaveable, savedSelections_loadAllSavedSelections as loadAllSavedSelections, savedSelections_loadSavedSelections as loadSavedSelections, savedSelections_saveCurrentSelections as saveCurrentSelections, savedSelections_savedParts as savedParts, savedSelections_savedSelector as savedSelector, savedSelections_useSavedSelectionIndex as useSavedSelectionIndex };
@@ -4856,18 +4918,25 @@ declare namespace commands {
   export type { commands_Cmd as Cmd };
 }
 
-/** Low-level command, shell, and file dialog access. */
+/** Low-level command, shell, and file dialog access. @unstable */
 
 declare const shell: {
+    /** @unstable */
     Command: typeof Command;
 };
+/** @unstable */
 declare const dialog: {
+    /** @unstable */
     open: typeof open;
+    /** @unstable */
     save: typeof save;
 };
 
+/** @unstable */
 declare const tauri_dialog: typeof dialog;
+/** @unstable */
 declare const tauri_invoke: typeof invoke;
+/** @unstable */
 declare const tauri_shell: typeof shell;
 declare namespace tauri {
   export {
@@ -5501,6 +5570,7 @@ export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> extends 
     /** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
      *  procedures, or a relative filename (resolved against the plugin's directory). */
     entry: string;
+    /** @unstable */
     batch: BatchMode;
     /** The procedure's own configuration, handed to every entry point as `config`. */
     config?: TConfig;
@@ -5617,19 +5687,19 @@ declare namespace fieldDefRegistry {
 
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
 declare const procedureEntry: (name: string) => string;
-/** The readable name behind an entry point, for surfaces that show one. */
+/** The readable name behind an entry point, for surfaces that show one. @unstable */
 declare const procedureName: (entry: string) => string;
 /** Ask a procedure a read-only question under its declared network limits. Rejects when it
  *  exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
  *  pages of answers as they resolve, ahead of the full result; each entry carries the id
- *  the emitting side chose for it. */
+ *  the emitting side chose for it. @unstable */
 declare function queryProcedure<T = unknown, P = unknown>(spec: ProcedureSpec, input: unknown, signal?: AbortSignal, onPartial?: (entries: {
     id: number;
     value: P;
 }[]) => void): Promise<T>;
 /** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
  *  become locale month names; otherwise falls back to the keys themselves when the field's
- *  procedure has no `label` query or returns a non-matching array. */
+ *  procedure has no `label` query or returns a non-matching array. @unstable */
 declare function resolveFieldLabels(field: string, keys: string[], key?: KeySpec): Promise<string[]>;
 /** One location's answer from a `collect` run. */
 export interface CollectedEntry<T = unknown> {
@@ -5648,6 +5718,7 @@ export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
 }
 /** Every declaration a run scheduled, by provider id. */
 export type ProviderOutcomes = Record<string, ProcedureOutcome>;
+/** @unstable */
 declare const noWork: () => BatchOutcome;
 /** One provider's own progress. Counts are net of skipped rows. */
 export interface ProviderPart {
@@ -5681,10 +5752,11 @@ export interface ProviderRun<TConfig = unknown> {
 /** Run a set of providers over `rows`. When `rows` is a Selector, matching locations
  *  are processed in place and results are written back. When `rows` is a Location array,
  *  locations are processed independently and returned as modified copies. Resolves once
- *  every provider finishes, or on abort. */
+ *  every provider finishes, or on abort. @unstable */
 declare function runProviders<C extends readonly unknown[]>(items: {
     [K in keyof C]: ProviderRun<C[K]>;
 }, rows: Selector, opts?: RunOpts): Promise<ProviderOutcomes>;
+/** @unstable */
 declare function runProviders<C extends readonly unknown[]>(items: {
     [K in keyof C]: ProviderRun<C[K]>;
 }, rows: Location[], opts?: RunOpts): Promise<RowsRun>;
@@ -5715,12 +5787,19 @@ export type procedures_ProviderOutcomes = ProviderOutcomes;
 export type procedures_ProviderPart = ProviderPart;
 export type procedures_ProviderRun<TConfig = unknown> = ProviderRun<TConfig>;
 export type procedures_RunOpts = RunOpts;
+/** @unstable */
 declare const procedures_noWork: typeof noWork;
+/** @unstable */
 declare const procedures_procedureEntry: typeof procedureEntry;
+/** @unstable */
 declare const procedures_procedureName: typeof procedureName;
+/** @unstable */
 declare const procedures_queryProcedure: typeof queryProcedure;
+/** @unstable */
 declare const procedures_resolveFieldLabels: typeof resolveFieldLabels;
+/** @unstable */
 declare const procedures_runProcedure: typeof runProcedure;
+/** @unstable */
 declare const procedures_runProviders: typeof runProviders;
 declare namespace procedures {
   export { procedures_noWork as noWork, procedures_procedureEntry as procedureEntry, procedures_procedureName as procedureName, procedures_queryProcedure as queryProcedure, procedures_resolveFieldLabels as resolveFieldLabels, procedures_runProcedure as runProcedure, procedures_runProviders as runProviders };
@@ -6588,41 +6667,41 @@ declare namespace testSurface {
   };
 }
 
-/** Base URL for a custom URI scheme, platform-adjusted. */
+/** Base URL for a custom URI scheme, platform-adjusted. @unstable */
 declare function schemeBase(scheme: string): string;
-/** URL that serves a local file over the `mma-buf://` protocol. */
+/** URL that serves a local file over the `mma-buf://` protocol. @unstable */
 declare function mmaBufUrl(path: string): string;
-/** Copy of `set` with `value` toggled, or forced on/off by `on`. */
+/** Copy of `set` with `value` toggled, or forced on/off by `on`. @unstable */
 declare function toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>;
-/** The item `isBetter` prefers over every other, or null when there are none. */
+/** The item `isBetter` prefers over every other, or null when there are none. @unstable */
 declare function bestBy<T>(items: Iterable<T>, isBetter: (a: T, b: T) => boolean): T | null;
-/** Shuffle `items` in place (Fisher-Yates) and return them. */
+/** Shuffle `items` in place (Fisher-Yates) and return them. @unstable */
 declare function shuffle<T>(items: T[]): T[];
-/** Split `arr` into sub-arrays of at most `n` elements. */
+/** Split `arr` into sub-arrays of at most `n` elements. @unstable */
 declare function chunk<T>(arr: readonly T[], n: number): T[][];
 /** Compare two semver strings (e.g. "0.6.1", "0.7.0-rc.2"). Returns >0 if a > b.
- *  Build metadata is ignored; a pre-release sorts below the release it precedes. */
+ *  Build metadata is ignored; a pre-release sorts below the release it precedes. @unstable */
 declare function cmpVersion(a: string, b: string): number;
-/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. */
+/** `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent. @unstable */
 declare function splitVersion(v: string): [core: string, pre: string];
-/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". */
+/** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". @unstable */
 declare function isPrereleaseVersion(v: string): boolean;
-/** True when the app runs in a browser instead of the desktop app. */
+/** True when the app runs in a browser instead of the desktop app. @unstable */
 declare function isWeb(): boolean;
-/** Trigger a browser download from an in-memory Blob. */
+/** Trigger a browser download from an in-memory Blob. @unstable */
 declare function downloadBlob(blob: Blob, fileName: string): void;
-/** Copy an image Blob to the clipboard. False when the platform refuses it. */
+/** Copy an image Blob to the clipboard. False when the platform refuses it. @unstable */
 declare function copyImageToClipboard(blob: Blob): Promise<boolean>;
-/** Compare strings with natural (numeric-aware) ordering. */
+/** Compare strings with natural (numeric-aware) ordering. @unstable */
 declare function compareNatural(a: string, b: string): number;
-/** Sort tags by the chosen mode: name, location count, or manual order. */
+/** Sort tags by the chosen mode: name, location count, or manual order. @unstable */
 declare function sortTagsByMode(tags: Tag[], mode: TagSortMode, counts: Record<number, number>): Tag[];
-/** Color for a tag named `name`. An existing tag uses its stored color. */
+/** Color for a tag named `name`. An existing tag uses its stored color. @unstable */
 declare function tagColorFor(name: string, tags: Tag[]): string;
 /** Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
- *  canonical casing. Returns the original array unchanged if already present. */
+ *  canonical casing. Returns the original array unchanged if already present. @unstable */
 declare function appendTagName(pending: string[], name: string, tags: Tag[]): string[];
-/** Current time as Unix seconds, the form Location timestamps use. */
+/** Current time as Unix seconds, the form Location timestamps use. @unstable */
 declare function nowUnix(): number;
 /** Rolling anchor for a phase-relative locations/second average. */
 export interface PhaseRate {
@@ -6633,30 +6712,48 @@ export interface PhaseRate {
 }
 /** Compute a locations/second rate for the current progress phase. Re-anchors when a
  *  new phase is detected (done went backward or total grew). Null until a quarter second
- *  of work has elapsed. */
+ *  of work has elapsed. @unstable */
 declare function phaseRate(prev: PhaseRate | null, done: number, total: number, now: number): {
     state: PhaseRate;
     rate: number | null;
 };
 
 export type util_PhaseRate = PhaseRate;
+/** @unstable */
 declare const util_appendTagName: typeof appendTagName;
+/** @unstable */
 declare const util_bestBy: typeof bestBy;
+/** @unstable */
 declare const util_chunk: typeof chunk;
+/** @unstable */
 declare const util_cmpVersion: typeof cmpVersion;
+/** @unstable */
 declare const util_compareNatural: typeof compareNatural;
+/** @unstable */
 declare const util_copyImageToClipboard: typeof copyImageToClipboard;
+/** @unstable */
 declare const util_downloadBlob: typeof downloadBlob;
+/** @unstable */
 declare const util_isPrereleaseVersion: typeof isPrereleaseVersion;
+/** @unstable */
 declare const util_isWeb: typeof isWeb;
+/** @unstable */
 declare const util_mmaBufUrl: typeof mmaBufUrl;
+/** @unstable */
 declare const util_nowUnix: typeof nowUnix;
+/** @unstable */
 declare const util_phaseRate: typeof phaseRate;
+/** @unstable */
 declare const util_schemeBase: typeof schemeBase;
+/** @unstable */
 declare const util_shuffle: typeof shuffle;
+/** @unstable */
 declare const util_sortTagsByMode: typeof sortTagsByMode;
+/** @unstable */
 declare const util_splitVersion: typeof splitVersion;
+/** @unstable */
 declare const util_tagColorFor: typeof tagColorFor;
+/** @unstable */
 declare const util_toggleInSet: typeof toggleInSet;
 declare namespace util {
   export { util_appendTagName as appendTagName, util_bestBy as bestBy, util_chunk as chunk, util_cmpVersion as cmpVersion, util_compareNatural as compareNatural, util_copyImageToClipboard as copyImageToClipboard, util_downloadBlob as downloadBlob, util_isPrereleaseVersion as isPrereleaseVersion, util_isWeb as isWeb, util_mmaBufUrl as mmaBufUrl, util_nowUnix as nowUnix, util_phaseRate as phaseRate, util_schemeBase as schemeBase, util_shuffle as shuffle, util_sortTagsByMode as sortTagsByMode, util_splitVersion as splitVersion, util_tagColorFor as tagColorFor, util_toggleInSet as toggleInSet };
@@ -6667,7 +6764,9 @@ declare namespace util {
 
 export type ConstsApi = typeof consts;
 export type StoreApi = typeof store;
+/** Pure transforms over the selection list behind the sidebar. @unstable */
 export type SelectionOpsApi = typeof selectionOps;
+/** Saved selection rules. @unstable */
 export type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
 export type SettingsApi = typeof settings;
@@ -6681,6 +6780,7 @@ export type MapListApi = typeof mapList;
 export type ReviewApi = typeof review;
 /** The raw command layer under the app-level API; any of them can change in a release. @unstable */
 export type CommandsApi = typeof commands;
+/** Raw command, shell, and file dialog access. @unstable */
 export type TauriApi = typeof tauri;
 export type RegistryApi = typeof registry;
 export type ScopeApi = typeof scope;
@@ -6689,6 +6789,7 @@ export type SidecarApi = typeof sidecar$1;
 export type UiApi = typeof uiSurface;
 export type FieldDefsApi = typeof fieldDefs;
 export type FieldDefRegistryApi = typeof fieldDefRegistry;
+/** Running procedures directly, outside a registered provider. @unstable */
 export type ProceduresApi = typeof procedures;
 export type SeenApi = typeof seen;
 /** The shared panorama viewer. @unstable */
@@ -6699,8 +6800,10 @@ export type ValidateApi = typeof validate;
 export type QueryApi = typeof query;
 export type MapStateApi = typeof mapState;
 export type SceneStoreApi = typeof sceneStore;
+/** Color conversion helpers. @unstable */
 export type ColorApi = typeof colorUtils;
 export type ToastApi = typeof toast$1;
+/** The global job tray. @unstable */
 export type JobsApi = typeof jobs;
 export type UseJobApi = typeof useJob$1;
 /** Shims for removed APIs. @unstable */
@@ -6708,6 +6811,7 @@ export type LegacyApi = typeof legacy;
 /** @unstable */
 export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
+/** General-purpose helpers. @unstable */
 export type UtilApi = typeof util;
 interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }

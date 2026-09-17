@@ -43,7 +43,9 @@ import * as util from "@/lib/util/util";
 
 type ConstsApi = typeof consts;
 type StoreApi = typeof store;
+/** Pure transforms over the selection list behind the sidebar. @unstable */
 type SelectionOpsApi = typeof selectionOps;
+/** Saved selection rules. @unstable */
 type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
 type SettingsApi = typeof settings;
@@ -57,6 +59,7 @@ type MapListApi = typeof mapList;
 type ReviewApi = typeof review;
 /** The raw command layer under the app-level API; any of them can change in a release. @unstable */
 type CommandsApi = typeof commands;
+/** Raw command, shell, and file dialog access. @unstable */
 type TauriApi = typeof tauri;
 type RegistryApi = typeof registry;
 type ScopeApi = typeof scope;
@@ -65,6 +68,7 @@ type SidecarApi = typeof sidecar;
 type UiApi = typeof uiSurface;
 type FieldDefsApi = typeof fieldDefs;
 type FieldDefRegistryApi = typeof fieldDefRegistry;
+/** Running procedures directly, outside a registered provider. @unstable */
 type ProceduresApi = typeof procedures;
 type SeenApi = typeof seen;
 /** The shared panorama viewer. @unstable */
@@ -75,8 +79,10 @@ type ValidateApi = typeof validate;
 type QueryApi = typeof query;
 type MapStateApi = typeof mapState;
 type SceneStoreApi = typeof sceneStore;
+/** Color conversion helpers. @unstable */
 type ColorApi = typeof colorUtils;
 type ToastApi = typeof toast;
+/** The global job tray. @unstable */
 type JobsApi = typeof jobs;
 type UseJobApi = typeof useJob;
 /** Shims for removed APIs. @unstable */
@@ -84,6 +90,7 @@ type LegacyApi = typeof legacy;
 /** @unstable */
 type TestApi = typeof testSurface;
 type TypesApi = typeof types;
+/** General-purpose helpers. @unstable */
 type UtilApi = typeof util;
 
 export interface MMA
