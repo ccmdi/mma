@@ -1,5 +1,4 @@
 {
-	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " w {seconds} s ({rate}/s)",
 	"\"{path}\" already exists in the tree": "\"{path}\" już istnieje w drzewie",
 	"(deleted selection)": "(usunięte zaznaczenie)",
@@ -46,6 +45,7 @@
 		"many": ", {n} tagów",
 		"other": ", {n} tagów"
 	},
+	", {rate}/s": ", {rate}/s",
 	":": ":",
 	"A coverage data download is still running.": "Pobieranie danych o pokryciu wciąż trwa.",
 	"AND": "ORAZ",
@@ -157,7 +157,7 @@
 	"Binding": "Przypisanie",
 	"Blue-Red": "Niebiesko-czerwony",
 	"Blueprint": "Kalka techniczna",
-	"Border data missing -- downloading...": "Brak danych granic -- pobieranie...",
+	"Border data missing. Downloading...": "Brak danych granic. Pobieranie...",
 	"Borders": "Granice",
 	"Both sides added": "Dodano po obu stronach",
 	"Both sides edited": "Edytowano po obu stronach",
@@ -288,11 +288,11 @@
 	"Could not add the tag": "Nie udało się dodać tagu",
 	"Could not read the report ({status}).": "Nie można odczytać zgłoszenia ({status}).",
 	"Could not update tags": "Nie udało się zaktualizować tagów",
-	"Couldn't download border data -- check your connection": "Nie udało się pobrać danych granic -- sprawdź połączenie",
+	"Couldn't download border data. Check your connection.": "Nie udało się pobrać danych granic. Sprawdź połączenie.",
 	"Couldn't download subdivision borders - check your connection": "Nie udało się pobrać granic jednostek administracyjnych - sprawdź połączenie",
 	"Couldn't load the document.": "Nie udało się wczytać dokumentu.",
 	"Couldn't load:": "Nie udało się wczytać:",
-	"Couldn't relaunch automatically -- restart the app to apply.": "Nie udało się uruchomić ponownie automatycznie -- zrestartuj aplikację, aby zastosować zmiany.",
+	"Couldn't relaunch automatically. Restart the app to apply.": "Nie udało się uruchomić ponownie automatycznie. Zrestartuj aplikację, aby zastosować zmiany.",
 	"Count": "Liczba",
 	"Count a streak by": "Licz serię według",
 	"Count up": "Naliczanie",
@@ -386,26 +386,26 @@
 	"Document": "Dokument",
 	"Don't warn me again": "Nie ostrzegaj ponownie",
 	"Done": "Gotowe",
-	"Done -- {n} downloaded": "Gotowe -- pobrano {n}",
-	"Done -- {n} locations pinned.": {
-		"one": "Gotowe -- przypięto {n} lokalizację.",
-		"few": "Gotowe -- przypięto {n} lokalizacje.",
-		"many": "Gotowe -- przypięto {n} lokalizacji.",
-		"other": "Gotowe -- przypięto {n} lokalizacji."
-	},
-	"Done -- {n} locations processed": {
-		"one": "Gotowe -- przetworzono {n} lokalizację",
-		"few": "Gotowe -- przetworzono {n} lokalizacje",
-		"many": "Gotowe -- przetworzono {n} lokalizacji",
-		"other": "Gotowe -- przetworzono {n} lokalizacji"
-	},
-	"Done -- {n} locations validated.": {
-		"one": "Gotowe -- sprawdzono {n} lokalizację.",
-		"few": "Gotowe -- sprawdzono {n} lokalizacje.",
-		"many": "Gotowe -- sprawdzono {n} lokalizacji.",
-		"other": "Gotowe -- sprawdzono {n} lokalizacji."
-	},
 	"Done!": "Gotowe!",
+	"Done. {n} downloaded": "Gotowe. Pobrano {n}",
+	"Done. {n} locations pinned.": {
+		"one": "Gotowe. Przypięto {n} lokalizację.",
+		"few": "Gotowe. Przypięto {n} lokalizacje.",
+		"many": "Gotowe. Przypięto {n} lokalizacji.",
+		"other": "Gotowe. Przypięto {n} lokalizacji."
+	},
+	"Done. {n} locations processed": {
+		"one": "Gotowe. Przetworzono {n} lokalizację",
+		"few": "Gotowe. Przetworzono {n} lokalizacje",
+		"many": "Gotowe. Przetworzono {n} lokalizacji",
+		"other": "Gotowe. Przetworzono {n} lokalizacji"
+	},
+	"Done. {n} locations validated.": {
+		"one": "Gotowe. Sprawdzono {n} lokalizację.",
+		"few": "Gotowe. Sprawdzono {n} lokalizacje.",
+		"many": "Gotowe. Sprawdzono {n} lokalizacji.",
+		"other": "Gotowe. Sprawdzono {n} lokalizacji."
+	},
 	"Dot color": "Kolor kropki",
 	"Dot size": "Rozmiar kropki",
 	"Download": "Pobierz",
@@ -572,7 +572,7 @@
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr automatycznie obraca lokalizacje skierowane dokładnie na północ wzdłuż drogi. Aby\n\t\t\t\t\t\t\t\tnieobrócone lokalizacje pozostały nieobrócone, włącz tę opcję.",
 	"Geocoding": "Geokodowanie",
-	"Get new versions as soon as they are cut, before they are marked stable.": "Otrzymuj nowe wersje zaraz po ich wydaniu, zanim zostaną oznaczone jako stabilne.",
+	"Get new versions early, before they are marked stable.": "Otrzymuj nowe wersje wcześniej, zanim zostaną oznaczone jako stabilne.",
 	"Get one at map-making.app/keys": "Pobierz go na map-making.app/keys",
 	"Ghost selection": "Ustaw zaznaczenie jako widmo",
 	"Ghost selection (Alt-click to isolate)": "Zaznaczenie widmo (Alt+kliknięcie, aby wyizolować)",
@@ -812,7 +812,7 @@
 	"No document link selected.": "Nie wybrano linku do dokumentu.",
 	"No draft yet - open it once in GeoGuessr's map maker": "Brak wersji roboczej - otwórz ją raz w kreatorze map GeoGuessr",
 	"No duplicate groups within {distance}.": "Brak grup duplikatów w promieniu {distance}.",
-	"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.": "Nie włączono żadnych pól wzbogacania. Włącz je w Ustawieniach mapy na karcie Wzbogacanie.",
+	"No enrichment fields are enabled. Turn them on in the Enrichment dialog.": "Brak włączonych pól wzbogacania. Włącz je w oknie Wzbogacanie.",
 	"No extra fields on this map. Enrich locations first.": "Brak dodatkowych pól na tej mapie. Najpierw wzbogać lokalizacje.",
 	"No fields match.": "Brak pasujących pól.",
 	"No fields on this map yet. Enrich or import locations to create some.": "Ta mapa nie ma jeszcze pól. Wzbogać lub zaimportuj lokalizacje, aby je utworzyć.",
@@ -990,7 +990,6 @@
 	"Rank metadata fields by how strongly they separate selections": "Uszereguj pola metadanych według tego, jak silnie rozdzielają zaznaczenia",
 	"Ranked by {field}": "Uporządkowane wg {field}",
 	"Re-enrich already enriched locations": "Wzbogać ponownie już wzbogacone lokalizacje",
-	"Re-fetch document (bypass cache)": "Pobierz dokument ponownie (pomiń pamięć podręczną)",
 	"Re-pin already pinned locations": "Przypnij ponownie już przypięte lokalizacje",
 	"Read the manual": "Przeczytaj podręcznik",
 	"Reassign": "Przypisz ponownie",
@@ -1292,7 +1291,7 @@
 	"Style name": "Nazwa stylu",
 	"Style:": "Styl:",
 	"Subdivision": "Jednostka administracyjna",
-	"Subdivision borders are off -- enable them in Settings": "Granice regionów są wyłączone -- włącz je w Ustawieniach",
+	"Subdivision borders are off. Enable them in Settings.": "Granice regionów są wyłączone. Włącz je w Ustawieniach.",
 	"Subdivision borders missing - downloading...": "Brak granic jednostek administracyjnych - pobieranie...",
 	"Subdivision data": "Dane jednostek administracyjnych",
 	"Suggested links": "Sugerowane linki",

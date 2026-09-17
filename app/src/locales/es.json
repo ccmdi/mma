@@ -1,5 +1,4 @@
 {
-	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " en {seconds} s ({rate}/s)",
 	"\"{path}\" already exists in the tree": "\"{path}\" ya existe en el árbol",
 	"(deleted selection)": "(selección eliminada)",
@@ -41,6 +40,7 @@
 		"many": ", {n} etiquetas",
 		"other": ", {n} etiquetas"
 	},
+	", {rate}/s": ", {rate}/s",
 	":": ":",
 	"A coverage data download is still running.": "Todavía hay una descarga de datos de cobertura en curso.",
 	"AND": "Y",
@@ -150,7 +150,7 @@
 	"Binding": "Asignación",
 	"Blue-Red": "Azul-Rojo",
 	"Blueprint": "Cianotipo",
-	"Border data missing -- downloading...": "Faltan los datos de fronteras -- descargando...",
+	"Border data missing. Downloading...": "Faltan los datos de fronteras. Descargando...",
 	"Borders": "Fronteras",
 	"Both sides added": "Añadido en ambos lados",
 	"Both sides edited": "Editado en ambos lados",
@@ -279,11 +279,11 @@
 	"Could not add the tag": "No se pudo agregar la etiqueta",
 	"Could not read the report ({status}).": "No se pudo leer el informe ({status}).",
 	"Could not update tags": "No se pudieron actualizar las etiquetas",
-	"Couldn't download border data -- check your connection": "No se pudieron descargar los datos de fronteras -- comprueba la conexión",
+	"Couldn't download border data. Check your connection.": "No se pudieron descargar los datos de fronteras. Comprueba la conexión.",
 	"Couldn't download subdivision borders - check your connection": "No se pudieron descargar los límites de las subdivisiones - comprueba la conexión",
 	"Couldn't load the document.": "No se pudo cargar el documento.",
 	"Couldn't load:": "No se pudo cargar:",
-	"Couldn't relaunch automatically -- restart the app to apply.": "No se pudo reiniciar automáticamente -- reinicia la aplicación para aplicar el cambio.",
+	"Couldn't relaunch automatically. Restart the app to apply.": "No se pudo reiniciar automáticamente. Reinicia la aplicación para aplicar el cambio.",
 	"Count": "Recuento",
 	"Count a streak by": "Contar racha por",
 	"Count up": "Ascendente",
@@ -375,23 +375,23 @@
 	"Document": "Documento",
 	"Don't warn me again": "No volver a avisarme",
 	"Done": "Hecho",
-	"Done -- {n} downloaded": "Listo -- {n} descargados",
-	"Done -- {n} locations pinned.": {
-		"one": "Listo -- {n} ubicación fijada.",
-		"many": "Listo -- {n} ubicaciones fijadas.",
-		"other": "Listo -- {n} ubicaciones fijadas."
-	},
-	"Done -- {n} locations processed": {
-		"one": "Listo -- {n} ubicación procesada",
-		"many": "Listo -- {n} ubicaciones procesadas",
-		"other": "Listo -- {n} ubicaciones procesadas"
-	},
-	"Done -- {n} locations validated.": {
-		"one": "Listo -- {n} ubicación validada.",
-		"many": "Listo -- {n} ubicaciones validadas.",
-		"other": "Listo -- {n} ubicaciones validadas."
-	},
 	"Done!": "¡Listo!",
+	"Done. {n} downloaded": "Listo. {n} descargados",
+	"Done. {n} locations pinned.": {
+		"one": "Listo. {n} ubicación fijada.",
+		"many": "Listo. {n} ubicaciones fijadas.",
+		"other": "Listo. {n} ubicaciones fijadas."
+	},
+	"Done. {n} locations processed": {
+		"one": "Listo. {n} ubicación procesada",
+		"many": "Listo. {n} ubicaciones procesadas",
+		"other": "Listo. {n} ubicaciones procesadas"
+	},
+	"Done. {n} locations validated.": {
+		"one": "Listo. {n} ubicación validada.",
+		"many": "Listo. {n} ubicaciones validadas.",
+		"other": "Listo. {n} ubicaciones validadas."
+	},
 	"Dot color": "Color de los puntos",
 	"Dot size": "Tamaño de los puntos",
 	"Download": "Descargar",
@@ -555,7 +555,7 @@
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr orienta automáticamente las ubicaciones que apuntan justo al norte a lo largo de la carretera. Activar esta opción para que las\n\t\t\t\t\t\t\t\tubicaciones sin orientar sigan sin orientar.",
 	"Geocoding": "Geocodificación",
-	"Get new versions as soon as they are cut, before they are marked stable.": "Recibe las versiones nuevas en cuanto se publican, antes de marcarse como estables.",
+	"Get new versions early, before they are marked stable.": "Recibe las nuevas versiones antes, sin esperar a que se marquen como estables.",
 	"Get one at map-making.app/keys": "Obtener una en map-making.app/keys",
 	"Ghost selection": "Selección fantasma",
 	"Ghost selection (Alt-click to isolate)": "Selección fantasma (Alt+clic para aislarla)",
@@ -792,7 +792,7 @@
 	"No document link selected.": "No hay ningún enlace a documento seleccionado.",
 	"No draft yet - open it once in GeoGuessr's map maker": "Todavía no hay borrador - ábrelo una vez en el creador de mapas de GeoGuessr",
 	"No duplicate groups within {distance}.": "No hay grupos de duplicados en {distance}.",
-	"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.": "No hay campos de enriquecimiento activados. Se activan en Ajustes del mapa, en la pestaña Enriquecimiento.",
+	"No enrichment fields are enabled. Turn them on in the Enrichment dialog.": "No hay campos de enriquecimiento activados. Actívalos en el diálogo Enriquecimiento.",
 	"No extra fields on this map. Enrich locations first.": "Este mapa no tiene campos adicionales. Hay que enriquecer antes las ubicaciones.",
 	"No fields match.": "Ningún campo coincide.",
 	"No fields on this map yet. Enrich or import locations to create some.": "Todavía no hay campos en este mapa. Enriquece o importa ubicaciones para crearlos.",
@@ -968,7 +968,6 @@
 	"Rank metadata fields by how strongly they separate selections": "Clasificar los campos de metadatos según su capacidad para separar las selecciones",
 	"Ranked by {field}": "Ordenado por {field}",
 	"Re-enrich already enriched locations": "Volver a enriquecer las ubicaciones ya enriquecidas",
-	"Re-fetch document (bypass cache)": "Volver a obtener el documento (omitir la caché)",
 	"Re-pin already pinned locations": "Volver a fijar las ubicaciones ya fijadas",
 	"Read the manual": "Leer el manual",
 	"Reassign": "Reasignar",
@@ -1256,7 +1255,7 @@
 	"Style name": "Nombre del estilo",
 	"Style:": "Estilo:",
 	"Subdivision": "Subdivisión",
-	"Subdivision borders are off -- enable them in Settings": "Los límites de subdivisión están desactivados -- actívalos en Ajustes",
+	"Subdivision borders are off. Enable them in Settings.": "Los límites de subdivisión están desactivados. Actívalos en Ajustes.",
 	"Subdivision borders missing - downloading...": "Faltan los límites de las subdivisiones - descargando...",
 	"Subdivision data": "Datos de subdivisiones",
 	"Suggested links": "Enlaces sugeridos",

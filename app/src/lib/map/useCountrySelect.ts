@@ -12,7 +12,7 @@ import { t } from "@/lib/i18n";
 export async function selectBorderAt(lat: number, lng: number, subdivision: boolean) {
 	const { borderDetail, subdivisionDetail } = getSettings();
 	if (subdivision && subdivisionDetail === "off") {
-		toast(t("Subdivision borders are off -- enable them in Settings"));
+		toast(t("Subdivision borders are off. Enable them in Settings."));
 		return;
 	}
 	const level = subdivision ? subdivisionDetail : borderDetail;
@@ -22,11 +22,11 @@ export async function selectBorderAt(lat: number, lng: number, subdivision: bool
 		geometry = await lookup();
 	} catch (e) {
 		if (level === "light" || (await cmd.checkBorderFile(level))) throw e;
-		toast(t("Border data missing -- downloading..."));
+		toast(t("Border data missing. Downloading..."));
 		try {
 			await cmd.downloadBorderFile(level);
 		} catch {
-			toast(t("Couldn't download border data -- check your connection"));
+			toast(t("Couldn't download border data. Check your connection."));
 			return;
 		}
 		geometry = await lookup();

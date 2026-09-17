@@ -1,5 +1,4 @@
 {
-	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " in {seconds}s ({rate}/s)",
 	"\"{path}\" already exists in the tree": "\"{path}\" already exists in the tree",
 	"(deleted selection)": "(deleted selection)",
@@ -36,6 +35,7 @@
 		"one": ", {n} tag",
 		"other": ", {n} tags"
 	},
+	", {rate}/s": ", {rate}/s",
 	":": ":",
 	"A coverage data download is still running.": "A coverage data download is still running.",
 	"AND": "AND",
@@ -143,7 +143,7 @@
 	"Binding": "Binding",
 	"Blue-Red": "Blue-Red",
 	"Blueprint": "Blueprint",
-	"Border data missing -- downloading...": "Border data missing -- downloading...",
+	"Border data missing. Downloading...": "Border data missing. Downloading...",
 	"Borders": "Borders",
 	"Both sides added": "Both sides added",
 	"Both sides edited": "Both sides edited",
@@ -270,11 +270,11 @@
 	"Could not add the tag": "Could not add the tag",
 	"Could not read the report ({status}).": "Could not read the report ({status}).",
 	"Could not update tags": "Could not update tags",
-	"Couldn't download border data -- check your connection": "Couldn't download border data -- check your connection",
+	"Couldn't download border data. Check your connection.": "Couldn't download border data. Check your connection.",
 	"Couldn't download subdivision borders - check your connection": "Couldn't download subdivision borders - check your connection",
 	"Couldn't load the document.": "Couldn't load the document.",
 	"Couldn't load:": "Couldn't load:",
-	"Couldn't relaunch automatically -- restart the app to apply.": "Couldn't relaunch automatically -- restart the app to apply.",
+	"Couldn't relaunch automatically. Restart the app to apply.": "Couldn't relaunch automatically. Restart the app to apply.",
 	"Count": "Count",
 	"Count a streak by": "Count a streak by",
 	"Count up": "Count up",
@@ -364,20 +364,20 @@
 	"Document": "Document",
 	"Don't warn me again": "Don't warn me again",
 	"Done": "Done",
-	"Done -- {n} downloaded": "Done -- {n} downloaded",
-	"Done -- {n} locations pinned.": {
-		"one": "Done -- {n} location pinned.",
-		"other": "Done -- {n} locations pinned."
-	},
-	"Done -- {n} locations processed": {
-		"one": "Done -- {n} location processed",
-		"other": "Done -- {n} locations processed"
-	},
-	"Done -- {n} locations validated.": {
-		"one": "Done -- {n} location validated.",
-		"other": "Done -- {n} locations validated."
-	},
 	"Done!": "Done!",
+	"Done. {n} downloaded": "Done. {n} downloaded",
+	"Done. {n} locations pinned.": {
+		"one": "Done. {n} location pinned.",
+		"other": "Done. {n} locations pinned."
+	},
+	"Done. {n} locations processed": {
+		"one": "Done. {n} location processed",
+		"other": "Done. {n} locations processed"
+	},
+	"Done. {n} locations validated.": {
+		"one": "Done. {n} location validated.",
+		"other": "Done. {n} locations validated."
+	},
 	"Dot color": "Dot color",
 	"Dot size": "Dot size",
 	"Download": "Download",
@@ -538,7 +538,7 @@
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.",
 	"Geocoding": "Geocoding",
-	"Get new versions as soon as they are cut, before they are marked stable.": "Get new versions as soon as they are cut, before they are marked stable.",
+	"Get new versions early, before they are marked stable.": "Get new versions early, before they are marked stable.",
 	"Get one at map-making.app/keys": "Get one at map-making.app/keys",
 	"Ghost selection": "Ghost selection",
 	"Ghost selection (Alt-click to isolate)": "Ghost selection (Alt-click to isolate)",
@@ -772,7 +772,7 @@
 	"No document link selected.": "No document link selected.",
 	"No draft yet - open it once in GeoGuessr's map maker": "No draft yet - open it once in GeoGuessr's map maker",
 	"No duplicate groups within {distance}.": "No duplicate groups within {distance}.",
-	"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.": "No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.",
+	"No enrichment fields are enabled. Turn them on in the Enrichment dialog.": "No enrichment fields are enabled. Turn them on in the Enrichment dialog.",
 	"No extra fields on this map. Enrich locations first.": "No extra fields on this map. Enrich locations first.",
 	"No fields match.": "No fields match.",
 	"No fields on this map yet. Enrich or import locations to create some.": "No fields on this map yet. Enrich or import locations to create some.",
@@ -946,7 +946,6 @@
 	"Rank metadata fields by how strongly they separate selections": "Rank metadata fields by how strongly they separate selections",
 	"Ranked by {field}": "Ranked by {field}",
 	"Re-enrich already enriched locations": "Re-enrich already enriched locations",
-	"Re-fetch document (bypass cache)": "Re-fetch document (bypass cache)",
 	"Re-pin already pinned locations": "Re-pin already pinned locations",
 	"Read the manual": "Read the manual",
 	"Reassign": "Reassign",
@@ -1220,7 +1219,7 @@
 	"Style name": "Style name",
 	"Style:": "Style:",
 	"Subdivision": "Subdivision",
-	"Subdivision borders are off -- enable them in Settings": "Subdivision borders are off -- enable them in Settings",
+	"Subdivision borders are off. Enable them in Settings.": "Subdivision borders are off. Enable them in Settings.",
 	"Subdivision borders missing - downloading...": "Subdivision borders missing - downloading...",
 	"Subdivision data": "Subdivision data",
 	"Suggested links": "Suggested links",

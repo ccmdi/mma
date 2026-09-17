@@ -1,5 +1,4 @@
 {
-	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " за {seconds}s ({rate}/s)",
 	"\"{path}\" already exists in the tree": "\"{path}\" уже есть в дереве",
 	"(deleted selection)": "(удалённая выборка)",
@@ -46,6 +45,7 @@
 		"many": ", {n} тегов",
 		"other": ", {n} тега"
 	},
+	", {rate}/s": ", {rate}/s",
 	":": ":",
 	"A coverage data download is still running.": "Загрузка данных покрытия ещё выполняется.",
 	"AND": "И",
@@ -157,7 +157,7 @@
 	"Binding": "Привязка",
 	"Blue-Red": "Сине-красный",
 	"Blueprint": "Чертёж",
-	"Border data missing -- downloading...": "Данных о границах нет -- загрузка...",
+	"Border data missing. Downloading...": "Данных о границах нет. Загрузка...",
 	"Borders": "Границы",
 	"Both sides added": "Добавлено с обеих сторон",
 	"Both sides edited": "Изменено с обеих сторон",
@@ -288,11 +288,11 @@
 	"Could not add the tag": "Не удалось добавить тег",
 	"Could not read the report ({status}).": "Не удалось прочитать сообщение ({status}).",
 	"Could not update tags": "Не удалось обновить теги",
-	"Couldn't download border data -- check your connection": "Не удалось загрузить данные о границах -- проверьте соединение",
+	"Couldn't download border data. Check your connection.": "Не удалось загрузить данные о границах. Проверьте соединение.",
 	"Couldn't download subdivision borders - check your connection": "Не удалось загрузить границы регионов - проверьте соединение",
 	"Couldn't load the document.": "Не удалось загрузить документ.",
 	"Couldn't load:": "Не удалось загрузить:",
-	"Couldn't relaunch automatically -- restart the app to apply.": "Не удалось перезапустить автоматически -- перезапустите приложение вручную.",
+	"Couldn't relaunch automatically. Restart the app to apply.": "Не удалось перезапустить автоматически. Перезапустите приложение вручную.",
 	"Count": "Количество",
 	"Count a streak by": "Считать серию по",
 	"Count up": "Счёт вверх",
@@ -386,26 +386,26 @@
 	"Document": "Документ",
 	"Don't warn me again": "Больше не предупреждать",
 	"Done": "Готово",
-	"Done -- {n} downloaded": "Готово -- скачано: {n}",
-	"Done -- {n} locations pinned.": {
-		"one": "Готово -- закреплена {n} локация.",
-		"few": "Готово -- закреплено {n} локации.",
-		"many": "Готово -- закреплено {n} локаций.",
-		"other": "Готово -- закреплено {n} локации."
-	},
-	"Done -- {n} locations processed": {
-		"one": "Готово -- обработана {n} локация",
-		"few": "Готово -- обработано {n} локации",
-		"many": "Готово -- обработано {n} локаций",
-		"other": "Готово -- обработано {n} локации"
-	},
-	"Done -- {n} locations validated.": {
-		"one": "Готово -- проверена {n} локация.",
-		"few": "Готово -- проверено {n} локации.",
-		"many": "Готово -- проверено {n} локаций.",
-		"other": "Готово -- проверено {n} локации."
-	},
 	"Done!": "Готово!",
+	"Done. {n} downloaded": "Готово. Скачано: {n}",
+	"Done. {n} locations pinned.": {
+		"one": "Готово. Закреплена {n} локация.",
+		"few": "Готово. Закреплено {n} локации.",
+		"many": "Готово. Закреплено {n} локаций.",
+		"other": "Готово. Закреплено {n} локации."
+	},
+	"Done. {n} locations processed": {
+		"one": "Готово. Обработана {n} локация",
+		"few": "Готово. Обработано {n} локации",
+		"many": "Готово. Обработано {n} локаций",
+		"other": "Готово. Обработано {n} локации"
+	},
+	"Done. {n} locations validated.": {
+		"one": "Готово. Проверена {n} локация.",
+		"few": "Готово. Проверено {n} локации.",
+		"many": "Готово. Проверено {n} локаций.",
+		"other": "Готово. Проверено {n} локации."
+	},
 	"Dot color": "Цвет точек",
 	"Dot size": "Размер точек",
 	"Download": "Скачать",
@@ -572,7 +572,7 @@
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr автоматически поворачивает локации, направленные строго на север вдоль дороги. Чтобы ваши неповёрнутые локации остались такими, включите эту опцию.",
 	"Geocoding": "Геокодирование",
-	"Get new versions as soon as they are cut, before they are marked stable.": "Получать новые версии сразу после выпуска, до того как их отметят стабильными.",
+	"Get new versions early, before they are marked stable.": "Получать новые версии раньше, до того как они будут отмечены как стабильные.",
 	"Get one at map-making.app/keys": "Получить его на map-making.app/keys",
 	"Ghost selection": "Призрачная выборка",
 	"Ghost selection (Alt-click to isolate)": "Призрачная выборка (Alt+клик, чтобы изолировать)",
@@ -812,7 +812,7 @@
 	"No document link selected.": "Ссылка на документ не выбрана.",
 	"No draft yet - open it once in GeoGuessr's map maker": "Черновика пока нет - откройте его один раз в редакторе карт GeoGuessr",
 	"No duplicate groups within {distance}.": "Нет групп дубликатов в пределах {distance} м.",
-	"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.": "Ни одно поле обогащения не включено. Включите их в настройках карты на вкладке «Обогащение».",
+	"No enrichment fields are enabled. Turn them on in the Enrichment dialog.": "Поля обогащения не включены. Включите их в диалоге «Обогащение».",
 	"No extra fields on this map. Enrich locations first.": "На этой карте нет дополнительных полей. Сначала обогатите локации.",
 	"No fields match.": "Нет подходящих полей.",
 	"No fields on this map yet. Enrich or import locations to create some.": "На этой карте пока нет полей. Обогатите или импортируйте точки, чтобы они появились.",
@@ -990,7 +990,6 @@
 	"Rank metadata fields by how strongly they separate selections": "Ранжировать поля метаданных по тому, насколько сильно они разделяют выборки",
 	"Ranked by {field}": "Упорядочено по {field}",
 	"Re-enrich already enriched locations": "Обогащать повторно уже обогащённые локации",
-	"Re-fetch document (bypass cache)": "Загрузить документ заново (без кэша)",
 	"Re-pin already pinned locations": "Перезакреплять уже закреплённые локации",
 	"Read the manual": "Прочитать руководство",
 	"Reassign": "Переназначить",
@@ -1292,7 +1291,7 @@
 	"Style name": "Название стиля",
 	"Style:": "Стиль:",
 	"Subdivision": "Регион",
-	"Subdivision borders are off -- enable them in Settings": "Границы регионов отключены -- включите их в настройках",
+	"Subdivision borders are off. Enable them in Settings.": "Границы регионов отключены. Включите их в настройках.",
 	"Subdivision borders missing - downloading...": "Границ регионов нет - загрузка...",
 	"Subdivision data": "Данные о регионах",
 	"Suggested links": "Предлагаемые ссылки",

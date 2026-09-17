@@ -1,5 +1,4 @@
 {
-	" -- {rate}/s": "[ -- {rate}/ş åéî]",
 	" in {seconds}s ({rate}/s)": "[ îñ {seconds}ş ({rate}/ş) åéîö]",
 	"\"{path}\" already exists in the tree": "[\"{path}\" åĺŕéåðý éẋîşţş îñ ţĥé ţŕéé åéîöüåéîöüåé]",
 	"(deleted selection)": "[(ðéĺéţéð şéĺéçţîöñ) åéîöüåéî]",
@@ -36,6 +35,7 @@
 		"one": "[, {n} ţåǧ åéî]",
 		"other": "[, {n} ţåǧş åéî]"
 	},
+	", {rate}/s": "[, {rate}/ş åé]",
 	":": "[: å]",
 	"A coverage data download is still running.": "[Å çöṽéŕåǧé ðåţå ðöŵñĺöåð îş şţîĺĺ ŕüññîñǧ. åéîöüåéîöüåéîöüåé]",
 	"AND": "[ÅÑÐ åé]",
@@ -143,7 +143,7 @@
 	"Binding": "[Ƀîñðîñǧ åéî]",
 	"Blue-Red": "[Ƀĺüé-Ŕéð åéîö]",
 	"Blueprint": "[Ƀĺüéƥŕîñţ åéîö]",
-	"Border data missing -- downloading...": "[Ƀöŕðéŕ ðåţå ɱîşşîñǧ -- ðöŵñĺöåðîñǧ... åéîöüåéîöüåéîöü]",
+	"Border data missing. Downloading...": "[Ƀöŕðéŕ ðåţå ɱîşşîñǧ. Ðöŵñĺöåðîñǧ... åéîöüåéîöüåéîö]",
 	"Borders": "[Ƀöŕðéŕş åéî]",
 	"Both sides added": "[Ƀöţĥ şîðéş åððéð åéîöüåé]",
 	"Both sides edited": "[Ƀöţĥ şîðéş éðîţéð åéîöüåé]",
@@ -270,11 +270,11 @@
 	"Could not add the tag": "[Çöüĺð ñöţ åðð ţĥé ţåǧ åéîöüåéîö]",
 	"Could not read the report ({status}).": "[Çöüĺð ñöţ ŕéåð ţĥé ŕéƥöŕţ ({status}). åéîöüåéîöüåé]",
 	"Could not update tags": "[Çöüĺð ñöţ üƥðåţé ţåǧş åéîöüåéîö]",
-	"Couldn't download border data -- check your connection": "[Çöüĺðñ'ţ ðöŵñĺöåð ƀöŕðéŕ ðåţå -- çĥéçķ ýöüŕ çöññéçţîöñ åéîöüåéîöüåéîöüåéîöüåé]",
+	"Couldn't download border data. Check your connection.": "[Çöüĺðñ'ţ ðöŵñĺöåð ƀöŕðéŕ ðåţå. Çĥéçķ ýöüŕ çöññéçţîöñ. åéîöüåéîöüåéîöüåéîöüåé]",
 	"Couldn't download subdivision borders - check your connection": "[Çöüĺðñ'ţ ðöŵñĺöåð şüƀðîṽîşîöñ ƀöŕðéŕş - çĥéçķ ýöüŕ çöññéçţîöñ åéîöüåéîöüåéîöüåéîöüåéîöü]",
 	"Couldn't load the document.": "[Çöüĺðñ'ţ ĺöåð ţĥé ðöçüɱéñţ. åéîöüåéîöüå]",
 	"Couldn't load:": "[Çöüĺðñ'ţ ĺöåð: åéîöüå]",
-	"Couldn't relaunch automatically -- restart the app to apply.": "[Çöüĺðñ'ţ ŕéĺåüñçĥ åüţöɱåţîçåĺĺý -- ŕéşţåŕţ ţĥé åƥƥ ţö åƥƥĺý. åéîöüåéîöüåéîöüåéîöüåéîö]",
+	"Couldn't relaunch automatically. Restart the app to apply.": "[Çöüĺðñ'ţ ŕéĺåüñçĥ åüţöɱåţîçåĺĺý. Ŕéşţåŕţ ţĥé åƥƥ ţö åƥƥĺý. åéîöüåéîöüåéîöüåéîöüåéîö]",
 	"Count": "[Çöüñţ åé]",
 	"Count a streak by": "[Çöüñţ å şţŕéåķ ƀý åéîöüåé]",
 	"Count up": "[Çöüñţ üƥ åéîö]",
@@ -364,20 +364,20 @@
 	"Document": "[Ðöçüɱéñţ åéîö]",
 	"Don't warn me again": "[Ðöñ'ţ ŵåŕñ ɱé åǧåîñ åéîöüåéî]",
 	"Done": "[Ðöñé åé]",
-	"Done -- {n} downloaded": "[Ðöñé -- {n} ðöŵñĺöåðéð åéîöüåéî]",
-	"Done -- {n} locations pinned.": {
-		"one": "[Ðöñé -- {n} ĺöçåţîöñ ƥîññéð. åéîöüåéîöü]",
-		"other": "[Ðöñé -- {n} ĺöçåţîöñş ƥîññéð. åéîöüåéîöüå]"
-	},
-	"Done -- {n} locations processed": {
-		"one": "[Ðöñé -- {n} ĺöçåţîöñ ƥŕöçéşşéð åéîöüåéîöüå]",
-		"other": "[Ðöñé -- {n} ĺöçåţîöñş ƥŕöçéşşéð åéîöüåéîöüåé]"
-	},
-	"Done -- {n} locations validated.": {
-		"one": "[Ðöñé -- {n} ĺöçåţîöñ ṽåĺîðåţéð. åéîöüåéîöüåé]",
-		"other": "[Ðöñé -- {n} ĺöçåţîöñş ṽåĺîðåţéð. åéîöüåéîöüåé]"
-	},
 	"Done!": "[Ðöñé! åé]",
+	"Done. {n} downloaded": "[Ðöñé. {n} ðöŵñĺöåðéð åéîöüåé]",
+	"Done. {n} locations pinned.": {
+		"one": "[Ðöñé. {n} ĺöçåţîöñ ƥîññéð. åéîöüåéîöü]",
+		"other": "[Ðöñé. {n} ĺöçåţîöñş ƥîññéð. åéîöüåéîöü]"
+	},
+	"Done. {n} locations processed": {
+		"one": "[Ðöñé. {n} ĺöçåţîöñ ƥŕöçéşşéð åéîöüåéîöü]",
+		"other": "[Ðöñé. {n} ĺöçåţîöñş ƥŕöçéşşéð åéîöüåéîöüå]"
+	},
+	"Done. {n} locations validated.": {
+		"one": "[Ðöñé. {n} ĺöçåţîöñ ṽåĺîðåţéð. åéîöüåéîöüå]",
+		"other": "[Ðöñé. {n} ĺöçåţîöñş ṽåĺîðåţéð. åéîöüåéîöüå]"
+	},
 	"Dot color": "[Ðöţ çöĺöŕ åéîö]",
 	"Dot size": "[Ðöţ şîžé åéîö]",
 	"Download": "[Ðöŵñĺöåð åéîö]",
@@ -538,7 +538,7 @@
 	"GeoGuessr": "[ǦéöǦüéşşŕ åéîö]",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "[ǦéöǦüéşşŕ åüţö-ƥåñş ĺöçåţîöñş ţĥåţ ƥöîñţ şţŕåîǧĥţ ñöŕţĥ åĺöñǧ ţĥé ŕöåð. Ţö ķééƥ ýöüŕ\n\t\t\t\t\t\t\t\tüñƥåññéð ĺöçåţîöñş üñƥåññéð, éñåƀĺé ţĥîş öƥţîöñ. åéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåé]",
 	"Geocoding": "[Ǧéöçöðîñǧ åéîö]",
-	"Get new versions as soon as they are cut, before they are marked stable.": "[Ǧéţ ñéŵ ṽéŕşîöñş åş şööñ åş ţĥéý åŕé çüţ, ƀéƒöŕé ţĥéý åŕé ɱåŕķéð şţåƀĺé. åéîöüåéîöüåéîöüåéîöüåéîöüåéîö]",
+	"Get new versions early, before they are marked stable.": "[Ǧéţ ñéŵ ṽéŕşîöñş éåŕĺý, ƀéƒöŕé ţĥéý åŕé ɱåŕķéð şţåƀĺé. åéîöüåéîöüåéîöüåéîöüåé]",
 	"Get one at map-making.app/keys": "[Ǧéţ öñé åţ ɱåƥ-ɱåķîñǧ.åƥƥ/ķéýş åéîöüåéîöüåé]",
 	"Ghost selection": "[Ǧĥöşţ şéĺéçţîöñ åéîöüå]",
 	"Ghost selection (Alt-click to isolate)": "[Ǧĥöşţ şéĺéçţîöñ (Åĺţ-çĺîçķ ţö îşöĺåţé) åéîöüåéîöüåéîöüå]",
@@ -772,7 +772,7 @@
 	"No document link selected.": "[Ñö ðöçüɱéñţ ĺîñķ şéĺéçţéð. åéîöüåéîöüå]",
 	"No draft yet - open it once in GeoGuessr's map maker": "[Ñö ðŕåƒţ ýéţ - öƥéñ îţ öñçé îñ ǦéöǦüéşşŕ'ş ɱåƥ ɱåķéŕ åéîöüåéîöüåéîöüåéîöüå]",
 	"No duplicate groups within {distance}.": "[Ñö ðüƥĺîçåţé ǧŕöüƥş ŵîţĥîñ {distance}. åéîöüåéîöüåé]",
-	"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.": "[Ñö éñŕîçĥɱéñţ ƒîéĺðş åŕé éñåƀĺéð. Éñåƀĺé ţĥéɱ îñ Ɱåƥ Şéţţîñǧş üñðéŕ ţĥé Éñŕîçĥɱéñţ ţåƀ. åéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöü]",
+	"No enrichment fields are enabled. Turn them on in the Enrichment dialog.": "[Ñö éñŕîçĥɱéñţ ƒîéĺðş åŕé éñåƀĺéð. Ţüŕñ ţĥéɱ öñ îñ ţĥé Éñŕîçĥɱéñţ ðîåĺöǧ. åéîöüåéîöüåéîöüåéîöüåéîöüåéîö]",
 	"No extra fields on this map. Enrich locations first.": "[Ñö éẋţŕå ƒîéĺðş öñ ţĥîş ɱåƥ. Éñŕîçĥ ĺöçåţîöñş ƒîŕşţ. åéîöüåéîöüåéîöüåéîöüå]",
 	"No fields match.": "[Ñö ƒîéĺðş ɱåţçĥ. åéîöüåé]",
 	"No fields on this map yet. Enrich or import locations to create some.": "[Ñö ƒîéĺðş öñ ţĥîş ɱåƥ ýéţ. Éñŕîçĥ öŕ îɱƥöŕţ ĺöçåţîöñş ţö çŕéåţé şöɱé. åéîöüåéîöüåéîöüåéîöüåéîöüåéî]",
@@ -946,7 +946,6 @@
 	"Rank metadata fields by how strongly they separate selections": "[Ŕåñķ ɱéţåðåţå ƒîéĺðş ƀý ĥöŵ şţŕöñǧĺý ţĥéý şéƥåŕåţé şéĺéçţîöñş åéîöüåéîöüåéîöüåéîöüåéîöü]",
 	"Ranked by {field}": "[Ŕåñķéð ƀý {field} åéîö]",
 	"Re-enrich already enriched locations": "[Ŕé-éñŕîçĥ åĺŕéåðý éñŕîçĥéð ĺöçåţîöñş åéîöüåéîöüåéîöü]",
-	"Re-fetch document (bypass cache)": "[Ŕé-ƒéţçĥ ðöçüɱéñţ (ƀýƥåşş çåçĥé) åéîöüåéîöüåéî]",
 	"Re-pin already pinned locations": "[Ŕé-ƥîñ åĺŕéåðý ƥîññéð ĺöçåţîöñş åéîöüåéîöüåéî]",
 	"Read the manual": "[Ŕéåð ţĥé ɱåñüåĺ åéîöüå]",
 	"Reassign": "[Ŕéåşşîǧñ åéîö]",
@@ -1220,7 +1219,7 @@
 	"Style name": "[Şţýĺé ñåɱé åéîö]",
 	"Style:": "[Şţýĺé: åéî]",
 	"Subdivision": "[Şüƀðîṽîşîöñ åéîöü]",
-	"Subdivision borders are off -- enable them in Settings": "[Şüƀðîṽîşîöñ ƀöŕðéŕş åŕé öƒƒ -- éñåƀĺé ţĥéɱ îñ Şéţţîñǧş åéîöüåéîöüåéîöüåéîöüåé]",
+	"Subdivision borders are off. Enable them in Settings.": "[Şüƀðîṽîşîöñ ƀöŕðéŕş åŕé öƒƒ. Éñåƀĺé ţĥéɱ îñ Şéţţîñǧş. åéîöüåéîöüåéîöüåéîöüåé]",
 	"Subdivision borders missing - downloading...": "[Şüƀðîṽîşîöñ ƀöŕðéŕş ɱîşşîñǧ - ðöŵñĺöåðîñǧ... åéîöüåéîöüåéîöüåéî]",
 	"Subdivision data": "[Şüƀðîṽîşîöñ ðåţå åéîöüåé]",
 	"Suggested links": "[Şüǧǧéşţéð ĺîñķş åéîöüå]",

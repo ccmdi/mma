@@ -152,7 +152,7 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 				<span className="doclink-panel__title" title={title}>
 					{title}
 				</span>
-				<Tooltip content={t("Re-fetch document (bypass cache)")} side="bottom">
+				<Tooltip content={t("Refresh document")} side="bottom">
 					<button
 						className="icon-button"
 						type="button"

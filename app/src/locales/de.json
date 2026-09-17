@@ -1,5 +1,4 @@
 {
-	" -- {rate}/s": " -- {rate}/s",
 	" in {seconds}s ({rate}/s)": " in {seconds}s ({rate}/s)",
 	"\"{path}\" already exists in the tree": "\"{path}\" existiert bereits im Baum",
 	"(deleted selection)": "(gelöschte Auswahl)",
@@ -36,6 +35,7 @@
 		"one": ", {n} Tag",
 		"other": ", {n} Tags"
 	},
+	", {rate}/s": ", {rate}/s",
 	":": ":",
 	"A coverage data download is still running.": "Ein Download von Abdeckungsdaten läuft noch.",
 	"AND": "UND",
@@ -143,7 +143,7 @@
 	"Binding": "Belegung",
 	"Blue-Red": "Blau-Rot",
 	"Blueprint": "Blaupause",
-	"Border data missing -- downloading...": "Grenzdaten fehlen -- werden heruntergeladen...",
+	"Border data missing. Downloading...": "Grenzdaten fehlen. Download läuft...",
 	"Borders": "Grenzen",
 	"Both sides added": "Auf beiden Seiten hinzugefügt",
 	"Both sides edited": "Auf beiden Seiten bearbeitet",
@@ -270,11 +270,11 @@
 	"Could not add the tag": "Tag konnte nicht hinzugefügt werden",
 	"Could not read the report ({status}).": "Die Meldung konnte nicht gelesen werden ({status}).",
 	"Could not update tags": "Tags konnten nicht aktualisiert werden",
-	"Couldn't download border data -- check your connection": "Grenzdaten konnten nicht heruntergeladen werden -- Verbindung prüfen",
+	"Couldn't download border data. Check your connection.": "Grenzdaten konnten nicht heruntergeladen werden. Verbindung prüfen.",
 	"Couldn't download subdivision borders - check your connection": "Regionsgrenzen konnten nicht heruntergeladen werden - Verbindung prüfen",
 	"Couldn't load the document.": "Dokument konnte nicht geladen werden.",
 	"Couldn't load:": "Konnte nicht geladen werden:",
-	"Couldn't relaunch automatically -- restart the app to apply.": "Automatischer Neustart nicht möglich -- App zum Übernehmen neu starten.",
+	"Couldn't relaunch automatically. Restart the app to apply.": "Automatischer Neustart nicht möglich. App zum Übernehmen neu starten.",
 	"Count": "Anzahl",
 	"Count a streak by": "Serie zählen nach",
 	"Count up": "Hochzählen",
@@ -364,20 +364,20 @@
 	"Document": "Dokument",
 	"Don't warn me again": "Nicht mehr warnen",
 	"Done": "Fertig",
-	"Done -- {n} downloaded": "Fertig -- {n} heruntergeladen",
-	"Done -- {n} locations pinned.": {
-		"one": "Fertig -- {n} Standort angeheftet.",
-		"other": "Fertig -- {n} Standorte angeheftet."
-	},
-	"Done -- {n} locations processed": {
-		"one": "Fertig -- {n} Standort verarbeitet",
-		"other": "Fertig -- {n} Standorte verarbeitet"
-	},
-	"Done -- {n} locations validated.": {
-		"one": "Fertig -- {n} Standort validiert.",
-		"other": "Fertig -- {n} Standorte validiert."
-	},
 	"Done!": "Fertig!",
+	"Done. {n} downloaded": "Fertig. {n} heruntergeladen",
+	"Done. {n} locations pinned.": {
+		"one": "Fertig. {n} Standort angeheftet.",
+		"other": "Fertig. {n} Standorte angeheftet."
+	},
+	"Done. {n} locations processed": {
+		"one": "Fertig. {n} Standort verarbeitet",
+		"other": "Fertig. {n} Standorte verarbeitet"
+	},
+	"Done. {n} locations validated.": {
+		"one": "Fertig. {n} Standort validiert.",
+		"other": "Fertig. {n} Standorte validiert."
+	},
 	"Dot color": "Punktfarbe",
 	"Dot size": "Punktgröße",
 	"Download": "Herunterladen",
@@ -538,7 +538,7 @@
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr richtet Standorte, die exakt nach Norden zeigen, automatisch an der Straße aus.\n\t\t\t\t\t\t\t\tDamit nicht ausgerichtete Standorte so bleiben, diese Option aktivieren.",
 	"Geocoding": "Geocoding",
-	"Get new versions as soon as they are cut, before they are marked stable.": "Neue Versionen erhalten, sobald sie erstellt wurden, bevor sie als stabil markiert sind.",
+	"Get new versions early, before they are marked stable.": "Neue Versionen früher erhalten, bevor sie als stabil markiert werden.",
 	"Get one at map-making.app/keys": "Einen Schlüssel gibt es unter map-making.app/keys",
 	"Ghost selection": "Geisterauswahl",
 	"Ghost selection (Alt-click to isolate)": "Geisterauswahl (Alt-Klick zum Isolieren)",
@@ -772,7 +772,7 @@
 	"No document link selected.": "Kein Dokumentlink ausgewählt.",
 	"No draft yet - open it once in GeoGuessr's map maker": "Noch kein Entwurf - einmal im Map Maker von GeoGuessr öffnen",
 	"No duplicate groups within {distance}.": "Keine Duplikatgruppen innerhalb von {distance}.",
-	"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.": "Es sind keine Anreicherungsfelder aktiviert. Sie lassen sich in den Karteneinstellungen im Tab „Anreicherung“ aktivieren.",
+	"No enrichment fields are enabled. Turn them on in the Enrichment dialog.": "Keine Anreicherungsfelder aktiviert. Aktiviere sie im Dialog „Anreicherung“.",
 	"No extra fields on this map. Enrich locations first.": "Keine zusätzlichen Felder auf dieser Karte. Zuerst Standorte anreichern.",
 	"No fields match.": "Keine Felder gefunden.",
 	"No fields on this map yet. Enrich or import locations to create some.": "Noch keine Felder auf dieser Karte. Standorte anreichern oder importieren, um welche anzulegen.",
@@ -946,7 +946,6 @@
 	"Rank metadata fields by how strongly they separate selections": "Metadatenfelder danach ordnen, wie stark sie Auswahlen trennen",
 	"Ranked by {field}": "Sortiert nach {field}",
 	"Re-enrich already enriched locations": "Bereits angereicherte Standorte erneut anreichern",
-	"Re-fetch document (bypass cache)": "Dokument neu laden (Cache umgehen)",
 	"Re-pin already pinned locations": "Bereits angeheftete Standorte erneut anheften",
 	"Read the manual": "Handbuch lesen",
 	"Reassign": "Neu zuweisen",
@@ -1220,7 +1219,7 @@
 	"Style name": "Stilname",
 	"Style:": "Stil:",
 	"Subdivision": "Region",
-	"Subdivision borders are off -- enable them in Settings": "Regionsgrenzen sind deaktiviert -- in den Einstellungen aktivieren",
+	"Subdivision borders are off. Enable them in Settings.": "Regionsgrenzen sind deaktiviert. In den Einstellungen aktivieren.",
 	"Subdivision borders missing - downloading...": "Regionsgrenzen fehlen - werden heruntergeladen...",
 	"Subdivision data": "Regionsdaten",
 	"Suggested links": "Vorgeschlagene Links",

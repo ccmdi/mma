@@ -1,5 +1,4 @@
 {
-	" -- {rate}/s": " -- {rate}/秒",
 	" in {seconds}s ({rate}/s)": " 所要 {seconds}s（{rate}/s）",
 	"\"{path}\" already exists in the tree": "「{path}」はツリー内に既に存在します",
 	"(deleted selection)": "（削除済みの選択）",
@@ -31,6 +30,7 @@
 	", {n} tags": {
 		"other": "、タグ {n} 件"
 	},
+	", {rate}/s": "、{rate}/秒",
 	":": ":",
 	"A coverage data download is still running.": "カバレッジデータのダウンロードが実行中です。",
 	"AND": "AND",
@@ -136,7 +136,7 @@
 	"Binding": "割り当て",
 	"Blue-Red": "青-赤",
 	"Blueprint": "ブループリント",
-	"Border data missing -- downloading...": "境界データがありません -- ダウンロード中...",
+	"Border data missing. Downloading...": "境界データがありません。ダウンロード中...",
 	"Borders": "境界線",
 	"Both sides added": "両側で追加",
 	"Both sides edited": "両側で編集",
@@ -261,11 +261,11 @@
 	"Could not add the tag": "タグを追加できませんでした",
 	"Could not read the report ({status}).": "報告を読み込めませんでした（{status}）。",
 	"Could not update tags": "タグを更新できませんでした",
-	"Couldn't download border data -- check your connection": "境界データをダウンロードできませんでした -- 接続を確認してください",
+	"Couldn't download border data. Check your connection.": "境界データをダウンロードできませんでした。接続を確認してください。",
 	"Couldn't download subdivision borders - check your connection": "行政区画の境界をダウンロードできませんでした - 接続を確認してください",
 	"Couldn't load the document.": "ドキュメントを読み込めませんでした。",
 	"Couldn't load:": "読み込めませんでした:",
-	"Couldn't relaunch automatically -- restart the app to apply.": "自動で再起動できませんでした -- 適用するにはアプリを再起動してください。",
+	"Couldn't relaunch automatically. Restart the app to apply.": "自動で再起動できませんでした。適用するにはアプリを再起動してください。",
 	"Count": "件数",
 	"Count a streak by": "連続の単位",
 	"Count up": "カウントアップ",
@@ -353,17 +353,17 @@
 	"Document": "ドキュメント",
 	"Don't warn me again": "今後警告しない",
 	"Done": "完了",
-	"Done -- {n} downloaded": "完了 -- {n} 件ダウンロード",
-	"Done -- {n} locations pinned.": {
-		"other": "完了 -- {n} 件の地点をピン留めしました。"
-	},
-	"Done -- {n} locations processed": {
-		"other": "完了 -- {n} 件の地点を処理しました"
-	},
-	"Done -- {n} locations validated.": {
-		"other": "完了 -- {n} 件の地点を検証しました。"
-	},
 	"Done!": "完了！",
+	"Done. {n} downloaded": "完了。{n} 件ダウンロード",
+	"Done. {n} locations pinned.": {
+		"other": "完了。{n} 件の地点をピン留めしました。"
+	},
+	"Done. {n} locations processed": {
+		"other": "完了。{n} 件の地点を処理しました"
+	},
+	"Done. {n} locations validated.": {
+		"other": "完了。{n} 件の地点を検証しました。"
+	},
 	"Dot color": "ドットの色",
 	"Dot size": "ドットのサイズ",
 	"Download": "ダウンロード",
@@ -521,7 +521,7 @@
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr は道路に沿って真北を向く地点を自動でパンします。パンしていない地点をそのまま保つには、このオプションを有効にしてください。",
 	"Geocoding": "ジオコーディング",
-	"Get new versions as soon as they are cut, before they are marked stable.": "安定版として公開される前の、リリース直後の新しいバージョンを受け取ります。",
+	"Get new versions early, before they are marked stable.": "安定版になる前に、新しいバージョンをいち早く入手します。",
 	"Get one at map-making.app/keys": "map-making.app/keys で取得できます",
 	"Ghost selection": "ゴースト選択",
 	"Ghost selection (Alt-click to isolate)": "ゴースト選択（Alt+クリックで単独表示）",
@@ -752,7 +752,7 @@
 	"No document link selected.": "ドキュメントリンクが選択されていません。",
 	"No draft yet - open it once in GeoGuessr's map maker": "下書きがまだありません - GeoGuessr のマップメーカーで一度開いてください",
 	"No duplicate groups within {distance}.": "{distance} 以内に重複グループはありません。",
-	"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.": "エンリッチメントフィールドが有効になっていません。マップ設定のエンリッチメントタブで有効にしてください。",
+	"No enrichment fields are enabled. Turn them on in the Enrichment dialog.": "エンリッチメントフィールドが有効になっていません。エンリッチメントダイアログで有効にしてください。",
 	"No extra fields on this map. Enrich locations first.": "このマップには追加フィールドがありません。先に地点をエンリッチしてください。",
 	"No fields match.": "一致するフィールドはありません。",
 	"No fields on this map yet. Enrich or import locations to create some.": "このマップにはまだフィールドがありません。地点をエンリッチまたはインポートすると作成されます。",
@@ -924,7 +924,6 @@
 	"Rank metadata fields by how strongly they separate selections": "選択をどれだけ強く分離するかでメタデータフィールドを順位付け",
 	"Ranked by {field}": "{field}順",
 	"Re-enrich already enriched locations": "エンリッチ済みの地点を再エンリッチ",
-	"Re-fetch document (bypass cache)": "ドキュメントを再取得（キャッシュを無視）",
 	"Re-pin already pinned locations": "ピン留め済みの地点を再ピン留め",
 	"Read the manual": "マニュアルを読む",
 	"Reassign": "再割り当て",
@@ -1184,7 +1183,7 @@
 	"Style name": "スタイル名",
 	"Style:": "スタイル:",
 	"Subdivision": "行政区画",
-	"Subdivision borders are off -- enable them in Settings": "行政区画の境界がオフです -- 設定で有効にしてください",
+	"Subdivision borders are off. Enable them in Settings.": "行政区画の境界がオフです。設定で有効にしてください。",
 	"Subdivision borders missing - downloading...": "行政区画の境界がありません - ダウンロード中...",
 	"Subdivision data": "行政区画データ",
 	"Suggested links": "リンク候補",

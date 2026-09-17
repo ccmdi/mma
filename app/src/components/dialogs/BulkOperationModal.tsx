@@ -156,8 +156,8 @@ function ValidateSetup({ picker, info, onReady }: SetupProps) {
 								outcome: result,
 								doneMessage: t(
 									{
-										one: "Done -- {n} location validated.",
-										other: "Done -- {n} locations validated.",
+										one: "Done. {n} location validated.",
+										other: "Done. {n} locations validated.",
 									},
 									{ n },
 								),
@@ -193,9 +193,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 			<SelectorPicker ctl={picker} />
 			{enabledFields.length === 0 && (
 				<div className="bulk-operation__status" style={{ opacity: 0.8 }}>
-					{t(
-						"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.",
-					)}
+					{t("No enrichment fields are enabled. Turn them on in the Enrichment dialog.")}
 				</div>
 			)}
 			{total > 0 && enabledFields.length > 0 && (
@@ -298,7 +296,7 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 							return {
 								outcome,
 								doneMessage: t(
-									{ one: "Done -- {n} location pinned.", other: "Done -- {n} locations pinned." },
+									{ one: "Done. {n} location pinned.", other: "Done. {n} locations pinned." },
 									{ n: outcome.succeeded },
 								),
 							};
@@ -658,7 +656,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 							return {
 								outcome: result,
 								doneMessage:
-									t("Done -- {n} downloaded", { n: result.succeeded }) +
+									t("Done. {n} downloaded", { n: result.succeeded }) +
 									(result.failed.length > 0
 										? t(
 												{ one: ", {n} failed.", other: ", {n} failed." },
@@ -839,7 +837,7 @@ function settleRun(operation: BulkOperation) {
 		run.job.finish(
 			run.result.doneMessage ??
 				t(
-					{ one: "Done -- {n} location processed", other: "Done -- {n} locations processed" },
+					{ one: "Done. {n} location processed", other: "Done. {n} locations processed" },
 					{ n: run.total },
 				),
 		);
@@ -1003,8 +1001,8 @@ export function BulkProgress({
 						result.doneMessage ??
 						t(
 							{
-								one: "Done -- {n} location processed",
-								other: "Done -- {n} locations processed",
+								one: "Done. {n} location processed",
+								other: "Done. {n} locations processed",
 							},
 							{ n: total },
 						) +
@@ -1031,7 +1029,7 @@ export function BulkProgress({
 								done: fmt.format(done),
 								total: fmt.format(total),
 								pct,
-							}) + (rate != null ? t(" -- {rate}/s", { rate: fmt.format(Math.round(rate)) }) : "")}
+							}) + (rate != null ? t(", {rate}/s", { rate: fmt.format(Math.round(rate)) }) : "")}
 						</span>
 						<Button variant="destructive" onClick={() => run.controller.abort()}>
 							{t("Cancel")}

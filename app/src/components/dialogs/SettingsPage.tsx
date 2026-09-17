@@ -1110,7 +1110,7 @@ function PrereleaseRow() {
 	return (
 		<SettingRow
 			label={t("Update to pre-releases")}
-			description={t("Get new versions as soon as they are cut, before they are marked stable.")}
+			description={t("Get new versions early, before they are marked stable.")}
 			checked={useSetting("prereleaseUpdates")}
 			onChange={(v) => {
 				setSetting("prereleaseUpdates", v);
@@ -1287,7 +1287,7 @@ function DataBody() {
 			await relaunchApp();
 		} catch (e) {
 			log.error("data folder relaunch failed", e);
-			toast(t("Couldn't relaunch automatically -- restart the app to apply."));
+			toast(t("Couldn't relaunch automatically. Restart the app to apply."));
 			setBusy(false);
 		}
 	}, [pending]);

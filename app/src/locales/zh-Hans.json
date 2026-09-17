@@ -1,5 +1,4 @@
 {
-	" -- {rate}/s": " -- {rate}/秒",
 	" in {seconds}s ({rate}/s)": "，用时 {seconds}s（{rate}/s）",
 	"\"{path}\" already exists in the tree": "「{path}」在树中已存在",
 	"(deleted selection)": "（已删除的选择）",
@@ -31,6 +30,7 @@
 	", {n} tags": {
 		"other": "，{n} 个标签"
 	},
+	", {rate}/s": "，{rate}/秒",
 	":": ":",
 	"A coverage data download is still running.": "覆盖数据下载仍在进行中。",
 	"AND": "且",
@@ -136,7 +136,7 @@
 	"Binding": "快捷键",
 	"Blue-Red": "蓝-红",
 	"Blueprint": "蓝图",
-	"Border data missing -- downloading...": "缺少边界数据 - 正在下载…",
+	"Border data missing. Downloading...": "缺少边界数据。正在下载…",
 	"Borders": "边界",
 	"Both sides added": "双方均已添加",
 	"Both sides edited": "双方均已编辑",
@@ -261,11 +261,11 @@
 	"Could not add the tag": "无法添加标签",
 	"Could not read the report ({status}).": "无法读取反馈（{status}）。",
 	"Could not update tags": "无法更新标签",
-	"Couldn't download border data -- check your connection": "无法下载边界数据 - 请检查网络连接",
+	"Couldn't download border data. Check your connection.": "无法下载边界数据。请检查网络连接。",
 	"Couldn't download subdivision borders - check your connection": "无法下载行政区边界 - 请检查网络连接",
 	"Couldn't load the document.": "无法加载文档。",
 	"Couldn't load:": "无法加载：",
-	"Couldn't relaunch automatically -- restart the app to apply.": "无法自动重启 - 请手动重启应用以生效。",
+	"Couldn't relaunch automatically. Restart the app to apply.": "无法自动重启。请手动重启应用以生效。",
 	"Count": "计数",
 	"Count a streak by": "连续计数依据",
 	"Count up": "正计时",
@@ -353,17 +353,17 @@
 	"Document": "文档",
 	"Don't warn me again": "不再提醒",
 	"Done": "完成",
-	"Done -- {n} downloaded": "完成 - 已下载 {n} 个",
-	"Done -- {n} locations pinned.": {
-		"other": "完成 - 已固定 {n} 个位置。"
-	},
-	"Done -- {n} locations processed": {
-		"other": "完成 - 已处理 {n} 个位置"
-	},
-	"Done -- {n} locations validated.": {
-		"other": "完成 - 已验证 {n} 个位置。"
-	},
 	"Done!": "完成！",
+	"Done. {n} downloaded": "完成。已下载 {n} 个",
+	"Done. {n} locations pinned.": {
+		"other": "完成。已固定 {n} 个位置。"
+	},
+	"Done. {n} locations processed": {
+		"other": "完成。已处理 {n} 个位置"
+	},
+	"Done. {n} locations validated.": {
+		"other": "完成。已验证 {n} 个位置。"
+	},
 	"Dot color": "点颜色",
 	"Dot size": "点大小",
 	"Download": "下载",
@@ -521,7 +521,7 @@
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr 会对沿道路正朝北的位置自动平移。若要让未平移的位置保持未平移，请启用此选项。",
 	"Geocoding": "地理编码",
-	"Get new versions as soon as they are cut, before they are marked stable.": "在版本被标记为稳定版之前，第一时间获取新版本。",
+	"Get new versions early, before they are marked stable.": "在新版本标记为稳定版之前抢先获取。",
 	"Get one at map-making.app/keys": "在 map-making.app/keys 获取",
 	"Ghost selection": "幽灵选择",
 	"Ghost selection (Alt-click to isolate)": "幽灵选择（Alt+点击以隔离）",
@@ -752,7 +752,7 @@
 	"No document link selected.": "未选择文档链接。",
 	"No draft yet - open it once in GeoGuessr's map maker": "尚无草稿 - 请在 GeoGuessr 的地图制作器中打开一次",
 	"No duplicate groups within {distance}.": "{distance} 内无重复组。",
-	"No enrichment fields are enabled. Enable them in Map Settings under the Enrichment tab.": "未启用扩展字段。请在地图设置的「元数据扩展」标签页中启用。",
+	"No enrichment fields are enabled. Turn them on in the Enrichment dialog.": "未启用任何元数据扩展字段。请在「元数据扩展」对话框中启用。",
 	"No extra fields on this map. Enrich locations first.": "此地图无额外字段。请先丰富位置元数据。",
 	"No fields match.": "没有匹配的字段。",
 	"No fields on this map yet. Enrich or import locations to create some.": "此地图还没有字段。扩充或导入地点即可创建。",
@@ -924,7 +924,6 @@
 	"Rank metadata fields by how strongly they separate selections": "按区分选区的强度对元数据字段排序",
 	"Ranked by {field}": "按{field}排序",
 	"Re-enrich already enriched locations": "重新扩展已扩展的位置",
-	"Re-fetch document (bypass cache)": "重新获取文档（跳过缓存）",
 	"Re-pin already pinned locations": "重新固定已固定的位置",
 	"Read the manual": "阅读手册",
 	"Reassign": "重新分配",
@@ -1184,7 +1183,7 @@
 	"Style name": "样式名称",
 	"Style:": "样式：",
 	"Subdivision": "行政区",
-	"Subdivision borders are off -- enable them in Settings": "行政区边界已关闭 -- 请在设置中启用",
+	"Subdivision borders are off. Enable them in Settings.": "行政区边界已关闭。请在设置中启用。",
 	"Subdivision borders missing - downloading...": "缺少行政区边界 - 正在下载…",
 	"Subdivision data": "行政区数据",
 	"Suggested links": "建议的链接",
