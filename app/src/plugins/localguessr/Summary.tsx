@@ -8,7 +8,7 @@ import { formatDistance } from "@/lib/util/format";
 import { Flag } from "@/components/primitives/Flag";
 import { TagButton } from "./TagButton";
 import { useStartingThumbnails } from "./storage";
-import { loadSeenPano } from "@/lib/seen/seen";
+import { loadSeenPano } from "@/lib/seen/seenRecorder";
 import { usePano } from "@/lib/hooks/usePano";
 import type { RoundResult } from "./game";
 import { ReplayMap } from "./ReplayMap";

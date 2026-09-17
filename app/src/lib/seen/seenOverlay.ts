@@ -8,7 +8,8 @@ import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";
 import { fetchLocations, setActiveLocation, previewVirtualLocation } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import { getSeenCount, getSeenEntries, seenSkipNext } from "./seen";
+import { getSeenCount, getSeenEntries } from "./seen";
+import { seenSkipNext } from "./seenRecorder";
 import type { SeenEntry } from "@/bindings.gen";
 import type { RGBA } from "@/lib/util/color";
 

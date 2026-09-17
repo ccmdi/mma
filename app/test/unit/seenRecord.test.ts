@@ -17,7 +17,7 @@ vi.mock("@/store/useMapStore", () => ({
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import { seenRecord } from "@/lib/seen/seen";
+import { seenRecord } from "@/lib/seen/seenRecorder";
 
 const START = {
 	locationId: 7,

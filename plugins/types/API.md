@@ -28,6 +28,7 @@ change in any release.
 - [FieldDefRegistry](#fielddefregistry)
 - [Procedures](#procedures)
 - [Seen](#seen)
+- [SeenRecorder](#seenrecorder)
 - [Pano](#pano)
 - [Enrich](#enrich)
 - [PinPano](#pinpano)
@@ -2535,27 +2536,31 @@ Fetch a page of the seen (visited-panorama) history.
 
 Maps that have seen-history entries.
 
-### `loadSeenPano(entry: SeenPano, viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): Promise<...>`
+## SeenRecorder
+
+How the app records panorama visits into the seen history.
+
+### `loadSeenPano(entry: SeenPano, viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): Promise<...>` *(unstable)*
 
 Open a seen entry's panorama in the Street View viewer.
 
-### `seenFlush(viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): void`
+### `seenFlush(viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<ShowResult>; jump: (to: PanoDestination, frame?: PanoFrame | undefined) => void; ... 33 more ...; dispose: () => void; }): void` *(unstable)*
 
 Write the pending seen entry to disk, if any.
 
-### `seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<...>; ... 34 more ...; dispose: () => void; }): void`
+### `seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, viewer: { show: (loc: Location, { concealUntilReady }?: { concealUntilReady?: boolean | undefined; } | undefined) => Promise<...>; ... 34 more ...; dispose: () => void; }): void` *(unstable)*
 
 Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
 
-### `seenRecord(location: RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> & Nullable<Rename<Pick<Location, "id">, { id: "locationId"; }>> & LocationPOV, viewer: { ...; }): Promise<...>`
+### `seenRecord(location: RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> & Nullable<Rename<Pick<Location, "id">, { id: "locationId"; }>> & LocationPOV, viewer: { ...; }): Promise<...>` *(unstable)*
 
 Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives.
 
-### `seenSkipNext(panoId: string): void`
+### `seenSkipNext(panoId: string): void` *(unstable)*
 
 Suppress the next seen-history entry for `panoId`.
 
-### `seenUpdateGeo(geo: GeoDisplay): void`
+### `seenUpdateGeo(geo: GeoDisplay): void` *(unstable)*
 
 Update the pending seen entry's geocode info (country, address).
 

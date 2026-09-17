@@ -15,7 +15,7 @@ vi.mock("@/store/useMapStore", () => ({
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import { loadSeenPano } from "@/lib/seen/seen";
+import { loadSeenPano } from "@/lib/seen/seenRecorder";
 
 describe("loadSeenPano", () => {
 	it("jumps the open location by position when it has no pano id", async () => {

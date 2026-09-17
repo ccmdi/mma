@@ -23,7 +23,7 @@ import { formatDistance } from "@/lib/util/format";
 import { panosAt } from "@/lib/sv/query";
 import { previewVirtualLocation, setActiveLocation } from "@/store/useMapStore";
 import { usePano } from "@/lib/hooks/usePano";
-import { seenRecord } from "@/lib/seen/seen";
+import { seenRecord } from "@/lib/seen/seenRecorder";
 import type { LatLng } from "@/types";
 import {
 	currentRound,

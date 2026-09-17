@@ -29,6 +29,7 @@ import * as fieldDefs from "@/lib/data/fieldDefs";
 import * as fieldDefRegistry from "@/lib/data/fieldDefRegistry";
 import * as procedures from "@/lib/data/procedures";
 import * as seen from "@/lib/seen/seen";
+import * as seenRecorder from "@/lib/seen/seenRecorder";
 import * as panoSurface from "@/lib/sv/pano";
 import * as enrich from "@/lib/sv/enrich";
 import * as pinPano from "@/lib/sv/pinPano";
@@ -82,6 +83,8 @@ type FieldDefRegistryApi = typeof fieldDefRegistry;
 /** Running procedures directly, outside a registered provider. @unstable */
 type ProceduresApi = typeof procedures;
 type SeenApi = typeof seen;
+/** How the app records panorama visits into the seen history. @unstable */
+type SeenRecorderApi = typeof seenRecorder;
 /** The shared panorama viewer. @unstable */
 type PanoApi = typeof panoSurface;
 type EnrichApi = typeof enrich;
@@ -131,6 +134,7 @@ export interface MMA
 		FieldDefRegistryApi,
 		ProceduresApi,
 		SeenApi,
+		SeenRecorderApi,
 		PanoApi,
 		EnrichApi,
 		PinPanoApi,
@@ -175,6 +179,7 @@ const mma: MMA = {
 	...fieldDefRegistry,
 	...procedures,
 	...seen,
+	...seenRecorder,
 	...panoSurface,
 	...enrich,
 	...pinPano,

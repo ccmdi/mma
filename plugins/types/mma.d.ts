@@ -5840,6 +5840,32 @@ declare namespace procedures {
   export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderPart as ProviderPart, procedures_ProviderRun as ProviderRun, procedures_RunOpts as RunOpts };
 }
 
+/** Fetch a page of the seen (visited-panorama) history. */
+declare function getSeenEntries(limit?: number, offset?: number, filter?: SeenFilter, thumbnails?: boolean): Promise<SeenEntry[]>;
+/** Number of seen entries matching the filter (all when omitted). */
+declare function getSeenCount(filter?: SeenFilter): Promise<number>;
+/** Distinct country codes that appear in the seen history. */
+declare function getSeenCountries(): Promise<string[]>;
+/** Maps that have seen-history entries. */
+declare function getSeenMaps(): Promise<SeenMapInfo[]>;
+/** Delete the entire seen history. Not undoable. */
+declare function clearSeen(): Promise<void>;
+
+declare const seen_clearSeen: typeof clearSeen;
+declare const seen_getSeenCount: typeof getSeenCount;
+declare const seen_getSeenCountries: typeof getSeenCountries;
+declare const seen_getSeenEntries: typeof getSeenEntries;
+declare const seen_getSeenMaps: typeof getSeenMaps;
+declare namespace seen {
+  export {
+    seen_clearSeen as clearSeen,
+    seen_getSeenCount as getSeenCount,
+    seen_getSeenCountries as getSeenCountries,
+    seen_getSeenEntries as getSeenEntries,
+    seen_getSeenMaps as getSeenMaps,
+  };
+}
+
 export type PanoDestination = string | google.maps.LatLngLiteral;
 export type PanoFrame = CameraFrame & {
     zoom?: number;
@@ -6030,53 +6056,39 @@ export type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" |
     id: "locationId";
 }>>;
 export type SeenPano = Pick<SeenEntry, "locationId" | "lat" | "lng" | "heading" | "pitch" | "zoom" | "countryCode"> & Pick<Location, "panoId">;
-/** Suppress the next seen-history entry for `panoId`. */
+/** Suppress the next seen-history entry for `panoId`. @unstable */
 declare function seenSkipNext(panoId: string): void;
-/** Update the pending seen entry's geocode info (country, address). */
+/** Update the pending seen entry's geocode info (country, address). @unstable */
 declare function seenUpdateGeo(geo: GeoDisplay): void;
-/** Record a panorama change for the seen history. Flushes the previous entry and stages the new one. */
+/** Record a panorama change for the seen history. Flushes the previous entry and stages the new one. @unstable */
 declare function seenPanoChanged(location: PendingEntryLocation, geo: GeoDisplay | null, viewer: PanoViewer): void;
-/** Write the pending seen entry to disk, if any. */
+/** Write the pending seen entry to disk, if any. @unstable */
 declare function seenFlush(viewer: PanoViewer): void;
-/** Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives. */
+/** Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives. @unstable */
 declare function seenRecord(location: PendingEntryLocation & LocationPOV, viewer: PanoViewer): Promise<void>;
-/** Open a seen entry's panorama in the Street View viewer. */
+/** Open a seen entry's panorama in the Street View viewer. @unstable */
 declare function loadSeenPano(entry: SeenPano, viewer: PanoViewer): Promise<void>;
-/** Fetch a page of the seen (visited-panorama) history. */
-declare function getSeenEntries(limit?: number, offset?: number, filter?: SeenFilter, thumbnails?: boolean): Promise<SeenEntry[]>;
-/** Number of seen entries matching the filter (all when omitted). */
-declare function getSeenCount(filter?: SeenFilter): Promise<number>;
-/** Distinct country codes that appear in the seen history. */
-declare function getSeenCountries(): Promise<string[]>;
-/** Maps that have seen-history entries. */
-declare function getSeenMaps(): Promise<SeenMapInfo[]>;
-/** Delete the entire seen history. Not undoable. */
-declare function clearSeen(): Promise<void>;
 
-declare const seen_clearSeen: typeof clearSeen;
-declare const seen_getSeenCount: typeof getSeenCount;
-declare const seen_getSeenCountries: typeof getSeenCountries;
-declare const seen_getSeenEntries: typeof getSeenEntries;
-declare const seen_getSeenMaps: typeof getSeenMaps;
-declare const seen_loadSeenPano: typeof loadSeenPano;
-declare const seen_seenFlush: typeof seenFlush;
-declare const seen_seenPanoChanged: typeof seenPanoChanged;
-declare const seen_seenRecord: typeof seenRecord;
-declare const seen_seenSkipNext: typeof seenSkipNext;
-declare const seen_seenUpdateGeo: typeof seenUpdateGeo;
-declare namespace seen {
+/** @unstable */
+declare const seenRecorder_loadSeenPano: typeof loadSeenPano;
+/** @unstable */
+declare const seenRecorder_seenFlush: typeof seenFlush;
+/** @unstable */
+declare const seenRecorder_seenPanoChanged: typeof seenPanoChanged;
+/** @unstable */
+declare const seenRecorder_seenRecord: typeof seenRecord;
+/** @unstable */
+declare const seenRecorder_seenSkipNext: typeof seenSkipNext;
+/** @unstable */
+declare const seenRecorder_seenUpdateGeo: typeof seenUpdateGeo;
+declare namespace seenRecorder {
   export {
-    seen_clearSeen as clearSeen,
-    seen_getSeenCount as getSeenCount,
-    seen_getSeenCountries as getSeenCountries,
-    seen_getSeenEntries as getSeenEntries,
-    seen_getSeenMaps as getSeenMaps,
-    seen_loadSeenPano as loadSeenPano,
-    seen_seenFlush as seenFlush,
-    seen_seenPanoChanged as seenPanoChanged,
-    seen_seenRecord as seenRecord,
-    seen_seenSkipNext as seenSkipNext,
-    seen_seenUpdateGeo as seenUpdateGeo,
+    seenRecorder_loadSeenPano as loadSeenPano,
+    seenRecorder_seenFlush as seenFlush,
+    seenRecorder_seenPanoChanged as seenPanoChanged,
+    seenRecorder_seenRecord as seenRecord,
+    seenRecorder_seenSkipNext as seenSkipNext,
+    seenRecorder_seenUpdateGeo as seenUpdateGeo,
   };
 }
 
@@ -6848,6 +6860,8 @@ export type FieldDefRegistryApi = typeof fieldDefRegistry;
 /** Running procedures directly, outside a registered provider. @unstable */
 export type ProceduresApi = typeof procedures;
 export type SeenApi = typeof seen;
+/** How the app records panorama visits into the seen history. @unstable */
+export type SeenRecorderApi = typeof seenRecorder;
 /** The shared panorama viewer. @unstable */
 export type PanoApi = typeof panoSurface;
 export type EnrichApi = typeof enrich$1;
@@ -6869,7 +6883,7 @@ export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 export type UtilApi = typeof util;
-interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 
 declare global {

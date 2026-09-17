@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useMemo } from "react";
 import { isVirtualLocation } from "@/types";
 import { useMapState } from "@/store/useMapStore";
-import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seen";
+import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
 import { usePano } from "@/lib/hooks/usePano";
 import { usePanoViewer } from "./PanoViewerContext";
 

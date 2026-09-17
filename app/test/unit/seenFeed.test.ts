@@ -5,10 +5,10 @@ import { mount } from "./fixtures/harness";
 import { createLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
 import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
-import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seen";
+import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
 import { useSeenFeed } from "@/components/editor/location/useSeenFeed";
 
-vi.mock("@/lib/seen/seen", () => ({
+vi.mock("@/lib/seen/seenRecorder", () => ({
 	seenPanoChanged: vi.fn(),
 	seenUpdateGeo: vi.fn(),
 	seenFlush: vi.fn(),
