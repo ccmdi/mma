@@ -13,6 +13,8 @@ import * as mapList from "@/store/mapList";
 import { cmd } from "@/lib/commands";
 import { goTo } from "@/store/router";
 
+export { mapOpen } from "@/lib/util/debug";
+
 /** Run a single procedure over a selector. */
 export { runProcedure, procedureEntry } from "@/lib/data/procedures";
 

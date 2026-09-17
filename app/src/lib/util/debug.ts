@@ -75,3 +75,18 @@ export function trace(group: string, opts?: { summary?: boolean }): Trace {
 		},
 	};
 }
+
+/** Cross-module stopwatch for map-open latency. */
+export const mapOpen = {
+	start: 0,
+	seen: new Set<string>(),
+	begin() {
+		this.start = performance.now();
+		this.seen.clear();
+	},
+	mark(phase: string) {
+		if (!this.start || this.seen.has(phase)) return;
+		this.seen.add(phase);
+		log.info(`[map-open] ${phase}=${Math.round(performance.now() - this.start)}ms`);
+	},
+};

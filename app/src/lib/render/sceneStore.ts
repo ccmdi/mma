@@ -4,7 +4,8 @@ import { mmaBufUrl } from "@/lib/util/util";
 import type { RGB, RGBA } from "@/lib/util/color";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
-import { getMapState, mapOpen, setSelectedLocationIds } from "@/store/useMapStore";
+import { getMapState, setSelectedLocationIds } from "@/store/useMapStore";
+import { mapOpen } from "@/lib/util/debug";
 import { emit as emitEvent, subscribe as subscribeEvent } from "@/lib/events";
 import type { MarkerStyle } from "@/types";
 

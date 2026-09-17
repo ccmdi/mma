@@ -80,7 +80,7 @@ export function useMap(name: string, opts: { closeLocation?: boolean } = {}) {
 /** Open a map and wait for its editor to load the scene, which selected ids resolve against. */
 export async function openMap(id: string) {
 	await withApi(async (api, mapId) => api._test.openMap(mapId), id);
-	await browser.waitUntil(() => withApi((api) => api.mapOpen.seen.has("markers")), {
+	await browser.waitUntil(() => withApi((api) => api._test.mapOpen.seen.has("markers")), {
 		timeoutMsg: `map ${id} never loaded its scene`,
 	});
 }

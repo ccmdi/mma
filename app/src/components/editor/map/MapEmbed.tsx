@@ -24,9 +24,9 @@ import {
 	applySelectionUpdate,
 	currentSelection,
 	fetchBounds,
-	mapOpen,
 	useMapState,
 } from "@/store/useMapStore";
+import { mapOpen } from "@/lib/util/debug";
 import { addSelection, batch } from "@/store/selections";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { setMapHost, tryInterceptDraw } from "@/lib/map/mapState";

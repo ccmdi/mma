@@ -37,8 +37,12 @@ vi.mock("@/store/useMapStore", () => ({
 		activeLocation: h.activeId == null ? null : { id: h.activeId },
 		selectedLocationIds: h.selected,
 	}),
-	mapOpen: { mark: (phase: string) => h.marks.push(phase) },
 	setSelectedLocationIds: () => {},
+}));
+
+vi.mock("@/lib/util/debug", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/util/debug")>()),
+	mapOpen: { mark: (phase: string) => h.marks.push(phase) },
 }));
 
 vi.mock("@/lib/commands", () => ({

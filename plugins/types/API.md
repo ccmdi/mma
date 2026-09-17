@@ -385,18 +385,6 @@ Defer autosave until the returned release function runs. Useful for batches that
 
 One-time store startup. The app calls this; plugins never need to.
 
-### `mapOpen`
-
-Cross-module stopwatch for map-open latency.
-
-#### `mapOpen.begin(): void`
-
-#### `mapOpen.mark(phase: string): void`
-
-#### `mapOpen.seen: Set<string>`
-
-#### `mapOpen.start: number`
-
 ### `mergeDuplicates(distance: number): Promise<void>` *(unstable)*
 
 Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
@@ -3133,6 +3121,10 @@ Import a previewed file, optionally assigning a tag.
 #### `_test.importPaste(text: string): Promise<EditorImportResult[]>` *(unstable)*
 
 Import locations from pasted text and commit them to the map.
+
+#### `_test.mapOpen: { start: number; seen: Set<string>; begin(): void; mark(phase: string): void; }`
+
+Cross-module stopwatch for map-open latency.
 
 #### `_test.openMap(id: string): Promise<void>` *(unstable)*
 

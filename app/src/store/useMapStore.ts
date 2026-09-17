@@ -16,7 +16,7 @@ import { log } from "@/lib/util/log";
 import { hexToRgb, type RGB } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { storeWarningText } from "@/lib/util/format";
-import { trace } from "@/lib/util/debug";
+import { mapOpen, trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
@@ -233,21 +233,6 @@ export async function initStore() {
 	void listen("map-list-changed", () => void reloadMapList());
 	void listen<StoreWarning>("store-warning", (e) => toast(storeWarningText(e.payload), 8000));
 }
-
-/** Cross-module stopwatch for map-open latency. */
-export const mapOpen = {
-	start: 0,
-	seen: new Set<string>(),
-	begin() {
-		this.start = performance.now();
-		this.seen.clear();
-	},
-	mark(phase: string) {
-		if (!this.start || this.seen.has(phase)) return;
-		this.seen.add(phase);
-		log.info(`[map-open] ${phase}=${Math.round(performance.now() - this.start)}ms`);
-	},
-};
 
 /** Reset all per-map editing state to its initial values. */
 function clearEditState() {
