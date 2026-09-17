@@ -7,7 +7,12 @@ import { definePluginEvent, emitPluginEvent } from "@/plugins/scope";
 import { createTags, setPluginMode } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 import { GenerationEngine } from "./engine/GenerationEngine";
-import type { GeneratedLocation, GeneratorRegion, GeneratorSettings } from "./engine/types";
+import type {
+	GeneratedLocation,
+	GeneratorRegion,
+	GeneratorSettings,
+	GeneratorStats,
+} from "./engine/types";
 import { searchCoverage } from "./searchCoverage";
 
 export type GeneratorStatus = "idle" | "running" | "paused";
@@ -60,8 +65,11 @@ export function getGeneratorStatus(): GeneratorStatus {
 	return run.engine.isPaused() ? "paused" : "running";
 }
 
-export function getGeneratorStats(): ReturnType<GenerationEngine["stats"]> | null {
-	return run?.engine.stats() ?? null;
+let lastStats: GeneratorStats | null = null;
+
+/** The live run's stats, or the last run's once it settled. */
+export function getGeneratorStats(): GeneratorStats | null {
+	return run ? run.engine.stats() : lastStats;
 }
 
 /** Generate over `regions`, tagging finds with `tagName`. False while a run is already live,
@@ -116,6 +124,7 @@ function stop(engine: GenerationEngine): void {
 function settle(engine: GenerationEngine, message?: string): void {
 	const current = run;
 	if (current?.engine !== engine) return;
+	lastStats = engine.stats();
 	run = null;
 	current.job.finish(sidebarOpen ? undefined : message);
 	emitPluginEvent(GENERATOR_CHANGED);

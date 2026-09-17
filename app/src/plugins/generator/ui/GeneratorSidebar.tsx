@@ -24,7 +24,16 @@ import {
 } from "../session";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
-import { mdiBullseyeArrow, mdiRadar, mdiSpeedometer } from "@mdi/js";
+import {
+	mdiBullseyeArrow,
+	mdiChartScatterPlot,
+	mdiContentDuplicate,
+	mdiFilterRemove,
+	mdiMapMarkerCheck,
+	mdiRadar,
+	mdiSpeedometer,
+} from "@mdi/js";
+import { fmt } from "@/lib/util/format";
 import { MONTHS, ymParse } from "@/lib/util/date";
 import { formatDistance } from "@/lib/util/format";
 import "./generator.css";
@@ -83,21 +92,47 @@ function StatsRow() {
 	if (!stats) return null;
 	return (
 		<div className="generator-sidebar__stats mono">
-			<Stat
-				icon={mdiBullseyeArrow}
-				hint={t("Hit rate: the share of answered probes that became a location, last 10 seconds")}
-				value={stats.hitRate == null ? "--" : `${Math.round(stats.hitRate * 100)}%`}
-			/>
-			<Stat
-				icon={mdiSpeedometer}
-				hint={t("Locations added per second, last 10 seconds")}
-				value={t("{rate}/s", { rate: Math.round(stats.locsPerSec) })}
-			/>
-			<Stat
-				icon={mdiRadar}
-				hint={t("Probes answered per second, last 10 seconds")}
-				value={t("{rate}/s", { rate: Math.round(stats.probesPerSec) })}
-			/>
+			<div className="generator-sidebar__stat-group">
+				<Stat
+					icon={mdiBullseyeArrow}
+					hint={t("Hit rate: the share of answered probes that became a location, last 10 seconds")}
+					value={stats.hitRate == null ? "--" : `${Math.round(stats.hitRate * 100)}%`}
+				/>
+				<Stat
+					icon={mdiSpeedometer}
+					hint={t("Locations added per second, last 10 seconds")}
+					value={t("{rate}/s", { rate: Math.round(stats.locsPerSec) })}
+				/>
+				<Stat
+					icon={mdiRadar}
+					hint={t("Probes answered per second, last 10 seconds")}
+					value={t("{rate}/s", { rate: Math.round(stats.probesPerSec) })}
+				/>
+			</div>
+			<div className="generator-sidebar__stat-group">
+				<Stat
+					icon={mdiChartScatterPlot}
+					hint={t(
+						"Spread: how evenly locations cover the probed area, from clustered (low) to even (100%)",
+					)}
+					value={stats.spread == null ? "--" : `${Math.round(stats.spread * 100)}%`}
+				/>
+				<Stat
+					icon={mdiMapMarkerCheck}
+					hint={t("Locations found this run")}
+					value={fmt.format(stats.found)}
+				/>
+				<Stat
+					icon={mdiFilterRemove}
+					hint={t("Panos rejected by the filters")}
+					value={fmt.format(stats.rejected)}
+				/>
+				<Stat
+					icon={mdiContentDuplicate}
+					hint={t("Duplicate panos skipped")}
+					value={fmt.format(stats.duplicates)}
+				/>
+			</div>
 		</div>
 	);
 }
@@ -323,7 +358,6 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			</Section>
 
 			<div className="generator-sidebar__footer">
-				{running && <StatsRow />}
 				<p className="generator-sidebar__summary">{summarizeSettings(settings)}</p>
 				<div className="generator-sidebar__actions">
 					{!running ? (
@@ -340,6 +374,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 							<Button onClick={stopGeneration}>{t("Stop")}</Button>
 						</>
 					)}
+					<StatsRow />
 				</div>
 			</div>
 		</Sidebar>

@@ -1,6 +1,7 @@
 import type {
 	GeneratorSettings,
 	GeneratorRegion,
+	GeneratorStats,
 	GeneratedLocation,
 	GenerationCallbacks,
 	PointSource,
@@ -17,6 +18,7 @@ import { panosAt } from "@/lib/sv/query";
 import { distMeters, lerpLng, unionBounds } from "@/lib/geo/geo";
 import { searchCoverage } from "../searchCoverage";
 import { RateWindow } from "./rateWindow";
+import { spreadIndex } from "./spread";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { chunk } from "@/lib/util/util";
@@ -65,6 +67,12 @@ export class GenerationEngine {
 	private pointSources = new Map<string, Promise<PointSource>>();
 	private answered = new RateWindow();
 	private accepted = new RateWindow();
+	private probesTotal = 0;
+	private foundTotal = 0;
+	private duplicates = 0;
+	private rejected = 0;
+	private cells = new Map<string, { probes: number; found: number }>();
+	private cellDeg = 0.25;
 
 	constructor(
 		settings: GeneratorSettings,
@@ -178,14 +186,20 @@ export class GenerationEngine {
 		this.flushBatch(); // flush any locations held back while paused
 	}
 
-	/** Observed rates over the last ten seconds: probes answered, locations added, and
-	 *  the share of answers that became a location. */
-	stats(): { probesPerSec: number; locsPerSec: number; hitRate: number | null } {
+	/** Rates over the last ten seconds plus run-wide counts: probes answered, locations
+	 *  added, the share of answers that became a location, and how evenly the finds
+	 *  spread over the probed cells. */
+	stats(): GeneratorStats {
 		const answers = this.answered.inWindow();
 		return {
 			probesPerSec: this.answered.perSecond(),
 			locsPerSec: this.accepted.perSecond(),
 			hitRate: answers > 0 ? this.accepted.inWindow() / answers : null,
+			probes: this.probesTotal,
+			found: this.foundTotal,
+			duplicates: this.duplicates,
+			rejected: this.rejected,
+			spread: spreadIndex([...this.cells.values()].filter((c) => c.probes > 0).map((c) => c.found)),
 		};
 	}
 
@@ -239,7 +253,20 @@ export class GenerationEngine {
 
 	private async beginSearchOverlay(): Promise<void> {
 		const b = await this.searchOverlayBounds();
-		if (b) searchCoverage.beginSession(b, this.settings.radius);
+		if (b) {
+			searchCoverage.beginSession(b, this.settings.radius);
+			this.cellDeg = Math.max((b.north - b.south) / 24, (b.east - b.west) / 24, 0.005);
+		}
+	}
+
+	private cell(p: LatLng): { probes: number; found: number } {
+		const key = `${Math.floor(p.lat / this.cellDeg)}:${Math.floor(p.lng / this.cellDeg)}`;
+		let c = this.cells.get(key);
+		if (!c) {
+			c = { probes: 0, found: 0 };
+			this.cells.set(key, c);
+		}
+		return c;
 	}
 
 	isRunning(): boolean {
@@ -501,8 +528,6 @@ export class GenerationEngine {
 		const threshold = Math.max(1, Math.ceil(coords.length * ROUND_OVERLAP_AT));
 		let received = 0;
 		let found = 0;
-		let lastArrival = performance.now();
-		let maxGap = 0;
 		let reachedMost!: () => void;
 		const mostlyDone = new Promise<void>((resolve) => (reachedMost = resolve));
 
@@ -530,9 +555,8 @@ export class GenerationEngine {
 			seen[index] = 1;
 			received++;
 			this.answered.add(1);
-			const now = performance.now();
-			maxGap = Math.max(maxGap, now - lastArrival);
-			lastArrival = now;
+			this.probesTotal++;
+			this.cell(coords[index]).probes++;
 			if (received === threshold) reachedMost();
 			if (!pano) return;
 			// Paused or stopped while the lookup was in flight: drop the result.
@@ -540,7 +564,9 @@ export class GenerationEngine {
 			found++;
 			// The search already answered the metadata, so a seed that is this pano is
 			// accepted from what is in hand; only derived ids need a lookup.
-			for (const id of this.seedsFrom(pano, region)) {
+			const ids = this.seedsFrom(pano, region);
+			if (ids.length === 0) this.rejected++;
+			for (const id of ids) {
 				if (id === pano.id) direct.push(pano);
 				else seeds.push(id);
 			}
@@ -563,7 +589,7 @@ export class GenerationEngine {
 				for (let i = 0; i < panos.length; i++) handle(i, panos[i]);
 				const probeMs = Math.max(1, performance.now() - probeStart);
 				log.debug(
-					`[generator] probed ${coords.length} in ${Math.round(probeMs)}ms (${Math.round((coords.length * 1000) / probeMs)} search/s), ${found} panos, max answer gap ${Math.round(maxGap)}ms`,
+					`[generator] probed ${coords.length} in ${Math.round(probeMs)}ms (${Math.round((coords.length * 1000) / probeMs)} search/s), ${found} panos`,
 				);
 			} finally {
 				flushSeeds();
@@ -623,6 +649,7 @@ export class GenerationEngine {
 	/** Panos already in hand enter the walk at its post-lookup stage. */
 	private accept(panos: Pano[], region: GeneratorRegion): void {
 		const fresh = panos.filter((p) => !region.checkedPanos.has(p.id));
+		this.duplicates += panos.length - fresh.length;
 		if (fresh.length === 0) return;
 		for (const p of fresh) region.checkedPanos.add(p.id);
 		void this.processPanos(fresh, region, 0).catch((e) => {
@@ -698,7 +725,10 @@ export class GenerationEngine {
 		const s = this.settings;
 		const panoId: string = pano.id;
 
-		if (this.globalFoundPanoIds.has(panoId)) return;
+		if (this.globalFoundPanoIds.has(panoId)) {
+			this.duplicates++;
+			return;
+		}
 		if (region.found.length >= region.target) return;
 
 		this.globalFoundPanoIds.add(panoId);
@@ -729,6 +759,8 @@ export class GenerationEngine {
 		region.found.push(loc);
 		this.pendingBatch.push(loc);
 		this.accepted.add(1);
+		this.foundTotal++;
+		this.cell(loc).found++;
 		this.callbacks.onProgress(region.id, region.found.length, region.target);
 
 		if (this.pendingBatch.length >= 200) {

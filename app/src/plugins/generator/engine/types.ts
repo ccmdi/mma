@@ -127,6 +127,17 @@ export const DEFAULT_SETTINGS: GeneratorSettings = {
 	samplingMode: "random",
 };
 
+export interface GeneratorStats {
+	probesPerSec: number;
+	locsPerSec: number;
+	hitRate: number | null;
+	probes: number;
+	found: number;
+	duplicates: number;
+	rejected: number;
+	spread: number | null;
+}
+
 export interface GeneratorRegionMeta {
 	target: number;
 	found: GeneratedLocation[];
