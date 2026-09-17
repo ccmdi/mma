@@ -2264,15 +2264,6 @@ Load lazy bundled modules so `mmaRequire` can return them synchronously.
 
 ## Sidecar
 
-### `installedVersion(pluginId: string): Promise<string | null>`
-
-The sidecar version installed for a plugin, or null when it has none yet.
-
-### `request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T> | undefined): Promise<T | null>`
-
-Send a command to a plugin's sidecar and resolve with its last emitted JSON
-object (null if it emitted none). `payload` is sent as JSON.
-
 ### `sidecar: { request: <T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T> | undefined) => Promise<T | null>; installedVersion: (pluginId: string) => Promise<...>; }`
 
 The nested `sidecar` namespace on the plugin surface.
@@ -3352,7 +3343,11 @@ Shims for removed APIs.
 
 ### `getWorkArea(): WorkArea` *(unstable)*
 
+### `installedVersion(pluginId: string): Promise<string | null>` *(unstable)*
+
 ### `registerEnrichmentProvider(provider: Provider<unknown, unknown>): void` *(unstable)*
+
+### `request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T> | undefined): Promise<T | null>` *(unstable)*
 
 ### `setUserFieldDefs(defs: Record<string, ExtraFieldDef>): Promise<void>` *(unstable)*
 

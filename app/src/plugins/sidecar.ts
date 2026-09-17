@@ -53,7 +53,7 @@ export interface SidecarOptions<T> {
 
 /** Send a command to a plugin's sidecar and resolve with its last emitted JSON
  *  object (null if it emitted none). `payload` is sent as JSON. */
-export async function request<T>(
+async function request<T>(
 	pluginId: string,
 	command: string,
 	payload?: unknown,
@@ -106,7 +106,7 @@ export async function request<T>(
 }
 
 /** The sidecar version installed for a plugin, or null when it has none yet. */
-export function installedVersion(pluginId: string): Promise<string | null> {
+function installedVersion(pluginId: string): Promise<string | null> {
 	return commands.sidecarInstalledVersion(pluginId);
 }
 

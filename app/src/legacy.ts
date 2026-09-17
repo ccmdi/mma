@@ -13,6 +13,7 @@ import {
 import { cmd } from "@/lib/commands";
 import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
 import { storage } from "@/plugins/pluginStorage";
+import { sidecar, type SidecarOptions } from "@/plugins/sidecar";
 import type { ExtraFieldDef, Selector } from "@/bindings.gen";
 
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
@@ -110,4 +111,19 @@ export function setUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
 /** @deprecated v0.11.0. Use `MMA.storage()`. */
 export function createPluginStorage(id: string) {
 	return storage(id);
+}
+
+/** @deprecated v0.11.0. Use `MMA.sidecar.request()`. */
+export function request<T>(
+	pluginId: string,
+	command: string,
+	payload?: unknown,
+	opts?: SidecarOptions<T>,
+) {
+	return sidecar.request(pluginId, command, payload, opts);
+}
+
+/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. */
+export function installedVersion(pluginId: string) {
+	return sidecar.installedVersion(pluginId);
 }

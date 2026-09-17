@@ -5256,22 +5256,22 @@ export interface SidecarOptions<T> {
     signal?: AbortSignal;
 }
 /** Send a command to a plugin's sidecar and resolve with its last emitted JSON
- *  object (null if it emitted none). `payload` is sent as JSON. */
-declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
-/** The sidecar version installed for a plugin, or null when it has none yet. */
-declare function installedVersion(pluginId: string): Promise<string | null>;
+ *  object (null if it emitted none). `payload` is sent as JSON. @unstable */
+declare function request$1<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
+/** The sidecar version installed for a plugin, or null when it has none yet. @unstable */
+declare function installedVersion$1(pluginId: string): Promise<string | null>;
 /** The nested `sidecar` namespace on the plugin surface. */
 declare const sidecar: {
-    request: typeof request;
-    installedVersion: typeof installedVersion;
+    /** @unstable */
+    request: typeof request$1;
+    /** @unstable */
+    installedVersion: typeof installedVersion$1;
 };
 
 export type sidecar$1_SidecarOptions<T> = SidecarOptions<T>;
-declare const sidecar$1_installedVersion: typeof installedVersion;
-declare const sidecar$1_request: typeof request;
 declare const sidecar$1_sidecar: typeof sidecar;
 declare namespace sidecar$1 {
-  export { sidecar$1_installedVersion as installedVersion, sidecar$1_request as request, sidecar$1_sidecar as sidecar };
+  export { sidecar$1_sidecar as sidecar };
   export type { sidecar$1_SidecarOptions as SidecarOptions };
 }
 
@@ -6577,6 +6577,10 @@ declare function registerEnrichmentProvider(provider: Provider): void;
 declare function setUserFieldDefs(defs: Record<string, ExtraFieldDef>): Promise<void>;
 /** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
 declare function createPluginStorage(id: string): PluginStorage;
+/** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @unstable */
+declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
+/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
+declare function installedVersion(pluginId: string): Promise<string | null>;
 
 /** @unstable */
 declare const legacy_createPluginStorage: typeof createPluginStorage;
@@ -6611,7 +6615,11 @@ declare const legacy_getTagCounts: typeof getTagCounts;
 /** @unstable */
 declare const legacy_getWorkArea: typeof getWorkArea;
 /** @unstable */
+declare const legacy_installedVersion: typeof installedVersion;
+/** @unstable */
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
+/** @unstable */
+declare const legacy_request: typeof request;
 /** @unstable */
 declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
 /** @unstable */
@@ -6634,7 +6642,9 @@ declare namespace legacy {
     legacy_getSelections as getSelections,
     legacy_getTagCounts as getTagCounts,
     legacy_getWorkArea as getWorkArea,
+    legacy_installedVersion as installedVersion,
     legacy_registerEnrichmentProvider as registerEnrichmentProvider,
+    legacy_request as request,
     legacy_setUserFieldDefs as setUserFieldDefs,
     legacy_waitForGoogleMap as waitForGoogleMap,
   };
