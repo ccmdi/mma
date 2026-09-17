@@ -10,7 +10,7 @@ import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";
 import { applySelectionUpdate, getMapState, partition, resetSelections } from "@/store/useMapStore";
 import { addSelection, batch, setSelectionColors } from "@/store/selections";
-import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
+import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";

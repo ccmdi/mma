@@ -36,7 +36,7 @@ export function knownFieldDefs(...keys: string[]): Record<string, ExtraFieldDef>
 	return out;
 }
 
-/** All enrichment field options (core and plugin-registered). */
+/** All enrichment field options (core and plugin-registered). @unstable */
 export function getEnrichFieldOptions(): EnrichFieldOption[] {
 	return [...coreFieldOptions, ...pluginFieldOptions];
 }
@@ -54,12 +54,12 @@ export function registerEnrichFields(fields: EnrichFieldOption[]) {
 	}
 }
 
-/** All enrichment field keys (core and plugin-registered). */
+/** All enrichment field keys (core and plugin-registered). @unstable */
 export function getAllEnrichKeys(): string[] {
 	return getEnrichFieldOptions().map((f) => f.key);
 }
 
-/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). */
+/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
 export function getDefaultEnrichKeys(): string[] {
 	return getEnrichFieldOptions()
 		.filter((f) => !f.defaultOff)
@@ -125,22 +125,22 @@ export function registerProvider(provider: Provider) {
 	}
 }
 
-/** All registered providers. */
+/** All registered providers. @unstable */
 export function getProviders(): Provider[] {
 	return providers;
 }
 
-/** The provider that produces a given extra field, if any. */
+/** The provider that produces a given extra field, if any. @unstable */
 export function getProviderForField(field: string): Provider | undefined {
 	return providers.find((p) => p.fieldDefs != null && field in p.fieldDefs);
 }
 
-/** True when `key` is in the given enrichment set (or in the default set when null). */
+/** True when `key` is in the given enrichment set (or in the default set when null). @unstable */
 export function isFieldEnabled(enrichFields: string[] | null, key: string): boolean {
 	return (enrichFields ?? getDefaultEnrichKeys()).includes(key);
 }
 
-/** Every field transitively derived from the `changed` keys via the provider graph. */
+/** Every field transitively derived from the `changed` keys via the provider graph. @unstable */
 export function derivedFrom(changed: Iterable<string>): Set<string> {
 	const stale = new Set<string>();
 	const queue = [...changed];
@@ -159,7 +159,7 @@ export function derivedFrom(changed: Iterable<string>): Set<string> {
 	return stale;
 }
 
-/** Remove fields transitively derived from `changed` from an `extra` record. */
+/** Remove fields transitively derived from `changed` from an `extra` record. @unstable */
 export function withoutDerivedFrom(
 	extra: Record<string, unknown> | null,
 	changed: Iterable<string>,

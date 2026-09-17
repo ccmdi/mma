@@ -10,11 +10,11 @@ import {
 	unregisterPluginFieldDefs,
 	isBuiltinField,
 	isWritableField,
-	projectionsForType,
 	isListableField,
 	getBuiltinKeys,
 	fieldLabel,
 } from "@/lib/data/fieldDefRegistry";
+import { projectionsForType } from "@/lib/data/fieldProjections";
 import { getEventVersion } from "@/lib/events";
 import { initLocale } from "@/lib/i18n";
 import { pseudo } from "../../scripts/i18n-extract.mjs";

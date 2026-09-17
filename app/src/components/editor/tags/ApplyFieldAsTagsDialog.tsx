@@ -4,7 +4,7 @@ import { NSelect } from "@/components/primitives/NSelect";
 import type { KeySpec } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
-import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
+import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { countBy, countIn, coverage, createTags, partition } from "@/store/useMapStore";
 import { all, not } from "@/store/selections";

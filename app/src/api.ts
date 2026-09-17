@@ -27,6 +27,7 @@ import * as sidecar from "@/plugins/sidecar";
 import * as uiSurface from "@/components/primitives/ui";
 import * as fieldDefs from "@/lib/data/fieldDefs";
 import * as fieldDefRegistry from "@/lib/data/fieldDefRegistry";
+import * as fieldProjections from "@/lib/data/fieldProjections";
 import * as procedures from "@/lib/data/procedures";
 import * as seen from "@/lib/seen/seen";
 import * as seenRecorder from "@/lib/seen/seenRecorder";
@@ -82,6 +83,8 @@ type SidecarApi = typeof sidecar;
 type UiApi = typeof uiSurface;
 type FieldDefsApi = typeof fieldDefs;
 type FieldDefRegistryApi = typeof fieldDefRegistry;
+/** The keys a field can be grouped by. @unstable */
+type FieldProjectionsApi = typeof fieldProjections;
 /** Running procedures directly, outside a registered provider. @unstable */
 type ProceduresApi = typeof procedures;
 type SeenApi = typeof seen;
@@ -138,6 +141,7 @@ export interface MMA
 		UiApi,
 		FieldDefsApi,
 		FieldDefRegistryApi,
+		FieldProjectionsApi,
 		ProceduresApi,
 		SeenApi,
 		SeenRecorderApi,
@@ -185,6 +189,7 @@ const mma: MMA = {
 	...uiSurface,
 	...fieldDefs,
 	...fieldDefRegistry,
+	...fieldProjections,
 	...procedures,
 	...seen,
 	...seenRecorder,

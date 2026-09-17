@@ -5584,13 +5584,13 @@ export interface EnrichFieldOption {
 }
 /** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). */
 declare function knownFieldDefs(...keys: string[]): Record<string, ExtraFieldDef>;
-/** All enrichment field options (core and plugin-registered). */
+/** All enrichment field options (core and plugin-registered). @unstable */
 declare function getEnrichFieldOptions(): EnrichFieldOption[];
 /** Offer extra fields in the enrichment UI. Unregistered when the plugin deactivates. */
 declare function registerEnrichFields(fields: EnrichFieldOption[]): void;
-/** All enrichment field keys (core and plugin-registered). */
+/** All enrichment field keys (core and plugin-registered). @unstable */
 declare function getAllEnrichKeys(): string[];
-/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). */
+/** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
 declare function getDefaultEnrichKeys(): string[];
 /** The declared form of a wire struct: every field optional, absent where the wire says null. */
 export type Declared<T> = {
@@ -5629,30 +5629,38 @@ export interface Provider<TCollected = unknown, TConfig = unknown> {
 /** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
  *  deactivates. */
 declare function registerProvider(provider: Provider): void;
-/** All registered providers. */
+/** All registered providers. @unstable */
 declare function getProviders(): Provider[];
-/** The provider that produces a given extra field, if any. */
+/** The provider that produces a given extra field, if any. @unstable */
 declare function getProviderForField(field: string): Provider | undefined;
-/** True when `key` is in the given enrichment set (or in the default set when null). */
+/** True when `key` is in the given enrichment set (or in the default set when null). @unstable */
 declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
-/** Every field transitively derived from the `changed` keys via the provider graph. */
+/** Every field transitively derived from the `changed` keys via the provider graph. @unstable */
 declare function derivedFrom(changed: Iterable<string>): Set<string>;
-/** Remove fields transitively derived from `changed` from an `extra` record. */
+/** Remove fields transitively derived from `changed` from an `extra` record. @unstable */
 declare function withoutDerivedFrom(extra: Record<string, unknown> | null, changed: Iterable<string>): Record<string, unknown> | null;
 
 export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
 export type fieldDefs_ProcedureSpec<TCollected = unknown, TConfig = unknown> = ProcedureSpec<TCollected, TConfig>;
 export type fieldDefs_Provider<TCollected = unknown, TConfig = unknown> = Provider<TCollected, TConfig>;
+/** @unstable */
 declare const fieldDefs_derivedFrom: typeof derivedFrom;
+/** @unstable */
 declare const fieldDefs_getAllEnrichKeys: typeof getAllEnrichKeys;
+/** @unstable */
 declare const fieldDefs_getDefaultEnrichKeys: typeof getDefaultEnrichKeys;
+/** @unstable */
 declare const fieldDefs_getEnrichFieldOptions: typeof getEnrichFieldOptions;
+/** @unstable */
 declare const fieldDefs_getProviderForField: typeof getProviderForField;
+/** @unstable */
 declare const fieldDefs_getProviders: typeof getProviders;
+/** @unstable */
 declare const fieldDefs_isFieldEnabled: typeof isFieldEnabled;
 declare const fieldDefs_knownFieldDefs: typeof knownFieldDefs;
 declare const fieldDefs_registerEnrichFields: typeof registerEnrichFields;
 declare const fieldDefs_registerProvider: typeof registerProvider;
+/** @unstable */
 declare const fieldDefs_withoutDerivedFrom: typeof withoutDerivedFrom;
 declare namespace fieldDefs {
   export { fieldDefs_derivedFrom as derivedFrom, fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerEnrichFields as registerEnrichFields, fieldDefs_registerProvider as registerProvider, fieldDefs_withoutDerivedFrom as withoutDerivedFrom };
@@ -5661,12 +5669,13 @@ declare namespace fieldDefs {
 
 /** True when `key` is a built-in Location field (stored top-level, not under `extra`). */
 declare function isBuiltinField(key: string): boolean;
+/** True when the field can be bulk-edited. @unstable */
 declare function isWritableField(key: string): boolean;
-/** True when the field can be bulk-cleared. */
+/** True when the field can be bulk-cleared. @unstable */
 declare function isClearableField(key: string): boolean;
-/** True when the field should appear in field pickers. */
+/** True when the field should appear in field pickers. @unstable */
 declare function isListableField(key: string): boolean;
-/** All built-in field keys (excluding virtual). */
+/** All built-in field keys (excluding virtual). @unstable */
 declare function getBuiltinKeys(): string[];
 /** Register field definitions from an enrichment provider (called at activation). */
 declare function registerPluginFieldDefs(defs: Record<string, ExtraFieldDef>): void;
@@ -5682,41 +5691,66 @@ declare function fieldLabel(key: string): string;
 declare function fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string;
 /** Merged view of all field definitions across all layers. */
 declare function getAllFieldDefs(): Record<string, ExtraFieldDef>;
+
+declare const fieldDefRegistry_fieldLabel: typeof fieldLabel;
+declare const fieldDefRegistry_fieldValueLabel: typeof fieldValueLabel;
+declare const fieldDefRegistry_getAllFieldDefs: typeof getAllFieldDefs;
+/** @unstable */
+declare const fieldDefRegistry_getBuiltinKeys: typeof getBuiltinKeys;
+declare const fieldDefRegistry_getFieldDef: typeof getFieldDef;
+declare const fieldDefRegistry_getKnownFieldKeys: typeof getKnownFieldKeys;
+declare const fieldDefRegistry_isBuiltinField: typeof isBuiltinField;
+/** @unstable */
+declare const fieldDefRegistry_isClearableField: typeof isClearableField;
+/** @unstable */
+declare const fieldDefRegistry_isListableField: typeof isListableField;
+/** @unstable */
+declare const fieldDefRegistry_isWritableField: typeof isWritableField;
+declare const fieldDefRegistry_registerPluginFieldDefs: typeof registerPluginFieldDefs;
+declare const fieldDefRegistry_unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
+declare namespace fieldDefRegistry {
+  export {
+    fieldDefRegistry_fieldLabel as fieldLabel,
+    fieldDefRegistry_fieldValueLabel as fieldValueLabel,
+    fieldDefRegistry_getAllFieldDefs as getAllFieldDefs,
+    fieldDefRegistry_getBuiltinKeys as getBuiltinKeys,
+    fieldDefRegistry_getFieldDef as getFieldDef,
+    fieldDefRegistry_getKnownFieldKeys as getKnownFieldKeys,
+    fieldDefRegistry_isBuiltinField as isBuiltinField,
+    fieldDefRegistry_isClearableField as isClearableField,
+    fieldDefRegistry_isListableField as isListableField,
+    fieldDefRegistry_isWritableField as isWritableField,
+    fieldDefRegistry_registerPluginFieldDefs as registerPluginFieldDefs,
+    fieldDefRegistry_unregisterPluginFieldDefs as unregisterPluginFieldDefs,
+  };
+}
+
 export interface FieldProjection {
     id: string;
     label: string;
     /** True when this projection uses the location's timezone. */
     needsTz: boolean;
 }
-/** Projections valid for a field type, in display order (first = dialog default). */
+/** Projections valid for a field type, in display order (first = dialog default). @unstable */
 declare function projectionsForType(type: ExtraFieldType): FieldProjection[];
-/** The "Range" partition option (numeric binning). */
+/** The "Range" partition option (numeric binning). @unstable */
 declare const RANGE_ID = "range";
-/** Partition-key dropdown options for a field type. */
+/** Partition-key dropdown options for a field type. @unstable */
 declare function partitionKeyOptions(type: ExtraFieldType, rangeForDates: boolean): {
     id: string;
     label: string;
 }[];
 
-export type fieldDefRegistry_FieldProjection = FieldProjection;
-declare const fieldDefRegistry_RANGE_ID: typeof RANGE_ID;
-declare const fieldDefRegistry_fieldLabel: typeof fieldLabel;
-declare const fieldDefRegistry_fieldValueLabel: typeof fieldValueLabel;
-declare const fieldDefRegistry_getAllFieldDefs: typeof getAllFieldDefs;
-declare const fieldDefRegistry_getBuiltinKeys: typeof getBuiltinKeys;
-declare const fieldDefRegistry_getFieldDef: typeof getFieldDef;
-declare const fieldDefRegistry_getKnownFieldKeys: typeof getKnownFieldKeys;
-declare const fieldDefRegistry_isBuiltinField: typeof isBuiltinField;
-declare const fieldDefRegistry_isClearableField: typeof isClearableField;
-declare const fieldDefRegistry_isListableField: typeof isListableField;
-declare const fieldDefRegistry_isWritableField: typeof isWritableField;
-declare const fieldDefRegistry_partitionKeyOptions: typeof partitionKeyOptions;
-declare const fieldDefRegistry_projectionsForType: typeof projectionsForType;
-declare const fieldDefRegistry_registerPluginFieldDefs: typeof registerPluginFieldDefs;
-declare const fieldDefRegistry_unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
-declare namespace fieldDefRegistry {
-  export { fieldDefRegistry_RANGE_ID as RANGE_ID, fieldDefRegistry_fieldLabel as fieldLabel, fieldDefRegistry_fieldValueLabel as fieldValueLabel, fieldDefRegistry_getAllFieldDefs as getAllFieldDefs, fieldDefRegistry_getBuiltinKeys as getBuiltinKeys, fieldDefRegistry_getFieldDef as getFieldDef, fieldDefRegistry_getKnownFieldKeys as getKnownFieldKeys, fieldDefRegistry_isBuiltinField as isBuiltinField, fieldDefRegistry_isClearableField as isClearableField, fieldDefRegistry_isListableField as isListableField, fieldDefRegistry_isWritableField as isWritableField, fieldDefRegistry_partitionKeyOptions as partitionKeyOptions, fieldDefRegistry_projectionsForType as projectionsForType, fieldDefRegistry_registerPluginFieldDefs as registerPluginFieldDefs, fieldDefRegistry_unregisterPluginFieldDefs as unregisterPluginFieldDefs };
-  export type { fieldDefRegistry_FieldProjection as FieldProjection };
+export type fieldProjections_FieldProjection = FieldProjection;
+/** @unstable */
+declare const fieldProjections_RANGE_ID: typeof RANGE_ID;
+/** @unstable */
+declare const fieldProjections_partitionKeyOptions: typeof partitionKeyOptions;
+/** @unstable */
+declare const fieldProjections_projectionsForType: typeof projectionsForType;
+declare namespace fieldProjections {
+  export { fieldProjections_RANGE_ID as RANGE_ID, fieldProjections_partitionKeyOptions as partitionKeyOptions, fieldProjections_projectionsForType as projectionsForType };
+  export type { fieldProjections_FieldProjection as FieldProjection };
 }
 
 /** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
@@ -6872,6 +6906,8 @@ export type SidecarApi = typeof sidecar$1;
 export type UiApi = typeof uiSurface;
 export type FieldDefsApi = typeof fieldDefs;
 export type FieldDefRegistryApi = typeof fieldDefRegistry;
+/** The keys a field can be grouped by. @unstable */
+export type FieldProjectionsApi = typeof fieldProjections;
 /** Running procedures directly, outside a registered provider. @unstable */
 export type ProceduresApi = typeof procedures;
 export type SeenApi = typeof seen;
@@ -6902,7 +6938,7 @@ export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 export type UtilApi = typeof util;
-interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 
 declare global {

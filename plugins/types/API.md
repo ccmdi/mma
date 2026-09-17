@@ -26,6 +26,7 @@ change in any release.
 - [Ui](#ui)
 - [FieldDefs](#fielddefs)
 - [FieldDefRegistry](#fielddefregistry)
+- [FieldProjections](#fieldprojections)
 - [Procedures](#procedures)
 - [Seen](#seen)
 - [SeenRecorder](#seenrecorder)
@@ -2375,31 +2376,31 @@ Shows `content` as a tooltip when its child is hovered. The child is not wrapped
 
 ## FieldDefs
 
-### `derivedFrom(changed: Iterable<string>): Set<string>`
+### `derivedFrom(changed: Iterable<string>): Set<string>` *(unstable)*
 
 Every field transitively derived from the `changed` keys via the provider graph.
 
-### `getAllEnrichKeys(): string[]`
+### `getAllEnrichKeys(): string[]` *(unstable)*
 
 All enrichment field keys (core and plugin-registered).
 
-### `getDefaultEnrichKeys(): string[]`
+### `getDefaultEnrichKeys(): string[]` *(unstable)*
 
 Keys enriched when enrichFields is null (the default set: all options except defaultOff ones).
 
-### `getEnrichFieldOptions(): EnrichFieldOption[]`
+### `getEnrichFieldOptions(): EnrichFieldOption[]` *(unstable)*
 
 All enrichment field options (core and plugin-registered).
 
-### `getProviderForField(field: string): Provider<unknown, unknown> | undefined`
+### `getProviderForField(field: string): Provider<unknown, unknown> | undefined` *(unstable)*
 
 The provider that produces a given extra field, if any.
 
-### `getProviders(): Provider<unknown, unknown>[]`
+### `getProviders(): Provider<unknown, unknown>[]` *(unstable)*
 
 All registered providers.
 
-### `isFieldEnabled(enrichFields: string[] | null, key: string): boolean`
+### `isFieldEnabled(enrichFields: string[] | null, key: string): boolean` *(unstable)*
 
 True when `key` is in the given enrichment set (or in the default set when null).
 
@@ -2416,7 +2417,7 @@ Offer extra fields in the enrichment UI. Unregistered when the plugin deactivate
 Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
 deactivates.
 
-### `withoutDerivedFrom(extra: Record<string, unknown> | null, changed: Iterable<string>): Record<string, unknown> | null`
+### `withoutDerivedFrom(extra: Record<string, unknown> | null, changed: Iterable<string>): Record<string, unknown> | null` *(unstable)*
 
 Remove fields transitively derived from `changed` from an `extra` record.
 
@@ -2434,7 +2435,7 @@ Display label for a field value. Enum values use their translated display name.
 
 Merged view of all field definitions across all layers.
 
-### `getBuiltinKeys(): string[]`
+### `getBuiltinKeys(): string[]` *(unstable)*
 
 All built-in field keys (excluding virtual).
 
@@ -2450,25 +2451,17 @@ Keys some location on this map carries. Same reference until the user layer move
 
 True when `key` is a built-in Location field (stored top-level, not under `extra`).
 
-### `isClearableField(key: string): boolean`
+### `isClearableField(key: string): boolean` *(unstable)*
 
 True when the field can be bulk-cleared.
 
-### `isListableField(key: string): boolean`
+### `isListableField(key: string): boolean` *(unstable)*
 
 True when the field should appear in field pickers.
 
-### `isWritableField(key: string): boolean`
+### `isWritableField(key: string): boolean` *(unstable)*
 
-### `partitionKeyOptions(type: ExtraFieldType, rangeForDates: boolean): { id: string; label: string; }[]`
-
-Partition-key dropdown options for a field type.
-
-### `projectionsForType(type: ExtraFieldType): FieldProjection[]`
-
-Projections valid for a field type, in display order (first = dialog default).
-
-### `RANGE_ID: "range"`
+True when the field can be bulk-edited.
 
 ### `registerPluginFieldDefs(defs: Record<string, ExtraFieldDef>): void`
 
@@ -2477,6 +2470,20 @@ Register field definitions from an enrichment provider (called at activation).
 ### `unregisterPluginFieldDefs(keys: string[]): void`
 
 Remove plugin field definitions by key (called when a plugin is deactivated).
+
+## FieldProjections
+
+The keys a field can be grouped by.
+
+### `partitionKeyOptions(type: ExtraFieldType, rangeForDates: boolean): { id: string; label: string; }[]` *(unstable)*
+
+Partition-key dropdown options for a field type.
+
+### `projectionsForType(type: ExtraFieldType): FieldProjection[]` *(unstable)*
+
+Projections valid for a field type, in display order (first = dialog default).
+
+### `RANGE_ID: "range"` *(unstable)*
 
 ## Procedures
 
