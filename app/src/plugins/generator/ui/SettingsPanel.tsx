@@ -336,6 +336,20 @@ export function SettingsPanel({
 						]}
 					/>
 				</label>
+				{settings.samplingMode === "blueline" && (
+					<label className="generator-settings__number">
+						{t("Distribution")}
+						<SegmentedControl
+							value={settings.distribution}
+							onChange={(v) => set("distribution", v as GeneratorSettings["distribution"])}
+							options={[
+								{ value: "density", label: t("Density") },
+								{ value: "balanced", label: t("Balanced") },
+								{ value: "even", label: t("Even") },
+							]}
+						/>
+					</label>
+				)}
 				<NumberInput
 					label={t("Generators")}
 					value={settings.numGenerators}

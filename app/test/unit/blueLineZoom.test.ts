@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calculateZoom, keepRate } from "@/plugins/generator/engine/blueLineSampler";
+import { calculateZoom, keepRate, tileKeepRate } from "@/plugins/generator/engine/blueLineSampler";
 import type { Bounds } from "@/types";
 
 const ARGENTINA: Bounds = { west: -73.6, south: -55.1, east: -53.6, north: -21.8 };
@@ -19,6 +19,16 @@ describe("blueline tile plan", () => {
 		const fine = calculateZoom(ARGENTINA, 150);
 		expect(keepRate(fine.zoom, base.zoom)).toBeCloseTo(2 ** (base.zoom - fine.zoom));
 		expect(keepRate(fine.zoom, base.zoom)).toBeLessThan(1);
+	});
+
+	it("density keeps the global rate; even flattens dense tiles; balanced sits between", () => {
+		expect(tileKeepRate(20_000, 0.25, 0)).toBe(0.25);
+		expect(tileKeepRate(20_000, 0.25, 1)).toBeCloseTo(600 / 20_000);
+		expect(tileKeepRate(200, 0.25, 1)).toBe(1);
+		const balanced = tileKeepRate(20_000, 0.25, 0.5);
+		expect(balanced).toBeGreaterThan(tileKeepRate(20_000, 0.25, 1));
+		expect(balanced).toBeLessThan(0.25);
+		expect(tileKeepRate(0, 0.25, 0.5)).toBe(0);
 	});
 
 	it("a small region already at its finest zoom keeps every pixel", () => {

@@ -23,6 +23,34 @@ export function keepRate(zoom: number, baseZoom: number): number {
 	return Math.min(1, 2 ** (baseZoom - zoom));
 }
 
+const EVEN_TILE_POINTS = 600;
+
+/** Probes per area the `distribution` setting buys, from road-density-proportional to
+ *  a flat share per tile. */
+export const DISTRIBUTION_EVENNESS = { density: 0, balanced: 0.5, even: 1 } as const;
+
+/** A tile's pixel keep-probability: density keeps `globalKeep` everywhere, even aims
+ *  at a flat point count per tile, and `evenness` blends between them. */
+export function tileKeepRate(rawCount: number, globalKeep: number, evenness: number): number {
+	if (rawCount === 0) return 0;
+	const even = Math.min(1, EVEN_TILE_POINTS / rawCount);
+	return (1 - evenness) * globalKeep + evenness * even;
+}
+
+function thin(xs: number[], ys: number[], from: number, keep: number) {
+	if (keep >= 1) return;
+	let w = from;
+	for (let i = from; i < xs.length; i++) {
+		if (Math.random() < keep) {
+			xs[w] = xs[i];
+			ys[w] = ys[i];
+			w++;
+		}
+	}
+	xs.length = w;
+	ys.length = w;
+}
+
 /** Columns run east from the northwest tile, wrapping the world, so a region crossing
  *  the antimeridian counts forward instead of coming out negative and scanning nothing. */
 function tileCols(nwX: number, seX: number, zoom: number): number {
@@ -92,7 +120,6 @@ function scanTile(
 	tileX: number,
 	tileY: number,
 	ctx: OffscreenCanvasRenderingContext2D,
-	keep: number,
 	pixelXs: number[],
 	pixelYs: number[],
 ) {
@@ -105,7 +132,6 @@ function scanTile(
 	for (let py = 0; py < TILE_SIZE; py++) {
 		for (let px = 0; px < TILE_SIZE; px++) {
 			if (data[(py * TILE_SIZE + px) * 4 + 3] > 0) {
-				if (keep < 1 && Math.random() >= keep) continue;
 				pixelXs.push(baseX + px);
 				pixelYs.push(baseY + py);
 			}
@@ -131,6 +157,7 @@ async function clipToPolygon(polygon: PolygonGeometry, candidates: LatLng[]): Pr
  *  so probing starts on the first tiles while the rest are still downloading. */
 export function blueLineSource(
 	polygon: PolygonGeometry,
+	evenness = 0,
 	maxTilesPerAxis = MAX_TILES_PER_AXIS,
 ): PointSource {
 	return streamedPoints(async (emit) => {
@@ -165,7 +192,9 @@ export function blueLineSource(
 			for (let b = 0; b < batch.length; b++) {
 				const bmp = bmps[b];
 				if (!bmp) continue;
-				scanTile(bmp, batch[b].tx, batch[b].ty, ctx, keep, pixelXs, pixelYs);
+				const start = pixelXs.length;
+				scanTile(bmp, batch[b].tx, batch[b].ty, ctx, pixelXs, pixelYs);
+				thin(pixelXs, pixelYs, start, tileKeepRate(pixelXs.length - start, keep, evenness));
 				if (b % SCAN_YIELD_EVERY === SCAN_YIELD_EVERY - 1) {
 					await new Promise((resolve) => setTimeout(resolve));
 				}

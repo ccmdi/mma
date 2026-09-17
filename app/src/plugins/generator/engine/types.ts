@@ -60,6 +60,9 @@ export interface GeneratorSettings {
 	adjustZoom: boolean;
 	zoomLevel: number;
 	speed: number;
+	/** How coverage-mode probes allocate over the road network: proportional to road
+	 *  density, evenly per area, or halfway between. */
+	distribution: "density" | "balanced" | "even";
 	samplingMode: SamplingMode;
 }
 
@@ -125,6 +128,7 @@ export const DEFAULT_SETTINGS: GeneratorSettings = {
 	zoomLevel: 0,
 	speed: 1000,
 	samplingMode: "random",
+	distribution: "density",
 };
 
 export interface GeneratorStats {
