@@ -162,6 +162,11 @@ describe("Content Security Policy", function () {
 			async () => (await document.fonts.load('16px "Open Sans"', "a")).length,
 		);
 		expect(openSansFaces).toBeGreaterThan(0);
+		const flagFaces = await browser.execute(
+			async () =>
+				(await document.fonts.load('16px "Twemoji Country Flags"', "\u{1F1F2}\u{1F1FD}")).length,
+		);
+		expect(flagFaces).toBeGreaterThan(0);
 	});
 
 	it("loads opensv from its blob URL and exposes google.maps", async () => {
