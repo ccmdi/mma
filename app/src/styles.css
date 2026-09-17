@@ -1,4 +1,6 @@
-@import url("https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;700&family=Open+Sans:wght@400;600;700&display=swap");
+@import "@fontsource/open-sans/400.css";
+@import "@fontsource/open-sans/600.css";
+@import "@fontsource/open-sans/700.css";
 @font-face {
 	font-family: Open Sans;
 	font-style: normal;

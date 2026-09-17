@@ -158,6 +158,10 @@ describe("Content Security Policy", function () {
 		expect(boot.ready).toBe(true);
 		expect(boot.sheets).toBeGreaterThan(0);
 		expect(boot.bg).not.toBe("rgba(0, 0, 0, 0)");
+		const openSansFaces = await browser.execute(
+			async () => (await document.fonts.load('16px "Open Sans"', "a")).length,
+		);
+		expect(openSansFaces).toBeGreaterThan(0);
 	});
 
 	it("loads opensv from its blob URL and exposes google.maps", async () => {
