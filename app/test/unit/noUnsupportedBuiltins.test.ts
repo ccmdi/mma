@@ -26,7 +26,7 @@ const tester = new RuleTester({
 	},
 });
 
-// Pinned against FLOOR = { safari: 18.2, chrome: 140 }. If the floor moves these move too.
+// Pinned against FLOOR = { safari: 18.4, chrome: 140 }. If the floor moves these move too.
 tester.run("no-unsupported-builtins", rule as never, {
 	valid: [
 		// At or below the floor.
@@ -42,9 +42,11 @@ tester.run("no-unsupported-builtins", rule as never, {
 			code: "const a: ReadonlySet<string> = new Set(); export const x = a.intersection(a);",
 			filename,
 		},
-		// Array methods share names with the blocked iterator helpers and must stay silent.
-		{ code: "export const x = [1, 2].map((n) => n);", filename },
-		{ code: "export const x = [1, 2].filter((n) => n);", filename },
+		// Iterator helpers, resolved through ArrayIterator -> IteratorObject -> Iterator.
+		{ code: "export const x = Iterator.from([1]);", filename },
+		{ code: 'export const x = JSON.rawJSON("1");', filename },
+		{ code: "export const x = [1].values().take(1).toArray();", filename },
+		{ code: "export const x = [1].values().map((n) => n);", filename },
 		// Our own methods, however named. This is what type resolution buys over name matching.
 		{
 			code: "class P { take(n: number) { return n; } toArray() { return [1]; } }\nexport const x = [new P().take(1), new P().toArray()];",
@@ -60,38 +62,6 @@ tester.run("no-unsupported-builtins", rule as never, {
 	invalid: [
 		{
 			code: "export const x = Temporal.Now.instant();",
-			filename,
-			errors: [{ messageId: "unsupported" }],
-		},
-		{
-			code: "export const x = Iterator.from([1]);",
-			filename,
-			errors: [{ messageId: "unsupported" }],
-		},
-		{
-			code: 'export const x = JSON.rawJSON("1");',
-			filename,
-			errors: [{ messageId: "unsupported" }],
-		},
-		// Iterator helpers, resolved through ArrayIterator -> IteratorObject -> Iterator.
-		{
-			code: "export const x = [1].values().take(1);",
-			filename,
-			errors: [{ messageId: "unsupported" }],
-		},
-		{
-			code: "export const x = [1].values().drop(1);",
-			filename,
-			errors: [{ messageId: "unsupported" }],
-		},
-		{
-			code: "export const x = [1].values().toArray();",
-			filename,
-			errors: [{ messageId: "unsupported" }],
-		},
-		// Shares a name with Array.prototype.map; only type information separates them.
-		{
-			code: "export const x = [1].values().map((n) => n);",
 			filename,
 			errors: [{ messageId: "unsupported" }],
 		},

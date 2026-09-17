@@ -3,7 +3,7 @@ import bcd from "@mdn/browser-compat-data" with { type: "json" };
 /** The oldest runtime we ship against. Safari = oldest WKWebView we support (also stands in
  *  for WebKitGTK); Chrome sits high because WebView2 is evergreen -- it only catches the rare
  *  builtin Safari shipped first. */
-export const FLOOR = { safari: "18.2", chrome: "140" };
+export const FLOOR = { safari: "18.4", chrome: "140" };
 
 function cmp(a, b) {
 	const A = String(a).split(".").map(Number);
