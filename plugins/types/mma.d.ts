@@ -3464,8 +3464,10 @@ declare const store_addSelections: typeof addSelections;
 declare const store_addTagToLocations: typeof addTagToLocations;
 declare const store_applyFieldOp: typeof applyFieldOp;
 declare const store_applySelectionUpdate: typeof applySelectionUpdate;
+/** @unstable */
 declare const store_cancelAutosave: typeof cancelAutosave;
 declare const store_checkoutCommit: typeof checkoutCommit;
+/** @unstable */
 declare const store_closeDuplicates: typeof closeDuplicates;
 declare const store_commitMap: typeof commitMap;
 declare const store_countBy: typeof countBy;
@@ -3475,14 +3477,17 @@ declare const store_createTags: typeof createTags;
 declare const store_currentSelection: typeof currentSelection;
 declare const store_deleteField: typeof deleteField;
 declare const store_deleteTags: typeof deleteTags;
+/** @unstable */
 declare const store_discardOpenMap: typeof discardOpenMap;
 declare const store_duplicateLocation: typeof duplicateLocation;
+/** @unstable */
 declare const store_emitBitmask: typeof emitBitmask;
 declare const store_exitPluginMode: typeof exitPluginMode;
 declare const store_fetchBounds: typeof fetchBounds;
 declare const store_fetchColumns: typeof fetchColumns;
 declare const store_fetchLocations: typeof fetchLocations;
 declare const store_fieldValues: typeof fieldValues;
+/** @unstable */
 declare const store_flushSave: typeof flushSave;
 declare const store_getActiveSelections: typeof getActiveSelections;
 declare const store_getMapState: typeof getMapState;
@@ -3490,18 +3495,27 @@ declare const store_getSelectedTagIds: typeof getSelectedTagIds;
 declare const store_getSelectedTagIdsDeep: typeof getSelectedTagIdsDeep;
 declare const store_getTag: typeof getTag;
 declare const store_getVisibleTags: typeof getVisibleTags;
+/** @unstable */
 declare const store_holdAutosave: typeof holdAutosave;
+/** @unstable */
 declare const store_initStore: typeof initStore;
+/** @unstable */
 declare const store_mergeDuplicates: typeof mergeDuplicates;
 declare const store_mutate: typeof mutate;
+/** @unstable */
 declare const store_openDuplicateLocation: typeof openDuplicateLocation;
+/** @unstable */
 declare const store_openStagedLocation: typeof openStagedLocation;
 declare const store_partition: typeof partition;
 declare const store_patchMapMeta: typeof patchMapMeta;
+/** @unstable */
 declare const store_previewDuplicateGroups: typeof previewDuplicateGroups;
+/** @unstable */
 declare const store_previewVirtualLocation: typeof previewVirtualLocation;
+/** @unstable */
 declare const store_pruneDuplicates: typeof pruneDuplicates;
 declare const store_redo: typeof redo;
+/** @unstable */
 declare const store_removeDuplicate: typeof removeDuplicate;
 declare const store_removeLocations: typeof removeLocations;
 declare const store_removeSelections: typeof removeSelections;
@@ -3513,7 +3527,9 @@ declare const store_resetSelections: typeof resetSelections;
 declare const store_resolveIds: typeof resolveIds;
 declare const store_resolveLocation: typeof resolveLocation;
 declare const store_sampleFrom: typeof sampleFrom;
+/** @unstable */
 declare const store_scheduleAutoCommit: typeof scheduleAutoCommit;
+/** @unstable */
 declare const store_scheduleSave: typeof scheduleSave;
 declare const store_selectEvenlySpacedFromSelection: typeof selectEvenlySpacedFromSelection;
 declare const store_selectRandomFromSelection: typeof selectRandomFromSelection;
@@ -3531,6 +3547,7 @@ declare const store_updateLocations: typeof updateLocations;
 declare const store_updateMapMeta: typeof updateMapMeta;
 declare const store_updateTags: typeof updateTags;
 declare const store_useMapState: typeof useMapState;
+/** @unstable */
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
   export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getSelectedTagIds as getSelectedTagIds, store_getSelectedTagIdsDeep as getSelectedTagIdsDeep, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_toggleTagSelections as toggleTagSelections, store_undo as undo, store_updateFilterSelection as updateFilterSelection, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
@@ -4049,6 +4066,7 @@ declare const GEOCODE_PROVIDERS: {
     /** @unstable */
     readonly google: "Google (from panorama)";
 };
+/** @unstable */
 declare const GEOCODE_PROVIDER_LABELS: Record<keyof typeof GEOCODE_PROVIDERS, string>;
 /** Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles. @unstable */
 declare const UNIT_SYSTEMS: {
@@ -4112,7 +4130,7 @@ declare const SUBDIVISION_DETAILS: {
     /** @unstable */
     readonly adm1: "States / provinces";
 };
-/** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). */
+/** Tag-suggestion list cap stops (slider indices); 0 = unlimited ("All"). @unstable */
 declare const TAG_SUGGESTION_LIMITS: readonly [5, 10, 25, 50, 0];
 /** @unstable */
 declare const PREVIEW_ASPECT_RATIOS: {
@@ -4131,6 +4149,7 @@ declare const PREVIEW_ASPECT_RATIOS: {
 };
 export type Language = keyof typeof LANGUAGES;
 export type MovementMode = keyof typeof MOVEMENT_MODES;
+/** @unstable */
 declare const MOVEMENT_CYCLE: MovementMode[];
 export type ExactDateFormat = keyof typeof EXACT_DATE_FORMATS;
 export type DateTimezone = keyof typeof DATE_TIMEZONES;
@@ -4312,11 +4331,11 @@ declare const DEFAULTS: {
     pinnedCommands: PinnedEntry[];
 };
 export type AppSettings = typeof DEFAULTS;
-/** Settings holding private information that should not be exfiltrated. */
+/** Settings holding private information that should not be exfiltrated. @unstable */
 declare const PRIVATE_SETTINGS: ReadonlySet<keyof AppSettings>;
-/** App settings exposed as CSS custom properties on `:root`. */
+/** App settings exposed as CSS custom properties on `:root`. @unstable */
 declare const CSS_VAR_SETTINGS: ReadonlyArray<readonly [cssVar: string, value: (s: AppSettings) => string]>;
-/** localStorage descriptor for the persisted settings object. */
+/** localStorage descriptor for the persisted settings object. @unstable */
 declare const APP_SETTINGS: PersistedStore<{
     showCameraBadges: boolean;
     showLinksControl: boolean;
@@ -4437,53 +4456,84 @@ declare function useSettings(): AppSettings;
 /** React hook: one setting value, re-rendering only when that key changes. @unstable */
 declare function useSetting<K extends keyof AppSettings>(key: K): AppSettings[K];
 
+/** @unstable */
 declare const settings_APP_SETTINGS: typeof APP_SETTINGS;
 export type settings_AppSettings = AppSettings;
+/** @unstable */
 declare const settings_BORDER_ARCHIVE_BYTES: typeof BORDER_ARCHIVE_BYTES;
+/** @unstable */
 declare const settings_BORDER_DETAILS: typeof BORDER_DETAILS;
 export type settings_BorderDetail = BorderDetail;
+/** @unstable */
 declare const settings_CSS_VAR_SETTINGS: typeof CSS_VAR_SETTINGS;
+/** @unstable */
 declare const settings_DATE_TIMEZONES: typeof DATE_TIMEZONES;
+/** @unstable */
 declare const settings_DEFAULTS: typeof DEFAULTS;
+/** @unstable */
 declare const settings_DISCORD_PRESENCE_MODES: typeof DISCORD_PRESENCE_MODES;
 export type settings_DateTimezone = DateTimezone;
 export type settings_DiscordPresenceMode = DiscordPresenceMode;
+/** @unstable */
 declare const settings_EXACT_DATE_FORMATS: typeof EXACT_DATE_FORMATS;
 export type settings_ExactDateFormat = ExactDateFormat;
+/** @unstable */
 declare const settings_GEOCODE_PROVIDERS: typeof GEOCODE_PROVIDERS;
+/** @unstable */
 declare const settings_GEOCODE_PROVIDER_LABELS: typeof GEOCODE_PROVIDER_LABELS;
 export type settings_GeocodeProvider = GeocodeProvider;
+/** @unstable */
 declare const settings_LANGUAGES: typeof LANGUAGES;
 export type settings_Language = Language;
+/** @unstable */
 declare const settings_MAP_LIST_FIELDS: typeof MAP_LIST_FIELDS;
+/** @unstable */
 declare const settings_MOVEMENT_CYCLE: typeof MOVEMENT_CYCLE;
+/** @unstable */
 declare const settings_MOVEMENT_MODES: typeof MOVEMENT_MODES;
 export type settings_MapListField = MapListField;
 export type settings_MovementMode = MovementMode;
+/** @unstable */
 declare const settings_OPACITY_TOGGLE_MODES: typeof OPACITY_TOGGLE_MODES;
 export type settings_OpacityToggleMode = OpacityToggleMode;
+/** @unstable */
 declare const settings_POLYGON_COLOR_MODES: typeof POLYGON_COLOR_MODES;
+/** @unstable */
 declare const settings_PREVIEW_ASPECT_RATIOS: typeof PREVIEW_ASPECT_RATIOS;
+/** @unstable */
 declare const settings_PRIVATE_SETTINGS: typeof PRIVATE_SETTINGS;
 export type settings_PolygonColorMode = PolygonColorMode;
 export type settings_PreviewAspectRatio = PreviewAspectRatio;
+/** @unstable */
 declare const settings_SEEN_RESOLUTIONS: typeof SEEN_RESOLUTIONS;
+/** @unstable */
 declare const settings_SUBDIVISION_DETAILS: typeof SUBDIVISION_DETAILS;
 export type settings_SeenResolution = SeenResolution;
 export type settings_SubdivisionDetail = SubdivisionDetail;
+/** @unstable */
 declare const settings_TAG_FOLDER_COLOR_MODES: typeof TAG_FOLDER_COLOR_MODES;
+/** @unstable */
 declare const settings_TAG_SUGGESTION_LIMITS: typeof TAG_SUGGESTION_LIMITS;
+/** @unstable */
 declare const settings_TAG_VIEW_MODES: typeof TAG_VIEW_MODES;
 export type settings_TagFolderColorMode = TagFolderColorMode;
 export type settings_TagViewMode = TagViewMode;
+/** @unstable */
 declare const settings_UNIT_SYSTEMS: typeof UNIT_SYSTEMS;
 export type settings_UnitSystem = UnitSystem;
+/** @unstable */
 declare const settings_getSettings: typeof getSettings;
+/** @unstable */
 declare const settings_navHiddenWithUI: typeof navHiddenWithUI;
+/** @unstable */
 declare const settings_panoDisplayOptions: typeof panoDisplayOptions;
+/** @unstable */
 declare const settings_resetSettings: typeof resetSettings;
+/** @unstable */
 declare const settings_setSetting: typeof setSetting;
+/** @unstable */
 declare const settings_useSetting: typeof useSetting;
+/** @unstable */
 declare const settings_useSettings: typeof useSettings;
 declare namespace settings {
   export { settings_APP_SETTINGS as APP_SETTINGS, settings_BORDER_ARCHIVE_BYTES as BORDER_ARCHIVE_BYTES, settings_BORDER_DETAILS as BORDER_DETAILS, settings_CSS_VAR_SETTINGS as CSS_VAR_SETTINGS, settings_DATE_TIMEZONES as DATE_TIMEZONES, settings_DEFAULTS as DEFAULTS, settings_DISCORD_PRESENCE_MODES as DISCORD_PRESENCE_MODES, settings_EXACT_DATE_FORMATS as EXACT_DATE_FORMATS, settings_GEOCODE_PROVIDERS as GEOCODE_PROVIDERS, settings_GEOCODE_PROVIDER_LABELS as GEOCODE_PROVIDER_LABELS, settings_LANGUAGES as LANGUAGES, settings_MAP_LIST_FIELDS as MAP_LIST_FIELDS, settings_MOVEMENT_CYCLE as MOVEMENT_CYCLE, settings_MOVEMENT_MODES as MOVEMENT_MODES, settings_OPACITY_TOGGLE_MODES as OPACITY_TOGGLE_MODES, settings_POLYGON_COLOR_MODES as POLYGON_COLOR_MODES, settings_PREVIEW_ASPECT_RATIOS as PREVIEW_ASPECT_RATIOS, settings_PRIVATE_SETTINGS as PRIVATE_SETTINGS, settings_SEEN_RESOLUTIONS as SEEN_RESOLUTIONS, settings_SUBDIVISION_DETAILS as SUBDIVISION_DETAILS, settings_TAG_FOLDER_COLOR_MODES as TAG_FOLDER_COLOR_MODES, settings_TAG_SUGGESTION_LIMITS as TAG_SUGGESTION_LIMITS, settings_TAG_VIEW_MODES as TAG_VIEW_MODES, settings_UNIT_SYSTEMS as UNIT_SYSTEMS, settings_getSettings as getSettings, settings_navHiddenWithUI as navHiddenWithUI, settings_panoDisplayOptions as panoDisplayOptions, settings_resetSettings as resetSettings, settings_setSetting as setSetting, settings_useSetting as useSetting, settings_useSettings as useSettings };
@@ -4511,12 +4561,19 @@ declare function confirmImport(droppedFields: string[], tagName?: string): Promi
 declare function cancelImport(): void;
 
 export type importStaging_ImportStaging = ImportStaging;
+/** @unstable */
 declare const importStaging_beginImportFromPath: typeof beginImportFromPath;
+/** @unstable */
 declare const importStaging_beginImportPaste: typeof beginImportPaste;
+/** @unstable */
 declare const importStaging_cancelImport: typeof cancelImport;
+/** @unstable */
 declare const importStaging_confirmImport: typeof confirmImport;
+/** @unstable */
 declare const importStaging_getImportPreviewPositions: typeof getImportPreviewPositions;
+/** @unstable */
 declare const importStaging_getImportStaging: typeof getImportStaging;
+/** @unstable */
 declare const importStaging_resetImportState: typeof resetImportState;
 declare namespace importStaging {
   export { importStaging_beginImportFromPath as beginImportFromPath, importStaging_beginImportPaste as beginImportPaste, importStaging_cancelImport as cancelImport, importStaging_confirmImport as confirmImport, importStaging_getImportPreviewPositions as getImportPreviewPositions, importStaging_getImportStaging as getImportStaging, importStaging_resetImportState as resetImportState };
@@ -4559,14 +4616,23 @@ declare function beginCommitDiffPreview(commit: CommitInfo): Promise<void>;
 declare function endCommitDiffPreview(): void;
 
 export type commitDiff_CommitDiffPreview = CommitDiffPreview;
+/** @unstable */
 declare const commitDiff_beginCommitDiffPreview: typeof beginCommitDiffPreview;
+/** @unstable */
 declare const commitDiff_categorizeCommitDelta: typeof categorizeCommitDelta;
+/** @unstable */
 declare const commitDiff_diffPositions: typeof diffPositions;
+/** @unstable */
 declare const commitDiff_endCommitDiffPreview: typeof endCommitDiffPreview;
+/** @unstable */
 declare const commitDiff_getCommitDiffPreview: typeof getCommitDiffPreview;
+/** @unstable */
 declare const commitDiff_hasCommitDiff: typeof hasCommitDiff;
+/** @unstable */
 declare const commitDiff_resetCommitDiffCounts: typeof resetCommitDiffCounts;
+/** @unstable */
 declare const commitDiff_resetCommitDiffState: typeof resetCommitDiffState;
+/** @unstable */
 declare const commitDiff_useCommitDiff: typeof useCommitDiff;
 declare namespace commitDiff {
   export { commitDiff_beginCommitDiffPreview as beginCommitDiffPreview, commitDiff_categorizeCommitDelta as categorizeCommitDelta, commitDiff_diffPositions as diffPositions, commitDiff_endCommitDiffPreview as endCommitDiffPreview, commitDiff_getCommitDiffPreview as getCommitDiffPreview, commitDiff_hasCommitDiff as hasCommitDiff, commitDiff_resetCommitDiffCounts as resetCommitDiffCounts, commitDiff_resetCommitDiffState as resetCommitDiffState, commitDiff_useCommitDiff as useCommitDiff };
@@ -4731,26 +4797,47 @@ declare function selectReviewedHistory(): Promise<void>;
 declare function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed"): Promise<void>;
 
 export type review_PruneResult = PruneResult;
+/** @unstable */
 declare const review_advance: typeof advance;
+/** @unstable */
 declare const review_beginReview: typeof beginReview;
+/** @unstable */
 declare const review_cancelReview: typeof cancelReview;
+/** @unstable */
 declare const review_deleteSession: typeof deleteSession;
+/** @unstable */
 declare const review_getReviewSession: typeof getReviewSession;
+/** @unstable */
 declare const review_isAtStart: typeof isAtStart;
+/** @unstable */
 declare const review_isCurrentReviewed: typeof isCurrentReviewed;
+/** @unstable */
 declare const review_listSessions: typeof listSessions;
+/** @unstable */
 declare const review_positionOf: typeof positionOf;
+/** @unstable */
 declare const review_pruneSession: typeof pruneSession;
+/** @unstable */
 declare const review_renameReview: typeof renameReview;
+/** @unstable */
 declare const review_resumeReview: typeof resumeReview;
+/** @unstable */
 declare const review_retreat: typeof retreat;
+/** @unstable */
 declare const review_reviewDelete: typeof reviewDelete;
+/** @unstable */
 declare const review_reviewIndex: typeof reviewIndex;
+/** @unstable */
 declare const review_reviewNext: typeof reviewNext;
+/** @unstable */
 declare const review_reviewPrev: typeof reviewPrev;
+/** @unstable */
 declare const review_reviewedHistoryIds: typeof reviewedHistoryIds;
+/** @unstable */
 declare const review_selectReviewSet: typeof selectReviewSet;
+/** @unstable */
 declare const review_selectReviewedHistory: typeof selectReviewedHistory;
+/** @unstable */
 declare const review_useReviewSession: typeof useReviewSession;
 declare namespace review {
   export { review_advance as advance, review_beginReview as beginReview, review_cancelReview as cancelReview, review_deleteSession as deleteSession, review_getReviewSession as getReviewSession, review_isAtStart as isAtStart, review_isCurrentReviewed as isCurrentReviewed, review_listSessions as listSessions, review_positionOf as positionOf, review_pruneSession as pruneSession, review_renameReview as renameReview, review_resumeReview as resumeReview, review_retreat as retreat, review_reviewDelete as reviewDelete, review_reviewIndex as reviewIndex, review_reviewNext as reviewNext, review_reviewPrev as reviewPrev, review_reviewedHistoryIds as reviewedHistoryIds, review_selectReviewSet as selectReviewSet, review_selectReviewedHistory as selectReviewedHistory, review_useReviewSession as useReviewSession };
@@ -4762,6 +4849,7 @@ export type Cmd = typeof commands$1;
 declare const cmd: Cmd;
 
 export type commands_Cmd = Cmd;
+/** @unstable */
 declare const commands_cmd: typeof cmd;
 declare namespace commands {
   export { commands_cmd as cmd };
@@ -4879,29 +4967,43 @@ export type registry_PluginBehavior = PluginBehavior;
 export type registry_PluginIdentity = PluginIdentity;
 export type registry_PluginStorage = PluginStorage;
 export type registry_ResolvedBuild = ResolvedBuild;
+/** @unstable */
 declare const registry_activatePlugin: typeof activatePlugin;
+/** @unstable */
 declare const registry_activatePlugins: typeof activatePlugins;
+/** @unstable */
 declare const registry_autoUpdatePlugin: typeof autoUpdatePlugin;
 declare const registry_createPluginStorage: typeof createPluginStorage;
+/** @unstable */
 declare const registry_deactivatePlugin: typeof deactivatePlugin;
+/** @unstable */
 declare const registry_deactivatePlugins: typeof deactivatePlugins;
+/** @unstable */
 declare const registry_fetchPluginRegistry: typeof fetchPluginRegistry;
 declare const registry_getEnabledPlugins: typeof getEnabledPlugins;
 declare const registry_getPlugin: typeof getPlugin;
 declare const registry_getPlugins: typeof getPlugins;
 declare const registry_isBackgroundPlugin: typeof isBackgroundPlugin;
+/** @unstable */
 declare const registry_isPluginCompatible: typeof isPluginCompatible;
 declare const registry_isPluginEnabled: typeof isPluginEnabled;
+/** @unstable */
 declare const registry_isPluginUpdatable: typeof isPluginUpdatable;
 declare const registry_isReady: typeof isReady;
+/** @unstable */
 declare const registry_markReady: typeof markReady;
+/** @unstable */
 declare const registry_needsBuildUpdate: typeof needsBuildUpdate;
+/** @unstable */
 declare const registry_needsUpdate: typeof needsUpdate;
 declare const registry_registerPlugin: typeof registerPlugin;
+/** @unstable */
 declare const registry_resolveBuild: typeof resolveBuild;
+/** @unstable */
 declare const registry_setPendingManifest: typeof setPendingManifest;
 declare const registry_setPluginEnabled: typeof setPluginEnabled;
 declare const registry_storage: typeof storage;
+/** @unstable */
 declare const registry_unregisterPlugin: typeof unregisterPlugin;
 declare const registry_usePluginState: typeof usePluginState;
 declare namespace registry {
@@ -4990,14 +5092,22 @@ declare function emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends
  *  the same reference while nothing it reads has changed. @unstable */
 declare function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;
 
+/** @unstable */
 declare const scope_definePluginEvent: typeof definePluginEvent;
+/** @unstable */
 declare const scope_disposePlugin: typeof disposePlugin;
+/** @unstable */
 declare const scope_emitPluginEvent: typeof emitPluginEvent;
 declare const scope_on: typeof on;
+/** @unstable */
 declare const scope_resolvePluginPath: typeof resolvePluginPath;
+/** @unstable */
 declare const scope_runAsPlugin: typeof runAsPlugin;
+/** @unstable */
 declare const scope_setPluginBaseDir: typeof setPluginBaseDir;
+/** @unstable */
 declare const scope_trackDisposable: typeof trackDisposable;
+/** @unstable */
 declare const scope_usePluginEvent: typeof usePluginEvent;
 declare namespace scope {
   export {
@@ -5505,7 +5615,7 @@ declare namespace fieldDefRegistry {
   export type { fieldDefRegistry_FieldProjection as FieldProjection };
 }
 
-/** Entry point of a procedure this app bundles. Plugins ship their own paths. */
+/** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
 declare const procedureEntry: (name: string) => string;
 /** The readable name behind an entry point, for surfaces that show one. */
 declare const procedureName: (entry: string) => string;
@@ -5789,7 +5899,9 @@ export type panoSurface_PanoEvent = PanoEvent;
 export type panoSurface_PanoFrame = PanoFrame;
 export type panoSurface_PanoViewer = PanoViewer;
 export type panoSurface_ShowResult = ShowResult;
+/** @unstable */
 declare const panoSurface_createPano: typeof createPano;
+/** @unstable */
 declare const panoSurface_pano: typeof pano;
 declare namespace panoSurface {
   export { panoSurface_createPano as createPano, panoSurface_pano as pano };
@@ -6150,14 +6262,20 @@ declare function clearScene(): void;
 /** Start listening for deltas, selections, and active-location changes. Returns a stop function. @unstable */
 declare function startSceneEngine(): () => void;
 
+/** @unstable */
 declare const sceneStore_clearScene: typeof clearScene;
 declare const sceneStore_getMarkerDefaultColor: typeof getMarkerDefaultColor;
 declare const sceneStore_getScene: typeof getScene;
 declare const sceneStore_getScenePositions: typeof getScenePositions;
+/** @unstable */
 declare const sceneStore_loadScene: typeof loadScene;
+/** @unstable */
 declare const sceneStore_recolorScene: typeof recolorScene;
+/** @unstable */
 declare const sceneStore_setMarkerDefaultColor: typeof setMarkerDefaultColor;
+/** @unstable */
 declare const sceneStore_startSceneEngine: typeof startSceneEngine;
+/** @unstable */
 declare const sceneStore_whenSceneSettled: typeof whenSceneSettled;
 declare namespace sceneStore {
   export {
@@ -6255,12 +6373,19 @@ export type jobs_JobOpts = JobOpts;
 export type jobs_JobRunContext = JobRunContext;
 export type jobs_JobScope = JobScope;
 export type jobs_MapExitKind = MapExitKind;
+/** @unstable */
 declare const jobs_cancelJobs: typeof cancelJobs;
+/** @unstable */
 declare const jobs_confirmMapExit: typeof confirmMapExit;
+/** @unstable */
 declare const jobs_getExitRequest: typeof getExitRequest;
+/** @unstable */
 declare const jobs_getJobs: typeof getJobs;
+/** @unstable */
 declare const jobs_registerJob: typeof registerJob;
+/** @unstable */
 declare const jobs_resolveMapExit: typeof resolveMapExit;
+/** @unstable */
 declare const jobs_runJob: typeof runJob;
 declare namespace jobs {
   export { jobs_cancelJobs as cancelJobs, jobs_confirmMapExit as confirmMapExit, jobs_getExitRequest as getExitRequest, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_resolveMapExit as resolveMapExit, jobs_runJob as runJob };
@@ -6338,23 +6463,41 @@ declare function registerEnrichmentProvider(provider: Provider): void;
  *  plugin-owned defs. @unstable */
 declare function setUserFieldDefs(defs: Record<string, ExtraFieldDef>): Promise<void>;
 
+/** @unstable */
 declare const legacy_fetchAllLocations: typeof fetchAllLocations;
+/** @unstable */
 declare const legacy_fetchLocation: typeof fetchLocation;
+/** @unstable */
 declare const legacy_fetchLocationsByIds: typeof fetchLocationsByIds;
+/** @unstable */
 declare const legacy_fieldCoverage: typeof fieldCoverage;
+/** @unstable */
 declare const legacy_getActiveLocation: typeof getActiveLocation;
+/** @unstable */
 declare const legacy_getAllSelections: typeof getAllSelections;
+/** @unstable */
 declare const legacy_getCurrentMap: typeof getCurrentMap;
+/** @unstable */
 declare const legacy_getCurrentMapId: typeof getCurrentMapId;
+/** @unstable */
 declare const legacy_getDirtyCount: typeof getDirtyCount;
+/** @unstable */
 declare const legacy_getGhostedSelections: typeof getGhostedSelections;
+/** @unstable */
 declare const legacy_getGoogleMap: typeof getGoogleMap;
+/** @unstable */
 declare const legacy_getSelectedLocationIds: typeof getSelectedLocationIds;
+/** @unstable */
 declare const legacy_getSelections: typeof getSelections;
+/** @unstable */
 declare const legacy_getTagCounts: typeof getTagCounts;
+/** @unstable */
 declare const legacy_getWorkArea: typeof getWorkArea;
+/** @unstable */
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
+/** @unstable */
 declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
+/** @unstable */
 declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
 declare namespace legacy {
   export {
@@ -6402,14 +6545,23 @@ declare function importPaste(text: string): Promise<EditorImportResult[]>;
 /** Import a previewed file, optionally assigning a tag. @unstable */
 declare function importFile(droppedFields: string[], tagName?: string): Promise<EditorImportResult>;
 
+/** @unstable */
 declare const testApi_closeMap: typeof closeMap;
+/** @unstable */
 declare const testApi_deleteMap: typeof deleteMap;
+/** @unstable */
 declare const testApi_importFile: typeof importFile;
+/** @unstable */
 declare const testApi_importPaste: typeof importPaste;
+/** @unstable */
 declare const testApi_mapOpen: typeof mapOpen;
+/** @unstable */
 declare const testApi_openMap: typeof openMap;
+/** @unstable */
 declare const testApi_procedureEntry: typeof procedureEntry;
+/** @unstable */
 declare const testApi_runProcedure: typeof runProcedure;
+/** @unstable */
 declare const testApi_syncSelections: typeof syncSelections;
 declare namespace testApi {
   export {
@@ -6428,6 +6580,7 @@ declare namespace testApi {
 /** The nested `_test` namespace on the plugin surface. @unstable */
 declare const _test: typeof testApi;
 
+/** @unstable */
 declare const testSurface__test: typeof _test;
 declare namespace testSurface {
   export {

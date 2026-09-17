@@ -41,6 +41,16 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const DEFAULTS:/);
 	});
 
+	it("a const typed as a function carries the tag, not only its function type", () => {
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const procedureEntry: \(/);
+	});
+
+	it("every hop of a bundler alias carries the tag", () => {
+		expect(dts).toMatch(
+			/@unstable[^\n]*\n\s*declare const store_holdAutosave: typeof holdAutosave;/,
+		);
+	});
+
 	it("a legacy shim is unstable from birth, so it is never a stable promise", () => {
 		const deprecated = dts
 			.split(/\n(?=\s*\/\*\*)/)

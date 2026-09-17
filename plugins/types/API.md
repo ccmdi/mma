@@ -795,17 +795,17 @@ App settings and their option tables; the shape moves with every setting added.
 
 A value saved in local storage: its key and its defaults.
 
-### `BORDER_ARCHIVE_BYTES: { readonly medium: 7460312; readonly heavy: 21514464; readonly adm1: 56891952; }`
+### `BORDER_ARCHIVE_BYTES: { readonly medium: 7460312; readonly heavy: 21514464; readonly adm1: 56891952; }` *(unstable)*
 
 Download size of each border detail level, in bytes.
 
-### `BORDER_DETAILS: { readonly light: "Standard (bundled)"; readonly medium: "High ({size})"; readonly heavy: "Ultra ({size})"; }`
+### `BORDER_DETAILS: { readonly light: "Standard (bundled)"; readonly medium: "High ({size})"; readonly heavy: "Ultra ({size})"; }` *(unstable)*
 
-### `CSS_VAR_SETTINGS: readonly (readonly [cssVar: string, value: (s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; ... 73 more ...; pinnedCommands: PinnedEntry[]; }) => string])[]`
+### `CSS_VAR_SETTINGS: readonly (readonly [cssVar: string, value: (s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; ... 73 more ...; pinnedCommands: PinnedEntry[]; }) => string])[]` *(unstable)*
 
-### `DATE_TIMEZONES: { readonly location: "Location timezone"; readonly utc: "UTC"; }`
+### `DATE_TIMEZONES: { readonly location: "Location timezone"; readonly utc: "UTC"; }` *(unstable)*
 
-### `DEFAULTS`
+### `DEFAULTS` *(unstable)*
 
 Default values for every app setting.
 
@@ -1003,19 +1003,19 @@ Tree view only: render each tag as the shortest path suffix that's still unique.
 
 Every distance the UI shows or accepts; stored values stay metric.
 
-### `DISCORD_PRESENCE_MODES: { readonly off: "Off"; readonly generic: "Generic (no map name)"; readonly full: "Full (map name + count)"; }`
+### `DISCORD_PRESENCE_MODES: { readonly off: "Off"; readonly generic: "Generic (no map name)"; readonly full: "Full (map name + count)"; }` *(unstable)*
 
-### `EXACT_DATE_FORMATS: { readonly date: "Date only"; readonly datetime: "Date + time"; }`
+### `EXACT_DATE_FORMATS: { readonly date: "Date only"; readonly datetime: "Date + time"; }` *(unstable)*
 
-### `GEOCODE_PROVIDER_LABELS: Record<"local" | "nominatim" | "google", string>`
+### `GEOCODE_PROVIDER_LABELS: Record<"local" | "nominatim" | "google", string>` *(unstable)*
 
-### `GEOCODE_PROVIDERS: { readonly local: "Local (offline)"; readonly nominatim: "Nominatim"; readonly google: "Google (from panorama)"; }`
+### `GEOCODE_PROVIDERS: { readonly local: "Local (offline)"; readonly nominatim: "Nominatim"; readonly google: "Google (from panorama)"; }` *(unstable)*
 
 ### `getSettings(): { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 72 more ...; pinnedCommands: PinnedEntry[]; }` *(unstable)*
 
 The current app settings snapshot.
 
-### `LANGUAGES`
+### `LANGUAGES` *(unstable)*
 
 Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale.
 
@@ -1037,25 +1037,25 @@ Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolo
 
 #### `LANGUAGES.zh-Hans: "简体中文"` *(unstable)*
 
-### `MAP_LIST_FIELDS: { readonly locationCount: "Location count"; readonly lastOpened: "Last opened"; readonly created: "Date created"; }`
+### `MAP_LIST_FIELDS: { readonly locationCount: "Location count"; readonly lastOpened: "Last opened"; readonly created: "Date created"; }` *(unstable)*
 
-### `MOVEMENT_CYCLE: ("moving" | "no-move" | "nmpz")[]`
+### `MOVEMENT_CYCLE: ("moving" | "no-move" | "nmpz")[]` *(unstable)*
 
-### `MOVEMENT_MODES: { readonly moving: "Moving"; readonly "no-move": "No Move"; readonly nmpz: "NMPZ"; }`
+### `MOVEMENT_MODES: { readonly moving: "Moving"; readonly "no-move": "No Move"; readonly nmpz: "NMPZ"; }` *(unstable)*
 
 ### `navHiddenWithUI(s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 72 more ...; pinnedCommands: PinnedEntry[]; }): boolean` *(unstable)*
 
 True while the pano-UI toggle covers the navigation visuals too.
 
-### `OPACITY_TOGGLE_MODES: { readonly previous: "Last used opacity"; readonly full: "Full opacity"; }`
+### `OPACITY_TOGGLE_MODES: { readonly previous: "Last used opacity"; readonly full: "Full opacity"; }` *(unstable)*
 
 ### `panoDisplayOptions(s: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; showCar: boolean; showCrosshair: boolean; ... 72 more ...; pinnedCommands: PinnedEntry[]; }): { ...; }` *(unstable)*
 
 Effective StreetViewPanorama display options derived from the current settings.
 
-### `POLYGON_COLOR_MODES: { readonly random: "Random"; readonly fixed: "Fixed color"; }`
+### `POLYGON_COLOR_MODES: { readonly random: "Random"; readonly fixed: "Fixed color"; }` *(unstable)*
 
-### `PREVIEW_ASPECT_RATIOS`
+### `PREVIEW_ASPECT_RATIOS` *(unstable)*
 
 #### `PREVIEW_ASPECT_RATIOS.16 / 10: "16:10"` *(unstable)*
 
@@ -1069,27 +1069,27 @@ Effective StreetViewPanorama display options derived from the current settings.
 
 #### `PREVIEW_ASPECT_RATIOS.free: "Free"` *(unstable)*
 
-### `PRIVATE_SETTINGS: ReadonlySet<"showCameraBadges" | "showLinksControl" | "clickToGo" | "showRoadLabels" | "defaultMovementMode" | "showCar" | "showCrosshair" | "showCompass" | "showCompassTape" | "showZoom" | ... 69 more ... | "pinnedCommands">`
+### `PRIVATE_SETTINGS: ReadonlySet<"showCameraBadges" | "showLinksControl" | "clickToGo" | "showRoadLabels" | "defaultMovementMode" | "showCar" | "showCrosshair" | "showCompass" | "showCompassTape" | "showZoom" | ... 69 more ... | "pinnedCommands">` *(unstable)*
 
 ### `resetSettings(): void` *(unstable)*
 
 Reset all settings to defaults.
 
-### `SEEN_RESOLUTIONS: { readonly low: "Low (160x90)"; readonly medium: "Medium (320x180)"; readonly high: "High (640x360)"; }`
+### `SEEN_RESOLUTIONS: { readonly low: "Low (160x90)"; readonly medium: "Medium (320x180)"; readonly high: "High (640x360)"; }` *(unstable)*
 
 ### `setSetting<K extends keyof AppSettings>(key: K, value: { showCameraBadges: boolean; showLinksControl: boolean; clickToGo: boolean; showRoadLabels: boolean; defaultMovementMode: "moving" | "no-move" | "nmpz"; ... 74 more ...; pinnedCommands: PinnedEntry[]; }[K]): void` *(unstable)*
 
 Update one setting and persist. Emits `settings:changed`.
 
-### `SUBDIVISION_DETAILS: { readonly off: "Off"; readonly adm1: "States / provinces"; }`
+### `SUBDIVISION_DETAILS: { readonly off: "Off"; readonly adm1: "States / provinces"; }` *(unstable)*
 
-### `TAG_FOLDER_COLOR_MODES: { readonly direct: "Fixed color"; readonly firstChild: "Inherit first child"; }`
+### `TAG_FOLDER_COLOR_MODES: { readonly direct: "Fixed color"; readonly firstChild: "Inherit first child"; }` *(unstable)*
 
-### `TAG_SUGGESTION_LIMITS: readonly [5, 10, 25, 50, 0]`
+### `TAG_SUGGESTION_LIMITS: readonly [5, 10, 25, 50, 0]` *(unstable)*
 
-### `TAG_VIEW_MODES: { readonly flat: "Flat"; readonly tree: "Tree"; }`
+### `TAG_VIEW_MODES: { readonly flat: "Flat"; readonly tree: "Tree"; }` *(unstable)*
 
-### `UNIT_SYSTEMS: { readonly auto: "Automatic"; readonly metric: "Metric (m / km)"; readonly imperial: "Imperial (ft / mi)"; }`
+### `UNIT_SYSTEMS: { readonly auto: "Automatic"; readonly metric: "Metric (m / km)"; readonly imperial: "Imperial (ft / mi)"; }` *(unstable)*
 
 Distance units. `auto` reads the system locale's region, so a US/UK machine gets miles.
 
@@ -1336,7 +1336,7 @@ Reactive active review session, or null.
 
 The raw command layer under the app-level API; any of them can change in a release.
 
-### `cmd`
+### `cmd` *(unstable)*
 
 Commands
 
@@ -2468,7 +2468,7 @@ Remove plugin field definitions by key (called when a plugin is deactivated).
 
 ### `noWork(): BatchOutcome`
 
-### `procedureEntry(name: string): string`
+### `procedureEntry(name: string): string` *(unstable)*
 
 Entry point of a procedure this app bundles. Plugins ship their own paths.
 
@@ -2554,7 +2554,7 @@ The shared panorama viewer.
 
 Create an independent pano viewer with its own camera, requests, listeners and mounts.
 
-### `pano`
+### `pano` *(unstable)*
 
 The app's default pano viewer.
 
@@ -3100,7 +3100,7 @@ so a double-clicked button cannot start two.
 
 ## Test
 
-### `_test`
+### `_test` *(unstable)*
 
 #### `_test.closeMap(): Promise<void>` *(unstable)*
 
@@ -3118,7 +3118,7 @@ Import a previewed file, optionally assigning a tag.
 
 Import locations from pasted text and commit them to the map.
 
-#### `_test.mapOpen: { start: number; seen: Set<string>; begin(): void; mark(phase: string): void; }`
+#### `_test.mapOpen: { start: number; seen: Set<string>; begin(): void; mark(phase: string): void; }` *(unstable)*
 
 Cross-module stopwatch for map-open latency.
 
@@ -3126,7 +3126,7 @@ Cross-module stopwatch for map-open latency.
 
 Open a map by id and navigate to it.
 
-#### `_test.procedureEntry(name: string): string`
+#### `_test.procedureEntry(name: string): string` *(unstable)*
 
 Entry point of a procedure this app bundles. Plugins ship their own paths.
 

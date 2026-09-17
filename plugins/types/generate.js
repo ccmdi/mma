@@ -135,6 +135,25 @@ function rejectBackendSpelling(content) {
   }
 }
 
+// A member spread from a module reaches its const through an export alias and, when the
+// bundler renamed it, a `typeof` const. Every hop is a declaration a reader can hover.
+function declarationHops(ts, checker) {
+  return (sym) => {
+    const hops = [];
+    for (let s = sym, i = 0; s && i < 4; i++) {
+      const next = s.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(s) : null;
+      const decl = (next || s).declarations?.[0];
+      const query = decl && ts.isVariableDeclaration(decl) && decl.type && ts.isTypeQueryNode(decl.type)
+        ? checker.getSymbolAtLocation(decl.type.exprName)
+        : null;
+      if (next) hops.push(next);
+      if (query) hops.push(query);
+      s = query || (next !== s ? next : null);
+    }
+    return hops;
+  };
+}
+
 // `@unstable` is declared once -- on a surface (`type ReviewApi`) or a namespace (`cmd`) --
 // but a plugin author hovers the member, not the surface. Stamp it onto every member the
 // tag covers so the warning is visible where the call is written.
@@ -156,8 +175,8 @@ function propagateUnstable() {
   // node (`() => void`), which is not a place a reader would ever look.
   const documentable = (d) => {
     if (ts.isVariableDeclaration(d)) return d.parent && d.parent.parent;
-    // A const object's type is an anonymous literal; the tag belongs on the const.
-    if (ts.isTypeLiteralNode(d) && d.parent && ts.isVariableDeclaration(d.parent)) {
+    // A const's type is often an anonymous literal or function type; the tag belongs on the const.
+    if (d.parent && ts.isVariableDeclaration(d.parent) && d.parent.type === d) {
       return documentable(d.parent);
     }
     return ts.isFunctionDeclaration(d) ||
@@ -170,6 +189,7 @@ function propagateUnstable() {
       : null;
   };
   const targets = new Set();
+  const declaredThrough = declarationHops(ts, checker);
 
   // Every member a tagged surface contributes.
   const fromUnstableSurface = new Set();
@@ -193,7 +213,7 @@ function propagateUnstable() {
         tagged(prop) ||
         (!!target && tagged(target));
       if (unstable) {
-        for (const sym of [prop, target]) {
+        for (const sym of [prop, target, ...declaredThrough(prop)]) {
           for (const d of (sym && sym.declarations) || []) {
             const node = documentable(d);
             if (node && node.getSourceFile() === source) targets.add(node);
@@ -260,12 +280,14 @@ function generateApiMarkdown() {
   const doc = (sym) => ts.displayPartsToString(sym.getDocumentationComment(checker)).trim();
   const isUnstable = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
 
+  const declaredThrough = declarationHops(ts, checker);
+
   // Doc and tags can live on the aliased declaration rather than the property symbol.
   const describe = (prop, propType) => {
     const target = propType.getSymbol();
     return {
       doc: doc(prop) || (target ? doc(target) : ""),
-      unstable: isUnstable(prop) || (!!target && isUnstable(target)),
+      unstable: [prop, target, ...declaredThrough(prop)].some((s) => s && isUnstable(s)),
     };
   };
 
