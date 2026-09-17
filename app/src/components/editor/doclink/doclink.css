@@ -13,7 +13,7 @@
 	position: relative;
 	height: calc(100vh - 2rem);
 	margin: 0.5rem 0.5rem 0.5rem 0;
-	border-radius: 4px;
+	border-radius: var(--radius-1);
 	min-width: 0;
 }
 
@@ -68,7 +68,7 @@
 	flex: 1;
 	min-height: 0;
 	overflow-y: auto;
-	border-radius: 0 0 4px 4px;
+	border-radius: 0 0 var(--radius-1) var(--radius-1);
 	position: relative;
 }
 

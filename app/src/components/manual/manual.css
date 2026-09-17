@@ -187,7 +187,7 @@
 	color: var(--sand-12);
 	border: 1px solid var(--sand-3);
 	border-bottom-width: 2px;
-	border-radius: 4px;
+	border-radius: var(--radius-1);
 	padding: 0.05em 0.4em;
 	font-size: 0.85em;
 	white-space: nowrap;
@@ -198,7 +198,7 @@
 	padding: 0.75rem 1rem;
 	background: var(--accent-muted);
 	border-left: 3px solid var(--accent);
-	border-radius: 0 4px 4px 0;
+	border-radius: 0 var(--radius-1) var(--radius-1) 0;
 	font-size: 0.95rem;
 }
 
