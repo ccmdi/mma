@@ -18,6 +18,7 @@ import * as commands from "@/lib/commands";
 import * as tauri from "@/lib/tauri";
 import * as registry from "@/plugins/registry";
 import * as scope from "@/plugins/scope";
+import * as pluginEvents from "@/plugins/pluginEvents";
 import * as externals from "@/plugins/externals";
 import * as sidecar from "@/plugins/sidecar";
 import * as uiSurface from "@/components/primitives/ui";
@@ -62,7 +63,9 @@ type CommandsApi = typeof commands;
 /** Raw command, shell, and file dialog access. @unstable */
 type TauriApi = typeof tauri;
 type RegistryApi = typeof registry;
+/** Which plugin owns a registration, and its teardown. @unstable */
 type ScopeApi = typeof scope;
+type PluginEventsApi = typeof pluginEvents;
 type ExternalsApi = typeof externals;
 type SidecarApi = typeof sidecar;
 type UiApi = typeof uiSurface;
@@ -109,6 +112,7 @@ export interface MMA
 		TauriApi,
 		RegistryApi,
 		ScopeApi,
+		PluginEventsApi,
 		ExternalsApi,
 		SidecarApi,
 		UiApi,
@@ -149,6 +153,7 @@ const mma: MMA = {
 	...tauri,
 	...registry,
 	...scope,
+	...pluginEvents,
 	...externals,
 	...sidecar,
 	...uiSurface,

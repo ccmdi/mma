@@ -5080,6 +5080,39 @@ declare namespace registry {
   export type { registry_Plugin as Plugin, registry_PluginBehavior as PluginBehavior, registry_PluginIdentity as PluginIdentity, registry_PluginStorage as PluginStorage, registry_ResolvedBuild as ResolvedBuild };
 }
 
+export type Disposable = () => void;
+/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. @unstable */
+declare function runAsPlugin<T>(id: string, fn: () => T): T;
+/** Enroll a teardown callback under the current plugin. No-op outside activation. @unstable */
+declare function trackDisposable(dispose: Disposable): void;
+/** Set the base directory for a plugin's assets on disk. @unstable */
+declare function setPluginBaseDir(id: string, dir: string): void;
+/** Resolve a relative path against the current plugin's base directory. Absolute
+ *  paths and `res://` URLs pass through unchanged. @unstable */
+declare function resolvePluginPath(path: string): string;
+/** Run all teardowns a plugin registered (in reverse order) and clear them. @unstable */
+declare function disposePlugin(id: string): void;
+
+/** @unstable */
+declare const scope_disposePlugin: typeof disposePlugin;
+/** @unstable */
+declare const scope_resolvePluginPath: typeof resolvePluginPath;
+/** @unstable */
+declare const scope_runAsPlugin: typeof runAsPlugin;
+/** @unstable */
+declare const scope_setPluginBaseDir: typeof setPluginBaseDir;
+/** @unstable */
+declare const scope_trackDisposable: typeof trackDisposable;
+declare namespace scope {
+  export {
+    scope_disposePlugin as disposePlugin,
+    scope_resolvePluginPath as resolvePluginPath,
+    scope_runAsPlugin as runAsPlugin,
+    scope_setPluginBaseDir as setPluginBaseDir,
+    scope_trackDisposable as trackDisposable,
+  };
+}
+
 export interface SelectionBitmaskPayload {
     selColors: RGB[];
     cellEntries: SelCellEntry[];
@@ -5137,18 +5170,6 @@ export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
 export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
 export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
 
-export type Disposable = () => void;
-/** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. @unstable */
-declare function runAsPlugin<T>(id: string, fn: () => T): T;
-/** Enroll a teardown callback under the current plugin. No-op outside activation. @unstable */
-declare function trackDisposable(dispose: Disposable): void;
-/** Set the base directory for a plugin's assets on disk. @unstable */
-declare function setPluginBaseDir(id: string, dir: string): void;
-/** Resolve a relative path against the current plugin's base directory. Absolute
- *  paths and `res://` URLs pass through unchanged. @unstable */
-declare function resolvePluginPath(path: string): string;
-/** Run all teardowns a plugin registered (in reverse order) and clear them. @unstable */
-declare function disposePlugin(id: string): void;
 /** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
  *  deactivation. */
 declare function on<E extends EditorEvent | PluginEvent<unknown>>(event: E, handler: EventHandler<E>): () => void;
@@ -5162,33 +5183,18 @@ declare function emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends
 declare function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;
 
 /** @unstable */
-declare const scope_definePluginEvent: typeof definePluginEvent;
+declare const pluginEvents_definePluginEvent: typeof definePluginEvent;
 /** @unstable */
-declare const scope_disposePlugin: typeof disposePlugin;
+declare const pluginEvents_emitPluginEvent: typeof emitPluginEvent;
+declare const pluginEvents_on: typeof on;
 /** @unstable */
-declare const scope_emitPluginEvent: typeof emitPluginEvent;
-declare const scope_on: typeof on;
-/** @unstable */
-declare const scope_resolvePluginPath: typeof resolvePluginPath;
-/** @unstable */
-declare const scope_runAsPlugin: typeof runAsPlugin;
-/** @unstable */
-declare const scope_setPluginBaseDir: typeof setPluginBaseDir;
-/** @unstable */
-declare const scope_trackDisposable: typeof trackDisposable;
-/** @unstable */
-declare const scope_usePluginEvent: typeof usePluginEvent;
-declare namespace scope {
+declare const pluginEvents_usePluginEvent: typeof usePluginEvent;
+declare namespace pluginEvents {
   export {
-    scope_definePluginEvent as definePluginEvent,
-    scope_disposePlugin as disposePlugin,
-    scope_emitPluginEvent as emitPluginEvent,
-    scope_on as on,
-    scope_resolvePluginPath as resolvePluginPath,
-    scope_runAsPlugin as runAsPlugin,
-    scope_setPluginBaseDir as setPluginBaseDir,
-    scope_trackDisposable as trackDisposable,
-    scope_usePluginEvent as usePluginEvent,
+    pluginEvents_definePluginEvent as definePluginEvent,
+    pluginEvents_emitPluginEvent as emitPluginEvent,
+    pluginEvents_on as on,
+    pluginEvents_usePluginEvent as usePluginEvent,
   };
 }
 
@@ -6783,7 +6789,9 @@ export type CommandsApi = typeof commands;
 /** Raw command, shell, and file dialog access. @unstable */
 export type TauriApi = typeof tauri;
 export type RegistryApi = typeof registry;
+/** Which plugin owns a registration, and its teardown. @unstable */
 export type ScopeApi = typeof scope;
+export type PluginEventsApi = typeof pluginEvents;
 export type ExternalsApi = typeof externals;
 export type SidecarApi = typeof sidecar$1;
 export type UiApi = typeof uiSurface;
@@ -6813,7 +6821,7 @@ export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 export type UtilApi = typeof util;
-interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 
 declare global {

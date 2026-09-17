@@ -3,7 +3,7 @@ import { t } from "@/lib/i18n";
 import { registerJob, type JobHandle } from "@/lib/jobs";
 import { fmt } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
-import { definePluginEvent, emitPluginEvent } from "@/plugins/scope";
+import { definePluginEvent, emitPluginEvent } from "@/plugins/pluginEvents";
 import { createTags, setPluginMode } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 import { GenerationEngine } from "./engine/GenerationEngine";

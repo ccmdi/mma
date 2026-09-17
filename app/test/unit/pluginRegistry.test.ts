@@ -19,7 +19,7 @@ import {
 	isBackgroundPlugin,
 } from "@/plugins/registry";
 import { emit, subscribe } from "@/lib/events";
-import { on } from "@/plugins/scope";
+import { on } from "@/plugins/pluginEvents";
 import {
 	registerProvider,
 	getProviders,

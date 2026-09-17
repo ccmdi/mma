@@ -17,6 +17,7 @@ change in any release.
 - [Tauri](#tauri)
 - [Registry](#registry)
 - [Scope](#scope)
+- [PluginEvents](#pluginevents)
 - [Externals](#externals)
 - [Sidecar](#sidecar)
 - [Ui](#ui)
@@ -2193,23 +2194,11 @@ unmount and app restart. Values are global, not per-map.
 
 ## Scope
 
-### `definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>` *(unstable)*
-
-Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
-whoever raises it and whoever hears it agree on the payload.
+Which plugin owns a registration, and its teardown.
 
 ### `disposePlugin(id: string): void` *(unstable)*
 
 Run all teardowns a plugin registered (in reverse order) and clear them.
-
-### `emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends void ? [] : [payload: T]): void` *(unstable)*
-
-Raise one of a plugin's own events, with its payload when it carries one.
-
-### `on<E extends EditorEvent | PluginEvent<unknown>>(event: E, handler: EventHandler<E>): () => void`
-
-Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
-deactivation.
 
 ### `resolvePluginPath(path: string): string` *(unstable)*
 
@@ -2227,6 +2216,22 @@ Set the base directory for a plugin's assets on disk.
 ### `trackDisposable(dispose: Disposable): void` *(unstable)*
 
 Enroll a teardown callback under the current plugin. No-op outside activation.
+
+## PluginEvents
+
+### `definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>` *(unstable)*
+
+Name one of plugin `pluginId`'s own events, carrying a `T`. Define it once and share it, so
+whoever raises it and whoever hears it agree on the payload.
+
+### `emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends void ? [] : [payload: T]): void` *(unstable)*
+
+Raise one of a plugin's own events, with its payload when it carries one.
+
+### `on<E extends EditorEvent | PluginEvent<unknown>>(event: E, handler: EventHandler<E>): () => void`
+
+Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
+deactivation.
 
 ### `usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V` *(unstable)*
 

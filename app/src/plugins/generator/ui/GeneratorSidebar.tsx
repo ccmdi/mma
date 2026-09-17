@@ -5,7 +5,7 @@ import { RegionSelector } from "./RegionSelector";
 import { SettingsPanel } from "./SettingsPanel";
 import { google } from "@/lib/sv/opensv";
 import { getActiveSelections, useMapState } from "@/store/useMapStore";
-import { usePluginEvent } from "@/plugins/scope";
+import { usePluginEvent } from "@/plugins/pluginEvents";
 import type { Selection } from "@/bindings.gen";
 import { createPluginStorage } from "@/plugins/registry";
 import { Sidebar, Section } from "@/components/primitives/Sidebar";

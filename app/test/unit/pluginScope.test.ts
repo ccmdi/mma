@@ -4,15 +4,8 @@ import { act, createElement } from "react";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import {
-	runAsPlugin,
-	trackDisposable,
-	disposePlugin,
-	on,
-	definePluginEvent,
-	emitPluginEvent,
-	usePluginEvent,
-} from "@/plugins/scope";
+import { runAsPlugin, trackDisposable, disposePlugin } from "@/plugins/scope";
+import { on, definePluginEvent, emitPluginEvent, usePluginEvent } from "@/plugins/pluginEvents";
 import { mount } from "./fixtures/harness";
 
 describe("plugin scope (ownership + disposables)", () => {
