@@ -3,7 +3,7 @@
 	font-size: 0.85em;
 }
 .disambig__error {
-	color: var(--destructive);
+	color: var(--destructive-text);
 }
 .disambig__summary {
 	display: flex;
@@ -41,8 +41,8 @@
 	color: var(--text-2);
 }
 .disambig__badge--warn {
-	background: #fde68a;
-	color: #92400e;
+	background: var(--warning-muted);
+	color: var(--warning);
 }
 .disambig__score {
 	margin-left: auto;

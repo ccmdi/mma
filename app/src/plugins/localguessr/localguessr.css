@@ -306,7 +306,7 @@
 }
 
 .lg-timer--low {
-	color: var(--destructive);
+	color: var(--destructive-text);
 }
 
 .lg-round__close {
@@ -709,7 +709,7 @@
 }
 
 .lg-summary__row-streak.is-miss {
-	color: var(--destructive);
+	color: var(--destructive-text);
 }
 
 .lg-summary__actions {

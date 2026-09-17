@@ -408,7 +408,7 @@ export function SyncSidebar({
 									borderRadius: "50%",
 									background:
 										status === "error"
-											? "var(--red-9, #e5484d)"
+											? "var(--destructive-text)"
 											: status === "syncing"
 												? "currentColor"
 												: "transparent",
@@ -430,7 +430,7 @@ export function SyncSidebar({
 						</Button>
 					</div>
 					{status === "error" && controller.liveError() && (
-						<p style={{ color: "var(--red-9, #e5484d)" }}>{controller.liveError()}</p>
+						<p style={{ color: "var(--destructive-text)" }}>{controller.liveError()}</p>
 					)}
 					{outcome && (
 						<p>
@@ -564,7 +564,7 @@ export function SyncSidebar({
 				</Section>
 			)}
 
-			{error && <p style={{ color: "var(--red-9, #e5484d)" }}>{error}</p>}
+			{error && <p style={{ color: "var(--destructive-text)" }}>{error}</p>}
 		</Sidebar>
 	);
 }

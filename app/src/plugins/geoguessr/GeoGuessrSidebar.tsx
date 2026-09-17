@@ -84,7 +84,7 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 			<Button variant="primary" disabled={busy} onClick={() => void signIn()}>
 				{busy ? t("Waiting for sign-in...") : t("Sign in to GeoGuessr")}
 			</Button>
-			{error && <p style={{ color: "var(--red-9, #e5484d)" }}>{error}</p>}
+			{error && <p style={{ color: "var(--destructive-text)" }}>{error}</p>}
 		</>
 	);
 

@@ -624,7 +624,11 @@ input {
 
 	--constructive: var(--lime-7);
 	--destructive: var(--red-10);
+	--on-destructive: #fff;
+	--destructive-text: var(--red-4);
 	--deconstructive: var(--choco-5);
+	--warning: #e8a83e;
+	--warning-muted: color-mix(in srgb, var(--warning) 15%, transparent);
 
 	--radius-1: 4px;
 	--radius-2: 6px;
@@ -714,7 +718,7 @@ summary.button {
 }
 .button--destructive {
 	background-color: var(--destructive);
-	color: #fff;
+	color: var(--on-destructive);
 	border-color: transparent;
 }
 .button--ghost {
@@ -1249,7 +1253,7 @@ input[type="range"]:disabled {
 	flex-direction: column;
 }
 .updates__item--warning {
-	--item-color: #e5a800;
+	--item-color: var(--warning);
 	font-weight: 600;
 }
 .updates__item:before {
@@ -1506,8 +1510,8 @@ input[type="range"]:disabled {
 }
 .import-preview__badge {
 	font-size: 0.7rem;
-	background: #e5a800;
-	color: #fff;
+	background: var(--warning-muted);
+	color: var(--warning);
 	padding: 1px 6px;
 	border-radius: 3px;
 	white-space: nowrap;
@@ -1515,7 +1519,7 @@ input[type="range"]:disabled {
 .import-preview__warnings {
 	margin-top: 0.5rem;
 	font-size: 0.8rem;
-	color: var(--red-7);
+	color: var(--warning);
 }
 .import-preview__warnings ul {
 	margin: 0.25rem 0 0;
@@ -2649,7 +2653,7 @@ input[type="range"]:disabled {
 	font-size: 0.9em;
 }
 .importer__error {
-	color: var(--red-11);
+	color: var(--destructive-text);
 	font-size: 0.85em;
 }
 .diff-sidebar__title-group {
@@ -2770,7 +2774,7 @@ input[type="range"]:disabled {
 	color: var(--text-3);
 }
 .apply-tags__summary.is-warning .apply-tags__summary-head {
-	color: #e8a83e;
+	color: var(--warning);
 }
 .bulk-operation__bar,
 .bulk-operation__provider-bar {
@@ -2828,7 +2832,7 @@ input[type="range"]:disabled {
 	white-space: nowrap;
 }
 .bulk-operation__provider-failed {
-	color: var(--destructive);
+	color: var(--destructive-text);
 }
 .bulk-operation__option {
 	display: flex;
@@ -2935,7 +2939,7 @@ input[type="range"]:disabled {
 	color: var(--constructive);
 }
 .coverage-bar--incomplete .coverage-bar__pct {
-	color: #e8a83e;
+	color: var(--warning);
 }
 .coverage-bar--wide {
 	flex: 1;
@@ -3425,8 +3429,8 @@ input.date-picker__trigger.is-invalid:focus {
 	transform: translateX(-50%);
 	z-index: 2;
 	padding: 4px 10px;
-	background: rgba(200, 0, 0, 0.85);
-	color: #fff;
+	background: var(--destructive);
+	color: var(--on-destructive);
 	font: 11px/1.3 monospace;
 	border-radius: 4px;
 	pointer-events: none;
@@ -3668,7 +3672,7 @@ input.date-picker__trigger.is-invalid:focus {
 	opacity: 1;
 }
 .saved-selection-row__delete:hover {
-	color: #c00;
+	color: var(--destructive-text);
 }
 .saved-selection-row__rules {
 	display: flex;
@@ -3936,10 +3940,10 @@ body.mm-tag-dragging * {
 .tag-tree__root-drop {
 	margin: 4px 0;
 	padding: 6px 8px;
-	border: 1px dashed var(--text-muted, #888);
+	border: 1px dashed var(--text-3);
 	border-radius: 4px;
 	font-size: 12px;
-	color: var(--text-muted, #888);
+	color: var(--text-2);
 	text-align: center;
 }
 .tag-tree__root-drop.is-drop-into {
@@ -4343,7 +4347,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 }
 .review-sessions__bar-fill {
 	height: 100%;
-	background: #3fb950;
+	background: var(--accent);
 	border-radius: 2px;
 	transition: width 0.2s;
 }
@@ -4357,7 +4361,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	color: #bbb;
 }
 .review-sessions__delete:hover {
-	color: #d32f2f;
+	color: var(--destructive-text);
 }
 .review-header {
 	background: var(--indigo-10);
@@ -4887,7 +4891,7 @@ body {
 .update-pill__label {
 	background: none;
 	border: none;
-	color: #cda24a;
+	color: var(--warning);
 	font-size: 12px;
 	padding: 4px 8px;
 	cursor: pointer;
@@ -5132,8 +5136,8 @@ body {
 .settings-popup__warning {
 	margin: 0.25rem 0;
 	padding: 0.35rem 0.5rem;
-	background: #ffffff08;
-	border-left: 2px solid var(--accent);
+	background: var(--warning-muted);
+	border-left: 2px solid var(--warning);
 	border-radius: 3px;
 	font-size: 0.85em;
 	color: var(--text-2);
@@ -5239,17 +5243,17 @@ body {
 .hotkey-record {
 	width: 120px;
 	text-align: center;
-	border-color: #2fcc8b;
+	border-color: var(--accent);
 	outline: none;
 	animation: pulse 1s infinite;
 }
 @keyframes pulse {
 	0%,
 	100% {
-		border-color: #2fcc8b;
+		border-color: var(--accent);
 	}
 	50% {
-		border-color: #2fcc8b80;
+		border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 	}
 }
 .hotkey-conflict {
@@ -5258,16 +5262,16 @@ body {
 	gap: 3px;
 	margin-left: 0.4rem;
 	padding: 1px 6px 1px 4px;
-	border: 1px solid #e53e3e80;
+	border: 1px solid color-mix(in srgb, var(--destructive-text) 50%, transparent);
 	border-radius: 10px;
-	background: #e53e3e1a;
-	color: #e53e3e;
+	background: color-mix(in srgb, var(--destructive-text) 10%, transparent);
+	color: var(--destructive-text);
 	font-size: 0.7rem;
 	line-height: 1.4;
 	cursor: pointer;
 }
 .hotkey-conflict:hover {
-	background: #e53e3e33;
+	background: color-mix(in srgb, var(--destructive-text) 20%, transparent);
 }
 .hotkey-conflict__icon {
 	width: 0.85rem;
@@ -5275,7 +5279,7 @@ body {
 }
 /* Row styling for shortcut conflicts */
 .hotkey-row--conflict td {
-	box-shadow: inset 2px 0 0 #e53e3e;
+	box-shadow: inset 2px 0 0 var(--destructive-text);
 }
 .hotkey-reassign {
 	display: flex;
@@ -5285,7 +5289,7 @@ body {
 }
 .hotkey-reassign__msg {
 	font-size: 0.75rem;
-	color: #e53e3e;
+	color: var(--destructive-text);
 }
 .hotkey-reassign__msg code {
 	font-weight: 700;
@@ -5296,7 +5300,7 @@ body {
 @keyframes hotkey-flash {
 	0%,
 	30% {
-		background: #2fcc8b40;
+		background: color-mix(in srgb, var(--constructive) 25%, transparent);
 	}
 	100% {
 		background: transparent;
@@ -5304,7 +5308,7 @@ body {
 }
 .hotkey-blocked {
 	display: block;
-	color: #e53e3e;
+	color: var(--destructive-text);
 	font-size: 0.7rem;
 	margin-top: 2px;
 }
@@ -5875,11 +5879,11 @@ body:has([data-plugin-overlay]) .map-meta {
 		border-color 0.1s;
 }
 .plugin-card__action-btn--update {
-	color: #16a34a;
+	color: var(--constructive);
 }
 .plugin-card__action-btn--update:hover {
-	background: #16a34a26;
-	border-color: #16a34a;
+	background: color-mix(in srgb, var(--constructive) 15%, transparent);
+	border-color: var(--constructive);
 }
 .plugin-card__action-btn--install {
 	color: var(--text-2);
@@ -5893,9 +5897,9 @@ body:has([data-plugin-overlay]) .map-meta {
 	color: var(--text-2);
 }
 .plugin-card__action-btn--uninstall:hover {
-	color: #c00;
-	background: rgba(200, 0, 0, 0.08);
-	border-color: #c00;
+	color: var(--destructive-text);
+	background: color-mix(in srgb, var(--destructive-text) 8%, transparent);
+	border-color: var(--destructive-text);
 }
 .plugin-card--coming-soon {
 	opacity: 0.5;
@@ -6168,7 +6172,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	background: var(--constructive);
 }
 .bar--incomplete .bar__fill {
-	background: #e8a83e;
+	background: var(--warning);
 }
 .job-tray__row .bar {
 	min-width: 140px;
@@ -6215,7 +6219,7 @@ body:has([data-plugin-overlay]) .map-meta {
 }
 .stats-nerds__error {
 	margin-bottom: 0.5rem;
-	color: var(--destructive);
+	color: var(--destructive-text);
 }
 .stats-nerds__idle {
 	margin: 0;
@@ -6341,7 +6345,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	background: var(--pu-card-bg);
 	border: 1px solid var(--pu-card-border);
 	border-radius: 0.5rem;
-	color: var(--error-text, #c24b3d);
+	color: var(--destructive-text);
 	font-size: 0.8125rem;
 }
 .plugin-boundary__retry {
@@ -6776,7 +6780,7 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 .feedback-error {
 	font-size: 0.85rem;
 	line-height: 1.4;
-	color: var(--destructive);
+	color: var(--destructive-text);
 	margin: 0;
 }
 /* Its slot is always there, two lines tall, and a longer message scrolls inside it -- so no
@@ -6824,7 +6828,7 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	flex-shrink: 0;
 }
 .feedback-reports__status--open {
-	color: var(--green-7);
+	color: var(--constructive);
 }
 .feedback-reports__status--done {
 	color: var(--purple-7);

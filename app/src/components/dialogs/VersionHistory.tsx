@@ -25,7 +25,7 @@ function diffLabel(c: CommitInfo): ReactNode | null {
 		);
 	if (c.modified > 0)
 		parts.push(
-			<span key="m" style={{ color: "var(--accent)" }}>
+			<span key="m" style={{ color: "var(--deconstructive)" }}>
 				~{c.modified}
 			</span>,
 		);

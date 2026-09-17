@@ -99,7 +99,11 @@ export function JsonEditorPanel() {
 					boxSizing: "border-box",
 				}}
 			/>
-			{error && <div style={{ color: "#e53e3e", fontSize: "11px", marginTop: 4 }}>{error}</div>}
+			{error && (
+				<div style={{ color: "var(--destructive-text)", fontSize: "11px", marginTop: 4 }}>
+					{error}
+				</div>
+			)}
 			<div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
 				<Button onClick={() => void handleSave()}>{t("Apply")}</Button>
 				{saved && (

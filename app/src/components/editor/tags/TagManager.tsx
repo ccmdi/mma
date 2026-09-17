@@ -831,7 +831,7 @@ function NewFolderDialog({
 								fontSize: "0.85em",
 								minHeight: "1.25em",
 								lineHeight: "1.25em",
-								color: "var(--destructive)",
+								color: "var(--destructive-text)",
 							}}
 						>
 							{collision ? t('"{path}" already exists in the tree', { path }) : ""}
@@ -925,7 +925,7 @@ function AddAliasDialog({
 						/>
 						<span style={{ fontSize: "0.85em", opacity: 0.7 }}>
 							{collision ? (
-								<span style={{ color: "var(--destructive)" }}>
+								<span style={{ color: "var(--destructive-text)" }}>
 									{t('"{path}" already exists in the tree', { path: aliasPath })}
 								</span>
 							) : (

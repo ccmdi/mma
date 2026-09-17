@@ -112,7 +112,7 @@
 .vali-download__error {
 	margin-top: 12px;
 	font-size: 13px;
-	color: var(--destructive);
+	color: var(--destructive-text);
 	word-break: break-word;
 }
 
