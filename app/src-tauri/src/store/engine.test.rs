@@ -4778,6 +4778,41 @@ fn set_op_patches_a_writable_builtin_column() {
     assert!(out[0].patch.extra.is_none());
 }
 
+#[test]
+fn set_op_toggles_a_flag_field_bit_and_keeps_the_others() {
+    let informational = LocationFlags::INFORMATIONAL;
+    let locs = [
+        Location {
+            flags: informational,
+            ..loc(1, 1.0, 1.0)
+        },
+        Location {
+            flags: LocationFlags::LOAD_AS_PANO_ID,
+            ..loc(2, 1.0, 1.0)
+        },
+    ];
+    let on = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(1)));
+    assert_eq!(on.iter().map(|u| u.id).collect::<Vec<_>>(), vec![1]);
+    assert_eq!(
+        on[0].patch.flags,
+        Some((informational | LocationFlags::LOAD_AS_PANO_ID).bits())
+    );
+    assert!(on[0].patch.extra.is_none());
+    let off = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(0)));
+    assert_eq!(off.iter().map(|u| u.id).collect::<Vec<_>>(), vec![2]);
+    assert_eq!(off[0].patch.flags, Some(0));
+}
+
+#[test]
+fn a_flag_field_takes_only_zero_or_one() {
+    let locs = [loc(1, 1.0, 1.0), loc_with_extra(2, r#"{"a":1}"#)];
+    let err = plan_err(&locs, &set_op("loadAsPanoId", serde_json::json!(2)));
+    assert!(err.contains("takes 0 or 1"), "{err}");
+    let out = plan_full(&locs, &expr_op("loadAsPanoId", "id * 2"));
+    assert_eq!(out.failed, vec![1, 2]);
+    assert!(out.updates.is_empty());
+}
+
 fn pinned_loc(id: u32, pano: &str) -> Location {
     Location {
         pano_id: Some(pano.into()),

@@ -239,7 +239,7 @@ declare const BUILTIN_FIELDS: readonly [{
     readonly key: "loadAsPanoId";
     readonly label: "Load as pano ID";
     readonly type: "number";
-    readonly kind: "term";
+    readonly kind: "writable";
     readonly comparison: null;
 }];
 declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";

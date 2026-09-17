@@ -17,8 +17,6 @@ pub enum BuiltinFieldKind {
     Identity,
     /// Derived, not stored on the location. Never writable.
     Virtual,
-    /// Only a term in a field expression. Never writable, never offered in pickers.
-    Term,
     /// Explicitly bulk-editable top-level field.
     Writable,
 }
@@ -58,7 +56,7 @@ macro_rules! builtin_fields {
             matches!(field, $($key)|*)
         }
 
-        /// True for the built-in columns a bulk set may assign (`heading`, `pitch`, `zoom`).
+        /// True for the built-in fields a bulk set may assign.
         pub fn is_writable_builtin(field: &str) -> bool {
             BUILTIN_FIELDS
                 .iter()
@@ -145,7 +143,7 @@ builtin_fields! {
     "tagCount", "Tag count", ExtraFieldType::Number, Some(BuiltinFieldKind::Virtual), None,
         |l| Some(serde_json::json!(l.tags.len())),
         |v, i| v.tags.map(|c| serde_json::json!(c.value(i).len()));
-    "loadAsPanoId", "Load as pano ID", ExtraFieldType::Number, Some(BuiltinFieldKind::Term), None,
+    "loadAsPanoId", "Load as pano ID", ExtraFieldType::Number, Some(BuiltinFieldKind::Writable), None,
         |l| Some(flag_value(l.flags, LocationFlags::LOAD_AS_PANO_ID)),
         |v, i| v.flags.map(|c| flag_value(LocationFlags::from_bits_retain(c.value(i)),
             LocationFlags::LOAD_AS_PANO_ID));
@@ -155,6 +153,11 @@ builtin_fields! {
 /// adds itself to a score directly.
 fn flag_value(flags: LocationFlags, bit: LocationFlags) -> serde_json::Value {
     serde_json::json!(u8::from(flags.contains(bit)))
+}
+
+/// The flag bit a built-in field reads and writes as 0/1.
+pub fn flag_field(field: &str) -> Option<LocationFlags> {
+    (field == "loadAsPanoId").then_some(LocationFlags::LOAD_AS_PANO_ID)
 }
 
 /// Core comparison dispatch. An array field answers `contains`/`has` itself and is

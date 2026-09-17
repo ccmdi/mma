@@ -44,7 +44,7 @@ export function isBuiltinField(key: string): boolean {
 
 /** Derived from the location rather than stored on it, so never a column to assign. */
 function isDerived(kind: FieldKind | undefined): boolean {
-	return kind === "virtual" || kind === "term";
+	return kind === "virtual";
 }
 
 export function isWritableField(key: string): boolean {
@@ -58,7 +58,7 @@ export function isClearableField(key: string): boolean {
 
 /** True when the field should appear in field pickers. */
 export function isListableField(key: string): boolean {
-	return key in FIELDS ? !["identity", "term"].includes(FIELDS[key].kind ?? "") : true;
+	return key in FIELDS ? FIELDS[key].kind !== "identity" : true;
 }
 
 /** All built-in field keys (excluding virtual). */

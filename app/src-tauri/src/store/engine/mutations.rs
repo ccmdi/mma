@@ -9,7 +9,7 @@ use crate::store::storage;
 use crate::types::wire_str_enum;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
-use crate::types::{Location, Tag};
+use crate::types::{Location, LocationFlags, Tag};
 use crate::util;
 use roaring::RoaringBitmap;
 use std::collections::BTreeSet;
@@ -294,15 +294,34 @@ pub(super) fn number_value(v: f64) -> serde_json::Value {
     }
 }
 
-/// The patch applying one row's assignments: a built-in column is set directly, anything
-/// else merges into `extra` (null deletes). Every field op writes through here, so what
-/// `set` targets and what `delete` targets cannot drift apart.
+/// A flag field's value as the bit it sets: exactly 0 or 1.
+fn flag_bit(value: &serde_json::Value) -> Option<bool> {
+    match value.as_f64() {
+        Some(0.0) => Some(false),
+        Some(1.0) => Some(true),
+        _ => None,
+    }
+}
+
+/// The patch applying one row's assignments: a built-in column is set directly, a flag
+/// field toggles its bit in the row's `flags`, anything else merges into `extra` (null
+/// deletes). Every field op writes through here, so what `set` targets and what `delete`
+/// targets cannot drift apart.
 pub(super) fn assign_patch(
     assignments: &serde_json::Map<String, serde_json::Value>,
+    flags: LocationFlags,
 ) -> AppResult<LocationPatch> {
     let mut columns = serde_json::Map::new();
     let mut extra = serde_json::Map::new();
+    let mut next_flags = flags;
     for (key, value) in assignments {
+        if let Some(bit) = selections::flag_field(key) {
+            let on = flag_bit(value)
+                .ok_or_else(|| AppError(format!("'{key}' takes 0 or 1, not {value}")))?;
+            next_flags.set(bit, on);
+            columns.insert("flags".into(), next_flags.bits().into());
+            continue;
+        }
         let dest = if selections::is_builtin_field(key) {
             &mut columns
         } else {
@@ -360,7 +379,13 @@ pub(super) fn plan_field_op(
         _ => None,
     };
     match op {
-        FieldOp::Set { key, .. } | FieldOp::Expr { key, .. } => check_target(key, true)?,
+        FieldOp::Set { key, value } => {
+            check_target(key, true)?;
+            if selections::flag_field(key).is_some() && flag_bit(value).is_none() {
+                return Err(AppError(format!("'{key}' takes 0 or 1, not {value}")));
+            }
+        }
+        FieldOp::Expr { key, .. } => check_target(key, true)?,
         FieldOp::Delete { keys } => keys.iter().try_for_each(|k| check_target(k, false))?,
         FieldOp::Move { from, to, .. } => {
             check_target(from, false)?;
@@ -385,6 +410,12 @@ pub(super) fn plan_field_op(
                     let field = |name: &str| row.resolve_field(name);
                     match field_expr::eval(expr, &field) {
                         None => plan.failed.push(id),
+                        Some(v)
+                            if selections::flag_field(key).is_some()
+                                && flag_bit(&v.into()).is_none() =>
+                        {
+                            plan.failed.push(id);
+                        }
                         Some(v) => {
                             let value = number_value(v);
                             if !same_field_value(row.resolve_field(key).as_ref(), &value) {
@@ -422,7 +453,7 @@ pub(super) fn plan_field_op(
             }
         }
         if !merge.is_empty() {
-            match assign_patch(&merge) {
+            match assign_patch(&merge, row.flags()) {
                 Ok(patch) => plan.updates.push(Update { id, patch }),
                 Err(e) => err = Some(e),
             }

@@ -68,8 +68,13 @@ describe("field kinds", () => {
 		}
 	});
 
-	it("writable builtins are exactly heading, pitch, zoom", () => {
-		expect(getBuiltinKeys().filter(isWritableField).sort()).toEqual(["heading", "pitch", "zoom"]);
+	it("writable builtins are exactly heading, pitch, zoom and the pin flag", () => {
+		expect(getBuiltinKeys().filter(isWritableField).sort()).toEqual([
+			"heading",
+			"loadAsPanoId",
+			"pitch",
+			"zoom",
+		]);
 	});
 
 	it("extra fields are writable and listable", () => {
