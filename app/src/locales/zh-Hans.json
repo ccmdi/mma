@@ -419,6 +419,7 @@
 	"Enrich metadata fields to enable": "扩展元数据字段后可用",
 	"Enrichment": "元数据扩展",
 	"Enrichment only: adds data fields, no panel of its own": "仅元数据扩展：添加数据字段，无独立面板",
+	"Enter a bucket width": "请输入桶宽度",
 	"Enter code {code} in your browser to finish signing in.": "在浏览器中输入代码 {code} 以完成登录。",
 	"Enter opens location at map center": "回车打开地图中心的位置",
 	"Enum": "枚举",
@@ -645,6 +646,7 @@
 	"Locations cap for all regions:": "所有区域的位置上限：",
 	"Locations found this run": "本次运行找到的位置",
 	"Locations per region:": "每区域位置数：",
+	"Locations with {field}": "有{field}的位置",
 	"Lock viewport direction": "锁定视口方向",
 	"Log viewed panos": "记录已查看的全景",
 	"Longitude": "经度",
@@ -764,6 +766,7 @@
 	"No locations have timezone data": "没有位置带有时区数据",
 	"No locations on this map.": "此地图没有位置。",
 	"No locations to play": "没有可用的位置",
+	"No locations to tag": "没有可添加标签的位置",
 	"No map open": "未打开地图",
 	"No metadata fields on this map.": "此地图没有元数据字段。",
 	"No metadata yet": "尚无元数据",
@@ -777,10 +780,15 @@
 	"No saved selections.": "没有已保存的选择。",
 	"No tags": "无标签",
 	"No tags in this map carry document links.": "此地图中没有带文档链接的标签。",
+	"No tags to create": "不会创建标签",
 	"No timer": "无计时",
+	"No values could be grouped": "没有可分组的值",
 	"No {field} data": "无{field}数据",
 	"Noir": "黑白",
 	"None": "无",
+	"None of the {n} locations have {field}": {
+		"other": "{n} 个位置都没有{field}"
+	},
 	"North America": "北美洲",
 	"Not found": "未找到",
 	"Not signed in. Reports are filed anonymously and replies arrive here.": "未登录。反馈将匿名发送，回复会显示在这里。",
@@ -1223,6 +1231,8 @@
 	"That file is not a PNG, JPEG, GIF or WebP.": "该文件不是 PNG、JPEG、GIF 或 WebP。",
 	"That file was not staged for upload.": "该文件未准备好上传。",
 	"That image is too large ({limit} maximum).": "该图片过大（最大 {limit}）。",
+	"That's a lot of tags. Range groups numbers into buckets.": "标签太多了。范围可将数字分桶。",
+	"That's a lot of tags. Try a coarser grouping.": "标签太多了。请尝试更粗的分组。",
 	"The linked section no longer exists in this document.": "链接的章节在此文档中已不存在。",
 	"The pano UI toggle also hides link arrows, the ground arrow, and the navigation X.": "全景 UI 开关同时会隐藏链接箭头、地面箭头与导航 X。",
 	"The report was rejected ({detail}).": "该反馈被拒绝（{detail}）。",
@@ -1527,6 +1537,9 @@
 	"{n} not found locally": "{n} 个在本地未找到",
 	"{n} rounds": "{n} 轮",
 	"{n} seconds per round": "每轮 {n} 秒",
+	"{n} tags": {
+		"other": "{n} 个标签"
+	},
 	"{n} tags will be affected:": {
 		"other": "将影响 {n} 个标签："
 	},

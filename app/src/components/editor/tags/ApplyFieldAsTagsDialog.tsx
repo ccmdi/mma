@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
+import clsx from "clsx";
 import { NSelect } from "@/components/primitives/NSelect";
 import type { KeySpec, Selector } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
-import { countIn, createTags, partition } from "@/store/useMapStore";
+import { countBy, countIn, coverage, createTags, partition } from "@/store/useMapStore";
 import { buildSelection } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -14,12 +15,15 @@ import { Dialog, DialogContent, type DialogProps } from "@/components/primitives
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Checkbox } from "@/components/primitives/Checkbox";
+import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { t } from "@/lib/i18n";
 import { fillTemplate } from "@/lib/util/format";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
+import { applyCounts, type Preview } from "./applyCounts";
 
 /** `{value}` alone keeps today's names; a prefix such as `Camera/{value}` files them in a folder. */
 const DEFAULT_TEMPLATE = "{value}";
+const MANY_TAGS = 100;
 
 export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const tzDefault = useSetting("dateTimezone") === "location";
@@ -53,9 +57,44 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const showWidth = isRange;
 	const widthValid = !showWidth || Number(width) > 0;
 
-	const handleFieldChange = (key: string) => {
-		setField(key);
-		const type = fields.find((f) => f.key === key)?.def.type ?? "string";
+	const key = useMemo((): KeySpec | null => {
+		if (!field || !widthValid) return null;
+		if (isRange) return { kind: "numericBin", binning: { by: "width", w: Number(width) } };
+		if (projectionId === "value") return { kind: "value" };
+		return { kind: "datePart", part: projectionId as DatePart, tzLocal: tzLocal && hasTzData };
+	}, [field, widthValid, isRange, width, projectionId, tzLocal, hasTzData]);
+
+	const [loaded, setLoaded] = useState<{ field: string; preview: Preview } | null>(null);
+	useEffect(() => {
+		if (!field) return;
+		let live = true;
+		const selector = picker.selector;
+		void Promise.all([
+			countIn(selector),
+			coverage(selector),
+			key ? countBy(selector, field, key) : Promise.resolve([]),
+		]).then(([total, counts, groups]) => {
+			if (!live) return;
+			setLoaded({
+				field,
+				preview: {
+					total,
+					have: counts.find(([k]) => k === field)?.[1] ?? 0,
+					groupSizes: groups.map(([, n]) => n),
+				},
+			});
+		});
+		return () => {
+			live = false;
+		};
+	}, [picker.selector, field, key]);
+
+	const preview = field && loaded?.field === field ? loaded.preview : null;
+	const counts = preview ? applyCounts(preview, tagMissing) : null;
+
+	const handleFieldChange = (next: string) => {
+		setField(next);
+		const type = fields.find((f) => f.key === next)?.def.type ?? "string";
 		setProjectionId(projectionsForType(type)[0]?.id ?? "");
 		setWidth("");
 		setTzLocal(tzDefault);
@@ -66,13 +105,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const tagName = (value: string) => fillTemplate(template, { value, field: fieldLabel });
 
 	const handleApply = async () => {
-		if (!field || !widthValid) return;
-
-		const key: KeySpec = isRange
-			? { kind: "numericBin", binning: { by: "width", w: Number(width) } }
-			: projectionId === "value"
-				? { kind: "value" }
-				: { kind: "datePart", part: projectionId as DatePart, tzLocal: tzLocal && hasTzData };
+		if (!field || !key) return;
 
 		const groups = await partition(field, key, picker.selector);
 
@@ -200,6 +233,18 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 						<div className="bulk-operation__status">{missingTimezoneMessage(tzGap)}</div>
 					)}
 					{field && (
+						<div className={clsx("apply-tags__coverage", !preview && "is-pending")}>
+							<span className="apply-tags__coverage-label">
+								{t("Locations with {field}", { field: fieldLabel })}
+							</span>
+							<CoverageBar
+								ratio={preview && preview.total > 0 ? preview.have / preview.total : 0}
+								status
+								className="coverage-bar--wide"
+							/>
+						</div>
+					)}
+					{field && (
 						<label className="bulk-operation__option">
 							{t("Tag name")}
 							<TextInput
@@ -218,14 +263,86 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 							{t("Tag locations with no value as “{name}”", { name: missingName })}
 						</label>
 					)}
-					<div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
+					<div className="apply-tags__footer">
+						<ApplySummary
+							preview={preview}
+							needsWidth={!!field && !key}
+							tags={counts?.tags ?? 0}
+							locations={counts?.locations ?? 0}
+							fieldLabel={fieldLabel}
+							suggestRange={fieldType === "number" && !isRange}
+						/>
 						<Button onClick={() => onOpenChange(false)}>{t("Cancel")}</Button>
-						<Button variant="primary" type="submit" disabled={!field || !widthValid}>
+						<Button variant="primary" type="submit" disabled={!key || !counts?.tags}>
 							{t("Apply")}
 						</Button>
 					</div>
 				</form>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+function ApplySummary({
+	preview,
+	needsWidth,
+	tags,
+	locations,
+	fieldLabel,
+	suggestRange,
+}: {
+	preview: Preview | null;
+	needsWidth: boolean;
+	tags: number;
+	locations: number;
+	fieldLabel: string;
+	suggestRange: boolean;
+}) {
+	let state: "pending" | "empty" | "warning" | "ready" = "ready";
+	let head: ReactNode = null;
+	let note: ReactNode = null;
+	if (needsWidth) {
+		state = "empty";
+		head = t("Enter a bucket width");
+	} else if (!preview) {
+		state = "pending";
+	} else if (tags === 0) {
+		state = "empty";
+		head = t("No tags to create");
+		note =
+			preview.total === 0
+				? t("No locations to tag")
+				: preview.have === 0
+					? t(
+							{
+								one: "The {n} location has no {field}",
+								other: "None of the {n} locations have {field}",
+							},
+							{ n: preview.total, field: fieldLabel },
+						)
+					: t("No values could be grouped");
+	} else {
+		head = (
+			<>
+				{t({ one: "{n} tag", other: "{n} tags" }, { n: tags })}
+				<span className="apply-tags__summary-sep" aria-hidden>
+					·
+				</span>
+				{t({ one: "{n} location", other: "{n} locations" }, { n: locations })}
+			</>
+		);
+		if (tags > MANY_TAGS) {
+			state = "warning";
+			note = suggestRange
+				? t("That's a lot of tags. Range groups numbers into buckets.")
+				: t("That's a lot of tags. Try a coarser grouping.");
+		}
+	}
+	// Both lines always render so the footer keeps one height through every state.
+	return (
+		<div className={clsx("apply-tags__summary", `is-${state}`)} aria-live="polite">
+			<span className="apply-tags__summary-head">{head ?? "\u00a0"}</span>
+			<span className="apply-tags__summary-note">{note ?? "\u00a0"}</span>
+		</div>
 	);
 }

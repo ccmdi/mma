@@ -434,6 +434,7 @@
 	"Enrich metadata fields to enable": "[Éñŕîçĥ ɱéţåðåţå ƒîéĺðş ţö éñåƀĺé åéîöüåéîöüåéî]",
 	"Enrichment": "[Éñŕîçĥɱéñţ åéîö]",
 	"Enrichment only: adds data fields, no panel of its own": "[Éñŕîçĥɱéñţ öñĺý: åððş ðåţå ƒîéĺðş, ñö ƥåñéĺ öƒ îţş öŵñ åéîöüåéîöüåéîöüåéîöüåé]",
+	"Enter a bucket width": "[Éñţéŕ å ƀüçķéţ ŵîðţĥ åéîöüåéî]",
 	"Enter code {code} in your browser to finish signing in.": "[Éñţéŕ çöðé {code} îñ ýöüŕ ƀŕöŵşéŕ ţö ƒîñîşĥ şîǧñîñǧ îñ. åéîöüåéîöüåéîöüåéîöü]",
 	"Enter opens location at map center": "[Éñţéŕ öƥéñş ĺöçåţîöñ åţ ɱåƥ çéñţéŕ åéîöüåéîöüåéîö]",
 	"Enum": "[Éñüɱ åé]",
@@ -663,6 +664,7 @@
 	"Locations cap for all regions:": "[Ĺöçåţîöñş çåƥ ƒöŕ åĺĺ ŕéǧîöñş: åéîöüåéîöüåé]",
 	"Locations found this run": "[Ĺöçåţîöñş ƒöüñð ţĥîş ŕüñ åéîöüåéîöü]",
 	"Locations per region:": "[Ĺöçåţîöñş ƥéŕ ŕéǧîöñ: åéîöüåéîö]",
+	"Locations with {field}": "[Ĺöçåţîöñş ŵîţĥ {field} åéîöüå]",
 	"Lock viewport direction": "[Ĺöçķ ṽîéŵƥöŕţ ðîŕéçţîöñ åéîöüåéîöü]",
 	"Log viewed panos": "[Ĺöǧ ṽîéŵéð ƥåñöş åéîöüåé]",
 	"Longitude": "[Ĺöñǧîţüðé åéîö]",
@@ -784,6 +786,7 @@
 	"No locations have timezone data": "[Ñö ĺöçåţîöñş ĥåṽé ţîɱéžöñé ðåţå åéîöüåéîöüåéî]",
 	"No locations on this map.": "[Ñö ĺöçåţîöñş öñ ţĥîş ɱåƥ. åéîöüåéîöü]",
 	"No locations to play": "[Ñö ĺöçåţîöñş ţö ƥĺåý åéîöüåéî]",
+	"No locations to tag": "[Ñö ĺöçåţîöñş ţö ţåǧ åéîöüåéî]",
 	"No map open": "[Ñö ɱåƥ öƥéñ åéîöü]",
 	"No metadata fields on this map.": "[Ñö ɱéţåðåţå ƒîéĺðş öñ ţĥîş ɱåƥ. åéîöüåéîöüåéî]",
 	"No metadata yet": "[Ñö ɱéţåðåţå ýéţ åéîöüå]",
@@ -797,10 +800,16 @@
 	"No saved selections.": "[Ñö şåṽéð şéĺéçţîöñş. åéîöüåéî]",
 	"No tags": "[Ñö ţåǧş åéî]",
 	"No tags in this map carry document links.": "[Ñö ţåǧş îñ ţĥîş ɱåƥ çåŕŕý ðöçüɱéñţ ĺîñķş. åéîöüåéîöüåéîöüåé]",
+	"No tags to create": "[Ñö ţåǧş ţö çŕéåţé åéîöüåé]",
 	"No timer": "[Ñö ţîɱéŕ åéîö]",
+	"No values could be grouped": "[Ñö ṽåĺüéş çöüĺð ƀé ǧŕöüƥéð åéîöüåéîöüå]",
 	"No {field} data": "[Ñö {field} ðåţå åéîö]",
 	"Noir": "[Ñöîŕ åé]",
 	"None": "[Ñöñé åé]",
+	"None of the {n} locations have {field}": {
+		"one": "[Ţĥé {n} ĺöçåţîöñ ĥåş ñö {field} åéîöüåéîö]",
+		"other": "[Ñöñé öƒ ţĥé {n} ĺöçåţîöñş ĥåṽé {field} åéîöüåéîöüåé]"
+	},
 	"North America": "[Ñöŕţĥ Åɱéŕîçå åéîöüå]",
 	"Not found": "[Ñöţ ƒöüñð åéîö]",
 	"Not signed in. Reports are filed anonymously and replies arrive here.": "[Ñöţ şîǧñéð îñ. Ŕéƥöŕţş åŕé ƒîĺéð åñöñýɱöüşĺý åñð ŕéƥĺîéş åŕŕîṽé ĥéŕé. åéîöüåéîöüåéîöüåéîöüåéîöüåéî]",
@@ -1259,6 +1268,8 @@
 	"That file is not a PNG, JPEG, GIF or WebP.": "[Ţĥåţ ƒîĺé îş ñöţ å ƤÑǦ, ĴƤÉǦ, ǦÎƑ öŕ ŴéƀƤ. åéîöüåéîöüåéîöüåé]",
 	"That file was not staged for upload.": "[Ţĥåţ ƒîĺé ŵåş ñöţ şţåǧéð ƒöŕ üƥĺöåð. åéîöüåéîöüåéîöü]",
 	"That image is too large ({limit} maximum).": "[Ţĥåţ îɱåǧé îş ţöö ĺåŕǧé ({limit} ɱåẋîɱüɱ). åéîöüåéîöüåéîö]",
+	"That's a lot of tags. Range groups numbers into buckets.": "[Ţĥåţ'ş å ĺöţ öƒ ţåǧş. Ŕåñǧé ǧŕöüƥş ñüɱƀéŕş îñţö ƀüçķéţş. åéîöüåéîöüåéîöüåéîöüåéî]",
+	"That's a lot of tags. Try a coarser grouping.": "[Ţĥåţ'ş å ĺöţ öƒ ţåǧş. Ţŕý å çöåŕşéŕ ǧŕöüƥîñǧ. åéîöüåéîöüåéîöüåéî]",
 	"The linked section no longer exists in this document.": "[Ţĥé ĺîñķéð şéçţîöñ ñö ĺöñǧéŕ éẋîşţş îñ ţĥîş ðöçüɱéñţ. åéîöüåéîöüåéîöüåéîöüåé]",
 	"The pano UI toggle also hides link arrows, the ground arrow, and the navigation X.": "[Ţĥé ƥåñö ÜÎ ţöǧǧĺé åĺşö ĥîðéş ĺîñķ åŕŕöŵş, ţĥé ǧŕöüñð åŕŕöŵ, åñð ţĥé ñåṽîǧåţîöñ Ẋ. åéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéî]",
 	"The report was rejected ({detail}).": "[Ţĥé ŕéƥöŕţ ŵåş ŕéĵéçţéð ({detail}). åéîöüåéîöüå]",
@@ -1579,6 +1590,10 @@
 	"{n} not found locally": "[{n} ñöţ ƒöüñð ĺöçåĺĺý åéîöüåéî]",
 	"{n} rounds": "[{n} ŕöüñðş åéî]",
 	"{n} seconds per round": "[{n} şéçöñðş ƥéŕ ŕöüñð åéîöüåéî]",
+	"{n} tags": {
+		"one": "[{n} ţåǧ åé]",
+		"other": "[{n} ţåǧş åé]"
+	},
 	"{n} tags will be affected:": {
 		"one": "[{n} ţåǧ ŵîĺĺ ƀé åƒƒéçţéð: åéîöüåéîö]",
 		"other": "[{n} ţåǧş ŵîĺĺ ƀé åƒƒéçţéð: åéîöüåéîöü]"

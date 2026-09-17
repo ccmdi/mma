@@ -434,6 +434,7 @@
 	"Enrich metadata fields to enable": "Enrich metadata fields to enable",
 	"Enrichment": "Enrichment",
 	"Enrichment only: adds data fields, no panel of its own": "Enrichment only: adds data fields, no panel of its own",
+	"Enter a bucket width": "Enter a bucket width",
 	"Enter code {code} in your browser to finish signing in.": "Enter code {code} in your browser to finish signing in.",
 	"Enter opens location at map center": "Enter opens location at map center",
 	"Enum": "Enum",
@@ -663,6 +664,7 @@
 	"Locations cap for all regions:": "Locations cap for all regions:",
 	"Locations found this run": "Locations found this run",
 	"Locations per region:": "Locations per region:",
+	"Locations with {field}": "Locations with {field}",
 	"Lock viewport direction": "Lock viewport direction",
 	"Log viewed panos": "Log viewed panos",
 	"Longitude": "Longitude",
@@ -784,6 +786,7 @@
 	"No locations have timezone data": "No locations have timezone data",
 	"No locations on this map.": "No locations on this map.",
 	"No locations to play": "No locations to play",
+	"No locations to tag": "No locations to tag",
 	"No map open": "No map open",
 	"No metadata fields on this map.": "No metadata fields on this map.",
 	"No metadata yet": "No metadata yet",
@@ -797,10 +800,16 @@
 	"No saved selections.": "No saved selections.",
 	"No tags": "No tags",
 	"No tags in this map carry document links.": "No tags in this map carry document links.",
+	"No tags to create": "No tags to create",
 	"No timer": "No timer",
+	"No values could be grouped": "No values could be grouped",
 	"No {field} data": "No {field} data",
 	"Noir": "Noir",
 	"None": "None",
+	"None of the {n} locations have {field}": {
+		"one": "The {n} location has no {field}",
+		"other": "None of the {n} locations have {field}"
+	},
 	"North America": "North America",
 	"Not found": "Not found",
 	"Not signed in. Reports are filed anonymously and replies arrive here.": "Not signed in. Reports are filed anonymously and replies arrive here.",
@@ -1259,6 +1268,8 @@
 	"That file is not a PNG, JPEG, GIF or WebP.": "That file is not a PNG, JPEG, GIF or WebP.",
 	"That file was not staged for upload.": "That file was not staged for upload.",
 	"That image is too large ({limit} maximum).": "That image is too large ({limit} maximum).",
+	"That's a lot of tags. Range groups numbers into buckets.": "That's a lot of tags. Range groups numbers into buckets.",
+	"That's a lot of tags. Try a coarser grouping.": "That's a lot of tags. Try a coarser grouping.",
 	"The linked section no longer exists in this document.": "The linked section no longer exists in this document.",
 	"The pano UI toggle also hides link arrows, the ground arrow, and the navigation X.": "The pano UI toggle also hides link arrows, the ground arrow, and the navigation X.",
 	"The report was rejected ({detail}).": "The report was rejected ({detail}).",
@@ -1579,6 +1590,10 @@
 	"{n} not found locally": "{n} not found locally",
 	"{n} rounds": "{n} rounds",
 	"{n} seconds per round": "{n} seconds per round",
+	"{n} tags": {
+		"one": "{n} tag",
+		"other": "{n} tags"
+	},
 	"{n} tags will be affected:": {
 		"one": "{n} tag will be affected:",
 		"other": "{n} tags will be affected:"

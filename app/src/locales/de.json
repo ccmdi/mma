@@ -434,6 +434,7 @@
 	"Enrich metadata fields to enable": "Metadatenfelder anreichern, um dies zu aktivieren",
 	"Enrichment": "Anreicherung",
 	"Enrichment only: adds data fields, no panel of its own": "Nur Anreicherung: fügt Datenfelder hinzu, kein eigenes Panel",
+	"Enter a bucket width": "Klassenbreite eingeben",
 	"Enter code {code} in your browser to finish signing in.": "Code {code} im Browser eingeben, um die Anmeldung abzuschließen.",
 	"Enter opens location at map center": "Enter öffnet Standort in der Kartenmitte",
 	"Enum": "Enum",
@@ -663,6 +664,7 @@
 	"Locations cap for all regions:": "Standort-Limit für alle Regionen:",
 	"Locations found this run": "In diesem Lauf gefundene Standorte",
 	"Locations per region:": "Standorte pro Region:",
+	"Locations with {field}": "Standorte mit {field}",
 	"Lock viewport direction": "Blickrichtung der Ansicht sperren",
 	"Log viewed panos": "Angesehene Panos protokollieren",
 	"Longitude": "Längengrad",
@@ -784,6 +786,7 @@
 	"No locations have timezone data": "Keine Standorte mit Zeitzonendaten",
 	"No locations on this map.": "Keine Standorte auf dieser Karte.",
 	"No locations to play": "Keine Standorte zum Spielen",
+	"No locations to tag": "Keine Standorte zum Taggen",
 	"No map open": "Keine Karte geöffnet",
 	"No metadata fields on this map.": "Keine Metadatenfelder auf dieser Karte.",
 	"No metadata yet": "Noch keine Metadaten",
@@ -797,10 +800,16 @@
 	"No saved selections.": "Keine gespeicherten Auswahlen.",
 	"No tags": "Keine Tags",
 	"No tags in this map carry document links.": "Kein Tag dieser Karte hat Dokumentlinks.",
+	"No tags to create": "Keine Tags zu erstellen",
 	"No timer": "Kein Timer",
+	"No values could be grouped": "Keine Werte ließen sich gruppieren",
 	"No {field} data": "Keine {field}-Daten",
 	"Noir": "Noir",
 	"None": "Keine",
+	"None of the {n} locations have {field}": {
+		"one": "Der {n} Standort hat kein {field}",
+		"other": "Keiner der {n} Standorte hat {field}"
+	},
 	"North America": "Nordamerika",
 	"Not found": "Nicht gefunden",
 	"Not signed in. Reports are filed anonymously and replies arrive here.": "Nicht angemeldet. Meldungen werden anonym gesendet, Antworten erscheinen hier.",
@@ -1259,6 +1268,8 @@
 	"That file is not a PNG, JPEG, GIF or WebP.": "Diese Datei ist kein PNG, JPEG, GIF oder WebP.",
 	"That file was not staged for upload.": "Diese Datei wurde nicht zum Hochladen vorbereitet.",
 	"That image is too large ({limit} maximum).": "Dieses Bild ist zu groß (maximal {limit}).",
+	"That's a lot of tags. Range groups numbers into buckets.": "Das sind sehr viele Tags. Bereich fasst Zahlen in Klassen zusammen.",
+	"That's a lot of tags. Try a coarser grouping.": "Das sind sehr viele Tags. Wähle eine gröbere Gruppierung.",
 	"The linked section no longer exists in this document.": "Der verlinkte Abschnitt existiert in diesem Dokument nicht mehr.",
 	"The pano UI toggle also hides link arrows, the ground arrow, and the navigation X.": "Der Pano-UI-Umschalter blendet auch Link-Pfeile, Bodenpfeil und Navigations-X aus.",
 	"The report was rejected ({detail}).": "Die Meldung wurde abgelehnt ({detail}).",
@@ -1579,6 +1590,10 @@
 	"{n} not found locally": "{n} lokal nicht gefunden",
 	"{n} rounds": "{n} Runden",
 	"{n} seconds per round": "{n} Sekunden pro Runde",
+	"{n} tags": {
+		"one": "{n} Tag",
+		"other": "{n} Tags"
+	},
 	"{n} tags will be affected:": {
 		"one": "{n} Tag ist betroffen:",
 		"other": "{n} Tags sind betroffen:"

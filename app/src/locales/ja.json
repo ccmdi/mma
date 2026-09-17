@@ -419,6 +419,7 @@
 	"Enrich metadata fields to enable": "有効にするにはメタデータフィールドをエンリッチしてください",
 	"Enrichment": "エンリッチメント",
 	"Enrichment only: adds data fields, no panel of its own": "エンリッチメント専用: データフィールドを追加し、独自のパネルは持ちません",
+	"Enter a bucket width": "バケット幅を入力してください",
 	"Enter code {code} in your browser to finish signing in.": "サインインを完了するには、ブラウザーでコード {code} を入力してください。",
 	"Enter opens location at map center": "Enterでマップ中央の地点を開く",
 	"Enum": "列挙",
@@ -645,6 +646,7 @@
 	"Locations cap for all regions:": "全地域の地点数上限:",
 	"Locations found this run": "今回の実行で見つかった地点",
 	"Locations per region:": "地域ごとの地点数:",
+	"Locations with {field}": "{field}がある地点",
 	"Lock viewport direction": "ビューポートの向きを固定",
 	"Log viewed panos": "表示したパノラマを記録",
 	"Longitude": "経度",
@@ -764,6 +766,7 @@
 	"No locations have timezone data": "タイムゾーンデータを持つ地点がありません",
 	"No locations on this map.": "このマップには地点がありません。",
 	"No locations to play": "プレイできる地点がありません",
+	"No locations to tag": "タグ付けする地点がありません",
 	"No map open": "マップが開かれていません",
 	"No metadata fields on this map.": "このマップにはメタデータフィールドがありません。",
 	"No metadata yet": "メタデータはまだありません",
@@ -777,10 +780,15 @@
 	"No saved selections.": "保存された選択はありません。",
 	"No tags": "タグなし",
 	"No tags in this map carry document links.": "このマップにドキュメントリンクを持つタグはありません。",
+	"No tags to create": "作成されるタグはありません",
 	"No timer": "タイマーなし",
+	"No values could be grouped": "グループ化できる値がありません",
 	"No {field} data": "{field}データなし",
 	"Noir": "ノワール",
 	"None": "なし",
+	"None of the {n} locations have {field}": {
+		"other": "{n} 地点のいずれにも{field}がありません"
+	},
 	"North America": "北アメリカ",
 	"Not found": "見つかりません",
 	"Not signed in. Reports are filed anonymously and replies arrive here.": "サインインしていません。報告は匿名で送信され、返信はここに届きます。",
@@ -1223,6 +1231,8 @@
 	"That file is not a PNG, JPEG, GIF or WebP.": "このファイルは PNG、JPEG、GIF、WebP のいずれでもありません。",
 	"That file was not staged for upload.": "このファイルはアップロード用に準備されていません。",
 	"That image is too large ({limit} maximum).": "この画像は大きすぎます（最大 {limit}）。",
+	"That's a lot of tags. Range groups numbers into buckets.": "タグが多すぎます。範囲を使うと数値をバケットにまとめられます。",
+	"That's a lot of tags. Try a coarser grouping.": "タグが多すぎます。より大きな単位でグループ化してください。",
 	"The linked section no longer exists in this document.": "リンク先のセクションはこのドキュメントに存在しません。",
 	"The pano UI toggle also hides link arrows, the ground arrow, and the navigation X.": "パノラマ UI の切り替えでは、リンク矢印、地面の矢印、ナビゲーションの X も非表示になります。",
 	"The report was rejected ({detail}).": "報告が拒否されました（{detail}）。",
@@ -1527,6 +1537,9 @@
 	"{n} not found locally": "{n} 件がローカルに見つかりません",
 	"{n} rounds": "{n} ラウンド",
 	"{n} seconds per round": "ラウンドあたり {n} 秒",
+	"{n} tags": {
+		"other": "{n} 個のタグ"
+	},
 	"{n} tags will be affected:": {
 		"other": "{n} 件のタグが影響を受けます:"
 	},

@@ -14,7 +14,7 @@ import {
 	catalogTargets,
 } from "../../scripts/i18n-extract.mjs";
 
-const TAGS = { one: "{n} tag", other: "{n} tags" };
+const WIDGETS = { one: "{n} widget", other: "{n} widgets" };
 
 function renderToText(node: React.ReactNode): string {
 	const host = document.createElement("div");
@@ -48,9 +48,9 @@ describe("i18n runtime", () => {
 	});
 
 	it("selects inline plural forms with the locale's rules", () => {
-		expect(t(TAGS, { n: 1 })).toBe("1 tag");
-		expect(t(TAGS, { n: 0 })).toBe("0 tags");
-		expect(t(TAGS, { n: 2000 })).toBe("2.000 tags");
+		expect(t(WIDGETS, { n: 1 })).toBe("1 widget");
+		expect(t(WIDGETS, { n: 0 })).toBe("0 widgets");
+		expect(t(WIDGETS, { n: 2000 })).toBe("2.000 widgets");
 	});
 
 	it("prefers a catalog entry over the source", async () => {
@@ -74,8 +74,8 @@ describe("Trans", () => {
 	});
 
 	it("formats the count slot and pluralises like t()", () => {
-		expect(renderToText(<Trans msg={TAGS} n={1} />)).toBe("1 tag");
-		expect(renderToText(<Trans msg={TAGS} n={4000} />)).toBe("4.000 tags");
+		expect(renderToText(<Trans msg={WIDGETS} n={1} />)).toBe("1 widget");
+		expect(renderToText(<Trans msg={WIDGETS} n={4000} />)).toBe("4.000 widgets");
 	});
 
 	it("shows unknown placeholders rather than dropping them", () => {
