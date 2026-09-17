@@ -72,7 +72,7 @@ export const MIGRATIONS: StoredMigration[] = [
 		},
 	},
 	{
-		since: "0.10.9",
+		since: "0.11.0",
 		key: "appSettings",
 		describe: "globalCopyBindings and fullscreenTagbarCollapsed -> their own keys",
 		apply: (stored) => {
