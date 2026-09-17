@@ -1343,131 +1343,19 @@ async function init() {
 
 // heatmap/src/HeatmapSidebar.tsx
 var import_react = __toESM(require_react());
+
+// heatmap/src/HeatmapSidebar.css
+var style = [...document.head.querySelectorAll("style[data-mma-plugin-css]")].find((s) => s.dataset.mmaPluginCss === "heatmap/src/HeatmapSidebar.css");
+if (!style) {
+  style = document.createElement("style");
+  style.dataset.mmaPluginCss = "heatmap/src/HeatmapSidebar.css";
+  document.head.appendChild(style);
+}
+style.textContent = '.heatmap-sidebar { overflow: auto; }\n.heatmap-sidebar__header {\n  display: flex; align-items: center; gap: 8px;\n  padding: 8px; border-bottom: 1px solid var(--color-divider, #333);\n}\n.heatmap-sidebar__title { margin: 0; font-size: 14px; font-weight: 600; }\n.heatmap-sidebar__body {\n  padding: 12px; display: flex; flex-direction: column; gap: 12px;\n}\n.heatmap-sidebar__section {\n  border-bottom: 1px solid var(--color-divider, #333);\n  padding-bottom: 10px;\n}\n.heatmap-sidebar__section:last-child { border-bottom: none; padding-bottom: 0; }\n.heatmap-sidebar__section-title {\n  font-size: 11px; font-weight: 600; text-transform: uppercase;\n  color: var(--text-secondary, #999); margin: 0 0 6px;\n}\n.heatmap-sidebar__layer-header {\n  display: flex; align-items: center; gap: 8px; padding: 2px 0 6px;\n}\n.heatmap-sidebar__layer-title { flex: 1; font-size: 13px; font-weight: 600; }\n.heatmap-sidebar__control {\n  display: flex; align-items: center; gap: 8px; padding: 2px 0;\n}\n.heatmap-sidebar__control label {\n  flex: 1; font-size: 13px;\n}\n.heatmap-sidebar__control input[type="range"] {\n  width: 100px;\n}\n.heatmap-sidebar__control .heatmap-sidebar__value {\n  min-width: 36px; text-align: right; font-size: 12px;\n  color: var(--text-secondary, #999); font-variant-numeric: tabular-nums;\n}\n.heatmap-sidebar__reset {\n  font-size: 12px; color: var(--text-secondary, #999);\n  background: none; border: none; cursor: pointer; padding: 0;\n  text-decoration: underline;\n}\n.heatmap-sidebar__reset:hover { color: var(--text-primary, #fff); }\n.heatmap-sidebar__add {\n  width: 100%; padding: 6px; font-size: 13px; cursor: pointer;\n  background: none; border: 1px dashed var(--color-divider, #444);\n  border-radius: 4px; color: var(--text-secondary, #999);\n}\n.heatmap-sidebar__add:hover {\n  color: var(--text-primary, #fff);\n  border-color: var(--text-secondary, #999);\n}\n.heatmap-sidebar .selector-picker { padding: 2px 0 6px; font-size: 13px; }\n.heatmap-sidebar__gradients {\n  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;\n}\n.heatmap-sidebar__gradient {\n  background: none; border: 2px solid transparent; border-radius: 4px;\n  padding: 2px; cursor: pointer; width: 100%;\n}\n.heatmap-sidebar__gradient--active { border-color: var(--accent-color, #4a9eff); }\n.heatmap-sidebar__gradient-bar { height: 14px; border-radius: 2px; }\n.heatmap-sidebar__gradient-new {\n  border: 1px dashed var(--color-divider, #444); border-radius: 4px;\n  background: none; color: var(--text-secondary, #999); cursor: pointer;\n  font-size: 12px; padding: 3px 2px;\n}\n.heatmap-sidebar__gradient-new:hover {\n  color: var(--text-primary, #fff); border-color: var(--text-secondary, #999);\n}\n.heatmap-sidebar__editor {\n  border: 1px solid var(--color-divider, #333); border-radius: 4px;\n  padding: 8px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px;\n}\n.heatmap-sidebar__editor-name {\n  width: 100%; box-sizing: border-box; font-size: 13px; padding: 4px 6px;\n  background: var(--surface-2, #1c1c1c); color: inherit;\n  border: 1px solid var(--color-divider, #333); border-radius: 3px;\n}\n.heatmap-sidebar__track { position: relative; height: 34px; touch-action: none; }\n.heatmap-sidebar__track-bar {\n  height: 18px; border-radius: 3px; cursor: copy;\n  border: 1px solid var(--color-divider, #333);\n}\n.heatmap-sidebar__handle {\n  position: absolute; top: 14px; transform: translateX(-50%);\n  width: 12px; height: 12px; padding: 0; cursor: grab;\n  border: 2px solid var(--surface-1, #111); border-radius: 3px;\n  box-shadow: 0 0 0 1px #0000008c;\n}\n.heatmap-sidebar__handle:before {\n  content: ""; position: absolute; left: 50%; top: -6px;\n  width: 1px; height: 6px; background: var(--text-secondary, #999);\n}\n.heatmap-sidebar__handle--selected {\n  border-color: var(--accent-color, #4a9eff); z-index: 1;\n}\n.heatmap-sidebar__handle:active { cursor: grabbing; }\n.heatmap-sidebar__stop-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }\n.heatmap-sidebar__stop-row input[type="color"] {\n  width: 28px; height: 24px; padding: 0; cursor: pointer;\n  background: none; border: 1px solid var(--color-divider, #444); border-radius: 3px;\n}\n.heatmap-sidebar__stop-row input[type="number"] {\n  width: 52px; font-size: 12px; padding: 3px 4px;\n  background: var(--surface-2, #1c1c1c); color: inherit;\n  border: 1px solid var(--color-divider, #333); border-radius: 3px;\n}\n.heatmap-sidebar__hint { font-size: 11px; color: var(--text-secondary, #999); margin: 0; }\n.heatmap-sidebar__editor-actions { display: flex; gap: 10px; align-items: center; }\n';
+
+// heatmap/src/HeatmapSidebar.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime());
 var { useMapState, selectorForPick: selectorForPick2, ui: { SelectorPicker } } = MMA;
-var CSS = `
-.heatmap-sidebar { overflow: auto; }
-.heatmap-sidebar__header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px; border-bottom: 1px solid var(--color-divider, #333);
-}
-.heatmap-sidebar__title { margin: 0; font-size: 14px; font-weight: 600; }
-.heatmap-sidebar__body {
-  padding: 12px; display: flex; flex-direction: column; gap: 12px;
-}
-.heatmap-sidebar__section {
-  border-bottom: 1px solid var(--color-divider, #333);
-  padding-bottom: 10px;
-}
-.heatmap-sidebar__section:last-child { border-bottom: none; padding-bottom: 0; }
-.heatmap-sidebar__section-title {
-  font-size: 11px; font-weight: 600; text-transform: uppercase;
-  color: var(--text-secondary, #999); margin: 0 0 6px;
-}
-.heatmap-sidebar__layer-header {
-  display: flex; align-items: center; gap: 8px; padding: 2px 0 6px;
-}
-.heatmap-sidebar__layer-title { flex: 1; font-size: 13px; font-weight: 600; }
-.heatmap-sidebar__control {
-  display: flex; align-items: center; gap: 8px; padding: 2px 0;
-}
-.heatmap-sidebar__control label {
-  flex: 1; font-size: 13px;
-}
-.heatmap-sidebar__control input[type="range"] {
-  width: 100px;
-}
-.heatmap-sidebar__control .heatmap-sidebar__value {
-  min-width: 36px; text-align: right; font-size: 12px;
-  color: var(--text-secondary, #999); font-variant-numeric: tabular-nums;
-}
-.heatmap-sidebar__reset {
-  font-size: 12px; color: var(--text-secondary, #999);
-  background: none; border: none; cursor: pointer; padding: 0;
-  text-decoration: underline;
-}
-.heatmap-sidebar__reset:hover { color: var(--text-primary, #fff); }
-.heatmap-sidebar__add {
-  width: 100%; padding: 6px; font-size: 13px; cursor: pointer;
-  background: none; border: 1px dashed var(--color-divider, #444);
-  border-radius: 4px; color: var(--text-secondary, #999);
-}
-.heatmap-sidebar__add:hover {
-  color: var(--text-primary, #fff);
-  border-color: var(--text-secondary, #999);
-}
-.heatmap-sidebar .selector-picker { padding: 2px 0 6px; font-size: 13px; }
-.heatmap-sidebar__gradients {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
-}
-.heatmap-sidebar__gradient {
-  background: none; border: 2px solid transparent; border-radius: 4px;
-  padding: 2px; cursor: pointer; width: 100%;
-}
-.heatmap-sidebar__gradient--active { border-color: var(--accent-color, #4a9eff); }
-.heatmap-sidebar__gradient-bar { height: 14px; border-radius: 2px; }
-.heatmap-sidebar__gradient-new {
-  border: 1px dashed var(--color-divider, #444); border-radius: 4px;
-  background: none; color: var(--text-secondary, #999); cursor: pointer;
-  font-size: 12px; padding: 3px 2px;
-}
-.heatmap-sidebar__gradient-new:hover {
-  color: var(--text-primary, #fff); border-color: var(--text-secondary, #999);
-}
-.heatmap-sidebar__editor {
-  border: 1px solid var(--color-divider, #333); border-radius: 4px;
-  padding: 8px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px;
-}
-.heatmap-sidebar__editor-name {
-  width: 100%; box-sizing: border-box; font-size: 13px; padding: 4px 6px;
-  background: var(--surface-2, #1c1c1c); color: inherit;
-  border: 1px solid var(--color-divider, #333); border-radius: 3px;
-}
-.heatmap-sidebar__track { position: relative; height: 34px; touch-action: none; }
-.heatmap-sidebar__track-bar {
-  height: 18px; border-radius: 3px; cursor: copy;
-  border: 1px solid var(--color-divider, #333);
-}
-.heatmap-sidebar__handle {
-  position: absolute; top: 14px; transform: translateX(-50%);
-  width: 12px; height: 12px; padding: 0; cursor: grab;
-  border: 2px solid var(--surface-1, #111); border-radius: 3px;
-  box-shadow: 0 0 0 1px #0000008c;
-}
-.heatmap-sidebar__handle:before {
-  content: ""; position: absolute; left: 50%; top: -6px;
-  width: 1px; height: 6px; background: var(--text-secondary, #999);
-}
-.heatmap-sidebar__handle--selected {
-  border-color: var(--accent-color, #4a9eff); z-index: 1;
-}
-.heatmap-sidebar__handle:active { cursor: grabbing; }
-.heatmap-sidebar__stop-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-.heatmap-sidebar__stop-row input[type="color"] {
-  width: 28px; height: 24px; padding: 0; cursor: pointer;
-  background: none; border: 1px solid var(--color-divider, #444); border-radius: 3px;
-}
-.heatmap-sidebar__stop-row input[type="number"] {
-  width: 52px; font-size: 12px; padding: 3px 4px;
-  background: var(--surface-2, #1c1c1c); color: inherit;
-  border: 1px solid var(--color-divider, #333); border-radius: 3px;
-}
-.heatmap-sidebar__hint { font-size: 11px; color: var(--text-secondary, #999); margin: 0; }
-.heatmap-sidebar__editor-actions { display: flex; gap: 10px; align-items: center; }
-`;
-var styleEl = null;
-function injectCSS() {
-  if (styleEl) return;
-  styleEl = document.createElement("style");
-  styleEl.textContent = CSS;
-  document.head.appendChild(styleEl);
-}
-function removeCSS() {
-  if (styleEl) {
-    styleEl.remove();
-    styleEl = null;
-  }
-}
 var ARROW_LEFT = "M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z";
 function Icon({ path, size = 20 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", { viewBox: "0 0 24 24", width: size, height: size, fill: "currentColor", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: path }) });
@@ -1476,11 +1364,9 @@ function HeatmapSidebar({ onClose }) {
   const [, rerender] = (0, import_react.useState)(0);
   const layers2 = getLayers();
   (0, import_react.useEffect)(() => {
-    injectCSS();
     setOnSettingsChange(() => rerender((n) => n + 1));
     return () => {
       setOnSettingsChange(null);
-      removeCSS();
     };
   }, []);
   const allCount = useMapState((s) => s.locationCount);

@@ -29,135 +29,9 @@ import {
   type HeatmapGradient,
 } from "./gradients";
 import type { SelectorPick } from "mma-plugin-types";
+import "./HeatmapSidebar.css";
 
 const { useMapState, selectorForPick, ui: { SelectorPicker } } = MMA;
-
-const CSS = `
-.heatmap-sidebar { overflow: auto; }
-.heatmap-sidebar__header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px; border-bottom: 1px solid var(--color-divider, #333);
-}
-.heatmap-sidebar__title { margin: 0; font-size: 14px; font-weight: 600; }
-.heatmap-sidebar__body {
-  padding: 12px; display: flex; flex-direction: column; gap: 12px;
-}
-.heatmap-sidebar__section {
-  border-bottom: 1px solid var(--color-divider, #333);
-  padding-bottom: 10px;
-}
-.heatmap-sidebar__section:last-child { border-bottom: none; padding-bottom: 0; }
-.heatmap-sidebar__section-title {
-  font-size: 11px; font-weight: 600; text-transform: uppercase;
-  color: var(--text-secondary, #999); margin: 0 0 6px;
-}
-.heatmap-sidebar__layer-header {
-  display: flex; align-items: center; gap: 8px; padding: 2px 0 6px;
-}
-.heatmap-sidebar__layer-title { flex: 1; font-size: 13px; font-weight: 600; }
-.heatmap-sidebar__control {
-  display: flex; align-items: center; gap: 8px; padding: 2px 0;
-}
-.heatmap-sidebar__control label {
-  flex: 1; font-size: 13px;
-}
-.heatmap-sidebar__control input[type="range"] {
-  width: 100px;
-}
-.heatmap-sidebar__control .heatmap-sidebar__value {
-  min-width: 36px; text-align: right; font-size: 12px;
-  color: var(--text-secondary, #999); font-variant-numeric: tabular-nums;
-}
-.heatmap-sidebar__reset {
-  font-size: 12px; color: var(--text-secondary, #999);
-  background: none; border: none; cursor: pointer; padding: 0;
-  text-decoration: underline;
-}
-.heatmap-sidebar__reset:hover { color: var(--text-primary, #fff); }
-.heatmap-sidebar__add {
-  width: 100%; padding: 6px; font-size: 13px; cursor: pointer;
-  background: none; border: 1px dashed var(--color-divider, #444);
-  border-radius: 4px; color: var(--text-secondary, #999);
-}
-.heatmap-sidebar__add:hover {
-  color: var(--text-primary, #fff);
-  border-color: var(--text-secondary, #999);
-}
-.heatmap-sidebar .selector-picker { padding: 2px 0 6px; font-size: 13px; }
-.heatmap-sidebar__gradients {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;
-}
-.heatmap-sidebar__gradient {
-  background: none; border: 2px solid transparent; border-radius: 4px;
-  padding: 2px; cursor: pointer; width: 100%;
-}
-.heatmap-sidebar__gradient--active { border-color: var(--accent-color, #4a9eff); }
-.heatmap-sidebar__gradient-bar { height: 14px; border-radius: 2px; }
-.heatmap-sidebar__gradient-new {
-  border: 1px dashed var(--color-divider, #444); border-radius: 4px;
-  background: none; color: var(--text-secondary, #999); cursor: pointer;
-  font-size: 12px; padding: 3px 2px;
-}
-.heatmap-sidebar__gradient-new:hover {
-  color: var(--text-primary, #fff); border-color: var(--text-secondary, #999);
-}
-.heatmap-sidebar__editor {
-  border: 1px solid var(--color-divider, #333); border-radius: 4px;
-  padding: 8px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px;
-}
-.heatmap-sidebar__editor-name {
-  width: 100%; box-sizing: border-box; font-size: 13px; padding: 4px 6px;
-  background: var(--surface-2, #1c1c1c); color: inherit;
-  border: 1px solid var(--color-divider, #333); border-radius: 3px;
-}
-.heatmap-sidebar__track { position: relative; height: 34px; touch-action: none; }
-.heatmap-sidebar__track-bar {
-  height: 18px; border-radius: 3px; cursor: copy;
-  border: 1px solid var(--color-divider, #333);
-}
-.heatmap-sidebar__handle {
-  position: absolute; top: 14px; transform: translateX(-50%);
-  width: 12px; height: 12px; padding: 0; cursor: grab;
-  border: 2px solid var(--surface-1, #111); border-radius: 3px;
-  box-shadow: 0 0 0 1px #0000008c;
-}
-.heatmap-sidebar__handle:before {
-  content: ""; position: absolute; left: 50%; top: -6px;
-  width: 1px; height: 6px; background: var(--text-secondary, #999);
-}
-.heatmap-sidebar__handle--selected {
-  border-color: var(--accent-color, #4a9eff); z-index: 1;
-}
-.heatmap-sidebar__handle:active { cursor: grabbing; }
-.heatmap-sidebar__stop-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-.heatmap-sidebar__stop-row input[type="color"] {
-  width: 28px; height: 24px; padding: 0; cursor: pointer;
-  background: none; border: 1px solid var(--color-divider, #444); border-radius: 3px;
-}
-.heatmap-sidebar__stop-row input[type="number"] {
-  width: 52px; font-size: 12px; padding: 3px 4px;
-  background: var(--surface-2, #1c1c1c); color: inherit;
-  border: 1px solid var(--color-divider, #333); border-radius: 3px;
-}
-.heatmap-sidebar__hint { font-size: 11px; color: var(--text-secondary, #999); margin: 0; }
-.heatmap-sidebar__editor-actions { display: flex; gap: 10px; align-items: center; }
-`;
-
-let styleEl: HTMLStyleElement | null = null;
-
-function injectCSS() {
-  if (styleEl) return;
-  styleEl = document.createElement("style");
-  styleEl.textContent = CSS;
-  document.head.appendChild(styleEl);
-}
-
-function removeCSS() {
-  if (styleEl) {
-    styleEl.remove();
-    styleEl = null;
-  }
-}
 
 const ARROW_LEFT =
   "M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z";
@@ -175,11 +49,9 @@ export function HeatmapSidebar({ onClose }: { onClose: () => void }) {
   const layers = getLayers();
 
   useEffect(() => {
-    injectCSS();
     setOnSettingsChange(() => rerender((n) => n + 1));
     return () => {
       setOnSettingsChange(null);
-      removeCSS();
     };
   }, []);
 
