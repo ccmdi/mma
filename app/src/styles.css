@@ -189,19 +189,11 @@
 	white-space: nowrap;
 	z-index: 10;
 	pointer-events: none;
-	animation: tooltip-fade-in 0.18s ease-in-out;
+	animation: fade-in var(--dur) var(--ease-enter);
 }
 .tooltip__arrow {
 	fill: var(--surface-3);
 	transform: translateY(-1px);
-}
-@keyframes tooltip-fade-in {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
-	}
 }
 
 :where(html) {
@@ -634,6 +626,13 @@ input {
 	--pressed: #ffffff14;
 	--disabled-opacity: 0.5;
 
+	--dur-fast: 100ms;
+	--dur: 150ms;
+	--dur-slow: 220ms;
+	--ease-standard: cubic-bezier(0.2, 0, 0, 1);
+	--ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+	--rise-distance: 8px;
+
 	--radius-1: 4px;
 	--radius-2: 6px;
 	--radius-3: 10px;
@@ -924,24 +923,31 @@ input[type="range"]:disabled {
 	opacity: var(--disabled-opacity);
 	cursor: default;
 }
-/* No scale: scaling the dialog mid-animation makes text rasterize at the
-   wrong size and visibly snap when it settles. */
-@keyframes modalShow {
-	0% {
+@keyframes fade-in {
+	from {
 		opacity: 0;
-		transform: translateY(1.5vh);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
 	}
 }
-@keyframes modalBackdropShow {
-	0% {
+/* No scale: scaling mid-animation makes text rasterize at the wrong size and
+   visibly snap when it settles. */
+@keyframes rise-in {
+	from {
 		opacity: 0;
+		transform: translateY(var(--rise-distance));
 	}
+}
+@keyframes spin {
 	to {
-		opacity: 1;
+		transform: rotate(360deg);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	*:not(.spin, .spinner),
+	::before,
+	::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
 	}
 }
 .modal[open],
@@ -968,7 +974,7 @@ input[type="range"]:disabled {
 .modal__backdrop {
 	z-index: 10;
 	background: #00000066;
-	animation: 0.15s cubic-bezier(0.16, 1, 0.3, 1) modalBackdropShow;
+	animation: fade-in var(--dur) var(--ease-enter);
 	position: fixed;
 	inset: 0;
 }
@@ -978,7 +984,8 @@ input[type="range"]:disabled {
 	border: 1px solid var(--border-subtle);
 	box-shadow: var(--shadow-4);
 	border-radius: var(--radius-3);
-	animation: 0.15s cubic-bezier(0.16, 1, 0.3, 1) modalShow;
+	--rise-distance: 1.5vh;
+	animation: rise-in var(--dur) var(--ease-enter);
 	/* Stay on a compositor layer after the entrance: dropping it repaints outlines and
 	   text in a different antialiasing mode, which reads as a brightness flash. */
 	will-change: transform;
@@ -1027,13 +1034,6 @@ input[type="range"]:disabled {
 }
 .modal__close {
 	color: var(--text-2);
-}
-@media (prefers-reduced-motion) {
-	.modal[open],
-	.modal::backdrop,
-	.modal__frame {
-		animation: none;
-	}
 }
 .welcome-dialog {
 	position: relative;
@@ -1098,8 +1098,8 @@ input[type="range"]:disabled {
 	text-decoration: none;
 	cursor: pointer;
 	transition:
-		border-color 0.1s,
-		background 0.1s;
+		border-color var(--dur-fast) var(--ease-standard),
+		background var(--dur-fast) var(--ease-standard);
 }
 .welcome-dialog__link:hover {
 	background: var(--surface-3);
@@ -1913,10 +1913,10 @@ input[type="range"]:disabled {
 .nselect:open::picker(select) {
 	z-index: 100;
 	transition:
-		opacity 0.15s,
-		transform 0.15s,
-		overlay 0.15s allow-discrete,
-		display 0.15s allow-discrete;
+		opacity var(--dur) var(--ease-enter),
+		transform var(--dur) var(--ease-enter),
+		overlay var(--dur) allow-discrete,
+		display var(--dur) allow-discrete;
 	opacity: 1;
 	transform: translateY(0) scale(1);
 }
@@ -2227,7 +2227,7 @@ input[type="range"]:disabled {
 	height: 54px;
 	place-items: center;
 	display: grid;
-	transition: color 0.12s ease;
+	transition: color var(--dur-fast) var(--ease-standard);
 }
 .settings-popup__cap .map-type-control__button + .map-type-control__button {
 	border-left: 1px solid var(--border-subtle);
@@ -2277,7 +2277,7 @@ input[type="range"]:disabled {
 	position: absolute;
 	inset: 0;
 	overflow: hidden;
-	transition: opacity 0.12s ease;
+	transition: opacity var(--dur-fast) var(--ease-standard);
 }
 .map-type-control__button:hover .map-type-control__background {
 	opacity: 0.62;
@@ -2291,12 +2291,6 @@ input[type="range"]:disabled {
 	transform: translate(-50%, -50%);
 	pointer-events: none;
 	user-select: none;
-}
-@media (prefers-reduced-motion) {
-	.map-type-control__button,
-	.map-type-control__background {
-		transition: none;
-	}
 }
 .layer-config {
 	width: 100%;
@@ -2723,7 +2717,7 @@ input[type="range"]:disabled {
 }
 .apply-tags__coverage,
 .apply-tags__summary {
-	transition: opacity 120ms ease;
+	transition: opacity var(--dur-fast) var(--ease-standard);
 }
 /* The delay keeps a fast answer from flickering; only a wait you would notice dims. */
 .apply-tags__coverage.is-pending,
@@ -2761,7 +2755,7 @@ input[type="range"]:disabled {
 .bulk-operation__provider-bar::-webkit-progress-value {
 	background: var(--accent);
 	border-radius: 3px;
-	transition: width 0.15s;
+	transition: width var(--dur-slow) var(--ease-standard);
 }
 .bulk-operation__providers {
 	background: var(--surface-1);
@@ -4248,7 +4242,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	display: flex;
 	align-items: center;
 	gap: 0.75rem;
-	transition: border-color 0.15s;
+	transition: border-color var(--dur-fast) var(--ease-standard);
 }
 .entry-list__card:hover {
 	border-color: var(--border-strong);
@@ -4316,7 +4310,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	height: 100%;
 	background: var(--accent);
 	border-radius: 2px;
-	transition: width 0.2s;
+	transition: width var(--dur-slow) var(--ease-standard);
 }
 .review-sessions__resume {
 	display: inline-flex;
@@ -4352,15 +4346,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	padding: 0;
 	display: flex;
 	box-shadow: var(--shadow-4);
-	animation: palette-in 100ms ease-out;
-}
-@keyframes palette-in {
-	from {
-		opacity: 0;
-	}
-	to {
-		opacity: 1;
-	}
+	animation: fade-in var(--dur) var(--ease-enter);
 }
 .command-palette__input {
 	background: inherit;
@@ -4593,7 +4579,7 @@ body {
 	line-height: 2rem;
 	/* Hangs below its trigger, so it unfolds from the top edge rather than its centre. */
 	transform-origin: top;
-	animation: 0.15s cubic-bezier(0.16, 1, 0.3, 1) popoverShow;
+	animation: popoverShow var(--dur) var(--ease-enter);
 	display: flex;
 }
 /* Variant whose first child is a full-bleed cap, flush against the top edge. */
@@ -4621,11 +4607,6 @@ body {
 }
 .settings-popup > fieldset:not(:first-of-type) {
 	margin-top: 0.5rem;
-}
-@media (prefers-reduced-motion) {
-	.settings-popup {
-		animation: none;
-	}
 }
 .color-block {
 	border-radius: 4px;
@@ -4805,8 +4786,8 @@ body {
 	border-radius: 4px;
 	opacity: 0.6;
 	transition:
-		opacity 0.15s,
-		color 0.15s;
+		opacity var(--dur-fast) var(--ease-standard),
+		color var(--dur-fast) var(--ease-standard);
 }
 .settings-gear:hover {
 	opacity: 1;
@@ -4847,7 +4828,7 @@ body {
 	border-radius: 4px;
 	overflow: hidden;
 	opacity: 0.85;
-	transition: opacity 0.15s;
+	transition: opacity var(--dur-fast) var(--ease-standard);
 }
 .update-pill:hover {
 	opacity: 1;
@@ -4927,13 +4908,13 @@ body {
 	font-size: 0.95rem;
 	cursor: pointer;
 	transition:
-		color 0.12s,
-		background 0.12s;
+		color var(--dur-fast) var(--ease-standard),
+		background var(--dur-fast) var(--ease-standard);
 }
 .settings-nav-item__icon {
 	flex-shrink: 0;
 	color: var(--text-3);
-	transition: color 0.12s;
+	transition: color var(--dur-fast) var(--ease-standard);
 }
 .settings-nav-item:hover {
 	background: var(--surface-2);
@@ -5184,7 +5165,7 @@ body {
 }
 .hotkey-display {
 	cursor: pointer;
-	transition: background 0.15s;
+	transition: background var(--dur-fast) var(--ease-standard);
 }
 .hotkey-display:hover {
 	background: var(--hover);
@@ -5289,14 +5270,6 @@ body {
 	tab-size: 2;
 }
 
-@keyframes spin {
-	from {
-		transform: rotate(0deg);
-	}
-	to {
-		transform: rotate(360deg);
-	}
-}
 .spin,
 .spinner {
 	animation: spin 0.6s linear infinite;
@@ -5334,7 +5307,7 @@ body {
 	left: 3px;
 	width: 2px;
 	background: transparent;
-	transition: background 0.15s;
+	transition: background var(--dur-fast) var(--ease-standard);
 }
 .split-handle:hover::after,
 .split-handle:active::after {
@@ -5405,8 +5378,8 @@ body:has([data-plugin-overlay]) .map-meta {
 	z-index: 12;
 	pointer-events: auto;
 	transition:
-		width 0.2s,
-		height 0.2s;
+		width var(--dur-slow) var(--ease-standard),
+		height var(--dur-slow) var(--ease-standard);
 	overflow: hidden;
 }
 .fullscreen-minimap.is-expanded {
@@ -5425,7 +5398,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	display: flex;
 	gap: 4px;
 	opacity: 0;
-	transition: opacity 0.15s;
+	transition: opacity var(--dur) var(--ease-standard);
 }
 .fullscreen-minimap.is-expanded .fullscreen-minimap__size {
 	opacity: 1;
@@ -5442,7 +5415,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	background: rgba(30, 30, 30, 0.75);
 	color: #fff;
 	cursor: pointer;
-	transition: background 0.15s;
+	transition: background var(--dur-fast) var(--ease-standard);
 }
 .fullscreen-minimap__size-btn:hover {
 	background: rgba(30, 30, 30, 0.95);
@@ -5472,7 +5445,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	   new size (so the pano stays crisp) and this animates it back from the old one. */
 	transform: scale(calc(var(--fs-mini-k, 0.52) * var(--fs-mini-flip, 1)));
 	transform-origin: bottom right;
-	transition: transform 0.2s;
+	transition: transform var(--dur-slow) var(--ease-standard);
 }
 .fullscreen-mini-location.is-expanded {
 	transform: scale(var(--fs-mini-flip, 1));
@@ -5483,7 +5456,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	position: absolute;
 	inset: 0;
 	opacity: 0.45;
-	transition: opacity 0.2s;
+	transition: opacity var(--dur-slow) var(--ease-standard);
 }
 .fullscreen-mini-location.is-expanded .fullscreen-mini-location__pano {
 	opacity: 1;
@@ -5496,7 +5469,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	display: flex;
 	gap: 4px;
 	opacity: 0;
-	transition: opacity 0.15s;
+	transition: opacity var(--dur) var(--ease-standard);
 }
 .fullscreen-mini-location.is-expanded .fullscreen-mini-location__size {
 	opacity: 1;
@@ -5513,7 +5486,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	background: rgba(30, 30, 30, 0.75);
 	color: #fff;
 	cursor: pointer;
-	transition: background 0.15s;
+	transition: background var(--dur-fast) var(--ease-standard);
 }
 .fullscreen-mini-location__size-btn:hover {
 	background: rgba(30, 30, 30, 0.95);
@@ -5544,7 +5517,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	   anything else here (padding, min-height) lands as a step the transition can't smooth. */
 	min-height: 18px;
 	background: rgba(0, 0, 0, 0.7);
-	transition: grid-template-rows 180ms ease;
+	transition: grid-template-rows var(--dur-slow) var(--ease-standard);
 }
 .fullscreen-tagbar.is-collapsed {
 	grid-template-rows: 0fr;
@@ -5575,7 +5548,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	background: transparent;
 	color: rgba(255, 255, 255, 0.55);
 	cursor: pointer;
-	transition: color 120ms;
+	transition: color var(--dur-fast) var(--ease-standard);
 }
 .fullscreen-tagbar__collapse:hover {
 	color: #fff;
@@ -5651,13 +5624,8 @@ body:has([data-plugin-overlay]) .map-meta {
 	background: rgba(0, 0, 0, 0.85);
 	border-top: 1px solid rgba(255, 255, 255, 0.15);
 	transform-origin: bottom;
-	animation: tagbar-palette-in 140ms ease-out;
-}
-@keyframes tagbar-palette-in {
-	from {
-		opacity: 0;
-		transform: translateY(6px);
-	}
+	--rise-distance: 6px;
+	animation: rise-in var(--dur) var(--ease-enter);
 }
 .fullscreen-tagbar__palette-tag {
 	cursor: pointer;
@@ -5763,8 +5731,8 @@ body:has([data-plugin-overlay]) .map-meta {
 	border-radius: 8px;
 	background: var(--surface-1);
 	transition:
-		border-color 0.15s,
-		background 0.15s;
+		border-color var(--dur-fast) var(--ease-standard),
+		background var(--dur-fast) var(--ease-standard);
 }
 .plugin-card--enabled {
 	border-color: var(--accent);
@@ -5834,8 +5802,8 @@ body:has([data-plugin-overlay]) .map-meta {
 	padding: 0;
 	border-radius: 4px;
 	transition:
-		background 0.1s,
-		border-color 0.1s;
+		background var(--dur-fast) var(--ease-standard),
+		border-color var(--dur-fast) var(--ease-standard);
 }
 .plugin-card__action-btn--update {
 	color: var(--constructive);
@@ -5987,17 +5955,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	font-size: 0.875rem;
 	white-space: nowrap;
 	border: 1px solid var(--border-subtle);
-	animation: toast-in 150ms ease-out;
-}
-@keyframes toast-in {
-	from {
-		opacity: 0;
-		transform: translateY(8px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
+	animation: rise-in var(--dur) var(--ease-enter);
 }
 /* Background-job pill in the corner bar, the update pill's sibling: its fill is the
    least-done job's progress; clicking pops a panel of per-job rows above the bar. */
@@ -6017,7 +5975,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	border-radius: 4px;
 	cursor: pointer;
 	overflow: hidden;
-	animation: job-pill-grow 200ms ease-out;
+	animation: job-pill-grow var(--dur-slow) var(--ease-standard);
 }
 @keyframes job-pill-grow {
 	from {
@@ -6032,7 +5990,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	inset: 0 auto 0 0;
 	background: var(--accent);
 	opacity: 0.8;
-	transition: width 200ms ease-out;
+	transition: width var(--dur-slow) var(--ease-standard);
 }
 .job-tray__count {
 	position: relative;
@@ -6057,7 +6015,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	background: var(--surface-2);
 	border: 1px solid var(--border-subtle);
 	border-radius: 8px;
-	animation: toast-in 150ms ease-out;
+	animation: rise-in var(--dur) var(--ease-enter);
 }
 .job-tray__row {
 	display: flex;
@@ -6125,7 +6083,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	height: 100%;
 	border-radius: inherit;
 	background: var(--accent);
-	transition: width 200ms ease-out;
+	transition: width var(--dur-slow) var(--ease-standard);
 }
 .bar--complete .bar__fill {
 	background: var(--constructive);
@@ -6406,7 +6364,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	background: var(--surface-3);
 	cursor: pointer;
 	padding: 0;
-	transition: background 0.15s;
+	transition: background var(--dur) var(--ease-standard);
 }
 .switch--on {
 	background: var(--accent);
@@ -6444,7 +6402,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	border-radius: 50%;
 	background: var(--text-1);
 	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
-	transition: left 0.15s;
+	transition: left var(--dur) var(--ease-standard);
 }
 .switch--on .switch__thumb {
 	left: 17px;
@@ -6478,7 +6436,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	border-radius: 0.375rem;
 	cursor: pointer;
 	white-space: nowrap;
-	transition: background 0.12s ease;
+	transition: background var(--dur-fast) var(--ease-standard);
 }
 
 .segmented__option:hover:not(:disabled):not(.is-active) {

@@ -373,7 +373,7 @@
 	align-items: flex-end;
 	gap: 6px;
 	opacity: 0.85;
-	transition: opacity 0.12s ease;
+	transition: opacity var(--dur-fast) var(--ease-standard);
 }
 
 /* is-expanded only. :focus-within kept it open, since guessing leaves focus inside. */
@@ -394,8 +394,8 @@
    container that is still moving. */
 .lg-guess-map:not(.is-instant) .lg-guess-map__canvas-wrap {
 	transition:
-		width 0.2s,
-		height 0.2s;
+		width var(--dur-slow) var(--ease-standard),
+		height var(--dur-slow) var(--ease-standard);
 }
 
 .lg-guess-map.is-expanded .lg-guess-map__canvas-wrap {
@@ -408,7 +408,7 @@
 	justify-content: flex-end;
 	gap: 4px;
 	opacity: 0;
-	transition: opacity 0.15s;
+	transition: opacity var(--dur) var(--ease-standard);
 }
 
 .lg-guess-map.is-expanded .lg-guess-map__controls {
@@ -472,7 +472,7 @@
 	font-size: 14px;
 	font-weight: 600;
 	cursor: pointer;
-	transition: width 0.2s;
+	transition: width var(--dur-slow) var(--ease-standard);
 }
 
 .lg-guess-map__submit:disabled {

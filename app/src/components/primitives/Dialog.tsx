@@ -7,8 +7,8 @@ import { mdiClose } from "@mdi/js";
 
 const CloseContext = createContext<(() => void) | null>(null);
 
-const RESIZE_MS = 220;
-const RESIZE_EASING = "cubic-bezier(0.2, 0, 0, 1)";
+export const RESIZE_MS = 220;
+export const RESIZE_EASING = "cubic-bezier(0.2, 0, 0, 1)";
 
 /** Where a modal's top edge sits for its height: centred when it opens or the window resizes
  *  (`anchor` null). Growth holds the top so it runs downward; shrinking settles back toward

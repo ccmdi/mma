@@ -100,7 +100,7 @@
 	height: 100%;
 	border-radius: 3px;
 	background: var(--action);
-	transition: width 0.2s ease;
+	transition: width var(--dur-slow) var(--ease-standard);
 }
 
 .vali-download__result {

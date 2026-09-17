@@ -43,7 +43,7 @@
 .pivot-sidebar__table-wrap {
 	overflow: auto;
 	flex: 1;
-	transition: opacity 0.15s;
+	transition: opacity var(--dur) var(--ease-standard);
 }
 
 .pivot-sidebar__table-wrap--stale {

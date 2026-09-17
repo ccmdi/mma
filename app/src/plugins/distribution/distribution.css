@@ -49,5 +49,5 @@
 	border-radius: 3px;
 	background: var(--accent);
 	min-width: 2px;
-	transition: width 0.2s ease;
+	transition: width var(--dur-slow) var(--ease-standard);
 }
