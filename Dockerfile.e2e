@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y \
     libssl-dev libx11-dev libxkbcommon-dev \
     libjavascriptcoregtk-4.1-dev librsvg2-dev \
     webkit2gtk-driver \
-    xvfb curl git unzip \
+    xvfb curl git unzip locales \
+    && locale-gen fr_FR.UTF-8 \
     && rm -rf /var/lib/apt/lists/*
 
 # Chrome + matching chromedriver, for the web-serve suite (wdio.web.conf.ts).
@@ -69,6 +70,9 @@ RUN --mount=type=cache,target=/repo/app/src-tauri/target \
     && cp "src-tauri/target/$MMA_E2E_PROFILE/map-making-app" /usr/local/bin/map-making-app \
     && mkdir -p "/usr/local/lib/Map Making App" \
     && if [ -d src-tauri/procedures ]; then cp -r src-tauri/procedures "/usr/local/lib/Map Making App/"; fi
+
+# A decimal-comma locale, so a number parsed through the process locale breaks the suite.
+ENV LC_NUMERIC=fr_FR.UTF-8
 
 # Start Xvfb + tauri-driver, then run tests
 CMD ["/repo/scripts/internal/e2e-native.sh"]

@@ -3140,6 +3140,7 @@ dependencies = [
  "fastrand",
  "futures",
  "keyring",
+ "libc",
  "log",
  "memchr",
  "memmap2",

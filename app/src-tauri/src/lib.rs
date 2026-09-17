@@ -489,6 +489,11 @@ fn focus_existing(app: &tauri::AppHandle) {
 }
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
+    // GTK adopts the user's LC_NUMERIC, and QuickJS parses numbers with strtod.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::setlocale(libc::LC_NUMERIC, c"C".as_ptr());
+    }
     let t = Instant::now();
     let _ = APP_HANDLE.set(app.handle().clone());
     store::storage::init_paths(app.handle())?;
