@@ -3292,19 +3292,23 @@ export interface UiState {
     /** Persisted identity slice (metadata + settings). Changes rarely. */
     map: MapMeta | null;
     /** Resolved count per selection node (top-level and nested), keyed by `Selection.key`.
-     *  The sole source for sidebar counts — refreshed wholesale from Rust on every sync. */
+     *  The sole source for sidebar counts — refreshed wholesale from Rust on every sync. @unstable */
     selectionCounts: Record<string, number>;
     selections: Selection[];
     /** Keys of selections that are "ghosted": kept in the list but excluded from the
-     *  Rust sync, so they neither render nor count toward the selected set. Ephemeral. */
+     *  Rust sync, so they neither render nor count toward the selected set. Ephemeral. @unstable */
     ghostedSelections: ReadonlySet<string>;
     selectedLocationIds: SelectedIds;
+    /** @unstable */
     activeLocationId: number | null;
     /** The location open in the editor, or null. Virtual locations (staged
      *  imports, seen previews) live here with negative ids. */
     activeLocation: Location | null;
+    /** @unstable */
     duplicateLocations: Location[];
+    /** @unstable */
     workArea: WorkArea;
+    /** @unstable */
     activePluginId: string | null;
 }
 export type MapState = UiState & EngineState;

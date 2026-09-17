@@ -45,6 +45,20 @@ describe("check-legacy sees the exported type surface", () => {
 		expect(r).toEqual({ missing: [], broken: [] });
 	});
 
+	it("passes when an @unstable member of one half of an intersection is removed", () => {
+		const r = compare(
+			`export interface Ui {
+	a: string;
+	/** @unstable */
+	b: number;
+}
+export type State = Ui & { c: boolean };`,
+			`export interface Ui { a: string; }
+export type State = Ui & { c: boolean };`,
+		);
+		expect(r).toEqual({ missing: [], broken: [] });
+	});
+
 	it("passes when a member is added", () => {
 		const r = compare(
 			`export interface Foo { a: string; }`,
