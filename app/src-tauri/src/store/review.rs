@@ -45,7 +45,7 @@ pub struct ReviewCreate {
     pub order: Vec<u32>,
 }
 
-/// Partial update for a review session. `None` fields are left unchanged.
+/// Partial update for a review session. Omitted fields are left unchanged.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewUpdate {

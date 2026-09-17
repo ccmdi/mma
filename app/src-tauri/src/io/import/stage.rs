@@ -160,7 +160,7 @@ pub fn store_import_staged_location(index: u32) -> AppResult<Location> {
 }
 
 /// Parse a file and return field-level statistics and preview positions for the
-/// editor import dialog. Call [`store_import_file`] to commit the import.
+/// editor import dialog. Call `storeImportFile` to commit the import.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview> {
@@ -186,7 +186,7 @@ pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview
 }
 
 /// Parse pasted text (JSON or CSV) and stage it for preview. Works like
-/// [`store_import_preview`] but reads from a string instead of a file.
+/// `storeImportPreview` but reads from a string instead of a file.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_import_paste_preview(text: String) -> AppResult<EditorImportPreview> {
@@ -348,8 +348,8 @@ pub(super) fn add_parsed_to_store(
 }
 
 /// Commit a previously previewed editor import into the open map, optionally
-/// dropping fields in `dropped_fields` (e.g. `"heading"`, `"extra.countryCode"`)
-/// and/or applying `tag_name` to every imported location.
+/// dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
+/// and/or applying `tagName` to every imported location.
 // `async` so the insert + render-buffer registration runs off the main (event-loop)
 // thread; as a sync command it froze the webview for the duration of the import insert.
 #[tauri::command]

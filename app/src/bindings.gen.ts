@@ -6,7 +6,7 @@ import type { CameraType, DatePart, ExtraFieldType, FirstSyncMode, IssueState, M
 
 /** Commands */
 export const commands = {
-	/**  Milliseconds from `run()` to the frontend's first call; logged once. */
+	/**  Milliseconds from app launch until the window was ready. */
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
 	 *  Seconds the app has been running, counted from launch rather than from whenever a
@@ -33,28 +33,20 @@ export const commands = {
 	openDataFolder: () => __TAURI_INVOKE<null>("open_data_folder"),
 	/**  Open the app's log file in the OS default handler. */
 	openLogFile: () => __TAURI_INVOKE<null>("open_log_file"),
-	/**
-	 *  First caller per app run wins the silent update pass. Every webview boots the
-	 *  plugin loader, so without this a restored editor window plus the map list run
-	 *  two full passes -- double registry fetches, double downloads, and interleaved
-	 *  install progress for the same plugin.
-	 */
+	/**  True for the first caller per app run, which runs the background plugin update check. */
 	claimPluginUpdatePass: () => __TAURI_INVOKE<boolean>("claim_plugin_update_pass"),
 	/**  Manifests of every installed plugin. */
 	listUserPlugins: () => __TAURI_INVOKE<PluginManifest[]>("list_user_plugins"),
 	/**
-	 *  Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
-	 *  the procedure module it declares. `git_ref` pins an older build; `None` takes master.
+	 *  Install a plugin from the marketplace: its manifest, main script, and procedure module.
+	 *  `gitRef` pins an older build; `null` installs the latest.
 	 */
 	installPlugin: (id: string, gitRef: string | null) => __TAURI_INVOKE<PluginManifest>("install_plugin", { id, gitRef }),
 	/**  Delete a plugin's directory. */
 	uninstallPlugin: (id: string) => __TAURI_INVOKE<null>("uninstall_plugin", { id }),
-	/**
-	 *  Download a plugin's sidecar bundle from GitHub Releases and extract it under
-	 *  `{appData}/plugins/{plugin_id}/sidecar/`. Emits `sidecar-install-progress`.
-	 */
+	/**  Download and install a plugin's sidecar bundle. Emits `sidecar-install-progress`. */
 	sidecarInstall: (pluginId: string, name: string, version: string) => __TAURI_INVOKE<null>("sidecar_install", { pluginId, name, version }),
-	/**  Installed sidecar version for a plugin, or `None` if not installed. */
+	/**  Installed sidecar version for a plugin, or `null` if not installed. */
 	sidecarInstalledVersion: (pluginId: string) => __TAURI_INVOKE<string | null>("sidecar_installed_version", { pluginId }),
 	/**
 	 *  Run one unit of work on a plugin's sidecar. Commands the manifest lists under
@@ -75,27 +67,22 @@ export const commands = {
 	downloadBorderFile: (level: string) => __TAURI_INVOKE<null>("download_border_file", { level }),
 	/**
 	 *  Return the border polygon containing (`lat`, `lng`) at the given detail
-	 *  `level`, or `None` if the point falls outside every feature.
+	 *  `level`, or `null` if the point falls outside every feature.
 	 */
 	borderLookup: (lat: number, lng: number, level: string) => __TAURI_INVOKE<PolygonGeometry | null>("border_lookup", { lat, lng, level }).then((v) => (v==null?v:({...v,coordinates:v.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:v.extraPolygons==null?v.extraPolygons:v.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) as typeof v)),
 	/**
 	 *  Classify each `(lat, lng)` to the name of its containing border feature at
-	 *  `level` (subdivision names for "adm1"). `None` for points outside every feature.
+	 *  `level` (subdivision names for "adm1"). `null` for points outside every feature.
 	 */
 	borderClassify: (level: string, points: ([number, number])[]) => __TAURI_INVOKE<(string | null)[]>("border_classify", { level, points: points.map(i=>i) }),
 	/**
 	 *  Return the nearest city, administrative region, and country for a coordinate.
-	 *  Always returns `Some` - the dataset covers every landmass.
+	 *  Never `null`: every landmass is covered.
 	 */
 	reverseGeocode: (lat: number, lng: number) => __TAURI_INVOKE<GeoResult | null>("reverse_geocode", { lat, lng }),
-	/**  IANA timezone at a coordinate, or `None` outside the valid range. */
+	/**  IANA timezone at a coordinate, or `null` outside the valid range. */
 	timezoneAt: (lat: number, lng: number) => __TAURI_INVOKE<string | null>("timezone_at", { lat, lng }),
-	/**
-	 *  Reveal with the native open animation: a true first show() (DWM plays its pop-in),
-	 *  then maximize back-to-back while the shell is still blank. The show must come first:
-	 *  maximize on a hidden window reveals it without setting tao's visible flag, and the
-	 *  window gets re-hidden a frame later.
-	 */
+	/**  Show the window with the system open animation, maximized if `maximized` is set. */
 	revealWindow: (maximized: boolean) => __TAURI_INVOKE<void>("reveal_window", { maximized }),
 	/**  Set the Discord Rich Presence activity. No-op when Discord is not running. */
 	discordPresenceSet: (activity: PresenceActivity) => __TAURI_INVOKE<null>("discord_presence_set", { activity }),
@@ -103,15 +90,15 @@ export const commands = {
 	discordPresenceClear: () => __TAURI_INVOKE<null>("discord_presence_clear"),
 	/**
 	 *  Begin device-flow sign-in. Returns the code to show the user; call
-	 *  [`github_poll_login`] afterwards to wait for them to finish authorizing.
+	 *  `githubPollLogin` afterwards to wait for them to finish authorizing.
 	 */
 	githubStartLogin: () => __TAURI_INVOKE<DeviceCodeInfo>("github_start_login"),
 	/**
-	 *  Wait for the user to authorize the code from [`github_start_login`].
+	 *  Wait for the user to authorize the code from `githubStartLogin`.
 	 *  Resolves with the signed-in account.
 	 */
 	githubPollLogin: () => __TAURI_INVOKE<GhUser>("github_poll_login"),
-	/**  The signed-in user, or `None` when there is no session (or it was rejected). */
+	/**  The signed-in user, or `null` when there is no session (or it was rejected). */
 	githubMe: () => __TAURI_INVOKE<GhUser | null>("github_me"),
 	/**  Sign out of GitHub and clear the stored session. */
 	githubLogout: () => __TAURI_INVOKE<null>("github_logout"),
@@ -127,7 +114,7 @@ export const commands = {
 	feedbackAnonymousAvailable: () => __TAURI_INVOKE<boolean>("feedback_anonymous_available"),
 	/**
 	 *  File a bug report anonymously (no account required). Returns a reference the
-	 *  caller can use to check for replies via [`feedback_anonymous_thread`].
+	 *  caller can use to check for replies via `feedbackAnonymousThread`.
 	 */
 	feedbackSubmitAnonymous: (title: string, body: string, installId: string) => __TAURI_INVOKE<AnonIssueRef>("feedback_submit_anonymous", { title, body, installId }),
 	/**  Upload an image attachment for a bug report and return its URL. */
@@ -140,13 +127,13 @@ export const commands = {
 	/**  Fetch the current state and replies for an anonymous report. */
 	feedbackAnonymousThread: (number: number, token: string) => __TAURI_INVOKE<IssueThread>("feedback_anonymous_thread", { number, token }),
 	/**
-	 *  Check for an update at `endpoint` (a release's `latest.json`). Returns `None`
+	 *  Check for an update at `endpoint` (a release's `latest.json`). Returns `null`
 	 *  when the announced version is not newer than the running one.
 	 */
 	updateCheck: (endpoint: string) => __TAURI_INVOKE<UpdateAvailable | null>("update_check", { endpoint }),
 	/**
-	 *  Download and install whatever the last [`update_check`] found. The installer replaces the
-	 *  running app, so nothing after this is guaranteed to run -- the caller saves its state first.
+	 *  Download and install whatever the last `updateCheck` found. The installer replaces the
+	 *  running app, so nothing after this is guaranteed to run. Save state first.
 	 */
 	updateInstall: () => __TAURI_INVOKE<null>("update_install"),
 	/**
@@ -178,15 +165,12 @@ export const commands = {
 	storeGetSummary: () => __TAURI_INVOKE<SummaryResult>("store_get_summary"),
 	/**  Add new locations, allocating sequential IDs. Undoable. */
 	storeAddLocations: (locations: Location[]) => __TAURI_INVOKE<MutationResult>("store_add_locations", { locations: locations.map(i=>i) }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**
-	 *  Add locations from a chunked upload session (see `store_upload_begin`).
-	 *  Same behavior as `store_add_locations`: one atomic mutation, undoable.
-	 */
+	/**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. */
 	storeAddLocationsUploaded: (sessionDir: string) => __TAURI_INVOKE<MutationResult>("store_add_locations_uploaded", { sessionDir }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  Remove locations by ID. Undoable. */
 	storeRemoveLocations: (ids: number[]) => __TAURI_INVOKE<MutationResult>("store_remove_locations", { ids }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
-	 *  Apply partial patches to existing locations. `record_undo` defaults to true;
+	 *  Apply partial patches to existing locations. `recordUndo` defaults to true;
 	 *  set to false for ephemeral updates (e.g., plugin-driven batch modifications
 	 *  that manage their own undo).
 	 */
@@ -202,18 +186,18 @@ export const commands = {
 	/**  `n` ids drawn uniformly at random from the selected set, without replacement. */
 	storeSample: (selector: Selector, n: number) => __TAURI_INVOKE<number[]>("store_sample", { selector, n }),
 	/**
-	 *  An evenly spaced subset: exactly one of `target_count` (thin to N, maximizing
-	 *  spacing) or `min_distance_m` (keep as many as fit at that spacing).
+	 *  An evenly spaced subset: exactly one of `targetCount` (thin to N, maximizing
+	 *  spacing) or `minDistanceM` (keep as many as fit at that spacing).
 	 */
 	storeSpaced: (selector: Selector, targetCount: number | null, minDistanceM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_spaced", { selector, targetCount, minDistanceM: minDistanceM==null?minDistanceM:minDistanceM }),
 	/**
-	 *  An evenly spaced subset laid out on a honeycomb: exactly one of `target_count` (at most
-	 *  N, spaced as widely as that allows) or `spacing_m` (about that far apart, and never
+	 *  An evenly spaced subset laid out on a honeycomb: exactly one of `targetCount` (at most
+	 *  N, spaced as widely as that allows) or `spacingM` (about that far apart, and never
 	 *  closer than half of it).
 	 */
 	storeEvenlySpaced: (selector: Selector, targetCount: number | null, spacingM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_evenly_spaced", { selector, targetCount, spacingM: spacingM==null?spacingM:spacingM }),
 	/**
-	 *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygon,
+	 *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
 	 *  one entry per row of points.
 	 */
 	honeycombPoints: (polygon: PolygonGeometry, spacingM: number) => __TAURI_INVOKE<HoneycombRun[]>("honeycomb_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), spacingM }).then((v) => (v.map(i=>i) as typeof v)),
@@ -223,14 +207,14 @@ export const commands = {
 	 */
 	polygonRandomPoints: (polygon: PolygonGeometry, count: number) => __TAURI_INVOKE<([number, number])[]>("polygon_random_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), count }).then((v) => (v.map(i=>i.map(i=>i)) as typeof v)),
 	/**
-	 *  Points covering the polygon with no two closer than `spacing_m` metres and no gap
+	 *  Points covering the polygon with no two closer than `spacingM` metres and no gap
 	 *  wider than about twice that, in random order.
 	 */
 	polygonPoissonPoints: (polygon: PolygonGeometry, spacingM: number) => __TAURI_INVOKE<([number, number])[]>("polygon_poisson_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), spacingM }).then((v) => (v.map(i=>i.map(i=>i)) as typeof v)),
 	/**  Whether each of the points sits inside the polygon. */
 	polygonContainsPoints: (polygon: PolygonGeometry, lats: number[], lngs: number[]) => __TAURI_INVOKE<boolean[]>("polygon_contains_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), lats: lats.map(i=>i), lngs: lngs.map(i=>i) }),
 	/**
-	 *  Bounding box `[west, south, east, north]` of the polygon itself, or `None` when it
+	 *  Bounding box `[west, south, east, north]` of the polygon itself, or `null` when it
 	 *  has no vertices. `west > east` means the box crosses the antimeridian.
 	 */
 	polygonBounds: (polygon: PolygonGeometry) => __TAURI_INVOKE<[number, number, number, number] | null>("polygon_bounds", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
@@ -247,26 +231,26 @@ export const commands = {
 	storeCoverage: (selector: Selector) => __TAURI_INVOKE<([string, number])[]>("store_coverage", { selector }),
 	/**  Read specific fields across matched locations, returned as one column per field. */
 	storeColumns: (selector: Selector, fields: string[]) => __TAURI_INVOKE<Columns>("store_columns", { selector, fields }),
-	/**  Bounding box `[west, south, east, north]`, or `None` when the set is empty. */
+	/**  Bounding box `[west, south, east, north]`, or `null` when the set is empty. */
 	storeBounds: (selector: Selector) => __TAURI_INVOKE<[number, number, number, number] | null>("store_bounds", { selector }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
 	/**
-	 *  Collect all matched locations as full rows. Prefer a projection (`store_columns`,
-	 *  `store_values`) when only specific fields are needed.
+	 *  Collect all matched locations as full rows. Prefer a projection (`storeColumns`,
+	 *  `storeValues`) when only specific fields are needed.
 	 */
 	storeCollect: (selector: Selector) => __TAURI_INVOKE<Rows>("store_collect", { selector }),
 	/**  Apply a field operation to every location matched by `selector`. */
 	storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => __TAURI_INVOKE<FieldOpResult>("store_apply_field_op", { selector, op, recordUndo }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
-	/**  The parse error for `src`, or nothing when it parses. For the dialog's live check. */
+	/**  The parse error for `src`, or `null` when it parses. */
 	fieldExprError: (src: string) => __TAURI_INVOKE<ExprError | null>("field_expr_error", { src }),
 	/**
 	 *  Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
 	 *  `level` selects border precision, falling back to "light" if unavailable.
 	 */
 	storeCountryDistribution: (selector: Selector, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
-	/**  Find all locations within `radius_m` metres of (`lat`, `lng`). */
+	/**  Find all locations within `radiusM` metres of (`lat`, `lng`). */
 	storeFindNearby: (lat: number, lng: number, radiusM: number) => __TAURI_INVOKE<Location[]>("store_find_nearby", { lat, lng, radiusM }).then((v) => (v.map(i=>i) as typeof v)),
 	/**
-	 *  For each input point, whether any existing location lies within `radius_m` metres.
+	 *  For each input point, whether any existing location lies within `radiusM` metres.
 	 *  Batch form for probing many coordinates at once.
 	 */
 	storeNearAny: (lats: number[], lngs: number[], radiusM: number) => __TAURI_INVOKE<boolean[]>("store_near_any", { lats: lats.map(i=>i), lngs: lngs.map(i=>i), radiusM }),
@@ -282,7 +266,7 @@ export const commands = {
 	storeUpdateTags: (updates: Update<TagPatch>[]) => __TAURI_INVOKE<MutationResult>("store_update_tags", { updates }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  Remove tags and strip them from all locations that carry them. Undoable. */
 	storeDeleteTags: (tagIds: number[]) => __TAURI_INVOKE<MutationResult>("store_delete_tags", { tagIds }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  Set the display order of tags. Each tag's position is its index in `ordered_ids`. */
+	/**  Set the display order of tags. Each tag's position is its index in `orderedIds`. */
 	storeReorderTags: (orderedIds: number[]) => __TAURI_INVOKE<MutationResult>("store_reorder_tags", { orderedIds }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  Undo the last edit. */
 	storeUndo: () => __TAURI_INVOKE<MutationResult>("store_undo").then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
@@ -317,26 +301,23 @@ export const commands = {
 	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
 	/**  Return metadata for every map in the database. */
 	storeListMaps: () => __TAURI_INVOKE<MapMeta[]>("store_list_maps").then((v) => (v.map(i=>({...i,extra:({...i.extra,fields:i.extra.fields==null?i.extra.fields:Object.fromEntries(Object.entries(i.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})) as typeof v)),
-	/**  Fetch a single map's metadata by ID. Returns `None` if not found. */
+	/**  Fetch a single map's metadata by ID. Returns `null` if not found. */
 	storeGetMap: (id: string) => __TAURI_INVOKE<MapMeta | null>("store_get_map", { id }).then((v) => (v==null?v:({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  Create a new empty map with default settings. Returns the full metadata. */
 	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapMeta>("store_create_map", { name, folder }).then((v) => (({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**
 	 *  Open the scratch map, creating it if this is its first use. Ordinary in every way
-	 *  except that [`store_list_maps`] hides it and startup wipes it.
+	 *  except that `storeListMaps` leaves it out and it is emptied on every launch.
 	 */
 	storeScratchMap: () => __TAURI_INVOKE<MapMeta>("store_scratch_map").then((v) => (({...v,extra:({...v.extra,fields:v.extra.fields==null?v.extra.fields:Object.fromEntries(Object.entries(v.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  Delete a map and all its data permanently. */
 	storeDeleteMap: (id: string) => __TAURI_INVOKE<null>("store_delete_map", { id }),
 	/**
-	 *  Apply a partial update to a map's metadata. `None` fields are left unchanged.
+	 *  Apply a partial update to a map's metadata. Omitted fields are left unchanged.
 	 *  Returns a mutation result when the open map's field definitions changed.
 	 */
 	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { id, patch: ({...patch,scoreBounds:patch.scoreBounds==null?patch.scoreBounds:patch.scoreBounds,extra:patch.extra==null?patch.extra:({...patch.extra,fields:patch.extra.fields==null?patch.extra.fields:Object.fromEntries(Object.entries(patch.extra.fields).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) }).then((v) => (v==null?v:({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**
-	 *  Update `last_opened_at` to the current timestamp. Used to sort the map
-	 *  list by recency in the dashboard.
-	 */
+	/**  Mark a map as opened now, for sorting the map list by recency. */
 	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
 	/**  Rename a folder across all maps that reference it. */
 	storeRenameFolder: (from: string, to: string) => __TAURI_INVOKE<null>("store_rename_folder", { from, to }),
@@ -346,11 +327,11 @@ export const commands = {
 	storeDbStats: () => __TAURI_INVOKE<DbStats>("store_db_stats"),
 	/**
 	 *  Parse a file (JSON or ZIP of JSONs) and return a preview of each map found,
-	 *  without persisting anything. Call [`bulk_import_confirm`] to import the maps.
+	 *  without persisting anything. Call `bulkImportConfirm` to import the maps.
 	 */
 	bulkImportPreview: (path: string) => __TAURI_INVOKE<ImportPreviewEntry[]>("bulk_import_preview", { path }),
 	/**
-	 *  Import the maps at `selected_indices` from a previously previewed file.
+	 *  Import the maps at `selectedIndices` from a previously previewed file.
 	 *  Emits `bulk-import-progress` per map.
 	 */
 	bulkImportConfirm: (path: string, selectedIndices: number[]) => __TAURI_INVOKE<ImportedMapInfo[]>("bulk_import_confirm", { path, selectedIndices }),
@@ -361,12 +342,12 @@ export const commands = {
 	bulkImportCancel: () => __TAURI_INVOKE<null>("bulk_import_cancel"),
 	/**
 	 *  Parse a file and return field-level statistics and preview positions for the
-	 *  editor import dialog. Call [`store_import_file`] to commit the import.
+	 *  editor import dialog. Call `storeImportFile` to commit the import.
 	 */
 	storeImportPreview: (path: string) => __TAURI_INVOKE<EditorImportPreview>("store_import_preview", { path }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
 	/**
 	 *  Parse pasted text (JSON or CSV) and stage it for preview. Works like
-	 *  [`store_import_preview`] but reads from a string instead of a file.
+	 *  `storeImportPreview` but reads from a string instead of a file.
 	 */
 	storeImportPastePreview: (text: string) => __TAURI_INVOKE<EditorImportPreview>("store_import_paste_preview", { text }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
 	/**
@@ -376,8 +357,8 @@ export const commands = {
 	storeImportStagedLocation: (index: number) => __TAURI_INVOKE<Location>("store_import_staged_location", { index }),
 	/**
 	 *  Commit a previously previewed editor import into the open map, optionally
-	 *  dropping fields in `dropped_fields` (e.g. `"heading"`, `"extra.countryCode"`)
-	 *  and/or applying `tag_name` to every imported location.
+	 *  dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
+	 *  and/or applying `tagName` to every imported location.
 	 */
 	storeImportFile: (droppedFields: string[], tagName: string | null) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagName }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  The location a pasted Maps URL names, short links resolved. */
@@ -391,7 +372,7 @@ export const commands = {
 	 *  Each feature carries its tag names in `properties.tags`.
 	 */
 	storeExportGeojson: (selector: Selector, tagsJson: string) => __TAURI_INVOKE<string>("store_export_geojson", { selector, tagsJson }),
-	/**  Move a temp export file to `dest_path` and remove the temp source. */
+	/**  Move a temp export file to `destPath` and remove the temp source. */
 	storeSaveExportFile: (srcPath: string, destPath: string) => __TAURI_INVOKE<null>("store_save_export_file", { srcPath, destPath }),
 	/**
 	 *  Export every map as a ZIP of JSON files. Duplicate map names get a numeric suffix.
@@ -400,12 +381,12 @@ export const commands = {
 	storeExportBulkZip: () => __TAURI_INVOKE<string>("store_export_bulk_zip"),
 	/**
 	 *  Create a temp session directory for binary uploads. Files written into it are
-	 *  packaged by [`store_upload_finish`].
+	 *  packaged by `storeUploadFinish`.
 	 */
 	storeUploadBegin: () => __TAURI_INVOKE<string>("store_upload_begin"),
 	/**
 	 *  Package an upload session's files into a single output and remove the session
-	 *  directory. Returns a temp path for [`store_save_export_file`].
+	 *  directory. Returns a temp path for `storeSaveExportFile`.
 	 */
 	storeUploadFinish: (sessionDir: string) => __TAURI_INVOKE<string>("store_upload_finish", { sessionDir }),
 	/**  Remove an abandoned upload session dir (e.g. cancelled operation). */
@@ -455,7 +436,7 @@ export const commands = {
 	/**  Delete a saved selection rule by `id`. */
 	storeDeleteSavedSelection: (id: string) => __TAURI_INVOKE<null>("store_delete_saved_selection", { id }),
 	/**
-	 *  Import saved selections from the pre-0.10 localStorage format. No-op when
+	 *  Import saved selections kept in local storage by older versions. No-op when
 	 *  rules already exist. Returns the number of rules imported.
 	 */
 	storeImportLegacySavedSelections: (json: string) => __TAURI_INVOKE<number>("store_import_legacy_saved_selections", { json }),
@@ -463,7 +444,7 @@ export const commands = {
 	remoteMappingGet: (provider: string, mapId: string) => __TAURI_INVOKE<RemoteMappingRow[]>("remote_mapping_get", { provider, mapId }),
 	/**  Insert or update local-to-remote id mapping rows for a linked map. */
 	remoteMappingUpsert: (provider: string, mapId: string, rows: RemoteMappingRow[]) => __TAURI_INVOKE<null>("remote_mapping_upsert", { provider, mapId, rows }),
-	/**  Remove specific mapping rows by `local_ids` for a linked map. */
+	/**  Remove specific mapping rows by `localIds` for a linked map. */
 	remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => __TAURI_INVOKE<null>("remote_mapping_delete", { provider, mapId, localIds }),
 	/**  Drop all mapping rows for a linked map (unlink). */
 	remoteMappingClear: (provider: string, mapId: string) => __TAURI_INVOKE<null>("remote_mapping_clear", { provider, mapId }),
@@ -487,7 +468,7 @@ export const commands = {
 	 *  Returns the signed-in nickname.
 	 */
 	geoguessrLogin: () => __TAURI_INVOKE<string>("geoguessr_login"),
-	/**  The signed-in user, or `None` when there is no session (or it was rejected). */
+	/**  The signed-in user, or `null` when there is no session (or it was rejected). */
 	geoguessrMe: () => __TAURI_INVOKE<GgUser | null>("geoguessr_me"),
 	/**  Sign out of GeoGuessr and clear the stored session. */
 	geoguessrLogout: () => __TAURI_INVOKE<null>("geoguessr_logout"),
@@ -504,19 +485,15 @@ export const commands = {
 	valiCancel: () => __TAURI_INVOKE<void>("vali_cancel"),
 	/**  Subdivision weights for a country (JSON text, same shape as `vali subdivisions`). */
 	valiSubdivisions: (country: string) => __TAURI_INVOKE<string>("vali_subdivisions", { country }),
-	/**
-	 *  Country codes Vali has coverage data for, i.e. the set `vali download` iterates
-	 *  when no country is given. Display names are the caller's job.
-	 */
+	/**  Country codes Vali has coverage data for. */
 	valiCountries: () => __TAURI_INVOKE<string[]>("vali_countries"),
 	/**
-	 *  Countries whose downloaded coverage data is older than the remote copy. Object metadata
-	 *  only -- nothing is fetched. Errors while offline, which callers should read as "unknown"
-	 *  rather than "up to date".
+	 *  Countries whose downloaded coverage data is older than the published copy. Fails while
+	 *  offline; treat that as unknown, not up to date.
 	 */
 	valiDataStatus: () => __TAURI_INVOKE<ValiCountryStatus[]>("vali_data_status").then((v) => (v.map(i=>i) as typeof v)),
 	/**
-	 *  Download exactly the countries `vali_data_status` reports as behind. No-op when nothing
+	 *  Download exactly the countries `valiDataStatus` reports as out of date. No-op when nothing
 	 *  is stale, so the caller can fire it without checking first.
 	 */
 	valiDownloadStale: () => __TAURI_INVOKE<null>("vali_download_stale"),
@@ -527,14 +504,14 @@ export const commands = {
 	procedureRun: (providers: ProviderDecl[], force: boolean) => __TAURI_INVOKE<number>("procedure_run", { providers, force }),
 	/**
 	 *  Run providers over caller-supplied `rows` and return them as modified. Does not
-	 *  affect the open map. `cancel` is a token for [`procedure_query_cancel`].
+	 *  affect the open map. `cancel` is a token for `procedureQueryCancel`.
 	 */
 	procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], cancel: number | null) => __TAURI_INVOKE<RowsRun>("procedure_run_rows", { providers, force, rows: rows.map(i=>i), cancel }).then((v) => (({...v,rows:v.rows.map(i=>i)}) as typeof v)),
 	/**  Stop a run before its next batch. Already-applied patches stay applied. */
 	procedureCancel: (runId: number) => __TAURI_INVOKE<null>("procedure_cancel", { runId }),
 	/**
 	 *  Run a procedure's read-only `query` export. `input` and the result are defined
-	 *  by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
+	 *  by the procedure module. `cancel` is a token for `procedureQueryCancel`.
 	 */
 	procedureQuery: (procedure: ProcedureDecl, input: string, cancel: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, cancel }),
 	/**  Cancel a running procedure query by its `cancel` token. */
@@ -594,10 +571,7 @@ export type CameraFrame = {
 	pitch: number,
 };
 
-/**
- *  A swap-removal from a render cell. JS must move the last element into `cell_index`
- *  and pop the array to mirror the Rust-side swap-remove.
- */
+/**  A marker removed from a render cell. */
 export type CellRemoval = {
 	cell: string,
 	cellIndex: number,
@@ -667,7 +641,7 @@ export type ConflictKind =
 /**  Both sides added the same identity with different content (hash collision only). */
 "add-add";
 
-/**  Result of a cross-map location copy. `target_name` feeds the toast. */
+/**  Result of copying locations to another map. */
 export type CopyToMapResult = {
 	copied: number,
 	skipped: number,
@@ -709,7 +683,7 @@ export type DbStats = {
 export type DeviceCodeInfo = {
 	userCode: string,
 	verificationUri: string,
-	/**  Seconds until `user_code` stops working. */
+	/**  Seconds until `userCode` stops working. */
 	expiresIn: number,
 };
 
@@ -748,11 +722,7 @@ export type EditorImportResult = {
 	settings: { [key in string]: any },
 };
 
-/**
- *  The engine-owned values JS mirrors into its state, each `None` when unchanged since
- *  it last shipped. The open-time form ([`super::StoreStatus`]) has every field present.
- *  The JS mirror's type and merge are derived from this struct.
- */
+/**  Map state a change affected. Each field is `null` when it did not change. */
 export type EngineValues = {
 	locationCount: number | null,
 	canUndo: boolean | null,
@@ -803,7 +773,7 @@ export type ExportProgress = {
 /**  Why an expression failed to parse. The sentence is TS's to write. */
 export type ExprError = { kind: "invalidNumber"; position: number } | { kind: "unterminatedString" } | { kind: "unexpectedCharacter"; character: string; position: number } | { kind: "expectedSymbol"; symbol: string } | { kind: "chainedComparison" } | { kind: "unexpectedEnd" } | { kind: "missingLeftOperand" } | { kind: "hasTakesFieldName" } | { kind: "unknownFunction"; name: string } | { kind: "wrongArgCount"; name: string; expected: number } | { kind: "unexpectedToken"; token: string } | { kind: "trailingToken"; token: string };
 
-/**  A mutation another window made to a map this window may have open, routed by `map_id`. */
+/**  A change another window made to a map, identified by `mapId`. */
 export type ExternalMutation = {
 	mapId: string,
 } & MutationResult;
@@ -818,10 +788,7 @@ export type ExtraFieldDef = {
 	label: string | null,
 	values: string[] | null,
 	labels: { [key in string]: string } | null,
-	/**
-	 *  Optional override for how this field is compared during disambiguation.
-	 *  `None` => inferred from `field_type` on the analysis side.
-	 */
+	/**  How this field is compared during disambiguation. `null` infers it from the field type. */
 	comparison: ComparisonType | null,
 };
 
@@ -835,10 +802,7 @@ export type FieldCount = {
 	count: number,
 };
 
-/**
- *  A field-wide rewrite of the `extra` map. Patches are derived *per row*, which is what
- *  separates these from `store_update_locations`' explicit patch list.
- */
+/**  A rewrite of one `extra` field across every location, computed per row. */
 export type FieldOp = 
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
@@ -899,7 +863,7 @@ export type GhUser = {
 };
 
 /**
- *  One row of honeycomb points: `count` points from `lng` eastward, each `lng_step` degrees
+ *  One row of honeycomb points: `count` points from `lng` eastward, each `lngStep` degrees
  *  apart.
  */
 export type HoneycombRun = {
@@ -923,7 +887,7 @@ export type ImageSize = {
  *  Shown in the import dialog so the user can select which maps to import.
  */
 export type ImportPreviewEntry = {
-	/**  `None` when the file names the map nothing; JS supplies the placeholder. */
+	/**  `null` when the file doesn't name the map. */
 	name: string | null,
 	folder: string | null,
 	locationCount: number,
@@ -968,17 +932,14 @@ export type IssueRef = {
 export type IssueThread = {
 	state: IssueState,
 	/**
-	 *  `completed`, `not_planned` or `reopened`. Absent on an open issue, and on issues closed
+	 *  `"completed"`, `"not_planned"` or `"reopened"`. Absent on an open issue, and on issues closed
 	 *  before GitHub recorded a reason.
 	 */
 	stateReason: string | null,
 	comments: IssueComment[],
 };
 
-/**
- *  How a field value becomes a group key, chosen by the caller of `store_group_by` /
- *  `store_count_by`.
- */
+/**  How a field value becomes a group key, for `storeGroupBy` and `storeCountBy`. */
 export type KeySpec = 
 /**  String value of the field (enum/string/month "YYYY-MM"/number). */
 { kind: "value" } | 
@@ -1006,7 +967,6 @@ export type Location = {
 	pitch: number,
 	zoom: number,
 	panoId: string | null,
-	/**  See [`LocationFlags`]. */
 	flags: number,
 	/**  Tag IDs applied to this location. References `Tag.id`. */
 	tags: number[],
@@ -1019,9 +979,9 @@ export type Location = {
 
 
 /**
- *  Partial location update from JS. `None` fields are unchanged; `Some(None)` on
- *  nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
- *  `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
+ *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
+ *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
+ *  shallow-merge, null values delete.
  */
 export type LocationPatch_Deserialize = {
 	lat?: number | null,
@@ -1038,9 +998,9 @@ export type LocationPatch_Deserialize = {
 };
 
 /**
- *  Partial location update from JS. `None` fields are unchanged; `Some(None)` on
- *  nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
- *  `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
+ *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
+ *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
+ *  shallow-merge, null values delete.
  */
 export type LocationPatch = {
 	lat: number | null,
@@ -1098,7 +1058,7 @@ export type MapMeta = {
 
 
 /**
- *  Partial update for map metadata. `None` fields are left unchanged.
+ *  Partial update for map metadata. Omitted fields are left unchanged.
  *  Setting `folder` to null moves the map to root.
  */
 export type MapMetaPatch_Deserialize = {
@@ -1113,7 +1073,7 @@ export type MapMetaPatch_Deserialize = {
 };
 
 /**
- *  Partial update for map metadata. `None` fields are left unchanged.
+ *  Partial update for map metadata. Omitted fields are left unchanged.
  *  Setting `folder` to null moves the map to root.
  */
 export type MapMetaPatch = {
@@ -1154,13 +1114,13 @@ export type MapSettings = {
 	 */
 	aliases?: { [key in string]: number },
 	/**
-	 *  Which member of a duplicate group survives a merge: a `field_expr` scoring the
-	 *  location, highest wins. `None` (or blank) keeps the built-in ranking.
+	 *  Which member of a duplicate group survives a merge: a field expression scoring the
+	 *  location, highest wins. `null` (or blank) keeps the built-in ranking.
 	 */
 	duplicateScore?: string | null,
 	/**
-	 *  The order a review pass walks its worklist: a `field_expr` scoring the location,
-	 *  highest first. `None` (or blank) keeps the order the selection resolved in.
+	 *  The order a review pass walks its worklist: a field expression scoring the location,
+	 *  highest first. `null` (or blank) keeps the order the selection resolved in.
 	 */
 	reviewOrder?: string | null,
 };
@@ -1179,11 +1139,7 @@ export type MmUser = {
 	username: string,
 };
 
-/**
- *  What one mutation changed, and nothing else. `values` are merged into the JS state
- *  mirror (an untouched slice keeps its reference and its subscribers sleep); `delta`
- *  and `selection_sync` are operations applied once to the render buffers.
- */
+/**  What one change did to the open map. */
 export type MutationResult = {
 	version: number,
 	delta: RenderDelta,
@@ -1304,20 +1260,14 @@ export type PartitionBucket = {
 };
 
 
-/**
- *  A published build of a plugin, pinned to the commit its files live at. Carries only
- *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
- */
+/**  A published build of a plugin. */
 export type PluginBuild_Deserialize = {
 	version: string,
 	ref: string,
 	minAppVersion: string | null,
 };
 
-/**
- *  A published build of a plugin, pinned to the commit its files live at. Carries only
- *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
- */
+/**  A published build of a plugin. */
 export type PluginBuild = {
 	version: string,
 	ref: string,
@@ -1339,10 +1289,7 @@ export type PluginManifest_Deserialize = {
 	comingSoon?: boolean,
 	minAppVersion?: string | null,
 	sidecar?: PluginSidecar_Deserialize | null,
-	/**
-	 *  Registry-only: prior builds an app under `min_app_version` can fall back to.
-	 *  An installed manifest never carries these.
-	 */
+	/**  Older builds, for apps below `minAppVersion`. Only present in the marketplace registry. */
 	builds?: PluginBuild_Deserialize[],
 };
 
@@ -1360,10 +1307,7 @@ export type PluginManifest = {
 	comingSoon?: boolean,
 	minAppVersion?: string | null,
 	sidecar?: PluginSidecar | null,
-	/**
-	 *  Registry-only: prior builds an app under `min_app_version` can fall back to.
-	 *  An installed manifest never carries these.
-	 */
+	/**  Older builds, for apps below `minAppVersion`. Only present in the marketplace registry. */
 	builds?: PluginBuild[],
 };
 
@@ -1385,8 +1329,8 @@ export type PluginSidecar = {
 };
 
 /**
- *  GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring +
- *  optional holes). `extra_polygons` allows multipolygon selections (e.g., from GeoJSON import).
+ *  GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring and
+ *  optional holes); `extraPolygons` holds any further polygons of a multipolygon.
  */
 export type PolygonGeometry = {
 	coordinates: (([number, number])[])[],
@@ -1536,10 +1480,7 @@ export type ProviderDecl = {
 	instances?: number | null,
 } & ProcedureDecl;
 
-/**
- *  A remote-originated create for JS to apply. `remote_id` is the handle its mapping row must
- *  carry once created (a positional push reindexes to its desired-document position).
- */
+/**  A location created on the remote side, to add locally. */
 export type PullCreate = {
 	fields: NormalizedSyncLocation,
 	remoteId: number,
@@ -1565,7 +1506,7 @@ export type QueryActivity = {
 };
 
 
-/**  Token bucket: `units` calls per `per_ms` milliseconds, refilled continuously. */
+/**  Rate limit: `units` calls per `perMs` milliseconds, refilled continuously. */
 export type RateSpec = {
 	units: number,
 	perMs: number,
@@ -1580,12 +1521,7 @@ export type RemoteMappingRow = {
 	hash: string,
 };
 
-/**
- *  Incremental render update sent to JS after a mutation: adds, patches, and removals.
- *  Every entry states the row's resulting selection state, so applying a delta is
- *  idempotent and the base cells and the selection overlay cannot drift apart.
- *  `full_reset` signals JS to discard all cell data and re-fetch via `store_fill_render_file`.
- */
+/**  Marker changes after an edit: added, updated, and removed markers. */
 export type RenderDelta = {
 	added: RenderEntry[],
 	updated: RenderPatchEntry[],
@@ -1600,7 +1536,7 @@ export type RenderEntry = {
 	lng: number,
 	lat: number,
 	heading: number,
-	/**  `None` = drawn by the base layer, `Some(paint)` = drawn by the selection overlay. */
+	/**  The selection drawing this marker, or `null` when no selection does. */
 	sel: SelPaint | null,
 	/**
 	 *  The slot this row vacated when it crossed cells. Present only for a move, so JS
@@ -1611,7 +1547,7 @@ export type RenderEntry = {
 };
 
 /**
- *  Update to an existing marker within its cell. Position and heading are `None` when
+ *  Update to an existing marker within its cell. Position and heading are `null` when
  *  unchanged; `sel` always states the row's current selection state, so a membership
  *  change with no movement is just a patch with no coordinates.
  */
@@ -1625,9 +1561,8 @@ export type RenderPatchEntry = {
 };
 
 /**
- *  Parameters for a full render rebuild. `marker_style` ("arrow" or "pin") determines
- *  whether heading angles are written. The bounding box fields are currently unused
- *  (no viewport culling -- all locations are rendered).
+ *  Parameters for a full marker rebuild. `markerStyle` ("arrow" or "pin") decides whether
+ *  headings are drawn.
  */
 export type RenderRequest = {
 	west?: number,
@@ -1682,7 +1617,7 @@ export type ReviewSession = {
 	updatedAt: string,
 };
 
-/**  Partial update for a review session. `None` fields are left unchanged. */
+/**  Partial update for a review session. Omitted fields are left unchanged. */
 export type ReviewUpdate = {
 	id: string,
 	name?: string | null,
@@ -1692,7 +1627,7 @@ export type ReviewUpdate = {
 	status: string | null,
 };
 
-/**  Result of `store_collect`: locations returned inline, or a file path to read them from. */
+/**  Matched locations: returned inline, or as a file path to read them from. */
 export type Rows = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
 
 /**  Rows after a run over them, and the ids each provider failed. */
@@ -1701,7 +1636,7 @@ export type RowsRun = {
 	failed: { [key in string]: number[] },
 };
 
-/**  Result of `store_save_dirty`: bytes written to the delta sidecar (0 = skipped). */
+/**  Bytes written by a save; 0 when there was nothing to save. */
 export type SaveResult = {
 	savedBytes: number,
 };
@@ -1821,21 +1756,13 @@ export type Selection = {
 	selector: Selector,
 };
 
-/**
- *  A top-level row of `store_sync_selections`: the selection itself, plus whether it is
- *  ghosted. Ghosting means nothing for a nested child, which is why the flag lives here
- *  and not on `Selection`.
- */
+/**  A top-level selection, plus whether it is ghosted. */
 export type SelectionInput = {
 	/**  Counted, but kept out of the overlay and the selected set. */
 	ghosted?: boolean,
 } & Selection;
 
-/**
- *  Selection bitmask sync payload. `bitmask` carries the packed per-cell bitmask bytes
- *  inline in the IPC response (no shared temp file → no clobber race under concurrent
- *  mutations). `None` when nothing changed. `counts` gives per-selection match counts.
- */
+/**  Updated selection state after a change. `counts` gives each selection's match count. */
 export type SelectionSync = {
 	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
 	counts: { [key in string]: number },
@@ -1851,13 +1778,13 @@ export type SelectionSync = {
  */
 export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Tag"; tagId: number } | { type: "Untagged" } | { type: "Unpanned" } | { type: "PanoIds" } | { type: "NotPanoIds" } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | 
 /**
- *  Rank a selection by a `field_expr`, optionally keeping only the first `k`. Emits
+ *  Rank a selection by a field expression, optionally keeping only the first `k`. Emits
  *  a ranked root in rank order, where every other selector answers ascending. With no
  *  `k` this selects its child unchanged and states only how to walk it. A member the
  *  expression cannot score ranks last, so ranking never drops anything.
  */
 { type: "Ranked"; 
-/**  What to rank; `None` ranks the whole map. */
+/**  What to rank; `null` ranks the whole map. */
 selection: Selection | null; expr: string; k: number | null; ascending: boolean };
 
 export type SideCounts = {
@@ -1876,7 +1803,7 @@ export type SidecarLine = {
 	line: string,
 };
 
-/**  Same shape as [`SidecarLine`]; distinct so the two event channels can't be cross-wired. */
+/**  A log line from a plugin's sidecar. */
 export type SidecarLog = {
 	reqId: number,
 	line: string,
@@ -1919,7 +1846,7 @@ export type SummaryResult = {
 /**
  *  Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
  *  on the remote side and must not overwrite local data, so absent fields are left untouched.
- *  `pano_id` applies only when `pano_id_set` is true (a cleared panoId is a real change to `null`).
+ *  `panoId` applies only when `panoIdSet` is true, since a cleared panoId is a real change to `null`.
  */
 export type SyncPatch = {
 	lat: number | null,
@@ -1957,16 +1884,9 @@ export type Tag = {
 	 */
 	color: string,
 	visible?: boolean,
-	/**
-	 *  Display order in the sidebar tag list. `None` for legacy tags
-	 *  that predate ordered insertion.
-	 */
+	/**  Display order in the sidebar tag list. `null` for tags that have never been ordered. */
 	order: number | null,
-	/**
-	 *  Document links from the map JSON's `extra.tags[name].doclinks` --
-	 *  URLs into external docs (e.g. Google Docs heading links). Read-only
-	 *  in the app; round-trips through import/export.
-	 */
+	/**  Links into external documents (e.g. Google Docs headings), kept through import and export. */
 	doclinks?: string[],
 };
 

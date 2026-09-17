@@ -173,7 +173,7 @@ pub async fn feedback_anonymous_available() -> AppResult<bool> {
 }
 
 /// File a bug report anonymously (no account required). Returns a reference the
-/// caller can use to check for replies via [`feedback_anonymous_thread`].
+/// caller can use to check for replies via `feedbackAnonymousThread`.
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_submit_anonymous(

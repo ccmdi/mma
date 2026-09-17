@@ -22,9 +22,7 @@ export interface Job<R, P> {
 /** A user-triggered async job that reports progress and can be cancelled.
  *  Cancelling aborts the signal and stops the UI immediately; nothing the job does
  *  afterwards can write back. Unmounting cancels. `run` while running is a no-op,
- *  so a double-clicked button cannot start two.
- *
- *  For work driven by changing deps rather than a click, use `useAsync`. */
+ *  so a double-clicked button cannot start two. */
 export function useJob<R = void, P = string>(fn: (ctx: JobContext<P>) => Promise<R>): Job<R, P> {
 	const [running, setRunning] = useState(false);
 	const [progress, setProgress] = useState<P | null>(null);

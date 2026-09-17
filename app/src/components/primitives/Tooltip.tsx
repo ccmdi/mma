@@ -18,9 +18,7 @@ interface Shown {
 	trigger: HTMLElement;
 }
 
-/** Marks its child as a tooltip trigger. Adds attributes to the existing element instead of
- *  wrapping it, so a trigger costs no extra fibers and hovering re-renders only the single
- *  host below -- one portal for the whole app rather than one per trigger. */
+/** Shows `content` as a tooltip when its child is hovered. The child is not wrapped. */
 export function Tooltip({
 	content,
 	side = "top",

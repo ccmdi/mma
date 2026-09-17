@@ -12,7 +12,7 @@ use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
-/// Result of `store_save_dirty`: bytes written to the delta sidecar (0 = skipped).
+/// Bytes written by a save; 0 when there was nothing to save.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveResult {

@@ -89,7 +89,7 @@ export function isPrereleaseVersion(v: string): boolean {
 	return splitVersion(v)[1] !== "";
 }
 
-/** True when running under the web-serve bridge (a plain browser, no native shell). */
+/** True when the app runs in a browser instead of the desktop app. */
 export function isWeb(): boolean {
 	return Boolean(
 		(window as { __TAURI_INTERNALS__?: { __webserve?: boolean } }).__TAURI_INTERNALS__?.__webserve,

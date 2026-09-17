@@ -532,7 +532,7 @@ fn eval_node(expr: &Expr, field: &Resolver) -> Option<f64> {
     })
 }
 
-/// The parse error for `src`, or nothing when it parses. For the dialog's live check.
+/// The parse error for `src`, or `null` when it parses.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

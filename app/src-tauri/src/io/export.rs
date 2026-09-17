@@ -326,7 +326,7 @@ pub fn store_export_geojson(
     })
 }
 
-/// Move a temp export file to `dest_path` and remove the temp source.
+/// Move a temp export file to `destPath` and remove the temp source.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -352,7 +352,7 @@ pub(crate) fn upload_session_dir(path: &str) -> AppResult<PathBuf> {
 }
 
 /// Create a temp session directory for binary uploads. Files written into it are
-/// packaged by [`store_upload_finish`].
+/// packaged by `storeUploadFinish`.
 #[tauri::command]
 #[specta::specta]
 pub fn store_upload_begin() -> AppResult<String> {
@@ -365,7 +365,7 @@ pub fn store_upload_begin() -> AppResult<String> {
 }
 
 /// Package an upload session's files into a single output and remove the session
-/// directory. Returns a temp path for [`store_save_export_file`].
+/// directory. Returns a temp path for `storeSaveExportFile`.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

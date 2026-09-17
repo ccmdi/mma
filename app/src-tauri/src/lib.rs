@@ -62,7 +62,7 @@ pub(crate) fn emit_event<E: tauri_specta::Event + serde::Serialize + Clone>(payl
     }
 }
 
-/// Milliseconds from `run()` to the frontend's first call; logged once.
+/// Milliseconds from app launch until the window was ready.
 #[tauri::command]
 #[specta::specta]
 fn app_ready() -> u32 {

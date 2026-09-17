@@ -30,7 +30,7 @@ pub fn warm() {
 }
 
 /// Return the nearest city, administrative region, and country for a coordinate.
-/// Always returns `Some` - the dataset covers every landmass.
+/// Never `null`: every landmass is covered.
 #[tauri::command]
 #[specta::specta]
 pub fn reverse_geocode(lat: f64, lng: f64) -> Option<GeoResult> {

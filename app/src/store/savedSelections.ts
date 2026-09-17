@@ -106,7 +106,7 @@ const NO_RULES: SavedSelectionInfo[] = [];
 const bodies = new Map<string, SavedSelection | null>();
 let indexLoad: Promise<void> | null = null;
 
-/** The rules that exist, as identity only. Empty until the index arrives -- the first
+/** The rules that exist, as identity only. Empty until the index loads: the first
  *  call starts the read and `saved-selections:changed` announces it. */
 export function getSavedSelectionIndex(): SavedSelectionInfo[] {
 	if (index === null) void loadIndex();

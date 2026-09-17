@@ -1,7 +1,4 @@
-/**
- * Unified MMA API -- the single public surface for plugins, tests, and app code.
- * Exposed as `window.MMA` (and the global `MMA`).
- */
+/** The global `MMA` object (also `window.MMA`). */
 
 export type * from "@/bindings.consts";
 export type * from "@/bindings.gen";
@@ -50,13 +47,13 @@ type SelectionOpsApi = typeof selectionOps;
 type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
 type SettingsApi = typeof settings;
-/** Import dialog internals. @unstable */
+/** Stage, preview, and confirm an import into the open map. @unstable */
 type ImportStagingApi = typeof importStaging;
-/** Commit diff internals. @unstable */
+/** Uncommitted changes and their preview on the map. @unstable */
 type CommitDiffApi = typeof commitDiff;
 type SelectorPickApi = typeof picker;
 type MapListApi = typeof mapList;
-/** Review screen internals. @unstable */
+/** Review sessions and their history. @unstable */
 type ReviewApi = typeof review;
 /** The raw command layer under the app-level API; any of them can change in a release. @unstable */
 type CommandsApi = typeof commands;
@@ -70,7 +67,7 @@ type FieldDefsApi = typeof fieldDefs;
 type FieldDefRegistryApi = typeof fieldDefRegistry;
 type ProceduresApi = typeof procedures;
 type SeenApi = typeof seen;
-/** The shared panorama viewer's internals. @unstable */
+/** The shared panorama viewer. @unstable */
 type PanoApi = typeof panoSurface;
 type EnrichApi = typeof enrich;
 type PinPanoApi = typeof pinPano;

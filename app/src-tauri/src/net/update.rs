@@ -30,7 +30,7 @@ pub struct UpdateAvailable {
     pub notes: Option<String>,
 }
 
-/// Check for an update at `endpoint` (a release's `latest.json`). Returns `None`
+/// Check for an update at `endpoint` (a release's `latest.json`). Returns `null`
 /// when the announced version is not newer than the running one.
 #[tauri::command]
 #[specta::specta]
@@ -54,8 +54,8 @@ pub async fn update_check(endpoint: String) -> AppResult<Option<UpdateAvailable>
     Ok(found)
 }
 
-/// Download and install whatever the last [`update_check`] found. The installer replaces the
-/// running app, so nothing after this is guaranteed to run -- the caller saves its state first.
+/// Download and install whatever the last `updateCheck` found. The installer replaces the
+/// running app, so nothing after this is guaranteed to run. Save state first.
 #[tauri::command]
 #[specta::specta]
 pub async fn update_install() -> AppResult<()> {

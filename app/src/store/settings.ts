@@ -83,7 +83,7 @@ export const BORDER_DETAILS = {
 	medium: msg("High ({size})"),
 	heavy: msg("Ultra ({size})"),
 } as const;
-/** On-disk size of each downloadable archive under `data/borders/`. */
+/** Download size of each border detail level, in bytes. */
 export const BORDER_ARCHIVE_BYTES = {
 	medium: 7_460_312,
 	heavy: 21_514_464,
@@ -187,7 +187,7 @@ export const DEFAULTS = {
 	panToImported: true,
 	/** With no location open, Enter shows a center crosshair and opens the location under it. */
 	enterOpensCenter: true,
-	/** Min half-extent (degrees) a single pasted/imported point is padded to before fitBounds */
+	/** Smallest half-width, in degrees, the map frames around a single pasted or imported point. */
 	pastePadding: 0.003 as number,
 	followActiveInReview: true,
 	markerColor: [42, 42, 42] as RGB,

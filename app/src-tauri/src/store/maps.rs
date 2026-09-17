@@ -78,11 +78,11 @@ pub struct MapSettings {
     /// Tag aliases: a second tree location (full slash path) -> the real tag id shown
     /// there. Tree-view only; clicking the alias leaf toggles the real tag.
     pub aliases: HashMap<String, u32>,
-    /// Which member of a duplicate group survives a merge: a `field_expr` scoring the
-    /// location, highest wins. `None` (or blank) keeps the built-in ranking.
+    /// Which member of a duplicate group survives a merge: a field expression scoring the
+    /// location, highest wins. `null` (or blank) keeps the built-in ranking.
     pub duplicate_score: Option<String>,
-    /// The order a review pass walks its worklist: a `field_expr` scoring the location,
-    /// highest first. `None` (or blank) keeps the order the selection resolved in.
+    /// The order a review pass walks its worklist: a field expression scoring the location,
+    /// highest first. `null` (or blank) keeps the order the selection resolved in.
     pub review_order: Option<String>,
 }
 
@@ -147,8 +147,7 @@ pub struct ExtraFieldDef {
     pub label: Option<String>,
     pub values: Option<Vec<String>>,
     pub labels: Option<HashMap<String, String>>,
-    /// Optional override for how this field is compared during disambiguation.
-    /// `None` => inferred from `field_type` on the analysis side.
+    /// How this field is compared during disambiguation. `null` infers it from the field type.
     pub comparison: Option<ComparisonType>,
 }
 
@@ -439,7 +438,7 @@ pub struct MapMeta {
     pub last_opened_at: Option<String>,
 }
 
-/// Partial update for map metadata. `None` fields are left unchanged.
+/// Partial update for map metadata. Omitted fields are left unchanged.
 /// Setting `folder` to null moves the map to root.
 #[derive(Default, serde::Deserialize, specta::Type)]
 #[serde(default, rename_all = "camelCase")]
@@ -525,7 +524,7 @@ fn scratch_map_row(conn: &Connection) -> rusqlite::Result<MapMeta> {
 }
 
 /// Open the scratch map, creating it if this is its first use. Ordinary in every way
-/// except that [`store_list_maps`] hides it and startup wipes it.
+/// except that `storeListMaps` leaves it out and it is emptied on every launch.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_scratch_map() -> AppResult<MapMeta> {
@@ -539,7 +538,7 @@ pub fn purge_scratch_map() -> AppResult<bool> {
     delete_map_data(&conn, SCRATCH_MAP_ID)
 }
 
-/// Fetch a single map's metadata by ID. Returns `None` if not found.
+/// Fetch a single map's metadata by ID. Returns `null` if not found.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_get_map(id: String) -> AppResult<Option<MapMeta>> {
@@ -613,7 +612,7 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
     Ok(())
 }
 
-/// Apply a partial update to a map's metadata. `None` fields are left unchanged.
+/// Apply a partial update to a map's metadata. Omitted fields are left unchanged.
 /// Returns a mutation result when the open map's field definitions changed.
 #[tauri::command]
 #[specta::specta]
@@ -665,8 +664,7 @@ fn update_map_meta_row(conn: &Connection, id: &str, patch: &MapMetaPatch) -> App
     Ok(())
 }
 
-/// Update `last_opened_at` to the current timestamp. Used to sort the map
-/// list by recency in the dashboard.
+/// Mark a map as opened now, for sorting the map list by recency.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_touch_map_opened(map_id: String) -> AppResult<()> {

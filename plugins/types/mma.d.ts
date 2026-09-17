@@ -99,7 +99,7 @@ declare const RateCost: {
     readonly Row: "row";
 };
 type RateCost = (typeof RateCost)[keyof typeof RateCost];
-/** Which side won a resolved conflict; serialized as "local"/"remote". */
+/** Which side won a resolved conflict. */
 declare const ResolutionSide: {
     /** This map's version won the conflict. */
     readonly Local: "local";
@@ -144,10 +144,8 @@ declare const PanoType: {
 };
 type PanoType = (typeof PanoType)[keyof typeof PanoType];
 /**
- * Which pano the search picks. An omitted rankingOptions goes on the wire as closest;
- * the Maps JS API's encoder has no other default, whatever its docs say. BEST at a small
- * radius returns a neighbouring pano from the same capture run, so a timeline probe must
- * use CLOSEST at the pano's own coordinate.
+ * Which pano the search picks; omitted means closest. BEST at a small radius can return a
+ * neighbouring pano from the same capture run, so probe a pano's own coordinate with CLOSEST.
  */
 declare const RankingStrategy: {
     /** The pano the search ranks best within the radius, which may not be the nearest. */
@@ -412,7 +410,7 @@ declare namespace consts {
 
 /** Commands @unstable */
 declare const commands$1: {
-    /**  Milliseconds from `run()` to the frontend's first call; logged once. @unstable */
+    /**  Milliseconds from app launch until the window was ready. @unstable */
     appReady: () => Promise<number>;
     /**
      *  Seconds the app has been running, counted from launch rather than from whenever a
@@ -442,31 +440,21 @@ declare const commands$1: {
     openDataFolder: () => Promise<null>;
     /**  Open the app's log file in the OS default handler. @unstable */
     openLogFile: () => Promise<null>;
-    /**
-     *  First caller per app run wins the silent update pass. Every webview boots the
-     *  plugin loader, so without this a restored editor window plus the map list run
-     *  two full passes -- double registry fetches, double downloads, and interleaved
-     *  install progress for the same plugin.
-     *  @unstable
-     */
+    /**  True for the first caller per app run, which runs the background plugin update check. @unstable */
     claimPluginUpdatePass: () => Promise<boolean>;
     /**  Manifests of every installed plugin. @unstable */
     listUserPlugins: () => Promise<PluginManifest[]>;
     /**
-     *  Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
-     *  the procedure module it declares. `git_ref` pins an older build; `None` takes master.
+     *  Install a plugin from the marketplace: its manifest, main script, and procedure module.
+     *  `gitRef` pins an older build; `null` installs the latest.
      *  @unstable
      */
     installPlugin: (id: string, gitRef: string | null) => Promise<PluginManifest>;
     /**  Delete a plugin's directory. @unstable */
     uninstallPlugin: (id: string) => Promise<null>;
-    /**
-     *  Download a plugin's sidecar bundle from GitHub Releases and extract it under
-     *  `{appData}/plugins/{plugin_id}/sidecar/`. Emits `sidecar-install-progress`.
-     *  @unstable
-     */
+    /**  Download and install a plugin's sidecar bundle. Emits `sidecar-install-progress`. @unstable */
     sidecarInstall: (pluginId: string, name: string, version: string) => Promise<null>;
-    /**  Installed sidecar version for a plugin, or `None` if not installed. @unstable */
+    /**  Installed sidecar version for a plugin, or `null` if not installed. @unstable */
     sidecarInstalledVersion: (pluginId: string) => Promise<string | null>;
     /**
      *  Run one unit of work on a plugin's sidecar. Commands the manifest lists under
@@ -488,31 +476,25 @@ declare const commands$1: {
     downloadBorderFile: (level: string) => Promise<null>;
     /**
      *  Return the border polygon containing (`lat`, `lng`) at the given detail
-     *  `level`, or `None` if the point falls outside every feature.
+     *  `level`, or `null` if the point falls outside every feature.
      *  @unstable
      */
     borderLookup: (lat: number, lng: number, level: string) => Promise<PolygonGeometry | null>;
     /**
      *  Classify each `(lat, lng)` to the name of its containing border feature at
-     *  `level` (subdivision names for "adm1"). `None` for points outside every feature.
+     *  `level` (subdivision names for "adm1"). `null` for points outside every feature.
      *  @unstable
      */
     borderClassify: (level: string, points: ([number, number])[]) => Promise<(string | null)[]>;
     /**
      *  Return the nearest city, administrative region, and country for a coordinate.
-     *  Always returns `Some` - the dataset covers every landmass.
+     *  Never `null`: every landmass is covered.
      *  @unstable
      */
     reverseGeocode: (lat: number, lng: number) => Promise<GeoResult | null>;
-    /**  IANA timezone at a coordinate, or `None` outside the valid range. @unstable */
+    /**  IANA timezone at a coordinate, or `null` outside the valid range. @unstable */
     timezoneAt: (lat: number, lng: number) => Promise<string | null>;
-    /**
-     *  Reveal with the native open animation: a true first show() (DWM plays its pop-in),
-     *  then maximize back-to-back while the shell is still blank. The show must come first:
-     *  maximize on a hidden window reveals it without setting tao's visible flag, and the
-     *  window gets re-hidden a frame later.
-     *  @unstable
-     */
+    /**  Show the window with the system open animation, maximized if `maximized` is set. @unstable */
     revealWindow: (maximized: boolean) => Promise<void>;
     /**  Set the Discord Rich Presence activity. No-op when Discord is not running. @unstable */
     discordPresenceSet: (activity: PresenceActivity) => Promise<null>;
@@ -520,17 +502,17 @@ declare const commands$1: {
     discordPresenceClear: () => Promise<null>;
     /**
      *  Begin device-flow sign-in. Returns the code to show the user; call
-     *  [`github_poll_login`] afterwards to wait for them to finish authorizing.
+     *  `githubPollLogin` afterwards to wait for them to finish authorizing.
      *  @unstable
      */
     githubStartLogin: () => Promise<DeviceCodeInfo>;
     /**
-     *  Wait for the user to authorize the code from [`github_start_login`].
+     *  Wait for the user to authorize the code from `githubStartLogin`.
      *  Resolves with the signed-in account.
      *  @unstable
      */
     githubPollLogin: () => Promise<GhUser>;
-    /**  The signed-in user, or `None` when there is no session (or it was rejected). @unstable */
+    /**  The signed-in user, or `null` when there is no session (or it was rejected). @unstable */
     githubMe: () => Promise<GhUser | null>;
     /**  Sign out of GitHub and clear the stored session. @unstable */
     githubLogout: () => Promise<null>;
@@ -546,7 +528,7 @@ declare const commands$1: {
     feedbackAnonymousAvailable: () => Promise<boolean>;
     /**
      *  File a bug report anonymously (no account required). Returns a reference the
-     *  caller can use to check for replies via [`feedback_anonymous_thread`].
+     *  caller can use to check for replies via `feedbackAnonymousThread`.
      *  @unstable
      */
     feedbackSubmitAnonymous: (title: string, body: string, installId: string) => Promise<AnonIssueRef>;
@@ -561,14 +543,14 @@ declare const commands$1: {
     /**  Fetch the current state and replies for an anonymous report. @unstable */
     feedbackAnonymousThread: (number: number, token: string) => Promise<IssueThread>;
     /**
-     *  Check for an update at `endpoint` (a release's `latest.json`). Returns `None`
+     *  Check for an update at `endpoint` (a release's `latest.json`). Returns `null`
      *  when the announced version is not newer than the running one.
      *  @unstable
      */
     updateCheck: (endpoint: string) => Promise<UpdateAvailable | null>;
     /**
-     *  Download and install whatever the last [`update_check`] found. The installer replaces the
-     *  running app, so nothing after this is guaranteed to run -- the caller saves its state first.
+     *  Download and install whatever the last `updateCheck` found. The installer replaces the
+     *  running app, so nothing after this is guaranteed to run. Save state first.
      *  @unstable
      */
     updateInstall: () => Promise<null>;
@@ -604,16 +586,12 @@ declare const commands$1: {
     storeGetSummary: () => Promise<SummaryResult>;
     /**  Add new locations, allocating sequential IDs. Undoable. @unstable */
     storeAddLocations: (locations: Location[]) => Promise<MutationResult>;
-    /**
-     *  Add locations from a chunked upload session (see `store_upload_begin`).
-     *  Same behavior as `store_add_locations`: one atomic mutation, undoable.
-     *  @unstable
-     */
+    /**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. @unstable */
     storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult>;
     /**  Remove locations by ID. Undoable. @unstable */
     storeRemoveLocations: (ids: number[]) => Promise<MutationResult>;
     /**
-     *  Apply partial patches to existing locations. `record_undo` defaults to true;
+     *  Apply partial patches to existing locations. `recordUndo` defaults to true;
      *  set to false for ephemeral updates (e.g., plugin-driven batch modifications
      *  that manage their own undo).
      *  @unstable
@@ -630,20 +608,20 @@ declare const commands$1: {
     /**  `n` ids drawn uniformly at random from the selected set, without replacement. @unstable */
     storeSample: (selector: Selector, n: number) => Promise<number[]>;
     /**
-     *  An evenly spaced subset: exactly one of `target_count` (thin to N, maximizing
-     *  spacing) or `min_distance_m` (keep as many as fit at that spacing).
+     *  An evenly spaced subset: exactly one of `targetCount` (thin to N, maximizing
+     *  spacing) or `minDistanceM` (keep as many as fit at that spacing).
      *  @unstable
      */
     storeSpaced: (selector: Selector, targetCount: number | null, minDistanceM: number | null) => Promise<SpacedPickResult>;
     /**
-     *  An evenly spaced subset laid out on a honeycomb: exactly one of `target_count` (at most
-     *  N, spaced as widely as that allows) or `spacing_m` (about that far apart, and never
+     *  An evenly spaced subset laid out on a honeycomb: exactly one of `targetCount` (at most
+     *  N, spaced as widely as that allows) or `spacingM` (about that far apart, and never
      *  closer than half of it).
      *  @unstable
      */
     storeEvenlySpaced: (selector: Selector, targetCount: number | null, spacingM: number | null) => Promise<SpacedPickResult>;
     /**
-     *  The points of a honeycomb about `spacing_m` metres apart that fall inside the polygon,
+     *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
      *  one entry per row of points.
      *  @unstable
      */
@@ -655,7 +633,7 @@ declare const commands$1: {
      */
     polygonRandomPoints: (polygon: PolygonGeometry, count: number) => Promise<[number, number][]>;
     /**
-     *  Points covering the polygon with no two closer than `spacing_m` metres and no gap
+     *  Points covering the polygon with no two closer than `spacingM` metres and no gap
      *  wider than about twice that, in random order.
      *  @unstable
      */
@@ -663,7 +641,7 @@ declare const commands$1: {
     /**  Whether each of the points sits inside the polygon. @unstable */
     polygonContainsPoints: (polygon: PolygonGeometry, lats: number[], lngs: number[]) => Promise<boolean[]>;
     /**
-     *  Bounding box `[west, south, east, north]` of the polygon itself, or `None` when it
+     *  Bounding box `[west, south, east, north]` of the polygon itself, or `null` when it
      *  has no vertices. `west > east` means the box crosses the antimeridian.
      *  @unstable
      */
@@ -682,17 +660,17 @@ declare const commands$1: {
     storeCoverage: (selector: Selector) => Promise<[string, number][]>;
     /**  Read specific fields across matched locations, returned as one column per field. @unstable */
     storeColumns: (selector: Selector, fields: string[]) => Promise<Columns>;
-    /**  Bounding box `[west, south, east, north]`, or `None` when the set is empty. @unstable */
+    /**  Bounding box `[west, south, east, north]`, or `null` when the set is empty. @unstable */
     storeBounds: (selector: Selector) => Promise<[number, number, number, number] | null>;
     /**
-     *  Collect all matched locations as full rows. Prefer a projection (`store_columns`,
-     *  `store_values`) when only specific fields are needed.
+     *  Collect all matched locations as full rows. Prefer a projection (`storeColumns`,
+     *  `storeValues`) when only specific fields are needed.
      *  @unstable
      */
     storeCollect: (selector: Selector) => Promise<Rows>;
     /**  Apply a field operation to every location matched by `selector`. @unstable */
     storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => Promise<FieldOpResult>;
-    /**  The parse error for `src`, or nothing when it parses. For the dialog's live check. @unstable */
+    /**  The parse error for `src`, or `null` when it parses. @unstable */
     fieldExprError: (src: string) => Promise<ExprError | null>;
     /**
      *  Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
@@ -700,10 +678,10 @@ declare const commands$1: {
      *  @unstable
      */
     storeCountryDistribution: (selector: Selector, level: string) => Promise<[string, number][]>;
-    /**  Find all locations within `radius_m` metres of (`lat`, `lng`). @unstable */
+    /**  Find all locations within `radiusM` metres of (`lat`, `lng`). @unstable */
     storeFindNearby: (lat: number, lng: number, radiusM: number) => Promise<Location[]>;
     /**
-     *  For each input point, whether any existing location lies within `radius_m` metres.
+     *  For each input point, whether any existing location lies within `radiusM` metres.
      *  Batch form for probing many coordinates at once.
      *  @unstable
      */
@@ -722,7 +700,7 @@ declare const commands$1: {
     storeUpdateTags: (updates: Update<TagPatch>[]) => Promise<MutationResult>;
     /**  Remove tags and strip them from all locations that carry them. Undoable. @unstable */
     storeDeleteTags: (tagIds: number[]) => Promise<MutationResult>;
-    /**  Set the display order of tags. Each tag's position is its index in `ordered_ids`. @unstable */
+    /**  Set the display order of tags. Each tag's position is its index in `orderedIds`. @unstable */
     storeReorderTags: (orderedIds: number[]) => Promise<MutationResult>;
     /**  Undo the last edit. @unstable */
     storeUndo: () => Promise<MutationResult>;
@@ -761,29 +739,25 @@ declare const commands$1: {
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
     /**  Return metadata for every map in the database. @unstable */
     storeListMaps: () => Promise<MapMeta[]>;
-    /**  Fetch a single map's metadata by ID. Returns `None` if not found. @unstable */
+    /**  Fetch a single map's metadata by ID. Returns `null` if not found. @unstable */
     storeGetMap: (id: string) => Promise<MapMeta | null>;
     /**  Create a new empty map with default settings. Returns the full metadata. @unstable */
     storeCreateMap: (name: string, folder: string | null) => Promise<MapMeta>;
     /**
      *  Open the scratch map, creating it if this is its first use. Ordinary in every way
-     *  except that [`store_list_maps`] hides it and startup wipes it.
+     *  except that `storeListMaps` leaves it out and it is emptied on every launch.
      *  @unstable
      */
     storeScratchMap: () => Promise<MapMeta>;
     /**  Delete a map and all its data permanently. @unstable */
     storeDeleteMap: (id: string) => Promise<null>;
     /**
-     *  Apply a partial update to a map's metadata. `None` fields are left unchanged.
+     *  Apply a partial update to a map's metadata. Omitted fields are left unchanged.
      *  Returns a mutation result when the open map's field definitions changed.
      *  @unstable
      */
     storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => Promise<MutationResult | null>;
-    /**
-     *  Update `last_opened_at` to the current timestamp. Used to sort the map
-     *  list by recency in the dashboard.
-     *  @unstable
-     */
+    /**  Mark a map as opened now, for sorting the map list by recency. @unstable */
     storeTouchMapOpened: (mapId: string) => Promise<null>;
     /**  Rename a folder across all maps that reference it. @unstable */
     storeRenameFolder: (from: string, to: string) => Promise<null>;
@@ -793,12 +767,12 @@ declare const commands$1: {
     storeDbStats: () => Promise<DbStats>;
     /**
      *  Parse a file (JSON or ZIP of JSONs) and return a preview of each map found,
-     *  without persisting anything. Call [`bulk_import_confirm`] to import the maps.
+     *  without persisting anything. Call `bulkImportConfirm` to import the maps.
      *  @unstable
      */
     bulkImportPreview: (path: string) => Promise<ImportPreviewEntry[]>;
     /**
-     *  Import the maps at `selected_indices` from a previously previewed file.
+     *  Import the maps at `selectedIndices` from a previously previewed file.
      *  Emits `bulk-import-progress` per map.
      *  @unstable
      */
@@ -811,13 +785,13 @@ declare const commands$1: {
     bulkImportCancel: () => Promise<null>;
     /**
      *  Parse a file and return field-level statistics and preview positions for the
-     *  editor import dialog. Call [`store_import_file`] to commit the import.
+     *  editor import dialog. Call `storeImportFile` to commit the import.
      *  @unstable
      */
     storeImportPreview: (path: string) => Promise<EditorImportPreview>;
     /**
      *  Parse pasted text (JSON or CSV) and stage it for preview. Works like
-     *  [`store_import_preview`] but reads from a string instead of a file.
+     *  `storeImportPreview` but reads from a string instead of a file.
      *  @unstable
      */
     storeImportPastePreview: (text: string) => Promise<EditorImportPreview>;
@@ -829,8 +803,8 @@ declare const commands$1: {
     storeImportStagedLocation: (index: number) => Promise<Location>;
     /**
      *  Commit a previously previewed editor import into the open map, optionally
-     *  dropping fields in `dropped_fields` (e.g. `"heading"`, `"extra.countryCode"`)
-     *  and/or applying `tag_name` to every imported location.
+     *  dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
+     *  and/or applying `tagName` to every imported location.
      *  @unstable
      */
     storeImportFile: (droppedFields: string[], tagName: string | null) => Promise<EditorImportResult>;
@@ -846,7 +820,7 @@ declare const commands$1: {
      *  @unstable
      */
     storeExportGeojson: (selector: Selector, tagsJson: string) => Promise<string>;
-    /**  Move a temp export file to `dest_path` and remove the temp source. @unstable */
+    /**  Move a temp export file to `destPath` and remove the temp source. @unstable */
     storeSaveExportFile: (srcPath: string, destPath: string) => Promise<null>;
     /**
      *  Export every map as a ZIP of JSON files. Duplicate map names get a numeric suffix.
@@ -856,13 +830,13 @@ declare const commands$1: {
     storeExportBulkZip: () => Promise<string>;
     /**
      *  Create a temp session directory for binary uploads. Files written into it are
-     *  packaged by [`store_upload_finish`].
+     *  packaged by `storeUploadFinish`.
      *  @unstable
      */
     storeUploadBegin: () => Promise<string>;
     /**
      *  Package an upload session's files into a single output and remove the session
-     *  directory. Returns a temp path for [`store_save_export_file`].
+     *  directory. Returns a temp path for `storeSaveExportFile`.
      *  @unstable
      */
     storeUploadFinish: (sessionDir: string) => Promise<string>;
@@ -915,7 +889,7 @@ declare const commands$1: {
     /**  Delete a saved selection rule by `id`. @unstable */
     storeDeleteSavedSelection: (id: string) => Promise<null>;
     /**
-     *  Import saved selections from the pre-0.10 localStorage format. No-op when
+     *  Import saved selections kept in local storage by older versions. No-op when
      *  rules already exist. Returns the number of rules imported.
      *  @unstable
      */
@@ -924,7 +898,7 @@ declare const commands$1: {
     remoteMappingGet: (provider: string, mapId: string) => Promise<RemoteMappingRow[]>;
     /**  Insert or update local-to-remote id mapping rows for a linked map. @unstable */
     remoteMappingUpsert: (provider: string, mapId: string, rows: RemoteMappingRow[]) => Promise<null>;
-    /**  Remove specific mapping rows by `local_ids` for a linked map. @unstable */
+    /**  Remove specific mapping rows by `localIds` for a linked map. @unstable */
     remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => Promise<null>;
     /**  Drop all mapping rows for a linked map (unlink). @unstable */
     remoteMappingClear: (provider: string, mapId: string) => Promise<null>;
@@ -950,7 +924,7 @@ declare const commands$1: {
      *  @unstable
      */
     geoguessrLogin: () => Promise<string>;
-    /**  The signed-in user, or `None` when there is no session (or it was rejected). @unstable */
+    /**  The signed-in user, or `null` when there is no session (or it was rejected). @unstable */
     geoguessrMe: () => Promise<GgUser | null>;
     /**  Sign out of GeoGuessr and clear the stored session. @unstable */
     geoguessrLogout: () => Promise<null>;
@@ -968,21 +942,16 @@ declare const commands$1: {
     valiCancel: () => Promise<void>;
     /**  Subdivision weights for a country (JSON text, same shape as `vali subdivisions`). @unstable */
     valiSubdivisions: (country: string) => Promise<string>;
-    /**
-     *  Country codes Vali has coverage data for, i.e. the set `vali download` iterates
-     *  when no country is given. Display names are the caller's job.
-     *  @unstable
-     */
+    /**  Country codes Vali has coverage data for. @unstable */
     valiCountries: () => Promise<string[]>;
     /**
-     *  Countries whose downloaded coverage data is older than the remote copy. Object metadata
-     *  only -- nothing is fetched. Errors while offline, which callers should read as "unknown"
-     *  rather than "up to date".
+     *  Countries whose downloaded coverage data is older than the published copy. Fails while
+     *  offline; treat that as unknown, not up to date.
      *  @unstable
      */
     valiDataStatus: () => Promise<ValiCountryStatus[]>;
     /**
-     *  Download exactly the countries `vali_data_status` reports as behind. No-op when nothing
+     *  Download exactly the countries `valiDataStatus` reports as out of date. No-op when nothing
      *  is stale, so the caller can fire it without checking first.
      *  @unstable
      */
@@ -995,7 +964,7 @@ declare const commands$1: {
     procedureRun: (providers: ProviderDecl[], force: boolean) => Promise<number>;
     /**
      *  Run providers over caller-supplied `rows` and return them as modified. Does not
-     *  affect the open map. `cancel` is a token for [`procedure_query_cancel`].
+     *  affect the open map. `cancel` is a token for `procedureQueryCancel`.
      *  @unstable
      */
     procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], cancel: number | null) => Promise<RowsRun>;
@@ -1003,7 +972,7 @@ declare const commands$1: {
     procedureCancel: (runId: number) => Promise<null>;
     /**
      *  Run a procedure's read-only `query` export. `input` and the result are defined
-     *  by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
+     *  by the procedure module. `cancel` is a token for `procedureQueryCancel`.
      *  @unstable
      */
     procedureQuery: (procedure: ProcedureDecl, input: string, cancel: number | null) => Promise<string>;
@@ -1161,10 +1130,7 @@ type CameraFrame = {
     heading: number;
     pitch: number;
 };
-/**
- *  A swap-removal from a render cell. JS must move the last element into `cell_index`
- *  and pop the array to mirror the Rust-side swap-remove.
- */
+/**  A marker removed from a render cell. */
 type CellRemoval = {
     cell: string;
     cellIndex: number;
@@ -1232,7 +1198,7 @@ type ConflictKind =
 "delete-update" | 
 /**  Both sides added the same identity with different content (hash collision only). */
 "add-add";
-/**  Result of a cross-map location copy. `target_name` feeds the toast. */
+/**  Result of copying locations to another map. */
 type CopyToMapResult = {
     copied: number;
     skipped: number;
@@ -1269,7 +1235,7 @@ type DbStats = {
 type DeviceCodeInfo = {
     userCode: string;
     verificationUri: string;
-    /**  Seconds until `user_code` stops working. */
+    /**  Seconds until `userCode` stops working. */
     expiresIn: number;
 };
 /**
@@ -1307,11 +1273,7 @@ type EditorImportResult = {
         [key in string]: any;
     };
 };
-/**
- *  The engine-owned values JS mirrors into its state, each `None` when unchanged since
- *  it last shipped. The open-time form ([`super::StoreStatus`]) has every field present.
- *  The JS mirror's type and merge are derived from this struct.
- */
+/**  Map state a change affected. Each field is `null` when it did not change. */
 type EngineValues = {
     locationCount: number | null;
     canUndo: boolean | null;
@@ -1397,7 +1359,7 @@ type ExprError = {
     kind: "trailingToken";
     token: string;
 };
-/**  A mutation another window made to a map this window may have open, routed by `map_id`. */
+/**  A change another window made to a map, identified by `mapId`. */
 type ExternalMutation = {
     mapId: string;
 } & MutationResult;
@@ -1413,10 +1375,7 @@ type ExtraFieldDef = {
     labels: {
         [key in string]: string;
     } | null;
-    /**
-     *  Optional override for how this field is compared during disambiguation.
-     *  `None` => inferred from `field_type` on the analysis side.
-     */
+    /**  How this field is compared during disambiguation. `null` infers it from the field type. */
     comparison: ComparisonType | null;
 };
 /**
@@ -1427,10 +1386,7 @@ type FieldCount = {
     key: string;
     count: number;
 };
-/**
- *  A field-wide rewrite of the `extra` map. Patches are derived *per row*, which is what
- *  separates these from `store_update_locations`' explicit patch list.
- */
+/**  A rewrite of one `extra` field across every location, computed per row. */
 type FieldOp = 
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
@@ -1547,7 +1503,7 @@ type GhUser = {
     avatarUrl: string | null;
 };
 /**
- *  One row of honeycomb points: `count` points from `lng` eastward, each `lng_step` degrees
+ *  One row of honeycomb points: `count` points from `lng` eastward, each `lngStep` degrees
  *  apart.
  */
 type HoneycombRun = {
@@ -1568,7 +1524,7 @@ type ImageSize = {
  *  Shown in the import dialog so the user can select which maps to import.
  */
 type ImportPreviewEntry = {
-    /**  `None` when the file names the map nothing; JS supplies the placeholder. */
+    /**  `null` when the file doesn't name the map. */
     name: string | null;
     folder: string | null;
     locationCount: number;
@@ -1608,16 +1564,13 @@ type IssueRef = {
 type IssueThread = {
     state: IssueState;
     /**
-     *  `completed`, `not_planned` or `reopened`. Absent on an open issue, and on issues closed
+     *  `"completed"`, `"not_planned"` or `"reopened"`. Absent on an open issue, and on issues closed
      *  before GitHub recorded a reason.
      */
     stateReason: string | null;
     comments: IssueComment[];
 };
-/**
- *  How a field value becomes a group key, chosen by the caller of `store_group_by` /
- *  `store_count_by`.
- */
+/**  How a field value becomes a group key, for `storeGroupBy` and `storeCountBy`. */
 type KeySpec = 
 /**  String value of the field (enum/string/month "YYYY-MM"/number). */
 {
@@ -1653,7 +1606,6 @@ type Location = {
     pitch: number;
     zoom: number;
     panoId: string | null;
-    /**  See [`LocationFlags`]. */
     flags: number;
     /**  Tag IDs applied to this location. References `Tag.id`. */
     tags: number[];
@@ -1666,9 +1618,9 @@ type Location = {
     modifiedAt: number | null;
 };
 /**
- *  Partial location update from JS. `None` fields are unchanged; `Some(None)` on
- *  nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
- *  `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
+ *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
+ *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
+ *  shallow-merge, null values delete.
  */
 type LocationPatch_Deserialize = {
     lat?: number | null;
@@ -1686,9 +1638,9 @@ type LocationPatch_Deserialize = {
     modifiedAt?: number | null;
 };
 /**
- *  Partial location update from JS. `None` fields are unchanged; `Some(None)` on
- *  nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
- *  `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
+ *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
+ *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
+ *  shallow-merge, null values delete.
  */
 type LocationPatch = {
     lat: number | null;
@@ -1752,7 +1704,7 @@ type MapMeta = {
     lastOpenedAt: string | null;
 };
 /**
- *  Partial update for map metadata. `None` fields are left unchanged.
+ *  Partial update for map metadata. Omitted fields are left unchanged.
  *  Setting `folder` to null moves the map to root.
  */
 type MapMetaPatch_Deserialize = {
@@ -1768,7 +1720,7 @@ type MapMetaPatch_Deserialize = {
     labels?: string[] | null;
 };
 /**
- *  Partial update for map metadata. `None` fields are left unchanged.
+ *  Partial update for map metadata. Omitted fields are left unchanged.
  *  Setting `folder` to null moves the map to root.
  */
 type MapMetaPatch = {
@@ -1814,13 +1766,13 @@ type MapSettings = {
         [key in string]: number;
     };
     /**
-     *  Which member of a duplicate group survives a merge: a `field_expr` scoring the
-     *  location, highest wins. `None` (or blank) keeps the built-in ranking.
+     *  Which member of a duplicate group survives a merge: a field expression scoring the
+     *  location, highest wins. `null` (or blank) keeps the built-in ranking.
      */
     duplicateScore?: string | null;
     /**
-     *  The order a review pass walks its worklist: a `field_expr` scoring the location,
-     *  highest first. `None` (or blank) keeps the order the selection resolved in.
+     *  The order a review pass walks its worklist: a field expression scoring the location,
+     *  highest first. `null` (or blank) keeps the order the selection resolved in.
      */
     reviewOrder?: string | null;
 };
@@ -1835,11 +1787,7 @@ type MmUser = {
     id: number;
     username: string;
 };
-/**
- *  What one mutation changed, and nothing else. `values` are merged into the JS state
- *  mirror (an untouched slice keeps its reference and its subscribers sleep); `delta`
- *  and `selection_sync` are operations applied once to the render buffers.
- */
+/**  What one change did to the open map. */
 type MutationResult = {
     version: number;
     delta: RenderDelta;
@@ -1963,19 +1911,13 @@ type PartitionBucket = {
     ids: number[];
     bin: [number, number] | null;
 };
-/**
- *  A published build of a plugin, pinned to the commit its files live at. Carries only
- *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
- */
+/**  A published build of a plugin. */
 type PluginBuild_Deserialize = {
     version: string;
     ref: string;
     minAppVersion: string | null;
 };
-/**
- *  A published build of a plugin, pinned to the commit its files live at. Carries only
- *  what picking a build needs -- the rest comes from the manifest at `git_ref`.
- */
+/**  A published build of a plugin. */
 type PluginBuild = {
     version: string;
     ref: string;
@@ -1995,10 +1937,7 @@ type PluginManifest_Deserialize = {
     comingSoon?: boolean;
     minAppVersion?: string | null;
     sidecar?: PluginSidecar_Deserialize | null;
-    /**
-     *  Registry-only: prior builds an app under `min_app_version` can fall back to.
-     *  An installed manifest never carries these.
-     */
+    /**  Older builds, for apps below `minAppVersion`. Only present in the marketplace registry. */
     builds?: PluginBuild_Deserialize[];
 };
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
@@ -2015,10 +1954,7 @@ type PluginManifest = {
     comingSoon?: boolean;
     minAppVersion?: string | null;
     sidecar?: PluginSidecar | null;
-    /**
-     *  Registry-only: prior builds an app under `min_app_version` can fall back to.
-     *  An installed manifest never carries these.
-     */
+    /**  Older builds, for apps below `minAppVersion`. Only present in the marketplace registry. */
     builds?: PluginBuild[];
 };
 /**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
@@ -2036,8 +1972,8 @@ type PluginSidecar = {
     sha256?: string | null;
 };
 /**
- *  GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring +
- *  optional holes). `extra_polygons` allows multipolygon selections (e.g., from GeoJSON import).
+ *  GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring and
+ *  optional holes); `extraPolygons` holds any further polygons of a multipolygon.
  */
 type PolygonGeometry = {
     coordinates: (([number, number])[])[];
@@ -2179,10 +2115,7 @@ type ProviderDecl = {
      */
     instances?: number | null;
 } & ProcedureDecl;
-/**
- *  A remote-originated create for JS to apply. `remote_id` is the handle its mapping row must
- *  carry once created (a positional push reindexes to its desired-document position).
- */
+/**  A location created on the remote side, to add locally. */
 type PullCreate = {
     fields: NormalizedSyncLocation;
     remoteId: number;
@@ -2204,7 +2137,7 @@ type QueryActivity = {
     /**  Requests retried so far by the queries in flight. */
     retries: number;
 };
-/**  Token bucket: `units` calls per `per_ms` milliseconds, refilled continuously. */
+/**  Rate limit: `units` calls per `perMs` milliseconds, refilled continuously. */
 type RateSpec = {
     units: number;
     perMs: number;
@@ -2217,12 +2150,7 @@ type RemoteMappingRow = {
     remoteId: number;
     hash: string;
 };
-/**
- *  Incremental render update sent to JS after a mutation: adds, patches, and removals.
- *  Every entry states the row's resulting selection state, so applying a delta is
- *  idempotent and the base cells and the selection overlay cannot drift apart.
- *  `full_reset` signals JS to discard all cell data and re-fetch via `store_fill_render_file`.
- */
+/**  Marker changes after an edit: added, updated, and removed markers. */
 type RenderDelta = {
     added: RenderEntry[];
     updated: RenderPatchEntry[];
@@ -2236,7 +2164,7 @@ type RenderEntry = {
     lng: number;
     lat: number;
     heading: number;
-    /**  `None` = drawn by the base layer, `Some(paint)` = drawn by the selection overlay. */
+    /**  The selection drawing this marker, or `null` when no selection does. */
     sel: SelPaint | null;
     /**
      *  The slot this row vacated when it crossed cells. Present only for a move, so JS
@@ -2246,7 +2174,7 @@ type RenderEntry = {
     movedFrom: CellRemoval | null;
 };
 /**
- *  Update to an existing marker within its cell. Position and heading are `None` when
+ *  Update to an existing marker within its cell. Position and heading are `null` when
  *  unchanged; `sel` always states the row's current selection state, so a membership
  *  change with no movement is just a patch with no coordinates.
  */
@@ -2259,9 +2187,8 @@ type RenderPatchEntry = {
     sel: SelPaint | null;
 };
 /**
- *  Parameters for a full render rebuild. `marker_style` ("arrow" or "pin") determines
- *  whether heading angles are written. The bounding box fields are currently unused
- *  (no viewport culling -- all locations are rendered).
+ *  Parameters for a full marker rebuild. `markerStyle` ("arrow" or "pin") decides whether
+ *  headings are drawn.
  */
 type RenderRequest = {
     west?: number;
@@ -2310,7 +2237,7 @@ type ReviewSession = {
     createdAt: string;
     updatedAt: string;
 };
-/**  Partial update for a review session. `None` fields are left unchanged. */
+/**  Partial update for a review session. Omitted fields are left unchanged. */
 type ReviewUpdate = {
     id: string;
     name?: string | null;
@@ -2319,7 +2246,7 @@ type ReviewUpdate = {
     ordering: number[] | null;
     status: string | null;
 };
-/**  Result of `store_collect`: locations returned inline, or a file path to read them from. */
+/**  Matched locations: returned inline, or as a file path to read them from. */
 type Rows = {
     kind: "inline";
     locations: Location[];
@@ -2334,7 +2261,7 @@ type RowsRun = {
         [key in string]: number[];
     };
 };
-/**  Result of `store_save_dirty`: bytes written to the delta sidecar (0 = skipped). */
+/**  Bytes written by a save; 0 when there was nothing to save. */
 type SaveResult = {
     savedBytes: number;
 };
@@ -2445,20 +2372,12 @@ type Selection = {
     color: [number, number, number];
     selector: Selector;
 };
-/**
- *  A top-level row of `store_sync_selections`: the selection itself, plus whether it is
- *  ghosted. Ghosting means nothing for a nested child, which is why the flag lives here
- *  and not on `Selection`.
- */
+/**  A top-level selection, plus whether it is ghosted. */
 type SelectionInput = {
     /**  Counted, but kept out of the overlay and the selected set. */
     ghosted?: boolean;
 } & Selection;
-/**
- *  Selection bitmask sync payload. `bitmask` carries the packed per-cell bitmask bytes
- *  inline in the IPC response (no shared temp file → no clobber race under concurrent
- *  mutations). `None` when nothing changed. `counts` gives per-selection match counts.
- */
+/**  Updated selection state after a change. `counts` gives each selection's match count. */
 type SelectionSync = {
     /**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
     counts: {
@@ -2525,14 +2444,14 @@ type Selector = {
     test: FilterOp;
 } | 
 /**
- *  Rank a selection by a `field_expr`, optionally keeping only the first `k`. Emits
+ *  Rank a selection by a field expression, optionally keeping only the first `k`. Emits
  *  a ranked root in rank order, where every other selector answers ascending. With no
  *  `k` this selects its child unchanged and states only how to walk it. A member the
  *  expression cannot score ranks last, so ranking never drops anything.
  */
 {
     type: "Ranked";
-    /**  What to rank; `None` ranks the whole map. */
+    /**  What to rank; `null` ranks the whole map. */
     selection: Selection | null;
     expr: string;
     k: number | null;
@@ -2551,7 +2470,7 @@ type SidecarLine = {
     reqId: number;
     line: string;
 };
-/**  Same shape as [`SidecarLine`]; distinct so the two event channels can't be cross-wired. */
+/**  A log line from a plugin's sidecar. */
 type SidecarLog = {
     reqId: number;
     line: string;
@@ -2589,7 +2508,7 @@ type SummaryResult = {
 /**
  *  Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
  *  on the remote side and must not overwrite local data, so absent fields are left untouched.
- *  `pano_id` applies only when `pano_id_set` is true (a cleared panoId is a real change to `null`).
+ *  `panoId` applies only when `panoIdSet` is true, since a cleared panoId is a real change to `null`.
  */
 type SyncPatch = {
     lat: number | null;
@@ -2625,16 +2544,9 @@ type Tag = {
      */
     color: string;
     visible?: boolean;
-    /**
-     *  Display order in the sidebar tag list. `None` for legacy tags
-     *  that predate ordered insertion.
-     */
+    /**  Display order in the sidebar tag list. `null` for tags that have never been ordered. */
     order: number | null;
-    /**
-     *  Document links from the map JSON's `extra.tags[name].doclinks` --
-     *  URLs into external docs (e.g. Google Docs heading links). Read-only
-     *  in the app; round-trips through import/export.
-     */
+    /**  Links into external documents (e.g. Google Docs headings), kept through import and export. */
     doclinks?: string[];
 };
 /**  Patchable fields of a `Tag`. Subset by design: id/visible aren't editable here. */
@@ -3166,8 +3078,7 @@ declare const OP_LABELS: Record<FilterOpKind, string>;
 /** Deterministic color derived from a selection key string. */
 declare function colorForKey(key: string): RGB;
 /** Key an id list by hashing it: the same ids in the same order give the same key.
- *  Order-sensitive, like the list it identifies. Key length is constant, so a
- *  million-id selection is not a megabyte-long React key. */
+ *  Order-sensitive, like the list it identifies. Key length is constant. */
 declare function locationsKey(ids: number[]): string;
 /** Ghost keys that "solo" `key`: everything except it. Returns an empty set when `key`
  *  is already the sole visible selection, so a repeat call un-isolates (clears all ghosts). */
@@ -3178,9 +3089,8 @@ declare const toggleGhost: (key: string) => (_sels: Selection[], ghosted: Readon
 declare const isolateGhost: (key: string) => (sels: Selection[], ghosted: ReadonlySet<string>) => SelectionPatch;
 /** Ghost all selections, or clear all ghosts if every selection is already ghosted. */
 declare const toggleGhostAll: () => (sels: Selection[], ghosted: ReadonlySet<string>) => SelectionPatch;
-/** Pick `n` distinct ids uniformly at random from `ids` using `Math.random`.
- *  `n` is floored and clamped to `[0, ids.length]` (so over-large counts return all ids).
- *  Uses a partial Fisher–Yates shuffle, so the result contains no duplicates and `ids` is not mutated. */
+/** Pick `n` distinct ids uniformly at random from `ids`. `n` is floored and clamped to
+ *  `[0, ids.length]`, so an over-large count returns all ids. `ids` is not mutated. */
 declare function sampleIds(ids: number[], n: number): number[];
 /** What one selection type answers about itself; optional answers default at the lookup. */
 export interface SelectionDescriptor<K extends Selector["type"]> {
@@ -3230,7 +3140,7 @@ declare function composeWithChild(current: Selection[], dragKey: string, parentK
  *  key collides with an existing selection, the existing one wins and the replacement is dropped. */
 declare function replaceSelection(current: Selection[], oldKey: string, selector: Selector): Selection[];
 /** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
- *  rather than the open map's tags (used by saved selection rules). */
+ *  rather than the open map's tags. */
 declare function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string;
 /** Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
  *  the `/`-path to its shortest unique suffix; otherwise returns the name verbatim. */
@@ -3313,14 +3223,13 @@ export interface UiState {
 export type MapState = UiState & EngineState;
 /** Reactive slice of the map state. Re-renders only when the selected value's
  *  reference changes (`Object.is`), so selectors must return state fields or
- *  cached derivations — never construct a value per call. */
+ *  memoized values, not a new value per call. */
 declare function useMapState<T>(selector: (s: MapState) => T): T;
 /** Imperative snapshot of the map state. */
 declare function getMapState(): Readonly<MapState>;
-/** Tags that exist from the user's point of view. Raw `tags` also holds soft-deleted ghosts (count=0, visible=false) - almost nothing outside the undo machinery should enumerate those. */
+/** Tags that exist from the user's point of view. The raw `tags` state also holds deleted tags. */
 declare const getVisibleTags: () => Tag[];
-/** Raw by-id tag lookup — includes soft-deleted ghosts so stale references
- *  (e.g. a selection whose tag just died) still resolve to a name. */
+/** The tag with this id, including a deleted one, so an old reference still resolves to a name. */
 declare function getTag(id: number): Tag | undefined;
 /** Tag names for the given ids, skipping any that no longer resolve. */
 declare function tagIdsToNames(ids: number[]): string[];
@@ -3384,11 +3293,11 @@ declare function currentSelection(): Selector;
 declare function setSelectedLocationIds(ids: SelectedIds): void;
 /** Patch any map's metadata by id and persist it. Updates the open map's state when it is that map. */
 declare function patchMapMeta(id: string, patch: MapMetaPatch_Deserialize): Promise<void>;
-/** [`patchMapMeta`] for the map open in this window. */
+/** `patchMapMeta` for the map open in this window. */
 declare function updateMapMeta(patch: MapMetaPatch_Deserialize): Promise<void> | undefined;
 /** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
 declare function setMapExtraFields(fields: Record<string, ExtraFieldDef>): Promise<void>;
-/** Decode a selection bitmask and emit it to the render pipeline. @unstable */
+/** Decode a selection bitmask and draw it on the map. @unstable */
 declare function emitBitmask(bytes: number[]): void;
 /** Run a mutation, apply its result to the map, and schedule a save. A result that wraps its
  *  mutation comes back whole; `empty` is its answer when no map is open. */
@@ -3468,15 +3377,15 @@ declare function pruneDuplicates(selector: Selector, distance: number): Promise<
 /** Edit an existing filter (or any selection) in place by key, preserving its
  *  position inside any AND/OR/Invert composite. Carries ghost state to the new key. */
 declare function updateFilterSelection(oldKey: string, selector: Selector): Promise<void>;
-/** Toggle tag selections on/off for the given tags (used by tag-pill clicks). */
+/** Toggle tag selections on or off for the given tags. */
 declare function toggleTagSelections(tagIds: number[]): void;
 /** Tag ids that currently have a top-level Tag selection active. */
 declare const getSelectedTagIds: () => ReadonlySet<number>;
 /** Tag ids of every Tag leaf in the active selection tree, in list order.
  *  Includes composite children, excludes ghosted selections; ids may repeat. */
 declare const getSelectedTagIdsDeep: () => readonly number[];
-/** Open a staged-import location read-only, "as if" it were active. The location becomes
- *  virtual (negative id; ImportPreview flag) so identity and mutate-guards derive from it. @unstable */
+/** Open a staged-import location read-only, as if it were active. It is not on the map and
+ *  cannot be edited. @unstable */
 declare function openStagedLocation(index: number): Promise<void>;
 /** Open an arbitrary location read-only as a virtual seen-preview: loads its pano without
  *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
@@ -3504,8 +3413,8 @@ declare function exitPluginMode(): void;
  *  atomically. Emits `tag:add`. */
 declare function createTags(names: string[], selector?: Selector): Promise<Tag[]>;
 /** Rename or recolor tags. If a rename collides with an existing tag name
- *  (case-insensitive), the two tags are merged — all locations are remapped
- *  to the survivor. */
+ *  (case-insensitive), the two tags are merged and all locations move
+ *  to the surviving tag. */
 declare function updateTags(updates: Update<TagPatch>[]): Promise<void>;
 /** Delete tags and strip them from all locations. Undoable. Emits `tag:remove`. */
 declare function deleteTags(tagIds: number[]): Promise<void>;
@@ -3626,7 +3535,7 @@ export interface SavedPart {
 /** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
  *  a single part. */
 declare function savedParts(saved: SavedSelection): SavedPart[];
-/** The rules that exist, as identity only. Empty until the index arrives -- the first
+/** The rules that exist, as identity only. Empty until the index loads: the first
  *  call starts the read and `saved-selections:changed` announces it. */
 declare function getSavedSelectionIndex(): SavedSelectionInfo[];
 /** React hook: the saved selection index, re-rendering on changes. */
@@ -3664,8 +3573,7 @@ declare namespace savedSelections {
   export type { savedSelections_SavedPart as SavedPart };
 }
 
-/** A localStorage-backed blob: its key and its defaults, declared where the shape is defined so
- *  no call site restates the pair. Older stored shapes are handled by `store/migrations.ts`. @unstable */
+/** A value saved in local storage: its key and its defaults. @unstable */
 export interface PersistedStore<T> {
     /** @unstable */
     key: string;
@@ -4167,7 +4075,7 @@ declare const BORDER_DETAILS: {
     /** @unstable */
     readonly heavy: "Ultra ({size})";
 };
-/** On-disk size of each downloadable archive under `data/borders/`. @unstable */
+/** Download size of each border detail level, in bytes. @unstable */
 declare const BORDER_ARCHIVE_BYTES: {
     /** @unstable */
     readonly medium: 7460312;
@@ -4325,7 +4233,7 @@ declare const DEFAULTS: {
     panToImported: boolean;
     /** With no location open, Enter shows a center crosshair and opens the location under it. @unstable */
     enterOpensCenter: boolean;
-    /** Min half-extent (degrees) a single pasted/imported point is padded to before fitBounds @unstable */
+    /** Smallest half-width, in degrees, the map frames around a single pasted or imported point. @unstable */
     pastePadding: number;
     /** @unstable */
     followActiveInReview: boolean;
@@ -4451,7 +4359,7 @@ declare const APP_SETTINGS: PersistedStore<{
     panToImported: boolean;
     /** With no location open, Enter shows a center crosshair and opens the location under it. */
     enterOpensCenter: boolean;
-    /** Min half-extent (degrees) a single pasted/imported point is padded to before fitBounds */
+    /** Smallest half-width, in degrees, the map frames around a single pasted or imported point. */
     pastePadding: number;
     followActiveInReview: boolean;
     markerColor: RGB;
@@ -4572,7 +4480,7 @@ declare function getImportPreviewPositions(): Float32Array<ArrayBufferLike>;
 declare function getImportStaging(): ImportStaging | null;
 /** Clear staged import state. @unstable */
 declare function resetImportState(): void;
-/** Import from a known file path. Used by file picker and drag-and-drop. @unstable */
+/** Import from a file path. @unstable */
 declare function beginImportFromPath(path: string): Promise<void>;
 /** Stage pasted text for preview. Throws if no locations are found. @unstable */
 declare function beginImportPaste(text: string): Promise<void>;
@@ -4616,8 +4524,8 @@ declare function getCommitDiffPreview(): CommitDiffPreview | null;
 declare function resetCommitDiffState(): void;
 /** Pack `[lng, lat]` pairs into an interleaved Float32Array. @unstable */
 declare function diffPositions(locs: LatLng[]): Float32Array;
-/** Split a commit delta into added / removed / modified. An updated location appears in
- *  both `created` (new) and `removed` (old), keyed by id. @unstable */
+/** Split a commit delta into added, removed, and modified locations. A location on both
+ *  sides of the delta counts as modified. @unstable */
 declare function categorizeCommitDelta(delta: CommitDelta): {
     added: Location[];
     removed: Location[];
@@ -4766,7 +4674,7 @@ declare function advance(s: ReviewSession): {
 declare function retreat(s: ReviewSession): ReviewSession | null;
 /** Position of the session cursor within its review order. @unstable */
 declare function reviewIndex(s: ReviewSession): number;
-/** Union of reviewed ids across sessions, de-duplicated. Pure (unit-tested). @unstable */
+/** Union of reviewed ids across sessions, de-duplicated. @unstable */
 declare function reviewedHistoryIds(sessions: ReviewSession[]): number[];
 /** True when the cursor is on the session's first location. @unstable */
 declare function isAtStart(s: ReviewSession): boolean;
@@ -4839,7 +4747,7 @@ declare namespace commands {
   export type { commands_Cmd as Cmd };
 }
 
-/** Tauri primitives, handed to plugins as-is. */
+/** Low-level command, shell, and file dialog access. */
 
 declare const shell: {
     Command: typeof Command;
@@ -4896,7 +4804,7 @@ export interface ResolvedBuild {
 declare function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null;
 /** True when the installed plugin should be refreshed to `target`. @unstable */
 declare function needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
-/** Fetch the marketplace plugin registry (cached for the session). @unstable */
+/** Fetch the marketplace plugin registry. Later calls return the first result until restart. @unstable */
 declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
 /** Auto-update a plugin to the newest compatible build before loading it. Falls back
  *  to what is on disk on failure. @unstable */
@@ -5143,8 +5051,7 @@ declare function Button({ variant, small, type, className, ...props }: Component
 
 declare function Checkbox({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
 
-/** The picker surface itself, debounced. Sole place the `{r,g,b}` shape react-colorful
- *  wants exists -- every caller in the app passes and receives an [r, g, b] tuple. */
+/** A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced. */
 declare function RgbPicker({ color, onChange }: {
     color: RGB;
     onChange: (color: RGB) => void;
@@ -5292,11 +5199,9 @@ declare function SegmentedControl<T extends string | number>({ options, value, o
  *  Controlled only: the fill derives from the value prop. */
 declare function Slider({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
 
-/** Autocomplete input: owns open/close state, outside-click dismissal,
- *  Enter-picks-first, and Escape-closes. Suggestion sourcing stays at the call
- *  site (sync filter or debounced fetch) — the dropdown shows whenever
- *  `suggestions` is non-empty and not dismissed. Default classes render the
- *  standard `.search-results` dropdown; override them for other skins. */
+/** Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
+ *  outside click closes it. The dropdown shows whenever `suggestions` is non-empty, so
+ *  filter or fetch them yourself. The class props restyle it. */
 declare function SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: {
     value: string;
     onChange: (v: string) => void;
@@ -5327,11 +5232,7 @@ declare function Switch({ checked, onChange, disabled, label, }: {
     label?: string;
 }): react.JSX.Element;
 
-/** A compact, control-left row whose whole surface toggles an immediate-effect
- *  boolean. The Switch owns keyboard + a11y; the row forwards mouse clicks to
- *  the same toggle. The control wrapper stops propagation so a direct switch
- *  click does not also fire the row handler. Used by MapSettingsPanel and any
- *  surface outside the Settings dialog (SettingRow is the Settings dialog row). */
+/** A compact row with a switch on the left. Clicking anywhere on the row toggles it. */
 declare function SwitchRow({ checked, onChange, label, disabled, className, children, }: {
     checked: boolean;
     onChange: (v: boolean) => void;
@@ -5357,8 +5258,7 @@ export type TagPillOwnProps = {
 export type TagPillProps<E extends ElementType> = TagPillOwnProps & {
     as?: E;
 } & Omit<ComponentPropsWithRef<E>, keyof TagPillOwnProps | "as">;
-/** The one tag pill. Owns the tag color's rendering: every surface that shows a tag
- *  goes through here, so the look changes in one place. */
+/** A tag shown as a pill in its color. */
 declare function TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): react.JSX.Element;
 
 declare function TextInput({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
@@ -5376,9 +5276,7 @@ declare function ToolBlock(props: ToolBlockProps): react.JSX.Element;
 
 export type Side = "top" | "bottom" | "left" | "right";
 export type Align = "start" | "center" | "end";
-/** Marks its child as a tooltip trigger. Adds attributes to the existing element instead of
- *  wrapping it, so a trigger costs no extra fibers and hovering re-renders only the single
- *  host below -- one portal for the whole app rather than one per trigger. */
+/** Shows `content` as a tooltip when its child is hovered. The child is not wrapped. */
 declare function Tooltip({ content, side, align, children, }: {
     content: string;
     side?: Side;
@@ -6361,9 +6259,7 @@ export interface Job<R, P> {
 /** A user-triggered async job that reports progress and can be cancelled.
  *  Cancelling aborts the signal and stops the UI immediately; nothing the job does
  *  afterwards can write back. Unmounting cancels. `run` while running is a no-op,
- *  so a double-clicked button cannot start two.
- *
- *  For work driven by changing deps rather than a click, use `useAsync`. */
+ *  so a double-clicked button cannot start two. */
 declare function useJob<R = void, P = string>(fn: (ctx: JobContext<P>) => Promise<R>): Job<R, P>;
 
 export type useJob$1_Job<R, P> = Job<R, P>;
@@ -6521,7 +6417,7 @@ declare function cmpVersion(a: string, b: string): number;
 declare function splitVersion(v: string): [core: string, pre: string];
 /** True when `v` carries a semver pre-release tag, e.g. "1.0.0-beta.1". */
 declare function isPrereleaseVersion(v: string): boolean;
-/** True when running under the web-serve bridge (a plain browser, no native shell). */
+/** True when the app runs in a browser instead of the desktop app. */
 declare function isWeb(): boolean;
 /** Trigger a browser download from an in-memory Blob. */
 declare function downloadBlob(blob: Blob, fileName: string): void;
@@ -6577,10 +6473,7 @@ declare namespace util {
   export type { util_PhaseRate as PhaseRate };
 }
 
-/**
- * Unified MMA API -- the single public surface for plugins, tests, and app code.
- * Exposed as `window.MMA` (and the global `MMA`).
- */
+/** The global `MMA` object (also `window.MMA`). */
 
 export type ConstsApi = typeof consts;
 export type StoreApi = typeof store;
@@ -6588,13 +6481,13 @@ export type SelectionOpsApi = typeof selectionOps;
 export type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
 export type SettingsApi = typeof settings;
-/** Import dialog internals. @unstable */
+/** Stage, preview, and confirm an import into the open map. @unstable */
 export type ImportStagingApi = typeof importStaging;
-/** Commit diff internals. @unstable */
+/** Uncommitted changes and their preview on the map. @unstable */
 export type CommitDiffApi = typeof commitDiff;
 export type SelectorPickApi = typeof picker;
 export type MapListApi = typeof mapList;
-/** Review screen internals. @unstable */
+/** Review sessions and their history. @unstable */
 export type ReviewApi = typeof review;
 /** The raw command layer under the app-level API; any of them can change in a release. @unstable */
 export type CommandsApi = typeof commands;
@@ -6608,7 +6501,7 @@ export type FieldDefsApi = typeof fieldDefs;
 export type FieldDefRegistryApi = typeof fieldDefRegistry;
 export type ProceduresApi = typeof procedures;
 export type SeenApi = typeof seen;
-/** The shared panorama viewer's internals. @unstable */
+/** The shared panorama viewer. @unstable */
 export type PanoApi = typeof panoSurface;
 export type EnrichApi = typeof enrich$1;
 export type PinPanoApi = typeof pinPano;

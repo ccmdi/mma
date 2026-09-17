@@ -34,12 +34,9 @@ pub struct Tag {
     pub color: String,
     #[serde(default = "default_visible")]
     pub visible: bool,
-    /// Display order in the sidebar tag list. `None` for legacy tags
-    /// that predate ordered insertion.
+    /// Display order in the sidebar tag list. `null` for tags that have never been ordered.
     pub order: Option<u32>,
-    /// Document links from the map JSON's `extra.tags[name].doclinks` --
-    /// URLs into external docs (e.g. Google Docs heading links). Read-only
-    /// in the app; round-trips through import/export.
+    /// Links into external documents (e.g. Google Docs headings), kept through import and export.
     #[serde(default)]
     pub doclinks: Vec<String>,
 }
@@ -66,7 +63,6 @@ pub struct Location {
     pub zoom: f64,
     #[specta(type = Option<String>)]
     pub pano_id: Option<compact_str::CompactString>,
-    /// See [`LocationFlags`].
     pub flags: LocationFlags,
     /// Tag IDs applied to this location. References `Tag.id`.
     pub tags: Vec<u32>,

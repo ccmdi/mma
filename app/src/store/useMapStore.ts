@@ -109,7 +109,7 @@ function resetEngineState() {
 
 /** Reactive slice of the map state. Re-renders only when the selected value's
  *  reference changes (`Object.is`), so selectors must return state fields or
- *  cached derivations — never construct a value per call. */
+ *  memoized values, not a new value per call. */
 export function useMapState<T>(selector: (s: MapState) => T): T {
 	return useEventValue("store:changed", () => selector(state));
 }
@@ -119,14 +119,13 @@ export function getMapState(): Readonly<MapState> {
 	return state;
 }
 
-/** Tags that exist from the user's point of view. Raw `tags` also holds soft-deleted ghosts (count=0, visible=false) - almost nothing outside the undo machinery should enumerate those. */
+/** Tags that exist from the user's point of view. The raw `tags` state also holds deleted tags. */
 export const getVisibleTags: () => Tag[] = memoOnRefs(
 	() => [state.tags] as const,
 	(tags) => Object.values(tags).filter((t) => t.visible !== false),
 );
 
-/** Raw by-id tag lookup — includes soft-deleted ghosts so stale references
- *  (e.g. a selection whose tag just died) still resolve to a name. */
+/** The tag with this id, including a deleted one, so an old reference still resolves to a name. */
 export function getTag(id: number): Tag | undefined {
 	return state.tags[id];
 }
@@ -425,7 +424,7 @@ export async function patchMapMeta(id: string, patch: MapMetaPatch) {
 	await invalidateMapList();
 }
 
-/** [`patchMapMeta`] for the map open in this window. */
+/** `patchMapMeta` for the map open in this window. */
 export function updateMapMeta(patch: MapMetaPatch) {
 	if (!state.mapId) return;
 	return patchMapMeta(state.mapId, patch);
@@ -462,7 +461,7 @@ function applyMutation(r: MutationResult) {
 	emitEvent("store:changed");
 }
 
-/** Decode a selection bitmask and emit it to the render pipeline. @unstable */
+/** Decode a selection bitmask and draw it on the map. @unstable */
 export function emitBitmask(bytes: number[]) {
 	const { selColors, cellEntries } = decodeSelectionBitmask(bytes);
 	emitEvent("render:selection", {
@@ -846,7 +845,7 @@ export function updateFilterSelection(oldKey: string, selector: Selector) {
 	});
 }
 
-/** Toggle tag selections on/off for the given tags (used by tag-pill clicks). */
+/** Toggle tag selections on or off for the given tags. */
 export function toggleTagSelections(tagIds: number[]) {
 	if (!state.map || tagIds.length === 0) return;
 	void applySelectionUpdate((sels) =>
@@ -896,8 +895,8 @@ let virtualIdSeq = 0;
 /** Each preview gets a fresh negative id so its identity changes between previews (the pano viewer re-resolves on active-id change). */
 const freshVirtualId = () => --virtualIdSeq;
 
-/** Open a staged-import location read-only, "as if" it were active. The location becomes
- *  virtual (negative id; ImportPreview flag) so identity and mutate-guards derive from it. @unstable */
+/** Open a staged-import location read-only, as if it were active. It is not on the map and
+ *  cannot be edited. @unstable */
 export async function openStagedLocation(index: number) {
 	const loc = await cmd.storeImportStagedLocation(index);
 	// Rust's active_id must not stay pinned to the previous real location.
@@ -1058,8 +1057,8 @@ export async function createTags(
 }
 
 /** Rename or recolor tags. If a rename collides with an existing tag name
- *  (case-insensitive), the two tags are merged — all locations are remapped
- *  to the survivor. */
+ *  (case-insensitive), the two tags are merged and all locations move
+ *  to the surviving tag. */
 export async function updateTags(updates: Update<TagPatch>[]) {
 	if (updates.length === 0) return;
 	await mutate(() => cmd.storeUpdateTags(updates));

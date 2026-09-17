@@ -64,7 +64,8 @@ pub(crate) struct SidecarLine {
     line: String,
 }
 
-/// Same shape as [`SidecarLine`]; distinct so the two event channels can't be cross-wired.
+/// A log line from a plugin's sidecar.
+// Same shape as `SidecarLine`; distinct so the two event channels can't be cross-wired.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "sidecar-log")]
@@ -287,8 +288,7 @@ fn install_blocking(plugin_id: &str, name: &str, version: &str) -> AppResult<()>
     Ok(())
 }
 
-/// Download a plugin's sidecar bundle from GitHub Releases and extract it under
-/// `{appData}/plugins/{plugin_id}/sidecar/`. Emits `sidecar-install-progress`.
+/// Download and install a plugin's sidecar bundle. Emits `sidecar-install-progress`.
 #[tauri::command]
 #[specta::specta]
 pub async fn sidecar_install(plugin_id: String, name: String, version: String) -> AppResult<()> {
@@ -299,7 +299,7 @@ pub async fn sidecar_install(plugin_id: String, name: String, version: String) -
         .map_err(|e| AppError(format!("sidecar install task failed: {e}")))?
 }
 
-/// Installed sidecar version for a plugin, or `None` if not installed.
+/// Installed sidecar version for a plugin, or `null` if not installed.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

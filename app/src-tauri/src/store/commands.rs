@@ -24,7 +24,7 @@ use std::sync::atomic::{self, AtomicUsize};
 use std::time::Instant;
 use tokio::task;
 
-/// Result of `store_collect`: locations returned inline, or a file path to read them from.
+/// Matched locations: returned inline, or as a file path to read them from.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(
     tag = "kind",
@@ -233,8 +233,7 @@ pub fn store_add_locations(
     })
 }
 
-/// Add locations from a chunked upload session (see `store_upload_begin`).
-/// Same behavior as `store_add_locations`: one atomic mutation, undoable.
+/// Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_add_locations_uploaded(
@@ -284,7 +283,7 @@ pub fn store_remove_locations(
     })
 }
 
-/// Apply partial patches to existing locations. `record_undo` defaults to true;
+/// Apply partial patches to existing locations. `recordUndo` defaults to true;
 /// set to false for ephemeral updates (e.g., plugin-driven batch modifications
 /// that manage their own undo).
 #[tauri::command]
@@ -899,7 +898,7 @@ pub fn store_create_tags(
     })
 }
 
-/// Set the display order of tags. Each tag's position is its index in `ordered_ids`.
+/// Set the display order of tags. Each tag's position is its index in `orderedIds`.
 #[tauri::command]
 #[specta::specta]
 pub fn store_reorder_tags(
@@ -1024,8 +1023,8 @@ pub fn store_sample(
     ))
 }
 
-/// An evenly spaced subset: exactly one of `target_count` (thin to N, maximizing
-/// spacing) or `min_distance_m` (keep as many as fit at that spacing).
+/// An evenly spaced subset: exactly one of `targetCount` (thin to N, maximizing
+/// spacing) or `minDistanceM` (keep as many as fit at that spacing).
 #[tauri::command]
 #[specta::specta]
 pub fn store_spaced(
@@ -1042,8 +1041,8 @@ pub fn store_spaced(
     )?)
 }
 
-/// An evenly spaced subset laid out on a honeycomb: exactly one of `target_count` (at most
-/// N, spaced as widely as that allows) or `spacing_m` (about that far apart, and never
+/// An evenly spaced subset laid out on a honeycomb: exactly one of `targetCount` (at most
+/// N, spaced as widely as that allows) or `spacingM` (about that far apart, and never
 /// closer than half of it).
 #[tauri::command]
 #[specta::specta]
@@ -1061,7 +1060,7 @@ pub fn store_evenly_spaced(
     )?)
 }
 
-/// One row of honeycomb points: `count` points from `lng` eastward, each `lng_step` degrees
+/// One row of honeycomb points: `count` points from `lng` eastward, each `lngStep` degrees
 /// apart.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -1072,7 +1071,7 @@ pub struct HoneycombRun {
     pub count: u32,
 }
 
-/// The points of a honeycomb about `spacing_m` metres apart that fall inside the polygon,
+/// The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
 /// one entry per row of points.
 #[tauri::command]
 #[specta::specta]
@@ -1122,7 +1121,7 @@ pub async fn polygon_random_points(
     mma_geo::random_points(&polygon.prepared(), count as usize, || fastrand::f64())
 }
 
-/// Points covering the polygon with no two closer than `spacing_m` metres and no gap
+/// Points covering the polygon with no two closer than `spacingM` metres and no gap
 /// wider than about twice that, in random order.
 #[tauri::command]
 #[specta::specta]
@@ -1163,7 +1162,7 @@ pub async fn polygon_contains_points(
         .collect())
 }
 
-/// Bounding box `[west, south, east, north]` of the polygon itself, or `None` when it
+/// Bounding box `[west, south, east, north]` of the polygon itself, or `null` when it
 /// has no vertices. `west > east` means the box crosses the antimeridian.
 #[tauri::command]
 #[specta::specta]
@@ -1270,7 +1269,7 @@ pub fn store_columns(
     })
 }
 
-/// Bounding box `[west, south, east, north]`, or `None` when the set is empty.
+/// Bounding box `[west, south, east, north]`, or `null` when the set is empty.
 #[tauri::command]
 #[specta::specta]
 pub fn store_bounds(
@@ -1285,8 +1284,8 @@ pub fn store_bounds(
     })
 }
 
-/// Collect all matched locations as full rows. Prefer a projection (`store_columns`,
-/// `store_values`) when only specific fields are needed.
+/// Collect all matched locations as full rows. Prefer a projection (`storeColumns`,
+/// `storeValues`) when only specific fields are needed.
 #[tauri::command]
 #[specta::specta]
 pub fn store_collect(
@@ -1406,7 +1405,7 @@ pub async fn store_prune_duplicates(
     })
 }
 
-/// Find all locations within `radius_m` metres of (`lat`, `lng`).
+/// Find all locations within `radiusM` metres of (`lat`, `lng`).
 // Lazy spatial index: O(cells in radius) per query after a one-time O(N) build, maintained
 // incrementally. Called on every marker click (duplicate check), so it must not scan.
 #[tauri::command]
@@ -1436,7 +1435,7 @@ pub fn store_find_nearby(
     })
 }
 
-/// For each input point, whether any existing location lies within `radius_m` metres.
+/// For each input point, whether any existing location lies within `radiusM` metres.
 /// Batch form for probing many coordinates at once.
 #[tauri::command]
 #[specta::specta]

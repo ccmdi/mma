@@ -86,8 +86,8 @@ export function diffPositions(locs: LatLng[]): Float32Array {
 	return a;
 }
 
-/** Split a commit delta into added / removed / modified. An updated location appears in
- *  both `created` (new) and `removed` (old), keyed by id. */
+/** Split a commit delta into added, removed, and modified locations. A location on both
+ *  sides of the delta counts as modified. */
 export function categorizeCommitDelta(delta: CommitDelta): {
 	added: Location[];
 	removed: Location[];

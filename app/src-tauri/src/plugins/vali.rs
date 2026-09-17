@@ -194,7 +194,7 @@ pub async fn vali_download(
     result
 }
 
-/// Download exactly the countries `vali_data_status` reports as behind. No-op when nothing
+/// Download exactly the countries `valiDataStatus` reports as out of date. No-op when nothing
 /// is stale, so the caller can fire it without checking first.
 #[tauri::command]
 #[specta::specta]
@@ -252,9 +252,8 @@ pub struct ValiCountryStatus {
     pub bytes: f64,
 }
 
-/// Countries whose downloaded coverage data is older than the remote copy. Object metadata
-/// only -- nothing is fetched. Errors while offline, which callers should read as "unknown"
-/// rather than "up to date".
+/// Countries whose downloaded coverage data is older than the published copy. Fails while
+/// offline; treat that as unknown, not up to date.
 #[tauri::command]
 #[specta::specta]
 pub async fn vali_data_status() -> AppResult<Vec<ValiCountryStatus>> {
@@ -274,8 +273,7 @@ pub async fn vali_data_status() -> AppResult<Vec<ValiCountryStatus>> {
     .map_err(|e| AppError(format!("vali status task failed: {e}")))?
 }
 
-/// Country codes Vali has coverage data for, i.e. the set `vali download` iterates
-/// when no country is given. Display names are the caller's job.
+/// Country codes Vali has coverage data for.
 #[tauri::command]
 #[specta::specta]
 pub fn vali_countries() -> Vec<String> {

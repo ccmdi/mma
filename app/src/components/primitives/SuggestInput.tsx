@@ -9,11 +9,9 @@ import {
 import { createPortal } from "react-dom";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
 
-/** Autocomplete input: owns open/close state, outside-click dismissal,
- *  Enter-picks-first, and Escape-closes. Suggestion sourcing stays at the call
- *  site (sync filter or debounced fetch) — the dropdown shows whenever
- *  `suggestions` is non-empty and not dismissed. Default classes render the
- *  standard `.search-results` dropdown; override them for other skins. */
+/** Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
+ *  outside click closes it. The dropdown shows whenever `suggestions` is non-empty, so
+ *  filter or fetch them yourself. The class props restyle it. */
 export function SuggestInput<T>({
 	value,
 	onChange,

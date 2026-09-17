@@ -87,13 +87,13 @@ pub enum Selector {
         field: String,
         test: FilterOp,
     },
-    /// Rank a selection by a `field_expr`, optionally keeping only the first `k`. Emits
+    /// Rank a selection by a field expression, optionally keeping only the first `k`. Emits
     /// a ranked root in rank order, where every other selector answers ascending. With no
     /// `k` this selects its child unchanged and states only how to walk it. A member the
     /// expression cannot score ranks last, so ranking never drops anything.
     #[serde(rename_all = "camelCase")]
     Ranked {
-        /// What to rank; `None` ranks the whole map.
+        /// What to rank; `null` ranks the whole map.
         selection: Option<Box<Selection>>,
         expr: String,
         k: Option<u32>,
@@ -188,8 +188,8 @@ impl FilterOp {
     }
 }
 
-/// GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring +
-/// optional holes). `extra_polygons` allows multipolygon selections (e.g., from GeoJSON import).
+/// GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring and
+/// optional holes); `extraPolygons` holds any further polygons of a multipolygon.
 #[derive(Clone, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PolygonGeometry {

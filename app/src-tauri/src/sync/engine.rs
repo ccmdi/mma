@@ -35,7 +35,7 @@ use tauri::async_runtime;
 // --- result types (IPC contract) --------------------------------------------
 
 wire_str_enum! {
-    /// Which side won a resolved conflict; serialized as "local"/"remote".
+    /// Which side won a resolved conflict.
     derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)
     pub enum ResolutionSide {
         /// This map's version won the conflict.
@@ -45,8 +45,9 @@ wire_str_enum! {
     }
 }
 
-/// A remote-originated create for JS to apply. `remote_id` is the handle its mapping row must
-/// carry once created (a positional push reindexes to its desired-document position).
+/// A location created on the remote side, to add locally.
+// `remote_id` is the handle its mapping row must carry once created (a positional push
+// reindexes to its desired-document position).
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PullCreate {
@@ -65,7 +66,7 @@ pub struct PullUpdate {
 
 /// Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
 /// on the remote side and must not overwrite local data, so absent fields are left untouched.
-/// `pano_id` applies only when `pano_id_set` is true (a cleared panoId is a real change to `null`).
+/// `panoId` applies only when `panoIdSet` is true, since a cleared panoId is a real change to `null`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncPatch {

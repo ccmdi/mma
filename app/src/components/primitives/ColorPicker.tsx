@@ -5,8 +5,7 @@ import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import { t } from "@/lib/i18n";
 
-/** The picker surface itself, debounced. Sole place the `{r,g,b}` shape react-colorful
- *  wants exists -- every caller in the app passes and receives an [r, g, b] tuple. */
+/** A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced. */
 export function RgbPicker({ color, onChange }: { color: RGB; onChange: (color: RGB) => void }) {
 	const debounced = useDebouncedCallback(onChange, 60, { flush: true });
 	const [r, g, b] = color;

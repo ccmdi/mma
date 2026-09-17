@@ -117,7 +117,7 @@ pub async fn remote_mapping_upsert(
     storage::with_db(move |conn| upsert(conn, &provider, &map_id, &rows)).await
 }
 
-/// Remove specific mapping rows by `local_ids` for a linked map.
+/// Remove specific mapping rows by `localIds` for a linked map.
 #[tauri::command]
 #[specta::specta]
 pub async fn remote_mapping_delete(

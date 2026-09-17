@@ -85,14 +85,13 @@ pub struct PluginManifest {
     min_app_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     sidecar: Option<PluginSidecar>,
-    /// Registry-only: prior builds an app under `min_app_version` can fall back to.
-    /// An installed manifest never carries these.
+    /// Older builds, for apps below `minAppVersion`. Only present in the marketplace registry.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     builds: Vec<PluginBuild>,
 }
 
-/// A published build of a plugin, pinned to the commit its files live at. Carries only
-/// what picking a build needs -- the rest comes from the manifest at `git_ref`.
+/// A published build of a plugin.
+// Carries only what picking a build needs; the rest comes from the manifest at `git_ref`.
 #[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginBuild {
@@ -174,10 +173,10 @@ fn read_manifest(dir: &Path) -> Option<PluginManifest> {
     }
 }
 
-/// First caller per app run wins the silent update pass. Every webview boots the
-/// plugin loader, so without this a restored editor window plus the map list run
-/// two full passes -- double registry fetches, double downloads, and interleaved
-/// install progress for the same plugin.
+/// True for the first caller per app run, which runs the background plugin update check.
+// Every webview boots the plugin loader, so without this a restored editor window plus the map
+// list run two full passes: double registry fetches, double downloads, and interleaved install
+// progress for the same plugin.
 #[tauri::command]
 #[specta::specta]
 pub fn claim_plugin_update_pass() -> bool {
@@ -227,8 +226,8 @@ fn install_files(manifest: &PluginManifest) -> AppResult<Vec<&str>> {
     .collect()
 }
 
-/// Install a plugin from the marketplace repo: its `manifest.json`, the main JS file, and
-/// the procedure module it declares. `git_ref` pins an older build; `None` takes master.
+/// Install a plugin from the marketplace: its manifest, main script, and procedure module.
+/// `gitRef` pins an older build; `null` installs the latest.
 #[tauri::command]
 #[specta::specta]
 pub async fn install_plugin(id: String, git_ref: Option<String>) -> AppResult<PluginManifest> {

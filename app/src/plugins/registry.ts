@@ -98,7 +98,7 @@ const REGISTRY_URL = "https://raw.githubusercontent.com/ccmdi/mma/master/plugins
 
 let registryPromise: Promise<PluginManifest[]> | null = null;
 
-/** Fetch the marketplace plugin registry (cached for the session). @unstable */
+/** Fetch the marketplace plugin registry. Later calls return the first result until restart. @unstable */
 export function fetchPluginRegistry(): Promise<PluginManifest[]> {
 	if (!registryPromise) {
 		registryPromise = fetch(REGISTRY_URL, { signal: AbortSignal.timeout(5000) }).then((r) => {

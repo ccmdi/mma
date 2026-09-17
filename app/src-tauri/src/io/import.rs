@@ -45,7 +45,7 @@ struct CachedImport {
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportPreviewEntry {
-    /// `None` when the file names the map nothing; JS supplies the placeholder.
+    /// `null` when the file doesn't name the map.
     pub name: Option<String>,
     pub folder: Option<String>,
     pub location_count: u32,
@@ -148,7 +148,7 @@ fn read_and_parse_maps(path: &str) -> AppResult<Vec<ParsedMap>> {
 }
 
 /// Parse a file (JSON or ZIP of JSONs) and return a preview of each map found,
-/// without persisting anything. Call [`bulk_import_confirm`] to import the maps.
+/// without persisting anything. Call `bulkImportConfirm` to import the maps.
 #[tauri::command]
 #[specta::specta]
 pub async fn bulk_import_preview(path: String) -> AppResult<Vec<ImportPreviewEntry>> {
@@ -175,7 +175,7 @@ pub struct ImportProgress {
     pub map_name: String,
 }
 
-/// Import the maps at `selected_indices` from a previously previewed file.
+/// Import the maps at `selectedIndices` from a previously previewed file.
 /// Emits `bulk-import-progress` per map.
 // Uses the cached parse if available; each map gets a new UUID, Arrow IPC file, and SQLite row.
 #[tauri::command]

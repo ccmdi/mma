@@ -717,7 +717,7 @@ pub fn update_border_files() {
 }
 
 /// Return the border polygon containing (`lat`, `lng`) at the given detail
-/// `level`, or `None` if the point falls outside every feature.
+/// `level`, or `null` if the point falls outside every feature.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -762,7 +762,7 @@ pub fn border_lookup(lat: f64, lng: f64, level: String) -> AppResult<Option<Poly
 }
 
 /// Classify each `(lat, lng)` to the name of its containing border feature at
-/// `level` (subdivision names for "adm1"). `None` for points outside every feature.
+/// `level` (subdivision names for "adm1"). `null` for points outside every feature.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

@@ -95,7 +95,7 @@ export const RateCost = {
 } as const;
 export type RateCost = (typeof RateCost)[keyof typeof RateCost];
 
-/** Which side won a resolved conflict; serialized as "local"/"remote". */
+/** Which side won a resolved conflict. */
 export const ResolutionSide = {
 	/** This map's version won the conflict. */
 	Local: "local",
@@ -144,10 +144,8 @@ export const PanoType = {
 export type PanoType = (typeof PanoType)[keyof typeof PanoType];
 
 /**
- * Which pano the search picks. An omitted rankingOptions goes on the wire as closest;
- * the Maps JS API's encoder has no other default, whatever its docs say. BEST at a small
- * radius returns a neighbouring pano from the same capture run, so a timeline probe must
- * use CLOSEST at the pano's own coordinate.
+ * Which pano the search picks; omitted means closest. BEST at a small radius can return a
+ * neighbouring pano from the same capture run, so probe a pano's own coordinate with CLOSEST.
  */
 export const RankingStrategy = {
 	/** The pano the search ranks best within the radius, which may not be the nearest. */

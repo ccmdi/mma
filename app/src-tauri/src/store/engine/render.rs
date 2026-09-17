@@ -203,10 +203,10 @@ impl RenderState {
     }
 }
 
-/// Incremental render update sent to JS after a mutation: adds, patches, and removals.
-/// Every entry states the row's resulting selection state, so applying a delta is
-/// idempotent and the base cells and the selection overlay cannot drift apart.
-/// `full_reset` signals JS to discard all cell data and re-fetch via `store_fill_render_file`.
+/// Marker changes after an edit: added, updated, and removed markers.
+// Every entry states the row's resulting selection state, so applying a delta is idempotent
+// and the base cells and the selection overlay cannot drift apart. `full_reset` signals JS to
+// discard all cell data and re-fetch via `store_fill_render_file`.
 #[derive(serde::Serialize, Clone, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RenderDelta {
@@ -236,7 +236,7 @@ pub struct RenderEntry {
     pub lng: f32,
     pub lat: f32,
     pub heading: f32,
-    /// `None` = drawn by the base layer, `Some(paint)` = drawn by the selection overlay.
+    /// The selection drawing this marker, or `null` when no selection does.
     pub sel: Option<SelPaint>,
     /// The slot this row vacated when it crossed cells. Present only for a move, so JS
     /// mirrors the swap-remove and carries the overlay entry across instead of inferring
@@ -244,7 +244,7 @@ pub struct RenderEntry {
     pub moved_from: Option<CellRemoval>,
 }
 
-/// Update to an existing marker within its cell. Position and heading are `None` when
+/// Update to an existing marker within its cell. Position and heading are `null` when
 /// unchanged; `sel` always states the row's current selection state, so a membership
 /// change with no movement is just a patch with no coordinates.
 #[derive(serde::Serialize, Clone, specta::Type)]
@@ -258,8 +258,9 @@ pub struct RenderPatchEntry {
     pub sel: Option<SelPaint>,
 }
 
-/// A swap-removal from a render cell. JS must move the last element into `cell_index`
-/// and pop the array to mirror the Rust-side swap-remove.
+/// A marker removed from a render cell.
+// JS must move the last element into `cell_index` and pop the array to mirror the Rust-side
+// swap-remove.
 #[derive(serde::Serialize, Clone, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CellRemoval {
@@ -268,9 +269,9 @@ pub struct CellRemoval {
     pub id: u32,
 }
 
-/// Parameters for a full render rebuild. `marker_style` ("arrow" or "pin") determines
-/// whether heading angles are written. The bounding box fields are currently unused
-/// (no viewport culling -- all locations are rendered).
+/// Parameters for a full marker rebuild. `markerStyle` ("arrow" or "pin") decides whether
+/// headings are drawn.
+// The bounding box fields are unused: there is no viewport culling.
 #[derive(Default, serde::Deserialize, specta::Type)]
 #[serde(default, rename_all = "camelCase")]
 pub struct RenderRequest {

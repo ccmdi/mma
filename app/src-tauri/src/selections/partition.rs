@@ -9,8 +9,7 @@ use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// How a field value becomes a group key, chosen by the caller of `store_group_by` /
-/// `store_count_by`.
+/// How a field value becomes a group key, for `storeGroupBy` and `storeCountBy`.
 #[derive(Clone, Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum KeySpec {

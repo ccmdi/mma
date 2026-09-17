@@ -57,7 +57,7 @@ async function setImportStaging(preview: EditorImportPreview, source: "file" | "
 		fitMapToBounds(bboxTupleToBounds(preview.bounds), 100, getSettings().pastePadding);
 }
 
-/** Import from a known file path. Used by file picker and drag-and-drop. */
+/** Import from a file path. */
 export async function beginImportFromPath(path: string) {
 	await setImportStaging(await cmd.storeImportPreview(path), "file");
 }

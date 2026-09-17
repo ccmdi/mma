@@ -5,8 +5,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 	return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-/** A localStorage-backed blob: its key and its defaults, declared where the shape is defined so
- *  no call site restates the pair. Older stored shapes are handled by `store/migrations.ts`. */
+/** A value saved in local storage: its key and its defaults. */
 export interface PersistedStore<T> {
 	key: string;
 	defaults: T;

@@ -322,7 +322,7 @@ fn poll_for_ncfa(app: &tauri::AppHandle) -> AppResult<String> {
     }
 }
 
-/// The signed-in user, or `None` when there is no session (or it was rejected).
+/// The signed-in user, or `null` when there is no session (or it was rejected).
 #[tauri::command]
 #[specta::specta]
 pub async fn geoguessr_me() -> AppResult<Option<GgUser>> {

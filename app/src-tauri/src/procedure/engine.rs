@@ -89,7 +89,7 @@ wire_str_enum! {
     }
 }
 
-/// Token bucket: `units` calls per `per_ms` milliseconds, refilled continuously.
+/// Rate limit: `units` calls per `perMs` milliseconds, refilled continuously.
 #[derive(Clone, Copy, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct RateSpec {
@@ -1982,7 +1982,7 @@ pub struct RowsRun {
 }
 
 /// Run providers over caller-supplied `rows` and return them as modified. Does not
-/// affect the open map. `cancel` is a token for [`procedure_query_cancel`].
+/// affect the open map. `cancel` is a token for `procedureQueryCancel`.
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_run_rows(
@@ -2077,7 +2077,7 @@ fn partial_emitter() -> &'static mpsc::Sender<ProcedureResult> {
 }
 
 /// Run a procedure's read-only `query` export. `input` and the result are defined
-/// by the procedure module. `cancel` is a token for [`procedure_query_cancel`].
+/// by the procedure module. `cancel` is a token for `procedureQueryCancel`.
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_query(

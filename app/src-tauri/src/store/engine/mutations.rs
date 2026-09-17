@@ -38,9 +38,9 @@ impl ChangeSet {
     }
 }
 
-/// The engine-owned values JS mirrors into its state, each `None` when unchanged since
-/// it last shipped. The open-time form ([`super::StoreStatus`]) has every field present.
-/// The JS mirror's type and merge are derived from this struct.
+/// Map state a change affected. Each field is `null` when it did not change.
+// The open-time form (`super::StoreStatus`) has every field present. The JS mirror's type
+// and merge are derived from this struct.
 #[derive(serde::Serialize, Clone, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineValues {
@@ -57,9 +57,9 @@ pub struct EngineValues {
     pub field_defs: Option<HashMap<String, maps::ExtraFieldDef>>,
 }
 
-/// What one mutation changed, and nothing else. `values` are merged into the JS state
-/// mirror (an untouched slice keeps its reference and its subscribers sleep); `delta`
-/// and `selection_sync` are operations applied once to the render buffers.
+/// What one change did to the open map.
+// `values` are merged into the JS state mirror (an untouched slice keeps its reference and its
+// subscribers sleep); `delta` and `selection_sync` are applied once to the render buffers.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MutationResult {
@@ -78,7 +78,7 @@ pub enum StoreWarning {
     DeltaSetAside,
 }
 
-/// A mutation another window made to a map this window may have open, routed by `map_id`.
+/// A change another window made to a map, identified by `mapId`.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "store-external-mutation")]
@@ -100,9 +100,9 @@ where
     Ok(Some(Option::deserialize(deserializer)?))
 }
 
-/// Partial location update from JS. `None` fields are unchanged; `Some(None)` on
-/// nullable fields (panoId, extra, modifiedAt) explicitly sets the field to null.
-/// `extra` is a JSON Merge Patch (RFC 7386): keys shallow-merge, null values delete.
+/// Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
+/// modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
+/// shallow-merge, null values delete.
 #[derive(Default, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(default, rename_all = "camelCase")]
 pub struct LocationPatch {
@@ -218,8 +218,7 @@ wire_str_enum! {
     }
 }
 
-/// A field-wide rewrite of the `extra` map. Patches are derived *per row*, which is what
-/// separates these from `store_update_locations`' explicit patch list.
+/// A rewrite of one `extra` field across every location, computed per row.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum FieldOp {
@@ -477,7 +476,7 @@ pub struct Update<P> {
     pub patch: P,
 }
 
-/// Result of a cross-map location copy. `target_name` feeds the toast.
+/// Result of copying locations to another map.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CopyToMapResult {

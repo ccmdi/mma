@@ -80,7 +80,7 @@ export function reviewIndex(s: ReviewSession): number {
 	return positionOf(s, s.cursorId);
 }
 
-/** Union of reviewed ids across sessions, de-duplicated. Pure (unit-tested). */
+/** Union of reviewed ids across sessions, de-duplicated. */
 export function reviewedHistoryIds(sessions: ReviewSession[]): number[] {
 	const ids = new Set<number>();
 	for (const s of sessions) for (const id of s.reviewed) ids.add(id);

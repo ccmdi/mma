@@ -63,10 +63,10 @@ pub fn tz_grid() -> &'static mma_tz::TzGrid<'static> {
     GRID.get_or_init(|| mma_tz::TzGrid::new(GRID_TABLE).expect("tzgrid.bin: invalid table"))
 }
 
-/// Reveal with the native open animation: a true first show() (DWM plays its pop-in),
-/// then maximize back-to-back while the shell is still blank. The show must come first:
-/// maximize on a hidden window reveals it without setting tao's visible flag, and the
-/// window gets re-hidden a frame later.
+/// Show the window with the system open animation, maximized if `maximized` is set.
+// A true first show() (DWM plays its pop-in), then maximize back-to-back while the shell is
+// still blank. The show must come first: maximize on a hidden window reveals it without
+// setting tao's visible flag, and the window gets re-hidden a frame later.
 #[tauri::command]
 #[specta::specta]
 #[allow(
@@ -81,7 +81,7 @@ pub fn reveal_window(window: tauri::WebviewWindow, maximized: bool) {
     let _ = window.set_focus();
 }
 
-/// IANA timezone at a coordinate, or `None` outside the valid range.
+/// IANA timezone at a coordinate, or `null` outside the valid range.
 #[tauri::command]
 #[specta::specta]
 pub fn timezone_at(lat: f64, lng: f64) -> Option<String> {

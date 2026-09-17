@@ -1,4 +1,4 @@
-/** Tauri primitives, handed to plugins as-is. */
+/** Low-level command, shell, and file dialog access. */
 import { invoke } from "@tauri-apps/api/core";
 import { Command } from "@tauri-apps/plugin-shell";
 import { open, save } from "@tauri-apps/plugin-dialog";

@@ -1,11 +1,7 @@
 import type { ReactNode } from "react";
 import { Switch } from "@/components/primitives/Switch";
 
-/** A compact, control-left row whose whole surface toggles an immediate-effect
- *  boolean. The Switch owns keyboard + a11y; the row forwards mouse clicks to
- *  the same toggle. The control wrapper stops propagation so a direct switch
- *  click does not also fire the row handler. Used by MapSettingsPanel and any
- *  surface outside the Settings dialog (SettingRow is the Settings dialog row). */
+/** A compact row with a switch on the left. Clicking anywhere on the row toggles it. */
 export function SwitchRow({
 	checked,
 	onChange,

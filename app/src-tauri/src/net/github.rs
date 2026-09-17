@@ -153,7 +153,7 @@ fn renew(stale: &str) -> AppResult<Option<String>> {
 pub struct DeviceCodeInfo {
     pub user_code: String,
     pub verification_uri: String,
-    /// Seconds until `user_code` stops working.
+    /// Seconds until `userCode` stops working.
     pub expires_in: u32,
 }
 
@@ -196,7 +196,7 @@ wire_str_enum! {
 #[serde(rename_all = "camelCase")]
 pub struct IssueThread {
     pub state: IssueState,
-    /// `completed`, `not_planned` or `reopened`. Absent on an open issue, and on issues closed
+    /// `"completed"`, `"not_planned"` or `"reopened"`. Absent on an open issue, and on issues closed
     /// before GitHub recorded a reason.
     pub state_reason: Option<String>,
     pub comments: Vec<IssueComment>,
@@ -438,7 +438,7 @@ pub(crate) fn parse_comments(v: &serde_json::Value) -> Vec<IssueComment> {
 // ---------------------------------------------------------------------------
 
 /// Begin device-flow sign-in. Returns the code to show the user; call
-/// [`github_poll_login`] afterwards to wait for them to finish authorizing.
+/// `githubPollLogin` afterwards to wait for them to finish authorizing.
 #[tauri::command]
 #[specta::specta]
 pub async fn github_start_login() -> AppResult<DeviceCodeInfo> {
@@ -460,7 +460,7 @@ pub async fn github_start_login() -> AppResult<DeviceCodeInfo> {
     .await?
 }
 
-/// Wait for the user to authorize the code from [`github_start_login`].
+/// Wait for the user to authorize the code from `githubStartLogin`.
 /// Resolves with the signed-in account.
 #[tauri::command]
 #[specta::specta]
@@ -494,7 +494,7 @@ pub async fn github_poll_login() -> AppResult<GhUser> {
     }
 }
 
-/// The signed-in user, or `None` when there is no session (or it was rejected).
+/// The signed-in user, or `null` when there is no session (or it was rejected).
 #[tauri::command]
 #[specta::specta]
 pub async fn github_me() -> AppResult<Option<GhUser>> {

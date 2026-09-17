@@ -66,8 +66,7 @@ export function colorForKey(key: string): RGB {
 }
 
 /** Key an id list by hashing it: the same ids in the same order give the same key.
- *  Order-sensitive, like the list it identifies. Key length is constant, so a
- *  million-id selection is not a megabyte-long React key. */
+ *  Order-sensitive, like the list it identifies. Key length is constant. */
 export function locationsKey(ids: number[]): string {
 	let h1 = 0xdeadbeef | 0;
 	let h2 = 0x41c6ce57 | 0;
@@ -118,9 +117,8 @@ export const toggleGhostAll =
 		return { ghosted: allGhosted ? new Set() : ghosted.union(keys) };
 	};
 
-/** Pick `n` distinct ids uniformly at random from `ids` using `Math.random`.
- *  `n` is floored and clamped to `[0, ids.length]` (so over-large counts return all ids).
- *  Uses a partial Fisher–Yates shuffle, so the result contains no duplicates and `ids` is not mutated. */
+/** Pick `n` distinct ids uniformly at random from `ids`. `n` is floored and clamped to
+ *  `[0, ids.length]`, so an over-large count returns all ids. `ids` is not mutated. */
 export function sampleIds(ids: number[], n: number): number[] {
 	const k = clamp(Math.floor(n), 0, ids.length);
 	const pool = ids.slice();
@@ -669,7 +667,7 @@ export function replaceSelection(
 }
 
 /** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
- *  rather than the open map's tags (used by saved selection rules). */
+ *  rather than the open map's tags. */
 export function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string {
 	return descriptorFor(sel.selector).label(tagNames);
 }

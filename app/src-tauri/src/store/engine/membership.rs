@@ -101,9 +101,9 @@ pub(super) struct MembershipDelta {
     pub(super) changed: HashSet<u32>,
 }
 
-/// Selection bitmask sync payload. `bitmask` carries the packed per-cell bitmask bytes
-/// inline in the IPC response (no shared temp file → no clobber race under concurrent
-/// mutations). `None` when nothing changed. `counts` gives per-selection match counts.
+/// Updated selection state after a change. `counts` gives each selection's match count.
+// `bitmask` carries the packed per-cell bitmask bytes inline in the response (no shared temp
+// file, so no clobber race under concurrent mutations); `None` when nothing changed.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionSync {
@@ -113,9 +113,9 @@ pub struct SelectionSync {
     pub selected_count: usize,
 }
 
-/// A top-level row of `store_sync_selections`: the selection itself, plus whether it is
-/// ghosted. Ghosting means nothing for a nested child, which is why the flag lives here
-/// and not on `Selection`.
+/// A top-level selection, plus whether it is ghosted.
+// Ghosting means nothing for a nested child, which is why the flag lives here and not on
+// `Selection`.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionInput {

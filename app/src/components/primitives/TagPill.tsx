@@ -43,8 +43,7 @@ type TagPillProps<E extends ElementType> = TagPillOwnProps & {
 	as?: E;
 } & Omit<ComponentPropsWithRef<E>, keyof TagPillOwnProps | "as">;
 
-/** The one tag pill. Owns the tag color's rendering: every surface that shows a tag
- *  goes through here, so the look changes in one place. */
+/** A tag shown as a pill in its color. */
 export function TagPill<E extends ElementType = "span">({
 	as,
 	color,
