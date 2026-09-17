@@ -18,8 +18,6 @@ A local-first desktop alternative to [map-making.app](https://map-making.app).
 - Concurrent and manageable reviews
 - Plugin system
 
-...and much more!
-
 ## Installation
 
 Open [the latest release](https://github.com/ccmdi/mma/releases/latest) and download the installer for your platform.
@@ -31,7 +29,7 @@ On macOS, you will likely need to run:
 xattr -dr com.apple.quarantine "/Applications/Map Making App.app"
 ```
 
-On both Mac & Linux, framerate and rendering stability can be an issue. If you encounter these problems, you can [run the app in a browser](#run-in-a-browser). The web version will eventually be a first-class launch option, but is only available from source for now.
+On both Mac & Linux, framerate and rendering stability can be an issue. If you encounter these problems, you can [run the app in a browser](#run-in-a-browser).
 
 ### From source
 
