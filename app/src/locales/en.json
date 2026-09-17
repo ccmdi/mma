@@ -534,7 +534,6 @@
 	"Generate locations from Street View coverage": "Generate locations from Street View coverage",
 	"Generate locations from pre-built coverage data using Vali": "Generate locations from pre-built coverage data using Vali",
 	"Generation complete": "Generation complete",
-	"Generators": "Generators",
 	"Generic (no map name)": "Generic (no map name)",
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.",
@@ -1193,7 +1192,6 @@
 	"South America": "South America",
 	"Spacing ({unit})": "Spacing ({unit})",
 	"Specific Panorama": "Specific Panorama",
-	"Speed": "Speed",
 	"Spin 180°": "Spin 180°",
 	"Spread: how evenly locations cover the probed area, from clustered (low) to even (100%)": "Spread: how evenly locations cover the probed area, from clustered (low) to even (100%)",
 	"Staged import marker color": "Staged import marker color",
@@ -1601,10 +1599,6 @@
 	"{n} without pano ID will be resolved from coordinates.": {
 		"one": "{n} without pano ID will be resolved from coordinates.",
 		"other": "{n} without pano ID will be resolved from coordinates."
-	},
-	"{n} workers": {
-		"one": "{n} worker",
-		"other": "{n} workers"
 	},
 	"{n}%": "{n}%",
 	"{n}d ago": "{n}d ago",

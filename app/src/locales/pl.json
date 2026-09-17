@@ -568,7 +568,6 @@
 	"Generate locations from Street View coverage": "Generuj lokalizacje z pokrycia Street View",
 	"Generate locations from pre-built coverage data using Vali": "Generuj lokalizacje z gotowych danych pokrycia przy użyciu Vali",
 	"Generation complete": "Generowanie zakończone",
-	"Generators": "Generatory",
 	"Generic (no map name)": "Ogólne (bez nazwy mapy)",
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr automatycznie obraca lokalizacje skierowane dokładnie na północ wzdłuż drogi. Aby\n\t\t\t\t\t\t\t\tnieobrócone lokalizacje pozostały nieobrócone, włącz tę opcję.",
@@ -1265,7 +1264,6 @@
 	"South America": "Ameryka Południowa",
 	"Spacing ({unit})": "Odstęp ({unit})",
 	"Specific Panorama": "Konkretna panorama",
-	"Speed": "Prędkość",
 	"Spin 180°": "Obróć o 180°",
 	"Spread: how evenly locations cover the probed area, from clustered (low) to even (100%)": "Rozrzut: jak równomiernie lokalizacje pokrywają sondowany obszar, od skupionych (nisko) po równomierne (100%)",
 	"Staged import marker color": "Kolor znacznika oczekującego importu",
@@ -1715,12 +1713,6 @@
 		"few": "{n} lokalizacje bez pano ID zostaną ustalone na podstawie współrzędnych.",
 		"many": "{n} lokalizacji bez pano ID zostanie ustalonych na podstawie współrzędnych.",
 		"other": "{n} lokalizacji bez pano ID zostanie ustalonych na podstawie współrzędnych."
-	},
-	"{n} workers": {
-		"one": "{n} proces",
-		"few": "{n} procesy",
-		"many": "{n} procesów",
-		"other": "{n} procesu"
 	},
 	"{n}%": "{n}%",
 	"{n}d ago": "{n} dn. temu",

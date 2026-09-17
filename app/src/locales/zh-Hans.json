@@ -517,7 +517,6 @@
 	"Generate locations from Street View coverage": "从街景覆盖生成位置",
 	"Generate locations from pre-built coverage data using Vali": "使用 Vali 从预构建覆盖数据生成位置",
 	"Generation complete": "生成完成",
-	"Generators": "生成器数量",
 	"Generic (no map name)": "通用（不含地图名）",
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr 会对沿道路正朝北的位置自动平移。若要让未平移的位置保持未平移，请启用此选项。",
@@ -1157,7 +1156,6 @@
 	"South America": "南美洲",
 	"Spacing ({unit})": "间距（{unit}）",
 	"Specific Panorama": "指定全景",
-	"Speed": "速度",
 	"Spin 180°": "旋转 180°",
 	"Spread: how evenly locations cover the probed area, from clustered (low) to even (100%)": "分布：位置在已探测区域的覆盖均匀程度，从聚集（低）到均匀（100%）",
 	"Staged import marker color": "暂存导入标记颜色",
@@ -1544,9 +1542,6 @@
 	},
 	"{n} without pano ID will be resolved from coordinates.": {
 		"other": "{n} 个无全景 ID 的位置将根据坐标解析。"
-	},
-	"{n} workers": {
-		"other": "{n} 个工作进程"
 	},
 	"{n}%": "{n}%",
 	"{n}d ago": "{n} 天前",

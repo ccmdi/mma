@@ -110,8 +110,6 @@ function engine(overrides: Partial<typeof DEFAULT_SETTINGS>) {
 			rejectUnofficial: false,
 			rejectDateless: false,
 			rejectNoDescription: false,
-			numGenerators: 1,
-			speed: 10,
 			...overrides,
 		},
 		[region()],
@@ -181,11 +179,12 @@ describe("streaming probe rounds", () => {
 		await settle();
 		expect(h.calls).toHaveLength(1);
 
-		for (let i = 0; i < 8; i++) h.calls[0].onPano!(i, null);
+		const threshold = Math.ceil(h.calls[0].points.length * 0.9);
+		for (let i = 0; i < threshold - 1; i++) h.calls[0].onPano!(i, null);
 		await settle();
 		expect(h.calls).toHaveLength(1);
 
-		h.calls[0].onPano!(8, null);
+		h.calls[0].onPano!(threshold - 1, null);
 		await settle();
 		expect(h.calls).toHaveLength(2);
 

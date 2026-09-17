@@ -230,10 +230,6 @@ function summarizeSettings(s: GeneratorSettings): string {
 		);
 	}
 
-	// Parallelism
-	if (s.numGenerators > 1) {
-		parts.push(t({ one: "{n} worker", other: "{n} workers" }, { n: s.numGenerators }));
-	}
 	if (s.oneCountryAtATime) parts.push(t("one region at a time"));
 
 	return parts.join(", ");

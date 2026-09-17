@@ -568,7 +568,6 @@
 	"Generate locations from Street View coverage": "Генерировать локации из покрытия Street View",
 	"Generate locations from pre-built coverage data using Vali": "Генерировать локации из готовых данных покрытия через Vali",
 	"Generation complete": "Генерация завершена",
-	"Generators": "Генераторы",
 	"Generic (no map name)": "Обобщённо (без названия карты)",
 	"GeoGuessr": "GeoGuessr",
 	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr автоматически поворачивает локации, направленные строго на север вдоль дороги. Чтобы ваши неповёрнутые локации остались такими, включите эту опцию.",
@@ -1265,7 +1264,6 @@
 	"South America": "Южная Америка",
 	"Spacing ({unit})": "Шаг ({unit})",
 	"Specific Panorama": "Конкретная панорама",
-	"Speed": "Скорость",
 	"Spin 180°": "Развернуться на 180°",
 	"Spread: how evenly locations cover the probed area, from clustered (low) to even (100%)": "Разброс: насколько равномерно локации покрывают обследованную область: от скученных (низко) до равномерных (100%)",
 	"Staged import marker color": "Цвет маркера подготовленного импорта",
@@ -1715,12 +1713,6 @@
 		"few": "{n} без pano ID будут определены по координатам.",
 		"many": "{n} без pano ID будут определены по координатам.",
 		"other": "{n} без pano ID будут определены по координатам."
-	},
-	"{n} workers": {
-		"one": "{n} процесс",
-		"few": "{n} процесса",
-		"many": "{n} процессов",
-		"other": "{n} процесса"
 	},
 	"{n}%": "{n} %",
 	"{n}d ago": "{n} д назад",

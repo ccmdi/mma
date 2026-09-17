@@ -40,6 +40,8 @@ function regionContains(region: GeneratorRegion, points: LatLng[]): Promise<bool
 /** Share of a probe round that must have answered before the next round launches. */
 const ROUND_OVERLAP_AT = 0.9;
 const MAX_ROUNDS_IN_FLIGHT = 4;
+/** Points per probe round; with the rounds in flight it keeps the lookup pipe saturated. */
+const ROUND_SIZE = 1000;
 const SEED_BATCH = 100;
 const SEED_DELAY = 50;
 
@@ -85,7 +87,7 @@ export class GenerationEngine {
 	}
 
 	// Live-apply settings mid-job. Most settings are read fresh on every probe, so they
-	// take effect immediately. numGenerators and oneCountryAtATime are fixed at start().
+	// take effect immediately. oneCountryAtATime is fixed at start().
 	updateSettings(settings: GeneratorSettings) {
 		this.settings = settings;
 	}
@@ -100,7 +102,7 @@ export class GenerationEngine {
 				this.regionTasks.push(this.runSequential());
 			} else {
 				for (const region of this.regions) {
-					this.regionTasks.push(this.runRegionWorkers(region, this.settings.numGenerators));
+					this.regionTasks.push(this.runRegion(region));
 				}
 			}
 			// Drain dynamically: reconcileRegions() can push new tasks while we await.
@@ -132,11 +134,9 @@ export class GenerationEngine {
 		}
 	}
 
-	private runRegionWorkers(region: GeneratorRegion, count: number): Promise<void> {
+	private runRegion(region: GeneratorRegion): Promise<void> {
 		this.liveRegionIds.add(region.id);
-		const workers: Promise<void>[] = [];
-		for (let i = 0; i < count; i++) workers.push(this.generateRegion(region));
-		return Promise.all(workers).then(() => {
+		return this.generateRegion(region).then(() => {
 			this.liveRegionIds.delete(region.id);
 		});
 	}
@@ -151,14 +151,13 @@ export class GenerationEngine {
 			if (!desiredIds.has(region.id)) this.cancelledRegions.add(region.id);
 		}
 
-		const count = this.settings.oneCountryAtATime ? 1 : this.settings.numGenerators;
 		for (const region of desired) {
 			this.cancelledRegions.delete(region.id); // revive if previously removed
 			const existing = this.regions.find((r) => r.id === region.id);
 			if (existing) existing.target = region.target;
 			if (this.liveRegionIds.has(region.id)) continue; // already working (or parked)
 			if (!existing) this.regions.push(region);
-			this.regionTasks.push(this.runRegionWorkers(existing ?? region, count));
+			this.regionTasks.push(this.runRegion(existing ?? region));
 		}
 
 		void this.searchOverlayBounds().then((b) => {
@@ -318,7 +317,7 @@ export class GenerationEngine {
 
 		while (await this.proceed(region)) {
 			region.isProcessing = true;
-			const batch = await take(this.settings.speed);
+			const batch = await take(ROUND_SIZE);
 			if (batch.length === 0) break;
 			const coords = await this.withoutExisting(batch);
 			if (coords.length === 0) continue;
@@ -409,7 +408,7 @@ export class GenerationEngine {
 
 		while (queue.length > 0 && (await this.proceed(region))) {
 			region.isProcessing = true;
-			const frontier = queue.splice(0, Math.max(s.speed, 50));
+			const frontier = queue.splice(0, ROUND_SIZE);
 			const results = await svMetadata(frontier, this.abort.signal);
 			const inside = await regionContains(
 				region,
@@ -459,7 +458,7 @@ export class GenerationEngine {
 
 		while (await this.proceed(region)) {
 			region.isProcessing = true;
-			const n = Math.min(region.target * 100, this.settings.speed);
+			const n = Math.min(region.target * 100, ROUND_SIZE);
 			let randomCoords = (await cmd.polygonRandomPoints(region.polygon, n)).map(([lng, lat]) => ({
 				lat,
 				lng,

@@ -350,20 +350,6 @@ export function SettingsPanel({
 						/>
 					</label>
 				)}
-				<NumberInput
-					label={t("Generators")}
-					value={settings.numGenerators}
-					onChange={(v) => set("numGenerators", v)}
-					min={1}
-					max={10}
-				/>
-				<NumberInput
-					label={t("Speed")}
-					value={settings.speed}
-					onChange={(v) => set("speed", v)}
-					min={1}
-					max={1000}
-				/>
 				<Check
 					label={t("Only check one country/polygon at a time")}
 					checked={settings.oneCountryAtATime}

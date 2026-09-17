@@ -31,7 +31,6 @@ export interface GeneratorSettings {
 	linksDepth: number;
 	onlyOneInTimeframe: boolean;
 	oneCountryAtATime: boolean;
-	numGenerators: number;
 	findGeneration: boolean;
 	generation: 1 | 23 | 4;
 	getIntersection: boolean;
@@ -59,7 +58,6 @@ export interface GeneratorSettings {
 	minCurveAngle: number;
 	adjustZoom: boolean;
 	zoomLevel: number;
-	speed: number;
 	/** How coverage-mode probes allocate over the road network: proportional to road
 	 *  density, evenly per area, or halfway between. */
 	distribution: "density" | "balanced" | "even";
@@ -98,7 +96,6 @@ export const DEFAULT_SETTINGS: GeneratorSettings = {
 	linksDepth: 2,
 	onlyOneInTimeframe: false,
 	oneCountryAtATime: false,
-	numGenerators: 1,
 	findGeneration: false,
 	generation: 1,
 	getIntersection: false,
@@ -126,7 +123,6 @@ export const DEFAULT_SETTINGS: GeneratorSettings = {
 	minCurveAngle: 30,
 	adjustZoom: false,
 	zoomLevel: 0,
-	speed: 1000,
 	samplingMode: "random",
 	distribution: "density",
 };

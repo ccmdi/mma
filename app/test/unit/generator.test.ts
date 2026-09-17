@@ -409,7 +409,6 @@ const permissive = (patch: Partial<GeneratorSettings> = {}) =>
 		rejectUnofficial: false,
 		rejectDateless: false,
 		rejectNoDescription: false,
-		numGenerators: 1,
 		...patch,
 	});
 
@@ -424,11 +423,7 @@ describe("GenerationEngine live tuning", () => {
 			if (calls === 1) engine.updateSettings({ ...DEFAULT_SETTINGS, radius: 999 });
 			if (calls >= 40) engine.stop();
 		});
-		const engine = new GenerationEngine(
-			{ ...DEFAULT_SETTINGS, radius: 500, numGenerators: 1 },
-			[A()],
-			noopCallbacks,
-		);
+		const engine = new GenerationEngine({ ...DEFAULT_SETTINGS, radius: 500 }, [A()], noopCallbacks);
 
 		await engine.start();
 
@@ -446,11 +441,7 @@ describe("GenerationEngine live tuning", () => {
 			if (calls === 3) engine.updateRegionTargets(new Map([["A", 0]]));
 			if (calls > 10000) engine.stop();
 		});
-		const engine = new GenerationEngine(
-			{ ...DEFAULT_SETTINGS, numGenerators: 1 },
-			[A()],
-			noopCallbacks,
-		);
+		const engine = new GenerationEngine({ ...DEFAULT_SETTINGS }, [A()], noopCallbacks);
 
 		await engine.start();
 
@@ -481,11 +472,7 @@ describe("GenerationEngine live tuning", () => {
 			}
 			if (total > 10000) engine.stop();
 		});
-		const engine = new GenerationEngine(
-			{ ...DEFAULT_SETTINGS, numGenerators: 1 },
-			[A()],
-			noopCallbacks,
-		);
+		const engine = new GenerationEngine({ ...DEFAULT_SETTINGS }, [A()], noopCallbacks);
 
 		await engine.start();
 
@@ -525,11 +512,7 @@ describe("GenerationEngine live tuning", () => {
 			}
 			if (total > 10000) engine.stop();
 		});
-		const engine = new GenerationEngine(
-			{ ...DEFAULT_SETTINGS, numGenerators: 1 },
-			[A(), B()],
-			noopCallbacks,
-		);
+		const engine = new GenerationEngine({ ...DEFAULT_SETTINGS }, [A(), B()], noopCallbacks);
 
 		await engine.start();
 
@@ -571,7 +554,7 @@ describe("GenerationEngine live tuning", () => {
 		expect(flushed[0].panoId).toBe("p".repeat(22));
 	});
 
-	it("resume unblocks every paused worker, not just the last (numGenerators > 1)", async () => {
+	it("resume unblocks every paused region worker, not just the last", async () => {
 		let phase: "run" | "paused" | "resumed" = "run";
 		let probesAfterResume = 0;
 		let total = 0;
@@ -591,11 +574,7 @@ describe("GenerationEngine live tuning", () => {
 			}
 			if (total > 10000) engine.stop();
 		});
-		const engine = new GenerationEngine(
-			{ ...DEFAULT_SETTINGS, numGenerators: 2 },
-			[A()],
-			noopCallbacks,
-		);
+		const engine = new GenerationEngine({ ...DEFAULT_SETTINGS }, [A(), B()], noopCallbacks);
 
 		// With a single shared resolver, one of the two workers would stay parked
 		// forever and start() would never resolve.
@@ -699,16 +678,12 @@ describe("GenerationEngine probe batching", () => {
 			sizes.push(points.length);
 			engine.stop();
 		});
-		const engine = new GenerationEngine(
-			permissive({ numGenerators: 1, speed: 300 }),
-			[A()],
-			noopCallbacks,
-		);
+		const engine = new GenerationEngine(permissive(), [A()], noopCallbacks);
 
 		await engine.start();
 
 		// One search carried the whole round; the engine schedules it under its inflight budget.
-		expect(sizes[0]).toBe(300);
+		expect(sizes[0]).toBe(1000);
 	});
 
 	it("probes one at a time when findRegions dedups against prior finds", async () => {
@@ -717,11 +692,7 @@ describe("GenerationEngine probe batching", () => {
 			sizes.push(points.length);
 			if (sizes.length >= 3) engine.stop();
 		});
-		const engine = new GenerationEngine(
-			permissive({ numGenerators: 1, speed: 300, findRegions: true }),
-			[A()],
-			noopCallbacks,
-		);
+		const engine = new GenerationEngine(permissive({ findRegions: true }), [A()], noopCallbacks);
 
 		await engine.start();
 
@@ -891,14 +862,14 @@ describe("streamedPoints", () => {
 });
 
 describe("GenerationEngine grid sampling", () => {
-	it("builds one honeycomb radius * sqrt(3) apart and probes each point once across workers", async () => {
+	it("builds one honeycomb radius * sqrt(3) apart and probes each point exactly once", async () => {
 		h.gridRuns = GRID_RUNS;
 		h.gridRequests = [];
 		const probed: string[] = [];
 		emptyProbe((points) => probed.push(...points.map(keyOf)));
 
 		const engine = new GenerationEngine(
-			permissive({ samplingMode: "grid", radius: 500, numGenerators: 3, speed: 2 }),
+			permissive({ samplingMode: "grid", radius: 500 }),
 			[A()],
 			noopCallbacks,
 		);
