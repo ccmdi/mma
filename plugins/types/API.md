@@ -6,6 +6,7 @@ change in any release.
 - [Consts](#consts)
 - [Store](#store)
 - [SelectionOps](#selectionops)
+- [SelectionActions](#selectionactions)
 - [SavedSelections](#savedselections)
 - [Settings](#settings)
 - [ImportStaging](#importstaging)
@@ -268,7 +269,7 @@ Add a tag to locations (skips ones that already have it). Undoable.
 
 Apply a field operation across all locations matching `selector`. Emits `location:invalidate`.
 
-### `applySelectionUpdate(op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | Partial<SelectionState>): Promise<void>`
+### `applySelectionUpdate(op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | Partial<SelectionState>): Promise<void>` *(unstable)*
 
 Apply a selection transform function and re-resolve the selection.
 The function receives the current selections and ghosted set, and returns either
@@ -278,7 +279,7 @@ a new `Selection[]` or a `SelectionPatch`. No-op when nothing changed.
 
 Cancel any pending autosave timer.
 
-### `checkoutCommit(commitId: string): Promise<void>`
+### `checkoutCommit(commitId: string): Promise<void>` *(unstable)*
 
 Restore the map to a previous commit's state and reopen it. Clears undo/redo.
 
@@ -371,15 +372,6 @@ Active (non-ghosted) selections, the default for any operational logic.
 ### `getMapState(): Readonly<MapState>`
 
 Imperative snapshot of the map state.
-
-### `getSelectedTagIds(): ReadonlySet<number>`
-
-Tag ids that currently have a top-level Tag selection active.
-
-### `getSelectedTagIdsDeep(): readonly number[]`
-
-Tag ids of every Tag leaf in the active selection tree, in list order.
-Includes composite children, excludes ghosted selections; ids may repeat.
 
 ### `getTag(id: number): Tag | undefined`
 
@@ -500,20 +492,20 @@ Background auto-commit after an import with autoCommit set.
 
 Schedule a debounced autosave. Mutations call this automatically.
 
-### `selectEvenlySpacedFromSelection(opts: { count?: number | undefined; spacingM?: number | undefined; }, perSelection?: boolean | undefined): Promise<{ picked: number; distanceM: number; }>`
+### `selectEvenlySpacedFromSelection(opts: { count?: number | undefined; spacingM?: number | undefined; }, perSelection?: boolean | undefined): Promise<{ picked: number; distanceM: number; }>` *(unstable)*
 
 Replace the current selection with evenly spaced ids laid out on a honeycomb - either at
 most `count` ids spaced as widely as that allows, or ids about `spacingM` apart. No two
 picks sit closer than half the spacing. With `perSelection`, each active selection is
 picked from separately. Returns the count picked and the spacing used.
 
-### `selectRandomFromSelection(count: number, perSelection?: boolean | undefined): Promise<number>`
+### `selectRandomFromSelection(count: number, perSelection?: boolean | undefined): Promise<number>` *(unstable)*
 
 Replace the current selection with up to `count` ids picked at random.
 With `perSelection`, picks up to `count` from each active selection separately.
 Returns the number of ids actually picked (0 when nothing is selected).
 
-### `selectSpacedFromSelection(opts: { count?: number | undefined; minDistanceM?: number | undefined; }, perSelection?: boolean | undefined): Promise<{ picked: number; distanceM: number; }>`
+### `selectSpacedFromSelection(opts: { count?: number | undefined; minDistanceM?: number | undefined; }, perSelection?: boolean | undefined): Promise<{ picked: number; distanceM: number; }>` *(unstable)*
 
 Replace the current selection with spatially spaced ids - either `count` ids maximizing
 spacing, or as many as fit at `minDistanceM`. With `perSelection`, each active selection
@@ -532,16 +524,16 @@ Replace the map's extra-field definitions (types/labels for `Location.extra` key
 
 Open a plugin's sidebar (switches the editor pane to "plugin").
 
-### `setSelectedLocationIds(ids: SelectedIds): void`
+### `setSelectedLocationIds(ids: SelectedIds): void` *(unstable)*
 
 Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want.
 
-### `setWorkArea(area: WorkArea): void`
+### `setWorkArea(area: WorkArea): void` *(unstable)*
 
 Transition the editor pane, enforcing state invariants:
 leaving "location" clears the active location, leaving "plugin" clears the plugin id.
 
-### `syncSelections(): Promise<void>`
+### `syncSelections(): Promise<void>` *(unstable)*
 
 Re-resolve all selections against the current map data and update the overlay.
 Use when the underlying data changed but the selections themselves did not.
@@ -550,18 +542,9 @@ Use when the underlying data changed but the selections themselves did not.
 
 Tag names for the given ids, skipping any that no longer resolve.
 
-### `toggleTagSelections(tagIds: number[]): void`
-
-Toggle tag selections on or off for the given tags.
-
 ### `undo(): Promise<void>`
 
 Undo the last edit.
-
-### `updateFilterSelection(oldKey: string, selector: Selector): Promise<void>`
-
-Edit an existing filter (or any selection) in place by key, preserving its
-position inside any AND/OR/Invert composite. Carries ghost state to the new key.
 
 ### `updateLocations(updates: Update<LocationPatch_Deserialize>[], opts?: { undoable?: boolean | undefined; } | undefined): Promise<void>`
 
@@ -747,6 +730,28 @@ Merge the targeted selections (or all, when `keys` is null) into a single Union.
 ### `withChildren(selector: Selector, children: Selection[]): Selector` *(unstable)*
 
 `selector` with its children replaced, keeping the shape it wraps them in.
+
+## SelectionActions
+
+Editing the selection list the way the sidebar does.
+
+### `getSelectedTagIds(): ReadonlySet<number>` *(unstable)*
+
+Tag ids that currently have a top-level Tag selection active.
+
+### `getSelectedTagIdsDeep(): readonly number[]` *(unstable)*
+
+Tag ids of every Tag leaf in the active selection tree, in list order.
+Includes composite children, excludes ghosted selections; ids may repeat.
+
+### `toggleTagSelections(tagIds: number[]): void` *(unstable)*
+
+Toggle tag selections on or off for the given tags.
+
+### `updateFilterSelection(oldKey: string, selector: Selector): Promise<void>` *(unstable)*
+
+Edit an existing filter (or any selection) in place by key, preserving its
+position inside any AND/OR/Invert composite. Carries ghost state to the new key.
 
 ## SavedSelections
 

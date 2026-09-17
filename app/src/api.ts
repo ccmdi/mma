@@ -7,6 +7,7 @@ export type { ProcedureHost, ProcedureRequest, ProcedureResponse } from "@/lib/d
 import * as consts from "@/bindings.consts";
 import * as store from "@/store/useMapStore";
 import * as selectionOps from "@/store/selections";
+import * as selectionActions from "@/store/selectionActions";
 import * as savedSelections from "@/store/savedSelections";
 import * as settings from "@/store/settings";
 import * as importStaging from "@/store/importStaging";
@@ -53,6 +54,8 @@ type ConstsApi = typeof consts;
 type StoreApi = typeof store;
 /** Pure transforms over the selection list behind the sidebar. @unstable */
 type SelectionOpsApi = typeof selectionOps;
+/** Editing the selection list the way the sidebar does. @unstable */
+type SelectionActionsApi = typeof selectionActions;
 /** Saved selection rules. @unstable */
 type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
@@ -121,6 +124,7 @@ export interface MMA
 		ConstsApi,
 		StoreApi,
 		SelectionOpsApi,
+		SelectionActionsApi,
 		SavedSelectionsApi,
 		SettingsApi,
 		ImportStagingApi,
@@ -169,6 +173,7 @@ const mma: MMA = {
 	...consts,
 	...store,
 	...selectionOps,
+	...selectionActions,
 	...savedSelections,
 	...settings,
 	...importStaging,

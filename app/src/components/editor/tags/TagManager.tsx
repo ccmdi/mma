@@ -15,7 +15,6 @@ import {
 	deleteTags,
 	getActiveSelections,
 	getMapState,
-	getSelectedTagIds,
 	getVisibleTags,
 	removeTagFromAllLocations,
 	removeTagFromLocations,
@@ -23,6 +22,7 @@ import {
 	updateTags,
 	useMapState,
 } from "@/store/useMapStore";
+import { getSelectedTagIds } from "@/store/selectionActions";
 import { all } from "@/store/selections";
 import type { TagSortMode } from "@/types";
 import type { Tag, TagPatch, Update, VirtualTag } from "@/bindings.gen";

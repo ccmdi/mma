@@ -6,9 +6,9 @@ import {
 	getVisibleTags,
 	pruneDuplicates,
 	resolveIds,
-	updateFilterSelection,
 	useMapState,
 } from "@/store/useMapStore";
+import { updateFilterSelection } from "@/store/selectionActions";
 import {
 	batch,
 	composeSelections,

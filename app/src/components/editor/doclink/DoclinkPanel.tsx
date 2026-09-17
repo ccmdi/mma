@@ -10,7 +10,8 @@ import {
 	mdiBookOpenOutline,
 } from "@mdi/js";
 import type { Tag } from "@/bindings.gen";
-import { useMapState, getSelectedTagIdsDeep } from "@/store/useMapStore";
+import { useMapState } from "@/store/useMapStore";
+import { getSelectedTagIdsDeep } from "@/store/selectionActions";
 import {
 	parseDoclink,
 	loadSection,

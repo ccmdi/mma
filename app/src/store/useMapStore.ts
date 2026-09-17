@@ -35,7 +35,7 @@ import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
 import type { Selection, Selector, SpacedPickResult } from "@/bindings.gen";
-import { addSelection, batch, removeSelection, replaceSelection } from "./selections";
+import { addSelection, batch, removeSelection } from "./selections";
 import type { SelectionPatch } from "./selections";
 
 // --- Map state ---
@@ -390,7 +390,7 @@ export function currentSelection(): Selector {
 	return { type: "Union", selections: getActiveSelections() };
 }
 
-/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. */
+/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
 export function setSelectedLocationIds(ids: SelectedIds) {
 	setState({ selectedLocationIds: ids });
 }
@@ -672,7 +672,7 @@ export function removeSelections(keys: string[]): Promise<void> {
 
 /** Apply a selection transform function and re-resolve the selection.
  *  The function receives the current selections and ghosted set, and returns either
- *  a new `Selection[]` or a `SelectionPatch`. No-op when nothing changed. */
+ *  a new `Selection[]` or a `SelectionPatch`. No-op when nothing changed. @unstable */
 export async function applySelectionUpdate(
 	op: (sels: Selection[], ghosted: ReadonlySet<string>) => Selection[] | SelectionPatch,
 ) {
@@ -687,7 +687,7 @@ export async function applySelectionUpdate(
 }
 
 /** Re-resolve all selections against the current map data and update the overlay.
- *  Use when the underlying data changed but the selections themselves did not. */
+ *  Use when the underlying data changed but the selections themselves did not. @unstable */
 export async function syncSelections() {
 	if (!state.map) return;
 	const t = trace("selection", { summary: true });
@@ -726,7 +726,7 @@ function pickBuckets(perSelection: boolean): (Selector | null)[] {
 
 /** Replace the current selection with up to `count` ids picked at random.
  *  With `perSelection`, picks up to `count` from each active selection separately.
- *  Returns the number of ids actually picked (0 when nothing is selected). */
+ *  Returns the number of ids actually picked (0 when nothing is selected). @unstable */
 export async function selectRandomFromSelection(
 	count: number,
 	perSelection = false,
@@ -761,7 +761,7 @@ async function selectSpacedWith(
 
 /** Replace the current selection with spatially spaced ids - either `count` ids maximizing
  *  spacing, or as many as fit at `minDistanceM`. With `perSelection`, each active selection
- *  is picked from separately. Returns the count picked and the minimum distance achieved. */
+ *  is picked from separately. Returns the count picked and the minimum distance achieved. @unstable */
 export function selectSpacedFromSelection(
 	opts: { count?: number; minDistanceM?: number },
 	perSelection = false,
@@ -775,7 +775,7 @@ export function selectSpacedFromSelection(
 /** Replace the current selection with evenly spaced ids laid out on a honeycomb - either at
  *  most `count` ids spaced as widely as that allows, or ids about `spacingM` apart. No two
  *  picks sit closer than half the spacing. With `perSelection`, each active selection is
- *  picked from separately. Returns the count picked and the spacing used. */
+ *  picked from separately. Returns the count picked and the spacing used. @unstable */
 export function selectEvenlySpacedFromSelection(
 	opts: { count?: number; spacingM?: number },
 	perSelection = false,
@@ -811,70 +811,6 @@ export async function pruneDuplicates(selector: Selector, distance: number): Pro
 	);
 	return r.delta.removed.length;
 }
-
-/** Edit an existing filter (or any selection) in place by key, preserving its
- *  position inside any AND/OR/Invert composite. Carries ghost state to the new key. */
-export function updateFilterSelection(oldKey: string, selector: Selector) {
-	return applySelectionUpdate((sels, ghosted): SelectionPatch => {
-		const next = replaceSelection(sels, oldKey, selector);
-		if (next.length !== sels.length) return { selections: next };
-		let migrated: Set<string> | null = null;
-		for (let i = 0; i < sels.length; i++) {
-			if (next[i].key !== sels[i].key && ghosted.has(sels[i].key)) {
-				migrated ??= new Set(ghosted);
-				migrated.delete(sels[i].key);
-				migrated.add(next[i].key);
-			}
-		}
-		return migrated ? { selections: next, ghosted: migrated } : { selections: next };
-	});
-}
-
-/** Toggle tag selections on or off for the given tags. */
-export function toggleTagSelections(tagIds: number[]) {
-	if (!state.map || tagIds.length === 0) return;
-	void applySelectionUpdate((sels) =>
-		tagIds.reduce((result, tagId) => {
-			const key = `tag:${tagId}`;
-			return result.some((s) => s.key === key)
-				? removeSelection(key)(result)
-				: addSelection({ type: "Tag", tagId })(result);
-		}, sels),
-	);
-}
-
-/** Tag ids that currently have a top-level Tag selection active. */
-export const getSelectedTagIds: () => ReadonlySet<number> = (() => {
-	let prev: Set<number> | null = null;
-	return memoOnRefs(
-		() => [state.selections] as const,
-		(sels) => {
-			const ids = new Set(
-				sels.flatMap((s) => (s.selector.type === "Tag" ? [s.selector.tagId] : [])),
-			);
-			if (prev && prev.symmetricDifference(ids).size === 0) return prev;
-			prev = ids;
-			return ids;
-		},
-	);
-})();
-
-/** Tag ids of every Tag leaf in the active selection tree, in list order.
- *  Includes composite children, excludes ghosted selections; ids may repeat. */
-export const getSelectedTagIdsDeep: () => readonly number[] = memoOnRefs(
-	() => [getActiveSelections()] as const,
-	(sels) => {
-		const out: number[] = [];
-		const walk = (list: Selection[]) => {
-			for (const s of list) {
-				if (s.selector.type === "Tag") out.push(s.selector.tagId);
-				if ("selections" in s.selector) walk(s.selector.selections);
-			}
-		};
-		walk(sels);
-		return out;
-	},
-);
 
 let virtualIdSeq = 0;
 /** Each preview gets a fresh negative id so its identity changes between previews (the pano viewer re-resolves on active-id change). */
@@ -1001,7 +937,7 @@ export function closeDuplicates() {
 }
 
 /** Transition the editor pane, enforcing state invariants:
- *  leaving "location" clears the active location, leaving "plugin" clears the plugin id. */
+ *  leaving "location" clears the active location, leaving "plugin" clears the plugin id. @unstable */
 export function setWorkArea(area: WorkArea) {
 	setState({ workArea: area });
 	if (area !== "location") clearActiveLocation();
@@ -1148,7 +1084,7 @@ export async function commitMap(message?: string): Promise<string> {
 	return r.id;
 }
 
-/** Restore the map to a previous commit's state and reopen it. Clears undo/redo. */
+/** Restore the map to a previous commit's state and reopen it. Clears undo/redo. @unstable */
 export async function checkoutCommit(commitId: string) {
 	if (!state.mapId) return;
 	await flushSave();

@@ -17,7 +17,7 @@ import { Icon } from "@/components/primitives/Icon";
 import { mdiChevronDown, mdiChevronRight, mdiPencil, mdiFolder } from "@mdi/js";
 import { textColorFor, rgbToHex } from "@/lib/util/color";
 import { fmt } from "@/lib/util/format";
-import { toggleTagSelections } from "@/store/useMapStore";
+import { toggleTagSelections } from "@/store/selectionActions";
 import { useStableHandler } from "@/lib/hooks/useStableHandler";
 import { useSetting } from "@/store/settings";
 import { TagContextMenuContent } from "./TagManager";
