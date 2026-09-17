@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "types": ["google.maps"]
   },
-  "include": ["mma.d.ts", "google-maps.d.ts"]
+  "include": ["mma.d.ts"]
 }

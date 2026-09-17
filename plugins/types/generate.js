@@ -18,7 +18,7 @@ async function main() {
       { cwd: appDir, stdio: "inherit" },
     );
 
-    // Hand-written .d.ts sources (google-maps) are not emitted
+    // Hand-written .d.ts sources are not emitted
     // by tsc - copy them in so imports resolve.
     const copyDts = (dir, rel = "") => {
       for (const e of fs.readdirSync(path.join(dir, rel), { withFileTypes: true })) {
@@ -101,21 +101,11 @@ ${line}`);
 
     // api.ts's `declare global` (window.MMA + bare MMA) survives the bundle,
     // so no appended global block is needed.
-    content =
-      `/// <reference types="google.maps" />\n` +
-      `/// <reference path="./google-maps.d.ts" />\n\n` +
-      content;
+    content = `/// <reference types="google.maps" />\n\n` + content;
     fs.writeFileSync(out, content);
     propagateUnstable();
     generateApiMarkdown();
-
-    // The google.maps namespace augmentation is ambient (position-independent),
-    // so it ships verbatim next to mma.d.ts; only the path alias needs remapping.
-    const augment = fs
-      .readFileSync(path.join(appDir, "src", "types", "google-maps.d.ts"), "utf-8")
-      .replace(/import\("@\/[^"]*"\)/g, 'import("./mma")');
-    fs.writeFileSync(path.resolve(__dirname, "google-maps.d.ts"), augment);
-    console.log("Generated plugins/types/mma.d.ts + google-maps.d.ts");
+    console.log("Generated plugins/types/mma.d.ts");
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

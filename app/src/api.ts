@@ -1,6 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/triple-slash-reference
-/// <reference path="./types/google-maps.d.ts" />
-
 /**
  * Unified MMA API -- the single public surface for plugins, tests, and app code.
  * Exposed as `window.MMA` (and the global `MMA`).

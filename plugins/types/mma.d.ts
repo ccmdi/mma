@@ -1,5 +1,4 @@
 /// <reference types="google.maps" />
-/// <reference path="./google-maps.d.ts" />
 
 import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';

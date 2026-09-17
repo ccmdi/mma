@@ -1,5 +1,6 @@
 import { google } from "@/lib/sv/opensv";
 import { TILE_SIZE } from "@/lib/geo/mercator";
+import type { Tile } from "@/lib/geo/photometa";
 
 /** One raster layer of the composite: where its tile lives, and how it blends. */
 export interface TileLayer {
@@ -70,7 +71,7 @@ function initCompositeMapType() {
 		/** One canvas per tile position, whatever the stack depth. Google treats the returned
 		 *  element as the tile, so N layers meant N images plus a wrapper for the browser to
 		 *  lay out, paint and composite - the cost that made a fast zoom-out stall the app. */
-		getTile(coord: TileCoord | null, zoom: number, doc: Document | null) {
+		getTile(coord: Tile | null, zoom: number, doc: Document | null) {
 			if (!coord || !doc) return null;
 			const canvas = doc.createElement("canvas");
 			canvas.width = canvas.height = TILE_SIZE;

@@ -3,7 +3,7 @@
 // check is what catches a plugin reaching for an API newer than the version it says it
 // supports. Run: node plugins/check-floors.mjs
 import { execSync, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -21,10 +21,20 @@ const plugins = readdirSync(pluginsDir)
 	.map((name) => join(pluginsDir, name))
 	.filter((dir) => existsSync(join(dir, "manifest.json")) && existsSync(join(dir, "tsconfig.json")));
 
-/** `mma.d.ts` as committed at tag `v<version>`, or null when no such tag exists. */
+/** Declaration files older SDKs referenced from `mma.d.ts` that the current SDK no longer ships. */
+const RETIRED_SDK_FILES = ["google-maps.d.ts"];
+
+/** The SDK's declaration files as committed at tag `v<version>`, or null when no such tag exists. */
 function sdkAt(version) {
-	const r = spawnSync("git", ["show", `v${version}:plugins/types/mma.d.ts`], { cwd: pluginsDir });
-	return r.status === 0 ? r.stdout : null;
+	const show = (file) => spawnSync("git", ["show", `v${version}:plugins/types/${file}`], { cwd: pluginsDir });
+	const main = show("mma.d.ts");
+	if (main.status !== 0) return null;
+	const files = { "mma.d.ts": main.stdout };
+	for (const file of RETIRED_SDK_FILES) {
+		const r = show(file);
+		if (r.status === 0) files[file] = r.stdout;
+	}
+	return files;
 }
 
 function typecheck(dir) {
@@ -36,7 +46,10 @@ function typecheck(dir) {
 }
 
 const current = readFileSync(sdkDts);
-const restore = () => writeFileSync(sdkDts, current);
+const restore = () => {
+	writeFileSync(sdkDts, current);
+	for (const file of RETIRED_SDK_FILES) rmSync(join(typesDir, file), { force: true });
+};
 process.on("SIGINT", () => {
 	restore();
 	process.exit(130);
@@ -66,7 +79,7 @@ try {
 			console.log(`[${name}] ok (floor ${floor} is unreleased, checked against the current SDK only)`);
 			continue;
 		}
-		writeFileSync(sdkDts, old);
+		for (const [file, contents] of Object.entries(old)) writeFileSync(join(typesDir, file), contents);
 		errors = typecheck(dir);
 		if (errors) {
 			console.log(`[${name}] FAIL against the SDK at v${floor}: raise minAppVersion or drop the newer API\n${errors}`);

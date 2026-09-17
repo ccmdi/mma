@@ -5,7 +5,6 @@
   "types": "mma.d.ts",
   "files": [
     "mma.d.ts",
-    "google-maps.d.ts",
     "tsconfig.base.json"
   ],
   "dependencies": {
