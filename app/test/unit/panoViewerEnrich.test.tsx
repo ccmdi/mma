@@ -295,6 +295,25 @@ describe("input invalidation", () => {
 		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
 		m.unmount();
 	});
+
+	it("walking back to the stored pano forgets the pano walked off", async () => {
+		const m = mountHost();
+		await open("pA");
+		await walk("pB");
+		h.enrichFails = true;
+		await act(async () => viewer.edit({ panoId: "pA", lat: 1, lng: 2 }));
+		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
+		expect(await viewer.settled()).toMatchObject({ panoId: "pA", extra: { custom: "kept" } });
+		m.unmount();
+	});
+
+	it("opening on a pano other than the stored one forgets the stored pano's fields", async () => {
+		h.enrichOn = false;
+		const m = mountHost();
+		await open("pResolved");
+		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
+		m.unmount();
+	});
 });
 
 describe("cancellation race", () => {

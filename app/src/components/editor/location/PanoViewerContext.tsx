@@ -38,8 +38,7 @@ interface PanoViewerContextValue {
 	/** The draft changed: the viewer moved, a date was chosen, a pin toggled. */
 	edit: (patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => void;
 	/** What a save writes: the draft as it stands, never waiting on enrichment. A run
-	 *  still in flight is skipped and its answers discarded; stale derived fields are
-	 *  stripped either way. */
+	 *  still in flight is skipped and its answers discarded. */
 	settled: () => Promise<Location | null>;
 	/** The draft's pano as Google describes it, for what the UI shows off the pano itself
 	 *  rather than off the draft; null until it lands. */
@@ -62,31 +61,33 @@ export function viewerPosition(draft: Location | null, location: Location | null
 	return draft ?? location ?? { lat: 0, lng: 0 };
 }
 
+/** `to`, without the fields derived from any input it changed from `from`. */
+function moved(from: Location, to: Location): Location {
+	const changed = Object.keys(to).filter(
+		(k) => k !== "extra" && to[k as keyof Location] !== from[k as keyof Location],
+	);
+	return changed.length ? { ...to, extra: withoutDerivedFrom(to.extra, changed) } : to;
+}
+
 export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const location = useMapState((s) => s.activeLocation);
 	const pano = usePano();
 	const [state, setState] = useState<Location | null>(null);
 	// Keyed by the location that opened it: another location's draft is simply not this one.
 	const draft = state && state.id === location?.id ? state : null;
-	// Every field derived from an input the draft changed belongs to the old value: it goes,
-	// and enrichment derives it again from the new one.
-	const forgetting = (row: Location): Location => {
-		if (!location) return row;
-		const changed = Object.keys(row).filter(
-			(k) => k !== "extra" && row[k as keyof Location] !== location[k as keyof Location],
-		);
-		return { ...row, extra: withoutDerivedFrom(row.extra, changed) };
-	};
 
 	const open = useCallback((loc: Location, resolved: string | null) => {
-		setState({ ...loc, panoId: resolved ?? loc.panoId });
+		setState(moved(loc, { ...loc, panoId: resolved ?? loc.panoId }));
 	}, []);
 
 	const edit = useCallback(
 		(patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
 			setState((prev) => {
 				if (!prev) return prev;
-				const next = { ...prev, ...(typeof patch === "function" ? patch(prev) : patch) };
+				const next = moved(prev, {
+					...prev,
+					...(typeof patch === "function" ? patch(prev) : patch),
+				});
 				return Object.keys(next).some(
 					(k) => next[k as keyof Location] !== prev[k as keyof Location],
 				)
@@ -147,10 +148,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		const ac = new AbortController();
 		const patch = (extra: Location["extra"]) =>
 			setState((prev) => (prev && sameRow(prev, draft) ? { ...prev, extra } : prev));
-		// Stale fields go before enrichment runs, so a run that is off or narrowed hands
-		// back a clean row too, and the run derives the gaps.
-		const base = forgetting(draft);
-		inFlight.current = enrich(base, {
+		inFlight.current = enrich(draft, {
 			signal: ac.signal,
 			onPartial: ([row]) => {
 				if (row && !ac.signal.aborted && sameRow(row, draft)) patch(row.extra);
@@ -164,7 +162,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			.catch((e: unknown) => {
 				if (ac.signal.aborted) return null;
 				log.error("[viewer] enrichment failed:", e);
-				patch(base.extra);
+				patch(draft.extra);
 				return null;
 			})
 			.finally(() => {
@@ -175,12 +173,11 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	}, [draft?.id, draft?.panoId]);
 	const settled = useCallback(async () => {
 		if (!draft) return null;
-		if (enriching) return forgetting(draft);
+		if (enriching) return draft;
 		const row = await inFlight.current;
 		if (row && sameRow(row, draft)) return { ...draft, extra: row.extra };
-		return forgetting(draft);
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- forgetting reads only draft and location
-	}, [draft, location, enriching]);
+		return draft;
+	}, [draft, enriching]);
 
 	const fullscreenMap = useSetting("fullscreenMap");
 	const prevFullscreenMap = useRef(fullscreenMap);
