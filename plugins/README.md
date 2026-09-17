@@ -17,10 +17,8 @@ macOS:    ~/Library/Application Support/app.map-making.local/plugins/<plugin-id>
 Grab the plugin scaffold directly into your plugins directory:
 
 ```bash
-mkdir %APPDATA%/app.map-making.local/plugins
-cd %APPDATA%/app.map-making.local/plugins
-npx degit ccmdi/mma/plugins
-cd sample
+npx degit ccmdi/mma/plugins <plugins directory>
+cd <plugins directory>/sample
 npm install
 npm run build
 ```
@@ -41,8 +39,8 @@ This watches your source, rebuilds on change, and copies `index.js`, `manifest.j
 For sidecar plugins, run `cargo build` in `plugins/<id>/sidecar/` in a separate terminal - the dev script polls for binary changes and copies them over.
 
 Each plugin is a folder containing at minimum:
-- `manifest.json` — plugin identity
-- `index.js` (or whatever `main` points to) — plugin behavior
+- `manifest.json` - plugin identity
+- `index.js` (or whatever `main` points to) - plugin behavior
 
 ## manifest.json
 
@@ -59,13 +57,13 @@ The manifest is the plugin's identity:
 }
 ```
 
-- `id` — unique identifier (kebab-case recommended, defaults to folder name)
-- `name` — display name shown in the plugin marketplace
-- `description` — short description (optional)
-- `icon` — MDI SVG path string (get one from [pictogrammers.com/library/mdi](https://pictogrammers.com/library/mdi/), or `npm install -D @mdi/js` and import the constant)
-- `main` — entry point JS file, loaded as an ES module (defaults to `index.js`)
-- `experimental` — `true` marks the plugin as experimental (optional). The marketplace card shows a flask label so users know to expect rough edges.
-- `minAppVersion` - lowest app version this build works on (required). The registry only serves the latest build of each plugin, so older apps use this to refuse an install/update that needs a newer `window.MMA` instead of breaking.
+- `id` - unique identifier (kebab-case recommended, defaults to folder name)
+- `name` - display name shown in the plugin marketplace
+- `description` - short description (optional)
+- `icon` - MDI SVG path string (get one from [pictogrammers.com/library/mdi](https://pictogrammers.com/library/mdi/), or `npm install -D @mdi/js` and import the constant)
+- `main` - entry point JS file, loaded as an ES module (defaults to `index.js`)
+- `experimental` - `true` marks the plugin as experimental (optional). The marketplace card shows a flask label so users know to expect rough edges.
+- `minAppVersion` - lowest app version this build works on (required). Older apps install the newest build they support.
 
 ## Writing a plugin
 
@@ -77,7 +75,7 @@ MMA.registerPlugin({
     // Called when the plugin activates (map opens + plugin enabled)
     // Use MMA.* to interact with the editor
     return () => {
-      // Optional cleanup — called on deactivate
+      // Optional cleanup - called on deactivate
     };
   },
 });
@@ -124,5 +122,3 @@ To share: zip the folder and distribute however you like (GitHub, Discord, etc.)
 ### Type dependencies
 
 `mma-plugin-types` declares the libraries the SDK types import from (react, deck.gl, tauri, google.maps) as its own dependencies, so installing it pulls the whole type closure. They are types-only: at runtime your plugin shares the app's copies (see Shared modules).
-
-For the `icon` field, `@mdi/js` has the icon paths, or just copy the SVG path string from [pictogrammers.com/library/mdi](https://pictogrammers.com/library/mdi/).
