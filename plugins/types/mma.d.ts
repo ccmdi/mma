@@ -3384,8 +3384,9 @@ declare function setMapExtraFields(fields: Record<string, ExtraFieldDef>): Promi
 /** Decode a selection bitmask and draw it on the map. @unstable */
 declare function emitBitmask(bytes: number[]): void;
 /** Run a mutation, apply its result to the map, and schedule a save. A result that wraps its
- *  mutation comes back whole; `empty` is its answer when no map is open. */
+ *  mutation comes back whole; `empty` is its answer when no map is open. @unstable */
 declare function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
+/** @unstable */
 declare function mutate<R extends {
     mutation: MutationResult;
 }>(fn: () => Promise<R>, empty: R): Promise<R>;
@@ -3407,7 +3408,7 @@ declare function updateLocations(updates: Update<LocationPatch_Deserialize>[], o
 declare function renameField(from: string, to: string, winner?: MergeWinner): Promise<void>;
 /** Delete extra-field `key` from every location, its definition, and references. */
 declare function deleteField(key: string): Promise<void>;
-/** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. */
+/** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. @unstable */
 declare function applyFieldOp(selector: Selector, op: FieldOp, recordUndo: boolean): Promise<FieldOpResult>;
 /** Add selectors to the active selection list. */
 declare function addSelections(selectors: Selector[]): Promise<void>;
@@ -3514,6 +3515,7 @@ export type store_UiState = UiState;
 declare const store_addLocations: typeof addLocations;
 declare const store_addSelections: typeof addSelections;
 declare const store_addTagToLocations: typeof addTagToLocations;
+/** @unstable */
 declare const store_applyFieldOp: typeof applyFieldOp;
 /** @unstable */
 declare const store_applySelectionUpdate: typeof applySelectionUpdate;
@@ -3553,6 +3555,7 @@ declare const store_holdAutosave: typeof holdAutosave;
 declare const store_initStore: typeof initStore;
 /** @unstable */
 declare const store_mergeDuplicates: typeof mergeDuplicates;
+/** @unstable */
 declare const store_mutate: typeof mutate;
 /** @unstable */
 declare const store_openDuplicateLocation: typeof openDuplicateLocation;
@@ -5196,30 +5199,50 @@ declare const EVENT_DEFS: {
     "active:change": number | null;
     "map:open": MapMeta;
     "map:close": void;
+    /** @unstable */
     "store:changed": void;
+    /** @unstable */
     "render:delta": RenderDelta;
+    /** @unstable */
     "render:selection": SelectionBitmaskPayload;
     "map-list:changed": void;
+    /** @unstable */
     "saved-selections:changed": void;
     "settings:changed": void;
+    /** @unstable */
     "fullscreen:changed": void;
     "plugins:changed": void;
+    /** @unstable */
     "hotkeys:changed": void;
+    /** @unstable */
     "toasts:changed": void;
+    /** @unstable */
     "jobs:changed": void;
+    /** @unstable */
     "bulkruns:changed": void;
+    /** @unstable */
     "scene:changed": void;
+    /** @unstable */
     "measure:changed": void;
+    /** @unstable */
     "anchor:changed": void;
+    /** @unstable */
     "viewport-lock:changed": void;
+    /** @unstable */
     "trail:changed": void;
     "seen:changed": void;
+    /** @unstable */
     "update:changed": void;
+    /** @unstable */
     "review:changed": void;
     "fields:changed": void;
+    /** @unstable */
     "route:changed": void;
+    /** @unstable */
     "import-markers:changed": void;
+    /** @unstable */
     "diff-markers:changed": void;
+    /** @unstable */
     "commit-diff:changed": void;
 };
 export type EditorEventMap = typeof EVENT_DEFS;

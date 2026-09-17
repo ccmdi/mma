@@ -265,7 +265,7 @@ Add selectors to the active selection list.
 
 Add a tag to locations (skips ones that already have it). Undoable.
 
-### `applyFieldOp(selector: Selector, op: FieldOp, recordUndo: boolean): Promise<FieldOpResult>`
+### `applyFieldOp(selector: Selector, op: FieldOp, recordUndo: boolean): Promise<FieldOpResult>` *(unstable)*
 
 Apply a field operation across all locations matching `selector`. Emits `location:invalidate`.
 
@@ -394,7 +394,7 @@ One-time store startup. The app calls this; plugins never need to.
 Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
 map's duplicate preference. One undoable edit.
 
-### `mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>`
+### `mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>` *(unstable)*
 
 Run a mutation, apply its result to the map, and schedule a save. A result that wraps its
 mutation comes back whole; `empty` is its answer when no map is open.

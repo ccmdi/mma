@@ -482,7 +482,7 @@ const EMPTY_MUTATION: MutationResult = {
 };
 
 /** Run a mutation, apply its result to the map, and schedule a save. A result that wraps its
- *  mutation comes back whole; `empty` is its answer when no map is open. */
+ *  mutation comes back whole; `empty` is its answer when no map is open. @unstable */
 export function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
 export function mutate<R extends { mutation: MutationResult }>(
 	fn: () => Promise<R>,
@@ -605,7 +605,7 @@ export async function deleteField(key: string) {
 	await migrateFieldReferences(key, null);
 }
 
-/** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. */
+/** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. @unstable */
 export async function applyFieldOp(
 	selector: Selector,
 	op: FieldOp,

@@ -38,30 +38,50 @@ const EVENT_DEFS = {
 	"active:change": event<number | null>(),
 	"map:open": event<MapMeta>(),
 	"map:close": event<void>(),
+	/** @unstable */
 	"store:changed": event<void>(),
+	/** @unstable */
 	"render:delta": event<RenderDelta>(),
+	/** @unstable */
 	"render:selection": event<SelectionBitmaskPayload>(),
 	"map-list:changed": event<void>(),
+	/** @unstable */
 	"saved-selections:changed": event<void>(),
 	"settings:changed": event<void>(),
+	/** @unstable */
 	"fullscreen:changed": event<void>(),
 	"plugins:changed": event<void>(),
+	/** @unstable */
 	"hotkeys:changed": event<void>(),
+	/** @unstable */
 	"toasts:changed": event<void>(),
+	/** @unstable */
 	"jobs:changed": event<void>(),
+	/** @unstable */
 	"bulkruns:changed": event<void>(),
+	/** @unstable */
 	"scene:changed": event<void>(),
+	/** @unstable */
 	"measure:changed": event<void>(),
+	/** @unstable */
 	"anchor:changed": event<void>(),
+	/** @unstable */
 	"viewport-lock:changed": event<void>(),
+	/** @unstable */
 	"trail:changed": event<void>(),
 	"seen:changed": event<void>(),
+	/** @unstable */
 	"update:changed": event<void>(),
+	/** @unstable */
 	"review:changed": event<void>(),
 	"fields:changed": event<void>(),
+	/** @unstable */
 	"route:changed": event<void>(),
+	/** @unstable */
 	"import-markers:changed": event<void>(),
+	/** @unstable */
 	"diff-markers:changed": event<void>(),
+	/** @unstable */
 	"commit-diff:changed": event<void>(),
 };
 
