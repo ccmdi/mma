@@ -64,7 +64,11 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		return { kind: "datePart", part: projectionId as DatePart, tzLocal: tzLocal && hasTzData };
 	}, [field, widthValid, isRange, width, projectionId, tzLocal, hasTzData]);
 
-	const [loaded, setLoaded] = useState<{ field: string; preview: Preview } | null>(null);
+	const [loaded, setLoaded] = useState<{
+		field: string;
+		key: KeySpec | null;
+		preview: Preview;
+	} | null>(null);
 	useEffect(() => {
 		if (!field) return;
 		let live = true;
@@ -77,6 +81,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 			if (!live) return;
 			setLoaded({
 				field,
+				key,
 				preview: {
 					total,
 					have: counts.find(([k]) => k === field)?.[1] ?? 0,
@@ -89,7 +94,8 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		};
 	}, [picker.selector, field, key]);
 
-	const preview = field && loaded?.field === field ? loaded.preview : null;
+	const preview = field ? (loaded?.preview ?? null) : null;
+	const pending = !!field && (loaded?.field !== field || loaded.key !== key);
 	const counts = preview ? applyCounts(preview, tagMissing) : null;
 
 	const handleFieldChange = (next: string) => {
@@ -233,7 +239,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 						<div className="bulk-operation__status">{missingTimezoneMessage(tzGap)}</div>
 					)}
 					{field && (
-						<div className={clsx("apply-tags__coverage", !preview && "is-pending")}>
+						<div className={clsx("apply-tags__coverage", pending && "is-pending")}>
 							<span className="apply-tags__coverage-label">
 								{t("Locations with {field}", { field: fieldLabel })}
 							</span>
@@ -266,6 +272,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 					<div className="apply-tags__footer">
 						<ApplySummary
 							preview={preview}
+							pending={pending}
 							needsWidth={!!field && !key}
 							tags={counts?.tags ?? 0}
 							locations={counts?.locations ?? 0}
@@ -285,6 +292,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 
 function ApplySummary({
 	preview,
+	pending,
 	needsWidth,
 	tags,
 	locations,
@@ -292,20 +300,21 @@ function ApplySummary({
 	suggestRange,
 }: {
 	preview: Preview | null;
+	pending: boolean;
 	needsWidth: boolean;
 	tags: number;
 	locations: number;
 	fieldLabel: string;
 	suggestRange: boolean;
 }) {
-	let state: "pending" | "empty" | "warning" | "ready" = "ready";
+	let state: "blank" | "empty" | "warning" | "ready" = "ready";
 	let head: ReactNode = null;
 	let note: ReactNode = null;
 	if (needsWidth) {
 		state = "empty";
 		head = t("Enter a bucket width");
 	} else if (!preview) {
-		state = "pending";
+		state = "blank";
 	} else if (tags === 0) {
 		state = "empty";
 		head = t("No tags to create");
@@ -340,7 +349,10 @@ function ApplySummary({
 	}
 	// Both lines always render so the footer keeps one height through every state.
 	return (
-		<div className={clsx("apply-tags__summary", `is-${state}`)} aria-live="polite">
+		<div
+			className={clsx("apply-tags__summary", `is-${state}`, pending && "is-pending")}
+			aria-live="polite"
+		>
 			<span className="apply-tags__summary-head">{head ?? "\u00a0"}</span>
 			<span className="apply-tags__summary-note">{note ?? "\u00a0"}</span>
 		</div>

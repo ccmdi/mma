@@ -2750,9 +2750,15 @@ input[type="range"]:disabled {
 	font-size: 0.75rem;
 	color: var(--text-3);
 }
+.apply-tags__coverage,
+.apply-tags__summary {
+	transition: opacity 120ms ease;
+}
+/* The delay keeps a fast answer from flickering; only a wait you would notice dims. */
 .apply-tags__coverage.is-pending,
 .apply-tags__summary.is-pending {
-	visibility: hidden;
+	opacity: 0.5;
+	transition-delay: 150ms;
 }
 .apply-tags__summary-head,
 .apply-tags__summary-note {
