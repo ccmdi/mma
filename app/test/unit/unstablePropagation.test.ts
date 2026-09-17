@@ -51,6 +51,25 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 		);
 	});
 
+	it("a type only unstable members reach is unstable", () => {
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*type DbStats = /);
+	});
+
+	it("a type a stable member reaches stays a promise", () => {
+		expect(dts).toMatch(/\*\/\n\s*type Location = /);
+		expect(dts).not.toMatch(/@unstable[^\n]*\n(\s*\*[^\n]*\n)*\s*type Location = /);
+	});
+
+	it("a bundler namespace alias is never a promise", () => {
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*export type settings_AppSettings = AppSettings;/);
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*export type consts_CameraType = CameraType;/);
+	});
+
+	it("a stamped bundler alias leaves the member it names stable", () => {
+		const apiMd = readFileSync(join(__dirname, "../../../plugins/types/API.md"), "utf8");
+		expect(apiMd).toMatch(/^### `CameraType`$/m);
+	});
+
 	it("a legacy shim is unstable from birth, so it is never a stable promise", () => {
 		const deprecated = dts
 			.split(/\n(?=\s*\/\*\*)/)

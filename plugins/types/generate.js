@@ -105,6 +105,7 @@ ${line}`);
     rejectBackendSpelling(content);
     fs.writeFileSync(out, content);
     propagateUnstable();
+    stampUnpromisedExports();
     generateApiMarkdown();
     console.log("Generated plugins/types/mma.d.ts");
   } finally {
@@ -152,6 +153,17 @@ function declarationHops(ts, checker) {
     }
     return hops;
   };
+}
+
+// Whether a member is `@unstable`, read off the declarations it reaches. A bundler alias
+// merges a const with a same-named type, so a hop's tag is its value declaration's alone.
+function memberUnstable(ts, checker) {
+  const hopsOf = declarationHops(ts, checker);
+  const tagged = (sym) =>
+    sym.valueDeclaration
+      ? ts.getJSDocTags(sym.valueDeclaration).some((t) => t.tagName.text === "unstable")
+      : sym.getJsDocTags(checker).some((t) => t.name === "unstable");
+  return (prop, target) => [prop, target, ...hopsOf(prop)].some((s) => s && tagged(s));
 }
 
 // `@unstable` is declared once -- on a surface (`type ReviewApi`) or a namespace (`cmd`) --
@@ -227,10 +239,15 @@ function propagateUnstable() {
   };
   collect(checker.getTypeAtLocation(root), 1, false);
 
+  console.log(`Propagated @unstable to ${stampUnstable(ts, source, targets)} members`);
+}
+
+// Add `@unstable` to the doc comment of each node, or give it one, and rewrite the d.ts.
+function stampUnstable(ts, source, nodes) {
   // Highest offset first, so earlier edits keep their positions.
   const full = source.getFullText();
   const edits = [];
-  for (const node of targets) {
+  for (const node of nodes) {
     const docs = node.jsDoc;
     if (docs && docs.length) {
       const last = docs[docs.length - 1];
@@ -259,7 +276,71 @@ ${" ".repeat(col)}` });
   let text = fs.readFileSync(out, "utf-8");
   for (const e of edits) text = text.slice(0, e.at) + e.insert + text.slice(e.at);
   fs.writeFileSync(out, text);
-  console.log(`Propagated @unstable to ${edits.length} members`);
+  return edits.length;
+}
+
+// A type is promised only while a stable member's signature can reach it. Everything else
+// the bundle exports -- a command's result, a settings shape, a bundler namespace alias --
+// is stamped `@unstable`, so the type gate in check-legacy holds exactly what plugins can
+// get their hands on through the stable surface.
+function stampUnpromisedExports() {
+  const ts = require(path.join(appDir, "node_modules", "typescript"));
+  const program = ts.createProgram([out], { skipLibCheck: true, target: ts.ScriptTarget.ESNext });
+  const checker = program.getTypeChecker();
+  const source = program.getSourceFile(out);
+
+  let root = null;
+  ts.forEachChild(source, (n) => {
+    if (ts.isInterfaceDeclaration(n) && n.name.text === "MMA") root = n;
+  });
+  if (!root) throw new Error("no MMA interface in the bundle");
+
+  const taggedNode = (n) => ts.getJSDocTags(n).some((t) => t.tagName.text === "unstable");
+  const unstableMember = memberUnstable(ts, checker);
+  const resolve = (sym) => (sym && sym.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(sym) : sym);
+
+  const reached = new Set([root]);
+  const visit = (sym) => {
+    for (const d of resolve(sym)?.declarations || []) {
+      if (d.getSourceFile() !== source || reached.has(d) || taggedNode(d)) continue;
+      reached.add(d);
+      walk(d);
+    }
+  };
+  const walk = (node) => {
+    if (node !== root && node.parent && taggedNode(node) && !ts.isVariableDeclaration(node)) return;
+    if (ts.isTypeReferenceNode(node)) visit(checker.getSymbolAtLocation(node.typeName));
+    else if (ts.isExpressionWithTypeArguments(node)) visit(checker.getSymbolAtLocation(node.expression));
+    else if (ts.isTypeQueryNode(node)) visit(checker.getSymbolAtLocation(node.exprName));
+    else if (ts.isExportSpecifier(node)) visit(checker.getExportSpecifierLocalTargetSymbol(node));
+    ts.forEachChild(node, walk);
+  };
+
+  for (const prop of checker.getPropertiesOfType(checker.getTypeAtLocation(root))) {
+    if (unstableMember(prop, checker.getTypeOfSymbolAtLocation(prop, root).getSymbol())) continue;
+    visit(prop);
+  }
+
+  const documentable = (d) =>
+    ts.isVariableDeclaration(d) ? d.parent && d.parent.parent : d;
+  // rollup-plugin-dts names a module's members `module_Name` inside its namespace. The alias
+  // is how the bundle is assembled, not a name a plugin should import.
+  const bundlerAlias = (name, decls) =>
+    decls.every((d) => {
+      const ref = ts.isTypeAliasDeclaration(d) && ts.isTypeReferenceNode(d.type) ? d.type.typeName
+        : ts.isVariableDeclaration(d) && d.type && ts.isTypeQueryNode(d.type) ? d.type.exprName
+        : null;
+      return !!ref && ts.isIdentifier(ref) && name.endsWith(`_${ref.text}`);
+    });
+  const unpromised = new Set();
+  for (const exp of checker.getExportsOfModule(checker.getSymbolAtLocation(source))) {
+    // The per-module aliases api.ts assembles MMA from carry the surface tags themselves.
+    if (/Api$/.test(exp.name)) continue;
+    const decls = (resolve(exp).declarations || []).filter((d) => d.getSourceFile() === source);
+    if (decls.length === 0 || (decls.some((d) => reached.has(d)) && !bundlerAlias(exp.name, decls))) continue;
+    for (const d of decls) unpromised.add(documentable(d));
+  }
+  console.log(`Stamped @unstable on ${stampUnstable(ts, source, unpromised)} exports no stable member reaches`);
 }
 
 // The human-readable companion to mma.d.ts: one section per API surface on the MMA
@@ -278,16 +359,15 @@ function generateApiMarkdown() {
   if (!root) throw new Error("no MMA interface in the bundle");
 
   const doc = (sym) => ts.displayPartsToString(sym.getDocumentationComment(checker)).trim();
-  const isUnstable = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
 
-  const declaredThrough = declarationHops(ts, checker);
+  const unstableMember = memberUnstable(ts, checker);
 
   // Doc and tags can live on the aliased declaration rather than the property symbol.
   const describe = (prop, propType) => {
     const target = propType.getSymbol();
     return {
       doc: doc(prop) || (target ? doc(target) : ""),
-      unstable: [prop, target, ...declaredThrough(prop)].some((s) => s && isUnstable(s)),
+      unstable: unstableMember(prop, target),
     };
   };
 

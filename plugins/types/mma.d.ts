@@ -377,41 +377,55 @@ declare const VIRTUAL_FLAGS: 12;
 declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
 declare const consts_CLEARABLE_BUILTINS: typeof CLEARABLE_BUILTINS;
 declare const consts_CameraType: typeof CameraType;
+/** @unstable */
 export type consts_CameraType = CameraType;
 declare const consts_CapturePick: typeof CapturePick;
+/** @unstable */
 export type consts_CapturePick = CapturePick;
 declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
 declare const consts_DatePart: typeof DatePart;
+/** @unstable */
 export type consts_DatePart = DatePart;
 declare const consts_EFFECT_CALLS: typeof EFFECT_CALLS;
 declare const consts_ERROR_CODES: typeof ERROR_CODES;
 declare const consts_ExtraFieldType: typeof ExtraFieldType;
+/** @unstable */
 export type consts_ExtraFieldType = ExtraFieldType;
 declare const consts_FirstSyncMode: typeof FirstSyncMode;
+/** @unstable */
 export type consts_FirstSyncMode = FirstSyncMode;
 declare const consts_IssueState: typeof IssueState;
+/** @unstable */
 export type consts_IssueState = IssueState;
 declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
 declare const consts_LocationFlag: typeof LocationFlag;
+/** @unstable */
 export type consts_LocationFlag = LocationFlag;
 declare const consts_MergeWinner: typeof MergeWinner;
+/** @unstable */
 export type consts_MergeWinner = MergeWinner;
 declare const consts_OFFICIAL_ID_PATTERN: typeof OFFICIAL_ID_PATTERN;
 declare const consts_PLAIN_CALLS: typeof PLAIN_CALLS;
 declare const consts_PROJECTIONS: typeof PROJECTIONS;
 declare const consts_PanoType: typeof PanoType;
+/** @unstable */
 export type consts_PanoType = PanoType;
 declare const consts_RankingStrategy: typeof RankingStrategy;
+/** @unstable */
 export type consts_RankingStrategy = RankingStrategy;
 declare const consts_RateCost: typeof RateCost;
+/** @unstable */
 export type consts_RateCost = RateCost;
 declare const consts_ResolutionSide: typeof ResolutionSide;
+/** @unstable */
 export type consts_ResolutionSide = ResolutionSide;
 declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
 declare const consts_Sink: typeof Sink;
+/** @unstable */
 export type consts_Sink = Sink;
 declare const consts_VIRTUAL_FLAGS: typeof VIRTUAL_FLAGS;
 declare const consts_ValidationState: typeof ValidationState;
+/** @unstable */
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
   export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
@@ -991,7 +1005,7 @@ declare const commands$1: {
     /**  What the procedure engine is working on right now. @unstable */
     procedureActivity: () => Promise<ProcedureActivity>;
 };
-/** Events */
+/** Events @unstable */
 declare const events: {
     bulkExportProgress: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
         listen: (cb: __TAURI_EVENT.EventCallback<ExportProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
@@ -1102,6 +1116,7 @@ declare const events: {
         emit: (payload: ValiProgress) => Promise<void>;
     };
 };
+/** @unstable */
 type AnonIssueRef = {
     number: number;
     url: string;
@@ -1111,7 +1126,7 @@ type AnonIssueRef = {
      */
     token: string;
 };
-/**  An image the reporter attached, once it is somewhere the issue can point at. */
+/**  An image the reporter attached, once it is somewhere the issue can point at. @unstable */
 type AttachmentRef = {
     url: string;
     /**
@@ -1120,7 +1135,7 @@ type AttachmentRef = {
      */
     name: string;
 };
-/**  How a page of rows is cut into procedure calls. */
+/**  How a page of rows is cut into procedure calls. @unstable */
 type BatchMode = {
     mode: "chunk";
     size: number;
@@ -1140,7 +1155,7 @@ type CameraFrame = {
     heading: number;
     pitch: number;
 };
-/**  A marker removed from a render cell. */
+/**  A marker removed from a render cell. @unstable */
 type CellRemoval = {
     cell: string;
     cellIndex: number;
@@ -1149,23 +1164,25 @@ type CellRemoval = {
 /**
  *  Per-field columns of the selected set. One value per row per field, `null` where a
  *  row lacks it; `"tags"` is a column of tag-id arrays.
+ *  @unstable
  */
 type Columns = unknown[][];
 /**
  *  A commit's created and removed locations. An updated location appears in both
  *  `created` (new version) and `removed` (old version).
+ *  @unstable
  */
 type CommitDelta = {
     created: Location[];
     removed: Location[];
 };
-/**  Added, removed, and modified counts for a commit. */
+/**  Added, removed, and modified counts for a commit. @unstable */
 type CommitDiff = {
     added: number;
     removed: number;
     modified: number;
 };
-/**  Metadata for a single commit. */
+/**  Metadata for a single commit. @unstable */
 type CommitInfo = {
     id: string;
     mapId: string;
@@ -1175,7 +1192,7 @@ type CommitInfo = {
     locationCount: number;
     createdAt: string;
 } & CommitDiff;
-/**  The new commit's ID and the resulting state update. */
+/**  The new commit's ID and the resulting state update. @unstable */
 type CommitResult = {
     id: string;
     status: MutationResult;
@@ -1194,6 +1211,7 @@ type ComparisonType = {
 } | {
     type: "categorical";
 };
+/** @unstable */
 type Conflict = {
     key: string;
     kind: ConflictKind;
@@ -1201,6 +1219,7 @@ type Conflict = {
     local: NormalizedSyncLocation | null;
     remote: NormalizedSyncLocation | null;
 };
+/** @unstable */
 type ConflictKind = 
 /**  Both sides modified the same location differently. */
 "update-update" | 
@@ -1208,26 +1227,26 @@ type ConflictKind =
 "delete-update" | 
 /**  Both sides added the same identity with different content (hash collision only). */
 "add-add";
-/**  Result of copying locations to another map. */
+/**  Result of copying locations to another map. @unstable */
 type CopyToMapResult = {
     copied: number;
     skipped: number;
     targetName: string;
 };
-/**  A create's outcome for the caller: the mutation plus the tags it named. */
+/**  A create's outcome for the caller: the mutation plus the tags it named. @unstable */
 type CreatedTags = {
     mutation: MutationResult;
     /**  The tags the names resolved to, in the order the names were given. */
     ids: number[];
 };
-/**  The active and default data-folder paths, plus whether a custom override is in effect. */
+/**  The active and default data-folder paths, plus whether a custom override is in effect. @unstable */
 type DataLocation = {
     path: string;
     /**  OS default, ignoring any override -- backs the "reset" affordance. */
     default_path: string;
     is_custom: boolean;
 };
-/**  Aggregate database statistics for the debug panel. */
+/**  Aggregate database statistics for the debug panel. @unstable */
 type DbStats = {
     maps: number;
     /**  Locations across every map as of the last time each was saved. */
@@ -1241,7 +1260,7 @@ type DbStats = {
     journalMode: string;
     foreignKeys: boolean;
 };
-/**  What the user needs in order to authorize: the code to type and where to type it. */
+/**  What the user needs in order to authorize: the code to type and where to type it. @unstable */
 type DeviceCodeInfo = {
     userCode: string;
     verificationUri: string;
@@ -1252,6 +1271,7 @@ type DeviceCodeInfo = {
  *  Preview data for importing a file into the currently open map.
  *  Unlike bulk import, this shows per-field counts so the user can
  *  selectively drop fields (heading, panoId, etc.) before importing.
+ *  @unstable
  */
 type EditorImportPreview = {
     locationCount: number;
@@ -1271,6 +1291,7 @@ type EditorImportPreview = {
 /**
  *  Combined result of an editor import: the mutation delta (for render pipeline)
  *  plus import-specific metadata.
+ *  @unstable
  */
 type EditorImportResult = {
     mutation: MutationResult;
@@ -1310,6 +1331,7 @@ type EngineValues = {
 /**
  *  Configuration for JSON export. Controls which fields are included and
  *  whether the export covers all locations or a specific selection.
+ *  @unstable
  */
 type ExportOpts = {
     exportZoom: boolean;
@@ -1328,13 +1350,14 @@ type ExportOpts = {
 /**
  *  Progress event emitted per-map during bulk export, consumed by the frontend
  *  to drive a progress indicator.
+ *  @unstable
  */
 type ExportProgress = {
     current: number;
     total: number;
     mapName: string;
 };
-/**  Why an expression failed to parse. The sentence is TS's to write. */
+/**  Why an expression failed to parse. The sentence is TS's to write. @unstable */
 type ExprError = {
     kind: "invalidNumber";
     position: number;
@@ -1369,7 +1392,7 @@ type ExprError = {
     kind: "trailingToken";
     token: string;
 };
-/**  A change another window made to a map, identified by `mapId`. */
+/**  A change another window made to a map, identified by `mapId`. @unstable */
 type ExternalMutation = {
     mapId: string;
 } & MutationResult;
@@ -1391,12 +1414,13 @@ type ExtraFieldDef = {
 /**
  *  Field presence count for the editor import preview dialog, letting
  *  the user see which optional fields exist and decide which to keep/drop.
+ *  @unstable
  */
 type FieldCount = {
     key: string;
     count: number;
 };
-/**  A rewrite of one `extra` field across every location, computed per row. */
+/**  A rewrite of one `extra` field across every location, computed per row. @unstable */
 type FieldOp = 
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
@@ -1431,7 +1455,7 @@ type FieldOp =
     key: string;
     expr: string;
 };
-/**  The op's outcome for the caller: the mutation plus what its message needs. */
+/**  The op's outcome for the caller: the mutation plus what its message needs. @unstable */
 type FieldOpResult = {
     mutation: MutationResult;
     /**  Rows the op patched. */
@@ -1493,7 +1517,7 @@ type FilterOp = {
     hi: string;
     tzLocal?: boolean;
 };
-/**  Reverse geocode result: nearest populated place to a coordinate. */
+/**  Reverse geocode result: nearest populated place to a coordinate. @unstable */
 type GeoResult = {
     city: string;
     /**  First-level administrative division (state, province, region). */
@@ -1501,13 +1525,14 @@ type GeoResult = {
     /**  ISO 3166-1 alpha-2 (e.g. "US", "FR"). */
     country_code: string;
 };
-/**  The signed-in GeoGuessr account. */
+/**  The signed-in GeoGuessr account. @unstable */
 type GgUser = {
     id: string;
     nick: string;
     /**  Avatar pin path (e.g. `pin/<hash>.png`), served under `/images/` on geoguessr.com. */
     pin: string | null;
 };
+/** @unstable */
 type GhUser = {
     login: string;
     avatarUrl: string | null;
@@ -1515,6 +1540,7 @@ type GhUser = {
 /**
  *  One row of honeycomb points: `count` points from `lng` eastward, each `lngStep` degrees
  *  apart.
+ *  @unstable
  */
 type HoneycombRun = {
     lat: number;
@@ -1522,6 +1548,7 @@ type HoneycombRun = {
     lngStep: number;
     count: number;
 };
+/** @unstable */
 type IdQuery = {
     panoId: string;
 };
@@ -1532,6 +1559,7 @@ type ImageSize = {
 /**
  *  Summary of a single map found during bulk import preview.
  *  Shown in the import dialog so the user can select which maps to import.
+ *  @unstable
  */
 type ImportPreviewEntry = {
     /**  `null` when the file doesn't name the map. */
@@ -1544,25 +1572,28 @@ type ImportPreviewEntry = {
 /**
  *  Progress event emitted per-map during bulk import, consumed by the frontend
  *  to drive a progress indicator.
+ *  @unstable
  */
 type ImportProgress = {
     current: number;
     total: number;
     mapName: string;
 };
-/**  Result returned per map after a successful bulk import. */
+/**  Result returned per map after a successful bulk import. @unstable */
 type ImportedMapInfo = {
     id: string;
     name: string;
     locationCount: number;
     tagCount: number;
 };
+/** @unstable */
 type IssueComment = {
     author: string;
     body: string;
     /**  ISO-8601, as GitHub returns it. */
     createdAt: string;
 };
+/** @unstable */
 type IssueRef = {
     number: number;
     url: string;
@@ -1570,6 +1601,7 @@ type IssueRef = {
 /**
  *  What became of a report, and what has been said on it. One shape for both transports so a
  *  signed-in and an anonymous report render identically.
+ *  @unstable
  */
 type IssueThread = {
     state: IssueState;
@@ -1651,6 +1683,7 @@ type LocationPatch_Deserialize = {
  *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
  *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
  *  shallow-merge, null values delete.
+ *  @unstable
  */
 type LocationPatch = {
     lat: number | null;
@@ -1732,6 +1765,7 @@ type MapMetaPatch_Deserialize = {
 /**
  *  Partial update for map metadata. Omitted fields are left unchanged.
  *  Setting `folder` to null moves the map to root.
+ *  @unstable
  */
 type MapMetaPatch = {
     name: string | null;
@@ -1790,18 +1824,18 @@ type MapSettings = {
     /**  Which capture a bulk pin's resolve settles on; `null` keeps the pano as found. */
     pinCapture?: CapturePick | null;
 };
-/**  A map the key holder can link to. */
+/**  A map the key holder can link to. @unstable */
 type MmMapSummary = {
     id: string;
     name: string;
     locationCount: number;
 };
-/**  The account an API key belongs to. */
+/**  The account an API key belongs to. @unstable */
 type MmUser = {
     id: number;
     username: string;
 };
-/**  What one change did to the open map. */
+/**  What one change did to the open map. @unstable */
 type MutationResult = {
     version: number;
     delta: RenderDelta;
@@ -1811,6 +1845,7 @@ type MutationResult = {
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
  *  owned by exactly one side and would register as a phantom change.
+ *  @unstable
  */
 type NormalizedSyncLocation = {
     lat: number;
@@ -1877,6 +1912,7 @@ type Pano = {
 /**
  *  What one query resolved to. `skipped` is a query the host never answered: an aborted
  *  run, or an id query whose id is empty.
+ *  @unstable
  */
 type PanoAnswer = {
     state: "found";
@@ -1897,14 +1933,14 @@ type PanoLink = {
     panoId: string;
     heading: number;
 };
-/**  One pano lookup: a pano id resolves over GetMetadata, a search over SingleImageSearch. */
+/**  One pano lookup: a pano id resolves over GetMetadata, a search over SingleImageSearch. @unstable */
 type PanoQuery = IdQuery | SearchQuery;
 type PanoTime = {
     panoId: string;
     /**  The civil day, `YYYY-MM-DD`. */
     date: string;
 };
-/**  A single location parsed out of a pasted Maps URL. */
+/**  A single location parsed out of a pasted Maps URL. @unstable */
 type ParsedLocation = {
     lat: number;
     lng: number;
@@ -1925,7 +1961,7 @@ type PartitionBucket = {
     ids: number[];
     bin: [number, number] | null;
 };
-/**  A published build of a plugin. */
+/**  A published build of a plugin. @unstable */
 type PluginBuild_Deserialize = {
     version: string;
     ref: string;
@@ -1937,7 +1973,7 @@ type PluginBuild = {
     ref: string;
     minAppVersion?: string | null;
 };
-/**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. */
+/**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. @unstable */
 type PluginManifest_Deserialize = {
     id?: string;
     name?: string;
@@ -1971,7 +2007,7 @@ type PluginManifest = {
     /**  Older builds, for apps below `minAppVersion`. Only present in the marketplace registry. */
     builds?: PluginBuild[];
 };
-/**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
+/**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). @unstable */
 type PluginSidecar_Deserialize = {
     name: string;
     version: string;
@@ -1999,6 +2035,7 @@ type Pov = {
     tilt: number;
     roll: number;
 };
+/** @unstable */
 type PresenceActivity = {
     details: string | null;
     state: string | null;
@@ -2009,7 +2046,7 @@ type PresenceActivity = {
     /**  Unix seconds; Discord renders an "elapsed" timer counting up from here. */
     start: number | null;
 };
-/**  Everything the procedure engine has in flight at one instant. */
+/**  Everything the procedure engine has in flight at one instant. @unstable */
 type ProcedureActivity = {
     /**  The providers working right now. */
     runs: ProviderActivity[];
@@ -2021,6 +2058,7 @@ type ProcedureActivity = {
 /**
  *  What every entry point of a procedure receives as its last argument: the engine's view of
  *  the run and the procedure's own configuration.
+ *  @unstable
  */
 type ProcedureConfig<T> = {
     /**  The extra-field keys the run wants written. Empty means every key the procedure produces. */
@@ -2033,6 +2071,7 @@ type ProcedureConfig<T> = {
 /**
  *  A procedure module and the network limits every call to it gets, whether it runs over
  *  locations or answers a question.
+ *  @unstable
  */
 type ProcedureDecl = {
     /**  The procedure module: an absolute path, or `res://<rel>` for one bundled with the app. */
@@ -2050,6 +2089,7 @@ type ProcedureDecl = {
      */
     config?: string | null;
 };
+/** @unstable */
 type ProcedureProgress = {
     runId: number;
     providerId: string;
@@ -2067,6 +2107,7 @@ type ProcedureProgress = {
  *  What one page hands back to the caller: a `Collect` provider's answers, delivered
  *  instead of being written, and for every sink the rows that failed. Emitted only when
  *  there is something in it.
+ *  @unstable
  */
 type ProcedureResult = {
     runId: number;
@@ -2075,7 +2116,7 @@ type ProcedureResult = {
     /**  Rows the procedure failed, or every row of a batch whose call failed. */
     failed: number[];
 };
-/**  One provider working its share of a run. */
+/**  One provider working its share of a run. @unstable */
 type ProviderActivity = {
     /**  The run this provider belongs to. */
     runId: number;
@@ -2105,6 +2146,7 @@ type ProviderActivity = {
 /**
  *  One provider as declared by the frontend. `fields` are the extra keys it produces
  *  and `requires` the keys it consumes; together they gate who waits for whom.
+ *  @unstable
  */
 type ProviderDecl = {
     id: string;
@@ -2129,18 +2171,18 @@ type ProviderDecl = {
      */
     instances?: number | null;
 } & ProcedureDecl;
-/**  A location created on the remote side, to add locally. */
+/**  A location created on the remote side, to add locally. @unstable */
 type PullCreate = {
     fields: NormalizedSyncLocation;
     remoteId: number;
     hash: string;
 };
-/**  A remote-originated update for JS to apply to an existing local id. */
+/**  A remote-originated update for JS to apply to an existing local id. @unstable */
 type PullUpdate = {
     localId: number;
     patch: SyncPatch;
 };
-/**  The questions one procedure is answering, taken together. */
+/**  The questions one procedure is answering, taken together. @unstable */
 type QueryActivity = {
     /**  The procedure answering. */
     entry: string;
@@ -2151,27 +2193,27 @@ type QueryActivity = {
     /**  Requests retried so far by the queries in flight. */
     retries: number;
 };
-/**  Rate limit: `units` calls per `perMs` milliseconds, refilled continuously. */
+/**  Rate limit: `units` calls per `perMs` milliseconds, refilled continuously. @unstable */
 type RateSpec = {
     units: number;
     perMs: number;
     cost?: RateCost;
 };
-/**  One mapping row. `hash` is the plugin's content fingerprint (opaque text to us). */
+/**  One mapping row. `hash` is the plugin's content fingerprint (opaque text to us). @unstable */
 type RemoteMappingRow = {
     localId: number;
     /**  Remote ids can exceed u32 (observed ~1.2e10), so i64. */
     remoteId: number;
     hash: string;
 };
-/**  Marker changes after an edit: added, updated, and removed markers. */
+/**  Marker changes after an edit: added, updated, and removed markers. @unstable */
 type RenderDelta = {
     added: RenderEntry[];
     updated: RenderPatchEntry[];
     removed: CellRemoval[];
     fullReset: boolean;
 };
-/**  A marker appended to a render cell: position, heading, and selection state. */
+/**  A marker appended to a render cell: position, heading, and selection state. @unstable */
 type RenderEntry = {
     cell: string;
     id: number;
@@ -2191,6 +2233,7 @@ type RenderEntry = {
  *  Update to an existing marker within its cell. Position and heading are `null` when
  *  unchanged; `sel` always states the row's current selection state, so a membership
  *  change with no movement is just a patch with no coordinates.
+ *  @unstable
  */
 type RenderPatchEntry = {
     cell: string;
@@ -2203,6 +2246,7 @@ type RenderPatchEntry = {
 /**
  *  Parameters for a full marker rebuild. `markerStyle` ("arrow" or "pin") decides whether
  *  headings are drawn.
+ *  @unstable
  */
 type RenderRequest = {
     west?: number;
@@ -2216,12 +2260,13 @@ type RenderRequest = {
 /**
  *  One location's answer from a `Collect` provider: whatever its module emitted for
  *  that row, carried as text exactly as a patch would be.
+ *  @unstable
  */
 type ResultEntry = {
     id: number;
     json: string;
 };
-/**  Retry only the listed HTTP statuses, up to `attempts` total tries. */
+/**  Retry only the listed HTTP statuses, up to `attempts` total tries. @unstable */
 type RetrySpec = {
     attempts: number;
     on: number[];
@@ -2229,6 +2274,7 @@ type RetrySpec = {
 /**
  *  Parameters for creating a review session. `order` is the frozen worklist (must be
  *  non-empty); the cursor starts at its first id.
+ *  @unstable
  */
 type ReviewCreate = {
     mapId: string;
@@ -2237,7 +2283,7 @@ type ReviewCreate = {
     sourceProps: any;
     order: number[];
 };
-/**  A review session: a frozen worklist of locations with progress tracking. */
+/**  A review session: a frozen worklist of locations with progress tracking. @unstable */
 type ReviewSession = {
     id: string;
     mapId: string;
@@ -2251,7 +2297,7 @@ type ReviewSession = {
     createdAt: string;
     updatedAt: string;
 };
-/**  Partial update for a review session. Omitted fields are left unchanged. */
+/**  Partial update for a review session. Omitted fields are left unchanged. @unstable */
 type ReviewUpdate = {
     id: string;
     name?: string | null;
@@ -2260,7 +2306,7 @@ type ReviewUpdate = {
     ordering: number[] | null;
     status: string | null;
 };
-/**  Matched locations: returned inline, or as a file path to read them from. */
+/**  Matched locations: returned inline, or as a file path to read them from. @unstable */
 type Rows = {
     kind: "inline";
     locations: Location[];
@@ -2268,17 +2314,18 @@ type Rows = {
     kind: "file";
     path: string;
 };
-/**  Rows after a run over them, and the ids each provider failed. */
+/**  Rows after a run over them, and the ids each provider failed. @unstable */
 type RowsRun = {
     rows: Location[];
     failed: {
         [key in string]: number[];
     };
 };
-/**  Bytes written by a save; 0 when there was nothing to save. */
+/**  Bytes written by a save; 0 when there was nothing to save. @unstable */
 type SaveResult = {
     savedBytes: number;
 };
+/** @unstable */
 type SavedSelection = {
     selector: Selector;
     /**  Tag id -> the name it carried when saved. What makes a map-local `Tag` leaf portable. */
@@ -2290,6 +2337,7 @@ type SavedSelection = {
  *  A rule's identity and label, with no tree attached. What the UI lists and holds; the
  *  body is a separate read because a single `Polygon` leaf can carry a country border's
  *  coordinates (~1.7MB of JSON at the heavy border detail).
+ *  @unstable
  */
 type SavedSelectionInfo = {
     id: string;
@@ -2305,6 +2353,7 @@ type ScoreBounds = string | [number, number, number, number];
 /**
  *  The full SingleImageSearch request surface. Every optional field defaults to what the
  *  Maps JS API sends for `getPanorama({location, radius})`.
+ *  @unstable
  */
 type SearchQuery = {
     lat: number;
@@ -2351,7 +2400,7 @@ type SeenMapInfo = {
     id: string;
     name: string;
 };
-/**  Parameters for recording a panorama visit. */
+/**  Parameters for recording a panorama visit. @unstable */
 type SeenWriteEntry = {
     panoId: string;
     lat: number;
@@ -2371,6 +2420,7 @@ type SeenWriteEntry = {
  *  The index is the draw order - a later selection overdraws an earlier one - so the
  *  overlay can be ordered by it instead of by whatever order rows happen to arrive in.
  *  Every marker sits at z=0 in one deck.gl layer, so buffer order is the only z there is.
+ *  @unstable
  */
 type SelPaint = {
     idx: number;
@@ -2386,12 +2436,12 @@ type Selection = {
     color: [number, number, number];
     selector: Selector;
 };
-/**  A top-level selection, plus whether it is ghosted. */
+/**  A top-level selection, plus whether it is ghosted. @unstable */
 type SelectionInput = {
     /**  Counted, but kept out of the overlay and the selected set. */
     ghosted?: boolean;
 } & Selection;
-/**  Updated selection state after a change. `counts` gives each selection's match count. */
+/**  Updated selection state after a change. `counts` gives each selection's match count. @unstable */
 type SelectionSync = {
     /**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
     counts: {
@@ -2471,30 +2521,34 @@ type Selector = {
     k: number | null;
     ascending: boolean;
 };
+/** @unstable */
 type SideCounts = {
     create: number;
     update: number;
     delete: number;
 };
+/** @unstable */
 type SidecarDone = {
     reqId: number;
     error: string | null;
 };
+/** @unstable */
 type SidecarLine = {
     reqId: number;
     line: string;
 };
-/**  A log line from a plugin's sidecar. */
+/**  A log line from a plugin's sidecar. @unstable */
 type SidecarLog = {
     reqId: number;
     line: string;
 };
+/** @unstable */
 type SidecarProgress = {
     pluginId: string;
     downloaded: number;
     total: number;
 };
-/**  A spaced pick's answer: the picked ids plus the spacing they were picked at. */
+/**  A spaced pick's answer: the picked ids plus the spacing they were picked at. @unstable */
 type SpacedPickResult = {
     ids: number[];
     distanceM: number;
@@ -2502,18 +2556,19 @@ type SpacedPickResult = {
 /**
  *  Open-time snapshot: the same `values` a mutation result carries, with every field
  *  present. The one full picture JS ever receives; everything after is a delta.
+ *  @unstable
  */
 type StoreStatus = {
     version: number;
     values: EngineValues;
 };
-/**  What the store has to warn the user about. The sentence is TS's to write. */
+/**  What the store has to warn the user about. The sentence is TS's to write. @unstable */
 type StoreWarning = 
 /**  The uncommitted delta was unreadable; the map opened from its last commit. */
 {
     kind: "deltaSetAside";
 };
-/**  Lightweight status for polling: count, version, and whether unsaved changes exist. */
+/**  Lightweight status for polling: count, version, and whether unsaved changes exist. @unstable */
 type SummaryResult = {
     locationCount: number;
     version: number;
@@ -2523,6 +2578,7 @@ type SummaryResult = {
  *  Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
  *  on the remote side and must not overwrite local data, so absent fields are left untouched.
  *  `panoId` applies only when `panoIdSet` is true, since a cleared panoId is a real change to `null`.
+ *  @unstable
  */
 type SyncPatch = {
     lat: number | null;
@@ -2535,7 +2591,7 @@ type SyncPatch = {
     flags: number | null;
     tags: string[] | null;
 };
-/**  Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map. */
+/**  Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map. @unstable */
 type SyncReconcileResult = {
     /**  Remote-applied counts; mirror-from-local deletes fold into `delete`. */
     pushed: SideCounts;
@@ -2579,22 +2635,24 @@ type Update<P> = {
     id: number;
     patch: P;
 };
+/** @unstable */
 type UpdateAvailable = {
     version: string;
     currentVersion: string;
     notes: string | null;
 };
-/**  Download progress, emitted per chunk. `total` is absent when the server sends no length. */
+/**  Download progress, emitted per chunk. `total` is absent when the server sends no length. @unstable */
 type UpdateProgress = {
     downloaded: number;
     total: number | null;
 };
-/**  How far behind one country's downloaded coverage data is. */
+/**  How far behind one country's downloaded coverage data is. @unstable */
 type ValiCountryStatus = {
     countryCode: string;
     files: number;
     bytes: number;
 };
+/** @unstable */
 type ValiLocation_Deserialize = {
     lat: number;
     lng: number;
@@ -2604,6 +2662,7 @@ type ValiLocation_Deserialize = {
     panoId: string | null;
     tags: string[];
 };
+/** @unstable */
 type ValiLocation = {
     lat: number;
     lng: number;
@@ -2613,6 +2672,7 @@ type ValiLocation = {
     panoId?: string | null;
     tags: string[];
 };
+/** @unstable */
 type ValiProgress = {
     kind: "workItems";
     total: number;
@@ -2655,6 +2715,7 @@ type VirtualTag = {
  * last argument. Rows arrive as `Location`s and `run`/`map` answer
  * with `Update<LocationPatch>`s under the `patch` sink, or `Update<T>` of the module's
  * own answer under `collect`.
+ *  @unstable
  */
 
 interface ProcedureRequest {
@@ -2663,11 +2724,13 @@ interface ProcedureRequest {
     headers?: Record<string, string>;
     body?: string | Uint8Array | ArrayBuffer;
 }
+/** @unstable */
 interface ProcedureResponse {
     /** 0 when the host could not issue the request at all. */
     status: number;
     body: Uint8Array;
 }
+/** @unstable */
 interface ProcedureHost {
     fetch(req: ProcedureRequest): ProcedureResponse;
     fetchMany(reqs: ProcedureRequest[]): ProcedureResponse[];
@@ -2700,6 +2763,7 @@ declare global {
     const mma: ProcedureHost;
 }
 
+/** @unstable */
 export type Digits = {
     "0": [];
     "1": [0];
@@ -2712,28 +2776,32 @@ export type Digits = {
     "8": [0, 0, 0, 0, 0, 0, 0, 0];
     "9": [0, 0, 0, 0, 0, 0, 0, 0, 0];
 };
+/** @unstable */
 export type D = keyof Digits;
 /** Lift a single-item curried transform into one that folds over an array of items. @unstable */
 declare const batch: <T, S>(op: (item: T) => (state: S) => S) => (items: T[]) => (state: S) => S;
+/** @unstable */
 export type RequireNonNull<T> = {
     [P in keyof T]-?: NonNullable<T[P]>;
 };
+/** @unstable */
 export type Nullable<T> = {
     [K in keyof T]: T[K] | null;
 };
+/** @unstable */
 export type Rename<T, Map extends Record<string, string>> = {
     [K in keyof T as K extends keyof Map ? Map[K] : K]: T[K];
 };
-/** The member(s) of union `U` whose discriminant `D` (default `"type"`) is `V`. */
+/** The member(s) of union `U` whose discriminant `D` (default `"type"`) is `V`. @unstable */
 export type Variant<U, V extends U[D], D extends keyof U = "type" & keyof U> = Extract<U, Record<D, V>>;
 
 /** A field definition with every optional attribute spelled absent. */
 declare function createFieldDef(type: ExtraFieldType, over?: Partial<Omit<ExtraFieldDef, "type">>): ExtraFieldDef;
-/** Street View camera orientation (POV). */
+/** Street View camera orientation (POV). @unstable */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
-/** A view on a specific panorama. */
+/** A view on a specific panorama. @unstable */
 export type PanoView = LocationPOV & RequireNonNull<Pick<Location, "panoId">>;
-/** The camera fields a Location and the live Street View viewer share. */
+/** The camera fields a Location and the live Street View viewer share. @unstable */
 export type PanoCapture = LocationPOV & Pick<Location, "lat" | "lng" | "panoId">;
 /** A {lat, lng} coordinate pair. */
 export type LatLng = google.maps.LatLngLiteral;
@@ -2781,8 +2849,11 @@ declare function dropLocation(source: Location, live: PanoCapture, panoId: strin
 /** Apply a LocationPatch to a location. `extra` follows JSON Merge Patch (RFC 7386):
  *  keys shallow-merge, a null value deletes its key, and a null patch clears extra. */
 declare function applyLocationPatch(loc: Location, patch: LocationPatch_Deserialize): Location;
+/** @unstable */
 export type SortMode = "name" | "created" | "opened" | "amount";
+/** @unstable */
 export type TagSortMode = "default" | "name" | "amount";
+/** @unstable */
 export type WorkArea = "overview" | "location" | "duplicates" | "import" | "plugin" | "diff";
 /** Hex like "#1098ad"; legacy stored prefs may hold an Open Props ramp name. */
 export type SvColor = string;
@@ -2791,19 +2862,33 @@ export type SvCoverageType = "official" | "unofficial" | "default";
 export type SvThickness = "default" | "high";
 export type MarkerStyle = "pin" | "circle" | "arrow";
 
+/** @unstable */
 export type types_Bounds = Bounds;
+/** @unstable */
 export type types_LatLng = LatLng;
+/** @unstable */
 export type types_LocationPOV = LocationPOV;
+/** @unstable */
 export type types_MapTypeKey = MapTypeKey;
+/** @unstable */
 export type types_MarkerStyle = MarkerStyle;
+/** @unstable */
 export type types_MaybeLocation = MaybeLocation;
+/** @unstable */
 export type types_PanoCapture = PanoCapture;
+/** @unstable */
 export type types_PanoView = PanoView;
+/** @unstable */
 export type types_SortMode = SortMode;
+/** @unstable */
 export type types_SvColor = SvColor;
+/** @unstable */
 export type types_SvCoverageType = SvCoverageType;
+/** @unstable */
 export type types_SvThickness = SvThickness;
+/** @unstable */
 export type types_TagSortMode = TagSortMode;
+/** @unstable */
 export type types_WorkArea = WorkArea;
 declare const types_applyLocationPatch: typeof applyLocationPatch;
 /** @unstable */
@@ -2835,7 +2920,7 @@ declare namespace types {
 
 /** An [r, g, b] byte tuple. */
 export type RGB = [number, number, number];
-/** An [r, g, b, a] byte tuple. */
+/** An [r, g, b, a] byte tuple. @unstable */
 export type RGBA = [...RGB, number];
 /** Parse "#rrggbb" to an [r, g, b] byte tuple. @unstable */
 declare function hexToRgb(hex: string): RGB;
@@ -2868,7 +2953,9 @@ declare function rgbToHex([r, g, b]: RGB): string;
 /** A label's color: a user override if set, else a deterministic color from its name. @unstable */
 declare function labelColor(name: string, overrides: Record<string, string>): string;
 
+/** @unstable */
 export type colorUtils_RGB = RGB;
+/** @unstable */
 export type colorUtils_RGBA = RGBA;
 /** @unstable */
 declare const colorUtils_applyAccentColor: typeof applyAccentColor;
@@ -2897,7 +2984,7 @@ declare namespace colorUtils {
   export type { colorUtils_RGB as RGB, colorUtils_RGBA as RGBA };
 }
 
-/** Per-cell, per-selection membership: a dense bitmask or a sparse selected-index list. */
+/** Per-cell, per-selection membership: a dense bitmask or a sparse selected-index list. @unstable */
 export type SelEntry = {
     kind: "mask";
     mask: Uint8Array;
@@ -2905,6 +2992,7 @@ export type SelEntry = {
     kind: "idx";
     indices: Uint32Array;
 };
+/** @unstable */
 export interface SelCellEntry {
     cellChar: string;
     locCount: number;
@@ -3086,23 +3174,25 @@ declare class CellManager {
     clear(): void;
 }
 
-/** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
+/** Pure selection transforms: build, compose, invert, rewrite, and remove selections. @unstable */
 
 export interface SelectionState {
     selections: Selection[];
     ghosted: ReadonlySet<string>;
 }
+/** @unstable */
 export type SelectionPatch = Partial<SelectionState>;
-/** Selector variants that wrap child selections (Intersection, Union, Invert). */
+/** Selector variants that wrap child selections (Intersection, Union, Invert). @unstable */
 export type CompositeType = Extract<Selector, {
     selections: Selection[];
 }>["type"];
-/** Composite variants that wrap exactly one child (e.g. Invert). */
+/** Composite variants that wrap exactly one child (e.g. Invert). @unstable */
 export type UnaryType = "Invert";
-/** Composite variants that are flat n-ary groups. */
+/** Composite variants that are flat n-ary groups. @unstable */
 export type GroupType = Exclude<CompositeType, UnaryType>;
 /** @unstable */
 declare const UNARY_TYPES: readonly ["Invert"];
+/** @unstable */
 export type FilterOpKind = FilterOp["op"];
 /** Whether a predicate reads the location's clock in its own timezone. Only a range can. @unstable */
 declare const filterIsLocalTime: (test: FilterOp) => boolean;
@@ -3196,17 +3286,23 @@ declare const setPolygonName: (key: string, name: string) => (current: Selection
 /** Rename or remove a field across all Filter selections. When `to` is null, filters on that field are dropped. @unstable */
 declare const rewriteSelectionFields: (from: string, to: string | null) => (selections: Selection[]) => Selection[];
 
+/** @unstable */
 export type selectionOps_CompositeType = CompositeType;
+/** @unstable */
 export type selectionOps_FilterOpKind = FilterOpKind;
+/** @unstable */
 export type selectionOps_GroupType = GroupType;
 /** @unstable */
 declare const selectionOps_OP_LABELS: typeof OP_LABELS;
 /** @unstable */
 declare const selectionOps_SELECTIONS: typeof SELECTIONS;
+/** @unstable */
 export type selectionOps_SelectionPatch = SelectionPatch;
+/** @unstable */
 export type selectionOps_SelectionState = SelectionState;
 /** @unstable */
 declare const selectionOps_UNARY_TYPES: typeof UNARY_TYPES;
+/** @unstable */
 export type selectionOps_UnaryType = UnaryType;
 /** @unstable */
 declare const selectionOps_addSelection: typeof addSelection;
@@ -3510,7 +3606,9 @@ declare function commitMap(message?: string): Promise<string>;
 /** Restore the map to a previous commit's state and reopen it. Clears undo/redo. @unstable */
 declare function checkoutCommit(commitId: string): Promise<void>;
 
+/** @unstable */
 export type store_MapState = MapState;
+/** @unstable */
 export type store_UiState = UiState;
 declare const store_addLocations: typeof addLocations;
 declare const store_addSelections: typeof addSelections;
@@ -3650,7 +3748,7 @@ declare const MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "ValidationState
 declare function isSaveable(selector: Selector): boolean;
 /** One part of a saved rule: what its chip reads as, and what it resolves to here. The
  *  label comes from the tree as saved, so a tag this map doesn't have still reads by the
- *  name it was saved under. */
+ *  name it was saved under. @unstable */
 export interface SavedPart {
     label: string;
     color: RGB;
@@ -3682,6 +3780,7 @@ declare function applySavedSelection(saved: SavedSelection): number;
 
 /** @unstable */
 declare const savedSelections_MAP_LOCAL_TYPES: typeof MAP_LOCAL_TYPES;
+/** @unstable */
 export type savedSelections_SavedPart = SavedPart;
 /** @unstable */
 declare const savedSelections_applySavedSelection: typeof applySavedSelection;
@@ -4080,7 +4179,9 @@ declare const COMMANDS: {
         enabled: typeof requiresMap;
     };
 };
+/** @unstable */
 export type CommandId = keyof typeof COMMANDS;
+/** @unstable */
 export type PinnedEntry = CommandId | "---" | (string & {});
 
 /** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. @unstable */
@@ -4244,23 +4345,39 @@ declare const PREVIEW_ASPECT_RATIOS: {
     /** @unstable */
     readonly free: "Free";
 };
+/** @unstable */
 export type Language = keyof typeof LANGUAGES;
+/** @unstable */
 export type MovementMode = keyof typeof MOVEMENT_MODES;
 /** @unstable */
 declare const MOVEMENT_CYCLE: MovementMode[];
+/** @unstable */
 export type ExactDateFormat = keyof typeof EXACT_DATE_FORMATS;
+/** @unstable */
 export type DateTimezone = keyof typeof DATE_TIMEZONES;
+/** @unstable */
 export type SeenResolution = keyof typeof SEEN_RESOLUTIONS;
+/** @unstable */
 export type MapListField = keyof typeof MAP_LIST_FIELDS;
+/** @unstable */
 export type DiscordPresenceMode = keyof typeof DISCORD_PRESENCE_MODES;
+/** @unstable */
 export type GeocodeProvider = keyof typeof GEOCODE_PROVIDERS;
+/** @unstable */
 export type UnitSystem = keyof typeof UNIT_SYSTEMS;
+/** @unstable */
 export type TagViewMode = keyof typeof TAG_VIEW_MODES;
+/** @unstable */
 export type TagFolderColorMode = keyof typeof TAG_FOLDER_COLOR_MODES;
+/** @unstable */
 export type OpacityToggleMode = keyof typeof OPACITY_TOGGLE_MODES;
+/** @unstable */
 export type PolygonColorMode = keyof typeof POLYGON_COLOR_MODES;
+/** @unstable */
 export type BorderDetail = keyof typeof BORDER_DETAILS;
+/** @unstable */
 export type SubdivisionDetail = keyof typeof SUBDIVISION_DETAILS;
+/** @unstable */
 export type PreviewAspectRatio = keyof typeof PREVIEW_ASPECT_RATIOS;
 /** Default values for every app setting. @unstable */
 declare const DEFAULTS: {
@@ -4427,6 +4544,7 @@ declare const DEFAULTS: {
     /** @unstable */
     pinnedCommands: PinnedEntry[];
 };
+/** @unstable */
 export type AppSettings = typeof DEFAULTS;
 /** Settings holding private information that should not be exfiltrated. @unstable */
 declare const PRIVATE_SETTINGS: ReadonlySet<keyof AppSettings>;
@@ -4555,11 +4673,13 @@ declare function useSetting<K extends keyof AppSettings>(key: K): AppSettings[K]
 
 /** @unstable */
 declare const settings_APP_SETTINGS: typeof APP_SETTINGS;
+/** @unstable */
 export type settings_AppSettings = AppSettings;
 /** @unstable */
 declare const settings_BORDER_ARCHIVE_BYTES: typeof BORDER_ARCHIVE_BYTES;
 /** @unstable */
 declare const settings_BORDER_DETAILS: typeof BORDER_DETAILS;
+/** @unstable */
 export type settings_BorderDetail = BorderDetail;
 /** @unstable */
 declare const settings_CSS_VAR_SETTINGS: typeof CSS_VAR_SETTINGS;
@@ -4569,18 +4689,23 @@ declare const settings_DATE_TIMEZONES: typeof DATE_TIMEZONES;
 declare const settings_DEFAULTS: typeof DEFAULTS;
 /** @unstable */
 declare const settings_DISCORD_PRESENCE_MODES: typeof DISCORD_PRESENCE_MODES;
+/** @unstable */
 export type settings_DateTimezone = DateTimezone;
+/** @unstable */
 export type settings_DiscordPresenceMode = DiscordPresenceMode;
 /** @unstable */
 declare const settings_EXACT_DATE_FORMATS: typeof EXACT_DATE_FORMATS;
+/** @unstable */
 export type settings_ExactDateFormat = ExactDateFormat;
 /** @unstable */
 declare const settings_GEOCODE_PROVIDERS: typeof GEOCODE_PROVIDERS;
 /** @unstable */
 declare const settings_GEOCODE_PROVIDER_LABELS: typeof GEOCODE_PROVIDER_LABELS;
+/** @unstable */
 export type settings_GeocodeProvider = GeocodeProvider;
 /** @unstable */
 declare const settings_LANGUAGES: typeof LANGUAGES;
+/** @unstable */
 export type settings_Language = Language;
 /** @unstable */
 declare const settings_MAP_LIST_FIELDS: typeof MAP_LIST_FIELDS;
@@ -4588,10 +4713,13 @@ declare const settings_MAP_LIST_FIELDS: typeof MAP_LIST_FIELDS;
 declare const settings_MOVEMENT_CYCLE: typeof MOVEMENT_CYCLE;
 /** @unstable */
 declare const settings_MOVEMENT_MODES: typeof MOVEMENT_MODES;
+/** @unstable */
 export type settings_MapListField = MapListField;
+/** @unstable */
 export type settings_MovementMode = MovementMode;
 /** @unstable */
 declare const settings_OPACITY_TOGGLE_MODES: typeof OPACITY_TOGGLE_MODES;
+/** @unstable */
 export type settings_OpacityToggleMode = OpacityToggleMode;
 /** @unstable */
 declare const settings_POLYGON_COLOR_MODES: typeof POLYGON_COLOR_MODES;
@@ -4599,13 +4727,17 @@ declare const settings_POLYGON_COLOR_MODES: typeof POLYGON_COLOR_MODES;
 declare const settings_PREVIEW_ASPECT_RATIOS: typeof PREVIEW_ASPECT_RATIOS;
 /** @unstable */
 declare const settings_PRIVATE_SETTINGS: typeof PRIVATE_SETTINGS;
+/** @unstable */
 export type settings_PolygonColorMode = PolygonColorMode;
+/** @unstable */
 export type settings_PreviewAspectRatio = PreviewAspectRatio;
 /** @unstable */
 declare const settings_SEEN_RESOLUTIONS: typeof SEEN_RESOLUTIONS;
 /** @unstable */
 declare const settings_SUBDIVISION_DETAILS: typeof SUBDIVISION_DETAILS;
+/** @unstable */
 export type settings_SeenResolution = SeenResolution;
+/** @unstable */
 export type settings_SubdivisionDetail = SubdivisionDetail;
 /** @unstable */
 declare const settings_TAG_FOLDER_COLOR_MODES: typeof TAG_FOLDER_COLOR_MODES;
@@ -4613,10 +4745,13 @@ declare const settings_TAG_FOLDER_COLOR_MODES: typeof TAG_FOLDER_COLOR_MODES;
 declare const settings_TAG_SUGGESTION_LIMITS: typeof TAG_SUGGESTION_LIMITS;
 /** @unstable */
 declare const settings_TAG_VIEW_MODES: typeof TAG_VIEW_MODES;
+/** @unstable */
 export type settings_TagFolderColorMode = TagFolderColorMode;
+/** @unstable */
 export type settings_TagViewMode = TagViewMode;
 /** @unstable */
 declare const settings_UNIT_SYSTEMS: typeof UNIT_SYSTEMS;
+/** @unstable */
 export type settings_UnitSystem = UnitSystem;
 /** @unstable */
 declare const settings_getSettings: typeof getSettings;
@@ -4637,7 +4772,7 @@ declare namespace settings {
   export type { settings_AppSettings as AppSettings, settings_BorderDetail as BorderDetail, settings_DateTimezone as DateTimezone, settings_DiscordPresenceMode as DiscordPresenceMode, settings_ExactDateFormat as ExactDateFormat, settings_GeocodeProvider as GeocodeProvider, settings_Language as Language, settings_MapListField as MapListField, settings_MovementMode as MovementMode, settings_OpacityToggleMode as OpacityToggleMode, settings_PolygonColorMode as PolygonColorMode, settings_PreviewAspectRatio as PreviewAspectRatio, settings_SeenResolution as SeenResolution, settings_SubdivisionDetail as SubdivisionDetail, settings_TagFolderColorMode as TagFolderColorMode, settings_TagViewMode as TagViewMode, settings_UnitSystem as UnitSystem };
 }
 
-/** Parsed-but-not-committed import shown while `workArea === "import"`. */
+/** Parsed-but-not-committed import shown while `workArea === "import"`. @unstable */
 export interface ImportStaging {
     preview: EditorImportPreview;
     source: "file" | "paste";
@@ -4657,6 +4792,7 @@ declare function confirmImport(droppedFields: string[], tagName?: string): Promi
 /** Discard the staged import without committing. @unstable */
 declare function cancelImport(): void;
 
+/** @unstable */
 export type importStaging_ImportStaging = ImportStaging;
 /** @unstable */
 declare const importStaging_beginImportFromPath: typeof beginImportFromPath;
@@ -4684,7 +4820,7 @@ declare function resetCommitDiffCounts(): void;
 /** React hook: the uncommitted add/remove/modify counts, kept in sync with the store. @unstable */
 declare function useCommitDiff(): CommitDiff;
 /** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
- *  interleaved `[lng, lat]` Float32Arrays. */
+ *  interleaved `[lng, lat]` Float32Arrays. @unstable */
 export interface CommitDiffPreview {
     commitId: string;
     hash: string;
@@ -4712,6 +4848,7 @@ declare function beginCommitDiffPreview(commit: CommitInfo): Promise<void>;
 /** Leave commit-diff preview and restore the regular markers. @unstable */
 declare function endCommitDiffPreview(): void;
 
+/** @unstable */
 export type commitDiff_CommitDiffPreview = CommitDiffPreview;
 /** @unstable */
 declare const commitDiff_beginCommitDiffPreview: typeof beginCommitDiffPreview;
@@ -4775,8 +4912,11 @@ export interface SelectorPickHandle {
 /** A standalone "all locations vs current selection" switch, for features that operate on a subset. */
 declare function createSelectorPick(initial?: SelectorPick): SelectorPickHandle;
 
+/** @unstable */
 export type picker_SelectorPick = SelectorPick;
+/** @unstable */
 export type picker_SelectorPickController = SelectorPickController;
+/** @unstable */
 export type picker_SelectorPickHandle = SelectorPickHandle;
 declare const picker_createSelectorPick: typeof createSelectorPick;
 declare const picker_selectorForPick: typeof selectorForPick;
@@ -4843,6 +4983,7 @@ declare namespace mapList {
   };
 }
 
+/** @unstable */
 export interface PruneResult {
     session: ReviewSession | null;
     cursorMoved: boolean;
@@ -4897,6 +5038,7 @@ declare function selectReviewedHistory(): Promise<void>;
 /** Add a reviewed or unreviewed overlay selection for a session. @unstable */
 declare function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed"): Promise<void>;
 
+/** @unstable */
 export type review_PruneResult = PruneResult;
 /** @unstable */
 declare const review_advance: typeof advance;
@@ -4945,10 +5087,12 @@ declare namespace review {
   export type { review_PruneResult as PruneResult };
 }
 
+/** @unstable */
 export type Cmd = typeof commands$1;
 /** Every Rust command, typed. Any of them can change in a release. @unstable */
 declare const cmd: Cmd;
 
+/** @unstable */
 export type commands_Cmd = Cmd;
 /** @unstable */
 declare const commands_cmd: typeof cmd;
@@ -5017,8 +5161,11 @@ declare function isBackgroundPlugin(id: string): boolean;
 /** Remove a plugin from the registry. @unstable */
 declare function unregisterPlugin(id: string): void;
 
+/** @unstable */
 export type registry_Plugin = Plugin;
+/** @unstable */
 export type registry_PluginBehavior = PluginBehavior;
+/** @unstable */
 export type registry_PluginIdentity = PluginIdentity;
 declare const registry_getPlugin: typeof getPlugin;
 declare const registry_getPlugins: typeof getPlugins;
@@ -5090,7 +5237,7 @@ declare function isPluginCompatible(minAppVersion: string | null | undefined, ap
 declare function isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean;
 /** True when either the plugin or its sidecar has a newer published version. @unstable */
 declare function needsUpdate(installedVersion: string | undefined, latestVersion: string | undefined, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
-/** The build of a plugin to install. `ref` is the commit, null for the latest. */
+/** The build of a plugin to install. `ref` is the commit, null for the latest. @unstable */
 export interface ResolvedBuild {
     version: string;
     ref: string | null;
@@ -5107,6 +5254,7 @@ declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
  *  to what is on disk on failure. @unstable */
 declare function autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>;
 
+/** @unstable */
 export type marketplace_ResolvedBuild = ResolvedBuild;
 /** @unstable */
 declare const marketplace_autoUpdatePlugin: typeof autoUpdatePlugin;
@@ -5139,6 +5287,7 @@ declare function storage(id: string): PluginStorage;
  *  unmount and app restart. Values are global, not per-map. */
 declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
 
+/** @unstable */
 export type pluginStorage_PluginStorage = PluginStorage;
 declare const pluginStorage_storage: typeof storage;
 declare const pluginStorage_usePluginState: typeof usePluginState;
@@ -5147,6 +5296,7 @@ declare namespace pluginStorage {
   export type { pluginStorage_PluginStorage as PluginStorage };
 }
 
+/** @unstable */
 export type Disposable = () => void;
 /** Run `fn` as plugin `id`. Registrations made during `fn` are tracked for teardown. @unstable */
 declare function runAsPlugin<T>(id: string, fn: () => T): T;
@@ -5180,6 +5330,7 @@ declare namespace scope {
   };
 }
 
+/** @unstable */
 export interface SelectionBitmaskPayload {
     selColors: RGB[];
     cellEntries: SelCellEntry[];
@@ -5307,6 +5458,7 @@ declare namespace externals {
   };
 }
 
+/** @unstable */
 export interface SidecarOptions<T> {
     /** Fires once per JSON object the sidecar emits, in order. */
     onLine?(item: T): void;
@@ -5327,6 +5479,7 @@ declare const sidecar: {
     installedVersion: typeof installedVersion$1;
 };
 
+/** @unstable */
 export type sidecar$1_SidecarOptions<T> = SidecarOptions<T>;
 declare const sidecar$1_sidecar: typeof sidecar;
 declare namespace sidecar$1 {
@@ -5354,6 +5507,7 @@ declare function ColorPicker({ color, onChange, ariaLabel, }: {
     ariaLabel?: string;
 }): react.JSX.Element;
 
+/** @unstable */
 export interface DatePickerProps {
     mode: "date" | "month";
     value: string;
@@ -5429,7 +5583,7 @@ declare function SelectorPicker({ ctl, className, }: {
 }): react.JSX.Element;
 
 /** `label` stays a plain string so settings search can match on it; `badge` is the escape hatch
- *  for a marker sitting beside it, like the flask on an experimental plugin card. */
+ *  for a marker sitting beside it, like the flask on an experimental plugin card. @unstable */
 export type Base = {
     label: string;
     badge?: ReactNode;
@@ -5439,13 +5593,16 @@ export type Base = {
     disabled?: boolean;
     sub?: boolean;
 };
+/** @unstable */
 export type BoolRow = Base & {
     checked: boolean;
     onChange: (v: boolean) => void;
 };
+/** @unstable */
 export type AutoBoolRow = Base & {
     setting: keyof AppSettings;
 };
+/** @unstable */
 export type ControlRow = Base & {
     control: ReactNode;
 };
@@ -5542,11 +5699,13 @@ declare function SwitchRow({ checked, onChange, label, disabled, className, chil
     children?: ReactNode;
 }): react.JSX.Element;
 
+/** @unstable */
 export type TagPillButtonVariant = "add" | "delete" | "edit";
 /** The leading affordance inside a TagPill: remove, apply, or open the editor. @unstable */
 declare function TagPillButton({ variant, className, ...props }: ComponentPropsWithRef<"button"> & {
     variant: TagPillButtonVariant;
 }): react.JSX.Element;
+/** @unstable */
 export type TagPillOwnProps = {
     color: string;
     label: ReactNode;
@@ -5555,6 +5714,7 @@ export type TagPillOwnProps = {
     button?: ReactNode;
     children?: ReactNode;
 };
+/** @unstable */
 export type TagPillProps<E extends ElementType> = TagPillOwnProps & {
     as?: E;
 } & Omit<ComponentPropsWithRef<E>, keyof TagPillOwnProps | "as">;
@@ -5563,6 +5723,7 @@ declare function TagPill<E extends ElementType = "span">({ as, color, label, cou
 
 declare function TextInput({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
 
+/** @unstable */
 export interface ToolBlockProps {
     title: string;
     className?: string;
@@ -5605,6 +5766,7 @@ declare const primitives_DatePicker: typeof DatePicker;
 declare const primitives_Dialog: typeof Dialog;
 /** @unstable */
 declare const primitives_DialogContent: typeof DialogContent;
+/** @unstable */
 export type primitives_DialogProps = DialogProps;
 declare const primitives_DialogTrigger: typeof DialogTrigger;
 declare const primitives_EmptyState: typeof EmptyState;
@@ -5620,6 +5782,7 @@ declare const primitives_Radio: typeof Radio;
 declare const primitives_RgbPicker: typeof RgbPicker;
 declare const primitives_Section: typeof Section;
 declare const primitives_SegmentedControl: typeof SegmentedControl;
+/** @unstable */
 export type primitives_SegmentedOption<T extends string | number> = SegmentedOption<T>;
 declare const primitives_SelectorPicker: typeof SelectorPicker;
 /** @unstable */
@@ -5671,7 +5834,7 @@ declare function registerEnrichFields(fields: EnrichFieldOption[]): void;
 declare function getAllEnrichKeys(): string[];
 /** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
 declare function getDefaultEnrichKeys(): string[];
-/** The declared form of a wire struct: every field optional, absent where the wire says null. */
+/** The declared form of a wire struct: every field optional, absent where the wire says null. @unstable */
 export type Declared<T> = {
     [K in keyof T]?: NonNullable<T[K]>;
 };
@@ -5719,8 +5882,11 @@ declare function derivedFrom(changed: Iterable<string>): Set<string>;
 /** Remove fields transitively derived from `changed` from an `extra` record. @unstable */
 declare function withoutDerivedFrom(extra: Record<string, unknown> | null, changed: Iterable<string>): Record<string, unknown> | null;
 
+/** @unstable */
 export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
+/** @unstable */
 export type fieldDefs_ProcedureSpec<TCollected = unknown, TConfig = unknown> = ProcedureSpec<TCollected, TConfig>;
+/** @unstable */
 export type fieldDefs_Provider<TCollected = unknown, TConfig = unknown> = Provider<TCollected, TConfig>;
 /** @unstable */
 declare const fieldDefs_derivedFrom: typeof derivedFrom;
@@ -5804,6 +5970,7 @@ declare namespace fieldDefRegistry {
   };
 }
 
+/** @unstable */
 export interface FieldProjection {
     id: string;
     label: string;
@@ -5820,6 +5987,7 @@ declare function partitionKeyOptions(type: ExtraFieldType, rangeForDates: boolea
     label: string;
 }[];
 
+/** @unstable */
 export type fieldProjections_FieldProjection = FieldProjection;
 /** @unstable */
 declare const fieldProjections_RANGE_ID: typeof RANGE_ID;
@@ -5863,7 +6031,7 @@ export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
     /** Answers from a `collect` run, in page order. Absent when results were written as patches. */
     collected?: CollectedEntry<TCollected>[];
 }
-/** Every declaration a run scheduled, by provider id. */
+/** Every declaration a run scheduled, by provider id. @unstable */
 export type ProviderOutcomes = Record<string, ProcedureOutcome>;
 /** @unstable */
 declare const noWork: () => BatchOutcome;
@@ -5886,7 +6054,7 @@ export interface RunOpts {
     onPartial?: (rows: Location[]) => void;
 }
 export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
-/** A provider to run, optionally overriding the config its procedure declares. */
+/** A provider to run, optionally overriding the config its procedure declares. @unstable */
 export interface ProviderRun<TConfig = unknown> {
     provider: Provider<unknown, TConfig>;
     config?: Partial<NoInfer<TConfig>>;
@@ -5907,7 +6075,7 @@ declare function runProviders<C extends readonly unknown[]>(items: {
 declare function runProviders<C extends readonly unknown[]>(items: {
     [K in keyof C]: ProviderRun<C[K]>;
 }, rows: Location[], opts?: RunOpts): Promise<RowsRun>;
-/** What a run may set on top of what the spec declares. */
+/** What a run may set on top of what the spec declares. @unstable */
 export interface DeclOpts {
     label?: string;
     /** Replaces the spec's `config`. */
@@ -5926,13 +6094,21 @@ declare function runProcedure<T, C>(spec: ProcedureSpec<T, C>, selector: Selecto
     config?: Partial<NoInfer<C>>;
 }): Promise<ProcedureOutcome<T>>;
 
+/** @unstable */
 export type procedures_BatchOutcome = BatchOutcome;
+/** @unstable */
 export type procedures_BulkOpts = BulkOpts;
+/** @unstable */
 export type procedures_CollectedEntry<T = unknown> = CollectedEntry<T>;
+/** @unstable */
 export type procedures_ProcedureOutcome<TCollected = unknown> = ProcedureOutcome<TCollected>;
+/** @unstable */
 export type procedures_ProviderOutcomes = ProviderOutcomes;
+/** @unstable */
 export type procedures_ProviderPart = ProviderPart;
+/** @unstable */
 export type procedures_ProviderRun<TConfig = unknown> = ProviderRun<TConfig>;
+/** @unstable */
 export type procedures_RunOpts = RunOpts;
 /** @unstable */
 declare const procedures_noWork: typeof noWork;
@@ -5979,17 +6155,22 @@ declare namespace seen {
   };
 }
 
+/** @unstable */
 export type PanoDestination = string | google.maps.LatLngLiteral;
+/** @unstable */
 export type PanoFrame = CameraFrame & {
     zoom?: number;
 };
+/** @unstable */
 export type ShowResult = {
     status: "shown";
     pano: Pano | null;
 } | {
     status: "superseded";
 };
+/** @unstable */
 export type PanoEvent = "pov_changed" | "zoom_changed" | "links_changed" | "status_changed" | "pano_changed";
+/** @unstable */
 export type PanoViewer = ReturnType<typeof createPano>;
 /** Create an independent pano viewer with its own camera, requests, listeners and mounts. @unstable */
 declare function createPano(): {
@@ -6146,10 +6327,15 @@ declare const pano: {
     dispose: () => void;
 };
 
+/** @unstable */
 export type panoSurface_PanoDestination = PanoDestination;
+/** @unstable */
 export type panoSurface_PanoEvent = PanoEvent;
+/** @unstable */
 export type panoSurface_PanoFrame = PanoFrame;
+/** @unstable */
 export type panoSurface_PanoViewer = PanoViewer;
+/** @unstable */
 export type panoSurface_ShowResult = ShowResult;
 /** @unstable */
 declare const panoSurface_createPano: typeof createPano;
@@ -6160,14 +6346,17 @@ declare namespace panoSurface {
   export type { panoSurface_PanoDestination as PanoDestination, panoSurface_PanoEvent as PanoEvent, panoSurface_PanoFrame as PanoFrame, panoSurface_PanoViewer as PanoViewer, panoSurface_ShowResult as ShowResult };
 }
 
+/** @unstable */
 export interface GeoDisplay {
     address: string;
     countryCode: string | null;
 }
 
+/** @unstable */
 export type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> & Nullable<Rename<Pick<Location, "id">, {
     id: "locationId";
 }>>;
+/** @unstable */
 export type SeenPano = Pick<SeenEntry, "locationId" | "lat" | "lng" | "heading" | "pitch" | "zoom" | "countryCode"> & Pick<Location, "panoId">;
 /** Suppress the next seen-history entry for `panoId`. @unstable */
 declare function seenSkipNext(panoId: string): void;
@@ -6219,6 +6408,7 @@ export interface EnrichOutcome extends ProcedureOutcome {
  *  provider (metadata, exact date, timezone, subdivision). */
 declare function enrichAll(selector: Selector, opts?: RunOpts): Promise<EnrichOutcome[]>;
 
+/** @unstable */
 export type enrich$1_EnrichOutcome = EnrichOutcome;
 declare const enrich$1_enrich: typeof enrich;
 declare const enrich$1_enrichAll: typeof enrichAll;
@@ -6231,7 +6421,7 @@ declare namespace enrich$1 {
  *  offered in the enrichment settings are always included. @unstable */
 declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
 /** Where to search when resolving a pano from coordinates, and which capture of its
- *  timeline to settle on. */
+ *  timeline to settle on. @unstable */
 export interface PanoResolveConfig {
     radius: number;
     sources?: PanoType[];
@@ -6253,6 +6443,7 @@ declare const subdivisionProvider: Provider;
 /** Core panorama metadata via Google's GetMetadata RPC. @unstable */
 declare const svMetaProvider: Provider;
 
+/** @unstable */
 export type providers_PanoResolveConfig = PanoResolveConfig;
 /** @unstable */
 declare const providers_enrichRuns: typeof enrichRuns;
@@ -6288,7 +6479,9 @@ export interface PinOutcome extends BatchOutcome {
 /** Pin every location in the selector to its pano id, resolving pano ids first when asked. */
 declare function bulkPinToPano(selector: Selector, opts?: PinOpts): Promise<PinOutcome>;
 
+/** @unstable */
 export type pinPano_PinOpts = PinOpts;
+/** @unstable */
 export type pinPano_PinOutcome = PinOutcome;
 declare const pinPano_bulkPinToPano: typeof bulkPinToPano;
 declare namespace pinPano {
@@ -6313,7 +6506,9 @@ declare function validateLocations(selector: Selector, opts?: BulkOpts & {
     config?: Partial<ValidateConfig>;
 }): Promise<ValidationOutcome>;
 
+/** @unstable */
 export type validate_ValidateConfig = ValidateConfig;
+/** @unstable */
 export type validate_ValidationOutcome = ValidationOutcome;
 declare const validate_validateLocations: typeof validateLocations;
 declare namespace validate {
@@ -6334,6 +6529,7 @@ declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(P
  *  ahead of the full array. */
 declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal, onPano?: (index: number, pano: Pano | null) => void): Promise<(Pano | null)[]>;
 
+/** @unstable */
 export type query_SearchOpts = SearchOpts;
 declare const query_panosAt: typeof panosAt;
 declare const query_svMetadata: typeof svMetadata;
@@ -6547,6 +6743,7 @@ declare namespace scenePositions {
   };
 }
 
+/** @unstable */
 export interface ToastEntry {
     id: number;
     message: string;
@@ -6566,8 +6763,9 @@ declare namespace toast$1 {
   };
 }
 
-/** `map` jobs mutate the open map and are cancelled when it closes; `app` jobs survive. */
+/** `map` jobs mutate the open map and are cancelled when it closes; `app` jobs survive. @unstable */
 export type JobScope = "map" | "app";
+/** @unstable */
 export interface JobOpts {
     scope?: JobScope;
     /** Abort the underlying work. Omitted = the tray offers no cancel button. */
@@ -6575,6 +6773,7 @@ export interface JobOpts {
     /** Reopen the owning UI. Omitted = the tray entry is not clickable. */
     reveal?: () => void;
 }
+/** @unstable */
 export interface JobEntry {
     id: number;
     label: string;
@@ -6586,7 +6785,7 @@ export interface JobEntry {
     cancel?: () => void;
     reveal?: () => void;
 }
-/** Handle for driving a registered job. All methods are no-ops once the job ended. */
+/** Handle for driving a registered job. All methods are no-ops once the job ended. @unstable */
 export interface JobHandle {
     /** Set the progress bar fraction (0-1) and optional detail text. */
     update(fraction: number, detail?: string): void;
@@ -6601,6 +6800,7 @@ declare function getJobs(): JobEntry[];
 /** Register a long-running operation with the global job tray. The caller owns the
  *  work; the registry owns only its presentation and the cancel/reveal controls. @unstable */
 declare function registerJob(label: string, opts?: JobOpts): JobHandle;
+/** @unstable */
 export interface JobRunContext {
     signal: AbortSignal;
     report: (fraction: number, detail?: string) => void;
@@ -6612,6 +6812,7 @@ declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
  *  abort and end their jobs; entries without a cancel are removed outright. @unstable */
 declare function cancelJobs(scope: JobScope): void;
+/** @unstable */
 export type MapExitKind = "leave" | "quit";
 /** The pending map-exit confirmation, for the dialog. @unstable */
 declare function getExitRequest(): {
@@ -6624,11 +6825,17 @@ declare function confirmMapExit(kind: MapExitKind): Promise<boolean>;
 /** Answer the pending map-exit confirmation. @unstable */
 declare function resolveMapExit(ok: boolean): void;
 
+/** @unstable */
 export type jobs_JobEntry = JobEntry;
+/** @unstable */
 export type jobs_JobHandle = JobHandle;
+/** @unstable */
 export type jobs_JobOpts = JobOpts;
+/** @unstable */
 export type jobs_JobRunContext = JobRunContext;
+/** @unstable */
 export type jobs_JobScope = JobScope;
+/** @unstable */
 export type jobs_MapExitKind = MapExitKind;
 /** @unstable */
 declare const jobs_cancelJobs: typeof cancelJobs;
@@ -6671,7 +6878,9 @@ export interface Job<R, P> {
  *  so a double-clicked button cannot start two. */
 declare function useJob<R = void, P = string>(fn: (ctx: JobContext<P>) => Promise<R>): Job<R, P>;
 
+/** @unstable */
 export type useJob$1_Job<R, P> = Job<R, P>;
+/** @unstable */
 export type useJob$1_JobContext<P> = JobContext<P>;
 declare const useJob$1_useJob: typeof useJob;
 declare namespace useJob$1 {
@@ -6896,7 +7105,7 @@ declare function tagColorFor(name: string, tags: Tag[]): string;
 declare function appendTagName(pending: string[], name: string, tags: Tag[]): string[];
 /** Current time as Unix seconds, the form Location timestamps use. @unstable */
 declare function nowUnix(): number;
-/** Rolling anchor for a phase-relative locations/second average. */
+/** Rolling anchor for a phase-relative locations/second average. @unstable */
 export interface PhaseRate {
     t0: number;
     done0: number;
@@ -6911,6 +7120,7 @@ declare function phaseRate(prev: PhaseRate | null, done: number, total: number, 
     rate: number | null;
 };
 
+/** @unstable */
 export type util_PhaseRate = PhaseRate;
 /** @unstable */
 declare const util_appendTagName: typeof appendTagName;
