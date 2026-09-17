@@ -13,7 +13,8 @@ vi.mock("@/store/useMapStore", () => ({
 }));
 
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";
-import { registerPlugin, unregisterPlugin, setPluginEnabled } from "@/plugins/registry";
+import { registerPlugin, unregisterPlugin } from "@/plugins/registry";
+import { setPluginEnabled } from "@/plugins/pluginHost";
 
 const normalPlugin = {
 	id: "normal-p",

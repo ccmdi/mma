@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMapState, exitPluginMode } from "@/store/useMapStore";
-import { getPlugin, isPluginEnabled } from "@/plugins/registry";
+import { getPlugin } from "@/plugins/registry";
+import { isPluginEnabled } from "@/plugins/pluginHost";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useEvent } from "@/lib/events";
 

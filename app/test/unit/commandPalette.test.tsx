@@ -9,7 +9,8 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 // cmdk scrolls the selection into view; jsdom has no layout to scroll.
 Element.prototype.scrollIntoView = () => {};
 
-const { registerPlugin, unregisterPlugin, setPluginEnabled } = await import("@/plugins/registry");
+const { registerPlugin, unregisterPlugin } = await import("@/plugins/registry");
+const { setPluginEnabled } = await import("@/plugins/pluginHost");
 const { openDialog, useDialog } = await import("@/store/dialogBus");
 const { getMapState } = await import("@/store/useMapStore");
 const { CommandPalette } = await import("@/components/editor/CommandPalette");

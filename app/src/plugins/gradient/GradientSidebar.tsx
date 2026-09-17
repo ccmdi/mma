@@ -14,7 +14,7 @@ import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
-import { usePluginState } from "@/plugins/registry";
+import { usePluginState } from "@/plugins/pluginStorage";
 import { useSetting } from "@/store/settings";
 import "./gradient.css";
 import { t, msg } from "@/lib/i18n";

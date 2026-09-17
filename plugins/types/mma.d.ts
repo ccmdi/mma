@@ -4965,6 +4965,86 @@ export interface Plugin extends PluginIdentity {
 export type PluginBehavior = Partial<Plugin> & {
     activate(): void | (() => void);
 };
+/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @unstable */
+declare function setPendingManifest(manifest: PluginManifest | null): void;
+/** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. */
+declare function registerPlugin(plugin: Plugin | PluginBehavior): void;
+/** All registered plugins, sorted by name. */
+declare function getPlugins(): Plugin[];
+/** Look up a registered plugin by id. */
+declare function getPlugin(id: string): Plugin | undefined;
+/** True when the plugin contributes data only and has no UI surfaces. */
+declare function isBackgroundPlugin(id: string): boolean;
+/** Remove a plugin from the registry. @unstable */
+declare function unregisterPlugin(id: string): void;
+
+export type registry_Plugin = Plugin;
+export type registry_PluginBehavior = PluginBehavior;
+export type registry_PluginIdentity = PluginIdentity;
+declare const registry_getPlugin: typeof getPlugin;
+declare const registry_getPlugins: typeof getPlugins;
+declare const registry_isBackgroundPlugin: typeof isBackgroundPlugin;
+declare const registry_registerPlugin: typeof registerPlugin;
+/** @unstable */
+declare const registry_setPendingManifest: typeof setPendingManifest;
+/** @unstable */
+declare const registry_unregisterPlugin: typeof unregisterPlugin;
+declare namespace registry {
+  export { registry_getPlugin as getPlugin, registry_getPlugins as getPlugins, registry_isBackgroundPlugin as isBackgroundPlugin, registry_registerPlugin as registerPlugin, registry_setPendingManifest as setPendingManifest, registry_unregisterPlugin as unregisterPlugin };
+  export type { registry_Plugin as Plugin, registry_PluginBehavior as PluginBehavior, registry_PluginIdentity as PluginIdentity };
+}
+
+/** True when the plugin is enabled by the user. @unstable */
+declare function isPluginEnabled(id: string): boolean;
+/** Enable or disable a plugin. @unstable */
+declare function setPluginEnabled(id: string, enabled: boolean): void;
+/** All registered plugins the user has enabled. @unstable */
+declare function getEnabledPlugins(): Plugin[];
+/** Activate all enabled plugins. Called when a map opens. @unstable */
+declare function activatePlugins(): void;
+/** Deactivate all plugins and stop their sidecars. Called when a map closes. @unstable */
+declare function deactivatePlugins(): void;
+/** Activate a single plugin by id. @unstable */
+declare function activatePlugin(id: string): void;
+/** Deactivate a single plugin and stop its sidecar. @unstable */
+declare function deactivatePlugin(id: string): void;
+/** True once the MMA surface is installed and plugins are safe to call it. @unstable */
+declare function isReady(): boolean;
+/** Mark the plugin surface as ready. @unstable */
+declare function markReady(): void;
+
+/** @unstable */
+declare const pluginHost_activatePlugin: typeof activatePlugin;
+/** @unstable */
+declare const pluginHost_activatePlugins: typeof activatePlugins;
+/** @unstable */
+declare const pluginHost_deactivatePlugin: typeof deactivatePlugin;
+/** @unstable */
+declare const pluginHost_deactivatePlugins: typeof deactivatePlugins;
+/** @unstable */
+declare const pluginHost_getEnabledPlugins: typeof getEnabledPlugins;
+/** @unstable */
+declare const pluginHost_isPluginEnabled: typeof isPluginEnabled;
+/** @unstable */
+declare const pluginHost_isReady: typeof isReady;
+/** @unstable */
+declare const pluginHost_markReady: typeof markReady;
+/** @unstable */
+declare const pluginHost_setPluginEnabled: typeof setPluginEnabled;
+declare namespace pluginHost {
+  export {
+    pluginHost_activatePlugin as activatePlugin,
+    pluginHost_activatePlugins as activatePlugins,
+    pluginHost_deactivatePlugin as deactivatePlugin,
+    pluginHost_deactivatePlugins as deactivatePlugins,
+    pluginHost_getEnabledPlugins as getEnabledPlugins,
+    pluginHost_isPluginEnabled as isPluginEnabled,
+    pluginHost_isReady as isReady,
+    pluginHost_markReady as markReady,
+    pluginHost_setPluginEnabled as setPluginEnabled,
+  };
+}
+
 /** True when `appVersion` meets the plugin's minimum version requirement. @unstable */
 declare function isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean;
 /** True when a newer version is published and the installed version is known. @unstable */
@@ -4987,24 +5067,27 @@ declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
 /** Auto-update a plugin to the newest compatible build before loading it. Falls back
  *  to what is on disk on failure. @unstable */
 declare function autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>;
-/** Set the manifest used to fill identity fields on the next `registerPlugin` call. @unstable */
-declare function setPendingManifest(manifest: PluginManifest | null): void;
-/** Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close. */
-declare function registerPlugin(plugin: Plugin | PluginBehavior): void;
-/** All registered plugins, sorted by name. */
-declare function getPlugins(): Plugin[];
-/** Look up a registered plugin by id. */
-declare function getPlugin(id: string): Plugin | undefined;
-/** True when the plugin contributes data only and has no UI surfaces. */
-declare function isBackgroundPlugin(id: string): boolean;
-/** Remove a plugin from the registry. @unstable */
-declare function unregisterPlugin(id: string): void;
-/** True when the plugin is enabled by the user. */
-declare function isPluginEnabled(id: string): boolean;
-/** Enable or disable a plugin. */
-declare function setPluginEnabled(id: string, enabled: boolean): void;
-/** All registered plugins the user has enabled. */
-declare function getEnabledPlugins(): Plugin[];
+
+export type marketplace_ResolvedBuild = ResolvedBuild;
+/** @unstable */
+declare const marketplace_autoUpdatePlugin: typeof autoUpdatePlugin;
+/** @unstable */
+declare const marketplace_fetchPluginRegistry: typeof fetchPluginRegistry;
+/** @unstable */
+declare const marketplace_isPluginCompatible: typeof isPluginCompatible;
+/** @unstable */
+declare const marketplace_isPluginUpdatable: typeof isPluginUpdatable;
+/** @unstable */
+declare const marketplace_needsBuildUpdate: typeof needsBuildUpdate;
+/** @unstable */
+declare const marketplace_needsUpdate: typeof needsUpdate;
+/** @unstable */
+declare const marketplace_resolveBuild: typeof resolveBuild;
+declare namespace marketplace {
+  export { marketplace_autoUpdatePlugin as autoUpdatePlugin, marketplace_fetchPluginRegistry as fetchPluginRegistry, marketplace_isPluginCompatible as isPluginCompatible, marketplace_isPluginUpdatable as isPluginUpdatable, marketplace_needsBuildUpdate as needsBuildUpdate, marketplace_needsUpdate as needsUpdate, marketplace_resolveBuild as resolveBuild };
+  export type { marketplace_ResolvedBuild as ResolvedBuild };
+}
+
 export interface PluginStorage {
     get<T = unknown>(key: string, fallback?: T): T;
     set(key: string, value: unknown): void;
@@ -5012,72 +5095,17 @@ export interface PluginStorage {
     keys(): string[];
 }
 /** Persistent key-value storage namespaced to a plugin. Survives restarts. */
-declare function createPluginStorage(id: string): PluginStorage;
+declare function storage(id: string): PluginStorage;
 /** React state hook backed by the plugin's persistent store. Survives sidebar
  *  unmount and app restart. Values are global, not per-map. */
 declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
-/** Activate all enabled plugins. Called when a map opens. @unstable */
-declare function activatePlugins(): void;
-/** Deactivate all plugins and stop their sidecars. Called when a map closes. @unstable */
-declare function deactivatePlugins(): void;
-/** Activate a single plugin by id. @unstable */
-declare function activatePlugin(id: string): void;
-/** Deactivate a single plugin and stop its sidecar. @unstable */
-declare function deactivatePlugin(id: string): void;
-/** The per-plugin key-value store, under the name the surface uses. */
-declare const storage: typeof createPluginStorage;
-/** True once the MMA surface is installed and plugins are safe to call it. */
-declare function isReady(): boolean;
-/** Mark the plugin surface as ready. @unstable */
-declare function markReady(): void;
 
-export type registry_Plugin = Plugin;
-export type registry_PluginBehavior = PluginBehavior;
-export type registry_PluginIdentity = PluginIdentity;
-export type registry_PluginStorage = PluginStorage;
-export type registry_ResolvedBuild = ResolvedBuild;
-/** @unstable */
-declare const registry_activatePlugin: typeof activatePlugin;
-/** @unstable */
-declare const registry_activatePlugins: typeof activatePlugins;
-/** @unstable */
-declare const registry_autoUpdatePlugin: typeof autoUpdatePlugin;
-declare const registry_createPluginStorage: typeof createPluginStorage;
-/** @unstable */
-declare const registry_deactivatePlugin: typeof deactivatePlugin;
-/** @unstable */
-declare const registry_deactivatePlugins: typeof deactivatePlugins;
-/** @unstable */
-declare const registry_fetchPluginRegistry: typeof fetchPluginRegistry;
-declare const registry_getEnabledPlugins: typeof getEnabledPlugins;
-declare const registry_getPlugin: typeof getPlugin;
-declare const registry_getPlugins: typeof getPlugins;
-declare const registry_isBackgroundPlugin: typeof isBackgroundPlugin;
-/** @unstable */
-declare const registry_isPluginCompatible: typeof isPluginCompatible;
-declare const registry_isPluginEnabled: typeof isPluginEnabled;
-/** @unstable */
-declare const registry_isPluginUpdatable: typeof isPluginUpdatable;
-declare const registry_isReady: typeof isReady;
-/** @unstable */
-declare const registry_markReady: typeof markReady;
-/** @unstable */
-declare const registry_needsBuildUpdate: typeof needsBuildUpdate;
-/** @unstable */
-declare const registry_needsUpdate: typeof needsUpdate;
-declare const registry_registerPlugin: typeof registerPlugin;
-/** @unstable */
-declare const registry_resolveBuild: typeof resolveBuild;
-/** @unstable */
-declare const registry_setPendingManifest: typeof setPendingManifest;
-declare const registry_setPluginEnabled: typeof setPluginEnabled;
-declare const registry_storage: typeof storage;
-/** @unstable */
-declare const registry_unregisterPlugin: typeof unregisterPlugin;
-declare const registry_usePluginState: typeof usePluginState;
-declare namespace registry {
-  export { registry_activatePlugin as activatePlugin, registry_activatePlugins as activatePlugins, registry_autoUpdatePlugin as autoUpdatePlugin, registry_createPluginStorage as createPluginStorage, registry_deactivatePlugin as deactivatePlugin, registry_deactivatePlugins as deactivatePlugins, registry_fetchPluginRegistry as fetchPluginRegistry, registry_getEnabledPlugins as getEnabledPlugins, registry_getPlugin as getPlugin, registry_getPlugins as getPlugins, registry_isBackgroundPlugin as isBackgroundPlugin, registry_isPluginCompatible as isPluginCompatible, registry_isPluginEnabled as isPluginEnabled, registry_isPluginUpdatable as isPluginUpdatable, registry_isReady as isReady, registry_markReady as markReady, registry_needsBuildUpdate as needsBuildUpdate, registry_needsUpdate as needsUpdate, registry_registerPlugin as registerPlugin, registry_resolveBuild as resolveBuild, registry_setPendingManifest as setPendingManifest, registry_setPluginEnabled as setPluginEnabled, registry_storage as storage, registry_unregisterPlugin as unregisterPlugin, registry_usePluginState as usePluginState };
-  export type { registry_Plugin as Plugin, registry_PluginBehavior as PluginBehavior, registry_PluginIdentity as PluginIdentity, registry_PluginStorage as PluginStorage, registry_ResolvedBuild as ResolvedBuild };
+export type pluginStorage_PluginStorage = PluginStorage;
+declare const pluginStorage_storage: typeof storage;
+declare const pluginStorage_usePluginState: typeof usePluginState;
+declare namespace pluginStorage {
+  export { pluginStorage_storage as storage, pluginStorage_usePluginState as usePluginState };
+  export type { pluginStorage_PluginStorage as PluginStorage };
 }
 
 export type Disposable = () => void;
@@ -6547,7 +6575,11 @@ declare function registerEnrichmentProvider(provider: Provider): void;
  *  use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
  *  plugin-owned defs. @unstable */
 declare function setUserFieldDefs(defs: Record<string, ExtraFieldDef>): Promise<void>;
+/** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
+declare function createPluginStorage(id: string): PluginStorage;
 
+/** @unstable */
+declare const legacy_createPluginStorage: typeof createPluginStorage;
 /** @unstable */
 declare const legacy_fetchAllLocations: typeof fetchAllLocations;
 /** @unstable */
@@ -6586,6 +6618,7 @@ declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
 declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
 declare namespace legacy {
   export {
+    legacy_createPluginStorage as createPluginStorage,
     legacy_fetchAllLocations as fetchAllLocations,
     legacy_fetchLocation as fetchLocation,
     legacy_fetchLocationsByIds as fetchLocationsByIds,
@@ -6789,6 +6822,11 @@ export type CommandsApi = typeof commands;
 /** Raw command, shell, and file dialog access. @unstable */
 export type TauriApi = typeof tauri;
 export type RegistryApi = typeof registry;
+/** Enabling plugins and their activation lifecycle. @unstable */
+export type PluginHostApi = typeof pluginHost;
+/** The plugin marketplace and its update checks. @unstable */
+export type MarketplaceApi = typeof marketplace;
+export type PluginStorageApi = typeof pluginStorage;
 /** Which plugin owns a registration, and its teardown. @unstable */
 export type ScopeApi = typeof scope;
 export type PluginEventsApi = typeof pluginEvents;
@@ -6821,7 +6859,7 @@ export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 export type UtilApi = typeof util;
-interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 
 declare global {

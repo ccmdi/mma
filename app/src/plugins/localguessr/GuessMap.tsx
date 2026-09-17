@@ -17,7 +17,7 @@ import type * as maplibregl from "maplibre-gl";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { useSetting } from "@/store/settings";
-import { usePluginState } from "@/plugins/registry";
+import { usePluginState } from "@/plugins/pluginStorage";
 import { clamp, range } from "@/types/util";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 

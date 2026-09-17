@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createElement, act } from "react";
 import { mount as mountRoot } from "./fixtures/harness";
-import { usePluginState, createPluginStorage } from "@/plugins/registry";
+import { usePluginState, storage } from "@/plugins/pluginStorage";
 
 type AnyResult = readonly [unknown, (v: unknown) => void];
 
@@ -37,7 +37,7 @@ describe("usePluginState", () => {
 		mount("p1", "k", "a");
 		act(() => result[1]("b"));
 		expect(result[0]).toBe("b");
-		expect(createPluginStorage("p1").get("k")).toBe("b");
+		expect(storage("p1").get("k")).toBe("b");
 	});
 
 	it("state survives unmount and remount", () => {
@@ -55,7 +55,7 @@ describe("usePluginState", () => {
 		mount("p1", "n", 1);
 		act(() => result[1]((prev: number) => prev + 1));
 		expect(result[0]).toBe(2);
-		expect(createPluginStorage("p1").get("n")).toBe(2);
+		expect(storage("p1").get("n")).toBe(2);
 	});
 
 	it("namespaces by plugin id and key", () => {
@@ -63,17 +63,17 @@ describe("usePluginState", () => {
 		act(() => result[1]("from-a"));
 		mount("b", "k", "x");
 		expect(result[0]).toBe("x");
-		expect(createPluginStorage("a").get("k")).toBe("from-a");
+		expect(storage("a").get("k")).toBe("from-a");
 	});
 
-	it("shares the store with createPluginStorage", () => {
-		createPluginStorage("p1").set("k", "pre-seeded");
+	it("shares the store with storage", () => {
+		storage("p1").set("k", "pre-seeded");
 		const [value] = mount("p1", "k", "default");
 		expect(value).toBe("pre-seeded");
 	});
 
 	it("does not write to storage until set is called", () => {
 		mount("untouched", "k", "default");
-		expect(createPluginStorage("untouched").keys()).not.toContain("k");
+		expect(storage("untouched").keys()).not.toContain("k");
 	});
 });

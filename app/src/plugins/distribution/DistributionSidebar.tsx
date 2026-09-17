@@ -5,7 +5,7 @@ import { countBy } from "@/store/useMapStore";
 import { getSettings } from "@/store/settings";
 
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
-import { usePluginState, createPluginStorage } from "@/plugins/registry";
+import { usePluginState, storage } from "@/plugins/pluginStorage";
 import "./distribution.css";
 import { t } from "@/lib/i18n";
 import { countryName } from "@/lib/util/format";
@@ -38,7 +38,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	const [source, setSource] = usePluginState<Source>("distribution", "source", "coords");
 	const [metaAvailable, setMetaAvailable] = useState(false);
 	// A persisted choice counts as already defaulted — don't auto-flip it.
-	const autoDefaulted = useRef(createPluginStorage("distribution").keys().includes("source"));
+	const autoDefaulted = useRef(storage("distribution").keys().includes("source"));
 
 	const refresh = useCallback(async () => {
 		const map = MMA.getMapState().map;

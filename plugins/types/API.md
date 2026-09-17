@@ -16,6 +16,9 @@ change in any release.
 - [Commands](#commands)
 - [Tauri](#tauri)
 - [Registry](#registry)
+- [PluginHost](#pluginhost)
+- [Marketplace](#marketplace)
+- [PluginStorage](#pluginstorage)
 - [Scope](#scope)
 - [PluginEvents](#pluginevents)
 - [Externals](#externals)
@@ -2089,39 +2092,6 @@ Low-level command, shell, and file dialog access.
 
 ## Registry
 
-### `activatePlugin(id: string): void` *(unstable)*
-
-Activate a single plugin by id.
-
-### `activatePlugins(): void` *(unstable)*
-
-Activate all enabled plugins. Called when a map opens.
-
-### `autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>` *(unstable)*
-
-Auto-update a plugin to the newest compatible build before loading it. Falls back
-to what is on disk on failure.
-
-### `createPluginStorage(id: string): PluginStorage`
-
-Persistent key-value storage namespaced to a plugin. Survives restarts.
-
-### `deactivatePlugin(id: string): void` *(unstable)*
-
-Deactivate a single plugin and stop its sidecar.
-
-### `deactivatePlugins(): void` *(unstable)*
-
-Deactivate all plugins and stop their sidecars. Called when a map closes.
-
-### `fetchPluginRegistry(): Promise<PluginManifest[]>` *(unstable)*
-
-Fetch the marketplace plugin registry. Later calls return the first result until restart.
-
-### `getEnabledPlugins(): Plugin[]`
-
-All registered plugins the user has enabled.
-
 ### `getPlugin(id: string): Plugin | undefined`
 
 Look up a registered plugin by id.
@@ -2134,25 +2104,78 @@ All registered plugins, sorted by name.
 
 True when the plugin contributes data only and has no UI surfaces.
 
-### `isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean` *(unstable)*
+### `registerPlugin(plugin: Plugin | PluginBehavior): void`
 
-True when `appVersion` meets the plugin's minimum version requirement.
+Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close.
 
-### `isPluginEnabled(id: string): boolean`
+### `setPendingManifest(manifest: PluginManifest | null): void` *(unstable)*
+
+Set the manifest used to fill identity fields on the next `registerPlugin` call.
+
+### `unregisterPlugin(id: string): void` *(unstable)*
+
+Remove a plugin from the registry.
+
+## PluginHost
+
+Enabling plugins and their activation lifecycle.
+
+### `activatePlugin(id: string): void` *(unstable)*
+
+Activate a single plugin by id.
+
+### `activatePlugins(): void` *(unstable)*
+
+Activate all enabled plugins. Called when a map opens.
+
+### `deactivatePlugin(id: string): void` *(unstable)*
+
+Deactivate a single plugin and stop its sidecar.
+
+### `deactivatePlugins(): void` *(unstable)*
+
+Deactivate all plugins and stop their sidecars. Called when a map closes.
+
+### `getEnabledPlugins(): Plugin[]` *(unstable)*
+
+All registered plugins the user has enabled.
+
+### `isPluginEnabled(id: string): boolean` *(unstable)*
 
 True when the plugin is enabled by the user.
 
-### `isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean` *(unstable)*
-
-True when a newer version is published and the installed version is known.
-
-### `isReady(): boolean`
+### `isReady(): boolean` *(unstable)*
 
 True once the MMA surface is installed and plugins are safe to call it.
 
 ### `markReady(): void` *(unstable)*
 
 Mark the plugin surface as ready.
+
+### `setPluginEnabled(id: string, enabled: boolean): void` *(unstable)*
+
+Enable or disable a plugin.
+
+## Marketplace
+
+The plugin marketplace and its update checks.
+
+### `autoUpdatePlugin(m: PluginManifest, latest: PluginManifest | undefined, appVersion: string): Promise<PluginManifest>` *(unstable)*
+
+Auto-update a plugin to the newest compatible build before loading it. Falls back
+to what is on disk on failure.
+
+### `fetchPluginRegistry(): Promise<PluginManifest[]>` *(unstable)*
+
+Fetch the marketplace plugin registry. Later calls return the first result until restart.
+
+### `isPluginCompatible(minAppVersion: string | null | undefined, appVersion: string): boolean` *(unstable)*
+
+True when `appVersion` meets the plugin's minimum version requirement.
+
+### `isPluginUpdatable(installedVersion: string | undefined, latestVersion: string | undefined): boolean` *(unstable)*
+
+True when a newer version is published and the installed version is known.
 
 ### `needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean` *(unstable)*
 
@@ -2162,30 +2185,16 @@ True when the installed plugin should be refreshed to `target`.
 
 True when either the plugin or its sidecar has a newer published version.
 
-### `registerPlugin(plugin: Plugin | PluginBehavior): void`
-
-Register a plugin. `activate` runs when a map opens; its returned cleanup runs on map close.
-
 ### `resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null` *(unstable)*
 
 The newest build of a plugin this app version can run. Falls back through older
 pinned builds when the latest is incompatible. Null when none fit.
 
-### `setPendingManifest(manifest: PluginManifest | null): void` *(unstable)*
-
-Set the manifest used to fill identity fields on the next `registerPlugin` call.
-
-### `setPluginEnabled(id: string, enabled: boolean): void`
-
-Enable or disable a plugin.
+## PluginStorage
 
 ### `storage(id: string): PluginStorage`
 
 Persistent key-value storage namespaced to a plugin. Survives restarts.
-
-### `unregisterPlugin(id: string): void` *(unstable)*
-
-Remove a plugin from the registry.
 
 ### `usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void]`
 
@@ -3310,6 +3319,8 @@ Copy of `set` with `value` toggled, or forced on/off by `on`.
 ## Legacy
 
 Shims for removed APIs.
+
+### `createPluginStorage(id: string): PluginStorage` *(unstable)*
 
 ### `fetchAllLocations(): Promise<Location[]>` *(unstable)*
 

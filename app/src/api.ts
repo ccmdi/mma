@@ -17,6 +17,9 @@ import * as review from "@/lib/review/review";
 import * as commands from "@/lib/commands";
 import * as tauri from "@/lib/tauri";
 import * as registry from "@/plugins/registry";
+import * as pluginHost from "@/plugins/pluginHost";
+import * as marketplace from "@/plugins/marketplace";
+import * as pluginStorage from "@/plugins/pluginStorage";
 import * as scope from "@/plugins/scope";
 import * as pluginEvents from "@/plugins/pluginEvents";
 import * as externals from "@/plugins/externals";
@@ -63,6 +66,11 @@ type CommandsApi = typeof commands;
 /** Raw command, shell, and file dialog access. @unstable */
 type TauriApi = typeof tauri;
 type RegistryApi = typeof registry;
+/** Enabling plugins and their activation lifecycle. @unstable */
+type PluginHostApi = typeof pluginHost;
+/** The plugin marketplace and its update checks. @unstable */
+type MarketplaceApi = typeof marketplace;
+type PluginStorageApi = typeof pluginStorage;
 /** Which plugin owns a registration, and its teardown. @unstable */
 type ScopeApi = typeof scope;
 type PluginEventsApi = typeof pluginEvents;
@@ -111,6 +119,9 @@ export interface MMA
 		CommandsApi,
 		TauriApi,
 		RegistryApi,
+		PluginHostApi,
+		MarketplaceApi,
+		PluginStorageApi,
 		ScopeApi,
 		PluginEventsApi,
 		ExternalsApi,
@@ -152,6 +163,9 @@ const mma: MMA = {
 	...commands,
 	...tauri,
 	...registry,
+	...pluginHost,
+	...marketplace,
+	...pluginStorage,
 	...scope,
 	...pluginEvents,
 	...externals,

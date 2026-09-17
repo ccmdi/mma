@@ -16,7 +16,7 @@ import {
 } from "@mdi/js";
 import { getSettings, setSetting, useSettings } from "@/store/settings";
 import { sendHideCar, Compass, CompassTape } from "@/components/editor/location/PanoControls";
-import { usePluginState } from "@/plugins/registry";
+import { usePluginState } from "@/plugins/pluginStorage";
 import { t } from "@/lib/i18n";
 import { toast } from "@/lib/util/toast";
 import { formatDistance } from "@/lib/util/format";

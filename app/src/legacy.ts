@@ -12,6 +12,7 @@ import {
 } from "@/store/useMapStore";
 import { cmd } from "@/lib/commands";
 import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
+import { storage } from "@/plugins/pluginStorage";
 import type { ExtraFieldDef, Selector } from "@/bindings.gen";
 
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
@@ -104,4 +105,9 @@ export function registerEnrichmentProvider(provider: Provider): void {
  *  plugin-owned defs. */
 export function setUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
 	return setMapExtraFields(defs);
+}
+
+/** @deprecated v0.11.0. Use `MMA.storage()`. */
+export function createPluginStorage(id: string) {
+	return storage(id);
 }

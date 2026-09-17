@@ -7,6 +7,10 @@ import {
 	getPlugin,
 	getPlugins,
 	unregisterPlugin,
+	setPendingManifest,
+	isBackgroundPlugin,
+} from "@/plugins/registry";
+import {
 	isPluginEnabled,
 	setPluginEnabled,
 	getEnabledPlugins,
@@ -14,10 +18,8 @@ import {
 	activatePlugins,
 	deactivatePlugin,
 	deactivatePlugins,
-	setPendingManifest,
-	isPluginCompatible,
-	isBackgroundPlugin,
-} from "@/plugins/registry";
+} from "@/plugins/pluginHost";
+import { isPluginCompatible } from "@/plugins/marketplace";
 import { emit, subscribe } from "@/lib/events";
 import { on } from "@/plugins/pluginEvents";
 import {

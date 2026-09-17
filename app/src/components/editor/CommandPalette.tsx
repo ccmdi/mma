@@ -11,7 +11,7 @@ import { useHotkey } from "@/lib/hooks/useHotkey";
 import { getBinding, useBinding } from "@/lib/util/hotkeys";
 import { getMapState, closeMap, setPluginMode } from "@/store/useMapStore";
 import { confirmMapExit } from "@/lib/jobs";
-import { getEnabledPlugins } from "@/plugins/registry";
+import { getEnabledPlugins } from "@/plugins/pluginHost";
 import { score } from "@/lib/search";
 import { useMapList } from "@/store/mapList";
 import { goTo } from "@/store/router";

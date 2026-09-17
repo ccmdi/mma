@@ -2,7 +2,7 @@ import type { ProcedureActivity } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { procedureName } from "@/lib/data/procedures";
 import { google } from "@/lib/sv/opensv";
-import { getEnabledPlugins } from "@/plugins/registry";
+import { getEnabledPlugins } from "@/plugins/pluginHost";
 import { DEFAULTS, PRIVATE_SETTINGS, getSettings, type AppSettings } from "@/store/settings";
 import { getMapState } from "@/store/useMapStore";
 import { formatBytes } from "@/lib/util/format";

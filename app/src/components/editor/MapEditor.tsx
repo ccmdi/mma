@@ -11,7 +11,7 @@ import { beginImportPaste, beginImportFromPath } from "@/store/importStaging";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
 import { goTo, leaveToList } from "@/store/router";
-import { activatePlugins, deactivatePlugins } from "@/plugins/registry";
+import { activatePlugins, deactivatePlugins } from "@/plugins/pluginHost";
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { addParsedLocations } from "@/lib/map/mapClick";
 import { cmd } from "@/lib/commands";

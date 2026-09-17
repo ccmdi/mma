@@ -31,7 +31,7 @@ import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { compareNatural } from "@/lib/util/util";
-import { usePluginState } from "@/plugins/registry";
+import { usePluginState } from "@/plugins/pluginStorage";
 import {
 	stripNa,
 	pivotCellValue,

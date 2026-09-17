@@ -7,7 +7,7 @@ import { google } from "@/lib/sv/opensv";
 import { getActiveSelections, useMapState } from "@/store/useMapStore";
 import { usePluginEvent } from "@/plugins/pluginEvents";
 import type { Selection } from "@/bindings.gen";
-import { createPluginStorage } from "@/plugins/registry";
+import { storage } from "@/plugins/pluginStorage";
 import { Sidebar, Section } from "@/components/primitives/Sidebar";
 import { searchCoverage } from "../searchCoverage";
 import {
@@ -42,7 +42,7 @@ import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
 
-const genStore = createPluginStorage("map-generator");
+const genStore = storage("map-generator");
 
 function loadSettings(): GeneratorSettings {
 	const saved = genStore.get<Partial<GeneratorSettings>>("settings");

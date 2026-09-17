@@ -21,7 +21,7 @@ import {
 	needsBuildUpdate,
 	resolveBuild,
 	autoUpdatePlugin,
-} from "@/plugins/registry";
+} from "@/plugins/marketplace";
 
 describe("isPluginUpdatable", () => {
 	it("flags an update when versions differ", () => {

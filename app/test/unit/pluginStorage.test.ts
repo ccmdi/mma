@@ -1,38 +1,38 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { createPluginStorage } from "@/plugins/registry";
+import { storage } from "@/plugins/pluginStorage";
 
 beforeEach(() => {
 	localStorage.clear();
 });
 
-describe("createPluginStorage", () => {
+describe("storage", () => {
 	it("returns the fallback when a key is unset", () => {
-		const s = createPluginStorage("p1");
+		const s = storage("p1");
 		expect(s.get("k", 42)).toBe(42);
 		expect(s.get("k")).toBeUndefined();
 	});
 
 	it("round-trips set -> get", () => {
-		const s = createPluginStorage("p1");
+		const s = storage("p1");
 		s.set("k", { a: 1 });
 		expect(s.get("k")).toEqual({ a: 1 });
 	});
 
 	it("persists across separate instances of the same id", () => {
-		createPluginStorage("p1").set("k", "v");
-		expect(createPluginStorage("p1").get("k")).toBe("v");
+		storage("p1").set("k", "v");
+		expect(storage("p1").get("k")).toBe("v");
 	});
 
 	it("namespaces by plugin id (no cross-talk)", () => {
-		createPluginStorage("a").set("k", "from-a");
-		createPluginStorage("b").set("k", "from-b");
-		expect(createPluginStorage("a").get("k")).toBe("from-a");
-		expect(createPluginStorage("b").get("k")).toBe("from-b");
+		storage("a").set("k", "from-a");
+		storage("b").set("k", "from-b");
+		expect(storage("a").get("k")).toBe("from-a");
+		expect(storage("b").get("k")).toBe("from-b");
 	});
 
 	it("remove deletes the key", () => {
-		const s = createPluginStorage("p1");
+		const s = storage("p1");
 		s.set("k", 1);
 		s.remove("k");
 		expect(s.get("k", "fb")).toBe("fb");
@@ -40,7 +40,7 @@ describe("createPluginStorage", () => {
 	});
 
 	it("keys lists the stored keys", () => {
-		const s = createPluginStorage("p1");
+		const s = storage("p1");
 		s.set("a", 1);
 		s.set("b", 2);
 		expect(s.keys().sort()).toEqual(["a", "b"]);
@@ -48,6 +48,6 @@ describe("createPluginStorage", () => {
 
 	it("tolerates corrupt json, returning the fallback", () => {
 		localStorage.setItem("mma_plugin:p1", "{not json");
-		expect(createPluginStorage("p1").get("k", "fb")).toBe("fb");
+		expect(storage("p1").get("k", "fb")).toBe("fb");
 	});
 });

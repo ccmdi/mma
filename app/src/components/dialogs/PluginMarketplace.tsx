@@ -5,18 +5,18 @@ import { Button } from "@/components/primitives/Button";
 import { SegmentedControl } from "@/components/primitives/Sidebar";
 import {
 	getPlugins,
+	unregisterPlugin,
+	isBackgroundPlugin,
+	type Plugin,
+	type PluginIdentity,
+} from "@/plugins/registry";
+import {
 	isPluginEnabled,
 	setPluginEnabled,
 	activatePlugin,
 	deactivatePlugin,
-	unregisterPlugin,
-	resolveBuild,
-	needsBuildUpdate,
-	isBackgroundPlugin,
-	fetchPluginRegistry,
-	type Plugin,
-	type PluginIdentity,
-} from "@/plugins/registry";
+} from "@/plugins/pluginHost";
+import { resolveBuild, needsBuildUpdate, fetchPluginRegistry } from "@/plugins/marketplace";
 import { events, type PluginManifest } from "@/bindings.gen";
 import { loadAndActivatePlugin, loadUserPlugin } from "@/plugins/index";
 import { cmd } from "@/lib/commands";

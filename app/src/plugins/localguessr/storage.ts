@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { createPluginStorage } from "@/plugins/registry";
+import { storage } from "@/plugins/pluginStorage";
 import { getSeenCount, getSeenEntries } from "@/lib/seen/seen";
 import type { Game, PastGame, StreakMode } from "./game";
 
-const storage = createPluginStorage("localguessr");
+const store = storage("localguessr");
 const SAVED_GAMES = "savedGames";
 const GLOBAL_STREAK = "globalStreak";
 const HISTORY = "history";
@@ -13,7 +13,7 @@ export const SAVED_GAME_CAP = 20;
 const gameKey = (game: Pick<Game, "mapId" | "startedAt">) => `${game.mapId}:${game.startedAt}`;
 
 function readSavedGames(): Game[] {
-	return storage.get<Game[]>(SAVED_GAMES, []);
+	return store.get<Game[]>(SAVED_GAMES, []);
 }
 
 /**
@@ -31,7 +31,7 @@ export function saveGame(game: Game): void {
 		game.config.roundMode === "infinite"
 			? { ...game, locations: game.locations.slice(0, game.index + 1) }
 			: game;
-	storage.set(
+	store.set(
 		SAVED_GAMES,
 		[kept, ...readSavedGames().filter((g) => gameKey(g) !== key)].slice(0, SAVED_GAME_CAP),
 	);
@@ -39,7 +39,7 @@ export function saveGame(game: Game): void {
 
 export function removeSavedGame(game: Pick<Game, "mapId" | "startedAt">): void {
 	const key = gameKey(game);
-	storage.set(
+	store.set(
 		SAVED_GAMES,
 		readSavedGames().filter((g) => gameKey(g) !== key),
 	);
@@ -52,19 +52,19 @@ interface GlobalStreak {
 
 export function getGlobalStreak(mode: StreakMode): number {
 	if (mode === "off") return 0;
-	const s = storage.get<GlobalStreak | null>(GLOBAL_STREAK, null);
+	const s = store.get<GlobalStreak | null>(GLOBAL_STREAK, null);
 	return s?.mode === mode ? s.count : 0;
 }
 
 export function setGlobalStreak(mode: StreakMode, count: number): void {
 	if (mode === "off") return;
-	storage.set(GLOBAL_STREAK, { mode, count } satisfies GlobalStreak);
+	store.set(GLOBAL_STREAK, { mode, count } satisfies GlobalStreak);
 }
 
 export const HISTORY_ROUND_CAP = 2_000;
 
 function readHistory(): PastGame[] {
-	return storage.get<PastGame[]>(HISTORY, []);
+	return store.get<PastGame[]>(HISTORY, []);
 }
 
 /** Finished games, newest first: one map's, or every map's for null. */
@@ -83,11 +83,11 @@ export function appendHistory(game: PastGame): void {
 		if (rounds > HISTORY_ROUND_CAP) break;
 		kept.push(older);
 	}
-	storage.set(HISTORY, kept);
+	store.set(HISTORY, kept);
 }
 
 export function clearHistory(mapId: string): void {
-	storage.set(
+	store.set(
 		HISTORY,
 		readHistory().filter((g) => g.mapId !== mapId),
 	);

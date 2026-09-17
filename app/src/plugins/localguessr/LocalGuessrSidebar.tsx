@@ -16,7 +16,7 @@ import { Dialog, DialogContent, type DialogProps } from "@/components/primitives
 import { EntryCard, EntryList } from "@/components/primitives/EntryList";
 import { Slider } from "@/components/primitives/Slider";
 import { NSelect } from "@/components/primitives/NSelect";
-import { usePluginState } from "@/plugins/registry";
+import { usePluginState } from "@/plugins/pluginStorage";
 import { useSelectorPick } from "@/store/selectorPick";
 import { fetchLocations, getMapState, sampleFrom, useMapState } from "@/store/useMapStore";
 import { useScoreMaxError } from "@/lib/geo/scoring";

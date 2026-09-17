@@ -1,5 +1,5 @@
 import { memo, useState, createElement } from "react";
-import { getEnabledPlugins } from "@/plugins/registry";
+import { getEnabledPlugins } from "@/plugins/pluginHost";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useEvent } from "@/lib/events";
 import { useDialog } from "@/store/dialogBus";

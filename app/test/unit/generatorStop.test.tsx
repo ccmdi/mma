@@ -108,8 +108,8 @@ vi.mock("@/store/useMapStore", () => ({
 	createTags: (names: string[]) => Promise.resolve(names.map((name, i) => ({ id: i + 1, name }))),
 	setPluginMode: () => {},
 }));
-vi.mock("@/plugins/registry", () => ({
-	createPluginStorage: () => ({
+vi.mock("@/plugins/pluginStorage", () => ({
+	storage: () => ({
 		get: (key: string, fallback: unknown) => (key in h.saved ? h.saved[key] : fallback),
 		set: () => {},
 	}),
