@@ -17,19 +17,19 @@ export function getMapList() {
 	return cachedMapList;
 }
 
-/** Refresh the map list from disk. */
+/** Refresh the map list from disk. @unstable */
 export async function reloadMapList() {
 	cachedMapList = await cmd.storeListMaps();
 	emitEvent("map-list:changed");
 }
 
-/** Refresh the map list and notify other windows of the change. */
+/** Refresh the map list and notify other windows of the change. @unstable */
 export async function invalidateMapList() {
 	await reloadMapList();
 	await tauriEmit("map-list-changed");
 }
 
-/** Set the map list directly without a disk read. */
+/** Set the map list directly without a disk read. @unstable */
 export function setCachedMapList(list: MapMeta[]) {
 	cachedMapList = list;
 }
@@ -50,7 +50,7 @@ export async function openScratchMap() {
 /** Ids the app keeps for its own fixtures. */
 const RESERVED_MAP_IDS: ReadonlySet<string> = new Set([SCRATCH_MAP_ID]);
 
-/** Whether `id` belongs to an app fixture rather than a user-created map. */
+/** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
 export function isReservedMap(id: string | null): boolean {
 	return id != null && RESERVED_MAP_IDS.has(id);
 }

@@ -4,7 +4,7 @@ import { type MapHost } from "@/lib/map/host";
 let mapHost: MapHost | null = null;
 let hostReady: PromiseWithResolvers<MapHost> | null = null;
 
-/** Set or clear the main editor map host. */
+/** Set or clear the main editor map host. @unstable */
 export function setMapHost(host: MapHost | null) {
 	mapHost = host;
 	if (host) {
@@ -55,7 +55,7 @@ export function addClickInterceptor(fn: ClickInterceptor): () => void {
 	return () => clickInterceptors.delete(fn);
 }
 
-/** Run registered click interceptors (newest first). True if one consumed the click. */
+/** Run registered click interceptors (newest first). True if one consumed the click. @unstable */
 export function tryInterceptClick(lat: number, lng: number, shiftKey = false): boolean {
 	// Latest registered wins: a transient tool (measure, polygon draw) outranks the
 	// always-armed held-hotkey gestures registered at editor mount.
@@ -70,7 +70,7 @@ export function setDrawInterceptor(fn: DrawInterceptor | null) {
 	drawInterceptor = fn;
 }
 
-/** Pass completed polygon rings to the draw interceptor. True if it consumed them. */
+/** Pass completed polygon rings to the draw interceptor. True if it consumed them. @unstable */
 export function tryInterceptDraw(rings: number[][][]): boolean {
 	return drawInterceptor ? drawInterceptor(rings) : false;
 }

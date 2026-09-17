@@ -33,18 +33,18 @@ export function isWorldBounds(b: Bounds): boolean {
 	return b.south === -90 && b.west === -180 && b.north === 90 && b.east === 180;
 }
 
-/** Convert a [south, west, north, east] tuple to a Bounds object. */
+/** Convert a [south, west, north, east] tuple to a Bounds object. @unstable */
 export function scoreTupleToBounds([s, w, n, e]: [number, number, number, number]): Bounds {
 	return { south: s, west: w, north: n, east: e };
 }
 
-/** Convert a [west, south, east, north] bbox tuple to Bounds, or null. */
+/** Convert a [west, south, east, north] bbox tuple to Bounds, or null. @unstable */
 export function bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null {
 	if (!t) return null;
 	return { south: t[1], west: t[0], north: t[3], east: t[2] };
 }
 
-/** Convert a Bounds object to a [south, west, north, east] tuple. */
+/** Convert a Bounds object to a [south, west, north, east] tuple. @unstable */
 export function boundsToScoreTuple(b: Bounds): [number, number, number, number] {
 	return [b.south, b.west, b.north, b.east];
 }
@@ -78,7 +78,7 @@ export function extraPatch(
 	return patch;
 }
 
-/** The same location on the same pano: what makes one row's answer another row's. */
+/** The same location on the same pano: what makes one row's answer another row's. @unstable */
 export function sameRow(a: Location, b: Location): boolean {
 	return a.id === b.id && a.panoId === b.panoId;
 }
@@ -97,12 +97,12 @@ export function locId(m: MaybeLocation): number {
 	return typeof m === "number" ? m : m.id;
 }
 
-/** True when the location is an import preview (not yet committed). */
+/** True when the location is an import preview (not yet committed). @unstable */
 export function isImportPreview(loc: Location): boolean {
 	return (loc.flags & LocationFlag.ImportPreview) !== 0;
 }
 
-/** True when the location is a seen-history overlay preview. */
+/** True when the location is a seen-history overlay preview. @unstable */
 export function isSeenPreview(loc: Location): boolean {
 	return (loc.flags & LocationFlag.SeenOverlay) !== 0;
 }
@@ -127,7 +127,7 @@ export function createLocation(partial: Partial<Location> & LatLng): Location {
 
 /** A new Location at the viewer's live camera, carrying `source`'s flags and the given
  *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
- *  stayed on that pano. */
+ *  stayed on that pano. @unstable */
 export function dropLocation(
 	source: Location,
 	live: PanoCapture,

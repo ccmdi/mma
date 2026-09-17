@@ -1225,11 +1225,11 @@ Permanently delete a map and all its data. Not undoable.
 
 The list of all maps (metadata only).
 
-### `invalidateMapList(): Promise<void>`
+### `invalidateMapList(): Promise<void>` *(unstable)*
 
 Refresh the map list and notify other windows of the change.
 
-### `isReservedMap(id: string | null): boolean`
+### `isReservedMap(id: string | null): boolean` *(unstable)*
 
 Whether `id` belongs to an app fixture rather than a user-created map.
 
@@ -1241,7 +1241,7 @@ Move a map into a folder, or to the root when `folder` is null.
 
 Open the scratch map, creating it on first use.
 
-### `reloadMapList(): Promise<void>`
+### `reloadMapList(): Promise<void>` *(unstable)*
 
 Refresh the map list from disk.
 
@@ -1249,7 +1249,7 @@ Refresh the map list from disk.
 
 Rename a folder, moving all its maps to the new name.
 
-### `setCachedMapList(list: MapMeta[]): void`
+### `setCachedMapList(list: MapMeta[]): void` *(unstable)*
 
 Set the map list directly without a disk read.
 
@@ -2936,15 +2936,15 @@ Return the main editor map host, or null if not mounted.
 
 Set the callback for completed polygon draws. Null clears it.
 
-### `setMapHost(host: MapHost | null): void`
+### `setMapHost(host: MapHost | null): void` *(unstable)*
 
 Set or clear the main editor map host.
 
-### `tryInterceptClick(lat: number, lng: number, shiftKey?: boolean | undefined): boolean`
+### `tryInterceptClick(lat: number, lng: number, shiftKey?: boolean | undefined): boolean` *(unstable)*
 
 Run registered click interceptors (newest first). True if one consumed the click.
 
-### `tryInterceptDraw(rings: number[][][]): boolean`
+### `tryInterceptDraw(rings: number[][][]): boolean` *(unstable)*
 
 Pass completed polygon rings to the draw interceptor. True if it consumed them.
 
@@ -3045,7 +3045,7 @@ Return "#000" or "#fff" for readable text on the given hex background.
 
 ## Toast
 
-### `getToasts(): ToastEntry[]`
+### `getToasts(): ToastEntry[]` *(unstable)*
 
 Current list of visible toasts.
 
@@ -3147,11 +3147,11 @@ Force a full selection re-resolve and return the selected IDs.
 Apply a LocationPatch to a location. `extra` follows JSON Merge Patch (RFC 7386):
 keys shallow-merge, a null value deletes its key, and a null patch clears extra.
 
-### `bboxTupleToBounds(t: [number, number, number, number] | null): LatLngBoundsLiteral | null`
+### `bboxTupleToBounds(t: [number, number, number, number] | null): LatLngBoundsLiteral | null` *(unstable)*
 
 Convert a [west, south, east, north] bbox tuple to Bounds, or null.
 
-### `boundsToScoreTuple(b: LatLngBoundsLiteral): [number, number, number, number]`
+### `boundsToScoreTuple(b: LatLngBoundsLiteral): [number, number, number, number]` *(unstable)*
 
 Convert a Bounds object to a [south, west, north, east] tuple.
 
@@ -3164,7 +3164,7 @@ A field definition with every optional attribute spelled absent.
 Build a Location from lat/lng plus overrides. `id` stays 0 until `addLocations`
 writes the real id back into the object.
 
-### `dropLocation(source: Location, live: PanoCapture, panoId: string | null, tags: number[]): Location`
+### `dropLocation(source: Location, live: PanoCapture, panoId: string | null, tags: number[]): Location` *(unstable)*
 
 A new Location at the viewer's live camera, carrying `source`'s flags and the given
 tags. `extra` describes the pano it was fetched for, so it only survives a drop that
@@ -3175,7 +3175,7 @@ stayed on that pano.
 The `extra` merge patch that turns `before` into `after`: changed keys carry their
 new value, keys `after` lacks carry null.
 
-### `isImportPreview(loc: Location): boolean`
+### `isImportPreview(loc: Location): boolean` *(unstable)*
 
 True when the location is an import preview (not yet committed).
 
@@ -3183,7 +3183,7 @@ True when the location is an import preview (not yet committed).
 
 Pinned: the location always opens this exact pano.
 
-### `isSeenPreview(loc: Location): boolean`
+### `isSeenPreview(loc: Location): boolean` *(unstable)*
 
 True when the location is a seen-history overlay preview.
 
@@ -3200,11 +3200,11 @@ True when bounds span the entire world.
 
 Extract the id from a MaybeLocation.
 
-### `sameRow(a: Location, b: Location): boolean`
+### `sameRow(a: Location, b: Location): boolean` *(unstable)*
 
 The same location on the same pano: what makes one row's answer another row's.
 
-### `scoreTupleToBounds([s, w, n, e]: [number, number, number, number]): LatLngBoundsLiteral`
+### `scoreTupleToBounds([s, w, n, e]: [number, number, number, number]): LatLngBoundsLiteral` *(unstable)*
 
 Convert a [south, west, north, east] tuple to a Bounds object.
 

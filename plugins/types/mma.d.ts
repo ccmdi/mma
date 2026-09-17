@@ -2741,11 +2741,11 @@ export type LatLng = google.maps.LatLngLiteral;
 export type Bounds = google.maps.LatLngBoundsLiteral;
 /** True when bounds span the entire world. */
 declare function isWorldBounds(b: Bounds): boolean;
-/** Convert a [south, west, north, east] tuple to a Bounds object. */
+/** Convert a [south, west, north, east] tuple to a Bounds object. @unstable */
 declare function scoreTupleToBounds([s, w, n, e]: [number, number, number, number]): Bounds;
-/** Convert a [west, south, east, north] bbox tuple to Bounds, or null. */
+/** Convert a [west, south, east, north] bbox tuple to Bounds, or null. @unstable */
 declare function bboxTupleToBounds(t: [number, number, number, number] | null): Bounds | null;
-/** Convert a Bounds object to a [south, west, north, east] tuple. */
+/** Convert a Bounds object to a [south, west, north, east] tuple. @unstable */
 declare function boundsToScoreTuple(b: Bounds): [number, number, number, number];
 /** Pinned: the location always opens this exact pano. */
 declare function isPinned(loc: Location): loc is Location & {
@@ -2756,7 +2756,7 @@ declare function setPinned(loc: Location, on: boolean): Location;
 /** The `extra` merge patch that turns `before` into `after`: changed keys carry their
  *  new value, keys `after` lacks carry null. */
 declare function extraPatch(before: Record<string, unknown> | null, after: Record<string, unknown> | null): Record<string, unknown>;
-/** The same location on the same pano: what makes one row's answer another row's. */
+/** The same location on the same pano: what makes one row's answer another row's. @unstable */
 declare function sameRow(a: Location, b: Location): boolean;
 /** True for virtual (preview-only) locations, which have negative ids and are not
  *  part of the map. */
@@ -2767,16 +2767,16 @@ declare function isVirtualLocation(loc: {
 export type MaybeLocation = Location | number;
 /** Extract the id from a MaybeLocation. */
 declare function locId(m: MaybeLocation): number;
-/** True when the location is an import preview (not yet committed). */
+/** True when the location is an import preview (not yet committed). @unstable */
 declare function isImportPreview(loc: Location): boolean;
-/** True when the location is a seen-history overlay preview. */
+/** True when the location is a seen-history overlay preview. @unstable */
 declare function isSeenPreview(loc: Location): boolean;
 /** Build a Location from lat/lng plus overrides. `id` stays 0 until `addLocations`
  *  writes the real id back into the object. */
 declare function createLocation(partial: Partial<Location> & LatLng): Location;
 /** A new Location at the viewer's live camera, carrying `source`'s flags and the given
  *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
- *  stayed on that pano. */
+ *  stayed on that pano. @unstable */
 declare function dropLocation(source: Location, live: PanoCapture, panoId: string | null, tags: number[]): Location;
 /** Apply a LocationPatch to a location. `extra` follows JSON Merge Patch (RFC 7386):
  *  keys shallow-merge, a null value deletes its key, and a null patch clears extra. */
@@ -2806,19 +2806,26 @@ export type types_SvThickness = SvThickness;
 export type types_TagSortMode = TagSortMode;
 export type types_WorkArea = WorkArea;
 declare const types_applyLocationPatch: typeof applyLocationPatch;
+/** @unstable */
 declare const types_bboxTupleToBounds: typeof bboxTupleToBounds;
+/** @unstable */
 declare const types_boundsToScoreTuple: typeof boundsToScoreTuple;
 declare const types_createFieldDef: typeof createFieldDef;
 declare const types_createLocation: typeof createLocation;
+/** @unstable */
 declare const types_dropLocation: typeof dropLocation;
 declare const types_extraPatch: typeof extraPatch;
+/** @unstable */
 declare const types_isImportPreview: typeof isImportPreview;
 declare const types_isPinned: typeof isPinned;
+/** @unstable */
 declare const types_isSeenPreview: typeof isSeenPreview;
 declare const types_isVirtualLocation: typeof isVirtualLocation;
 declare const types_isWorldBounds: typeof isWorldBounds;
 declare const types_locId: typeof locId;
+/** @unstable */
 declare const types_sameRow: typeof sameRow;
+/** @unstable */
 declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
 declare const types_setPinned: typeof setPinned;
 declare namespace types {
@@ -4776,17 +4783,17 @@ declare namespace picker {
 declare function useMapList(): MapMeta[];
 /** The list of all maps (metadata only). */
 declare function getMapList(): MapMeta[];
-/** Refresh the map list from disk. */
+/** Refresh the map list from disk. @unstable */
 declare function reloadMapList(): Promise<void>;
-/** Refresh the map list and notify other windows of the change. */
+/** Refresh the map list and notify other windows of the change. @unstable */
 declare function invalidateMapList(): Promise<void>;
-/** Set the map list directly without a disk read. */
+/** Set the map list directly without a disk read. @unstable */
 declare function setCachedMapList(list: MapMeta[]): void;
 /** Create a new empty map and return its metadata. */
 declare function createMap(name: string, folder?: string | null): Promise<MapMeta>;
 /** Open the scratch map, creating it on first use. */
 declare function openScratchMap(): Promise<void>;
-/** Whether `id` belongs to an app fixture rather than a user-created map. */
+/** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
 declare function isReservedMap(id: string | null): boolean;
 /** Permanently delete a map and all its data. Not undoable. */
 declare function deleteMap$1(id: string): Promise<void>;
@@ -4800,12 +4807,16 @@ declare function deleteFolder(name: string): Promise<void>;
 declare const mapList_createMap: typeof createMap;
 declare const mapList_deleteFolder: typeof deleteFolder;
 declare const mapList_getMapList: typeof getMapList;
+/** @unstable */
 declare const mapList_invalidateMapList: typeof invalidateMapList;
+/** @unstable */
 declare const mapList_isReservedMap: typeof isReservedMap;
 declare const mapList_moveMapToFolder: typeof moveMapToFolder;
 declare const mapList_openScratchMap: typeof openScratchMap;
+/** @unstable */
 declare const mapList_reloadMapList: typeof reloadMapList;
 declare const mapList_renameFolder: typeof renameFolder;
+/** @unstable */
 declare const mapList_setCachedMapList: typeof setCachedMapList;
 declare const mapList_useMapList: typeof useMapList;
 declare namespace mapList {
@@ -6386,7 +6397,7 @@ export type MapHost = {
     [K in MapHostKind]: MapHostContract<K>;
 }[MapHostKind];
 
-/** Set or clear the main editor map host. */
+/** Set or clear the main editor map host. @unstable */
 declare function setMapHost(host: MapHost | null): void;
 /** Return the main editor map host, or null if not mounted. */
 declare function getMapHost(): MapHost | null;
@@ -6398,20 +6409,23 @@ export type ClickInterceptor = (lat: number, lng: number, shiftKey: boolean) => 
 /** Register a map-click interceptor. Returns a removal function. The most recently
  *  added interceptor that returns true consumes the click. */
 declare function addClickInterceptor(fn: ClickInterceptor): () => void;
-/** Run registered click interceptors (newest first). True if one consumed the click. */
+/** Run registered click interceptors (newest first). True if one consumed the click. @unstable */
 declare function tryInterceptClick(lat: number, lng: number, shiftKey?: boolean): boolean;
 export type DrawInterceptor = (rings: number[][][]) => boolean;
 /** Set the callback for completed polygon draws. Null clears it. */
 declare function setDrawInterceptor(fn: DrawInterceptor | null): void;
-/** Pass completed polygon rings to the draw interceptor. True if it consumed them. */
+/** Pass completed polygon rings to the draw interceptor. True if it consumed them. @unstable */
 declare function tryInterceptDraw(rings: number[][][]): boolean;
 
 declare const mapState_addClickInterceptor: typeof addClickInterceptor;
 declare const mapState_fitMapToBounds: typeof fitMapToBounds;
 declare const mapState_getMapHost: typeof getMapHost;
 declare const mapState_setDrawInterceptor: typeof setDrawInterceptor;
+/** @unstable */
 declare const mapState_setMapHost: typeof setMapHost;
+/** @unstable */
 declare const mapState_tryInterceptClick: typeof tryInterceptClick;
+/** @unstable */
 declare const mapState_tryInterceptDraw: typeof tryInterceptDraw;
 declare const mapState_waitForMapHost: typeof waitForMapHost;
 declare namespace mapState {
@@ -6492,9 +6506,10 @@ export interface ToastEntry {
 }
 /** Show a brief toast notification. Optionally scoped to a `container` element. */
 declare function toast(message: string, duration?: number, container?: HTMLElement): void;
-/** Current list of visible toasts. */
+/** Current list of visible toasts. @unstable */
 declare function getToasts(): ToastEntry[];
 
+/** @unstable */
 declare const toast$1_getToasts: typeof getToasts;
 declare const toast$1_toast: typeof toast;
 declare namespace toast$1 {
