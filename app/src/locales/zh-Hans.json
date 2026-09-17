@@ -363,6 +363,9 @@
 	"Done. {n} locations processed": {
 		"other": "完成。已处理 {n} 个位置"
 	},
+	"Done. {n} locations unpinned.": {
+		"other": "完成。已取消固定 {n} 个位置。"
+	},
 	"Done. {n} locations validated.": {
 		"other": "完成。已验证 {n} 个位置。"
 	},
@@ -1316,6 +1319,7 @@
 	"Unnamed polygon": "未命名多边形",
 	"Unofficial": "非官方",
 	"Unpanned": "未平移",
+	"Unpin": "取消固定",
 	"Unpin (follow selected tags)": "取消固定（跟随所选标签）",
 	"Unpin from toolbar": "从工具栏取消固定",
 	"Unreviewed": "未审",

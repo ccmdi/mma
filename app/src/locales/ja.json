@@ -363,6 +363,9 @@
 	"Done. {n} locations processed": {
 		"other": "完了。{n} 件の地点を処理しました"
 	},
+	"Done. {n} locations unpinned.": {
+		"other": "完了。{n} 件の地点のピン留めを解除しました。"
+	},
 	"Done. {n} locations validated.": {
 		"other": "完了。{n} 件の地点を検証しました。"
 	},
@@ -1316,6 +1319,7 @@
 	"Unnamed polygon": "名前のないポリゴン",
 	"Unofficial": "非公式",
 	"Unpanned": "未パン",
+	"Unpin": "ピン留めを解除",
 	"Unpin (follow selected tags)": "ピン留めを解除（選択したタグに追従）",
 	"Unpin from toolbar": "ツールバーからピン留めを解除",
 	"Unreviewed": "未レビュー",

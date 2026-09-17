@@ -166,6 +166,23 @@ describe("Bulk operations -- bulkPinToPano", () => {
 
 		expect(outcome).toEqual({ succeeded: 0, failed: [], resolved: 3 });
 	});
+
+	it("unpins by clearing the flag and keeps every pano id", async () => {
+		const result = await withApi(async (api) => {
+			return await api.applyFieldOp(
+				{ type: "Everything" },
+				{ kind: "set", key: "loadAsPanoId", value: 0 },
+				true,
+			);
+		});
+
+		expect(result.changed).toBe(3);
+		for (const id of locIds) {
+			const l = await getLoc(id);
+			expect(l.flags & LocationFlag.LoadAsPanoId).toBe(0);
+			expect(l.panoId).toBeTruthy();
+		}
+	});
 });
 
 // ============================================================================

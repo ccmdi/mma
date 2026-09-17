@@ -389,6 +389,11 @@
 		"many": "Listo. {n} ubicaciones procesadas",
 		"other": "Listo. {n} ubicaciones procesadas"
 	},
+	"Done. {n} locations unpinned.": {
+		"one": "Listo. {n} ubicación desfijada.",
+		"many": "Listo. {n} ubicaciones desfijadas.",
+		"other": "Listo. {n} ubicaciones desfijadas."
+	},
 	"Done. {n} locations validated.": {
 		"one": "Listo. {n} ubicación validada.",
 		"many": "Listo. {n} ubicaciones validadas.",
@@ -1390,6 +1395,7 @@
 	"Unnamed polygon": "Polígono sin nombre",
 	"Unofficial": "No oficial",
 	"Unpanned": "Sin orientar",
+	"Unpin": "Desfijar",
 	"Unpin (follow selected tags)": "Dejar de fijar (seguir las etiquetas seleccionadas)",
 	"Unpin from toolbar": "Dejar de fijar en la barra de herramientas",
 	"Unreviewed": "Sin revisar",

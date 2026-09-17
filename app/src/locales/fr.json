@@ -389,6 +389,11 @@
 		"many": "Terminé. {n} lieux traités",
 		"other": "Terminé. {n} lieux traités"
 	},
+	"Done. {n} locations unpinned.": {
+		"one": "Terminé. {n} lieu désépinglé.",
+		"many": "Terminé. {n} lieux désépinglés.",
+		"other": "Terminé. {n} lieux désépinglés."
+	},
 	"Done. {n} locations validated.": {
 		"one": "Terminé. {n} lieu vérifié.",
 		"many": "Terminé. {n} lieux vérifiés.",
@@ -1390,6 +1395,7 @@
 	"Unnamed polygon": "Polygone sans nom",
 	"Unofficial": "Non officielle",
 	"Unpanned": "Non orientés",
+	"Unpin": "Désépingler",
 	"Unpin (follow selected tags)": "Détacher (suivre les étiquettes sélectionnées)",
 	"Unpin from toolbar": "Détacher de la barre d'outils",
 	"Unreviewed": "Non révisés",

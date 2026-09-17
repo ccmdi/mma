@@ -402,6 +402,12 @@
 		"many": "Gotowe. Przetworzono {n} lokalizacji",
 		"other": "Gotowe. Przetworzono {n} lokalizacji"
 	},
+	"Done. {n} locations unpinned.": {
+		"one": "Gotowe. Odpięto {n} lokalizację.",
+		"few": "Gotowe. Odpięto {n} lokalizacje.",
+		"many": "Gotowe. Odpięto {n} lokalizacji.",
+		"other": "Gotowe. Odpięto {n} lokalizacji."
+	},
 	"Done. {n} locations validated.": {
 		"one": "Gotowe. Sprawdzono {n} lokalizację.",
 		"few": "Gotowe. Sprawdzono {n} lokalizacje.",
@@ -1427,6 +1433,7 @@
 	"Unnamed polygon": "Wielokąt bez nazwy",
 	"Unofficial": "Nieoficjalne",
 	"Unpanned": "Nieobrócone",
+	"Unpin": "Odepnij",
 	"Unpin (follow selected tags)": "Odepnij (podążaj za zaznaczonymi tagami)",
 	"Unpin from toolbar": "Odepnij od paska narzędzi",
 	"Unreviewed": "Nieprzejrzane",

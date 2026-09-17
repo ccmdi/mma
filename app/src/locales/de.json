@@ -376,6 +376,10 @@
 		"one": "Fertig. {n} Standort verarbeitet",
 		"other": "Fertig. {n} Standorte verarbeitet"
 	},
+	"Done. {n} locations unpinned.": {
+		"one": "Fertig. {n} Standort gelöst.",
+		"other": "Fertig. {n} Standorte gelöst."
+	},
 	"Done. {n} locations validated.": {
 		"one": "Fertig. {n} Standort validiert.",
 		"other": "Fertig. {n} Standorte validiert."
@@ -1353,6 +1357,7 @@
 	"Unnamed polygon": "Unbenanntes Polygon",
 	"Unofficial": "Inoffiziell",
 	"Unpanned": "Nicht ausgerichtet",
+	"Unpin": "Lösen",
 	"Unpin (follow selected tags)": "Lösen (ausgewählten Tags folgen)",
 	"Unpin from toolbar": "Von Werkzeugleiste lösen",
 	"Unreviewed": "Ungeprüft",

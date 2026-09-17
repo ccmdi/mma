@@ -417,7 +417,7 @@ const COMMANDS = {
 		label: msg("Pin locations to pano ID"),
 		icon: mdiMapMarkerCheck,
 		group: msg("Bulk Operations"),
-		aliases: ["snap to pano", "lock pano"],
+		aliases: ["snap to pano", "lock pano", "unpin"],
 		execute: openBulkOp("pinPano"),
 	},
 	"bulk-heading-road": {

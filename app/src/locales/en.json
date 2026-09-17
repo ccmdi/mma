@@ -376,6 +376,10 @@
 		"one": "Done. {n} location processed",
 		"other": "Done. {n} locations processed"
 	},
+	"Done. {n} locations unpinned.": {
+		"one": "Done. {n} location unpinned.",
+		"other": "Done. {n} locations unpinned."
+	},
 	"Done. {n} locations validated.": {
 		"one": "Done. {n} location validated.",
 		"other": "Done. {n} locations validated."
@@ -1353,6 +1357,7 @@
 	"Unnamed polygon": "Unnamed polygon",
 	"Unofficial": "Unofficial",
 	"Unpanned": "Unpanned",
+	"Unpin": "Unpin",
 	"Unpin (follow selected tags)": "Unpin (follow selected tags)",
 	"Unpin from toolbar": "Unpin from toolbar",
 	"Unreviewed": "Unreviewed",

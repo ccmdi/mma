@@ -334,6 +334,27 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 			)}
 			<div className="bulk-operation__actions">
 				<Button
+					onClick={() =>
+						onReady(async ({ selector }) => {
+							const { changed, failed } = await applyFieldOp(
+								selector,
+								{ kind: "set", key: "loadAsPanoId", value: 0 },
+								true,
+							);
+							return {
+								outcome: { succeeded: changed, failed },
+								doneMessage: t(
+									{ one: "Done. {n} location unpinned.", other: "Done. {n} locations unpinned." },
+									{ n: changed },
+								),
+							};
+						})
+					}
+					disabled={info.pinned === 0}
+				>
+					{t("Unpin")}
+				</Button>
+				<Button
 					variant="primary"
 					onClick={() =>
 						onReady(async ({ selector, signal, onProgress }) => {
@@ -363,7 +384,7 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 					}
 					disabled={nothingToDo}
 				>
-					{t("Start")}
+					{t("Pin")}
 				</Button>
 			</div>
 		</div>
