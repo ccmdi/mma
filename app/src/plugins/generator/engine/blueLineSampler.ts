@@ -154,61 +154,100 @@ async function clipToPolygon(polygon: PolygonGeometry, candidates: LatLng[]): Pr
 }
 
 /** Tiles land in random order and each scanned batch is released as soon as it is clipped,
- *  so probing starts on the first tiles while the rest are still downloading. */
+ *  so probing starts on the first tiles while the rest are still downloading. Two passes:
+ *  a coarse one covers the whole region in seconds, so a run that stops early still probed
+ *  everywhere, then the fine pass replaces each tile's coarse points as it lands. */
 export function blueLineSource(
 	polygon: PolygonGeometry,
 	evenness = 0,
 	maxTilesPerAxis = MAX_TILES_PER_AXIS,
 ): PointSource {
-	return streamedPoints(async (emit) => {
+	return streamedPoints(async (emit, retire) => {
 		const box = await cmd.polygonBounds(polygon);
 		if (!box) return;
 		const bounds: Bounds = { west: box[0], south: box[1], east: box[2], north: box[3] };
-		const { zoom, nwTile, seTile, cols, rows } = calculateZoom(bounds, maxTilesPerAxis);
-		const keep = keepRate(zoom, calculateZoom(bounds, BASE_TILES_PER_AXIS).zoom);
+		const fine = calculateZoom(bounds, maxTilesPerAxis);
+		const coarse = calculateZoom(bounds, BASE_TILES_PER_AXIS);
+		const keep = keepRate(fine.zoom, coarse.zoom);
+		const finePerAxis = 2 ** fine.zoom;
+		const fineKey = (p: LatLng) => {
+			const w = latLngToWorld(p);
+			const t = worldToTile(w.x, w.y, fine.zoom);
+			return t.y * finePerAxis + t.x;
+		};
 		log.info(
-			`[generator] Blue line: ${cols * rows} tiles (${cols}x${rows}) at zoom ${zoom}, keeping ${Math.round(keep * 100)}% of pixels`,
+			`[generator] Blue line: ${fine.cols * fine.rows} tiles (${fine.cols}x${fine.rows}) at zoom ${fine.zoom}, keeping ${Math.round(keep * 100)}% of pixels`,
 		);
 
 		const cfg = buildSamplerTileConfig();
 		const canvas = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
 		const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
 
-		const tileJobs: { tx: number; ty: number }[] = [];
-		const perAxis = 2 ** zoom;
-		for (let ty = nwTile.y; ty <= seTile.y; ty++) {
-			for (let c = 0; c < cols; c++) {
-				tileJobs.push({ tx: (nwTile.x + c) % perAxis, ty });
-			}
-		}
-		shuffle(tileJobs);
-
 		let total = 0;
-		// Fetch tiles concurrently, scan pixels sequentially (canvas is shared)
-		for (const batch of chunk(tileJobs, FETCH_CONCURRENCY)) {
-			const bmps = await Promise.all(batch.map((j) => fetchTileBlob(cfg, j.tx, j.ty, zoom)));
-			const pixelXs: number[] = [];
-			const pixelYs: number[] = [];
-			for (let b = 0; b < batch.length; b++) {
-				const bmp = bmps[b];
-				if (!bmp) continue;
-				const start = pixelXs.length;
-				scanTile(bmp, batch[b].tx, batch[b].ty, ctx, pixelXs, pixelYs);
-				thin(pixelXs, pixelYs, start, tileKeepRate(pixelXs.length - start, keep, evenness));
-				if (b % SCAN_YIELD_EVERY === SCAN_YIELD_EVERY - 1) {
-					await new Promise((resolve) => setTimeout(resolve));
+		const pass = async (
+			plan: ReturnType<typeof calculateZoom>,
+			globalKeep: number,
+			deliver: (points: LatLng[], scanned: { tx: number; ty: number }[]) => void,
+		) => {
+			const tileJobs: { tx: number; ty: number }[] = [];
+			const perAxis = 2 ** plan.zoom;
+			for (let ty = plan.nwTile.y; ty <= plan.seTile.y; ty++) {
+				for (let c = 0; c < plan.cols; c++) {
+					tileJobs.push({ tx: (plan.nwTile.x + c) % perAxis, ty });
 				}
 			}
-			if (pixelXs.length === 0) continue;
-			const candidates: LatLng[] = new Array(pixelXs.length);
-			for (let i = 0; i < pixelXs.length; i++) {
-				candidates[i] = pixelToLatLng(pixelXs[i] + Math.random(), pixelYs[i] + Math.random(), zoom);
+			shuffle(tileJobs);
+
+			// Fetch tiles concurrently, scan pixels sequentially (canvas is shared)
+			for (const batch of chunk(tileJobs, FETCH_CONCURRENCY)) {
+				const bmps = await Promise.all(batch.map((j) => fetchTileBlob(cfg, j.tx, j.ty, plan.zoom)));
+				const pixelXs: number[] = [];
+				const pixelYs: number[] = [];
+				const scanned: { tx: number; ty: number }[] = [];
+				for (let b = 0; b < batch.length; b++) {
+					const bmp = bmps[b];
+					if (!bmp) continue;
+					scanned.push(batch[b]);
+					const start = pixelXs.length;
+					scanTile(bmp, batch[b].tx, batch[b].ty, ctx, pixelXs, pixelYs);
+					thin(pixelXs, pixelYs, start, tileKeepRate(pixelXs.length - start, globalKeep, evenness));
+					if (b % SCAN_YIELD_EVERY === SCAN_YIELD_EVERY - 1) {
+						await new Promise((resolve) => setTimeout(resolve));
+					}
+				}
+				const candidates: LatLng[] = new Array(pixelXs.length);
+				for (let i = 0; i < pixelXs.length; i++) {
+					candidates[i] = pixelToLatLng(
+						pixelXs[i] + Math.random(),
+						pixelYs[i] + Math.random(),
+						plan.zoom,
+					);
+				}
+				const points = candidates.length > 0 ? await clipToPolygon(polygon, candidates) : [];
+				total += points.length;
+				deliver(points, scanned);
 			}
-			const points = await clipToPolygon(polygon, candidates);
-			if (points.length === 0) continue;
-			total += points.length;
-			emit(points);
+		};
+
+		if (fine.zoom > coarse.zoom) {
+			await pass(coarse, keepRate(coarse.zoom, coarse.zoom), (points) => {
+				const byKey = new Map<number, LatLng[]>();
+				for (const p of points) {
+					const k = fineKey(p);
+					let group = byKey.get(k);
+					if (!group) byKey.set(k, (group = []));
+					group.push(p);
+				}
+				for (const [k, group] of byKey) emit(group, k);
+			});
 		}
+		// A fine tile that failed to fetch is not scanned, so its coarse points stay.
+		await pass(fine, keep, (points, scanned) => {
+			if (fine.zoom > coarse.zoom) {
+				for (const t of scanned) retire(t.ty * finePerAxis + t.tx);
+			}
+			if (points.length > 0) emit(points);
+		});
 
 		log.info(`[generator] Blue line: ${total} sample points after polygon clip`);
 	});

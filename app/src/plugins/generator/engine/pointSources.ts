@@ -12,13 +12,22 @@ export function pointsInOrder(points: LatLng[]): PointSource {
 	};
 }
 
+const COMPACT_EVERY = 256;
+
 /** Serves points as a producer emits them, so draws can start before it finishes. Draws come
  *  uniformly at random from everything emitted so far, converging on a full shuffle once the
- *  producer is done. */
+ *  producer is done. A batch may carry a key, and `retire` withdraws that key's undrawn
+ *  points, so a producer can replace a region's points with better ones. */
 export function streamedPoints(
-	produce: (emit: (points: LatLng[]) => void) => Promise<void>,
+	produce: (
+		emit: (points: LatLng[], key?: number) => void,
+		retire: (key: number) => void,
+	) => Promise<void>,
 ): PointSource {
 	const buffer: LatLng[] = [];
+	const keys: number[] = [];
+	const retired = new Set<number>();
+	let retires = 0;
 	let state: "producing" | "done" | { error: unknown } = "producing";
 	let wake!: () => void;
 	let more = new Promise<void>((resolve) => (wake = resolve));
@@ -26,10 +35,32 @@ export function streamedPoints(
 		wake();
 		more = new Promise<void>((resolve) => (wake = resolve));
 	};
-	produce((points) => {
-		buffer.push(...points);
-		signal();
-	}).then(
+	const compact = () => {
+		let w = 0;
+		for (let i = 0; i < buffer.length; i++) {
+			if (!retired.has(keys[i])) {
+				buffer[w] = buffer[i];
+				keys[w] = keys[i];
+				w++;
+			}
+		}
+		buffer.length = w;
+		keys.length = w;
+		retired.clear();
+	};
+	produce(
+		(points, key = -1) => {
+			for (const p of points) {
+				buffer.push(p);
+				keys.push(key);
+			}
+			signal();
+		},
+		(key) => {
+			retired.add(key);
+			if (++retires % COMPACT_EVERY === 0) compact();
+		},
+	).then(
 		() => {
 			state = "done";
 			signal();
@@ -40,17 +71,23 @@ export function streamedPoints(
 		},
 	);
 	return async (n) => {
-		while (buffer.length === 0) {
-			if (state === "done") return [];
-			if (state !== "producing") throw state.error;
-			await more;
-		}
-		const drawn: LatLng[] = new Array(Math.min(n, buffer.length));
-		for (let k = 0; k < drawn.length; k++) {
+		const drawn: LatLng[] = [];
+		while (drawn.length < n) {
+			if (buffer.length === 0) {
+				if (drawn.length > 0) break;
+				if (state === "done") return drawn;
+				if (state !== "producing") throw state.error;
+				await more;
+				continue;
+			}
 			const i = (Math.random() * buffer.length) | 0;
-			drawn[k] = buffer[i];
+			const p = buffer[i];
+			const k = keys[i];
 			buffer[i] = buffer[buffer.length - 1];
+			keys[i] = keys[keys.length - 1];
 			buffer.pop();
+			keys.pop();
+			if (!retired.has(k)) drawn.push(p);
 		}
 		return drawn;
 	};

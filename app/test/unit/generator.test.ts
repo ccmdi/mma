@@ -855,6 +855,31 @@ describe("streamedPoints", () => {
 		expect(await take(2)).toEqual([]);
 	});
 
+	it("retire withdraws a key's undrawn points while other batches keep serving", async () => {
+		const take = streamedPoints(async (emit, retire) => {
+			emit([P(1), P(2)], 7);
+			emit([P(3)], 8);
+			retire(7);
+			emit([P(4)]);
+		});
+		expect((await take(10)).map((p) => p.lat).sort()).toEqual([3, 4]);
+		expect(await take(1)).toEqual([]);
+	});
+
+	it("a retire does not claw back points already drawn", async () => {
+		let step!: () => void;
+		const take = streamedPoints(async (emit, retire) => {
+			emit([P(1)], 7);
+			await new Promise<void>((r) => (step = r));
+			retire(7);
+			emit([P(2)]);
+		});
+		expect((await take(5)).map((p) => p.lat)).toEqual([1]);
+		step();
+		expect((await take(5)).map((p) => p.lat)).toEqual([2]);
+		expect(await take(5)).toEqual([]);
+	});
+
 	it("a producer failure surfaces on the draw once the buffer is drained", async () => {
 		const take = streamedPoints(async (emit) => {
 			emit([P(1)]);
