@@ -586,6 +586,14 @@ Wait for any in-progress save to finish.
 
 Append a new selection built from `selector`, deduplicating by key.
 
+### `all(...selectors: Selector[]): Selector`
+
+Locations matching every one of `selectors`; with none, every location.
+
+### `any(...selectors: Selector[]): Selector`
+
+Locations matching any of `selectors`; with none, no location.
+
 ### `batch<T, S>(op: (item: T) => (state: S) => S): (items: T[]) => (state: S) => S`
 
 Lift a single-item curried transform into one that folds over an array of items.
@@ -629,6 +637,10 @@ the `/`-path to its shortest unique suffix; otherwise returns the name verbatim.
 
 Whether a predicate reads the location's clock in its own timezone. Only a range can.
 
+### `has(field: string): Selector`
+
+Locations holding a value for `field`.
+
 ### `intersectSelections(keys?: string[] | null | undefined): (current: Selection[]) => Selection[]`
 
 Merge the targeted selections (or all, when `keys` is null) into a single Intersection.
@@ -646,10 +658,18 @@ Solo one selection by ghosting all others. Repeat to clear all ghosts.
 Ghost keys that "solo" `key`: everything except it. Returns an empty set when `key`
 is already the sole visible selection, so a repeat call un-isolates (clears all ghosts).
 
+### `lacks(field: string): Selector`
+
+Locations holding no value for `field`.
+
 ### `locationsKey(ids: number[]): string`
 
 Key an id list by hashing it: the same ids in the same order give the same key.
 Order-sensitive, like the list it identifies. Key length is constant.
+
+### `not(selector: Selector): Selector`
+
+Locations not matching `selector`.
 
 ### `OP_LABELS: Record<"has" | "nothas" | "eq" | "neq" | "contains" | "notcontains" | "gt" | "lt" | "gte" | "lte" | "between" | "between_anyyear" | "between_anytime", string>`
 

@@ -23,7 +23,7 @@ import {
 	SV_SEARCH_RADIUS,
 } from "@/lib/sv/constants";
 import { cmd } from "@/lib/commands";
-import { buildSelection } from "@/store/selections";
+import { all, any, lacks } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import type { Location, Selector } from "@/bindings.gen";
 import { msg, t } from "@/lib/i18n";
@@ -160,17 +160,6 @@ registerProvider(exactDateProvider);
 registerProvider(timezoneProvider);
 registerProvider(subdivisionProvider);
 
-/** `selector` minus the rows holding every one of `fields`. */
-function lackingAny(selector: Selector, fields: string[]): Selector {
-	const missing: Selector = {
-		type: "Union",
-		selections: fields.map((field) =>
-			buildSelection({ type: "Filter", field, test: { op: "nothas" } }),
-		),
-	};
-	return { type: "Intersection", selections: [selector, missing].map(buildSelection) };
-}
-
 /** One summary row per pass that did work: the core metadata pass, then every
  *  provider that updated or failed at least one location. */
 export interface EnrichOutcome extends ProcedureOutcome {
@@ -192,7 +181,7 @@ export async function enrichAll(selector: Selector, opts: RunOpts = {}): Promise
 				...panoResolveProvider,
 				procedure: {
 					...panoResolveProvider.procedure,
-					select: lackingAny(selector, enrichFields),
+					select: all(selector, any(...enrichFields.map(lacks))),
 				},
 			};
 	const run = await runProviders(

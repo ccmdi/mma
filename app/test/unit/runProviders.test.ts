@@ -336,7 +336,6 @@ describe("the implicit provider set", () => {
 	it("enrichAll resolves a pano only for a row still lacking a wanted field", async () => {
 		await enrichAll({ type: "Everything" });
 		expect(h.decls[0].id).toBe("panoResolve");
-		expect(h.decls[0].select.type).toBe("Intersection");
 		const json = JSON.stringify(h.decls[0].select);
 		for (const key of getDefaultEnrichKeys()) expect(json).toContain(`"${key}"`);
 		expect(json).toContain('"nothas"');

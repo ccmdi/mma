@@ -3124,6 +3124,16 @@ declare function childSelections(selector: Selector): Selection[];
 declare function withChildren(selector: Selector, children: Selection[]): Selector;
 /** Create a Selection with a deterministic key and color from its selector. */
 declare function buildSelection(selector: Selector): Selection;
+/** Locations matching every one of `selectors`; with none, every location. */
+declare const all: (...selectors: Selector[]) => Selector;
+/** Locations matching any of `selectors`; with none, no location. */
+declare const any: (...selectors: Selector[]) => Selector;
+/** Locations not matching `selector`. */
+declare const not: (selector: Selector) => Selector;
+/** Locations holding a value for `field`. */
+declare const has: (field: string) => Selector;
+/** Locations holding no value for `field`. */
+declare const lacks: (field: string) => Selector;
 /** Append a new selection built from `selector`, deduplicating by key. */
 declare const addSelection: (selector: Selector) => (current: Selection[]) => Selection[];
 /** Remove a selection by key. Composites unwrap their children back into the list. */
@@ -3176,6 +3186,8 @@ export type selectionOps_SelectionState = SelectionState;
 declare const selectionOps_UNARY_TYPES: typeof UNARY_TYPES;
 export type selectionOps_UnaryType = UnaryType;
 declare const selectionOps_addSelection: typeof addSelection;
+declare const selectionOps_all: typeof all;
+declare const selectionOps_any: typeof any;
 declare const selectionOps_batch: typeof batch;
 declare const selectionOps_buildSelection: typeof buildSelection;
 declare const selectionOps_childSelections: typeof childSelections;
@@ -3186,11 +3198,14 @@ declare const selectionOps_composeWithChild: typeof composeWithChild;
 declare const selectionOps_decomposeChild: typeof decomposeChild;
 declare const selectionOps_displayTagName: typeof displayTagName;
 declare const selectionOps_filterIsLocalTime: typeof filterIsLocalTime;
+declare const selectionOps_has: typeof has;
 declare const selectionOps_intersectSelections: typeof intersectSelections;
 declare const selectionOps_invertSelections: typeof invertSelections;
 declare const selectionOps_isolateGhost: typeof isolateGhost;
 declare const selectionOps_isolateGhostKeys: typeof isolateGhostKeys;
+declare const selectionOps_lacks: typeof lacks;
 declare const selectionOps_locationsKey: typeof locationsKey;
+declare const selectionOps_not: typeof not;
 declare const selectionOps_removeFromComposite: typeof removeFromComposite;
 declare const selectionOps_removeSelection: typeof removeSelection;
 declare const selectionOps_reorderSelections: typeof reorderSelections;
@@ -3206,7 +3221,7 @@ declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
 declare const selectionOps_unionSelections: typeof unionSelections;
 declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_locationsKey as locationsKey, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections, selectionOps_withChildren as withChildren };
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_lacks as lacks, selectionOps_locationsKey as locationsKey, selectionOps_not as not, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPatch as SelectionPatch, selectionOps_SelectionState as SelectionState, selectionOps_UnaryType as UnaryType };
 }
 

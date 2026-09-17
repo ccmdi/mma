@@ -1,6 +1,6 @@
 import type { Selector } from "@/bindings.gen";
 import { PanoType, type CapturePick } from "@/bindings.consts";
-import { buildSelection } from "@/store/selections";
+import { all, has } from "@/store/selections";
 import { applyFieldOp } from "@/store/useMapStore";
 import { runProviders, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/enrich";
@@ -21,18 +21,13 @@ export interface PinOutcome extends BatchOutcome {
 	resolved: number;
 }
 
-const intersect = (...selectors: Selector[]): Selector => ({
-	type: "Intersection",
-	selections: selectors.map(buildSelection),
-});
-
 /** Pin every location in the selector to its pano id, resolving pano ids first when asked. */
 export async function bulkPinToPano(selector: Selector, opts: PinOpts = {}): Promise<PinOutcome> {
 	const { resolve = true, capture = null, force = false, ...runOpts } = opts;
 	let resolved = 0;
 	let failed: number[] = [];
 	if (resolve) {
-		const target = force ? selector : intersect(selector, { type: "NotPanoIds" });
+		const target = force ? selector : all(selector, { type: "NotPanoIds" });
 		// A pin searches official coverage only: the closest pano can be a photosphere.
 		const result = await runProviders(
 			[
@@ -53,7 +48,7 @@ export async function bulkPinToPano(selector: Selector, opts: PinOpts = {}): Pro
 	}
 	if (runOpts.signal?.aborted) return { succeeded: 0, failed, resolved };
 	const pinned = await applyFieldOp(
-		intersect(selector, { type: "Filter", field: "panoId", test: { op: "has" } }),
+		all(selector, has("panoId")),
 		{ kind: "set", key: "loadAsPanoId", value: 1 },
 		true,
 	);

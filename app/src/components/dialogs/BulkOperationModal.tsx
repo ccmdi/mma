@@ -15,7 +15,7 @@ import {
 	coverage,
 	getMapState,
 } from "@/store/useMapStore";
-import { addSelection, batch as batchOp } from "@/store/selections";
+import { addSelection, all, batch as batchOp } from "@/store/selections";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
 import type { Selector, FieldOp } from "@/bindings.gen";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -28,7 +28,6 @@ import {
 	isWritableField,
 } from "@/lib/data/fieldDefRegistry";
 import { cmd } from "@/lib/commands";
-import { buildSelection } from "@/store/selections";
 import { useMapSetting } from "@/store/useMapSetting";
 import { CapturePick, ValidationState } from "@/bindings.consts";
 import { validateLocations } from "@/lib/sv/validate";
@@ -101,13 +100,9 @@ interface SetupProps {
 }
 
 async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
-	const narrowed = (...extra: Selector[]): Selector => ({
-		type: "Intersection",
-		selections: [selector, ...extra].map(buildSelection),
-	});
 	const [total, pinned, counts] = await Promise.all([
 		countIn(selector),
-		countIn(narrowed({ type: "PanoIds" })),
+		countIn(all(selector, { type: "PanoIds" })),
 		coverage(selector),
 	]);
 	const have = new Map(counts);

@@ -331,6 +331,39 @@ function dedupe(selections: Selection[]): Selection[] {
 	return map.size === selections.length ? selections : Array.from(map.values());
 }
 
+function compose(type: GroupType, selectors: Selector[]): Selector {
+	const parts = selectors.flatMap((s): Selection[] => {
+		if (s.type === type) return s.selections;
+		if (type === "Intersection" && s.type === "Everything") return [];
+		return [buildSelection(s)];
+	});
+	if (parts.length === 1) return parts[0].selector;
+	if (parts.length === 0 && type === "Intersection") return { type: "Everything" };
+	return { type, selections: dedupe(parts) };
+}
+
+/** Locations matching every one of `selectors`; with none, every location. */
+export const all = (...selectors: Selector[]): Selector => compose("Intersection", selectors);
+
+/** Locations matching any of `selectors`; with none, no location. */
+export const any = (...selectors: Selector[]): Selector => compose("Union", selectors);
+
+/** Locations not matching `selector`. */
+export const not = (selector: Selector): Selector =>
+	selector.type === "Invert"
+		? selector.selections[0].selector
+		: { type: "Invert", selections: [buildSelection(selector)] };
+
+/** Locations holding a value for `field`. */
+export const has = (field: string): Selector => ({ type: "Filter", field, test: { op: "has" } });
+
+/** Locations holding no value for `field`. */
+export const lacks = (field: string): Selector => ({
+	type: "Filter",
+	field,
+	test: { op: "nothas" },
+});
+
 /** Append a new selection built from `selector`, deduplicating by key. */
 export const addSelection =
 	(selector: Selector) =>

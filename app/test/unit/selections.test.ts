@@ -28,6 +28,11 @@ import {
 	childSelections,
 	withChildren,
 	locationsKey,
+	all,
+	any,
+	not,
+	has,
+	lacks,
 } from "@/store/selections";
 import { ValidationState } from "@/bindings.consts";
 import type { PolygonGeometry } from "@/bindings.gen";
@@ -271,6 +276,45 @@ describe("buildSelection", () => {
 		const sel = buildSelection({ type: "Everything" });
 		expect(sel.color).toHaveLength(3);
 		expect(sel.color[0]).toBeGreaterThanOrEqual(0);
+	});
+});
+
+describe("selector combinators", () => {
+	const tag = (tagId: number) => ({ type: "Tag" as const, tagId });
+	const types = (sel: { selections: { selector: { type: string } }[] }) =>
+		sel.selections.map((c) => c.selector.type);
+
+	it("all intersects, flattening nested intersections and dropping Everything", () => {
+		const out = all(all(tag(1), tag(2)), { type: "Everything" }, has("x"));
+		expect(out.type).toBe("Intersection");
+		expect(types(out as any)).toEqual(["Tag", "Tag", "Filter"]);
+	});
+
+	it("all of nothing is Everything, and of one is that one", () => {
+		expect(all()).toEqual({ type: "Everything" });
+		expect(all({ type: "Everything" }, tag(1))).toEqual(tag(1));
+	});
+
+	it("any unions, flattening nested unions and deduplicating by key", () => {
+		const out = any(any(tag(1), tag(2)), tag(1));
+		expect(out.type).toBe("Union");
+		expect(types(out as any)).toEqual(["Tag", "Tag"]);
+		expect(any(tag(3))).toEqual(tag(3));
+	});
+
+	it("any of nothing is an empty union", () => {
+		expect(any()).toEqual({ type: "Union", selections: [] });
+	});
+
+	it("not inverts, and inverting twice gives the selector back", () => {
+		const inverted = not(tag(1));
+		expect(inverted.type).toBe("Invert");
+		expect(not(inverted)).toEqual(tag(1));
+	});
+
+	it("has and lacks are presence filters on a field", () => {
+		expect(has("panoId")).toEqual({ type: "Filter", field: "panoId", test: { op: "has" } });
+		expect(lacks("panoId")).toEqual({ type: "Filter", field: "panoId", test: { op: "nothas" } });
 	});
 });
 

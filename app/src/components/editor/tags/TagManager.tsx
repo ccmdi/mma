@@ -23,7 +23,7 @@ import {
 	updateTags,
 	useMapState,
 } from "@/store/useMapStore";
-import { buildSelection } from "@/store/selections";
+import { all } from "@/store/selections";
 import type { TagSortMode } from "@/types";
 import type { Tag, TagPatch, Update, VirtualTag } from "@/bindings.gen";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
@@ -401,10 +401,7 @@ export function TagContextMenuContent({
 			setSelCount(0);
 			return;
 		}
-		void countIn({
-			type: "Intersection",
-			selections: [buildSelection({ type: "Tag", tagId }), buildSelection(currentSelection())],
-		}).then(setSelCount);
+		void countIn(all({ type: "Tag", tagId }, currentSelection())).then(setSelCount);
 	}, [tagId]);
 
 	const inSel = selCount ?? 0;

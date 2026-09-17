@@ -1,13 +1,13 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import clsx from "clsx";
 import { NSelect } from "@/components/primitives/NSelect";
-import type { KeySpec, Selector } from "@/bindings.gen";
+import type { KeySpec } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { countBy, countIn, coverage, createTags, partition } from "@/store/useMapStore";
-import { buildSelection } from "@/store/selections";
+import { all, not } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { useSetting } from "@/store/settings";
@@ -117,23 +117,11 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 
 		// Rust drops rows whose key does not resolve, so whatever the groups miss is exactly
 		// the set with no value for this field.
-		const missing: Selector | null = tagMissing
-			? {
-					type: "Intersection",
-					selections: [
-						buildSelection(picker.selector),
-						buildSelection({
-							type: "Invert",
-							selections: [
-								buildSelection({
-									type: "Locations",
-									locations: groups.flatMap((g) => g.ids),
-									name: null,
-								}),
-							],
-						}),
-					],
-				}
+		const missing = tagMissing
+			? all(
+					picker.selector,
+					not({ type: "Locations", locations: groups.flatMap((g) => g.ids), name: null }),
+				)
 			: null;
 		const missingCount = missing ? await countIn(missing) : 0;
 		if (groups.length === 0 && missingCount === 0) return;

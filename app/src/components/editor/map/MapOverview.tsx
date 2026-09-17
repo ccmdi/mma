@@ -13,7 +13,7 @@ import {
 	selectEvenlySpacedFromSelection,
 	currentSelection,
 } from "@/store/useMapStore";
-import { addSelection, batch, buildSelection } from "@/store/selections";
+import { addSelection, batch, buildSelection, has } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { sortTagsByMode } from "@/lib/util/util";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
@@ -218,7 +218,7 @@ function RankedPanel({
 					batch(addSelection)([
 						{
 							type: "Ranked",
-							selection: buildSelection({ type: "Filter", field, test: { op: "has" } }),
+							selection: buildSelection(has(field)),
 							expr: field,
 							k: count,
 							ascending,
