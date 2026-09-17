@@ -118,26 +118,19 @@ async function searchImage(panoId, k, threshold, signal) {
   return res?.results ?? [];
 }
 
+// vision/src/VisionSidebar.css
+var style = [...document.head.querySelectorAll("style[data-mma-plugin-css]")].find((s) => s.dataset.mmaPluginCss === "vision/src/VisionSidebar.css");
+if (!style) {
+  style = document.createElement("style");
+  style.dataset.mmaPluginCss = "vision/src/VisionSidebar.css";
+  document.head.appendChild(style);
+}
+style.textContent = ".vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }\n.vision-sidebar__progress { font-size: 12px; color: var(--text-secondary, #999); padding: 4px 0; }\n.vision-sidebar__error { font-size: 12px; color: #e55; padding: 4px 0; }\n.vision-sidebar__actions { display: flex; gap: 6px; margin-top: 4px; }\n\n.vision-result { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 6px; background: var(--surface-1, #2d2d28); }\n.vision-result__headline { font-size: 13px; }\n.vision-result__count { font-size: 15px; font-weight: 600; }\n.vision-result__note { font-size: 11px; color: var(--text-secondary, #999); }\n.vision-result__warn { font-size: 11px; color: #eaa; }\n.vision-meter { position: relative; height: 6px; border-radius: 3px; background: var(--surface-3, #403f38); }\n.vision-meter__fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--accent, #1098ad); }\n.vision-meter__cut { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text-1, #f4f3ef); }\n.vision-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary, #999); }\n";
+
 // vision/src/VisionSidebar.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime());
 var { ui: { Sidebar, Field, TextInput, Button }, useJob, fetchAllLocations, addSelections } = MMA;
 var MAX_SCORE = 0.3;
-var CSS = `
-.vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
-.vision-sidebar__progress { font-size: 12px; color: var(--text-secondary, #999); padding: 4px 0; }
-.vision-sidebar__error { font-size: 12px; color: #e55; padding: 4px 0; }
-.vision-sidebar__actions { display: flex; gap: 6px; margin-top: 4px; }
-
-.vision-result { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 6px; background: var(--surface-1, #2d2d28); }
-.vision-result__headline { font-size: 13px; }
-.vision-result__count { font-size: 15px; font-weight: 600; }
-.vision-result__note { font-size: 11px; color: var(--text-secondary, #999); }
-.vision-result__warn { font-size: 11px; color: #eaa; }
-.vision-meter { position: relative; height: 6px; border-radius: 3px; background: var(--surface-3, #403f38); }
-.vision-meter__fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--accent, #1098ad); }
-.vision-meter__cut { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text-1, #f4f3ef); }
-.vision-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary, #999); }
-`;
 function panoIdToLocId(locs, panoId) {
   const loc = locs.find((l) => l.panoId === panoId);
   return loc?.id ?? null;
@@ -236,38 +229,35 @@ function VisionSidebar({ onClose }) {
       notes
     };
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Sidebar, { title: "Vision", onBack: onClose, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("style", { children: CSS }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-sidebar__body", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Search for", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        TextInput,
-        {
-          placeholder: "cars, snow, indoor...",
-          value: query,
-          onChange: (e) => setQuery(e.target.value),
-          onKeyDown: (e) => {
-            if (e.key === "Enter" && !job.running && query.trim()) job.run();
-          }
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sidebar, { title: "Vision", onBack: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-sidebar__body", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Search for", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      TextInput,
+      {
+        placeholder: "cars, snow, indoor...",
+        value: query,
+        onChange: (e) => setQuery(e.target.value),
+        onKeyDown: (e) => {
+          if (e.key === "Enter" && !job.running && query.trim()) job.run();
         }
-      ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: `Min confidence: ${threshold.toFixed(3)}`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "input",
-        {
-          type: "range",
-          min: 0,
-          max: MAX_SCORE,
-          step: 5e-3,
-          value: threshold,
-          onChange: (e) => setThreshold(Number(e.target.value)),
-          style: { width: "100%" }
-        }
-      ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__actions", children: !job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", disabled: !query.trim(), onClick: job.run, children: "Search" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: job.cancel, children: "Cancel" }) }),
-      job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__progress", children: job.progress }),
-      job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__error", children: job.error }),
-      job.result !== null && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Result, { outcome: job.result })
-    ] })
-  ] });
+      }
+    ) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: `Min confidence: ${threshold.toFixed(3)}`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "input",
+      {
+        type: "range",
+        min: 0,
+        max: MAX_SCORE,
+        step: 5e-3,
+        value: threshold,
+        onChange: (e) => setThreshold(Number(e.target.value)),
+        style: { width: "100%" }
+      }
+    ) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__actions", children: !job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", disabled: !query.trim(), onClick: job.run, children: "Search" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: job.cancel, children: "Cancel" }) }),
+    job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__progress", children: job.progress }),
+    job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__error", children: job.error }),
+    job.result !== null && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Result, { outcome: job.result })
+  ] }) });
 }
 
 // vision/src/FindSimilarButton.tsx

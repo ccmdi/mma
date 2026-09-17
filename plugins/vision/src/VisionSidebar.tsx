@@ -1,28 +1,12 @@
 import { useState } from "react";
 import type { Location } from "mma-plugin-types";
 import { embed, searchText } from "./sidecar";
+import "./VisionSidebar.css";
 
 const { ui: { Sidebar, Field, TextInput, Button }, useJob, fetchAllLocations, addSelections } = MMA;
 
 /** Top of the confidence slider, and so the scale every score is drawn against. */
 const MAX_SCORE = 0.3;
-
-const CSS = `
-.vision-sidebar__body { padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
-.vision-sidebar__progress { font-size: 12px; color: var(--text-secondary, #999); padding: 4px 0; }
-.vision-sidebar__error { font-size: 12px; color: #e55; padding: 4px 0; }
-.vision-sidebar__actions { display: flex; gap: 6px; margin-top: 4px; }
-
-.vision-result { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 6px; background: var(--surface-1, #2d2d28); }
-.vision-result__headline { font-size: 13px; }
-.vision-result__count { font-size: 15px; font-weight: 600; }
-.vision-result__note { font-size: 11px; color: var(--text-secondary, #999); }
-.vision-result__warn { font-size: 11px; color: #eaa; }
-.vision-meter { position: relative; height: 6px; border-radius: 3px; background: var(--surface-3, #403f38); }
-.vision-meter__fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 3px; background: var(--accent, #1098ad); }
-.vision-meter__cut { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text-1, #f4f3ef); }
-.vision-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary, #999); }
-`;
 
 interface Outcome {
 	/** Matches whose pano is in the open map, and so actually selected. */
@@ -167,7 +151,6 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 
 	return (
 		<Sidebar title="Vision" onBack={onClose}>
-			<style>{CSS}</style>
 			<div className="vision-sidebar__body">
 				<Field label="Search for">
 					<TextInput
