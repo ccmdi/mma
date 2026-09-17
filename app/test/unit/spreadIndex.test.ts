@@ -23,4 +23,9 @@ describe("spreadIndex", () => {
 		expect(even).toBeGreaterThan(tilted);
 		expect(tilted).toBeGreaterThan(packed);
 	});
+
+	it("reads as the share of counts an even split would keep in place", () => {
+		expect(spreadIndex([25, 10, 3, 2])).toBeCloseTo(0.625);
+		expect(spreadIndex([37, 1, 1, 1])).toBeCloseTo(0.325);
+	});
 });

@@ -1,14 +1,14 @@
-/** How evenly a set of per-cell counts is distributed: 1 is perfectly even, values near
- *  zero mean almost everything sits in a few cells. One minus the Gini coefficient;
- *  null until there are at least two cells and one count. */
+/** The share of a distribution sitting where a perfectly even one would put it: one
+ *  minus the total variation distance from equal per-cell counts. 1 is perfectly even;
+ *  near zero means almost everything sits in a few cells. Null until there are at
+ *  least two cells and one count. */
 export function spreadIndex(counts: number[]): number | null {
 	const n = counts.length;
 	if (n < 2) return null;
 	const total = counts.reduce((a, b) => a + b, 0);
 	if (total === 0) return null;
-	const sorted = [...counts].sort((a, b) => a - b);
-	let weighted = 0;
-	for (let i = 0; i < n; i++) weighted += (i + 1) * sorted[i];
-	const gini = (2 * weighted) / (n * total) - (n + 1) / n;
-	return 1 - gini;
+	const even = total / n;
+	let deviation = 0;
+	for (const c of counts) deviation += Math.abs(c - even);
+	return 1 - deviation / (2 * total);
 }
