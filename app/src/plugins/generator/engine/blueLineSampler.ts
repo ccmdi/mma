@@ -23,25 +23,40 @@ export function keepRate(zoom: number, baseZoom: number): number {
 	return Math.min(1, 2 ** (baseZoom - zoom));
 }
 
-const EVEN_TILE_POINTS = 600;
+const CELL_PX = 32;
+const EVEN_CELL_POINTS = 600 * (CELL_PX / TILE_SIZE) ** 2;
 
 /** Probes per area the `distribution` setting buys, from road-density-proportional to
- *  a flat share per tile. */
+ *  a flat share per cell. */
 export const DISTRIBUTION_EVENNESS = { density: 0, balanced: 0.5, even: 1 } as const;
 
-/** A tile's pixel keep-probability: density keeps `globalKeep` everywhere, even aims
- *  at a flat point count per tile, and `evenness` blends between them. */
-export function tileKeepRate(rawCount: number, globalKeep: number, evenness: number): number {
+/** A cell's pixel keep-probability: density keeps `globalKeep` everywhere, even aims
+ *  at a flat point count per cell, and `evenness` blends between them. */
+export function cellKeepRate(rawCount: number, globalKeep: number, evenness: number): number {
 	if (rawCount === 0) return 0;
-	const even = Math.min(1, EVEN_TILE_POINTS / rawCount);
+	const even = Math.min(1, EVEN_CELL_POINTS / rawCount);
 	return (1 - evenness) * globalKeep + evenness * even;
 }
 
-function thin(xs: number[], ys: number[], from: number, keep: number) {
-	if (keep >= 1) return;
+/** Thins scanned pixels cell by cell, so a flat share holds inside a tile instead of one
+ *  dense corner absorbing it, and no lone road hoards a whole tile's quota. */
+export function thinCells(
+	xs: number[],
+	ys: number[],
+	from: number,
+	globalKeep: number,
+	evenness: number,
+) {
+	if (evenness === 0 && globalKeep >= 1) return;
+	const cellOf = (i: number) => ((xs[i] / CELL_PX) | 0) * 2 ** 20 + ((ys[i] / CELL_PX) | 0);
+	const counts = new Map<number, number>();
+	for (let i = from; i < xs.length; i++) {
+		const c = cellOf(i);
+		counts.set(c, (counts.get(c) ?? 0) + 1);
+	}
 	let w = from;
 	for (let i = from; i < xs.length; i++) {
-		if (Math.random() < keep) {
+		if (Math.random() < cellKeepRate(counts.get(cellOf(i))!, globalKeep, evenness)) {
 			xs[w] = xs[i];
 			ys[w] = ys[i];
 			w++;
@@ -210,7 +225,7 @@ export function blueLineSource(
 					scanned.push(batch[b]);
 					const start = pixelXs.length;
 					scanTile(bmp, batch[b].tx, batch[b].ty, ctx, pixelXs, pixelYs);
-					thin(pixelXs, pixelYs, start, tileKeepRate(pixelXs.length - start, globalKeep, evenness));
+					thinCells(pixelXs, pixelYs, start, globalKeep, evenness);
 					if (b % SCAN_YIELD_EVERY === SCAN_YIELD_EVERY - 1) {
 						await new Promise((resolve) => setTimeout(resolve));
 					}
