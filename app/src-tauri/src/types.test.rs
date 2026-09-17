@@ -264,6 +264,20 @@ fn arb_location() -> impl Strategy<Value = Location> {
         )
 }
 
+#[test]
+fn unstable_const_carries_the_tag_whatever_its_docs() {
+    let bare = TsConst::value(1).unstable().render("A");
+    assert!(bare.contains("/** @unstable */\nexport const A"));
+    let one = TsConst::value(1).with_doc(&["One."]).unstable().render("A");
+    assert!(one.contains("/** One. @unstable */\nexport const A"));
+    let many = TsConst::value(1)
+        .with_doc(&["One.", "Two."])
+        .unstable()
+        .render("A");
+    assert!(many.contains(" * Two.\n * @unstable\n */\nexport const A"));
+    assert!(!TsConst::value(1).render("A").contains("@unstable"));
+}
+
 // The wire strings are the contract `src/lib/util/format.ts` maps to messages; whatever follows
 // ": " is data the TS side parses.
 #[test]

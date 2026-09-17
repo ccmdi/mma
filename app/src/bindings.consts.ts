@@ -64,6 +64,7 @@ export type ExtraFieldType = (typeof ExtraFieldType)[keyof typeof ExtraFieldType
 /**
  * First-sync seeding when both sides already have pins. Only meaningful on the first sync
  * (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
+ * @unstable
  */
 export const FirstSyncMode = {
 	/** Both maps keep everything; nothing is deleted. */
@@ -75,6 +76,7 @@ export const FirstSyncMode = {
 } as const;
 export type FirstSyncMode = (typeof FirstSyncMode)[keyof typeof FirstSyncMode];
 
+/** @unstable */
 export const IssueState = {
 	/** The issue is still open. */
 	Open: "open",
@@ -104,7 +106,7 @@ export const RateCost = {
 } as const;
 export type RateCost = (typeof RateCost)[keyof typeof RateCost];
 
-/** Which side won a resolved conflict. */
+/** Which side won a resolved conflict. @unstable */
 export const ResolutionSide = {
 	/** This map's version won the conflict. */
 	Local: "local",
@@ -187,21 +189,28 @@ export const BUILTIN_FIELDS = [{"key":"lat","label":"Latitude","type":"number","
 
 export const OFFICIAL_ID_PATTERN = "^[-_A-Za-z0-9]{21}[AQgw]$" as const;
 
+/** @unstable */
 export const CLEARABLE_BUILTINS = ["panoId"] as const;
 
+/** @unstable */
 export const EFFECT_CALLS = ["fetch","fetchMany","panos","sidecar"] as const;
 
+/** @unstable */
 export const PLAIN_CALLS = ["classify","progress","fail","emit","aborted"] as const;
 
+/** @unstable */
 export const DEFAULT_DUPLICATE_SCORE = "tagCount + has(panoId) + loadAsPanoId + (heading != 0)" as const;
 
 export const KNOWN_FIELDS = [{"key":"altitude","type":"number","label":"Altitude","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"countryCode","type":"string","label":"Country code","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"cameraType","type":"enum","label":"Camera type","values":["gen1","gen2","gen4","badcam","tripod","trekker"],"labels":[["gen1","Gen 1"],["gen2","Gen 2/3"],["gen4","Gen 4"],["badcam","Bad cam"],["tripod","Tripod"],["trekker","Trekker"]],"circularPeriod":null,"defaultOff":false},{"key":"panoType","type":"enum","label":"Pano type","values":["2","3","10"],"labels":[["2","Official"],["3","Unknown"],["10","User uploaded"]],"circularPeriod":null,"defaultOff":false},{"key":"imageDate","type":"month","label":"Image date","values":[],"labels":[],"circularPeriod":null,"defaultOff":false},{"key":"datetime","type":"date","label":"Exact date","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"timezone","type":"enum","label":"Timezone","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"drivingDirection","type":"number","label":"Driving direction","values":[],"labels":[],"circularPeriod":360.0,"defaultOff":true},{"key":"uploaderName","type":"string","label":"Uploader","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"coverageDates","type":"array","label":"Coverage dates","values":[],"labels":[],"circularPeriod":null,"defaultOff":true},{"key":"subdivision","type":"string","label":"Subdivision","values":[],"labels":[],"circularPeriod":null,"defaultOff":true}] as const;
 
+/** @unstable */
 export const PROJECTIONS = [{"id":"value","appliesTo":["string","enum","number","month"],"needsTz":false},{"id":"year","appliesTo":["date","month"],"needsTz":true},{"id":"yearMonth","appliesTo":["date"],"needsTz":true},{"id":"day","appliesTo":["date"],"needsTz":true},{"id":"monthOfYear","appliesTo":["date","month"],"needsTz":true},{"id":"hourOfDay","appliesTo":["date"],"needsTz":true}] as const;
 
+/** @unstable */
 export const SCRATCH_MAP_ID = "scratch" as const;
 
+/** @unstable */
 export const ERROR_CODES = ["auth","attachment-not-staged","attachment-too-large","attachment-not-image","upload-rejected","report-rejected","report-unreadable","sign-in-timed-out","sign-in-token-rejected","issue-rejected","geoguessr-polygonal","geoguessr-draft-too-large"] as const;
 
-/** The bits a preview carries that a real location must not. */
+/** The bits a preview carries that a real location must not. @unstable */
 export const VIRTUAL_FLAGS = 12 as const;

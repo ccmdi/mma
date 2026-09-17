@@ -332,11 +332,14 @@ fn wire_string_enums() -> [(&'static str, TsConst); 10] {
         ("CapturePick", store::maps::CapturePick::ts_const()),
         ("DatePart", selections::DatePart::ts_const()),
         ("ExtraFieldType", store::maps::ExtraFieldType::ts_const()),
-        ("FirstSyncMode", sync::FirstSyncMode::ts_const()),
-        ("IssueState", net::github::IssueState::ts_const()),
+        ("FirstSyncMode", sync::FirstSyncMode::ts_const().unstable()),
+        ("IssueState", net::github::IssueState::ts_const().unstable()),
         ("MergeWinner", store::engine::MergeWinner::ts_const()),
         ("RateCost", procedure::engine::RateCost::ts_const()),
-        ("ResolutionSide", sync::engine::ResolutionSide::ts_const()),
+        (
+            "ResolutionSide",
+            sync::engine::ResolutionSide::ts_const().unstable(),
+        ),
         ("Sink", procedure::engine::Sink::ts_const()),
     ]
 }
@@ -406,25 +409,28 @@ fn export_consts() -> Result<(), String> {
         ),
         (
             "CLEARABLE_BUILTINS",
-            TsConst::value(store::engine::clearable_builtins()),
+            TsConst::value(store::engine::clearable_builtins()).unstable(),
         ),
         (
             "EFFECT_CALLS",
-            TsConst::value(procedure::quickjs::EFFECT_CALLS),
+            TsConst::value(procedure::quickjs::EFFECT_CALLS).unstable(),
         ),
         (
             "PLAIN_CALLS",
-            TsConst::value(procedure::quickjs::PLAIN_CALLS),
+            TsConst::value(procedure::quickjs::PLAIN_CALLS).unstable(),
         ),
         (
             "DEFAULT_DUPLICATE_SCORE",
-            TsConst::value(selections::DEFAULT_DUPLICATE_SCORE),
+            TsConst::value(selections::DEFAULT_DUPLICATE_SCORE).unstable(),
         ),
         ("KNOWN_FIELDS", TsConst::value(store::maps::KNOWN_FIELDS)),
-        ("PROJECTIONS", TsConst::value(selections::PROJECTIONS)),
+        (
+            "PROJECTIONS",
+            TsConst::value(selections::PROJECTIONS).unstable(),
+        ),
         (
             "SCRATCH_MAP_ID",
-            TsConst::value(store::maps::SCRATCH_MAP_ID),
+            TsConst::value(store::maps::SCRATCH_MAP_ID).unstable(),
         ),
         (
             "ERROR_CODES",
@@ -433,13 +439,14 @@ fn export_consts() -> Result<(), String> {
                     .iter()
                     .map(|c| c.wire())
                     .collect::<Vec<_>>(),
-            ),
+            )
+            .unstable(),
         ),
     ]) {
         ts.push_str(&konst.render(name));
     }
     for (name, value, doc) in types::LocationFlags::WIRE_CONSTS {
-        ts.push_str(&TsConst::value(value).with_doc(doc).render(name));
+        ts.push_str(&TsConst::value(value).with_doc(doc).unstable().render(name));
     }
     fs::write(&out, ts).map_err(|e| e.to_string())?;
     eprintln!("[specta] constants exported to {}", out.display());

@@ -121,6 +121,7 @@ pub struct TsConst {
     doc: &'static [&'static str],
     literal: String,
     union: bool,
+    unstable: bool,
 }
 
 impl TsConst {
@@ -130,6 +131,7 @@ impl TsConst {
             doc: &[],
             literal: serde_json::to_string(&v).expect("constant serializes"),
             union: false,
+            unstable: false,
         }
     }
 
@@ -164,11 +166,18 @@ impl TsConst {
             doc: &[],
             literal: format!("{{\n{body}}}"),
             union,
+            unstable: false,
         }
     }
 
     pub fn with_doc(mut self, doc: &'static [&'static str]) -> Self {
         self.doc = doc;
+        self
+    }
+
+    /// Marks the constant as carrying no stability promise to plugins.
+    pub fn unstable(mut self) -> Self {
+        self.unstable = true;
         self
     }
 
@@ -178,10 +187,12 @@ impl TsConst {
             "
 ",
         );
+        let tag = if self.unstable { " @unstable" } else { "" };
         match self.doc {
+            [] if self.unstable => ts.push_str("/** @unstable */\n"),
             [] => {}
             [one] => ts.push_str(&format!(
-                "/** {} */
+                "/** {}{tag} */
 ",
                 one.trim()
             )),
@@ -196,6 +207,9 @@ impl TsConst {
 ",
                         line.trim()
                     ));
+                }
+                if self.unstable {
+                    ts.push_str(" * @unstable\n");
                 }
                 ts.push_str(
                     " */

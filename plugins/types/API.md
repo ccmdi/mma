@@ -85,7 +85,7 @@ An indoor capture from a tripod.
 
 A capture of a pano's timeline to settle on.
 
-### `CLEARABLE_BUILTINS: readonly ["panoId"]`
+### `CLEARABLE_BUILTINS: readonly ["panoId"]` *(unstable)*
 
 ### `DatePart`
 
@@ -111,11 +111,11 @@ The calendar year.
 
 The year and month.
 
-### `DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)"`
+### `DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)"` *(unstable)*
 
-### `EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"]`
+### `EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"]` *(unstable)*
 
-### `ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large"]`
+### `ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large"]` *(unstable)*
 
 ### `ExtraFieldType`
 
@@ -146,12 +146,12 @@ A number.
 
 Text.
 
-### `FirstSyncMode: { readonly Merge: "merge"; readonly MirrorFromRemote: "mirrorFromRemote"; readonly MirrorFromLocal: "mirrorFromLocal"; }`
+### `FirstSyncMode: { readonly Merge: "merge"; readonly MirrorFromRemote: "mirrorFromRemote"; readonly MirrorFromLocal: "mirrorFromLocal"; }` *(unstable)*
 
 First-sync seeding when both sides already have pins. Only meaningful on the first sync
 (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
 
-### `IssueState: { readonly Open: "open"; readonly Closed: "closed"; }`
+### `IssueState: { readonly Open: "open"; readonly Closed: "closed"; }` *(unstable)*
 
 ### `KNOWN_FIELDS: readonly [{ readonly key: "altitude"; readonly type: "number"; readonly label: "Altitude"; readonly values: readonly []; readonly labels: readonly []; readonly circularPeriod: null; readonly defaultOff: false; }, { ...; }, ... 8 more ..., { ...; }]`
 
@@ -189,9 +189,9 @@ When a move target already holds a value, which side survives.
 
 Which imagery collection a pano id belongs to.
 
-### `PLAIN_CALLS: readonly ["classify", "progress", "fail", "emit", "aborted"]`
+### `PLAIN_CALLS: readonly ["classify", "progress", "fail", "emit", "aborted"]` *(unstable)*
 
-### `PROJECTIONS: readonly [{ readonly id: "value"; readonly appliesTo: readonly ["string", "enum", "number", "month"]; readonly needsTz: false; }, { readonly id: "year"; readonly appliesTo: readonly ["date", "month"]; readonly needsTz: true; }, { ...; }, { ...; }, { ...; }, { ...; }]`
+### `PROJECTIONS: readonly [{ readonly id: "value"; readonly appliesTo: readonly ["string", "enum", "number", "month"]; readonly needsTz: false; }, { readonly id: "year"; readonly appliesTo: readonly ["date", "month"]; readonly needsTz: true; }, { ...; }, { ...; }, { ...; }, { ...; }]` *(unstable)*
 
 ### `RankingStrategy: { readonly Best: 1; readonly Closest: 2; }`
 
@@ -203,11 +203,11 @@ neighbouring pano from the same capture run, so probe a pano's own coordinate wi
 What one attempt charges the bucket: the call itself, or one per row in its batch
 (for APIs that bill multi-row requests per row).
 
-### `ResolutionSide: { readonly Local: "local"; readonly Remote: "remote"; }`
+### `ResolutionSide: { readonly Local: "local"; readonly Remote: "remote"; }` *(unstable)*
 
 Which side won a resolved conflict.
 
-### `SCRATCH_MAP_ID: "scratch"`
+### `SCRATCH_MAP_ID: "scratch"` *(unstable)*
 
 ### `Sink: { readonly Patch: "patch"; readonly Collect: "collect"; }`
 
@@ -247,7 +247,7 @@ Newer official coverage exists here, and the unpinned location already shows it.
 
 The location is pinned to a pano, and newer official coverage exists that it does not show.
 
-### `VIRTUAL_FLAGS: 12`
+### `VIRTUAL_FLAGS: 12` *(unstable)*
 
 ## Store
 

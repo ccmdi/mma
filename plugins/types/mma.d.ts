@@ -71,6 +71,7 @@ type ExtraFieldType = (typeof ExtraFieldType)[keyof typeof ExtraFieldType];
 /**
  * First-sync seeding when both sides already have pins. Only meaningful on the first sync
  * (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
+ * @unstable
  */
 declare const FirstSyncMode: {
     /** Both maps keep everything; nothing is deleted. */
@@ -80,13 +81,16 @@ declare const FirstSyncMode: {
     /** Locations only on the remote map are deleted so it matches this map. */
     readonly MirrorFromLocal: "mirrorFromLocal";
 };
+/** @unstable */
 type FirstSyncMode = (typeof FirstSyncMode)[keyof typeof FirstSyncMode];
+/** @unstable */
 declare const IssueState: {
     /** The issue is still open. */
     readonly Open: "open";
     /** The issue has been closed. */
     readonly Closed: "closed";
 };
+/** @unstable */
 type IssueState = (typeof IssueState)[keyof typeof IssueState];
 /** When a move target already holds a value, which side survives. */
 declare const MergeWinner: {
@@ -107,13 +111,14 @@ declare const RateCost: {
     readonly Row: "row";
 };
 type RateCost = (typeof RateCost)[keyof typeof RateCost];
-/** Which side won a resolved conflict. */
+/** Which side won a resolved conflict. @unstable */
 declare const ResolutionSide: {
     /** This map's version won the conflict. */
     readonly Local: "local";
     /** The remote map's version won the conflict. */
     readonly Remote: "remote";
 };
+/** @unstable */
 type ResolutionSide = (typeof ResolutionSide)[keyof typeof ResolutionSide];
 /**
  * Where a provider's results go. `Patch` applies them to the locations they name;
@@ -251,9 +256,13 @@ declare const BUILTIN_FIELDS: readonly [{
     readonly comparison: null;
 }];
 declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
+/** @unstable */
 declare const CLEARABLE_BUILTINS: readonly ["panoId"];
+/** @unstable */
 declare const EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"];
+/** @unstable */
 declare const PLAIN_CALLS: readonly ["classify", "progress", "fail", "emit", "aborted"];
+/** @unstable */
 declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
 declare const KNOWN_FIELDS: readonly [{
     readonly key: "altitude";
@@ -344,6 +353,7 @@ declare const KNOWN_FIELDS: readonly [{
     readonly circularPeriod: null;
     readonly defaultOff: true;
 }];
+/** @unstable */
 declare const PROJECTIONS: readonly [{
     readonly id: "value";
     readonly appliesTo: readonly ["string", "enum", "number", "month"];
@@ -369,9 +379,11 @@ declare const PROJECTIONS: readonly [{
     readonly appliesTo: readonly ["date"];
     readonly needsTz: true;
 }];
+/** @unstable */
 declare const SCRATCH_MAP_ID: "scratch";
+/** @unstable */
 declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large"];
-/** The bits a preview carries that a real location must not. */
+/** The bits a preview carries that a real location must not. @unstable */
 declare const VIRTUAL_FLAGS: 12;
 
 declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
