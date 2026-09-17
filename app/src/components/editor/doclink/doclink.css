@@ -13,7 +13,6 @@
 	position: relative;
 	height: calc(100vh - 2rem);
 	margin: 0.5rem 0.5rem 0.5rem 0;
-	background: var(--item-color);
 	border-radius: 4px;
 	min-width: 0;
 }
@@ -55,14 +54,14 @@
 .doclink-panel__pager button {
 	border: 1px solid transparent;
 	border-radius: 3px;
-	background: var(--sand-10, #33332e);
+	background: var(--surface-2);
 	color: inherit;
 	font-size: 0.75rem;
 	padding: 0.125rem 0.5rem;
 	cursor: pointer;
 }
 .doclink-panel__pager button.is-selected {
-	border-color: var(--sand-4, #b3b2a6);
+	border-color: var(--accent);
 }
 
 .doclink-panel__body {
@@ -70,7 +69,6 @@
 	min-height: 0;
 	overflow-y: auto;
 	border-radius: 0 0 4px 4px;
-	background: var(--item-color);
 	position: relative;
 }
 
@@ -151,17 +149,17 @@
 	border-radius: 3px;
 }
 .doclink-native a {
-	color: var(--text-color, #fff);
+	color: var(--text-1);
 	text-decoration: underline;
 	text-underline-offset: 2px;
 }
 .doclink-native hr {
 	border: none;
-	border-top: 1px solid var(--sand-8, #4d4c45);
+	border-top: 1px solid var(--border-subtle);
 	margin: 0.75rem 0;
 }
 .doclink-native__placeholder {
-	color: var(--sand-5, #999888);
+	color: var(--text-3);
 	font-style: italic;
 }
 
@@ -413,7 +411,7 @@
 
 .doclink-panel__status {
 	padding: 1rem;
-	color: var(--sand-5, #999888);
+	color: var(--text-2);
 }
 .doclink-panel__status--center {
 	display: flex;
