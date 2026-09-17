@@ -102,12 +102,36 @@ ${line}`);
     // api.ts's `declare global` (window.MMA + bare MMA) survives the bundle,
     // so no appended global block is needed.
     content = `/// <reference types="google.maps" />\n\n` + content;
+    rejectBackendSpelling(content);
     fs.writeFileSync(out, content);
     propagateUnstable();
     generateApiMarkdown();
     console.log("Generated plugins/types/mma.d.ts");
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+// Doc comments are what a plugin author reads, so they name things the way the SDK spells
+// them: `null`, camelCase members, no rustdoc links. A snake_case name is allowed only when
+// the SDK itself declares it.
+function rejectBackendSpelling(content) {
+  const docs = [...content.matchAll(/(\/\*\*[\s\S]*?\*\/)\s*([^\n]*)/g)];
+  const code = content.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+  const declared = new Set(code.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g));
+  const problems = [];
+  for (const [, block, following] of docs) {
+    const found = [
+      ...[...block.matchAll(/`(None|Some)\b[^`]*`|\bSome\(/g)].map((m) => m[0]),
+      ...[...block.matchAll(/\[`[\w:]+`\]/g)].map((m) => m[0]),
+      ...[...block.matchAll(/`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`/g)]
+        .filter((m) => !declared.has(m[1]))
+        .map((m) => m[0]),
+    ];
+    if (found.length) problems.push(`  ${following.trim()}: ${found.join(", ")}`);
+  }
+  if (problems.length) {
+    throw new Error(`Doc comments use backend spelling (say null, camelCase, no [links]):\n${problems.join("\n")}`);
   }
 }
 
