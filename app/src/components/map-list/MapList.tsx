@@ -1215,7 +1215,7 @@ export function MapList() {
 				style={{
 					position: "fixed",
 					pointerEvents: "none",
-					zIndex: 9999,
+					zIndex: "var(--z-drag)",
 					padding: "6px 12px",
 					background: "var(--sand-3, #333)",
 					borderRadius: "4px",

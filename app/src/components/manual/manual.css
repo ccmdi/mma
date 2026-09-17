@@ -14,7 +14,7 @@
 .manual {
 	position: fixed;
 	inset: 0;
-	z-index: 50;
+	z-index: var(--z-chrome);
 	display: grid;
 	grid-template-columns: 280px 1fr;
 	overflow: hidden;

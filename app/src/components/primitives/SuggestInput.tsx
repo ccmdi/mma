@@ -107,7 +107,7 @@ export function SuggestInput<T>({
 							top: anchor?.bottom ?? 0,
 							left: anchor?.left ?? 0,
 							width: anchor?.width,
-							zIndex: 100,
+							zIndex: "var(--z-popover)",
 							pointerEvents: "auto",
 							...listStyle,
 						}

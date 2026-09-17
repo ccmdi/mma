@@ -187,7 +187,7 @@
 	border-radius: var(--radius-3);
 	padding: 0.5em 1em;
 	white-space: nowrap;
-	z-index: 10;
+	z-index: var(--z-popover);
 	pointer-events: none;
 	animation: fade-in var(--dur) var(--ease-enter);
 }
@@ -636,6 +636,13 @@ input {
 	--focus-ring: 2px solid var(--accent);
 	--focus-offset: 2px;
 
+	--z-chrome: 50;
+	--z-modal: 100;
+	--z-fullscreen: 200;
+	--z-popover: 300;
+	--z-toast: 400;
+	--z-drag: 500;
+
 	--radius-1: 4px;
 	--radius-2: 6px;
 	--radius-3: 10px;
@@ -945,7 +952,7 @@ input[type="range"]:disabled {
 }
 .modal[open],
 .modal[data-open] {
-	z-index: 10;
+	z-index: var(--z-modal);
 	color: var(--text-1);
 	border: none;
 	place-content: center;
@@ -965,7 +972,7 @@ input[type="range"]:disabled {
 }
 .modal::backdrop,
 .modal__backdrop {
-	z-index: 10;
+	z-index: var(--z-modal);
 	background: #00000066;
 	animation: fade-in var(--dur) var(--ease-enter);
 	position: fixed;
@@ -1907,7 +1914,7 @@ input[type="range"]:disabled {
 	bottom: calc(anchor(top) + 6px);
 }
 .nselect:open::picker(select) {
-	z-index: 100;
+	z-index: var(--z-popover);
 	transition:
 		opacity var(--dur) var(--ease-enter),
 		transform var(--dur) var(--ease-enter),
@@ -3171,7 +3178,7 @@ input.date-picker__trigger.is-invalid:focus {
 	border-color: var(--text-2);
 }
 .picker-positioner {
-	z-index: 10000;
+	z-index: var(--z-popover);
 }
 .color-picker__popover {
 	background: var(--surface-3);
@@ -3365,7 +3372,7 @@ input.date-picker__trigger.is-invalid:focus {
 .location-preview__panorama.is-fullscreen {
 	position: fixed;
 	inset: 0;
-	z-index: 9999;
+	z-index: var(--z-fullscreen);
 	aspect-ratio: unset;
 	background: #000;
 	--fs-tray-h: 0px;
@@ -3745,7 +3752,7 @@ input.date-picker__trigger.is-invalid:focus {
 	position: fixed;
 	margin: 0;
 	pointer-events: none;
-	z-index: 1000;
+	z-index: var(--z-drag);
 	opacity: 0.9;
 	overflow: visible;
 }
@@ -4334,7 +4341,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 .command-palette[open],
 .command-palette[data-open] {
 	color: var(--text-1);
-	z-index: 10;
+	z-index: var(--z-modal);
 	background: var(--surface-3);
 	border: 1px solid var(--border-subtle);
 	border-radius: var(--radius-3);
@@ -4616,7 +4623,7 @@ body {
 /* z-index must sit on the positioned element (the positioner), not the popup:
  * it keeps menus above maplibre's z-indexed ctrl layer, which hosts the deck canvas. */
 .menu-positioner {
-	z-index: 10000;
+	z-index: var(--z-popover);
 }
 .context-menu {
 	/* The popup takes focus on open; highlighted items carry the focus cue, not this box. */
@@ -4742,7 +4749,7 @@ body {
 	position: fixed;
 	bottom: 0;
 	right: 0;
-	z-index: 50;
+	z-index: var(--z-chrome);
 	display: flex;
 	align-items: center;
 	gap: 2px;
@@ -5346,7 +5353,7 @@ body:has([data-plugin-overlay]) .map-meta {
 .file-drop-overlay {
 	position: absolute;
 	inset: 0;
-	z-index: 9999;
+	z-index: var(--z-fullscreen);
 	background: rgba(0, 0, 0, 0.45);
 	display: flex;
 	align-items: center;
@@ -5933,7 +5940,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	bottom: 1.5rem;
 	left: 50%;
 	transform: translateX(-50%);
-	z-index: 9999;
+	z-index: var(--z-toast);
 	display: flex;
 	flex-direction: column;
 	gap: 0.5rem;
