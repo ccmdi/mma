@@ -37,6 +37,7 @@ import * as validate from "@/lib/sv/validate";
 import * as query from "@/lib/sv/query";
 import * as mapState from "@/lib/map/mapState";
 import * as sceneStore from "@/lib/render/sceneStore";
+import * as scenePositions from "@/lib/render/scenePositions";
 import * as colorUtils from "@/lib/util/color";
 import * as toast from "@/lib/util/toast";
 import * as jobs from "@/lib/jobs";
@@ -92,7 +93,9 @@ type PinPanoApi = typeof pinPano;
 type ValidateApi = typeof validate;
 type QueryApi = typeof query;
 type MapStateApi = typeof mapState;
+/** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
 type SceneStoreApi = typeof sceneStore;
+type ScenePositionsApi = typeof scenePositions;
 /** Color conversion helpers. @unstable */
 type ColorApi = typeof colorUtils;
 type ToastApi = typeof toast;
@@ -142,6 +145,7 @@ export interface MMA
 		QueryApi,
 		MapStateApi,
 		SceneStoreApi,
+		ScenePositionsApi,
 		ColorApi,
 		ToastApi,
 		JobsApi,
@@ -187,6 +191,7 @@ const mma: MMA = {
 	...query,
 	...mapState,
 	...sceneStore,
+	...scenePositions,
 	...colorUtils,
 	...toast,
 	...jobs,

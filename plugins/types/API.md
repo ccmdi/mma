@@ -36,6 +36,7 @@ change in any release.
 - [Query](#query)
 - [MapState](#mapstate)
 - [SceneStore](#scenestore)
+- [ScenePositions](#scenepositions)
 - [Color](#color)
 - [Toast](#toast)
 - [Jobs](#jobs)
@@ -2978,21 +2979,19 @@ Wait for the main editor map to be ready.
 
 ## SceneStore
 
+The marker scene the map surfaces render from, and its load lifecycle.
+
 ### `clearScene(): void` *(unstable)*
 
 Clear all marker data from the scene.
 
-### `getMarkerDefaultColor(): [number, number, number, number]`
+### `getMarkerDefaultColor(): [number, number, number, number]` *(unstable)*
 
 Current default marker color as RGBA.
 
-### `getScene(): CellManager`
+### `getScene(): CellManager` *(unstable)*
 
 The shared scene that all map surfaces render from.
-
-### `getScenePositions(): { ids: Uint32Array<ArrayBufferLike>; positions: Float32Array<ArrayBufferLike>; }`
-
-Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
 
 ### `loadScene(markerStyle: MarkerStyle, mc?: RGB | undefined): Promise<void>` *(unstable)*
 
@@ -3013,6 +3012,12 @@ Start listening for deltas, selections, and active-location changes. Returns a s
 ### `whenSceneSettled(): Promise<void>` *(unstable)*
 
 Resolves when the most recently started full scene load has finished (or immediately if none is in flight).
+
+## ScenePositions
+
+### `getScenePositions(): { ids: Uint32Array<ArrayBufferLike>; positions: Float32Array<ArrayBufferLike>; }`
+
+Snapshot of every rendered location's id and position (`[lng, lat, ...]`).
 
 ## Color
 

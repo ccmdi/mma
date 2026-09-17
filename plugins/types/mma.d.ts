@@ -6365,18 +6365,13 @@ declare namespace mapState {
   };
 }
 
-/** The shared scene that all map surfaces render from. */
+/** The shared scene that all map surfaces render from. @unstable */
 declare function getScene(): CellManager;
-/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). */
-declare function getScenePositions(): {
-    ids: Uint32Array;
-    positions: Float32Array;
-};
 /** Set the default marker color (RGB bytes). @unstable */
 declare function setMarkerDefaultColor(r: number, g: number, b: number): void;
 /** Change the default marker color and repaint. @unstable */
 declare function recolorScene(mc: RGB): void;
-/** Current default marker color as RGBA. */
+/** Current default marker color as RGBA. @unstable */
 declare function getMarkerDefaultColor(): RGBA;
 /** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
 declare function whenSceneSettled(): Promise<void>;
@@ -6389,9 +6384,10 @@ declare function startSceneEngine(): () => void;
 
 /** @unstable */
 declare const sceneStore_clearScene: typeof clearScene;
+/** @unstable */
 declare const sceneStore_getMarkerDefaultColor: typeof getMarkerDefaultColor;
+/** @unstable */
 declare const sceneStore_getScene: typeof getScene;
-declare const sceneStore_getScenePositions: typeof getScenePositions;
 /** @unstable */
 declare const sceneStore_loadScene: typeof loadScene;
 /** @unstable */
@@ -6407,12 +6403,24 @@ declare namespace sceneStore {
     sceneStore_clearScene as clearScene,
     sceneStore_getMarkerDefaultColor as getMarkerDefaultColor,
     sceneStore_getScene as getScene,
-    sceneStore_getScenePositions as getScenePositions,
     sceneStore_loadScene as loadScene,
     sceneStore_recolorScene as recolorScene,
     sceneStore_setMarkerDefaultColor as setMarkerDefaultColor,
     sceneStore_startSceneEngine as startSceneEngine,
     sceneStore_whenSceneSettled as whenSceneSettled,
+  };
+}
+
+/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). */
+declare function getScenePositions(): {
+    ids: Uint32Array;
+    positions: Float32Array;
+};
+
+declare const scenePositions_getScenePositions: typeof getScenePositions;
+declare namespace scenePositions {
+  export {
+    scenePositions_getScenePositions as getScenePositions,
   };
 }
 
@@ -6869,7 +6877,9 @@ export type PinPanoApi = typeof pinPano;
 export type ValidateApi = typeof validate;
 export type QueryApi = typeof query;
 export type MapStateApi = typeof mapState;
+/** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
 export type SceneStoreApi = typeof sceneStore;
+export type ScenePositionsApi = typeof scenePositions;
 /** Color conversion helpers. @unstable */
 export type ColorApi = typeof colorUtils;
 export type ToastApi = typeof toast$1;
@@ -6883,7 +6893,7 @@ export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 export type UtilApi = typeof util;
-interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 
 declare global {

@@ -25,30 +25,16 @@ export function getScene(): CellManager {
 	return scene;
 }
 
-/** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). */
-export function getScenePositions(): { ids: Uint32Array; positions: Float32Array } {
-	const ids = new Uint32Array(scene.totalCount);
-	const positions = new Float32Array(scene.totalCount * 2);
-	let n = 0;
-	scene.forEachPosition((id, lng, lat) => {
-		ids[n] = id;
-		positions[n * 2] = lng;
-		positions[n * 2 + 1] = lat;
-		n++;
-	});
-	return { ids, positions };
-}
-
 function syncActive(): boolean {
 	return scene.setActive(getMapState().activeLocation?.id ?? null);
 }
 
-/** Set the default marker color (RGB bytes). @unstable */
+/** Set the default marker color (RGB bytes). */
 export function setMarkerDefaultColor(r: number, g: number, b: number) {
 	markerDefault = [r, g, b, 255];
 }
 
-/** Change the default marker color and repaint. @unstable */
+/** Change the default marker color and repaint. */
 export function recolorScene(mc: RGB) {
 	if (markerDefault.every((c, i) => c === mc[i])) return;
 	setMarkerDefaultColor(...mc);
@@ -65,12 +51,12 @@ export function getMarkerDefaultColor(): RGBA {
 let sceneSettled: Promise<void> = Promise.resolve();
 let loadRequested = 0;
 
-/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
+/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). */
 export function whenSceneSettled(): Promise<void> {
 	return sceneSettled;
 }
 
-/** Rebuild the full scene for all locations. @unstable */
+/** Rebuild the full scene for all locations. */
 export function loadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 	const seq = ++loadRequested;
 	return (sceneSettled = sceneSettled
@@ -117,13 +103,13 @@ async function doLoadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 	}
 }
 
-/** Clear all marker data from the scene. @unstable */
+/** Clear all marker data from the scene. */
 export function clearScene() {
 	scene.clear();
 	emitEvent("scene:changed");
 }
 
-/** Start listening for deltas, selections, and active-location changes. Returns a stop function. @unstable */
+/** Start listening for deltas, selections, and active-location changes. Returns a stop function. */
 export function startSceneEngine(): () => void {
 	const unsubDelta = subscribeEvent("render:delta", (delta) => {
 		if (delta.fullReset) {
