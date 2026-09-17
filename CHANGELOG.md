@@ -1,3 +1,38 @@
+## v0.11.0 - 2026-09-17
+- LocalGuessr keeps a history of finished games, with stats across rounds, countries, modes and maps
+- LocalGuessr can resume more than one unfinished game
+- LocalGuessr's game breakdown shows each round on a map summary, and a round's starting view thumbnail
+- LocalGuessr can show the map's locations on the guess map
+- LocalGuessr can open the panorama behind either pin, guess or location, on the result map
+- LocalGuessr rounds now show up in seen history
+- Sun position has the option to draw a ray toward the sun on each marker
+- Grid mode in the map generator
+- The map generator can filter for locations on road bends
+- Coverage generation can spread locations via configuration: from following density to evenly
+- The map generator shows its live hit rate and speed
+- The map generator's throughput is massively increased - generators and speed settings were superseded
+- Coverage generation streams tile fetch stage, resulting in lower felt latency
+- Generator region rates show recent speed instead of the whole-run average
+- "Pick evenly spaced locations" command, pairing with the existing "thin selection by minimum distance" command
+- The Street View trail marks your current position, with settings for its visibility and color
+- Modifier-click a tag folder to open or close everything inside it
+- Stats for nerds shows live engine activity and query retries
+- Country flag emoji display on every platform, including Windows
+- Apply metadata as tags previews how many locations have the field, and how many tags it will create
+- Pin to pano ID now separates panorama resolution from the pin/unpin
+- Pin to pano ID now supports unpinning in bulk
+- Load as pano ID is now bulk settable
+- Dialogs have a fixed width and smoothly animate between heights
+- Sun position now shows its label during enrichment
+- Fixed the app font loading incorrectly
+- Fixed new locations landing at truncated coordinates on Linux
+- Fixed adding a tag reordering a location's tag list
+- Fixed the lasso tool drawing stray lines
+- Fixed drawing previews staying on the map after turning a tool off
+- Fixed a stopped or restarted generator sometimes continuing to generate
+- Fixed the minimum-distance picker rejecting fractional distances
+- Fixed stats for nerds reporting wrong database sizes
+
 ## v0.10.8 - 2026-09-12
 - Fixed pin-to-pano relocating locations onto a photosphere when one is the default at their coordinates
 - Fixed some contributor panoramas failing to resolve, pin, or validate
