@@ -178,7 +178,7 @@ export function PolygonTools({
 		};
 
 		const nextVertex = (lng: number, lat: number): number[] => {
-			const prev = points[points.length - 1];
+			const prev = points.at(-1);
 			return [prev ? unwrapLng(lng, prev[0]) : lng, lat];
 		};
 
@@ -194,7 +194,7 @@ export function PolygonTools({
 					return true;
 				}
 			}
-			const prev = points[points.length - 1];
+			const prev = points.at(-1);
 			if (!prev || prev[0] !== v[0] || prev[1] !== v[1]) points.push(v);
 			cursor = v;
 			preview();

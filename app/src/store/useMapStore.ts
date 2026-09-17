@@ -553,7 +553,7 @@ export async function duplicateLocation(id: number): Promise<number | null> {
 /** Remove locations by id. Undoable. */
 export async function removeLocations(ids: ReadonlyIdSet) {
 	if (ids.size === 0) return;
-	if ([...ids].some((id) => isVirtualLocation({ id }))) {
+	if (Iterator.from(ids).some((id) => isVirtualLocation({ id }))) {
 		await setActiveLocation(null);
 		return;
 	}

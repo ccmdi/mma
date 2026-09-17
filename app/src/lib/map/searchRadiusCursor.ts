@@ -59,15 +59,15 @@ export function mountSearchRadiusCursor(): () => void {
 		pixel = null;
 		overlay.setProps({ layers: [] });
 	};
-	div.addEventListener("mousemove", onMove);
-	div.addEventListener("mouseleave", onLeave);
+	const listening = new AbortController();
+	div.addEventListener("mousemove", onMove, { signal: listening.signal });
+	div.addEventListener("mouseleave", onLeave, { signal: listening.signal });
 
 	// Reproject the held pixel as the camera moves so the ring tracks the cursor mid-zoom/pan.
 	const offCamera = host.on("camera", render);
 
 	return () => {
-		div.removeEventListener("mousemove", onMove);
-		div.removeEventListener("mouseleave", onLeave);
+		listening.abort();
 		offCamera();
 		overlay.finalize();
 	};

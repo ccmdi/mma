@@ -146,10 +146,10 @@ export function getExitRequest(): { kind: MapExitKind } | null {
 export function confirmMapExit(kind: MapExitKind): Promise<boolean> {
 	if (!jobs.some((j) => j.scope === "map")) return Promise.resolve(true);
 	if (exitRequest) return Promise.resolve(false);
-	return new Promise((resolve) => {
-		exitRequest = { kind, resolve };
-		emitEvent("jobs:changed");
-	});
+	const { promise, resolve } = Promise.withResolvers<boolean>();
+	exitRequest = { kind, resolve };
+	emitEvent("jobs:changed");
+	return promise;
 }
 
 /** Answer the pending map-exit confirmation. @unstable */

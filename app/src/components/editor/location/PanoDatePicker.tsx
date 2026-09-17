@@ -152,8 +152,8 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 				<option value="default" className="pano-option">
 					<span>
 						{t("Default")}
-						{monthLabel(defaultEntry?.date ?? entries[entries.length - 1]?.date)
-							? ` (${monthLabel(defaultEntry?.date ?? entries[entries.length - 1]?.date)})`
+						{monthLabel(defaultEntry?.date ?? entries.at(-1)?.date)
+							? ` (${monthLabel(defaultEntry?.date ?? entries.at(-1)?.date)})`
 							: ""}
 					</span>
 				</option>

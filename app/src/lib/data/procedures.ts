@@ -309,10 +309,7 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 
 	const seen = new Map<string, ProcedureProgress>();
 	const collected = new Map<string, CollectedEntry[]>();
-	let settle = () => {};
-	const ended = new Promise<void>((resolve) => {
-		settle = resolve;
-	});
+	const { promise: ended, resolve: settle } = Promise.withResolvers<void>();
 
 	const net = (s?: ProcedureProgress) => ({
 		done: s ? s.done - s.skipped : 0,
@@ -339,7 +336,7 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 		const done = counting.length > 0 ? Math.min(...counting.map((s) => s.done)) : 0;
 		const total = Math.max(0, ...counting.map((s) => s.total));
 		onProgress?.(done, total, parts);
-		if (seen.size === decls.length && [...seen.values()].every((s) => s.finished)) settle();
+		if (seen.size === decls.length && seen.values().every((s) => s.finished)) settle();
 	};
 
 	const failed = new Map<string, number[]>();

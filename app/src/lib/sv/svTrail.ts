@@ -8,10 +8,8 @@ export function resetTrail(lng: number, lat: number) {
 }
 
 export function pushTrail(lng: number, lat: number) {
-	if (trail.length > 0) {
-		const last = trail[trail.length - 1];
-		if (last[0] === lng && last[1] === lat) return;
-	}
+	const last = trail.at(-1);
+	if (last?.[0] === lng && last[1] === lat) return;
 	trail = [...trail, [lng, lat]];
 	emitEvent("trail:changed");
 }

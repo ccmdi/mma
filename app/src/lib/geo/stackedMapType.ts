@@ -88,7 +88,7 @@ function initCompositeMapType() {
 
 			if (drawn.length === 0) {
 				// Nothing covers this zoom, but the map still waits on the tile's `load`.
-				void Promise.resolve().then(() => {
+				queueMicrotask(() => {
 					if (!state.released) google.maps.event.trigger(canvas, "load");
 				});
 				return canvas;

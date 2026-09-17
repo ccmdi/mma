@@ -146,7 +146,7 @@ export function RoundPlayer({
 	const [hideCar, setHideCar] = useState(!getSettings().showCar);
 	// Persisted: the tag bar is a working preference, not per-round state.
 	const [showTags, setShowTags] = usePluginState<boolean>("localguessr", "showTags", false);
-	const lastResult = game.results[game.results.length - 1] ?? null;
+	const lastResult = game.results.at(-1) ?? null;
 	const last = isLastRound(game);
 	const pano = usePano();
 	const recordedRound = useRef<number | null>(null);

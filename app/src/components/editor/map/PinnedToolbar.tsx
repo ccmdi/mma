@@ -71,9 +71,9 @@ export function PinnedToolbar({
 				setDragIdx(i);
 			}
 		};
+		const drag = new AbortController();
 		const onUp = () => {
-			window.removeEventListener("mousemove", onMove);
-			window.removeEventListener("mouseup", onUp);
+			drag.abort();
 			if (started) {
 				setDragIdx((di) => {
 					setDropIdx((dri) => {
@@ -84,8 +84,8 @@ export function PinnedToolbar({
 				});
 			}
 		};
-		window.addEventListener("mousemove", onMove);
-		window.addEventListener("mouseup", onUp);
+		window.addEventListener("mousemove", onMove, { signal: drag.signal });
+		window.addEventListener("mouseup", onUp, { signal: drag.signal });
 	};
 
 	const handleDragOver = (i: number) => {

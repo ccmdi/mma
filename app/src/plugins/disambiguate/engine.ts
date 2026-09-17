@@ -244,7 +244,7 @@ function finishCategorical(
 	groupSizes: number[],
 	def: ExtraFieldDef | undefined,
 ): FieldDivergence {
-	const present = perGroup.map((m) => [...m.values()].reduce((a, b) => a + b, 0));
+	const present = perGroup.map((m) => m.values().reduce((a, b) => a + b, 0));
 	const valueScore = cramersV(perGroup);
 	const coverageScore = coverageV(groupSizes, present);
 	const lowConfidence = isLowConfidence(present);

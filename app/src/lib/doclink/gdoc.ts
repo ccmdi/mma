@@ -316,7 +316,7 @@ function convertElement(el: Element, rules: Map<string, StyleProps>, ref: DocRef
 function mergeAdjacentLists(blocks: DocBlock[]): DocBlock[] {
 	const out: DocBlock[] = [];
 	for (const b of blocks) {
-		const prev = out[out.length - 1];
+		const prev = out.at(-1);
 		if (b.kind === "list" && prev?.kind === "list" && prev.ordered === b.ordered) {
 			prev.items.push(...b.items);
 		} else {

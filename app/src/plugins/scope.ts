@@ -58,9 +58,9 @@ export function disposePlugin(id: string): void {
 	const store = stores.get(id);
 	if (!store) return;
 	stores.delete(id);
-	for (let i = store.length - 1; i >= 0; i--) {
+	for (const dispose of store.toReversed()) {
 		try {
-			store[i]();
+			dispose();
 		} catch (e) {
 			log.error(`[plugin] teardown failed for "${id}":`, e);
 		}

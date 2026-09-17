@@ -996,9 +996,9 @@ export function MapList() {
 			}
 		};
 
+		const drag = new AbortController();
 		const onUp = () => {
-			document.removeEventListener("pointermove", onMove);
-			document.removeEventListener("pointerup", onUp);
+			drag.abort();
 			document.body.style.userSelect = "";
 
 			if (prevHighlight.current) {
@@ -1014,8 +1014,8 @@ export function MapList() {
 			setDragItem(null);
 		};
 
-		document.addEventListener("pointermove", onMove);
-		document.addEventListener("pointerup", onUp);
+		document.addEventListener("pointermove", onMove, { signal: drag.signal });
+		document.addEventListener("pointerup", onUp, { signal: drag.signal });
 	}, []);
 
 	return (
@@ -1070,7 +1070,7 @@ export function MapList() {
 									"[data-filter-name]:not([hidden])",
 								);
 								const exact = entries
-									? [...entries].find((el) => el.dataset.filterName === name.toLowerCase())
+									? entries.values().find((el) => el.dataset.filterName === name.toLowerCase())
 									: undefined;
 								if (exact) {
 									exact.querySelector<HTMLAnchorElement>(".map-link")?.click();
