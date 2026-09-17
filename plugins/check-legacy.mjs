@@ -30,7 +30,7 @@ if (!existsSync(join(typesDir, "node_modules"))) {
 	console.log("[types] npm ci");
 	execSync("npm ci", { cwd: typesDir, stdio: "inherit" });
 }
-const ts = createRequire(join(typesDir, "package.json"))("typescript");
+export const ts = createRequire(join(typesDir, "package.json"))("typescript");
 
 const gitOk = (args) => {
 	const r = spawnSync("git", args, { cwd: pluginsDir, encoding: "utf-8" });
@@ -56,7 +56,7 @@ function supportedTags() {
  *  it is unstable. The tag inherits: one `@unstable` on `cmd` covers every command under
  *  it. Nested namespaces are plain object literals, so one level of recursion covers them;
  *  deeper would walk into data types (Location, MapMeta) that are not API surface. */
-function surfaceOf(dtsPath) {
+export function surfaceOf(dtsPath) {
 	const program = ts.createProgram([dtsPath], {
 		skipLibCheck: true,
 		target: ts.ScriptTarget.ESNext,
