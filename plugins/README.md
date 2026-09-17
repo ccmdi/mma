@@ -65,7 +65,7 @@ The manifest is the plugin's identity:
 - `icon` — MDI SVG path string (get one from [pictogrammers.com/library/mdi](https://pictogrammers.com/library/mdi/), or `npm install -D @mdi/js` and import the constant)
 - `main` — entry point JS file, loaded as an ES module (defaults to `index.js`)
 - `experimental` — `true` marks the plugin as experimental (optional). The marketplace card shows a flask label so users know to expect rough edges.
-- `minAppVersion` - lowest app version this build works on (required). The registry only serves the latest build of each plugin, so older apps use this to refuse an install/update that needs a newer `window.MMA` instead of breaking. CI typechecks every plugin against the SDK as it was at that version (`node plugins/check-floors.mjs`), so an API newer than the floor fails the build: raise the floor or drop the call.
+- `minAppVersion` - lowest app version this build works on (required). The registry only serves the latest build of each plugin, so older apps use this to refuse an install/update that needs a newer `window.MMA` instead of breaking.
 
 ## Writing a plugin
 
@@ -85,17 +85,10 @@ MMA.registerPlugin({
 
 ## The MMA API
 
-The global `MMA` object is the single API surface. It provides:
+The global `MMA` object is the single API surface. It provides just about anything you'd want to do in the app.
 
-- Map & location CRUD
-- Tag management
-- Selection queries
-- Event subscription
-- Shell command spawning
-- File dialogs
-- Raw Tauri IPC for advanced use
+See [`plugins/types/mma.d.ts`](types/mma.d.ts)/[`API.md`](types/API.md) for the full API surface.
 
-See [`plugins/types/mma.d.ts`](types/mma.d.ts) for the full API surface.
 ## UI plugins
 
 Plugins can provide React components for richer UI:
@@ -116,7 +109,7 @@ Component props:
 
 ## Shared modules
 
-The plugin template's build config automatically deduplicates libraries the app already bundles (React, deck.gl, luma.gl). Just write normal imports -- the build handles the rest. Libraries the app doesn't have get bundled into your plugin automatically.
+The plugin template's build config automatically deduplicates libraries the app already bundles (React, deck.gl, luma.gl). Just write normal imports and the build handles the rest. Libraries the app doesn't have get bundled into your plugin automatically.
 
 ## Distribution
 
@@ -130,6 +123,6 @@ To share: zip the folder and distribute however you like (GitHub, Discord, etc.)
 
 ### Type dependencies
 
-`mma-plugin-types` declares the libraries the SDK types import from (react, deck.gl, tauri, google.maps) as its own dependencies, so installing it pulls the whole type closure -- nothing else to install. They are types-only: at runtime your plugin shares the app's copies (see Shared modules).
+`mma-plugin-types` declares the libraries the SDK types import from (react, deck.gl, tauri, google.maps) as its own dependencies, so installing it pulls the whole type closure. They are types-only: at runtime your plugin shares the app's copies (see Shared modules).
 
 For the `icon` field, `@mdi/js` has the icon paths, or just copy the SVG path string from [pictogrammers.com/library/mdi](https://pictogrammers.com/library/mdi/).

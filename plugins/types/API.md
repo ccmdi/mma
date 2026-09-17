@@ -1,7 +1,6 @@
 # MMA API reference
 
-Every member of the global `MMA` object, grouped by surface. Generated from the app
-source alongside `mma.d.ts` -- do not edit by hand. Members marked *(unstable)* can
+Every member of the global `MMA` object, grouped by surface. Members marked *(unstable)* can
 change in any release.
 
 - [Consts](#consts)
