@@ -9,6 +9,7 @@ import { SegmentedControl } from "@/components/primitives/Sidebar";
 import { Radio } from "@/components/primitives/Radio";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
+import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { TextInput } from "@/components/primitives/TextInput";
 import { openManual } from "@/store/router";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
@@ -104,18 +105,6 @@ function useCoverage(epoch = 0): Map<string, number> {
 		});
 	}, [epoch]);
 	return coverage;
-}
-
-function CoverageBar({ ratio }: { ratio: number }) {
-	const pct = Math.round(ratio * 100);
-	return (
-		<span className="coverage-bar" title={t("{pct}% of locations", { pct })}>
-			<span className="coverage-bar__track">
-				<span className="coverage-bar__fill" style={{ width: `${pct}%` }} />
-			</span>
-			<span className="coverage-bar__pct mono">{pct}%</span>
-		</span>
-	);
 }
 
 interface RenamePrompt {

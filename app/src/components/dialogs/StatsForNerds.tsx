@@ -5,7 +5,7 @@ import { collectDiagnostics, engineRows, type Diagnostics } from "@/lib/diagnost
 import { useAsync } from "@/lib/hooks/useAsync";
 import { fmt, formatBytes, localeFormat } from "@/lib/util/format";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
-import { ProgressBar } from "@/components/primitives/ProgressBar";
+import { Bar } from "@/components/primitives/Bar";
 import {
 	startFrameMeter,
 	stopFrameMeter,
@@ -136,7 +136,7 @@ function EngineSection({ activity }: { activity: ProcedureActivity | null }) {
 							</span>
 						</span>
 					</div>
-					<ProgressBar value={p.fraction} className="stats-nerds__bar" />
+					<Bar value={p.fraction} className="stats-nerds__bar" />
 					<div className="stats-nerds__job-net mono">
 						{t(
 							"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances",

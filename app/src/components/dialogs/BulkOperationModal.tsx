@@ -6,6 +6,7 @@ import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
+import { CoverageBar } from "@/components/primitives/CoverageBar";
 import {
 	applySelectionUpdate,
 	applyFieldOp,
@@ -199,23 +200,19 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 			{total > 0 && enabledFields.length > 0 && (
 				<table className="bulk-operation__coverage">
 					<tbody>
-						{coverage.map((c) => {
-							const missing = total - c.have;
-							const pct = Math.round((c.have / total) * 100);
-							return (
-								<tr key={c.key} className={missing > 0 ? "is-incomplete" : ""}>
-									<td className="bulk-operation__coverage-label">{t(c.label)}</td>
-									<td className="bulk-operation__coverage-bar">
-										<span className="bulk-operation__coverage-fill" style={{ width: `${pct}%` }} />
-									</td>
-									<td
-										className={`bulk-operation__coverage-stat ${missing > 0 ? "is-incomplete" : "is-complete"}`}
-									>
-										{missing > 0 ? `${pct}%` : "100%"}
-									</td>
-								</tr>
-							);
-						})}
+						{coverage.map((c) => (
+							<tr key={c.key}>
+								<td className="bulk-operation__coverage-label">{t(c.label)}</td>
+								<td className="bulk-operation__coverage-bar">
+									<CoverageBar
+										ratio={c.have / total}
+										size="lg"
+										status
+										className="coverage-bar--wide"
+									/>
+								</td>
+							</tr>
+						))}
 					</tbody>
 				</table>
 			)}

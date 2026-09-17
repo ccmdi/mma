@@ -2717,34 +2717,6 @@ input[type="range"]:disabled {
 }
 .bulk-operation__coverage-bar {
 	width: 100%;
-	position: relative;
-	height: 8px;
-	background: var(--stone-3, #e5e5e5);
-	border-radius: 4px;
-	overflow: hidden;
-}
-.bulk-operation__coverage-fill {
-	position: absolute;
-	inset: 0;
-	border-radius: 4px;
-	background: var(--constructive);
-	transition: width 0.3s ease;
-}
-.bulk-operation__coverage tr.is-incomplete .bulk-operation__coverage-fill {
-	background: #e8a83e;
-}
-.bulk-operation__coverage-stat {
-	white-space: nowrap;
-	padding-left: 0.75rem !important;
-	text-align: right;
-	font-variant-numeric: tabular-nums;
-	font-size: 0.75rem;
-}
-.bulk-operation__coverage-stat.is-complete {
-	color: var(--constructive, #4ade80);
-}
-.bulk-operation__coverage-stat.is-incomplete {
-	color: #e8a83e;
 }
 .bulk-operation__bar,
 .bulk-operation__provider-bar {
@@ -2894,24 +2866,29 @@ input[type="range"]:disabled {
 	gap: 0.5rem;
 	flex-shrink: 0;
 }
-.coverage-bar__track {
+.coverage-bar .coverage-bar__bar {
+	flex: none;
 	width: 5rem;
-	height: 6px;
-	border-radius: 3px;
-	background: var(--surface-3);
-	overflow: hidden;
-}
-.coverage-bar__fill {
-	display: block;
-	height: 100%;
-	background: var(--accent);
-	border-radius: 3px;
 }
 .coverage-bar__pct {
 	width: 2.5rem;
 	text-align: right;
+	font-variant-numeric: tabular-nums;
 	color: var(--text-3);
 	font-size: 0.75rem;
+}
+.coverage-bar--complete .coverage-bar__pct {
+	color: var(--constructive);
+}
+.coverage-bar--incomplete .coverage-bar__pct {
+	color: #e8a83e;
+}
+.coverage-bar--wide {
+	flex: 1;
+}
+.coverage-bar--wide .coverage-bar__bar {
+	flex: 1;
+	width: auto;
 }
 
 /* Fields tab: list on the left, the selected field's schema on the right. */
@@ -2967,7 +2944,7 @@ input[type="range"]:disabled {
 	white-space: nowrap;
 	font-size: 0.8125rem;
 }
-.fields-pane__item .coverage-bar__track {
+.fields-pane__item .coverage-bar__bar {
 	width: 2.5rem;
 }
 .fields-pane__item .coverage-bar__pct {
@@ -6132,13 +6109,40 @@ body:has([data-plugin-overlay]) .map-meta {
 	color: #aaa;
 	flex-shrink: 0;
 }
-.progress-bar {
+.bar {
+	display: block;
 	flex: 1;
-	height: 4px;
-	min-width: 140px;
-	background: #555;
-	border-radius: 2px;
+	min-width: 0;
+	background: var(--surface-3);
 	overflow: hidden;
+}
+.bar--sm {
+	height: 4px;
+	border-radius: 2px;
+}
+.bar--md {
+	height: 6px;
+	border-radius: 3px;
+}
+.bar--lg {
+	height: 8px;
+	border-radius: 4px;
+}
+.bar__fill {
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background: var(--accent);
+	transition: width 200ms ease-out;
+}
+.bar--complete .bar__fill {
+	background: var(--constructive);
+}
+.bar--incomplete .bar__fill {
+	background: #e8a83e;
+}
+.job-tray__row .bar {
+	min-width: 140px;
 }
 /* --- Stats for nerds --- */
 .stats-nerds {
@@ -6218,12 +6222,6 @@ body:has([data-plugin-overlay]) .map-meta {
 }
 .stats-nerds__bar {
 	min-width: 0;
-}
-.progress-bar__fill {
-	height: 100%;
-	background: var(--accent);
-	border-radius: 2px;
-	transition: width 200ms ease-out;
 }
 
 /* --- Scope selector --- */

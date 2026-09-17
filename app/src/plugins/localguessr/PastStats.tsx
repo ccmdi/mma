@@ -1,7 +1,7 @@
 import { useMemo, useState, type PointerEvent, type ReactNode } from "react";
 import { SegmentedControl } from "@/components/primitives/Sidebar";
 import { Flag } from "@/components/primitives/Flag";
-import { ProgressBar } from "@/components/primitives/ProgressBar";
+import { Bar } from "@/components/primitives/Bar";
 import { countryName, dateTimeFmt, dayMonthFmt, fmt } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { movementLabels } from "./game";
@@ -182,7 +182,7 @@ export function PastStats({ mapId }: { mapId: string }) {
 										</span>,
 										fmt.format(c.rounds),
 										<span className="lg-stats__meter">
-											<ProgressBar value={accuracy} className="lg-stats__meter-bar" />
+											<Bar value={accuracy} className="lg-stats__meter-bar" />
 											{t("{n}%", { n: Math.round(accuracy * 100) })}
 										</span>,
 										score(c.averageScore),

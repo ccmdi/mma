@@ -5,7 +5,7 @@ import { useEventValue } from "@/lib/events";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
-import { ProgressBar } from "@/components/primitives/ProgressBar";
+import { Bar } from "@/components/primitives/Bar";
 import { t } from "@/lib/i18n";
 
 const PEEK_MS = 2500;
@@ -69,7 +69,7 @@ export function JobTray() {
 							onClick={j.reveal}
 						>
 							<span className="job-tray__row-label">{j.label}</span>
-							<ProgressBar value={j.fraction} />
+							<Bar value={j.fraction} />
 							{j.detail && <span className="toast-progress__label">{j.detail}</span>}
 							{j.cancel && (
 								<button
@@ -123,7 +123,7 @@ export function JobExitDialog() {
 					{mapJobs.map((j) => (
 						<div key={j.id} className="job-tray__row">
 							<span className="job-tray__row-label">{j.label}</span>
-							<ProgressBar value={j.fraction} />
+							<Bar value={j.fraction} />
 							{j.detail && <span className="toast-progress__label">{j.detail}</span>}
 						</div>
 					))}
