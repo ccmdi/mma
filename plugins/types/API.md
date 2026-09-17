@@ -2707,9 +2707,9 @@ Extra-field keys this provider produces.
 
 #### `exactDateProvider.id: string`
 
-#### `exactDateProvider.label: string | undefined`
+#### `exactDateProvider.label: string`
 
-Bulk progress label for slow providers; omit for instant ones.
+Name shown in enrichment progress and results.
 
 #### `exactDateProvider.procedure: ProcedureSpec<unknown, unknown>`
 
@@ -2734,9 +2734,9 @@ Extra-field keys this provider produces.
 
 #### `panoResolveProvider.id: string`
 
-#### `panoResolveProvider.label: string | undefined`
+#### `panoResolveProvider.label: string`
 
-Bulk progress label for slow providers; omit for instant ones.
+Name shown in enrichment progress and results.
 
 #### `panoResolveProvider.procedure: ProcedureSpec<{ panoId: string; }, PanoResolveConfig>`
 
@@ -2761,9 +2761,9 @@ Extra-field keys this provider produces.
 
 #### `subdivisionProvider.id: string`
 
-#### `subdivisionProvider.label: string | undefined`
+#### `subdivisionProvider.label: string`
 
-Bulk progress label for slow providers; omit for instant ones.
+Name shown in enrichment progress and results.
 
 #### `subdivisionProvider.procedure: ProcedureSpec<unknown, unknown>`
 
@@ -2788,9 +2788,9 @@ Extra-field keys this provider produces.
 
 #### `svMetaProvider.id: string`
 
-#### `svMetaProvider.label: string | undefined`
+#### `svMetaProvider.label: string`
 
-Bulk progress label for slow providers; omit for instant ones.
+Name shown in enrichment progress and results.
 
 #### `svMetaProvider.procedure: ProcedureSpec<unknown, unknown>`
 
@@ -2815,9 +2815,9 @@ Extra-field keys this provider produces.
 
 #### `timezoneProvider.id: string`
 
-#### `timezoneProvider.label: string | undefined`
+#### `timezoneProvider.label: string`
 
-Bulk progress label for slow providers; omit for instant ones.
+Name shown in enrichment progress and results.
 
 #### `timezoneProvider.procedure: ProcedureSpec<unknown, unknown>`
 
@@ -2849,9 +2849,9 @@ Extra-field keys this provider produces.
 
 #### `pinPanoProvider.id: string`
 
-#### `pinPanoProvider.label: string | undefined`
+#### `pinPanoProvider.label: string`
 
-Bulk progress label for slow providers; omit for instant ones.
+Name shown in enrichment progress and results.
 
 #### `pinPanoProvider.procedure: ProcedureSpec<unknown, PinPanoConfig>`
 

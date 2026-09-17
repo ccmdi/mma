@@ -189,6 +189,7 @@ const plainProvider: Provider = {
 
 const coreProvider: Provider = {
 	id: "core",
+	label: "Core",
 	provides: ["panoId"],
 	procedure: { entry: "res://procedures/c.js", batch: { mode: "chunk", size: 10 } },
 };
@@ -212,6 +213,7 @@ const ids = () => h.decls.map((d) => d.id);
 
 const collectProvider: Provider = {
 	id: "collect",
+	label: "Collect",
 	procedure: { entry: "res://q.js", batch: { mode: "perRow" }, sink: "collect" },
 };
 
@@ -408,6 +410,7 @@ describe("a provider's config type", () => {
 	it("checks the declared config and every override against one type", () => {
 		const typed: Provider<unknown, { direction: "forwards" | "backwards" }> = {
 			id: "typed",
+			label: "Typed",
 			procedure: {
 				entry: "res://t.js",
 				batch: { mode: "perRow" },
@@ -431,6 +434,7 @@ describe("a provider's config type", () => {
 			);
 			const wrong: Provider<unknown, { direction: "forwards" | "backwards" }> = {
 				id: "wrong",
+				label: "Wrong",
 				// @ts-expect-error the declared config is checked where it is written
 				procedure: { entry: "res://t.js", batch: { mode: "perRow" }, config: { direction: 1 } },
 			};
@@ -494,6 +498,7 @@ describe("the query surface", () => {
 	it("asks the field's provider for display labels", async () => {
 		registerProvider({
 			id: "labelled",
+			label: "Labelled",
 			procedure: { entry: "res://procedures/labelled.js", batch: { mode: "perRow" } },
 			fieldDefs: {
 				labelledField: { type: "string", label: "L", values: null, labels: null, comparison: null },
@@ -545,6 +550,7 @@ describe("the query surface", () => {
 	it("has no per-row transform hook: display formatting is a module query", () => {
 		const provider: Provider = {
 			id: "no-transform",
+			label: "No transform",
 			procedure: { entry: "res://procedures/x.js", batch: { mode: "perRow" } },
 			// @ts-expect-error Provider.transform was deleted in favour of `query`.
 			transform: () => null,

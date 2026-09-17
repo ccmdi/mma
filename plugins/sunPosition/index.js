@@ -255,6 +255,7 @@ registerPlugin({
     ]);
     registerProvider({
       id: PLUGIN_ID,
+      label: "Sun position",
       fieldDefs: FIELDS,
       requires: ["datetime"],
       procedure: {

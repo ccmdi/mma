@@ -517,6 +517,7 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 			async (api, ids, entry, fieldDefs) => {
 				api.registerProvider({
 					id: "e2e-sun",
+					label: "Sun position",
 					requires: ["datetime"],
 					fieldDefs,
 					procedure: {

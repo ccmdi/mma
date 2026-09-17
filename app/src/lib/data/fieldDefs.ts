@@ -91,8 +91,8 @@ export interface ProcedureSpec<TCollected = unknown, TConfig = unknown>
  *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. */
 export interface Provider<TCollected = unknown, TConfig = unknown> {
 	id: string;
-	/** Bulk progress label for slow providers; omit for instant ones. */
-	label?: string;
+	/** Name shown in enrichment progress and results. */
+	label: string;
 	/** The procedure that computes this provider's fields. */
 	procedure: ProcedureSpec<TCollected, TConfig>;
 	/** Extra-field keys this provider produces. */

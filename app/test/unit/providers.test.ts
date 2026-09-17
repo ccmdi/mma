@@ -28,6 +28,7 @@ describe("registerProvider", () => {
 	it("registers a provider that appears in getProviders", () => {
 		const provider = {
 			id: "test-provider-" + Math.random(),
+			label: "Test",
 			procedure: { ...procedure },
 			fieldDefs: { testField: createFieldDef("number", { label: "Test" }) },
 		};
@@ -37,8 +38,8 @@ describe("registerProvider", () => {
 
 	it("does not register duplicate providers", () => {
 		const id = "dedup-test-" + Math.random();
-		const p1 = { id, procedure: { ...procedure }, fieldDefs: {} };
-		const p2 = { id, procedure: { ...procedure }, fieldDefs: {} };
+		const p1 = { id, label: "P1", procedure: { ...procedure }, fieldDefs: {} };
+		const p2 = { id, label: "P2", procedure: { ...procedure }, fieldDefs: {} };
 		registerProvider(p1);
 		registerProvider(p2);
 		expect(getProviders().filter((p) => p.id === id)).toHaveLength(1);
@@ -56,6 +57,7 @@ describe("registerProvider", () => {
 		const key = "registryTestField_" + Math.random().toString(36).slice(2);
 		registerProvider({
 			id,
+			label: "Registry test",
 			procedure: { ...procedure },
 			fieldDefs: { [key]: createFieldDef("number", { label: "Registered" }) },
 		});
@@ -117,24 +119,28 @@ describe("derivedFrom", () => {
 	const suffix = Math.random();
 	registerProvider({
 		id: `meta-${suffix}`,
+		label: "meta",
 		procedure: { ...procedure },
 		requires: ["panoId"],
 		fieldDefs: { [`imageDate${suffix}`]: createFieldDef("month", { label: "Image date" }) },
 	});
 	registerProvider({
 		id: `exact-${suffix}`,
+		label: "exact",
 		procedure: { ...procedure },
 		requires: [`imageDate${suffix}`],
 		fieldDefs: { [`datetime${suffix}`]: createFieldDef("date", { label: "Exact date" }) },
 	});
 	registerProvider({
 		id: `sun-${suffix}`,
+		label: "sun",
 		procedure: { ...procedure },
 		requires: [`datetime${suffix}`],
 		fieldDefs: { [`sunAzimuth${suffix}`]: createFieldDef("number", { label: "Sun" }) },
 	});
 	registerProvider({
 		id: `tagsOnly-${suffix}`,
+		label: "tagsOnly",
 		procedure: { ...procedure },
 		requires: ["tags"],
 		fieldDefs: { [`tagged${suffix}`]: createFieldDef("string", { label: "Tagged" }) },
