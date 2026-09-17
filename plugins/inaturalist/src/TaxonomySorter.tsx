@@ -104,7 +104,7 @@ export function TaxonomySorter() {
 				<Button
 					onClick={handleClearCache}
 					disabled={job.running}
-					title="Clear cached API results"
+					title="Forget saved iNaturalist taxonomy results"
 				>
 					Clear Cache
 				</Button>

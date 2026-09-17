@@ -568,7 +568,7 @@ function TaxonomySorter() {
         {
           onClick: handleClearCache,
           disabled: job.running,
-          title: "Clear cached API results",
+          title: "Forget saved iNaturalist taxonomy results",
           children: "Clear Cache"
         }
       )

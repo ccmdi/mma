@@ -463,7 +463,7 @@ function GradientEditor({ gradient: g }: { gradient: HeatmapGradient }) {
               e.preventDefault();
               setStops(removeStop(g.stops, i));
             }}
-            title={`${Math.round(s.pos * 100)}% — drag to move, right-click to remove`}
+            title={`${Math.round(s.pos * 100)}% (drag to move, right-click to remove)`}
             aria-label={`Stop ${i + 1} at ${Math.round(s.pos * 100)}%`}
           />
         ))}
