@@ -93,12 +93,14 @@ export interface DialogProps {
 	onOpenChange: (open: boolean) => void;
 }
 
+/** @unstable */
 export function useCloseDialog() {
 	const close = useContext(CloseContext);
 	if (!close) throw new Error("useCloseDialog: not in a dialog context");
 	return close;
 }
 
+/** @unstable */
 export function Dialog({
 	open,
 	onOpenChange,
@@ -132,8 +134,10 @@ export function Dialog({
 	);
 }
 
+/** @unstable */
 export const DialogTrigger = BaseDialog.Trigger;
 
+/** @unstable */
 export function DialogContent({
 	className,
 	title,

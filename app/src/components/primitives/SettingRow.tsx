@@ -72,6 +72,7 @@ function AutoWiredRow({ setting, ...rest }: AutoBoolRow) {
 	);
 }
 
+/** @unstable */
 export function SettingRow(props: BoolRow | ControlRow | AutoBoolRow) {
 	const { query, searching, sectionMatched, sectionTitle } = useContext(SettingsSearchContext);
 	const group = useContext(SettingsGroupContext);

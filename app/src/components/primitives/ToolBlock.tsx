@@ -51,6 +51,7 @@ function StaticToolBlock({ title, className, addons, children }: ToolBlockProps)
 	);
 }
 
+/** @unstable */
 export function ToolBlock(props: ToolBlockProps) {
 	if (props.onCollapse) {
 		return <CollapsibleToolBlock {...props} onCollapse={props.onCollapse} />;

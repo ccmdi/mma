@@ -5315,7 +5315,7 @@ declare function Button({ variant, small, type, className, ...props }: Component
 
 declare function Checkbox({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
 
-/** A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced. */
+/** A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced. @unstable */
 declare function RgbPicker({ color, onChange }: {
     color: RGB;
     onChange: (color: RGB) => void;
@@ -5347,6 +5347,7 @@ export interface DatePickerProps {
      *  date filtering, where Rust re-interprets the wall-clock in each pano's zone. */
     wallClock?: boolean;
 }
+/** @unstable */
 declare function DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): react.JSX.Element;
 
 /** Controlled open/close pair every dialog component takes. */
@@ -5354,11 +5355,15 @@ export interface DialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }
+/** @unstable */
 declare function useCloseDialog(): () => void;
+/** @unstable */
 declare function Dialog({ open, onOpenChange, children, ...props }: Omit<ComponentProps<typeof Dialog$1.Root>, "onOpenChange"> & {
     onOpenChange?: (open: boolean) => void;
 }): react.JSX.Element;
+/** @unstable */
 declare const DialogTrigger: Dialog$1.Trigger;
+/** @unstable */
 declare function DialogContent({ className, title, size, initialFocus, children, ...props }: ComponentProps<typeof Dialog$1.Popup> & {
     title: string;
     /** The dialog's fixed width: small, medium, large or extra large. */
@@ -5372,7 +5377,7 @@ declare function Flag({ code, height, className, }: {
     className?: string;
 }): react.JSX.Element | null;
 
-/** Click-to-record key combo input. Backspace/Delete clears, Escape cancels. */
+/** Click-to-record key combo input. Backspace/Delete clears, Escape cancels. @unstable */
 declare function HotkeyInput({ value, onChange, }: {
     value: string;
     onChange: (combo: string) => void;
@@ -5386,6 +5391,7 @@ export interface IconProps {
 }
 declare function Icon({ path, size, className, style }: IconProps): react.JSX.Element;
 
+/** @unstable */
 declare function NSelect({ className, onWheel, ...props }: ComponentPropsWithRef<"select">): react.JSX.Element;
 
 declare function Radio({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
@@ -5416,6 +5422,7 @@ export type AutoBoolRow = Base & {
 export type ControlRow = Base & {
     control: ReactNode;
 };
+/** @unstable */
 declare function SettingRow(props: BoolRow | ControlRow | AutoBoolRow): react.JSX.Element | null;
 
 /** Standard right-hand sidebar chrome (title, back button, scrollable body). Use for plugin sidebars. */
@@ -5467,7 +5474,7 @@ declare function Slider({ className, ...props }: ComponentPropsWithRef<"input">)
 
 /** Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
  *  outside click closes it. The dropdown shows whenever `suggestions` is non-empty, so
- *  filter or fetch them yourself. The class props restyle it. */
+ *  filter or fetch them yourself. The class props restyle it. @unstable */
 declare function SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: {
     value: string;
     onChange: (v: string) => void;
@@ -5509,7 +5516,7 @@ declare function SwitchRow({ checked, onChange, label, disabled, className, chil
 }): react.JSX.Element;
 
 export type TagPillButtonVariant = "add" | "delete" | "edit";
-/** The leading affordance inside a TagPill: remove, apply, or open the editor. */
+/** The leading affordance inside a TagPill: remove, apply, or open the editor. @unstable */
 declare function TagPillButton({ variant, className, ...props }: ComponentPropsWithRef<"button"> & {
     variant: TagPillButtonVariant;
 }): react.JSX.Element;
@@ -5524,7 +5531,7 @@ export type TagPillOwnProps = {
 export type TagPillProps<E extends ElementType> = TagPillOwnProps & {
     as?: E;
 } & Omit<ComponentPropsWithRef<E>, keyof TagPillOwnProps | "as">;
-/** A tag shown as a pill in its color. */
+/** A tag shown as a pill in its color. @unstable */
 declare function TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): react.JSX.Element;
 
 declare function TextInput({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
@@ -5538,6 +5545,7 @@ export interface ToolBlockProps {
     onCollapse?: (collapsed: boolean) => void;
     collapsedAddons?: ReactNode;
 }
+/** @unstable */
 declare function ToolBlock(props: ToolBlockProps): react.JSX.Element;
 
 export type Side = "top" | "bottom" | "left" | "right";
@@ -5564,34 +5572,46 @@ declare function Tooltip({ content, side, align, children, }: {
 declare const primitives_Button: typeof Button;
 declare const primitives_Checkbox: typeof Checkbox;
 declare const primitives_ColorPicker: typeof ColorPicker;
+/** @unstable */
 declare const primitives_DatePicker: typeof DatePicker;
+/** @unstable */
 declare const primitives_Dialog: typeof Dialog;
+/** @unstable */
 declare const primitives_DialogContent: typeof DialogContent;
 export type primitives_DialogProps = DialogProps;
 declare const primitives_DialogTrigger: typeof DialogTrigger;
 declare const primitives_EmptyState: typeof EmptyState;
 declare const primitives_Field: typeof Field;
 declare const primitives_Flag: typeof Flag;
+/** @unstable */
 declare const primitives_HotkeyInput: typeof HotkeyInput;
 declare const primitives_Icon: typeof Icon;
+/** @unstable */
 declare const primitives_NSelect: typeof NSelect;
 declare const primitives_Radio: typeof Radio;
+/** @unstable */
 declare const primitives_RgbPicker: typeof RgbPicker;
 declare const primitives_Section: typeof Section;
 declare const primitives_SegmentedControl: typeof SegmentedControl;
 export type primitives_SegmentedOption<T extends string | number> = SegmentedOption<T>;
 declare const primitives_SelectorPicker: typeof SelectorPicker;
+/** @unstable */
 declare const primitives_SettingRow: typeof SettingRow;
 declare const primitives_Sidebar: typeof Sidebar;
 declare const primitives_Slider: typeof Slider;
+/** @unstable */
 declare const primitives_SuggestInput: typeof SuggestInput;
 declare const primitives_Switch: typeof Switch;
 declare const primitives_SwitchRow: typeof SwitchRow;
+/** @unstable */
 declare const primitives_TagPill: typeof TagPill;
+/** @unstable */
 declare const primitives_TagPillButton: typeof TagPillButton;
 declare const primitives_TextInput: typeof TextInput;
+/** @unstable */
 declare const primitives_ToolBlock: typeof ToolBlock;
 declare const primitives_Tooltip: typeof Tooltip;
+/** @unstable */
 declare const primitives_useCloseDialog: typeof useCloseDialog;
 declare namespace primitives {
   export { primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogContent as DialogContent, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_NSelect as NSelect, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };

@@ -5,7 +5,7 @@ import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import { t } from "@/lib/i18n";
 
-/** A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced. */
+/** A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced. @unstable */
 export function RgbPicker({ color, onChange }: { color: RGB; onChange: (color: RGB) => void }) {
 	const debounced = useDebouncedCallback(onChange, 60, { flush: true });
 	const [r, g, b] = color;

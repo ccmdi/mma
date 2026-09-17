@@ -2289,13 +2289,13 @@ The nested `sidecar` namespace on the plugin surface.
 
 A color swatch that opens the picker in a popover on click.
 
-#### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): Element`
+#### `ui.DatePicker({ mode, value, onChange, anyYear, onAnyYearToggle, showAnyYear, showTime, anyTime, onAnyTimeToggle, showAnyTime, tzLocal, onTzLocalToggle, showTzLocal, onYearSelect, wallClock, }: DatePickerProps): Element` *(unstable)*
 
-#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<Props<unknown>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element`
+#### `ui.Dialog({ open, onOpenChange, children, ...props }: Omit<Props<unknown>, "onOpenChange"> & { onOpenChange?: ((open: boolean) => void) | undefined; }): Element` *(unstable)*
 
-#### `ui.DialogContent({ className, title, size, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; size?: "sm" | "md" | "lg" | "xl" | undefined; }): Element`
+#### `ui.DialogContent({ className, title, size, initialFocus, children, ...props }: DialogPopupProps & RefAttributes<HTMLDivElement> & { title: string; size?: "sm" | "md" | "lg" | "xl" | undefined; }): Element` *(unstable)*
 
-#### `ui.DialogTrigger<Payload>(componentProps: DialogTriggerProps<Payload> & RefAttributes<HTMLElement>): Element`
+#### `ui.DialogTrigger<Payload>(componentProps: DialogTriggerProps<Payload> & RefAttributes<HTMLElement>): Element` *(unstable)*
 
 A button that opens the dialog.
 Renders a `<button>` element.
@@ -2314,17 +2314,17 @@ Labelled form row (label left, control right) for sidebar sections.
 
 Country flag from the bundled SVG set. Renders nothing for a missing or malformed code.
 
-#### `ui.HotkeyInput({ value, onChange, }: { value: string; onChange: (combo: string) => void; }): Element`
+#### `ui.HotkeyInput({ value, onChange, }: { value: string; onChange: (combo: string) => void; }): Element` *(unstable)*
 
 Click-to-record key combo input. Backspace/Delete clears, Escape cancels.
 
 #### `ui.Icon({ path, size, className, style }: IconProps): Element`
 
-#### `ui.NSelect({ className, onWheel, ...props }: DetailedHTMLProps<SelectHTMLAttributes<HTMLSelectElement>, HTMLSelectElement>): Element`
+#### `ui.NSelect({ className, onWheel, ...props }: DetailedHTMLProps<SelectHTMLAttributes<HTMLSelectElement>, HTMLSelectElement>): Element` *(unstable)*
 
 #### `ui.Radio({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
 
-#### `ui.RgbPicker({ color, onChange }: { color: RGB; onChange: (color: RGB) => void; }): Element`
+#### `ui.RgbPicker({ color, onChange }: { color: RGB; onChange: (color: RGB) => void; }): Element` *(unstable)*
 
 A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced.
 
@@ -2338,7 +2338,7 @@ Row of mutually exclusive option buttons (a compact radio group).
 
 #### `ui.SelectorPicker({ ctl, className, }: { ctl: SelectorPickController; className?: string | undefined; }): Element`
 
-#### `ui.SettingRow(props: BoolRow | ControlRow | AutoBoolRow): Element | null`
+#### `ui.SettingRow(props: BoolRow | ControlRow | AutoBoolRow): Element | null` *(unstable)*
 
 #### `ui.Sidebar({ title, onBack, actions, className, flush, children, }: { title: ReactNode; onBack?: (() => void) | undefined; actions?: ReactNode; className?: string | undefined; flush?: boolean | undefined; children: ReactNode; }): Element`
 
@@ -2349,7 +2349,7 @@ Standard right-hand sidebar chrome (title, back button, scrollable body). Use fo
 Range input whose track fills with the accent up to the current value.
 Controlled only: the fill derives from the value prop.
 
-#### `ui.SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: { value: string; onChange: (v: string) => void; suggestions: T[]; onPick: (item: T) => void; renderItem: (item: T) => ReactNode; getKey: (item: T) => string | number; ... 9 more ...; portal?: boolean | undefined; }): Element`
+#### `ui.SuggestInput<T>({ value, onChange, suggestions, onPick, renderItem, getKey, placeholder, containerClassName, inputClassName, listClassName, itemClassName, listStyle, autoFocus, disabled, pickOnEnter, portal, }: { value: string; onChange: (v: string) => void; suggestions: T[]; onPick: (item: T) => void; renderItem: (item: T) => ReactNode; getKey: (item: T) => string | number; ... 9 more ...; portal?: boolean | undefined; }): Element` *(unstable)*
 
 Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
 outside click closes it. The dropdown shows whenever `suggestions` is non-empty, so
@@ -2361,23 +2361,23 @@ filter or fetch them yourself. The class props restyle it.
 
 A compact row with a switch on the left. Clicking anywhere on the row toggles it.
 
-#### `ui.TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): Element`
+#### `ui.TagPill<E extends ElementType = "span">({ as, color, label, count, small, button, children, ...rest }: TagPillProps<E>): Element` *(unstable)*
 
 A tag shown as a pill in its color.
 
-#### `ui.TagPillButton({ variant, className, ...props }: ClassAttributes<HTMLButtonElement> & ButtonHTMLAttributes<HTMLButtonElement> & { variant: TagPillButtonVariant; }): Element`
+#### `ui.TagPillButton({ variant, className, ...props }: ClassAttributes<HTMLButtonElement> & ButtonHTMLAttributes<HTMLButtonElement> & { variant: TagPillButtonVariant; }): Element` *(unstable)*
 
 The leading affordance inside a TagPill: remove, apply, or open the editor.
 
 #### `ui.TextInput({ className, ...props }: DetailedHTMLProps<InputHTMLAttributes<HTMLInputElement>, HTMLInputElement>): Element`
 
-#### `ui.ToolBlock(props: ToolBlockProps): Element`
+#### `ui.ToolBlock(props: ToolBlockProps): Element` *(unstable)*
 
 #### `ui.Tooltip({ content, side, align, children, }: { content: string; side?: Side | undefined; align?: Align | undefined; children: ReactElement<unknown, string | JSXElementConstructor<any>>; }): ReactElement<...>`
 
 Shows `content` as a tooltip when its child is hovered. The child is not wrapped.
 
-#### `ui.useCloseDialog(): () => void`
+#### `ui.useCloseDialog(): () => void` *(unstable)*
 
 ## FieldDefs
 

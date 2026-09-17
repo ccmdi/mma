@@ -11,7 +11,7 @@ import { useClickOutside } from "@/lib/hooks/useClickOutside";
 
 /** Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
  *  outside click closes it. The dropdown shows whenever `suggestions` is non-empty, so
- *  filter or fetch them yourself. The class props restyle it. */
+ *  filter or fetch them yourself. The class props restyle it. @unstable */
 export function SuggestInput<T>({
 	value,
 	onChange,

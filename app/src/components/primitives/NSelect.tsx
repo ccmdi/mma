@@ -1,6 +1,7 @@
 import type { ComponentPropsWithRef } from "react";
 import clsx from "clsx";
 
+/** @unstable */
 export function NSelect({ className, onWheel, ...props }: ComponentPropsWithRef<"select">) {
 	return (
 		<select

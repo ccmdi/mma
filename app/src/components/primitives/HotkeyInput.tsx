@@ -3,7 +3,7 @@ import { formatBinding, buildComboString } from "@/lib/hooks/useHotkey";
 import { t } from "@/lib/i18n";
 import { TextInput } from "./TextInput";
 
-/** Click-to-record key combo input. Backspace/Delete clears, Escape cancels. */
+/** Click-to-record key combo input. Backspace/Delete clears, Escape cancels. @unstable */
 export function HotkeyInput({
 	value,
 	onChange,

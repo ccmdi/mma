@@ -183,6 +183,7 @@ function MonthGrid({
 	);
 }
 
+/** @unstable */
 export function DatePicker({
 	mode,
 	value,
