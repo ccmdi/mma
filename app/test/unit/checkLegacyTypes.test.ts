@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { compareTypes } from "../../../plugins/check-legacy.mjs";
+import { compareTypes, prepare } from "../../../plugins/check-legacy.mjs";
 
 // The type half of the plugin API promise: check-legacy.mjs fails the build when a stable
 // exported declaration loses a member, gets one renamed, or narrows one between the support
@@ -113,5 +113,19 @@ export { F };`;
 			`export declare function f(x: string): "literal";`,
 		);
 		expect(names(r)).toEqual(["f"]);
+	});
+
+	it("the SDK compares clean against itself, so no promised type is nominal", () => {
+		const typesDir = join(__dirname, "../../../plugins/types");
+		const sdk = prepare(readFileSync(join(typesDir, "mma.d.ts"), "utf-8"));
+		const [a, b] = [join(typesDir, ".self-a.d.ts"), join(typesDir, ".self-b.d.ts")];
+		try {
+			writeFileSync(a, sdk);
+			writeFileSync(b, sdk);
+			expect(compareTypes(a, b)).toEqual({ missing: [], broken: [] });
+		} finally {
+			rmSync(a, { force: true });
+			rmSync(b, { force: true });
+		}
 	});
 });

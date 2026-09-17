@@ -90,7 +90,7 @@ export type EditorEvent = keyof EditorEventMap;
 
 declare const pluginEventPayload: unique symbol;
 /** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
- *  hears it. `definePluginEvent` makes one. */
+ *  hears it. `definePluginEvent` makes one. @unstable */
 export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
 	readonly [pluginEventPayload]: T;
 };
