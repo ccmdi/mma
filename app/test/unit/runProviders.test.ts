@@ -172,13 +172,13 @@ import {
 import { createLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
 import { registerProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
+import { enrichAll } from "@/lib/sv/enrich";
 import {
-	enrichAll,
 	enrichRuns,
 	exactDateProvider,
 	panoResolveProvider,
 	svMetaProvider,
-} from "@/lib/sv/enrich";
+} from "@/lib/sv/providers";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
 import type { Provider, ProcedureSpec } from "@/lib/data/fieldDefs";

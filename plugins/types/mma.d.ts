@@ -5597,14 +5597,13 @@ export type Declared<T> = {
     [K in keyof T]?: NonNullable<T[K]>;
 };
 /** A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
- *  what a run and a query both read) plus how a run schedules it. */
+ *  what a run and a query both read) plus how a run schedules it. @unstable */
 export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> extends Declared<Omit<ProcedureDecl, "entry" | "config">>, Declared<Pick<ProviderDecl, "select" | "sink" | "instances">> {
     /** Phantom field carrying the `TCollected` type. Never set at runtime. */
     readonly collects?: TCollected;
     /** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
      *  procedures, or a relative filename (resolved against the plugin's directory). */
     entry: string;
-    /** @unstable */
     batch: BatchMode;
     /** The procedure's own configuration, handed to every entry point as `config`. */
     config?: TConfig;
@@ -5612,18 +5611,19 @@ export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> extends 
     prepare?: () => Promise<boolean>;
 }
 /** A named procedure with dependency-graph placement. Providers that declare
- *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. */
+ *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. @unstable */
 export interface Provider<TCollected = unknown, TConfig = unknown> {
+    /** @unstable */
     id: string;
-    /** Name shown in enrichment progress and results. */
+    /** Name shown in enrichment progress and results. @unstable */
     label: string;
-    /** The procedure that computes this provider's fields. */
+    /** The procedure that computes this provider's fields. @unstable */
     procedure: ProcedureSpec<TCollected, TConfig>;
-    /** Extra-field keys this provider produces. */
+    /** Extra-field keys this provider produces. @unstable */
     fieldDefs?: Record<string, ExtraFieldDef>;
-    /** Core columns this provider writes (e.g. `panoId`). */
+    /** Core columns this provider writes (e.g. `panoId`). @unstable */
     provides?: string[];
-    /** Fields this provider reads; it runs after their producers finish. */
+    /** Fields this provider reads; it runs after their producers finish. @unstable */
     requires?: string[];
 }
 /** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
@@ -6096,31 +6096,6 @@ declare namespace seenRecorder {
  *  kept unless `force` re-derives all of them. Returns the enriched location without
  *  writing it. Returns the location unchanged when enrichment is disabled. */
 declare function enrich(loc: Location, opts?: Omit<RunOpts, "onProgress">): Promise<Location>;
-/** Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
- *  offered in the enrichment settings are always included. */
-declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
-/** Where to search when resolving a pano from coordinates, and which capture of its
- *  timeline to settle on. */
-export interface PanoResolveConfig {
-    radius: number;
-    sources?: PanoType[];
-    capture?: CapturePick;
-}
-/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
- *  provider that depends on it. Rows that already have a pano id are skipped unless the
- *  run is forced. */
-declare const panoResolveProvider: Provider<{
-    panoId: string;
-}, PanoResolveConfig>;
-/** Exact capture timestamp, narrowed from the `imageDate` month via binary search. */
-declare const exactDateProvider: Provider;
-/** Timezone at the location's coordinates. Requires `datetime` to be present. */
-declare const timezoneProvider: Provider;
-/** Subdivision (adm1) via offline point-in-polygon against the local border dataset.
- *  No Google dependency; downloads the adm1 archive on first use. */
-declare const subdivisionProvider: Provider;
-/** Core panorama metadata via Google's GetMetadata RPC. */
-declare const svMetaProvider: Provider;
 /** One summary row per pass that did work: the core metadata pass, then every
  *  provider that updated or failed at least one location. */
 export interface EnrichOutcome extends ProcedureOutcome {
@@ -6132,18 +6107,55 @@ export interface EnrichOutcome extends ProcedureOutcome {
 declare function enrichAll(selector: Selector, opts?: RunOpts): Promise<EnrichOutcome[]>;
 
 export type enrich$1_EnrichOutcome = EnrichOutcome;
-export type enrich$1_PanoResolveConfig = PanoResolveConfig;
 declare const enrich$1_enrich: typeof enrich;
 declare const enrich$1_enrichAll: typeof enrichAll;
-declare const enrich$1_enrichRuns: typeof enrichRuns;
-declare const enrich$1_exactDateProvider: typeof exactDateProvider;
-declare const enrich$1_panoResolveProvider: typeof panoResolveProvider;
-declare const enrich$1_subdivisionProvider: typeof subdivisionProvider;
-declare const enrich$1_svMetaProvider: typeof svMetaProvider;
-declare const enrich$1_timezoneProvider: typeof timezoneProvider;
 declare namespace enrich$1 {
-  export { enrich$1_enrich as enrich, enrich$1_enrichAll as enrichAll, enrich$1_enrichRuns as enrichRuns, enrich$1_exactDateProvider as exactDateProvider, enrich$1_panoResolveProvider as panoResolveProvider, enrich$1_subdivisionProvider as subdivisionProvider, enrich$1_svMetaProvider as svMetaProvider, enrich$1_timezoneProvider as timezoneProvider };
-  export type { enrich$1_EnrichOutcome as EnrichOutcome, enrich$1_PanoResolveConfig as PanoResolveConfig };
+  export { enrich$1_enrich as enrich, enrich$1_enrichAll as enrichAll };
+  export type { enrich$1_EnrichOutcome as EnrichOutcome };
+}
+
+/** Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
+ *  offered in the enrichment settings are always included. @unstable */
+declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
+/** Where to search when resolving a pano from coordinates, and which capture of its
+ *  timeline to settle on. */
+export interface PanoResolveConfig {
+    radius: number;
+    sources?: PanoType[];
+    capture?: CapturePick;
+}
+/** Pano-resolve provider for enrichment. Writes the `panoId` field and runs before any
+ *  provider that depends on it. Rows that already have a pano id are skipped unless the
+ *  run is forced. @unstable */
+declare const panoResolveProvider: Provider<{
+    panoId: string;
+}, PanoResolveConfig>;
+/** Exact capture timestamp, narrowed from the `imageDate` month via binary search. @unstable */
+declare const exactDateProvider: Provider;
+/** Timezone at the location's coordinates. Requires `datetime` to be present. @unstable */
+declare const timezoneProvider: Provider;
+/** Subdivision (adm1) via offline point-in-polygon against the local border dataset.
+ *  No Google dependency; downloads the adm1 archive on first use. @unstable */
+declare const subdivisionProvider: Provider;
+/** Core panorama metadata via Google's GetMetadata RPC. @unstable */
+declare const svMetaProvider: Provider;
+
+export type providers_PanoResolveConfig = PanoResolveConfig;
+/** @unstable */
+declare const providers_enrichRuns: typeof enrichRuns;
+/** @unstable */
+declare const providers_exactDateProvider: typeof exactDateProvider;
+/** @unstable */
+declare const providers_panoResolveProvider: typeof panoResolveProvider;
+/** @unstable */
+declare const providers_subdivisionProvider: typeof subdivisionProvider;
+/** @unstable */
+declare const providers_svMetaProvider: typeof svMetaProvider;
+/** @unstable */
+declare const providers_timezoneProvider: typeof timezoneProvider;
+declare namespace providers {
+  export { providers_enrichRuns as enrichRuns, providers_exactDateProvider as exactDateProvider, providers_panoResolveProvider as panoResolveProvider, providers_subdivisionProvider as subdivisionProvider, providers_svMetaProvider as svMetaProvider, providers_timezoneProvider as timezoneProvider };
+  export type { providers_PanoResolveConfig as PanoResolveConfig };
 }
 
 /** How a bulk pin settles each location's pano before pinning it. */
@@ -6178,10 +6190,6 @@ export interface ValidateConfig {
     radius: number;
     checkPinned: boolean;
 }
-/** Street View coverage validation. Checks each location's stored pano, coordinate
- *  lookup, unofficial status, camera quality, and timeline. Answers with a
- *  `ValidationState` per location without writing anything. */
-declare const validateSpec: ProcedureSpec<ValidationState, ValidateConfig>;
 /** What a validation run answered: the ids grouped by the state they validated to, over
  *  the outcome every run reports. */
 export interface ValidationOutcome extends BatchOutcome {
@@ -6195,9 +6203,8 @@ declare function validateLocations(selector: Selector, opts?: BulkOpts & {
 export type validate_ValidateConfig = ValidateConfig;
 export type validate_ValidationOutcome = ValidationOutcome;
 declare const validate_validateLocations: typeof validateLocations;
-declare const validate_validateSpec: typeof validateSpec;
 declare namespace validate {
-  export { validate_validateLocations as validateLocations, validate_validateSpec as validateSpec };
+  export { validate_validateLocations as validateLocations };
   export type { validate_ValidateConfig as ValidateConfig, validate_ValidationOutcome as ValidationOutcome };
 }
 
@@ -6873,6 +6880,8 @@ export type SeenRecorderApi = typeof seenRecorder;
 /** The shared panorama viewer. @unstable */
 export type PanoApi = typeof panoSurface;
 export type EnrichApi = typeof enrich$1;
+/** The providers the app registers for enrichment. @unstable */
+export type ProvidersApi = typeof providers;
 export type PinPanoApi = typeof pinPano;
 export type ValidateApi = typeof validate;
 export type QueryApi = typeof query;
@@ -6893,7 +6902,7 @@ export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 export type UtilApi = typeof util;
-interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
+interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 
 declare global {

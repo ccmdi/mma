@@ -40,14 +40,14 @@ const cmdMock = vi.hoisted(() => ({
 vi.mock("@/lib/commands", () => ({ cmd: cmdMock }));
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 
+import { enrich } from "@/lib/sv/enrich";
 import {
-	enrich,
 	exactDateProvider,
 	panoResolveProvider,
 	subdivisionProvider,
 	svMetaProvider,
 	timezoneProvider,
-} from "@/lib/sv/enrich";
+} from "@/lib/sv/providers";
 import { createLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
 

@@ -32,6 +32,7 @@ import * as seen from "@/lib/seen/seen";
 import * as seenRecorder from "@/lib/seen/seenRecorder";
 import * as panoSurface from "@/lib/sv/pano";
 import * as enrich from "@/lib/sv/enrich";
+import * as providers from "@/lib/sv/providers";
 import * as pinPano from "@/lib/sv/pinPano";
 import * as validate from "@/lib/sv/validate";
 import * as query from "@/lib/sv/query";
@@ -89,6 +90,8 @@ type SeenRecorderApi = typeof seenRecorder;
 /** The shared panorama viewer. @unstable */
 type PanoApi = typeof panoSurface;
 type EnrichApi = typeof enrich;
+/** The providers the app registers for enrichment. @unstable */
+type ProvidersApi = typeof providers;
 type PinPanoApi = typeof pinPano;
 type ValidateApi = typeof validate;
 type QueryApi = typeof query;
@@ -140,6 +143,7 @@ export interface MMA
 		SeenRecorderApi,
 		PanoApi,
 		EnrichApi,
+		ProvidersApi,
 		PinPanoApi,
 		ValidateApi,
 		QueryApi,
@@ -186,6 +190,7 @@ const mma: MMA = {
 	...seenRecorder,
 	...panoSurface,
 	...enrich,
+	...providers,
 	...pinPano,
 	...validate,
 	...query,

@@ -1,7 +1,7 @@
 // Read-only Street View queries.
 
 import { queryProcedure } from "@/lib/data/procedures";
-import { panoResolveProvider, svMetaProvider } from "@/lib/sv/enrich";
+import { panoResolveProvider, svMetaProvider } from "@/lib/sv/providers";
 import type { LatLng } from "@/types";
 import type { Pano, PanoAnswer } from "@/bindings.gen";
 import type { PanoType, RankingStrategy } from "@/bindings.consts";

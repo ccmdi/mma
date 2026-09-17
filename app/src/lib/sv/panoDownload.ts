@@ -3,7 +3,7 @@ import { cmd } from "@/lib/commands";
 import { svThumbnailUrl } from "@/lib/sv/lookup";
 import { svMetadata } from "@/lib/sv/query";
 import type { Pano } from "@/bindings.gen";
-import { panoResolveProvider } from "@/lib/sv/enrich";
+import { panoResolveProvider } from "@/lib/sv/providers";
 import { runProcedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { fileTimestamp } from "@/lib/util/format";

@@ -31,6 +31,7 @@ change in any release.
 - [SeenRecorder](#seenrecorder)
 - [Pano](#pano)
 - [Enrich](#enrich)
+- [Providers](#providers)
 - [PinPano](#pinpano)
 - [Validate](#validate)
 - [Query](#query)
@@ -2734,143 +2735,147 @@ writing it. Returns the location unchanged when enrichment is disabled.
 Bulk-enrich a selector: resolve missing pano ids, then run every field-producing
 provider (metadata, exact date, timezone, subdivision).
 
-### `enrichRuns(enrichFields: string[] | null, exclude?: string[] | undefined): ProviderRun<unknown>[]`
+## Providers
+
+The providers the app registers for enrichment.
+
+### `enrichRuns(enrichFields: string[] | null, exclude?: string[] | undefined): ProviderRun<unknown>[]` *(unstable)*
 
 Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
 offered in the enrichment settings are always included.
 
-### `exactDateProvider`
+### `exactDateProvider` *(unstable)*
 
 A named procedure with dependency-graph placement. Providers that declare
 `fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
-#### `exactDateProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
+#### `exactDateProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined` *(unstable)*
 
 Extra-field keys this provider produces.
 
-#### `exactDateProvider.id: string`
+#### `exactDateProvider.id: string` *(unstable)*
 
-#### `exactDateProvider.label: string`
+#### `exactDateProvider.label: string` *(unstable)*
 
 Name shown in enrichment progress and results.
 
-#### `exactDateProvider.procedure: ProcedureSpec<unknown, unknown>`
+#### `exactDateProvider.procedure: ProcedureSpec<unknown, unknown>` *(unstable)*
 
 The procedure that computes this provider's fields.
 
-#### `exactDateProvider.provides: string[] | undefined`
+#### `exactDateProvider.provides: string[] | undefined` *(unstable)*
 
 Core columns this provider writes (e.g. `panoId`).
 
-#### `exactDateProvider.requires: string[] | undefined`
+#### `exactDateProvider.requires: string[] | undefined` *(unstable)*
 
 Fields this provider reads; it runs after their producers finish.
 
-### `panoResolveProvider`
+### `panoResolveProvider` *(unstable)*
 
 A named procedure with dependency-graph placement. Providers that declare
 `fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
-#### `panoResolveProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
+#### `panoResolveProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined` *(unstable)*
 
 Extra-field keys this provider produces.
 
-#### `panoResolveProvider.id: string`
+#### `panoResolveProvider.id: string` *(unstable)*
 
-#### `panoResolveProvider.label: string`
+#### `panoResolveProvider.label: string` *(unstable)*
 
 Name shown in enrichment progress and results.
 
-#### `panoResolveProvider.procedure: ProcedureSpec<{ panoId: string; }, PanoResolveConfig>`
+#### `panoResolveProvider.procedure: ProcedureSpec<{ panoId: string; }, PanoResolveConfig>` *(unstable)*
 
 The procedure that computes this provider's fields.
 
-#### `panoResolveProvider.provides: string[] | undefined`
+#### `panoResolveProvider.provides: string[] | undefined` *(unstable)*
 
 Core columns this provider writes (e.g. `panoId`).
 
-#### `panoResolveProvider.requires: string[] | undefined`
+#### `panoResolveProvider.requires: string[] | undefined` *(unstable)*
 
 Fields this provider reads; it runs after their producers finish.
 
-### `subdivisionProvider`
+### `subdivisionProvider` *(unstable)*
 
 A named procedure with dependency-graph placement. Providers that declare
 `fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
-#### `subdivisionProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
+#### `subdivisionProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined` *(unstable)*
 
 Extra-field keys this provider produces.
 
-#### `subdivisionProvider.id: string`
+#### `subdivisionProvider.id: string` *(unstable)*
 
-#### `subdivisionProvider.label: string`
+#### `subdivisionProvider.label: string` *(unstable)*
 
 Name shown in enrichment progress and results.
 
-#### `subdivisionProvider.procedure: ProcedureSpec<unknown, unknown>`
+#### `subdivisionProvider.procedure: ProcedureSpec<unknown, unknown>` *(unstable)*
 
 The procedure that computes this provider's fields.
 
-#### `subdivisionProvider.provides: string[] | undefined`
+#### `subdivisionProvider.provides: string[] | undefined` *(unstable)*
 
 Core columns this provider writes (e.g. `panoId`).
 
-#### `subdivisionProvider.requires: string[] | undefined`
+#### `subdivisionProvider.requires: string[] | undefined` *(unstable)*
 
 Fields this provider reads; it runs after their producers finish.
 
-### `svMetaProvider`
+### `svMetaProvider` *(unstable)*
 
 A named procedure with dependency-graph placement. Providers that declare
 `fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
-#### `svMetaProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
+#### `svMetaProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined` *(unstable)*
 
 Extra-field keys this provider produces.
 
-#### `svMetaProvider.id: string`
+#### `svMetaProvider.id: string` *(unstable)*
 
-#### `svMetaProvider.label: string`
+#### `svMetaProvider.label: string` *(unstable)*
 
 Name shown in enrichment progress and results.
 
-#### `svMetaProvider.procedure: ProcedureSpec<unknown, unknown>`
+#### `svMetaProvider.procedure: ProcedureSpec<unknown, unknown>` *(unstable)*
 
 The procedure that computes this provider's fields.
 
-#### `svMetaProvider.provides: string[] | undefined`
+#### `svMetaProvider.provides: string[] | undefined` *(unstable)*
 
 Core columns this provider writes (e.g. `panoId`).
 
-#### `svMetaProvider.requires: string[] | undefined`
+#### `svMetaProvider.requires: string[] | undefined` *(unstable)*
 
 Fields this provider reads; it runs after their producers finish.
 
-### `timezoneProvider`
+### `timezoneProvider` *(unstable)*
 
 A named procedure with dependency-graph placement. Providers that declare
 `fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
 
-#### `timezoneProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined`
+#### `timezoneProvider.fieldDefs: Record<string, ExtraFieldDef> | undefined` *(unstable)*
 
 Extra-field keys this provider produces.
 
-#### `timezoneProvider.id: string`
+#### `timezoneProvider.id: string` *(unstable)*
 
-#### `timezoneProvider.label: string`
+#### `timezoneProvider.label: string` *(unstable)*
 
 Name shown in enrichment progress and results.
 
-#### `timezoneProvider.procedure: ProcedureSpec<unknown, unknown>`
+#### `timezoneProvider.procedure: ProcedureSpec<unknown, unknown>` *(unstable)*
 
 The procedure that computes this provider's fields.
 
-#### `timezoneProvider.provides: string[] | undefined`
+#### `timezoneProvider.provides: string[] | undefined` *(unstable)*
 
 Core columns this provider writes (e.g. `panoId`).
 
-#### `timezoneProvider.requires: string[] | undefined`
+#### `timezoneProvider.requires: string[] | undefined` *(unstable)*
 
 Fields this provider reads; it runs after their producers finish.
 
@@ -2885,48 +2890,6 @@ Pin every location in the selector to its pano id, resolving pano ids first when
 ### `validateLocations(selector: Selector, opts?: (BulkOpts & { config?: Partial<ValidateConfig> | undefined; }) | undefined): Promise<ValidationOutcome>`
 
 Check that each location's Street View coverage still exists.
-
-### `validateSpec`
-
-A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
-what a run and a query both read) plus how a run schedules it.
-
-#### `validateSpec.batch: BatchMode` *(unstable)*
-
-#### `validateSpec.collects: ValidationState | undefined`
-
-Phantom field carrying the `TCollected` type. Never set at runtime.
-
-#### `validateSpec.config: ValidateConfig | undefined`
-
-The procedure's own configuration, handed to every entry point as `config`.
-
-#### `validateSpec.entry: string`
-
-Module entry point: absolute path, `res://procedures/<name>.js` for built-in
-procedures, or a relative filename (resolved against the plugin's directory).
-
-#### `validateSpec.inflight: number | undefined`
-
-Requests one run or one query of the procedure may have in flight at once. A run's
-instances share the budget; a separate run or query gets its own.
-
-#### `validateSpec.instances: number | undefined`
-
-Instances this provider may run at once. Declared only when the procedure
-cannot run beside itself; throughput comes from `inflight`.
-
-#### `validateSpec.prepare: (() => Promise<boolean>) | undefined`
-
-Awaited before the provider joins a run; returning false excludes it.
-
-#### `validateSpec.rate: RateSpec | undefined`
-
-#### `validateSpec.retry: RetrySpec | undefined`
-
-#### `validateSpec.select: NonNullable<Selector> | undefined`
-
-#### `validateSpec.sink: NonNullable<Sink | undefined> | undefined`
 
 ## Query
 

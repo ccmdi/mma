@@ -9,7 +9,7 @@ import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { pickCapture } from "@/lib/sv/panoId";
 import type { Pano } from "@/bindings.gen";
 import type { PanoType, RankingStrategy } from "@/bindings.consts";
-import type { PanoResolveConfig } from "@/lib/sv/enrich";
+import type { PanoResolveConfig } from "@/lib/sv/providers";
 
 export function run(
 	rows: Location[],

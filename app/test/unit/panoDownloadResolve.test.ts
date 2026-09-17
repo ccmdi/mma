@@ -40,7 +40,7 @@ vi.mock("@/lib/sv/query", () => ({
 }));
 
 import { bulkDownloadPanoramas } from "@/lib/sv/panoDownload";
-import { panoResolveProvider } from "@/lib/sv/enrich";
+import { panoResolveProvider } from "@/lib/sv/providers";
 
 function loc(id: number, panoId: string | null = null): Location {
 	return {

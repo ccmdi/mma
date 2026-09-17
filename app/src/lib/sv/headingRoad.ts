@@ -6,7 +6,7 @@ import {
 	type BatchOutcome,
 	type BulkOpts,
 } from "@/lib/data/procedures";
-import { panoResolveProvider } from "@/lib/sv/enrich";
+import { panoResolveProvider } from "@/lib/sv/providers";
 import { GET_METADATA_INFLIGHT } from "@/lib/sv/constants";
 import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
 import { msg } from "@/lib/i18n";

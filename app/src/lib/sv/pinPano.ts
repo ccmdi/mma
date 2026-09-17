@@ -3,7 +3,7 @@ import { PanoType, type CapturePick } from "@/bindings.consts";
 import { all, has } from "@/store/selections";
 import { applyFieldOp } from "@/store/useMapStore";
 import { runProviders, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
-import { panoResolveProvider } from "@/lib/sv/enrich";
+import { panoResolveProvider } from "@/lib/sv/providers";
 
 /** How a bulk pin settles each location's pano before pinning it. */
 export interface PinOpts extends BulkOpts {
