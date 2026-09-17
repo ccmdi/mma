@@ -1,5 +1,3 @@
-/** The global `MMA` object (also `window.MMA`). */
-
 export type * from "@/bindings.consts";
 export type * from "@/bindings.gen";
 export type { ProcedureHost, ProcedureRequest, ProcedureResponse } from "@/lib/data/procedureHost";
@@ -119,6 +117,7 @@ type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 type UtilApi = typeof util;
 
+/** The global `MMA` object (also `window.MMA`). */
 export interface MMA
 	extends
 		ConstsApi,

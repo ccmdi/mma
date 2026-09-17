@@ -7175,8 +7175,6 @@ declare namespace util {
   export type { util_PhaseRate as PhaseRate };
 }
 
-/** The global `MMA` object (also `window.MMA`). */
-
 export type ConstsApi = typeof consts;
 export type StoreApi = typeof store;
 /** Pure transforms over the selection list behind the sidebar. @unstable */
@@ -7245,6 +7243,7 @@ export type TestApi = typeof testSurface;
 export type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 export type UtilApi = typeof util;
+/** The global `MMA` object (also `window.MMA`). */
 interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SelectionActionsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, MapListApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, UiApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, LegacyApi {
 }
 

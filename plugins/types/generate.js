@@ -1,7 +1,7 @@
 // Bundle the plugin type surface (mma.d.ts) from the app's source.
 // Two stages: tsc emits real .d.ts files (JSDoc survives declaration emit),
 // then rollup-plugin-dts rolls them into one file.
-const { execSync } = require("child_process");
+const { execFileSync, execSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -106,7 +106,7 @@ ${line}`);
     fs.writeFileSync(out, content);
     propagateUnstable();
     stampUnpromisedExports();
-    generateApiMarkdown();
+    await generateApiMarkdown();
     console.log("Generated plugins/types/mma.d.ts");
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -343,11 +343,94 @@ function stampUnpromisedExports() {
   console.log(`Stamped @unstable on ${stampUnstable(ts, source, unpromised)} exports no stable member reaches`);
 }
 
+// The release each member path (`addLocations`, `ui.Sidebar`) first shipped in, read from the
+// `mma.d.ts` at every release tag. Names only: no libraries resolve, so each release parses in
+// milliseconds. Empty without tags (a shallow clone), and the reference then omits "since".
+function firstReleases(ts) {
+  const git = (args, input) => {
+    try {
+      return execFileSync("git", args, {
+        cwd: repoRoot,
+        input,
+        encoding: "utf-8",
+        maxBuffer: 1 << 30,
+        stdio: ["pipe", "pipe", "ignore"],
+      });
+    } catch {
+      return "";
+    }
+  };
+  const cmpVer = (a, b) => {
+    const [x, y] = [a.slice(1).split(".").map(Number), b.slice(1).split(".").map(Number)];
+    for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return 0;
+  };
+  const tags = git(["tag", "--list", "v*"])
+    .split("\n")
+    .filter((t) => /^v\d+\.\d+\.\d+$/.test(t))
+    .sort(cmpVer);
+  if (tags.length === 0) return new Map();
+
+  const spec = (tag) => `${tag}:plugins/types/mma.d.ts`;
+  const blobOf = git(["cat-file", "--batch-check=%(objectname) %(objecttype)"], tags.map(spec).join("\n") + "\n")
+    .split("\n")
+    .slice(0, tags.length)
+    .map((line) => (line.endsWith(" blob") ? line.split(" ")[0] : null));
+  const distinct = [...new Set(blobOf.filter(Boolean))];
+  const contents = git(["cat-file", "--batch"], distinct.join("\n") + "\n");
+
+  // `--batch` prints `<sha> blob <size>` then exactly <size> bytes per object.
+  const namesByBlob = new Map();
+  const bytes = Buffer.from(contents, "utf-8");
+  let at = 0;
+  for (const sha of distinct) {
+    const eol = bytes.indexOf(10, at);
+    const size = Number(bytes.subarray(at, eol).toString().split(" ")[2]);
+    namesByBlob.set(sha, memberNames(ts, bytes.subarray(eol + 1, eol + 1 + size).toString("utf-8")));
+    at = eol + 1 + size + 1;
+  }
+
+  const first = new Map();
+  tags.forEach((tag, i) => {
+    for (const name of namesByBlob.get(blobOf[i]) ?? []) if (!first.has(name)) first.set(name, tag);
+  });
+  return first;
+}
+
+function memberNames(ts, text) {
+  const file = "/sdk.d.ts";
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ESNext, true);
+  const host = ts.createCompilerHost({});
+  const read = host.getSourceFile;
+  host.getSourceFile = (name, ...rest) => (name === file ? source : read(name, ...rest));
+  const checker = ts
+    .createProgram([file], { noLib: true, noResolve: true, types: [] }, host)
+    .getTypeChecker();
+
+  // Older releases spell the surface `type MMA = typeof mma` or `type MMAApi = typeof mmaApi`.
+  let root = null;
+  ts.forEachChild(source, (n) => {
+    const named = ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n);
+    if (named && /^MMA(\$1|Api)?$/.test(n.name.text) && (!root || n.name.text === "MMA")) root = n;
+  });
+  const names = new Set();
+  if (!root) return names;
+  const surface = checker.getDeclaredTypeOfSymbol(checker.getSymbolAtLocation(root.name));
+  for (const prop of checker.getPropertiesOfType(surface)) {
+    names.add(prop.name);
+    const type = checker.getTypeOfSymbolAtLocation(prop, root);
+    if (type.getCallSignatures().length > 0) continue;
+    for (const inner of checker.getPropertiesOfType(type)) names.add(`${prop.name}.${inner.name}`);
+  }
+  return names;
+}
+
 // The human-readable companion to mma.d.ts: one section per API surface on the MMA
-// interface, each member with its signature and doc. Output-only -- regenerated with
-// the d.ts, never hand-edited.
-function generateApiMarkdown() {
+// interface, each member with its badges, signature and doc. Stable surfaces come first.
+// Output-only -- regenerated with the d.ts, never hand-edited.
+async function generateApiMarkdown() {
   const ts = require(path.join(appDir, "node_modules", "typescript"));
+  const prettier = require(path.join(appDir, "node_modules", "prettier"));
   const program = ts.createProgram([out], { skipLibCheck: true, target: ts.ScriptTarget.ESNext });
   const checker = program.getTypeChecker();
   const source = program.getSourceFile(out);
@@ -358,78 +441,201 @@ function generateApiMarkdown() {
   });
   if (!root) throw new Error("no MMA interface in the bundle");
 
-  const doc = (sym) => ts.displayPartsToString(sym.getDocumentationComment(checker)).trim();
-
+  const since = firstReleases(ts);
   const unstableMember = memberUnstable(ts, checker);
+  const flags = ts.TypeFormatFlags.NoTruncation | ts.TypeFormatFlags.UseAliasDefinedOutsideCurrentScope;
+  const typeText = (type) => checker.typeToString(type, root, flags);
+  const NL = "\n";
 
   // Doc and tags can live on the aliased declaration rather than the property symbol.
   const describe = (prop, propType) => {
-    const target = propType.getSymbol();
+    const symbols = [prop, propType.getSymbol()].filter(Boolean);
+    const doc = symbols
+      .map((s) => ts.displayPartsToString(s.getDocumentationComment(checker)).trim())
+      .find(Boolean);
+    const deprecated = symbols
+      .flatMap((s) => s.getJsDocTags(checker))
+      .find((t) => t.name === "deprecated");
     return {
-      doc: doc(prop) || (target ? doc(target) : ""),
-      unstable: unstableMember(prop, target),
+      doc: doc || "",
+      unstable: unstableMember(prop, propType.getSymbol()),
+      deprecated: deprecated ? ts.displayPartsToString(deprecated.text).trim() : null,
     };
   };
 
-  const entry = (name, prop, propType, level) => {
-    const { doc: text, unstable } = describe(prop, propType);
-    const sigs = propType.getCallSignatures();
-    const label = sigs.length
-      ? `${name}${checker.signatureToString(sigs[0]).replace(/^\(/, "(")}`
-      : `${name}: ${checker.typeToString(propType)}`;
-    const lines = [`${"#".repeat(level)} \`${label}\`${unstable ? " *(unstable)*" : ""}`, ""];
-    if (text) lines.push(text, "");
-    return lines.join("\n");
+  // Every code block is formatted in one prettier pass. Each is a declaration of a placeholder
+  // name (a dotted path like `ui.Button` would not parse), preceded by a marker comment.
+  const blocks = [];
+  const block = (name, declaration) => {
+    const slot = { name, declaration, text: declaration };
+    blocks.push(slot);
+    return slot;
+  };
+  const formatBlocks = async () => {
+    const marker = "// @@block";
+    const joined = blocks.map((b) => marker + NL + b.declaration).join(NL);
+    const formatted = await prettier.format(joined, { parser: "typescript", printWidth: 88 });
+    const chunks = formatted.split(marker + NL).slice(1);
+    if (chunks.length !== blocks.length) throw new Error("API.md code blocks lost their markers");
+    blocks.forEach((b, i) => {
+      b.text = chunks[i]
+        .trim()
+        .replace(/;$/gm, (semi, offset, all) => (all.startsWith("declare ", offset + 2) || offset === all.length - 1 ? "" : semi))
+        .replace(/^declare (function|const) __member/gm, b.name);
+    });
+  };
+  const key = (name) => (/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name));
+
+  // A destructured parameter prints as its whole binding pattern; `props` reads better.
+  // Types are printed as declared, so a named type (`AppSettings`) is not expanded in place.
+  const parameter = (p) => {
+    const decl = p.valueDeclaration;
+    if (!decl || !ts.isParameter(decl)) return `${p.name}: ${typeText(checker.getTypeOfSymbolAtLocation(p, root))}`;
+    const rest = decl.dotDotDotToken ? "..." : "";
+    const name = ts.isIdentifier(decl.name) ? p.name : "props";
+    const optional = checker.isOptionalParameter(decl) ? "?" : "";
+    const type = decl.type ? decl.type.getText() : typeText(checker.getTypeOfSymbolAtLocation(p, root));
+    return `${rest}${name}${optional}: ${type}`;
+  };
+  const signature = (name, type) => {
+    const sigs = type.getCallSignatures();
+    const declaration = sigs.length
+      ? sigs
+          .map((sig) => {
+            const typeParams = sig.declaration?.typeParameters
+              ? `<${sig.declaration.typeParameters.map((tp) => tp.getText()).join(", ")}>`
+              : "";
+            const params = sig.parameters.map(parameter).join(", ");
+            const returns = sig.declaration?.type
+              ? sig.declaration.type.getText()
+              : typeText(checker.getReturnTypeOfSignature(sig));
+            return `declare function __member${typeParams}(${params}): ${returns};`;
+          })
+          .join(NL)
+      : `declare const __member: ${typeText(type)};`;
+    return block(name, declaration);
   };
 
-  const sections = [];
+  // An object of plain values (an enum-like const, a defaults table) reads best whole.
+  const valueTable = (name, props) => {
+    const body = props
+      .map((p) => {
+        const type = checker.getTypeOfSymbolAtLocation(p, root);
+        const { doc } = describe(p, type);
+        const comment = doc ? `/** ${doc.replace(/\s*\n\s*/g, " ")} */${NL}` : "";
+        return `${comment}${key(p.name)}: ${typeText(type)};`;
+      })
+      .join(NL);
+    return block(name, `declare const __member: {${NL}${body}${NL}};`);
+  };
+
+  const badges = (path, { unstable, deprecated }) =>
+    [
+      unstable ? "`unstable`" : "`stable`",
+      deprecated !== null ? "`deprecated`" : null,
+      since.get(path) ? `since ${since.get(path)}` : since.size ? "unreleased" : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+
+  const header = (level, path, info) => [`${"#".repeat(level)} ${path}`, "", badges(path, info), ""];
+  const prose = (info) => [
+    ...(info.deprecated !== null
+      ? [info.deprecated.replace(/^(v\d+\.\d+\.\d+)\.?\s*/, "**Deprecated in $1.** ") || "**Deprecated.**", ""]
+      : []),
+    ...(info.doc ? [info.doc, ""] : []),
+  ];
+  const entry = (path, prop, propType, level) => {
+    const info = describe(prop, propType);
+    return {
+      lines: [...header(level, path, info), signature(path, propType), "", ...prose(info)],
+      unstable: info.unstable,
+    };
+  };
+
+  const surfaces = [];
   for (const clause of root.heritageClauses || []) {
     for (const node of clause.types) {
       const alias = checker.getSymbolAtLocation(node.expression);
       if (!alias) continue;
-      const surface = alias.name.replace(/Api$/, "");
-      const type = checker.getTypeAtLocation(node);
-      const parts = [];
-      for (const prop of checker.getPropertiesOfType(type).sort((a, b) => a.name.localeCompare(b.name))) {
+      const members = [];
+      const props = checker.getPropertiesOfType(checker.getTypeAtLocation(node));
+      for (const prop of props.sort((a, b) => a.name.localeCompare(b.name))) {
         const propType = checker.getTypeOfSymbolAtLocation(prop, root);
         // A namespace-like member (e.g. `cmd`) gets its members as sub-entries. Only
         // properties declared in this bundle count -- an array or other lib-typed value
         // must not have its built-in methods enumerated.
         let inner = [];
         if (propType.getCallSignatures().length === 0 && !checker.isArrayLikeType(propType)) {
-          const ownProp = (p) =>
-            (p.declarations || []).some((d) => d.getSourceFile() === source);
+          const ownProp = (p) => (p.declarations || []).some((d) => d.getSourceFile() === source);
           inner = checker.getPropertiesOfType(propType).filter(ownProp);
         }
-        if (inner.length > 3) {
-          const { doc: text, unstable } = describe(prop, propType);
-          parts.push(
-            [`### \`${prop.name}\`${unstable ? " *(unstable)*" : ""}`, "", ...(text ? [text, ""] : [])].join("\n"),
-          );
+        const innerType = (p) => checker.getTypeOfSymbolAtLocation(p, root);
+        const info = describe(prop, propType);
+        if (inner.length > 3 && inner.some((p) => innerType(p).getCallSignatures().length > 0)) {
+          members.push({ lines: [...header(3, prop.name, info), ...prose(info)], unstable: info.unstable });
           for (const p of inner.sort((a, b) => a.name.localeCompare(b.name))) {
-            parts.push(entry(`${prop.name}.${p.name}`, p, checker.getTypeOfSymbolAtLocation(p, root), 4));
+            members.push(entry(`${prop.name}.${p.name}`, p, innerType(p), 4));
           }
+        } else if (inner.length > 3) {
+          members.push({
+            lines: [...header(3, prop.name, info), valueTable(prop.name, inner), "", ...prose(info)],
+            unstable: info.unstable,
+          });
         } else {
-          parts.push(entry(prop.name, prop, propType, 3));
+          members.push(entry(prop.name, prop, propType, 3));
         }
       }
-      if (parts.length) sections.push({ surface, doc: doc(alias), parts });
+      if (members.length === 0) continue;
+      surfaces.push({
+        name: alias.name.replace(/Api$/, ""),
+        doc: ts.displayPartsToString(alias.getDocumentationComment(checker)).trim(),
+        members,
+        unstable: members.every((m) => m.unstable),
+      });
     }
   }
 
-  const anchor = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  await formatBlocks();
+  const render = (line) => (typeof line === "string" ? line : ["```ts", line.text, "```"].join(NL));
+  const anchor = (s) => s.toLowerCase().replace(/[^a-z0-9 -]/g, "").replace(/ /g, "-");
+  const stable = surfaces.filter((s) => !s.unstable);
+  const unstable = surfaces.filter((s) => s.unstable);
+  const toc = (list) => list.map((s) => `- [${s.name}](#${anchor(s.name)})`);
+  const section = (s) => [
+    `## ${s.name}`,
+    "",
+    ...(s.doc ? [s.doc, ""] : []),
+    ...s.members.flatMap((m) => m.lines.map(render)),
+  ];
   const md = [
     "# MMA API reference",
     "",
-    "Every member of the global `MMA` object, grouped by surface. Members marked *(unstable)* can",
-    "change in any release.",
+    "Every member of the global `MMA` object (also `window.MMA`), grouped by surface.",
     "",
-    ...sections.map((s) => `- [${s.surface}](#${anchor(s.surface)})`),
+    "- `stable` members keep working across releases. A rename or removal ships with a shim.",
+    "- `unstable` members are documented but can change or disappear in any release.",
+    "- `since` is the first release a member shipped in: the `minAppVersion` a plugin using it needs.",
     "",
-    ...sections.flatMap((s) => [`## ${s.surface}`, "", ...(s.doc ? [s.doc, ""] : []), ...s.parts]),
-  ].join("\n");
+    "## Contents",
+    "",
+    "**Stable surfaces**",
+    "",
+    ...toc(stable),
+    "",
+    "**Unstable surfaces**",
+    "",
+    ...toc(unstable),
+    "",
+    ...stable.flatMap(section),
+    "# Unstable surfaces",
+    "",
+    "Everything below can change in any release.",
+    "",
+    ...unstable.flatMap(section),
+  ].join(NL);
   fs.writeFileSync(path.resolve(__dirname, "API.md"), md);
-  console.log(`Generated plugins/types/API.md (${sections.length} sections)`);
+  console.log(`Generated plugins/types/API.md (${stable.length} stable, ${unstable.length} unstable surfaces)`);
 }
 
 main().catch((e) => {

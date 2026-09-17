@@ -67,7 +67,7 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 
 	it("a stamped bundler alias leaves the member it names stable", () => {
 		const apiMd = readFileSync(join(__dirname, "../../../plugins/types/API.md"), "utf8");
-		expect(apiMd).toMatch(/^### `CameraType`$/m);
+		expect(apiMd).toMatch(/^### CameraType\n\n`stable`/m);
 	});
 
 	it("a legacy shim is unstable from birth, so it is never a stable promise", () => {
