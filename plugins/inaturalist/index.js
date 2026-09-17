@@ -592,54 +592,17 @@ function TaxonomySorter() {
   ] });
 }
 
+// inaturalist/src/INatSidebar.css
+var style = [...document.head.querySelectorAll("style[data-mma-plugin-css]")].find((s) => s.dataset.mmaPluginCss === "inaturalist/src/INatSidebar.css");
+if (!style) {
+  style = document.createElement("style");
+  style.dataset.mmaPluginCss = "inaturalist/src/INatSidebar.css";
+  document.head.appendChild(style);
+}
+style.textContent = ".inat-sidebar__search { display: flex; gap: 6px; }\n.inat-sidebar__results {\n  max-height: 300px; overflow-y: auto;\n  border: 1px solid var(--color-divider, #333); border-radius: 4px;\n  margin-top: 8px;\n}\n.inat-sidebar__taxon {\n  display: flex; align-items: center; gap: 8px; padding: 6px 8px;\n  cursor: pointer; border-bottom: 1px solid var(--color-divider, #333);\n  font-size: 13px;\n}\n.inat-sidebar__taxon:last-child { border-bottom: none; }\n.inat-sidebar__taxon:hover { background: rgba(255,255,255,0.05); }\n.inat-sidebar__taxon-photo {\n  width: 32px; height: 32px; border-radius: 4px; object-fit: cover;\n  background: #333; flex-shrink: 0;\n}\n.inat-sidebar__taxon-info { flex: 1; min-width: 0; }\n.inat-sidebar__taxon-name {\n  font-weight: 600; font-style: italic; overflow: hidden;\n  text-overflow: ellipsis; white-space: nowrap;\n}\n.inat-sidebar__taxon-meta { font-size: 11px; color: var(--text-secondary, #999); }\n.inat-sidebar__active {\n  margin-top: 8px; padding: 8px; border-radius: 4px;\n  background: rgba(255, 120, 0, 0.1); border: 1px solid rgba(255, 120, 0, 0.3);\n}\n.inat-sidebar__active-name { font-weight: 600; font-size: 13px; color: #ff7800; }\n.inat-sidebar__active-count { font-size: 12px; color: var(--text-secondary, #999); margin-top: 2px; }\n.inat-sidebar__actions { display: flex; gap: 6px; margin-top: 8px; }\n.inat-sidebar__hint { font-size: 12px; color: var(--text-secondary, #999); margin-top: 4px; }\n";
+
 // inaturalist/src/INatSidebar.tsx
 var import_jsx_runtime2 = __toESM(require_jsx_runtime());
-var CSS = `
-.inat-sidebar__search { display: flex; gap: 6px; }
-.inat-sidebar__results {
-  max-height: 300px; overflow-y: auto;
-  border: 1px solid var(--color-divider, #333); border-radius: 4px;
-  margin-top: 8px;
-}
-.inat-sidebar__taxon {
-  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
-  cursor: pointer; border-bottom: 1px solid var(--color-divider, #333);
-  font-size: 13px;
-}
-.inat-sidebar__taxon:last-child { border-bottom: none; }
-.inat-sidebar__taxon:hover { background: rgba(255,255,255,0.05); }
-.inat-sidebar__taxon-photo {
-  width: 32px; height: 32px; border-radius: 4px; object-fit: cover;
-  background: #333; flex-shrink: 0;
-}
-.inat-sidebar__taxon-info { flex: 1; min-width: 0; }
-.inat-sidebar__taxon-name {
-  font-weight: 600; font-style: italic; overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap;
-}
-.inat-sidebar__taxon-meta { font-size: 11px; color: var(--text-secondary, #999); }
-.inat-sidebar__active {
-  margin-top: 8px; padding: 8px; border-radius: 4px;
-  background: rgba(255, 120, 0, 0.1); border: 1px solid rgba(255, 120, 0, 0.3);
-}
-.inat-sidebar__active-name { font-weight: 600; font-size: 13px; color: #ff7800; }
-.inat-sidebar__active-count { font-size: 12px; color: var(--text-secondary, #999); margin-top: 2px; }
-.inat-sidebar__actions { display: flex; gap: 6px; margin-top: 8px; }
-.inat-sidebar__hint { font-size: 12px; color: var(--text-secondary, #999); margin-top: 4px; }
-`;
-var styleEl = null;
-function injectCSS() {
-  if (styleEl) return;
-  styleEl = document.createElement("style");
-  styleEl.textContent = CSS;
-  document.head.appendChild(styleEl);
-}
-function removeCSS() {
-  if (styleEl) {
-    styleEl.remove();
-    styleEl = null;
-  }
-}
 var { ui: { Sidebar, Section: Section2, TextInput, Button: Button2 }, toast: toast2 } = MMA;
 function INatSidebar({ onClose }) {
   const [query, setQuery] = (0, import_react2.useState)("");
@@ -648,11 +611,9 @@ function INatSidebar({ onClose }) {
   const [, bump] = (0, import_react2.useState)(0);
   const refresh = (0, import_react2.useCallback)(() => bump((n) => n + 1), []);
   (0, import_react2.useEffect)(() => {
-    injectCSS();
     setOnUpdate(refresh);
     return () => {
       setOnUpdate(null);
-      removeCSS();
     };
   }, [refresh]);
   const doSearch = async () => {
