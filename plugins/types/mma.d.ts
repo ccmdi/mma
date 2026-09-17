@@ -4965,8 +4965,6 @@ declare function on<E extends EditorEvent | PluginEvent<unknown>>(event: E, hand
 declare function definePluginEvent<T = void>(pluginId: string, name: string): PluginEvent<T>;
 /** Raise one of a plugin's own events, with its payload when it carries one. @unstable */
 declare function emitPluginEvent<T>(event: PluginEvent<T>, ...payload: T extends void ? [] : [payload: T]): void;
-/** React hook: a counter that moves each time `event` is raised. @unstable */
-declare function usePluginEvent(event: PluginEvent<unknown>): number;
 /** React hook: what `read` returns, read again each time `event` is raised. `read` must return
  *  the same reference while nothing it reads has changed. @unstable */
 declare function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;

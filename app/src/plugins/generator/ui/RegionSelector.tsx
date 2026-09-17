@@ -11,6 +11,9 @@ import { usePluginEvent } from "@/plugins/scope";
 import { GENERATOR_CHANGED } from "../session";
 import { t } from "@/lib/i18n";
 
+const regionProgressKey = (meta: Map<string, GeneratorRegionMeta>) =>
+	[...meta.values()].map((m) => `${m.found.length}:${m.isProcessing}`).join();
+
 function getPolygonName(sel: Selection): string {
 	if (sel.selector.type !== "Polygon") return sel.key;
 	return sel.selector.polygon.properties?.name || t("Unnamed polygon");
@@ -79,7 +82,7 @@ export function RegionSelector({
 	onMetaChange: (meta: Map<string, GeneratorRegionMeta>) => void;
 	running: boolean;
 }) {
-	usePluginEvent(GENERATOR_CHANGED);
+	usePluginEvent(GENERATOR_CHANGED, () => regionProgressKey(meta));
 	const selections = useMapState(getActiveSelections);
 	const polygonSelections = selections.filter((s) => s.selector.type === "Polygon");
 	const [capDialogOpen, setCapDialogOpen] = useState(false);

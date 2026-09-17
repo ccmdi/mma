@@ -114,17 +114,4 @@ describe("plugin events", () => {
 		act(() => emitPluginEvent(changed));
 		expect(m.container.textContent).toBe("2");
 	});
-
-	it("usePluginEvent without a reader moves on every raise", () => {
-		const tick = definePluginEvent("p", "tick");
-		function Probe() {
-			return createElement("output", null, usePluginEvent(tick));
-		}
-		const m = mount(createElement(Probe));
-		const before = Number(m.container.textContent);
-
-		act(() => emitPluginEvent(tick));
-		act(() => emitPluginEvent(tick));
-		expect(Number(m.container.textContent)).toBe(before + 2);
-	});
 });

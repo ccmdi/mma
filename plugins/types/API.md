@@ -2210,9 +2210,8 @@ Set the base directory for a plugin's assets on disk.
 
 Enroll a teardown callback under the current plugin. No-op outside activation.
 
-### `usePluginEvent(event: PluginEvent<unknown>): number` *(unstable)*
+### `usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V` *(unstable)*
 
-React hook: a counter that moves each time `event` is raised.
 React hook: what `read` returns, read again each time `event` is raised. `read` must return
 the same reference while nothing it reads has changed.
 

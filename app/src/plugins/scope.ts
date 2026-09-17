@@ -3,7 +3,6 @@
 // after an `await` or in a later callback are not attributed.
 import {
 	emit,
-	getEventVersion,
 	subscribe,
 	useEventValue,
 	type EditorEvent,
@@ -93,11 +92,8 @@ export function emitPluginEvent<T>(
 	emit(event as PluginEvent<unknown>, (payload as unknown[])[0]);
 }
 
-/** React hook: a counter that moves each time `event` is raised. @unstable */
-export function usePluginEvent(event: PluginEvent<unknown>): number;
 /** React hook: what `read` returns, read again each time `event` is raised. `read` must return
  *  the same reference while nothing it reads has changed. @unstable */
-export function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V;
-export function usePluginEvent<V>(event: PluginEvent<unknown>, read?: () => V): V | number {
-	return useEventValue<V | number>(event, read ?? (() => getEventVersion(event)));
+export function usePluginEvent<V>(event: PluginEvent<unknown>, read: () => V): V {
+	return useEventValue(event, read);
 }
