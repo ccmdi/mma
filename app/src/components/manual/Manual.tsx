@@ -47,7 +47,7 @@ export function Manual({
 							{CHAPTERS.map((c, i) => (
 								<li key={c.id}>
 									<button
-										className={i === index ? "manual__toc-link is-active" : "manual__toc-link"}
+										className={`nav-item manual__toc-link${i === index ? " nav-item--active" : ""}`}
 										onClick={() => go(i)}
 									>
 										{c.title}

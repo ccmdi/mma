@@ -1573,16 +1573,16 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 								key={s.id}
 								type="button"
 								data-qa={`settings-nav-${s.id}`}
-								className={`settings-nav-item${!searching && s.id === selected ? " settings-nav-item--active" : ""}`}
+								className={`nav-item${!searching && s.id === selected ? " nav-item--active" : ""}`}
 								onClick={() => {
 									setSelected(s.id);
 									setQuery("");
 								}}
 							>
-								<Icon path={s.icon} size={16} className="settings-nav-item__icon" />
+								<Icon path={s.icon} size={16} className="nav-item__icon" />
 								{t(s.title)}
 								{s.id === "feedback" && unread > 0 && (
-									<span className="settings-nav-item__badge">{unread}</span>
+									<span className="nav-item__badge">{unread}</span>
 								)}
 							</button>
 						))}

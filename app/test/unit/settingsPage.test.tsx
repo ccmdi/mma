@@ -78,9 +78,7 @@ describe("settings rail", () => {
 
 	it("opens on Street View, not the hotkey table", async () => {
 		await mount();
-		expect(q(".settings-nav-item--active")?.getAttribute("data-qa")).toBe(
-			"settings-nav-streetview",
-		);
+		expect(q(".nav-item--active")?.getAttribute("data-qa")).toBe("settings-nav-streetview");
 	});
 });
 
@@ -203,7 +201,7 @@ describe("unread replies", () => {
 		...patch,
 	});
 
-	const railBadge = () => q('[data-qa="settings-nav-feedback"] .settings-nav-item__badge');
+	const railBadge = () => q('[data-qa="settings-nav-feedback"] .nav-item__badge');
 
 	it("counts them on the Feedback section label", async () => {
 		setLocal("feedbackReports", [report({ replies: 3, seenReplies: 1 })]);

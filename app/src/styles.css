@@ -4846,7 +4846,7 @@ body {
 	flex-direction: column;
 	gap: 2px;
 }
-.settings-nav-item {
+.nav-item {
 	display: flex;
 	align-items: center;
 	gap: 0.55rem;
@@ -4862,23 +4862,24 @@ body {
 		color var(--dur-fast) var(--ease-standard),
 		background var(--dur-fast) var(--ease-standard);
 }
-.settings-nav-item__icon {
+.nav-item__icon {
 	flex-shrink: 0;
 	color: var(--text-3);
 	transition: color var(--dur-fast) var(--ease-standard);
 }
-.settings-nav-item:hover {
-	background: var(--surface-2);
+.nav-item:hover {
+	background: var(--hover);
 	color: var(--text-1);
 }
-.settings-nav-item:hover .settings-nav-item__icon {
+.nav-item:hover .nav-item__icon {
 	color: var(--text-2);
 }
-.settings-nav-item--active {
+.nav-item--active,
+.nav-item--active:hover {
 	background: var(--accent-muted);
 	color: var(--accent);
 }
-.settings-nav-item--active .settings-nav-item__icon {
+.nav-item--active .nav-item__icon {
 	color: var(--accent);
 }
 .settings-content {
@@ -6724,7 +6725,7 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	color: var(--gray-6);
 }
 .feedback-reports__badge,
-.settings-nav-item__badge {
+.nav-item__badge {
 	min-width: 1.15rem;
 	padding: 0 0.35rem;
 	border-radius: var(--radius-pill);
@@ -6733,7 +6734,7 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	background: var(--action);
 	color: var(--on-action);
 }
-.settings-nav-item__badge {
+.nav-item__badge {
 	margin-left: auto;
 }
 /* Unread reply on a filed report. Presence only -- the count lives on the settings rail. */
