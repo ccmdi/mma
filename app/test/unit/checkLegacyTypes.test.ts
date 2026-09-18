@@ -115,6 +115,107 @@ export { F };`;
 		expect(names(r)).toEqual(["f"]);
 	});
 
+	// Every rule holds at every depth: a nested member is judged exactly like a top-level one.
+	const U = "\n/** @unstable */\n";
+	it.each([
+		[
+			"top-level addition",
+			`export interface A { a: string }`,
+			`export interface A { a: string; b: string }`,
+			[],
+		],
+		[
+			"nested addition",
+			`export interface A { cmd: { a(): void } }`,
+			`export interface A { cmd: { a(): void; b(): void } }`,
+			[],
+		],
+		[
+			"deep addition",
+			`export interface A { x: { y: { a: string } } }`,
+			`export interface A { x: { y: { a: string; b: number } } }`,
+			[],
+		],
+		[
+			"nested stable removal",
+			`export interface A { cmd: { a(): void; b(): void } }`,
+			`export interface A { cmd: { a(): void } }`,
+			["A"],
+		],
+		[
+			"deep stable removal",
+			`export interface A { x: { y: { a: string; b: number } } }`,
+			`export interface A { x: { y: { a: string } } }`,
+			["A"],
+		],
+		[
+			"nested stable narrowing",
+			`export interface A { cmd: { a: string | number } }`,
+			`export interface A { cmd: { a: string } }`,
+			["A"],
+		],
+		[
+			"nested stable widening",
+			`export interface A { cmd: { a: string } }`,
+			`export interface A { cmd: { a: string | number } }`,
+			[],
+		],
+		[
+			"nested unstable removal",
+			`export interface A { cmd: { a(): void; ${U} b(): void } }`,
+			`export interface A { cmd: { a(): void } }`,
+			[],
+		],
+		[
+			"nested unstable narrowing",
+			`export interface A { cmd: { a: string; ${U} b: string | number } }`,
+			`export interface A { cmd: { a: string; b: string } }`,
+			[],
+		],
+		[
+			"anything under an unstable parent",
+			`export interface A { ${U} cmd: { x: { a: string | number; b: string } } }`,
+			`export interface A { cmd: { x: { a: string } } }`,
+			[],
+		],
+		[
+			"nested tuple append",
+			`export interface A { consts: { C: readonly ["a"] } }`,
+			`export interface A { consts: { C: readonly ["a", "b"] } }`,
+			[],
+		],
+		[
+			"nested tuple loss",
+			`export interface A { consts: { C: readonly ["a", "b"] } }`,
+			`export interface A { consts: { C: readonly ["a"] } }`,
+			["A"],
+		],
+		[
+			"nested member unstable at the declaration it points at",
+			`${U} declare const P: string | number;
+declare const c_P: typeof P;
+export interface A { consts: { P: typeof c_P } }`,
+			`${U} declare const P: string;
+declare const c_P: typeof P;
+export interface A { consts: { P: typeof c_P } }`,
+			[],
+		],
+		[
+			"recursive type addition",
+			`export interface N { v: string; next?: N }`,
+			`export interface N { v: string; w?: number; next?: N }`,
+			[],
+		],
+		[
+			"recursive type narrowing",
+			`export interface N { v: string | number; next?: N }`,
+			`export interface N { v: string; next?: N }`,
+			["N"],
+		],
+	])("%s", (_case, before, after, broken) => {
+		expect(names(compare(before, after))).toEqual(broken);
+	});
+
 	it("the SDK compares clean against itself, so no promised type is nominal", () => {
 		const typesDir = join(__dirname, "../../../plugins/types");
 		const sdk = prepare(readFileSync(join(typesDir, "mma.d.ts"), "utf-8"));

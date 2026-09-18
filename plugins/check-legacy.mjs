@@ -135,11 +135,27 @@ const PROBE_OPTS = {
 	moduleResolution: ts.ModuleResolutionKind.Bundler,
 };
 
+/** Whether a symbol is `@unstable`, reading through the hops a bundled d.ts puts between a
+ *  member and its declaration: an alias, or a `declare const x: typeof y`. */
+function unstableIn(checker) {
+	const tagged = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
+	return function unstable(sym, hops = 4) {
+		if (!sym || hops === 0) return false;
+		if (tagged(sym)) return true;
+		if (sym.flags & ts.SymbolFlags.Alias) return unstable(checker.getAliasedSymbol(sym), hops - 1);
+		const node = sym.valueDeclaration?.type;
+		if (node && ts.isTypeQueryNode(node)) {
+			return unstable(checker.getSymbolAtLocation(node.exprName), hops - 1);
+		}
+		return false;
+	};
+}
+
 /** Every exported declaration, with its unstable tag and how to name it in a type position. */
 function exportedTypes(checker, source) {
 	const mod = checker.getSymbolAtLocation(source);
 	if (!mod) return [];
-	const unstable = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
+	const unstable = unstableIn(checker);
 	const out = [];
 	// `api.ts` names one alias per spread module (StoreApi, SettingsApi, ...). They are
 	// how the surface is assembled, not something a plugin can write, so a member moving
@@ -158,30 +174,12 @@ function exportedTypes(checker, source) {
 				ts.SymbolFlags.Enum)
 		);
 		const arity = asType ? (decl.typeParameters?.length ?? 0) : 0;
-		const type = asType
-			? checker.getDeclaredTypeOfSymbol(sym)
-			: checker.getTypeOfSymbolAtLocation(sym, decl);
-		// A generic signature cannot be related across two copies of the SDK (its indexed and
-		// conditional types defer on the type parameter), so only its presence is checked.
-		const opaque = (p) =>
-			unstable(p) ||
-			checker
-				.getTypeOfSymbol(p)
-				.getCallSignatures()
-				.some((sig) => (sig.typeParameters ?? []).length > 0);
-		// Symbol-keyed members (`__@iterator@1234`) carry a per-generation id and are not
-		// addressable from plugin code; comparing them only flags generator noise.
-		const props = checker.getPropertiesOfType(type).filter((p) => !p.name.startsWith("__@"));
 		out.push({
 			name: exp.name,
 			unstable: unstable(exp) || unstable(sym),
-			callable: type.getCallSignatures().length > 0,
-			// An array or tuple is compared by element, so appending to a const tuple is additive.
-			elements: checker.isArrayLikeType(type),
-			objectLike: !!(type.flags & ts.TypeFlags.Object),
-			members: props.map((p) => p.name),
-			promised: props.filter((p) => !unstable(p)).map((p) => p.name),
-			skip: props.filter(opaque).map((p) => JSON.stringify(p.name)),
+			type: asType
+				? checker.getDeclaredTypeOfSymbol(sym)
+				: checker.getTypeOfSymbolAtLocation(sym, decl),
 			ref: (ns) =>
 				asType
 					? `${ns}.${exp.name}${arity ? `<${Array(arity).fill("any").join(", ")}>` : ""}`
@@ -189,6 +187,75 @@ function exportedTypes(checker, source) {
 		});
 	}
 	return out;
+}
+
+/** Walks one promised type the same way at every depth: an `@unstable` member is skipped with
+ *  everything under it, a member the new type lacks is a removal, an array is compared by
+ *  element so appending is additive, an object is walked member by member so additions pass,
+ *  and anything else is one assignability probe. A type pair already walked is not walked
+ *  again, which also ends recursive types. */
+function promiseWalker(checker, sources, probe, removal) {
+	const unstable = unstableIn(checker);
+	// Only the SDK's own declarations are walked; a library type is the library's promise.
+	const declaredHere = (type) =>
+		type.isIntersection()
+			? type.types.some(declaredHere)
+			: ((type.aliasSymbol ?? type.getSymbol())?.declarations ?? []).some((d) =>
+					sources.has(d.getSourceFile()),
+				);
+	const nullish = ts.TypeFlags.Null | ts.TypeFlags.Undefined;
+	const seen = new Map();
+	// A generic signature cannot be related across two copies of the SDK (its indexed and
+	// conditional types defer on the type parameter), so only its presence is checked.
+	const generic = (type) =>
+		type.getCallSignatures().some((sig) => (sig.typeParameters ?? []).length > 0);
+	const walk = (oldType, newType, o, n, path) => {
+		const pairs = seen.get(oldType) ?? new Set();
+		if (pairs.has(newType)) return;
+		pairs.add(newType);
+		seen.set(oldType, pairs);
+
+		if (oldType.isUnion() && oldType.types.some((t) => t.flags & nullish)) {
+			// An optional member that turns required narrows what a plugin may pass.
+			probe(`Extract<${o}, null | undefined>`, n, path);
+			[oldType, newType] = [
+				checker.getNonNullableType(oldType),
+				checker.getNonNullableType(newType),
+			];
+			[o, n] = [`NonNullable<${o}>`, `NonNullable<${n}>`];
+		}
+		if (generic(oldType)) return;
+		if (checker.isArrayLikeType(oldType)) {
+			probe(`(${o})[number]`, `(${n})[number]`, path);
+			return;
+		}
+		// Symbol-keyed members (`__@iterator@1234`) carry a per-generation id and are not
+		// addressable from plugin code; comparing them only flags generator noise.
+		const props = checker.getPropertiesOfType(oldType).filter((p) => !p.name.startsWith("__@"));
+		const structured =
+			(oldType.flags & (ts.TypeFlags.Object | ts.TypeFlags.Intersection)) !== 0 &&
+			oldType.getCallSignatures().length === 0 &&
+			oldType.getConstructSignatures().length === 0 &&
+			props.length > 0 &&
+			declaredHere(oldType);
+		if (!structured) {
+			probe(o, n, path);
+			return;
+		}
+		for (const prop of props) {
+			const propType = checker.getTypeOfSymbol(prop);
+			if (unstable(prop) || unstable(propType.getSymbol())) continue;
+			const at = path ? `${path}.${prop.name}` : prop.name;
+			const now = checker.getPropertyOfType(newType, prop.name);
+			if (!now) {
+				removal(at);
+				continue;
+			}
+			const key = JSON.stringify(prop.name);
+			walk(propType, checker.getTypeOfSymbol(now), `(${o})[${key}]`, `(${n})[${key}]`, at);
+		}
+	};
+	return walk;
 }
 
 /** The last two links of a diagnostic chain name the member and the mismatch. */
@@ -205,12 +272,13 @@ const leaf = (d) => {
  *  both sides have is decided by the compiler, on a generated probe file of assignability
  *  assertions, so the rule is TypeScript's own and not a hand-rolled differ. Additions,
  *  optionalisation and widening pass; a narrowed member fails. `@unstable` members are
- *  excluded on both sides. */
+ *  excluded with everything under them. Every rule applies at every depth. */
 export function compareTypes(oldPath, newPath) {
 	const dir = dirname(newPath);
 	const spec = (p) => `./${basename(p).replace(/\.(d\.)?ts$/, "")}`;
 	const read = ts.createProgram([oldPath, newPath], PROBE_OPTS);
 	const checker = read.getTypeChecker();
+	const sources = new Set([read.getSourceFile(oldPath), read.getSourceFile(newPath)]);
 	const oldExports = exportedTypes(checker, read.getSourceFile(oldPath));
 	const newExports = new Map(
 		exportedTypes(checker, read.getSourceFile(newPath)).map((e) => [e.name, e]),
@@ -231,23 +299,23 @@ export function compareTypes(oldPath, newPath) {
 			missing.push(e.name);
 			continue;
 		}
-		const removed = e.promised.filter((m) => !now.members.includes(m));
+		const removed = [];
+		const walk = promiseWalker(
+			checker,
+			sources,
+			(o, n, path) => {
+				lineOwner.set(lines.length, { name: e.name, path });
+				lines.push(`type _${lines.length} = Assert<${o}, ${n}>;`);
+			},
+			(path) => removed.push(path),
+		);
+		walk(e.type, now.type, e.ref("Old"), now.ref("New"), "");
 		if (removed.length) {
 			// Recorded, then the assignability probe still runs: a member that kept its name
 			// and changed shape is a break of its own, and reporting only the removals would
 			// hide it until a plugin silently misbehaves.
 			broken.set(e.name, `member(s) removed: ${removed.join(", ")}`);
 		}
-		const [o, n] = [e.ref("Old"), e.ref("New")];
-		const skip = e.skip.length ? e.skip.join(" | ") : "never";
-		lineOwner.set(lines.length, e.name);
-		lines.push(
-			e.elements
-				? `type _${lines.length} = Assert<(${o})[number], (${n})[number]>;`
-				: e.objectLike && !e.callable
-					? `type _${lines.length} = Assert<Omit<${o}, ${skip}>, Pick<${n}, Extract<Exclude<keyof ${o}, ${skip}>, keyof ${n}>>>;`
-					: `type _${lines.length} = Assert<${o}, ${n}>;`,
-		);
 	}
 
 	const probePath = join(dir, ".probe.ts");
@@ -256,13 +324,15 @@ export function compareTypes(oldPath, newPath) {
 		const program = ts.createProgram([probePath], PROBE_OPTS);
 		const source = program.getSourceFile(probePath);
 		for (const d of program.getSemanticDiagnostics(source)) {
-			const name = lineOwner.get(source.getLineAndCharacterOfPosition(d.start ?? 0).line);
-			if (!name) continue;
+			const owner = lineOwner.get(source.getLineAndCharacterOfPosition(d.start ?? 0).line);
+			if (!owner) continue;
+			const { name, path } = owner;
+			const message = path ? `${path}: ${leaf(d)}` : leaf(d);
 			const prior = broken.get(name);
 			// A removal is already recorded for this type; keep it and add the first shape
 			// break beside it rather than letting either hide the other.
-			if (!prior) broken.set(name, leaf(d));
-			else if (!prior.includes(" | ")) broken.set(name, `${prior} | ${leaf(d)}`);
+			if (!prior) broken.set(name, message);
+			else if (!prior.includes(" | ")) broken.set(name, `${prior} | ${message}`);
 		}
 	} finally {
 		rmSync(probePath, { force: true });
