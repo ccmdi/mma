@@ -15,6 +15,7 @@ import noNativeDialog from "./eslint-rules/no-native-dialog.js";
 import noUndefinedCssClass from "./eslint-rules/no-undefined-css-class.js";
 import noHandwrittenApiSurface from "./eslint-rules/no-handwritten-api-surface.js";
 import noLabelWrappedGroup from "./eslint-rules/no-label-wrapped-group.js";
+import noHandrolledDialogParts from "./eslint-rules/no-handrolled-dialog-parts.js";
 
 const RESTRICTED_IMPORT_PATHS = [
 	{
@@ -153,6 +154,7 @@ export default defineConfig([
 					"no-undefined-css-class": noUndefinedCssClass,
 					"no-handwritten-api-surface": noHandwrittenApiSurface,
 					"no-label-wrapped-group": noLabelWrappedGroup,
+					"no-handrolled-dialog-parts": noHandrolledDialogParts,
 				},
 			},
 		},
@@ -183,6 +185,7 @@ export default defineConfig([
 			"local/no-native-dialog": "error",
 			"local/no-undefined-css-class": "error",
 			"local/no-label-wrapped-group": "error",
+			"local/no-handrolled-dialog-parts": "error",
 			"no-restricted-imports": [
 				"error",
 				{
