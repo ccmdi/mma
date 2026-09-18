@@ -59,6 +59,7 @@ import { applyMapFilter, toggleLabelInQuery } from "./mapQuery";
 import { t, msg } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
+import { Pill } from "@/components/primitives/Pill";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { fetchReleases, type Release } from "@/lib/util/updateCheck";
 import { Markdown } from "@/lib/util/markdown";
@@ -562,7 +563,7 @@ function ImportPreviewModal({
 									t({ one: ", {n} tag", other: ", {n} tags" }, { n: entry.tagCount })}
 								{entry.folder && ` [${entry.folder}]`}
 							</span>
-							{entry.isDuplicate && <span className="import-preview__badge">{t("duplicate")}</span>}
+							{entry.isDuplicate && <Pill tone="warning">{t("duplicate")}</Pill>}
 						</li>
 					))}
 				</ul>

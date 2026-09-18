@@ -35,17 +35,6 @@
 .disambig__label {
 	font-weight: 600;
 }
-.disambig__badge {
-	font-size: 0.72em;
-	padding: 1px 6px;
-	border-radius: var(--radius-1);
-	background: var(--surface-3);
-	color: var(--text-2);
-}
-.disambig__badge--warn {
-	background: var(--warning-muted);
-	color: var(--warning);
-}
 .disambig__score {
 	margin-left: auto;
 	font-variant-numeric: tabular-nums;

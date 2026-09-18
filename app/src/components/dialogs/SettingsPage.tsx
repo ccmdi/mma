@@ -100,6 +100,7 @@ import {
 	relaunchApp,
 } from "@/lib/util/updateCheck";
 import { Markdown } from "@/lib/util/markdown";
+import { Pill } from "@/components/primitives/Pill";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { t, msg } from "@/lib/i18n";
@@ -298,8 +299,10 @@ function HotkeyRow({
 							onClick={() => onJump(c.action)}
 							title={t('Also bound to "{label}" - click to jump there', { label: hotkeyLabel(c) })}
 						>
-							<Icon path={mdiAlertCircleOutline} className="hotkey-conflict__icon" />
-							{hotkeyLabel(c)}
+							<Pill tone="destructive">
+								<Icon path={mdiAlertCircleOutline} className="hotkey-conflict__icon" />
+								{hotkeyLabel(c)}
+							</Pill>
 						</button>
 					))}
 			</td>
@@ -996,13 +999,9 @@ function UpdateBlock() {
 		<Aux match="update version check release restart install">
 			<div className="settings-aux__col">
 				<div className="settings-aux__row">
-					<span
-						className={`settings-updates__version${pending ? " settings-updates__version--update" : ""}`}
-						title={status}
-						aria-label={status}
-					>
+					<Pill tone={pending ? "accent" : "neutral"} title={status} aria-label={status}>
 						v{version}
-					</span>
+					</Pill>
 					{isPrereleaseVersion(version) && <PrereleasePill />}
 					<IconButton
 						className="settings-updates__check"
@@ -1567,7 +1566,7 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 								<Icon path={s.icon} size={16} className="nav-item__icon" />
 								{t(s.title)}
 								{s.id === "feedback" && unread > 0 && (
-									<span className="nav-item__badge">{unread}</span>
+									<Pill tone="action" className="nav-item__badge" count={unread} />
 								)}
 							</button>
 						))}

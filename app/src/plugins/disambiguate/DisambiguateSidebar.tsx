@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/primitives/Sidebar";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { Bar } from "@/components/primitives/Bar";
 import { Notice } from "@/components/primitives/Hint";
+import { Pill } from "@/components/primitives/Pill";
 import { Spinner } from "@/components/primitives/Spinner";
 import type { Selection, ExtraFieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
@@ -95,10 +96,8 @@ function FieldRow({ field, colors }: { field: FieldDivergence; colors: RGB[] }) 
 		<div className={`disambig__row${field.lowConfidence ? " disambig__row--weak" : ""}`}>
 			<div className="disambig__head">
 				<span className="disambig__label">{field.label}</span>
-				<span className="disambig__badge">{badgeText(field)}</span>
-				{field.lowConfidence && (
-					<span className="disambig__badge disambig__badge--warn">{t("low data")}</span>
-				)}
+				<Pill>{badgeText(field)}</Pill>
+				{field.lowConfidence && <Pill tone="warning">{t("low data")}</Pill>}
 				<span className="disambig__score">{score !== null ? score.toFixed(2) : "-"}</span>
 			</div>
 			<Bar value={score ?? 0} size="md" className="disambig__bar" />

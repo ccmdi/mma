@@ -14,6 +14,7 @@ import clsx from "clsx";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { Icon } from "@/components/primitives/Icon";
+import { Pill } from "@/components/primitives/Pill";
 import { mdiChevronDown, mdiChevronRight, mdiPencil, mdiFolder } from "@mdi/js";
 import { textColorFor, rgbToHex } from "@/lib/util/color";
 import { fmt } from "@/lib/util/format";
@@ -541,7 +542,9 @@ export function TagTreeView({
 							button={<TagPillButton variant="edit" tabIndex={-1} />}
 						>
 							{dragLeaf.extra > 0 && (
-								<span className="tag-drag-preview__count">+{dragLeaf.extra}</span>
+								<Pill tone="action" className="tag-drag-preview__count">
+									+{dragLeaf.extra}
+								</Pill>
 							)}
 						</TagPill>
 					</ul>,

@@ -1642,14 +1642,6 @@ input[type="range"]:disabled {
 	color: var(--text-2);
 	white-space: nowrap;
 }
-.import-preview__badge {
-	font-size: 0.7rem;
-	background: var(--warning-muted);
-	color: var(--warning);
-	padding: 1px 6px;
-	border-radius: 3px;
-	white-space: nowrap;
-}
 .import-preview__warnings ul {
 	margin: 0.25rem 0 0;
 	padding-left: 1.2rem;
@@ -3677,16 +3669,6 @@ input.date-picker__trigger.is-invalid:focus {
 	position: absolute;
 	top: -0.5rem;
 	right: -0.5rem;
-	min-width: 1.25rem;
-	height: 1.25rem;
-	padding: 0 0.25rem;
-	border-radius: 0.625rem;
-	background: var(--constructive);
-	color: var(--text-color);
-	font-size: 0.75rem;
-	font-weight: 600;
-	line-height: 1.25rem;
-	text-align: center;
 	box-shadow: var(--shadow-1);
 }
 /* While a tag/folder drag is in progress, force the grabbing cursor everywhere. */
@@ -4602,20 +4584,7 @@ body {
 /* Update available pill */
 /* Marks a build that shipped ahead of stable. Deliberately quiet: it labels, it does not warn. */
 .prerelease-pill {
-	display: inline-flex;
-	align-items: center;
-	flex-shrink: 0;
 	margin-left: 0.5em;
-	padding: 0 0.4em;
-	border: 1px solid color-mix(in srgb, var(--text-2) 30%, transparent);
-	border-radius: var(--radius-2);
-	background: color-mix(in srgb, var(--text-2) 8%, transparent);
-	color: var(--text-2);
-	font-size: 0.7rem;
-	font-weight: 500;
-	letter-spacing: 0.02em;
-	line-height: 1.5;
-	text-transform: lowercase;
 	white-space: nowrap;
 }
 .update-pill .prerelease-pill {
@@ -4861,23 +4830,6 @@ body {
 	width: 20px;
 	height: 20px;
 }
-.settings-updates__version {
-	display: inline-flex;
-	align-items: center;
-	height: 1.5rem;
-	border-radius: var(--radius-1);
-	padding: 0 8px;
-	font-size: 0.8rem;
-	font-weight: 600;
-	background: var(--surface-3);
-	cursor: default;
-}
-/* Quiet while current: the accent means there is something to act on, not that a
-   version exists. */
-.settings-updates__version--update {
-	background: var(--accent-muted);
-	color: var(--accent);
-}
 .settings-updates__status {
 	font-size: 0.8rem;
 	color: var(--text-2);
@@ -4994,21 +4946,16 @@ body {
 	}
 }
 .hotkey-conflict {
-	display: inline-flex;
-	align-items: center;
-	gap: 3px;
 	margin-left: 0.4rem;
-	padding: 1px 6px 1px 4px;
-	border: 1px solid color-mix(in srgb, var(--destructive-text) 50%, transparent);
+	padding: 0;
+	border: 0;
 	border-radius: var(--radius-pill);
-	background: color-mix(in srgb, var(--destructive-text) 10%, transparent);
-	color: var(--destructive-text);
-	font-size: 0.7rem;
-	line-height: 1.4;
+	background: none;
+	font: inherit;
 	cursor: pointer;
 }
-.hotkey-conflict:hover {
-	background: color-mix(in srgb, var(--destructive-text) 20%, transparent);
+.hotkey-conflict:hover > .pill {
+	background: color-mix(in srgb, var(--destructive-text) 25%, transparent);
 }
 .hotkey-conflict__icon {
 	width: 0.85rem;
@@ -5070,6 +5017,46 @@ body {
 	tab-size: 2;
 }
 
+.pill {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.25em;
+	flex-shrink: 0;
+	min-width: 1.15rem;
+	height: 1.15rem;
+	padding: 0 0.45em;
+	border-radius: var(--radius-pill);
+	font-size: 0.7rem;
+	font-weight: 600;
+	line-height: 1;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.pill__count {
+	font-family: var(--font-mono);
+	font-variant-numeric: tabular-nums;
+}
+.pill--neutral {
+	background: var(--surface-3);
+	color: var(--text-2);
+}
+.pill--accent {
+	background: var(--accent-muted);
+	color: var(--accent);
+}
+.pill--warning {
+	background: var(--warning-muted);
+	color: var(--warning);
+}
+.pill--destructive {
+	background: color-mix(in srgb, var(--destructive-text) 15%, transparent);
+	color: var(--destructive-text);
+}
+.pill--action {
+	background: var(--action);
+	color: var(--on-action);
+}
 .skeleton {
 	display: block;
 	border-radius: var(--radius-1);
@@ -6494,15 +6481,6 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	color: var(--gray-6);
 }
 .feedback-reports__badge,
-.nav-item__badge {
-	min-width: 1.15rem;
-	padding: 0 0.35rem;
-	border-radius: var(--radius-pill);
-	font-size: 0.7rem;
-	text-align: center;
-	background: var(--action);
-	color: var(--on-action);
-}
 .nav-item__badge {
 	margin-left: auto;
 }
