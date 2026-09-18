@@ -107,6 +107,7 @@ import { errText } from "@/lib/util/format";
 import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
 import { IconButton } from "@/components/primitives/IconButton";
+import { Kbd } from "@/components/primitives/Kbd";
 
 /** The translated labels of a select's options, so a search for a value ("tree") finds
  *  the row that offers it. */
@@ -251,7 +252,7 @@ function HotkeyRow({
 							<span className="hotkey-reassign__msg">
 								<Trans
 									msg="{combo} is bound to {labels}"
-									combo={<code className="mono">{formatBinding(pending.combo)}</code>}
+									combo={<Kbd binding={pending.combo} />}
 									labels={<strong>{pending.conflicts.map(hotkeyLabel).join(", ")}</strong>}
 								/>
 							</span>
@@ -279,13 +280,13 @@ function HotkeyRow({
 						</>
 					)
 				) : (
-					<code
-						className={`hotkey-display mono${!binding ? " hotkey-display--empty" : ""}`}
+					<span
+						className={`hotkey-display${!binding ? " hotkey-display--empty" : ""}`}
 						onClick={() => setRecording(true)}
 						title={t("Click to rebind")}
 					>
-						{binding ? formatBinding(binding) : " "}
-					</code>
+						{binding && <Kbd binding={binding} />}
+					</span>
 				)}
 				{!recording &&
 					conflicts.map((c) => (

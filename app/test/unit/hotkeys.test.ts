@@ -4,6 +4,7 @@ import {
 	parseHotkey,
 	matchesKey,
 	buildComboString,
+	formatBinding,
 	firesInEditable,
 	isActivationElement,
 	blockBrowserAccelerators,
@@ -160,6 +161,31 @@ describe("buildComboString", () => {
 
 	it("records a plain digit as itself", () => {
 		expect(buildComboString(mockEvent({ key: "0", code: "Digit0" }))).toBe("0");
+	});
+});
+
+describe("formatBinding", () => {
+	const cases: [string, string, string][] = [
+		["Mod+k", "Ctrl+K", "⌘K"],
+		["Mod+Shift+ArrowLeft", "Ctrl+Shift+Left", "⌘⇧←"],
+		["Alt+ArrowUp", "Alt+Up", "⌥↑"],
+		["Ctrl+a", "Ctrl+A", "⌃A"],
+		["Meta+x", "Meta+X", "⌘X"],
+		["Mod+comma", "Ctrl+,", "⌘,"],
+		["Mod++", "Ctrl++", "⌘+"],
+		["plus", "+", "+"],
+		["Shift+space", "Shift+Space", "⇧Space"],
+		["F5", "F5", "F5"],
+		["g g", "G G", "G G"],
+		["Mod+s,Mod+Shift+s", "Ctrl+S, Ctrl+Shift+S", "⌘S, ⌘⇧S"],
+	];
+
+	it.each(cases)("%s reads as words off Mac", (binding, words) => {
+		expect(formatBinding(binding, false)).toBe(words);
+	});
+
+	it.each(cases)("%s reads as glyphs on Mac", (binding, _words, glyphs) => {
+		expect(formatBinding(binding, true)).toBe(glyphs);
 	});
 });
 

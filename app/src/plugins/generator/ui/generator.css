@@ -92,15 +92,6 @@
 	font-style: italic;
 }
 
-.generator-regions__hint kbd {
-	padding: 1px 4px;
-	border-radius: 3px;
-	border: 1px solid var(--border-strong);
-	font-family: inherit;
-	font-style: normal;
-	font-size: 0.9em;
-}
-
 .generator-regions__controls {
 	display: flex;
 	align-items: center;

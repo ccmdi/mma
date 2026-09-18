@@ -3,12 +3,9 @@ import { createContext, useContext, type ReactNode, type ComponentPropsWithoutRe
 import { MANUAL_IMG_DIMS } from "@/components/manual/manual-img-dims.gen";
 import { chapterTitle } from "@/components/manual/chapters";
 import { APP_NAME } from "@/lib/util/format";
+import { Kbd } from "@/components/primitives/Kbd";
 
 // --- Content primitives, provided to every MDX chapter via the `components` prop ---
-
-function Kbd({ children }: { children: ReactNode }) {
-	return <kbd className="manual-kbd">{children}</kbd>;
-}
 
 function Note({ children }: { children: ReactNode }) {
 	return <div className="manual-note">{children}</div>;

@@ -50,14 +50,63 @@ export function parseHotkey(hotkeyStr: string): ParsedKey[][] {
 	);
 }
 
-/** Display form of a stored combo string (e.g. "Mod+k" -> "Ctrl+k" / "Cmd+k"). */
-export function formatBinding(binding: string): string {
+const MAC_GLYPHS = new Map([
+	["mod", "⌘"],
+	["meta", "⌘"],
+	["ctrl", "⌃"],
+	["control", "⌃"],
+	["alt", "⌥"],
+	["shift", "⇧"],
+	["arrowleft", "←"],
+	["arrowright", "→"],
+	["arrowup", "↑"],
+	["arrowdown", "↓"],
+]);
+const KEY_WORDS = new Map([
+	["mod", "Ctrl"],
+	["ctrl", "Ctrl"],
+	["control", "Ctrl"],
+	["meta", "Meta"],
+	["alt", "Alt"],
+	["shift", "Shift"],
+	["arrowleft", "Left"],
+	["arrowright", "Right"],
+	["arrowup", "Up"],
+	["arrowdown", "Down"],
+	["plus", "+"],
+	["comma", ","],
+	["space", "Space"],
+]);
+
+function keyLabel(part: string, mac: boolean): string {
+	const lower = part.toLowerCase();
+	const named = (mac && MAC_GLYPHS.get(lower)) || KEY_WORDS.get(lower);
+	if (named) return named;
+	return part.charAt(0).toUpperCase() + part.slice(1);
+}
+
+function comboKeys(combo: string): string[] {
+	if (combo === "+") return ["+"];
+	return combo.endsWith("++") ? [...combo.slice(0, -2).split("+"), "+"] : combo.split("+");
+}
+
+/** Display form of a stored binding: glyphs on Mac ("Mod+Shift+k" -> "⌘⇧K"), words
+ *  elsewhere ("Ctrl+Shift+K"). */
+export function formatBinding(binding: string, mac = IS_MAC): string {
 	return binding
-		.replace(/Mod/g, IS_MAC ? "Cmd" : "Ctrl")
-		.replace(/ArrowRight/g, "Right")
-		.replace(/ArrowLeft/g, "Left")
-		.replace(/ArrowUp/g, "Up")
-		.replace(/ArrowDown/g, "Down");
+		.split(",")
+		.map((alt) =>
+			alt
+				.trim()
+				.split(" ")
+				.map((combo) =>
+					comboKeys(combo.trim())
+						.map((key) => keyLabel(key, mac))
+						.join(mac ? "" : "+"),
+				)
+				.join(" "),
+		)
+		.join(", ");
 }
 
 // Number-row physical key. e.key here is shift-dependent (Shift+0 -> ")"), so we key

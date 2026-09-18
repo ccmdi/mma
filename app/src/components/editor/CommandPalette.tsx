@@ -3,6 +3,7 @@ import { useDialog, useDialogState, openDialog } from "@/store/dialogBus";
 import { Command } from "cmdk";
 import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import { Icon } from "@/components/primitives/Icon";
+import { Kbd } from "@/components/primitives/Kbd";
 import { mdiUndo, mdiPin, mdiPinOutline } from "@mdi/js";
 import { BulkOperationModal, type BulkOperation } from "@/components/dialogs/BulkOperationModal";
 import { getCommands, runCommand, togglePinnedCommand, type CommandGroup } from "@/store/commands";
@@ -72,7 +73,7 @@ function PaletteItem({
 		>
 			{icon && <span className="command-palette__icon">{icon}</span>}
 			<span className="command-palette__label">{label}</span>
-			{shortcut && <kbd className="command-palette__kbd">{shortcut}</kbd>}
+			{shortcut && <Kbd binding={shortcut} />}
 			{commandId && (
 				<IconButton
 					className="icon-button--inline command-palette__pin"
@@ -95,16 +96,6 @@ function PaletteItem({
 }
 
 const UndoIcon = () => <Icon path={mdiUndo} size={18} />;
-
-function formatBinding(binding: string): string {
-	return binding
-		.replace("Mod+", navigator.platform.includes("Mac") ? "⌘" : "Ctrl+")
-		.replace("Shift+", "⇧")
-		.replace("ArrowLeft", "←")
-		.replace("ArrowRight", "→")
-		.replace("ArrowUp", "↑")
-		.replace("ArrowDown", "↓");
-}
 
 const COMMAND_GROUPS: CommandGroup[] = [
 	msg("Map"),
@@ -133,7 +124,7 @@ function MainCommands() {
 								icon={cmd.icon ? <Icon path={cmd.icon} size={18} /> : undefined}
 								onSelect={() => runCommand(cmd)}
 								disabled={cmd.enabled ? !cmd.enabled() : false}
-								shortcut={cmd.defaultBinding ? formatBinding(getBinding(cmd.id)) : undefined}
+								shortcut={cmd.defaultBinding ? getBinding(cmd.id) : undefined}
 								commandId={cmd.id}
 								pinned={pinnedSet.has(cmd.id)}
 								keywords={cmd.aliases}

@@ -10,6 +10,7 @@ import { useFoundRate } from "./progressSignal";
 import { usePluginEvent } from "@/plugins/pluginEvents";
 import { GENERATOR_CHANGED } from "../session";
 import { t } from "@/lib/i18n";
+import { Kbd } from "@/components/primitives/Kbd";
 
 const regionProgressKey = (meta: Map<string, GeneratorRegionMeta>) =>
 	[...meta.values()].map((m) => `${m.found.length}:${m.isProcessing}`).join();
@@ -152,7 +153,7 @@ export function RegionSelector({
 		<div className="generator-regions">
 			{polygonSelections.length === 0 && (
 				<div className="generator-regions__hint">
-					{t("Draw a polygon on the map or hold")} <kbd>{t("Q")}</kbd>{" "}
+					{t("Draw a polygon on the map or hold")} <Kbd>{t("Q")}</Kbd>{" "}
 					{t("+ click to select a country outline.")}
 				</div>
 			)}

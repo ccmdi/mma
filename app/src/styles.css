@@ -819,6 +819,18 @@ input[type="range"]:focus-visible {
 	opacity: var(--disabled-opacity);
 	cursor: default;
 }
+.kbd {
+	font-family: var(--font-mono);
+	font-size: 0.8em;
+	font-style: normal;
+	line-height: 1.5;
+	color: var(--text-2);
+	background: var(--pressed);
+	border: 1px solid var(--border-subtle);
+	border-radius: var(--radius-1);
+	padding: 0 0.4em;
+	white-space: nowrap;
+}
 .text-input {
 	background: var(--surface-1);
 	border: 1px solid var(--border-subtle);
@@ -4262,14 +4274,7 @@ body:not(.mm-tag-dragging) .tag-tree__row:hover {
 .command-palette__item:hover .command-palette__pin {
 	opacity: 1;
 }
-.command-palette__kbd {
-	color: var(--text-3);
-	font-size: 0.75rem;
-	font-family: inherit;
-	background: var(--pressed);
-	border: 1px solid var(--border-subtle);
-	border-radius: 3px;
-	padding: 0.1rem 0.4rem;
+.command-palette__item .kbd {
 	margin-left: auto;
 	margin-right: 0.5rem;
 }
