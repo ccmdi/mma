@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { cmpVersion, isPrereleaseVersion, splitVersion } from "@/lib/util/util";
-import { pickRelease, toRelease, type ApiRelease, type Release } from "@/lib/util/updateCheck";
+import {
+	describeUpdate,
+	pickRelease,
+	toRelease,
+	type ApiRelease,
+	type Release,
+} from "@/lib/util/updateCheck";
 
 function rel(version: string, prerelease = false, manifest = true): Release {
 	return {
@@ -92,5 +98,43 @@ describe("pickRelease", () => {
 	it("skips a release with no updater manifest", () => {
 		const partial = feed(rel("0.9.2"), rel("0.9.3", false, false));
 		expect(pickRelease(partial, "0.9.2", true)).toBeNull();
+	});
+});
+
+describe("describeUpdate", () => {
+	const base: Parameters<typeof describeUpdate>[0] = {
+		phase: "idle",
+		version: null,
+		notes: "",
+		prerelease: false,
+		percent: 0,
+		error: null,
+		dismissed: false,
+	};
+
+	it("offers an action only where the user can act", () => {
+		expect(describeUpdate({ ...base, phase: "available", version: "1.2.0" }).action).not.toBeNull();
+		expect(describeUpdate({ ...base, phase: "ready", version: "1.2.0" }).action).not.toBeNull();
+		expect(describeUpdate({ ...base, phase: "downloading", version: "1.2.0" }).action).toBeNull();
+		expect(describeUpdate({ ...base, phase: "up-to-date" }).action).toBeNull();
+	});
+
+	it("retries a failed install but not a failed check", () => {
+		expect(describeUpdate({ ...base, phase: "error", version: "1.2.0" }).action).not.toBeNull();
+		expect(describeUpdate({ ...base, phase: "error" }).action).toBeNull();
+	});
+
+	it("marks the phases that wait on the user as pending", () => {
+		const pending = (["available", "downloading", "ready", "error", "idle"] as const).filter(
+			(phase) => describeUpdate({ ...base, phase, version: "1.2.0" }).pending,
+		);
+		expect(pending).toEqual(["available", "downloading", "ready"]);
+	});
+
+	it("names the offered version and surfaces the error text", () => {
+		expect(describeUpdate({ ...base, phase: "available", version: "1.2.0" }).status).toContain(
+			"1.2.0",
+		);
+		expect(describeUpdate({ ...base, phase: "error", error: "offline" }).status).toBe("offline");
 	});
 });

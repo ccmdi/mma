@@ -11,6 +11,7 @@ vi.stubGlobal("__APP_VERSION__", "0.0.0-test");
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("@/lib/util/updateCheck", () => ({
 	useUpdateState: () => ({ phase: "idle" }),
+	describeUpdate: () => ({ status: "", action: null, pending: false }),
 	checkForUpdate: vi.fn(),
 	installUpdate: vi.fn(),
 	relaunchApp: vi.fn(),

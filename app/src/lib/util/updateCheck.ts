@@ -9,6 +9,7 @@ import { appVersion } from "@/lib/version";
 import { cmd } from "@/lib/commands";
 import { events } from "@/bindings.gen";
 import { getLocal, setLocal, persisted } from "@/lib/hooks/useLocalStorage";
+import { msg, t } from "@/lib/i18n";
 
 const REPO = "ccmdi/mma";
 const RELEASES_API = `https://api.github.com/repos/${REPO}/releases?per_page=30`;
@@ -211,6 +212,50 @@ export function dismissUpdate() {
 	if (!state.version) return;
 	setLocal(dismissedVersion, state.version);
 	set({ dismissed: true });
+}
+
+const PHASES: Record<
+	Phase,
+	{ status: string; action?: { label: string; run: () => Promise<void> }; pending?: true }
+> = {
+	idle: { status: msg("Updates haven't been checked yet.") },
+	checking: { status: msg("Checking for updates...") },
+	"up-to-date": { status: msg("You're on the latest version.") },
+	available: {
+		status: msg("Version {version} is available."),
+		action: { label: msg("Download and install"), run: installUpdate },
+		pending: true,
+	},
+	downloading: { status: msg("Downloading update..."), pending: true },
+	ready: {
+		status: msg("Update installed. Restart to apply."),
+		action: { label: msg("Restart now"), run: relaunchApp },
+		pending: true,
+	},
+	error: {
+		status: msg("Update check failed."),
+		action: { label: msg("Retry"), run: installUpdate },
+	},
+};
+
+export interface UpdateView {
+	status: string;
+	action: { label: string; run: () => Promise<void> } | null;
+	/** An update is waiting on the user. */
+	pending: boolean;
+}
+
+/** What an update state says and offers, read by both the corner pill and the settings block. */
+export function describeUpdate(s: UpdateState): UpdateView {
+	const phase = PHASES[s.phase];
+	const offerable = s.phase !== "error" || s.version !== null;
+	return {
+		status:
+			s.phase === "error" && s.error ? s.error : t(phase.status, { version: s.version ?? "" }),
+		action:
+			phase.action && offerable ? { label: t(phase.action.label), run: phase.action.run } : null,
+		pending: phase.pending ?? false,
+	};
 }
 
 export function useUpdateState(): UpdateState {

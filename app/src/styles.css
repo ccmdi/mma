@@ -1397,14 +1397,14 @@ input[type="range"]:disabled {
 .updates__release--unreleased {
 	opacity: 0.4;
 }
-.updates__release-body p {
+.markdown p {
 	margin: 0.35rem 0;
 }
-.updates__release-body h4 {
+.markdown h4 {
 	margin: 0.6rem 0 0.2rem;
 	font-size: 0.875rem;
 }
-.updates__release-body code {
+.markdown code {
 	font-size: 0.85em;
 	background: var(--surface-3);
 	padding: 0.05em 0.3em;
@@ -5050,6 +5050,15 @@ body {
 .settings-updates__version--update {
 	background: var(--accent-muted);
 	color: var(--accent);
+}
+.settings-updates__status {
+	font-size: 0.8rem;
+	color: var(--text-2);
+}
+.settings-updates__notes {
+	max-height: 10rem;
+	overflow: auto;
+	font-size: 0.8rem;
 }
 .settings-updates__check {
 	display: inline-flex;

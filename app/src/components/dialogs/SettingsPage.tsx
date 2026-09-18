@@ -86,7 +86,13 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { useAsync } from "@/lib/hooks/useAsync";
-import { useUpdateState, checkForUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
+import {
+	useUpdateState,
+	checkForUpdate,
+	describeUpdate,
+	relaunchApp,
+} from "@/lib/util/updateCheck";
+import { Markdown } from "@/lib/util/markdown";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { t, msg } from "@/lib/i18n";
@@ -977,43 +983,24 @@ function MapListBlock() {
 	);
 }
 
-const UPDATE_STATUS: Record<string, string> = {
-	idle: msg("Updates haven't been checked yet."),
-	checking: msg("Checking for updates..."),
-	"up-to-date": msg("You're on the latest version."),
-	downloading: msg("Downloading update..."),
-	ready: msg("Update installed. Restart to apply."),
-};
-
-/** Phases where an update is waiting on the user, so the version badge earns the accent. */
-const UPDATE_PENDING_PHASES: ReadonlySet<string> = new Set(["available", "downloading", "ready"]);
-
 function UpdateBlock() {
 	const update = useUpdateState();
+	const { status, action, pending } = describeUpdate(update);
 	const version = appVersion() ?? "dev";
-	const onPrerelease = isPrereleaseVersion(version);
 	const checking = update.phase === "checking";
-	const pendingUpdate = UPDATE_PENDING_PHASES.has(update.phase);
-	const badgeMod = pendingUpdate ? " settings-updates__version--update" : "";
-	const status =
-		update.phase === "available"
-			? t("Version {version} is available.", { version: update.version ?? "" })
-			: update.phase === "error"
-				? (update.error ?? t("Update check failed."))
-				: t(UPDATE_STATUS[update.phase]);
 
 	return (
 		<Aux match="update version check release restart install">
 			<div className="settings-aux__col">
 				<div className="settings-aux__row">
 					<span
-						className={`settings-updates__version${badgeMod}`}
+						className={`settings-updates__version${pending ? " settings-updates__version--update" : ""}`}
 						title={status}
 						aria-label={status}
 					>
 						v{version}
 					</span>
-					{onPrerelease && <PrereleasePill />}
+					{isPrereleaseVersion(version) && <PrereleasePill />}
 					<button
 						className="icon-button settings-updates__check"
 						onClick={() => void checkForUpdate(true)}
@@ -1023,35 +1010,16 @@ function UpdateBlock() {
 					>
 						<Icon path={mdiRefresh} size={18} className={checking ? "spin" : undefined} />
 					</button>
-					{(update.phase === "error" || update.phase === "up-to-date") && (
-						<span className="text-muted" style={{ fontSize: "0.8rem" }}>
-							{status}
-						</span>
-					)}
+					{!pending && <span className="settings-updates__status">{status}</span>}
 				</div>
 				{update.phase === "available" && (
-					<div className="settings-aux__col">
-						<span>
-							{t("Version {version} is available", { version: update.version ?? "" })}
-							{update.prerelease && <PrereleasePill />}
-						</span>
-						{update.notes && (
-							<pre
-								style={{
-									maxHeight: 120,
-									overflow: "auto",
-									fontSize: 12,
-									whiteSpace: "pre-wrap",
-									margin: 0,
-								}}
-							>
-								{update.notes}
-							</pre>
-						)}
-						<Button variant="primary" onClick={() => void installUpdate()}>
-							{t("Download and install")}
-						</Button>
-					</div>
+					<span>
+						{status}
+						{update.prerelease && <PrereleasePill />}
+					</span>
+				)}
+				{update.phase === "available" && update.notes && (
+					<Markdown source={update.notes} className="settings-updates__notes" />
 				)}
 				{update.phase === "downloading" && (
 					<div className="settings-aux__row">
@@ -1059,11 +1027,11 @@ function UpdateBlock() {
 						<span className="mono">{update.percent}%</span>
 					</div>
 				)}
-				{update.phase === "ready" && (
+				{update.phase === "ready" && <span>{status}</span>}
+				{action && (
 					<div className="settings-aux__row">
-						<span>{t("Update installed. Restart to apply.")}</span>
-						<Button variant="primary" onClick={() => void relaunchApp()}>
-							{t("Restart now")}
+						<Button variant="primary" onClick={() => void action.run()}>
+							{action.label}
 						</Button>
 					</div>
 				)}

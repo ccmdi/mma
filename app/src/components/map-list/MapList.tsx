@@ -52,77 +52,9 @@ import { Trans } from "@/components/primitives/Trans";
 import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { fetchReleases, type Release } from "@/lib/util/updateCheck";
+import { Markdown } from "@/lib/util/markdown";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
-
-// --- What's new (latest release notes) ---
-
-// Inline markdown: **bold**, *italic*, `code`, [text](url).
-function renderInline(text: string, kb: string): React.ReactNode[] {
-	const nodes: React.ReactNode[] = [];
-	const re = /\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/g;
-	let last = 0;
-	let i = 0;
-	let m: RegExpExecArray | null;
-	while ((m = re.exec(text))) {
-		if (m.index > last) nodes.push(text.slice(last, m.index));
-		const k = `${kb}-${i++}`;
-		if (m[1]) nodes.push(<strong key={k}>{m[1]}</strong>);
-		else if (m[2]) nodes.push(<em key={k}>{m[2]}</em>);
-		else if (m[3]) nodes.push(<code key={k}>{m[3]}</code>);
-		else
-			nodes.push(
-				<a key={k} href={m[5]} target="_blank" rel="noopener noreferrer">
-					{m[4]}
-				</a>,
-			);
-		last = re.lastIndex;
-	}
-	if (last < text.length) nodes.push(text.slice(last));
-	return nodes;
-}
-
-// Block-level markdown for changelog bodies: headings, bullet lists, paragraphs.
-function renderMarkdown(md: string): React.ReactNode[] {
-	const out: React.ReactNode[] = [];
-	let list: React.ReactNode[] | null = null;
-	let para: string[] = [];
-	let key = 0;
-	const flushPara = () => {
-		if (para.length) {
-			out.push(<p key={`b${key++}`}>{renderInline(para.join(" "), `b${key}`)}</p>);
-			para = [];
-		}
-	};
-	const flushList = () => {
-		if (list) {
-			out.push(<ul key={`b${key++}`}>{list}</ul>);
-			list = null;
-		}
-	};
-	for (const raw of md.split(/\r?\n/)) {
-		const line = raw.trimEnd();
-		const heading = /^#{1,6}\s+(.*)$/.exec(line);
-		const bullet = /^[-*]\s+(.*)$/.exec(line);
-		if (heading) {
-			flushPara();
-			flushList();
-			out.push(<h4 key={`b${key++}`}>{renderInline(heading[1], `b${key}`)}</h4>);
-		} else if (bullet) {
-			flushPara();
-			(list ??= []).push(<li key={`b${key++}`}>{renderInline(bullet[1], `b${key}`)}</li>);
-		} else if (line === "") {
-			flushPara();
-			flushList();
-		} else {
-			flushList();
-			para.push(line);
-		}
-	}
-	flushPara();
-	flushList();
-	return out;
-}
 
 // One character cell of the version readout. When its character changes it rolls
 // the old one out and the new one in, like a safe dial. Digits roll by value
@@ -245,7 +177,7 @@ function WhatsNew() {
 										{r.prerelease && <PrereleasePill />}
 									</time>
 								)}
-								<div className="updates__release-body">{renderMarkdown(r.body)}</div>
+								<Markdown source={r.body} />
 							</div>
 						))}
 					</div>

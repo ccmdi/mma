@@ -27,7 +27,7 @@ import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutli
 import { ToastContainer } from "@/components/primitives/Toast";
 import { JobTray, JobExitDialog } from "@/components/primitives/JobTray";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
-import { useUpdateState, dismissUpdate, installUpdate, relaunchApp } from "@/lib/util/updateCheck";
+import { useUpdateState, dismissUpdate, describeUpdate } from "@/lib/util/updateCheck";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { APP_NAME } from "@/lib/util/format";
 import { appVersion } from "@/lib/version";
@@ -107,6 +107,7 @@ function AppChrome() {
 	const manualChapter = useManualChapter();
 
 	const update = useUpdateState();
+	const updateView = describeUpdate(update);
 	const [showStats, setShowStats] = useState(false);
 
 	const [Stats, setStats] = useState<
@@ -171,14 +172,26 @@ function AppChrome() {
 			{!showSettings && !showPlugins && !(map && fullscreenMap) && (
 				<div className="bottom-bar popover-surface">
 					<JobTray />
-					{update.version && !update.dismissed && (
-						<div className="update-pill popover-surface">
-							{update.phase === "available" && (
-								<>
-									<button className="update-pill__label" onClick={() => void installUpdate()}>
-										{t("v{version} - download update", { version: update.version ?? "" })}
-									</button>
-									{update.prerelease && <PrereleasePill />}
+					{update.version &&
+						!update.dismissed &&
+						(updateView.pending || update.phase === "error") && (
+							<div className="update-pill popover-surface" title={updateView.status}>
+								{update.phase === "downloading" ? (
+									<span className="update-pill__label">
+										{updateView.status} <span className="mono">{update.percent}%</span>
+									</span>
+								) : (
+									updateView.action && (
+										<button
+											className="update-pill__label"
+											onClick={() => void updateView.action?.run()}
+										>
+											v{update.version} - {updateView.action.label}
+										</button>
+									)
+								)}
+								{update.phase === "available" && update.prerelease && <PrereleasePill />}
+								{(update.phase === "available" || update.phase === "error") && (
 									<button
 										className="update-pill__dismiss"
 										onClick={dismissUpdate}
@@ -186,34 +199,9 @@ function AppChrome() {
 									>
 										<Icon path={mdiClose} size={14} />
 									</button>
-								</>
-							)}
-							{update.phase === "downloading" && (
-								<span className="update-pill__label">
-									{t("Downloading")} {update.percent}%
-								</span>
-							)}
-							{update.phase === "ready" && (
-								<button className="update-pill__label" onClick={() => void relaunchApp()}>
-									{t("Restart to update")}
-								</button>
-							)}
-							{update.phase === "error" && (
-								<>
-									<button className="update-pill__label" onClick={() => void installUpdate()}>
-										{t("Update failed - retry")}
-									</button>
-									<button
-										className="update-pill__dismiss"
-										onClick={dismissUpdate}
-										title={t("Dismiss")}
-									>
-										<Icon path={mdiClose} size={14} />
-									</button>
-								</>
-							)}
-						</div>
-					)}
+								)}
+							</div>
+						)}
 					{isMapList && <BulkActions />}
 					<button
 						className="settings-gear"
