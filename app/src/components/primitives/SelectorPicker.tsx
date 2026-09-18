@@ -40,14 +40,15 @@ export function SelectorPicker({
 				{t("Current selection ({n})", { n: selectionCount })}
 			</label>
 			{saved.length > 0 && (
-				<label className="selector-picker__option">
-					<Radio
-						name={name}
-						checked={choice.pick === "saved"}
-						onChange={() => setChoice({ pick: "saved", id: saved[0].id })}
-					/>
-
-					{t("Saved")}
+				<div className="selector-picker__option">
+					<label className="selector-picker__option">
+						<Radio
+							name={name}
+							checked={choice.pick === "saved"}
+							onChange={() => setChoice({ pick: "saved", id: saved[0].id })}
+						/>
+						{t("Saved")}
+					</label>
 					<NSelect
 						value={choice.pick === "saved" ? choice.id : ""}
 						onChange={(e) => setChoice({ pick: "saved", id: e.target.value })}
@@ -62,7 +63,7 @@ export function SelectorPicker({
 							</option>
 						))}
 					</NSelect>
-				</label>
+				</div>
 			)}
 		</div>
 	);

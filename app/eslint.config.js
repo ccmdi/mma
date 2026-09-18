@@ -14,6 +14,7 @@ import noEffectEventInMemo from "./eslint-rules/no-effect-event-in-memo.js";
 import noNativeDialog from "./eslint-rules/no-native-dialog.js";
 import noUndefinedCssClass from "./eslint-rules/no-undefined-css-class.js";
 import noHandwrittenApiSurface from "./eslint-rules/no-handwritten-api-surface.js";
+import noLabelWrappedGroup from "./eslint-rules/no-label-wrapped-group.js";
 
 const RESTRICTED_IMPORT_PATHS = [
 	{
@@ -151,6 +152,7 @@ export default defineConfig([
 					"no-native-dialog": noNativeDialog,
 					"no-undefined-css-class": noUndefinedCssClass,
 					"no-handwritten-api-surface": noHandwrittenApiSurface,
+					"no-label-wrapped-group": noLabelWrappedGroup,
 				},
 			},
 		},
@@ -180,6 +182,7 @@ export default defineConfig([
 			"local/no-effect-event-in-memo": "error",
 			"local/no-native-dialog": "error",
 			"local/no-undefined-css-class": "error",
+			"local/no-label-wrapped-group": "error",
 			"no-restricted-imports": [
 				"error",
 				{

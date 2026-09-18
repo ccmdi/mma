@@ -322,7 +322,7 @@ export function SettingsPanel({
 					min={10}
 					max={1000000}
 				/>
-				<label className="generator-settings__number">
+				<div className="generator-settings__number">
 					{t("Sampling")}
 					<SegmentedControl
 						value={settings.samplingMode}
@@ -335,9 +335,9 @@ export function SettingsPanel({
 							{ value: "kernels", label: t("Grow") },
 						]}
 					/>
-				</label>
+				</div>
 				{settings.samplingMode === "blueline" && (
-					<label className="generator-settings__number">
+					<div className="generator-settings__number">
 						{t("Distribution")}
 						<SegmentedControl
 							value={settings.distribution}
@@ -348,7 +348,7 @@ export function SettingsPanel({
 								{ value: "even", label: t("Even") },
 							]}
 						/>
-					</label>
+					</div>
 				)}
 				<Check
 					label={t("Only check one country/polygon at a time")}
