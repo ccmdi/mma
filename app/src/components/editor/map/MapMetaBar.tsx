@@ -23,7 +23,7 @@ import { IconButton } from "@/components/primitives/IconButton";
 function LocationTotal() {
 	const locationCount = useMapState((s) => s.locationCount);
 	return (
-		<span className="map-meta__total">
+		<span className="map-meta__total truncate">
 			<span className="mono">{fmt.format(locationCount)}</span> locations
 		</span>
 	);

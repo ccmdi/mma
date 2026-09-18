@@ -329,8 +329,8 @@ function ApplySummary({
 			className={clsx("apply-tags__summary", `is-${state}`, pending && "is-pending")}
 			aria-live="polite"
 		>
-			<span className="apply-tags__summary-head">{head ?? "\u00a0"}</span>
-			<span className="apply-tags__summary-note">{note ?? "\u00a0"}</span>
+			<span className="apply-tags__summary-head truncate">{head ?? "\u00a0"}</span>
+			<span className="apply-tags__summary-note truncate">{note ?? "\u00a0"}</span>
 		</div>
 	);
 }

@@ -152,7 +152,7 @@ function PluginCard({
 			{!comingSoon && (
 				<div className="plugin-card__actions">
 					{busy && installProgress !== undefined && (
-						<span className="plugin-card__progress">{installProgress}%</span>
+						<span className="plugin-card__progress mono">{installProgress}%</span>
 					)}
 					{!installed ? (
 						<button

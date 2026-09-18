@@ -24,7 +24,7 @@ export function Sidebar({
 		<section className={`map-sidebar plugin-sidebar${className ? ` ${className}` : ""}`}>
 			<header className="plugin-sidebar__header">
 				{onBack && <IconButton icon={mdiArrowLeft} label={t("Back")} onClick={onBack} />}
-				<h2 className="plugin-sidebar__title">{title}</h2>
+				<h2 className="plugin-sidebar__title truncate">{title}</h2>
 				{actions && <div className="plugin-sidebar__actions">{actions}</div>}
 			</header>
 			<div className={`plugin-sidebar__body${flush ? " plugin-sidebar__body--flush" : ""}`}>

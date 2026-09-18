@@ -206,11 +206,11 @@ export function StatsForNerds({ open, onOpenChange }: DialogProps) {
 						{stats && <StatTable rows={statsRows(stats)} />}
 					</div>
 					<div className="stats-nerds__column">
-						<h3 className="stats-nerds__heading">{t("Engine")}</h3>
+						<h3 className="stats-nerds__heading eyebrow">{t("Engine")}</h3>
 						<EngineSection activity={activity} />
 						{live && (
 							<>
-								<h3 className="stats-nerds__heading">{t("Rendering")}</h3>
+								<h3 className="stats-nerds__heading eyebrow">{t("Rendering")}</h3>
 								<StatTable rows={liveRows(live)} />
 							</>
 						)}

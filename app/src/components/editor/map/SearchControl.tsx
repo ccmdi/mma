@@ -104,7 +104,7 @@ export function SearchControl({
 						{context && (
 							<>
 								<br />
-								<span className="search-result__context">{context}</span>
+								<span className="search-result__context truncate">{context}</span>
 							</>
 						)}
 					</>

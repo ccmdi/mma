@@ -86,7 +86,9 @@ export function QuickCopyToMapDialog({
 						renderItem={(m) => (
 							<>
 								<strong>{m.name || t("(unnamed)")}</strong>
-								{m.folder && <span className="search-result__context"> &middot; {m.folder}</span>}
+								{m.folder && (
+									<span className="search-result__context truncate"> &middot; {m.folder}</span>
+								)}
 							</>
 						)}
 					/>

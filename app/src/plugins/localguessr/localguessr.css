@@ -249,22 +249,12 @@
 	padding: 4px 12px;
 }
 
-.lg-hud__label {
-	font-size: 10px;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	color: var(--text-2);
-}
-
 .lg-hud__value {
 	font-size: 15px;
 	font-weight: 600;
 	color: var(--text-1);
 	font-variant-numeric: tabular-nums;
 	max-width: 220px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .lg-timer--low {
@@ -558,13 +548,6 @@
 	justify-content: space-between;
 }
 
-.lg-summary__label {
-	font-size: 12px;
-	text-transform: uppercase;
-	letter-spacing: 0.06em;
-	color: var(--text-2);
-}
-
 .lg-summary__score {
 	font-size: 44px;
 	font-weight: 700;
@@ -643,12 +626,6 @@
 	color: var(--text-2);
 }
 
-.lg-summary__row-score,
-.lg-summary__row-dist,
-.lg-summary__row-time {
-	font-variant-numeric: tabular-nums;
-}
-
 .lg-summary__row-time {
 	color: var(--text-2);
 }
@@ -657,9 +634,6 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
 }
 
 .lg-summary__row-streak.is-hit {

@@ -648,7 +648,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 							) : (
 								<span className="tag-tree__chevron-spacer" />
 							)}
-							<span className="tag-tree__label">{node.segment}</span>
+							<span className="tag-tree__label truncate">{node.segment}</span>
 							{!node.tag && (
 								<Icon
 									path={mdiFolder}

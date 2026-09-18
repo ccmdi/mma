@@ -52,11 +52,11 @@ function SeenEntryCard({
 				{src ? <img src={src} alt="" /> : <div className="seen-entry__no-thumb" />}
 			</div>
 			<div className="seen-entry__info">
-				<span className="seen-entry__location">
+				<span className="seen-entry__location truncate">
 					<Flag code={entry.countryCode} height={12} className="seen-entry__flag" />
 					{entry.address || `${entry.lat.toFixed(4)}, ${entry.lng.toFixed(4)}`}
 				</span>
-				<span className="seen-entry__time mono">{formatDateTime(entry.enteredAt)}</span>
+				<span className="seen-entry__time mono truncate">{formatDateTime(entry.enteredAt)}</span>
 			</div>
 		</button>
 	);

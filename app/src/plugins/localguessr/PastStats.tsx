@@ -127,7 +127,7 @@ function Table({ head, rows }: { head: string[]; rows: { key: string; cells: Rea
 				{rows.map((row) => (
 					<tr key={row.key}>
 						{row.cells.map((cell, i) => (
-							<td key={i} className={i === 0 ? undefined : "data-table__num"}>
+							<td key={i} className={i === 0 ? undefined : "mono data-table__num"}>
 								{cell}
 							</td>
 						))}

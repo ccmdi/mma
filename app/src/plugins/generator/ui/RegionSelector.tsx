@@ -54,11 +54,11 @@ function RegionRow({
 		<div className="generator-regions__item">
 			<div className="generator-regions__item-name">
 				<Flag code={code} className="generator-regions__flag" />
-				<span>{name}</span>
+				<span className="truncate">{name}</span>
 				{processing && <Spinner size="10px" />}
 			</div>
 			<div className="generator-regions__item-count">
-				{rate != null && <span className="generator-regions__rate">{rateLabel(rate)}</span>}
+				{rate != null && <span className="generator-regions__rate mono">{rateLabel(rate)}</span>}
 				{found} /
 				<TextInput
 					type="number"
@@ -229,7 +229,7 @@ function TotalRow({ found, target, running }: { found: number; target: number; r
 	return (
 		<div className="generator-regions__total">
 			{t("Total:")} {found} / {target}
-			{rate != null && <span className="generator-regions__rate">{rateLabel(rate)}</span>}
+			{rate != null && <span className="generator-regions__rate mono">{rateLabel(rate)}</span>}
 		</div>
 	);
 }

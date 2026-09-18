@@ -150,7 +150,7 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 		<aside className="doclink-panel" style={{ width }} ref={panelRef}>
 			<div className="doclink-panel__resize" onPointerDown={onResizeDown} />
 			<div className="doclink-panel__header">
-				<span className="doclink-panel__title" title={title}>
+				<span className="doclink-panel__title truncate" title={title}>
 					{title}
 				</span>
 				<IconButton

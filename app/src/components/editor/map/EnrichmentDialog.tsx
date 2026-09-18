@@ -350,7 +350,7 @@ function FieldsTab() {
 								className={`fields-pane__item${r.key === selected ? " is-active" : ""}`}
 								onClick={() => setSelected(r.key)}
 							>
-								<span className="fields-pane__item-key mono">{r.key}</span>
+								<span className="fields-pane__item-key mono truncate">{r.key}</span>
 								<CoverageBar ratio={coverage.get(r.key) ?? 0} />
 							</button>
 						))}

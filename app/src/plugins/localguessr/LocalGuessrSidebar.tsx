@@ -97,7 +97,7 @@ function SavedGameCard({
 				</>
 			}
 		>
-			<div className="entry-list__name">{t("Round {n}", { n: round })}</div>
+			<div className="entry-list__name truncate">{t("Round {n}", { n: round })}</div>
 			<div className="entry-list__meta">
 				<span>{movementLabels()[game.config.movementMode]}</span>
 				<span title={dateTimeFmt.format(game.roundStartedAt)}>
@@ -128,7 +128,7 @@ function PastGameCard({
 			{thumbnail && (
 				<img className="lg-row-thumb" src={`data:image/jpeg;base64,${thumbnail}`} alt="" />
 			)}
-			<div className="entry-list__name">{fmt.format(pastTotal(game))}</div>
+			<div className="entry-list__name truncate">{fmt.format(pastTotal(game))}</div>
 			<div className="entry-list__meta">
 				<span>{t("{n} rounds", { n: game.rounds.length })}</span>
 				<span>{movementLabels()[game.config.movementMode]}</span>

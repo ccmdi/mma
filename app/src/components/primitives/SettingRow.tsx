@@ -39,7 +39,7 @@ export function SettingsGroup({ title, children }: { title: string; children: Re
 	return (
 		<SettingsGroupContext.Provider value={{ title, matched }}>
 			<div className="settings-group-block">
-				<h3 className="settings-group">{title}</h3>
+				<h3 className="settings-group eyebrow">{title}</h3>
 				{children}
 			</div>
 		</SettingsGroupContext.Provider>

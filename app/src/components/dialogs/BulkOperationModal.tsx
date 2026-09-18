@@ -1029,7 +1029,7 @@ export function BulkProgress({
 										<>
 											{t(p.label)}
 											{running && provRate != null && (
-												<span className="bulk-operation__provider-rate">
+												<span className="bulk-operation__provider-rate mono">
 													{t("{rate}/s", { rate: fmt.format(Math.round(provRate)) })}
 												</span>
 											)}

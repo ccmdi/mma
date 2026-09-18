@@ -310,7 +310,7 @@ export const SelectionRow = memo(function SelectionRow({
 				onMouseUp={handleMouseUp}
 			>
 				<span
-					className="selection-row__label"
+					className="selection-row__label truncate"
 					style={{ paddingLeft: `${depth * 2}rem` }}
 					onClick={() => {
 						if (drag) return;

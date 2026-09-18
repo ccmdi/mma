@@ -366,7 +366,7 @@ function KeyboardBody() {
 				if (defs.length === 0) return null;
 				return (
 					<div key={group}>
-						<h3 className="settings-group">{t(group)}</h3>
+						<h3 className="settings-group eyebrow">{t(group)}</h3>
 						<table className="data-table">
 							<thead>
 								<tr>
@@ -1232,15 +1232,15 @@ function DataBody() {
 
 	return (
 		<Aux match="data location folder storage">
-			<code style={{ display: "block", wordBreak: "break-all", marginBottom: 8 }}>
-				{loc?.path ?? <Spinner />}
-			</code>
-			<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-				<Button onClick={() => void pick()}>{t("Change folder...")}</Button>
-				<Button onClick={() => void cmd.openDataFolder()}>{t("Open data folder")}</Button>
-				{loc?.is_custom && (
-					<Button onClick={() => setPending(null)}>{t("Reset to default")}</Button>
-				)}
+			<div className="settings-aux__col">
+				<code className="code-block">{loc?.path ?? <Spinner />}</code>
+				<div className="settings-aux__row">
+					<Button onClick={() => void pick()}>{t("Change folder...")}</Button>
+					<Button onClick={() => void cmd.openDataFolder()}>{t("Open data folder")}</Button>
+					{loc?.is_custom && (
+						<Button onClick={() => setPending(null)}>{t("Reset to default")}</Button>
+					)}
+				</div>
 			</div>
 
 			<ConfirmDialog
@@ -1253,7 +1253,7 @@ function DataBody() {
 				busy={busy}
 				onConfirm={() => void apply()}
 			>
-				<code className="settings-data-path">{target}</code>
+				<code className="code-block">{target}</code>
 				<Hint>
 					{t(
 						"Existing maps are not moved automatically. Copy them from the current folder if you want\n\t\t\t\t\t\tto keep them. The app must relaunch to apply.",
@@ -1274,7 +1274,7 @@ function AdvancedBody() {
 			<SettingsGroup title={t("Debug")}>
 				<SettingRow setting="showFps" label={t("Show FPS counter")} />
 				<Aux match="log file logs diagnostics">
-					<div style={{ display: "flex", gap: 8 }}>
+					<div className="settings-aux__row">
 						<Button onClick={() => void cmd.openLogFile()}>{t("Open log file")}</Button>
 						<CopyDiagnosticsButton />
 					</div>
@@ -1401,7 +1401,7 @@ function FeedbackBody() {
 
 			<SettingsGroup title={t("Reports")}>
 				<Aux match="report bug feedback issue replies">
-					<div style={{ display: "flex", gap: 8 }}>
+					<div className="settings-aux__row">
 						<Button variant="primary" onClick={() => openAppDialog("feedback")}>
 							{t("Send feedback")}
 						</Button>
@@ -1514,7 +1514,9 @@ function SectionShell({
 				style={hidden ? { display: "none" } : undefined}
 			>
 				<div className="settings-section__head">
-					<h2 className="settings-section__title">{t(section.title)}</h2>
+					<h2 className={`settings-section__title${mode === "search" ? " eyebrow" : ""}`}>
+						{t(section.title)}
+					</h2>
 				</div>
 				<Body />
 			</section>

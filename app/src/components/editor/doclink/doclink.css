@@ -37,9 +37,6 @@
 .doclink-panel__title {
 	flex: 1;
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 	font-weight: 600;
 }
 
@@ -228,9 +225,6 @@
 .doclink-assign__match-heading {
 	flex: 1;
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 .doclink-assign__panes {
 	display: grid;
@@ -262,9 +256,6 @@
 	font-weight: 600;
 	font-size: 0.85rem;
 	flex-shrink: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 	max-width: 50%;
 }
 .doclink-assign__tags {
@@ -311,9 +302,6 @@
 }
 .doclink-assign__folder-name {
 	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 	line-height: 2rem;
 }
 .doclink-assign__folder-count {
@@ -378,12 +366,6 @@
 .doclink-assign__heading.is-active {
 	background: var(--accent-muted);
 }
-.doclink-assign__heading-text {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 .doclink-panel__status {
 	padding: 1rem;
 	color: var(--text-2);

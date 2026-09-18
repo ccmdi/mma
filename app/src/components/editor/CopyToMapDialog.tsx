@@ -120,7 +120,7 @@ export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 								const global = isGlobal(id);
 								return (
 									<li key={id} className="copy-to-map-modal__row">
-										<span className="copy-to-map-modal__name">
+										<span className="copy-to-map-modal__name truncate">
 											{meta ? meta.name || t("(unnamed)") : t("(missing map)")}
 											{meta?.folder && <small> · {meta.folder}</small>}
 										</span>
@@ -157,7 +157,7 @@ export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 						renderItem={(m) => (
 							<>
 								<strong>{m.name || t("(unnamed)")}</strong>
-								{m.folder && <span className="search-result__context"> · {m.folder}</span>}
+								{m.folder && <span className="search-result__context truncate"> · {m.folder}</span>}
 							</>
 						)}
 					/>

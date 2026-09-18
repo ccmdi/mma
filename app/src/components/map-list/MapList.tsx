@@ -556,7 +556,7 @@ function ImportPreviewModal({
 							onClick={() => toggle(i)}
 						>
 							<Checkbox checked={entry.selected} readOnly />
-							<span className="import-preview__name">{entry.name}</span>
+							<span className="import-preview__name truncate">{entry.name}</span>
 							<span className="import-preview__meta">
 								{t({ one: "{n} loc", other: "{n} loc" }, { n: entry.locationCount })}
 								{entry.tagCount > 0 &&

@@ -48,7 +48,7 @@ export function Summary({
 		<div className="lg-summary">
 			<header className="lg-summary__hero">
 				<div>
-					<div className="lg-summary__label">{t("Game breakdown")}</div>
+					<div className="eyebrow">{t("Game breakdown")}</div>
 					<div className="lg-summary__score">{session.totalScore.toLocaleString()}</div>
 				</div>
 				<div className="lg-summary__meta">
@@ -88,12 +88,12 @@ export function Summary({
 								<img className="lg-row-thumb" src={`data:image/jpeg;base64,${thumbnail}`} alt="" />
 							)}
 							<span className="lg-summary__row-n">#{i + 1}</span>
-							<span className="lg-summary__row-score">{r.score.toLocaleString()}</span>
-							<span className="lg-summary__row-dist">
+							<span className="mono">{r.score.toLocaleString()}</span>
+							<span className="mono">
 								{r.distanceMeters != null ? formatDistance(r.distanceMeters, 0) : "-"}
 							</span>
-							<span className="lg-summary__row-time">{formatElapsed(r.elapsedMs)}</span>
-							<span className="lg-summary__row-place">
+							<span className="lg-summary__row-time mono">{formatElapsed(r.elapsedMs)}</span>
+							<span className="lg-summary__row-place truncate">
 								<Flag code={r.truth?.country_code ?? null} />
 								{[r.truth?.admin, r.truth?.country_code].filter(Boolean).join(", ")}
 							</span>

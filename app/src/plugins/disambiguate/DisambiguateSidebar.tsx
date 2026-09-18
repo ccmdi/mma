@@ -98,7 +98,7 @@ function FieldRow({ field, colors }: { field: FieldDivergence; colors: RGB[] }) 
 				<span className="disambig__label">{field.label}</span>
 				<Pill>{badgeText(field)}</Pill>
 				{field.lowConfidence && <Pill tone="warning">{t("low data")}</Pill>}
-				<span className="disambig__score">{score !== null ? score.toFixed(2) : "-"}</span>
+				<span className="disambig__score mono">{score !== null ? score.toFixed(2) : "-"}</span>
 			</div>
 			<Bar value={score ?? 0} size="md" className="disambig__bar" />
 			{field.coverageScore > 0.01 && (

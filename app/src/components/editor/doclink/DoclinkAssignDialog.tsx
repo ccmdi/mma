@@ -127,7 +127,7 @@ function TagBranch({ node, ctx }: { node: TagTreeNode; ctx: TreeCtx }) {
 						ctx.onToggle(node.fullPath);
 					}}
 				/>
-				<span className="doclink-assign__folder-name">{node.segment}</span>
+				<span className="doclink-assign__folder-name truncate">{node.segment}</span>
 				{!node.tag && (
 					<Icon path={mdiFolder} size={13} style={{ color: fg, opacity: 0.5, flexShrink: 0 }} />
 				)}
@@ -381,7 +381,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 						{matches && (
 							<div className="doclink-assign__match">
 								<div className="doclink-assign__match-head">
-									<span className="doclink-assign__pane-title">
+									<span className="doclink-assign__pane-title truncate">
 										{t("Suggested links")} <span className="mono">{matches.length}</span>
 									</span>
 									{matches.length > 0 && (
@@ -401,7 +401,9 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 											<div key={matchKey(m)} className="doclink-assign__match-row">
 												<TagPill small color={m.tag.color} label={m.tag.name} title={m.tag.name} />
 												<Icon path={mdiArrowRight} size={14} />
-												<span className="doclink-assign__match-heading">{m.heading.text}</span>
+												<span className="doclink-assign__match-heading truncate">
+													{m.heading.text}
+												</span>
 												<IconButton
 													icon={mdiClose}
 													size={14}
@@ -419,7 +421,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 						<div className="doclink-assign__panes">
 							<div className="doclink-assign__pane">
 								<div className="doclink-assign__pane-head">
-									<span className="doclink-assign__pane-title">{t("Tags")}</span>
+									<span className="doclink-assign__pane-title truncate">{t("Tags")}</span>
 									<SearchInput
 										placeholder={t("Filter tags...")}
 										value={tagFilter}
@@ -441,7 +443,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 							</div>
 							<div className="doclink-assign__pane">
 								<div className="doclink-assign__pane-head">
-									<span className="doclink-assign__pane-title">
+									<span className="doclink-assign__pane-title truncate">
 										{outline?.title ?? t("Document")}
 									</span>
 									<SearchInput
@@ -479,7 +481,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 												style={{ paddingLeft: `${(h.level - 1) * 14 + 8}px` }}
 												onClick={() => armed && void toggle(armed, h.anchor)}
 											>
-												<span className="doclink-assign__heading-text">{h.text}</span>
+												<span className="truncate">{h.text}</span>
 												{assigned.map((tag) => (
 													<TagPill
 														key={tag.id}

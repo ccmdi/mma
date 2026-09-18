@@ -321,29 +321,29 @@ export function RoundPlayer({
 
 			<header className="lg-hud">
 				<div className="lg-hud__item">
-					<span className="lg-hud__label">{t("Map")}</span>
-					<span className="lg-hud__value">{game.mapName}</span>
+					<span className="eyebrow">{t("Map")}</span>
+					<span className="lg-hud__value truncate">{game.mapName}</span>
 				</div>
 				<div className="lg-hud__item">
-					<span className="lg-hud__label">{t("Round")}</span>
-					<span className="lg-hud__value">
+					<span className="eyebrow">{t("Round")}</span>
+					<span className="lg-hud__value truncate">
 						{game.index + 1}/{total}
 					</span>
 				</div>
 				<div className="lg-hud__item">
-					<span className="lg-hud__label">{t("Score")}</span>
-					<span className="lg-hud__value">{cumulative.toLocaleString()}</span>
+					<span className="eyebrow">{t("Score")}</span>
+					<span className="lg-hud__value truncate">{cumulative.toLocaleString()}</span>
 				</div>
 				{game.config.streakMode !== "off" && (
 					<div className="lg-hud__item">
-						<span className="lg-hud__label">{t("Streak")}</span>
-						<span className="lg-hud__value">{game.streak}</span>
+						<span className="eyebrow">{t("Streak")}</span>
+						<span className="lg-hud__value truncate">{game.streak}</span>
 					</div>
 				)}
 				{game.config.timerMode !== "off" && !showResult && (
 					<div className="lg-hud__item">
-						<span className="lg-hud__label">{t("Time")}</span>
-						<span className="lg-hud__value">
+						<span className="eyebrow">{t("Time")}</span>
+						<span className="lg-hud__value truncate">
 							<Timer
 								mode={game.config.timerMode}
 								limit={game.config.timeLimit}

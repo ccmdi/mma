@@ -148,7 +148,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 								>
 									{editingId === s.id ? (
 										<TextInput
-											className="entry-list__name"
+											className="entry-list__name truncate"
 											autoFocus
 											value={draft}
 											onChange={(e) => setDraft(e.target.value)}
@@ -174,7 +174,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 										/>
 									) : (
 										<div
-											className="entry-list__name"
+											className="entry-list__name truncate"
 											title={t("Click to rename")}
 											onClick={() => startEdit(s)}
 										>
