@@ -304,7 +304,7 @@ function PanoMetadataControl() {
 		>
 			<div
 				className="map-control coordinate-control is-dark"
-				style={{ fontSize: "10px", display: "flex", flexDirection: "column", gap: "2px" }}
+				style={{ display: "flex", flexDirection: "column", gap: "2px" }}
 			>
 				<span>
 					{t("Pinned pano:")} {isPinned(draft ?? location) ? t("yes") : t("no")}

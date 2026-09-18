@@ -914,7 +914,7 @@ export function MapList() {
 			<section>
 				<h2>
 					{t("Your Maps")}{" "}
-					<span style={{ color: "#fff8", fontWeight: "normal", fontSize: "0.75em" }}>
+					<span className="map-list__total">
 						({t({ one: "{n} map", other: "{n} maps" }, { n: maps.length })},{" "}
 						{t(
 							{ one: "{n} location", other: "{n} locations" },
@@ -1066,21 +1066,7 @@ export function MapList() {
 				</ul>
 			</section>
 
-			<div
-				ref={previewRef}
-				style={{
-					position: "fixed",
-					pointerEvents: "none",
-					zIndex: "var(--z-drag)",
-					padding: "6px 12px",
-					background: "var(--sand-3, #333)",
-					borderRadius: "4px",
-					color: "var(--sand-12, #eee)",
-					fontSize: "14px",
-					whiteSpace: "nowrap",
-					display: dragItem ? "block" : "none",
-				}}
-			>
+			<div ref={previewRef} className="popover-surface map-list__drag-preview" hidden={!dragItem}>
 				{dragItem?.name}
 			</div>
 			{activeAction?.type === "edit" && editingMap && (

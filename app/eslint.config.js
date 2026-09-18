@@ -16,6 +16,7 @@ import noUndefinedCssClass from "./eslint-rules/no-undefined-css-class.js";
 import noHandwrittenApiSurface from "./eslint-rules/no-handwritten-api-surface.js";
 import noLabelWrappedGroup from "./eslint-rules/no-label-wrapped-group.js";
 import noHandrolledDialogParts from "./eslint-rules/no-handrolled-dialog-parts.js";
+import noHandrolledWidgets from "./eslint-rules/no-handrolled-widgets.js";
 
 const RESTRICTED_IMPORT_PATHS = [
 	{
@@ -101,17 +102,6 @@ const RESTRICTED_SYNTAX = [
 		message: "Use <NSelect> (@/components/primitives/NSelect) instead of a raw <select>.",
 	},
 	{
-		selector:
-			"JSXOpeningElement[name.name='input'] > JSXAttribute[name.name='type'][value.value='radio']",
-		message: 'Use <Radio> (@/components/primitives/Radio) instead of a raw <input type="radio">.',
-	},
-	{
-		selector:
-			"JSXOpeningElement[name.name='input'] > JSXAttribute[name.name='type'][value.value='checkbox']",
-		message:
-			'Use <Checkbox> (@/components/primitives/Checkbox) instead of a raw <input type="checkbox">.',
-	},
-	{
 		selector: "TSEnumDeclaration",
 		message: "No enum - use `as const` plus EnumOf<typeof X> (@/types/util).",
 	},
@@ -155,6 +145,7 @@ export default defineConfig([
 					"no-handwritten-api-surface": noHandwrittenApiSurface,
 					"no-label-wrapped-group": noLabelWrappedGroup,
 					"no-handrolled-dialog-parts": noHandrolledDialogParts,
+					"no-handrolled-widgets": noHandrolledWidgets,
 				},
 			},
 		},
@@ -186,6 +177,7 @@ export default defineConfig([
 			"local/no-undefined-css-class": "error",
 			"local/no-label-wrapped-group": "error",
 			"local/no-handrolled-dialog-parts": "error",
+			"local/no-handrolled-widgets": "error",
 			"no-restricted-imports": [
 				"error",
 				{
@@ -257,12 +249,8 @@ export default defineConfig([
 		rules: { "local/no-duplicate-command-icons": "error" },
 	},
 	{
-		// The sanctioned raw form builtins: these primitives wrap them.
-		files: [
-			"src/components/primitives/NSelect.tsx",
-			"src/components/primitives/Radio.tsx",
-			"src/components/primitives/Checkbox.tsx",
-		],
+		// The sanctioned raw select: this primitive wraps it.
+		files: ["src/components/primitives/NSelect.tsx"],
 		rules: { "no-restricted-syntax": "off" },
 	},
 	{

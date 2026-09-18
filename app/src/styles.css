@@ -1741,6 +1741,20 @@ input[type="range"]:disabled {
 	min-height: 2rem;
 	line-height: 2rem;
 }
+.map-list__total {
+	color: #fff8;
+	font-weight: normal;
+	font-size: 0.75em;
+}
+.map-list__drag-preview {
+	position: fixed;
+	z-index: var(--z-drag);
+	padding: 6px 12px;
+	border-radius: var(--radius-1);
+	font-size: 14px;
+	white-space: nowrap;
+	pointer-events: none;
+}
 .map-list__meta {
 	color: #ffffff80;
 	font-size: 0.85em;
@@ -5941,6 +5955,21 @@ body:has([data-plugin-overlay]) .map-meta {
 	font-size: 0.8125rem;
 }
 
+.sync-user__initial {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: var(--surface-3);
+	font-size: 12px;
+}
+.sync-user__name {
+	flex: 1;
+	min-width: 0;
+}
 .plugin-section {
 	background: var(--surface-1);
 	border: 1px solid var(--border-subtle);

@@ -62,34 +62,11 @@ export function ConnectionUser({
 					onError={(e) => (e.currentTarget.style.display = "none")}
 				/>
 			) : (
-				<span
-					aria-hidden
-					style={{
-						width: 24,
-						height: 24,
-						borderRadius: "50%",
-						background: "var(--surface-3, rgba(128,128,128,0.25))",
-						display: "inline-flex",
-						alignItems: "center",
-						justifyContent: "center",
-						fontSize: 12,
-						flexShrink: 0,
-					}}
-				>
+				<span aria-hidden className="sync-user__initial">
 					{name.slice(0, 1).toUpperCase()}
 				</span>
 			)}
-			<span
-				style={{
-					flex: 1,
-					minWidth: 0,
-					overflow: "hidden",
-					textOverflow: "ellipsis",
-					whiteSpace: "nowrap",
-				}}
-			>
-				{name}
-			</span>
+			<span className="sync-user__name truncate">{name}</span>
 			{action}
 		</div>
 	);
