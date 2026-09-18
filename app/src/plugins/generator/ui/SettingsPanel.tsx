@@ -3,6 +3,7 @@ import { DatePicker } from "@/components/primitives/DatePicker";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Radio } from "@/components/primitives/Radio";
 import { Checkbox } from "@/components/primitives/Checkbox";
+import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { Section, SegmentedControl } from "@/components/primitives/Sidebar";
 import { t } from "@/lib/i18n";
 import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
@@ -538,14 +539,19 @@ export function SettingsPanel({
 			</Section>
 
 			<Section title={t("Visualization")} defaultOpen={false}>
-				<Check
+				<SwitchRow
 					label={t("Show search coverage")}
 					checked={settings.showSearchOverlay}
 					onChange={(v) => set("showSearchOverlay", v)}
-					title={t(
-						"Draw where the generator has searched, as a growing overlay. Clears when you stop.",
-					)}
-				/>
+				>
+					<span
+						title={t(
+							"Draw where the generator has searched, as a growing overlay. Clears when you stop.",
+						)}
+					>
+						{t("Show search coverage")}
+					</span>
+				</SwitchRow>
 			</Section>
 		</div>
 	);

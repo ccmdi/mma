@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { createFieldDef } from "@/types";
 import type { KeySpec, PartitionBucket, Selection, Selector } from "@/bindings.gen";
 import { NSelect } from "@/components/primitives/NSelect";
-import { Checkbox } from "@/components/primitives/Checkbox";
+import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import {
 	addSelection,
@@ -342,11 +342,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 					/>
 				</Field>
 				{hasNa && (
-					<label className="pivot-sidebar__check">
-						<Checkbox checked={includeNa} onChange={(e) => setIncludeNa(e.target.checked)} />
-
-						{t("Include N/A")}
-					</label>
+					<SwitchRow checked={includeNa} onChange={setIncludeNa} label={t("Include N/A")} />
 				)}
 			</div>
 
