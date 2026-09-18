@@ -1,5 +1,4 @@
-import { mdiArrowLeft } from "@mdi/js";
-import { IconButton } from "@/components/primitives/IconButton";
+import { Section, Sidebar } from "@/components/primitives/Sidebar";
 import { getCommitDiffPreview, endCommitDiffPreview } from "@/store/commitDiff";
 import { useEventValue } from "@/lib/events";
 import { fmt } from "@/lib/util/format";
@@ -16,22 +15,12 @@ export function DiffSidebar() {
 	const { counts } = diff;
 
 	return (
-		<section className="import-sidebar">
-			<header className="import-sidebar__header">
-				<div className="diff-sidebar__title-group">
-					<IconButton
-						className="icon-button--inline"
-						icon={mdiArrowLeft}
-						size={18}
-						label={t("Back to map")}
-						onClick={endCommitDiffPreview}
-					/>
-					<h2 className="import-sidebar__title">{t("Changes")}</h2>
-				</div>
-				<span className="import-sidebar__count mono">{diff.hash}</span>
-			</header>
-
-			<div className="import-sidebar__section">
+		<Sidebar
+			title={t("Changes")}
+			onBack={endCommitDiffPreview}
+			actions={<span className="mono text-muted">{diff.hash}</span>}
+		>
+			<Section title={t("Markers")} collapsible={false}>
 				<ul className="diff-legend">
 					<li>
 						<Swatch color={DIFF_COLORS.added} size="sm" round />
@@ -52,7 +41,7 @@ export function DiffSidebar() {
 						<span className="diff-legend__count mono">{fmt.format(counts.modified)}</span>
 					</li>
 				</ul>
-			</div>
-		</section>
+			</Section>
+		</Sidebar>
 	);
 }

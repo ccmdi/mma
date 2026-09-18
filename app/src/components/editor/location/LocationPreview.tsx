@@ -4,6 +4,7 @@ import { VIRTUAL_FLAGS } from "@/bindings.consts";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
+import { AddTagForm } from "@/components/editor/tags/AddTagForm";
 import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
 import type { Tag } from "@/bindings.gen";
 import {
@@ -96,8 +97,7 @@ const TagEditor = memo(function TagEditor({
 	const addPendingTag = (name: string) =>
 		onChangeTags((prev) => appendTagName(prev, name, getVisibleTags()));
 
-	const handleAddTag = (e: React.FormEvent) => {
-		e.preventDefault();
+	const handleAddTag = () => {
 		const name = tagInput.trim();
 		if (!name) return;
 		addPendingTag(name);
@@ -137,18 +137,7 @@ const TagEditor = memo(function TagEditor({
 					/>
 				))}
 				<li>
-					<form className="form-add-tag" onSubmit={handleAddTag}>
-						<Button className="form-add-tag__button" type="submit">
-							+
-						</Button>
-						<input
-							className="form-add-tag__input"
-							type="text"
-							placeholder={t("Add a tag…")}
-							value={tagInput}
-							onChange={(e) => setTagInput(e.target.value)}
-						/>
-					</form>
+					<AddTagForm value={tagInput} onChange={setTagInput} onAdd={handleAddTag} />
 				</li>
 			</ul>
 			{suggestions.length > 0 && (

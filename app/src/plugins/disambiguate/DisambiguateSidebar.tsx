@@ -195,7 +195,7 @@ export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 			{!error && loading && (
 				<div className="disambig__loading">
 					<Spinner />
-					<span className="disambig__muted">{t("Analyzing…")}</span>
+					<span className="disambig__muted">{t("Analyzing...")}</span>
 				</div>
 			)}
 			{!error && analysis && (

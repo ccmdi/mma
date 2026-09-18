@@ -2653,58 +2653,15 @@ input[type="range"]:disabled {
 	border-radius: var(--radius-1);
 	padding: 0.5rem;
 }
-.importer {
-	overflow-y: auto;
-	overflow-x: hidden;
-}
 .importer__fields {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 0.25rem 0.75rem;
-	margin-top: 0.25rem;
 }
-.import-sidebar {
-	display: flex;
-	flex-direction: column;
-	gap: 1rem;
-	padding: 0.25rem;
-}
-.import-sidebar__header {
-	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 0.5rem;
-}
-.import-sidebar__title {
-	font-size: inherit;
-	margin: 0;
-}
-.import-sidebar__count {
-	color: var(--text-2);
-	font-size: 0.85em;
-}
-.import-sidebar__section {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-}
-.import-sidebar__label {
-	font-weight: 600;
-	font-size: 0.85em;
-	color: var(--text-2);
-}
-.import-sidebar .form-add-tag {
-	padding: 0 1rem;
-}
-.import-sidebar__actions {
+.importer__actions {
 	display: flex;
 	gap: 0.5rem;
 	margin-top: auto;
-}
-.diff-sidebar__title-group {
-	display: flex;
-	align-items: center;
-	gap: 0.35rem;
 }
 .diff-legend {
 	list-style: none;
@@ -3718,6 +3675,9 @@ body.mm-tag-dragging * {
 	border-radius: 1rem;
 	padding: 0 1rem 0 0;
 	line-height: calc(2rem - 2px);
+}
+.form-add-tag--plain {
+	padding-left: 1rem;
 }
 .form-add-tag[disabled] {
 	opacity: var(--disabled-opacity);
@@ -5112,7 +5072,6 @@ body {
 .page-map-editor.fullscreen-map > .map-overview,
 .page-map-editor.fullscreen-map > .duplicates,
 .page-map-editor.fullscreen-map > .importer,
-.page-map-editor.fullscreen-map > .import-sidebar,
 .page-map-editor.fullscreen-map > .map-sidebar,
 .page-map-editor.fullscreen-map > .plugin-sidebar {
 	display: none;

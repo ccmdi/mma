@@ -7,6 +7,8 @@ import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { ConfirmDialog } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
+import { Section, Sidebar } from "@/components/primitives/Sidebar";
+import { AddTagForm } from "@/components/editor/tags/AddTagForm";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Notice } from "@/components/primitives/Hint";
 import { TagPill } from "@/components/primitives/TagPill";
@@ -82,32 +84,30 @@ export function ImportSidebar() {
 	const sortedFields = [...preview.fields].sort((a, b) => a.key.localeCompare(b.key));
 
 	return (
-		<section className="importer import-sidebar">
-			<header className="import-sidebar__header">
-				<h2 className="import-sidebar__title">{t("Import")}</h2>
-				<span className="import-sidebar__count">
+		<Sidebar
+			title={t("Import")}
+			actions={
+				<span className="text-muted">
 					<Trans
 						msg={{ one: "{count} location", other: "{count} locations" }}
 						n={preview.locationCount}
 						count={<span className="mono">{fmt.format(preview.locationCount)}</span>}
 					/>
 				</span>
-			</header>
-
+			}
+		>
 			{preview.tags.length > 0 && (
-				<div className="import-sidebar__section">
-					<span className="import-sidebar__label">{t("Tags in file")}</span>
+				<Section title={t("Tags in file")}>
 					<ul className="tag-list">
 						{preview.tags.map((t) => (
 							<TagPill as="li" key={t.id} small color={t.color} label={t.name} />
 						))}
 					</ul>
-				</div>
+				</Section>
 			)}
 
 			{sortedFields.length > 0 && (
-				<div className="import-sidebar__section">
-					<span className="import-sidebar__label">{t("Fields")}</span>
+				<Section title={t("Fields")}>
 					<div className="importer__fields">
 						{sortedFields.map((f) => (
 							<Checkbox
@@ -120,28 +120,19 @@ export function ImportSidebar() {
 							</Checkbox>
 						))}
 					</div>
-				</div>
+				</Section>
 			)}
 
-			<div className="import-sidebar__section">
-				<span className="import-sidebar__label">{t("Tag all imported locations")}</span>
+			<Section title={t("Tag all imported locations")}>
 				<ul className="tag-list">
 					<li>
-						<div className="form-add-tag">
-							<input
-								className="form-add-tag__input"
-								type="text"
-								placeholder={t("Add a tag…")}
-								value={tagInput}
-								onChange={(e) => setTagInput(e.target.value)}
-							/>
-						</div>
+						<AddTagForm value={tagInput} onChange={setTagInput} />
 					</li>
 					{bulkTag && (
 						<TagPill as="li" small color={tagColorFor(bulkTag, visibleTags)} label={bulkTag} />
 					)}
 				</ul>
-			</div>
+			</Section>
 
 			{preview.warnings.length > 0 && (
 				<Notice tone="warning">
@@ -164,9 +155,9 @@ export function ImportSidebar() {
 				</Notice>
 			)}
 
-			<div className="import-sidebar__actions">
+			<div className="importer__actions">
 				<Button variant="primary" onClick={requestImport} disabled={importing}>
-					{importing ? t("Importing…") : t("Import")}
+					{importing ? t("Importing...") : t("Import")}
 				</Button>
 				<Button onClick={cancelImport} disabled={importing}>
 					{t("Discard")}
@@ -189,6 +180,6 @@ export function ImportSidebar() {
 					{t("Don't warn me again")}
 				</Checkbox>
 			</ConfirmDialog>
-		</section>
+		</Sidebar>
 	);
 }

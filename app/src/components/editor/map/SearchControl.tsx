@@ -79,7 +79,7 @@ export function SearchControl({
 		<SuggestInput
 			containerClassName="map-control search-control"
 			inputClassName="search-control__input"
-			placeholder={t("Search for places…")}
+			placeholder={t("Search for places...")}
 			value={query}
 			onChange={(v) => {
 				setQuery(v);

@@ -9,8 +9,8 @@ import { persisted, useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { displayTagName } from "@/store/selections";
 import { t } from "@/lib/i18n";
 import { search } from "@/lib/search";
-import { Button } from "@/components/primitives/Button";
 import { IconButton } from "@/components/primitives/IconButton";
+import { AddTagForm } from "@/components/editor/tags/AddTagForm";
 
 /** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. */
 const FULLSCREEN_TAGBAR_COLLAPSED = persisted("fullscreenTagbarCollapsed", false);
@@ -33,8 +33,7 @@ export function FullscreenTagBar({
 	useSetting("tagViewMode");
 	const label = displayTagName;
 
-	const handleAdd = (e: React.FormEvent) => {
-		e.preventDefault();
+	const handleAdd = () => {
 		const name = input.trim();
 		if (!name) return;
 		onChangeTags(appendTagName(pendingTags, name, tags));
@@ -81,21 +80,13 @@ export function FullscreenTagBar({
 							/>
 						))}
 					</ul>
-					<form className="form-add-tag" onSubmit={handleAdd}>
-						<Button className="form-add-tag__button" type="submit">
-							+
-						</Button>
-						<input
-							className="form-add-tag__input"
-							type="text"
-							placeholder={t("Add a tag...")}
-							spellCheck={false}
-							value={input}
-							onChange={(e) => setInput(e.target.value)}
-							onFocus={() => setFocused(true)}
-							onBlur={() => setTimeout(() => setFocused(false), 150)}
-						/>
-					</form>
+					<AddTagForm
+						value={input}
+						onChange={setInput}
+						onAdd={handleAdd}
+						onFocus={() => setFocused(true)}
+						onBlur={() => setTimeout(() => setFocused(false), 150)}
+					/>
 				</div>
 			</div>
 			<IconButton
