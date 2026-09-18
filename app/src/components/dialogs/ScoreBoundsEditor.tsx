@@ -73,22 +73,17 @@ export function ScoreBoundsEditor({
 			<legend className="fieldset__header">
 				{t("Scoring")} <span className="fieldset__divider" />
 			</legend>
-			<label className="score-bounds__row">
-				<Radio name="score-bounds" checked={mode === "auto"} onChange={() => setMode("auto")} />
+			<Radio name="score-bounds" checked={mode === "auto"} onChange={() => setMode("auto")}>
 				{t("Automatic based on locations")}
 				{autoError != null && ` (${formatDistance(autoError)})`}
-			</label>
-
-			<label className="score-bounds__row">
-				<Radio name="score-bounds" checked={mode === "world"} onChange={() => setMode("world")} />
+			</Radio>
+			<Radio name="score-bounds" checked={mode === "world"} onChange={() => setMode("world")}>
 				{t("World map (ACW, {distance})", { distance: formatDistance(WORLD_MAX_ERROR) })}
-			</label>
-
-			<label className="score-bounds__row">
-				<Radio name="score-bounds" checked={mode === "fixed"} onChange={() => setMode("fixed")} />
+			</Radio>
+			<Radio name="score-bounds" checked={mode === "fixed"} onChange={() => setMode("fixed")}>
 				{t("Fixed bounds")}
 				{fixedError != null && ` (${formatDistance(fixedError)})`}
-			</label>
+			</Radio>
 
 			{mode === "fixed" && (
 				<div className="score-bounds__bounds">

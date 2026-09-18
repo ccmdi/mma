@@ -1785,8 +1785,12 @@ ui.Button(
 `stable` · since v0.10.0
 
 ```ts
-ui.Checkbox(props: ComponentPropsWithRef<"input">): react.JSX.Element
+ui.Checkbox(
+  props: Omit<ComponentPropsWithRef<"input">, "children"> & ChoiceLabelProps,
+): react.JSX.Element
 ```
+
+A checkbox, with its label and hint beside it when given.
 
 #### ui.ColorPicker
 
@@ -2109,8 +2113,12 @@ Asks for one line of text, submitted with Enter or the submit button.
 `stable` · since v0.10.0
 
 ```ts
-ui.Radio(props: ComponentPropsWithRef<"input">): react.JSX.Element
+ui.Radio(
+  props: Omit<ComponentPropsWithRef<"input">, "children"> & ChoiceLabelProps,
+): react.JSX.Element
 ```
+
+A radio button, with its label and hint beside it when given.
 
 #### ui.RgbPicker
 

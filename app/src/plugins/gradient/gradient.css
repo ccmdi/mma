@@ -39,21 +39,6 @@
 	padding: 0 2px;
 }
 
-.gradient-sidebar__check {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	font-size: 12px;
-	cursor: pointer;
-	user-select: none;
-	margin-top: 4px;
-}
-
-.gradient-sidebar__check input[type="checkbox"] {
-	margin: 0;
-	cursor: pointer;
-}
-
 .gradient-sidebar__apply-row {
 	display: flex;
 	align-items: center;

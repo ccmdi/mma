@@ -478,20 +478,18 @@ function FieldsTab() {
 					{renamePrompt.merge && (
 						<fieldset className="manage-fields-action__winner">
 							<legend>{t("On conflict, keep:")}</legend>
-							<label>
-								<Radio
-									checked={renamePrompt.winner === "from"}
-									onChange={() => setRenamePrompt({ ...renamePrompt, winner: "from" })}
-								/>{" "}
+							<Radio
+								checked={renamePrompt.winner === "from"}
+								onChange={() => setRenamePrompt({ ...renamePrompt, winner: "from" })}
+							>
 								<Trans msg={"{field}’s values"} field={<code>{renamePrompt.key}</code>} />
-							</label>
-							<label>
-								<Radio
-									checked={renamePrompt.winner === "to"}
-									onChange={() => setRenamePrompt({ ...renamePrompt, winner: "to" })}
-								/>{" "}
+							</Radio>
+							<Radio
+								checked={renamePrompt.winner === "to"}
+								onChange={() => setRenamePrompt({ ...renamePrompt, winner: "to" })}
+							>
 								<Trans msg={"{field}’s values"} field={<code>{renamePrompt.target}</code>} />
-							</label>
+							</Radio>
 						</fieldset>
 					)}
 				</ConfirmDialog>

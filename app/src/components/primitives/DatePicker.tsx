@@ -464,34 +464,28 @@ export function DatePicker({
 						{(showAnyYear || showAnyTime || showTzLocal) && (
 							<div className="date-picker__toggles">
 								{showAnyYear && (
-									<label className="date-picker__any-year">
-										<Checkbox
-											checked={anyYear ?? false}
-											onChange={(e) => onAnyYearToggle?.(e.target.checked)}
-										/>
-
+									<Checkbox
+										checked={anyYear ?? false}
+										onChange={(e) => onAnyYearToggle?.(e.target.checked)}
+									>
 										{t("Any year")}
-									</label>
+									</Checkbox>
 								)}
 								{showAnyTime && (
-									<label className="date-picker__any-year">
-										<Checkbox
-											checked={anyTime ?? false}
-											onChange={(e) => onAnyTimeToggle?.(e.target.checked)}
-										/>
-
+									<Checkbox
+										checked={anyTime ?? false}
+										onChange={(e) => onAnyTimeToggle?.(e.target.checked)}
+									>
 										{t("Any date")}
-									</label>
+									</Checkbox>
 								)}
 								{showTzLocal && (
-									<label className="date-picker__any-year">
-										<Checkbox
-											checked={tzLocal ?? false}
-											onChange={(e) => onTzLocalToggle?.(e.target.checked)}
-										/>
-
+									<Checkbox
+										checked={tzLocal ?? false}
+										onChange={(e) => onTzLocalToggle?.(e.target.checked)}
+									>
 										{t("Location timezone")}
-									</label>
+									</Checkbox>
 								)}
 							</div>
 						)}

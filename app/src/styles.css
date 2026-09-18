@@ -997,6 +997,41 @@ input[type="range"]:disabled {
 	opacity: var(--disabled-opacity);
 	cursor: default;
 }
+.choice {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-size: 0.875rem;
+	cursor: pointer;
+}
+.choice > .checkbox,
+.choice > .radio {
+	flex-shrink: 0;
+	margin: 0;
+}
+.choice__text {
+	flex: 1;
+	min-width: 0;
+}
+.choice--hint {
+	align-items: flex-start;
+}
+.choice--hint > .checkbox,
+.choice--hint > .radio {
+	margin-top: 0.15em;
+}
+.choice__hint {
+	display: block;
+	color: var(--text-2);
+	font-size: 0.8125rem;
+}
+.choice[aria-disabled="true"] {
+	opacity: var(--disabled-opacity);
+	cursor: default;
+}
+.choice[aria-disabled="true"] > :disabled {
+	opacity: 1;
+}
 @keyframes fade-in {
 	from {
 		opacity: 0;
@@ -1297,12 +1332,6 @@ input[type="range"]:disabled {
 	min-height: 4rem;
 }
 /* Owns its row rhythm: the modal sets no line-height. */
-.score-bounds__row {
-	align-items: center;
-	gap: 0.5rem;
-	min-height: 1.75rem;
-	display: flex;
-}
 .score-bounds__bounds {
 	grid-template-columns: auto 1fr auto 1fr;
 	align-items: center;
@@ -2630,16 +2659,6 @@ input[type="range"]:disabled {
 	gap: 0.25rem 0.75rem;
 	margin-top: 0.25rem;
 }
-.importer__field {
-	display: flex;
-	align-items: center;
-	gap: 0.25rem;
-	cursor: pointer;
-	white-space: nowrap;
-}
-.importer__field small {
-	color: var(--text-2);
-}
 .import-sidebar {
 	display: flex;
 	flex-direction: column;
@@ -2670,9 +2689,6 @@ input[type="range"]:disabled {
 	font-size: 0.85em;
 	color: var(--text-2);
 }
-.import-sidebar .importer__field small {
-	color: var(--text-2);
-}
 .import-sidebar .form-add-tag {
 	padding: 0 1rem;
 }
@@ -2680,12 +2696,6 @@ input[type="range"]:disabled {
 	display: flex;
 	gap: 0.5rem;
 	margin-top: auto;
-}
-.import-sidebar__ack {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	font-size: 0.9em;
 }
 .importer__error {
 	color: var(--destructive-text);
@@ -2827,8 +2837,6 @@ input[type="range"]:disabled {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	font-size: 0.875rem;
-	cursor: pointer;
 	padding: 0.25rem 0;
 }
 .bulk-operation__field-label {
@@ -2844,11 +2852,6 @@ input[type="range"]:disabled {
 	color: var(--text-2);
 	font-size: 0.75rem;
 	white-space: nowrap;
-}
-.bulk-operation__fieldset label {
-	display: flex;
-	align-items: center;
-	gap: 0.375rem;
 }
 /* Enrich tab: one big row per field, the whole row toggling it. */
 .enrich-fields {
@@ -3015,11 +3018,6 @@ input[type="range"]:disabled {
 }
 .manage-fields-action__winner legend {
 	padding: 0 0.25rem;
-}
-.manage-fields-action__winner label {
-	display: flex;
-	align-items: center;
-	gap: 0.375rem;
 }
 .enum-values {
 	display: flex;
@@ -3244,14 +3242,6 @@ input.date-picker__trigger.is-invalid:focus {
 	border-top: 1px solid var(--border-subtle);
 	margin-top: 0.25rem;
 	padding: 0.35rem 0.25rem 0;
-}
-.date-picker__any-year {
-	display: flex;
-	align-items: center;
-	gap: 0.35rem;
-	font-size: 0.85rem;
-	cursor: pointer;
-	user-select: none;
 }
 .month-grid {
 	width: 280px;
@@ -3610,13 +3600,6 @@ input.date-picker__trigger.is-invalid:focus {
 	align-items: center;
 	gap: 0.5rem;
 }
-.selection-manager__inline-option {
-	display: flex;
-	align-items: center;
-	gap: 0.35rem;
-	cursor: pointer;
-	opacity: 0.6;
-}
 .selection-manager__bar .is-dragging {
 	opacity: 0.3;
 }
@@ -3929,16 +3912,6 @@ body:not(.mm-tag-dragging) .tag-tree__row:hover {
 .tag-find-replace__done {
 	color: var(--constructive);
 	font-size: 0.85rem;
-}
-.edit-tag-modal__cascade {
-	display: flex;
-	align-items: center;
-	gap: 0.4rem;
-	margin-top: 0.4rem;
-	font-size: 0.85em;
-}
-.edit-tag-modal__cascade input {
-	margin: 0;
 }
 .edit-tag-modal__apply-color {
 	grid-column: 1 / span 2;
@@ -4818,12 +4791,6 @@ body {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
-}
-.settings-checkbox-item {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 2px 0;
 }
 .setting-row {
 	display: flex;
@@ -6011,15 +5978,16 @@ body:has([data-plugin-overlay]) .map-meta {
 	gap: 0.375rem 1rem;
 	font-size: 0.875rem;
 }
-.selector-picker__option {
+.selector-picker__saved {
 	display: flex;
 	align-items: center;
-	gap: 0.375rem;
-	cursor: pointer;
+	gap: 0.5rem;
 }
-.selector-picker__option select {
+.selector-picker__saved > .choice {
+	flex: none;
+}
+.selector-picker__saved > .nselect {
 	max-width: 10rem;
-	font-size: inherit;
 }
 
 /* --- Plugin sidebar primitives --- */
@@ -6343,13 +6311,6 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	display: flex;
 	gap: 1.5rem;
 	margin: 0.25rem 0 1.25rem;
-}
-.report-dialog__kind,
-.report-dialog__option {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	cursor: pointer;
 }
 
 .report-dialog__fields {

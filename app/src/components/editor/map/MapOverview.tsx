@@ -53,10 +53,9 @@ function PerSelectionToggle({
 	const count = useMapState(() => getActiveSelections().length);
 	if (count < 2) return null;
 	return (
-		<label className="selection-manager__inline-option">
-			<Checkbox checked={value} onChange={(e) => onChange(e.target.checked)} />
+		<Checkbox checked={value} onChange={(e) => onChange(e.target.checked)}>
 			{t("from each of {n} selections", { n: count })}
-		</label>
+		</Checkbox>
 	);
 }
 

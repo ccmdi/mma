@@ -127,11 +127,9 @@ function ValidateSetup({ picker, info, onReady }: SetupProps) {
 		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			{info.pinned > 0 && (
-				<label className="bulk-operation__option">
-					<Checkbox checked={checkPinned} onChange={(e) => setCheckPinned(e.target.checked)} />
-
+				<Checkbox checked={checkPinned} onChange={(e) => setCheckPinned(e.target.checked)}>
 					{t("Check pinned locations for newer coverage")}
-				</label>
+				</Checkbox>
 			)}
 			<DialogActions
 				cancel
@@ -224,11 +222,9 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 					)}
 				</DialogHint>
 			)}
-			<label className="bulk-operation__option">
-				<Checkbox checked={force} onChange={(e) => setForce(e.target.checked)} />
-
+			<Checkbox checked={force} onChange={(e) => setForce(e.target.checked)}>
 				{t("Re-enrich already enriched locations")}
-			</label>
+			</Checkbox>
 			<DialogActions
 				cancel
 				primary={{
@@ -298,11 +294,9 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 							)}
 				</DialogHint>
 			)}
-			<label className="bulk-operation__option">
-				<Checkbox checked={resolve} onChange={(e) => setResolve(e.target.checked)} />
-
+			<Checkbox checked={resolve} onChange={(e) => setResolve(e.target.checked)}>
 				{t("Resolve pano IDs first")}
-			</label>
+			</Checkbox>
 			{resolve && (
 				<>
 					<label className="bulk-operation__option">
@@ -319,11 +313,9 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 							))}
 						</NSelect>
 					</label>
-					<label className="bulk-operation__option">
-						<Checkbox checked={force} onChange={(e) => setForce(e.target.checked)} />
-
+					<Checkbox checked={force} onChange={(e) => setForce(e.target.checked)}>
 						{t("Re-resolve already pinned locations")}
-					</label>
+					</Checkbox>
 				</>
 			)}
 			<DialogActions
@@ -409,18 +401,19 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 						const def = getFieldDef(key);
 						const count = info.have(key);
 						return (
-							<label key={key} className="bulk-operation__field-item">
-								<Checkbox checked={selected.has(key)} onChange={() => toggle(key)} />
-								<span className="bulk-operation__field-label">{fieldLabel(key)}</span>
-								{def?.label && def.label !== key && (
-									<span className="bulk-operation__field-key">{key}</span>
-								)}
-								<span className="bulk-operation__field-count">
-									{count > 0
-										? t({ one: "{n} value", other: "{n} values" }, { n: count })
-										: t("no data")}
+							<Checkbox key={key} checked={selected.has(key)} onChange={() => toggle(key)}>
+								<span className="bulk-operation__field-item">
+									<span className="bulk-operation__field-label">{fieldLabel(key)}</span>
+									{def?.label && def.label !== key && (
+										<span className="bulk-operation__field-key">{key}</span>
+									)}
+									<span className="bulk-operation__field-count">
+										{count > 0
+											? t({ one: "{n} value", other: "{n} values" }, { n: count })
+											: t("no data")}
+									</span>
 								</span>
-							</label>
+							</Checkbox>
 						);
 					})}
 				</div>
@@ -593,25 +586,21 @@ function HeadingRoadSetup({ picker, onReady }: SetupProps) {
 	return (
 		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
-			<div className="bulk-operation__fieldset">
-				<label>
-					<Radio
-						name="direction"
-						checked={direction === "forwards"}
-						onChange={() => setDirection("forwards")}
-					/>
-
+			<div>
+				<Radio
+					name="direction"
+					checked={direction === "forwards"}
+					onChange={() => setDirection("forwards")}
+				>
 					{t("Forwards (along driving direction)")}
-				</label>
-				<label>
-					<Radio
-						name="direction"
-						checked={direction === "backwards"}
-						onChange={() => setDirection("backwards")}
-					/>
-
+				</Radio>
+				<Radio
+					name="direction"
+					checked={direction === "backwards"}
+					onChange={() => setDirection("backwards")}
+				>
 					{t("Backwards")}
-				</label>
+				</Radio>
 			</div>
 			<DialogActions
 				cancel

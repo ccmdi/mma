@@ -1,10 +1,5 @@
 import { useState, useId } from "react";
-import {
-	Dialog,
-	DialogContent,
-	DialogHint,
-	type DialogProps,
-} from "@/components/primitives/Dialog";
+import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
@@ -97,13 +92,12 @@ export function ExportDialog({ open, onOpenChange }: DialogProps) {
 						/>
 					</div>
 					<div className="export-modal__fieldset">
-						<label>
-							<Radio
-								name="selection"
-								value="all"
-								checked={pick.pick === "all"}
-								onChange={() => setPick({ pick: "all" })}
-							/>
+						<Radio
+							name="selection"
+							value="all"
+							checked={pick.pick === "all"}
+							onChange={() => setPick({ pick: "all" })}
+						>
 							{t(
 								{
 									one: "Export everything ({n} location)",
@@ -111,64 +105,51 @@ export function ExportDialog({ open, onOpenChange }: DialogProps) {
 								},
 								{ n: locationCount },
 							)}
-						</label>
-						<label>
-							<Radio
-								name="selection"
-								value="selected"
-								checked={pick.pick === "selection"}
-								onChange={() => setPick({ pick: "selection" })}
-								disabled={selCount === 0}
-							/>
-							<span style={selCount === 0 ? { opacity: 0.7 } : undefined}>
-								{t(
-									{
-										one: "Export selection ({n} location)",
-										other: "Export selection ({n} locations)",
-									},
-									{ n: selCount },
-								)}
-							</span>
-						</label>
+						</Radio>
+						<Radio
+							name="selection"
+							value="selected"
+							checked={pick.pick === "selection"}
+							onChange={() => setPick({ pick: "selection" })}
+							disabled={selCount === 0}
+						>
+							{t(
+								{
+									one: "Export selection ({n} location)",
+									other: "Export selection ({n} locations)",
+								},
+								{ n: selCount },
+							)}
+						</Radio>
 					</div>
 					<div className="export-modal__fieldset">
-						<label>
-							<Checkbox
-								name="zoom"
-								checked={saveZoom}
-								onChange={(e) => setSaveZoom(e.target.checked)}
-							/>
-
+						<Checkbox
+							name="zoom"
+							checked={saveZoom}
+							onChange={(e) => setSaveZoom(e.target.checked)}
+						>
 							{t("Save zoom levels")}
-						</label>
-						<label>
-							<Checkbox
-								name="extras"
-								checked={saveExtras}
-								onChange={(e) => setSaveExtras(e.target.checked)}
-							/>
-
+						</Checkbox>
+						<Checkbox
+							name="extras"
+							checked={saveExtras}
+							onChange={(e) => setSaveExtras(e.target.checked)}
+							hint={t(
+								"Include app-specific data like tags. Not including this makes the file smaller,\n\t\t\t\t\t\t\t\twhich can help when uploading maps with 100K+ locations to GeoGuessr.",
+							)}
+						>
 							{t("Save app data")}
-							<DialogHint>
-								{t(
-									"Include app-specific data like tags. Not including this makes the file smaller,\n\t\t\t\t\t\t\t\twhich can help when uploading maps with 100K+ locations to GeoGuessr.",
-								)}
-							</DialogHint>
-						</label>
-						<label>
-							<Checkbox
-								name="unpanned"
-								checked={bypassUnpanned}
-								onChange={(e) => setBypassUnpanned(e.target.checked)}
-							/>
-
+						</Checkbox>
+						<Checkbox
+							name="unpanned"
+							checked={bypassUnpanned}
+							onChange={(e) => setBypassUnpanned(e.target.checked)}
+							hint={t(
+								"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.",
+							)}
+						>
 							{t("Bypass GeoGuessr auto-panning for locations with 0 heading")}
-							<DialogHint>
-								{t(
-									"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.",
-								)}
-							</DialogHint>
-						</label>
+						</Checkbox>
 					</div>
 				</div>
 				<div className="export-modal__formats">

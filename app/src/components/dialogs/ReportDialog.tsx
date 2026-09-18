@@ -220,14 +220,14 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 			>
 				<div className="report-dialog__kinds">
 					{KINDS.map((k) => (
-						<label key={k.value} className="report-dialog__kind">
-							<Radio
-								name="report-kind"
-								checked={kind === k.value}
-								onChange={() => setKind(k.value)}
-							/>
+						<Radio
+							key={k.value}
+							name="report-kind"
+							checked={kind === k.value}
+							onChange={() => setKind(k.value)}
+						>
 							{t(k.label)}
-						</label>
+						</Radio>
 					))}
 				</div>
 
@@ -305,18 +305,18 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 				<div className="report-dialog__meta">
 					<div className="report-dialog__attachments">
 						{ATTACHMENTS.map(({ key, label }) => (
-							<label key={key} className="report-dialog__option">
-								<Checkbox
-									checked={attach[key]}
-									onChange={(e) =>
-										setAttachPrefs((prev) => ({
-											...prev,
-											[kind]: { ...prev[kind], [key]: e.target.checked },
-										}))
-									}
-								/>
+							<Checkbox
+								key={key}
+								checked={attach[key]}
+								onChange={(e) =>
+									setAttachPrefs((prev) => ({
+										...prev,
+										[kind]: { ...prev[kind], [key]: e.target.checked },
+									}))
+								}
+							>
 								{t(label)}
-							</label>
+							</Checkbox>
 						))}
 					</div>
 					{/* Always present, only revealed: unchecking a box must not move the rest. */}

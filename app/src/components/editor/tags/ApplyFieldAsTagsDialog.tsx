@@ -205,23 +205,14 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 						/>
 					)}
 					{showTz && (
-						<label
-							style={{
-								display: "flex",
-								alignItems: "center",
-								gap: "0.5rem",
-								opacity: hasTzData ? 1 : 0.5,
-							}}
+						<Checkbox
+							checked={tzLocal && hasTzData}
+							disabled={!hasTzData}
+							onChange={(e) => setTzLocal(e.target.checked)}
 							title={hasTzData ? undefined : t("No locations have timezone data")}
 						>
-							<Checkbox
-								checked={tzLocal && hasTzData}
-								disabled={!hasTzData}
-								onChange={(e) => setTzLocal(e.target.checked)}
-							/>
-
 							{t("Location timezone")}
-						</label>
+						</Checkbox>
 					)}
 					{tzGap > 0 && <DialogHint>{missingTimezoneMessage(tzGap)}</DialogHint>}
 					{field && (
@@ -250,10 +241,9 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 						</label>
 					)}
 					{field && (
-						<label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-							<Checkbox checked={tagMissing} onChange={(e) => setTagMissing(e.target.checked)} />
+						<Checkbox checked={tagMissing} onChange={(e) => setTagMissing(e.target.checked)}>
 							{t("Tag locations with no value as “{name}”", { name: missingName })}
-						</label>
+						</Checkbox>
 					)}
 					<DialogActions
 						start={

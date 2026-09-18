@@ -592,13 +592,12 @@ function EditTagDialog({
 							autoFocus
 						/>
 						{cascade && (
-							<label className="edit-tag-modal__cascade">
-								<Checkbox checked={cascadeOn} onChange={(e) => setCascadeOn(e.target.checked)} />
+							<Checkbox checked={cascadeOn} onChange={(e) => setCascadeOn(e.target.checked)}>
 								{t(
 									{ one: "Rename {n} tag inside", other: "Rename {n} tags inside" },
 									{ n: cascade.descendantCount },
 								)}
-							</label>
+							</Checkbox>
 						)}
 					</div>
 					<TagColorFields

@@ -11,25 +11,6 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { distanceUnit } from "@/lib/util/format";
 import { useSetting } from "@/store/settings";
 
-function Check({
-	label,
-	checked,
-	onChange,
-	title,
-}: {
-	label: string;
-	checked: boolean;
-	onChange: (v: boolean) => void;
-	title?: string;
-}) {
-	return (
-		<label className="generator-settings__check" title={title}>
-			<Checkbox checked={checked} onChange={(e) => onChange(e.target.checked)} />
-			{label}
-		</label>
-	);
-}
-
 function NumberInput({
 	label,
 	value,
@@ -111,10 +92,14 @@ function RadioGroup({
 	return (
 		<div className={`generator-settings__radios ${indent ? "generator-settings__indent" : ""}`}>
 			{options.map((opt) => (
-				<label key={opt.value} className="generator-settings__radio">
-					<Radio name={name} checked={value === opt.value} onChange={() => onChange(opt.value)} />
+				<Radio
+					key={opt.value}
+					name={name}
+					checked={value === opt.value}
+					onChange={() => onChange(opt.value)}
+				>
 					{opt.label}
-				</label>
+				</Radio>
 			))}
 		</div>
 	);
@@ -135,25 +120,28 @@ export function SettingsPanel({
 			<Section title={t("Coverage settings")}>
 				{!settings.rejectOfficial && (
 					<>
-						<Check
-							label={t("Reject unofficial")}
+						<Checkbox
 							checked={settings.rejectUnofficial}
-							onChange={(v) => set("rejectUnofficial", v)}
-						/>
-						<Check
-							label={t("Reject gen 1")}
+							onChange={(e) => set("rejectUnofficial", e.target.checked)}
+						>
+							{t("Reject unofficial")}
+						</Checkbox>
+						<Checkbox
 							checked={settings.rejectGen1}
-							onChange={(v) => set("rejectGen1", v)}
-						/>
+							onChange={(e) => set("rejectGen1", e.target.checked)}
+						>
+							{t("Reject gen 1")}
+						</Checkbox>
 					</>
 				)}
 				{settings.rejectUnofficial && !settings.rejectOfficial && !settings.rejectGen1 && (
 					<>
-						<Check
-							label={t("Find generation")}
+						<Checkbox
 							checked={settings.findGeneration}
-							onChange={(v) => set("findGeneration", v)}
-						/>
+							onChange={(e) => set("findGeneration", e.target.checked)}
+						>
+							{t("Find generation")}
+						</Checkbox>
 						{settings.findGeneration && (
 							<div className="generator-settings__indent">
 								<SegmentedControl
@@ -167,48 +155,54 @@ export function SettingsPanel({
 								/>
 							</div>
 						)}
-						<Check
-							label={t("Find trekker coverage")}
+						<Checkbox
 							checked={settings.rejectDescription}
-							onChange={(v) => set("rejectDescription", v)}
-						/>
+							onChange={(e) => set("rejectDescription", e.target.checked)}
+						>
+							{t("Find trekker coverage")}
+						</Checkbox>
 					</>
 				)}
-				<Check
-					label={t("Find unofficial coverage")}
+				<Checkbox
 					checked={settings.rejectOfficial}
-					onChange={(v) => set("rejectOfficial", v)}
-				/>
+					onChange={(e) => set("rejectOfficial", e.target.checked)}
+				>
+					{t("Find unofficial coverage")}
+				</Checkbox>
 			</Section>
 
 			<Section title={t("Location settings")}>
 				{settings.rejectUnofficial && !settings.rejectOfficial && (
-					<Check
-						label={t("Reject locations without date")}
+					<Checkbox
 						checked={settings.rejectDateless}
-						onChange={(v) => set("rejectDateless", v)}
-					/>
+						onChange={(e) => set("rejectDateless", e.target.checked)}
+					>
+						{t("Reject locations without date")}
+					</Checkbox>
 				)}
 				{settings.rejectUnofficial && !settings.rejectOfficial && !settings.rejectDescription && (
-					<Check
-						label={t("Reject locations without description")}
+					<Checkbox
 						checked={settings.rejectNoDescription}
-						onChange={(v) => set("rejectNoDescription", v)}
-					/>
+						onChange={(e) => set("rejectNoDescription", e.target.checked)}
+					>
+						{t("Reject locations without description")}
+					</Checkbox>
 				)}
 				{settings.rejectUnofficial && !settings.rejectOfficial && (
 					<>
-						<Check
-							label={t("Only one panorama on location")}
+						<Checkbox
 							checked={settings.onlyOneInTimeframe}
-							onChange={(v) => set("onlyOneInTimeframe", v)}
+							onChange={(e) => set("onlyOneInTimeframe", e.target.checked)}
 							title={t("Only allow locations that don't have other nearby coverage in timeframe.")}
-						/>
-						<Check
-							label={t("Check linked panos")}
+						>
+							{t("Only one panorama on location")}
+						</Checkbox>
+						<Checkbox
 							checked={settings.checkLinks}
-							onChange={(v) => set("checkLinks", v)}
-						/>
+							onChange={(e) => set("checkLinks", e.target.checked)}
+						>
+							{t("Check linked panos")}
+						</Checkbox>
 						{settings.checkLinks && (
 							<NumberInput
 								label={t("Depth")}
@@ -226,16 +220,18 @@ export function SettingsPanel({
 			<Section title={t("Map making settings")}>
 				{settings.rejectUnofficial && !settings.rejectOfficial && (
 					<>
-						<Check
-							label={t("Find intersection locations")}
+						<Checkbox
 							checked={settings.getIntersection}
-							onChange={(v) => set("getIntersection", v)}
-						/>
-						<Check
-							label={t("Find curve locations")}
+							onChange={(e) => set("getIntersection", e.target.checked)}
+						>
+							{t("Find intersection locations")}
+						</Checkbox>
+						<Checkbox
 							checked={settings.pinpointSearch}
-							onChange={(v) => set("pinpointSearch", v)}
-						/>
+							onChange={(e) => set("pinpointSearch", e.target.checked)}
+						>
+							{t("Find curve locations")}
+						</Checkbox>
 						{settings.pinpointSearch && (
 							<NumberInput
 								label={t("Pinpointable angle")}
@@ -246,11 +242,12 @@ export function SettingsPanel({
 								indent
 							/>
 						)}
-						<Check
-							label={t("Adjust heading")}
+						<Checkbox
 							checked={settings.adjustHeading}
-							onChange={(v) => set("adjustHeading", v)}
-						/>
+							onChange={(e) => set("adjustHeading", e.target.checked)}
+						>
+							{t("Adjust heading")}
+						</Checkbox>
 						{settings.adjustHeading && (
 							<>
 								<RadioGroup
@@ -274,11 +271,12 @@ export function SettingsPanel({
 								/>
 							</>
 						)}
-						<Check
-							label={t("Adjust pitch")}
+						<Checkbox
 							checked={settings.adjustPitch}
-							onChange={(v) => set("adjustPitch", v)}
-						/>
+							onChange={(e) => set("adjustPitch", e.target.checked)}
+						>
+							{t("Adjust pitch")}
+						</Checkbox>
 						{settings.adjustPitch && (
 							<NumberInput
 								label={t("Pitch deviation")}
@@ -289,11 +287,12 @@ export function SettingsPanel({
 								indent
 							/>
 						)}
-						<Check
-							label={t("Adjust zoom")}
+						<Checkbox
 							checked={settings.adjustZoom}
-							onChange={(v) => set("adjustZoom", v)}
-						/>
+							onChange={(e) => set("adjustZoom", e.target.checked)}
+						>
+							{t("Adjust zoom")}
+						</Checkbox>
 						{settings.adjustZoom && (
 							<NumberInput
 								label={t("Zoom level")}
@@ -305,11 +304,12 @@ export function SettingsPanel({
 								indent
 							/>
 						)}
-						<Check
-							label={t("Choose random date in time range")}
+						<Checkbox
 							checked={settings.randomInTimeline}
-							onChange={(v) => set("randomInTimeline", v)}
-						/>
+							onChange={(e) => set("randomInTimeline", e.target.checked)}
+						>
+							{t("Choose random date in time range")}
+						</Checkbox>
 					</>
 				)}
 			</Section>
@@ -351,11 +351,12 @@ export function SettingsPanel({
 						/>
 					</div>
 				)}
-				<Check
-					label={t("Only check one country/polygon at a time")}
+				<Checkbox
 					checked={settings.oneCountryAtATime}
-					onChange={(v) => set("oneCountryAtATime", v)}
-				/>
+					onChange={(e) => set("oneCountryAtATime", e.target.checked)}
+				>
+					{t("Only check one country/polygon at a time")}
+				</Checkbox>
 				{!settings.selectMonths && (
 					<div className="generator-settings__date-range">
 						<label className="generator-settings__date-label">
@@ -374,11 +375,12 @@ export function SettingsPanel({
 				)}
 				{!settings.rejectOfficial && (
 					<>
-						<Check
-							label={t("Filter by month")}
+						<Checkbox
 							checked={settings.selectMonths}
-							onChange={(v) => set("selectMonths", v)}
-						/>
+							onChange={(e) => set("selectMonths", e.target.checked)}
+						>
+							{t("Filter by month")}
+						</Checkbox>
 						{settings.selectMonths && (
 							<div className="generator-settings__indent">
 								<div className="generator-settings__date-range">
@@ -423,11 +425,12 @@ export function SettingsPanel({
 				)}
 				{!settings.rejectOfficial && (
 					<>
-						<Check
-							label={t("Filter by minimum distance from locations")}
+						<Checkbox
 							checked={settings.findRegions}
-							onChange={(v) => set("findRegions", v)}
-						/>
+							onChange={(e) => set("findRegions", e.target.checked)}
+						>
+							{t("Filter by minimum distance from locations")}
+						</Checkbox>
 						{settings.findRegions && (
 							<DistanceInput
 								base="km"
@@ -439,11 +442,12 @@ export function SettingsPanel({
 						)}
 					</>
 				)}
-				<Check
-					label={t("Skip near existing map locations")}
+				<Checkbox
 					checked={settings.skipExisting}
-					onChange={(v) => set("skipExisting", v)}
-				/>
+					onChange={(e) => set("skipExisting", e.target.checked)}
+				>
+					{t("Skip near existing map locations")}
+				</Checkbox>
 				{settings.skipExisting && (
 					<DistanceInput
 						base="m"
@@ -453,18 +457,20 @@ export function SettingsPanel({
 						indent
 					/>
 				)}
-				<Check
-					label={t("Check all dates")}
+				<Checkbox
 					checked={settings.checkAllDates}
-					onChange={(v) => set("checkAllDates", v)}
-				/>
+					onChange={(e) => set("checkAllDates", e.target.checked)}
+				>
+					{t("Check all dates")}
+				</Checkbox>
 			</Section>
 			<Section title={t("Advanced filters")} defaultOpen={false}>
-				<Check
-					label={t("Search in panorama description")}
+				<Checkbox
 					checked={settings.searchInDescription}
-					onChange={(v) => set("searchInDescription", v)}
-				/>
+					onChange={(e) => set("searchInDescription", e.target.checked)}
+				>
+					{t("Search in panorama description")}
+				</Checkbox>
 				{settings.searchInDescription && (
 					<div className="generator-settings__indent generator-settings__desc-search">
 						<div className="generator-settings__desc-search-row">
@@ -498,11 +504,12 @@ export function SettingsPanel({
 						/>
 					</div>
 				)}
-				<Check
-					label={t("Filter by number of links")}
+				<Checkbox
 					checked={settings.filterByLinks}
-					onChange={(v) => set("filterByLinks", v)}
-				/>
+					onChange={(e) => set("filterByLinks", e.target.checked)}
+				>
+					{t("Filter by number of links")}
+				</Checkbox>
 				{settings.filterByLinks && (
 					<div className="generator-settings__indent generator-settings__date-range">
 						<NumberInput
@@ -521,11 +528,12 @@ export function SettingsPanel({
 						/>
 					</div>
 				)}
-				<Check
-					label={t("Find curves")}
+				<Checkbox
 					checked={settings.findCurves}
-					onChange={(v) => set("findCurves", v)}
-				/>
+					onChange={(e) => set("findCurves", e.target.checked)}
+				>
+					{t("Find curves")}
+				</Checkbox>
 				{settings.findCurves && (
 					<NumberInput
 						label={t("Min curve angle")}

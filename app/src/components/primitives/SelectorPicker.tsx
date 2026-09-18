@@ -19,36 +19,30 @@ export function SelectorPicker({
 	const savedMissing = choice.pick === "saved" && !saved.some((s) => s.id === choice.id);
 	return (
 		<div className={`selector-picker${className ? ` ${className}` : ""}`}>
-			<label className="selector-picker__option">
-				<Radio
-					name={name}
-					checked={choice.pick === "all"}
-					onChange={() => setChoice({ pick: "all" })}
-				/>
-				{t("All locations ({n})", { n: allCount })}
-			</label>
-			<label
-				className="selector-picker__option"
-				style={!hasSelection ? { opacity: 0.5 } : undefined}
+			<Radio
+				name={name}
+				checked={choice.pick === "all"}
+				onChange={() => setChoice({ pick: "all" })}
 			>
-				<Radio
-					name={name}
-					checked={choice.pick === "selection"}
-					disabled={!hasSelection}
-					onChange={() => setChoice({ pick: "selection" })}
-				/>
+				{t("All locations ({n})", { n: allCount })}
+			</Radio>
+			<Radio
+				name={name}
+				checked={choice.pick === "selection"}
+				disabled={!hasSelection}
+				onChange={() => setChoice({ pick: "selection" })}
+			>
 				{t("Current selection ({n})", { n: selectionCount })}
-			</label>
+			</Radio>
 			{saved.length > 0 && (
-				<div className="selector-picker__option">
-					<label className="selector-picker__option">
-						<Radio
-							name={name}
-							checked={choice.pick === "saved"}
-							onChange={() => setChoice({ pick: "saved", id: saved[0].id })}
-						/>
+				<div className="selector-picker__saved">
+					<Radio
+						name={name}
+						checked={choice.pick === "saved"}
+						onChange={() => setChoice({ pick: "saved", id: saved[0].id })}
+					>
 						{t("Saved")}
-					</label>
+					</Radio>
 					<NSelect
 						value={choice.pick === "saved" ? choice.id : ""}
 						onChange={(e) => setChoice({ pick: "saved", id: e.target.value })}

@@ -979,13 +979,13 @@ function MapListBlock() {
 				{t("Fields shown on each map row (labels are always shown)")}
 			</p>
 			{Object.entries(MAP_LIST_FIELDS).map(([value, label]) => (
-				<label key={value} className="settings-checkbox-item">
-					<Checkbox
-						checked={fields.includes(value as MapListField)}
-						onChange={() => toggle(value as MapListField)}
-					/>
+				<Checkbox
+					key={value}
+					checked={fields.includes(value as MapListField)}
+					onChange={() => toggle(value as MapListField)}
+				>
 					{t(label)}
-				</label>
+				</Checkbox>
 			))}
 		</Aux>
 	);

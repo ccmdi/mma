@@ -34,7 +34,7 @@ describe("SelectorPicker", () => {
 	it("disables and dims the selection option when nothing is selected", () => {
 		const html = renderToStaticMarkup(<SelectorPicker ctl={ctl({ selectionCount: 0 })} />);
 		expect(html).toMatch(/disabled=""/);
-		expect(html).toMatch(/opacity:0\.5/);
+		expect(html).toMatch(/aria-disabled="true"/);
 	});
 
 	it("renders formatted counts", () => {

@@ -286,11 +286,9 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 							<span>{t("Low")}</span>
 							<span>{t("High")}</span>
 						</div>
-						<label className="gradient-sidebar__check">
-							<Checkbox checked={reversed} onChange={(e) => setReversed(e.target.checked)} />
-
+						<Checkbox checked={reversed} onChange={(e) => setReversed(e.target.checked)}>
 							{t("Reverse")}
-						</label>
+						</Checkbox>
 					</Field>
 
 					<div className="gradient-sidebar__apply-row">

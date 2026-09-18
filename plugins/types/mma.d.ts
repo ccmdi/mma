@@ -5537,7 +5537,15 @@ declare function Button({ variant, small, type, className, ...props }: Component
     small?: boolean;
 }): react.JSX.Element;
 
-declare function Checkbox({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
+export interface ChoiceLabelProps {
+    /** Text shown beside the control. Clicking the text acts like clicking the control. */
+    children?: ReactNode;
+    /** Secondary text shown under the label. */
+    hint?: ReactNode;
+}
+
+/** A checkbox, with its label and hint beside it when given. */
+declare function Checkbox({ className, children, hint, ...props }: Omit<ComponentPropsWithRef<"input">, "children"> & ChoiceLabelProps): react.JSX.Element;
 
 /** A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced. @unstable */
 declare function RgbPicker({ color, onChange }: {
@@ -5739,7 +5747,8 @@ declare function ProgressRow({ label, count, value, size, className, children, }
     children?: ReactNode;
 }): react.JSX.Element;
 
-declare function Radio({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
+/** A radio button, with its label and hint beside it when given. */
+declare function Radio({ className, children, hint, ...props }: Omit<ComponentPropsWithRef<"input">, "children"> & ChoiceLabelProps): react.JSX.Element;
 
 declare function SelectorPicker({ ctl, className, }: {
     ctl: SelectorPickController;

@@ -109,11 +109,14 @@ export function ImportSidebar() {
 					<span className="import-sidebar__label">{t("Fields")}</span>
 					<div className="importer__fields">
 						{sortedFields.map((f) => (
-							<label key={f.key} className="importer__field">
-								<Checkbox checked={!droppedFields.has(f.key)} onChange={() => toggleField(f.key)} />
-								{f.key.startsWith("extra.") ? f.key.slice(6) : f.key}
-								<small className="mono">({fmt.format(f.count)})</small>
-							</label>
+							<Checkbox
+								key={f.key}
+								checked={!droppedFields.has(f.key)}
+								onChange={() => toggleField(f.key)}
+							>
+								{f.key.startsWith("extra.") ? f.key.slice(6) : f.key}{" "}
+								<span className="mono text-muted">({fmt.format(f.count)})</span>
+							</Checkbox>
 						))}
 					</div>
 				</div>
@@ -179,10 +182,9 @@ export function ImportSidebar() {
 				confirmLabel={t("Import and commit")}
 				onConfirm={proceedAutoCommit}
 			>
-				<label className="import-sidebar__ack">
-					<Checkbox checked={dontWarnAgain} onChange={(e) => setDontWarnAgain(e.target.checked)} />
+				<Checkbox checked={dontWarnAgain} onChange={(e) => setDontWarnAgain(e.target.checked)}>
 					{t("Don't warn me again")}
-				</label>
+				</Checkbox>
 			</ConfirmDialog>
 		</section>
 	);
