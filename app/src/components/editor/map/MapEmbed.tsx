@@ -557,9 +557,7 @@ export function MapEmbed({
 				</Dialog>
 			)}
 			<ContextMenu.Trigger render={<span ref={contextTriggerRef} title={t("Context menu")} />} />
-			<ContextMenu.Portal>
-				<MapContextMenuContent />
-			</ContextMenu.Portal>
+			<MapContextMenuContent />
 		</ContextMenu.Root>
 	);
 }

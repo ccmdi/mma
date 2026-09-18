@@ -43,6 +43,7 @@ import type { Tag, VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";
+import { MenuPopup, MenuItem } from "@/components/primitives/Menu";
 
 type DropTarget = { path: string; position: "before" | "after" | "into" };
 
@@ -670,36 +671,22 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 					}
 				/>
 				{node.tag ? (
-					<ContextMenu.Portal>
-						<TagContextMenuContent
-							tagId={node.tag!.id}
-							totalCount={sumCounts(node, tagCounts)}
-							onRename={() => onRenameTag({ id: node.tag!.id, name: node.tag!.name })}
-							onAddAlias={() => onAddAlias({ id: node.tag!.id, name: node.tag!.name })}
-							onNewSubfolder={() => onNewFolder(node.fullPath)}
-						/>
-					</ContextMenu.Portal>
+					<TagContextMenuContent
+						tagId={node.tag!.id}
+						totalCount={sumCounts(node, tagCounts)}
+						onRename={() => onRenameTag({ id: node.tag!.id, name: node.tag!.name })}
+						onAddAlias={() => onAddAlias({ id: node.tag!.id, name: node.tag!.name })}
+						onNewSubfolder={() => onNewFolder(node.fullPath)}
+					/>
 				) : (
-					<ContextMenu.Portal>
-						<ContextMenu.Positioner className="menu-positioner">
-							<ContextMenu.Popup className="context-menu popover-surface">
-								<ContextMenu.Item
-									className="context-menu__item"
-									onClick={() => onNewFolder(node.fullPath)}
-								>
-									{t("New subfolder...")}
-								</ContextMenu.Item>
-								{node.descendantTagIds.length === 0 && (
-									<ContextMenu.Item
-										className="context-menu__item"
-										onClick={() => onDeleteFolder(node.fullPath)}
-									>
-										{t("Delete folder")}
-									</ContextMenu.Item>
-								)}
-							</ContextMenu.Popup>
-						</ContextMenu.Positioner>
-					</ContextMenu.Portal>
+					<MenuPopup>
+						<MenuItem onClick={() => onNewFolder(node.fullPath)}>{t("New subfolder...")}</MenuItem>
+						{node.descendantTagIds.length === 0 && (
+							<MenuItem tone="destructive" onClick={() => onDeleteFolder(node.fullPath)}>
+								{t("Delete folder")}
+							</MenuItem>
+						)}
+					</MenuPopup>
 				)}
 			</ContextMenu.Root>
 			{hasChildren && isOpen && (
@@ -887,15 +874,13 @@ const TagTreeLeaf = memo(function TagTreeLeaf({
 					/>
 				}
 			/>
-			<ContextMenu.Portal>
-				<TagContextMenuContent
-					tagId={tag.id}
-					totalCount={count}
-					onRename={() => onRenameTag({ id: tag.id, name: tag.name })}
-					onAddAlias={node.isAlias ? undefined : () => onAddAlias({ id: tag.id, name: tag.name })}
-					onRemoveAlias={node.isAlias ? () => onRemoveAlias(node.fullPath) : undefined}
-				/>
-			</ContextMenu.Portal>
+			<TagContextMenuContent
+				tagId={tag.id}
+				totalCount={count}
+				onRename={() => onRenameTag({ id: tag.id, name: tag.name })}
+				onAddAlias={node.isAlias ? undefined : () => onAddAlias({ id: tag.id, name: tag.name })}
+				onRemoveAlias={node.isAlias ? () => onRemoveAlias(node.fullPath) : undefined}
+			/>
 		</ContextMenu.Root>
 	);
 });

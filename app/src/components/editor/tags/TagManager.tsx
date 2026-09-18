@@ -8,7 +8,6 @@ import {
 	startTransition,
 } from "react";
 import { HslColorPicker } from "react-colorful";
-import { ContextMenu } from "@base-ui-components/react/context-menu";
 import {
 	countIn,
 	currentSelection,
@@ -60,6 +59,7 @@ import {
 } from "./tagTreeRange";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
+import { MenuPopup, MenuItem } from "@/components/primitives/Menu";
 
 /** `order` rides the optimistic overlay only; persisted order goes through `reorderTags`. */
 type OptimisticTagPatch = TagPatch & { order?: number };
@@ -421,56 +421,43 @@ export function TagContextMenuContent({
 	const inSel = selCount ?? 0;
 
 	return (
-		<ContextMenu.Positioner className="menu-positioner">
-			<ContextMenu.Popup className="context-menu popover-surface">
-				<ContextMenu.Item
-					className="context-menu__item"
-					onClick={() => void removeTagFromAllLocations(tagId)}
-				>
-					{t(
-						{ one: "Remove from all ({n} location)", other: "Remove from all ({n} locations)" },
-						{ n: totalCount },
-					)}
-				</ContextMenu.Item>
-				<ContextMenu.Item
-					className="context-menu__item"
-					disabled={inSel === 0}
-					onClick={() => void removeTagFromLocations(tagId, [...getMapState().selectedLocationIds])}
-				>
-					{t(
-						{
-							one: "Remove from selection ({n} location)",
-							other: "Remove from selection ({n} locations)",
-						},
-						{ n: inSel },
-					)}
-				</ContextMenu.Item>
-				<ContextMenu.Item className="context-menu__item" disabled={inSel === 0} onClick={onRename}>
-					{t(
-						{
-							one: "Rename in selection ({n} location)",
-							other: "Rename in selection ({n} locations)",
-						},
-						{ n: inSel },
-					)}
-				</ContextMenu.Item>
-				{onAddAlias && (
-					<ContextMenu.Item className="context-menu__item" onClick={onAddAlias}>
-						{t("Add alias...")}
-					</ContextMenu.Item>
+		<MenuPopup>
+			<MenuItem tone="destructive" onClick={() => void removeTagFromAllLocations(tagId)}>
+				{t(
+					{ one: "Remove from all ({n} location)", other: "Remove from all ({n} locations)" },
+					{ n: totalCount },
 				)}
-				{onNewSubfolder && (
-					<ContextMenu.Item className="context-menu__item" onClick={onNewSubfolder}>
-						{t("New subfolder...")}
-					</ContextMenu.Item>
+			</MenuItem>
+			<MenuItem
+				tone="destructive"
+				disabled={inSel === 0}
+				onClick={() => void removeTagFromLocations(tagId, [...getMapState().selectedLocationIds])}
+			>
+				{t(
+					{
+						one: "Remove from selection ({n} location)",
+						other: "Remove from selection ({n} locations)",
+					},
+					{ n: inSel },
 				)}
-				{onRemoveAlias && (
-					<ContextMenu.Item className="context-menu__item" onClick={onRemoveAlias}>
-						{t("Remove alias")}
-					</ContextMenu.Item>
+			</MenuItem>
+			<MenuItem disabled={inSel === 0} onClick={onRename}>
+				{t(
+					{
+						one: "Rename in selection ({n} location)",
+						other: "Rename in selection ({n} locations)",
+					},
+					{ n: inSel },
 				)}
-			</ContextMenu.Popup>
-		</ContextMenu.Positioner>
+			</MenuItem>
+			{onAddAlias && <MenuItem onClick={onAddAlias}>{t("Add alias...")}</MenuItem>}
+			{onNewSubfolder && <MenuItem onClick={onNewSubfolder}>{t("New subfolder...")}</MenuItem>}
+			{onRemoveAlias && (
+				<MenuItem tone="destructive" onClick={onRemoveAlias}>
+					{t("Remove alias")}
+				</MenuItem>
+			)}
+		</MenuPopup>
 	);
 }
 

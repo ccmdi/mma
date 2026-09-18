@@ -53,6 +53,7 @@ import type { MapHost } from "@/lib/map/host";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
+import { MenuPopup, MenuItem, MenuSeparator } from "@/components/primitives/Menu";
 
 async function fitSelectionBounds(host: MapHost, selection: Selection) {
 	const box =
@@ -344,108 +345,85 @@ export const SelectionRow = memo(function SelectionRow({
 						<Menu.Trigger
 							render={<IconButton icon={mdiDotsVertical} label={t("Selection options")} />}
 						/>
-						<Menu.Portal>
-							<Menu.Positioner className="menu-positioner" align="end">
-								<Menu.Popup className="context-menu popover-surface">
-									{view === "color" ? (
-										<div style={{ padding: "0.5rem", width: "14rem" }}>
-											<RgbPicker color={selection.color} onChange={handleColorChange} />
-										</div>
-									) : (
+						<MenuPopup align="end">
+							{view === "color" ? (
+								<div style={{ padding: "0.5rem", width: "14rem" }}>
+									<RgbPicker color={selection.color} onChange={handleColorChange} />
+								</div>
+							) : (
+								<>
+									<MenuItem
+										onClick={() => void applySelectionUpdate(invertSelections([selection.key]))}
+									>
+										{t("Invert selection")}
+									</MenuItem>
+									{selection.selector.type === "Filter" && (
+										<MenuItem onClick={() => setEditingFilter(true)}>{t("Edit filter")}</MenuItem>
+									)}
+									<MenuItem
+										disabled={count === 0}
+										onClick={() =>
+											void (async () => {
+												const ids = await resolveIds(selection.selector);
+												void beginReview(ids, selection);
+											})()
+										}
+									>
+										{t("Review selection")}
+									</MenuItem>
+									{selection.selector.type !== "Tag" && (
+										<MenuItem
+											disabled={count === 0}
+											onClick={() => {
+												const names = new Set(getVisibleTags().map((t) => t.name));
+												setTagName(uniqueTagName(selectionDisplayName(selection), names));
+												setSavingTag(true);
+											}}
+										>
+											{t("Save as tag")}
+										</MenuItem>
+									)}
+									{pruneDistance(selection) != null && (
+										<MenuItem
+											disabled={count === 0}
+											onClick={() =>
+												void (async () => {
+													const n = await pruneDuplicates(
+														selection.selector,
+														pruneDistance(selection)!,
+													);
+													toast(
+														t(
+															{
+																one: "Pruned {n} duplicate",
+																other: "Pruned {n} duplicates",
+															},
+															{ n },
+														),
+													);
+												})()
+											}
+										>
+											{t("Prune duplicates")}
+										</MenuItem>
+									)}
+									{selection.selector.type !== "Tag" && (
+										<MenuItem closeOnClick={false} onClick={() => setView("color")}>
+											{t("Change color")}
+										</MenuItem>
+									)}
+									{isPoly && (
 										<>
-											<Menu.Item
-												className="context-menu__item"
-												onClick={() => void applySelectionUpdate(invertSelections([selection.key]))}
-											>
-												{t("Invert selection")}
-											</Menu.Item>
-											{selection.selector.type === "Filter" && (
-												<Menu.Item
-													className="context-menu__item"
-													onClick={() => setEditingFilter(true)}
-												>
-													{t("Edit filter")}
-												</Menu.Item>
-											)}
-											<Menu.Item
-												className="context-menu__item"
-												disabled={count === 0}
-												onClick={() =>
-													void (async () => {
-														const ids = await resolveIds(selection.selector);
-														void beginReview(ids, selection);
-													})()
-												}
-											>
-												{t("Review selection")}
-											</Menu.Item>
-											{selection.selector.type !== "Tag" && (
-												<Menu.Item
-													className="context-menu__item"
-													disabled={count === 0}
-													onClick={() => {
-														const names = new Set(getVisibleTags().map((t) => t.name));
-														setTagName(uniqueTagName(selectionDisplayName(selection), names));
-														setSavingTag(true);
-													}}
-												>
-													{t("Save as tag")}
-												</Menu.Item>
-											)}
-											{pruneDistance(selection) != null && (
-												<Menu.Item
-													className="context-menu__item"
-													disabled={count === 0}
-													onClick={() =>
-														void (async () => {
-															const n = await pruneDuplicates(
-																selection.selector,
-																pruneDistance(selection)!,
-															);
-															toast(
-																t(
-																	{
-																		one: "Pruned {n} duplicate",
-																		other: "Pruned {n} duplicates",
-																	},
-																	{ n },
-																),
-															);
-														})()
-													}
-												>
-													{t("Prune duplicates")}
-												</Menu.Item>
-											)}
-											{selection.selector.type !== "Tag" && (
-												<Menu.Item
-													className="context-menu__item"
-													closeOnClick={false}
-													onClick={() => setView("color")}
-												>
-													{t("Change color")}
-												</Menu.Item>
-											)}
-											{isPoly && (
-												<>
-													<Menu.Separator className="context-menu__separator" />
-													<Menu.Item className="context-menu__item" onClick={handleDownloadGeoJSON}>
-														{t("Download GeoJSON")}
-													</Menu.Item>
-													<Menu.Item className="context-menu__item" onClick={handleRename}>
-														{t("Rename")}
-													</Menu.Item>
-												</>
-											)}
-											<Menu.Separator className="context-menu__separator" />
-											<Menu.Item className="context-menu__item" onClick={onRemove}>
-												{t("Deselect")}
-											</Menu.Item>
+											<MenuSeparator />
+											<MenuItem onClick={handleDownloadGeoJSON}>{t("Download GeoJSON")}</MenuItem>
+											<MenuItem onClick={handleRename}>{t("Rename")}</MenuItem>
 										</>
 									)}
-								</Menu.Popup>
-							</Menu.Positioner>
-						</Menu.Portal>
+									<MenuSeparator />
+									<MenuItem onClick={onRemove}>{t("Deselect")}</MenuItem>
+								</>
+							)}
+						</MenuPopup>
 					</Menu.Root>
 					{isTopLevel && (
 						<IconButton

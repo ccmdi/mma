@@ -17,6 +17,7 @@ import { ContextMenu } from "@base-ui-components/react/context-menu";
 import { toggleInSet } from "@/lib/util/util";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
+import { MenuPopup, MenuItem, MenuSeparator } from "@/components/primitives/Menu";
 
 export interface PanelDef {
 	render: (onClose: () => void) => ReactNode;
@@ -109,18 +110,11 @@ export function PinnedToolbar({
 										/>
 									}
 								/>
-								<ContextMenu.Portal>
-									<ContextMenu.Positioner className="menu-positioner">
-										<ContextMenu.Popup className="context-menu popover-surface">
-											<ContextMenu.Item
-												className="context-menu__item"
-												onClick={() => removePinnedAt(i)}
-											>
-												{t("Remove separator")}
-											</ContextMenu.Item>
-										</ContextMenu.Popup>
-									</ContextMenu.Positioner>
-								</ContextMenu.Portal>
+								<MenuPopup>
+									<MenuItem tone="destructive" onClick={() => removePinnedAt(i)}>
+										{t("Remove separator")}
+									</MenuItem>
+								</MenuPopup>
 							</ContextMenu.Root>
 						);
 					}
@@ -170,48 +164,25 @@ export function PinnedToolbar({
 							<Tooltip content={t(command.label)} side="bottom">
 								<ContextMenu.Trigger render={btn} />
 							</Tooltip>
-							<ContextMenu.Portal>
-								<ContextMenu.Positioner className="menu-positioner">
-									<ContextMenu.Popup className="context-menu popover-surface">
-										{!isFirst && (
-											<ContextMenu.Item
-												className="context-menu__item"
-												onClick={() => movePinnedCommand(i, -1)}
-											>
-												{t("Move left")}
-											</ContextMenu.Item>
-										)}
-										{!isLast && (
-											<ContextMenu.Item
-												className="context-menu__item"
-												onClick={() => movePinnedCommand(i, 1)}
-											>
-												{t("Move right")}
-											</ContextMenu.Item>
-										)}
-										<ContextMenu.Separator className="context-menu__separator" />
-										<ContextMenu.Item
-											className="context-menu__item"
-											onClick={() => insertSeparator(i, "before")}
-										>
-											{t("Add separator before")}
-										</ContextMenu.Item>
-										<ContextMenu.Item
-											className="context-menu__item"
-											onClick={() => insertSeparator(i, "after")}
-										>
-											{t("Add separator after")}
-										</ContextMenu.Item>
-										<ContextMenu.Separator className="context-menu__separator" />
-										<ContextMenu.Item
-											className="context-menu__item"
-											onClick={() => removePinnedAt(i)}
-										>
-											{t("Remove from toolbar")}
-										</ContextMenu.Item>
-									</ContextMenu.Popup>
-								</ContextMenu.Positioner>
-							</ContextMenu.Portal>
+							<MenuPopup>
+								{!isFirst && (
+									<MenuItem onClick={() => movePinnedCommand(i, -1)}>{t("Move left")}</MenuItem>
+								)}
+								{!isLast && (
+									<MenuItem onClick={() => movePinnedCommand(i, 1)}>{t("Move right")}</MenuItem>
+								)}
+								<MenuSeparator />
+								<MenuItem onClick={() => insertSeparator(i, "before")}>
+									{t("Add separator before")}
+								</MenuItem>
+								<MenuItem onClick={() => insertSeparator(i, "after")}>
+									{t("Add separator after")}
+								</MenuItem>
+								<MenuSeparator />
+								<MenuItem tone="destructive" onClick={() => removePinnedAt(i)}>
+									{t("Remove from toolbar")}
+								</MenuItem>
+							</MenuPopup>
 						</ContextMenu.Root>
 					);
 				})}
