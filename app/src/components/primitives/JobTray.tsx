@@ -57,7 +57,7 @@ export function JobTray() {
 					setPinned(!open);
 				}}
 			>
-				<div className="job-tray__pill-fill" style={{ width: `${Math.round(worst * 100)}%` }} />
+				<Bar value={worst} />
 				{visible.length > 1 && <span className="job-tray__count">{visible.length}</span>}
 			</button>
 			{open && (

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useEvent, SELECTION_EVENTS } from "@/lib/events";
 import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
+import { Bar } from "@/components/primitives/Bar";
 import type { Selection, ExtraFieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { rgbCss } from "@/lib/util/color";
@@ -97,9 +98,7 @@ function FieldRow({ field, colors }: { field: FieldDivergence; colors: RGB[] }) 
 				)}
 				<span className="disambig__score">{score !== null ? score.toFixed(2) : "-"}</span>
 			</div>
-			<div className="disambig__bar">
-				<div className="disambig__bar-fill" style={{ width: `${(score ?? 0) * 100}%` }} />
-			</div>
+			<Bar value={score ?? 0} size="md" className="disambig__bar" />
 			{field.coverageScore > 0.01 && (
 				<div className="disambig__muted">
 					{t("presence differs across groups (coverage {score})", {

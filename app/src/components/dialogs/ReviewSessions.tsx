@@ -3,6 +3,7 @@ import { Dialog, DialogContent, type DialogProps } from "@/components/primitives
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { EntryCard, EntryList } from "@/components/primitives/EntryList";
+import { Bar } from "@/components/primitives/Bar";
 import { mdiCheckCircleOutline, mdiCircleOutline, mdiPlay, mdiDelete } from "@mdi/js";
 import {
 	listSessions,
@@ -199,9 +200,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 											{t("Updated")} {relativeTime(s.updatedAt)}
 										</span>
 									</div>
-									<div className="review-sessions__bar">
-										<div className="review-sessions__bar-fill" style={{ width: `${pct}%` }} />
-									</div>
+									<Bar value={pct / 100} className="review-sessions__bar" />
 								</EntryCard>
 							);
 						})}

@@ -50,15 +50,7 @@
 	font-weight: 700;
 }
 .disambig__bar {
-	height: 6px;
-	border-radius: 3px;
-	background: var(--surface-3);
 	margin: 6px 0;
-	overflow: hidden;
-}
-.disambig__bar-fill {
-	height: 100%;
-	background: var(--accent);
 }
 .disambig__groups {
 	display: flex;

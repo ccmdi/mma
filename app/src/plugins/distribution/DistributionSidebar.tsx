@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Sidebar, SegmentedControl } from "@/components/primitives/Sidebar";
+import { ProgressRow } from "@/components/primitives/ProgressRow";
 import { cmd } from "@/lib/commands";
 import { countBy } from "@/store/useMapStore";
 import { getSettings } from "@/store/settings";
@@ -118,9 +119,13 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 
 			<div className="distribution-sidebar__list">
 				{entries.map((e) => (
-					<div key={e.code} className="distribution-row">
-						<div className="distribution-row__label">
-							<span className="distribution-row__name">
+					<ProgressRow
+						key={e.code}
+						size="md"
+						value={e.count / maxCount}
+						count={e.count}
+						label={
+							<>
 								<img
 									src={`/flags/${e.code.toUpperCase()}.svg`}
 									alt={e.code}
@@ -129,16 +134,9 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 									style={{ borderRadius: 2, flexShrink: 0 }}
 								/>
 								{e.name}
-							</span>
-							<span className="distribution-row__count">{e.count}</span>
-						</div>
-						<div className="distribution-row__bar-track">
-							<div
-								className="distribution-row__bar-fill"
-								style={{ width: `${(e.count / maxCount) * 100}%` }}
-							/>
-						</div>
-					</div>
+							</>
+						}
+					/>
 				))}
 			</div>
 		</Sidebar>

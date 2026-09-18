@@ -7,6 +7,7 @@ import { Dialog, DialogContent, type DialogProps } from "@/components/primitives
 import { Button } from "@/components/primitives/Button";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
+import { ProgressRow } from "@/components/primitives/ProgressRow";
 import { countryName, fmt, formatBytes } from "@/lib/util/format";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
@@ -234,27 +235,22 @@ export function ValiDownloadDialog({
 				/>
 
 				{progress && (
-					<div className="vali-download__progress">
-						<div className="vali-download__progress-label">
-							<span>
-								{progress.updates
-									? t("Updating {country}", { country: countryName(progress.country) })
-									: t("Downloading {country}", { country: countryName(progress.country) })}
-							</span>
-							<span className="mono">
+					<ProgressRow
+						className="vali-download__progress"
+						size="md"
+						value={progress.files > 0 ? progress.done / progress.files : 0}
+						label={
+							progress.updates
+								? t("Updating {country}", { country: countryName(progress.country) })
+								: t("Downloading {country}", { country: countryName(progress.country) })
+						}
+						count={
+							<>
 								{fmt.format(progress.done)} / {fmt.format(progress.files)} (
 								{formatBytes(progress.bytesDone)} / {formatBytes(progress.bytes)})
-							</span>
-						</div>
-						<div className="vali-download__bar-track">
-							<div
-								className="vali-download__bar-fill"
-								style={{
-									width: `${progress.files > 0 ? (progress.done / progress.files) * 100 : 0}%`,
-								}}
-							/>
-						</div>
-					</div>
+							</>
+						}
+					/>
 				)}
 
 				{result && <div className="vali-download__result">{result}</div>}

@@ -4,6 +4,7 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { Slider } from "@/components/primitives/Slider";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Button } from "@/components/primitives/Button";
+import { Bar } from "@/components/primitives/Bar";
 import { TextInput } from "@/components/primitives/TextInput";
 import {
 	SettingRow,
@@ -1083,8 +1084,8 @@ function UpdateBlock() {
 				)}
 				{update.phase === "downloading" && (
 					<div className="settings-aux__row">
-						<progress value={update.percent} max={100} style={{ flex: 1 }} />
-						<span>{update.percent}%</span>
+						<Bar value={update.percent / 100} size="md" />
+						<span className="mono">{update.percent}%</span>
 					</div>
 				)}
 				{update.phase === "ready" && (

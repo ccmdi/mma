@@ -31,19 +31,18 @@ async function recordProgress() {
 		const push = () => {
 			const root = document.querySelector(".modal__dialog");
 			if (!root) return;
-			const bar = root.querySelector(".bulk-operation__bar") as HTMLProgressElement | null;
+			const barValue = (el: Element | null) =>
+				el ? Number(el.getAttribute("aria-valuenow")) : null;
 			const rows = [...root.querySelectorAll(".bulk-operation__provider")].map((r) => ({
 				// The label element nests the live rate; the provider's name is its first text node.
-				label:
-					r.querySelector(".bulk-operation__provider-label")?.childNodes[0]?.textContent?.trim() ??
-					"",
-				bar: (r.querySelector(".bulk-operation__provider-bar") as HTMLProgressElement).value,
-				count: r.querySelector(".bulk-operation__provider-count")?.textContent ?? "",
+				label: r.querySelector(".progress-row__label")?.childNodes[0]?.textContent?.trim() ?? "",
+				bar: barValue(r.querySelector(".bar")) ?? 0,
+				count: r.querySelector(".progress-row__count")?.textContent ?? "",
 			}));
 			const next = {
 				status: root.querySelector(".bulk-operation__status")?.textContent ?? "",
 				meter: root.querySelector(".bulk-operation__meter")?.textContent ?? null,
-				bar: bar ? bar.value : null,
+				bar: barValue(root.querySelector(".bulk-operation > .bar")),
 				rows,
 			};
 			const seen = w.__bulkSamples!;

@@ -7,6 +7,8 @@ import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
+import { Bar } from "@/components/primitives/Bar";
+import { ProgressRow } from "@/components/primitives/ProgressRow";
 import {
 	applySelectionUpdate,
 	applyFieldOp,
@@ -1039,34 +1041,36 @@ export function BulkProgress({
 							const running = !p.finished && !waiting;
 							const provRate = providerRates.get(p.label);
 							return (
-								<div key={p.label} className="bulk-operation__provider">
-									<span className="bulk-operation__provider-label">
-										{t(p.label)}
-										{running && provRate != null && (
-											<span className="bulk-operation__provider-rate">
-												{t("{rate}/s", { rate: fmt.format(Math.round(provRate)) })}
-											</span>
-										)}
-									</span>
-									<span className="bulk-operation__provider-count">
-										{waiting && t("Waiting")}
-										{running && `${fmt.format(p.done)}/${fmt.format(p.total)}`}
-										{p.finished && t("Done")}
-										{p.failed > 0 && (
-											<>
-												{" · "}
-												<span className="bulk-operation__provider-failed">
-													{t({ one: "{n} failed", other: "{n} failed" }, { n: p.failed })}
+								<ProgressRow
+									key={p.label}
+									className="bulk-operation__provider"
+									value={p.total > 0 ? p.done / p.total : p.finished ? 1 : 0}
+									label={
+										<>
+											{t(p.label)}
+											{running && provRate != null && (
+												<span className="bulk-operation__provider-rate">
+													{t("{rate}/s", { rate: fmt.format(Math.round(provRate)) })}
 												</span>
-											</>
-										)}
-									</span>
-									<progress
-										className="bulk-operation__provider-bar"
-										value={p.total > 0 ? p.done / p.total : p.finished ? 1 : 0}
-										max={1}
-									/>
-								</div>
+											)}
+										</>
+									}
+									count={
+										<>
+											{waiting && t("Waiting")}
+											{running && `${fmt.format(p.done)}/${fmt.format(p.total)}`}
+											{p.finished && t("Done")}
+											{p.failed > 0 && (
+												<>
+													{" · "}
+													<span className="bulk-operation__provider-failed">
+														{t({ one: "{n} failed", other: "{n} failed" }, { n: p.failed })}
+													</span>
+												</>
+											)}
+										</>
+									}
+								/>
 							);
 						})}
 					</div>
@@ -1095,7 +1099,7 @@ export function BulkProgress({
 					})}
 				{status === "error" && t("Error: {error}", { error: error ?? "" })}
 			</div>
-			<progress className="bulk-operation__bar" value={progress} max={1} />
+			<Bar value={progress} size="md" />
 			<div className="bulk-operation__actions">
 				{status === "running" ? (
 					<>

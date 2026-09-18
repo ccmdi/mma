@@ -5,7 +5,7 @@ import { collectDiagnostics, engineRows, type Diagnostics } from "@/lib/diagnost
 import { useAsync } from "@/lib/hooks/useAsync";
 import { fmt, formatBytes, localeFormat } from "@/lib/util/format";
 import { Dialog, DialogContent } from "@/components/primitives/Dialog";
-import { Bar } from "@/components/primitives/Bar";
+import { ProgressRow } from "@/components/primitives/ProgressRow";
 import {
 	startFrameMeter,
 	stopFrameMeter,
@@ -124,19 +124,22 @@ function EngineSection({ activity }: { activity: ProcedureActivity | null }) {
 	return (
 		<>
 			{providers.map((p) => (
-				<div key={p.key} className="stats-nerds__job">
-					<div className="stats-nerds__job-head">
-						<span className="stats-nerds__job-label">{t(p.label)}</span>
-						<span className="mono">
+				<ProgressRow
+					key={p.key}
+					className="stats-nerds__job"
+					label={t(p.label)}
+					value={p.fraction}
+					count={
+						<>
 							{fmt.format(p.done)} / {fmt.format(p.total)}
 							<span className="text-muted">
 								{p.failed > 0 && t({ one: ", {n} failed", other: ", {n} failed" }, { n: p.failed })}
 								{p.skipped > 0 &&
 									t({ one: ", {n} skipped", other: ", {n} skipped" }, { n: p.skipped })}
 							</span>
-						</span>
-					</div>
-					<Bar value={p.fraction} className="stats-nerds__bar" />
+						</>
+					}
+				>
 					<div className="stats-nerds__job-net mono">
 						{t(
 							"{inflight} / {limit} in flight, {waiting} rate-waiting, {retries} retries, {instances} instances",
@@ -149,7 +152,7 @@ function EngineSection({ activity }: { activity: ProcedureActivity | null }) {
 							},
 						)}
 					</div>
-				</div>
+				</ProgressRow>
 			))}
 			{queries.map((q) => (
 				<div key={q.entry} className="stats-nerds__job">
