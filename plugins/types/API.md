@@ -2075,8 +2075,15 @@ A boxed message that informs, warns, reports an error or confirms a success.
 `unstable` · since v0.10.0
 
 ```ts
-ui.NSelect(props: ComponentPropsWithRef<"select">): react.JSX.Element
+ui.NSelect(
+  props: ComponentPropsWithRef<"select"> & {
+    compact?: boolean;
+    limited?: boolean;
+  },
+): react.JSX.Element
 ```
+
+A dropdown. `compact` shrinks it to fit its value; `limited` caps the height of its option list.
 
 #### ui.ProgressRow
 
@@ -2173,11 +2180,15 @@ ui.SegmentedControl<T extends string | number>(props: {
   options: SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
+  role?: "tabs" | "radio";
+  fill?: boolean;
   className?: string;
 }): react.JSX.Element
 ```
 
-Row of mutually exclusive option buttons (a compact radio group).
+Row of mutually exclusive option buttons. `role` is `"tabs"` when the options switch between
+panels and `"radio"` (the default) when they pick a value; `fill` stretches the options to
+equal widths across the row.
 
 #### ui.SelectorPicker
 

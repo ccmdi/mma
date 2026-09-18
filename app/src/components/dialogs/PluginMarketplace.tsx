@@ -404,7 +404,9 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Plugins")} className="plugin-marketplace" size="xl">
 				<SegmentedControl
-					className="segmented--fill plugin-marketplace__tabs"
+					role="tabs"
+					fill
+					className="plugin-marketplace__tabs"
 					options={[
 						{ value: "core", label: t("Core") },
 						{ value: "additional", label: t("Additional") },

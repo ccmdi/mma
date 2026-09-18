@@ -483,7 +483,7 @@ export function SettingsPanel({
 								]}
 							/>
 							<NSelect
-								className="nselect--compact"
+								compact
 								value={settings.searchMode}
 								onChange={(e) =>
 									set("searchMode", e.target.value as GeneratorSettings["searchMode"])

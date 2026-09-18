@@ -168,7 +168,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 					<SelectorPicker ctl={picker} />
 					<div style={{ display: "flex", gap: "0.5rem" }}>
 						<NSelect
-							className="nselect--compact"
+							compact
 							value={field}
 							onChange={(e) => handleFieldChange(e.target.value)}
 							style={{ flex: 1 }}
@@ -183,7 +183,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 						</NSelect>
 						{field && projOptions.length > 1 && (
 							<NSelect
-								className="nselect--compact"
+								compact
 								value={projectionId}
 								onChange={(e) => setProjectionId(e.target.value)}
 							>

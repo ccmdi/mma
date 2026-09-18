@@ -1,5 +1,7 @@
-import { useState, type ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
+import { Collapsible } from "@base-ui-components/react/collapsible";
 import { Hint } from "@/components/primitives/Hint";
+import clsx from "clsx";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiArrowLeft, mdiChevronDown, mdiChevronRight } from "@mdi/js";
 import { t } from "@/lib/i18n";
@@ -48,24 +50,37 @@ export function Section({
 	addons?: ReactNode;
 	children: ReactNode;
 }) {
-	const [open, setOpen] = useState(defaultOpen);
-	const show = collapsible ? open : true;
+	const addonSlot = addons && <span className="plugin-section__addons">{addons}</span>;
+	if (!collapsible) {
+		return (
+			<div className="plugin-section">
+				<header className="plugin-section__header">
+					<span className="plugin-section__title">{title}</span>
+					{addonSlot}
+				</header>
+				<div className="plugin-section__body">{children}</div>
+			</div>
+		);
+	}
 	return (
-		<div className={`plugin-section${collapsible ? " plugin-section--collapsible" : ""}`}>
-			<header
-				className="plugin-section__header"
-				onClick={collapsible ? () => setOpen((o) => !o) : undefined}
-			>
-				{collapsible && (
-					<span className="plugin-section__chevron">
-						<Icon path={open ? mdiChevronDown : mdiChevronRight} size={16} />
-					</span>
-				)}
-				<span className="plugin-section__title">{title}</span>
-				{addons && <span className="plugin-section__addons">{addons}</span>}
-			</header>
-			{show && <div className="plugin-section__body">{children}</div>}
-		</div>
+		<Collapsible.Root
+			defaultOpen={defaultOpen}
+			className="plugin-section plugin-section--collapsible"
+			render={(props, state) => (
+				<div {...props}>
+					<header className="plugin-section__header">
+						<Collapsible.Trigger className="plugin-section__trigger">
+							<span className="plugin-section__chevron">
+								<Icon path={state.open ? mdiChevronDown : mdiChevronRight} size={16} />
+							</span>
+							<span className="plugin-section__title">{title}</span>
+						</Collapsible.Trigger>
+						{addonSlot}
+					</header>
+					<Collapsible.Panel className="plugin-section__body">{children}</Collapsible.Panel>
+				</div>
+			)}
+		/>
 	);
 }
 
@@ -97,34 +112,67 @@ export interface SegmentedOption<T extends string | number> {
 	title?: string;
 }
 
-/** Row of mutually exclusive option buttons (a compact radio group). */
+/** Row of mutually exclusive option buttons. `role` is `"tabs"` when the options switch between
+ *  panels and `"radio"` (the default) when they pick a value; `fill` stretches the options to
+ *  equal widths across the row. */
 export function SegmentedControl<T extends string | number>({
 	options,
 	value,
 	onChange,
+	role = "radio",
+	fill,
 	className,
 }: {
 	options: SegmentedOption<T>[];
 	value: T;
 	onChange: (value: T) => void;
+	role?: "tabs" | "radio";
+	fill?: boolean;
 	className?: string;
 }) {
+	const tabs = role === "tabs";
+	const step = (e: KeyboardEvent<HTMLDivElement>) => {
+		const delta =
+			e.key === "ArrowRight" || e.key === "ArrowDown"
+				? 1
+				: e.key === "ArrowLeft" || e.key === "ArrowUp"
+					? -1
+					: 0;
+		if (!delta) return;
+		const enabled = options.filter((o) => !o.disabled);
+		const at = enabled.findIndex((o) => o.value === value);
+		const next = enabled[(at + delta + enabled.length) % enabled.length];
+		if (!next) return;
+		e.preventDefault();
+		onChange(next.value);
+		const buttons = e.currentTarget.querySelectorAll<HTMLButtonElement>(".segmented__option");
+		buttons[options.indexOf(next)]?.focus();
+	};
 	return (
-		<div className={`segmented${className ? ` ${className}` : ""}`} role="tablist">
-			{options.map((opt) => (
-				<button
-					key={String(opt.value)}
-					type="button"
-					role="tab"
-					aria-selected={opt.value === value}
-					className={`segmented__option${opt.value === value ? " is-active" : ""}`}
-					disabled={opt.disabled}
-					title={opt.title}
-					onClick={() => onChange(opt.value)}
-				>
-					{opt.label}
-				</button>
-			))}
+		<div
+			className={clsx("segmented", fill && "segmented--fill", className)}
+			role={tabs ? "tablist" : "radiogroup"}
+			onKeyDown={step}
+		>
+			{options.map((opt) => {
+				const selected = opt.value === value;
+				return (
+					<button
+						key={String(opt.value)}
+						type="button"
+						role={tabs ? "tab" : "radio"}
+						aria-selected={tabs ? selected : undefined}
+						aria-checked={tabs ? undefined : selected}
+						tabIndex={selected ? 0 : -1}
+						className={clsx("segmented__option", selected && "is-active")}
+						disabled={opt.disabled}
+						title={opt.title}
+						onClick={() => onChange(opt.value)}
+					>
+						{opt.label}
+					</button>
+				);
+			})}
 		</div>
 	);
 }

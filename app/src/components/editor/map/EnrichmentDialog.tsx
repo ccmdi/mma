@@ -146,7 +146,9 @@ export function EnrichmentButton() {
 			/>
 			<DialogContent title={t("Enrichment")} className="enrichment-modal" size="lg">
 				<SegmentedControl
-					className="segmented--fill enrichment-modal__tabs"
+					role="tabs"
+					fill
+					className="enrichment-modal__tabs"
 					options={TABS.map((o) => ({ value: o.value, label: t(o.label) }))}
 					value={tab}
 					onChange={setTab}

@@ -82,7 +82,9 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Review sessions")} size="lg">
 				<SegmentedControl
-					className="segmented--fill review-sessions__tabs"
+					role="tabs"
+					fill
+					className="review-sessions__tabs"
 					options={[
 						{ value: "active", label: t("In progress") },
 						{ value: "done", label: t("Completed") },

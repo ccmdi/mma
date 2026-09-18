@@ -135,7 +135,7 @@ function SettingSelect<K extends keyof AppSettings>({
 	const value = useSetting(setting);
 	return (
 		<NSelect
-			className="nselect--compact"
+			compact
 			value={value as string}
 			onChange={(e) => setSetting(setting, e.target.value as AppSettings[K])}
 		>
@@ -791,7 +791,7 @@ function BorderDetailGroup() {
 					label={t("Country data")}
 					control={
 						<NSelect
-							className="nselect--compact"
+							compact
 							value={s.borderDetail}
 							onChange={(e) => void handleChange(e.target.value as BorderDetail)}
 							disabled={downloading !== null}
@@ -814,7 +814,7 @@ function BorderDetailGroup() {
 					label={t("Subdivision data")}
 					control={
 						<NSelect
-							className="nselect--compact"
+							compact
 							value={s.subdivisionDetail}
 							onChange={(e) => void handleSubdivisionChange(e.target.value as SubdivisionDetail)}
 							disabled={downloading !== null}
@@ -1085,7 +1085,7 @@ function LanguageRow() {
 			description={t("Restarts the app")}
 			control={
 				<NSelect
-					className="nselect--compact"
+					compact
 					value={value}
 					onChange={(e) => {
 						setSetting("language", e.target.value as Language);

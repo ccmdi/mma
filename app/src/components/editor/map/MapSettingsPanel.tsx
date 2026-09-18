@@ -210,7 +210,7 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					>
 						{t("Style:")}{" "}
 						<NSelect
-							className="nselect--limited"
+							limited
 							value={p.vectorStyleName}
 							onChange={(ev) => setPref("vectorStyleName")(ev.target.value)}
 							style={{ flex: 1 }}
@@ -229,7 +229,7 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					>
 						{t("Style:")}{" "}
 						<NSelect
-							className="nselect--limited"
+							limited
 							value={p.mapStyleName}
 							disabled={!e.supportsStyling}
 							onChange={(ev) => setPref("mapStyleName")(ev.target.value)}
@@ -414,7 +414,7 @@ export function MapSettingsDropdown({
 							<label className="settings-popup__item settings-popup__select">
 								{t("Direction:")}{" "}
 								<NSelect
-									className="nselect--compact"
+									compact
 									value={preferDirection ?? ""}
 									onChange={(e) => setPreferDirection(e.target.value || null)}
 								>
@@ -473,7 +473,7 @@ export function MapSettingsDropdown({
 						<label className="settings-popup__item settings-popup__select">
 							{t("Marker style:")}{" "}
 							<NSelect
-								className="nselect--compact"
+								compact
 								value={p.markerStyle}
 								onChange={(e) => setPref("markerStyle")(e.target.value as MarkerStyle)}
 							>

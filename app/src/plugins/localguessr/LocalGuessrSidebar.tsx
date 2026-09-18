@@ -164,6 +164,7 @@ function PastGamesModal({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Past games")} className="lg-history" size="lg">
 				<SegmentedControl
+					role="tabs"
 					className="lg-history__tabs"
 					value={tab}
 					onChange={setTab}

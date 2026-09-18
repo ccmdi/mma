@@ -763,6 +763,7 @@ summary.button {
 .radio:focus-visible,
 .switch:focus-visible,
 .segmented__option:focus-visible,
+.plugin-section__trigger:focus-visible,
 input[type="range"]:focus-visible {
 	outline: var(--focus-ring);
 	outline-offset: var(--focus-offset);
@@ -6003,6 +6004,21 @@ body:has([data-plugin-overlay]) .map-meta {
 
 .plugin-section--collapsible > .plugin-section__header:hover {
 	background: var(--hover);
+}
+
+.plugin-section__trigger {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	gap: 0.25rem;
+	min-width: 0;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
 }
 
 .plugin-section__chevron {

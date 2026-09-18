@@ -5739,8 +5739,12 @@ declare function IconButton({ icon, label, size, active, reveal, overlay, toolti
     children?: ReactNode;
 }): react.JSX.Element;
 
-/** @unstable */
-declare function NSelect({ className, onWheel, ...props }: ComponentPropsWithRef<"select">): react.JSX.Element;
+/** A dropdown. `compact` shrinks it to fit its value; `limited` caps the height of its option list.
+ *  @unstable */
+declare function NSelect({ className, compact, limited, onWheel, ...props }: ComponentPropsWithRef<"select"> & {
+    compact?: boolean;
+    limited?: boolean;
+}): react.JSX.Element;
 
 /** A progress bar under its label and count, with any extra detail below it. */
 declare function ProgressRow({ label, count, value, size, className, children, }: {
@@ -5825,11 +5829,15 @@ export interface SegmentedOption<T extends string | number> {
     disabled?: boolean;
     title?: string;
 }
-/** Row of mutually exclusive option buttons (a compact radio group). */
-declare function SegmentedControl<T extends string | number>({ options, value, onChange, className, }: {
+/** Row of mutually exclusive option buttons. `role` is `"tabs"` when the options switch between
+ *  panels and `"radio"` (the default) when they pick a value; `fill` stretches the options to
+ *  equal widths across the row. */
+declare function SegmentedControl<T extends string | number>({ options, value, onChange, role, fill, className, }: {
     options: SegmentedOption<T>[];
     value: T;
     onChange: (value: T) => void;
+    role?: "tabs" | "radio";
+    fill?: boolean;
     className?: string;
 }): react.JSX.Element;
 
