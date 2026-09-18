@@ -90,16 +90,6 @@ export function Field({
 	);
 }
 
-/** Centered icon + message for empty panels. */
-export function EmptyState({ icon, children }: { icon?: string; children: ReactNode }) {
-	return (
-		<div className="plugin-empty">
-			{icon && <Icon path={icon} size={28} className="plugin-empty__icon" />}
-			<div>{children}</div>
-		</div>
-	);
-}
-
 export interface SegmentedOption<T extends string | number> {
 	value: T;
 	label: ReactNode;

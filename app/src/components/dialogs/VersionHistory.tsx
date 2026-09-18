@@ -7,7 +7,7 @@ import {
 } from "@/components/primitives/Dialog";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { DiffCounts } from "@/components/primitives/DiffCounts";
-import { EmptyState } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { useMapState, checkoutCommit } from "@/store/useMapStore";
 import { beginCommitDiffPreview } from "@/store/commitDiff";
 import { cmd } from "@/lib/commands";

@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useEvent, SELECTION_EVENTS } from "@/lib/events";
-import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
+import { Sidebar } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { Bar } from "@/components/primitives/Bar";
 import { Notice } from "@/components/primitives/Hint";
 import { Spinner } from "@/components/primitives/Spinner";

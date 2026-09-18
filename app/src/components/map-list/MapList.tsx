@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { Notice } from "@/components/primitives/Hint";
 import {
 	useMapList,
@@ -54,7 +55,7 @@ import { useSetting, type MapListField } from "@/store/settings";
 import { labelColor, textColorFor } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { registerJob } from "@/lib/jobs";
-import { parseMapQuery, mapMatchesQuery, toggleLabelInQuery } from "./mapQuery";
+import { applyMapFilter, toggleLabelInQuery } from "./mapQuery";
 import { t, msg } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
@@ -794,26 +795,6 @@ function sortMaps(maps: MapMeta[], mode: SortMode): MapMeta[] {
 
 // --- Main ---
 
-function applyFilter(listEl: HTMLElement | null, query: string) {
-	if (!listEl) return;
-	const entries = listEl.querySelectorAll<HTMLElement>("[data-filter-name]");
-	const folders = listEl.querySelectorAll<HTMLElement>("[data-filter-folder]");
-	const q = parseMapQuery(query);
-	if (q.text.length === 0 && q.labels.length === 0) {
-		for (const el of entries) el.hidden = false;
-		for (const el of folders) el.hidden = false;
-	} else {
-		for (const el of entries) {
-			const labels = (el.dataset.filterLabels ?? "").split("\n").filter(Boolean);
-			el.hidden = !mapMatchesQuery(el.dataset.filterName!, labels, q);
-		}
-		for (const el of folders) {
-			const hasVisible = el.querySelector<HTMLElement>("[data-filter-name]:not([hidden])") !== null;
-			el.hidden = !hasVisible;
-		}
-	}
-}
-
 export function MapList() {
 	const maps = useMapList();
 	const [sortMode, setSortMode] = useLocalStorage<SortMode>("mapListSort", "name");
@@ -834,7 +815,7 @@ export function MapList() {
 	}, []);
 
 	useEffect(() => {
-		if (filterRef.current) applyFilter(listRef.current, filterRef.current);
+		if (filterRef.current) applyMapFilter(listRef.current, filterRef.current);
 	}, [maps]);
 
 	const grouped = useMemo(() => {
@@ -958,7 +939,7 @@ export function MapList() {
 						onChange={(e) => {
 							filterRef.current = e.target.value.toLowerCase();
 							setHasFilter(e.target.value.length > 0);
-							applyFilter(listRef.current, filterRef.current);
+							applyMapFilter(listRef.current, filterRef.current);
 						}}
 						onKeyDown={(e) => {
 							if (e.key !== "Enter") return;
@@ -1050,6 +1031,9 @@ export function MapList() {
 						/>
 					))}
 					{rootMaps.length === 0 && dragItem && <li>{t("drop map here to move out of folder")}</li>}
+					<li data-filter-no-match hidden>
+						<EmptyState compact>{t("No maps match")}</EmptyState>
+					</li>
 				</ul>
 			</section>
 			<section className="updates">

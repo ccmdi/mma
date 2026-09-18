@@ -4,7 +4,7 @@ import { mdiArrowRight, mdiChevronDown, mdiChevronRight, mdiClose, mdiFolder } f
 import { TagPill } from "@/components/primitives/TagPill";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Hint } from "@/components/primitives/Hint";
-import { EmptyState } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";

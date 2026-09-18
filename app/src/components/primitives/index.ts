@@ -38,14 +38,8 @@ export { ProgressRow } from "./ProgressRow";
 export { Radio } from "./Radio";
 export { SelectorPicker } from "./SelectorPicker";
 export { SettingRow } from "./SettingRow";
-export {
-	EmptyState,
-	Field,
-	SegmentedControl,
-	Section,
-	Sidebar,
-	type SegmentedOption,
-} from "./Sidebar";
+export { EmptyState } from "./EmptyState";
+export { Field, SegmentedControl, Section, Sidebar, type SegmentedOption } from "./Sidebar";
 export { Slider } from "./Slider";
 export { Spinner } from "./Spinner";
 export { SuggestInput } from "./SuggestInput";

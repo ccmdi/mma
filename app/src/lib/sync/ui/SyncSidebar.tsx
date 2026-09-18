@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { Sidebar, Section, Field, EmptyState } from "@/components/primitives/Sidebar";
+import { Sidebar, Section, Field } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { Notice } from "@/components/primitives/Hint";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Spinner } from "@/components/primitives/Spinner";

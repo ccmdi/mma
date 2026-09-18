@@ -5,7 +5,7 @@ import {
 	DialogContent,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
-import { EmptyState } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { previewDuplicateGroups, mergeDuplicates } from "@/store/useMapStore";
 import { toast } from "@/lib/util/toast";
 import { fmt, formatDistance } from "@/lib/util/format";

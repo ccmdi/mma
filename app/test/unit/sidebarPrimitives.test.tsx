@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SegmentedControl, Section, EmptyState } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
+import { SegmentedControl, Section } from "@/components/primitives/Sidebar";
 
 describe("SegmentedControl", () => {
 	it("marks exactly the selected option active", () => {
@@ -67,6 +68,6 @@ describe("EmptyState", () => {
 	it("renders its message", () => {
 		const html = renderToStaticMarkup(<EmptyState>nothing here</EmptyState>);
 		expect(html).toContain("nothing here");
-		expect(html).toContain("plugin-empty");
+		expect(html).toContain("empty-state");
 	});
 });

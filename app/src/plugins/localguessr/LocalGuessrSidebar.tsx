@@ -1,13 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { createPortal } from "react-dom";
 import { mdiDeleteOutline, mdiEarth, mdiHistory } from "@mdi/js";
-import {
-	Sidebar,
-	Section,
-	Field,
-	SegmentedControl,
-	EmptyState,
-} from "@/components/primitives/Sidebar";
+import { Sidebar, Section, Field, SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { Button } from "@/components/primitives/Button";
 import {

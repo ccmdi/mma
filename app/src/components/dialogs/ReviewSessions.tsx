@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
-import { EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
+import { SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";

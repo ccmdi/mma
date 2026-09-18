@@ -1955,11 +1955,13 @@ Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
 ```ts
 ui.EmptyState(props: {
   icon?: string;
+  compact?: boolean;
   children: ReactNode;
 }): react.JSX.Element
 ```
 
-Centered icon + message for empty panels.
+A message for a panel or list with nothing to show, with an optional icon. `compact` fits it
+inline in a list.
 
 #### ui.Field
 

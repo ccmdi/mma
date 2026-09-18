@@ -5787,6 +5787,14 @@ export type ControlRow = Base & {
 /** @unstable */
 declare function SettingRow(props: BoolRow | ControlRow | AutoBoolRow): react.JSX.Element | null;
 
+/** A message for a panel or list with nothing to show, with an optional icon. `compact` fits it
+ *  inline in a list. */
+declare function EmptyState({ icon, compact, children, }: {
+    icon?: string;
+    compact?: boolean;
+    children: ReactNode;
+}): react.JSX.Element;
+
 /** Standard right-hand sidebar chrome (title, back button, scrollable body). Use for plugin sidebars. */
 declare function Sidebar({ title, onBack, actions, className, flush, children, }: {
     title: ReactNode;
@@ -5809,11 +5817,6 @@ declare function Field({ label, hint, row, children, }: {
     label: ReactNode;
     hint?: ReactNode;
     row?: boolean;
-    children: ReactNode;
-}): react.JSX.Element;
-/** Centered icon + message for empty panels. */
-declare function EmptyState({ icon, children }: {
-    icon?: string;
     children: ReactNode;
 }): react.JSX.Element;
 export interface SegmentedOption<T extends string | number> {

@@ -5633,8 +5633,8 @@ body:has([data-plugin-overlay]) .map-meta {
 	font-size: 0.8rem;
 	flex-shrink: 0;
 }
-.seen-dialog__grid > .plugin-empty,
-.plugin-marketplace__grid > .plugin-empty {
+.seen-dialog__grid > .empty-state,
+.plugin-marketplace__grid > .empty-state {
 	grid-column: 1 / -1;
 }
 .seen-dialog__grid {
@@ -6105,19 +6105,23 @@ body:has([data-plugin-overlay]) .map-meta {
 	color: var(--text-2);
 }
 
-.plugin-empty {
+.empty-state {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	gap: 0.5rem;
 	padding: 1.5rem 0.75rem;
 	text-align: center;
-	font-size: 13px;
+	font-size: 0.8125rem;
 	color: var(--text-2);
 }
-
-.plugin-empty__icon {
-	opacity: 0.5;
+.empty-state__icon {
+	color: var(--text-3);
+}
+.empty-state--compact {
+	flex-direction: row;
+	padding: 0.5rem;
+	text-align: left;
 }
 
 .switch {

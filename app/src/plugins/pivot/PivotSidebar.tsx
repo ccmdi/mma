@@ -24,7 +24,8 @@ import {
 	resolveIds,
 } from "@/store/useMapStore";
 import { subscribe } from "@/lib/events";
-import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
+import { Sidebar, Field, SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import type { ExtraFieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";

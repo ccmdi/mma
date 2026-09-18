@@ -268,12 +268,6 @@
 	padding: 0.5rem;
 }
 
-.manual-search__empty {
-	padding: 0.75rem 1rem;
-	color: var(--text-2);
-	font-size: 0.9rem;
-}
-
 .manual-search__result {
 	display: flex;
 	flex-direction: column;

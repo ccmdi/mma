@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Sidebar, Field, EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
+import { Sidebar, Field, SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";

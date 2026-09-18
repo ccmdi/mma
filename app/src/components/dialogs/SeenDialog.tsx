@@ -6,7 +6,7 @@ import {
 	DialogContent,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
-import { EmptyState } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
 import { Flag } from "@/components/primitives/Flag";

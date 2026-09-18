@@ -9,7 +9,8 @@ import {
 import { Icon } from "@/components/primitives/Icon";
 import { Switch } from "@/components/primitives/Switch";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
-import { EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
+import { SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { Radio } from "@/components/primitives/Radio";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";

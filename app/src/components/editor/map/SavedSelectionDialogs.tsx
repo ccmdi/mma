@@ -20,7 +20,7 @@ import {
 } from "@/components/primitives/Dialog";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { Icon } from "@/components/primitives/Icon";
-import { EmptyState } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { mdiClose } from "@mdi/js";
 import { t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";

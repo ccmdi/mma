@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from "react";
 import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import { searchManual } from "@/components/manual/search";
 import type { DialogProps } from "@/components/primitives/Dialog";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { openManual } from "@/store/router";
 import "@/components/manual/manual.css";
 import { t } from "@/lib/i18n";
@@ -54,7 +55,7 @@ export function ManualSearch({ open, onOpenChange }: DialogProps) {
 						/>
 						<div className="command-palette__scroll manual-search__results">
 							{query.trim() && results.length === 0 && (
-								<div className="manual-search__empty">{t("No results.")}</div>
+								<EmptyState compact>{t("No results.")}</EmptyState>
 							)}
 							{results.map((r, i) => (
 								<button

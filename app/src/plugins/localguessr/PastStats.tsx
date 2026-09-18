@@ -1,5 +1,6 @@
 import { useMemo, useState, type PointerEvent, type ReactNode } from "react";
-import { EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
+import { SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState } from "@/components/primitives/EmptyState";
 import { Flag } from "@/components/primitives/Flag";
 import { Bar } from "@/components/primitives/Bar";
 import { countryName, dateTimeFmt, dayMonthFmt, fmt } from "@/lib/util/format";
