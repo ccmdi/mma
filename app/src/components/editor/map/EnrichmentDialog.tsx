@@ -34,6 +34,7 @@ import { msg, t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
 import { IconButton } from "@/components/primitives/IconButton";
+import { SearchInput } from "@/components/primitives/SearchInput";
 
 type Comparison = NonNullable<ExtraFieldDef["comparison"]>;
 const FIELD_TYPES: ExtraFieldDef["type"][] = ["string", "number", "date", "month", "enum", "array"];
@@ -334,8 +335,7 @@ function FieldsTab() {
 		<>
 			<div className="fields-pane">
 				<div className="fields-pane__list">
-					<TextInput
-						type="search"
+					<SearchInput
 						className="fields-pane__filter"
 						placeholder={t("Filter fields...")}
 						value={filter}

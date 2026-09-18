@@ -108,6 +108,7 @@ import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
 import { IconButton } from "@/components/primitives/IconButton";
 import { Kbd } from "@/components/primitives/Kbd";
+import { SearchInput } from "@/components/primitives/SearchInput";
 
 /** The translated labels of a select's options, so a search for a value ("tree") finds
  *  the row that offers it. */
@@ -346,8 +347,7 @@ function KeyboardBody() {
 		<>
 			<Aux>
 				<div className="settings-hotkey-filter">
-					<TextInput
-						type="text"
+					<SearchInput
 						placeholder={t("Filter shortcuts...")}
 						value={filter}
 						onChange={(e) => setFilter(e.target.value)}
@@ -1550,19 +1550,12 @@ export function SettingsPage({ open, onOpenChange }: DialogProps) {
 				initialFocus={searchRef}
 			>
 				<nav className="settings-rail">
-					<TextInput
+					<SearchInput
 						ref={searchRef}
-						type="text"
 						className="settings-rail__search"
 						placeholder={t("Search settings...")}
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Escape" && query) {
-								e.stopPropagation();
-								setQuery("");
-							}
-						}}
 					/>
 					<div className="settings-nav-list">
 						{SECTIONS.map((s) => (

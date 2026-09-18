@@ -13,6 +13,7 @@ import {
 import { openWindow } from "@/lib/window";
 import { log } from "@/lib/util/log";
 import { cmpVersion } from "@/lib/util/util";
+import { setInputValue } from "@/lib/util/dom";
 import { appVersion } from "@/lib/version";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { openDialog as openAppDialog } from "@/store/dialogBus";
@@ -40,7 +41,6 @@ import {
 	mdiTextSearch,
 	mdiFolderRemove,
 	mdiDragVertical,
-	mdiClose,
 	mdiImport,
 	mdiExport,
 } from "@mdi/js";
@@ -60,8 +60,8 @@ import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { fetchReleases, type Release } from "@/lib/util/updateCheck";
 import { Markdown } from "@/lib/util/markdown";
-import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
+import { SearchInput } from "@/components/primitives/SearchInput";
 
 // One character cell of the version readout. When its character changes it rolls
 // the old one out and the new one in, like a safe dial. Digits roll by value
@@ -825,21 +825,9 @@ export function MapList() {
 	const [hasFilter, setHasFilter] = useState(false);
 	const mapListFields = useSetting("mapListFields");
 
-	const clearFilter = useCallback(() => {
-		if (filterInputRef.current) filterInputRef.current.value = "";
-		filterRef.current = "";
-		setHasFilter(false);
-		applyFilter(listRef.current, "");
-		filterInputRef.current?.focus();
-	}, []);
-
 	const toggleLabelFilter = useCallback((label: string) => {
 		const input = filterInputRef.current;
-		if (!input) return;
-		input.value = toggleLabelInQuery(input.value, label);
-		filterRef.current = input.value.toLowerCase();
-		setHasFilter(input.value.length > 0);
-		applyFilter(listRef.current, filterRef.current);
+		if (input) setInputValue(input, toggleLabelInQuery(input.value, label));
 	}, []);
 
 	useEffect(() => {
@@ -961,69 +949,40 @@ export function MapList() {
 					>
 						<Icon path={mdiTextSearch} />
 					</span>
-					<span style={{ position: "relative", flexGrow: 1, display: "flex" }}>
-						<TextInput
-							defaultValue=""
-							ref={filterInputRef}
-							onChange={(e) => {
-								filterRef.current = e.target.value.toLowerCase();
-								setHasFilter(e.target.value.length > 0);
-								applyFilter(listRef.current, filterRef.current);
-							}}
-							onKeyDown={(e) => {
-								if (e.key === "Escape" && filterInputRef.current?.value) {
-									e.preventDefault();
-									clearFilter();
-									return;
-								}
-								if (e.key !== "Enter") return;
-								e.preventDefault();
-								const name = filterInputRef.current?.value.trim();
-								// Nameless input, nameless map.
-								if (!name) {
-									void openScratchMap();
-									return;
-								}
-								const entries = listRef.current?.querySelectorAll<HTMLElement>(
-									"[data-filter-name]:not([hidden])",
-								);
-								const exact = entries
-									? entries.values().find((el) => el.dataset.filterName === name.toLowerCase())
-									: undefined;
-								if (exact) {
-									exact.querySelector<HTMLAnchorElement>(".map-link")?.click();
-									return;
-								}
-								void createMap(name).then((m) =>
-									openWindow({ type: "editor", mapId: m.id }, m.name),
-								);
-							}}
-							type="text"
-							placeholder={t("Search maps...")}
-							title={t('Filter by name, or by label with label:name / label:"two words"')}
-							style={{ flexGrow: 1, paddingRight: hasFilter ? "1.75rem" : undefined }}
-							autoFocus
-						/>
-						{hasFilter && (
-							<IconButton
-								icon={mdiClose}
-								size={16}
-								label={t("Clear search")}
-								onClick={clearFilter}
-								style={{
-									position: "absolute",
-									right: "0.25rem",
-									top: "50%",
-									transform: "translateY(-50%)",
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "center",
-									lineHeight: 0,
-									padding: 2,
-								}}
-							/>
-						)}
-					</span>
+					<SearchInput
+						defaultValue=""
+						ref={filterInputRef}
+						onChange={(e) => {
+							filterRef.current = e.target.value.toLowerCase();
+							setHasFilter(e.target.value.length > 0);
+							applyFilter(listRef.current, filterRef.current);
+						}}
+						onKeyDown={(e) => {
+							if (e.key !== "Enter") return;
+							e.preventDefault();
+							const name = filterInputRef.current?.value.trim();
+							// Nameless input, nameless map.
+							if (!name) {
+								void openScratchMap();
+								return;
+							}
+							const entries = listRef.current?.querySelectorAll<HTMLElement>(
+								"[data-filter-name]:not([hidden])",
+							);
+							const exact = entries
+								? entries.values().find((el) => el.dataset.filterName === name.toLowerCase())
+								: undefined;
+							if (exact) {
+								exact.querySelector<HTMLAnchorElement>(".map-link")?.click();
+								return;
+							}
+							void createMap(name).then((m) => openWindow({ type: "editor", mapId: m.id }, m.name));
+						}}
+						placeholder={t("Search maps...")}
+						title={t('Filter by name, or by label with label:name / label:"two words"')}
+						style={{ flexGrow: 1 }}
+						autoFocus
+					/>
 					<NSelect
 						className="map-list__sort"
 						value={sortMode}

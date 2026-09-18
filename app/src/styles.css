@@ -819,6 +819,30 @@ input[type="range"]:focus-visible {
 	opacity: var(--disabled-opacity);
 	cursor: default;
 }
+.search-input {
+	position: relative;
+	display: inline-flex;
+	min-width: 0;
+}
+.search-input__field {
+	flex: 1;
+	min-width: 0;
+}
+.search-input__field--filled {
+	padding-right: 1.75rem;
+}
+.search-input__clear {
+	position: absolute;
+	top: 50%;
+	right: 0.25rem;
+	transform: translateY(-50%);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 0;
+	padding: 2px;
+	line-height: 0;
+}
 .kbd {
 	font-family: var(--font-mono);
 	font-size: 0.8em;

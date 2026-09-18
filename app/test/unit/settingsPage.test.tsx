@@ -54,7 +54,7 @@ const q = (sel: string) => document.querySelector(sel);
 const qa = (sel: string) => [...document.querySelectorAll(sel)];
 
 function search(text: string) {
-	const input = q(".settings-rail__search") as HTMLInputElement;
+	const input = q(".settings-rail__search input") as HTMLInputElement;
 	act(() => {
 		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.bind(
 			input,
@@ -90,7 +90,7 @@ describe("settings search", () => {
 
 	it("focuses the search box when the dialog opens", async () => {
 		await mount();
-		expect(document.activeElement).toBe(q(".settings-rail__search"));
+		expect(document.activeElement).toBe(q(".settings-rail__search input"));
 	});
 
 	// "spawn" is a static binding; Command-backed ones (Undo, etc.) only register with a map open.

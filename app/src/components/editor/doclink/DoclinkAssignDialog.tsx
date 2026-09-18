@@ -36,6 +36,7 @@ import type { Tag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches as textMatches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";
+import { SearchInput } from "@/components/primitives/SearchInput";
 
 function docUrl(docId: string): string {
 	return `https://docs.google.com/document/d/${docId}/edit`;
@@ -423,7 +424,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 							<div className="doclink-assign__pane">
 								<div className="doclink-assign__pane-head">
 									<span className="doclink-assign__pane-title">{t("Tags")}</span>
-									<TextInput
+									<SearchInput
 										placeholder={t("Filter tags...")}
 										value={tagFilter}
 										onChange={(e) => setTagFilter(e.target.value)}
@@ -447,7 +448,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 									<span className="doclink-assign__pane-title">
 										{outline?.title ?? t("Document")}
 									</span>
-									<TextInput
+									<SearchInput
 										placeholder={t("Filter headings...")}
 										value={headingFilter}
 										onChange={(e) => setHeadingFilter(e.target.value)}

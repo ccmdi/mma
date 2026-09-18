@@ -9,7 +9,6 @@ import {
 import { EmptyState } from "@/components/primitives/Sidebar";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
-import { TextInput } from "@/components/primitives/TextInput";
 import { Flag } from "@/components/primitives/Flag";
 import {
 	getSeenEntries,
@@ -21,6 +20,7 @@ import {
 import { dayMonthFmt } from "@/lib/util/format";
 import { getLocale, t } from "@/lib/i18n";
 import type { SeenEntry, SeenFilter } from "@/bindings.gen";
+import { SearchInput } from "@/components/primitives/SearchInput";
 
 const PAGE_SIZE = 9;
 
@@ -169,9 +169,8 @@ export function SeenDialog({
 							</option>
 						))}
 					</NSelect>
-					<TextInput
+					<SearchInput
 						className="seen-dialog__search"
-						type="text"
 						placeholder={t("Search address...")}
 						value={filterSearch}
 						onChange={(e) => handleSearchInput(e.target.value)}

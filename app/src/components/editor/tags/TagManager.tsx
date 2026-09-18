@@ -60,6 +60,7 @@ import {
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { MenuPopup, MenuItem } from "@/components/primitives/Menu";
+import { SearchInput } from "@/components/primitives/SearchInput";
 
 /** `order` rides the optimistic overlay only; persisted order goes through `reorderTags`. */
 type OptimisticTagPatch = TagPatch & { order?: number };
@@ -229,7 +230,7 @@ export function TagManager() {
 				}
 				addons={
 					<>
-						<TextInput
+						<SearchInput
 							placeholder={t("Filter tags...")}
 							value={filterText}
 							onChange={(e) => setFilterText(e.target.value)}

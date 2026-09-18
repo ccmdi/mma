@@ -254,7 +254,7 @@
 	padding: 0.5rem;
 	border-bottom: 1px solid var(--border-subtle);
 }
-.doclink-assign__pane-head .text-input {
+.doclink-assign__pane-head .search-input {
 	flex: 1;
 	min-width: 0;
 }
