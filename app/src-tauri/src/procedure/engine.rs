@@ -444,12 +444,15 @@ fn runs() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
     R.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-fn register_run() -> AppResult<(u32, Arc<AtomicBool>)> {
+fn next_run_id() -> u32 {
     static NEXT: AtomicU32 = AtomicU32::new(1);
-    let id = NEXT.fetch_add(1, Ordering::Relaxed);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
+fn register_run(run_id: u32) -> AppResult<Arc<AtomicBool>> {
     let cancel = Arc::new(AtomicBool::new(false));
-    runs().lock()?.insert(id, cancel.clone());
-    Ok((id, cancel))
+    runs().lock()?.insert(run_id, cancel.clone());
+    Ok(cancel)
 }
 
 fn unregister_run(run_id: u32) {
@@ -1950,7 +1953,8 @@ pub async fn procedure_run(
     force: bool,
 ) -> AppResult<u32> {
     let map_id = state.lock()?.map_id_for_window(&label.0)?;
-    let (run_id, cancel) = register_run()?;
+    let run_id = next_run_id();
+    let cancel = register_run(run_id)?;
     task::spawn_blocking(move || {
         let Some(app) = crate::app_handle() else {
             log::error!("[procedure] no app handle; run {run_id} aborted");
@@ -1982,19 +1986,19 @@ pub struct RowsRun {
 }
 
 /// Run providers over caller-supplied `rows` and return them as modified. Does not
-/// affect the open map. `cancel` is a token for `procedureQueryCancel`.
+/// affect the open map. A `runId` from `procedureReserveRun` streams results under it and
+/// lets `procedureCancel` stop the run.
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_run_rows(
     providers: Vec<ProviderDecl>,
     force: bool,
     rows: Vec<Location>,
-    cancel: Option<u32>,
+    run_id: Option<u32>,
 ) -> AppResult<RowsRun> {
-    let flag = Arc::new(AtomicBool::new(false));
-    if let Some(token) = cancel {
-        query_tokens().lock()?.insert(token, flag.clone());
-    }
+    let streams = run_id.is_some();
+    let run_id = run_id.unwrap_or_else(next_run_id);
+    let flag = register_run(run_id)?;
     let out = task::spawn_blocking(move || {
         let deps = EngineDeps::production();
         let rows = Arc::new(RunRows::given(rows));
@@ -2010,17 +2014,12 @@ pub async fn procedure_run_rows(
                         .or_default()
                         .extend(r.failed.iter().copied());
                 }
-                // The internal run id never reaches the caller; the cancel token is the
-                // name they know the run by, so streamed pages travel under it.
-                if let Some(token) = cancel {
-                    if !r.entries.is_empty() {
-                        crate::emit_event(ProcedureResult { run_id: token, ..r });
-                    }
+                if streams && !r.entries.is_empty() {
+                    crate::emit_event(r);
                 }
             }))
         };
         let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
-        let (run_id, _) = register_run()?;
         run_all(
             &rows, &providers, force, run_id, &flag, &deps, &progress, &results,
         );
@@ -2033,9 +2032,6 @@ pub async fn procedure_run_rows(
     })
     .await
     .map_err(|e| AppError(format!("procedure run panicked: {e}")))?;
-    if let Some(token) = cancel {
-        query_tokens().lock()?.remove(&token);
-    }
     out
 }
 
@@ -2049,11 +2045,12 @@ pub async fn procedure_cancel(run_id: u32) -> AppResult<()> {
     Ok(())
 }
 
-/// Cancel flags for queries in flight, keyed by the token the caller chose. A query
-/// answers only when it is over, so the caller has to name it up front to cancel it.
-fn query_tokens() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
-    static T: OnceLock<Mutex<HashMap<u32, Arc<AtomicBool>>>> = OnceLock::new();
-    T.get_or_init(|| Mutex::new(HashMap::new()))
+/// Reserve a run id up front, for a query or row run that answers only when it is over:
+/// its streamed results carry the id, and `procedureCancel` stops it.
+#[tauri::command]
+#[specta::specta]
+pub async fn procedure_reserve_run() -> u32 {
+    next_run_id()
 }
 
 /// Partial pages leave through their own thread: a delivery that blocks must never
@@ -2077,25 +2074,24 @@ fn partial_emitter() -> &'static mpsc::Sender<ProcedureResult> {
 }
 
 /// Run a procedure's read-only `query` export. `input` and the result are defined
-/// by the procedure module. `cancel` is a token for `procedureQueryCancel`.
+/// by the procedure module. A `runId` from `procedureReserveRun` streams partial results
+/// under it and lets `procedureCancel` stop the query.
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_query(
     procedure: ProcedureDecl,
     input: String,
-    cancel: Option<u32>,
+    run_id: Option<u32>,
 ) -> AppResult<String> {
-    let flag = Arc::new(AtomicBool::new(false));
-    if let Some(token) = cancel {
-        query_tokens().lock()?.insert(token, flag.clone());
-    }
+    let flag = match run_id {
+        Some(id) => register_run(id)?,
+        None => Arc::new(AtomicBool::new(false)),
+    };
     let out = task::spawn_blocking(move || {
         let deps = EngineDeps::production();
-        // The caller knows the query by its cancel token, so partial pages travel
-        // under it; an anonymous query has nowhere to stream.
-        let partials = cancel.map(|token| {
+        let partials = run_id.map(|id| {
             Arc::new(Partials::new(
-                token,
+                id,
                 procedure.entry.clone(),
                 Box::new(|page| {
                     let _ = partial_emitter().send(page);
@@ -2111,22 +2107,10 @@ pub async fn procedure_query(
         )
     })
     .await;
-    if let Some(token) = cancel {
-        if let Ok(mut m) = query_tokens().lock() {
-            m.remove(&token);
-        }
+    if let Some(id) = run_id {
+        unregister_run(id);
     }
     out?
-}
-
-/// Cancel a running procedure query by its `cancel` token.
-#[tauri::command]
-#[specta::specta]
-pub async fn procedure_query_cancel(cancel: u32) -> AppResult<()> {
-    if let Some(flag) = query_tokens().lock()?.get(&cancel) {
-        flag.store(true, Ordering::Relaxed);
-    }
-    Ok(())
 }
 
 /// Everything the procedure engine has in flight at one instant.

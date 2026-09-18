@@ -2791,3 +2791,13 @@ fn a_cancelled_run_leaves_nothing_reported() {
         "a cancelled run stayed registered"
     );
 }
+
+#[test]
+fn a_reserved_run_id_is_never_handed_out_again_and_cancels_like_any_run() {
+    let reserved = tauri::async_runtime::block_on(procedure_reserve_run());
+    assert_ne!(next_run_id(), reserved);
+    let cancel = register_run(reserved).unwrap();
+    tauri::async_runtime::block_on(procedure_cancel(reserved)).unwrap();
+    assert!(cancel.load(Ordering::Relaxed));
+    unregister_run(reserved);
+}

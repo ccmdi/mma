@@ -504,18 +504,23 @@ export const commands = {
 	procedureRun: (providers: ProviderDecl[], force: boolean) => __TAURI_INVOKE<number>("procedure_run", { providers, force }),
 	/**
 	 *  Run providers over caller-supplied `rows` and return them as modified. Does not
-	 *  affect the open map. `cancel` is a token for `procedureQueryCancel`.
+	 *  affect the open map. A `runId` from `procedureReserveRun` streams results under it and
+	 *  lets `procedureCancel` stop the run.
 	 */
-	procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], cancel: number | null) => __TAURI_INVOKE<RowsRun>("procedure_run_rows", { providers, force, rows: rows.map(i=>i), cancel }).then((v) => (({...v,rows:v.rows.map(i=>i)}) as typeof v)),
+	procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], runId: number | null) => __TAURI_INVOKE<RowsRun>("procedure_run_rows", { providers, force, rows: rows.map(i=>i), runId }).then((v) => (({...v,rows:v.rows.map(i=>i)}) as typeof v)),
 	/**  Stop a run before its next batch. Already-applied patches stay applied. */
 	procedureCancel: (runId: number) => __TAURI_INVOKE<null>("procedure_cancel", { runId }),
 	/**
 	 *  Run a procedure's read-only `query` export. `input` and the result are defined
-	 *  by the procedure module. `cancel` is a token for `procedureQueryCancel`.
+	 *  by the procedure module. A `runId` from `procedureReserveRun` streams partial results
+	 *  under it and lets `procedureCancel` stop the query.
 	 */
-	procedureQuery: (procedure: ProcedureDecl, input: string, cancel: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, cancel }),
-	/**  Cancel a running procedure query by its `cancel` token. */
-	procedureQueryCancel: (cancel: number) => __TAURI_INVOKE<null>("procedure_query_cancel", { cancel }),
+	procedureQuery: (procedure: ProcedureDecl, input: string, runId: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, runId }),
+	/**
+	 *  Reserve a run id up front, for a query or row run that answers only when it is over:
+	 *  its streamed results carry the id, and `procedureCancel` stops it.
+	 */
+	procedureReserveRun: () => __TAURI_INVOKE<number>("procedure_reserve_run"),
 	/**  What the procedure engine is working on right now. */
 	procedureActivity: () => __TAURI_INVOKE<ProcedureActivity>("procedure_activity"),
 };

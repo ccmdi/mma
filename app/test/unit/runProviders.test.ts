@@ -34,6 +34,7 @@ const h = vi.hoisted(() => ({
 	}[],
 	rowRuns: [] as { ids: number[]; force: boolean; cancel: number | null }[],
 	cancelled: [] as number[],
+	reservedRuns: [] as number[],
 	queryAnswer: ((input: string) => Promise.resolve(input)) as (i: string) => Promise<string>,
 	rowRunHook: null as ((cancel: number) => void) | null,
 	fieldOps: [] as { selector: Selector; op: unknown }[],
@@ -132,7 +133,15 @@ vi.mock("@/lib/commands", () => ({
 			});
 			return Promise.resolve(7);
 		},
-		procedureCancel: () => Promise.resolve(),
+		procedureCancel: (runId: number) => {
+			h.cancelled.push(runId);
+			return Promise.resolve();
+		},
+		procedureReserveRun: () => {
+			const runId = 100 + h.reservedRuns.length;
+			h.reservedRuns.push(runId);
+			return Promise.resolve(runId);
+		},
 		procedureRunRows: async (
 			decls: typeof h.decls,
 			force: boolean,
@@ -154,10 +163,6 @@ vi.mock("@/lib/commands", () => ({
 		) => {
 			h.queries.push({ procedure, input, cancel });
 			return h.queryAnswer(input);
-		},
-		procedureQueryCancel: (cancel: number) => {
-			h.cancelled.push(cancel);
-			return Promise.resolve();
 		},
 	},
 }));
@@ -208,6 +213,7 @@ beforeEach(() => {
 	h.enrichFields = null;
 	h.queries = [];
 	h.cancelled = [];
+	h.reservedRuns = [];
 	h.answers = {};
 	h.failedIds = {};
 	h.queryAnswer = (input) => Promise.resolve(input);
@@ -467,7 +473,7 @@ describe("the query surface", () => {
 			{
 				procedure: expect.objectContaining({ entry: "res://q.js", config: null }) as unknown,
 				input: '{"op":"label"}',
-				cancel: expect.any(Number) as number,
+				cancel: null,
 			},
 		]);
 	});
@@ -487,25 +493,24 @@ describe("the query surface", () => {
 		});
 	});
 
-	it("names a query it can cancel, cancels it on abort, and rejects with the reason", async () => {
+	it("names a query by a run id the engine reserves, cancels it on abort, and rejects with the reason", async () => {
 		const ac = new AbortController();
 		let answer = () => {};
 		h.queryAnswer = () => new Promise<string>((resolve) => (answer = () => resolve("[]")));
 		const pending = queryProcedure(Q, { op: "at" }, ac.signal);
-		await Promise.resolve();
-		const token = h.queries[0].cancel;
-		expect(token).not.toBeNull();
+		await vi.waitFor(() => expect(h.queries).toHaveLength(1));
+		expect(h.queries[0].cancel).toBe(h.reservedRuns[0]);
 		ac.abort();
-		expect(h.cancelled).toEqual([token]);
+		expect(h.cancelled).toEqual([h.reservedRuns[0]]);
 		answer();
 		await expect(pending).rejects.toMatchObject({ name: "AbortError" });
 	});
 
-	it("a call without a signal is still named, and nothing cancels it", async () => {
+	it("a call with nothing to cancel or stream reserves no run id", async () => {
 		h.queryAnswer = () => Promise.resolve("[]");
 		await queryProcedure(Q, { op: "at" });
-		expect(h.queries[0].cancel).toEqual(expect.any(Number));
-		expect(h.cancelled).toEqual([]);
+		expect(h.queries[0].cancel).toBeNull();
+		expect(h.reservedRuns).toEqual([]);
 	});
 
 	it("asks the field's provider for display labels", async () => {
@@ -788,9 +793,7 @@ describe("runProviders over rows handed in", () => {
 			{ ...createLocation({ lat: 3, lng: 4 }), id: 42 },
 		];
 		const out = await runProviders([{ provider: svMetaProvider }], rows);
-		expect(h.rowRuns).toEqual([
-			{ ids: [1, 2], force: false, cancel: expect.any(Number) as number },
-		]);
+		expect(h.rowRuns).toEqual([{ ids: [1, 2], force: false, cancel: null }]);
 		expect(h.decls.map((d) => d.select)).toEqual([{ type: "Everything" }]);
 		expect(out.rows.map((r) => r.id)).toEqual([-3, 42]);
 		expect(out.rows[0].extra).toEqual({ keep: 1, ran: true });

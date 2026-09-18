@@ -1819,15 +1819,8 @@ ui.DialogContent(
 `unstable` · since v0.10.0
 
 ```ts
-ui.DialogTrigger<Payload>(
-  componentProps: DialogTriggerProps<Payload> & React.RefAttributes<HTMLElement>,
-): React.JSX.Element
+ui.DialogTrigger: Dialog$1.Trigger
 ```
-
-A button that opens the dialog.
-Renders a `<button>` element.
-
-Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
 
 #### ui.EmptyState
 
@@ -5050,22 +5043,24 @@ Stop a run before its next batch. Already-applied patches stay applied.
 cmd.procedureQuery(
   procedure: ProcedureDecl,
   input: string,
-  cancel: number | null,
+  runId: number | null,
 ): Promise<string>
 ```
 
 Run a procedure's read-only `query` export. `input` and the result are defined
-by the procedure module. `cancel` is a token for `procedureQueryCancel`.
+by the procedure module. A `runId` from `procedureReserveRun` streams partial results
+under it and lets `procedureCancel` stop the query.
 
-#### cmd.procedureQueryCancel
+#### cmd.procedureReserveRun
 
-`unstable` · since v0.10.0
+`unstable` · unreleased
 
 ```ts
-cmd.procedureQueryCancel(cancel: number): Promise<null>
+cmd.procedureReserveRun(): Promise<number>
 ```
 
-Cancel a running procedure query by its `cancel` token.
+Reserve a run id up front, for a query or row run that answers only when it is over:
+its streamed results carry the id, and `procedureCancel` stops it.
 
 #### cmd.procedureRun
 
@@ -5087,12 +5082,13 @@ cmd.procedureRunRows(
   providers: ProviderDecl[],
   force: boolean,
   rows: Location[],
-  cancel: number | null,
+  runId: number | null,
 ): Promise<RowsRun>
 ```
 
 Run providers over caller-supplied `rows` and return them as modified. Does not
-affect the open map. `cancel` is a token for `procedureQueryCancel`.
+affect the open map. A `runId` from `procedureReserveRun` streams results under it and
+lets `procedureCancel` stop the run.
 
 #### cmd.readFile
 
@@ -6383,14 +6379,8 @@ dialog: { open: typeof open; save: typeof save }
 `unstable` · since v0.3.1
 
 ```ts
-invoke<T>(
-  cmd: string,
-  args?: InvokeArgs,
-  options?: InvokeOptions,
-): Promise<T>
+invoke: any
 ```
-
-Sends a message to the backend.
 
 ### shell
 

@@ -36,14 +36,14 @@ export async function queryProcedure<T = unknown, P = unknown>(
 	onPartial?: (entries: { id: number; value: P }[]) => void,
 ): Promise<T> {
 	let unlisten: (() => void) | undefined;
-	const raw = await cancellable(signal, async (token) => {
+	const raw = await cancellable(signal, !!onPartial, async (runId) => {
 		if (onPartial) {
 			unlisten = await events.procedureResult.listen(({ payload }) => {
-				if (payload.runId !== token || payload.entries.length === 0) return;
+				if (payload.runId !== runId || payload.entries.length === 0) return;
 				onPartial(payload.entries.map((e) => ({ id: e.id, value: JSON.parse(e.json) as P })));
 			});
 		}
-		return cmd.procedureQuery(procedureDecl(spec, spec.config), JSON.stringify(input), token);
+		return cmd.procedureQuery(procedureDecl(spec, spec.config), JSON.stringify(input), runId);
 	}).finally(() => unlisten?.());
 	return JSON.parse(raw) as T;
 }
@@ -60,29 +60,30 @@ function procedureDecl(spec: ProcedureSpec, config: unknown): ProcedureDecl {
 	};
 }
 
-/** An engine call that answers only when it is over, so it is named up front to be
- *  cancellable: the token reaches the engine through `procedureQueryCancel` when
- *  `signal` aborts, and the call rejects with the signal's reason. */
+/** An engine call that answers only when it is over, so when it streams or can be
+ *  aborted it reserves its run id up front: the id tells its streamed results apart and
+ *  cancels it when `signal` aborts, and the call rejects with the signal's reason. */
 async function cancellable<T>(
 	signal: AbortSignal | undefined,
-	call: (token: number) => Promise<T>,
+	streams: boolean,
+	call: (runId: number | null) => Promise<T>,
 ): Promise<T> {
 	signal?.throwIfAborted();
-	const token = nextQueryToken++;
+	if (!signal && !streams) return call(null);
+	const runId = await cmd.procedureReserveRun();
 	const onAbort = () => {
-		void cmd.procedureQueryCancel(token);
+		void cmd.procedureCancel(runId);
 	};
 	signal?.addEventListener("abort", onAbort);
 	try {
-		const out = await call(token);
+		signal?.throwIfAborted();
+		const out = await call(runId);
 		signal?.throwIfAborted();
 		return out;
 	} finally {
 		signal?.removeEventListener("abort", onAbort);
 	}
 }
-
-let nextQueryToken = 1;
 
 /** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
  *  become locale month names; otherwise falls back to the keys themselves when the field's
@@ -228,16 +229,16 @@ async function runRows(decls: ProviderDecl[], rows: Location[], opts: RunOpts): 
 	const standIns = rows.map((r, i) => ({ ...r, id: i + 1 }));
 	const idOf = (standIn: number) => rows[standIn - 1].id;
 	let unlisten: (() => void) | undefined;
-	const out = await cancellable(opts.signal, async (token) => {
+	const out = await cancellable(opts.signal, !!opts.onPartial, async (runId) => {
 		if (opts.onPartial) {
 			unlisten = await events.procedureResult.listen(({ payload }) => {
-				if (payload.runId !== token || payload.entries.length === 0) return;
+				if (payload.runId !== runId || payload.entries.length === 0) return;
 				opts.onPartial!(
 					payload.entries.map((e) => ({ ...(JSON.parse(e.json) as Location), id: idOf(e.id) })),
 				);
 			});
 		}
-		return cmd.procedureRunRows(decls, opts.force ?? false, standIns, token);
+		return cmd.procedureRunRows(decls, opts.force ?? false, standIns, runId);
 	}).finally(() => unlisten?.());
 	return {
 		rows: out.rows.map((r) => ({ ...r, id: idOf(r.id) })),

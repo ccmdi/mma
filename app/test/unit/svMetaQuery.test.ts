@@ -112,7 +112,7 @@ describe("svMetadata", () => {
 				inflight: GET_METADATA_INFLIGHT,
 			}),
 			JSON.stringify({ op: "metadata", panoIds: ["pA"] }),
-			expect.any(Number),
+			null,
 		);
 		// Plain JSON, not a live opensv object: no accessors, no Dates.
 		expect(data).toEqual(ANSWER);

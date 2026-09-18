@@ -1000,20 +1000,26 @@ declare const commands$1: {
     procedureRun: (providers: ProviderDecl[], force: boolean) => Promise<number>;
     /**
      *  Run providers over caller-supplied `rows` and return them as modified. Does not
-     *  affect the open map. `cancel` is a token for `procedureQueryCancel`.
+     *  affect the open map. A `runId` from `procedureReserveRun` streams results under it and
+     *  lets `procedureCancel` stop the run.
      *  @unstable
      */
-    procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], cancel: number | null) => Promise<RowsRun>;
+    procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], runId: number | null) => Promise<RowsRun>;
     /**  Stop a run before its next batch. Already-applied patches stay applied. @unstable */
     procedureCancel: (runId: number) => Promise<null>;
     /**
      *  Run a procedure's read-only `query` export. `input` and the result are defined
-     *  by the procedure module. `cancel` is a token for `procedureQueryCancel`.
+     *  by the procedure module. A `runId` from `procedureReserveRun` streams partial results
+     *  under it and lets `procedureCancel` stop the query.
      *  @unstable
      */
-    procedureQuery: (procedure: ProcedureDecl, input: string, cancel: number | null) => Promise<string>;
-    /**  Cancel a running procedure query by its `cancel` token. @unstable */
-    procedureQueryCancel: (cancel: number) => Promise<null>;
+    procedureQuery: (procedure: ProcedureDecl, input: string, runId: number | null) => Promise<string>;
+    /**
+     *  Reserve a run id up front, for a query or row run that answers only when it is over:
+     *  its streamed results carry the id, and `procedureCancel` stops it.
+     *  @unstable
+     */
+    procedureReserveRun: () => Promise<number>;
     /**  What the procedure engine is working on right now. @unstable */
     procedureActivity: () => Promise<ProcedureActivity>;
 };
