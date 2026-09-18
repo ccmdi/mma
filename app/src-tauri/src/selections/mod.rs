@@ -16,6 +16,7 @@ use arrow_array::{Array, Float64Array, ListArray, RecordBatch, StringArray, UInt
 mod duplicates;
 mod filter;
 mod geometry;
+mod neighborhood;
 mod partition;
 pub use duplicates::*;
 pub use filter::*;
