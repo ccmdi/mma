@@ -1,0 +1,27 @@
+.json-editor {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	font-size: 0.75rem;
+}
+.json-editor__meta {
+	color: var(--text-3);
+}
+.text-input.json-editor__text {
+	width: 100%;
+	min-height: 160px;
+	padding: 8px;
+	font-family: var(--font-mono);
+	font-size: 0.75rem;
+}
+.json-editor__error {
+	color: var(--destructive-text);
+}
+.json-editor__actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.json-editor__saved {
+	color: var(--constructive);
+}

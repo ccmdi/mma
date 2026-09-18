@@ -5,6 +5,7 @@ import { locDate } from "@/lib/util/format";
 import { errText } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { Button } from "@/components/primitives/Button";
+import "./jsonEditor.css";
 
 function tagIdsToNames(tagIds: number[], tags: Record<string, Tag>): string[] {
 	return tagIds.map((id) => tags[id]?.name ?? String(id));
@@ -66,8 +67,8 @@ export function JsonEditorPanel() {
 	};
 
 	return (
-		<div style={{ fontSize: "12px" }}>
-			<div style={{ fontSize: "11px", opacity: 0.5, marginBottom: 4 }}>
+		<div className="json-editor">
+			<div className="json-editor__meta mono">
 				id: {active.id}
 				<br />
 				created: {locDate(active.createdAt).toISOString()}
@@ -85,30 +86,12 @@ export function JsonEditorPanel() {
 					setSaved(false);
 				}}
 				spellCheck={false}
-				style={{
-					width: "100%",
-					minHeight: "160px",
-					fontFamily: "monospace",
-					fontSize: "12px",
-					background: "#fff",
-					color: "#222",
-					border: "1px solid #ccc",
-					borderRadius: 3,
-					padding: 8,
-					resize: "vertical",
-					boxSizing: "border-box",
-				}}
+				className="text-input json-editor__text"
 			/>
-			{error && (
-				<div style={{ color: "var(--destructive-text)", fontSize: "11px", marginTop: 4 }}>
-					{error}
-				</div>
-			)}
-			<div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
+			{error && <div className="json-editor__error">{error}</div>}
+			<div className="json-editor__actions">
 				<Button onClick={() => void handleSave()}>{t("Apply")}</Button>
-				{saved && (
-					<span style={{ color: "var(--constructive)", fontSize: "11px" }}>{t("Saved")}</span>
-				)}
+				{saved && <span className="json-editor__saved">{t("Saved")}</span>}
 			</div>
 		</div>
 	);

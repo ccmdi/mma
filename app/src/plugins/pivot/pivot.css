@@ -108,7 +108,7 @@
 }
 
 .pivot-sidebar__cell--zero {
-	opacity: 0.25;
+	color: var(--text-3);
 }
 
 .pivot-sidebar__cell--total {
