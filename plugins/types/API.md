@@ -468,7 +468,14 @@ Which imagery collection a pano id belongs to.
 `unstable` · since v0.10.7
 
 ```ts
-PLAIN_CALLS: readonly ["classify", "progress", "fail", "emit", "aborted"]
+PLAIN_CALLS: readonly [
+  "classify",
+  "neighbors",
+  "progress",
+  "fail",
+  "emit",
+  "aborted",
+]
 ```
 
 ### PROJECTIONS

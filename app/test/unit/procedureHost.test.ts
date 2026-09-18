@@ -12,6 +12,7 @@ const surface = {
 	panos: 0,
 	sidecar: 0,
 	classify: 0,
+	neighbors: 0,
 	progress: 0,
 	fail: 0,
 	emit: 0,

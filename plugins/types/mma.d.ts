@@ -261,7 +261,7 @@ declare const CLEARABLE_BUILTINS: readonly ["panoId"];
 /** @unstable */
 declare const EFFECT_CALLS: readonly ["fetch", "fetchMany", "panos", "sidecar"];
 /** @unstable */
-declare const PLAIN_CALLS: readonly ["classify", "progress", "fail", "emit", "aborted"];
+declare const PLAIN_CALLS: readonly ["classify", "neighbors", "progress", "fail", "emit", "aborted"];
 /** @unstable */
 declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
 declare const KNOWN_FIELDS: readonly [{
@@ -2749,6 +2749,14 @@ interface ProcedureResponse {
     body: Uint8Array;
 }
 /** @unstable */
+export interface ProcedureNeighbor {
+    id: number;
+    lat: number;
+    lng: number;
+    distM: number;
+    [field: string]: unknown;
+}
+/** @unstable */
 interface ProcedureHost {
     fetch(req: ProcedureRequest): ProcedureResponse;
     fetchMany(reqs: ProcedureRequest[]): ProcedureResponse[];
@@ -2758,6 +2766,14 @@ interface ProcedureHost {
      *  or an id query whose id is empty. */
     panos(queries: PanoQuery[]): PanoAnswer[];
     classify(dataset: string, lat: number, lng: number): string | null;
+    /** Locations within `radiusM` metres of a coordinate, nearest first, each carrying
+     *  whichever of `fields` it had. The host builds one index per (radius, fields) pair
+     *  and holds it for the run, so asking once per row is the intended use; varying
+     *  either argument mid-run rebuilds it. A location at the exact coordinate is
+     *  included, so a caller probing its own row drops itself by id, and a radius of 0
+     *  answers exactly that coordinate. Only a run has locations to search; a query that
+     *  asks throws. */
+    neighbors(lat: number, lng: number, radiusM: number, fields?: string[]): ProcedureNeighbor[];
     /** Run one sidecar command. `onLine` sees each output line as it arrives, so a
      *  procedure can report progress mid-run; the lines are also returned together. */
     sidecar(pluginId: string, command: string, payloadJson: string, onLine?: (line: string) => void): string[];

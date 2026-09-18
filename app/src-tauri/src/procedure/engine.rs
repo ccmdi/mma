@@ -3,7 +3,9 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::selections::{ids_within, narrow, resolve, resolve_field_loc, resolve_within, Selector};
+use crate::selections::{
+    ids_within, narrow, neighborhood, resolve, resolve_field_loc, resolve_within, Selector,
+};
 use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, Store, StoreState, Update, WindowLabel,
 };
@@ -1001,6 +1003,21 @@ impl RunRows<'_> {
     }
 }
 
+/// The neighbor index a provider has built, and what it was built for. Rebuilt when a
+/// call names a different radius or field set, so a procedure that varies either pays
+/// a whole-map rescan; asking with the same arguments every row is the intended use.
+#[derive(Default)]
+pub(crate) struct NeighborCache {
+    built: Mutex<Option<BuiltIndex>>,
+}
+
+/// An index and the call that built it.
+struct BuiltIndex {
+    radius_m: f64,
+    fields: Vec<String>,
+    index: Arc<neighborhood::Index>,
+}
+
 pub(crate) struct RunCtx<'a> {
     pub rows: Arc<RunRows<'a>>,
     pub run_id: u32,
@@ -1009,11 +1026,45 @@ pub(crate) struct RunCtx<'a> {
     pub deps: &'a EngineDeps,
     pub progress: Arc<ProgressSink>,
     pub results: Arc<ResultSink>,
+    pub neighbors: Arc<NeighborCache>,
 }
 
 impl RunCtx<'_> {
     fn aborted(&self) -> bool {
         self.cancel.load(Ordering::Relaxed)
+    }
+
+    /// The index for this radius and field set, built over the run's rows the first
+    /// time it is asked for and answered from memory after.
+    fn neighbor_index(
+        &self,
+        radius_m: f64,
+        fields: &[String],
+    ) -> AppResult<Arc<neighborhood::Index>> {
+        let mut held = self
+            .neighbors
+            .built
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(b) = held.as_ref() {
+            if b.radius_m == radius_m && b.fields == fields {
+                return Ok(b.index.clone());
+            }
+        }
+        log::debug!("[procedure] building neighbor index r={radius_m}m fields={fields:?}");
+        let index = self.rows.with_store(|store| {
+            Ok(Arc::new(neighborhood::Index::build(
+                &store.loc_view(),
+                radius_m,
+                fields,
+            )))
+        })?;
+        *held = Some(BuiltIndex {
+            radius_m,
+            fields: fields.to_vec(),
+            index: index.clone(),
+        });
+        Ok(index)
     }
 }
 
@@ -1064,6 +1115,7 @@ pub(crate) fn run_all(
                 deps,
                 progress: progress.clone(),
                 results: results.clone(),
+                neighbors: Arc::default(),
             };
             let tx = tx.clone();
             *running += 1;
@@ -1826,6 +1878,17 @@ impl ProcHost for EngineHost<'_> {
             reqs,
             on_each,
         )
+    }
+
+    fn neighbors(
+        &mut self,
+        lat: f64,
+        lng: f64,
+        radius_m: f64,
+        fields: &[String],
+    ) -> AppResult<String> {
+        let index = self.ctx.neighbor_index(radius_m, fields)?;
+        serde_json::to_string(&index.within(lat, lng)).map_err(|e| AppError(e.to_string()))
     }
 
     fn progress(&mut self, units: u32) {

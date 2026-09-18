@@ -196,7 +196,7 @@ export const CLEARABLE_BUILTINS = ["panoId"] as const;
 export const EFFECT_CALLS = ["fetch","fetchMany","panos","sidecar"] as const;
 
 /** @unstable */
-export const PLAIN_CALLS = ["classify","progress","fail","emit","aborted"] as const;
+export const PLAIN_CALLS = ["classify","neighbors","progress","fail","emit","aborted"] as const;
 
 /** @unstable */
 export const DEFAULT_DUPLICATE_SCORE = "tagCount + has(panoId) + loadAsPanoId + (heading != 0)" as const;

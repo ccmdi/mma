@@ -67,6 +67,18 @@ pub trait ProcHost {
     fn emitter(&self) -> Option<std::sync::Arc<engine::Partials>> {
         None
     }
+    /// Locations within `radius_m` metres of a coordinate, nearest first, each carrying
+    /// whichever of `fields` it had, as JSON. The host holds the index, so a procedure
+    /// may ask once per row.
+    fn neighbors(
+        &mut self,
+        _lat: f64,
+        _lng: f64,
+        _radius_m: f64,
+        _fields: &[String],
+    ) -> AppResult<String> {
+        Err(AppError("mma.neighbors needs a running store".into()))
+    }
     /// Point-in-polygon lookup against a local border dataset. `None` outside every feature.
     fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>> {
         Ok(borders::classify_points(dataset, &[(lat, lng)])?

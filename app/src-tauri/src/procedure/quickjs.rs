@@ -199,6 +199,12 @@ enum HostReq {
         lat: f64,
         lng: f64,
     },
+    Neighbors {
+        lat: f64,
+        lng: f64,
+        radius_m: f64,
+        fields: Vec<String>,
+    },
     Sidecar {
         plugin_id: String,
         command: String,
@@ -222,6 +228,7 @@ enum HostRep {
     FetchMany(Vec<AppResult<HttpResponse>>),
     Panos(Vec<PanoAnswer>),
     Classify(AppResult<Option<String>>),
+    Neighbors(AppResult<String>),
     Sidecar(AppResult<()>),
     SidecarLine(String),
     SidecarEnd(AppResult<()>),
@@ -260,6 +267,12 @@ fn service(host: &mut dyn ProcHost, stream: &mut Option<SidecarStream>, req: Hos
         HostReq::Classify { dataset, lat, lng } => {
             HostRep::Classify(host.classify(&dataset, lat, lng))
         }
+        HostReq::Neighbors {
+            lat,
+            lng,
+            radius_m,
+            fields,
+        } => HostRep::Neighbors(host.neighbors(lat, lng, radius_m, &fields)),
         HostReq::Sidecar {
             plugin_id,
             command,
@@ -369,6 +382,14 @@ where
     f
 }
 
+fn neighbors_fn<F>(f: F) -> F
+where
+    F: for<'js> Fn(Ctx<'js>, f64, f64, f64, Opt<Value<'js>>) -> rquickjs::Result<Value<'js>>
+        + 'static,
+{
+    f
+}
+
 fn emit_fn<F>(f: F) -> F
 where
     F: for<'js> Fn(Ctx<'js>, u32, Value<'js>) -> rquickjs::Result<()> + 'static,
@@ -385,6 +406,23 @@ where
 
 fn js_string(v: &rquickjs::String<'_>) -> AppResult<String> {
     v.to_string().map_err(|e| AppError(e.to_string()))
+}
+
+fn field_names(ctx: &Ctx<'_>, want: Opt<Value<'_>>) -> rquickjs::Result<Vec<String>> {
+    let Some(v) = want.0 else {
+        return Ok(Vec::new());
+    };
+    let arr = Array::from_value(v)
+        .map_err(|_| throw(ctx, "mma.neighbors expects an array of field names"))?;
+    arr.iter::<Value>()
+        .map(|item| {
+            let item = item?;
+            let name = item
+                .as_string()
+                .ok_or_else(|| throw(ctx, "field names must be strings"))?;
+            js_string(name).map_err(|e| throw(ctx, e))
+        })
+        .collect()
 }
 
 fn bytes_from_js(v: &Value<'_>) -> AppResult<Vec<u8>> {
@@ -561,7 +599,14 @@ pub(crate) const EFFECT_CALLS: &[&str] = &["fetch", "fetchMany", "panos", "sidec
 /// The host calls every procedure shape gets. Together with [`EFFECT_CALLS`] this is
 /// the whole `mma` host surface; `mma_surface_is_identical_with_and_without_a_host`
 /// pins both lists to what [`install_host_calls`] actually sets.
-pub(crate) const PLAIN_CALLS: &[&str] = &["classify", "progress", "fail", "emit", "aborted"];
+pub(crate) const PLAIN_CALLS: &[&str] = &[
+    "classify",
+    "neighbors",
+    "progress",
+    "fail",
+    "emit",
+    "aborted",
+];
 
 fn install_host_calls<'js>(
     ctx: &Ctx<'js>,
@@ -707,6 +752,28 @@ fn install_host_calls<'js>(
                     Ok(_) => Err(throw(&ctx, "host answered the wrong call")),
                 }
             }),
+        )?,
+    )?;
+    let b = bridge.clone();
+    obj.set(
+        "neighbors",
+        Function::new(
+            ctx.clone(),
+            neighbors_fn(
+                move |ctx: Ctx<'_>, lat: f64, lng: f64, radius_m: f64, want: Opt<Value<'_>>| {
+                    let fields = field_names(&ctx, want)?;
+                    match b.call(HostReq::Neighbors {
+                        lat,
+                        lng,
+                        radius_m,
+                        fields,
+                    }) {
+                        Ok(HostRep::Neighbors(Ok(json))) => ctx.json_parse(json),
+                        Ok(HostRep::Neighbors(Err(e))) | Err(e) => Err(throw(&ctx, e)),
+                        Ok(_) => Err(throw(&ctx, "host answered the wrong call")),
+                    }
+                },
+            ),
         )?,
     )?;
     let b = bridge.clone();

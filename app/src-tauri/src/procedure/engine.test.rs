@@ -208,6 +208,7 @@ impl Harness {
                 let sink = self.delivered.clone();
                 Arc::new(Box::new(move |r| sink.lock().unwrap().push(r)))
             },
+            neighbors: Arc::default(),
         }
     }
 }
@@ -1140,6 +1141,7 @@ fn run_shape_reaches_the_host_fetch() {
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
         results: Arc::new(Box::new(|_| {})),
+        neighbors: Arc::default(),
     };
     run_provider(&ctx, &d).unwrap();
     assert_eq!(calls.load(Ordering::Relaxed), 1);
@@ -1460,6 +1462,7 @@ fn every_procedure_call_receives_its_config() {
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
         results: Arc::new(Box::new(|_| {})),
+        neighbors: Arc::default(),
     };
     run_provider(&ctx, &d).unwrap();
 
@@ -1553,6 +1556,7 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
         results: Arc::new(Box::new(|_| {})),
+        neighbors: Arc::default(),
     };
     run_provider(&ctx, &decl("p", BatchMode::Chunk { size: 10 })).unwrap();
 
@@ -1576,6 +1580,91 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
     assert_eq!(b["modifiedAt"], serde_json::Value::Null);
     assert_eq!(b["extra"], serde_json::Value::Null);
     assert_eq!(b["tags"], serde_json::json!([]));
+}
+
+/// `mma.neighbors` over a run's rows. Both cases share one procedure: it reports the ids
+/// it can see within 200 m, minus itself.
+const NEIGHBOR_SRC: &str = r#"
+  export function map(rows) {
+    return rows.map((r) => ({
+      id: r.id,
+      patch: { extra: { near: mma.neighbors(r.lat, r.lng, 200, ["heading"])
+        .filter((n) => n.id !== r.id)
+        .map((n) => [n.id, n.heading]) } },
+    }));
+  }
+"#;
+
+fn neighbor_deps() -> EngineDeps {
+    EngineDeps {
+        factory: Box::new(|_| {
+            Ok(
+                Box::new(JsProcedure::load_source(NEIGHBOR_SRC, "fixture.js")?)
+                    as Box<dyn Procedure>,
+            )
+        }),
+        fetch: sync_fetch(|_| Err(AppError("no fetch expected".into()))),
+        backoff: Duration::from_millis(1),
+    }
+}
+
+fn spaced(id: u32, north_m: f64, heading: f64) -> Location {
+    Location {
+        heading,
+        ..loc(id, north_m / 111_320.0, 0.0)
+    }
+}
+
+#[test]
+fn neighbors_answers_a_procedure_from_the_maps_rows() {
+    let (state, map_id) = setup(&[
+        spaced(1, 0.0, 10.5),
+        spaced(2, 50.0, 20.5),
+        spaced(3, 400.0, 30.5),
+    ]);
+    let deps = neighbor_deps();
+    let ctx = RunCtx {
+        rows: Arc::new(RunRows::Map {
+            state: &state,
+            map_id: map_id.clone(),
+        }),
+        run_id: 1,
+        force: true,
+        cancel: Arc::new(AtomicBool::new(false)),
+        deps: &deps,
+        progress: Arc::new(Box::new(|_| {})),
+        results: Arc::new(Box::new(|_| {})),
+        neighbors: Arc::default(),
+    };
+    run_provider(&ctx, &decl("p", BatchMode::Chunk { size: 10 })).unwrap();
+
+    let near = |id: u32| read_extra(&state, &map_id, id).unwrap()["near"].clone();
+    // 1 and 2 are 50 m apart and see each other, with the heading they asked for.
+    assert_eq!(near(1), serde_json::json!([[2, 20.5]]));
+    assert_eq!(near(2), serde_json::json!([[1, 10.5]]));
+    // 3 is 350 m from the nearest and sees nobody.
+    assert_eq!(near(3), serde_json::json!([]));
+}
+
+#[test]
+fn neighbors_over_handed_in_rows_sees_only_those_rows() {
+    let (state, map_id) = setup(&[spaced(1, 0.0, 10.5), spaced(2, 50.0, 20.5)]);
+    let deps = neighbor_deps();
+    let ctx = RunCtx {
+        rows: Arc::new(RunRows::given(vec![spaced(2, 50.0, 20.5)])),
+        run_id: 1,
+        force: true,
+        cancel: Arc::new(AtomicBool::new(false)),
+        deps: &deps,
+        progress: Arc::new(Box::new(|_| {})),
+        results: Arc::new(Box::new(|_| {})),
+        neighbors: Arc::default(),
+    };
+    run_provider(&ctx, &decl("p", BatchMode::Chunk { size: 10 })).unwrap();
+
+    // A draft run indexes its own rows, so the map's location 1 is not a neighbour and
+    // nothing the draft computed reached the map.
+    assert!(read_extra(&state, &map_id, 2).is_none());
 }
 
 #[test]
@@ -1703,6 +1792,7 @@ fn engine_throughput_probe() {
             deps: &deps,
             progress: Arc::new(Box::new(|_| {})),
             results: Arc::new(Box::new(|_| {})),
+            neighbors: Arc::default(),
         };
         let t = Instant::now();
         run_provider(&ctx, &d).unwrap();

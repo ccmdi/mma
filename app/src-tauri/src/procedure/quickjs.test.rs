@@ -51,6 +51,8 @@ struct MockProcHost {
     abort: bool,
     classified: Vec<(String, f64, f64)>,
     classify_answer: Option<String>,
+    neighbor_calls: Vec<(f64, f64, f64, Vec<String>)>,
+    neighbor_answer: Option<String>,
     sidecar_calls: Vec<(String, String, String)>,
     sidecar_lines: Vec<String>,
     /// Interleaving of `line` pulls and `progress` calls, to pin that a line handler's
@@ -77,6 +79,17 @@ impl ProcHost for MockProcHost {
     fn classify(&mut self, dataset: &str, lat: f64, lng: f64) -> AppResult<Option<String>> {
         self.classified.push((dataset.to_string(), lat, lng));
         Ok(self.classify_answer.clone())
+    }
+    fn neighbors(
+        &mut self,
+        lat: f64,
+        lng: f64,
+        radius_m: f64,
+        fields: &[String],
+    ) -> AppResult<String> {
+        self.neighbor_calls
+            .push((lat, lng, radius_m, fields.to_vec()));
+        Ok(self.neighbor_answer.clone().unwrap_or_else(|| "[]".into()))
     }
     fn sidecar(
         &mut self,
@@ -525,6 +538,77 @@ fn tz_answers_null_outside_the_grid() {
         .map(&rows(), &empty_response(), &mut host, NULL_CONFIG)
         .expect("map succeeds");
     assert_eq!(extra(&patches), serde_json::json!({ "zone": null }));
+}
+
+#[test]
+fn neighbors_reaches_the_host_with_the_asked_for_fields() {
+    let mut proc = loaded(&echo_map(
+        "{ near: mma.neighbors(r.lat, r.lng, 150, ['heading']).length }",
+    ));
+    let mut host = MockProcHost {
+        neighbor_answer: Some(
+            r#"[{"id":7,"lat":1.0,"lng":2.0,"distM":12.5,"heading":100}]"#.into(),
+        ),
+        ..Default::default()
+    };
+    let patches = proc
+        .map(&rows(), &empty_response(), &mut host, NULL_CONFIG)
+        .expect("map succeeds");
+    assert_eq!(
+        host.neighbor_calls,
+        vec![(1.5, 2.5, 150.0, vec!["heading".to_string()])]
+    );
+    assert_eq!(extra(&patches), serde_json::json!({ "near": 1 }));
+}
+
+#[test]
+fn a_neighbor_arrives_as_an_object_carrying_its_fields() {
+    let mut proc = loaded(&echo_map(
+        "{ n: mma.neighbors(r.lat, r.lng, 150, ['heading'])[0] }",
+    ));
+    let mut host = MockProcHost {
+        neighbor_answer: Some(
+            r#"[{"id":7,"lat":1.25,"lng":2.5,"distM":12.5,"heading":100}]"#.into(),
+        ),
+        ..Default::default()
+    };
+    let patches = proc
+        .map(&rows(), &empty_response(), &mut host, NULL_CONFIG)
+        .expect("map succeeds");
+    assert_eq!(
+        extra(&patches),
+        serde_json::json!({
+            "n": { "id": 7, "lat": 1.25, "lng": 2.5, "distM": 12.5, "heading": 100 }
+        })
+    );
+}
+
+#[test]
+fn neighbors_may_be_asked_for_no_fields_at_all() {
+    let mut proc = loaded(&echo_map(
+        "{ near: mma.neighbors(r.lat, r.lng, 25).length }",
+    ));
+    let mut host = MockProcHost::default();
+    let patches = proc
+        .map(&rows(), &empty_response(), &mut host, NULL_CONFIG)
+        .expect("map succeeds");
+    assert_eq!(host.neighbor_calls, vec![(1.5, 2.5, 25.0, Vec::new())]);
+    assert_eq!(extra(&patches), serde_json::json!({ "near": 0 }));
+}
+
+#[test]
+fn neighbors_refuses_a_field_list_that_is_not_strings() {
+    let mut proc = loaded(&echo_map("{ near: mma.neighbors(r.lat, r.lng, 25, [7]) }"));
+    let mut host = MockProcHost::default();
+    let err = proc
+        .map(&rows(), &empty_response(), &mut host, NULL_CONFIG)
+        .expect_err("map fails");
+    assert!(
+        err.0.contains("field names must be strings"),
+        "unexpected error: {}",
+        err.0
+    );
+    assert!(host.neighbor_calls.is_empty());
 }
 
 #[test]

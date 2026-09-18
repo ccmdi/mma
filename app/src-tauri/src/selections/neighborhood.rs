@@ -6,7 +6,11 @@
 //! neighborhood *means* stays with the caller: duplicate detection reads connected
 //! components out of it.
 
+use super::LocView;
+#[cfg(test)]
+use crate::types::Location;
 use mma_geo::equirect_m2;
+use serde::Serialize;
 use std::collections::HashMap;
 
 /// Cell-hashed spatial grid in CSR layout (Müller, "Blazing Fast Neighbor Search
@@ -204,3 +208,105 @@ pub(super) fn for_pairs_within<S>(
         });
     }
 }
+
+/// One neighbor: where it is, how far, and the fields that were asked for.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Neighbor {
+    pub id: u32,
+    pub lat: f64,
+    pub lng: f64,
+    pub dist_m: f64,
+    #[serde(flatten)]
+    pub fields: serde_json::Map<String, serde_json::Value>,
+}
+
+/// How an [`Index`] finds a coordinate's points: the grid at a positive radius, exact
+/// coordinates at a degenerate one.
+enum Lookup {
+    Grid(Grid),
+    Exact(HashMap<(u64, u64), Vec<usize>>),
+}
+
+/// A radius query answered without the store: coordinates and whichever fields the
+/// caller named, resolved once at build. A caller that asks per row would otherwise
+/// re-lock the store and re-resolve `extra` on every call.
+///
+/// The radius is fixed at build because it sizes the cells: [`Index::within`] answers
+/// at that radius and no other, so a query can never outrun the grid backing it.
+pub struct Index {
+    lookup: Lookup,
+    ids: Vec<u32>,
+    pts: Vec<(f64, f64)>,
+    /// Per point, the named fields that had a value.
+    fields: Vec<serde_json::Map<String, serde_json::Value>>,
+}
+
+impl Index {
+    pub fn build(view: &LocView, radius_m: f64, want: &[String]) -> Index {
+        let mut ids = Vec::new();
+        let mut pts = Vec::new();
+        let mut fields = Vec::new();
+        view.for_each(|row| {
+            ids.push(row.id());
+            pts.push((row.lat(), row.lng()));
+            let mut got = serde_json::Map::new();
+            for name in want {
+                if let Some(v) = row.resolve_field(name) {
+                    got.insert(name.clone(), v);
+                }
+            }
+            fields.push(got);
+        });
+        let lookup = match Grid::build(&pts, radius_m) {
+            Some(grid) => Lookup::Grid(grid),
+            None => Lookup::Exact(exact_coord_groups(&pts)),
+        };
+        Index {
+            lookup,
+            ids,
+            pts,
+            fields,
+        }
+    }
+
+    /// Points within the built radius of a coordinate, nearest first. A point at that
+    /// exact coordinate is included: the caller knows its own id and can drop itself,
+    /// and a caller probing a coordinate it does not own would otherwise lose a real hit.
+    pub fn within(&self, lat: f64, lng: f64) -> Vec<Neighbor> {
+        let cos_lat = lat.to_radians().cos();
+        let mut out: Vec<Neighbor> = Vec::new();
+        let mut hit = |pi: usize| {
+            let (plat, plng) = self.pts[pi];
+            out.push(Neighbor {
+                id: self.ids[pi],
+                lat: plat,
+                lng: plng,
+                dist_m: equirect_m2(lat, lng, plat, plng, cos_lat).sqrt(),
+                fields: self.fields[pi].clone(),
+            });
+        };
+        match &self.lookup {
+            Lookup::Grid(grid) => {
+                grid.for_each_near(lat, lng, |pi| {
+                    hit(pi);
+                    false
+                });
+            }
+            Lookup::Exact(groups) => {
+                let key = ((lat + 0.0).to_bits(), (lng + 0.0).to_bits());
+                groups
+                    .get(&key)
+                    .into_iter()
+                    .flatten()
+                    .for_each(|&pi| hit(pi));
+            }
+        }
+        out.sort_unstable_by(|a, b| a.dist_m.total_cmp(&b.dist_m).then_with(|| a.id.cmp(&b.id)));
+        out
+    }
+}
+
+#[cfg(test)]
+#[path = "neighborhood.test.rs"]
+mod tests;
