@@ -12,9 +12,23 @@ export { Bar } from "./Bar";
 export { Button } from "./Button";
 export { Checkbox } from "./Checkbox";
 export { ColorPicker, RgbPicker } from "./ColorPicker";
+export { ConfirmButton } from "./ConfirmButton";
 export { CoverageBar } from "./CoverageBar";
 export { DatePicker } from "./DatePicker";
-export { Dialog, DialogContent, DialogTrigger, useCloseDialog, type DialogProps } from "./Dialog";
+export {
+	ConfirmDialog,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogForm,
+	DialogHint,
+	DialogTrigger,
+	PromptDialog,
+	useCloseDialog,
+	type DialogAction,
+	type DialogProps,
+	type DialogSize,
+} from "./Dialog";
 export { Flag } from "./Flag";
 export { HotkeyInput } from "./HotkeyInput";
 export { Icon } from "./Icon";

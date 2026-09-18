@@ -7,7 +7,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Command } from '@tauri-apps/plugin-shell';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import * as react from 'react';
-import { ComponentType, SetStateAction, ComponentPropsWithRef, ComponentProps, ReactNode, CSSProperties, ElementType, ReactElement } from 'react';
+import { ComponentType, SetStateAction, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
 import { Dialog as Dialog$1 } from '@base-ui-components/react/dialog';
 import { Layer, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
@@ -5535,6 +5535,14 @@ declare function ColorPicker({ color, onChange, ariaLabel, }: {
     ariaLabel?: string;
 }): react.JSX.Element;
 
+/** A button that asks "Are you sure?" on the first click and acts on the second. Moving focus
+ *  away disarms it. @unstable */
+declare function ConfirmButton({ onConfirm, confirmLabel, variant, children, onBlur, ...props }: Omit<ComponentPropsWithRef<typeof Button>, "onClick"> & {
+    onConfirm: () => void;
+    /** The label while armed. Defaults to "Are you sure?". */
+    confirmLabel?: ReactNode;
+}): react.JSX.Element;
+
 /** Share of locations holding a value as a bar and a percentage, colored by whether every location is covered when `status` is set. */
 declare function CoverageBar({ ratio, size, status, className, }: {
     ratio: number;
@@ -5580,11 +5588,83 @@ declare function Dialog({ open, onOpenChange, children, ...props }: Omit<Compone
 }): react.JSX.Element;
 /** @unstable */
 declare const DialogTrigger: Dialog$1.Trigger;
+/** A dialog's fixed width: small, medium, large or extra large. */
+export type DialogSize = "sm" | "md" | "lg" | "xl";
 /** @unstable */
 declare function DialogContent({ className, title, size, initialFocus, children, ...props }: ComponentProps<typeof Dialog$1.Popup> & {
     title: string;
-    /** The dialog's fixed width: small, medium, large or extra large. */
-    size?: "sm" | "md" | "lg" | "xl";
+    size?: DialogSize;
+}): react.JSX.Element;
+/** One button in a dialog footer. */
+export interface DialogAction {
+    label: ReactNode;
+    /** Runs on click. Without it the button submits the form it sits in. */
+    onClick?: () => void;
+    disabled?: boolean;
+    /** An identifier for automated tests. */
+    "data-qa"?: string;
+}
+/** A dialog's footer: side content on the left, then Cancel, then the main action on the right.
+ *  @unstable */
+declare function DialogActions({ start, destructive, cancel, primary, }: {
+    /** Content held to the left: a summary, a meter, paging or secondary buttons. */
+    start?: ReactNode;
+    /** An action that destroys something, held to the far left. With `confirm` it asks "Are you
+     *  sure?" on the first click and acts on the second. */
+    destructive?: DialogAction & {
+        confirm?: boolean;
+    };
+    /** The dismiss button, labelled Cancel and closing the dialog unless told otherwise. */
+    cancel?: true | Partial<DialogAction>;
+    /** The action the dialog exists for, always rightmost. */
+    primary?: DialogAction & {
+        tone?: "primary" | "destructive";
+    };
+}): react.JSX.Element;
+/** A dialog body laid out as a column that runs `onSubmit` when submitted, Enter included.
+ *  @unstable */
+declare function DialogForm({ onSubmit, className, ...props }: Omit<ComponentPropsWithRef<"form">, "onSubmit"> & {
+    onSubmit: () => void;
+}): react.JSX.Element;
+/** A line of secondary text inside a dialog, optionally marked as a warning or an error.
+ *  @unstable */
+declare function DialogHint({ tone, children, }: {
+    tone?: "warning" | "error";
+    children?: ReactNode;
+}): react.JSX.Element;
+/** Asks the user to confirm one action, with room for extra options under the message.
+ *  @unstable */
+declare function ConfirmDialog({ open, onOpenChange, title, message, confirmLabel, cancelLabel, tone, busy, size, onConfirm, children, }: DialogProps & {
+    title: string;
+    message: ReactNode;
+    confirmLabel: ReactNode;
+    cancelLabel?: ReactNode;
+    /** Destructive for an action that cannot be taken back. */
+    tone?: "primary" | "destructive";
+    /** Disables both buttons while the action runs. */
+    busy?: boolean;
+    size?: DialogSize;
+    onConfirm: () => void;
+    children?: ReactNode;
+}): react.JSX.Element;
+/** Asks for one line of text, submitted with Enter or the submit button.
+ *  @unstable */
+declare function PromptDialog({ open, onOpenChange, title, value, onChange, placeholder, submitLabel, error, canSubmit, selectOnFocus, size, onSubmit, children, }: DialogProps & {
+    title: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    submitLabel: ReactNode;
+    /** Shown under the field. Pass null to keep its line reserved while there is no error. */
+    error?: ReactNode;
+    /** Whether the value can be submitted. Defaults to the value not being blank. */
+    canSubmit?: boolean;
+    /** Selects the whole value when the field gains focus. */
+    selectOnFocus?: boolean;
+    size?: DialogSize;
+    onSubmit: () => void;
+    /** Extra content between the field and the buttons. */
+    children?: ReactNode;
 }): react.JSX.Element;
 
 /** Country flag from the bundled SVG set. Renders nothing for a missing or malformed code. */
@@ -5808,15 +5888,29 @@ declare const primitives_Bar: typeof Bar;
 declare const primitives_Button: typeof Button;
 declare const primitives_Checkbox: typeof Checkbox;
 declare const primitives_ColorPicker: typeof ColorPicker;
+/** @unstable */
+declare const primitives_ConfirmButton: typeof ConfirmButton;
+/** @unstable */
+declare const primitives_ConfirmDialog: typeof ConfirmDialog;
 declare const primitives_CoverageBar: typeof CoverageBar;
 /** @unstable */
 declare const primitives_DatePicker: typeof DatePicker;
 /** @unstable */
 declare const primitives_Dialog: typeof Dialog;
 /** @unstable */
+export type primitives_DialogAction = DialogAction;
+/** @unstable */
+declare const primitives_DialogActions: typeof DialogActions;
+/** @unstable */
 declare const primitives_DialogContent: typeof DialogContent;
 /** @unstable */
+declare const primitives_DialogForm: typeof DialogForm;
+/** @unstable */
+declare const primitives_DialogHint: typeof DialogHint;
+/** @unstable */
 export type primitives_DialogProps = DialogProps;
+/** @unstable */
+export type primitives_DialogSize = DialogSize;
 declare const primitives_DialogTrigger: typeof DialogTrigger;
 declare const primitives_EmptyState: typeof EmptyState;
 declare const primitives_Field: typeof Field;
@@ -5827,6 +5921,8 @@ declare const primitives_Icon: typeof Icon;
 /** @unstable */
 declare const primitives_NSelect: typeof NSelect;
 declare const primitives_ProgressRow: typeof ProgressRow;
+/** @unstable */
+declare const primitives_PromptDialog: typeof PromptDialog;
 declare const primitives_Radio: typeof Radio;
 /** @unstable */
 declare const primitives_RgbPicker: typeof RgbPicker;
@@ -5854,8 +5950,8 @@ declare const primitives_Tooltip: typeof Tooltip;
 /** @unstable */
 declare const primitives_useCloseDialog: typeof useCloseDialog;
 declare namespace primitives {
-  export { primitives_Bar as Bar, primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_CoverageBar as CoverageBar, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogContent as DialogContent, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_NSelect as NSelect, primitives_ProgressRow as ProgressRow, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
-  export type { primitives_DialogProps as DialogProps, primitives_SegmentedOption as SegmentedOption };
+  export { primitives_Bar as Bar, primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_ConfirmButton as ConfirmButton, primitives_ConfirmDialog as ConfirmDialog, primitives_CoverageBar as CoverageBar, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogActions as DialogActions, primitives_DialogContent as DialogContent, primitives_DialogForm as DialogForm, primitives_DialogHint as DialogHint, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_NSelect as NSelect, primitives_ProgressRow as ProgressRow, primitives_PromptDialog as PromptDialog, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
+  export type { primitives_DialogAction as DialogAction, primitives_DialogProps as DialogProps, primitives_DialogSize as DialogSize, primitives_SegmentedOption as SegmentedOption };
 }
 
 /** The nested `ui` namespace on the plugin surface: the primitives module and nothing else. */

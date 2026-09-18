@@ -1,9 +1,20 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useRef, type ComponentProps } from "react";
+import {
+	createContext,
+	useContext,
+	useRef,
+	type ComponentProps,
+	type ComponentPropsWithRef,
+	type ReactNode,
+} from "react";
 import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import clsx from "clsx";
+import { Button } from "@/components/primitives/Button";
+import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { Icon } from "@/components/primitives/Icon";
+import { TextInput } from "@/components/primitives/TextInput";
 import { mdiClose } from "@mdi/js";
+import { t } from "@/lib/i18n";
 
 const CloseContext = createContext<(() => void) | null>(null);
 
@@ -137,6 +148,9 @@ export function Dialog({
 /** @unstable */
 export const DialogTrigger = BaseDialog.Trigger;
 
+/** A dialog's fixed width: small, medium, large or extra large. */
+export type DialogSize = "sm" | "md" | "lg" | "xl";
+
 /** @unstable */
 export function DialogContent({
 	className,
@@ -147,8 +161,7 @@ export function DialogContent({
 	...props
 }: ComponentProps<typeof BaseDialog.Popup> & {
 	title: string;
-	/** The dialog's fixed width: small, medium, large or extra large. */
-	size?: "sm" | "md" | "lg" | "xl";
+	size?: DialogSize;
 }) {
 	const popupRef = useRef<HTMLDivElement>(null);
 	return (
@@ -181,5 +194,210 @@ export function DialogContent({
 				</div>
 			</BaseDialog.Popup>
 		</BaseDialog.Portal>
+	);
+}
+
+/** One button in a dialog footer. */
+export interface DialogAction {
+	label: ReactNode;
+	/** Runs on click. Without it the button submits the form it sits in. */
+	onClick?: () => void;
+	disabled?: boolean;
+	/** An identifier for automated tests. */
+	"data-qa"?: string;
+}
+
+function actionProps({ onClick, disabled, "data-qa": qa }: DialogAction) {
+	return { type: onClick ? "button" : "submit", onClick, disabled, "data-qa": qa } as const;
+}
+
+/** A dialog's footer: side content on the left, then Cancel, then the main action on the right.
+ *  @unstable */
+export function DialogActions({
+	start,
+	destructive,
+	cancel,
+	primary,
+}: {
+	/** Content held to the left: a summary, a meter, paging or secondary buttons. */
+	start?: ReactNode;
+	/** An action that destroys something, held to the far left. With `confirm` it asks "Are you
+	 *  sure?" on the first click and acts on the second. */
+	destructive?: DialogAction & { confirm?: boolean };
+	/** The dismiss button, labelled Cancel and closing the dialog unless told otherwise. */
+	cancel?: true | Partial<DialogAction>;
+	/** The action the dialog exists for, always rightmost. */
+	primary?: DialogAction & { tone?: "primary" | "destructive" };
+}) {
+	const close = useContext(CloseContext);
+	const dismiss = cancel === true ? {} : cancel;
+	return (
+		<div className="modal__actions">
+			{(destructive || start) && (
+				<div className="modal__actions-start">
+					{destructive?.confirm ? (
+						<ConfirmButton
+							variant="destructive"
+							disabled={destructive.disabled}
+							data-qa={destructive["data-qa"]}
+							onConfirm={() => destructive.onClick?.()}
+						>
+							{destructive.label}
+						</ConfirmButton>
+					) : (
+						destructive && (
+							<Button variant="destructive" {...actionProps(destructive)}>
+								{destructive.label}
+							</Button>
+						)
+					)}
+					{start}
+				</div>
+			)}
+			{dismiss && (
+				<Button
+					onClick={dismiss.onClick ?? close ?? undefined}
+					disabled={dismiss.disabled}
+					data-qa={dismiss["data-qa"]}
+				>
+					{dismiss.label ?? t("Cancel")}
+				</Button>
+			)}
+			{primary && (
+				<Button variant={primary.tone ?? "primary"} {...actionProps(primary)}>
+					{primary.label}
+				</Button>
+			)}
+		</div>
+	);
+}
+
+/** A dialog body laid out as a column that runs `onSubmit` when submitted, Enter included.
+ *  @unstable */
+export function DialogForm({
+	onSubmit,
+	className,
+	...props
+}: Omit<ComponentPropsWithRef<"form">, "onSubmit"> & { onSubmit: () => void }) {
+	return (
+		<form
+			{...props}
+			className={clsx("modal__stack", className)}
+			onSubmit={(e) => {
+				e.preventDefault();
+				onSubmit();
+			}}
+		/>
+	);
+}
+
+/** A line of secondary text inside a dialog, optionally marked as a warning or an error.
+ *  @unstable */
+export function DialogHint({
+	tone,
+	children,
+}: {
+	tone?: "warning" | "error";
+	children?: ReactNode;
+}) {
+	return <span className={clsx("modal__hint", tone && `modal__hint--${tone}`)}>{children}</span>;
+}
+
+/** Asks the user to confirm one action, with room for extra options under the message.
+ *  @unstable */
+export function ConfirmDialog({
+	open,
+	onOpenChange,
+	title,
+	message,
+	confirmLabel,
+	cancelLabel,
+	tone = "primary",
+	busy = false,
+	size = "sm",
+	onConfirm,
+	children,
+}: DialogProps & {
+	title: string;
+	message: ReactNode;
+	confirmLabel: ReactNode;
+	cancelLabel?: ReactNode;
+	/** Destructive for an action that cannot be taken back. */
+	tone?: "primary" | "destructive";
+	/** Disables both buttons while the action runs. */
+	busy?: boolean;
+	size?: DialogSize;
+	onConfirm: () => void;
+	children?: ReactNode;
+}) {
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent title={title} size={size}>
+				<div className="modal__stack">
+					<p className="modal__message">{message}</p>
+					{children}
+					<DialogActions
+						cancel={{ label: cancelLabel, disabled: busy }}
+						primary={{ label: confirmLabel, tone, disabled: busy, onClick: onConfirm }}
+					/>
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/** Asks for one line of text, submitted with Enter or the submit button.
+ *  @unstable */
+export function PromptDialog({
+	open,
+	onOpenChange,
+	title,
+	value,
+	onChange,
+	placeholder,
+	submitLabel,
+	error,
+	canSubmit,
+	selectOnFocus = false,
+	size = "sm",
+	onSubmit,
+	children,
+}: DialogProps & {
+	title: string;
+	value: string;
+	onChange: (value: string) => void;
+	placeholder?: string;
+	submitLabel: ReactNode;
+	/** Shown under the field. Pass null to keep its line reserved while there is no error. */
+	error?: ReactNode;
+	/** Whether the value can be submitted. Defaults to the value not being blank. */
+	canSubmit?: boolean;
+	/** Selects the whole value when the field gains focus. */
+	selectOnFocus?: boolean;
+	size?: DialogSize;
+	onSubmit: () => void;
+	/** Extra content between the field and the buttons. */
+	children?: ReactNode;
+}) {
+	const ready = canSubmit ?? value.trim() !== "";
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent title={title} size={size}>
+				<DialogForm onSubmit={() => ready && onSubmit()}>
+					<TextInput
+						type="text"
+						value={value}
+						onChange={(e) => onChange(e.target.value)}
+						onFocus={selectOnFocus ? (e) => e.currentTarget.select() : undefined}
+						placeholder={placeholder}
+						aria-invalid={error ? true : undefined}
+						autoFocus
+					/>
+					{error !== undefined && <DialogHint tone="error">{error}</DialogHint>}
+					{children}
+					<DialogActions cancel primary={{ label: submitLabel, disabled: !ready }} />
+				</DialogForm>
+			</DialogContent>
+		</Dialog>
 	);
 }

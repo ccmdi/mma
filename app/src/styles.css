@@ -1031,10 +1031,49 @@ input[type="range"]:disabled {
 	padding: 1rem 0;
 	display: grid;
 }
+/* The block padding keeps focus rings clear of the scroll clip; the margin gives it back. */
 .modal__content {
-	padding: 0 2rem;
+	padding: 0.25rem 2rem;
+	margin-block: -0.25rem;
 	display: grid;
 	overflow-y: auto;
+}
+.modal__stack {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+.modal__message {
+	margin: 0;
+}
+.modal__hint {
+	display: block;
+	color: var(--text-2);
+	font-size: 0.8125rem;
+}
+.modal__hint--warning {
+	color: var(--warning);
+}
+.modal__hint--error {
+	min-height: 1.25em;
+	color: var(--destructive-text);
+}
+.modal__actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 0.5rem;
+	margin-top: 1rem;
+}
+.modal__stack > .modal__actions {
+	margin-top: 0.25rem;
+}
+.modal__actions-start {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+	margin-right: auto;
 }
 .modal__header {
 	text-align: left;
@@ -4823,6 +4862,7 @@ body {
 .settings-page > .modal__content {
 	display: flex;
 	padding: 0;
+	margin: 0;
 	overflow: hidden;
 	min-height: 0;
 	border-radius: 0 0 var(--radius-3) var(--radius-3);

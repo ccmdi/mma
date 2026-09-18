@@ -1795,6 +1795,47 @@ ui.ColorPicker(props: {
 
 A color swatch that opens the picker in a popover on click.
 
+#### ui.ConfirmButton
+
+`unstable` · unreleased
+
+```ts
+ui.ConfirmButton(
+  props: Omit<ComponentPropsWithRef<typeof Button>, "onClick"> & {
+    onConfirm: () => void;
+    /** The label while armed. Defaults to "Are you sure?". */
+    confirmLabel?: ReactNode;
+  },
+): react.JSX.Element
+```
+
+A button that asks "Are you sure?" on the first click and acts on the second. Moving focus
+away disarms it.
+
+#### ui.ConfirmDialog
+
+`unstable` · unreleased
+
+```ts
+ui.ConfirmDialog(
+  props: DialogProps & {
+    title: string;
+    message: ReactNode;
+    confirmLabel: ReactNode;
+    cancelLabel?: ReactNode;
+    /** Destructive for an action that cannot be taken back. */
+    tone?: "primary" | "destructive";
+    /** Disables both buttons while the action runs. */
+    busy?: boolean;
+    size?: DialogSize;
+    onConfirm: () => void;
+    children?: ReactNode;
+  },
+): react.JSX.Element
+```
+
+Asks the user to confirm one action, with room for extra options under the message.
+
 #### ui.CoverageBar
 
 `stable` · unreleased
@@ -1830,6 +1871,30 @@ ui.Dialog(
 ): react.JSX.Element
 ```
 
+#### ui.DialogActions
+
+`unstable` · unreleased
+
+```ts
+ui.DialogActions(props: {
+  /** Content held to the left: a summary, a meter, paging or secondary buttons. */
+  start?: ReactNode;
+  /** An action that destroys something, held to the far left. With `confirm` it asks "Are you
+   *  sure?" on the first click and acts on the second. */
+  destructive?: DialogAction & {
+    confirm?: boolean;
+  };
+  /** The dismiss button, labelled Cancel and closing the dialog unless told otherwise. */
+  cancel?: true | Partial<DialogAction>;
+  /** The action the dialog exists for, always rightmost. */
+  primary?: DialogAction & {
+    tone?: "primary" | "destructive";
+  };
+}): react.JSX.Element
+```
+
+A dialog's footer: side content on the left, then Cancel, then the main action on the right.
+
 #### ui.DialogContent
 
 `unstable` · since v0.10.0
@@ -1838,19 +1903,52 @@ ui.Dialog(
 ui.DialogContent(
   props: ComponentProps<typeof Dialog$1.Popup> & {
     title: string;
-    /** The dialog's fixed width: small, medium, large or extra large. */
-    size?: "sm" | "md" | "lg" | "xl";
+    size?: DialogSize;
   },
 ): react.JSX.Element
 ```
+
+#### ui.DialogForm
+
+`unstable` · unreleased
+
+```ts
+ui.DialogForm(
+  props: Omit<ComponentPropsWithRef<"form">, "onSubmit"> & {
+    onSubmit: () => void;
+  },
+): react.JSX.Element
+```
+
+A dialog body laid out as a column that runs `onSubmit` when submitted, Enter included.
+
+#### ui.DialogHint
+
+`unstable` · unreleased
+
+```ts
+ui.DialogHint(props: {
+  tone?: "warning" | "error";
+  children?: ReactNode;
+}): react.JSX.Element
+```
+
+A line of secondary text inside a dialog, optionally marked as a warning or an error.
 
 #### ui.DialogTrigger
 
 `unstable` · since v0.10.0
 
 ```ts
-ui.DialogTrigger: Dialog$1.Trigger
+ui.DialogTrigger<Payload>(
+  componentProps: DialogTriggerProps<Payload> & React.RefAttributes<HTMLElement>,
+): React.JSX.Element
 ```
+
+A button that opens the dialog.
+Renders a `<button>` element.
+
+Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
 
 #### ui.EmptyState
 
@@ -1939,6 +2037,34 @@ ui.ProgressRow(props: {
 ```
 
 A progress bar under its label and count, with any extra detail below it.
+
+#### ui.PromptDialog
+
+`unstable` · unreleased
+
+```ts
+ui.PromptDialog(
+  props: DialogProps & {
+    title: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    submitLabel: ReactNode;
+    /** Shown under the field. Pass null to keep its line reserved while there is no error. */
+    error?: ReactNode;
+    /** Whether the value can be submitted. Defaults to the value not being blank. */
+    canSubmit?: boolean;
+    /** Selects the whole value when the field gains focus. */
+    selectOnFocus?: boolean;
+    size?: DialogSize;
+    onSubmit: () => void;
+    /** Extra content between the field and the buttons. */
+    children?: ReactNode;
+  },
+): react.JSX.Element
+```
+
+Asks for one line of text, submitted with Enter or the submit button.
 
 #### ui.Radio
 
@@ -6429,8 +6555,14 @@ dialog: { open: typeof open; save: typeof save }
 `unstable` · since v0.3.1
 
 ```ts
-invoke: any
+invoke<T>(
+  cmd: string,
+  args?: InvokeArgs,
+  options?: InvokeOptions,
+): Promise<T>
 ```
+
+Sends a message to the backend.
 
 ### shell
 
