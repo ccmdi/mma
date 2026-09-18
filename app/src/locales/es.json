@@ -1661,7 +1661,6 @@
 		"other": "{n} pano ID resueltos."
 	},
 	"{n} rounds": "{n} rondas",
-	"{n} seconds per round": "{n} segundos por ronda",
 	"{n} tags": {
 		"one": "{n} etiqueta",
 		"many": "{n} etiquetas",

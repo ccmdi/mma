@@ -108,39 +108,6 @@ function Aux({ children, match }: { children: ReactNode; match?: string }) {
 	return <div className="settings-aux">{children}</div>;
 }
 
-function SettingSlider({
-	value,
-	min,
-	max,
-	step,
-	onChange,
-	format,
-	disabled,
-}: {
-	value: number;
-	min: number;
-	max: number;
-	step: number;
-	onChange: (v: number) => void;
-	format?: (v: number) => string;
-	disabled?: boolean;
-}) {
-	return (
-		<>
-			<Slider
-				className="setting-slider"
-				min={min}
-				max={max}
-				step={step}
-				value={value}
-				disabled={disabled}
-				onChange={(e) => onChange(Number(e.target.value))}
-			/>
-			<span className="mono setting-slider__value">{format ? format(value) : value}</span>
-		</>
-	);
-}
-
 function SettingSelect<K extends keyof AppSettings>({
 	setting,
 	options,
@@ -455,12 +422,13 @@ function StreetViewBody() {
 				<SettingRow
 					label={t("Pano look speed")}
 					control={
-						<SettingSlider
+						<Slider
 							value={s.panoLookSpeed}
 							min={1}
 							max={10}
 							step={1}
-							onChange={(v) => setSetting("panoLookSpeed", v)}
+							onChange={(e) => setSetting("panoLookSpeed", Number(e.target.value))}
+							format={(v) => v}
 						/>
 					}
 				/>
@@ -491,13 +459,13 @@ function StreetViewBody() {
 					label={t("Minimap close delay")}
 					description={t("How long the minimap stays expanded after the pointer leaves it.")}
 					control={
-						<SettingSlider
+						<Slider
 							value={s.fullscreenMinimapCloseDelay}
 							min={0}
 							max={1000}
 							step={50}
 							disabled={!s.showFullscreenMinimap}
-							onChange={(v) => setSetting("fullscreenMinimapCloseDelay", v)}
+							onChange={(e) => setSetting("fullscreenMinimapCloseDelay", Number(e.target.value))}
 							format={(v) => `${v}ms`}
 						/>
 					}
@@ -542,12 +510,13 @@ function MapBody() {
 				<SettingRow
 					label={t("Pan speed")}
 					control={
-						<SettingSlider
+						<Slider
 							value={s.mapPanSpeed}
 							min={1}
 							max={20}
 							step={1}
-							onChange={(v) => setSetting("mapPanSpeed", v)}
+							onChange={(e) => setSetting("mapPanSpeed", Number(e.target.value))}
+							format={(v) => v}
 						/>
 					}
 				/>
@@ -557,13 +526,13 @@ function MapBody() {
 					disabled={!s.panToImported}
 					label={t("Paste zoom padding")}
 					control={
-						<SettingSlider
+						<Slider
 							value={s.pastePadding}
 							min={0.001}
 							max={0.05}
 							step={0.001}
 							disabled={!s.panToImported}
-							onChange={(v) => setSetting("pastePadding", v)}
+							onChange={(e) => setSetting("pastePadding", Number(e.target.value))}
 							format={(v) => `${v.toFixed(3)}°`}
 						/>
 					}
@@ -572,12 +541,12 @@ function MapBody() {
 					label={t("Alt slow-down")}
 					description={t("Hold Alt to slow down map panning and pano look.")}
 					control={
-						<SettingSlider
+						<Slider
 							value={s.slowModifier}
 							min={2}
 							max={10}
 							step={1}
-							onChange={(v) => setSetting("slowModifier", v)}
+							onChange={(e) => setSetting("slowModifier", Number(e.target.value))}
 							format={(v) => `${v}x`}
 						/>
 					}
@@ -900,12 +869,12 @@ function EditingBody() {
 				<SettingRow
 					label={t("Tag gap")}
 					control={
-						<SettingSlider
+						<Slider
 							value={s.tagGap}
 							min={0}
 							max={16}
 							step={1}
-							onChange={(v) => setSetting("tagGap", v)}
+							onChange={(e) => setSetting("tagGap", Number(e.target.value))}
 							format={(v) => `${v}px`}
 						/>
 					}
@@ -913,12 +882,14 @@ function EditingBody() {
 				<SettingRow
 					label={t("Suggestions shown")}
 					control={
-						<SettingSlider
+						<Slider
 							value={limitIndex}
 							min={0}
 							max={TAG_SUGGESTION_LIMITS.length - 1}
 							step={1}
-							onChange={(v) => setSetting("tagSuggestionLimit", TAG_SUGGESTION_LIMITS[v])}
+							onChange={(e) =>
+								setSetting("tagSuggestionLimit", TAG_SUGGESTION_LIMITS[Number(e.target.value)])
+							}
 							format={() => (s.tagSuggestionLimit === 0 ? t("All") : String(s.tagSuggestionLimit))}
 						/>
 					}

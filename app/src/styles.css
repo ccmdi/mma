@@ -865,6 +865,21 @@ input[type="range"]:disabled {
 	opacity: var(--disabled-opacity);
 	cursor: default;
 }
+.slider-field {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+}
+.slider-field .slider {
+	flex: 1;
+	min-width: 0;
+}
+.slider__value {
+	flex-shrink: 0;
+	min-width: 3rem;
+	text-align: right;
+}
 .checkbox {
 	appearance: none;
 	-webkit-appearance: none;
@@ -5024,12 +5039,8 @@ body {
 	width: auto;
 	min-width: 9rem;
 }
-.setting-slider {
-	width: 8rem;
-}
-.setting-slider__value {
-	min-width: 3rem;
-	text-align: right;
+.setting-row__control .slider-field {
+	width: 11.5rem;
 }
 .settings-page .color-picker__swatch {
 	width: 20px;

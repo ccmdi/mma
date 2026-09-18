@@ -1605,7 +1605,6 @@
 		"other": "{n} pano IDs resolved."
 	},
 	"{n} rounds": "{n} rounds",
-	"{n} seconds per round": "{n} seconds per round",
 	"{n} tags": {
 		"one": "{n} tag",
 		"other": "{n} tags"

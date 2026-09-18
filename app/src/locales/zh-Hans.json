@@ -1549,7 +1549,6 @@
 		"other": "已解析 {n} 个全景 ID。"
 	},
 	"{n} rounds": "{n} 轮",
-	"{n} seconds per round": "每轮 {n} 秒",
 	"{n} tags": {
 		"other": "{n} 个标签"
 	},

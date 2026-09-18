@@ -1605,7 +1605,6 @@
 		"other": "{n} Pano IDs ermittelt."
 	},
 	"{n} rounds": "{n} Runden",
-	"{n} seconds per round": "{n} Sekunden pro Runde",
 	"{n} tags": {
 		"one": "{n} Tag",
 		"other": "{n} Tags"

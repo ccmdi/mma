@@ -1549,7 +1549,6 @@
 		"other": "{n} 件の Pano ID を解決しました。"
 	},
 	"{n} rounds": "{n} ラウンド",
-	"{n} seconds per round": "ラウンドあたり {n} 秒",
 	"{n} tags": {
 		"other": "{n} 個のタグ"
 	},

@@ -2035,11 +2035,14 @@ Standard right-hand sidebar chrome (title, back button, scrollable body). Use fo
 `stable` · since v0.10.0
 
 ```ts
-ui.Slider(props: ComponentPropsWithRef<"input">): react.JSX.Element
+ui.Slider(
+  props: ComponentPropsWithRef<"input"> & {
+    format?: (value: number) => ReactNode;
+  },
+): react.JSX.Element
 ```
 
-Range input whose track fills with the accent up to the current value.
-Controlled only: the fill derives from the value prop.
+A range input whose track fills up to its value, followed by the value itself when `format` is given.
 
 #### ui.SuggestInput
 

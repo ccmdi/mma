@@ -60,9 +60,8 @@ function SearchRadiusSlider({
 						setDragging(null);
 					}
 				}}
-				style={{ width: 80, verticalAlign: "middle" }}
-			/>{" "}
-			<span className="mono">{formatDistance(display)}</span>
+				format={formatDistance}
+			/>
 		</label>
 	);
 }

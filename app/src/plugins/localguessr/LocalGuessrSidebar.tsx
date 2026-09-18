@@ -406,13 +406,14 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 								/>
 							</Field>
 							{config.roundMode === "classic" && (
-								<Field label={t("{n} rounds", { n: config.rounds })}>
+								<Field label={t("Rounds")}>
 									<Slider
 										min={1}
 										max={20}
 										step={1}
 										value={config.rounds}
 										onChange={(e) => patch({ rounds: Number(e.target.value) })}
+										format={(v) => v}
 									/>
 								</Field>
 							)}
@@ -430,13 +431,14 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 								</NSelect>
 							</Field>
 							{config.timerMode === "countdown" && (
-								<Field label={t("{n} seconds per round", { n: config.timeLimit })}>
+								<Field label={t("Time")}>
 									<Slider
 										min={15}
 										max={300}
 										step={5}
 										value={config.timeLimit}
 										onChange={(e) => patch({ timeLimit: Number(e.target.value) })}
+										format={(v) => `${v}s`}
 									/>
 								</Field>
 							)}

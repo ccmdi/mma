@@ -5698,9 +5698,10 @@ declare function SegmentedControl<T extends string | number>({ options, value, o
     className?: string;
 }): react.JSX.Element;
 
-/** Range input whose track fills with the accent up to the current value.
- *  Controlled only: the fill derives from the value prop. */
-declare function Slider({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
+/** A range input whose track fills up to its value, followed by the value itself when `format` is given. */
+declare function Slider({ className, format, ...props }: ComponentPropsWithRef<"input"> & {
+    format?: (value: number) => ReactNode;
+}): react.JSX.Element;
 
 /** Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
  *  outside click closes it. The dropdown shows whenever `suggestions` is non-empty, so

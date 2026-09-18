@@ -1661,7 +1661,6 @@
 		"other": "{n} pano ID résolus."
 	},
 	"{n} rounds": "{n} manches",
-	"{n} seconds per round": "{n} secondes par manche",
 	"{n} tags": {
 		"one": "{n} étiquette",
 		"many": "{n} étiquettes",

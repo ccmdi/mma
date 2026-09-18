@@ -1717,7 +1717,6 @@
 		"other": "Определено {n} pano ID."
 	},
 	"{n} rounds": "{n} раундов",
-	"{n} seconds per round": "{n} секунд на раунд",
 	"{n} tags": {
 		"one": "{n} тег",
 		"few": "{n} тега",
