@@ -4,7 +4,7 @@ import { cmd } from "@/lib/commands";
 import { collectDiagnostics, engineRows, type Diagnostics } from "@/lib/diagnostics";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { fmt, formatBytes, localeFormat } from "@/lib/util/format";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
 import {
 	startFrameMeter,
@@ -175,7 +175,7 @@ function EngineSection({ activity }: { activity: ProcedureActivity | null }) {
 	);
 }
 
-export function StatsForNerds({ onClose }: { onClose: () => void }) {
+export function StatsForNerds({ open, onOpenChange }: DialogProps) {
 	const [live, setLive] = useState<LiveStats | null>(null);
 	const [activity, setActivity] = useState<ProcedureActivity | null>(null);
 	const { data: stats, error } = useAsync(collectDiagnostics, []);
@@ -197,12 +197,7 @@ export function StatsForNerds({ onClose }: { onClose: () => void }) {
 	if (!stats && !error) return null;
 
 	return (
-		<Dialog
-			open
-			onOpenChange={(open) => {
-				if (!open) onClose();
-			}}
-		>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Stats for Nerds")} className="stats-nerds" size="xl">
 				{error && <div className="stats-nerds__error">{String(error)}</div>}
 				<div className="stats-nerds__columns">

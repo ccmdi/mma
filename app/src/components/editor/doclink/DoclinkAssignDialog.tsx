@@ -2,7 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { mdiArrowRight, mdiChevronDown, mdiChevronRight, mdiClose, mdiFolder } from "@mdi/js";
 import { TagPill } from "@/components/primitives/TagPill";
-import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogHint,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
+import { EmptyState } from "@/components/primitives/Sidebar";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
@@ -362,9 +368,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 					</div>
 				)}
 				{!docRef ? (
-					<p className="doclink-assign__hint">
-						{t("Paste a link to a Google Doc to load its headings.")}
-					</p>
+					<DialogHint>{t("Paste a link to a Google Doc to load its headings.")}</DialogHint>
 				) : (
 					<>
 						<div className="doclink-assign__armed">
@@ -393,7 +397,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 									</Button>
 								</div>
 								{matches.length === 0 ? (
-									<p className="doclink-assign__hint">{t("No headings match your tag names.")}</p>
+									<EmptyState>{t("No headings match your tag names.")}</EmptyState>
 								) : (
 									<div className="doclink-assign__match-rows">
 										{matches.map((m) => (
@@ -437,9 +441,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 									) : (
 										<TagLevel nodes={tree} ctx={treeCtx} />
 									)}
-									{tags.length === 0 && (
-										<p className="doclink-assign__hint">{t("This map has no tags.")}</p>
-									)}
+									{tags.length === 0 && <EmptyState>{t("This map has no tags.")}</EmptyState>}
 								</div>
 							</div>
 							<div className="doclink-assign__pane">
@@ -461,11 +463,11 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 									</Button>
 								</div>
 								<div className="doclink-assign__outline">
-									{loading && <p className="doclink-assign__hint">{t("Loading document...")}</p>}
+									{loading && <DialogHint>{t("Loading document...")}</DialogHint>}
 									{error && (
-										<p className="doclink-assign__hint">
+										<DialogHint tone="error">
 											{t("Couldn't load:")} {error.message}
-										</p>
+										</DialogHint>
 									)}
 									{shownHeadings.map((h) => {
 										const assigned = assignments.get(h.anchor) ?? [];
@@ -500,9 +502,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 										);
 									})}
 									{outline && outline.headings.length === 0 && (
-										<p className="doclink-assign__hint">
-											{t("No linkable headings found in this doc.")}
-										</p>
+										<EmptyState>{t("No linkable headings found in this doc.")}</EmptyState>
 									)}
 								</div>
 							</div>

@@ -1,5 +1,11 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
-import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import {
+	ConfirmDialog,
+	Dialog,
+	DialogContent,
+	DialogHint,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Slider } from "@/components/primitives/Slider";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -355,7 +361,7 @@ function KeyboardBody() {
 				return (
 					<div key={group}>
 						<h3 className="settings-group">{t(group)}</h3>
-						<table className="settings-hotkey-table">
+						<table className="data-table">
 							<thead>
 								<tr>
 									<th>{t("Action")}</th>
@@ -1243,27 +1249,23 @@ function DataBody() {
 				)}
 			</div>
 
-			<Dialog open={pending !== undefined} onOpenChange={(o) => !o && setPending(undefined)}>
-				<DialogContent title={t("Change data folder")}>
-					<p>{t("Map data will be stored in:")}</p>
-					<code style={{ display: "block", wordBreak: "break-all", margin: "8px 0" }}>
-						{target}
-					</code>
-					<p className="text-muted">
-						{t(
-							"Existing maps are not moved automatically. Copy them from the current folder if you want\n\t\t\t\t\t\tto keep them. The app must relaunch to apply.",
-						)}
-					</p>
-					<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-						<Button onClick={() => setPending(undefined)} disabled={busy}>
-							{t("Cancel")}
-						</Button>
-						<Button variant="primary" onClick={() => void apply()} disabled={busy}>
-							{t("Relaunch now")}
-						</Button>
-					</div>
-				</DialogContent>
-			</Dialog>
+			<ConfirmDialog
+				open={pending !== undefined}
+				onOpenChange={(open) => !open && setPending(undefined)}
+				title={t("Change data folder")}
+				size="md"
+				message={t("Map data will be stored in:")}
+				confirmLabel={t("Relaunch now")}
+				busy={busy}
+				onConfirm={() => void apply()}
+			>
+				<code className="settings-data-path">{target}</code>
+				<DialogHint>
+					{t(
+						"Existing maps are not moved automatically. Copy them from the current folder if you want\n\t\t\t\t\t\tto keep them. The app must relaunch to apply.",
+					)}
+				</DialogHint>
+			</ConfirmDialog>
 		</Aux>
 	);
 }
@@ -1299,23 +1301,18 @@ function ResetSettingsButton() {
 	return (
 		<>
 			<Button onClick={() => setOpen(true)}>{t("Reset all settings")}</Button>
-			<Dialog open={open} onOpenChange={setOpen}>
-				<DialogContent title={t("Reset all settings")} className="edit-map-modal">
-					<p>{t("Reset every app setting to its default? Key bindings are kept.")}</p>
-					<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-						<Button onClick={() => setOpen(false)}>{t("Cancel")}</Button>
-						<Button
-							variant="destructive"
-							onClick={() => {
-								resetSettings();
-								setOpen(false);
-							}}
-						>
-							{t("Reset")}
-						</Button>
-					</div>
-				</DialogContent>
-			</Dialog>
+			<ConfirmDialog
+				open={open}
+				onOpenChange={setOpen}
+				title={t("Reset all settings")}
+				message={t("Reset every app setting to its default? Key bindings are kept.")}
+				confirmLabel={t("Reset")}
+				tone="destructive"
+				onConfirm={() => {
+					resetSettings();
+					setOpen(false);
+				}}
+			/>
 		</>
 	);
 }

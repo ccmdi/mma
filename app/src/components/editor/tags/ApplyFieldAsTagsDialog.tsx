@@ -11,8 +11,14 @@ import { all, not } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { useSetting } from "@/store/settings";
-import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
-import { Button } from "@/components/primitives/Button";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogForm,
+	DialogHint,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
@@ -158,13 +164,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 			}}
 		>
 			<DialogContent title={t("Apply metadata as tags")}>
-				<form
-					onSubmit={(e) => {
-						e.preventDefault();
-						void handleApply();
-					}}
-					style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}
-				>
+				<DialogForm onSubmit={() => void handleApply()}>
 					<SelectorPicker ctl={picker} />
 					<div style={{ display: "flex", gap: "0.5rem" }}>
 						<NSelect
@@ -223,9 +223,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 							{t("Location timezone")}
 						</label>
 					)}
-					{tzGap > 0 && (
-						<div className="bulk-operation__status">{missingTimezoneMessage(tzGap)}</div>
-					)}
+					{tzGap > 0 && <DialogHint>{missingTimezoneMessage(tzGap)}</DialogHint>}
 					{field && (
 						<div className={clsx("apply-tags__coverage", pending && "is-pending")}>
 							<span className="apply-tags__coverage-label">
@@ -257,22 +255,22 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 							{t("Tag locations with no value as “{name}”", { name: missingName })}
 						</label>
 					)}
-					<div className="apply-tags__footer">
-						<ApplySummary
-							preview={preview}
-							pending={pending}
-							needsWidth={!!field && !key}
-							tags={counts?.tags ?? 0}
-							locations={counts?.locations ?? 0}
-							fieldLabel={fieldLabel}
-							suggestRange={fieldType === "number" && !isRange}
-						/>
-						<Button onClick={() => onOpenChange(false)}>{t("Cancel")}</Button>
-						<Button variant="primary" type="submit" disabled={!key || !counts?.tags}>
-							{t("Apply")}
-						</Button>
-					</div>
-				</form>
+					<DialogActions
+						start={
+							<ApplySummary
+								preview={preview}
+								pending={pending}
+								needsWidth={!!field && !key}
+								tags={counts?.tags ?? 0}
+								locations={counts?.locations ?? 0}
+								fieldLabel={fieldLabel}
+								suggestRange={fieldType === "number" && !isRange}
+							/>
+						}
+						cancel
+						primary={{ label: t("Apply"), disabled: !key || !counts?.tags }}
+					/>
+				</DialogForm>
 			</DialogContent>
 		</Dialog>
 	);

@@ -92,10 +92,3 @@
 	color: var(--destructive-text);
 	word-break: break-word;
 }
-
-.vali-download__footer {
-	display: flex;
-	justify-content: flex-end;
-	gap: 8px;
-	margin-top: 20px;
-}

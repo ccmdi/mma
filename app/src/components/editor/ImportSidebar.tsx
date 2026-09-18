@@ -5,7 +5,7 @@ import { useEventValue } from "@/lib/events";
 import { fmt } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { ConfirmDialog } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { TagPill } from "@/components/primitives/TagPill";
@@ -167,30 +167,23 @@ export function ImportSidebar() {
 				</Button>
 			</div>
 
-			<Dialog open={confirmAutoCommit} onOpenChange={setConfirmAutoCommit}>
-				<DialogContent title={t("Large import")}>
-					<p>
-						{t(
-							"This import has {n} locations, which is too many to keep as an undoable change. It will be committed automatically and cannot be undone afterward. You can still restore it later from history.",
-							{ n: preview.locationCount },
-						)}
-					</p>
-					<label className="import-sidebar__ack">
-						<Checkbox
-							checked={dontWarnAgain}
-							onChange={(e) => setDontWarnAgain(e.target.checked)}
-						/>
-
-						{t("Don't warn me again")}
-					</label>
-					<div className="import-sidebar__actions">
-						<Button variant="primary" onClick={proceedAutoCommit}>
-							{t("Import and commit")}
-						</Button>
-						<Button onClick={() => setConfirmAutoCommit(false)}>{t("Cancel")}</Button>
-					</div>
-				</DialogContent>
-			</Dialog>
+			<ConfirmDialog
+				open={confirmAutoCommit}
+				onOpenChange={setConfirmAutoCommit}
+				title={t("Large import")}
+				size="md"
+				message={t(
+					"This import has {n} locations, which is too many to keep as an undoable change. It will be committed automatically and cannot be undone afterward. You can still restore it later from history.",
+					{ n: preview.locationCount },
+				)}
+				confirmLabel={t("Import and commit")}
+				onConfirm={proceedAutoCommit}
+			>
+				<label className="import-sidebar__ack">
+					<Checkbox checked={dontWarnAgain} onChange={(e) => setDontWarnAgain(e.target.checked)} />
+					{t("Don't warn me again")}
+				</label>
+			</ConfirmDialog>
 		</section>
 	);
 }

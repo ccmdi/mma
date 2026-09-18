@@ -11,7 +11,10 @@ vi.mock("@/store/settings", () => ({
 	setSetting: vi.fn(),
 	getSettings: () => ({ labelColors: {} }),
 }));
-vi.mock("@/components/primitives/Dialog", () => ({ useCloseDialog: () => () => {} }));
+vi.mock("@/components/primitives/Dialog", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/components/primitives/Dialog")>()),
+	useCloseDialog: () => () => {},
+}));
 vi.mock("@/components/dialogs/ScoreBoundsEditor", () => ({
 	ScoreBoundsEditor: () => <div data-testid="scoring" />,
 }));

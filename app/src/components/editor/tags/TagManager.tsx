@@ -26,7 +26,16 @@ import { getSelectedTagIds } from "@/store/selectionActions";
 import { all } from "@/store/selections";
 import type { TagSortMode } from "@/types";
 import type { Tag, TagPatch, Update, VirtualTag } from "@/bindings.gen";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogForm,
+	DialogHint,
+	PromptDialog,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
+import { Field } from "@/components/primitives/Sidebar";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { ToolBlock } from "@/components/primitives/ToolBlock";
 import { Button } from "@/components/primitives/Button";
@@ -275,6 +284,7 @@ export function TagManager() {
 
 			{editingTreeTag && (
 				<EditTagDialog
+					open
 					tag={editingTreeTag.tag}
 					commit={commitTags}
 					aliases={aliases}
@@ -291,16 +301,17 @@ export function TagManager() {
 								}
 							: undefined
 					}
-					onClose={() => setEditingTreeTag(null)}
+					onOpenChange={(open) => !open && setEditingTreeTag(null)}
 				/>
 			)}
 
 			{editingVirtualPath != null && (
 				<VirtualTagDialog
+					open
 					path={editingVirtualPath}
 					color={virtualTags[editingVirtualPath]?.color ?? null}
 					descendantCount={tags.filter((t) => t.name.startsWith(`${editingVirtualPath}/`)).length}
-					onClose={() => setEditingVirtualPath(null)}
+					onOpenChange={(open) => !open && setEditingVirtualPath(null)}
 					onApplyColor={(color) => {
 						applyColorToSubtree(editingVirtualPath, color);
 						setEditingVirtualPath(null);
@@ -337,21 +348,23 @@ export function TagManager() {
 
 			{renamingTag && (
 				<RenameInSelectionDialog
+					open
 					tag={renamingTag}
 					commit={commitTags}
 					aliases={aliases}
 					setAliases={setAliases}
-					onClose={() => setRenamingTag(null)}
+					onOpenChange={(open) => !open && setRenamingTag(null)}
 				/>
 			)}
 
 			{newFolderParent != null && (
 				<NewFolderDialog
+					open
 					parentPath={newFolderParent}
 					tags={tags}
 					virtualTags={virtualTags}
 					aliases={aliases}
-					onClose={() => setNewFolderParent(null)}
+					onOpenChange={(open) => !open && setNewFolderParent(null)}
 					onSave={(path) => {
 						setVirtualTags({ ...virtualTags, [path]: {} });
 						setNewFolderParent(null);
@@ -361,11 +374,12 @@ export function TagManager() {
 
 			{addingAliasFor && (
 				<AddAliasDialog
+					open
 					tag={addingAliasFor}
 					tags={tags}
 					virtualTags={virtualTags}
 					aliases={aliases}
-					onClose={() => setAddingAliasFor(null)}
+					onOpenChange={(open) => !open && setAddingAliasFor(null)}
 					onSave={(aliasPath) => {
 						setAliases({ ...aliases, [aliasPath]: addingAliasFor.id });
 						setAddingAliasFor(null);
@@ -461,14 +475,14 @@ export function TagContextMenuContent({
 }
 
 function RenameInSelectionDialog({
+	open,
+	onOpenChange,
 	tag,
-	onClose,
 	commit,
 	aliases,
 	setAliases,
-}: {
+}: DialogProps & {
 	tag: { id: number; name: string };
-	onClose: () => void;
 	commit: (updates: Update<TagPatch>[]) => void;
 	aliases: Record<string, number>;
 	setAliases: (v: Record<string, number>) => void;
@@ -477,49 +491,39 @@ function RenameInSelectionDialog({
 
 	const handleSubmit = () => {
 		const trimmed = name.trim();
-		if (trimmed && trimmed !== tag.name) {
+		if (trimmed !== tag.name) {
 			commit([{ id: tag.id, patch: { name: trimmed } }]);
 			const synced = syncAliasSegments(aliases, [
 				{ id: tag.id, oldName: tag.name, newName: trimmed },
 			]);
 			if (synced) setAliases(synced);
 		}
-		onClose();
+		onOpenChange(false);
 	};
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent title={t("Rename tag in selection")} size="sm">
-				<form
-					onSubmit={(e) => {
-						e.preventDefault();
-						handleSubmit();
-					}}
-					style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
-				>
-					<TextInput type="text" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-					<div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-						<Button onClick={onClose}>{t("Cancel")}</Button>
-						<Button variant="primary" type="submit">
-							{t("Rename")}
-						</Button>
-					</div>
-				</form>
-			</DialogContent>
-		</Dialog>
+		<PromptDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title={t("Rename tag in selection")}
+			value={name}
+			onChange={setName}
+			submitLabel={t("Rename")}
+			onSubmit={handleSubmit}
+		/>
 	);
 }
 
 function EditTagDialog({
+	open,
+	onOpenChange,
 	tag,
-	onClose,
 	commit,
 	aliases,
 	setAliases,
 	cascade,
-}: {
+}: DialogProps & {
 	tag: { id: number; name: string; color: string };
-	onClose: () => void;
 	/** Routes tag updates through the optimistic overlay. */
 	commit: (updates: Update<TagPatch>[]) => void;
 	aliases: Record<string, number>;
@@ -534,6 +538,7 @@ function EditTagDialog({
 		onApplyColor: (color: string) => void;
 	};
 }) {
+	const close = () => onOpenChange(false);
 	const [name, setName] = useState(tag.name);
 	const [cascadeOn, setCascadeOn] = useState(false);
 	const [hsl, setHsl] = useState(() => hexToHsl(tag.color));
@@ -583,25 +588,14 @@ function EditTagDialog({
 		if ((getTagBindingKey(cur, tag.id) ?? "") !== hotkey) {
 			setBindings(withTagKeyBinding(cur, tag.id, hotkey));
 		}
-		onClose();
-	};
-
-	const handleDelete = () => {
-		void deleteTags([tag.id]);
-		onClose();
+		close();
 	};
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Edit tag")}>
-				<form
-					className="edit-tag-modal"
-					onSubmit={(e) => {
-						e.preventDefault();
-						handleSave();
-					}}
-				>
-					<div className="edit-tag-modal__name">
+				<DialogForm onSubmit={handleSave}>
+					<div>
 						{t("Rename:")}{" "}
 						<TextInput
 							type="text"
@@ -619,40 +613,15 @@ function EditTagDialog({
 							</label>
 						)}
 					</div>
-					<div className="edit-tag-modal__color">
-						<span>{t("Color:")}</span>
-						<TextInput
-							className="hex-color"
-							type="text"
-							value={hexValue}
-							onChange={(e) => {
-								const v = e.target.value;
-								if (/^#[0-9a-fA-F]{6}$/.test(v)) {
-									setHsl(hexToHsl(v));
-								}
-							}}
-						/>
-						<HslColorPicker
-							className="edit-tag-modal__color-picker"
-							style={{ width: "100%" }}
-							color={hsl}
-							onChange={setHsl}
-						/>
-						{cascade && cascade.descendantCount > 0 && (
-							<Button
-								className="edit-tag-modal__apply-color"
-								onClick={() => {
-									cascade.onApplyColor(hexValue);
-									onClose();
-								}}
-							>
-								{t(
-									{ one: "Apply to {n} tag inside", other: "Apply to {n} tags inside" },
-									{ n: cascade.descendantCount },
-								)}
-							</Button>
-						)}
-					</div>
+					<TagColorFields
+						hsl={hsl}
+						onChange={setHsl}
+						descendantCount={cascade?.descendantCount ?? 0}
+						onApplyColor={() => {
+							cascade?.onApplyColor(hexValue);
+							close();
+						}}
+					/>
 					<div className="edit-tag-modal__hotkey">
 						<span>{t("Hotkey:")}</span>
 						<HotkeyInput value={hotkey} onChange={setHotkey} />
@@ -672,35 +641,79 @@ function EditTagDialog({
 							</p>
 						)}
 					</div>
-					<div className="edit-tag-modal__actions">
-						<Button variant="destructive" onClick={handleDelete} data-qa="tag-delete">
-							{t("Delete")}
-						</Button>
-						<Button variant="primary" type="submit" data-qa="tag-save">
-							{t("Save")}
-						</Button>
-					</div>
-				</form>
+					<DialogActions
+						destructive={{
+							label: t("Delete"),
+							onClick: () => {
+								void deleteTags([tag.id]);
+								close();
+							},
+							"data-qa": "tag-delete",
+						}}
+						primary={{ label: t("Save"), "data-qa": "tag-save" }}
+					/>
+				</DialogForm>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+function TagColorFields({
+	hsl,
+	onChange,
+	descendantCount,
+	onApplyColor,
+}: {
+	hsl: { h: number; s: number; l: number };
+	onChange: (hsl: { h: number; s: number; l: number }) => void;
+	descendantCount: number;
+	onApplyColor: () => void;
+}) {
+	return (
+		<div className="edit-tag-modal__color">
+			<span>{t("Color:")}</span>
+			<TextInput
+				className="hex-color"
+				type="text"
+				value={hslToHex(hsl.h, hsl.s, hsl.l)}
+				onChange={(e) => {
+					const v = e.target.value;
+					if (/^#[0-9a-fA-F]{6}$/.test(v)) onChange(hexToHsl(v));
+				}}
+			/>
+			<HslColorPicker
+				className="edit-tag-modal__color-picker"
+				style={{ width: "100%" }}
+				color={hsl}
+				onChange={onChange}
+			/>
+			{descendantCount > 0 && (
+				<Button className="edit-tag-modal__apply-color" onClick={onApplyColor}>
+					{t(
+						{ one: "Apply to {n} tag inside", other: "Apply to {n} tags inside" },
+						{ n: descendantCount },
+					)}
+				</Button>
+			)}
+		</div>
 	);
 }
 
 /** Color editor for a virtual tag-tree node (a folder path with no underlying tag).
  *  Persists to `MapSettings.virtualTags`; Reset clears the override back to inherited. */
 function VirtualTagDialog({
+	open,
+	onOpenChange,
 	path,
 	color,
 	descendantCount,
-	onClose,
 	onSave,
 	onApplyColor,
 	onReset,
-}: {
+}: DialogProps & {
 	path: string;
 	color: string | null;
 	descendantCount: number;
-	onClose: () => void;
 	onSave: (color: string, newSegment: string) => void;
 	onApplyColor: (color: string) => void;
 	onReset: () => void;
@@ -711,16 +724,10 @@ function VirtualTagDialog({
 	const [name, setName] = useState(segment);
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t('Edit folder "{name}"', { name: segment })}>
-				<form
-					onSubmit={(e) => {
-						e.preventDefault();
-						onSave(hexValue, name.trim() || segment);
-					}}
-					style={{ display: "flex", flexDirection: "column", gap: "0.5rem", paddingTop: "2px" }}
-				>
-					<div className="edit-tag-modal__name">
+				<DialogForm onSubmit={() => onSave(hexValue, name.trim() || segment)}>
+					<div>
 						{t("Rename:")}{" "}
 						<TextInput
 							type="text"
@@ -729,44 +736,17 @@ function VirtualTagDialog({
 							autoFocus
 						/>
 					</div>
-					<div className="edit-tag-modal__color">
-						<span>{t("Color:")}</span>
-						<TextInput
-							className="hex-color"
-							type="text"
-							value={hexValue}
-							onChange={(e) => {
-								const v = e.target.value;
-								if (/^#[0-9a-fA-F]{6}$/.test(v)) setHsl(hexToHsl(v));
-							}}
-						/>
-						<HslColorPicker
-							className="edit-tag-modal__color-picker"
-							style={{ width: "100%" }}
-							color={hsl}
-							onChange={setHsl}
-						/>
-						{descendantCount > 0 && (
-							<Button
-								className="edit-tag-modal__apply-color"
-								onClick={() => onApplyColor(hexValue)}
-							>
-								{t(
-									{ one: "Apply to {n} tag inside", other: "Apply to {n} tags inside" },
-									{ n: descendantCount },
-								)}
-							</Button>
-						)}
-					</div>
-					<div className="edit-tag-modal__actions">
-						<Button variant="destructive" onClick={onReset} disabled={color == null}>
-							{t("Reset")}
-						</Button>
-						<Button variant="primary" type="submit">
-							{t("Save")}
-						</Button>
-					</div>
-				</form>
+					<TagColorFields
+						hsl={hsl}
+						onChange={setHsl}
+						descendantCount={descendantCount}
+						onApplyColor={() => onApplyColor(hexValue)}
+					/>
+					<DialogActions
+						destructive={{ label: t("Reset"), onClick: onReset, disabled: color == null }}
+						primary={{ label: t("Save") }}
+					/>
+				</DialogForm>
 			</DialogContent>
 		</Dialog>
 	);
@@ -776,18 +756,18 @@ function VirtualTagDialog({
  *  passes through. buildTagTree seeds a folder node for it, so it persists until deleted.
  *  Slashes in the name create the whole chain at once. */
 function NewFolderDialog({
+	open,
+	onOpenChange,
 	parentPath,
 	tags,
 	virtualTags,
 	aliases,
-	onClose,
 	onSave,
-}: {
+}: DialogProps & {
 	parentPath: string;
 	tags: Tag[];
 	virtualTags: Record<string, VirtualTag>;
 	aliases: Record<string, number>;
-	onClose: () => void;
 	onSave: (path: string) => void;
 }) {
 	const [name, setName] = useState("");
@@ -806,64 +786,36 @@ function NewFolderDialog({
 	const collision = !!path && occupied.has(path);
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent
-				title={parentPath ? t('New folder in "{parent}"', { parent: parentPath }) : t("New folder")}
-				size="sm"
-			>
-				<form
-					onSubmit={(e) => {
-						e.preventDefault();
-						if (path && !collision) onSave(path);
-					}}
-					style={{ display: "flex", flexDirection: "column", gap: "0.75rem", paddingTop: "0.5rem" }}
-				>
-					<div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-						<TextInput
-							type="text"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							placeholder={t("Folder name")}
-							autoFocus
-						/>
-						<span
-							style={{
-								fontSize: "0.85em",
-								minHeight: "1.25em",
-								lineHeight: "1.25em",
-								color: "var(--destructive-text)",
-							}}
-						>
-							{collision ? t('"{path}" already exists in the tree', { path }) : ""}
-						</span>
-					</div>
-					<div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-						<Button onClick={onClose}>{t("Cancel")}</Button>
-						<Button variant="primary" type="submit" disabled={!path || collision}>
-							{t("Create")}
-						</Button>
-					</div>
-				</form>
-			</DialogContent>
-		</Dialog>
+		<PromptDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title={parentPath ? t('New folder in "{parent}"', { parent: parentPath }) : t("New folder")}
+			value={name}
+			onChange={setName}
+			placeholder={t("Folder name")}
+			error={collision ? t('"{path}" already exists in the tree', { path }) : null}
+			canSubmit={!!path && !collision}
+			submitLabel={t("Create")}
+			onSubmit={() => onSave(path)}
+		/>
 	);
 }
 
 /** Place an existing tag at a second tree location. The alias keeps the tag's leaf name;
  *  the user picks the target folder. Persists to `MapSettings.aliases` (path -> tag id). */
 function AddAliasDialog({
+	open,
+	onOpenChange,
 	tag,
 	tags,
 	virtualTags,
 	aliases,
-	onClose,
 	onSave,
-}: {
+}: DialogProps & {
 	tag: { id: number; name: string };
 	tags: Tag[];
 	virtualTags: Record<string, VirtualTag>;
 	aliases: Record<string, number>;
-	onClose: () => void;
 	onSave: (aliasPath: string) => void;
 }) {
 	const [folder, setFolder] = useState("");
@@ -900,17 +852,23 @@ function AddAliasDialog({
 	const collision = occupied.has(aliasPath);
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t('Alias "{name}"', { name: segment })} size="sm">
-				<form
-					onSubmit={(e) => {
-						e.preventDefault();
-						if (!collision) onSave(aliasPath);
-					}}
-					style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
-				>
-					<div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-						<span style={{ fontSize: "0.85em", opacity: 0.7 }}>{t("Target folder")}</span>
+				<DialogForm onSubmit={() => !collision && onSave(aliasPath)}>
+					<Field
+						label={t("Target folder")}
+						hint={
+							collision ? (
+								<DialogHint tone="error">
+									{t('"{path}" already exists in the tree', { path: aliasPath })}
+								</DialogHint>
+							) : (
+								<>
+									{t("Appears as")} <strong>{aliasPath}</strong>
+								</>
+							)
+						}
+					>
 						<SuggestInput
 							value={folder}
 							onChange={setFolder}
@@ -923,25 +881,9 @@ function AddAliasDialog({
 							autoFocus
 							pickOnEnter={false}
 						/>
-						<span style={{ fontSize: "0.85em", opacity: 0.7 }}>
-							{collision ? (
-								<span style={{ color: "var(--destructive-text)" }}>
-									{t('"{path}" already exists in the tree', { path: aliasPath })}
-								</span>
-							) : (
-								<>
-									{t("Appears as")} <strong>{aliasPath}</strong>
-								</>
-							)}
-						</span>
-					</div>
-					<div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
-						<Button onClick={onClose}>{t("Cancel")}</Button>
-						<Button variant="primary" type="submit" disabled={collision}>
-							{t("Add alias")}
-						</Button>
-					</div>
-				</form>
+					</Field>
+					<DialogActions cancel primary={{ label: t("Add alias"), disabled: collision }} />
+				</DialogForm>
 			</DialogContent>
 		</Dialog>
 	);

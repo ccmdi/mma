@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import { ConfirmButton } from "@/components/primitives/ConfirmButton";
+import { EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
+import { TextInput } from "@/components/primitives/TextInput";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { EntryCard, EntryList } from "@/components/primitives/EntryList";
@@ -76,27 +79,22 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Review sessions")} size="lg">
-				<div className="review-sessions__tabs">
-					<button
-						className={`review-sessions__tab${filter === "active" ? " is-active" : ""}`}
-						onClick={() => setFilter("active")}
-					>
-						{t("In progress")}
-					</button>
-					<button
-						className={`review-sessions__tab${filter === "done" ? " is-active" : ""}`}
-						onClick={() => setFilter("done")}
-					>
-						{t("Completed")}
-					</button>
-				</div>
+				<SegmentedControl
+					className="segmented--fill review-sessions__tabs"
+					options={[
+						{ value: "active", label: t("In progress") },
+						{ value: "done", label: t("Completed") },
+					]}
+					value={filter}
+					onChange={setFilter}
+				/>
 
-				{loading ? (
-					<p className="entry-list__empty">{t("Loading...")}</p>
-				) : sessions.length === 0 ? (
-					<p className="entry-list__empty">
-						{filter === "active" ? t("No reviews in progress.") : t("No completed reviews.")}
-					</p>
+				{sessions.length === 0 ? (
+					!loading && (
+						<EmptyState>
+							{filter === "active" ? t("No reviews in progress.") : t("No completed reviews.")}
+						</EmptyState>
+					)
 				) : (
 					<EntryList>
 						{sessions.map((s) => {
@@ -137,22 +135,22 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 													{t("Resume")}
 												</Button>
 											)}
-											<button
-												className="icon-button review-sessions__delete"
+											<ConfirmButton
+												small
+												variant="ghost"
 												title={t("Delete session")}
 												aria-label={t("Delete session")}
-												onClick={() => void handleDelete(s.id)}
+												onConfirm={() => void handleDelete(s.id)}
 												data-qa="review-session-delete"
 											>
 												<Icon path={mdiDelete} size={18} />
-											</button>
+											</ConfirmButton>
 										</>
 									}
 								>
 									{editingId === s.id ? (
-										<input
+										<TextInput
 											className="entry-list__name"
-											style={{ font: "inherit", width: "100%", boxSizing: "border-box" }}
 											autoFocus
 											value={draft}
 											onChange={(e) => setDraft(e.target.value)}

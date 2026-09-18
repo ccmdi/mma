@@ -176,11 +176,6 @@
 	background: var(--accent-muted);
 	color: var(--text-1);
 }
-.doclink-assign__hint {
-	margin: 0.5rem 0 0;
-	font-size: 0.85rem;
-	color: var(--text-2);
-}
 .doclink-assign__armed {
 	display: flex;
 	align-items: center;

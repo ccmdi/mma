@@ -1,6 +1,12 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useMemo } from "react";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogHint,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -71,16 +77,11 @@ interface BulkRunResult {
 	/** What the run did, so one button can offer back the rows it could not work. */
 	outcome?: BatchOutcome;
 	doneContent?: React.ReactNode;
-	/** Extra buttons rendered in the actions row next to Close when done. */
+	/** Extra buttons shown beside Close when done. */
 	doneActions?: React.ReactNode;
 }
 
 type BulkRunner = (ctx: BulkRunContext) => Promise<BulkRunResult>;
-
-interface Props {
-	operation: BulkOperation;
-	onClose: () => void;
-}
 
 /** Everything the setup screens display about the current selector, read as projections --
  *  no location rows. */
@@ -123,7 +124,7 @@ async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
 function ValidateSetup({ picker, info, onReady }: SetupProps) {
 	const [checkPinned, setCheckPinned] = useState(true);
 	return (
-		<div className="bulk-operation">
+		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			{info.pinned > 0 && (
 				<label className="bulk-operation__option">
@@ -132,10 +133,11 @@ function ValidateSetup({ picker, info, onReady }: SetupProps) {
 					{t("Check pinned locations for newer coverage")}
 				</label>
 			)}
-			<div className="bulk-operation__actions">
-				<Button
-					variant="primary"
-					onClick={() =>
+			<DialogActions
+				cancel
+				primary={{
+					label: t("Start"),
+					onClick: () =>
 						onReady(async ({ selector, signal, onProgress }) => {
 							const result = await validateLocations(selector, {
 								signal,
@@ -161,12 +163,9 @@ function ValidateSetup({ picker, info, onReady }: SetupProps) {
 									{ n },
 								),
 							};
-						})
-					}
-				>
-					{t("Start")}
-				</Button>
-			</div>
+						}),
+				}}
+			/>
 		</div>
 	);
 }
@@ -188,12 +187,12 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 	const needsAny = coverage.some((c) => c.have < total);
 
 	return (
-		<div className="bulk-operation">
+		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			{enabledFields.length === 0 && (
-				<div className="bulk-operation__status" style={{ opacity: 0.8 }}>
+				<DialogHint>
 					{t("No enrichment fields are enabled. Turn them on in the Enrichment dialog.")}
-				</div>
+				</DialogHint>
 			)}
 			{total > 0 && enabledFields.length > 0 && (
 				<table className="bulk-operation__coverage">
@@ -215,7 +214,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 				</table>
 			)}
 			{info.missing("panoId") > 0 && (
-				<div className="bulk-operation__status">
+				<DialogHint>
 					{t(
 						{
 							one: "{n} without pano ID will be resolved from coordinates.",
@@ -223,29 +222,27 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 						},
 						{ n: info.missing("panoId") },
 					)}
-				</div>
+				</DialogHint>
 			)}
 			<label className="bulk-operation__option">
 				<Checkbox checked={force} onChange={(e) => setForce(e.target.checked)} />
 
 				{t("Re-enrich already enriched locations")}
 			</label>
-			<div className="bulk-operation__actions">
-				<Button
-					variant="primary"
-					onClick={() =>
+			<DialogActions
+				cancel
+				primary={{
+					label: t("Start"),
+					disabled: enabledFields.length === 0 || (!force && !needsAny),
+					onClick: () =>
 						onReady(async ({ selector, signal, onProgress }) => {
 							const er = await enrichAll(selector, { signal, force, onProgress });
 							return {
 								doneContent: <EnrichSummary result={er} />,
 							};
-						})
-					}
-					disabled={enabledFields.length === 0 || (!force && !needsAny)}
-				>
-					{t("Start")}
-				</Button>
-			</div>
+						}),
+				}}
+			/>
 		</div>
 	);
 }
@@ -265,15 +262,15 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 	const nothingToDo = !repick && pinnable === 0 && (!resolve || withoutPano === 0);
 
 	return (
-		<div className="bulk-operation">
+		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
-			<div className="bulk-operation__status">
+			<DialogHint>
 				{t(
 					{ one: "{n} location already pinned.", other: "{n} locations already pinned." },
 					{ n: info.pinned },
 				)}
-			</div>
-			<div className="bulk-operation__status">
+			</DialogHint>
+			<DialogHint>
 				{t(
 					{
 						one: "{n} location has a pano ID to pin.",
@@ -281,9 +278,9 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 					},
 					{ n: pinnable },
 				)}
-			</div>
+			</DialogHint>
 			{withoutPano > 0 && (
-				<div className="bulk-operation__status">
+				<DialogHint>
 					{resolve
 						? t(
 								{
@@ -299,7 +296,7 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 								},
 								{ n: withoutPano },
 							)}
-				</div>
+				</DialogHint>
 			)}
 			<label className="bulk-operation__option">
 				<Checkbox checked={resolve} onChange={(e) => setResolve(e.target.checked)} />
@@ -329,31 +326,35 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 					</label>
 				</>
 			)}
-			<div className="bulk-operation__actions">
-				<Button
-					onClick={() =>
-						onReady(async ({ selector }) => {
-							const { changed, failed } = await applyFieldOp(
-								selector,
-								{ kind: "set", key: "loadAsPanoId", value: 0 },
-								true,
-							);
-							return {
-								outcome: { succeeded: changed, failed },
-								doneMessage: t(
-									{ one: "Done. {n} location unpinned.", other: "Done. {n} locations unpinned." },
-									{ n: changed },
-								),
-							};
-						})
-					}
-					disabled={info.pinned === 0}
-				>
-					{t("Unpin")}
-				</Button>
-				<Button
-					variant="primary"
-					onClick={() =>
+			<DialogActions
+				start={
+					<Button
+						onClick={() =>
+							onReady(async ({ selector }) => {
+								const { changed, failed } = await applyFieldOp(
+									selector,
+									{ kind: "set", key: "loadAsPanoId", value: 0 },
+									true,
+								);
+								return {
+									outcome: { succeeded: changed, failed },
+									doneMessage: t(
+										{ one: "Done. {n} location unpinned.", other: "Done. {n} locations unpinned." },
+										{ n: changed },
+									),
+								};
+							})
+						}
+						disabled={info.pinned === 0}
+					>
+						{t("Unpin")}
+					</Button>
+				}
+				cancel
+				primary={{
+					label: t("Pin"),
+					disabled: nothingToDo,
+					onClick: () =>
 						onReady(async ({ selector, signal, onProgress }) => {
 							const outcome = await bulkPinToPano(selector, {
 								signal,
@@ -377,13 +378,9 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 											)
 										: ""),
 							};
-						})
-					}
-					disabled={nothingToDo}
-				>
-					{t("Pin")}
-				</Button>
-			</div>
+						}),
+				}}
+			/>
 		</div>
 	);
 }
@@ -402,10 +399,10 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 	};
 
 	return (
-		<div className="bulk-operation">
+		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			{clearable.length === 0 ? (
-				<div className="bulk-operation__status">{t("No metadata fields on this map.")}</div>
+				<DialogHint>{t("No metadata fields on this map.")}</DialogHint>
 			) : (
 				<div className="bulk-operation__field-list">
 					{clearable.map((key) => {
@@ -428,10 +425,15 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 					})}
 				</div>
 			)}
-			<div className="bulk-operation__actions">
-				<Button
-					variant="primary"
-					onClick={() => {
+			<DialogActions
+				cancel
+				primary={{
+					label:
+						selected.size > 0
+							? t({ one: "Clear {n} field", other: "Clear {n} fields" }, { n: selected.size })
+							: t("Clear"),
+					disabled: selected.size === 0,
+					onClick: () => {
 						const keys = [...selected];
 						onReady(async ({ selector }) => {
 							const { changed, failed } = await applyFieldOp(
@@ -450,14 +452,9 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 								),
 							};
 						});
-					}}
-					disabled={selected.size === 0}
-				>
-					{selected.size > 0
-						? t({ one: "Clear {n} field", other: "Clear {n} fields" }, { n: selected.size })
-						: t("Clear")}
-				</Button>
-			</div>
+					},
+				}}
+			/>
 		</div>
 	);
 }
@@ -495,7 +492,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 	const invalid = !effectiveKey || (isNumber && (raw.trim() === "" || exprError != null));
 
 	return (
-		<div className="bulk-operation">
+		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			<label className="bulk-operation__option">
 				{t("Field")}
@@ -553,17 +550,18 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 				)}
 			</label>
 			{isNumber && (
-				<div className="bulk-operation__status">
+				<DialogHint>
 					{exprError
 						? t("Invalid expression: {error}", { error: exprError })
 						: t("Constant or expression over fields (e.g. sunAzimuth, drivingDirection, lat).")}
-				</div>
+				</DialogHint>
 			)}
-			<div className="bulk-operation__actions">
-				<Button
-					variant="primary"
-					disabled={invalid}
-					onClick={() => {
+			<DialogActions
+				cancel
+				primary={{
+					label: t("Set field"),
+					disabled: invalid,
+					onClick: () => {
 						const ek = effectiveKey;
 						const rv = raw;
 						const useExpr = isNumber;
@@ -582,11 +580,9 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 									: "");
 							return { outcome: { succeeded: changed, failed }, doneMessage: message };
 						});
-					}}
-				>
-					{t("Set field")}
-				</Button>
-			</div>
+					},
+				}}
+			/>
 		</div>
 	);
 }
@@ -595,7 +591,7 @@ function HeadingRoadSetup({ picker, onReady }: SetupProps) {
 	const [direction, setDirection] = useState<RoadDirection>("forwards");
 
 	return (
-		<div className="bulk-operation">
+		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			<div className="bulk-operation__fieldset">
 				<label>
@@ -617,10 +613,11 @@ function HeadingRoadSetup({ picker, onReady }: SetupProps) {
 					{t("Backwards")}
 				</label>
 			</div>
-			<div className="bulk-operation__actions">
-				<Button
-					variant="primary"
-					onClick={() =>
+			<DialogActions
+				cancel
+				primary={{
+					label: t("Start"),
+					onClick: () =>
 						onReady(async ({ selector, signal, onProgress }) => {
 							const outcome = await bulkPanHeading(selector, direction, { signal, onProgress });
 							return {
@@ -630,12 +627,9 @@ function HeadingRoadSetup({ picker, onReady }: SetupProps) {
 									{ n: outcome.succeeded },
 								),
 							};
-						})
-					}
-				>
-					{t("Start")}
-				</Button>
-			</div>
+						}),
+				}}
+			/>
 		</div>
 	);
 }
@@ -647,10 +641,10 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 	const [tileY, setTileY] = useState(0);
 
 	return (
-		<div className="bulk-operation">
+		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			{info.missing("panoId") > 0 && (
-				<div className="bulk-operation__status">
+				<DialogHint>
 					{t(
 						{
 							one: "{n} without pano ID will be resolved from coordinates.",
@@ -658,7 +652,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 						},
 						{ n: info.missing("panoId") },
 					)}
-				</div>
+				</DialogHint>
 			)}
 			<label className="bulk-operation__option">
 				{t("Mode")}
@@ -711,10 +705,11 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 					</label>
 				</>
 			)}
-			<div className="bulk-operation__actions">
-				<Button
-					variant="primary"
-					onClick={() => {
+			<DialogActions
+				cancel
+				primary={{
+					label: t("Start"),
+					onClick: () => {
 						const config = { mode, zoom, tileX, tileY };
 						onReady(async ({ selector, signal, onProgress }) => {
 							const locations = await fetchLocations(selector);
@@ -743,11 +738,9 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 								doneActions: <DownloadDoneActions result={result} initiallySaved={saved} />,
 							};
 						});
-					}}
-				>
-					{t("Start")}
-				</Button>
-			</div>
+					},
+				}}
+			/>
 		</div>
 	);
 }
@@ -794,7 +787,7 @@ function DownloadDoneActions({
 	return (
 		<>
 			{result.output != null && !saved && (
-				<Button variant="primary" onClick={() => void save()}>
+				<Button onClick={() => void save()}>
 					{result.succeeded === 1 ? t("Save image") : t("Save ZIP")}
 				</Button>
 			)}
@@ -1032,7 +1025,7 @@ export function BulkProgress({
 	const pct = Math.round(progress * 100);
 
 	return (
-		<div className="bulk-operation">
+		<div className="modal__stack">
 			<div className="bulk-operation__status">
 				{status === "running" && parts.length > 0 && (
 					<div className="bulk-operation__providers">
@@ -1100,9 +1093,9 @@ export function BulkProgress({
 				{status === "error" && t("Error: {error}", { error: error ?? "" })}
 			</div>
 			<Bar value={progress} size="md" />
-			<div className="bulk-operation__actions">
-				{status === "running" ? (
-					<>
+			{status === "running" ? (
+				<DialogActions
+					start={
 						<span className="bulk-operation__meter">
 							{t("{done} / {total} ({pct}%)", {
 								done: fmt.format(done),
@@ -1110,28 +1103,28 @@ export function BulkProgress({
 								pct,
 							}) + (rate != null ? t(", {rate}/s", { rate: fmt.format(Math.round(rate)) }) : "")}
 						</span>
-						<Button variant="destructive" onClick={() => run.controller.abort()}>
-							{t("Cancel")}
-						</Button>
-					</>
-				) : (
-					<>
-						{status === "done" && result.doneActions}
-						{status === "done" && result.outcome != null && (
-							<SelectFailedButton outcome={result.outcome} />
-						)}
-						<Button
-							variant="primary"
-							onClick={() => {
-								dropRun(operation);
-								onClose();
-							}}
-						>
-							{t("Close")}
-						</Button>
-					</>
-				)}
-			</div>
+					}
+					cancel={{ onClick: () => run.controller.abort() }}
+				/>
+			) : (
+				<DialogActions
+					start={
+						status === "done" && (
+							<>
+								{result.doneActions}
+								{result.outcome != null && <SelectFailedButton outcome={result.outcome} />}
+							</>
+						)
+					}
+					cancel={{
+						label: t("Close"),
+						onClick: () => {
+							dropRun(operation);
+							onClose();
+						},
+					}}
+				/>
+			)}
 		</div>
 	);
 }
@@ -1150,7 +1143,11 @@ const SETUPS: Record<BulkOperation, React.ComponentType<SetupProps>> = {
 	downloadPanoramas: DownloadPanoramasSetup,
 };
 
-export function BulkOperationModal({ operation, onClose }: Props) {
+export function BulkOperationModal({
+	open,
+	onOpenChange,
+	operation,
+}: DialogProps & { operation: BulkOperation }) {
 	const run = useEventValue("bulkruns:changed", getBulkRuns).get(operation);
 	const picker = useSelectorPick();
 	const { data: allKeys } = useAsync(() => coverage({ type: "Everything" }), []);
@@ -1162,15 +1159,10 @@ export function BulkOperationModal({ operation, onClose }: Props) {
 	const Setup = SETUPS[operation];
 
 	return (
-		<Dialog
-			open
-			onOpenChange={(open) => {
-				if (!open) onClose();
-			}}
-		>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t(TITLES[operation])}>
 				{run ? (
-					<BulkProgress operation={operation} onClose={onClose} />
+					<BulkProgress operation={operation} onClose={() => onOpenChange(false)} />
 				) : (
 					<Setup
 						picker={picker}

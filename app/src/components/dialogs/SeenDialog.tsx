@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
-import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
+import { EmptyState } from "@/components/primitives/Sidebar";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -66,7 +72,6 @@ export function SeenDialog({
 	const [page, setPage] = useState(0);
 	const [loading, setLoading] = useState(false);
 	const [ready, setReady] = useState(false);
-	const [confirmingClear, setConfirmingClear] = useState(false);
 
 	const [countries, setCountries] = useState<string[]>([]);
 	const [maps, setMaps] = useState<{ id: string; name: string }[]>([]);
@@ -129,11 +134,6 @@ export function SeenDialog({
 	};
 
 	const handleClear = async () => {
-		if (!confirmingClear) {
-			setConfirmingClear(true);
-			return;
-		}
-		setConfirmingClear(false);
 		await clearSeen();
 		setEntries([]);
 		setTotal(0);
@@ -179,35 +179,30 @@ export function SeenDialog({
 				</div>
 				<div className="seen-dialog__grid">
 					{entries.length === 0 && !loading ? (
-						<div className="seen-dialog__empty">{t("No panos found.")}</div>
+						<EmptyState>{t("No panos found.")}</EmptyState>
 					) : (
 						entries.map((e) => <SeenEntryCard key={e.id} entry={e} onLoad={handleLoad} />)
 					)}
 				</div>
-				<div className="seen-dialog__footer">
+				<div className="seen-dialog__pagination">
 					<Button
-						variant="destructive"
-						onClick={() => void handleClear()}
-						onBlur={() => setConfirmingClear(false)}
+						disabled={page === 0 || loading}
+						onClick={() => void load(page - 1, buildFilter())}
 					>
-						{confirmingClear ? t("Are you sure?") : t("Clear")}
+						{t("Prev")}
 					</Button>
-					<div className="seen-dialog__pagination">
-						<Button
-							disabled={page === 0 || loading}
-							onClick={() => void load(page - 1, buildFilter())}
-						>
-							{t("Prev")}
-						</Button>
-						<span className="mono">{totalPages > 0 ? `${page + 1} / ${totalPages}` : "0 / 0"}</span>
-						<Button
-							disabled={page >= totalPages - 1 || loading}
-							onClick={() => void load(page + 1, buildFilter())}
-						>
-							{t("Next")}
-						</Button>
-					</div>
+					<span className="mono">{totalPages > 0 ? `${page + 1} / ${totalPages}` : "0 / 0"}</span>
+					<Button
+						disabled={page >= totalPages - 1 || loading}
+						onClick={() => void load(page + 1, buildFilter())}
+					>
+						{t("Next")}
+					</Button>
 				</div>
+				<DialogActions
+					destructive={{ label: t("Clear"), confirm: true, onClick: () => void handleClear() }}
+					cancel={{ label: t("Close") }}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

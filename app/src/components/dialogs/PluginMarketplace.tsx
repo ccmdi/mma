@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
-import { SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import {
 	getPlugins,
 	unregisterPlugin,
@@ -443,13 +443,13 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 								</div>
 							))}
 						{fetchError && (
-							<div className="plugin-marketplace__empty">
+							<EmptyState>
 								{t("Failed to load registry:")} {fetchError}
 								<br />
 								<Button onClick={fetchRegistry} style={{ marginTop: 8 }}>
 									{t("Retry")}
 								</Button>
-							</div>
+							</EmptyState>
 						)}
 						{registryEntries.map((e) => (
 							<PluginCard
@@ -460,9 +460,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 							/>
 						))}
 						{registry && installedEntries.length === 0 && registryEntries.length === 0 && (
-							<div className="plugin-marketplace__empty">
-								{t("No additional plugins available.")}
-							</div>
+							<EmptyState>{t("No additional plugins available.")}</EmptyState>
 						)}
 					</div>
 				)}

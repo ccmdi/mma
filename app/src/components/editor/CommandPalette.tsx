@@ -270,7 +270,13 @@ export function CommandPalette() {
 					</BaseDialog.Popup>
 				</BaseDialog.Portal>
 			</BaseDialog.Root>
-			{bulkOp && <BulkOperationModal operation={bulkOp} onClose={() => setBulkOp(null)} />}
+			{bulkOp && (
+				<BulkOperationModal
+					open
+					onOpenChange={(open) => !open && setBulkOp(null)}
+					operation={bulkOp}
+				/>
+			)}
 		</>
 	);
 }

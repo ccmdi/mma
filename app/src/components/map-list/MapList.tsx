@@ -5,7 +5,6 @@ import {
 	useMapList,
 	createMap,
 	openScratchMap,
-	deleteMap,
 	renameFolder,
 	deleteFolder,
 	moveMapToFolder,
@@ -20,9 +19,16 @@ import { openDialog as openAppDialog } from "@/store/dialogBus";
 import { cmd } from "@/lib/commands";
 import { mmaBufUrl, downloadBlob } from "@/lib/util/util";
 import { Collapsible } from "@base-ui-components/react/collapsible";
-import { Dialog, DialogContent, useCloseDialog } from "@/components/primitives/Dialog";
+import {
+	ConfirmDialog,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	PromptDialog,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
-import { MapSettingsForm } from "@/components/dialogs/MapSettingsForm";
+import { DeleteMapDialog, MapSettingsForm } from "@/components/dialogs/MapSettingsForm";
 import {
 	mdiChevronDown,
 	mdiChevronRight,
@@ -211,42 +217,27 @@ function hitTestDropTarget(x: number, y: number): DropTarget {
 
 // --- Subcomponents ---
 
-function RenameForm({
+function RenameFolderDialog({
+	open,
+	onOpenChange,
 	name,
 	onRename,
-}: {
-	name: string;
-	onRename?: (from: string, to: string) => void;
-}) {
-	const close = useCloseDialog();
+}: DialogProps & { name: string; onRename: (from: string, to: string) => void }) {
+	const [value, setValue] = useState(name);
 	return (
-		<form
-			onSubmit={(e) => {
-				e.preventDefault();
-				const val = new FormData(e.currentTarget).get("name");
-				if (typeof val === "string" && val.trim() !== "") {
-					const to = val.trim();
-					onRename?.(name, to);
-					void renameFolder(name, to).finally(close);
-				}
+		<PromptDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title={t("Rename folder")}
+			value={value}
+			onChange={(v) => setValue(v.slice(0, 100))}
+			submitLabel={t("Save")}
+			onSubmit={() => {
+				const to = value.trim();
+				onRename(name, to);
+				void renameFolder(name, to).finally(() => onOpenChange(false));
 			}}
-		>
-			<p>
-				<TextInput
-					type="text"
-					name="name"
-					defaultValue={name}
-					minLength={1}
-					maxLength={100}
-					autoFocus
-				/>
-			</p>
-			<div className="edit-map-modal__actions">
-				<Button type="submit" variant="primary">
-					{t("Save")}
-				</Button>
-			</div>
-		</form>
+		/>
 	);
 }
 
@@ -510,13 +501,13 @@ async function applyFolderFiles(paths: string[], maps: MapMeta[]) {
 }
 
 function ImportPreviewModal({
+	open,
+	onOpenChange,
 	preview,
 	onConfirm,
-	onClose,
-}: {
+}: DialogProps & {
 	preview: ImportPreview;
 	onConfirm: (selectedIndices: number[]) => void;
-	onClose: () => void;
 }) {
 	const [entries, setEntries] = useState(preview.entries);
 	const selectedCount = entries.filter((e) => e.selected).length;
@@ -532,14 +523,9 @@ function ImportPreviewModal({
 		setEntries((prev) => prev.map((e) => ({ ...e, selected: !e.isDuplicate })));
 
 	return (
-		<Dialog
-			open
-			onOpenChange={(open) => {
-				if (!open) onClose();
-			}}
-		>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Import Maps")}>
-				<div className="import-preview__actions">
+				<div className="import-preview__toolbar">
 					<Button onClick={selectAll}>{t("All")}</Button>
 					<Button onClick={selectNone}>{t("None")}</Button>
 					<Button onClick={selectNew}>{t("New only")}</Button>
@@ -588,19 +574,14 @@ function ImportPreviewModal({
 					</details>
 				)}
 
-				<div className="import-preview__footer">
-					<Button onClick={onClose}>{t("Cancel")}</Button>
-					<Button
-						variant="primary"
-						disabled={selectedCount === 0}
-						onClick={() => {
-							const indices = entries.map((e, i) => (e.selected ? i : -1)).filter((i) => i >= 0);
-							onConfirm(indices);
-						}}
-					>
-						{t({ one: "Import {n} map", other: "Import {n} maps" }, { n: selectedCount })}
-					</Button>
-				</div>
+				<DialogActions
+					cancel
+					primary={{
+						label: t({ one: "Import {n} map", other: "Import {n} maps" }, { n: selectedCount }),
+						disabled: selectedCount === 0,
+						onClick: () => onConfirm(entries.flatMap((e, i) => (e.selected ? [i] : []))),
+					}}
+				/>
 			</DialogContent>
 		</Dialog>
 	);
@@ -762,13 +743,15 @@ export function BulkActions() {
 			</button>
 			{preview && (
 				<ImportPreviewModal
-					preview={preview}
-					onConfirm={(indices) => void handleConfirm(indices)}
-					onClose={() => {
+					open
+					onOpenChange={(open) => {
+						if (open) return;
 						void cmd.bulkImportCancel();
 						setPreview(null);
 						importEntriesRef.current = null;
 					}}
+					preview={preview}
+					onConfirm={(indices) => void handleConfirm(indices)}
 				/>
 			)}
 		</>
@@ -891,6 +874,7 @@ export function MapList() {
 	const editingMap =
 		activeAction?.type === "edit" ? maps.find((m) => m.id === activeAction.id) : undefined;
 
+	const closeAction = useCallback((open: boolean) => !open && setActiveAction(null), []);
 	const handleMapAction = useCallback((action: MapAction) => setActiveAction(action), []);
 	const handleFolderAction = useCallback((action: FolderAction) => setActiveAction(action), []);
 
@@ -1159,85 +1143,52 @@ export function MapList() {
 			>
 				{dragItem?.name}
 			</div>
-			{activeAction && (
-				<Dialog
-					open
-					onOpenChange={(open) => {
-						if (!open) setActiveAction(null);
-					}}
-				>
-					<DialogContent
-						title={
-							activeAction.type === "edit"
-								? t("Edit map")
-								: activeAction.type === "delete"
-									? t("Delete map")
-									: activeAction.type === "rename-folder"
-										? t("Rename folder")
-										: t("Delete folder")
-						}
-						className="edit-map-modal"
-					>
-						{activeAction.type === "edit" && editingMap && (
-							<MapSettingsForm map={editingMap} context="list" />
-						)}
-						{activeAction.type === "delete" && (
-							<>
-								<p>{t('Delete "{name}"?', { name: activeAction.name || t("(unnamed)") })}</p>
-								<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-									<Button onClick={() => setActiveAction(null)}>{t("Cancel")}</Button>
-									<Button
-										variant="destructive"
-										onClick={() => {
-											void deleteMap(activeAction.id);
-											setActiveAction(null);
-										}}
-									>
-										{t("Delete")}
-									</Button>
-								</div>
-							</>
-						)}
-						{activeAction.type === "rename-folder" && (
-							<RenameForm
-								name={activeAction.name}
-								onRename={(from, to) =>
-									setSyntheticFolders((prev) => prev.map((f) => (f === from ? to : f)))
-								}
-							/>
-						)}
-						{activeAction.type === "delete-folder" && (
-							<>
-								<p>
-									{t(
-										{
-											one: 'Delete folder "{name}"? The {n} map inside will be moved to the root.',
-											other:
-												'Delete folder "{name}"? The {n} maps inside will be moved to the root.',
-										},
-										{ name: activeAction.name, n: (activeAction as FolderAction).mapCount },
-									)}
-								</p>
-								<div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-									<Button onClick={() => setActiveAction(null)}>{t("Cancel")}</Button>
-									<Button
-										variant="destructive"
-										onClick={() =>
-											void (async () => {
-												const name = activeAction.name;
-												setActiveAction(null);
-												setSyntheticFolders((prev) => prev.filter((f) => f !== name));
-												await deleteFolder(name);
-											})()
-										}
-									>
-										{t("Delete folder")}
-									</Button>
-								</div>
-							</>
-						)}
+			{activeAction?.type === "edit" && editingMap && (
+				<Dialog open onOpenChange={closeAction}>
+					<DialogContent title={t("Edit map")} className="edit-map-modal">
+						<MapSettingsForm map={editingMap} context="list" />
 					</DialogContent>
 				</Dialog>
+			)}
+			{activeAction?.type === "delete" && (
+				<DeleteMapDialog
+					open
+					onOpenChange={closeAction}
+					mapId={activeAction.id}
+					name={activeAction.name}
+				/>
+			)}
+			{activeAction?.type === "rename-folder" && (
+				<RenameFolderDialog
+					open
+					onOpenChange={closeAction}
+					name={activeAction.name}
+					onRename={(from, to) =>
+						setSyntheticFolders((prev) => prev.map((f) => (f === from ? to : f)))
+					}
+				/>
+			)}
+			{activeAction?.type === "delete-folder" && (
+				<ConfirmDialog
+					open
+					onOpenChange={closeAction}
+					title={t("Delete folder")}
+					message={t(
+						{
+							one: 'Delete folder "{name}"? The {n} map inside will be moved to the root.',
+							other: 'Delete folder "{name}"? The {n} maps inside will be moved to the root.',
+						},
+						{ name: activeAction.name, n: activeAction.mapCount },
+					)}
+					confirmLabel={t("Delete folder")}
+					tone="destructive"
+					onConfirm={() => {
+						const name = activeAction.name;
+						setActiveAction(null);
+						setSyntheticFolders((prev) => prev.filter((f) => f !== name));
+						void deleteFolder(name);
+					}}
+				/>
 			)}
 		</div>
 	);

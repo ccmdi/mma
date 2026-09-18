@@ -1,6 +1,11 @@
 import { useState, useCallback } from "react";
-import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
-import { Button } from "@/components/primitives/Button";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
+import { EmptyState } from "@/components/primitives/Sidebar";
 import { previewDuplicateGroups, mergeDuplicates } from "@/store/useMapStore";
 import { toast } from "@/lib/util/toast";
 import { fmt, formatDistance } from "@/lib/util/format";
@@ -58,15 +63,18 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Merge duplicates")} className="merge-duplicates">
+			<DialogContent title={t("Merge duplicates")}>
 				{nothing && (
-					<p className="merge-duplicates__status">
-						{t("No duplicate groups within {distance}.", { distance: formatDistance(distance) })}
-					</p>
+					<>
+						<EmptyState>
+							{t("No duplicate groups within {distance}.", { distance: formatDistance(distance) })}
+						</EmptyState>
+						<DialogActions cancel={{ label: t("Close") }} />
+					</>
 				)}
 				{preview != null && preview.groups > 0 && (
 					<>
-						<p className="merge-duplicates__status">
+						<p className="modal__message">
 							{t(
 								{ one: "{n} group within {distance}.", other: "{n} groups within {distance}." },
 								{ n: preview.groups, distance: formatDistance(distance) },
@@ -81,12 +89,14 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 							)}{" "}
 							{t("Largest group: {n}.", { n: preview.largest })}
 						</p>
-						<div className="merge-duplicates__actions">
-							<Button onClick={() => onOpenChange(false)}>{t("Cancel")}</Button>
-							<Button variant="primary" onClick={() => void handleMerge()} disabled={merging}>
-								{merging ? t("Merging...") : t("Merge")}
-							</Button>
-						</div>
+						<DialogActions
+							cancel
+							primary={{
+								label: merging ? t("Merging...") : t("Merge"),
+								disabled: merging,
+								onClick: () => void handleMerge(),
+							}}
+						/>
 					</>
 				)}
 			</DialogContent>

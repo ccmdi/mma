@@ -8,8 +8,14 @@ import { cmd } from "@/lib/commands";
 import { useSetting, setSetting, getSettings } from "@/store/settings";
 import { labelColor, rgbToHex, hexToRgb } from "@/lib/util/color";
 import { exprErrorText } from "@/lib/util/format";
-import { useCloseDialog } from "@/components/primitives/Dialog";
-import { Button } from "@/components/primitives/Button";
+import {
+	ConfirmDialog,
+	DialogActions,
+	DialogForm,
+	DialogHint,
+	useCloseDialog,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -191,9 +197,9 @@ function ExprSection({
 					</button>
 				</span>
 			</p>
-			<p className="edit-map-modal__hint">
+			<DialogHint tone={error ? "error" : undefined}>
 				{error ? t("Invalid expression: {error}", { error }) : hint}
-			</p>
+			</DialogHint>
 		</>
 	);
 }
@@ -243,29 +249,27 @@ const SECTIONS: Section[] = [
 	{ id: "scoring", in: ["editor"], Body: ScoringSection },
 ];
 
-function DeleteMapSection({ mapId, name }: { mapId: string; name: string }) {
-	const [confirming, setConfirming] = useState(false);
-
-	if (!confirming) {
-		return (
-			<Button variant="destructive" onClick={() => setConfirming(true)}>
-				{t("Delete map")}
-			</Button>
-		);
-	}
-
+export function DeleteMapDialog({
+	open,
+	onOpenChange,
+	mapId,
+	name,
+}: DialogProps & { mapId: string; name: string }) {
 	return (
-		<div className="edit-map-modal__delete">
-			<span>
-				{t("Delete “{name}”? This permanently removes the map and its history.", {
-					name: name || t("(unnamed)"),
-				})}
-			</span>
-			<Button onClick={() => setConfirming(false)}>{t("Cancel")}</Button>
-			<Button variant="destructive" onClick={() => void deleteMap(mapId)}>
-				{t("Delete map")}
-			</Button>
-		</div>
+		<ConfirmDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title={t("Delete map")}
+			message={t("Delete “{name}”? This permanently removes the map and its history.", {
+				name: name || t("(unnamed)"),
+			})}
+			confirmLabel={t("Delete map")}
+			tone="destructive"
+			onConfirm={() => {
+				onOpenChange(false);
+				void deleteMap(mapId);
+			}}
+		/>
 	);
 }
 
@@ -273,6 +277,7 @@ function DeleteMapSection({ mapId, name }: { mapId: string; name: string }) {
  *  sections it is made of. */
 export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFormContext }) {
 	const close = useCloseDialog();
+	const [deleting, setDeleting] = useState(false);
 	const [patch, setPatch] = useState<Partial<MapMeta>>({});
 	const [blocked, setBlocked] = useState<ReadonlySet<string>>(new Set());
 
@@ -302,22 +307,26 @@ export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFo
 	);
 
 	return (
-		<form
-			onSubmit={(e) => {
-				e.preventDefault();
-				void patchMapMeta(map.id, patch);
-				close();
-			}}
-		>
-			{sections.map(({ id, Body }) => (
-				<Body key={id} draft={draft} {...handlers.get(id)!} />
-			))}
-			<div className="edit-map-modal__actions">
-				{context === "editor" && <DeleteMapSection mapId={map.id} name={map.name} />}
-				<Button variant="primary" type="submit" disabled={blocked.size > 0}>
-					{t("Save")}
-				</Button>
-			</div>
-		</form>
+		<>
+			<DialogForm
+				onSubmit={() => {
+					void patchMapMeta(map.id, patch);
+					close();
+				}}
+			>
+				{sections.map(({ id, Body }) => (
+					<Body key={id} draft={draft} {...handlers.get(id)!} />
+				))}
+				<DialogActions
+					destructive={
+						context === "editor"
+							? { label: t("Delete map"), onClick: () => setDeleting(true) }
+							: undefined
+					}
+					primary={{ label: t("Save"), disabled: blocked.size > 0 }}
+				/>
+			</DialogForm>
+			<DeleteMapDialog open={deleting} onOpenChange={setDeleting} mapId={map.id} name={map.name} />
+		</>
 	);
 }

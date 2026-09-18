@@ -1,5 +1,10 @@
 import { useState, useId } from "react";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogHint,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
@@ -16,11 +21,7 @@ import { log } from "@/lib/util/log";
 import { t } from "@/lib/i18n";
 import { Trans } from "@/components/primitives/Trans";
 
-interface Props {
-	onClose: () => void;
-}
-
-export function ExportDialog({ onClose }: Props) {
+export function ExportDialog({ open, onOpenChange }: DialogProps) {
 	const map = useMapState((s) => s.map);
 	const selectedIds = useMapState((s) => s.selectedLocationIds);
 	const locationCount = useMapState((s) => s.locationCount);
@@ -81,7 +82,7 @@ export function ExportDialog({ onClose }: Props) {
 	const downloadGeoJson = download(geojsonPath, "geojson");
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Export")} className="export-modal">
 				<div className="export-modal__settings">
 					<div className="export-modal__filename">
@@ -148,12 +149,11 @@ export function ExportDialog({ onClose }: Props) {
 							/>
 
 							{t("Save app data")}
-							<br />
-							<small className="export-modal__help">
+							<DialogHint>
 								{t(
 									"Include app-specific data like tags. Not including this makes the file smaller,\n\t\t\t\t\t\t\t\twhich can help when uploading maps with 100K+ locations to GeoGuessr.",
 								)}
-							</small>
+							</DialogHint>
 						</label>
 						<label>
 							<Checkbox
@@ -163,12 +163,11 @@ export function ExportDialog({ onClose }: Props) {
 							/>
 
 							{t("Bypass GeoGuessr auto-panning for locations with 0 heading")}
-							<br />
-							<small className="export-modal__help">
+							<DialogHint>
 								{t(
 									"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.",
 								)}
-							</small>
+							</DialogHint>
 						</label>
 					</div>
 				</div>

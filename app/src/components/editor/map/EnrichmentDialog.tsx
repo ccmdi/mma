@@ -1,11 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { createFieldDef } from "@/types";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/primitives/Dialog";
+import {
+	ConfirmDialog,
+	Dialog,
+	DialogContent,
+	DialogTrigger,
+} from "@/components/primitives/Dialog";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Switch } from "@/components/primitives/Switch";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
-import { SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import { Radio } from "@/components/primitives/Radio";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
@@ -320,9 +325,9 @@ function FieldsTab() {
 
 	if (rows.length === 0) {
 		return (
-			<p className="fields-pane__empty">
+			<EmptyState>
 				{t("No fields on this map yet. Enrich or import locations to create some.")}
-			</p>
+			</EmptyState>
 		);
 	}
 
@@ -349,7 +354,7 @@ function FieldsTab() {
 								<CoverageBar ratio={coverage.get(r.key) ?? 0} />
 							</button>
 						))}
-						{shown.length === 0 && <p className="fields-pane__empty">{t("No fields match.")}</p>}
+						{shown.length === 0 && <EmptyState>{t("No fields match.")}</EmptyState>}
 					</div>
 				</div>
 
@@ -438,88 +443,78 @@ function FieldsTab() {
 				)}
 			</div>
 
-			<Dialog open={renamePrompt !== null} onOpenChange={(open) => !open && setRenamePrompt(null)}>
-				<DialogContent
-					title={renamePrompt?.merge ? t("Merge field") : t("Rename field")}
-					className="period-prompt"
-					size="sm"
+			{renamePrompt && (
+				<ConfirmDialog
+					open
+					onOpenChange={(open) => !open && setRenamePrompt(null)}
+					title={renamePrompt.merge ? t("Merge field") : t("Rename field")}
+					message={
+						renamePrompt.merge ? (
+							<Trans
+								msg={{
+									one: "Merge {from} into existing field {to} across {n} location. This cannot be undone.",
+									other:
+										"Merge {from} into existing field {to} across {n} locations. This cannot be undone.",
+								}}
+								from={<code>{renamePrompt.key}</code>}
+								to={<code>{renamePrompt.target}</code>}
+								n={renamePrompt.affected}
+							/>
+						) : (
+							<Trans
+								msg={{
+									one: "Rename {from} to {to} across {n} location. This cannot be undone.",
+									other: "Rename {from} to {to} across {n} locations. This cannot be undone.",
+								}}
+								from={<code>{renamePrompt.key}</code>}
+								to={<code>{renamePrompt.target}</code>}
+								n={renamePrompt.affected}
+							/>
+						)
+					}
+					confirmLabel={renamePrompt.merge ? t("Merge") : t("Rename")}
+					busy={busy}
+					onConfirm={() => void confirmRename()}
 				>
-					{renamePrompt && (
-						<>
-							<p className="period-prompt__help">
-								{renamePrompt.merge ? (
-									<Trans
-										msg={{
-											one: "Merge {from} into existing field {to} across {n} location. This cannot be undone.",
-											other:
-												"Merge {from} into existing field {to} across {n} locations. This cannot be undone.",
-										}}
-										from={<code>{renamePrompt.key}</code>}
-										to={<code>{renamePrompt.target}</code>}
-										n={renamePrompt.affected}
-									/>
-								) : (
-									<Trans
-										msg={{
-											one: "Rename {from} to {to} across {n} location. This cannot be undone.",
-											other: "Rename {from} to {to} across {n} locations. This cannot be undone.",
-										}}
-										from={<code>{renamePrompt.key}</code>}
-										to={<code>{renamePrompt.target}</code>}
-										n={renamePrompt.affected}
-									/>
-								)}
-							</p>
-							{renamePrompt.merge && (
-								<fieldset className="manage-fields-action__winner">
-									<legend>{t("On conflict, keep:")}</legend>
-									<label>
-										<Radio
-											checked={renamePrompt.winner === "from"}
-											onChange={() => setRenamePrompt({ ...renamePrompt, winner: "from" })}
-										/>{" "}
-										<Trans msg={"{field}’s values"} field={<code>{renamePrompt.key}</code>} />
-									</label>
-									<label>
-										<Radio
-											checked={renamePrompt.winner === "to"}
-											onChange={() => setRenamePrompt({ ...renamePrompt, winner: "to" })}
-										/>{" "}
-										<Trans msg={"{field}’s values"} field={<code>{renamePrompt.target}</code>} />
-									</label>
-								</fieldset>
-							)}
-							<div className="period-prompt__actions">
-								<Button variant="primary" disabled={busy} onClick={() => void confirmRename()}>
-									{renamePrompt.merge ? t("Merge") : t("Rename")}
-								</Button>
-								<Button disabled={busy} onClick={() => setRenamePrompt(null)}>
-									{t("Cancel")}
-								</Button>
-							</div>
-						</>
+					{renamePrompt.merge && (
+						<fieldset className="manage-fields-action__winner">
+							<legend>{t("On conflict, keep:")}</legend>
+							<label>
+								<Radio
+									checked={renamePrompt.winner === "from"}
+									onChange={() => setRenamePrompt({ ...renamePrompt, winner: "from" })}
+								/>{" "}
+								<Trans msg={"{field}’s values"} field={<code>{renamePrompt.key}</code>} />
+							</label>
+							<label>
+								<Radio
+									checked={renamePrompt.winner === "to"}
+									onChange={() => setRenamePrompt({ ...renamePrompt, winner: "to" })}
+								/>{" "}
+								<Trans msg={"{field}’s values"} field={<code>{renamePrompt.target}</code>} />
+							</label>
+						</fieldset>
 					)}
-				</DialogContent>
-			</Dialog>
+				</ConfirmDialog>
+			)}
 
-			<Dialog open={deleteKey !== null} onOpenChange={(open) => !open && setDeleteKey(null)}>
-				<DialogContent title={t("Delete field")} className="period-prompt" size="sm">
-					<p className="period-prompt__help">
+			{deleteKey !== null && (
+				<ConfirmDialog
+					open
+					onOpenChange={(open) => !open && setDeleteKey(null)}
+					title={t("Delete field")}
+					message={
 						<Trans
 							msg="Delete {field} and clear its values from every location? This cannot be undone."
 							field={<code>{deleteKey}</code>}
 						/>
-					</p>
-					<div className="period-prompt__actions">
-						<Button variant="destructive" disabled={busy} onClick={() => void confirmDelete()}>
-							{t("Delete field")}
-						</Button>
-						<Button disabled={busy} onClick={() => setDeleteKey(null)}>
-							{t("Cancel")}
-						</Button>
-					</div>
-				</DialogContent>
-			</Dialog>
+					}
+					confirmLabel={t("Delete field")}
+					tone="destructive"
+					busy={busy}
+					onConfirm={() => void confirmDelete()}
+				/>
+			)}
 		</>
 	);
 }

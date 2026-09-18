@@ -1220,7 +1220,7 @@ input[type="range"]:disabled {
 	font-size: 0.8125rem;
 }
 .edit-map-modal p {
-	margin-block: 0.5rem;
+	margin: 0;
 }
 .edit-map-modal__name {
 	grid-template-columns: 1fr 20rem;
@@ -1238,13 +1238,7 @@ input[type="range"]:disabled {
 	flex: 1;
 	min-width: 0;
 }
-.edit-map-modal__hint {
-	color: var(--text-3);
-	font-size: 0.8125rem;
-}
-.edit-map-modal .fieldset {
-	margin-top: 1rem;
-}
+
 .edit-map-modal__description {
 	resize: vertical;
 	min-height: 4rem;
@@ -1271,19 +1265,7 @@ input[type="range"]:disabled {
 	text-align: end;
 	width: 100%;
 }
-/* One row: delete (and its confirm) on the left, save on the right. */
-.edit-map-modal__actions {
-	justify-content: space-between;
-	align-items: center;
-	gap: 0.5rem;
-	margin-top: 1rem;
-	display: flex;
-}
-.edit-map-modal__delete {
-	align-items: center;
-	gap: 0.5rem;
-	display: flex;
-}
+
 /* Pin the updates column to viewport height and flex the release-notes scroller
    into the remaining space, so the default view ends at the window bottom. */
 .updates {
@@ -1516,13 +1498,13 @@ input[type="range"]:disabled {
 }
 
 /* Import preview modal */
-.import-preview__actions {
+.import-preview__toolbar {
 	display: flex;
 	align-items: center;
 	gap: 0.4rem;
 	margin-bottom: 0.5rem;
 }
-.import-preview__actions .button {
+.import-preview__toolbar .button {
 	white-space: nowrap;
 }
 .import-preview__summary {
@@ -1590,12 +1572,7 @@ input[type="range"]:disabled {
 	margin: 0.25rem 0 0;
 	padding-left: 1.2rem;
 }
-.import-preview__footer {
-	display: flex;
-	justify-content: flex-end;
-	gap: 0.5rem;
-	margin-top: 0.75rem;
-}
+
 .badge {
 	border-radius: 0.25rem;
 	margin-left: 0.25rem;
@@ -2601,10 +2578,6 @@ input[type="range"]:disabled {
 	border-radius: var(--radius-1);
 	padding: 0.5rem;
 }
-.export-modal__help {
-	color: var(--text-2);
-	font-size: 0.785rem;
-}
 .importer {
 	overflow-y: auto;
 	overflow-x: hidden;
@@ -2670,7 +2643,6 @@ input[type="range"]:disabled {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
-	margin: 0.75rem 0;
 	font-size: 0.9em;
 }
 .importer__error {
@@ -2722,10 +2694,6 @@ input[type="range"]:disabled {
 	font-family: var(--font-mono);
 	color: var(--text-2);
 }
-.bulk-operation {
-	display: grid;
-	gap: 0.75rem;
-}
 .bulk-operation__coverage {
 	width: 100%;
 	border-collapse: separate;
@@ -2753,17 +2721,11 @@ input[type="range"]:disabled {
 	white-space: nowrap;
 	color: var(--text-2);
 }
-.apply-tags__footer {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-}
 .apply-tags__summary {
 	display: flex;
 	flex-direction: column;
 	gap: 0.125rem;
 	min-width: 0;
-	margin-right: auto;
 	font-size: 0.8125rem;
 	font-variant-numeric: tabular-nums;
 }
@@ -2830,28 +2792,11 @@ input[type="range"]:disabled {
 	color: var(--text-2);
 	padding: 0.25rem 0;
 }
-.bulk-operation__actions {
-	display: flex;
-	flex-wrap: wrap;
-	justify-content: flex-end;
-	gap: 0.5rem;
-}
 .bulk-operation__meter {
-	margin-right: auto;
-	align-self: center;
 	font-size: 0.8125rem;
 	color: var(--text-2);
 }
 
-.merge-duplicates__status {
-	font-size: 0.875rem;
-	margin: 0 0 0.75rem;
-}
-.merge-duplicates__actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 0.5rem;
-}
 .bulk-operation__field-list {
 	display: grid;
 	gap: 0.25rem;
@@ -3031,22 +2976,7 @@ input[type="range"]:disabled {
 	flex: 1;
 	min-width: 0;
 }
-.fields-pane__empty {
-	color: var(--text-3);
-	font-size: 0.8125rem;
-	padding: 0.5rem;
-}
-.period-prompt__help {
-	margin: 0 0 0.75rem;
-	color: var(--text-2);
-	font-size: 0.85em;
-}
-.period-prompt__actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 0.5rem;
-	margin-top: 0.75rem;
-}
+
 .button--small {
 	height: 1.5rem;
 	line-height: calc(1.5rem - 2px);
@@ -3057,7 +2987,7 @@ input[type="range"]:disabled {
 	border: 1px solid var(--border-subtle);
 	border-radius: var(--radius-2);
 	padding: 0.5rem;
-	margin: 0.5rem 0;
+	margin: 0;
 	display: flex;
 	flex-direction: column;
 	gap: 0.25rem;
@@ -3634,20 +3564,8 @@ input.date-picker__trigger.is-invalid:focus {
 	font-weight: 600;
 	font-size: 0.875rem;
 }
-.saved-selection-row__delete {
-	background: none;
-	border: none;
-	cursor: pointer;
-	color: var(--text-2);
-	padding: 2px;
-	line-height: 0;
+.saved-selection-row:not(:hover, :focus-within) .saved-selection-row__delete {
 	opacity: 0;
-}
-.saved-selection-row:hover .saved-selection-row__delete {
-	opacity: 1;
-}
-.saved-selection-row__delete:hover {
-	color: var(--destructive-text);
 }
 .saved-selection-row__rules {
 	display: flex;
@@ -3991,14 +3909,34 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	font-style: italic;
 }
 
-.edit-tag-modal {
-	grid-gap: 0.5rem;
-	grid-template-areas: "name" "color" "hotkey" "actions";
-	padding-top: 2px;
-	display: grid;
+.tag-find-replace__field {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
 }
-.edit-tag-modal__name {
-	grid-area: name;
+.tag-find-replace__field > span {
+	width: 4rem;
+}
+.tag-find-replace__field > .text-input {
+	flex: 1;
+}
+.tag-find-replace__list {
+	margin: 0.25rem 0 0;
+	padding: 0;
+	list-style: none;
+	max-height: 20rem;
+	overflow-y: auto;
+	font-size: 0.85rem;
+}
+.tag-find-replace__list > li {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	padding: 1px 0;
+}
+.tag-find-replace__done {
+	color: var(--constructive);
+	font-size: 0.85rem;
 }
 .edit-tag-modal__cascade {
 	display: flex;
@@ -4018,7 +3956,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 }
 .edit-tag-modal__hotkey {
 	grid-gap: 0.25rem;
-	grid-area: hotkey;
 	grid-template-columns: auto 1fr auto;
 	align-items: center;
 	display: grid;
@@ -4038,11 +3975,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	display: grid;
 	grid-gap: 0.75rem;
 	min-width: 26rem;
-}
-.copy-to-map-modal__hint {
-	margin: 0;
-	font-size: 0.85em;
-	color: var(--text-2);
 }
 .copy-to-map-modal__list {
 	margin: 0;
@@ -4091,7 +4023,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 }
 .edit-tag-modal__color {
 	grid-gap: 0.25rem;
-	grid-area: color;
 	grid-template-columns: 1fr auto;
 	justify-content: space-between;
 	align-items: center;
@@ -4100,12 +4031,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 }
 .edit-tag-modal__color-picker {
 	grid-column: 1 / span 2;
-}
-.edit-tag-modal__actions {
-	grid-gap: 1rem;
-	grid-area: actions;
-	grid-template-columns: 1fr 1fr;
-	display: grid;
 }
 .map-meta {
 	justify-content: flex-start;
@@ -4121,30 +4046,23 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	text-overflow: ellipsis;
 	min-width: 0;
 }
-.map-meta__count--added {
+.diff-counts {
+	display: inline-flex;
+	gap: 0.3em;
+	font-weight: 700;
+	white-space: nowrap;
+}
+.diff-counts__added {
 	color: var(--constructive);
-	font-weight: 700;
 }
-.map-meta__count--removed {
-	color: var(--destructive);
-	font-weight: 700;
+.diff-counts__removed {
+	color: var(--destructive-text);
 }
-.map-meta__count--updated {
+.diff-counts__modified {
 	color: var(--deconstructive);
-	font-weight: 700;
 }
 .map-meta__spacer {
 	flex-grow: 1;
-}
-.commit-dialog__message {
-	width: 100%;
-	margin-top: 0.75rem;
-}
-.commit-dialog__actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 0.5rem;
-	margin-top: 1rem;
 }
 .map-meta__actions {
 	gap: 1rem;
@@ -4236,12 +4154,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 #coverage-type-select {
 	width: 260px;
 }
-.entry-list__empty {
-	color: var(--text-2);
-	text-align: center;
-	padding: 2rem 0;
-	margin: 0;
-}
 .entry-list {
 	list-style: none;
 	padding: 0;
@@ -4289,29 +4201,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	color: var(--text-2);
 }
 .review-sessions__tabs {
-	display: flex;
-	gap: 0.25rem;
 	margin-bottom: 0.75rem;
-	border-bottom: 1px solid var(--border-subtle);
-	padding-bottom: 0.75rem;
-}
-.review-sessions__tab {
-	background: none;
-	border: none;
-	color: var(--text-2);
-	cursor: pointer;
-	font-size: 0.875rem;
-	font-weight: 500;
-	padding: 0.375rem 0.75rem;
-	border-radius: var(--radius-1);
-}
-.review-sessions__tab:hover {
-	color: var(--text-1);
-	background: var(--hover);
-}
-.review-sessions__tab.is-active {
-	color: var(--text-1);
-	background: var(--pressed);
 }
 .review-sessions__bar {
 	margin-top: 0.5rem;
@@ -4321,12 +4211,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	align-items: center;
 	gap: 0.25rem;
 	font-size: 0.8rem;
-}
-.review-sessions__delete {
-	color: var(--text-2);
-}
-.review-sessions__delete:hover {
-	color: var(--destructive-text);
 }
 .review-header {
 	background: var(--indigo-10);
@@ -4950,9 +4834,7 @@ body {
 }
 /* A matched section keeps at least one row, hotkey table, or auxiliary block; drop the rest. */
 .settings-content--search
-	.settings-section:not(:has(.setting-row)):not(:has(.settings-aux)):not(
-		:has(.settings-hotkey-table)
-	) {
+	.settings-section:not(:has(.setting-row)):not(:has(.settings-aux)):not(:has(.data-table)) {
 	display: none;
 }
 /* A search that leaves nothing under a heading hides the heading with it. */
@@ -5125,24 +5007,46 @@ body {
 	padding: 0 0 0.5rem;
 	background: var(--modal-bg, var(--surface-2));
 }
-.settings-hotkey-table {
+.settings-data-path {
+	display: block;
+	word-break: break-all;
+}
+.data-table {
 	width: 100%;
 	border-collapse: collapse;
 	font-size: 0.85rem;
 }
-.settings-hotkey-table th {
+.data-table th {
 	text-align: left;
 	padding: 0.25rem 0.5rem;
 	font-weight: 600;
 	color: var(--text-2);
 	font-size: 0.75rem;
 	text-transform: uppercase;
+	white-space: nowrap;
 }
-.settings-hotkey-table td {
+.data-table td {
 	padding: 0.25rem 0.5rem;
 }
-.settings-hotkey-table tbody tr:nth-child(odd) {
+.data-table td.mono {
+	white-space: nowrap;
+}
+.data-table tbody tr:nth-child(odd) {
 	background: var(--surface-1);
+}
+.data-table .data-table__num {
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.data-table__fill {
+	width: 100%;
+}
+.data-table__row--link {
+	cursor: pointer;
+}
+.data-table__row--link:hover {
+	background: var(--hover);
 }
 .hotkey-row--custom td:first-child {
 	font-weight: 600;
@@ -5665,11 +5569,6 @@ body:has([data-plugin-overlay]) .map-meta {
 .plugin-marketplace .modal__content {
 	gap: 0.75rem;
 }
-.plugin-marketplace__empty {
-	text-align: center;
-	color: var(--text-2);
-	padding: 2rem 0;
-}
 .plugin-marketplace__tabs {
 	margin-bottom: 0.5rem;
 }
@@ -5850,23 +5749,18 @@ body:has([data-plugin-overlay]) .map-meta {
 .seen-dialog__search {
 	flex: 1;
 }
-.seen-dialog__footer {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	margin-top: 0.25rem;
-	flex-shrink: 0;
-}
 .seen-dialog__pagination {
 	display: flex;
 	align-items: center;
+	justify-content: center;
 	gap: 0.5rem;
+	margin-top: 0.5rem;
 	font-size: 0.8rem;
+	flex-shrink: 0;
 }
-.seen-dialog__empty {
-	text-align: center;
-	color: var(--text-2);
-	padding: 2rem 0;
+.seen-dialog__grid > .plugin-empty,
+.plugin-marketplace__grid > .plugin-empty {
+	grid-column: 1 / -1;
 }
 .seen-dialog__grid {
 	display: grid;
@@ -6042,19 +5936,10 @@ body:has([data-plugin-overlay]) .map-meta {
 	flex-shrink: 0;
 	margin: -4px -2px;
 }
-.job-exit-dialog__message {
-	margin: 0 0 0.75rem;
-}
 .job-exit-dialog__jobs {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
-	margin-bottom: 1rem;
-}
-.job-exit-dialog__actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 0.5rem;
 }
 .toast-progress__label {
 	font-size: 0.75rem;
@@ -6519,7 +6404,7 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 /* Everything except the flexible region keeps its natural height, always. */
 .report-dialog__kinds,
 .report-dialog__meta,
-.report-dialog__actions {
+.report-dialog .modal__actions {
 	flex-shrink: 0;
 }
 /* Absorbs slack so the dialog is never bottom-heavy, but never shrinks below what it needs --
@@ -6669,7 +6554,7 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 .report-dialog__sent {
 	color: var(--text-2);
 	line-height: 1.5;
-	margin: 0.25rem 0 1.5rem;
+	margin: 0.25rem 0 0.5rem;
 }
 .report-dialog__toggle {
 	align-self: flex-start;
@@ -6717,12 +6602,6 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	height: 2.4rem;
 	overflow-y: auto;
 	flex-shrink: 0;
-}
-.report-dialog__actions {
-	display: flex;
-	gap: 0.5rem;
-	justify-content: flex-end;
-	margin-top: 1.5rem;
 }
 
 .feedback-account {

@@ -169,10 +169,10 @@ describe("Version control - commit message dialog", () => {
 	it("a shift+click types a message onto the commit", async () => {
 		await addLocs([createLocation({ lat: 5, lng: 5, heading: 0, panoId: null, flags: 0 })]);
 		await shiftClickCommit();
-		const input = await browser.$(".commit-dialog__message");
+		const input = await browser.$('[data-qa="commit-dialog"] input');
 		await input.waitForExist();
 		await input.setValue("from the commit dialog");
-		await browser.$(".commit-dialog").$("button=Commit").click();
+		await browser.$('[data-qa="commit-dialog"]').$("button=Commit").click();
 		await browser.waitUntil(async () => {
 			const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
 			return commits.length >= 1 && commits[0].message === "from the commit dialog";
@@ -188,6 +188,6 @@ describe("Version control - commit message dialog", () => {
 			const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
 			return commits.length > before.length;
 		});
-		expect(await browser.$(".commit-dialog").isExisting()).toBe(false);
+		expect(await browser.$('[data-qa="commit-dialog"]').isExisting()).toBe(false);
 	});
 });

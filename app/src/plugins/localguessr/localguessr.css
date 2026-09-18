@@ -21,12 +21,6 @@
 	overflow: hidden;
 }
 
-.lg-history__clear {
-	display: flex;
-	justify-content: flex-end;
-	margin-top: 12px;
-}
-
 .lg-history__tabs {
 	align-self: start;
 	justify-self: start;
@@ -149,38 +143,6 @@
 .lg-stats__tooltip strong {
 	font-size: 13px;
 	color: var(--text-1);
-}
-
-.lg-stats__table {
-	width: 100%;
-	border-collapse: collapse;
-	font-size: 13px;
-}
-
-.lg-stats__table th {
-	padding: 4px 8px;
-	border-bottom: 1px solid var(--border-subtle);
-	font-size: 12px;
-	font-weight: 500;
-	color: var(--text-2);
-	text-align: left;
-	white-space: nowrap;
-}
-
-.lg-stats__table td {
-	padding: 5px 8px;
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
-}
-
-.lg-stats__table td:first-child {
-	width: 100%;
-	white-space: normal;
-}
-
-.lg-stats__table th:not(:first-child),
-.lg-stats__table td:not(:first-child) {
-	text-align: right;
 }
 
 .lg-stats__country {
@@ -740,17 +702,4 @@
 .lg-tag-btn.is-active {
 	border-color: var(--accent);
 	color: var(--accent);
-}
-
-.lg-tag-dialog__form {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	min-width: 320px;
-}
-
-.lg-tag-dialog__actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: 8px;
 }

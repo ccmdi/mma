@@ -35,10 +35,8 @@ import {
 	useExtraFieldKeys,
 } from "@/components/editor/map/FilterBuilder";
 import { beginReview } from "@/lib/review/review";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { PromptDialog } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
-import { Button } from "@/components/primitives/Button";
-import { TextInput } from "@/components/primitives/TextInput";
 import { RgbPicker } from "@/components/primitives/ColorPicker";
 import {
 	mdiClose,
@@ -492,68 +490,31 @@ export const SelectionRow = memo(function SelectionRow({
 					onClose={() => setEditingFilter(false)}
 				/>
 			)}
-			<Dialog open={renaming} onOpenChange={setRenaming}>
-				<DialogContent title={t("Polygon name")} size="sm">
-					<form
-						onSubmit={(e) => {
-							e.preventDefault();
-							submitRename();
-						}}
-						style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}
-					>
-						<TextInput
-							value={renameDraft}
-							onChange={(e) => setRenameDraft(e.target.value)}
-							onFocus={(e) => e.currentTarget.select()}
-							autoFocus
-						/>
-						<div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
-							<Button onClick={() => setRenaming(false)}>{t("Cancel")}</Button>
-							<Button variant="primary" type="submit">
-								{t("Rename")}
-							</Button>
-						</div>
-					</form>
-				</DialogContent>
-			</Dialog>
-			<Dialog
+			<PromptDialog
+				open={renaming}
+				onOpenChange={setRenaming}
+				title={t("Polygon name")}
+				value={renameDraft}
+				onChange={setRenameDraft}
+				selectOnFocus
+				canSubmit
+				submitLabel={t("Rename")}
+				onSubmit={submitRename}
+			/>
+			<PromptDialog
 				open={savingTag}
 				onOpenChange={(v) => {
 					setSavingTag(v);
 					if (!v) setTagName("");
 				}}
-			>
-				<DialogContent title={t("Save selection as tag")} size="sm">
-					<form
-						onSubmit={(e) => {
-							e.preventDefault();
-							void handleSaveAsTag();
-						}}
-						style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginTop: 4 }}
-					>
-						<TextInput
-							value={tagName}
-							onChange={(e) => setTagName(e.target.value)}
-							onFocus={(e) => e.currentTarget.select()}
-							placeholder={t("Tag name...")}
-							autoFocus
-						/>
-						<div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
-							<Button
-								onClick={() => {
-									setSavingTag(false);
-									setTagName("");
-								}}
-							>
-								{t("Cancel")}
-							</Button>
-							<Button variant="primary" type="submit" disabled={!tagName.trim()}>
-								{t("Create tag")}
-							</Button>
-						</div>
-					</form>
-				</DialogContent>
-			</Dialog>
+				title={t("Save selection as tag")}
+				value={tagName}
+				onChange={setTagName}
+				placeholder={t("Tag name...")}
+				selectOnFocus
+				submitLabel={t("Create tag")}
+				onSubmit={() => void handleSaveAsTag()}
+			/>
 			{showChildren &&
 				(
 					inner.selector as Extract<Selection["selector"], { type: "Intersection" | "Union" }>

@@ -15,7 +15,7 @@ import { MapList, BulkActions } from "@/components/map-list/MapList";
 import { openScratchMap } from "@/store/mapList";
 import { SettingsPage, UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { PluginMarketplace } from "@/components/dialogs/PluginMarketplace";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useSetting, useSettings, CSS_VAR_SETTINGS } from "@/store/settings";
@@ -168,7 +168,10 @@ function AppChrome() {
 					</button>
 				</div>
 			)}
-			<WelcomeDialog open={isMapList && !welcomeSeen} onDismiss={() => setWelcomeSeen(true)} />
+			<WelcomeDialog
+				open={isMapList && !welcomeSeen}
+				onOpenChange={(open) => !open && setWelcomeSeen(true)}
+			/>
 			{!showSettings && !showPlugins && !(map && fullscreenMap) && (
 				<div className="bottom-bar popover-surface">
 					<JobTray />
@@ -221,9 +224,9 @@ function AppChrome() {
 				</div>
 			)}
 			<JobExitDialog />
-			{showStats && Stats && <Stats onClose={() => setShowStats(false)} />}
+			{showStats && Stats && <Stats open onOpenChange={setShowStats} />}
 			<SettingsPage open={showSettings} onOpenChange={setShowSettings} />
-			{feedbackOpen && <ReportDialog onClose={() => setFeedbackOpen(false)} />}
+			{feedbackOpen && <ReportDialog open onOpenChange={setFeedbackOpen} />}
 			<PluginMarketplace open={showPlugins} onOpenChange={setShowPlugins} />
 			{manual && manualSearchOpen && (
 				<manual.Search open={manualSearchOpen} onOpenChange={setManualSearchOpen} />
@@ -297,14 +300,9 @@ function useCustomCss() {
 
 const WELCOME_SEEN = persisted("welcomeSeen", false);
 
-function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => void }) {
+function WelcomeDialog({ open, onOpenChange }: DialogProps) {
 	return (
-		<Dialog
-			open={open}
-			onOpenChange={(v) => {
-				if (!v) onDismiss();
-			}}
-		>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				title={t("Welcome to {app}", { app: APP_NAME })}
 				className="welcome-dialog"
@@ -320,7 +318,7 @@ function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => vo
 						type="button"
 						className="welcome-dialog__link"
 						onClick={() => {
-							onDismiss();
+							onOpenChange(false);
 							openManual();
 						}}
 					>
@@ -345,7 +343,11 @@ function WelcomeDialog({ open, onDismiss }: { open: boolean; onDismiss: () => vo
 						</span>
 					</a>
 				</div>
-				<Button variant="primary" className="welcome-dialog__cta" onClick={onDismiss}>
+				<Button
+					variant="primary"
+					className="welcome-dialog__cta"
+					onClick={() => onOpenChange(false)}
+				>
 					{t("Got it")}
 				</Button>
 			</DialogContent>

@@ -16,6 +16,7 @@ import { loadSeenPano } from "@/lib/seen/seenRecorder";
 import { usePano } from "@/lib/hooks/usePano";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
+import { DiffCounts } from "@/components/primitives/DiffCounts";
 import { mdiUndo, mdiRedo } from "@mdi/js";
 import { fmt } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
@@ -43,14 +44,8 @@ function CommitControls() {
 			<Button variant="primary" disabled={!hasDiff} onClick={requestCommit}>
 				{t("Commit")}
 			</Button>
-			{showCommit && <CommitDialog onClose={() => setShowCommit(false)} />}
-			{hasDiff && (
-				<span className="map-meta__count mono">
-					<span className="map-meta__count--added">+{fmt.format(diff.added)}</span>{" "}
-					<span className="map-meta__count--removed">-{fmt.format(diff.removed)}</span>{" "}
-					<span className="map-meta__count--updated">&plusmn;{fmt.format(diff.modified)}</span>
-				</span>
-			)}
+			{showCommit && <CommitDialog open onOpenChange={setShowCommit} />}
+			{hasDiff && <DiffCounts {...diff} />}
 		</>
 	);
 }
@@ -124,8 +119,8 @@ export function MapMetaBar() {
 				<Button onClick={() => void importFile()}>{t("Import file")}</Button>
 				<Button onClick={() => setShowExport(true)}>{t("Export")}</Button>
 			</div>
-			{showExport && <ExportDialog onClose={() => setShowExport(false)} />}
-			{versioned && showHistory && <VersionHistory onClose={() => setShowHistory(false)} />}
+			{showExport && <ExportDialog open onOpenChange={setShowExport} />}
+			{versioned && showHistory && <VersionHistory open onOpenChange={setShowHistory} />}
 			{showSeen && (
 				<SeenDialog
 					open
@@ -133,9 +128,13 @@ export function MapMetaBar() {
 					onLoadPano={(entry) => void loadSeenPano(entry, pano)}
 				/>
 			)}
-			{showCopyToMap && <CopyToMapDialog onClose={() => setShowCopyToMap(false)} />}
+			{showCopyToMap && <CopyToMapDialog open onOpenChange={setShowCopyToMap} />}
 			{quickCopyId != null && (
-				<QuickCopyToMapDialog locationId={quickCopyId} onClose={() => setQuickCopyId(null)} />
+				<QuickCopyToMapDialog
+					open
+					onOpenChange={(open) => !open && setQuickCopyId(null)}
+					locationId={quickCopyId}
+				/>
 			)}
 		</>
 	);

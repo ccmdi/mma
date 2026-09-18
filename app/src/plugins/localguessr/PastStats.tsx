@@ -1,5 +1,5 @@
 import { useMemo, useState, type PointerEvent, type ReactNode } from "react";
-import { SegmentedControl } from "@/components/primitives/Sidebar";
+import { EmptyState, SegmentedControl } from "@/components/primitives/Sidebar";
 import { Flag } from "@/components/primitives/Flag";
 import { Bar } from "@/components/primitives/Bar";
 import { countryName, dateTimeFmt, dayMonthFmt, fmt } from "@/lib/util/format";
@@ -112,11 +112,13 @@ function Tile({ label, value }: { label: string; value: string }) {
 
 function Table({ head, rows }: { head: string[]; rows: { key: string; cells: ReactNode[] }[] }) {
 	return (
-		<table className="lg-stats__table">
+		<table className="data-table">
 			<thead>
 				<tr>
-					{head.map((h) => (
-						<th key={h}>{h}</th>
+					{head.map((h, i) => (
+						<th key={h} className={i === 0 ? "data-table__fill" : "data-table__num"}>
+							{h}
+						</th>
 					))}
 				</tr>
 			</thead>
@@ -124,7 +126,9 @@ function Table({ head, rows }: { head: string[]; rows: { key: string; cells: Rea
 				{rows.map((row) => (
 					<tr key={row.key}>
 						{row.cells.map((cell, i) => (
-							<td key={i}>{cell}</td>
+							<td key={i} className={i === 0 ? undefined : "data-table__num"}>
+								{cell}
+							</td>
 						))}
 					</tr>
 				))}
@@ -152,7 +156,7 @@ export function PastStats({ mapId }: { mapId: string }) {
 				]}
 			/>
 			{overall.games === 0 ? (
-				<p className="entry-list__empty">{t("No finished games yet")}</p>
+				<EmptyState>{t("No finished games yet")}</EmptyState>
 			) : (
 				<>
 					<div className="lg-stats__tiles">

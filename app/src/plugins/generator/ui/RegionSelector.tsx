@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { useMapState, getActiveSelections } from "@/store/useMapStore";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Flag } from "@/components/primitives/Flag";
@@ -180,7 +180,7 @@ export function RegionSelector({
 			</div>
 			<Dialog open={capDialogOpen} onOpenChange={setCapDialogOpen}>
 				<DialogContent title={t("Change all caps")} size="sm">
-					<div className="generator-cap-dialog">
+					<DialogForm onSubmit={confirmCap}>
 						<label className="generator-regions__target-label">
 							{t("Locations cap for all regions:")}
 							<TextInput
@@ -189,17 +189,11 @@ export function RegionSelector({
 								autoFocus
 								value={capInput}
 								onChange={(e) => setCapInput(e.target.value)}
-								onKeyDown={(e) => e.key === "Enter" && confirmCap()}
 								style={{ width: "6rem" }}
 							/>
 						</label>
-						<div className="generator-cap-dialog__actions">
-							<Button variant="primary" onClick={confirmCap}>
-								{t("Apply")}
-							</Button>
-							<Button onClick={() => setCapDialogOpen(false)}>{t("Cancel")}</Button>
-						</div>
-					</div>
+						<DialogActions cancel primary={{ label: t("Apply") }} />
+					</DialogForm>
 				</DialogContent>
 			</Dialog>
 			{polygonSelections.length > 0 && (

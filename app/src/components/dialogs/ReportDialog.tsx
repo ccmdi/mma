@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { mdiClose, mdiGithub, mdiImagePlus, mdiOpenInNew } from "@mdi/js";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -42,7 +47,7 @@ const ATTACHMENTS: Array<{ key: keyof Attachments; label: string }> = [
 	{ key: "log", label: msg("Recent log") },
 ];
 
-export function ReportDialog({ onClose }: { onClose: () => void }) {
+export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const [kind, setKind] = useState<ReportKind>("bug");
 	const [title, setTitle] = useState("");
 	const [description, setDescription] = useState("");
@@ -184,28 +189,28 @@ export function ReportDialog({ onClose }: { onClose: () => void }) {
 
 	if (sent) {
 		return (
-			<Dialog open onOpenChange={(open) => !open && onClose()}>
+			<Dialog open={open} onOpenChange={onOpenChange}>
 				<DialogContent title={t("Report sent")} className="report-dialog">
 					<p className="report-dialog__sent">
 						{sent.anonymous
 							? t("Thanks. Replies show up in Settings, under Feedback. Check back there.")
 							: t("Thanks. This was filed on your GitHub account, so replies reach you there too.")}
 					</p>
-					<div className="report-dialog__actions">
-						<Button onClick={() => void openExternal(sent.url)}>
-							<Icon path={mdiOpenInNew} size={14} /> {t("View report")}
-						</Button>
-						<Button variant="primary" onClick={onClose}>
-							{t("Done")}
-						</Button>
-					</div>
+					<DialogActions
+						start={
+							<Button onClick={() => void openExternal(sent.url)}>
+								<Icon path={mdiOpenInNew} size={14} /> {t("View report")}
+							</Button>
+						}
+						primary={{ label: t("Done"), onClick: () => onOpenChange(false) }}
+					/>
 				</DialogContent>
 			</Dialog>
 		);
 	}
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				title={t("Send feedback")}
 				className="report-dialog"
@@ -352,16 +357,14 @@ export function ReportDialog({ onClose }: { onClose: () => void }) {
 					<p className="report-dialog__error">{error}</p>
 				</div>
 
-				<div className="report-dialog__actions">
-					<Button onClick={onClose}>{t("Cancel")}</Button>
-					<Button
-						variant="primary"
-						disabled={blocked || sending || cannotSend}
-						onClick={() => void send()}
-					>
-						{sending ? t("Sending...") : t("Send")}
-					</Button>
-				</div>
+				<DialogActions
+					cancel
+					primary={{
+						label: sending ? t("Sending...") : t("Send"),
+						disabled: blocked || sending || cannotSend,
+						onClick: () => void send(),
+					}}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

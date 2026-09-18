@@ -97,7 +97,7 @@ describe("settings search", () => {
 	it("reaches hotkeys from the dialog-wide search box", async () => {
 		await mount();
 		search("spawn");
-		const rows = qa(".settings-hotkey-table tr[id^='hotkey-row-']");
+		const rows = qa(".data-table tr[id^='hotkey-row-']");
 		expect(rows.length).toBeGreaterThan(0);
 		for (const r of rows) expect(r.textContent?.toLowerCase()).toContain("spawn");
 	});

@@ -4,7 +4,12 @@ import { useAsync } from "@/lib/hooks/useAsync";
 import { search } from "@/lib/search";
 import { log } from "@/lib/util/log";
 import { mdiEarth } from "@mdi/js";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogHint,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { HotkeyInput } from "@/components/primitives/HotkeyInput";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { Button } from "@/components/primitives/Button";
@@ -24,7 +29,7 @@ import { t } from "@/lib/i18n";
  *  either per-map (this map's settings) or global (works in every map); the globe
  *  toggle on a row moves it between the two stores. New targets are added via
  *  autocomplete (type a map name), then keyed. */
-export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
+export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 	const [bindings, setBindings] = useMapSetting("keyBindings");
 	const [globalBindings, setGlobalBindings] = useLocalStorage(GLOBAL_COPY_BINDINGS);
 	// Added via autocomplete but not yet keyed; persisted only once a key is recorded.
@@ -105,19 +110,14 @@ export function CopyToMapDialog({ onClose }: { onClose: () => void }) {
 	};
 
 	return (
-		<Dialog
-			open
-			onOpenChange={(open) => {
-				if (!open) onClose();
-			}}
-		>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Copy location to map (hotkeys)")} className="copy-to-map-modal-host">
 				<div className="copy-to-map-modal">
-					<p className="copy-to-map-modal__hint">
+					<DialogHint>
 						{t(
 							"Pressing an assigned key while a location is open copies that location into the map\n\t\t\t\t\t\t(duplicates are skipped).",
 						)}
-					</p>
+					</DialogHint>
 					{rowIds.length > 0 && (
 						<ul className="copy-to-map-modal__list">
 							{rowIds.map((id) => {

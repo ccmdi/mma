@@ -12,7 +12,12 @@ import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
-import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { EntryCard, EntryList } from "@/components/primitives/EntryList";
 import { Slider } from "@/components/primitives/Slider";
 import { NSelect } from "@/components/primitives/NSelect";
@@ -159,7 +164,6 @@ function PastGamesModal({
 	onClear: () => void;
 }) {
 	const [tab, setTab] = useState<"games" | "stats">("games");
-	const [confirmingClear, setConfirmingClear] = useState(false);
 	const mapId = history[0]?.mapId ?? "";
 	const starts = history.flatMap((g) =>
 		g.rounds[0] ? [{ locationId: g.rounds[0].location.id, startedAt: g.startedAt }] : [],
@@ -193,16 +197,10 @@ function PastGamesModal({
 								/>
 							))}
 						</EntryList>
-						<div className="lg-history__clear">
-							<Button
-								small
-								variant="destructive"
-								onClick={() => (confirmingClear ? onClear() : setConfirmingClear(true))}
-								onBlur={() => setConfirmingClear(false)}
-							>
-								{confirmingClear ? t("Are you sure?") : t("Clear history")}
-							</Button>
-						</div>
+						<DialogActions
+							destructive={{ label: t("Clear history"), confirm: true, onClick: onClear }}
+							cancel={{ label: t("Close") }}
+						/>
 					</>
 				)}
 			</DialogContent>

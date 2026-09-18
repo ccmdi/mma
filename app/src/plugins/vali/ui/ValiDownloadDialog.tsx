@@ -3,7 +3,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { events } from "@/bindings.gen";
 import type { ValiCountryStatus, ValiProgress } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
@@ -256,24 +261,16 @@ export function ValiDownloadDialog({
 				{result && <div className="vali-download__result">{result}</div>}
 				{error && <div className="vali-download__error">{error}</div>}
 
-				<div className="vali-download__footer">
-					{running ? (
-						<Button variant="destructive" onClick={() => void cmd.valiCancel()}>
-							{t("Cancel")}
-						</Button>
-					) : (
-						<Button onClick={() => onOpenChange(false)}>{t("Close")}</Button>
-					)}
-					<Button
-						variant="primary"
-						disabled={!target || running}
-						onClick={() => {
+				<DialogActions
+					cancel={running ? { onClick: () => void cmd.valiCancel() } : { label: t("Close") }}
+					primary={{
+						label: running ? t("Downloading...") : t("Download"),
+						disabled: !target || running,
+						onClick: () => {
 							if (target) void run(() => cmd.valiDownload(target.code, full, false));
-						}}
-					>
-						{running ? t("Downloading...") : t("Download")}
-					</Button>
-				</div>
+						},
+					}}
+				/>
 			</DialogContent>
 		</Dialog>
 	);

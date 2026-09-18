@@ -1,6 +1,13 @@
-import { useState, type ReactNode } from "react";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
-import { Button } from "@/components/primitives/Button";
+import { useState } from "react";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	type DialogProps,
+} from "@/components/primitives/Dialog";
+import { ConfirmButton } from "@/components/primitives/ConfirmButton";
+import { DiffCounts } from "@/components/primitives/DiffCounts";
+import { EmptyState } from "@/components/primitives/Sidebar";
 import { useMapState, checkoutCommit } from "@/store/useMapStore";
 import { beginCommitDiffPreview } from "@/store/commitDiff";
 import { cmd } from "@/lib/commands";
@@ -9,150 +16,91 @@ import type { CommitInfo } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { fmt, dateTimeFmt } from "@/lib/util/format";
 
-function diffLabel(c: CommitInfo): ReactNode | null {
-	const parts: ReactNode[] = [];
-	if (c.added > 0)
-		parts.push(
-			<span key="a" style={{ color: "var(--constructive)" }}>
-				+{c.added}
-			</span>,
-		);
-	if (c.removed > 0)
-		parts.push(
-			<span key="r" style={{ color: "var(--destructive)" }}>
-				-{c.removed}
-			</span>,
-		);
-	if (c.modified > 0)
-		parts.push(
-			<span key="m" style={{ color: "var(--deconstructive)" }}>
-				~{c.modified}
-			</span>,
-		);
-	return parts.length > 0 ? (
-		<span className="mono" style={{ display: "inline-flex", gap: 6 }}>
-			{parts}
-		</span>
-	) : null;
-}
-
-export function VersionHistory({ onClose }: { onClose: () => void }) {
+export function VersionHistory({ open, onOpenChange }: DialogProps) {
 	const map = useMapState((s) => s.map);
 	const [restoring, setRestoring] = useState<string | null>(null);
-	const [confirmingId, setConfirmingId] = useState<string | null>(null);
 	const { data: commits } = useAsync(() => (map ? cmd.storeListCommits(map.id) : null), [map?.id]);
 
 	if (!map || !commits) return null;
 
 	const viewDiff = async (commit: CommitInfo) => {
 		await beginCommitDiffPreview(commit);
-		onClose();
+		onOpenChange(false);
 	};
 
-	const handleRestore = async (commit: CommitInfo) => {
-		if (confirmingId !== commit.id) {
-			setConfirmingId(commit.id);
-			return;
-		}
-		setConfirmingId(null);
+	const restore = async (commit: CommitInfo) => {
 		setRestoring(commit.id);
 		await checkoutCommit(commit.id);
 		setRestoring(null);
-		onClose();
+		onOpenChange(false);
 	};
 
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
+		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Version history")} size="xl">
-				{commits.length === 0 && (
-					<p className="text-muted">
-						{t("No commits yet. Press Commit to create your first version.")}
-					</p>
-				)}
-				{commits.length > 0 && (
-					<div style={{ maxHeight: 400, overflowY: "auto" }}>
-						<table style={{ width: "100%", borderCollapse: "collapse" }}>
-							<thead>
-								<tr
-									style={{
-										textAlign: "left",
-										borderBottom: "1px solid var(--border-subtle)",
-									}}
-								>
-									<th style={{ padding: "6px 8px" }}>{t("Date")}</th>
-									<th style={{ padding: "6px 8px" }}>{t("Hash")}</th>
-									<th style={{ padding: "6px 8px" }}>{t("Changes")}</th>
-									<th style={{ padding: "6px 8px", textAlign: "right" }}>{t("Locations")}</th>
-									<th style={{ padding: "6px 8px" }}></th>
-								</tr>
-							</thead>
-							<tbody>
-								{commits.map((c, i) => {
-									const diff = diffLabel(c);
-									const msg = c.message;
-									const hasDiff = c.added > 0 || c.removed > 0 || c.modified > 0;
-									return (
-										<tr
-											key={c.id}
-											onClick={() => {
-												if (hasDiff) void viewDiff(c);
-											}}
-											title={hasDiff ? t("View changes on the map") : undefined}
-											style={{
-												borderBottom: "1px solid var(--border-subtle)",
-												cursor: hasDiff ? "pointer" : "default",
-											}}
-										>
-											<td className="mono" style={{ padding: "6px 8px", whiteSpace: "nowrap" }}>
-												{dateTimeFmt.format(new Date(c.createdAt))}
-											</td>
-											<td
-												className="mono"
-												style={{
-													padding: "6px 8px",
-													color: "var(--text-2)",
-												}}
+				{commits.length === 0 ? (
+					<>
+						<EmptyState>
+							{t("No commits yet. Press Commit to create your first version.")}
+						</EmptyState>
+						<DialogActions cancel={{ label: t("Close") }} />
+					</>
+				) : (
+					<table className="data-table">
+						<thead>
+							<tr>
+								<th>{t("Date")}</th>
+								<th>{t("Hash")}</th>
+								<th className="data-table__fill">{t("Changes")}</th>
+								<th className="data-table__num">{t("Locations")}</th>
+								<th></th>
+							</tr>
+						</thead>
+						<tbody>
+							{commits.map((c, i) => {
+								const hasDiff = c.added > 0 || c.removed > 0 || c.modified > 0;
+								return (
+									<tr
+										key={c.id}
+										className={hasDiff ? "data-table__row--link" : undefined}
+										onClick={hasDiff ? () => void viewDiff(c) : undefined}
+										title={hasDiff ? t("View changes on the map") : undefined}
+									>
+										<td className="mono">{dateTimeFmt.format(new Date(c.createdAt))}</td>
+										<td className="mono text-muted">{c.id.slice(0, 7)}</td>
+										<td className={hasDiff || c.message ? undefined : "text-muted"}>
+											{c.message}
+											{c.message && hasDiff && " "}
+											{hasDiff ? (
+												<DiffCounts
+													added={c.added}
+													removed={c.removed}
+													modified={c.modified}
+													hideZero
+												/>
+											) : (
+												!c.message && (i === 0 ? t("(latest)") : t("(no changes)"))
+											)}
+										</td>
+										<td className="mono data-table__num">{fmt.format(c.locationCount)}</td>
+										<td>
+											<ConfirmButton
+												small
+												disabled={restoring !== null}
+												onConfirm={() => void restore(c)}
 											>
-												{c.id.slice(0, 7)}
-											</td>
-											<td
-												style={{
-													padding: "6px 8px",
-													color: diff ? undefined : msg ? undefined : "var(--text-3)",
-												}}
-											>
-												{msg}
-												{msg && diff && " "}
-												{diff ?? (msg ? null : i === 0 ? t("(latest)") : t("(no changes)"))}
-											</td>
-											<td className="mono" style={{ padding: "6px 8px", textAlign: "right" }}>
-												{fmt.format(c.locationCount)}
-											</td>
-											<td style={{ padding: "6px 8px" }}>
-												<Button
-													variant={confirmingId === c.id ? "destructive" : undefined}
-													disabled={restoring !== null}
-													onClick={(e) => {
-														e.stopPropagation();
-														void handleRestore(c);
-													}}
-													onBlur={() => confirmingId === c.id && setConfirmingId(null)}
-												>
-													{restoring === c.id
-														? t("Restoring...")
-														: confirmingId === c.id
-															? t("Are you sure?")
-															: i === 0
-																? t("Revert")
-																: t("Restore")}
-												</Button>
-											</td>
-										</tr>
-									);
-								})}
-							</tbody>
-						</table>
-					</div>
+												{restoring === c.id
+													? t("Restoring...")
+													: i === 0
+														? t("Revert")
+														: t("Restore")}
+											</ConfirmButton>
+										</td>
+									</tr>
+								);
+							})}
+						</tbody>
+					</table>
 				)}
 			</DialogContent>
 		</Dialog>

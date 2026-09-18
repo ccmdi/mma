@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { mdiClose } from "@mdi/js";
 import { getJobs, getExitRequest, resolveMapExit } from "@/lib/jobs";
 import { useEventValue } from "@/lib/events";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
-import { Button } from "@/components/primitives/Button";
+import { ConfirmDialog } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { Bar } from "@/components/primitives/Bar";
 import { t } from "@/lib/i18n";
@@ -107,34 +106,30 @@ export function JobExitDialog() {
 
 	if (!request || mapJobs.length === 0) return null;
 	return (
-		<Dialog
+		<ConfirmDialog
 			open
-			onOpenChange={(open) => {
-				if (!open) resolveMapExit(false);
-			}}
+			onOpenChange={(open) => !open && resolveMapExit(false)}
+			title={t("Operations in progress")}
+			size="md"
+			message={
+				request.kind === "quit"
+					? t("These operations will be cancelled if you quit:")
+					: t("These operations will be cancelled if you leave this map:")
+			}
+			cancelLabel={t("Stay")}
+			confirmLabel={request.kind === "quit" ? t("Cancel and quit") : t("Cancel and leave")}
+			tone="destructive"
+			onConfirm={() => resolveMapExit(true)}
 		>
-			<DialogContent title={t("Operations in progress")} className="job-exit-dialog">
-				<p className="job-exit-dialog__message">
-					{request.kind === "quit"
-						? t("These operations will be cancelled if you quit:")
-						: t("These operations will be cancelled if you leave this map:")}
-				</p>
-				<div className="job-exit-dialog__jobs">
-					{mapJobs.map((j) => (
-						<div key={j.id} className="job-tray__row">
-							<span className="job-tray__row-label">{j.label}</span>
-							<Bar value={j.fraction} />
-							{j.detail && <span className="toast-progress__label">{j.detail}</span>}
-						</div>
-					))}
-				</div>
-				<div className="job-exit-dialog__actions">
-					<Button onClick={() => resolveMapExit(false)}>{t("Stay")}</Button>
-					<Button variant="destructive" onClick={() => resolveMapExit(true)}>
-						{request.kind === "quit" ? t("Cancel and quit") : t("Cancel and leave")}
-					</Button>
-				</div>
-			</DialogContent>
-		</Dialog>
+			<div className="job-exit-dialog__jobs">
+				{mapJobs.map((j) => (
+					<div key={j.id} className="job-tray__row">
+						<span className="job-tray__row-label">{j.label}</span>
+						<Bar value={j.fraction} />
+						{j.detail && <span className="toast-progress__label">{j.detail}</span>}
+					</div>
+				))}
+			</div>
+		</ConfirmDialog>
 	);
 }

@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { Tag } from "@/bindings.gen";
-import { Button } from "@/components/primitives/Button";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
+import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { TagPill } from "@/components/primitives/TagPill";
 import { Icon } from "@/components/primitives/Icon";
@@ -68,7 +67,6 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 							? t("Tag this location")
 							: t("Tag {n} locations", { n: locationIds.length })
 					}
-					className="lg-tag-dialog"
 					// TODO: deferred focus is a workaround for portal measuring before dialog layout settles
 					initialFocus={() => {
 						setTimeout(() => {
@@ -77,14 +75,7 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 						return false;
 					}}
 				>
-					<form
-						ref={formRef}
-						className="lg-tag-dialog__form"
-						onSubmit={(e) => {
-							e.preventDefault();
-							void apply(name);
-						}}
-					>
+					<DialogForm ref={formRef} onSubmit={() => void apply(name)}>
 						<SuggestInput<Tag>
 							value={name}
 							onChange={setName}
@@ -98,15 +89,11 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 							disabled={busy}
 							portal
 						/>
-						<div className="lg-tag-dialog__actions">
-							<Button type="button" onClick={() => setOpen(false)} disabled={busy}>
-								{t("Cancel")}
-							</Button>
-							<Button variant="primary" type="submit" disabled={!name.trim() || busy}>
-								{t("Add tag")}
-							</Button>
-						</div>
-					</form>
+						<DialogActions
+							cancel={{ disabled: busy }}
+							primary={{ label: t("Add tag"), disabled: !name.trim() || busy }}
+						/>
+					</DialogForm>
 				</DialogContent>
 			</Dialog>
 		</>

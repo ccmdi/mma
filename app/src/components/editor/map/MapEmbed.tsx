@@ -35,8 +35,14 @@ import { mountSearchRadiusCursor } from "@/lib/map/searchRadiusCursor";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
-import { Dialog, DialogContent } from "@/components/primitives/Dialog";
-import { Button } from "@/components/primitives/Button";
+import {
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogForm,
+	DialogHint,
+} from "@/components/primitives/Dialog";
+import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Slider } from "@/components/primitives/Slider";
 import { PolygonTools } from "@/components/editor/PolygonTools";
@@ -102,6 +108,7 @@ export function MapEmbed({
 
 	const [customStyles, setCustomStyles] = useLocalStorage<CustomStyle[]>(CUSTOM_STYLES_KEY, []);
 	const [showStylesDialog, setShowStylesDialog] = useState(false);
+	const styleFormRef = useRef<HTMLFormElement>(null);
 	const [svPreview, setSvPreview] = useState<{
 		url: string;
 		date?: string;
@@ -498,10 +505,10 @@ export function MapEmbed({
 											>
 												<Icon path={mdiContentCopy} size={20} />
 											</button>
-											<button
-												className="icon-button"
-												style={{ color: "var(--text-2)" }}
-												onClick={() => {
+											<ConfirmButton
+												small
+												variant="ghost"
+												onConfirm={() => {
 													const next = customStyles.filter((c) => c.name !== s.name);
 													setCustomStyles(next);
 													if (prefs.mapStyleName === s.name) pref("mapStyleName")("default");
@@ -509,18 +516,18 @@ export function MapEmbed({
 												aria-label={t("Delete style")}
 											>
 												<Icon path={mdiDelete} size={20} />
-											</button>
+											</ConfirmButton>
 										</div>
 									</li>
 								))}
 							</ul>
 						)}
-						<strong>{t("New style")}</strong>
-						<p style={{ margin: 0 }}>{t("Paste a Google Maps style JSON array below.")}</p>
-						<form
-							onSubmit={(ev) => {
-								ev.preventDefault();
-								const fd = new FormData(ev.currentTarget);
+						<DialogForm
+							ref={styleFormRef}
+							onSubmit={() => {
+								const form = styleFormRef.current;
+								if (!form) return;
+								const fd = new FormData(form);
 								const name = (fd.get("name") as string)?.trim();
 								const raw = (fd.get("style") as string)?.trim();
 								if (!name || !raw) return;
@@ -529,40 +536,24 @@ export function MapEmbed({
 									if (!Array.isArray(style)) return;
 									const next = [...customStyles.filter((s) => s.name !== name), { name, style }];
 									setCustomStyles(next);
-									ev.currentTarget.reset();
+									form.reset();
 								} catch {
 									// ignored
 								}
 							}}
 						>
-							<p>
-								<TextInput
-									name="name"
-									placeholder={t("Style name")}
-									required
-									style={{ width: "100%" }}
-								/>
-							</p>
-							<p>
-								<textarea
-									name="style"
-									className="text-input"
-									placeholder='[{"featureType":"water","stylers":[{"color":"#ff0000"}]}]'
-									rows={5}
-									style={{
-										width: "100%",
-										fontFamily: "monospace",
-										fontSize: "0.8rem",
-									}}
-									required
-								/>
-							</p>
-							<p>
-								<Button variant="primary" type="submit">
-									{t("Upload")}
-								</Button>
-							</p>
-						</form>
+							<strong>{t("New style")}</strong>
+							<DialogHint>{t("Paste a Google Maps style JSON array below.")}</DialogHint>
+							<TextInput name="name" placeholder={t("Style name")} required />
+							<textarea
+								name="style"
+								className="text-input mono"
+								placeholder='[{"featureType":"water","stylers":[{"color":"#ff0000"}]}]'
+								rows={5}
+								required
+							/>
+							<DialogActions cancel={{ label: t("Close") }} primary={{ label: t("Upload") }} />
+						</DialogForm>
 					</DialogContent>
 				</Dialog>
 			)}
