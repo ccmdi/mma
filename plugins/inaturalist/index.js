@@ -492,26 +492,20 @@ var LANGUAGES = [
 ];
 var INFO_PATH = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z";
 function Label({ children, info }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "inat-sidebar__info", children: [
     children,
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "svg",
-      {
-        width: 13,
-        height: 13,
-        viewBox: "0 0 24 24",
-        fill: "currentColor",
-        style: { opacity: 0.35, cursor: "help", flexShrink: 0 },
-        "aria-label": info,
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("title", { children: info }),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: INFO_PATH })
-        ]
-      }
-    )
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("svg", { width: 13, height: 13, viewBox: "0 0 24 24", fill: "currentColor", "aria-label": info, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("title", { children: info }),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: INFO_PATH })
+    ] })
   ] });
 }
-var { ui: { Section, Field, SegmentedControl, Button }, storage: storage2, useJob, toast } = MMA;
+var {
+  ui: { Section, Field, SegmentedControl, Button, Checkbox, ProgressRow },
+  storage: storage2,
+  useJob,
+  toast
+} = MMA;
 function TaxonomySorter() {
   const store = storage2("inaturalist");
   const [lang, setLang] = (0, import_react.useState)(() => store.get("taxo_lang", "en"));
@@ -553,16 +547,9 @@ function TaxonomySorter() {
         onChange: (v) => setDeep(v === "deep")
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Label, { info: "Include translated common names from iNaturalist", children: "Common names" }), row: true, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "input",
-      {
-        type: "checkbox",
-        checked: commonNames,
-        onChange: (e) => setCommonNames(e.target.checked)
-      }
-    ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { display: "flex", gap: 6, marginTop: 4 }, children: [
-      job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "destructive", onClick: job.cancel, style: { flex: 1 }, children: "Cancel" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", onClick: job.run, style: { flex: 1 }, children: "Sort Tags" }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Label, { info: "Include translated common names from iNaturalist", children: "Common names" }), row: true, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Checkbox, { checked: commonNames, onChange: (e) => setCommonNames(e.target.checked) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "inat-sidebar__run", children: [
+      job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "destructive", onClick: job.cancel, children: "Cancel" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", onClick: job.run, children: "Sort Tags" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Button,
         {
@@ -573,17 +560,18 @@ function TaxonomySorter() {
         }
       )
     ] }),
-    job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: "var(--text-secondary, #999)", marginTop: 6 }, children: [
-      job.progress.phase,
-      " (",
-      job.progress.current,
-      "/",
-      job.progress.total,
-      ")",
-      job.progress.detail && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { opacity: 0.7 }, children: job.progress.detail })
-    ] }),
-    job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { fontSize: 11, color: "#e55", marginTop: 6 }, children: job.error }),
-    job.result && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: { fontSize: 11, color: "var(--text-secondary, #999)", marginTop: 6 }, children: [
+    job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      ProgressRow,
+      {
+        className: "inat-sidebar__status",
+        label: job.progress.phase,
+        count: `${job.progress.current}/${job.progress.total}`,
+        value: job.progress.total > 0 ? job.progress.current / job.progress.total : 0,
+        children: job.progress.detail && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "inat-sidebar__detail", children: job.progress.detail })
+      }
+    ),
+    job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "inat-sidebar__error", children: job.error }),
+    job.result && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "inat-sidebar__status", children: [
       job.result.sorted,
       " sorted, ",
       job.result.skipped,
@@ -599,7 +587,7 @@ if (!style) {
   style.dataset.mmaPluginCss = "inaturalist/src/INatSidebar.css";
   document.head.appendChild(style);
 }
-style.textContent = ".inat-sidebar__search { display: flex; gap: 6px; }\n.inat-sidebar__results {\n  max-height: 300px; overflow-y: auto;\n  border: 1px solid var(--color-divider, #333); border-radius: 4px;\n  margin-top: 8px;\n}\n.inat-sidebar__taxon {\n  display: flex; align-items: center; gap: 8px; padding: 6px 8px;\n  cursor: pointer; border-bottom: 1px solid var(--color-divider, #333);\n  font-size: 13px;\n}\n.inat-sidebar__taxon:last-child { border-bottom: none; }\n.inat-sidebar__taxon:hover { background: rgba(255,255,255,0.05); }\n.inat-sidebar__taxon-photo {\n  width: 32px; height: 32px; border-radius: 4px; object-fit: cover;\n  background: #333; flex-shrink: 0;\n}\n.inat-sidebar__taxon-info { flex: 1; min-width: 0; }\n.inat-sidebar__taxon-name {\n  font-weight: 600; font-style: italic; overflow: hidden;\n  text-overflow: ellipsis; white-space: nowrap;\n}\n.inat-sidebar__taxon-meta { font-size: 11px; color: var(--text-secondary, #999); }\n.inat-sidebar__active {\n  margin-top: 8px; padding: 8px; border-radius: 4px;\n  background: rgba(255, 120, 0, 0.1); border: 1px solid rgba(255, 120, 0, 0.3);\n}\n.inat-sidebar__active-name { font-weight: 600; font-size: 13px; color: #ff7800; }\n.inat-sidebar__active-count { font-size: 12px; color: var(--text-secondary, #999); margin-top: 2px; }\n.inat-sidebar__actions { display: flex; gap: 6px; margin-top: 8px; }\n.inat-sidebar__hint { font-size: 12px; color: var(--text-secondary, #999); margin-top: 4px; }\n";
+style.textContent = ".inat-sidebar__search { display: flex; gap: 6px; }\n.inat-sidebar__results {\n  max-height: 300px; overflow-y: auto;\n  border: 1px solid var(--border-subtle); border-radius: var(--radius-1);\n  margin-top: 8px;\n}\n.inat-sidebar__taxon {\n  display: flex; align-items: center; gap: 8px; padding: 6px 8px;\n  cursor: pointer; border-bottom: 1px solid var(--border-subtle);\n  font-size: 0.8125rem;\n}\n.inat-sidebar__taxon:last-child { border-bottom: none; }\n.inat-sidebar__taxon:hover { background: var(--hover); }\n.inat-sidebar__taxon-photo {\n  width: 32px; height: 32px; border-radius: var(--radius-1); object-fit: cover;\n  background: var(--surface-3); flex-shrink: 0;\n}\n.inat-sidebar__taxon-info { flex: 1; min-width: 0; }\n.inat-sidebar__taxon-name {\n  font-weight: 600; font-style: italic; overflow: hidden;\n  text-overflow: ellipsis; white-space: nowrap;\n}\n.inat-sidebar__taxon-meta { font-size: 0.6875rem; color: var(--text-2); }\n.inat-sidebar__active {\n  --inat-observation: #ff7800;\n  margin-top: 8px; padding: 8px; border-radius: var(--radius-1);\n  background: color-mix(in srgb, var(--inat-observation) 10%, transparent);\n  border: 1px solid color-mix(in srgb, var(--inat-observation) 30%, transparent);\n}\n.inat-sidebar__active-name { font-weight: 600; font-size: 0.8125rem; color: var(--inat-observation); }\n.inat-sidebar__active-count { font-size: 0.75rem; color: var(--text-2); margin-top: 2px; }\n.inat-sidebar__actions { display: flex; gap: 6px; margin-top: 8px; }\n.inat-sidebar__hint { font-size: 0.75rem; color: var(--text-2); margin-top: 4px; }\n.inat-sidebar__info { display: inline-flex; align-items: center; gap: 4px; }\n.inat-sidebar__info svg { color: var(--text-3); cursor: help; flex-shrink: 0; }\n.inat-sidebar__run { display: flex; gap: 6px; margin-top: 4px; }\n.inat-sidebar__run > .button:first-child { flex: 1; }\n.inat-sidebar__status { font-size: 0.6875rem; color: var(--text-2); margin-top: 6px; }\n.inat-sidebar__detail { color: var(--text-3); }\n.inat-sidebar__error { font-size: 0.6875rem; color: var(--destructive-text); margin-top: 6px; }\n";
 
 // inaturalist/src/INatSidebar.tsx
 var import_jsx_runtime2 = __toESM(require_jsx_runtime());

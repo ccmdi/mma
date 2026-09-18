@@ -234,13 +234,14 @@ function SunSidebar({ onClose }) {
         }
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: `Length: ${length}px`, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Length", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       Slider,
       {
         min: LENGTH_RANGE.min,
         max: LENGTH_RANGE.max,
         value: length,
-        onChange: (e) => setLength(rayLength(e.target.value))
+        onChange: (e) => setLength(rayLength(e.target.value)),
+        format: (v) => `${v}px`
       }
     ) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Color", row: true, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ColorPicker, { color, onChange: setColor, ariaLabel: "Ray color" }) })

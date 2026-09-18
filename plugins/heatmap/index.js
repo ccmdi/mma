@@ -1351,15 +1351,15 @@ if (!style) {
   style.dataset.mmaPluginCss = "heatmap/src/HeatmapSidebar.css";
   document.head.appendChild(style);
 }
-style.textContent = '.heatmap-sidebar { overflow: auto; }\n.heatmap-sidebar__header {\n  display: flex; align-items: center; gap: 8px;\n  padding: 8px; border-bottom: 1px solid var(--color-divider, #333);\n}\n.heatmap-sidebar__title { margin: 0; font-size: 14px; font-weight: 600; }\n.heatmap-sidebar__body {\n  padding: 12px; display: flex; flex-direction: column; gap: 12px;\n}\n.heatmap-sidebar__section {\n  border-bottom: 1px solid var(--color-divider, #333);\n  padding-bottom: 10px;\n}\n.heatmap-sidebar__section:last-child { border-bottom: none; padding-bottom: 0; }\n.heatmap-sidebar__section-title {\n  font-size: 11px; font-weight: 600; text-transform: uppercase;\n  color: var(--text-secondary, #999); margin: 0 0 6px;\n}\n.heatmap-sidebar__layer-header {\n  display: flex; align-items: center; gap: 8px; padding: 2px 0 6px;\n}\n.heatmap-sidebar__layer-title { flex: 1; font-size: 13px; font-weight: 600; }\n.heatmap-sidebar__control {\n  display: flex; align-items: center; gap: 8px; padding: 2px 0;\n}\n.heatmap-sidebar__control label {\n  flex: 1; font-size: 13px;\n}\n.heatmap-sidebar__control input[type="range"] {\n  width: 100px;\n}\n.heatmap-sidebar__control .heatmap-sidebar__value {\n  min-width: 36px; text-align: right; font-size: 12px;\n  color: var(--text-secondary, #999); font-variant-numeric: tabular-nums;\n}\n.heatmap-sidebar__reset {\n  font-size: 12px; color: var(--text-secondary, #999);\n  background: none; border: none; cursor: pointer; padding: 0;\n  text-decoration: underline;\n}\n.heatmap-sidebar__reset:hover { color: var(--text-primary, #fff); }\n.heatmap-sidebar__add {\n  width: 100%; padding: 6px; font-size: 13px; cursor: pointer;\n  background: none; border: 1px dashed var(--color-divider, #444);\n  border-radius: 4px; color: var(--text-secondary, #999);\n}\n.heatmap-sidebar__add:hover {\n  color: var(--text-primary, #fff);\n  border-color: var(--text-secondary, #999);\n}\n.heatmap-sidebar .selector-picker { padding: 2px 0 6px; font-size: 13px; }\n.heatmap-sidebar__gradients {\n  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;\n}\n.heatmap-sidebar__gradient {\n  background: none; border: 2px solid transparent; border-radius: 4px;\n  padding: 2px; cursor: pointer; width: 100%;\n}\n.heatmap-sidebar__gradient--active { border-color: var(--accent-color, #4a9eff); }\n.heatmap-sidebar__gradient-bar { height: 14px; border-radius: 2px; }\n.heatmap-sidebar__gradient-new {\n  border: 1px dashed var(--color-divider, #444); border-radius: 4px;\n  background: none; color: var(--text-secondary, #999); cursor: pointer;\n  font-size: 12px; padding: 3px 2px;\n}\n.heatmap-sidebar__gradient-new:hover {\n  color: var(--text-primary, #fff); border-color: var(--text-secondary, #999);\n}\n.heatmap-sidebar__editor {\n  border: 1px solid var(--color-divider, #333); border-radius: 4px;\n  padding: 8px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px;\n}\n.heatmap-sidebar__editor-name {\n  width: 100%; box-sizing: border-box; font-size: 13px; padding: 4px 6px;\n  background: var(--surface-2, #1c1c1c); color: inherit;\n  border: 1px solid var(--color-divider, #333); border-radius: 3px;\n}\n.heatmap-sidebar__track { position: relative; height: 34px; touch-action: none; }\n.heatmap-sidebar__track-bar {\n  height: 18px; border-radius: 3px; cursor: copy;\n  border: 1px solid var(--color-divider, #333);\n}\n.heatmap-sidebar__handle {\n  position: absolute; top: 14px; transform: translateX(-50%);\n  width: 12px; height: 12px; padding: 0; cursor: grab;\n  border: 2px solid var(--surface-1, #111); border-radius: 3px;\n  box-shadow: 0 0 0 1px #0000008c;\n}\n.heatmap-sidebar__handle:before {\n  content: ""; position: absolute; left: 50%; top: -6px;\n  width: 1px; height: 6px; background: var(--text-secondary, #999);\n}\n.heatmap-sidebar__handle--selected {\n  border-color: var(--accent-color, #4a9eff); z-index: 1;\n}\n.heatmap-sidebar__handle:active { cursor: grabbing; }\n.heatmap-sidebar__stop-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }\n.heatmap-sidebar__stop-row input[type="color"] {\n  width: 28px; height: 24px; padding: 0; cursor: pointer;\n  background: none; border: 1px solid var(--color-divider, #444); border-radius: 3px;\n}\n.heatmap-sidebar__stop-row input[type="number"] {\n  width: 52px; font-size: 12px; padding: 3px 4px;\n  background: var(--surface-2, #1c1c1c); color: inherit;\n  border: 1px solid var(--color-divider, #333); border-radius: 3px;\n}\n.heatmap-sidebar__hint { font-size: 11px; color: var(--text-secondary, #999); margin: 0; }\n.heatmap-sidebar__editor-actions { display: flex; gap: 10px; align-items: center; }\n';
+style.textContent = '.heatmap-sidebar__gradients {\n  display: grid; grid-template-columns: 1fr 1fr; gap: 4px;\n}\n.heatmap-sidebar__gradient {\n  background: none; border: 2px solid transparent; border-radius: var(--radius-1);\n  padding: 2px; cursor: pointer; width: 100%;\n}\n.heatmap-sidebar__gradient:hover { border-color: var(--border-strong); }\n.heatmap-sidebar__gradient--active,\n.heatmap-sidebar__gradient--active:hover { border-color: var(--accent); }\n.heatmap-sidebar__gradient-bar { height: 14px; border-radius: 2px; }\n.heatmap-sidebar__gradient-new {\n  border: 1px dashed var(--border-strong); border-radius: var(--radius-1);\n  background: none; color: var(--text-2); cursor: pointer;\n  font-size: 0.75rem; padding: 3px 2px;\n}\n.heatmap-sidebar__gradient-new:hover { color: var(--text-1); background: var(--hover); }\n.heatmap-sidebar__editor {\n  border: 1px solid var(--border-subtle); border-radius: var(--radius-1);\n  padding: 8px; margin-top: 6px; display: flex; flex-direction: column; gap: 8px;\n}\n.heatmap-sidebar__track { position: relative; height: 34px; touch-action: none; }\n.heatmap-sidebar__track-bar {\n  height: 18px; border-radius: 3px; cursor: copy;\n  border: 1px solid var(--border-subtle);\n}\n.heatmap-sidebar__handle {\n  position: absolute; top: 14px; transform: translateX(-50%);\n  width: 12px; height: 12px; padding: 0; cursor: grab;\n  border: 2px solid var(--surface-1); border-radius: 3px;\n  box-shadow: 0 0 0 1px #0000008c;\n}\n.heatmap-sidebar__handle:before {\n  content: ""; position: absolute; left: 50%; top: -6px;\n  width: 1px; height: 6px; background: var(--text-2);\n}\n.heatmap-sidebar__handle--selected { border-color: var(--accent); z-index: 1; }\n.heatmap-sidebar__handle:active { cursor: grabbing; }\n.heatmap-sidebar__stop-row { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; }\n.heatmap-sidebar__stop-row input[type="color"] {\n  width: 28px; height: 24px; padding: 0; cursor: pointer;\n  background: none; border: 1px solid var(--border-strong); border-radius: 3px;\n}\n.heatmap-sidebar__stop-pos { width: 4rem; }\n.heatmap-sidebar__hint { font-size: 0.6875rem; color: var(--text-3); margin: 0; }\n.heatmap-sidebar__editor-actions { display: flex; gap: 4px; align-items: center; margin-top: 4px; }\n';
 
 // heatmap/src/HeatmapSidebar.tsx
 var import_jsx_runtime = __toESM(require_jsx_runtime());
-var { useMapState, selectorForPick: selectorForPick2, ui: { SelectorPicker } } = MMA;
-var ARROW_LEFT = "M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z";
-function Icon({ path, size = 20 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)("svg", { viewBox: "0 0 24 24", width: size, height: size, fill: "currentColor", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("path", { d: path }) });
-}
+var {
+  useMapState,
+  selectorForPick: selectorForPick2,
+  ui: { Button, Field, Section, SelectorPicker, Sidebar, Slider, Switch, TextInput }
+} = MMA;
 function HeatmapSidebar({ onClose }) {
   const [, rerender] = (0, import_react.useState)(0);
   const layers2 = getLayers();
@@ -1371,27 +1371,27 @@ function HeatmapSidebar({ onClose }) {
   }, []);
   const allCount = useMapState((s) => s.locationCount);
   const selectedIds = useMapState((s) => s.selectedLocationIds);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("section", { className: "map-sidebar heatmap-sidebar", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("header", { className: "heatmap-sidebar__header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "icon-button", onClick: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Icon, { path: ARROW_LEFT }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h2", { className: "heatmap-sidebar__title", children: "Heatmap" }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "heatmap-sidebar__reset", onClick: resetLayers, children: "Reset" })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "heatmap-sidebar__body", children: [
-      layers2.map((l, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        LayerControls,
-        {
-          layer: l,
-          index: i,
-          allCount,
-          selectionCount: selectedIds.size
-        },
-        l.id
-      )),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)("button", { className: "heatmap-sidebar__add", onClick: addLayer, children: "Add heatmap" })
-    ] })
-  ] });
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+    Sidebar,
+    {
+      title: "Heatmap",
+      onBack: onClose,
+      actions: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "ghost", small: true, onClick: resetLayers, children: "Reset" }),
+      children: [
+        layers2.map((l, i) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          LayerControls,
+          {
+            layer: l,
+            index: i,
+            allCount,
+            selectionCount: selectedIds.size
+          },
+          l.id
+        )),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: addLayer, children: "Add heatmap" })
+      ]
+    }
+  );
 }
 function LayerControls({
   layer: l,
@@ -1400,97 +1400,93 @@ function LayerControls({
   selectionCount
 }) {
   const set = (patch) => updateLayer(l.id, patch);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "heatmap-sidebar__section", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "heatmap-sidebar__layer-header", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "input",
-        {
-          type: "checkbox",
-          checked: l.visible,
-          onChange: (e) => set({ visible: e.target.checked })
-        }
-      ),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("span", { className: "heatmap-sidebar__layer-title", children: [
-        "Heatmap ",
-        index + 1
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
+    Section,
+    {
+      title: `Heatmap ${index + 1}`,
+      collapsible: false,
+      addons: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          Switch,
+          {
+            checked: l.visible,
+            onChange: (visible) => set({ visible }),
+            label: "Visible"
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "ghost", small: true, onClick: () => removeLayer(l.id), children: "Remove" })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "button",
-        {
-          className: "heatmap-sidebar__reset",
-          onClick: () => removeLayer(l.id),
-          children: "Remove"
-        }
-      )
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      SelectorPicker,
-      {
-        ctl: {
-          selector: selectorForPick2(l.source),
-          choice: l.source,
-          setChoice: (c) => set({ source: c }),
-          allCount,
-          selectionCount,
-          saved: true
-        }
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      Slider,
-      {
-        label: "Intensity",
-        value: l.intensity,
-        min: 0.1,
-        max: 10,
-        step: 0.1,
-        onChange: (v) => set({ intensity: v })
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      Slider,
-      {
-        label: "Radius",
-        value: l.radiusPixels,
-        min: 1,
-        max: 100,
-        step: 1,
-        onChange: (v) => set({ radiusPixels: v }),
-        format: (v) => `${v}px`
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      Slider,
-      {
-        label: "Opacity",
-        value: l.opacity,
-        min: 0,
-        max: 1,
-        step: 0.05,
-        onChange: (v) => set({ opacity: v })
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      Slider,
-      {
-        label: "Threshold",
-        value: l.threshold,
-        min: 0,
-        max: 1,
-        step: 0.01,
-        onChange: (v) => set({ threshold: v })
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      GradientPicker,
-      {
-        layerId: l.id,
-        gradientId: l.gradientId,
-        onSelect: (id) => set({ gradientId: id })
-      }
-    )
-  ] });
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          SelectorPicker,
+          {
+            ctl: {
+              selector: selectorForPick2(l.source),
+              choice: l.source,
+              setChoice: (c) => set({ source: c }),
+              allCount,
+              selectionCount,
+              saved: true
+            }
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Intensity", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          Slider,
+          {
+            value: l.intensity,
+            min: 0.1,
+            max: 10,
+            step: 0.1,
+            onChange: (e) => set({ intensity: Number(e.target.value) }),
+            format: round2
+          }
+        ) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Radius", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          Slider,
+          {
+            value: l.radiusPixels,
+            min: 1,
+            max: 100,
+            step: 1,
+            onChange: (e) => set({ radiusPixels: Number(e.target.value) }),
+            format: (v) => `${v}px`
+          }
+        ) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Opacity", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          Slider,
+          {
+            value: l.opacity,
+            min: 0,
+            max: 1,
+            step: 0.05,
+            onChange: (e) => set({ opacity: Number(e.target.value) }),
+            format: round2
+          }
+        ) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Threshold", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          Slider,
+          {
+            value: l.threshold,
+            min: 0,
+            max: 1,
+            step: 0.01,
+            onChange: (e) => set({ threshold: Number(e.target.value) }),
+            format: round2
+          }
+        ) }),
+        /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+          GradientPicker,
+          {
+            layerId: l.id,
+            gradientId: l.gradientId,
+            onSelect: (id) => set({ gradientId: id })
+          }
+        )
+      ]
+    }
+  );
 }
+var round2 = (v) => String(Math.round(v * 100) / 100);
 function GradientPicker({
   layerId,
   gradientId,
@@ -1500,8 +1496,7 @@ function GradientPicker({
   const customs = getCustomGradients();
   const current = resolveGradient(gradientId, customs);
   const editing = customs.find((g) => g.id === editingId) ?? null;
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_jsx_runtime.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "heatmap-sidebar__section-title", style: { marginTop: 8 }, children: "Gradient" }),
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(Field, { label: "Gradient", children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "heatmap-sidebar__gradients", children: [
       [...BUILTIN_GRADIENTS, ...customs].map((g) => /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "button",
@@ -1529,31 +1524,26 @@ function GradientPicker({
         }
       )
     ] }),
-    !isBuiltinGradient(current.id) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "div",
-      {
-        className: "heatmap-sidebar__editor-actions",
-        style: { marginTop: 6 },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "button",
-            {
-              className: "heatmap-sidebar__reset",
-              onClick: () => setEditingId(editing?.id === current.id ? null : current.id),
-              children: editing?.id === current.id ? "Done" : "Edit gradient"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-            "button",
-            {
-              className: "heatmap-sidebar__reset",
-              onClick: () => removeCustomGradient(current.id),
-              children: "Delete"
-            }
-          )
-        ]
-      }
-    ),
+    !isBuiltinGradient(current.id) && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "heatmap-sidebar__editor-actions", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        Button,
+        {
+          variant: "ghost",
+          small: true,
+          onClick: () => setEditingId(editing?.id === current.id ? null : current.id),
+          children: editing?.id === current.id ? "Done" : "Edit gradient"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+        Button,
+        {
+          variant: "ghost",
+          small: true,
+          onClick: () => removeCustomGradient(current.id),
+          children: "Delete"
+        }
+      )
+    ] }),
     editing && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(GradientEditor, { gradient: editing })
   ] });
 }
@@ -1606,9 +1596,8 @@ function GradientEditor({ gradient: g }) {
   };
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "heatmap-sidebar__editor", children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "input",
+      TextInput,
       {
-        className: "heatmap-sidebar__editor-name",
         value: g.name,
         onChange: (e) => updateCustomGradient(g.id, { name: e.target.value }),
         "aria-label": "Gradient name"
@@ -1660,8 +1649,9 @@ function GradientEditor({ gradient: g }) {
         }
       ),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "input",
+        TextInput,
         {
+          className: "heatmap-sidebar__stop-pos",
           type: "number",
           min: 0,
           max: 100,
@@ -1681,41 +1671,16 @@ function GradientEditor({ gradient: g }) {
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { children: "%" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { flex: 1 } }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "button",
+        Button,
         {
-          className: "heatmap-sidebar__reset",
+          variant: "ghost",
+          small: true,
           onClick: () => setStops(reverseStops(g.stops)),
           children: "Reverse"
         }
       )
     ] }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { className: "heatmap-sidebar__hint", children: g.stops.length <= MIN_STOPS ? `Click the bar to add a stop (${MIN_STOPS} minimum).` : "Click the bar to add a stop, right-click a handle to remove it." })
-  ] });
-}
-function Slider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-  format
-}) {
-  const display = format ? format(value) : String(Math.round(value * 100) / 100);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "heatmap-sidebar__control", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("label", { children: label }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "input",
-      {
-        type: "range",
-        min,
-        max,
-        step,
-        value,
-        onChange: (e) => onChange(Number(e.target.value))
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { className: "heatmap-sidebar__value", children: display })
   ] });
 }
 

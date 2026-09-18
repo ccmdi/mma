@@ -105,6 +105,27 @@ Component props:
 - `modal` receives `{ onClose: () => void }`
 - `locationPanel` receives no props
 
+## Styling
+
+Build UI from `MMA.ui` first (`Sidebar`, `Section`, `Field`, `Button`, `Switch`, `Slider`, `Bar`, `ProgressRow`, ...): they already match the app. For your own CSS, use the app's design tokens instead of colors or sizes of your own, so your plugin follows the theme and the user's accent color. These are the tokens a plugin may use:
+
+| Group | Tokens | Use |
+|-------|--------|-----|
+| Surfaces | `--surface-0` to `--surface-3` | background, panels and cards, dialogs, popovers and chips |
+| Borders | `--border-subtle`, `--border-strong` | dividers, control borders |
+| Text | `--text-1`, `--text-2`, `--text-3` | primary, muted, faint. Mute text with these, never with `opacity` |
+| Accent | `--accent`, `--accent-hover`, `--accent-muted`, `--on-accent` | selection, focus, progress fills; follows the user's line color |
+| Action | `--action`, `--action-hover`, `--on-action` | primary buttons |
+| Status | `--constructive`, `--destructive`, `--on-destructive`, `--destructive-text`, `--warning`, `--warning-muted` | success; destructive fills; error text; warnings |
+| State | `--hover`, `--pressed`, `--disabled-opacity` | hover overlay; active or selected overlay; disabled controls |
+| Radius | `--radius-1`, `--radius-2`, `--radius-3`, `--radius-pill` | inputs; buttons; cards and popovers; pills |
+| Type | `--font-mono` | numbers, IDs, coordinates |
+| Motion | `--dur-fast`, `--dur`, `--dur-slow`, `--ease-standard`, `--ease-enter` | hover; enter and toggle; size and fill changes |
+
+Utility classes: `.mono` for data (counts, coordinates, IDs) and `.text-muted` for secondary text.
+
+Colors that are data, such as a layer color drawn on the map, can stay literal. Give them a custom property of your own (`--my-plugin-layer: #ff7800`) so the rest of your CSS reads it by name. Any other `var(--x)` must be one of the tokens above: an unknown name silently renders its fallback. `node plugins/check-tokens.mjs` fails on one.
+
 ## Shared modules
 
 The plugin template's build config automatically deduplicates libraries the app already bundles (React, deck.gl, luma.gl). Just write normal imports and the build handles the rest. Libraries the app doesn't have get bundled into your plugin automatically. Imported `.css` files are bundled too and added to the page when your plugin loads.

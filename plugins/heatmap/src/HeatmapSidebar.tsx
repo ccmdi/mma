@@ -31,18 +31,11 @@ import {
 import type { SelectorPick } from "mma-plugin-types";
 import "./HeatmapSidebar.css";
 
-const { useMapState, selectorForPick, ui: { SelectorPicker } } = MMA;
-
-const ARROW_LEFT =
-  "M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z";
-
-function Icon({ path, size = 20 }: { path: string; size?: number }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor">
-      <path d={path} />
-    </svg>
-  );
-}
+const {
+  useMapState,
+  selectorForPick,
+  ui: { Button, Field, Section, SelectorPicker, Sidebar, Slider, Switch, TextInput },
+} = MMA;
 
 export function HeatmapSidebar({ onClose }: { onClose: () => void }) {
   const [, rerender] = useState(0);
@@ -59,34 +52,26 @@ export function HeatmapSidebar({ onClose }: { onClose: () => void }) {
   const selectedIds = useMapState((s) => s.selectedLocationIds);
 
   return (
-    <section className="map-sidebar heatmap-sidebar">
-      <header className="heatmap-sidebar__header">
-        <button className="icon-button" onClick={onClose}>
-          <Icon path={ARROW_LEFT} />
-        </button>
-        <h2 className="heatmap-sidebar__title">Heatmap</h2>
-        <span style={{ flex: 1 }} />
-        <button className="heatmap-sidebar__reset" onClick={resetLayers}>
+    <Sidebar
+      title="Heatmap"
+      onBack={onClose}
+      actions={
+        <Button variant="ghost" small onClick={resetLayers}>
           Reset
-        </button>
-      </header>
-
-      <div className="heatmap-sidebar__body">
-        {layers.map((l, i) => (
-          <LayerControls
-            key={l.id}
-            layer={l}
-            index={i}
-            allCount={allCount}
-            selectionCount={selectedIds.size}
-          />
-        ))}
-
-        <button className="heatmap-sidebar__add" onClick={addLayer}>
-          Add heatmap
-        </button>
-      </div>
-    </section>
+        </Button>
+      }
+    >
+      {layers.map((l, i) => (
+        <LayerControls
+          key={l.id}
+          layer={l}
+          index={i}
+          allCount={allCount}
+          selectionCount={selectedIds.size}
+        />
+      ))}
+      <Button onClick={addLayer}>Add heatmap</Button>
+    </Sidebar>
   );
 }
 
@@ -105,23 +90,22 @@ function LayerControls({
     updateLayer(l.id, patch);
 
   return (
-    <div className="heatmap-sidebar__section">
-      <div className="heatmap-sidebar__layer-header">
-        <input
-          type="checkbox"
-          checked={l.visible}
-          onChange={(e) => set({ visible: e.target.checked })}
-        />
-        <span className="heatmap-sidebar__layer-title">
-          Heatmap {index + 1}
-        </span>
-        <button
-          className="heatmap-sidebar__reset"
-          onClick={() => removeLayer(l.id)}
-        >
-          Remove
-        </button>
-      </div>
+    <Section
+      title={`Heatmap ${index + 1}`}
+      collapsible={false}
+      addons={
+        <>
+          <Switch
+            checked={l.visible}
+            onChange={(visible) => set({ visible })}
+            label="Visible"
+          />
+          <Button variant="ghost" small onClick={() => removeLayer(l.id)}>
+            Remove
+          </Button>
+        </>
+      }
+    >
 
       <SelectorPicker
         ctl={{
@@ -134,48 +118,57 @@ function LayerControls({
         }}
       />
 
-      <Slider
-        label="Intensity"
-        value={l.intensity}
-        min={0.1}
-        max={10}
-        step={0.1}
-        onChange={(v) => set({ intensity: v })}
-      />
-      <Slider
-        label="Radius"
-        value={l.radiusPixels}
-        min={1}
-        max={100}
-        step={1}
-        onChange={(v) => set({ radiusPixels: v })}
-        format={(v) => `${v}px`}
-      />
-      <Slider
-        label="Opacity"
-        value={l.opacity}
-        min={0}
-        max={1}
-        step={0.05}
-        onChange={(v) => set({ opacity: v })}
-      />
-      <Slider
-        label="Threshold"
-        value={l.threshold}
-        min={0}
-        max={1}
-        step={0.01}
-        onChange={(v) => set({ threshold: v })}
-      />
+      <Field label="Intensity">
+        <Slider
+          value={l.intensity}
+          min={0.1}
+          max={10}
+          step={0.1}
+          onChange={(e) => set({ intensity: Number(e.target.value) })}
+          format={round2}
+        />
+      </Field>
+      <Field label="Radius">
+        <Slider
+          value={l.radiusPixels}
+          min={1}
+          max={100}
+          step={1}
+          onChange={(e) => set({ radiusPixels: Number(e.target.value) })}
+          format={(v) => `${v}px`}
+        />
+      </Field>
+      <Field label="Opacity">
+        <Slider
+          value={l.opacity}
+          min={0}
+          max={1}
+          step={0.05}
+          onChange={(e) => set({ opacity: Number(e.target.value) })}
+          format={round2}
+        />
+      </Field>
+      <Field label="Threshold">
+        <Slider
+          value={l.threshold}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(e) => set({ threshold: Number(e.target.value) })}
+          format={round2}
+        />
+      </Field>
 
       <GradientPicker
         layerId={l.id}
         gradientId={l.gradientId}
         onSelect={(id) => set({ gradientId: id })}
       />
-    </div>
+    </Section>
   );
 }
+
+const round2 = (v: number) => String(Math.round(v * 100) / 100);
 
 function GradientPicker({
   layerId,
@@ -192,10 +185,7 @@ function GradientPicker({
   const editing = customs.find((g) => g.id === editingId) ?? null;
 
   return (
-    <>
-      <p className="heatmap-sidebar__section-title" style={{ marginTop: 8 }}>
-        Gradient
-      </p>
+    <Field label="Gradient">
       <div className="heatmap-sidebar__gradients">
         {[...BUILTIN_GRADIENTS, ...customs].map((g) => (
           <button
@@ -220,29 +210,28 @@ function GradientPicker({
       </div>
 
       {!isBuiltinGradient(current.id) && (
-        <div
-          className="heatmap-sidebar__editor-actions"
-          style={{ marginTop: 6 }}
-        >
-          <button
-            className="heatmap-sidebar__reset"
+        <div className="heatmap-sidebar__editor-actions">
+          <Button
+            variant="ghost"
+            small
             onClick={() =>
               setEditingId(editing?.id === current.id ? null : current.id)
             }
           >
             {editing?.id === current.id ? "Done" : "Edit gradient"}
-          </button>
-          <button
-            className="heatmap-sidebar__reset"
+          </Button>
+          <Button
+            variant="ghost"
+            small
             onClick={() => removeCustomGradient(current.id)}
           >
             Delete
-          </button>
+          </Button>
         </div>
       )}
 
       {editing && <GradientEditor gradient={editing} />}
-    </>
+    </Field>
   );
 }
 
@@ -305,8 +294,7 @@ function GradientEditor({ gradient: g }: { gradient: HeatmapGradient }) {
 
   return (
     <div className="heatmap-sidebar__editor">
-      <input
-        className="heatmap-sidebar__editor-name"
+      <TextInput
         value={g.name}
         onChange={(e) => updateCustomGradient(g.id, { name: e.target.value })}
         aria-label="Gradient name"
@@ -354,7 +342,8 @@ function GradientEditor({ gradient: g }: { gradient: HeatmapGradient }) {
             }
             aria-label="Stop colour"
           />
-          <input
+          <TextInput
+            className="heatmap-sidebar__stop-pos"
             type="number"
             min={0}
             max={100}
@@ -372,12 +361,13 @@ function GradientEditor({ gradient: g }: { gradient: HeatmapGradient }) {
           />
           <span>%</span>
           <span style={{ flex: 1 }} />
-          <button
-            className="heatmap-sidebar__reset"
+          <Button
+            variant="ghost"
+            small
             onClick={() => setStops(reverseStops(g.stops))}
           >
             Reverse
-          </button>
+          </Button>
         </div>
       )}
 
@@ -386,42 +376,6 @@ function GradientEditor({ gradient: g }: { gradient: HeatmapGradient }) {
           ? `Click the bar to add a stop (${MIN_STOPS} minimum).`
           : "Click the bar to add a stop, right-click a handle to remove it."}
       </p>
-    </div>
-  );
-}
-
-function Slider({
-  label,
-  value,
-  min,
-  max,
-  step,
-  onChange,
-  format,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  onChange: (v: number) => void;
-  format?: (v: number) => string;
-}) {
-  const display = format
-    ? format(value)
-    : String(Math.round(value * 100) / 100);
-  return (
-    <div className="heatmap-sidebar__control">
-      <label>{label}</label>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-      />
-      <span className="heatmap-sidebar__value">{display}</span>
     </div>
   );
 }

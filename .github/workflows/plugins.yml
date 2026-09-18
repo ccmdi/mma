@@ -23,6 +23,8 @@ jobs:
       - run: git diff --exit-code -- plugins/
       # Every plugin typechecks against the current SDK and against the SDK at its minAppVersion.
       - run: node plugins/check-floors.mjs
+      # Plugin styles read only custom properties the app defines.
+      - run: node plugins/check-tokens.mjs
 
   sidecar-version-guard:
     runs-on: ubuntu-latest

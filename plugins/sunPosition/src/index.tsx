@@ -232,12 +232,13 @@ function SunSidebar({ onClose }: { onClose: () => void }) {
 						showRays(value);
 					}}
 				/>
-				<Field label={`Length: ${length}px`}>
+				<Field label="Length">
 					<Slider
 						min={LENGTH_RANGE.min}
 						max={LENGTH_RANGE.max}
 						value={length}
 						onChange={(e) => setLength(rayLength(e.target.value))}
+						format={(v) => `${v}px`}
 					/>
 				</Field>
 				<Field label="Color" row>

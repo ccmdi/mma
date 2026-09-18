@@ -4,8 +4,6 @@ const { ui: { Button }, getMapState, useJob, fetchAllLocations, addSelections } 
 
 const SIMILARITY_THRESHOLD = 0.85;
 
-const statusStyle = { fontSize: 12, color: "var(--text-secondary, #999)", padding: "4px 0" };
-
 export function FindSimilarButton() {
 	const active = getMapState().activeLocation;
 	const panoId = active?.panoId;
@@ -57,15 +55,15 @@ export function FindSimilarButton() {
 		<>
 			<Button
 				small
-				style={{ width: "100%" }}
+				className="vision-find-similar"
 				onClick={job.running ? job.cancel : job.run}
 			>
 				{job.running ? "Cancel" : "Find similar panos"}
 			</Button>
-			{job.progress && <div style={statusStyle}>{job.progress}</div>}
-			{job.error && <div style={{ ...statusStyle, color: "#e55" }}>{job.error}</div>}
+			{job.progress && <div className="vision-status">{job.progress}</div>}
+			{job.error && <div className="vision-status vision-status--error">{job.error}</div>}
 			{job.result !== null && !job.running && (
-				<div style={statusStyle}>
+				<div className="vision-status">
 					{job.result > 0 ? `${job.result} similar` : "No similar panos found"}
 				</div>
 			)}

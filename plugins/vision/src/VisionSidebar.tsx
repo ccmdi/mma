@@ -3,7 +3,12 @@ import type { Location } from "mma-plugin-types";
 import { embed, searchText } from "./sidecar";
 import "./VisionSidebar.css";
 
-const { ui: { Sidebar, Field, TextInput, Button }, useJob, fetchAllLocations, addSelections } = MMA;
+const {
+	ui: { Sidebar, Field, TextInput, Button, Bar, Slider },
+	useJob,
+	fetchAllLocations,
+	addSelections,
+} = MMA;
 
 /** Top of the confidence slider, and so the scale every score is drawn against. */
 const MAX_SCORE = 0.3;
@@ -37,7 +42,7 @@ function ScoreMeter({ top, cut }: { top: number; cut: number }) {
 	return (
 		<>
 			<div className="vision-meter">
-				<div className="vision-meter__fill" style={{ width: pct(top) }} />
+				<Bar value={top / MAX_SCORE} size="md" />
 				<div className="vision-meter__cut" style={{ left: pct(cut) }} />
 			</div>
 			<div className="vision-scale">
@@ -162,15 +167,14 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 						}}
 					/>
 				</Field>
-				<Field label={`Min confidence: ${threshold.toFixed(3)}`}>
-					<input
-						type="range"
+				<Field label="Min confidence">
+					<Slider
 						min={0}
 						max={MAX_SCORE}
 						step={0.005}
 						value={threshold}
 						onChange={(e) => setThreshold(Number(e.target.value))}
-						style={{ width: "100%" }}
+						format={(v) => v.toFixed(3)}
 					/>
 				</Field>
 				<div className="vision-sidebar__actions">
@@ -183,8 +187,8 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 					)}
 				</div>
 
-				{job.progress && <div className="vision-sidebar__progress">{job.progress}</div>}
-				{job.error && <div className="vision-sidebar__error">{job.error}</div>}
+				{job.progress && <div className="vision-status">{job.progress}</div>}
+				{job.error && <div className="vision-status vision-status--error">{job.error}</div>}
 				{job.result !== null && !job.running && <Result outcome={job.result} />}
 			</div>
 		</Sidebar>

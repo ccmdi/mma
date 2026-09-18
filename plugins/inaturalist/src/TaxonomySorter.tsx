@@ -19,13 +19,9 @@ const INFO_PATH = "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 
 
 function Label({ children, info }: { children: ReactNode; info: string }) {
 	return (
-		<span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+		<span className="inat-sidebar__info">
 			{children}
-			<svg
-				width={13} height={13} viewBox="0 0 24 24" fill="currentColor"
-				style={{ opacity: 0.35, cursor: "help", flexShrink: 0 }}
-				aria-label={info}
-			>
+			<svg width={13} height={13} viewBox="0 0 24 24" fill="currentColor" aria-label={info}>
 				<title>{info}</title>
 				<path d={INFO_PATH} />
 			</svg>
@@ -33,7 +29,12 @@ function Label({ children, info }: { children: ReactNode; info: string }) {
 	);
 }
 
-const { ui: { Section, Field, SegmentedControl, Button }, storage, useJob, toast } = MMA;
+const {
+	ui: { Section, Field, SegmentedControl, Button, Checkbox, ProgressRow },
+	storage,
+	useJob,
+	toast,
+} = MMA;
 
 export function TaxonomySorter() {
 	const store = storage("inaturalist");
@@ -84,20 +85,16 @@ export function TaxonomySorter() {
 			</Field>
 
 			<Field label={<Label info="Include translated common names from iNaturalist">Common names</Label>} row>
-				<input
-					type="checkbox"
-					checked={commonNames}
-					onChange={(e) => setCommonNames(e.target.checked)}
-				/>
+				<Checkbox checked={commonNames} onChange={(e) => setCommonNames(e.target.checked)} />
 			</Field>
 
-			<div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+			<div className="inat-sidebar__run">
 				{job.running ? (
-					<Button variant="destructive" onClick={job.cancel} style={{ flex: 1 }}>
+					<Button variant="destructive" onClick={job.cancel}>
 						Cancel
 					</Button>
 				) : (
-					<Button variant="primary" onClick={job.run} style={{ flex: 1 }}>
+					<Button variant="primary" onClick={job.run}>
 						Sort Tags
 					</Button>
 				)}
@@ -111,18 +108,22 @@ export function TaxonomySorter() {
 			</div>
 
 			{job.progress && (
-				<div style={{ fontSize: 11, color: "var(--text-secondary, #999)", marginTop: 6 }}>
-					{job.progress.phase} ({job.progress.current}/{job.progress.total})
-					{job.progress.detail && <div style={{ opacity: 0.7 }}>{job.progress.detail}</div>}
-				</div>
+				<ProgressRow
+					className="inat-sidebar__status"
+					label={job.progress.phase}
+					count={`${job.progress.current}/${job.progress.total}`}
+					value={job.progress.total > 0 ? job.progress.current / job.progress.total : 0}
+				>
+					{job.progress.detail && <div className="inat-sidebar__detail">{job.progress.detail}</div>}
+				</ProgressRow>
 			)}
 
 			{job.error && (
-				<div style={{ fontSize: 11, color: "#e55", marginTop: 6 }}>{job.error}</div>
+				<div className="inat-sidebar__error">{job.error}</div>
 			)}
 
 			{job.result && !job.running && (
-				<div style={{ fontSize: 11, color: "var(--text-secondary, #999)", marginTop: 6 }}>
+				<div className="inat-sidebar__status">
 					{job.result.sorted} sorted, {job.result.skipped} skipped
 				</div>
 			)}
