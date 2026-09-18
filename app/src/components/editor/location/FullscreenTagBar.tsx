@@ -4,13 +4,13 @@ import type { Tag } from "@/bindings.gen";
 import { getMapState } from "@/store/useMapStore";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/util/util";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
-import { Icon } from "@/components/primitives/Icon";
 import { useSetting } from "@/store/settings";
 import { persisted, useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { displayTagName } from "@/store/selections";
 import { t } from "@/lib/i18n";
 import { search } from "@/lib/search";
 import { Button } from "@/components/primitives/Button";
+import { IconButton } from "@/components/primitives/IconButton";
 
 /** Tag bar dropped down to a thin strip. Toggled from the bar itself, not Settings. */
 const FULLSCREEN_TAGBAR_COLLAPSED = persisted("fullscreenTagbarCollapsed", false);
@@ -98,14 +98,15 @@ export function FullscreenTagBar({
 					</form>
 				</div>
 			</div>
-			<button
-				type="button"
+			<IconButton
 				className="fullscreen-tagbar__collapse"
-				aria-label={collapsed ? t("Expand tag bar") : t("Collapse tag bar")}
+				icon={collapsed ? mdiChevronUp : mdiChevronDown}
+				size={16}
+				label={collapsed ? t("Expand tag bar") : t("Collapse tag bar")}
+				tooltip={false}
+				overlay
 				onClick={() => setCollapsed(!collapsed)}
-			>
-				<Icon path={collapsed ? mdiChevronUp : mdiChevronDown} size={16} />
-			</button>
+			/>
 			{!collapsed && (focused || hovered) && filtered.length > 0 && (
 				<div className="fullscreen-tagbar__palette">
 					{filtered.map((t) => (

@@ -23,12 +23,11 @@ import {
 import { openHref } from "@/lib/map/mapClick";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { usePointerDrag } from "@/lib/hooks/usePointerDrag";
-import { Icon } from "@/components/primitives/Icon";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import { clamp, range } from "@/types/util";
 import { DocRenderer } from "@/components/editor/doclink/DocRenderer";
 import "./doclink.css";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 const WIDTH_RANGE = range([280, 900]);
 
@@ -153,65 +152,42 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 				<span className="doclink-panel__title" title={title}>
 					{title}
 				</span>
-				<Tooltip content={t("Refresh document")} side="bottom">
-					<button
-						className="icon-button"
-						type="button"
-						aria-label={t("Refresh document")}
-						disabled={!url || loading}
-						onClick={onRefresh}
-					>
-						<Icon path={mdiRefresh} />
-					</button>
-				</Tooltip>
-				<Tooltip
-					content={wholeDoc ? t("Show linked section only") : t("Show whole document")}
-					side="bottom"
-				>
-					<button
-						className="icon-button"
-						type="button"
-						aria-label={t("Toggle whole document")}
-						disabled={!docRef?.anchor}
-						onClick={() => setWholeDoc((w) => !w)}
-					>
-						<Icon path={wholeDoc ? mdiBookOpenVariant : mdiBookOpenOutline} />
-					</button>
-				</Tooltip>
-				<Tooltip
-					content={pinned ? t("Unpin (follow selected tags)") : t("Pin current section")}
-					side="bottom"
-				>
-					<button
-						className="icon-button"
-						type="button"
-						aria-label={t("Pin section")}
-						onClick={() => setPinned((p) => !p)}
-					>
-						<Icon path={pinned ? mdiPin : mdiPinOutline} />
-					</button>
-				</Tooltip>
-				<Tooltip content={t("Open in browser")} side="bottom">
-					<button
-						className="icon-button"
-						type="button"
-						aria-label={t("Open in browser")}
-						disabled={!url}
-						onClick={() => url && void openExternal(url)}
-					>
-						<Icon path={mdiOpenInNew} />
-					</button>
-				</Tooltip>
-				<Tooltip content={t("Close")} side="bottom">
-					<button
-						className="icon-button"
-						type="button"
-						aria-label={t("Close doclink panel")}
-						onClick={onClose}
-					>
-						<Icon path={mdiClose} />
-					</button>
-				</Tooltip>
+				<IconButton
+					icon={mdiRefresh}
+					label={t("Refresh document")}
+					tooltipSide="bottom"
+					disabled={!url || loading}
+					onClick={onRefresh}
+				/>
+				<IconButton
+					icon={wholeDoc ? mdiBookOpenVariant : mdiBookOpenOutline}
+					label={t("Toggle whole document")}
+					tooltip={wholeDoc ? t("Show linked section only") : t("Show whole document")}
+					tooltipSide="bottom"
+					disabled={!docRef?.anchor}
+					onClick={() => setWholeDoc((w) => !w)}
+				/>
+				<IconButton
+					icon={pinned ? mdiPin : mdiPinOutline}
+					label={t("Pin section")}
+					tooltip={pinned ? t("Unpin (follow selected tags)") : t("Pin current section")}
+					tooltipSide="bottom"
+					onClick={() => setPinned((p) => !p)}
+				/>
+				<IconButton
+					icon={mdiOpenInNew}
+					label={t("Open in browser")}
+					tooltipSide="bottom"
+					disabled={!url}
+					onClick={() => url && void openExternal(url)}
+				/>
+				<IconButton
+					icon={mdiClose}
+					label={t("Close doclink panel")}
+					tooltip={t("Close")}
+					tooltipSide="bottom"
+					onClick={onClose}
+				/>
 			</div>
 			{/* Present whenever ANY tag in the map pages (fixed height, may be empty) --
 			    mounting it per-tag shifts the doc body on every section switch. */}

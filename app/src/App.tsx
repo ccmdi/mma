@@ -23,6 +23,8 @@ import { useLocalStorage, persisted } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";
 import { applyAccentColor, resolveSvColorHex } from "@/lib/util/color";
 import { Icon, mdiDiscord } from "@/components/primitives/Icon";
+import { IconButton } from "@/components/primitives/IconButton";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutline } from "@mdi/js";
 import { ToastContainer } from "@/components/primitives/Toast";
 import { JobTray, JobExitDialog } from "@/components/primitives/JobTray";
@@ -51,6 +53,7 @@ const manualModules = Promise.all([
 	import("@/components/manual/ManualSearch"),
 ]);
 
+const DISCORD_URL = "https://discord.gg/4wPNJTuzD8";
 const BLANK_STYLE: CSSProperties = { position: "fixed", inset: 0, background: "var(--surface-0)" };
 const Blank = () => <div style={BLANK_STYLE} />;
 
@@ -147,25 +150,24 @@ function AppChrome() {
 		<>
 			{isMapList && !showSettings && !showPlugins && (
 				<div className="bottom-bar bottom-bar--left popover-surface">
-					<a
-						className="settings-gear"
-						href="https://discord.gg/4wPNJTuzD8"
-						target="_blank"
-						rel="noopener noreferrer"
-						title={t("Join the Discord")}
-					>
-						<Icon path={mdiDiscord} />
-					</a>
-					<button className="settings-gear" onClick={() => openManual()} title={t("Manual")}>
-						<Icon path={mdiBookOpenPageVariantOutline} />
-					</button>
-					<button
-						className="settings-gear"
+					<IconButton
+						icon={mdiDiscord}
+						size={18}
+						label={t("Join the Discord")}
+						onClick={() => void openExternal(DISCORD_URL)}
+					/>
+					<IconButton
+						icon={mdiBookOpenPageVariantOutline}
+						size={18}
+						label={t("Manual")}
+						onClick={() => openManual()}
+					/>
+					<IconButton
+						icon={mdiMapOutline}
+						size={18}
+						label={t("Scratch map")}
 						onClick={() => void openScratchMap()}
-						title={t("Scratch map")}
-					>
-						<Icon path={mdiMapOutline} />
-					</button>
+					/>
 				</div>
 			)}
 			<WelcomeDialog
@@ -195,32 +197,31 @@ function AppChrome() {
 								)}
 								{update.phase === "available" && update.prerelease && <PrereleasePill />}
 								{(update.phase === "available" || update.phase === "error") && (
-									<button
+									<IconButton
 										className="update-pill__dismiss"
+										icon={mdiClose}
+										size={14}
+										label={t("Dismiss")}
 										onClick={dismissUpdate}
-										title={t("Dismiss")}
-									>
-										<Icon path={mdiClose} size={14} />
-									</button>
+									/>
 								)}
 							</div>
 						)}
 					{isMapList && <BulkActions />}
-					<button
-						className="settings-gear"
+					<IconButton
+						icon={mdiPuzzle}
+						size={18}
+						label={t("Plugins")}
 						onClick={() => setShowPlugins(true)}
-						title={t("Plugins")}
-					>
-						<Icon path={mdiPuzzle} />
-					</button>
-					<button
-						className="settings-gear"
+					/>
+					<IconButton
+						icon={mdiCog}
+						size={18}
+						label={t("Settings")}
 						onClick={() => setShowSettings(true)}
-						title={t("Settings")}
 					>
-						<Icon path={mdiCog} />
 						<UnreadReplyDot />
-					</button>
+					</IconButton>
 				</div>
 			)}
 			<JobExitDialog />
@@ -332,7 +333,7 @@ function WelcomeDialog({ open, onOpenChange }: DialogProps) {
 					</button>
 					<a
 						className="welcome-dialog__link"
-						href="https://discord.gg/4wPNJTuzD8"
+						href={DISCORD_URL}
 						target="_blank"
 						rel="noopener noreferrer"
 					>

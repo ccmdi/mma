@@ -116,13 +116,13 @@ async function openPanel(trigger: string, panel: string) {
 	await browser.$(panel).waitForExist({ timeoutMsg: `${panel} never opened` });
 }
 
-/** Click a bottom-bar gear by title. A real pointer click misses it under software
+/** Click a bottom-bar button by label. A real pointer click misses it under software
  *  rendering (the bar animates in), so dispatch through the element itself. */
-async function clickByTitle(title: string) {
-	const el = await browser.$(`.settings-gear[title='${title}']`);
+async function clickByLabel(title: string) {
+	const el = await browser.$(`.bottom-bar [aria-label='${title}']`);
 	await el.waitForExist({ timeoutMsg: `gear "${title}" never rendered` });
 	await browser.execute((t: string) => {
-		document.querySelector<HTMLElement>(`.settings-gear[title='${t}']`)?.click();
+		document.querySelector<HTMLElement>(`.bottom-bar [aria-label='${t}']`)?.click();
 	}, title);
 }
 
@@ -302,13 +302,13 @@ describe("Content Security Policy", function () {
 	it("opens settings, the plugin marketplace and the manual", async () => {
 		await closeMap();
 
-		await clickByTitle("Settings");
+		await clickByLabel("Settings");
 		await browser
 			.$("[data-qa^='settings-nav-']")
 			.waitForExist({ timeoutMsg: "settings never opened" });
 		await browser.keys("Escape");
 
-		await clickByTitle("Plugins");
+		await clickByLabel("Plugins");
 		await browser
 			.$(".plugin-marketplace")
 			.waitForExist({ timeoutMsg: "plugin marketplace never opened" });

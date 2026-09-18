@@ -42,7 +42,7 @@ import type { TagSortMode } from "@/types";
 import type { Tag, VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
-import { Button } from "@/components/primitives/Button";
+import { IconButton } from "@/components/primitives/IconButton";
 
 type DropTarget = { path: string; position: "before" | "after" | "into" };
 
@@ -633,14 +633,14 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 							onKeyDown={(e) => drag.onKeyDown(e, node)}
 						>
 							{hasChildren ? (
-								<button
+								<IconButton
 									className="tag-tree__chevron"
+									icon={isOpen ? mdiChevronDown : mdiChevronRight}
+									size={18}
+									label={t("Toggle folder")}
+									tooltip={false}
 									onClick={handleChevronClick}
-									type="button"
-									style={{ color: fg }}
-								>
-									<Icon path={isOpen ? mdiChevronDown : mdiChevronRight} size={18} />
-								</button>
+								/>
 							) : (
 								<span className="tag-tree__chevron-spacer" />
 							)}
@@ -653,17 +653,19 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 								/>
 							)}
 							<small className="tag-tree__count mono">{fmt.format(count)}</small>
-							<Button
-								className="tag-tree__edit"
+							<IconButton
+								className="icon-button--inline"
+								icon={mdiPencil}
+								size={14}
+								label={node.tag ? t("Edit tag") : t('Edit folder "{name}"', { name: node.segment })}
+								tooltip={false}
+								reveal
 								onClick={(e) => {
 									e.stopPropagation();
 									if (node.tag) onEditTag(node);
 									else onEditVirtual(node.fullPath);
 								}}
-								style={{ color: fg }}
-							>
-								<Icon path={mdiPencil} size={14} />
-							</Button>
+							/>
 						</div>
 					}
 				/>

@@ -16,6 +16,7 @@ import { t, msg } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { dateTimeFmt } from "@/lib/util/format";
 import { Button } from "@/components/primitives/Button";
+import { IconButton } from "@/components/primitives/IconButton";
 
 type Side = "local" | "remote";
 
@@ -332,16 +333,11 @@ export function SyncSidebar({
 			onBack={onClose}
 			actions={
 				brand && remoteUrl ? (
-					<Tooltip content={t("Open in {provider}", { provider: controller.provider.label })}>
-						<button
-							className="icon-button"
-							type="button"
-							aria-label={t("Open in {provider}", { provider: controller.provider.label })}
-							onClick={() => void openExternal(remoteUrl)}
-						>
-							<Icon path={brand.path} size={18} style={{ fill: brand.color }} />
-						</button>
-					</Tooltip>
+					<IconButton
+						icon={<Icon path={brand.path} size={18} style={{ fill: brand.color }} />}
+						label={t("Open in {provider}", { provider: controller.provider.label })}
+						onClick={() => void openExternal(remoteUrl)}
+					/>
 				) : undefined
 			}
 		>

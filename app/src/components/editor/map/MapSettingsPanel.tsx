@@ -10,7 +10,6 @@ import {
 	VECTOR_STYLE_LABELS,
 } from "@/lib/geo/mapStyles";
 import { MAP_TYPES, MAP_TYPE_LABELS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
-import { Icon } from "@/components/primitives/Icon";
 import { mdiCogOutline } from "@mdi/js";
 import type { MapTypeKey, SvCoverageType, MarkerStyle } from "@/types";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
@@ -22,6 +21,7 @@ import { useMapSetting } from "@/store/useMapSetting";
 import { formatDistance } from "@/lib/util/format";
 import { useSetting } from "@/store/settings";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 export interface LayerConfig {
 	prefs: MapEmbedPrefs;
@@ -246,16 +246,16 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 								</option>
 							))}
 						</NSelect>
-						<button
-							className="icon-button icon-button--inline"
-							title={t("Manage map styles")}
+						<IconButton
+							className="icon-button--inline"
+							icon={mdiCogOutline}
+							size={18}
+							label={t("Manage map styles")}
 							onClick={(ev) => {
 								ev.preventDefault();
 								e.onManageStyles();
 							}}
-						>
-							<Icon path={mdiCogOutline} size={18} />
-						</button>
+						/>
 					</div>
 				)}
 			</fieldset>

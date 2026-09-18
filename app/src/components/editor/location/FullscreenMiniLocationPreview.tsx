@@ -1,12 +1,12 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useLayoutEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Icon } from "@/components/primitives/Icon";
 import { mdiMinus, mdiPlus } from "@mdi/js";
 import { useSetting, setSetting } from "@/store/settings";
 import { range, clamp } from "@/types/util";
 import { useHoverExpand } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 const PREVIEW_SCALE = range([0.5, 2]);
 const PREVIEW_SCALE_STEP = 0.5;
@@ -63,24 +63,26 @@ export function FullscreenMiniLocationPreview({ children }: { children: ReactNod
 		>
 			{children}
 			<div className="fullscreen-mini-location__size">
-				<button
-					type="button"
+				<IconButton
 					className="fullscreen-mini-location__size-btn"
-					aria-label={t("Smaller location preview")}
+					icon={mdiMinus}
+					size={16}
+					label={t("Smaller location preview")}
+					tooltip={false}
+					overlay
 					disabled={scale <= PREVIEW_SCALE.min}
 					onClick={() => setScale(scale - PREVIEW_SCALE_STEP)}
-				>
-					<Icon path={mdiMinus} size={16} />
-				</button>
-				<button
-					type="button"
+				/>
+				<IconButton
 					className="fullscreen-mini-location__size-btn"
-					aria-label={t("Larger location preview")}
+					icon={mdiPlus}
+					size={16}
+					label={t("Larger location preview")}
+					tooltip={false}
+					overlay
 					disabled={scale >= PREVIEW_SCALE.max}
 					onClick={() => setScale(scale + PREVIEW_SCALE_STEP)}
-				>
-					<Icon path={mdiPlus} size={16} />
-				</button>
+				/>
 			</div>
 		</div>,
 		host,

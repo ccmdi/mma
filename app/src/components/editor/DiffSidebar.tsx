@@ -1,5 +1,5 @@
 import { mdiArrowLeft } from "@mdi/js";
-import { Icon } from "@/components/primitives/Icon";
+import { IconButton } from "@/components/primitives/IconButton";
 import { getCommitDiffPreview, endCommitDiffPreview } from "@/store/commitDiff";
 import { useEventValue } from "@/lib/events";
 import { fmt } from "@/lib/util/format";
@@ -17,14 +17,13 @@ export function DiffSidebar() {
 		<section className="import-sidebar">
 			<header className="import-sidebar__header">
 				<div className="diff-sidebar__title-group">
-					<button
-						className="diff-sidebar__back"
+					<IconButton
+						className="icon-button--inline"
+						icon={mdiArrowLeft}
+						size={18}
+						label={t("Back to map")}
 						onClick={endCommitDiffPreview}
-						title={t("Back to map")}
-						aria-label={t("Back to map")}
-					>
-						<Icon path={mdiArrowLeft} size={18} />
-					</button>
+					/>
 					<h2 className="import-sidebar__title">{t("Changes")}</h2>
 				</div>
 				<span className="import-sidebar__count mono">{diff.hash}</span>

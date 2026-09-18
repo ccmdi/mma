@@ -6,7 +6,6 @@ import {
 	DialogContent,
 	DialogTrigger,
 } from "@/components/primitives/Dialog";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Switch } from "@/components/primitives/Switch";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
@@ -34,6 +33,7 @@ import { mdiClose, mdiDatabasePlusOutline, mdiInformationOutline } from "@mdi/js
 import { msg, t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
+import { IconButton } from "@/components/primitives/IconButton";
 
 type Comparison = NonNullable<ExtraFieldDef["comparison"]>;
 const FIELD_TYPES: ExtraFieldDef["type"][] = ["string", "number", "date", "month", "enum", "array"];
@@ -137,11 +137,11 @@ export function EnrichmentButton() {
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
-			<Tooltip content={t("Enrichment")} side="bottom">
-				<DialogTrigger className="icon-button" aria-label={t("Enrichment")}>
-					<Icon path={mdiDatabasePlusOutline} />
-				</DialogTrigger>
-			</Tooltip>
+			<DialogTrigger
+				render={
+					<IconButton icon={mdiDatabasePlusOutline} label={t("Enrichment")} tooltipSide="bottom" />
+				}
+			/>
 			<DialogContent title={t("Enrichment")} className="enrichment-modal" size="lg">
 				<SegmentedControl
 					className="segmented--fill enrichment-modal__tabs"
@@ -221,14 +221,13 @@ export function EnrichTab({
 					<strong>{t("Enrich locations")}</strong>
 					<span>{t("Automatically save metadata to locations")}</span>
 				</span>
-				<button
-					className="icon-button icon-button--inline"
-					type="button"
-					title={t("Open manual chapter")}
+				<IconButton
+					className="icon-button--inline"
+					icon={mdiInformationOutline}
+					size={18}
+					label={t("Open manual chapter")}
 					onClick={onOpenManual}
-				>
-					<Icon path={mdiInformationOutline} size={18} />
-				</button>
+				/>
 			</div>
 
 			<div className="enrich-fields">{options.map((f) => row(f.key, f.label))}</div>

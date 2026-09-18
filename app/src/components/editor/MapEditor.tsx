@@ -69,6 +69,7 @@ import {
 } from "@/lib/map/mapKeyBindings";
 import { range, clamp } from "@/types/util";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 function usePasteHandler() {
 	useEffect(() => {
@@ -342,11 +343,11 @@ export function MapEditor() {
 							{map.name && <h1>{map.name}</h1>}
 							{!isReservedMap(map.id) && (
 								<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-									<Tooltip content={t("Edit map")} side="bottom">
-										<DialogTrigger className="icon-button" aria-label={t("Edit map")}>
-											<Icon path={mdiPencil} />
-										</DialogTrigger>
-									</Tooltip>
+									<DialogTrigger
+										render={
+											<IconButton icon={mdiPencil} label={t("Edit map")} tooltipSide="bottom" />
+										}
+									/>
 									<DialogContent title={t("Edit map")} className="edit-map-modal">
 										<MapSettingsForm map={map} context="editor" />
 									</DialogContent>
@@ -356,16 +357,13 @@ export function MapEditor() {
 						</header>
 						<div className="side-header">
 							{hasDoclinks && (
-								<Tooltip content={t("Doclinks")} side="bottom">
-									<button
-										className="icon-button"
-										type="button"
-										aria-label={t("Toggle doclink panel")}
-										onClick={() => setDocPanelOpen(!docPanelOpen)}
-									>
-										<Icon path={mdiFileDocumentOutline} />
-									</button>
-								</Tooltip>
+								<IconButton
+									icon={mdiFileDocumentOutline}
+									label={t("Toggle doclink panel")}
+									tooltip={t("Doclinks")}
+									tooltipSide="bottom"
+									onClick={() => setDocPanelOpen(!docPanelOpen)}
+								/>
 							)}
 						</div>
 						<section

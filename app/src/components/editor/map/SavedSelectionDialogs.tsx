@@ -138,9 +138,9 @@ export function ApplySavedSelectionDialog({ open, onOpenChange }: DialogProps) {
 									<ConfirmButton
 										small
 										variant="ghost"
-										className="saved-selection-row__delete"
 										title={t("Delete")}
 										aria-label={t("Delete")}
+										data-reveal
 										onConfirm={() => {
 											void deleteSavedSelection(s.id);
 											setSaved(saved.filter((r) => r.id !== s.id));

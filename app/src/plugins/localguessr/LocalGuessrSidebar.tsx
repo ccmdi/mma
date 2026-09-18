@@ -10,8 +10,6 @@ import {
 } from "@/components/primitives/Sidebar";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import { Button } from "@/components/primitives/Button";
-import { Icon } from "@/components/primitives/Icon";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import {
 	Dialog,
 	DialogActions,
@@ -66,6 +64,7 @@ import { RoundPlayer } from "./RoundPlayer";
 import { Summary } from "./Summary";
 import { PastStats } from "./PastStats";
 import "./localguessr.css";
+import { IconButton } from "@/components/primitives/IconButton";
 
 async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
 	const ids = await sampleFrom(selector, n);
@@ -92,16 +91,11 @@ function SavedGameCard({
 		<EntryCard
 			actions={
 				<>
-					<Tooltip content={t("Discard")}>
-						<button
-							className="icon-button"
-							type="button"
-							aria-label={t("Discard")}
-							onClick={() => onDiscard(game)}
-						>
-							<Icon path={mdiDeleteOutline} />
-						</button>
-					</Tooltip>
+					<IconButton
+						icon={mdiDeleteOutline}
+						label={t("Discard")}
+						onClick={() => onDiscard(game)}
+					/>
 					<Button small onClick={() => onResume(game)}>
 						{t("Resume")}
 					</Button>
@@ -360,16 +354,12 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 				className="lg-sidebar"
 				actions={
 					history.length > 0 && (
-						<Tooltip content={t("Past games")} side="bottom">
-							<button
-								className="icon-button"
-								type="button"
-								aria-label={t("Past games")}
-								onClick={() => setShowHistory(true)}
-							>
-								<Icon path={mdiHistory} />
-							</button>
-						</Tooltip>
+						<IconButton
+							icon={mdiHistory}
+							label={t("Past games")}
+							tooltipSide="bottom"
+							onClick={() => setShowHistory(true)}
+						/>
 					)
 				}
 			>

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon } from "@/components/primitives/Icon";
 import { mdiMinus, mdiPlus } from "@mdi/js";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { useMapSurface } from "@/lib/render/useMapSurface";
@@ -17,6 +16,7 @@ import { usePanoViewer, viewerPosition } from "./PanoViewerContext";
 import { useMapState } from "@/store/useMapStore";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 const MINIMAP_SCALE = range([0.5, 2]);
 const MINIMAP_SCALE_STEP = 0.25;
@@ -145,24 +145,26 @@ export function FullscreenMiniMap() {
 		>
 			<div ref={containerRef} className="fullscreen-minimap__map" />
 			<div className="fullscreen-minimap__size">
-				<button
-					type="button"
+				<IconButton
 					className="fullscreen-minimap__size-btn"
-					aria-label={t("Smaller minimap")}
+					icon={mdiMinus}
+					size={16}
+					label={t("Smaller minimap")}
+					tooltip={false}
+					overlay
 					disabled={scale <= MINIMAP_SCALE.min}
 					onClick={() => setScale(scale - MINIMAP_SCALE_STEP)}
-				>
-					<Icon path={mdiMinus} size={16} />
-				</button>
-				<button
-					type="button"
+				/>
+				<IconButton
 					className="fullscreen-minimap__size-btn"
-					aria-label={t("Larger minimap")}
+					icon={mdiPlus}
+					size={16}
+					label={t("Larger minimap")}
+					tooltip={false}
+					overlay
 					disabled={scale >= MINIMAP_SCALE.max}
 					onClick={() => setScale(scale + MINIMAP_SCALE_STEP)}
-				>
-					<Icon path={mdiPlus} size={16} />
-				</button>
+				/>
 			</div>
 		</div>
 	);

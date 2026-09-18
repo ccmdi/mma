@@ -5,8 +5,8 @@ import { useEvent } from "@/lib/events";
 import { useDialog } from "@/store/dialogBus";
 import { useMapState, setPluginMode } from "@/store/useMapStore";
 import { Icon } from "@/components/primitives/Icon";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import { Section } from "@/components/primitives/Sidebar";
+import { IconButton } from "@/components/primitives/IconButton";
 
 export function PluginToolbar() {
 	useEvent("plugins:changed");
@@ -28,21 +28,19 @@ export function PluginToolbar() {
 	return (
 		<>
 			{toolbarPlugins.map((p) => (
-				<Tooltip key={p.id} content={p.name} side="bottom">
-					<button
-						className="icon-button"
-						onClick={() => {
-							if (p.sidebar) {
-								setPluginMode(p.id);
-							} else if (p.modal) {
-								setModalId(modalId === p.id ? null : p.id);
-							}
-						}}
-						aria-label={p.name}
-					>
-						<Icon path={p.icon} />
-					</button>
-				</Tooltip>
+				<IconButton
+					key={p.id}
+					icon={p.icon}
+					label={p.name}
+					tooltipSide="bottom"
+					onClick={() => {
+						if (p.sidebar) {
+							setPluginMode(p.id);
+						} else if (p.modal) {
+							setModalId(modalId === p.id ? null : p.id);
+						}
+					}}
+				/>
 			))}
 			{modalPlugin && modalPlugin.modal && (
 				<PluginBoundary pluginId={modalPlugin.id}>

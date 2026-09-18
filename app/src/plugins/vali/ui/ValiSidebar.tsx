@@ -8,12 +8,11 @@ import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { createTags } from "@/store/useMapStore";
 import { Sidebar } from "@/components/primitives/Sidebar";
-import { Icon } from "@/components/primitives/Icon";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import { ValiDownloadDialog } from "./ValiDownloadDialog";
 import { log } from "@/lib/util/log";
 import "./vali.css";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 // The embedded Vali GUI (vendored bundle, ?host=mma) owns the whole flow: definition
 // editor, tag input, generate button, progress. This side is just the bridge:
@@ -129,21 +128,17 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 			className="vali-sidebar"
 			flush
 			actions={
-				<Tooltip
-					content={outdated ? t("Coverage data is out of date") : t("Download coverage data")}
-					side="bottom"
+				<IconButton
+					className="vali-sidebar__download"
+					icon={mdiCloudDownloadOutline}
+					label={t("Download coverage data")}
+					tooltip={outdated ? t("Coverage data is out of date") : t("Download coverage data")}
+					tooltipSide="bottom"
+					disabled={busy === "generate"}
+					onClick={() => setDownloadOpen(true)}
 				>
-					<button
-						className="icon-button vali-sidebar__download"
-						type="button"
-						aria-label={t("Download coverage data")}
-						disabled={busy === "generate"}
-						onClick={() => setDownloadOpen(true)}
-					>
-						<Icon path={mdiCloudDownloadOutline} />
-						{outdated && <span className="vali-sidebar__badge" />}
-					</button>
-				</Tooltip>
+					{outdated && <span className="vali-sidebar__badge" />}
+				</IconButton>
 			}
 		>
 			<div className="vali-sidebar__iframe-wrap">

@@ -32,6 +32,7 @@ export {
 export { Flag } from "./Flag";
 export { HotkeyInput } from "./HotkeyInput";
 export { Icon } from "./Icon";
+export { IconButton } from "./IconButton";
 export { NSelect } from "./NSelect";
 export { ProgressRow } from "./ProgressRow";
 export { Radio } from "./Radio";

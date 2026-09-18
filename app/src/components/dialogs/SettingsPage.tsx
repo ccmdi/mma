@@ -106,6 +106,7 @@ import { isPrereleaseVersion } from "@/lib/util/util";
 import { errText } from "@/lib/util/format";
 import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
+import { IconButton } from "@/components/primitives/IconButton";
 
 /** The translated labels of a select's options, so a search for a value ("tree") finds
  *  the row that offers it. */
@@ -1007,15 +1008,13 @@ function UpdateBlock() {
 						v{version}
 					</span>
 					{isPrereleaseVersion(version) && <PrereleasePill />}
-					<button
-						className="icon-button settings-updates__check"
+					<IconButton
+						className="settings-updates__check"
+						icon={<Icon path={mdiRefresh} size={18} className={checking ? "spin" : undefined} />}
+						label={t("Check for updates")}
 						onClick={() => void checkForUpdate(true)}
 						disabled={checking || update.phase === "downloading"}
-						title={t("Check for updates")}
-						aria-label={t("Check for updates")}
-					>
-						<Icon path={mdiRefresh} size={18} className={checking ? "spin" : undefined} />
-					</button>
+					/>
 					{!pending && <span className="settings-updates__status">{status}</span>}
 				</div>
 				{update.phase === "available" && (

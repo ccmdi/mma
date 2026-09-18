@@ -3,7 +3,6 @@ import type { Selector } from "@/bindings.gen";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
 import { Flag } from "@/components/primitives/Flag";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import {
 	mdiClose,
 	mdiHome,
@@ -41,6 +40,7 @@ import {
 import { GuessMap, type ResultPin } from "./GuessMap";
 import { PanoView, type PanoHandle } from "./PanoView";
 import { RoundTagBar } from "./RoundTagBar";
+import { IconButton } from "@/components/primitives/IconButton";
 
 function Timer({
 	mode,
@@ -356,68 +356,72 @@ export function RoundPlayer({
 				)}
 			</header>
 
-			<button type="button" className="lg-round__close" onClick={onExit} aria-label={t("Close")}>
-				<Icon path={mdiClose} />
-			</button>
+			<IconButton
+				className="lg-round__close"
+				icon={mdiClose}
+				label={t("Close")}
+				tooltip={false}
+				overlay
+				onClick={onExit}
+			/>
 
 			{!showResult && (
 				<div className="lg-round__tools">
-					<Tooltip content={t("Return to start (R)")} side="right">
-						<button
-							type="button"
-							className="lg-round__tool"
-							onClick={() => panoRef.current?.returnToSpawn()}
-							aria-label={t("Return to start")}
-						>
-							<Icon path={mdiHome} size={20} />
-						</button>
-					</Tooltip>
+					<IconButton
+						className="lg-round__tool"
+						icon={mdiHome}
+						size={20}
+						label={t("Return to start")}
+						tooltip={t("Return to start (R)")}
+						tooltipSide="right"
+						overlay
+						onClick={() => panoRef.current?.returnToSpawn()}
+					/>
 					{game.config.movementMode !== "nmpz" && (
-						<Tooltip content={t("Point north (N)")} side="right">
-							<button
-								type="button"
-								className="lg-round__tool"
-								onClick={() => panoRef.current?.pointNorth()}
-								aria-label={t("Point north")}
-							>
-								<Icon path={mdiNavigation} size={20} />
-							</button>
-						</Tooltip>
+						<IconButton
+							className="lg-round__tool"
+							icon={mdiNavigation}
+							size={20}
+							label={t("Point north")}
+							tooltip={t("Point north (N)")}
+							tooltipSide="right"
+							overlay
+							onClick={() => panoRef.current?.pointNorth()}
+						/>
 					)}
 					{game.config.movementMode === "moving" && (
-						<Tooltip
-							content={hasCheckpoint ? t("Return to checkpoint (B)") : t("Set checkpoint (C)")}
-							side="right"
-						>
-							<button
-								type="button"
-								className={`lg-round__tool${hasCheckpoint ? " is-active" : ""}`}
-								onClick={() => {
-									if (hasCheckpoint) {
-										if (panoRef.current?.returnToCheckpoint()) setHasCheckpoint(false);
-									} else {
-										if (panoRef.current?.setCheckpoint()) setHasCheckpoint(true);
-									}
-								}}
-								aria-label={hasCheckpoint ? t("Return to checkpoint") : t("Set checkpoint")}
-							>
-								<Icon path={hasCheckpoint ? mdiBookmark : mdiBookmarkOutline} size={20} />
-							</button>
-						</Tooltip>
-					)}
-					<Tooltip content={hideCar ? t("Show car (H)") : t("Hide car (H)")} side="right">
-						<button
-							type="button"
-							className={`lg-round__tool${hideCar ? " is-active" : ""}`}
+						<IconButton
+							className="lg-round__tool"
+							icon={hasCheckpoint ? mdiBookmark : mdiBookmarkOutline}
+							size={20}
+							label={hasCheckpoint ? t("Return to checkpoint") : t("Set checkpoint")}
+							tooltip={hasCheckpoint ? t("Return to checkpoint (B)") : t("Set checkpoint (C)")}
+							tooltipSide="right"
+							overlay
+							active={hasCheckpoint}
 							onClick={() => {
-								setSetting("showCar", hideCar);
-								setHideCar((v) => !v);
+								if (hasCheckpoint) {
+									if (panoRef.current?.returnToCheckpoint()) setHasCheckpoint(false);
+								} else {
+									if (panoRef.current?.setCheckpoint()) setHasCheckpoint(true);
+								}
 							}}
-							aria-label={hideCar ? t("Show car") : t("Hide car")}
-						>
-							<Icon path={hideCar ? mdiCarOff : mdiCar} size={20} />
-						</button>
-					</Tooltip>
+						/>
+					)}
+					<IconButton
+						className="lg-round__tool"
+						icon={hideCar ? mdiCarOff : mdiCar}
+						size={20}
+						label={hideCar ? t("Show car") : t("Hide car")}
+						tooltip={hideCar ? t("Show car (H)") : t("Hide car (H)")}
+						tooltipSide="right"
+						overlay
+						active={hideCar}
+						onClick={() => {
+							setSetting("showCar", hideCar);
+							setHideCar((v) => !v);
+						}}
+					/>
 				</div>
 			)}
 

@@ -280,11 +280,9 @@
 	place-items: center;
 	width: 36px;
 	height: 36px;
-	border: none;
+	min-width: 0;
 	border-radius: 50%;
 	background: #0009;
-	color: var(--text-1);
-	cursor: pointer;
 }
 
 .lg-round__tools {
@@ -303,11 +301,9 @@
 	place-items: center;
 	width: 40px;
 	height: 40px;
-	border: none;
+	min-width: 0;
 	border-radius: 50%;
 	background: #0009;
-	color: var(--text-1);
-	cursor: pointer;
 }
 
 .lg-round__tool:hover,
@@ -315,7 +311,7 @@
 	background: #000c;
 }
 
-.lg-round__tool.is-active {
+.lg-round__tool[aria-pressed="true"] {
 	background: var(--accent);
 }
 

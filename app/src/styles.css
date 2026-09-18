@@ -773,13 +773,34 @@ input[type="range"]:focus-visible {
 .icon-button {
 	cursor: pointer;
 	text-align: center;
-	color: var(--text-1);
+	color: var(--text-2);
 	background: 0 0;
 	border: none;
 	border-radius: 1rem;
 	min-width: 2rem;
 	padding: 0;
 	line-height: 2rem;
+	transition:
+		color var(--dur-fast) var(--ease-standard),
+		background-color var(--dur-fast) var(--ease-standard),
+		opacity var(--dur-fast) var(--ease-standard);
+}
+.icon-button:where(:hover:not(:disabled)) {
+	color: var(--text-1);
+	background-color: var(--hover);
+}
+.icon-button:where([aria-pressed="true"]) {
+	color: var(--text-1);
+	background-color: var(--pressed);
+}
+.icon-button--overlay {
+	color: #fffc;
+}
+.icon-button--overlay:where(:hover:not(:disabled), [aria-pressed="true"]) {
+	color: #fff;
+}
+:not(:hover, :focus-within, .is-dragging) > [data-reveal]:not(:focus-visible) {
+	opacity: 0;
 }
 /* Compact variant for icons inline with a setting row: no min-width padding band,
    fixed 2rem height so a larger glyph doesn't grow the row. */
@@ -791,7 +812,6 @@ input[type="range"]:focus-visible {
 	height: 2rem;
 	min-width: 0;
 	padding: 0;
-	color: var(--text-2);
 	flex-shrink: 0;
 }
 .icon-button:disabled,
@@ -1088,9 +1108,6 @@ input[type="range"]:disabled {
 .modal__content a:active,
 .modal__content a:visited {
 	color: var(--accent);
-}
-.modal__close {
-	color: var(--text-2);
 }
 .welcome-dialog {
 	position: relative;
@@ -1629,21 +1646,10 @@ input[type="range"]:disabled {
 	color: #ffffffb3;
 }
 .map-list__drag-handle {
-	opacity: 0;
 	cursor: grab;
-	transition: opacity 64ms ease-in-out;
-}
-.map-list__entry:where(:hover, .is-dragging, :focus-within) .map-list__drag-handle {
-	opacity: 1;
 }
 .map-list__edit {
-	opacity: 0;
 	float: inline-end;
-	transition: opacity 64ms ease-in-out;
-}
-:where(.map-list__entry, .map-folder__head):where(:hover, .is-dragging, :focus-within)
-	> .map-list__edit {
-	opacity: 1;
 }
 .map-folder summary {
 	list-style: none;
@@ -2654,22 +2660,6 @@ input[type="range"]:disabled {
 	align-items: center;
 	gap: 0.35rem;
 }
-.diff-sidebar__back {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	padding: 2px;
-	margin: -2px;
-	background: none;
-	border: none;
-	border-radius: var(--radius-1);
-	color: inherit;
-	opacity: 0.7;
-	cursor: pointer;
-}
-.diff-sidebar__back:hover {
-	opacity: 1;
-}
 .diff-legend {
 	list-style: none;
 	margin: 0;
@@ -3564,9 +3554,6 @@ input.date-picker__trigger.is-invalid:focus {
 	font-weight: 600;
 	font-size: 0.875rem;
 }
-.saved-selection-row:not(:hover, :focus-within) .saved-selection-row__delete {
-	opacity: 0;
-}
 .saved-selection-row__rules {
 	display: flex;
 	flex-wrap: wrap;
@@ -3605,9 +3592,6 @@ input.date-picker__trigger.is-invalid:focus {
 	gap: 0.35rem;
 	cursor: pointer;
 	opacity: 0.6;
-}
-.icon-button.is-active {
-	background: var(--pressed);
 }
 .selection-manager__bar .is-dragging {
 	opacity: 0.3;
@@ -3848,20 +3832,19 @@ body.mm-tag-dragging * {
 body:not(.mm-tag-dragging) .tag-tree__row:hover {
 	opacity: 1;
 }
+.tag-tree__row > .icon-button {
+	color: inherit;
+}
+.mm-tag-dragging .tag-tree__row > [data-reveal] {
+	opacity: 0;
+}
 .tag-tree__chevron {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	width: 1.25rem;
+	min-width: 0;
 	flex-shrink: 0;
-	background: none;
-	border: none;
-	padding: 0;
-	cursor: pointer;
-	color: inherit;
-}
-.tag-tree__chevron:hover {
-	opacity: 0.7;
 }
 .tag-tree__chevron-spacer {
 	width: 1.25rem;
@@ -3879,21 +3862,6 @@ body:not(.mm-tag-dragging) .tag-tree__row:hover {
 	font-weight: 600;
 	font-size: 0.8rem;
 	margin-left: auto;
-}
-.tag-tree__edit {
-	flex-shrink: 0;
-	background: none;
-	border: none;
-	padding: 0.125rem;
-	cursor: pointer;
-	opacity: 0;
-	box-shadow: none;
-}
-body:not(.mm-tag-dragging) .tag-tree__row:hover .tag-tree__edit {
-	opacity: 0.7;
-}
-body:not(.mm-tag-dragging) .tag-tree__edit:hover {
-	opacity: 1 !important;
 }
 .tag-tree__leaves {
 	margin-top: 0.25rem;
@@ -3995,7 +3963,7 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 .copy-to-map-modal__scope {
 	color: var(--text-3);
 }
-.copy-to-map-modal__scope.is-global {
+.copy-to-map-modal__scope[aria-pressed="true"] {
 	color: var(--accent);
 }
 .copy-to-map-modal__name {
@@ -4197,9 +4165,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 	gap: 0.5rem;
 	flex-shrink: 0;
 }
-.entry-list__actions .icon-button {
-	color: var(--text-2);
-}
 .review-sessions__tabs {
 	margin-bottom: 0.75rem;
 }
@@ -4289,18 +4254,6 @@ body:not(.mm-tag-dragging) .tag-tree__edit:hover {
 }
 .command-palette__label {
 	flex-grow: 1;
-}
-.command-palette__pin {
-	background: none;
-	border: none;
-	cursor: pointer;
-	color: var(--text-3);
-	padding: 2px;
-	line-height: 0;
-	flex-shrink: 0;
-}
-.command-palette__pin:hover {
-	color: var(--text-1);
 }
 .command-palette__item .command-palette__pin {
 	opacity: 0;
@@ -4641,35 +4594,14 @@ body {
 	border-left: none;
 	border-radius: 0 var(--radius-3) 0 0;
 }
-.bottom-bar .settings-gear {
+.bottom-bar > .icon-button {
+	position: relative;
+	min-width: 0;
 	padding: 4px;
-}
-.bottom-bar .settings-gear svg {
-	width: 18px;
-	height: 18px;
+	line-height: 0;
+	border-radius: var(--radius-1);
 }
 :fullscreen .bottom-bar {
-	display: none;
-}
-
-.settings-gear {
-	position: relative;
-	color: var(--text-2);
-	background: none;
-	border: none;
-	cursor: pointer;
-	padding: 6px;
-	border-radius: var(--radius-1);
-	opacity: 0.6;
-	transition:
-		opacity var(--dur-fast) var(--ease-standard),
-		color var(--dur-fast) var(--ease-standard);
-}
-.settings-gear:hover {
-	opacity: 1;
-	color: var(--text-1);
-}
-:fullscreen .settings-gear {
 	display: none;
 }
 
@@ -4720,16 +4652,9 @@ body {
 	text-decoration: underline;
 }
 .update-pill__dismiss {
-	background: none;
-	border: none;
-	color: var(--text-2);
-	cursor: pointer;
-	padding: 4px 4px 4px 0;
-	display: flex;
-	align-items: center;
-}
-.update-pill__dismiss:hover {
-	color: var(--text-1);
+	min-width: 0;
+	padding: 4px;
+	line-height: 0;
 }
 :fullscreen .update-pill {
 	display: none;
@@ -4990,13 +4915,8 @@ body {
 	height: 1.5rem;
 	min-width: 1.5rem;
 	line-height: normal;
-	color: inherit;
-	background: transparent;
 	border: 1px solid var(--border-strong);
 	border-radius: var(--radius-1);
-}
-.settings-updates__check:hover:not(:disabled) {
-	background: var(--hover);
 }
 
 /* Hotkey settings table */
@@ -5310,20 +5230,12 @@ body:has([data-plugin-overlay]) .map-meta {
 	justify-content: center;
 	width: 26px;
 	height: 26px;
-	padding: 0;
-	border: none;
+	min-width: 0;
 	border-radius: var(--radius-1);
 	background: rgba(30, 30, 30, 0.75);
-	color: #fff;
-	cursor: pointer;
-	transition: background var(--dur-fast) var(--ease-standard);
 }
-.fullscreen-minimap__size-btn:hover {
+.fullscreen-minimap__size-btn:hover:not(:disabled) {
 	background: rgba(30, 30, 30, 0.95);
-}
-.fullscreen-minimap__size-btn:disabled {
-	opacity: var(--disabled-opacity);
-	cursor: default;
 }
 
 /* Fullscreen-map floating location preview (Street View chip).
@@ -5381,20 +5293,12 @@ body:has([data-plugin-overlay]) .map-meta {
 	justify-content: center;
 	width: 26px;
 	height: 26px;
-	padding: 0;
-	border: none;
+	min-width: 0;
 	border-radius: var(--radius-1);
 	background: rgba(30, 30, 30, 0.75);
-	color: #fff;
-	cursor: pointer;
-	transition: background var(--dur-fast) var(--ease-standard);
 }
-.fullscreen-mini-location__size-btn:hover {
+.fullscreen-mini-location__size-btn:hover:not(:disabled) {
 	background: rgba(30, 30, 30, 0.95);
-}
-.fullscreen-mini-location__size-btn:disabled {
-	opacity: var(--disabled-opacity);
-	cursor: default;
 }
 
 /* Fullscreen bottom tray (date picker + tag bar) */
@@ -5443,16 +5347,8 @@ body:has([data-plugin-overlay]) .map-meta {
 	justify-content: center;
 	width: 24px;
 	height: 18px;
-	padding: 0;
-	border: none;
+	min-width: 0;
 	border-radius: 3px;
-	background: transparent;
-	color: rgba(255, 255, 255, 0.55);
-	cursor: pointer;
-	transition: color var(--dur-fast) var(--ease-standard);
-}
-.fullscreen-tagbar__collapse:hover {
-	color: #fff;
 }
 
 /* Fullscreen top bar: review status + geocode info */
@@ -6165,15 +6061,6 @@ body:has([data-plugin-overlay]) .map-meta {
 	color: var(--destructive-text);
 	font-size: 0.8125rem;
 }
-.plugin-boundary__retry {
-	font-size: 0.75rem;
-	padding: 0.2rem 0.5rem;
-	border-radius: var(--radius-1);
-	border: 1px solid var(--border-subtle);
-	background: transparent;
-	color: inherit;
-	cursor: pointer;
-}
 
 .plugin-section {
 	background: var(--surface-1);
@@ -6494,10 +6381,6 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	border-radius: 50%;
 	background: var(--surface-3);
 	border: 1px solid var(--border-subtle);
-	color: var(--text-2);
-}
-.report-dialog__image-remove:hover {
-	color: var(--text-1);
 }
 .report-dialog__image-add {
 	display: flex;
@@ -6666,13 +6549,9 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	background: var(--action);
 	vertical-align: 0.1em;
 }
-.settings-gear .feedback-dot {
+.bottom-bar .feedback-dot {
 	position: absolute;
 	top: 3px;
 	right: 3px;
 	margin: 0;
-}
-/* The gear is deliberately dim; an indicator on it must not be. */
-.settings-gear:has(.feedback-dot) {
-	opacity: 1;
 }

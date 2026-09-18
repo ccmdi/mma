@@ -60,6 +60,7 @@ import {
 } from "@/store/mapEmbedPrefs";
 import { FpsCounter } from "@/components/editor/map/FpsCounter";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 /** Live zoom text with its own zoom subscription, so zooming doesn't re-render MapEmbed. */
 function ZoomReadout({ host }: { host: MapHost | null }) {
@@ -495,16 +496,14 @@ export function MapEmbed({
 									<li key={s.name} className="map-style-thumb">
 										<span className="map-style-thumb__name">{s.name}</span>
 										<div className="map-style-thumb__actions">
-											<button
-												className="icon-button"
-												style={{ color: "var(--text-2)" }}
+											<IconButton
+												icon={mdiContentCopy}
+												size={20}
+												label={t("Copy JSON")}
 												onClick={() => {
 													void navigator.clipboard.writeText(JSON.stringify(s.style, null, 2));
 												}}
-												aria-label={t("Copy JSON")}
-											>
-												<Icon path={mdiContentCopy} size={20} />
-											</button>
+											/>
 											<ConfirmButton
 												small
 												variant="ghost"

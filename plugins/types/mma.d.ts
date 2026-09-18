@@ -5704,6 +5704,28 @@ export interface IconProps {
 }
 declare function Icon({ path, size, className, style }: IconProps): react.JSX.Element;
 
+/** A button showing only an icon, named by its label. @unstable */
+declare function IconButton({ icon, label, size, active, reveal, overlay, tooltip, tooltipSide, type, className, children, ...props }: Omit<ComponentPropsWithRef<"button">, "aria-label" | "title"> & {
+    /** An icon path, or a drawn icon to show instead. */
+    icon: string | ReactNode;
+    /** What the button does, read aloud and shown as its tooltip. */
+    label: string;
+    /** The icon's size in pixels. */
+    size?: number;
+    /** Shows the button as pressed. */
+    active?: boolean;
+    /** Hides the button until its row is hovered or holds focus. */
+    reveal?: boolean;
+    /** Draws the button for use over map or street view imagery. */
+    overlay?: boolean;
+    /** The tooltip text, or false for none. Defaults to the label. */
+    tooltip?: string | false;
+    /** The side the tooltip opens on. */
+    tooltipSide?: "top" | "bottom" | "left" | "right";
+    /** Shown after the icon, such as a badge. */
+    children?: ReactNode;
+}): react.JSX.Element;
+
 /** @unstable */
 declare function NSelect({ className, onWheel, ...props }: ComponentPropsWithRef<"select">): react.JSX.Element;
 
@@ -5935,6 +5957,8 @@ declare const primitives_Flag: typeof Flag;
 declare const primitives_HotkeyInput: typeof HotkeyInput;
 declare const primitives_Icon: typeof Icon;
 /** @unstable */
+declare const primitives_IconButton: typeof IconButton;
+/** @unstable */
 declare const primitives_NSelect: typeof NSelect;
 declare const primitives_ProgressRow: typeof ProgressRow;
 /** @unstable */
@@ -5966,7 +5990,7 @@ declare const primitives_Tooltip: typeof Tooltip;
 /** @unstable */
 declare const primitives_useCloseDialog: typeof useCloseDialog;
 declare namespace primitives {
-  export { primitives_Bar as Bar, primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_ConfirmButton as ConfirmButton, primitives_ConfirmDialog as ConfirmDialog, primitives_CoverageBar as CoverageBar, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogActions as DialogActions, primitives_DialogContent as DialogContent, primitives_DialogForm as DialogForm, primitives_DialogHint as DialogHint, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_NSelect as NSelect, primitives_ProgressRow as ProgressRow, primitives_PromptDialog as PromptDialog, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
+  export { primitives_Bar as Bar, primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_ConfirmButton as ConfirmButton, primitives_ConfirmDialog as ConfirmDialog, primitives_CoverageBar as CoverageBar, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogActions as DialogActions, primitives_DialogContent as DialogContent, primitives_DialogForm as DialogForm, primitives_DialogHint as DialogHint, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_IconButton as IconButton, primitives_NSelect as NSelect, primitives_ProgressRow as ProgressRow, primitives_PromptDialog as PromptDialog, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
   export type { primitives_DialogAction as DialogAction, primitives_DialogProps as DialogProps, primitives_DialogSize as DialogSize, primitives_SegmentedOption as SegmentedOption };
 }
 

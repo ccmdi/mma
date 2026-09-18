@@ -13,8 +13,6 @@ import {
 import { HotkeyInput } from "@/components/primitives/HotkeyInput";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { Button } from "@/components/primitives/Button";
-import { Icon } from "@/components/primitives/Icon";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import { useMapSetting } from "@/store/useMapSetting";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import {
@@ -24,6 +22,7 @@ import {
 } from "@/lib/map/mapKeyBindings";
 import { getMapState } from "@/store/useMapStore";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 /** Assign hotkeys that copy the active location into other maps. Each binding is
  *  either per-map (this map's settings) or global (works in every map); the globe
@@ -129,23 +128,19 @@ export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 											{meta ? meta.name || t("(unnamed)") : t("(missing map)")}
 											{meta?.folder && <small> · {meta.folder}</small>}
 										</span>
-										<Tooltip
-											content={
+										<IconButton
+											className="copy-to-map-modal__scope"
+											icon={mdiEarth}
+											size={16}
+											label={t("Global hotkey")}
+											tooltip={
 												global
 													? t("Works in every map (click for this map only)")
 													: t("Only in this map (click to make it work everywhere)")
 											}
-										>
-											<button
-												type="button"
-												className={`icon-button copy-to-map-modal__scope${global ? " is-global" : ""}`}
-												aria-pressed={global}
-												aria-label={t("Global hotkey")}
-												onClick={() => toggleScope(id)}
-											>
-												<Icon path={mdiEarth} size={16} />
-											</button>
-										</Tooltip>
+											active={global}
+											onClick={() => toggleScope(id)}
+										/>
 										<HotkeyInput value={keyFor(id)} onChange={(combo) => setRowKey(id, combo)} />
 										<Button onClick={() => removeRow(id)}>{t("Remove")}</Button>
 									</li>

@@ -94,6 +94,10 @@ function block(name: string): RegExp {
 /** Rules that keep literal colors: they mirror map-making.app's own chrome, or draw over imagery. */
 const LITERAL_COLORS: { selector: RegExp; why: string }[] = [
 	{ selector: /^\.modal(::backdrop|__backdrop)$/, why: "the dialog scrim" },
+	{
+		selector: /^\.icon-button--overlay(?![\w-])/,
+		why: "icon buttons drawn over map or pano imagery",
+	},
 	{ selector: block("badge"), why: "map-making.app camera badges" },
 	{ selector: block("map-link"), why: "map-making.app map list" },
 	{ selector: block("map-list"), why: "map-making.app map list" },

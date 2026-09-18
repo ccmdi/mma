@@ -35,6 +35,7 @@ import {
 import type { Tag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches as textMatches } from "@/lib/search";
+import { IconButton } from "@/components/primitives/IconButton";
 
 function docUrl(docId: string): string {
 	return `https://docs.google.com/document/d/${docId}/edit`;
@@ -118,18 +119,17 @@ function TagBranch({ node, ctx }: { node: TagTreeNode; ctx: TreeCtx }) {
 				tabIndex={0}
 				onClick={() => (node.tag ? ctx.onArm(node.tag.id) : ctx.onToggle(node.fullPath))}
 			>
-				<button
-					type="button"
+				<IconButton
 					className="doclink-assign__chevron"
-					aria-label={t("Toggle folder")}
-					style={{ color: fg }}
+					icon={open ? mdiChevronDown : mdiChevronRight}
+					size={18}
+					label={t("Toggle folder")}
+					tooltip={false}
 					onClick={(e) => {
 						e.stopPropagation();
 						ctx.onToggle(node.fullPath);
 					}}
-				>
-					<Icon path={open ? mdiChevronDown : mdiChevronRight} size={18} />
-				</button>
+				/>
 				<span className="doclink-assign__folder-name">{node.segment}</span>
 				{!node.tag && (
 					<Icon path={mdiFolder} size={13} style={{ color: fg, opacity: 0.5, flexShrink: 0 }} />
@@ -405,16 +405,14 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 												<TagPill small color={m.tag.color} label={m.tag.name} title={m.tag.name} />
 												<Icon path={mdiArrowRight} size={14} />
 												<span className="doclink-assign__match-heading">{m.heading.text}</span>
-												<button
-													type="button"
-													className="icon-button"
-													aria-label={t("Dismiss")}
+												<IconButton
+													icon={mdiClose}
+													size={14}
+													label={t("Dismiss")}
 													onClick={() =>
 														setMatches(matches.filter((x) => matchKey(x) !== matchKey(m)))
 													}
-												>
-													<Icon path={mdiClose} size={14} />
-												</button>
+												/>
 											</div>
 										))}
 									</div>

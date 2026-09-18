@@ -16,6 +16,7 @@ import { score } from "@/lib/search";
 import { useMapList } from "@/store/mapList";
 import { goTo } from "@/store/router";
 import { t, msg } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 interface PaletteContext {
 	close: () => void;
@@ -73,9 +74,11 @@ function PaletteItem({
 			<span className="command-palette__label">{label}</span>
 			{shortcut && <kbd className="command-palette__kbd">{shortcut}</kbd>}
 			{commandId && (
-				<button
-					className="command-palette__pin"
-					title={pinned ? t("Unpin from toolbar") : t("Pin to toolbar")}
+				<IconButton
+					className="icon-button--inline command-palette__pin"
+					icon={pinned ? mdiPin : mdiPinOutline}
+					size={18}
+					label={pinned ? t("Unpin from toolbar") : t("Pin to toolbar")}
 					onPointerDown={(e) => {
 						e.preventDefault();
 						e.stopPropagation();
@@ -85,9 +88,7 @@ function PaletteItem({
 						e.stopPropagation();
 						togglePinnedCommand(commandId);
 					}}
-				>
-					<Icon path={pinned ? mdiPin : mdiPinOutline} size={18} />
-				</button>
+				/>
 			)}
 		</Command.Item>
 	);

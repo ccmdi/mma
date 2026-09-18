@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { useDialog, useDialogState } from "@/store/dialogBus";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import { useMapState, undo, redo, commitMap } from "@/store/useMapStore";
 import { CommitDialog } from "@/components/dialogs/CommitDialog";
 import { useCommitDiff, hasCommitDiff } from "@/store/commitDiff";
@@ -14,12 +13,12 @@ import { CopyToMapDialog } from "@/components/editor/CopyToMapDialog";
 import { QuickCopyToMapDialog } from "@/components/editor/QuickCopyToMapDialog";
 import { loadSeenPano } from "@/lib/seen/seenRecorder";
 import { usePano } from "@/lib/hooks/usePano";
-import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { DiffCounts } from "@/components/primitives/DiffCounts";
 import { mdiUndo, mdiRedo } from "@mdi/js";
 import { fmt } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 function LocationTotal() {
 	const locationCount = useMapState((s) => s.locationCount);
@@ -55,28 +54,18 @@ function UndoRedoControls() {
 	const canRedo = useMapState((s) => s.canRedo);
 	return (
 		<>
-			<Tooltip content={t("Undo")}>
-				<button
-					type="button"
-					className="icon-button"
-					disabled={!canUndo}
-					aria-label={t("Undo")}
-					onClick={() => void undo()}
-				>
-					<Icon path={mdiUndo} />
-				</button>
-			</Tooltip>
-			<Tooltip content={t("Redo")}>
-				<button
-					type="button"
-					className="icon-button"
-					disabled={!canRedo}
-					aria-label={t("Redo")}
-					onClick={() => void redo()}
-				>
-					<Icon path={mdiRedo} />
-				</button>
-			</Tooltip>
+			<IconButton
+				icon={mdiUndo}
+				label={t("Undo")}
+				disabled={!canUndo}
+				onClick={() => void undo()}
+			/>
+			<IconButton
+				icon={mdiRedo}
+				label={t("Redo")}
+				disabled={!canRedo}
+				onClick={() => void redo()}
+			/>
 		</>
 	);
 }

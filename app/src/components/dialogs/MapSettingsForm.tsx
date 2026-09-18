@@ -21,6 +21,7 @@ import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { TextInput } from "@/components/primitives/TextInput";
 import { ScoreBoundsEditor } from "./ScoreBoundsEditor";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 /** Where the form is being shown. Both edit the same map; the list only cares about the
  *  map as a catalogue entry, the editor also tunes how the open map behaves. */
@@ -185,16 +186,12 @@ function ExprSection({
 						placeholder={placeholder}
 						spellCheck={false}
 					/>
-					<button
-						type="button"
-						className="icon-button"
+					<IconButton
+						icon={mdiRestore}
+						label={t("Reset to default")}
 						onClick={() => setExpr("")}
 						disabled={value === ""}
-						title={t("Reset to default")}
-						aria-label={t("Reset to default")}
-					>
-						<Icon path={mdiRestore} />
-					</button>
+					/>
 				</span>
 			</p>
 			<DialogHint tone={error ? "error" : undefined}>

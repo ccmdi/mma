@@ -6,6 +6,7 @@ import { MANUAL_COMPONENTS, ManualNav } from "@/components/manual/components";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import "@/components/manual/manual.css";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 export function Manual({
 	chapterId,
@@ -38,9 +39,7 @@ export function Manual({
 				<aside className="manual__sidebar">
 					<div className="manual__sidebar-head">
 						<span className="manual__title">{t("Manual")}</span>
-						<button className="icon-button" onClick={onClose} aria-label={t("Close manual")}>
-							<Icon path={mdiClose} />
-						</button>
+						<IconButton icon={mdiClose} label={t("Close manual")} onClick={onClose} />
 					</div>
 					<nav className="manual__toc">
 						<ol>

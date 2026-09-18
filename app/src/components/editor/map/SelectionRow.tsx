@@ -36,7 +36,6 @@ import {
 } from "@/components/editor/map/FilterBuilder";
 import { beginReview } from "@/lib/review/review";
 import { PromptDialog } from "@/components/primitives/Dialog";
-import { Icon } from "@/components/primitives/Icon";
 import { RgbPicker } from "@/components/primitives/ColorPicker";
 import {
 	mdiClose,
@@ -53,6 +52,7 @@ import { getMapHost } from "@/lib/map/mapState";
 import type { MapHost } from "@/lib/map/host";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 async function fitSelectionBounds(host: MapHost, selection: Selection) {
 	const box =
@@ -326,31 +326,23 @@ export const SelectionRow = memo(function SelectionRow({
 				<span className="selection-row__actions">
 					{stepFilter && (
 						<>
-							<button
-								className="icon-button"
-								type="button"
-								aria-label={t("Previous period")}
+							<IconButton
+								icon={mdiChevronLeft}
+								size={18}
+								label={t("Previous period")}
 								onClick={() => stepFilter(-1)}
-							>
-								<Icon path={mdiChevronLeft} size={18} />
-							</button>
-							<button
-								className="icon-button"
-								type="button"
-								aria-label={t("Next period")}
+							/>
+							<IconButton
+								icon={mdiChevronRight}
+								size={18}
+								label={t("Next period")}
 								onClick={() => stepFilter(1)}
-							>
-								<Icon path={mdiChevronRight} size={18} />
-							</button>
+							/>
 						</>
 					)}
 					<Menu.Root modal={false} onOpenChange={(open) => !open && setView("contextmenu")}>
 						<Menu.Trigger
-							render={
-								<button className="icon-button" type="button" aria-label={t("Selection options")}>
-									<Icon path={mdiDotsVertical} />
-								</button>
-							}
+							render={<IconButton icon={mdiDotsVertical} label={t("Selection options")} />}
 						/>
 						<Menu.Portal>
 							<Menu.Positioner className="menu-positioner" align="end">
@@ -456,28 +448,18 @@ export const SelectionRow = memo(function SelectionRow({
 						</Menu.Portal>
 					</Menu.Root>
 					{isTopLevel && (
-						<button
-							className="icon-button"
-							type="button"
-							aria-label={ghosted ? t("Un-ghost selection") : t("Ghost selection")}
-							title={t("Ghost selection (Alt-click to isolate)")}
+						<IconButton
+							icon={ghosted ? mdiGhost : mdiGhostOutline}
+							label={ghosted ? t("Un-ghost selection") : t("Ghost selection")}
+							tooltip={t("Ghost selection (Alt-click to isolate)")}
 							onClick={(e) =>
 								void applySelectionUpdate(
 									e.altKey ? isolateGhost(selection.key) : toggleGhost(selection.key),
 								)
 							}
-						>
-							<Icon path={ghosted ? mdiGhost : mdiGhostOutline} />
-						</button>
+						/>
 					)}
-					<button
-						className="icon-button"
-						type="button"
-						onClick={onRemove}
-						aria-label={t("Deselect")}
-					>
-						<Icon path={mdiClose} />
-					</button>
+					<IconButton icon={mdiClose} label={t("Deselect")} onClick={onRemove} />
 				</span>
 			</div>
 			{editingFilter && selection.selector.type === "Filter" && (

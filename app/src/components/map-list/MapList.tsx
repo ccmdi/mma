@@ -28,6 +28,7 @@ import {
 	type DialogProps,
 } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
+import { IconButton } from "@/components/primitives/IconButton";
 import { DeleteMapDialog, MapSettingsForm } from "@/components/dialogs/MapSettingsForm";
 import {
 	mdiChevronDown,
@@ -280,23 +281,24 @@ const MapEntry = React.memo(function MapEntry({
 
 	return (
 		<li
-			className={clsx("map-list__entry", isDragging && "is-dragging")}
+			className={isDragging ? "is-dragging" : undefined}
 			style={isDragging ? { opacity: 0.4 } : undefined}
 			data-filter-name={meta.name.toLowerCase()}
 			data-filter-labels={meta.labels.join("\n")}
 		>
-			<button
-				className="map-list__drag-handle icon-button"
-				style={{ color: "rgba(255, 255, 255, 0.7)" }}
+			<IconButton
+				className="map-list__drag-handle"
+				icon={mdiDragVertical}
+				label={t("Drag to move")}
+				tooltip={false}
+				reveal
 				draggable={false}
 				onPointerDown={(e) => {
 					if (e.button !== 0) return;
 					e.preventDefault();
 					onDragStart({ id: meta.id, folder: meta.folder, name: meta.name || "(unnamed)" }, e);
 				}}
-			>
-				<Icon path={mdiDragVertical} />
-			</button>
+			/>
 			<a
 				href="#"
 				className="map-link"
@@ -331,20 +333,20 @@ const MapEntry = React.memo(function MapEntry({
 					</span>
 				);
 			})}
-			<button
-				className="map-list__edit icon-button"
-				aria-label={t("Edit map")}
+			<IconButton
+				className="map-list__edit"
+				icon={mdiPencil}
+				label={t("Edit map")}
+				reveal
 				onClick={() => onAction({ type: "edit", id: meta.id, name: meta.name })}
-			>
-				<Icon path={mdiPencil} />
-			</button>
-			<button
-				className="map-list__edit icon-button"
-				aria-label={t("Delete map")}
+			/>
+			<IconButton
+				className="map-list__edit"
+				icon={mdiDelete}
+				label={t("Delete map")}
+				reveal
 				onClick={() => onAction({ type: "delete", id: meta.id, name: meta.name })}
-			>
-				<Icon path={mdiDelete} />
-			</button>
+			/>
 		</li>
 	);
 });
@@ -393,15 +395,17 @@ const FolderEntry = React.memo(function FolderEntry({
 			onOpenChange={setOpen}
 			render={<li className="map-folder" data-drop-folder={name} data-filter-folder />}
 		>
-			<div className="map-folder__head">
+			<div>
 				<Collapsible.Trigger
 					id={triggerId}
-					className="icon-button"
-					style={{ display: "inline-block" }}
-					aria-label={t("Open or close folder")}
-				>
-					<Icon path={open ? mdiChevronDown : mdiChevronRight} />
-				</Collapsible.Trigger>
+					render={
+						<IconButton
+							icon={open ? mdiChevronDown : mdiChevronRight}
+							label={t("Open or close folder")}
+							tooltip={false}
+						/>
+					}
+				/>
 				<label htmlFor={triggerId}>
 					<strong>{name}</strong>
 					<span className="map-list__folder-count">
@@ -413,20 +417,20 @@ const FolderEntry = React.memo(function FolderEntry({
 						})}
 					</span>
 				</label>
-				<button
-					className="map-list__edit icon-button"
-					aria-label={t("Rename folder")}
+				<IconButton
+					className="map-list__edit"
+					icon={mdiPencil}
+					label={t("Rename folder")}
+					reveal
 					onClick={() => onFolderAction({ type: "rename-folder", name, mapCount: maps.length })}
-				>
-					<Icon path={mdiPencil} />
-				</button>
-				<button
-					className="map-list__edit icon-button"
-					aria-label={t("Delete folder")}
+				/>
+				<IconButton
+					className="map-list__edit"
+					icon={mdiFolderRemove}
+					label={t("Delete folder")}
+					reveal
 					onClick={() => onFolderAction({ type: "delete-folder", name, mapCount: maps.length })}
-				>
-					<Icon path={mdiFolderRemove} />
-				</button>
+				/>
 			</div>
 			<Collapsible.Panel render={<ul className="map-sublist" />}>
 				{maps.map((m) => (
@@ -725,22 +729,20 @@ export function BulkActions() {
 
 	return (
 		<>
-			<button
-				className="settings-gear"
+			<IconButton
+				icon={mdiExport}
+				size={18}
+				label={exporting ? t("Exporting...") : t("Export all maps")}
 				onClick={() => void handleExport()}
 				disabled={exporting}
-				title={exporting ? t("Exporting...") : t("Export all maps")}
-			>
-				<Icon path={mdiExport} />
-			</button>
-			<button
-				className="settings-gear"
+			/>
+			<IconButton
+				icon={mdiImport}
+				size={18}
+				label={parseStatus ?? (importing ? t("Importing...") : t("Import maps"))}
 				onClick={() => void handleImport()}
 				disabled={importing || parseStatus !== null}
-				title={parseStatus ?? (importing ? t("Importing...") : t("Import maps"))}
-			>
-				<Icon path={mdiImport} />
-			</button>
+			/>
 			{preview && (
 				<ImportPreviewModal
 					open
@@ -1003,10 +1005,10 @@ export function MapList() {
 							autoFocus
 						/>
 						{hasFilter && (
-							<button
-								type="button"
-								className="icon-button"
-								aria-label={t("Clear search")}
+							<IconButton
+								icon={mdiClose}
+								size={16}
+								label={t("Clear search")}
 								onClick={clearFilter}
 								style={{
 									position: "absolute",
@@ -1018,11 +1020,8 @@ export function MapList() {
 									justifyContent: "center",
 									lineHeight: 0,
 									padding: 2,
-									color: "#888",
 								}}
-							>
-								<Icon path={mdiClose} size={16} />
-							</button>
+							/>
 						)}
 					</span>
 					<NSelect
@@ -1036,8 +1035,9 @@ export function MapList() {
 							</option>
 						))}
 					</NSelect>
-					<button
-						className="icon-button"
+					<IconButton
+						icon={mdiFolder}
+						label={t("New folder")}
 						onClick={() => {
 							const name = filterInputRef.current?.value.trim();
 							if (!name) {
@@ -1046,12 +1046,10 @@ export function MapList() {
 							}
 							setSyntheticFolders((prev) => (prev.includes(name) ? prev : [...prev, name]));
 						}}
-						aria-label={t("New folder")}
-					>
-						<Icon path={mdiFolder} />
-					</button>
-					<button
-						className="icon-button"
+					/>
+					<IconButton
+						icon={mdiPlus}
+						label={t("New map")}
 						onClick={() => {
 							const name = filterInputRef.current?.value.trim();
 							if (!name) {
@@ -1060,10 +1058,7 @@ export function MapList() {
 							}
 							void createMap(name);
 						}}
-						aria-label={t("New map")}
-					>
-						<Icon path={mdiPlus} />
-					</button>
+					/>
 				</p>
 
 				<ul className="map-list" data-drop-folder="" ref={listRef}>
@@ -1092,9 +1087,7 @@ export function MapList() {
 							fields={mapListFields}
 						/>
 					))}
-					{rootMaps.length === 0 && dragItem && (
-						<li className="map-list__entry">{t("drop map here to move out of folder")}</li>
-					)}
+					{rootMaps.length === 0 && dragItem && <li>{t("drop map here to move out of folder")}</li>}
 				</ul>
 			</section>
 			<section className="updates">

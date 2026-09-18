@@ -19,6 +19,7 @@ import { shortDateFmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { dateTimeFmt } from "@/lib/util/format";
 import type { ReviewSession } from "@/bindings.gen";
+import { IconButton } from "@/components/primitives/IconButton";
 
 function formatDate(iso: string): string {
 	const d = new Date(iso);
@@ -105,24 +106,20 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 									key={s.id}
 									actions={
 										<>
-											<button
-												className="icon-button"
-												title={t("Select reviewed")}
-												aria-label={t("Select reviewed")}
+											<IconButton
+												icon={mdiCheckCircleOutline}
+												size={18}
+												label={t("Select reviewed")}
 												onClick={() => handleSelect(s, "reviewed")}
 												data-qa="review-select-reviewed"
-											>
-												<Icon path={mdiCheckCircleOutline} size={18} />
-											</button>
-											<button
-												className="icon-button"
-												title={t("Select unreviewed")}
-												aria-label={t("Select unreviewed")}
+											/>
+											<IconButton
+												icon={mdiCircleOutline}
+												size={18}
+												label={t("Select unreviewed")}
 												onClick={() => handleSelect(s, "unreviewed")}
 												data-qa="review-select-unreviewed"
-											>
-												<Icon path={mdiCircleOutline} size={18} />
-											</button>
+											/>
 											{filter === "active" && (
 												<Button
 													variant="primary"

@@ -10,13 +10,13 @@ import {
 	insertSeparator,
 	reorderPinned,
 } from "@/store/commands";
-import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { useDialog } from "@/store/dialogBus";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
 import { toggleInSet } from "@/lib/util/util";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 export interface PanelDef {
 	render: (onClose: () => void) => ReactNode;
@@ -134,22 +134,21 @@ export function PinnedToolbar({
 					const isLast = i === pinned.length - 1;
 
 					const btn = command.icon ? (
-						<button
-							className={clsx("icon-button", {
-								"is-active": isOpen,
+						<IconButton
+							className={clsx({
 								"is-disabled": disabled,
 								"is-dragging": dragIdx === i,
 							})}
-							type="button"
-							aria-label={t(command.label)}
+							icon={command.icon}
+							label={t(command.label)}
+							tooltip={false}
+							active={isOpen}
 							data-qa={id}
 							data-drop={dropIdx === i ? "" : undefined}
 							onClick={disabled ? undefined : handleClick}
 							onMouseDown={(e) => handleDragStart(i, e)}
 							onMouseMove={() => handleDragOver(i)}
-						>
-							<Icon path={command.icon} />
-						</button>
+						/>
 					) : (
 						<Button
 							className={clsx({

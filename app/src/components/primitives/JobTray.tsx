@@ -3,9 +3,9 @@ import { mdiClose } from "@mdi/js";
 import { getJobs, getExitRequest, resolveMapExit } from "@/lib/jobs";
 import { useEventValue } from "@/lib/events";
 import { ConfirmDialog } from "@/components/primitives/Dialog";
-import { Icon } from "@/components/primitives/Icon";
 import { Bar } from "@/components/primitives/Bar";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 const PEEK_MS = 2500;
 
@@ -71,17 +71,16 @@ export function JobTray() {
 							<Bar value={j.fraction} />
 							{j.detail && <span className="toast-progress__label">{j.detail}</span>}
 							{j.cancel && (
-								<button
-									className="icon-button job-tray__cancel"
-									type="button"
-									aria-label={t("Cancel")}
+								<IconButton
+									className="job-tray__cancel"
+									icon={mdiClose}
+									size={14}
+									label={t("Cancel")}
 									onClick={(e) => {
 										e.stopPropagation();
 										j.cancel?.();
 									}}
-								>
-									<Icon path={mdiClose} size={14} />
-								</button>
+								/>
 							)}
 						</div>
 					))}

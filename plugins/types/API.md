@@ -2020,6 +2020,37 @@ Click-to-record key combo input. Backspace/Delete clears, Escape cancels.
 ui.Icon(props: IconProps): react.JSX.Element
 ```
 
+#### ui.IconButton
+
+`unstable` · unreleased
+
+```ts
+ui.IconButton(
+  props: Omit<ComponentPropsWithRef<"button">, "aria-label" | "title"> & {
+    /** An icon path, or a drawn icon to show instead. */
+    icon: string | ReactNode;
+    /** What the button does, read aloud and shown as its tooltip. */
+    label: string;
+    /** The icon's size in pixels. */
+    size?: number;
+    /** Shows the button as pressed. */
+    active?: boolean;
+    /** Hides the button until its row is hovered or holds focus. */
+    reveal?: boolean;
+    /** Draws the button for use over map or street view imagery. */
+    overlay?: boolean;
+    /** The tooltip text, or false for none. Defaults to the label. */
+    tooltip?: string | false;
+    /** The side the tooltip opens on. */
+    tooltipSide?: "top" | "bottom" | "left" | "right";
+    /** Shown after the icon, such as a badge. */
+    children?: ReactNode;
+  },
+): react.JSX.Element
+```
+
+A button showing only an icon, named by its label.
+
 #### ui.NSelect
 
 `unstable` · since v0.10.0

@@ -32,6 +32,7 @@ import { errText } from "@/lib/util/format";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { ATTACHMENT_PREFS, type SubmittedReport } from "@/store/feedback";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
+import { IconButton } from "@/components/primitives/IconButton";
 
 const KINDS: Array<{ value: ReportKind; label: string }> = [
 	{ value: "bug", label: msg("Something is broken") },
@@ -269,14 +270,13 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 					{images.map((image) => (
 						<div key={image.id} className="report-dialog__image">
 							<img src={image.preview} alt={image.name} title={image.name} />
-							<button
-								type="button"
-								className="icon-button report-dialog__image-remove"
-								title={t("Remove")}
+							<IconButton
+								className="report-dialog__image-remove"
+								icon={mdiClose}
+								size={12}
+								label={t("Remove")}
 								onClick={() => removeImage(image)}
-							>
-								<Icon path={mdiClose} size={12} />
-							</button>
+							/>
 						</div>
 					))}
 					{images.length < MAX_ATTACHMENTS && (

@@ -11,10 +11,10 @@ import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import clsx from "clsx";
 import { Button } from "@/components/primitives/Button";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
-import { Icon } from "@/components/primitives/Icon";
 import { TextInput } from "@/components/primitives/TextInput";
 import { mdiClose } from "@mdi/js";
 import { t } from "@/lib/i18n";
+import { IconButton } from "@/components/primitives/IconButton";
 
 const CloseContext = createContext<(() => void) | null>(null);
 
@@ -185,9 +185,7 @@ export function DialogContent({
 					<div className={clsx("modal__dialog", `modal__dialog--${size}`, className)}>
 						<header className={clsx("modal__header", className ? `${className}__header` : null)}>
 							<BaseDialog.Title className="modal__title">{title}</BaseDialog.Title>
-							<BaseDialog.Close className="icon-button modal__close">
-								<Icon path={mdiClose} />
-							</BaseDialog.Close>
+							<BaseDialog.Close render={<IconButton icon={mdiClose} label={t("Close")} />} />
 						</header>
 						<div className="modal__content">{children}</div>
 					</div>
