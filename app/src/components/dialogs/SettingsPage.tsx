@@ -6,6 +6,7 @@ import {
 	type DialogProps,
 } from "@/components/primitives/Dialog";
 import { Hint, Notice } from "@/components/primitives/Hint";
+import { Spinner } from "@/components/primitives/Spinner";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Slider } from "@/components/primitives/Slider";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -1233,7 +1234,7 @@ function DataBody() {
 	return (
 		<Aux match="data location folder storage">
 			<code style={{ display: "block", wordBreak: "break-all", marginBottom: 8 }}>
-				{loc?.path ?? "..."}
+				{loc?.path ?? <Spinner />}
 			</code>
 			<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
 				<Button onClick={() => void pick()}>{t("Change folder...")}</Button>

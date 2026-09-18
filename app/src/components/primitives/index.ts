@@ -47,6 +47,7 @@ export {
 	type SegmentedOption,
 } from "./Sidebar";
 export { Slider } from "./Slider";
+export { Spinner } from "./Spinner";
 export { SuggestInput } from "./SuggestInput";
 export { Switch } from "./Switch";
 export { SwitchRow } from "./SwitchRow";

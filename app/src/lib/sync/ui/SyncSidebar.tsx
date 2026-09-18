@@ -3,6 +3,7 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { Sidebar, Section, Field, EmptyState } from "@/components/primitives/Sidebar";
 import { Notice } from "@/components/primitives/Hint";
 import { Tooltip } from "@/components/primitives/Tooltip";
+import { Spinner } from "@/components/primitives/Spinner";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiInformationOutline } from "@mdi/js";
@@ -353,7 +354,7 @@ export function SyncSidebar({
 							minHeight: "2rem",
 						}}
 					>
-						<span className="spinner" aria-label={t("Checking connection")} />
+						<Spinner label={t("Checking connection")} />
 					</div>
 				) : (
 					auth
@@ -481,7 +482,7 @@ export function SyncSidebar({
 						<Button onClick={() => setMapsAttempt((n) => n + 1)}>{t("Retry loading maps")}</Button>
 					) : !maps ? (
 						<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
-							<span className="spinner" aria-label={t("Loading maps")} />
+							<Spinner label={t("Loading maps")} />
 						</div>
 					) : (
 						<Field label={t("Find a remote map")}>

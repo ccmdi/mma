@@ -693,6 +693,7 @@
 	"Live": "В реальном времени",
 	"Load as pano ID": "Загружать по Pano ID",
 	"Load shapes from GeoJSON as selection": "Загрузить фигуры из GeoJSON как выборку",
+	"Loading": "Загрузка",
 	"Loading document...": "Загрузка документа...",
 	"Loading maps": "Загрузка карт",
 	"Local (offline)": "Локально (офлайн)",

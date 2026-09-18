@@ -18,6 +18,7 @@ import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
+import { Spinner } from "@/components/primitives/Spinner";
 import {
 	mdiCameraOutline,
 	mdiFullscreenExit,
@@ -28,7 +29,6 @@ import {
 	mdiMinus,
 	mdiHome,
 	mdiOpenInNew,
-	mdiLoading,
 	mdiCheck,
 	mdiContentCopy,
 	mdiImageFilterHdrOutline,
@@ -417,7 +417,7 @@ export const PanoControls = memo(function PanoControls({
 									data-qa="pano-screenshot"
 								>
 									{screenshotState === "loading" ? (
-										<Icon path={mdiLoading} className="spin" />
+										<Spinner size="18px" />
 									) : screenshotState === "done" ? (
 										<Icon path={mdiCheck} />
 									) : (
@@ -523,7 +523,7 @@ export const PanoControls = memo(function PanoControls({
 								aria-label={t("Copy link")}
 							>
 								{copyState === "loading" ? (
-									<Icon path={mdiLoading} className="spin" />
+									<Spinner size="18px" />
 								) : copyState === "done" ? (
 									<Icon path={mdiCheck} />
 								) : (

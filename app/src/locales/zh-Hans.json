@@ -636,6 +636,7 @@
 	"Live": "实时",
 	"Load as pano ID": "按全景 ID 加载",
 	"Load shapes from GeoJSON as selection": "从 GeoJSON 加载形状为选择",
+	"Loading": "正在加载",
 	"Loading document...": "正在加载文档…",
 	"Loading maps": "正在加载地图",
 	"Local (offline)": "本地（离线）",

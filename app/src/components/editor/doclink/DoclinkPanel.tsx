@@ -23,6 +23,7 @@ import {
 import { openHref } from "@/lib/map/mapClick";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { usePointerDrag } from "@/lib/hooks/usePointerDrag";
+import { Spinner } from "@/components/primitives/Spinner";
 import { clamp, range } from "@/types/util";
 import { DocRenderer } from "@/components/editor/doclink/DocRenderer";
 import "./doclink.css";
@@ -212,7 +213,7 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 			>
 				{loading && shown && (
 					<div className="doclink-panel__loading">
-						<span className="spinner" />
+						<Spinner />
 					</div>
 				)}
 				{tags.length === 0 ? (
@@ -244,7 +245,7 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 					<ShadowHtml css={shown.css} html={shown.html} />
 				) : loading ? (
 					<div className="doclink-panel__status doclink-panel__status--center">
-						<span className="spinner" />
+						<Spinner />
 					</div>
 				) : null}
 			</div>

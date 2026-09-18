@@ -87,7 +87,7 @@ describe("the generator region list", () => {
 		);
 
 		const rows = [...m.container.querySelectorAll(".generator-regions__item-name")];
-		expect(rows[0].querySelector(".generator-regions__spinner")).not.toBeNull();
-		expect(rows[1].querySelector(".generator-regions__spinner")).toBeNull();
+		expect(rows[0].querySelector(".spinner")).not.toBeNull();
+		expect(rows[1].querySelector(".spinner")).toBeNull();
 	});
 });

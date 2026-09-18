@@ -162,9 +162,9 @@ function WhatsNew() {
 				)}
 			</time>
 			<div className={clsx("updates__skeleton", releases && "updates__skeleton--hidden")}>
-				<span />
-				<span />
-				<span />
+				<span className="skeleton" />
+				<span className="skeleton" />
+				<span className="skeleton" />
 			</div>
 			<div className={clsx("updates__notes", releases && "updates__notes--open")}>
 				<div>

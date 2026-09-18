@@ -4,6 +4,7 @@ import { useEvent, SELECTION_EVENTS } from "@/lib/events";
 import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
 import { Bar } from "@/components/primitives/Bar";
 import { Notice } from "@/components/primitives/Hint";
+import { Spinner } from "@/components/primitives/Spinner";
 import type { Selection, ExtraFieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { analysisColumns, computeDivergence, soleGroup, type GroupColumns } from "./engine";
@@ -191,7 +192,12 @@ export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 	return (
 		<Sidebar title={t("Disambiguate selections")} onBack={onClose} className="disambig">
 			{error && <Notice tone="error">{error.message}</Notice>}
-			{!error && loading && <div className="disambig__muted">{t("Analyzing\u2026")}</div>}
+			{!error && loading && (
+				<div className="disambig__loading">
+					<Spinner />
+					<span className="disambig__muted">{t("Analyzing…")}</span>
+				</div>
+			)}
 			{!error && analysis && (
 				<>
 					<div className="disambig__summary disambig__muted">

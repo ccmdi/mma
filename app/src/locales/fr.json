@@ -674,6 +674,7 @@
 	"Live": "En direct",
 	"Load as pano ID": "Charger par Pano ID",
 	"Load shapes from GeoJSON as selection": "Charger des formes GeoJSON comme sélection",
+	"Loading": "Chargement",
 	"Loading document...": "Chargement du document...",
 	"Loading maps": "Chargement des cartes",
 	"Local (offline)": "Local (hors ligne)",

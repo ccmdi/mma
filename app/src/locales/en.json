@@ -655,6 +655,7 @@
 	"Live": "Live",
 	"Load as pano ID": "Load as pano ID",
 	"Load shapes from GeoJSON as selection": "Load shapes from GeoJSON as selection",
+	"Loading": "Loading",
 	"Loading document...": "Loading document...",
 	"Loading maps": "Loading maps",
 	"Local (offline)": "Local (offline)",

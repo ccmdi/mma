@@ -436,10 +436,10 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 								<div key={i} className="plugin-card plugin-card--skeleton" aria-hidden="true">
 									<div className="plugin-card__icon" />
 									<div className="plugin-card__info">
-										<div className="plugin-skeleton__line plugin-skeleton__line--title" />
-										<div className="plugin-skeleton__line" />
+										<div className="skeleton plugin-skeleton__line plugin-skeleton__line--title" />
+										<div className="skeleton plugin-skeleton__line" />
 									</div>
-									<div className="plugin-skeleton__btn" />
+									<div className="skeleton plugin-skeleton__btn" />
 								</div>
 							))}
 						{fetchError && (

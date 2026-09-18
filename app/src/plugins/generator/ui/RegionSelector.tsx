@@ -5,6 +5,7 @@ import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Flag } from "@/components/primitives/Flag";
 import { Hint } from "@/components/primitives/Hint";
+import { Spinner } from "@/components/primitives/Spinner";
 import type { Selection } from "@/bindings.gen";
 import type { GeneratorRegionMeta } from "../engine/types";
 import { useFoundRate } from "./progressSignal";
@@ -54,7 +55,7 @@ function RegionRow({
 			<div className="generator-regions__item-name">
 				<Flag code={code} className="generator-regions__flag" />
 				<span>{name}</span>
-				{processing && <span className="spinner generator-regions__spinner" />}
+				{processing && <Spinner size="10px" />}
 			</div>
 			<div className="generator-regions__item-count">
 				{rate != null && <span className="generator-regions__rate">{rateLabel(rate)}</span>}

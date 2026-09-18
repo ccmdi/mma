@@ -152,10 +152,6 @@
 	font-weight: 600;
 }
 
-.generator-regions__spinner {
-	--spinner-size: 10px;
-}
-
 /* Settings panel */
 .generator-settings__number {
 	display: flex;

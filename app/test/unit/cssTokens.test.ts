@@ -83,6 +83,7 @@ const SET_INLINE: Record<string, string> = {
 	"--fs-minimap-h": "FullscreenMiniMap sets its expanded size",
 	"--lg-map-w": "the LocalGuessr guess map sets its expanded size",
 	"--lg-map-h": "the LocalGuessr guess map sets its expanded size",
+	"--spinner-size": "Spinner sets its size",
 	"--tag-gap": "the tag gap setting is mirrored onto :root",
 };
 

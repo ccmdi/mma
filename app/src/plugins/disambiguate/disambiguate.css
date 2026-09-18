@@ -1,3 +1,8 @@
+.disambig__loading {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
 .disambig__muted {
 	color: var(--text-2);
 	font-size: 0.85em;

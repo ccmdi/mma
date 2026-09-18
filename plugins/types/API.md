@@ -2229,6 +2229,16 @@ ui.Slider(
 
 A range input whose track fills up to its value, followed by the value itself when `format` is given.
 
+#### ui.Spinner
+
+`stable` · unreleased
+
+```ts
+ui.Spinner(props: { size?: string; label?: string }): react.JSX.Element
+```
+
+A spinning ring shown while something loads. `size` is any length, such as `"10px"`.
+
 #### ui.SuggestInput
 
 `unstable` · since v0.10.0
