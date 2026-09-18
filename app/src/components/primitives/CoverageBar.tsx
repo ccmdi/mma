@@ -2,8 +2,7 @@ import clsx from "clsx";
 import { Bar, type BarSize } from "@/components/primitives/Bar";
 import { t } from "@/lib/i18n";
 
-/** Share of locations holding a value, as a bar and a percentage. `status` colors it by
- *  whether every location is covered. */
+/** Share of locations holding a value as a bar and a percentage, colored by whether every location is covered when `status` is set. */
 export function CoverageBar({
 	ratio,
 	size = "md",

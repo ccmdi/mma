@@ -3,7 +3,7 @@ import clsx from "clsx";
 export type BarSize = "sm" | "md" | "lg";
 export type BarTone = "accent" | "complete" | "incomplete";
 
-/** Determinate fill bar. `value` runs 0 to 1 and is clamped to it. */
+/** A bar filled to `value`, a share from 0 to 1. */
 export function Bar({
 	value,
 	size = "sm",

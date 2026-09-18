@@ -1745,6 +1745,21 @@ The nested `sidecar` namespace on the plugin surface.
 
 `stable` · since v0.6.1
 
+#### ui.Bar
+
+`stable` · unreleased
+
+```ts
+ui.Bar(props: {
+  value: number;
+  size?: BarSize;
+  tone?: BarTone;
+  className?: string;
+}): react.JSX.Element
+```
+
+A bar filled to `value`, a share from 0 to 1.
+
 #### ui.Button
 
 `stable` · since v0.10.0
@@ -1779,6 +1794,21 @@ ui.ColorPicker(props: {
 ```
 
 A color swatch that opens the picker in a popover on click.
+
+#### ui.CoverageBar
+
+`stable` · unreleased
+
+```ts
+ui.CoverageBar(props: {
+  ratio: number;
+  size?: BarSize;
+  status?: boolean;
+  className?: string;
+}): react.JSX.Element
+```
+
+Share of locations holding a value as a bar and a percentage, colored by whether every location is covered when `status` is set.
 
 #### ui.DatePicker
 
@@ -1892,6 +1922,23 @@ ui.Icon(props: IconProps): react.JSX.Element
 ```ts
 ui.NSelect(props: ComponentPropsWithRef<"select">): react.JSX.Element
 ```
+
+#### ui.ProgressRow
+
+`stable` · unreleased
+
+```ts
+ui.ProgressRow(props: {
+  label: ReactNode;
+  count?: ReactNode;
+  value: number;
+  size?: BarSize;
+  className?: string;
+  children?: ReactNode;
+}): react.JSX.Element
+```
+
+A progress bar under its label and count, with any extra detail below it.
 
 #### ui.Radio
 

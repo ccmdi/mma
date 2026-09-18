@@ -5505,6 +5505,16 @@ declare namespace sidecar$1 {
   export type { sidecar$1_SidecarOptions as SidecarOptions };
 }
 
+export type BarSize = "sm" | "md" | "lg";
+export type BarTone = "accent" | "complete" | "incomplete";
+/** A bar filled to `value`, a share from 0 to 1. */
+declare function Bar({ value, size, tone, className, }: {
+    value: number;
+    size?: BarSize;
+    tone?: BarTone;
+    className?: string;
+}): react.JSX.Element;
+
 export type ButtonVariant = "primary" | "destructive" | "ghost";
 declare function Button({ variant, small, type, className, ...props }: ComponentPropsWithRef<"button"> & {
     variant?: ButtonVariant;
@@ -5523,6 +5533,14 @@ declare function ColorPicker({ color, onChange, ariaLabel, }: {
     color: RGB;
     onChange: (color: RGB) => void;
     ariaLabel?: string;
+}): react.JSX.Element;
+
+/** Share of locations holding a value as a bar and a percentage, colored by whether every location is covered when `status` is set. */
+declare function CoverageBar({ ratio, size, status, className, }: {
+    ratio: number;
+    size?: BarSize;
+    status?: boolean;
+    className?: string;
 }): react.JSX.Element;
 
 /** @unstable */
@@ -5592,6 +5610,16 @@ declare function Icon({ path, size, className, style }: IconProps): react.JSX.El
 
 /** @unstable */
 declare function NSelect({ className, onWheel, ...props }: ComponentPropsWithRef<"select">): react.JSX.Element;
+
+/** A progress bar under its label and count, with any extra detail below it. */
+declare function ProgressRow({ label, count, value, size, className, children, }: {
+    label: ReactNode;
+    count?: ReactNode;
+    value: number;
+    size?: BarSize;
+    className?: string;
+    children?: ReactNode;
+}): react.JSX.Element;
 
 declare function Radio({ className, ...props }: ComponentPropsWithRef<"input">): react.JSX.Element;
 
@@ -5775,9 +5803,11 @@ declare function Tooltip({ content, side, align, children, }: {
  * (Settings-dialog plumbing), Trans (i18n infra).
  */
 
+declare const primitives_Bar: typeof Bar;
 declare const primitives_Button: typeof Button;
 declare const primitives_Checkbox: typeof Checkbox;
 declare const primitives_ColorPicker: typeof ColorPicker;
+declare const primitives_CoverageBar: typeof CoverageBar;
 /** @unstable */
 declare const primitives_DatePicker: typeof DatePicker;
 /** @unstable */
@@ -5795,6 +5825,7 @@ declare const primitives_HotkeyInput: typeof HotkeyInput;
 declare const primitives_Icon: typeof Icon;
 /** @unstable */
 declare const primitives_NSelect: typeof NSelect;
+declare const primitives_ProgressRow: typeof ProgressRow;
 declare const primitives_Radio: typeof Radio;
 /** @unstable */
 declare const primitives_RgbPicker: typeof RgbPicker;
@@ -5822,7 +5853,7 @@ declare const primitives_Tooltip: typeof Tooltip;
 /** @unstable */
 declare const primitives_useCloseDialog: typeof useCloseDialog;
 declare namespace primitives {
-  export { primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogContent as DialogContent, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_NSelect as NSelect, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
+  export { primitives_Bar as Bar, primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_CoverageBar as CoverageBar, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogContent as DialogContent, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_NSelect as NSelect, primitives_ProgressRow as ProgressRow, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
   export type { primitives_DialogProps as DialogProps, primitives_SegmentedOption as SegmentedOption };
 }
 

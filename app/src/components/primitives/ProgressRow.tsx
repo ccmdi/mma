@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import clsx from "clsx";
 import { Bar, type BarSize } from "@/components/primitives/Bar";
 
-/** A labelled progress bar: label and count on one line, the bar under them, and any extra detail below. */
+/** A progress bar under its label and count, with any extra detail below it. */
 export function ProgressRow({
 	label,
 	count,
